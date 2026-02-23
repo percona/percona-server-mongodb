@@ -12,6 +12,7 @@
 
 import {assertDropAndRecreateCollection} from "jstests/libs/collection_drop_recreate.js";
 import {FixtureHelpers} from "jstests/libs/fixture_helpers.js";
+import {add2dsphereVersionIfNeededForSpec} from "jstests/libs/query/geo_index_version_helpers.js";
 import {IndexCatalogHelpers} from "jstests/libs/index_catalog_helpers.js";
 import {getNumberOfIndexScans} from "jstests/libs/query/analyze_plan.js";
 
@@ -27,8 +28,12 @@ function validateHiddenIndexBehaviour({query = {}, projection = {}, index_type =
     if (wildcard) index_name = "a.$**_" + index_type;
     else index_name = "a_" + index_type;
 
-    if (wildcard) assert.commandWorked(coll.createIndex({"a.$**": index_type}));
-    else assert.commandWorked(coll.createIndex({"a": index_type}));
+    if (wildcard)
+        assert.commandWorked(
+            coll.createIndex({"a.$**": index_type}, add2dsphereVersionIfNeededForSpec({"a.$**": index_type})),
+        );
+    else
+        assert.commandWorked(coll.createIndex({"a": index_type}, add2dsphereVersionIfNeededForSpec({"a": index_type})));
 
     let idxSpec = IndexCatalogHelpers.findByName(coll.getIndexes(), index_name);
     assert.eq(idxSpec.hidden, undefined);
@@ -60,8 +65,17 @@ function validateHiddenIndexBehaviour({query = {}, projection = {}, index_type =
 
     assert.commandWorked(coll.dropIndex(index_name));
 
-    if (wildcard) assert.commandWorked(coll.createIndex({"a.$**": index_type}, {hidden: true}));
-    else assert.commandWorked(coll.createIndex({"a": index_type}, {hidden: true}));
+    if (wildcard)
+        assert.commandWorked(
+            coll.createIndex(
+                {"a.$**": index_type},
+                add2dsphereVersionIfNeededForSpec({"a.$**": index_type}, {hidden: true}),
+            ),
+        );
+    else
+        assert.commandWorked(
+            coll.createIndex({"a": index_type}, add2dsphereVersionIfNeededForSpec({"a": index_type}, {hidden: true})),
+        );
 
     idxSpec = IndexCatalogHelpers.findByName(coll.getIndexes(), index_name);
     assert(idxSpec.hidden);

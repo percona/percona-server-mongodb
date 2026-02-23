@@ -15,7 +15,7 @@ import sys
 import time
 from concurrent import futures
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Optional
 
 import yaml
 
@@ -41,12 +41,12 @@ for config in ["/tmp/compiledb-bin/.clang-tidy.strict", "bazel-bin/.clang-tidy.s
 def _clang_tidy_executor(
     clang_tidy_filename: Path,
     clang_tidy_binary: str,
-    clang_tidy_cfg: Dict[str, Any],
+    clang_tidy_cfg: dict[str, Any],
     output_dir: str,
     show_stdout: bool,
     mongo_check_module: str = "",
     compile_commands: str = "compile_commands.json",
-) -> Tuple[str, Optional[str]]:
+) -> tuple[str, Optional[str]]:
     clang_tidy_parent_dir = output_dir / clang_tidy_filename.parent
     os.makedirs(clang_tidy_parent_dir, exist_ok=True)
 
@@ -92,7 +92,7 @@ def _clang_tidy_executor(
     return proc.stdout.decode(locale.getpreferredencoding()), files_to_parse
 
 
-def _combine_errors(fixes_filename: str, files_to_parse: List[str]) -> int:
+def _combine_errors(fixes_filename: str, files_to_parse: list[str]) -> int:
     failed_files = 0
     all_fixes = {}
 
@@ -140,7 +140,7 @@ def _combine_errors(fixes_filename: str, files_to_parse: List[str]) -> int:
     return failed_files
 
 
-def __dedup_errors(clang_tidy_errors_threads: List[str]) -> str:
+def __dedup_errors(clang_tidy_errors_threads: list[str]) -> str:
     unique_single_errors = set()
     for errs in clang_tidy_errors_threads:
         if errs:
@@ -211,7 +211,7 @@ def _run_tidy(args, parser_defaults):
             )
             sys.exit(1)
 
-    files_to_tidy: List[Path] = list()
+    files_to_tidy: list[Path] = list()
     files_to_parse = list()
     filtered_compile_commands = []
     for file_doc in compile_commands:
@@ -259,8 +259,8 @@ def _run_tidy(args, parser_defaults):
     total_jobs = len(files_to_tidy)
     workers = args.threads
 
-    clang_tidy_errors_futures: List[str] = []
-    clang_tidy_executor_futures: List[futures.ThreadPoolExecutor.submit] = []
+    clang_tidy_errors_futures: list[str] = []
+    clang_tidy_executor_futures: list[futures.ThreadPoolExecutor.submit] = []
 
     # total completed tasks
     tasks_completed = 0

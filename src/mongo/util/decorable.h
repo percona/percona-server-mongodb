@@ -87,6 +87,9 @@ template <typename T>
 constexpr inline bool pretendTrivialInit = false;
 template <typename T>
 constexpr inline bool pretendTrivialInit<std::unique_ptr<T>> = true;
+template <typename T, typename Deleter>
+constexpr inline bool pretendTrivialInit<std::unique_ptr<T, Deleter>> =
+    std::is_trivially_constructible_v<Deleter>;
 template <typename T>
 constexpr inline bool pretendTrivialInit<std::shared_ptr<T>> = true;
 template <typename T>

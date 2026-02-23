@@ -35,6 +35,7 @@
 #include "mongo/db/op_observer/op_observer_noop.h"
 #include "mongo/db/operation_context.h"
 #include "mongo/db/repl/oplog.h"
+#include "mongo/db/s/resharding/resharding_metrics_common.h"
 #include "mongo/db/session/logical_session_id.h"
 #include "mongo/db/shard_role/shard_catalog/collection.h"
 #include "mongo/db/storage/durable_history_pin.h"
@@ -69,6 +70,8 @@ class MONGO_MOD_PUBLIC ReshardingOpObserver final : public OpObserverNoop {
     ReshardingOpObserver& operator=(const ReshardingOpObserver&) = delete;
 
 public:
+    using Role = ReshardingMetricsCommon::Role;
+
     ReshardingOpObserver();
     ~ReshardingOpObserver() override;
 
@@ -96,6 +99,13 @@ public:
                   const DocumentKey& documentKey,
                   const OplogDeleteEntryArgs& args,
                   OpStateAccumulator* opAccumulator = nullptr) override;
+
+private:
+    const stdx::unordered_map<NamespaceString, Role> _nssToRoleMap{
+        {NamespaceString::kConfigReshardingOperationsNamespace, Role::kCoordinator},
+        {NamespaceString::kDonorReshardingOperationsNamespace, Role::kDonor},
+        {NamespaceString::kRecipientReshardingOperationsNamespace, Role::kRecipient},
+    };
 };
 
 }  // namespace mongo

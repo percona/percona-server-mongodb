@@ -87,7 +87,7 @@ private:
                                                 MongoExtensionExecAggStage* execAggStage,
                                                 MongoExtensionOperationMetrics** metrics) noexcept;
 
-    static constexpr ::MongoExtensionQueryExecutionContextVTable VTABLE{
+    static constexpr ::MongoExtensionQueryExecutionContextVTable VTABLE = {
         .check_for_interrupt = &_extCheckForInterrupt, .get_metrics = &_extGetMetrics};
 
     std::unique_ptr<QueryExecutionContextBase> _ctx;

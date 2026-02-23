@@ -13,14 +13,14 @@ from __future__ import annotations
 
 import argparse
 import pathlib
-from typing import Any, Dict, List
+from typing import Any
 
 import yaml
 
 # --------------------------- YAML helpers ---------------------------
 
 
-def load_yaml(file_path: str | pathlib.Path) -> Dict[str, Any]:
+def load_yaml(file_path: str | pathlib.Path) -> dict[str, Any]:
     path = pathlib.Path(file_path)
     if not path.exists():
         raise SystemExit(f"Error: Config file '{file_path}' not found.")
@@ -28,11 +28,11 @@ def load_yaml(file_path: str | pathlib.Path) -> Dict[str, Any]:
         return yaml.safe_load(f) or {}
 
 
-def split_checks_to_list(value: Any) -> List[str]:
+def split_checks_to_list(value: Any) -> list[str]:
     """Normalize a Checks value (string or list) into a flat list of tokens."""
     if value is None:
         return []
-    parts: List[str] = []
+    parts: list[str] = []
     if isinstance(value, str):
         parts = [s.strip() for s in value.split(",")]
     elif isinstance(value, list):
@@ -42,7 +42,7 @@ def split_checks_to_list(value: Any) -> List[str]:
 
 
 def merge_checks_into_config(
-    target_config: Dict[str, Any], incoming_config: Dict[str, Any]
+    target_config: dict[str, Any], incoming_config: dict[str, Any]
 ) -> None:
     """Append incoming Checks onto target Checks (string-concatenated)."""
     accumulated = split_checks_to_list(target_config.get("Checks"))
@@ -51,9 +51,9 @@ def merge_checks_into_config(
         target_config["Checks"] = ",".join(accumulated + additions)
 
 
-def check_options_list_to_map(value: Any) -> Dict[str, Any]:
+def check_options_list_to_map(value: Any) -> dict[str, Any]:
     """Transform CheckOptions list[{key,value}] into a dict[key]=value."""
-    out: Dict[str, Any] = {}
+    out: dict[str, Any] = {}
     if isinstance(value, list):
         for item in value:
             if isinstance(item, dict) and "key" in item:
@@ -62,7 +62,7 @@ def check_options_list_to_map(value: Any) -> Dict[str, Any]:
 
 
 def merge_check_options_into_config(
-    target_config: Dict[str, Any], incoming_config: Dict[str, Any]
+    target_config: dict[str, Any], incoming_config: dict[str, Any]
 ) -> None:
     """
     Merge CheckOptions so later configs override earlier by 'key'.
@@ -161,9 +161,9 @@ def main() -> None:
     parser.add_argument("--out", required=True, help="Output merged YAML path.")
     args = parser.parse_args()
 
-    merged_config: Dict[str, Any] = load_yaml(args.baseline)
+    merged_config: dict[str, Any] = load_yaml(args.baseline)
 
-    config_paths: List[pathlib.Path] = filter_and_sort_config_paths(
+    config_paths: list[pathlib.Path] = filter_and_sort_config_paths(
         args.config_files, args.scope_dir
     )
 

@@ -67,8 +67,8 @@ public:
     }
 };
 
-StatusWith<plan_ranking::PlanRankingResult> planAndRank(plan_ranking::PlanRankingStrategy& strategy,
-                                                        PlannerData& plannerData) {
+StatusWith<PlanRankingResult> planAndRank(plan_ranking::PlanRankingStrategy& strategy,
+                                          PlannerData& plannerData) {
     return strategy.rankPlans(plannerData);
 }
 

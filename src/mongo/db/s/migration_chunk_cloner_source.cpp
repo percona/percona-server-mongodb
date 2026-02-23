@@ -191,16 +191,17 @@ LogTransactionOperationsForShardingHandler::LogTransactionOperationsForShardingH
       _stmts(stmts),
       _prepareOrCommitOpTime(std::move(prepareOrCommitOpTime)) {}
 
-void LogTransactionOperationsForShardingHandler::commit(OperationContext* opCtx,
-                                                        boost::optional<Timestamp>) noexcept {
+void LogTransactionOperationsForShardingHandler::commit(
+    OperationContext* opCtx, boost::optional<Timestamp> commitTimestamp) noexcept {
     std::set<NamespaceString> namespacesTouchedByTransaction;
 
     // Inform the session migration subsystem that a transaction has committed for the given
     // namespace.
     auto addToSessionMigrationOptimeQueueIfNeeded =
-        [&namespacesTouchedByTransaction, lsid = _lsid](MigrationChunkClonerSource* const cloner,
-                                                        const NamespaceString& nss,
-                                                        const repl::OpTime opTime) {
+        [&namespacesTouchedByTransaction, lsid = _lsid, commitTimestamp](
+            MigrationChunkClonerSource* const cloner,
+            const NamespaceString& nss,
+            const repl::OpTime opTime) {
             if (isInternalSessionForNonRetryableWrite(lsid)) {
                 // Transactions inside internal sessions for non-retryable writes are not
                 // retryable so there is no need to transfer the write history to the
@@ -208,8 +209,10 @@ void LogTransactionOperationsForShardingHandler::commit(OperationContext* opCtx,
                 return;
             }
             if (namespacesTouchedByTransaction.find(nss) == namespacesTouchedByTransaction.end()) {
-                cloner->_addToSessionMigrationOptimeQueue(
-                    opTime, SessionCatalogMigrationSource::EntryAtOpTimeType::kTransaction);
+                cloner->_addToSessionMigrationQueue(
+                    {opTime,
+                     SessionCatalogMigrationSource::EntryAtOpTimeType::kTransaction,
+                     commitTimestamp});
 
                 namespacesTouchedByTransaction.emplace(nss);
             }
@@ -329,6 +332,8 @@ Status MigrationChunkClonerSource::startClone(OperationContext* opCtx,
     // Prime up the session migration source if there are oplog entries to migrate.
     _sessionCatalogSource->fetchNextOplog(opCtx);
 
+    _migrationId = migrationId;
+
     {
         // Ignore prepare conflicts when we load ids of currently available documents. This is
         // acceptable because we will track changes made by prepared transactions at transaction
@@ -363,7 +368,7 @@ Status MigrationChunkClonerSource::startClone(OperationContext* opCtx,
 
     StartChunkCloneRequest::appendAsCommand(&cmdBuilder,
                                             nss(),
-                                            migrationId,
+                                            *_migrationId,
                                             lsid,
                                             txnNumber,
                                             _sessionId,
@@ -472,7 +477,8 @@ void MigrationChunkClonerSource::cancelClone(OperationContext* opCtx) {
                 LOGV2(21991,
                       "Failed to cancel migration",
                       "error"_attr = redact(status),
-                      logAttrs(nss()));
+                      logAttrs(nss()),
+                      "migrationId"_attr = _migrationId);
             }
             [[fallthrough]];
         }
@@ -495,7 +501,8 @@ void MigrationChunkClonerSource::onInsertOp(OperationContext* opCtx,
                       "logInsertOp received a document without an _id field and will ignore that "
                       "document",
                       "insertedDoc"_attr = redact(insertedDoc),
-                      logAttrs(nss()));
+                      logAttrs(nss()),
+                      "migrationId"_attr = _migrationId);
         return;
     }
 
@@ -523,7 +530,8 @@ void MigrationChunkClonerSource::onUpdateOp(OperationContext* opCtx,
             21996,
             "logUpdateOp received a document without an _id field and will ignore that document",
             "postImageDoc"_attr = redact(postImageDoc),
-            logAttrs(nss()));
+            logAttrs(nss()),
+            "migrationId"_attr = _migrationId);
         return;
     }
 
@@ -560,7 +568,8 @@ void MigrationChunkClonerSource::onDeleteOp(OperationContext* opCtx,
             21997,
             "logDeleteOp received a document without an _id field and will ignore that document",
             "deletedDocShardKeyAndId"_attr = redact(shardKeyAndId),
-            logAttrs(nss()));
+            logAttrs(nss()),
+            "migrationId"_attr = _migrationId);
         return;
     }
 
@@ -569,7 +578,8 @@ void MigrationChunkClonerSource::onDeleteOp(OperationContext* opCtx,
                       "logDeleteOp received a document without the shard key field and will ignore "
                       "that document",
                       "deletedDocShardKeyAndId"_attr = redact(shardKeyAndId),
-                      logAttrs(nss()));
+                      logAttrs(nss()),
+                      "migrationId"_attr = _migrationId);
         return;
     }
 
@@ -588,11 +598,10 @@ void MigrationChunkClonerSource::onDeleteOp(OperationContext* opCtx,
     _decrementOutstandingOperationTrackRequests();
 }
 
-void MigrationChunkClonerSource::_addToSessionMigrationOptimeQueue(
-    const repl::OpTime& opTime,
-    SessionCatalogMigrationSource::EntryAtOpTimeType entryAtOpTimeType) {
-    if (!opTime.isNull()) {
-        _sessionCatalogSource->notifyNewWriteOpTime(opTime, entryAtOpTimeType);
+void MigrationChunkClonerSource::_addToSessionMigrationQueue(
+    SessionCatalogMigrationSource::OpTimeBundle opTimeBundle) {
+    if (!opTimeBundle.opTime.isNull()) {
+        _sessionCatalogSource->notifyNewWriteOpTime(opTimeBundle);
     }
 }
 
@@ -619,8 +628,8 @@ void MigrationChunkClonerSource::_addToTransferModsQueue(const BSONObj& idObj,
             MONGO_UNREACHABLE;
     }
 
-    _addToSessionMigrationOptimeQueue(
-        opTime, SessionCatalogMigrationSource::EntryAtOpTimeType::kRetryableWrite);
+    _addToSessionMigrationQueue(
+        {opTime, SessionCatalogMigrationSource::EntryAtOpTimeType::kRetryableWrite});
 }
 
 bool MigrationChunkClonerSource::_addedOperationToOutstandingOperationTrackRequests() {
@@ -1243,6 +1252,7 @@ Status MigrationChunkClonerSource::_checkRecipientCloningStatus(OperationContext
                   "moveChunk data transfer progress",
                   "response"_attr = redact(res),
                   logAttrs(nss()),
+                  "migrationId"_attr = _migrationId,
                   "memoryUsedBytes"_attr = _memoryUsed,
                   "docsCloned"_attr = _jumboChunkCloneState->docsCloned,
                   "untransferredModsSizeBytes"_attr = untransferredModsSizeBytes,
@@ -1253,6 +1263,7 @@ Status MigrationChunkClonerSource::_checkRecipientCloningStatus(OperationContext
                   "moveChunk data transfer progress",
                   "response"_attr = redact(res),
                   logAttrs(nss()),
+                  "migrationId"_attr = _migrationId,
                   "memoryUsedBytes"_attr = _memoryUsed,
                   "docsRemainingToClone"_attr =
                       _cloneList.size() - _numRecordsCloned - _numRecordsPassedOver,
@@ -1302,6 +1313,7 @@ Status MigrationChunkClonerSource::_checkRecipientCloningStatus(OperationContext
                 LOGV2(5630700,
                       "moveChunk data transfer within threshold to allow write blocking",
                       logAttrs(nss()),
+                      "migrationId"_attr = _migrationId,
                       "_untransferredUpsertsCounter"_attr = _untransferredUpsertsCounter,
                       "_untransferredDeletesCounter"_attr = _untransferredDeletesCounter,
                       "_deferredUntransferredOpsCounter"_attr = _deferredUntransferredOpsCounter,
@@ -1614,8 +1626,8 @@ void LogRetryableApplyOpsForShardingHandler::commit(OperationContext* opCtx,
         auto cloner = MigrationSourceManager::getCurrentCloner(*scopedCss);
         if (cloner) {
             for (const auto& opTime : _opTimes) {
-                cloner->_addToSessionMigrationOptimeQueue(
-                    opTime, SessionCatalogMigrationSource::EntryAtOpTimeType::kRetryableWrite);
+                cloner->_addToSessionMigrationQueue(
+                    {opTime, SessionCatalogMigrationSource::EntryAtOpTimeType::kRetryableWrite});
             }
         }
     }

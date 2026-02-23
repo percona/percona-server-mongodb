@@ -63,7 +63,7 @@ public:
     HostPortalAPI(::MongoExtensionHostPortal* portal)
         : VTableAPI<::MongoExtensionHostPortal>(portal) {}
 
-    void registerStageDescriptor(const ExtensionAggStageDescriptor* stageDesc) const {
+    void registerStageDescriptor(const ExtensionAggStageDescriptorAdapter* stageDesc) const {
         invokeCAndConvertStatusToException([&] {
             return _vtable().register_stage_descriptor(
                 get(), reinterpret_cast<const ::MongoExtensionAggStageDescriptor*>(stageDesc));

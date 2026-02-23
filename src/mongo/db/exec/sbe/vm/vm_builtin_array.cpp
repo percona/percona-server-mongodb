@@ -1207,7 +1207,7 @@ FastTuple<bool, value::TypeTags, value::Value> ByteCode::stdDevHelper(ArityType 
 
             auto [deltaOwned, deltaTag, deltaVal] = genericSub(elemTag, elemVal, meanTag, meanVal);
             auto [divOwned, divTag, divVal] =
-                genericDiv(deltaTag, deltaVal, value::TypeTags::NumberInt64, count);
+                genericDiv(deltaTag, deltaVal, value::TypeTags::NumberInt64, count).releaseToRaw();
             auto [newMeanOwned, newMeanTag, newMeanVal] =
                 genericAdd(meanTag, meanVal, divTag, divVal);
             meanTag = newMeanTag;
@@ -1234,13 +1234,15 @@ FastTuple<bool, value::TypeTags, value::Value> ByteCode::stdDevHelper(ArityType 
 
     if (isSamp) {
         auto [resultOwned, resultTag, resultVal] =
-            genericDiv(meanSquaredTag, meanSquaredVal, value::TypeTags::NumberInt64, (count - 1));
-        return genericSqrt(resultTag, resultVal);
+            genericDiv(meanSquaredTag, meanSquaredVal, value::TypeTags::NumberInt64, (count - 1))
+                .releaseToRaw();
+        return genericSqrt(resultTag, resultVal).releaseToRaw();
     }
 
     auto [resultOwned, resultTag, resultVal] =
-        genericDiv(meanSquaredTag, meanSquaredVal, value::TypeTags::NumberInt64, count);
-    return genericSqrt(resultTag, resultVal);
+        genericDiv(meanSquaredTag, meanSquaredVal, value::TypeTags::NumberInt64, count)
+            .releaseToRaw();
+    return genericSqrt(resultTag, resultVal).releaseToRaw();
 }
 
 FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinSumOfArray(ArityType arity) {
@@ -1273,7 +1275,7 @@ FastTuple<bool, value::TypeTags, value::Value> ByteCode::avgOrSumOfArrayHelper(A
         if (count == 0) {
             return {false, value::TypeTags::Nothing, 0};
         }
-        return genericDiv(sumTag, sumVal, value::TypeTags::NumberInt64, count);
+        return genericDiv(sumTag, sumVal, value::TypeTags::NumberInt64, count).releaseToRaw();
     }
 
     if (sumTag == value::TypeTags::NumberDecimal) {

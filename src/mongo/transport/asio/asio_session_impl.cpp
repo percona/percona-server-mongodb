@@ -64,6 +64,7 @@ MONGO_FAIL_POINT_DEFINE(asioTransportLayerBlockBeforeOpportunisticRead);
 MONGO_FAIL_POINT_DEFINE(asioTransportLayerBlockBeforeAddSession);
 MONGO_FAIL_POINT_DEFINE(clientIsConnectedToLoadBalancerPort);
 MONGO_FAIL_POINT_DEFINE(clientIsLoadBalancedPeer);
+MONGO_FAIL_POINT_DEFINE(isConnectedToProxyUnixSocketOverride);
 
 namespace {
 
@@ -130,6 +131,14 @@ int getExceptionLogSeverityLevel() {
     return logSeverity().toInt();
 }
 
+int getMessageSizeErrorLogSeverityLevel() {
+    static logv2::SeveritySuppressor logSeverity{Seconds{gMessageSizeErrorRateSec},
+                                                 logv2::LogSeverity::Info(),
+                                                 logv2::LogSeverity::Debug(1)};
+
+    return logSeverity().toInt();
+}
+
 auto& totalIngressTLSConnections =  //
     *MetricBuilder<Counter64>("network.totalIngressTLSConnections");
 auto& totalIngressTLSHandshakeTimeMillis =  //
@@ -139,6 +148,10 @@ otel::metrics::Histogram<int64_t>& ingressTLSHandshakeTimesMillis =
         otel::metrics::MetricNames::kIngressTLSHandshakeLatency,
         "The latency of the TLS handshake when establishing a new ingress connection.",
         otel::metrics::MetricUnit::kMilliseconds);
+auto& totalMessageSizeErrorsPreAuth =
+    *MetricBuilder<Counter64>("network.totalMessageSizeErrorPreAuth");
+auto& totalMessageSizeErrorsPostAuth =
+    *MetricBuilder<Counter64>("network.totalMessageSizeErrorPostAuth");
 }  // namespace
 
 
@@ -505,8 +518,11 @@ ExecutorFuture<void> CommonAsioSession::parseProxyProtocolHeader(const ReactorHa
     return AsyncTry([this, buffer] {
                const auto bytesRead = peekASIOStream(
                    _socket, asio::buffer(buffer->data(), kProxyProtocolHeaderSizeUpperBound));
-               return transport::parseProxyProtocolHeader(StringData(buffer->data(), bytesRead),
-                                                          localAddr().getType() == AF_UNIX);
+               // TODO(SERVER-119261): Update isProxyUnixSock argument to check if we are connected
+               // to the proxy socket.
+               return transport::parseProxyProtocolHeader(
+                   StringData(buffer->data(), bytesRead),
+                   isConnectedToProxyUnixSocketOverride.shouldFail());
            })
         .until([deadline, proxyHeaderTimeout, reactor](
                    StatusWith<boost::optional<ParserResults>> sw) {
@@ -541,6 +557,39 @@ ExecutorFuture<void> CommonAsioSession::parseProxyProtocolHeader(const ReactorHa
                     _restrictionEnvironment =
                         RestrictionEnvironment(_proxiedSrcRemoteAddr.value(), _localAddr);
                 }
+
+                auto makeTLVString = [&results]() {
+                    std::ostringstream tlvStringStream;
+                    for (const auto& tlv : results->tlvs) {
+                        tlvStringStream << fmt::format("{:#04x}", tlv.type) << ":" << tlv.data
+                                        << ",";
+                    }
+                    if (results->sslTlvs) {
+                        for (const auto& sslTlv : results->sslTlvs->subTLVs) {
+                            tlvStringStream << fmt::format("{:#04X}", sslTlv.type) << ":"
+                                            << sslTlv.data << ",";
+                        }
+                    }
+
+                    auto tlvString = tlvStringStream.str();
+                    if (!tlvString.empty()) {
+                        // Pop off the last comma if we had any TLVs.
+                        tlvString.pop_back();
+                    }
+                    return tlvString;
+                };
+
+                // Log ParserResults for testing.
+                LOGV2_DEBUG(
+                    11978400,
+                    4,
+                    "Proxy protocol header parsed",
+                    "sourceAddress"_attr = results->endpoints->sourceAddress.toString(),
+                    "sourcePort"_attr = results->endpoints->sourceAddress.getPort(),
+                    "destinationAddress"_attr = results->endpoints->destinationAddress.toString(),
+                    "destinationPort"_attr = results->endpoints->destinationAddress.getPort(),
+                    "tlvs"_attr = makeTLVString(),
+                    "bytesParsed"_attr = results->bytesParsed);
             } else {
                 _proxiedSrcRemoteAddr = {};
                 _proxiedSrcEndpoint = {};
@@ -575,16 +624,26 @@ Future<Message> CommonAsioSession::sourceMessageImpl(const BatonHandle& baton) {
     return read(asio::buffer(ptr, kHeaderSize), baton)
         .then([headerBuffer = std::move(headerBuffer), this, baton]() mutable {
             const auto msgLen = size_t(MSGHEADER::View(headerBuffer.get()).getMessageLength());
-            if (msgLen < kHeaderSize || msgLen > MaxMessageSizeBytes) {
+
+            const size_t maxMessageSize = _restrictedMode
+                ? static_cast<size_t>(gPreAuthMaximumMessageSizeBytes.loadRelaxed())
+                : MaxMessageSizeBytes;
+            if (msgLen < kHeaderSize || msgLen > maxMessageSize) {
                 StringBuilder sb;
                 sb << "recv(): message msgLen " << msgLen << " is invalid. " << "Min "
-                   << kHeaderSize << " Max: " << MaxMessageSizeBytes;
+                   << kHeaderSize << " Max: " << maxMessageSize;
                 const auto str = sb.str();
-                LOGV2(4615638,
-                      "recv(): message mstLen is invalid.",
-                      "msgLen"_attr = msgLen,
-                      "min"_attr = kHeaderSize,
-                      "max"_attr = MaxMessageSizeBytes);
+                LOGV2_DEBUG(4615638,
+                            getMessageSizeErrorLogSeverityLevel(),
+                            "recv(): message msgLen is invalid.",
+                            "msgLen"_attr = msgLen,
+                            "min"_attr = kHeaderSize,
+                            "max"_attr = maxMessageSize);
+                if (_restrictedMode) {
+                    totalMessageSizeErrorsPreAuth.increment();
+                } else {
+                    totalMessageSizeErrorsPostAuth.increment();
+                }
 
                 return Future<Message>::makeReady(Status(ErrorCodes::ProtocolError, str));
             }

@@ -36,6 +36,7 @@
 #include "mongo/bson/bsontypes.h"
 #include "mongo/bson/timestamp.h"
 #include "mongo/crypto/fle_crypto_types.h"
+#include "mongo/db/change_stream_pre_image_id_util.h"
 #include "mongo/db/collection_crud/capped_collection_maintenance.h"
 #include "mongo/db/exec/document_value/document.h"
 #include "mongo/db/exec/write_stage_common.h"
@@ -648,8 +649,8 @@ void updateDocument(OperationContext* opCtx,
     {
         auto status = collection->checkValidationAndParseResult(opCtx, newDoc);
         if (!status.isOK()) {
-            if (validationLevelOrDefault(collection->getCollectionOptions().validationLevel) ==
-                ValidationLevelEnum::strict) {
+            if (validationLevelIsMandatory(
+                    validationLevelOrDefault(collection->getCollectionOptions().validationLevel))) {
                 uassertStatusOK(status);
             }
             // moderate means we have to check the old doc
@@ -988,7 +989,8 @@ repl::OpTime truncateRange(OperationContext* opCtx,
                            const RecordId& minRecordId,
                            const RecordId& maxRecordId,
                            int64_t bytesDeleted,
-                           int64_t docsDeleted) {
+                           int64_t docsDeleted,
+                           bool shouldValidateRecordIdRange) {
     const auto& nss = collection->ns();
     uassert(ErrorCodes::IllegalOperation,
             "Cannot perform ranged truncate without holding an IX lock on the collection",
@@ -1008,6 +1010,21 @@ repl::OpTime truncateRange(OperationContext* opCtx,
     uassert(ErrorCodes::IllegalOperation,
             "Cannot perform ranged truncate on null range upper bound",
             !maxRecordId.isNull());
+
+    // In case we are running truncate over preimages collection ensure the timestamp behind the
+    // 'maxRecordId' is not larger than the max timestamp eligible for truncation.
+    if (collection->ns().isChangeStreamPreImagesCollection() && shouldValidateRecordIdRange) {
+        auto tsBehindMaxRecordId =
+            change_stream_pre_image_id_util::getPreImageTimestamp(maxRecordId);
+        auto maxTSEligibleForTruncate =
+            change_stream_pre_image_id_util::getMaxTSEligibleForTruncate(opCtx);
+        uassert(ErrorCodes::IllegalOperation,
+                str::stream() << "Cannot perform ranged truncate for RecordId pointing to future "
+                                 "timestamp. Timestamp behind maxRecordId: "
+                              << tsBehindMaxRecordId << " Max eligible timestamp for truncation: "
+                              << maxTSEligibleForTruncate,
+                tsBehindMaxRecordId <= maxTSEligibleForTruncate);
+    }
 
     repl::OpTime opTime;
     auto status =

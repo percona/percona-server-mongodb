@@ -216,7 +216,7 @@ public:
         MONGO_UNREACHABLE;
     }
 
-    void appendNetworkInterfaceStats(BSONObjBuilder&) const override {
+    void appendNetworkInterfaceStats(BSONObjBuilder&, bool forServerStatus) const override {
         MONGO_UNREACHABLE;
     }
 

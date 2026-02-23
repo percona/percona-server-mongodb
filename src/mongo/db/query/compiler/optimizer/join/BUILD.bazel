@@ -35,6 +35,17 @@ mongo_cc_library(
 )
 
 mongo_cc_library(
+    name = "catalog",
+    srcs = [
+        "catalog_stats.cpp",
+    ],
+    deps = [
+        "//src/mongo/db:server_base",
+        "//src/mongo/db/pipeline:field_path",
+    ],
+)
+
+mongo_cc_library(
     name = "plan_enumerator",
     srcs = [
         "join_plan.cpp",
@@ -56,6 +67,7 @@ mongo_cc_unit_test(
     srcs = [
         "agg_join_model_test.cpp",
         "cardinality_estimator_join_test.cpp",
+        "catalog_stats_test.cpp",
         "graph_cycle_breaker_test.cpp",
         "join_cost_estimator_test.cpp",
         "join_graph_test.cpp",
@@ -151,6 +163,7 @@ mongo_cc_library(
         "unit_test_helpers.cpp",
     ],
     deps = [
+        ":catalog",
         "//src/mongo/db:server_base",
         "//src/mongo/db/pipeline",
         "//src/mongo/db/pipeline:aggregation_context_fixture",
@@ -167,6 +180,7 @@ mongo_cc_library(
         "join_estimates.cpp",
     ],
     deps = [
+        ":catalog",
         ":join_ordering",
         "//src/mongo/db/query/compiler/ce:ce_common",
         "//src/mongo/db/query/compiler/ce/sampling:sampling_estimator_interface",

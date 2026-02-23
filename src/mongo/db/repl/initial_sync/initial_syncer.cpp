@@ -81,6 +81,7 @@
 #include "mongo/util/assert_util.h"
 #include "mongo/util/fail_point.h"
 #include "mongo/util/future.h"
+#include "mongo/util/future_util.h"
 #include "mongo/util/scopeguard.h"
 #include "mongo/util/str.h"
 #include "mongo/util/time_support.h"
@@ -148,6 +149,10 @@ MONGO_FAIL_POINT_DEFINE(initialSyncHangAfterResettingFCV);
 // Failpoint which caused the initial sync function to hang after getting the begin applying
 // timestamp.
 MONGO_FAIL_POINT_DEFINE(initialSyncHangAfterGettingBeginApplyingTimestamp);
+
+// Failpoint which causes the initial sync function to hang after waiting for sync source to
+// advance its last stable recovery timestamp to our begin applying timestamp.
+MONGO_FAIL_POINT_DEFINE(initialSyncHangAfterWaitForLastStableRecoveryTimestamp);
 
 // Failpoints for synchronization, shared with cloners.
 extern FailPoint initialSyncFuzzerSynchronizationPoint1;
@@ -1098,6 +1103,291 @@ void InitialSyncer::_lastOplogEntryFetcherCallbackForBeginApplyingTimestamp(
     }
 }
 
+void InitialSyncer::_initializeOplogFetcherAndDbCloners(
+    const executor::TaskExecutor::CallbackArgs& callbackArgs,
+    std::shared_ptr<OnCompletionGuard> onCompletionGuard,
+    const OpTime& beginFetchingOpTime) {
+    stdx::unique_lock<stdx::mutex> lock(_mutex);
+    if (!_checkForShutdownAndHandleError(
+            lock,
+            callbackArgs,
+            onCompletionGuard,
+            "error while initializing oplog fetchers and db cloners")) {
+        return;
+    }
+
+    const auto configResult = _dataReplicatorExternalState->getCurrentConfig();
+    auto status = configResult.getStatus();
+    if (!status.isOK()) {
+        onCompletionGuard->setResultAndCancelRemainingWork(lock, status);
+        _initialSyncState.reset();
+        return;
+    }
+
+    const auto& config = configResult.getValue();
+    OplogFetcher::Config oplogFetcherConfig(
+        beginFetchingOpTime,
+        _syncSource,
+        config,
+        initialSyncOplogFetcherBatchSize.load(),
+        OplogFetcher::RequireFresherSyncSource::kDontRequireFresherSyncSource);
+    oplogFetcherConfig.startingPoint = OplogFetcher::StartingPoint::kEnqueueFirstDoc;
+    _oplogFetcher = (*_createOplogFetcherFn)(
+        *_attemptExec,
+        std::make_unique<OplogFetcherRestartDecisionInitialSyncer>(
+            _sharedData.get(), _opts.oplogFetcherMaxFetcherRestarts),
+        _dataReplicatorExternalState.get(),
+        [=, this](OplogFetcher::Documents::const_iterator first,
+                  OplogFetcher::Documents::const_iterator last,
+                  const OplogFetcher::DocumentsInfo& info) {
+            return _enqueueDocuments(first, last, info);
+        },
+        [=, this](const Status& s) { _oplogFetcherCallback(s, onCompletionGuard); },
+        std::move(oplogFetcherConfig));
+
+    LOGV2_DEBUG(21178, 2, "Starting OplogFetcher", "oplogFetcher"_attr = _oplogFetcher->toString());
+
+    // _startupComponent is shutdown-aware.
+    status = _startupComponent(lock, _oplogFetcher);
+    if (!status.isOK()) {
+        onCompletionGuard->setResultAndCancelRemainingWork(lock, status);
+        _initialSyncState->allDatabaseCloner.reset();
+        return;
+    }
+
+    if (MONGO_unlikely(initialSyncHangBeforeCopyingDatabases.shouldFail())) {
+        lock.unlock();
+        // This could have been done with a scheduleWorkAt but this is used only by JS tests where
+        // we run with multiple threads so it's fine to spin on this thread.
+        // This log output is used in js tests so please leave it.
+        LOGV2(21179,
+              "initial sync - initialSyncHangBeforeCopyingDatabases fail point "
+              "enabled. Blocking until fail point is disabled.");
+        while (MONGO_unlikely(initialSyncHangBeforeCopyingDatabases.shouldFail()) &&
+               !_isShuttingDown()) {
+            mongo::sleepsecs(1);
+        }
+        lock.lock();
+    }
+
+    LOGV2_DEBUG(21180,
+                2,
+                "Starting AllDatabaseCloner",
+                "allDatabaseCloner"_attr = _initialSyncState->allDatabaseCloner->toString());
+
+    auto [startClonerFuture, startCloner] =
+        _initialSyncState->allDatabaseCloner->runOnExecutorEvent(*_clonerAttemptExec);
+    // runOnExecutorEvent ensures the future is not ready unless an error has occurred.
+    if (startClonerFuture.isReady()) {
+        status = startClonerFuture.getNoThrow();
+        invariant(!status.isOK());
+        onCompletionGuard->setResultAndCancelRemainingWork(lock, status);
+        return;
+    }
+    _initialSyncState->allDatabaseClonerFuture =
+        std::move(startClonerFuture).onCompletion([this, onCompletionGuard](Status status) mutable {
+            // The completion guard must run on the main executor, and never inline.  In unit tests,
+            // without the executor call, it would run on the wrong executor.  In both production
+            // and in unit tests, if the cloner finishes very quickly, the callback could run
+            // in-line and result in self-deadlock.
+            stdx::unique_lock<stdx::mutex> lock(_mutex);
+            auto exec_status = (*_attemptExec)
+                                   ->scheduleWork([this, status, onCompletionGuard](
+                                                      executor::TaskExecutor::CallbackArgs args) {
+                                       _allDatabaseClonerCallback(status, onCompletionGuard);
+                                   });
+            if (!exec_status.isOK()) {
+                onCompletionGuard->setResultAndCancelRemainingWork(lock, exec_status.getStatus());
+                // In the shutdown case, it is possible the completion guard will be run
+                // from this thread (since the lambda holding another copy didn't schedule).
+                // If it does, we will self-deadlock if we're holding the lock, so release it.
+                lock.unlock();
+            }
+            // In unit tests, this reset ensures the completion guard does not run during the
+            // destruction of the lambda (which occurs on the wrong executor), except in the
+            // shutdown case.
+            onCompletionGuard.reset();
+        });
+    lock.unlock();
+    // Start (and therefore finish) the cloners outside the lock.  This ensures onCompletion
+    // is not run with the mutex held, which would result in self-deadlock.
+    (*_clonerAttemptExec)->signalEvent(startCloner);
+}
+
+void InitialSyncer::_handleLastStableRecoveryTsResponse(
+    const executor::TaskExecutor::RemoteCommandCallbackArgs& callbackArgs,
+    std::shared_ptr<OnCompletionGuard> onCompletionGuard,
+    const OpTime& beginFetchingOpTime) {
+    if (MONGO_unlikely(initialSyncHangAfterWaitForLastStableRecoveryTimestamp.shouldFail())) {
+        LOGV2(11318404,
+              "initialSyncHangAfterWaitForLastStableRecoveryTimestamp fail point enabled");
+        initialSyncHangAfterWaitForLastStableRecoveryTimestamp.pauseWhileSet();
+    }
+
+    stdx::lock_guard<stdx::mutex> lock(_mutex);
+
+    auto status =
+        _checkForShutdownAndConvertStatus(lock,
+                                          callbackArgs.response.status,
+                                          "error while processing last stable recovery timestamp");
+    if (!status.isOK()) {
+        onCompletionGuard->setResultAndCancelRemainingWork(lock, status);
+        _initialSyncState.reset();
+        return;
+    }
+
+    // Parse out the 'lastStableRecoveryTimestamp' field.
+    auto response = callbackArgs.response;
+    auto& reply = response.data;
+    const auto syncSourceStableRecoveryField = reply.getField("lastStableRecoveryTimestamp");
+    if (syncSourceStableRecoveryField.eoo()) {
+        Status missingTimestampStatus(ErrorCodes::NoSuchKey,
+                                      "Missing lastStableRecoveryTimestamp from "
+                                      "replSetGetStatus");
+        onCompletionGuard->setResultAndCancelRemainingWork(lock, missingTimestampStatus);
+        _initialSyncState.reset();
+        return;
+    }
+    auto lastSyncSourceRecoveryTs = syncSourceStableRecoveryField.timestamp();
+
+    auto beginApplyingTs = _initialSyncState->beginApplyingTimestamp;
+    auto numAttempts = ++_initialSyncState->waitForSyncSourceStableTimestampAdvanceNumAttempts;
+
+    if (lastSyncSourceRecoveryTs >= beginApplyingTs) {
+        LOGV2(11318400,
+              "lastStableRecoveryTimestamp on sync source successfully advanced to "
+              "beginApplyingTimestamp, continuing with initial sync",
+              "lastStableRecoveryTimestamp"_attr = lastSyncSourceRecoveryTs,
+              "beginApplyingTimestamp"_attr = beginApplyingTs);
+        auto status = _scheduleWorkAndSaveHandle(
+            lock,
+            [=, this](const executor::TaskExecutor::CallbackArgs& args) {
+                _initializeOplogFetcherAndDbCloners(args, onCompletionGuard, beginFetchingOpTime);
+            },
+            &_chooseSyncSourceHandle,
+            str::stream() << "_initializeOplogFetcherAndDbCloners");
+        if (!status.isOK()) {
+            onCompletionGuard->setResultAndCancelRemainingWork(lock, status);
+            _initialSyncState.reset();
+        }
+        return;
+    }
+
+    LOGV2(11318401,
+          "Failed attempt to wait for stable recovery timestamp to advance on sync source",
+          "lastStableRecoveryTimestamp"_attr = lastSyncSourceRecoveryTs,
+          "beginApplyingTimestamp"_attr = beginApplyingTs,
+          "waitPeriod"_attr =
+              _initialSyncState->waitForSyncSourceStableTimestampAdvanceMaxRetryDeadline,
+          "numAttempts"_attr = numAttempts);
+
+    auto now = (*_attemptExec)->now();
+    auto shouldRetry =
+        (now < _initialSyncState->waitForSyncSourceStableTimestampAdvanceMaxRetryDeadline);
+    if (!shouldRetry) {
+        LOGV2(
+            11318402,
+            "Initial sync failed to wait for stable recovery timestamp to advance on sync source.",
+            "lastStableRecoveryTimestamp"_attr = lastSyncSourceRecoveryTs,
+            "beginApplyingTimestamp"_attr = beginApplyingTs,
+            "waitPeriod"_attr =
+                _initialSyncState->waitForSyncSourceStableTimestampAdvanceMaxRetryDeadline,
+            "numAttempts"_attr = numAttempts);
+        auto status = Status(
+            ErrorCodes::InternalError,
+            "Failed to wait for stale recovery timestamp to advance. To resolve this, ensure that "
+            "the sync source is healthy and able to advance its checkpoint timestamp.");
+        onCompletionGuard->setResultAndCancelRemainingWork(lock, status);
+        _initialSyncState.reset();
+        return;
+    }
+
+    // Schedule the next try after waiting with exponential backoff.
+    auto when = (*_attemptExec)->now() +
+        Milliseconds(_initialSyncState->waitForSyncSourceStableTimestampAdvanceSleepMillis);
+    _initialSyncState->waitForSyncSourceStableTimestampAdvanceSleepMillis *= 2;
+
+    LOGV2(11318405, "Scheduling next wait attempt", "when"_attr = when);
+
+    status = _scheduleWorkAtAndSaveHandle(
+        lock,
+        when,
+        [=, this](const executor::TaskExecutor::CallbackArgs& args) {
+            _runFsyncOnSyncSource(args, onCompletionGuard, beginFetchingOpTime);
+        },
+        &_chooseSyncSourceHandle,
+        str::stream() << "_runFsyncOnSyncSource-" << numAttempts);
+    if (!status.isOK()) {
+        onCompletionGuard->setResultAndCancelRemainingWork(lock, status);
+        _initialSyncState.reset();
+    }
+}
+
+void InitialSyncer::_runReplSetGetStatusOnSyncSource(
+    const executor::TaskExecutor::CallbackArgs& callbackArgs,
+    std::shared_ptr<OnCompletionGuard> onCompletionGuard,
+    const OpTime& beginFetchingOpTime) {
+    invariant(initialSyncWaitForSyncSourceLastStableRecoveryTs);
+    stdx::unique_lock<stdx::mutex> lock(_mutex);
+
+    if (!_checkForShutdownAndHandleError(lock,
+                                         callbackArgs,
+                                         onCompletionGuard,
+                                         "error while running replSetGetStatus on sync source")) {
+        return;
+    }
+
+    // Issue replSetGetStatus command to fetch the sync source
+    // 'lastStableRecoveryTimestamp'.
+    executor::RemoteCommandRequest replSetGetStatusRequest(
+        _syncSource, DatabaseName::kAdmin, std::move(BSON("replSetGetStatus" << 1)), nullptr);
+    auto cbHandle =
+        (*_attemptExec)
+            ->scheduleRemoteCommand(std::move(replSetGetStatusRequest),
+                                    [this, onCompletionGuard, beginFetchingOpTime](
+                                        TaskExecutor::RemoteCommandCallbackArgs args) {
+                                        _handleLastStableRecoveryTsResponse(
+                                            args, onCompletionGuard, beginFetchingOpTime);
+                                    });
+    if (!cbHandle.getStatus().isOK()) {
+        onCompletionGuard->setResultAndCancelRemainingWork(lock, cbHandle.getStatus());
+        _initialSyncState.reset();
+    }
+}
+
+void InitialSyncer::_runFsyncOnSyncSource(const executor::TaskExecutor::CallbackArgs& callbackArgs,
+                                          std::shared_ptr<OnCompletionGuard> onCompletionGuard,
+                                          const OpTime& beginFetchingOpTime) {
+    invariant(initialSyncWaitForSyncSourceLastStableRecoveryTs);
+    stdx::unique_lock<stdx::mutex> lock(_mutex);
+
+    if (!_checkForShutdownAndHandleError(
+            lock, callbackArgs, onCompletionGuard, "error while running fsync on sync source")) {
+        return;
+    }
+
+    executor::RemoteCommandRequest fsyncRequest(
+        _syncSource, DatabaseName::kAdmin, std::move(BSON("fsync" << 1)), nullptr);
+    auto cbHandle =
+        (*_attemptExec)
+            ->scheduleRemoteCommand(
+                std::move(fsyncRequest),
+                [this, onCompletionGuard, beginFetchingOpTime](
+                    TaskExecutor::RemoteCommandCallbackArgs args) {
+                    LOGV2_DEBUG(11318406, 2, "Done running fsync on sync source");
+                    // We don't need to do anything with the result of the fsync
+                    // command. Send a dummy callbackArgs to the
+                    // replSetGetStatus caller.
+                    executor::TaskExecutor::CallbackArgs dummyCbArgs(nullptr, {}, Status::OK());
+                    _runReplSetGetStatusOnSyncSource(
+                        dummyCbArgs, onCompletionGuard, beginFetchingOpTime);
+                });
+    if (!cbHandle.getStatus().isOK()) {
+        onCompletionGuard->setResultAndCancelRemainingWork(lock, cbHandle.getStatus());
+        _initialSyncState.reset();
+    }
+}
+
 void InitialSyncer::_fcvFetcherCallback(const StatusWith<Fetcher::QueryResponse>& result,
                                         std::shared_ptr<OnCompletionGuard> onCompletionGuard,
                                         const OpTime& lastOpTime,
@@ -1209,102 +1499,42 @@ void InitialSyncer::_fcvFetcherCallback(const StatusWith<Fetcher::QueryResponse>
                 logAttrs(NamespaceString::kRsOplogNamespace),
                 "beginFetchingTimestamp"_attr = _initialSyncState->beginFetchingTimestamp);
 
-    const auto configResult = _dataReplicatorExternalState->getCurrentConfig();
-    status = configResult.getStatus();
+    if (!initialSyncWaitForSyncSourceLastStableRecoveryTs) {
+        // Server parameter is toggled off, skip waiting for stable recovery timestamp to advance on
+        // sync source.
+        LOGV2_WARNING(
+            11318403,
+            "Skipping waiting for sync source stable recovery timestamp to advance on sync source "
+            "because the 'initialSyncWaitForSyncSourceLastStableRecoveryTs' parameter is off");
+        status = _scheduleWorkAndSaveHandle(
+            lock,
+            [=, this](const executor::TaskExecutor::CallbackArgs& args) {
+                _initializeOplogFetcherAndDbCloners(args, onCompletionGuard, beginFetchingOpTime);
+            },
+            &_chooseSyncSourceHandle,
+            str::stream() << "_initializeOplogFetcherAndDbCloners");
+    } else {
+        // Store the start retry period.
+        _initialSyncState->waitForSyncSourceStableTimestampAdvanceMaxRetryDeadline =
+            (*_attemptExec)->now() +
+            Seconds(initialSyncWaitForSyncSourceLastStableRecoveryTsRetryPeriodSecs.load());
+
+        // Wait for beginApplyingTs to be in the stable recovery timestamp on the sync source.
+        // _scheduleWorkAndSaveHandle() is shutdown-aware.
+        // Skip running fsync on the first try to see if the sync source has sufficiently advanced
+        // its lastStable already. If it has not, subsequent retries will start with fsync.
+        status = _scheduleWorkAndSaveHandle(
+            lock,
+            [=, this](const executor::TaskExecutor::CallbackArgs& args) {
+                _runReplSetGetStatusOnSyncSource(args, onCompletionGuard, beginFetchingOpTime);
+            },
+            &_chooseSyncSourceHandle,
+            str::stream() << "_runReplSetGetStatusOnSyncSource");
+    }
     if (!status.isOK()) {
         onCompletionGuard->setResultAndCancelRemainingWork(lock, status);
         _initialSyncState.reset();
-        return;
     }
-
-    const auto& config = configResult.getValue();
-    OplogFetcher::Config oplogFetcherConfig(
-        beginFetchingOpTime,
-        _syncSource,
-        config,
-        initialSyncOplogFetcherBatchSize.load(),
-        OplogFetcher::RequireFresherSyncSource::kDontRequireFresherSyncSource);
-    oplogFetcherConfig.startingPoint = OplogFetcher::StartingPoint::kEnqueueFirstDoc;
-    _oplogFetcher = (*_createOplogFetcherFn)(
-        *_attemptExec,
-        std::make_unique<OplogFetcherRestartDecisionInitialSyncer>(
-            _sharedData.get(), _opts.oplogFetcherMaxFetcherRestarts),
-        _dataReplicatorExternalState.get(),
-        [=, this](OplogFetcher::Documents::const_iterator first,
-                  OplogFetcher::Documents::const_iterator last,
-                  const OplogFetcher::DocumentsInfo& info) {
-            return _enqueueDocuments(first, last, info);
-        },
-        [=, this](const Status& s) { _oplogFetcherCallback(s, onCompletionGuard); },
-        std::move(oplogFetcherConfig));
-
-    LOGV2_DEBUG(21178, 2, "Starting OplogFetcher", "oplogFetcher"_attr = _oplogFetcher->toString());
-
-    // _startupComponent is shutdown-aware.
-    status = _startupComponent(lock, _oplogFetcher);
-    if (!status.isOK()) {
-        onCompletionGuard->setResultAndCancelRemainingWork(lock, status);
-        _initialSyncState->allDatabaseCloner.reset();
-        return;
-    }
-
-    if (MONGO_unlikely(initialSyncHangBeforeCopyingDatabases.shouldFail())) {
-        lock.unlock();
-        // This could have been done with a scheduleWorkAt but this is used only by JS tests where
-        // we run with multiple threads so it's fine to spin on this thread.
-        // This log output is used in js tests so please leave it.
-        LOGV2(21179,
-              "initial sync - initialSyncHangBeforeCopyingDatabases fail point "
-              "enabled. Blocking until fail point is disabled.");
-        while (MONGO_unlikely(initialSyncHangBeforeCopyingDatabases.shouldFail()) &&
-               !_isShuttingDown()) {
-            mongo::sleepsecs(1);
-        }
-        lock.lock();
-    }
-
-    LOGV2_DEBUG(21180,
-                2,
-                "Starting AllDatabaseCloner",
-                "allDatabaseCloner"_attr = _initialSyncState->allDatabaseCloner->toString());
-
-    auto [startClonerFuture, startCloner] =
-        _initialSyncState->allDatabaseCloner->runOnExecutorEvent(*_clonerAttemptExec);
-    // runOnExecutorEvent ensures the future is not ready unless an error has occurred.
-    if (startClonerFuture.isReady()) {
-        status = startClonerFuture.getNoThrow();
-        invariant(!status.isOK());
-        onCompletionGuard->setResultAndCancelRemainingWork(lock, status);
-        return;
-    }
-    _initialSyncState->allDatabaseClonerFuture =
-        std::move(startClonerFuture).onCompletion([this, onCompletionGuard](Status status) mutable {
-            // The completion guard must run on the main executor, and never inline.  In unit tests,
-            // without the executor call, it would run on the wrong executor.  In both production
-            // and in unit tests, if the cloner finishes very quickly, the callback could run
-            // in-line and result in self-deadlock.
-            stdx::unique_lock<stdx::mutex> lock(_mutex);
-            auto exec_status = (*_attemptExec)
-                                   ->scheduleWork([this, status, onCompletionGuard](
-                                                      executor::TaskExecutor::CallbackArgs args) {
-                                       _allDatabaseClonerCallback(status, onCompletionGuard);
-                                   });
-            if (!exec_status.isOK()) {
-                onCompletionGuard->setResultAndCancelRemainingWork(lock, exec_status.getStatus());
-                // In the shutdown case, it is possible the completion guard will be run
-                // from this thread (since the lambda holding another copy didn't schedule).
-                // If it does, we will self-deadlock if we're holding the lock, so release it.
-                lock.unlock();
-            }
-            // In unit tests, this reset ensures the completion guard does not run during the
-            // destruction of the lambda (which occurs on the wrong executor), except in the
-            // shutdown case.
-            onCompletionGuard.reset();
-        });
-    lock.unlock();
-    // Start (and therefore finish) the cloners outside the lock.  This ensures onCompletion
-    // is not run with the mutex held, which would result in self-deadlock.
-    (*_clonerAttemptExec)->signalEvent(startCloner);
 }
 
 void InitialSyncer::_oplogFetcherCallback(const Status& oplogFetcherFinishStatus,
@@ -2020,6 +2250,21 @@ bool InitialSyncer::_shouldRetryError(WithLock lk, Status status) {
 
 void InitialSyncer::_clearRetriableError(WithLock lk) {
     _retryingOperation = boost::none;
+}
+
+bool InitialSyncer::_checkForShutdownAndHandleError(
+    const stdx::unique_lock<stdx::mutex>& lk,
+    const executor::TaskExecutor::CallbackArgs& callbackArgs,
+    std::shared_ptr<OnCompletionGuard> onCompletionGuard,
+    const std::string& errorMsg) {
+
+    auto status = _checkForShutdownAndConvertStatus(lk, callbackArgs, errorMsg);
+    if (!status.isOK()) {
+        onCompletionGuard->setResultAndCancelRemainingWork(lk, status);
+        _initialSyncState.reset();
+        return false;
+    }
+    return true;
 }
 
 Status InitialSyncer::_checkForShutdownAndConvertStatus(

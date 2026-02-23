@@ -40,6 +40,8 @@
 
 #include <string>
 
+#include <boost/optional.hpp>
+
 namespace mongo {
 
 class BSONObj;
@@ -149,6 +151,14 @@ public:
     }
 
     /**
+     * Gets the extra metadata BSON ($replData), if present in the heartbeat request.
+     * Contains sender's optimes for standby lag tracking.
+     */
+    boost::optional<BSONObj> getExtra() const {
+        return _extra;
+    }
+
+    /**
      * The below methods set the value in the method name to 'newVal'.
      */
     void setConfigVersion(long long newVal);
@@ -185,6 +195,10 @@ private:
     bool _hasHeartbeatVersion = false;
     std::string _setName;
     HostAndPort _senderHost;
+
+    // Optional $replData from heartbeat request metadata. Raw BSON stored here;
+    // field-level parsing is done by the consumer.
+    boost::optional<BSONObj> _extra;
 };
 
 }  // namespace repl

@@ -165,7 +165,9 @@ public:
                                 status = e.toStatus();
                                 LOGV2_WARNING(23777,
                                               "Error while doing moveChunk",
-                                              "error"_attr = redact(status));
+                                              logAttrs(req.getCommandParameter()),
+                                              "error"_attr = redact(status),
+                                              "errorCode"_attr = status.codeString());
 
                                 if (status.code() == ErrorCodes::LockTimeout) {
                                     ShardingStatistics::get(executorOpCtx)

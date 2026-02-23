@@ -34,6 +34,10 @@ function getRandomCollection(db) {
 const isPreV82Binary =
     TestData.multiversionBinVersion &&
     MongoRunner.compareBinVersions(MongoRunner.getBinVersionFor(TestData.multiversionBinVersion), "8.2") < 0;
+// Since binary v8.3, index ops. take a single lock, so we don't expect CollectionUUIDMismatch.
+const isPreV83Binary =
+    TestData.multiversionBinVersion &&
+    MongoRunner.compareBinVersions(MongoRunner.getBinVersionFor(TestData.multiversionBinVersion), "8.3") < 0;
 
 export const $config = (function () {
     let data = {nsPrefix: "create_idx_", numCollections: 5};
@@ -105,7 +109,7 @@ export const $config = (function () {
             jsTest.log(`Creating index '${tojsononeline(indexSpec)}' on ${coll.getFullName()}`);
             assert.commandWorkedOrFailedWithCode(coll.createIndex(indexSpec), [
                 // The collection has been concurrently dropped and recreated
-                ErrorCodes.CollectionUUIDMismatch,
+                ...(isPreV83Binary ? [ErrorCodes.CollectionUUIDMismatch] : []),
                 ...(isPreV82Binary ? [ErrorCodes.IllegalOperation] : []),
                 ErrorCodes.IndexBuildAborted,
                 // If the collection already exists and is a view
@@ -123,8 +127,6 @@ export const $config = (function () {
                 // Encountered when two threads execute concurrently and repeatedly create
                 // collection (as part of createIndexes) and drop collection
                 ErrorCodes.CannotImplicitlyCreateCollection,
-                // TODO SERVER-104712 remove the following exected error
-                10195200,
                 // Can occur when mongos exhausts its retries on StaleConfig errors from the shard
                 // and returns the StaleConfig error to the client.
                 ErrorCodes.StaleConfig,
@@ -152,11 +154,18 @@ export const $config = (function () {
         },
     };
 
+    let teardown = function (db, collName) {
+        // This test creates and drops many tables (collections & indexes), which can make burn in
+        // on standalones fail with "too many open files". Take a checkpoint to allow reaping them.
+        assert.commandWorked(db.adminCommand({fsync: 1}));
+    };
+
     return {
-        threadCount: 12,
-        iterations: 1000,
+        threadCount: 10,
+        iterations: 500,
         states: states,
         startState: "createTimeseriesColl",
         transitions: uniformDistTransitions(states),
+        teardown: teardown,
     };
 })();

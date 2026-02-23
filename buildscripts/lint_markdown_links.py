@@ -120,7 +120,7 @@ import re
 import sys
 import urllib.parse
 from dataclasses import dataclass
-from typing import Iterable, List, Optional, Tuple
+from typing import Iterable, Optional
 
 HEADING_RE = re.compile(r"^(#{1,6})\s+(.*)$")
 HTML_ANCHOR_RE = re.compile(r'<a\s+(?:name|id)=["\']([^"\']+)["\']\s*>\s*</a>?', re.IGNORECASE)
@@ -273,8 +273,8 @@ def is_http_url(url: str) -> bool:
     return url.startswith("http://") or url.startswith("https://")
 
 
-def find_markdown_files(root: str) -> List[str]:
-    files: List[str] = []
+def find_markdown_files(root: str) -> list[str]:
+    files: list[str] = []
     for dirpath, _, filenames in os.walk(root):
         for fn in filenames:
             if fn.lower().endswith(".md"):
@@ -282,8 +282,8 @@ def find_markdown_files(root: str) -> List[str]:
     return files
 
 
-def parse_links(file_path: str) -> List[Tuple[int, str, str]]:
-    links: List[Tuple[int, str, str]] = []
+def parse_links(file_path: str) -> list[tuple[int, str, str]]:
+    links: list[tuple[int, str, str]] = []
     try:
         with open(file_path, "r", encoding="utf-8") as f:
             in_fence = False
@@ -546,11 +546,11 @@ def validate_link(current_file: str, line: int, text: str, target: str) -> Optio
     return None
 
 
-def lint_files(files: Iterable[str], workers: int) -> List[LinkIssue]:
-    issues: List[LinkIssue] = []
+def lint_files(files: Iterable[str], workers: int) -> list[LinkIssue]:
+    issues: list[LinkIssue] = []
 
-    def process(file_path: str) -> List[LinkIssue]:
-        file_issues: List[LinkIssue] = []
+    def process(file_path: str) -> list[LinkIssue]:
+        file_issues: list[LinkIssue] = []
         links = parse_links(file_path)
         for line, text, target in links:
             issue = validate_link(file_path, line, text, target)
@@ -566,7 +566,7 @@ def lint_files(files: Iterable[str], workers: int) -> List[LinkIssue]:
     return issues
 
 
-def main(argv: List[str]) -> int:
+def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser(description="Markdown link linter for src/mongo markdown files.")
     ap.add_argument("--root", default="src/mongo", help="Root directory to scan")
     ap.add_argument(
@@ -646,7 +646,7 @@ def main(argv: List[str]) -> int:
 
         fix_count = 0
         # Group issues by file for editing
-        issues_by_file: dict[str, List[LinkIssue]] = {}
+        issues_by_file: dict[str, list[LinkIssue]] = {}
         for iss in issues:
             issues_by_file.setdefault(iss.file, []).append(iss)
 
@@ -677,7 +677,7 @@ def main(argv: List[str]) -> int:
 
             # Deduplicate identical (message, target) to avoid repeated work (retain first occurrence)
             seen_sig = set()
-            deduped: List[LinkIssue] = []
+            deduped: list[LinkIssue] = []
             for iss in file_issues:
                 sig = (iss.message, iss.target)
                 if sig in seen_sig:

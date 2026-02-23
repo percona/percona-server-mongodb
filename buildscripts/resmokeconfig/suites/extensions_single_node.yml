@@ -27,7 +27,8 @@ executor:
   fixture:
     class: ReplicaSetFixture
     num_nodes: 1
-    load_all_extensions: true
+    load_extensions:
+      - "*" # All extensions.
     mongod_options:
       set_parameters:
         enableTestCommands: 1

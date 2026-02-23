@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from typing import List, Optional
+from typing import Optional
 
 import yaml
 from pydantic import BaseModel
@@ -40,33 +40,33 @@ class ScopesConfig(BaseModel):
 
 class SlackConfig(BaseModel):
     channel: str
-    overall_scope_tags: List[str]
+    overall_scope_tags: list[str]
     message_footer: str
     short_issue_data_table: bool = False
 
 
 class NotificationsConfig(BaseModel):
-    scopes: List[ScopesConfig]
+    scopes: list[ScopesConfig]
     thresholds: ThresholdsConfig
     slack: SlackConfig
 
 
 class TeamConfig(BaseModel):
     name: str
-    slack_tags: Optional[List[str]]
+    slack_tags: Optional[list[str]]
     thresholds: Optional[ThresholdOverride]
 
 
 class GroupConfig(BaseModel):
     name: str
-    teams: List[str]
-    slack_tags: Optional[List[str]]
+    teams: list[str]
+    slack_tags: Optional[list[str]]
 
 
 class CodeLockdownConfig(BaseModel):
-    notifications: List[NotificationsConfig]
-    teams: List[TeamConfig]
-    groups: List[GroupConfig]
+    notifications: list[NotificationsConfig]
+    teams: list[TeamConfig]
+    groups: list[GroupConfig]
 
     @classmethod
     def from_yaml_config(cls, file_path: str) -> CodeLockdownConfig:
@@ -79,11 +79,11 @@ class CodeLockdownConfig(BaseModel):
         with open(file_path, encoding="utf8") as file_handler:
             return cls(**yaml.safe_load(file_handler))
 
-    def get_all_group_names(self) -> List[str]:
+    def get_all_group_names(self) -> list[str]:
         """Get all group names."""
         return [group.name for group in self.groups]
 
-    def get_group_teams(self, group_name: str) -> List[str]:
+    def get_group_teams(self, group_name: str) -> list[str]:
         """
         Get group teams.
 
@@ -96,7 +96,7 @@ class CodeLockdownConfig(BaseModel):
 
         return []
 
-    def get_group_slack_tags(self, group_name: str) -> List[str]:
+    def get_group_slack_tags(self, group_name: str) -> list[str]:
         """
         Get group slack tags.
 
@@ -109,7 +109,7 @@ class CodeLockdownConfig(BaseModel):
 
         return []
 
-    def get_team_slack_tags(self, team_name: str) -> List[str]:
+    def get_team_slack_tags(self, team_name: str) -> list[str]:
         """
         Get team slack tags.
 

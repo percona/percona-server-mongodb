@@ -59,14 +59,6 @@
 namespace mongo {
 namespace aggregation_request_helper {
 
-/**
- * Validate the aggregate command object.
- */
-void validate(const AggregateCommandRequest& aggregate,
-              const BSONObj& cmdObj,
-              const NamespaceString& nss,
-              boost::optional<ExplainOptions::Verbosity> explainVerbosity);
-
 StatusWith<AggregateCommandRequest> parseFromBSONForTests(
     const BSONObj& cmdObj,
     const boost::optional<auth::ValidatedTenancyScope>& vts,
@@ -109,14 +101,41 @@ void addQuerySettingsToRequest(AggregateCommandRequest& request,
     }
 }
 
+void addIfrFlagsToRequest(AggregateCommandRequest& request,
+                          std::shared_ptr<IncrementalFeatureRolloutContext> ifrContext) {
+    tassert(11565104, "IFRContext cannot be null", ifrContext);
+
+    // If the featureFlagVectorSearchExtension IFR flag is enabled, all nodes are upgraded and can
+    // parse IFR flags.
+    // TODO SERVER-117721 Remove FCV gate once multiversion testing can handle IFR flags.
+    if (serverGlobalParams.featureCompatibility.acquireFCVSnapshot().isGreaterThanOrEqualTo(
+            multiversion::FeatureCompatibilityVersion::kVersion_8_3)) {  // NOLINT
+        // TODO SERVER-116219 Expand IFR flag serialization beyond $vectorSearch.
+        request.setIfrFlags(
+            ifrContext->serializeFlagValues({&feature_flags::gFeatureFlagVectorSearchExtension}));
+    }
+}
+
+// TODO SERVER-119402: Change explainVerbosity parameter to bool.
 void validate(const AggregateCommandRequest& aggregate,
               const BSONObj& cmdObj,
               const NamespaceString& nss,
               boost::optional<ExplainOptions::Verbosity> explainVerbosity) {
+    // True if the aggregate command itself included an 'explain' field.
     bool hasExplainElem = aggregate.getExplain().has_value();
-    bool hasExplain = explainVerbosity.has_value() || aggregate.getExplain().has_value();
+
+    // True if this request is being explained, either via a top-level 'explain'
+    // command (via explainVerbosity) or via an inline 'explain' field in the
+    // aggregation command.
+    bool hasExplain = explainVerbosity.has_value() || hasExplainElem;
     bool hasFromRouterElem = getFromRouter(aggregate).has_value();
     bool hasNeedsMergeElem = aggregate.getNeedsMerge().has_value();
+
+    if (explainVerbosity) {
+        uassert(ErrorCodes::FailedToParse,
+                "The 'explain' option is illegal when a explain verbosity is also provided",
+                !cmdObj.hasField(AggregateCommandRequest::kExplainFieldName));
+    }
 
     uassert(ErrorCodes::InvalidNamespace,
             fmt::format("Invalid collection name specified '{}'",

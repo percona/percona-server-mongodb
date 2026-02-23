@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 from bisect import bisect_left, bisect_right
-from typing import List, NamedTuple, Optional
+from typing import NamedTuple, Optional
 
 import structlog
 import yaml
@@ -42,10 +42,10 @@ class VersionConstantValues(NamedTuple):
     latest: Version
     last_continuous: Version
     last_lts: Version
-    requires_fcv_tag_list: List[Version]
-    requires_fcv_tag_list_continuous: List[Version]
-    fcvs_less_than_latest: List[Version]
-    eols: List[Version]
+    requires_fcv_tag_list: list[Version]
+    requires_fcv_tag_list_continuous: list[Version]
+    fcvs_less_than_latest: list[Version]
+    eols: list[Version]
 
     def get_fcv_tag_list(self) -> str:
         """Get a comma joined string of all the fcv tags."""
@@ -78,7 +78,7 @@ class VersionConstantValues(NamedTuple):
         """Get a string version of the latest FCV."""
         return version_str(self.latest)
 
-    def get_fcv_tags_less_than_latest(self) -> List[str]:
+    def get_fcv_tags_less_than_latest(self) -> list[str]:
         """Get the list of all fcv tags less than the latest."""
         return [tag_str(fcv) for fcv in self.fcvs_less_than_latest]
 
@@ -102,7 +102,7 @@ class VersionConstantValues(NamedTuple):
         last_continuous = self.get_last_continuous_fcv()
         return f"{base_name}-{last_continuous}"
 
-    def get_eols(self) -> List[str]:
+    def get_eols(self) -> list[str]:
         """Get EOL'd versions as list of strings."""
         return [version_str(eol) for eol in self.eols]
 
@@ -148,9 +148,9 @@ class MongoReleases(BaseModel):
       LTS.
     """
 
-    feature_compatibility_versions: List[str] = Field(alias="featureCompatibilityVersions")
-    long_term_support_releases: List[str] = Field(alias="longTermSupportReleases")
-    eol_versions: List[str] = Field(alias="eolVersions")
+    feature_compatibility_versions: list[str] = Field(alias="featureCompatibilityVersions")
+    long_term_support_releases: list[str] = Field(alias="longTermSupportReleases")
+    eol_versions: list[str] = Field(alias="eolVersions")
     generate_fcv_lower_bound_override: Optional[str] = Field(
         None, alias="generateFCVLowerBoundOverride"
     )
@@ -178,15 +178,15 @@ class MongoReleases(BaseModel):
             )
             raise
 
-    def get_fcv_versions(self) -> List[Version]:
+    def get_fcv_versions(self) -> list[Version]:
         """Get the Version representation of all fcv versions."""
         return [Version(fcv) for fcv in self.feature_compatibility_versions]
 
-    def get_lts_versions(self) -> List[Version]:
+    def get_lts_versions(self) -> list[Version]:
         """Get the Version representation of the lts versions."""
         return [Version(lts) for lts in self.long_term_support_releases]
 
-    def get_eol_versions(self) -> List[Version]:
+    def get_eol_versions(self) -> list[Version]:
         """Get the Version representation of the EOL versions."""
         return [Version(eol) for eol in self.eol_versions]
 

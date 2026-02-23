@@ -24,7 +24,7 @@ from collections import defaultdict, deque
 from dataclasses import dataclass
 from pathlib import Path
 from socket import gethostname
-from typing import Any, Deque, Dict, List, Optional, Set, Union
+from typing import Any, Optional, Union
 
 from rich.status import Status
 
@@ -62,10 +62,10 @@ from buildscripts.resmokelib.utils.evergreen_conn import get_evergreen_api
 @dataclass
 class Node:
     name: str
-    args: List[str]
-    popen_kwargs: Dict[str, str]
+    args: list[str]
+    popen_kwargs: dict[str, str]
     log_file: Path
-    deps: Set["Node"]
+    deps: set["Node"]
     _start_time: Optional[float] = None
     _finish_time: Optional[float] = None
     _proc: Optional[subprocess.Popen] = None
@@ -104,11 +104,11 @@ class Node:
         self._finish_time = time.monotonic()
         return self._proc.returncode
 
-    def deps_are_satisfied(self, finished: Set["Node"]):
+    def deps_are_satisfied(self, finished: set["Node"]):
         return self.deps.issubset(finished)
 
 
-def normalize_deps(x: Union[None, Node, Set[Node]]):
+def normalize_deps(x: Union[None, Node, set[Node]]):
     if x is None:
         return set()
     elif isinstance(x, (tuple, list, set)):
@@ -117,7 +117,7 @@ def normalize_deps(x: Union[None, Node, Set[Node]]):
         return {x}
 
 
-def send_slack_notification(nodes: List[Node], total_elapsed: float, component_name: str):
+def send_slack_notification(nodes: list[Node], total_elapsed: float, component_name: str):
     overall_success = True
     lines = [
         "```",
@@ -176,11 +176,11 @@ class CommandRunner:
     ):
         self._log_path = log_path
         self._parallelism = parallelism
-        self._downstream: Dict[Node, Set[Node]] = defaultdict(set)
-        self._nodes: Set[Node] = set()
-        self._finished: Set[Node] = set()
-        self._ready: Deque[Node] = deque()
-        self._running: Set[Node] = set()
+        self._downstream: dict[Node, set[Node]] = defaultdict(set)
+        self._nodes: set[Node] = set()
+        self._finished: set[Node] = set()
+        self._ready: deque[Node] = deque()
+        self._running: set[Node] = set()
         self._status = Status(status=f"{component_name} smoke tests")
         self._start_time = time.monotonic()
         self._finish_time: Optional[float] = None
@@ -205,9 +205,9 @@ class CommandRunner:
         self,
         *,
         name: str,
-        args: List[Any],
+        args: list[Any],
         log_file: str,
-        deps: Union[None, Node, Set[Node]] = None,
+        deps: Union[None, Node, set[Node]] = None,
         **kwargs,
     ) -> Node:
         log_file = self._log_path.joinpath(log_file)
@@ -234,7 +234,7 @@ class CommandRunner:
         print(f"Logging results to {self._log_path}")
         self._status.start()
         try:
-            iter_finished: Set[Node] = set()
+            iter_finished: set[Node] = set()
             while self._finished != self._nodes:
                 while len(self._running) < self._parallelism and len(self._ready) > 0:
                     node = self._ready.popleft()
@@ -327,7 +327,7 @@ def run_smoke_tests(
     *,
     component_name,
     log_path: Path,
-    bazel_args: List[str],
+    bazel_args: list[str],
     run_clang_tidy: bool,
     send_slack_notification: bool,
 ):

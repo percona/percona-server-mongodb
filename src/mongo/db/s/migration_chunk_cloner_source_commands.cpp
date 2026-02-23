@@ -58,6 +58,7 @@
 #include "mongo/db/write_concern_options.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/concurrency/notification.h"
+#include "mongo/util/fail_point.h"
 #include "mongo/util/str.h"
 
 #include <memory>
@@ -76,6 +77,8 @@
  */
 namespace mongo {
 namespace {
+
+MONGO_FAIL_POINT_DEFINE(pauseChunkMigrationSessionOplogFetching);
 
 /**
  * Shortcut class to perform the appropriate checks and acquire the cloner associated with the
@@ -337,6 +340,8 @@ public:
         OperationContext* opCtx,
         const MigrationSessionId& migrationSessionId,
         BSONArrayBuilder* arrBuilder) {
+        pauseChunkMigrationSessionOplogFetching.pauseWhileSet(opCtx);
+
         boost::optional<repl::OpTime> opTime;
         std::shared_ptr<Notification<bool>> newOplogNotification;
 

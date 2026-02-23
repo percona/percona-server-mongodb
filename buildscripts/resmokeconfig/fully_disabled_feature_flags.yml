@@ -23,11 +23,11 @@
 - featureFlagSessionsCollectionCoordinatorOnConfigServer
 # TODO (SERVER-108818): test primary-driven index builds in allFeatureFlag variant.
 - featureFlagPrimaryDrivenIndexBuilds
-# TODO SERVER-104494 SERVER-104258: Turn this back on once the issues are fixed.
-- featureFlagReshardingCloneNoRefresh
 # TODO SERVER-117454: Enable the feature flag in the all-feature-flags variant.
 - featureFlagReplicatedFastCount
 # TODO (SERVER-117324): Remove featureFlagDisallowFindAndModifyImageCollection
 - featureFlagDisallowFindAndModifyImageCollection
 # TODO (SERVER-117924): Re-enable testing coverage for arbitrary updates on timeseries
 - featureFlagTimeseriesUpdatesSupport
+# TODO SERVER-112823 Enable featureFlagGetExecutorDeferredEngineChoice feature flag when fully compatible.
+- featureFlagGetExecutorDeferredEngineChoice

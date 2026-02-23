@@ -1,7 +1,7 @@
 """Cedar report."""
 
 from dataclasses import dataclass
-from typing import List, Union
+from typing import Union
 
 
 @dataclass
@@ -29,7 +29,7 @@ class CedarTestReport:
 
     test_name: str
     thread_level: int
-    metrics: List[CedarMetric]
+    metrics: list[CedarMetric]
 
     def as_dict(self) -> dict:
         """Return dictionary representation."""

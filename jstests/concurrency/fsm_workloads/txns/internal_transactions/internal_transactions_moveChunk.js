@@ -11,6 +11,8 @@
  *  # startCommit times out
  *  does_not_support_config_fuzzer,
  *  assumes_stable_shard_list,
+ *  # TODO(SERVER-119777): Ensure test does not leak cursors.
+ *  can_leak_idle_cursors,
  * ]
  */
 import {extendWorkload} from "jstests/concurrency/fsm_libs/extend_workload.js";

@@ -40,6 +40,10 @@ assert.lte(
 assert("totalRefreshed" in stats);
 
 assert("acquisitionWaitTimes" in stats);
+assert("totalConnectionAcquisitionRequests" in stats);
+assert("totalConnectionAcquisitionWaitTimeMillis" in stats);
+assert.gte(stats["totalConnectionAcquisitionRequests"], 0, tojson(stats));
+assert.gte(stats["totalConnectionAcquisitionWaitTimeMillis"], 0, tojson(stats));
 
 for (const hostName in stats["hosts"]) {
     assert(
@@ -155,6 +159,114 @@ function neverUsedMetricTest(kDbName = "test") {
 }
 
 neverUsedMetricTest();
+
+// Verify that connection acquisition metrics are populated and increase after running queries.
+function connectionAcquisitionMetricsTest() {
+    const mongos = st.s0;
+    const mongosDB = mongos.getDB("test");
+
+    let initialStats = mongos.getDB("admin").runCommand({connPoolStats: 1});
+    assert.commandWorked(initialStats);
+    const initialRequests = initialStats["totalConnectionAcquisitionRequests"];
+    const initialWaitTime = initialStats["totalConnectionAcquisitionWaitTimeMillis"];
+    jsTestLog(
+        "Initial connection acquisition metrics: " +
+            tojson({
+                requests: initialRequests,
+                waitTimeMillis: initialWaitTime,
+            }),
+    );
+
+    const numQueries = 10;
+    for (let i = 0; i < numQueries; i++) {
+        assert.commandWorked(mongosDB.runCommand({find: "test", limit: 1}));
+    }
+
+    let updatedStats = mongos.getDB("admin").runCommand({connPoolStats: 1});
+    assert.commandWorked(updatedStats);
+    const updatedRequests = updatedStats["totalConnectionAcquisitionRequests"];
+    const updatedWaitTime = updatedStats["totalConnectionAcquisitionWaitTimeMillis"];
+    jsTestLog(
+        "Updated connection acquisition metrics: " +
+            tojson({
+                requests: updatedRequests,
+                waitTimeMillis: updatedWaitTime,
+            }),
+    );
+
+    assert.gt(
+        updatedRequests,
+        initialRequests,
+        "totalConnectionAcquisitionRequests should increase after running queries",
+    );
+    assert.gte(
+        updatedWaitTime,
+        initialWaitTime,
+        "totalConnectionAcquisitionWaitTimeMillis should not decrease after running queries",
+    );
+    assert.gte(updatedWaitTime, 0, "totalConnectionAcquisitionWaitTimeMillis should be non-negative");
+
+    // Verify per-host stats include acquisition metrics and sum to the top-level totals.
+    let hostRequestsSum = 0;
+    let hostWaitTimeSum = 0;
+    for (const hostName in updatedStats["hosts"]) {
+        const hostStats = updatedStats["hosts"][hostName];
+        jsTestLog(hostStats);
+        assert(
+            "connectionAcquisitionRequests" in hostStats,
+            "Expected connectionAcquisitionRequests in host stats for " + hostName,
+        );
+        assert(
+            "connectionAcquisitionWaitTimeMillis" in hostStats,
+            "Expected connectionAcquisitionWaitTimeMillis in host stats for " + hostName,
+        );
+        assert.gte(hostStats["connectionAcquisitionRequests"], 0);
+        assert.gte(hostStats["connectionAcquisitionWaitTimeMillis"], 0);
+        hostRequestsSum += hostStats["connectionAcquisitionRequests"];
+        hostWaitTimeSum += hostStats["connectionAcquisitionWaitTimeMillis"];
+    }
+    assert.eq(
+        updatedStats["totalConnectionAcquisitionRequests"],
+        hostRequestsSum,
+        "Total acquisition requests should equal sum across hosts",
+    );
+    assert.eq(
+        updatedStats["totalConnectionAcquisitionWaitTimeMillis"],
+        hostWaitTimeSum,
+        "Total acquisition wait time should equal sum across hosts",
+    );
+
+    // Verify per-pool stats include acquisition metrics and sum to the top-level totals.
+    let poolRequestsSum = 0;
+    let poolWaitTimeSum = 0;
+    for (const poolName in updatedStats["pools"]) {
+        const poolStats = updatedStats["pools"][poolName];
+        assert(
+            "poolConnectionAcquisitionRequests" in poolStats,
+            "Expected poolConnectionAcquisitionRequests in pool stats for " + poolName,
+        );
+        assert(
+            "poolConnectionAcquisitionWaitTimeMillis" in poolStats,
+            "Expected poolConnectionAcquisitionWaitTimeMillis in pool stats for " + poolName,
+        );
+        assert.gte(poolStats["poolConnectionAcquisitionRequests"], 0);
+        assert.gte(poolStats["poolConnectionAcquisitionWaitTimeMillis"], 0);
+        poolRequestsSum += poolStats["poolConnectionAcquisitionRequests"];
+        poolWaitTimeSum += poolStats["poolConnectionAcquisitionWaitTimeMillis"];
+    }
+    assert.eq(
+        updatedStats["totalConnectionAcquisitionRequests"],
+        poolRequestsSum,
+        "Total acquisition requests should equal sum across pools",
+    );
+    assert.eq(
+        updatedStats["totalConnectionAcquisitionWaitTimeMillis"],
+        poolWaitTimeSum,
+        "Total acquisition wait time should equal sum across pools",
+    );
+}
+
+connectionAcquisitionMetricsTest();
 
 // Enable the following fail point to refresh connections after every command.
 let refreshConnectionFailPoint = configureFailPoint(st.s.getDB("admin"), "refreshConnectionAfterEveryCommand");

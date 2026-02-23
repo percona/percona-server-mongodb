@@ -9,7 +9,6 @@ import requests
 import structlog
 import yaml
 
-from typing import Dict
 
 LOGGER = structlog.get_logger(__name__)
 
@@ -195,7 +194,7 @@ def format_error(error: dict) -> str:
     return "\n".join(parts)
 
 
-def get_expansions(expansions_file: str) -> Dict[str, any]:
+def get_expansions(expansions_file: str) -> dict[str, any]:
     if not expansions_file:
         return None
 

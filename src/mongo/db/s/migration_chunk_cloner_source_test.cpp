@@ -251,15 +251,10 @@ public:
         return _coll->parseValidator(opCtx, validator, allowedFeatures);
     }
 
-    void setValidator(OperationContext* opCtx, Validator validator) override {
-        MONGO_UNREACHABLE;
-    }
-
-    Status setValidationLevel(OperationContext* opCtx, ValidationLevelEnum newLevel) override {
-        MONGO_UNREACHABLE;
-    }
-
-    Status setValidationAction(OperationContext* opCtx, ValidationActionEnum newAction) override {
+    Status setValidationOptions(OperationContext* opCtx,
+                                boost::optional<ValidationLevelEnum> newLevel,
+                                boost::optional<ValidationActionEnum> newAction,
+                                boost::optional<Validator> newValidator) override {
         MONGO_UNREACHABLE;
     }
 
@@ -318,6 +313,10 @@ public:
 
     void setTimeseriesBucketingParametersChanged(OperationContext* opCtx,
                                                  boost::optional<bool> value) override {
+        MONGO_UNREACHABLE;
+    }
+
+    bool shouldRemoveLegacyTimeseriesBucketingParametersHaveChanged() const override {
         MONGO_UNREACHABLE;
     }
 

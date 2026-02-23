@@ -54,6 +54,10 @@ public:
     std::unique_ptr<MetricsService> metricsService;
 };
 
+struct MetricCreatorOptions {
+    bool inServerStatus = false;
+};
+
 /**
  * Type traits for creating different metric types via MetricsService.
  * Each specialization provides a static `create` method that wraps the
@@ -67,8 +71,10 @@ struct MetricCreator<Counter<int64_t>> {
     static Counter<int64_t>& create(MetricsService* svc,
                                     MetricName name,
                                     std::string desc,
-                                    MetricUnit unit) {
-        return svc->createInt64Counter(name, std::move(desc), unit);
+                                    MetricUnit unit,
+                                    MetricCreatorOptions options = {}) {
+        return svc->createInt64Counter(
+            name, std::move(desc), unit, {.inServerStatus = options.inServerStatus});
     }
 };
 
@@ -77,8 +83,10 @@ struct MetricCreator<Counter<double>> {
     static Counter<double>& create(MetricsService* svc,
                                    MetricName name,
                                    std::string desc,
-                                   MetricUnit unit) {
-        return svc->createDoubleCounter(name, std::move(desc), unit);
+                                   MetricUnit unit,
+                                   MetricCreatorOptions options = {}) {
+        return svc->createDoubleCounter(
+            name, std::move(desc), unit, {.inServerStatus = options.inServerStatus});
     }
 };
 
@@ -87,8 +95,10 @@ struct MetricCreator<Gauge<int64_t>> {
     static Gauge<int64_t>& create(MetricsService* svc,
                                   MetricName name,
                                   std::string desc,
-                                  MetricUnit unit) {
-        return svc->createInt64Gauge(name, std::move(desc), unit);
+                                  MetricUnit unit,
+                                  MetricCreatorOptions options = {}) {
+        return svc->createInt64Gauge(
+            name, std::move(desc), unit, {.inServerStatus = options.inServerStatus});
     }
 };
 
@@ -97,8 +107,10 @@ struct MetricCreator<Gauge<double>> {
     static Gauge<double>& create(MetricsService* svc,
                                  MetricName name,
                                  std::string desc,
-                                 MetricUnit unit) {
-        return svc->createDoubleGauge(name, std::move(desc), unit);
+                                 MetricUnit unit,
+                                 MetricCreatorOptions options = {}) {
+        return svc->createDoubleGauge(
+            name, std::move(desc), unit, {.inServerStatus = options.inServerStatus});
     }
 };
 
@@ -107,8 +119,10 @@ struct MetricCreator<Histogram<int64_t>> {
     static Histogram<int64_t>& create(MetricsService* svc,
                                       MetricName name,
                                       std::string desc,
-                                      MetricUnit unit) {
-        return svc->createInt64Histogram(name, std::move(desc), unit);
+                                      MetricUnit unit,
+                                      MetricCreatorOptions options = {}) {
+        return svc->createInt64Histogram(
+            name, std::move(desc), unit, {.inServerStatus = options.inServerStatus});
     }
 };
 
@@ -117,8 +131,10 @@ struct MetricCreator<Histogram<double>> {
     static Histogram<double>& create(MetricsService* svc,
                                      MetricName name,
                                      std::string desc,
-                                     MetricUnit unit) {
-        return svc->createDoubleHistogram(name, std::move(desc), unit);
+                                     MetricUnit unit,
+                                     MetricCreatorOptions options = {}) {
+        return svc->createDoubleHistogram(
+            name, std::move(desc), unit, {.inServerStatus = options.inServerStatus});
     }
 };
 
@@ -182,6 +198,14 @@ TYPED_TEST(MetricCreationTest, ExceptionWhenSameNameButDifferentParameters) {
             this->metricsService.get(), MetricNames::kTest1, "description", MetricUnit::kBytes),
         DBException,
         ErrorCodes::ObjectAlreadyExists);
+
+    ASSERT_THROWS_CODE(MetricCreator<TypeParam>::create(this->metricsService.get(),
+                                                        MetricNames::kTest1,
+                                                        "description",
+                                                        MetricUnit::kSeconds,
+                                                        {.inServerStatus = true}),
+                       DBException,
+                       ErrorCodes::ObjectAlreadyExists);
 }
 
 TYPED_TEST(MetricCreationTest, ExceptionWhenSameNameButDifferentType) {
@@ -203,6 +227,48 @@ TYPED_TEST(MetricCreationTest, ExceptionWhenSameNameButDifferentType) {
     ASSERT_THROWS_CODE(
         MetricCreator<DifferentType>::create(
             this->metricsService.get(), MetricNames::kTest1, "description", MetricUnit::kSeconds),
+        DBException,
+        ErrorCodes::ObjectAlreadyExists);
+}
+
+TEST_F(MetricsServiceTest, ExceptionWhenHistogramBoundariesDifferent) {
+    metricsService->createInt64Histogram(
+        MetricNames::kTest1,
+        "description",
+        MetricUnit::kSeconds,
+        {.explicitBucketBoundaries = std::vector<double>{10, 100}});
+    ASSERT_THROWS_CODE(metricsService->createInt64Histogram(
+                           MetricNames::kTest1,
+                           "description",
+                           MetricUnit::kSeconds,
+                           {.explicitBucketBoundaries = std::vector<double>{5, 50}}),
+                       DBException,
+                       ErrorCodes::ObjectAlreadyExists);
+    ASSERT_THROWS_CODE(
+        metricsService->createInt64Histogram(MetricNames::kTest1,
+                                             "description",
+                                             MetricUnit::kSeconds,
+                                             {.explicitBucketBoundaries = boost::none}),
+        DBException,
+        ErrorCodes::ObjectAlreadyExists);
+
+    metricsService->createDoubleHistogram(
+        MetricNames::kTest2,
+        "description",
+        MetricUnit::kSeconds,
+        {.explicitBucketBoundaries = std::vector<double>{10, 100}});
+    ASSERT_THROWS_CODE(metricsService->createDoubleHistogram(
+                           MetricNames::kTest2,
+                           "description",
+                           MetricUnit::kSeconds,
+                           {.explicitBucketBoundaries = std::vector<double>{5, 50}}),
+                       DBException,
+                       ErrorCodes::ObjectAlreadyExists);
+    ASSERT_THROWS_CODE(
+        metricsService->createDoubleHistogram(MetricNames::kTest2,
+                                              "description",
+                                              MetricUnit::kSeconds,
+                                              {.explicitBucketBoundaries = boost::none}),
         DBException,
         ErrorCodes::ObjectAlreadyExists);
 }
@@ -284,21 +350,51 @@ TEST_F(MetricsServiceTest, NoOpMeterProviderBeforeInit) {
 }
 #endif  // MONGO_CONFIG_OTEL
 
-TEST_F(MetricsServiceTest, SerializeMetrics) {
+using SerializeMetricsTest = MetricsServiceTest;
+
+TEST_F(SerializeMetricsTest, SerializesMetrics) {
     auto& int64Histogram = metricsService->createInt64Histogram(
-        MetricNames::kTest1, "description", MetricUnit::kSeconds);
+        MetricNames::kTest1, "description", MetricUnit::kSeconds, {.inServerStatus = true});
     auto& doubleHistogram = metricsService->createDoubleHistogram(
-        MetricNames::kTest2, "description", MetricUnit::kSeconds);
+        MetricNames::kTest2, "description", MetricUnit::kSeconds, {.inServerStatus = true});
     auto& counter = metricsService->createInt64Counter(
-        MetricNames::kTest3, "description", MetricUnit::kSeconds);
+        MetricNames::kTest3, "description", MetricUnit::kSeconds, {.inServerStatus = true});
+    auto& gauge = metricsService->createDoubleGauge(
+        MetricNames::kTest4, "description", MetricUnit::kQueries, {.inServerStatus = true});
     int64Histogram.record(10);
     doubleHistogram.record(20);
     counter.add(1);
+    gauge.set(0.33);
 
     BSONObjBuilder expectedBson;
     expectedBson.append("test_only.metric1_seconds", BSON("average" << 10.0 << "count" << 1));
     expectedBson.append("test_only.metric2_seconds", BSON("average" << 20.0 << "count" << 1));
     expectedBson.append("test_only.metric3_seconds", 1);
+    expectedBson.append("test_only.metric4_queries", 0.33);
+    expectedBson.doneFast();
+
+    BSONObjBuilder builder;
+    metricsService->appendMetricsForServerStatus(builder);
+    ASSERT_BSONOBJ_EQ(builder.obj(), expectedBson.obj());
+}
+
+TEST_F(SerializeMetricsTest, ExcludesMetricsNotInServerStatus) {
+    auto& int64Histogram = metricsService->createInt64Histogram(
+        MetricNames::kTest1, "description", MetricUnit::kSeconds, {.inServerStatus = false});
+    // Only doubleHistogram is in the constructed object.
+    auto& doubleHistogram = metricsService->createDoubleHistogram(
+        MetricNames::kTest2, "description", MetricUnit::kSeconds, {.inServerStatus = true});
+    auto& counter = metricsService->createInt64Counter(
+        MetricNames::kTest3, "description", MetricUnit::kSeconds, {.inServerStatus = false});
+    auto& gauge = metricsService->createDoubleGauge(
+        MetricNames::kTest4, "description", MetricUnit::kQueries, {.inServerStatus = false});
+    int64Histogram.record(10);
+    doubleHistogram.record(20);
+    counter.add(1);
+    gauge.set(0.33);
+
+    BSONObjBuilder expectedBson;
+    expectedBson.append("test_only.metric2_seconds", BSON("average" << 20.0 << "count" << 1));
     expectedBson.doneFast();
 
     BSONObjBuilder builder;
@@ -499,10 +595,16 @@ TEST_F(CreateHistogramTest, RecordsDoubleValues) {
 
 TEST_F(CreateHistogramTest, RecordsInt64ValuesExplicitBoundaries) {
     Histogram<int64_t>& histogram1 = metricsService->createInt64Histogram(
-        MetricNames::kTest1, "description", MetricUnit::kSeconds, std::vector<double>({2, 4}));
+        MetricNames::kTest1,
+        "description",
+        MetricUnit::kSeconds,
+        /*options=*/{.explicitBucketBoundaries = std::vector<double>({2, 4})});
     OtelMetricsCapturer metricsCapturer(*metricsService);
     Histogram<int64_t>& histogram2 = metricsService->createInt64Histogram(
-        MetricNames::kTest2, "description", MetricUnit::kSeconds, std::vector<double>({10, 100}));
+        MetricNames::kTest2,
+        "description",
+        MetricUnit::kSeconds,
+        /*options=*/{.explicitBucketBoundaries = std::vector<double>({10, 100})});
 
     histogram1.record(15);
     if (metricsCapturer.canReadMetrics()) {
@@ -529,10 +631,16 @@ TEST_F(CreateHistogramTest, RecordsInt64ValuesExplicitBoundaries) {
 
 TEST_F(CreateHistogramTest, RecordsDoubleValuesExplicitBoundaries) {
     Histogram<double>& histogram1 = metricsService->createDoubleHistogram(
-        MetricNames::kTest1, "description", MetricUnit::kSeconds, std::vector<double>({2, 4}));
+        MetricNames::kTest1,
+        "description",
+        MetricUnit::kSeconds,
+        /*options=*/{.explicitBucketBoundaries = std::vector<double>({2, 4})});
     OtelMetricsCapturer metricsCapturer(*metricsService);
     Histogram<double>& histogram2 = metricsService->createDoubleHistogram(
-        MetricNames::kTest2, "description", MetricUnit::kSeconds, std::vector<double>({10, 100}));
+        MetricNames::kTest2,
+        "description",
+        MetricUnit::kSeconds,
+        /*options=*/{.explicitBucketBoundaries = std::vector<double>({10, 100})});
 
     histogram1.record(15);
     if (metricsCapturer.canReadMetrics()) {

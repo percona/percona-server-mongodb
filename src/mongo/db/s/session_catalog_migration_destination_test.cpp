@@ -164,7 +164,8 @@ public:
     void setUp() override {
         ShardServerTestFixture::setUp();
 
-        _migrationId = MigrationSessionId::generate("donor", "recipient");
+        _migrationSessionId = MigrationSessionId::generate("donor", "recipient");
+        _migrationId = UUID::gen();
 
         {
             auto donorShard = assertGet(
@@ -217,7 +218,11 @@ public:
         return parseStatus.getValue();
     }
 
-    MigrationSessionId migrationId() {
+    MigrationSessionId migrationSessionId() {
+        return _migrationSessionId.value();
+    }
+
+    UUID migrationId() {
         return _migrationId.value();
     }
 
@@ -500,12 +505,13 @@ private:
         ASSERT_BSONOBJ_EQ(SessionCatalogMigration::kSessionOplogTag, oplogToCheck.getObject());
     }
 
-    boost::optional<MigrationSessionId> _migrationId;
+    boost::optional<MigrationSessionId> _migrationSessionId;
+    boost::optional<UUID> _migrationId;
 };
 
 TEST_F(SessionCatalogMigrationDestinationTest, ShouldJoinProperlyWhenNothingToTransfer) {
     SessionCatalogMigrationDestination sessionMigration(
-        kNs, kFromShard, migrationId(), _cancellationSource.token());
+        kNs, kFromShard, migrationSessionId(), migrationId(), _cancellationSource.token());
 
     sessionMigration.start(getServiceContext());
     finishSessionExpectSuccess(&sessionMigration);
@@ -516,7 +522,7 @@ TEST_F(SessionCatalogMigrationDestinationTest, OplogEntriesWithSameTxn) {
     const auto sessionId = makeLogicalSessionIdForTest();
 
     SessionCatalogMigrationDestination sessionMigration(
-        kNs, kFromShard, migrationId(), _cancellationSource.token());
+        kNs, kFromShard, migrationSessionId(), migrationId(), _cancellationSource.token());
     sessionMigration.start(getServiceContext());
 
     OperationSessionInfo sessionInfo;
@@ -579,7 +585,7 @@ TEST_F(SessionCatalogMigrationDestinationTest, OplogEntriesWithMultiStmtIds) {
     const auto sessionId = makeLogicalSessionIdForTest();
 
     SessionCatalogMigrationDestination sessionMigration(
-        kNs, kFromShard, migrationId(), _cancellationSource.token());
+        kNs, kFromShard, migrationSessionId(), migrationId(), _cancellationSource.token());
     sessionMigration.start(getServiceContext());
 
     OperationSessionInfo sessionInfo;
@@ -645,7 +651,7 @@ TEST_F(SessionCatalogMigrationDestinationTest, ShouldOnlyStoreHistoryOfLatestTxn
     const auto sessionId = makeLogicalSessionIdForTest();
 
     SessionCatalogMigrationDestination sessionMigration(
-        kNs, kFromShard, migrationId(), _cancellationSource.token());
+        kNs, kFromShard, migrationSessionId(), migrationId(), _cancellationSource.token());
     sessionMigration.start(getServiceContext());
 
     OperationSessionInfo sessionInfo;
@@ -703,7 +709,7 @@ TEST_F(SessionCatalogMigrationDestinationTest, OplogEntriesWithSameTxnInSeparate
     const auto sessionId = makeLogicalSessionIdForTest();
 
     SessionCatalogMigrationDestination sessionMigration(
-        kNs, kFromShard, migrationId(), _cancellationSource.token());
+        kNs, kFromShard, migrationSessionId(), migrationId(), _cancellationSource.token());
     sessionMigration.start(getServiceContext());
 
     OperationSessionInfo sessionInfo;
@@ -770,7 +776,7 @@ TEST_F(SessionCatalogMigrationDestinationTest, OplogEntriesWithDifferentSession)
     const auto sessionId2 = makeLogicalSessionIdForTest();
 
     SessionCatalogMigrationDestination sessionMigration(
-        kNs, kFromShard, migrationId(), _cancellationSource.token());
+        kNs, kFromShard, migrationSessionId(), migrationId(), _cancellationSource.token());
     sessionMigration.start(getServiceContext());
 
     OperationSessionInfo sessionInfo1;
@@ -856,7 +862,7 @@ TEST_F(SessionCatalogMigrationDestinationTest, ShouldNotNestAlreadyNestedOplog) 
     const auto sessionId = makeLogicalSessionIdForTest();
 
     SessionCatalogMigrationDestination sessionMigration(
-        kNs, kFromShard, migrationId(), _cancellationSource.token());
+        kNs, kFromShard, migrationSessionId(), migrationId(), _cancellationSource.token());
     sessionMigration.start(getServiceContext());
 
     OperationSessionInfo sessionInfo;
@@ -924,7 +930,7 @@ TEST_F(SessionCatalogMigrationDestinationTest, ShouldBeAbleToHandlePreImageFindA
     const auto sessionId = makeLogicalSessionIdForTest();
 
     SessionCatalogMigrationDestination sessionMigration(
-        kNs, kFromShard, migrationId(), _cancellationSource.token());
+        kNs, kFromShard, migrationSessionId(), migrationId(), _cancellationSource.token());
 
     sessionMigration.start(getServiceContext());
 
@@ -1019,7 +1025,7 @@ TEST_F(SessionCatalogMigrationDestinationTest, ShouldBeAbleToHandleForgedPreImag
     const auto sessionId = makeLogicalSessionIdForTest();
 
     SessionCatalogMigrationDestination sessionMigration(
-        kNs, kFromShard, migrationId(), _cancellationSource.token());
+        kNs, kFromShard, migrationSessionId(), migrationId(), _cancellationSource.token());
 
     sessionMigration.start(getServiceContext());
 
@@ -1116,7 +1122,7 @@ TEST_F(SessionCatalogMigrationDestinationTest, ShouldBeAbleToHandlePostImageFind
     const auto sessionId = makeLogicalSessionIdForTest();
 
     SessionCatalogMigrationDestination sessionMigration(
-        kNs, kFromShard, migrationId(), _cancellationSource.token());
+        kNs, kFromShard, migrationSessionId(), migrationId(), _cancellationSource.token());
     sessionMigration.start(getServiceContext());
 
     OperationSessionInfo sessionInfo;
@@ -1210,7 +1216,7 @@ TEST_F(SessionCatalogMigrationDestinationTest, ShouldBeAbleToHandleForgedPostIma
     const auto sessionId = makeLogicalSessionIdForTest();
 
     SessionCatalogMigrationDestination sessionMigration(
-        kNs, kFromShard, migrationId(), _cancellationSource.token());
+        kNs, kFromShard, migrationSessionId(), migrationId(), _cancellationSource.token());
     sessionMigration.start(getServiceContext());
 
     OperationSessionInfo sessionInfo;
@@ -1305,7 +1311,7 @@ TEST_F(SessionCatalogMigrationDestinationTest, ShouldBeAbleToHandleFindAndModify
     const auto sessionId = makeLogicalSessionIdForTest();
 
     SessionCatalogMigrationDestination sessionMigration(
-        kNs, kFromShard, migrationId(), _cancellationSource.token());
+        kNs, kFromShard, migrationSessionId(), migrationId(), _cancellationSource.token());
     sessionMigration.start(getServiceContext());
 
     OperationSessionInfo sessionInfo;
@@ -1410,7 +1416,7 @@ TEST_F(SessionCatalogMigrationDestinationTest, OlderTxnShouldBeIgnored) {
     insertDocWithSessionInfo(newSessionInfo, kNs, BSON("_id" << "newerSess"), 0);
 
     SessionCatalogMigrationDestination sessionMigration(
-        kNs, kFromShard, migrationId(), _cancellationSource.token());
+        kNs, kFromShard, migrationSessionId(), migrationId(), _cancellationSource.token());
     sessionMigration.start(getServiceContext());
 
     OperationSessionInfo oldSessionInfo;
@@ -1462,7 +1468,7 @@ TEST_F(SessionCatalogMigrationDestinationTest, NewerTxnWriteShouldNotBeOverwritt
     auto opCtx = operationContext();
 
     SessionCatalogMigrationDestination sessionMigration(
-        kNs, kFromShard, migrationId(), _cancellationSource.token());
+        kNs, kFromShard, migrationSessionId(), migrationId(), _cancellationSource.token());
     sessionMigration.start(getServiceContext());
 
     OperationSessionInfo oldSessionInfo;
@@ -1515,7 +1521,7 @@ TEST_F(SessionCatalogMigrationDestinationTest, NewerTxnWriteShouldNotBeOverwritt
 
 TEST_F(SessionCatalogMigrationDestinationTest, ShouldJoinProperlyAfterNetworkError) {
     SessionCatalogMigrationDestination sessionMigration(
-        kNs, kFromShard, migrationId(), _cancellationSource.token());
+        kNs, kFromShard, migrationSessionId(), migrationId(), _cancellationSource.token());
     sessionMigration.start(getServiceContext());
     sessionMigration.finish();
 
@@ -1531,7 +1537,7 @@ TEST_F(SessionCatalogMigrationDestinationTest, ShouldJoinProperlyAfterNetworkErr
 
 TEST_F(SessionCatalogMigrationDestinationTest, ShouldJoinProperlyForResponseWithNoOplog) {
     SessionCatalogMigrationDestination sessionMigration(
-        kNs, kFromShard, migrationId(), _cancellationSource.token());
+        kNs, kFromShard, migrationSessionId(), migrationId(), _cancellationSource.token());
     sessionMigration.start(getServiceContext());
     sessionMigration.finish();
 
@@ -1547,7 +1553,7 @@ TEST_F(SessionCatalogMigrationDestinationTest, ShouldJoinProperlyForResponseWith
 
 TEST_F(SessionCatalogMigrationDestinationTest, ShouldJoinProperlyForResponseWithBadOplogFormat) {
     SessionCatalogMigrationDestination sessionMigration(
-        kNs, kFromShard, migrationId(), _cancellationSource.token());
+        kNs, kFromShard, migrationSessionId(), migrationId(), _cancellationSource.token());
     sessionMigration.start(getServiceContext());
     sessionMigration.finish();
 
@@ -1567,7 +1573,7 @@ TEST_F(SessionCatalogMigrationDestinationTest, ShouldJoinProperlyForResponseWith
 
 TEST_F(SessionCatalogMigrationDestinationTest, ShouldJoinProperlyForResponseWithNoSessionId) {
     SessionCatalogMigrationDestination sessionMigration(
-        kNs, kFromShard, migrationId(), _cancellationSource.token());
+        kNs, kFromShard, migrationSessionId(), migrationId(), _cancellationSource.token());
 
     sessionMigration.start(getServiceContext());
     sessionMigration.finish();
@@ -1593,7 +1599,7 @@ TEST_F(SessionCatalogMigrationDestinationTest, ShouldJoinProperlyForResponseWith
 
 TEST_F(SessionCatalogMigrationDestinationTest, ShouldJoinProperlyForResponseWithNoTxnNumber) {
     SessionCatalogMigrationDestination sessionMigration(
-        kNs, kFromShard, migrationId(), _cancellationSource.token());
+        kNs, kFromShard, migrationSessionId(), migrationId(), _cancellationSource.token());
     sessionMigration.start(getServiceContext());
     sessionMigration.finish();
 
@@ -1618,7 +1624,7 @@ TEST_F(SessionCatalogMigrationDestinationTest, ShouldJoinProperlyForResponseWith
 
 TEST_F(SessionCatalogMigrationDestinationTest, ShouldJoinProperlyForResponseWithNoStmtId) {
     SessionCatalogMigrationDestination sessionMigration(
-        kNs, kFromShard, migrationId(), _cancellationSource.token());
+        kNs, kFromShard, migrationSessionId(), migrationId(), _cancellationSource.token());
 
     sessionMigration.start(getServiceContext());
     sessionMigration.finish();
@@ -1649,7 +1655,7 @@ TEST_F(SessionCatalogMigrationDestinationTest,
     auto opCtx = operationContext();
 
     SessionCatalogMigrationDestination sessionMigration(
-        kNs, kFromShard, migrationId(), _cancellationSource.token());
+        kNs, kFromShard, migrationSessionId(), migrationId(), _cancellationSource.token());
     sessionMigration.start(getServiceContext());
 
     OperationSessionInfo sessionInfo;
@@ -1711,7 +1717,7 @@ TEST_F(SessionCatalogMigrationDestinationTest, ShouldErrorForConsecutivePreImage
     const auto sessionId = makeLogicalSessionIdForTest();
 
     SessionCatalogMigrationDestination sessionMigration(
-        kNs, kFromShard, migrationId(), _cancellationSource.token());
+        kNs, kFromShard, migrationSessionId(), migrationId(), _cancellationSource.token());
 
     sessionMigration.start(getServiceContext());
 
@@ -1750,7 +1756,7 @@ TEST_F(SessionCatalogMigrationDestinationTest,
        ShouldErrorForPreImageOplogWithNonMatchingSessionId) {
 
     SessionCatalogMigrationDestination sessionMigration(
-        kNs, kFromShard, migrationId(), _cancellationSource.token());
+        kNs, kFromShard, migrationSessionId(), migrationId(), _cancellationSource.token());
 
     sessionMigration.start(getServiceContext());
 
@@ -1792,7 +1798,7 @@ TEST_F(SessionCatalogMigrationDestinationTest, ShouldErrorForPreImageOplogWithNo
     const auto sessionId = makeLogicalSessionIdForTest();
 
     SessionCatalogMigrationDestination sessionMigration(
-        kNs, kFromShard, migrationId(), _cancellationSource.token());
+        kNs, kFromShard, migrationSessionId(), migrationId(), _cancellationSource.token());
 
     sessionMigration.start(getServiceContext());
 
@@ -1835,7 +1841,7 @@ TEST_F(SessionCatalogMigrationDestinationTest,
     const auto sessionId = makeLogicalSessionIdForTest();
 
     SessionCatalogMigrationDestination sessionMigration(
-        kNs, kFromShard, migrationId(), _cancellationSource.token());
+        kNs, kFromShard, migrationSessionId(), migrationId(), _cancellationSource.token());
 
     sessionMigration.start(getServiceContext());
 
@@ -1875,7 +1881,7 @@ TEST_F(SessionCatalogMigrationDestinationTest,
     const auto sessionId = makeLogicalSessionIdForTest();
 
     SessionCatalogMigrationDestination sessionMigration(
-        kNs, kFromShard, migrationId(), _cancellationSource.token());
+        kNs, kFromShard, migrationSessionId(), migrationId(), _cancellationSource.token());
 
     sessionMigration.start(getServiceContext());
 
@@ -1917,7 +1923,7 @@ TEST_F(SessionCatalogMigrationDestinationTest,
     const auto sessionId = makeLogicalSessionIdForTest();
 
     SessionCatalogMigrationDestination sessionMigration(
-        kNs, kFromShard, migrationId(), _cancellationSource.token());
+        kNs, kFromShard, migrationSessionId(), migrationId(), _cancellationSource.token());
 
     sessionMigration.start(getServiceContext());
 
@@ -1965,7 +1971,7 @@ TEST_F(SessionCatalogMigrationDestinationTest, ShouldIgnoreAlreadyExecutedStatem
     insertDocWithSessionInfo(sessionInfo, kNs, BSON("_id" << 46), 30);
 
     SessionCatalogMigrationDestination sessionMigration(
-        kNs, kFromShard, migrationId(), _cancellationSource.token());
+        kNs, kFromShard, migrationSessionId(), migrationId(), _cancellationSource.token());
     sessionMigration.start(getServiceContext());
 
     auto oplog1 = makeOplogEntry(OpTime(Timestamp(60, 2), 1),  // optime
@@ -2051,7 +2057,7 @@ TEST_F(SessionCatalogMigrationDestinationTest, OplogEntriesWithIncompleteHistory
                        {5})};                        // statement ids
 
     SessionCatalogMigrationDestination sessionMigration(
-        kNs, kFromShard, migrationId(), _cancellationSource.token());
+        kNs, kFromShard, migrationSessionId(), migrationId(), _cancellationSource.token());
     sessionMigration.start(getServiceContext());
     sessionMigration.finish();
 
@@ -2137,7 +2143,7 @@ TEST_F(SessionCatalogMigrationDestinationTest,
                        {55})};                       // statement ids
 
     SessionCatalogMigrationDestination sessionMigration(
-        kNs, kFromShard, migrationId(), _cancellationSource.token());
+        kNs, kFromShard, migrationSessionId(), migrationId(), _cancellationSource.token());
     sessionMigration.start(getServiceContext());
     sessionMigration.finish();
 
@@ -2237,7 +2243,7 @@ TEST_F(SessionCatalogMigrationDestinationTest, MigratingKnownStmtWhileOplogTrunc
                                         {kStmtId});                    // statement ids
 
     SessionCatalogMigrationDestination sessionMigration(
-        kNs, kFromShard, migrationId(), _cancellationSource.token());
+        kNs, kFromShard, migrationSessionId(), migrationId(), _cancellationSource.token());
     sessionMigration.start(getServiceContext());
     sessionMigration.finish();
 
@@ -2293,7 +2299,7 @@ TEST_F(SessionCatalogMigrationDestinationTest,
     }
 
     SessionCatalogMigrationDestination sessionMigration(
-        kNs, kFromShard, migrationId(), _cancellationSource.token());
+        kNs, kFromShard, migrationSessionId(), migrationId(), _cancellationSource.token());
     sessionMigration.start(getServiceContext());
     sessionMigration.finish();
 
@@ -2393,7 +2399,7 @@ TEST_F(SessionCatalogMigrationDestinationTest,
     }
 
     SessionCatalogMigrationDestination sessionMigration(
-        kNs, kFromShard, migrationId(), _cancellationSource.token());
+        kNs, kFromShard, migrationSessionId(), migrationId(), _cancellationSource.token());
     sessionMigration.start(getServiceContext());
     sessionMigration.finish();
 

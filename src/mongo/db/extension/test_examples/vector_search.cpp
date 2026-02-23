@@ -53,7 +53,7 @@ public:
         // Extension $vectorSearch will also eventually desugar into an ID lookup stage, but it is
         // not necessary for this toy example (only used for testing).
         expanded.reserve(1);
-        expanded.emplace_back(new sdk::ExtensionAggStageAstNode(
+        expanded.emplace_back(new sdk::ExtensionAggStageAstNodeAdapter(
             std::make_unique<sdk::shared_test_stages::TransformAggStageAstNode>(
                 "$_extensionVectorSearch", _arguments)));
         return expanded;

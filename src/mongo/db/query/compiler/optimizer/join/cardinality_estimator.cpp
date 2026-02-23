@@ -30,6 +30,8 @@
 
 #include "mongo/db/query/compiler/optimizer/join/cardinality_estimator.h"
 
+#include "mongo/db/query/compiler/optimizer/join/catalog_stats.h"
+#include "mongo/db/query/compiler/optimizer/join/join_reordering_context.h"
 #include "mongo/db/query/util/bitset_util.h"
 #include "mongo/util/assert_util.h"
 
@@ -171,6 +173,7 @@ cost_based_ranker::SelectivityEstimate JoinCardinalityEstimator::joinPredicateSe
     // Accumulate the field names of the "primary key" of the join edge. Note that we track $expr
     // predicates as their NDV computation is slightly different due to $expr equality semantics.
     std::vector<ce::FieldPathAndEqSemantics> fields;
+    std::set<FieldPath> fieldNames;
     for (auto&& joinPred : edge.predicates) {
         tassert(11352502,
                 "join predicate selectivity estimation only supported for equality",
@@ -178,12 +181,24 @@ cost_based_ranker::SelectivityEstimate JoinCardinalityEstimator::joinPredicateSe
         auto pathId = smallerCardIsLeft ? joinPred.left : joinPred.right;
         fields.push_back({.path = ctx.resolvedPaths[pathId].fieldName,
                           .isExprEq = joinPred.op == JoinPredicate::Operator::ExprEq});
+        fieldNames.emplace(ctx.resolvedPaths[pathId].fieldName);
     }
 
     // Get sampling estimator for the "primary key" collection
     auto& samplingEstimator = samplingEstimators.at(primaryKeyNode.collectionName);
-    // Invoke NDV estimation for the "primary key"
-    auto ndv = samplingEstimator->estimateNDV(fields);
+
+    // We are able to optimize NDV estimation if we know that the join key fields represent unique
+    // data. In that case, the NDV is simply the collection cardinality. Otherwise, we invoke NDV
+    // estimation for the "primary key".
+    bool ndvFieldsAreUnique = ctx.uniqueFieldInfo.contains(primaryKeyNode.collectionName) &&
+        fieldsAreUnique(fieldNames, ctx.uniqueFieldInfo.at(primaryKeyNode.collectionName));
+    CardinalityEstimate ndv = [&samplingEstimator, &fields, &ndvFieldsAreUnique]() {
+        if (ndvFieldsAreUnique) {
+            return CardinalityEstimate(CardinalityType(samplingEstimator->getCollCard()),
+                                       EstimationSource::Metadata);
+        }
+        return samplingEstimator->estimateNDV(fields);
+    }();
 
     cost_based_ranker::SelectivityEstimate res{cost_based_ranker::oneSel};
     // Ensure we don't accidentally produce a selectivity > 1
@@ -199,6 +214,7 @@ cost_based_ranker::SelectivityEstimate JoinCardinalityEstimator::joinPredicateSe
                     smallerCardIsLeft ? leftNode.collectionName : rightNode.collectionName,
                 "fields"_attr = fields,
                 "ndvEstimate"_attr = ndv,
+                "ndvFieldsAreUnique"_attr = ndvFieldsAreUnique,
                 "selectivityEstimate"_attr = res);
     return res;
 }

@@ -225,25 +225,16 @@ void maybeModifyDataOnDowngradeForTest(OperationContext* opCtx,
     if (gFeatureFlagRecordIdsReplicated.isDisabledOnTargetFCVButEnabledOnOriginalFCV(
             requestedVersion, originalVersion)) {
         LOGV2(8700500, "Automatically issuing collMod to strip recordIdsReplicated:true field.");
-        for (const auto& dbName : DatabaseHolder::get(opCtx)->getNames()) {
-            Lock::DBLock dbLock(opCtx, dbName, MODE_IX);
-            catalog::forEachCollectionFromDb(
-                opCtx,
-                dbName,
-                MODE_X,
-                [&](const Collection* collection) {
-                    BSONObjBuilder responseBuilder;
-                    auto collMod = CollMod{collection->ns()};
-                    collMod.setRecordIdsReplicated(false);
-                    uassertStatusOK(processCollModCommand(
-                        opCtx, collection->ns(), collMod, nullptr, &responseBuilder));
-                    return true;
-                },
-                [&](const Collection* collection) {
-                    return collection->areRecordIdsReplicated();
-                    ;
-                });
-        }
+        catalog::modifyAllCollectionsMatching(
+            opCtx,
+            [&](const Collection* collection) {
+                BSONObjBuilder responseBuilder;
+                auto collMod = CollMod{collection->ns()};
+                collMod.setRecordIdsReplicated(false);
+                uassertStatusOK(processCollModCommand(
+                    opCtx, collection->ns(), collMod, nullptr, &responseBuilder));
+            },
+            [&](const Collection* collection) { return collection->areRecordIdsReplicated(); });
     }
 }
 
@@ -713,8 +704,9 @@ public:
 
         const boost::optional<Timestamp> changeTimestamp = getChangeTimestamp(opCtx, request);
 
-        FeatureCompatibilityVersion::validateSetFeatureCompatibilityVersionRequest(
-            opCtx, request, actualVersion);
+        auto resolvedTransition =
+            FeatureCompatibilityVersion::validateSetFeatureCompatibilityVersionRequest(
+                opCtx, request, actualVersion);
 
         uassert(5563600,
                 "'phase' field is only valid to be specified on shards",
@@ -854,11 +846,8 @@ public:
                 // field because it would not be safe to upgrade the FCV.
                 FeatureCompatibilityVersion::updateFeatureCompatibilityVersionDocument(
                     opCtx,
-                    actualVersion,
-                    requestedVersion,
-                    isFromConfigServer,
+                    resolvedTransition.transitionalVersion,
                     changeTimestamp,
-                    true /* setTargetVersion */,
                     boost::none /* setIsCleaningServerMetadata */);
 
                 LOGV2(6744301,
@@ -944,8 +933,8 @@ public:
             }
         }
 
-        const auto fcvSnapshot = serverGlobalParams.featureCompatibility.acquireFCVSnapshot();
-        invariant(fcvSnapshot.isUpgradingOrDowngrading());
+        invariant(serverGlobalParams.featureCompatibility.acquireFCVSnapshot()
+                      .isUpgradingOrDowngrading());
         invariant(!request.getPhase() || request.getPhase() == SetFCVPhaseEnum::kComplete);
 
 
@@ -963,11 +952,8 @@ public:
                     FeatureCompatibilityVersion::enterFCVChangeRegion(opCtx));
                 FeatureCompatibilityVersion::updateFeatureCompatibilityVersionDocument(
                     opCtx,
-                    fcvSnapshot.getVersion(),
-                    requestedVersion,
-                    isFromConfigServer,
+                    resolvedTransition.transitionalVersion,
                     changeTimestamp,
-                    true /* setTargetVersion */,
                     true /* setIsCleaningServerMetadata*/);
             }
 
@@ -999,13 +985,7 @@ public:
             hangBeforeUpdatingFcvDoc.pauseWhileSet();
 
             FeatureCompatibilityVersion::updateFeatureCompatibilityVersionDocument(
-                opCtx,
-                serverGlobalParams.featureCompatibility.acquireFCVSnapshot().getVersion(),
-                requestedVersion,
-                isFromConfigServer,
-                changeTimestamp,
-                false /* setTargetVersion */,
-                false /* setIsCleaningServerMetadata */);
+                opCtx, requestedVersion, changeTimestamp, false /* setIsCleaningServerMetadata */);
         }
 
         // _finalizeUpgrade/_finalizeDowngrade are only for any tasks that must be done to fully
@@ -1200,25 +1180,19 @@ private:
 
         if (feature_flags::gRemoveLegacyTimeseriesBucketingParametersHaveChanged
                 .isEnabledOnTargetFCVButDisabledOnOriginalFCV(requestedVersion, originalVersion)) {
-            for (const auto& dbName : DatabaseHolder::get(opCtx)->getNames()) {
-                Lock::DBLock dbLock(opCtx, dbName, MODE_IX);
-                catalog::forEachCollectionFromDb(
-                    opCtx,
-                    dbName,
-                    MODE_X,
-                    [&](const Collection* collection) {
-                        CollMod collModCmd{collection->ns()};
-                        collModCmd.set_removeLegacyTimeseriesBucketingParametersHaveChanged(true);
+            catalog::modifyAllCollectionsMatching(
+                opCtx,
+                [&](const Collection* collection) {
+                    CollMod collModCmd{collection->ns()};
+                    collModCmd.set_removeLegacyTimeseriesBucketingParametersHaveChanged(true);
 
-                        BSONObjBuilder responseBuilder;
-                        uassertStatusOK(processCollModCommand(
-                            opCtx, collection->ns(), collModCmd, nullptr, &responseBuilder));
-                        return true;
-                    },
-                    [&](const Collection* collection) {
-                        return collection->getTimeseriesOptions() != boost::none;
-                    });
-            }
+                    BSONObjBuilder responseBuilder;
+                    uassertStatusOK(processCollModCommand(
+                        opCtx, collection->ns(), collModCmd, nullptr, &responseBuilder));
+                },
+                [&](const Collection* collection) {
+                    return collection->shouldRemoveLegacyTimeseriesBucketingParametersHaveChanged();
+                });
         }
     }
 
@@ -1465,28 +1439,39 @@ private:
                       "Simulated dry-run validation failure via fail point.");
         }
 
-        if (gFeatureFlagErrorAndLogValidationAction.isDisabledOnTargetFCVButEnabledOnOriginalFCV(
-                requestedVersion, originalVersion)) {
+        bool errorAndLogValidationDisabled =
+            (gFeatureFlagErrorAndLogValidationAction.isDisabledOnTargetFCVButEnabledOnOriginalFCV(
+                requestedVersion, originalVersion));
+        bool validatedValidationLevelDisabled =
+            (gFeatureFlagValidatedValidationLevel.isDisabledOnTargetFCVButEnabledOnOriginalFCV(
+                requestedVersion, originalVersion));
+        if (errorAndLogValidationDisabled || validatedValidationLevelDisabled) {
             for (const auto& dbName : DatabaseHolder::get(opCtx)->getNames()) {
                 Lock::DBLock dbLock(opCtx, dbName, MODE_IS);
                 catalog::forEachCollectionFromDb(
-                    opCtx,
-                    dbName,
-                    MODE_IS,
-                    [&](const Collection* collection) -> bool {
-                        uasserted(
-                            ErrorCodes::CannotDowngrade,
-                            fmt::format(
-                                "Cannot downgrade the cluster when there are collections with "
-                                "'errorAndLog' validation action. Please unset the option or "
-                                "drop the collection(s) before downgrading. First detected "
-                                "collection with 'errorAndLog' enabled: {} (UUID: {}).",
-                                collection->ns().toStringForErrorMsg(),
-                                collection->uuid().toString()));
-                    },
-                    [&](const Collection* collection) {
-                        return collection->getValidationAction() ==
-                            ValidationActionEnum::errorAndLog;
+                    opCtx, dbName, MODE_IS, [&](const Collection* collection) -> bool {
+                        uassert(ErrorCodes::CannotDowngrade,
+                                fmt::format(
+                                    "Cannot downgrade the cluster when there are collections with "
+                                    "'errorAndLog' validation action. Please unset the option or "
+                                    "drop the collection(s) before downgrading. First detected "
+                                    "collection with 'errorAndLog' enabled: {} (UUID: {}).",
+                                    collection->ns().toStringForErrorMsg(),
+                                    collection->uuid().toString()),
+                                collection->getValidationAction() !=
+                                    ValidationActionEnum::errorAndLog);
+
+                        uassert(ErrorCodes::CannotDowngrade,
+                                fmt::format(
+                                    "Cannot downgrade the cluster when there are collections with "
+                                    "'validated' validation level. Please unset the option or "
+                                    "drop the collection(s) before downgrading. First detected "
+                                    "collection with 'validated' enabled: {} (UUID: {}).",
+                                    collection->ns().toStringForErrorMsg(),
+                                    collection->uuid().toString()),
+                                collection->getValidationLevel() != ValidationLevelEnum::validated);
+
+                        return true;
                     });
             }
         }
@@ -1700,34 +1685,26 @@ private:
             if (feature_flags::gTSBucketingParametersUnchanged
                     .isDisabledOnTargetFCVButEnabledOnOriginalFCV(requestedVersion,
                                                                   originalVersion)) {
-                for (const auto& dbName : DatabaseHolder::get(opCtx)->getNames()) {
-                    Lock::DBLock dbLock(opCtx, dbName, MODE_IX);
-                    catalog::forEachCollectionFromDb(
-                        opCtx,
-                        dbName,
-                        MODE_X,
-                        [&](const Collection* collection) {
-                            // Only remove the catalog entry flag if it exists. It could've been
-                            // removed if the downgrade process was interrupted and is being run
-                            // again. The downgrade process cannot be aborted at this point.
-                            if (collection->timeseriesBucketingParametersHaveChanged()) {
-                                // To remove timeseries bucketing parameters from persistent
-                                // storage, issue the "collMod" command with none of the parameters
-                                // set.
-                                BSONObjBuilder responseBuilder;
-                                uassertStatusOK(processCollModCommand(opCtx,
-                                                                      collection->ns(),
-                                                                      CollMod{collection->ns()},
-                                                                      nullptr,
-                                                                      &responseBuilder));
-                                return true;
-                            }
-                            return true;
-                        },
-                        [&](const Collection* collection) {
-                            return collection->getTimeseriesOptions() != boost::none;
-                        });
-                }
+                catalog::modifyAllCollectionsMatching(
+                    opCtx,
+                    [&](const Collection* collection) {
+                        // To remove timeseries bucketing parameters from persistent
+                        // storage, issue the "collMod" command with none of the parameters
+                        // set.
+                        BSONObjBuilder responseBuilder;
+                        uassertStatusOK(processCollModCommand(opCtx,
+                                                              collection->ns(),
+                                                              CollMod{collection->ns()},
+                                                              nullptr,
+                                                              &responseBuilder));
+                    },
+                    [&](const Collection* collection) {
+                        // Only remove the catalog entry flag if it exists. It could've been
+                        // removed if the downgrade process was interrupted and is being run
+                        // again. The downgrade process cannot be aborted at this point.
+                        return collection->getTimeseriesOptions() != boost::none &&
+                            collection->timeseriesBucketingParametersHaveChanged();
+                    });
             }
 
             maybeModifyDataOnDowngradeForTest(opCtx, requestedVersion, originalVersion);

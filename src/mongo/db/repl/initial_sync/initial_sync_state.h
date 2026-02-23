@@ -56,6 +56,17 @@ struct InitialSyncState {
     Timestamp stopTimestamp;  // Referred to as minvalid, or the place we can transition states.
     Timer timer;              // Timer for timing how long each initial sync attempt takes.
     size_t appliedOps = 0;
+
+    Date_t
+        waitForSyncSourceStableTimestampAdvanceMaxRetryDeadline;  // Date at which we will stop
+                                                                  // waiting for the last checkpoint
+                                                                  // to advance on the sync source.
+                                                                  // If we reach this timestamp, the
+                                                                  // initial sync attempt will fail.
+    size_t waitForSyncSourceStableTimestampAdvanceNumAttempts =
+        0;  // Number of attempts made waiting for the sync source checkpoint timestamp to advance
+    int waitForSyncSourceStableTimestampAdvanceSleepMillis =
+        100;  // How long to sleep in-between attempts. Increases exponentially.
 };
 
 }  // namespace repl

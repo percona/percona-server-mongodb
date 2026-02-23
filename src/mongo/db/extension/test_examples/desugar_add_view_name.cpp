@@ -238,12 +238,12 @@ public:
         std::vector<mongo::extension::VariantNodeHandle> expanded;
         expanded.reserve(2);
 
-        // First stage: $addViewName (as ExtensionAggStageParseNode)
-        expanded.emplace_back(new sdk::ExtensionAggStageParseNode(
+        // First stage: $addViewName (as ExtensionAggStageParseNodeAdapter)
+        expanded.emplace_back(new sdk::ExtensionAggStageParseNodeAdapter(
             std::make_unique<AddViewNameParseNode>("$addViewName", BSONObj())));
 
         // Second stage: DoNothingViewPolicy stage that returns kDoNothing
-        expanded.emplace_back(new sdk::ExtensionAggStageAstNode(
+        expanded.emplace_back(new sdk::ExtensionAggStageAstNodeAdapter(
             std::make_unique<DoNothingViewPolicyAstNode>("$doNothingViewPolicy", _arguments)));
 
         return expanded;

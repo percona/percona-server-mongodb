@@ -12,10 +12,11 @@
  * ]
  */
 import {planHasStage} from "jstests/libs/query/analyze_plan.js";
+import {add2dsphereVersionIfNeeded} from "jstests/libs/query/geo_index_version_helpers.js";
 
 const coll = db.getCollection(jsTestName());
 
-assert.commandWorked(coll.createIndex({a: 1, foo: "2dsphere"}));
+assert.commandWorked(coll.createIndex({a: 1, foo: "2dsphere"}, add2dsphereVersionIfNeeded()));
 assert.commandWorked(coll.createIndex({a: 1, "$**": "text"}));
 assert.commandWorked(coll.createIndex({a: 1}, {partialFilterExpression: {foo: 123}}));
 

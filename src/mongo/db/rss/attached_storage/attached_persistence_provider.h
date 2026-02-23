@@ -47,7 +47,9 @@ public:
     /**
      * We do not have any additional WT config to add.
      */
-    std::string getWiredTigerConfig() const override;
+    std::string getWiredTigerConfig(bool wtInMemory,
+                                    bool wtLogEnabled,
+                                    const std::string& wtLogCompressor) const override;
 
     /**
      * No additional settings required by the provider for tables from the main WiredTiger storage
@@ -104,11 +106,6 @@ public:
      */
     bool shouldAvoidDuplicateCheckpoints() const override;
 
-    /**
-     * We can safely use wiredTigerCursorModify(), so no need to force a full update.
-     */
-    bool shouldForceUpdateWithFullDocument() const override;
-
     bool supportsCursorReuseForExpressPathQueries() const override;
 
     /**
@@ -135,6 +132,13 @@ public:
      * We can support cross-shard transactions.
      */
     bool supportsCrossShardTransactions() const override;
+
+    /**
+     * Attached storage supports storing findAndModify pre/post-images in the image collection.
+     * However, currently we disable it if featureFlagDisallowFindAndModifyImageCollection is
+     * enabled for testing purposes. The feature flag will be removed in SERVER-117324.
+     */
+    bool supportsFindAndModifyImageCollection() const override;
 
     /**
      * We can support oplog cap maintainer thread and oplog sampling.
@@ -165,6 +169,21 @@ public:
      * We can support compaction.
      */
     bool supportsCompaction() const override;
+
+    /**
+     * Table creation won't be timestamped.
+     */
+    bool shouldTimestampTableCreations() const override;
+
+    /**
+     * The minimum number of seconds of snapshot history to maintain.
+     */
+    int getMinSnapshotHistoryWindowInSeconds() const override;
+
+    /**
+     * Set minimum number of seconds of snapshot history to maintain.
+     */
+    void setMinSnapshotHistoryWindowInSeconds(int seconds) override;
 };
 
 }  // namespace mongo::rss

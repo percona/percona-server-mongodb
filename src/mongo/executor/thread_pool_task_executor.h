@@ -118,7 +118,7 @@ public:
 
     void dropConnections(const HostAndPort& target, const Status& status) override;
 
-    void appendNetworkInterfaceStats(BSONObjBuilder&) const override;
+    void appendNetworkInterfaceStats(BSONObjBuilder&, bool forServerStatus) const override;
 
     /**
      * Returns true if there are any tasks currently running or waiting to run.

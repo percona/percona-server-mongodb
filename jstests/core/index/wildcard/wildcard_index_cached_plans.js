@@ -29,7 +29,7 @@ import {
     getPlanStages,
     getWinningPlanFromExplain,
 } from "jstests/libs/query/analyze_plan.js";
-import {checkSbeFullFeatureFlagEnabled} from "jstests/libs/query/sbe_util.js";
+import {sbePlanCacheEnabled} from "jstests/libs/query/sbe_util.js";
 
 const coll = db.wildcard_cached_plans;
 
@@ -48,7 +48,7 @@ function getCacheEntryForQuery(query) {
     return null;
 }
 
-const isUsingSbePlanCache = checkSbeFullFeatureFlagEnabled(db);
+const isUsingSbePlanCache = sbePlanCacheEnabled(db);
 
 for (const indexSpec of wildcardIndexes) {
     coll.drop();

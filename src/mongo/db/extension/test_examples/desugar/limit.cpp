@@ -93,13 +93,13 @@ public:
         {
             std::vector<mongo::extension::VariantDPLHandle> pipeline;
             pipeline.emplace_back(mongo::extension::LogicalAggStageHandle{
-                new mongo::extension::sdk::ExtensionLogicalAggStage(clone())});
+                new mongo::extension::sdk::ExtensionLogicalAggStageAdapter(clone())});
             dpl.shardsPipeline = sdk::DPLArrayContainer(std::move(pipeline));
         }
         {
             std::vector<mongo::extension::VariantDPLHandle> pipeline;
             pipeline.emplace_back(mongo::extension::LogicalAggStageHandle{
-                new mongo::extension::sdk::ExtensionLogicalAggStage(clone())});
+                new mongo::extension::sdk::ExtensionLogicalAggStageAdapter(clone())});
             dpl.mergingPipeline = sdk::DPLArrayContainer(std::move(pipeline));
         }
         return dpl;

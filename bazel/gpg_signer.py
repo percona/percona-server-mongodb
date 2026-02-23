@@ -18,7 +18,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
-from typing import List, Optional
+from typing import Optional
 
 debug = False  # manually change to enable verbose output
 
@@ -28,7 +28,7 @@ def _debug(msg: str) -> None:
         print(msg, file=sys.stderr)
 
 
-def _run(argv: List[str], *, capture_stdout: bool = False) -> subprocess.CompletedProcess:
+def _run(argv: list[str], *, capture_stdout: bool = False) -> subprocess.CompletedProcess:
     if capture_stdout:
         return subprocess.run(
             argv, check=True, text=True, stdout=subprocess.PIPE, stderr=sys.stderr
@@ -51,7 +51,7 @@ def _extract_fingerprint(colons_output: str) -> Optional[str]:
     return None
 
 
-def main(argv: List[str]) -> int:
+def main(argv: list[str]) -> int:
     _debug("Starting gpg_signer.py")
 
     if len(argv) != 6:
@@ -106,7 +106,7 @@ def main(argv: List[str]) -> int:
             return 1
 
         # Build passphrase options if provided.
-        pass_opts: List[str] = []
+        pass_opts: list[str] = []
         if passphrase_file:
             pass_opts = ["--pinentry-mode", "loopback", "--passphrase-file", passphrase_file]
 

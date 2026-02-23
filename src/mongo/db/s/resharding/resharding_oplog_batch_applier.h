@@ -30,6 +30,7 @@
 #pragma once
 
 #include "mongo/db/cancelable_operation_context.h"
+#include "mongo/db/hierarchical_cancelable_operation_context_factory.h"
 #include "mongo/db/s/resharding/resharding_oplog_batch_preparer.h"
 #include "mongo/executor/task_executor.h"
 #include "mongo/util/cancellation.h"
@@ -57,10 +58,11 @@ public:
                                 const ReshardingOplogSessionApplication& sessionApplication);
 
     template <bool IsForSessionApplication>
-    SemiFuture<void> applyBatch(OplogBatch batch,
-                                std::shared_ptr<executor::TaskExecutor> executor,
-                                CancellationToken cancelToken,
-                                CancelableOperationContextFactory factory) const;
+    SemiFuture<void> applyBatch(
+        OplogBatch batch,
+        std::shared_ptr<executor::TaskExecutor> executor,
+        CancellationToken cancelToken,
+        std::shared_ptr<HierarchicalCancelableOperationContextFactory> factory) const;
 
 private:
     const ReshardingOplogApplicationRules& _crudApplication;

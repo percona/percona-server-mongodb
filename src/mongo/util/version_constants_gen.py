@@ -6,7 +6,6 @@ import platform
 import re
 import subprocess
 import threading
-from typing import Dict
 
 
 # This function gets the running OS as identified by Python
@@ -196,7 +195,7 @@ def log_check(message):
 
 def generate_config_header(
     compiler_path, compiler_args, env_vars, logpath, additional_inputs, extra_definitions={}
-) -> Dict[str, str]:
+) -> dict[str, str]:
     global logfile_path
     logfile_path = logpath
 

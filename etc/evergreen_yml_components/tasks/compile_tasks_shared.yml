@@ -264,6 +264,7 @@ tasks:
             "src/src/mongo/db/query/query_tester/tests/**"
             "src/src/mongo/util/options_parser/test_config_files/**"
             "src/src/mongo/util/version/**"
+            "src/monguard/.evergreen/**"
             "src/src/third_party/JSON-Schema-Test-Suite/tests/draft4/**"
             "src/src/third_party/abseil-cpp/**"
             "src/src/third_party/cares/**"

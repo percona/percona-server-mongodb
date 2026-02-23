@@ -5,7 +5,7 @@ import subprocess
 import sys
 import tempfile
 from functools import cache
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Optional
 
 import yaml
 from codeowners.parsers import owners_v1, owners_v2
@@ -21,12 +21,12 @@ parsers = {
 
 class FileNode:
     def __init__(self, directory: str):
-        self.dirs: Dict[str, FileNode] = {}
+        self.dirs: dict[str, FileNode] = {}
         self.owners_file: Optional[str] = None
         self.directory = directory
 
 
-def add_file_to_tree(root_node: FileNode, file_parts: List[str]):
+def add_file_to_tree(root_node: FileNode, file_parts: list[str]):
     current_node = root_node
     for i, dir in enumerate(file_parts[:-1]):
         node_dirs = current_node.dirs
@@ -42,7 +42,7 @@ def add_file_to_tree(root_node: FileNode, file_parts: List[str]):
     current_node.owners_file = file_parts[-1]
 
 
-def build_tree(files: List[str]) -> FileNode:
+def build_tree(files: list[str]) -> FileNode:
     root_node = FileNode("./")
     for file in files:
         file_parts = file.split("/")
@@ -117,7 +117,7 @@ def validate_generated_codeowners(validator_path: str) -> int:
 @cache
 def get_unowned_and_default_owned_files(
     codeowners_binary_path: str, codeowners_file: str = None
-) -> Tuple[Set[str], Set[str]]:
+) -> tuple[set[str], set[str]]:
     temp_output_file = tempfile.NamedTemporaryFile(delete=False, suffix=".txt")
     temp_output_file.close()
     default_owner = get_default_owner()
@@ -327,7 +327,7 @@ def get_default_owner() -> Optional[str]:
 
 
 @cache
-def get_allowed_unowned_files() -> Set[str]:
+def get_allowed_unowned_files() -> set[str]:
     allowed_unowned_file_path = get_allowed_unowned_files_path()
     if not allowed_unowned_file_path:
         return set()
@@ -367,7 +367,7 @@ def get_allowed_unowned_files() -> Set[str]:
     return unowned_files
 
 
-def add_allowed_unowned_files(output_lines: List[str]) -> None:
+def add_allowed_unowned_files(output_lines: list[str]) -> None:
     allowed_unowned_files = get_allowed_unowned_files()
     if not allowed_unowned_files:
         return

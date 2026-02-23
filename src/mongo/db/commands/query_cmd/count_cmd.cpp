@@ -279,6 +279,16 @@ public:
             auto parsedFind = uassertStatusOK(
                 parsed_find_command::parseFromCount(expCtx, request(), *extensionsCallback, ns));
 
+            // Compute QueryShapeHash and record it in CurOp.
+            query_shape::DeferredQueryShape deferredShape{[&]() {
+                return shape_helpers::tryMakeShape<query_shape::CountCmdShape>(
+                    *parsedFind, request().getLimit().has_value(), request().getSkip().has_value());
+            }};
+
+            CurOp::get(opCtx)->debug().ensureQueryShapeHash(opCtx, [&]() {
+                return shape_helpers::computeQueryShapeHash(expCtx, deferredShape, ns);
+            });
+
             auto statusWithPlanExecutor =
                 getExecutorCount(expCtx, collection, std::move(parsedFind), request());
             uassertStatusOK(statusWithPlanExecutor.getStatus());

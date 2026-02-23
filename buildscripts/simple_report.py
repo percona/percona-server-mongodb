@@ -3,7 +3,6 @@
 import json
 import os
 import pathlib
-from typing import List
 
 import click
 from typing_extensions import TypedDict
@@ -25,7 +24,7 @@ class Report(TypedDict):
     """Evergreen report."""
 
     failures: int
-    results: List[Result]
+    results: list[Result]
 
 
 def _clean_log_file(log_file: pathlib.Path, dedup_lines: bool) -> str:
@@ -68,7 +67,7 @@ def try_combine_reports(out: Report):
         pass
 
 
-def _dedup_lines(lines: List[str]) -> List[str]:
+def _dedup_lines(lines: list[str]) -> list[str]:
     return list(set(lines))
 
 

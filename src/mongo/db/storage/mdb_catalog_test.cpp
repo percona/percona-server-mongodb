@@ -73,16 +73,20 @@ public:
                                          actual.storageEngineCollectionOptions);
     }
 
-    RecordStore::Options parseRecordStoreOptionsWithCatalog(const NamespaceString& nss,
-                                                            const BSONObj& obj) {
-        RecordStore::Options result;
-
+    std::shared_ptr<durable_catalog::CatalogEntryMetaData> parseCatalogEntryMetaDataFromCatalog(
+        const NamespaceString& nss, const BSONObj& obj) {
         RecordId dummyId;
         auto catalogEntry = durable_catalog::parseCatalogEntry(dummyId, obj);
-        auto md = catalogEntry->metadata;
+        return catalogEntry->metadata;
+    }
+
+    RecordStore::Options parseRecordStoreOptionsWithCatalog(const NamespaceString& nss,
+                                                            const BSONObj& obj) {
+        auto md = parseCatalogEntryMetaDataFromCatalog(nss, obj);
 
         return getRecordStoreOptions(nss, md->options);
     }
+
 
     void testParseEquality(const char* config) {
         NamespaceString nss = NamespaceString::createNamespaceString_forTest("testNs.foo");
@@ -96,6 +100,12 @@ public:
         auto expectedOplog = parseRecordStoreOptionsWithCatalog(nssOplog, configObj);
         auto actualOplog = MDBCatalog::_parseRecordStoreOptions(nssOplog, configObj);
         ASSERT(recordStoreOptionsAreMaintained(expectedOplog, actualOplog));
+
+        bool expectedRecordIdsReplicated =
+            configObj.getObjectField("md").getBoolField("recordIdsReplicated");
+        bool actualRecordIdsReplicated =
+            parseCatalogEntryMetaDataFromCatalog(nss, configObj)->recordIdsReplicated;
+        ASSERT_EQ(expectedRecordIdsReplicated, actualRecordIdsReplicated);
     }
 
     BSONObj buildOrphanedCatalogEntryObjAndNs(const std::string& ident,
@@ -178,6 +188,30 @@ TEST_F(MDBCatalogTest, ParseRecordStoreOptionsEquivalence) {
             } \
         } \
     }";
+    const char minimalConfigWithReplicatedRecordIdsEnabled[] =
+        "{ \
+        \"ident\" : \"testident\", \
+        \"md\" : { \
+            \"recordIdsReplicated\" : true, \
+            \"options\" : { \
+                \"size\" : 1024, \
+                \"capped\" : false, \
+                \"storageEngine\" : { \"doc1\" : {\"a\" : 0}} \
+            } \
+        } \
+    }";
+    const char minimalConfigWithReplicatedRecordIdsDisabled[] =
+        "{ \
+        \"ident\" : \"testident\", \
+        \"md\" : { \
+            \"recordIdsReplicated\" : false, \
+            \"options\" : { \
+                \"size\" : 1024, \
+                \"capped\" : false, \
+                \"storageEngine\" : { \"doc1\" : {\"a\" : 0}} \
+            } \
+        } \
+    }";
     const char onlyclusterConfig[] =
         "{ \
         \"ident\" : \"testident\", \
@@ -228,6 +262,8 @@ TEST_F(MDBCatalogTest, ParseRecordStoreOptionsEquivalence) {
 
     testParseEquality(simpleConfig);
     testParseEquality(minimalConfig);
+    testParseEquality(minimalConfigWithReplicatedRecordIdsEnabled);
+    testParseEquality(minimalConfigWithReplicatedRecordIdsDisabled);
     testParseEquality(onlyclusterConfig);
     testParseEquality(onlytsConfig);
     testParseEquality(booleanClusterConfig);

@@ -87,7 +87,8 @@ std::shared_ptr<CatalogEntryMetaData> parseMetaData(const BSONElement& mdElement
 
 namespace internal {
 CatalogEntryMetaData createMetaDataForNewCollection(const NamespaceString& nss,
-                                                    const CollectionOptions& collectionOptions) {
+                                                    const CollectionOptions& collectionOptions,
+                                                    bool recordIdsReplicated) {
     CatalogEntryMetaData md;
     md.nss = nss;
     md.options = collectionOptions;
@@ -97,6 +98,7 @@ CatalogEntryMetaData createMetaDataForNewCollection(const NamespaceString& nss,
         // earlier.
         md.timeseriesBucketsMayHaveMixedSchemaData = false;
     }
+    md.recordIdsReplicated = recordIdsReplicated;
     return md;
 }
 
@@ -306,8 +308,8 @@ StatusWith<std::unique_ptr<RecordStore>> createCollection(
     invariant(nss.coll().size() > 0);
 
     auto recordStoreOptions = getRecordStoreOptions(nss, collectionOptions);
-    durable_catalog::CatalogEntryMetaData md =
-        internal::createMetaDataForNewCollection(nss, collectionOptions);
+    durable_catalog::CatalogEntryMetaData md = internal::createMetaDataForNewCollection(
+        nss, collectionOptions, collectionOptions.recordIdsReplicated);
 
     auto engine = opCtx->getServiceContext()->getStorageEngine()->getEngine();
     auto& ru = *shard_role_details::getRecoveryUnit(opCtx);

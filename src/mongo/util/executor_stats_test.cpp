@@ -94,6 +94,20 @@ public:
         return bob.obj();
     }
 
+    BSONObj getServerStatusStats() const {
+        BSONObjBuilder bob;
+        _stats->serialize(&bob, true /* forServerStatus */);
+        return bob.obj();
+    }
+
+    auto getAverageWaitTimeMicros() const {
+        return getServerStatusStats().getField("averageWaitTimeMicros").numberDouble();
+    }
+
+    auto getAverageRunTimeMicros() const {
+        return getServerStatusStats().getField("averageRunTimeMicros").numberDouble();
+    }
+
     void runTimingTests(std::string histogramTag,
                         std::function<size_t(Microseconds, Microseconds)> test) {
         // Represents a test case, where `min` and `max` will be provided to `test`. The expected
@@ -238,6 +252,48 @@ TEST_F(ExecutorStatsTest, SlowTaskExecutorWaitTimeProfilingLog) {
     logs.stop();
     // Check for the slow wait time log message
     ASSERT_EQUALS(1, logs.countTextContaining("Task exceeded the slow wait time threshold"));
+}
+
+TEST_F(ExecutorStatsTest, MovingAverageZeroWithNoTasks) {
+    ASSERT_EQ(getAverageWaitTimeMicros(), 0);
+    ASSERT_EQ(getAverageRunTimeMicros(), 0);
+}
+
+TEST_F(ExecutorStatsTest, MovingAverageSingleTaskWaitTime) {
+    auto task = wrapTask([](Status) {});
+    advanceTime(Milliseconds(100));
+    task(Status::OK());
+
+    // First sample sets the average directly: 100ms = 100000us.
+    ASSERT_APPROX_EQUAL(getAverageWaitTimeMicros(), 100000.0, 1.0);
+}
+
+TEST_F(ExecutorStatsTest, MovingAverageSingleTaskRunTime) {
+    auto task = wrapTask([this](Status) { advanceTime(Milliseconds(50)); });
+    task(Status::OK());
+
+    // First sample sets the average directly: 50ms = 50000us.
+    ASSERT_APPROX_EQUAL(getAverageRunTimeMicros(), 50000.0, 1.0);
+}
+
+TEST_F(ExecutorStatsTest, ServerStatusSerializationContainsAveragesNotHistograms) {
+    auto task = wrapTask([this](Status) { advanceTime(Milliseconds(10)); });
+    advanceTime(Milliseconds(50));
+    task(Status::OK());
+
+    auto obj = getServerStatusStats();
+
+    ASSERT_TRUE(obj.hasField("scheduled"));
+    ASSERT_TRUE(obj.hasField("executed"));
+    ASSERT_TRUE(obj.hasField("averageWaitTimeMicros"));
+    ASSERT_TRUE(obj.hasField("averageRunTimeMicros"));
+    ASSERT_FALSE(obj.hasField("waitTime"));
+    ASSERT_FALSE(obj.hasField("runTime"));
+
+    ASSERT_EQ(obj.getField("scheduled").numberLong(), 1);
+    ASSERT_EQ(obj.getField("executed").numberLong(), 1);
+    ASSERT_GT(obj.getField("averageWaitTimeMicros").numberDouble(), 0);
+    ASSERT_GT(obj.getField("averageRunTimeMicros").numberDouble(), 0);
 }
 
 }  // namespace mongo

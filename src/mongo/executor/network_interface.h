@@ -135,7 +135,7 @@ public:
     /**
      * Appends information about this instance of NetworkInterface.
      */
-    virtual void appendStats(BSONObjBuilder&) const = 0;
+    virtual void appendStats(BSONObjBuilder&, bool forServerStatus = false) const = 0;
 
     /**
      * Starts up the network interface.

@@ -14,7 +14,9 @@ import pymongo.write_concern
 from buildscripts.resmokelib.extensions import (
     add_extensions_signature_pub_key_path,
     delete_extension_configs,
-    find_and_generate_extension_configs,
+    find_and_generate_all_extension_configs,
+    find_and_generate_named_extension_configs,
+    normalize_load_extensions,
 )
 from buildscripts.resmokelib.extensions.setup_mongot_extension import setup_mongot_extension
 from buildscripts.resmokelib.testing.fixtures import interface
@@ -79,7 +81,7 @@ class ReplicaSetFixture(interface.ReplFixture, interface._DockerComposeInterface
         initial_sync_uninitialized_fcv=False,
         hide_initial_sync_node_from_conn_string=False,
         launch_mongot=False,
-        load_all_extensions=False,
+        load_extensions=None,
         skip_extensions_signature_verification=False,
         router_endpoint_for_mongot: Optional[int] = None,
         disagg_base_config=None,
@@ -96,9 +98,24 @@ class ReplicaSetFixture(interface.ReplFixture, interface._DockerComposeInterface
             certs.expand_x509_paths(self.fixturelib.default_if_none(mongod_options, {}))
         )
 
-        self.load_all_extensions = load_all_extensions or self.config.LOAD_ALL_EXTENSIONS
-        if self.load_all_extensions:
-            self.loaded_extensions = find_and_generate_extension_configs(
+        # Process load_extensions: ["*"] means all, otherwise load named extensions.
+        _load_exts = normalize_load_extensions(load_extensions)
+        if self.config.LOAD_ALL_EXTENSIONS and "*" not in _load_exts:
+            _load_exts = ["*"]
+
+        self.loaded_extensions = None
+        if "*" in _load_exts:
+            self.loaded_extensions = find_and_generate_all_extension_configs(
+                is_evergreen=self.config.EVERGREEN_TASK_ID,
+                logger=self.logger,
+                mongod_options=self.mongod_options,
+            )
+            add_extensions_signature_pub_key_path(
+                skip_extensions_signature_verification, self.config, self.mongod_options
+            )
+        elif _load_exts:
+            self.loaded_extensions = find_and_generate_named_extension_configs(
+                extension_names=_load_exts,
                 is_evergreen=self.config.EVERGREEN_TASK_ID,
                 logger=self.logger,
                 mongod_options=self.mongod_options,
@@ -801,7 +818,7 @@ class ReplicaSetFixture(interface.ReplFixture, interface._DockerComposeInterface
     def _do_teardown(self, finished=False, mode=None):
         self.logger.info("Stopping all members of the replica set '%s'...", self.replset_name)
 
-        if finished and self.load_all_extensions and self.loaded_extensions:
+        if finished and self.loaded_extensions:
             delete_extension_configs(self.loaded_extensions, self.logger)
 
         running_at_start = self.is_running()

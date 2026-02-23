@@ -72,8 +72,10 @@ private:
     static ::MongoExtensionByteView _extGetOptions(
         const ::MongoExtensionHostPortal* portal) noexcept;
 
-    static constexpr ::MongoExtensionHostPortalVTable VTABLE{&_extRegisterStageDescriptor,
-                                                             &_extGetOptions};
+    static constexpr ::MongoExtensionHostPortalVTable VTABLE = {
+        .register_stage_descriptor = &_extRegisterStageDescriptor,
+        .get_extension_options = &_extGetOptions,
+    };
 
     const std::string _extensionOpts;
     std::unique_ptr<HostPortalBase> _portal;

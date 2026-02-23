@@ -640,6 +640,39 @@ Evergreen patch builds.
     UserDefinedType t; // Defined in previous example
     logd("this is a debug log, value 1: {} and value 2: {}", 1, t);
 
+## Rate limiting
+
+Rate limiting logs is useful to reduce the impact of logging on database throughput. At high
+rate and concurrency, logging can be expensive and reduce performance. Attention should be paid
+specifically to logs that can occur on every operation, whether they fail or succeed.
+
+The rate limiting feature is implemented by `SeveritySuppressor` (see
+`src/mongo/logv2/log_severity_suppressor.h`). It works by changing the severity level of logs
+dynamically: within a configurable time interval, only the first log is emitted at the "normal"
+severity; subsequent logs within that interval are emitted at a "quiet" severity (typically a debug
+level). This ensures logs are not always written unless the logging level is increased for the
+component.
+
+`SeveritySuppressor` is typically used with `StaticImmortal` for static storage. The interval can
+be configured with a server parameter when constructing SeveritySuppressor.
+
+##### Example
+
+    static StaticImmortal<logv2::SeveritySuppressor> logSuppressor{
+        gSlowNetworkLogRate.loadRelaxed(), logv2::LogSeverity::Info(), logv2::LogSeverity::Debug(2)};
+
+    LOGV2_DEBUG(6983000,
+                (*logSuppressor)(),
+                "Slow network response send time",
+                "elapsed"_attr = bob.obj());
+
+In this example, the first log within each gSlowNetworkLogRate-second window is emitted at Info level;
+subsequent logs within that window are emitted at Debug(2), which requires increasing the component's
+log level to be visible.
+
+For per-key rate limiting (e.g., one log per key per interval), use `KeyedSeveritySuppressor`
+instead.
+
 # JSON output format
 
 Produces structured logs of the [Relaxed Extended JSON 2.0.0][relaxed_json_2]

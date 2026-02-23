@@ -270,6 +270,8 @@ functions:
     display_name: "adjust venv"
     params:
       binary: bash
+      env:
+        use_python310: ${use_python310|}
       args:
         - "src/evergreen/functions/venv_adjust.sh"
 
@@ -511,7 +513,7 @@ functions:
     display_name: "archive new corpus"
     params:
       target: corpora.tgz
-      source_dir: src/corpora-merged
+      source_dir: src/corpora
       include:
         - "**"
 
@@ -788,6 +790,8 @@ functions:
     display_name: "set up venv"
     params:
       binary: bash
+      env:
+        use_python310: ${use_python310|}
       args:
         - "src/evergreen/functions/venv_setup.sh"
 
@@ -1062,6 +1066,16 @@ functions:
   "do multiversion setup":
     - *f_expansions_write
     - *set_up_venv
+    - *f_expansions_write
+    - command: expansions.update
+      params:
+        updates:
+          - key: aws_key_remote
+            value: ${aws_key}
+          - key: aws_secret_remote
+            value: ${aws_secret}
+    - *f_expansions_write
+    - *set_up_remote_credentials
     - *get_multiversion_selection_results
     - *get_local_db_contrib_tool_invocation
     - *do_multiversion_setup

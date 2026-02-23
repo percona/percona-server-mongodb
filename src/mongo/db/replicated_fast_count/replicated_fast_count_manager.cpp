@@ -37,6 +37,8 @@
 
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kStorage
 
+MONGO_FAIL_POINT_DEFINE(hangAfterReplicatedFastCountSnapshot);
+
 namespace mongo {
 
 static const ServiceContext::Decoration<ReplicatedFastCountManager> getReplicatedFastCountManager =
@@ -46,53 +48,169 @@ ReplicatedFastCountManager& ReplicatedFastCountManager::get(ServiceContext* svcC
     return getReplicatedFastCountManager(svcCtx);
 }
 
-void ReplicatedFastCountManager::shutdown() {
-    LOGV2(11648800, "Shutting down ReplicatedFastCountManager");
-    _inShutdown.storeRelaxed(true);
+void ReplicatedFastCountManager::initializeFastCountCommitFn() {
+    setFastCountCommitFn([](OperationContext* opCtx,
+                            const boost::container::flat_map<UUID, CollectionSizeCount>& changes,
+                            boost::optional<Timestamp> commitTime) {
+        getReplicatedFastCountManager(opCtx->getServiceContext()).commit(changes, commitTime);
+    });
 }
 
 void ReplicatedFastCountManager::startup(OperationContext* opCtx) {
-    // TODO SERVER-117650: Read existing collection to populate in-memory metadata. This is
-    // currently executed before oplog application, so if there is an create entry for this
-    // collection to apply we will currently miss it.
+    uassert(11905700,
+            "ReplicatedFastCountManager background thread already running. It should only be "
+            "started up once.",
+            !_backgroundThread.joinable());
     {
-        CollectionOrViewAcquisition acquisition =
-            acquireCollectionOrView(opCtx,
-                                    CollectionOrViewAcquisitionRequest::fromOpCtx(
-                                        opCtx,
-                                        NamespaceString::makeGlobalConfigCollection(
-                                            NamespaceString::kSystemReplicatedFastCountStore),
-                                        AcquisitionPrerequisites::OperationType::kWrite),
-                                    LockMode::MODE_IX);
+        auto acquisition = _acquireFastCountCollectionForWrite(opCtx);
 
-        if (acquisition.collectionExists()) {
-            LOGV2(11648801,
-                  "ReplicatedFastCountManager::startup fastcount collection exists, "
-                  "initializing sizes and counts");
-            stdx::lock_guard lock(_mutex);
+        uassert(
+            11718600, "Expected fastcount collection to exist on startup", acquisition.has_value());
 
-            auto cursor = acquisition.getCollectionPtr()->getCursor(opCtx);
-            while (auto record = cursor->next()) {
-                Record& rec = *record;
-                UUID uuid = _UUIDForKey(rec.id);
-                BSONObj data = rec.data.releaseToBson();
+        stdx::lock_guard lock(_metadataMutex);
 
-                auto& meta = _metadata[uuid];
-                meta.sizeCount.count = data.getField(kCountKey).Long();
-                meta.sizeCount.size = data.getField(kSizeKey).Long();
-            }
-            LOGV2(11648802, "ReplicatedFastCountManager::startup initialization complete");
-        } else {
-            LOGV2(11648803,
-                  "ReplicatedFastCountManager::startup fastcount collection does not "
-                  "exist. No initialization needed");
+        const auto startTime = Date_t::now();
+        int numRecordsScanned = 0;
+
+        auto cursor = acquisition->getCollectionPtr()->getCursor(opCtx);
+        while (auto record = cursor->next()) {
+            Record& rec = *record;
+            UUID uuid = _UUIDForKey(rec.id);
+            BSONObj data = rec.data.releaseToBson();
+
+            ++numRecordsScanned;
+
+            auto& meta = _metadata[uuid];
+            meta.sizeCount.count = data.getField(kCountKey).Long();
+            meta.sizeCount.size = data.getField(kSizeKey).Long();
         }
+
+        LOGV2(11648801,
+              "ReplicatedFastCountManager::startup initialization complete",
+              "numRecordsScanned"_attr = numRecordsScanned,
+              "duration"_attr = Date_t::now() - startTime);
     }
 
     _backgroundThread = stdx::thread(
         &ReplicatedFastCountManager::_startBackgroundThread, this, opCtx->getServiceContext());
 }
 
+void ReplicatedFastCountManager::shutdown() {
+    LOGV2(11648800, "Shutting down ReplicatedFastCountManager");
+
+    {
+        stdx::lock_guard lock(_metadataMutex);
+        _isDisabled.storeRelaxed(true);
+    }
+
+    _backgroundThreadReadyForFlush.notify_all();
+
+    if (_backgroundThread.joinable()) {
+        _backgroundThread.join();
+    }
+    // TODO SERVER-117515: Once this is being signaled from the checkpoint thread, make sure that we
+    // do not miss writing any dirty metadata here.
+}
+
+void ReplicatedFastCountManager::commit(
+    const boost::container::flat_map<UUID, CollectionSizeCount>& changes,
+    boost::optional<Timestamp> commitTime) {
+    stdx::lock_guard lock(_metadataMutex);
+    for (const auto& [uuid, metadata] : changes) {
+        // Ignore changes that don't need to be flushed. Count and size can both be zero if two or
+        // more UncommittedFastCountChange::record() calls between checkpoints for the same UUID
+        // cancel each other out.
+        if (metadata.count == 0 && metadata.size == 0) {
+            continue;
+        }
+
+        auto& stored = _metadata[uuid];
+        stored.sizeCount.count += metadata.count;
+        stored.sizeCount.size += metadata.size;
+        stored.dirty = true;
+        invariant(stored.sizeCount.size >= 0 && stored.sizeCount.count >= 0,
+                  fmt::format("Expected fast count size and count to be non-negative, but saw size "
+                              "{} and count {}",
+                              stored.sizeCount.size,
+                              stored.sizeCount.count));
+    }
+}
+
+CollectionSizeCount ReplicatedFastCountManager::find(const UUID& uuid) const {
+    stdx::lock_guard lock(_metadataMutex);
+    auto it = _metadata.find(uuid);
+    if (it != _metadata.end()) {
+        return it->second.sizeCount;
+    }
+    return {};
+}
+
+void ReplicatedFastCountManager::flushAsync(OperationContext* opCtx) {
+    _backgroundThreadReadyForFlush.notify_all();
+}
+
+void ReplicatedFastCountManager::flushSync_ForTest(OperationContext* opCtx) {
+    _snapshotAndFlush(opCtx);
+}
+
+void ReplicatedFastCountManager::disablePeriodicWrites_ForTest() {
+    invariant(!_backgroundThread.joinable(),
+              "Background thread started running before disabling periodic metadata writes");
+    _writeMetadataPeriodically = false;
+}
+
+void ReplicatedFastCountManager::_snapshotAndFlush(OperationContext* opCtx) {
+    const absl::flat_hash_map<UUID, StoredSizeCount> dirtyMetadata = _getSnapshotOfDirtyMetadata();
+
+    if (MONGO_unlikely(hangAfterReplicatedFastCountSnapshot.shouldFail())) {
+        hangAfterReplicatedFastCountSnapshot.pauseWhileSet();
+    }
+
+    auto acquisition = _acquireFastCountCollectionForWrite(opCtx);
+    uassert(ErrorCodes::NamespaceNotFound, "Expected fastcount collection to exist", acquisition);
+
+    const CollectionPtr& fastCountColl = acquisition->getCollectionPtr();
+    invariant(fastCountColl,
+              str::stream()
+                  << "Expected to acquire fastcount store as a collection, not a view. isView : "
+                  << acquisition->isView());
+
+    try {
+        _doFlush(opCtx, fastCountColl, dirtyMetadata);
+    } catch (const DBException& ex) {
+        LOGV2_WARNING(7397500,
+                      "Failed to persist collection sizeCount metadata",
+                      "error"_attr = ex.toStatus());
+    }
+}
+
+absl::flat_hash_map<UUID, ReplicatedFastCountManager::StoredSizeCount>
+ReplicatedFastCountManager::_getSnapshotOfDirtyMetadata() {
+    absl::flat_hash_map<UUID, StoredSizeCount> dirtyMetadata;
+    {
+        stdx::lock_guard lock(_metadataMutex);
+        dirtyMetadata.reserve(_metadata.size());
+        for (auto&& [metadataKey, metadataValue] : _metadata) {
+            if (metadataValue.dirty) {
+                dirtyMetadata[metadataKey] = metadataValue;
+                metadataValue.dirty = false;
+            }
+        }
+    }
+    return dirtyMetadata;
+}
+
+void ReplicatedFastCountManager::_doFlush(
+    OperationContext* opCtx,
+    const CollectionPtr& coll,
+    const absl::flat_hash_map<UUID, StoredSizeCount>& dirtyMetadata) {
+    WriteUnitOfWork wuow(opCtx, WriteUnitOfWork::kGroupForPossiblyRetryableOperations);
+    for (auto&& [metadataKey, metadataVal] : dirtyMetadata) {
+        _writeOneMetadata(
+            opCtx, coll, metadataKey, metadataVal.sizeCount, _keyForUUID(metadataKey));
+    }
+    wuow.commit();
+}
 
 void ReplicatedFastCountManager::_startBackgroundThread(ServiceContext* svcCtx) {
     ThreadClient tc(_threadName, svcCtx->getService());
@@ -109,172 +227,130 @@ void ReplicatedFastCountManager::_startBackgroundThread(ServiceContext* svcCtx) 
                       "error"_attr = ex.toStatus());
     }
 
-    // TODO SERVER-117651 : Shutdown behavior goes here.
     LOGV2(11648804, "ReplicatedFastCountManager exited");
 }
 
 void ReplicatedFastCountManager::_runBackgroundThreadOnTimer(OperationContext* opCtx) {
-    while (!_inShutdown.loadRelaxed()) {
-        // TODO SERVER-117515: should not just be on a timer. We want to signal this from checkpoint
-        // thread somehow.
-        stdx::this_thread::sleep_for(stdx::chrono::seconds(1));
-        _runIteration(opCtx);
-    }
-}
+    while (_writeMetadataPeriodically) {
+        {
+            stdx::unique_lock lock(_metadataMutex);
+            // TODO SERVER-117515: We want to signal this from checkpoint thread
+            _backgroundThreadReadyForFlush.wait_for(
+                lock, stdx::chrono::seconds(1), [this] { return _isDisabled.loadRelaxed(); });
 
-void ReplicatedFastCountManager::_runIteration(OperationContext* opCtx) {
-    // TODO SERVER-117652: Make copy so we don't hold locks too long. Should use immutable data
-    // structures.
-    absl::flat_hash_map<UUID, StoredSizeCount> metadata = [&]() {
-        stdx::lock_guard lock(_mutex);
-        return _metadata;
-    }();
-
-    CollectionOrViewAcquisition acquisition = _acquireFastCountCollection(opCtx);
-
-    const CollectionPtr& coll = acquisition.getCollectionPtr();
-    invariant(coll,
-              str::stream()
-                  << "Expected to acquire fastcount store as a collection, not a view. isView : "
-                  << acquisition.isView());
-
-    try {
-        for (auto&& [metadataKey, metadataVal] : metadata) {
-            if (metadataVal.dirty) {
-                _writeMetadata(
-                    opCtx, coll, metadataKey, metadataVal.sizeCount, _keyForUUID(metadataKey));
-                stdx::lock_guard lock(_mutex);
-                _metadata[metadataKey].dirty = false;
+            if (_isDisabled.loadRelaxed()) {
+                break;
             }
         }
-    } catch (const DBException& ex) {
-        LOGV2_WARNING(7397500,
-                      "Failed to persist collection size/count metadata",
-                      "error"_attr = ex.toStatus());
-    }
-}
 
-CollectionOrViewAcquisition ReplicatedFastCountManager::_acquireFastCountCollection(
-    OperationContext* opCtx) {
-    {
-        CollectionOrViewAcquisition acquisition =
-            acquireCollectionOrView(opCtx,
-                                    CollectionOrViewAcquisitionRequest::fromOpCtx(
-                                        opCtx,
-                                        NamespaceString::makeGlobalConfigCollection(
-                                            NamespaceString::kSystemReplicatedFastCountStore),
-                                        AcquisitionPrerequisites::OperationType::kWrite),
-                                    LockMode::MODE_IX);
-
-        if (acquisition.getCollectionPtr()) {
-            return acquisition;
+        try {
+            _snapshotAndFlush(opCtx);
+        } catch (const DBException& ex) {
+            if (ex.code() == ErrorCodes::InterruptedDueToReplStateChange &&
+                !_isDisabled.loadRelaxed()) {
+                // Stepdown attempt interrupted us. We can continue here - if the stepdown did not
+                // succeed we will run the next iteration, otherwise we will break out of the loop.
+                LOGV2_DEBUG(11905701,
+                            2,
+                            "ReplicatedFastCountManager iteration interrupted due to "
+                            "replication state change; will retry",
+                            "error"_attr = ex.toStatus());
+                continue;
+            }
         }
     }
-
-    uasserted(11718600, "Expected fastcount collection to exist");
 }
 
-void ReplicatedFastCountManager::initializeFastCountCommitFn() {
-    setFastCountCommitFn([](OperationContext* opCtx,
-                            const boost::container::flat_map<UUID, CollectionSizeCount>& changes,
-                            boost::optional<Timestamp> commitTime) {
-        getReplicatedFastCountManager(opCtx->getServiceContext()).commit(changes, commitTime);
-    });
-}
-
-void ReplicatedFastCountManager::commit(
-    const boost::container::flat_map<UUID, CollectionSizeCount>& changes,
-    boost::optional<Timestamp> commitTime) {
-    stdx::lock_guard lock(_mutex);
-    for (const auto& [uuid, metadata] : changes) {
-        // TODO SERVER-117656: Investigate why we sometimes get zero changes here.
-        if (metadata.count == 0 && metadata.size == 0) {
-            LOGV2_WARNING(11648808, "ReplicatedFastCountManager, Count & Size == 0");
-            continue;
-        }
-        auto& stored = _metadata[uuid];
-        stored.sizeCount.count += metadata.count;
-        stored.sizeCount.size += metadata.size;
-        stored.dirty = true;
-    }
-}
-
-CollectionSizeCount ReplicatedFastCountManager::find(const UUID& uuid) const {
-    stdx::lock_guard lock(_mutex);
-    auto it = _metadata.find(uuid);
-    if (it != _metadata.end()) {
-        return it->second.sizeCount;
-    }
-    return {};
-}
-
-void ReplicatedFastCountManager::_writeMetadata(OperationContext* opCtx,
-                                                const CollectionPtr& coll,
-                                                const UUID& uuid,
-                                                const CollectionSizeCount& sizeCount,
-                                                const RecordId recordId) {
-    // TODO SERVER-117512: We're performing one write per collection here. But we should be
-    // able to bundle many of these writes in a single applyOps using the WUOW
-    // grouping interface. Might be a problem with updates.
-    WriteUnitOfWork wuow(opCtx);
+void ReplicatedFastCountManager::_writeOneMetadata(OperationContext* opCtx,
+                                                   const CollectionPtr& fastCountColl,
+                                                   const UUID& uuid,
+                                                   const CollectionSizeCount& sizeCount,
+                                                   const RecordId recordId) {
     Snapshotted<BSONObj> doc;
-    bool exists = coll->findDoc(opCtx, recordId, &doc);
+    bool exists = fastCountColl->findDoc(opCtx, recordId, &doc);
 
     if (exists) {
-        _updateMetadata(opCtx, coll, doc, uuid, sizeCount);
+        _updateOneMetadata(opCtx, fastCountColl, doc, uuid, recordId, sizeCount);
     } else {
-        _insertMetadata(opCtx, coll, uuid, sizeCount);
+        _insertOneMetadata(opCtx, fastCountColl, uuid, sizeCount);
     }
-
-    wuow.commit();
 }
 
-void ReplicatedFastCountManager::_updateMetadata(OperationContext* opCtx,
-                                                 const CollectionPtr& coll,
-                                                 const Snapshotted<BSONObj>& doc,
-                                                 const UUID& uuid,
-                                                 const CollectionSizeCount& sizeCount) {
+void ReplicatedFastCountManager::_updateOneMetadata(OperationContext* opCtx,
+                                                    const CollectionPtr& fastCountColl,
+                                                    const Snapshotted<BSONObj>& doc,
+                                                    const UUID& uuid,
+                                                    const RecordId recordId,
+                                                    const CollectionSizeCount& sizeCount) {
     // TODO SERVER-117886: Manually performing update without query system. This would be nice to
     // avoid extra dependencies but might be too tricky to get right.
     CollectionUpdateArgs args(doc.value());
     // TODO SERVER-117654: When we also store timestamp we should be able to recover/combine data
     // from old doc to keep this accurate.
-    BSONObj newDoc = _getDocForWrite(uuid, sizeCount);
+    const BSONObj newDoc = _getDocForWrite(uuid, sizeCount);
 
-    auto diff = doc_diff::computeOplogDiff(doc.value(), newDoc, 0);
+    const auto diff = doc_diff::computeOplogDiff(doc.value(), newDoc, /*padding=*/0);
+    invariant(
+        diff.has_value(),
+        fmt::format("Expected computed diff to be smaller than the post-image: pre={}, post={}",
+                    doc.value().toString(),
+                    newDoc.toString()));
 
-    if (diff) {
+    if (!diff->isEmpty()) {
         args.update = update_oplog_entry::makeDeltaOplogEntry(*diff);
         args.criteria = BSON("_id" << uuid);
         collection_internal::updateDocument(
-            opCtx, coll, _keyForUUID(uuid), doc, newDoc, &args.update, nullptr, nullptr, &args);
+            opCtx, fastCountColl, recordId, doc, newDoc, &args.update, nullptr, nullptr, &args);
     } else {
         // TODO SERVER-117508: Increment t2 stat.
         LOGV2(11648805, "ReplicatedFastCountManager empty update", "uuid"_attr = uuid);
     }
 }
 
-void ReplicatedFastCountManager::_insertMetadata(OperationContext* opCtx,
-                                                 const CollectionPtr& coll,
-                                                 const UUID& uuid,
-                                                 const CollectionSizeCount& sizeCount) {
+void ReplicatedFastCountManager::_insertOneMetadata(OperationContext* opCtx,
+                                                    const CollectionPtr& fastCountColl,
+                                                    const UUID& uuid,
+                                                    const CollectionSizeCount& sizeCount) {
     // TODO SERVER-118529: Consider error handling more carefully here.
-    uassertStatusOK(collection_internal::insertDocument(
-        opCtx, coll, InsertStatement(_getDocForWrite(uuid, sizeCount)), nullptr));
+    uassertStatusOK(
+        collection_internal::insertDocument(opCtx,
+                                            fastCountColl,
+                                            InsertStatement(_getDocForWrite(uuid, sizeCount)),
+                                            /*opDebug=*/nullptr));
+}
+
+boost::optional<CollectionOrViewAcquisition>
+ReplicatedFastCountManager::_acquireFastCountCollectionForWrite(OperationContext* opCtx) {
+    CollectionOrViewAcquisition acquisition =
+        acquireCollectionOrView(opCtx,
+                                CollectionOrViewAcquisitionRequest::fromOpCtx(
+                                    opCtx,
+                                    NamespaceString::makeGlobalConfigCollection(
+                                        NamespaceString::kSystemReplicatedFastCountStore),
+                                    AcquisitionPrerequisites::OperationType::kWrite),
+                                LockMode::MODE_IX);
+
+    if (acquisition.getCollectionPtr()) {
+        return acquisition;
+    }
+
+    return boost::none;
 }
 
 BSONObj ReplicatedFastCountManager::_getDocForWrite(const UUID& uuid,
-                                                    const CollectionSizeCount& sizeCount) {
+                                                    const CollectionSizeCount& sizeCount) const {
     return BSON("_id" << uuid << kCountKey << sizeCount.count << kSizeKey << sizeCount.size);
 }
 
-RecordId ReplicatedFastCountManager::_keyForUUID(const UUID& uuid) {
-    auto key = record_id_helpers::keyForDoc(
-        BSON("_id" << uuid), clustered_util::makeDefaultClusteredIdIndex().getIndexSpec(), nullptr);
+RecordId ReplicatedFastCountManager::_keyForUUID(const UUID& uuid) const {
+    auto key =
+        record_id_helpers::keyForDoc(BSON("_id" << uuid),
+                                     clustered_util::makeDefaultClusteredIdIndex().getIndexSpec(),
+                                     /*collator=*/nullptr);
     return key.getValue();
 }
 
-UUID ReplicatedFastCountManager::_UUIDForKey(RecordId key) {
+UUID ReplicatedFastCountManager::_UUIDForKey(const RecordId key) const {
     return UUID::parse(record_id_helpers::toBSONAs(key, "").firstElement()).getValue();
 }
 

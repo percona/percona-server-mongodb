@@ -29,7 +29,8 @@ executor:
     class: ShardedClusterFixture
     num_shards: 1
     num_mongos: 3
-    load_all_extensions: true
+    load_extensions:
+      - "*" # All extensions.
     mongod_options:
       set_parameters:
         enableTestCommands: 1

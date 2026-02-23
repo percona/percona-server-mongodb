@@ -421,7 +421,8 @@ public:
     /**
      * Appends statistics for the underlying network interface.
      */
-    virtual void appendNetworkInterfaceStats(BSONObjBuilder&) const = 0;
+    virtual void appendNetworkInterfaceStats(BSONObjBuilder&,
+                                             bool forServerStatus = false) const = 0;
 
 protected:
     // Retrieves the Callback from a given CallbackHandle

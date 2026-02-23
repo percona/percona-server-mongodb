@@ -7,7 +7,7 @@ import threading
 import time
 from abc import ABC, abstractmethod
 from concurrent.futures import ThreadPoolExecutor, TimeoutError
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 from buildscripts.resmokelib import config as _config
 from buildscripts.resmokelib import selector as _selector
@@ -123,7 +123,7 @@ class Suite(object):
             self._tests, self._excluded = self._get_tests_for_kind(self.test_kind)
         return self._excluded
 
-    def _get_tests_for_kind(self, test_kind) -> tuple[List[any], List[str]]:
+    def _get_tests_for_kind(self, test_kind) -> tuple[list[any], list[str]]:
         """Return the tests to run and those that were excluded, based on the 'test_kind'-specific filtering policy."""
         selector_config = self.get_selector_config()
 
@@ -376,7 +376,7 @@ class Suite(object):
         return self._reports
 
     @synchronized
-    def summarize(self, sb: List[str]):
+    def summarize(self, sb: list[str]):
         """Append a summary of the suite onto the string builder 'sb'."""
         if not self._reports and not self._partial_reports:
             sb.append("No tests ran.")
@@ -585,7 +585,7 @@ class Suite(object):
         RETURN_STATUS = "suite_return_status"
         ERRORNO = "suite_errorno"
 
-    def get_suite_otel_attributes(self) -> Dict[str, Any]:
+    def get_suite_otel_attributes(self) -> dict[str, Any]:
         attributes = {
             Suite.METRIC_NAMES.DISPLAY_NAME: self.get_display_name(),
             Suite.METRIC_NAMES.NAME: self.get_name(),
@@ -602,8 +602,8 @@ class Suite(object):
 
     @staticmethod
     def filter_tests_for_shard(
-        tests: List[str], shard_count: Optional[int], shard_index: Optional[int]
-    ) -> List[str]:
+        tests: list[str], shard_count: Optional[int], shard_index: Optional[int]
+    ) -> list[str]:
         """Filter tests to only include those that should be run by this shard."""
         if shard_index is None or shard_count is None:
             return tests
@@ -625,15 +625,15 @@ class Suite(object):
 class ShardingStrategy(ABC):
     @abstractmethod
     def get_tests_for_shard(
-        self, tests: List[str], shard_count: int, shard_index: int
-    ) -> List[str]:
+        self, tests: list[str], shard_count: int, shard_index: int
+    ) -> list[str]:
         pass
 
 
 class EqualTestCount(ShardingStrategy):
     def get_tests_for_shard(
-        self, tests: List[str], shard_count: int, shard_index: int
-    ) -> List[str]:
+        self, tests: list[str], shard_count: int, shard_index: int
+    ) -> list[str]:
         return [test_case for i, test_case in enumerate(tests) if i % shard_count == shard_index]
 
 
@@ -644,8 +644,8 @@ class EqualRuntime(ShardingStrategy):
             self.runtimes[runtime["test_name"]] = runtime["avg_duration_pass"]
 
     def get_tests_for_shard(
-        self, tests: List[str], shard_count: int, shard_index: int
-    ) -> List[str]:
+        self, tests: list[str], shard_count: int, shard_index: int
+    ) -> list[str]:
         shards = [[] for _ in range(shard_count)]
         shard_runtimes = [0] * shard_count
 

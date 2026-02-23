@@ -18,7 +18,6 @@ import re
 import signal
 import sys
 import traceback
-from typing import List
 
 import distro
 import psutil
@@ -41,7 +40,7 @@ class HangAnalyzer(Subcommand):
         """
         self.options = options
         self.root_logger = None
-        self.interesting_processes: List[str] = [
+        self.interesting_processes: list[str] = [
             # Remove "python", "java" from the list to avoid hang analyzer multiple invocations
             "mongo",
             "mongod",
@@ -49,8 +48,8 @@ class HangAnalyzer(Subcommand):
             "_test",
             "dbtest",
         ]
-        self.go_processes: List[str] = []
-        self.process_ids: List[int] = []
+        self.go_processes: list[str] = []
+        self.process_ids: list[int] = []
 
         def configure_task_id():
             run_tid = resmoke_config.EVERGREEN_TASK_ID

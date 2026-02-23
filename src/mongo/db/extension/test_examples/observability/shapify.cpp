@@ -124,12 +124,12 @@ public:
         std::vector<mongo::extension::VariantNodeHandle> expanded;
         expanded.reserve(getExpandedSize());
         BSONObj shapifySpec = BSON("int" << 1 << "ident_name" << "Alice");
-        expanded.emplace_back(
-            new sdk::ExtensionAggStageParseNode(std::make_unique<ShapifyParseNode>(shapifySpec)));
-        expanded.emplace_back(
-            new sdk::ExtensionAggStageParseNode(std::make_unique<ShapifyParseNode>(shapifySpec)));
-        expanded.emplace_back(
-            new sdk::ExtensionAggStageParseNode(std::make_unique<ShapifyParseNode>(shapifySpec)));
+        expanded.emplace_back(new sdk::ExtensionAggStageParseNodeAdapter(
+            std::make_unique<ShapifyParseNode>(shapifySpec)));
+        expanded.emplace_back(new sdk::ExtensionAggStageParseNodeAdapter(
+            std::make_unique<ShapifyParseNode>(shapifySpec)));
+        expanded.emplace_back(new sdk::ExtensionAggStageParseNodeAdapter(
+            std::make_unique<ShapifyParseNode>(shapifySpec)));
         return expanded;
     }
 

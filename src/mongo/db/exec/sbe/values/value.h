@@ -468,8 +468,8 @@ private:
  * A view of a tag & value, not owned here.
  */
 struct TagValueView {
-    TypeTags tag;
-    Value value;
+    TypeTags tag = TypeTags::Nothing;
+    Value value = 0;
 
     operator std::pair<TypeTags, Value>() {
         return {tag, value};
@@ -484,10 +484,6 @@ std::ostream& operator<<(std::ostream& os, TagValueView v);
 str::stream& operator<<(str::stream& str, TagValueView v);
 
 static_assert(std::is_trivially_copyable<TagValueView>::value, "Must be trivially copyable");
-static_assert(std::is_trivially_default_constructible<TagValueView>::value,
-              "Must be trivially default constructible");
-static_assert(std::is_trivially_constructible<TagValueView>::value,
-              "Must be trivially constructible");
 static_assert(sizeof(TagValueView) <= 16);
 
 /**
@@ -596,6 +592,9 @@ public:
 
     TagValueMaybeOwned(bool owned, TypeTags t, Value v) : _owned(owned), _tag(t), _value(v) {}
 
+    explicit TagValueMaybeOwned(TagValueView view)
+        : _owned(false), _tag(view.tag), _value(view.value) {}
+
     TagValueMaybeOwned(TagValueMaybeOwned&& o) {
         _tag = o._tag;
         _value = o._value;
@@ -667,16 +666,16 @@ public:
         return ret;
     }
 
+    TagValueView view() const {
+        return {_tag, _value};
+    }
+
     /**
      * Relinquishes ownership and sets the stored tag/value to Nothing.
      */
     void disownAndClear() {
         _tag = TypeTags::Nothing;
         _value = 0;
-        _owned = false;
-    }
-
-    void makeView() {
         _owned = false;
     }
 

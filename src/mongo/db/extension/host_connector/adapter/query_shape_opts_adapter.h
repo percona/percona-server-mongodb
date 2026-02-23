@@ -73,8 +73,11 @@ private:
                                                       ::MongoExtensionByteView bsonElement,
                                                       ::MongoExtensionByteBuf** output) noexcept;
 
-    static constexpr ::MongoExtensionHostQueryShapeOptsVTable VTABLE{
-        &_extSerializeIdentifier, &_extSerializeFieldPath, &_extSerializeLiteral};
+    static constexpr ::MongoExtensionHostQueryShapeOptsVTable VTABLE = {
+        .serialize_identifier = &_extSerializeIdentifier,
+        .serialize_field_path = &_extSerializeFieldPath,
+        .serialize_literal = &_extSerializeLiteral,
+    };
 
     const SerializationOptions* _opts;
     boost::intrusive_ptr<ExpressionContext> _expCtx;

@@ -10,7 +10,9 @@
  * requires_sharding,
  * assumes_balancer_off,
  * incompatible_with_concurrency_simultaneous,
- * requires_fcv_80
+ * requires_fcv_80,
+ * # TODO(SERVER-119777): Ensure test does not leak cursors.
+ * can_leak_idle_cursors,
  * ];
  */
 import {extendWorkload} from "jstests/concurrency/fsm_libs/extend_workload.js";

@@ -158,11 +158,12 @@ std::list<intrusive_ptr<DocumentSource>> DocumentSourceSearch::desugar() {
         std::move(spec), getExpCtx(), executor);
     desugaredPipeline.push_back(mongoTRemoteStage);
 
-    search_helpers::promoteStoredSourceOrAddIdLookup(getExpCtx(),
-                                                     desugaredPipeline,
-                                                     storedSource,
-                                                     _spec.getLimit().value_or(0),
-                                                     _spec.getView());
+    search_helpers::promoteStoredSourceOrAddIdLookup(
+        getExpCtx(),
+        desugaredPipeline,
+        storedSource,
+        static_cast<boost::optional<long long>>(_spec.getLimit()),
+        _spec.getView());
 
     return desugaredPipeline;
 }

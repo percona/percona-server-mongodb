@@ -1,4 +1,6 @@
 // Test creation of compound indexes with special index types.
+import {add2dsphereVersionIfNeeded} from "jstests/libs/query/geo_index_version_helpers.js";
+
 const coll = db.index_plugins;
 coll.drop();
 
@@ -8,16 +10,16 @@ assert.commandWorked(coll.createIndex({a: "hashed"}));
 coll.dropIndexes();
 assert.commandWorked(coll.createIndex({a: "2d"}));
 coll.dropIndexes();
-assert.commandWorked(coll.createIndex({a: "2dsphere"}));
+assert.commandWorked(coll.createIndex({a: "2dsphere"}, add2dsphereVersionIfNeeded()));
 coll.dropIndexes();
 assert.commandWorked(coll.createIndex({a: "text"}));
 coll.dropIndexes();
 
 // Test compounding special index types with an ascending index.
 
-assert.commandWorked(coll.createIndex({a: "2dsphere", b: 1}));
+assert.commandWorked(coll.createIndex({a: "2dsphere", b: 1}, add2dsphereVersionIfNeeded()));
 coll.dropIndexes();
-assert.commandWorked(coll.createIndex({a: 1, b: "2dsphere"}));
+assert.commandWorked(coll.createIndex({a: 1, b: "2dsphere"}, add2dsphereVersionIfNeeded()));
 coll.dropIndexes();
 
 assert.commandWorked(coll.createIndex({a: "text", b: 1}));
@@ -34,7 +36,7 @@ assert.commandFailed(coll.createIndex({a: 1, b: "2d"})); // unsupported
 
 // Test compound index where multiple fields have same special index type.
 coll.dropIndexes();
-assert.commandWorked(coll.createIndex({a: "2dsphere", b: "2dsphere"}));
+assert.commandWorked(coll.createIndex({a: "2dsphere", b: "2dsphere"}, add2dsphereVersionIfNeeded()));
 assert.commandWorked(coll.createIndex({a: "text", b: "text"}));
 // Unsupported.
 assert.commandFailed(coll.createIndex({a: "2d", b: "2d"}));

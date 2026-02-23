@@ -52,6 +52,14 @@ for strategy in "${strategies[@]}"; do
     ci_flags+=" --test_arg=--evergreenTestSelectionStrategy=${strategy}"
 done
 
+# Add each test flag from test_flags expansion as --test_arg
+if [ -n "${test_flags:-}" ]; then
+    eval "flags_array=(${test_flags})"
+    for flag in "${flags_array[@]}"; do
+        bazel_args+=" --test_arg=\"${flag}\""
+    done
+fi
+
 ALL_FLAGS="${ci_flags} ${LOCAL_ARG} ${bazel_args:-} ${bazel_compile_flags:-} ${task_compile_flags:-} ${patch_compile_flags:-}"
 CONFIG_FLAGS="$(bazel_evergreen_shutils::extract_config_flags "${ALL_FLAGS}")"
 echo "${ALL_FLAGS}" >.bazel_build_flags
@@ -78,7 +86,7 @@ RET=$?
 
 if [[ "$RET" == "0" ]]; then
     export RETRY_ON_FAIL=0
-    bazel_evergreen_shutils::retry_bazel_cmd 3 "$BAZEL_BINARY" \
+    bazel_evergreen_shutils::retry_bazel_cmd 2 "$BAZEL_BINARY" \
         test ${ci_flags} ${bazel_args} ${bazel_compile_flags} ${task_compile_flags} ${patch_compile_flags} --build_event_json_file=build_events.json ${targets}
     RET=$?
 
@@ -112,6 +120,10 @@ eval ${BAZEL_BINARY} shutdown # Explicitly shutdown the bazel server in case the
 # The test failures are reported in individual results tasks, so don't fail the task here.
 if [[ "$RET" -eq 3 ]]; then
     echo 'Some tests failed. See the generated task(s) for the failed targets for more details on the failure(s).'
+    exit 0
+elif [[ "$RET" -eq 4 ]]; then
+    # Before suites are converted, this is expected and should not fail the task. Remove with SERVER-118686.
+    echo 'No tests were run.'
     exit 0
 elif [[ "$RET" -eq 0 ]]; then
     exit 0

@@ -12,7 +12,6 @@ import re
 import subprocess
 import sys
 from pathlib import Path
-from typing import Dict, List
 
 REPO_NAME_PREFIX = "query-correctness-tests-"
 
@@ -79,7 +78,7 @@ def extract_repo_and_subpath(test_path: Path):
     )
 
 
-def process_log_file(logfile: Path, failing_tests_map: Dict[str, Dict[str, List[int]]]):
+def process_log_file(logfile: Path, failing_tests_map: dict[str, dict[str, list[int]]]):
     """
     Parses evergreen log files by regex matching relevant parts of the query_tester output to determine the failing test files, and the corresponding test numbers.
 
@@ -132,7 +131,7 @@ def create_repo_commit_map(test_repos_conf_file: Path):
     return repo_commit_map
 
 
-def fetch_test_repos_dirs(failing_tests_map, repo_commit_map: Dict[str, str], clone_dir: Path):
+def fetch_test_repos_dirs(failing_tests_map, repo_commit_map: dict[str, str], clone_dir: Path):
     """
     Fetch the query-correctness-tests-* repos with the failing tests, checks out the repos to the correct commit hash and only checks out the failing test files.
 
@@ -191,7 +190,7 @@ def fetch_test_repos_dirs(failing_tests_map, repo_commit_map: Dict[str, str], cl
         subprocess.run(command)
 
 
-def build_query_tester_command(failing_tests_map: Dict[str, Dict[str, List[int]]], out_dir: Path):
+def build_query_tester_command(failing_tests_map: dict[str, dict[str, list[int]]], out_dir: Path):
     """
     Find all the failing test files from the failing_tests_map and output a formatted string that can be used as an argument to the mongotest binary
 

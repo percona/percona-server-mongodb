@@ -392,13 +392,26 @@ feature_flags:
     featureFlagCostBasedRanker:
         description: "Feature flag to enable the cost-based ranker for query plans."
         cpp_varname: gFeatureFlagCostBasedRanker
-        default: false
+        default: true
         fcv_gated: false
-        incremental_rollout_phase: in_development
+        incremental_rollout_phase: rollout
 
     featureFlagSbeEqLookupUnwind:
         description: "Feature flag to enable $lookup-$unwind in SBE."
         cpp_varname: gFeatureFlagSbeEqLookupUnwind
         default: false
         fcv_gated: false
+        incremental_rollout_phase: in_development
+
+    featureFlagGetExecutorDeferredEngineChoice:
+        description: "Feature flag to enable engine selection based on query plan, rather than query text."
+        cpp_varname: gFeatureFlagGetExecutorDeferredEngineChoice
+        fcv_gated: false
+        default: false
+
+    featureFlagImprovedDepsAnalysis:
+        description: "Feature flag to enable pipeline rewrites that require a dependency graph"
+        cpp_varname: gFeatureFlagImprovedDepsAnalysis
+        fcv_gated: false
+        default: false
         incremental_rollout_phase: in_development

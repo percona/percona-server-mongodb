@@ -35,6 +35,7 @@
 #include "mongo/bson/bsonelement.h"
 #include "mongo/bson/bsonelement_comparator.h"
 #include "mongo/bson/bsonobj.h"
+#include "mongo/crypto/oplog_key_entry_handler.h"
 #include "mongo/db/curop.h"
 #include "mongo/db/curop_metrics.h"
 #include "mongo/db/database_name.h"
@@ -43,6 +44,7 @@
 #include "mongo/db/namespace_string.h"
 #include "mongo/db/profile_settings.h"
 #include "mongo/db/repl/oplog_applier_utils.h"
+#include "mongo/db/repl/oplog_entry.h"
 #include "mongo/db/repl/oplog_entry_gen.h"
 #include "mongo/db/repl/read_concern_args.h"
 #include "mongo/db/repl/repl_server_parameters_gen.h"
@@ -426,7 +428,7 @@ Status OplogApplierUtils::applyOplogEntryOrGroupedInsertsCommon(
     const bool isDataConsistent,
     IncrementOpsAppliedStatsFn incrementOpsAppliedStats,
     OpCounters* opCounters) {
-    invariant(DocumentValidationSettings::get(opCtx).isSchemaValidationDisabled());
+    invariant(DocumentValidationSettings::get(opCtx).isSchemaValidationDisabledForInternalOp());
 
     const auto& op = entryOrGroupedInserts.getOp();
     // Count each log op application as a separate operation, for reporting purposes.
@@ -454,6 +456,14 @@ Status OplogApplierUtils::applyOplogEntryOrGroupedInsertsCommon(
     }
 
     if (opType == OpTypeEnum::kNoop) {
+        incrementOpsAppliedStats();
+        return Status::OK();
+    } else if (opType == OpTypeEnum::kKeyMaterial) {
+        auto handler = OplogKeyEntryHandler::get(opCtx->getServiceContext());
+        auto status = handler->applyOplogEntry(opCtx, repl::OplogEntry(*op));
+        if (!status.isOK()) {
+            return status;
+        }
         incrementOpsAppliedStats();
         return Status::OK();
     } else if (DurableOplogEntry::isCrudOpType(opType)) {
@@ -632,7 +642,7 @@ Status OplogApplierUtils::applyOplogBatchCommon(
 
     // We cannot do document validation, because document validation could have been disabled when
     // these oplog entries were generated.
-    DisableDocumentValidation validationDisabler(opCtx);
+    DisableDocumentValidationForInternalOp validationDisabler(opCtx);
     // Group the operations by namespace in order to get larger groups for bulk inserts, but do not
     // mix up the current order of oplog entries within the same namespace (thus *stable* sort).
     stableSortByNamespace(ops);

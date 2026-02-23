@@ -132,7 +132,7 @@ public:
 
 TEST_F(AggStageTest, CountingParseExpansionSucceedsTest) {
     auto countingParseNode =
-        new ExtensionAggStageParseNode(shared_test_stages::CountingParse::make());
+        new ExtensionAggStageParseNodeAdapter(shared_test_stages::CountingParse::make());
     auto handle = extension::AggStageParseNodeHandle{countingParseNode};
 
     auto expanded = handle->expand();
@@ -143,8 +143,8 @@ TEST_F(AggStageTest, CountingParseExpansionSucceedsTest) {
 }
 
 TEST_F(AggStageTest, NestedExpansionSucceedsTest) {
-    auto nestedDesugarParseNode =
-        new ExtensionAggStageParseNode(shared_test_stages::NestedDesugaringParseNode::make());
+    auto nestedDesugarParseNode = new ExtensionAggStageParseNodeAdapter(
+        shared_test_stages::NestedDesugaringParseNode::make());
     auto handle = extension::AggStageParseNodeHandle{nestedDesugarParseNode};
 
     auto expanded = handle->expand();
@@ -169,7 +169,7 @@ TEST_F(AggStageTest, NestedExpansionSucceedsTest) {
 }
 
 TEST_F(AggStageTest, ExpansionToHostParseNodeSucceeds) {
-    auto expandToHostParseNode = std::make_unique<ExtensionAggStageParseNode>(
+    auto expandToHostParseNode = std::make_unique<ExtensionAggStageParseNodeAdapter>(
         shared_test_stages::ExpandToHostParseNode::make());
 
     // Transfer ownership from the SDK-style unique_ptr to the OwnedHandle.
@@ -187,7 +187,7 @@ TEST_F(AggStageTest, ExpansionToHostParseNodeSucceeds) {
 
 TEST_F(AggStageTest, ExpansionToIdLookupSucceeds) {
     auto expandToIdLookupAstNode =
-        std::make_unique<ExtensionAggStageParseNode>(ExpandToIdLookupNode::make());
+        std::make_unique<ExtensionAggStageParseNodeAdapter>(ExpandToIdLookupNode::make());
 
     // Transfer ownership from the SDK-style unique_ptr to the OwnedHandle.
     auto handle = extension::AggStageParseNodeHandle{expandToIdLookupAstNode.release()};
@@ -205,8 +205,8 @@ TEST_F(AggStageTest, HandlesPreventMemoryLeaksOnSuccess) {
     shared_test_stages::CountingAst::alive = 0;
     shared_test_stages::CountingParse::alive = 0;
 
-    auto nestedDesugarParseNode =
-        new ExtensionAggStageParseNode(shared_test_stages::NestedDesugaringParseNode::make());
+    auto nestedDesugarParseNode = new ExtensionAggStageParseNodeAdapter(
+        shared_test_stages::NestedDesugaringParseNode::make());
 
     {
         auto handle = extension::AggStageParseNodeHandle{nestedDesugarParseNode};
@@ -226,8 +226,8 @@ TEST_F(AggStageTest, HandlesPreventMemoryLeaksOnFailure) {
     shared_test_stages::CountingAst::alive = 0;
     shared_test_stages::CountingParse::alive = 0;
 
-    auto nestedDesugarParseNode =
-        new ExtensionAggStageParseNode(shared_test_stages::NestedDesugaringParseNode::make());
+    auto nestedDesugarParseNode = new ExtensionAggStageParseNodeAdapter(
+        shared_test_stages::NestedDesugaringParseNode::make());
 
     auto handle = extension::AggStageParseNodeHandle{nestedDesugarParseNode};
 
@@ -253,8 +253,8 @@ TEST_F(AggStageTest, ExtExpandPreventsMemoryLeaksOnFailure) {
     shared_test_stages::CountingAst::alive = 0;
     shared_test_stages::CountingParse::alive = 0;
 
-    auto nestedDesugarParseNode =
-        new ExtensionAggStageParseNode(shared_test_stages::NestedDesugaringParseNode::make());
+    auto nestedDesugarParseNode = new ExtensionAggStageParseNodeAdapter(
+        shared_test_stages::NestedDesugaringParseNode::make());
     auto handle = extension::AggStageParseNodeHandle{nestedDesugarParseNode};
 
     auto failExpand = globalFailPointRegistry().find("failVariantNodeConversion");
@@ -275,7 +275,7 @@ TEST_F(AggStageTest, ExtExpandPreventsMemoryLeaksOnFailure) {
 
 TEST_F(AggStageTest, TransformAstNodeTest) {
     auto transformAggStageAstNode =
-        new ExtensionAggStageAstNode(shared_test_stages::TransformAggStageAstNode::make());
+        new ExtensionAggStageAstNodeAdapter(shared_test_stages::TransformAggStageAstNode::make());
     auto handle = extension::AggStageAstNodeHandle{transformAggStageAstNode};
 
     QueryTestServiceContext testCtx;
@@ -289,7 +289,7 @@ TEST_F(AggStageTest, TransformAstNodeTest) {
 }
 
 TEST_F(AggStageTest, TransformAstNodeWithDefaultGetPropertiesSucceeds) {
-    auto astNode = new sdk::ExtensionAggStageAstNode(
+    auto astNode = new sdk::ExtensionAggStageAstNodeAdapter(
         sdk::shared_test_stages::TransformAggStageAstNode::make());
     auto handle = AggStageAstNodeHandle{astNode};
     auto props = handle->getProperties();
@@ -303,7 +303,7 @@ TEST_F(AggStageTest, TransformAstNodeWithDefaultGetPropertiesSucceeds) {
 
 TEST_F(AggStageTest, NonePosAstNodeSucceeds) {
     auto nonePosProperties = BSON("position" << "none");
-    auto astNode = new sdk::ExtensionAggStageAstNode(
+    auto astNode = new sdk::ExtensionAggStageAstNodeAdapter(
         std::make_unique<sdk::shared_test_stages::CustomPropertiesAstNode>(nonePosProperties));
     auto handle = AggStageAstNodeHandle{astNode};
     auto props = handle->getProperties();
@@ -312,7 +312,7 @@ TEST_F(AggStageTest, NonePosAstNodeSucceeds) {
 
 TEST_F(AggStageTest, FirstPosAstNodeSucceeds) {
     auto firstPosProperties = BSON("position" << "first");
-    auto astNode = new sdk::ExtensionAggStageAstNode(
+    auto astNode = new sdk::ExtensionAggStageAstNodeAdapter(
         std::make_unique<sdk::shared_test_stages::CustomPropertiesAstNode>(firstPosProperties));
     auto handle = AggStageAstNodeHandle{astNode};
     auto props = handle->getProperties();
@@ -321,7 +321,7 @@ TEST_F(AggStageTest, FirstPosAstNodeSucceeds) {
 
 TEST_F(AggStageTest, LastPosAstNodeSucceeds) {
     auto lastPosProperties = BSON("position" << "last");
-    auto astNode = new sdk::ExtensionAggStageAstNode(
+    auto astNode = new sdk::ExtensionAggStageAstNodeAdapter(
         std::make_unique<sdk::shared_test_stages::CustomPropertiesAstNode>(lastPosProperties));
     auto handle = AggStageAstNodeHandle{astNode};
     auto props = handle->getProperties();
@@ -330,7 +330,7 @@ TEST_F(AggStageTest, LastPosAstNodeSucceeds) {
 
 TEST_F(AggStageTest, BadPosAstNodeFails) {
     auto badPosProperties = BSON("position" << "bogus");
-    auto astNode = new sdk::ExtensionAggStageAstNode(
+    auto astNode = new sdk::ExtensionAggStageAstNodeAdapter(
         std::make_unique<sdk::shared_test_stages::CustomPropertiesAstNode>(badPosProperties));
     auto handle = AggStageAstNodeHandle{astNode};
     ASSERT_THROWS_CODE(handle->getProperties(), DBException, ErrorCodes::BadValue);
@@ -338,7 +338,7 @@ TEST_F(AggStageTest, BadPosAstNodeFails) {
 
 TEST_F(AggStageTest, BadPosTypeAstNodeFails) {
     auto badPosTypeProperties = BSON("position" << BSONArray(BSON_ARRAY(1)));
-    auto astNode = new sdk::ExtensionAggStageAstNode(
+    auto astNode = new sdk::ExtensionAggStageAstNodeAdapter(
         std::make_unique<sdk::shared_test_stages::CustomPropertiesAstNode>(badPosTypeProperties));
     auto handle = AggStageAstNodeHandle{astNode};
     ASSERT_THROWS_CODE(handle->getProperties(), DBException, ErrorCodes::TypeMismatch);
@@ -346,7 +346,7 @@ TEST_F(AggStageTest, BadPosTypeAstNodeFails) {
 
 TEST_F(AggStageTest, UnknownPropertyAstNodeIsIgnored) {
     auto unknownProperties = BSON("unknownProperty" << "null");
-    auto astNode = new sdk::ExtensionAggStageAstNode(
+    auto astNode = new sdk::ExtensionAggStageAstNodeAdapter(
         std::make_unique<sdk::shared_test_stages::CustomPropertiesAstNode>(unknownProperties));
     auto handle = AggStageAstNodeHandle{astNode};
     auto props = handle->getProperties();
@@ -354,7 +354,7 @@ TEST_F(AggStageTest, UnknownPropertyAstNodeIsIgnored) {
 }
 
 TEST_F(AggStageTest, SubPipelineRequirementPropertiesDefaultValues) {
-    auto astNode = new sdk::ExtensionAggStageAstNode(
+    auto astNode = new sdk::ExtensionAggStageAstNodeAdapter(
         std::make_unique<sdk::shared_test_stages::CustomPropertiesAstNode>(BSONObj()));
     auto handle = AggStageAstNodeHandle{astNode};
     auto props = handle->getProperties();
@@ -364,7 +364,7 @@ TEST_F(AggStageTest, SubPipelineRequirementPropertiesDefaultValues) {
 }
 
 TEST_F(AggStageTest, SubPipelineRequirementProperties) {
-    auto astNode = new sdk::ExtensionAggStageAstNode(
+    auto astNode = new sdk::ExtensionAggStageAstNodeAdapter(
         std::make_unique<sdk::shared_test_stages::CustomPropertiesAstNode>(
             BSON("allowedInUnionWith" << false << "allowedInLookup" << false << "allowedInFacet"
                                       << false)));
@@ -376,7 +376,7 @@ TEST_F(AggStageTest, SubPipelineRequirementProperties) {
 }
 
 TEST_F(AggStageTest, TransformAggStageAstNodeSucceeds) {
-    auto astNode = new sdk::ExtensionAggStageAstNode(
+    auto astNode = new sdk::ExtensionAggStageAstNodeAdapter(
         sdk::shared_test_stages::TransformAggStageAstNode::make());
     auto handle = AggStageAstNodeHandle{astNode};
     auto props = handle->getProperties();
@@ -384,7 +384,7 @@ TEST_F(AggStageTest, TransformAggStageAstNodeSucceeds) {
 }
 
 TEST_F(AggStageTest, SearchLikeSourceAggStageAstNodeSucceeds) {
-    auto astNode = new sdk::ExtensionAggStageAstNode(
+    auto astNode = new sdk::ExtensionAggStageAstNodeAdapter(
         sdk::shared_test_stages::SearchLikeSourceAggStageAstNode::make());
     auto handle = AggStageAstNodeHandle{astNode};
     auto props = handle->getProperties();
@@ -408,7 +408,7 @@ TEST_F(AggStageTest, SearchLikeSourceAggStageAstNodeSucceeds) {
 TEST_F(AggStageTest, BadRequiresInputDocSourceTypeAggStageAstNodeFails) {
     auto badRequiresInputDocSourceTypeProperties =
         BSON("requiresInputDocSource" << BSONArray(BSON_ARRAY(1)));
-    auto astNode = new sdk::ExtensionAggStageAstNode(
+    auto astNode = new sdk::ExtensionAggStageAstNodeAdapter(
         std::make_unique<sdk::shared_test_stages::CustomPropertiesAstNode>(
             badRequiresInputDocSourceTypeProperties));
     auto handle = AggStageAstNodeHandle{astNode};
@@ -420,7 +420,7 @@ TEST_F(AggStageTest, InvalidResourcePatternRequiredPrivilegesAggStageAstNodeFail
         BSON("requiredPrivileges" << BSON_ARRAY(
                  BSON("resourcePattern" << "database"
                                         << "actions" << BSON_ARRAY(BSON("action" << "find")))));
-    auto astNode = new sdk::ExtensionAggStageAstNode(
+    auto astNode = new sdk::ExtensionAggStageAstNodeAdapter(
         std::make_unique<sdk::shared_test_stages::CustomPropertiesAstNode>(
             invalidResourcePatternRequiredPrivileges));
     auto handle = AggStageAstNodeHandle{astNode};
@@ -432,7 +432,7 @@ TEST_F(AggStageTest, InvalidActionTypeRequiredPrivilegesAggStageAstNodeFails) {
         BSON("requiredPrivileges" << BSON_ARRAY(
                  BSON("resourcePattern" << "namespace"
                                         << "actions" << BSON_ARRAY(BSON("action" << "update")))));
-    auto astNode = new sdk::ExtensionAggStageAstNode(
+    auto astNode = new sdk::ExtensionAggStageAstNodeAdapter(
         std::make_unique<sdk::shared_test_stages::CustomPropertiesAstNode>(
             invalidActionTypeRequiredPrivileges));
     auto handle = AggStageAstNodeHandle{astNode};
@@ -444,7 +444,7 @@ TEST_F(AggStageTest, BadTypeRequiredPrivilegesAstNodeFails) {
         BSON("requiredPrivileges" << BSON("resourcePattern"
                                           << "namespace"
                                           << "actions" << BSON_ARRAY(BSON("action" << "find"))));
-    auto astNode = new sdk::ExtensionAggStageAstNode(
+    auto astNode = new sdk::ExtensionAggStageAstNodeAdapter(
         std::make_unique<sdk::shared_test_stages::CustomPropertiesAstNode>(
             badTypeRequiredPrivileges));
     auto handle = AggStageAstNodeHandle{astNode};
@@ -479,8 +479,8 @@ public:
 };
 
 TEST(AggregationStageTest, SimpleSerializationSucceeds) {
-    auto logicalStage =
-        new extension::sdk::ExtensionLogicalAggStage(SimpleSerializationLogicalStage::make());
+    auto logicalStage = new extension::sdk::ExtensionLogicalAggStageAdapter(
+        SimpleSerializationLogicalStage::make());
     auto handle = extension::LogicalAggStageHandle{logicalStage};
 
     auto serialized = handle->serialize();
@@ -490,8 +490,8 @@ TEST(AggregationStageTest, SimpleSerializationSucceeds) {
 }
 
 TEST(AggregationStageTest, ExplainQueryPlanner) {
-    auto logicalStage =
-        new extension::sdk::ExtensionLogicalAggStage(SimpleSerializationLogicalStage::make());
+    auto logicalStage = new extension::sdk::ExtensionLogicalAggStageAdapter(
+        SimpleSerializationLogicalStage::make());
     auto handle = extension::LogicalAggStageHandle{logicalStage};
 
     // Test that different verbosity levels can be passed through to the extension implementation
@@ -520,7 +520,7 @@ TEST(AggregationStageTest, ExplainQueryPlanner) {
 
 
 TEST(AggregationStageTest, ExplainExecutionStats) {
-    auto validExecAggStage = new extension::sdk::ExtensionExecAggStage(
+    auto validExecAggStage = new extension::sdk::ExtensionExecAggStageAdapter(
         shared_test_stages::ValidExtensionExecAggStage::make());
     auto handle = extension::ExecAggStageHandle{validExecAggStage};
 
@@ -578,7 +578,7 @@ public:
 
 TEST_F(AggStageTest, SimpleComputeQueryShapeSucceeds) {
     auto parseNode =
-        new extension::sdk::ExtensionAggStageParseNode(SimpleQueryShapeParseNode::make());
+        new extension::sdk::ExtensionAggStageParseNodeAdapter(SimpleQueryShapeParseNode::make());
     auto handle = extension::AggStageParseNodeHandle{parseNode};
 
     SerializationOptions opts{};
@@ -628,7 +628,7 @@ public:
 };
 
 TEST_F(AggStageTest, SerializingIdentifierQueryShapeSucceedsWithNoTransformation) {
-    auto parseNode = new ExtensionAggStageParseNode(IdentifierQueryShapeParseNode::make());
+    auto parseNode = new ExtensionAggStageParseNodeAdapter(IdentifierQueryShapeParseNode::make());
 
     auto handle = extension::AggStageParseNodeHandle{parseNode};
 
@@ -642,7 +642,7 @@ TEST_F(AggStageTest, SerializingIdentifierQueryShapeSucceedsWithNoTransformation
 }
 
 TEST_F(AggStageTest, SerializingIdentifierQueryShapeSucceedsWithTransformation) {
-    auto parseNode = new ExtensionAggStageParseNode(IdentifierQueryShapeParseNode::make());
+    auto parseNode = new ExtensionAggStageParseNodeAdapter(IdentifierQueryShapeParseNode::make());
     auto handle = extension::AggStageParseNodeHandle{parseNode};
 
     SerializationOptions opts = SerializationOptions::kDebugQueryShapeSerializeOptions;
@@ -659,7 +659,7 @@ TEST_F(AggStageTest, SerializingIdentifierQueryShapeSucceedsWithTransformation) 
 }
 
 TEST_F(AggStageTest, DesugarToEmptyDescriptorParseTest) {
-    auto descriptor = std::make_unique<ExtensionAggStageDescriptor>(
+    auto descriptor = std::make_unique<ExtensionAggStageDescriptorAdapter>(
         shared_test_stages::TransformAggStageDescriptor::make());
     auto handle = extension::AggStageDescriptorHandle{descriptor.get()};
 
@@ -674,7 +674,7 @@ TEST_F(AggStageTest, DesugarToEmptyDescriptorParseTest) {
 }
 
 TEST_F(AggStageTest, SourceStageParseTest) {
-    auto descriptor = std::make_unique<ExtensionAggStageDescriptor>(
+    auto descriptor = std::make_unique<ExtensionAggStageDescriptorAdapter>(
         std::make_unique<shared_test_stages::FruitsAsDocumentsSourceStageDescriptor>());
     auto handle = extension::AggStageDescriptorHandle{descriptor.get()};
 
@@ -727,7 +727,7 @@ public:
 };
 
 TEST_F(AggStageTest, SerializingFieldPathQueryShapeSucceedsWithNoTransformation) {
-    auto parseNode = new ExtensionAggStageParseNode(FieldPathQueryShapeParseNode::make());
+    auto parseNode = new ExtensionAggStageParseNodeAdapter(FieldPathQueryShapeParseNode::make());
     auto handle = extension::AggStageParseNodeHandle{parseNode};
 
     SerializationOptions opts{};
@@ -743,7 +743,7 @@ TEST_F(AggStageTest, SerializingFieldPathQueryShapeSucceedsWithNoTransformation)
 }
 
 TEST_F(AggStageTest, SerializingFieldPathQueryShapeSucceedsWithTransformation) {
-    auto parseNode = new ExtensionAggStageParseNode(FieldPathQueryShapeParseNode::make());
+    auto parseNode = new ExtensionAggStageParseNodeAdapter(FieldPathQueryShapeParseNode::make());
     auto handle = extension::AggStageParseNodeHandle{parseNode};
 
     SerializationOptions opts{};
@@ -829,7 +829,7 @@ inline const BSONObj LiteralQueryShapeParseNode::kObjectValue = BSON("hi" << "mo
 inline const Date_t LiteralQueryShapeParseNode::kDateValue = Date_t::fromMillisSinceEpoch(1000);
 
 TEST_F(AggStageTest, SerializingLiteralQueryShapeSucceedsWithNoTransformation) {
-    auto parseNode = new ExtensionAggStageParseNode(LiteralQueryShapeParseNode::make());
+    auto parseNode = new ExtensionAggStageParseNodeAdapter(LiteralQueryShapeParseNode::make());
     auto handle = extension::AggStageParseNodeHandle{parseNode};
 
     SerializationOptions opts{};
@@ -851,7 +851,7 @@ TEST_F(AggStageTest, SerializingLiteralQueryShapeSucceedsWithNoTransformation) {
 }
 
 TEST_F(AggStageTest, SerializingLiteralQueryShapeSucceedsWithDebugShape) {
-    auto parseNode = new ExtensionAggStageParseNode(LiteralQueryShapeParseNode::make());
+    auto parseNode = new ExtensionAggStageParseNodeAdapter(LiteralQueryShapeParseNode::make());
     auto handle = extension::AggStageParseNodeHandle{parseNode};
 
     SerializationOptions opts = SerializationOptions::kDebugQueryShapeSerializeOptions;
@@ -869,7 +869,7 @@ TEST_F(AggStageTest, SerializingLiteralQueryShapeSucceedsWithDebugShape) {
 }
 
 TEST_F(AggStageTest, SerializingLiteralQueryShapeSucceedsWithRepresentativeValues) {
-    auto parseNode = new ExtensionAggStageParseNode(LiteralQueryShapeParseNode::make());
+    auto parseNode = new ExtensionAggStageParseNodeAdapter(LiteralQueryShapeParseNode::make());
     auto handle = extension::AggStageParseNodeHandle{parseNode};
 
     SerializationOptions opts = SerializationOptions::kRepresentativeQueryShapeSerializeOptions;
@@ -935,7 +935,7 @@ private:
 };
 
 TEST_F(AggStageTest, ValidExecAggStageVTableGetNextSucceeds) {
-    auto validExecAggStage = new extension::sdk::ExtensionExecAggStage(
+    auto validExecAggStage = new extension::sdk::ExtensionExecAggStageAdapter(
         shared_test_stages::ValidExtensionExecAggStage::make());
     auto handle = extension::ExecAggStageHandle{validExecAggStage};
 
@@ -1041,7 +1041,7 @@ TEST(AggregationStageTest, GetMetricsExtensionExecAggStageSucceeds) {
     auto opCtx = testCtx.makeOperationContext();
 
     auto getMetricsExecAggStage =
-        new extension::sdk::ExtensionExecAggStage(GetMetricsExtensionExecAggStage::make());
+        new extension::sdk::ExtensionExecAggStageAdapter(GetMetricsExtensionExecAggStage::make());
     auto handle = ExecAggStageHandle{getMetricsExecAggStage};
 
     // Create a test expression context that can be wrapped by QueryExecutionContextAdapter.
@@ -1075,7 +1075,7 @@ TEST(AggregationStageTest, GetMetricsExtensionExecAggStageSucceeds) {
 }
 
 TEST_F(AggStageTest, TestValidExecAggStageFromCompiledLogicalAggStage) {
-    auto logicalStage = new extension::sdk::ExtensionLogicalAggStage(
+    auto logicalStage = new extension::sdk::ExtensionLogicalAggStageAdapter(
         shared_test_stages::TestLogicalStageCompile::make());
     auto handle = extension::LogicalAggStageHandle{logicalStage};
 
@@ -1112,7 +1112,7 @@ TEST_F(AggStageTest, TestValidExecAggStageFromCompiledLogicalAggStage) {
 }
 
 TEST_F(AggStageTest, TestValidExecAggStageFromCompiledSourceLogicalAggStage) {
-    auto logicalStage = new extension::sdk::ExtensionLogicalAggStage(
+    auto logicalStage = new extension::sdk::ExtensionLogicalAggStageAdapter(
         std::make_unique<shared_test_stages::FruitsAsDocumentsLogicalStage>(
             shared_test_stages::kFruitsAsDocumentsName, BSONObj()));
     auto handle = extension::LogicalAggStageHandle{logicalStage};
@@ -1168,7 +1168,7 @@ TEST_F(AggStageTest, ValidateExecAggStageLifecycleFunctions) {
     auto* trackingExecAggStageImplPtr =
         static_cast<ResourceTrackingExecAggStage*>(trackingExecAggStageImpl.get());
     auto trackingExecAggStage =
-        new extension::sdk::ExtensionExecAggStage(std::move(trackingExecAggStageImpl));
+        new extension::sdk::ExtensionExecAggStageAdapter(std::move(trackingExecAggStageImpl));
     auto handle = ExecAggStageHandle{trackingExecAggStage};
 
     // Open allocates resources.
@@ -1192,8 +1192,9 @@ TEST_F(AggStageTest, TestDPLRaiiVecToAbiArrayRoundTrip) {
     shared_test_stages::CountingParse::alive = 0;
 
     auto logicalStage =
-        new sdk::ExtensionLogicalAggStage(shared_test_stages::CountingLogicalStage::make());
-    auto parseNode = new sdk::ExtensionAggStageParseNode(shared_test_stages::CountingParse::make());
+        new sdk::ExtensionLogicalAggStageAdapter(shared_test_stages::CountingLogicalStage::make());
+    auto parseNode =
+        new sdk::ExtensionAggStageParseNodeAdapter(shared_test_stages::CountingParse::make());
 
     ASSERT_EQ(shared_test_stages::CountingLogicalStage::alive, 1);
     ASSERT_EQ(shared_test_stages::CountingParse::alive, 1);
@@ -1242,8 +1243,9 @@ TEST_F(AggStageTest, TestDPLRaiiVecToAbiArrayWithFailPoint) {
     shared_test_stages::CountingParse::alive = 0;
 
     auto logicalStage =
-        new sdk::ExtensionLogicalAggStage(shared_test_stages::CountingLogicalStage::make());
-    auto parseNode = new sdk::ExtensionAggStageParseNode(shared_test_stages::CountingParse::make());
+        new sdk::ExtensionLogicalAggStageAdapter(shared_test_stages::CountingLogicalStage::make());
+    auto parseNode =
+        new sdk::ExtensionAggStageParseNodeAdapter(shared_test_stages::CountingParse::make());
 
     ASSERT_EQ(shared_test_stages::CountingLogicalStage::alive, 1);
     ASSERT_EQ(shared_test_stages::CountingParse::alive, 1);
@@ -1278,8 +1280,9 @@ TEST_F(AggStageTest, TestDPLArrayContainerRoundTrip) {
     shared_test_stages::CountingParse::alive = 0;
 
     auto logicalStage =
-        new sdk::ExtensionLogicalAggStage(shared_test_stages::CountingLogicalStage::make());
-    auto parseNode = new sdk::ExtensionAggStageParseNode(shared_test_stages::CountingParse::make());
+        new sdk::ExtensionLogicalAggStageAdapter(shared_test_stages::CountingLogicalStage::make());
+    auto parseNode =
+        new sdk::ExtensionAggStageParseNodeAdapter(shared_test_stages::CountingParse::make());
 
     ASSERT_EQ(shared_test_stages::CountingLogicalStage::alive, 1);
     ASSERT_EQ(shared_test_stages::CountingParse::alive, 1);
@@ -1308,8 +1311,8 @@ sdk::DistributedPlanLogic makeTestDistributedPlanLogic() {
     sdk::DistributedPlanLogic dpl;
 
     auto makeCountingLogicalStage = [] {
-        return extension::LogicalAggStageHandle{
-            new sdk::ExtensionLogicalAggStage(shared_test_stages::CountingLogicalStage::make())};
+        return extension::LogicalAggStageHandle{new sdk::ExtensionLogicalAggStageAdapter(
+            shared_test_stages::CountingLogicalStage::make())};
     };
 
     {
@@ -1405,8 +1408,9 @@ public:
 
         {
             std::vector<extension::VariantDPLHandle> elements;
-            elements.emplace_back(extension::LogicalAggStageHandle{
-                new sdk::ExtensionLogicalAggStage(std::make_unique<MergeOnlyLogicalStage>())});
+            elements.emplace_back(
+                extension::LogicalAggStageHandle{new sdk::ExtensionLogicalAggStageAdapter(
+                    std::make_unique<MergeOnlyLogicalStage>())});
             dpl.mergingPipeline = sdk::DPLArrayContainer(std::move(elements));
         }
 
@@ -1416,7 +1420,7 @@ public:
 
 TEST_F(AggStageTest, TestMergeOnlyDistributedPlanLogic) {
     auto logicalStageHandle = LogicalAggStageHandle(
-        new sdk::ExtensionLogicalAggStage(std::make_unique<MergeOnlyLogicalStage>()));
+        new sdk::ExtensionLogicalAggStageAdapter(std::make_unique<MergeOnlyLogicalStage>()));
 
     auto dpl = logicalStageHandle->getDistributedPlanLogic();
     // Confirm that the dpl is valid; it must run on the merge pipeline.
@@ -1472,14 +1476,14 @@ TEST_F(HostParseNodeCloneTest, CloneExtensionAllocatedParseNodePreservesName) {
     auto spec = BSON("field" << "value");
 
     auto extensionParseNode =
-        new sdk::ExtensionAggStageParseNode(CloneableExtensionParseNode::make(spec));
+        new sdk::ExtensionAggStageParseNodeAdapter(CloneableExtensionParseNode::make(spec));
     auto handle = AggStageParseNodeHandle{extensionParseNode};
 
     // Clone the parse node.
     auto clonedHandle = handle->clone();
 
     // Verify the clone is extension-allocated (not host-allocated).
-    ASSERT_FALSE(host::HostAggStageParseNode::isHostAllocated(*clonedHandle.get()));
+    ASSERT_FALSE(host::HostAggStageParseNodeAdapter::isHostAllocated(*clonedHandle.get()));
 
     // Verify the clone has the same name.
     ASSERT_EQ(handle->getName(), clonedHandle->getName());
@@ -1489,7 +1493,7 @@ TEST_F(HostParseNodeCloneTest, CloneExtensionAllocatedParseNodeIsIndependent) {
     auto spec = BSON("data" << 42);
 
     auto extensionParseNode =
-        new sdk::ExtensionAggStageParseNode(CloneableExtensionParseNode::make(spec));
+        new sdk::ExtensionAggStageParseNodeAdapter(CloneableExtensionParseNode::make(spec));
     auto handle = AggStageParseNodeHandle{extensionParseNode};
 
     // Clone the parse node.
@@ -1508,7 +1512,7 @@ TEST_F(HostParseNodeCloneTest, CloneExtensionAllocatedParseNodePreservesQuerySha
                              << "count" << 42);
 
     auto extensionParseNode =
-        new sdk::ExtensionAggStageParseNode(CloneableExtensionParseNode::make(spec));
+        new sdk::ExtensionAggStageParseNodeAdapter(CloneableExtensionParseNode::make(spec));
     auto handle = AggStageParseNodeHandle{extensionParseNode};
 
     // Clone the parse node.
@@ -1534,7 +1538,7 @@ public:
         std::vector<VariantNodeHandle> expanded;
         expanded.reserve(1);
         // Expand to a simple NoOp extension parse node.
-        expanded.emplace_back(new sdk::ExtensionAggStageParseNode(
+        expanded.emplace_back(new sdk::ExtensionAggStageParseNodeAdapter(
             shared_test_stages::DesugarToEmptyParseNode::make()));
         return expanded;
     }
@@ -1559,8 +1563,8 @@ TEST_F(HostParseNodeCloneTest, ClonedParseNodeQueryShapeUnaffectedByExpandOnOthe
     auto spec = BSON("field" << "value"
                              << "count" << 42);
 
-    auto extensionParseNode =
-        new sdk::ExtensionAggStageParseNode(ExpandableCloneableExtensionParseNode::make(spec));
+    auto extensionParseNode = new sdk::ExtensionAggStageParseNodeAdapter(
+        ExpandableCloneableExtensionParseNode::make(spec));
     auto handle = AggStageParseNodeHandle{extensionParseNode};
 
     // Clone the parse node.
@@ -1610,14 +1614,14 @@ TEST(HostAstNodeCloneTest, CloneExtensionAllocatedAstNodePreservesName) {
     auto properties = BSON("needsMerge" << true);
 
     auto extensionAstNode =
-        new sdk::ExtensionAggStageAstNode(CloneableExtensionAstNode::make(properties));
+        new sdk::ExtensionAggStageAstNodeAdapter(CloneableExtensionAstNode::make(properties));
     auto handle = AggStageAstNodeHandle{extensionAstNode};
 
     // Clone the AST node.
     auto clonedHandle = handle->clone();
 
     // Verify the clone is extension-allocated (not host-allocated).
-    ASSERT_FALSE(host::HostAggStageAstNode::isHostAllocated(*clonedHandle.get()));
+    ASSERT_FALSE(host::HostAggStageAstNodeAdapter::isHostAllocated(*clonedHandle.get()));
 
     // Verify the clone has the same name.
     ASSERT_EQ(handle->getName(), clonedHandle->getName());
@@ -1627,7 +1631,7 @@ TEST(HostAstNodeCloneTest, CloneExtensionAllocatedAstNodeIsIndependent) {
     auto properties = BSON("streamable" << false);
 
     auto extensionAstNode =
-        new sdk::ExtensionAggStageAstNode(CloneableExtensionAstNode::make(properties));
+        new sdk::ExtensionAggStageAstNodeAdapter(CloneableExtensionAstNode::make(properties));
     auto handle = AggStageAstNodeHandle{extensionAstNode};
 
     // Clone the AST node.
@@ -1645,7 +1649,7 @@ TEST(HostAstNodeCloneTest, CloneExtensionAllocatedAstNodePreservesProperties) {
     auto properties = BSON("position" << "first");
 
     auto extensionAstNode =
-        new sdk::ExtensionAggStageAstNode(CloneableExtensionAstNode::make(properties));
+        new sdk::ExtensionAggStageAstNodeAdapter(CloneableExtensionAstNode::make(properties));
     auto handle = AggStageAstNodeHandle{extensionAstNode};
 
     // Clone the AST node.
@@ -1719,7 +1723,7 @@ private:
 
 TEST_F(AggStageTest, ExtensionAstNodeCanReturnDefaultViewPolicy) {
     auto extensionAstNode =
-        new sdk::ExtensionAggStageAstNode(ConfigurableViewPolicyExtensionAstNode::make(
+        new sdk::ExtensionAggStageAstNodeAdapter(ConfigurableViewPolicyExtensionAstNode::make(
             MongoExtensionFirstStageViewApplicationPolicy::kDefaultPrepend));
     auto handle = AggStageAstNodeHandle{extensionAstNode};
     auto policy = handle->getFirstStageViewApplicationPolicy();
@@ -1728,7 +1732,7 @@ TEST_F(AggStageTest, ExtensionAstNodeCanReturnDefaultViewPolicy) {
 
 TEST_F(AggStageTest, ExtensionAstNodeCanReturnDoNothingViewPolicy) {
     auto extensionAstNode =
-        new sdk::ExtensionAggStageAstNode(ConfigurableViewPolicyExtensionAstNode::make(
+        new sdk::ExtensionAggStageAstNodeAdapter(ConfigurableViewPolicyExtensionAstNode::make(
             MongoExtensionFirstStageViewApplicationPolicy::kDoNothing));
     auto handle = AggStageAstNodeHandle{extensionAstNode};
     auto policy = handle->getFirstStageViewApplicationPolicy();
@@ -1738,7 +1742,7 @@ TEST_F(AggStageTest, ExtensionAstNodeCanReturnDoNothingViewPolicy) {
 TEST_F(AggStageTest, ExtensionAstNodeCanBindViewInfo) {
     auto astNodeImpl = ViewInfoBindingExtensionAstNode::make();
     auto* astNodeImplPtr = static_cast<ViewInfoBindingExtensionAstNode*>(astNodeImpl.get());
-    auto extensionAstNode = new sdk::ExtensionAggStageAstNode(std::move(astNodeImpl));
+    auto extensionAstNode = new sdk::ExtensionAggStageAstNodeAdapter(std::move(astNodeImpl));
     auto handle = AggStageAstNodeHandle{extensionAstNode};
 
     std::string viewName = "testViewName";

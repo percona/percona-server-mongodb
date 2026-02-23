@@ -36,7 +36,7 @@ import sys
 import textwrap
 from abc import ABCMeta, abstractmethod
 from enum import Enum
-from typing import List, cast
+from typing import cast
 
 from . import (
     ast,
@@ -552,7 +552,7 @@ class _CppFileWriterBase(object):
 
 
 def get_all_structs(spec: ast.IDLBoundSpec):
-    return spec.structs + cast(List[ast.Struct], spec.commands)
+    return spec.structs + cast(list[ast.Struct], spec.commands)
 
 
 def make_mod_tag(vis: str):

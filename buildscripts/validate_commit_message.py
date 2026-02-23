@@ -32,11 +32,14 @@ import pathlib
 import re
 import subprocess
 
+import pathspec
 import requests
 import structlog
 import typer
 from git import Commit, Repo
 from typing_extensions import Annotated
+
+from buildscripts.bazel_rules_mongo.utils.evergreen_git import get_changed_files
 
 LOGGER = structlog.get_logger(__name__)
 
@@ -55,24 +58,56 @@ with open(repo_root / ".github" / "pull_request_template.md", "r") as r:
 
 BANNED_STRINGS = ["https://spruce.mongodb.com", "https://evergreen.mongodb.com", pr_template]
 
-VALID_SUMMARY = re.compile(r'(Revert ")?(SERVER-[0-9]+|Import wiredtiger)')
+VALID_SUMMARY = re.compile(r'(?:Revert ")?(?:([A-Z]+)-[0-9]+|Import wiredtiger)')
+
+# The allowed jira projects and their corresponding allowed file paths.
+# allowed file paths are in gitignore format
+ALLOWED_JIRA_PROJECTS = {
+    "SERVER": ["**/*"],  # SERVER commits can modify any file
+    "GUARD": ["monguard/**/*"],  # GUARD commits can only modify files in the monguard directory
+}
+
+RETRY_INSTRUCTIONS = "If you are seeing this on a PR, after changing the required field, you will need to restart the failed validate_commit_message task in Evergreen before being able to submit your PR."
 
 
-def is_valid_commit(commit: Commit) -> bool:
+def is_valid_commit(commit: Commit, changed_files: list[str] = []) -> bool:
     # Valid values look like:
     # 1. SERVER-\d+
     # 2. Revert "SERVER-\d+
     # 3. Import wiredtiger
     # 4. Revert "Import wiredtiger
-    if not VALID_SUMMARY.match(commit.summary):
+    match = VALID_SUMMARY.match(commit.summary)
+    if not match:
         LOGGER.error(
             f"""PR summary is not valid; it must match the regular expression: {VALID_SUMMARY}
 Current summary: {commit.summary}
 Please update the PR title and description to match the expected format.
-If you are seeing this on a PR, after changing the title/description, you will need to rerun this check before being able to submit your PR.
+{RETRY_INSTRUCTIONS}
 The decision to add this check was made in SERVER-101443, please feel free to leave comments/feedback on that ticket.""",
         )
         return False
+
+    # get the jira project from the regex, this will be none for wiredtiger imports
+    jira_project = match.group(1)
+    if jira_project:
+        # if there is a jira project, check that it is in the allowed list
+        if jira_project not in ALLOWED_JIRA_PROJECTS:
+            LOGGER.error(
+                f"""PR summary contains an invalid Jira project {jira_project}; it must be one of: {list(ALLOWED_JIRA_PROJECTS.keys())}
+{RETRY_INSTRUCTIONS}"""
+            )
+            return False
+
+        allowed_file_paths = ALLOWED_JIRA_PROJECTS[jira_project]
+        spec = pathspec.PathSpec.from_lines("gitwildmatch", allowed_file_paths)
+
+        for file in changed_files:
+            if not spec.match_file(file):
+                LOGGER.error(
+                    f"""PR summary indicates Jira project {jira_project} but the PR modifies file {file} which is not allowed for that Jira project.
+{RETRY_INSTRUCTIONS}"""
+                )
+                return False
 
     # Remove all whitespace from comparisons. GitHub line-wraps commit messages, which adds
     # newline characters that otherwise would not match verbatim such banned strings.
@@ -82,7 +117,7 @@ The decision to add this check was made in SERVER-101443, please feel free to le
             LOGGER.error(
                 """PR title/description contains a banned string (ignoring whitespace).
 Please update the PR title and description to not contain the following banned string.
-If you are seeing this on a PR, after changing the title/description, you will need to rerun this check before being able to submit your PR.
+{RETRY_INSTRUCTIONS}
 The decision to add this check was made in SERVER-101443, please feel free to leave comments/feedback on that ticket.""",
                 banned_string=banned_string,
                 commit_message=commit.message,
@@ -205,8 +240,9 @@ def main(
         LOGGER.error("Running with an invalid requester", requester=requester)
         raise typer.Exit(code=STATUS_ERROR)
 
+    changed_files = get_changed_files("../expansions.yml", diff_filter=None)
     for commit in commits:
-        if not is_valid_commit(commit):
+        if not is_valid_commit(commit, changed_files):
             LOGGER.error("Invalid commit, unable to merge")
             raise typer.Exit(code=STATUS_ERROR)
 

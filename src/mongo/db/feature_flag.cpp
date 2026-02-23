@@ -87,6 +87,9 @@ bool FCVGatedFeatureFlagBase::isEnabled(const VersionContext& vCtx,
                                         const ServerGlobalParams::FCVSnapshot fcv) const {
     const auto currentFcv = vCtx.getOperationFCV(VersionContext::Passkey()).value_or(fcv);
 
+    tassert(11590501,
+            "Trying to check feature flag on undefined FCV",
+            currentFcv.isVersionInitialized());
     return isEnabledOnVersion(currentFcv.getVersion());
 }
 
@@ -124,12 +127,12 @@ bool FCVGatedFeatureFlagBase::isEnabledUseLatestFCVWhenUninitialized(
 // Note that if the feature flag does not have any upgrade/downgrade concerns, then fcv_gated
 // should be set to false and BinaryCompatibleFeatureFlag should be used instead of this function.
 bool FCVGatedFeatureFlagBase::isEnabledAndIgnoreFCVUnsafe() const {
-    return _enabled;
+    return _enabled.load();
 }
 
 bool FCVGatedFeatureFlagBase::isEnabledOnVersion(
     multiversion::FeatureCompatibilityVersion targetFCV) const {
-    if (!_enabled) {
+    if (!_enabled.load()) {
         return false;
     }
 
@@ -153,7 +156,7 @@ bool FCVGatedFeatureFlagBase::isEnabledOnVersion(
 bool FCVGatedFeatureFlagBase::isDisabledOnTargetFCVButEnabledOnOriginalFCV(
     multiversion::FeatureCompatibilityVersion targetFCV,
     multiversion::FeatureCompatibilityVersion originalFCV) const {
-    if (!_enabled) {
+    if (!_enabled.load()) {
         return false;
     }
 
@@ -163,7 +166,7 @@ bool FCVGatedFeatureFlagBase::isDisabledOnTargetFCVButEnabledOnOriginalFCV(
 bool FCVGatedFeatureFlagBase::isEnabledOnTargetFCVButDisabledOnOriginalFCV(
     multiversion::FeatureCompatibilityVersion targetFCV,
     multiversion::FeatureCompatibilityVersion originalFCV) const {
-    if (!_enabled) {
+    if (!_enabled.load()) {
         return false;
     }
 
@@ -171,8 +174,8 @@ bool FCVGatedFeatureFlagBase::isEnabledOnTargetFCVButDisabledOnOriginalFCV(
 }
 
 void FCVGatedFeatureFlagBase::appendFlagValueAndMetadata(BSONObjBuilder& flagBuilder) const {
-    flagBuilder.append("value", _enabled);
-    if (_enabled) {
+    flagBuilder.append("value", _enabled.load());
+    if (_enabled.load()) {
         flagBuilder.append(
             "version",
             FeatureCompatibilityVersionParser::serializeVersionForFeatureFlags(_version));
@@ -189,7 +192,7 @@ void FCVGatedFeatureFlagBase::appendFlagValueAndMetadata(BSONObjBuilder& flagBui
 }
 
 void FCVGatedFeatureFlagBase::setForServerParameter(bool enabled) {
-    _enabled = enabled;
+    _enabled.store(enabled);
 }
 
 bool OperationFCVOnlyFCVGatedFeatureFlag::isEnabled(const VersionContext& vCtx) const {

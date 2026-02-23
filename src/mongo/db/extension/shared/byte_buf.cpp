@@ -62,7 +62,9 @@ MongoExtensionByteView ByteBuf::_extGetView(const ::MongoExtensionByteBuf* byteB
     return MongoExtensionByteView{data, byteBuf->_buffer.size()};
 }
 
-const ::MongoExtensionByteBufVTable ByteBuf::VTABLE = {&ByteBuf::_extDestroy,
-                                                       &ByteBuf::_extGetView};
+const ::MongoExtensionByteBufVTable ByteBuf::VTABLE = {
+    .destroy = &ByteBuf::_extDestroy,
+    .get_view = &ByteBuf::_extGetView,
+};
 
 }  // namespace mongo::extension

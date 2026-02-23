@@ -8,6 +8,7 @@
 
 import {isStableFCVSuite} from "jstests/libs/feature_compatibility_version.js";
 import {FeatureFlagUtil} from "jstests/libs/feature_flag_util.js";
+import {FixtureHelpers} from "jstests/libs/fixture_helpers.js";
 
 let kDbName = db.getName();
 
@@ -45,6 +46,50 @@ function testAndClenaupWithKeyNoIndexOK(keyDoc) {
     assert.commandWorked(db.adminCommand({shardCollection: ns, key: keyDoc}));
 
     assert.eq(db.getSiblingDB("config").collections.countDocuments({_id: ns, unsplittable: {$ne: true}}), 1);
+    assert.commandWorked(db.dropDatabase());
+}
+
+function isHashedShardKey(keyDoc) {
+    for (let field in keyDoc) {
+        if (keyDoc[field] === "hashed") {
+            return true;
+        }
+    }
+    return false;
+}
+
+function indexExists(db, dbName, collName, indexKey) {
+    const indexes = db.getSiblingDB(dbName).getCollection(collName).getIndexes();
+    return indexes.some((index) => bsonWoCompare(index.key, indexKey) == 0);
+}
+
+function testHashedShardKeyIndexOptionalAndCleanup({keyDoc, docsToInsert = []}) {
+    assert(isHashedShardKey(keyDoc), "The shard key must contain at least one hashed field: " + tojson(keyDoc));
+
+    const collName = "foo";
+    const ns = kDbName + "." + collName;
+    const coll = db.getSiblingDB(kDbName).getCollection(collName);
+    assert(!FixtureHelpers.isSharded(coll));
+
+    if (docsToInsert.length > 0) {
+        assert.commandWorked(coll.insertMany(docsToInsert));
+    }
+
+    assert.commandWorked(
+        db.adminCommand({
+            shardCollection: ns,
+            key: keyDoc,
+            skipHashedShardKeyIndexCreation: true,
+        }),
+    );
+
+    assert(FixtureHelpers.isSharded(coll));
+    assert(
+        !indexExists(db, kDbName, collName, keyDoc),
+        "The shard key index should not be created when skipHashedShardKeyIndexCreation is true",
+    );
+
+    // Clean up
     assert.commandWorked(db.dropDatabase());
 }
 
@@ -161,6 +206,12 @@ if (
         }),
         ErrorCodes.InvalidOptions,
     );
+
+    jsTestLog("Test skipHashedShardKeyIndexCreation on empty collection.");
+    testHashedShardKeyIndexOptionalAndCleanup({keyDoc: {a: "hashed"}});
+
+    jsTestLog("Test skipHashedShardKeyIndexCreation on non-empty collection.");
+    testHashedShardKeyIndexOptionalAndCleanup({keyDoc: {a: "hashed"}, docsToInsert: [{a: 1, b: 1}]});
 }
 
 //

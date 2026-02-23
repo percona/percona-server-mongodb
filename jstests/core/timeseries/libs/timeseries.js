@@ -108,19 +108,12 @@ export var TimeseriesTest = class {
     }
 
     static bucketsMayHaveMixedSchemaData(coll) {
-        const catalog = getTimeseriesCollForDDLOps(coll.getDB(), coll)
-            .aggregate([{$listCatalog: {}}])
-            .toArray()[0];
+        const metadata = coll.getMetadata();
         const tsMixedSchemaOptionNewFormat =
-            catalog.md.options.storageEngine &&
-            catalog.md.options.storageEngine.wiredTiger &&
-            catalog.md.options.storageEngine.wiredTiger.configString;
-        // TODO SERVER-92533 Simplify once SERVER-91195 is backported to all supported branches
-        if (tsMixedSchemaOptionNewFormat !== undefined) {
-            return tsMixedSchemaOptionNewFormat == "app_metadata=(timeseriesBucketsMayHaveMixedSchemaData=true)";
-        } else {
-            return catalog.md.timeseriesBucketsMayHaveMixedSchemaData;
-        }
+            metadata.options.storageEngine &&
+            metadata.options.storageEngine.wiredTiger &&
+            metadata.options.storageEngine.wiredTiger.configString;
+        return tsMixedSchemaOptionNewFormat == "app_metadata=(timeseriesBucketsMayHaveMixedSchemaData=true)";
     }
 
     // TODO SERVER-68058 remove this helper.
@@ -272,7 +265,7 @@ export var TimeseriesTest = class {
                 .sort({_id: 1})
                 .toArray()
                 .map((doc) => doc._id);
-            const currentShards = getTimeseriesCollForDDLOps(db, coll)
+            const currentShards = coll
                 .aggregate([{"$collStats": {storageStats: {}}}, {$project: {shard: 1}}, {$sort: {shard: 1}}])
                 .toArray()
                 .map((doc) => doc.shard);
@@ -296,7 +289,7 @@ export var TimeseriesTest = class {
                     }),
                 );
 
-                const updatedShards = getTimeseriesCollForDDLOps(db, coll)
+                const updatedShards = coll
                     .aggregate([{"$collStats": {storageStats: {}}}, {$project: {shard: 1}}, {$sort: {shard: 1}}])
                     .toArray()
                     .map((doc) => doc.shard);

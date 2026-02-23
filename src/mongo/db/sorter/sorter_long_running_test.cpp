@@ -27,63 +27,55 @@
  *    it in the license file.
  */
 
+#include "mongo/base/string_data.h"
+#include "mongo/config.h"  // IWYU pragma: keep
 #include "mongo/db/sorter/file_based_spiller.h"
 #include "mongo/db/sorter/sorter_template_defs.h"
 #include "mongo/db/sorter/sorter_test_utils.h"
+#include "mongo/logv2/log.h"
 #include "mongo/platform/random.h"
+#include "mongo/stdx/thread.h"
+#include "mongo/unittest/unittest.h"
 
-#include <climits>
+#include <algorithm>
+#include <array>
+#include <cstddef>
+#include <cstdint>
+#include <limits>
+#include <memory>
+#include <numeric>
+#include <queue>
+#include <string>
+#include <unordered_map>
+#include <utility>
+#include <vector>
 
-#include <boost/filesystem/directory.hpp>
+#include <boost/filesystem/operations.hpp>
+#include <fmt/format.h>
 
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kTest
 
 namespace mongo::sorter {
 namespace {
 
-class SortedFileWriterAndFileIteratorTests {
-public:
-    void run() {
-        unittest::TempDir tempDir("sortedFileWriterTests");
-        SorterTracker sorterTracker;
-        SorterFileStats sorterFileStats(&sorterTracker);
-        const SortOptions opts = SortOptions().TempDir(tempDir.path());
+namespace SorterTests {
 
-        int currentFileSize = 0;
-
-        // small
-        currentFileSize = _appendToFile(&opts, &sorterFileStats, currentFileSize, 5);
-
-        ASSERT_EQ(sorterFileStats.opened.load(), 1);
-        ASSERT_EQ(sorterFileStats.closed.load(), 1);
-        ASSERT_LTE(sorterTracker.bytesSpilled.load(), currentFileSize);
-
-        // big
-        currentFileSize = _appendToFile(&opts, &sorterFileStats, currentFileSize, 10 * 1000 * 1000);
-
-        ASSERT_EQ(sorterFileStats.opened.load(), 2);
-        ASSERT_EQ(sorterFileStats.closed.load(), 2);
-        ASSERT_LTE(sorterTracker.bytesSpilled.load(), currentFileSize);
-        ASSERT_LTE(sorterFileStats.bytesSpilled(), currentFileSize);
-
-        ASSERT(boost::filesystem::is_empty(tempDir.path()));
-    }
-
-private:
-    int _appendToFile(const SortOptions* opts,
-                      SorterFileStats* sorterFileStats,
-                      int currentFileSize,
-                      int range) {
+class SortedFileWriterAndFileIteratorTests : public unittest::Test {
+protected:
+    int appendToFile(const SortOptions& opts,
+                     SorterFileStats* sorterFileStats,
+                     int currentFileSize,
+                     int range) const {
         auto makeFile = [&] {
-            return std::make_shared<SorterFile>(sorter::nextFileName(*(opts->tempDir)),
+            return std::make_shared<SorterFile>(sorter::nextFileName(*(opts.tempDir)),
                                                 sorterFileStats);
         };
 
         int currentBufSize = 0;
         // TODO(SERVER-114080): Ensure testing of non-file-based sorter storage is comprehensive.
-        FileBasedSorterStorage<IntWrapper, IntWrapper> sorterStorage(makeFile(), *opts->tempDir);
+        FileBasedSorterStorage<IntWrapper, IntWrapper> sorterStorage(makeFile(), *opts.tempDir);
         std::unique_ptr<SortedStorageWriter<IntWrapper, IntWrapper>> sorter =
-            sorterStorage.makeWriter(*opts);
+            sorterStorage.makeWriter(opts);
         for (int i = 0; i < range; ++i) {
             sorter->addAlreadySorted(i, -i);
             currentBufSize += sizeof(i) + sizeof(-i);
@@ -102,741 +94,654 @@ private:
     }
 };
 
-class MergeIteratorTests {
-public:
-    void run() {
-        unittest::TempDir tempDir("mergeIteratorTests");
-        {  // test empty (no inputs)
-            std::vector<std::shared_ptr<IWIterator>> vec;
-            std::shared_ptr<IWIterator> mergeIter(
-                sorter::merge<IntWrapper, IntWrapper>(vec, SortOptions(), IWComparator()));
-            ASSERT_ITERATORS_EQUIVALENT(mergeIter, std::make_shared<EmptyIterator>());
-        }
-        {  // test empty (only empty inputs)
-            std::shared_ptr<IWIterator> iterators[] = {std::make_shared<EmptyIterator>(),
-                                                       std::make_shared<EmptyIterator>(),
-                                                       std::make_shared<EmptyIterator>()};
+using KeyList = std::vector<int>;
+using Histogram = std::unordered_map<int, std::size_t>;
 
-            ASSERT_ITERATORS_EQUIVALENT(mergeIterators(iterators, tempDir, ASC),
-                                        std::make_shared<EmptyIterator>());
-        }
+enum class ShuffleMode { kNoShuffle, kShuffle };
 
-        {  // test ASC
-            std::shared_ptr<IWIterator> iterators[] = {
-                std::make_shared<IntIterator>(1, 20, 2)  // 1, 3, ... 19
-                ,
-                std::make_shared<IntIterator>(0, 20, 2)  // 0, 2, ... 18
-            };
+constexpr std::array<Direction, 2> kDirections = {ASC, DESC};
+constexpr std::size_t kSmallNumberOfKeys = 100;
+constexpr std::size_t kLargeNumberOfKeys = 800 * 1000;
+constexpr std::size_t kAggressiveSpillMemLimit = 16 * 1024;
+constexpr std::size_t kManualSpillEveryN = 10;
 
-            ASSERT_ITERATORS_EQUIVALENT(mergeIterators(iterators, tempDir, ASC),
-                                        std::make_shared<IntIterator>(0, 20, 1));
-        }
+constexpr std::size_t dataMemLimitFromTotal(std::size_t totalMemLimit) {
+    return totalMemLimit - totalMemLimit / 10;
+}
 
-        {  // test DESC with an empty source
-            std::shared_ptr<IWIterator> iterators[] = {
-                std::make_shared<IntIterator>(30, 0, -3),  // 30, 27, ... 3
-                std::make_shared<IntIterator>(29, 0, -3),  // 29, 26, ... 2
-                std::make_shared<IntIterator>(28, 0, -3),  // 28, 25, ... 1
-                std::make_shared<EmptyIterator>()};
+std::string makeTempDirName() {
+    auto name = fmt::format("{}_{}", unittest::getSuiteName(), unittest::getTestName());
+    std::replace(name.begin(), name.end(), '/', '_');
+    std::replace(name.begin(), name.end(), '\\', '_');
+    return name;
+}
 
-            ASSERT_ITERATORS_EQUIVALENT(mergeIterators(iterators, tempDir, DESC),
-                                        std::make_shared<IntIterator>(30, 0, -1));
-        }
-        {  // test Limit
-            std::shared_ptr<IWIterator> iterators[] = {
-                std::make_shared<IntIterator>(1, 20, 2),   // 1, 3, ... 19
-                std::make_shared<IntIterator>(0, 20, 2)};  // 0, 2, ... 18
+uint64_t generateShuffleSeed(StringData context = {}) {
+    const auto seed = SecureRandom{}.nextUInt64();
+    LOGV2(11974200,
+          "Sorter long-running test shuffle seed",
+          "seed"_attr = seed,
+          "context"_attr = context);
+    return seed;
+}
 
-            ASSERT_ITERATORS_EQUIVALENT(
-                mergeIterators(iterators, tempDir, ASC, SortOptions().Limit(10)),
-                std::make_shared<LimitIterator>(10, std::make_shared<IntIterator>(0, 20, 1)));
-        }
-
-        {  // test ASC with additional merging
-            auto itFull = std::make_shared<IntIterator>(0, 20, 1);
-
-            auto itA = std::make_shared<IntIterator>(0, 5, 1);    // 0, 1, ... 4
-            auto itB = std::make_shared<IntIterator>(5, 10, 1);   // 5, 6, ... 9
-            auto itC = std::make_shared<IntIterator>(10, 15, 1);  // 10, 11, ... 14
-            auto itD = std::make_shared<IntIterator>(15, 20, 1);  // 15, 16, ... 19
-
-            std::shared_ptr<IWIterator> iteratorsAD[] = {itD, itA};
-            auto mergedAD = mergeIterators(iteratorsAD, tempDir, ASC);
-            ASSERT_ITERATORS_EQUIVALENT_FOR_N_STEPS(mergedAD, itFull, 5);
-
-            std::shared_ptr<IWIterator> iteratorsABD[] = {mergedAD, itB};
-            auto mergedABD = mergeIterators(iteratorsABD, tempDir, ASC);
-            ASSERT_ITERATORS_EQUIVALENT_FOR_N_STEPS(mergedABD, itFull, 5);
-
-            std::shared_ptr<IWIterator> iteratorsABCD[] = {itC, mergedABD};
-            auto mergedABCD = mergeIterators(iteratorsABCD, tempDir, ASC);
-            ASSERT_ITERATORS_EQUIVALENT_FOR_N_STEPS(mergedABCD, itFull, 5);
-        }
+std::vector<int> makeInputData(std::size_t length,
+                               ShuffleMode shuffleMode = ShuffleMode::kShuffle,
+                               StringData context = {}) {
+    std::vector<int> keys(length);
+    std::iota(keys.begin(), keys.end(), 0);
+    if (shuffleMode == ShuffleMode::kShuffle) {
+        std::shuffle(keys.begin(), keys.end(), PseudoRandom{generateShuffleSeed(context)}.urbg());
     }
+    return keys;
+}
+
+Histogram buildHistogram(const KeyList& keys) {
+    Histogram histogram;
+    for (int key : keys) {
+        ++histogram[key];
+    }
+    return histogram;
+}
+
+std::pair<std::size_t, std::size_t> computeMergedSpills(std::size_t spillsToMergeNum,
+                                                        std::size_t targetSpillsNum,
+                                                        std::size_t parallelSpillsNum) {
+    std::size_t newSpillsDone = 0;
+    while (spillsToMergeNum > targetSpillsNum) {
+        auto newSpills = (spillsToMergeNum + parallelSpillsNum - 1) / parallelSpillsNum;
+        newSpillsDone += newSpills;
+        spillsToMergeNum = newSpills;
+    }
+    return {spillsToMergeNum, newSpillsDone};
+}
+
+struct RangeCoverageExpectation {
+    std::size_t numRanges;
+    std::size_t spilledRanges;
 };
 
-namespace SorterTests {
-class Basic {
-public:
-    virtual ~Basic() {}
+RangeCoverageExpectation expectedRangeCoverageForAggressiveSpilling() {
+    const auto dataMemLimit = dataMemLimitFromTotal(kAggressiveSpillMemLimit);
+    const auto expectedNumRanges =
+        std::max<std::size_t>(dataMemLimit / sorter::kSortedFileBufferSize, 2);
+    const auto maximumNumberOfIterators = std::max<std::size_t>(
+        (kAggressiveSpillMemLimit - dataMemLimit) / sizeof(FileIterator<IntWrapper, IntWrapper>),
+        1);
 
-    void run() {
-        unittest::TempDir tempDir("sorterTests");
-        SorterTracker sorterTracker;
-        const SortOptions opts = SortOptions().TempDir(tempDir.path()).Tracker(&sorterTracker);
+    const auto recordsPerRange = dataMemLimit / sizeof(IWPair) + 1;
+    std::size_t documentsToAdd = kLargeNumberOfKeys;
+    std::size_t spillsToMerge = 0;
+    std::size_t spillsDone = 0;
+    while (documentsToAdd > recordsPerRange) {
+        documentsToAdd -= recordsPerRange;
+        ++spillsToMerge;
+        ++spillsDone;
 
-        {  // test empty (no limit)
-            ASSERT_ITERATORS_EQUIVALENT(makeSorter(opts, /*fileStats=*/nullptr)->done(),
-                                        std::make_unique<EmptyIterator>());
+        if (spillsToMerge >= maximumNumberOfIterators) {
+            auto spillsRes =
+                computeMergedSpills(spillsToMerge, maximumNumberOfIterators / 2, expectedNumRanges);
+            spillsToMerge = spillsRes.first;
+            spillsDone += spillsRes.second;
         }
-        {  // test empty (limit 1)
-            ASSERT_ITERATORS_EQUIVALENT(
-                makeSorter(SortOptions(opts).Limit(1), /*fileStats=*/nullptr)->done(),
-                std::make_unique<EmptyIterator>());
-        }
-        {  // test empty (limit 10)
-            ASSERT_ITERATORS_EQUIVALENT(
-                makeSorter(SortOptions(opts).Limit(10), /*fileStats=*/nullptr)->done(),
-                std::make_unique<EmptyIterator>());
-        }
+    }
+    if (documentsToAdd > 0) {
+        ++spillsToMerge;
+        ++spillsDone;
+    }
 
-        const auto runTests = [this, &opts, &tempDir](bool assertRanges) {
-            {  // test all data ASC
-                std::shared_ptr<IWSorter> sorter =
-                    makeSorter(opts, /*filesStats=*/nullptr, IWComparator(ASC));
-                addData(sorter.get());
-                ASSERT_ITERATORS_EQUIVALENT(sorter->done(), correct());
-                ASSERT_EQ(numAdded(), sorter->stats().numSorted());
-                if (assertRanges) {
-                    assertRangeInfo(sorter, opts);
-                }
+    auto spillsRes = computeMergedSpills(spillsToMerge, expectedNumRanges, expectedNumRanges);
+    spillsDone += spillsRes.second;
+    return {expectedNumRanges, spillsDone};
+}
+
+RangeCoverageExpectation expectedRangeCoverageForManualSpills() {
+    const auto rangeCount = (kSmallNumberOfKeys + kManualSpillEveryN - 1) / kManualSpillEveryN;
+    return {rangeCount, rangeCount};
+}
+
+struct ExpectedSorterOutput {
+    Histogram frequencies;
+    std::size_t count;
+};
+
+ExpectedSorterOutput expectedOutputForLimit(const KeyList& input,
+                                            const SortOptions& opts,
+                                            Direction direction) {
+    const auto expectedCount =
+        opts.limit == 0 ? input.size() : std::min<std::size_t>(opts.limit, input.size());
+    if (expectedCount == 0) {
+        return {Histogram{}, 0};
+    }
+
+    if (opts.limit == 0 || opts.limit >= input.size()) {
+        return {buildHistogram(input), expectedCount};
+    }
+
+    std::vector<int> selected;
+    selected.reserve(expectedCount);
+    if (direction == ASC) {
+        std::priority_queue<int> smallestK;
+        for (int key : input) {
+            if (smallestK.size() < expectedCount) {
+                smallestK.push(key);
+            } else if (key < smallestK.top()) {
+                smallestK.pop();
+                smallestK.push(key);
             }
-            {  // test all data DESC
-                std::shared_ptr<IWSorter> sorter =
-                    makeSorter(opts, /*fileStats=*/nullptr, IWComparator(DESC));
-                addData(sorter.get());
-                ASSERT_ITERATORS_EQUIVALENT(sorter->done(), correctReverse());
-                ASSERT_EQ(numAdded(), sorter->stats().numSorted());
-                if (assertRanges) {
-                    assertRangeInfo(sorter, opts);
-                }
-            }
-
-// The debug builds are too slow to run these tests.
-// Among other things, MSVC++ makes all heap functions O(N) not O(logN).
-#if !defined(MONGO_CONFIG_DEBUG_BUILD)
-            {  // merge all data ASC
-                std::shared_ptr<IWSorter> sorters[] = {
-                    makeSorter(opts, /*fileStats=*/nullptr, IWComparator(ASC)),
-                    makeSorter(opts, /*fileStats=*/nullptr, IWComparator(ASC))};
-
-                addData(sorters[0].get());
-                addData(sorters[1].get());
-
-                std::unique_ptr<IWIterator> iters1[] = {sorters[0]->done(), sorters[1]->done()};
-                std::shared_ptr<IWIterator> iters2[] = {correct(), correct()};
-                ASSERT_ITERATORS_EQUIVALENT(mergeIterators(iters1, tempDir, ASC),
-                                            mergeIterators(iters2, tempDir, ASC));
-
-                if (assertRanges) {
-                    assertRangeInfo(sorters[0], opts);
-                    assertRangeInfo(sorters[1], opts);
-                }
-            }
-            {  // merge all data DESC and use multiple threads to insert
-                std::shared_ptr<IWSorter> sorters[] = {
-                    makeSorter(opts, /*fileStats=*/nullptr, IWComparator(DESC)),
-                    makeSorter(opts, /*fileStats=*/nullptr, IWComparator(DESC))};
-
-                stdx::thread inBackground(&Basic::addData, this, sorters[0].get());
-                addData(sorters[1].get());
-                inBackground.join();
-
-                std::unique_ptr<IWIterator> iters1[] = {sorters[0]->done(), sorters[1]->done()};
-                std::shared_ptr<IWIterator> iters2[] = {correctReverse(), correctReverse()};
-                ASSERT_ITERATORS_EQUIVALENT(mergeIterators(iters1, tempDir, DESC),
-                                            mergeIterators(iters2, tempDir, DESC));
-
-                if (assertRanges) {
-                    assertRangeInfo(sorters[0], opts);
-                    assertRangeInfo(sorters[1], opts);
-                }
-            }
-#endif
-        };
-
-        // Run the tests without checking the Sorter ranges. This means that
-        // Sorter::persistDataForShutdown() will not be called, so we can verify that the Sorter
-        // properly cleans up its files upon destruction.
-        runTests(false);
-        ASSERT(boost::filesystem::is_empty(tempDir.path()));
-
-        // Persisting the sorter data is only supported when there is no limit.
-        if (adjustSortOptions(opts).limit) {
-            return;
         }
-
-        // Run the tests checking the Sorter ranges. This allows us to verify that
-        // Sorter::persistDataForShutdown() correctly persists the Sorter data.
-        runTests(true);
-        if (correctNumRanges() == 0) {
-            ASSERT(boost::filesystem::is_empty(tempDir.path()));
-        } else {
-            ASSERT(!boost::filesystem::is_empty(tempDir.path()));
-            auto path = boost::filesystem::path(tempDir.path());
-            auto directoryIterator = boost::filesystem::directory_iterator(path);
-            auto numFiles = std::count_if(
-                directoryIterator, boost::filesystem::directory_iterator(), [](const auto& elem) {
-                    return boost::filesystem::is_regular_file(elem);
-                });
-#if defined(MONGO_CONFIG_DEBUG_BUILD)
-            // Two sorters have executed
-            ASSERT_EQ(numFiles, 2);
-#else
-            // Six sorters have executed
-            ASSERT_EQ(numFiles, 6);
-#endif
+        while (!smallestK.empty()) {
+            selected.push_back(smallestK.top());
+            smallestK.pop();
+        }
+    } else {
+        std::priority_queue<int, std::vector<int>, std::greater<int>> largestK;
+        for (int key : input) {
+            if (largestK.size() < expectedCount) {
+                largestK.push(key);
+            } else if (key > largestK.top()) {
+                largestK.pop();
+                largestK.push(key);
+            }
+        }
+        while (!largestK.empty()) {
+            selected.push_back(largestK.top());
+            largestK.pop();
         }
     }
+    return {buildHistogram(selected), expectedCount};
+}
 
-    // add data to the sorter
-    virtual void addData(IWSorter* sorter) {
-        sorter->add(2, -2);
-        sorter->add(1, -1);
-        sorter->add(0, 0);
-        sorter->add(4, -4);
-        sorter->add(3, -3);
+template <typename IteratorHandle>
+void assertOutputMatches(IteratorHandle dataToValidate,
+                         ExpectedSorterOutput expected,
+                         Direction direction) {
+    boost::optional<int> prev;
+    std::size_t seen = 0;
+    while (dataToValidate->more()) {
+        auto pair = dataToValidate->next();
+        const auto key = static_cast<int>(pair.first);
+        const auto value = static_cast<int>(pair.second);
+
+        ASSERT_EQ(value, -key);
+        if (prev) {
+            if (direction == ASC) {
+                ASSERT_LTE(*prev, key);
+            } else {
+                ASSERT_GTE(*prev, key);
+            }
+        }
+        prev = key;
+
+        auto it = expected.frequencies.find(key);
+        ASSERT(it != expected.frequencies.end());
+        ASSERT_GT(it->second, 0U);
+        if (--it->second == 0) {
+            expected.frequencies.erase(it);
+        }
+        ++seen;
     }
 
-    virtual size_t numAdded() const {
-        return 5;
+    ASSERT_EQ(seen, expected.count);
+    ASSERT(expected.frequencies.empty());
+}
+
+void validateSortOutput(const std::shared_ptr<IWSorter>& sorter,
+                        const SortOptions& opts,
+                        const KeyList& input,
+                        Direction direction) {
+    auto expected = expectedOutputForLimit(input, opts, direction);
+    assertOutputMatches(sorter->done(), std::move(expected), direction);
+    ASSERT_EQ(sorter->stats().numSorted(), input.size());
+}
+
+void assertPersistedRangeInfo(const std::shared_ptr<IWSorter>& sorter,
+                              const SortOptions& opts,
+                              const RangeCoverageExpectation& expected) {
+    auto state = sorter->persistDataForShutdown();
+    if (opts.tempDir) {
+        ASSERT_FALSE(state.storageIdentifier.empty());
+    }
+    ASSERT_EQ(state.ranges.size(), expected.numRanges);
+    ASSERT_EQ(sorter->stats().spilledRanges(), expected.spilledRanges);
+}
+
+class SorterTest : public unittest::Test {
+protected:
+    void SetUp() override {
+        resetFixtureTempDir();
     }
 
-    // returns an iterator with the correct results
-    virtual std::shared_ptr<IWIterator> correct() {
-        return std::make_shared<IntIterator>(0, 5);  // 0, 1, ... 4
+    void resetFixtureTempDir() {
+        _tempDir = std::make_unique<unittest::TempDir>(makeTempDirName());
+        _opts = SortOptions().TempDir(_tempDir->path());
     }
 
-    // like correct but with opposite sort direction
-    virtual std::shared_ptr<IWIterator> correctReverse() {
-        return std::make_shared<IntIterator>(4, -1, -1);  // 4, 3, ... 0
+    const unittest::TempDir& tempDir() const {
+        return *_tempDir;
     }
 
-    virtual size_t correctNumRanges() const {
-        return 0;
+    const SortOptions& opts() const {
+        return _opts;
     }
 
-    virtual size_t correctSpilledRanges() const {
-        return 0;
+    virtual void addInputToSorter(IWSorter* sorter, const KeyList& input) const {
+        for (int key : input) {
+            sorter->add(key, -key);
+        }
     }
 
-    // It is safe to ignore / overwrite any part of options
-    virtual SortOptions adjustSortOptions(SortOptions opts) {
-        return opts;
-    }
-
-private:
-    // Make a new sorter with desired opts and comp. Opts may be ignored but not comp
-    std::shared_ptr<IWSorter> makeSorter(SortOptions opts,
-                                         SorterFileStats* fileStats,
-                                         IWComparator comp = IWComparator(ASC)) {
+    std::shared_ptr<IWSorter> makeSorter(const SortOptions& sortOpts, Direction direction) const {
         return std::shared_ptr<IWSorter>(IWSorter::make(
-            adjustSortOptions(opts),
-            comp,
-            opts.tempDir ? std::make_shared<FileBasedSorterSpiller<IntWrapper, IntWrapper>>(
-                               *opts.tempDir, fileStats)
-                         : nullptr));
+            sortOpts,
+            IWComparator(direction),
+            sortOpts.tempDir ? std::make_shared<FileBasedSorterSpiller<IntWrapper, IntWrapper>>(
+                                   *sortOpts.tempDir, nullptr)
+                             : nullptr));
     }
 
-    void assertRangeInfo(const std::shared_ptr<IWSorter>& sorter, const SortOptions& opts) {
-        auto numRanges = correctNumRanges();
-        if (numRanges == 0)
-            return;
-
-        auto numSpilledRangesOccurred = correctSpilledRanges();
-        auto state = sorter->persistDataForShutdown();
-        if (opts.tempDir) {
-            ASSERT_NE(state.storageIdentifier, "");
-        }
-        ASSERT_EQ(state.ranges.size(), numRanges);
-        ASSERT_EQ(sorter->stats().spilledRanges(), numSpilledRangesOccurred);
-    }
-};
-
-class PauseAndResume : public Basic {
-    void addData(IWSorter* sorter) override {
-        sorter->add(0, 0);
-        sorter->add(3, -3);
-        sorter->add(4, -4);
-        auto iter = sorter->pause();
-        int unsorted[] = {0, 3, 4};
-        for (int i = 0; i < 3; i++) {
-            ASSERT_EQ(unsorted[i], iter->next().first);
-        }
-        ASSERT_FALSE(iter->more());
-        iter.reset();
-        sorter->resume();
-        sorter->add(2, -2);
-        sorter->add(1, -1);
-        iter = sorter->pause();
-        int unsorted1[] = {0, 3, 4, 2, 1};
-        for (int i = 0; i < 5; i++) {
-            ASSERT_EQ(unsorted1[i], iter->next().first);
-        }
-        ASSERT_FALSE(iter->more());
-        iter.reset();
-        sorter->resume();
+    std::shared_ptr<IWSorter> runSort(const SortOptions& sortOpts,
+                                      const KeyList& input,
+                                      Direction direction) {
+        auto sorter = makeSorter(sortOpts, direction);
+        addInputToSorter(sorter.get(), input);
+        return sorter;
     }
 
-    size_t numAdded() const override {
-        return 5;
-    }
+    std::array<std::shared_ptr<IWSorter>, 2> runMergedSortAndValidate(
+        const SortOptions& sortOpts,
+        const KeyList& input,
+        Direction direction,
+        bool insertInParallel = false) {
+        std::array<std::shared_ptr<IWSorter>, 2> sorters = {makeSorter(sortOpts, direction),
+                                                            makeSorter(sortOpts, direction)};
 
-    // returns an iterator with the correct results
-    std::shared_ptr<IWIterator> correct() override {
-        return std::make_shared<IntIterator>(0, 5);  // 0, 1, ... 4
-    }
-
-    // like correct but with opposite sort direction
-    std::shared_ptr<IWIterator> correctReverse() override {
-        return std::make_shared<IntIterator>(4, -1, -1);  // 4, 3, ... 0
-    }
-};
-
-class Limit : public Basic {
-    SortOptions adjustSortOptions(SortOptions opts) override {
-        return opts.Limit(5);
-    }
-    void addData(IWSorter* sorter) override {
-        sorter->add(0, 0);
-        sorter->add(3, -3);
-        sorter->add(4, -4);
-        sorter->add(2, -2);
-        sorter->add(1, -1);
-        sorter->add(-1, 1);
-    }
-    size_t numAdded() const override {
-        return 6;
-    }
-    std::shared_ptr<IWIterator> correct() override {
-        return std::make_shared<IntIterator>(-1, 4);
-    }
-    std::shared_ptr<IWIterator> correctReverse() override {
-        return std::make_shared<IntIterator>(4, -1, -1);
-    }
-};
-
-class LimitExtreme : public Basic {
-public:
-    explicit LimitExtreme(uint64_t limit) : _limit{limit} {}
-
-    SortOptions adjustSortOptions(SortOptions opts) override {
-        return opts.Limit(_limit);
-    }
-
-private:
-    uint64_t _limit;
-};
-
-class PauseAndResumeLimit : public Limit {
-    SortOptions adjustSortOptions(SortOptions opts) override {
-        return opts.Limit(5);
-    }
-    void addData(IWSorter* sorter) override {
-        sorter->add(3, -3);
-        sorter->add(0, 0);
-        sorter->add(4, -4);
-        auto iter = sorter->pause();
-        // pause returns data still in the original order because we haven't reached the limit
-        int unsorted[] = {3, 0, 4};
-        for (int i = 0; i < 3; i++) {
-            ASSERT_EQ(unsorted[i], iter->next().first);
-        }
-        ASSERT_FALSE(iter->more());
-        iter.reset();
-        sorter->resume();
-        sorter->add(2, -2);
-        sorter->add(1, -1);
-        sorter->add(-1, 1);
-        iter = sorter->pause();
-        // pause will return top 5 elements in some order (they are from a heap but not yet sorted)
-        std::vector<int> vec;
-        for (int i = 0; i < 5; i++) {
-            vec.push_back(iter->next().first);
-        }
-        sort(vec.begin(), vec.end());
-        ASSERT_TRUE(vec.back() == 3 || vec.back() == 4);  // either 4 or 3 depending on asc or desc
-        ASSERT_EQ(vec.size(), 5);
-        ASSERT_FALSE(iter->more());  // check to make sure we only got limit number of entries
-        iter.reset();
-        sorter->resume();
-    }
-
-    size_t numAdded() const override {
-        return 6;
-    }
-
-    // returns an iterator with the correct results
-    std::shared_ptr<IWIterator> correct() override {
-        return std::make_shared<IntIterator>(-1, 4);
-    }
-
-    // like correct but with opposite sort direction
-    std::shared_ptr<IWIterator> correctReverse() override {
-        return std::make_shared<IntIterator>(4, -1, -1);
-    }
-};
-
-class PauseAndResumeLimitOne : public Limit {
-    SortOptions adjustSortOptions(SortOptions opts) override {
-        return opts.Limit(1);
-    }
-    void addData(IWSorter* sorter) override {
-        sorter->add(3, -3);
-        sorter->add(0, 0);
-        sorter->add(4, -4);
-        auto iter = sorter->pause();
-        auto val = iter->next().first;
-        ASSERT_TRUE(val == 0 || val == 4);
-        ASSERT_FALSE(iter->more());
-        sorter->resume();
-        sorter->add(2, -2);
-        sorter->add(1, -1);
-        sorter->add(-1, 1);
-        iter = sorter->pause();
-        val = iter->next().first;
-        ASSERT_TRUE(val == -1 || val == 4);  // either 4 or -1 depending on asc or desc
-        ASSERT_FALSE(iter->more());  // check to make sure we only got limit number of entries
-        iter.reset();
-        sorter->resume();
-    }
-
-    size_t numAdded() const override {
-        return 6;
-    }
-
-    // returns an iterator with the correct results
-    std::shared_ptr<IWIterator> correct() override {
-        return std::make_shared<IntIterator>(-1, 0);
-    }
-
-    // like correct but with opposite sort direction
-    std::shared_ptr<IWIterator> correctReverse() override {
-        return std::make_shared<IntIterator>(4, 3, -1);
-    }
-};
-
-
-class Dupes : public Basic {
-    void addData(IWSorter* sorter) override {
-        sorter->add(1, -1);
-        sorter->add(-1, 1);
-        sorter->add(1, -1);
-        sorter->add(-1, 1);
-        sorter->add(1, -1);
-        sorter->add(0, 0);
-        sorter->add(2, -2);
-        sorter->add(-1, 1);
-        sorter->add(2, -2);
-        sorter->add(3, -3);
-    }
-    size_t numAdded() const override {
-        return 10;
-    }
-    std::shared_ptr<IWIterator> correct() override {
-        const int array[] = {-1, -1, -1, 0, 1, 1, 1, 2, 2, 3};
-        return makeInMemIterator(array);
-    }
-    std::shared_ptr<IWIterator> correctReverse() override {
-        const int array[] = {3, 2, 2, 1, 1, 1, 0, -1, -1, -1};
-        return makeInMemIterator(array);
-    }
-};
-
-class LotsOfDataLittleMemory : public Basic {
-public:
-    explicit LotsOfDataLittleMemory(bool shuffle) {
-        std::iota(_array.begin(), _array.end(), 0);
-        if (shuffle) {
-            std::shuffle(
-                _array.begin(), _array.end(), PseudoRandom{SecureRandom{}.nextUInt64()}.urbg());
-        }
-    }
-
-    SortOptions adjustSortOptions(SortOptions opts) override {
-        // Make sure we use a reasonable number of files when we spill
-        MONGO_STATIC_ASSERT((NUM_ITEMS * sizeof(IWPair)) / DATA_MEM_LIMIT > 50);
-        // Each iterator is kFileIteratorSize bytes and we do not want to exceed the maximum number
-        // of iterators that we can store in the reserved memory (MEM_LIMIT - DATA_MEM_LIMIT).
-        MONGO_STATIC_ASSERT(
-            (NUM_ITEMS * sizeof(IWPair)) / DATA_MEM_LIMIT <
-            std::max(static_cast<std::size_t>(
-                         (MEM_LIMIT - DATA_MEM_LIMIT) /
-                         MergeableSorter<IntWrapper, IntWrapper>::kFileIteratorSize),
-                     static_cast<std::size_t>(1)));
-
-        return opts.MaxMemoryUsageBytes(MEM_LIMIT);
-    }
-
-    void addData(IWSorter* sorter) override {
-        for (int val : _array)
-            sorter->add(val, -val);
-    }
-
-    size_t numAdded() const override {
-        return NUM_ITEMS;
-    }
-
-    std::shared_ptr<IWIterator> correct() override {
-        return std::make_shared<IntIterator>(0, NUM_ITEMS);
-    }
-    std::shared_ptr<IWIterator> correctReverse() override {
-        return std::make_shared<IntIterator>(NUM_ITEMS - 1, -1, -1);
-    }
-
-    size_t correctNumRanges() const override {
-        return std::max(static_cast<std::size_t>(DATA_MEM_LIMIT / sorter::kSortedFileBufferSize),
-                        static_cast<std::size_t>(2));
-    }
-
-    std::pair<size_t, size_t> correctMergedSpills(size_t spillsToMergeNum,
-                                                  size_t targetSpillsNum,
-                                                  size_t parallelSpillsNum) const {
-        size_t newSpillsDone = 0l;
-        while (spillsToMergeNum > targetSpillsNum) {
-            auto newSpills = (spillsToMergeNum + parallelSpillsNum - 1) / parallelSpillsNum;
-            newSpillsDone += newSpills;
-            spillsToMergeNum = newSpills;
+        if (insertInParallel) {
+            stdx::thread inBackground(
+                [this, sorter = sorters[0], &input] { addInputToSorter(sorter.get(), input); });
+            addInputToSorter(sorters[1].get(), input);
+            inBackground.join();
+        } else {
+            addInputToSorter(sorters[0].get(), input);
+            addInputToSorter(sorters[1].get(), input);
         }
 
-        return {spillsToMergeNum, newSpillsDone};
+        std::unique_ptr<IWIterator> iters[] = {sorters[0]->done(), sorters[1]->done()};
+        KeyList doubledInput = input;
+        doubledInput.insert(doubledInput.end(), input.begin(), input.end());
+
+        auto mergedSortOpts = sortOpts;
+        if (sortOpts.limit != 0) {
+            const auto boundedPerSorter = std::min<std::size_t>(sortOpts.limit, input.size());
+            mergedSortOpts = SortOptions(sortOpts).Limit(boundedPerSorter * 2);
+        }
+
+        auto mergedExpected = expectedOutputForLimit(doubledInput, mergedSortOpts, direction);
+        assertOutputMatches(
+            mergeIterators(iters, tempDir(), direction), std::move(mergedExpected), direction);
+        return sorters;
     }
 
-    size_t correctSpilledRanges() const override {
-        // It spills when the data in memory is more than the maximum allowed memory.
-        std::size_t recordsPerRange = DATA_MEM_LIMIT / sizeof(IWPair) + 1;
-        std::size_t spillsToMerge = (NUM_ITEMS + recordsPerRange - 1) / recordsPerRange;
-
-        // As the spills may get merged we'll account for the intermediate spills that happen.
-        std::size_t spillsDone = spillsToMerge;
-        std::size_t targetRanges = correctNumRanges();
-        auto spillsRes = correctMergedSpills(spillsToMerge, targetRanges, targetRanges);
-        spillsDone += spillsRes.second;
-        return spillsDone;
-    }
-
-    static constexpr size_t NUM_ITEMS = 800 * 1000;
-    static constexpr size_t MEM_LIMIT = 128 * 1024;  // The total memory limit.
-    // The memory limit after subtracting the memory reserved for the file iterators.
-    static constexpr size_t DATA_MEM_LIMIT = MEM_LIMIT - static_cast<int>(MEM_LIMIT / 10);
-
-    std::array<int, NUM_ITEMS> _array;
-};
-
-class LotsOfDataWithLimit : public LotsOfDataLittleMemory {
-public:
-    typedef LotsOfDataLittleMemory Parent;
-    LotsOfDataWithLimit(long long limit, bool shuffle) : Parent{shuffle}, _limit{limit} {}
-
-    SortOptions adjustSortOptions(SortOptions opts) override {
-        // Make sure our tests will spill or not as desired
-        MONGO_STATIC_ASSERT(DATA_MEM_LIMIT / 2 > (100 * sizeof(IWPair)));
-        MONGO_STATIC_ASSERT(DATA_MEM_LIMIT < (5000 * sizeof(IWPair)));
-        MONGO_STATIC_ASSERT(DATA_MEM_LIMIT * 2 > (5000 * sizeof(IWPair)));
-
-        // Make sure we use a reasonable number of files when we spill
-        MONGO_STATIC_ASSERT((Parent::NUM_ITEMS * sizeof(IWPair)) / DATA_MEM_LIMIT > 100);
-        MONGO_STATIC_ASSERT((Parent::NUM_ITEMS * sizeof(IWPair)) / DATA_MEM_LIMIT < 500);
-
-        return opts.MaxMemoryUsageBytes(MEM_LIMIT).Limit(_limit);
-    }
-    std::shared_ptr<IWIterator> correct() override {
-        return std::make_shared<LimitIterator>(_limit, Parent::correct());
-    }
-    std::shared_ptr<IWIterator> correctReverse() override {
-        return std::make_shared<LimitIterator>(_limit, Parent::correctReverse());
-    }
-    size_t correctNumRanges() const override {
-        // For the TopKSorter, the number of ranges depends on the specific composition of the data
-        // being sorted.
-        return 0;
-    }
-
-    constexpr static size_t MEM_LIMIT = 32 * 1024;  // The total memory limit.
-    // The memory limit after subtracting the memory reserved for the file iterators.
-    constexpr static size_t DATA_MEM_LIMIT = MEM_LIMIT - static_cast<int>(MEM_LIMIT / 10);
-
-private:
-    long long _limit;
-};
-
-class LotsOfSpillsLittleMemory : public LotsOfDataLittleMemory {
-public:
-    typedef LotsOfDataLittleMemory Parent;
-    using Parent::Parent;
-
-    SortOptions adjustSortOptions(SortOptions opts) override {
-        // Make sure we create a lot of spills
-        MONGO_STATIC_ASSERT(
-            (Parent::NUM_ITEMS * sizeof(IWPair)) / DATA_MEM_LIMIT >
-            std::max(static_cast<std::size_t>(
-                         (MEM_LIMIT - DATA_MEM_LIMIT) /
-                         MergeableSorter<IntWrapper, IntWrapper>::kFileIteratorSize),
-                     static_cast<std::size_t>(1)));
-
-        return opts.MaxMemoryUsageBytes(MEM_LIMIT);
-    }
-
-    size_t correctSpilledRanges() const override {
-        std::size_t maximumNumberOfIterators = std::max(
-            static_cast<std::size_t>((MEM_LIMIT - DATA_MEM_LIMIT) /
-                                     MergeableSorter<IntWrapper, IntWrapper>::kFileIteratorSize),
-            static_cast<std::size_t>(1));
-        // It spills when the data in memory is more than the maximum allowed memory.
-        std::size_t recordsPerRange = DATA_MEM_LIMIT / sizeof(IWPair) + 1;
-        std::size_t documentsToAdd = Parent::NUM_ITEMS;
-        std::size_t spillsInParallel = Parent::correctNumRanges();
-        std::size_t spillsDone = 0;
-        std::size_t spillsToMerge = 0;
-        while (documentsToAdd > recordsPerRange) {
-            documentsToAdd -= recordsPerRange;
-            ++spillsToMerge;
-            ++spillsDone;
-            // merge iterators when the maximum iterators limit has been reached.
-            if (spillsToMerge >= maximumNumberOfIterators) {
-                auto spillsRes = Parent::correctMergedSpills(
-                    spillsToMerge, maximumNumberOfIterators / 2, spillsInParallel);
-                spillsToMerge = spillsRes.first;
-                spillsDone += spillsRes.second;
+    void assertSortAndMerge(
+        const SortOptions& sortOpts,
+        const KeyList& input,
+        const boost::optional<RangeCoverageExpectation>& expectedRangeCoverage = boost::none) {
+        for (Direction direction : kDirections) {
+            auto sorter = runSort(sortOpts, input, direction);
+            validateSortOutput(sorter, sortOpts, input, direction);
+            if (expectedRangeCoverage) {
+                assertPersistedRangeInfo(sorter, sortOpts, *expectedRangeCoverage);
             }
         }
-        spillsToMerge += (documentsToAdd > 0 ? 1 : 0);
-        spillsDone += (documentsToAdd > 0 ? 1 : 0);
 
-        // Merge spills to satisfy the maximum number of chunks to fit in memory constraint.
-        auto spillsRes =
-            Parent::correctMergedSpills(spillsToMerge, spillsInParallel, spillsInParallel);
-        spillsDone += spillsRes.second;
-
-        return spillsDone;
+#if !defined(MONGO_CONFIG_DEBUG_BUILD)
+        for (Direction direction : kDirections) {
+            auto mergedSorters = runMergedSortAndValidate(
+                sortOpts, input, direction, /*insertInParallel=*/direction == DESC);
+            if (expectedRangeCoverage) {
+                assertPersistedRangeInfo(mergedSorters[0], sortOpts, *expectedRangeCoverage);
+                assertPersistedRangeInfo(mergedSorters[1], sortOpts, *expectedRangeCoverage);
+            }
+        }
+        ASSERT_EQ(expectedRangeCoverage.has_value(),
+                  !boost::filesystem::is_empty(tempDir().path()));
+#else
+        ASSERT_EQ(expectedRangeCoverage.has_value(),
+                  !boost::filesystem::is_empty(tempDir().path()));
+#endif
     }
 
-    enum {
-        MEM_LIMIT = 16 * 1024,  // The total memory limit.
-        // The memory limit after subtracting the memory reserved for the file iterators.
-        DATA_MEM_LIMIT = MEM_LIMIT - static_cast<int>(MEM_LIMIT / 10),
-    };
+private:
+    std::unique_ptr<unittest::TempDir> _tempDir;
+    SortOptions _opts;
 };
 
-class ManualSpills : public Basic {
-public:
-    // Using constant seed for tests to be determenistic
-    ManualSpills() {
-        std::iota(_array.begin(), _array.end(), 0);
-        std::shuffle(_array.begin(), _array.end(), PseudoRandom{1}.urbg());
-    }
-
-    void addData(IWSorter* sorter) override {
-        for (size_t i = 0; i < kElementCount; ++i) {
-            sorter->add(_array[i], -_array[i]);
-            if (i % kSpillEveryN == kSpillEveryN - 1) {
+class SorterTestManualSpills : public SorterTest {
+protected:
+    void addInputToSorter(IWSorter* sorter, const KeyList& values) const override {
+        for (std::size_t i = 0; i < values.size(); ++i) {
+            sorter->add(values[i], -values[i]);
+            if (i % kManualSpillEveryN == kManualSpillEveryN - 1) {
                 sorter->spill();
             }
         }
     }
-
-    size_t numAdded() const override {
-        return kElementCount;
-    }
-
-    std::shared_ptr<IWIterator> correct() override {
-        return std::make_shared<IntIterator>(0, kElementCount);
-    }
-    std::shared_ptr<IWIterator> correctReverse() override {
-        return std::make_shared<IntIterator>(kElementCount - 1, -1, -1);
-    }
-
-    size_t correctNumRanges() const override {
-        return kElementCount / kSpillEveryN;
-    }
-
-    size_t correctSpilledRanges() const override {
-        return correctNumRanges();
-    }
-
-protected:
-    static constexpr size_t kElementCount = 100;
-    static constexpr size_t kSpillEveryN = 10;
-
-    std::array<int, kElementCount> _array;
 };
 
-class ManualSpillsWithLimit : public ManualSpills {
-    SortOptions adjustSortOptions(SortOptions opts) override {
-        return opts.Limit(kElementCount / 2);
-    }
-
-    std::shared_ptr<IWIterator> correct() override {
-        return std::make_shared<IntIterator>(0, kLimit);
-    }
-
-    std::shared_ptr<IWIterator> correctReverse() override {
-        return std::make_shared<IntIterator>(kElementCount - 1, kElementCount - kLimit - 1, -1);
-    }
-
+class SorterTestPauseAndResumeBase : public SorterTest {
 protected:
-    static constexpr size_t kLimit = kElementCount / 2;
+    void assertSortAndMergeWithPauseValidation(const SortOptions& sortOpts, const KeyList& input) {
+        for (Direction direction : kDirections) {
+            auto sorter = runSort(sortOpts, input, direction);
+            validateSortOutput(sorter, sortOpts, input, direction);
+        }
+
+#if !defined(MONGO_CONFIG_DEBUG_BUILD)
+        for (Direction direction : kDirections) {
+            runMergedSortAndValidate(
+                sortOpts, input, direction, /*insertInParallel=*/direction == DESC);
+        }
+#endif
+
+        ASSERT(boost::filesystem::is_empty(tempDir().path()));
+    }
 };
+
+class SorterTestPauseAndResume : public SorterTestPauseAndResumeBase {
+protected:
+    void addInputToSorter(IWSorter* sorter, const KeyList& input) const override {
+        const auto splitIndex = input.size() / 2;
+        const KeyList firstHalf(input.begin(), input.begin() + splitIndex);
+        const KeyList secondHalf(input.begin() + splitIndex, input.end());
+
+        for (int key : firstHalf) {
+            sorter->add(key, -key);
+        }
+        auto iter = sorter->pause();
+        for (int key : firstHalf) {
+            ASSERT_EQ(key, iter->next().first);
+        }
+        ASSERT_FALSE(iter->more());
+        iter.reset();
+        sorter->resume();
+
+        for (int key : secondHalf) {
+            sorter->add(key, -key);
+        }
+        iter = sorter->pause();
+        for (int key : input) {
+            ASSERT_EQ(key, iter->next().first);
+        }
+        ASSERT_FALSE(iter->more());
+        iter.reset();
+        sorter->resume();
+    }
+};
+
+class SorterTestPauseAndResumeLimit : public SorterTestPauseAndResumeBase {
+protected:
+    void addInputToSorter(IWSorter* sorter, const KeyList& input) const override {
+        ASSERT_EQ(input.size(), 6U);
+        sorter->add(input[0], -input[0]);
+        sorter->add(input[1], -input[1]);
+        sorter->add(input[2], -input[2]);
+        auto iter = sorter->pause();
+        for (int i = 0; i < 3; ++i) {
+            ASSERT_EQ(input[i], iter->next().first);
+        }
+        ASSERT_FALSE(iter->more());
+        iter.reset();
+        sorter->resume();
+
+        sorter->add(input[3], -input[3]);
+        sorter->add(input[4], -input[4]);
+        sorter->add(input[5], -input[5]);
+        iter = sorter->pause();
+        std::vector<int> keys;
+        keys.reserve(5);
+        for (int i = 0; i < 5; ++i) {
+            keys.push_back(iter->next().first);
+        }
+        std::sort(keys.begin(), keys.end());
+        ASSERT_TRUE(keys.back() == input[0] || keys.back() == input[2]);
+        ASSERT_EQ(keys.size(), 5U);
+        ASSERT_FALSE(iter->more());
+        iter.reset();
+        sorter->resume();
+    }
+};
+
+class SorterTestPauseAndResumeLimitOne : public SorterTestPauseAndResumeBase {
+protected:
+    void addInputToSorter(IWSorter* sorter, const KeyList& input) const override {
+        ASSERT_EQ(input.size(), 6U);
+        sorter->add(input[0], -input[0]);
+        sorter->add(input[1], -input[1]);
+        sorter->add(input[2], -input[2]);
+        auto iter = sorter->pause();
+        auto val = iter->next().first;
+        ASSERT_TRUE(val == input[1] || val == input[2]);
+        ASSERT_FALSE(iter->more());
+        sorter->resume();
+        sorter->add(input[3], -input[3]);
+        sorter->add(input[4], -input[4]);
+        sorter->add(input[5], -input[5]);
+        iter = sorter->pause();
+        val = iter->next().first;
+        ASSERT_TRUE(val == input[5] || val == input[2]);
+        ASSERT_FALSE(iter->more());
+        iter.reset();
+        sorter->resume();
+    }
+};
+
+TEST_F(SortedFileWriterAndFileIteratorTests, SortedFileWriterAndFileIterator) {
+    unittest::TempDir tempDir("sortedFileWriterTests");
+    SorterTracker sorterTracker;
+    SorterFileStats sorterFileStats(&sorterTracker);
+    const SortOptions opts = SortOptions().TempDir(tempDir.path());
+
+    int currentFileSize = 0;
+
+    currentFileSize = appendToFile(opts, &sorterFileStats, currentFileSize, 5);
+
+    ASSERT_EQ(sorterFileStats.opened.load(), 1);
+    ASSERT_EQ(sorterFileStats.closed.load(), 1);
+    ASSERT_LTE(sorterTracker.bytesSpilled.load(), currentFileSize);
+
+    currentFileSize = appendToFile(opts, &sorterFileStats, currentFileSize, 10 * 1000 * 1000);
+
+    ASSERT_EQ(sorterFileStats.opened.load(), 2);
+    ASSERT_EQ(sorterFileStats.closed.load(), 2);
+    ASSERT_LTE(sorterTracker.bytesSpilled.load(), currentFileSize);
+    ASSERT_LTE(sorterFileStats.bytesSpilled(), currentFileSize);
+
+    ASSERT(boost::filesystem::is_empty(tempDir.path()));
+}
+
+TEST(MergeIteratorTests, MergeIterator) {
+    unittest::TempDir tempDir("mergeIteratorTests");
+    {  // test empty (no inputs)
+        std::vector<std::shared_ptr<IWIterator>> vec;
+        std::shared_ptr<IWIterator> mergeIter(
+            sorter::merge<IntWrapper, IntWrapper>(vec, SortOptions(), IWComparator()));
+        ASSERT_ITERATORS_EQUIVALENT(mergeIter, std::make_shared<EmptyIterator>());
+    }
+    {  // test empty (only empty inputs)
+        std::shared_ptr<IWIterator> iterators[] = {std::make_shared<EmptyIterator>(),
+                                                   std::make_shared<EmptyIterator>(),
+                                                   std::make_shared<EmptyIterator>()};
+
+        ASSERT_ITERATORS_EQUIVALENT(mergeIterators(iterators, tempDir, ASC),
+                                    std::make_shared<EmptyIterator>());
+    }
+
+    {  // test ASC
+        std::shared_ptr<IWIterator> iterators[] = {
+            std::make_shared<IntIterator>(1, 20, 2),  // 1, 3, ... 19
+            std::make_shared<IntIterator>(0, 20, 2)   // 0, 2, ... 18
+        };
+
+        ASSERT_ITERATORS_EQUIVALENT(mergeIterators(iterators, tempDir, ASC),
+                                    std::make_shared<IntIterator>(0, 20, 1));
+    }
+
+    {  // test DESC with an empty source
+        std::shared_ptr<IWIterator> iterators[] = {std::make_shared<IntIterator>(30, 0, -3),
+                                                   std::make_shared<IntIterator>(29, 0, -3),
+                                                   std::make_shared<IntIterator>(28, 0, -3),
+                                                   std::make_shared<EmptyIterator>()};
+
+        ASSERT_ITERATORS_EQUIVALENT(mergeIterators(iterators, tempDir, DESC),
+                                    std::make_shared<IntIterator>(30, 0, -1));
+    }
+    {  // test Limit
+        std::shared_ptr<IWIterator> iterators[] = {std::make_shared<IntIterator>(1, 20, 2),
+                                                   std::make_shared<IntIterator>(0, 20, 2)};
+
+        ASSERT_ITERATORS_EQUIVALENT(
+            mergeIterators(iterators, tempDir, ASC, SortOptions().Limit(10)),
+            std::make_shared<LimitIterator>(10, std::make_shared<IntIterator>(0, 20, 1)));
+    }
+
+    {  // test ASC with additional merging
+        auto itFull = std::make_shared<IntIterator>(0, 20, 1);
+
+        auto itA = std::make_shared<IntIterator>(0, 5, 1);
+        auto itB = std::make_shared<IntIterator>(5, 10, 1);
+        auto itC = std::make_shared<IntIterator>(10, 15, 1);
+        auto itD = std::make_shared<IntIterator>(15, 20, 1);
+
+        std::shared_ptr<IWIterator> iteratorsAD[] = {itD, itA};
+        auto mergedAD = mergeIterators(iteratorsAD, tempDir, ASC);
+        ASSERT_ITERATORS_EQUIVALENT_FOR_N_STEPS(mergedAD, itFull, 5);
+
+        std::shared_ptr<IWIterator> iteratorsABD[] = {mergedAD, itB};
+        auto mergedABD = mergeIterators(iteratorsABD, tempDir, ASC);
+        ASSERT_ITERATORS_EQUIVALENT_FOR_N_STEPS(mergedABD, itFull, 5);
+
+        std::shared_ptr<IWIterator> iteratorsABCD[] = {itC, mergedABD};
+        auto mergedABCD = mergeIterators(iteratorsABCD, tempDir, ASC);
+        ASSERT_ITERATORS_EQUIVALENT_FOR_N_STEPS(mergedABCD, itFull, 5);
+    }
+}
+
+TEST_F(SorterTest, Empty) {
+    auto sorter = runSort(opts(), /*input=*/{}, ASC);
+    validateSortOutput(sorter, opts(), /*input=*/{}, ASC);
+
+    auto limitedSorter1 = runSort(SortOptions(opts()).Limit(1), /*input=*/{}, ASC);
+    validateSortOutput(limitedSorter1, SortOptions(opts()).Limit(1), /*input=*/{}, ASC);
+
+    auto limitedSorter10 = runSort(SortOptions(opts()).Limit(10), /*input=*/{}, ASC);
+    validateSortOutput(limitedSorter10, SortOptions(opts()).Limit(10), /*input=*/{}, ASC);
+}
+
+TEST_F(SorterTest, Basic) {
+    const KeyList input = makeInputData(kSmallNumberOfKeys);
+    assertSortAndMerge(opts(), input);
+}
+
+TEST_F(SorterTest, Limit) {
+    const KeyList input = makeInputData(kSmallNumberOfKeys + 1);
+    const auto sortOpts = SortOptions(opts()).Limit(kSmallNumberOfKeys);
+    assertSortAndMerge(sortOpts, input);
+}
+
+TEST_F(SorterTest, DuplicateValues) {
+    KeyList input = makeInputData(kSmallNumberOfKeys, ShuffleMode::kShuffle);
+    input.insert(input.end(), input.begin(), input.end());
+    assertSortAndMerge(opts(), input);
+}
+
+template <typename T>
+inline constexpr auto kMaxAsU64 = static_cast<unsigned long long>(std::numeric_limits<T>::max());
+
+TEST_F(SorterTest, LimitExtremes) {
+    const KeyList input = makeInputData(kSmallNumberOfKeys);
+
+    constexpr auto limits = std::array{
+        kMaxAsU64<uint32_t>,
+        kMaxAsU64<uint32_t> - 1,
+        kMaxAsU64<uint32_t> + 1,
+        kMaxAsU64<uint32_t> / 8 + 1,
+        kMaxAsU64<int32_t>,
+        kMaxAsU64<int32_t> - 1,
+        kMaxAsU64<int32_t> + 1,
+        kMaxAsU64<int32_t> / 8 + 1,
+        kMaxAsU64<uint64_t>,
+        kMaxAsU64<uint64_t> - 1,
+        0ull,
+        kMaxAsU64<uint64_t> / 8 + 1,
+        kMaxAsU64<int64_t>,
+        kMaxAsU64<int64_t> - 1,
+        kMaxAsU64<int64_t> + 1,
+        kMaxAsU64<int64_t> / 8 + 1,
+    };
+
+    for (auto limit : limits) {
+        assertSortAndMerge(SortOptions(opts()).Limit(limit), input);
+    }
+}
+
+TEST_F(SorterTest, AggressiveSpilling) {
+    for (auto shuffleMode : {ShuffleMode::kNoShuffle, ShuffleMode::kShuffle}) {
+        resetFixtureTempDir();
+        const auto context = fmt::format(
+            "dataSize={},memoryLimit={},limit={}", kLargeNumberOfKeys, kAggressiveSpillMemLimit, 0);
+        const KeyList input = makeInputData(kLargeNumberOfKeys, shuffleMode, context);
+        const auto sortOpts = SortOptions(opts()).MaxMemoryUsageBytes(kAggressiveSpillMemLimit);
+        assertSortAndMerge(sortOpts, input, expectedRangeCoverageForAggressiveSpilling());
+    }
+}
+
+TEST_F(SorterTest, LotsOfDataWithLimit) {
+    constexpr auto limits = std::array{1ull, 100ull, 5000ull};
+
+    for (auto limit : limits) {
+        for (auto shuffleMode : {ShuffleMode::kNoShuffle, ShuffleMode::kShuffle}) {
+            resetFixtureTempDir();
+            const auto context = fmt::format("dataSize={},memoryLimit={},limit={}",
+                                             kLargeNumberOfKeys,
+                                             kAggressiveSpillMemLimit,
+                                             limit);
+            const KeyList input = makeInputData(kLargeNumberOfKeys, shuffleMode, context);
+            const auto sortOpts =
+                SortOptions(opts()).MaxMemoryUsageBytes(kAggressiveSpillMemLimit).Limit(limit);
+            assertSortAndMerge(sortOpts, input);
+        }
+    }
+}
+
+TEST_F(SorterTestManualSpills, ManualSpills) {
+    KeyList input = makeInputData(kSmallNumberOfKeys, ShuffleMode::kShuffle);
+    assertSortAndMerge(opts(), input, expectedRangeCoverageForManualSpills());
+}
+
+TEST_F(SorterTestManualSpills, ManualSpillsWithLimit) {
+    constexpr auto limit = kSmallNumberOfKeys / 2;
+    KeyList input = makeInputData(kSmallNumberOfKeys, ShuffleMode::kShuffle);
+    const auto sortOpts = SortOptions(opts()).Limit(limit);
+    assertSortAndMerge(sortOpts, input);
+}
+
+TEST_F(SorterTestPauseAndResume, PauseAndResume) {
+    const KeyList input = {0, 3, 4, 2, 1};
+    assertSortAndMergeWithPauseValidation(opts(), input);
+}
+
+TEST_F(SorterTestPauseAndResumeLimit, PauseAndResumeLimit) {
+    const KeyList input = {3, 0, 4, 2, 1, -1};
+    const auto sortOpts = SortOptions(opts()).Limit(5);
+    assertSortAndMergeWithPauseValidation(sortOpts, input);
+}
+
+TEST_F(SorterTestPauseAndResumeLimitOne, PauseAndResumeLimitOne) {
+    const KeyList input = {3, 0, 4, 2, 1, -1};
+    const auto sortOpts = SortOptions(opts()).Limit(1);
+    assertSortAndMergeWithPauseValidation(sortOpts, input);
+}
 
 }  // namespace SorterTests
-
-class SorterSuite : public unittest::OldStyleSuiteSpecification {
-public:
-    SorterSuite() : unittest::OldStyleSuiteSpecification("sorter") {}
-
-    template <typename T>
-    static constexpr uint64_t kMaxAsU64 = std::numeric_limits<T>::max();
-
-    void setupTests() override {
-        add<SortedFileWriterAndFileIteratorTests>();
-        add<MergeIteratorTests>();
-        add<SorterTests::Basic>();
-        add<SorterTests::Limit>();
-        add<SorterTests::Dupes>();
-        add<SorterTests::LotsOfDataLittleMemory>(false);
-        add<SorterTests::LotsOfDataLittleMemory>(true);
-        add<SorterTests::LotsOfSpillsLittleMemory>(false);
-        add<SorterTests::LotsOfSpillsLittleMemory>(true);
-        add<SorterTests::LotsOfDataWithLimit>(1, false);     // limit=1 is special case
-        add<SorterTests::LotsOfDataWithLimit>(1, true);      // limit=1 is special case
-        add<SorterTests::LotsOfDataWithLimit>(100, false);   // fits in mem
-        add<SorterTests::LotsOfDataWithLimit>(100, true);    // fits in mem
-        add<SorterTests::LotsOfDataWithLimit>(5000, false);  // spills
-        add<SorterTests::LotsOfDataWithLimit>(5000, true);   // spills
-        add<SorterTests::LimitExtreme>(kMaxAsU64<uint32_t>);
-        add<SorterTests::LimitExtreme>(kMaxAsU64<uint32_t> - 1);
-        add<SorterTests::LimitExtreme>(kMaxAsU64<uint32_t> + 1);
-        add<SorterTests::LimitExtreme>(kMaxAsU64<uint32_t> / 8 + 1);
-        add<SorterTests::LimitExtreme>(kMaxAsU64<int32_t>);
-        add<SorterTests::LimitExtreme>(kMaxAsU64<int32_t> - 1);
-        add<SorterTests::LimitExtreme>(kMaxAsU64<int32_t> + 1);
-        add<SorterTests::LimitExtreme>(kMaxAsU64<int32_t> / 8 + 1);
-        add<SorterTests::LimitExtreme>(kMaxAsU64<uint64_t>);
-        add<SorterTests::LimitExtreme>(kMaxAsU64<uint64_t> - 1);
-        add<SorterTests::LimitExtreme>(0);  // kMaxAsU64<uint64_t> + 1
-        add<SorterTests::LimitExtreme>(kMaxAsU64<uint64_t> / 8 + 1);
-        add<SorterTests::LimitExtreme>(kMaxAsU64<int64_t>);
-        add<SorterTests::LimitExtreme>(kMaxAsU64<int64_t> - 1);
-        add<SorterTests::LimitExtreme>(kMaxAsU64<int64_t> + 1);
-        add<SorterTests::LimitExtreme>(kMaxAsU64<int64_t> / 8 + 1);
-        add<SorterTests::PauseAndResume>();
-        add<SorterTests::PauseAndResumeLimit>();
-        add<SorterTests::PauseAndResumeLimitOne>();
-        add<SorterTests::ManualSpills>();
-        add<SorterTests::ManualSpillsWithLimit>();
-    }
-};
-
-unittest::OldStyleSuiteInitializer<SorterSuite> extSortTests;
 }  // namespace
 }  // namespace mongo::sorter

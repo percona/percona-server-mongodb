@@ -15,7 +15,7 @@ from abc import ABCMeta, abstractmethod
 from collections import namedtuple
 from datetime import datetime, timedelta
 from io import StringIO
-from typing import List, Optional, Tuple
+from typing import Optional
 
 import psutil
 from opentelemetry import trace
@@ -73,17 +73,17 @@ def get_dumpers(root_logger: logging.Logger, dbg_output: str, include_terminatin
     return Dumpers(dbg=dbg, jstack=jstack)
 
 
-def find_files(file_name: str, path: str) -> List[str]:
+def find_files(file_name: str, path: str) -> list[str]:
     matches = glob.glob(f"{path}/**/{file_name}", recursive=True)
     return [f for f in matches if os.path.isfile(f)]
 
 
 def filter_core_dumps(
-    core_files: List[str],
+    core_files: list[str],
     boring_core_dump_pids: set,
     max_core_dumps: int,
     logger: logging.Logger,
-) -> List[str]:
+) -> list[str]:
     """
     Filter core dump files by removing boring PIDs and applying a maximum cap.
 
@@ -849,7 +849,7 @@ class GDBDumper(Dumper):
         multiversion_dir: str,
         logger: logging.Logger,
         gdb_index_cache: str,
-    ) -> Tuple[int, str]:  # returns (exit_code, test_status)
+    ) -> tuple[int, str]:  # returns (exit_code, test_status)
         cmds = []
         dbg = self.find_debugger()
         readelf = find_program("eu-readelf", ["/opt/mongodbtoolchain/v5/bin", "/usr/bin"])

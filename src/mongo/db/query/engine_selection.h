@@ -29,30 +29,25 @@
 
 #pragma once
 
-#include "mongo/db/exec/classic/delete_stage.h"
 #include "mongo/db/query/canonical_query.h"
 #include "mongo/db/query/compiler/physical_model/query_solution/query_solution.h"
 #include "mongo/db/query/query_planner_params.h"
-#include "mongo/db/query/write_ops/canonical_update.h"
-#include "mongo/db/query/write_ops/parsed_delete.h"
-#include "mongo/db/shard_role/shard_catalog/index_catalog_entry.h"
 #include "mongo/util/modules.h"
-
-#include <boost/none.hpp>
-#include <boost/optional/optional.hpp>
-#include <boost/smart_ptr/intrusive_ptr.hpp>
 
 namespace mongo {
 
+enum class EngineChoice { kClassic, kSbe };
+
 /*
- * Returns true if SBE should be used given the query details. An optional query solution may be
+ * Returns enum indicating engine choice given the query details. An optional query solution may be
  * passed in, which will be analyzed for SBE eligibility depending on the plan shape.
  */
-bool useSbe(OperationContext* opCtx,
-            const MultipleCollectionAccessor& collections,
-            CanonicalQuery* cq,
-            Pipeline* pipeline,
-            bool needsMerge,
-            std::unique_ptr<QueryPlannerParams> plannerParams);
+EngineChoice chooseEngine(OperationContext* opCtx,
+                          const MultipleCollectionAccessor& collections,
+                          CanonicalQuery* cq,
+                          Pipeline* pipeline,
+                          bool needsMerge,
+                          std::unique_ptr<QueryPlannerParams> plannerParams,
+                          const QuerySolution* solution = nullptr);
 
 }  // namespace mongo

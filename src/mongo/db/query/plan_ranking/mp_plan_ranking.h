@@ -39,7 +39,7 @@ namespace mongo::plan_ranking {
 // all solutions.
 class MPPlanRankingStrategy : public PlanRankingStrategy {
 public:
-    StatusWith<plan_ranking::PlanRankingResult> rankPlans(PlannerData& pd) override;
+    StatusWith<PlanRankingResult> rankPlans(PlannerData& pd) override;
 };
 
 }  // namespace mongo::plan_ranking

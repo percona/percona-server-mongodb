@@ -103,8 +103,8 @@ public:
         sdk::DistributedPlanLogic dpl;
 
         std::vector<mongo::extension::VariantDPLHandle> shardElements;
-        shardElements.emplace_back(
-            mongo::extension::LogicalAggStageHandle{new sdk::ExtensionLogicalAggStage(clone())});
+        shardElements.emplace_back(mongo::extension::LogicalAggStageHandle{
+            new sdk::ExtensionLogicalAggStageAdapter(clone())});
         dpl.shardsPipeline = sdk::DPLArrayContainer(std::move(shardElements));
 
         dpl.sortPattern = BSON("$searchScore" << 1 << "$textScore" << 1);

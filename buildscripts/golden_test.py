@@ -452,6 +452,7 @@ class GoldenTestApp(object):
                 ["--mongodSetParameters={internalQueryFrameworkControl: trySbeEngine}"],
                 ["--mongodSetParameters={internalQueryFrameworkControl: trySbeRestricted}"],
                 ["--additionalFeatureFlags=featureFlagSbeFull"],
+                ["--additionalFeatureFlags=featureFlagSbeEqLookupUnwind"],
             ]:
                 resmoke_invocations.append(["--suite", suites[0], *flag])
 

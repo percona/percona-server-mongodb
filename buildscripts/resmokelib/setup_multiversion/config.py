@@ -1,7 +1,5 @@
 """Setup multiversion config."""
 
-from typing import List
-
 SETUP_MULTIVERSION_CONFIG = (
     "buildscripts/resmokeconfig/setup_multiversion/setup_multiversion_config.yml"
 )
@@ -17,7 +15,7 @@ class Buildvariant:
     edition: str
     platform: str
     architecture: str
-    versions: List[str]
+    versions: list[str]
 
     def __init__(self, buildvariant_yaml: dict):
         """Initialize."""
@@ -31,8 +29,8 @@ class Buildvariant:
 class SetupMultiversionConfig:
     """Class represents setup multiversion config."""
 
-    evergreen_projects: List[str]
-    evergreen_buildvariants: List[Buildvariant]
+    evergreen_projects: list[str]
+    evergreen_buildvariants: list[Buildvariant]
 
     def __init__(self, raw_yaml: dict):
         """Initialize."""

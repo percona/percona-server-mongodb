@@ -1,7 +1,6 @@
 """Facade wrapping the resmokelib dependencies used by fixtures."""
 
 from logging import Handler, Logger
-from typing import Dict
 
 from buildscripts.resmokelib import config, core, errors, logging, utils
 from buildscripts.resmokelib.core import network
@@ -121,7 +120,7 @@ class FixtureLib:
 
     SET_PARAMETERS_KEY = "set_parameters"
 
-    def merge_mongo_option_dicts(self, original: Dict, override: Dict):
+    def merge_mongo_option_dicts(self, original: dict, override: dict):
         """
         Merge mongod/s options such that --setParameter is merged recursively.
 

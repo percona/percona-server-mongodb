@@ -12,6 +12,8 @@
  *  # TODO SERVER-107683 adjust the following tags based on the outcome of the investigation
  *  incompatible_aubsan,
  *  incompatible_tsan,
+ *  # TODO(SERVER-119777): Ensure test does not leak cursors.
+ *  can_leak_idle_cursors,
  * ]
  */
 import {interruptedQueryErrors} from "jstests/concurrency/fsm_libs/assert.js";

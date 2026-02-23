@@ -4,7 +4,7 @@ from collections import defaultdict
 from dataclasses import dataclass
 from itertools import chain
 from json import JSONDecodeError
-from typing import Callable, List, NamedTuple, Optional
+from typing import Callable, NamedTuple, Optional
 
 import requests
 from requests.adapters import HTTPAdapter, Retry
@@ -126,11 +126,11 @@ class HistoricTestInfo(NamedTuple):
     test_name: str
     num_pass: int
     avg_duration: float
-    hooks: List[HistoricHookInfo]
+    hooks: list[HistoricHookInfo]
 
     @classmethod
     def from_test_stats(
-        cls, test_stats: HistoricalTestInformation, hooks: List[HistoricHookInfo]
+        cls, test_stats: HistoricalTestInformation, hooks: list[HistoricHookInfo]
     ) -> "HistoricTestInfo":
         """Create an instance from a test_stats object."""
         return cls(
@@ -176,12 +176,12 @@ class HistoricTestInfo(NamedTuple):
 class HistoricTaskData(object):
     """Represent the test statistics for the task that is being analyzed."""
 
-    def __init__(self, historic_test_results: List[HistoricTestInfo]) -> None:
+    def __init__(self, historic_test_results: list[HistoricTestInfo]) -> None:
         """Initialize the TestStats with raw results from the Evergreen API."""
         self.historic_test_results = historic_test_results
 
     @staticmethod
-    def get_stats_from_s3(project: str, task: str, variant: str) -> List[HistoricalTestInformation]:
+    def get_stats_from_s3(project: str, task: str, variant: str) -> list[HistoricalTestInformation]:
         """
         Retrieve test stats from s3 for a given task.
 
@@ -217,7 +217,7 @@ class HistoricTaskData(object):
 
     @classmethod
     def from_stats_list(
-        cls, historical_test_data: List[HistoricalTestInformation]
+        cls, historical_test_data: list[HistoricalTestInformation]
     ) -> "HistoricTaskData":
         """
         Build historic task data from a list of historic stats.
@@ -240,7 +240,7 @@ class HistoricTaskData(object):
             ]
         )
 
-    def get_tests_runtimes(self) -> List[TestRuntime]:
+    def get_tests_runtimes(self) -> list[TestRuntime]:
         """Return the list of (test_file, runtime_in_secs) tuples ordered by decreasing runtime."""
         tests = [
             TestRuntime(

@@ -145,7 +145,7 @@ LiteParsedList DocumentSourceExtensionOptimizable::LiteParsedExpandable::expandI
 
     helper::visitExpandedNodes(
         expanded,
-        [&](const HostAggStageParseNode& hostParse) {
+        [&](const HostAggStageParseNodeAdapter& hostParse) {
             const auto& spec = hostParse.getBsonSpec();
             auto lpds = LiteParsedDocumentSource::parse(nss, spec, options);
             lpds->makeOwned();
@@ -157,9 +157,10 @@ LiteParsedList DocumentSourceExtensionOptimizable::LiteParsedExpandable::expandI
             auto children = expandImpl(handle, state, nss, options);
             outExpanded.splice(outExpanded.end(), children);
         },
-        [&](const HostAggStageAstNode& hostAst) {
+        [&](const HostAggStageAstNodeAdapter& hostAst) {
             const auto& spec = hostAst.getIdLookupSpec();
-            auto lpds = LiteParsedDocumentSource::parse(nss, spec, options);
+            auto fullStageBson = BSON(hostAst.getStageName() << spec.toBSON());
+            auto lpds = LiteParsedDocumentSource::parse(nss, fullStageBson, options);
             lpds->makeOwned();
             outExpanded.emplace_back(std::move(lpds));
         },
@@ -356,10 +357,10 @@ DocumentSourceExtensionOptimizable::distributedPlanLogic(const DistributedPlanCo
         return std::visit(
             OverloadedVisitor{
                 [&](AggStageParseNodeHandle& dplElement) {
-                    if (HostAggStageParseNode::isHostAllocated(*dplElement.get())) {
+                    if (HostAggStageParseNodeAdapter::isHostAllocated(*dplElement.get())) {
                         // Host-allocated: parse the host-allocated parse node.
                         const auto& hostParse =
-                            *static_cast<const HostAggStageParseNode*>(dplElement.get());
+                            *static_cast<const HostAggStageParseNodeAdapter*>(dplElement.get());
                         const auto& bsonSpec = hostParse.getBsonSpec();
 
                         // Validate that the host parse node does not contain an extension stage.
@@ -436,13 +437,13 @@ boost::intrusive_ptr<DocumentSourceExtensionOptimizable> DocumentSourceExtension
     boost::intrusive_ptr<DocumentSourceExtensionOptimizable> optimizable = nullptr;
     helper::visitExpandedNodes(
         expanded,
-        [&](const HostAggStageParseNode& host) {
+        [&](const HostAggStageParseNodeAdapter& host) {
             tasserted(11623001, "Expected extension AST node, got host parse node.");
         },
         [&](const AggStageParseNodeHandle& handle) {
             tasserted(11623002, "Expected extension AST node, got extension parse node.");
         },
-        [&](const HostAggStageAstNode& hostAst) {
+        [&](const HostAggStageAstNodeAdapter& hostAst) {
             tasserted(11623003, "Expected extension AST node, got host AST node.");
         },
         [&](AggStageAstNodeHandle handle) {
@@ -460,7 +461,7 @@ std::list<boost::intrusive_ptr<DocumentSource>> DocumentSourceExtensionOptimizab
 
     helper::visitExpandedNodes(
         expanded,
-        [&](const HostAggStageParseNode& host) {
+        [&](const HostAggStageParseNodeAdapter& host) {
             const BSONObj& bsonSpec = host.getBsonSpec();
             outExpanded.splice(outExpanded.end(), DocumentSource::parse(expCtx, bsonSpec));
         },
@@ -469,9 +470,10 @@ std::list<boost::intrusive_ptr<DocumentSource>> DocumentSourceExtensionOptimizab
                 expandParseNode(expCtx, handle);
             outExpanded.splice(outExpanded.end(), children);
         },
-        [&](const HostAggStageAstNode& hostAst) {
-            const BSONObj& bsonSpec = hostAst.getIdLookupSpec();
-            outExpanded.splice(outExpanded.end(), DocumentSource::parse(expCtx, bsonSpec));
+        [&](const HostAggStageAstNodeAdapter& hostAst) {
+            const auto& spec = hostAst.getIdLookupSpec();
+            auto fullStageBson = BSON(hostAst.getStageName() << spec.toBSON());
+            outExpanded.splice(outExpanded.end(), DocumentSource::parse(expCtx, fullStageBson));
         },
         [&](AggStageAstNodeHandle handle) {
             outExpanded.emplace_back(

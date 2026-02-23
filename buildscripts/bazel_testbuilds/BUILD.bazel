@@ -50,9 +50,6 @@ resmoke_suite_test(
         "jstest_timeout.js",
     ],
     config = "jstest_timeout.yml",
-    data = [
-        "//buildscripts/resmokeconfig:common_jstest_data",
-    ],
     resmoke_args = [
         "--testTimeout=10",  # The test sleeps for 30 seconds, so it should get killed.
     ],

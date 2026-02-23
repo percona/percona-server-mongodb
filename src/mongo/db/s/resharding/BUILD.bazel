@@ -52,6 +52,29 @@ idl_generator(
     ],
 )
 
+mongo_cc_library(
+    name = "resharding_state_documents",
+    srcs = [
+        ":coordinator_document_gen",
+        ":donor_document_gen",
+        ":recipient_document_gen",
+    ],
+    deps = [
+        "//src/mongo/s:common_s",
+    ],
+)
+
+mongo_cc_library(
+    name = "resharding_metrics_common",
+    srcs = [
+        "resharding_metrics_common.cpp",
+    ],
+    deps = [
+        "//src/mongo:base",
+        "//src/mongo/stdx",
+    ],
+)
+
 idl_generator(
     name = "recipient_resume_document_gen",
     src = "recipient_resume_document.idl",

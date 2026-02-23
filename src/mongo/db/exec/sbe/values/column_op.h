@@ -135,7 +135,12 @@ public:
                                                       Value val) {
         const ColumnOpFunctor& cof = *static_cast<const ColumnOpFunctor*>(cofd);
 
-        return cof.getSingleFn()(tag, val);
+        auto&& result = cof.getSingleFn()(tag, val);
+        if constexpr (std::is_same_v<std::decay_t<decltype(result)>, value::TagValueOwned>) {
+            return result.releaseToRaw();
+        } else {
+            return result;
+        }
     }
 
     static void processBatchFn(const ColumnOpFunctorData* cofd,

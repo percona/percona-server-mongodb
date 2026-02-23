@@ -6,7 +6,6 @@ import logging
 import os
 import subprocess
 import sys
-from typing import List
 
 import structlog
 
@@ -27,7 +26,7 @@ def is_interesting_file(filename: str) -> bool:
     return filename.endswith(".py")
 
 
-def lint(paths: List[str]):
+def lint(paths: list[str]):
     """Lint specified paths (files or directories) using Pyright."""
     if "BUILD_WORKSPACE_DIRECTORY" in os.environ:
         subprocess.run(

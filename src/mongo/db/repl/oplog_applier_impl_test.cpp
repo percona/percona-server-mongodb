@@ -92,6 +92,7 @@
 #include "mongo/db/shard_role/transaction_resources.h"
 #include "mongo/db/stats/counters.h"
 #include "mongo/db/storage/kv/kv_engine.h"
+#include "mongo/db/storage/recovery_unit.h"
 #include "mongo/db/storage/write_unit_of_work.h"
 #include "mongo/db/tenant_id.h"
 #include "mongo/db/update/document_diff_serialization.h"
@@ -887,7 +888,7 @@ TEST_F(OplogApplierImplTest, applyOplogEntryToInvalidateChangeStreamPreImages) {
     // Apply the oplog entry.
     {
         repl::UnreplicatedWritesBlock uwb(_opCtx.get());
-        DisableDocumentValidation validationDisabler(_opCtx.get());
+        DisableDocumentValidationForInternalOp validationDisabler(_opCtx.get());
         ASSERT_THROWS(applyOplogEntryOrGroupedInserts(_opCtx.get(),
                                                       ApplierOperation{&invalidateOp},
                                                       OplogApplication::Mode::kInitialSync,
@@ -964,7 +965,7 @@ TEST_F(OplogApplierImplTest, applyOplogEntryToInvalidateNonModPreImages) {
     // Apply the oplog entry.
     {
         repl::UnreplicatedWritesBlock uwb(_opCtx.get());
-        DisableDocumentValidation validationDisabler(_opCtx.get());
+        DisableDocumentValidationForInternalOp validationDisabler(_opCtx.get());
         ASSERT_NOT_OK(applyOplogEntryOrGroupedInserts(_opCtx.get(),
                                                       ApplierOperation{&updateOp},
                                                       OplogApplication::Mode::kInitialSync,
@@ -1039,7 +1040,7 @@ TEST_F(OplogApplierImplTest, ImageCollectionInvalidationInInitialSyncHandlesConf
     // Apply the first oplog entry which should lead us to write an invalidate entry.
     {
         repl::UnreplicatedWritesBlock uwb(_opCtx.get());
-        DisableDocumentValidation validationDisabler(_opCtx.get());
+        DisableDocumentValidationForInternalOp validationDisabler(_opCtx.get());
         ASSERT_THROWS(applyOplogEntryOrGroupedInserts(_opCtx.get(),
                                                       ApplierOperation{&invalidateOp},
                                                       OplogApplication::Mode::kInitialSync,
@@ -1071,7 +1072,7 @@ TEST_F(OplogApplierImplTest, ImageCollectionInvalidationInInitialSyncHandlesConf
 
     {
         repl::UnreplicatedWritesBlock uwb(_opCtx.get());
-        DisableDocumentValidation validationDisabler(_opCtx.get());
+        DisableDocumentValidationForInternalOp validationDisabler(_opCtx.get());
         ASSERT_THROWS(applyOplogEntryOrGroupedInserts(_opCtx.get(),
                                                       ApplierOperation{&earlierInvalidateOp},
                                                       OplogApplication::Mode::kInitialSync,
@@ -1211,6 +1212,32 @@ Status TrackOpsAppliedApplier::applyOplogBatchPerWorker(
     return Status::OK();
 }
 
+TEST_F(OplogApplierImplTest, ApplyOpsRidOnNonRridCollectionGroupedRridDisabled) {
+    auto nss = NamespaceString::createNamespaceString_forTest(
+        "test.ApplyOpsRidOnNonRridCollectionGroupedRridDisabled");
+    createCollection(_opCtx.get(), nss, {});
+
+    auto op1 = makeInsertDocumentOplogEntry({Timestamp(Seconds(1), 1), 1LL}, nss, BSON("_id" << 1));
+
+    MutableOplogEntry op2Mutable;
+    op2Mutable.setOpType(OpTypeEnum::kInsert);
+    op2Mutable.setNss(nss);
+    op2Mutable.setObject(BSON("_id" << 2));
+    op2Mutable.setObject2(BSON("_id" << 2));
+    op2Mutable.setOpTime({Timestamp(Seconds(1), 2), 1LL});
+    op2Mutable.setRecordId(RecordId(2));
+    op2Mutable.setWallClockTime(Date_t::now());
+    auto op2 = OplogEntry(op2Mutable.toBSON());
+
+    std::vector<ApplierOperation> ops = {ApplierOperation{&op1}, ApplierOperation{&op2}};
+    OplogEntryOrGroupedInserts groupedInserts(ops.begin(), ops.end());
+
+    RAIIServerParameterControllerForTest _featureFlagReplRidController{
+        "featureFlagRecordIdsReplicated", false};
+    (void)_applyOplogEntryOrGroupedInsertsWrapper(
+        _opCtx.get(), groupedInserts, OplogApplication::Mode::kApplyOpsCmd);
+}
+
 using OplogApplierImplTestDeathTest = OplogApplierImplTest;
 DEATH_TEST_F(OplogApplierImplTestDeathTest,
              MultiApplyAbortsWhenNoOperationsAreGiven,
@@ -1229,9 +1256,11 @@ DEATH_TEST_F(OplogApplierImplTestDeathTest,
     oplogApplier.applyOplogBatch(_opCtx.get(), {}).getStatus().ignore();
 }
 
-DEATH_TEST_F(OplogApplierImplTestDeathTest, ApplyOpsRidOnNonRridCollectionGrouped, "11454702") {
+DEATH_TEST_F(OplogApplierImplTestDeathTest,
+             ApplyOpsRidOnNonRridCollectionGroupedRridEnabled,
+             "11454702") {
     auto nss = NamespaceString::createNamespaceString_forTest(
-        "test.ApplyOpsRidOnNonRridCollectionGrouped");
+        "test.ApplyOpsRidOnNonRridCollectionGroupedRridEnabled");
     createCollection(_opCtx.get(), nss, {});
 
     auto op1 = makeInsertDocumentOplogEntry({Timestamp(Seconds(1), 1), 1LL}, nss, BSON("_id" << 1));
@@ -1249,6 +1278,8 @@ DEATH_TEST_F(OplogApplierImplTestDeathTest, ApplyOpsRidOnNonRridCollectionGroupe
     std::vector<ApplierOperation> ops = {ApplierOperation{&op1}, ApplierOperation{&op2}};
     OplogEntryOrGroupedInserts groupedInserts(ops.begin(), ops.end());
 
+    RAIIServerParameterControllerForTest _featureFlagReplRidController{
+        "featureFlagRecordIdsReplicated", true};
     (void)_applyOplogEntryOrGroupedInsertsWrapper(
         _opCtx.get(), groupedInserts, OplogApplication::Mode::kApplyOpsCmd);
 }
@@ -1280,9 +1311,9 @@ DEATH_TEST_F(OplogApplierImplTestDeathTest, SteadyStateRidOnNonRridCollectionGro
 DEATH_TEST_F(OplogApplierImplTestDeathTest, SteadyStateNoRidOnRridCollectionGrouped, "11454703") {
     auto nss = NamespaceString::createNamespaceString_forTest(
         "test.SteadyStateNoRidOnRridCollectionGrouped");
-    CollectionOptions options;
-    options.recordIdsReplicated = true;
-    createCollection(_opCtx.get(), nss, options);
+    RAIIServerParameterControllerForTest featureFlagController =
+        RAIIServerParameterControllerForTest("featureFlagRecordIdsReplicated", true);
+    createCollection(_opCtx.get(), nss, {});
 
     MutableOplogEntry op1Mutable;
     op1Mutable.setOpType(OpTypeEnum::kInsert);
@@ -2203,7 +2234,9 @@ TEST_F(OplogApplierImplTest, ApplyApplyOpsContainerOperations) {
     auto storageEngine = serviceContext->getStorageEngine();
     auto ident = storageEngine->generateNewInternalIdent();
     auto ru = storageEngine->newRecoveryUnit();
+    StorageWriteTransaction swt(*ru);
     auto trs = storageEngine->getEngine()->makeTemporaryRecordStore(*ru, ident, KeyFormat::String);
+    swt.commit();
 
     auto k = BSONBinData("K", 1, BinDataGeneral);
     auto v = BSONBinData("V", 1, BinDataGeneral);
@@ -2260,7 +2293,9 @@ TEST_F(OplogApplierImplTest, ApplyContainerOperations) {
     auto storageEngine = serviceContext->getStorageEngine();
     auto ident = storageEngine->generateNewInternalIdent();
     auto ru = storageEngine->newRecoveryUnit();
+    StorageWriteTransaction swt(*ru);
     auto trs = storageEngine->getEngine()->makeTemporaryRecordStore(*ru, ident, KeyFormat::String);
+    swt.commit();
 
     auto k = BSONBinData("K", 1, BinDataGeneral);
     auto v = BSONBinData("V", 1, BinDataGeneral);
@@ -3933,7 +3968,8 @@ TEST_F(OplogApplierImplTest,
         [&](OperationContext* opCtx, const NamespaceString&, const std::vector<BSONObj>&) {
             onInsertsCalled = true;
             ASSERT_FALSE(opCtx->writesAreReplicated());
-            ASSERT_TRUE(DocumentValidationSettings::get(opCtx).isSchemaValidationDisabled());
+            ASSERT_TRUE(
+                DocumentValidationSettings::get(opCtx).isSchemaValidationDisabledForInternalOp());
         };
     createCollectionWithUuid(_opCtx.get(), nss);
     auto op = makeInsertDocumentOplogEntry({Timestamp(Seconds(1), 0), 1LL}, nss, BSON("_id" << 0));

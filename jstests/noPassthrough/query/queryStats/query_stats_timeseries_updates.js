@@ -14,6 +14,7 @@ import {
     getQueryStatsUpdateCmd,
     resetQueryStatsStore,
 } from "jstests/libs/query/query_stats_utils.js";
+import {isUweEnabled} from "jstests/libs/query/uwe_utils.js";
 import {ShardingTest} from "jstests/libs/shardingtest.js";
 import {FeatureFlagUtil} from "jstests/libs/feature_flag_util.js";
 
@@ -206,6 +207,12 @@ describe.skip("Sharded", function () {
                 mongosOptions: {setParameter: {internalQueryStatsRateLimit: -1}},
             });
             const testDB = st.s.getDB("test");
+            // TODO SERVER-117919 Remove skipping test due to UWE.
+            if (!isUweEnabled(st.s)) {
+                st.stop();
+                jsTest.log.info("Skipping test: featureFlagUnifiedWriteExecutor is not enabled");
+                quit();
+            }
             st.shardColl(testDB[collName], {_id: 1}, {_id: 1});
             return {fixture: st, testDB};
         },

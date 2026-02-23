@@ -35,6 +35,7 @@
 #include "mongo/db/exec/plan_stats.h"
 #include "mongo/db/pipeline/pipeline.h"
 #include "mongo/db/pipeline/search/document_source_internal_search_id_lookup.h"
+#include "mongo/db/pipeline/search/document_source_internal_search_id_lookup_gen.h"
 #include "mongo/db/query/query_shape/serialization_options.h"
 #include "mongo/util/modules.h"
 
@@ -50,12 +51,11 @@ public:
 
     InternalSearchIdLookUpStage(
         StringData stageName,
+        DocumentSourceIdLookupSpec spec,
         const boost::intrusive_ptr<ExpressionContext>& expCtx,
-        long long limit,
         const boost::intrusive_ptr<DSInternalSearchIdLookUpCatalogResourceHandle>&
             catalogResourceHandle,
-        const std::shared_ptr<SearchIdLookupMetrics>& searchIdLookupMetrics,
-        std::unique_ptr<mongo::Pipeline> viewPipeline);
+        const std::shared_ptr<SearchIdLookupMetrics>& searchIdLookupMetrics);
 
     const SpecificStats* getSpecificStats() const override {
         return &_stats;
@@ -68,7 +68,7 @@ private:
     GetNextResult doGetNext() final;
 
     const std::string _stageName;
-    const long long _limit;
+    const DocumentSourceIdLookupSpec _spec;
 
     // Handle on catalog state that can be acquired and released during doGetNext(). Also contains
     // the collection needed for execution.
@@ -76,9 +76,6 @@ private:
 
     std::shared_ptr<SearchIdLookupMetrics> _searchIdLookupMetrics;
     DocumentSourceIdLookupStats _stats;
-
-    // If a search query is run on a view, we store the parsed view pipeline.
-    std::unique_ptr<mongo::Pipeline> _viewPipeline;
 };
 
 }  // namespace mongo::exec::agg

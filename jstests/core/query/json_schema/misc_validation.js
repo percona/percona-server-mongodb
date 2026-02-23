@@ -23,11 +23,10 @@
  *   requires_getmore,
  *   # $text is not supported on views.
  *   incompatible_with_views,
- *   # TODO (SERVER-116395): Re-enable this test with primary-driven index builds.
- *   primary_driven_index_builds_incompatible_with_retryable_writes,
  * ]
  */
 import {arrayEq} from "jstests/aggregation/extras/utils.js";
+import {add2dsphereVersionIfNeeded} from "jstests/libs/query/geo_index_version_helpers.js";
 
 const testName = "json_schema_misc_validation";
 const testDB = db.getSiblingDB(testName);
@@ -50,7 +49,7 @@ assert.throws(function () {
 });
 
 // Test that an invalid $jsonSchema fails to parse in a $geoNear query.
-assert.commandWorked(coll.createIndex({geo: "2dsphere"}));
+assert.commandWorked(coll.createIndex({geo: "2dsphere"}, add2dsphereVersionIfNeeded()));
 let res = testDB.runCommand({
     aggregate: coll.getName(),
     cursor: {},
@@ -97,7 +96,7 @@ const point = {
 };
 assert.commandWorked(coll.insert({geo: point, a: 1}));
 assert.commandWorked(coll.insert({geo: point, a: 0}));
-assert.commandWorked(coll.createIndex({geo: "2dsphere"}));
+assert.commandWorked(coll.createIndex({geo: "2dsphere"}, add2dsphereVersionIfNeeded()));
 res = coll
     .aggregate({
         $geoNear: {
@@ -264,7 +263,7 @@ assert.eq(2, coll.find({$or: [{$jsonSchema: {properties: {a: {minimum: 2}}}}, {b
 
 // Test that $jsonSchema works correctly in the presence of a geo index.
 coll.dropIndexes();
-assert.commandWorked(coll.createIndex({point: "2dsphere"}));
+assert.commandWorked(coll.createIndex({point: "2dsphere"}, add2dsphereVersionIfNeeded()));
 assert.eq(1, coll.find({$jsonSchema: {required: ["point"]}}).itcount());
 
 assert.eq(
@@ -278,7 +277,7 @@ assert.eq(
 );
 
 coll.dropIndexes();
-assert.commandWorked(coll.createIndex({a: 1, point: "2dsphere"}));
+assert.commandWorked(coll.createIndex({a: 1, point: "2dsphere"}, add2dsphereVersionIfNeeded()));
 assert.eq(1, coll.find({$jsonSchema: {required: ["a", "point"]}}).itcount());
 
 assert.eq(

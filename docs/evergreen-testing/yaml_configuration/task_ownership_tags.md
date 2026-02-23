@@ -12,3 +12,5 @@ If the linter configuration is missing your team:
 1. Make sure that your team configuration exists or add it in mothra
 2. Make sure that your team configuration in mothra has `evergreen_tag_name`
 3. Update the tag list with `assigned_to_jira_team_{evergreen_tag_name}` tag for your team
+
+Dynamically generated tasks for resmoke suites (i.e. the ones named like `//buildscripts/resmokeconfig:core`) will set the ownership tag based on a best effort lookup from the codeowner of the test's definition to a team name from mothra, picking the first encountered in case of multiple possible assignments.

@@ -8,7 +8,7 @@ import shutil
 import subprocess
 import sys
 import time
-from typing import Dict, List, Optional
+from typing import Optional
 
 import boto3
 import requests
@@ -28,7 +28,7 @@ def process_file(
     file_number: int,
     upload_name: str,
     start_time: int,
-) -> Optional[Dict[str, str]]:
+) -> Optional[dict[str, str]]:
     print(f"{file} started compressing at {time.time() - start_time}")
     compressed_file = f"{file}.gz"
     with open(file, "rb") as f_in:
@@ -73,7 +73,7 @@ def process_file(
     return task_artifact
 
 
-def main(output_file: str, patterns: List[str], display_name: str, expansions_file: str) -> int:
+def main(output_file: str, patterns: list[str], display_name: str, expansions_file: str) -> int:
     if not output_file.endswith(".json"):
         print("WARN: filename input should end with `.json`", file=sys.stderr)
 

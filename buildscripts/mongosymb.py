@@ -29,7 +29,7 @@ from abc import ABC, abstractmethod
 from collections import OrderedDict
 from datetime import timedelta
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Optional, Union
 
 import requests
 from tenacity import Retrying, retry_if_result, stop_after_delay, wait_fixed
@@ -52,7 +52,7 @@ class DbgFileResolver(ABC):
     """Base gdb path resolver class."""
 
     @abstractmethod
-    def get_dbg_file(self, soinfo: Dict[str, Any]) -> Union[str, None]:
+    def get_dbg_file(self, soinfo: dict[str, Any]) -> Union[str, None]:
         """
         To get path for given build info.
 
@@ -124,7 +124,7 @@ class CachedResults(object):
     Idea is to allow only N items to be present in cache at a time and eliminate extra items on the go.
     """
 
-    def __init__(self, max_cache_size: int, initial_cache: Dict[str, str] = None):
+    def __init__(self, max_cache_size: int, initial_cache: dict[str, str] = None):
         """
         Initialize instance.
 
@@ -134,7 +134,7 @@ class CachedResults(object):
         self._max_cache_size = max_cache_size
         self._cached_results = OrderedDict(initial_cache or {})
 
-    def insert(self, key: str, value: str) -> Dict[str, str] or None:
+    def insert(self, key: str, value: str) -> dict[str, str] or None:
         """
         Insert new data into cache.
 
@@ -302,7 +302,7 @@ class PathResolver(DbgFileResolver):
         """
         return self._cached_results.get(key)
 
-    def add_to_cache(self, key: str, value: str) -> Dict[str, str]:
+    def add_to_cache(self, key: str, value: str) -> dict[str, str]:
         """
         Add new value to cache.
 
@@ -484,7 +484,7 @@ def parse_input(trace_doc, dbg_path_resolver):
     return frames
 
 
-def get_version(trace_doc: Dict[str, Any]) -> Optional[str]:
+def get_version(trace_doc: dict[str, Any]) -> Optional[str]:
     """
     Get version from trace doc.
 
@@ -569,8 +569,8 @@ def symbolize_frames(
 
 
 def preprocess_frames(
-    dbg_path_resolver: DbgFileResolver, trace_doc: Dict[str, Any], input_format: str
-) -> List[Dict[str, Any]]:
+    dbg_path_resolver: DbgFileResolver, trace_doc: dict[str, Any], input_format: str
+) -> list[dict[str, Any]]:
     """
     Process the paths in frame objects.
 
@@ -592,7 +592,7 @@ def preprocess_frames(
     return frames
 
 
-def has_high_not_found_paths_ratio(frames: List[Dict[str, Any]]) -> bool:
+def has_high_not_found_paths_ratio(frames: list[dict[str, Any]]) -> bool:
     """
     Check whether not found paths in frames ratio is higher than 0.5.
 
@@ -606,10 +606,10 @@ def has_high_not_found_paths_ratio(frames: List[Dict[str, Any]]) -> bool:
 
 def preprocess_frames_with_retries(
     dbg_path_resolver: DbgFileResolver,
-    trace_doc: Dict[str, Any],
+    trace_doc: dict[str, Any],
     input_format: str,
     total_seconds_for_retries: int = 0,
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """
     Process the paths in frame objects.
 

@@ -8,6 +8,7 @@
  *   requires_fcv_72
  * ]
  */
+import {add2dsphereVersionIfNeededForSpec} from "jstests/libs/query/geo_index_version_helpers.js";
 
 const coll = db.getCollection("geonear_mindistance_maxdistance");
 
@@ -30,7 +31,7 @@ const far = {
     coll.drop();
 
     // Create the desired index type and populate the collection.
-    assert.commandWorked(coll.createIndex({pt: geoType}));
+    assert.commandWorked(coll.createIndex({pt: geoType}, add2dsphereVersionIfNeededForSpec({pt: geoType})));
     [origin, near, far].forEach((doc) => {
         doc.distFromOrigin =
             geoType === "2dsphere" ? Geo.sphereDistance(doc.pt, origin.pt) : Geo.distance(doc.pt, origin.pt);

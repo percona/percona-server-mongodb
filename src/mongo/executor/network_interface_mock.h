@@ -136,7 +136,7 @@ public:
     ////////////////////////////////////////////////////////////////////////////////
 
     void appendConnectionStats(ConnectionPoolStats* stats) const override {}
-    void appendStats(BSONObjBuilder&) const override {}
+    void appendStats(BSONObjBuilder&, bool) const override {}
 
     std::string getDiagnosticString() override;
 

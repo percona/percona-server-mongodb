@@ -61,6 +61,8 @@ ConnectionStatsPer::ConnectionStatsPer(size_t nInUse,
                                        Milliseconds nConnUsageTime,
                                        size_t nRejectedConnectionsCount,
                                        size_t nPendingRequestsCount,
+                                       size_t nTotalConnectionAcquisitionRequests,
+                                       Milliseconds nTotalConnectionAcquisitionWaitTime,
                                        ConnectionPoolState nPoolState)
     : inUse(nInUse),
       available(nAvailable),
@@ -73,6 +75,8 @@ ConnectionStatsPer::ConnectionStatsPer(size_t nInUse,
       connUsageTime(nConnUsageTime),
       rejectedRequests(nRejectedConnectionsCount),
       pendingRequests(nPendingRequestsCount),
+      connectionAcquisitionRequests(nTotalConnectionAcquisitionRequests),
+      connectionAcquisitionWaitTime(nTotalConnectionAcquisitionWaitTime),
       poolState(nPoolState) {}
 
 ConnectionStatsPer::ConnectionStatsPer() = default;
@@ -89,6 +93,8 @@ ConnectionStatsPer& ConnectionStatsPer::operator+=(const ConnectionStatsPer& oth
     connUsageTime += other.connUsageTime;
     rejectedRequests += other.rejectedRequests;
     acquisitionWaitTimes += other.acquisitionWaitTimes;
+    connectionAcquisitionRequests += other.connectionAcquisitionRequests;
+    connectionAcquisitionWaitTime += other.connectionAcquisitionWaitTime;
     pendingRequests += other.pendingRequests;
     poolState = other.poolState;
 
@@ -123,6 +129,8 @@ void ConnectionPoolStats::updateStatsForHost(std::string pool,
     totalConnUsageTime += newStats.connUsageTime;
     totalRejectedRequests += newStats.rejectedRequests;
     acquisitionWaitTimes += newStats.acquisitionWaitTimes;
+    totalConnectionAcquisitionRequests += newStats.connectionAcquisitionRequests;
+    totalConnectionAcquisitionWaitTime += newStats.connectionAcquisitionWaitTime;
     totalPendingRequests += newStats.pendingRequests;
 }
 
@@ -139,6 +147,12 @@ void ConnectionPoolStats::appendToBSON(mongo::BSONObjBuilder& result, bool forFT
                         durationCount<Milliseconds>(totalConnUsageTime));
     result.appendNumber("totalRejectedRequests", static_cast<long long>(totalRejectedRequests));
     result.appendNumber("totalPendingRequests", static_cast<long long>(totalPendingRequests));
+    result.append("totalConnectionAcquisitionRequests",
+                  static_cast<long long>(totalConnectionAcquisitionRequests));
+    result.append("totalConnectionAcquisitionWaitTimeMillis",
+                  durationCount<Milliseconds>(totalConnectionAcquisitionWaitTime));
+
+    appendHistogram(result, acquisitionWaitTimes, kAcquisitionWaitTimesKey);
 
     if (forFTDC) {
         BSONObjBuilder poolBuilder(result.subobjStart("pools"));
@@ -156,8 +170,6 @@ void ConnectionPoolStats::appendToBSON(mongo::BSONObjBuilder& result, bool forFT
 
         return;
     }
-
-    appendHistogram(result, acquisitionWaitTimes, kAcquisitionWaitTimesKey);
 
     // Process pools stats.
     {
@@ -179,6 +191,10 @@ void ConnectionPoolStats::appendToBSON(mongo::BSONObjBuilder& result, bool forFT
                                   static_cast<long long>(stats.rejectedRequests));
             poolInfo.appendNumber("poolPendingRequests",
                                   static_cast<long long>(stats.pendingRequests));
+            poolInfo.appendNumber("poolConnectionAcquisitionRequests",
+                                  static_cast<long long>(stats.connectionAcquisitionRequests));
+            poolInfo.appendNumber("poolConnectionAcquisitionWaitTimeMillis",
+                                  durationCount<Milliseconds>(stats.connectionAcquisitionWaitTime));
             appendHistogram(poolInfo, stats.acquisitionWaitTimes, kAcquisitionWaitTimesKey);
 
             for (const auto& [host, stats] : stats.statsByHost) {
@@ -194,6 +210,11 @@ void ConnectionPoolStats::appendToBSON(mongo::BSONObjBuilder& result, bool forFT
                                       static_cast<long long>(stats.rejectedRequests));
                 hostInfo.appendNumber("pendingRequests",
                                       static_cast<long long>(stats.pendingRequests));
+                hostInfo.appendNumber("connectionAcquisitionRequests",
+                                      static_cast<long long>(stats.connectionAcquisitionRequests));
+                hostInfo.appendNumber(
+                    "connectionAcquisitionWaitTimeMillis",
+                    durationCount<Milliseconds>(stats.connectionAcquisitionWaitTime));
                 appendHistogram(hostInfo, stats.acquisitionWaitTimes, kAcquisitionWaitTimesKey);
                 hostInfo.appendNumber("poolState", static_cast<int>(stats.poolState));
             }
@@ -215,6 +236,10 @@ void ConnectionPoolStats::appendToBSON(mongo::BSONObjBuilder& result, bool forFT
             hostInfo.appendNumber("rejectedRequests",
                                   static_cast<long long>(stats.rejectedRequests));
             hostInfo.appendNumber("pendingRequests", static_cast<long long>(stats.pendingRequests));
+            hostInfo.appendNumber("connectionAcquisitionRequests",
+                                  static_cast<long long>(stats.connectionAcquisitionRequests));
+            hostInfo.appendNumber("connectionAcquisitionWaitTimeMillis",
+                                  durationCount<Milliseconds>(stats.connectionAcquisitionWaitTime));
             appendHistogram(hostInfo, stats.acquisitionWaitTimes, kAcquisitionWaitTimesKey);
             hostInfo.appendNumber("poolState", static_cast<int>(stats.poolState));
         }

@@ -35,7 +35,6 @@
 #include "mongo/db/rss/persistence_provider.h"
 #include "mongo/db/server_feature_flags_gen.h"
 #include "mongo/db/storage/execution_context.h"
-#include "mongo/db/storage/snapshot_window_options_gen.h"
 #include "mongo/db/storage/storage_options.h"
 #include "mongo/db/storage/storage_parameters_gen.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_event_handler.h"
@@ -818,10 +817,7 @@ int WiredTigerUtil::verifyTable(WiredTigerSession& session,
     WiredTigerConnection& connection = session.getConnection();
 
     // Open a new session with custom error handlers.
-    const char* sessionConfig = nullptr;
-    if (gFeatureFlagPrefetch.isEnabled() && !connection.isEphemeral()) {
-        sessionConfig = "prefetch=(enabled=true)";
-    }
+    const char* sessionConfig = connection.isEphemeral() ? nullptr : "prefetch=(enabled=true)";
     WiredTigerSession verifySession(&connection, &eventHandler, sessionConfig);
 
     const char* verifyConfig =
@@ -1283,7 +1279,7 @@ void WiredTigerUtil::appendSnapshotWindowSettings(WiredTigerKVEngine* engine, BS
     BSONObjBuilder settings(bob->subobjStart("snapshot-window-settings"));
     settings.append("total number of SnapshotTooOld errors", totalNumberOfSnapshotTooOldErrors);
     settings.append("minimum target snapshot window size in seconds",
-                    minSnapshotHistoryWindowInSeconds.load());
+                    engine->getMinSnapshotHistoryWindowInSeconds());
     settings.append("current available snapshot window size in seconds",
                     static_cast<int>(currentAvailableSnapshotWindow));
     settings.append("latest majority snapshot timestamp available",
@@ -1493,9 +1489,41 @@ long long WiredTigerUtil::getCancelledCacheMetric_forTest() {
     return cancelledCacheMetric.get();
 }
 
+void WiredTigerUtil::logMetadata(WiredTigerSession& session, StringData uri) {
+    WT_CURSOR* cursor = _getMaybeCachedCursor(session, "metadata:", kMetadataTableId);
+    ScopeGuard releaser = [&] {
+        session.releaseCursor(kMetadataTableId, cursor, "");
+    };
+
+    const char* key = nullptr;
+    const char* value = nullptr;
+    while ((cursor->next(cursor) == 0) && (cursor->get_key(cursor, &key) == 0) &&
+           (cursor->get_value(cursor, &value) == 0)) {
+        LOGV2_INFO(
+            11504300, "Contents of WT metadata table.", "key"_attr = key, "value"_attr = value);
+    }
+}
+
 void WiredTigerUtil::truncate(WiredTigerRecoveryUnit& ru, StringData uri) {
     invariantWTOK(WT_OP_CHECK(ru.getSession()->truncate(uri.data(), nullptr, nullptr, nullptr)),
                   *ru.getSession());
+}
+
+Status WiredTigerUtil::createTable(WiredTigerRecoveryUnit& ru,
+                                   const char* uri,
+                                   const char* config) {
+    uassert(ErrorCodes::IllegalOperation,
+            "Cannot create a table while in read-only mode",
+            !ru.readOnly());
+
+    invariant(ru.inUnitOfWork());
+    auto& session = *ru.getSessionNoTxn();
+    LOGV2(51780, "create table", "uri"_attr = uri, "config"_attr = config);
+    const auto status = wtRCToStatus(session.create(uri, config), session);
+    if (status.isOK()) {
+        ru.onCreateTable(uri);
+    }
+    return status;
 }
 
 }  // namespace mongo

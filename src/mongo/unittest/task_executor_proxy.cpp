@@ -141,8 +141,9 @@ void TaskExecutorProxy::dropConnections(const HostAndPort& target, const Status&
     _executor.load()->dropConnections(target, status);
 }
 
-void TaskExecutorProxy::appendNetworkInterfaceStats(BSONObjBuilder& bob) const {
-    _executor.load()->appendNetworkInterfaceStats(bob);
+void TaskExecutorProxy::appendNetworkInterfaceStats(BSONObjBuilder& bob,
+                                                    bool forServerStatus) const {
+    _executor.load()->appendNetworkInterfaceStats(bob, forServerStatus);
 }
 
 }  // namespace unittest

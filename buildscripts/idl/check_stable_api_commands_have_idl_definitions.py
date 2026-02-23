@@ -35,7 +35,6 @@ import logging
 import os
 import sys
 from tempfile import TemporaryDirectory
-from typing import Dict, List, Set
 
 from pymongo import MongoClient
 
@@ -65,8 +64,8 @@ def is_test_or_third_party_idl(idl_path: str) -> bool:
 
 
 def get_command_definitions(
-    api_version: str, directory: str, import_directories: List[str]
-) -> Dict[str, syntax.Command]:
+    api_version: str, directory: str, import_directories: list[str]
+) -> dict[str, syntax.Command]:
     """Get parsed IDL definitions of commands in a given API version."""
 
     LOGGER.info("Searching for command definitions in %s", directory)
@@ -83,7 +82,7 @@ def get_command_definitions(
     return idl_commands
 
 
-def list_commands_for_api(api_version: str, mongod_or_mongos: str, install_dir: str) -> Set[str]:
+def list_commands_for_api(api_version: str, mongod_or_mongos: str, install_dir: str) -> set[str]:
     """Get a list of commands in a given API version by calling listCommands."""
     assert mongod_or_mongos in ("mongod", "mongos")
     logging.info("Calling listCommands on %s", mongod_or_mongos)
@@ -135,7 +134,7 @@ def list_commands_for_api(api_version: str, mongod_or_mongos: str, install_dir: 
         fixture.teardown()
 
 
-def assert_command_sets_equal(api_version: str, command_sets: Dict[str, Set[str]]):
+def assert_command_sets_equal(api_version: str, command_sets: dict[str, set[str]]):
     """Check that all sources have the same set of commands for a given API version."""
     LOGGER.info("Comparing %s command sets", len(command_sets))
     for name, commands in command_sets.items():
@@ -161,7 +160,7 @@ def assert_command_sets_equal(api_version: str, command_sets: Dict[str, Set[str]
             )
 
 
-def remove_skipped_commands(command_sets: Dict[str, Set[str]]):
+def remove_skipped_commands(command_sets: dict[str, set[str]]):
     """Remove skipped commands from command_sets."""
     skipped_commands = {
         "testDeprecation",

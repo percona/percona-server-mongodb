@@ -36,6 +36,7 @@
 #include "mongo/util/duration.h"
 #include "mongo/util/histogram.h"
 #include "mongo/util/modules.h"
+#include "mongo/util/moving_average.h"
 #include "mongo/util/net/hostandport.h"
 
 #include <cstddef>
@@ -81,6 +82,8 @@ struct ConnectionStatsPer {
                        Milliseconds nConnUsageTime,
                        size_t nRejectedConnectionsCount,
                        size_t nPendingRequestsCount,
+                       size_t nTotalConnectionAcquisitionRequests,
+                       Milliseconds nTotalConnectionAcquisitionWaitTime,
                        ConnectionPoolState nPoolState);
 
     ConnectionStatsPer();
@@ -101,6 +104,8 @@ struct ConnectionStatsPer {
     size_t rejectedRequests = 0u;
     size_t pendingRequests = 0u;
     ConnectionWaitTimeHistogram acquisitionWaitTimes{};
+    size_t connectionAcquisitionRequests = 0u;
+    Milliseconds connectionAcquisitionWaitTime = Milliseconds::zero();
     ConnectionPoolState poolState{ConnectionPoolState::kHealthy};
 };
 
@@ -131,6 +136,8 @@ struct ConnectionPoolStats {
     boost::optional<std::string> matchingStrategy;
 
     ConnectionWaitTimeHistogram acquisitionWaitTimes{};
+    size_t totalConnectionAcquisitionRequests = 0u;
+    Milliseconds totalConnectionAcquisitionWaitTime = Milliseconds::zero();
 
     using StatsByHost = std::map<HostAndPort, ConnectionStatsPer>;
 

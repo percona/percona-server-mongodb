@@ -2,7 +2,7 @@
 
 import threading
 from logging import Logger
-from typing import Generic, List, Optional, TypeVar, Union
+from typing import Generic, Optional, TypeVar, Union
 
 from opentelemetry import context
 
@@ -71,7 +71,7 @@ class TestSuiteExecutor(object):
 
         self._jobs = self._create_jobs(suite.get_num_jobs_to_start())
 
-    def _create_jobs(self, num_jobs: int) -> List[_job.Job]:
+    def _create_jobs(self, num_jobs: int) -> list[_job.Job]:
         """
         Start jobs.
 
@@ -272,7 +272,7 @@ class TestSuiteExecutor(object):
 
         return fixtures.make_fixture(fixture_class, fixture_logger, job_num, **fixture_config)
 
-    def _make_hooks(self, fixture, job_num) -> List[Hook]:
+    def _make_hooks(self, fixture, job_num) -> list[Hook]:
         """Create the hooks for the job's fixture."""
 
         hooks = []
@@ -376,7 +376,7 @@ class TestQueue(_queue.Queue, Generic[T]):
         self.max_test_queue_size = utils.default_if_none(_config.MAX_TEST_QUEUE_SIZE, -1)
         super().__init__()
 
-    def add_test_cases(self, test_cases: List[QueueElem]) -> None:
+    def add_test_cases(self, test_cases: list[QueueElem]) -> None:
         """Add test cases to the queue."""
         for test_case in test_cases:
             if self.max_test_queue_size < 0 or self.num_tests < self.max_test_queue_size:

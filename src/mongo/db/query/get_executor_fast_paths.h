@@ -27,6 +27,8 @@
  *    it in the license file.
  */
 
+#pragma once
+
 #include <boost/container/flat_set.hpp>
 #include <boost/container/small_vector.hpp>
 #include <boost/container/vector.hpp>
@@ -42,13 +44,12 @@
 #include "mongo/db/exec/classic/plan_stage.h"
 #include "mongo/db/exec/classic/subplan.h"
 #include "mongo/db/exec/runtime_planners/classic_runtime_planner/planner_interface.h"
-#include "mongo/db/exec/runtime_planners/classic_runtime_planner_for_sbe/planner_interface.h"
-#include "mongo/db/exec/runtime_planners/planner_interface.h"
 #include "mongo/db/matcher/extensions_callback_real.h"
 #include "mongo/db/pipeline/sbe_pushdown.h"
 #include "mongo/db/query/canonical_query.h"
 #include "mongo/db/query/collection_query_info.h"
 #include "mongo/db/query/compiler/parsers/matcher/expression_parser.h"
+#include "mongo/db/query/get_executor_helpers.h"
 #include "mongo/db/query/internal_plans.h"
 #include "mongo/db/query/plan_executor.h"
 #include "mongo/db/query/query_planner_params.h"
@@ -73,12 +74,11 @@ struct ExpressResult {
  * Builds an express executor if the query is eligible. Otherwise returns the planner params created
  * to check express eligibility, for reuse.
  */
-ExpressResult tryExpress(
-    OperationContext* opCtx,
-    const MultipleCollectionAccessor& collections,
-    std::unique_ptr<CanonicalQuery>& canonicalQuery,
-    std::size_t plannerOptions,
-    const std::function<std::unique_ptr<QueryPlannerParams>(size_t)>& makePlannerParams);
+ExpressResult tryExpress(OperationContext* opCtx,
+                         const MultipleCollectionAccessor& collections,
+                         std::unique_ptr<CanonicalQuery>& canonicalQuery,
+                         std::size_t plannerOptions,
+                         const MakePlannerParamsFn& makePlannerParams);
 
 /*
  * Builds an IdHack planner if eligible, otherwise returns nullptr.

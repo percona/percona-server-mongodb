@@ -33,6 +33,7 @@
 #include "mongo/db/extension/host/document_source_extension_optimizable.h"
 #include "mongo/db/extension/host/load_extension_test_util.h"
 #include "mongo/db/extension/host/load_stub_parsers.h"
+#include "mongo/db/extension/host/signature_validator.h"
 #include "mongo/db/pipeline/document_source.h"
 #include "mongo/db/pipeline/document_source_limit.h"
 #include "mongo/db/pipeline/document_source_match.h"
@@ -42,13 +43,23 @@
 #include "mongo/db/pipeline/lite_parsed_document_source.h"
 #include "mongo/db/pipeline/pipeline_factory.h"
 #include "mongo/db/query/search/mongot_options.h"
+#include "mongo/db/server_options.h"
 #include "mongo/idl/server_parameter_test_controller.h"
 #include "mongo/unittest/death_test.h"
+#include "mongo/unittest/temp_dir.h"
 #include "mongo/unittest/unittest.h"
 
 #include <filesystem>
 
 namespace mongo::extension::host {
+
+namespace {
+const std::string& getPublicKeyPath() {
+    static std::string kPublicKeyPath = mongo::extension::host::test_util::getExtensionDirectory() /
+        "test_extensions_signing_keys" / "test_extensions_signing_public_key.asc";
+    return kPublicKeyPath;
+}
+}  // namespace
 
 class LoadExtensionsTest : public unittest::Test {
 protected:
@@ -63,7 +74,16 @@ protected:
     static inline const std::string kMatchTopNStageName = "$matchTopN";
     static inline const std::string kMatchTopNLibExtensionPath = "libmatch_topN_mongo_extension.so";
 
+    void setUp() override {
+        _previousExtensionsSignaturePublicKeyPath =
+            serverGlobalParams.extensionsSignaturePublicKeyPath;
+        serverGlobalParams.extensionsSignaturePublicKeyPath = getPublicKeyPath();
+    }
     void tearDown() override {
+        if (!_previousExtensionsSignaturePublicKeyPath.empty()) {
+            serverGlobalParams.extensionsSignaturePublicKeyPath =
+                _previousExtensionsSignaturePublicKeyPath;
+        }
         LiteParsedDocumentSource::unregisterParser_forTest(kTestFooStageName);
         ExtensionLoader::unload_forTest("foo");
         LiteParsedDocumentSource::unregisterParser_forTest(kMatchTopNStageName);
@@ -92,6 +112,7 @@ protected:
 
 private:
     RAIIServerParameterControllerForTest _featureFlag{"featureFlagExtensionsAPI", true};
+    std::string _previousExtensionsSignaturePublicKeyPath{""};
 };
 
 TEST_F(LoadExtensionsTest, LoadExtensionErrorCases) {
@@ -103,22 +124,22 @@ TEST_F(LoadExtensionsTest, LoadExtensionErrorCases) {
     // Test that various non-existent extension cases fail with the proper error code.
     ASSERT_THROWS_CODE(ExtensionLoader::load("src", test_util::makeEmptyExtensionConfig("src/")),
                        AssertionException,
-                       10615500);
+                       11528800);
     ASSERT_THROWS_CODE(ExtensionLoader::load("notanextension",
                                              test_util::makeEmptyExtensionConfig("notanextension")),
                        AssertionException,
-                       10615500);
+                       11528800);
     ASSERT_THROWS_CODE(
         ExtensionLoader::load(
             "extension", test_util::makeEmptyExtensionConfig("path/to/nonexistent/extension.so")),
         AssertionException,
-        10615500);
+        11528800);
 
     ASSERT_THROWS_CODE(
         ExtensionLoader::load("notanextension",
                               test_util::makeEmptyExtensionConfig("libnotanextension.so")),
         AssertionException,
-        10615500);
+        11528800);
 
     // no_symbol_bad_extension is missing the get_mongodb_extension symbol definition.
     ASSERT_THROWS_CODE(

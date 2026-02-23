@@ -37,9 +37,11 @@
 #include "mongo/bson/bsontypes_util.h"
 #include "mongo/bson/oid.h"
 #include "mongo/bson/timestamp.h"
+#include "mongo/db/commands/server_status/server_status_metric.h"
 #include "mongo/db/ftdc/config.h"
 #include "mongo/db/ftdc/decompressor.h"
 #include "mongo/db/ftdc/ftdc_test.h"
+#include "mongo/db/topology/cluster_role.h"
 #include "mongo/unittest/unittest.h"
 #include "mongo/util/assert_util.h"
 
@@ -544,6 +546,75 @@ TEST_F(FTDCCompressorTest, TestDoubleValues) {
         BSON("d" << std::numeric_limits<long long>::min()),
         BSON("d" << 0),
     });
+}
+
+namespace {
+/**
+ * Helper to read the ftdc.numSchemaChanges counter value from the global metric tree.
+ * The metric is registered under "metrics.ftdc.numSchemaChanges".
+ */
+long long getSchemaChangeCount() {
+    auto& tree = globalMetricTreeSet()[ClusterRole::None];
+    auto& metricsNode = tree.children().at("metrics");
+    auto& ftdcNode = metricsNode.getSubtree()->children().at("ftdc");
+    auto& schemaChangesNode = ftdcNode.getSubtree()->children().at("numSchemaChanges");
+    auto& metric = schemaChangesNode.getMetric();
+    BSONObjBuilder bob;
+    metric->appendTo(bob, "numSchemaChanges");
+    return bob.obj()["numSchemaChanges"].numberLong();
+}
+}  // namespace
+
+// Test that ftdc.numSchemaChanges metric increments on schema changes
+TEST_F(FTDCCompressorTest, TestSchemaChangeMetricIncrement) {
+    FTDCConfig config;
+    FTDCCompressor c(&config);
+
+    long long initialCount = getSchemaChangeCount();
+
+    // First sample sets the reference document, no schema change expected.
+    auto st = c.addSample(BSON("name" << "joe"
+                                      << "key1" << 33 << "key2" << 42),
+                          Date_t());
+    ASSERT_HAS_SPACE(st);
+
+    // Same schema, no schema change expected.
+    st = c.addSample(BSON("name" << "joe"
+                                 << "key1" << 34 << "key2" << 45),
+                     Date_t());
+    ASSERT_HAS_SPACE(st);
+
+    ASSERT_EQ(getSchemaChangeCount(), initialCount);
+
+    // Add a field - triggers schema change.
+    st = c.addSample(BSON("name" << "joe"
+                                 << "key1" << 34 << "key2" << 45 << "key3" << 47),
+                     Date_t());
+    ASSERT_SCHEMA_CHANGED(st);
+    ASSERT_EQ(getSchemaChangeCount(), initialCount + 1);
+
+    // Rename a field - triggers schema change.
+    st = c.addSample(BSON("name" << "joe"
+                                 << "key1" << 34 << "key5" << 45 << "key3" << 47),
+                     Date_t());
+    ASSERT_SCHEMA_CHANGED(st);
+    ASSERT_EQ(getSchemaChangeCount(), initialCount + 2);
+
+    // Same schema, no schema change expected.
+    st = c.addSample(BSON("name" << "joe"
+                                 << "key1" << 34 << "key5" << 45 << "key3" << 47),
+                     Date_t());
+    ASSERT_HAS_SPACE(st);
+    ASSERT_EQ(getSchemaChangeCount(), initialCount + 2);
+
+    // Change type of a field - triggers schema change.
+    st = c.addSample(BSON("name" << "joe"
+                                 << "key1" << 34 << "key5"
+                                 << "45"
+                                 << "key3" << 47),
+                     Date_t());
+    ASSERT_SCHEMA_CHANGED(st);
+    ASSERT_EQ(getSchemaChangeCount(), initialCount + 3);
 }
 
 }  // namespace mongo

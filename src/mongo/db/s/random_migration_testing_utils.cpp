@@ -203,6 +203,9 @@ boost::optional<BSONObj> findExistingRandomDocument(OperationContext* opCtx,
                                                        acquisition.getCollectionPtr(),
                                                        skPattern,
                                                        /*requireSingleKey=*/true);
+    if (!shardKeyIdx) {
+        return boost::none;
+    }
     FindCommandRequest findCmd(acquisition.nss());
     findCmd.setFilter({});
     BSONObj projection = skPattern;

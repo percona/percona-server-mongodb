@@ -176,6 +176,7 @@ void WiredTigerRecoveryUnit::_abort() {
     }
 
     abortRegisteredChanges();
+    _createdTables.clear();
     _setState(State::kInactive);
 }
 
@@ -1053,6 +1054,10 @@ void WiredTigerRecoveryUnit::setOperationContext(OperationContext* opCtx) {
     if (_opCtx && _session) {
         _session->attachOperationContext(*opCtx);
     }
+}
+
+void WiredTigerRecoveryUnit::onCreateTable(const char* uri) {
+    _createdTables.emplace_back(uri);
 }
 
 void WiredTigerRecoveryUnit::setCacheMaxWaitTimeout(Milliseconds timeout) {

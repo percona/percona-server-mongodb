@@ -46,6 +46,7 @@
 #include "mongo/db/repl/oplog_entry.h"
 #include "mongo/db/repl/oplog_entry_gen.h"
 #include "mongo/db/repl/oplog_entry_or_grouped_inserts.h"
+#include "mongo/db/repl/oplog_entry_test_helpers.h"
 #include "mongo/db/repl/oplog_writer.h"
 #include "mongo/db/repl/optime.h"
 #include "mongo/db/repl/replication_consistency_markers.h"
@@ -397,10 +398,22 @@ CollectionOptions createRecordChangeStreamPreAndPostImagesCollectionOptions();
 void createCollection(OperationContext* opCtx,
                       const NamespaceString& nss,
                       const CollectionOptions& options);
+
+/**
+ * Creates a capped collection with recordIdsReplicated enabled.
+ */
+void createCappedCollection(OperationContext* opCtx, const NamespaceString& nss);
+
 /**
  * Create test collection with UUID.
  */
 UUID createCollectionWithUuid(OperationContext* opCtx, const NamespaceString& nss);
+
+/**
+ * Creates a collection with change stream pre-images enabled.
+ */
+
+void createCollectionWithPreImages(OperationContext* opCtx, const NamespaceString& nss);
 
 /**
  * Create test database.

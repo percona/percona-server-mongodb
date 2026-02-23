@@ -160,7 +160,7 @@ public:
         std::vector<VariantNodeHandle> expanded;
         expanded.reserve(kExpansionSize);
         expanded.emplace_back(
-            new sdk::ExtensionAggStageAstNode(std::make_unique<TransformAggStageAstNode>()));
+            new sdk::ExtensionAggStageAstNodeAdapter(std::make_unique<TransformAggStageAstNode>()));
         return expanded;
     }
 
@@ -205,8 +205,8 @@ public:
         ++expandCalls;
         std::vector<VariantNodeHandle> out;
         out.reserve(kExpansionSize);
-        out.emplace_back(
-            new sdk::ExtensionAggStageParseNode(std::make_unique<TransformAggStageParseNode>()));
+        out.emplace_back(new sdk::ExtensionAggStageParseNodeAdapter(
+            std::make_unique<TransformAggStageParseNode>()));
         return out;
     }
 
@@ -254,7 +254,8 @@ public:
     std::vector<VariantNodeHandle> expand() const override {
         std::vector<VariantNodeHandle> out;
         out.reserve(kExpansionSize);
-        out.emplace_back(new host::HostAggStageParseNode(TransformHostParseNode::make(kMatchSpec)));
+        out.emplace_back(
+            new host::HostAggStageParseNodeAdapter(TransformHostParseNode::make(kMatchSpec)));
         return out;
     }
 
@@ -339,10 +340,11 @@ public:
         std::vector<VariantNodeHandle> out;
         out.reserve(kExpansionSize);
         out.emplace_back(
-            new sdk::ExtensionAggStageAstNode(std::make_unique<TransformAggStageAstNode>()));
+            new sdk::ExtensionAggStageAstNodeAdapter(std::make_unique<TransformAggStageAstNode>()));
+        out.emplace_back(new sdk::ExtensionAggStageParseNodeAdapter(
+            std::make_unique<TransformAggStageParseNode>()));
         out.emplace_back(
-            new sdk::ExtensionAggStageParseNode(std::make_unique<TransformAggStageParseNode>()));
-        out.emplace_back(new host::HostAggStageParseNode(TransformHostParseNode::make(kMatchSpec)));
+            new host::HostAggStageParseNodeAdapter(TransformHostParseNode::make(kMatchSpec)));
         out.emplace_back(
             extension::sdk::HostServicesAPI::getInstance()->createIdLookup(kIdLookupSpec));
         return out;
@@ -435,8 +437,10 @@ public:
     std::vector<VariantNodeHandle> expand() const override {
         std::vector<VariantNodeHandle> out;
         out.reserve(kExpansionSize);
-        out.emplace_back(new sdk::ExtensionAggStageAstNode(std::make_unique<LeafAAstNode>()));
-        out.emplace_back(new sdk::ExtensionAggStageAstNode(std::make_unique<LeafBAstNode>()));
+        out.emplace_back(
+            new sdk::ExtensionAggStageAstNodeAdapter(std::make_unique<LeafAAstNode>()));
+        out.emplace_back(
+            new sdk::ExtensionAggStageAstNodeAdapter(std::make_unique<LeafBAstNode>()));
         return out;
     }
     BSONObj getQueryShape(const QueryShapeOptsHandle&) const override {
@@ -469,8 +473,10 @@ public:
     std::vector<VariantNodeHandle> expand() const override {
         std::vector<VariantNodeHandle> out;
         out.reserve(kExpansionSize);
-        out.emplace_back(new sdk::ExtensionAggStageAstNode(std::make_unique<LeafCAstNode>()));
-        out.emplace_back(new sdk::ExtensionAggStageAstNode(std::make_unique<LeafDAstNode>()));
+        out.emplace_back(
+            new sdk::ExtensionAggStageAstNodeAdapter(std::make_unique<LeafCAstNode>()));
+        out.emplace_back(
+            new sdk::ExtensionAggStageAstNodeAdapter(std::make_unique<LeafDAstNode>()));
         return out;
     }
     BSONObj getQueryShape(const QueryShapeOptsHandle&) const override {
@@ -503,8 +509,10 @@ public:
     std::vector<VariantNodeHandle> expand() const override {
         std::vector<VariantNodeHandle> out;
         out.reserve(kExpansionSize);
-        out.emplace_back(new sdk::ExtensionAggStageParseNode(std::make_unique<MidAParseNode>()));
-        out.emplace_back(new sdk::ExtensionAggStageParseNode(std::make_unique<MidBParseNode>()));
+        out.emplace_back(
+            new sdk::ExtensionAggStageParseNodeAdapter(std::make_unique<MidAParseNode>()));
+        out.emplace_back(
+            new sdk::ExtensionAggStageParseNodeAdapter(std::make_unique<MidBParseNode>()));
         return out;
     }
     BSONObj getQueryShape(const QueryShapeOptsHandle&) const override {
@@ -719,7 +727,7 @@ public:
     std::vector<VariantNodeHandle> expand() const override {
         std::vector<VariantNodeHandle> expanded;
         expanded.reserve(kExpansionSize);
-        expanded.emplace_back(new sdk::ExtensionAggStageAstNode(CountingAst::make()));
+        expanded.emplace_back(new sdk::ExtensionAggStageAstNodeAdapter(CountingAst::make()));
         return expanded;
     }
 
@@ -770,8 +778,8 @@ public:
     std::vector<VariantNodeHandle> expand() const override {
         std::vector<VariantNodeHandle> expanded;
         expanded.reserve(kExpansionSize);
-        expanded.emplace_back(new sdk::ExtensionAggStageAstNode(CountingAst::make()));
-        expanded.emplace_back(new sdk::ExtensionAggStageParseNode(CountingParse::make()));
+        expanded.emplace_back(new sdk::ExtensionAggStageAstNodeAdapter(CountingAst::make()));
+        expanded.emplace_back(new sdk::ExtensionAggStageParseNodeAdapter(CountingParse::make()));
         return expanded;
     }
 
@@ -802,8 +810,8 @@ public:
     std::vector<VariantNodeHandle> expand() const override {
         std::vector<VariantNodeHandle> expanded;
         expanded.reserve(kExpansionSize);
-        expanded.emplace_back(new sdk::ExtensionAggStageAstNode(CountingAst::make()));
-        expanded.emplace_back(new sdk::ExtensionAggStageParseNode(CountingParse::make()));
+        expanded.emplace_back(new sdk::ExtensionAggStageAstNodeAdapter(CountingAst::make()));
+        expanded.emplace_back(new sdk::ExtensionAggStageParseNodeAdapter(CountingParse::make()));
         return expanded;
     }
 
@@ -834,8 +842,8 @@ public:
     std::vector<VariantNodeHandle> expand() const override {
         std::vector<VariantNodeHandle> expanded;
         expanded.reserve(kExpansionSize);
-        expanded.emplace_back(new sdk::ExtensionAggStageAstNode(CountingAst::make()));
-        expanded.emplace_back(new sdk::ExtensionAggStageParseNode(CountingParse::make()));
+        expanded.emplace_back(new sdk::ExtensionAggStageAstNodeAdapter(CountingAst::make()));
+        expanded.emplace_back(new sdk::ExtensionAggStageParseNodeAdapter(CountingParse::make()));
         return expanded;
     }
 
@@ -896,7 +904,8 @@ public:
     std::vector<VariantNodeHandle> expand() const override {
         std::vector<VariantNodeHandle> expanded;
         expanded.reserve(kExpansionSize);
-        expanded.emplace_back(new sdk::ExtensionAggStageAstNode(TransformAggStageAstNode::make()));
+        expanded.emplace_back(
+            new sdk::ExtensionAggStageAstNodeAdapter(TransformAggStageAstNode::make()));
         return expanded;
     }
 
@@ -962,14 +971,15 @@ public:
             // Create a merging pipeline with all three types of VariantDPLHandle.
             std::vector<VariantDPLHandle> elements;
             // Host-defined parse node.
-            elements.emplace_back(new host::HostAggStageParseNode(
+            elements.emplace_back(new host::HostAggStageParseNodeAdapter(
                 TransformHostParseNode::make(BSON("$match" << BSON("a" << 1)))));
             // Extension-defined parse node.
-            elements.emplace_back(new sdk::ExtensionAggStageParseNode(
+            elements.emplace_back(new sdk::ExtensionAggStageParseNodeAdapter(
                 std::make_unique<TransformAggStageParseNode>()));
             // Logical stage handle.
-            elements.emplace_back(extension::LogicalAggStageHandle{
-                new sdk::ExtensionLogicalAggStage(std::make_unique<MergeOnlyDPLLogicalStage>())});
+            elements.emplace_back(
+                extension::LogicalAggStageHandle{new sdk::ExtensionLogicalAggStageAdapter(
+                    std::make_unique<MergeOnlyDPLLogicalStage>())});
             dpl.mergingPipeline = sdk::DPLArrayContainer(std::move(elements));
         }
 

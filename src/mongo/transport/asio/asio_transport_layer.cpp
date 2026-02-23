@@ -296,8 +296,8 @@ public:
         return _ioContext.get_executor();
     }
 
-    void appendStats(BSONObjBuilder& bob) const override {
-        _stats.serialize(&bob);
+    void appendStats(BSONObjBuilder& bob, bool forServerStatus) const override {
+        _stats.serialize(&bob, forServerStatus);
     }
 
 private:

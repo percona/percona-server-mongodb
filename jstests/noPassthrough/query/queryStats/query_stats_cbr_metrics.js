@@ -22,6 +22,7 @@ if (checkSbeFullyEnabled(null)) {
 const dbName = jsTestName();
 const collName = "testColl";
 const automaticCECollName = "automaticCETestColl";
+const multiSolnCollName = "multiSolnTestColl";
 
 /**
  * Verifies that planningTimeMicros is present, in the correct location,
@@ -64,6 +65,7 @@ function runCBRMetricsTests(topologyName, setupFn, teardownFn) {
         let testDB;
         let coll;
         let automaticCEColl;
+        let multiSolnColl;
         let isSbeEnabled;
 
         before(function () {
@@ -97,6 +99,20 @@ function runCBRMetricsTests(topologyName, setupFn, teardownFn) {
             docs.push({a: 8001, b: 8001, c: 1});
             assert.commandWorked(automaticCEColl.insertMany(docs));
             assert.commandWorked(automaticCEColl.createIndexes([{a: 1}, {b: 1}]));
+
+            // Setup collection for testing CBR metrics when CBR returns multiple solutions.
+            // A sparse index is unsupported by CBR's cardinality estimator, so a plan using
+            // the sparse index will be inestimable. We add a regular index that
+            // is estimable so the planner will return >1 accepted solutions.
+            multiSolnColl = testDB[multiSolnCollName];
+            multiSolnColl.drop();
+            const multiSolnDocs = [];
+            for (let i = 0; i < 200; i++) {
+                multiSolnDocs.push({d: i, e: i % 20});
+            }
+            assert.commandWorked(multiSolnColl.insertMany(multiSolnDocs));
+            assert.commandWorked(multiSolnColl.createIndex({d: 1}));
+            assert.commandWorked(multiSolnColl.createIndex({e: 1}, {sparse: true}));
         });
 
         after(function () {
@@ -401,6 +417,79 @@ function runCBRMetricsTests(topologyName, setupFn, teardownFn) {
             }
         });
 
+        it("should have CBR metrics when we return multiple solutions", function () {
+            // When we return multiple accepted solutions (e.g. when CBR encounters a plan it cannot cost, like one using a sparse index),
+            // verify that the CE method used is still captured.
+            let prevCBRConfig;
+            try {
+                FixtureHelpers.mapOnEachShardNode({
+                    db: testDB.getSiblingDB("admin"),
+                    func: (db) => {
+                        prevCBRConfig = getCBRConfig(db);
+                        assert.commandWorked(
+                            db.adminCommand({
+                                setParameter: 1,
+                                featureFlagCostBasedRanker: true,
+                                internalQueryCBRCEMode: "samplingCE",
+                            }),
+                        );
+                    },
+                    primaryNodeOnly: true,
+                });
+
+                // This query matches both indexes: the regular {d: 1} (estimable by CBR)
+                // and the sparse {e: 1} (unsupported by CBR). CBR will return >1 solutions.
+                multiSolnColl.find({d: {$gt: 5}, e: 3}).toArray();
+
+                const stats = getQueryStats(conn, {collName: multiSolnCollName});
+                assert.eq(1, stats.length, `Expected 1 query stats entry: ${tojson(stats)}`);
+
+                const queryPlannerSection = getQueryPlannerMetrics(stats[0].metrics);
+                assert(
+                    queryPlannerSection.hasOwnProperty("costBasedRanker"),
+                    `costBasedRanker section should be present when CBR is used: ${tojson(queryPlannerSection)}`,
+                );
+                const cbrSection = queryPlannerSection.costBasedRanker;
+
+                // TODO SERVER-117707 Remove branch.
+                if (isSbeEnabled) {
+                    assert.eq(cbrSection.cardinalityEstimationMethods, {
+                        Histogram: NumberLong(0),
+                        Sampling: NumberLong(0),
+                        Heuristics: NumberLong(0),
+                        Mixed: NumberLong(0),
+                        Metadata: NumberLong(0),
+                        Code: NumberLong(0),
+                    });
+                } else {
+                    // The best CBR plan (using the regular {d: 1} index) should have its
+                    // Sampling CE method captured even though multiple solutions were returned.
+                    assert.eq(cbrSection.cardinalityEstimationMethods, {
+                        Histogram: NumberLong(0),
+                        Sampling: NumberLong(1),
+                        Heuristics: NumberLong(0),
+                        Mixed: NumberLong(0),
+                        Metadata: NumberLong(0),
+                        Code: NumberLong(0),
+                    });
+                    assert.gt(
+                        cbrSection.nDocsSampled.sum,
+                        0,
+                        `nDocsSampled should be positive when CBR is used: ${tojson(cbrSection)}`,
+                    );
+                }
+            } finally {
+                // Reset knobs to defaults on all nodes.
+                FixtureHelpers.mapOnEachShardNode({
+                    db: testDB.getSiblingDB("admin"),
+                    func: (db) => {
+                        restoreCBRConfig(db, prevCBRConfig);
+                    },
+                    primaryNodeOnly: true,
+                });
+            }
+        });
+
         it("should have no CBR metrics with automaticCE+fallback when we do not hit the CBR fallback", function () {
             let prevCBRConfig;
             try {
@@ -522,6 +611,91 @@ function runCBRMetricsTests(topologyName, setupFn, teardownFn) {
                     );
                 }
             } finally {
+                // Reset knobs to defaults on all nodes.
+                FixtureHelpers.mapOnEachShardNode({
+                    db: testDB.getSiblingDB("admin"),
+                    func: (db) => {
+                        restoreCBRConfig(db, prevCBRConfig);
+                    },
+                    primaryNodeOnly: true,
+                });
+            }
+        });
+
+        it("should have no ce methods with automaticCE+fallback when we hit the CBR fallback with multiple solutions", function () {
+            // CBRForNoMPResultsStrategy will run the MP trial period first. There will be no results produced, so we invoke CBR.
+            // CBR encounters a sparse index (unsupported) alongside regular indexes, so we return >1 accepted solutions.
+            // We then resume MP which picks a winner from its own (separately enumerated)
+            // plans. In this scenario, no cardinalityEstimationMethods are recorded because MP picks the best plan, but nDocsSampled is
+            // positive because CBR's sampling phase will set it directly.
+            let prevCBRConfig;
+            const sparseIdxSpec = {a: 1, b: 1};
+            try {
+                // We temporarily add a sparse compound index {a: 1, b: 1}. All docs have both fields so the index has 15000+ entries, which is enough that the MP trial budget is exhausted before finding the rare c:1
+                // matches. CBR cannot cost the sparse index, producing multiple solutions.
+                assert.commandWorked(automaticCEColl.createIndex(sparseIdxSpec, {sparse: true}));
+
+                FixtureHelpers.mapOnEachShardNode({
+                    db: testDB.getSiblingDB("admin"),
+                    func: (db) => {
+                        prevCBRConfig = getCBRConfig(db);
+                        assert.commandWorked(
+                            db.adminCommand({
+                                setParameter: 1,
+                                featureFlagCostBasedRanker: true,
+                                internalQueryCBRCEMode: "automaticCE",
+                                automaticCEPlanRankingStrategy: "CBRForNoMultiplanningResults",
+                            }),
+                        );
+                    },
+                    primaryNodeOnly: true,
+                });
+
+                // c: 1 matches only 2 docs (a=7001 and a=8001) out of 15000+. All plans
+                // (using {a:1}, {b:1}, or the sparse {a:1,b:1}) must scan thousands of
+                // entries before finding a match, so the capped MP trial produces 0 results,
+                // triggering the CBR fallback.
+                automaticCEColl.find({a: {$gte: 3}, b: {$gte: 3}, c: 1}).toArray();
+
+                const stats = getQueryStats(conn, {collName: automaticCECollName});
+                assert.eq(1, stats.length, `Expected 1 query stats entry: ${tojson(stats)}`);
+
+                const queryPlannerSection = getQueryPlannerMetrics(stats[0].metrics);
+                assert(
+                    queryPlannerSection.hasOwnProperty("costBasedRanker"),
+                    `costBasedRanker section should be present: ${tojson(queryPlannerSection)}`,
+                );
+                const cbrSection = queryPlannerSection.costBasedRanker;
+
+                // cardinalityEstimationMethods should be all zeros: the MP winner's root
+                // is not in the CBR estimates map.
+                assert.eq(
+                    cbrSection.cardinalityEstimationMethods,
+                    {
+                        Histogram: NumberLong(0),
+                        Sampling: NumberLong(0),
+                        Heuristics: NumberLong(0),
+                        Mixed: NumberLong(0),
+                        Metadata: NumberLong(0),
+                        Code: NumberLong(0),
+                    },
+                    `cardinalityEstimationMethods should be all zeros when CBR falls back to MP: ${tojson(cbrSection)}`,
+                );
+
+                // TODO SERVER-117707 Remove branch.
+                if (!isSbeEnabled) {
+                    // nDocsSampled should be positive because CBR's sampling phase executed
+                    // (it sets nDocsSampled directly on CurOp), even though the final winner
+                    // was picked by MP.
+                    assert.gt(
+                        cbrSection.nDocsSampled.sum,
+                        0,
+                        `nDocsSampled should be positive because CBR sampled: ${tojson(cbrSection)}`,
+                    );
+                }
+            } finally {
+                // Drop the temporary sparse index so other tests are unaffected.
+                automaticCEColl.dropIndex(sparseIdxSpec);
                 // Reset knobs to defaults on all nodes.
                 FixtureHelpers.mapOnEachShardNode({
                     db: testDB.getSiblingDB("admin"),

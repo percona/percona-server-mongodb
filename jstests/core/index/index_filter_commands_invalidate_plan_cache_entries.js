@@ -19,11 +19,11 @@
  * ]
  */
 import {getPlanCacheKeyFromShape} from "jstests/libs/query/analyze_plan.js";
-import {checkSbeFullFeatureFlagEnabled} from "jstests/libs/query/sbe_util.js";
+import {sbePlanCacheEnabled} from "jstests/libs/query/sbe_util.js";
 
 // For testing convenience this variable is made an integer "1" if SBE is fully enabled, because the
 // expected amount of plan cache entries differs between the SBE plan cache and the classic one.
-const isUsingSbePlanCache = checkSbeFullFeatureFlagEnabled(db) ? 1 : 0;
+const isUsingSbePlanCache = sbePlanCacheEnabled(db) ? 1 : 0;
 
 const collName = "index_filter_commands_invalidate_plan_cache_entries";
 const coll = db[collName];

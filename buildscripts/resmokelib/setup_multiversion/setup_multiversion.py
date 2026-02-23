@@ -15,7 +15,7 @@ import subprocess
 import sys
 import time
 from itertools import chain
-from typing import Any, Dict, List, NamedTuple, Optional
+from typing import Any, NamedTuple, Optional
 
 import distro
 import yaml
@@ -71,7 +71,7 @@ def get_merge_base_commit(version: str, logger: logging.Logger) -> Optional[str]
 class EvgURLInfo(NamedTuple):
     """Wrapper around compile URLs with metadata."""
 
-    urls: Dict[str, Any] = {}
+    urls: dict[str, Any] = {}
     evg_version_id: str = None
 
 
@@ -173,7 +173,7 @@ class SetupMultiversion(Subcommand):
 
     def _get_release_versions(
         self, install_last_lts: Optional[bool], install_last_continuous: Optional[bool]
-    ) -> List[str]:
+    ) -> list[str]:
         """Return last-LTS and/or last-continuous versions."""
         out = []
         if not os.path.isfile(
@@ -338,7 +338,7 @@ class SetupMultiversion(Subcommand):
             "Finished writing binary paths on Windows to %s", config.WINDOWS_BIN_PATHS_FILE
         )
 
-    def _write_evg_versions_file(self, file_name: str, versions: List[str]):
+    def _write_evg_versions_file(self, file_name: str, versions: list[str]):
         with open(file_name, "a") as out:
             out.write("\n".join(versions))
 

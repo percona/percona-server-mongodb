@@ -90,7 +90,7 @@ protected:
     NamespaceString _nss = NamespaceString::createNamespaceString_forTest(
         boost::none, "document_source_extension_test");
 
-    sdk::ExtensionAggStageDescriptor _transformStaticDescriptor{
+    sdk::ExtensionAggStageDescriptorAdapter _transformStaticDescriptor{
         sdk::shared_test_stages::TransformAggStageDescriptor::make()};
 
     static inline BSONObj kValidSpec = BSON(
@@ -129,7 +129,7 @@ TEST_F(DocumentSourceExtensionOptimizableTest, ParseTransformSuccess) {
 }
 
 TEST_F(DocumentSourceExtensionOptimizableTest, ExpandToExtAst) {
-    auto rootParseNode = new sdk::ExtensionAggStageParseNode(
+    auto rootParseNode = new sdk::ExtensionAggStageParseNodeAdapter(
         std::make_unique<sdk::shared_test_stages::ExpandToExtAstParseNode>());
     AggStageParseNodeHandle rootHandle{rootParseNode};
     BSONObj stageBson = createDummySpecFromStageName(sdk::shared_test_stages::kExpandToExtAstName);
@@ -147,7 +147,7 @@ TEST_F(DocumentSourceExtensionOptimizableTest, ExpandToExtAst) {
 }
 
 TEST_F(DocumentSourceExtensionOptimizableTest, ExpandToExtParse) {
-    auto rootParseNode = new sdk::ExtensionAggStageParseNode(
+    auto rootParseNode = new sdk::ExtensionAggStageParseNodeAdapter(
         std::make_unique<sdk::shared_test_stages::ExpandToExtParseParseNode>());
     AggStageParseNodeHandle rootHandle{rootParseNode};
     BSONObj stageBson =
@@ -166,7 +166,7 @@ TEST_F(DocumentSourceExtensionOptimizableTest, ExpandToExtParse) {
 }
 
 TEST_F(DocumentSourceExtensionOptimizableTest, ExpandToHostParse) {
-    auto rootParseNode = new sdk::ExtensionAggStageParseNode(
+    auto rootParseNode = new sdk::ExtensionAggStageParseNodeAdapter(
         std::make_unique<sdk::shared_test_stages::ExpandToHostParseParseNode>());
     AggStageParseNodeHandle rootHandle{rootParseNode};
     BSONObj stageBson =
@@ -190,7 +190,7 @@ TEST_F(DocumentSourceExtensionOptimizableTest, ExpandToHostParse) {
 }
 
 TEST_F(DocumentSourceExtensionOptimizableTest, ExpandToMixed) {
-    auto rootParseNode = new sdk::ExtensionAggStageParseNode(
+    auto rootParseNode = new sdk::ExtensionAggStageParseNodeAdapter(
         std::make_unique<sdk::shared_test_stages::ExpandToMixedParseNode>());
     AggStageParseNodeHandle rootHandle{rootParseNode};
     BSONObj stageBson = createDummySpecFromStageName(sdk::shared_test_stages::kExpandToMixedName);
@@ -227,7 +227,7 @@ TEST_F(DocumentSourceExtensionOptimizableTest, ExpandToMixed) {
 TEST_F(DocumentSourceExtensionOptimizableTest, ExpandedPipelineIsComputedOnce) {
     sdk::shared_test_stages::ExpandToExtParseParseNode::expandCalls = 0;
 
-    auto rootParseNode = new sdk::ExtensionAggStageParseNode(
+    auto rootParseNode = new sdk::ExtensionAggStageParseNodeAdapter(
         std::make_unique<sdk::shared_test_stages::ExpandToExtParseParseNode>());
     AggStageParseNodeHandle rootHandle{rootParseNode};
     BSONObj stageBson =
@@ -265,7 +265,7 @@ public:
         std::vector<VariantNodeHandle> out;
         out.reserve(kExpansionSize);
         // $querySettings stage expects a document as argument
-        out.emplace_back(new host::HostAggStageParseNode(
+        out.emplace_back(new host::HostAggStageParseNodeAdapter(
             sdk::shared_test_stages::TransformHostParseNode::make(kBadQuerySettingsSpec)));
         return out;
     }
@@ -281,7 +281,7 @@ public:
 }  // namespace
 
 TEST_F(DocumentSourceExtensionOptimizableTest, ExpandToHostAst) {
-    auto rootParseNode = new sdk::ExtensionAggStageParseNode(
+    auto rootParseNode = new sdk::ExtensionAggStageParseNodeAdapter(
         std::make_unique<sdk::shared_test_stages::ExpandToHostAstParseNode>());
     AggStageParseNodeHandle rootHandle{rootParseNode};
 
@@ -300,8 +300,8 @@ TEST_F(DocumentSourceExtensionOptimizableTest, ExpandToHostAst) {
 }
 
 TEST_F(DocumentSourceExtensionOptimizableTest, ExpandPropagatesHostLiteParseFailure) {
-    auto* rootParseNode =
-        new sdk::ExtensionAggStageParseNode(std::make_unique<ExpandToHostParseBadSpecParseNode>());
+    auto* rootParseNode = new sdk::ExtensionAggStageParseNodeAdapter(
+        std::make_unique<ExpandToHostParseBadSpecParseNode>());
     AggStageParseNodeHandle rootHandle{rootParseNode};
 
     BSONObj stageBson = createDummySpecFromStageName(kExpandToHostBadSpecName);
@@ -315,7 +315,7 @@ TEST_F(DocumentSourceExtensionOptimizableTest, ExpandPropagatesHostLiteParseFail
 }
 
 TEST_F(DocumentSourceExtensionOptimizableTest, ExpandRecursesMultipleLevels) {
-    auto rootParseNode = new sdk::ExtensionAggStageParseNode(
+    auto rootParseNode = new sdk::ExtensionAggStageParseNodeAdapter(
         std::make_unique<sdk::shared_test_stages::TopParseNode>());
     AggStageParseNodeHandle rootHandle{rootParseNode};
     BSONObj stageBson = createDummySpecFromStageName(sdk::shared_test_stages::kTopName);
@@ -390,11 +390,11 @@ public:
         std::vector<VariantNodeHandle> out;
         out.reserve(1);
         if (_remaining > 0) {
-            out.emplace_back(new sdk::ExtensionAggStageParseNode(
+            out.emplace_back(new sdk::ExtensionAggStageParseNodeAdapter(
                 std::make_unique<DepthChainParseNode>(_remaining - 1)));
         } else {
             out.emplace_back(
-                new sdk::ExtensionAggStageAstNode(std::make_unique<DepthLeafAstNode>()));
+                new sdk::ExtensionAggStageAstNodeAdapter(std::make_unique<DepthLeafAstNode>()));
         }
         return out;
     }
@@ -424,7 +424,7 @@ public:
         std::vector<VariantNodeHandle> out;
         out.reserve(1);
         out.emplace_back(
-            new sdk::ExtensionAggStageParseNode(std::make_unique<AdjacentCycleParseNode>()));
+            new sdk::ExtensionAggStageParseNodeAdapter(std::make_unique<AdjacentCycleParseNode>()));
         return out;
     }
 
@@ -479,14 +479,16 @@ public:
 std::vector<VariantNodeHandle> NodeAParseNode::expand() const {
     std::vector<VariantNodeHandle> out;
     out.reserve(1);
-    out.emplace_back(new sdk::ExtensionAggStageParseNode(std::make_unique<NodeBParseNode>()));
+    out.emplace_back(
+        new sdk::ExtensionAggStageParseNodeAdapter(std::make_unique<NodeBParseNode>()));
     return out;
 }
 
 std::vector<VariantNodeHandle> NodeBParseNode::expand() const {
     std::vector<VariantNodeHandle> out;
     out.reserve(1);
-    out.emplace_back(new sdk::ExtensionAggStageParseNode(std::make_unique<NodeAParseNode>()));
+    out.emplace_back(
+        new sdk::ExtensionAggStageParseNodeAdapter(std::make_unique<NodeAParseNode>()));
     return out;
 }
 
@@ -503,9 +505,9 @@ public:
     std::vector<VariantNodeHandle> expand() const override {
         std::vector<VariantNodeHandle> out;
         out.reserve(2);
-        out.emplace_back(new sdk::ExtensionAggStageParseNode(
+        out.emplace_back(new sdk::ExtensionAggStageParseNodeAdapter(
             std::make_unique<sdk::shared_test_stages::TransformAggStageParseNode>()));
-        out.emplace_back(new sdk::ExtensionAggStageParseNode(
+        out.emplace_back(new sdk::ExtensionAggStageParseNodeAdapter(
             std::make_unique<sdk::shared_test_stages::TransformAggStageParseNode>()));
         return out;
     }
@@ -524,7 +526,7 @@ TEST_F(DocumentSourceExtensionOptimizableTest, ExpandToMaxDepthSucceeds) {
     // Chain length 10 -> exactly hits kMaxExpansionDepth (default 10) on deepest frame.
     auto depth = host::DocumentSourceExtensionOptimizable::LiteParsedExpandable::kMaxExpansionDepth;
     auto* rootParseNode =
-        new sdk::ExtensionAggStageParseNode(std::make_unique<DepthChainParseNode>(depth));
+        new sdk::ExtensionAggStageParseNodeAdapter(std::make_unique<DepthChainParseNode>(depth));
     AggStageParseNodeHandle rootHandle{rootParseNode};
 
     BSONObj stageBson = createDummySpecFromStageName(makeRecursiveDepthName(depth));
@@ -547,7 +549,7 @@ DEATH_TEST_F(DocumentSourceExtensionOptimizableTestDeathTest,
     auto depth =
         host::DocumentSourceExtensionOptimizable::LiteParsedExpandable::kMaxExpansionDepth + 1;
     auto* rootParseNode =
-        new sdk::ExtensionAggStageParseNode(std::make_unique<DepthChainParseNode>(depth));
+        new sdk::ExtensionAggStageParseNodeAdapter(std::make_unique<DepthChainParseNode>(depth));
     AggStageParseNodeHandle rootHandle{rootParseNode};
 
     BSONObj stageBson = createDummySpecFromStageName(makeRecursiveDepthName(depth));
@@ -560,7 +562,7 @@ DEATH_TEST_REGEX_F(DocumentSourceExtensionOptimizableTestDeathTest,
                    "10955801.*Cycle detected during stage expansion for "
                    "stage.*\\$adjacentCycle.*\\$adjacentCycle -> \\$adjacentCycle") {
     auto* rootParseNode =
-        new sdk::ExtensionAggStageParseNode(std::make_unique<AdjacentCycleParseNode>());
+        new sdk::ExtensionAggStageParseNodeAdapter(std::make_unique<AdjacentCycleParseNode>());
     AggStageParseNodeHandle rootHandle{rootParseNode};
     BSONObj stageBson = createDummySpecFromStageName(kAdjCycleName);
 
@@ -572,7 +574,8 @@ DEATH_TEST_REGEX_F(DocumentSourceExtensionOptimizableTestDeathTest,
                    ExpandNonAdjacentCycleFails,
                    "10955801.*Cycle detected during stage expansion for "
                    "stage.*\\$nodeB.*\\$nodeB -> \\$nodeA -> \\$nodeB") {
-    auto* rootParseNode = new sdk::ExtensionAggStageParseNode(std::make_unique<NodeAParseNode>());
+    auto* rootParseNode =
+        new sdk::ExtensionAggStageParseNodeAdapter(std::make_unique<NodeAParseNode>());
     AggStageParseNodeHandle rootHandle{rootParseNode};
     BSONObj stageBson = createDummySpecFromStageName(kNodeAName);
 
@@ -581,8 +584,8 @@ DEATH_TEST_REGEX_F(DocumentSourceExtensionOptimizableTestDeathTest,
 }
 
 TEST_F(DocumentSourceExtensionOptimizableTest, ExpandSameStageOnDifferentBranchesSucceeds) {
-    auto* rootParseNode =
-        new sdk::ExtensionAggStageParseNode(std::make_unique<TopSameNameChildrenParseNode>());
+    auto* rootParseNode = new sdk::ExtensionAggStageParseNodeAdapter(
+        std::make_unique<TopSameNameChildrenParseNode>());
     AggStageParseNodeHandle rootHandle{rootParseNode};
     BSONObj stageBson = createDummySpecFromStageName(kTopSameNameChildren);
 
@@ -623,9 +626,9 @@ public:
     std::vector<VariantNodeHandle> expand() const override {
         std::vector<VariantNodeHandle> expanded;
         expanded.reserve(kExpansionSize);
-        expanded.emplace_back(new sdk::ExtensionAggStageAstNode(
+        expanded.emplace_back(new sdk::ExtensionAggStageAstNodeAdapter(
             std::make_unique<sdk::shared_test_stages::TransformAggStageAstNode>()));
-        expanded.emplace_back(new sdk::ExtensionAggStageAstNode(
+        expanded.emplace_back(new sdk::ExtensionAggStageAstNodeAdapter(
             std::make_unique<sdk::shared_test_stages::SearchLikeSourceAggStageAstNode>()));
         return expanded;
     }
@@ -657,9 +660,9 @@ public:
     std::vector<VariantNodeHandle> expand() const override {
         std::vector<VariantNodeHandle> expanded;
         expanded.reserve(kExpansionSize);
-        expanded.emplace_back(new sdk::ExtensionAggStageAstNode(
+        expanded.emplace_back(new sdk::ExtensionAggStageAstNodeAdapter(
             std::make_unique<sdk::shared_test_stages::SearchLikeSourceAggStageAstNode>()));
-        expanded.emplace_back(new sdk::ExtensionAggStageAstNode(
+        expanded.emplace_back(new sdk::ExtensionAggStageAstNodeAdapter(
             std::make_unique<sdk::shared_test_stages::TransformAggStageAstNode>()));
         return expanded;
     }
@@ -690,7 +693,7 @@ public:
     std::vector<VariantNodeHandle> expand() const override {
         std::vector<VariantNodeHandle> expanded;
         expanded.reserve(kExpansionSize);
-        expanded.emplace_back(new host::HostAggStageParseNode(
+        expanded.emplace_back(new host::HostAggStageParseNodeAdapter(
             sdk::shared_test_stages::TransformHostParseNode::make(kSearchSpec)));
         return expanded;
     }
@@ -806,17 +809,17 @@ public:
     std::vector<VariantNodeHandle> expand() const override {
         std::vector<VariantNodeHandle> expanded;
         expanded.reserve(kExpansionSize);
-        expanded.emplace_back(new host::HostAggStageParseNode(
+        expanded.emplace_back(new host::HostAggStageParseNodeAdapter(
             sdk::shared_test_stages::TransformHostParseNode::make(kSearchSpec)));
-        expanded.emplace_back(new sdk::ExtensionAggStageAstNode(
+        expanded.emplace_back(new sdk::ExtensionAggStageAstNodeAdapter(
             std::make_unique<SingleActionRequiredPrivilegesAggStageAstNode>()));
-        expanded.emplace_back(new sdk::ExtensionAggStageAstNode(
+        expanded.emplace_back(new sdk::ExtensionAggStageAstNodeAdapter(
             std::make_unique<sdk::shared_test_stages::TransformAggStageAstNode>()));
-        expanded.emplace_back(new sdk::ExtensionAggStageAstNode(
+        expanded.emplace_back(new sdk::ExtensionAggStageAstNodeAdapter(
             std::make_unique<MultipleActionsRequiredPrivilegesAggStageAstNode>()));
-        expanded.emplace_back(new sdk::ExtensionAggStageAstNode(
+        expanded.emplace_back(new sdk::ExtensionAggStageAstNodeAdapter(
             std::make_unique<MultipleRequiredPrivilegesAggStageAstNode>()));
-        expanded.emplace_back(new sdk::ExtensionAggStageAstNode(
+        expanded.emplace_back(new sdk::ExtensionAggStageAstNodeAdapter(
             std::make_unique<sdk::shared_test_stages::CustomPropertiesAstNode>(
                 BSON("position" << "none"))));
         return expanded;
@@ -962,7 +965,7 @@ public:
 }  // namespace
 
 TEST_F(DocumentSourceExtensionOptimizableTest, TransformAstNodeWithDefaultGetPropertiesSucceeds) {
-    auto astNode = new sdk::ExtensionAggStageAstNode(
+    auto astNode = new sdk::ExtensionAggStageAstNodeAdapter(
         sdk::shared_test_stages::TransformAggStageAstNode::make());
     auto handle = AggStageAstNodeHandle{astNode};
 
@@ -976,7 +979,7 @@ TEST_F(DocumentSourceExtensionOptimizableTest, TransformAstNodeWithDefaultGetPro
 
 TEST_F(DocumentSourceExtensionOptimizableTest,
        TransformParseNodeInheritsDefaultGetPropertiesFromAstNode) {
-    auto parseNode = new sdk::ExtensionAggStageParseNode(
+    auto parseNode = new sdk::ExtensionAggStageParseNodeAdapter(
         sdk::shared_test_stages::TransformAggStageParseNode::make());
     auto handle = AggStageParseNodeHandle{parseNode};
     BSONObj stageBson = createDummySpecFromStageName(sdk::shared_test_stages::kTransformName);
@@ -990,7 +993,7 @@ TEST_F(DocumentSourceExtensionOptimizableTest,
 }
 
 TEST_F(DocumentSourceExtensionOptimizableTest, TransformAggStageAstNodeSucceeds) {
-    auto astNode = new sdk::ExtensionAggStageAstNode(
+    auto astNode = new sdk::ExtensionAggStageAstNodeAdapter(
         sdk::shared_test_stages::TransformAggStageAstNode::make());
     auto handle = AggStageAstNodeHandle{astNode};
 
@@ -1000,7 +1003,7 @@ TEST_F(DocumentSourceExtensionOptimizableTest, TransformAggStageAstNodeSucceeds)
 }
 
 TEST_F(DocumentSourceExtensionOptimizableTest, SearchLikeSourceAggStageAstNode) {
-    auto astNode = new sdk::ExtensionAggStageAstNode(
+    auto astNode = new sdk::ExtensionAggStageAstNodeAdapter(
         sdk::shared_test_stages::SearchLikeSourceAggStageAstNode::make());
     auto handle = AggStageAstNodeHandle{astNode};
 
@@ -1011,7 +1014,7 @@ TEST_F(DocumentSourceExtensionOptimizableTest, SearchLikeSourceAggStageAstNode) 
 
 TEST_F(DocumentSourceExtensionOptimizableTest,
        TransformAggStageParseNodeInheritsInitialSourceFromFirstAstNode) {
-    auto parseNode = new sdk::ExtensionAggStageParseNode(TransformAggStageParseNode::make());
+    auto parseNode = new sdk::ExtensionAggStageParseNodeAdapter(TransformAggStageParseNode::make());
     auto handle = AggStageParseNodeHandle{parseNode};
     BSONObj stageBson = createDummySpecFromStageName(sdk::shared_test_stages::kTransformName);
 
@@ -1022,7 +1025,8 @@ TEST_F(DocumentSourceExtensionOptimizableTest,
 
 TEST_F(DocumentSourceExtensionOptimizableTest,
        SearchLikeSourceAggStageParseNodeInheritsInitialSourceFromFirstAstNode) {
-    auto parseNode = new sdk::ExtensionAggStageParseNode(SearchLikeSourceAggStageParseNode::make());
+    auto parseNode =
+        new sdk::ExtensionAggStageParseNodeAdapter(SearchLikeSourceAggStageParseNode::make());
     auto handle = AggStageParseNodeHandle{parseNode};
     BSONObj stageBson =
         createDummySpecFromStageName(sdk::shared_test_stages::kSearchLikeSourceStageName);
@@ -1033,7 +1037,7 @@ TEST_F(DocumentSourceExtensionOptimizableTest,
 }
 
 TEST_F(DocumentSourceExtensionOptimizableTest, ExpandToMatchParseNodeInheritsPropertiesFromMatch) {
-    auto parseNode = new sdk::ExtensionAggStageParseNode(
+    auto parseNode = new sdk::ExtensionAggStageParseNodeAdapter(
         std::make_unique<sdk::shared_test_stages::ExpandToHostParseParseNode>());
     auto handle = AggStageParseNodeHandle{parseNode};
     BSONObj stageBson =
@@ -1049,8 +1053,8 @@ TEST_F(DocumentSourceExtensionOptimizableTest, ExpandToMatchParseNodeInheritsPro
 
 TEST_F(DocumentSourceExtensionOptimizableTest,
        ExpandToSearchParseNodeInheritsPropertiesFromSearch) {
-    auto parseNode =
-        new sdk::ExtensionAggStageParseNode(std::make_unique<ExpandToSearchAggStageParseNode>());
+    auto parseNode = new sdk::ExtensionAggStageParseNodeAdapter(
+        std::make_unique<ExpandToSearchAggStageParseNode>());
     auto handle = AggStageParseNodeHandle{parseNode};
     BSONObj stageBson = createDummySpecFromStageName(kExpandToSearchName);
 
@@ -1074,7 +1078,7 @@ TEST_F(DocumentSourceExtensionOptimizableTest,
 
 TEST_F(DocumentSourceExtensionOptimizableTest, EmptyRequiredPrivilegesAstNodeSucceeds) {
     auto astNode =
-        new sdk::ExtensionAggStageAstNode(EmptyRequiredPrivilegesAggStageAstNode::make());
+        new sdk::ExtensionAggStageAstNodeAdapter(EmptyRequiredPrivilegesAggStageAstNode::make());
     auto handle = AggStageAstNodeHandle{astNode};
 
     host::DocumentSourceExtensionOptimizable::LiteParsedExpanded lp(
@@ -1087,8 +1091,8 @@ TEST_F(DocumentSourceExtensionOptimizableTest, EmptyRequiredPrivilegesAstNodeSuc
 
 TEST_F(DocumentSourceExtensionOptimizableTest,
        SingleRequiredPrivilegesAstNodeProducesFindPrivilege) {
-    auto astNode =
-        new sdk::ExtensionAggStageAstNode(SingleActionRequiredPrivilegesAggStageAstNode::make());
+    auto astNode = new sdk::ExtensionAggStageAstNodeAdapter(
+        SingleActionRequiredPrivilegesAggStageAstNode::make());
     auto handle = AggStageAstNodeHandle{astNode};
 
     host::DocumentSourceExtensionOptimizable::LiteParsedExpanded lp(
@@ -1110,8 +1114,8 @@ TEST_F(DocumentSourceExtensionOptimizableTest,
 
 TEST_F(DocumentSourceExtensionOptimizableTest,
        MultipleActionsRequiredPrivilegesAstNodeProducesUnionOfActions) {
-    auto astNode =
-        new sdk::ExtensionAggStageAstNode(MultipleActionsRequiredPrivilegesAggStageAstNode::make());
+    auto astNode = new sdk::ExtensionAggStageAstNodeAdapter(
+        MultipleActionsRequiredPrivilegesAggStageAstNode::make());
     auto handle = AggStageAstNodeHandle{astNode};
 
     host::DocumentSourceExtensionOptimizable::LiteParsedExpanded lp(
@@ -1137,7 +1141,7 @@ TEST_F(DocumentSourceExtensionOptimizableTest,
 TEST_F(DocumentSourceExtensionOptimizableTest,
        MultipleRequiredPrivilegesAstNodeProducesUnionOfPrivileges) {
     auto astNode =
-        new sdk::ExtensionAggStageAstNode(MultipleRequiredPrivilegesAggStageAstNode::make());
+        new sdk::ExtensionAggStageAstNodeAdapter(MultipleRequiredPrivilegesAggStageAstNode::make());
     auto handle = AggStageAstNodeHandle{astNode};
 
     host::DocumentSourceExtensionOptimizable::LiteParsedExpanded lp(
@@ -1167,7 +1171,7 @@ TEST_F(DocumentSourceExtensionOptimizableTest,
     //   4) MultipleActionsRequiredPrivilegesAggStageAstNode -> find, listIndexes, planCacheRead
     //   6) MultipleChildrenRequiredPrivilegesAggStageParseNode -> find, indexStats
     //   6) NonePosAggStageAstNode -> no privileges
-    auto parseNode = new sdk::ExtensionAggStageParseNode(
+    auto parseNode = new sdk::ExtensionAggStageParseNodeAdapter(
         MultipleChildrenRequiredPrivilegesAggStageParseNode::make());
     auto handle = AggStageParseNodeHandle{parseNode};
     BSONObj stageBson =
@@ -1197,7 +1201,7 @@ TEST_F(DocumentSourceExtensionOptimizableTest,
 DEATH_TEST_F(DocumentSourceExtensionOptimizableTestDeathTest,
              EmptyActionsArrayRequiredPrivilegesAggStageAstNodeFails,
              "11350600") {
-    auto astNode = new sdk::ExtensionAggStageAstNode(
+    auto astNode = new sdk::ExtensionAggStageAstNodeAdapter(
         EmptyActionsArrayRequiredPrivilegesAggStageAstNode::make());
     auto handle = AggStageAstNodeHandle{astNode};
 
@@ -1220,7 +1224,7 @@ TEST_F(DocumentSourceExtensionOptimizableTest,
             .firstElement(),
         getExpCtx());
 
-    auto astNode = new sdk::ExtensionAggStageAstNode(
+    auto astNode = new sdk::ExtensionAggStageAstNodeAdapter(
         sdk::shared_test_stages::AddFruitsToDocumentsAstNode::make());
     auto astHandle = AggStageAstNodeHandle(astNode);
 
@@ -1283,11 +1287,11 @@ TEST_F(
             .firstElement(),
         getExpCtx());
 
-    auto firstAstNode = new sdk::ExtensionAggStageAstNode(
+    auto firstAstNode = new sdk::ExtensionAggStageAstNodeAdapter(
         sdk::shared_test_stages::AddFruitsToDocumentsAstNode::make());
     auto firstAstHandle = AggStageAstNodeHandle(firstAstNode);
 
-    auto secondAstNode = new sdk::ExtensionAggStageAstNode(
+    auto secondAstNode = new sdk::ExtensionAggStageAstNodeAdapter(
         sdk::shared_test_stages::AddFruitsToDocumentsAstNode::make());
     auto secondAstHandle = AggStageAstNodeHandle(secondAstNode);
 
@@ -1358,7 +1362,7 @@ TEST_F(
 
 TEST_F(DocumentSourceExtensionOptimizableTest,
        ShouldPropagateValidGetNextResultsForTransformExtensionStageWithSourceExtensionStage) {
-    auto sourceAstNode = new sdk::ExtensionAggStageAstNode(
+    auto sourceAstNode = new sdk::ExtensionAggStageAstNodeAdapter(
         sdk::shared_test_stages::FruitsAsDocumentsAstNode::make());
     auto sourceAstHandle = AggStageAstNodeHandle(sourceAstNode);
 
@@ -1367,7 +1371,7 @@ TEST_F(DocumentSourceExtensionOptimizableTest,
 
     auto sourceStage = exec::agg::buildStage(sourceOptimizable);
 
-    auto transformAstNode = new sdk::ExtensionAggStageAstNode(
+    auto transformAstNode = new sdk::ExtensionAggStageAstNodeAdapter(
         sdk::shared_test_stages::AddFruitsToDocumentsAstNode::make());
     auto transformAstHandle = AggStageAstNodeHandle(transformAstNode);
 
@@ -1412,7 +1416,7 @@ TEST_F(DocumentSourceExtensionOptimizableTest, ShouldEofWhenSourceStageEofsEarly
     auto docSourcesList = DocumentSourceDocuments::createFromBson(
         BSON("$documents" << BSON_ARRAY(BSON("sourceField" << 1))).firstElement(), getExpCtx());
 
-    auto astNode = new sdk::ExtensionAggStageAstNode(
+    auto astNode = new sdk::ExtensionAggStageAstNodeAdapter(
         sdk::shared_test_stages::AddFruitsToDocumentsAstNode::make());
     auto astHandle = AggStageAstNodeHandle(astNode);
 
@@ -1470,7 +1474,7 @@ TEST_F(DocumentSourceExtensionOptimizableTest,
             .firstElement(),
         getExpCtx());
 
-    auto firstAstNode = new sdk::ExtensionAggStageAstNode(
+    auto firstAstNode = new sdk::ExtensionAggStageAstNodeAdapter(
         sdk::shared_test_stages::AddFruitsToDocumentsAstNode::make());
     auto firstAstHandle = AggStageAstNodeHandle(firstAstNode);
 
@@ -1528,7 +1532,7 @@ TEST_F(DocumentSourceExtensionOptimizableTest,
 }
 
 TEST_F(DocumentSourceExtensionOptimizableTest, ShouldPropagateSourceMetadata) {
-    auto sourceAstNode = new sdk::ExtensionAggStageAstNode(
+    auto sourceAstNode = new sdk::ExtensionAggStageAstNodeAdapter(
         sdk::shared_test_stages::FruitsAsDocumentsAstNode::make());
     auto sourceAstHandle = AggStageAstNodeHandle(sourceAstNode);
 
@@ -1562,7 +1566,7 @@ TEST_F(DocumentSourceExtensionOptimizableTest, ShouldPropagateSourceMetadata) {
 }
 
 TEST_F(DocumentSourceExtensionOptimizableTest, TransformReceivesSourceMetadata) {
-    auto sourceAstNode = new sdk::ExtensionAggStageAstNode(
+    auto sourceAstNode = new sdk::ExtensionAggStageAstNodeAdapter(
         sdk::shared_test_stages::FruitsAsDocumentsAstNode::make());
     auto sourceAstHandle = AggStageAstNodeHandle(sourceAstNode);
 
@@ -1570,7 +1574,7 @@ TEST_F(DocumentSourceExtensionOptimizableTest, TransformReceivesSourceMetadata) 
         host::DocumentSourceExtensionOptimizable::create(getExpCtx(), std::move(sourceAstHandle));
     auto sourceStage = exec::agg::buildStage(sourceOptimizable);
 
-    auto transformAstNode = new sdk::ExtensionAggStageAstNode(
+    auto transformAstNode = new sdk::ExtensionAggStageAstNodeAdapter(
         sdk::shared_test_stages::AddFruitsToDocumentsAstNode::make());
     auto transformAstHandle = AggStageAstNodeHandle(transformAstNode);
 
@@ -1607,7 +1611,8 @@ TEST_F(DocumentSourceExtensionOptimizableTest, TransformReceivesSourceMetadata) 
 }
 
 TEST_F(DocumentSourceExtensionOptimizableTest, ShouldPropagateSortKeyMetadata) {
-    auto sourceAstNode = new sdk::ExtensionAggStageAstNode(ValidateSortKeyMetadataAstStage::make());
+    auto sourceAstNode =
+        new sdk::ExtensionAggStageAstNodeAdapter(ValidateSortKeyMetadataAstStage::make());
     auto sourceAstHandle = AggStageAstNodeHandle(sourceAstNode);
 
     auto sourceOptimizable =
@@ -1639,7 +1644,7 @@ TEST_F(DocumentSourceExtensionOptimizableTest, ShouldPropagateSortKeyMetadata) {
 
 TEST_F(DocumentSourceExtensionOptimizableTest,
        LiteParsedExpandableClonePreservesStageNameAndNamespace) {
-    auto rootParseNode = new sdk::ExtensionAggStageParseNode(
+    auto rootParseNode = new sdk::ExtensionAggStageParseNodeAdapter(
         std::make_unique<sdk::shared_test_stages::ExpandToExtAstParseNode>());
     AggStageParseNodeHandle rootHandle{rootParseNode};
     BSONObj stageBson = createDummySpecFromStageName(sdk::shared_test_stages::kExpandToExtAstName);
@@ -1655,7 +1660,7 @@ TEST_F(DocumentSourceExtensionOptimizableTest,
 }
 
 TEST_F(DocumentSourceExtensionOptimizableTest, LiteParsedExpandableClonePreservesExpandedPipeline) {
-    auto rootParseNode = new sdk::ExtensionAggStageParseNode(
+    auto rootParseNode = new sdk::ExtensionAggStageParseNodeAdapter(
         std::make_unique<sdk::shared_test_stages::ExpandToMixedParseNode>());
     AggStageParseNodeHandle rootHandle{rootParseNode};
     BSONObj stageBson = createDummySpecFromStageName(sdk::shared_test_stages::kExpandToMixedName);
@@ -1683,8 +1688,8 @@ TEST_F(DocumentSourceExtensionOptimizableTest, LiteParsedExpandableClonePreserve
 
 TEST_F(DocumentSourceExtensionOptimizableTest, LiteParsedExpandableClonePreservesProperties) {
     // Use a parse node that expands to a stage with specific properties.
-    auto parseNode =
-        new sdk::ExtensionAggStageParseNode(std::make_unique<ExpandToSearchAggStageParseNode>());
+    auto parseNode = new sdk::ExtensionAggStageParseNodeAdapter(
+        std::make_unique<ExpandToSearchAggStageParseNode>());
     auto handle = AggStageParseNodeHandle{parseNode};
     BSONObj stageBson = createDummySpecFromStageName(kExpandToSearchName);
 
@@ -1717,7 +1722,7 @@ TEST_F(DocumentSourceExtensionOptimizableTest, LiteParsedExpandableCloneIsIndepe
     // Reset expand counter to verify clone triggers a fresh expansion.
     sdk::shared_test_stages::ExpandToExtParseParseNode::expandCalls = 0;
 
-    auto rootParseNode = new sdk::ExtensionAggStageParseNode(
+    auto rootParseNode = new sdk::ExtensionAggStageParseNodeAdapter(
         std::make_unique<sdk::shared_test_stages::ExpandToExtParseParseNode>());
     AggStageParseNodeHandle rootHandle{rootParseNode};
     BSONObj stageBson =
@@ -1742,7 +1747,7 @@ TEST_F(DocumentSourceExtensionOptimizableTest, LiteParsedExpandableCloneIsIndepe
 
 TEST_F(DocumentSourceExtensionOptimizableTest,
        LiteParsedExpandedClonePreservesStageNameAndNamespace) {
-    auto astNode = new sdk::ExtensionAggStageAstNode(
+    auto astNode = new sdk::ExtensionAggStageAstNodeAdapter(
         sdk::shared_test_stages::TransformAggStageAstNode::make());
     auto handle = AggStageAstNodeHandle{astNode};
 
@@ -1759,7 +1764,7 @@ TEST_F(DocumentSourceExtensionOptimizableTest,
 TEST_F(DocumentSourceExtensionOptimizableTest, LiteParsedExpandedClonePreservesIsInitialSource) {
     // Test with a transform stage (not an initial source).
     {
-        auto astNode = new sdk::ExtensionAggStageAstNode(
+        auto astNode = new sdk::ExtensionAggStageAstNodeAdapter(
             sdk::shared_test_stages::TransformAggStageAstNode::make());
         auto handle = AggStageAstNodeHandle{astNode};
 
@@ -1774,7 +1779,7 @@ TEST_F(DocumentSourceExtensionOptimizableTest, LiteParsedExpandedClonePreservesI
 
     // Test with a source stage (is an initial source).
     {
-        auto astNode = new sdk::ExtensionAggStageAstNode(
+        auto astNode = new sdk::ExtensionAggStageAstNodeAdapter(
             sdk::shared_test_stages::SearchLikeSourceAggStageAstNode::make());
         auto handle = AggStageAstNodeHandle{astNode};
 
@@ -1791,8 +1796,8 @@ TEST_F(DocumentSourceExtensionOptimizableTest, LiteParsedExpandedClonePreservesI
 }
 
 TEST_F(DocumentSourceExtensionOptimizableTest, LiteParsedExpandedClonePreservesRequiredPrivileges) {
-    auto astNode =
-        new sdk::ExtensionAggStageAstNode(SingleActionRequiredPrivilegesAggStageAstNode::make());
+    auto astNode = new sdk::ExtensionAggStageAstNodeAdapter(
+        SingleActionRequiredPrivilegesAggStageAstNode::make());
     auto handle = AggStageAstNodeHandle{astNode};
 
     host::DocumentSourceExtensionOptimizable::LiteParsedExpanded original(
@@ -1822,8 +1827,8 @@ TEST_F(DocumentSourceExtensionOptimizableTest, LiteParsedExpandedClonePreservesR
 }
 
 TEST_F(DocumentSourceExtensionOptimizableTest, LiteParsedExpandedCloneWithMultiplePrivileges) {
-    auto astNode =
-        new sdk::ExtensionAggStageAstNode(MultipleActionsRequiredPrivilegesAggStageAstNode::make());
+    auto astNode = new sdk::ExtensionAggStageAstNodeAdapter(
+        MultipleActionsRequiredPrivilegesAggStageAstNode::make());
     auto handle = AggStageAstNodeHandle{astNode};
 
     host::DocumentSourceExtensionOptimizable::LiteParsedExpanded original(
@@ -1850,7 +1855,7 @@ TEST_F(DocumentSourceExtensionOptimizableTest, LiteParsedExpandedCloneWithMultip
 
 TEST_F(DocumentSourceExtensionOptimizableTest, LiteParsedExpandedCloneWithNoPrivileges) {
     auto astNode =
-        new sdk::ExtensionAggStageAstNode(EmptyRequiredPrivilegesAggStageAstNode::make());
+        new sdk::ExtensionAggStageAstNodeAdapter(EmptyRequiredPrivilegesAggStageAstNode::make());
     auto handle = AggStageAstNodeHandle{astNode};
 
     host::DocumentSourceExtensionOptimizable::LiteParsedExpanded original(
@@ -1869,7 +1874,7 @@ TEST_F(DocumentSourceExtensionOptimizableTest, LiteParsedExpandedCloneWithNoPriv
 
 TEST_F(DocumentSourceExtensionOptimizableTest,
        LiteParsedExpandedCloneProducesIndependentStageParams) {
-    auto astNode = new sdk::ExtensionAggStageAstNode(
+    auto astNode = new sdk::ExtensionAggStageAstNodeAdapter(
         sdk::shared_test_stages::TransformAggStageAstNode::make());
     auto handle = AggStageAstNodeHandle{astNode};
 
@@ -1893,7 +1898,7 @@ TEST_F(DocumentSourceExtensionOptimizableTest,
 // =============================================================================
 
 TEST_F(DocumentSourceExtensionOptimizableTest, TransformConstructionSucceeds) {
-    auto astNode = new sdk::ExtensionAggStageAstNode(
+    auto astNode = new sdk::ExtensionAggStageAstNodeAdapter(
         sdk::shared_test_stages::TransformAggStageAstNode::make());
     auto astHandle = AggStageAstNodeHandle(astNode);
 
@@ -1911,8 +1916,9 @@ TEST_F(DocumentSourceExtensionOptimizableTest, StageCanSerializeForQueryExecutio
     using sdk::shared_test_stages::TransformAggStageDescriptor;
 
     auto arguments = BSON("serializedForExecution" << true);
-    auto astNode = new sdk::ExtensionAggStageAstNode(std::make_unique<TransformAggStageAstNode>(
-        TransformAggStageDescriptor::kStageName, arguments));
+    auto astNode =
+        new sdk::ExtensionAggStageAstNodeAdapter(std::make_unique<TransformAggStageAstNode>(
+            TransformAggStageDescriptor::kStageName, arguments));
     auto astHandle = AggStageAstNodeHandle(astNode);
 
     auto optimizable =
@@ -1927,7 +1933,7 @@ TEST_F(DocumentSourceExtensionOptimizableTest, StageCanSerializeForQueryExecutio
 DEATH_TEST_F(DocumentSourceExtensionOptimizableTestDeathTest,
              SerializeWithWrongOptsFails,
              "11217800") {
-    auto astNode = new sdk::ExtensionAggStageAstNode(
+    auto astNode = new sdk::ExtensionAggStageAstNodeAdapter(
         sdk::shared_test_stages::TransformAggStageAstNode::make());
     auto astHandle = AggStageAstNodeHandle(astNode);
 
@@ -1942,7 +1948,7 @@ DEATH_TEST_F(DocumentSourceExtensionOptimizableTestDeathTest,
              CreateFromParseNodeHandleWithMultipleNodesFails,
              "11623000") {
     // Create a parse node that expands to multiple nodes.
-    auto parseNode = new sdk::ExtensionAggStageParseNode(
+    auto parseNode = new sdk::ExtensionAggStageParseNodeAdapter(
         std::make_unique<sdk::shared_test_stages::MidAParseNode>());
     AggStageParseNodeHandle parseNodeHandle{parseNode};
 
@@ -1954,7 +1960,7 @@ DEATH_TEST_F(DocumentSourceExtensionOptimizableTestDeathTest,
              CreateFromParseNodeHandleWithHostParseNodeFails,
              "11623001") {
     // Create a parse node that expands to a host parse node.
-    auto parseNode = new sdk::ExtensionAggStageParseNode(
+    auto parseNode = new sdk::ExtensionAggStageParseNodeAdapter(
         std::make_unique<sdk::shared_test_stages::ExpandToHostParseParseNode>());
     auto parseNodeHandle = AggStageParseNodeHandle(parseNode);
 
@@ -1966,7 +1972,7 @@ DEATH_TEST_F(DocumentSourceExtensionOptimizableTestDeathTest,
              CreateFromParseNodeHandleWithExtensionParseNodeFails,
              "11623002") {
     // Create a parse node that expands to an extension parse node handle.
-    auto parseNode = new sdk::ExtensionAggStageParseNode(
+    auto parseNode = new sdk::ExtensionAggStageParseNodeAdapter(
         std::make_unique<sdk::shared_test_stages::ExpandToExtParseParseNode>());
     auto parseNodeHandle = AggStageParseNodeHandle(parseNode);
 
@@ -1976,7 +1982,7 @@ DEATH_TEST_F(DocumentSourceExtensionOptimizableTestDeathTest,
 
 TEST_F(DocumentSourceExtensionOptimizableTest, StageWithDefaultStaticProperties) {
     // These should also be the default static properties for Transform stages.
-    auto astNode = new sdk::ExtensionAggStageAstNode(
+    auto astNode = new sdk::ExtensionAggStageAstNodeAdapter(
         sdk::shared_test_stages::TransformAggStageAstNode::make());
     auto astHandle = AggStageAstNodeHandle(astNode);
 
@@ -2010,7 +2016,7 @@ TEST_F(DocumentSourceExtensionOptimizableTest, StageWithDefaultStaticProperties)
 }
 
 TEST_F(DocumentSourceExtensionOptimizableTest, SearchLikeStageWithSourceStageStaticProperties) {
-    auto astNode = new sdk::ExtensionAggStageAstNode(
+    auto astNode = new sdk::ExtensionAggStageAstNodeAdapter(
         sdk::shared_test_stages::SearchLikeSourceAggStageAstNode::make());
     auto astHandle = AggStageAstNodeHandle(astNode);
 
@@ -2033,7 +2039,7 @@ TEST_F(DocumentSourceExtensionOptimizableTest, SearchLikeStageWithSourceStageSta
 }
 
 TEST_F(DocumentSourceExtensionOptimizableTest, SearchLikeStageWithMetadataFields) {
-    auto astNode = new sdk::ExtensionAggStageAstNode(
+    auto astNode = new sdk::ExtensionAggStageAstNodeAdapter(
         sdk::shared_test_stages::SearchLikeSourceAggStageAstNode::make());
     auto astHandle = AggStageAstNodeHandle(astNode);
 
@@ -2051,7 +2057,7 @@ TEST_F(DocumentSourceExtensionOptimizableTest, SearchLikeStageWithMetadataFields
 
 TEST_F(DocumentSourceExtensionOptimizableTest,
        SearchLikeStageWithMetadataFieldsWithPreserveUpstreamMetadata) {
-    auto astNode = new sdk::ExtensionAggStageAstNode(
+    auto astNode = new sdk::ExtensionAggStageAstNodeAdapter(
         sdk::shared_test_stages::SearchLikeSourceWithPreserveUpstreamMetadataAstNode::make());
     auto astHandle = AggStageAstNodeHandle(astNode);
 
@@ -2068,7 +2074,7 @@ TEST_F(DocumentSourceExtensionOptimizableTest,
 }
 
 TEST_F(DocumentSourceExtensionOptimizableTest, SearchLikeStageWithNoSourceMetadata) {
-    auto astNode = new sdk::ExtensionAggStageAstNode(
+    auto astNode = new sdk::ExtensionAggStageAstNodeAdapter(
         sdk::shared_test_stages::SearchLikeSourceAggStageAstNode::make());
     auto astHandle = AggStageAstNodeHandle(astNode);
 
@@ -2081,7 +2087,7 @@ TEST_F(DocumentSourceExtensionOptimizableTest, SearchLikeStageWithNoSourceMetada
 }
 
 TEST_F(DocumentSourceExtensionOptimizableTest, SearchLikeStageWithNoSuitableSourceMetadata) {
-    auto astNode = new sdk::ExtensionAggStageAstNode(
+    auto astNode = new sdk::ExtensionAggStageAstNodeAdapter(
         sdk::shared_test_stages::SearchLikeSourceAggStageAstNode::make());
     auto astHandle = AggStageAstNodeHandle(astNode);
 
@@ -2095,7 +2101,7 @@ TEST_F(DocumentSourceExtensionOptimizableTest, SearchLikeStageWithNoSuitableSour
 
 TEST_F(DocumentSourceExtensionOptimizableTest,
        SearchLikeStageWithMetadataFieldsWithInvalidRequiredMetadataField) {
-    auto astNode = new sdk::ExtensionAggStageAstNode(
+    auto astNode = new sdk::ExtensionAggStageAstNodeAdapter(
         sdk::shared_test_stages::SearchLikeSourceWithInvalidRequiredMetadataFieldAstNode::make());
     auto astHandle = AggStageAstNodeHandle(astNode);
 
@@ -2110,7 +2116,7 @@ TEST_F(DocumentSourceExtensionOptimizableTest,
 
 TEST_F(DocumentSourceExtensionOptimizableTest,
        SearchLikeStageWithMetadataFieldsWithInvalidProvidedMetadataField) {
-    auto astNode = new sdk::ExtensionAggStageAstNode(
+    auto astNode = new sdk::ExtensionAggStageAstNodeAdapter(
         sdk::shared_test_stages::SearchLikeSourceWithInvalidProvidedMetadataFieldAstNode::make());
     auto astHandle = AggStageAstNodeHandle(astNode);
 
@@ -2126,7 +2132,7 @@ TEST_F(DocumentSourceExtensionOptimizableTest,
 TEST_F(DocumentSourceExtensionOptimizableTest, StageWithNonDefaultSubPipelineStaticProperties) {
     auto properties = BSON("allowedInUnionWith" << false << "allowedInLookup" << false
                                                 << "allowedInFacet" << false);
-    auto astNode = new sdk::ExtensionAggStageAstNode(
+    auto astNode = new sdk::ExtensionAggStageAstNodeAdapter(
         std::make_unique<sdk::shared_test_stages::CustomPropertiesAstNode>(properties));
     auto astHandle = AggStageAstNodeHandle(astNode);
 
@@ -2147,7 +2153,7 @@ TEST_F(DocumentSourceExtensionOptimizableTest, StageWithNonDefaultSubPipelineSta
 TEST_F(DocumentSourceExtensionOptimizableTest, DistributedPlanLogicReturnsNoneWhenNoDPL) {
     // TransformLogicalAggStage returns nullptr for getDistributedPlanLogic(), which should result
     // in boost::none being returned.
-    auto astNode = new sdk::ExtensionAggStageAstNode(
+    auto astNode = new sdk::ExtensionAggStageAstNodeAdapter(
         sdk::shared_test_stages::TransformAggStageAstNode::make());
     auto astHandle = AggStageAstNodeHandle(astNode);
 
@@ -2169,7 +2175,7 @@ public:
             // Create a merging pipeline with a logical stage that is different from this one.
             std::vector<VariantDPLHandle> elements;
             elements.emplace_back(
-                extension::LogicalAggStageHandle{new sdk::ExtensionLogicalAggStage(
+                extension::LogicalAggStageHandle{new sdk::ExtensionLogicalAggStageAdapter(
                     sdk::shared_test_stages::MergeOnlyDPLLogicalStage::make())});
             dpl.mergingPipeline = sdk::DPLArrayContainer(std::move(elements));
         }
@@ -2199,8 +2205,8 @@ public:
 
 TEST_F(DocumentSourceExtensionOptimizableTest,
        DistributedPlanLogicReturnsErrorWhenGivenMismatchedLogicalStage) {
-    auto logicalStage =
-        new sdk::ExtensionLogicalAggStage(std::make_unique<InvalidDPLLogicalStageWithMismatch>());
+    auto logicalStage = new sdk::ExtensionLogicalAggStageAdapter(
+        std::make_unique<InvalidDPLLogicalStageWithMismatch>());
     auto logicalStageHandle = LogicalAggStageHandle(logicalStage);
 
     auto optimizable = host::DocumentSourceExtensionOptimizable::create(
@@ -2211,7 +2217,7 @@ TEST_F(DocumentSourceExtensionOptimizableTest,
 
 TEST_F(DocumentSourceExtensionOptimizableTest,
        DistributedPlanLogicReturnsErrorWhenGivenDPLWithHostAllocatedExtension) {
-    auto logicalStage = new sdk::ExtensionLogicalAggStage(
+    auto logicalStage = new sdk::ExtensionLogicalAggStageAdapter(
         std::make_unique<InvalidDPLLogicalStageWithHostAllocatedExtension>());
     auto logicalStageHandle = LogicalAggStageHandle(logicalStage);
 
@@ -2224,7 +2230,7 @@ TEST_F(DocumentSourceExtensionOptimizableTest,
 TEST_F(DocumentSourceExtensionOptimizableTest, DistributedPlanLogicWithMergeOnlyStage) {
     // Create a stage that returns DPL with merge-only stages containing all three types of
     // VariantDPLHandle.
-    auto logicalStage = new sdk::ExtensionLogicalAggStage(
+    auto logicalStage = new sdk::ExtensionLogicalAggStageAdapter(
         sdk::shared_test_stages::MergeOnlyDPLLogicalStage::make());
     auto logicalStageHandle = LogicalAggStageHandle(logicalStage);
 
@@ -2275,7 +2281,7 @@ TEST_F(DocumentSourceExtensionOptimizableTest, DistributedPlanLogicWithMergeOnly
 TEST_F(DocumentSourceExtensionOptimizableTest,
        CreateFromParseNodeHandleWithSingleExtensionAstNode) {
     // Create a parse node that expands to a single extension AST node.
-    auto parseNode = new sdk::ExtensionAggStageParseNode(
+    auto parseNode = new sdk::ExtensionAggStageParseNodeAdapter(
         std::make_unique<sdk::shared_test_stages::ExpandToExtAstParseNode>());
     auto parseNodeHandle = AggStageParseNodeHandle(parseNode);
 
@@ -2309,16 +2315,16 @@ public:
 
         // Expands to 3 stages:
         // 1) Extension AST node -> DocumentSourceExtensionOptimizable.
-        out.emplace_back(new sdk::ExtensionAggStageAstNode(
+        out.emplace_back(new sdk::ExtensionAggStageAstNodeAdapter(
             sdk::shared_test_stages::TransformAggStageAstNode::make()));
 
         // 2) Host $match -> DocumentSourceMatch.
-        out.emplace_back(
-            new host::HostAggStageParseNode(sdk::shared_test_stages::TransformHostParseNode::make(
+        out.emplace_back(new host::HostAggStageParseNodeAdapter(
+            sdk::shared_test_stages::TransformHostParseNode::make(
                 BSON("$match" << BSON("merged" << true)))));
 
         // 3) Host $limit -> DocumentSourceLimit.
-        out.emplace_back(new host::HostAggStageParseNode(
+        out.emplace_back(new host::HostAggStageParseNodeAdapter(
             sdk::shared_test_stages::TransformHostParseNode::make(BSON("$limit" << 10))));
 
         return out;
@@ -2349,8 +2355,8 @@ public:
 
         // Merging pipeline: a single parse node that expands to 3 DocumentSources.
         std::vector<VariantDPLHandle> mergingElements;
-        mergingElements.emplace_back(
-            new sdk::ExtensionAggStageParseNode(std::make_unique<MultiExpandMergingParseNode>()));
+        mergingElements.emplace_back(new sdk::ExtensionAggStageParseNodeAdapter(
+            std::make_unique<MultiExpandMergingParseNode>()));
         dpl.mergingPipeline = sdk::DPLArrayContainer(std::move(mergingElements));
 
         return dpl;
@@ -2367,7 +2373,7 @@ TEST_F(DocumentSourceExtensionOptimizableTest,
     // Create a stage whose DPL merging pipeline contains a single parse node that expands to 3
     // DocumentSources.
     auto logicalStage =
-        new sdk::ExtensionLogicalAggStage(std::make_unique<MultiExpandDPLLogicalStage>());
+        new sdk::ExtensionLogicalAggStageAdapter(std::make_unique<MultiExpandDPLLogicalStage>());
     auto logicalStageHandle = LogicalAggStageHandle(logicalStage);
 
     auto optimizable = host::DocumentSourceExtensionOptimizable::create(
@@ -2448,7 +2454,7 @@ void testViewPolicyHelper(const NamespaceString& nss,
                           const std::string& expectedViewName) {
     auto astNodeImpl = ConfigurableViewPolicyTestAstNode::make(extensionPolicy);
     auto* astNodeImplPtr = static_cast<ConfigurableViewPolicyTestAstNode*>(astNodeImpl.get());
-    auto astNode = new sdk::ExtensionAggStageAstNode(std::move(astNodeImpl));
+    auto astNode = new sdk::ExtensionAggStageAstNodeAdapter(std::move(astNodeImpl));
     auto handle = AggStageAstNodeHandle{astNode};
 
     host::DocumentSourceExtensionOptimizable::LiteParsedExpanded liteParsed(
@@ -2491,7 +2497,7 @@ TEST_F(DocumentSourceExtensionOptimizableTest,
 
 TEST_F(DocumentSourceExtensionOptimizableTest, ExtensionStageDocsNeededBoundsReturnsUnknown) {
     auto astNode = std::make_unique<sdk::shared_test_stages::TransformAggStageAstNode>();
-    AggStageAstNodeHandle handle{new sdk::ExtensionAggStageAstNode(std::move(astNode))};
+    AggStageAstNodeHandle handle{new sdk::ExtensionAggStageAstNodeAdapter(std::move(astNode))};
     auto extensionStage =
         host::DocumentSourceExtensionOptimizable::create(getExpCtx(), std::move(handle));
 

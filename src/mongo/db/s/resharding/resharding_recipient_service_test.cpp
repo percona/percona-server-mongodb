@@ -44,6 +44,7 @@
 #include "mongo/db/global_catalog/chunk_manager.h"
 #include "mongo/db/global_catalog/type_chunk.h"
 #include "mongo/db/global_catalog/type_collection_common_types_gen.h"
+#include "mongo/db/hierarchical_cancelable_operation_context_factory.h"
 #include "mongo/db/index_builds/index_builds_coordinator_mock.h"
 #include "mongo/db/keypattern.h"
 #include "mongo/db/op_observer/op_observer.h"
@@ -164,7 +165,7 @@ public:
         std::shared_ptr<executor::TaskExecutor> executor,
         std::shared_ptr<executor::TaskExecutor> cleanupExecutor,
         CancellationToken cancelToken,
-        CancelableOperationContextFactory opCtxFactory,
+        std::shared_ptr<HierarchicalCancelableOperationContextFactory> opCtxFactory,
         const mongo::Date_t& startConfigTxnCloneTime) override {
         return makeReadyFutureWith([] {}).semi();
     };
@@ -2916,7 +2917,6 @@ TEST_F(ReshardingRecipientServiceTest, FailoverDuringErrorState) {
 // The index specs for the source and temporary collections are both defaulted to empty vectors,
 // so the verification will pass since both index specs are equal.
 TEST_F(ReshardingRecipientServiceTest, TestVerifyIndexSpecsHappyPath) {
-    RAIIServerParameterControllerForTest serverParameter("reshardingIndexVerification", true);
     for (const auto& testOptions : makeBasicTestOptions()) {
         setupFeatureFlags(testOptions);
 
@@ -2949,8 +2949,6 @@ TEST_F(ReshardingRecipientServiceTest, TestVerifyIndexSpecsHappyPath) {
 }
 
 TEST_F(ReshardingRecipientServiceTest, TestVerifyIndexSpecsThrowsExceptionOnMismatchedIndexes) {
-    RAIIServerParameterControllerForTest serverParameter("reshardingIndexVerification", true);
-
     // Set sourceCollectionIndexSpecs to create mismatched index specs.
     sourceCollectionIndexSpecs = {BSON("key" << BSON("a" << 1) << "name"
                                              << "a_1")};
@@ -2991,12 +2989,10 @@ TEST_F(ReshardingRecipientServiceTest,
        TestVerifyIndexSpecsDoesNotPerformVerificationIfFeatureFlagIsNotSet) {
     RAIIServerParameterControllerForTest indexVerificationServerParameter(
         "reshardingIndexVerification", false);
-    // Enable the other resharding feature flags or server parameters to verify that they do not
-    // override the index verification feature flag.
+    // Enable the resharding verification feature flag to verify that it does not override the index
+    // validation parameter.
     RAIIServerParameterControllerForTest countVerificationFeatureFlag(
         "featureFlagReshardingVerification", true);
-    RAIIServerParameterControllerForTest collectionOptionsVerificationServerParameter(
-        "reshardingCollectionOptionsVerification", true);
 
     // Set sourceCollectionIndexSpecs to create mismatched index specs.
     sourceCollectionIndexSpecs = {BSON("key" << BSON("a" << 1) << "name"
@@ -3036,8 +3032,6 @@ TEST_F(ReshardingRecipientServiceTest,
 // The collection options for the source and temporary collections are both defaulted to BSONObj(),
 // so this test will pass since both collection options are equal.
 TEST_F(ReshardingRecipientServiceTest, TestVerifyCollectionOptionsHappyPath) {
-    RAIIServerParameterControllerForTest serverParameter("reshardingCollectionOptionsVerification",
-                                                         true);
     for (const auto& testOptions : makeBasicTestOptions()) {
         setupFeatureFlags(testOptions);
 
@@ -3071,9 +3065,6 @@ TEST_F(ReshardingRecipientServiceTest, TestVerifyCollectionOptionsHappyPath) {
 
 TEST_F(ReshardingRecipientServiceTest,
        TestVerifyCollectionOptionsThrowsExceptionOnMismatchedOptions) {
-    RAIIServerParameterControllerForTest serverParameter("reshardingCollectionOptionsVerification",
-                                                         true);
-
     // Set tempReshardingCollectionOptions to create mismatched collection options.
     tempReshardingCollectionOptions = BSONObjBuilder().append("viewOn", "bar").obj();
 
@@ -3119,12 +3110,10 @@ TEST_F(ReshardingRecipientServiceTest,
     // Set tempReshardingCollectionOptions to create mismatched collection options.
     tempReshardingCollectionOptions = BSONObjBuilder().append("viewOn", "bar").obj();
 
-    // Enable the other resharding feature flags or server parameters to verify that they do not
-    // override the collection options validation feature flag.
+    // Enable the resharding verification feature flag to verify that it does not override the
+    // collection options validation parameter.
     RAIIServerParameterControllerForTest countVerificationFeatureFlag(
         "featureFlagReshardingVerification", true);
-    RAIIServerParameterControllerForTest indexVerificationServerParameter(
-        "reshardingIndexVerification", true);
     for (const auto& testOptions : makeBasicTestOptions()) {
         setupFeatureFlags(testOptions);
 

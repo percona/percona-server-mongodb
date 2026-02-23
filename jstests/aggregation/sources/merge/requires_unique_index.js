@@ -10,6 +10,7 @@
 //   requires_fcv_81,
 // ]
 import {assertMergeFailsWithoutUniqueIndex, withEachMergeMode} from "jstests/aggregation/extras/merge_helpers.js";
+import {add2dsphereVersionIfNeeded} from "jstests/libs/query/geo_index_version_helpers.js";
 
 const testDB = db.getSiblingDB("merge_requires_unique_index");
 assert.commandWorked(testDB.dropDatabase());
@@ -290,7 +291,7 @@ function dropWithoutImplicitRecreate(coll) {
     assertMergeFailsWithoutUniqueIndex({source: source, onFields: "text", target: target});
 
     dropWithoutImplicitRecreate(target);
-    assert.commandWorked(target.createIndex({a: 1, geo: "2dsphere"}, {unique: true}));
+    assert.commandWorked(target.createIndex({a: 1, geo: "2dsphere"}, add2dsphereVersionIfNeeded({unique: true})));
     assertMergeFailsWithoutUniqueIndex({source: source, onFields: "a", target: target});
     assertMergeFailsWithoutUniqueIndex({source: source, onFields: ["a", "geo"], target: target});
     assertMergeFailsWithoutUniqueIndex({source: source, onFields: ["geo", "a"], target: target});

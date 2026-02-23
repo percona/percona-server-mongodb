@@ -599,10 +599,13 @@ ValidationOptions parseValidateOptions(OperationContext* opCtx,
     }
 
     const bool enforceFastCount = cmdObj["enforceFastCount"].trueValue();
-    if (background && enforceFastCount) {
+    const bool enforceFastSize = cmdObj["enforceFastSize"].trueValue();
+
+    if (background && (enforceFastCount || enforceFastSize)) {
         uasserted(ErrorCodes::InvalidOptions,
                   str::stream() << "Running the validate command with both { background: true }"
-                                << " and { enforceFastCount: true } is not supported.");
+                                << " and { enforceFastCount: true } or { enforceFastSize: true }"
+                                << " is not supported.");
     }
 
     const bool checkBSONConformance = cmdObj["checkBSONConformance"].trueValue();
@@ -618,11 +621,11 @@ ValidationOptions parseValidateOptions(OperationContext* opCtx,
                   str::stream() << "Running the validate command with both { background: true }"
                                 << " and { repair: true } is not supported.");
     }
-    if (enforceFastCount && repair) {
-        uasserted(
-            ErrorCodes::InvalidOptions,
-            str::stream() << "Running the validate command with both { enforceFastCount: true }"
-                          << " and { repair: true } is not supported.");
+    if ((enforceFastCount || enforceFastSize) && repair) {
+        uasserted(ErrorCodes::InvalidOptions,
+                  str::stream() << "Running the validate command with both"
+                                << " { enforceFastCount: true } or { enforceFastSize: true }"
+                                << " and { repair: true } is not supported.");
     }
     if (checkBSONConformance && repair) {
         uasserted(
@@ -653,14 +656,15 @@ ValidationOptions parseValidateOptions(OperationContext* opCtx,
 
     const bool metadata = cmdObj["metadata"].trueValue();
     if (metadata &&
-        (background || fullValidate || enforceFastCount || checkBSONConformance || repair)) {
+        (background || fullValidate || enforceFastCount || enforceFastSize ||
+         checkBSONConformance || repair)) {
         uasserted(ErrorCodes::InvalidOptions,
                   str::stream() << "Running the validate command with { metadata: true } is not"
                                 << " supported with any other options");
     }
 
     const auto rawConfigOverride = cmdObj["wiredtigerVerifyConfigurationOverride"];
-    if (rawConfigOverride && !(fullValidate || enforceFastCount)) {
+    if (rawConfigOverride && !(fullValidate || enforceFastCount || enforceFastSize)) {
         uasserted(ErrorCodes::InvalidOptions,
                   str::stream() << "Overriding the verify configuration is only supported with "
                                    "full validation set.");
@@ -780,6 +784,7 @@ ValidationOptions parseValidateOptions(OperationContext* opCtx,
         }
     }
 
+    const bool enforceFastCountAndSize = enforceFastCount && enforceFastSize;
     const auto validateMode = [&] {
         if (metadata) {
             return CollectionValidation::ValidateMode::kMetadata;
@@ -794,8 +799,14 @@ ValidationOptions parseValidateOptions(OperationContext* opCtx,
             return checkBSONConformance ? CollectionValidation::ValidateMode::kBackgroundCheckBSON
                                         : CollectionValidation::ValidateMode::kBackground;
         }
+        if (enforceFastCountAndSize) {
+            return CollectionValidation::ValidateMode::kForegroundFullEnforceFastCountAndSize;
+        }
         if (enforceFastCount) {
             return CollectionValidation::ValidateMode::kForegroundFullEnforceFastCount;
+        }
+        if (enforceFastSize) {
+            return CollectionValidation::ValidateMode::kForegroundFullEnforceFastSize;
         }
         if (fullValidate) {
             return checkBSONConformance
@@ -904,8 +915,7 @@ Status validate(OperationContext* opCtx,
         invariant(oldPrepareConflictBehavior == PrepareConflictBehavior::kEnforce);
     }
 
-    if (gFeatureFlagPrefetch.isEnabled() &&
-        !opCtx->getServiceContext()->getStorageEngine()->isEphemeral()) {
+    if (!opCtx->getServiceContext()->getStorageEngine()->isEphemeral()) {
         shard_role_details::getRecoveryUnit(opCtx)->setPrefetching(true);
     }
 
@@ -946,6 +956,18 @@ Status validate(OperationContext* opCtx,
         if (!results->isValid()) {
             _reportInvalidResults(opCtx, &validateState, results);
             return Status::OK();
+        }
+
+        const FastCountType fastCountType = validateState.getDetectedFastCountType(opCtx);
+        results->setFastCountType({fastCountType});
+        if (validateState.enforceFastCountRequested() || validateState.enforceFastSizeRequested()) {
+            if (fastCountType == FastCountType::both) {
+                LOGV2_ERROR(ErrorCodes::InvalidOptions, "Both FastCount tables found");
+                results->addError("Both FastCount tables found", false);
+            } else if (fastCountType == FastCountType::neither) {
+                LOGV2_ERROR(ErrorCodes::InvalidOptions, "Neither FastCount table found");
+                results->addError("Neither FastCount table found", false);
+            }
         }
 
         _validateCatalogEntry(opCtx, &validateState, results);

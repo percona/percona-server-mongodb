@@ -42,8 +42,10 @@
 
 namespace mongo {
 namespace {
+// Rely on Decorable zeroing this memory to take advantage of a
+// trivially_constructable optimization in the decoration code.
 struct ClientStrandData {
-    ClientStrand* strand = nullptr;
+    ClientStrand* strand;
 };
 
 auto getClientStrandData = Client::declareDecoration<ClientStrandData>();

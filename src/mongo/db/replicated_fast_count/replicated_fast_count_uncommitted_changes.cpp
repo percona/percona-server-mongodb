@@ -31,20 +31,26 @@
 
 #include "mongo/db/replicated_fast_count/replicated_fast_count_committer.h"
 #include "mongo/db/shard_role/transaction_resources.h"
-#include "mongo/db/update/document_diff_calculator.h"
-#include "mongo/db/update/update_oplog_entry_serialization.h"
 
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kStorage
 
 namespace mongo {
 namespace {
-const OperationContext::Decoration<std::shared_ptr<UncommittedFastCountChange>>
-    getUncommittedFastCountChange =
-        OperationContext::declareDecoration<std::shared_ptr<UncommittedFastCountChange>>();
+// Decoration on the Snapshot to ensure the uncommitted changes are preserved across the lifetime of
+// a multi-document transaction.
+const auto getUncommittedFastCountChange =
+    RecoveryUnit::Snapshot::declareDecoration<std::shared_ptr<UncommittedFastCountChange>>();
+
+std::shared_ptr<UncommittedFastCountChange>& getUncommittedFastCountChangeFromOpCtx(
+    OperationContext* opCtx) {
+    return getUncommittedFastCountChange(shard_role_details::getRecoveryUnit(opCtx)->getSnapshot());
+}
 }  // namespace
 
 const UncommittedFastCountChange& UncommittedFastCountChange::getForRead(OperationContext* opCtx) {
-    std::shared_ptr<UncommittedFastCountChange>& ptr = getUncommittedFastCountChange(opCtx);
+    // TODO SERVER-119919: Re-evaluate why this bypasses reference counting.
+    std::shared_ptr<UncommittedFastCountChange>& ptr =
+        getUncommittedFastCountChangeFromOpCtx(opCtx);
     if (ptr) {
         return *ptr;
     }
@@ -55,7 +61,8 @@ const UncommittedFastCountChange& UncommittedFastCountChange::getForRead(Operati
 
 
 UncommittedFastCountChange& UncommittedFastCountChange::getForWrite(OperationContext* opCtx) {
-    std::shared_ptr<UncommittedFastCountChange>& ptr = getUncommittedFastCountChange(opCtx);
+    std::shared_ptr<UncommittedFastCountChange>& ptr =
+        getUncommittedFastCountChangeFromOpCtx(opCtx);
     if (ptr) {
         return *ptr;
     }
@@ -70,8 +77,13 @@ UncommittedFastCountChange& UncommittedFastCountChange::getForWrite(OperationCon
 
             invariant(fn, "FastCountCommitFn is not set");
 
-            fn(opCtx, getUncommittedFastCountChange(opCtx)->_trackedChanges, commitTime);
+            fn(opCtx, getUncommittedFastCountChangeFromOpCtx(opCtx)->_trackedChanges, commitTime);
+            getUncommittedFastCountChangeFromOpCtx(opCtx).reset();
         });
+
+    shard_role_details::getRecoveryUnit(opCtx)->onRollback(
+        [](OperationContext* opCtx) { getUncommittedFastCountChangeFromOpCtx(opCtx).reset(); });
+
     return *ptr;
 }
 
@@ -84,6 +96,9 @@ CollectionSizeCount UncommittedFastCountChange::find(const UUID& uuid) const {
 }
 
 void UncommittedFastCountChange::record(const UUID& uuid, int64_t numDelta, int64_t sizeDelta) {
+    if (numDelta == 0 && sizeDelta == 0) {
+        return;
+    }
     auto& collChanges = _trackedChanges[uuid];
     collChanges.count += numDelta;
     collChanges.size += sizeDelta;

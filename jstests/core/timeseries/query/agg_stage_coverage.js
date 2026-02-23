@@ -19,6 +19,9 @@
 import {assertDropCollection} from "jstests/libs/collection_drop_recreate.js";
 import {areViewlessTimeseriesEnabled} from "jstests/core/timeseries/libs/viewless_timeseries_util.js";
 
+// TODO: SERVER-119726 try to enable multi-router once all aggregation stages are supported on multi-router.
+TestData.pinToSingleMongos = true;
+
 const tsColl = db[jsTestName()];
 assertDropCollection(db, tsColl.getName());
 assert.commandWorked(db.createCollection(tsColl.getName(), {timeseries: {timeField: "time", metaField: "m"}}));

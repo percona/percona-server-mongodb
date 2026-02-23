@@ -35,6 +35,7 @@
 #include "mongo/db/index_names.h"
 #include "mongo/db/operation_context.h"
 #include "mongo/db/repl/intent_registry.h"
+#include "mongo/db/server_feature_flags_gen.h"
 #include "mongo/db/service_context.h"
 #include "mongo/db/shard_role/shard_catalog/collection.h"
 #include "mongo/db/shard_role/shard_catalog/collection_catalog.h"
@@ -83,6 +84,21 @@ MONGO_FAIL_POINT_DEFINE(hangDuringValidationInitialization);
 
 namespace CollectionValidation {
 
+StringData toString(FastCountType fastCountType) {
+    switch (fastCountType) {
+        case FastCountType::legacySizeStorer:
+            return "legacySizeStorer";
+        case FastCountType::replicated:
+            return "replicated";
+        case FastCountType::both:
+            return "both";
+        case FastCountType::neither:
+            return "neither";
+    }
+    LOGV2_FATAL(
+        11853100, "Unknown fastCountType value", "value"_attr = static_cast<int>(fastCountType));
+}
+
 Lock::ExclusiveLock obtainExclusiveValidationLock(OperationContext* opCtx) {
     return Lock::ExclusiveLock(opCtx, validateLock);
 }
@@ -106,25 +122,14 @@ ValidateState::ValidateState(OperationContext* opCtx,
                     [&]() { return gMaxValidateMBperSec.load(); }) {
 
     // RepairMode is incompatible with the ValidateModes kBackground and
-    // kForegroundFullEnforceFastCount.
+    // kForegroundFullEnforceFast[Count|Size|CountAndSize].
     if (fixErrors()) {
         invariant(!isBackground());
-        invariant(!shouldEnforceFastCount());
+        invariant(!shouldEnforceFastCount(opCtx));
     }
 
     if (adjustMultikey()) {
         invariant(!isBackground());
-    }
-
-    // TODO(SERVER-118531): Move this check to the validate() call after this constructor is
-    // invoked, and append the errors to the result output parameter rather than logging.
-    if (enforceFastCountRequested()) {
-        const FastCountType fastCountType = getDetectedFastCountType(opCtx);
-        if (fastCountType == FastCountType::both) {
-            LOGV2_ERROR(ErrorCodes::InvalidOptions, "Both FastCount tables found");
-        } else if (fastCountType == FastCountType::neither) {
-            LOGV2_ERROR(ErrorCodes::InvalidOptions, "Neither FastCount table found");
-        }
     }
 }
 
@@ -145,18 +150,14 @@ Status ValidateState::_checkUnreplicatedFastCountCollectionExists(OperationConte
     const StorageEngine* storageEngine = opCtx->getServiceContext()->getStorageEngine();
     const bool tableExists = storageEngine->getEngine()->hasIdent(
         *shard_role_details::getRecoveryUnit(opCtx), ident::kSizeStorer);
-    // CollectionValidation::validate requires that no storage transactions are open during the call
-    // to setPrepareConflictBehavior, so we abandon the snapshot created in hasIdent after checking
-    // if the table exists.
-    shard_role_details::getRecoveryUnit(opCtx)->abandonSnapshot();
     if (!tableExists) {
         return Status(ErrorCodes::NonExistentPath, "SizeStorer doesn't exist");
     }
     return Status::OK();
 }
 
-bool ValidateState::shouldEnforceFastCount() const {
-    if (enforceFastCountRequested()) {
+bool ValidateState::shouldEnforceFastCount(OperationContext* opCtx) const {
+    if (enforceFastCountRequested() || enforceFastSizeRequested()) {
         if (_nss.isOplog() || _nss.isChangeStreamPreImagesCollection()) {
             // Oplog writers only take a global IX lock, so the oplog can still be written to even
             // during full validation despite its collection X lock. This can cause validate to
@@ -180,6 +181,12 @@ bool ValidateState::shouldEnforceFastCount() const {
             // for internal bookkeeping for retryable writes. Replication rollback won't adjust the
             // size storer counts for the 'config.image_collection' collection. We therefore do not
             // enforce fast count on it.
+            return false;
+        } else if (gFeatureFlagReplicatedFastCount.isEnabledUseLatestFCVWhenUninitialized(
+                       VersionContext::getDecoration(opCtx),
+                       serverGlobalParams.featureCompatibility.acquireFCVSnapshot()) &&
+                   _nss.isOnInternalDb()) {
+            // SERVER-119984 TODO: Revisit this, enforce if possible.
             return false;
         }
 

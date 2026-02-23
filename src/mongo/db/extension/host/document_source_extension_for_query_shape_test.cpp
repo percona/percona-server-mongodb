@@ -61,7 +61,7 @@ protected:
     static inline NamespaceString _nss = NamespaceString::createNamespaceString_forTest(
         boost::none, "document_source_extension_for_query_shape_test");
 
-    sdk::ExtensionAggStageDescriptor _transformStageDescriptor{
+    sdk::ExtensionAggStageDescriptorAdapter _transformStageDescriptor{
         sdk::shared_test_stages::TransformAggStageDescriptor::make()};
 };
 

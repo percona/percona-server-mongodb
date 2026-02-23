@@ -105,4 +105,16 @@ std::unique_ptr<QuerySolution> IdHackPlanner::extractQuerySolution() {
     // IDHACK queries bypass the planning process, and therefore don't have a 'QuerySolution'.
     return nullptr;
 }
+
+PlanRankingResult IdHackPlanner::extractPlanRankingResult() {
+    tassert(11974301,
+            "Expected `extractPlanRankingResult` to only be called with get executor deferred "
+            "feature flag enabled.",
+            feature_flags::gFeatureFlagGetExecutorDeferredEngineChoice.isEnabled());
+    return PlanRankingResult{.usedIdhack = true,
+                             .execState =
+                                 SavedExecState{.workingSet = extractWs(), .root = extractRoot()},
+                             .plannerParams = extractPlannerParams()};
+}
+
 }  // namespace mongo::classic_runtime_planner

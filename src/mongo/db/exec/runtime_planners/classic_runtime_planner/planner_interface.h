@@ -36,6 +36,7 @@
 #include "mongo/db/exec/classic/update_stage.h"
 #include "mongo/db/exec/classic/working_set.h"
 #include "mongo/db/exec/runtime_planners/planner_interface.h"
+#include "mongo/db/exec/runtime_planners/planner_types.h"
 #include "mongo/db/exec/trial_period_utils.h"
 #include "mongo/db/query/compiler/physical_model/query_solution/query_solution.h"
 #include "mongo/db/query/plan_cache/classic_plan_cache.h"
@@ -48,21 +49,6 @@
 #include "mongo/util/modules.h"
 
 namespace mongo::classic_runtime_planner {
-
-/**
- * Stores relevant state required to resume executing a partially
- * evaluated PlanStage at a later time.
- *
- * Later, a SingleSolutionPassthroughPlanner can be rebuilt using this.
- *
- * This allows CBR strategies which use multiplanning internally to
- * "stash" the work done, so the caller can create an executor
- * which does not need to repeat the work done by multiplanning.
- */
-struct SavedExecState {
-    std::unique_ptr<WorkingSet> workingSet;
-    std::unique_ptr<PlanStage> root;
-};
 
 /*
  * Base abstract class for classic runtime planner implementations. Each planner sub-class needs to
@@ -114,6 +100,9 @@ protected:
 
     PlanStage* getRoot() const;
     void setRoot(std::unique_ptr<PlanStage> root);
+    std::unique_ptr<PlanStage> extractRoot() {
+        return std::move(_root);
+    }
 
     OperationContext* opCtx();
     CanonicalQuery* cq();
@@ -121,9 +110,15 @@ protected:
     const MultipleCollectionAccessor& collections() const;
     PlanYieldPolicy::YieldPolicy yieldPolicy() const;
     const QueryPlannerParams& plannerParams();
+    std::shared_ptr<QueryPlannerParams> extractPlannerParams() {
+        return std::move(_plannerData.plannerParams);
+    }
     size_t plannerOptions() const;
     boost::optional<size_t> cachedPlanHash() const;
     WorkingSet* ws() const;
+    std::unique_ptr<WorkingSet> extractWs() {
+        return std::move(_plannerData.workingSet);
+    }
 
     stage_builder::PlanStageToQsnMap _planStageQsnMap;
 
@@ -157,6 +152,7 @@ private:
 class IdHackPlanner final : public ClassicPlannerInterface {
 public:
     IdHackPlanner(PlannerData plannerData, const IndexCatalogEntry* entry);
+    PlanRankingResult extractPlanRankingResult() override;
 
 private:
     Status doPlan(PlanYieldPolicy* planYieldPolicy) override;

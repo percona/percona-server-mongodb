@@ -236,11 +236,24 @@ server_parameters:
         validator:
             gte: 0
         redact: false
+
     spillPath:
         description: "The disk path of the spill engine. Defaults to the dbpath."
         set_at: startup
         cpp_vartype: std::string
         cpp_varname: gSpillPath
+        redact: false
+
+    standbyDropDelaySeconds:
+        description: >-
+            Additional delay we add to two-phase drops when running as a standby to make it more likely
+            that drops are first performed by the primary. Defaults to 24 hours.
+        set_at: [startup, runtime]
+        cpp_vartype: AtomicWord<int32_t>
+        cpp_varname: gStandbyDropDelaySeconds
+        default: 86400 # 24 hours
+        validator:
+            gte: 0
         redact: false
 
 feature_flags:

@@ -1,7 +1,7 @@
-load("@bazel_skylib//lib:selects.bzl", "selects")
 load("@poetry//:dependencies.bzl", "dependency")
-load("//bazel:mongo_src_rules.bzl", "idl_generator", "mongo_cc_binary", "mongo_cc_library", "mongo_cc_unit_test", "windows_rc")
 load("//bazel/config:render_template.bzl", "render_template")
+load("//bazel:mongo_js_rules.bzl", "mongo_js_library")
+load("//bazel:mongo_src_rules.bzl", "idl_generator", "mongo_cc_binary", "mongo_cc_library", "mongo_cc_unit_test", "windows_rc")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -10,6 +10,14 @@ exports_files(
         "*.h",
         "*.cpp",
     ]),
+)
+
+mongo_js_library(
+    name = "all",
+    srcs = glob([
+        "*.js",
+    ]),
+    visibility = ["//visibility:public"],
 )
 
 mongo_cc_library(
@@ -128,6 +136,15 @@ mongo_cc_library(
         "shell_utils_extended.cpp",
         "shell_utils_launcher.cpp",
     ],
+    copts = select({
+        "@platforms//os:windows": [
+            # See comments in third_party/mozjs/BUILD.bazel
+            "/Zc:preprocessor",
+            "/wd5104",
+            "/wd5105",
+        ],
+        "//conditions:default": [],
+    }),
     deps = [
         ":benchrun",
         ":program_runner",
@@ -142,6 +159,7 @@ mongo_cc_library(
         "//src/mongo/db/query/virtual_collection",
         "//src/mongo/replay:mongor_lib",
         "//src/mongo/scripting",
+        "//src/mongo/shell/debugger:js_debugger",
         "//src/mongo/transport:message_compressor",
         "//src/mongo/transport/named_pipe",
         "//src/mongo/unittest:golden_test_base",
@@ -513,14 +531,4 @@ mongo_cc_unit_test(
     }],
     tags = ["mongo_unittest_fifth_group"],
     deps = ["shell_test_dependencies"],
-)
-
-load("//bazel:mongo_js_rules.bzl", "mongo_js_library")
-
-mongo_js_library(
-    name = "all",
-    srcs = glob([
-        "*.js",
-    ]),
-    visibility = ["//visibility:public"],
 )

@@ -51,6 +51,7 @@
 #include "mongo/db/storage/recovery_unit_noop.h"
 #include "mongo/db/storage/spill_table.h"
 #include "mongo/db/storage/storage_options.h"
+#include "mongo/db/storage/storage_parameters_gen.h"
 #include "mongo/db/storage/storage_repair_observer.h"
 #include "mongo/db/storage/write_unit_of_work.h"
 #include "mongo/idl/idl_parser.h"
@@ -94,8 +95,6 @@ MONGO_FAIL_POINT_DEFINE(pauseTimestampMonitor);
 
 namespace {
 const auto kCatalogLogLevel = logv2::LogSeverity::Debug(2);
-// TODO SERVER-118539 make this configurable
-const auto kStandbyReaperDelayHours = 24;
 
 // Returns true if the ident refers to a resumable index build table.
 bool isResumableIndexBuildIdent(StringData ident) {
@@ -753,6 +752,10 @@ std::unique_ptr<TemporaryRecordStore> StorageEngineImpl::makeTemporaryRecordStor
             "Cannot use a non-internal ident to create a temporary RecordStore instance",
             ident::isInternalIdent(ident));
 
+    // When restarting an index build, the table from the original index build was added to the
+    // reaper on startup but may not have actually been dropped yet.
+    uassertStatusOK(immediatelyCompletePendingDrop(opCtx, ident));
+
     auto& ru = *shard_role_details::getRecoveryUnit(opCtx);
     auto createTemporary = [&] {
         return _engine->makeTemporaryRecordStore(ru, ident, keyFormat);
@@ -828,7 +831,6 @@ void StorageEngineImpl::setRecoveryCheckpointMetadata(StringData checkpointMetad
 void StorageEngineImpl::promoteToLeader() {
     _engine->promoteToLeader();
     _dropPendingIdentReaper.configureDelay(Seconds(0));
-    // TODO SERVER-117466 catch up on buffered drops
 }
 
 void StorageEngineImpl::demoteFromLeader() {
@@ -838,7 +840,7 @@ void StorageEngineImpl::demoteFromLeader() {
     // handle cases where a secondary sees a drop before the primary, and then the primary crashes,
     // we have a 24-hour delay when dropping tables. This keeps the table data around long enough to
     // drop it again on step-up -- see SERVER-117458.
-    _dropPendingIdentReaper.configureDelay(Seconds(kStandbyReaperDelayHours * 60 * 60));
+    _dropPendingIdentReaper.configureDelay(Seconds(gStandbyDropDelaySeconds.load()));
 }
 
 void StorageEngineImpl::setStableTimestamp(Timestamp stableTimestamp, bool force) {

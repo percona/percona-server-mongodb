@@ -364,20 +364,18 @@ public:
     static void aggDoubleDoubleSumImpl(value::Array* accumulator,
                                        value::TypeTags rhsTag,
                                        value::Value rhsValue);
-    static FastTuple<bool, value::TypeTags, value::Value> aggDoubleDoubleSumFinalizeImpl(
-        value::Array* accmulator);
+    static value::TagValueMaybeOwned aggDoubleDoubleSumFinalizeImpl(value::Array* accumulator);
     static void aggMergeDoubleDoubleSumsImpl(value::Array* accumulator,
                                              value::TypeTags rhsTag,
                                              value::Value rhsValue);
-    static FastTuple<bool, value::TypeTags, value::Value>
-    builtinConvertSimpleSumToDoubleDoubleSumImpl(value::TypeTags simpleSumTag,
-                                                 value::Value simpleSumVal);
+    value::TagValueMaybeOwned builtinConvertSimpleSumToDoubleDoubleSumImpl(
+        value::TypeTags simpleSumTag, value::Value simpleSumVal);
     static FastTuple<bool, value::TypeTags, value::Value> builtinDoubleDoublePartialSumFinalizeImpl(
         value::TypeTags fieldTag, value::Value fieldValue);
-    static FastTuple<bool, value::TypeTags, value::Value> genericDiv(value::TypeTags lhsTag,
-                                                                     value::Value lhsValue,
-                                                                     value::TypeTags rhsTag,
-                                                                     value::Value rhsValue);
+    static value::TagValueMaybeOwned genericDiv(value::TypeTags lhsTag,
+                                                value::Value lhsValue,
+                                                value::TypeTags rhsTag,
+                                                value::Value rhsValue);
 
     static value::TagValueMaybeOwned builtinAddToArrayCappedImpl(
         value::TagValueOwned accumulatorState, value::TagValueMaybeOwned newElem, int32_t sizeCap);
@@ -482,43 +480,36 @@ private:
     void runTagCheck(const uint8_t*& pcPointer, T&& predicate);
     void runTagCheck(const uint8_t*& pcPointer, value::TypeTags tagRhs);
 
-    FastTuple<bool, value::TypeTags, value::Value> genericIDiv(value::TypeTags lhsTag,
-                                                               value::Value lhsValue,
-                                                               value::TypeTags rhsTag,
-                                                               value::Value rhsValue);
-    FastTuple<bool, value::TypeTags, value::Value> genericMod(value::TypeTags lhsTag,
-                                                              value::Value lhsValue,
-                                                              value::TypeTags rhsTag,
-                                                              value::Value rhsValue);
-    FastTuple<bool, value::TypeTags, value::Value> genericAbs(value::TypeTags operandTag,
-                                                              value::Value operandValue);
-    FastTuple<bool, value::TypeTags, value::Value> genericCeil(value::TypeTags operandTag,
-                                                               value::Value operandValue);
-    FastTuple<bool, value::TypeTags, value::Value> genericFloor(value::TypeTags operandTag,
-                                                                value::Value operandValue);
-    FastTuple<bool, value::TypeTags, value::Value> genericExp(value::TypeTags operandTag,
-                                                              value::Value operandValue);
-    FastTuple<bool, value::TypeTags, value::Value> genericLn(value::TypeTags operandTag,
-                                                             value::Value operandValue);
-    FastTuple<bool, value::TypeTags, value::Value> genericLog10(value::TypeTags operandTag,
-                                                                value::Value operandValue);
-    FastTuple<bool, value::TypeTags, value::Value> genericSqrt(value::TypeTags operandTag,
-                                                               value::Value operandValue);
-    FastTuple<bool, value::TypeTags, value::Value> genericPow(value::TypeTags baseTag,
-                                                              value::Value baseValue,
-                                                              value::TypeTags exponentTag,
-                                                              value::Value exponentValue);
-    FastTuple<bool, value::TypeTags, value::Value> genericRoundTrunc(
-        std::string funcName,
-        Decimal128::RoundingMode roundingMode,
-        int32_t place,
-        value::TypeTags numTag,
-        value::Value numVal);
-    FastTuple<bool, value::TypeTags, value::Value> scalarRoundTrunc(
-        std::string funcName, Decimal128::RoundingMode roundingMode, ArityType arity);
+    value::TagValueMaybeOwned genericIDiv(value::TypeTags lhsTag,
+                                          value::Value lhsValue,
+                                          value::TypeTags rhsTag,
+                                          value::Value rhsValue);
+    value::TagValueMaybeOwned genericMod(value::TypeTags lhsTag,
+                                         value::Value lhsValue,
+                                         value::TypeTags rhsTag,
+                                         value::Value rhsValue);
+    value::TagValueMaybeOwned genericAbs(value::TypeTags operandTag, value::Value operandValue);
+    value::TagValueMaybeOwned genericCeil(value::TypeTags operandTag, value::Value operandValue);
+    value::TagValueMaybeOwned genericFloor(value::TypeTags operandTag, value::Value operandValue);
+    value::TagValueMaybeOwned genericExp(value::TypeTags operandTag, value::Value operandValue);
+    value::TagValueMaybeOwned genericLn(value::TypeTags operandTag, value::Value operandValue);
+    value::TagValueMaybeOwned genericLog10(value::TypeTags operandTag, value::Value operandValue);
+    value::TagValueMaybeOwned genericSqrt(value::TypeTags operandTag, value::Value operandValue);
+    value::TagValueMaybeOwned genericPow(value::TypeTags baseTag,
+                                         value::Value baseValue,
+                                         value::TypeTags exponentTag,
+                                         value::Value exponentValue);
+    value::TagValueMaybeOwned genericRoundTrunc(std::string funcName,
+                                                Decimal128::RoundingMode roundingMode,
+                                                int32_t place,
+                                                value::TypeTags numTag,
+                                                value::Value numVal);
+    value::TagValueMaybeOwned scalarRoundTrunc(std::string funcName,
+                                               Decimal128::RoundingMode roundingMode,
+                                               ArityType arity);
     FastTuple<bool, value::TypeTags, value::Value> blockRoundTrunc(
         std::string funcName, Decimal128::RoundingMode roundingMode, ArityType arity);
-    std::pair<value::TypeTags, value::Value> genericNot(value::TypeTags tag, value::Value value);
+    value::TagValueOwned genericNot(value::TypeTags tag, value::Value value);
 
     FastTuple<bool, value::TypeTags, value::Value> getField(value::TypeTags objTag,
                                                             value::Value objValue,
@@ -587,8 +578,7 @@ private:
                              value::TypeTags rhsTag,
                              value::Value rhsValue);
 
-    FastTuple<bool, value::TypeTags, value::Value> aggStdDevFinalizeImpl(value::Value fieldValue,
-                                                                         bool isSamp);
+    value::TagValueMaybeOwned aggStdDevFinalizeImpl(value::Value fieldValue, bool isSamp);
 
     FastTuple<bool, value::TypeTags, value::Value> aggMin(value::TypeTags accTag,
                                                           value::Value accValue,
@@ -612,38 +602,26 @@ private:
                                                            value::TypeTags fieldTag,
                                                            value::Value fieldValue);
 
-    FastTuple<bool, value::TypeTags, value::Value> genericAcos(value::TypeTags operandTag,
-                                                               value::Value operandValue);
-    FastTuple<bool, value::TypeTags, value::Value> genericAcosh(value::TypeTags operandTag,
-                                                                value::Value operandValue);
-    FastTuple<bool, value::TypeTags, value::Value> genericAsin(value::TypeTags operandTag,
-                                                               value::Value operandValue);
-    FastTuple<bool, value::TypeTags, value::Value> genericAsinh(value::TypeTags operandTag,
-                                                                value::Value operandValue);
-    FastTuple<bool, value::TypeTags, value::Value> genericAtan(value::TypeTags operandTag,
-                                                               value::Value operandValue);
-    FastTuple<bool, value::TypeTags, value::Value> genericAtanh(value::TypeTags operandTag,
-                                                                value::Value operandValue);
-    FastTuple<bool, value::TypeTags, value::Value> genericAtan2(value::TypeTags operandTag1,
-                                                                value::Value operandValue1,
-                                                                value::TypeTags operandTag2,
-                                                                value::Value operandValue2);
-    FastTuple<bool, value::TypeTags, value::Value> genericCos(value::TypeTags operandTag,
-                                                              value::Value operandValue);
-    FastTuple<bool, value::TypeTags, value::Value> genericCosh(value::TypeTags operandTag,
-                                                               value::Value operandValue);
-    FastTuple<bool, value::TypeTags, value::Value> genericDegreesToRadians(
-        value::TypeTags operandTag, value::Value operandValue);
-    FastTuple<bool, value::TypeTags, value::Value> genericRadiansToDegrees(
-        value::TypeTags operandTag, value::Value operandValue);
-    FastTuple<bool, value::TypeTags, value::Value> genericSin(value::TypeTags operandTag,
-                                                              value::Value operandValue);
-    FastTuple<bool, value::TypeTags, value::Value> genericSinh(value::TypeTags operandTag,
-                                                               value::Value operandValue);
-    FastTuple<bool, value::TypeTags, value::Value> genericTan(value::TypeTags operandTag,
-                                                              value::Value operandValue);
-    FastTuple<bool, value::TypeTags, value::Value> genericTanh(value::TypeTags operandTag,
-                                                               value::Value operandValue);
+    value::TagValueMaybeOwned genericAcos(value::TypeTags operandTag, value::Value operandValue);
+    value::TagValueMaybeOwned genericAcosh(value::TypeTags operandTag, value::Value operandValue);
+    value::TagValueMaybeOwned genericAsin(value::TypeTags operandTag, value::Value operandValue);
+    value::TagValueMaybeOwned genericAsinh(value::TypeTags operandTag, value::Value operandValue);
+    value::TagValueMaybeOwned genericAtan(value::TypeTags operandTag, value::Value operandValue);
+    value::TagValueMaybeOwned genericAtanh(value::TypeTags operandTag, value::Value operandValue);
+    value::TagValueMaybeOwned genericAtan2(value::TypeTags operandTag1,
+                                           value::Value operandValue1,
+                                           value::TypeTags operandTag2,
+                                           value::Value operandValue2);
+    value::TagValueMaybeOwned genericCos(value::TypeTags operandTag, value::Value operandValue);
+    value::TagValueMaybeOwned genericCosh(value::TypeTags operandTag, value::Value operandValue);
+    value::TagValueMaybeOwned genericDegreesToRadians(value::TypeTags operandTag,
+                                                      value::Value operandValue);
+    value::TagValueMaybeOwned genericRadiansToDegrees(value::TypeTags operandTag,
+                                                      value::Value operandValue);
+    value::TagValueMaybeOwned genericSin(value::TypeTags operandTag, value::Value operandValue);
+    value::TagValueMaybeOwned genericSinh(value::TypeTags operandTag, value::Value operandValue);
+    value::TagValueMaybeOwned genericTan(value::TypeTags operandTag, value::Value operandValue);
+    value::TagValueMaybeOwned genericTanh(value::TypeTags operandTag, value::Value operandValue);
 
     FastTuple<bool, value::TypeTags, value::Value> genericDayOfYear(value::TypeTags timezoneDBTag,
                                                                     value::Value timezoneDBValue,
@@ -825,15 +803,15 @@ private:
     FastTuple<bool, value::TypeTags, value::Value> builtinKeyStringToString(ArityType arity);
     FastTuple<bool, value::TypeTags, value::Value> builtinNewKeyString(ArityType arity);
     FastTuple<bool, value::TypeTags, value::Value> builtinCollNewKeyString(ArityType arity);
-    FastTuple<bool, value::TypeTags, value::Value> builtinAbs(ArityType arity);
-    FastTuple<bool, value::TypeTags, value::Value> builtinCeil(ArityType arity);
-    FastTuple<bool, value::TypeTags, value::Value> builtinFloor(ArityType arity);
-    FastTuple<bool, value::TypeTags, value::Value> builtinTrunc(ArityType arity);
-    FastTuple<bool, value::TypeTags, value::Value> builtinExp(ArityType arity);
-    FastTuple<bool, value::TypeTags, value::Value> builtinLn(ArityType arity);
-    FastTuple<bool, value::TypeTags, value::Value> builtinLog10(ArityType arity);
-    FastTuple<bool, value::TypeTags, value::Value> builtinSqrt(ArityType arity);
-    FastTuple<bool, value::TypeTags, value::Value> builtinPow(ArityType arity);
+    value::TagValueMaybeOwned builtinAbs(ArityType arity);
+    value::TagValueMaybeOwned builtinCeil(ArityType arity);
+    value::TagValueMaybeOwned builtinFloor(ArityType arity);
+    value::TagValueMaybeOwned builtinTrunc(ArityType arity);
+    value::TagValueMaybeOwned builtinExp(ArityType arity);
+    value::TagValueMaybeOwned builtinLn(ArityType arity);
+    value::TagValueMaybeOwned builtinLog10(ArityType arity);
+    value::TagValueMaybeOwned builtinSqrt(ArityType arity);
+    value::TagValueMaybeOwned builtinPow(ArityType arity);
     FastTuple<bool, value::TypeTags, value::Value> builtinAddToArray(ArityType arity);
     FastTuple<bool, value::TypeTags, value::Value> builtinAddToArrayCapped(ArityType arity);
     FastTuple<bool, value::TypeTags, value::Value> builtinMergeObjects(ArityType arity);
@@ -865,25 +843,24 @@ private:
      */
     FastTuple<bool, value::TypeTags, value::Value> builtinFillType(ArityType arity);
 
-    FastTuple<bool, value::TypeTags, value::Value> builtinConvertSimpleSumToDoubleDoubleSum(
-        ArityType arity);
-    FastTuple<bool, value::TypeTags, value::Value> builtinDoubleDoubleSum(ArityType arity);
+    value::TagValueMaybeOwned builtinConvertSimpleSumToDoubleDoubleSum(ArityType arity);
+    value::TagValueMaybeOwned builtinDoubleDoubleSum(ArityType arity);
     // The template parameter is false for a regular DoubleDouble summation and true if merging
     // partially computed DoubleDouble sums.
     template <bool merging>
-    FastTuple<bool, value::TypeTags, value::Value> builtinAggDoubleDoubleSum(ArityType arity);
+    value::TagValueMaybeOwned builtinAggDoubleDoubleSum(ArityType arity);
 
-    FastTuple<bool, value::TypeTags, value::Value> builtinDoubleDoubleSumFinalize(ArityType arity);
+    value::TagValueMaybeOwned builtinDoubleDoubleSumFinalize(ArityType arity);
     FastTuple<bool, value::TypeTags, value::Value> builtinDoubleDoublePartialSumFinalize(
         ArityType arity);
 
     // The template parameter is false for a regular std dev and true if merging partially computed
     // standard devations.
     template <bool merging>
-    FastTuple<bool, value::TypeTags, value::Value> builtinAggStdDev(ArityType arity);
+    value::TagValueMaybeOwned builtinAggStdDev(ArityType arity);
 
-    FastTuple<bool, value::TypeTags, value::Value> builtinStdDevPopFinalize(ArityType arity);
-    FastTuple<bool, value::TypeTags, value::Value> builtinStdDevSampFinalize(ArityType arity);
+    value::TagValueMaybeOwned builtinStdDevPopFinalize(ArityType arity);
+    value::TagValueMaybeOwned builtinStdDevSampFinalize(ArityType arity);
     FastTuple<bool, value::TypeTags, value::Value> builtinBitTestZero(ArityType arity);
     FastTuple<bool, value::TypeTags, value::Value> builtinBitTestMask(ArityType arity);
     FastTuple<bool, value::TypeTags, value::Value> builtinBitTestPosition(ArityType arity);
@@ -896,35 +873,35 @@ private:
     FastTuple<bool, value::TypeTags, value::Value> builtinToLower(ArityType arity);
     FastTuple<bool, value::TypeTags, value::Value> builtinCoerceToBool(ArityType arity);
     FastTuple<bool, value::TypeTags, value::Value> builtinCoerceToString(ArityType arity);
-    FastTuple<bool, value::TypeTags, value::Value> builtinAcos(ArityType arity);
-    FastTuple<bool, value::TypeTags, value::Value> builtinAcosh(ArityType arity);
-    FastTuple<bool, value::TypeTags, value::Value> builtinAsin(ArityType arity);
-    FastTuple<bool, value::TypeTags, value::Value> builtinAsinh(ArityType arity);
-    FastTuple<bool, value::TypeTags, value::Value> builtinAtan(ArityType arity);
-    FastTuple<bool, value::TypeTags, value::Value> builtinAtanh(ArityType arity);
-    FastTuple<bool, value::TypeTags, value::Value> builtinAtan2(ArityType arity);
-    FastTuple<bool, value::TypeTags, value::Value> builtinCos(ArityType arity);
-    FastTuple<bool, value::TypeTags, value::Value> builtinCosh(ArityType arity);
-    FastTuple<bool, value::TypeTags, value::Value> builtinDegreesToRadians(ArityType arity);
-    FastTuple<bool, value::TypeTags, value::Value> builtinRadiansToDegrees(ArityType arity);
-    FastTuple<bool, value::TypeTags, value::Value> builtinSin(ArityType arity);
-    FastTuple<bool, value::TypeTags, value::Value> builtinSinh(ArityType arity);
-    FastTuple<bool, value::TypeTags, value::Value> builtinTan(ArityType arity);
-    FastTuple<bool, value::TypeTags, value::Value> builtinTanh(ArityType arity);
-    FastTuple<bool, value::TypeTags, value::Value> builtinRand(ArityType arity);
-    FastTuple<bool, value::TypeTags, value::Value> builtinRound(ArityType arity);
+    value::TagValueMaybeOwned builtinAcos(ArityType arity);
+    value::TagValueMaybeOwned builtinAcosh(ArityType arity);
+    value::TagValueMaybeOwned builtinAsin(ArityType arity);
+    value::TagValueMaybeOwned builtinAsinh(ArityType arity);
+    value::TagValueMaybeOwned builtinAtan(ArityType arity);
+    value::TagValueMaybeOwned builtinAtanh(ArityType arity);
+    value::TagValueMaybeOwned builtinAtan2(ArityType arity);
+    value::TagValueMaybeOwned builtinCos(ArityType arity);
+    value::TagValueMaybeOwned builtinCosh(ArityType arity);
+    value::TagValueMaybeOwned builtinDegreesToRadians(ArityType arity);
+    value::TagValueMaybeOwned builtinRadiansToDegrees(ArityType arity);
+    value::TagValueMaybeOwned builtinSin(ArityType arity);
+    value::TagValueMaybeOwned builtinSinh(ArityType arity);
+    value::TagValueMaybeOwned builtinTan(ArityType arity);
+    value::TagValueMaybeOwned builtinTanh(ArityType arity);
+    value::TagValueMaybeOwned builtinRand(ArityType arity);
+    value::TagValueMaybeOwned builtinRound(ArityType arity);
     FastTuple<bool, value::TypeTags, value::Value> builtinConcat(ArityType arity);
     FastTuple<bool, value::TypeTags, value::Value> builtinConcatArrays(ArityType arity);
     FastTuple<bool, value::TypeTags, value::Value> builtinZipArrays(ArityType arity);
     FastTuple<bool, value::TypeTags, value::Value> builtinTrim(ArityType arity,
                                                                bool trimLeft,
                                                                bool trimRight);
-    FastTuple<bool, value::TypeTags, value::Value> builtinAggConcatArraysCapped(ArityType arity);
+    value::TagValueMaybeOwned builtinAggConcatArraysCapped(ArityType arity);
     FastTuple<bool, value::TypeTags, value::Value> builtinConcatArraysCapped(ArityType arity);
-    FastTuple<bool, value::TypeTags, value::Value> builtinAggSetUnion(ArityType arity);
-    FastTuple<bool, value::TypeTags, value::Value> builtinAggCollSetUnion(ArityType arity);
-    FastTuple<bool, value::TypeTags, value::Value> builtinAggSetUnionCapped(ArityType arity);
-    FastTuple<bool, value::TypeTags, value::Value> builtinAggCollSetUnionCapped(ArityType arity);
+    value::TagValueMaybeOwned builtinAggSetUnion(ArityType arity);
+    value::TagValueMaybeOwned builtinAggCollSetUnion(ArityType arity);
+    value::TagValueMaybeOwned builtinAggSetUnionCapped(ArityType arity);
+    value::TagValueMaybeOwned builtinAggCollSetUnionCapped(ArityType arity);
     FastTuple<bool, value::TypeTags, value::Value> builtinIsMember(ArityType arity);
     FastTuple<bool, value::TypeTags, value::Value> builtinCollIsMember(ArityType arity);
     FastTuple<bool, value::TypeTags, value::Value> builtinIndexOfBytes(ArityType arity);
@@ -1036,14 +1013,14 @@ private:
 
     static MultiAccState getMultiAccState(value::TypeTags stateTag, value::Value stateVal);
 
-    FastTuple<bool, value::TypeTags, value::Value> builtinAggFirstNNeedsMoreInput(ArityType arity);
-    FastTuple<bool, value::TypeTags, value::Value> builtinAggFirstN(ArityType arity);
-    FastTuple<bool, value::TypeTags, value::Value> builtinAggFirstNMerge(ArityType arity);
-    FastTuple<bool, value::TypeTags, value::Value> builtinAggFirstNFinalize(ArityType arity);
+    value::TagValueMaybeOwned builtinAggFirstNNeedsMoreInput(ArityType arity);
+    value::TagValueMaybeOwned builtinAggFirstN(ArityType arity);
+    value::TagValueMaybeOwned builtinAggFirstNMerge(ArityType arity);
+    value::TagValueMaybeOwned builtinAggFirstNFinalize(ArityType arity);
 
-    FastTuple<bool, value::TypeTags, value::Value> builtinAggLastN(ArityType arity);
-    FastTuple<bool, value::TypeTags, value::Value> builtinAggLastNMerge(ArityType arity);
-    FastTuple<bool, value::TypeTags, value::Value> builtinAggLastNFinalize(ArityType arity);
+    value::TagValueMaybeOwned builtinAggLastN(ArityType arity);
+    value::TagValueMaybeOwned builtinAggLastNMerge(ArityType arity);
+    value::TagValueMaybeOwned builtinAggLastNFinalize(ArityType arity);
 
     template <TopBottomSense Sense>
     static int32_t aggTopBottomNAdd(value::Array* state,
@@ -1065,32 +1042,32 @@ private:
                           int32_t memLimit,
                           TopBottomArgs& args);
     template <TopBottomSense>
-    FastTuple<bool, value::TypeTags, value::Value> builtinAggTopBottomN(ArityType arity);
+    value::TagValueMaybeOwned builtinAggTopBottomN(ArityType arity);
     template <TopBottomSense Sense, bool ValueIsArray>
-    FastTuple<bool, value::TypeTags, value::Value> builtinAggTopBottomNImpl(ArityType arity);
+    value::TagValueMaybeOwned builtinAggTopBottomNImpl(ArityType arity);
     template <TopBottomSense>
-    FastTuple<bool, value::TypeTags, value::Value> builtinAggTopBottomNArray(ArityType arity);
+    value::TagValueMaybeOwned builtinAggTopBottomNArray(ArityType arity);
     template <TopBottomSense>
-    FastTuple<bool, value::TypeTags, value::Value> builtinAggTopBottomNMerge(ArityType arity);
-    FastTuple<bool, value::TypeTags, value::Value> builtinAggTopBottomNFinalize(ArityType arity);
+    value::TagValueMaybeOwned builtinAggTopBottomNMerge(ArityType arity);
+    value::TagValueMaybeOwned builtinAggTopBottomNFinalize(ArityType arity);
 
     template <AccumulatorMinMaxN::MinMaxSense S>
-    FastTuple<bool, value::TypeTags, value::Value> builtinAggMinMaxN(ArityType arity);
+    value::TagValueMaybeOwned builtinAggMinMaxN(ArityType arity);
     template <AccumulatorMinMaxN::MinMaxSense S>
-    FastTuple<bool, value::TypeTags, value::Value> builtinAggMinMaxNMerge(ArityType arity);
+    value::TagValueMaybeOwned builtinAggMinMaxNMerge(ArityType arity);
     template <AccumulatorMinMaxN::MinMaxSense S>
-    FastTuple<bool, value::TypeTags, value::Value> builtinAggMinMaxNFinalize(ArityType arity);
+    value::TagValueMaybeOwned builtinAggMinMaxNFinalize(ArityType arity);
 
-    FastTuple<bool, value::TypeTags, value::Value> builtinAggRank(ArityType arity);
-    FastTuple<bool, value::TypeTags, value::Value> builtinAggRankColl(ArityType arity);
-    FastTuple<bool, value::TypeTags, value::Value> builtinAggDenseRank(ArityType arity);
-    FastTuple<bool, value::TypeTags, value::Value> builtinAggDenseRankColl(ArityType arity);
-    FastTuple<bool, value::TypeTags, value::Value> builtinAggRankFinalize(ArityType arity);
-    FastTuple<bool, value::TypeTags, value::Value> builtinAggExpMovingAvg(ArityType arity);
-    FastTuple<bool, value::TypeTags, value::Value> builtinAggExpMovingAvgFinalize(ArityType arity);
+    value::TagValueMaybeOwned builtinAggRank(ArityType arity);
+    value::TagValueMaybeOwned builtinAggRankColl(ArityType arity);
+    value::TagValueMaybeOwned builtinAggDenseRank(ArityType arity);
+    value::TagValueMaybeOwned builtinAggDenseRankColl(ArityType arity);
+    value::TagValueMaybeOwned builtinAggRankFinalize(ArityType arity);
+    value::TagValueMaybeOwned builtinAggExpMovingAvg(ArityType arity);
+    value::TagValueMaybeOwned builtinAggExpMovingAvgFinalize(ArityType arity);
     template <int sign>
-    FastTuple<bool, value::TypeTags, value::Value> builtinAggRemovableSum(ArityType arity);
-    FastTuple<bool, value::TypeTags, value::Value> builtinAggRemovableSumFinalize(ArityType arity);
+    value::TagValueMaybeOwned builtinAggRemovableSum(ArityType arity);
+    value::TagValueMaybeOwned builtinAggRemovableSumFinalize(ArityType arity);
     template <int sign>
     void aggRemovableSumImpl(value::Array* state, value::TypeTags rhsTag, value::Value rhsVal);
     FastTuple<bool, value::TypeTags, value::Value> aggRemovableSumFinalizeImpl(value::Array* state);
@@ -1098,96 +1075,73 @@ private:
     void updateRemovableSumAccForIntegerType(value::Array* sumAcc,
                                              value::TypeTags rhsTag,
                                              value::Value rhsVal);
-    FastTuple<bool, value::TypeTags, value::Value> builtinAggIntegralInit(ArityType arity);
-    FastTuple<bool, value::TypeTags, value::Value> builtinAggIntegralAdd(ArityType arity);
-    FastTuple<bool, value::TypeTags, value::Value> builtinAggIntegralRemove(ArityType arity);
-    FastTuple<bool, value::TypeTags, value::Value> builtinAggIntegralFinalize(ArityType arity);
-    FastTuple<bool, value::TypeTags, value::Value> integralOfTwoPointsByTrapezoidalRule(
+    value::TagValueMaybeOwned builtinAggIntegralInit(ArityType arity);
+    value::TagValueMaybeOwned builtinAggIntegralAdd(ArityType arity);
+    value::TagValueMaybeOwned builtinAggIntegralRemove(ArityType arity);
+    value::TagValueMaybeOwned builtinAggIntegralFinalize(ArityType arity);
+    value::TagValueMaybeOwned integralOfTwoPointsByTrapezoidalRule(
         value::TagValueView prevInput,
         value::TagValueView prevSortByVal,
         value::TagValueView newInput,
         value::TagValueView newSortByVal);
-    FastTuple<bool, value::TypeTags, value::Value> builtinAggDerivativeFinalize(ArityType arity);
-    FastTuple<bool, value::TypeTags, value::Value> aggRemovableAvgFinalizeImpl(
-        value::Array* sumState, int64_t count);
-    FastTuple<bool, value::TypeTags, value::Value> builtinAggCovarianceAdd(ArityType arity);
-    FastTuple<bool, value::TypeTags, value::Value> builtinAggCovarianceRemove(ArityType arity);
-    FastTuple<bool, value::TypeTags, value::Value> builtinAggCovarianceFinalize(ArityType arity,
-                                                                                bool isSamp);
-    FastTuple<bool, value::TypeTags, value::Value> builtinAggCovarianceSampFinalize(
-        ArityType arity);
-    FastTuple<bool, value::TypeTags, value::Value> builtinAggCovariancePopFinalize(ArityType arity);
-    FastTuple<bool, value::TypeTags, value::Value> builtinAggRemovablePushAdd(ArityType arity);
-    FastTuple<bool, value::TypeTags, value::Value> builtinAggRemovablePushRemove(ArityType arity);
-    FastTuple<bool, value::TypeTags, value::Value> builtinAggRemovablePushFinalize(ArityType arity);
-    FastTuple<bool, value::TypeTags, value::Value> builtinAggRemovableConcatArraysInit(
-        ArityType arity);
-    FastTuple<bool, value::TypeTags, value::Value> builtinAggRemovableConcatArraysAdd(
-        ArityType arity);
-    FastTuple<bool, value::TypeTags, value::Value> builtinAggRemovableConcatArraysRemove(
-        ArityType arity);
-    FastTuple<bool, value::TypeTags, value::Value> builtinAggRemovableConcatArraysFinalize(
-        ArityType arity);
+    value::TagValueMaybeOwned builtinAggDerivativeFinalize(ArityType arity);
+    value::TagValueMaybeOwned aggRemovableAvgFinalizeImpl(value::Array* sumState, int64_t count);
+    value::TagValueMaybeOwned builtinAggCovarianceAdd(ArityType arity);
+    value::TagValueMaybeOwned builtinAggCovarianceRemove(ArityType arity);
+    value::TagValueMaybeOwned builtinAggCovarianceFinalize(ArityType arity, bool isSamp);
+    value::TagValueMaybeOwned builtinAggCovarianceSampFinalize(ArityType arity);
+    value::TagValueMaybeOwned builtinAggCovariancePopFinalize(ArityType arity);
+    value::TagValueMaybeOwned builtinAggRemovablePushAdd(ArityType arity);
+    value::TagValueMaybeOwned builtinAggRemovablePushRemove(ArityType arity);
+    value::TagValueMaybeOwned builtinAggRemovablePushFinalize(ArityType arity);
+    value::TagValueMaybeOwned builtinAggRemovableConcatArraysInit(ArityType arity);
+    value::TagValueMaybeOwned builtinAggRemovableConcatArraysAdd(ArityType arity);
+    value::TagValueMaybeOwned builtinAggRemovableConcatArraysRemove(ArityType arity);
+    value::TagValueMaybeOwned builtinAggRemovableConcatArraysFinalize(ArityType arity);
     template <int quantity>
     void aggRemovableStdDevImpl(value::TypeTags stateTag,
                                 value::Value stateVal,
                                 value::TypeTags inputTag,
                                 value::Value inputVal);
-    FastTuple<bool, value::TypeTags, value::Value> builtinAggRemovableStdDevAdd(ArityType arity);
-    FastTuple<bool, value::TypeTags, value::Value> builtinAggRemovableStdDevRemove(ArityType arity);
-    FastTuple<bool, value::TypeTags, value::Value> builtinAggRemovableStdDevFinalize(
-        ArityType arity, bool isSamp);
-    FastTuple<bool, value::TypeTags, value::Value> builtinAggRemovableStdDevSampFinalize(
-        ArityType arity);
-    FastTuple<bool, value::TypeTags, value::Value> builtinAggRemovableStdDevPopFinalize(
-        ArityType arity);
-    FastTuple<bool, value::TypeTags, value::Value> builtinAggRemovableAvgFinalize(ArityType arity);
-    FastTuple<bool, value::TypeTags, value::Value> builtinAggFirstLastNInit(ArityType arity);
-    FastTuple<bool, value::TypeTags, value::Value> builtinAggFirstLastNAdd(ArityType arity);
-    FastTuple<bool, value::TypeTags, value::Value> builtinAggFirstLastNRemove(ArityType arity);
+    value::TagValueMaybeOwned builtinAggRemovableStdDevAdd(ArityType arity);
+    value::TagValueMaybeOwned builtinAggRemovableStdDevRemove(ArityType arity);
+    value::TagValueMaybeOwned builtinAggRemovableStdDevFinalize(ArityType arity, bool isSamp);
+    value::TagValueMaybeOwned builtinAggRemovableStdDevSampFinalize(ArityType arity);
+    value::TagValueMaybeOwned builtinAggRemovableStdDevPopFinalize(ArityType arity);
+    value::TagValueMaybeOwned builtinAggRemovableAvgFinalize(ArityType arity);
+    value::TagValueMaybeOwned builtinAggFirstLastNInit(ArityType arity);
+    value::TagValueMaybeOwned builtinAggFirstLastNAdd(ArityType arity);
+    value::TagValueMaybeOwned builtinAggFirstLastNRemove(ArityType arity);
     template <AccumulatorFirstLastN::Sense S>
-    FastTuple<bool, value::TypeTags, value::Value> builtinAggFirstLastNFinalize(ArityType arity);
-    FastTuple<bool, value::TypeTags, value::Value> builtinAggLinearFillCanAdd(ArityType arity);
-    FastTuple<bool, value::TypeTags, value::Value> builtinAggLinearFillAdd(ArityType arity);
-    FastTuple<bool, value::TypeTags, value::Value> builtinAggLinearFillFinalize(ArityType arity);
-    FastTuple<bool, value::TypeTags, value::Value> builtinAggRemovableSetCommonInit(
-        ArityType arity);
-    FastTuple<bool, value::TypeTags, value::Value> builtinAggRemovableSetCommonCollInit(
-        ArityType arity);
-    FastTuple<bool, value::TypeTags, value::Value> builtinAggRemovableAddToSetAdd(ArityType arity);
-    FastTuple<bool, value::TypeTags, value::Value> builtinAggRemovableAddToSetRemove(
-        ArityType arity);
-    FastTuple<bool, value::TypeTags, value::Value> builtinAggRemovableSetUnionAdd(ArityType arity);
-    FastTuple<bool, value::TypeTags, value::Value> builtinAggRemovableSetUnionRemove(
-        ArityType arity);
-    FastTuple<bool, value::TypeTags, value::Value> builtinAggRemovableSetCommonFinalize(
-        ArityType arity);
-    FastTuple<bool, value::TypeTags, value::Value> aggRemovableMinMaxNInitImpl(
-        CollatorInterface* collator);
-    FastTuple<bool, value::TypeTags, value::Value> builtinAggRemovableMinMaxNCollInit(
-        ArityType arity);
-    FastTuple<bool, value::TypeTags, value::Value> builtinAggRemovableMinMaxNInit(ArityType arity);
-    FastTuple<bool, value::TypeTags, value::Value> builtinAggRemovableMinMaxNAdd(ArityType arity);
-    FastTuple<bool, value::TypeTags, value::Value> builtinAggRemovableMinMaxNRemove(
-        ArityType arity);
+    value::TagValueMaybeOwned builtinAggFirstLastNFinalize(ArityType arity);
+    value::TagValueMaybeOwned builtinAggLinearFillCanAdd(ArityType arity);
+    value::TagValueMaybeOwned builtinAggLinearFillAdd(ArityType arity);
+    value::TagValueMaybeOwned builtinAggLinearFillFinalize(ArityType arity);
+    value::TagValueMaybeOwned builtinAggRemovableSetCommonInit(ArityType arity);
+    value::TagValueMaybeOwned builtinAggRemovableSetCommonCollInit(ArityType arity);
+    value::TagValueMaybeOwned builtinAggRemovableAddToSetAdd(ArityType arity);
+    value::TagValueMaybeOwned builtinAggRemovableAddToSetRemove(ArityType arity);
+    value::TagValueMaybeOwned builtinAggRemovableSetUnionAdd(ArityType arity);
+    value::TagValueMaybeOwned builtinAggRemovableSetUnionRemove(ArityType arity);
+    value::TagValueMaybeOwned builtinAggRemovableSetCommonFinalize(ArityType arity);
+    value::TagValueMaybeOwned aggRemovableMinMaxNInitImpl(CollatorInterface* collator);
+    value::TagValueMaybeOwned builtinAggRemovableMinMaxNCollInit(ArityType arity);
+    value::TagValueMaybeOwned builtinAggRemovableMinMaxNInit(ArityType arity);
+    value::TagValueMaybeOwned builtinAggRemovableMinMaxNAdd(ArityType arity);
+    value::TagValueMaybeOwned builtinAggRemovableMinMaxNRemove(ArityType arity);
     template <AccumulatorMinMaxN::MinMaxSense S>
-    FastTuple<bool, value::TypeTags, value::Value> builtinAggRemovableMinMaxNFinalize(
-        ArityType arity);
+    value::TagValueMaybeOwned builtinAggRemovableMinMaxNFinalize(ArityType arity);
     FastTuple<bool, value::TypeTags, value::Value> builtin(ArityType arity);
-    FastTuple<bool, value::TypeTags, value::Value> linearFillInterpolate(value::TagValueView x1,
-                                                                         value::TagValueView y1,
-                                                                         value::TagValueView x2,
-                                                                         value::TagValueView y2,
-                                                                         value::TagValueView x);
-    FastTuple<bool, value::TypeTags, value::Value> builtinAggRemovableTopBottomNInit(
-        ArityType arity);
-    FastTuple<bool, value::TypeTags, value::Value> builtinAggRemovableTopBottomNAdd(
-        ArityType arity);
-    FastTuple<bool, value::TypeTags, value::Value> builtinAggRemovableTopBottomNRemove(
-        ArityType arity);
+    value::TagValueMaybeOwned linearFillInterpolate(value::TagValueView x1,
+                                                    value::TagValueView y1,
+                                                    value::TagValueView x2,
+                                                    value::TagValueView y2,
+                                                    value::TagValueView x);
+    value::TagValueMaybeOwned builtinAggRemovableTopBottomNInit(ArityType arity);
+    value::TagValueMaybeOwned builtinAggRemovableTopBottomNAdd(ArityType arity);
+    value::TagValueMaybeOwned builtinAggRemovableTopBottomNRemove(ArityType arity);
     template <TopBottomSense>
-    FastTuple<bool, value::TypeTags, value::Value> builtinAggRemovableTopBottomNFinalize(
-        ArityType arity);
+    value::TagValueMaybeOwned builtinAggRemovableTopBottomNFinalize(ArityType arity);
 
     // Block builtins
 

@@ -49,13 +49,10 @@ boost::intrusive_ptr<exec::agg::Stage> documentSourceInternalSearchIdLookupToSta
 
     return make_intrusive<exec::agg::InternalSearchIdLookUpStage>(
         documentSource->kStageName,
+        documentSource->_spec,
         documentSource->getExpCtx(),
-        documentSource->_limit,
         documentSource->_catalogResourceHandle,
-        documentSource->_searchIdLookupMetrics,
-        documentSource->_viewPipeline
-            ? documentSource->_viewPipeline->clone(documentSource->getExpCtx())
-            : nullptr);
+        documentSource->_searchIdLookupMetrics);
 }
 
 namespace exec::agg {
@@ -66,18 +63,16 @@ REGISTER_AGG_STAGE_MAPPING(internalSearchIdLookupStage,
 
 InternalSearchIdLookUpStage::InternalSearchIdLookUpStage(
     StringData stageName,
+    DocumentSourceIdLookupSpec spec,
     const boost::intrusive_ptr<ExpressionContext>& expCtx,
-    long long limit,
     const boost::intrusive_ptr<DSInternalSearchIdLookUpCatalogResourceHandle>&
         catalogResourceHandle,
-    const std::shared_ptr<SearchIdLookupMetrics>& searchIdLookupMetrics,
-    std::unique_ptr<mongo::Pipeline> viewPipeline)
+    const std::shared_ptr<SearchIdLookupMetrics>& searchIdLookupMetrics)
     : Stage(stageName, expCtx),
       _stageName(stageName),
-      _limit(limit),
+      _spec(std::move(spec)),
       _catalogResourceHandle(catalogResourceHandle),
-      _searchIdLookupMetrics(searchIdLookupMetrics),
-      _viewPipeline(std::move(viewPipeline)) {}
+      _searchIdLookupMetrics(searchIdLookupMetrics) {}
 
 Document InternalSearchIdLookUpStage::getExplainOutput(const SerializationOptions& opts) const {
     const PlanSummaryStats& stats = _stats.planSummaryStats;
@@ -97,7 +92,8 @@ Document InternalSearchIdLookUpStage::getExplainOutput(const SerializationOption
 GetNextResult InternalSearchIdLookUpStage::doGetNext() {
     boost::optional<Document> result;
     Document inputDoc;
-    if (_limit != 0 && _searchIdLookupMetrics->getDocsReturnedByIdLookup() >= _limit) {
+    if (auto limit = _spec.getLimit();
+        limit && *limit != 0 && _searchIdLookupMetrics->getDocsReturnedByIdLookup() >= *limit) {
         return GetNextResult::makeEOF();
     }
 
@@ -134,16 +130,18 @@ GetNextResult InternalSearchIdLookUpStage::doGetNext() {
             // Find the document by performing a local read.
             pipeline_factory::MakePipelineOptions pipelineOpts;
             pipelineOpts.attachCursorSource = false;
+            pipelineOpts.desugar = true;
             auto pipeline = pipeline_factory::makePipeline(
                 {BSON("$match" << documentKey)}, pExpCtx, pipelineOpts);
 
-            if (_viewPipeline) {
+            if (_spec.getViewPipeline()) {
                 // When search query is being run on a view, we append the view pipeline to
                 // the end of the idLookup's subpipeline. This allows idLookup to retrieve
                 // the full/unmodified documents (from the _id values returned by mongot),
                 // apply the view's data transforms, and pass said transformed documents
                 // through the rest of the user pipeline.
-                pipeline->appendPipeline(_viewPipeline->clone(pExpCtx));
+                pipeline->appendPipeline(pipeline_factory::makePipeline(
+                    _spec.getViewPipeline().get(), pExpCtx, pipelineOpts));
             }
 
             // Scope ScopedSetShardRole to ensure it's cleaned up before any future execution.

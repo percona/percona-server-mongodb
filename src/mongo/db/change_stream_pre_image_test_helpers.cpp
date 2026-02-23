@@ -29,7 +29,7 @@
 
 #include "mongo/db/change_stream_pre_image_test_helpers.h"
 
-#include "mongo/db/change_stream_pre_image_util.h"
+#include "mongo/db/change_stream_pre_image_id_util.h"
 #include "mongo/db/change_stream_pre_images_collection_manager.h"
 #include "mongo/db/dbhelpers.h"
 
@@ -43,7 +43,7 @@ void appendPreImageRecordIdAndTS(const RecordId& rid,
     rid.serializeToken(ridFieldName, builder);
     if (!rid.isNull()) {
         builder->append(ridFieldName + "Timestamp",
-                        change_stream_pre_image_util::getPreImageTimestamp(rid));
+                        change_stream_pre_image_id_util::getPreImageTimestamp(rid));
     }
 }
 
@@ -78,7 +78,7 @@ ChangeStreamPreImage makePreImage(const UUID& nsUUID,
 
 CollectionTruncateMarkers::RecordIdAndWallTime extractRecordIdAndWallTime(
     const ChangeStreamPreImage& preImage) {
-    return {change_stream_pre_image_util::toRecordId(preImage.getId()),
+    return {change_stream_pre_image_id_util::toRecordId(preImage.getId()),
             preImage.getOperationTime()};
 }
 

@@ -37,6 +37,8 @@
 
 #include <type_traits>
 
+#include <boost/optional/optional.hpp>
+
 namespace MONGO_MOD_PUBLIC mongo {
 enum class MessageCompressor : uint8_t {
     kNoop = 0,
@@ -89,6 +91,12 @@ public:
      * status.
      */
     virtual StatusWith<std::size_t> decompressData(ConstDataRange input, DataRange output) = 0;
+
+    /*
+     * Returns the max uncompressed length of the data in the input ConstDataRange as given by the
+     * header, if available.
+     */
+    virtual boost::optional<std::size_t> getMaxDecompressedSize(ConstDataRange input) = 0;
 
     /*
      * This returns the number of bytes passed in the input for compressData

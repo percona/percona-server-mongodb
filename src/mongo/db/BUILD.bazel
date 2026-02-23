@@ -1,5 +1,5 @@
 load("@poetry//:dependencies.bzl", "dependency")
-load("//bazel:mongo_src_rules.bzl", "idl_generator", "mongo_cc_benchmark", "mongo_cc_binary", "mongo_cc_fuzzer_test", "mongo_cc_integration_test", "mongo_cc_library", "mongo_cc_unit_test", "mongo_idl_library", "windows_rc")
+load("//bazel:mongo_src_rules.bzl", "idl_generator", "mongo_cc_benchmark", "mongo_cc_binary", "mongo_cc_fuzzer_test_deprecated", "mongo_cc_integration_test", "mongo_cc_library", "mongo_cc_unit_test", "mongo_idl_library", "windows_rc")
 load("//bazel/config:render_template.bzl", "render_template")
 
 package(default_visibility = ["//visibility:public"])
@@ -939,6 +939,10 @@ mongo_cc_library(
         "//src/mongo/db/exec/runtime_planners/classic_runtime_planner_for_sbe:planner_interface.cpp",
         "//src/mongo/db/exec/runtime_planners/classic_runtime_planner_for_sbe:single_solution_passthrough_planner.cpp",
         "//src/mongo/db/exec/runtime_planners/classic_runtime_planner_for_sbe:sub_planner.cpp",
+        "//src/mongo/db/exec/runtime_planners/exec_deferred_engine_choice_runtime_planner:multi_planner.cpp",
+        "//src/mongo/db/exec/runtime_planners/exec_deferred_engine_choice_runtime_planner:planner_interface.cpp",
+        "//src/mongo/db/exec/runtime_planners/exec_deferred_engine_choice_runtime_planner:single_solution_passthrough_planner.cpp",
+        "//src/mongo/db/exec/runtime_planners/exec_deferred_engine_choice_runtime_planner:sub_planner.cpp",
         "//src/mongo/db/pipeline:document_source_cursor.cpp",
         "//src/mongo/db/pipeline:document_source_geo_near_cursor.cpp",
         "//src/mongo/db/pipeline:pipeline_d.cpp",
@@ -947,9 +951,13 @@ mongo_cc_library(
         "//src/mongo/db/pipeline:sbe_pushdown.cpp",
         "//src/mongo/db/query:all_indices_required_checker.cpp",
         "//src/mongo/db/query:engine_selection.cpp",
+        "//src/mongo/db/query:engine_selection_plan.cpp",
         "//src/mongo/db/query:explain.cpp",
         "//src/mongo/db/query:find.cpp",
         "//src/mongo/db/query:get_executor.cpp",
+        "//src/mongo/db/query:get_executor_deferred_engine_choice.cpp",
+        "//src/mongo/db/query:get_executor_deferred_engine_choice_lowering.cpp",
+        "//src/mongo/db/query:get_executor_deferred_engine_choice_planning.cpp",
         "//src/mongo/db/query:get_executor_fast_paths.cpp",
         "//src/mongo/db/query:get_executor_helpers.cpp",
         "//src/mongo/db/query:internal_plans.cpp",
@@ -1697,6 +1705,7 @@ mongo_cc_library(
         "client.cpp",
         "client_strand.cpp",
         "default_baton.cpp",
+        "hierarchical_cancelable_operation_context_factory.cpp",
         "operation_context.cpp",
         "operation_context_group.cpp",
         "operation_context_options_gen",
@@ -2146,12 +2155,26 @@ mongo_cc_unit_test(
 )
 
 mongo_cc_library(
+    name = "change_stream_pre_image_id_util",
+    srcs = [
+        "change_stream_pre_image_id_util.cpp",
+    ],
+    deps = [
+        ":change_stream_options_manager",
+        ":record_id_helpers",
+        ":server_base",
+        "//src/mongo/db/pipeline:change_stream_preimage",
+    ],
+)
+
+mongo_cc_library(
     name = "change_stream_pre_image_util",
     srcs = [
         "change_stream_pre_image_util.cpp",
     ],
     deps = [
         ":change_stream_options_manager",
+        ":change_stream_pre_image_id_util",
         ":query_exec",
         ":record_id_helpers",
         ":server_base",
@@ -2754,7 +2777,6 @@ mongo_cc_library(
         "//src/mongo/db/repl:topology_coordinator",
         "//src/mongo/db/repl:wait_for_majority_service",
         "//src/mongo/db/replicated_fast_count:replicated_fast_count_manager",
-        "//src/mongo/db/replicated_fast_count:replicated_fast_count_init",
         "//src/mongo/db/rss:replicated_storage_service",
         "//src/mongo/db/stats:system_buckets_metrics",
         "//src/mongo/db/s:query_analysis_writer",
@@ -3022,6 +3044,7 @@ mongo_cc_unit_test(
 mongo_cc_unit_test(
     name = "change_stream_pre_images_manager_test",
     srcs = [
+        "change_stream_pre_image_id_util_test.cpp",
         "change_stream_pre_images_remover_test.cpp",
         "change_stream_pre_images_truncate_manager_test.cpp",
         "change_stream_pre_images_truncate_markers_per_nsUUID_test.cpp",
@@ -3271,6 +3294,7 @@ mongo_cc_unit_test(
         "client_strand_test.cpp",
         "dbdirectclient_test.cpp",
         "dbmessage_test.cpp",
+        "hierarchical_cancelable_operation_context_factory_test.cpp",
         "mirroring_sampler_test.cpp",
         "operation_context_test.cpp",
         "operation_cpu_timer_test.cpp",
@@ -3546,7 +3570,7 @@ mongo_cc_library(
     deps = ["//src/mongo:base"],
 )
 
-mongo_cc_fuzzer_test(
+mongo_cc_fuzzer_test_deprecated(
     name = "op_msg_fuzzer_shard",
     srcs = [
         "op_msg_fuzzer_shard.cpp",
@@ -3557,7 +3581,7 @@ mongo_cc_fuzzer_test(
     ],
 )
 
-mongo_cc_fuzzer_test(
+mongo_cc_fuzzer_test_deprecated(
     name = "op_msg_fuzzer_router",
     srcs = [
         "op_msg_fuzzer_router.cpp",
@@ -3662,16 +3686,6 @@ mongo_cc_library(
     ],
 )
 
-mongo_cc_library(
-    name = "action_duration_metrics",
-    srcs = [
-        "action_duration_metrics.cpp",
-    ],
-    deps = [
-        "//src/mongo/db/commands/server_status:server_status_core",
-    ],
-)
-
 mongo_cc_unit_test(
     name = "action_duration_metrics_test",
     srcs = [
@@ -3679,8 +3693,6 @@ mongo_cc_unit_test(
     ],
     tags = ["mongo_unittest_fourth_group"],
     deps = [
-        "action_duration_metrics",
-        "//src/mongo/db:service_context_test_fixture",
         "//src/mongo/unittest",
     ],
 )

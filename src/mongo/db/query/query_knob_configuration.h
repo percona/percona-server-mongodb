@@ -85,6 +85,8 @@ public:
     size_t getMaxEdgesInJoinGraph() const;
     size_t getMaxNumberNodesConsideredForImplicitEdges() const;
     bool getEnableJoinEnumerationHJOrderPruning() const;
+    size_t getInternalJoinPlanSamplingSize() const;
+    bool getInternalJoinEnumerateCollScanPlans() const;
 
     /**
      * Returns whether we can push down fully compatible stages to sbe. This is only true when the
@@ -144,6 +146,8 @@ private:
     int64_t _maxEdgesInJoinGraph;
     int64_t _maxNumberNodesConsideredForImplicitEdges;
     bool _enableJoinEnumerationHJOrderPruning;
+    int64_t _internalJoinPlanSamplingSize;
+    bool _internalJoinEnumerateCollScanPlans;
 
     int64_t _internalQuerySpillingMinAvailableDiskSpaceBytes;
     int64_t _internalMaxGroupAccumulatorsInSbe;

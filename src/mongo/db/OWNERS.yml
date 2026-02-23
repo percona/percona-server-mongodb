@@ -320,6 +320,9 @@ filters:
     approvers:
       - 10gen/server-storage-engine-integration
       - 10gen/server-catalog-and-routing-shard-catalog
+  - "hasher*":
+    approvers:
+      - 10gen/query-execution-write-exec
   - "index_key_validate*":
     approvers:
       - 10gen/server-index-builds
@@ -343,6 +346,9 @@ filters:
   - "partitioned*":
     approvers:
       - 10gen/server-programmability
+  - "hierarchical_cancelable_operation_context_factory*":
+    approvers:
+      - 10gen/server-cluster-scalability
   - "logical_session_cache_factory_mongod*":
     approvers:
       - 10gen/server-transactions

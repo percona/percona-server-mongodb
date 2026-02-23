@@ -3,11 +3,9 @@
 # PrimaryDrivenIndexBuilds feature flag enabled.
 #
 # TODO(SERVER-108818): remove this temporary suite and all its usages.
-base_suite: replica_sets_jscore_passthrough
+base_suite: replica_sets_jscore_passthrough_base
 overrides:
   - "primary_driven_index_builds.enable_primary_driven_index_builds_feature_flag_mongod"
 
 excludes:
   - "primary_driven_index_builds.exclude_primary_driven_index_builds_incompatible_tag"
-  # TODO (SERVER-119064): Re-enable core time-series tests.
-  - "primary_driven_index_builds.exclude_core_timeseries_tests"

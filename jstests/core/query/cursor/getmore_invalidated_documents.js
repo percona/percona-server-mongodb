@@ -5,6 +5,8 @@
 //   incompatible_with_views,
 // ]
 
+import {add2dsphereVersionIfNeeded} from "jstests/libs/query/geo_index_version_helpers.js";
+
 // Tests for invalidation during a getmore. This behavior is storage-engine dependent.
 // See SERVER-16675.
 let t = db.getmore_invalidated_documents;
@@ -121,7 +123,7 @@ assert(cursor.hasNext());
 
 // Case #6: 2dsphere near with deletion invalidation.
 t.drop();
-t.createIndex({geo: "2dsphere"});
+t.createIndex({geo: "2dsphere"}, add2dsphereVersionIfNeeded());
 for (x = -1; x < 1; x++) {
     for (y = -1; y < 1; y++) {
         assert.commandWorked(t.insert({geo: [x, y]}));
@@ -141,7 +143,7 @@ assert(cursor.hasNext());
 
 // Case #7: 2dsphere near with deletion invalidation (again).
 t.drop();
-t.createIndex({geo: "2dsphere"});
+t.createIndex({geo: "2dsphere"}, add2dsphereVersionIfNeeded());
 for (x = 0; x < 6; x++) {
     assert.commandWorked(t.insert({geo: [x, x]}));
 }
@@ -182,7 +184,7 @@ assert(nextDoc.geo[0] === 0 || nextDoc.geo[1] === 0);
 
 // Case #9: 2dsphere near with mutation invalidation.
 t.drop();
-t.createIndex({geo: "2dsphere"});
+t.createIndex({geo: "2dsphere"}, add2dsphereVersionIfNeeded());
 for (x = -1; x < 1; x++) {
     for (y = -1; y < 1; y++) {
         assert.commandWorked(t.insert({geo: [x, y]}));

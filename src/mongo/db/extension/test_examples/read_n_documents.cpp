@@ -98,8 +98,8 @@ public:
 
         {
             std::vector<extension::VariantDPLHandle> pipeline;
-            pipeline.emplace_back(
-                extension::LogicalAggStageHandle{new sdk::ExtensionLogicalAggStage(clone())});
+            pipeline.emplace_back(extension::LogicalAggStageHandle{
+                new sdk::ExtensionLogicalAggStageAdapter(clone())});
             dpl.shardsPipeline = sdk::DPLArrayContainer(std::move(pipeline));
         }
 
@@ -146,7 +146,7 @@ public:
     std::vector<extension::VariantNodeHandle> expand() const override {
         std::vector<extension::VariantNodeHandle> expanded;
         expanded.reserve(getExpandedSize());
-        expanded.emplace_back(new sdk::ExtensionAggStageAstNode(
+        expanded.emplace_back(new sdk::ExtensionAggStageAstNodeAdapter(
             std::make_unique<ProduceIdsAstNode>("$produceIds", _arguments)));
         expanded.emplace_back(
             extension::sdk::HostServicesAPI::getInstance()->createIdLookup(kIdLookupSpec));

@@ -10,10 +10,9 @@ import inspect
 import os
 import sys
 import textwrap
-from typing import Dict
 
 
-def write_config_header(input_path: str, output_path: str, definitions: Dict[str, str]) -> None:
+def write_config_header(input_path: str, output_path: str, definitions: dict[str, str]) -> None:
     with open(input_path) as in_file:
         content = in_file.read()
 

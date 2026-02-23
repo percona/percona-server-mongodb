@@ -77,8 +77,11 @@ private:
 
     /**
      * Pass-through method for reclaiming oplog appropriately to the oplog being truncated.
+     * If truncation occurred, the returned RecordId will have isNull() == false.
      */
-    virtual void _reclaimOplog(OperationContext* opCtx, RecordStore& rs, RecordId mayTruncateUpTo);
+    virtual RecordId _reclaimOplog(OperationContext* opCtx,
+                                   RecordStore& rs,
+                                   RecordId mayTruncateUpTo);
 
     // Serializes setting/resetting _uniqueCtx and marking _uniqueCtx killed.
     mutable stdx::mutex _opCtxMutex;

@@ -33,6 +33,7 @@
 #include "mongo/db/server_options.h"
 #include "mongo/db/server_parameter.h"
 #include "mongo/idl/server_parameter_test_controller.h"
+#include "mongo/unittest/death_test.h"
 #include "mongo/unittest/unittest.h"
 
 namespace mongo {
@@ -201,6 +202,13 @@ static const ServerGlobalParams::FCVSnapshot kDowngradingFromLatestToLastContinu
     multiversion::GenericFCV::kDowngradingFromLatestToLastContinuous);
 static const ServerGlobalParams::FCVSnapshot kUpgradingFromLastLTSToLastContinuousFCVSnapshot(
     multiversion::GenericFCV::kUpgradingFromLastLTSToLastContinuous);
+
+static const ServerGlobalParams::FCVSnapshot kUnsetDefaultLastLTSBehavior(
+    multiversion::FeatureCompatibilityVersion::kUnsetDefaultLastLTSBehavior);
+
+DEATH_TEST(FeatureFlagDeathTest, IsEnabledUndefined, "tassert") {
+    feature_flags::gFeatureFlagBlender.isEnabled(kNoVersionContext, kUnsetDefaultLastLTSBehavior);
+}
 
 // Test feature flags are enabled and not enabled based on fcv
 TEST_F(FeatureFlagTest, IsEnabledTrue) {

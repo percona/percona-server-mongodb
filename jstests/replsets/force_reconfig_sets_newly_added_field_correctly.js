@@ -1,8 +1,6 @@
 /**
  * Verify that force reconfigs overwrite the 'newlyAdded' field correctly in a replica set.
  *
- * @tags: [
- * ]
  */
 
 import {kDefaultWaitForFailPointTimeout} from "jstests/libs/fail_point_util.js";
@@ -43,6 +41,8 @@ const addNode = (id, {newlyAdded, force, shouldSucceed, failureCode} = {}) => {
             "failpoint.forceSyncSourceCandidate": tojson({mode: "alwaysOn", data: {"hostAndPort": primary.host}}),
             "failpoint.initialSyncHangBeforeFinish": tojson({mode: "alwaysOn"}),
             "numInitialSyncAttempts": 1,
+            // Skip waiting for last stable to advance since it is possible that the primary cannot advance its stable timestamp in this test.
+            "initialSyncWaitForSyncSourceLastStableRecoveryTs": false,
         },
     });
 

@@ -9,6 +9,8 @@
  *  uses_transactions,
  *  antithesis_incompatible,
  *  assumes_stable_shard_list,
+ *  # TODO(SERVER-119777): Ensure test does not leak cursors.
+ *  can_leak_idle_cursors,
  * ]
  */
 

@@ -13,6 +13,9 @@ filters:
       - 10gen/query-execution-staff-leads
       - 10gen/query-optimization-staff-leads
       - 10gen/query-integration-staff-leads
+  - "*.idl":
+    approvers:
+      - 10gen/query-optimization
   - "all_indices_required_checker*":
     approvers:
       - 10gen/query-execution
@@ -73,9 +76,21 @@ filters:
   - "framework_control.cpp":
     approvers:
       - 10gen/query-optimization
-  - "get_executor*":
+  - "get_executor.*":
     approvers:
       - 10gen/query-optimization
+      - 10gen/query-execution
+  - "get_executor_fast_paths.*":
+    approvers:
+      - 10gen/query-optimization
+      - 10gen/query-execution
+  - "get_executor_helpers.*":
+    approvers:
+      - 10gen/query-optimization
+      - 10gen/query-execution
+  # TODO SERVER-119034 change ownership to be shared with QO.
+  - "get_executor_deferred_engine_choice*":
+    approvers:
       - 10gen/query-execution
   - "getmore_request_test.cpp":
     approvers:
@@ -234,9 +249,6 @@ filters:
     approvers:
       - 10gen/query-optimization
   - "plan_rank*":
-    approvers:
-      - 10gen/query-optimization
-  - "*.idl":
     approvers:
       - 10gen/query-optimization
   - "query_feature_flags.idl":

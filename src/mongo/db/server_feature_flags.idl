@@ -107,16 +107,16 @@ feature_flags:
         default: true
         version: 8.2
         fcv_gated: true
-    featureFlagPrefetch:
-        description: "Feature flag to make pre-fetching available"
-        cpp_varname: gFeatureFlagPrefetch
-        default: true
-        fcv_gated: false
     featureFlagErrorAndLogValidationAction:
         description: "Feature flag to enable errorAndLog validatio action in collection options"
         cpp_varname: gFeatureFlagErrorAndLogValidationAction
         default: true
         version: 8.1
+        fcv_gated: true
+    featureFlagValidatedValidationLevel:
+        description: "Enables the use of the validated schema validation level."
+        cpp_varname: gFeatureFlagValidatedValidationLevel
+        default: false
         fcv_gated: true
     featureFlagDistinguishMetadataInconsistencyFromConflictingOperation:
         description: "Feature flag to distinguish ChunkMetadataInconsistency from ConflictingOperationInProgress error"
@@ -137,7 +137,7 @@ feature_flags:
         version: 8.1
         fcv_gated: true
         check_against_fcv: legacy_fcv_snapshot_only
-    # TODO SERVER-118776: remove this feature flag and instead use
+    # TODO SERVER-119354: remove this feature flag and instead use
     # gFeatureFlagCreateViewlessTimeseriesCollections.isEnabledAndIgnoreFCVUnsafe()
     featureFlagViewlessTimeseriesUpgradeDowngradeRetriableError:
         description: >-
@@ -266,4 +266,5 @@ feature_flags:
         description: "Disallow storing findAndModify pre/post-images to a side collection."
         cpp_varname: gFeatureFlagDisallowFindAndModifyImageCollection
         default: false
-        fcv_gated: true
+        fcv_gated: false
+        incremental_rollout_phase: in_development

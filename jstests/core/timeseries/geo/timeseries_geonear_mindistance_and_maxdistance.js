@@ -9,6 +9,7 @@
  *   requires_fcv_72
  * ]
  */
+import {add2dsphereVersionIfNeeded} from "jstests/libs/query/geo_index_version_helpers.js";
 
 const timeFieldName = "time";
 const metaFieldName = "tags";
@@ -19,7 +20,7 @@ const normColl = db.getCollection("normal_coll");
 function setUpCollection(coll, options) {
     coll.drop();
     assert.commandWorked(db.createCollection(coll.getName(), options));
-    assert.commandWorked(coll.createIndex({"tags.loc": "2dsphere"}));
+    assert.commandWorked(coll.createIndex({"tags.loc": "2dsphere"}, add2dsphereVersionIfNeeded()));
 
     const nMeasurements = 10;
     let docs = Array(nMeasurements);

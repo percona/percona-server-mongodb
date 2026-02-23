@@ -7,7 +7,6 @@ being waited on.
 
 import threading
 from textwrap import wrap
-from typing import List
 
 # Logkeeper only support log lines up to 4 MB, we want to be a little under that to account for
 # extra metadata that gets sent along with the log message.
@@ -85,7 +84,7 @@ class LoggerPipe(threading.Thread):
         LoggerPipe.__join(self)  # Tidy up the started thread.
 
     @staticmethod
-    def _format_line_for_logging(line_bytes: bytes) -> List[str]:
+    def _format_line_for_logging(line_bytes: bytes) -> list[str]:
         """
         Convert the given byte array into string(s) to be send to the logger.
 

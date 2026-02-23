@@ -62,7 +62,9 @@ private:
         delete static_cast<IdleThreadBlockAdapter*>(idleThreadBlock);
     }
 
-    const ::MongoExtensionIdleThreadBlockVTable VTABLE{.destroy = &_extDestroy};
+    static constexpr ::MongoExtensionIdleThreadBlockVTable VTABLE = {
+        .destroy = &_extDestroy,
+    };
 };
 /**
  * HostServicesAdapter is an implementation of ::MongoExtensionHostServices, providing host
@@ -112,7 +114,7 @@ private:
     static ::MongoExtensionStatus* _extCreateIdLookup(
         ::MongoExtensionByteView bsonSpec, ::MongoExtensionAggStageAstNode** node) noexcept;
 
-    static constexpr ::MongoExtensionHostServicesVTable VTABLE{
+    static constexpr ::MongoExtensionHostServicesVTable VTABLE = {
         .get_logger = &_extGetLogger,
         .user_asserted = &_extUserAsserted,
         .tripwire_asserted = &_extTripwireAsserted,

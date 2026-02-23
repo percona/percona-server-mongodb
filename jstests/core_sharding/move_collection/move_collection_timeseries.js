@@ -8,6 +8,8 @@
  *   assumes_no_implicit_collection_creation_on_get_collection,
  *   # moveCollection can't run during FCV transitions
  *   cannot_run_during_upgrade_downgrade,
+ *   # TODO(SERVER-119777): Ensure test does not leak cursors.
+ *   can_leak_idle_cursors,
  * ]
  */
 

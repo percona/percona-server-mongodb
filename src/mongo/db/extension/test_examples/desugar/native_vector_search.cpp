@@ -207,7 +207,7 @@ public:
         std::vector<mongo::extension::VariantNodeHandle> expanded;
         expanded.reserve(getExpandedSize());
         expanded.emplace_back(
-            new sdk::ExtensionAggStageAstNode(std::make_unique<MetricsAstNode>(_algorithm)));
+            new sdk::ExtensionAggStageAstNodeAdapter(std::make_unique<MetricsAstNode>(_algorithm)));
         return expanded;
     }
 
@@ -287,7 +287,7 @@ public:
         auto& host = sdk::HostServicesAPI::getInstance();
 
         auto metrics = std::make_unique<MetricsAstNode>(_metric);
-        out.emplace_back(new sdk::ExtensionAggStageAstNode(std::move(metrics)));
+        out.emplace_back(new sdk::ExtensionAggStageAstNodeAdapter(std::move(metrics)));
 
         if (!_filter.isEmpty()) {
             out.emplace_back(host->createHostAggStageParseNode(_buildMatch()));

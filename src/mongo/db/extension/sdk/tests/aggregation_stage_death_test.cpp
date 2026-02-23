@@ -154,15 +154,16 @@ public:
 using AggStageErrorFixtureDeathTest = AggStageErrorFixture;
 DEATH_TEST_F(AggStageErrorFixtureDeathTest, EmptyDesugarExpansionFails, "11113803") {
     auto emptyDesugarParseNode =
-        new ExtensionAggStageParseNode(shared_test_stages::DesugarToEmptyParseNode::make());
+        new ExtensionAggStageParseNodeAdapter(shared_test_stages::DesugarToEmptyParseNode::make());
     auto handle = extension::AggStageParseNodeHandle{emptyDesugarParseNode};
 
     [[maybe_unused]] auto expanded = handle->expand();
 }
 
 TEST_F(AggStageErrorFixture, GetExpandedSizeLessThanActualExpansionSizeFails) {
-    auto getExpandedSizeLessThanActualExpansionSizeParseNode = new ExtensionAggStageParseNode(
-        shared_test_stages::GetExpandedSizeLessThanActualExpansionSizeParseNode::make());
+    auto getExpandedSizeLessThanActualExpansionSizeParseNode =
+        new ExtensionAggStageParseNodeAdapter(
+            shared_test_stages::GetExpandedSizeLessThanActualExpansionSizeParseNode::make());
     auto handle =
         extension::AggStageParseNodeHandle{getExpandedSizeLessThanActualExpansionSizeParseNode};
 
@@ -175,8 +176,9 @@ TEST_F(AggStageErrorFixture, GetExpandedSizeLessThanActualExpansionSizeFails) {
 }
 
 TEST_F(AggStageErrorFixture, GetExpandedSizeGreaterThanActualExpansionSizeFails) {
-    auto getExpandedSizeGreaterThanActualExpansionSizeParseNode = new ExtensionAggStageParseNode(
-        shared_test_stages::GetExpandedSizeGreaterThanActualExpansionSizeParseNode::make());
+    auto getExpandedSizeGreaterThanActualExpansionSizeParseNode =
+        new ExtensionAggStageParseNodeAdapter(
+            shared_test_stages::GetExpandedSizeGreaterThanActualExpansionSizeParseNode::make());
     auto handle =
         extension::AggStageParseNodeHandle{getExpandedSizeGreaterThanActualExpansionSizeParseNode};
 
@@ -189,7 +191,7 @@ TEST_F(AggStageErrorFixture, GetExpandedSizeGreaterThanActualExpansionSizeFails)
 }
 
 DEATH_TEST_F(AggStageErrorFixtureDeathTest, DescriptorAndParseNodeNameMismatchFails, "11217602") {
-    auto descriptor = std::make_unique<ExtensionAggStageDescriptor>(
+    auto descriptor = std::make_unique<ExtensionAggStageDescriptorAdapter>(
         shared_test_stages::NameMismatchStageDescriptor::make());
     auto handle = extension::AggStageDescriptorHandle{descriptor.get()};
 
@@ -199,81 +201,82 @@ DEATH_TEST_F(AggStageErrorFixtureDeathTest, DescriptorAndParseNodeNameMismatchFa
 }
 
 DEATH_TEST(ParseNodeVTableDeathTest, InvalidParseNodeVTableFailsGetName, "11217600") {
-    auto vtable = sdk::ExtensionAggStageParseNode::getVTable();
+    auto vtable = sdk::ExtensionAggStageParseNodeAdapter::getVTable();
     vtable.get_name = nullptr;
     AggStageParseNodeAPI::assertVTableConstraints(vtable);
 };
 
 DEATH_TEST(ParseNodeVTableDeathTest, InvalidParseNodeVTableFailsGetQueryShape, "10977600") {
-    auto vtable = sdk::ExtensionAggStageParseNode::getVTable();
+    auto vtable = sdk::ExtensionAggStageParseNodeAdapter::getVTable();
     vtable.get_query_shape = nullptr;
     AggStageParseNodeAPI::assertVTableConstraints(vtable);
 };
 
 DEATH_TEST(ParseNodeVTableDeathTest, InvalidParseNodeVTableFailsGetExpandedSize, "11113800") {
-    auto vtable = sdk::ExtensionAggStageParseNode::getVTable();
+    auto vtable = sdk::ExtensionAggStageParseNodeAdapter::getVTable();
     vtable.get_expanded_size = nullptr;
     AggStageParseNodeAPI::assertVTableConstraints(vtable);
 };
 
 DEATH_TEST(ParseNodeVTableDeathTest, InvalidParseNodeVTableFailsExpand, "10977601") {
-    auto vtable = sdk::ExtensionAggStageParseNode::getVTable();
+    auto vtable = sdk::ExtensionAggStageParseNodeAdapter::getVTable();
     vtable.expand = nullptr;
     AggStageParseNodeAPI::assertVTableConstraints(vtable);
 };
 
 DEATH_TEST(AstNodeVTableDeathTest, InvalidAstNodeVTableFailsGetName, "11217601") {
-    auto vtable = sdk::ExtensionAggStageAstNode::getVTable();
+    auto vtable = sdk::ExtensionAggStageAstNodeAdapter::getVTable();
     vtable.get_name = nullptr;
     AggStageAstNodeAPI::assertVTableConstraints(vtable);
 }
 
 DEATH_TEST(AstNodeVTableDeathTest, InvalidAstNodeVTableBind, "11113700") {
-    auto vtable = sdk::ExtensionAggStageAstNode::getVTable();
+    auto vtable = sdk::ExtensionAggStageAstNodeAdapter::getVTable();
     vtable.bind = nullptr;
     AggStageAstNodeAPI::assertVTableConstraints(vtable);
 }
 
 DEATH_TEST(AstNodeVTableDeathTest, InvalidAstNodeVTableGetProperties, "11347800") {
-    auto vtable = sdk::ExtensionAggStageAstNode::getVTable();
+    auto vtable = sdk::ExtensionAggStageAstNodeAdapter::getVTable();
     vtable.get_properties = nullptr;
     AggStageAstNodeAPI::assertVTableConstraints(vtable);
 }
 
 DEATH_TEST(ExecAggStageVTableDeathTest, InvalidExecAggStageVTableFailsGetNext, "10956800") {
-    auto vtable = sdk::ExtensionExecAggStage::getVTable();
+    auto vtable = sdk::ExtensionExecAggStageAdapter::getVTable();
     vtable.get_next = nullptr;
     ExecAggStageAPI::assertVTableConstraints(vtable);
 };
 
 DEATH_TEST(ExecAggStageVTableDeathTest, InvalidExecAggStageVTableFailsSetSource, "10957202") {
-    auto vtable = sdk::ExtensionExecAggStage::getVTable();
+    auto vtable = sdk::ExtensionExecAggStageAdapter::getVTable();
     vtable.set_source = nullptr;
     ExecAggStageAPI::assertVTableConstraints(vtable);
 };
 
 DEATH_TEST(ExecAggStageVTableDeathTest, InvalidExecAggStageVTableFailsOpen, "11216705") {
-    auto vtable = sdk::ExtensionExecAggStage::getVTable();
+    auto vtable = sdk::ExtensionExecAggStageAdapter::getVTable();
     vtable.open = nullptr;
     ExecAggStageAPI::assertVTableConstraints(vtable);
 };
 
 DEATH_TEST(ExecAggStageVTableDeathTest, InvalidExecAggStageVTableFailsReopen, "11216706") {
-    auto vtable = sdk::ExtensionExecAggStage::getVTable();
+    auto vtable = sdk::ExtensionExecAggStageAdapter::getVTable();
     vtable.reopen = nullptr;
     ExecAggStageAPI::assertVTableConstraints(vtable);
 };
 
 DEATH_TEST(ExecAggStageVTableDeathTest, InvalidExecAggStageVTableFailsClose, "11216707") {
-    auto vtable = sdk::ExtensionExecAggStage::getVTable();
+    auto vtable = sdk::ExtensionExecAggStageAdapter::getVTable();
     vtable.close = nullptr;
     ExecAggStageAPI::assertVTableConstraints(vtable);
 };
 
 
 DEATH_TEST_F(AggStageErrorFixtureDeathTest, InvalidExtensionGetNextResultAdvanced, "10956801") {
-    auto invalidExtensionExecAggStageAdvancedState = new extension::sdk::ExtensionExecAggStage(
-        InvalidExtensionExecAggStageAdvancedState::make());
+    auto invalidExtensionExecAggStageAdvancedState =
+        new extension::sdk::ExtensionExecAggStageAdapter(
+            InvalidExtensionExecAggStageAdvancedState::make());
 
     auto handle = extension::ExecAggStageHandle{invalidExtensionExecAggStageAdvancedState};
     [[maybe_unused]] auto getNext = handle->getNext(_execCtx.get());
@@ -283,7 +286,7 @@ DEATH_TEST_F(AggStageErrorFixtureDeathTest,
              InvalidExtensionGetNextResultPauseExecution,
              "10956802") {
     auto invalidExtensionExecAggStagePauseExecutionState =
-        new extension::sdk::ExtensionExecAggStage(
+        new extension::sdk::ExtensionExecAggStageAdapter(
             InvalidExtensionExecAggStagePauseExecutionState::make());
 
     auto handle = extension::ExecAggStageHandle{invalidExtensionExecAggStagePauseExecutionState};
@@ -291,8 +294,8 @@ DEATH_TEST_F(AggStageErrorFixtureDeathTest,
 };
 
 DEATH_TEST_F(AggStageErrorFixtureDeathTest, InvalidExtensionGetNextResultEOF, "10956805") {
-    auto invalidExtensionExecAggStageEofState =
-        new extension::sdk::ExtensionExecAggStage(InvalidExtensionExecAggStageEofState::make());
+    auto invalidExtensionExecAggStageEofState = new extension::sdk::ExtensionExecAggStageAdapter(
+        InvalidExtensionExecAggStageEofState::make());
 
     auto handle = extension::ExecAggStageHandle{invalidExtensionExecAggStageEofState};
     [[maybe_unused]] auto getNext = handle->getNext(_execCtx.get());
@@ -306,8 +309,8 @@ DEATH_TEST_F(AggStageErrorFixtureDeathTest, InvalidMongoExtensionGetNextResultCo
 };
 
 DEATH_TEST_F(AggStageErrorFixtureDeathTest, InvalidGetNextCode, "10956804") {
-    auto invalidExtensionExecAggStageGetNextCode =
-        new extension::sdk::ExtensionExecAggStage(InvalidExtensionExecAggStageGetNextCode::make());
+    auto invalidExtensionExecAggStageGetNextCode = new extension::sdk::ExtensionExecAggStageAdapter(
+        InvalidExtensionExecAggStageGetNextCode::make());
 
     auto handle = extension::ExecAggStageHandle{invalidExtensionExecAggStageGetNextCode};
     [[maybe_unused]] auto getNext = handle->getNext(_execCtx.get());
@@ -360,7 +363,7 @@ public:
 DEATH_TEST_F(AggStageErrorFixtureDeathTest,
              InvalidExtensionGetNextResultAdvancedFromCompiledExecAggStage,
              "10956801") {
-    auto logicalStage = new extension::sdk::ExtensionLogicalAggStage(
+    auto logicalStage = new extension::sdk::ExtensionLogicalAggStageAdapter(
         TestLogicalStageCompileWithInvalidExtensionExecAggStageAdvancedState::make());
     auto handle = extension::LogicalAggStageHandle{logicalStage};
 
@@ -372,7 +375,7 @@ DEATH_TEST_F(AggStageErrorFixtureDeathTest,
 DEATH_TEST_F(AggStageErrorFixtureDeathTest,
              InvalidExtensionGetNextResultPauseExecutionFromCompiledExecAggStage,
              "10956802") {
-    auto logicalStage = new extension::sdk::ExtensionLogicalAggStage(
+    auto logicalStage = new extension::sdk::ExtensionLogicalAggStageAdapter(
         TestLogicalStageCompileWithInvalidExtensionExecAggStagePauseExecutionState::make());
     auto handle = extension::LogicalAggStageHandle{logicalStage};
 
@@ -384,7 +387,7 @@ DEATH_TEST_F(AggStageErrorFixtureDeathTest,
 DEATH_TEST_F(AggStageErrorFixtureDeathTest,
              InvalidExtensionGetNextResultEOFFromCompiledExecAggStage,
              "10956805") {
-    auto logicalStage = new extension::sdk::ExtensionLogicalAggStage(
+    auto logicalStage = new extension::sdk::ExtensionLogicalAggStageAdapter(
         TestLogicalStageCompileWithInvalidExtensionExecAggStageEofState::make());
     auto handle = extension::LogicalAggStageHandle{logicalStage};
 
@@ -411,8 +414,9 @@ DEATH_TEST_F(AggStageErrorFixtureDeathTest,
              DPLArrayContainerExtensionToHostWrongSizeFails,
              "11368303") {
     auto logicalStage =
-        new sdk::ExtensionLogicalAggStage(shared_test_stages::CountingLogicalStage::make());
-    auto parseNode = new sdk::ExtensionAggStageParseNode(shared_test_stages::CountingParse::make());
+        new sdk::ExtensionLogicalAggStageAdapter(shared_test_stages::CountingLogicalStage::make());
+    auto parseNode =
+        new sdk::ExtensionAggStageParseNodeAdapter(shared_test_stages::CountingParse::make());
 
     std::vector<VariantDPLHandle> sdkElements;
     sdkElements.emplace_back(extension::LogicalAggStageHandle{logicalStage});
@@ -473,7 +477,7 @@ DEATH_TEST_F(AggStageErrorFixtureDeathTest,
         NamespaceString::createNamespaceString_forTest("test"_sd, "namespace"_sd),
         SerializationContext());
 
-    auto astNode = new sdk::ExtensionAggStageAstNode(
+    auto astNode = new sdk::ExtensionAggStageAstNodeAdapter(
         sdk::shared_test_stages::AddFruitsToDocumentsAstNode::make());
     auto astHandle = AggStageAstNodeHandle(astNode);
 
@@ -530,10 +534,11 @@ DEATH_TEST_F(AggStageErrorFixtureDeathTest, HostExecAggStageAdapterNullStageAsse
 DEATH_TEST_F(AggStageErrorFixtureDeathTest, SetSourceOnSourceStageFails, "10957210") {
     // Setting the source of a source stage should fail irrespective of the type of the stage being
     // set as the source.
-    auto sourceHandle = extension::ExecAggStageHandle{new extension::sdk::ExtensionExecAggStage(
-        shared_test_stages::AddFruitsToDocumentsExecStage::make())};
+    auto sourceHandle =
+        extension::ExecAggStageHandle{new extension::sdk::ExtensionExecAggStageAdapter(
+            shared_test_stages::AddFruitsToDocumentsExecStage::make())};
     // ValidExtensionExecAggStage is a source stage.
-    auto handle = extension::ExecAggStageHandle{new extension::sdk::ExtensionExecAggStage(
+    auto handle = extension::ExecAggStageHandle{new extension::sdk::ExtensionExecAggStageAdapter(
         shared_test_stages::ValidExtensionExecAggStage::make())};
 
     // Calling setSource on a source stage should fail.
@@ -548,8 +553,9 @@ DEATH_TEST_F(AggStageErrorFixtureDeathTest, GetSourceOnSourceStageFails, "109572
 }
 
 DEATH_TEST_F(AggStageErrorFixtureDeathTest, GetNameOnMovedHandleFails, "10596403") {
-    auto sourceHandle = extension::ExecAggStageHandle{new extension::sdk::ExtensionExecAggStage(
-        shared_test_stages::AddFruitsToDocumentsExecStage::make())};
+    auto sourceHandle =
+        extension::ExecAggStageHandle{new extension::sdk::ExtensionExecAggStageAdapter(
+            shared_test_stages::AddFruitsToDocumentsExecStage::make())};
 
     auto sourceHandle2 = std::move(sourceHandle);
 

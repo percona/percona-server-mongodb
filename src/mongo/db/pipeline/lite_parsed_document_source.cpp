@@ -252,6 +252,17 @@ std::vector<BSONObj> ViewInfo::getOriginalBson() const {
     return _ownedOriginalBsonPipeline;
 }
 
+std::vector<BSONObj> ViewInfo::getSerializedViewPipeline() const {
+    tassert(11898700, "A ViewInfo must have a view pipeline to get desugared BSON.", viewPipeline);
+
+    std::vector<BSONObj> result;
+    result.reserve(viewPipeline->getStages().size());
+    for (const auto& stage : viewPipeline->getStages()) {
+        result.push_back(stage->getOriginalBson().wrap());
+    }
+    return result;
+}
+
 LiteParsedPipeline ViewInfo::getViewPipeline() const {
     tassert(11506600, "A ViewInfo being cloned must have a view pipeline.", viewPipeline);
 

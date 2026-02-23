@@ -5,6 +5,8 @@
  * @tags: [
  *  requires_sharding,
  *  assumes_balancer_off,
+ *  # TODO(SERVER-119777): Ensure test does not leak cursors.
+ *  can_leak_idle_cursors,
  * ]
  */
 

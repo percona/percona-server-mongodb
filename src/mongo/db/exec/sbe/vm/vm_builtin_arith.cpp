@@ -33,7 +33,7 @@
 namespace mongo {
 namespace sbe {
 namespace vm {
-FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinAbs(ArityType arity) {
+value::TagValueMaybeOwned ByteCode::builtinAbs(ArityType arity) {
     tassert(11080079, "Unexpected arity value", arity == 1);
 
     auto [_, tagOperand, valOperand] = getFromStack(0);
@@ -41,7 +41,7 @@ FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinAbs(ArityType ar
     return genericAbs(tagOperand, valOperand);
 }
 
-FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinCeil(ArityType arity) {
+value::TagValueMaybeOwned ByteCode::builtinCeil(ArityType arity) {
     tassert(11080078, "Unexpected arity value", arity == 1);
 
     auto [_, tagOperand, valOperand] = getFromStack(0);
@@ -49,7 +49,7 @@ FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinCeil(ArityType a
     return genericCeil(tagOperand, valOperand);
 }
 
-FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinFloor(ArityType arity) {
+value::TagValueMaybeOwned ByteCode::builtinFloor(ArityType arity) {
     tassert(11080077, "Unexpected arity value", arity == 1);
 
     auto [_, tagOperand, valOperand] = getFromStack(0);
@@ -57,7 +57,7 @@ FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinFloor(ArityType 
     return genericFloor(tagOperand, valOperand);
 }
 
-FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinExp(ArityType arity) {
+value::TagValueMaybeOwned ByteCode::builtinExp(ArityType arity) {
     tassert(11080076, "Unexpected arity value", arity == 1);
 
     auto [_, tagOperand, valOperand] = getFromStack(0);
@@ -65,7 +65,7 @@ FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinExp(ArityType ar
     return genericExp(tagOperand, valOperand);
 }
 
-FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinLn(ArityType arity) {
+value::TagValueMaybeOwned ByteCode::builtinLn(ArityType arity) {
     tassert(11080075, "Unexpected arity value", arity == 1);
 
     auto [_, tagOperand, valOperand] = getFromStack(0);
@@ -73,7 +73,7 @@ FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinLn(ArityType ari
     return genericLn(tagOperand, valOperand);
 }
 
-FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinLog10(ArityType arity) {
+value::TagValueMaybeOwned ByteCode::builtinLog10(ArityType arity) {
     tassert(11080074, "Unexpected arity value", arity == 1);
 
     auto [_, tagOperand, valOperand] = getFromStack(0);
@@ -81,7 +81,7 @@ FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinLog10(ArityType 
     return genericLog10(tagOperand, valOperand);
 }
 
-FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinSqrt(ArityType arity) {
+value::TagValueMaybeOwned ByteCode::builtinSqrt(ArityType arity) {
     tassert(11080073, "Unexpected arity value", arity == 1);
 
     auto [_, tagOperand, valOperand] = getFromStack(0);
@@ -89,7 +89,7 @@ FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinSqrt(ArityType a
     return genericSqrt(tagOperand, valOperand);
 }
 
-FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinPow(ArityType arity) {
+value::TagValueMaybeOwned ByteCode::builtinPow(ArityType arity) {
     tassert(11080072, "Unexpected arity value", arity == 2);
     auto [baseOwned, baseTag, baseValue] = getFromStack(0);
     auto [exponentOwned, exponentTag, exponentValue] = getFromStack(1);
@@ -97,77 +97,77 @@ FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinPow(ArityType ar
     return genericPow(baseTag, baseValue, exponentTag, exponentValue);
 }
 
-FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinAcos(ArityType arity) {
+value::TagValueMaybeOwned ByteCode::builtinAcos(ArityType arity) {
     auto [_, operandTag, operandValue] = getFromStack(0);
     return genericAcos(operandTag, operandValue);
 }
 
-FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinAcosh(ArityType arity) {
+value::TagValueMaybeOwned ByteCode::builtinAcosh(ArityType arity) {
     auto [_, operandTag, operandValue] = getFromStack(0);
     return genericAcosh(operandTag, operandValue);
 }
 
-FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinAsin(ArityType arity) {
+value::TagValueMaybeOwned ByteCode::builtinAsin(ArityType arity) {
     auto [_, operandTag, operandValue] = getFromStack(0);
     return genericAsin(operandTag, operandValue);
 }
-FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinAsinh(ArityType arity) {
+value::TagValueMaybeOwned ByteCode::builtinAsinh(ArityType arity) {
     auto [_, operandTag, operandValue] = getFromStack(0);
     return genericAsinh(operandTag, operandValue);
 }
 
-FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinAtan(ArityType arity) {
+value::TagValueMaybeOwned ByteCode::builtinAtan(ArityType arity) {
     auto [_, operandTag, operandValue] = getFromStack(0);
     return genericAtan(operandTag, operandValue);
 }
 
-FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinAtanh(ArityType arity) {
+value::TagValueMaybeOwned ByteCode::builtinAtanh(ArityType arity) {
     auto [_, operandTag, operandValue] = getFromStack(0);
     return genericAtanh(operandTag, operandValue);
 }
 
-FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinAtan2(ArityType arity) {
+value::TagValueMaybeOwned ByteCode::builtinAtan2(ArityType arity) {
     auto [owned1, operandTag1, operandValue1] = getFromStack(0);
     auto [owned2, operandTag2, operandValue2] = getFromStack(1);
     return genericAtan2(operandTag1, operandValue1, operandTag2, operandValue2);
 }
 
-FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinCos(ArityType arity) {
+value::TagValueMaybeOwned ByteCode::builtinCos(ArityType arity) {
     auto [_, operandTag, operandValue] = getFromStack(0);
     return genericCos(operandTag, operandValue);
 }
 
-FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinCosh(ArityType arity) {
+value::TagValueMaybeOwned ByteCode::builtinCosh(ArityType arity) {
     auto [_, operandTag, operandValue] = getFromStack(0);
     return genericCosh(operandTag, operandValue);
 }
 
-FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinDegreesToRadians(ArityType arity) {
+value::TagValueMaybeOwned ByteCode::builtinDegreesToRadians(ArityType arity) {
     auto [_, operandTag, operandValue] = getFromStack(0);
     return genericDegreesToRadians(operandTag, operandValue);
 }
 
-FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinRadiansToDegrees(ArityType arity) {
+value::TagValueMaybeOwned ByteCode::builtinRadiansToDegrees(ArityType arity) {
     auto [_, operandTag, operandValue] = getFromStack(0);
     return genericRadiansToDegrees(operandTag, operandValue);
 }
 
-FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinSin(ArityType arity) {
+value::TagValueMaybeOwned ByteCode::builtinSin(ArityType arity) {
     auto [_, operandTag, operandValue] = getFromStack(0);
     return genericSin(operandTag, operandValue);
 }
 
-FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinSinh(ArityType arity) {
+value::TagValueMaybeOwned ByteCode::builtinSinh(ArityType arity) {
     auto [_, operandTag, operandValue] = getFromStack(0);
     return genericSinh(operandTag, operandValue);
 }
 
-FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinTan(ArityType arity) {
+value::TagValueMaybeOwned ByteCode::builtinTan(ArityType arity) {
     auto [_, operandTag, operandValue] = getFromStack(0);
     return genericTan(operandTag, operandValue);
 }
 
-FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinTanh(ArityType arity) {
+value::TagValueMaybeOwned ByteCode::builtinTanh(ArityType arity) {
     auto [_, operandTag, operandValue] = getFromStack(0);
     return genericTanh(operandTag, operandValue);
 }
@@ -197,12 +197,11 @@ int32_t ByteCode::convertNumericToInt32(const value::TypeTags tag, const value::
     }
 }
 
-FastTuple<bool, value::TypeTags, value::Value> ByteCode::genericRoundTrunc(
-    std::string funcName,
-    Decimal128::RoundingMode roundingMode,
-    int32_t place,
-    value::TypeTags numTag,
-    value::Value numVal) {
+value::TagValueMaybeOwned ByteCode::genericRoundTrunc(std::string funcName,
+                                                      Decimal128::RoundingMode roundingMode,
+                                                      int32_t place,
+                                                      value::TypeTags numTag,
+                                                      value::Value numVal) {
 
     // Construct 10^-precisionValue, which will be used as the quantize reference. This is passed to
     // decimal.quantize() to indicate the precision of our rounding.
@@ -253,11 +252,13 @@ FastTuple<bool, value::TypeTags, value::Value> ByteCode::genericRoundTrunc(
     }
 }
 
-FastTuple<bool, value::TypeTags, value::Value> ByteCode::scalarRoundTrunc(
-    std::string funcName, Decimal128::RoundingMode roundingMode, ArityType arity) {
+value::TagValueMaybeOwned ByteCode::scalarRoundTrunc(std::string funcName,
+                                                     Decimal128::RoundingMode roundingMode,
+                                                     ArityType arity) {
     tassert(11080071, "Unexpected arity value", arity == 1 || arity == 2);
     int32_t place = 0;
     const auto [_, numTag, numVal] = getFromStack(0);
+    value::TagValueView num(numTag, numVal);
     if (arity == 2) {
         const auto [placeOwn, placeTag, placeVal] = getFromStack(1);
         if (!value::isNumber(placeTag)) {
@@ -266,23 +267,23 @@ FastTuple<bool, value::TypeTags, value::Value> ByteCode::scalarRoundTrunc(
         place = convertNumericToInt32(placeTag, placeVal);
     }
 
-    return genericRoundTrunc(funcName, roundingMode, place, numTag, numVal);
+    return genericRoundTrunc(funcName, roundingMode, place, num.tag, num.value);
 }
 
-FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinTrunc(ArityType arity) {
+value::TagValueMaybeOwned ByteCode::builtinTrunc(ArityType arity) {
     return scalarRoundTrunc("$trunc", Decimal128::kRoundTowardZero, arity);
 }
 
-FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinRand(ArityType arity) {
+value::TagValueMaybeOwned ByteCode::builtinRand(ArityType arity) {
     double num = random_utils::getRNG().nextCanonicalDouble();
     return {true, value::TypeTags::NumberDouble, value::bitcastFrom<double>(num)};
 }
 
-FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinRound(ArityType arity) {
+value::TagValueMaybeOwned ByteCode::builtinRound(ArityType arity) {
     return scalarRoundTrunc("$round", Decimal128::kRoundTiesToEven, arity);
 }
 
-FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinDoubleDoubleSum(ArityType arity) {
+value::TagValueMaybeOwned ByteCode::builtinDoubleDoubleSum(ArityType arity) {
     tassert(11080070, "Unexpected arity value", arity >= 1);
 
     value::TypeTags resultTag = value::TypeTags::NumberInt32;
@@ -376,24 +377,21 @@ FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinDoubleDoubleSum(
     return {false, value::TypeTags::Nothing, 0};
 }  // ByteCode::builtinDoubleDoubleSum
 
-FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinConvertSimpleSumToDoubleDoubleSum(
-    ArityType arity) {
+value::TagValueMaybeOwned ByteCode::builtinConvertSimpleSumToDoubleDoubleSum(ArityType arity) {
     tassert(11080069, "Unexpected arity value", arity == 1);
     auto [_, simpleSumTag, simpleSumVal] = getFromStack(0);
     return builtinConvertSimpleSumToDoubleDoubleSumImpl(simpleSumTag, simpleSumVal);
 }
 
-FastTuple<bool, value::TypeTags, value::Value>
-ByteCode::builtinConvertSimpleSumToDoubleDoubleSumImpl(value::TypeTags simpleSumTag,
-                                                       value::Value simpleSumVal) {
-    auto [accTag, accVal] = genericInitializeDoubleDoubleSumState();
-    value::ValueGuard accGuard{accTag, accVal};
-    value::Array* accumulator = value::getArrayView(accVal);
+value::TagValueMaybeOwned ByteCode::builtinConvertSimpleSumToDoubleDoubleSumImpl(
+    value::TypeTags simpleSumTag, value::Value simpleSumVal) {
+    auto accTagVal = value::TagValueOwned::fromRaw(genericInitializeDoubleDoubleSumState());
+
+    value::Array* accumulator = value::getArrayView(accTagVal.value());
 
     aggDoubleDoubleSumImpl(accumulator, simpleSumTag, simpleSumVal);
 
-    accGuard.reset();
-    return {true, accTag, accVal};
+    return accTagVal;
 }
 
 }  // namespace vm

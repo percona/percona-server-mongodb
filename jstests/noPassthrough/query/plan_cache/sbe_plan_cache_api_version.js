@@ -3,7 +3,7 @@
  * aggregate command.
  */
 
-import {checkSbeFullFeatureFlagEnabled, checkSbeFullyEnabled} from "jstests/libs/query/sbe_util.js";
+import {sbePlanCacheEnabled, checkSbeFullyEnabled} from "jstests/libs/query/sbe_util.js";
 
 const conn = MongoRunner.runMongod({});
 assert.neq(conn, null, "mongod failed to start");
@@ -12,7 +12,7 @@ const coll = db.coll;
 coll.drop();
 
 const shouldGenerateSbePlan = checkSbeFullyEnabled(db);
-const isUsingSbePlanCache = checkSbeFullFeatureFlagEnabled(db);
+const isUsingSbePlanCache = sbePlanCacheEnabled(db);
 
 assert.commandWorked(
     coll.insert([

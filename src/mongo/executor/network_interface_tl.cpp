@@ -186,13 +186,13 @@ void NetworkInterfaceTL::appendConnectionStats(ConnectionPoolStats* stats) const
     _clientFactory->appendConnectionStats(stats);
 }
 
-void NetworkInterfaceTL::appendStats(BSONObjBuilder& bob) const {
+void NetworkInterfaceTL::appendStats(BSONObjBuilder& bob, bool forServerStatus) const {
     if (MONGO_unlikely(!_initialized.load())) {
         return;
     }
 
     BSONObjBuilder builder = bob.subobjStart(_instanceName);
-    _reactor->appendStats(builder);
+    _reactor->appendStats(builder, forServerStatus);
     _clientFactory->appendStats(builder);
 }
 

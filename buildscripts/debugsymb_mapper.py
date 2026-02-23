@@ -11,7 +11,7 @@ import subprocess
 import sys
 import time
 from json import JSONDecoder
-from typing import Dict, Generator, List, NamedTuple, Optional
+from typing import Generator, NamedTuple, Optional
 
 import requests
 
@@ -33,7 +33,7 @@ class CmdClient:
     """Client to run commands."""
 
     @staticmethod
-    def run(args: List[str]) -> str:
+    def run(args: list[str]) -> str:
         """
         Run command with args.
 
@@ -345,7 +345,7 @@ class Mapper:
         tarball_full_path = download.download_from_s3(url)
         return tarball_full_path
 
-    def generate_build_id_mapping(self) -> Generator[Dict[str, str], None, None]:
+    def generate_build_id_mapping(self) -> Generator[dict[str, str], None, None]:
         """
         Extract build id from binaries and creates new dict using them.
 

@@ -256,6 +256,7 @@ public:
                   "full"_attr = options.isFullValidation(),
                   "extended"_attr = options.isExtendedValidation(),
                   "enforceFastCount"_attr = options.enforceFastCountRequested(),
+                  "enforceFastSize"_attr = options.enforceFastSizeRequested(),
                   "checkBSONConformance"_attr = options.isBSONConformanceValidation(),
                   "fixMultiKey"_attr = options.adjustMultikey(),
                   "repair"_attr = options.fixErrors(),

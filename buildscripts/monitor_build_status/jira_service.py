@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import Enum
-from typing import Any, List, NamedTuple, Optional
+from typing import Any, NamedTuple, Optional
 
 import dateutil.parser
 from jira import Issue
@@ -63,7 +63,7 @@ class JiraService:
     def __init__(self, jira_client: JiraClient) -> None:
         self.jira_client = jira_client
 
-    def fetch_issues(self, query: str) -> List[IssueTuple]:
+    def fetch_issues(self, query: str) -> list[IssueTuple]:
         """
         Fetch issues from Jira and transform it into consumable form.
 

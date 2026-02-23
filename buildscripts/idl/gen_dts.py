@@ -90,7 +90,7 @@ import shutil
 import sys
 from pathlib import Path
 from types import FunctionType
-from typing import Dict, Optional, Set, TypedDict
+from typing import Optional, TypedDict
 
 # Permit imports from "buildscripts".
 sys.path.append(os.path.normpath(os.path.join(os.path.abspath(__file__), "../../..")))
@@ -100,9 +100,9 @@ from buildscripts.idl.idl.compiler import CompilerImportResolver
 
 
 class Declarations(TypedDict):
-    structs: Set[str]
-    commands: Set[str]
-    enums: Set[str]
+    structs: set[str]
+    commands: set[str]
+    enums: set[str]
 
 
 def object_to_dts(obj: common.SourceLocation):
@@ -187,7 +187,7 @@ def object_to_dts(obj: common.SourceLocation):
 
 def gen_dts_from_file(
     input_file: str, existing_decls: Optional[Declarations] = None
-) -> Dict[str, int]:
+) -> dict[str, int]:
     if not os.path.exists(input_file):
         logging.error('File "%s" not found', args.input_file)
         return {}
@@ -204,7 +204,7 @@ def gen_dts(
     exists_func: FunctionType = os.path.exists,
     ignore_imported=False,
     existing_decls: Optional[Declarations] = None,
-) -> Dict[str, int]:
+) -> dict[str, int]:
     if parsed_doc.errors:
         parsed_doc.errors.dump_errors()
 
@@ -245,7 +245,7 @@ def gen_dts_files():
     COLS = shutil.get_terminal_size().columns
     MAX_FILENAME_LEN = COLS // 3
 
-    def print_progress(file, additions: Dict[str, int]) -> None:
+    def print_progress(file, additions: dict[str, int]) -> None:
         file = str(file)
         file = file if len(file) < MAX_FILENAME_LEN else f"{file[:MAX_FILENAME_LEN - 3]}..."
         info = f"Parsed {file}: ".ljust(MAX_FILENAME_LEN + len("Parsed  : ") + 1)

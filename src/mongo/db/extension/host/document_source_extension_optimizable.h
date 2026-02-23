@@ -485,8 +485,9 @@ inline void visitExpandedNodes(std::vector<VariantNodeHandle>& expanded,
                 //   b) Extension-allocated parse node: Recurse on the parse node
                 //      handle, splicing the results of its expansion.
                 if constexpr (std::is_same_v<H, AggStageParseNodeHandle>) {
-                    if (host::HostAggStageParseNode::isHostAllocated(*handle.get())) {
-                        onParseHost(*static_cast<host::HostAggStageParseNode*>(handle.get()));
+                    if (host::HostAggStageParseNodeAdapter::isHostAllocated(*handle.get())) {
+                        onParseHost(
+                            *static_cast<host::HostAggStageParseNodeAdapter*>(handle.get()));
                     } else {
                         onParseExt(handle);
                     }
@@ -497,8 +498,8 @@ inline void visitExpandedNodes(std::vector<VariantNodeHandle>& expanded,
                 //   b) Extension-allocated AST node: Construct a
                 //      DocumentSourceExtensionOptimizable and release the AST node handle.
                 else if constexpr (std::is_same_v<H, AggStageAstNodeHandle>) {
-                    if (host::HostAggStageAstNode::isHostAllocated(*handle.get())) {
-                        onAstHost(*static_cast<host::HostAggStageAstNode*>(handle.get()));
+                    if (host::HostAggStageAstNodeAdapter::isHostAllocated(*handle.get())) {
+                        onAstHost(*static_cast<host::HostAggStageAstNodeAdapter*>(handle.get()));
                     } else {
                         onAstExt(std::move(handle));
                     }

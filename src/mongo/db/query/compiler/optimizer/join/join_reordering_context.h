@@ -46,6 +46,8 @@ using QuerySolutionMap = stdx::unordered_map<CanonicalQuery*, std::unique_ptr<Qu
 using AvailableIndexes =
     absl::flat_hash_map<NamespaceString, std::vector<std::shared_ptr<const IndexCatalogEntry>>>;
 
+using PerCollUniqueFieldInfo = absl::flat_hash_map<NamespaceString, UniqueFieldInformation>;
+
 /**
  * A struct tracking all information needed to reorder joins and generate a join plan.
  */
@@ -55,6 +57,10 @@ struct JoinReorderingContext {
     QuerySolutionMap cbrCqQsns;
     AvailableIndexes perCollIdxs;
     CatalogStats catStats;
+
+    // The information about what combinations are fields are unique based on index metadata. If
+    // there is no information known for a given collection, it may not exist in the map.
+    PerCollUniqueFieldInfo uniqueFieldInfo;
 
     // Whether or not we are explaining the query. Based on this flag we may, for example, keep
     // around costing/CE information to display in the explain output.

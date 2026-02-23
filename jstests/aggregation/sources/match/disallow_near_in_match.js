@@ -2,13 +2,14 @@
  * Test that $near queries are disallowed in $match stages.
  */
 import {assertErrorCode} from "jstests/aggregation/extras/utils.js";
+import {add2dsphereVersionIfNeeded} from "jstests/libs/query/geo_index_version_helpers.js";
 
 const coll = db.getCollection("no_near_in_match");
 coll.drop();
 
 // Create indexes that could satisfy various $near queries.
 assert.commandWorked(coll.createIndex({point2d: "2d"}));
-assert.commandWorked(coll.createIndex({point2dsphere: "2dsphere"}));
+assert.commandWorked(coll.createIndex({point2dsphere: "2dsphere"}, add2dsphereVersionIfNeeded()));
 
 // Populate the collection so that successful queries can return at least one result.
 assert.commandWorked(coll.insert({point2d: [0.25, 0.35]}));

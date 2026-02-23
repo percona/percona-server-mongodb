@@ -262,14 +262,23 @@ def get_wt_session(recovery_unit, recovery_unit_impl_type):
     return wt_session
 
 
+def cast_to_decorable(obj):
+    """Cast a given object to a mongo::Decorable<T> type.
+
+    Returns the casted object.
+    """
+    type_name = obj.type.name
+    decorable_type = lookup_type("mongo::Decorable<{}>".format(type_name))
+    return obj.cast(decorable_type)
+
+
 def get_decorations(obj):
     """Return an iterator to all decorations on a given object.
 
     Each object returned by the iterator is a tuple whose first element is the type name of the
     decoration and whose second element is the decoration object itself.
     """
-    type_name = str(obj.type).replace("class", "").replace(" ", "")
-    decorable = obj.cast(lookup_type("mongo::Decorable<{}>".format(type_name)))
+    decorable = cast_to_decorable(obj)
     start, count = get_decorable_info(decorable)
     for i in range(count):
         deco_type_name, obj, _ = get_object_decoration(decorable, start, i)
@@ -292,7 +301,7 @@ def get_object_decoration(decorable, start, index):
 
 
 def get_decorable_info(decorable):
-    decorable_t = decorable.type.template_argument(0)
+    decorable_t = decorable.type.template_argument(0).name
     reg_sym, _ = gdb.lookup_symbol("mongo::decorable_detail::gdbRegistry<{}>".format(decorable_t))
     decl_vector = reg_sym.value()["_entries"]
     start = decl_vector["_M_impl"]["_M_start"]
@@ -320,8 +329,12 @@ def get_decoration(obj, type_name):
     second is the decoration itself. If there are multiple such decorations, returns the first one
     that matches. Returns None if no matching decorations were found.
     """
-    for dec_type_name, dec in get_decorations(obj):
-        if type_name in dec_type_name:
+    decorable = cast_to_decorable(obj)
+    start, count = get_decorable_info(decorable)
+    for i in range(count):
+        entry = start[i]
+        if type_name in str(entry["typeInfo"]):
+            dec_type_name, dec, _ = get_object_decoration(decorable, start, i)
             return (dec_type_name, dec)
     return None
 
@@ -398,9 +411,11 @@ DumpGlobalServiceContext()
 
 class GetMongoDecoration(gdb.Command):
     """
-    Search for a decoration on an object by typename and print it e.g.
+    Search for a decoration on an object by typename and print it.
 
-    (gdb) mongodb-decoration opCtx ReadConcernArgs
+    Example: if opCtx is a pointer to mongo::OperationContext,
+
+    (gdb) mongodb-decoration *opCtx ReadConcernArgs
 
     would print out a decoration on opCtx whose type name contains the string "ReadConcernArgs".
     """

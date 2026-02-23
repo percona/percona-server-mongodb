@@ -3,6 +3,8 @@
 // @tags: [
 //   do_not_wrap_aggregations_in_facets,
 // ]
+import {add2dsphereVersionIfNeeded} from "jstests/libs/query/geo_index_version_helpers.js";
+
 const coll = db.lookup_subpipeline_geonear;
 const from = db.from;
 
@@ -12,7 +14,7 @@ assert.commandWorked(coll.insert({_id: 4, x: 4}));
 from.drop();
 
 // Create geospatial index for field 'geo' on 'from'.
-assert.commandWorked(from.createIndex({geo: "2dsphere"}));
+assert.commandWorked(from.createIndex({geo: "2dsphere"}, add2dsphereVersionIfNeeded()));
 
 // Insert one matching document in 'from'.
 assert.commandWorked(from.insert({_id: 1, geo: [0, 0]}));

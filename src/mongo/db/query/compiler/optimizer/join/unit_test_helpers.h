@@ -61,6 +61,12 @@ std::vector<std::shared_ptr<const IndexCatalogEntry>> makeIndexCatalogEntries(
     const std::vector<BSONObj>& keyPatterns);
 
 /**
+ * Build UniqueFieldInformation for a single collection based on the given key patterns representing
+ * unique index keys.
+ */
+UniqueFieldInformation buildUniqueFieldInfo(const std::vector<BSONObj>& uniqueKeyPatterns);
+
+/**
  * Text fixture with helpful functions for manipulating the catalog, constructing samples and
  * queries/QSNs.
  * Every test must contains 2 phases.

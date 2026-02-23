@@ -1,10 +1,11 @@
 import {FlatCompat} from "@eslint/eslintrc";
-import eslint from "@eslint/js";
 import js from "@eslint/js";
 import {default as mongodb_plugin} from "eslint-plugin-mongodb";
 import globals from "globals";
 import path from "node:path";
 import {fileURLToPath} from "node:url";
+
+import vscodeDebuggerConfig from "./src/mongo/shell/debugger/vscode/eslint.config.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -402,5 +403,9 @@ export default [
             "prefer-rest-params": 2,
             "prefer-spread": 2,
         },
+    },
+    {
+        files: ["src/mongo/shell/debugger/vscode/**/*.{js,mjs}"],
+        ...vscodeDebuggerConfig,
     },
 ];

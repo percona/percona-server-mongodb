@@ -8,6 +8,7 @@
 // ]
 
 import {getWinningPlanFromExplain, isIxscan} from "jstests/libs/query/analyze_plan.js";
+import {add2dsphereVersionIfNeeded} from "jstests/libs/query/geo_index_version_helpers.js";
 
 const coll = db.partialFilterExpression_with_geoWithin;
 coll.drop();
@@ -149,7 +150,7 @@ let southWestUSPolygon = {
 assert.commandWorked(
     coll.createIndex(
         {loc: "2dsphere"},
-        {partialFilterExpression: {loc: {$geoWithin: {$geometry: southWestUSPolygon}}}},
+        add2dsphereVersionIfNeeded({partialFilterExpression: {loc: {$geoWithin: {$geometry: southWestUSPolygon}}}}),
     ),
 );
 
@@ -188,9 +189,9 @@ assert.eq(results.length, 3);
 coll.drop();
 coll.createIndex(
     {loc: "2dsphere"},
-    {
+    add2dsphereVersionIfNeeded({
         partialFilterExpression: {loc: {$geoWithin: {$centerSphere: [[-74.0064, 40.7142], 10 / 3963.2]}}},
-    },
+    }),
 );
 // Point corresponding to UWS of Manhattan.
 coll.insert({loc: [-73.974709, 40.79311]});

@@ -1,7 +1,7 @@
 """Utility to support file operations."""
 
 import os
-from typing import Any, Dict
+from typing import Any
 
 import yaml
 
@@ -63,7 +63,7 @@ def write_file_to_dir(directory: str, file: str, contents: str, overwrite: bool 
     write_file(target_file, contents)
 
 
-def read_yaml_file(path: str) -> Dict[str, Any]:
+def read_yaml_file(path: str) -> dict[str, Any]:
     """
     Read the yaml file at the given path and return the contents.
 

@@ -37,7 +37,7 @@ import unittest
 from contextlib import contextmanager
 from io import StringIO
 from types import SimpleNamespace
-from typing import DefaultDict, Iterable, Tuple
+from typing import Iterable
 
 # import package so that it works regardless of whether we run as a module or file
 if __package__ is None:
@@ -48,6 +48,8 @@ else:
 
 # Permit imports from "buildscripts".
 sys.path.append(os.path.normpath(os.path.join(os.path.abspath(__file__), "../../../../")))
+from collections import defaultdict
+
 from buildscripts.idl.gen_dts import gen_dts, object_to_dts, parser, syntax
 from buildscripts.idl.idl.compiler import CompilerImportResolver
 
@@ -78,7 +80,7 @@ class TestGenDTS(testcase.IDLTestcase):
 
         class MockFilesystem:
             def __init__(self) -> None:
-                self.files = DefaultDict(lambda: "")
+                self.files = defaultdict(lambda: "")
 
             @contextmanager
             def open(self, path: str, mode: str):
@@ -120,13 +122,13 @@ class TestGenDTS(testcase.IDLTestcase):
         self.assertEqual(mock_fs.files["src/mongo/shell/enums_gen.d.ts"], "\n".join(enums))
         self.assertEqual(mock_fs.files["src/mongo/shell/commands_gen.d.ts"], "\n".join(commands))
 
-    def _get_generic_idl_with_header(self) -> Tuple[str]:
+    def _get_generic_idl_with_header(self) -> tuple[str]:
         """Returns a header necessary to use commands in an IDL."""
         return ("global:", "    cpp_namespace: 'mongo'", "", "imports: []", "")
 
     def _get_command_idl_text(
         self, name: str, description: str, namespace: str = "ignored"
-    ) -> Tuple[str]:
+    ) -> tuple[str]:
         """Returns a command IDL declaration with a given name, description, and namespace."""
         return (
             "commands:",
@@ -140,7 +142,7 @@ class TestGenDTS(testcase.IDLTestcase):
 
     def _get_command_idl_with_header(
         self, name: str, description: str, namespace: str = "ignored"
-    ) -> Tuple[str]:
+    ) -> tuple[str]:
         """Returns a command IDL declaration with a given name, description, and namespace, with the necessary headers."""
         return (
             "global:",

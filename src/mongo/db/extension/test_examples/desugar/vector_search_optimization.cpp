@@ -132,7 +132,7 @@ public:
         std::vector<mongo::extension::VariantNodeHandle> result;
         result.reserve(getExpandedSize());
         auto& host = sdk::HostServicesAPI::getInstance();
-        result.emplace_back(new sdk::ExtensionAggStageAstNode(
+        result.emplace_back(new sdk::ExtensionAggStageAstNodeAdapter(
             std::make_unique<TestVectorSearchAstNode>("$testVectorSearch", _arguments)));
         // If desugar is false, then this extension should only desugar into $testVectorSearch
         // and the optimization that removes a $sort stage that sorts by 'vectorSearchScore'

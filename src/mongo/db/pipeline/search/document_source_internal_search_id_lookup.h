@@ -32,6 +32,7 @@
 #include "mongo/db/pipeline/catalog_resource_handle.h"
 #include "mongo/db/pipeline/document_source.h"
 #include "mongo/db/pipeline/pipeline.h"
+#include "mongo/db/pipeline/search/document_source_internal_search_id_lookup_gen.h"
 #include "mongo/db/query/multiple_collection_accessor.h"
 #include "mongo/db/query/search/search_query_view_spec_gen.h"
 #include "mongo/util/assert_util.h"
@@ -59,9 +60,8 @@ public:
     static boost::intrusive_ptr<DocumentSource> createFromBson(
         BSONElement elem, const boost::intrusive_ptr<ExpressionContext>& expCtx);
 
-    DocumentSourceInternalSearchIdLookUp(const boost::intrusive_ptr<ExpressionContext>& expCtx,
-                                         long long limit = 0,
-                                         std::unique_ptr<Pipeline> viewPipeline = nullptr);
+    DocumentSourceInternalSearchIdLookUp(DocumentSourceIdLookupSpec spec,
+                                         const boost::intrusive_ptr<ExpressionContext>& expCtx);
 
     const char* getSourceName() const final;
 
@@ -196,16 +196,13 @@ private:
     friend boost::intrusive_ptr<exec::agg::Stage> documentSourceInternalSearchIdLookupToStageFn(
         const boost::intrusive_ptr<DocumentSource>&);
 
-    long long _limit = 0;
+    DocumentSourceIdLookupSpec _spec;
 
     // Handle to catalog state. Also contains the collection needed for execution.
     boost::intrusive_ptr<DSInternalSearchIdLookUpCatalogResourceHandle> _catalogResourceHandle;
 
     std::shared_ptr<SearchIdLookupMetrics> _searchIdLookupMetrics =
         std::make_shared<SearchIdLookupMetrics>();
-
-    // If a search query is run on a view, we store the parsed view pipeline.
-    std::unique_ptr<Pipeline> _viewPipeline;
 };
 
 class DSInternalSearchIdLookUpCatalogResourceHandle : public DSCatalogResourceHandleBase {

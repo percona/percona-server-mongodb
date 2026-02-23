@@ -2,7 +2,7 @@
 """Generate multiple powercycle tasks to run in evergreen."""
 
 from collections import namedtuple
-from typing import Any, List, Set, Tuple
+from typing import Any
 
 import click
 from shrub.v2 import BuildVariant, ExistingTask, FunctionCall, ShrubProject, Task, TaskDependency
@@ -68,14 +68,14 @@ def make_config(expansions_file: Any) -> Config:
     )
 
 
-def get_setup_commands() -> Tuple[List[FunctionCall], Set[TaskDependency]]:
+def get_setup_commands() -> tuple[list[FunctionCall], set[TaskDependency]]:
     """Return setup commands."""
     return [
         FunctionCall("do setup"),
     ], {TaskDependency("archive_dist_test")}
 
 
-def get_skip_compile_setup_commands() -> Tuple[List[FunctionCall], set]:
+def get_skip_compile_setup_commands() -> tuple[list[FunctionCall], set]:
     """Return skip compile setup commands."""
     return [
         BuiltInCommand("manifest.load", {}),

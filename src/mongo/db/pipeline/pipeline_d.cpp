@@ -152,9 +152,9 @@ namespace {
 std::unique_ptr<FindCommandRequest> createFindCommand(
     const intrusive_ptr<ExpressionContext>& expCtx,
     const NamespaceString& nss,
-    BSONObj queryObj,
-    BSONObj projectionObj,
-    BSONObj sortObj,
+    const BSONObj& queryObj,
+    const BSONObj& projectionObj,
+    const BSONObj& sortObj,
     SkipThenLimit skipThenLimit,
     const AggregateCommandRequest* aggRequest) {
     auto findCommand = std::make_unique<FindCommandRequest>(nss);
@@ -174,14 +174,14 @@ std::unique_ptr<FindCommandRequest> createFindCommand(
         findCommand->setAllowDiskUse(aggRequest->getAllowDiskUse());
         findCommand->setHint(aggRequest->getHint().value_or(BSONObj()).getOwned());
         findCommand->setRequestResumeToken(aggRequest->getRequestResumeToken());
-        if (aggRequest->getResumeAfter()) {
-            findCommand->setResumeAfter(*aggRequest->getResumeAfter());
+        if (const auto& resumeAfter = aggRequest->getResumeAfter()) {
+            findCommand->setResumeAfter(*resumeAfter);
         }
-        if (aggRequest->getStartAt()) {
-            findCommand->setStartAt(*aggRequest->getStartAt());
+        if (const auto& startAt = aggRequest->getStartAt()) {
+            findCommand->setStartAt(*startAt);
         }
-        if (aggRequest->getForcedPlanSolutionHash()) {
-            findCommand->setForcedPlanSolutionHash(aggRequest->getForcedPlanSolutionHash());
+        if (auto forcedPlanSolutionHash = aggRequest->getForcedPlanSolutionHash()) {
+            findCommand->setForcedPlanSolutionHash(forcedPlanSolutionHash);
         }
     }
 
@@ -201,7 +201,7 @@ std::unique_ptr<FindCommandRequest> createFindCommand(
  */
 boost::optional<StringData> extractGeoNearFieldFromIndexesByType(OperationContext* opCtx,
                                                                  const CollectionPtr& collection,
-                                                                 const string indexType) {
+                                                                 const string& indexType) {
     std::vector<const IndexCatalogEntry*> idxs;
     const IndexDescriptor* idxToUse = nullptr;
     collection->getIndexCatalog()->findIndexByType(opCtx, indexType, idxs);
@@ -407,7 +407,7 @@ StatusWith<unique_ptr<PlanExecutor, PlanExecutor::Deleter>> PipelineD::createRan
     } else {
         // Suppose that a time-series collection is observed to contain 200 buckets, and the
         // 'gTimeseriesBucketMaxCount' parameter is set to 1000. If all buckets are full, then the
-        // maximum possible measurment count would be 200 * 1000 = 200,000. While the
+        // maximum possible measurement count would be 200 * 1000 = 200,000. While the
         // 'SampleFromTimeseriesBucket' plan is more efficient when the sample size is small
         // relative to the total number of measurements in the time-series collection, for larger
         // sample sizes the top-k sort based sample is faster. Experiments have approximated that
@@ -682,8 +682,6 @@ PipelineD::BuildQueryExecutorResult PipelineD::buildInnerQueryExecutor(
     const NamespaceString& nss,
     const AggregateCommandRequest* aggRequest,
     Pipeline* pipeline) {
-    auto expCtx = pipeline->getContext();
-
     // We skip the 'requiresInputDocSource' check in the case of pushing $search down into SBE,
     // as $search has 'requiresInputDocSource' as false.
     bool skipRequiresInputDocSourceCheck = isSearchPresentAndEligibleForSbe(pipeline);
@@ -737,7 +735,7 @@ void PipelineD::attachInnerQueryExecutorAndBindCatalogInfoToPipeline(
     if (attachExecutorCallback && exec) {
         attachExecutorCallback(std::move(exec), pipeline);
     }
-    pipeline->bindCatalogInfo(collections, stasher);
+    pipeline->bindCatalogInfo(collections, std::move(stasher));
 }
 
 void PipelineD::buildAndAttachInnerQueryExecutorAndBindCatalogInfoToPipeline(
@@ -751,7 +749,7 @@ void PipelineD::buildAndAttachInnerQueryExecutorAndBindCatalogInfoToPipeline(
         buildInnerQueryExecutor(collections, nss, aggRequest, pipeline);
     tassert(7856010, "Unexpected additional executors", additionalExec.empty());
     attachInnerQueryExecutorAndBindCatalogInfoToPipeline(
-        collections, callback, std::move(executor), pipeline, stasher);
+        collections, callback, std::move(executor), pipeline, std::move(stasher));
 }
 
 namespace {
@@ -1454,7 +1452,7 @@ PipelineD::supportsSort(const timeseries::BucketUnpacker& bucketUnpacker,
             // Scanning only part of an index means we don't see all the index keys for a
             // document, which means the representative (first key we encounter, for a
             // given document) will be different. For simplicity, just check whether the
-            // index is multikey. Mabye we could do better by looking at whether each field
+            // index is multikey. Maybe we could do better by looking at whether each field
             // separately is multikey, or by allowing a full index scan.
             if (scan->getSpecificStats()->isMultiKey)
                 return boost::none;

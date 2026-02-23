@@ -108,11 +108,12 @@ struct RaiiAsArrayElem<VariantNodeHandle> {
     }
 };
 
-::MongoExtensionStatus* ExtensionAggStageParseNode::_extExpand(
+::MongoExtensionStatus* ExtensionAggStageParseNodeAdapter::_extExpand(
     const ::MongoExtensionAggStageParseNode* parseNode,
     ::MongoExtensionExpandedArray* expanded) noexcept {
     return wrapCXXAndConvertExceptionToStatus([&]() {
-        const auto& impl = static_cast<const ExtensionAggStageParseNode*>(parseNode)->getImpl();
+        const auto& impl =
+            static_cast<const ExtensionAggStageParseNodeAdapter*>(parseNode)->getImpl();
         const auto expandedSize = impl.getExpandedSize();
         sdk_tassert(11113801,
                     (str::stream()

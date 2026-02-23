@@ -9,7 +9,6 @@ import os
 import sys
 import time
 from datetime import datetime, timezone
-from typing import List
 
 import click
 import structlog
@@ -42,7 +41,7 @@ def get_evergreen_api() -> EvergreenApi:
     sys.exit(1)
 
 
-def watch_tasks(task_ids: List[str], evg_api: EvergreenApi, watch_interval_secs: int) -> List[str]:
+def watch_tasks(task_ids: list[str], evg_api: EvergreenApi, watch_interval_secs: int) -> list[str]:
     """Watch tasks if they run longer than exec timeout."""
     watch_task_ids = task_ids[:]
     long_running_task_ids = []
@@ -66,7 +65,7 @@ def watch_tasks(task_ids: List[str], evg_api: EvergreenApi, watch_interval_secs:
     return long_running_task_ids
 
 
-def get_links(task_ids: List[str]) -> str:
+def get_links(task_ids: list[str]) -> str:
     """Return evergreen task urls delimited by newline."""
     return "\n".join([f"{EVERGREEN_HOST}/task/{task_id}" for task_id in task_ids])
 

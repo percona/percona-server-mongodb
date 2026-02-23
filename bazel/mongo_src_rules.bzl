@@ -638,6 +638,7 @@ def _mongo_cc_binary_and_test(
         "//bazel/config:macos_aarch64": macos_rpath_flags,
         "//bazel/config:macos_x86_64": macos_rpath_flags,
         "//bazel/config:windows_x86_64": [],
+        "//bazel/config:wasm32": [],
     })
 
     exec_properties |= select({
@@ -1375,47 +1376,62 @@ def mongo_cc_integration_test(
         **kwargs
     )
 
-def mongo_cc_fuzzer_test(
-        name,
-        srcs = [],
+def mongo_cc_fuzzer_test_deprecated(
         deps = [],
-        private_hdrs = [],
-        visibility = None,
-        data = [],
         tags = [],
         copts = [],
         linkopts = [],
-        includes = [],
-        linkstatic = False,
-        local_defines = [],
         target_compatible_with = [],
-        defines = [],
-        additional_linker_inputs = [],
-        features = [],
-        exec_properties = {},
-        provides_main = False,
         **kwargs):
+    """Deprecated: Wrapper around mongo_cc_test supporting old libfuzzer based tests.
+
+    Implements the libfuzzer API with fuzztest and centipede as the fuzzing engine.
+    Should not be used for new tests. See mongo_cc_fuzztest.
+    """
     mongo_cc_test(
-        name = name,
-        srcs = srcs,
-        deps = deps,
-        private_hdrs = private_hdrs,
-        visibility = visibility,
-        data = data,
+        deps = deps + [
+            "@fuzztest//centipede:centipede_runner_no_main",
+            "@fuzztest//fuzztest:llvm_fuzzer_main",
+            "@fuzztest//fuzztest:llvm_fuzzer_wrapper",
+        ],
         tags = tags + ["mongo_fuzzer_test"],
-        copts = copts,
-        linkopts = linkopts + ["-fsanitize=fuzzer"],
-        includes = includes,
-        linkstatic = linkstatic,
-        local_defines = local_defines,
+        copts = copts + ["-Wno-sign-compare"],
+        linkopts = linkopts + ["-fsanitize-coverage=control-flow"],
         target_compatible_with = target_compatible_with + select({
             "//bazel/config:fsan_enabled": [],
             "//conditions:default": ["@platforms//:incompatible"],
         }),
-        defines = defines,
-        additional_linker_inputs = additional_linker_inputs,
-        features = features,
-        exec_properties = exec_properties,
+        **kwargs
+    )
+
+def mongo_cc_fuzztest(
+        deps = [],
+        tags = [],
+        linkopts = [],
+        target_compatible_with = [],
+        copts = [],
+        **kwargs):
+    """Wrapper around mongo_cc_test for Fuzztest based fuzzers.
+
+    Creates a binary that uses fuzztest and centipede as the fuzzing engine.
+    Compatible with resmoke's CPPLibfuzzerTestCase.
+    Additional information about fuzztest can be found at:
+    https://github.com/google/fuzztest
+    """
+    mongo_cc_test(
+        deps = deps + [
+            "@fuzztest//fuzztest",
+            "@fuzztest//fuzztest:fuzztest_gtest_main",
+            "@com_google_googletest//:gtest",
+            "@fuzztest//centipede:centipede_runner_no_main",
+        ],
+        tags = tags + ["mongo_fuzzer_test"],
+        copts = copts + ["-Wno-sign-compare"],
+        linkopts = linkopts + ["-fsanitize-coverage=control-flow"],
+        target_compatible_with = target_compatible_with + select({
+            "//bazel/config:fsan_enabled": [],
+            "//conditions:default": ["@platforms//:incompatible"],
+        }),
         **kwargs
     )
 

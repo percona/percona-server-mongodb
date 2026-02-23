@@ -39,6 +39,7 @@
 #include "mongo/db/client.h"
 #include "mongo/db/curop.h"
 #include "mongo/db/dbhelpers.h"
+#include "mongo/db/index/fts_access_method.h"
 #include "mongo/db/index/index_access_method.h"
 #include "mongo/db/index/multikey_paths.h"
 #include "mongo/db/index/s2_common.h"
@@ -381,6 +382,23 @@ protected:
         _db = nullptr;
         invariant(
             shard_role_details::getLocker(&_opCtx)->isDbLockedForMode(_nss.dbName(), MODE_NONE));
+    }
+
+    std::unique_ptr<IndexBuildInterceptor> makeIndexBuildInterceptor(
+        BSONObj spec, const IndexCatalogEntry* entry) {
+        // These tests are doing something outside of the normal index build flow by creating index
+        // build interceptors for the same index multiple times after that index build has
+        // completed. Since we aren't resuming an index build, they need fresh side tables, and we
+        // can't guarantee that the previous ones are droppable yet. As a result, generate new
+        // idents for the side tables and then set only the index table ident to the reused one.
+        auto storageEngine = _opCtx.getServiceContext()->getStorageEngine();
+        IndexBuildInfo indexBuildInfo(spec, *storageEngine, _autoDb->getDb()->name());
+        indexBuildInfo.indexIdent = entry->getIdent();
+        WriteUnitOfWork wuow(&_opCtx);
+        auto interceptor = std::make_unique<IndexBuildInterceptor>(
+            &_opCtx, entry, indexBuildInfo, /*resume=*/false, /*generateTableWrites=*/true);
+        wuow.commit();
+        return interceptor;
     }
 
     const ServiceContext::UniqueOperationContext _txnPtr = cc().makeOperationContext();
@@ -2013,15 +2031,10 @@ public:
 
             // Insert the key on _id.
             {
-                auto storageEngine = _opCtx.getServiceContext()->getStorageEngine();
                 auto entry = indexCatalog->findIdIndex(&_opCtx);
-                IndexBuildInfo indexBuildInfo(indexCatalog->getDefaultIdIndexSpec(coll()),
-                                              entry->getIdent());
-                indexBuildInfo.setInternalIdents(*storageEngine,
-                                                 VersionContext::getDecoration(&_opCtx));
                 auto iam = entry->accessMethod()->asSortedData();
-                auto interceptor = std::make_unique<IndexBuildInterceptor>(
-                    &_opCtx, entry, indexBuildInfo, /*resume=*/false, /*generateTableWrites=*/true);
+                auto interceptor =
+                    makeIndexBuildInterceptor(indexCatalog->getDefaultIdIndexSpec(coll()), entry);
 
                 KeyStringSet keys;
                 iam->getKeys(&_opCtx,
@@ -2282,15 +2295,10 @@ public:
 
             // Insert the key on _id.
             {
-                auto storageEngine = _opCtx.getServiceContext()->getStorageEngine();
                 auto entry = indexCatalog->findIdIndex(&_opCtx);
                 auto iam = entry->accessMethod()->asSortedData();
-                IndexBuildInfo indexBuildInfo(indexCatalog->getDefaultIdIndexSpec(coll()),
-                                              entry->getIdent());
-                indexBuildInfo.setInternalIdents(*storageEngine,
-                                                 VersionContext::getDecoration(&_opCtx));
-                auto interceptor = std::make_unique<IndexBuildInterceptor>(
-                    &_opCtx, entry, indexBuildInfo, /*resume=*/false, /*generateTableWrites=*/true);
+                auto interceptor =
+                    makeIndexBuildInterceptor(indexCatalog->getDefaultIdIndexSpec(coll()), entry);
 
                 KeyStringSet keys;
                 iam->getKeys(&_opCtx,
@@ -2315,7 +2323,7 @@ public:
                         *shard_role_details::getRecoveryUnit(&_opCtx),
                         coll(),
                         entry,
-                        {keys.begin(), keys.end()},
+                        keys,
                         {},
                         MultikeyPaths{},
                         options,
@@ -2608,15 +2616,10 @@ public:
 
             // Insert the key on _id.
             {
-                auto storageEngine = _opCtx.getServiceContext()->getStorageEngine();
                 auto entry = indexCatalog->findIdIndex(&_opCtx);
                 auto iam = entry->accessMethod()->asSortedData();
-                IndexBuildInfo indexBuildInfo(indexCatalog->getDefaultIdIndexSpec(coll()),
-                                              entry->getIdent());
-                indexBuildInfo.setInternalIdents(*storageEngine,
-                                                 VersionContext::getDecoration(&_opCtx));
-                auto interceptor = std::make_unique<IndexBuildInterceptor>(
-                    &_opCtx, entry, indexBuildInfo, /*resume=*/false, /*generateTableWrites=*/true);
+                auto interceptor =
+                    makeIndexBuildInterceptor(indexCatalog->getDefaultIdIndexSpec(coll()), entry);
 
                 KeyStringSet keys;
                 iam->getKeys(&_opCtx,
@@ -2663,14 +2666,9 @@ public:
 
             // Insert the key on b.
             {
-                auto storageEngine = _opCtx.getServiceContext()->getStorageEngine();
                 auto entry = indexCatalog->findIndexByName(&_opCtx, indexNameB);
                 auto iam = entry->accessMethod()->asSortedData();
-                IndexBuildInfo indexBuildInfo(indexSpecB, entry->getIdent());
-                indexBuildInfo.setInternalIdents(*storageEngine,
-                                                 VersionContext::getDecoration(&_opCtx));
-                auto interceptor = std::make_unique<IndexBuildInterceptor>(
-                    &_opCtx, entry, indexBuildInfo, /*resume=*/false, /*generateTableWrites=*/true);
+                auto interceptor = makeIndexBuildInterceptor(indexSpecB, entry);
 
                 KeyStringSet keys;
                 iam->getKeys(&_opCtx,
@@ -2695,7 +2693,7 @@ public:
                         *shard_role_details::getRecoveryUnit(&_opCtx),
                         coll(),
                         entry,
-                        {keys.begin(), keys.end()},
+                        keys,
                         {},
                         MultikeyPaths{},
                         options,
@@ -3258,15 +3256,10 @@ public:
 
             // Insert the key on _id.
             {
-                auto storageEngine = _opCtx.getServiceContext()->getStorageEngine();
                 auto entry = indexCatalog->findIdIndex(&_opCtx);
                 auto iam = entry->accessMethod()->asSortedData();
-                IndexBuildInfo indexBuildInfo(indexCatalog->getDefaultIdIndexSpec(coll()),
-                                              entry->getIdent());
-                indexBuildInfo.setInternalIdents(*storageEngine,
-                                                 VersionContext::getDecoration(&_opCtx));
-                auto interceptor = std::make_unique<IndexBuildInterceptor>(
-                    &_opCtx, entry, indexBuildInfo, /*resume=*/false, /*generateTableWrites=*/true);
+                auto interceptor =
+                    makeIndexBuildInterceptor(indexCatalog->getDefaultIdIndexSpec(coll()), entry);
 
                 KeyStringSet keys;
                 iam->getKeys(&_opCtx,
@@ -3291,7 +3284,7 @@ public:
                         *shard_role_details::getRecoveryUnit(&_opCtx),
                         coll(),
                         entry,
-                        {keys.begin(), keys.end()},
+                        keys,
                         {},
                         MultikeyPaths{},
                         options,
@@ -3313,14 +3306,9 @@ public:
 
             // Insert the key on "a".
             {
-                auto storageEngine = _opCtx.getServiceContext()->getStorageEngine();
                 auto entry = indexCatalog->findIndexByName(&_opCtx, indexName);
                 auto iam = entry->accessMethod()->asSortedData();
-                IndexBuildInfo indexBuildInfo(indexSpec, entry->getIdent());
-                indexBuildInfo.setInternalIdents(*storageEngine,
-                                                 VersionContext::getDecoration(&_opCtx));
-                auto interceptor = std::make_unique<IndexBuildInterceptor>(
-                    &_opCtx, entry, indexBuildInfo, /*resume=*/false, /*generateTableWrites=*/true);
+                auto interceptor = makeIndexBuildInterceptor(indexSpec, entry);
 
                 KeyStringSet keys;
                 iam->getKeys(&_opCtx,
@@ -4358,6 +4346,155 @@ public:
     }
 };
 
+// Test that validates a text index created with legacy key generation (pre-SERVER-76875) on
+// documents with embedded dotted fields gets reported as needing to be rebuilt.
+class ValidateTextIndexLegacyNeedsRebuild : public ValidateBase {
+public:
+    ValidateTextIndexLegacyNeedsRebuild() : ValidateBase(/*full=*/false, /*background=*/false) {}
+
+    void run() {
+        SharedBufferFragmentBuilder pooledBuilder(
+            key_string::HeapBuilder::kHeapAllocatorDefaultBytes);
+
+        // Create a new collection.
+        lockDb(MODE_X);
+
+        {
+            beginTransaction();
+            ASSERT_OK(_db->dropCollection(&_opCtx, _nss));
+            _db->createCollection(&_opCtx, _nss);
+            commitTransaction();
+        }
+
+        // Insert a document with embedded dotted fields that would be treated differently
+        // by legacy vs. new key generation. The legacy behavior would include keys for the
+        // literal "a.b" field, while the new behavior excludes it.
+        BSONObj docWithDottedField = BSON("_id" << 1 << "text"
+                                                << "some searchable text"
+                                                << "a.b" << "prefix value"
+                                                << "a" << BSON("b" << "nested value"));
+        {
+            beginTransaction();
+            insertDocument(docWithDottedField);
+            commitTransaction();
+        }
+
+        // Create a text index with a prefix field "a.b". This will populate it with keys using the
+        // new (post-SERVER-76875) key generation.
+        const auto indexName = "text_index";
+        auto status = createIndexFromSpec(BSON(
+            "name" << indexName << "key" << BSON("a.b" << 1 << "_fts" << "text" << "_ftsx" << 1)
+                   << "weights" << BSON("text" << 1) << "v" << static_cast<int>(kIndexVersion)));
+        ASSERT_OK(status);
+
+        // Simulate a legacy index by removing the current keys and inserting
+        // legacy keys. This simulates an index created before SERVER-76875.
+        CollectionWriter writer(&_opCtx, coll()->ns());
+        {
+            beginTransaction();
+            auto writableCatalog = writer.getWritableCollection(&_opCtx)->getIndexCatalog();
+            auto entry = writableCatalog->findIndexByName(&_opCtx, indexName);
+            ASSERT(entry);
+
+            auto iam = entry->accessMethod()->asSortedData();
+            ASSERT(iam);
+            auto ftsIam = dynamic_cast<FTSAccessMethod*>(iam);
+            ASSERT(ftsIam);
+
+            auto rs = coll()->getRecordStore();
+            auto cursor = rs->getCursor(&_opCtx, *shard_role_details::getRecoveryUnit(&_opCtx));
+
+            // For each document, remove new keys and insert legacy keys.
+            while (auto record = cursor->next()) {
+                auto doc = record->data.toBson();
+
+                // Remove the document's keys using the current key generation.
+                int64_t numDeleted;
+                InsertDeleteOptions options;
+                options.dupsAllowed = !entry->descriptor()->unique();
+                iam->remove(&_opCtx,
+                            pooledBuilder,
+                            coll(),
+                            entry,
+                            doc,
+                            record->id,
+                            false /* logIfError */,
+                            options,
+                            &numDeleted,
+                            CheckRecordId::Off);
+
+                // Generate legacy keys using the legacy method.
+                KeyStringSet legacyKeys = ftsIam->generateKeysLegacyDottedPath_forValidationOnly(
+                    &_opCtx, entry, doc, record->id);
+
+                // Insert the legacy keys directly into the sorted data interface.
+                auto sortedDataInterface = iam->getSortedDataInterface();
+                for (const auto& key : legacyKeys) {
+                    sortedDataInterface->insert(&_opCtx,
+                                                *shard_role_details::getRecoveryUnit(&_opCtx),
+                                                key,
+                                                true /* dupsAllowed */);
+                }
+            }
+
+            commitTransaction();
+        }
+
+        releaseDb();
+
+        // Run validate. It should detect that the index has missing entries (the new keys)
+        // and then check if the legacy keys exist. Since they do, it should report the
+        // SERVER-76875 error.
+        {
+            ValidateResults results;
+
+            ASSERT_OK(CollectionValidation::validate(
+                &_opCtx,
+                _nss,
+                ValidationOptions{CollectionValidation::ValidateMode::kForeground,
+                                  CollectionValidation::RepairMode::kNone,
+                                  kLogDiagnostics},
+                &results));
+
+            ScopeGuard dumpOnErrorGuard([&] {
+                StorageDebugUtil::printValidateResults(results);
+                StorageDebugUtil::printCollectionAndIndexTableEntries(&_opCtx, coll()->ns());
+            });
+
+            // Validation should fail because the index has legacy keys instead of new keys.
+            ASSERT_FALSE(results.isValid());
+
+            // Check that the index results contain the SERVER-76875 message.
+            auto indexResultsIt = results.getIndexResultsMap().find(indexName);
+            ASSERT(indexResultsIt != results.getIndexResultsMap().end());
+            const auto& indexResults = indexResultsIt->second;
+
+            // Check that there's an error message about needing to rebuild due to SERVER-76875.
+            bool foundError =
+                std::any_of(indexResults.getErrors().begin(),
+                            indexResults.getErrors().end(),
+                            [](const auto& error) {
+                                return error.find("legacy version of text index key generation") !=
+                                    std::string::npos &&
+                                    error.find("embedded dots") != std::string::npos;
+                            });
+            ASSERT_TRUE(foundError)
+                << "Expected error message about legacy text index with embedded dots";
+
+            bool foundWarning =
+                std::any_of(results.getWarnings().begin(),
+                            results.getWarnings().end(),
+                            [&indexName](const auto& warning) {
+                                return warning.find(indexName) != std::string::npos &&
+                                    warning.find("SERVER-76875") != std::string::npos;
+                            });
+            ASSERT_TRUE(foundWarning) << "Expected warning about rebuilding due to SERVER-76875";
+
+            dumpOnErrorGuard.dismiss();
+        }
+    }
+};
+
 class ValidateInvalidBSONOnClusteredCollection : public ValidateBase {
 public:
     explicit ValidateInvalidBSONOnClusteredCollection(bool background)
@@ -4632,14 +4769,9 @@ public:
 
             // Insert the key on "a".
             {
-                auto storageEngine = _opCtx.getServiceContext()->getStorageEngine();
                 auto entry = indexCatalog->findIndexByName(&_opCtx, indexName);
                 auto iam = entry->accessMethod()->asSortedData();
-                IndexBuildInfo indexBuildInfo(indexSpec, entry->getIdent());
-                indexBuildInfo.setInternalIdents(*storageEngine,
-                                                 VersionContext::getDecoration(&_opCtx));
-                auto interceptor = std::make_unique<IndexBuildInterceptor>(
-                    &_opCtx, entry, indexBuildInfo, /*resume=*/false, /*generateTableWrites=*/true);
+                auto interceptor = makeIndexBuildInterceptor(indexSpec, entry);
 
                 KeyStringSet keys;
                 iam->getKeys(&_opCtx,
@@ -5025,6 +5157,9 @@ public:
 
         // Test that validates S2 index version upgrade detection.
         add<ValidateS2IndexVersion3NeedsUpgrade>();
+
+        // Test that validates text index legacy key generation detection.
+        add<ValidateTextIndexLegacyNeedsRebuild>();
 
         // Tests that validation works on clustered collections.
         add<ValidateInvalidBSONOnClusteredCollection>(false);

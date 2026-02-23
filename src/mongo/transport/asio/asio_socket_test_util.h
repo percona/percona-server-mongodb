@@ -40,7 +40,7 @@
 
 /*
  * This component provides utilities for testing ASIO socket behavior.
- * It is used both by `//src/mongo/transport/asio` and by `//src/third_party/mongo/test`.
+ * It is used both by `//src/mongo/transport/asio` and by `//src/third_party/asio/test`.
  */
 
 namespace mongo {

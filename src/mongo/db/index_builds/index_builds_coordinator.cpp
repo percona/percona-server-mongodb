@@ -778,8 +778,7 @@ Status IndexBuildsCoordinator::_startIndexBuildForRecovery(OperationContext* opC
             for (auto& indexBuildInfo : indexes) {
                 indexBuildInfo.indexIdent =
                     storageEngine->generateNewIndexIdent(collWriter->ns().dbName());
-                indexBuildInfo.setInternalIdents(*storageEngine,
-                                                 VersionContext::getDecoration(opCtx));
+                indexBuildInfo.setInternalIdents(*storageEngine);
             }
         } else {
             // Unfinished index builds that are not resumable will drop and recreate the index table
@@ -832,8 +831,7 @@ Status IndexBuildsCoordinator::_startIndexBuildForRecovery(OperationContext* opC
                                         << "buildUUID: " << buildUUID);
 
                 indexBuildInfo.indexIdent = writableEntry->getIdent();
-                indexBuildInfo.setInternalIdents(*storageEngine,
-                                                 VersionContext::getDecoration(opCtx));
+                indexBuildInfo.setInternalIdents(*storageEngine);
             }
         }
 
@@ -2194,10 +2192,12 @@ void IndexBuildsCoordinator::restartIndexBuildsForRecovery(
             } else {
                 // IndexBuildInterceptor requires the the skipped records tracker table ident to
                 // be present in the resume case, so create a new table if none exists already.
+                WriteUnitOfWork wuow(opCtx);
                 skippedRecordsTrackerIdent = storageEngine->generateNewInternalIdent();
                 auto tempTable = storageEngine->makeTemporaryRecordStore(
                     opCtx, *skippedRecordsTrackerIdent, KeyFormat::Long);
                 tempTable->keep();
+                wuow.commit();
             }
             if (indexStateInfo.getDuplicateKeyTrackerTable()) {
                 constraintViolationsTrackerIdent =
@@ -2388,10 +2388,8 @@ void IndexBuildsCoordinator::createIndex(OperationContext* opCtx,
     invariant(collection,
               str::stream() << "IndexBuildsCoordinator::createIndexes: " << collectionUUID);
 
-    IndexBuildInfo indexBuildInfo(spec,
-                                  *opCtx->getServiceContext()->getStorageEngine(),
-                                  collection->ns().dbName(),
-                                  VersionContext::getDecoration(opCtx));
+    IndexBuildInfo indexBuildInfo(
+        spec, *opCtx->getServiceContext()->getStorageEngine(), collection->ns().dbName());
     _createIndex(opCtx, collection, indexBuildInfo, indexConstraints, fromMigrate);
 }
 
@@ -2522,8 +2520,7 @@ void IndexBuildsCoordinator::createIndexesOnEmptyCollection(OperationContext* op
                                                             const std::vector<BSONObj>& specs,
                                                             bool fromMigrate) {
     auto storageEngine = opCtx->getServiceContext()->getStorageEngine();
-    auto indexes = toIndexBuildInfoVec(
-        specs, *storageEngine, collection->ns().dbName(), VersionContext::getDecoration(opCtx));
+    auto indexes = toIndexBuildInfoVec(specs, *storageEngine, collection->ns().dbName());
     createIndexesOnEmptyCollection(opCtx, collection, indexes, fromMigrate);
 }
 
@@ -3429,16 +3426,9 @@ void IndexBuildsCoordinator::_buildPrimaryDrivenIndex(
     invariant(RecoveryUnit::ReadSource::kNoTimestamp ==
               shard_role_details::getRecoveryUnit(opCtx)->getTimestampReadSource());
 
-    // TODO (SERVER-111936): Confirm that it's ok to check if the node is primary as done below.
     bool isPrimary{false};
     auto replCoord = repl::ReplicationCoordinator::get(opCtx);
     if (replCoord->getSettings().isReplSet()) {
-        // Wait until the node becomes a primary or a secondary.
-        while (!replCoord->getMemberState().primary() && !replCoord->getMemberState().secondary()) {
-            opCtx->sleepFor(Milliseconds(100));
-            opCtx->checkForInterrupt();
-        }
-
         if (gFeatureFlagIntentRegistration.isEnabled()) {
             // We do not hold a collection lock here, but we are protected against the collection
             // being dropped while the index build is still registered for the collection -- until

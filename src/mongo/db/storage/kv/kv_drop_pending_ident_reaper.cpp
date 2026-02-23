@@ -32,17 +32,13 @@
 
 #include "mongo/bson/timestamp.h"
 #include "mongo/db/operation_context.h"
-#include "mongo/db/shard_role/lock_manager/lock_manager_defs.h"
 #include "mongo/db/shard_role/transaction_resources.h"
 #include "mongo/db/storage/ident.h"
 #include "mongo/db/storage/write_unit_of_work.h"
-#include "mongo/logv2/attribute_storage.h"
 #include "mongo/logv2/log.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/log_and_backoff.h"
 
-#include <algorithm>
-#include <compare>
 #include <utility>
 #include <variant>
 
@@ -81,7 +77,15 @@ KVDropPendingIdentReaper::KVDropPendingIdentReaper(KVEngine* engine)
 
 void KVDropPendingIdentReaper::configureDelay(Seconds delay) {
     stdx::lock_guard lock(_mutex);
+    invariant(delay >= Seconds(0));
     _delay = delay;
+}
+
+Timestamp KVDropPendingIdentReaper::_applyDelay(const Timestamp& ts) const {
+    if (ts == Timestamp::min()) {
+        return ts;
+    }
+    return Timestamp(ts.getSecs() - _delay.count(), ts.getInc());
 }
 
 void KVDropPendingIdentReaper::addDropPendingIdent(const StorageEngine::DropTime& dropTime,
@@ -102,12 +106,6 @@ void KVDropPendingIdentReaper::addDropPendingIdent(const StorageEngine::DropTime
     info->dropToken = ident;
     info->dropTime = dropTime;
     info->onDrop = onDrop;
-
-    if (_delay != Seconds::zero()) {
-        // For disagg, we're guaranteed to have a timestamp.
-        invariant(std::holds_alternative<Timestamp>(dropTime));
-        info->dropTime = std::get<Timestamp>(dropTime) + _delay.count();
-    }
 
     _timestampOrderedIdents.insert(info);
     _dropPendingIdents.insert(std::make_pair(ident->getIdent(), info));
@@ -141,10 +139,6 @@ void KVDropPendingIdentReaper::dropUnknownIdent(const Timestamp& stableTimestamp
     info->dropTime = stableTimestamp;
     info->dropTimeIsExact = false;
 
-    if (_delay != Seconds::zero()) {
-        info->dropTime = stableTimestamp + _delay.count();
-    }
-
     _timestampOrderedIdents.insert(info);
     _dropPendingIdents.emplace(ident, std::move(info));
 }
@@ -176,10 +170,11 @@ std::shared_ptr<Ident> KVDropPendingIdentReaper::markIdentInUse(StringData ident
 
 bool KVDropPendingIdentReaper::hasExpiredIdents(const Timestamp& ts) const {
     stdx::lock_guard lock(_mutex);
+    auto delayedTs = _applyDelay(ts);
     for (auto& info : _timestampOrderedIdents) {
-        if (info->isExpired(_engine, ts))
+        if (info->isExpired(_engine, delayedTs))
             return true;
-        if (info->dropTime > ts)
+        if (info->dropTime > delayedTs)
             return false;
     }
     return false;
@@ -212,7 +207,13 @@ size_t KVDropPendingIdentReaper::getNumIdents() const {
     return _timestampOrderedIdents.size();
 };
 
-void KVDropPendingIdentReaper::dropIdentsOlderThan(OperationContext* opCtx, const Timestamp& ts) {
+void KVDropPendingIdentReaper::dropIdentsOlderThan(OperationContext* opCtx,
+                                                   const Timestamp& rawTs) {
+    auto ts = [&] {
+        stdx::lock_guard lock(_mutex);
+        return _applyDelay(rawTs);
+    }();
+
     stdx::lock_guard lock(_dropMutex);
 
     std::vector<std::shared_ptr<IdentInfo>> toDrop;
@@ -238,7 +239,13 @@ void KVDropPendingIdentReaper::dropIdentsOlderThan(OperationContext* opCtx, cons
     for (auto& identInfo : toDrop) {
         // Dropping tables can be expensive since it involves disk operations. If the table also
         // needs a checkpoint, that adds even more overhead.
-        opCtx->checkForInterrupt();
+        if (auto interruptStatus = opCtx->checkForInterruptNoAssert(); !interruptStatus.isOK()) {
+            stdx::lock_guard lock(_mutex);
+            for (auto& identInfo : toDrop) {
+                identInfo->dropInProgress = false;
+            }
+            uassertStatusOK(interruptStatus);
+        }
 
         auto status = _tryToDrop(lock, opCtx, *identInfo);
         if (status == ErrorCodes::ObjectIsBusy) {

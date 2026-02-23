@@ -9,7 +9,7 @@ import shlex
 import subprocess
 import sys
 import tempfile
-from typing import Any, Dict, Iterator, List, Tuple
+from typing import Any, Iterator
 
 default_dir = os.environ.get("BUILD_WORKSPACE_DIRECTORY")
 if not default_dir:
@@ -48,7 +48,7 @@ def _parse_repo_env_from_bazelrc(bazelrc_path: str, var_name: str) -> str | None
     return None
 
 
-def _capture_msvc_env(vs_vc_dir: str, arch: str) -> Dict[str, str]:
+def _capture_msvc_env(vs_vc_dir: str, arch: str) -> dict[str, str]:
     """Run vcvarsall.bat and capture the environment it sets."""
     # Some environments may include surrounding quotes in BAZEL_VC/BAZEL_VS.
     vs_vc_dir = vs_vc_dir.strip().strip('"').strip("'")
@@ -63,13 +63,13 @@ def _capture_msvc_env(vs_vc_dir: str, arch: str) -> Dict[str, str]:
 
     vcvarsall = os.path.normpath(vcvarsall).strip().strip('"').strip("'")
 
-    def _run_cmd_capture_env(cmd: List[str]) -> Dict[str, str]:
+    def _run_cmd_capture_env(cmd: list[str]) -> dict[str, str]:
         proc = subprocess.run(cmd, capture_output=True, text=True)
         if proc.returncode != 0:
             raise RuntimeError(
                 f"Failed to run vcvarsall.bat (rc={proc.returncode}). stderr:\n{proc.stderr}"
             )
-        env: Dict[str, str] = {}
+        env: dict[str, str] = {}
         for line in proc.stdout.splitlines():
             if "=" not in line:
                 continue
@@ -102,7 +102,7 @@ def _capture_msvc_env(vs_vc_dir: str, arch: str) -> Dict[str, str]:
                 pass
 
 
-def _maybe_add_windows_toolchain_env(base_env: Dict[str, str], repo_root: str) -> Dict[str, str]:
+def _maybe_add_windows_toolchain_env(base_env: dict[str, str], repo_root: str) -> dict[str, str]:
     """On Windows, ensure INCLUDE/LIB/PATH are set by loading a VS developer env."""
     if platform.system() != "Windows":
         return base_env
@@ -135,7 +135,7 @@ def _maybe_add_windows_toolchain_env(base_env: Dict[str, str], repo_root: str) -
     return merged
 
 
-def _iter_compiledb_entries(path: str) -> Iterator[Dict[str, Any]]:
+def _iter_compiledb_entries(path: str) -> Iterator[dict[str, Any]]:
     """Stream parse compile_commands.json (a JSON array of objects) without loading it all in memory."""
     decoder = json.JSONDecoder()
     buf = ""
@@ -203,7 +203,7 @@ def _hash_file_name(file_name: str) -> int:
     return int.from_bytes(digest[:8], byteorder="big", signed=False)
 
 
-def _make_test_compile_args(args: List[str]) -> List[str]:
+def _make_test_compile_args(args: list[str]) -> list[str]:
     """Convert a compile command into a 'test compile' command.
 
     By default we keep the compilation semantics (not syntax-only), but we can optionally
@@ -253,7 +253,7 @@ def _map_writable_output_path(out_root: str, original_path: str) -> str:
         return comp
 
     drive, tail = os.path.splitdrive(original_path)
-    parts: List[str] = []
+    parts: list[str] = []
 
     if drive:
         # Drive may be "C:" or a UNC prefix like "\\\\server\\share".
@@ -277,8 +277,8 @@ def _map_writable_output_path(out_root: str, original_path: str) -> str:
 
 
 def _rewrite_output_paths_to_writable_dir(
-    args: List[str], cwd: str, out_root: str, entry_output: str | None = None
-) -> List[str]:
+    args: list[str], cwd: str, out_root: str, entry_output: str | None = None
+) -> list[str]:
     """Rewrite output-producing args (-o, -MF, /Fo, etc.) into a writable directory."""
     if not args:
         return args
@@ -291,7 +291,7 @@ def _rewrite_output_paths_to_writable_dir(
         return os.path.normcase(os.path.normpath(abs_p))
 
     # Collect all plausible output paths (compile_commands "output" can differ from actual /Fo).
-    orig_outs: List[str] = []
+    orig_outs: list[str] = []
     if isinstance(entry_output, str) and entry_output:
         orig_outs.append(entry_output)
 
@@ -313,8 +313,8 @@ def _rewrite_output_paths_to_writable_dir(
         i += 1
 
     # Build mapping by normalized absolute path to destination.
-    out_map: Dict[str, str] = {}
-    dep_map: Dict[str, str] = {}
+    out_map: dict[str, str] = {}
+    dep_map: dict[str, str] = {}
     for o in orig_outs:
         if not o:
             continue
@@ -401,7 +401,7 @@ def _rewrite_output_paths_to_writable_dir(
     return rewritten
 
 
-def _ensure_parent_dirs_exist_for_outputs(args: List[str], cwd: str, repo_root: str) -> None:
+def _ensure_parent_dirs_exist_for_outputs(args: list[str], cwd: str, repo_root: str) -> None:
     """Create parent dirs for any output/deps paths referenced by the command.
 
     This is intentionally conservative: it only creates directories for paths that resolve
@@ -460,12 +460,12 @@ def _ensure_parent_dirs_exist_for_outputs(args: List[str], cwd: str, repo_root: 
         i += 1
 
 
-def _select_entries_for_test_compile(path: str, n: int) -> Tuple[int, List[Dict[str, Any]]]:
+def _select_entries_for_test_compile(path: str, n: int) -> tuple[int, list[dict[str, Any]]]:
     """Pick N entries by sorting deterministic hashes of entry['file'] and taking the first N."""
     # Keep a max-heap of the N smallest hashes.
     # IMPORTANT: include stable, comparable tie-breakers so heapq never compares dicts.
     # Tuple: (-hash, file_name, seq, entry)
-    heap: List[Tuple[int, str, int, Dict[str, Any]]] = []
+    heap: list[tuple[int, str, int, dict[str, Any]]] = []
     total = 0
     seq = 0
     for entry in _iter_compiledb_entries(path):
@@ -510,7 +510,7 @@ def main() -> int:
     )
     os.makedirs(out_root, exist_ok=True)
 
-    def _prep_entry(entry: Dict[str, Any]) -> Tuple[str, str, List[str]]:
+    def _prep_entry(entry: dict[str, Any]) -> tuple[str, str, list[str]]:
         args = entry.get("arguments")
         if args is None and isinstance(entry.get("command"), str):
             # Fallback for standard compile_commands format.
@@ -535,7 +535,7 @@ def main() -> int:
             )
         return (file_name, directory, test_args)
 
-    work: List[Tuple[str, str, List[str]]] = []
+    work: list[tuple[str, str, list[str]]] = []
     for entry in selected:
         file_name, directory, test_args = _prep_entry(entry)
         if file_name and directory and test_args:
@@ -552,7 +552,7 @@ def main() -> int:
     print(f"Running {len(work)} test compiles...", flush=True)
     compile_env = _maybe_add_windows_toolchain_env(os.environ.copy(), repo_root=default_dir)
 
-    def _run_one(item: Tuple[str, str, List[str]]) -> Tuple[str, int, List[str], str, str]:
+    def _run_one(item: tuple[str, str, list[str]]) -> tuple[str, int, list[str], str, str]:
         file_name, directory, test_args = item
         _ensure_parent_dirs_exist_for_outputs(test_args, cwd=directory, repo_root=default_dir)
         proc = subprocess.run(

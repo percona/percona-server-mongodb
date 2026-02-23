@@ -1,6 +1,6 @@
 """Service for determining task timeouts."""
 
-from typing import Any, Dict, NamedTuple, Optional
+from typing import Any, NamedTuple, Optional
 
 import inject
 import structlog
@@ -209,7 +209,7 @@ class TimeoutService:
 
         return clean_every_n_cadence
 
-    def _get_hook_config(self, suite_name: str, hook_name: str) -> Optional[Dict[str, Any]]:
+    def _get_hook_config(self, suite_name: str, hook_name: str) -> Optional[dict[str, Any]]:
         """
         Get the configuration for the given hook.
 

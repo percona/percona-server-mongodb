@@ -2,14 +2,13 @@ import glob
 import os
 import pathlib
 from functools import cache
-from typing import Dict, List
 
 import yaml
 
 
 # Parser for OWNERS.yml files version 1.0.0
 class OwnersParserV1:
-    def parse(self, directory: str, owners_file_path: str, contents: Dict[str, any]) -> List[str]:
+    def parse(self, directory: str, owners_file_path: str, contents: dict[str, any]) -> list[str]:
         lines = []
         no_parent_owners = False
         if "options" in contents:
@@ -71,7 +70,7 @@ class OwnersParserV1:
         return lines
 
     @cache
-    def process_alias_import(self, path: str) -> Dict[str, List[str]]:
+    def process_alias_import(self, path: str) -> dict[str, list[str]]:
         if not path.startswith("//"):
             raise RuntimeError(
                 f"Alias file paths must start with // and be relative to the repo root: {path}"

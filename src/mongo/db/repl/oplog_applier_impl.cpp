@@ -111,9 +111,10 @@ namespace mongo {
 namespace repl {
 namespace {
 
+MONGO_FAIL_POINT_DEFINE(hangAfterRecordingOpApplicationStartTime);
 MONGO_FAIL_POINT_DEFINE(pauseBatchApplicationBeforeCompletion);
 MONGO_FAIL_POINT_DEFINE(pauseBatchApplicationAfterWritingOplogEntries);
-MONGO_FAIL_POINT_DEFINE(hangAfterRecordingOpApplicationStartTime);
+MONGO_FAIL_POINT_DEFINE(pauseOplogApplication);
 
 // The oplog entries applied
 auto& opsAppliedStats = *MetricBuilder<Counter64>{"repl.apply.ops"};
@@ -535,6 +536,12 @@ void OplogApplierImpl::_run(OplogBuffer* oplogBuffer) {
                   "Oplog Applier - rsSyncApplyStop fail point enabled. Blocking until fail "
                   "point is disabled");
             rsSyncApplyStop.pauseWhileSet(&opCtx);
+        }
+        if (MONGO_unlikely(pauseOplogApplication.shouldFail())) {
+            LOGV2(11870500,
+                  "Oplog Applier - pauseOplogApplication fail point enabled. Blocking until fail "
+                  "point is disabled");
+            pauseOplogApplication.pauseWhileSet(&opCtx);
         }
 
         // Blocks up to a second waiting for a batch to be ready to apply. If one doesn't become

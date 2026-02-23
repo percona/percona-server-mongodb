@@ -24,6 +24,7 @@
 // Integration tests for the collation feature.
 import {ClusteredCollectionUtil} from "jstests/libs/clustered_collections/clustered_collection_util.js";
 import {IndexCatalogHelpers} from "jstests/libs/index_catalog_helpers.js";
+import {add2dsphereVersionIfNeeded} from "jstests/libs/query/geo_index_version_helpers.js";
 import {
     getPlanStage,
     getPlanStages,
@@ -1562,28 +1563,38 @@ const geoNearStage = {
 
 // $geoNear should return correct results when collation specified and string predicate not
 // indexed.
-assert.commandWorked(coll.createIndex({geo: "2dsphere"}));
+assert.commandWorked(coll.createIndex({geo: "2dsphere"}, add2dsphereVersionIfNeeded()));
 assert.eq(0, coll.aggregate([geoNearStage]).itcount());
 assert.eq(1, coll.aggregate([geoNearStage], {collation: {locale: "en_US", strength: 2}}).itcount());
 
 // $geoNear should return correct results when no collation specified and string predicate
 // indexed.
 assert.commandWorked(coll.dropIndexes());
-assert.commandWorked(coll.createIndex({geo: "2dsphere", str: 1}));
+assert.commandWorked(coll.createIndex({geo: "2dsphere", str: 1}, add2dsphereVersionIfNeeded()));
 assert.eq(0, coll.aggregate([geoNearStage]).itcount());
 assert.eq(1, coll.aggregate([geoNearStage], {collation: {locale: "en_US", strength: 2}}).itcount());
 
 // $geoNear should return correct results when collation specified and collation on index is
 // incompatible with string predicate.
 assert.commandWorked(coll.dropIndexes());
-assert.commandWorked(coll.createIndex({geo: "2dsphere", str: 1}, {collation: {locale: "en_US", strength: 3}}));
+assert.commandWorked(
+    coll.createIndex(
+        {geo: "2dsphere", str: 1},
+        add2dsphereVersionIfNeeded({collation: {locale: "en_US", strength: 3}}),
+    ),
+);
 assert.eq(0, coll.aggregate([geoNearStage]).itcount());
 assert.eq(1, coll.aggregate([geoNearStage], {collation: {locale: "en_US", strength: 2}}).itcount());
 
 // $geoNear should return correct results when collation specified and collation on index is
 // compatible with string predicate.
 assert.commandWorked(coll.dropIndexes());
-assert.commandWorked(coll.createIndex({geo: "2dsphere", str: 1}, {collation: {locale: "en_US", strength: 2}}));
+assert.commandWorked(
+    coll.createIndex(
+        {geo: "2dsphere", str: 1},
+        add2dsphereVersionIfNeeded({collation: {locale: "en_US", strength: 2}}),
+    ),
+);
 assert.eq(0, coll.aggregate([geoNearStage]).itcount());
 assert.eq(1, coll.aggregate([geoNearStage], {collation: {locale: "en_US", strength: 2}}).itcount());
 
@@ -1592,7 +1603,7 @@ assert.eq(1, coll.aggregate([geoNearStage], {collation: {locale: "en_US", streng
 coll = testDb.collation_geonear3;
 coll.drop();
 assert.commandWorked(testDb.createCollection(coll.getName(), {collation: {locale: "en_US", strength: 2}}));
-assert.commandWorked(coll.createIndex({geo: "2dsphere"}));
+assert.commandWorked(coll.createIndex({geo: "2dsphere"}, add2dsphereVersionIfNeeded()));
 assert.commandWorked(coll.insert({geo: {type: "Point", coordinates: [0, 0]}, str: "abc"}));
 assert.eq(1, coll.aggregate([geoNearStage]).itcount());
 
@@ -1601,7 +1612,7 @@ assert.eq(1, coll.aggregate([geoNearStage]).itcount());
 coll = testDb.collation_geonear4;
 coll.drop();
 assert.commandWorked(testDb.createCollection(coll.getName(), {collation: {locale: "en_US", strength: 2}}));
-assert.commandWorked(coll.createIndex({geo: "2dsphere"}));
+assert.commandWorked(coll.createIndex({geo: "2dsphere"}, add2dsphereVersionIfNeeded()));
 assert.commandWorked(coll.insert({geo: {type: "Point", coordinates: [0, 0]}, str: "abc"}));
 assert.eq(0, coll.aggregate([geoNearStage], {collation: {locale: "simple"}}).itcount());
 
@@ -1626,7 +1637,7 @@ assert.eq(
 coll = testDb.collation_nearsphere2;
 coll.drop();
 assert.commandWorked(coll.insert({geo: {type: "Point", coordinates: [0, 0]}, str: "abc"}));
-assert.commandWorked(coll.createIndex({geo: "2dsphere"}));
+assert.commandWorked(coll.createIndex({geo: "2dsphere"}, add2dsphereVersionIfNeeded()));
 assert.eq(0, coll.find({str: "ABC", geo: {$nearSphere: {$geometry: {type: "Point", coordinates: [0, 0]}}}}).itcount());
 assert.eq(
     1,
@@ -1639,7 +1650,7 @@ assert.eq(
 // Find with $nearSphere should return correct results when no collation specified and
 // string predicate indexed.
 assert.commandWorked(coll.dropIndexes());
-assert.commandWorked(coll.createIndex({geo: "2dsphere", str: 1}));
+assert.commandWorked(coll.createIndex({geo: "2dsphere", str: 1}, add2dsphereVersionIfNeeded()));
 assert.eq(0, coll.find({str: "ABC", geo: {$nearSphere: {$geometry: {type: "Point", coordinates: [0, 0]}}}}).itcount());
 assert.eq(
     1,
@@ -1652,7 +1663,12 @@ assert.eq(
 // Find with $nearSphere should return correct results when collation specified and
 // collation on index is incompatible with string predicate.
 assert.commandWorked(coll.dropIndexes());
-assert.commandWorked(coll.createIndex({geo: "2dsphere", str: 1}, {collation: {locale: "en_US", strength: 3}}));
+assert.commandWorked(
+    coll.createIndex(
+        {geo: "2dsphere", str: 1},
+        add2dsphereVersionIfNeeded({collation: {locale: "en_US", strength: 3}}),
+    ),
+);
 assert.eq(0, coll.find({str: "ABC", geo: {$nearSphere: {$geometry: {type: "Point", coordinates: [0, 0]}}}}).itcount());
 assert.eq(
     1,
@@ -1665,7 +1681,12 @@ assert.eq(
 // Find with $nearSphere should return correct results when collation specified and
 // collation on index is compatible with string predicate.
 assert.commandWorked(coll.dropIndexes());
-assert.commandWorked(coll.createIndex({geo: "2dsphere", str: 1}, {collation: {locale: "en_US", strength: 2}}));
+assert.commandWorked(
+    coll.createIndex(
+        {geo: "2dsphere", str: 1},
+        add2dsphereVersionIfNeeded({collation: {locale: "en_US", strength: 2}}),
+    ),
+);
 assert.eq(0, coll.find({str: "ABC", geo: {$nearSphere: {$geometry: {type: "Point", coordinates: [0, 0]}}}}).itcount());
 assert.eq(
     1,

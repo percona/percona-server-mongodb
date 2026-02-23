@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Dict, Iterable, List, NamedTuple, Optional, Set
+from typing import Iterable, NamedTuple, Optional
 
 from buildscripts.monitor_build_status.jira_service import IssueTuple
 
@@ -13,8 +13,8 @@ class IssueCategory(str, Enum):
 
 
 class CategorizedIssues(NamedTuple):
-    hot: Set[IssueTuple]
-    cold: Set[IssueTuple]
+    hot: set[IssueTuple]
+    cold: set[IssueTuple]
 
     @classmethod
     def empty(cls) -> CategorizedIssues:
@@ -49,7 +49,7 @@ class CategorizedIssues(NamedTuple):
 
 
 class IssueReport(NamedTuple):
-    team_reports: Dict[str, CategorizedIssues]
+    team_reports: dict[str, CategorizedIssues]
 
     @classmethod
     def empty(cls) -> IssueReport:
@@ -76,7 +76,7 @@ class IssueReport(NamedTuple):
         self,
         category: IssueCategory,
         include_items_older_than_time: Optional[datetime] = None,
-        assigned_teams: Optional[List[str]] = None,
+        assigned_teams: Optional[list[str]] = None,
     ) -> int:
         """
         Calculate Issue count for a given criteria.

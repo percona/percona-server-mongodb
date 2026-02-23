@@ -911,6 +911,16 @@ void OpObserverImpl::onUpdate(OperationContext* opCtx,
             operation.setChangeStreamPreImageRecordingMode(
                 ChangeStreamPreImageRecordingMode::kPreImagesCollection);
         }
+        if (args.retryableFindAndModifyLocation != RetryableFindAndModifyLocation::kNone) {
+            if (args.updateArgs->storeDocOption == CollectionUpdateArgs::StoreDocOption::PreImage) {
+                // If we've stored a preImage:
+                operation.setNeedsRetryImage({repl::RetryImageEnum::kPreImage});
+            } else if (args.updateArgs->storeDocOption ==
+                       CollectionUpdateArgs::StoreDocOption::PostImage) {
+                // Or if we're storing a postImage.
+                operation.setNeedsRetryImage({repl::RetryImageEnum::kPostImage});
+            }
+        }
         operation.setInitializedStatementIds(args.updateArgs->stmtIds);
         batchedWriteContext.addBatchedOperation(opCtx, operation);
     } else if (inMultiDocumentTransaction) {
@@ -1077,6 +1087,10 @@ void OpObserverImpl::onDelete(OperationContext* opCtx,
             operation.setPreImage(doc.getOwned());
             operation.setChangeStreamPreImageRecordingMode(
                 ChangeStreamPreImageRecordingMode::kPreImagesCollection);
+        }
+        if (args.retryableFindAndModifyLocation != RetryableFindAndModifyLocation::kNone) {
+            operation.setNeedsRetryImage(repl::RetryImageEnum::kPreImage);
+            invariant(opCtx->getTxnNumber());
         }
         operation.setInitializedStatementIds({stmtId});
         batchedWriteContext.addBatchedOperation(opCtx, operation);
@@ -2128,15 +2142,14 @@ void OpObserverImpl::onBatchedWriteCommit(OperationContext* opCtx,
     // OplogSlotReserver.
     invariant(shard_role_details::getLocker(opCtx)->isWriteLocked());
 
-    // Batched writes do not violate the multiple timestamp constraint because they do not
-    // replicate over multiple applyOps oplog entries or write pre/post images to the
-    // image collection. However, multi-doc transactions may be replicated as a chain of
-    // applyOps oplog entries in addition to potentially writing to the image collection.
-    // Therefore, there are cases where the multiple timestamp constraint has to be relaxed
-    // in order to replicate multi-doc transactions.
-    // See onTransactionPrepare() and onUnpreparedTransactionCommit().
-    invariant(applyOpsOplogSlotAndOperationAssignment.numOperationsWithNeedsRetryImage == 0,
-              "batched writes must not contain pre/post images to store in image collection");
+    if (rss::ReplicatedStorageService::get(opCtx)
+            .getPersistenceProvider()
+            .supportsFindAndModifyImageCollection()) {
+        // Writing pre/post images to the image collection is not supported for batched writes
+        // because config.image_collection only supports storing one image per retryable write.
+        invariant(applyOpsOplogSlotAndOperationAssignment.numOperationsWithNeedsRetryImage == 0,
+                  "batched writes must not contain pre/post images to store in image collection");
+    }
 
     auto logApplyOpsForBatchedWrite =
         [opCtx,

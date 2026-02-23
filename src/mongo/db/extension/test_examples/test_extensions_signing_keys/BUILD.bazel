@@ -1,4 +1,9 @@
+package(default_visibility = ["//visibility:public"])
+
 exports_files(
-    ["test_extensions_signing_private_key.asc"],
+    [
+        "test_extensions_signing_private_key.asc",
+        "test_extensions_signing_public_key.asc",
+    ],
     visibility = ["//visibility:public"],
 )

@@ -6,7 +6,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
-from typing import List, Optional
+from typing import Optional
 
 REPO_ROOT = pathlib.Path(__file__).parent.parent.parent
 sys.path.append(str(REPO_ROOT))
@@ -82,7 +82,7 @@ all_subpackage_javascript_files()
                         print(f"Created BUILD.bazel in {full_dir}")
 
 
-def list_files_with_targets(bazel_bin: str) -> List:
+def list_files_with_targets(bazel_bin: str) -> list:
     return [
         line.strip()
         for line in subprocess.run(
@@ -102,10 +102,10 @@ class LintRunner:
 
     def list_files_without_targets(
         self,
-        files_with_targets: List[str],
+        files_with_targets: list[str],
         type_name: str,
         ext: str,
-        dirs: List[str],
+        dirs: list[str],
     ) -> bool:
         # rules_lint only checks files that are in targets, verify that all files in the source tree
         # are contained within targets.
@@ -173,14 +173,14 @@ class LintRunner:
         else:
             print(f"All {type_name} files have BUILD.bazel targets!")
 
-    def run_bazel(self, target: str, args: List = []):
+    def run_bazel(self, target: str, args: list = []):
         p = subprocess.run([self.bazel_bin, "run", target] + (["--"] + args if args else []))
         if p.returncode != 0:
             self.fail = True
             if not self.keep_going:
                 raise LinterFail("Linter failed")
 
-    def simple_file_size_check(self, files_to_lint: List[str]):
+    def simple_file_size_check(self, files_to_lint: list[str]):
         for file in files_to_lint:
             if os.path.getsize(file) > LARGE_FILE_THRESHOLD:
                 print(f"File {file} exceeds large file threshold of {LARGE_FILE_THRESHOLD}")
@@ -302,7 +302,7 @@ def _git_unstaged_files() -> str:
     return result.stdout.strip() + os.linesep
 
 
-def _get_files_changed_since_fork_point(origin_branch: str = "origin/master") -> List[str]:
+def _get_files_changed_since_fork_point(origin_branch: str = "origin/master") -> list[str]:
     """Query git to get a list of files in the repo from a diff."""
     # There are 3 diffs we run:
     # 1. List of commits between origin/master and HEAD of current branch
@@ -379,7 +379,7 @@ def lint_mod(lint_runner: LintRunner):
     # subprocess.run([bazel_bin, "run", "//modules_poc:browse", "--", "merged_decls.json", "--parse-only"], check=True)
 
 
-def run_rules_lint(bazel_bin: str, args: List[str]):
+def run_rules_lint(bazel_bin: str, args: list[str]):
     parsed_args, args = get_parsed_args(args)
     if platform.system() == "Windows":
         print("eslint not supported on windows")

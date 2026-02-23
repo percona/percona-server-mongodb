@@ -141,6 +141,9 @@ private:
     const value::MaterializedRow* _outInnerKeyRow = nullptr;
     const value::MaterializedRow* _outInnerProjectRow = nullptr;
 
+    value::MaterializedRow _probeKey;
+    value::MaterializedRow _probeProject;
+
     // Accessor for collator. Only set if collatorSlot provided during construction.
     value::SlotAccessor* _collatorAccessor = nullptr;
 

@@ -37,7 +37,7 @@ from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Optional
 
 # Add the repository root to sys.path to allow imports from buildscripts
 _SCRIPT_DIR = Path(__file__).resolve().parent
@@ -129,7 +129,7 @@ def _fetch_build_tasks(
     build_variant_name: str,
     build_id: str,
     non_running_statuses: set[str],
-) -> List[TaskStats]:
+) -> list[TaskStats]:
     """
     Fetch tasks for a single build variant.
 
@@ -137,7 +137,7 @@ def _fetch_build_tasks(
     """
     try:
         build = evg_api.build_by_id(build_id)
-        tasks: List[Task] = build.get_tasks()
+        tasks: list[Task] = build.get_tasks()
 
         task_stats_list = []
         for task in tasks:
@@ -172,7 +172,7 @@ def _fetch_build_tasks(
 
 def get_version_tasks(
     evg_api: RetryingEvergreenApi, version_id: str, max_workers: int = 10
-) -> Dict[TaskKey, TaskStats]:
+) -> dict[TaskKey, TaskStats]:
     """
     Fetch all tasks for a given version using parallel requests.
 
@@ -297,7 +297,7 @@ def compare_versions(
     version_id_2: str,
     task_filter: Optional[str] = None,
     max_workers: int = 10,
-) -> List[TaskComparison]:
+) -> list[TaskComparison]:
     """
     Compare tasks between two versions.
 
@@ -376,7 +376,7 @@ def truncate_variant_name(variant_name: str) -> str:
 
 
 def print_table_output(
-    comparisons: List[TaskComparison],
+    comparisons: list[TaskComparison],
     version_id_1: str,
     version_id_2: str,
     min_diff_percent: float = 0.0,
@@ -560,7 +560,7 @@ def print_table_output(
 
 
 def print_json_output(
-    comparisons: List[TaskComparison],
+    comparisons: list[TaskComparison],
     version_id_1: str,
     version_id_2: str,
 ):
@@ -601,7 +601,7 @@ def print_json_output(
 
 
 def print_csv_output(
-    comparisons: List[TaskComparison],
+    comparisons: list[TaskComparison],
     version_id_1: str,
     version_id_2: str,
 ):

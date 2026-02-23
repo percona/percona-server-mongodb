@@ -5,7 +5,7 @@ import sys
 import threading
 import time
 from collections import namedtuple
-from typing import TYPE_CHECKING, List, Optional, Union
+from typing import TYPE_CHECKING, Optional, Union
 
 from opentelemetry import context, trace
 from opentelemetry.context.context import Context
@@ -41,7 +41,7 @@ class Job(object):
         job_num: int,
         logger: logging.Logger,
         fixture: Fixture,
-        hooks: List[Hook],
+        hooks: list[Hook],
         report: TestReport,
         archival: HookTestArchival,
         suite_options: config.SuiteOptions,

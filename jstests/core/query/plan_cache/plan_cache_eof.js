@@ -24,9 +24,9 @@
  */
 
 import {getPlanStages, getQueryPlanner, planHasStage} from "jstests/libs/query/analyze_plan.js";
-import {checkSbeFullFeatureFlagEnabled} from "jstests/libs/query/sbe_util.js";
+import {sbePlanCacheEnabled} from "jstests/libs/query/sbe_util.js";
 
-const isUsingSbePlanCache = checkSbeFullFeatureFlagEnabled(db);
+const isUsingSbePlanCache = sbePlanCacheEnabled(db);
 if (!isUsingSbePlanCache) {
     jsTestLog("Skipping test because SBE is disabled");
     quit();

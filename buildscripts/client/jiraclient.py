@@ -2,7 +2,7 @@
 
 import logging
 from enum import Enum
-from typing import Any, Dict, Iterable, Optional, Sequence
+from typing import Any, Iterable, Optional, Sequence
 
 from jira import JIRA, Issue
 from jira.client import ResultList
@@ -37,7 +37,7 @@ class JiraAuth(BaseSettings):
     def get_token_auth(self) -> Optional[str]:
         return self.pat
 
-    def get_oauth(self) -> Optional[Dict[str, Any]]:
+    def get_oauth(self) -> Optional[dict[str, Any]]:
         if self.access_token and self.access_token_secret and self.consumer_key and self.key_cert:
             return {
                 "access_token": self.access_token,

@@ -96,6 +96,8 @@ include:
 
   - filename: src/mongo/db/modules/atlas/atlas_dev.yml
 
+  - filename: monguard/.evergreen/config.yml
+
 parameters:
   - key: evergreen_config_file_path
     value: "etc/evergreen.yml"
@@ -107,25 +109,37 @@ parameters:
     description: "Array of test selection strategies"
 
 commit_queue_aliases:
-  - variant: "commit-queue"
+  - variant: "^(commit-queue)$"
     task: "^(bazel_.*|run_.*|unit_test.*|compile_.*|lint_.*|resmoke_tests|check_for_noexcept|version_gen_validation|validate_commit_message|resmoke_validation_tests|buildscripts_test)$"
     variant_tags: []
     task_tags: []
-  - variant: "^(amazon-linux2023-arm64-static-compile|linux-x86-dynamic-compile-required)$"
+  - variant: "^(amazon-linux2023-arm64-static-compile)$"
     variant_tags: []
     task_tags: ["clang_tidy"]
+  - variant: "^(commit-queue-monorepo)$"
+    task: ".*"
+    variant_tags: []
+    task_tags: []
 
 github_pr_aliases:
-  - variant: "commit-queue"
+  - variant: "^(commit-queue)$"
     task: "^(bazel_.*|run_.*|unit_test.*|compile_.*|lint_.*|resmoke_tests|check_for_noexcept|version_gen_validation|validate_commit_message|resmoke_validation_tests|buildscripts_test)$"
     variant_tags: []
     task_tags: []
-  - variant: "^(amazon-linux2023-arm64-static-compile|linux-x86-dynamic-compile-required)$"
+  - variant: "^(amazon-linux2023-arm64-static-compile)$"
     variant_tags: []
     task_tags: ["clang_tidy"]
   - variant: "^(al2023-arm64-sep-benchmark)$"
     variant_tags: []
     task_tags: ["benchmarks_sep"]
+  - variant: "^(commit-queue-monorepo)$"
+    task: ".*"
+    variant_tags: []
+    task_tags: []
+  - variant: "^(amazon-linux2023-arm|Lint)$"
+    task: "^(.*)$"
+    variant_tags: []
+    task_tags: []
 
 patch_aliases:
   - alias: required

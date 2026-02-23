@@ -12,7 +12,6 @@ import threading
 import time
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import List
 
 from buildscripts.resmokelib import config
 
@@ -107,13 +106,13 @@ def get_archive_path(path: str) -> str:
 
 class ArchiveStrategy(ABC):
     @abstractmethod
-    def archive_files(self, files: List[str], archive_name: str, display_name: str):
+    def archive_files(self, files: list[str], archive_name: str, display_name: str):
         pass
 
     def exit(self):
         pass
 
-    def create_tar_archive(self, files: List[str], archive: Path, display_name: str):
+    def create_tar_archive(self, files: list[str], archive: Path, display_name: str):
         status = 0
         size_mb = 0
         message = "Tar/gzip {} files: {}".format(display_name, files)
@@ -284,7 +283,7 @@ class ArchiveToS3(ArchiveStrategy):
         self._archive_file_worker.join(timeout=timeout)
         self.check_thread(self._archive_file_worker, False)
 
-    def archive_files(self, files: List[str], archive_name: str, display_name: str):
+    def archive_files(self, files: list[str], archive_name: str, display_name: str):
         _, temp_file = tempfile.mkstemp(suffix=".tgz")
         status, message, size_mb = self.create_tar_archive(files, temp_file, display_name)
         self._upload_queue.put(
@@ -307,7 +306,7 @@ class ArchiveToDirectory(ArchiveStrategy):
         self.logger = logger
         os.makedirs(self.directory, exist_ok=True)
 
-    def archive_files(self, files: List[str], archive_name: str, display_name: str):
+    def archive_files(self, files: list[str], archive_name: str, display_name: str):
         archive = os.path.join(self.directory, archive_name)
         with open(archive, "w") as _:
             pass  # Touch create the archive file, so we can check the size of the disk it is on before adding to it.
@@ -319,7 +318,7 @@ class TestArchival(ArchiveStrategy):
         self.archive_file = os.path.join(config.DBPATH_PREFIX, "test_archival.txt")
         self.logger = logger
 
-    def archive_files(self, files: List[str], archive_name: str, display_name: str):
+    def archive_files(self, files: list[str], archive_name: str, display_name: str):
         self.logger.info(f"These files/directories would have been archived: {files}")
         with open(self.archive_file, "a") as f:
             for file in files:
@@ -367,7 +366,7 @@ class Archival(object):
         # Lock to control access from multiple threads.
         self._lock = threading.Lock()
 
-    def archive_files(self, input_files: str | List[str], archive_name: str, display_name: str):
+    def archive_files(self, input_files: str | list[str], archive_name: str, display_name: str):
         if isinstance(input_files, str):
             input_files = [input_files]
 

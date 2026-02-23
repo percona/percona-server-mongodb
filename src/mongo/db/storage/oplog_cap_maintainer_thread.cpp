@@ -227,7 +227,9 @@ bool OplogCapMaintainerThread::_deleteExcessDocuments(OperationContext* opCtx) {
             LOGV2_DEBUG(4562600, 2, "oplog collection does not exist");
             return false;
         }
-        LOGV2(10621107, "Deleting excess documents", "Oplog size (in bytes)"_attr = rs->dataSize());
+        LOGV2(10621107,
+              "Looking for excess documents to delete",
+              "oplogSizeBytes"_attr = rs->dataSize());
 
         // Create another reference to the oplog truncate markers while holding a lock on
         // the collection to prevent it from being destructed.
@@ -257,7 +259,11 @@ bool OplogCapMaintainerThread::_deleteExcessDocuments(OperationContext* opCtx) {
         auto mayTruncateUpTo = opCtx->getServiceContext()->getStorageEngine()->getPinnedOplog();
 
         Timer timer;
-        _reclaimOplog(opCtx, *rs, RecordId(mayTruncateUpTo.asULL()));
+
+        if (_reclaimOplog(opCtx, *rs, RecordId(mayTruncateUpTo.asULL())).isNull()) {
+            LOGV2_DEBUG(11341900, 2, "Truncation did not occur");
+            return false;
+        }
 
         auto elapsedMicros = timer.micros();
         totalTimeTruncating.fetchAndAdd(elapsedMicros);
@@ -275,10 +281,10 @@ bool OplogCapMaintainerThread::_deleteExcessDocuments(OperationContext* opCtx) {
     return true;
 }
 
-void OplogCapMaintainerThread::_reclaimOplog(OperationContext* opCtx,
-                                             RecordStore& rs,
-                                             RecordId mayTruncateUpTo) {
-    oplog_truncation::reclaimOplog(opCtx, rs, mayTruncateUpTo);
+RecordId OplogCapMaintainerThread::_reclaimOplog(OperationContext* opCtx,
+                                                 RecordStore& rs,
+                                                 RecordId mayTruncateUpTo) {
+    return oplog_truncation::reclaimOplog(opCtx, rs, mayTruncateUpTo);
 }
 
 void OplogCapMaintainerThread::run() {

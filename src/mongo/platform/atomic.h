@@ -122,7 +122,7 @@ public:
     }
 
     /**
-     * Atomic compare and swap.
+     * Atomic compare and swap (strong).
      *
      * If this value equals the value at "expected", sets this value to "newValue".
      * Otherwise, sets the storage at "expected" to this value.
@@ -132,6 +132,23 @@ public:
     MONGO_MOD_PUB bool compareAndSwap(WordType* expected, WordType newValue) {
         // NOTE: Subtle: compare_exchange mutates its first argument.
         return _value.compare_exchange_strong(*expected, newValue);
+    }
+
+    /**
+     * Atomic compare and swap (weak).
+     *
+     * If this value equals the value at "expected", sets this value to "newValue".
+     * Otherwise, sets the storage at "expected" to this value.
+     *
+     * compare_exchange_weak is allowed to fail spuriously, that is, acts as if *this != expected
+     * even if they are equal. Prefer the above "strong" version unless there is a compelling reason
+     * to use this one (stats-gathering, for example, is a reasonable time to use this).
+     *
+     * Returns true if swap successful, false otherwise
+     */
+    MONGO_MOD_PUB bool compareAndSwapWeak(WordType* expected, WordType newValue) {
+        // NOTE: Subtle: compare_exchange mutates its first argument.
+        return _value.compare_exchange_weak(*expected, newValue);
     }
 
 protected:

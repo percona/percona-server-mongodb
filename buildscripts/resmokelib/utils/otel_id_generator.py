@@ -1,6 +1,6 @@
 import random
 import time
-from typing import List, Optional
+from typing import Optional
 
 from opentelemetry import trace
 from opentelemetry.sdk.trace import IdGenerator
@@ -19,7 +19,7 @@ class ResmokeOtelIdGenerator(IdGenerator):
     run in parallel with the same traceID and parentSpanID.
     """
 
-    def __init__(self, suite_files: Optional[List[str]] = None, shard_index: Optional[int] = None):
+    def __init__(self, suite_files: Optional[list[str]] = None, shard_index: Optional[int] = None):
         """
         Initialize the unique span ID generator.
 

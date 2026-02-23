@@ -10,7 +10,7 @@ import threading
 import timeit
 import unittest
 import uuid
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Optional
 
 import psutil
 
@@ -19,7 +19,7 @@ from buildscripts.resmokelib.hang_analyzer.hang_analyzer import HangAnalyzer
 from buildscripts.resmokelib.utils import registry
 from buildscripts.resmokelib.utils.self_test_fakes import test_analysis
 
-_TEST_CASES: Dict[str, Callable] = {}  # type: ignore
+_TEST_CASES: dict[str, Callable] = {}  # type: ignore
 
 
 def make_test_case(test_kind, *args, **kwargs) -> "TestCase":
@@ -138,7 +138,7 @@ class TestCase(unittest.TestCase, metaclass=registry.make_registry_metaclass(_TE
         DYNAMIC = "test_dynamic"
         BACKGROUND = "test_background"
 
-    def get_test_otel_attributes(self) -> Dict[str, Any]:
+    def get_test_otel_attributes(self) -> dict[str, Any]:
         return {
             TestCase.METRIC_NAMES.BASE_NAME: self.basename(),
             TestCase.METRIC_NAMES.LONG_NAME: self.long_name(),

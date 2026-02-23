@@ -2,7 +2,7 @@
 
 This module provides an OpenTelemetry-compatible metrics API for instrumenting MongoDB code.
 Metrics are created through the `MetricsService` and can be tested using the provided test
-utilities. For now, this is only supported in mongod, SERVER-116960 will add this in mongos.
+utilities. This is supported in mongos and mongod.
 
 ## Creating Metrics
 
@@ -43,6 +43,11 @@ public:
     static constexpr MetricName kQueryLatency = {"query_latency"};
 };
 ```
+
+When working on a module with metrics that should be internal-only, a module-specific "MetricNames"
+class (e.g. `MyModuleMetricNames`) in a different file may be used, as long as N&O team has
+ownership over the file defining the metric names. This additionally requires adding some code to
+metric_names.h.
 
 ### Naming Conventions
 

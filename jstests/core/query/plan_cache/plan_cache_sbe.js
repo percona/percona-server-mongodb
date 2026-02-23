@@ -31,13 +31,13 @@
  */
 import {FeatureFlagUtil} from "jstests/libs/feature_flag_util.js";
 import {FixtureHelpers} from "jstests/libs/fixture_helpers.js";
-import {checkSbeFullFeatureFlagEnabled, checkSbeFullyEnabled} from "jstests/libs/query/sbe_util.js";
+import {sbePlanCacheEnabled, checkSbeFullyEnabled} from "jstests/libs/query/sbe_util.js";
 
 const coll = db.plan_cache_sbe;
 coll.drop();
 
 const shouldGenerateSbePlan = checkSbeFullyEnabled(db);
-const isUsingSbePlanCache = checkSbeFullFeatureFlagEnabled(db);
+const isUsingSbePlanCache = sbePlanCacheEnabled(db);
 
 for (let i = 0; i < 5; i++) {
     assert.commandWorked(coll.insert({a: i, b: 1}));

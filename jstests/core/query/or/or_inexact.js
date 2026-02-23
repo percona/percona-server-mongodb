@@ -5,6 +5,8 @@
 //   # $text is not supported on views.
 //   incompatible_with_views,
 // ]
+import {add2dsphereVersionIfNeeded} from "jstests/libs/query/geo_index_version_helpers.js";
+
 let t = db.jstests_or_inexact;
 let cursor;
 
@@ -114,7 +116,7 @@ assert.eq(3, cursor.itcount(), "case 10");
 
 // Case 11: GEO with non-geo, same index, 2dsphere.
 t.drop();
-t.createIndex({pre: 1, loc: "2dsphere"});
+t.createIndex({pre: 1, loc: "2dsphere"}, add2dsphereVersionIfNeeded());
 t.insert({_id: 0, pre: 3, loc: {type: "Point", coordinates: [40, 5]}});
 t.insert({_id: 1, pre: 4, loc: {type: "Point", coordinates: [0, 0]}});
 cursor = t.find({
@@ -284,7 +286,7 @@ assert.eq(5, cursor.itcount(), "case 19");
 
 // Case 21: two $geoWithin that collapse to a single GEO index scan.
 t.drop();
-t.createIndex({loc: "2dsphere"});
+t.createIndex({loc: "2dsphere"}, add2dsphereVersionIfNeeded());
 t.insert({_id: 0, loc: {type: "Point", coordinates: [40, 5]}});
 t.insert({_id: 1, loc: {type: "Point", coordinates: [0, 0]}});
 cursor = t.find({

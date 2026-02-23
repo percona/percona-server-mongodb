@@ -593,12 +593,11 @@ TEST_F(ApplyOpsTest, ApplyOpsNoRidOnRridCollection) {
     auto opCtx = cc().makeOperationContext();
     auto mode = OplogApplication::Mode::kApplyOpsCmd;
 
-    // Create a collection on the admin database.
     NamespaceString nss =
         NamespaceString::createNamespaceString_forTest("test.ApplyOpsNoRidOnRridCollection");
-    CollectionOptions options;
-    options.recordIdsReplicated = true;
-    ASSERT_OK(_storage->createCollection(opCtx.get(), nss, options));
+    RAIIServerParameterControllerForTest featureFlagController =
+        RAIIServerParameterControllerForTest("featureFlagRecordIdsReplicated", true);
+    ASSERT_OK(_storage->createCollection(opCtx.get(), nss, {}));
 
     auto insertOp = BSON("op" << "i"
                               << "ns" << nss.toString_forTest() << "o" << BSON("_id" << 1));
@@ -608,21 +607,63 @@ TEST_F(ApplyOpsTest, ApplyOpsNoRidOnRridCollection) {
     ASSERT_OK(applyOps(opCtx.get(), nss.dbName(), applyOpsCmdObj, mode, &resultBuilder));
 }
 
-using ApplyOpsDeathTest = ApplyOpsTest;
-DEATH_TEST_F(ApplyOpsDeathTest, ApplyOpsRidOnNonRridCollection, "11454700") {
+TEST_F(ApplyOpsTest, ApplyOpsRidOnNonRridCollectionRridDisabled) {
     auto opCtx = cc().makeOperationContext();
     auto mode = OplogApplication::Mode::kApplyOpsCmd;
 
-    // Create a collection on the admin database.
-    NamespaceString nss =
-        NamespaceString::createNamespaceString_forTest("test.ApplyOpsRidOnNonRridCollection");
+    NamespaceString nss = NamespaceString::createNamespaceString_forTest(
+        "test.ApplyOpsRidOnNonRridCollectionRridDisabled");
     ASSERT_OK(_storage->createCollection(opCtx.get(), nss, {}));
 
-    auto insertOp = BSON("op" << "i"
-                              << "ns" << nss.ns_forTest() << "o" << BSON("_id" << 1) << "rid" << 0);
+    auto insertOpWithRid =
+        BSON("op" << "i"
+                  << "ns" << nss.ns_forTest() << "o" << BSON("_id" << 1) << "rid" << 0);
 
-    auto applyOpsCmdObj = BSON("applyOps" << BSON_ARRAY(insertOp));
+    auto applyOpsCmdObj = BSON("applyOps" << BSON_ARRAY(insertOpWithRid));
     BSONObjBuilder resultBuilder;
+    RAIIServerParameterControllerForTest _featureFlagReplRidController{
+        "featureFlagRecordIdsReplicated", false};
+    ASSERT_OK(applyOps(opCtx.get(), nss.dbName(), applyOpsCmdObj, mode, &resultBuilder));
+}
+
+TEST_F(ApplyOpsTest, ApplyOpsCreateWithRecordIdsReplicatedRridDisabled) {
+    auto opCtx = cc().makeOperationContext();
+    auto mode = OplogApplication::Mode::kApplyOpsCmd;
+
+    NamespaceString nss = NamespaceString::createNamespaceString_forTest(
+        "test.ApplyOpsCreateWithRecordIdsReplicatedRridDisabled");
+    ASSERT_OK(_storage->createCollection(opCtx.get(), nss, {}));
+
+    auto createOpWithRecordIdsReplicated =
+        BSON("op" << "c"
+                  << "ns" << nss.getCommandNS().ns_forTest() << "o"
+                  << BSON("create" << nss.coll() << "recordIdsReplicated" << true));
+
+    auto applyOpsCmdObj = BSON("applyOps" << BSON_ARRAY(createOpWithRecordIdsReplicated));
+    BSONObjBuilder resultBuilder;
+    RAIIServerParameterControllerForTest _featureFlagReplRidController{
+        "featureFlagRecordIdsReplicated", false};
+    ASSERT_EQ(ErrorCodes::CommandNotSupported,
+              applyOps(opCtx.get(), nss.dbName(), applyOpsCmdObj, mode, &resultBuilder));
+}
+
+using ApplyOpsDeathTest = ApplyOpsTest;
+DEATH_TEST_F(ApplyOpsDeathTest, ApplyOpsRidOnNonRridCollectionRridEnabled, "11454700") {
+    auto opCtx = cc().makeOperationContext();
+    auto mode = OplogApplication::Mode::kApplyOpsCmd;
+
+    NamespaceString nss = NamespaceString::createNamespaceString_forTest(
+        "test.ApplyOpsRidOnNonRridCollectionRridEnabled");
+    ASSERT_OK(_storage->createCollection(opCtx.get(), nss, {}));
+
+    auto insertOpWithRid =
+        BSON("op" << "i"
+                  << "ns" << nss.ns_forTest() << "o" << BSON("_id" << 1) << "rid" << 0);
+
+    auto applyOpsCmdObj = BSON("applyOps" << BSON_ARRAY(insertOpWithRid));
+    BSONObjBuilder resultBuilder;
+    RAIIServerParameterControllerForTest _featureFlagReplRidController{
+        "featureFlagRecordIdsReplicated", true};
     (void)applyOps(opCtx.get(), nss.dbName(), applyOpsCmdObj, mode, &resultBuilder);
 }
 
@@ -633,9 +674,9 @@ DEATH_TEST_F(ApplyOpsDeathTest, SteadyStateNoRidOnRridCollection, "11454701") {
     // Create a collection on the admin database.
     NamespaceString nss =
         NamespaceString::createNamespaceString_forTest("test.SteadyStateNoRidOnRridCollection");
-    CollectionOptions options;
-    options.recordIdsReplicated = true;
-    ASSERT_OK(_storage->createCollection(opCtx.get(), nss, options));
+    RAIIServerParameterControllerForTest featureFlagController =
+        RAIIServerParameterControllerForTest("featureFlagRecordIdsReplicated", true);
+    ASSERT_OK(_storage->createCollection(opCtx.get(), nss, {}));
 
     auto insertOp = BSON("op" << "i"
                               << "ns" << nss.ns_forTest() << "o" << BSON("_id" << 1));
@@ -654,10 +695,11 @@ DEATH_TEST_F(ApplyOpsDeathTest, SteadyStateRidOnNonRridCollection, "11454701") {
         NamespaceString::createNamespaceString_forTest("test.SteadyStateRidOnNonRridCollection");
     ASSERT_OK(_storage->createCollection(opCtx.get(), nss, {}));
 
-    auto insertOp = BSON("op" << "i"
-                              << "ns" << nss.ns_forTest() << "o" << BSON("_id" << 1) << "rid" << 0);
+    auto insertOpWithRid =
+        BSON("op" << "i"
+                  << "ns" << nss.ns_forTest() << "o" << BSON("_id" << 1) << "rid" << 0);
 
-    auto applyOpsCmdObj = BSON("applyOps" << BSON_ARRAY(insertOp));
+    auto applyOpsCmdObj = BSON("applyOps" << BSON_ARRAY(insertOpWithRid));
     BSONObjBuilder resultBuilder;
     (void)applyOps(opCtx.get(), nss.dbName(), applyOpsCmdObj, mode, &resultBuilder);
 }

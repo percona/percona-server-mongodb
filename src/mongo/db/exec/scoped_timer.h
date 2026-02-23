@@ -68,7 +68,6 @@ private:
     X(initAndListenTotal)                       \
     X(runMongosTotal)                           \
     X(setUpTransportLayer)                      \
-    X(setUpPostTransportLayer)                  \
     X(setUpPeriodicRunner)                      \
     X(setUpOCSP)                                \
     X(initSyncCrashRecovery)                    \

@@ -4,7 +4,6 @@ import os
 import sys
 from datetime import datetime, timedelta, timezone
 from enum import Enum
-from typing import Dict, List, Tuple
 
 import structlog
 import typer
@@ -44,7 +43,7 @@ class CodeMergeStatus(Enum):
     GREEN = "GREEN"
 
     @classmethod
-    def from_threshold_percentages(cls, threshold_percentages: List[float]) -> CodeMergeStatus:
+    def from_threshold_percentages(cls, threshold_percentages: list[float]) -> CodeMergeStatus:
         if any(percentage > 100 for percentage in threshold_percentages):
             return cls.RED
         return cls.GREEN
@@ -75,7 +74,7 @@ class MonitorBuildStatusOrchestrator:
             summaries = ""
 
             for scopes_config in notification_config.scopes:
-                scope_percentages: Dict[str, List[float]] = {}
+                scope_percentages: dict[str, list[float]] = {}
 
                 issue_report = self._make_report(scopes_config)
                 issue_count_status_msg, issue_count_percentages = self._get_issue_counts_status(
@@ -117,9 +116,9 @@ class MonitorBuildStatusOrchestrator:
 
     def _get_issue_counts_status(
         self, scope_name: str, issue_report: IssueReport, notification_config: NotificationsConfig
-    ) -> Tuple[str, Dict[str, List[float]]]:
+    ) -> tuple[str, dict[str, list[float]]]:
         now = datetime.now(timezone.utc)
-        percentages: Dict[str, List[float]] = {}
+        percentages: dict[str, list[float]] = {}
 
         headers = [scope_name, "Hot Issues", "Cold Issues"]
         table_data = []
@@ -129,7 +128,7 @@ class MonitorBuildStatusOrchestrator:
             hot_issue_count: int,
             cold_issue_count: int,
             thresholds: IssueThresholds,
-            slack_tags: List[str],
+            slack_tags: list[str],
         ) -> None:
             if all(count == 0 for count in [hot_issue_count, cold_issue_count]):
                 return
@@ -242,7 +241,7 @@ class MonitorBuildStatusOrchestrator:
         return message, percentages
 
     @staticmethod
-    def _summarize(scope_name: str, scope_percentages: Dict[str, List[float]]) -> str:
+    def _summarize(scope_name: str, scope_percentages: dict[str, list[float]]) -> str:
         summary = f"`SUMMARY [{scope_name}]`"
 
         red_sub_scopes = []

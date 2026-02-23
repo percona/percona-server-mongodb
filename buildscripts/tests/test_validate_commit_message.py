@@ -73,6 +73,91 @@ class ValidateCommitMessageTest(unittest.TestCase):
 
         self.assertTrue(all(not is_valid_commit(message) for message in messages))
 
+    def test_valid_commit_with_changed_files_server_project(self):
+        """Test that SERVER project can modify any file."""
+        fake_repo = Repo()
+        commit = Commit(
+            repo=fake_repo, binsha=b"deadbeefdeadbeefdead", message="SERVER-12345 Add new feature"
+        )
+
+        # SERVER project should be able to modify any file
+        changed_files = [
+            "src/mongo/db/query.cpp",
+            "monguard/test.cpp",
+            "buildscripts/test.py",
+            "random/path/to/file.txt",
+        ]
+
+        self.assertTrue(is_valid_commit(commit, changed_files))
+
+    def test_valid_commit_with_changed_files_guard_project(self):
+        """Test that GUARD project can only modify files in monguard/ directory."""
+        fake_repo = Repo()
+        commit = Commit(
+            repo=fake_repo, binsha=b"deadbeefdeadbeefdead", message="GUARD-12345 Update monguard"
+        )
+
+        # GUARD project should be able to modify files in monguard/
+        changed_files = [
+            "monguard/test.cpp",
+            "monguard/subdir/file.h",
+            "monguard/deep/nested/path/file.py",
+        ]
+
+        self.assertTrue(is_valid_commit(commit, changed_files))
+
+    def test_invalid_commit_guard_project_wrong_path(self):
+        """Test that GUARD project cannot modify files outside monguard/ directory."""
+        fake_repo = Repo()
+        commit = Commit(
+            repo=fake_repo, binsha=b"deadbeefdeadbeefdead", message="GUARD-12345 Update monguard"
+        )
+
+        # GUARD project should NOT be able to modify files outside monguard/
+        changed_files = [
+            "monguard/test.cpp",  # This is allowed
+            "src/mongo/db/query.cpp",  # This is NOT allowed
+        ]
+
+        self.assertFalse(is_valid_commit(commit, changed_files))
+
+    def test_invalid_commit_unknown_jira_project(self):
+        """Test that unknown JIRA projects are rejected."""
+        fake_repo = Repo()
+        commit = Commit(
+            repo=fake_repo, binsha=b"deadbeefdeadbeefdead", message="UNKNOWN-12345 Some change"
+        )
+
+        changed_files = ["src/mongo/db/query.cpp"]
+
+        self.assertFalse(is_valid_commit(commit, changed_files))
+
+    def test_wiredtiger_import_no_path_validation(self):
+        """Test that wiredtiger imports don't trigger path validation."""
+        fake_repo = Repo()
+        commit = Commit(
+            repo=fake_repo,
+            binsha=b"deadbeefdeadbeefdead",
+            message="Import wiredtiger: 58115abb6fbb3c1cc7bfd087d41a47347bce9a69 from branch mongodb-4.4",
+        )
+
+        # Wiredtiger imports don't have JIRA project validation
+        changed_files = ["src/third_party/wiredtiger/file.c"]
+
+        self.assertTrue(is_valid_commit(commit, changed_files))
+
+    def test_recursive_glob_pattern_matching(self):
+        """Test that ** pattern correctly matches nested paths."""
+        fake_repo = Repo()
+        commit = Commit(
+            repo=fake_repo, binsha=b"deadbeefdeadbeefdead", message="GUARD-12345 Deep nested change"
+        )
+
+        # Test deeply nested paths work with **/* pattern
+        changed_files = ["monguard/a/b/c/d/e/f/g/deeply/nested/file.cpp"]
+
+        self.assertTrue(is_valid_commit(commit, changed_files))
+
     @patch("requests.post")
     def test_squashed_commit(self, mock_request):
         class FakeResponse:

@@ -222,10 +222,7 @@ StatusWith<std::string> WiredTigerIndex::generateCreateString(const std::string&
 Status WiredTigerIndex::create(WiredTigerRecoveryUnit& ru,
                                const std::string& uri,
                                const std::string& config) {
-    auto& session = *ru.getSessionNoTxn();
-    LOGV2_DEBUG(
-        51780, 1, "create uri: {uri} config: {config}", "uri"_attr = uri, "config"_attr = config);
-    return wtRCToStatus(session.create(uri.c_str(), config.c_str()), session);
+    return WiredTigerUtil::createTable(ru, uri.c_str(), config.c_str());
 }
 
 Status WiredTigerIndex::Drop(WiredTigerRecoveryUnit& ru, const std::string& uri) {
@@ -706,6 +703,8 @@ int WiredTigerIndex::_handleVersionInfo(OperationContext* ctx,
                                       << versionStatus.reason() << " Index: {name: "
                                       << config.indexName << ", ns: " << _collectionUUID
                                       << "} - version either too old or too new for this mongod.");
+
+        WiredTigerUtil::logMetadata(*wtRu.getSessionNoTxn(), uri);
         fassertFailedWithStatus(28579, indexVersionStatus);
     }
     uassertStatusOK(version);

@@ -61,6 +61,9 @@
  *     Boolean field, used to skip a writeConcern testCase that belongs to a test that accepts
  *     writeConcern.
  *
+ * @tags: [
+ *   requires_fcv_83,
+ * ]
  */
 
 import {configureFailPoint} from "jstests/libs/fail_point_util.js";

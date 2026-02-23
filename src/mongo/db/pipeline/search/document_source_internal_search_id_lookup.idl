@@ -40,4 +40,10 @@ structs:
             limit:
                 description: "Limit for the number of documents that should be returned by $_internalSearchIdLookup."
                 optional: true
-                type: long
+                type: safeInt64
+            viewPipeline:
+                description: >-
+                    Contains the view pipeline that should be applied after the _id lookup. This ensures the view pipeline 
+                    is serialized on the router and sent to the shards.
+                optional: true
+                type: array<object_owned>

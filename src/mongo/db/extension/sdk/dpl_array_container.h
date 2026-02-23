@@ -114,7 +114,7 @@ private:
         });
     }
 
-    static constexpr ::MongoExtensionDPLArrayContainerVTable VTABLE{
+    static constexpr ::MongoExtensionDPLArrayContainerVTable VTABLE = {
         .destroy = &_extDestroy, .size = &_extSize, .transfer = &_extTransfer};
     DPLArrayContainer _container;
 };

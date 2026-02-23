@@ -56,7 +56,9 @@ HashJoinStage::HashJoinStage(std::unique_ptr<PlanStage> outer,
       _outerProjects(std::move(outerProjects)),
       _innerKey(std::move(innerKey)),
       _innerProjects(std::move(innerProjects)),
-      _collatorSlot(collatorSlot) {
+      _collatorSlot(collatorSlot),
+      _probeKey(_outerKey.size()),
+      _probeProject(_outerProjects.size()) {
     if (_outerKey.size() != _innerKey.size()) {
         uasserted(4822823, "left and right size do not match");
     }
@@ -191,22 +193,20 @@ PlanState HashJoinStage::getNext() {
         switch (_joinPhase) {
             case JoinPhase::kProbing:
                 if (auto state = outerChild()->getNext(); state == PlanState::ADVANCED) {
-                    value::MaterializedRow probeKey{_inOuterKeyAccessors.size()};
-                    value::MaterializedRow probeProject{_inOuterProjectAccessors.size()};
 
                     size_t idx = 0;
                     for (auto& p : _inOuterKeyAccessors) {
                         auto [tag, val] = p->getViewOfValue();
-                        probeKey.reset(idx++, false, tag, val);
+                        _probeKey.reset(idx++, false, tag, val);
                     }
 
                     idx = 0;
                     for (auto& p : _inOuterProjectAccessors) {
                         auto [tag, val] = p->getViewOfValue();
-                        probeProject.reset(idx++, false, tag, val);
+                        _probeProject.reset(idx++, false, tag, val);
                     }
 
-                    _cursor = _joinImpl->probe(std::move(probeKey), std::move(probeProject));
+                    _joinImpl->probe(_probeKey, _probeProject, _cursor);
                     continue;
                 }
 

@@ -5,7 +5,6 @@
  * E2E version of with_mongot/vector_search_mocked/sharded_different_merging_locations.js
  *
  * @tags: [
- *   requires_fcv_71,
  *   requires_sharding,
  *   assumes_unsharded_collection,
  * ]
@@ -15,8 +14,10 @@ import {after, before, describe, it} from "jstests/libs/mochalite.js";
 import {createSearchIndex, dropSearchIndex} from "jstests/libs/search.js";
 import {getShardNames} from "jstests/libs/sharded_cluster_fixture_helpers.js";
 
+// TODO SERVER-119626 Check if getSiblingDB() is still needed.
+const testDb = db.getSiblingDB(jsTestName());
 const collName = jsTestName();
-const testColl = db.getCollection(collName);
+const testColl = testDb.getCollection(collName);
 const vectorSearchIndex = "vector_search_merge_index";
 const queryVector = [1.0, 2.0, 3.0];
 
@@ -68,10 +69,10 @@ function testMergeAtLocation(mergeType, pipelineLimit = null) {
 
 describe("$vectorSearch with different merging locations", function () {
     before(function () {
-        shardNames = getShardNames(db.getMongo());
+        shardNames = getShardNames(testDb.getMongo());
         assert.gte(shardNames.length, 2, "Test requires at least 2 shards");
 
-        assert.commandWorked(db.adminCommand({enableSharding: db.getName(), primaryShard: shardNames[0]}));
+        assert.commandWorked(testDb.adminCommand({enableSharding: testDb.getName(), primaryShard: shardNames[0]}));
 
         testColl.drop();
 
@@ -90,10 +91,10 @@ describe("$vectorSearch with different merging locations", function () {
         );
 
         // Shard the test collection, split it at {_id: 10}, and move the higher chunk to shard1.
-        assert.commandWorked(db.adminCommand({shardCollection: testColl.getFullName(), key: {_id: 1}}));
-        assert.commandWorked(db.adminCommand({split: testColl.getFullName(), middle: {_id: 10}}));
+        assert.commandWorked(testDb.adminCommand({shardCollection: testColl.getFullName(), key: {_id: 1}}));
+        assert.commandWorked(testDb.adminCommand({split: testColl.getFullName(), middle: {_id: 10}}));
         assert.commandWorked(
-            db.adminCommand({
+            testDb.adminCommand({
                 moveChunk: testColl.getFullName(),
                 find: {_id: 11},
                 to: shardNames[1],

@@ -251,6 +251,7 @@ CreateCommand makeCreateCommand(OperationContext* opCtx,
     createRequest.setValidator(request.getValidator());
     createRequest.setPipeline(request.getPipeline());
     createRequest.setStorageEngine(request.getStorageEngine());
+    createRequest.setStorageTier(request.getStorageTier());
 
     cmd.setCreateCollectionRequest(createRequest);
     return cmd;
@@ -303,15 +304,6 @@ void assertTimeseriesLocalCatalogConsistency(OperationContext* opCtx, const Coll
                 "and/or backing up its contents.",
             !coll->ns().isTimeseriesBucketsCollection() ||
                 coll->getTimeseriesOptions().has_value());
-    tassert(9934502,
-            fmt::format("Encountered invalid state for target collection '{}'. ",
-                        coll->ns().toStringForErrorMsg()) +
-                "The collection namespace is not prefixed with 'system.buckets.' but has "
-                "associated time-series options. Please consider options to correct this, "
-                "including renaming the collection or dropping the collection after inspecting "
-                "and/or backing up its contents.",
-            viewlessTimeseriesEnabled(opCtx) || coll->ns().isTimeseriesBucketsCollection() ||
-                !coll->getTimeseriesOptions().has_value());
 
     // Refuse to track if both 'coll' and 'system.buckets.coll' are regular collections in the local
     // catalog. This prevents the inconsistency from propagating to the global catalog.
@@ -1500,11 +1492,11 @@ void CreateCollectionCoordinator::_exitCriticalSectionOnShards(
 }
 
 bool CreateCollectionCoordinator::_mustAlwaysMakeProgress() {
-    // Any non-retryable errors before committing to the sharding catalog should cause the operation
-    // to be terminated and rollbacked, triggering the cleanup procedure. On the other hand, after
-    // the collection has been created on all involved shards, the operation must always make
-    // forward progress.
-    return _doc.getPhase() >= Phase::kCommitOnShardingCatalog;
+    // Once critical sections are held the coordinator must always make forward progress to
+    // guarantee they are eventually released. Before the commit phase, forward progress means
+    // retrying until triggerCleanup succeeds and _cleanupOnAbort can run. After the commit
+    // phase, it means retrying the remaining phases until the operation completes.
+    return _doc.getPhase() >= Phase::kEnterWriteCriticalSectionOnCoordinator;
 }
 
 ExecutorFuture<void> CreateCollectionCoordinator::_runImpl(
@@ -1674,7 +1666,11 @@ ExecutorFuture<void> CreateCollectionCoordinator::_runImpl(
                 _updateStateDocument(opCtx, CreateCollectionCoordinatorDocument(_doc));
             }
 
-            if (!_mustAlwaysMakeProgress() && !_isRetriableErrorForDDLCoordinator(status)) {
+            // Before kCommitOnShardingCatalog: trigger cleanup to release critical sections and
+            // unblock writes After kCommitOnShardingCatalog: changes are publicly visible, so we
+            // must retry to completion
+            if (!_isRetriableErrorForDDLCoordinator(status) &&
+                _doc.getPhase() < Phase::kCommitOnShardingCatalog) {
                 triggerCleanup(opCtx, status);
             }
 

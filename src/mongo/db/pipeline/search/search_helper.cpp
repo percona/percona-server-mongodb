@@ -697,7 +697,7 @@ void promoteStoredSourceOrAddIdLookup(
     boost::intrusive_ptr<ExpressionContext> expCtx,
     std::list<boost::intrusive_ptr<DocumentSource>>& desugaredPipeline,
     bool isStoredSource,
-    long long limit,
+    boost::optional<long long> limit,
     boost::optional<SearchQueryViewSpec> view) {
     // If 'returnStoredSource' is true, we don't want to do idLookup. Instead, promote the fields in
     // 'storedSource' to root.
@@ -716,14 +716,25 @@ void promoteStoredSourceOrAddIdLookup(
         // conversation: the documents are not guaranteed to have the shard key, and we don't have
         // an idLookup to go get it.
     } else {
-        // idLookup must always be immediately after the first stage in the desugared pipeline
-        std::unique_ptr<Pipeline> viewPipeline;
-        if (view) {
-            viewPipeline = pipeline_factory::makePipeline(
-                view->getEffectivePipeline(), expCtx, pipeline_factory::kOptionsMinimal);
+        // idLookup must always be immediately after the first stage in the desugared pipeline.
+        DocumentSourceIdLookupSpec spec;
+        if (limit) {
+            spec.setLimit(limit.get());
         }
-        auto idLookupStage = make_intrusive<DocumentSourceInternalSearchIdLookUp>(
-            expCtx, limit, std::move(viewPipeline));
+        if (view) {
+            // Make each BSONObj owned so the viewPipeline doesn't hold dangling references to the
+            // parent SearchQueryViewSpec BSON.
+            const auto& viewPipeline = view->getEffectivePipeline();
+            std::vector<BSONObj> ownedPipeline;
+            ownedPipeline.reserve(viewPipeline.size());
+            for (const auto& obj : viewPipeline) {
+                ownedPipeline.push_back(obj.getOwned());
+            }
+            spec.setViewPipeline(std::move(ownedPipeline));
+        }
+
+        auto idLookupStage =
+            make_intrusive<DocumentSourceInternalSearchIdLookUp>(std::move(spec), expCtx);
         desugaredPipeline.insert(std::next(desugaredPipeline.begin()), idLookupStage);
 
         // Check if the first stage in the pipeline is a mongotRemoteStage (only exists for

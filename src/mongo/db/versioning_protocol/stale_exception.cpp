@@ -54,7 +54,6 @@ void StaleConfigInfo::serialize(BSONObjBuilder* bob) const {
     if (_wanted)
         _wanted->serialize("vWanted", bob);
 
-    invariant(_shardId != "");
     bob->append("shardId", _shardId.toString());
 }
 

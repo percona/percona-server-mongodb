@@ -7,6 +7,8 @@
  *  requires_sharding,
  *  uses_transactions,
  *  assumes_stable_shard_list,
+ *  # TODO(SERVER-119777): Ensure test does not leak cursors.
+ *  can_leak_idle_cursors,
  * ]
  */
 

@@ -1,6 +1,6 @@
 import os
 import re
-from typing import Optional, Set
+from typing import Optional
 
 MONGO_DOCUMENT_SOURCE_DIR = "src/mongo/db/pipeline"
 
@@ -62,7 +62,7 @@ def check_file_pair(base_path: str) -> Optional[str]:
     return None
 
 
-def find_authz_opt_out_stages() -> Set[str]:
+def find_authz_opt_out_stages() -> set[str]:
     """
     Scans the pipeline directory to find aggregation stages that
     opted out of authorization checks.
@@ -74,8 +74,8 @@ def find_authz_opt_out_stages() -> Set[str]:
         return set()
 
     print(f"Scanning for aggregation stages in '{MONGO_DOCUMENT_SOURCE_DIR}'")
-    found_stages: Set[str] = set()
-    processed_bases: Set[str] = set()
+    found_stages: set[str] = set()
+    processed_bases: set[str] = set()
 
     # Walk through directory
     for root, _, files in os.walk(MONGO_DOCUMENT_SOURCE_DIR):

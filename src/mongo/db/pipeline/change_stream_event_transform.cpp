@@ -620,7 +620,17 @@ Document ChangeStreamDefaultEventTransformation::applyTransformation(const Docum
             // should have been filtered out by the change stream's oplog match filter already.
             tasserted(11888301, "Change stream encountered unexpected 'cd' oplog entry");
         }
+        case repl::OpTypeEnum::kKeyMaterial: {
+            // Key material ('km') oplog entries should not show up when we get here. They
+            // should have been filtered out by the change stream's oplog match filter already.
+            tasserted(11945200, "Change stream encountered unexpected 'km' oplog entry");
+        }
         default: {
+            static_assert(
+                idlEnumCount<repl::OpTypeEnum> == 8,
+                "unexpected number of oplog entry types - when adding a new oplog entry type, "
+                "please make sure that the change stream event transformer handles it correctly!");
+
             throwUnsupportedOplogEntryType(input, "unhandled case" /* error */);
         }
     }

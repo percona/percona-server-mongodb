@@ -93,22 +93,30 @@ public:
     void setExtractedLimitVal(boost::optional<long long> extractedLimitVal);
 
     static void assertVTableConstraints(const VTable_t& vtable) {
-        tassert(
-            11420603, "ExtensionLogicalAggStage 'get_name' is null", vtable.get_name != nullptr);
-        tassert(
-            11173703, "ExtensionLogicalAggStage 'serialize' is null", vtable.serialize != nullptr);
-        tassert(11239401, "ExtensionLogicalAggStage 'explain' is null", vtable.explain != nullptr);
-        tassert(10957200, "ExtensionLogicalAggStage 'compile' is null", vtable.compile != nullptr);
+        tassert(11420603,
+                "ExtensionLogicalAggStageAdapter 'get_name' is null",
+                vtable.get_name != nullptr);
+        tassert(11173703,
+                "ExtensionLogicalAggStageAdapter 'serialize' is null",
+                vtable.serialize != nullptr);
+        tassert(11239401,
+                "ExtensionLogicalAggStageAdapter 'explain' is null",
+                vtable.explain != nullptr);
+        tassert(10957200,
+                "ExtensionLogicalAggStageAdapter 'compile' is null",
+                vtable.compile != nullptr);
         tassert(10917600,
-                "ExtensionLogicalAggStage 'get_distributed_plan_logic' is null",
+                "ExtensionLogicalAggStageAdapter 'get_distributed_plan_logic' is null",
                 vtable.get_distributed_plan_logic != nullptr);
-        tassert(11713400, "ExtensionLogicalAggStage 'clone' is null", vtable.clone != nullptr);
+        tassert(
+            11713400, "ExtensionLogicalAggStageAdapter 'clone' is null", vtable.clone != nullptr);
         tassert(11543600,
-                "ExtensionLogicalAggStage 'is_stage_sorted_by_vector_search_score' is null",
+                "ExtensionLogicalAggStageAdapter 'is_stage_sorted_by_vector_search_score' is null",
                 vtable.is_stage_sorted_by_vector_search_score != nullptr);
-        tassert(11553300,
-                "ExtensionLogicalAggStage 'set_vector_search_limit_for_optimization' is null",
-                vtable.set_vector_search_limit_for_optimization != nullptr);
+        tassert(
+            11553300,
+            "ExtensionLogicalAggStageAdapter 'set_vector_search_limit_for_optimization' is null",
+            vtable.set_vector_search_limit_for_optimization != nullptr);
     }
 };
 

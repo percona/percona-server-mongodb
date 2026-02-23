@@ -37,6 +37,7 @@
 #include "mongo/bson/bsonobj.h"
 #include "mongo/bson/bsontypes.h"
 #include "mongo/crypto/hash_block.h"
+#include "mongo/db/commands/server_status/server_status.h"
 #include "mongo/db/logical_time.h"
 #include "mongo/db/operation_time_tracker.h"
 #include "mongo/db/session/logical_session_id_gen.h"
@@ -66,7 +67,38 @@ namespace executor {
 
 namespace {
 const std::string kOperationTimeField = "operationTime";
-}
+
+/**
+ * This server status section is responsible for gathering metrics specific to the sharding task
+ * executor that do not fall into our existing global MetricTree or connection pool stats reporting.
+ */
+class ShardingTaskExecutorServerStatusSection : public ServerStatusSection {
+public:
+    using ServerStatusSection::ServerStatusSection;
+
+    ~ShardingTaskExecutorServerStatusSection() override = default;
+
+    bool includeByDefault() const override {
+        return true;
+    }
+
+    BSONObj generateSection(OperationContext* opCtx,
+                            const BSONElement& configElement) const override {
+        BSONObjBuilder bob;
+        auto const grid = Grid::get(opCtx);
+        if (grid->isInitialized()) {
+            grid->getExecutorPool()->appendNetworkInterfaceStats(bob, true);
+        }
+
+        return bob.obj();
+    }
+};
+
+const auto& collectionMetricsSection =
+    *ServerStatusSectionBuilder<ShardingTaskExecutorServerStatusSection>(
+         "shardingTaskExecutorMetrics")
+         .forRouter();
+}  // namespace
 
 ShardingTaskExecutor::ShardingTaskExecutor(Passkey,
                                            std::shared_ptr<ThreadPoolTaskExecutor> executor)
@@ -271,8 +303,9 @@ void ShardingTaskExecutor::dropConnections(const HostAndPort& target, const Stat
     _executor->dropConnections(target, status);
 }
 
-void ShardingTaskExecutor::appendNetworkInterfaceStats(BSONObjBuilder& bob) const {
-    _executor->appendNetworkInterfaceStats(bob);
+void ShardingTaskExecutor::appendNetworkInterfaceStats(BSONObjBuilder& bob,
+                                                       bool forServerStatus) const {
+    _executor->appendNetworkInterfaceStats(bob, forServerStatus);
 }
 
 }  // namespace executor

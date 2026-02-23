@@ -66,11 +66,16 @@ source cm/bin/activate
 
 7. Run the calibrator:
 
-```sh
-(cm) python start.py
-```
+- For CBR cost model calibration:
+  ```sh
+  (cm) python start.py
+  ```
+- For JOO cost model calibration:
+  ```sh
+  (cm) python join_start.py
+  ```
 
-**Note:** For the first time it will take a while since it has to generate the data. Afterwards, as long as you aren't modifying the collections, you can comment out `await generator.populate_collections()` in `start.py` - this will make it a lot faster.
+**Note:** For CBR calibration, the first time it will take a while since it has to generate the data. Afterwards, as long as you aren't modifying the collections, you can comment out `await generator.populate_collections()` in `start.py` - this will make it a lot faster.
 
 8. When done, deactivate the environment:
 

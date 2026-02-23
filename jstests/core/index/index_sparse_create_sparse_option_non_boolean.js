@@ -12,6 +12,9 @@
  * ]
  */
 
+// TODO: SERVER-119726 enable multi-router once $listCatalog is supported on multi-router.
+TestData.pinToSingleMongos = true;
+
 import {IndexUtils} from "jstests/libs/index_utils.js";
 
 let t = db.index_sparse_create_index_non_boolean_value;

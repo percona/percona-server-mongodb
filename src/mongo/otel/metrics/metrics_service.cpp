@@ -294,9 +294,11 @@ T* MetricsService::getDuplicateMetric(WithLock,
 template <typename T>
 Counter<T>& MetricsService::createCounter(MetricName name,
                                           std::string description,
-                                          MetricUnit unit) {
+                                          MetricUnit unit,
+                                          const CounterOptions& options) {
     const std::string nameStr(name.getName());
-    MetricIdentifier identifier{.description = description, .unit = unit};
+    MetricIdentifier identifier{
+        .description = description, .unit = unit, .inServerStatus = options.inServerStatus};
     stdx::lock_guard lock(_mutex);
     auto duplicate = getDuplicateMetric<Counter<T>>(lock, nameStr, identifier);
     if (duplicate) {
@@ -325,20 +327,26 @@ Counter<T>& MetricsService::createCounter(MetricName name,
 
 Counter<int64_t>& MetricsService::createInt64Counter(MetricName name,
                                                      std::string description,
-                                                     MetricUnit unit) {
-    return createCounter<int64_t>(name, description, unit);
+                                                     MetricUnit unit,
+                                                     const CounterOptions& options) {
+    return createCounter<int64_t>(name, description, unit, options);
 }
 
 Counter<double>& MetricsService::createDoubleCounter(MetricName name,
                                                      std::string description,
-                                                     MetricUnit unit) {
-    return createCounter<double>(name, description, unit);
+                                                     MetricUnit unit,
+                                                     const CounterOptions& options) {
+    return createCounter<double>(name, description, unit, options);
 }
 
 template <typename T>
-Gauge<T>& MetricsService::createGauge(MetricName name, std::string description, MetricUnit unit) {
+Gauge<T>& MetricsService::createGauge(MetricName name,
+                                      std::string description,
+                                      MetricUnit unit,
+                                      const GaugeOptions& options) {
     std::string nameStr(name.getName());
-    MetricIdentifier identifier{.description = description, .unit = unit};
+    MetricIdentifier identifier{
+        .description = description, .unit = unit, .inServerStatus = options.inServerStatus};
     stdx::lock_guard lock(_mutex);
     auto duplicate = getDuplicateMetric<Gauge<T>>(lock, nameStr, identifier);
     if (duplicate) {
@@ -367,23 +375,27 @@ Gauge<T>& MetricsService::createGauge(MetricName name, std::string description, 
 
 Gauge<int64_t>& MetricsService::createInt64Gauge(MetricName name,
                                                  std::string description,
-                                                 MetricUnit unit) {
-    return createGauge<int64_t>(name, description, unit);
+                                                 MetricUnit unit,
+                                                 const GaugeOptions& options) {
+    return createGauge<int64_t>(name, description, unit, options);
 }
 
 Gauge<double>& MetricsService::createDoubleGauge(MetricName name,
                                                  std::string description,
-                                                 MetricUnit unit) {
-    return createGauge<double>(name, description, unit);
+                                                 MetricUnit unit,
+                                                 const GaugeOptions& options) {
+    return createGauge<double>(name, description, unit, options);
 }
 
-Histogram<double>& MetricsService::createDoubleHistogram(
-    MetricName name,
-    std::string description,
-    MetricUnit unit,
-    boost::optional<std::vector<double>> explicitBucketBoundaries) {
+Histogram<double>& MetricsService::createDoubleHistogram(MetricName name,
+                                                         std::string description,
+                                                         MetricUnit unit,
+                                                         const HistogramOptions& options) {
     std::string nameStr(name.getName());
-    MetricIdentifier identifier{.description = description, .unit = unit};
+    MetricIdentifier identifier{.description = description,
+                                .unit = unit,
+                                .inServerStatus = options.inServerStatus,
+                                .histogramBucketBoundaries = options.explicitBucketBoundaries};
     stdx::lock_guard lock(_mutex);
     auto duplicate = getDuplicateMetric<Histogram<double>>(lock, nameStr, identifier);
     if (duplicate) {
@@ -397,7 +409,7 @@ Histogram<double>& MetricsService::createDoubleHistogram(
                                              nameStr,
                                              description,
                                              std::string(toString(unit)),
-                                             std::move(explicitBucketBoundaries));
+                                             options.explicitBucketBoundaries);
 #else
     auto histogram = std::make_unique<HistogramImpl<double>>();
 #endif  // MONGO_CONFIG_OTEL
@@ -407,13 +419,15 @@ Histogram<double>& MetricsService::createDoubleHistogram(
     return *histogram_ptr;
 }
 
-Histogram<int64_t>& MetricsService::createInt64Histogram(
-    MetricName name,
-    std::string description,
-    MetricUnit unit,
-    boost::optional<std::vector<double>> explicitBucketBoundaries) {
+Histogram<int64_t>& MetricsService::createInt64Histogram(MetricName name,
+                                                         std::string description,
+                                                         MetricUnit unit,
+                                                         const HistogramOptions& options) {
     const std::string nameStr(name.getName());
-    MetricIdentifier identifier{.description = description, .unit = unit};
+    MetricIdentifier identifier{.description = description,
+                                .unit = unit,
+                                .inServerStatus = options.inServerStatus,
+                                .histogramBucketBoundaries = options.explicitBucketBoundaries};
     stdx::lock_guard lock(_mutex);
     auto duplicate = getDuplicateMetric<Histogram<int64_t>>(lock, nameStr, identifier);
     if (duplicate) {
@@ -428,7 +442,7 @@ Histogram<int64_t>& MetricsService::createInt64Histogram(
                                               nameStr,
                                               description,
                                               std::string(toString(unit)),
-                                              std::move(explicitBucketBoundaries));
+                                              options.explicitBucketBoundaries);
 #else
     auto histogram = std::make_unique<HistogramImpl<int64_t>>();
 #endif  // MONGO_CONFIG_OTEL
@@ -441,6 +455,9 @@ Histogram<int64_t>& MetricsService::createInt64Histogram(
 void MetricsService::appendMetricsForServerStatus(BSONObjBuilder& bsonBuilder) const {
     stdx::lock_guard lock(_mutex);
     for (const auto& [name, identifierAndMetric] : _metrics) {
+        if (!identifierAndMetric.identifier.inServerStatus) {
+            continue;
+        }
         std::visit(
             [&](const auto& metric) {
                 const auto key =

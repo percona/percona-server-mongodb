@@ -6,6 +6,7 @@
  *   requires_fcv_81,
  * ]
  */
+import {add2dsphereVersionIfNeededForSpec} from "jstests/libs/query/geo_index_version_helpers.js";
 
 const collName = jsTest.name();
 const coll = db[collName];
@@ -30,7 +31,7 @@ const furthest = {
     coll.drop();
 
     // Create the desired index type and populate the collection.
-    assert.commandWorked(coll.createIndex({pt: geoType}));
+    assert.commandWorked(coll.createIndex({pt: geoType}, add2dsphereVersionIfNeededForSpec({pt: geoType})));
     [origin, near, far, furthest].forEach((doc) => {
         doc.distFromOrigin =
             geoType === "2dsphere" ? Geo.sphereDistance(doc.pt, origin.pt) : Geo.distance(doc.pt, origin.pt);

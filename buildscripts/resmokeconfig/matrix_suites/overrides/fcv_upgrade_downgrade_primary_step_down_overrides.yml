@@ -122,6 +122,8 @@
       - featureFlagRankFusion
       # TODO: SERVER-86544 remove feature flag for SPM-3672
       - featureFlagMongotIndexedViews
+      # TODO: SERVER-101595 remove feature flag
+      - featureFlagCreateViewlessTimeseriesCollections
       # Transactions are aborted upon fcv upgrade or downgrade.
       - uses_transactions
       # Exclude tests that require a specific fcv.
@@ -133,14 +135,49 @@
       # Exclude tests that are not compatible with upgrade/downgrade.
       - cannot_run_during_upgrade_downgrade
 
-# TODO SERVER-109882 do not exclude viewless timeseries feature flag in upgrade/downgrade suites
-- name: exclude_viewless_timeseries_feature_flag
+- name: replica_sets_fixture
   value:
-    exclude_with_any_tags:
-      - featureFlagCreateViewlessTimeseriesCollections
+    executor:
+      fixture:
+        class: ReplicaSetFixture
+        mongod_options:
+          syncdelay: 5 # set to a low value to increase coverage of timestamping code.
+          wiredTigerEngineConfigString: "debug_mode=(table_logging=true)"
+          set_parameters:
+            enableTestCommands: 1
+            enableElectionHandoff: 0
+            logComponentVerbosity:
+              replication:
+                heartbeats: 2
+                rollback: 2
+              storage:
+                recovery: 2
+            failpoint.overrideRecordIdsReplicatedFalse: "{mode: 'alwaysOn'}"
+        all_nodes_electable: true
+        num_nodes: 3
+        replset_config_options:
+          settings:
+            catchUpTimeoutMillis: 0
 
-- name: exclude_files
+- name: sharding_override_fixture
   value:
-    exclude_files:
-      # TODO SERVER-117883 Remove this once the test is fixed.
-      - jstests/core/catalog/list_collections_correctness.js
+    executor:
+      fixture:
+        mongod_options:
+          syncdelay: 5 # set to a low value to increase coverage of timestamping code.
+          set_parameters:
+            enableElectionHandoff: 0
+            enableTestCommands: 1
+            failpoint.overrideRecordIdsReplicatedFalse: "{mode: 'alwaysOn'}"
+        configsvr_options:
+          num_nodes: 3
+          all_nodes_electable: true
+          replset_config_options:
+            settings:
+              catchUpTimeoutMillis: 0
+        num_rs_nodes_per_shard: 3
+        shard_options:
+          all_nodes_electable: true
+          replset_config_options:
+            settings:
+              catchUpTimeoutMillis: 0

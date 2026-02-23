@@ -12,9 +12,9 @@ import {
     getCachedPlanForQuery,
     assertPlanHasIxScanStage,
 } from "jstests/libs/query/analyze_plan.js";
-import {checkSbeFullFeatureFlagEnabled} from "jstests/libs/query/sbe_util.js";
+import {sbePlanCacheEnabled} from "jstests/libs/query/sbe_util.js";
 
-const isSbePlanCacheEnabled = checkSbeFullFeatureFlagEnabled(db);
+const isSbePlanCacheEnabled = sbePlanCacheEnabled(db);
 
 let coll = assertDropAndRecreateCollection(db, "plan_cache_replanning");
 

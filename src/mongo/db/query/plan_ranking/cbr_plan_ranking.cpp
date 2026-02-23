@@ -39,11 +39,11 @@
 namespace mongo {
 namespace plan_ranking {
 
-StatusWith<plan_ranking::PlanRankingResult> CBRPlanRankingStrategy::rankPlans(PlannerData& pd) {
+StatusWith<PlanRankingResult> CBRPlanRankingStrategy::rankPlans(PlannerData& pd) {
     return rankPlans(pd.opCtx, *pd.cq, *pd.plannerParams, pd.yieldPolicy, pd.collections);
 }
 
-StatusWith<plan_ranking::PlanRankingResult> CBRPlanRankingStrategy::rankPlans(
+StatusWith<PlanRankingResult> CBRPlanRankingStrategy::rankPlans(
     OperationContext* opCtx,
     CanonicalQuery& query,
     const QueryPlannerParams& plannerParams,
@@ -73,7 +73,7 @@ StatusWith<plan_ranking::PlanRankingResult> CBRPlanRankingStrategy::rankPlans(
         // so it applies everywhere. Only one solution, no need to rank.
         std::vector<std::unique_ptr<QuerySolution>> solns;
         solns.push_back(std::move(statusWithMultiPlanSolns.getValue()[0]));
-        return plan_ranking::PlanRankingResult{std::move(solns)};
+        return PlanRankingResult{.solutions = std::move(solns)};
     }
 
     using namespace cost_based_ranker;

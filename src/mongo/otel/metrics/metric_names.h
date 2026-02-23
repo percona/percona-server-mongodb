@@ -33,18 +33,23 @@
 
 MONGO_MOD_PUBLIC;
 
-namespace mongo::otel::metrics {
+namespace mongo {
+// Forward declaration needed for MetricName to declare the friend.
+namespace disagg {
+class MetricName;
+}
+namespace otel::metrics {
 
 /**
  * Wrapper class around a string to ensure `MetricName`s are only constructed in the class
  * definition of `MetricNames`.
+ *
+ * Note that this class is "open" only to enable defining module-specific metric names - see comment
+ * in the "private" section.
  */
-class MetricName {
+class MONGO_MOD_OPEN MetricName {
 public:
-    // TODO(SERVER-119070): Make this private again when we have module-specific metric names.
-    // This should not be used outside of the module-specific use cases that have been discussed
-    // with N&O.
-    constexpr MetricName(StringData name) : _name(name) {};
+    virtual ~MetricName() = default;
 
     constexpr StringData getName() const {
         return _name;
@@ -55,6 +60,16 @@ public:
     }
 
 private:
+    MONGO_MOD_PUBLIC explicit(false) constexpr MetricName(StringData name) : _name(name){};
+    friend class MetricNames;
+    /**
+     * Module-specific metric names classes. N&O must have ownership of the files defining and
+     * instantiating these classes. These classes are only allowed to use the private constructor.
+     * This is only meant to facilitate cases where the metric names should not be visible outside
+     * the module, in order to prevent leaking information related to that module.
+     */
+    friend class mongo::disagg::MetricName;
+
     StringData _name;
 };
 
@@ -78,6 +93,8 @@ public:
     static constexpr MetricName kTest1 = {"test_only.metric1"};
     static constexpr MetricName kTest2 = {"test_only.metric2"};
     static constexpr MetricName kTest3 = {"test_only.metric3"};
+    static constexpr MetricName kTest4 = {"test_only.metric4"};
 };
 
-}  // namespace mongo::otel::metrics
+}  // namespace otel::metrics
+}  // namespace mongo

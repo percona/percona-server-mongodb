@@ -55,6 +55,9 @@ public:
     virtual ~Impl() = default;
     virtual boost::optional<MatchResult> next() = 0;
     virtual void saveState() {}
+    virtual bool tryReprobe() {
+        return false;
+    }
 };
 
 JoinCursor::~JoinCursor() = default;
@@ -77,6 +80,10 @@ void JoinCursor::reset() {
     _impl = nullptr;
 }
 
+bool JoinCursor::tryReprobe() {
+    return _impl && _impl->tryReprobe();
+}
+
 JoinCursor JoinCursor::empty() {
     return JoinCursor{nullptr};
 }
@@ -85,14 +92,20 @@ JoinCursor JoinCursor::empty() {
 class InMemoryJoinCursor final : public JoinCursor::Impl {
 public:
     InMemoryJoinCursor(HHJTableType& ht,
-                       value::MaterializedRow probeKey,
-                       value::MaterializedRow probeProject)
-        : _probeKey(std::move(probeKey)), _probeProject(std::move(probeProject)) {
+                       value::MaterializedRow& probeKey,
+                       value::MaterializedRow& probeProject)
+        : _ht(ht), _probeKey(probeKey), _probeProject(probeProject) {
         // Probe the hash table for matches into the cursor to stream them.
-        std::tie(_htIt, _htItEnd) = ht.equal_range(_probeKey);
+        std::tie(_htIt, _htItEnd) = _ht.equal_range(_probeKey);
     }
 
     boost::optional<MatchResult> next() override;
+
+    // Reprobe the hash table for matches into the cursor to stream them.
+    bool tryReprobe() override {
+        std::tie(_htIt, _htItEnd) = _ht.equal_range(_probeKey);
+        return true;
+    }
 
     void saveState() override {
         _probeKey.makeOwned();
@@ -100,10 +113,11 @@ public:
     }
 
 private:
+    HHJTableType& _ht;
+    value::MaterializedRow& _probeKey;
+    value::MaterializedRow& _probeProject;
     HHJTableType::iterator _htIt{};
     HHJTableType::iterator _htItEnd{};
-    value::MaterializedRow _probeKey{};
-    value::MaterializedRow _probeProject{};
 };
 
 boost::optional<MatchResult> InMemoryJoinCursor::next() {
@@ -211,6 +225,8 @@ private:
     };
     std::unique_ptr<HybridHashJoin> _join;
     std::unique_ptr<SpillIterator> _probeIterator;
+    value::MaterializedRow _probeKey;
+    value::MaterializedRow _probeProject;
     bool _swapped;
     HashJoinStats& _stats;
     JoinCursor _cursor{nullptr};
@@ -235,7 +251,9 @@ boost::optional<MatchResult> RecursiveJoinJoinCursor::next() {
             case JoinPhase::kProbing:
                 if (_probeIterator->more()) {
                     auto [keyRow, projectRow] = _probeIterator->next();
-                    _cursor = _join->probe(std::move(keyRow), std::move(projectRow));
+                    _probeKey = std::move(keyRow);
+                    _probeProject = std::move(projectRow);
+                    _join->probe(_probeKey, _probeProject, _cursor);
                     continue;
                 }
                 _join->finishProbe();
@@ -446,7 +464,9 @@ void HybridHashJoin::finishBuild() {
 
 // ==================== Probe Phase ====================
 
-JoinCursor HybridHashJoin::probe(value::MaterializedRow key, value::MaterializedRow project) {
+void HybridHashJoin::probe(value::MaterializedRow& key,
+                           value::MaterializedRow& project,
+                           JoinCursor& cursor) {
     tassert(11538804, "called probe() outside of kProbe phase", _phase == Phase::kProbe);
 
     if (_isPartitioned) {
@@ -460,12 +480,15 @@ JoinCursor HybridHashJoin::probe(value::MaterializedRow key, value::Materialized
             _partitionSpills[pIdx]->probeSpill.writer->addAlreadySorted(key, project);
             _partitionSpills[pIdx]->probeSpill.size += memUsage;
             _recordsAddedToWriter++;
-            return JoinCursor::empty();
+            return;
         }
     }
 
-    return JoinCursor(
-        std::make_unique<InMemoryJoinCursor>(*_ht, std::move(key), std::move(project)));
+    // Creates the InMemoryJoinCursor only the first time. After that tryReprobe() will reuse
+    // the already created cursor.
+    if (!cursor.tryReprobe()) {
+        cursor = JoinCursor(std::make_unique<InMemoryJoinCursor>(*_ht, key, project));
+    }
 }
 
 void HybridHashJoin::finishProbe() {

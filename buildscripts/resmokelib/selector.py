@@ -11,7 +11,7 @@ import os.path
 import random
 import subprocess
 import sys
-from typing import Any, List, NamedTuple
+from typing import Any, NamedTuple
 
 import buildscripts.resmokelib.testing.tags as _tags
 from buildscripts.resmokelib import config, errors, utils
@@ -168,8 +168,8 @@ class TestFileExplorer(object):
 class _EvaluatePathsResult(NamedTuple):
     """Results of paths evaluation."""
 
-    evaluated: List[str]
-    unrecognized: List[str]
+    evaluated: list[str]
+    unrecognized: list[str]
 
 
 class _TestList(object):
@@ -185,7 +185,7 @@ class _TestList(object):
     """
 
     def __init__(
-        self, test_file_explorer: TestFileExplorer, roots: List[str], tests_are_files: bool = True
+        self, test_file_explorer: TestFileExplorer, roots: list[str], tests_are_files: bool = True
     ) -> None:
         """Initialize the _TestList with a TestFileExplorer component and a list of root tests."""
         self._test_file_explorer = test_file_explorer
@@ -193,7 +193,7 @@ class _TestList(object):
         self._roots = self._expand_roots(roots) if tests_are_files else roots
         self._filtered = set(self._roots)
 
-    def _evaluate_paths(self, paths: List[str]) -> _EvaluatePathsResult:
+    def _evaluate_paths(self, paths: list[str]) -> _EvaluatePathsResult:
         evaluated = []
         unrecognized = []
 
@@ -217,7 +217,7 @@ class _TestList(object):
 
         return _EvaluatePathsResult(evaluated, unrecognized)
 
-    def _expand_roots(self, tests: List[str]) -> List[str]:
+    def _expand_roots(self, tests: list[str]) -> list[str]:
         paths = self._evaluate_paths(tests)
         if len(paths.unrecognized) > 0 and config.VALIDATE_SELECTOR_PATHS:
             raise errors.SuiteSelectorConfigurationError(
@@ -227,7 +227,7 @@ class _TestList(object):
             )
         return paths.evaluated
 
-    def include_files(self, include_files: List[str]) -> None:
+    def include_files(self, include_files: list[str]) -> None:
         """
         Filter the test list so that it only includes files matching 'include_files'.
 
@@ -259,7 +259,7 @@ class _TestList(object):
 
         self._filtered = set(paths.evaluated)
 
-    def exclude_files(self, exclude_files: List[str]) -> None:
+    def exclude_files(self, exclude_files: list[str]) -> None:
         """
         Exclude from the test list the files that match elements from 'exclude_files'.
 
@@ -912,7 +912,7 @@ _SELECTOR_REGISTRY = {
 
 def filter_tests(
     test_kind, selector_config, test_file_explorer=_DEFAULT_TEST_FILE_EXPLORER
-) -> tuple[List[str], List[str]]:
+) -> tuple[list[str], list[str]]:
     """Filter the tests according to a specified configuration.
 
     Args:
@@ -931,7 +931,7 @@ def filter_tests(
 
 def group_tests(
     test_kind, selector_config, test_list, test_file_explorer=_DEFAULT_TEST_FILE_EXPLORER
-) -> List[Any]:
+) -> list[Any]:
     """Group the test list according to a specified configuration.
 
     Args:

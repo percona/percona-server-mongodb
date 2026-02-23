@@ -11,7 +11,7 @@ import shlex
 import sys
 from datetime import timedelta
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Optional
 
 import inject
 import structlog
@@ -95,7 +95,7 @@ class TimeoutOverride(BaseModel):
 class TimeoutOverrides(BaseModel):
     """Collection of timeout overrides to apply."""
 
-    overrides: Dict[str, List[TimeoutOverride]]
+    overrides: dict[str, list[TimeoutOverride]]
 
     @classmethod
     def from_yaml_file(cls, file_path: Path) -> "TimeoutOverrides":

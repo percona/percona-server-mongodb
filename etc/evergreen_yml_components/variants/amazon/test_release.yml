@@ -11,6 +11,8 @@ buildvariants:
     run_on:
       - amazon2-latest-small
     expansions:
+      # TODO SERVER-119677: Remove use_python310 once Amazon2 sqlite is upgraded
+      use_python310: true
       test_flags: >-
         --excludeWithAnyTags=SERVER-34286,incompatible_with_amazon_linux,requires_external_data_source
         --modules=none
@@ -25,6 +27,7 @@ buildvariants:
       bazel_compile_flags: >-
         --define=MONGO_DISTMOD=amazon2
         --build_enterprise=False
+        --disable_streams=True
       compile_all_but_not_unittests_flags: >-
         --linkopt=-s
       multiversion_platform: amazon2
@@ -62,6 +65,8 @@ buildvariants:
       - amazon2-latest-small
     tags: ["emergency_release"]
     expansions:
+      # TODO SERVER-119677: Remove use_python310 once Amazon2 sqlite is upgraded
+      use_python310: true
       additional_package_targets: >-
         archive-mongocryptd-stripped
         archive-mongocryptd-debug
@@ -77,6 +82,7 @@ buildvariants:
       mciuploads_binary_visibility_push: public
       bazel_compile_flags: >-
         --define=MONGO_DISTMOD=amazon2
+        --disable_streams=True
       compile_all_but_not_unittests_flags: >-
         --linkopt=-s
       multiversion_platform: amazon2
@@ -114,6 +120,8 @@ buildvariants:
     run_on:
       - amazon2-arm64-latest-m8g-xlarge
     expansions:
+      # TODO SERVER-119677: Remove use_python310 once Amazon2 sqlite is upgraded
+      use_python310: true
       test_flags: >-
         --excludeWithAnyTags=SERVER-34286,incompatible_with_amazon_linux,requires_external_data_source
         --modules=none
@@ -128,6 +136,7 @@ buildvariants:
       bazel_compile_flags: >-
         --define=MONGO_DISTMOD=amazon2
         --build_enterprise=False
+        --disable_streams=True
       compile_all_but_not_unittests_flags: >-
         --linkopt=-s
       multiversion_platform: amazon2
@@ -165,6 +174,8 @@ buildvariants:
       - amazon2-arm64-latest-m8g-xlarge
     tags: ["emergency_release"]
     expansions:
+      # TODO SERVER-119677: Remove use_python310 once Amazon2 sqlite is upgraded
+      use_python310: true
       additional_package_targets: >-
         archive-mongocryptd-stripped
         archive-mongocryptd-debug
@@ -180,6 +191,7 @@ buildvariants:
       mciuploads_binary_visibility_push: public
       bazel_compile_flags: >-
         --define=MONGO_DISTMOD=amazon2
+        --disable_streams=True
       compile_all_but_not_unittests_flags: >-
         --linkopt=-s
       multiversion_platform: amazon2

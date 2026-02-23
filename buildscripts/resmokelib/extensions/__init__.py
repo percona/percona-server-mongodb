@@ -12,14 +12,18 @@ from buildscripts.resmokelib.extensions.constants import (
 )
 from buildscripts.resmokelib.extensions.delete_extension_configs import delete_extension_configs
 from buildscripts.resmokelib.extensions.find_and_generate_extension_configs import (
-    find_and_generate_extension_configs,
+    find_and_generate_all_extension_configs,
+    find_and_generate_named_extension_configs,
+    normalize_load_extensions,
 )
 from buildscripts.resmokelib.extensions.generate_extension_configs import (
     generate_extension_configs,
 )
 
 __all__ = [
-    "find_and_generate_extension_configs",
+    "find_and_generate_all_extension_configs",
+    "find_and_generate_named_extension_configs",
+    "normalize_load_extensions",
     "delete_extension_configs",
     "generate_extension_configs",
     "add_extensions_signature_pub_key_path",

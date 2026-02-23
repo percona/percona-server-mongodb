@@ -161,6 +161,55 @@ TEST(LiteParsedPipelineTest, ViewInfoCloneIsIndependentOfOriginalLifetime) {
     ASSERT_EQ(stages[2]->getParseTimeName(), "$sort");
 }
 
+TEST(LiteParsedPipelineTest, GetSerializedViewPipelineReturnsEquivalentBsonWhenNotDesugared) {
+    // Build a ViewInfo with a two-stage pipeline that has NOT been desugared.
+    std::vector<BSONObj> viewStages = {BSON("$match" << BSON("x" << 1)),
+                                       BSON("$project" << BSON("y" << 1))};
+    const auto viewInfo = createTestViewInfo(viewStages);
+
+    auto serialized = viewInfo.getSerializedViewPipeline();
+    ASSERT_EQ(serialized.size(), viewStages.size());
+    for (size_t i = 0; i < viewStages.size(); ++i) {
+        ASSERT_BSONOBJ_EQ(serialized[i], viewStages[i]);
+    }
+
+    // And it should also match getOriginalBson() exactly.
+    auto original = viewInfo.getOriginalBson();
+    ASSERT_EQ(original.size(), serialized.size());
+    for (size_t i = 0; i < original.size(); ++i) {
+        ASSERT_BSONOBJ_EQ(original[i], serialized[i]);
+    }
+}
+
+TEST(LiteParsedPipelineTest,
+     GetSerializedViewPipelineReflectsModifiedStagesWhileOriginalBsonIsPreserved) {
+    // Build a ViewInfo with a single-stage pipeline.
+    std::vector<BSONObj> viewStages = {BSON("$match" << BSON("x" << 1))};
+    auto viewInfo = createTestViewInfo(viewStages);
+
+    BSONObj newStage1 = BSON("$match" << BSON("a" << 2));
+    BSONObj newStage2 = BSON("$limit" << 5);
+
+    std::vector<std::unique_ptr<LiteParsedDocumentSource>> replacements;
+    replacements.push_back(LiteParsedDocumentSource::parse(kResolvedNss, newStage1));
+    replacements.push_back(LiteParsedDocumentSource::parse(kResolvedNss, newStage2));
+    for (auto& stage : replacements) {
+        stage->makeOwned();
+    }
+    viewInfo.viewPipeline->replaceStageWith(0, std::move(replacements));
+
+    // getOriginalBson() should still return the original, unmodified pipeline.
+    auto original = viewInfo.getOriginalBson();
+    ASSERT_EQ(original.size(), 1U);
+    ASSERT_BSONOBJ_EQ(original[0], viewStages[0]);
+
+    // getSerializedViewPipeline() should reflect the modified (desugared) pipeline.
+    auto serialized = viewInfo.getSerializedViewPipeline();
+    ASSERT_EQ(serialized.size(), 2U);
+    ASSERT_BSONOBJ_EQ(serialized[0], newStage1);
+    ASSERT_BSONOBJ_EQ(serialized[1], newStage2);
+}
+
 TEST(LiteParsedPipelineTest, ClonedPipelineWithViewStagesPreservesOwnership) {
     // Create a pipeline with view stages stitched in.
     LiteParsedPipeline original(kTestNss, std::vector<BSONObj>{BSON("$sort" << BSON("x" << 1))});
@@ -284,4 +333,3 @@ TEST_F(LiteParsedPipelineViewPolicyTest, PrependWhenDefaultPrependIsTrueForAllSt
 }
 
 }  // namespace mongo
-

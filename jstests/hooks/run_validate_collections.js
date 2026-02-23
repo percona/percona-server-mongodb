@@ -78,7 +78,9 @@ if (requiredFCV) {
     assert.commandWorked(adminDB.runCommand({setFeatureCompatibilityVersion: requiredFCV, confirm: true}));
 }
 
-new CollectionValidator().validateNodes(hostList);
+const deduplicatedHostList = [...new Set(hostList)];
+
+new CollectionValidator().validateNodes(deduplicatedHostList);
 
 if (originalFCV && originalFCV.version !== requiredFCV) {
     assert.commandWorked(adminDB.runCommand({setFeatureCompatibilityVersion: originalFCV.version, confirm: true}));

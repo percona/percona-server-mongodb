@@ -11,7 +11,6 @@ resmoke_suite_test(
     ],
     config = "//buildscripts/resmokeconfig:suites/concurrency.yml",
     data = [
-        "//buildscripts/resmokeconfig:common_jstest_data",
         "//jstests/concurrency/fsm_libs:all_subpackage_javascript_files",
         "//jstests/concurrency/fsm_utils:all_subpackage_javascript_files",
         "//jstests/concurrency/fsm_workload_helpers:all_subpackage_javascript_files",
@@ -36,7 +35,6 @@ resmoke_suite_test(
     ],
     config = "//buildscripts/resmokeconfig:suites/core.yml",
     data = [
-        "//buildscripts/resmokeconfig:common_jstest_data",
         "//jstests/core/libs:raw_operation_utils.js",
         "//jstests/core/timeseries/libs:timeseries.js",
     ],
@@ -164,7 +162,6 @@ resmoke_suite_test(
     ],
     config = "//buildscripts/resmokeconfig:suites/no_passthrough.yml",
     data = [
-        "//buildscripts/resmokeconfig:common_jstest_data",
         "//jstests/core/txns/libs:all_javascript_files",
         "//jstests/noPassthrough/libs:all_subpackage_javascript_files",
         "//jstests/replsets:rslib.js",

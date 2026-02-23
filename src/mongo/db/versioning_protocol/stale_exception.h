@@ -66,7 +66,9 @@ public:
           _wanted(wanted),
           _shardId(shardId),
           _criticalSectionSignal(std::move(criticalSectionSignal)),
-          _duringOperationType{duringOperationType} {}
+          _duringOperationType{duringOperationType} {
+        tassert(11993000, "Invalid ShardId.", shardId.isValid());
+    }
 
     const auto& getNss() const {
         return _nss;

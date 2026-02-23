@@ -71,6 +71,15 @@ enum class ValidateMode {
     // to the number of records (as opposed to correcting the fast count if it is incorrect).
     kForegroundFullEnforceFastCount,
 
+    // The full index and record store validation above, plus enforce that the fast size is equal
+    // to the size of the records (as opposed to correcting the fast size if it is incorrect).
+    kForegroundFullEnforceFastSize,
+
+    // The full index and record store validation above, plus enforce that the fast count is equal
+    // to the number of records and the fast size is equal to the size of these records. (as opposed
+    // to correcting the fast count/size if they are incorrect).
+    kForegroundFullEnforceFastCountAndSize,
+
     // Performs an extended validate where a total collection hash is computed and returned,
     // alongside the behavior performed in kForegroundFull.
     kCollectionHash,
@@ -86,7 +95,7 @@ enum class ValidateMode {
  * When set to kFixErrors, if any validation errors are detected, repairs are attempted and the
  * 'repaired' flag in ValidateResults will be set to true. If all errors are fixed, then 'valid'
  * will also be set to true. kFixErrors is incompatible with the ValidateModes kBackground and
- * kForegroundFullEnforceFastCount. This implies kAdjustMultikey.
+ * kForegroundFullEnforceFast[Count|Size|CountAndSize]. This implies kAdjustMultikey.
  *
  * When set to kAdjustMultikey, if any permissible, yet undesirable multikey inconsistencies are
  * detected, then the multikey metadata will be adjusted. The 'repaired' flag will be set if any
@@ -126,7 +135,9 @@ public:
     bool isFullValidation() const {
         return _validateMode == ValidateMode::kForegroundFull ||
             _validateMode == ValidateMode::kForegroundFullCheckBSON ||
-            _validateMode == ValidateMode::kForegroundFullEnforceFastCount;
+            _validateMode == ValidateMode::kForegroundFullEnforceFastCount ||
+            _validateMode == ValidateMode::kForegroundFullEnforceFastSize ||
+            _validateMode == ValidateMode::kForegroundFullEnforceFastCountAndSize;
     }
 
     bool isFullIndexValidation() const {
@@ -158,7 +169,18 @@ public:
      * ValidateState::shouldEnforceFastCount().
      */
     bool enforceFastCountRequested() const {
-        return _validateMode == ValidateMode::kForegroundFullEnforceFastCount;
+        return _validateMode == ValidateMode::kForegroundFullEnforceFastCount ||
+            _validateMode == ValidateMode::kForegroundFullEnforceFastCountAndSize;
+    }
+
+    /**
+     * Returns true iff the validation was *asked* to enforce the fast size, whether it actually
+     * does depends on what collection is being validated and what the other options are. See
+     * ValidateState::shouldEnforceFastCountOrSize().
+     */
+    bool enforceFastSizeRequested() const {
+        return _validateMode == ValidateMode::kForegroundFullEnforceFastSize ||
+            _validateMode == ValidateMode::kForegroundFullEnforceFastCountAndSize;
     }
 
     const boost::optional<Timestamp>& getReadTimestamp() const {
@@ -188,7 +210,7 @@ public:
     /**
      * Indicates whether extra logging should occur during validation.
      */
-    bool logDiagnostics() {
+    bool logDiagnostics() const {
         return _logDiagnostics;
     }
 
@@ -201,22 +223,22 @@ public:
     }
 
 private:
-    const ValidateMode _validateMode;
+    ValidateMode _validateMode;
 
-    const RepairMode _repairMode;
+    RepairMode _repairMode;
 
     // Can be set to obtain better insight into what validate sees/does.
-    const bool _logDiagnostics;
+    bool _logDiagnostics;
 
-    const ValidationVersion _validationVersion;
+    ValidationVersion _validationVersion;
 
-    const boost::optional<std::string> _verifyConfigurationOverride;
+    boost::optional<std::string> _verifyConfigurationOverride;
 
-    const boost::optional<Timestamp> _readTimestamp;
+    boost::optional<Timestamp> _readTimestamp;
 
-    const boost::optional<std::vector<std::string>> _hashPrefixes;
+    boost::optional<std::vector<std::string>> _hashPrefixes;
 
-    const boost::optional<std::vector<std::string>> _revealHashedIds;
+    boost::optional<std::vector<std::string>> _revealHashedIds;
 };
 
 }  // namespace mongo::CollectionValidation

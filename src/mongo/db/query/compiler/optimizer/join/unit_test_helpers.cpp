@@ -31,6 +31,7 @@
 
 #include "mongo/db/pipeline/expression_context_builder.h"
 #include "mongo/db/query/compiler/ce/sampling/sampling_estimator_impl.h"
+#include "mongo/db/query/compiler/optimizer/join/catalog_stats.h"
 
 namespace mongo::join_ordering {
 
@@ -63,6 +64,17 @@ std::vector<std::shared_ptr<const IndexCatalogEntry>> makeIndexCatalogEntries(
     auto ic = makeIndexCatalog(keyPatterns);
     std::vector<std::shared_ptr<const IndexCatalogEntry>> idxs(keyPatterns.size());
     return ic.getEntriesShared(IndexCatalog::InclusionPolicy::kReady);
+}
+
+UniqueFieldInformation buildUniqueFieldInfo(const std::vector<BSONObj>& uniqueKeyPatterns) {
+    UniqueFieldSets uniqueFieldSets;
+    FieldToBit ftb;
+    for (const auto& kp : uniqueKeyPatterns) {
+        auto ufs = buildUniqueFieldSetForIndex(kp, ftb);
+        ASSERT(ufs);
+        uniqueFieldSets.insert(*ufs);
+    }
+    return UniqueFieldInformation{.fieldToBit = ftb, .uniqueFieldSet = uniqueFieldSets};
 }
 
 MultipleCollectionAccessor multipleCollectionAccessor(OperationContext* opCtx,
@@ -137,7 +149,7 @@ std::unique_ptr<ce::SamplingEstimator> JoinOrderingTestFixture::samplingEstimato
         nss,
         PlanYieldPolicy::YieldPolicy::YIELD_MANUAL,
         sampleSize,
-        ce::SamplingEstimatorImpl::SamplingStyle::kRandom,
+        SamplingCEMethodEnum::kRandom,
         boost::none,
         CardinalityEstimate{CardinalityType{static_cast<double>(size)}, EstimationSource::Code});
     samplingEstimator->generateSample(ce::NoProjection{});

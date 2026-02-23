@@ -54,7 +54,7 @@ private:
     const bool _initialState;
 };
 
-bool alwaysAllowNonLocalWrites(const OperationContext* opCtx);
+MONGO_MOD_PUB bool alwaysAllowNonLocalWrites(const OperationContext* opCtx);
 
 }  // namespace repl
 }  // namespace mongo

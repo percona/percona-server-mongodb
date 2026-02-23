@@ -436,7 +436,10 @@ public:
      * reported in the connection pool stats.
      */
     void recordConnectionWaitTime(WithLock, Date_t requestedAt) {
-        _connAcquisitionWaitTimeStats.increment(_parent->_factory->now() - requestedAt);
+        auto waitTime = _parent->_factory->now() - requestedAt;
+        _connAcquisitionWaitTimeStats.increment(waitTime);
+        _connectionAcquisitionAttempts += 1;
+        _connectionAcquisitionWaitTime += waitTime;
     }
 
     /**
@@ -445,7 +448,15 @@ public:
      */
     const ConnectionWaitTimeHistogram& connectionWaitTimeStats(WithLock) {
         return _connAcquisitionWaitTimeStats;
-    };
+    }
+
+    size_t connectionAcquisitionAttempts(WithLock) {
+        return _connectionAcquisitionAttempts;
+    }
+
+    Milliseconds connectionAcquisitionWaitTime(WithLock) {
+        return _connectionAcquisitionWaitTime;
+    }
 
     /**
      * Returns the HostAndPort for this pool.
@@ -628,6 +639,8 @@ private:
     Milliseconds _totalConnUsageTime{0};
 
     ConnectionWaitTimeHistogram _connAcquisitionWaitTimeStats{};
+    size_t _connectionAcquisitionAttempts{0};
+    Milliseconds _connectionAcquisitionWaitTime{0};
 
     // Indicates connections associated with this HostAndPort should be kept open.
     bool _keepOpen = true;
@@ -885,6 +898,8 @@ void ConnectionPool::appendConnectionStats(ConnectionPoolStats* stats) const {
                                      pool->getTotalConnUsageTime(lk),
                                      pool->rejectedConnectionsRequests(lk),
                                      pool->requestsPending(lk),
+                                     pool->connectionAcquisitionAttempts(lk),
+                                     pool->connectionAcquisitionWaitTime(lk),
                                      pool->state(lk)};
 
         hostStats.acquisitionWaitTimes = pool->connectionWaitTimeStats(lk);

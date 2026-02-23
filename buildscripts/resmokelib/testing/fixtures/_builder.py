@@ -4,7 +4,7 @@ import json
 import logging
 import threading
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional, Tuple, Type
+from typing import Any, Optional
 
 from buildscripts.resmokelib import config, errors, logging
 from buildscripts.resmokelib.suitesconfig import _get_suite_config
@@ -143,8 +143,8 @@ class FixtureContainer(object):
 
 
 def _extract_multiversion_options(
-    kwargs: Dict[str, Any],
-) -> Tuple[Optional[List[str]], Optional[str]]:
+    kwargs: dict[str, Any],
+) -> tuple[Optional[list[str]], Optional[str]]:
     """Pop multiversion options from kwargs dict and return them.
 
     :param kwargs: fixture kwargs
@@ -176,9 +176,9 @@ class ReplSetBuilder(FixtureBuilder):
         self,
         logger: logging.Logger,
         job_num: int,
-        fixturelib: Type[FixtureLib],
+        fixturelib: type[FixtureLib],
         *args,
-        existing_nodes: Optional[List[MongoDFixture]] = None,
+        existing_nodes: Optional[list[MongoDFixture]] = None,
         **kwargs,
     ) -> ReplicaSetFixture:
         """Build a replica set.
@@ -269,7 +269,7 @@ class ReplSetBuilder(FixtureBuilder):
         return replset
 
     @staticmethod
-    def _mutate_kwargs(kwargs: Dict[str, Any]) -> None:
+    def _mutate_kwargs(kwargs: dict[str, Any]) -> None:
         """Update replica set fixture kwargs.
 
         :param kwargs: replica set fixture kwargs
@@ -287,7 +287,7 @@ class ReplSetBuilder(FixtureBuilder):
 
     @staticmethod
     def _validate_multiversion_options(
-        kwargs: Dict[str, Any], mixed_bin_versions: Optional[List[str]]
+        kwargs: dict[str, Any], mixed_bin_versions: Optional[list[str]]
     ) -> None:
         """Error out if the number of binary versions does not match the number of nodes in replica set.
 
@@ -311,10 +311,10 @@ class ReplSetBuilder(FixtureBuilder):
     @classmethod
     def _get_mongod_assets(
         cls,
-        kwargs: Dict[str, Any],
-        mixed_bin_versions: Optional[List[str]],
+        kwargs: dict[str, Any],
+        mixed_bin_versions: Optional[list[str]],
         old_bin_version: Optional[str],
-    ) -> Tuple[Dict[str, str], Dict[str, str], List[str]]:
+    ) -> tuple[dict[str, str], dict[str, str], list[str]]:
         """Make dicts with mongod new/old class and executable names and binary versions.
 
         :param kwargs: sharded cluster fixture kwargs
@@ -365,7 +365,7 @@ class ReplSetBuilder(FixtureBuilder):
     def _new_mongod(
         replset: ReplicaSetFixture,
         replset_node_index: int,
-        executables: Dict[str, str],
+        executables: dict[str, str],
         _class: str,
         cur_version: str,
         is_multiversion: bool,
@@ -442,7 +442,7 @@ class ShardedClusterBuilder(FixtureBuilder):
     LATEST_MONGOS_CLASS = "_MongoSFixture"
 
     def build_fixture(
-        self, logger: logging.Logger, job_num: int, fixturelib: Type[FixtureLib], *args, **kwargs
+        self, logger: logging.Logger, job_num: int, fixturelib: type[FixtureLib], *args, **kwargs
     ) -> ShardedClusterFixture:
         """Build a sharded cluster.
 
@@ -546,7 +546,7 @@ class ShardedClusterBuilder(FixtureBuilder):
         return sharded_cluster
 
     @staticmethod
-    def _mutate_kwargs(kwargs: Dict[str, Any]) -> None:
+    def _mutate_kwargs(kwargs: dict[str, Any]) -> None:
         """Update sharded cluster fixture kwargs.
 
         :param kwargs: sharded cluster fixture kwargs
@@ -585,7 +585,7 @@ class ShardedClusterBuilder(FixtureBuilder):
 
     @staticmethod
     def _validate_multiversion_options(
-        kwargs: Dict[str, Any], mixed_bin_versions: Optional[List[str]]
+        kwargs: dict[str, Any], mixed_bin_versions: Optional[list[str]]
     ) -> None:
         """Error out if the number of binary versions does not match the number of nodes in sharded cluster.
 
@@ -606,10 +606,10 @@ class ShardedClusterBuilder(FixtureBuilder):
     @classmethod
     def _get_mongos_assets(
         cls,
-        kwargs: Dict[str, Any],
-        mixed_bin_versions: Optional[List[str]],
+        kwargs: dict[str, Any],
+        mixed_bin_versions: Optional[list[str]],
         old_bin_version: Optional[str],
-    ) -> Tuple[Dict[str, str], Dict[str, str]]:
+    ) -> tuple[dict[str, str], dict[str, str]]:
         """Make dicts with mongos new/old class and executable names.
 
         :param kwargs: sharded cluster fixture kwargs
@@ -670,7 +670,7 @@ class ShardedClusterBuilder(FixtureBuilder):
     @staticmethod
     def _new_rs_shard(
         sharded_cluster: ShardedClusterFixture,
-        mixed_bin_versions: Optional[List[str]],
+        mixed_bin_versions: Optional[list[str]],
         old_bin_version: Optional[str],
         rs_shard_index: int,
         num_rs_nodes_per_shard: int,
@@ -713,7 +713,7 @@ class ShardedClusterBuilder(FixtureBuilder):
     @staticmethod
     def _new_mongos(
         sharded_cluster: ShardedClusterFixture,
-        executables: Dict[str, str],
+        executables: dict[str, str],
         _class: str,
         mongos_index: int,
         total: int,

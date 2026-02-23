@@ -27,13 +27,12 @@
 """Library functions and utility methods used across user-facing IDL scripts."""
 
 import os
-from typing import List, Set
 
 from buildscripts.idl.idl import parser, syntax
 from buildscripts.idl.idl.compiler import CompilerImportResolver
 
 
-def list_idls(directory: str) -> Set[str]:
+def list_idls(directory: str) -> set[str]:
     """Find all IDL files in the current directory."""
     return {
         os.path.join(dirpath, filename)
@@ -43,7 +42,7 @@ def list_idls(directory: str) -> Set[str]:
     }
 
 
-def parse_idl(idl_path: str, import_directories: List[str]) -> syntax.IDLParsedSpec:
+def parse_idl(idl_path: str, import_directories: list[str]) -> syntax.IDLParsedSpec:
     """Parse an IDL file or throw an error."""
     parsed_doc = parser.parse(open(idl_path), idl_path, CompilerImportResolver(import_directories))
 
@@ -65,7 +64,7 @@ def is_third_party_idl(idl_path: str) -> bool:
     return False
 
 
-def get_all_feature_flags(idl_dirs: List[str] = None):
+def get_all_feature_flags(idl_dirs: list[str] = None):
     """Generate a dict of all feature flags with their default value."""
     default_idl_dirs = ["src", "buildscripts"]
 

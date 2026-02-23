@@ -32,7 +32,6 @@ Used by resmoke.py to run only feature flag tests.
 
 import os
 import sys
-from typing import List
 
 import typer
 import yaml
@@ -44,7 +43,7 @@ from buildscripts.idl import lib
 from buildscripts.idl.idl import binder
 
 
-def get_all_feature_flags_turned_on_by_default(idl_dirs: List[str] = None):
+def get_all_feature_flags_turned_on_by_default(idl_dirs: list[str] = None):
     """Generate a list of all feature flags that default to true."""
     all_flags = lib.get_all_feature_flags(idl_dirs)
 
@@ -53,7 +52,7 @@ def get_all_feature_flags_turned_on_by_default(idl_dirs: List[str] = None):
     ]
 
 
-def get_all_feature_flags_turned_off_by_default(idl_dirs: List[str] = None):
+def get_all_feature_flags_turned_off_by_default(idl_dirs: list[str] = None):
     """Generate a list of all feature flags that default to false."""
     all_flags = lib.get_all_feature_flags(idl_dirs)
     all_default_false_flags = [
@@ -70,7 +69,7 @@ def get_all_feature_flags_turned_off_by_default(idl_dirs: List[str] = None):
     return list(set(all_default_false_flags) - set(force_disabled_flags))
 
 
-def get_all_unreleased_ifr_feature_flags(idl_dirs: List[str] = None):
+def get_all_unreleased_ifr_feature_flags(idl_dirs: list[str] = None):
     """Generate a list of all features flags in the 'in_development' incremental rollout phase."""
     all_flags = lib.get_all_feature_flags(idl_dirs)
 
@@ -81,7 +80,7 @@ def get_all_unreleased_ifr_feature_flags(idl_dirs: List[str] = None):
     ]
 
 
-def write_feature_flags_to_file(flags: List[str], filename: str):
+def write_feature_flags_to_file(flags: list[str], filename: str):
     """Helper function to write feature flags to a file."""
     with open(filename, "w") as output_file:
         output_file.write("\n".join(flags))

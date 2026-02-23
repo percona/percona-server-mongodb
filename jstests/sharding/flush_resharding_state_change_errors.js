@@ -1,8 +1,16 @@
 /**
  * Tests that _flushReshardingStateChange command retries sharding metadata refresh on transient
  * errors until there is a failover.
+ * @tags: [
+ *   # The future-git-tag variant runs dist-test/bin/mongod with a fictional FCV=100.0,
+ *   # causing the FCV-gated featureFlagReshardingCloneNoRefresh to appear disabled
+ *   # even when set via setParameter.
+ *   # TODO (SERVER-118488): Remove once the feature flag has an explicit version.
+ *   future_git_tag_incompatible,
+ * ]
  */
 import {configureFailPoint} from "jstests/libs/fail_point_util.js";
+import {FeatureFlagUtil} from "jstests/libs/feature_flag_util.js";
 import {Thread} from "jstests/libs/parallelTester.js";
 import {ShardingTest} from "jstests/libs/shardingtest.js";
 
@@ -174,8 +182,17 @@ function testStopRetryingOnFailover(st, {enableCloneNoRefresh}) {
 
     jsTest.log("Waiting for _flushReshardingStateChange on shard0 to start retrying on refresh errors");
     assertSoonFlushReshardingStateChangeStartRetryingOnRefreshErrors(primary0BeforeFailover);
-    jsTest.log("Waiting for _flushReshardingStateChange to shard1 to start retrying on refresh errors");
-    assertSoonFlushReshardingStateChangeStartRetryingOnRefreshErrors(primary1BeforeFailover);
+
+    const skipCloningAndApplyingEnabled = FeatureFlagUtil.isPresentAndEnabled(
+        st.s,
+        "ReshardingSkipCloningAndApplyingIfApplicable",
+    );
+    if (!(enableCloneNoRefresh && skipCloningAndApplyingEnabled)) {
+        // With both features enabled, recipient shards do not receive _flushReshardingStateChange and
+        // the coordinator uses other commands instead, so refresh-error retry verification is unnecessary.
+        jsTest.log("Waiting for _flushReshardingStateChange to shard1 to start retrying on refresh errors");
+        assertSoonFlushReshardingStateChangeStartRetryingOnRefreshErrors(primary1BeforeFailover);
+    }
 
     jsTest.log("Triggering a failover on shard0");
     stepUpNewPrimary(st.rs0);
@@ -225,6 +242,4 @@ function runTests({enableCloneNoRefresh}) {
 }
 
 runTests({enableCloneNoRefresh: false});
-// TODO (SERVER-108476): Make flush_resharding_state_change_errors.js test
-// featureFlagReshardingCloneNoRefresh: true again.
-// runTests({enableCloneNoRefresh: true});
+runTests({enableCloneNoRefresh: true});

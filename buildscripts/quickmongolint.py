@@ -6,7 +6,6 @@ import logging
 import os
 import re
 import sys
-from typing import List
 
 # Get relative imports to work when the package is not installed on the PYTHONPATH.
 if __name__ == "__main__" and __package__ is None:
@@ -33,7 +32,7 @@ def is_interesting_file(file_name: str) -> bool:
     ) and FILES_RE.search(file_name)
 
 
-def _lint_files(file_names: List[str]) -> None:
+def _lint_files(file_names: list[str]) -> None:
     """Lint a list of files with clang-format."""
 
     def run_lint1(param1):
@@ -53,7 +52,7 @@ def lint_patch(file_name: str) -> None:
         _lint_files(file_names)
 
 
-def lint(file_names: List[str]) -> None:
+def lint(file_names: list[str]) -> None:
     # type: (str, Dict[str, str], List[str]) -> None
     """Lint files command entry point."""
     all_file_names = git.get_files_to_check(file_names, is_interesting_file)
@@ -61,14 +60,14 @@ def lint(file_names: List[str]) -> None:
     _lint_files(all_file_names)
 
 
-def lint_all(file_names: List[str]) -> None:
+def lint_all(file_names: list[str]) -> None:
     """Lint files command entry point based on working tree."""
     all_file_names = git.get_files_to_check_working_tree(is_interesting_file)
 
     _lint_files(all_file_names)
 
 
-def lint_my(origin_branch: List[str]) -> None:
+def lint_my(origin_branch: list[str]) -> None:
     """Lint files command based on local changes."""
     files = git.get_my_files_to_check(is_interesting_file, origin_branch)
     files = [f for f in files if os.path.exists(f)]

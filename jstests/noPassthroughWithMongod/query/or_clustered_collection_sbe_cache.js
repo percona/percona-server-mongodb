@@ -3,7 +3,7 @@
  * CLUSTERED_IXSCAN stages does not use the SBE plan cache.
  */
 import {assertDropCollection} from "jstests/libs/collection_drop_recreate.js";
-import {checkSbeFullFeatureFlagEnabled} from "jstests/libs/query/sbe_util.js";
+import {sbePlanCacheEnabled} from "jstests/libs/query/sbe_util.js";
 
 const mongod = MongoRunner.runMongod();
 const dbName = "test";
@@ -120,7 +120,7 @@ validatePlanCacheEntries({
 
 // Validate queries that just use a collection scan still get cached. We are checking the SBE cache,
 // and don't expect it to increment for classic.
-const incrementCache = checkSbeFullFeatureFlagEnabled(db) ? 1 : 0;
+const incrementCache = sbePlanCacheEnabled(db) ? 1 : 0;
 validatePlanCacheEntries({
     increment: incrementCache,
     query: coll.find({_id: {$gte: 4}}),

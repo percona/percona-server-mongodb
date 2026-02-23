@@ -8,7 +8,7 @@ import os
 import pathlib
 import sys
 import textwrap
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Optional
 
 import structlog
 from git import Repo
@@ -27,7 +27,7 @@ from buildscripts.patch_builds.change_data import (
 
 
 # Console renderer for structured logging
-def renderer(_logger: logging.Logger, _name: str, eventdict: Dict[Any, Any]) -> str:
+def renderer(_logger: logging.Logger, _name: str, eventdict: dict[Any, Any]) -> str:
     if "files" in eventdict:
         return "{event}: {files}".format(**eventdict)
     if "repo" in eventdict:
@@ -54,7 +54,7 @@ LOGGER = structlog.get_logger(__name__)
 MONGO_REVISION_ENV_VAR = "REVISION"
 
 
-def _get_repos_and_revisions() -> Tuple[List[Repo], RevisionMap]:
+def _get_repos_and_revisions() -> tuple[list[Repo], RevisionMap]:
     """Get the repo object and a map of revisions to compare against."""
 
     repo_dir = os.environ.get("BUILD_WORKSPACE_DIRECTORY", None)
@@ -67,7 +67,7 @@ def _get_repos_and_revisions() -> Tuple[List[Repo], RevisionMap]:
     return repos, revision_map
 
 
-def git_changed_files(excludes: List[pathlib.Path]) -> List[pathlib.Path]:
+def git_changed_files(excludes: list[pathlib.Path]) -> list[pathlib.Path]:
     """
     Get the files that have changes since the last git commit.
 
@@ -95,7 +95,7 @@ def git_changed_files(excludes: List[pathlib.Path]) -> List[pathlib.Path]:
     return files
 
 
-def diff_file_sizes(size_limit: int, excludes: Optional[List[str]] = None) -> List[pathlib.Path]:
+def diff_file_sizes(size_limit: int, excludes: Optional[list[str]] = None) -> list[pathlib.Path]:
     if excludes is None:
         excludes = []
 

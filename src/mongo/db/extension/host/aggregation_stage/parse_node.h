@@ -85,16 +85,16 @@ private:
  * ::MongoExtensionAggStageParseNode interface and layout as dictated by the public API.
  * Any polymorphic behavior must be deferred to and implemented by the AggStageParseNode.
  *
- * WARNING: Do not use the HostAggStageParseNode vtable functions. They are unimplemented.
- * Future work will enable a HostAggStageParseNode to expand into a host-implemented
+ * WARNING: Do not use the HostAggStageParseNodeAdapter vtable functions. They are unimplemented.
+ * Future work will enable a HostAggStageParseNodeAdapter to expand into a host-implemented
  * LiteParsedDocumentSource and thus provide an implementation for `getQueryShape`, `expand`, etc.
  */
-class HostAggStageParseNode final : public ::MongoExtensionAggStageParseNode {
+class HostAggStageParseNodeAdapter final : public ::MongoExtensionAggStageParseNode {
 public:
-    HostAggStageParseNode(std::unique_ptr<AggStageParseNode> parseNode)
+    HostAggStageParseNodeAdapter(std::unique_ptr<AggStageParseNode> parseNode)
         : ::MongoExtensionAggStageParseNode(&VTABLE), _parseNode(std::move(parseNode)) {}
 
-    ~HostAggStageParseNode() = default;
+    ~HostAggStageParseNodeAdapter() = default;
 
     /**
      * The underlying bytes are owned by this AggStageParseNode. The returned BSONObj
@@ -108,12 +108,12 @@ public:
     /**
      * Specifies whether the provided parse node was allocated by the host.
      *
-     * Since ExtensionAggStageParseNode and HostAggStageParseNode implement the same
+     * Since ExtensionAggStageParseNodeAdapter and HostAggStageParseNodeAdapter implement the same
      * vtable, this function is necessary for differentiating between host- and extension-allocated
      * parse nodes.
      *
      * Use this function to check if a parse node is host-allocated before casting a
-     * MongoExtensionAggStageParseNode to a HostAggStageParseNode.
+     * MongoExtensionAggStageParseNode to a HostAggStageParseNodeAdapter.
      */
     static inline bool isHostAllocated(::MongoExtensionAggStageParseNode& parseNode) {
         return parseNode.vtable == &VTABLE;
@@ -133,12 +133,12 @@ private:
     }
 
     static void _hostDestroy(::MongoExtensionAggStageParseNode* parseNode) noexcept {
-        delete static_cast<HostAggStageParseNode*>(parseNode);
+        delete static_cast<HostAggStageParseNodeAdapter*>(parseNode);
     }
 
     static ::MongoExtensionByteView _hostGetName(
         const ::MongoExtensionAggStageParseNode* parseNode) noexcept {
-        return stringDataAsByteView(static_cast<const HostAggStageParseNode*>(parseNode)
+        return stringDataAsByteView(static_cast<const HostAggStageParseNodeAdapter*>(parseNode)
                                         ->getBsonSpec()
                                         .firstElementFieldNameStringData());
     }
@@ -154,7 +154,8 @@ private:
                     host_connector::QueryShapeOptsAdapter::isHostAllocated(*ctx));
 
             *queryShape = nullptr;
-            auto bsonSpec = static_cast<const HostAggStageParseNode*>(parseNode)->getBsonSpec();
+            auto bsonSpec =
+                static_cast<const HostAggStageParseNodeAdapter*>(parseNode)->getBsonSpec();
 
             // TODO SERVER-117619: Remove expression context from QueryShapeOptsAdapter once you can
             // generate a query shape without going to DocumentSource.
@@ -194,14 +195,14 @@ private:
     static ::MongoExtensionStatus* _hostClone(const ::MongoExtensionAggStageParseNode* parseNode,
                                               ::MongoExtensionAggStageParseNode** output) noexcept {
         return wrapCXXAndConvertExceptionToStatus([&]() {
-            auto* hostParseNode = static_cast<const HostAggStageParseNode*>(parseNode);
+            auto* hostParseNode = static_cast<const HostAggStageParseNodeAdapter*>(parseNode);
             auto clonedParseNode =
                 std::make_unique<AggStageParseNode>(hostParseNode->getBsonSpec());
-            *output = new HostAggStageParseNode(std::move(clonedParseNode));
+            *output = new HostAggStageParseNodeAdapter(std::move(clonedParseNode));
         });
     }
 
-    static constexpr ::MongoExtensionAggStageParseNodeVTable VTABLE{
+    static constexpr ::MongoExtensionAggStageParseNodeVTable VTABLE = {
         .destroy = &_hostDestroy,
         .get_name = &_hostGetName,
         .get_query_shape = &_hostGetQueryShape,

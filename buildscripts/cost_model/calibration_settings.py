@@ -33,7 +33,13 @@ import random
 import config
 import numpy as np
 import pandas as pd
-from random_generator import ArrayRandomDistribution, DataType, RandomDistribution, RangeGenerator
+from random_generator import (
+    ArrayRandomDistribution,
+    DataType,
+    RandomDistribution,
+    RangeGenerator,
+    StringRandomDistribution,
+)
 
 __all__ = ["main_config", "distributions"]
 
@@ -85,15 +91,6 @@ def generate_random_str(num: int):
         str_list.append(str_res)
 
     return str_list
-
-
-def random_strings_distr(size: int, count: int):
-    distr = ArrayRandomDistribution(
-        RandomDistribution.uniform([size]),
-        RandomDistribution.uniform(RangeGenerator(DataType.STRING, "a", "z")),
-    )
-
-    return RandomDistribution.uniform(["".join(s) for s in distr.generate(count)])
 
 
 small_string_choice = generate_random_str(20)
@@ -197,7 +194,7 @@ def create_coll_scan_collection_template(
     template.fields.extend(filter_fields)
 
     if payload_size > 0:
-        payload_distr = random_strings_distr(payload_size, 1000)
+        payload_distr = StringRandomDistribution(payload_size, pool_size=1000)
         template.fields.append(
             config.FieldTemplate(
                 name="payload",
@@ -279,7 +276,7 @@ def create_indexed_fields_template(
             config.FieldTemplate(
                 name="sort_field",
                 data_type=config.DataType.STRING,
-                distribution=random_strings_distr(10, 1000),
+                distribution=StringRandomDistribution(10, pool_size=1000),
                 indexed=False,
             )
         )

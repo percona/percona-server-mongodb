@@ -34,7 +34,7 @@ Common error handling code for IDL compatibility checker.
 
 import inspect
 import sys
-from typing import List, Optional
+from typing import Optional
 
 # Public error codes used by IDL compatibility checker.
 # Used by tests cases to validate expected errors are thrown in negative tests.
@@ -188,7 +188,7 @@ class IDLCompatibilityErrorCollection(object):
 
     def __init__(self) -> None:
         """Initialize IDLCompatibilityErrorCollection."""
-        self._errors: List[IDLCompatibilityError] = []
+        self._errors: list[IDLCompatibilityError] = []
 
     def add(
         self,
@@ -236,11 +236,11 @@ class IDLCompatibilityErrorCollection(object):
         assert error is not None
         return error
 
-    def get_all_errors_by_command_name(self, command_name: str) -> List[IDLCompatibilityError]:
+    def get_all_errors_by_command_name(self, command_name: str) -> list[IDLCompatibilityError]:
         """Get all the errors in the error collection with the command command_name."""
         return [a for a in self._errors if a.command_name == command_name]
 
-    def to_list(self) -> List[str]:
+    def to_list(self) -> list[str]:
         """Return a list of formatted error messages."""
         return [str(error) for error in self._errors]
 

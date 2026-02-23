@@ -36,12 +36,16 @@
 
 #include <cstddef>
 
+#include <boost/optional/optional.hpp>
+
 namespace mongo {
 class MONGO_MOD_NEEDS_REPLACEMENT ZlibMessageCompressor final : public MessageCompressorBase {
 public:
     ZlibMessageCompressor();
 
     std::size_t getMaxCompressedSize(size_t inputSize) override;
+
+    boost::optional<std::size_t> getMaxDecompressedSize(ConstDataRange input) override;
 
     StatusWith<std::size_t> compressData(ConstDataRange input, DataRange output) override;
 

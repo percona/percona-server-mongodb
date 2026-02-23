@@ -214,6 +214,8 @@ class DistributionType(Enum):
     CHI2 = 2  # NONCENTRAL_CHISQUARE
     UNIFORM = 3
     MIXDIST = 4
+    SEQUENTIAL = 5
+    PERMUTATION = 6
 
     def __str__(self):
         return self.name.lower()
@@ -303,6 +305,18 @@ class RandomDistribution:
             distribution_type=DistributionType.MIXDIST, values=children, weights=weight
         )
 
+    @staticmethod
+    def sequential(values: Union[Sequence[TVar], RangeGenerator]):
+        return RandomDistribution(
+            distribution_type=DistributionType.SEQUENTIAL, values=values, weights=None
+        )
+
+    @staticmethod
+    def permutation(values: Union[Sequence[TVar], RangeGenerator]):
+        return RandomDistribution(
+            distribution_type=DistributionType.PERMUTATION, values=values, weights=None
+        )
+
     def generate(self, size: int) -> Sequence[TVar]:
         """Generate random data sequence of the given size."""
 
@@ -334,6 +348,8 @@ class RandomDistribution:
             DistributionType.CHI2: RandomDistribution._noncentral_chisquare,
             DistributionType.UNIFORM: RandomDistribution._uniform,
             DistributionType.MIXDIST: RandomDistribution._mixed,
+            DistributionType.SEQUENTIAL: RandomDistribution._sequential,
+            DistributionType.PERMUTATION: RandomDistribution._permutation,
         }
 
         gen = generators.get(self.distribution_type)
@@ -425,6 +441,19 @@ class RandomDistribution:
 
         return list(chain.from_iterable(result))
 
+    @staticmethod
+    def _sequential(size: int, values: Sequence[TVar], _: Sequence[float]):
+        if size > len(values):
+            raise ValueError(f"Requested size {size} exceeds available values {len(values)}")
+        return list(values[:size])
+
+    @staticmethod
+    def _permutation(size: int, values: Sequence[TVar], _: Sequence[float]):
+        if size > len(values):
+            raise ValueError(f"Requested size {size} exceeds available values {len(values)}")
+        perm = _rng.permutation(len(values))[:size]
+        return [values[i] for i in perm]
+
 
 _NO_DEFAULT = object()
 
@@ -457,6 +486,32 @@ class ArrayRandomDistribution(RandomDistribution):
             values = self.value_distr.generate(length)
             arrays.append(values)
         return arrays
+
+
+@dataclass
+class StringRandomDistribution(RandomDistribution):
+    """Produces random strings of a specified length, sampled from a pre-generated pool."""
+
+    string_length: int = _NO_DEFAULT
+    pool_size: int = _NO_DEFAULT
+    inner: ArrayRandomDistribution = _NO_DEFAULT
+
+    def __init__(self, string_length: int, pool_size: int):
+        self.string_length = string_length
+        self.pool_size = pool_size
+        self.inner = ArrayRandomDistribution(
+            RandomDistribution.uniform([string_length]),
+            RandomDistribution.uniform(RangeGenerator(DataType.STRING, "a", "z")),
+        )
+        self.distribution_type = DistributionType.UNIFORM
+
+    def __str__(self):
+        return f"random_string_{self.string_length}"
+
+    def generate(self, size: int):
+        """Generate random string sequence of the given size by sampling from a pool."""
+        pool = ["".join(chars) for chars in self.inner.generate(self.pool_size)]
+        return RandomDistribution.uniform(pool).generate(size)
 
 
 @dataclass

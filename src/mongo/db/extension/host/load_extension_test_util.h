@@ -40,14 +40,14 @@ static inline const std::filesystem::path runFilesDir = std::getenv("RUNFILES_DI
  * Returns the directory containing extension shared libraries built for tests.
  */
 inline std::filesystem::path getExtensionDirectory() {
-    return "_main/src/mongo/db/extension/test_examples";
+    return runFilesDir / "_main/src/mongo/db/extension/test_examples";
 }
 
 /**
  * Computes the absolute path to a specific test extension shared library.
  */
 inline std::filesystem::path getExtensionPath(const std::string& extensionFileName) {
-    return runFilesDir / getExtensionDirectory() / extensionFileName;
+    return getExtensionDirectory() / extensionFileName;
 }
 
 /**

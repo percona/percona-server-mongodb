@@ -19,7 +19,6 @@ class CPPLibfuzzerTestCase(interface.ProcessTestCase):
         logger: logging.Logger,
         program_executables: list[str],
         program_options: Optional[dict] = None,
-        runs: int = 1000000,
         corpus_directory_stem="corpora",
     ):
         """Initialize the CPPLibfuzzerTestCase with the executable to run."""
@@ -32,10 +31,22 @@ class CPPLibfuzzerTestCase(interface.ProcessTestCase):
         self.program_executable = program_executables[0]
         self.program_options = utils.default_if_none(program_options, {}).copy()
 
-        self.runs = runs
+        # disable writing of profraw during fuzzing unless specifically asked for
+        self.program_options.setdefault("env_vars", {})
+        self.program_options["env_vars"].setdefault("LLVM_PROFILE_FILE", "/dev/null")
 
-        self.corpus_directory = f"{corpus_directory_stem}/corpus-{self.short_name()}"
-        self.merged_corpus_directory = f"{corpus_directory_stem}-merged/corpus-{self.short_name()}"
+        self.corpus_directory = corpus_directory_stem
+        self.seed_directory = os.path.join(
+            self.corpus_directory, self.short_name(), "LLVMFuzzer.TestOneInput", "seeds"
+        )
+
+        old_corpus_dir = f"{corpus_directory_stem}/corpus-{self.short_name()}"
+        if os.path.exists(old_corpus_dir):
+            os.makedirs(self.seed_directory, exist_ok=True)
+            os.rename(old_corpus_dir, self.seed_directory)
+
+        if not os.path.exists(self.seed_directory):
+            self.seed_directory = ""
 
         os.makedirs(self.corpus_directory, exist_ok=True)
 
@@ -44,10 +55,8 @@ class CPPLibfuzzerTestCase(interface.ProcessTestCase):
     def _make_process(self):
         default_args = [
             self.program_executable,
-            "-max_len=100000",
-            "-rss_limit_mb=5000",
-            "-max_total_time=3600",  # 1 hour is the maximum amount of time to allow a fuzzer to run
-            f"-runs={self.runs}",
-            self.corpus_directory,
+            "--fuzz_for=1h",
+            f"--corpus_database={self.corpus_directory}",
+            f"--llvm_fuzzer_wrapper_corpus_dir={self.seed_directory}",
         ]
         return core.programs.make_process(self.logger, default_args, **self.program_options)

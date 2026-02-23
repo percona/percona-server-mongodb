@@ -14,7 +14,7 @@ import re
 import shutil
 import subprocess
 import tempfile
-from typing import Any, Dict
+from typing import Any
 
 import mkdigest
 import OpenSSL
@@ -36,7 +36,7 @@ except:
 
 CONFIGFILE = "jstests/ssl/x509/certs.yml"
 
-CONFIG = Dict[str, Any]
+CONFIG = dict[str, Any]
 
 # tlsfeature = status_request isn't supported by older versions of OpenSSL so we manually define this below
 # 1.3.6.1.5.5.7.1.24: "tls_feature" extension as defined in https://tools.ietf.org/html/rfc7633#section-6

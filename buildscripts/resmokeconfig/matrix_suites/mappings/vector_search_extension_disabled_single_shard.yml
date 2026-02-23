@@ -3,4 +3,4 @@ description: Runs mongot e2e single shard tests with the $vectorSearch extension
 base_suite: mongot_e2e_single_shard
 overrides:
   - vector_search_extension.load_extension_sharded
-  - vector_search_extension.extension_disabled_single_shard
+  - vector_search_extension.extension_disabled_sharded_non_community

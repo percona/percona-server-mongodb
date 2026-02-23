@@ -186,6 +186,10 @@ public:
 
     void setCacheMaxWaitTimeout(Milliseconds) override;
 
+    Milliseconds getCacheMaxWaitTimeout() override {
+        return _cacheMaxWaitTimeout;
+    }
+
     void optOutOfCacheEviction() override {
         // 1 is a magic number in WiredTiger that opts this thread out of all optional eviction.
         setCacheMaxWaitTimeout(Milliseconds(1));
@@ -221,6 +225,11 @@ public:
     void setOplogVisibilityTs(boost::optional<int64_t> oplogVisibilityTs) override;
 
     void setOperationContext(OperationContext* opCtx) override;
+
+    /**
+     * Annotates that this RecoveryUnit has created a table.
+     */
+    void onCreateTable(const char* uri);
 
 private:
     void doBeginUnitOfWork() override;
@@ -323,6 +332,9 @@ private:
 
     // Detects any attempt to reconfigure options used by an open transaction.
     OpenSnapshotOptions _optionsUsedToOpenSnapshot;
+
+    // Tracks the uris of the tables created under this recovery unit.
+    std::vector<std::string> _createdTables;
 };
 
 // Constructs a WiredTigerCursor::Params instance from the given params and returns it.

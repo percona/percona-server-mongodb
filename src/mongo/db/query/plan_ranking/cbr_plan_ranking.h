@@ -43,16 +43,15 @@ namespace plan_ranking {
 // SERVER-118020: Investigate a more distinctive name to contrast with CostBasedPlanRankingStrategy
 class CBRPlanRankingStrategy : public PlanRankingStrategy {
 public:
-    StatusWith<plan_ranking::PlanRankingResult> rankPlans(PlannerData& pd) override;
+    StatusWith<PlanRankingResult> rankPlans(PlannerData& pd) override;
 
     // Separate impl taking components from PlannerData retained temporarily for call from
     // getBestCBRPlan
-    StatusWith<plan_ranking::PlanRankingResult> rankPlans(
-        OperationContext* opCtx,
-        CanonicalQuery& query,
-        const QueryPlannerParams& plannerParams,
-        PlanYieldPolicy::YieldPolicy yieldPolicy,
-        const MultipleCollectionAccessor& collections) const;
+    StatusWith<PlanRankingResult> rankPlans(OperationContext* opCtx,
+                                            CanonicalQuery& query,
+                                            const QueryPlannerParams& plannerParams,
+                                            PlanYieldPolicy::YieldPolicy yieldPolicy,
+                                            const MultipleCollectionAccessor& collections) const;
 };
 
 

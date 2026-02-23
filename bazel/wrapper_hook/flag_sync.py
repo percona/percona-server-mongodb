@@ -3,7 +3,6 @@ import pathlib
 import sys
 import time
 import traceback
-from typing import Dict
 
 REPO_ROOT = pathlib.Path(__file__).parent.parent.parent
 sys.path.append(str(REPO_ROOT))
@@ -23,7 +22,7 @@ ALLOW_LINES = [
 ]
 
 
-def update_bazelrc(flags: Dict[str, Dict], verbose: bool):
+def update_bazelrc(flags: dict[str, dict], verbose: bool):
     bazelrc_path = f"{REPO_ROOT}/.bazelrc.sync"
     if verbose:
         print(f"Updating {bazelrc_path}")

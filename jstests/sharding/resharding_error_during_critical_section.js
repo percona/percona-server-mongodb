@@ -9,6 +9,7 @@
  * ]
  */
 import {configureFailPoint} from "jstests/libs/fail_point_util.js";
+import {FeatureFlagUtil} from "jstests/libs/feature_flag_util.js";
 import {Thread} from "jstests/libs/parallelTester.js";
 import {ShardingTest} from "jstests/libs/shardingtest.js";
 
@@ -38,6 +39,9 @@ const configPrimary = st.configRS.getPrimary();
 const dbName = "testDb";
 const testDb = st.s.getDB(dbName);
 assert.commandWorked(st.s.adminCommand({enableSharding: dbName, primaryShard: st.shard0.shardName}));
+
+// Feature is FCV-gated, so effective state is cluster-wide; one node is enough (config primary).
+const cloneNoRefreshEnabled = FeatureFlagUtil.isPresentAndEnabled(configPrimary, "ReshardingCloneNoRefresh");
 
 const testCriticalSectionTimeoutMS = 1000;
 const cmdBlockTimeoutMS = 60 * 60 * 1000;
@@ -120,13 +124,14 @@ function testAbortWhileWaiting(cmdName, numSkips) {
     fp.off();
 }
 
+// When featureFlagReshardingCloneNoRefresh is off, coordinator sends _flushReshardingStateChange
+// to donors in kApplying and kBlockingWrites (2 calls); use 2 skips to block the critical-section
+// one. When the flag is on, coordinator only sends to donors in kApplying and kBlockingWrites
+// but the cloning refresh is skipped, so we use 1 skip to block the kBlockingWrites flush.
 const cmdsToBlock = [
     {
         cmdName: "_flushReshardingStateChange",
-        // Skip the refreshes for transitioning to "cloning" and to "applying" to test the error
-        // during critical section. This count assumes that _shardsvrReshardRecipientClone is
-        // disabled.
-        numSkips: 2,
+        numSkips: cloneNoRefreshEnabled ? 1 : 2,
     },
     {
         cmdName: "_shardsvrReshardingDonorFetchFinalCollectionStats",

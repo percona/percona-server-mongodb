@@ -101,7 +101,7 @@ public:
               Interruptible* interruptible = Interruptible::notInterruptible()) override;
     void appendConnectionStats(executor::ConnectionPoolStats* stats) const override;
     void dropConnections(const HostAndPort& target, const Status& status) override;
-    void appendNetworkInterfaceStats(BSONObjBuilder&) const override;
+    void appendNetworkInterfaceStats(BSONObjBuilder&, bool forServerStatus) const override;
 
 private:
     // Not owned by us.

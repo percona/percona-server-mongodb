@@ -1217,8 +1217,8 @@ WriteResult performInserts(
     const auto [disableDocumentValidation, fleCrudProcessed] = getDocumentValidationFlags(
         opCtx, wholeOp.getWriteCommandRequestBase(), wholeOp.getDbName().tenantId());
 
-    DisableDocumentSchemaValidationIfTrue docSchemaValidationDisabler(opCtx,
-                                                                      disableDocumentValidation);
+    DisableDocumentSchemaValidationRequestedByUserIfTrue docSchemaValidationDisabler(
+        opCtx, disableDocumentValidation);
 
     DisableSafeContentValidationIfTrue safeContentValidationDisabler(
         opCtx, disableDocumentValidation, fleCrudProcessed);
@@ -1449,8 +1449,10 @@ void registerRequestForQueryStats(OperationContext* opCtx,
             if (!parsedUpdate.hasParsedFindCommand()) {
                 return boost::none;
             }
+            // We want to compute queryShapeHash for updates even for internal queries so slow
+            // query logs will contain the hash value.
             return shape_helpers::computeQueryShapeHash(
-                expCtx, deferredShape, wholeOp.getNamespace());
+                expCtx, deferredShape, wholeOp.getNamespace(), true /*skipInternalClientCheck*/);
         });
 
 
@@ -1821,8 +1823,8 @@ WriteResult performUpdates(
     const auto [disableDocumentValidation, fleCrudProcessed] = getDocumentValidationFlags(
         opCtx, wholeOp.getWriteCommandRequestBase(), wholeOp.getDbName().tenantId());
 
-    DisableDocumentSchemaValidationIfTrue docSchemaValidationDisabler(opCtx,
-                                                                      disableDocumentValidation);
+    DisableDocumentSchemaValidationRequestedByUserIfTrue docSchemaValidationDisabler(
+        opCtx, disableDocumentValidation);
 
     DisableSafeContentValidationIfTrue safeContentValidationDisabler(
         opCtx, disableDocumentValidation, fleCrudProcessed);
@@ -1897,16 +1899,21 @@ WriteResult performUpdates(
                 curOp->debug().getQueryStatsInfo().metricsRequested = true;
             }
         }
+
+        bool writeResultAppended = false;
         ON_BLOCK_EXIT([&] {
             if (curOp) {
                 finishCurOp(opCtx, &*curOp);
                 // The last SingleWriteResult will be for the operation we just executed. If it
                 // succeeded, and metrics were requested, set them now.
                 if (originalOpIndex.has_value() &&
-                    curOp->debug().getQueryStatsInfo().metricsRequested &&
-                    out.results.back().isOK()) {
-                    out.results.back().getValue().setQueryStatsMetrics(write_ops::QueryStatsMetrics(
-                        *originalOpIndex, curOp->debug().getCursorMetrics()));
+                    curOp->debug().getQueryStatsInfo().metricsRequested && writeResultAppended) {
+                    tassert(11514201, "A write result must be appended.", !out.results.empty());
+                    if (out.results.back().isOK()) {
+                        out.results.back().getValue().setQueryStatsMetrics(
+                            write_ops::QueryStatsMetrics(*originalOpIndex,
+                                                         curOp->debug().getCursorMetrics()));
+                    }
                 }
             }
         });
@@ -1950,6 +1957,7 @@ WriteResult performUpdates(
                                                      source,
                                                      forgoOpCounterIncrements);
             out.results.emplace_back(reply);
+            writeResultAppended = true;
             forgoOpCounterIncrements = true;
             lastOpFixer.finishedOpSuccessfully();
 
@@ -2157,8 +2165,8 @@ WriteResult performDeletes(
     const auto [disableDocumentValidation, fleCrudProcessed] = getDocumentValidationFlags(
         opCtx, wholeOp.getWriteCommandRequestBase(), wholeOp.getDbName().tenantId());
 
-    DisableDocumentSchemaValidationIfTrue docSchemaValidationDisabler(opCtx,
-                                                                      disableDocumentValidation);
+    DisableDocumentSchemaValidationRequestedByUserIfTrue docSchemaValidationDisabler(
+        opCtx, disableDocumentValidation);
 
     DisableSafeContentValidationIfTrue safeContentValidationDisabler(
         opCtx, disableDocumentValidation, fleCrudProcessed);

@@ -1191,7 +1191,7 @@ FastTuple<bool, value::TypeTags, value::Value> ByteCode::aggRemovableSumFinalize
         }
     }
 
-    auto [sumOwned, sumTag, sumVal] = aggDoubleDoubleSumFinalizeImpl(sumAcc);
+    auto [sumOwned, sumTag, sumVal] = aggDoubleDoubleSumFinalizeImpl(sumAcc).releaseToRaw();
     value::ValueGuard sumGuard{sumOwned, sumTag, sumVal};
 
     if (sumTag == value::TypeTags::NumberDecimal && decimalCount == 0) {

@@ -10,7 +10,7 @@ import sys
 import time
 from datetime import timedelta
 from threading import Lock
-from typing import Any, List, NamedTuple, Optional, Set
+from typing import Any, NamedTuple, Optional
 
 from opentelemetry import trace
 
@@ -224,7 +224,7 @@ class ResmokeSymbolizer:
     def symbolize_stacktraces(
         self,
         test: TestCase,
-        files: List[str],
+        files: list[str],
         symbolize_retry_timeout: float = SYMBOLIZE_RETRY_TIMEOUT_SECS,
     ) -> None:
         """
@@ -259,7 +259,7 @@ class ResmokeSymbolizer:
     def create_unsymbolized_instructions(
         self,
         test: TestCase,
-        unsymbolized_stacktraces_info: List[dict],
+        unsymbolized_stacktraces_info: list[dict],
         expansions_file: str = "../expansions.yml",
     ):
         """
@@ -409,7 +409,7 @@ If no symbolized stacktrace is created, then most likely either:
 
         return dbpath
 
-    def collect_stacktrace_files(self, dir_path: str) -> List[str]:
+    def collect_stacktrace_files(self, dir_path: str) -> list[str]:
         """
         Collect all stacktrace files which are not empty and return their full paths.
 
@@ -434,7 +434,7 @@ class FileService:
         self._processed_files = self.load_processed_files(processed_files_list_path)
 
     @staticmethod
-    def load_processed_files(file_path: str) -> Set[str]:
+    def load_processed_files(file_path: str) -> set[str]:
         """
         Load processed files info from a file.
 
@@ -446,7 +446,7 @@ class FileService:
                     return {line for line in set(file.readlines()) if line}
         return set()
 
-    def add_to_processed_files(self, files: List[str]) -> None:
+    def add_to_processed_files(self, files: list[str]) -> None:
         """
         Bulk add to collection of processed files.
 
@@ -477,7 +477,7 @@ class FileService:
         return file in self._processed_files
 
     @staticmethod
-    def find_all_children_recursively(dir_path: str) -> List[str]:
+    def find_all_children_recursively(dir_path: str) -> list[str]:
         """
         Find all children files in directory recursively.
 
@@ -490,7 +490,7 @@ class FileService:
         return children_in_dir
 
     @staticmethod
-    def filter_by_extension(files: List[str], extension: str) -> List[str]:
+    def filter_by_extension(files: list[str], extension: str) -> list[str]:
         """
         Filter files by extension.
 
@@ -501,7 +501,7 @@ class FileService:
         return [f for f in files if f.endswith(extension)]
 
     @staticmethod
-    def filter_out_non_files(files: List[str]) -> List[str]:
+    def filter_out_non_files(files: list[str]) -> list[str]:
         """
         Filter out non files.
 
@@ -510,7 +510,7 @@ class FileService:
         """
         return [f for f in files if os.path.isfile(f)]
 
-    def filter_out_already_processed_files(self, files: List[str]):
+    def filter_out_already_processed_files(self, files: list[str]):
         """
         Filter out already processed files.
 
@@ -520,7 +520,7 @@ class FileService:
         return [f for f in files if not self.is_processed(f)]
 
     @staticmethod
-    def filter_out_empty_files(files: List[str]) -> List[str]:
+    def filter_out_empty_files(files: list[str]) -> list[str]:
         """
         Filter our files that are empty.
 

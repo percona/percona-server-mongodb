@@ -59,6 +59,8 @@ secondary = replTest.start(
         startClean: true,
         setParameter: {
             "numInitialSyncAttempts": 2,
+            // Skip waiting for last stable to advance since it is possible that the primary cannot advance its stable timestamp in this test.
+            "initialSyncWaitForSyncSourceLastStableRecoveryTs": false,
             // Fail point to force the first attempt to fail and hang before starting the second
             // attempt.
             "failpoint.failAndHangInitialSync": tojson({mode: "alwaysOn"}),

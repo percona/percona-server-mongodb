@@ -160,6 +160,14 @@ struct MONGO_MOD_NEEDS_REPLACEMENT CatalogEntryMetaData {
 
     NamespaceString nss;
     CollectionOptions options;
+
+    // When 'true', will use the same recordIds across all nodes in the replica set.
+    // When using disaggregated storage, will be enabled implicitly when the collection
+    // is created. The `recordIdsReplicated` option is here and not inside `options`,
+    // as it is an internal-only parameter that will be decided by the server and cannot
+    // be defined via the `createCollection` command.
+    bool recordIdsReplicated = false;
+
     // May include empty instances which represent indexes already dropped.
     std::vector<IndexMetaData> indexes;
 

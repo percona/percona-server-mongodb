@@ -36,6 +36,8 @@
 
 #include <cstddef>
 
+#include <boost/optional/optional.hpp>
+
 namespace mongo {
 class MONGO_MOD_PUBLIC SnappyMessageCompressor final : public MessageCompressorBase {
 public:
@@ -46,6 +48,8 @@ public:
     StatusWith<std::size_t> compressData(ConstDataRange input, DataRange output) override;
 
     StatusWith<std::size_t> decompressData(ConstDataRange input, DataRange output) override;
+
+    boost::optional<std::size_t> getMaxDecompressedSize(ConstDataRange input) override;
 };
 
 

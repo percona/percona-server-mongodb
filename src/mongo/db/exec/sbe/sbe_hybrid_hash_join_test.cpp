@@ -167,14 +167,19 @@ TEST_F(HybridHashJoinTestFixture, BuildAndProbeInMemoryNoSpill) {
     hhj->finishBuild();
 
     // Probe with matching key
-    auto cursor = hhj->probe(makeKeyRow(20), makeProjectRow("probe_20"));
+    auto probeKey = makeKeyRow(20);
+    auto probeProject = makeProjectRow("probe_20");
+    auto cursor = JoinCursor::empty();
+    hhj->probe(probeKey, probeProject, cursor);
     auto matches = drainCursor(cursor);
     ASSERT_EQ(matches.size(), 1u);
     ASSERT_EQ(matches[0], 20);
 
     // Probe with non-matching key
-    auto cursor2 = hhj->probe(makeKeyRow(99), makeProjectRow("probe_99"));
-    auto matches2 = drainCursor(cursor2);
+    probeKey = makeKeyRow(99);
+    probeProject = makeProjectRow("probe_99");
+    hhj->probe(probeKey, probeProject, cursor);
+    auto matches2 = drainCursor(cursor);
     ASSERT_EQ(matches2.size(), 0u);
 }
 
@@ -187,7 +192,10 @@ TEST_F(HybridHashJoinTestFixture, MultipleMatchesForSameKey) {
     hhj->addBuild(makeKeyRow(42), makeProjectRow("proj_42_c"));
     hhj->finishBuild();
 
-    auto cursor = hhj->probe(makeKeyRow(42), makeProjectRow("probe_42"));
+    auto probeKey = makeKeyRow(42);
+    auto probeProject = makeProjectRow("probe_42");
+    auto cursor = JoinCursor::empty();
+    hhj->probe(probeKey, probeProject, cursor);
 
     std::vector<std::string> projectValues{};
     while (auto matchOpt = cursor.next()) {
@@ -223,7 +231,10 @@ DEATH_TEST_F(HybridHashJoinDeathTest,
     hhj->addBuild(makeKeyRow(1), makeProjectRow("proj_1"));
 
     // Probe before finishBuild should fail (tassert)
-    (void)hhj->probe(makeKeyRow(1), makeProjectRow("probe_1"));
+    auto probeKey = makeKeyRow(1);
+    auto probeProject = makeProjectRow("probe_1");
+    auto cursor = JoinCursor::empty();
+    hhj->probe(probeKey, probeProject, cursor);
 }
 
 DEATH_TEST_F(HybridHashJoinDeathTest,
@@ -233,7 +244,10 @@ DEATH_TEST_F(HybridHashJoinDeathTest,
 
     hhj->addBuild(makeKeyRow(1), makeProjectRow("proj_1"));
     hhj->finishBuild();
-    (void)hhj->probe(makeKeyRow(1), makeProjectRow("probe_1"));
+    auto probeKey = makeKeyRow(1);
+    auto probeProject = makeProjectRow("probe_1");
+    auto cursor = JoinCursor::empty();
+    hhj->probe(probeKey, probeProject, cursor);
 
     // nextSpilledJoinCursor before finishProbe should fail (tassert)
     (void)hhj->nextSpilledJoinCursor();
@@ -244,7 +258,10 @@ TEST_F(HybridHashJoinTestFixture, EmptyBuildSide) {
 
     hhj->finishBuild();
 
-    auto cursor = hhj->probe(makeKeyRow(42), makeProjectRow("probe_42"));
+    auto probeKey = makeKeyRow(42);
+    auto probeProject = makeProjectRow("probe_42");
+    auto cursor = JoinCursor::empty();
+    hhj->probe(probeKey, probeProject, cursor);
     auto matches = drainCursor(cursor);
     ASSERT_EQ(matches.size(), 0u);
 }
@@ -268,7 +285,10 @@ TEST_F(HybridHashJoinTestFixture, ResetState) {
     // First pass
     hhj->addBuild(makeKeyRow(1), makeProjectRow("proj_1"));
     hhj->finishBuild();
-    auto cursor = hhj->probe(makeKeyRow(1), makeProjectRow("probe_1"));
+    auto probeKey = makeKeyRow(1);
+    auto probeProject = makeProjectRow("probe_1");
+    auto cursor = JoinCursor::empty();
+    hhj->probe(probeKey, probeProject, cursor);
     auto matches = drainCursor(cursor);
     ASSERT_EQ(matches.size(), 1u);
     hhj->finishProbe();
@@ -280,7 +300,10 @@ TEST_F(HybridHashJoinTestFixture, ResetState) {
     // Second pass with different data
     hhj->addBuild(makeKeyRow(100), makeProjectRow("proj_100"));
     hhj->finishBuild();
-    auto cursor2 = hhj->probe(makeKeyRow(100), makeProjectRow("probe_100"));
+    auto probeKey2 = makeKeyRow(100);
+    auto probeProject2 = makeProjectRow("probe_100");
+    auto cursor2 = JoinCursor::empty();
+    hhj->probe(probeKey2, probeProject2, cursor2);
     auto matches2 = drainCursor(cursor2);
     ASSERT_EQ(matches2.size(), 1u);
     ASSERT_EQ(matches2[0], 100);
@@ -305,7 +328,10 @@ TEST_F(HybridHashJoinTestFixture, ProbeReturnsCorrectValue) {
     hhj->addBuild(makeKeyRow(10), makeProjectRow("build_proj_10"));
     hhj->finishBuild();
 
-    auto cursor = hhj->probe(makeKeyRow(10), makeProjectRow("probe_proj_10"));
+    auto probeKey = makeKeyRow(10);
+    auto probeProject = makeProjectRow("probe_proj_10");
+    auto cursor = JoinCursor::empty();
+    hhj->probe(probeKey, probeProject, cursor);
     auto matchOpt = cursor.next();
 
     ASSERT_TRUE(matchOpt.has_value());
@@ -365,9 +391,14 @@ TEST_F(HybridHashJoinTestFixture, SpilledPartitionsProcessedCorrectly) {
 
     // Collect matches
     std::set<int64_t> matchedKeys;
+    value::MaterializedRow probeKey(1);
+    value::MaterializedRow probeProject(1);
+    auto cursor = JoinCursor::empty();
     for (int i = 0; i < 100; ++i) {
         auto probePayload = "probe_" + std::to_string(i);
-        auto cursor = hhj->probe(makeKeyRow(i), makeProjectRow(probePayload));
+        probeKey = makeKeyRow(i);
+        probeProject = makeProjectRow(probePayload);
+        hhj->probe(probeKey, probeProject, cursor);
         while (auto matchOpt = cursor.next()) {
             matchedKeys.insert(getKeyValue(matchOpt->buildKeyRow));
         }
@@ -402,9 +433,14 @@ TEST_F(HybridHashJoinTestFixture, HandlesRecursivePartitions) {
 
     // Collect matches
     std::set<int64_t> matchedKeys;
+    value::MaterializedRow probeKey(1);
+    value::MaterializedRow probeProject(1);
+    auto cursor = JoinCursor::empty();
     for (int i = 0; i < 200; ++i) {
         auto probePayload = "probe_payload_" + std::to_string(i);
-        auto cursor = hhj->probe(makeKeyRow(i), makeProjectRow(probePayload));
+        probeKey = makeKeyRow(i);
+        probeProject = makeProjectRow(probePayload);
+        hhj->probe(probeKey, probeProject, cursor);
         while (auto matchOpt = cursor.next()) {
             matchedKeys.insert(getKeyValue(matchOpt->buildKeyRow));
         }
@@ -437,7 +473,10 @@ TEST_F(HybridHashJoinTestFixture, DuplicateKeysReturnCorrectBuildProjects) {
     hhj->addBuild(makeStringKeyRow("dup_key"), makeProjectRow("build_C"));
     hhj->finishBuild();
 
-    auto cursor = hhj->probe(makeStringKeyRow("dup_key"), makeProjectRow("probe"));
+    auto probeKey = makeStringKeyRow("dup_key");
+    auto probeProject = makeProjectRow("probe");
+    auto cursor = JoinCursor::empty();
+    hhj->probe(probeKey, probeProject, cursor);
     auto matches = drainCursorWithProjects(cursor);
     ASSERT_EQ(matches.size(), 3u);
 
@@ -468,10 +507,15 @@ TEST_F(HybridHashJoinTestFixture, SpilledPartitionsPreserveProjectValues) {
 
     // Probe and collect matches
     std::map<std::string, std::string> probeMatches;
+    value::MaterializedRow probeKey(1);
+    value::MaterializedRow probeProject(1);
+    auto cursor = JoinCursor::empty();
     for (int i = 0; i < 50; ++i) {
         std::string key = "key_" + std::to_string(i);
         std::string probeProj = "probe_proj_" + std::to_string(i);
-        auto cursor = hhj->probe(makeStringKeyRow(key), makeProjectRow(probeProj));
+        probeKey = makeStringKeyRow(key);
+        probeProject = makeProjectRow(probeProj);
+        hhj->probe(probeKey, probeProject, cursor);
         while (auto matchOpt = cursor.next()) {
             std::string buildKey = getStringValue(matchOpt->buildKeyRow);
             std::string buildProj = getStringValue(matchOpt->buildProjectRow);
@@ -514,18 +558,25 @@ TEST_F(HybridHashJoinTestFixture, CompositeKeyMatching) {
     hhj->finishBuild();
 
     // Probe with exact match
-    auto cursor1 = hhj->probe(makeCompositeKeyRow(1, 10), makeProjectRow("probe"));
-    auto matches1 = drainCursor(cursor1);
+    auto probeKey = makeCompositeKeyRow(1, 10);
+    auto probeProject = makeProjectRow("probe");
+    auto cursor = JoinCursor::empty();
+    hhj->probe(probeKey, probeProject, cursor);
+    auto matches1 = drainCursor(cursor);
     ASSERT_EQ(matches1.size(), 1u);
 
     // Probe with partial match (different second column) - should not match
-    auto cursor2 = hhj->probe(makeCompositeKeyRow(1, 30), makeProjectRow("probe"));
-    auto matches2 = drainCursor(cursor2);
+    probeKey = makeCompositeKeyRow(1, 30);
+    probeProject = makeProjectRow("probe");
+    hhj->probe(probeKey, probeProject, cursor);
+    auto matches2 = drainCursor(cursor);
     ASSERT_EQ(matches2.size(), 0u);
 
     // Probe with swapped columns - should not match
-    auto cursor3 = hhj->probe(makeCompositeKeyRow(10, 1), makeProjectRow("probe"));
-    auto matches3 = drainCursor(cursor3);
+    probeKey = makeCompositeKeyRow(10, 1);
+    probeProject = makeProjectRow("probe");
+    hhj->probe(probeKey, probeProject, cursor);
+    auto matches3 = drainCursor(cursor);
     ASSERT_EQ(matches3.size(), 0u);
 }
 
@@ -537,9 +588,14 @@ TEST_F(HybridHashJoinTestFixture, ProbeNonExistentKeys) {
     hhj->finishBuild();
 
     // Probe with keys that don't exist
+    value::MaterializedRow probeKey(1);
+    value::MaterializedRow probeProject(1);
+    auto cursor = JoinCursor::empty();
     for (int i = 100; i < 110; ++i) {
         auto probePayload = "probe_" + std::to_string(i);
-        auto cursor = hhj->probe(makeKeyRow(i), makeProjectRow(probePayload));
+        probeKey = makeKeyRow(i);
+        probeProject = makeProjectRow(probePayload);
+        hhj->probe(probeKey, probeProject, cursor);
         auto matches = drainCursor(cursor);
         ASSERT_EQ(matches.size(), 0u);
     }
@@ -552,9 +608,14 @@ TEST_F(HybridHashJoinTestFixture, MultipleProbesForSameKey) {
     hhj->finishBuild();
 
     // Probe the same key multiple times
+    value::MaterializedRow probeKey(1);
+    value::MaterializedRow probeProject(1);
+    auto cursor = JoinCursor::empty();
     for (int i = 0; i < 10; ++i) {
         auto probePayload = "probe_42_" + std::to_string(i);
-        auto cursor = hhj->probe(makeKeyRow(42), makeProjectRow(probePayload));
+        probeKey = makeKeyRow(42);
+        probeProject = makeProjectRow(probePayload);
+        hhj->probe(probeKey, probeProject, cursor);
         auto matches = drainCursor(cursor);
         ASSERT_EQ(matches.size(), 1u);
         ASSERT_EQ(matches[0], 42);
@@ -568,7 +629,10 @@ TEST_F(HybridHashJoinTestFixture, EmptyCursorBehavior) {
     hhj->finishBuild();
 
     // Get a cursor for a non-matching key
-    auto cursor = hhj->probe(makeKeyRow(999), makeProjectRow("probe_999"));
+    auto probeKey = makeKeyRow(999);
+    auto probeProject = makeProjectRow("probe_999");
+    auto cursor = JoinCursor::empty();
+    hhj->probe(probeKey, probeProject, cursor);
 
     // Calling next() multiple times on empty cursor should be safe
     ASSERT_FALSE(cursor.next().has_value());
@@ -587,7 +651,10 @@ TEST_F(HybridHashJoinTestFixture, CaseInsensitiveJoinWithCollator) {
     hhj->finishBuild();
 
     // Probe with lowercase - should match due to collator
-    auto cursor = hhj->probe(makeStringKeyRow("abc"), makeProjectRow("probe_abc"));
+    auto probeKey = makeStringKeyRow("abc");
+    auto probeProject = makeProjectRow("probe_abc");
+    auto cursor = JoinCursor::empty();
+    hhj->probe(probeKey, probeProject, cursor);
     auto matches = drainCursorWithProjects(cursor);
     ASSERT_EQ(matches.size(), 1u);
     ASSERT_EQ(matches[0].buildKey, "ABC");
@@ -602,7 +669,10 @@ TEST_F(HybridHashJoinTestFixture, CollatorNoMatchWhenDifferent) {
     hhj->finishBuild();
 
     // Probe with completely different string - should not match
-    auto cursor = hhj->probe(makeStringKeyRow("xyz"), makeProjectRow("probe_xyz"));
+    auto probeKey = makeStringKeyRow("xyz");
+    auto probeProject = makeProjectRow("probe_xyz");
+    auto cursor = JoinCursor::empty();
+    hhj->probe(probeKey, probeProject, cursor);
     auto matches = drainCursorWithProjects(cursor);
     ASSERT_EQ(matches.size(), 0u);
 }
@@ -619,7 +689,10 @@ TEST_F(HybridHashJoinTestFixture, AlwaysEqualCollatorMatchesEverything) {
     hhj->finishBuild();
 
     // Probe with any string - should match all due to collator
-    auto cursor = hhj->probe(makeStringKeyRow("anything"), makeProjectRow("probe_any"));
+    auto probeKey = makeStringKeyRow("anything");
+    auto probeProject = makeProjectRow("probe_any");
+    auto cursor = JoinCursor::empty();
+    hhj->probe(probeKey, probeProject, cursor);
     auto matches = drainCursorWithProjects(cursor);
     ASSERT_EQ(matches.size(), 3u);
 }
@@ -637,7 +710,10 @@ TEST_F(HybridHashJoinTestFixture, ReverseStringCollatorMatching) {
     hhj->finishBuild();
 
     // Probe with "abc" - should match build "abc" since both have same comparison key "cba"
-    auto cursor = hhj->probe(makeStringKeyRow("abc"), makeProjectRow("probe_abc"));
+    auto probeKey = makeStringKeyRow("abc");
+    auto probeProject = makeProjectRow("probe_abc");
+    auto cursor = JoinCursor::empty();
+    hhj->probe(probeKey, probeProject, cursor);
     auto matches = drainCursorWithProjects(cursor);
     ASSERT_EQ(matches.size(), 1u);
     ASSERT_EQ(matches[0].buildKey, "abc");
@@ -654,8 +730,13 @@ TEST_F(HybridHashJoinTestFixture, ResetAfterSpillAllowsReuse) {
     ASSERT_TRUE(stats.usedDisk);
     ASSERT_TRUE(hhj->isPartitioned());
 
+    value::MaterializedRow probeKey(1);
+    value::MaterializedRow probeProject(1);
+    auto cursor = JoinCursor::empty();
     for (int i = 0; i < 50; ++i) {
-        (void)hhj->probe(makeKeyRow(i), makeProjectRow("probe1_" + std::to_string(i)));
+        probeKey = makeKeyRow(i);
+        probeProject = makeProjectRow("probe1_" + std::to_string(i));
+        hhj->probe(probeKey, probeProject, cursor);
     }
     hhj->finishProbe();
 
@@ -676,13 +757,18 @@ TEST_F(HybridHashJoinTestFixture, ResetAfterSpillAllowsReuse) {
 
     ASSERT_FALSE(hhj->isPartitioned());
 
-    auto cursor = hhj->probe(makeKeyRow(100), makeProjectRow("probe2_100"));
-    auto matches = drainCursor(cursor);
+    auto probeKey2 = makeKeyRow(100);
+    auto probeProject2 = makeProjectRow("probe2_100");
+    auto cursor2 = JoinCursor::empty();
+    hhj->probe(probeKey2, probeProject2, cursor2);
+    auto matches = drainCursor(cursor2);
     ASSERT_EQ(matches.size(), 1u);
     ASSERT_EQ(matches[0], 100);
 
     // Key from first pass should not exist
-    auto cursor2 = hhj->probe(makeKeyRow(0), makeProjectRow("probe2_0"));
+    probeKey2 = makeKeyRow(0);
+    probeProject2 = makeProjectRow("probe2_0");
+    hhj->probe(probeKey2, probeProject2, cursor2);
     auto matches2 = drainCursor(cursor2);
     ASSERT_EQ(matches2.size(), 0u);
 }
@@ -699,8 +785,13 @@ TEST_F(HybridHashJoinTestFixture, ProbeOnlyNonMatchingKeysToSpilledPartition) {
     ASSERT_TRUE(stats.usedDisk);
 
     // Probe with keys that don't exist (will be spilled if their partition was spilled)
+    value::MaterializedRow probeKey(1);
+    value::MaterializedRow probeProject(1);
+    auto cursor = JoinCursor::empty();
     for (int i = 1000; i < 1100; ++i) {
-        auto cursor = hhj->probe(makeKeyRow(i), makeProjectRow("probe_" + std::to_string(i)));
+        probeKey = makeKeyRow(i);
+        probeProject = makeProjectRow("probe_" + std::to_string(i));
+        hhj->probe(probeKey, probeProject, cursor);
         ASSERT_EQ(cursor.next(), boost::none);
     }
     hhj->finishProbe();
@@ -734,21 +825,26 @@ TEST_F(HybridHashJoinTestFixture, ProbeIsSmallerThanBuild) {
 
     // Probe side: fewer rows with distinctive project values
     int inmemMatches = 0;
+    value::MaterializedRow probeKey(1);
+    value::MaterializedRow probeProject(1);
+    auto cursor = JoinCursor::empty();
     for (int i = 0; i < 50; ++i) {
         std::string proj = "PROBE_PROJ_" + std::to_string(i);
-        auto cursor = hhj->probe(makeKeyRow(i), makeProjectRow(proj));
+        probeKey = makeKeyRow(i);
+        probeProject = makeProjectRow(proj);
+        hhj->probe(probeKey, probeProject, cursor);
         if (auto matchOpt = cursor.next()) {
-            int64_t buildKey = getKeyValue(matchOpt->buildKeyRow);
-            int64_t probeKey = getKeyValue(matchOpt->probeKeyRow);
-            ASSERT_EQ(buildKey, probeKey);
+            int64_t buildKeyVal = getKeyValue(matchOpt->buildKeyRow);
+            int64_t probeKeyVal = getKeyValue(matchOpt->probeKeyRow);
+            ASSERT_EQ(buildKeyVal, probeKeyVal);
 
             std::string actualBuildProj = getStringValue(matchOpt->buildProjectRow);
             std::string actualProbeProj = getStringValue(matchOpt->probeProjectRow);
 
             // Verify the project values match what we inserted
-            ASSERT_EQ(actualBuildProj, buildProjects[buildKey])
-                << "Build project mismatch for key " << buildKey;
-            ASSERT_EQ(actualProbeProj, proj) << "Probe project mismatch for key " << probeKey;
+            ASSERT_EQ(actualBuildProj, buildProjects[buildKeyVal])
+                << "Build project mismatch for key " << buildKeyVal;
+            ASSERT_EQ(actualProbeProj, proj) << "Probe project mismatch for key " << probeKeyVal;
 
             ASSERT_EQ(cursor.next(), boost::none);
             inmemMatches++;
@@ -763,20 +859,20 @@ TEST_F(HybridHashJoinTestFixture, ProbeIsSmallerThanBuild) {
     std::set<int64_t> matchedKeys;
     while (auto cursorOpt = hhj->nextSpilledJoinCursor()) {
         while (auto matchOpt = cursorOpt->next()) {
-            int64_t buildKey = getKeyValue(matchOpt->buildKeyRow);
-            int64_t probeKey = getKeyValue(matchOpt->probeKeyRow);
-            ASSERT_EQ(buildKey, probeKey);
+            int64_t buildKeyVal = getKeyValue(matchOpt->buildKeyRow);
+            int64_t probeKeyVal = getKeyValue(matchOpt->probeKeyRow);
+            ASSERT_EQ(buildKeyVal, probeKeyVal);
 
             std::string actualBuildProj = getStringValue(matchOpt->buildProjectRow);
             std::string actualProbeProj = getStringValue(matchOpt->probeProjectRow);
 
             // Verify the project values match what we inserted
-            ASSERT_EQ(actualBuildProj, buildProjects[buildKey])
-                << "Build project mismatch for key " << buildKey;
-            ASSERT_EQ(actualProbeProj, spilledProbeProjects[probeKey])
-                << "Probe project mismatch for key " << probeKey;
+            ASSERT_EQ(actualBuildProj, buildProjects[buildKeyVal])
+                << "Build project mismatch for key " << buildKeyVal;
+            ASSERT_EQ(actualProbeProj, spilledProbeProjects[probeKeyVal])
+                << "Probe project mismatch for key " << probeKeyVal;
 
-            matchedKeys.insert(buildKey);
+            matchedKeys.insert(buildKeyVal);
         }
     }
 
@@ -807,17 +903,22 @@ TEST_F(HybridHashJoinTestFixture, ProbeIsSmallerThanBuildWithRecursion) {
 
     // Probe side: fewer rows with distinctive project values
     int inmemMatches = 0;
+    value::MaterializedRow probeKey(1);
+    value::MaterializedRow probeProject(1);
+    auto cursor = JoinCursor::empty();
     for (int i = 0; i < 250; ++i) {
         std::string proj = "PROBE_PROJ_" + std::to_string(i);
-        auto cursor = hhj->probe(makeKeyRow(i), makeProjectRow(proj));
+        probeKey = makeKeyRow(i);
+        probeProject = makeProjectRow(proj);
+        hhj->probe(probeKey, probeProject, cursor);
         if (auto matchOpt = cursor.next()) {
-            int64_t buildKey = getKeyValue(matchOpt->buildKeyRow);
+            int64_t buildKeyVal = getKeyValue(matchOpt->buildKeyRow);
 
             std::string actualBuildProj = getStringValue(matchOpt->buildProjectRow);
 
             // Verify the project values match what we inserted
-            ASSERT_EQ(actualBuildProj, buildProjects[buildKey])
-                << "Build project mismatch for key " << buildKey;
+            ASSERT_EQ(actualBuildProj, buildProjects[buildKeyVal])
+                << "Build project mismatch for key " << buildKeyVal;
 
             ASSERT_EQ(cursor.next(), boost::none);
             inmemMatches++;
@@ -832,20 +933,20 @@ TEST_F(HybridHashJoinTestFixture, ProbeIsSmallerThanBuildWithRecursion) {
     std::set<int64_t> matchedKeys;
     while (auto cursorOpt = hhj->nextSpilledJoinCursor()) {
         while (auto matchOpt = cursorOpt->next()) {
-            int64_t buildKey = getKeyValue(matchOpt->buildKeyRow);
-            int64_t probeKey = getKeyValue(matchOpt->probeKeyRow);
-            ASSERT_EQ(buildKey, probeKey);
+            int64_t buildKeyVal = getKeyValue(matchOpt->buildKeyRow);
+            int64_t probeKeyVal = getKeyValue(matchOpt->probeKeyRow);
+            ASSERT_EQ(buildKeyVal, probeKeyVal);
 
             std::string actualBuildProj = getStringValue(matchOpt->buildProjectRow);
             std::string actualProbeProj = getStringValue(matchOpt->probeProjectRow);
 
             // Verify the project values match what we inserted
-            ASSERT_EQ(actualBuildProj, buildProjects[buildKey])
-                << "Build project mismatch for key " << buildKey;
-            ASSERT_EQ(actualProbeProj, spilledProbeProjects[probeKey])
-                << "Probe project mismatch for key " << probeKey;
+            ASSERT_EQ(actualBuildProj, buildProjects[buildKeyVal])
+                << "Build project mismatch for key " << buildKeyVal;
+            ASSERT_EQ(actualProbeProj, spilledProbeProjects[probeKeyVal])
+                << "Probe project mismatch for key " << probeKeyVal;
 
-            matchedKeys.insert(buildKey);
+            matchedKeys.insert(buildKeyVal);
         }
     }
 

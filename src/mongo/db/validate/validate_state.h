@@ -74,11 +74,15 @@ namespace CollectionValidation {
 MONGO_MOD_PUBLIC Lock::ExclusiveLock obtainExclusiveValidationLock(OperationContext* opCtx);
 
 enum struct FastCountType {
+    // The size storer table created by WiredTiger.
     legacySizeStorer,
+    // The replicated fast count collection created by the server.
     replicated,
     both,
     neither,
 };
+
+StringData toString(FastCountType unit);
 
 /**
  * Contains information about the collection being validated and the user provided validation
@@ -97,10 +101,11 @@ public:
     }
 
     /**
-     * Returns true if fast count is being validated, and the collection supports fast count.
-     * Certain internal collections are not supported by fast count.
+     * Returns true if fast count and/or size is being validated, and the collection supports fast
+     * count. Certain internal collections are not supported by fast count.
+     * TODO SERVER-117326: Remove 'opCtx' parameter.
      */
-    bool shouldEnforceFastCount() const;
+    bool shouldEnforceFastCount(OperationContext* opCtx) const;
 
     FastCountType getDetectedFastCountType(OperationContext* opCtx) const;
 

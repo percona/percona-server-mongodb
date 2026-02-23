@@ -285,8 +285,7 @@ struct Tanh {
  * computation of the respective trigonometric function.
  */
 template <typename TrigFunction>
-FastTuple<bool, value::TypeTags, value::Value> genericTrigonometricFun(value::TypeTags argTag,
-                                                                       value::Value argValue) {
+value::TagValueMaybeOwned genericTrigonometricFun(value::TypeTags argTag, value::Value argValue) {
     if (value::isNumber(argTag)) {
         switch (argTag) {
             case value::TypeTags::NumberInt32: {
@@ -387,31 +386,31 @@ void ByteCode::aggDoubleDoubleSumImpl(value::Array* accumulator,
             accumulator->size() >= AggSumValueElems::kMaxSizeOfArray - 1);
 
     // Only uses tag information from the kNonDecimalTotalTag element.
-    auto [nonDecimalTotalTag, _] = accumulator->getAt(AggSumValueElems::kNonDecimalTotalTag);
+    auto nonDecimalTotalTagVal = accumulator->getAt(AggSumValueElems::kNonDecimalTotalTag);
     tassert(5755311,
             "The nonDecimalTag can't be NumberDecimal",
-            nonDecimalTotalTag != TypeTags::NumberDecimal);
+            nonDecimalTotalTagVal.tag != TypeTags::NumberDecimal);
     // Only uses values from the kNonDecimalTotalSum/kNonDecimalTotalAddend elements.
-    auto [sumTag, sum] = accumulator->getAt(AggSumValueElems::kNonDecimalTotalSum);
-    auto [addendTag, addend] = accumulator->getAt(AggSumValueElems::kNonDecimalTotalAddend);
+    auto sum = accumulator->getAt(AggSumValueElems::kNonDecimalTotalSum);
+    auto addend = accumulator->getAt(AggSumValueElems::kNonDecimalTotalAddend);
     tassert(5755312,
             "The sum and addend must be NumberDouble",
-            sumTag == addendTag && sumTag == TypeTags::NumberDouble);
+            sum.tag == addend.tag && sum.tag == TypeTags::NumberDouble);
 
     // We're guaranteed to always have a valid nonDecimalTotal value.
-    auto nonDecimalTotal = DoubleDoubleSummation::create(value::bitcastTo<double>(sum),
-                                                         value::bitcastTo<double>(addend));
+    auto nonDecimalTotal = DoubleDoubleSummation::create(value::bitcastTo<double>(sum.value),
+                                                         value::bitcastTo<double>(addend.value));
 
     if (auto nElems = accumulator->size(); nElems < AggSumValueElems::kMaxSizeOfArray) {
         // We haven't seen any decimal value so far.
-        if (auto totalTag = getWidestNumericalType(nonDecimalTotalTag, rhsTag);
+        if (auto totalTag = getWidestNumericalType(nonDecimalTotalTagVal.tag, rhsTag);
             totalTag == TypeTags::NumberDecimal) {
             // Hit the first decimal. Start storing sum of decimal values into the 'kDecimalTotal'
             // element and sum of non-decimal values into 'kNonDecimalXXX' elements.
             tassert(
                 5755313, "The arg value must be NumberDecimal", rhsTag == TypeTags::NumberDecimal);
 
-            setDecimalTotal(nonDecimalTotalTag,
+            setDecimalTotal(nonDecimalTotalTagVal.tag,
                             nonDecimalTotal,
                             value::bitcastTo<Decimal128>(rhsValue),
                             accumulator);
@@ -427,28 +426,27 @@ void ByteCode::aggDoubleDoubleSumImpl(value::Array* accumulator,
                               << AggSumValueElems::kMaxSizeOfArray
                               << " elements but got: " << accumulator->size(),
                 nElems == AggSumValueElems::kMaxSizeOfArray);
-        auto [decimalTotalTag, decimalTotalVal] =
-            accumulator->getAt(AggSumValueElems::kDecimalTotal);
+        auto decimalTotalTagVal = accumulator->getAt(AggSumValueElems::kDecimalTotal);
         tassert(5755315,
                 "The decimalTotal must be NumberDecimal",
-                decimalTotalTag == TypeTags::NumberDecimal);
+                decimalTotalTagVal.tag == TypeTags::NumberDecimal);
 
-        auto decimalTotal = value::bitcastTo<Decimal128>(decimalTotalVal);
+        auto decimalTotal = value::bitcastTo<Decimal128>(decimalTotalTagVal.value);
         if (rhsTag == TypeTags::NumberDecimal) {
             decimalTotal = decimalTotal.add(value::bitcastTo<Decimal128>(rhsValue));
         } else {
-            nonDecimalTotalTag = getWidestNumericalType(nonDecimalTotalTag, rhsTag);
+            nonDecimalTotalTagVal.tag = getWidestNumericalType(nonDecimalTotalTagVal.tag, rhsTag);
             addNonDecimal(rhsTag, rhsValue, nonDecimalTotal);
         }
 
-        setDecimalTotal(nonDecimalTotalTag, nonDecimalTotal, decimalTotal, accumulator);
+        setDecimalTotal(nonDecimalTotalTagVal.tag, nonDecimalTotal, decimalTotal, accumulator);
     }
 }  // ByteCode::aggDoubleDoubleSumImpl
 
 void ByteCode::aggMergeDoubleDoubleSumsImpl(value::Array* accumulator,
                                             value::TypeTags rhsTag,
                                             value::Value rhsValue) {
-    auto [accumWidestType, _1] = accumulator->getAt(AggSumValueElems::kNonDecimalTotalTag);
+    auto accumWidestType = accumulator->getAt(AggSumValueElems::kNonDecimalTotalTag);
 
     tassert(7039532, "value must be of type 'Array'", rhsTag == value::TypeTags::Array);
     value::Array* nextDoubleDoubleArr = value::getArrayView(rhsValue);
@@ -458,46 +456,46 @@ void ByteCode::aggMergeDoubleDoubleSumsImpl(value::Array* accumulator,
             nextDoubleDoubleArr->size() >= AggSumValueElems::kMaxSizeOfArray - 1);
 
     // First aggregate the non-decimal sum, then the non-decimal addend. Both should be doubles.
-    auto [sumTag, sum] = nextDoubleDoubleArr->getAt(AggSumValueElems::kNonDecimalTotalSum);
-    tassert(7039534, "expected 'NumberDouble'", sumTag == value::TypeTags::NumberDouble);
-    aggDoubleDoubleSumImpl(accumulator, sumTag, sum);
+    auto sum = nextDoubleDoubleArr->getAt(AggSumValueElems::kNonDecimalTotalSum);
+    tassert(7039534, "expected 'NumberDouble'", sum.tag == value::TypeTags::NumberDouble);
+    aggDoubleDoubleSumImpl(accumulator, sum.tag, sum.value);
 
-    auto [addendTag, addend] = nextDoubleDoubleArr->getAt(AggSumValueElems::kNonDecimalTotalAddend);
-    tassert(7039535, "expected 'NumberDouble'", addendTag == value::TypeTags::NumberDouble);
+    auto addend = nextDoubleDoubleArr->getAt(AggSumValueElems::kNonDecimalTotalAddend);
+    tassert(7039535, "expected 'NumberDouble'", addend.tag == value::TypeTags::NumberDouble);
     // There is a special case when the 'sum' is infinite and the 'addend' is NaN. This DoubleDouble
     // value represents infinity, not NaN. Therefore, we avoid incorporating the NaN 'addend' value
     // into the sum.
-    if (std::isfinite(value::bitcastTo<double>(sum)) ||
-        !std::isnan(value::bitcastTo<double>(addend))) {
-        aggDoubleDoubleSumImpl(accumulator, addendTag, addend);
+    if (std::isfinite(value::bitcastTo<double>(sum.value)) ||
+        !std::isnan(value::bitcastTo<double>(addend.value))) {
+        aggDoubleDoubleSumImpl(accumulator, addend.tag, addend.value);
     }
 
     // Determine the widest non-decimal type that we've seen so far, and set the accumulator state
     // accordingly. We do this after computing the sums, since 'aggDoubleDoubleSumImpl()' will
     // set the widest type to 'NumberDouble' when we call it above.
-    auto [newValWidestType, _2] = nextDoubleDoubleArr->getAt(AggSumValueElems::kNonDecimalTotalTag);
-    tassert(
-        7039536, "unexpected 'NumberDecimal'", newValWidestType != value::TypeTags::NumberDecimal);
-    tassert(
-        7039537, "unexpected 'NumberDecimal'", accumWidestType != value::TypeTags::NumberDecimal);
-    auto widestType = getWidestNumericalType(newValWidestType, accumWidestType);
+    auto newValWidestType = nextDoubleDoubleArr->getAt(AggSumValueElems::kNonDecimalTotalTag);
+    tassert(7039536,
+            "unexpected 'NumberDecimal'",
+            newValWidestType.tag != value::TypeTags::NumberDecimal);
+    tassert(7039537,
+            "unexpected 'NumberDecimal'",
+            accumWidestType.tag != value::TypeTags::NumberDecimal);
+    auto widestType = getWidestNumericalType(newValWidestType.tag, accumWidestType.tag);
     accumulator->setAt(
         AggSumValueElems::kNonDecimalTotalTag, widestType, value::bitcastFrom<int32_t>(0));
 
     // If there's a decimal128 sum as part of the incoming DoubleDouble sum, incorporate it into the
     // accumulator.
     if (nextDoubleDoubleArr->size() == AggSumValueElems::kMaxSizeOfArray) {
-        auto [decimalTotalTag, decimalTotalVal] =
-            nextDoubleDoubleArr->getAt(AggSumValueElems::kDecimalTotal);
+        auto decimalTotal = nextDoubleDoubleArr->getAt(AggSumValueElems::kDecimalTotal);
         tassert(7039538,
                 "The decimalTotal must be 'NumberDecimal'",
-                decimalTotalTag == TypeTags::NumberDecimal);
-        aggDoubleDoubleSumImpl(accumulator, decimalTotalTag, decimalTotalVal);
+                decimalTotal.tag == TypeTags::NumberDecimal);
+        aggDoubleDoubleSumImpl(accumulator, decimalTotal.tag, decimalTotal.value);
     }
 }
 
-FastTuple<bool, value::TypeTags, value::Value> ByteCode::aggDoubleDoubleSumFinalizeImpl(
-    value::Array* arr) {
+value::TagValueMaybeOwned ByteCode::aggDoubleDoubleSumFinalizeImpl(value::Array* arr) {
     tassert(5755321,
             str::stream() << "The result slot must have at least "
                           << AggSumValueElems::kMaxSizeOfArray - 1
@@ -508,15 +506,15 @@ FastTuple<bool, value::TypeTags, value::Value> ByteCode::aggDoubleDoubleSumFinal
     tassert(5755322,
             "The nonDecimalTag can't be NumberDecimal",
             nonDecimalTotalTag != value::TypeTags::NumberDecimal);
-    auto [sumTag, sum] = arr->getAt(AggSumValueElems::kNonDecimalTotalSum);
-    auto [addendTag, addend] = arr->getAt(AggSumValueElems::kNonDecimalTotalAddend);
+    auto sum = arr->getAt(AggSumValueElems::kNonDecimalTotalSum);
+    auto addend = arr->getAt(AggSumValueElems::kNonDecimalTotalAddend);
     tassert(5755323,
             "The sum and addend must be NumberDouble",
-            sumTag == addendTag && sumTag == value::TypeTags::NumberDouble);
+            sum.tag == addend.tag && sum.tag == value::TypeTags::NumberDouble);
 
     // We're guaranteed to always have a valid nonDecimalTotal value.
-    auto nonDecimalTotal = DoubleDoubleSummation::create(value::bitcastTo<double>(sum),
-                                                         value::bitcastTo<double>(addend));
+    auto nonDecimalTotal = DoubleDoubleSummation::create(value::bitcastTo<double>(sum.value),
+                                                         value::bitcastTo<double>(addend.value));
 
     if (auto nElems = arr->size(); nElems < AggSumValueElems::kMaxSizeOfArray) {
         // We've not seen any decimal value.
@@ -553,12 +551,12 @@ FastTuple<bool, value::TypeTags, value::Value> ByteCode::aggDoubleDoubleSumFinal
                               << AggSumValueElems::kMaxSizeOfArray
                               << " elements but got: " << arr->size(),
                 nElems == AggSumValueElems::kMaxSizeOfArray);
-        auto [decimalTotalTag, decimalTotalVal] = arr->getAt(AggSumValueElems::kDecimalTotal);
+        auto decimalTotalTagVal = arr->getAt(AggSumValueElems::kDecimalTotal);
         tassert(5755326,
                 "The decimalTotal must be NumberDecimal",
-                decimalTotalTag == value::TypeTags::NumberDecimal);
+                decimalTotalTagVal.tag == value::TypeTags::NumberDecimal);
 
-        auto decimalTotal = value::bitcastTo<Decimal128>(decimalTotalVal);
+        auto decimalTotal = value::bitcastTo<Decimal128>(decimalTotalTagVal.value);
         auto [tag, val] = value::makeCopyDecimal(decimalTotal.add(nonDecimalTotal.getDecimal()));
         return {true, tag, val};
     }
@@ -570,14 +568,15 @@ void ByteCode::aggStdDevImpl(value::Array* arr, value::TypeTags rhsTag, value::V
         return;
     }
 
-    auto [countTag, countVal] = arr->getAt(AggStdDevValueElems::kCount);
-    tassert(5755201, "The count must be of type NumberInt64", countTag == TypeTags::NumberInt64);
+    auto countTagVal = arr->getAt(AggStdDevValueElems::kCount);
+    tassert(
+        5755201, "The count must be of type NumberInt64", countTagVal.tag == TypeTags::NumberInt64);
 
-    auto [meanTag, meanVal] = arr->getAt(AggStdDevValueElems::kRunningMean);
-    auto [m2Tag, m2Val] = arr->getAt(AggStdDevValueElems::kRunningM2);
+    auto mean = arr->getAt(AggStdDevValueElems::kRunningMean);
+    auto m2 = arr->getAt(AggStdDevValueElems::kRunningM2);
     tassert(5755202,
             "The mean and m2 must be of type Double",
-            m2Tag == meanTag && meanTag == TypeTags::NumberDouble);
+            m2.tag == mean.tag && mean.tag == TypeTags::NumberDouble);
 
     double inputDouble = 0.0;
     // Within our query execution engine, $stdDevPop and $stdDevSamp do not maintain the precision
@@ -591,26 +590,26 @@ void ByteCode::aggStdDevImpl(value::Array* arr, value::TypeTags rhsTag, value::V
     }
     auto curVal = value::bitcastFrom<double>(inputDouble);
 
-    auto count = value::bitcastTo<int64_t>(countVal);
+    auto count = value::bitcastTo<int64_t>(countTagVal.value);
     tassert(5755211,
             "The total number of elements must be less than INT64_MAX",
             ++count < std::numeric_limits<int64_t>::max());
     auto newCountVal = value::bitcastFrom<int64_t>(count);
 
-    auto [deltaOwned, deltaTag, deltaVal] =
-        genericSub(value::TypeTags::NumberDouble, curVal, value::TypeTags::NumberDouble, meanVal);
-    auto [deltaDivCountOwned, deltaDivCountTag, deltaDivCountVal] =
-        genericDiv(deltaTag, deltaVal, value::TypeTags::NumberInt64, newCountVal);
-    auto [newMeanOwned, newMeanTag, newMeanVal] =
-        genericAdd(meanTag, meanVal, deltaDivCountTag, deltaDivCountVal);
-    auto [newDeltaOwned, newDeltaTag, newDeltaVal] =
-        genericSub(value::TypeTags::NumberDouble, curVal, newMeanTag, newMeanVal);
-    auto [deltaMultNewDeltaOwned, deltaMultNewDeltaTag, deltaMultNewDeltaVal] =
-        genericMul(deltaTag, deltaVal, newDeltaTag, newDeltaVal);
-    auto [newM2Owned, newM2Tag, newM2Val] =
-        genericAdd(m2Tag, m2Val, deltaMultNewDeltaTag, deltaMultNewDeltaVal);
+    auto delta = value::TagValueMaybeOwned::fromRaw(genericSub(
+        value::TypeTags::NumberDouble, curVal, value::TypeTags::NumberDouble, mean.value));
+    auto deltaDivCount =
+        genericDiv(delta.tag(), delta.value(), value::TypeTags::NumberInt64, newCountVal);
+    auto newMean = value::TagValueMaybeOwned::fromRaw(
+        genericAdd(mean.tag, mean.value, deltaDivCount.tag(), deltaDivCount.value()));
+    auto newDelta = value::TagValueMaybeOwned::fromRaw(
+        genericSub(value::TypeTags::NumberDouble, curVal, newMean.tag(), newMean.value()));
+    auto deltaMultNewDelta = value::TagValueMaybeOwned::fromRaw(
+        genericMul(delta.tag(), delta.value(), newDelta.tag(), newDelta.value()));
+    auto newM2 = value::TagValueMaybeOwned::fromRaw(
+        genericAdd(m2.tag, m2.value, deltaMultNewDelta.tag(), deltaMultNewDelta.value()));
 
-    return setStdDevArray(newCountVal, newMeanVal, newM2Val, arr);
+    return setStdDevArray(newCountVal, newMean.value(), newM2.value(), arr);
 }
 
 void ByteCode::aggMergeStdDevsImpl(value::Array* accumulator,
@@ -626,9 +625,9 @@ void ByteCode::aggMergeStdDevsImpl(value::Array* accumulator,
             "expected array to have exactly 3 elements",
             nextArr->size() == AggStdDevValueElems::kSizeOfArray);
 
-    auto [newCountTag, newCountVal] = nextArr->getAt(AggStdDevValueElems::kCount);
-    tassert(7039545, "expected 64-bit int", newCountTag == value::TypeTags::NumberInt64);
-    int64_t newCount = value::bitcastTo<int64_t>(newCountVal);
+    auto newCountTagVal = nextArr->getAt(AggStdDevValueElems::kCount);
+    tassert(7039545, "expected 64-bit int", newCountTagVal.tag == value::TypeTags::NumberInt64);
+    int64_t newCount = value::bitcastTo<int64_t>(newCountTagVal.value);
 
     // If the incoming partial aggregate has a count of zero, then it represents the partial
     // standard deviation of no data points. This means that it can be safely ignored, and we return
@@ -637,25 +636,25 @@ void ByteCode::aggMergeStdDevsImpl(value::Array* accumulator,
         return;
     }
 
-    auto [oldCountTag, oldCountVal] = accumulator->getAt(AggStdDevValueElems::kCount);
-    tassert(7039546, "expected 64-bit int", oldCountTag == value::TypeTags::NumberInt64);
-    int64_t oldCount = value::bitcastTo<int64_t>(oldCountVal);
+    auto oldCountTagVal = accumulator->getAt(AggStdDevValueElems::kCount);
+    tassert(7039546, "expected 64-bit int", oldCountTagVal.tag == value::TypeTags::NumberInt64);
+    int64_t oldCount = value::bitcastTo<int64_t>(oldCountTagVal.value);
 
-    auto [oldMeanTag, oldMeanVal] = accumulator->getAt(AggStdDevValueElems::kRunningMean);
-    tassert(7039547, "expected double", oldMeanTag == value::TypeTags::NumberDouble);
-    double oldMean = value::bitcastTo<double>(oldMeanVal);
+    auto oldMeanTagVal = accumulator->getAt(AggStdDevValueElems::kRunningMean);
+    tassert(7039547, "expected double", oldMeanTagVal.tag == value::TypeTags::NumberDouble);
+    double oldMean = value::bitcastTo<double>(oldMeanTagVal.value);
 
-    auto [newMeanTag, newMeanVal] = nextArr->getAt(AggStdDevValueElems::kRunningMean);
-    tassert(7039548, "expected double", newMeanTag == value::TypeTags::NumberDouble);
-    double newMean = value::bitcastTo<double>(newMeanVal);
+    auto newMeanTagVal = nextArr->getAt(AggStdDevValueElems::kRunningMean);
+    tassert(7039548, "expected double", newMeanTagVal.tag == value::TypeTags::NumberDouble);
+    double newMean = value::bitcastTo<double>(newMeanTagVal.value);
 
-    auto [oldM2Tag, oldM2Val] = accumulator->getAt(AggStdDevValueElems::kRunningM2);
-    tassert(7039531, "expected double", oldM2Tag == value::TypeTags::NumberDouble);
-    double oldM2 = value::bitcastTo<double>(oldM2Val);
+    auto oldM2TagVal = accumulator->getAt(AggStdDevValueElems::kRunningM2);
+    tassert(7039531, "expected double", oldM2TagVal.tag == value::TypeTags::NumberDouble);
+    double oldM2 = value::bitcastTo<double>(oldM2TagVal.value);
 
-    auto [newM2Tag, newM2Val] = nextArr->getAt(AggStdDevValueElems::kRunningM2);
-    tassert(7039541, "expected double", newM2Tag == value::TypeTags::NumberDouble);
-    double newM2 = value::bitcastTo<double>(newM2Val);
+    auto newM2TagVal = nextArr->getAt(AggStdDevValueElems::kRunningM2);
+    tassert(7039541, "expected double", newM2TagVal.tag == value::TypeTags::NumberDouble);
+    double newM2 = value::bitcastTo<double>(newM2TagVal.value);
 
     const double delta = newMean - oldMean;
     // We've already handled the case where 'newCount' is zero above. This means that 'totalCount'
@@ -676,14 +675,15 @@ void ByteCode::aggMergeStdDevsImpl(value::Array* accumulator,
                    accumulator);
 }
 
-FastTuple<bool, value::TypeTags, value::Value> ByteCode::aggStdDevFinalizeImpl(
-    value::Value fieldValue, bool isSamp) {
+value::TagValueMaybeOwned ByteCode::aggStdDevFinalizeImpl(value::Value fieldValue, bool isSamp) {
     auto arr = value::getArrayView(fieldValue);
 
-    auto [countTag, countVal] = arr->getAt(AggStdDevValueElems::kCount);
-    tassert(5755207, "The count must be a NumberInt64", countTag == value::TypeTags::NumberInt64);
+    auto countTagVal = arr->getAt(AggStdDevValueElems::kCount);
+    tassert(5755207,
+            "The count must be a NumberInt64",
+            countTagVal.tag == value::TypeTags::NumberInt64);
 
-    auto count = value::bitcastTo<int64_t>(countVal);
+    auto count = value::bitcastTo<int64_t>(countTagVal.value);
 
     if (count == 0) {
         return {true, value::TypeTags::Null, 0};
@@ -693,21 +693,21 @@ FastTuple<bool, value::TypeTags, value::Value> ByteCode::aggStdDevFinalizeImpl(
         return {true, value::TypeTags::Null, 0};
     }
 
-    auto [m2Tag, m2] = arr->getAt(AggStdDevValueElems::kRunningM2);
+    auto m2 = arr->getAt(AggStdDevValueElems::kRunningM2);
     tassert(5755208,
             "The m2 value must be of type NumberDouble",
-            m2Tag == value::TypeTags::NumberDouble);
-    auto m2Double = value::bitcastTo<double>(m2);
+            m2.tag == value::TypeTags::NumberDouble);
+    auto m2Double = value::bitcastTo<double>(m2.value);
     auto variance = isSamp ? (m2Double / (count - 1)) : (m2Double / count);
     auto stdDev = sqrt(variance);
 
     return {true, value::TypeTags::NumberDouble, value::bitcastFrom<double>(stdDev)};
 }
 
-FastTuple<bool, value::TypeTags, value::Value> ByteCode::genericDiv(value::TypeTags lhsTag,
-                                                                    value::Value lhsValue,
-                                                                    value::TypeTags rhsTag,
-                                                                    value::Value rhsValue) {
+value::TagValueMaybeOwned ByteCode::genericDiv(value::TypeTags lhsTag,
+                                               value::Value lhsValue,
+                                               value::TypeTags rhsTag,
+                                               value::Value rhsValue) {
     auto assertNonZero = [](bool nonZero) {
         uassert(4848401, "can't $divide by zero", nonZero);
     };
@@ -747,10 +747,10 @@ FastTuple<bool, value::TypeTags, value::Value> ByteCode::genericDiv(value::TypeT
     return {false, value::TypeTags::Nothing, 0};
 }
 
-FastTuple<bool, value::TypeTags, value::Value> ByteCode::genericIDiv(value::TypeTags lhsTag,
-                                                                     value::Value lhsValue,
-                                                                     value::TypeTags rhsTag,
-                                                                     value::Value rhsValue) {
+value::TagValueMaybeOwned ByteCode::genericIDiv(value::TypeTags lhsTag,
+                                                value::Value lhsValue,
+                                                value::TypeTags rhsTag,
+                                                value::Value rhsValue) {
     auto assertNonZero = [](bool nonZero) {
         uassert(4848402, "can't $divide by zero", nonZero);
     };
@@ -801,10 +801,10 @@ FastTuple<bool, value::TypeTags, value::Value> ByteCode::genericIDiv(value::Type
     return {false, value::TypeTags::Nothing, 0};
 }
 
-FastTuple<bool, value::TypeTags, value::Value> ByteCode::genericMod(value::TypeTags lhsTag,
-                                                                    value::Value lhsValue,
-                                                                    value::TypeTags rhsTag,
-                                                                    value::Value rhsValue) {
+value::TagValueMaybeOwned ByteCode::genericMod(value::TypeTags lhsTag,
+                                               value::Value lhsValue,
+                                               value::TypeTags rhsTag,
+                                               value::Value rhsValue) {
     auto assertNonZero = [](bool nonZero) {
         uassert(4848403, "can't $mod by zero", nonZero);
     };
@@ -844,8 +844,8 @@ FastTuple<bool, value::TypeTags, value::Value> ByteCode::genericMod(value::TypeT
     return {false, value::TypeTags::Nothing, 0};
 }
 
-FastTuple<bool, value::TypeTags, value::Value> ByteCode::genericAbs(value::TypeTags operandTag,
-                                                                    value::Value operandValue) {
+value::TagValueMaybeOwned ByteCode::genericAbs(value::TypeTags operandTag,
+                                               value::Value operandValue) {
     switch (operandTag) {
         case value::TypeTags::NumberInt32: {
             auto operand = value::bitcastTo<int32_t>(operandValue);
@@ -885,8 +885,8 @@ FastTuple<bool, value::TypeTags, value::Value> ByteCode::genericAbs(value::TypeT
     }
 }
 
-FastTuple<bool, value::TypeTags, value::Value> ByteCode::genericCeil(value::TypeTags operandTag,
-                                                                     value::Value operandValue) {
+value::TagValueMaybeOwned ByteCode::genericCeil(value::TypeTags operandTag,
+                                                value::Value operandValue) {
     if (isNumber(operandTag)) {
         switch (operandTag) {
             case value::TypeTags::NumberDouble: {
@@ -912,8 +912,8 @@ FastTuple<bool, value::TypeTags, value::Value> ByteCode::genericCeil(value::Type
     return {false, value::TypeTags::Nothing, 0};
 }
 
-FastTuple<bool, value::TypeTags, value::Value> ByteCode::genericFloor(value::TypeTags operandTag,
-                                                                      value::Value operandValue) {
+value::TagValueMaybeOwned ByteCode::genericFloor(value::TypeTags operandTag,
+                                                 value::Value operandValue) {
     if (isNumber(operandTag)) {
         switch (operandTag) {
             case value::TypeTags::NumberDouble: {
@@ -939,8 +939,8 @@ FastTuple<bool, value::TypeTags, value::Value> ByteCode::genericFloor(value::Typ
     return {false, value::TypeTags::Nothing, 0};
 }
 
-FastTuple<bool, value::TypeTags, value::Value> ByteCode::genericExp(value::TypeTags operandTag,
-                                                                    value::Value operandValue) {
+value::TagValueMaybeOwned ByteCode::genericExp(value::TypeTags operandTag,
+                                               value::Value operandValue) {
     switch (operandTag) {
         case value::TypeTags::NumberDouble: {
             auto result = exp(value::bitcastTo<double>(operandValue));
@@ -963,8 +963,8 @@ FastTuple<bool, value::TypeTags, value::Value> ByteCode::genericExp(value::TypeT
     }
 }
 
-FastTuple<bool, value::TypeTags, value::Value> ByteCode::genericLn(value::TypeTags operandTag,
-                                                                   value::Value operandValue) {
+value::TagValueMaybeOwned ByteCode::genericLn(value::TypeTags operandTag,
+                                              value::Value operandValue) {
     switch (operandTag) {
         case value::TypeTags::NumberDouble: {
             auto operand = value::bitcastTo<double>(operandValue);
@@ -1005,8 +1005,8 @@ FastTuple<bool, value::TypeTags, value::Value> ByteCode::genericLn(value::TypeTa
     }
 }
 
-FastTuple<bool, value::TypeTags, value::Value> ByteCode::genericLog10(value::TypeTags operandTag,
-                                                                      value::Value operandValue) {
+value::TagValueMaybeOwned ByteCode::genericLog10(value::TypeTags operandTag,
+                                                 value::Value operandValue) {
     switch (operandTag) {
         case value::TypeTags::NumberDouble: {
             auto operand = value::bitcastTo<double>(operandValue);
@@ -1046,8 +1046,8 @@ FastTuple<bool, value::TypeTags, value::Value> ByteCode::genericLog10(value::Typ
     }
 }
 
-FastTuple<bool, value::TypeTags, value::Value> ByteCode::genericSqrt(value::TypeTags operandTag,
-                                                                     value::Value operandValue) {
+value::TagValueMaybeOwned ByteCode::genericSqrt(value::TypeTags operandTag,
+                                                value::Value operandValue) {
     switch (operandTag) {
         case value::TypeTags::NumberDouble: {
             auto operand = value::bitcastTo<double>(operandValue);
@@ -1084,10 +1084,10 @@ FastTuple<bool, value::TypeTags, value::Value> ByteCode::genericSqrt(value::Type
     }
 }
 
-FastTuple<bool, value::TypeTags, value::Value> ByteCode::genericPow(value::TypeTags baseTag,
-                                                                    value::Value baseValue,
-                                                                    value::TypeTags exponentTag,
-                                                                    value::Value exponentValue) {
+value::TagValueMaybeOwned ByteCode::genericPow(value::TypeTags baseTag,
+                                               value::Value baseValue,
+                                               value::TypeTags exponentTag,
+                                               value::Value exponentValue) {
 
     // pow supports only numeric values
     if (!value::isNumber(baseTag) || !value::isNumber(exponentTag)) {
@@ -1126,7 +1126,7 @@ FastTuple<bool, value::TypeTags, value::Value> ByteCode::genericPow(value::TypeT
 
     // If both values are int and the res fits in int then return int, otherwise return long
     const auto formatResult = [baseTag, exponentTag](int64_t longRes) {
-        FastTuple<bool, value::TypeTags, value::Value> res = {
+        value::TagValueMaybeOwned res = {
             false, value::TypeTags::NumberInt64, value::bitcastFrom<int64_t>(longRes)};
 
         if (baseTag == value::TypeTags::NumberInt32 &&
@@ -1205,8 +1205,7 @@ FastTuple<bool, value::TypeTags, value::Value> ByteCode::genericPow(value::TypeT
     return formatResult(computeWithRepeatedMultiplication(baseLong, exponentLong));
 }
 
-std::pair<value::TypeTags, value::Value> ByteCode::genericNot(value::TypeTags tag,
-                                                              value::Value value) {
+value::TagValueOwned ByteCode::genericNot(value::TypeTags tag, value::Value value) {
     if (tag == value::TypeTags::Boolean) {
         return {tag, value::bitcastFrom<bool>(!value::bitcastTo<bool>(value))};
     } else {
@@ -1214,40 +1213,34 @@ std::pair<value::TypeTags, value::Value> ByteCode::genericNot(value::TypeTags ta
     }
 }
 
-FastTuple<bool, value::TypeTags, value::Value> ByteCode::genericAcos(value::TypeTags argTag,
-                                                                     value::Value argValue) {
+value::TagValueMaybeOwned ByteCode::genericAcos(value::TypeTags argTag, value::Value argValue) {
     return genericTrigonometricFun<Acos>(argTag, argValue);
 }
 
-FastTuple<bool, value::TypeTags, value::Value> ByteCode::genericAcosh(value::TypeTags argTag,
-                                                                      value::Value argValue) {
+value::TagValueMaybeOwned ByteCode::genericAcosh(value::TypeTags argTag, value::Value argValue) {
     return genericTrigonometricFun<Acosh>(argTag, argValue);
 }
 
-FastTuple<bool, value::TypeTags, value::Value> ByteCode::genericAsin(value::TypeTags argTag,
-                                                                     value::Value argValue) {
+value::TagValueMaybeOwned ByteCode::genericAsin(value::TypeTags argTag, value::Value argValue) {
     return genericTrigonometricFun<Asin>(argTag, argValue);
 }
 
-FastTuple<bool, value::TypeTags, value::Value> ByteCode::genericAsinh(value::TypeTags argTag,
-                                                                      value::Value argValue) {
+value::TagValueMaybeOwned ByteCode::genericAsinh(value::TypeTags argTag, value::Value argValue) {
     return genericTrigonometricFun<Asinh>(argTag, argValue);
 }
 
-FastTuple<bool, value::TypeTags, value::Value> ByteCode::genericAtan(value::TypeTags argTag,
-                                                                     value::Value argValue) {
+value::TagValueMaybeOwned ByteCode::genericAtan(value::TypeTags argTag, value::Value argValue) {
     return genericTrigonometricFun<Atan>(argTag, argValue);
 }
 
-FastTuple<bool, value::TypeTags, value::Value> ByteCode::genericAtanh(value::TypeTags argTag,
-                                                                      value::Value argValue) {
+value::TagValueMaybeOwned ByteCode::genericAtanh(value::TypeTags argTag, value::Value argValue) {
     return genericTrigonometricFun<Atanh>(argTag, argValue);
 }
 
-FastTuple<bool, value::TypeTags, value::Value> ByteCode::genericAtan2(value::TypeTags argTag1,
-                                                                      value::Value argValue1,
-                                                                      value::TypeTags argTag2,
-                                                                      value::Value argValue2) {
+value::TagValueMaybeOwned ByteCode::genericAtan2(value::TypeTags argTag1,
+                                                 value::Value argValue1,
+                                                 value::TypeTags argTag2,
+                                                 value::Value argValue2) {
     if (value::isNumber(argTag1) && value::isNumber(argTag2)) {
         switch (getWidestNumericalType(argTag1, argTag2)) {
             case value::TypeTags::NumberInt32:
@@ -1270,18 +1263,16 @@ FastTuple<bool, value::TypeTags, value::Value> ByteCode::genericAtan2(value::Typ
     return {false, value::TypeTags::Nothing, 0};
 }
 
-FastTuple<bool, value::TypeTags, value::Value> ByteCode::genericCos(value::TypeTags argTag,
-                                                                    value::Value argValue) {
+value::TagValueMaybeOwned ByteCode::genericCos(value::TypeTags argTag, value::Value argValue) {
     return genericTrigonometricFun<Cos>(argTag, argValue);
 }
 
-FastTuple<bool, value::TypeTags, value::Value> ByteCode::genericCosh(value::TypeTags argTag,
-                                                                     value::Value argValue) {
+value::TagValueMaybeOwned ByteCode::genericCosh(value::TypeTags argTag, value::Value argValue) {
     return genericTrigonometricFun<Cosh>(argTag, argValue);
 }
 
-FastTuple<bool, value::TypeTags, value::Value> ByteCode::genericDegreesToRadians(
-    value::TypeTags argTag, value::Value argValue) {
+value::TagValueMaybeOwned ByteCode::genericDegreesToRadians(value::TypeTags argTag,
+                                                            value::Value argValue) {
     if (value::isNumber(argTag)) {
         switch (argTag) {
             case value::TypeTags::NumberInt32:
@@ -1303,8 +1294,8 @@ FastTuple<bool, value::TypeTags, value::Value> ByteCode::genericDegreesToRadians
     return {false, value::TypeTags::Nothing, 0};
 }
 
-FastTuple<bool, value::TypeTags, value::Value> ByteCode::genericRadiansToDegrees(
-    value::TypeTags argTag, value::Value argValue) {
+value::TagValueMaybeOwned ByteCode::genericRadiansToDegrees(value::TypeTags argTag,
+                                                            value::Value argValue) {
     if (value::isNumber(argTag)) {
         switch (argTag) {
             case value::TypeTags::NumberInt32:
@@ -1326,23 +1317,19 @@ FastTuple<bool, value::TypeTags, value::Value> ByteCode::genericRadiansToDegrees
     return {false, value::TypeTags::Nothing, 0};
 }
 
-FastTuple<bool, value::TypeTags, value::Value> ByteCode::genericSin(value::TypeTags argTag,
-                                                                    value::Value argValue) {
+value::TagValueMaybeOwned ByteCode::genericSin(value::TypeTags argTag, value::Value argValue) {
     return genericTrigonometricFun<Sin>(argTag, argValue);
 }
 
-FastTuple<bool, value::TypeTags, value::Value> ByteCode::genericSinh(value::TypeTags argTag,
-                                                                     value::Value argValue) {
+value::TagValueMaybeOwned ByteCode::genericSinh(value::TypeTags argTag, value::Value argValue) {
     return genericTrigonometricFun<Sinh>(argTag, argValue);
 }
 
-FastTuple<bool, value::TypeTags, value::Value> ByteCode::genericTan(value::TypeTags argTag,
-                                                                    value::Value argValue) {
+value::TagValueMaybeOwned ByteCode::genericTan(value::TypeTags argTag, value::Value argValue) {
     return genericTrigonometricFun<Tan>(argTag, argValue);
 }
 
-FastTuple<bool, value::TypeTags, value::Value> ByteCode::genericTanh(value::TypeTags argTag,
-                                                                     value::Value argValue) {
+value::TagValueMaybeOwned ByteCode::genericTanh(value::TypeTags argTag, value::Value argValue) {
     return genericTrigonometricFun<Tanh>(argTag, argValue);
 }
 

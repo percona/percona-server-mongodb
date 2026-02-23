@@ -61,6 +61,7 @@ const std::string kTimeseriesBucketsMayHaveMixedSchemaDataFieldName =
 const std::string kTimeseriesBucketingParametersHaveChanged_DO_NOT_USE =
     "timeseriesBucketingParametersHaveChanged";
 
+const std::string kRecordIdsReplicated = "recordIdsReplicated";
 }  // namespace
 
 namespace durable_catalog {
@@ -217,6 +218,9 @@ BSONObj CatalogEntryMetaData::toBSON(bool hasExclusiveAccess) const {
                  *timeseriesBucketingParametersHaveChanged_DO_NOT_USE);
     }
 
+    if (recordIdsReplicated) {
+        b.appendBool(kRecordIdsReplicated, recordIdsReplicated);
+    }
     return b.obj();
 }
 
@@ -268,6 +272,10 @@ void CatalogEntryMetaData::parse(const BSONObj& obj) {
     if (!tsBucketingParametersChangedElem.eoo() && tsBucketingParametersChangedElem.isBoolean()) {
         timeseriesBucketingParametersHaveChanged_DO_NOT_USE =
             tsBucketingParametersChangedElem.Bool();
+    }
+
+    if (BSONElement value = obj[kRecordIdsReplicated]; value.isBoolean()) {
+        recordIdsReplicated = value.Bool();
     }
 }
 

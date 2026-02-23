@@ -33,6 +33,7 @@
 #include "mongo/base/string_data.h"
 #include "mongo/bson/bsonelement.h"
 #include "mongo/bson/timestamp.h"
+#include "mongo/crypto/oplog_key_entry_handler.h"
 #include "mongo/db/database_name.h"
 #include "mongo/db/namespace_string.h"
 #include "mongo/db/operation_context.h"
@@ -236,9 +237,12 @@ Status _applyOps(OperationContext* opCtx,
                                                                oplogApplicationMode,
                                                                isDataConsistent);
                         }
-                        case OpTypeEnum::kNoop:
-                        case OpTypeEnum::kKeyMaterial: {
+                        case OpTypeEnum::kNoop: {
                             return Status::OK();
+                        }
+                        case OpTypeEnum::kKeyMaterial: {
+                            auto handler = OplogKeyEntryHandler::get(opCtx->getServiceContext());
+                            return handler->applyOplogEntry(opCtx, entry);
                         }
                     }
                     MONGO_UNREACHABLE;

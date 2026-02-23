@@ -156,7 +156,7 @@ public:
 
     /**
      * Wait some fixed amount of additional time before dropping an ident. This gets added to the
-     * timestamp of each ident getting dropped. Incompatible with checkpoint-style drop times.
+     * timestamp of each ident getting dropped. Has no effect on checkpoint-style drops.
      */
     void configureDelay(Seconds delay);
 
@@ -191,6 +191,8 @@ private:
                       IdentInfo& identInfo);
 
     Status _immediatelyAttemptToCompletePendingDrop(OperationContext* opCtx, StringData ident);
+
+    Timestamp _applyDelay(const Timestamp& ts) const;
 
     struct CompareByDropTime {
         using is_transparent = bool;

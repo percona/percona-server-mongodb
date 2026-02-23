@@ -9,6 +9,9 @@
 import {assertArrayEq, getExplainedPipelineFromAggregation} from "jstests/aggregation/extras/utils.js";
 import {FixtureHelpers} from "jstests/libs/fixture_helpers.js";
 
+// TODO SERVER-120020: Remove this line.
+TestData.pinToSingleMongos = true;
+
 // TODO(SERVER-18047): Remove database creation once explain behavior is unified between replica
 // sets and sharded clusters.
 if (FixtureHelpers.isMongos(db) || TestData.testingReplicaSetEndpoint) {
@@ -42,33 +45,12 @@ if (FixtureHelpers.isMongos(db) || TestData.testingReplicaSetEndpoint) {
             }
         };
         const expected = buildExpressionFromArguments(expectedOutput, op);
-        const inputExpr = buildExpressionFromArguments(input, op);
-        let lastProcessedPipeline;
+        let processedPipeline = getExplainedPipelineFromAggregation(db, db[collName], [
+            {$group: {_id: buildExpressionFromArguments(input, op), sum: {$sum: 1}}},
+        ]);
 
-        assert.soon(
-            () => {
-                lastProcessedPipeline = getExplainedPipelineFromAggregation(db, db[collName], [
-                    {$group: {_id: inputExpr, sum: {$sum: 1}}},
-                ]);
-                return (
-                    lastProcessedPipeline[0] &&
-                    lastProcessedPipeline[0].$group &&
-                    bsonWoCompare(lastProcessedPipeline[0].$group._id, expected) === 0
-                );
-            },
-            () => {
-                if (!lastProcessedPipeline) {
-                    return `${message}. Expected ${tojson(expected)}. Pipeline was undefined.`;
-                }
-                if (!lastProcessedPipeline[0]) {
-                    return `${message}. Expected ${tojson(expected)}. Pipeline[0] was undefined. Pipeline: ${tojson(lastProcessedPipeline)}`;
-                }
-                if (!lastProcessedPipeline[0].$group) {
-                    return `${message}. Expected ${tojson(expected)}. Pipeline[0].$group was undefined. Pipeline[0]: ${tojson(lastProcessedPipeline[0])}`;
-                }
-                return `${message}. Expected ${tojson(expected)}. Found ${tojson(lastProcessedPipeline[0].$group._id)}`;
-            },
-        );
+        assert(processedPipeline[0] && processedPipeline[0].$group);
+        assert.eq(processedPipeline[0].$group._id, expected, message);
 
         return true;
     }

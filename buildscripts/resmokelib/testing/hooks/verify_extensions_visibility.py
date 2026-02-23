@@ -5,7 +5,7 @@ import subprocess
 
 from buildscripts.resmokelib import errors
 from buildscripts.resmokelib.extensions.find_and_generate_extension_configs import (
-    find_extension_so_files,
+    find_all_extension_so_files,
 )
 from buildscripts.resmokelib.testing.hooks import interface
 from buildscripts.resmokelib.utils import default_if_none
@@ -41,7 +41,7 @@ class VerifyExtensionsVisibility(interface.Hook):
         pathname = "evergreen/verify_extension_visibility_test.sh"
         verifier_script_path = os.path.join(workdir, "src", pathname) if workdir else pathname
 
-        so_files = find_extension_so_files(
+        so_files = find_all_extension_so_files(
             is_evergreen=bool(self.fixture.config.EVERGREEN_TASK_ID),
             logger=self.logger,
         )

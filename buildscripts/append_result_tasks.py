@@ -46,6 +46,10 @@ def main(outfile: Annotated[str, typer.Option()], build_events: str = "build_eve
     failed_tests, successful_tests = process_bep(build_events)
     tasks = failed_tests + successful_tests
 
+    if not tasks:
+        print("No test executions reported in the build events, exiting...")
+        return
+
     # Shrub's TaskGroup doesn't supporting adding existing tasks, so leave `tasks` empty and patch
     # the real list in later.
     task_group = TaskGroup(
@@ -166,6 +170,19 @@ def main(outfile: Annotated[str, typer.Option()], build_events: str = "build_eve
     # Patch in the real list of tasks in the task group.
     project = shrub_project.as_dict()
     project["task_groups"][0]["tasks"] = tasks
+
+    # Typical variants running resmoke tests set a variant-wide dependency. During conversion,
+    # these are not a dependency for the `resmoke_tests` task or the results tasks added here.
+    # Set an explicitly depends_on in the task group's reference to override it.
+    # The task that generated the task is used as a no-op dependency, as a workaround for not
+    # being able to set an empty depends_on. Remove with SERVER-119809.
+    if re.match(BAZEL_BURN_IN_TESTS, task_name):
+        depends_on = {"name": "version_burn_in_gen", "variant": "generate-tasks-for-version"}
+    else:
+        depends_on = {"name": "bazel_result_tasks_gen", "variant": "generate-tasks-for-version"}
+    for variant in project.get("buildvariants", []):
+        for task in variant.get("tasks", []):
+            task["depends_on"] = depends_on
 
     with open(outfile, "w") as f:
         f.write(json.dumps(project, indent=4))

@@ -13,6 +13,7 @@
 // ]
 
 import {getExecutionStages, getPlanStages} from "jstests/libs/query/analyze_plan.js";
+import {add2dsphereVersionIfNeeded} from "jstests/libs/query/geo_index_version_helpers.js";
 
 const string1MB = "A".repeat(1024 * 1024);
 const docCount = 200;
@@ -64,7 +65,7 @@ function insertDocuments(coll, generateDocument) {
     // Check regular collection - spilling buffer will spill
     const coll = db.geo_circle_spilling;
     coll.drop();
-    coll.createIndex({geo: "2dsphere"});
+    coll.createIndex({geo: "2dsphere"}, add2dsphereVersionIfNeeded());
 
     insertDocuments(coll, (i) => {
         return {
@@ -87,7 +88,7 @@ function insertDocuments(coll, generateDocument) {
             clusteredIndex: {"key": {_id: 1}, "unique": true, "name": "large string clustered key"},
         }),
     );
-    clusteredColl.createIndex({geo: "2dsphere"});
+    clusteredColl.createIndex({geo: "2dsphere"}, add2dsphereVersionIfNeeded());
 
     insertDocuments(clusteredColl, (i) => {
         return {

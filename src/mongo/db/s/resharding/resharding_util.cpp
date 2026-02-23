@@ -567,6 +567,20 @@ ReshardingCoordinatorDocument createReshardingCoordinatorDoc(
     auto existingUUID = collEntry.getUuid();
     auto shardKeySpec = request.getKey();
 
+    // TODO: SERVER-119524 Remove this after 8.3 becomes last LTS.
+    // We need to perform translation of shard key for timeseries collections if the shard key is
+    // not already translated to raw key format to provide backwards compatibility.
+    if (collEntry.getTimeseriesFields() &&
+        (!setProvenance ||
+         (*request.getProvenance() == ReshardingProvenanceEnum::kReshardCollection))) {
+        auto tsOptions = collEntry.getTimeseriesFields().get().getTimeseriesOptions();
+        auto isTranslated = shardkeyutil::isRawTimeseriesShardKey(tsOptions, request.getKey());
+        if (!isTranslated) {
+            shardKeySpec =
+                shardkeyutil::validateAndTranslateTimeseriesShardKey(tsOptions, request.getKey());
+        }
+    }
+
     auto tempReshardingNss = resharding::constructTemporaryReshardingNss(nss, collEntry.getUuid());
 
     auto commonMetadata = CommonReshardingMetadata(std::move(reshardingUUID),
@@ -651,7 +665,7 @@ ReshardingCoordinatorDocument getCoordinatorDoc(OperationContext* opCtx,
 }
 
 SemiFuture<void> waitForMajority(const CancellationToken& token,
-                                 const CancelableOperationContextFactory& factory) {
+                                 const HierarchicalCancelableOperationContextFactory& factory) {
     auto opCtx = factory.makeOperationContext(&cc());
     auto client = opCtx->getClient();
     repl::ReplClientInfo::forClient(client).setLastOpToSystemLastOpTime(opCtx.get());
@@ -663,10 +677,10 @@ SemiFuture<void> waitForMajority(const CancellationToken& token,
 ExecutorFuture<void> waitForReplicationOnVotingMembers(
     std::shared_ptr<executor::TaskExecutor> executor,
     const CancellationToken& cancelToken,
-    const CancelableOperationContextFactory& factory,
+    std::shared_ptr<HierarchicalCancelableOperationContextFactory> factory,
     std::function<unsigned()> getMaxLagSecs) {
-    return AsyncTry([&factory, getMaxLagSecs] {
-               auto opCtx = factory.makeOperationContext(&cc());
+    return AsyncTry([factory, getMaxLagSecs] {
+               auto opCtx = factory->makeOperationContext(&cc());
 
                auto& replClientInfo = repl::ReplClientInfo::forClient(opCtx->getClient());
                replClientInfo.setLastOpToSystemLastOpTime(opCtx.get());

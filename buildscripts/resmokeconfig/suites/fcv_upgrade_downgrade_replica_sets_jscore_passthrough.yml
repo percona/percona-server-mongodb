@@ -8,7 +8,6 @@ selector:
     - jstests/core/**/*.js
     - jstests/fle2/**/*.js
     - jstests/aggregation/**/*.js
-    - src/mongo/db/modules/*/jstests/fle/**/*.js
   exclude_with_any_tags:
     - assumes_standalone_mongod
     - featureFlagFLE2CleanupCommand
@@ -23,6 +22,8 @@ selector:
     - featureFlagRankFusion
     # TODO: SERVER-86544 remove feature flag for SPM-3672
     - featureFlagMongotIndexedViews
+    # TODO: SERVER-101595 remove feature flag
+    - featureFlagCreateViewlessTimeseriesCollections
     # Transactions are aborted upon fcv upgrade or downgrade.
     - uses_transactions
     # Exclude tests that require a specific fcv.
@@ -53,12 +54,6 @@ selector:
     # TODO: Remove after fixing SERVER-78201: the following received command without explicit readConcern.
     - jstests/aggregation/sources/densify/internal_parse.js
     - jstests/aggregation/parsing/api_version_stage_allowance_checks.js
-
-    # TODO (SERVER-78200): The tests below sometimes hang when they run concurrently with a setFCV command.
-    - src/mongo/db/modules/*/jstests/fle/fle_admin_e2e.js
-    - src/mongo/db/modules/*/jstests/fle/fle_implicit_encryption.js
-    - src/mongo/db/modules/*/jstests/fle/fle_use_cases.js
-    - src/mongo/db/modules/*/jstests/fle/fle_drivers_integration.js
 
     # Expected failure due to command count being not precise due to potential retry of index build.
     - jstests/core/diagnostics/operation_latency_histogram.js

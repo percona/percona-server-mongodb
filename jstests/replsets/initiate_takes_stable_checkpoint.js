@@ -20,13 +20,23 @@ const rst = new ReplSetTest({
                 // require the checkpointer to be running.
                 "failpoint.PrimaryOnlyServiceSkipRebuildingInstances": tojson({mode: "alwaysOn"}),
                 "logComponentVerbosity": tojson({replication: 3}),
+                // Skip waiting for last stable to advance since it is possible that the primary cannot advance its stable timestamp in this test.
+                "initialSyncWaitForSyncSourceLastStableRecoveryTs": false,
             },
             rsConfig: {priority: 2},
         },
         {
+            setParameter: {
+                // Skip waiting for last stable to advance since it is possible that the primary cannot advance its stable timestamp in this test.
+                "initialSyncWaitForSyncSourceLastStableRecoveryTs": false,
+            },
             rsConfig: {priority: 1},
         },
         {
+            setParameter: {
+                // Skip waiting for last stable to advance since it is possible that the primary cannot advance its stable timestamp in this test.
+                "initialSyncWaitForSyncSourceLastStableRecoveryTs": false,
+            },
             rsConfig: {priority: 0},
         },
     ],

@@ -144,6 +144,31 @@ public:
     }
 };
 
+/**
+ * Holds the components created by the idLookup construction helper.
+ */
+struct IdLookupTestComponents {
+    boost::intrusive_ptr<DocumentSourceInternalSearchIdLookUp> docSource;
+    exec::agg::StagePtr stage;
+    MultipleCollectionAccessor collections;
+};
+
+/**
+ * Builds an IdLookup stage from catalog resources.
+ */
+IdLookupTestComponents buildIdLookup(
+    const boost::intrusive_ptr<ExpressionContext>& expCtx,
+    std::pair<boost::intrusive_ptr<ShardRoleTransactionResourcesStasherForPipeline>,
+              MultipleCollectionAccessor> catalogResources) {
+    auto& [sharedStasher, collections] = catalogResources;
+    DocumentSourceIdLookupSpec spec;
+    spec.setLimit(0LL);
+    auto idLookup = make_intrusive<DocumentSourceInternalSearchIdLookUp>(std::move(spec), expCtx);
+    idLookup->bindCatalogInfo(collections, sharedStasher);
+    auto idLookupStage = exec::agg::buildStage(idLookup);
+    return {std::move(idLookup), std::move(idLookupStage), std::move(collections)};
+}
+
 class InternalSearchIdLookupWithCatalogTest : public CatalogTestFixture {
 protected:
     void setUp() final {
@@ -189,6 +214,10 @@ protected:
                                                       transactionResourcesStasher.get());
         return {transactionResourcesStasher, collections};
     }
+    IdLookupTestComponents createIdLookup() {
+        return buildIdLookup(expCtx, createCatalogResources());
+    }
+
     boost::intrusive_ptr<ExpressionContext> expCtx;
 };
 
@@ -200,12 +229,7 @@ TEST_F(InternalSearchIdLookupWithCatalogTest, BasicSearchTest) {
 
     insertDocuments(kTestNss, docs);
 
-    auto idLookup = make_intrusive<DocumentSourceInternalSearchIdLookUp>(expCtx, 0 /*limit*/);
-    // Create catalog resources.
-    auto [sharedStasher, collections] = createCatalogResources();
-    idLookup->bindCatalogInfo(collections, sharedStasher);
-
-    auto idLookupStage = exec::agg::buildStage(idLookup);
+    auto [idLookup, idLookupStage, collections] = createIdLookup();
 
     // Mock its input.
     auto mockLocalStage = exec::agg::MockStage::createForTest(
@@ -235,12 +259,7 @@ TEST_F(InternalSearchIdLookupWithCatalogTest, ShouldSkipResultsWhenIdNotFound) {
     std::vector<BSONObj> docs{BSON("_id" << 0 << "color" << "red"_sd)};
     insertDocuments(kTestNss, docs);
 
-    auto idLookup = make_intrusive<DocumentSourceInternalSearchIdLookUp>(expCtx, 0 /*limit*/);
-    // Create catalog resources.
-    auto [sharedStasher, collections] = createCatalogResources();
-    idLookup->bindCatalogInfo(collections, sharedStasher);
-
-    auto idLookupStage = exec::agg::buildStage(idLookup);
+    auto [idLookup, idLookupStage, collections] = createIdLookup();
 
     // Mock input to stage.
     auto mockLocalStage =
@@ -274,12 +293,7 @@ TEST_F(InternalSearchIdLookupWithCatalogTest, ShouldNotRemoveMetadata) {
     docOne.metadata().setSearchScoreDetails(searchScoreDetails);
     auto mockLocalStage = exec::agg::MockStage::createForTest({docOne.freeze()}, expCtx);
 
-    auto idLookup = make_intrusive<DocumentSourceInternalSearchIdLookUp>(expCtx, 0 /*limit*/);
-    // Create catalog resources.
-    auto [sharedStasher, collections] = createCatalogResources();
-    idLookup->bindCatalogInfo(collections, sharedStasher);
-
-    auto idLookupStage = exec::agg::buildStage(idLookup);
+    auto [idLookup, idLookupStage, collections] = createIdLookup();
     idLookupStage->setSource(mockLocalStage.get());
 
     // Set up a project stage that asks for metadata.
@@ -322,12 +336,7 @@ TEST_F(InternalSearchIdLookupWithCatalogTest, ShouldAllowStringOrObjectIdValues)
          Document{{"_id", Document{{"number", 42}, {"irrelevant", "something"_sd}}}}},
         expCtx);
 
-    auto idLookup = make_intrusive<DocumentSourceInternalSearchIdLookUp>(expCtx, 0 /*limit*/);
-    // Create catalog resources.
-    auto [sharedStasher, collections] = createCatalogResources();
-    idLookup->bindCatalogInfo(collections, sharedStasher);
-
-    auto idLookupStage = exec::agg::buildStage(idLookup);
+    auto [idLookup, idLookupStage, collections] = createIdLookup();
     idLookupStage->setSource(mockLocalStage.get());
 
     // Find documents when _id is a string or document.
@@ -356,12 +365,7 @@ TEST_F(InternalSearchIdLookupWithCatalogTest, ShouldNotErrorOnEmptyResult) {
     std::vector<BSONObj> docs{BSON("_id" << 0 << "color" << "red"_sd)};
     insertDocuments(kTestNss, docs);
 
-    auto idLookup = make_intrusive<DocumentSourceInternalSearchIdLookUp>(expCtx, 0 /*limit*/);
-    // Create catalog resources.
-    auto [sharedStasher, collections] = createCatalogResources();
-    idLookup->bindCatalogInfo(collections, sharedStasher);
-
-    auto idLookupStage = exec::agg::buildStage(idLookup);
+    auto [idLookup, idLookupStage, collections] = createIdLookup();
 
     // Mock its input.
     auto mockLocalStage = exec::agg::MockStage::createForTest({}, expCtx);
@@ -456,14 +460,17 @@ protected:
 
     std::pair<boost::intrusive_ptr<ShardRoleTransactionResourcesStasherForPipeline>,
               MultipleCollectionAccessor>
-    createCatalogResources(const CollectionMetadata& metadata) {
+    createCatalogResources(boost::optional<CollectionMetadata> metadata = boost::none) {
         OperationContext* opCtx = operationContext();
 
-        // Set the shard version to enable shard filtering.
-        ScopedSetShardRole scopedSetShardRole{opCtx,
-                                              kTestNss,
-                                              ShardVersionFactory::make(metadata),
-                                              boost::none /* databaseVersion */};
+        // Set the shard version to enable shard filtering if metadata is provided.
+        boost::optional<ScopedSetShardRole> scopedSetShardRole;
+        if (metadata) {
+            scopedSetShardRole.emplace(opCtx,
+                                       kTestNss,
+                                       ShardVersionFactory::make(*metadata),
+                                       boost::none /* databaseVersion */);
+        }
 
         auto coll =
             acquireCollection(opCtx,
@@ -479,6 +486,11 @@ protected:
         stashTransactionResourcesFromOperationContext(opCtx, transactionResourcesStasher.get());
 
         return {transactionResourcesStasher, std::move(collections)};
+    }
+
+    IdLookupTestComponents createIdLookup(
+        boost::optional<CollectionMetadata> metadata = boost::none) {
+        return buildIdLookup(_expCtx, createCatalogResources(std::move(metadata)));
     }
 
     boost::intrusive_ptr<ExpressionContext> _expCtx;
@@ -510,13 +522,7 @@ TEST_F(InternalSearchIdLookupOrphanFilteringTest, ShouldFilterOrphanDocuments) {
     auto orphanDoc3 = _client->findOne(kTestNss, BSON("_id" << 3));
     ASSERT_EQ(orphanDoc3.getIntField("skey"), 15);
 
-    auto idLookup = make_intrusive<DocumentSourceInternalSearchIdLookUp>(_expCtx, 0 /*limit*/);
-
-    // Create catalog resources with shard filtering enabled.
-    auto [sharedStasher, collections] = createCatalogResources(metadata);
-    idLookup->bindCatalogInfo(collections, sharedStasher);
-
-    auto idLookupStage = exec::agg::buildStage(idLookup);
+    auto [idLookup, idLookupStage, collections] = createIdLookup(metadata);
 
     // Mock input: request all 5 documents by their _ids.
     auto mockLocalStage = exec::agg::MockStage::createForTest({Document{{"_id", 0}},
@@ -576,7 +582,7 @@ const auto kExplain = SerializationOptions{
 
 TEST_F(InternalSearchIdLookupBuildDocumentSourceTest,
        BuildDocumentSourceFromLiteParsedWithViewPipeline) {
-    BSONObj spec = BSON("$_internalSearchIdLookup" << BSON("limit" << 50));
+    BSONObj spec = BSON(DocumentSourceInternalSearchIdLookUp::kStageName << BSON("limit" << 50LL));
     auto liteParsed =
         LiteParsedInternalSearchIdLookUp::parse(kTestNss, spec.firstElement(), LiteParserOptions{});
 
@@ -586,7 +592,7 @@ TEST_F(InternalSearchIdLookupBuildDocumentSourceTest,
     ViewInfo viewInfo(kViewNss, kResolvedNss, viewPipeline);
 
     auto viewPolicy = liteParsed->getViewPolicy();
-    viewPolicy.callback(viewInfo, "$_internalSearchIdLookup");
+    viewPolicy.callback(viewInfo, DocumentSourceInternalSearchIdLookUp::kStageName);
 
     // Now use the registry to build the DocumentSource from the LiteParsed.
     auto docSources = buildDocumentSource(*liteParsed, getExpCtx());
@@ -599,24 +605,29 @@ TEST_F(InternalSearchIdLookupBuildDocumentSourceTest,
     auto serialized = idLookup->serialize(kExplain);
     ASSERT_TRUE(serialized.isObject());
     auto serializedObj = serialized.getDocument().toBson();
-    ASSERT_EQ(serializedObj["$_internalSearchIdLookup"]["limit"].safeNumberLong(), 50);
+    ASSERT_EQ(
+        serializedObj[DocumentSourceInternalSearchIdLookUp::kStageName]["limit"].safeNumberLong(),
+        50);
 
     // Verify that the stage was created with the correct view pipeline.
-    ASSERT_EQ(serializedObj["$_internalSearchIdLookup"]["subPipeline"].Array().size(), 3);
+    ASSERT_EQ(serializedObj[DocumentSourceInternalSearchIdLookUp::kStageName]["subPipeline"]
+                  .Array()
+                  .size(),
+              3);
     // $match added by idLookup.
-    ASSERT_EQ(serializedObj["$_internalSearchIdLookup"]["subPipeline"]
+    ASSERT_EQ(serializedObj[DocumentSourceInternalSearchIdLookUp::kStageName]["subPipeline"]
                   .Array()[0]
                   .Obj()
                   .firstElementFieldNameStringData(),
               "$match");
     // $match from the view pipeline.
-    ASSERT_EQ(serializedObj["$_internalSearchIdLookup"]["subPipeline"]
+    ASSERT_EQ(serializedObj[DocumentSourceInternalSearchIdLookUp::kStageName]["subPipeline"]
                   .Array()[1]
                   .Obj()
                   .firstElementFieldNameStringData(),
               "$match");
     // $sort from the view pipeline.
-    ASSERT_EQ(serializedObj["$_internalSearchIdLookup"]["subPipeline"]
+    ASSERT_EQ(serializedObj[DocumentSourceInternalSearchIdLookUp::kStageName]["subPipeline"]
                   .Array()[2]
                   .Obj()
                   .firstElementFieldNameStringData(),
@@ -625,7 +636,7 @@ TEST_F(InternalSearchIdLookupBuildDocumentSourceTest,
 
 TEST_F(InternalSearchIdLookupBuildDocumentSourceTest,
        BuildDocumentSourceFromLiteParsedWithoutViewPipeline) {
-    BSONObj spec = BSON("$_internalSearchIdLookup" << BSON("limit" << 25));
+    BSONObj spec = BSON(DocumentSourceInternalSearchIdLookUp::kStageName << BSON("limit" << 25LL));
     auto liteParsed =
         LiteParsedInternalSearchIdLookUp::parse(kTestNss, spec.firstElement(), LiteParserOptions{});
 
@@ -641,12 +652,17 @@ TEST_F(InternalSearchIdLookupBuildDocumentSourceTest,
     auto serialized = idLookup->serialize(kExplain);
     ASSERT_TRUE(serialized.isObject());
     auto serializedObj = serialized.getDocument().toBson();
-    ASSERT_EQ(serializedObj["$_internalSearchIdLookup"]["limit"].safeNumberLong(), 25);
+    ASSERT_EQ(
+        serializedObj[DocumentSourceInternalSearchIdLookUp::kStageName]["limit"].safeNumberLong(),
+        25);
 
     // Verify that the stage was created with no view pipeline.
-    ASSERT_EQ(serializedObj["$_internalSearchIdLookup"]["subPipeline"].Array().size(), 1);
+    ASSERT_EQ(serializedObj[DocumentSourceInternalSearchIdLookUp::kStageName]["subPipeline"]
+                  .Array()
+                  .size(),
+              1);
     // $match added by idLookup.
-    ASSERT_EQ(serializedObj["$_internalSearchIdLookup"]["subPipeline"]
+    ASSERT_EQ(serializedObj[DocumentSourceInternalSearchIdLookUp::kStageName]["subPipeline"]
                   .Array()[0]
                   .Obj()
                   .firstElementFieldNameStringData(),
@@ -656,8 +672,9 @@ TEST_F(InternalSearchIdLookupBuildDocumentSourceTest,
 TEST_F(InternalSearchIdLookupBuildDocumentSourceTest,
        HandleViewAndParseFromLiteParsedWithViewPipeline) {
     // Create a user pipeline with $_internalSearchIdLookup as the first stage and a $project after.
-    std::vector<BSONObj> userStages = {BSON("$_internalSearchIdLookup" << BSON("limit" << 100)),
-                                       BSON("$project" << BSON("color" << 1 << "_id" << 1))};
+    std::vector<BSONObj> userStages = {
+        BSON(DocumentSourceInternalSearchIdLookUp::kStageName << BSON("limit" << 100LL)),
+        BSON("$project" << BSON("color" << 1 << "_id" << 1))};
     LiteParsedPipeline liteParsedPipeline(kTestNss, userStages);
 
     // Create a view with a $match and $addFields stage.
@@ -671,7 +688,8 @@ TEST_F(InternalSearchIdLookupBuildDocumentSourceTest,
     // Since $_internalSearchIdLookup has kDoNothing policy, the view pipeline should NOT be
     // prepended. The LiteParsedPipeline should still have 2 stages, not 4.
     ASSERT_EQ(liteParsedPipeline.getStages().size(), 2U);
-    ASSERT_EQ(liteParsedPipeline.getStages()[0]->getParseTimeName(), "$_internalSearchIdLookup");
+    ASSERT_EQ(liteParsedPipeline.getStages()[0]->getParseTimeName(),
+              DocumentSourceInternalSearchIdLookUp::kStageName);
     ASSERT_EQ(liteParsedPipeline.getStages()[1]->getParseTimeName(), "$project");
 
     // Parse the full pipeline using Pipeline::parseFromLiteParsed().
@@ -691,7 +709,8 @@ TEST_F(InternalSearchIdLookupBuildDocumentSourceTest,
 
     // Verify the view pipeline was captured in the idLookup's subPipeline. subPipeline should
     // contain: $match (id filter) + $match (view) + $addFields (view)
-    auto subPipeline = serializedObj["$_internalSearchIdLookup"]["subPipeline"].Array();
+    auto subPipeline =
+        serializedObj[DocumentSourceInternalSearchIdLookUp::kStageName]["subPipeline"].Array();
     ASSERT_EQ(subPipeline.size(), 3U);
     ASSERT_EQ(subPipeline[0].Obj().firstElementFieldNameStringData(), "$match");      // id filter
     ASSERT_EQ(subPipeline[1].Obj().firstElementFieldNameStringData(), "$match");      // from view
@@ -702,8 +721,9 @@ TEST_F(InternalSearchIdLookupBuildDocumentSourceTest,
        HandleViewWithIdLookupNotFirstStagePrependsViewPipeline) {
     // Create a user pipeline where $_internalSearchIdLookup is NOT the first stage. In real usage,
     // this would be after a mongot stage like $search.
-    std::vector<BSONObj> userStages = {BSON("$match" << BSON("x" << 1)),
-                                       BSON("$_internalSearchIdLookup" << BSON("limit" << 30))};
+    std::vector<BSONObj> userStages = {
+        BSON("$match" << BSON("x" << 1)),
+        BSON(DocumentSourceInternalSearchIdLookUp::kStageName << BSON("limit" << 30LL))};
     LiteParsedPipeline liteParsedPipeline(kTestNss, userStages);
 
     ASSERT_EQ(liteParsedPipeline.getStages().size(), 2U);
@@ -720,7 +740,8 @@ TEST_F(InternalSearchIdLookupBuildDocumentSourceTest,
     ASSERT_EQ(liteParsedPipeline.getStages().size(), 3U);
     ASSERT_EQ(liteParsedPipeline.getStages()[0]->getParseTimeName(), "$match");  // from view
     ASSERT_EQ(liteParsedPipeline.getStages()[1]->getParseTimeName(), "$match");  // original first
-    ASSERT_EQ(liteParsedPipeline.getStages()[2]->getParseTimeName(), "$_internalSearchIdLookup");
+    ASSERT_EQ(liteParsedPipeline.getStages()[2]->getParseTimeName(),
+              DocumentSourceInternalSearchIdLookUp::kStageName);
 
     // Parse the pipeline.
     auto pipeline = Pipeline::parseFromLiteParsed(liteParsedPipeline, getExpCtx());
@@ -741,7 +762,8 @@ TEST_F(InternalSearchIdLookupBuildDocumentSourceTest,
 
     // Even though the view pipeline was prepended, the idLookup also captured it via its callback.
     // subPipeline should contain: $match (id filter) + $match (from view).
-    auto subPipeline = serializedObj["$_internalSearchIdLookup"]["subPipeline"].Array();
+    auto subPipeline =
+        serializedObj[DocumentSourceInternalSearchIdLookUp::kStageName]["subPipeline"].Array();
     ASSERT_EQ(subPipeline.size(), 2U);
     ASSERT_EQ(subPipeline[0].Obj().firstElementFieldNameStringData(), "$match");  // id filter
     ASSERT_EQ(subPipeline[1].Obj().firstElementFieldNameStringData(), "$match");  // from view

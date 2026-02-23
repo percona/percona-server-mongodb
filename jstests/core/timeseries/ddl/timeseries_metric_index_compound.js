@@ -9,6 +9,7 @@
  * ]
  */
 import {getTimeseriesCollForRawOps, kRawOperationSpec} from "jstests/core/libs/raw_operation_utils.js";
+import {add2dsphereVersionIfNeededForSpec} from "jstests/libs/query/geo_index_version_helpers.js";
 import {TimeseriesTest} from "jstests/core/timeseries/libs/timeseries.js";
 
 TimeseriesTest.run((insert) => {
@@ -65,7 +66,10 @@ TimeseriesTest.run((insert) => {
 
         // Insert data on the time-series collection and index it.
         assert.commandWorked(insert(coll, docs), "failed to insert docs: " + tojson(docs));
-        assert.commandWorked(coll.createIndex(keysForCreate), "failed to create index: " + tojson(keysForCreate));
+        assert.commandWorked(
+            coll.createIndex(keysForCreate, add2dsphereVersionIfNeededForSpec(keysForCreate)),
+            "failed to create index: " + tojson(keysForCreate),
+        );
 
         assert.eq(numUserIndexesBefore + 1, coll.getIndexes().length);
         assert.eq(numBucketIndexesBefore + 1, getTimeseriesCollForRawOps(coll).getIndexes(kRawOperationSpec).length);
@@ -152,7 +156,7 @@ TimeseriesTest.run((insert) => {
         assert.commandWorked(
             db.createCollection(coll.getName(), {timeseries: {timeField: timeFieldName, metaField: metaFieldName}}),
         );
-        assert.commandWorked(coll.createIndex(keysForCreate));
+        assert.commandWorked(coll.createIndex(keysForCreate, add2dsphereVersionIfNeededForSpec(keysForCreate)));
 
         assert.commandFailedWithCode(coll.insert(docs), 5930501);
     };

@@ -43,6 +43,7 @@ public:
     static ReplicatedStorageService& get(OperationContext*);
 
     PersistenceProvider& getPersistenceProvider();
+    const PersistenceProvider& getPersistenceProvider() const;
     void setPersistenceProvider(std::unique_ptr<PersistenceProvider>&&);
 
     PersistenceProvider& getSpillPersistenceProvider();

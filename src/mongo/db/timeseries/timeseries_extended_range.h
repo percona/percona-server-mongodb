@@ -53,9 +53,13 @@ bool dateOutsideStandardRange(Date_t date);
  * Determines whether any of the given buckets have control.min.timeField values that lie outside
  * the standard range.
  */
-bool bucketsHaveDateOutsideStandardRange(const TimeseriesOptions& options,
-                                         std::vector<InsertStatement>::const_iterator first,
-                                         std::vector<InsertStatement>::const_iterator last);
+boost::optional<Date_t> bucketsHaveDateOutsideStandardRange(
+    const TimeseriesOptions& options, std::span<const InsertStatement> inserts);
+
+/**
+ * Checks the OID for an extended range time component.
+ */
+bool oidHasExtendedRangeTime(const OID& oid);
 
 /**
  * Uses a heuristic to determine whether a given time-series collection may contain measurements

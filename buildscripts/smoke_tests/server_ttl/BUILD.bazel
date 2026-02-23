@@ -18,7 +18,6 @@ resmoke_suite_test(
     ],
     config = "//buildscripts/resmokeconfig:suites/no_passthrough.yml",
     data = [
-        "//buildscripts/resmokeconfig:common_jstest_data",
         "//jstests/noPassthrough/libs:all_subpackage_javascript_files",
     ],
     resmoke_args = ["--runAllFeatureFlagTests"],

@@ -25,6 +25,7 @@ selector:
     - jstests/sharding/query/change_streams/change_stream_no_orphans.js
     # Tests that expect a specific plan
     - jstests/aggregation/sources/lookup/lookup_query_stats.js
+    - jstests/aggregation/sources/lookup/lookup_unwind_sbe_pushdown.js
     - jstests/noPassthrough/memory_tracking/hash_lookup_unwind_reports_memory_metrics.js
     - jstests/noPassthrough/query/spill_to_disk_server_status.js
     - jstests/core/query/index_deduplication.js

@@ -13,7 +13,6 @@ resmoke_suite_test(
         "//jstests/core/replicate_record_ids:replicate_record_ids_collection_creation.js",
     ],
     config = "//buildscripts/resmokeconfig:suites/core.yml",
-    data = ["//buildscripts/resmokeconfig:common_jstest_data"],
     resmoke_args = ["--runAllFeatureFlagTests"],
     tags = [
         "ci-development-critical-single-variant",
@@ -56,7 +55,6 @@ resmoke_suite_test(
     ],
     config = "//buildscripts/resmokeconfig:suites/no_passthrough.yml",
     data = [
-        "//buildscripts/resmokeconfig:common_jstest_data",
         "//jstests/core/txns/libs:prepare_helpers.js",
     ],
     resmoke_args = ["--runAllFeatureFlagTests"],
@@ -102,7 +100,6 @@ resmoke_suite_test(
     ],
     config = "//buildscripts/resmokeconfig:suites/no_passthrough_with_mongod.yml",
     data = [
-        "//buildscripts/resmokeconfig:common_jstest_data",
         "//jstests/core/txns/libs:prepare_helpers.js",
     ],
     resmoke_args = ["--runAllFeatureFlagTests"],

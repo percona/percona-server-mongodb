@@ -32,9 +32,9 @@ import {
     getPlanStages,
     getWinningPlanFromExplain,
 } from "jstests/libs/query/analyze_plan.js";
-import {checkSbeFullFeatureFlagEnabled} from "jstests/libs/query/sbe_util.js";
+import {sbePlanCacheEnabled} from "jstests/libs/query/sbe_util.js";
 
-const isUsingSbePlanCache = checkSbeFullFeatureFlagEnabled(db);
+const isUsingSbePlanCache = sbePlanCacheEnabled(db);
 const coll = db.explode_for_sort_plan_cache;
 coll.drop();
 

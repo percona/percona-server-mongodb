@@ -47,7 +47,7 @@ JoinCostEstimate JoinCostEstimatorImpl::costCollScanFragment(NodeId nodeId) {
     // estimate the number of disk read by estimating the number of pages the collscan will read.
     // This is done by dividing the data size by the page size.
     CardinalityEstimate numSeqIOs = CardinalityEstimate{
-        CardinalityType{collStats.allocatedDataPageBytes / collStats.pageSizeBytes},
+        CardinalityType{collStats.logicalDataSizeBytes / collStats.pageSizeBytes},
         EstimationSource::Metadata};
     // CollScan does no random read from disk.
     CardinalityEstimate numRandIOs = zeroCE;
@@ -64,9 +64,16 @@ JoinCostEstimate JoinCostEstimatorImpl::costIndexScanFragment(NodeId nodeId) {
     CardinalityEstimate numDocsOutput = numDocsProcessed;
     // Assume that the sequential IO performed by scanning the index itself is negilible.
     CardinalityEstimate numSeqIOs = zeroCE;
-    // Model the random IO performed by fetching documents from the collection. For simplicity,
-    // assume that every index entry causes us to read a new page from the collection.
-    CardinalityEstimate numRandIOs = numDocsOutput;
+    // Model the random IO performed by fetching documents from the collection. This works for both
+    // multikey and non-multikey indexes. In both cases, 'numDocsOutput' represents the number of
+    // documents this plan fragment returns. In the multikey case, we just ignore the cost of
+    // deduplicating RIDs as part of the index scan.
+    auto& collStats = _jCtx.catStats.collStats.at(_jCtx.joinGraph.getNode(nodeId).collectionName);
+    double numPagesColl = collStats.logicalDataSizeBytes / collStats.pageSizeBytes;
+    CardinalityEstimate numRandIOs = CardinalityEstimate{
+        CardinalityType{estimateMackertLohmanRandIO(
+            numPagesColl, _jCtx.catStats.numPagesInStorageEngineCache, numDocsOutput.toDouble())},
+        EstimationSource::Sampling};
     return JoinCostEstimate(numDocsProcessed, numDocsOutput, numSeqIOs, numRandIOs);
 }
 
@@ -82,7 +89,7 @@ double JoinCostEstimatorImpl::estimateDocSize(NodeSet subset) const {
         if (collSize == 0) {
             continue;
         }
-        auto avgDocSize = collStats.allocatedDataPageBytes / collSize;
+        auto avgDocSize = collStats.logicalDataSizeBytes / collSize;
         result += avgDocSize;
     }
     return result;
@@ -155,10 +162,16 @@ JoinCostEstimate JoinCostEstimatorImpl::costINLJFragment(const JoinPlanNode& lef
     CardinalityEstimate numDocsProcessed = leftDocs * 2 + numDocsOutput;
     // Assume that sequential IO done by the index scan is neglible.
     CardinalityEstimate numSeqIOs = zeroCE;
-    // Model the random IO performed by doing the index probe and fetch. We perform a random IO for
-    // each document we fetch.
+
+    // Model the random IO performed by doing the index probe and fetch.
     // TODO SERVER-117523: Integrate the height of the B-tree into the formula.
-    CardinalityEstimate numRandIOs = numDocsProcessed;
+    auto& rightCollStats =
+        _jCtx.catStats.collStats.at(_jCtx.joinGraph.getNode(right).collectionName);
+    double numPagesColl = rightCollStats.logicalDataSizeBytes / rightCollStats.pageSizeBytes;
+    CardinalityEstimate numRandIOs = CardinalityEstimate{
+        CardinalityType{estimateMackertLohmanRandIO(
+            numPagesColl, _jCtx.catStats.numPagesInStorageEngineCache, numDocsOutput.toDouble())},
+        EstimationSource::Sampling};
 
     return JoinCostEstimate(numDocsProcessed,
                             numDocsOutput,
@@ -206,6 +219,46 @@ JoinCostEstimate JoinCostEstimatorImpl::costBaseCollectionAccess(NodeId baseNode
         return costIndexScanFragment(baseNode);
     }
     MONGO_UNIMPLEMENTED_TASSERT(11729102);
+}
+
+double estimateMackertLohmanRandIO(double numPagesColl,
+                                   double numPagesInStorageEngineCache,
+                                   double numDocsOutput) {
+    tassert(
+        11943801, "estimateMackertLohmanRandIO() expected numPagesColl >= 0", numPagesColl >= 0);
+    tassert(11943802,
+            "estimateMackertLohmanRandIO() expected numPagesInStorageEngineCache > 0",
+            numPagesInStorageEngineCache > 0);
+    tassert(
+        11943803, "estimateMackertLohmanRandIO() expected numDocsOutput >= 0", numDocsOutput >= 0);
+
+    // For ease of reference, the formula in the paper is:
+    //         / min(Dx, T)                 when T <= b
+    // Y_wap = | Dx                         when T > b  AND Dx <= b
+    //         \ b + (Dx - b) * (T-b)/T     when T > b  AND Dx > b
+    // T = numPagesColl
+    // b = numPagesInStorageEngineCache
+    // D*x = numDocsOutput
+
+    // Case 1: The entire collection fits in the WT cache.
+    if (numPagesColl <= numPagesInStorageEngineCache) {
+        return std::min(numDocsOutput, numPagesColl);
+    }
+
+    // Case 2: The collection is bigger than the cache, but all the returned documents fit in the WT
+    // cache. We assume that have a totally unclustered index, meaning that every key returned from
+    // the index scan results in a random I/O.
+    if (numDocsOutput <= numPagesInStorageEngineCache) {
+        return numDocsOutput;
+    }
+
+    // Case 3: The collection is bigger than the cache and the sum of pages that are fetched are
+    // also bigger than the cache. This results in cache eviction and means that fetching the same
+    // page multiple times may result multiple random I/Os (whereas in the case of a smaller result
+    // set, that page would be cached).
+    return numPagesInStorageEngineCache +
+        (numDocsOutput - numPagesInStorageEngineCache) *
+        (numPagesColl - numPagesInStorageEngineCache) / numPagesColl;
 }
 
 }  // namespace mongo::join_ordering

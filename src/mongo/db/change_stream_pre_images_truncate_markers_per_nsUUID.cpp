@@ -31,6 +31,7 @@
 
 #include "mongo/bson/bsonelement.h"
 #include "mongo/bson/timestamp.h"
+#include "mongo/db/change_stream_pre_image_id_util.h"
 #include "mongo/db/change_stream_pre_image_util.h"
 #include "mongo/db/operation_context.h"
 #include "mongo/db/pipeline/change_stream_preimage_gen.h"
@@ -79,7 +80,7 @@ bool isExpired(OperationContext* opCtx, const RecordId& highestRecordId, Date_t 
     const auto currentEarliestOplogEntryTs =
         repl::StorageInterface::get(opCtx->getServiceContext())->getEarliestOplogTimestamp(opCtx);
     auto highestRecordTimestamp =
-        change_stream_pre_image_util::getPreImageTimestamp(highestRecordId);
+        change_stream_pre_image_id_util::getPreImageTimestamp(highestRecordId);
     return expiredByTimeBasedExpiration || highestRecordTimestamp < currentEarliestOplogEntryTs;
 }
 
@@ -95,11 +96,12 @@ boost::optional<std::tuple<RecordId, Date_t, int>> getLastRecordInfo(
     // searched does not exist. This should ensure that the record's id is less than or equal to the
     // 'maxRecordIdForNsUUID'.
     RecordId maxRecordIdForNsUUID =
-        change_stream_pre_image_util::getAbsoluteMaxPreImageRecordIdBoundForNs(nsUUID).recordId();
+        change_stream_pre_image_id_util::getAbsoluteMaxPreImageRecordIdBoundForNs(nsUUID)
+            .recordId();
     boost::optional<Record> lastRecord =
         cursor->seek(maxRecordIdForNsUUID, SeekableRecordCursor::BoundInclusion::kInclude);
     if (!lastRecord ||
-        nsUUID != change_stream_pre_image_util::getPreImageNsUUID(lastRecord->data.toBson())) {
+        nsUUID != change_stream_pre_image_id_util::getPreImageNsUUID(lastRecord->data.toBson())) {
         return boost::none;
     }
     auto [rid, wallTime] = PreImagesTruncateMarkersPerNsUUID::getRecordIdAndWallTime(*lastRecord);
@@ -173,7 +175,7 @@ PreImagesTruncateMarkersPerNsUUID::createInitialMarkersFromSamples(
                     "preImagesCollectionUUID"_attr = preImagesCollectionUUID,
                     "nsUUID"_attr = nsUUID,
                     "wallTime"_attr = wallTime,
-                    "ts"_attr = change_stream_pre_image_util::getPreImageTimestamp(id));
+                    "ts"_attr = change_stream_pre_image_id_util::getPreImageTimestamp(id));
         wholeMarkers.emplace_back(estimatedRecordsPerMarker, estimatedBytesPerMarker, id, wallTime);
     }
 
@@ -220,7 +222,7 @@ PreImagesTruncateMarkersPerNsUUID::createInitialMarkersScanning(
     // 'highestWallTime' are accurate with respect to the upper bound of records tracked.
     const auto [highestRecordId, highestWallTime, _] = *lastRecordInfo;
     RecordIdBound minRecordIdBound =
-        change_stream_pre_image_util::getAbsoluteMinPreImageRecordIdBoundForNs(nsUUID);
+        change_stream_pre_image_id_util::getAbsoluteMinPreImageRecordIdBoundForNs(nsUUID);
     RecordIdBound maxRecordIdBound = RecordIdBound(highestRecordId);
     auto exec = InternalPlanner::collectionScan(opCtx,
                                                 preImagesCollection,
@@ -248,7 +250,7 @@ PreImagesTruncateMarkersPerNsUUID::createInitialMarkersScanning(
                         "nsUuid"_attr = nsUUID,
                         "wallTime"_attr = currWallTime,
                         "ts"_attr =
-                            change_stream_pre_image_util::getPreImageTimestamp(currentRecordId));
+                            change_stream_pre_image_id_util::getPreImageTimestamp(currentRecordId));
 
             wholeMarkers.emplace_back(std::exchange(currentRecords, 0),
                                       std::exchange(currentBytes, 0),

@@ -1,4 +1,5 @@
 // SERVER-6531 support $within in $match aggregation operations
+import {add2dsphereVersionIfNeeded} from "jstests/libs/query/geo_index_version_helpers.js";
 
 let c = db.s6531;
 c.drop();
@@ -24,5 +25,5 @@ c.createIndex({loc: "2d"});
 test("2d index");
 
 c.dropIndex({loc: "2d"});
-c.createIndex({loc: "2dsphere"});
+c.createIndex({loc: "2dsphere"}, add2dsphereVersionIfNeeded());
 test("2dsphere index");

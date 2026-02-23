@@ -155,10 +155,16 @@ public:
      */
     OplogResult getLastFetchedOplog();
 
+    struct OpTimeBundle {
+        repl::OpTime opTime;
+        EntryAtOpTimeType entryAtOpTimeType;
+        boost::optional<Timestamp> commitTimestamp = boost::none;
+    };
+
     /**
      * Remembers the oplog timestamp of a new write that just occurred.
      */
-    void notifyNewWriteOpTime(repl::OpTime opTimestamp, EntryAtOpTimeType entryAtOpTimeType);
+    void notifyNewWriteOpTime(OpTimeBundle opTimeBundle);
 
     /**
      * Returns the rollback ID recorded at the beginning of session migration.
@@ -304,9 +310,7 @@ private:
     /**
      * Same as notifyNewWriteOpTime but must be called while holding the _newOplogMutex.
      */
-    void _notifyNewWriteOpTime(WithLock,
-                               repl::OpTime opTimestamp,
-                               EntryAtOpTimeType entryAtOpTimeType);
+    void _notifyNewWriteOpTime(WithLock, OpTimeBundle opTimeBundle);
 
     /*
      * Derives retryable write oplog entries from the given retryable internal transaction applyOps
@@ -358,7 +362,7 @@ private:
     uint64_t _averageSessionDocSize{0};
 
     // Stores oplog opTime of new writes that are coming in.
-    std::list<std::pair<repl::OpTime, EntryAtOpTimeType>> _newWriteOpTimeList;
+    std::list<OpTimeBundle> _newWriteOpTimeList;
 
     // Used to store the last fetched and processed oplog entry from _newWriteOpTimeList. This
     // enables calling get() multiple times.

@@ -26,12 +26,16 @@
  *    exception statement from all source files in the program, then also delete
  *    it in the license file.
  */
-
 #include "mongo/base/data_range.h"
 #include "mongo/util/net/ssl_manager.h"
 
-extern "C" int LLVMFuzzerTestOneInput(const char* Data, size_t Size) {
-    mongo::ConstDataRange dr = mongo::ConstDataRange(Data, Size);
+#include <vector>
+
+#include "fuzztest/fuzztest.h"
+#include "gtest/gtest.h"
+
+void PeerRoleParse(std::vector<char> Data) {
+    mongo::ConstDataRange dr = mongo::ConstDataRange(Data);
     auto ret = mongo::parsePeerRoles(dr);
-    return 0;
 }
+FUZZ_TEST(ASN1FuzzSuite, PeerRoleParse);

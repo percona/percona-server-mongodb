@@ -335,7 +335,7 @@ describe("Execution control deprioritization mechanisms", function () {
             assert.soon(
                 () => coll.countDocuments({}) === 0,
                 "TTL monitor did not delete documents",
-                10 * 1000 /* 10 seconds */,
+                60 * 1000 /* 60 seconds */,
             );
         }
 

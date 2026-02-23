@@ -547,7 +547,7 @@ void ByteCode::runInternal(const CodeFragment* code, int64_t position) {
         auto [lhsOwned, lhsTag, lhsVal] = getFromStack(offsetLhs, popLhs);
         value::ValueGuard lhsGuard(lhsOwned && popLhs, lhsTag, lhsVal);
 
-        auto [owned, tag, val] = genericDiv(lhsTag, lhsVal, rhsTag, rhsVal);
+        auto [owned, tag, val] = genericDiv(lhsTag, lhsVal, rhsTag, rhsVal).releaseToRaw();
 
         pushStack(owned, tag, val);
     }
@@ -561,7 +561,7 @@ void ByteCode::runInternal(const CodeFragment* code, int64_t position) {
         auto [lhsOwned, lhsTag, lhsVal] = getFromStack(offsetLhs, popLhs);
         value::ValueGuard lhsGuard(lhsOwned && popLhs, lhsTag, lhsVal);
 
-        auto [owned, tag, val] = genericIDiv(lhsTag, lhsVal, rhsTag, rhsVal);
+        auto [owned, tag, val] = genericIDiv(lhsTag, lhsVal, rhsTag, rhsVal).releaseToRaw();
 
         pushStack(owned, tag, val);
     }
@@ -575,7 +575,7 @@ void ByteCode::runInternal(const CodeFragment* code, int64_t position) {
         auto [lhsOwned, lhsTag, lhsVal] = getFromStack(offsetLhs, popLhs);
         value::ValueGuard lhsGuard(lhsOwned && popLhs, lhsTag, lhsVal);
 
-        auto [owned, tag, val] = genericMod(lhsTag, lhsVal, rhsTag, rhsVal);
+        auto [owned, tag, val] = genericMod(lhsTag, lhsVal, rhsTag, rhsVal).releaseToRaw();
 
         pushStack(owned, tag, val);
     }
@@ -613,7 +613,7 @@ void ByteCode::runInternal(const CodeFragment* code, int64_t position) {
         auto [owned, tag, val] = getFromStack(offsetParam, popParam);
         value::ValueGuard paramGuard(owned && popParam, tag, val);
 
-        auto [resultTag, resultVal] = genericNot(tag, val);
+        auto [resultTag, resultVal] = genericNot(tag, val).releaseToRaw();
 
         pushStack(false, resultTag, resultVal);
     }

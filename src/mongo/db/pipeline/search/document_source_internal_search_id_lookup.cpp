@@ -35,6 +35,7 @@
 #include "mongo/db/pipeline/search/document_source_internal_search_id_lookup_gen.h"
 #include "mongo/db/pipeline/search/document_source_search.h"
 #include "mongo/db/pipeline/search/lite_parsed_internal_search_id_lookup.h"
+#include "mongo/db/pipeline/search/search_helper_bson_obj.h"
 #include "mongo/db/pipeline/skip_and_limit.h"
 
 #include <boost/smart_ptr/intrusive_ptr.hpp>
@@ -50,12 +51,11 @@ DocumentSourceContainer _internalSearchIdLookupStageParamsToDocumentSourceFn(
     const std::unique_ptr<StageParams>& stageParams,
     const boost::intrusive_ptr<ExpressionContext>& expCtx) {
     const auto* typedParams = dynamic_cast<InternalSearchIdLookupStageParams*>(stageParams.get());
-    std::unique_ptr<Pipeline> viewPipeline;
-    if (typedParams->viewPipeline) {
-        viewPipeline = Pipeline::parseFromLiteParsed(typedParams->viewPipeline.get(), expCtx);
-    }
-    return {make_intrusive<DocumentSourceInternalSearchIdLookUp>(
-        expCtx, typedParams->limit, std::move(viewPipeline))};
+    tassert(11993200,
+            "Expected InternalSearchIdLookupStageParams for _internalSearchIdLookup stage",
+            typedParams != nullptr);
+    return {make_intrusive<DocumentSourceInternalSearchIdLookUp>(std::move(typedParams->ownedSpec),
+                                                                 expCtx)};
 }
 
 ALLOCATE_AND_REGISTER_STAGE_PARAMS(_internalSearchIdLookup, InternalSearchIdLookupStageParams)
@@ -63,10 +63,8 @@ ALLOCATE_AND_REGISTER_STAGE_PARAMS(_internalSearchIdLookup, InternalSearchIdLook
 ALLOCATE_DOCUMENT_SOURCE_ID(_internalSearchIdLookup, DocumentSourceInternalSearchIdLookUp::id);
 
 DocumentSourceInternalSearchIdLookUp::DocumentSourceInternalSearchIdLookUp(
-    const intrusive_ptr<ExpressionContext>& expCtx,
-    long long limit,
-    std::unique_ptr<Pipeline> viewPipeline)
-    : DocumentSource(kStageName, expCtx), _limit(limit), _viewPipeline(std::move(viewPipeline)) {
+    DocumentSourceIdLookupSpec spec, const boost::intrusive_ptr<ExpressionContext>& expCtx)
+    : DocumentSource(kStageName, expCtx), _spec(std::move(spec)) {
     // We need to reset the docsSeenByIdLookup/docsReturnedByIdLookup in the state sharedby the
     // DocumentSourceInternalSearchMongotRemote and DocumentSourceInternalSearchIdLookup stages when
     // we create a new DocumentSourceInternalSearchIdLookup stage. This is because if $search is
@@ -83,53 +81,43 @@ intrusive_ptr<DocumentSource> DocumentSourceInternalSearchIdLookUp::createFromBs
                           << typeName(elem.type()),
             elem.type() == BSONType::object);
 
+    auto specObj = elem.embeddedObject().getOwned();
     auto searchIdLookupSpec =
-        DocumentSourceIdLookupSpec::parse(elem.embeddedObject(), IDLParserContext(kStageName));
+        DocumentSourceIdLookupSpec::parse(std::move(specObj), IDLParserContext(kStageName));
 
-    if (searchIdLookupSpec.getLimit()) {
-        return make_intrusive<DocumentSourceInternalSearchIdLookUp>(expCtx,
-                                                                    *searchIdLookupSpec.getLimit());
-    }
-    return make_intrusive<DocumentSourceInternalSearchIdLookUp>(expCtx);
+    return make_intrusive<DocumentSourceInternalSearchIdLookUp>(std::move(searchIdLookupSpec),
+                                                                expCtx);
 }
 
 Value DocumentSourceInternalSearchIdLookUp::serialize(const SerializationOptions& opts) const {
     MutableDocument outputSpec;
-    if (_limit) {
-        outputSpec["limit"] = Value(opts.serializeLiteral(Value((long long)_limit)));
+    if (_spec.getLimit()) {
+        outputSpec["limit"] =
+            Value(opts.serializeLiteral(Value((long long)_spec.getLimit().get())));
     }
 
     if (opts.isSerializingForExplain()) {
-        // At serialization, the _id value is unknown as it is only returned by mongot during
-        // execution.
+        // Serialize a placeholder subPipeline for explain output. At serialization time, the actual
+        // _id value is unknown as it is only returned by mongot during execution.
         // TODO SERVER-93637 add comment explaining why subPipeline is only needed for explain.
         std::vector<BSONObj> pipeline = {
             BSON("$match" << Document({{"_id", Value("_id placeholder"_sd)}}))};
 
-        // At this point, we are serializing a search stage - however it is unclear if it comes
-        // from the view pipeline or if it comes from the user pipeline
-        // (as we have passed view resolution, where a search view could have been prepended).
-        //
-        // If the view pipeline does not contain a search stage, then this search stage must be
-        // coming from the user pipeline, and we need to append the view pipeline after search stage
-        // (since running a search pipeline on a non-search view prepends the
-        //  search pipeline before the view pipeline).
-        //
-        // If the view pipeline does contain a search stage, then this search stage may be coming
-        // from either the user pipeline or the view pipeline. Running a search pipeline on a view
-        // defined with a search returns no results and is technically not supported,
-        // so we can safely assume that the only case we need to handle here is where the
-        // search stage is coming from the view pipeline. In this case, the view pipeline will
-        // already be serialized to the explain, it would be incorrect to append
-        // the pipeline *again* here.
-        if (_viewPipeline && !search_helpers::isMongotPipeline(_viewPipeline.get())) {
-            auto bsonViewPipeline = _viewPipeline->serializeToBson();
+        if (_spec.getViewPipeline()) {
+            // Append the view pipeline to subPipeline so it shows what transforms will be applied
+            // after the _id lookup.
+            auto bsonViewPipeline = _spec.getViewPipeline().get();
             pipeline.insert(pipeline.end(), bsonViewPipeline.begin(), bsonViewPipeline.end());
         }
 
         outputSpec["subPipeline"] = Value(
             pipeline_factory::makePipeline(pipeline, getExpCtx(), pipeline_factory::kOptionsMinimal)
                 ->serializeToBson(opts));
+    } else {
+        // Serialize the view pipeline for sharded execution.
+        if (_spec.getViewPipeline()) {
+            outputSpec["viewPipeline"] = Value(_spec.getViewPipeline().get());
+        }
     }
 
     return Value(DOC(getSourceName() << outputSpec.freezeToValue()));
@@ -154,7 +142,9 @@ DocumentSourceContainer::iterator DocumentSourceInternalSearchIdLookUp::optimize
     DocumentSourceContainer::iterator itr, DocumentSourceContainer* container) {
     auto stageItr = std::next(itr);
     if (auto userLimit = getUserLimit(stageItr, container)) {
-        _limit = _limit ? std::min(*userLimit, _limit) : *userLimit;
+        _spec.setLimit(_spec.getLimit()
+                           ? std::min(*userLimit, static_cast<long long>(_spec.getLimit().get()))
+                           : *userLimit);
     }
     return stageItr;
 }

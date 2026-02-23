@@ -227,10 +227,12 @@ SessionCatalogMigrationDestination::SessionCatalogMigrationDestination(
     NamespaceString nss,
     ShardId fromShard,
     MigrationSessionId migrationSessionId,
+    const UUID& migrationId,
     CancellationToken cancellationToken)
     : _nss(std::move(nss)),
       _fromShard(std::move(fromShard)),
       _migrationSessionId(std::move(migrationSessionId)),
+      _migrationId(migrationId),
       _cancellationToken(std::move(cancellationToken)) {}
 
 SessionCatalogMigrationDestination::~SessionCatalogMigrationDestination() {
@@ -336,6 +338,7 @@ void SessionCatalogMigrationDestination::_retrieveSessionStateFromSource(Service
                                   "and transactions from donor again after receiving "
                                   "_recvChunkCommit",
                                   logAttrs(_nss),
+                                  "migrationId"_attr = _migrationId,
                                   "migrationSessionId"_attr = _migrationSessionId,
                                   "fromShard"_attr = _fromShard);
                             break;
@@ -359,6 +362,7 @@ void SessionCatalogMigrationDestination::_retrieveSessionStateFromSource(Service
                               "transactions from donor for the first time, before receiving "
                               "_recvChunkCommit",
                               logAttrs(_nss),
+                              "migrationId"_attr = _migrationId,
                               "migrationSessionId"_attr = _migrationSessionId,
                               "fromShard"_attr = _fromShard);
                         _state = State::ReadyToCommit;
@@ -565,6 +569,7 @@ void SessionCatalogMigrationDestination::_errorOccurred(StringData errMsg) {
     LOGV2(5087102,
           "Recipient failed to copy oplog entries for retryable writes and transactions from donor",
           logAttrs(_nss),
+          "migrationId"_attr = _migrationId,
           "migrationSessionId"_attr = _migrationSessionId,
           "fromShard"_attr = _fromShard,
           "error"_attr = errMsg);

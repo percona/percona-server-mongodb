@@ -1,13 +1,13 @@
 import os
 from functools import cache
-from typing import Dict, List, Optional
+from typing import Optional
 
 import yaml
 from git import Remote, Repo
 
 
 @cache
-def get_expansions(expansions_file: str) -> Dict[str, any]:
+def get_expansions(expansions_file: str) -> dict[str, any]:
     if not expansions_file:
         return None
 
@@ -89,7 +89,7 @@ def get_remote_branch_ref(repo: Repo, branch: str = None) -> str:
     return repo.git.merge_base(local_head.hexsha, remote_head.hexsha)
 
 
-def get_new_files(expansions_file: str = None, branch: str = None) -> List[str]:
+def get_new_files(expansions_file: str = None, branch: str = None) -> list[str]:
     # docs on the diff-filter are here https://www.kernel.org/pub/software/scm/git/docs/git-diff.html
     # This gets added, renamed, and copied files from the git diff.
     return get_changed_files(expansions_file, branch, diff_filter="ARC")
@@ -125,14 +125,17 @@ def get_diff_revision(expansions_file: str = None, branch: str = None) -> str:
 
 
 def get_changed_files(
-    expansions_file: str = None, branch: str = None, diff_filter: str = "d"
-) -> List[str]:
+    expansions_file: str = None, branch: str = None, diff_filter: str | None = "d"
+) -> list[str]:
     diff_commit = get_diff_revision(expansions_file, branch)
     repo = Repo()
 
-    output = repo.git.execute(
-        ["git", "diff", "--name-only", f"--diff-filter={diff_filter}", diff_commit]
-    )
+    command = ["git", "diff", "--name-only"]
+    if diff_filter:
+        command.append(f"--diff-filter={diff_filter}")
+    command.append(diff_commit)
+
+    output = repo.git.execute(command)
     files = output.split("\n")
     return [file for file in files if file]
 
@@ -148,7 +151,7 @@ def get_file_at_revision(file: str, revision: str) -> Optional[str]:
         raise ex
 
 
-def get_files_to_lint() -> List[str]:
+def get_files_to_lint() -> list[str]:
     # Returns all tracked files and unstaged files
     repo = Repo()
     # all tracked files by git

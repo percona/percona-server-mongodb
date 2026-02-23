@@ -43,12 +43,12 @@ import {
     getPlanStage,
 } from "jstests/libs/query/analyze_plan.js";
 import {QuerySettingsUtils} from "jstests/libs/query/query_settings_utils.js";
-import {checkSbeFullFeatureFlagEnabled} from "jstests/libs/query/sbe_util.js";
+import {sbePlanCacheEnabled} from "jstests/libs/query/sbe_util.js";
 
 let coll = db.jstests_plan_cache_list_plans;
 coll.drop();
 
-const isUsingSbePlanCache = checkSbeFullFeatureFlagEnabled(db);
+const isUsingSbePlanCache = sbePlanCacheEnabled(db);
 
 function dumpPlanCacheState() {
     return coll.aggregate([{$planCacheStats: {}}]).toArray();

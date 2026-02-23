@@ -214,6 +214,11 @@ void deleteDocument(OperationContext* opCtx,
  *
  * Returns the optime of the oplog entry created for the truncate operation.
  * Returns a null optime if oplog was not modified.
+ *
+ * 'shouldValidateRecordIdRange' controls whether truncateRange applies internal safety checks to
+ * the provided bounds. It should be left as 'true' in normal operation; 'false' is reserved for
+ * narrowly scoped internal cases (such as startup recovery) where the caller guarantees the range
+ * is safe to truncate.
  */
 MONGO_MOD_NEEDS_REPLACEMENT
 repl::OpTime truncateRange(OperationContext* opCtx,
@@ -221,5 +226,6 @@ repl::OpTime truncateRange(OperationContext* opCtx,
                            const RecordId& minRecordId,
                            const RecordId& maxRecordId,
                            int64_t bytesDeleted,
-                           int64_t docsDeleted);
+                           int64_t docsDeleted,
+                           bool shouldValidateRecordIdRange = true);
 }  // namespace mongo::collection_internal

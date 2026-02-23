@@ -73,7 +73,7 @@ private:
         }
     }
 
-    static constexpr ::MongoExtensionLoggerVTable VTABLE{.log = &_extLog,
-                                                         .should_log = &_extShouldLog};
+    static constexpr ::MongoExtensionLoggerVTable VTABLE = {.log = &_extLog,
+                                                            .should_log = &_extShouldLog};
 };
 }  // namespace mongo::extension::host_connector

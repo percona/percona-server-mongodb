@@ -35,6 +35,7 @@
 #include "mongo/util/clock_source.h"
 #include "mongo/util/duration.h"
 #include "mongo/util/modules.h"
+#include "mongo/util/moving_average.h"
 #include "mongo/util/out_of_line_executor.h"
 
 namespace MONGO_MOD_PUB mongo {
@@ -57,13 +58,16 @@ public:
     using Task = OutOfLineExecutor::Task;
     Task wrapTask(Task&&);
 
-    void serialize(BSONObjBuilder* bob) const;
+    void serialize(BSONObjBuilder* bob, bool forServerStatus = false) const;
 
     static constexpr auto kNumBuckets = 22;
 
 private:
     Counter64 _scheduled;
     Counter64 _executed;
+
+    MovingAverage _averageWaitTimeMicros{0.2};
+    MovingAverage _averageRunTimeMicros{0.2};
 
     /**
      * The following maintain histograms for tasks scheduled on the executor:

@@ -502,12 +502,60 @@ IndexBuildProtocol determineProtocol(OperationContext* opCtx, const NamespaceStr
         : IndexBuildProtocol::kSinglePhase;
 }
 
-CreateIndexesReply runCreateIndexesWithCoordinator(
-    OperationContext* opCtx,
-    const CreateIndexesCommand& cmd,
-    boost::optional<ReplicaSetDDLTracker::ScopedReplicaSetDDL>& scopedReplicaSetDDL) {
-    const auto ns = cmd.getNamespace();
-    uassertStatusOK(userAllowedWriteNS(opCtx, ns));
+boost::optional<CreateIndexesCommand> translateCommandForTimeseries(
+    OperationContext* opCtx, const CreateIndexesCommand& origCmd, const CollectionPtr& coll) {
+    if (!coll || !coll->isTimeseriesCollection()) {
+        // if the collection is not a timeseries collection we don't need to tranlsate the index
+        // specs
+        return boost::none;
+    }
+
+    const auto& targetNss = coll->ns();
+
+    const auto indexSpecs = [&] {
+        if (timeseries::isRawDataRequest(opCtx, origCmd)) {
+            return origCmd.getIndexes();
+        }
+
+        const auto& tsOptions = coll->getTimeseriesOptions().get();
+        auto bucketsIndexSpecs = origCmd.getIndexes();
+        std::transform(bucketsIndexSpecs.begin(),
+                       bucketsIndexSpecs.end(),
+                       bucketsIndexSpecs.begin(),
+                       [&](const BSONObj& origIndexSpec) {
+                           return timeseries::translateIndexSpecFromLogicalToBuckets(
+                               opCtx, origCmd.getNamespace(), origIndexSpec, tsOptions);
+                       });
+
+        return bucketsIndexSpecs;
+    }();
+
+    auto cmd = CreateIndexesCommand(targetNss, std::move(indexSpecs));
+    cmd.setCollectionUUID(origCmd.getCollectionUUID());
+    cmd.setV(origCmd.getV());
+    cmd.setIgnoreUnknownIndexOptions(origCmd.getIgnoreUnknownIndexOptions());
+    cmd.setCommitQuorum(origCmd.getCommitQuorum());
+    cmd.setReturnOnStart(origCmd.getReturnOnStart());
+    return cmd;
+}
+
+// The final index to build, based on the user command and the collection metadata,
+// after validation, parsing and timeseries translation.
+struct ResolvedIndexBuildRequest {
+    boost::optional<UUID> collectionUUID;
+    CreateIndexesCommand cmd;
+    std::vector<BSONObj> specs;
+    std::vector<IndexBuildInfo> indexes;
+    IndexBuildProtocol protocol;
+    boost::optional<CommitQuorumOptions> commitQuorum;
+};
+
+ResolvedIndexBuildRequest resolveIndexBuild(OperationContext* opCtx,
+                                            const CreateIndexesCommand& origCmd,
+                                            const CollectionPtr& collection) {
+    auto cmd = translateCommandForTimeseries(opCtx, origCmd, collection).value_or(origCmd);
+
+    const auto& ns = cmd.getNamespace();
 
     // Disallow users from creating new indexes on config.transactions since the sessions code
     // was optimized to not update indexes. The only exception is the partial index used to support
@@ -517,67 +565,60 @@ CreateIndexesReply runCreateIndexesWithCoordinator(
             ns != NamespaceString::kSessionTransactionsTableNamespace ||
                 isCreatingInternalConfigTxnsPartialIndex(cmd));
 
-    uassert(ErrorCodes::OperationNotSupportedInTransaction,
-            str::stream() << "Cannot write to system collection " << ns.toStringForErrorMsg()
-                          << " within a transaction.",
-            !opCtx->inMultiDocumentTransaction() || !ns.isSystem());
-
-    CreateIndexesReply reply;
-
     auto specs = parseAndValidateIndexSpecs(opCtx, cmd, ns);
-    auto indexes = toIndexBuildInfoVec(specs,
-                                       *opCtx->getServiceContext()->getStorageEngine(),
-                                       cmd.getDbName(),
-                                       VersionContext::getDecoration(opCtx));
+    auto indexes = toIndexBuildInfoVec(
+        specs, *opCtx->getServiceContext()->getStorageEngine(), cmd.getDbName());
     auto replCoord = repl::ReplicationCoordinator::get(opCtx);
-    auto indexBuildsCoord = IndexBuildsCoordinator::get(opCtx);
     auto protocol = determineProtocol(opCtx, ns);
     auto commitQuorum = parseAndGetCommitQuorum(opCtx, protocol, cmd);
     if (commitQuorum) {
         uassertStatusOK(replCoord->checkIfCommitQuorumCanBeSatisfied(commitQuorum.value()));
-        reply.setCommitQuorum(commitQuorum);
     }
 
+    checkEncryptedFieldIndexRestrictions(opCtx, collection.get(), cmd);
+
+    return {
+        .collectionUUID = collection ? boost::make_optional(collection->uuid()) : boost::none,
+        .cmd = cmd,
+        .specs = specs,
+        .indexes = indexes,
+        .protocol = protocol,
+        .commitQuorum = commitQuorum,
+    };
+}
+
+CreateIndexesReply runCreateIndexesWithCoordinator(
+    OperationContext* opCtx,
+    const CreateIndexesCommand& origCmd,
+    boost::optional<ResolvedIndexBuildRequest>& resolvedRequest,
+    boost::optional<ReplicaSetDDLTracker::ScopedReplicaSetDDL>& scopedReplicaSetDDL) {
     // Preliminary checks before handing control over to IndexBuildsCoordinator:
     // 1) We are in a replication mode that allows for index creation.
     // 2) Check sharding state.
     // 3) Check if we can create the index without handing control to the IndexBuildsCoordinator.
     // 4) Check we are not in a multi-document transaction.
     // 5) Check there is enough available disk space to start the index build.
-    auto collectionUUID = writeConflictRetry(
-        opCtx, "createCollectionWithIndexes", ns, [&]() -> boost::optional<UUID> {
-            auto collection = acquireCollection(opCtx,
-                                                CollectionAcquisitionRequest::fromOpCtx(
-                                                    opCtx,
-                                                    ns,
-                                                    AcquisitionPrerequisites::OperationType::kWrite,
-                                                    cmd.getCollectionUUID()),
-                                                LockMode::MODE_IX);
+    CreateIndexesReply reply;
+    bool shouldBuildWithCoordinator = writeConflictRetry(
+        opCtx, "createCollectionWithIndexes", origCmd.getNamespace(), [&]() -> bool {
+            auto [collection, _] = timeseries::acquireCollectionWithBucketsLookup(
+                opCtx,
+                CollectionAcquisitionRequest::fromOpCtx(
+                    opCtx,
+                    origCmd.getNamespace(),
+                    AcquisitionPrerequisites::OperationType::kWrite,
+                    origCmd.getCollectionUUID()),
+                LockMode::MODE_IX);
+            const auto& ns = collection.nss();
 
-            // This assertion handles a specific race condition during index creation.
-            //
-            // The caller (`createIndexes typedRun`) is responsible for performing
-            // timeseries collection translation for the command. If a collection
-            // was already a timeseries collection when this translation occurred,
-            // its UUID would have been included in the command.
-            //
-            // Therefore, if we find that:
-            // 1. The collection now exists
-            // 2. The collection is currently a timeseries collection
-            // 3. The command *does not* contain a collection UUID
-            //
-            // This indicates that the collection was either not existing or it was a normal
-            // collection at translation time and now instead it exists and it is a timeseries
-            // collection.
-            uassert(10195200,
-                    fmt::format("Collection '{}' has been concurrently created as timeseries by "
-                                "another operation",
-                                ns.toStringForErrorMsg()),
-                    !collection.exists() ||
-                        !collection.getCollectionPtr()->isTimeseriesCollection() ||
-                        cmd.getCollectionUUID().has_value());
+            uassertStatusOK(userAllowedWriteNS(opCtx, ns));
 
-            checkEncryptedFieldIndexRestrictions(opCtx, collection.getCollectionPtr().get(), cmd);
+            uassert(ErrorCodes::OperationNotSupportedInTransaction,
+                    str::stream() << "Cannot write to system collection "
+                                  << ns.toStringForErrorMsg() << " within a transaction.",
+                    !opCtx->inMultiDocumentTransaction() || !ns.isSystem());
+
+            resolvedRequest = resolveIndexBuild(opCtx, origCmd, collection.getCollectionPtr());
 
             uassert(ErrorCodes::NotWritablePrimary,
                     str::stream() << "Not primary while creating indexes in "
@@ -588,31 +629,41 @@ CreateIndexesReply runCreateIndexesWithCoordinator(
             CollectionShardingState::assertCollectionLockedAndAcquire(opCtx, ns)
                 ->checkShardVersionOrThrow(opCtx);
 
-            // Before potentially taking an exclusive collection lock, check if all indexes already
-            // exist while holding an intent lock.
-            if (indexesAlreadyExist(opCtx, collection.getCollectionPtr(), specs, &reply)) {
-                return boost::none;
+            if (auto commitQuorum = resolvedRequest->commitQuorum) {
+                reply.setCommitQuorum(*commitQuorum);
             }
 
-            validateTTLOptions(opCtx, collection.getCollectionPtr().get(), cmd);
-            validateIndexType(opCtx, cmd);
+            // Before potentially taking an exclusive collection lock, check if all indexes already
+            // exist while holding an intent lock.
+            if (indexesAlreadyExist(
+                    opCtx, collection.getCollectionPtr(), resolvedRequest->specs, &reply)) {
+                return false;
+            }
+
+            validateTTLOptions(opCtx, collection.getCollectionPtr().get(), resolvedRequest->cmd);
+            validateIndexType(opCtx, resolvedRequest->cmd);
 
             if (collection.exists() &&
                 !UncommittedCatalogUpdates::get(opCtx).isCreatedCollection(opCtx, ns)) {
                 // The collection exists and was not created in the same multi-document transaction
                 // as the createIndexes.
                 reply.setCreatedCollectionAutomatically(false);
-                return collection.uuid();
+                return true;
             }
 
-            runCreateIndexesOnNewCollection(opCtx, ns, indexes, !collection.exists(), &reply);
-            return boost::none;
+            runCreateIndexesOnNewCollection(
+                opCtx, ns, resolvedRequest->indexes, !collection.exists(), &reply);
+            return false;
         });
 
-    if (!collectionUUID) {
+    if (!shouldBuildWithCoordinator) {
         // No need to proceed if the index either already existed or has just been built.
         return reply;
     }
+
+    const auto& [collectionUUID, cmd, specs, indexes, protocol, commitQuorum] = *resolvedRequest;
+    const auto& ns = cmd.getNamespace();
+    auto indexBuildsCoord = IndexBuildsCoordinator::get(opCtx);
 
     // If the index does not exist by this point, the index build must go through the index builds
     // coordinator and take an exclusive lock. We should not take exclusive locks inside of
@@ -813,60 +864,6 @@ CreateIndexesReply runCreateIndexesWithCoordinator(
     return reply;
 }
 
-
-boost::optional<CreateIndexesCommand> translateCommandForTimeseries(
-    OperationContext* opCtx, const CreateIndexesCommand& origCmd) {
-
-    auto [collAcq, wasNssTranslatedToBuckets] = timeseries::acquireCollectionWithBucketsLookup(
-        opCtx,
-        CollectionAcquisitionRequest::fromOpCtx(opCtx,
-                                                origCmd.getNamespace(),
-                                                AcquisitionPrerequisites::OperationType::kRead,
-                                                origCmd.getCollectionUUID()),
-        LockMode::MODE_IS);
-
-    tassert(10195220,
-            fmt::format("Collection '{}' does not exists, a collection UUID was provided but "
-                        "collection acquisition didn't fail with CollectionUUIDMismatch",
-                        origCmd.getNamespace().toStringForErrorMsg()),
-            collAcq.exists() || !origCmd.getCollectionUUID());
-
-    if (!collAcq.exists() || !collAcq.getCollectionPtr()->isTimeseriesCollection()) {
-        // if the collection is not a timeseries collection we don't need to tranlsate the index
-        // specs
-        return boost::none;
-    }
-
-    const auto& targetNss = collAcq.nss();
-    const auto& targetCollUUID = collAcq.uuid();
-
-    const auto indexSpecs = [&] {
-        if (timeseries::isRawDataRequest(opCtx, origCmd)) {
-            return origCmd.getIndexes();
-        }
-
-        const auto& tsOptions = collAcq.getCollectionPtr()->getTimeseriesOptions().get();
-        auto bucketsIndexSpecs = origCmd.getIndexes();
-        std::transform(bucketsIndexSpecs.begin(),
-                       bucketsIndexSpecs.end(),
-                       bucketsIndexSpecs.begin(),
-                       [&](const BSONObj& origIndexSpec) {
-                           return timeseries::translateIndexSpecFromLogicalToBuckets(
-                               opCtx, origCmd.getNamespace(), origIndexSpec, tsOptions);
-                       });
-
-        return bucketsIndexSpecs;
-    }();
-
-    auto cmd = CreateIndexesCommand(targetNss, std::move(indexSpecs));
-    cmd.setCollectionUUID(targetCollUUID);
-    cmd.setV(origCmd.getV());
-    cmd.setIgnoreUnknownIndexOptions(origCmd.getIgnoreUnknownIndexOptions());
-    cmd.setCommitQuorum(origCmd.getCommitQuorum());
-    cmd.setReturnOnStart(origCmd.getReturnOnStart());
-    return cmd;
-}
-
 /**
  * { createIndexes : "bar",
  *   indexes : [ { ns : "test.bar", key : { x : 1 }, name: "x_1" } ],
@@ -926,20 +923,14 @@ public:
                         << NamespaceString::kChangeStreamPreImagesNamespace.toStringForErrorMsg(),
                     !ns().isChangeStreamPreImagesCollection());
 
-            const auto& cmd = [&] {
-                if (auto optTranslatedCmd = translateCommandForTimeseries(opCtx, request());
-                    optTranslatedCmd) {
-                    return *optTranslatedCmd;
-                }
-                return request();
-            }();
-
             // We can only wait for an existing index build to finish if we are able to
             // release our locks, in order to allow the existing index build to proceed. We
             // cannot release locks in transactions, so we bypass the below logic in
             // transactions.
             if (opCtx->inMultiDocumentTransaction()) {
-                return runCreateIndexesWithCoordinator(opCtx, cmd, scopedReplicaSetDDL);
+                boost::optional<ResolvedIndexBuildRequest> resolvedRequest;
+                return runCreateIndexesWithCoordinator(
+                    opCtx, request(), resolvedRequest, scopedReplicaSetDDL);
             }
 
             // If we encounter an IndexBuildAlreadyInProgress error for any of the requested index
@@ -947,9 +938,16 @@ public:
             // in a multi-document transaction.
             bool shouldLogMessageOnAlreadyBuildingError = true;
             while (true) {
+                boost::optional<ResolvedIndexBuildRequest> resolvedRequest;
                 try {
-                    return runCreateIndexesWithCoordinator(opCtx, cmd, scopedReplicaSetDDL);
+                    return runCreateIndexesWithCoordinator(
+                        opCtx, request(), resolvedRequest, scopedReplicaSetDDL);
                 } catch (const ExceptionFor<ErrorCodes::IndexBuildAlreadyInProgress>& ex) {
+                    tassert(10471200,
+                            "Got IndexBuildAlreadyInProgress, but index build is not resolved",
+                            resolvedRequest.has_value());
+                    const auto& cmd = resolvedRequest->cmd;
+
                     if (cmd.getReturnOnStart()) {
                         auto coll = acquireCollectionMaybeLockFree(
                             opCtx,
@@ -957,14 +955,13 @@ public:
                                 opCtx,
                                 cmd.getNamespace(),
                                 AcquisitionPrerequisites::OperationType::kRead));
-                        if (coll.exists()) {
+                        if (coll.exists() && coll.uuid() == resolvedRequest->collectionUUID) {
                             if (!coll.getCollectionPtr()
                                      ->getIndexCatalog()
-                                     ->removeExistingIndexes(
-                                         opCtx,
-                                         coll.getCollectionPtr(),
-                                         parseAndValidateIndexSpecs(opCtx, cmd, cmd.getNamespace()),
-                                         true)
+                                     ->removeExistingIndexes(opCtx,
+                                                             coll.getCollectionPtr(),
+                                                             resolvedRequest->specs,
+                                                             true)
                                      .empty()) {
                                 // A strict subset of the requested indexes are already in the
                                 // process of being built. In the spirit of returnOnStart, we simply
@@ -974,8 +971,7 @@ public:
                             }
 
                             CreateIndexesReply reply;
-                            if (auto commitQuorum = parseAndGetCommitQuorum(
-                                    opCtx, determineProtocol(opCtx, cmd.getNamespace()), cmd)) {
+                            if (auto commitQuorum = resolvedRequest->commitQuorum) {
                                 reply.setCommitQuorum(*commitQuorum);
                             }
                             return reply;

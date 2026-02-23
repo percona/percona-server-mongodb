@@ -448,11 +448,10 @@ protected:
         std::vector<IndexBuildInfo> indexes;
         for (size_t i = 0; i < keys.size(); ++i) {
             const auto& keyName = keys[i];
-            IndexBuildInfo indexBuildInfo(
+            indexes.emplace_back(
                 BSON("v" << 2 << "key" << BSON(keyName << 1) << "name" << (keyName + "_1")),
-                fmt::format("index-{}", i + 1));
-            indexBuildInfo.setInternalIdents(*storageEngine, VersionContext::getDecoration(opCtx));
-            indexes.push_back(std::move(indexBuildInfo));
+                fmt::format("index-{}", i + 1),
+                *storageEngine);
         }
         return indexes;
     }
@@ -4743,13 +4742,9 @@ protected:
         {kChangeStreamImagesDisabled, kNotRetryable, kDontGroup, 1},
         {kChangeStreamImagesDisabled, kNotRetryable, kGroup, 1},
         {kChangeStreamImagesDisabled, kRecordInSideCollection, kDontGroup, 1},
-        // TODO (SERVER-116395): Test grouping with RetryableFindAndModify
-        // {kChangeStreamImagesDisabled, kRecordInSideCollection, kGroup, 1},
         {kChangeStreamImagesEnabled, kNotRetryable, kDontGroup, 1},
         {kChangeStreamImagesEnabled, kNotRetryable, kGroup, 1},
         {kChangeStreamImagesEnabled, kRecordInSideCollection, kDontGroup, 1},
-        // TODO (SERVER-116395): Test grouping with RetryableFindAndModify
-        // {kChangeStreamImagesEnabled, kRecordInSideCollection, kGroup, 1}
     };
 
     const NamespaceString _nss =

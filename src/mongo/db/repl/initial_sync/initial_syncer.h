@@ -334,6 +334,24 @@ private:
      *    _fcvFetcherCallback()
      *         |
      *         |
+     *         V
+     *    _runReplSetGetStatusOnSyncSource() <---------+
+     *         |                                       |
+     *         |                                       |
+     *         |                              _runFsyncOnSyncSource()
+     *         |                                       |
+     *         |                                       |
+     *         |                                       |
+     *         |             (sync source's 'lastStableRecoveryTimestamp' not advanced)
+     *         |                                       |
+     *         V                                       |
+     *    _handleLastStableRecoveryTsResponse()--------+
+     *         |
+     *         |
+     *         V
+     *    _initializeOplogFetcherAndDbCloners()
+     *         |
+     *         |
      *         +------------------------------+
      *         |                              |
      *         |                              |
@@ -465,6 +483,49 @@ private:
                              OpTime& beginFetchingOpTime);
 
     /**
+     * Issues a command on sync source and waits for the response. Stores response object in
+     * 'response' field.
+     */
+    Status _runRemoteCommandOnSyncSource(const executor::RemoteCommandRequest& request,
+                                         auto& response);
+
+    /**
+     * Issues 'fsync' on the sync source as part of the wait for the 'lastStableRecoveryTs' on the
+     * sync source to be greater than our 'beginApplyTimestamp'. This wait ensures that if our sync
+     * source restarts during collection cloning, our sync source will not recreate any documents
+     * that we may have already fetched and cloned.
+     *
+     * This is not called on the first wait attempt as an optimization to avoid calling fsync if the
+     * sync source has already sufficiently advanced its 'lastStableRecoveryTimestamp'. However,
+     * subsequent retries will first invoke this function.
+     */
+    void _runFsyncOnSyncSource(const executor::TaskExecutor::CallbackArgs& callbackArgs,
+                               std::shared_ptr<OnCompletionGuard> onCompletionGuard,
+                               const OpTime& beginFetchingOpTime);
+
+
+    void _runReplSetGetStatusOnSyncSource(const executor::TaskExecutor::CallbackArgs& callbackArgs,
+                                          std::shared_ptr<OnCompletionGuard> onCompletionGuard,
+                                          const OpTime& beginFetchingOpTime);
+
+    /**
+     * Contains the retry logic to determine if the 'lastStableRecoverTs' has sufficiently advanced.
+     * If it has not, schedule a retry. Otherwise, continue with initial sync.
+     */
+    void _handleLastStableRecoveryTsResponse(
+        const executor::TaskExecutor::RemoteCommandCallbackArgs& callbackArgs,
+        std::shared_ptr<OnCompletionGuard> onCompletionGuard,
+        const OpTime& beginFetchingOpTime);
+
+    /**
+     * Initializes the oplog fetcher and database cloners.
+     */
+    void _initializeOplogFetcherAndDbCloners(
+        const executor::TaskExecutor::CallbackArgs& callbackArgs,
+        std::shared_ptr<OnCompletionGuard> onCompletionGuard,
+        const OpTime& beginFetchingOpTime);
+
+    /**
      * Callback for oplog fetcher.
      */
     void _oplogFetcherCallback(const Status& status,
@@ -584,6 +645,16 @@ private:
      * Indicates we are no longer handling a retriable error.
      */
     void _clearRetriableError(WithLock lk);
+
+    /**
+     * Checks the embedded status inside the callback args and current data replicator shutdown
+     * state. Returns true if the status is OK, otherwise returns false. If false, cancels the
+     * initial sync attempt and resets the initial sync state.
+     */
+    bool _checkForShutdownAndHandleError(const stdx::unique_lock<stdx::mutex>& lk,
+                                         const executor::TaskExecutor::CallbackArgs& callbackArgs,
+                                         std::shared_ptr<OnCompletionGuard> onCompletionGuard,
+                                         const std::string& errorMsg);
 
     /**
      * Checks the given status (or embedded status inside the callback args) and current data

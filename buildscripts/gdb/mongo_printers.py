@@ -641,7 +641,7 @@ def absl_get_nodes(val):
     ctrl = heap["control"]
 
     # Derive the underlying type stored in the container.
-    slot_type = lookup_type(str(val.type.strip_typedefs()) + "::slot_type").strip_typedefs()
+    slot_type = lookup_type(str(val.type.strip_typedefs().name) + "::slot_type").strip_typedefs()
 
     # Using the array of ctrl bytes, search for in-use slots and return them
     # https://github.com/abseil/abseil-cpp/blob/8a3caf7dea955b513a6c1b572a2423c6b4213402/absl/container/internal/raw_hash_set.h#L2108-L2113

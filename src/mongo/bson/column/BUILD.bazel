@@ -1,4 +1,4 @@
-load("//bazel:mongo_src_rules.bzl", "mongo_cc_benchmark", "mongo_cc_binary", "mongo_cc_fuzzer_test", "mongo_cc_library", "mongo_cc_unit_test")
+load("//bazel:mongo_src_rules.bzl", "mongo_cc_benchmark", "mongo_cc_binary", "mongo_cc_fuzzer_test_deprecated", "mongo_cc_library", "mongo_cc_unit_test")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -130,7 +130,7 @@ mongo_cc_benchmark(
     ],
 )
 
-mongo_cc_fuzzer_test(
+mongo_cc_fuzzer_test_deprecated(
     name = "simple8b_fuzzer",
     srcs = [
         "simple8b_fuzzer.cpp",
@@ -141,7 +141,7 @@ mongo_cc_fuzzer_test(
     ],
 )
 
-mongo_cc_fuzzer_test(
+mongo_cc_fuzzer_test_deprecated(
     name = "bson_column_validate_fuzzer",
     srcs = [
         "bson_column_validate_fuzzer.cpp",
@@ -153,7 +153,7 @@ mongo_cc_fuzzer_test(
     ],
 )
 
-mongo_cc_fuzzer_test(
+mongo_cc_fuzzer_test_deprecated(
     name = "bsoncolumn_decompress_fuzzer",
     srcs = [
         "bsoncolumn_decompress_fuzzer.cpp",
@@ -165,7 +165,7 @@ mongo_cc_fuzzer_test(
     ],
 )
 
-mongo_cc_fuzzer_test(
+mongo_cc_fuzzer_test_deprecated(
     name = "bsoncolumn_builder_fuzzer",
     srcs = [
         "bsoncolumn_builder_fuzzer.cpp",
@@ -178,7 +178,7 @@ mongo_cc_fuzzer_test(
     ],
 )
 
-mongo_cc_fuzzer_test(
+mongo_cc_fuzzer_test_deprecated(
     name = "bsoncolumn_decompress_paths_fuzzer",
     srcs = [
         "bsoncolumn_decompress_paths_fuzzer.cpp",
@@ -192,7 +192,7 @@ mongo_cc_fuzzer_test(
     ],
 )
 
-mongo_cc_fuzzer_test(
+mongo_cc_fuzzer_test_deprecated(
     name = "bsoncolumnbuilder_reopen_fuzzer",
     srcs = [
         "bsoncolumnbuilder_reopen_fuzzer.cpp",

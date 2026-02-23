@@ -5,7 +5,6 @@
  * E2E version of with_mongot/vector_search_mocked/sharded_vector_search_no_passthrough_stage.js
  *
  * @tags: [
- *   requires_fcv_71,
  *   requires_sharding,
  *   assumes_unsharded_collection,
  * ]
@@ -15,11 +14,13 @@ import {after, before, describe, it} from "jstests/libs/mochalite.js";
 import {createSearchIndex, dropSearchIndex} from "jstests/libs/search.js";
 import {getShardNames} from "jstests/libs/sharded_cluster_fixture_helpers.js";
 
+// TODO SERVER-119626 Check if getSiblingDB() is still needed.
+const testDb = db.getSiblingDB(jsTestName());
 const collName = jsTestName();
-const testColl = db.getCollection(collName);
+const testColl = testDb.getCollection(collName);
 
 const foreignCollName = jsTestName() + "_output";
-const foreignColl = db.getCollection(foreignCollName);
+const foreignColl = testDb.getCollection(foreignCollName);
 
 const vectorSearchIndex = "vector_search_out_index";
 const queryVector = [1.0, 2.0, 3.0];
@@ -29,11 +30,11 @@ const limit = 5;
 
 describe("$vectorSearch with $out on unsharded collection", function () {
     before(function () {
-        const shardNames = getShardNames(db.getMongo());
+        const shardNames = getShardNames(testDb.getMongo());
         assert.gte(shardNames.length, 2, "Test requires at least 2 shards");
 
         // Set primary shard so the unsharded collection lives on a specific shard.
-        assert.commandWorked(db.adminCommand({enableSharding: db.getName(), primaryShard: shardNames[0]}));
+        assert.commandWorked(testDb.adminCommand({enableSharding: testDb.getName(), primaryShard: shardNames[0]}));
 
         testColl.drop();
         foreignColl.drop();

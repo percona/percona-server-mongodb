@@ -7,7 +7,6 @@ import sys
 import time
 from collections import deque
 from pathlib import Path
-from typing import Dict, List
 
 sys.path.append(".")
 
@@ -54,7 +53,7 @@ def find_group(unittest_paths):
         "f": "eighth",
     }
 
-    group_to_path: Dict[str, List[str]] = {}
+    group_to_path: dict[str, list[str]] = {}
 
     for path in unittest_paths:
         norm_path = path.replace(":", "/").replace("\\", "/")

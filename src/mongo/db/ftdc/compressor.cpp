@@ -32,6 +32,7 @@
 #include "mongo/base/data_builder.h"
 #include "mongo/base/data_range_cursor.h"
 #include "mongo/base/status.h"
+#include "mongo/db/commands/server_status/server_status_metric.h"
 #include "mongo/db/ftdc/config.h"
 #include "mongo/db/ftdc/util.h"
 #include "mongo/util/assert_util.h"
@@ -44,6 +45,10 @@
 #include <boost/optional/optional.hpp>
 
 namespace mongo {
+
+namespace {
+auto& ftdcSchemaChanges = *MetricBuilder<Counter64>{"ftdc.numSchemaChanges"};
+}
 
 using std::swap;
 
@@ -73,6 +78,7 @@ FTDCCompressor::addSample(const BSONObj& sample, Date_t date) {
 
     // We need to flush the current set of samples since the BSON schema has changed.
     if (!swMatches.getValue()) {
+        ftdcSchemaChanges.increment();
         auto swCompressedSamples = getCompressedSamples();
 
         if (!swCompressedSamples.isOK()) {

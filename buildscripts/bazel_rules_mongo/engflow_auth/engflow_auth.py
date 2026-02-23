@@ -2,7 +2,6 @@
 Install engflow_auth binary if not on system and authenticate if token is expired.
 """
 
-import argparse
 import hashlib
 import json
 import os

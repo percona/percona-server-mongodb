@@ -1,6 +1,6 @@
 """A service to proxy requests to resmoke."""
 
-from typing import Any, Dict, List
+from typing import Any
 
 import inject
 
@@ -17,7 +17,7 @@ class ResmokeProxyService:
         _parser.set_run_options(run_options)
         self._suite_config = _suiteconfig
 
-    def list_tests(self, suite_name: str) -> List[str]:
+    def list_tests(self, suite_name: str) -> list[str]:
         """
         List the test files that are part of the suite.
 
@@ -35,7 +35,7 @@ class ResmokeProxyService:
 
         return test_list
 
-    def read_suite_config(self, suite_name: str) -> Dict[str, Any]:
+    def read_suite_config(self, suite_name: str) -> dict[str, Any]:
         """
         Read the given resmoke suite configuration.
 

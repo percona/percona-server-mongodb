@@ -245,6 +245,35 @@ Status canDowngradeFromViewlessTimeseries(OperationContext* opCtx,
     return canDowngradeFromViewlessTimeseries(opCtx, locks, skipViewCreation);
 }
 
+void uassertCollectionExistsDuringApplyOps(const UpgradeDowngradeTimeseriesLocks& locks,
+                                           const boost::optional<UUID>& expectedUUID) {
+    // `expectedUUID` is only present during oplog application
+    if (!expectedUUID.has_value()) {
+        return;
+    }
+
+    // MongoDB supports selective backup/restore where only some collections are backed up.
+    // At the same time, it is possible to do point-in-time restores, which work by replaying the
+    // oplog from the timestamp the data files were captured up to the desired oplog timestamp.
+    //
+    // Importantly, oplog replay is *not* selective, all oplog entries are replayed even if they
+    // correspond to collections that were not backed up. So this can happen:
+    // - We have a timeseries collection "ts".
+    // - We backup at timestamp Tbackup, but we do not include "ts".
+    // - "ts" gets upgraded to from viewless format (or downgraded to viewful format).
+    // - We capture the oplog up to timestamp Trestore, including the upgrade/downgrade.
+    // - We do a point-in-time restore up to timestamp Trestore.
+    // Which will attempt to replay the upgrade/downgrade oplog entry while "ts" does not exist.
+    //
+    // If "ts" was not backed up, then neither the main nor buckets namespace exists, so throw
+    // `NamespaceNotFound` to fail gracefully: The oplog applier catches and tolerates this error.
+    uassert(ErrorCodes::NamespaceNotFound,
+            "Timeseries collection to upgrade or downgrade not found during oplog application. "
+            "This is expected during selective backup/restore.",
+            locks.mainAcq.collectionExists() || locks.mainAcq.isView() ||
+                locks.bucketsAcq.collectionExists());
+}
+
 void upgradeToViewlessTimeseries(OperationContext* opCtx,
                                  UpgradeDowngradeTimeseriesLocks&& locks,
                                  const boost::optional<UUID>& expectedUUID) {
@@ -259,6 +288,8 @@ void upgradeToViewlessTimeseries(OperationContext* opCtx,
     VersionContext::FixedOperationFCVRegion fixedOfcvRegion(opCtx);
 
     writeConflictRetry(opCtx, "viewlessTimeseriesUpgrade", mainNs, [&] {
+        uassertCollectionExistsDuringApplyOps(locks, expectedUUID);
+
         // Validate upgrade preconditions (including idempotency check)
         auto canUpgradeStatus = canUpgradeToViewlessTimeseries(opCtx, locks);
         if (canUpgradeStatus.code() == ErrorCodes::UserDataInconsistent) {
@@ -336,6 +367,8 @@ void downgradeFromViewlessTimeseries(OperationContext* opCtx,
     VersionContext::FixedOperationFCVRegion fixedOfcvRegion(opCtx);
 
     writeConflictRetry(opCtx, "viewlessTimeseriesDowngrade", mainNs, [&] {
+        uassertCollectionExistsDuringApplyOps(locks, expectedUUID);
+
         // Validate downgrade preconditions
         auto canDowngradeStatus =
             canDowngradeFromViewlessTimeseries(opCtx, locks, skipViewCreation);

@@ -72,13 +72,15 @@ export class InsertCommand {
     /**
      * No preconditions.
      */
-    check(model) {}
+    check(model) {
+        return true;
+    }
 
     /**
      * Run against both tsColl and ctrlColl, and update the model.
      */
-    run(model, colls) {
-        const {tsColl, ctrlColl} = colls;
+    run(model, real) {
+        const {tsColl, ctrlColl} = real;
 
         const resTs = tsColl.insertOne(this.doc);
         if (resTs && resTs.acknowledged === false) {
@@ -118,8 +120,8 @@ export class BatchInsertCommand {
     /**
      * Run against both tsColl and ctrlColl, and update the model.
      */
-    run(model, colls) {
-        const {tsColl, ctrlColl} = colls;
+    run(model, real) {
+        const {tsColl, ctrlColl} = real;
 
         if (!this.docs || this.docs.length === 0) {
             return;
@@ -141,19 +143,197 @@ export class BatchInsertCommand {
 }
 
 /**
- * DeleteByRandomIdCommand: delete a randomly chosen doc by _id.
+ * Filter: generates filter strings for update/delete commands.
  *
- * The specific _id is chosen *at run time* from the model, not passed in.
+ * Includes:
+ *  - matchAll
+ *  - byId(seed)
+ *  - byMetaEq(seed)
+ *  - byTimeRange(seed, {expandFactor})
+ *  - byFieldEqFromDoc(seed, {exclude, allow})
+ *  - and([...]) / or([...]) compositions
+ */
+export class Filter {
+    /**
+     * @param {string} kind - the general category of filter
+     * @param {number} seed - for deterministic argument selection
+     * @param {Object} params - additional params for specific filter kinds
+     */
+    constructor(kind, seed, params = {}) {
+        this.kind = kind;
+        this.seed = seed | 0;
+        this.params = params;
+    }
+
+    toString() {
+        return `Filter(${this.kind}, seed=${this.seed}, params=${tojsononeline(this.params)})`;
+    }
+
+    /**
+     * Convert this Filter into a MongoDB query predicate using the current model.
+     *
+     * @param {Object} model
+     * @param {{timeFieldname?:string, metaFieldname?:string}} fields
+     * @returns {Object}
+     */
+    toQuery(model, fields = {}) {
+        const {timeFieldname, metaFieldname} = fields;
+
+        const docs = Array.from(model.docs.values()); // deterministic (Map insertion order)
+        const ids = Array.from(model.docs.keys());
+        const pickIdx = (n) => (n <= 0 ? 0 : Math.abs(this.seed) % n);
+        const pickDoc = () => (docs.length === 0 ? null : docs[pickIdx(docs.length)]);
+        const pickId = () => (ids.length === 0 ? null : ids[pickIdx(ids.length)]);
+
+        const matchNothing = {_id: {$exists: false}};
+
+        switch (this.kind) {
+            case "matchAll":
+                return {};
+
+            case "byId": {
+                const id = pickId();
+                return id === null ? matchNothing : {_id: id};
+            }
+
+            case "byMetaEq": {
+                if (!metaFieldname) throw new Error("Filter.byMetaEq requires metaFieldname");
+                const d = pickDoc();
+                return d ? {[metaFieldname]: d[metaFieldname]} : matchNothing;
+            }
+
+            case "byTimeRange": {
+                if (!timeFieldname) throw new Error("Filter.byTimeRange requires timeFieldname");
+                if (docs.length === 0) return matchNothing;
+
+                // Compute min/max across model for the time field.
+                let minMs = null;
+                let maxMs = null;
+                for (const d of docs) {
+                    const t = d?.[timeFieldname];
+                    if (t instanceof Date) {
+                        const ms = t.getTime();
+                        if (minMs === null || ms < minMs) minMs = ms;
+                        if (maxMs === null || ms > maxMs) maxMs = ms;
+                    }
+                }
+                if (minMs === null || maxMs === null) return matchNothing;
+
+                const span = Math.max(0, maxMs - minMs);
+
+                // Use seed to pick two offsets within [0, span], then order them to get gte<=lte.
+                // Use two different deterministic mixes of the seed to reduce correlation.
+                const s1 = Math.abs(this.seed);
+                const s2 = Math.abs((this.seed * 1103515245 + 12345) | 0); // simple LCG mix
+
+                const off1 = span === 0 ? 0 : s1 % (span + 1);
+                const off2 = span === 0 ? 0 : s2 % (span + 1);
+
+                let gteMs = minMs + Math.min(off1, off2);
+                let lteMs = minMs + Math.max(off1, off2);
+
+                // Optional: widen or narrow the chosen window.
+                // params.expandFactor in [0, 1] widens by that fraction of total span on each side.
+                // default 0 (no expansion).
+                const expandFactor = Number(this.params.expandFactor ?? 0);
+                if (expandFactor > 0 && span > 0) {
+                    const pad = Math.floor(span * expandFactor);
+                    gteMs = Math.max(minMs, gteMs - pad);
+                    lteMs = Math.min(maxMs, lteMs + pad);
+                }
+
+                return {[timeFieldname]: {$gte: new Date(gteMs), $lte: new Date(lteMs)}};
+            }
+
+            case "byFieldEqFromDoc": {
+                // Exact matching on a deterministically "random" field name from a chosen doc.
+                // params:
+                //  - exclude: string[] of field names to exclude (defaults to ["_id", timeFieldname, metaFieldname])
+                //  - allow: optional string[] allowlist to intersect with (if provided)
+                const d = pickDoc();
+                if (!d) return matchNothing;
+
+                const exclude = new Set(this.params.exclude ?? ["_id", timeFieldname, metaFieldname].filter(Boolean));
+                const allow = Array.isArray(this.params.allow) ? new Set(this.params.allow) : null;
+
+                const keys = Object.keys(d).filter((k) => !exclude.has(k) && (allow ? allow.has(k) : true));
+                if (keys.length === 0) return matchNothing;
+
+                // Pick a key by seed; use another mix so key choice isn't perfectly correlated with doc choice.
+                const s3 = Math.abs((this.seed * 1664525 + 1013904223) | 0);
+                const key = keys[s3 % keys.length];
+
+                return {[key]: d[key]};
+            }
+
+            case "and": {
+                const children = this.params.filters ?? [];
+                if (!Array.isArray(children) || children.length === 0) return {};
+                return {$and: children.map((f) => f.toQuery(model, fields))};
+            }
+
+            case "or": {
+                const children = this.params.filters ?? [];
+                if (!Array.isArray(children) || children.length === 0) return {};
+                return {$or: children.map((f) => f.toQuery(model, fields))};
+            }
+
+            default:
+                throw new Error(`Unknown Filter kind: ${this.kind}`);
+        }
+    }
+
+    // ---- Constructors (for filter arbitraries) ----
+    static matchAll() {
+        return new Filter("matchAll", 0);
+    }
+    static byId(seed) {
+        return new Filter("byId", seed);
+    }
+    static byMetaEq(seed) {
+        return new Filter("byMetaEq", seed);
+    }
+
+    /**
+     * Time range based on (min,max) timestamps present in the model.
+     * @param {number} seed
+     * @param {{expandFactor?:number}} [params]
+     */
+    static byTimeRange(seed, params = {}) {
+        return new Filter("byTimeRange", seed, params);
+    }
+
+    /**
+     * Exact match on a deterministically "random" field name chosen from a doc in the model.
+     * @param {number} seed
+     * @param {{exclude?:string[], allow?:string[]}} [params]
+     */
+    static byFieldEqFromDoc(seed, params = {}) {
+        return new Filter("byFieldEqFromDoc", seed, params);
+    }
+
+    static and(filters) {
+        return new Filter("and", 0, {filters});
+    }
+    static or(filters) {
+        return new Filter("or", 0, {filters});
+    }
+}
+
+/**
+ * DeleteByRandomIdCommand: delete a pseudo-random doc by _id.
+ * Randomness is generated by the arbitrary.
  */
 export class DeleteByRandomIdCommand {
-    constructor() {
+    constructor(pick) {
         // Chosen _id is determined lazily during run; we keep it for logging.
         this._id = undefined;
+        this.pick = pick;
     }
 
     toString() {
         const idStr = this._id !== undefined ? this._id : "<unselected>";
-        return `DeleteByRandomIdCommand(_id=${idStr})`;
+        return `DeleteByRandomIdCommand(pick=${this.pick},_id=${idStr})`;
     }
 
     /**
@@ -168,15 +348,15 @@ export class DeleteByRandomIdCommand {
      * Pick a random _id from the model, delete it from both collections,
      * then update the model.
      */
-    run(model, colls) {
-        const {tsColl, ctrlColl} = colls;
+    run(model, real) {
+        const {tsColl, ctrlColl} = real;
 
         const ids = getAllIdsFromModel(model);
         if (ids.length === 0) {
             throw new Error("DeleteByRandomIdCommand.run called with empty model");
         }
 
-        const idx = Math.floor(Math.random() * ids.length);
+        const idx = ids.length === 0 ? 0 : this.pick % ids.length;
         const chosenId = ids[idx];
         this._id = chosenId; // save for logging/debugging
 
@@ -191,5 +371,61 @@ export class DeleteByRandomIdCommand {
         }
 
         modelDeleteById(model, chosenId);
+    }
+}
+
+/**
+ * DeleteByFilterCommand: delete using the filter class, choosing filter based on model.
+ *
+ */
+export class DeleteByFilterCommand {
+    /**
+     * @param {Filter} filter - model-dependent filter (seeded); materialized at runtime
+     * @param {string} timeFieldname
+     * @param {string} metaFieldname
+     */
+    constructor(filter, timeFieldname, metaFieldname) {
+        this._filter = filter;
+        this._timeFieldname = timeFieldname;
+        this._metaFieldname = metaFieldname;
+        this._lastQuery = null;
+        this._deletedIds = null;
+    }
+
+    toString() {
+        return `DeleteByFilterCommand(filter=${this._filter.toString()})`;
+    }
+
+    check(model) {
+        return model.docs.size > 0;
+    }
+
+    run(model, {tsColl, ctrlColl}) {
+        const query = this._filter.toQuery(model, {
+            timeFieldname: this._timeFieldname,
+            metaFieldname: this._metaFieldname,
+        });
+        this._lastQuery = query;
+
+        // Determine which ids *should* be deleted by evaluating the query against ctrlColl,
+        // then delete the same set from both collections for determinism.
+        //
+        // NOTE: This assumes ctrlColl and tsColl have identical contents up to this point,
+        // which is the invariant of the PBT harness.
+        const toDelete = ctrlColl.find(query, {_id: 1}).toArray();
+        const ids = toDelete.map((d) => d._id);
+        this._deletedIds = ids;
+
+        if (ids.length === 0) {
+            return;
+        }
+
+        tsColl.deleteMany(query);
+        ctrlColl.deleteMany(query);
+
+        // Update model.
+        for (const id of ids) {
+            model.docs.delete(String(id));
+        }
     }
 }

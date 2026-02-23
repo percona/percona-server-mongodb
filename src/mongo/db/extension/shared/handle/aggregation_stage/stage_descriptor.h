@@ -76,9 +76,12 @@ public:
     AggStageParseNodeHandle parse(BSONObj stageBson) const;
 
     static void assertVTableConstraints(const VTable_t& vtable) {
-        tassert(
-            10930102, "ExtensionAggStageDescriptor 'get_name' is null", vtable.get_name != nullptr);
-        tassert(10930104, "ExtensionAggStageDescriptor 'parse' is null", vtable.parse != nullptr);
+        tassert(10930102,
+                "ExtensionAggStageDescriptorAdapter 'get_name' is null",
+                vtable.get_name != nullptr);
+        tassert(10930104,
+                "ExtensionAggStageDescriptorAdapter 'parse' is null",
+                vtable.parse != nullptr);
     }
 };
 

@@ -10,8 +10,6 @@
  *   requires_fcv_80,
  *   # Time series collections do not support `sort` in `updateOne` commands.
  *   exclude_from_timeseries_crud_passthrough,
- *   # TODO (SERVER-116395): Re-enable this test with primary-driven index builds.
- *   primary_driven_index_builds_incompatible_with_retryable_writes,
  * ]
  */
 import {isMongos} from "jstests/concurrency/fsm_workload_helpers/server_types.js";

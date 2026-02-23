@@ -4,6 +4,8 @@
 //   requires_getmore,
 // ]
 
+import {add2dsphereVersionIfNeededForSpec} from "jstests/libs/query/geo_index_version_helpers.js";
+
 let t = db.geo_center_sphere1;
 
 function test(index) {
@@ -44,7 +46,7 @@ function test(index) {
     assert.commandWorked(bulk.execute());
 
     if (index) {
-        t.createIndex({loc: index});
+        t.createIndex({loc: index}, add2dsphereVersionIfNeededForSpec({loc: index}));
     }
 
     for (let i = 0; i < searches.length; i++) {

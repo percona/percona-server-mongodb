@@ -87,6 +87,7 @@ public:
     SessionCatalogMigrationDestination(NamespaceString nss,
                                        ShardId fromShard,
                                        MigrationSessionId migrationSessionId,
+                                       const UUID& migrationId,
                                        CancellationToken cancellationToken);
     ~SessionCatalogMigrationDestination();
 
@@ -152,6 +153,7 @@ private:
     const NamespaceString _nss;
     const ShardId _fromShard;
     const MigrationSessionId _migrationSessionId;
+    const UUID _migrationId;
     const CancellationToken _cancellationToken;
 
     stdx::thread _thread;

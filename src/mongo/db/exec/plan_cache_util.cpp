@@ -167,7 +167,7 @@ void updateClassicPlanCacheFromClassicCandidates(
     std::unique_ptr<plan_ranker::PlanRankingDecision> ranking,
     std::vector<plan_ranker::CandidatePlan>& candidates) {
     auto winnerIdx = ranking->candidateOrder[0];
-    invariant(winnerIdx >= 0 && winnerIdx < candidates.size());
+    invariant(winnerIdx < candidates.size());
     auto& winningPlan = candidates[winnerIdx];
 
     if (!shouldCacheBasedOnQueryAndPlan(query, winningPlan.solution.get())) {

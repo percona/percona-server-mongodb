@@ -33,6 +33,7 @@
 #include "mongo/db/exec/agg/pipeline_builder.h"
 #include "mongo/db/memory_tracking/operation_memory_usage_tracker.h"
 #include "mongo/db/pipeline/document_source_graph_lookup.h"
+#include "mongo/db/pipeline/document_source_match.h"
 #include "mongo/db/pipeline/expression_context_builder.h"
 #include "mongo/db/pipeline/lite_parsed_pipeline.h"
 #include "mongo/db/pipeline/optimization/optimize.h"
@@ -82,7 +83,7 @@ GraphLookUpStage::GraphLookUpStage(
     Variables variables,
     VariablesParseState variablesParseState)
     : Stage(stageName, pExpCtx),
-      _params(params),
+      _params(std::move(params)),
       _fromExpCtx(std::move(fromExpCtx)),
       _fromPipeline(std::move(fromPipeline)),
       _unwind(std::move(unwind)),
@@ -95,7 +96,7 @@ GraphLookUpStage::GraphLookUpStage(
       _queue(pExpCtx.get(), &_memoryUsageTracker),
       _visitedDocuments(pExpCtx.get(), &_memoryUsageTracker, "VisitedDocumentsMap"),
       _visitedFromValues(pExpCtx.get(), &_memoryUsageTracker, "VisitedFromValuesSet"),
-      _cache(pExpCtx->getValueComparator()) {};
+      _cache(pExpCtx->getValueComparator()) {}
 
 GraphLookUpStage::~GraphLookUpStage() {
     const SpillingStats& stats = _stats.spillingStats;
@@ -188,10 +189,11 @@ void GraphLookUpStage::doDispose() {
     _queue.finalize();
     _visitedDocuments.dispose();
     _visitedFromValues.dispose();
+    _queryState.reset();
 }
 
 void GraphLookUpStage::spill(int64_t maximumMemoryUsage) {
-    const auto& needToSpill = [&]() {
+    const auto needToSpill = [&]() {
         return _memoryUsageTracker.inUseTrackedMemoryBytes() > maximumMemoryUsage;
     };
 
@@ -216,7 +218,7 @@ void GraphLookUpStage::spill(int64_t maximumMemoryUsage) {
 }
 
 GetNextResult GraphLookUpStage::getNextUnwound() {
-    const boost::optional<FieldPath> indexPath((*_unwind)->indexPath());
+    const boost::optional<FieldPath>& indexPath((*_unwind)->indexPath());
 
     // If the unwind is not preserving empty arrays, we might have to process multiple inputs
     // before we get one that will produce an output.
@@ -319,27 +321,26 @@ void GraphLookUpStage::spillDuringVisitedUnwinding() {
 }
 
 void GraphLookUpStage::doBreadthFirstSearch() {
+    const auto allowForeignSharded = foreignShardedGraphLookupAllowed();
+
+    std::unique_ptr<MongoProcessInterface::ScopedExpectUntrackedCollection>
+        expectUntrackedCollectionInScope;
+
+    if (!allowForeignSharded && !_fromExpCtx->getInRouter()) {
+        // Enforce that the foreign collection must be unsharded for $graphLookup.
+        expectUntrackedCollectionInScope =
+            _fromExpCtx->getMongoProcessInterface()->expectUntrackedCollectionInScope(
+                _fromExpCtx->getOperationContext(), _fromExpCtx->getNamespaceString(), boost::none);
+    }
+
     while (!_queue.empty()) {
-        std::unique_ptr<MongoProcessInterface::ScopedExpectUntrackedCollection>
-            expectUntrackedCollectionInScope;
-
-        const auto allowForeignSharded = foreignShardedGraphLookupAllowed();
-        if (!allowForeignSharded && !_fromExpCtx->getInRouter()) {
-            // Enforce that the foreign collection must be unsharded for $graphLookup.
-            expectUntrackedCollectionInScope =
-                _fromExpCtx->getMongoProcessInterface()->expectUntrackedCollectionInScope(
-                    _fromExpCtx->getOperationContext(),
-                    _fromExpCtx->getNamespaceString(),
-                    boost::none);
-        }
-
         // Check whether next key in the queue exists in the cache or needs to be queried until
         // queue is empty or the query is too big.
         auto query = makeQueryFromQueue();
 
         // Process cached values, populating '_queue' for the next iteration of search.
         while (!query.cached.empty()) {
-            auto doc = *query.cached.begin();
+            auto doc = std::move(*query.cached.begin());
             query.cached.erase(query.cached.begin());
             addToVisitedAndQueue(std::move(doc), query.depth);
             checkMemoryUsage();
@@ -384,7 +385,7 @@ void GraphLookUpStage::addToCache(const Document& result, const ValueFlatUnorder
             // {a: [{b: 1}, {b: 0}]}, this document will be retrieved by querying for "{b: 1}",
             // but the outer for loop will split this into two separate connectToValues. {b: 0}
             // was not queried for, and thus, we cannot cache under it.
-            if (queried.find(connectToValue) != queried.end()) {
+            if (queried.contains(connectToValue)) {
                 _cache.insert(connectToValue, result);
             }
         });
@@ -408,9 +409,8 @@ void GraphLookUpStage::addToVisitedAndQueue(Document result, long long depth) {
 
     _visitedDocuments.add(result);
 
-    // Add the 'connectFromField' of 'result' into '_queue'. If the 'connectFromField' is an
-    // array, we treat it as connecting to multiple values, so we must add each element to
-    // '_queue'.
+    // Add the 'connectFromField' of 'result' into '_queue'. If the 'connectFromField' is an array,
+    // we treat it as connecting to multiple values, so we must add each element to '_queue'.
     if (!_params.maxDepth || depth < *_params.maxDepth) {
         document_path_support::visitAllValuesAtPath(
             result, _params.connectFromField, [&](const Value& nextFrontierValue) {
@@ -428,11 +428,27 @@ void GraphLookUpStage::addFromValueToQueueIfNeeded(Value fromValue, long long de
 
 auto GraphLookUpStage::makeQueryFromQueue() -> Query {
     static constexpr long long kUninitializedDepth = -1;
+
+    // Recycle the containers in the '_queryState' instance across all the queries that are
+    // performed.
+    if (_queryState) {
+        // '_queryState' is already initialized, thus clear out the existing containers.
+        _queryState->clear();
+    } else {
+        // No '_queryState' exists yet. Create it with the necessary containers for the environment.
+        _queryState.emplace(pExpCtx->getDocumentComparator().makeUnorderedDocumentSet(),
+                            pExpCtx->getValueComparator().makeFlatUnorderedValueSet());
+    }
+
     Query result = {
-        boost::none,
-        pExpCtx->getDocumentComparator().makeUnorderedDocumentSet(),
-        pExpCtx->getValueComparator().makeFlatUnorderedValueSet(),
-        kUninitializedDepth,
+        .match = boost::none,
+
+        // The following two members are references to members of the graph lookup stage. Thus this
+        // 'Query' object must never outlive 'this'.
+        .cached = _queryState->cached,
+        .queried = _queryState->queried,
+
+        .depth = kUninitializedDepth,
     };
 
     // Create a query of the form {$and: [_additionalFilter, {_connectToField: {$in: [...]}}]}.
@@ -522,10 +538,7 @@ auto GraphLookUpStage::makeQueryFromQueue() -> Query {
 }
 
 Document GraphLookUpStage::wrapFrontierValue(Value value, long long depth) const {
-    MutableDocument document;
-    document.addField(kFrontierValueField, std::move(value));
-    document.addField(kDepthField, Value{depth});
-    return document.freeze();
+    return Document{{kFrontierValueField, std::move(value)}, {kDepthField, Value{depth}}};
 }
 
 bool GraphLookUpStage::foreignShardedGraphLookupAllowed() const {
@@ -533,6 +546,26 @@ bool GraphLookUpStage::foreignShardedGraphLookupAllowed() const {
     return !pExpCtx->getOperationContext()->inMultiDocumentTransaction() ||
         gFeatureFlagAllowAdditionalParticipants.isEnabled(fcvSnapshot);
 }
+
+namespace {
+void tryOptimizeMatchOnlyPipelineDirectly(mongo::Pipeline* pipe) {
+    // pipeline_optimization::optimizePipeline() has small overhead compared to optimizing the only
+    // stage directly. This overhead can be noticeable when repeated for every document in the
+    // result set. Unless executed against a view, the 'from' pipeline will only contain a $match
+    // connecting the 'to' and 'from' fields.
+    if (DocumentSource* match = pipe->peekFront();
+        match && pipe->size() == 1 && match->getId() == DocumentSourceMatch::id) {
+        // $match is the only stage, optimize directly.
+        if (!static_cast<DocumentSourceMatch&>(*match).optimize()) {
+            (void)pipe->popFront();
+        }
+        pipe->validateCommon(true /* alreadyOptimized */);
+    } else {
+        // Running on against a view, need to optimize the whole pipeline.
+        pipeline_optimization::optimizeAndValidatePipeline(pipe);
+    }
+}
+}  // namespace
 
 std::unique_ptr<mongo::Pipeline> GraphLookUpStage::makePipeline(BSONObj match,
                                                                 bool allowForeignSharded) {
@@ -548,14 +581,14 @@ std::unique_ptr<mongo::Pipeline> GraphLookUpStage::makePipeline(BSONObj match,
     // to the '_fromExpCtx' by copying them from the parent query ExpressionContext.
     _fromExpCtx->setQuerySettingsIfNotPresent(pExpCtx->getQuerySettings());
 
-    std::unique_ptr<mongo::Pipeline> pipeline = mongo::pipeline_factory::makePipeline(
+    auto pipeline = mongo::pipeline_factory::makePipeline(
         _fromPipeline, _fromExpCtx, pipeline_factory::kDesugarOnly);
     try {
         return pExpCtx->getMongoProcessInterface()->finalizeAndMaybePreparePipelineForExecution(
             _fromExpCtx,
             std::move(pipeline),
             true /* attachCursorAfterOptimizing */,
-            pipeline_optimization::optimizeAndValidatePipeline,
+            tryOptimizeMatchOnlyPipelineDirectly,
             shardTargetingPolicy);
     } catch (const ExceptionFor<ErrorCodes::CommandOnShardedViewNotSupportedOnMongod>& e) {
         // This exception returns the information we need to resolve a sharded view. Update
@@ -577,7 +610,7 @@ std::unique_ptr<mongo::Pipeline> GraphLookUpStage::makePipeline(BSONObj match,
 
         // Update '_fromPipeline' with the resolved view definition to avoid triggering this
         // exception next time.
-        _fromPipeline = std::vector<BSONObj>(pipeline->serializeToBson());
+        _fromPipeline = pipeline->serializeToBson();
 
         // Update the expression context with any new namespaces the resolved pipeline has
         // introduced.
@@ -602,7 +635,7 @@ std::unique_ptr<mongo::Pipeline> GraphLookUpStage::makePipeline(BSONObj match,
             _fromExpCtx,
             std::move(pipeline),
             true /* attachCursorAfterOptimizing */,
-            pipeline_optimization::optimizeAndValidatePipeline,
+            tryOptimizeMatchOnlyPipelineDirectly,
             shardTargetingPolicy);
     }
 }

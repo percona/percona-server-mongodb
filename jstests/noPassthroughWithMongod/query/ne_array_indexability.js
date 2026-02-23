@@ -2,9 +2,9 @@
  * Test that $ne: [] queries are cached correctly. See SERVER-39764.
  */
 import {getPlanCacheKeyFromShape, getPlanCacheShapeHashFromObject} from "jstests/libs/query/analyze_plan.js";
-import {checkSbeFullFeatureFlagEnabled} from "jstests/libs/query/sbe_util.js";
+import {sbePlanCacheEnabled} from "jstests/libs/query/sbe_util.js";
 
-const isUsingSbePlanCache = checkSbeFullFeatureFlagEnabled(db);
+const isUsingSbePlanCache = sbePlanCacheEnabled(db);
 
 const coll = db.ne_array_indexability;
 coll.drop();

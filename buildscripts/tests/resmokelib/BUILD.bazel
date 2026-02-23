@@ -4,3 +4,13 @@ py_library(
     srcs = glob(["*.py"]),
     visibility = ["//visibility:public"],
 )
+
+py_test(
+    name = "test_bazel_suite_parser",
+    srcs = [
+        "test_bazel_suite_parser.py",
+    ],
+    deps = [
+        "//buildscripts/resmokelib",
+    ],
+)

@@ -33,7 +33,7 @@
 
 namespace mongo::plan_ranking {
 
-StatusWith<plan_ranking::PlanRankingResult> MPPlanRankingStrategy::rankPlans(PlannerData& pd) {
+StatusWith<PlanRankingResult> MPPlanRankingStrategy::rankPlans(PlannerData& pd) {
     CanonicalQuery& query = *pd.cq;
     const QueryPlannerParams& plannerParams = *pd.plannerParams;
     /**
@@ -45,7 +45,7 @@ StatusWith<plan_ranking::PlanRankingResult> MPPlanRankingStrategy::rankPlans(Pla
     if (!statusWithMultiPlanSolns.isOK()) {
         return statusWithMultiPlanSolns.getStatus();
     }
-    return plan_ranking::PlanRankingResult{std::move(statusWithMultiPlanSolns.getValue())};
+    return PlanRankingResult{.solutions = std::move(statusWithMultiPlanSolns.getValue())};
 }
 
 }  // namespace mongo::plan_ranking

@@ -105,6 +105,19 @@ if __name__ == "__main__":
             "--suites", "--originSuite"
         )
 
+    # Reduce the storage engine's cache size (if not already set) to reduce the likelihood
+    # of a mongod process being killed by the OOM killer. The configuration of the
+    # cache size is duplicated in evergreen/resmoke_tests_execute.sh, please update both.
+    storage_engine_in_memory = "--storageEngine=inMemory" in resmoke_args
+    storage_engine_cache_arg = [
+        arg for arg in resmoke_args if arg.startswith("--storageEngineCacheSizeGB")
+    ]
+    if not storage_engine_cache_arg:
+        if storage_engine_in_memory:
+            resmoke_args.append("--storageEngineCacheSizeGB=4")
+        else:
+            resmoke_args.append("--storageEngineCacheSizeGB=1")
+
     add_evergreen_build_info(resmoke_args)
 
     if os.environ.get("DEPS_PATH"):

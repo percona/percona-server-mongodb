@@ -162,18 +162,11 @@ function testWriteConcernFailover(st) {
 function runTests() {
     // TODO Do not explicitly set this feature flag after SERVER-109032 is done.
     const featureFlagReshardingVerification = false;
-    // TODO Do not explicitly set this feature flag after SERVER-108476 is done.
-    const featureFlagReshardingCloneNoRefresh = false;
     const st = new ShardingTest({
         shards: 3,
-        rs: {
-            nodes: 3,
-            setParameter: {featureFlagReshardingVerification, featureFlagReshardingCloneNoRefresh},
-        },
+        rs: {nodes: 3, setParameter: {featureFlagReshardingVerification}},
         other: {
-            configOptions: {
-                setParameter: {featureFlagReshardingVerification, featureFlagReshardingCloneNoRefresh},
-            },
+            configOptions: {setParameter: {featureFlagReshardingVerification}},
         },
     });
     testWriteConcernBasic(st);

@@ -36,14 +36,15 @@
 #include "mongo/db/operation_context.h"
 #include "mongo/db/repl/oplog_entry.h"
 #include "mongo/db/repl/oplog_entry_gen.h"
+#include "mongo/db/repl/read_concern_args.h"
 #include "mongo/util/modules.h"
 
 namespace mongo {
 
-/**
- * Returns true if findAndModify image collection is supported.
- */
-MONGO_MOD_PUBLIC bool disallowFindAndModifyImageCollection(OperationContext* opCtx);
+using FindOneLocallyFunc = std::function<boost::optional<BSONObj>(
+    const NamespaceString& nss,
+    const BSONObj& filter,
+    const boost::optional<repl::ReadConcernArgs>& readConcern)>;
 
 /**
  * Fetches and returns the pre- or post-image of the findAndModify operation by performing a
@@ -51,6 +52,16 @@ MONGO_MOD_PUBLIC bool disallowFindAndModifyImageCollection(OperationContext* opC
  * the oplog entry must have the commit timestamp.
  */
 MONGO_MOD_PUBLIC boost::optional<BSONObj> fetchPreOrPostImageFromSnapshot(
-    OperationContext* opCtx, const repl::OplogEntry& oplogEntry);
+    const repl::OplogEntry& oplogEntry, FindOneLocallyFunc findOneLocallyFunc);
+
+/**
+ * Fetches the pre- or post-image for the given findAndModify operation either from the image
+ * collection or by performing a snapshot read against the collection the findAndModify wrote to.
+ * Returns a forged noop oplog entry containing the image. Returns none if no image is found.
+ */
+MONGO_MOD_PUBLIC boost::optional<repl::OplogEntry> forgeNoopImageOplogEntry(
+    OperationContext* opCtx,
+    const repl::OplogEntry& oplogEntry,
+    FindOneLocallyFunc findOneLocallyFunc);
 
 }  // namespace mongo

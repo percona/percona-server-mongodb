@@ -105,6 +105,24 @@ void addQuerySettingsToRequest(AggregateCommandRequest& request,
                                const boost::intrusive_ptr<ExpressionContext>& expCtx);
 
 /**
+ * Adds IFR flags from ifrContext to request. Always serializes the current flag value when
+ * dispatching to shards, so they use the same value as the router/sender.
+ *
+ * For now, we only serialize featureFlagVectorSearchExtension.
+ * TODO SERVER-116219: Expand IFR flag serialization beyond $vectorSearch.
+ */
+void addIfrFlagsToRequest(AggregateCommandRequest& request,
+                          std::shared_ptr<IncrementalFeatureRolloutContext> ifrContext);
+
+/**
+ * Validate the aggregate command object.
+ */
+void validate(const AggregateCommandRequest& aggregate,
+              const BSONObj& cmdObj,
+              const NamespaceString& nss,
+              boost::optional<ExplainOptions::Verbosity> explainVerbosity);
+
+/**
  * Validates if 'AggregateCommandRequest' specs complies with the current Client, which is required
  * for API versioning checks. Throws uassert in case of any failure.
  */

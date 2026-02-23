@@ -30,6 +30,7 @@
 #pragma once
 
 #include "mongo/db/namespace_string.h"
+#include "mongo/db/pipeline/field_path.h"
 #include "mongo/stdx/unordered_map.h"
 
 namespace mongo::join_ordering {
@@ -38,16 +39,13 @@ namespace mongo::join_ordering {
  * Statisitics for a single collection.
  */
 struct CollectionStats {
-    // Total number of on-disk bytes currently allocated to data pages that are still in use
-    // by this collection's record data, after storage-engine compression. Intended to be derived
-    // from the record store's on-disk size metrics (e.g. storageSize - freeStorageSize). This
-    // includes both live document data and any unused space on those pages, but excludes fully
-    // free/reusable pages and all index storage.
-    double allocatedDataPageBytes;
+    // Estimate of the data size of this collection when in-memory (uncompressed and unencrypted).
+    double logicalDataSizeBytes;
 
-    // Approximate size, in bytes, of a single on-disk data page for this collection after
-    // storage-engine compression. The optimizer uses this as the I/O granularity when converting
-    // between bytes and page reads in cost estimates. Default to 32KiB if not specified.
+    // Approximate size, in bytes, of a single in-memory WT data page for this collection before
+    // compression and encryption. The optimizer uses this as the I/O granularity when estimating
+    // the number of disk I/Os performed by an operator for cost estimates.
+    // Default to 32KiB if not specified.
     double pageSizeBytes{32 * 1024};
 };
 
@@ -56,6 +54,48 @@ struct CollectionStats {
  */
 struct CatalogStats {
     stdx::unordered_map<NamespaceString, CollectionStats> collStats;
+
+    // Default to 2GiB / 32KiB as a start
+    double numPagesInStorageEngineCache{65536};
 };
+
+// For a single collection, the maximum number of distinct fields that are part of unique indexes
+// which we will use to determine join field uniqueness. If there are more than this many fields,
+// only the first 'kMaxUniqueFieldsPerCollection' fields will be used, and the rest will be ignored.
+constexpr size_t kMaxUniqueFieldsPerCollection = 64;
+
+// A combination of fields which, based on index metadata, are known to represent unique data.
+using UniqueFieldSet = std::bitset<kMaxUniqueFieldsPerCollection>;
+using UniqueFieldSets = absl::flat_hash_set<UniqueFieldSet>;
+
+// Maps from field to the bit assigned to that field.
+using FieldToBit = absl::flat_hash_map<FieldPath, int>;
+
+struct UniqueFieldInformation {
+    // Maps from field to bit assigned to that field.
+    FieldToBit fieldToBit;
+    // A combination of fields which, based on index metadata, are known to represent unique data.
+    UniqueFieldSets uniqueFieldSet;
+};
+
+/**
+ * Given a keyPattern from an index assumed to be unique, constructs its unique field information.
+ * Note that this function modifies 'fieldToBit' if new fields requiring new bits are seen.
+ */
+boost::optional<UniqueFieldSet> buildUniqueFieldSetForIndex(const BSONObj& keyPattern,
+                                                            FieldToBit& fieldToBit);
+
+/**
+ * Returns whether the 'ndvFields' represent unique values given the index-derived metadata
+ * 'uniqueFields', which indicates what combinations of fields are guaranteed to be unique.
+ *
+ * For example, given unique fields {{"a"}, {"b", "c"}}, then given the following NDV fields...
+ * - {"a"}           --> return true
+ * - {"b", "c"}      --> return true
+ * - {"b", "c", "d"} --> return true
+ * - {"e", "c"}      --> return false
+ */
+bool fieldsAreUnique(const std::set<FieldPath>& ndvFields,
+                     const UniqueFieldInformation& uniqueFields);
 
 }  // namespace mongo::join_ordering

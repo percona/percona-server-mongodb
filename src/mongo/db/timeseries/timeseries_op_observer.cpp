@@ -42,7 +42,9 @@
 #include "mongo/db/timeseries/bucket_catalog/bucket_catalog_helpers.h"
 #include "mongo/db/timeseries/bucket_catalog/global_bucket_catalog.h"
 #include "mongo/db/timeseries/bucket_catalog/tracking_contexts.h"
+#include "mongo/db/timeseries/timeseries_constants.h"
 #include "mongo/db/timeseries/timeseries_extended_range.h"
+#include "mongo/logv2/log.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/tracking/vector.h"
 
@@ -51,6 +53,8 @@
 
 #include <absl/container/node_hash_set.h>
 #include <boost/optional/optional.hpp>
+
+#define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kStorage
 
 namespace mongo {
 
@@ -74,11 +78,17 @@ void TimeSeriesOpObserver::onInserts(OperationContext* opCtx,
     // DOES need to be -- that will cause correctness issues). Additionally, if the user tried
     // to insert measurements with dates outside the standard range, chances are they will do so
     // again, and we will have only set the flag a little early.
-
     tassert(6905201, "Could not find collection for write", coll);
-    if (auto currentSetting = coll->getRequiresTimeseriesExtendedRangeSupport(); !currentSetting &&
-        timeseries::bucketsHaveDateOutsideStandardRange(options.value(), first, last)) {
-        coll->setRequiresTimeseriesExtendedRangeSupport(opCtx);
+    if (!coll->getRequiresTimeseriesExtendedRangeSupport()) {
+        if (const auto maybeDate =
+                timeseries::bucketsHaveDateOutsideStandardRange(options.value(), {first, last})) {
+            coll->setRequiresTimeseriesExtendedRangeSupport(opCtx);
+            LOGV2(11461401,
+                  "Added extended range support to collection",
+                  "ns"_attr = coll->ns(),
+                  "uuid"_attr = coll->uuid(),
+                  "date"_attr = maybeDate->toString());
+        }
     }
 
     const auto& tsColl = coll.get();

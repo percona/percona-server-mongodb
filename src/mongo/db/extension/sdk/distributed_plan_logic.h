@@ -149,7 +149,7 @@ private:
         });
     }
 
-    static constexpr ::MongoExtensionDistributedPlanLogicVTable VTABLE{
+    static constexpr ::MongoExtensionDistributedPlanLogicVTable VTABLE = {
         .destroy = &_extDestroy,
         .extract_shards_pipeline = &_extExtractShardsPipeline,
         .extract_merging_pipeline = &_extExtractMergingPipeline,

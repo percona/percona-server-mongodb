@@ -19,6 +19,7 @@ import {
     isIxscanMultikey,
     planHasStage,
 } from "jstests/libs/query/analyze_plan.js";
+import {add2dsphereVersionIfNeeded} from "jstests/libs/query/geo_index_version_helpers.js";
 
 let coll = db.covered_multikey_compound_a_1_b_1;
 coll.drop();
@@ -89,7 +90,7 @@ assert(isIxscanMultikey(winningPlan));
 // Verify that a trailing empty array makes a 2dsphere index multikey.
 coll = db.covered_multikey_2dsphere_empty_array_trailing;
 coll.drop();
-assert.commandWorked(coll.createIndex({"a.b": 1, c: "2dsphere"}));
+assert.commandWorked(coll.createIndex({"a.b": 1, c: "2dsphere"}, add2dsphereVersionIfNeeded()));
 assert.commandWorked(coll.insert({a: {b: 1}, c: {type: "Point", coordinates: [0, 0]}}));
 explainRes = coll.explain().find().hint({"a.b": 1, c: "2dsphere"}).finish();
 winningPlan = getWinningPlanFromExplain(explainRes);
@@ -105,7 +106,7 @@ assert(isIxscanMultikey(winningPlan));
 // Verify that a mid-path empty array makes a 2dsphere index multikey.
 coll = db.covered_multikey_2dsphere_empty_array_midpath;
 coll.drop();
-assert.commandWorked(coll.createIndex({"a.b": 1, c: "2dsphere"}));
+assert.commandWorked(coll.createIndex({"a.b": 1, c: "2dsphere"}, add2dsphereVersionIfNeeded()));
 assert.commandWorked(coll.insert({a: [], c: {type: "Point", coordinates: [0, 0]}}));
 explainRes = coll.explain().find().hint({"a.b": 1, c: "2dsphere"}).finish();
 winningPlan = getWinningPlanFromExplain(explainRes);
@@ -115,7 +116,7 @@ assert(isIxscanMultikey(winningPlan));
 // Verify that a single-element array makes a 2dsphere index multikey.
 coll = db.covered_multikey_2dsphere_single_element_array;
 coll.drop();
-assert.commandWorked(coll.createIndex({"a.b": 1, c: "2dsphere"}));
+assert.commandWorked(coll.createIndex({"a.b": 1, c: "2dsphere"}, add2dsphereVersionIfNeeded()));
 assert.commandWorked(coll.insert({a: {b: [3]}, c: {type: "Point", coordinates: [0, 0]}}));
 explainRes = coll.explain().find().hint({"a.b": 1, c: "2dsphere"}).finish();
 winningPlan = getWinningPlanFromExplain(explainRes);

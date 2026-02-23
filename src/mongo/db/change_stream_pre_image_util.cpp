@@ -29,20 +29,20 @@
 
 #include "mongo/db/change_stream_pre_image_util.h"
 
-#include "mongo/base/status_with.h"
 #include "mongo/base/string_data.h"
 #include "mongo/bson/bsonelement.h"
-#include "mongo/bson/bsonobjbuilder.h"
 #include "mongo/bson/bsontypes.h"
 #include "mongo/db/change_stream_options_gen.h"
 #include "mongo/db/change_stream_options_manager.h"
+#include "mongo/db/change_stream_pre_image_id_util.h"
 #include "mongo/db/collection_crud/collection_write_path.h"
-#include "mongo/db/curop.h"
 #include "mongo/db/query/internal_plans.h"
 #include "mongo/db/query/plan_executor.h"
 #include "mongo/db/query/plan_yield_policy.h"
-#include "mongo/db/record_id_helpers.h"
+#include "mongo/db/rss/replicated_storage_service.h"
+#include "mongo/db/server_feature_flags_gen.h"
 #include "mongo/db/service_context.h"
+#include "mongo/db/version_context.h"
 #include "mongo/logv2/log.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/clock_source.h"
@@ -51,7 +51,6 @@
 #include "mongo/util/str.h"
 
 #include <cstdint>
-#include <limits>
 #include <string>
 #include <utility>
 #include <variant>
@@ -79,6 +78,20 @@ boost::optional<std::int64_t> getExpireAfterSecondsFromChangeStreamOptions(
 }
 }  // namespace
 
+bool shouldUseReplicatedTruncatesForPreImages(OperationContext* opCtx) {
+    // First check persistence provider.
+    if (const auto& rss = rss::ReplicatedStorageService::get(opCtx);
+        rss.getPersistenceProvider().shouldUseReplicatedTruncates()) {
+        return true;
+    }
+
+    // Next check feature flag.
+    const auto fcvSnapshot = serverGlobalParams.featureCompatibility.acquireFCVSnapshot();
+    return fcvSnapshot.isVersionInitialized() &&
+        feature_flags::gFeatureFlagUseReplicatedTruncatesForDeletions.isEnabled(
+            VersionContext::getDecoration(opCtx), fcvSnapshot);
+}
+
 boost::optional<Seconds> getExpireAfterSeconds(OperationContext* opCtx) {
     const auto changeStreamOptions = ChangeStreamOptionsManager::get(opCtx).getOptions(opCtx);
     const auto expireAfterSeconds =
@@ -96,38 +109,6 @@ boost::optional<Date_t> getPreImageOpTimeExpirationDate(OperationContext* opCtx,
     return boost::none;
 }
 
-Timestamp getPreImageTimestamp(const RecordId& rid) {
-    static constexpr auto kTopLevelFieldName = "ridAsBSON"_sd;
-    auto ridAsNestedBSON = record_id_helpers::toBSONAs(rid, kTopLevelFieldName);
-    // 'toBSONAs()' discards type bits of the underlying KeyString of the RecordId. However, since
-    // the 'ts' field of 'ChangeStreamPreImageId' is distinct CType::kTimestamp, type bits aren't
-    // necessary to obtain the original value.
-
-    auto ridBSON = ridAsNestedBSON.getObjectField(kTopLevelFieldName);
-
-    // Callers must ensure the 'rid' represents an underlying 'ChangeStreamPreImageId'. Otherwise,
-    // the behavior of this method is undefined.
-    invariant(ridBSON.hasField(ChangeStreamPreImageId::kTsFieldName));
-
-    auto tsElem = ridBSON.getField(ChangeStreamPreImageId::kTsFieldName);
-    return tsElem.timestamp();
-}
-
-RecordId toRecordId(ChangeStreamPreImageId id) {
-    return record_id_helpers::keyForElem(
-        BSON(ChangeStreamPreImage::kIdFieldName << id.toBSON()).firstElement());
-}
-
-RecordIdBound getAbsoluteMinPreImageRecordIdBoundForNs(const UUID& nsUUID) {
-    return RecordIdBound(
-        change_stream_pre_image_util::toRecordId(ChangeStreamPreImageId(nsUUID, Timestamp(), 0)));
-}
-
-RecordIdBound getAbsoluteMaxPreImageRecordIdBoundForNs(const UUID& nsUUID) {
-    return RecordIdBound(change_stream_pre_image_util::toRecordId(
-        ChangeStreamPreImageId(nsUUID, Timestamp::max(), std::numeric_limits<int64_t>::max())));
-}
-
 void truncatePreImagesByTimestampExpirationApproximation(
     OperationContext* opCtx,
     const CollectionAcquisition& preImagesCollection,
@@ -137,18 +118,24 @@ void truncatePreImagesByTimestampExpirationApproximation(
 
     for (const auto& nsUUID : nsUUIDs) {
         RecordId minRecordId =
-            change_stream_pre_image_util::getAbsoluteMinPreImageRecordIdBoundForNs(nsUUID)
+            change_stream_pre_image_id_util::getAbsoluteMinPreImageRecordIdBoundForNs(nsUUID)
                 .recordId();
 
         RecordId maxRecordIdApproximation =
             RecordIdBound(
-                change_stream_pre_image_util::toRecordId(ChangeStreamPreImageId(
+                change_stream_pre_image_id_util::toRecordId(ChangeStreamPreImageId(
                     nsUUID, expirationTimestampApproximation, std::numeric_limits<int64_t>::max())))
                 .recordId();
 
         // Truncation is based on Timestamp expiration approximation -
         // meaning there isn't a good estimate of the number of bytes and
         // documents to be truncated, so default to 0.
+        //
+        // We deliberately skip RecordId range validation here. Validation relies on replication
+        // frontiers (allDurable / lastApplied) being initialized, which is not the case yet during
+        // this early recovery window. Using those frontiers would incorrectly reject this truncate.
+        // This approximation-based, unreplicated truncate is a transitional mechanism and is
+        // expected to be removed once pre-images are using replicated truncates.
         repl::UnreplicatedWritesBlock uwb(opCtx);
         WriteUnitOfWork wuow(opCtx);
         collection_internal::truncateRange(opCtx,
@@ -156,16 +143,10 @@ void truncatePreImagesByTimestampExpirationApproximation(
                                            minRecordId,
                                            maxRecordIdApproximation,
                                            0,
-                                           0);
+                                           0,
+                                           false /* shouldValidateRecordIdRange */);
         wuow.commit();
     }
-}
-
-UUID getPreImageNsUUID(const BSONObj& preImageObj) {
-    auto parsedUUID = UUID::parse(preImageObj[ChangeStreamPreImage::kIdFieldName]
-                                      .Obj()[ChangeStreamPreImageId::kNsUUIDFieldName]);
-    tassert(7027400, "Pre-image collection UUID must be of UUID type", parsedUUID.isOK());
-    return std::move(parsedUUID.getValue());
 }
 
 boost::optional<UUID> findNextCollectionUUID(OperationContext* opCtx,
@@ -178,7 +159,7 @@ boost::optional<UUID> findNextCollectionUUID(OperationContext* opCtx,
     // 'currentNsUUID'.
     auto minRecordId = currentNsUUID
         ? boost::make_optional(
-              change_stream_pre_image_util::getAbsoluteMaxPreImageRecordIdBoundForNs(
+              change_stream_pre_image_id_util::getAbsoluteMaxPreImageRecordIdBoundForNs(
                   *currentNsUUID))
         : boost::none;
     auto planExecutor =
@@ -193,7 +174,7 @@ boost::optional<UUID> findNextCollectionUUID(OperationContext* opCtx,
     }
 
     firstDocWallTime = preImageObj[ChangeStreamPreImage::kOperationTimeFieldName].date();
-    return getPreImageNsUUID(preImageObj);
+    return change_stream_pre_image_id_util::getPreImageNsUUID(preImageObj);
 }
 
 stdx::unordered_set<UUID, UUID::Hash> getNsUUIDs(OperationContext* opCtx,

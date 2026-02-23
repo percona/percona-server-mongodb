@@ -58,6 +58,7 @@ public:
             {makeNodeSet(extremelySmallNodeId), makeCard(1)},
             {makeNodeSet(smallNodeId, largeNodeId), makeCard(1)},
             {makeNodeSet(smallNodeId, unselectiveNodeId), makeCard(100'000)},
+            {makeNodeSet(largeNodeId, unselectiveNodeId), makeCard(100'000)},
         };
         NodeCardinalities collCards{
             makeCard(100'000), makeCard(2'000'000), makeCard(2'000'000), makeCard(1)};
@@ -69,19 +70,24 @@ public:
         jCtx->catStats = {
             .collStats = {
                 {smallNss,
-                 CollectionStats{.allocatedDataPageBytes =
+                 CollectionStats{.logicalDataSizeBytes =
                                      collCards[smallNodeId].toDouble() * docSizeBytes}},
                 {largeNss,
-                 CollectionStats{.allocatedDataPageBytes =
+                 CollectionStats{.logicalDataSizeBytes =
                                      collCards[largeNodeId].toDouble() * docSizeBytes}},
                 {extremelySmallNss,
-                 CollectionStats{.allocatedDataPageBytes =
+                 CollectionStats{.logicalDataSizeBytes =
                                      collCards[extremelySmallNodeId].toDouble() * docSizeBytes}},
             }};
 
         auto costEstimator = std::make_unique<JoinCostEstimatorImpl>(*jCtx, *cardEstimator);
         planEnumCtx = std::make_unique<PlanEnumeratorContext>(
-            *jCtx, std::move(cardEstimator), std::move(costEstimator), false);
+            *jCtx,
+            std::move(cardEstimator),
+            std::move(costEstimator),
+            EnumerationStrategy{.planShape = PlanTreeShape::ZIG_ZAG,
+                                .mode = PlanEnumerationMode::CHEAPEST,
+                                .enableHJOrderPruning = true});
     }
 
     NamespaceString smallNss;
@@ -94,7 +100,6 @@ public:
     boost::optional<JoinReorderingContext> jCtx;
     std::unique_ptr<PlanEnumeratorContext> planEnumCtx;
     CatalogStats catalogStats;
-    std::unique_ptr<JoinCostEstimator> costEstimator;
     JoinCostEstimate zeroJoinCost =
         JoinCostEstimate(CardinalityEstimate{CardinalityType{0.0}, EstimationSource::Code},
                          CardinalityEstimate{CardinalityType{0.0}, EstimationSource::Code},
@@ -218,6 +223,19 @@ TEST_F(JoinCostEstimatorTest, NLJLowerCostThanHashJoin) {
     auto hjCost = planEnumCtx->getJoinCostEstimator()->costHashJoinFragment(extremelySmallNode,
                                                                             extremelySmallNode);
     ASSERT_LT(nljCost, hjCost);
+}
+
+TEST(MackertLohmanTest, CollectionFitsInCache) {
+    ASSERT_EQ(10, estimateMackertLohmanRandIO(100, 1000, 10));
+    ASSERT_EQ(100, estimateMackertLohmanRandIO(100, 1000, 10000));
+}
+
+TEST(MackerLohmanTest, CollectionDoesntFitInCacheResultSetFitsInCache) {
+    ASSERT_EQ(10, estimateMackertLohmanRandIO(1000, 100, 10));
+}
+
+TEST(MackerLohmanTest, CollectionDoesntFitInCacheResultSetDoesntFitInCache) {
+    ASSERT_EQ(910, estimateMackertLohmanRandIO(1000, 100, 1000));
 }
 
 }  // namespace mongo::join_ordering

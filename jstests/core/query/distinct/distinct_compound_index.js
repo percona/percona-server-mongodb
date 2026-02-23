@@ -8,6 +8,7 @@
 //   exclude_from_timeseries_crud_passthrough,
 // ]
 import {FixtureHelpers} from "jstests/libs/fixture_helpers.js";
+import {add2dsphereVersionIfNeeded} from "jstests/libs/query/geo_index_version_helpers.js";
 import {
     assertStagesForExplainOfCommand,
     getWinningPlanFromExplain,
@@ -46,7 +47,7 @@ const cmdObj = {
     key: "a",
 };
 assert.commandWorked(coll.dropIndexes());
-assert.commandWorked(coll.createIndex({a: 1, b: 1, geoField: "2dsphere"}));
+assert.commandWorked(coll.createIndex({a: 1, b: 1, geoField: "2dsphere"}, add2dsphereVersionIfNeeded()));
 assertStagesForExplainOfCommand({
     coll: coll,
     cmdObj: cmdObj,

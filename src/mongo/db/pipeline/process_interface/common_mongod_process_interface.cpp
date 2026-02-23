@@ -284,6 +284,24 @@ bool acquireCollectionsForPipeline(const boost::intrusive_ptr<ExpressionContext>
         // Acquire all the nss at the same snapshot.
         allAcquisitions =
             makeAcquisitionMap(acquireCollectionsOrViewsMaybeLockFree(opCtx, requests));
+
+        // If we resolved a legacy timeseries view but did not subsequently find the
+        // targeted buckets collection, the timeseries collection may have been
+        // concurrently converted to viewless. In that case, throw CollectionBecameView
+        // to restart the aggregation.
+        // TODO SERVER-111172: Remove this logic once all timeseries collections are viewless.
+        const auto& primaryAcq = allAcquisitions.at(primaryNss);
+        if (!primaryAcq.isView() && !primaryAcq.collectionExists() &&
+            primaryNss.isTimeseriesBucketsCollection()) {
+            const auto& mainTimeseriesNss = primaryNss.getTimeseriesViewNamespace();
+            auto mainTimeseriesColl = CollectionCatalog::get(opCtx)->establishConsistentCollection(
+                opCtx, mainTimeseriesNss, boost::none /* readTimestamp */);
+            if (mainTimeseriesColl && mainTimeseriesColl->isTimeseriesCollection()) {
+                uasserted(ErrorCodes::CollectionBecameView,
+                          fmt::format("Detected metadata upgrade for timeseries collection '{}'",
+                                      primaryNss.toStringForErrorMsg()));
+            }
+        }
     };
 
     return initializeAutoGet(opCtx, primaryNss, secondaryNamespaces, initAutoGetCallback);
@@ -1295,17 +1313,44 @@ boost::optional<Document> CommonMongodProcessInterface::lookupSingleDocumentLoca
     const NamespaceString& nss,
     const Document& documentKey) {
     OperationContext* opCtx = expCtx->getOperationContext();
+
+    // This helper is only meant to be used for accessing a collection locally. It is only allowed
+    // to be used against a user collection when specifying read concern "snapshot" with
+    // "atClusterTime", and the caller must guarantee that the chunk containing the document is
+    // owned by the mongod at at timestamp.
+    if (!nss.isNamespaceAlwaysUntracked()) {
+        const auto& readConcern = repl::ReadConcernArgs::get(opCtx);
+        tassert(11731904,
+                str::stream() << "Trying to look up a document in a user collection locally "
+                                 "without doing placement version check with read concern "
+                              << readConcern.toBSONInner(),
+                readConcern.getLevel() == repl::ReadConcernLevelEnum::kSnapshotReadConcern &&
+                    readConcern.getArgsAtClusterTime().has_value());
+    }
+
     // Using kPretendUnsharded (and skipping version check) as this helper is only used to access
-    // the config.system.preimages which is always present and local.
+    // a collection locally.
     const auto acquisition = acquireCollectionMaybeLockFree(
         opCtx,
         CollectionAcquisitionRequest(nss,
                                      PlacementConcern::kPretendUnsharded,
                                      repl::ReadConcernArgs::get(opCtx),
                                      AcquisitionPrerequisites::kRead));
+    auto documentKeyBson = documentKey.toBson();
     BSONObj document;
-    if (!Helpers::findById(expCtx->getOperationContext(), nss, documentKey.toBson(), document)) {
-        return boost::none;
+
+    if (nss == NamespaceString::kRsOplogNamespace) {
+        dassert(!documentKey.getField("ts").missing(),
+                "Expected the document key for the oplog collection to contain 'ts' field");
+        if (!Helpers::findOne(opCtx, acquisition, documentKeyBson, document)) {
+            return boost::none;
+        }
+    } else {
+        dassert(!documentKey.getField("_id").missing(),
+                "Expected the document key to contain '_id' field");
+        if (!Helpers::findById(expCtx->getOperationContext(), nss, documentKeyBson, document)) {
+            return boost::none;
+        }
     }
     return Document(document).getOwned();
 }

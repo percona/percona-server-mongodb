@@ -46,13 +46,47 @@
 #include <opentelemetry/metrics/provider.h>
 #endif  // MONGO_CONFIG_OTEL
 
+MONGO_MOD_PUBLIC;
 namespace mongo::otel::metrics {
+
+struct ScalarMetricOptions {
+    // If true, this metric will also be added to server status in the "otelMetrics" section.
+    bool inServerStatus = false;
+};
+using CounterOptions = ScalarMetricOptions;
+using GaugeOptions = ScalarMetricOptions;
+
+struct HistogramOptions {
+    // If true, this metric will also be added to server status in the "otelMetrics" section.
+    bool inServerStatus = false;
+    /**
+     * explicitBucketBoundaries allows users to specify custom buckets. The vector elements
+     * denote the upper and lower bounds for the histogram buckets.
+     *
+     * Bucket upper-bounds are inclusive (except when the upper-bound is +inf), and bucket
+     * lower-bounds are exclusive. The implicit first boundary is -inf and the implicit last
+     * boundary is +inf. Given a list of n boundaries, there are n + 1 buckets. For example,
+     *
+     * boundaries = {2, 4}
+     * buckets = (-inf, 2], (2, 4], (4, +inf)
+     *
+     * If, for example, the value 2 is recorded, the corresponding counts for each bucket would
+     * be {1, 0, 0}.
+     *
+     * If a value is not provided, the default bucket boundaries will be used: {0, 5, 10, 25,
+     * 50, 75, 100, 250, 500, 750, 1000, 2500, 5000, 7500, 10000}.
+     *
+     * See https://opentelemetry.io/docs/specs/otel/metrics/data-model/#histogram for more
+     * information.
+     */
+    boost::optional<std::vector<double>> explicitBucketBoundaries;
+};
 
 /**
  * The MetricsService is the external interface by which API consumers can create Instruments. The
  * MetricsService must be initialized before metrics can record values or be read.
  */
-class MONGO_MOD_PUBLIC MetricsService final {
+class MetricsService final {
 public:
     static constexpr StringData kMeterName = "mongodb";
 
@@ -69,7 +103,10 @@ public:
      *
      * All callers must add an entry in metric_names.h to create a MetricName to pass to the API.
      */
-    Counter<int64_t>& createInt64Counter(MetricName name, std::string description, MetricUnit unit);
+    Counter<int64_t>& createInt64Counter(MetricName name,
+                                         std::string description,
+                                         MetricUnit unit,
+                                         const CounterOptions& = {});
 
     /**
      * Creates a counter with the provided parameters. The function will throw an exception if the
@@ -79,7 +116,10 @@ public:
      *
      * All callers must add an entry in metric_names.h to create a MetricName to pass to the API.
      */
-    Counter<double>& createDoubleCounter(MetricName name, std::string description, MetricUnit unit);
+    Counter<double>& createDoubleCounter(MetricName name,
+                                         std::string description,
+                                         MetricUnit unit,
+                                         const CounterOptions& = {});
 
     /**
      * Creates or returns an existing gauge with the provided parameters. The function will throw an
@@ -88,7 +128,10 @@ public:
      *
      * All callers must add an entry in metric_names.h to create a MetricName to pass to the API.
      */
-    Gauge<int64_t>& createInt64Gauge(MetricName name, std::string description, MetricUnit unit);
+    Gauge<int64_t>& createInt64Gauge(MetricName name,
+                                     std::string description,
+                                     MetricUnit unit,
+                                     const GaugeOptions& = {});
 
     /**
      * Creates or returns an existing gauge with the provided parameters. The function will throw an
@@ -97,7 +140,10 @@ public:
      *
      * All callers must add an entry in metric_names.h to create a MetricName to pass to the API.
      */
-    Gauge<double>& createDoubleGauge(MetricName name, std::string description, MetricUnit unit);
+    Gauge<double>& createDoubleGauge(MetricName name,
+                                     std::string description,
+                                     MetricUnit unit,
+                                     const GaugeOptions& = {});
 
     /**
      * Creates an int64_t histogram with the provided parameters. The function will throw an
@@ -106,31 +152,11 @@ public:
      * lock on the global list of metrics in performance-sensitive codepaths.
      *
      * All callers must add an entry in metric_names.h to create a MetricName to pass to the API.
-     *
-     * The optional explicit bucket boundaries parameter allows users to specify custom buckets. The
-     * vector elements denote the upper and lower bounds for the histogram buckets.
-     *
-     * Bucket upper-bounds are inclusive (except when the upper-bound is +inf), and bucket
-     * lower-bounds are exclusive. The implicit first boundary is -inf and the implicit last
-     * boundary is +inf. Given a list of n boundaries, there are n + 1 buckets. For example,
-     *
-     * boundaries = {2, 4}
-     * buckets = (-inf, 2], (2, 4], (4, +inf)
-     *
-     * If, for example, the value 2 is recorded, the corresponding counts for each bucket would be
-     * {1, 0, 0}.
-     *
-     * If a value is not provided, the default bucket boundaries will be used: {0, 5, 10, 25, 50,
-     * 75, 100, 250, 500, 750, 1000, 2500, 5000, 7500, 10000}.
-     *
-     * See https://opentelemetry.io/docs/specs/otel/metrics/data-model/#histogram for more
-     * information.
      */
-    Histogram<int64_t>& createInt64Histogram(
-        MetricName name,
-        std::string description,
-        MetricUnit unit,
-        boost::optional<std::vector<double>> explicitBucketBoundaries = boost::none);
+    Histogram<int64_t>& createInt64Histogram(MetricName name,
+                                             std::string description,
+                                             MetricUnit unit,
+                                             const HistogramOptions& options = {});
 
     /**
      * Creates a double histogram with the provided parameters. The function will throw an exception
@@ -139,15 +165,11 @@ public:
      * the global list of metrics in performance-sensitive codepaths.
      *
      * All callers must add an entry in metric_names.h to create a MetricName to pass to the API.
-     *
-     * See the documentation for createInt64Histogram for an explanation of the explict bucket
-     * boundaries parameter.
      */
-    Histogram<double>& createDoubleHistogram(
-        MetricName name,
-        std::string description,
-        MetricUnit unit,
-        boost::optional<std::vector<double>> explicitBucketBoundaries = boost::none);
+    Histogram<double>& createDoubleHistogram(MetricName name,
+                                             std::string description,
+                                             MetricUnit unit,
+                                             const HistogramOptions& options = {});
 
     /**
      * Appends all the created metrics for server status reporting.
@@ -171,6 +193,9 @@ private:
     struct MetricIdentifier {
         std::string description;
         MetricUnit unit;
+        // If false, this metric will be skipped when exporting to server status.
+        bool inServerStatus;
+        boost::optional<std::vector<double>> histogramBucketBoundaries = boost::none;
 
         auto operator<=>(const MetricIdentifier& other) const = default;
     };
@@ -189,10 +214,16 @@ private:
     T* getDuplicateMetric(WithLock, const std::string& name, MetricIdentifier identifier);
 
     template <typename T>
-    Counter<T>& createCounter(MetricName name, std::string description, MetricUnit unit);
+    Counter<T>& createCounter(MetricName name,
+                              std::string description,
+                              MetricUnit unit,
+                              const CounterOptions& options);
 
     template <typename T>
-    Gauge<T>& createGauge(MetricName name, std::string description, MetricUnit unit);
+    Gauge<T>& createGauge(MetricName name,
+                          std::string description,
+                          MetricUnit unit,
+                          const GaugeOptions& options);
 
     using OwnedMetric = std::variant<std::unique_ptr<Counter<int64_t>>,
                                      std::unique_ptr<Counter<double>>,

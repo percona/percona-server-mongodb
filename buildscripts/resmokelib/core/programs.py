@@ -8,7 +8,7 @@ import os
 import os.path
 import re
 import stat
-from typing import Any, Optional, Tuple
+from typing import Any, Optional
 
 from opentelemetry import trace
 from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
@@ -186,7 +186,7 @@ def mongos_program(
     executable: Optional[str] = None,
     process_kwargs: Optional[dict] = None,
     mongos_options: dict = None,
-) -> Tuple[process.Process, dict]:
+) -> tuple[process.Process, dict]:
     """Return a Process instance that starts a mongos with arguments constructed from 'kwargs'."""
     bin_version = get_binary_version(executable)
     args = [executable]
@@ -257,7 +257,7 @@ def mongos_program(
 
 def mongot_program(
     logger, job_num, executable=None, process_kwargs=None, mongot_options=None
-) -> Tuple[process.Process, Any]:
+) -> tuple[process.Process, Any]:
     """Return a Process instance that starts a mongot."""
     args = [executable]
     mongot_options = mongot_options.copy()
@@ -546,6 +546,10 @@ def mongo_shell_program(
     # over gRPC.
     if config.SHELL_GRPC or mongod_set_parameters.get("useGrpcForSearch"):
         args.append("--gRPC")
+
+    if config.SHELL_JSDEBUGMODE:
+        # relay to the shell flags
+        kwargs["jsDebugMode"] = ""
 
     if connection_string is not None:
         # The --host and --port options are ignored by the mongo shell when an explicit connection

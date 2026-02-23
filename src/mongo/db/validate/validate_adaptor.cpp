@@ -93,6 +93,7 @@
 #include <boost/none.hpp>
 #include <boost/optional/optional.hpp>
 #include <fmt/format.h>
+#include <fmt/ranges.h>
 
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kStorage
 
@@ -156,8 +157,8 @@ enum class TimeseriesValidationResult {
     kIndexOutOfRange,
     kIndexBadValue,
     kInvalidBSONInDataField,
+    kExtendedRangeMismatch,
 };
-
 
 struct TimeseriesValidationStatus {
     TimeseriesValidationResult result;
@@ -218,6 +219,9 @@ const char* _describeTimeseriesValidationResult(TimeseriesValidationResult resul
                    "more info, see logs with log id 6698300.";
         case TimeseriesValidationResult::kInvalidBSONInDataField:
             return "Invalid BSON In Data Field. For more info, see logs with log id 6698300.";
+        case TimeseriesValidationResult::kExtendedRangeMismatch:
+            return "An extended range timestamp was found in a collection without extended range "
+                   "support. For more info, see logs with log id 6698300.";
     }
 
     MONGO_UNREACHABLE;
@@ -380,7 +384,7 @@ TimeseriesValidationStatus _validateTimeseriesBucketingParametersChanged(
     timeseries::bucket_catalog::MinMax& minmax,
     const BSONElement& controlMin,
     StringData fieldName,
-    ValidateResults* results,
+    ValidateResults& results,
     int version) {
     const bool timeseriesBucketingParametersHaveChanged =
         coll->timeseriesBucketingParametersHaveChanged().value_or(true);
@@ -395,7 +399,7 @@ TimeseriesValidationStatus _validateTimeseriesBucketingParametersChanged(
     };
 
     if (checkTimeSeriesBucketingParametersChanged() && !timeseriesBucketingParametersHaveChanged &&
-        results->addError(kTimeseriesBucketingParametersChangedInconsistencyReason)) {
+        results.addError(kTimeseriesBucketingParametersChangedInconsistencyReason)) {
         // Get the original timeseries bucketing parameters.
         auto originalTimeseriesOptions = coll->getTimeseriesOptions();
         invariant(originalTimeseriesOptions != boost::none);
@@ -499,7 +503,7 @@ TimeseriesValidationStatus _validateTimeSeriesDataTimeField(const CollectionPtr&
                                                             const BSONElement& controlMin,
                                                             const BSONElement& controlMax,
                                                             StringData fieldName,
-                                                            ValidateResults* results,
+                                                            ValidateResults& results,
                                                             int version,
                                                             int* bucketCount) {
     tracking::Context trackingContext;
@@ -596,7 +600,7 @@ TimeseriesValidationStatus _validateTimeSeriesDataField(const CollectionPtr& col
                                                         const BSONElement& controlMin,
                                                         const BSONElement& controlMax,
                                                         StringData fieldName,
-                                                        ValidateResults* results,
+                                                        ValidateResults& results,
                                                         int version,
                                                         int bucketCount) {
     tracking::Context trackingContext;
@@ -660,7 +664,7 @@ TimeseriesValidationStatus _validateTimeSeriesDataField(const CollectionPtr& col
 
 TimeseriesValidationStatus _validateTimeSeriesDataFields(const CollectionPtr& coll,
                                                          const BSONObj& recordBson,
-                                                         ValidateResults* results,
+                                                         ValidateResults& results,
                                                          int bucketVersion) {
     BSONObj data = recordBson.getField(timeseries::kBucketDataFieldName).Obj();
     BSONObj control = recordBson.getField(timeseries::kBucketControlFieldName).Obj();
@@ -747,12 +751,50 @@ TimeseriesValidationStatus _validateTimeSeriesDataFields(const CollectionPtr& co
 }
 
 /**
+ * Checks for mismatches in the collection where an extended range timestamp exits in the bucket
+ * control or _id block. This function should be called after schema validation as field presense is
+ * not checked before access and exceptions will be thrown if the BSONObj does not contain the
+ * expected field.
+ */
+TimeseriesValidationStatus _validateTimeseriesExtendedRangeTimestamps(
+    bool requiresExtendedRangeSupport, StringData timeFieldName, const BSONObj& recordBson) {
+    if (!requiresExtendedRangeSupport) {
+        // Check the control block and _id fields for an extended timestamp and flag an error if
+        // one exists while the collection metadata is not correctly set.
+
+        std::vector<std::string> extendedRangeTimestampChecks;
+
+        if (const auto oid = recordBson["_id"].OID(); timeseries::oidHasExtendedRangeTime(oid)) {
+            extendedRangeTimestampChecks.push_back("_id");
+        }
+        if (const auto controlMinTimestamp = recordBson["control"]["min"][timeFieldName].Date();
+            timeseries::dateOutsideStandardRange(controlMinTimestamp)) {
+            extendedRangeTimestampChecks.push_back(fmt::format("control.min.{}", timeFieldName));
+        }
+        // Extended range support is required to use `control.min` for bucket date comparision
+        // instead of `_id` if the date cannot be stored in 32-bits. `control.max` is not used to
+        // determine if extended range support is required.
+
+        if (!extendedRangeTimestampChecks.empty()) {
+            return {TimeseriesValidationResult::kExtendedRangeMismatch,
+                    fmt::format("[ {} ] contain{} extended range timestamps unsupported by the "
+                                "collection metadata",
+                                fmt::join(extendedRangeTimestampChecks, ", "),
+                                extendedRangeTimestampChecks.size() == 1 ? "" : "s")};
+        }
+    }
+    return {TimeseriesValidationResult::kValid, ""};
+}
+
+/**
  * Validates the consistency of a time-series bucket.
  */
-TimeseriesValidationStatus _validateTimeSeriesBucketRecord(OperationContext* opCtx,
-                                                           const CollectionPtr& coll,
-                                                           const BSONObj& recordBson,
-                                                           ValidateResults* results) {
+TimeseriesValidationStatus _validateTimeSeriesBucketRecord(
+    OperationContext* opCtx,
+    const CollectionValidation::ValidateState& validateState,
+    const CollectionPtr& coll,
+    const BSONObj& recordBson,
+    ValidateResults& results) {
     const auto& timeseriesOptions = coll->getTimeseriesOptions().value();
     const auto controlElem = recordBson.getField(timeseries::kBucketControlFieldName);
 
@@ -772,6 +814,18 @@ TimeseriesValidationStatus _validateTimeSeriesBucketRecord(OperationContext* opC
     if (auto status = _validateTimeSeriesDataFields(coll, recordBson, results, bucketVersion);
         status.result != TimeseriesValidationResult::kValid) {
         return status;
+    }
+
+    // TODO: SERVER-119598
+    // Enable snapshot-based validation check
+    if (!validateState.getReadTimestamp()) {
+        if (auto status = _validateTimeseriesExtendedRangeTimestamps(
+                coll->getRequiresTimeseriesExtendedRangeSupport(),
+                timeseriesOptions.getTimeField(),
+                recordBson);
+            status.result != TimeseriesValidationResult::kValid) {
+            return status;
+        }
     }
 
     return {TimeseriesValidationResult::kValid, ""};
@@ -1201,6 +1255,7 @@ void ValidateAdaptor::traverseRecordStore(OperationContext* opCtx,
                                               "the collection's schema",
                                               logAttrs(coll->ns()),
                                               "recordId"_attr = record->id,
+                                              "collectionUuid"_attr = coll->uuid(),
                                               "record"_attr = record->data.toBson(),
                                               "reason"_attr = schemaValidationResult);
                         results->addError(kSchemaValidationFailedReason);
@@ -1221,27 +1276,48 @@ void ValidateAdaptor::traverseRecordStore(OperationContext* opCtx,
                         const BSONObj recordBson = record->data.toBson();
 
                         // Checks for time-series collection consistency.
-                        const auto timeseriesValidationResult =
-                            _validateTimeSeriesBucketRecord(opCtx, coll, recordBson, results);
+                        const auto timeseriesValidationResult = _validateTimeSeriesBucketRecord(
+                            opCtx, *_validateState, coll, recordBson, *results);
                         // This log id should be kept in sync with the associated warning messages
                         // that are returned to the client.
-                        if (timeseriesValidationResult.result !=
-                            TimeseriesValidationResult::kValid) {
-                            LOGV2_WARNING_OPTIONS(
-                                6698300,
-                                {logv2::LogTruncation::Disabled},
-                                "Document is not compliant with time-series specifications",
-                                logAttrs(coll->ns()),
-                                "recordId"_attr = record->id,
-                                "record"_attr = record->data.toBson(),
-                                "reason"_attr = timeseriesValidationResult.reason);
-                            nNonCompliantDocuments++;
+                        switch (timeseriesValidationResult.result) {
+                            case TimeseriesValidationResult::kValid:
+                                break;
                             // We should not add data-annotated error strings to the set, since
-                            // bucket-specific data can greatly increase the number of unique error
-                            // strings stored; this set is not intended to scale with the number of
-                            // documents. Bucket-specific data should instead be logged above.
-                            results->addError(_describeTimeseriesValidationResult(
-                                timeseriesValidationResult.result));
+                            // bucket-specific data can greatly increase the number of unique
+                            // error strings stored; this set is not intended to scale with the
+                            // number of documents. Bucket-specific data should instead be
+                            // logged above.
+
+                            // The following result cases are logged as warnings
+                            // TODO: SERVER-119972 change this to signal an error instead
+                            case TimeseriesValidationResult::kExtendedRangeMismatch:
+                                LOGV2_WARNING_OPTIONS(
+                                    11461400,
+                                    {logv2::LogTruncation::Disabled},
+                                    "Document is not compliant with time-series specifications",
+                                    logAttrs(coll->ns()),
+                                    "recordId"_attr = record->id,
+                                    "record"_attr = record->data.toBson(),
+                                    "reason"_attr = timeseriesValidationResult.reason);
+                                ++nNonCompliantDocuments;
+                                results->addWarning(_describeTimeseriesValidationResult(
+                                    timeseriesValidationResult.result));
+                                break;
+
+                            // All remaining result cases are errors
+                            default:
+                                LOGV2_ERROR_OPTIONS(
+                                    6698300,
+                                    {logv2::LogTruncation::Disabled},
+                                    "Document is not compliant with time-series specifications",
+                                    logAttrs(coll->ns()),
+                                    "recordId"_attr = record->id,
+                                    "record"_attr = record->data.toBson(),
+                                    "reason"_attr = timeseriesValidationResult.reason);
+                                ++nNonCompliantDocuments;
+                                results->addError(_describeTimeseriesValidationResult(
+                                    timeseriesValidationResult.result));
                         }
                         const auto containsMixedSchemaDataResponse =
                             coll->doesTimeseriesBucketsDocContainMixedSchemaData(recordBson);
@@ -1313,38 +1389,63 @@ void ValidateAdaptor::traverseRecordStore(OperationContext* opCtx,
                                           << " invalid documents.");
     }
 
-    if (_validateState->shouldEnforceFastCount()) {
-        auto fastCountType = _validateState->getDetectedFastCountType(opCtx);
+    if (_validateState->shouldEnforceFastCount(opCtx)) {
+        const auto fastCountType = _validateState->getDetectedFastCountType(opCtx);
+        const bool enforceCount = _validateState->enforceFastCountRequested();
+        const bool enforceSize = _validateState->enforceFastSizeRequested();
         switch (fastCountType) {
             case CollectionValidation::FastCountType::legacySizeStorer:
-                if (const auto fastCount = coll->numRecords(opCtx); fastCount != _numRecords) {
-                    results->addError(
-                        fmt::format("fast count ({}) does not match number of "
-                                    "records ({}) for collection '{}'",
-                                    fastCount,
-                                    _numRecords,
-                                    coll->ns().toStringForErrorMsg()));
+                if (enforceCount) {
+                    if (const auto fastCount = coll->numRecords(opCtx); fastCount != _numRecords) {
+                        results->addError(
+                            fmt::format("fast count ({}) does not match number of "
+                                        "records ({}) for collection '{}'",
+                                        fastCount,
+                                        _numRecords,
+                                        coll->ns().toStringForErrorMsg()));
+                    }
+                }
+                if (enforceSize) {
+                    if (const auto fastSize = coll->dataSize(opCtx); fastSize != dataSizeTotal) {
+                        results->addError(
+                            fmt::format("fast size ({}) does not match data size ({}) for "
+                                        "collection '{}'",
+                                        fastSize,
+                                        dataSizeTotal,
+                                        coll->ns().toStringForErrorMsg()));
+                    }
                 }
                 break;
             case CollectionValidation::FastCountType::replicated:
-                if (const auto fastCount = coll->numRecords(opCtx); fastCount != _numRecords) {
-                    results->addError(
-                        fmt::format("replicated fast count ({}) does not match number of "
-                                    "records ({}) for collection '{}'",
-                                    fastCount,
-                                    _numRecords,
-                                    coll->ns().toStringForErrorMsg()));
+                if (enforceCount) {
+                    if (const auto fastCount = coll->numRecords(opCtx); fastCount != _numRecords) {
+                        results->addError(
+                            fmt::format("replicated fast count ({}) does not match number of "
+                                        "records ({}) for collection '{}'",
+                                        fastCount,
+                                        _numRecords,
+                                        coll->ns().toStringForErrorMsg()));
+                    }
+                }
+                if (enforceSize) {
+                    if (const auto fastSize = coll->dataSize(opCtx); fastSize != dataSizeTotal) {
+                        results->addError(
+                            fmt::format("replicated fast size ({}) does not match data size ({}) "
+                                        "for collection '{}'",
+                                        fastSize,
+                                        dataSizeTotal,
+                                        coll->ns().toStringForErrorMsg()));
+                    }
                 }
                 break;
             case CollectionValidation::FastCountType::both:
-                uasserted(ErrorCodes::InvalidOptions, "Both FastCount tables found");
                 break;
             case CollectionValidation::FastCountType::neither:
-                uasserted(ErrorCodes::InvalidOptions, "No FastCount tables found");
                 break;
         }
     }
 
+    // TODO(SERVER-119193): Add condition for the fastCountType being valid.
     // Do not update the record store stats if we're in the background as we've validated a
     // checkpoint and it may not have the most up-to-date changes.
     if (results->isValid() && !_validateState->isBackground()) {

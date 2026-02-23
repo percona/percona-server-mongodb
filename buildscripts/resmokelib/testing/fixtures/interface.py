@@ -6,7 +6,7 @@ from collections import namedtuple
 from enum import Enum
 from logging import Logger
 from threading import Lock
-from typing import TYPE_CHECKING, List
+from typing import TYPE_CHECKING
 
 import pymongo
 import pymongo.errors
@@ -251,11 +251,11 @@ class Fixture(object, metaclass=registry.make_registry_metaclass(_FIXTURES)):
     def __repr__(self):
         return "%r(%r, %r)" % (self.__class__.__name__, self.logger, self.job_num)
 
-    def get_independent_clusters(self) -> List["Fixture"]:
+    def get_independent_clusters(self) -> list["Fixture"]:
         """Return a list of the independent clusters that participate in this fixture."""
         return [self]
 
-    def get_testable_clusters(self) -> List["Fixture"]:
+    def get_testable_clusters(self) -> list["Fixture"]:
         """Return a list of the clusters in this fixture that we want to run tests against."""
         return [self]
 
@@ -274,7 +274,7 @@ class _DockerComposeInterface:
     by leveraging the `all_processes` method to access the startup args.
     """
 
-    def _all_mongo_d_s_t(self) -> List[Fixture]:
+    def _all_mongo_d_s_t(self) -> list[Fixture]:
         """
         Return a list of all mongo{d,s,t} `Fixture` instances in this fixture.
 
@@ -284,7 +284,7 @@ class _DockerComposeInterface:
             "_all_mongo_d_s_t_instances must be implemented by Fixture subclasses that support `docker-compose.yml` generation."
         )
 
-    def all_processes(self) -> List["Process"]:
+    def all_processes(self) -> list["Process"]:
         """
         Return a list of all `mongo{d,s,t}` `Process` instances in the fixture.
 
@@ -324,13 +324,13 @@ class MultiClusterFixture(Fixture):
 
     REGISTERED_NAME = registry.LEAVE_UNREGISTERED  # type: ignore
 
-    def get_independent_clusters(self) -> List[Fixture]:
+    def get_independent_clusters(self) -> list[Fixture]:
         """Return a list of the independent clusters that participate in this fixture."""
         raise NotImplementedError(
             "get_independent_clusters must be implemented by MultiClusterFixture subclasses"
         )
 
-    def get_testable_clusters(self) -> List[Fixture]:
+    def get_testable_clusters(self) -> list[Fixture]:
         """Return a list of the clusters in this fixture that we want to run tests against."""
         return self.get_independent_clusters()
 
@@ -474,7 +474,7 @@ class FixtureTeardownHandler(object):
 
 def create_fixture_table(fixture):
     """Get fixture node info, make it a pretty table. Return it or None if fixture is invalid target."""
-    info: List[NodeInfo] = fixture.get_node_info()
+    info: list[NodeInfo] = fixture.get_node_info()
     if not info:
         return None
 

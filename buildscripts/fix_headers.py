@@ -12,7 +12,7 @@ import os
 import pprint
 import subprocess
 import sys
-from typing import Annotated, Dict, List, Optional, Tuple
+from typing import Annotated, Optional
 
 import typer
 
@@ -72,7 +72,7 @@ def todo_comment(issue_key: str, header: str, new_dep: str, fg_label: str) -> No
     bd_utils.bd_comment([fg_label], comment)
 
 
-def useful_print(fixes: Dict) -> None:
+def useful_print(fixes: dict) -> None:
     for target, target_fixes in fixes.items():
         print("-", target)
         print("  Fixes:\n")
@@ -92,7 +92,7 @@ class HeaderFixer:
         self.team_issues = {}
 
     def _query(
-        self, query: str, config: bool = False, args: List[str] = []
+        self, query: str, config: bool = False, args: list[str] = []
     ) -> subprocess.CompletedProcess:
         query_cmd = "cquery"
 
@@ -118,7 +118,7 @@ class HeaderFixer:
     def _create_header_target(self):
         pass
 
-    def _find_misplaced_headers(self, target: str) -> List[str]:
+    def _find_misplaced_headers(self, target: str) -> list[str]:
         p = self._query(f"labels(hdrs,{target}{CC_LIB_SUFFIX})")
         misplaced_headers = []
         target_package = target.split(":")[0] + ":"
@@ -134,7 +134,7 @@ class HeaderFixer:
 
         return misplaced_headers
 
-    def _find_header_target(self, header: str) -> Tuple[Optional[str], bool]:
+    def _find_header_target(self, header: str) -> tuple[Optional[str], bool]:
         potential_target = header.split(".")[0]
         p = self._query(f"attr(srcs,{potential_target}.cpp,//...)")
         target = None
@@ -170,7 +170,7 @@ class HeaderFixer:
 
         return False
 
-    def _fix_target(self, target: str) -> Dict:
+    def _fix_target(self, target: str) -> dict:
         target_fixes = {"fixes": {}, "cycles": {}}
         orphaned_headers = []
         for hdr in self._find_misplaced_headers(target):
@@ -208,7 +208,7 @@ class HeaderFixer:
         print("\n".join(orphaned_headers))
         return target_fixes
 
-    def _evaluate_target_expression(self, target_exp: str) -> List[str]:
+    def _evaluate_target_expression(self, target_exp: str) -> list[str]:
         p = self._query(
             f"filter('.*{CC_LIB_SUFFIX}$',kind(cc_library,deps({target_exp}, 1)))",
             ["--noimplicit_deps"],
@@ -248,7 +248,7 @@ class HeaderFixer:
             return ""
         return issue.key
 
-    def fix_targets(self, target_exp: str) -> Dict:
+    def fix_targets(self, target_exp: str) -> dict:
         fixes = {}
         for target in self._evaluate_target_expression(target_exp):
             fixes[target] = self._fix_target(target)

@@ -359,8 +359,8 @@ public:
 
                         const ResolvedView& resolvedView = *ex.extraInfo<ResolvedView>();
                         auto resolvedAggRequest =
-                            PipelineResolver::buildRequestWithResolvedPipeline(resolvedView,
-                                                                               aggRequestOnView);
+                            PipelineResolver::buildRequestWithResolvedPipeline(
+                                expCtx->getIfrContext(), resolvedView, aggRequestOnView);
 
                         BSONObj aggResult = CommandHelpers::runCommandDirectly(
                             opCtx,
@@ -525,6 +525,23 @@ public:
                 BSONObj targetingCollation = countRequest.getCollation().value_or(BSONObj());
 
                 auto expCtx = makeBlankExpressionContext(opCtx, nss);
+
+                // Compute QueryShapeHash and record it in CurOp for explain output.
+                const std::unique_ptr<ParsedFindCommand> parsedFind =
+                    uassertStatusOK(parsed_find_command::parseFromCount(
+                        expCtx, countRequest, ExtensionsCallbackNoop(), nss));
+
+                const query_shape::DeferredQueryShape deferredShape{[&]() {
+                    return shape_helpers::tryMakeShape<query_shape::CountCmdShape>(
+                        *parsedFind,
+                        countRequest.getLimit().has_value(),
+                        countRequest.getSkip().has_value());
+                }};
+
+                CurOp::get(opCtx)->debug().ensureQueryShapeHash(opCtx, [&]() {
+                    return shape_helpers::computeQueryShapeHash(expCtx, deferredShape, nss);
+                });
+
                 auto numShards =
                     getTargetedShardsForQuery(expCtx, cri, targetingQuery, targetingCollation)
                         .size();

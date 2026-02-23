@@ -13,7 +13,7 @@ import traceback
 import uuid
 from concurrent import futures
 from pathlib import Path
-from typing import Any, Dict, Generator, List, Optional, Set, Tuple
+from typing import Any, Generator, Optional
 from urllib.parse import urlparse
 
 import docker
@@ -313,10 +313,10 @@ OS_DOCKER_LOOKUP = {
 }
 
 # These versions are marked "current" but in fact are EOL
-VERSIONS_TO_SKIP: Set[str] = set(
+VERSIONS_TO_SKIP: set[str] = set(
     ["3.0.15", "3.2.22", "3.4.24", "3.6.23", "4.0.28", "4.2.24", "4.2.25", "4.4.29", "6.3.2"]
 )
-DISABLED_TESTS: Set[Tuple[str, str]] = set()
+DISABLED_TESTS: set[tuple[str, str]] = set()
 
 VALID_TAR_DIRECTORY_ARCHITECTURES = [
     "linux-aarch64",
@@ -340,10 +340,10 @@ class Test:
     package_manager: str = dataclasses.field(default="", repr=False)
     update_command: str = dataclasses.field(default="", repr=False)
     install_command: str = dataclasses.field(default="", repr=False)
-    base_packages: List[str] = dataclasses.field(default_factory=list)
+    base_packages: list[str] = dataclasses.field(default_factory=list)
     python_command: str = dataclasses.field(default="", repr=False)
-    packages_urls: List[str] = dataclasses.field(default_factory=list)
-    packages_paths: List[Path] = dataclasses.field(default_factory=list)
+    packages_urls: list[str] = dataclasses.field(default_factory=list)
+    packages_paths: list[Path] = dataclasses.field(default_factory=list)
     attempts: int = dataclasses.field(default=0)
 
     def __post_init__(self) -> None:
@@ -388,7 +388,7 @@ def get_image(test: Test, client: DockerClient) -> Image:
             time.sleep(1)
 
 
-def join_commands(commands: List[str], sep: str = " && ") -> str:
+def join_commands(commands: list[str], sep: str = " && ") -> str:
     return sep.join(commands)
 
 
@@ -421,7 +421,7 @@ def run_test(test: Test, client: DockerClient) -> Result:
     test_external_root = Path(__file__).parent.resolve()
     logging.debug(test_external_root)
     log_external_path = Path.joinpath(test_external_root, log_name)
-    commands: List[str] = ["export PYTHONIOENCODING=UTF-8"]
+    commands: list[str] = ["export PYTHONIOENCODING=UTF-8"]
 
     if test.os_name.startswith("rhel"):
         # RHEL distros need EPEL for Compass dependencies
@@ -552,7 +552,7 @@ r = retry_call(
 mongosh_releases = r.json()
 
 
-def iterate_over_downloads() -> Generator[Dict[str, Any], None, None]:
+def iterate_over_downloads() -> Generator[dict[str, Any], None, None]:
     # TODO: TOOLS-3204 - we need to sub the arch alias until package
     # rchitectures are named consistently with the server packages
     for version in current_releases["versions"]:
@@ -615,7 +615,7 @@ def get_mongosh_package(arch_name: str, os_name: str) -> Optional[str]:
     return None
 
 
-def get_arch_aliases(arch_name: str) -> List[str]:
+def get_arch_aliases(arch_name: str) -> list[str]:
     if arch_name in ("amd64", "x86_64"):
         return ["amd64", "x86_64"]
     if arch_name in ("ppc64le", "ppc64el"):
@@ -662,10 +662,10 @@ def validate_no_libdwarf(sources_text, edition, binfile):
         raise Exception(f"Found LGPL code from libdwarf in {edition} binary {binfile}.")
 
 
-arches: Set[str] = set()
-oses: Set[str] = set()
-editions: Set[str] = set()
-versions: Set[str] = set()
+arches: set[str] = set()
+oses: set[str] = set()
+editions: set[str] = set()
+versions: set[str] = set()
 
 for dl in iterate_over_downloads():
     editions.add(get_edition_alias(dl["edition"]))
@@ -765,8 +765,8 @@ arch: str = args.arch
 if arch == "auto":
     arch = platform.machine()
 
-tests: List[Test] = []
-urls: List[str] = []
+tests: list[Test] = []
+urls: list[str] = []
 
 if args.command == "branch":
     # If evg-build-id is provided, download the packages locally using the Evergreen API
@@ -916,7 +916,7 @@ if args.command == "release":
             continue
 
         test_os: str = dl["target"]
-        urls: List[str] = dl["packages"]
+        urls: list[str] = dl["packages"]
         server_version: str = dl["version"]
         edition: str
 

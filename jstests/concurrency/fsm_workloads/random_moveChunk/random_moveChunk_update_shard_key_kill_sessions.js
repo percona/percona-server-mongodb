@@ -7,6 +7,8 @@
  *  requires_sharding,
  *  assumes_balancer_off,
  *  uses_transactions,
+ *  # TODO(SERVER-119777): Ensure test does not leak cursors.
+ *  can_leak_idle_cursors,
  * ]
  */
 import "jstests/libs/override_methods/retry_on_killed_session.js";

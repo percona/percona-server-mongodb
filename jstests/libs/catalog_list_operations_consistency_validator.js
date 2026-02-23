@@ -76,6 +76,7 @@ function mapListCatalogToListCollectionsEntry(listCatalogEntry, listCatalogMap, 
         // Destructure the nested `md` field and validate that we recognize all fields.
         const {
             options: mdOptions,
+            recordIdsReplicated: recordIdsReplicated,
             // Indexes are carefully checked when validating `listIndexes` later.
             indexes: mdIndexes,
             // Namespace information can be safely thrown away.

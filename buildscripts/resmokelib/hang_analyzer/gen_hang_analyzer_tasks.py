@@ -11,7 +11,7 @@ import re
 import string
 import sys
 from abc import ABC, abstractmethod
-from typing import List, NamedTuple, Optional
+from typing import NamedTuple, Optional
 from unittest.mock import MagicMock
 
 from shrub.v2 import BuildVariant, FunctionCall, ShrubProject, Task, TaskDependency
@@ -51,7 +51,7 @@ class CoreAnalysisTaskGenerator(ABC):
         gdb_index_cache: str,
         has_interesting_core_dumps: bool,
         boring_core_dump_pids: set,
-    ) -> List[FunctionCall]:
+    ) -> list[FunctionCall]:
         pass
 
     @abstractmethod
@@ -216,7 +216,7 @@ class ResmokeCoreAnalysisTaskGenerator(CoreAnalysisTaskGenerator):
         gdb_index_cache: str,
         has_interesting_core_dumps: bool,
         boring_core_dump_pids: set,
-    ) -> List[FunctionCall]:
+    ) -> list[FunctionCall]:
         return _get_core_analyzer_commands(
             task_id,
             execution,
@@ -279,7 +279,7 @@ class BazelCoreAnalysisTaskGenerator(CoreAnalysisTaskGenerator):
         gdb_index_cache: str,
         has_interesting_core_dumps: bool,
         boring_core_dump_pids: set,
-    ) -> List[FunctionCall]:
+    ) -> list[FunctionCall]:
         return _get_core_analyzer_commands(
             task_id,
             execution,
@@ -347,7 +347,7 @@ def _get_core_analyzer_commands(
     has_interesting_core_dumps: bool,
     boring_core_dump_pids: set,
     is_bazel_task: bool = False,
-) -> List[FunctionCall]:
+) -> list[FunctionCall]:
     """Return setup commands."""
     return [
         FunctionCall("f_expansions_write"),

@@ -51,10 +51,11 @@ const Client::Decoration<ReplClientInfo> ReplClientInfo::forClient =
     Client::declareDecoration<ReplClientInfo>();
 
 namespace {
-// We use a struct to wrap lastOpSetExplicitly here in order to give the boolean a default value
-// when initially constructed for the associated OperationContext.
+// Use the default zeroing of decorations instead of explicitly
+// initializing to take advantage of the Decorable optimization
+// for trivially constructable types.
 struct LastOpInfo {
-    bool lastOpSetExplicitly = false;
+    bool lastOpSetExplicitly;
 };
 static const OperationContext::Decoration<LastOpInfo> lastOpInfo =
     OperationContext::declareDecoration<LastOpInfo>();

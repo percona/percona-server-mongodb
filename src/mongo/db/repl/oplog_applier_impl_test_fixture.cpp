@@ -274,7 +274,7 @@ Status OplogApplierImplTest::_applyOplogEntryOrGroupedInsertsWrapper(
     const OplogEntryOrGroupedInserts& batch,
     OplogApplication::Mode oplogApplicationMode) {
     UnreplicatedWritesBlock uwb(opCtx);
-    DisableDocumentValidation validationDisabler(opCtx);
+    DisableDocumentValidationForInternalOp validationDisabler(opCtx);
     const bool dataIsConsistent = true;
     return applyOplogEntryOrGroupedInserts(opCtx, batch, oplogApplicationMode, dataIsConsistent);
 }
@@ -295,7 +295,8 @@ void OplogApplierImplTest::_testApplyOplogEntryOrGroupedInsertsCrudOperation(
         ASSERT_TRUE(
             shard_role_details::getLocker(opCtx)->isCollectionLockedForMode(targetNss, MODE_IX));
         ASSERT_FALSE(opCtx->writesAreReplicated());
-        ASSERT_TRUE(DocumentValidationSettings::get(opCtx).isSchemaValidationDisabled());
+        ASSERT_TRUE(
+            DocumentValidationSettings::get(opCtx).isSchemaValidationDisabledForInternalOp());
     };
 
     _opObserver->onInsertsFn =
@@ -610,11 +611,24 @@ void createCollection(OperationContext* opCtx,
     });
 }
 
+void createCappedCollection(OperationContext* opCtx, const NamespaceString& nss) {
+    CollectionOptions options;
+    options.capped = true;
+    options.cappedSize = 1024 * 1024;
+    createCollection(opCtx, nss, options);
+}
+
 UUID createCollectionWithUuid(OperationContext* opCtx, const NamespaceString& nss) {
     CollectionOptions options;
     options.uuid = UUID::gen();
     createCollection(opCtx, nss, options);
     return options.uuid.value();
+}
+
+void createCollectionWithPreImages(OperationContext* opCtx, const NamespaceString& nss) {
+    CollectionOptions options;
+    options.changeStreamPreAndPostImagesOptions.setEnabled(true);
+    createCollection(opCtx, nss, options);
 }
 
 void createDatabase(OperationContext* opCtx, StringData dbName) {

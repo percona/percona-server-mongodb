@@ -12,7 +12,6 @@ import sys
 import time
 import unittest
 from shutil import rmtree
-from typing import List
 
 import yaml
 
@@ -674,7 +673,7 @@ class TestDiscovery(_ResmokeSelftest):
         )
 
 
-def execute_resmoke(resmoke_args: List[str], subcommand: str = "run"):
+def execute_resmoke(resmoke_args: list[str], subcommand: str = "run"):
     return subprocess.run(
         [sys.executable, "buildscripts/resmoke.py", subcommand] + resmoke_args,
         text=True,

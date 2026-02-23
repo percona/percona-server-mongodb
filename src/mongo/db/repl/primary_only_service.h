@@ -91,9 +91,11 @@ public:
     /**
      * Client decoration used by Clients that are a part of a PrimaryOnlyService.
      */
+    // Rely on Decorable zero initializing this memory to take
+    // advantage of the trivially_constructible optimization.
     struct PrimaryOnlyServiceClientState {
-        PrimaryOnlyService* primaryOnlyService = nullptr;
-        bool allowOpCtxWhenServiceRebuilding = false;
+        PrimaryOnlyService* primaryOnlyService;
+        bool allowOpCtxWhenServiceRebuilding;
     };
 
     /**

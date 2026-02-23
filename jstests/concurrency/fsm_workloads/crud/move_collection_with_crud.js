@@ -7,7 +7,9 @@
  *  requires_sharding,
  *  featureFlagUnshardCollection,
  *  featureFlagMoveCollection,
- *  requires_fcv_80
+ *  requires_fcv_80,
+ *  # TODO(SERVER-119777): Ensure test does not leak cursors.
+ *  can_leak_idle_cursors,
  * ]
  */
 

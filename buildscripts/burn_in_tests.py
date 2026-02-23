@@ -11,7 +11,7 @@ import subprocess
 import sys
 from abc import ABC, abstractmethod
 from collections import defaultdict
-from typing import Dict, List, NamedTuple, Optional, Set, Tuple
+from typing import NamedTuple, Optional
 
 import click
 import structlog
@@ -158,7 +158,7 @@ def is_file_a_test_file(file_path: str) -> bool:
     return True
 
 
-def find_excludes(selector_file: str) -> Tuple[List, List, List]:
+def find_excludes(selector_file: str) -> tuple[list, list, list]:
     """Parse etc/burn_in_tests.yml. Returns lists of excluded suites, tasks & tests."""
 
     if not selector_file:
@@ -180,7 +180,7 @@ def find_excludes(selector_file: str) -> Tuple[List, List, List]:
     )
 
 
-def filter_tests(tests: Set[str], exclude_tests: List[str]) -> Set[str]:
+def filter_tests(tests: set[str], exclude_tests: list[str]) -> set[str]:
     """
     Exclude tests which have been denylisted.
 
@@ -251,7 +251,7 @@ class SuiteToBurnInInfo(NamedTuple):
 
     name: str
     resmoke_args: str
-    tests: List[str]
+    tests: list[str]
 
 
 class TaskToBurnInInfo(NamedTuple):
@@ -263,13 +263,13 @@ class TaskToBurnInInfo(NamedTuple):
     """
 
     display_task_name: str
-    suites: List[SuiteToBurnInInfo]
+    suites: list[SuiteToBurnInInfo]
 
     @classmethod
     def from_task(
         cls,
         task: VariantTask,
-        tests_by_suite: Dict[str, List[str]],
+        tests_by_suite: dict[str, list[str]],
     ) -> "TaskToBurnInInfo":
         """
         Gather the information needed to run the given task.
@@ -296,9 +296,9 @@ class TaskToBurnInInfo(NamedTuple):
 def create_task_list(
     evergreen_conf: EvergreenProjectConfig,
     build_variant: str,
-    tests_by_suite: Dict[str, List[str]],
+    tests_by_suite: dict[str, list[str]],
     exclude_tasks: [str],
-) -> Dict[str, TaskToBurnInInfo]:
+) -> dict[str, TaskToBurnInInfo]:
     """
     Find associated tasks for the specified build_variant and suites.
 
@@ -334,8 +334,8 @@ def create_task_list(
 
 
 def _process_tests_by_suite(
-    task: VariantTask, tests_by_suite: Dict[str, List[str]]
-) -> Dict[str, List[str]]:
+    task: VariantTask, tests_by_suite: dict[str, list[str]]
+) -> dict[str, list[str]]:
     """Filter tests that should run under task according to build variant and task configuration."""
     suite_to_run_options_map = task.combined_suite_to_resmoke_args_map
     tests_by_suite_for_task = defaultdict(list)
@@ -369,12 +369,12 @@ def _set_resmoke_cmd(repeat_config: RepeatConfig, resmoke_args: [str]) -> [str]:
 
 
 def create_task_list_for_tests(
-    changed_tests: Set[str],
+    changed_tests: set[str],
     build_variant: str,
     evg_conf: EvergreenProjectConfig,
-    exclude_suites: Optional[List] = None,
-    exclude_tasks: Optional[List] = None,
-) -> Dict[str, TaskToBurnInInfo]:
+    exclude_suites: Optional[list] = None,
+    exclude_tasks: Optional[list] = None,
+) -> dict[str, TaskToBurnInInfo]:
     """
     Create a list of tests by task for the given tests.
 
@@ -402,8 +402,8 @@ def create_task_list_for_tests(
 def create_tests_by_task(
     build_variant: str,
     evg_conf: EvergreenProjectConfig,
-    changed_tests: Set[str],
-) -> Dict[str, TaskToBurnInInfo]:
+    changed_tests: set[str],
+) -> dict[str, TaskToBurnInInfo]:
     """
     Create a list of tests by task.
 
@@ -429,7 +429,7 @@ def create_tests_by_task(
     return {}
 
 
-def run_tests(tests_by_task: Dict[str, TaskToBurnInInfo], resmoke_cmd: [str]) -> None:
+def run_tests(tests_by_task: dict[str, TaskToBurnInInfo], resmoke_cmd: [str]) -> None:
     """
     Run the given tests locally.
 
@@ -488,7 +488,7 @@ class FileChangeDetector(ABC):
     """Interface to detect changes to files."""
 
     @abstractmethod
-    def create_revision_map(self, repos: List[Repo]) -> RevisionMap:
+    def create_revision_map(self, repos: list[Repo]) -> RevisionMap:
         """
         Create a map of the repos and the given revisions to diff against.
 
@@ -497,7 +497,7 @@ class FileChangeDetector(ABC):
         """
         raise NotImplementedError()
 
-    def find_changed_tests(self, repos: List[Repo]) -> Set[str]:
+    def find_changed_tests(self, repos: list[Repo]) -> set[str]:
         """
         Find the changed tests.
 
@@ -525,7 +525,7 @@ class LocalFileChangeDetector(FileChangeDetector):
         """
         self.origin_rev = origin_rev
 
-    def create_revision_map(self, repos: List[Repo]) -> RevisionMap:
+    def create_revision_map(self, repos: list[Repo]) -> RevisionMap:
         """
         Create a map of the repos and the given revisions to diff against.
 
@@ -542,7 +542,7 @@ class BurnInExecutor(ABC):
     """An interface to execute discovered tests."""
 
     @abstractmethod
-    def execute(self, tests_by_task: Dict[str, TaskToBurnInInfo]) -> None:
+    def execute(self, tests_by_task: dict[str, TaskToBurnInInfo]) -> None:
         """
         Execute the given tests in the given tasks.
 
@@ -554,7 +554,7 @@ class BurnInExecutor(ABC):
 class NopBurnInExecutor(BurnInExecutor):
     """A burn-in executor that displays results, but doesn't execute."""
 
-    def execute(self, tests_by_task: Dict[str, TaskToBurnInInfo]) -> None:
+    def execute(self, tests_by_task: dict[str, TaskToBurnInInfo]) -> None:
         """
         Execute the given tests in the given tasks.
 
@@ -582,7 +582,7 @@ class LocalBurnInExecutor(BurnInExecutor):
         self.resmoke_args = resmoke_args
         self.repeat_config = repeat_config
 
-    def execute(self, tests_by_task: Dict[str, TaskToBurnInInfo]) -> None:
+    def execute(self, tests_by_task: dict[str, TaskToBurnInInfo]) -> None:
         """
         Execute the given tests in the given tasks.
 
@@ -602,7 +602,7 @@ class DiscoveredSuite(BaseModel):
     """
 
     suite_name: str
-    test_list: List[str]
+    test_list: list[str]
 
 
 class DiscoveredTask(BaseModel):
@@ -614,19 +614,19 @@ class DiscoveredTask(BaseModel):
     """
 
     task_name: str
-    suites: List[DiscoveredSuite]
+    suites: list[DiscoveredSuite]
 
 
 class DiscoveredTaskList(BaseModel):
     """Model for a list of discovered tasks."""
 
-    discovered_tasks: List[DiscoveredTask]
+    discovered_tasks: list[DiscoveredTask]
 
 
 class YamlBurnInExecutor(BurnInExecutor):
     """A burn-in executor that outputs discovered tasks as YAML."""
 
-    def execute(self, tests_by_task: Dict[str, TaskToBurnInInfo]) -> None:
+    def execute(self, tests_by_task: dict[str, TaskToBurnInInfo]) -> None:
         """
         Report the given tasks and their tests to stdout.
 
@@ -667,7 +667,7 @@ class BurnInOrchestrator:
         self.burn_in_executor = burn_in_executor
         self.evg_conf = evg_conf
 
-    def burn_in(self, repos: List[Repo], build_variant: str) -> None:
+    def burn_in(self, repos: list[Repo], build_variant: str) -> None:
         """
         Execute burn in tests for the given git repositories.
 

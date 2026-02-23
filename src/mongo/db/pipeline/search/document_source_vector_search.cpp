@@ -219,7 +219,7 @@ std::list<intrusive_ptr<DocumentSource>> DocumentSourceVectorSearch::desugar() {
         getExpCtx(),
         desugaredPipeline,
         isStoredSource(),
-        _limit.value_or(0),
+        _limit,
         search_helpers::getViewFromBSONObj(_originalSpec));
 
     return desugaredPipeline;

@@ -1,0 +1,83 @@
+{
+  "name": "mongo-shell-debugger",
+  "displayName": "MongoDB Shell Debugger",
+  "description": "Debug JavaScript code in MongoDB Shell (MozJS)",
+  "version": "0.1.0",
+  "publisher": "mongodb",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/10gen/mongo.git"
+  },
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "categories": [
+    "Debuggers"
+  ],
+  "keywords": [
+    "mongodb",
+    "javascript",
+    "debugger",
+    "mongo-shell"
+  ],
+  "main": "./extension.js",
+  "activationEvents": [
+    "onDebug",
+    "onDebugResolve:mongo-shell",
+    "onDebugDynamicConfigurations:mongo-shell"
+  ],
+  "contributes": {
+    "breakpoints": [
+      {
+        "language": "javascript"
+      }
+    ],
+    "debuggers": [
+      {
+        "type": "mongo-shell",
+        "label": "Mongo Shell",
+        "program": "./adapter.js",
+        "runtime": "node",
+        "configurationAttributes": {
+          "attach": {
+            "required": [
+              "debugPort"
+            ],
+            "properties": {
+              "debugPort": {
+                "type": "number",
+                "description": "Port of running debug server",
+                "default": 9229
+              },
+              "trace": {
+                "type": "boolean",
+                "description": "Enable logging of the Debug Adapter Protocol",
+                "default": false
+              }
+            }
+          }
+        },
+        "initialConfigurations": [
+        ],
+        "configurationSnippets": [
+          {
+            "label": "MongoDB Shell: Attach",
+            "description": "Attach to running MongoDB Shell debug server",
+            "body": {
+              "type": "mongo-shell",
+              "request": "attach",
+              "name": "Attach to MongoDB Shell",
+              "debugPort": 9229
+            }
+          }
+        ],
+        "variables": {
+          "AskForProgramName": "extension.mongo-shell-debugger.getProgramName"
+        }
+      }
+    ]
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.75.0"
+  }
+}

@@ -91,6 +91,8 @@ public:
 
     void saveState();
 
+    bool tryReprobe();
+
     void reset();
 
 private:
@@ -153,8 +155,9 @@ public:
     void finishBuild();
 
     // Probe phase
-    // Returns a cursor over matches for this probe row (may be empty; may spill the probe row)
-    [[nodiscard]] JoinCursor probe(value::MaterializedRow key, value::MaterializedRow project);
+    // Updates the join cursor over matches for this probe row (may be empty; may spill the probe
+    // row)
+    void probe(value::MaterializedRow& key, value::MaterializedRow& project, JoinCursor& cursor);
     void finishProbe();
 
     // Spill processing phase

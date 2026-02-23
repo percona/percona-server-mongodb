@@ -6,7 +6,6 @@ resmoke_suite_test(
         "//jstests/auth:dbcheck.js",
     ],
     config = "//buildscripts/resmokeconfig:suites/auth.yml",
-    data = ["//buildscripts/resmokeconfig:common_jstest_data"],
     resmoke_args = ["--runAllFeatureFlagTests"],
     tags = [
         "ci-development-critical-single-variant",
@@ -43,7 +42,6 @@ resmoke_suite_test(
     ],
     config = "//buildscripts/resmokeconfig:suites/disk_wiredtiger.yml",
     data = [
-        "//buildscripts/resmokeconfig:common_jstest_data",
         "//jstests/noPassthrough/libs/index_builds:index_build.js",
         "//jstests/replsets:rslib.js",
         "//jstests/replsets/libs:all_javascript_files",
@@ -106,7 +104,6 @@ resmoke_suite_test(
     ],
     config = "//buildscripts/resmokeconfig:suites/no_passthrough.yml",
     data = [
-        "//buildscripts/resmokeconfig:common_jstest_data",
         "//jstests/core/txns/libs:prepare_helpers.js",
         "//jstests/disk/libs:wt_file_helper.js",
         "//jstests/libs:key1",
@@ -138,7 +135,6 @@ resmoke_suite_test(
     ],
     config = "//buildscripts/resmokeconfig:suites/no_passthrough_with_mongod.yml",
     data = [
-        "//buildscripts/resmokeconfig:common_jstest_data",
         "//jstests/libs:key1",
     ],
     resmoke_args = ["--runAllFeatureFlagTests"],
@@ -169,7 +165,6 @@ resmoke_suite_test(
         "//jstests/readonly/lib:read_only_test.js",
     ],
     config = "//buildscripts/resmokeconfig:suites/read_only.yml",
-    data = ["//buildscripts/resmokeconfig:common_jstest_data"],
     resmoke_args = ["--runAllFeatureFlagTests"],
     tags = [
         "ci-development-critical-single-variant",
@@ -204,7 +199,6 @@ resmoke_suite_test(
         "//jstests/replsets/libs:dbcheck_utils.js",
     ],
     config = "//buildscripts/resmokeconfig:suites/replica_sets.yml",
-    data = ["//buildscripts/resmokeconfig:common_jstest_data"],
     resmoke_args = ["--runAllFeatureFlagTests"],
     tags = [
         "ci-development-critical-single-variant",

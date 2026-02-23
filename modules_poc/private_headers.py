@@ -3,17 +3,15 @@
 import os
 import sys
 from pathlib import Path
-from itertools import chain
 from codeowners import path_to_regex
 from collections.abc import Callable
 from re import Pattern
 
 import typer
-import glob
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from browse import load_decls, File, is_submodule_usage
-from mod_mapping import mod_for_file, teams_for_file, glob_paths, normpath_for_file
+from mod_mapping import mod_for_file, teams_for_file, normpath_for_file
 from merge_decls import get_file_family_regex
 
 REPO_ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")

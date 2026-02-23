@@ -1129,7 +1129,8 @@ std::vector<MetadataInconsistencyItem> checkCollectionMetadataConsistencyAcrossS
             !provider.shouldUseReplicatedRecordIds()) {
             pipeline.emplace_back(fromjson(R"(
                 {$project: {
-                    'md.options.recordIdsReplicated': 0
+                    'md.options.recordIdsReplicated': 0,
+                    'md.recordIdsReplicated': 0
                 }})"));
         }
         pipeline.emplace_back(fromjson(R"(

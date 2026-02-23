@@ -142,6 +142,7 @@ python-msilib = { version = "^0.5.0", markers = "sys_platform == 'win32' and pyt
 cryptography = "^44.0.2"
 
 [tool.poetry.group.testing.dependencies]
+bazel-runfiles = "^1.8.3"
 curatorbin = "^1.2.4"
 PyKMIP = {git = "https://github.com/mongodb-forks/PyKMIP.git", rev = "c48cb01635819e478b573e3245ef840a11d78865"}
 kafka-python = "^2.0.2"
@@ -167,6 +168,7 @@ distro = "^1.9.0"
 dnspython = "^2.6.1"
 proxy-protocol = "^0.11.3"
 pkce = "^1.0.3"
+pexpect = "^4.9.0"
 oauthlib = "^3.1.1"
 requests-oauthlib = "^2.0.0"
 packaging = "^25.0"
@@ -215,8 +217,9 @@ target-version = "py310"
 
 [tool.ruff.lint]
 extend-select = [
-    "I",   # isort
-    "W605",   # invalid-escape-sequence
+    "I",        # isort
+    "UP006",    # non-pep585-annotation
+    "W605",     # invalid-escape-sequence
 ]
 ignore = [
     "E402", # module-import-not-at-top-of-file

@@ -2,7 +2,6 @@ import argparse
 import json
 import os
 import sys
-from typing import List
 
 import jsonschema
 from license_expression import get_spdx_licensing
@@ -43,7 +42,7 @@ class ErrorManager:
     def __init__(self, input_file: str):
         self.input_file: str = input_file
         self.component_name: str = ""
-        self.errors: List[str] = []
+        self.errors: list[str] = []
 
     def update_component_attribute(self, component_name: str) -> None:
         self.component_name = component_name

@@ -1,7 +1,7 @@
 """Subcommand for multiversion config."""
 
 import argparse
-from typing import List, Optional
+from typing import Optional
 
 import yaml
 from pydantic import BaseModel
@@ -30,7 +30,7 @@ class MultiversionConfig(BaseModel):
     * last_continuous_fcv: Continuous version that should be tested against.
     """
 
-    last_versions: List[str]
+    last_versions: list[str]
     requires_fcv_tag: str
     requires_fcv_tag_lts: str
     requires_fcv_tag_continuous: str

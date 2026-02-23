@@ -4,7 +4,6 @@
 import os
 import re
 import sys
-from typing import List, Tuple
 
 # Get relative imports to work when the package is not installed on the PYTHONPATH.
 if __name__ == "__main__" and __package__ is None:
@@ -21,7 +20,7 @@ LEGACY_TYPES = [
 ]
 
 
-def check_file_for_legacy_type(modified_lines: List[Tuple[int, str]]) -> bool:
+def check_file_for_legacy_type(modified_lines: list[tuple[int, str]]) -> bool:
     """Return false if a file defines a legacy command."""
 
     file_has_legacy_type = False

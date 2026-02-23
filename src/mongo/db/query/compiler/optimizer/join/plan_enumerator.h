@@ -43,6 +43,91 @@ namespace mongo::join_ordering {
 enum class PlanTreeShape { LEFT_DEEP, RIGHT_DEEP, ZIG_ZAG };
 
 /**
+ * Determines what plans we enumerate.
+ */
+enum class PlanEnumerationMode {
+    // Only enumerate plans if they are cheaper than the lowest-cost plan for each subset.
+    CHEAPEST,
+    // Enumerates all plans, regardless of cost.
+    ALL
+};
+
+/**
+ * This structure allows us to specify a particular enumeration mode per subset level. Note that:
+ *  - A mode must always be specified for level 0.
+ *  - It is not permitted to specify the same exact mode for two consecutive entries.
+ *
+ * The default mode is:
+ *  {{0, CHEAPEST}}
+ *
+ * This means that for all subset levels (including 0), we will use the "CHEAPEST" enumeration mode.
+ *
+ * Modes are "sticky" until a the next entry specifying a new mode for a level is found, i.e. levels
+ * keep using the mode last specified for the previous level unless there is an entry specifically
+ * for that level. For example:
+ *  {{0, CHEAPEST}, {2, ALL}, {4, CHEAPEST}}
+ *
+ * For subset levels 0 & 1, we will apply the "CHEAPEST" enumeration mode. Then, for subsets 2 & 3,
+ * we will apply all plans enumeration (ALL). Finally, for any subset level 4+, we go back to
+ * picking the cheapest subset.
+ */
+class PerSubsetLevelEnumerationMode {
+public:
+    PerSubsetLevelEnumerationMode(PlanEnumerationMode mode) : _modes{{0, mode}} {}
+    PerSubsetLevelEnumerationMode(std::vector<std::pair<size_t, PlanEnumerationMode>> modes);
+
+    struct Iterator {
+        Iterator& next() {
+            if (_index < _mode._modes.size()) {
+                _index++;
+            }
+            return *this;
+        }
+
+        bool operator==(const Iterator& other) const {
+            tassert(
+                11391603, "Must be comparing iterators on same instance", &_mode == &other._mode);
+            return _index == other._index;
+        }
+
+        auto get() const {
+            tassert(11391604, "Must not be end iterator", _index < _mode._modes.size());
+            return _mode._modes[_index];
+        }
+
+    private:
+        Iterator(const PerSubsetLevelEnumerationMode& mode, size_t index)
+            : _mode{mode}, _index{index} {}
+
+        const PerSubsetLevelEnumerationMode& _mode;
+        size_t _index;
+        friend PerSubsetLevelEnumerationMode;
+    };
+
+    Iterator begin() const {
+        return Iterator(*this, 0);
+    };
+
+    Iterator end() const {
+        return Iterator(*this, _modes.size());
+    };
+
+private:
+    const std::vector<std::pair<size_t /* starting subset level */, PlanEnumerationMode>> _modes;
+    friend PerSubsetLevelEnumerationMode::Iterator;
+};
+
+/**
+ * This configures the kinds of plans we're generating and how we're choosing between them during
+ * enumeration.
+ */
+struct EnumerationStrategy {
+    PlanTreeShape planShape;
+    PerSubsetLevelEnumerationMode mode;
+    bool enableHJOrderPruning;
+};
+
+/**
  * Context containing all the state for the bottom-up dynamic programming join plan enumeration
  * algorithm.
  */
@@ -51,11 +136,11 @@ public:
     PlanEnumeratorContext(const JoinReorderingContext& ctx,
                           std::unique_ptr<JoinCardinalityEstimator> estimator,
                           std::unique_ptr<JoinCostEstimator> coster,
-                          bool enableHJOrderPruning)
+                          EnumerationStrategy strategy)
         : _ctx{ctx},
           _estimator(std::move(estimator)),
           _coster(std::move(coster)),
-          _enableHJOrderPruning(enableHJOrderPruning) {}
+          _strategy(std::move(strategy)) {}
 
     // Delete copy and move operations to prevent issues with copying '_joinGraph'.
     PlanEnumeratorContext(const PlanEnumeratorContext&) = delete;
@@ -71,7 +156,7 @@ public:
     /**
      * Enumerates all join subsets in bottom-up fashion.
      */
-    void enumerateJoinSubsets(PlanTreeShape type = PlanTreeShape::ZIG_ZAG);
+    void enumerateJoinSubsets();
 
     JoinPlanNodeId getBestFinalPlan() const {
         tassert(11336904,
@@ -104,43 +189,75 @@ private:
      * outputting those plans in 'cur'. Note that 'left' and 'right' must be disjoint, and their
      * union must produce 'cur'.
      */
-    void enumerateJoinPlans(PlanTreeShape type,
-                            const JoinSubset& left,
-                            const JoinSubset& right,
-                            JoinSubset& cur);
+    void enumerateJoinPlans(const JoinSubset& left, const JoinSubset& right, JoinSubset& cur);
 
     /**
-     * Helper for adding a join plan to subset 'cur', constructed using the specified join 'method'
-     * connecting the best plans from the provided subsets.
+     * Helpers for adding a join plan to subset 'cur', constructed using the specified join 'method'
+     * connecting the best plans from the provided subsets in 'CHEAPEST' enuemration mode, and every
+     * pair of plans in 'ALL' plans enumeration mode.
      */
-    void addJoinPlan(PlanTreeShape type,
-                     JoinMethod method,
+    void addJoinPlan(JoinMethod method,
                      const JoinSubset& left,
                      const JoinSubset& right,
                      const std::vector<EdgeId>& edges,
                      JoinSubset& cur);
+    void enumerateAllJoinPlans(JoinMethod method,
+                               const JoinSubset& left,
+                               const JoinSubset& right,
+                               const std::vector<EdgeId>& edges,
+                               JoinSubset& subset);
+    void enumerateCheapestJoinPlan(JoinMethod method,
+                                   const JoinSubset& left,
+                                   const JoinSubset& right,
+                                   const std::vector<EdgeId>& edges,
+                                   JoinSubset& subset);
+
+    /**
+     * Helper for enumerating an INLJ plan with the specified left subtree & generating an index
+     * probe on the RHS for the subset 'right'.
+     */
+    void enumerateINLJPlan(EdgeId edge,
+                           JoinPlanNodeId leftPlan,
+                           const JoinSubset& right,
+                           JoinSubset& subset);
+
+    /**
+     * Helper to enumerate an NLJ/HJ join plan combining the subtrees identified by 'leftPlan' &
+     * 'rightPlan'.
+     */
+    void enumerateJoinPlan(JoinMethod method,
+                           JoinPlanNodeId leftPlan,
+                           JoinPlanNodeId rightPlan,
+                           JoinSubset& subset);
 
     /**
      * Determines based on the shape of the tree obtained by joining the best plans on each side if
      * we would retain the tree shape specified by 'type' and the plan is valid for the given join
      * 'method'.
      */
-    bool canPlanBeEnumerated(PlanTreeShape type,
-                             JoinMethod method,
+    bool canPlanBeEnumerated(JoinMethod method,
                              const JoinSubset& left,
                              const JoinSubset& right,
                              const JoinSubset& subset);
 
-    void updateBestJoinPlanForSubset(JoinMethod method,
-                                     JoinPlanNodeId left,
-                                     JoinPlanNodeId right,
-                                     JoinCostEstimate cost,
-                                     JoinSubset& subset);
+    void addPlanToSubset(JoinMethod method,
+                         JoinPlanNodeId left,
+                         JoinPlanNodeId right,
+                         JoinCostEstimate cost,
+                         JoinSubset& subset,
+                         bool isBestPlan);
+
+    inline bool isBestPlanSoFar(const JoinSubset& subset, const JoinCostEstimate& planCost) const {
+        return !subset.hasPlans() || (planCost < _registry.getCost(subset.bestPlan()));
+    }
 
     const JoinReorderingContext& _ctx;
     std::unique_ptr<JoinCardinalityEstimator> _estimator;
     std::unique_ptr<JoinCostEstimator> _coster;
-    const bool _enableHJOrderPruning;
+    EnumerationStrategy _strategy;
+
+    // Variable tracking current enumeration mode during enumeration.
+    PlanEnumerationMode _mode = PlanEnumerationMode::CHEAPEST;
 
     // Hold intermediate results of the enumeration algorithm. The index into the outer vector
     // represents the "level". The i'th level contains solutions for the optimal way to join all

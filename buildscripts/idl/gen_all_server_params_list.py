@@ -32,7 +32,6 @@ Used by DSI to conditionally allow configuration of internalQueryStatsRateLimit 
 
 import os
 import sys
-from typing import List
 
 # Permit imports from "buildscripts".
 sys.path.append(os.path.normpath(os.path.join(os.path.abspath(__file__), "../../..")))
@@ -41,7 +40,7 @@ from buildscripts.idl import lib
 from buildscripts.idl.idl import parser
 
 
-def gen_all_server_params(idl_dirs: List[str] = None):
+def gen_all_server_params(idl_dirs: list[str] = None):
     """Generate a list of all server parameters."""
     default_idl_dirs = ["src"]
 

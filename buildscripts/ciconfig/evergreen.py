@@ -12,7 +12,7 @@ import re
 import shutil
 import subprocess
 import sys
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Optional
 
 import structlog
 
@@ -113,7 +113,7 @@ class EvergreenProjectConfig(object):
         self.functions = self._conf["functions"]
 
     @property
-    def task_names(self) -> List[str]:
+    def task_names(self) -> list[str]:
         """Get the list of task names."""
         return list(self._tasks_by_name.keys())
 
@@ -139,7 +139,7 @@ class EvergreenProjectConfig(object):
         """Return the variant with the given name as a Variant instance."""
         return self._variants_by_name.get(variant_name)
 
-    def get_required_variants(self) -> Set[Variant]:
+    def get_required_variants(self) -> set[Variant]:
         """Get the list of required build variants."""
         return {variant for variant in self.variants if variant.is_required_variant()}
 
@@ -176,7 +176,7 @@ class Task(object):
         return None
 
     @property
-    def generate_resmoke_tasks_command(self) -> Optional[Dict[str, Any]]:
+    def generate_resmoke_tasks_command(self) -> Optional[dict[str, Any]]:
         """Return the 'generate resmoke tasks' command if found, or None."""
         return self.find_func_command("generate resmoke tasks")
 
@@ -186,7 +186,7 @@ class Task(object):
         return self.generate_resmoke_tasks_command is not None
 
     @property
-    def run_tests_command(self) -> Optional[Dict[str, Any]]:
+    def run_tests_command(self) -> Optional[dict[str, Any]]:
         """Return the 'run tests' command if found, or None."""
         return self.find_func_command("run tests")
 
@@ -196,7 +196,7 @@ class Task(object):
         return self.run_tests_command is not None
 
     @property
-    def initialize_multiversion_tasks_command(self) -> Optional[Dict[str, Any]]:
+    def initialize_multiversion_tasks_command(self) -> Optional[dict[str, Any]]:
         """Return the 'initialize multiversion tasks' command if found, or None."""
         return self.find_func_command("initialize multiversion tasks")
 
@@ -217,7 +217,7 @@ class Task(object):
 
         return self.name[:-4]
 
-    def get_resmoke_command_vars(self) -> Dict[str, Any]:
+    def get_resmoke_command_vars(self) -> dict[str, Any]:
         """Get the vars for either 'generate resmoke tasks' or 'run tests', both eventually call resmoke.py."""
         if self.is_run_tests_task:
             return self.run_tests_command.get("vars", {})
@@ -226,7 +226,7 @@ class Task(object):
 
         return {}
 
-    def get_suite_names(self) -> List[str]:
+    def get_suite_names(self) -> list[str]:
         """Get the names of the resmoke.py suites from the task definition."""
 
         command_vars = self.get_resmoke_command_vars()
@@ -243,7 +243,7 @@ class Task(object):
         raise ValueError(f"{self.name} task does not run a resmoke.py test suite")
 
     @property
-    def suite_to_resmoke_args_map(self) -> Dict[str, str]:
+    def suite_to_resmoke_args_map(self) -> dict[str, str]:
         """Get the resmoke.py arguments from the task definition."""
         output = {}
 
@@ -439,7 +439,7 @@ class VariantTask(Task):
         return f"{self.variant}: {self.name}"
 
     @property
-    def combined_suite_to_resmoke_args_map(self) -> Dict[str, str]:
+    def combined_suite_to_resmoke_args_map(self) -> dict[str, str]:
         """Get the combined resmoke arguments.
 
         This results from the concatenation of the task's resmoke_args parameter and the

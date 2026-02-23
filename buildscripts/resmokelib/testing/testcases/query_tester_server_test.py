@@ -67,8 +67,6 @@ class QueryTesterServerTestCase(interface.ProcessTestCase):
             "--mode",
             "compare",
             "-v",
-            "--diff",
-            "plain",
         ]
         if self.override:
             command = command + ["--override", self.override]

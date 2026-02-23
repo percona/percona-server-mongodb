@@ -13,7 +13,7 @@ import {
     isIdhackOrExpress,
     planHasStage,
 } from "jstests/libs/query/analyze_plan.js";
-import {checkSbeFullFeatureFlagEnabled, checkSbeRestrictedOrFullyEnabled} from "jstests/libs/query/sbe_util.js";
+import {sbePlanCacheEnabled, checkSbeRestrictedOrFullyEnabled} from "jstests/libs/query/sbe_util.js";
 
 /**
  * Class containing common test functions used in query_settings_index_application_* tests.
@@ -54,7 +54,7 @@ export class QuerySettingsIndexHintsTests {
             return false;
         }
 
-        if (!checkSbeFullFeatureFlagEnabled(db)) {
+        if (!sbePlanCacheEnabled(db)) {
             return false;
         }
 

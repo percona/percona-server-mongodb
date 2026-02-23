@@ -303,6 +303,10 @@ py_binary(
 py_binary(
     name = "generate_result_tasks",
     srcs = ["generate_result_tasks.py"],
+    data = [
+        "@codeowners_binary//:codeowners",
+        "@mothra//:teams",
+    ],
     visibility = ["//visibility:public"],
     deps = [
         dependency(
@@ -311,6 +315,10 @@ py_binary(
         ),
         dependency(
             "shrub-py",
+            group = "testing",
+        ),
+        dependency(
+            "bazel-runfiles",
             group = "testing",
         ),
     ],
@@ -513,6 +521,19 @@ py_binary(
         dependency(
             "evergreen-py",
             group = "testing",
+        ),
+    ],
+)
+
+py_binary(
+    name = "github_merge_queue_metrics",
+    srcs = ["github_merge_queue_metrics.py"],
+    main = "github_merge_queue_metrics.py",
+    visibility = ["//visibility:public"],
+    deps = [
+        dependency(
+            "requests",
+            group = "core",
         ),
     ],
 )

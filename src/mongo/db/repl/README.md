@@ -391,7 +391,11 @@ Communication between nodes in the cluster is always done using `hello`, never w
 ## Communication
 
 Each node has a copy of the **`ReplicaSetConfig`** in the `ReplicationCoordinator` that lists all
-nodes in the replica set. This config lets each node talk to every other node.
+nodes in the replica set. This config lets each node talk to every other node. In the
+**`ReplicaSetConfig`**, each node can additionally have its
+[priority port](../../../../docs/priority_port.md) specified. If the priority port is specified for
+a node, then most replication communications (oplog fetching, elections, heartbeats) will be sent
+via the priority port rather than the main port.
 
 Each node uses the internal client, the legacy c++ driver code in the
 [`src/mongo/client`](https://github.com/mongodb/mongo/tree/r4.2.0/src/mongo/client) directory, to

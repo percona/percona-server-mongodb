@@ -14,7 +14,7 @@ import textwrap
 import time
 from abc import ABC, abstractmethod
 from logging import Logger
-from typing import List, Optional
+from typing import Optional
 
 import psutil
 import yaml
@@ -173,7 +173,7 @@ class TestRunner(Subcommand):
         )
 
     @staticmethod
-    def _find_suites_by_test(suites: List[Suite]):
+    def _find_suites_by_test(suites: list[Suite]):
         """
         Look up what other resmoke suites run the tests specified in the suites parameter.
 
@@ -1016,7 +1016,7 @@ class TestRunner(Subcommand):
         )
         suite.tests = config.SHUFFLE_STRATEGY.shuffle(suite.tests)
 
-    def _get_suites(self) -> List[Suite]:
+    def _get_suites(self) -> list[Suite]:
         """Return the list of suites for this resmoke invocation."""
         try:
             return suitesconfig.get_suites(config.SUITE_FILES, config.TEST_FILES)
@@ -1057,11 +1057,11 @@ class TestRunner(Subcommand):
     @staticmethod
     def _get_suite_summary(suite: Suite):
         """Return a summary of the suite run."""
-        sb: List[str] = []
+        sb: list[str] = []
         suite.summarize(sb)
         return "\n".join(sb)
 
-    def _setup_signal_handler(self, suites: List[Suite]):
+    def _setup_signal_handler(self, suites: list[Suite]):
         """Set up a SIGUSR1 signal handler that logs a test result summary and a thread dump."""
         sighandler.register(self._resmoke_logger, suites, self.__start_time)
 
@@ -1166,7 +1166,7 @@ class TestRunnerEvg(TestRunner):
 
         return combinations
 
-    def _get_suites(self) -> List[Suite]:
+    def _get_suites(self) -> list[Suite]:
         """Return a list of resmokelib.testing.suite.Suite instances to execute.
 
         For every resmokelib.testing.suite.Suite instance returned by resmoke.Main._get_suites(),
@@ -1340,7 +1340,7 @@ class RunPlugin(PluginInterface):
         parser.add_argument(
             "--testTimeout",
             dest="test_timeout",
-            help="Timeout for execution of a single test, in seconds.",
+            help="Timeout for execution of a single test, in seconds. Zero or empty are treated as no timeout.",
         )
 
         parser.add_argument(
@@ -1871,6 +1871,13 @@ class RunPlugin(PluginInterface):
             type=str,
             metavar="REGEX",
             help="Regex to filter mocha-style tests to run.",
+        )
+
+        parser.add_argument(
+            "--shellJSDebugMode",
+            dest="shell_jsdebugmode",
+            action="store_true",
+            help="Enable JavaScript debugger for spawned mongo shells.",
         )
 
         parser.add_argument(
@@ -2542,7 +2549,7 @@ class RunPlugin(PluginInterface):
 
 
 def to_local_args(
-    input_args: Optional[List[str]] = None, additional_skipped_args: Optional[List[str]] = None
+    input_args: Optional[list[str]] = None, additional_skipped_args: Optional[list[str]] = None
 ):
     """
     Return a command line invocation for resmoke.py suitable for being run outside of Evergreen.
@@ -2662,7 +2669,7 @@ def to_local_args(
     )
 
 
-def strip_fuzz_config_params(input_args: List[str]):
+def strip_fuzz_config_params(input_args: list[str]):
     """Delete fuzz related command line args because we have to add the seed manually."""
 
     ret = []

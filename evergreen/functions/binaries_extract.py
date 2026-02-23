@@ -29,12 +29,11 @@ import pathlib
 import shutil
 import subprocess
 import sys
-from typing import List
 
 ZSTD_EXTRACTION = "tar --zstd -xf"
 
 
-def get_cmd(tarball: str, extraction_command: str) -> List[str]:
+def get_cmd(tarball: str, extraction_command: str) -> list[str]:
     shell = os.environ.get("SHELL", "/bin/bash")
     if sys.platform == "win32":
         proc = subprocess.run(

@@ -31,6 +31,7 @@
 
 #include "mongo/db/pipeline/lite_parsed_document_source.h"
 #include "mongo/db/pipeline/lite_parsed_pipeline.h"
+#include "mongo/db/pipeline/search/document_source_internal_search_id_lookup_gen.h"
 #include "mongo/db/pipeline/stage_params.h"
 
 namespace mongo {
@@ -42,29 +43,35 @@ namespace mongo {
 class InternalSearchIdLookupStageParams : public StageParams {
 public:
     InternalSearchIdLookupStageParams() = default;
-    InternalSearchIdLookupStageParams(long long limit,
-                                      boost::optional<LiteParsedPipeline> viewPipeline)
-        : limit(limit), viewPipeline(std::move(viewPipeline)) {}
+    InternalSearchIdLookupStageParams(DocumentSourceIdLookupSpec spec)
+        : ownedSpec(std::move(spec)) {}
 
     static const Id& id;
     Id getId() const final {
         return id;
     }
 
-    const long long limit;
-    const boost::optional<LiteParsedPipeline> viewPipeline;
+    const DocumentSourceIdLookupSpec ownedSpec;
 };
 
 class LiteParsedInternalSearchIdLookUp final
     : public LiteParsedDocumentSourceDefault<LiteParsedInternalSearchIdLookUp> {
 public:
+    static constexpr StringData kStageName = "$_internalSearchIdLookup"_sd;
+
     static std::unique_ptr<LiteParsedInternalSearchIdLookUp> parse(const NamespaceString& nss,
                                                                    const BSONElement& spec,
-                                                                   const LiteParserOptions&) {
+                                                                   const LiteParserOptions& opts) {
         uassert(ErrorCodes::FailedToParse,
                 "$_internalSearchIdLookup specification must be an object",
                 spec.type() == BSONType::object);
-        return std::make_unique<LiteParsedInternalSearchIdLookUp>(spec.wrap().getOwned());
+
+        BSONObj specObj = spec.Obj().getOwned();
+
+        // Parse using IDL.
+        auto idlSpec = DocumentSourceIdLookupSpec::parse(specObj, IDLParserContext(kStageName));
+
+        return std::make_unique<LiteParsedInternalSearchIdLookUp>(std::move(idlSpec));
     }
 
     bool isInitialSource() const override {
@@ -72,26 +79,26 @@ public:
     }
 
     std::unique_ptr<StageParams> getStageParams() const final {
-        return std::make_unique<InternalSearchIdLookupStageParams>(
-            (*_ownedBson)["$_internalSearchIdLookup"]["limit"].safeNumberLong(), _viewPipeline);
+        return std::make_unique<InternalSearchIdLookupStageParams>(_ownedSpec);
     }
 
-    const BSONObj& getBsonSpec() const {
-        return *_ownedBson;
+    const DocumentSourceIdLookupSpec& getSpec() const {
+        return _ownedSpec;
     }
 
     ViewPolicy getViewPolicy() const final {
         return ViewPolicy{.policy = ViewPolicy::kFirstStageApplicationPolicy::kDoNothing,
                           .callback = [this](const ViewInfo& viewInfo, StringData) {
-                              _viewPipeline = viewInfo.getViewPipeline();
+                              _ownedSpec.setViewPipeline(viewInfo.getSerializedViewPipeline());
                           }};
     }
 
-    LiteParsedInternalSearchIdLookUp(BSONObj spec)
-        : LiteParsedDocumentSourceDefault(spec.getOwned()) {}
+    LiteParsedInternalSearchIdLookUp(DocumentSourceIdLookupSpec spec)
+        : LiteParsedDocumentSourceDefault(BSON(kStageName << spec.toBSON()).getOwned()),
+          _ownedSpec(std::move(spec)) {}
 
 private:
-    mutable boost::optional<LiteParsedPipeline> _viewPipeline;
+    mutable DocumentSourceIdLookupSpec _ownedSpec;
 };
 
 }  // namespace mongo

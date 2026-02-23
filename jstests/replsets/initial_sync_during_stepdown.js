@@ -54,6 +54,8 @@ function setupTest({
     // Skip clearing initial sync progress after a successful initial sync attempt so that we
     // can check initialSyncStatus fields after initial sync is complete.
     secondaryStartupParams["failpoint.skipClearInitialSyncState"] = tojson({mode: "alwaysOn"});
+    // Skip waiting for last stable to advance since it is possible that the primary cannot advance its stable timestamp in this test.
+    secondaryStartupParams["initialSyncWaitForSyncSourceLastStableRecoveryTs"] = false;
     secondary = rst.start(secondary, {startClean: true, setParameter: secondaryStartupParams});
     secondaryDB = secondary.getDB(dbName);
     secondaryColl = secondaryDB[collName];

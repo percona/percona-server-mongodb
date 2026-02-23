@@ -1,7 +1,11 @@
 /**
  * Runs reshardCollection and CRUD operations concurrently.
  *
- * @tags: [requires_sharding]
+ * @tags: [
+ *  requires_sharding,
+ *  # TODO(SERVER-119777): Ensure test does not leak cursors.
+ *  can_leak_idle_cursors,
+ * ]
  */
 
 export const $config = (function () {

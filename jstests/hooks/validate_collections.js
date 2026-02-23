@@ -268,6 +268,7 @@ function validateCollectionsThread(newMongoWithRetry, validatorFunc, host) {
                     // TODO (SERVER-24266): Always enforce fast counts, once they are always
                     // accurate.
                     enforceFastCount: !TestData.skipEnforceFastCountOnValidate && !TestData.allowUncleanShutdowns,
+                    enforceFastSize: !TestData.allowUncleanShutdowns && TestData.enforceFastSizeOnValidate,
                     collHash: true,
                 });
                 if (validateRes.ok !== 1) {

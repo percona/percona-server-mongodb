@@ -6,7 +6,6 @@ import platform
 import subprocess
 import tempfile
 import threading
-from typing import Dict
 
 logfile_path: str = ""
 loglock = threading.Lock()
@@ -465,7 +464,7 @@ def get_config_header_substs():
 
 def generate_config_header(
     compiler_path, compiler_args, env_vars, logpath, additional_inputs=[], extra_definitions={}
-) -> Dict[str, str]:
+) -> dict[str, str]:
     global logfile_path
     CompilerSettings.compiler_path = compiler_path
     CompilerSettings.compiler_args = compiler_args

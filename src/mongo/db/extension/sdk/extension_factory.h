@@ -60,8 +60,8 @@ protected:
                     (str::stream() << StageDescriptor::kStageName << " is already registered"),
                     _stageDescriptors.find(StageDescriptor::kStageName) == _stageDescriptors.end());
 
-        auto stageDesc =
-            std::make_unique<ExtensionAggStageDescriptor>(std::make_unique<StageDescriptor>());
+        auto stageDesc = std::make_unique<ExtensionAggStageDescriptorAdapter>(
+            std::make_unique<StageDescriptor>());
 
         portal->registerStageDescriptor(stageDesc.get());
 
@@ -69,7 +69,7 @@ protected:
     }
 
 private:
-    stdx::unordered_map<std::string, std::unique_ptr<ExtensionAggStageDescriptor>>
+    stdx::unordered_map<std::string, std::unique_ptr<ExtensionAggStageDescriptorAdapter>>
         _stageDescriptors;
 };
 
@@ -118,7 +118,9 @@ private:
                 ->_extensionPointer->initialize(hostPortal);
         });
     }
-    static constexpr ::MongoExtensionVTable VTABLE{&_extInitialize};
+    static constexpr ::MongoExtensionVTable VTABLE = {
+        .initialize = &_extInitialize,
+    };
     std::unique_ptr<sdk::Extension> _extensionPointer;
 };
 

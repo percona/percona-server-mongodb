@@ -199,6 +199,7 @@ def validate_database(
         skipEnforceFastCountOnValidate = test_data.get(
             "skipEnforceFastCountOnValidate", skipEnforceFastCountOnValidate
         )
+        enforceFastSizeOnValidate = test_data.get("enforceFastSizeOnValidate", False)
         skipValidationOnNamespaceNotFound = test_data.get("skipValidationOnNamespaceNotFound", True)
 
         validate_opts = {
@@ -209,6 +210,7 @@ def validate_database(
             "checkBSONConformance": True,
             # TODO (SERVER-24266): Always enforce fast counts, once they are always accurate
             "enforceFastCount": not skipEnforceFastCountOnValidate,
+            "enforceFastSize": enforceFastSizeOnValidate,
             "collHash": True,
         }
 

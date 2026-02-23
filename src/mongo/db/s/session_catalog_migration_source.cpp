@@ -44,6 +44,7 @@
 #include "mongo/db/namespace_string.h"
 #include "mongo/db/op_observer/op_observer.h"
 #include "mongo/db/query/find_command.h"
+#include "mongo/db/query/write_ops/find_and_modify_image_lookup_util.h"
 #include "mongo/db/repl/apply_ops_command_info.h"
 #include "mongo/db/repl/image_collection_entry_gen.h"
 #include "mongo/db/repl/oplog.h"
@@ -53,6 +54,8 @@
 #include "mongo/db/repl/repl_client_info.h"
 #include "mongo/db/repl/replication_process.h"
 #include "mongo/db/s/session_catalog_migration.h"
+#include "mongo/db/scoped_read_concern.h"
+#include "mongo/db/server_feature_flags_gen.h"
 #include "mongo/db/service_context.h"
 #include "mongo/db/session/logical_session_id.h"
 #include "mongo/db/session/logical_session_id_gen.h"
@@ -73,6 +76,7 @@
 #include "mongo/util/assert_util.h"
 #include "mongo/util/clock_source.h"
 #include "mongo/util/decorable.h"
+#include "mongo/util/fail_point.h"
 #include "mongo/util/namespace_string_util.h"
 #include "mongo/util/scopeguard.h"
 #include "mongo/util/str.h"
@@ -90,58 +94,58 @@
 #include <boost/optional.hpp>
 #include <boost/optional/optional.hpp>
 
+#define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kSharding
+
 namespace mongo {
 namespace {
+
+MONGO_FAIL_POINT_DEFINE(failChunkMigrationFindAndModifyImageLookupFindOneWithSnapshotTooOld);
 
 struct LastTxnSession {
     LogicalSessionId sessionId;
     TxnNumber txnNumber;
 };
 
-boost::optional<repl::OplogEntry> forgeNoopEntryFromImageCollection(
-    OperationContext* opCtx, const repl::OplogEntry retryableFindAndModifyOplogEntry) {
-    invariant(retryableFindAndModifyOplogEntry.getNeedsRetryImage());
-
-    DBDirectClient client(opCtx);
-    BSONObj imageObj =
-        client.findOne(NamespaceString::kConfigImagesNamespace,
-                       BSON("_id" << retryableFindAndModifyOplogEntry.getSessionId()->toBSON()));
-    if (imageObj.isEmpty()) {
-        return boost::none;
-    }
-
-    auto image = repl::ImageEntry::parse(imageObj, IDLParserContext("image entry"));
-    if (image.getTxnNumber() != retryableFindAndModifyOplogEntry.getTxnNumber()) {
-        // In our snapshot, fetch the current transaction number for a session. If that transaction
-        // number doesn't match what's found on the image lookup, it implies that the image is not
-        // the correct version for this oplog entry. We will not forge a noop from it.
-        return boost::none;
-    }
-
-    repl::MutableOplogEntry forgedNoop;
-    forgedNoop.setSessionId(image.get_id());
-    forgedNoop.setTxnNumber(image.getTxnNumber());
-    forgedNoop.setObject(image.getImage());
-    forgedNoop.setOpType(repl::OpTypeEnum::kNoop);
-    // The wallclock and namespace are not directly available on the txn document when
-    // forging the noop image document.
-    forgedNoop.setWallClockTime(Date_t::now());
-    forgedNoop.setNss(retryableFindAndModifyOplogEntry.getNss());
-    forgedNoop.setUuid(retryableFindAndModifyOplogEntry.getUuid());
-    // The OpTime is probably the last write time, but the destination will overwrite this
-    // anyways. Just set an OpTime to satisfy the IDL constraints for calling `toBSON`.
-    repl::OpTimeBase opTimeBase(Timestamp::min());
-    opTimeBase.setTerm(-1);
-    forgedNoop.setOpTimeBase(opTimeBase);
-    forgedNoop.setStatementIds(retryableFindAndModifyOplogEntry.getStatementIds());
-    forgedNoop.setPrevWriteOpTimeInTransaction(repl::OpTime(Timestamp::min(), -1));
-    return repl::OplogEntry::parse(forgedNoop.toBSON()).getValue();
-}
-
 boost::optional<repl::OplogEntry> fetchPrePostImageOplog(OperationContext* opCtx,
                                                          repl::OplogEntry* oplog) {
     if (oplog->getNeedsRetryImage()) {
-        auto ret = forgeNoopEntryFromImageCollection(opCtx, *oplog);
+        auto findOneLocallyFunc = [&](const NamespaceString& nss,
+                                      const BSONObj& filter,
+                                      const boost::optional<repl::ReadConcernArgs>& readConcern)
+            -> boost::optional<BSONObj> {
+            if (MONGO_unlikely(
+                    failChunkMigrationFindAndModifyImageLookupFindOneWithSnapshotTooOld.shouldFail(
+                        [&](const BSONObj& data) {
+                            return data.getStringField("nss") == nss.toString_forTest();
+                        }))) {
+                tassert(11732001,
+                        "Expected the findOne to have readConcern 'snapshot'",
+                        readConcern->getLevel() ==
+                            repl::ReadConcernLevelEnum::kSnapshotReadConcern);
+                uasserted(ErrorCodes::SnapshotTooOld,
+                          "Failing findOne during findAndModify image lookup");
+            }
+
+            boost::optional<ScopedReadConcern> scopedReadConcern;
+            if (readConcern) {
+                scopedReadConcern.emplace(opCtx, *readConcern);
+            }
+
+            FindCommandRequest findRequest(nss);
+            findRequest.setFilter(filter);
+            if (gFeatureFlagAllBinariesSupportRawDataOperations
+                    .isEnabledUseLatestFCVWhenUninitialized(
+                        VersionContext::getDecoration(opCtx),
+                        serverGlobalParams.featureCompatibility.acquireFCVSnapshot())) {
+                // This must be set for the request to work against a timeseries collection.
+                findRequest.setRawData(true);
+            }
+
+            DBDirectClient client(opCtx);
+            auto cursor = client.find(findRequest);
+            return cursor->more() ? boost::make_optional(cursor->next()) : boost::none;
+        };
+        auto ret = forgeNoopImageOplogEntry(opCtx, *oplog, findOneLocallyFunc);
         if (ret == boost::none) {
             // No pre/post image was found. Defensively strip the `needsRetryImage` value to remove
             // any notion this operation was a retryable findAndModify. If the request is retried on
@@ -573,6 +577,9 @@ void SessionCatalogMigrationSource::_extractOplogEntriesForRetryableApplyOps(
             continue;
         }
 
+        if (auto commitTimestamp = applyOpsOplogEntry.getCommitTransactionTimestamp()) {
+            unrolledOplogEntry.setCommitTransactionTimestamp(*commitTimestamp);
+        }
         oplogBuffer->emplace_back(unrolledOplogEntry);
 
         skippedEntryTracker.dismiss();
@@ -715,9 +722,7 @@ void SessionCatalogMigrationSource::_tryFetchNextNewWriteOplog(stdx::unique_lock
     // The oplog buffer is empty. Peek the next opTime and fetch its oplog entry while not
     // holding the mutex. We cannot dequeue the opTime upfront since the the read can fail
     // with a WriteConflictException error.
-    repl::OpTime opTimeToFetch;
-    EntryAtOpTimeType entryAtOpTimeType;
-    std::tie(opTimeToFetch, entryAtOpTimeType) = _newWriteOpTimeList.front();
+    auto [opTimeToFetch, entryAtOpTimeType, commitTimestamp] = _newWriteOpTimeList.front();
 
     lk.unlock();
     DBDirectClient client(opCtx);
@@ -747,7 +752,8 @@ void SessionCatalogMigrationSource::_tryFetchNextNewWriteOplog(stdx::unique_lock
                 prevOpTime && !prevOpTime->isNull()) {
                 // Add the opTime for the previous applyOps oplog entry in the transaction
                 // to the queue.
-                _notifyNewWriteOpTime(lk, *prevOpTime, EntryAtOpTimeType::kTransaction);
+                _notifyNewWriteOpTime(
+                    lk, {*prevOpTime, EntryAtOpTimeType::kTransaction, commitTimestamp});
             }
         }
     };
@@ -779,6 +785,11 @@ void SessionCatalogMigrationSource::_tryFetchNextNewWriteOplog(stdx::unique_lock
     } else if (entryAtOpTimeType == EntryAtOpTimeType::kTransaction) {
         invariant(nextNewWriteOplog.getCommandType() == repl::OplogEntry::CommandType::kApplyOps);
         const auto sessionId = *nextNewWriteOplog.getSessionId();
+
+        uassert(11732000,
+                "Expected a transaction oplog entry to have a commit timestamp",
+                commitTimestamp);
+        nextNewWriteOplog.setCommitTransactionTimestamp(*commitTimestamp);
 
         if (isInternalSessionForNonRetryableWrite(sessionId)) {
             dassert(0,
@@ -852,16 +863,13 @@ bool SessionCatalogMigrationSource::_fetchNextNewWriteOplog(OperationContext* op
     return true;
 }
 
-void SessionCatalogMigrationSource::notifyNewWriteOpTime(repl::OpTime opTime,
-                                                         EntryAtOpTimeType entryAtOpTimeType) {
+void SessionCatalogMigrationSource::notifyNewWriteOpTime(OpTimeBundle opTimeBundle) {
     stdx::lock_guard<stdx::mutex> lk(_newOplogMutex);
-    _notifyNewWriteOpTime(lk, opTime, entryAtOpTimeType);
+    _notifyNewWriteOpTime(lk, opTimeBundle);
 }
 
-void SessionCatalogMigrationSource::_notifyNewWriteOpTime(WithLock,
-                                                          repl::OpTime opTime,
-                                                          EntryAtOpTimeType entryAtOpTimeType) {
-    _newWriteOpTimeList.emplace_back(opTime, entryAtOpTimeType);
+void SessionCatalogMigrationSource::_notifyNewWriteOpTime(WithLock, OpTimeBundle opTimeBundle) {
+    _newWriteOpTimeList.emplace_back(opTimeBundle);
 
     if (_newOplogNotification) {
         _newOplogNotification->set(false);
@@ -885,8 +893,11 @@ SessionCatalogMigrationSource::SessionOplogIterator::SessionOplogIterator(
           return _record.getState() ? EntryType::kNonRetryableTransaction
                                     : EntryType::kRetryableWrite;
       }()) {
-    _writeHistoryIterator =
-        std::make_unique<TransactionHistoryIterator>(_record.getLastWriteOpTime());
+    _writeHistoryIterator = std::make_unique<TransactionHistoryIterator>(
+        _record.getLastWriteOpTime(),
+        true /* permitYield */,
+        _record.getState() ? TransactionHistoryIterator::IncludeCommitTimestamp::kYes
+                           : TransactionHistoryIterator::IncludeCommitTimestamp::kNo);
 }
 
 boost::optional<repl::OplogEntry> SessionCatalogMigrationSource::SessionOplogIterator::getNext(

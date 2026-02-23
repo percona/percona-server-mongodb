@@ -193,16 +193,12 @@ struct OpMsg {
  * type-safety along with a place to hang request-specific methods.
  */
 struct OpMsgRequest : public OpMsg {
-    // TODO in C++17 remove constructors so we can use aggregate initialization.
-    OpMsgRequest() = default;
-    explicit OpMsgRequest(OpMsg&& generic) : OpMsg(std::move(generic)) {}
-
     static OpMsgRequest parse(const Message& message, Client* client = nullptr) {
-        return OpMsgRequest(OpMsg::parse(message, client));
+        return OpMsgRequest{OpMsg::parse(message, client)};
     }
 
     static OpMsgRequest parseOwned(const Message& message, Client* client = nullptr) {
-        return OpMsgRequest(OpMsg::parseOwned(message, client));
+        return OpMsgRequest{OpMsg::parseOwned(message, client)};
     }
 
     /**

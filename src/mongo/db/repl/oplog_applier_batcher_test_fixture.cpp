@@ -36,11 +36,12 @@
 #include "mongo/bson/bsonobjbuilder.h"
 #include "mongo/bson/util/builder.h"
 #include "mongo/bson/util/builder_fwd.h"
-#include "mongo/db/change_stream_pre_image_util.h"
+#include "mongo/db/change_stream_pre_image_id_util.h"
 #include "mongo/db/commands/txn_cmds_gen.h"
 #include "mongo/db/exec/document_value/value.h"
 #include "mongo/db/operation_context.h"
 #include "mongo/db/pipeline/change_stream_preimage_gen.h"
+#include "mongo/db/record_id_helpers.h"
 #include "mongo/db/repl/oplog_entry_gen.h"
 #include "mongo/db/repl/truncate_range_oplog_entry_gen.h"
 #include "mongo/db/session/logical_session_id.h"
@@ -549,7 +550,7 @@ OplogEntry makeTruncateRangeOnPreImagesEntry(int t, int maxTruncateTimestamp) {
     ChangeStreamPreImageId preImageId(UUID::gen(), Timestamp(maxTruncateTimestamp, 1), 0);
     return makeTruncateRangeEntry(t,
                                   NamespaceString::kChangeStreamPreImagesNamespace,
-                                  change_stream_pre_image_util::toRecordId(preImageId));
+                                  change_stream_pre_image_id_util::toRecordId(preImageId));
 }
 
 /**

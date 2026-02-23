@@ -4,7 +4,7 @@ import os
 import pathlib
 from collections import deque
 from pathlib import Path
-from typing import Deque, Iterator, List, Optional, Set, Union
+from typing import Iterator, Optional, Union
 
 import requests
 import structlog
@@ -34,9 +34,9 @@ class EvergreenConnError(Exception):
     pass
 
 
-def _find_evergreen_yaml_candidates() -> List[str]:
+def _find_evergreen_yaml_candidates() -> list[str]:
     # Common for machines in Evergreen
-    candidates: List[Union[str, Path]] = [os.getcwd()]
+    candidates: list[Union[str, Path]] = [os.getcwd()]
 
     cwd = pathlib.Path(os.getcwd())
     # add every path that is the parent of CWD as well
@@ -199,7 +199,7 @@ def get_compile_artifact_urls(
 
     evg_build = evg_api.build_by_id(build_id)
     LOGGER.debug("Found evergreen build.", evergreen_build=f"{EVERGREEN_HOST}/build/{build_id}")
-    evg_tasks: Deque[Union[Task, str]] = deque(evg_build.get_tasks())
+    evg_tasks: deque[Union[Task, str]] = deque(evg_build.get_tasks())
     tasks_wrapper = _filter_successful_tasks(evg_api, evg_tasks)
     LOGGER.info(
         "Found the following multiversion tasks",
@@ -273,7 +273,7 @@ def _get_multiversion_urls(tasks_wrapper: _MultiversionTasks):
 
 
 def _filter_successful_tasks(
-    evg_api: RetryingEvergreenApi, evg_tasks: Deque[Union[Task, str]]
+    evg_api: RetryingEvergreenApi, evg_tasks: deque[Union[Task, str]]
 ) -> _MultiversionTasks:
     """
     We want to filter successful tasks in order by variant then by dependent tasks to find the compile tasks.
@@ -283,7 +283,7 @@ def _filter_successful_tasks(
     compile_task = None
     archive_symbols_task = None
     push_task = None
-    seen_task_ids: Set[str] = set()
+    seen_task_ids: set[str] = set()
     while evg_tasks:
         evg_task = evg_tasks.popleft()
 

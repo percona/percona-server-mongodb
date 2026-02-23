@@ -6,7 +6,7 @@ import itertools
 import os
 import re
 from pathlib import Path
-from typing import Callable, List
+from typing import Callable
 
 from buildscripts.linter import git_base as _git
 
@@ -29,7 +29,7 @@ def get_base_dir():
         return os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 
 
-def get_repos() -> List[Repo]:
+def get_repos() -> list[Repo]:
     """Get a list of Repos to check linters for."""
     return [Repo(get_base_dir())]
 

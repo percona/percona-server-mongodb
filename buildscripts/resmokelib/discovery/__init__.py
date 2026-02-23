@@ -1,7 +1,7 @@
 """Subcommands for test discovery."""
 
 import argparse
-from typing import List, Optional
+from typing import Optional
 
 import yaml
 from pydantic import BaseModel
@@ -25,7 +25,7 @@ class SuiteTestList(BaseModel):
     """Collection of tests belonging to a suite."""
 
     suite_name: str
-    tests: List[str]
+    tests: list[str]
 
 
 class TestDiscoverySubcommand(Subcommand):

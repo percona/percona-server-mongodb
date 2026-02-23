@@ -28,6 +28,7 @@
  */
 
 #include "mongo/db/exec/runtime_planners/classic_runtime_planner/planner_interface.h"
+#include "mongo/db/exec/runtime_planners/planner_types.h"
 
 namespace mongo::classic_runtime_planner {
 

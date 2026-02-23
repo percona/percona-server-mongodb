@@ -58,7 +58,7 @@ import {
     isIxscan,
     planHasStage,
 } from "jstests/libs/query/analyze_plan.js";
-import {checkSbeFullFeatureFlagEnabled, checkSbeRestrictedOrFullyEnabled} from "jstests/libs/query/sbe_util.js";
+import {sbePlanCacheEnabled, checkSbeRestrictedOrFullyEnabled} from "jstests/libs/query/sbe_util.js";
 
 // Flag indicating if index filter commands are running through the query settings interface.
 let isIndexFiltersToQuerySettings = TestData.isIndexFiltersToQuerySettings || false;
@@ -66,7 +66,7 @@ let isIndexFiltersToQuerySettings = TestData.isIndexFiltersToQuerySettings || fa
 const coll = db.jstests_index_filter_commands;
 coll.drop();
 
-const sbePlanCacheEnabled = checkSbeFullFeatureFlagEnabled(db);
+const usingSbePlanCache = sbePlanCacheEnabled(db);
 
 // Setup the data so that plans will not tie given the indices and query
 // below. Tying plans will not be cached, and we need cached shapes in
@@ -408,7 +408,7 @@ if (checkSbeRestrictedOrFullyEnabled(db)) {
     let results = coll.aggregate(pipeline).toArray();
 
     // Check details of the cached plan.
-    if (sbePlanCacheEnabled) {
+    if (usingSbePlanCache) {
         assert.eq(1, results.length, results);
         planAfterSetFilter = planCacheEntryForPipeline(pipeline);
         assert.neq(null, planAfterSetFilter, coll.getPlanCache().list());
@@ -455,7 +455,7 @@ if (checkSbeRestrictedOrFullyEnabled(db)) {
         results = coll.aggregate(pipeline).toArray();
 
         // Check details of the cached plan, when SBE plan cache is enabled.
-        if (sbePlanCacheEnabled) {
+        if (usingSbePlanCache) {
             assert.eq(1, results.length, results);
             planAfterSetFilter = planCacheEntryForPipeline(pipeline);
             assert.neq(null, planAfterSetFilter, coll.getPlanCache().list());
@@ -493,7 +493,7 @@ if (checkSbeRestrictedOrFullyEnabled(db)) {
         assert.eq(1, filters[0].indexes.length, filters);
         assert.eq(indexA1C1, filters[0].indexes[0], filters);
 
-        if (sbePlanCacheEnabled) {
+        if (usingSbePlanCache) {
             let planCacheEntry = planCacheEntryForPipeline(pipeline);
             assert.neq(null, planCacheEntry, coll.getPlanCache().list());
             assert.eq(true, planCacheEntry.indexFilterSet, planCacheEntry);

@@ -155,7 +155,7 @@ public:
     // Illegal to call because the view does not track it's portion of the underlying TaskExecutor's
     // resources.
     void appendConnectionStats(ConnectionPoolStats*) const override;
-    void appendNetworkInterfaceStats(BSONObjBuilder&) const override;
+    void appendNetworkInterfaceStats(BSONObjBuilder&, bool forServerStatus) const override;
     void appendDiagnosticBSON(BSONObjBuilder*) const override;
     void dropConnections(const HostAndPort&, const Status&) override;
     bool hasTasks() override;

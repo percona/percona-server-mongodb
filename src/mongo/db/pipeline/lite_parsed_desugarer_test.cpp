@@ -91,19 +91,19 @@ protected:
         NamespaceString::createNamespaceString_forTest(boost::none, "lite_parsed_desugarer_test");
 
     // Test stage descriptors from the SDK test helpers.
-    extension::sdk::ExtensionAggStageDescriptor _expandToExtAstDescriptor{
+    extension::sdk::ExtensionAggStageDescriptorAdapter _expandToExtAstDescriptor{
         extension::sdk::shared_test_stages::ExpandToExtAstDescriptor::make()};
-    extension::sdk::ExtensionAggStageDescriptor _expandToExtParseDescriptor{
+    extension::sdk::ExtensionAggStageDescriptorAdapter _expandToExtParseDescriptor{
         extension::sdk::shared_test_stages::ExpandToExtParseDescriptor::make()};
-    extension::sdk::ExtensionAggStageDescriptor _topDescriptor{
+    extension::sdk::ExtensionAggStageDescriptorAdapter _topDescriptor{
         extension::sdk::shared_test_stages::TopDescriptor::make()};
-    extension::sdk::ExtensionAggStageDescriptor _expandToHostParseDescriptor{
+    extension::sdk::ExtensionAggStageDescriptorAdapter _expandToHostParseDescriptor{
         extension::sdk::shared_test_stages::ExpandToHostParseDescriptor::make()};
-    extension::sdk::ExtensionAggStageDescriptor _expandToMixedDescriptor{
+    extension::sdk::ExtensionAggStageDescriptorAdapter _expandToMixedDescriptor{
         extension::sdk::shared_test_stages::ExpandToMixedDescriptor::make()};
-    extension::sdk::ExtensionAggStageDescriptor _midADescriptor{
+    extension::sdk::ExtensionAggStageDescriptorAdapter _midADescriptor{
         extension::sdk::shared_test_stages::MidADescriptor::make()};
-    extension::sdk::ExtensionAggStageDescriptor _midBDescriptor{
+    extension::sdk::ExtensionAggStageDescriptorAdapter _midBDescriptor{
         extension::sdk::shared_test_stages::MidBDescriptor::make()};
 };
 

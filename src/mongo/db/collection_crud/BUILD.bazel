@@ -16,6 +16,7 @@ mongo_cc_library(
         "collection_write_path.cpp",
     ],
     deps = [
+        "//src/mongo/db:change_stream_pre_image_id_util",
         "//src/mongo/db:shard_role_api",
         "//src/mongo/db:write_stage_common",
         "//src/mongo/db/op_observer:op_observer_util",
@@ -59,5 +60,22 @@ mongo_cc_unit_test(
         "//src/mongo/db/repl:replmocks",
         "//src/mongo/db/repl:storage_interface_impl",
         "//src/mongo/db/shard_role/shard_catalog:catalog_control",
+    ],
+)
+
+mongo_cc_unit_test(
+    name = "collection_crud_test",
+    srcs = [
+        "collection_write_path_test.cpp",
+    ],
+    tags = [
+        "mongo_unittest_third_group",
+        "server-collection-write-path",
+    ],
+    deps = [
+        "collection_crud",
+        "//src/mongo/db:change_stream_options_manager",
+        "//src/mongo/db:change_stream_pre_images_collection_manager",
+        "//src/mongo/db/shard_role/shard_catalog:catalog_test_fixture",
     ],
 )

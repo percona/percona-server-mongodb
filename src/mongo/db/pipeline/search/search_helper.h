@@ -238,7 +238,7 @@ void promoteStoredSourceOrAddIdLookup(
     boost::intrusive_ptr<ExpressionContext> expCtx,
     std::list<boost::intrusive_ptr<DocumentSource>>& desugaredPipeline,
     bool isStoredSource,
-    long long limit,
+    boost::optional<long long> limit,
     boost::optional<SearchQueryViewSpec> view);
 
 /**

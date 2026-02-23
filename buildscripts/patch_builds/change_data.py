@@ -2,14 +2,14 @@
 
 import os
 from itertools import chain
-from typing import Any, Dict, Iterable, List, Optional, Set, Tuple
+from typing import Any, Iterable, Optional
 
 import structlog
 from git import DiffIndex, Repo
 
 LOGGER = structlog.get_logger(__name__)
 
-RevisionMap = Dict[str, str]
+RevisionMap = dict[str, str]
 
 
 def _get_id_from_repo(repo: Repo) -> str:
@@ -24,7 +24,7 @@ def _get_id_from_repo(repo: Repo) -> str:
     return os.path.basename(repo.working_dir)
 
 
-def generate_revision_map(repos: List[Repo], revisions_data: Dict[str, str]) -> RevisionMap:
+def generate_revision_map(repos: list[Repo], revisions_data: dict[str, str]) -> RevisionMap:
     """
     Generate a revision map for the given repositories using the revisions in the given file.
 
@@ -49,7 +49,7 @@ def _paths_for_iter(diff, iter_type):
     return a_path_changes.union(b_path_changes)
 
 
-def _modified_files_for_diff(diff: DiffIndex, log: Any) -> Set:
+def _modified_files_for_diff(diff: DiffIndex, log: Any) -> set:
     """
     Get the set of files modified in the given git diff.
 
@@ -72,7 +72,7 @@ def _modified_files_for_diff(diff: DiffIndex, log: Any) -> Set:
     return modified_files.union(added_files).union(renamed_files).union(deleted_files)
 
 
-def find_changed_files(repo: Repo, revision_map: Optional[RevisionMap] = None) -> Set[str]:
+def find_changed_files(repo: Repo, revision_map: Optional[RevisionMap] = None) -> set[str]:
     """
     Find files that were new or added to the repository between commits.
 
@@ -104,7 +104,7 @@ def find_changed_files(repo: Repo, revision_map: Optional[RevisionMap] = None) -
 
 def find_changed_files_in_repos(
     repos: Iterable[Repo], revision_map: Optional[RevisionMap] = None
-) -> Set[str]:
+) -> set[str]:
     """
     Find the changed files.
 
@@ -118,8 +118,8 @@ def find_changed_files_in_repos(
 
 
 def find_modified_lines_for_files(
-    repo: Repo, changed_files: List[str], revision_map: Optional[RevisionMap] = None
-) -> Dict[str, List[Tuple[int, str]]]:
+    repo: Repo, changed_files: list[str], revision_map: Optional[RevisionMap] = None
+) -> dict[str, list[tuple[int, str]]]:
     """
     For each changed file, determine which lines were modified.
 
@@ -164,8 +164,8 @@ def find_modified_lines_for_files(
 
 
 def find_modified_lines_for_files_in_repos(
-    repos: Iterable[Repo], changed_files: List[str], revision_map: Optional[RevisionMap] = None
-) -> Dict[str, List[Tuple[int, str]]]:
+    repos: Iterable[Repo], changed_files: list[str], revision_map: Optional[RevisionMap] = None
+) -> dict[str, list[tuple[int, str]]]:
     """
     Find the modified lines in files with changes.
 

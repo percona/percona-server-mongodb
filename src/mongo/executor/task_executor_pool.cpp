@@ -131,10 +131,11 @@ void TaskExecutorPool::appendConnectionStats(ConnectionPoolStats* stats) const {
     }
 }
 
-void TaskExecutorPool::appendNetworkInterfaceStats(BSONObjBuilder& bob) const {
-    _fixedExecutor->appendNetworkInterfaceStats(bob);
+void TaskExecutorPool::appendNetworkInterfaceStats(BSONObjBuilder& bob,
+                                                   bool forServerStatus) const {
+    _fixedExecutor->appendNetworkInterfaceStats(bob, forServerStatus);
     for (auto&& executor : _executors) {
-        executor->appendNetworkInterfaceStats(bob);
+        executor->appendNetworkInterfaceStats(bob, forServerStatus);
     }
 }
 

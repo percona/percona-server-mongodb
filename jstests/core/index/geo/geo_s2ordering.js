@@ -6,6 +6,8 @@
 //   assumes_balancer_off,
 //   operations_longer_than_stepdown_interval_in_txns,
 // ]
+import {add2dsphereVersionIfNeededForSpec} from "jstests/libs/query/geo_index_version_helpers.js";
+
 const coll = db.geo_s2ordering;
 coll.drop();
 
@@ -31,7 +33,7 @@ function makepoints(needle) {
 }
 
 function runTest(index) {
-    assert.commandWorked(coll.createIndex(index));
+    assert.commandWorked(coll.createIndex(index, add2dsphereVersionIfNeededForSpec(index)));
     const cursor = coll.find({nongeo: needle, geo: {$within: {$centerSphere: [[0, 0], Math.PI / 180.0]}}});
     const stats = cursor.explain("executionStats").executionStats;
     assert.commandWorked(coll.dropIndex(index));

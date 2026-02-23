@@ -114,7 +114,7 @@ public:
     /**
      * Specifies whether the provided exec agg stage was allocated by the host.
      *
-     * Since ExtensionExecAggStage and HostExecAggStageAdapter implement the same
+     * Since ExtensionExecAggStageAdapter and HostExecAggStageAdapter implement the same
      * vtable, this function is necessary for differentiating between host- and extension-allocated
      * exec agg stages.
      *
@@ -200,15 +200,15 @@ private:
         });
     }
 
-    static constexpr ::MongoExtensionExecAggStageVTable VTABLE{.destroy = &_hostDestroy,
-                                                               .get_next = &_hostGetNext,
-                                                               .get_name = &_hostGetName,
-                                                               .create_metrics =
-                                                                   &_hostCreateMetrics,
-                                                               .set_source = &_hostSetSource,
-                                                               .open = &_hostOpen,
-                                                               .reopen = &_hostReopen,
-                                                               .close = &_hostClose};
+    static constexpr ::MongoExtensionExecAggStageVTable VTABLE = {.destroy = &_hostDestroy,
+                                                                  .get_next = &_hostGetNext,
+                                                                  .get_name = &_hostGetName,
+                                                                  .create_metrics =
+                                                                      &_hostCreateMetrics,
+                                                                  .set_source = &_hostSetSource,
+                                                                  .open = &_hostOpen,
+                                                                  .reopen = &_hostReopen,
+                                                                  .close = &_hostClose};
 
     std::unique_ptr<host::ExecAggStage> _execAggStage;
     CachedGetNextResult _lastGetNextResult;

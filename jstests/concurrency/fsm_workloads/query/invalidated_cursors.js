@@ -11,6 +11,8 @@
  *   state_functions_share_cursor,
  *   assumes_balancer_off,
  *   requires_getmore,
+ *   # TODO: SERVER-114502 Investigate query fsm tests leaking cursors.
+ *   can_leak_idle_cursors,
  * ]
  */
 

@@ -78,35 +78,36 @@ TEST(HostParseNodeTest, GetSpec) {
     ASSERT_TRUE(parseNode.getBsonSpec().binaryEqual(spec));
 
     // Get BSON spec through handle.
-    auto noOpParseNode = new host::HostAggStageParseNode(NoOpHostParseNode::make(spec));
+    auto noOpParseNode = new host::HostAggStageParseNodeAdapter(NoOpHostParseNode::make(spec));
     auto handle = AggStageParseNodeHandle{noOpParseNode};
-    ASSERT_TRUE(
-        static_cast<host::HostAggStageParseNode*>(handle.get())->getBsonSpec().binaryEqual(spec));
+    ASSERT_TRUE(static_cast<host::HostAggStageParseNodeAdapter*>(handle.get())
+                    ->getBsonSpec()
+                    .binaryEqual(spec));
 }
 
 TEST(HostParseNodeTest, IsHostAllocated) {
-    auto noOpParseNode = new host::HostAggStageParseNode(NoOpHostParseNode::make({}));
+    auto noOpParseNode = new host::HostAggStageParseNodeAdapter(NoOpHostParseNode::make({}));
     auto handle = AggStageParseNodeHandle{noOpParseNode};
 
-    ASSERT_TRUE(host::HostAggStageParseNode::isHostAllocated(*handle.get()));
+    ASSERT_TRUE(host::HostAggStageParseNodeAdapter::isHostAllocated(*handle.get()));
 }
 
 TEST(HostParseNodeTest, IsNotHostAllocated) {
     auto noOpExtensionParseNode =
-        new sdk::ExtensionAggStageParseNode(NoOpExtensionParseNode::make());
+        new sdk::ExtensionAggStageParseNodeAdapter(NoOpExtensionParseNode::make());
     auto handle = AggStageParseNodeHandle{noOpExtensionParseNode};
 
-    ASSERT_FALSE(host::HostAggStageParseNode::isHostAllocated(*handle.get()));
+    ASSERT_FALSE(host::HostAggStageParseNodeAdapter::isHostAllocated(*handle.get()));
 }
 
 DEATH_TEST(HostParseNodeVTableTestDeathTest, InvalidParseNodeVTableFailsGetName, "11217600") {
-    auto vtable = host::HostAggStageParseNode::getVTable();
+    auto vtable = host::HostAggStageParseNodeAdapter::getVTable();
     vtable.get_name = nullptr;
     AggStageParseNodeAPI::assertVTableConstraints(vtable);
 };
 
 DEATH_TEST(HostParseNodeVTableTestDeathTest, InvalidParseNodeVTableFailsGetQueryShape, "10977600") {
-    auto vtable = host::HostAggStageParseNode::getVTable();
+    auto vtable = host::HostAggStageParseNodeAdapter::getVTable();
     vtable.get_query_shape = nullptr;
     AggStageParseNodeAPI::assertVTableConstraints(vtable);
 };
@@ -114,19 +115,19 @@ DEATH_TEST(HostParseNodeVTableTestDeathTest, InvalidParseNodeVTableFailsGetQuery
 DEATH_TEST(HostParseNodeVTableTestDeathTest,
            InvalidParseNodeVTableFailsGetExpandedSize,
            "11113800") {
-    auto vtable = host::HostAggStageParseNode::getVTable();
+    auto vtable = host::HostAggStageParseNodeAdapter::getVTable();
     vtable.get_expanded_size = nullptr;
     AggStageParseNodeAPI::assertVTableConstraints(vtable);
 };
 
 DEATH_TEST(HostParseNodeVTableTestDeathTest, InvalidParseNodeVTableFailsExpand, "10977601") {
-    auto vtable = host::HostAggStageParseNode::getVTable();
+    auto vtable = host::HostAggStageParseNodeAdapter::getVTable();
     vtable.expand = nullptr;
     AggStageParseNodeAPI::assertVTableConstraints(vtable);
 };
 
 DEATH_TEST(HostParseNodeTestDeathTest, HostGetExpandedSizeUnimplemented, "11113803") {
-    auto noOpParseNode = new host::HostAggStageParseNode(NoOpHostParseNode::make({}));
+    auto noOpParseNode = new host::HostAggStageParseNodeAdapter(NoOpHostParseNode::make({}));
     auto handle = AggStageParseNodeHandle{noOpParseNode};
 
     ASSERT_EQ(handle.get()->vtable->get_expanded_size(noOpParseNode), 0);
@@ -138,7 +139,7 @@ DEATH_TEST(HostParseNodeTestDeathTest, HostGetExpandedSizeUnimplemented, "111138
 }
 
 DEATH_TEST(HostParseNodeTestDeathTest, HostExpandUnimplemented, "10977801") {
-    auto noOpParseNode = new host::HostAggStageParseNode(NoOpHostParseNode::make({}));
+    auto noOpParseNode = new host::HostAggStageParseNodeAdapter(NoOpHostParseNode::make({}));
     auto handle = AggStageParseNodeHandle{noOpParseNode};
 
     ::MongoExtensionExpandedArray expanded = {};
@@ -148,15 +149,15 @@ DEATH_TEST(HostParseNodeTestDeathTest, HostExpandUnimplemented, "10977801") {
 TEST(HostParseNodeCloneTest, CloneHostAllocatedParseNodePreservesSpec) {
     auto spec = BSON("$match" << BSON("x" << 1));
 
-    auto parseNode = new host::HostAggStageParseNode(NoOpHostParseNode::make(spec));
+    auto parseNode = new host::HostAggStageParseNodeAdapter(NoOpHostParseNode::make(spec));
     auto handle = AggStageParseNodeHandle{parseNode};
 
     // Clone the parse node.
     auto clonedHandle = handle->clone();
 
     // Verify the clone has the same spec and name.
-    ASSERT_TRUE(host::HostAggStageParseNode::isHostAllocated(*clonedHandle.get()));
-    ASSERT_TRUE(static_cast<host::HostAggStageParseNode*>(clonedHandle.get())
+    ASSERT_TRUE(host::HostAggStageParseNodeAdapter::isHostAllocated(*clonedHandle.get()));
+    ASSERT_TRUE(static_cast<host::HostAggStageParseNodeAdapter*>(clonedHandle.get())
                     ->getBsonSpec()
                     .binaryEqual(spec));
     ASSERT_EQ(handle->getName(), clonedHandle->getName());
@@ -165,7 +166,7 @@ TEST(HostParseNodeCloneTest, CloneHostAllocatedParseNodePreservesSpec) {
 TEST(HostParseNodeCloneTest, CloneHostAllocatedParseNodeIsIndependent) {
     auto spec = BSON("$skip" << 5);
 
-    auto parseNode = new host::HostAggStageParseNode(NoOpHostParseNode::make(spec));
+    auto parseNode = new host::HostAggStageParseNodeAdapter(NoOpHostParseNode::make(spec));
     auto handle = AggStageParseNodeHandle{parseNode};
 
     // Clone the parse node.
@@ -184,7 +185,7 @@ TEST(HostParseNodeCloneTest, ClonedParseNodeSurvivesOriginalDestruction) {
     AggStageParseNodeHandle clonedHandle{nullptr};
 
     {
-        auto parseNode = new host::HostAggStageParseNode(NoOpHostParseNode::make(spec));
+        auto parseNode = new host::HostAggStageParseNodeAdapter(NoOpHostParseNode::make(spec));
         auto handle = AggStageParseNodeHandle{parseNode};
 
         // Clone before original goes out of scope.
@@ -193,8 +194,8 @@ TEST(HostParseNodeCloneTest, ClonedParseNodeSurvivesOriginalDestruction) {
 
     // Cloned handle should still be valid and contain the correct spec.
     ASSERT_TRUE(clonedHandle.isValid());
-    ASSERT_TRUE(host::HostAggStageParseNode::isHostAllocated(*clonedHandle.get()));
-    ASSERT_TRUE(static_cast<host::HostAggStageParseNode*>(clonedHandle.get())
+    ASSERT_TRUE(host::HostAggStageParseNodeAdapter::isHostAllocated(*clonedHandle.get()));
+    ASSERT_TRUE(static_cast<host::HostAggStageParseNodeAdapter*>(clonedHandle.get())
                     ->getBsonSpec()
                     .binaryEqual(spec));
 }
@@ -202,7 +203,7 @@ TEST(HostParseNodeCloneTest, ClonedParseNodeSurvivesOriginalDestruction) {
 TEST(HostParseNodeCloneTest, MultipleCloneAreIndependent) {
     auto spec = BSON("$match" << BSON("x" << 1));
 
-    auto parseNode = new host::HostAggStageParseNode(NoOpHostParseNode::make(spec));
+    auto parseNode = new host::HostAggStageParseNodeAdapter(NoOpHostParseNode::make(spec));
     auto handle = AggStageParseNodeHandle{parseNode};
 
     // Create multiple clones.

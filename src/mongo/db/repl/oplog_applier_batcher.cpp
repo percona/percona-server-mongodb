@@ -38,7 +38,7 @@
 #include "mongo/bson/bsonelement.h"
 #include "mongo/bson/bsonobj.h"
 #include "mongo/db/admission/execution_control/execution_admission_context.h"
-#include "mongo/db/change_stream_pre_image_util.h"
+#include "mongo/db/change_stream_pre_image_id_util.h"
 #include "mongo/db/client.h"
 #include "mongo/db/repl/apply_ops_gen.h"
 #include "mongo/db/repl/oplog.h"
@@ -330,7 +330,7 @@ OplogApplierBatcher::BatchAction OplogApplierBatcher::_getBatchActionForEntry(
             auto truncateRangeEntry = TruncateRangeOplogEntry::parse(cmd);
             const auto& maxRecordId = truncateRangeEntry.getMaxRecordId();
             auto maxTruncateTimestamp =
-                change_stream_pre_image_util::getPreImageTimestamp(maxRecordId);
+                change_stream_pre_image_id_util::getPreImageTimestamp(maxRecordId);
             // Entries in the current batch can be applied concurrently as the truncate. Make sure
             // applying the current batch does not insert preimages into the truncate range.
             return maxTruncateTimestamp >= firstEntryInBatch.getTimestamp()

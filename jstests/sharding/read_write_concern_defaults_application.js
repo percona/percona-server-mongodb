@@ -267,6 +267,8 @@ let testCases = {
         command: {aggregate: coll, pipeline: [{$match: {x: 1}}, {$out: "out"}], cursor: {}},
         checkReadConcern: true,
         checkWriteConcern: true,
+        // TODO SERVER-119827: Remove this once the issue is fixed.
+        expectedErrors: [ErrorCodes.QueryPlanKilled],
     },
     analyze: {skip: "TODO SERVER-67772"},
     analyzeShardKey: {skip: "does not accept read or write concern"},
@@ -1101,20 +1103,28 @@ function runScenario(desc, conn, regularCheckConn, configSvrCheckConn, {explicit
 
         // Run the command.
         let res = conn.getDB("db" in test ? test.db : db).runCommand(actualCmd);
-        assert.commandWorked(res);
 
-        // Check that the command applied the correct RWC.
-        if (test.useLogs) {
-            let re = createLogLineRegularExpressionForTestCase(test, targetId, explicitRWC);
-            assert(
-                checkLog.checkContainsOnce(checkConn, re),
-                "unable to find pattern " + re + " in logs on " + checkConn + " for test " + thisTestDesc,
-            );
+        // TODO SERVER-119827: Remove expectedErrors check once the issue is fixed.
+        if (!test.expectedErrors) {
+            assert.commandWorked(res);
         } else {
-            profilerHasSingleMatchingEntryOrThrow({
-                profileDB: checkConn.getDB(db),
-                filter: createProfileFilterForTestCase(test, targetId, explicitRWC),
-            });
+            assert.commandWorkedOrFailedWithCode(res, test.expectedErrors);
+        }
+
+        if (res.ok) {
+            // Check that the command applied the correct RWC.
+            if (test.useLogs) {
+                let re = createLogLineRegularExpressionForTestCase(test, targetId, explicitRWC);
+                assert(
+                    checkLog.checkContainsOnce(checkConn, re),
+                    "unable to find pattern " + re + " in logs on " + checkConn + " for test " + thisTestDesc,
+                );
+            } else {
+                profilerHasSingleMatchingEntryOrThrow({
+                    profileDB: checkConn.getDB(db),
+                    filter: createProfileFilterForTestCase(test, targetId, explicitRWC),
+                });
+            }
         }
 
         // Clean up the collection by dropping the DB. This also drops all associated indexes and

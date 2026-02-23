@@ -11,7 +11,7 @@ import {
 } from "jstests/libs/query/analyze_plan.js";
 import {getCBRConfig, restoreCBRConfig} from "jstests/libs/query/cbr_utils.js";
 
-import {checkSbeFullFeatureFlagEnabled, checkSbeFullyEnabled} from "jstests/libs/query/sbe_util.js";
+import {checkSbeFullyEnabled} from "jstests/libs/query/sbe_util.js";
 
 // SBE plans can get cached in the classic plan cache, and some metrics are different for SBE plans
 // in the classic cache vs classic plans in the classic cache.

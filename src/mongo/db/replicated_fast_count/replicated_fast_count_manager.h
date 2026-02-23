@@ -35,7 +35,7 @@
 #include "mongo/db/operation_context.h"
 #include "mongo/db/record_id.h"
 #include "mongo/db/replicated_fast_count/replicated_fast_count_committer.h"
-#include "mongo/db/replicated_fast_count/replicated_fast_count_size_and_info.h"
+#include "mongo/db/replicated_fast_count/replicated_fast_size_count.h"
 #include "mongo/db/shard_role/shard_catalog/collection.h"
 #include "mongo/db/shard_role/shard_role.h"
 #include "mongo/db/storage/snapshot.h"
@@ -51,8 +51,44 @@
 
 namespace mongo {
 
+/**
+ * Maintains an in-memory cache of the size and count of all collections.
+ *
+ * Terminology:
+ * The term "fast count" is historical, but should be equivalent to "fast size"
+ * and "fast sizecount" to refer to a cached, and therefore "fast", size or count
+ * value for a collection.
+ *
+ *
+ * This cache is intended to be accurate, and helps the server avoid expensive
+ * collection scans to compute these values. The validate command can check and repair
+ * the fast count and size with various flags to the command, like --enforceFastCount.
+ *
+ * Backing the in-memory cache is a pair of collections used for recovery scenarios.
+ *
+ * This class and its backing collections are a singleton that creates its internal
+ * collection(s) once, the first time a mongod creates its data files. It is assumed
+ * these backing collections exist from then on.
+ *
+ * The backing collections are expected to exist before starting up the ReplicatedFastCountManager
+ * background thread.
+ *
+ * This class is thread-safe, and synchronizes access to the in-memory SizeCount cache,
+ * i.e. _metadata.
+ *
+ * The write path should generally not depend directly on this class, because it relies on
+ * the collection write path to persist fast SizeCounts. Instead, operations should
+ * interact with this class through UncommittedFastCountChange.
+ */
 class MONGO_MOD_PUBLIC ReplicatedFastCountManager {
+    struct StoredSizeCount {
+        CollectionSizeCount sizeCount;
+        bool dirty{false};  // Indicates if flush is needed.
+    };
+
 public:
+    static ReplicatedFastCountManager& get(ServiceContext* svcCtx);
+
     ReplicatedFastCountManager() {
         initializeFastCountCommitFn();
     }
@@ -66,10 +102,8 @@ public:
      */
     void initializeFastCountCommitFn();
 
-    static ReplicatedFastCountManager& get(ServiceContext* svcCtx);
-
-    inline static StringData kCountKey = "c"_sd;
     inline static StringData kSizeKey = "s"_sd;
+    inline static StringData kCountKey = "c"_sd;
 
     /**
      * Signals fastcount thread to start.
@@ -93,54 +127,95 @@ public:
      */
     CollectionSizeCount find(const UUID& uuid) const;
 
-private:
-    void _startBackgroundThread(ServiceContext* svcCtx);
-    void _runBackgroundThreadOnTimer(OperationContext* opCtx);
-    void _runIteration(OperationContext* opCtx);
-
-    void _createMetadataCollection(OperationContext* opCtx);
-
-    void _writeMetadata(OperationContext* opCtx,
-                        const CollectionPtr& coll,
-                        const UUID& uuid,
-                        const CollectionSizeCount& sizeCount,
-                        RecordId recordId);
-
-    void _updateMetadata(OperationContext* opCtx,
-                         const CollectionPtr& coll,
-                         const Snapshotted<BSONObj>& doc,
-                         const UUID& uuid,
-                         const CollectionSizeCount& sizeCount);
-    void _insertMetadata(OperationContext* opCtx,
-                         const CollectionPtr& coll,
-                         const UUID& uuid,
-                         const CollectionSizeCount& sizeCount);
+    /**
+     * Signals background thread to perform a flush.
+     * This flush involves snapshotting and writing dirty in-memory SizeCounts
+     * to the internal fastcount collection on disk.
+     */
+    void flushAsync(OperationContext* opCtx);
 
     /**
-     * Formats and returns the document to write to the metadata collection.
+     * Flushes data synchronously on the caller's thread. Calling thread must be able
+     * to take a MODE_IX lock.
      */
-    BSONObj _getDocForWrite(const UUID& uuid, const CollectionSizeCount& sizeCount);
+    void flushSync_ForTest(OperationContext* opCtx);
 
-    // Acquire or create if missing, the kSystemReplicatedFastCountStore collection.
-    CollectionOrViewAcquisition _acquireFastCountCollection(OperationContext* opCtx);
+    /**
+     * Disables periodic background writes of metadata for testing purposes. Must be called before
+     * startup().
+     */
+    void disablePeriodicWrites_ForTest();
 
-    RecordId _keyForUUID(const UUID& uuid);
-    UUID _UUIDForKey(RecordId key);
+private:
+    void _snapshotAndFlush(OperationContext* opCtx);
 
-    AtomicWord<bool> _inShutdown = false;
-    StringData _threadName = "sizeCount"_sd;
+    /**
+     * Return a copy of a subset of _metadata, only including the dirty entries. Clears the dirty
+     * flags for all currently dirty entries.
+     */
+    absl::flat_hash_map<UUID, StoredSizeCount> _getSnapshotOfDirtyMetadata();
 
-    mutable stdx::mutex _mutex;
-    struct StoredSizeCount {
-        CollectionSizeCount sizeCount;
-        bool dirty{false};  // indicate if write is needed
-        // boost::optional<Timestamp> lastUpdated;
-    };
+    /**
+     * Write out dirtyMetadata to fastCountColl.
+     */
+    void _doFlush(OperationContext* opCtx,
+                  const CollectionPtr& fastCountColl,
+                  const absl::flat_hash_map<UUID, StoredSizeCount>& dirtyMetadata);
 
-    // Map of collection UUID to the last committed size and count.
-    absl::flat_hash_map<UUID, StoredSizeCount> _metadata;
+    void _startBackgroundThread(ServiceContext* svcCtx);
+    void _runBackgroundThreadOnTimer(OperationContext* opCtx);
 
+    /**
+     * Write one collection's sizeCount to disk.
+     */
+    void _writeOneMetadata(OperationContext* opCtx,
+                           const CollectionPtr& fastCountColl,
+                           const UUID& uuid,
+                           const CollectionSizeCount& sizeCount,
+                           RecordId recordId);
+
+    void _updateOneMetadata(OperationContext* opCtx,
+                            const CollectionPtr& fastCountColl,
+                            const Snapshotted<BSONObj>& doc,
+                            const UUID& uuid,
+                            RecordId recordId,
+                            const CollectionSizeCount& sizeCount);
+    void _insertOneMetadata(OperationContext* opCtx,
+                            const CollectionPtr& fastCountColl,
+                            const UUID& uuid,
+                            const CollectionSizeCount& sizeCount);
+
+    /**
+     * Acquire the fastcount collection that underpins this class.
+     * Returns boost::none if it doesn't exist.
+     */
+    boost::optional<CollectionOrViewAcquisition> _acquireFastCountCollectionForWrite(
+        OperationContext* opCtx);
+
+    /**
+     * Formats and returns the document to write to the fastcount collection.
+     */
+    BSONObj _getDocForWrite(const UUID& uuid, const CollectionSizeCount& sizeCount) const;
+
+    /**
+     * Generates a key (RecordId) into the fastcount collection given a user
+     * collection uuid.
+     */
+    RecordId _keyForUUID(const UUID& uuid) const;
+    UUID _UUIDForKey(RecordId key) const;
+
+    StringData _threadName = "replicatedSizeCount"_sd;
     stdx::thread _backgroundThread;
+    bool _writeMetadataPeriodically = true;
+    AtomicWord<bool> _isDisabled = false;
+    stdx::condition_variable _backgroundThreadReadyForFlush;
+
+    /**
+     * In-memory cache of committed fast sizes & counts since last checkpoint.
+     * Implemented as a map of collection UUID to the last committed size and count.
+     */
+    absl::flat_hash_map<UUID, StoredSizeCount> _metadata;
+    mutable stdx::mutex _metadataMutex;
 };
 
 }  // namespace mongo

@@ -4,7 +4,6 @@
 import datetime
 import logging
 import unittest
-from typing import Dict, List
 
 import mock
 
@@ -373,7 +372,7 @@ class TestBenchmarkThreadsReport(GenerateAndCheckPerfResultsFixture):
 
 class TestCheckPerfResultTestCase(unittest.TestCase):
     def test_all_metrics_pass(self):
-        thresholds_to_check: List[cbr.IndividualMetricThreshold] = [
+        thresholds_to_check: list[cbr.IndividualMetricThreshold] = [
             cbr.IndividualMetricThreshold(
                 metric_name="latency",
                 thread_level=1,
@@ -383,7 +382,7 @@ class TestCheckPerfResultTestCase(unittest.TestCase):
                 threshold_limit=20,
             )
         ]
-        reported_metrics: Dict[cbr.ReportedMetric, CedarMetric] = {
+        reported_metrics: dict[cbr.ReportedMetric, CedarMetric] = {
             cbr.ReportedMetric(
                 test_name="fake-test", thread_level=1, metric_name="latency"
             ): CedarMetric(name="latency", type="LATENCY", value=1)
@@ -402,7 +401,7 @@ class TestCheckPerfResultTestCase(unittest.TestCase):
         test_case.run_test()
 
     def test_a_metric_fails(self):
-        thresholds_to_check: List[cbr.IndividualMetricThreshold] = [
+        thresholds_to_check: list[cbr.IndividualMetricThreshold] = [
             cbr.IndividualMetricThreshold(
                 metric_name="latency",
                 thread_level=1,
@@ -412,7 +411,7 @@ class TestCheckPerfResultTestCase(unittest.TestCase):
                 threshold_limit=20,
             )
         ]
-        reported_metrics: Dict[cbr.ReportedMetric, CedarMetric] = {
+        reported_metrics: dict[cbr.ReportedMetric, CedarMetric] = {
             cbr.ReportedMetric(
                 test_name="fake-test", thread_level=1, metric_name="latency"
             ): CedarMetric(name="latency", type="LATENCY", value=100)
@@ -457,7 +456,7 @@ class TestCheckPerfResultTestCase(unittest.TestCase):
         mock_repo.get_pull.return_value = mock_pr
         mock_github.get_repo.return_value = mock_repo
 
-        thresholds_to_check: List[cbr.IndividualMetricThreshold] = [
+        thresholds_to_check: list[cbr.IndividualMetricThreshold] = [
             cbr.IndividualMetricThreshold(
                 metric_name="latency",
                 thread_level=1,
@@ -467,7 +466,7 @@ class TestCheckPerfResultTestCase(unittest.TestCase):
                 threshold_limit=20,
             )
         ]
-        reported_metrics: Dict[cbr.ReportedMetric, CedarMetric] = {
+        reported_metrics: dict[cbr.ReportedMetric, CedarMetric] = {
             cbr.ReportedMetric(
                 test_name="fake-test", thread_level=1, metric_name="latency"
             ): CedarMetric(name="latency", type="LATENCY", value=100)
@@ -513,7 +512,7 @@ class TestCheckPerfResultTestCase(unittest.TestCase):
         mock_repo.get_pull.return_value = mock_pr
         mock_github.get_repo.return_value = mock_repo
 
-        thresholds_to_check: List[cbr.IndividualMetricThreshold] = [
+        thresholds_to_check: list[cbr.IndividualMetricThreshold] = [
             cbr.IndividualMetricThreshold(
                 metric_name="latency",
                 thread_level=1,
@@ -523,7 +522,7 @@ class TestCheckPerfResultTestCase(unittest.TestCase):
                 threshold_limit=20,
             )
         ]
-        reported_metrics: Dict[cbr.ReportedMetric, CedarMetric] = {
+        reported_metrics: dict[cbr.ReportedMetric, CedarMetric] = {
             cbr.ReportedMetric(
                 test_name="fake-test", thread_level=1, metric_name="latency"
             ): CedarMetric(name="latency", type="LATENCY", value=100)
@@ -569,7 +568,7 @@ class TestCheckPerfResultTestCase(unittest.TestCase):
         mock_repo.get_pull.return_value = mock_pr
         mock_github.get_repo.return_value = mock_repo
 
-        thresholds_to_check: List[cbr.IndividualMetricThreshold] = [
+        thresholds_to_check: list[cbr.IndividualMetricThreshold] = [
             cbr.IndividualMetricThreshold(
                 metric_name="latency",
                 thread_level=1,
@@ -579,7 +578,7 @@ class TestCheckPerfResultTestCase(unittest.TestCase):
                 threshold_limit=20,
             )
         ]
-        reported_metrics: Dict[cbr.ReportedMetric, CedarMetric] = {
+        reported_metrics: dict[cbr.ReportedMetric, CedarMetric] = {
             cbr.ReportedMetric(
                 test_name="fake-test", thread_level=1, metric_name="latency"
             ): CedarMetric(name="latency", type="LATENCY", value=100)
@@ -625,7 +624,7 @@ class TestCheckPerfResultTestCase(unittest.TestCase):
         mock_repo.get_pull.return_value = mock_pr
         mock_github.get_repo.return_value = mock_repo
 
-        thresholds_to_check: List[cbr.IndividualMetricThreshold] = [
+        thresholds_to_check: list[cbr.IndividualMetricThreshold] = [
             cbr.IndividualMetricThreshold(
                 metric_name="latency",
                 thread_level=1,
@@ -635,7 +634,7 @@ class TestCheckPerfResultTestCase(unittest.TestCase):
                 threshold_limit=20,
             )
         ]
-        reported_metrics: Dict[cbr.ReportedMetric, CedarMetric] = {
+        reported_metrics: dict[cbr.ReportedMetric, CedarMetric] = {
             cbr.ReportedMetric(
                 test_name="fake-test", thread_level=1, metric_name="latency"
             ): CedarMetric(name="latency", type="LATENCY", value=100)
@@ -682,7 +681,7 @@ class TestCheckPerfResultTestCase(unittest.TestCase):
         mock_repo.get_pull.return_value = mock_pr
         mock_github.get_repo.return_value = mock_repo
 
-        thresholds_to_check: List[cbr.IndividualMetricThreshold] = [
+        thresholds_to_check: list[cbr.IndividualMetricThreshold] = [
             cbr.IndividualMetricThreshold(
                 metric_name="latency",
                 thread_level=1,
@@ -692,7 +691,7 @@ class TestCheckPerfResultTestCase(unittest.TestCase):
                 threshold_limit=20,
             )
         ]
-        reported_metrics: Dict[cbr.ReportedMetric, CedarMetric] = {
+        reported_metrics: dict[cbr.ReportedMetric, CedarMetric] = {
             cbr.ReportedMetric(
                 test_name="fake-test", thread_level=1, metric_name="latency"
             ): CedarMetric(name="latency", type="LATENCY", value=100)
@@ -723,7 +722,7 @@ class TestCheckPerfResultTestCase(unittest.TestCase):
             "github_token_mongo": "fake_token",
         }.get(key, default)
 
-        thresholds_to_check: List[cbr.IndividualMetricThreshold] = [
+        thresholds_to_check: list[cbr.IndividualMetricThreshold] = [
             cbr.IndividualMetricThreshold(
                 metric_name="latency",
                 thread_level=1,
@@ -733,7 +732,7 @@ class TestCheckPerfResultTestCase(unittest.TestCase):
                 threshold_limit=20,
             )
         ]
-        reported_metrics: Dict[cbr.ReportedMetric, CedarMetric] = {
+        reported_metrics: dict[cbr.ReportedMetric, CedarMetric] = {
             cbr.ReportedMetric(
                 test_name="fake-test", thread_level=1, metric_name="latency"
             ): CedarMetric(name="latency", type="LATENCY", value=100)
@@ -763,7 +762,7 @@ class TestCheckPerfResultTestCase(unittest.TestCase):
             "github_token_mongo": "fake_token",
         }.get(key, default)
 
-        thresholds_to_check: List[cbr.IndividualMetricThreshold] = [
+        thresholds_to_check: list[cbr.IndividualMetricThreshold] = [
             cbr.IndividualMetricThreshold(
                 metric_name="latency",
                 thread_level=1,
@@ -773,7 +772,7 @@ class TestCheckPerfResultTestCase(unittest.TestCase):
                 threshold_limit=20,
             )
         ]
-        reported_metrics: Dict[cbr.ReportedMetric, CedarMetric] = {
+        reported_metrics: dict[cbr.ReportedMetric, CedarMetric] = {
             cbr.ReportedMetric(
                 test_name="fake-test", thread_level=1, metric_name="latency"
             ): CedarMetric(name="latency", type="LATENCY", value=100)
@@ -793,7 +792,7 @@ class TestCheckPerfResultTestCase(unittest.TestCase):
             test_case.run_test()
 
     def test_metric_doesnt_exist(self):
-        thresholds_to_check: List[cbr.IndividualMetricThreshold] = [
+        thresholds_to_check: list[cbr.IndividualMetricThreshold] = [
             cbr.IndividualMetricThreshold(
                 metric_name="latency",
                 thread_level=1,
@@ -803,7 +802,7 @@ class TestCheckPerfResultTestCase(unittest.TestCase):
                 threshold_limit=20,
             )
         ]
-        reported_metrics: Dict[cbr.ReportedMetric, CedarMetric] = {
+        reported_metrics: dict[cbr.ReportedMetric, CedarMetric] = {
             cbr.ReportedMetric(
                 test_name="fake-test", thread_level=1, metric_name="instructions"
             ): CedarMetric(name="instructions", type="LATENCY", value=1)
@@ -822,7 +821,7 @@ class TestCheckPerfResultTestCase(unittest.TestCase):
             test_case.run_test()
 
     def test_thread_level_doesnt_exist(self):
-        thresholds_to_check: List[cbr.IndividualMetricThreshold] = [
+        thresholds_to_check: list[cbr.IndividualMetricThreshold] = [
             cbr.IndividualMetricThreshold(
                 metric_name="latency",
                 thread_level=1,
@@ -832,7 +831,7 @@ class TestCheckPerfResultTestCase(unittest.TestCase):
                 threshold_limit=20,
             )
         ]
-        reported_metrics: Dict[cbr.ReportedMetric, CedarMetric] = {
+        reported_metrics: dict[cbr.ReportedMetric, CedarMetric] = {
             cbr.ReportedMetric(
                 test_name="fake-test", thread_level=12, metric_name="latency"
             ): CedarMetric(name="latency", type="LATENCY", value=1)

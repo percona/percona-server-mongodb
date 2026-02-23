@@ -50,6 +50,10 @@
 #include <stdexcept>
 #include <string>
 
+#ifdef __linux
+#include "mongo/db/extension/host/signature_validator.h"
+#endif
+
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kExtension
 
 namespace mongo::extension::host {
@@ -58,7 +62,7 @@ namespace {
 const std::filesystem::path& getExtensionConfDir() {
     // Use /tmp/mongo/extensions in test environments, otherwise use /etc/mongo/extensions.
     static const std::filesystem::path kExtensionConfDir = getTestCommandsEnabled()
-        ? std::filesystem::temp_directory_path() / "mongo" / "extensions"
+        ? std::filesystem::temp_directory_path() / ExtensionLoader::kExtensionConfigPathSuffix
         : ExtensionLoader::kExtensionConfigPath;
 
     return kExtensionConfDir;
@@ -134,13 +138,14 @@ bool loadExtensions(const std::vector<std::string>& extensionNames) {
 
     // Register fallback stub parsers before loading extensions.
     registerUnloadedExtensionStubParsers();
+    SignatureValidator signatureValidator;
 
     for (const auto& extension : extensionNames) {
         LOGV2(10668501, "Loading extension", "extensionName"_attr = extension);
 
         try {
             const ExtensionConfig config = ExtensionLoader::loadExtensionConfig(extension);
-            ExtensionLoader::load(extension, config);
+            ExtensionLoader::load(extension, config, signatureValidator);
         } catch (...) {
             LOGV2_ERROR(10668502,
                         "Error loading extension",
@@ -203,13 +208,29 @@ ExtensionConfig ExtensionLoader::loadExtensionConfig(const std::string& extensio
 
 void ExtensionLoader::load(const std::string& name, const ExtensionConfig& config) {
 #ifdef __linux
+    SignatureValidator signatureValidator;
+    return ExtensionLoader::load(name, config, signatureValidator);
+#else
+    LOGV2(11901201,
+          "Loading extensions on non-linux platforms is not supported - skipping loading.");
+#endif
+}
+
+#ifdef __linux
+void ExtensionLoader::load(const std::string& name,
+                           const ExtensionConfig& config,
+                           const SignatureValidator& signatureValidator) {
     uassert(10845400,
             str::stream() << "Loading extension '" << name << "' failed: "
                           << "Extension has already been loaded",
             !loadedExtensions.contains(name));
 
     const auto& extensionPath = config.sharedLibraryPath;
-
+    uassert(11528800,
+            str::stream() << "Loading extension '" << name << "' failed, path:  " << extensionPath
+                          << " does not exist.",
+            std::filesystem::exists(extensionPath));
+    signatureValidator.validateExtensionSignature(name, extensionPath);
     StatusWith<std::unique_ptr<SharedLibrary>> swExtensionLib =
         SharedLibrary::create(extensionPath);
     uassert(10615500,
@@ -244,11 +265,8 @@ void ExtensionLoader::load(const std::string& name, const ExtensionConfig& confi
                                              YAML::Dump(extOptionsWithMongotHost),
                                              std::move(hostPortal)};
     extHandle->initialize(&portal, &host_connector::HostServicesAdapter::get());
-#else
-    LOGV2(11901201,
-          "Loading extensions on non-linux platforms is not supported - skipping loading.");
-#endif
 }
+#endif
 
 stdx::unordered_map<std::string, ExtensionConfig> ExtensionLoader::getLoadedExtensions() {
     stdx::unordered_map<std::string, ExtensionConfig> result;

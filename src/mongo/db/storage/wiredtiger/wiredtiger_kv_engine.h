@@ -378,7 +378,7 @@ public:
                        ClockSource* cs,
                        WiredTigerConfig wtConfig,
                        const WiredTigerExtensions& wtExtensions,
-                       const rss::PersistenceProvider& provider,
+                       rss::PersistenceProvider& provider,
                        bool repair,
                        bool isReplSet,
                        bool shouldRecoverFromOplogAsStandalone,
@@ -717,6 +717,10 @@ public:
 
     static Status updateEvictionThreadsMin(const int32_t& threadsMin);
 
+    int getMinSnapshotHistoryWindowInSeconds() const {
+        return _provider.getMinSnapshotHistoryWindowInSeconds();
+    }
+
 private:
     StatusWith<Timestamp> _pinOldestTimestamp(WithLock,
                                               const std::string& requestingServiceName,
@@ -733,11 +737,6 @@ public:
     void dump() const override;
 
     StatusWith<BSONObj> getStorageMetadata(StringData ident) const override;
-
-    // TODO(SERVER-118851): Remove.
-    WiredTigerSizeStorer* getSizeStorer_forTest() const {
-        return _sizeStorer.get();
-    };
 
     KeyFormat getKeyFormat(RecoveryUnit&, StringData ident) const override;
 
@@ -898,8 +897,10 @@ private:
 
     const std::unique_ptr<WiredTigerOplogManager> _oplogManager;
 
+    // This buffer is only used when the replicated fastcount collection is not available, so
+    // nullptr is expected and valid when the replicated fastcount collection is enabled.
     std::unique_ptr<WiredTigerSizeStorer> _sizeStorer;
-    std::string _sizeStorerUri;
+
     mutable ElapsedTracker _sizeStorerSyncTracker;
     mutable stdx::mutex _sizeStorerSyncTrackerMutex;
 
@@ -982,6 +983,9 @@ private:
     Atomic<bool> _inStandaloneMode;
 
     const bool _supportsTableLogging;
+
+    // Reference to the persistence provider for accessing storage configuration.
+    rss::PersistenceProvider& _provider;
 };
 
 /**

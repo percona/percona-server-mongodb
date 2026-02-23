@@ -8,14 +8,14 @@ import {
     getPlanStage,
     getPlanStages,
 } from "jstests/libs/query/analyze_plan.js";
-import {checkSbeFullFeatureFlagEnabled} from "jstests/libs/query/sbe_util.js";
+import {sbePlanCacheEnabled} from "jstests/libs/query/sbe_util.js";
 
 const conn = MongoRunner.runMongod();
 assert.neq(null, conn, "mongod failed to start up");
 
 const testDb = conn.getDB("test");
 const coll = testDb.plan_cache_stats_agg_source;
-const isUsingSbePlanCache = checkSbeFullFeatureFlagEnabled(testDb);
+const isUsingSbePlanCache = sbePlanCacheEnabled(testDb);
 
 function makeMatchForFilteringByShape(query) {
     const keyHash = getPlanCacheKeyFromShape({query: query, collection: coll, db: testDb});

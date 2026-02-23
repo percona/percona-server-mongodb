@@ -309,7 +309,7 @@ public:
     /**
      * Appends stats for the reactor, typically recorded with the ExecutorStats class.
      */
-    virtual void appendStats(BSONObjBuilder& bob) const = 0;
+    virtual void appendStats(BSONObjBuilder& bob, bool forServerStatus = false) const = 0;
 
 protected:
     Reactor() = default;

@@ -34,6 +34,7 @@
 #include "mongo/stdx/unordered_map.h"
 #include "mongo/util/modules.h"
 
+#include <filesystem>
 #include <string>
 
 #include <yaml-cpp/yaml.h>
@@ -75,7 +76,11 @@ public:
      * compatibility, and calls the extension initialization function.
      */
     static void load(const std::string& name, const ExtensionConfig& config);
-
+#ifdef __linux
+    static void load(const std::string& name,
+                     const ExtensionConfig& config,
+                     const class SignatureValidator& signatureValidator);
+#endif
 
     /**
      * Returns the names and configurations of the currently registered extensions.
@@ -95,11 +100,13 @@ public:
      */
     static void unload_forTest(const std::string& name);
 
+    static inline const std::filesystem::path kExtensionConfigPathSuffix{"mongo/extensions"};
     /**
      * Central path for all extension configuration files. Also holds
      * aggregation_stage_fallback_parsers.json.
      */
-    static inline const std::filesystem::path kExtensionConfigPath{"/etc/mongo/extensions"};
+    static inline const std::filesystem::path kExtensionConfigPath =
+        std::filesystem::path("/etc") / kExtensionConfigPathSuffix;
 
 private:
     // Used to keep loaded extension 'SharedLibrary' objects alive for the lifetime of the server

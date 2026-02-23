@@ -44,6 +44,7 @@
 #include "mongo/db/query/bson/bson_helper.h"
 #include "mongo/db/query/compiler/parsers/matcher/expression_parser.h"
 #include "mongo/db/repl/oplog_entry.h"
+#include "mongo/db/repl/oplog_entry_gen.h"
 #include "mongo/db/repl/optime.h"
 #include "mongo/db/shard_role/shard_catalog/raw_data_operation.h"
 
@@ -148,8 +149,9 @@ std::unique_ptr<MatchExpression> buildOperationFilter(
     // The standard event filter, before it is combined with the user filter, is as follows:
     //    {
     //      $or: [
-    //        {ns: nsMatch, $nor: [{op: "n"}, {op: "c"},
-    //                             {op: "ci"}, {op: "cd"}]},  // CRUD events
+    //        {ns: nsMatch, $nor: [{op: "n"}, {op: "c"},      // no-op and CRUD events
+    //                             {op: "ci"}, {op: "cd"},    // container insert / container delete
+    //                             {op: "km"}]},              // key material (KEK)
     //        {ns: cmdNsMatch, op: "c", $or: [                // Commands on relevant DB(s)
     //          {"o.drop": collMatch},                        // Drops of relevant collection(s)
     //          {"o.renameCollection": nsMatch},              // Renames of relevant collection(s)
@@ -166,8 +168,12 @@ std::unique_ptr<MatchExpression> buildOperationFilter(
     // (1) CRUD events on a monitored namespace.
     auto crudEvents = backingBsonObjs.emplace_back(
         BSON("ns" << nsMatch.firstElement() << "$nor"
-                  << BSON_ARRAY(BSON("op" << "n")
-                                << BSON("op" << "c") << BSON("op" << "ci") << BSON("op" << "cd"))));
+                  << BSON_ARRAY(BSON("op" << "n") << BSON("op" << "c") << BSON("op" << "ci")
+                                                  << BSON("op" << "cd") << BSON("op" << "km"))));
+
+    static_assert(idlEnumCount<repl::OpTypeEnum> == 8,
+                  "unexpected number of oplog entry types - when adding a new oplog entry type, "
+                  "please make sure that the change stream oplog filter handles it correctly!");
 
     BSONObj cmdMatch = DocumentSourceChangeStream::getCmdNsMatchObjForChangeStream(expCtx);
 

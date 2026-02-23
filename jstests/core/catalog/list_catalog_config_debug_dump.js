@@ -7,6 +7,9 @@
  * ]
  */
 
+// TODO: SERVER-119726 enable multi-router once $listCatalog is supported on multi-router.
+TestData.pinToSingleMongos = true;
+
 const myDBName = jsTestName();
 const myDB = db.getSiblingDB(myDBName);
 const config = db.getSiblingDB("config");

@@ -1,6 +1,6 @@
 import argparse
 import sys
-from typing import List, Optional
+from typing import Optional
 
 from github import Github, GithubException, GithubIntegration
 from simple_report import make_report, put_report
@@ -50,7 +50,7 @@ def get_users_who_forked_mongo_repo(owner: str, repo: str, token: str) -> list[s
     return [fork.owner.login for fork in repository.get_forks() if not fork.archived]
 
 
-def are_users_members_of_org(users: List[str], org: str, token: str) -> List[str]:  # noqa: D406
+def are_users_members_of_org(users: list[str], org: str, token: str) -> list[str]:  # noqa: D406
     """
     Check if users are members of a particular organization.
 

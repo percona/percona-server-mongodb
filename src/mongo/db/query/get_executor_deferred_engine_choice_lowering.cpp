@@ -1,0 +1,247 @@
+/**
+ *    Copyright (C) 2026-present MongoDB, Inc.
+ *
+ *    This program is free software: you can redistribute it and/or modify
+ *    it under the terms of the Server Side Public License, version 1,
+ *    as published by MongoDB, Inc.
+ *
+ *    This program is distributed in the hope that it will be useful,
+ *    but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *    Server Side Public License for more details.
+ *
+ *    You should have received a copy of the Server Side Public License
+ *    along with this program. If not, see
+ *    <http://www.mongodb.com/licensing/server-side-public-license>.
+ *
+ *    As a special exception, the copyright holders give permission to link the
+ *    code of portions of this program with the OpenSSL library under certain
+ *    conditions as described in each individual source file and distribute
+ *    linked combinations including the program with the OpenSSL library. You
+ *    must comply with the Server Side Public License in all respects for
+ *    all of the code used other than as permitted herein. If you modify file(s)
+ *    with this exception, you may extend this exception to your version of the
+ *    file(s), but you are not obligated to do so. If you do not wish to do so,
+ *    delete this exception statement from your version. If you delete this
+ *    exception statement from all source files in the program, then also delete
+ *    it in the license file.
+ */
+
+#include "mongo/db/query/get_executor_deferred_engine_choice_lowering.h"
+
+#include "mongo/db/exec/runtime_planners/planner_types.h"
+#include "mongo/db/operation_context.h"
+#include "mongo/db/pipeline/sbe_pushdown.h"
+#include "mongo/db/query/canonical_query.h"
+#include "mongo/db/query/engine_selection.h"
+#include "mongo/db/query/plan_executor_factory.h"
+#include "mongo/db/query/plan_yield_policy.h"
+#include "mongo/db/query/query_planner.h"
+#include "mongo/db/query/stage_builder/classic_stage_builder.h"
+#include "mongo/db/query/stage_builder/sbe/builder.h"
+#include "mongo/db/query/stage_builder/stage_builder_util.h"
+
+#include <memory>
+
+#include <boost/optional/optional.hpp>
+
+namespace mongo::exec_deferred_engine_choice {
+
+namespace {
+
+/*
+ * This class takes information about the query and planning results, and outputs an executor when
+ * `lower` is called. In `lower`, the plan ranking result is analyzed, the execution engine is
+ * chosen, and then stage builders for the chosen engine are called.
+ */
+class ExecConstructor {
+public:
+    ExecConstructor(std::unique_ptr<CanonicalQuery> cq,
+                    PlanRankingResult rankingResult,
+                    OperationContext* opCtx,
+                    const MultipleCollectionAccessor& collections,
+                    PlanYieldPolicy::YieldPolicy yieldPolicy,
+                    Pipeline* pipeline)
+        : _cq(std::move(cq)),
+          _rankingResult(std::move(rankingResult)),
+          _opCtx(opCtx),
+          _collections(collections),
+          _yieldPolicy(std::move(yieldPolicy)),
+          _pipeline(pipeline) {}
+
+    std::unique_ptr<PlanExecutor, PlanExecutor::Deleter> lower() {
+        tassert(11974304, "Expected 0 or 1 query solutions", _rankingResult.solutions.size() <= 1);
+        if (_rankingResult.usedIdhack) {
+            // Idhack always uses the classic engine.
+            tassert(11974305,
+                    "Expected no query solution for idhack queries.",
+                    _rankingResult.solutions.empty());
+            return makeClassicExecutor(nullptr /* solution */);
+        }
+        auto solution = std::move(_rankingResult.solutions[0]);
+        const auto engine = chooseEngine(
+            _opCtx,
+            _collections,
+            _cq.get(),
+            _pipeline,
+            _cq->getExpCtx()->getNeedsMerge(),
+            std::make_unique<QueryPlannerParams>(QueryPlannerParams::ArgsForPushDownStagesDecision{
+                .opCtx = _opCtx,
+                .canonicalQuery = *_cq,
+                .collections = _collections,
+                .plannerOptions = _rankingResult.plannerParams->providedOptions,
+            }),
+            solution.get());
+        return engine == EngineChoice::kClassic ? makeClassicExecutor(std::move(solution))
+                                                : makeSbePlanExecutor(std::move(solution));
+    }
+
+private:
+    QueryPlannerParams* plannerParams() {
+        return _rankingResult.plannerParams.get();
+    }
+
+    std::unique_ptr<MultiPlanStage> getMps() {
+        if (!_rankingResult.execState) {
+            return nullptr;
+        }
+        auto& planStage = _rankingResult.execState->root;
+        if (!planStage || planStage->stageType() != STAGE_MULTI_PLAN) {
+            return nullptr;
+        }
+        return std::unique_ptr<MultiPlanStage>(static_cast<MultiPlanStage*>(planStage.release()));
+    }
+
+    std::unique_ptr<PlanExecutor, PlanExecutor::Deleter> makeSbePlanExecutor(
+        std::unique_ptr<QuerySolution> solution) {
+        plannerParams()->setTargetSbeStageBuilder(*_cq, _collections);
+        // Remove any stages from `pipeline` that will be pushed down to SBE.
+        finalizePipelineStages(_pipeline, _cq.get());
+        plannerParams()->fillOutSecondaryCollectionsPlannerParams(_opCtx, *_cq, _collections);
+        // Push down pipeline stages in the CanonicalQuery to the solution.
+        extendSolutionWithPipeline(solution);
+
+        auto sbeYieldPolicy =
+            PlanYieldPolicySBE::make(_opCtx, _yieldPolicy, _collections, _cq->nss());
+        auto sbePlanAndData = stage_builder::buildSlotBasedExecutableTree(
+            _opCtx, _collections, *_cq, *solution, sbeYieldPolicy.get());
+
+        const auto* expCtx = _cq->getExpCtxRaw();
+        auto remoteCursors = expCtx->getExplain()
+            ? nullptr
+            : search_helpers::getSearchRemoteCursors(_cq->cqPipeline());
+        auto remoteExplains = expCtx->getExplain()
+            ? search_helpers::getSearchRemoteExplains(expCtx, _cq->cqPipeline())
+            : nullptr;
+
+        // SERVER-117566 integrate with plan cache.
+        static const bool isFromPlanCache = false;
+        stage_builder::prepareSlotBasedExecutableTree(_opCtx,
+                                                      sbePlanAndData.first.get(),
+                                                      &sbePlanAndData.second,
+                                                      *_cq.get(),
+                                                      _collections,
+                                                      sbeYieldPolicy.get(),
+                                                      isFromPlanCache,
+                                                      remoteCursors.get());
+
+        auto nss = _cq->nss();
+        tassert(11742306,
+                "Solution must be present if cachedPlanHash is present: ",
+                solution != nullptr || !_rankingResult.cachedPlanHash.has_value());
+        return uassertStatusOK(plan_executor_factory::make(_opCtx,
+                                                           std::move(_cq),
+                                                           std::move(solution),
+                                                           std::move(sbePlanAndData),
+                                                           _collections,
+                                                           plannerParams()->providedOptions,
+                                                           std::move(nss),
+                                                           std::move(sbeYieldPolicy),
+                                                           isFromPlanCache,
+                                                           _rankingResult.cachedPlanHash,
+                                                           false /*usedJoinOpt*/,
+                                                           {} /*estimates*/,
+                                                           std::move(remoteCursors),
+                                                           std::move(remoteExplains),
+                                                           getMps()));
+    }
+
+    std::unique_ptr<PlanExecutor, PlanExecutor::Deleter> makeClassicExecutor(
+        std::unique_ptr<QuerySolution> solution) {
+        auto expCtx = _cq->getExpCtx();
+        auto nss = [&]() {
+            if (_collections.hasMainCollection()) {
+                return _collections.getMainCollection()->ns();
+            } else {
+                tassert(11742309, "Expected non-null canonical query", _cq.get());
+                const auto nssOrUuid = _cq->getFindCommandRequest().getNamespaceOrUUID();
+                return nssOrUuid.isNamespaceString() ? nssOrUuid.nss() : NamespaceString::kEmpty;
+            }
+        }();
+
+        std::unique_ptr<WorkingSet> workingSet;
+        std::unique_ptr<PlanStage> planStage;
+        if (_rankingResult.execState) {
+            workingSet = std::move(_rankingResult.execState->workingSet);
+            planStage = std::move(_rankingResult.execState->root);
+        } else {
+            workingSet = std::make_unique<WorkingSet>();
+            stage_builder::PlanStageToQsnMap planStageToQsnMap;
+            planStage = stage_builder::buildClassicExecutableTree(
+                _opCtx,
+                _collections.getMainCollectionPtrOrAcquisition(),
+                *_cq,
+                *solution,
+                workingSet.get(),
+                &planStageToQsnMap);
+        }
+        return uassertStatusOK(
+            plan_executor_factory::make(_opCtx,
+                                        std::move(workingSet),
+                                        std::move(planStage),
+                                        std::move(solution),
+                                        std::move(_cq),
+                                        expCtx,
+                                        _collections.getMainCollectionAcquisition(),
+                                        _rankingResult.plannerParams->providedOptions,
+                                        std::move(nss),
+                                        _yieldPolicy,
+                                        _rankingResult.cachedPlanHash,
+                                        std::move(_rankingResult.maybeExplainData)));
+    }
+
+    void extendSolutionWithPipeline(std::unique_ptr<QuerySolution>& solution) {
+        if (_cq->cqPipeline().empty()) {
+            return;
+        }
+        solution = QueryPlanner::extendWithAggPipeline(
+            *_cq, std::move(solution), plannerParams()->secondaryCollectionsInfo);
+    }
+
+    std::unique_ptr<CanonicalQuery> _cq;
+    PlanRankingResult _rankingResult;
+    OperationContext* _opCtx;
+    const MultipleCollectionAccessor& _collections;
+    PlanYieldPolicy::YieldPolicy _yieldPolicy;
+    Pipeline* _pipeline;
+};
+
+}  // namespace
+
+std::unique_ptr<PlanExecutor, PlanExecutor::Deleter> lowerPlanRankingResult(
+    std::unique_ptr<CanonicalQuery> cq,
+    PlanRankingResult rankingResult,
+    OperationContext* opCtx,
+    const MultipleCollectionAccessor& collections,
+    PlanYieldPolicy::YieldPolicy yieldPolicy,
+    Pipeline* pipeline) {
+    return ExecConstructor(std::move(cq),
+                           std::move(rankingResult),
+                           opCtx,
+                           collections,
+                           std::move(yieldPolicy),
+                           pipeline)
+        .lower();
+}
+
+}  // namespace mongo::exec_deferred_engine_choice

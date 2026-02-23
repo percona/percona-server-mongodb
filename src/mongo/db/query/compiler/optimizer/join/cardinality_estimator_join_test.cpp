@@ -27,6 +27,7 @@
  *    it in the license file.
  */
 
+#include "mongo/bson/json.h"
 #include "mongo/db/query/compiler/optimizer/join/cardinality_estimator.h"
 #include "mongo/db/query/compiler/optimizer/join/unit_test_helpers.h"
 #include "mongo/unittest/unittest.h"
@@ -373,6 +374,92 @@ TEST_F(JoinPredicateEstimatorFixture, GetCollectionCardinality) {
     ASSERT_EQ(oneCE * 10, jce.getCollCardinality(0));
     ASSERT_EQ(oneCE * 20, jce.getCollCardinality(1));
     ASSERT_EQ(oneCE * 30, jce.getCollCardinality(2));
+}
+
+TEST_F(JoinPredicateEstimatorFixture, JoinPredicateSelUsesUniqueFields) {
+    // Create a join graph with two nodes joined by an edge: a -- b.
+    auto aNss = NamespaceString::createNamespaceString_forTest("a");
+    auto bNss = NamespaceString::createNamespaceString_forTest("b");
+    auto aNodeId = *graph.addNode(aNss, nullptr, boost::none);
+    auto bNodeId = *graph.addNode(bNss, nullptr, FieldPath{"b"});
+
+    // The edge represents a.foo == b.bar.
+    resolvedPaths.push_back(ResolvedPath{.nodeId = aNodeId, .fieldName = "foo"});
+    resolvedPaths.push_back(ResolvedPath{.nodeId = bNodeId, .fieldName = "bar"});
+    graph.addSimpleEqualityEdge(aNodeId, bNodeId, 0, 1);
+
+    // Establish that |a| is smaller, so that we will use it for NDV estimation.
+    SamplingEstimatorMap samplingEstimators;
+    auto aSamplingEstimator = std::make_unique<FakeNdvEstimator>(
+        CardinalityEstimate{CardinalityType{10}, EstimationSource::Sampling});
+    aSamplingEstimator->addFakeNDVEstimate(
+        {FieldPath("foo")}, CardinalityEstimate{CardinalityType{5}, EstimationSource::Sampling});
+    samplingEstimators[aNss] = std::move(aSamplingEstimator);
+    samplingEstimators[bNss] = std::make_unique<FakeNdvEstimator>(
+        CardinalityEstimate{CardinalityType{20}, EstimationSource::Sampling});
+    auto jCtx = makeContext();
+
+    // Selectivity test without unique information. Here the selectivity estimate comes from
+    // 1 / NDV(a.foo) = 1 / 5 = 0.2
+    {
+        auto selEst = JoinCardinalityEstimator::joinPredicateSel(
+            jCtx, samplingEstimators, jCtx.joinGraph.getEdge(0));
+        auto expectedSel = SelectivityEstimate{SelectivityType{0.2}, EstimationSource::Sampling};
+        ASSERT_EQ(expectedSel, selEst);
+    }
+    // Selectivity test with unique information. Tell the context that "foo" is a unique field. This
+    // should change our estimate for NDV(a.foo) to |a| = 10, giving a new selectivity of 0.1.
+    {
+        jCtx.uniqueFieldInfo.emplace(aNss, buildUniqueFieldInfo({fromjson("{foo: 1}")}));
+        auto selEst = JoinCardinalityEstimator::joinPredicateSel(
+            jCtx, samplingEstimators, jCtx.joinGraph.getEdge(0));
+        auto expectedSel = SelectivityEstimate{SelectivityType{0.1}, EstimationSource::Sampling};
+        ASSERT_EQ(expectedSel, selEst);
+    }
+}
+
+TEST_F(JoinPredicateEstimatorFixture, JoinPredicateSelUsesUniqueFieldsCompoundJoinPred) {
+    // Create a join graph with two nodes joined by a compound edge: a -- b.
+    auto aNss = NamespaceString::createNamespaceString_forTest("a");
+    auto bNss = NamespaceString::createNamespaceString_forTest("b");
+    auto aNodeId = *graph.addNode(aNss, nullptr, boost::none);
+    auto bNodeId = *graph.addNode(bNss, nullptr, FieldPath{"b"});
+
+    // Compound edge is a.foo == b.baz && a.bar == foo.baz.
+    resolvedPaths.push_back(ResolvedPath{.nodeId = aNodeId, .fieldName = "foo"});  // 0
+    resolvedPaths.push_back(ResolvedPath{.nodeId = aNodeId, .fieldName = "bar"});  // 1
+    resolvedPaths.push_back(ResolvedPath{.nodeId = bNodeId, .fieldName = "baz"});  // 2
+    graph.addSimpleEqualityEdge(aNodeId, bNodeId, 0, 2);
+    graph.addSimpleEqualityEdge(aNodeId, bNodeId, 1, 2);
+
+    // Establish that |a| is smaller, so that we will use it for NDV estimation.
+    SamplingEstimatorMap samplingEstimators;
+    auto aSamplingEstimator = std::make_unique<FakeNdvEstimator>(
+        CardinalityEstimate{CardinalityType{10}, EstimationSource::Sampling});
+    aSamplingEstimator->addFakeNDVEstimate(
+        {{"foo"}, {"bar"}}, CardinalityEstimate{CardinalityType{5}, EstimationSource::Sampling});
+    samplingEstimators[aNss] = std::move(aSamplingEstimator);
+    samplingEstimators[bNss] = std::make_unique<FakeNdvEstimator>(
+        CardinalityEstimate{CardinalityType{20}, EstimationSource::Sampling});
+    auto jCtx = makeContext();
+
+    // Selectivity test without unique information. Here the selectivity estimate comes from
+    // 1 / NDV(a.foo, a.bar) = 1 / 5 = 0.2
+    {
+        auto selEst = JoinCardinalityEstimator::joinPredicateSel(
+            jCtx, samplingEstimators, jCtx.joinGraph.getEdge(0));
+        auto expectedSel = SelectivityEstimate{SelectivityType{0.2}, EstimationSource::Sampling};
+        ASSERT_EQ(expectedSel, selEst);
+    }
+    // Selectivity test with unique information. Tell the context that {"foo", "bar"} are unique.
+    // This should change our NDV estimate to 10, giving a new selectivity of 0.1.
+    {
+        jCtx.uniqueFieldInfo.emplace(aNss, buildUniqueFieldInfo({fromjson("{foo: 1, bar: 1}")}));
+        auto selEst = JoinCardinalityEstimator::joinPredicateSel(
+            jCtx, samplingEstimators, jCtx.joinGraph.getEdge(0));
+        auto expectedSel = SelectivityEstimate{SelectivityType{0.1}, EstimationSource::Sampling};
+        ASSERT_EQ(expectedSel, selEst);
+    }
 }
 
 }  // namespace mongo::join_ordering

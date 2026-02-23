@@ -5,7 +5,6 @@ import json
 import sys
 from collections import namedtuple
 from statistics import mean
-from typing import Dict, List
 
 import click
 import structlog
@@ -26,7 +25,7 @@ IGNORE_LESS_THAN_SECS = 15
 _TestData = namedtuple("TestData", ["test_file", "duration"])
 
 
-def parse_resmoke_report(report_file: str) -> List[TestInfo]:
+def parse_resmoke_report(report_file: str) -> list[TestInfo]:
     """Get js tests info from resmoke report json."""
     with open(report_file, "r") as fh:
         report_data = json.load(fh)
@@ -36,7 +35,7 @@ def parse_resmoke_report(report_file: str) -> List[TestInfo]:
 
 def get_historic_stats(
     project_id: str, task_name: str, build_variant: str
-) -> List[HistoricalTestInformation]:
+) -> list[HistoricalTestInformation]:
     """Get historic test stats."""
     base_task_name = get_task_name_without_suffix(task_name, build_variant).replace(
         BURN_IN_PREFIX, ""
@@ -44,7 +43,7 @@ def get_historic_stats(
     return HistoricTaskData.get_stats_from_s3(project_id, base_task_name, build_variant)
 
 
-def make_stats_map(stats: List[_TestData]) -> Dict[str, List[float]]:
+def make_stats_map(stats: list[_TestData]) -> dict[str, list[float]]:
     """Make test stats map."""
     stats_map = {}
 

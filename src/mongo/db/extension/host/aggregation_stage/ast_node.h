@@ -57,17 +57,23 @@ public:
     ~AggStageAstNode() = default;
 
     /**
-     * Gets the BSON representation of an $_internalSearchIdLookup stage.
-     * The returned BSONObj is owned by this class.
+     * Gets the spec of an $_internalSearchIdLookup stage.
      */
-    BSONObj getIdLookupSpec() const {
+    const DocumentSourceIdLookupSpec& getIdLookupSpec() const {
         const auto* idLookup =
             dynamic_cast<const LiteParsedInternalSearchIdLookUp*>(_liteParsed.get());
         uassert(11160700,
                 str::stream() << "Expected $_internalSearchIdLookup stage, but got: "
                               << _liteParsed->getParseTimeName(),
                 idLookup);
-        return idLookup->getBsonSpec();
+        return idLookup->getSpec();
+    }
+
+    /**
+     * Gets the stage name from the underlying LiteParsedDocumentSource.
+     */
+    const std::string& getName() const {
+        return _liteParsed->getParseTimeName();
     }
 
 private:
@@ -85,38 +91,42 @@ private:
  * ::MongoExtensionAggStageAstNode interface and layout as dictated by the public API.
  * Any polymorphic behavior must be deferred to and implemented by the AggStageAstNode.
  *
- * WARNING: Do not use the HostAggStageAstNode vtable function `bind`. It is
- * unimplemented. Future work will enable a HostAggStageAstNode to bind directly into a
+ * WARNING: Do not use the HostAggStageAstNodeAdapter vtable function `bind`. It is
+ * unimplemented. Future work will enable a HostAggStageAstNodeAdapter to bind directly into a
  * host-implemented LiteParsedExpandedDocumentSource and thus provide an implementation for `bind`.
  */
-class HostAggStageAstNode final : public ::MongoExtensionAggStageAstNode {
+class HostAggStageAstNodeAdapter final : public ::MongoExtensionAggStageAstNode {
 public:
-    HostAggStageAstNode(std::unique_ptr<AggStageAstNode> astNode)
+    HostAggStageAstNodeAdapter(std::unique_ptr<AggStageAstNode> astNode)
         : ::MongoExtensionAggStageAstNode(&VTABLE), _astNode(std::move(astNode)) {}
 
-    ~HostAggStageAstNode() = default;
+    ~HostAggStageAstNodeAdapter() = default;
 
     /**
-     * Gets the BSON representation of the $_internalSearchIdLookup stage stored in the underlying
+     * Gets the spec of the $_internalSearchIdLookup stage stored in the underlying
      * AggStageAstNode. This will be extended to additional internal stage types in the
      * future.
-     *
-     * The returned BSONObj is owned by the underlying AggStageAstNode. If you want the
-     * BSON to outlive this class instance, you should create your own copy.
      */
-    inline BSONObj getIdLookupSpec() const {
+    inline const DocumentSourceIdLookupSpec& getIdLookupSpec() const {
         return _astNode->getIdLookupSpec();
+    }
+
+    /**
+     * Gets the stage name from the underlying AggStageAstNode.
+     */
+    inline const std::string& getStageName() const {
+        return _astNode->getName();
     }
 
     /**
      * Specifies whether the provided AST node was allocated by the host.
      *
-     * Since ExtensionAggStageAstNode and HostAggStageAstNode implement the same
+     * Since ExtensionAggStageAstNodeAdapter and HostAggStageAstNodeAdapter implement the same
      * vtable, this function is necessary for differentiating between host- and extension-allocated
      * AST nodes.
      *
      * Use this function to check if an AST node is host-allocated before casting a
-     * MongoExtensionAggStageAstNode to a HostAggStageAstNode.
+     * MongoExtensionAggStageAstNode to a HostAggStageAstNodeAdapter.
      */
     static inline bool isHostAllocated(::MongoExtensionAggStageAstNode& astNode) {
         return astNode.vtable == &VTABLE;
@@ -136,14 +146,13 @@ private:
     }
 
     static void _hostDestroy(::MongoExtensionAggStageAstNode* astNode) noexcept {
-        delete static_cast<HostAggStageAstNode*>(astNode);
+        delete static_cast<HostAggStageAstNodeAdapter*>(astNode);
     }
 
     static ::MongoExtensionByteView _hostGetName(
         const ::MongoExtensionAggStageAstNode* astNode) noexcept {
-        return stringDataAsByteView(static_cast<const HostAggStageAstNode*>(astNode)
-                                        ->getIdLookupSpec()
-                                        .firstElementFieldNameStringData());
+        return stringDataAsByteView(
+            static_cast<const HostAggStageAstNodeAdapter*>(astNode)->getStageName());
     }
 
     static ::MongoExtensionStatus* _hostGetProperties(
@@ -170,11 +179,17 @@ private:
     static ::MongoExtensionStatus* _hostClone(const ::MongoExtensionAggStageAstNode* astNode,
                                               ::MongoExtensionAggStageAstNode** output) noexcept {
         return wrapCXXAndConvertExceptionToStatus([&]() {
-            auto* hostAstNode = static_cast<const HostAggStageAstNode*>(astNode);
+            auto* hostAstNode = static_cast<const HostAggStageAstNodeAdapter*>(astNode);
+
+            // Get the spec and stage name from the original.
             auto spec = hostAstNode->getIdLookupSpec();
-            auto clonedLiteParsed = std::make_unique<LiteParsedInternalSearchIdLookUp>(spec);
+
+            auto clonedLiteParsed =
+                std::make_unique<LiteParsedInternalSearchIdLookUp>(std::move(spec));
+            clonedLiteParsed->makeOwned();
+
             auto clonedAstNode = std::make_unique<AggStageAstNode>(std::move(clonedLiteParsed));
-            *output = new HostAggStageAstNode(std::move(clonedAstNode));
+            *output = new HostAggStageAstNodeAdapter(std::move(clonedAstNode));
         });
     }
 
@@ -197,7 +212,7 @@ private:
         });
     }
 
-    static constexpr ::MongoExtensionAggStageAstNodeVTable VTABLE{
+    static constexpr ::MongoExtensionAggStageAstNodeVTable VTABLE = {
         .destroy = &_hostDestroy,
         .get_name = &_hostGetName,
         .get_properties = &_hostGetProperties,

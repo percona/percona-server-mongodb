@@ -1,13 +1,11 @@
 import subprocess
 import hashlib
 import os
-import threading
 import time
 import json
 from collections import defaultdict
 from functools import lru_cache
 from pathlib import Path
-from typing import Dict, List, Set, Tuple
 from io import StringIO
 
 
@@ -201,8 +199,8 @@ def _is_third_party_path(p: str) -> bool:
     )
 
 
-def _build_left_rights_map(grouped: Dict[str, Dict[str, Set[str]]]) -> Dict[str, Set[str]]:
-    out: Dict[str, Set[str]] = {}
+def _build_left_rights_map(grouped: dict[str, dict[str, set[str]]]) -> dict[str, set[str]]:
+    out: dict[str, set[str]] = {}
     for d, files in grouped.items():
         for f, rights in files.items():
             out[f"{d}/{f}"] = set(r for r in rights if r.startswith("mongo/"))
@@ -221,7 +219,7 @@ def _repo_to_file_label(repo_rel: str) -> str:
 
 
 def _dfs_flatten_from_seed(
-    seed_repo_path: str, lr_map: Dict[str, Set[str]], visited: Set[str], out_labels: Set[str]
+    seed_repo_path: str, lr_map: dict[str, set[str]], visited: set[str], out_labels: set[str]
 ) -> None:
     srp = seed_repo_path.replace("\\", "/")
     if _is_third_party_path(srp) or _is_excluded_right(srp):
@@ -335,15 +333,15 @@ def _cleanup_from_manifest(prev_dirs: set[str], curr_dirs: set[str]) -> int:
     return removed
 
 
-def _compute_flat_idl_from_lr_map(lr_map: Dict[str, Set[str]], seeds: List[str]) -> Set[str]:
-    out: Set[str] = set()
-    vis: Set[str] = set()
+def _compute_flat_idl_from_lr_map(lr_map: dict[str, set[str]], seeds: list[str]) -> set[str]:
+    out: set[str] = set()
+    vis: set[str] = set()
     for seed in seeds:
         _dfs_flatten_from_seed(seed, lr_map, vis, out)
     return {lab for lab in out if "third_party" not in lab.split("/")}
 
 
-def _inject_flat_group(grouped: Dict[str, Dict[str, Set[str]]], flat_labels: Set[str]) -> None:
+def _inject_flat_group(grouped: dict[str, dict[str, set[str]]], flat_labels: set[str]) -> None:
     # Store as a synthetic "left" whose rights are already absolute labels.
     # We'll special-case its rendering to dump labels verbatim.
     grouped.setdefault("mongo", {}).setdefault("idl_headers_flat", set()).update(flat_labels)
@@ -366,7 +364,7 @@ def augment_with_idl_placeholders(
 
 
 def augment_with_generated_left(
-    grouped: Dict[str, Dict[str, Set[str]]], gen_map: Dict[str, List[str]]
+    grouped: dict[str, dict[str, set[str]]], gen_map: dict[str, list[str]]
 ) -> None:
     """
     For each generated left entry, ensure a filegroup exists and add the
@@ -388,7 +386,7 @@ def augment_with_generated_left(
 
 
 def augment_with_source_placeholders(
-    grouped: Dict[str, Dict[str, Set[str]]], src_paths: List[str]
+    grouped: dict[str, dict[str, set[str]]], src_paths: list[str]
 ) -> None:
     """Seed a filegroup for every left source/header even if it has 0 includes."""
     for p in src_paths:
@@ -548,7 +546,7 @@ package(default_visibility = [{vis_list}])
 """
 
 
-def _dir_digest(src_dir: str, files_map: Dict[str, Set[str]], *, visibility: str) -> str:
+def _dir_digest(src_dir: str, files_map: dict[str, set[str]], *, visibility: str) -> str:
     lines = []
     lines.append(f"{VERSION_SALT}|{visibility}|{src_dir}\n")
     for left in sorted(files_map):
@@ -573,7 +571,7 @@ def _read_existing_digest(path: Path) -> str:
 
 
 def _build_content_for_dir(
-    src_dir: str, file_to_rights: Dict[str, Set[str]], *, visibility: list[str], digest: str
+    src_dir: str, file_to_rights: dict[str, set[str]], *, visibility: list[str], digest: str
 ) -> str:
     pkg = f"{SRC_ROOT_POSIX}/{src_dir}/{AUTO_DIR}"
     buf = StringIO()
@@ -589,8 +587,8 @@ def _build_content_for_dir(
         write("filegroup(\n")
         write(f'    name = "{emit_name}",\n')
 
-        seen: Set[str] = set()
-        labels: List[str] = []
+        seen: set[str] = set()
+        labels: list[str] = []
 
         if not is_flat:
             for own in _owning_labels_for_left(src_dir, left_file):
@@ -623,7 +621,7 @@ def _build_content_for_dir(
     return buf.getvalue()
 
 
-def _guess_idl_from_gen_header(gen_header_repo: str, lr_map: Dict[str, Set[str]]) -> str | None:
+def _guess_idl_from_gen_header(gen_header_repo: str, lr_map: dict[str, set[str]]) -> str | None:
     if not gen_header_repo.endswith("_gen.h"):
         return None
     base = gen_header_repo[: -len("_gen.h")]
@@ -637,8 +635,8 @@ def _guess_idl_from_gen_header(gen_header_repo: str, lr_map: Dict[str, Set[str]]
 
 
 def _write_build_for_group(
-    src_dir: str, files_map: Dict[str, Set[str]], *, fsync_write: bool
-) -> Tuple[str, bool]:
+    src_dir: str, files_map: dict[str, set[str]], *, fsync_write: bool
+) -> tuple[str, bool]:
     out_dir = SRC_ROOT / src_dir / AUTO_DIR
     out_path = out_dir / BUILD_NAME
     visibility = module_visibility_for_build_dir(src_dir)
@@ -736,7 +734,7 @@ def collect_left_right_pairs(rg_bin: str) -> list[tuple[str, str]]:
     return list(merged)
 
 
-def parse_left_right_pairs(pairs: list[tuple[str, str]]) -> Dict[str, Dict[str, Set[str]]]:
+def parse_left_right_pairs(pairs: list[tuple[str, str]]) -> dict[str, dict[str, set[str]]]:
     by_srcdir = defaultdict(lambda: defaultdict(set))
     add = set.add
     src_exts = SRC_EXTS_TUPLE
@@ -759,7 +757,7 @@ def _env_bool(var: str, default: bool) -> bool:
     return v not in ("0", "false", "False", "no", "No", "")
 
 
-def gen_auto_headers(repo_root: Path) -> Dict[str, object]:
+def gen_auto_headers(repo_root: Path) -> dict[str, object]:
     """
     Runs the header generation once and returns a result dict:
       { ok: bool, err: str|None, wrote: int, skipped: int, t_ms: float }

@@ -196,9 +196,7 @@ export const Cluster = function (clusterOptions, sessionOptions) {
         }
 
         if (clusterOptions.sharded.enabled) {
-            // TODO (SERVER-115639) refactor this line once the host property is unified.
-            const hosts = db.getMongo().isMultiRouter ? db.getMongo().hosts : db.getMongo().host;
-            st = new FSMShardingTest(`mongodb://${hosts}`);
+            st = new FSMShardingTest(db.getMongo().uri);
 
             conn = st.s(0); // First mongos
 
@@ -511,7 +509,11 @@ export const Cluster = function (clusterOptions, sessionOptions) {
             let res = db.adminCommand({listDatabases: 1});
             assert.commandWorked(res);
             res.databases.forEach((dbInfo) => {
-                const validateOptions = {full: true, enforceFastCount: true};
+                const validateOptions = {
+                    full: true,
+                    enforceFastCount: true,
+                    enforceFastSize: !TestData.allowUncleanShutdowns && TestData.enforceFastSizeOnValidate,
+                };
                 // TODO (SERVER-24266): Once fast counts are tolerant to unclean shutdowns, remove
                 // the check for TestData.allowUncleanShutdowns.
                 if (TestData.skipEnforceFastCountOnValidate || TestData.allowUncleanShutdowns) {

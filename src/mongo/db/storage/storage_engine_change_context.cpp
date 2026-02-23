@@ -49,50 +49,36 @@
 
 namespace mongo {
 namespace {
+
 const ServiceContext::Decoration<StorageEngineChangeContext> getStorageEngineChangeContext =
     ServiceContext::declareDecoration<StorageEngineChangeContext>();
+
+struct StorageEngineChangeOperationContextDoneNotifier {
+    void operator()(ServiceContext* service) {
+        if (service) {
+            auto* changeContext = StorageEngineChangeContext::get(service);
+            changeContext->notifyOpCtxDestroyed();
+        }
+    }
+};
+
+// Using unique_ptr here instead of a custom type takes advantage
+// of decoration construction and destruction optimizations.
+using NotifyDecorationType =
+    std::unique_ptr<ServiceContext, StorageEngineChangeOperationContextDoneNotifier>;
+const auto notifyDecoration = OperationContext::declareDecoration<NotifyDecorationType>();
+
+void setNotifyWhenDone(OperationContext* opCtx, ServiceContext* service) {
+    auto& deco = notifyDecoration(opCtx);
+    invariant(!deco);
+    deco.reset(service);
+}
+
 }  // namespace
 
 /* static */
 StorageEngineChangeContext* StorageEngineChangeContext::get(ServiceContext* service) {
     return &getStorageEngineChangeContext(service);
-}
-
-class StorageEngineChangeOperationContextDoneNotifier {
-public:
-    static const OperationContext::Decoration<StorageEngineChangeOperationContextDoneNotifier> get;
-
-    StorageEngineChangeOperationContextDoneNotifier() = default;
-    ~StorageEngineChangeOperationContextDoneNotifier();
-
-    /*
-     * The 'setNotifyWhenDone' method makes this decoration notify the
-     * StorageEngineChangeContext for the associated service context when it is destroyed.
-     * It must be called under the client lock for the decorated OperationContext.
-     */
-    void setNotifyWhenDone(ServiceContext* service);
-
-private:
-    ServiceContext* _service = nullptr;
-};
-
-/* static */
-const OperationContext::Decoration<StorageEngineChangeOperationContextDoneNotifier>
-    StorageEngineChangeOperationContextDoneNotifier::get =
-        OperationContext::declareDecoration<StorageEngineChangeOperationContextDoneNotifier>();
-
-StorageEngineChangeOperationContextDoneNotifier::
-    ~StorageEngineChangeOperationContextDoneNotifier() {
-    if (_service) {
-        auto* changeContext = StorageEngineChangeContext::get(_service);
-        changeContext->notifyOpCtxDestroyed();
-    }
-}
-
-void StorageEngineChangeOperationContextDoneNotifier::setNotifyWhenDone(ServiceContext* service) {
-    invariant(!_service);
-    invariant(service);
-    _service = service;
 }
 
 WriteRarelyRWMutex::WriteLock StorageEngineChangeContext::killOpsForStorageEngineChange(
@@ -115,9 +101,7 @@ WriteRarelyRWMutex::WriteLock StorageEngineChangeContext::killOpsForStorageEngin
                     shard_role_details::getRecoveryUnit(opCtxToKill)->isNoop())
                     continue;
                 service->killOperation(lk, opCtxToKill, ErrorCodes::InterruptedDueToStorageChange);
-                auto& doneNotifier =
-                    StorageEngineChangeOperationContextDoneNotifier::get(opCtxToKill);
-                doneNotifier.setNotifyWhenDone(service);
+                setNotifyWhenDone(opCtxToKill, service);
                 ++_numOpCtxtsToWaitFor;
                 killedOperationId = opCtxToKill->getOpID();
             }

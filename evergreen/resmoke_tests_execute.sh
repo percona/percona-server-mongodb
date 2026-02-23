@@ -91,7 +91,8 @@ if [[ ${disable_unit_tests} = "false" && ! -f ${skip_tests} ]]; then
     # We reduce the storage engine's cache size to reduce the likelihood of a mongod process
     # being killed by the OOM killer. The --storageEngineCacheSizeGB command line option is only
     # filled in with a default value here if one hasn't already been specified in the task's
-    # definition or build variant's definition.
+    # definition or build variant's definition. The configuration of cache size is duplicated in
+    # bazel/resmoke/resmoke_shim.py, please update both.
     set +o errexit
     echo "${resmoke_args} ${test_flags}" | grep -q storageEngineCacheSizeGB
     if [ $? -eq 1 ]; then

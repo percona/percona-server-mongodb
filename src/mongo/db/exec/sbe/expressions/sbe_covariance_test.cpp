@@ -51,6 +51,10 @@ public:
         std::vector<CovarianceOp>& operations,
         std::vector<std::pair<value::TypeTags, value::Value>>& expValuesSamp,
         std::vector<std::pair<value::TypeTags, value::Value>>& expValuesPop) {
+        ValueVectorGuard inputGuardX{inputValuesX};
+        ValueVectorGuard inputGuardY{inputValuesY};
+        ValueVectorGuard expGuardSamp{expValuesSamp};
+        ValueVectorGuard expGuardPop{expValuesPop};
         value::ViewOfValueAccessor inputAccessorX;
         auto inputSlotX = bindAccessor(&inputAccessorX);
 
@@ -96,20 +100,13 @@ public:
 
             aggAccessor.reset(runTag, runVal);
             auto outSamp = runCompiledExpression(compiledCovarianceFinalizeSamp.get());
+            value::ValueGuard guardSamp{outSamp.first, outSamp.second};
             auto outPop = runCompiledExpression(compiledCovarianceFinalizePop.get());
+            value::ValueGuard guardPop{outPop.first, outPop.second};
 
             const double precisionLimit = 0.0001;
             ASSERT_THAT(outSamp, ValueRoughEq(expValuesSamp[i], precisionLimit));
             ASSERT_THAT(outPop, ValueRoughEq(expValuesPop[i], precisionLimit));
-
-            value::releaseValue(outSamp.first, outSamp.second);
-            value::releaseValue(outPop.first, outPop.second);
-            value::releaseValue(expValuesSamp[i].first, expValuesSamp[i].second);
-            value::releaseValue(expValuesPop[i].first, expValuesPop[i].second);
-        }
-        for (size_t i = 0; i < inputValuesX.size(); ++i) {
-            value::releaseValue(inputValuesX[i].first, inputValuesX[i].second);
-            value::releaseValue(inputValuesY[i].first, inputValuesY[i].second);
         }
     }
 };

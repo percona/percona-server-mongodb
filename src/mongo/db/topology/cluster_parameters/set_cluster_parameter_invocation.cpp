@@ -64,7 +64,7 @@
 
 namespace mongo {
 
-// TODO (SERVER-118758): Remove once all cluster parameters use strict parsing.
+// TODO (SERVER-118757): Consider removing this function after resolving this ticket.
 template <typename T>
 Status checkUnknownFieldsOnParameter(BSONObj obj) {
     for (auto&& elem : obj) {
@@ -85,7 +85,7 @@ Status checkUnknownFieldsOnParameter(BSONObj obj) {
 //   - Have an object type.
 // This temporary check is needed while we migrate the remaining non-strict cluster parameters
 // to strict parsing; we cannot flip them all at once for backward compatibility reasons.
-// TODO (SERVER-118758): Remove once all cluster parameters use strict parsing.
+// TODO (SERVER-118757): Consider removing this function after resolving this ticket.
 void checkUnknownFields(const BSONObj& command) {
     StringData name = command.firstElement().fieldName();
 
@@ -174,7 +174,7 @@ std::pair<BSONObj, BSONObj> SetClusterParameterInvocation::normalizeParameter(
             str::stream() << "Server parameter: '" << sp->name() << "' is disabled",
             skipValidation || sp->isEnabled(VersionContext::getDecoration(opCtx)));
 
-    // TODO (SERVER-118758): Remove once all cluster parameters use strict parsing.
+    // TODO (SERVER-118757): Consider removing this call after resolving this ticket.
     checkUnknownFields(cmdParamObj);
 
     Timestamp clusterTime =

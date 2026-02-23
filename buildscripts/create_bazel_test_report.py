@@ -2,7 +2,6 @@ import json
 import time
 from glob import glob
 from pathlib import Path
-from typing import List
 
 import typer
 from typing_extensions import TypedDict
@@ -24,7 +23,7 @@ class Result(TypedDict):
 class Report(TypedDict):
     """Test report for Evergreen"""
 
-    results: List[Result]
+    results: list[Result]
 
 
 def main(testlog_dir: str):

@@ -32,7 +32,6 @@ import os
 import shutil
 import sys
 from subprocess import CalledProcessError, check_output
-from typing import List
 
 from packaging.version import Version
 from retry import retry
@@ -51,7 +50,7 @@ LOGGER_NAME = "checkout-idl"
 LOGGER = logging.getLogger(LOGGER_NAME)
 
 
-def get_tags() -> List[str]:
+def get_tags() -> list[str]:
     """Get a list of git tags that the IDL compatibility script should check against."""
 
     def gen_versions_and_tags():
@@ -111,11 +110,11 @@ def _show_with_retry(tag: str, path: str):
 
 
 @retry(tries=3, delay=5)
-def _fetch_with_retry(tags: List[str]):
+def _fetch_with_retry(tags: list[str]):
     return check_output(["git", "fetch", "origin", *tags])
 
 
-def make_idl_directories(tags: List[str], destination: str) -> None:
+def make_idl_directories(tags: list[str], destination: str) -> None:
     """For each tag, construct a source tree containing only its IDL files."""
     LOGGER.info("Clearing destination directory '%s'", destination)
     shutil.rmtree(destination, ignore_errors=True)

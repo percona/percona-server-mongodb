@@ -230,7 +230,7 @@ TEST_F(HostServicesTest, CreateIdLookup_InvalidSpecFails) {
 
 TEST_F(HostServicesTest, NestedFilterParseNodeBasicPredicate) {
     auto filterSpec = BSON("filter" << BSON("status" << "A"));
-    auto parseNode = new extension::sdk::ExtensionAggStageParseNode(
+    auto parseNode = new extension::sdk::ExtensionAggStageParseNodeAdapter(
         std::make_unique<NestedFilterParseNode>(filterSpec));
     auto handle = extension::AggStageParseNodeHandle{parseNode};
 
@@ -249,7 +249,7 @@ TEST_F(HostServicesTest, NestedFilterParseNodeComplexPredicate) {
                                   << BSON("age" << BSON("$gt" << 30))
                                   << BSON("$or" << BSON_ARRAY(BSON("score" << BSON("$gte" << 80))
                                                               << BSON("level" << "advanced"))))));
-    auto parseNode = new extension::sdk::ExtensionAggStageParseNode(
+    auto parseNode = new extension::sdk::ExtensionAggStageParseNodeAdapter(
         std::make_unique<NestedFilterParseNode>(filterSpec));
     auto handle = extension::AggStageParseNodeHandle{parseNode};
 
@@ -270,7 +270,7 @@ TEST_F(HostServicesTest, NestedFilterParseNodeComplexPredicate) {
 
 TEST_F(HostServicesTest, NestedFilterParseNodeRejectsInvalidPredicate1) {
     auto filterSpec = BSON("filter" << BSON("$invalidOperator" << 5));
-    auto parseNode = new extension::sdk::ExtensionAggStageParseNode(
+    auto parseNode = new extension::sdk::ExtensionAggStageParseNodeAdapter(
         std::make_unique<NestedFilterParseNode>(filterSpec));
     auto handle = extension::AggStageParseNodeHandle{parseNode};
 
@@ -284,7 +284,7 @@ TEST_F(HostServicesTest, NestedFilterParseNodeRejectsInvalidPredicate2) {
     // The inner $or predicate must take an array, so it is rejected.
     auto filterSpec = BSON(
         "filter" << BSON("$and" << BSON_ARRAY(BSON("status" << "A") << BSON("$or" << BSONObj()))));
-    auto parseNode = new extension::sdk::ExtensionAggStageParseNode(
+    auto parseNode = new extension::sdk::ExtensionAggStageParseNodeAdapter(
         std::make_unique<NestedFilterParseNode>(filterSpec));
     auto handle = extension::AggStageParseNodeHandle{parseNode};
 

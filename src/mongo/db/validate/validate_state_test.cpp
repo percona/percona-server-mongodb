@@ -30,10 +30,11 @@
 #include "mongo/db/validate/validate_state.h"
 
 #include "mongo/db/repl/storage_interface.h"
+#include "mongo/db/rss/attached_storage/attached_persistence_provider.h"
 #include "mongo/db/shard_role/shard_catalog/catalog_test_fixture.h"
 #include "mongo/db/shard_role/shard_catalog/collection_options.h"
 #include "mongo/db/storage/kv/kv_engine.h"
-#include "mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h"
+#include "mongo/unittest/death_test.h"
 #include "mongo/unittest/unittest.h"
 
 namespace mongo::CollectionValidation {
@@ -43,8 +44,26 @@ const NamespaceString kNss = NamespaceString::createNamespaceString_forTest("tes
 const ValidationOptions kValidationOptions(ValidateMode::kForeground,
                                            RepairMode::kNone,
                                            /*logDiagnostics=*/false);
+const ValidationOptions kValidationOptionsEnforceFastCount(
+    ValidateMode::kForegroundFullEnforceFastCount,
+    RepairMode::kNone,
+    /*logDiagnostics=*/false);
 
 class ValidateStateTest : public CatalogTestFixture {};
+
+class ReplicatedFastCountTestPersistenceProvider : public rss::AttachedPersistenceProvider {
+    // Disable creating the WT size storer table.
+    bool shouldUseReplicatedFastCount() const override {
+        return true;
+    }
+};
+
+class ValidateStateWithoutSizeStorerTest : public CatalogTestFixture {
+public:
+    ValidateStateWithoutSizeStorerTest()
+        : CatalogTestFixture(Options().setPersistenceProvider(
+              std::make_unique<ReplicatedFastCountTestPersistenceProvider>())) {}
+};
 
 /**
  * Creates a replicated fast count collection using the global namespace string
@@ -57,30 +76,6 @@ void createReplicatedFastCountCollection(repl::StorageInterface* storageInterfac
                                            NamespaceString::makeGlobalConfigCollection(
                                                NamespaceString::kSystemReplicatedFastCountStore),
                                            CollectionOptions()));
-}
-
-/**
- * Deletes the internal WT size storer table. This function must be called alongside
- * cleanupDeletedWiredTigerSizeStorer() or else the CatalogTestFixture shutdown process will fail.
- */
-void deleteWiredTigerSizeStorer(OperationContext* opCtx) {
-    StorageEngine* storageEngine = opCtx->getServiceContext()->getStorageEngine();
-    KVEngine* kvEngine = storageEngine->getEngine();
-    auto& ru = *shard_role_details::getRecoveryUnit(opCtx);
-    ASSERT_OK(kvEngine->dropIdent(ru, ident::kSizeStorer, /*identHasSizeInfo=*/true));
-}
-
-/**
- * Cleans up invalid state induced by deleteWiredTigerSizeStorer().
- *
- * See cleanup_forTest() for more information.
- */
-void cleanupDeletedWiredTigerSizeStorer(OperationContext* opCtx) {
-    StorageEngine* storageEngine = opCtx->getServiceContext()->getStorageEngine();
-    KVEngine* kvEngine = storageEngine->getEngine();
-    auto* wtEngine = dynamic_cast<WiredTigerKVEngine*>(kvEngine);
-    ASSERT(wtEngine);
-    wtEngine->getSizeStorer_forTest()->cleanup_forTest();
 }
 }  // namespace
 
@@ -96,19 +91,57 @@ TEST_F(ValidateStateTest, GetDetectedFastCountTypeReturnsBoth) {
     EXPECT_EQ(validateState.getDetectedFastCountType(operationContext()), FastCountType::both);
 };
 
-TEST_F(ValidateStateTest, GetDetectedFastCountTypeReturnsReplicated) {
+TEST_F(ValidateStateWithoutSizeStorerTest, GetDetectedFastCountTypeReturnsReplicated) {
     createReplicatedFastCountCollection(storageInterface(), operationContext());
-    deleteWiredTigerSizeStorer(operationContext());
     ValidateState validateState(operationContext(), kNss, kValidationOptions);
     EXPECT_EQ(validateState.getDetectedFastCountType(operationContext()),
               FastCountType::replicated);
-    cleanupDeletedWiredTigerSizeStorer(operationContext());
 }
 
-TEST_F(ValidateStateTest, GetDetectedFastCountTypeReturnsNeither) {
-    deleteWiredTigerSizeStorer(operationContext());
+TEST_F(ValidateStateWithoutSizeStorerTest, GetDetectedFastCountTypeReturnsNeither) {
     ValidateState validateState(operationContext(), kNss, kValidationOptions);
     EXPECT_EQ(validateState.getDetectedFastCountType(operationContext()), FastCountType::neither);
-    cleanupDeletedWiredTigerSizeStorer(operationContext());
+}
+
+TEST(FastCountTypeToStringTest, Works) {
+    EXPECT_EQ(toString(FastCountType::legacySizeStorer), "legacySizeStorer");
+    EXPECT_EQ(toString(FastCountType::replicated), "replicated");
+    EXPECT_EQ(toString(FastCountType::both), "both");
+    EXPECT_EQ(toString(FastCountType::neither), "neither");
+}
+
+TEST_F(ValidateStateTest, EnforceOnNamespaceIfReplicatedFastCountFFOff) {
+    std::vector<StringData> dbNames{"config", "local", "admin", "test"};
+
+    for (auto& dbName : dbNames) {
+        const NamespaceString nss =
+            NamespaceString::createNamespaceString_forTest(dbName + ".validateState");
+        ValidateState validateState(operationContext(), nss, kValidationOptionsEnforceFastCount);
+        EXPECT_EQ(validateState.shouldEnforceFastCount(operationContext()), true);
+    }
+}
+
+TEST_F(ValidateStateTest, EnforceOnNonInternalNamespaceReplicatedFastCountFeatureFlagOn) {
+    RAIIServerParameterControllerForTest featureFlag("featureFlagReplicatedFastCount", true);
+    const NamespaceString nss =
+        NamespaceString::createNamespaceString_forTest("test.validateState");
+    ValidateState validateState(operationContext(), nss, kValidationOptionsEnforceFastCount);
+    EXPECT_EQ(validateState.shouldEnforceFastCount(operationContext()), true);
+}
+
+TEST_F(ValidateStateTest, DoNotEnforceOnInternalNamespaceReplicatedFastCountFeatureFlagOn) {
+    RAIIServerParameterControllerForTest featureFlag("featureFlagReplicatedFastCount", true);
+    std::vector<StringData> dbNames{"config", "local", "admin"};
+
+    for (auto& dbName : dbNames) {
+        const NamespaceString nss =
+            NamespaceString::createNamespaceString_forTest(dbName + ".validateState");
+        ValidateState validateState(operationContext(), nss, kValidationOptionsEnforceFastCount);
+        EXPECT_EQ(validateState.shouldEnforceFastCount(operationContext()), false);
+    }
+}
+
+DEATH_TEST(FastCountToStringDeathTest, DiesOnBadFastCountType, "11853100") {
+    toString(static_cast<FastCountType>(-1));
 }
 }  // namespace mongo::CollectionValidation

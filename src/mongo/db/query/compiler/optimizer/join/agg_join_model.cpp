@@ -33,6 +33,7 @@
 #include "mongo/bson/bsonobjbuilder.h"
 #include "mongo/db/pipeline/document_source_geo_near.h"
 #include "mongo/db/pipeline/document_source_lookup.h"
+#include "mongo/db/pipeline/document_source_sort.h"
 #include "mongo/db/pipeline/expression_context_builder.h"
 #include "mongo/db/pipeline/pipeline_d.h"
 #include "mongo/db/pipeline/pipeline_factory.h"
@@ -85,7 +86,7 @@ struct Predicates {
 
 StatusWith<Predicates> extractPredicatesFromLookup(DocumentSourceLookUp& stage) {
     auto expCtx = stage.getSubpipelineExpCtx();
-    if (stage.hasPipeline()) {
+    if (stage.hasPipeline() && !stage.getResolvedIntrospectionPipeline().empty()) {
         auto ds = stage.getResolvedIntrospectionPipeline().peekFront();
         auto match = dynamic_cast<DocumentSourceMatch*>(ds);
         tassert(11317205, "expected $match stage as leading stage in subpipeline", match);
@@ -140,7 +141,7 @@ bool isLookupEligible(const DocumentSourceLookUp& lookup) {
         return false;
     }
 
-    if (!lookup.hasPipeline()) {
+    if (!lookup.hasPipeline() || lookup.getResolvedIntrospectionPipeline().empty()) {
         // A $lookup with no sub-pipeline is eligible.
         return true;
     }
@@ -289,6 +290,7 @@ StatusWith<AggJoinModel> AggJoinModel::constructJoinModel(const Pipeline& pipeli
     ExpressionContext::PlanCacheOptions oldPlanCache = expCtx->getPlanCache();
     expCtx->setPlanCache(ExpressionContext::PlanCacheOptions::kDisablePlanCache);
     auto swCQ = createCanonicalQuery(expCtx, nss, *suffix);
+
     expCtx->setPlanCache(oldPlanCache);
 
     if (!swCQ.isOK()) {
@@ -297,6 +299,9 @@ StatusWith<AggJoinModel> AggJoinModel::constructJoinModel(const Pipeline& pipeli
         return swCQ.getStatus();
     }
 
+    if (swCQ.getValue()->getSortPattern()) {
+        return Status(ErrorCodes::BadValue, "Sort stage found in pipeline");
+    }
     // Initialize the JoinGraph & base NodeId.
     MutableJoinGraph graph{buildParams.joinGraphBuildParams};
     auto baseNodeId =
@@ -329,13 +334,6 @@ StatusWith<AggJoinModel> AggJoinModel::constructJoinModel(const Pipeline& pipeli
             // then this extraction failed due to an ineligible stage/expression.
             auto swPreds = extractPredicatesFromLookup(*lookup);
             if (!swPreds.isOK()) {
-                break;
-            }
-
-            // Each $lookup must have a join predicate, as we currently don't support enumerating
-            // cross-product plans.
-            if (!lookup->hasLocalFieldForeignFieldJoin() &&
-                swPreds.getValue().joinPredicates.empty()) {
                 break;
             }
 
@@ -413,10 +411,13 @@ StatusWith<AggJoinModel> AggJoinModel::constructJoinModel(const Pipeline& pipeli
 
     addImplicitEdges(graph, resolvedPaths, buildParams.maxNumberNodesConsideredForImplicitEdges);
 
-    return AggJoinModel(JoinGraph(std::move(graph)),
-                        std::move(resolvedPaths),
-                        std::move(prefix),
-                        std::move(suffix));
+    JoinGraph result = JoinGraph(std::move(graph));
+    if (!result.isConnected()) {
+        return Status(ErrorCodes::InternalErrorNotSupported,
+                      "Join graph must be connected as cross-products are not yet supported");
+    }
+    return AggJoinModel(
+        std::move(result), std::move(resolvedPaths), std::move(prefix), std::move(suffix));
 }
 
 BSONObj AggJoinModel::toBSON() const {

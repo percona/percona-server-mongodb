@@ -2,7 +2,7 @@ import argparse
 import os
 import pathlib
 import subprocess
-from typing import List, Union
+from typing import Union
 
 from git import Repo
 from utils.evergreen_git import get_mongodb_remote
@@ -45,7 +45,7 @@ def _git_unstaged_files() -> str:
     return result.stdout.strip() + os.linesep
 
 
-def _get_files_changed_since_fork_point(origin_branch: str = "origin/master") -> List[str]:
+def _get_files_changed_since_fork_point(origin_branch: str = "origin/master") -> list[str]:
     """Query git to get a list of files in the repo from a diff."""
     # There are 3 diffs we run:
     # 1. List of commits between origin/master and HEAD of current branch
@@ -72,7 +72,7 @@ def run_rules_lint(
     rules_lint_format_path: pathlib.Path,
     rules_lint_format_check_path: pathlib.Path,
     check: bool,
-    files_to_format: Union[List[str], str] = "all",
+    files_to_format: Union[list[str], str] = "all",
 ) -> bool:
     try:
         if check:
@@ -91,7 +91,7 @@ def run_rules_lint(
 
 
 def run_prettier(
-    prettier: pathlib.Path, check: bool, files_to_format: Union[List[str], str] = "all"
+    prettier: pathlib.Path, check: bool, files_to_format: Union[list[str], str] = "all"
 ) -> bool:
     # Explicitly ignore anything in the output directories or any symlinks in the root of the repository
     # to prevent bad symlinks from failing the run, see https://github.com/prettier/prettier/issues/11568 as
@@ -103,6 +103,7 @@ def run_prettier(
         "!./bazel-mongo",
         "!./external",
         "!./.compiledb",
+        "!./monguard",
     }
     for path in pathlib.Path(".").iterdir():
         if path.is_symlink():
@@ -113,6 +114,9 @@ def run_prettier(
             "--cache",
             "--log-level",
             "warn",
+            # Changed-files mode may include extensions prettier does not parse (for example .py, .sky).
+            # Ignore unknown files so formatter routing can continue instead of failing early.
+            "--ignore-unknown",
         ]
         if files_to_format == "all":
             command += ["."]
@@ -218,7 +222,7 @@ def main() -> int:
         else:
             files_to_format = _get_files_changed_since_fork_point(origin_branch)
 
-    def files_to_format_contains_bazel_file(files: Union[List[str], str]) -> bool:
+    def files_to_format_contains_bazel_file(files: Union[list[str], str]) -> bool:
         if files == "all":
             return True
         return any(file.endswith(".bazel") or "BUILD" in file for file in files)

@@ -89,8 +89,9 @@ ExecutorStats::Task ExecutorStats::wrapTask(ExecutorStats::Task&& task) {
     _scheduled.increment(1);
     return [this, task = std::move(task), scheduledAt = _clkSource->now()](Status status) {
         const auto startedAt = _clkSource->now();
-        Milliseconds waitTime = startedAt - scheduledAt;
-        recordDuration(_waitingBuckets, waitTime);
+        Microseconds waitTime = startedAt - scheduledAt;
+        _averageWaitTimeMicros.addSample(waitTime.count());
+        recordDuration(_waitingBuckets, duration_cast<Milliseconds>(waitTime));
         Milliseconds waitTimeThreshold =
             Milliseconds{serverGlobalParams.slowTaskExecutorWaitTimeProfilingMs.loadRelaxed()};
         if (waitTime > waitTimeThreshold) {
@@ -102,16 +103,23 @@ ExecutorStats::Task ExecutorStats::wrapTask(ExecutorStats::Task&& task) {
         }
         task(std::move(status));
 
-        recordDuration(_runningBuckets, _clkSource->now() - startedAt);
+        Microseconds runTime = _clkSource->now() - startedAt;
+        _averageRunTimeMicros.addSample(runTime.count());
+        recordDuration(_runningBuckets, duration_cast<Milliseconds>(runTime));
         _executed.increment(1);
     };
 }
 
-void ExecutorStats::serialize(BSONObjBuilder* bob) const {
+void ExecutorStats::serialize(BSONObjBuilder* bob, bool forServerStatus) const {
     bob->append("scheduled"_sd, _scheduled.get());
     bob->append("executed"_sd, _executed.get());
-    serializeBuckets(_waitingBuckets, bob->subobjStart("waitTime"_sd));
-    serializeBuckets(_runningBuckets, bob->subobjStart("runTime"_sd));
+    if (forServerStatus) {
+        bob->append("averageWaitTimeMicros"_sd, _averageWaitTimeMicros.get().value_or(0));
+        bob->append("averageRunTimeMicros"_sd, _averageRunTimeMicros.get().value_or(0));
+    } else {
+        serializeBuckets(_waitingBuckets, bob->subobjStart("waitTime"_sd));
+        serializeBuckets(_runningBuckets, bob->subobjStart("runTime"_sd));
+    }
 }
 
 }  // namespace mongo

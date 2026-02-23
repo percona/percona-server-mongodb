@@ -147,6 +147,46 @@ A cross-version validation always considers the newer version of mongo to define
 means, specifically this implies that features which were deprecated may be ignored by the
 validator.
 
+## Timestamped Validation
+
+An optional parameter `atClusterTime` can be provided to perform validation at a specific `readTimestamp`. This timestamp follows the same rules as using `readConcern: snapshot`.
+
+## Collection Validation Hashes
+
+The collection validation can be used to compute order-independent SHA-256–based hashes over the collection’s contents. The resulting hash can be used to compare collection contents across nodes of a replica set to check for inter-node consistency. The collection hashing feature can only be used on a standalone node and is not supported against a replica set. The following parameters are used for the collection hashing.
+
+- `collHash`: <bool>
+  - Enables hash computation for the collection. When present, validate computes a combined hash over the collection’s documents.
+- `hashPrefixes`: <array<string>>
+  - Requests a bucketed view of the collection keyed by prefixes of the per-document \_id hash. Buckets are returned in the `partial` field and are used to iteratively narrow down inconsistent regions across nodes. When `hashPrefixes` is present, validate skips the top-level all/metadata hashes as an optimization.
+- `revealHashedIds`: <array<string>>
+  - For each supplied hash or hash prefix, validate returns the corresponding \_id values so that callers can identify which documents differ between nodes.
+
+Collection Validation Hashes output is grouped under a top level `collHash` object in the Validate reply.
+
+- `collHash.all` – combined hash of all documents in the collection.
+- `collHash.metadata` – combined hash of all idents of the collection and its indexes.
+- `collHash.partial` – map from hash prefix to `{ hash, count }` buckets when `hashPrefixes` is provided.
+- `collHash.revealedIds` – map from hash (or prefix) to a list of \_id values when `revealHashedIds` is provided.
+
+The intended usage of this feature is a multi-pass "drill-down" to identify document inconsistencies between nodes. This process is described below and an example of it can be seen in our [Javascript Testing](https://github.com/mongodb/mongo/blob/1390ce7a08db1536fe0f0b0b6ff7b2f7d8163086/jstests/noPassthrough/validate/libs/validate_find_repl_set_divergence.js).
+
+- Initial pass
+  - Call validate with `collHash: true, atClusterTime: x` on each node.
+  - Compare the `collHash.all` outputs against each other.
+  - If there is a difference, proceed with the process. Otherwise no inconsistency.
+- Bucketing
+  - Call validate with `collHash: true, atClusterTime: x, hashPrefixes: []`.
+  - For each node, validate computes per-bucket hashes under collHash.partial, using the first N hex characters as bucket keys.
+  - Callers compare bucket hashes across nodes to determine which prefixes (for example, "aa") are inconsistent.
+- Drill down
+  - For each inconsistent prefix p, call validate again with `collHash: true, atClusterTime: x, hashPrefixes: [p1, p2, ...]`.
+  - Validate extends the bucket the prefix (for example, p="aa" -> buckets aaa, aab, …).
+  - Recursively continue this step for each inconsistent prefix until the `count` field is equal to 1, or when a prefix bucket no longer contains data.
+- Reveal IDs
+  - Call validate with `collHash: true, atClusterTime: x, revealHashedIds: [p1, p2, ...]` for each prefix.
+  - Returns the `_id` fields of all documents that map to prefix `p`.
+
 ## Errors and Warnings
 
 The results of a validation pass is a BSON object detailing the sources of invalidity (if any) as

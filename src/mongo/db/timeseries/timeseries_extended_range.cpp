@@ -65,10 +65,10 @@ bool dateOutsideStandardRange(Date_t date) {
     return timeMilliseconds < 0 || timeMilliseconds > kMaxNormalRangeTimestamp;
 }
 
-bool bucketsHaveDateOutsideStandardRange(const TimeseriesOptions& options,
-                                         std::vector<InsertStatement>::const_iterator first,
-                                         std::vector<InsertStatement>::const_iterator last) {
-    return std::any_of(first, last, [&](const InsertStatement& stmt) -> bool {
+// Returns the date that is out of range
+boost::optional<Date_t> bucketsHaveDateOutsideStandardRange(
+    const TimeseriesOptions& options, std::span<const InsertStatement> inserts) {
+    for (const InsertStatement& stmt : inserts) {
         auto controlElem = stmt.doc.getField(timeseries::kBucketControlFieldName);
         uassert(6781400,
                 "Time series bucket document is missing 'control' field",
@@ -87,14 +87,20 @@ bool bucketsHaveDateOutsideStandardRange(const TimeseriesOptions& options,
                 timeElem && BSONType::date == timeElem.type());
 
         auto date = timeElem.Date();
-        return dateOutsideStandardRange(date);
-    });
+        if (dateOutsideStandardRange(date)) {
+            return date;
+        }
+    };
+    return boost::none;
+}
+
+bool oidHasExtendedRangeTime(const OID& oid) {
+    const uint8_t highDateBits = oid.view().read<uint8_t>(0);
+    return highDateBits & 0x80;
 }
 
 bool collectionMayRequireExtendedRangeSupport(OperationContext* opCtx,
                                               const Collection& collection) {
-    bool requiresExtendedRangeSupport = false;
-
     // We use a heuristic here to perform a check as quickly as possible and get the correct answer
     // with high probability. The rough idea is that if a user has dates outside the standard range
     // from 1970-2038, they most likely have some dates near either end of that range, i.e. between
@@ -105,27 +111,20 @@ bool collectionMayRequireExtendedRangeSupport(OperationContext* opCtx,
 
     auto* rs = collection.getRecordStore();
     auto cursor =
-        rs->getCursor(opCtx, *shard_role_details::getRecoveryUnit(opCtx), /* forward */ false);
-    if (auto record = cursor->next()) {
+        rs->getCursor(opCtx, *shard_role_details::getRecoveryUnit(opCtx), /*forward=*/false);
+    if (const auto record = cursor->next()) {
         const auto& obj = record->data.toBson();
-        OID id = obj.getField(kBucketIdFieldName).OID();
-
-        uint8_t highDateBits = id.view().read<uint8_t>(0);
-        if (highDateBits & 0x80) {
-            requiresExtendedRangeSupport = true;
-        }
+        return oidHasExtendedRangeTime(obj.getField(kBucketIdFieldName).OID());
     }
-
-    return requiresExtendedRangeSupport;
+    return false;
 }
 
 bool collectionHasTimeIndex(OperationContext* opCtx, const Collection& collection) {
-    auto tsOptions = collection.getTimeseriesOptions();
-    invariant(tsOptions);
+    const auto& tsOptions = collection.getTimeseriesOptions().value();
     std::string controlMinTimeField = std::string{timeseries::kControlMinFieldNamePrefix};
-    controlMinTimeField.append(std::string{tsOptions->getTimeField()});
+    controlMinTimeField.append(std::string{tsOptions.getTimeField()});
     std::string controlMaxTimeField = std::string{timeseries::kControlMaxFieldNamePrefix};
-    controlMaxTimeField.append(std::string{tsOptions->getTimeField()});
+    controlMaxTimeField.append(std::string{tsOptions.getTimeField()});
 
     auto indexCatalog = collection.getIndexCatalog();
     // The IndexIterator is initialized lazily, so the first call to 'next' positions it to the

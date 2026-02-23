@@ -30,7 +30,7 @@ import {
     getPlanCacheKeyFromExplain,
     getPlanCacheShapeHashFromExplain,
 } from "jstests/libs/query/analyze_plan.js";
-import {checkSbeFullFeatureFlagEnabled} from "jstests/libs/query/sbe_util.js";
+import {sbePlanCacheEnabled} from "jstests/libs/query/sbe_util.js";
 
 function groupBy(arr, keyFn) {
     let dict = {};
@@ -93,7 +93,7 @@ runTest({
 // Drop the index.
 assert.commandWorked(coll.dropIndex({x: 1}));
 const postDropExplain = coll.find(query).explain();
-const usesSbePlanCache = checkSbeFullFeatureFlagEnabled(db);
+const usesSbePlanCache = sbePlanCacheEnabled(db);
 runTest({
     explain0: initialExplain,
     explain1: postDropExplain,

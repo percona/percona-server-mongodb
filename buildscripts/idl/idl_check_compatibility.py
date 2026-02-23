@@ -42,7 +42,7 @@ import os
 import sys
 from dataclasses import dataclass
 from enum import Enum
-from typing import Dict, List, Optional, Set, Tuple, Union
+from typing import Optional, Union
 
 import yaml
 from idl import common, errors, parser, syntax
@@ -71,17 +71,17 @@ rules = load_rules_file()
 
 # Load the subsections from the global "rules.yml" file into separate global variables.
 # Any of the following assignments will fail if no rules exist for the provided key.
-ALLOW_ANY_TYPE_LIST: List[str] = rules["ALLOW_ANY_TYPE_LIST"]
-IGNORE_ANY_TO_NON_ANY_LIST: List[str] = rules["IGNORE_ANY_TO_NON_ANY_LIST"]
-IGNORE_NON_ANY_TO_ANY_LIST: List[str] = rules["IGNORE_NON_ANY_TO_ANY_LIST"]
-ALLOW_CPP_TYPE_CHANGE_LIST: List[str] = rules["ALLOW_CPP_TYPE_CHANGE_LIST"]
-IGNORE_STABLE_TO_UNSTABLE_LIST: List[str] = rules["IGNORE_STABLE_TO_UNSTABLE_LIST"]
-ALLOWED_STABLE_FIELDS_LIST: List[str] = rules["ALLOWED_STABLE_FIELDS_LIST"]
-IGNORE_COMMANDS_LIST: List[str] = rules["IGNORE_COMMANDS_LIST"]
+ALLOW_ANY_TYPE_LIST: list[str] = rules["ALLOW_ANY_TYPE_LIST"]
+IGNORE_ANY_TO_NON_ANY_LIST: list[str] = rules["IGNORE_ANY_TO_NON_ANY_LIST"]
+IGNORE_NON_ANY_TO_ANY_LIST: list[str] = rules["IGNORE_NON_ANY_TO_ANY_LIST"]
+ALLOW_CPP_TYPE_CHANGE_LIST: list[str] = rules["ALLOW_CPP_TYPE_CHANGE_LIST"]
+IGNORE_STABLE_TO_UNSTABLE_LIST: list[str] = rules["IGNORE_STABLE_TO_UNSTABLE_LIST"]
+ALLOWED_STABLE_FIELDS_LIST: list[str] = rules["ALLOWED_STABLE_FIELDS_LIST"]
+IGNORE_COMMANDS_LIST: list[str] = rules["IGNORE_COMMANDS_LIST"]
 RENAMED_COMPLEX_ACCESS_CHECKS: dict[str, str] = rules["RENAMED_COMPLEX_ACCESS_CHECKS"]
-ALLOWED_NEW_COMPLEX_ACCESS_CHECKS: dict[str, List[str]] = rules["ALLOWED_NEW_COMPLEX_ACCESS_CHECKS"]
-CHANGED_ACCESS_CHECKS_TYPE: dict[str, List[str]] = rules["CHANGED_ACCESS_CHECKS_TYPE"]
-ALLOW_FIELD_VALUE_REMOVAL_LIST: dict[str, List[str]] = rules["ALLOW_FIELD_VALUE_REMOVAL_LIST"]
+ALLOWED_NEW_COMPLEX_ACCESS_CHECKS: dict[str, list[str]] = rules["ALLOWED_NEW_COMPLEX_ACCESS_CHECKS"]
+CHANGED_ACCESS_CHECKS_TYPE: dict[str, list[str]] = rules["CHANGED_ACCESS_CHECKS_TYPE"]
+ALLOW_FIELD_VALUE_REMOVAL_LIST: dict[str, list[str]] = rules["ALLOW_FIELD_VALUE_REMOVAL_LIST"]
 
 SKIPPED_FILES = [
     "unittest.idl",
@@ -100,7 +100,7 @@ class AllowedNewPrivilege:
     """Represents a privilege check that should be ignored by the API compatibility checker."""
 
     resource_pattern: str
-    action_type: List[str]
+    action_type: list[str]
     agg_stage: Optional[str] = None
 
     @classmethod
@@ -108,7 +108,7 @@ class AllowedNewPrivilege:
         return cls(privilege.resource_pattern, privilege.action_type, privilege.agg_stage)
 
 
-ALLOWED_NEW_ACCESS_CHECK_PRIVILEGES: Dict[str, List[AllowedNewPrivilege]] = dict(
+ALLOWED_NEW_ACCESS_CHECK_PRIVILEGES: dict[str, list[AllowedNewPrivilege]] = dict(
     # Do not add any command other than the aggregate command or any privilege that is not required
     # only by an aggregation stage not present in previously released versions.
     aggregate=[],
@@ -180,12 +180,12 @@ def is_stable(stability: Optional[str]) -> bool:
 
 
 def get_new_commands(
-    ctxt: IDLCompatibilityContext, new_idl_dir: str, import_directories: List[str]
-) -> Tuple[Dict[str, syntax.Command], Dict[str, syntax.IDLParsedSpec], Dict[str, str]]:
+    ctxt: IDLCompatibilityContext, new_idl_dir: str, import_directories: list[str]
+) -> tuple[dict[str, syntax.Command], dict[str, syntax.IDLParsedSpec], dict[str, str]]:
     """Get new IDL commands and check validity."""
-    new_commands: Dict[str, syntax.Command] = dict()
-    new_command_file: Dict[str, syntax.IDLParsedSpec] = dict()
-    new_command_file_path: Dict[str, str] = dict()
+    new_commands: dict[str, syntax.Command] = dict()
+    new_command_file: dict[str, syntax.IDLParsedSpec] = dict()
+    new_command_file_path: dict[str, str] = dict()
 
     for dirpath, _, filenames in os.walk(new_idl_dir):
         for new_filename in filenames:
@@ -265,8 +265,8 @@ def check_subset(
     cmd_name: str,
     field_name: str,
     type_name: str,
-    sub_list: List[Union[str, syntax.EnumValue]],
-    super_list: List[Union[str, syntax.EnumValue]],
+    sub_list: list[Union[str, syntax.EnumValue]],
+    super_list: list[Union[str, syntax.EnumValue]],
     file_path: str,
 ):
     """Check if sub_list is a subset of the super_list and log an error if not."""
@@ -283,8 +283,8 @@ def check_superset(
     ctxt: IDLCompatibilityContext,
     cmd_name: str,
     type_name: str,
-    super_list: List[Union[str, syntax.EnumValue]],
-    sub_list: List[Union[str, syntax.EnumValue]],
+    super_list: list[Union[str, syntax.EnumValue]],
+    sub_list: list[Union[str, syntax.EnumValue]],
     file_path: str,
     param_name: Optional[str],
     is_command_parameter: bool,
@@ -1165,7 +1165,7 @@ def check_param_or_type_validator(
     # SERVER-71601.
     #
     # Do not add additional parameters to this list.
-    ignore_validator_check_list: List[str] = []
+    ignore_validator_check_list: list[str] = []
 
     if new_field.validator:
         if old_field.validator:
@@ -1493,8 +1493,8 @@ def check_namespace(
 def check_error_reply(
     old_basic_types_path: str,
     new_basic_types_path: str,
-    old_import_directories: List[str],
-    new_import_directories: List[str],
+    old_import_directories: list[str],
+    new_import_directories: list[str],
 ) -> IDLCompatibilityErrorCollection:
     """Check IDL compatibility between old and new ErrorReply."""
     old_idl_dir = os.path.dirname(old_basic_types_path)
@@ -1546,8 +1546,8 @@ def check_error_reply(
 
 
 def split_complex_checks(
-    complex_checks: List[syntax.AccessCheck],
-) -> Tuple[List[str], List[syntax.Privilege]]:
+    complex_checks: list[syntax.AccessCheck],
+) -> tuple[list[str], list[syntax.Privilege]]:
     """Split a list of AccessCheck into checks and privileges."""
     checks = [x.check for x in complex_checks if x.check is not None]
     privileges = [x.privilege for x in complex_checks if x.privilege is not None]
@@ -1566,8 +1566,8 @@ def map_complex_access_check_name(name: str) -> str:
 
 def check_complex_checks(
     ctxt: IDLCompatibilityContext,
-    old_complex_checks: List[syntax.AccessCheck],
-    new_complex_checks: List[syntax.AccessCheck],
+    old_complex_checks: list[syntax.AccessCheck],
+    new_complex_checks: list[syntax.AccessCheck],
     cmd: syntax.Command,
     new_idl_file_path: str,
 ) -> None:
@@ -1615,10 +1615,10 @@ def check_complex_checks(
 
 
 def split_complex_checks_agg_stages(
-    complex_checks: List[syntax.AccessCheck],
-) -> Dict[str, List[syntax.AccessCheck]]:
+    complex_checks: list[syntax.AccessCheck],
+) -> dict[str, list[syntax.AccessCheck]]:
     """Split a list of AccessChecks into a map keyed by aggregation stage (defaults to None)."""
-    complex_checks_agg_stages: Dict[str, List[syntax.AccessCheck]] = dict()
+    complex_checks_agg_stages: dict[str, list[syntax.AccessCheck]] = dict()
     for access_check in complex_checks:
         agg_stage = None
         if access_check.privilege is not None:
@@ -1632,8 +1632,8 @@ def split_complex_checks_agg_stages(
 
 def check_complex_checks_agg_stages(
     ctxt: IDLCompatibilityContext,
-    old_complex_checks: List[syntax.AccessCheck],
-    new_complex_checks: List[syntax.AccessCheck],
+    old_complex_checks: list[syntax.AccessCheck],
+    new_complex_checks: list[syntax.AccessCheck],
     cmd: syntax.Command,
     new_idl_file_path: str,
 ) -> None:
@@ -1711,8 +1711,8 @@ def check_security_access_checks(
 def check_compatibility(
     old_idl_dir: str,
     new_idl_dir: str,
-    old_import_directories: List[str],
-    new_import_directories: List[str],
+    old_import_directories: list[str],
+    new_import_directories: list[str],
 ) -> IDLCompatibilityErrorCollection:
     """Check IDL compatibility between old and new IDL commands."""
     ctxt = IDLCompatibilityContext(old_idl_dir, new_idl_dir, IDLCompatibilityErrorCollection())
@@ -1724,7 +1724,7 @@ def check_compatibility(
     # Check new commands' compatibility with old ones.
     # Note, a command can be added to V1 at any time, it's ok if a
     # new command has no corresponding old command.
-    old_commands: Dict[str, syntax.Command] = dict()
+    old_commands: dict[str, syntax.Command] = dict()
     for dirpath, _, filenames in os.walk(old_idl_dir):
         for old_filename in filenames:
             if not old_filename.endswith(".idl") or old_filename in SKIPPED_FILES:
@@ -1827,11 +1827,11 @@ def check_compatibility(
 
 
 def get_generic_arguments(
-    gen_args_file_path: str, includes: List[str]
-) -> Tuple[Set[str], Set[str]]:
+    gen_args_file_path: str, includes: list[str]
+) -> tuple[set[str], set[str]]:
     """Get arguments and reply fields from generic_argument.idl and check validity."""
-    arguments: Set[str] = set()
-    reply_fields: Set[str] = set()
+    arguments: set[str] = set()
+    reply_fields: set[str] = set()
 
     with open(gen_args_file_path) as gen_args_file:
         parsed_idl_file = parser.parse(
@@ -1875,8 +1875,8 @@ def get_generic_arguments(
 def check_generic_arguments_compatibility(
     old_gen_args_file_path: str,
     new_gen_args_file_path: str,
-    old_includes: List[str],
-    new_includes: List[str],
+    old_includes: list[str],
+    new_includes: list[str],
 ) -> IDLCompatibilityErrorCollection:
     """Check IDL compatibility between old and new generic_argument.idl files."""
     # IDLCompatibilityContext takes in both 'old_idl_dir' and 'new_idl_dir',

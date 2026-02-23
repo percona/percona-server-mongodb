@@ -13,7 +13,7 @@ import argparse
 import os
 import sys
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Optional
 
 MONGODB_URI = "mongodb://127.0.0.1:27017/"
 
@@ -27,7 +27,7 @@ def clean_up_file(file_path: str, desc: str) -> None:
         print_and_exit(f"Error: {desc} {file_path} does not exist for cleanup.")
 
 
-def construct_filenames(output_prefix: str, suffix: Optional[str] = None) -> Tuple[str, str]:
+def construct_filenames(output_prefix: str, suffix: Optional[str] = None) -> tuple[str, str]:
     """Constructs standardized filenames based on the prefix and optional suffix."""
     pkl_file = f"{output_prefix}.pkl"
     json_file = f"{output_prefix}_{suffix}.json" if suffix else f"{output_prefix}.json"
@@ -77,7 +77,7 @@ def print_and_exit(msg: str) -> None:
     sys.exit(1)
 
 
-def validate_and_change_directory(feature_extractor_dir: str) -> Tuple[Path, Path]:
+def validate_and_change_directory(feature_extractor_dir: str) -> tuple[Path, Path]:
     """Validates and changes to feature-extractor directory."""
 
     # Validate feature-extractor directory and change to it

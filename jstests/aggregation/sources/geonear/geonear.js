@@ -1,5 +1,6 @@
 // SERVER-7781 $geoNear pipeline stage
 import {GeoNearRandomTest} from "jstests/libs/query/geo_near_random.js";
+import {add2dsphereVersionIfNeededForSpec} from "jstests/libs/query/geo_index_version_helpers.js";
 
 const coll = jsTestName();
 
@@ -59,7 +60,7 @@ function test(db, indexType) {
 
     assert.eq(db[coll].count(), numPts);
 
-    db[coll].createIndex({loc: indexType});
+    db[coll].createIndex({loc: indexType}, add2dsphereVersionIfNeededForSpec({loc: indexType}));
 
     // Test $geoNear with spherical coordinates.
     testGeoNearStageOutput({

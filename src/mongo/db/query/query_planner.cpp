@@ -1723,7 +1723,7 @@ StatusWith<std::vector<std::unique_ptr<QuerySolution>>> QueryPlanner::plan(
     return {std::move(out)};
 }  // QueryPlanner::plan
 
-StatusWith<plan_ranking::PlanRankingResult> QueryPlanner::planWithCostBasedRanking(
+StatusWith<PlanRankingResult> QueryPlanner::planWithCostBasedRanking(
     const CanonicalQuery& query,
     const QueryPlannerParams& params,
     ce::SamplingEstimator* samplingEstimator,
@@ -1800,11 +1800,12 @@ StatusWith<plan_ranking::PlanRankingResult> QueryPlanner::planWithCostBasedRanki
             SolutionWithPlanStage{std::move(soln), nullptr /* rootStage */});
     }
 
-    return plan_ranking::PlanRankingResult{
-        std::move(acceptedSoln),
-        PlanExplainerData{.rejectedPlansWithStages = std::move(rejectedSolnWithStages),
-                          .estimates = std::move(estimates)},
-        true};
+    return PlanRankingResult{
+        .solutions = std::move(acceptedSoln),
+        .maybeExplainData =
+            PlanExplainerData{.rejectedPlansWithStages = std::move(rejectedSolnWithStages),
+                              .estimates = std::move(estimates)},
+        .needsWorksMeasured = true};
 }
 
 /**

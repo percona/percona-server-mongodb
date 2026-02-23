@@ -32,6 +32,7 @@
 
 #include "mongo/base/error_codes.h"
 #include "mongo/bson/util/bson_extract.h"
+#include "mongo/rpc/metadata/repl_set_metadata.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/str.h"
 
@@ -110,6 +111,12 @@ Status ReplSetHeartbeatArgsV1::initialize(const BSONObj& argsObj) {
     status = bsonExtractStringField(argsObj, kSetNameFieldName, &_setName);
     if (!status.isOK())
         return status;
+
+    // Store optional $replData sub-document when present (request metadata merged into
+    // command body by OP_MSG layer). Field-level parsing is done by the consumer.
+    if (auto replDataElem = argsObj[rpc::kReplSetMetadataFieldName]; replDataElem.isABSONObj()) {
+        _extra = replDataElem.Obj().getOwned();
+    }
 
     return Status::OK();
 }

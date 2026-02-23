@@ -1,6 +1,5 @@
 import json
 from dataclasses import dataclass
-from typing import Dict
 
 
 @dataclass
@@ -12,7 +11,7 @@ class SpanMetrics:
     net_nanos: int
     exclusive_nanos: int
     count: int
-    children: Dict[str, int]
+    children: dict[str, int]
 
     def to_dict(self):
         return {
@@ -28,7 +27,7 @@ class SpanMetrics:
 
 @dataclass
 class CallMetrics:
-    spans: Dict[int, SpanMetrics]
+    spans: dict[int, SpanMetrics]
 
     @staticmethod
     def new_empty():

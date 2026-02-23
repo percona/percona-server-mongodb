@@ -6,7 +6,7 @@ import re
 import sys
 from collections import defaultdict
 from dataclasses import dataclass
-from typing import Callable, Dict, Iterable, List, NamedTuple, Optional
+from typing import Callable, Iterable, NamedTuple, Optional
 
 import click
 
@@ -70,9 +70,9 @@ class FoundTodos:
     by_file: All the references found mapped by the files they were found in.
     """
 
-    no_tickets: List[Todo]
-    with_tickets: Dict[str, List[Todo]]
-    by_file: Dict[str, List[Todo]]
+    no_tickets: list[Todo]
+    with_tickets: dict[str, list[Todo]]
+    by_file: dict[str, list[Todo]]
 
 
 class TodoChecker:
@@ -111,7 +111,7 @@ class TodoChecker:
         walk_fs(base_dir, self.check_file)
 
     @staticmethod
-    def print_todo_list(todo_list: List[Todo]) -> None:
+    def print_todo_list(todo_list: list[Todo]) -> None:
         """Display all the TODOs in the given list."""
         last_file = None
         for todo in todo_list:

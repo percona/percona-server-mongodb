@@ -47,6 +47,12 @@ PersistenceProvider& ReplicatedStorageService::getPersistenceProvider() {
     invariant(_provider);
     return *_provider;
 }
+
+const PersistenceProvider& ReplicatedStorageService::getPersistenceProvider() const {
+    invariant(_provider);
+    return *_provider;
+}
+
 void ReplicatedStorageService::setPersistenceProvider(std::unique_ptr<PersistenceProvider>&& p) {
     _provider = std::move(p);
 }

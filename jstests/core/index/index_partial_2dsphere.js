@@ -4,13 +4,16 @@
 //   requires_non_retryable_writes,
 //   requires_getmore,
 // ]
+import {add2dsphereVersionIfNeeded} from "jstests/libs/query/geo_index_version_helpers.js";
 
 let coll = db.index_partial_2dsphere;
 coll.drop();
 
 // Create a 2dsphere partial index for documents where isIndexed is greater than 0.
 let partialIndex = {geoJson: "2dsphere"};
-assert.commandWorked(coll.createIndex(partialIndex, {partialFilterExpression: {isIndexed: {$gt: 0}}}));
+assert.commandWorked(
+    coll.createIndex(partialIndex, add2dsphereVersionIfNeeded({partialFilterExpression: {isIndexed: {$gt: 0}}})),
+);
 
 // This document has an invalid geoJSON format (duplicated points), but will not be indexed.
 let unindexedDoc = {

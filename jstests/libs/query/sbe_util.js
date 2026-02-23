@@ -172,6 +172,21 @@ export function checkSbeEqLookupUnwindEnabled(theDB) {
     }
 }
 
+function isDeferredGetExecutorEnabled(theDB) {
+    if (theDB !== null) {
+        return discoverNodesAndCheck(theDB, (conn) => {
+            return FeatureFlagUtil.isPresentAndEnabled(conn, "GetExecutorDeferredEngineChoice");
+        });
+    } else {
+        // If we don't have a database available, we can only look at the TestData to see what
+        // parameters resmoke was given.
+        return (
+            TestData.setParameters.featureFlagGetExecutorDeferredEngineChoice &&
+            TestData.setParameters.featureFlagGetExecutorDeferredEngineChoice === "true"
+        );
+    }
+}
+
 /**
  * Check if featureFlagSbeFull is enabled in the cluster.
  *
@@ -179,6 +194,16 @@ export function checkSbeEqLookupUnwindEnabled(theDB) {
  */
 export function checkSbeFullFeatureFlagEnabled(theDB) {
     return checkSbeStatus(theDB) === kFeatureFlagSbeFullEnabled;
+}
+
+/**
+ * Check if the SBE plan cache is enabled.
+ * If the `featureFlagGetExecutorDeferredEngineChoice` is enabled, return false since the SBE cache
+ * is not implemented yet.
+ * TODO SERVER-119773 enable SBE plan cache in new get executor.
+ */
+export function sbePlanCacheEnabled(theDB) {
+    return checkSbeFullFeatureFlagEnabled(theDB) && !isDeferredGetExecutorEnabled(theDB);
 }
 
 /**

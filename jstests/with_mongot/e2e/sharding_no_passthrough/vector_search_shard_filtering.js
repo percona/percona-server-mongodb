@@ -5,7 +5,6 @@
  * E2E version of with_mongot/vector_search_mocked/vector_search_shard_filtering.js
  *
  * @tags: [
- *   requires_fcv_71,
  *   requires_sharding,
  *   assumes_unsharded_collection,
  * ]
@@ -18,11 +17,13 @@ import {getShardNames} from "jstests/libs/sharded_cluster_fixture_helpers.js";
 
 TestData.skipCheckOrphans = true;
 
+// TODO SERVER-119626 Check if getSiblingDB() is still needed.
+const testDb = db.getSiblingDB(jsTestName());
 const collName = jsTestName();
 const baseCollName = jsTestName() + "_base";
 
-const testColl = db.getCollection(collName);
-const baseColl = db.getCollection(baseCollName);
+const testColl = testDb.getCollection(collName);
+const baseColl = testDb.getCollection(baseCollName);
 
 const vectorSearchIndex = "vector_search_shard_filtering_index";
 const queryVector = [1.0, 2.0, 3.0];
@@ -37,10 +38,10 @@ let shard0Conn;
 
 describe("$vectorSearch shard filtering", function () {
     before(function () {
-        shardNames = getShardNames(db.getMongo());
+        shardNames = getShardNames(testDb.getMongo());
         assert.gte(shardNames.length, 2, "Test requires at least 2 shards");
 
-        assert.commandWorked(db.adminCommand({enableSharding: db.getName(), primaryShard: shardNames[0]}));
+        assert.commandWorked(testDb.adminCommand({enableSharding: testDb.getName(), primaryShard: shardNames[0]}));
 
         testColl.drop();
 
@@ -59,12 +60,12 @@ describe("$vectorSearch shard filtering", function () {
 
         // Shard the test collection, split it at {shardKey: 10}, and move the higher chunk to shard1.
         assert.commandWorked(testColl.createIndex({shardKey: 1}));
-        assert.commandWorked(db.adminCommand({shardCollection: testColl.getFullName(), key: {shardKey: 1}}));
-        assert.commandWorked(db.adminCommand({split: testColl.getFullName(), middle: {shardKey: 10}}));
+        assert.commandWorked(testDb.adminCommand({shardCollection: testColl.getFullName(), key: {shardKey: 1}}));
+        assert.commandWorked(testDb.adminCommand({split: testColl.getFullName(), middle: {shardKey: 10}}));
 
         // 'waitForDelete' is set to 'true' so that range deletion completes before we insert our orphan.
         assert.commandWorked(
-            db.adminCommand({
+            testDb.adminCommand({
                 moveChunk: testColl.getFullName(),
                 find: {shardKey: 100},
                 to: shardNames[1],
@@ -72,11 +73,11 @@ describe("$vectorSearch shard filtering", function () {
             }),
         );
 
-        const shardPrimaries = FixtureHelpers.getPrimaries(db);
+        const shardPrimaries = FixtureHelpers.getPrimaries(testDb);
         assert.gte(shardPrimaries.length, 2);
 
         for (const primary of shardPrimaries) {
-            const count = primary.getDB(db.getName())[collName].find({shardKey: 0}).itcount();
+            const count = primary.getDB(testDb.getName())[collName].find({shardKey: 0}).itcount();
             if (count > 0) {
                 shard0Conn = primary;
                 break;
@@ -86,13 +87,13 @@ describe("$vectorSearch shard filtering", function () {
 
         // Insert an orphan document into shard 0 which is not owned by that shard.
         assert.commandWorked(
-            shard0Conn.getDB(db.getName())[collName].insert({_id: 15, shardKey: 100, x: [0.99, 1.99, 2.99]}),
+            shard0Conn.getDB(testDb.getName())[collName].insert({_id: 15, shardKey: 100, x: [0.99, 1.99, 2.99]}),
         );
 
         // Insert a document into shard 0 which doesn't have a shard key. This document should not be
         // skipped when mongot returns a result indicating that it matched the text query. The server
         // should not crash and the operation should not fail.
-        assert.commandWorked(shard0Conn.getDB(db.getName())[collName].insert({_id: 16, x: [0.95, 1.95, 2.95]}));
+        assert.commandWorked(shard0Conn.getDB(testDb.getName())[collName].insert({_id: 16, x: [0.95, 1.95, 2.95]}));
 
         createSearchIndex(testColl, {
             name: vectorSearchIndex,
@@ -146,10 +147,10 @@ describe("$vectorSearch shard filtering", function () {
 
         // Set up base coll to test shard filtering works within subpipelines. Shard base collection.
         assert.commandWorked(baseColl.createIndex({_id: 1}));
-        assert.commandWorked(db.adminCommand({shardCollection: baseColl.getFullName(), key: {_id: 1}}));
-        assert.commandWorked(db.adminCommand({split: baseColl.getFullName(), middle: {_id: 150}}));
+        assert.commandWorked(testDb.adminCommand({shardCollection: baseColl.getFullName(), key: {_id: 1}}));
+        assert.commandWorked(testDb.adminCommand({split: baseColl.getFullName(), middle: {_id: 150}}));
         assert.commandWorked(
-            db.adminCommand({
+            testDb.adminCommand({
                 moveChunk: baseColl.getFullName(),
                 find: {_id: 200},
                 to: shardNames[1],
@@ -179,6 +180,6 @@ describe("$vectorSearch shard filtering", function () {
         );
 
         // Verify orphan still exists on shard0 (wasn't accidentally deleted).
-        assert.eq(shard0Conn.getDB(db.getName())[collName].find({_id: 15}).itcount(), 1);
+        assert.eq(shard0Conn.getDB(testDb.getName())[collName].find({_id: 15}).itcount(), 1);
     });
 });

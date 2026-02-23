@@ -121,7 +121,7 @@ public:
      * rejected on the basis of cost, as well as any non-rejected plans from which the caller can
      * select a winner.
      */
-    static StatusWith<plan_ranking::PlanRankingResult> planWithCostBasedRanking(
+    static StatusWith<PlanRankingResult> planWithCostBasedRanking(
         const CanonicalQuery& query,
         const QueryPlannerParams& params,
         ce::SamplingEstimator* samplingEstimator,

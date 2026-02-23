@@ -6,7 +6,7 @@ import json
 import subprocess
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 import requests
 import tenacity
@@ -25,6 +25,7 @@ SEP_BENCHMARKS_TASK_NAME = "benchmarks_sep"
 GET_TIMESERIES_URL = (
     "https://performance-monitoring-api.corp.mongodb.com/time_series/?summarized_executions=false"
 )
+MAINLINE_REQUESTERS = frozenset(["git_tag_request", "gitter_request"])
 OVERRIDE_APPROVERS = frozenset(
     [
         "brad-devlugt",  # Brad de Vlugt
@@ -85,8 +86,8 @@ class GenerateAndCheckPerfResults(interface.Hook):
         interface.Hook.__init__(self, hook_logger, fixture, GenerateAndCheckPerfResults.DESCRIPTION)
         self.cedar_report_file = _config.CEDAR_REPORT_FILE
         self.variant = _config.EVERGREEN_VARIANT_NAME
-        self.cedar_reports: List[CedarTestReport] = []
-        self.performance_thresholds: Dict[str, Any] = {}
+        self.cedar_reports: list[CedarTestReport] = []
+        self.performance_thresholds: dict[str, Any] = {}
 
         self.create_time = None
         self.end_time = None
@@ -116,8 +117,8 @@ class GenerateAndCheckPerfResults(interface.Hook):
 
     def _check_pass_fail(
         self,
-        benchmark_reports: Dict[str, "_BenchmarkThreadsReport"],
-        cedar_formatted_results: List[CedarTestReport],
+        benchmark_reports: dict[str, "_BenchmarkThreadsReport"],
+        cedar_formatted_results: list[CedarTestReport],
         test,
         test_report,
     ):
@@ -128,14 +129,15 @@ class GenerateAndCheckPerfResults(interface.Hook):
             )
             return
 
-        # Retrieve the base commit by computing the merge-base between HEAD and origin/master.
-        # This correctly handles all build types including merge commits.
-        base_commit_hash = subprocess.check_output(
-            ["git", "merge-base", "HEAD", "origin/master"], cwd=".", text=True
-        ).strip()
-        self.logger.info(
-            f"Using base commit {base_commit_hash} for performance threshold comparison"
-        )
+        # For mainline builds, Evergreen does not make the base commit available in the expansions
+        # we retrieve it by looking for the previous commit in the Git log
+        if _config.EVERGREEN_REQUESTER in MAINLINE_REQUESTERS:
+            base_commit_hash = subprocess.check_output(
+                ["git", "log", "-1", "--pretty=format:%H", "HEAD~1"], cwd=".", text=True
+            ).strip()
+        # For patch builds the evergreen revision is set to the base commit
+        else:
+            base_commit_hash = _config.EVERGREEN_REVISION
 
         for test_name in benchmark_reports.keys():
             variant_thresholds = self.performance_thresholds.get(test_name, None)
@@ -151,7 +153,7 @@ class GenerateAndCheckPerfResults(interface.Hook):
                 )
                 continue
             # Transform the thresholds set into something we can more easily use.
-            metrics_to_check: List[IndividualMetricThreshold] = []
+            metrics_to_check: list[IndividualMetricThreshold] = []
             for item in test_thresholds:
                 thread_level = item["thread_level"]
                 for metric in item["metrics"]:
@@ -182,7 +184,7 @@ class GenerateAndCheckPerfResults(interface.Hook):
                         )
                     )
             # Transform the reported performance results into something we can more easily use.
-            transformed_metrics: Dict[ReportedMetric, CedarMetric] = {}
+            transformed_metrics: dict[ReportedMetric, CedarMetric] = {}
             for cedar_result in cedar_formatted_results:
                 for individual_metric in cedar_result.metrics:
                     reported_metric = ReportedMetric(
@@ -242,8 +244,8 @@ class GenerateAndCheckPerfResults(interface.Hook):
             )
 
     def _generate_cedar_report(
-        self, benchmark_reports: Dict[str, "_BenchmarkThreadsReport"]
-    ) -> List[CedarTestReport]:
+        self, benchmark_reports: dict[str, "_BenchmarkThreadsReport"]
+    ) -> list[CedarTestReport]:
         """Format the data to look like a cedar report."""
         cedar_report = []
 
@@ -262,10 +264,10 @@ class GenerateAndCheckPerfResults(interface.Hook):
 
         return cedar_report
 
-    def _parse_report(self, report_dict) -> Dict[str, "_BenchmarkThreadsReport"]:
+    def _parse_report(self, report_dict) -> dict[str, "_BenchmarkThreadsReport"]:
         context = report_dict["context"]
         # Reports grouped by name without thread.
-        benchmark_reports: Dict[str, "_BenchmarkThreadsReport"] = {}
+        benchmark_reports: dict[str, "_BenchmarkThreadsReport"] = {}
 
         for benchmark_res in report_dict["benchmarks"]:
             bm_name_obj = _BenchmarkThreadsReport.parse_bm_name(benchmark_res)
@@ -282,7 +284,7 @@ class GenerateAndCheckPerfResults(interface.Hook):
         task_name: str,
         variant: str,
         measurement: str,
-        args: Dict[str, Any],
+        args: dict[str, Any],
         base_commit: str,
         project: str,
     ) -> Optional[int]:
@@ -358,12 +360,12 @@ class CheckPerfResultTestCase(interface.DynamicTestCase):
         description,
         base_test_name,
         hook,
-        thresholds_to_check: List["IndividualMetricThreshold"],
-        reported_metrics: Dict[ReportedMetric, CedarMetric],
+        thresholds_to_check: list["IndividualMetricThreshold"],
+        reported_metrics: dict[ReportedMetric, CedarMetric],
     ):
         super().__init__(logger, test_name, description, base_test_name, hook)
-        self.thresholds_to_check: List["IndividualMetricThreshold"] = thresholds_to_check
-        self.reported_metrics: Dict[ReportedMetric, CedarMetric] = reported_metrics
+        self.thresholds_to_check: list["IndividualMetricThreshold"] = thresholds_to_check
+        self.reported_metrics: dict[ReportedMetric, CedarMetric] = reported_metrics
         self.github: Github = Github(get_expansion("github_token_mongo"))
 
     def run_test(self):
@@ -575,7 +577,7 @@ class _BenchmarkThreadsReport(object):
         """Add to report."""
         self.thread_benchmark_map[bm_name_obj.thread_count].append(report)
 
-    def generate_cedar_metrics(self) -> Dict[int, List[CedarMetric]]:
+    def generate_cedar_metrics(self) -> dict[int, list[CedarMetric]]:
         """
         Generate metrics for Cedar.
 
@@ -712,7 +714,7 @@ class _BenchmarkThreadsReport(object):
         return res
 
     @staticmethod
-    def check_dup_metric_names(metrics: List[CedarMetric]) -> bool:
+    def check_dup_metric_names(metrics: list[CedarMetric]) -> bool:
         """Check duplicated metric names for Cedar."""
         names = []
         for metric in metrics:
@@ -722,7 +724,7 @@ class _BenchmarkThreadsReport(object):
         return False
 
     @staticmethod
-    def parse_bm_name(benchmark_res: Dict[str, Any]):
+    def parse_bm_name(benchmark_res: dict[str, Any]):
         """
         Split the benchmark name into base_name, thread_count and statistic_type.
 

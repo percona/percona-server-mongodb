@@ -3,7 +3,6 @@ import os
 import shutil
 import subprocess
 from pathlib import Path
-from typing import List
 
 import typer
 
@@ -27,7 +26,7 @@ def process_bep(bep_path):
     return failed_tests, successful_tests
 
 
-def _relink_binaries_with_symbols(failed_test_labels: List[str]):
+def _relink_binaries_with_symbols(failed_test_labels: list[str]):
     print("Rebuilding tests with --remote_download_outputs=toplevel...")
     bazel_build_flags = ""
     if os.path.isfile(".bazel_build_flags"):

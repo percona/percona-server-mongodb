@@ -907,6 +907,14 @@ public:
     virtual void setCacheMaxWaitTimeout(Milliseconds) {}
 
     /**
+     * Receives the last set maximum timeout that the storage engine will block an operation when
+     * the cache is under pressure.
+     */
+    virtual Milliseconds getCacheMaxWaitTimeout() {
+        return Milliseconds();
+    }
+
+    /**
      * Marks this recovery unit as exempt from participating in optional cache eviction.
      */
     virtual void optOutOfCacheEviction() {}

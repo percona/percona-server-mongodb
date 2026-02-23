@@ -21,23 +21,29 @@ def resmoke_config_impl(ctx):
 
     deps = depset([test_list_file, base_config_file] + ctx.files.srcs, transitive = [python.files] + generator_deps)
 
+    args = [
+        "bazel/resmoke/resmoke_config_generator.py",
+        "--output",
+        generated_config_file.path,
+        "--test-list",
+        test_list_file.path,
+        "--base-config",
+        base_config_file.path,
+        "--exclude-with-any-tags",
+        ",".join(ctx.attr.exclude_with_any_tags),
+        "--include-with-any-tags",
+        ",".join(ctx.attr.include_with_any_tags),
+    ]
+    if ctx.attr.group_size > 0:
+        args.extend(["--group-size", str(ctx.attr.group_size)])
+    if ctx.attr.group_count_multiplier != "":
+        args.extend(["--group-count-multiplier", ctx.attr.group_count_multiplier])
+
     ctx.actions.run(
         executable = python.interpreter.path,
         inputs = deps,
         outputs = [generated_config_file],
-        arguments = [
-            "bazel/resmoke/resmoke_config_generator.py",
-            "--output",
-            generated_config_file.path,
-            "--test-list",
-            test_list_file.path,
-            "--base-config",
-            base_config_file.path,
-            "--exclude-with-any-tags",
-            ",".join(ctx.attr.exclude_with_any_tags),
-            "--include-with-any-tags",
-            ",".join(ctx.attr.include_with_any_tags),
-        ],
+        arguments = args,
         env = {"PYTHONPATH": ctx.configuration.host_path_separator.join(python_path)},
     )
 
@@ -54,6 +60,8 @@ resmoke_config = rule(
         "exclude_files": attr.label_list(allow_files = True),
         "exclude_with_any_tags": attr.string_list(),
         "include_with_any_tags": attr.string_list(),
+        "group_size": attr.int(default = 0, doc = "Number of tests to run in each group (for test_kind: parallel_fsm_workload_test)"),
+        "group_count_multiplier": attr.string(default = "", doc = "Multiplier for the number of groups (for test_kind: parallel_fsm_workload_test)"),
         "base_config": attr.label(
             allow_files = True,
             doc = "The base resmoke YAML config for the suite",
@@ -77,6 +85,8 @@ def resmoke_suite_test(
         tags = [],
         timeout = "eternal",
         exec_properties = {},
+        group_size = 0,
+        group_count_multiplier = "",
         **kwargs):
     generated_config = name + "_config"
     resmoke_config(
@@ -86,6 +96,8 @@ def resmoke_suite_test(
         base_config = config,
         exclude_with_any_tags = exclude_with_any_tags,
         include_with_any_tags = include_with_any_tags,
+        group_size = group_size,
+        group_count_multiplier = group_count_multiplier,
         tags = ["resmoke_config"],
     )
 
@@ -96,6 +108,7 @@ def resmoke_suite_test(
             "--log=evg",
             "--cedarReportFile=cedar_report.json",
             "--skipSymbolization",  # Symbolization is not yet functional, SERVER-103538
+            "--continueOnFailure",
         ],
         "//conditions:default": [],
     }) + select({
@@ -123,6 +136,7 @@ def resmoke_suite_test(
             "//bazel/resmoke:unreleased_ifr_flags",
             "//bazel/resmoke:volatile_status",
             "//bazel/resmoke:test_runtimes",
+            "//buildscripts/resmokeconfig:common_jstest_data",
             "//buildscripts/resmokeconfig:fully_disabled_feature_flags.yml",
             "//buildscripts/resmokeconfig:resmoke_modules.yml",
             "//buildscripts/resmokeconfig/evg_task_doc:all_files",
@@ -146,10 +160,10 @@ def resmoke_suite_test(
             "run",
             "--suites=$(location %s)" % native.package_relative_label(generated_config),
             "--multiversionDir=multiversion_binaries",
-            "--continueOnFailure",
             "--releasesFile=$(location //src/mongo/util/version:releases.yml)",
             "--archiveMode=directory",
             "--archiveLimitMb=500",
+            "--testTimeout=$(RESMOKE_TEST_TIMEOUT)",
         ] + extra_args + resmoke_args,
         tags = tags + ["no-cache", "resources:port_block:1", "resmoke_suite_test"],
         timeout = timeout,
@@ -162,5 +176,8 @@ def resmoke_suite_test(
             "//conditions:default": {"DEPS_PATH": deps_path},
         }),
         exec_properties = exec_properties | test_exec_properties(tags),
+        toolchains = [
+            "//bazel/resmoke:test_timeout",
+        ],
         **kwargs
     )

@@ -623,13 +623,7 @@ private:
      * Adds the OpTime to the list of OpTimes for oplog entries that we should consider migrating as
      * part of session migration.
      */
-    void _addToSessionMigrationOptimeQueue(
-        const repl::OpTime& opTime,
-        SessionCatalogMigrationSource::EntryAtOpTimeType entryAtOpTimeType);
-
-    void _addToSessionMigrationOptimeQueueForTransactionCommit(
-        const repl::OpTime& opTime,
-        SessionCatalogMigrationSource::EntryAtOpTimeType entryAtOpTimeType);
+    void _addToSessionMigrationQueue(SessionCatalogMigrationSource::OpTimeBundle opTimeBundle);
 
     /*
      * Appends the relevant document changes to the appropriate internal data structures (known
@@ -787,6 +781,9 @@ private:
 
     // Set only once its discovered a chunk is jumbo
     boost::optional<JumboChunkCloneState> _jumboChunkCloneState;
+
+    // MigrationId available once startClone is called
+    boost::optional<UUID> _migrationId;
 
 protected:
     MigrationChunkClonerSource();

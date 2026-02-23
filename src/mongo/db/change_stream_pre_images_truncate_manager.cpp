@@ -30,6 +30,7 @@
 #include "mongo/db/change_stream_pre_images_truncate_manager.h"
 
 #include "mongo/db/admission/execution_control/execution_admission_context.h"
+#include "mongo/db/change_stream_pre_image_id_util.h"
 #include "mongo/db/change_stream_pre_image_util.h"
 #include "mongo/db/change_stream_pre_images_truncate_markers.h"
 #include "mongo/db/shard_role/lock_manager/exception_util.h"
@@ -38,6 +39,7 @@
 #include "mongo/logv2/log.h"
 #include "mongo/stdx/mutex.h"
 
+#include <memory>
 #include <shared_mutex>
 
 #include <boost/optional/optional.hpp>
@@ -81,7 +83,7 @@ void PreImagesTruncateManager::updateMarkersOnInsert(OperationContext* opCtx,
     dassert(bytesInserted != 0);
     auto nsUUID = preImage.getId().getNsUUID();
     auto wallTime = preImage.getOperationTime();
-    auto recordId = change_stream_pre_image_util::toRecordId(preImage.getId());
+    auto recordId = change_stream_pre_image_id_util::toRecordId(preImage.getId());
 
     shard_role_details::getRecoveryUnit(opCtx)->onCommit(
         [this, nsUUID = std::move(nsUUID), recordId = std::move(recordId), bytesInserted, wallTime](
@@ -186,10 +188,8 @@ std::shared_ptr<PreImagesTruncateMarkers> PreImagesTruncateManager::_createAndIn
 
             // Serialize installation under the collection's lock to guarantee the markers
             // installed aren't for a stale, dropped version of the collection.
-            auto baseMarkers = PreImagesTruncateMarkers::createMarkers(opCtx, preImagesCollection);
-
             auto truncateMarkers =
-                std::make_shared<PreImagesTruncateMarkers>(std::move(baseMarkers));
+                std::make_shared<PreImagesTruncateMarkers>(opCtx, preImagesCollection);
             _setTruncateMarkers(truncateMarkers);
             return truncateMarkers;
         });

@@ -446,7 +446,8 @@ void PinnedConnectionTaskExecutor::dropConnections(const HostAndPort& target,
     MONGO_UNIMPLEMENTED;
 }
 
-void PinnedConnectionTaskExecutor::appendNetworkInterfaceStats(BSONObjBuilder& bob) const {
+void PinnedConnectionTaskExecutor::appendNetworkInterfaceStats(BSONObjBuilder& bob,
+                                                               bool forServerStatus) const {
     MONGO_UNIMPLEMENTED;
 }
 

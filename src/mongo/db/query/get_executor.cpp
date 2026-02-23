@@ -77,6 +77,7 @@
 #include "mongo/db/query/distinct_access.h"
 #include "mongo/db/query/engine_selection.h"
 #include "mongo/db/query/find_command.h"
+#include "mongo/db/query/get_executor_deferred_engine_choice.h"
 #include "mongo/db/query/get_executor_fast_paths.h"
 #include "mongo/db/query/get_executor_helpers.h"
 #include "mongo/db/query/internal_plans.h"
@@ -433,8 +434,9 @@ public:
                                                  getCollections(),
                                                  makePlannerData(),
                                                  usingClassic());
-        if (rankerResult.isOK() && rankerResult.getValue().solutions.size() == 1) {
-            // The plan ranker returns a single solution when CBR is used to pick the best plan.
+        if (_plannerParams->cbrEnabled && rankerResult.isOK() &&
+            !rankerResult.getValue().solutions.empty()) {
+            // The plan ranker will place the best plan at index 0.
             captureCardinalityEstimationMethodForQueryStats(
                 rankerResult.getValue().maybeExplainData,
                 rankerResult.getValue().solutions[0].get());
@@ -494,7 +496,7 @@ public:
      * If so, a ResultType can be returned to skip re-building a planner from zero.
      */
     virtual std::unique_ptr<ResultType> maybePlannerFromRankerResult(
-        StatusWith<plan_ranking::PlanRankingResult>& rankerResult, CanonicalQuery& cq) {
+        StatusWith<PlanRankingResult>& rankerResult, CanonicalQuery& cq) {
         return nullptr;
     }
 
@@ -502,7 +504,7 @@ public:
         return *_plannerParams.get();
     }
 
-    bool shouldMultiPlanForSingleSolution(const plan_ranking::PlanRankingResult& rankerResult,
+    bool shouldMultiPlanForSingleSolution(const PlanRankingResult& rankerResult,
                                           const CanonicalQuery* cq) {
         auto expCtx = _cq->getExpCtxRaw();
 
@@ -703,7 +705,7 @@ private:
     }
 
     std::unique_ptr<ClassicRuntimePlannerResult> maybePlannerFromRankerResult(
-        StatusWith<plan_ranking::PlanRankingResult>& rankerResult, CanonicalQuery& cq) override {
+        StatusWith<PlanRankingResult>& rankerResult, CanonicalQuery& cq) override {
         if (!rankerResult.isOK()) {
             // Ranking failed
             return nullptr;
@@ -712,11 +714,6 @@ private:
         auto& maybeExecState = rResult.execState;
         if (!maybeExecState) {
             // Ranking did not need to execute any plans/did not retain any execution state
-            return nullptr;
-        }
-
-        if (cq.getExplain().has_value()) {
-            // Explain for executionStats cannot resume a partially executed MultiPlanStage.
             return nullptr;
         }
 
@@ -1187,18 +1184,19 @@ StatusWith<std::unique_ptr<PlanExecutor, PlanExecutor::Deleter>> getExecutorFind
     // Helper function for creating query planner parameters, with and without query settings. This
     // will be later used to ensure that queries can safely retry the planning process if the
     // application of the settings lead to a failure in generating the plan.
-    auto makeQueryPlannerParams = [&](size_t options) -> std::unique_ptr<QueryPlannerParams> {
+    auto makeQueryPlannerParams =
+        [&opCtx, &collections, traversalPreference = std::move(traversalPreference)](
+            const CanonicalQuery& cq, size_t options) -> std::unique_ptr<QueryPlannerParams> {
         return std::make_unique<QueryPlannerParams>(
             QueryPlannerParams::ArgsForSingleCollectionQuery{
                 .opCtx = opCtx,
-                .canonicalQuery = *canonicalQuery,
+                .canonicalQuery = cq,
                 .collections = collections,
                 .plannerOptions = options,
                 .traversalPreference = traversalPreference,
-                .cbrEnabled = canonicalQuery->getExpCtx()->getIfrContext()->getSavedFlagValue(
+                .cbrEnabled = cq.getExpCtx()->getIfrContext()->getSavedFlagValue(
                     feature_flags::gFeatureFlagCostBasedRanker),
-                .planRankerMode =
-                    canonicalQuery->getExpCtx()->getQueryKnobConfiguration().getPlanRankerMode(),
+                .planRankerMode = cq.getExpCtx()->getQueryKnobConfiguration().getPlanRankerMode(),
             });
     };
 
@@ -1206,6 +1204,17 @@ StatusWith<std::unique_ptr<PlanExecutor, PlanExecutor::Deleter>> getExecutorFind
         // Stop the query planning timer once we have an execution plan.
         CurOp::get(opCtx)->stopQueryPlanningTimer();
     });
+
+    if (MONGO_unlikely(feature_flags::gFeatureFlagGetExecutorDeferredEngineChoice.isEnabled())) {
+        return exec_deferred_engine_choice::getExecutorFindDeferredEngineChoice(
+            opCtx,
+            collections,
+            std::move(canonicalQuery),
+            std::move(yieldPolicy),
+            makeQueryPlannerParams,
+            plannerOptions,
+            pipeline);
+    }
 
     auto expressResult =
         tryExpress(opCtx, collections, canonicalQuery, plannerOptions, makeQueryPlannerParams);
@@ -1226,18 +1235,18 @@ StatusWith<std::unique_ptr<PlanExecutor, PlanExecutor::Deleter>> getExecutorFind
             CollectionQueryInfo::get(collection).getPathArrayness());
     }
 
-    const bool useSbeEngine = useSbe(
-        opCtx,
-        collections,
-        canonicalQuery.get(),
-        pipeline,
-        needsMerge,
-        std::make_unique<QueryPlannerParams>(QueryPlannerParams::ArgsForPushDownStagesDecision{
-            .opCtx = opCtx,
-            .canonicalQuery = *canonicalQuery,
-            .collections = collections,
-            .plannerOptions = plannerOptions,
-        }));
+    bool useSbeEngine = chooseEngine(opCtx,
+                                     collections,
+                                     canonicalQuery.get(),
+                                     pipeline,
+                                     needsMerge,
+                                     std::make_unique<QueryPlannerParams>(
+                                         QueryPlannerParams::ArgsForPushDownStagesDecision{
+                                             .opCtx = opCtx,
+                                             .canonicalQuery = *canonicalQuery,
+                                             .collections = collections,
+                                             .plannerOptions = plannerOptions,
+                                         })) == EngineChoice::kSbe;
 
     // If distinct multi-planning is enabled and we have a distinct property, we may not be able to
     // commit to SBE yet.

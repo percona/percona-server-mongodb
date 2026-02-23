@@ -41,6 +41,8 @@
 #include "mongo/db/repl/replication_coordinator.h"
 #include "mongo/db/s/resharding/coordinator_document_gen.h"
 #include "mongo/db/s/resharding/donor_document_gen.h"
+#include "mongo/db/s/resharding/local_resharding_operations_registry.h"
+#include "mongo/db/s/resharding/recipient_document_gen.h"
 #include "mongo/db/s/resharding/resharding_coordinator.h"
 #include "mongo/db/s/resharding/resharding_coordinator_observer.h"
 #include "mongo/db/s/resharding/resharding_coordinator_service.h"
@@ -58,6 +60,7 @@
 #include "mongo/idl/idl_parser.h"
 #include "mongo/logv2/log.h"
 #include "mongo/s/resharding/common_types_gen.h"
+#include "mongo/s/resharding/resharding_feature_flag_gen.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/scopeguard.h"
 #include "mongo/util/str.h"
@@ -77,6 +80,12 @@
 namespace mongo {
 
 namespace {
+
+bool shouldUseRegistry(OperationContext* opCtx) {
+    return resharding::gFeatureFlagReshardingRegistry.isEnabledUseLatestFCVWhenUninitialized(
+        VersionContext::getDecoration(opCtx),
+        serverGlobalParams.featureCompatibility.acquireFCVSnapshot());
+}
 
 std::shared_ptr<ReshardingCoordinatorObserver> getReshardingCoordinatorObserver(
     OperationContext* opCtx, const BSONObj& reshardingId) {
@@ -226,6 +235,17 @@ void ReshardingOpObserver::onInserts(OperationContext* opCtx,
                                      OpStateAccumulator* opAccumulator) {
     const auto& nss = coll->ns();
 
+    if (shouldUseRegistry(opCtx) && _nssToRoleMap.contains(nss)) {
+        // We should only get a single document here as each resharding participant writes a single
+        // state document per operation but we loop to be defensive.
+        for (auto it = begin; it != end; ++it) {
+            auto commonMetadata = CommonReshardingMetadata::parse(
+                it->doc, IDLParserContext("ReshardingOpObserver::onInserts"));
+            LocalReshardingOperationsRegistry::get().registerOperation(_nssToRoleMap.at(nss),
+                                                                       commonMetadata);
+        }
+    }
+
     if (nss == NamespaceString::kDonorReshardingOperationsNamespace) {
         // If a document is inserted into the resharding donor collection with a
         // `minFetchTimestamp`, we assume the document was inserted as part of initial sync and do
@@ -247,10 +267,21 @@ void ReshardingOpObserver::onInserts(OperationContext* opCtx,
 void ReshardingOpObserver::onUpdate(OperationContext* opCtx,
                                     const OplogUpdateEntryArgs& args,
                                     OpStateAccumulator* opAccumulator) {
-    if (args.coll->ns() == NamespaceString::kDonorReshardingOperationsNamespace) {
+    const auto& nss = args.coll->ns();
+    if (nss == NamespaceString::kDonorReshardingOperationsNamespace) {
         // Primaries and secondaries should execute pinning logic when observing changes to the
         // donor resharding document.
         _doPin(opCtx);
+    }
+
+    if (shouldUseRegistry(opCtx) && nss == NamespaceString::kConfigReshardingOperationsNamespace) {
+        auto coordinatorDoc = ReshardingCoordinatorDocument::parse(
+            args.updateArgs->updatedDoc, IDLParserContext("ReshardingOpObserver::onUpdate"));
+        if (coordinatorDoc.getState() == CoordinatorStateEnum::kQuiesced) {
+            const auto& commonMetadata = coordinatorDoc.getCommonReshardingMetadata();
+            LocalReshardingOperationsRegistry::get().unregisterOperation(Role::kCoordinator,
+                                                                         commonMetadata);
+        }
     }
 
     // This is a no-op if either replication is not enabled or this node is a secondary
@@ -259,7 +290,7 @@ void ReshardingOpObserver::onUpdate(OperationContext* opCtx,
         return;
     }
 
-    if (args.coll->ns() == NamespaceString::kConfigReshardingOperationsNamespace) {
+    if (nss == NamespaceString::kConfigReshardingOperationsNamespace) {
         auto newCoordinatorDoc = ReshardingCoordinatorDocument::parse(
             args.updateArgs->updatedDoc, IDLParserContext("reshardingCoordinatorDoc"));
         shard_role_details::getRecoveryUnit(opCtx)->onCommit(
@@ -283,7 +314,7 @@ void ReshardingOpObserver::onUpdate(OperationContext* opCtx,
                                "error"_attr = redact(ex.toStatus()));
                 }
             });
-    } else if (args.coll->ns().isTemporaryReshardingCollection()) {
+    } else if (nss.isTemporaryReshardingCollection()) {
         const std::vector<InsertStatement> updateDoc{InsertStatement{args.updateArgs->updatedDoc}};
         assertCanExtractShardKeyFromDocs(
             opCtx, args.coll->ns(), updateDoc.begin(), updateDoc.end());
@@ -297,7 +328,14 @@ void ReshardingOpObserver::onDelete(OperationContext* opCtx,
                                     const DocumentKey& documentKey,
                                     const OplogDeleteEntryArgs& args,
                                     OpStateAccumulator* opAccumulator) {
-    if (coll->ns() == NamespaceString::kDonorReshardingOperationsNamespace) {
+    const auto& nss = coll->ns();
+    if (shouldUseRegistry(opCtx) && _nssToRoleMap.contains(nss)) {
+        auto commonMetadata = CommonReshardingMetadata::parse(
+            doc, IDLParserContext("ReshardingOpObserver::onDelete"));
+        LocalReshardingOperationsRegistry::get().unregisterOperation(_nssToRoleMap.at(nss),
+                                                                     commonMetadata);
+    }
+    if (nss == NamespaceString::kDonorReshardingOperationsNamespace) {
         _doPin(opCtx);
     }
 }

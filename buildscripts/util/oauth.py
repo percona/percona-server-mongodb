@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from random import choice
 from string import ascii_lowercase
-from typing import Any, Callable, Optional, Tuple
+from typing import Any, Callable, Optional
 from urllib.parse import parse_qs, urlsplit
 from webbrowser import open as web_open
 
@@ -117,7 +117,7 @@ class _RedirectServer(HTTPServer):
 
     def __init__(
         self,
-        server_address: Tuple[str, int],
+        server_address: tuple[str, int],
         handler: Callable[..., BaseHTTPRequestHandler],
         redirect_uri: str,
         auth_domain: str,

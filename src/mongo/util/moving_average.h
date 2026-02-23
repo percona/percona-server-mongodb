@@ -83,7 +83,7 @@ public:
 
     /** Contributes the specified sample into the moving average. Returns the updated average. */
     double addSample(double sample) {
-        double expected = _average.load();
+        double expected = _average.loadRelaxed();
         double desired;
         do {
             if (std::isnan(expected)) {
@@ -91,7 +91,7 @@ public:
             } else {
                 desired = _alpha * sample + (1 - _alpha) * expected;
             }
-        } while (!_average.compareAndSwap(&expected, desired));
+        } while (!_average.compareAndSwapWeak(&expected, desired));
         return desired;
     }
 
@@ -100,7 +100,7 @@ public:
      * then returns `boost::none`.
      */
     boost::optional<double> get() const {
-        const double raw = _average.load();
+        const double raw = _average.loadRelaxed();
         if (std::isnan(raw)) {
             return boost::none;
         }
@@ -119,7 +119,7 @@ public:
      * Resets the moving average to no value.
      */
     void reset() {
-        _average.store(std::nan(""));
+        _average.storeRelaxed(std::nan(""));
     }
 
 private:

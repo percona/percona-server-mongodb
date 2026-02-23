@@ -61,9 +61,11 @@ import {ReplSetTest} from "jstests/libs/replsettest.js";
             throw new Error("Unrecognized topology format: " + tojson(topology));
         }
 
+        const csrsNodes = new Set();
         const threads = [];
         try {
             if (topology.configsvr.nodes.length > 1) {
+                topology.configsvr.nodes.forEach((n) => csrsNodes.add(n));
                 const thread = new Thread(checkReplicatedDataHashesThread, topology.configsvr.nodes);
                 threads.push(thread);
                 thread.start();
@@ -84,9 +86,14 @@ import {ReplSetTest} from "jstests/libs/replsettest.js";
                 }
 
                 if (shard.nodes.length > 1) {
-                    const thread = new Thread(checkReplicatedDataHashesThread, shard.nodes);
-                    threads.push(thread);
-                    thread.start();
+                    // we just check the first node
+                    if (csrsNodes.has(shard.nodes[0])) {
+                        print("Skipping data consistency for shard since it was already checked in the CSRS");
+                    } else {
+                        const thread = new Thread(checkReplicatedDataHashesThread, shard.nodes);
+                        threads.push(thread);
+                        thread.start();
+                    }
                 } else {
                     print("Skipping data consistency checks for 1-node replica set shard: " + tojsononeline(topology));
                 }

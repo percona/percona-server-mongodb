@@ -71,7 +71,9 @@ public:
      * Additional configuration that should be added to the WiredTiger config string for the
      * 'wiredtiger_open' call.
      */
-    virtual std::string getWiredTigerConfig() const = 0;
+    virtual std::string getWiredTigerConfig(bool wtInMemory,
+                                            bool wtLogEnabled,
+                                            const std::string& wtLogCompressor) const = 0;
 
     /**
      * Additional configuration that should be added to the WiredTiger config string for creating a
@@ -133,14 +135,6 @@ public:
     virtual bool shouldAvoidDuplicateCheckpoints() const = 0;
 
     /**
-     * If true, always do a full update of documents, instead of recording only the changes to
-     * represent an update.
-     *
-     * TODO SERVER-111602: remove this workaround.
-     */
-    virtual bool shouldForceUpdateWithFullDocument() const = 0;
-
-    /**
      * If true, the storage provider supports the reuse of cursors in express path queries. Used to
      * disable this optimization for disaggregated storage for now.
      *
@@ -175,6 +169,11 @@ public:
     virtual bool supportsCrossShardTransactions() const = 0;
 
     /**
+     * If true, the provider supports storing findAndModify pre/post-images in the image collection.
+     */
+    virtual bool supportsFindAndModifyImageCollection() const = 0;
+
+    /**
      * If true, the provider supports starting the oplog cap maintainer thread and oplog sampling.
      */
     virtual bool supportsOplogSampling() const = 0;
@@ -204,6 +203,21 @@ public:
      * If true, the provider supports compaction.
      */
     virtual bool supportsCompaction() const = 0;
+
+    /**
+     * If true, this persistence provider expects collection/index table creation to be timestamped.
+     */
+    virtual bool shouldTimestampTableCreations() const = 0;
+
+    /**
+     * The minimum number of seconds of snapshot history to maintain.
+     */
+    virtual int getMinSnapshotHistoryWindowInSeconds() const = 0;
+
+    /**
+     * Set minimum number of seconds of snapshot history to maintain.
+     */
+    virtual void setMinSnapshotHistoryWindowInSeconds(int seconds) = 0;
 };
 
 }  // namespace rss

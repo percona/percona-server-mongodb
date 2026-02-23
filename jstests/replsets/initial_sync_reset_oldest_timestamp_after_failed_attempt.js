@@ -64,6 +64,8 @@ secondary = replTest.start(
             // Allow the syncing node to write the prepare oplog entry and apply the first update
             // before failing initial sync.
             "failpoint.failInitialSyncBeforeApplyingBatch": tojson({mode: {skip: 2}}),
+            // Skip waiting for last stable to advance since it is possible that the primary cannot advance its stable timestamp in this test.
+            "initialSyncWaitForSyncSourceLastStableRecoveryTs": false,
         },
     },
     true /* wait */,

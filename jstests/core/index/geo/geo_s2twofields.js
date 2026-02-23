@@ -6,6 +6,8 @@
 //   requires_fastcount,
 // ]
 
+import {add2dsphereVersionIfNeededForSpec} from "jstests/libs/query/geo_index_version_helpers.js";
+
 let t = db.geo_s2twofields;
 t.drop();
 
@@ -52,7 +54,7 @@ function timeWithoutAndWithAnIndex(index, query) {
     let withoutTime = semiRigorousTime(function () {
         return t.find(query).explain("executionStats").executionStats.executionTimeMillis;
     });
-    t.createIndex(index);
+    t.createIndex(index, add2dsphereVersionIfNeededForSpec(index));
     let withTime = semiRigorousTime(function () {
         return t.find(query).explain("executionStats").executionStats.executionTimeMillis;
     });

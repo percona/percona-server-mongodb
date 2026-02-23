@@ -191,11 +191,13 @@ MONGO_MOD_PRIVATE bool isIndexPresent(OperationContext* opCtx,
  */
 namespace internal {
 /**
- * Generates 'durable_catalog::CatalogEntryMetaData' from 'collectionOptions'. Assumes it is for a
- * new collection without no indexes present.
+ * Generates 'durable_catalog::CatalogEntryMetaData' from 'collectionOptions' and
+ * 'recordIdsReplicated'. Assumes it is for a new collection without no indexes present.
  */
 MONGO_MOD_NEEDS_REPLACEMENT durable_catalog::CatalogEntryMetaData createMetaDataForNewCollection(
-    const NamespaceString& nss, const CollectionOptions& collectionOptions);
+    const NamespaceString& nss,
+    const CollectionOptions& collectionOptions,
+    bool recordIdsReplicated = false);
 
 MONGO_MOD_NEEDS_REPLACEMENT BSONObj
 buildRawMDBCatalogEntry(const std::string& ident,

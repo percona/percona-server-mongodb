@@ -27,7 +27,7 @@ import re
 import subprocess
 import sys
 from functools import cache
-from typing import List, NamedTuple
+from typing import NamedTuple
 
 import typer
 import yaml
@@ -101,6 +101,14 @@ def create_burn_in_target(target_original: str, target_burn_in: str, test: str):
     # All existing 'srcs' are kept as 'data', since it is common for jstests
     # to import each other.
     buildozer.bd_move([target_burn_in], "srcs", "data")
+    try:
+        # Try to remove the test label from data if it exists to avoid duplicate
+        # uses of the same label. buildozer fails if it does not exist, which is fine.
+        # If the label is present, and buildozer fails for another reason, the build
+        # of the burn-in target produces a clear message that it is duplicated.
+        buildozer.bd_remove([target_burn_in], "data", [test_label])
+    except:
+        pass
     buildozer.bd_set([target_burn_in], "srcs", test_label)
     buildozer.bd_set([target_burn_in], "shard_count", "1")
 
@@ -133,7 +141,7 @@ def get_resmoke_configs():
         return yaml.safe_load(f)
 
 
-def query_targets_to_burn_in(origin_rev: str) -> List[BurnInTargetInfo]:
+def query_targets_to_burn_in(origin_rev: str) -> list[BurnInTargetInfo]:
     change_detector = LocalFileChangeDetector(origin_rev)
     tests_changed = change_detector.find_changed_tests([Repo(".")])
 
@@ -175,7 +183,7 @@ def query_targets_to_burn_in(origin_rev: str) -> List[BurnInTargetInfo]:
 
 
 @cache
-def get_targets_with_tag(tag: str) -> List[str]:
+def get_targets_with_tag(tag: str) -> list[str]:
     try:
         query = f"attr(tags, '\\b{tag}(?![a-zA-Z0-9_-])', //...)"
         result = subprocess.run(
@@ -342,7 +350,7 @@ def generate_tasks(origin_rev: str, outfile: Annotated[str, typer.Option()]):
             task["activate"] = False
     for task in project["tasks"]:
         task["exec_timeout_secs"] = 1800
-    project["tasks"].extend([task.as_dict() for task in results_tasks])
+    project["tasks"].extend([task for task in results_tasks])
 
     with open(outfile, "w") as f:
         f.write(json.dumps(project, indent=4))

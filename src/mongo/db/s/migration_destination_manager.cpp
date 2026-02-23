@@ -406,12 +406,24 @@ void MigrationDestinationManager::_setStateFailNoLog(StringData msg) {
 }
 
 void MigrationDestinationManager::_setStateFail(StringData msg) {
-    LOGV2(21998, "Error during migration", "error"_attr = redact(msg));
+    static StaticImmortal<logv2::SeveritySuppressor> logSuppressor{
+        Seconds{1}, logv2::LogSeverity::Log(), logv2::LogSeverity::Debug(2)};
+    LOGV2_DEBUG(21998,
+                (*logSuppressor)().toInt(),
+                "Error during migration",
+                "error"_attr = redact(msg),
+                "migrationId"_attr = _migrationId);
     _setStateFailNoLog(msg);
 }
 
 void MigrationDestinationManager::_setStateFailWarn(StringData msg) {
-    LOGV2_WARNING(22010, "Error during migration", "error"_attr = redact(msg));
+    static StaticImmortal<logv2::SeveritySuppressor> logSuppressor{
+        Seconds{1}, logv2::LogSeverity::Warning(), logv2::LogSeverity::Debug(2)};
+    LOGV2_DEBUG(22010,
+                (*logSuppressor)().toInt(),
+                "Error during migration",
+                "error"_attr = redact(msg),
+                "migrationId"_attr = _migrationId);
     _setStateFailNoLog(msg);
 }
 
@@ -503,12 +515,16 @@ Status MigrationDestinationManager::start(OperationContext* opCtx,
                     "Start waiting for the session migration thread for the previous migration to "
                     "complete before starting a new migration",
                     "previousMigrationSessionId"_attr = _sessionMigration->getMigrationSessionId(),
-                    "nextMigrationSessionId"_attr = cloneRequest.getSessionId());
+                    "currentMigrationSessionId"_attr = cloneRequest.getSessionId(),
+                    "previousMigrationId"_attr = _migrationId,
+                    "currentMigrationId"_attr = cloneRequest.getMigrationId());
         _sessionMigration->join();
         LOGV2_DEBUG(8991403,
                     2,
                     "Finished waiting for the session migration thread for the previous migration "
-                    "to complete before starting a new migration");
+                    "to complete before starting a new migration",
+                    "previousMigrationId"_attr = _migrationId,
+                    "currentMigrationId"_attr = cloneRequest.getMigrationId());
     }
     if (_migrateThreadHandle.joinable()) {
         LOGV2_DEBUG(8991404,
@@ -516,12 +532,14 @@ Status MigrationDestinationManager::start(OperationContext* opCtx,
                     "Start waiting for the migrate thread for the previous migration to "
                     "complete before starting a new migration",
                     "previousMigrationId"_attr = _migrationId,
-                    "nextMigrationId"_attr = cloneRequest.getMigrationId());
+                    "currentMigrationId"_attr = cloneRequest.getMigrationId());
         _migrateThreadHandle.join();
         LOGV2_DEBUG(8991405,
                     2,
                     "Finished waiting for the migrate thread for the previous migration to "
-                    "complete before starting a new migration");
+                    "complete before starting a new migration",
+                    "previousMigrationId"_attr = _migrationId,
+                    "currentMigrationId"_attr = cloneRequest.getMigrationId());
     }
 
     stdx::lock_guard<stdx::mutex> lk(_mutex);
@@ -569,7 +587,7 @@ Status MigrationDestinationManager::start(OperationContext* opCtx,
     std::swap(_cancellationSource, newCancellationSource);
 
     _sessionMigration = std::make_unique<SessionCatalogMigrationDestination>(
-        _nss, _fromShard, *_sessionId, _cancellationSource.token());
+        _nss, _fromShard, *_sessionId, *_migrationId, _cancellationSource.token());
     ShardingStatistics::get(opCtx).countRecipientMoveChunkStarted.addAndFetch(1);
 
     _migrateThreadHandle = stdx::thread([this, cancellationToken = _cancellationSource.token()]() {
@@ -600,7 +618,8 @@ Status MigrationDestinationManager::restoreRecoveredMigrationState(
         LOGV2_DEBUG(
             8991407,
             2,
-            "Finished waiting for the existing migrate thread to complete before recovering it");
+            "Finished waiting for the existing migrate thread to complete before recovering it",
+            "migrationId"_attr = _migrationId);
     }
 
     stdx::lock_guard<stdx::mutex> lk(_mutex);
@@ -622,7 +641,10 @@ Status MigrationDestinationManager::restoreRecoveredMigrationState(
     invariant(!_migrateThreadFinishedPromise);
     _migrateThreadFinishedPromise = std::make_unique<SharedPromise<State>>();
 
-    LOGV2(6064500, "Recovering migration recipient", "sessionId"_attr = *_sessionId);
+    LOGV2(6064500,
+          "Recovering migration recipient",
+          "migrationId"_attr = _migrationId,
+          "sessionId"_attr = *_sessionId);
 
     _migrateThreadHandle = stdx::thread([this, cancellationToken = _cancellationSource.token()]() {
         _migrateThread(cancellationToken, true /* skipToCritSecTaken */);
@@ -659,7 +681,7 @@ repl::OpTime MigrationDestinationManager::fetchAndApplyBatch(
             while (true) {
                 DisableDocumentValidation documentValidationDisabler(
                     applicationOpCtx.get(),
-                    DocumentValidationSettings::kDisableSchemaValidation |
+                    DocumentValidationSettings::kDisableSchemaValidationForInternalOp |
                         DocumentValidationSettings::kDisableInternalValidation);
                 auto nextBatch = batches.pop(applicationOpCtx.get());
                 if (!applyBatchFn(applicationOpCtx.get(), nextBatch)) {
@@ -805,6 +827,7 @@ Status MigrationDestinationManager::exitCriticalSection(OperationContext* opCtx,
             LOGV2_DEBUG(5899104,
                         2,
                         "Request to exit recipient critical section does not match current session",
+                        "migrationId"_attr = _migrationId,
                         "requested"_attr = sessionId,
                         "current"_attr = _sessionId);
 
@@ -848,8 +871,11 @@ Status MigrationDestinationManager::exitCriticalSection(OperationContext* opCtx,
         return {ErrorCodes::CommandFailed, "exitCriticalSection failed"};
     }
 
-    LOGV2_DEBUG(
-        5899105, 2, "Succeeded releasing recipient critical section", "requested"_attr = sessionId);
+    LOGV2_DEBUG(5899105,
+                2,
+                "Succeeded releasing recipient critical section",
+                "migrationId"_attr = _migrationId,
+                "requested"_attr = sessionId);
 
     return Status::OK();
 }
@@ -1352,17 +1378,17 @@ void MigrationDestinationManager::_migrateDriver(OperationContext* outerOpCtx,
               "chunkMin"_attr = redact(_min),
               "chunkMax"_attr = redact(_max),
               logAttrs(_nss),
+              "migrationId"_attr = _migrationId->toBSON(),
               "fromShard"_attr = _fromShard,
-              "sessionId"_attr = *_sessionId,
-              "migrationId"_attr = _migrationId->toBSON());
+              "sessionId"_attr = *_sessionId);
 
         const auto initialState = getState();
 
         if (initialState == kAbort) {
             LOGV2_ERROR(22013,
                         "Migration abort requested before the migration started",
-                        "migrationId"_attr = _migrationId->toBSON(),
-                        logAttrs(_nss));
+                        logAttrs(_nss),
+                        "migrationId"_attr = _migrationId->toBSON());
             return;
         }
 
@@ -1396,8 +1422,8 @@ void MigrationDestinationManager::_migrateDriver(OperationContext* outerOpCtx,
                   "Migration paused because the requested range overlaps with a range already "
                   "scheduled for deletion",
                   logAttrs(_nss),
-                  "range"_attr = redact(range.toString()),
-                  "migrationId"_attr = _migrationId->toBSON());
+                  "migrationId"_attr = _migrationId->toBSON(),
+                  "range"_attr = redact(range.toString()));
 
             auto status =
                 CollectionShardingRuntime::waitForClean(outerOpCtx,
@@ -1488,7 +1514,8 @@ void MigrationDestinationManager::_migrateDriver(OperationContext* outerOpCtx,
                     << "spurious documents before retrying migration.";
                 LOGV2(11365900,
                       "Migration aborted: found existing document",
-                      "error"_attr = redact(msg));
+                      "error"_attr = redact(msg),
+                      "migrationId"_attr = _migrationId);
                 _setStateFailNoLog(msg);
                 return;
             }
@@ -1497,8 +1524,8 @@ void MigrationDestinationManager::_migrateDriver(OperationContext* outerOpCtx,
                         3,
                         "Pre-cloning check passed: no existing documents found in migration range",
                         "nss"_attr = _nss,
-                        "range"_attr = range.toString(),
-                        "migrationId"_attr = _migrationId->toBSON());
+                        "migrationId"_attr = _migrationId->toBSON(),
+                        "range"_attr = range.toString());
         }
 
         {
@@ -1642,8 +1669,8 @@ void MigrationDestinationManager::_migrateDriver(OperationContext* outerOpCtx,
                     if (i > 100) {
                         LOGV2(22003,
                               "secondaries having hard time keeping up with migrate",
-                              "migrationId"_attr = _migrationId->toBSON(),
-                              logAttrs(_nss));
+                              logAttrs(_nss),
+                              "migrationId"_attr = _migrationId->toBSON());
                     }
 
                     sleepmillis(20);
@@ -1669,14 +1696,14 @@ void MigrationDestinationManager::_migrateDriver(OperationContext* outerOpCtx,
 
             LOGV2(22004,
                   "Waiting for replication to catch up before entering critical section",
-                  "migrationId"_attr = _migrationId->toBSON(),
-                  logAttrs(_nss));
+                  logAttrs(_nss),
+                  "migrationId"_attr = _migrationId->toBSON());
             LOGV2_DEBUG_OPTIONS(4817411,
                                 2,
                                 {logv2::LogComponent::kShardMigrationPerf},
                                 "Starting majority commit wait on recipient",
-                                "migrationId"_attr = _migrationId->toBSON(),
-                                logAttrs(_nss));
+                                logAttrs(_nss),
+                                "migrationId"_attr = _migrationId->toBSON());
 
             runWithoutSession(outerOpCtx, [&] {
                 auto awaitReplicationResult =
@@ -1694,8 +1721,8 @@ void MigrationDestinationManager::_migrateDriver(OperationContext* outerOpCtx,
                                 2,
                                 {logv2::LogComponent::kShardMigrationPerf},
                                 "Finished majority commit wait on recipient",
-                                "migrationId"_attr = _migrationId->toBSON(),
-                                logAttrs(_nss));
+                                logAttrs(_nss),
+                                "migrationId"_attr = _migrationId->toBSON());
         }
 
         {
@@ -1739,8 +1766,8 @@ void MigrationDestinationManager::_migrateDriver(OperationContext* outerOpCtx,
                 if (getState() == kAbort) {
                     LOGV2(22006,
                           "Migration aborted while transferring mods",
-                          "migrationId"_attr = _migrationId->toBSON(),
-                          logAttrs(_nss));
+                          logAttrs(_nss),
+                          "migrationId"_attr = _migrationId->toBSON());
                     return;
                 }
 
@@ -1798,7 +1825,8 @@ void MigrationDestinationManager::_migrateDriver(OperationContext* outerOpCtx,
                             2,
                             "Persisted migration recipient recovery document",
                             "sessionId"_attr = _sessionId,
-                            logAttrs(_nss));
+                            logAttrs(_nss),
+                            "migrationId"_attr = _migrationId);
 
                 // Enter critical section. Ensure it has been majority commited before
                 // _recvChunkCommit returns success to the donor, so that if the recipient steps
@@ -1811,7 +1839,10 @@ void MigrationDestinationManager::_migrateDriver(OperationContext* outerOpCtx,
                     true, /* (default) clearDbMetadata */
                     Milliseconds(migrationLockAcquisitionMaxWaitMS.load()));
 
-                LOGV2(5899114, "Entered migration recipient critical section", logAttrs(_nss));
+                LOGV2(5899114,
+                      "Entered migration recipient critical section",
+                      logAttrs(_nss),
+                      "migrationId"_attr = _migrationId);
                 timeInCriticalSection.emplace();
             });
         } catch (const DBException& ex) {
@@ -1819,7 +1850,8 @@ void MigrationDestinationManager::_migrateDriver(OperationContext* outerOpCtx,
             // migration.
             LOGV2(11608900,
                   "Failed to acquire the migration recipient critical section",
-                  "ex"_attr = ex);
+                  "ex"_attr = ex,
+                  "migrationId"_attr = _migrationId);
 
             // Make sure the critical section is completely released.
             ShardingRecoveryService::get(opCtx)->releaseRecoverableCriticalSection(
@@ -1835,7 +1867,8 @@ void MigrationDestinationManager::_migrateDriver(OperationContext* outerOpCtx,
             LOGV2_DEBUG(
                 11608901,
                 1,
-                "Deleted migration recipient recovery document after critical acquisition failure");
+                "Deleted migration recipient recovery document after critical acquisition failure",
+                "migrationId"_attr = _migrationId);
 
             // Fail the migration and end the recipient state machine here.
             _setStateFail(str::stream()
@@ -1873,7 +1906,8 @@ void MigrationDestinationManager::_migrateDriver(OperationContext* outerOpCtx,
                     2,
                     "Reacquired migration recipient critical section",
                     "sessionId"_attr = *_sessionId,
-                    logAttrs(_nss));
+                    logAttrs(_nss),
+                    "migrationId"_attr = _migrationId);
 
         {
             stdx::lock_guard<stdx::mutex> sl(_mutex);
@@ -1884,7 +1918,8 @@ void MigrationDestinationManager::_migrateDriver(OperationContext* outerOpCtx,
         LOGV2(6064503,
               "Recovered migration recipient",
               "sessionId"_attr = *_sessionId,
-              logAttrs(_nss));
+              logAttrs(_nss),
+              "migrationId"_attr = _migrationId);
     }
 
     outerOpCtx->setAlwaysInterruptAtStepDownOrUp_UNSAFE();
@@ -2001,8 +2036,8 @@ bool MigrationDestinationManager::_applyMigrateOp(OperationContext* opCtx, const
                     "reloaded remote document",
                     "localDoc"_attr = redact(localDoc),
                     "remoteDoc"_attr = redact(updatedDoc),
-                    "migrationId"_attr = _migrationId->toBSON(),
-                    logAttrs(_nss));
+                    logAttrs(_nss),
+                    "migrationId"_attr = _migrationId->toBSON());
             }
 
             // We are in write lock here, so sure we aren't killing
@@ -2037,10 +2072,10 @@ bool MigrationDestinationManager::_flushPendingWrites(OperationContext* opCtx,
                   "Migration commit waiting for majority replication; waiting until the last "
                   "operation applied has been replicated",
                   logAttrs(_nss),
+                  "migrationId"_attr = _migrationId->toBSON(),
                   "chunkMin"_attr = redact(_min),
                   "chunkMax"_attr = redact(_max),
-                  "lastOpApplied"_attr = op,
-                  "migrationId"_attr = _migrationId->toBSON());
+                  "lastOpApplied"_attr = op);
         }
         return false;
     }
@@ -2048,9 +2083,9 @@ bool MigrationDestinationManager::_flushPendingWrites(OperationContext* opCtx,
     LOGV2(22008,
           "Migration commit succeeded flushing to secondaries",
           logAttrs(_nss),
+          "migrationId"_attr = _migrationId->toBSON(),
           "chunkMin"_attr = redact(_min),
-          "chunkMax"_attr = redact(_max),
-          "migrationId"_attr = _migrationId->toBSON());
+          "chunkMax"_attr = redact(_max));
 
     return true;
 }
@@ -2058,14 +2093,20 @@ bool MigrationDestinationManager::_flushPendingWrites(OperationContext* opCtx,
 void MigrationDestinationManager::awaitCriticalSectionReleaseSignalAndCompleteMigration(
     OperationContext* opCtx, const Timer& timeInCriticalSection) {
     // Wait until the migrate thread is signaled to release the critical section
-    LOGV2_DEBUG(5899111, 3, "Waiting for release critical section signal");
+    LOGV2_DEBUG(5899111,
+                3,
+                "Waiting for release critical section signal",
+                "migrationId"_attr = _migrationId);
     invariant(_canReleaseCriticalSectionPromise);
     _canReleaseCriticalSectionPromise->getFuture().get(opCtx);
 
     _setState(kExitCritSec);
 
     // Refresh the filtering metadata
-    LOGV2_DEBUG(5899112, 3, "Refreshing filtering metadata before exiting critical section");
+    LOGV2_DEBUG(5899112,
+                3,
+                "Refreshing filtering metadata before exiting critical section",
+                "migrationId"_attr = _migrationId);
 
     bool refreshFailed = false;
     try {
@@ -2079,8 +2120,8 @@ void MigrationDestinationManager::awaitCriticalSectionReleaseSignalAndCompleteMi
         LOGV2_DEBUG(5899103,
                     2,
                     "Post-migration commit refresh failed on recipient",
-                    "migrationId"_attr = _migrationId,
                     logAttrs(_nss),
+                    "migrationId"_attr = _migrationId,
                     "error"_attr = redact(ex));
         refreshFailed = true;
     }
@@ -2092,7 +2133,7 @@ void MigrationDestinationManager::awaitCriticalSectionReleaseSignalAndCompleteMi
     }
 
     // Release the critical section
-    LOGV2_DEBUG(5899110, 3, "Exiting critical section");
+    LOGV2_DEBUG(5899110, 3, "Exiting critical section", "migrationId"_attr = _migrationId);
     const auto critSecReason = criticalSectionReason(*_sessionId);
 
     ShardingRecoveryService::get(opCtx)->releaseRecoverableCriticalSection(
@@ -2109,6 +2150,7 @@ void MigrationDestinationManager::awaitCriticalSectionReleaseSignalAndCompleteMi
     LOGV2(5899108,
           "Exited migration recipient critical section",
           logAttrs(_nss),
+          "migrationId"_attr = _migrationId,
           "durationMillis"_attr = timeInCriticalSectionMs);
 
     // Delete the recovery document
@@ -2137,8 +2179,8 @@ void MigrationDestinationManager::onStepDown() {
     if (migrateThreadFinishedFuture) {
         LOGV2(8991401,
               "Waiting for migrate thread to finish on stepdown",
-              "migrationId"_attr = _migrationId,
-              logAttrs(_nss));
+              logAttrs(_nss),
+              "migrationId"_attr = _migrationId);
         migrateThreadFinishedFuture->wait();
     }
 }

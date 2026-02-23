@@ -119,7 +119,7 @@ public:
     std::vector<mongo::extension::VariantNodeHandle> expand() const override {
         std::vector<mongo::extension::VariantNodeHandle> expanded;
         expanded.reserve(getExpandedSize());
-        expanded.emplace_back(AggStageAstNodeHandle{new sdk::ExtensionAggStageAstNode(
+        expanded.emplace_back(AggStageAstNodeHandle{new sdk::ExtensionAggStageAstNodeAdapter(
             std::make_unique<AstNodeType>(getName(), _arguments))});
         return expanded;
     }

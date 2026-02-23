@@ -116,7 +116,7 @@ void GRPCReactor::schedule(Task task) {
         .getAsync([task = _stats.wrapTask(std::move(task))](Status s) { task(s); });
 }
 
-void GRPCReactor::appendStats(BSONObjBuilder& bob) const {
+void GRPCReactor::appendStats(BSONObjBuilder& bob, bool forServerStatus) const {
     _stats.serialize(&bob);
 }
 

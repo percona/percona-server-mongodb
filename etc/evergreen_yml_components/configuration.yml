@@ -102,8 +102,13 @@ modules:
     repo: asp-js-engine
     prefix: asp-js-engine
     branch: master
-    ref: v0.1.0
+    ref: v0.1.1
     auto_update: true
+  - name: mothra
+    owner: 10gen
+    repo: mothra
+    branch: main
+    prefix: ${workdir}/src
 
 # Pre task steps
 pre:

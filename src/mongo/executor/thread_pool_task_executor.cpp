@@ -513,8 +513,9 @@ void ThreadPoolTaskExecutor::appendConnectionStats(ConnectionPoolStats* stats) c
     _net->appendConnectionStats(stats);
 }
 
-void ThreadPoolTaskExecutor::appendNetworkInterfaceStats(BSONObjBuilder& bob) const {
-    _net->appendStats(bob);
+void ThreadPoolTaskExecutor::appendNetworkInterfaceStats(BSONObjBuilder& bob,
+                                                         bool forServerStatus) const {
+    _net->appendStats(bob, forServerStatus);
 }
 
 ThreadPoolTaskExecutor::EventList ThreadPoolTaskExecutor::makeSingletonEventList() {

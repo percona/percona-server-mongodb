@@ -75,7 +75,7 @@ namespace mongo::extension::host_connector {
         *node = nullptr;
         auto parseNode = std::make_unique<host::AggStageParseNode>(bsonObjFromByteView(spec));
         *node = static_cast<::MongoExtensionAggStageParseNode*>(
-            new host::HostAggStageParseNode(std::move(parseNode)));
+            new host::HostAggStageParseNodeAdapter(std::move(parseNode)));
     });
 }
 
@@ -83,7 +83,7 @@ namespace mongo::extension::host_connector {
     ::MongoExtensionByteView bsonSpec, ::MongoExtensionAggStageAstNode** node) noexcept {
     return wrapCXXAndConvertExceptionToStatus([&]() {
         *node = nullptr;
-        BSONObj specObj = bsonObjFromByteView(bsonSpec);
+        BSONObj specObj = bsonObjFromByteView(bsonSpec).getOwned();
 
         uassert(11134200,
                 "create_id_lookup requires a well-formed $_internalSearchIdLookup",
@@ -92,9 +92,17 @@ namespace mongo::extension::host_connector {
                         DocumentSourceInternalSearchIdLookUp::kStageName &&
                     specObj.firstElementType() == BSONType::object);
 
-        auto liteParsed = std::make_unique<LiteParsedInternalSearchIdLookUp>(specObj);
+        // Extract the inner spec object from the full stage BSON.
+        auto innerSpec = specObj.firstElement().Obj().getOwned();
+        auto spec = DocumentSourceIdLookupSpec::parseOwned(
+            std::move(innerSpec),
+            IDLParserContext(DocumentSourceInternalSearchIdLookUp::kStageName));
 
-        *node = static_cast<::MongoExtensionAggStageAstNode*>(new host::HostAggStageAstNode(
+        // Use the full stage BSON element for the LiteParsed constructor.
+        auto liteParsed = std::make_unique<LiteParsedInternalSearchIdLookUp>(std::move(spec));
+        liteParsed->makeOwned();
+
+        *node = static_cast<::MongoExtensionAggStageAstNode*>(new host::HostAggStageAstNodeAdapter(
             std::make_unique<host::AggStageAstNode>(std::move(liteParsed))));
     });
 }

@@ -159,15 +159,24 @@ Milliseconds ShardingTestFixtureCommon::advanceUntilReadyRequest() const {
 
     stdx::this_thread::sleep_for(1ms);
     auto totalWaited = Milliseconds{0};
-    auto _ = executor::NetworkInterfaceMock::InNetworkGuard{_mockNetwork};
-    while (!_mockNetwork->hasReadyRequests()) {
-        opCtx->checkForInterrupt();
-        auto advance = Milliseconds{10};
-        clockSource()->advance(advance);
-        totalWaited += advance;
+
+    // We must release the InNetworkGuard on each iteration to allow the executor
+    // thread to run callbacks. The NetworkInterfaceMock uses a cooperative multitasking model
+    // where only one thread (network OR executor) can be running at a time.
+    while (true) {
+        {
+            auto guard = executor::NetworkInterfaceMock::InNetworkGuard{_mockNetwork};
+            if (_mockNetwork->hasReadyRequests()) {
+                return totalWaited;
+            }
+            opCtx->checkForInterrupt();
+            auto advance = Milliseconds{10};
+            clockSource()->advance(advance);
+            totalWaited += advance;
+        }  // Guard released here, allowing executor thread to run callbacks
+
         stdx::this_thread::sleep_for(100us);
     }
-    return totalWaited;
 }
 
 void ShardingTestFixtureCommon::addRemoteShards(

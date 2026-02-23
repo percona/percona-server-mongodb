@@ -70,6 +70,14 @@ variables:
     project_dir: dsi
     has_packages: false
 
+  # THIS HAS COPIES IN:
+  # - etc/evergreen_yml_components/variants/amazon/test_dev.yml
+  # - etc/evergreen_yml_components/variants/misc/task_generation.yml
+  # ANY MODIFICATIONS HERE SHOULD ALSO BE MADE IN THOSE FILES
+  - paths: &mongo_path_filtering
+      - "*"
+      - "!/monguard/**"
+
 buildvariants:
   - <<: *linux-arm64-dynamic-compile-params
     name: &amazon-linux2023-arm64-crypt-compile amazon-linux2023-arm64-crypt-compile
@@ -87,6 +95,7 @@ buildvariants:
     name: &amazon-linux2023-arm64-static-compile amazon-linux2023-arm64-static-compile
     display_name: "! Amazon Linux 2023 arm64 Atlas Compile"
     tags: ["required", "bazel_check", "forbid_tasks_tagged_with_experimental"]
+    paths: *mongo_path_filtering
     expansions:
       <<: *linux-arm64-static-enterprise-compile-expansions
       clang_tidy_toolchain: v5
@@ -257,13 +266,15 @@ buildvariants:
         --disableUnreleasedIFRFlags
         --excludeWithAnyTags=incompatible_with_amazon_linux,requires_external_data_source,requires_ldap_pool,incompatible_with_atlas_environment
 
-  - name: &commit-queue commit-queue
+  - &commit-queue-variant
+    name: &commit-queue commit-queue
     display_name: "~ Commit Queue"
     tags: ["bazel_check", "forbid_tasks_tagged_with_experimental"]
     cron: "0 1 * * 0" # From the ${project_weekly_cron} parameter
     run_on:
       - amazon2023-arm64-latest-m8g-xlarge
     stepback: false
+    paths: *mongo_path_filtering
     expansions:
       <<: *linux_arm64_generic_expansions
       has_packages: false
@@ -300,12 +311,25 @@ buildvariants:
       - name: .commit_check
         create_check_run:
           path_to_outputs: "github_annotations.json"
-      - name: .development_critical_single_variant !.requires_large_host !.clang_tidy !.no_commit_queue
-      - name: .development_critical_single_variant .requires_large_host !.clang_tidy !.no_commit_queue
+      - name: .development_critical_single_variant !.requires_large_host !.clang_tidy !.no_commit_queue !.monorepo-commit-queue
+      - name: .development_critical_single_variant .requires_large_host !.clang_tidy !.no_commit_queue !.monorepo-commit-queue
         distros:
           - amazon2023-arm64-latest-m8g-4xlarge
-      - name: .development_critical !.requires_large_host_commit_queue !.no_commit_queue
-      - name: .development_critical .requires_large_host_commit_queue !.no_commit_queue
+      - name: .development_critical !.requires_large_host_commit_queue !.no_commit_queue !.monorepo-commit-queue
+      - name: .development_critical .requires_large_host_commit_queue !.no_commit_queue !.monorepo-commit-queue
+        distros:
+          - amazon2023-arm64-latest-m8g-4xlarge
+
+  - <<: *commit-queue-variant
+    name: commit-queue-monorepo
+    display_name: "~ Commit Queue Monorepo"
+    tags: ["bazel_check", "forbid_tasks_tagged_with_experimental"]
+    paths:
+      - "*"
+    depends_on: []
+    tasks:
+      - name: .monorepo-commit-queue !.requires_large_host
+      - name: .monorepo-commit-queue .requires_large_host
         distros:
           - amazon2023-arm64-latest-m8g-4xlarge
 
@@ -409,6 +433,7 @@ buildvariants:
     display_name: "! AL2023.3 arm64 Enterprise (SEP Benchmark)"
     tags: ["required"]
     activate: true
+    paths: *mongo_path_filtering
     run_on:
       - amazon2023.3-arm64-m6g-4xlarge
     expansions:

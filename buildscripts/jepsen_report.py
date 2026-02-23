@@ -5,7 +5,7 @@ import os
 import re
 import sys
 from datetime import datetime, timezone
-from typing import List, Optional, Tuple
+from typing import Optional
 
 import click
 from typing_extensions import TypedDict
@@ -16,10 +16,10 @@ from buildscripts.simple_report import Report, Result
 class ParserOutput(TypedDict):
     """Result of parsing jepsen log file. Each List[str] is a list of test names."""
 
-    success: List[str]
-    unknown: List[str]
-    crashed: List[str]
-    failed: List[str]
+    success: list[str]
+    unknown: list[str]
+    crashed: list[str]
+    failed: list[str]
     start: int
     end: int
     elapsed: int
@@ -41,7 +41,7 @@ def _time_parse(time: str):
     return date.replace(microsecond=microseconds, tzinfo=timezone.utc)
 
 
-def _calc_time_from_log(log: str) -> Tuple[int, int, int]:
+def _calc_time_from_log(log: str) -> tuple[int, int, int]:
     if not log:
         return (0, 0, 0)
     start_time = None
@@ -67,7 +67,7 @@ UNKNOWN_RE = re.compile("([0-9]+) unknown")
 FAIL_RE = re.compile("([0-9]+) failures")
 
 
-def parse(text: List[str]) -> ParserOutput:  # noqa: D406
+def parse(text: list[str]) -> ParserOutput:  # noqa: D406
     """Given a List of strings representing jepsen log file split by newlines, return the ParserOutput struct.
 
     Args:
@@ -80,10 +80,10 @@ def parse(text: List[str]) -> ParserOutput:  # noqa: D406
         AssertionError: If there is a mismatch between the count of matches and the corresponding test list.
     """
 
-    successful_tests: List[str] = []
-    indeterminate_tests: List[str] = []
-    crashed_tests: List[str] = []
-    failed_tests: List[str] = []
+    successful_tests: list[str] = []
+    indeterminate_tests: list[str] = []
+    crashed_tests: list[str] = []
+    failed_tests: list[str] = []
     target = None
     success_table_matches = 0
     unknown_table_matches = 0
@@ -258,7 +258,7 @@ def report(
     )
 
 
-def _get_log_lines(filename: str) -> List[str]:
+def _get_log_lines(filename: str) -> list[str]:
     with open(filename) as fh:
         return fh.read().splitlines()
 

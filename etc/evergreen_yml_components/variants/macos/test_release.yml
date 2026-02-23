@@ -13,7 +13,7 @@ buildvariants:
       - macos-14-arm64
     expansions:
       test_flags: >-
-        --excludeWithAnyTags=incompatible_with_macos,requires_external_data_source
+        --excludeWithAnyTags=incompatible_with_macos,requires_external_data_source,requires_otel_build
         --modules=none
       push_path: osx
       push_bucket: downloads.mongodb.org
@@ -31,6 +31,7 @@ buildvariants:
       - name: run_unit_tests_8_way_split_TG
       - name: .development_critical !.incompatible_community !.incompatible_mac
       - name: .release_critical !.incompatible_community !.incompatible_mac !publish_packages
+      - name: ssl_linear_macos
 
   - name: enterprise-macos-arm64
     display_name: Enterprise macOS arm64
@@ -39,7 +40,7 @@ buildvariants:
     run_on:
       - macos-14-arm64
     expansions:
-      test_flags: --excludeWithAnyTags=incompatible_with_macos,requires_gcm,requires_external_data_source
+      test_flags: --excludeWithAnyTags=incompatible_with_macos,requires_gcm,requires_external_data_source,requires_otel_build
       additional_package_targets: >-
         archive-mongocryptd-stripped
         archive-mongocryptd-debug
@@ -58,6 +59,7 @@ buildvariants:
       - name: run_unit_tests_8_way_split_TG
       - name: .development_critical !.incompatible_mac
       - name: .release_critical !.incompatible_mac !publish_packages
+      - name: ssl_linear_macos
 
   - name: macos
     display_name: macOS
@@ -67,7 +69,7 @@ buildvariants:
       - macos-14
     expansions:
       test_flags: >-
-        --excludeWithAnyTags=incompatible_with_macos,requires_external_data_source
+        --excludeWithAnyTags=incompatible_with_macos,requires_external_data_source,requires_otel_build
         --modules=none
       push_path: osx
       push_bucket: downloads.mongodb.org
@@ -85,6 +87,7 @@ buildvariants:
       - name: run_unit_tests_8_way_split_TG
       - name: .development_critical !.incompatible_community !.incompatible_mac
       - name: .release_critical !.incompatible_community !.incompatible_mac !publish_packages
+      - name: ssl_linear_macos
 
   - name: enterprise-macos
     display_name: Enterprise macOS
@@ -93,7 +96,7 @@ buildvariants:
     run_on:
       - macos-14
     expansions:
-      test_flags: --excludeWithAnyTags=incompatible_with_macos,requires_gcm,requires_external_data_source
+      test_flags: --excludeWithAnyTags=incompatible_with_macos,requires_gcm,requires_external_data_source,requires_otel_build
       additional_package_targets: >-
         archive-mongocryptd-stripped
         archive-mongocryptd-debug
@@ -112,3 +115,4 @@ buildvariants:
       - name: run_unit_tests_8_way_split_TG
       - name: .development_critical !.incompatible_mac
       - name: .release_critical !.incompatible_mac !publish_packages
+      - name: ssl_linear_macos

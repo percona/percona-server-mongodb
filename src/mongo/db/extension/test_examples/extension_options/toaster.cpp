@@ -179,7 +179,7 @@ public:
         {
             std::vector<mongo::extension::VariantDPLHandle> pipeline;
             pipeline.emplace_back(mongo::extension::LogicalAggStageHandle{
-                new sdk::ExtensionLogicalAggStage(clone())});
+                new sdk::ExtensionLogicalAggStageAdapter(clone())});
             dpl.mergingPipeline = sdk::DPLArrayContainer(std::move(pipeline));
         }
         return dpl;

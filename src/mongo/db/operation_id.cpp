@@ -92,11 +92,13 @@ OperationIdManager::OperationIdManager() : _pool(std::make_unique<OperationIdMan
 
 #define VERIFY_LEASE_START(start, bitmask) invariant((start & ~bitmask) == 0)
 
+// Rely on Decorable zeroing memory for initialization, so we can use
+// the trivially_initializable optimization.
 struct ClientState {
-    size_t unused = 0;
+    size_t unused;
     Lease lease;
     OperationId nextId;
-    bool isInitialized = false;
+    bool isInitialized;
 };
 
 namespace {

@@ -35,8 +35,7 @@ namespace sbe {
 namespace vm {
 // This function is necessary because 'aggDoubleDoubleSum()' result is 'Array' type but we need
 // to produce a scalar value out of it.
-FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinDoubleDoubleSumFinalize(
-    ArityType arity) {
+value::TagValueMaybeOwned ByteCode::builtinDoubleDoubleSumFinalize(ArityType arity) {
     auto [_, fieldTag, fieldValue] = getFromStack(0);
     auto arr = value::getArrayView(fieldValue);
     return aggDoubleDoubleSumFinalizeImpl(arr);
@@ -123,14 +122,13 @@ FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinDoubleDoublePart
     return {true, tag, val};
 }  // ByteCode::builtinDoubleDoublePartialSumFinalize
 
-FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinStdDevPopFinalize(ArityType arity) {
+value::TagValueMaybeOwned ByteCode::builtinStdDevPopFinalize(ArityType arity) {
     auto [_, fieldTag, fieldValue] = getFromStack(0);
 
     return aggStdDevFinalizeImpl(fieldValue, false /* isSamp */);
 }
 
-FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinStdDevSampFinalize(
-    ArityType arity) {
+value::TagValueMaybeOwned ByteCode::builtinStdDevSampFinalize(ArityType arity) {
     auto [_, fieldTag, fieldValue] = getFromStack(0);
 
     return aggStdDevFinalizeImpl(fieldValue, true /* isSamp */);

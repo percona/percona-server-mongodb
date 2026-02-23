@@ -5,7 +5,7 @@ import hashlib
 import ipaddress
 import json
 from pathlib import PurePath
-from typing import Any, Dict
+from typing import Any
 
 import asn1crypto.core as asn1
 import cryptography.hazmat.primitives.serialization.pkcs12 as pkcs12
@@ -37,7 +37,7 @@ OID_ORDER = [NAME_TO_OID[n].dotted_string for n in ["C", "ST", "L", "O", "OU", "
 CONFIGFILE = None
 
 # Config parsed as YAML.
-CONFIG = Dict[str, Any]
+CONFIG = dict[str, Any]
 
 # <= 825 in order to abide by https://support.apple.com/en-us/HT210176.
 MAX_VALIDITY_PERIOD_DAYS = 824

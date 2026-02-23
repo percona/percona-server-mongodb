@@ -10,6 +10,7 @@
 
 import {arrayEq, documentEq} from "jstests/aggregation/extras/utils.js";
 import {FixtureHelpers} from "jstests/libs/fixture_helpers.js";
+import {add2dsphereVersionIfNeeded} from "jstests/libs/query/geo_index_version_helpers.js";
 
 const testDB = db.getSiblingDB(jsTestName());
 const collA = testDB.A;
@@ -100,7 +101,7 @@ assert.commandFailedWithCode(
 // Test that $unionWith works with $geoNear
 const geoColl = testDB.geoColl;
 geoColl.drop();
-assert.commandWorked(geoColl.createIndex({"locs": "2dsphere"}));
+assert.commandWorked(geoColl.createIndex({"locs": "2dsphere"}, add2dsphereVersionIfNeeded()));
 assert.commandWorked(
     geoColl.insert([
         {_id: 0, locs: [0, 0]},

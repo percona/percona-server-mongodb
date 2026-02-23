@@ -145,7 +145,7 @@ public:
         return Date_t(::grpc::Timespec2Timepoint(gpr_now(::gpr_clock_type::GPR_CLOCK_REALTIME)));
     }
 
-    void appendStats(BSONObjBuilder& bob) const override;
+    void appendStats(BSONObjBuilder& bob, bool forServerStatus) const override;
 
 private:
     ::grpc::CompletionQueue* _getCompletionQueue() {

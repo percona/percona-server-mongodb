@@ -56,10 +56,6 @@ venv
 *.core
 iwyu.dat
 
-/src/mongo/*/*Debug*/
-/src/mongo/*/*/*Debug*/
-/src/mongo/*/*Release*/
-/src/mongo/*/*/*Release*/
 /src/ipch
 /src/mongo/*/ipch
 /src/mongo/*/*/ipch

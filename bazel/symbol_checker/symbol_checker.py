@@ -1,7 +1,6 @@
 import sys
 import argparse
 import json
-import os
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--sym", required=True)

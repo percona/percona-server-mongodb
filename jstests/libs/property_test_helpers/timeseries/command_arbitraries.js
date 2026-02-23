@@ -11,7 +11,9 @@ import {
 import {
     InsertCommand,
     BatchInsertCommand,
+    DeleteByFilterCommand,
     DeleteByRandomIdCommand,
+    Filter,
 } from "jstests/libs/property_test_helpers/timeseries/command_grammar.js";
 
 /**
@@ -100,6 +102,69 @@ export function makeBatchInsertCommandArb(
 }
 
 /**
+ * Generates Filters that are model-dependent at runtime (via seed)
+ *
+ */
+export function makeFilterArb(timeFieldname, metaFieldname, opts = {}) {
+    const {
+        maxDepth = 2,
+        maxChildren = 3,
+        // If provided, byFieldEqFromDoc's "allow" will be set to a subset of these.
+        candidateFieldNames = undefined,
+        // Default exclusions for byFieldEqFromDoc. (We include time/meta when provided.)
+        defaultExclude = ["_id", timeFieldname, metaFieldname].filter(Boolean),
+    } = opts;
+
+    // Seed used to deterministically select from the model at runtime.
+    const seedArb = fc.integer({min: -0x7fffffff, max: 0x7fffffff});
+
+    // Optional time-range widening. Keep it modest to avoid always matching everything.
+    const expandFactorArb = fc.oneof(
+        fc.constant(0),
+        fc.double({min: 0, max: 0.25, noNaN: true}),
+        fc.double({min: 0.25, max: 1.0, noNaN: true}),
+    );
+
+    const leafArb = fc.oneof(
+        fc.constant(Filter.matchAll()),
+        seedArb.map((s) => Filter.byId(s)),
+        seedArb.map((s) => Filter.byMetaEq(s)),
+        fc.tuple(seedArb, expandFactorArb).map(([s, expandFactor]) => Filter.byTimeRange(s, {expandFactor})),
+        // byFieldEqFromDoc:
+        seedArb.chain((s) => {
+            const excludeArb = fc.constant(defaultExclude);
+
+            // If caller provides candidateFieldNames, pick a subset as an allow-list.
+            // Otherwise omit allow entirely (Filter will use all fields minus excludes).
+            const allowArb =
+                Array.isArray(candidateFieldNames) && candidateFieldNames.length > 0
+                    ? fc
+                          .subarray(candidateFieldNames, {
+                              minLength: 0,
+                              maxLength: Math.min(candidateFieldNames.length, 6),
+                          })
+                          .map((allow) => ({allow}))
+                    : fc.constant({});
+
+            return fc.tuple(excludeArb, allowArb).map(([exclude, allowObj]) => {
+                const params = {exclude, ...allowObj};
+                return Filter.byFieldEqFromDoc(s, params);
+            });
+        }),
+    );
+
+    // Build a recursive arb for and/or compositions.
+    return fc.letrec((tie) => ({
+        filter: fc.oneof(
+            leafArb,
+            fc
+                .tuple(fc.constantFrom("and", "or"), fc.array(tie("filter"), {minLength: 1, maxLength: maxChildren}))
+                .map(([op, children]) => (op === "and" ? Filter.and(children) : Filter.or(children))),
+        ),
+    })).filter;
+}
+
+/**
  * Arbitrary for DeleteByRandomIdCommand.
  *
  * Generates:
@@ -111,7 +176,25 @@ export function makeBatchInsertCommandArb(
  * @returns {fc.Arbitrary<DeleteByRandomIdCommand>}
  */
 export function makeDeleteByRandomIdCommandArb() {
-    return fc.constant(new DeleteByRandomIdCommand());
+    // "pick" is an arbitrary integer used to provide randomness for id selection
+    return fc.nat().map((pick) => new DeleteByRandomIdCommand(pick));
+}
+
+/**
+ * Arbitrary for DeleteByFilterCommand.
+ *
+ * Generates:
+ *   new DeleteByFilterCommand(filter, timeFieldname, metaFieldname)
+ *
+ * The actual filter is chosen at run-time from the model by the command
+ * itself; this arb just controls *when* such a delete appears.
+ *
+ * @returns {fc.Arbitrary<DeleteByFilterCommand>}
+ */
+export function makeDeleteByFilterCommandArb(timeFieldname, metaFieldname, filterOpts = {}) {
+    return makeFilterArb(timeFieldname, metaFieldname, filterOpts).map(
+        (filter) => new DeleteByFilterCommand(filter, timeFieldname, metaFieldname),
+    );
 }
 
 /**
@@ -131,7 +214,7 @@ export function makeDeleteByRandomIdCommandArb() {
  * @param {{intRange?: Range, dateRange?: Range}} [ranges]
  * @param {fc.Arbitrary<string>} [fieldNameArb=fc.string({minLength:1,maxLength:8})]
  *
- * @returns {fc.Arbitrary<InsertCommand|BatchInsertCommand|DeleteByRandomIdCommand>}
+ * @returns {fc.Arbitrary<InsertCommand|BatchInsertCommand|DeleteByFilterCommand>}
  */
 export function makeTimeseriesCommandArb(
     timeField = "ts",
@@ -158,7 +241,7 @@ export function makeTimeseriesCommandArb(
         fieldNameArb,
     );
 
-    const deleteArb = makeDeleteByRandomIdCommandArb();
+    const deleteArb = makeDeleteByFilterCommandArb(timeField, metaField);
 
     return fc.oneof(insertArb, batchInsertArb, deleteArb);
 }
@@ -193,7 +276,9 @@ export function makeTimeseriesCommandSequenceArb(
     ranges = {},
     fieldNameArb = fc.string({minLength: 1, maxLength: 8}),
 ) {
-    const cmdArb = makeTimeseriesCommandArb(
+    const insertArb = makeInsertCommandArb(timeField, metaField, metaValue, minFields, maxFields, ranges, fieldNameArb);
+
+    const batchInsertArb = makeBatchInsertCommandArb(
         timeField,
         metaField,
         metaValue,
@@ -205,8 +290,7 @@ export function makeTimeseriesCommandSequenceArb(
         fieldNameArb,
     );
 
-    return fc.array(cmdArb, {
-        minLength: minCommands,
-        maxLength: maxCommands,
-    });
+    const deleteArb = makeDeleteByRandomIdCommandArb();
+
+    return fc.commands([insertArb, batchInsertArb, deleteArb], {minLength: minCommands, maxLength: maxCommands});
 }

@@ -2,7 +2,7 @@
 
 import os
 import sys
-from typing import Callable, Dict, List, Tuple
+from typing import Callable
 
 import structlog
 from git import Repo
@@ -23,7 +23,7 @@ LOGGER = structlog.get_logger(__name__)
 MONGO_REVISION_ENV_VAR = "REVISION"
 
 
-def _get_repos_and_revisions() -> Tuple[List[Repo], RevisionMap]:
+def _get_repos_and_revisions() -> tuple[list[Repo], RevisionMap]:
     """Get the repo object and a map of revisions to compare against."""
 
     repos = [Repo(git.get_base_dir())]
@@ -42,7 +42,7 @@ def _filter_file(filename: str, is_interesting_file: Callable[[str], bool]) -> b
     return os.path.exists(filename) and is_interesting_file(filename)
 
 
-def gather_changed_files_for_lint(is_interesting_file: Callable[[str], bool]) -> List[str]:
+def gather_changed_files_for_lint(is_interesting_file: Callable[[str], bool]) -> list[str]:
     """
     Get the files that have changes since the last git commit.
 
@@ -63,7 +63,7 @@ def gather_changed_files_for_lint(is_interesting_file: Callable[[str], bool]) ->
 
 def gather_changed_files_with_lines(
     is_interesting_file: Callable[[str], bool],
-) -> Dict[str, List[Tuple[int, str]]]:
+) -> dict[str, list[tuple[int, str]]]:
     """
     Get the files that have changes since the last git commit, along with details of the specific lines that have changed.
 

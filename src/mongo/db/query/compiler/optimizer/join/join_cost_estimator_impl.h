@@ -64,4 +64,13 @@ private:
     JoinCardinalityEstimator& _cardinalityEstimator;
 };
 
+/**
+ * Estimate the number of random I/Os an index scan - fetch plan fragment will perform using the
+ * Y_wap formula presented in "Index Scans Using a Finite LRU Buffer" by Mackert & Lohman in 1989
+ * (https://dl.acm.org/doi/epdf/10.1145/68012.68016). Only considers non-multikey index scans.
+ */
+double estimateMackertLohmanRandIO(double numPagesColl,
+                                   double numPagesInStorageEngineCache,
+                                   double numDocsOutput);
+
 }  // namespace mongo::join_ordering
