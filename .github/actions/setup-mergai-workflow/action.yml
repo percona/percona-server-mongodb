@@ -1,0 +1,95 @@
+# Composite action that provides a unified setup for mergai workflows.
+# It supports modular configuration via boolean flags, allowing workflows
+# to enable only the components they need (GCP, Gemini, mergai).
+name: "mergai Workflow Setup"
+description: "Parameterized setup for mergai workflows with optional components"
+
+inputs:
+  # --- Optional component flags (enable/disable specific setup steps) ---
+  setup-gcp:
+    description: "Setup GCP credentials"
+    required: false
+    default: "false"
+  setup-gemini:
+    description: "Install gemini-cli"
+    required: false
+    default: "false"
+  setup-mergai:
+    description: "Setup mergai tool and run fork init"
+    required: false
+    default: "true" # Enabled by default since this is the primary purpose
+
+  # --- Credentials and configuration ---
+  gcp-credentials:
+    description: "Base64 encoded GCP credentials (required if setup-gcp: true)"
+    required: false
+    default: ""
+  github-app-token:
+    description: "GitHub App token for git config"
+    required: true
+  github-app-id:
+    description: "GitHub App ID for constructing bot email"
+    required: true
+  mergai-ref:
+    description: "MergAI git ref to checkout"
+    required: false
+    default: "master"
+
+runs:
+  using: "composite"
+  steps:
+    # Decode and store GCP service account key for Google Cloud SDK authentication.
+    # The key is written to a temp file with restricted permissions (600).
+    - name: Write GCP credentials
+      if: inputs.setup-gcp == 'true'
+      shell: bash
+      run: |
+        echo '${{ inputs.gcp-credentials }}' | base64 -d > $RUNNER_TEMP/gcp-key.json
+        chmod 600 $RUNNER_TEMP/gcp-key.json
+        echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/gcp-key.json" >> $GITHUB_ENV
+
+    # Install Google's Gemini CLI tool globally via npm.
+    # Automatically sets up Node.js 22 as a dependency.
+    - name: Install Node
+      if: inputs.setup-gemini == 'true'
+      uses: actions/setup-node@v4
+      with:
+        node-version: "22"
+
+    - name: Install gemini-cli
+      if: inputs.setup-gemini == 'true'
+      shell: bash
+      run: |
+        npm install -g @google/gemini-cli
+
+    # Configure git for automated commits by the mergai bot.
+    # - Sets both GITHUB_TOKEN and GH_TOKEN for compatibility with different tools
+    # - Uses GitHub App identity format for the bot email
+    # - Enables diff3 conflict style for better merge conflict resolution
+    # - Configures git notes display for mergai markers (used for tracking)
+    - name: Setup git credentials
+      shell: bash
+      run: |
+        echo "GITHUB_TOKEN=${{ inputs.github-app-token }}" >> $GITHUB_ENV
+        echo "GH_TOKEN=${{ inputs.github-app-token }}" >> $GITHUB_ENV
+        git config user.name "mergai-bot[bot]"
+        git config user.email "${{ inputs.github-app-id }}+mergai-bot[bot]@users.noreply.github.com"
+        git config merge.conflictstyle diff3
+        git config notes.displayRef refs/notes/mergai-marker
+
+    # Install the mergai CLI tool using the dedicated setup action.
+    # Supports checking out a specific ref (branch/tag/commit) for testing.
+    - name: Setup mergai
+      if: inputs.setup-mergai == 'true'
+      uses: ./.github/actions/setup-mergai
+      with:
+        token: ${{ inputs.github-app-token }}
+        ref: ${{ inputs.mergai-ref }}
+
+    # Initialize the fork configuration for mergai operations.
+    # This sets up the necessary tracking between upstream and fork repos.
+    - name: mergai fork init
+      if: inputs.setup-mergai == 'true'
+      shell: bash
+      run: |
+        mergai fork init
