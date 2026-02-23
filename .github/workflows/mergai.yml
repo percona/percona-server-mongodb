@@ -1,0 +1,146 @@
+name: mergai bot
+
+on:
+  workflow_dispatch:
+    inputs:
+      merge-pick:
+        description: "Commit hash to merge (leave empty to use merge-pick --next)"
+        required: false
+        type: string
+  pull_request:
+    types: [closed]
+    branches:
+      - "mergai/*/conflict"
+
+jobs:
+  trigger-merge:
+    # 'privileged-ops' environment controls access to merge operations and AI tokens
+    environment: privileged-ops
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    env:
+      GOOGLE_CLOUD_PROJECT: ${{ secrets.GOOGLE_CLOUD_PROJECT }}
+      GOOGLE_CLOUD_LOCATION: ${{ secrets.GOOGLE_CLOUD_LOCATION }}
+      GOOGLE_GENAI_USE_VERTEXAI: "true"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Create GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.GH_APP_ID }}
+          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+
+      # TODO: Add team membership check once GitHub App with Organization Members read permission is available
+      # - name: Check team authorization
+      #   env:
+      #     GH_TOKEN: ${{ steps.app-token.outputs.token }}
+      #   run: |
+      #     echo "Checking if ${{ github.actor }} is a member of percona/dev-psmdb team..."
+      #     if ! gh api "/orgs/percona/teams/dev-psmdb/memberships/${{ github.actor }}" --silent 2>/dev/null; then
+      #       echo "::error::User ${{ github.actor }} is not authorized to trigger this workflow. Must be a member of percona/dev-psmdb team."
+      #       exit 1
+      #     fi
+      #     echo "User ${{ github.actor }} is authorized"
+
+      - name: Setup workflow environment
+        uses: ./.github/actions/setup-mergai-workflow
+        with:
+          setup-gcp: "true"
+          setup-node: "true"
+          setup-gemini: "true"
+          setup-mergai: "true"
+          gcp-credentials: ${{ secrets.GCP_CREDENTIALS }}
+          github-app-token: ${{ steps.app-token.outputs.token }}
+          github-app-id: ${{ secrets.GH_APP_ID }}
+          mergai-ref: master
+
+      # Get next prioritized commit to merge from upstream based on configured strategies
+      - name: mergai merge-pick
+        if: ${{ !inputs.merge-pick }}
+        run: |
+          MERGE_PICK=$(mergai fork merge-pick --next)
+          echo "MERGE_PICK=$MERGE_PICK" >> $GITHUB_ENV
+          echo "Next merge pick is: $MERGE_PICK"
+          git show --stat $MERGE_PICK
+
+      # Initialize merge context with commit SHA and target branch info
+      - name: mergai context init
+        env:
+          MERGE_PICK: ${{ inputs.merge-pick || env.MERGE_PICK }}
+        run: |
+          echo "MERGE_PICK=$MERGE_PICK" >> $GITHUB_ENV
+          mergai context init $MERGE_PICK
+
+      - name: merge
+        run: |
+          # Fetch and merge notes from remote
+          mergai notes update
+
+          # Attempt merge; exit code 0 = success, 1 = conflicts
+          if mergai merge; then
+            echo "Merge successful. Committing merge."
+            mergai commit merge              # Create merge commit with note attached
+            mergai branch create main        # Create and checkout main working branch
+            mergai branch push main          # Push main branch to origin
+            mergai notes push                # Push mergai notes to remote
+            mergai pr --repo $GITHUB_REPOSITORY create main
+          else
+            echo "Merge conflict detected. Processing with resolution."
+            mergai commit conflict           # Commit conflict state with markers
+            mergai branch create conflict    # Create branch with conflict markers
+            mergai branch create solution    # Create branch for AI solution
+            mergai resolve -y                # Run AI conflict resolution (yolo mode)
+            mergai commit solution           # Commit resolved files with note
+            mergai branch push solution      # Push solution branch
+            mergai branch push conflict      # Push conflict branch
+            mergai notes push                # Push mergai notes to remote
+            mergai pr --repo $GITHUB_REPOSITORY create solution
+          fi
+
+  solution-merged:
+    # 'privileged-ops' environment controls access to merge operations
+    environment: privileged-ops
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Create GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.GH_APP_ID }}
+          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+
+      - name: Setup workflow environment
+        uses: ./.github/actions/setup-mergai-workflow
+        with:
+          setup-gcp: "false"
+          setup-node: "false"
+          setup-gemini: "false"
+          setup-mergai: "true"
+          github-app-token: ${{ steps.app-token.outputs.token }}
+          github-app-id: ${{ secrets.GH_APP_ID }}
+          mergai-ref: master
+
+      # Finalize after solution PR is merged into conflict branch
+      - name: Finalize
+        run: |
+          mergai notes update              # Fetch and merge notes from remote
+          mergai context init              # Rebuild context from commit notes
+          mergai branch create main        # Create main working branch
+          mergai commit sync               # Sync manual commits to notes
+          mergai finalize                  # Finalize into final merge commit
+          mergai branch push main          # Push main branch to origin
+          mergai notes push                # Push mergai notes to remote
+          mergai pr --repo $GITHUB_REPOSITORY create main
