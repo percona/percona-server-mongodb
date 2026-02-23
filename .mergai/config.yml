@@ -1,0 +1,359 @@
+# =============================================================================
+# mergai Configuration File
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# FORK CONFIGURATION
+# -----------------------------------------------------------------------------
+# Configuration for the 'fork' subcommand which handles syncing with upstream.
+fork:
+  # URL of the upstream repository to sync from.
+  # Default: None (must be specified)
+  upstream_url: https://github.com/mongodb/mongo.git
+
+  # Branch name to use when auto-detecting upstream ref.
+  # Default: "master"
+  upstream_branch: master
+
+  # Name of the git remote for upstream.
+  # If not set, derived from the URL.
+  # Default: None (derived from upstream_url)
+  upstream_remote: mongodb
+
+  # ---------------------------------------------------------------------------
+  # MERGE PICKS CONFIGURATION
+  # ---------------------------------------------------------------------------
+  # Configuration for commit prioritization strategies in fork merge-pick.
+  #
+  # STRATEGY PRIORITY AND EVALUATION ORDER:
+  # =======================================
+  # Strategies are evaluated in the EXACT ORDER they appear in the config.
+  # The position in the list determines the priority - strategies listed first
+  # have HIGHER priority than those listed later.
+  #
+  # For each unmerged commit, strategies are checked from top to bottom.
+  # The FIRST strategy that matches a commit determines that commit's priority.
+  # Once a commit matches a strategy, no further strategies are evaluated for it.
+  #
+  # Example: With the order [conflict, huge_commit, branching_point]:
+  #   - A commit causing conflicts gets priority 1 (highest)
+  #   - A huge commit (not conflicting) gets priority 2
+  #   - A branching point (not conflicting, not huge) gets priority 3
+  #   - A commit matching no strategy gets no special priority
+  #
+  # To change priorities, simply reorder the strategies in the list.
+  #
+  merge_picks:
+    # If true, select the most recent unmerged commit when no strategy matches.
+    # This acts as a fallback when none of the configured strategies find a match.
+    # Default: false
+    most_recent_fallback: true
+
+    # Ordered list of merge-pick strategies to evaluate.
+    # Each strategy is defined as a single-key dict.
+    # THE ORDER MATTERS - strategies listed first have higher priority.
+    #
+    # ===========================================================================
+    # AVAILABLE STRATEGIES
+    # ===========================================================================
+    #
+    # ---------------------------------------------------------------------------
+    # CONFLICT STRATEGY
+    # ---------------------------------------------------------------------------
+    # Prioritizes commits that would cause merge conflicts when merged.
+    # This is useful for identifying and handling problematic commits early.
+    #
+    # Behavior:
+    #   - Analyzes each unmerged commit to detect potential merge conflicts
+    #   - Only marks the FIRST commit in the sequence that would introduce a
+    #     conflict (subsequent conflicting commits are not marked)
+    #   - Helps focus attention on commits requiring manual intervention
+    #
+    # Usage:
+    #   - conflict: true
+    #
+    # ---------------------------------------------------------------------------
+    # HUGE_COMMIT STRATEGY
+    # ---------------------------------------------------------------------------
+    # Prioritizes commits based on their size using a customizable expression.
+    # Large commits often require more careful review and may have higher impact.
+    #
+    # Behavior:
+    #   - Evaluates an expression against commit statistics
+    #   - Commit matches if the expression evaluates to True
+    #   - Supports standard comparison and logical operators
+    #
+    # Available variables in expression:
+    #   - num_of_files   : Number of files changed in the commit
+    #   - num_of_lines   : Total lines changed (lines_added + lines_deleted)
+    #   - lines_added    : Number of lines added
+    #   - lines_deleted  : Number of lines deleted
+    #   - num_of_dirs    : Number of unique directories modified
+    #
+    # Usage:
+    #   - huge_commit: "<boolean expression>"
+    #
+    # Examples:
+    #   # Flag commits with 100+ files OR 5000+ lines changed
+    #   - huge_commit: "(num_of_files >= 100 or num_of_lines >= 5000)"
+    #
+    #   # Flag commits touching many directories (potential refactoring)
+    #   - huge_commit: "num_of_dirs > 10"
+    #
+    #   # Flag commits with significant additions
+    #   - huge_commit: "lines_added > 1000 and num_of_files > 20"
+    #
+    # ---------------------------------------------------------------------------
+    # BRANCHING_POINT STRATEGY
+    # ---------------------------------------------------------------------------
+    # Prioritizes commits that are branching points in the upstream repository.
+    # These are commits where the upstream history diverges (has multiple children).
+    #
+    # Behavior:
+    #   - Identifies commits that have more than one child commit in upstream
+    #   - These often represent significant decision points or feature branches
+    #   - Useful for identifying commits where upstream development diverged
+    #
+    # Usage:
+    #   - branching_point: true
+    #
+    # ---------------------------------------------------------------------------
+    # IMPORTANT_FILES STRATEGY
+    # ---------------------------------------------------------------------------
+    # Prioritizes commits that modify specific files deemed important.
+    # Use this to flag commits touching critical or sensitive parts of the codebase.
+    #
+    # Behavior:
+    #   - Checks if any file in the commit matches the configured file paths
+    #   - Paths are matched exactly (no glob/wildcard support)
+    #   - A commit matches if it touches ANY file in the list
+    #
+    # Usage:
+    #   - important_files:
+    #       - path/to/important/file1.cpp
+    #       - path/to/important/file2.h
+    #
+    # ===========================================================================
+    strategies:
+      - conflict: true
+      - huge_commit: "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)"
+      - branching_point: true
+      - important_files:
+          - src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine_test.cpp
+          - src/mongo/db/storage/wiredtiger/wiredtiger_init_test.cpp
+          - src/mongo/db/storage/wiredtiger/wiredtiger_init.cpp
+          - src/mongo/db/storage/wiredtiger/SConscript
+          - src/mongo/db/auth/sasl_scram_server_conversation.cpp
+          - src/mongo/db/auth/sasl_plain_server_conversation.cpp
+          - jstests/noPassthroughWithMongod/validate_interrupt.js
+          - buildscripts/resmokeconfig/suites/aggregation_ese.yml
+          - buildscripts/resmokeconfig/suites/core_ese.yml
+          - buildscripts/resmokeconfig/suites/replica_sets_ese.yml
+          - buildscripts/resmokeconfig/suites/sharding_ese.yml
+          - src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp
+          - src/mongo/db/storage/storage_engine.h
+          - src/mongo/db/audit.h
+          - src/mongo/db/audit.cpp
+          - src/mongo/db/repl/initial_syncer.h
+          - src/mongo/db/repl/initial_syncer.cpp
+          - src/mongo/db/repl/initial_sync/initial_syncer.h #since SERVER-103460
+          - src/mongo/db/repl/initial_sync/initial_syncer.cpp # since SERVER-103460
+
+# -----------------------------------------------------------------------------
+# RESOLVE CONFIGURATION
+# -----------------------------------------------------------------------------
+# Configuration for the 'resolve' command which handles merge conflict resolution.
+resolve:
+  # Agent type to use for conflict resolution.
+  # Supported values: "gemini-cli"
+  # Default: "gemini-cli"
+  agent: gemini-cli:gemini-2.5-pro
+
+  # Maximum number of retry attempts when resolution validation fails.
+  # Default: 3
+  max_attempts: 3
+
+# -----------------------------------------------------------------------------
+# BRANCH CONFIGURATION
+# -----------------------------------------------------------------------------
+# Configuration for branch naming conventions.
+branch:
+  # Format string for generating branch names using %(token) syntax.
+  #
+  # Available tokens:
+  #   %(target_branch)           - The target branch name (required)
+  #   %(target_branch_sha)       - Full SHA of the target branch (40 chars)
+  #   %(target_branch_short_sha) - Short SHA of the target branch (11 chars)
+  #   %(merge_commit_sha)        - Full SHA of the merge commit (40 chars)
+  #   %(merge_commit_short_sha)  - Short SHA of the merge commit (11 chars)
+  #   %(type)                    - Branch type (main, conflict, solution, or custom)
+  #
+  # Default: "mergai/%(target_branch)-%(merge_commit_short_sha)-%(target_branch_short_sha)/%(type)"
+  name_format: "mergai/%(target_branch)-%(target_branch_short_sha)-%(merge_commit_short_sha)/%(type)"
+
+# -----------------------------------------------------------------------------
+# COMMIT CONFIGURATION
+# -----------------------------------------------------------------------------
+# Configuration for commit message generation.
+commit:
+  # Footer text appended to all mergai-generated commit messages.
+  # Set to empty string ("") to disable the footer.
+  # Default: "Note: commit created by mergai"
+  footer: "Note: commit created by mergai"
+
+# -----------------------------------------------------------------------------
+# PULL REQUEST CONFIGURATION
+# -----------------------------------------------------------------------------
+# Configuration for pull request title formatting and labels.
+pr:
+  # Configuration for main PRs (from main branch to target_branch).
+  main:
+    # Format string for main PR titles using %(token) syntax.
+    #
+    # Available tokens:
+    #   %(target_branch)           - The target branch name
+    #   %(merge_commit_sha)        - Full SHA of the merge commit (40 chars)
+    #   %(merge_commit_short_sha)  - Short SHA of the merge commit (11 chars)
+    #
+    # Default: "Merge %(merge_commit_short_sha) into %(target_branch)"
+    title_format: "Merge '%(merge_commit_short_sha)' into '%(target_branch)'"
+
+    # Labels to apply to main PRs when created.
+    # These labels are applied automatically via the GitHub API.
+    # Can be overridden at runtime with --labels or disabled with --no-labels.
+    #
+    # Default: [] (no labels)
+    labels:
+      - "ci-skip-format"
+      - "ci-skip-clang-tidy"
+
+  # Configuration for solution PRs (from solution branch to conflict branch).
+  solution:
+    # Format string for solution PR titles using %(token) syntax.
+    # Same tokens available as main.title_format.
+    #
+    # Default: "Resolve conflicts for merge %(merge_commit_short_sha) into %(target_branch)"
+    title_format: "Resolve conflicts for merge '%(merge_commit_short_sha)' into '%(target_branch)'"
+
+    # Labels to apply to solution PRs when created.
+    # These labels are applied automatically via the GitHub API.
+    # Can be overridden at runtime with --labels or disabled with --no-labels.
+    #
+    # Default: [] (no labels)
+    labels:
+      - "ci-skip-format"
+      - "ci-skip-clang-tidy"
+
+# -----------------------------------------------------------------------------
+# PROMPT CONFIGURATION
+# -----------------------------------------------------------------------------
+# Configuration for AI prompt generation when serializing commit information.
+prompt:
+  # List of commit fields to include in AI prompts.
+  #
+  # Valid values:
+  #   - hexsha        - Full 40-char SHA
+  #   - short_sha     - Shortened 11-char SHA
+  #   - author        - Author dict with name and email
+  #   - authored_date - Unix timestamp of authoring
+  #   - summary       - First line of commit message
+  #   - message       - Full commit message
+  #   - parents       - List of parent commit SHAs
+  #
+  # Default: ["hexsha"]
+  commit_fields:
+    - hexsha
+
+# -----------------------------------------------------------------------------
+# FINALIZE CONFIGURATION
+# -----------------------------------------------------------------------------
+# Configuration for the 'finalize' command which processes solution PRs after
+# they are merged into the conflict branch.
+#
+# This command is typically run as part of the workflow after a solution PR
+# is merged. It handles post-merge processing according to the configured mode.
+#
+finalize:
+  # How to finalize the solution PR after merging.
+  #
+  # Available modes:
+  #   - squash: Squash all commits from HEAD to the merge commit into a single
+  #             merge commit with combined notes. This creates a clean history
+  #             with a single merge commit containing:
+  #               - Two parents (target_branch_sha and merge_commit_sha)
+  #               - Combined commit message with all solution summaries
+  #               - Combined mergai note merging all individual notes
+  #             This is equivalent to the old 'mergai commit squash' behavior.
+  #
+  #   - keep:   Validate the repository state and print a summary without
+  #             modifying any commits. Useful when you want to preserve the
+  #             individual commit history from the solution PR. The command
+  #             will:
+  #               - Verify merge_info is complete
+  #               - List all commits between HEAD and target_branch_sha
+  #               - Show which commits have mergai notes attached
+  #               - Exit without making any changes
+  #
+  #   - fast-forward: Remove the GitHub PR merge commit to simulate a
+  #             fast-forward merge. This mode keeps the original solution
+  #             commits with their mergai notes intact, while removing the
+  #             extra merge commit that GitHub creates when merging a PR.
+  #
+  #             GitHub PR merge commits have two parents:
+  #               - First parent: conflict branch HEAD before merge
+  #               - Second parent: solution branch tip (with solution commits)
+  #
+  #             The command will:
+  #               - Check if HEAD is a merge commit (has 2 parents)
+  #               - Check if HEAD has no mergai note (indicating it's a PR merge)
+  #               - Check if the second parent (solution branch) has a mergai note
+  #               - Reset HEAD to the second parent, preserving the full linear
+  #                 history: conflict commit -> solution commit(s)
+  #
+  #             If HEAD already has a note or is not a merge commit, the command
+  #             assumes the PR was already merged with fast-forward and does
+  #             nothing (no error).
+  #
+  #             This mode is useful when you want to preserve the individual
+  #             commit history but don't want the extra merge commit from GitHub.
+  #
+  # The mode can be overridden on the command line with:
+  #   mergai finalize --mode <squash|keep|fast-forward>
+  #
+  # Default: "squash"
+  mode: squash
+
+# -----------------------------------------------------------------------------
+# CONFIG COMMAND CONFIGURATION
+# -----------------------------------------------------------------------------
+# Configuration for the 'mergai config' command which sets up git and shell.
+config:
+  # ---------------------------------------------------------------------------
+  # GIT CONFIGURATION
+  # ---------------------------------------------------------------------------
+  # Git settings to apply when running 'mergai config'.
+  git:
+    # Value for merge.conflictstyle git config.
+    # Using diff3 provides better conflict context by including the
+    # base version in conflict markers, which helps AI understand conflicts.
+    #
+    # Default: "diff3"
+    conflictstyle: diff3
+
+    # -------------------------------------------------------------------------
+    # NOTES CONFIGURATION
+    # -------------------------------------------------------------------------
+    # Configuration for git notes display and marker text.
+    notes:
+      # Whether to configure notes.displayRef so mergai markers appear in
+      # git log output. When true, sets notes.displayRef to refs/notes/mergai-marker.
+      #
+      # Default: true
+      display: true
+
+      # Text displayed in git log for commits with mergai notes.
+      # This is the content of the mergai-marker note that appears when
+      # display is enabled and a commit has a mergai note attached.
+      #
+      # Default: "mergai note available"
+      marker_text: "mergai note available, use `mergai show <commit>` to view it."
