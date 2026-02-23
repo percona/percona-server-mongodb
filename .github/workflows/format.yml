@@ -4,15 +4,46 @@ on:
   pull_request:
     types: [opened, synchronize, reopened, labeled, unlabeled]
 
+# Cancel in-progress runs when new events occur (e.g., labels added after PR creation)
+# This prevents race conditions where the 'opened' event triggers before labels are applied
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
+  pull-requests: read
   security-events: write
 
 jobs:
+  # Gate job that fetches current PR labels via API to avoid race conditions
+  # where the 'opened' event triggers before labels are applied
+  check-skip:
+    name: Check if workflow should be skipped
+    runs-on: ubuntu-latest
+    outputs:
+      should_skip: ${{ steps.check.outputs.should_skip }}
+    steps:
+      - name: Check for skip label
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Fetch current PR labels via API to get fresh data
+          LABELS=$(gh api repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }} --jq '.labels[].name' 2>/dev/null || echo "")
+          if echo "$LABELS" | grep -q "^ci-skip-format$"; then
+            echo "Found ci-skip-format label, skipping workflow"
+            echo "should_skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "No skip label found, proceeding with workflow"
+            echo "should_skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
   analyze:
     name: Check code formatting
     runs-on: ubuntu-latest
-    if: ${{ !contains(github.event.pull_request.labels.*.name, 'ci-skip-format') }}
+    needs: check-skip
+    if: ${{ needs.check-skip.outputs.should_skip != 'true' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
