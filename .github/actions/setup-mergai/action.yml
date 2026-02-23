@@ -1,0 +1,46 @@
+# Composite action to install the mergai CLI tool from the Percona-Lab/mergai repository.
+# This action is typically called by setup-mergai-workflow but can be used standalone.
+# mergai is installed as an isolated Python application using pipx.
+name: "mergai setup"
+description: "Setting up the mergai tool"
+
+inputs:
+  token:
+    description: "GitHub token to checkout mergai repository"
+    required: true # Required because Percona-Lab/mergai is a private repository
+  ref:
+    description: "Git reference (branch, tag, commit SHA) to checkout mergai from"
+    required: false
+    default: "master" # Use master branch by default; override for testing specific versions
+
+runs:
+  using: "composite"
+  steps:
+    # Log action invocation for debugging purposes
+    - name: Show input parameters
+      shell: bash
+      run: |
+        echo "mergai setup action"
+
+    # Clone the mergai tool repository into a subdirectory.
+    # Uses a separate path to avoid conflicts with the main repository checkout.
+    - name: Checkout mergai repo
+      uses: actions/checkout@v4
+      with:
+        repository: Percona-Lab/mergai
+        ref: ${{ inputs.ref }}
+        token: ${{ inputs.token }}
+        path: mergai # Checkout to 'mergai' subdirectory, not the workspace root
+
+    # Install mergai using pipx for isolated Python environment.
+    # pipx ensures the tool's dependencies don't conflict with other Python packages.
+    # Steps:
+    #   1. Install pipx via pip (user install to avoid permission issues)
+    #   2. Ensure pipx bin directory is in PATH
+    #   3. Install mergai from the local checkout (./mergai contains setup.py/pyproject.toml)
+    - name: Install mergai
+      shell: bash
+      run: |
+        python3 -m pip install --user pipx
+        python3 -m pipx ensurepath
+        pipx install ./mergai
