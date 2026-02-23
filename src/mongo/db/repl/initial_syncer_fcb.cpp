@@ -2340,6 +2340,8 @@ void InitialSyncerFCB::_switchToDownloadedCallback(
     }
 
     ScopeGuard storageGuard([this, &lock, opCtx = opCtx.get()] {
+        LOGV2_DEBUG(
+            128470, 1, "Restoring original storage location after failed switch to downloaded");
         // Restore storage location back to original dbpath in case of any failure
         _restoreStorageLocation(lock, opCtx);
     });
@@ -2382,6 +2384,10 @@ void InitialSyncerFCB::_switchToDownloadedCallback(
         &_currentHandle,
         "_executeRecovery");
     if (!status.isOK()) {
+        LOGV2_DEBUG(128471,
+                    1,
+                    "Failed to schedule recovery after switching to downloaded files",
+                    "reason"_attr = status);
         onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, status);
         return;
     }
