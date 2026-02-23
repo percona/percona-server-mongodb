@@ -497,7 +497,7 @@ private:
     Status _moveFiles(const boost::filesystem::path& sourceDir,
                       const boost::filesystem::path& destDir);
 
-    StatusWith<std::vector<std::string>> _getBackupFiles();
+    StatusWith<std::vector<std::string>> _getBackupFiles(OperationContext* opCtx);
 
     /**
      * Switches the storage location to 'newLocation'.
