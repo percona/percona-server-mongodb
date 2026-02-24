@@ -1,0 +1,43 @@
+{
+  "merge_info": {
+    "target_branch": "PSMDB-1931-merging-workflow",
+    "target_branch_sha": "ff7a7cecd055cc932c2f8c0ea51acab32b359b6c",
+    "merge_commit": "9b770d3df99d8746c071419ba5fad4d4b6b9f659"
+  },
+  "mergai_version": "0.1.dev1+g453135fd1",
+  "conflict_context": {
+    "ours_commit": "ff7a7cecd055cc932c2f8c0ea51acab32b359b6c",
+    "theirs_commit": "9b770d3df99d8746c071419ba5fad4d4b6b9f659",
+    "base_commit": "dffa5f381ab8149344e9b64e020e8a4e6880a23e",
+    "files": [
+      "sbom.json"
+    ],
+    "conflict_types": {
+      "sbom.json": "both modified"
+    },
+    "diffs": {
+      "sbom.json": "diff --cc sbom.json\nindex dc86cc7c058,bdf7b273d50..00000000000\n--- a/sbom.json\n+++ b/sbom.json\n@@@ -2508,44 -2508,58 +2508,106 @@@\n++<<<<<<< HEAD\n +    },\n +    {\n +      \"supplier\": {\n +        \"name\": \"Organization: github\"\n +      },\n +      \"name\": \"libarchive\",\n +      \"version\": \"3.8.4\",\n +      \"licenses\": [\n +        {\n +          \"license\": {\n +            \"name\": \"A mix of BSD-2-Clause and others\",\n +            \"url\": \"https://github.com/libarchive/libarchive/blob/v3.4.0/COPYING\"\n +          }\n +        }\n +      ],\n +      \"purl\": \"pkg:github/libarchive/libarchive@v3.8.4\",\n +      \"properties\": [\n +        {\n +          \"name\": \"internal:team_responsible\",\n +          \"value\": \"Percona Server for MongoDB Team\"\n +        },\n +        {\n +          \"name\": \"emits_persisted_data\",\n +          \"value\": \"true\"\n +        },\n +        {\n +          \"name\": \"info_link\",\n +          \"value\": \"https://www.libarchive.org\"\n +        },\n +        {\n +          \"name\": \"import_script_path\",\n +          \"value\": \"src/third_party/libarchive/scripts/import.sh\"\n +        }\n +      ],\n +      \"type\": \"library\",\n +      \"bom-ref\": \"pkg:github/libarchive/libarchive@v3.8.4\",\n +      \"evidence\": {\n +        \"occurrences\": [\n +          {\n +            \"location\": \"src/third_party/libarchive\"\n +          }\n +        ]\n +      },\n +      \"scope\": \"required\"\n++||||||| dffa5f381ab\n++=======\n+     },\n+     {\n+       \"type\": \"library\",\n+ (... 51 more added lines...)\n+           }\n+         ]\n+       },\n+       \"scope\": \"excluded\"\n++>>>>>>> 9b770d3df99d8746c071419ba5fad4d4b6b9f659"
+    },
+    "their_commits": {
+      "sbom.json": [
+        "9b770d3df99d8746c071419ba5fad4d4b6b9f659"
+      ]
+    }
+  },
+  "merge_context": {
+    "merge_commit": "9b770d3df99d8746c071419ba5fad4d4b6b9f659",
+    "merged_commits": [
+      "9b770d3df99d8746c071419ba5fad4d4b6b9f659",
+      "d5122c7b20aa339232497bd9658b00899c7b0572",
+      "784adb1029b62bdad3d5d2caa8a8734cf514d9ef"
+    ],
+    "important_files_modified": [],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        "MODULE.bazel.lock",
+        "sbom.json"
+      ]
+    }
+  }
+}
