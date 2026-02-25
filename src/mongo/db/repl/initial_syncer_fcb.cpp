@@ -1700,7 +1700,7 @@ StatusWith<std::vector<std::string>> InitialSyncerFCB::_getBackupFiles(Operation
 Status InitialSyncerFCB::_switchStorageLocation(
     OperationContext* opCtx,
     const std::string& newLocation,
-    const boost::optional<startup_recovery::StartupRecoveryMode> recoveryMode) {
+    const boost::optional<startup_recovery::StartupRecoveryMode> recoveryMode) try {
     LOGV2_DEBUG(128469, 1, "Switching storage location", "newLocation"_attr = newLocation);
     invariant(shard_role_details::getLocker(opCtx)->isW());
 
@@ -1739,18 +1739,20 @@ Status InitialSyncerFCB::_switchStorageLocation(
     if (recoveryMode) {
         // We need to run startup recovery in the specified mode.
         // This is necessary to ensure that the storage engine is in a consistent state.
-        try {
-            startup_recovery::runStartupRecoveryInMode(opCtx, lastShutdownState, *recoveryMode);
-        } catch (const ExceptionFor<ErrorCodes::MustDowngrade>& error) {
-            // versions incompatibility (we actually should check this when we select sync source)
-            return error.toStatus();
-        }
+        startup_recovery::runStartupRecoveryInMode(opCtx, lastShutdownState, *recoveryMode);
     }
 
     catalog::openCatalogAfterStorageChange(opCtx);
 
     LOGV2_DEBUG(128415, 1, "Switched storage location", "newLocation"_attr = newLocation);
     return Status::OK();
+} catch (const DBException& e) {
+    LOGV2_DEBUG(128473,
+                1,
+                "Failed to switch storage location",
+                "newLocation"_attr = newLocation,
+                "error"_attr = e);
+    return e.toStatus();
 }
 
 void InitialSyncerFCB::_restoreStorageLocation(stdx::unique_lock<Latch>& lock,
