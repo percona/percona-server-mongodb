@@ -1700,7 +1700,7 @@ StatusWith<std::vector<std::string>> InitialSyncerFCB::_getBackupFiles(Operation
 Status InitialSyncerFCB::_switchStorageLocation(
     OperationContext* opCtx,
     const std::string& newLocation,
-    const boost::optional<startup_recovery::StartupRecoveryMode> recoveryMode) {
+    const boost::optional<startup_recovery::StartupRecoveryMode> recoveryMode) try {
     LOGV2_DEBUG(128469, 1, "Switching storage location", "newLocation"_attr = newLocation);
     invariant(shard_role_details::getLocker(opCtx)->isW());
 
@@ -1712,11 +1712,16 @@ Status InitialSyncerFCB::_switchStorageLocation(
                               << " Error: " << ec.message()};
     }
 
+    // During initial sync, timestamps may not be initialized. The abort of index builds
+    // modifies _mdb_catalog.wt which requires untimestamped writes to be allowed.
+    // abandonSnapshot() first to ensure no active WT transaction (required by the invariant
+    // in allowAllUntimestampedWrites).
+    shard_role_details::getRecoveryUnit(opCtx)->abandonSnapshot();
+    shard_role_details::getRecoveryUnit(opCtx)->allowAllUntimestampedWrites();
+
     // closeCatalog invariants if any index builds are in progress
     IndexBuildsCoordinator::get(opCtx)->abortAllIndexBuildsForInitialSync(
         opCtx, "Aborting index builds before closing catalog for changing storage location");
-    // Alternatively, we could wait for index builds to finish. Reconsider if anything goes wrong.
-    // IndexBuildsCoordinator::get(opCtx)->waitForAllIndexBuildsToStop(opCtx);
 
     auto previousCatalogState = catalog::closeCatalog(opCtx);
 
@@ -1739,18 +1744,20 @@ Status InitialSyncerFCB::_switchStorageLocation(
     if (recoveryMode) {
         // We need to run startup recovery in the specified mode.
         // This is necessary to ensure that the storage engine is in a consistent state.
-        try {
-            startup_recovery::runStartupRecoveryInMode(opCtx, lastShutdownState, *recoveryMode);
-        } catch (const ExceptionFor<ErrorCodes::MustDowngrade>& error) {
-            // versions incompatibility (we actually should check this when we select sync source)
-            return error.toStatus();
-        }
+        startup_recovery::runStartupRecoveryInMode(opCtx, lastShutdownState, *recoveryMode);
     }
 
     catalog::openCatalogAfterStorageChange(opCtx);
 
     LOGV2_DEBUG(128415, 1, "Switched storage location", "newLocation"_attr = newLocation);
     return Status::OK();
+} catch (const DBException& e) {
+    LOGV2_DEBUG(128473,
+                1,
+                "Failed to switch storage location",
+                "newLocation"_attr = newLocation,
+                "error"_attr = e);
+    return e.toStatus();
 }
 
 void InitialSyncerFCB::_restoreStorageLocation(stdx::unique_lock<Latch>& lock,
@@ -2304,14 +2311,6 @@ void InitialSyncerFCB::_switchToDownloadedCallback(
         128406, 2, "Retrieved names of local files", "number"_attr = bfiles.getValue().size());
     _localFiles = bfiles.getValue();
 
-    status = _checkForShutdownAndConvertStatus_inlock(
-        callbackArgs,
-        "_switchToDownloadedCallback cancelled by shutdown before switching storage location");
-    if (!status.isOK()) {
-        onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, status);
-        return;
-    }
-
     Lock::GlobalLock lk(opCtx.get(), MODE_X);
     // retrieve the current on-disk replica set configuration
     auto* rs = repl::ReplicationCoordinator::get(opCtx->getServiceContext());
@@ -2347,6 +2346,17 @@ void InitialSyncerFCB::_switchToDownloadedCallback(
         // Restore storage location back to original dbpath in case of any failure
         _restoreStorageLocation(lock, opCtx);
     });
+
+    // Shutdown could be initiated while we released the lock for storage switch, no need to go
+    // further in that case. Just return and let the storageGuard switch back to original storage
+    // location.
+    status = _checkForShutdownAndConvertStatus_inlock(
+        callbackArgs,
+        "_switchToDownloadedCallback cancelled by shutdown after switching storage location");
+    if (!status.isOK()) {
+        onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, status);
+        return;
+    }
 
     // do some cleanup
     auto* consistencyMarkers = _replicationProcess->getConsistencyMarkers();
@@ -2488,6 +2498,18 @@ void InitialSyncerFCB::_switchToDummyToDBPathCallback(
         lock.unlock();
         status = _switchStorageLocation(opCtx.get(), _cfgDBPath + "/.initialsync/.dummy");
         lock.lock();
+        if (!status.isOK()) {
+            onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, status);
+            return;
+        }
+
+        // Shutdown could be initiated while we released the lock for storage switch, no need to go
+        // further in that case. Just return and let the storageGuard switch back to original
+        // storage location.
+        status =
+            _checkForShutdownAndConvertStatus_inlock(callbackArgs,
+                                                     "_switchToDummyToDBPathCallback cancelled by "
+                                                     "shutdown after switching storage location");
         if (!status.isOK()) {
             onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, status);
             return;
