@@ -2302,14 +2302,6 @@ void InitialSyncerFCB::_switchToDownloadedCallback(
         128406, 2, "Retrieved names of local files", "number"_attr = bfiles.getValue().size());
     _localFiles = bfiles.getValue();
 
-    status = _checkForShutdownAndConvertStatus_inlock(
-        callbackArgs,
-        "_switchToDownloadedCallback cancelled by shutdown before switching storage location");
-    if (!status.isOK()) {
-        onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, status);
-        return;
-    }
-
     Lock::GlobalLock lk(opCtx.get(), MODE_X);
     // retrieve the current on-disk replica set configuration
     auto* rs = repl::ReplicationCoordinator::get(opCtx->getServiceContext());
@@ -2345,6 +2337,17 @@ void InitialSyncerFCB::_switchToDownloadedCallback(
         // Restore storage location back to original dbpath in case of any failure
         _restoreStorageLocation(lock, opCtx);
     });
+
+    // Shutdown could be initiated while we released the lock for storage switch, no need to go
+    // further in that case. Just return and let the storageGuard switch back to original storage
+    // location.
+    status = _checkForShutdownAndConvertStatus_inlock(
+        callbackArgs,
+        "_switchToDownloadedCallback cancelled by shutdown after switching storage location");
+    if (!status.isOK()) {
+        onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, status);
+        return;
+    }
 
     // do some cleanup
     auto* consistencyMarkers = _replicationProcess->getConsistencyMarkers();
@@ -2486,6 +2489,18 @@ void InitialSyncerFCB::_switchToDummyToDBPathCallback(
         lock.unlock();
         status = _switchStorageLocation(opCtx.get(), _cfgDBPath + "/.initialsync/.dummy");
         lock.lock();
+        if (!status.isOK()) {
+            onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, status);
+            return;
+        }
+
+        // Shutdown could be initiated while we released the lock for storage switch, no need to go
+        // further in that case. Just return and let the storageGuard switch back to original
+        // storage location.
+        status =
+            _checkForShutdownAndConvertStatus_inlock(callbackArgs,
+                                                     "_switchToDummyToDBPathCallback cancelled by "
+                                                     "shutdown after switching storage location");
         if (!status.isOK()) {
             onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, status);
             return;
