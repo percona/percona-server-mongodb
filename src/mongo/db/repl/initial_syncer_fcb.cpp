@@ -1712,11 +1712,16 @@ Status InitialSyncerFCB::_switchStorageLocation(
                               << " Error: " << ec.message()};
     }
 
+    // During initial sync, timestamps may not be initialized. The abort of index builds
+    // modifies _mdb_catalog.wt which requires untimestamped writes to be allowed.
+    // abandonSnapshot() first to ensure no active WT transaction (required by the invariant
+    // in allowAllUntimestampedWrites).
+    shard_role_details::getRecoveryUnit(opCtx)->abandonSnapshot();
+    shard_role_details::getRecoveryUnit(opCtx)->allowAllUntimestampedWrites();
+
     // closeCatalog invariants if any index builds are in progress
     IndexBuildsCoordinator::get(opCtx)->abortAllIndexBuildsForInitialSync(
         opCtx, "Aborting index builds before closing catalog for changing storage location");
-    // Alternatively, we could wait for index builds to finish. Reconsider if anything goes wrong.
-    // IndexBuildsCoordinator::get(opCtx)->waitForAllIndexBuildsToStop(opCtx);
 
     auto previousCatalogState = catalog::closeCatalog(opCtx);
 
