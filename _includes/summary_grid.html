@@ -1,0 +1,35 @@
+<div class="summary-grid">
+  <div
+    class="stat-card {% if include.data.is_up_to_date %}status-ok{% else %}status-behind{% endif %}"
+  >
+    <span class="stat-value"
+      >{% if include.data.is_up_to_date %}up-to-date{% else %}diverged{% endif
+      %}</span
+    >
+    <span class="stat-label">Status</span>
+  </div>
+  <div class="stat-card">
+    <span class="stat-value">{{ include.data.divergence.commits_behind }}</span>
+    <span class="stat-label">Commits Behind</span>
+  </div>
+  <div class="stat-card">
+    <span class="stat-value">{{ include.data.divergence.days_behind }}</span>
+    <span class="stat-label">Days Behind</span>
+  </div>
+  <div class="stat-card">
+    <span class="stat-value"
+      >{{ include.data.divergence.files_affected | default: 0 }}</span
+    >
+    <span class="stat-label">Files Affected</span>
+  </div>
+  <div class="stat-card additions">
+    {% assign additions = include.data.divergence.total_additions | default: 0 %}
+    {% include format_stat_number.html prefix="+" value=additions %}
+    <span class="stat-label">Additions</span>
+  </div>
+  <div class="stat-card deletions">
+    {% assign deletions = include.data.divergence.total_deletions | default: 0 %}
+    {% include format_stat_number.html prefix="-" value=deletions %}
+    <span class="stat-label">Deletions</span>
+  </div>
+</div>

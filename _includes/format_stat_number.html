@@ -1,0 +1,20 @@
+{% comment %}
+  Format a stat number with optional prefix (e.g. + or -) and thousands separators.
+  Usage: {% include format_stat_number.html prefix="+" value=additions %}
+  Or:    {% include format_stat_number.html prefix="-" value=deletions %}
+{% endcomment %}
+{% assign num = include.value | default: 0 %}
+{% assign num_str = num | append: "" %}
+{% assign len = num_str | size %}
+{% if len > 6 %}
+  {% assign mil = num | divided_by: 1000000 %}
+  {% assign rem = num | modulo: 1000000 | divided_by: 1000 %}
+  {% assign rem2 = num | modulo: 1000 %}
+  <span class="stat-value">{{ include.prefix }}{{ mil }},{% if rem < 100 %}0{% endif %}{% if rem < 10 %}0{% endif %}{{ rem }},{% if rem2 < 100 %}0{% endif %}{% if rem2 < 10 %}0{% endif %}{{ rem2 }}</span>
+{% elsif len > 3 %}
+  {% assign thou = num | divided_by: 1000 %}
+  {% assign rem = num | modulo: 1000 %}
+  <span class="stat-value">{{ include.prefix }}{{ thou }},{% if rem < 100 %}0{% endif %}{% if rem < 10 %}0{% endif %}{{ rem }}</span>
+{% else %}
+  <span class="stat-value">{{ include.prefix }}{{ num }}</span>
+{% endif %}
