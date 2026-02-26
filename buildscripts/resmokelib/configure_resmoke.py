@@ -289,10 +289,12 @@ def _find_resmoke_wrappers():
 
 
 def _should_skip_grpc_tracing():
-    """Check whether grpc tracing is enabled on the current machine's OS."""
-    return sys.platform.startswith("linux") and platform.machine().startswith(
-        ("ppc", "powerpc", "s390")
-    )
+    """Check whether grpc tracing is enabled on the current machine's OS.
+
+    Percona builds don't have access to MongoDB's internal otel-collector endpoint,
+    so we unconditionally return True to skip the gRPC exporter setup.
+    """
+    return True
 
 
 def _set_up_tracing(
