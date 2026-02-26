@@ -1,0 +1,80 @@
+name: Update Fork Status Page
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+jobs:
+  update-status:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Create GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.PSMDB_BOT_GH_APP_ID }}
+          private-key: ${{ secrets.PSMDB_BOT_GH_APP_PRIVATE_KEY }}
+
+      - name: Setup mergai
+        uses: ./.github/actions/setup-mergai
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+          ref: master
+
+      - name: Initialize fork
+        run: |
+          set -euo pipefail
+          mergai fork init
+
+      - name: Generate status JSON
+        env:
+          REPO_URL: ${{ github.server_url }}/${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          mkdir -p gh-pages-data/_data/branches
+
+          # Generate JSON with added metadata
+          OUTPUT_FILE="gh-pages-data/_data/branches/master.json"
+
+          mergai fork status -lp --json | jq \
+            --arg url "$REPO_URL" \
+            --arg ts "$(date -u +%Y-%m-%d\ %H:%M:%S)" \
+            --arg branch "master" \
+            --arg display "master" \
+            '. + {
+              repo_url: $url,
+              generated_at: $ts,
+              branch_name: $branch,
+              display_name: $display
+            }' > "$OUTPUT_FILE"
+
+          # Validate that JSON was generated and is valid
+          if [ ! -s "$OUTPUT_FILE" ]; then
+            echo "Error: Generated JSON file is empty"
+            exit 1
+          fi
+
+          if ! jq empty "$OUTPUT_FILE" 2>/dev/null; then
+            echo "Error: Generated JSON file is not valid JSON"
+            cat "$OUTPUT_FILE"
+            exit 1
+          fi
+
+          echo "Successfully generated status JSON:"
+          jq '.' "$OUTPUT_FILE"
+
+      - name: Deploy data to gh-pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ steps.app-token.outputs.token }}
+          publish_dir: ./gh-pages-data
+          destination_dir: .
+          keep_files: true # Keep existing templates
+          enable_jekyll: true
