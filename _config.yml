@@ -1,0 +1,10 @@
+theme: jekyll-theme-midnight
+title: Fork Status
+description: Percona Server for MongoDB
+show_downloads: false
+
+github:
+  owner_name: percona
+  repository_name: percona-server-mongodb
+  # Workflow filename under .github/workflows/ (used for "Run Mergai" link)
+  workflow_filename: mergai.yml

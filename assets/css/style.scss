@@ -1,0 +1,540 @@
+---
+---
+
+@import "{{ site.theme }}";
+
+/* Override theme container width to use full screen */
+.wrapper {
+  max-width: none !important;
+  width: 95% !important;
+  margin: 0 auto !important;
+  padding: 0 20px !important;
+}
+
+section {
+  max-width: none !important;
+  width: 100% !important;
+}
+
+#header nav {
+  max-width: none !important;
+}
+
+/* Branch title */
+.branch-title {
+  margin-bottom: 0.5em;
+}
+
+/* Last updated text */
+.last-updated {
+  color: #999;
+  font-size: 0.9em;
+  margin-bottom: 1em;
+}
+
+/* Upstream link */
+.upstream-link {
+  color: #999;
+  font-size: 0.9em;
+  margin-bottom: 1.5em;
+}
+
+.upstream-link a {
+  color: #79b8ff;
+  text-decoration: none;
+}
+
+.upstream-link a:hover {
+  text-decoration: underline;
+}
+
+/* Summary grid */
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 1em;
+  margin-bottom: 1.5em;
+}
+
+.stat-card {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 1em;
+  text-align: center;
+}
+
+.stat-card .stat-value {
+  display: block;
+  font-size: 1.8em;
+  font-weight: bold;
+  color: #fff;
+}
+
+.stat-card .stat-label {
+  display: block;
+  font-size: 0.85em;
+  color: #999;
+  margin-top: 0.3em;
+}
+
+.stat-card.status-ok .stat-value {
+  color: #28a745;
+}
+
+.stat-card.status-behind .stat-value {
+  color: #ffc107;
+}
+
+.stat-card.additions .stat-value {
+  color: #28a745;
+}
+
+.stat-card.deletions .stat-value {
+  color: #dc3545;
+}
+
+.date-range {
+  color: #999;
+  font-size: 0.9em;
+  margin-bottom: 1em;
+}
+
+.no-data-message {
+  color: #999;
+  font-size: 1em;
+  margin-top: 1em;
+}
+
+.no-data-message code {
+  background: rgba(255, 255, 255, 0.1);
+  padding: 0.2em 0.4em;
+  border-radius: 4px;
+  font-size: 0.9em;
+}
+
+/* Legend */
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5em;
+  margin-bottom: 1em;
+  font-size: 0.9em;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+}
+
+.legend-color {
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+}
+
+.legend-color.merged {
+  background: rgba(40, 167, 69, 0.3);
+  border: 1px solid rgba(40, 167, 69, 0.5);
+}
+
+.legend-color.next {
+  background: rgba(23, 162, 184, 0.3);
+  border: 1px solid rgba(23, 162, 184, 0.5);
+}
+
+.legend-color.priority {
+  background: rgba(255, 193, 7, 0.3);
+  border: 1px solid rgba(255, 193, 7, 0.5);
+}
+
+/* Table container */
+.table-container {
+  width: 100%;
+  overflow-x: auto;
+  margin-bottom: 2em;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Commits table */
+.commits-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9em;
+  table-layout: auto;
+}
+
+.commits-table th,
+.commits-table td {
+  padding: 0.5em 0.8em;
+  text-align: left;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.commits-table th {
+  background: rgba(30, 30, 30, 0.98);
+  font-weight: 600;
+  white-space: nowrap;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+/* Column styles */
+.col-num {
+  text-align: center !important;
+  white-space: nowrap;
+}
+
+.col-status {
+  white-space: nowrap;
+}
+
+.col-details {
+  color: #999;
+  font-size: 0.9em;
+  max-width: 200px;
+  overflow: hidden;
+}
+
+.col-details-content {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.col-details-content:not(:empty):hover {
+  color: #79b8ff;
+}
+
+.col-details-content.expanded {
+  white-space: normal;
+  word-wrap: break-word;
+  word-break: break-word;
+  overflow: visible;
+}
+
+.col-date {
+  white-space: nowrap;
+}
+
+.col-title {
+  white-space: normal;
+  word-wrap: break-word;
+  min-width: 250px;
+}
+
+/* Row highlighting */
+.row-merged {
+  background: rgba(40, 167, 69, 0.15) !important;
+}
+
+.row-next {
+  background: rgba(23, 162, 184, 0.15) !important;
+}
+
+.row-priority {
+  background: rgba(255, 193, 7, 0.15) !important;
+}
+
+.row-next.row-priority {
+  background: linear-gradient(
+    90deg,
+    rgba(23, 162, 184, 0.15),
+    rgba(255, 193, 7, 0.15)
+  ) !important;
+}
+
+/* Links in table */
+.commits-table a {
+  color: #79b8ff;
+  text-decoration: none;
+}
+
+.commits-table a:hover {
+  text-decoration: underline;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .wrapper {
+    width: 100% !important;
+    padding: 0 10px !important;
+  }
+
+  .summary-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.5em;
+  }
+
+  .stat-card {
+    padding: 0.7em;
+  }
+
+  .stat-card .stat-value {
+    font-size: 1.4em;
+  }
+
+  .legend {
+    gap: 1em;
+    font-size: 0.85em;
+  }
+
+  .commits-table {
+    font-size: 0.8em;
+  }
+
+  .commits-table th,
+  .commits-table td {
+    padding: 0.4em 0.5em;
+  }
+
+  .col-title {
+    min-width: 180px;
+  }
+
+  .col-details {
+    max-width: 120px;
+  }
+}
+
+@media (max-width: 480px) {
+  .summary-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .stat-card .stat-value {
+    font-size: 1.2em;
+  }
+
+  .commits-table {
+    font-size: 0.75em;
+  }
+
+  .col-title {
+    min-width: 150px;
+  }
+
+  .col-details {
+    max-width: 80px;
+  }
+}
+
+/* ========================================
+   Phase 2: Filter Controls
+   ======================================== */
+
+.filter-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1em 1.5em;
+  margin-bottom: 1.5em;
+  padding: 1em;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+}
+
+.filter-label {
+  font-weight: 600;
+  color: #999;
+}
+
+.filter-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+  cursor: pointer;
+  user-select: none;
+  font-size: 0.9em;
+}
+
+.filter-checkbox input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: #79b8ff;
+}
+
+.filter-checkbox:hover {
+  color: #fff;
+}
+
+.filter-checkbox .legend-color {
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  margin-left: 0.2em;
+}
+
+.filter-checkbox .legend-color.normal {
+  background: rgba(100, 100, 100, 0.3);
+  border: 1px solid rgba(100, 100, 100, 0.5);
+}
+
+.filter-count {
+  color: #999;
+  font-size: 0.9em;
+}
+
+.filter-summary {
+  color: #999;
+  font-size: 0.85em;
+}
+
+.workflow-btn {
+  margin-left: auto;
+  display: inline-block;
+  padding: 0.4em 0.8em;
+  background: rgba(40, 167, 69, 0.2);
+  border: 1px solid rgba(40, 167, 69, 0.5);
+  border-radius: 6px;
+  color: #28a745;
+  text-decoration: none;
+  font-size: 0.85em;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.workflow-btn:hover {
+  background: rgba(40, 167, 69, 0.35);
+  border-color: rgba(40, 167, 69, 0.7);
+  text-decoration: none;
+}
+
+/* ========================================
+   Phase 2: PR Status Column
+   ======================================== */
+
+.col-pr {
+  white-space: nowrap;
+  width: 90px;
+  text-align: center;
+}
+
+.pr-status {
+  display: inline-block;
+}
+
+.pr-status.pr-loading {
+  opacity: 0.5;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pr-status.pr-loading {
+    animation: none;
+    opacity: 0.8;
+  }
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.pr-link {
+  display: inline-block;
+  text-decoration: none;
+  padding: 0.15em 0.5em;
+  border-radius: 4px;
+  font-size: 0.85em;
+  font-weight: 500;
+  transition: opacity 0.2s;
+}
+
+.pr-link:hover {
+  opacity: 0.8;
+  text-decoration: none;
+}
+
+.pr-link.pr-open {
+  background: rgba(23, 162, 184, 0.25);
+  color: #17a2b8;
+  border: 1px solid rgba(23, 162, 184, 0.4);
+}
+
+.pr-link.pr-merged {
+  background: rgba(111, 66, 193, 0.25);
+  color: #a855f7;
+  border: 1px solid rgba(111, 66, 193, 0.4);
+}
+
+.pr-link.pr-closed {
+  background: rgba(220, 53, 69, 0.25);
+  color: #dc3545;
+  border: 1px solid rgba(220, 53, 69, 0.4);
+}
+
+.pr-none {
+  color: #666;
+}
+
+/* ========================================
+   Copy SHA Button (inline with SHA link)
+   ======================================== */
+
+.col-sha {
+  white-space: nowrap;
+}
+
+.col-sha a {
+  vertical-align: middle;
+}
+
+.col-sha .copy-sha-btn {
+  margin-right: 0.4em;
+  vertical-align: middle;
+}
+
+.copy-sha-btn {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+  padding: 0.15em 0.35em;
+  cursor: pointer;
+  font-size: 0.75em;
+  line-height: 1;
+  transition: all 0.2s;
+  color: inherit;
+}
+
+.copy-sha-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.4);
+}
+
+.copy-sha-btn.copied {
+  background: rgba(40, 167, 69, 0.3);
+  border-color: rgba(40, 167, 69, 0.6);
+  color: #28a745;
+}
+
+.copy-sha-btn.copy-failed {
+  background: rgba(220, 53, 69, 0.3);
+  border-color: rgba(220, 53, 69, 0.6);
+  color: #dc3545;
+}
+
+/* Responsive for Phase 2 */
+@media (max-width: 768px) {
+  .filter-controls {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .filter-summary {
+    margin-left: 0;
+    margin-top: 0.5em;
+  }
+}
