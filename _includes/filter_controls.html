@@ -1,0 +1,50 @@
+<!-- Configuration for JavaScript -->
+<div
+  id="pr-status-config"
+  data-config='{"owner":"{{ site.github.owner_name | default: "percona" }}","repo":"{{ site.github.repository_name | default: "percona-server-mongodb" }}"}'
+  style="display: none"
+></div>
+
+<!-- Filter Controls -->
+<div class="filter-controls">
+  <span class="filter-label">Filter:</span>
+
+  <label class="filter-checkbox">
+    <input type="checkbox" checked data-filter="merged" />
+    <span class="legend-color merged"></span>
+    Last Merged (<span class="filter-count" data-count="merged">0</span>)
+  </label>
+
+  <label class="filter-checkbox">
+    <input type="checkbox" checked data-filter="first-unmerged" />
+    <span class="legend-color next"></span>
+    First Unmerged (<span class="filter-count" data-count="first-unmerged"
+      >0</span
+    >)
+  </label>
+
+  <label class="filter-checkbox">
+    <input type="checkbox" checked data-filter="merge-pick" />
+    <span class="legend-color priority"></span>
+    Merge Picks (<span class="filter-count" data-count="merge-pick">0</span>)
+  </label>
+
+  <label class="filter-checkbox">
+    <input type="checkbox" checked data-filter="normal" />
+    <span class="legend-color normal"></span>
+    Normal (<span class="filter-count" data-count="normal">0</span>)
+  </label>
+
+  <span class="filter-summary">
+    Showing <span id="visible-count">0</span> of <span id="total-count">0</span>
+  </span>
+
+  <a
+    href="https://github.com/{{ site.github.owner_name | default: 'percona' }}/{{ site.github.repository_name | default: 'percona-server-mongodb' }}/actions/workflows/{{ site.github.workflow_filename | default: 'mergai.yml' }}"
+    target="_blank"
+    class="workflow-btn"
+    title="Trigger mergai workflow (paste copied SHA as merge-pick input)"
+  >
+    ▶ Run Mergai
+  </a>
+</div>
