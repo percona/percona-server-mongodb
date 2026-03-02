@@ -49,7 +49,7 @@ jobs:
     outputs:
       changed_files: ${{ steps.changed.outputs.all_changed_files }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Get changed files
         id: changed
         uses: tj-actions/changed-files@v45
