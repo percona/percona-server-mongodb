@@ -2495,6 +2495,55 @@
         ]
       },
       "scope": "required"
+    },
+    {
+      "type": "library",
+      "name": "AWS SDK for C++",
+      "version": "1.11.471",
+      "bom-ref": "pkg:github/aws/aws-sdk-cpp@1.11.471",
+      "purl": "pkg:github/aws/aws-sdk-cpp@1.11.471",
+      "supplier": {
+        "name": "AWS",
+        "url": [
+          "https://aws.amazon.com/sdk-for-cpp/"
+        ]
+      },
+      "author": "Amazon.com, Inc.",
+      "group": "amazon.opensource",
+      "licenses": [
+        {
+          "license": {
+            "id": "Apache-2.0"
+          }
+        }
+      ],
+      "copyright": "Amazon.com, Inc. or its affiliates",
+      "properties": [
+        {
+          "name": "internal:team_responsible",
+          "value": "Percona Server for MongoDB Team"
+        },
+        {
+          "name": "emits_persisted_data",
+          "value": "false"
+        },
+        {
+          "name": "info_link",
+          "value": "https://aws.amazon.com/sdk-for-cpp/"
+        },
+        {
+          "name": "import_script_path",
+          "value": "src/third_party/aws-sdk-cpp/scripts/import.sh"
+        }
+      ],
+      "evidence": {
+        "occurrences": [
+          {
+            "location": "src/third_party/aws-sdk-cpp"
+          }
+        ]
+      },
+      "scope": "required"
     }
   ],
   "dependencies": [
@@ -2542,7 +2591,8 @@
         "pkg:github/unicode-org/icu@release-57-1",
         "pkg:github/wiredtiger/wiredtiger@mongodb-8.0.12",
         "pkg:pypi/ocspresponder@0.5.0",
-        "pkg:github/libarchive/libarchive@v3.8.4"
+        "pkg:github/libarchive/libarchive@v3.8.4",
+        "pkg:github/aws/aws-sdk-cpp@1.11.471"
       ]
     },
     {
@@ -2773,6 +2823,12 @@
     {
       "ref": "pkg:github/libarchive/libarchive@v3.8.4",
       "dependsOn": []
+    },
+    {
+      "ref": "pkg:github/aws/aws-sdk-cpp@1.11.471",
+      "dependsOn": [
+        "pkg:github/madler/zlib@v1.3.1"
+      ]
     }
   ]
 }
