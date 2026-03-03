@@ -25,6 +25,7 @@ a notice will be included in
 | ---------------------------------------------------- | ---------------------------------------------- | ---------------------------------------- | -------------------- | ------------------------------- |
 | [Abseil Common Libraries (C++)]                      | Apache-2.0                                     | 20250512.1                               |                      | ✗                               |
 | [Asio C++ Library]                                   | BSL-1.0                                        | 1.34.2                                   |                      | ✗                               |
+| [AWS SDK for C++]                                    | Apache-2.0                                     | 1.11.471                                 |                      | ✗                               |
 | [benchmark]                                          | Apache-2.0                                     | 1.5.2                                    |                      |                                 |
 | [Boost C++ Libraries]                                | BSL-1.0                                        | 1.88.0                                   |                      | ✗                               |
 | [c-ares]                                             | MIT                                            | 1.27.0                                   |                      | ✗                               |
@@ -73,6 +74,7 @@ a notice will be included in
 | [zlib]                                               | Zlib                                           | 1.3.1                                    | ✗                    | ✗                               |
 | [Zstandard (zstd)]                                   | BSD-3-Clause OR GPL-2.0-only                   | 1.5.5                                    | ✗                    | ✗                               |
 
+[AWS SDK for C++]: https://aws.amazon.com/sdk-for-cpp/
 [Abseil Common Libraries (C++)]: https://github.com/abseil/abseil-cpp.git
 [Asio C++ Library]: https://github.com/chriskohlhoff/asio.git
 [Boost C++ Libraries]: https://github.com/boostorg/boost.git
