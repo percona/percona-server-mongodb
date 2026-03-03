@@ -19,6 +19,7 @@ import {
     help,
     indentStr,
     isNetworkError,
+    isPSMDBOrEnterprise,
     isRetryableError,
     jsTest,
     jsTestLog,
@@ -54,6 +55,7 @@ globalThis.hasErrorCode = hasErrorCode;
 globalThis.help = help;
 globalThis.indentStr = indentStr;
 globalThis.isNetworkError = isNetworkError;
+globalThis.isPSMDBOrEnterprise = isPSMDBOrEnterprise;
 globalThis.isRetryableError = isRetryableError;
 globalThis.jsTest = jsTest;
 globalThis.jsTestLog = jsTestLog;
