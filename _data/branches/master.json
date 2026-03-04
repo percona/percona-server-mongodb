@@ -5,14 +5,14 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 326,
+    "commits_behind": 328,
     "days_behind": 9,
-    "files_affected": 1384,
-    "total_additions": 62671,
-    "total_deletions": 43004,
+    "files_affected": 1387,
+    "total_additions": 62840,
+    "total_deletions": 43049,
     "date_range": {
       "first": "2026-02-23T08:05:47+00:00",
-      "last": "2026-03-04T03:02:16+00:00"
+      "last": "2026-03-04T09:53:13+00:00"
     }
   },
   "last_merged_commit": {
@@ -36,6 +36,26 @@
     "summary": "SERVER-119199 Enable multi-router on tests that create timeseries collections on multiversion (#48244)"
   },
   "unmerged_commits": [
+    {
+      "sha": "ab3980420ec2a4c98d7b7faaae6ecda611cfc641",
+      "short_sha": "ab3980420ec",
+      "date": "2026-03-04T10:53:13+01:00",
+      "author": {
+        "name": "Carlos Alonso",
+        "email": "c.alonso@mongodb.com"
+      },
+      "summary": "SERVER-117371. Add test to verify backup plans (#48890)"
+    },
+    {
+      "sha": "85e38d59b9b23fcb84f6f9595984a67214ab5b62",
+      "short_sha": "85e38d59b9b",
+      "date": "2026-03-04T09:59:47+01:00",
+      "author": {
+        "name": "Yujin Kang Park",
+        "email": "36410031+ykangpark@users.noreply.github.com"
+      },
+      "summary": "SERVER-120570 Remove disagg specific code from ReplicaSetFixture (#48751)"
+    },
     {
       "sha": "d4d3e833013dc4bc4a6027b8f979c8943daa6174",
       "short_sha": "d4d3e833013",
@@ -3760,7 +3780,7 @@
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-03-04 09:21:40",
+  "generated_at": "2026-03-04 10:25:55",
   "branch_name": "master",
   "display_name": "master"
 }
