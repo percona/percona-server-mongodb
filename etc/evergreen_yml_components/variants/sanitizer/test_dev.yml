@@ -384,6 +384,7 @@ buildvariants:
       core_analyzer_distro_name: amazon2023-arm64-latest-m8g-8xlarge
       compile_variant: *linux_arm64_debug_compile_variant_name
       resmoke_tests_tag_filter: ci-development-critical,ci-release-critical
+      evergreen_remote_exec: on
     tasks:
       - name: .development_critical !.requires_large_host !.requires_compile_variant !.incompatible_development_variant !.incompatible_community !.requires_all_feature_flags !.suggested_excluding_required__for_devprod_mitigation_only !.has_bazel_target
       - name: .development_critical .requires_large_host !.requires_compile_variant !.incompatible_development_variant !.incompatible_community !.requires_all_feature_flags !.suggested_excluding_required__for_devprod_mitigation_only !.has_bazel_target

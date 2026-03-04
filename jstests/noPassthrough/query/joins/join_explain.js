@@ -6,7 +6,12 @@
  * ]
  */
 
-import {getWinningPlanFromExplain, getAllPlanStages, getQueryPlanner} from "jstests/libs/query/analyze_plan.js";
+import {
+    getWinningPlanFromExplain,
+    getAllPlanStages,
+    getQueryPlanner,
+    getRejectedPlans,
+} from "jstests/libs/query/analyze_plan.js";
 
 let conn = MongoRunner.runMongod();
 
@@ -31,7 +36,7 @@ assert.commandWorked(coll3.createIndex({d: 1}));
 
 // Runs the pipeline, and asserts that the join optimizer was used and that estimate information is
 // present in the explain output.
-function runTest(pipeline) {
+function runTest(pipeline, expectRejected) {
     const explain = coll1.explain().aggregate(pipeline);
 
     const queryPlanner = getQueryPlanner(explain);
@@ -41,7 +46,9 @@ function runTest(pipeline) {
     assert(usedJoinOptimization, "Join optimizer was not used as expected: " + tojson(explain));
 
     jsTest.log.info("Explain output: " + tojson(explain));
-    const stages = getAllPlanStages(getWinningPlanFromExplain(explain));
+    const winningPlan = getWinningPlanFromExplain(explain);
+    const winningCost = winningPlan.costEstimate;
+    const stages = getAllPlanStages(winningPlan);
     assert(
         stages.some((stage) => stage.stage.includes("JOIN_EMBEDDING")),
         "Expecting JOIN_EMBEDDING stage in: " + tojson(explain),
@@ -62,6 +69,32 @@ function runTest(pipeline) {
             );
             assert.gt(stage.costEstimate, 0, "Cost estimate is not greater than 0");
         }
+    }
+
+    const rejectedPlans = getRejectedPlans(explain);
+    if (expectRejected) {
+        assert.gt(rejectedPlans.length, 0);
+    }
+    for (const plan of rejectedPlans) {
+        // All plans should use join optimization.
+        assert(plan.usedJoinOptimization, "Join optimizer was not used as expected: " + tojson(explain));
+
+        // Should have CE.
+        assert(
+            plan.queryPlan.hasOwnProperty("cardinalityEstimate"),
+            "Cardinality estimate not found in rejected plan: " + tojson(plan.queryPlan) + ", " + tojson(explain),
+        );
+        assert.gt(plan.queryPlan.cardinalityEstimate, 0, "Cardinality estimate is not greater than 0");
+
+        // Should have cost.
+        assert(
+            plan.queryPlan.hasOwnProperty("costEstimate"),
+            "Cost estimate not found in rejected plan: " + tojson(plan.queryPlan) + ", " + tojson(explain),
+        );
+        assert.gt(plan.queryPlan.costEstimate, 0, "Cost estimate is not greater than 0");
+
+        // Should have a larger cost than the 'winning' plan.
+        assert.gt(plan.queryPlan.costEstimate, winningCost, "Cost estimate <= winning plan cost!");
     }
 }
 
@@ -94,11 +127,11 @@ const pipeline = [
 ];
 
 // No indexes.
-runTest(pipeline);
+runTest(pipeline, false /* expectRejected */);
 
 // With indexes.
 assert.commandWorked(coll2.createIndex({b: 1}));
 assert.commandWorked(coll3.createIndex({c: 1}));
-runTest(pipeline);
+runTest(pipeline, true /* expectRejected */);
 
 MongoRunner.stopMongod(conn);

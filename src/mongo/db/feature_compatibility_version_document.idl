@@ -71,3 +71,10 @@ structs:
                     cleaning up internal server metadata."
                 type: bool
                 optional: true
+
+feature_flags:
+    featureFlagSymmetricFCV:
+        description: Enable the persistence and resumability of setFCV by phases, as well as the extra metadata upgrade phase
+        cpp_varname: gFeatureFlagSymmetricFCV
+        default: false
+        fcv_gated: false

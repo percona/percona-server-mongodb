@@ -159,12 +159,14 @@ public:
     void enumerateJoinSubsets();
 
     JoinPlanNodeId getBestFinalPlan() const {
-        tassert(11336904,
-                "Expected subsets to have already been enumerated",
-                _joinSubsets.size() > 0 && _joinSubsets[_joinSubsets.size() - 1].size() == 1);
-        const auto& lastSubset = _joinSubsets[_joinSubsets.size() - 1][0];
-        return lastSubset.bestPlan();
+        return finalSubset().bestPlan();
     }
+
+    /**
+     * Returns all plan node ids for plans enumerated in the last subset other than the best plan.
+     * Used for explain().
+     */
+    std::vector<JoinPlanNodeId> getRejectedFinalPlans() const;
 
     const JoinPlanNodeRegistry& registry() const {
         return _registry;
@@ -184,6 +186,13 @@ public:
     std::string toString() const;
 
 private:
+    const JoinSubset& finalSubset() const {
+        tassert(11336904,
+                "Expected subsets to have already been enumerated",
+                _joinSubsets.size() > 0 && _joinSubsets[_joinSubsets.size() - 1].size() == 1);
+        return _joinSubsets[_joinSubsets.size() - 1][0];
+    }
+
     /**
      * Enumerate plans by constructing possible joins between the 'left' and 'right' subsets and
      * outputting those plans in 'cur'. Note that 'left' and 'right' must be disjoint, and their

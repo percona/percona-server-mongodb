@@ -143,22 +143,6 @@ last-continuous:
       ticket: SERVER-106165
     - test_file: jstests/replsets/oplog_fetch_lag_metric.js
       ticket: SERVER-116300
-    - test_file: jstests/replsets/initial_sync_wait_for_sync_source_last_stable_recover_timestamp.js
-      ticket: SERVER-113184
-    - test_file: jstests/replsets/force_reconfig_sets_newly_added_field_correctly.js
-      ticket: SERVER-113184
-    - test_file: jstests/replsets/initial_sync_drop_collection.js
-      ticket: SERVER-113184
-    - test_file: jstests/replsets/initial_sync_rename_collection.js
-      ticket: SERVER-113184
-    - test_file: jstests/replsets/initial_sync_reset_oldest_timestamp_after_failed_attempt.js
-      ticket: SERVER-113184
-    - test_file: jstests/replsets/initiate_takes_stable_checkpoint.js
-      ticket: SERVER-113184
-    - test_file: jstests/replsets/reconstruct_prepared_transactions_initial_sync_on_oplog_seed.js
-      ticket: SERVER-113184
-    - test_file: jstests/replsets/initial_sync_during_stepdown.js
-      ticket: SERVER-113184
   suites: null
 last-lts:
   all:
@@ -800,20 +784,4 @@ last-lts:
       ticket: SERVER-106165
     - test_file: jstests/replsets/oplog_fetch_lag_metric.js
       ticket: SERVER-116300
-    - test_file: jstests/replsets/initial_sync_wait_for_sync_source_last_stable_recover_timestamp.js
-      ticket: SERVER-113184
-    - test_file: jstests/replsets/force_reconfig_sets_newly_added_field_correctly.js
-      ticket: SERVER-113184
-    - test_file: jstests/replsets/initial_sync_drop_collection.js
-      ticket: SERVER-113184
-    - test_file: jstests/replsets/initial_sync_rename_collection.js
-      ticket: SERVER-113184
-    - test_file: jstests/replsets/initial_sync_reset_oldest_timestamp_after_failed_attempt.js
-      ticket: SERVER-113184
-    - test_file: jstests/replsets/initiate_takes_stable_checkpoint.js
-      ticket: SERVER-113184
-    - test_file: jstests/replsets/reconstruct_prepared_transactions_initial_sync_on_oplog_seed.js
-      ticket: SERVER-113184
-    - test_file: jstests/replsets/initial_sync_during_stepdown.js
-      ticket: SERVER-113184
   suites: null

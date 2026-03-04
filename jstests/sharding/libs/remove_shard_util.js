@@ -23,7 +23,8 @@ export function removeShard(shardingTestOrConn, shardName, timeout) {
     // Check the fcv. If 8.3 or above run the new path, otherwise run the old path.
     const res = admin.system.version.find({_id: "featureCompatibilityVersion"}).toArray();
     const is_83 = res.length == 0 || MongoRunner.compareBinVersions(res[0].version, "8.3") >= 0;
-    if (is_83) {
+    // adds random choice to use new API or old API
+    if (is_83 && Math.random() > 0.5) {
         removeShardNew(s, shardName, timeout);
     } else {
         removeShardOld(s, shardName, timeout);
@@ -75,86 +76,107 @@ function removeShardOld(s, shardName, timeout) {
     );
 }
 
+/**
+ * Removes a shard using the new three-phase protocol (MongoDB 8.3+).
+ * Phases: start → draining → commit
+ */
 function removeShardNew(s, shardName, timeout) {
-    let res;
-    if (shardName == "config") {
-        assert.soon(
-            function () {
-                // Need to use transitionToDedicatedConfigServer if trying
-                // to remove config server as a shard
-                res = s.adminCommand({transitionToDedicatedConfigServer: shardName});
-                if (!res.ok) {
-                    if (res.code == ErrorCodes.ShardNotFound) {
-                        // TODO SERVER-32553: same as above
-                        return kNoRetry;
-                    }
-                    if (res.code === ErrorCodes.HostUnreachable && TestData.runningWithConfigStepdowns) {
-                        // The mongos may exhaust its retries due to having consecutive config
-                        // stepdowns. In this case, the mongos will return a HostUnreachable error.
-                        // We should retry the operation when this happens.
+    const isConfigShard = shardName === "config";
+    const commands = isConfigShard
+        ? {
+              start: {startTransitionToDedicatedConfigServer: 1},
+              status: {getTransitionToDedicatedConfigServerStatus: 1},
+              commit: {commitTransitionToDedicatedConfigServer: 1},
+              phaseName: "config server transition",
+          }
+        : {
+              start: {startShardDraining: shardName},
+              status: {shardDrainingStatus: shardName},
+              commit: {commitShardRemoval: shardName},
+              phaseName: "shard removal",
+          };
+
+    let phase = "start";
+
+    assert.soon(
+        function () {
+            switch (phase) {
+                case "start": {
+                    const result = retryIfRetriableError(s, commands.start);
+                    if (result.success) {
+                        phase = "draining";
                         return kRetry;
                     }
-                    if (res.code === ErrorCodes.RemoveShardDrainingInProgress) {
-                        // If orphanCleanupDelaySecs hasn't elapsed yet, the command will fail with
-                        // RemoveShardDrainingInProgress. Keep retrying until the delay elapses.
-                        return kRetry;
-                    }
+                    return result.shouldRetry ? kRetry : kNoRetry;
                 }
-                assert.commandWorked(res);
-                return res.state == "completed";
-            },
-            "failed to remove shard " + shardName + " within " + timeout + "ms",
-            timeout,
-        );
-    } else {
-        assert.soon(
-            function () {
-                assert.soon(
-                    function () {
-                        return retryIfRetriableError(s, {startShardDraining: shardName});
-                    },
-                    "failed to remove shard " + shardName + " within " + timeout + "ms",
-                    timeout,
-                );
-
-                assert.soon(
-                    function () {
-                        return retryIfRetriableError(s, {shardDrainingStatus: shardName});
-                    },
-                    "failed to remove shard " + shardName + " within " + timeout + "ms",
-                    timeout,
-                );
-
-                res = s.adminCommand({commitShardRemoval: shardName});
-
-                if (!res.ok) {
-                    // If commitShardRemoval fails for any reason, retry.
+                case "draining": {
+                    const result = retryIfRetriableError(s, commands.status);
+                    if (!result.success) {
+                        return result.shouldRetry ? kRetry : kNoRetry;
+                    }
+                    if (result.response.state === "drainingComplete") {
+                        phase = "commit";
+                    }
                     return kRetry;
                 }
-                assert.commandWorked(res);
-                return true;
-            },
-            "failed to remove shard " + shardName + " within " + timeout + "ms",
-            timeout,
-        );
-    }
+                case "commit": {
+                    const result = retryIfRetriableError(s, commands.commit, true);
+                    if (result.success) {
+                        return kNoRetry;
+                    }
+                    if (result.shouldRetry) {
+                        if (result.shouldRetryDraining) {
+                            phase = "status";
+                        }
+                        return kRetry;
+                    }
+                    throw new Error(`Unexpected error during ${phase}: ${result.response}`);
+                }
+                default:
+                    throw new Error(`Unknown phase: ${phase}`);
+            }
+        },
+        `failed to remove shard ${shardName} within ${timeout} ms. Last phase: ${phase}`,
+        timeout,
+    );
 }
-function retryIfRetriableError(s, command) {
-    let res = s.adminCommand(command);
+
+/**
+ * Executes a command and returns a result object with the following properties:
+ * - success: boolean indicating if the command was successful
+ * - shouldRetry: boolean indicating if the command should be retried
+ * - response: the response from the command
+ * @returns {Object} {success: boolean, shouldRetry: boolean, response: Object}
+ */
+function retryIfRetriableError(s, command, isDrainingErrorAllowed = false) {
+    const res = s.adminCommand(command);
     if (!res.ok) {
-        if (res.code == ErrorCodes.ShardNotFound) {
+        if (res.code === ErrorCodes.ShardNotFound) {
             // If shardNotFound don't retry to make the removeShard function idempotent.
-            return kNoRetry;
+            return {success: false, shouldRetry: false, response: res, shouldRetryDraining: false};
         }
         if (res.code === ErrorCodes.HostUnreachable && TestData.runningWithConfigStepdowns) {
             // The mongos may exhaust its retries due to having consecutive config
             // stepdowns. In this case, the mongos will return a HostUnreachable error.
             // We should retry the operation when this happens.
-            return kRetry;
+            return {success: false, shouldRetry: true, response: res, shouldRetryDraining: false};
         }
+        if (
+            isDrainingErrorAllowed &&
+            res.code === ErrorCodes.IllegalOperation &&
+            // It's possible that the shard is not completely drained even after the drainingComplete
+            // status is returned. This can happen when a new unsplittable collection is created on the
+            // draining shard, when for example a failpoint like
+            // createUnshardedCollectionRandomizeDataShard places a collection on a random shard.
+            (res.errmsg || "").includes("isn't completely drained")
+        ) {
+            return {success: false, shouldRetry: true, response: res, shouldRetryDraining: true};
+        }
+        return {success: false, shouldRetry: false, response: res, shouldRetryDraining: false};
     }
+
     assert.commandWorked(res);
-    return res.state ? res.state == "drainingComplete" : kNoRetry;
+    return {success: true, shouldRetry: false, response: res};
 }
 
 export function moveOutSessionChunks(st, fromShard, toShard) {

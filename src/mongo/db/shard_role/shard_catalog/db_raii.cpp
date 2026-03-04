@@ -62,8 +62,6 @@
 namespace mongo {
 namespace {
 
-const boost::optional<int> kDoNotChangeProfilingLevel = boost::none;
-
 /**
  * Performs some checks to determine whether the operation is compatible with a lock-free read.
  * Multi-doc transactions are not supported, nor are operations holding an exclusive lock.
@@ -85,35 +83,6 @@ bool isAnySecondaryNamespaceAView(OperationContext* opCtx,
         auto collection = catalog->lookupCollectionByNamespace(opCtx, nss);
         return !collection && catalog->lookupView(opCtx, nss).get();
     });
-}
-
-/**
- * Resolves all NamespaceStringOrUUIDs in the input vector by using the input catalog to call
- * CollectionCatalog::resolveSecondaryNamespacesOrUUIDs.
- *
- * If any of the input NamespaceStringOrUUIDs is found to correspond to a view, returns boost::none.
- *
- * Otherwise, returns a vector of NamespaceStrings that the input NamespaceStringOrUUIDs resolved
- * to.
- */
-boost::optional<std::vector<NamespaceString>> resolveSecondaryNamespacesOrUUIDs(
-    OperationContext* opCtx,
-    const CollectionCatalog* catalog,
-    std::vector<NamespaceStringOrUUID>::const_iterator secondaryNssOrUUIDsBegin,
-    std::vector<NamespaceStringOrUUID>::const_iterator secondaryNssOrUUIDsEnd) {
-    std::vector<NamespaceString> resolvedSecondaryNamespaces;
-    resolvedSecondaryNamespaces.reserve(
-        std::distance(secondaryNssOrUUIDsBegin, secondaryNssOrUUIDsEnd));
-    for (auto iter = secondaryNssOrUUIDsBegin; iter != secondaryNssOrUUIDsEnd; ++iter) {
-        const auto& nssOrUUID = *iter;
-        auto nss = catalog->resolveNamespaceStringOrUUID(opCtx, nssOrUUID);
-        resolvedSecondaryNamespaces.emplace_back(nss);
-    }
-
-    if (isAnySecondaryNamespaceAView(opCtx, catalog, resolvedSecondaryNamespaces)) {
-        return boost::none;
-    }
-    return std::move(resolvedSecondaryNamespaces);
 }
 
 bool haveAcquiredConsistentCatalogAndSnapshot(
@@ -147,51 +116,6 @@ bool haveAcquiredConsistentCatalogAndSnapshot(
 
     return catalogEqual && replTermEqual &&
         (noStateTransition || isStateTransitionThread || !canKillOperationInStepdown);
-}
-
-void checkInvariantsForReadOptions(boost::optional<const NamespaceString&> nss,
-                                   const boost::optional<LogicalTime>& afterClusterTime,
-                                   const RecoveryUnit::ReadSource& readSource,
-                                   const boost::optional<Timestamp>& readTimestamp,
-                                   bool shouldReadAtLastApplied,
-                                   bool isEnforcingConstraints) {
-    if (readTimestamp && afterClusterTime) {
-        // Readers that use afterClusterTime have already waited at a higher level for the
-        // all_durable time to advance to a specified optime, and they assume the read timestamp
-        // of the operation is at least that waited-for timestamp. For kNoOverlap, which is
-        // the minimum of lastApplied and all_durable, this invariant ensures that
-        // afterClusterTime reads do not choose a read timestamp older than the one requested.
-        invariant(*readTimestamp >= afterClusterTime->asTimestamp(),
-                  str::stream() << "read timestamp " << readTimestamp->toString()
-                                << "was less than afterClusterTime: "
-                                << afterClusterTime->asTimestamp().toString());
-    }
-
-    // This assertion protects operations from reading inconsistent data on secondaries when
-    // using the default ReadSource of kNoTimestamp.
-
-    // Reading at lastApplied on secondaries is the safest behavior and is enabled for all user
-    // and DBDirectClient reads using 'local' and 'available' readConcerns. If an internal
-    // operation wishes to read without a timestamp during a batch, a ShouldNotConflict can
-    // suppress this fatal assertion with the following considerations:
-    // * The operation is not reading replicated data in a replication state where batch
-    //   application is active OR
-    // * Reading inconsistent, out-of-order data is either inconsequential or required by
-    //   the operation.
-
-    // If the caller is reading without a timestamp, then there is a possibility that this reader
-    // may unintentionally see inconsistent data during a batch. However there are a couple
-    // exceptions to this:
-    // * If we are not enforcing contraints, then we are ourselves within batch application or some
-    //   similar state where this is expected
-    // * Certain namespaces are applied serially in oplog application, and therefore can be safely
-    //   read without a timestamp
-    if (readSource == RecoveryUnit::ReadSource::kNoTimestamp && isEnforcingConstraints && nss &&
-        !nss->mustBeAppliedInOwnOplogBatch() && shouldReadAtLastApplied) {
-        LOGV2_FATAL(4728700,
-                    "Reading from replicated collection on a secondary without read timestamp",
-                    logAttrs(*nss));
-    }
 }
 
 }  // namespace
@@ -332,42 +256,6 @@ std::shared_ptr<const ViewDefinition> lookupView(
             !view || viewMode == auto_get_collection::ViewMode::kViewsPermitted);
     return view;
 }
-
-std::tuple<NamespaceString, ConsistentCollection, std::shared_ptr<const ViewDefinition>>
-getCollectionForLockFreeRead(OperationContext* opCtx,
-                             const std::shared_ptr<const CollectionCatalog>& catalog,
-                             boost::optional<Timestamp> readTimestamp,
-                             const NamespaceStringOrUUID& nsOrUUID,
-                             const auto_get_collection::Options& options) {
-    // Returns a collection reference compatible with the specified 'readTimestamp'. Creates and
-    // places a compatible PIT collection reference in the 'catalog' if needed and the collection
-    // exists at that PIT.
-    auto coll = catalog->establishConsistentCollection(opCtx, nsOrUUID, readTimestamp);
-    // Note: This call to resolveNamespaceStringOrUUID must happen after getCollectionFromCatalog
-    // above, since getCollectionFromCatalog may call openCollection, which could change the result
-    // of namespace resolution.
-    auto nss = catalog->resolveNamespaceStringOrUUID(opCtx, nsOrUUID);
-    checkCollectionUUIDMismatch(opCtx, *catalog, nss, coll.get(), options._expectedUUID);
-
-    std::shared_ptr<const ViewDefinition> viewDefinition =
-        coll ? nullptr : lookupView(opCtx, catalog, nss, options._viewMode);
-
-    return {std::move(nss), std::move(coll), std::move(viewDefinition)};
-}
-
-static const Lock::GlobalLockOptions kLockFreeReadsGlobalLockOptions{[] {
-    Lock::GlobalLockOptions options;
-    options.skipRSTLLock = true;
-    return options;
-}()};
-
-struct CatalogStateForNamespace {
-    std::shared_ptr<const CollectionCatalog> catalog;
-    bool isAnySecondaryNamespaceAView;
-    NamespaceString resolvedNss;
-    ConsistentCollection collection;
-    std::shared_ptr<const ViewDefinition> view;
-};
 
 }  // namespace
 

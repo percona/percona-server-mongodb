@@ -58,6 +58,17 @@
 
 namespace mongo {
 
+/**
+ * Helper class to structure information needed to display 'rejected' SBE plans for join
+ * optimization.
+ */
+struct JoinOptPlan {
+    // Note: these fields are are owned here.
+    std::unique_ptr<QuerySolution> soln;
+    std::unique_ptr<sbe::PlanStage> stage;
+    stage_builder::PlanStageData data;
+};
+
 class PlanExplainerSBEBase : public PlanExplainer {
 public:
     PlanExplainerSBEBase(const sbe::PlanStage* root,
@@ -69,7 +80,8 @@ public:
                          std::shared_ptr<const plan_cache_debug_info::DebugInfoSBE> debugInfo,
                          RemoteExplainVector* remoteExplains,
                          bool usedJoinOpt = false,
-                         cost_based_ranker::EstimateMap estimates = {});
+                         cost_based_ranker::EstimateMap estimates = {},
+                         std::vector<JoinOptPlan> rejectedPlans = {});
 
     bool areThereRejectedPlansToExplain() const final {
         return _isMultiPlan;
@@ -132,6 +144,9 @@ protected:
     // All plans recovered from the same cached entry share the same debug info.
     const std::shared_ptr<const plan_cache_debug_info::DebugInfoSBE> _debugInfo;
     const RemoteExplainVector* _remoteExplains;
+
+    // Plans enumerated by join optimization that weren't chosen for execution.
+    std::vector<JoinOptPlan> _rejectedPlansForJoinOpt;
 };
 class PlanExplainerClassicRuntimePlannerForSBE final : public PlanExplainerSBEBase {
 public:
@@ -146,7 +161,8 @@ public:
         std::unique_ptr<PlanStage> classicRuntimePlannerStage,
         RemoteExplainVector* remoteExplains,
         bool usedJoinOpt = false,
-        cost_based_ranker::EstimateMap estimates = {});
+        cost_based_ranker::EstimateMap estimates = {},
+        std::vector<JoinOptPlan> rejectedPlans = {});
 
     PlanStatsDetails getWinningPlanTrialStats() const final;
     std::vector<PlanStatsDetails> getRejectedPlansStats(

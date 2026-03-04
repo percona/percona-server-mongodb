@@ -165,8 +165,8 @@ void addEstimatesIfExplain(const JoinReorderingContext& ctx,
     }
 
     auto ce = peCtx.getJoinCardinalityEstimator()->getOrEstimateSubsetCardinality(set);
-    estimates.emplace(node,
-                      cost_based_ranker::QSNEstimate{.outCE = ce, .cost = cost.getTotalCost()});
+    estimates.insert_or_assign(
+        node, cost_based_ranker::QSNEstimate{.outCE = ce, .cost = cost.getTotalCost()});
 }
 
 // Forward-declare because of mutual recursion.
@@ -440,6 +440,23 @@ ReorderedJoinSolution constructSolutionBottomUp(const JoinReorderingContext& ctx
     cost_based_ranker::EstimateMap estimates;
     ret->setRoot(buildQSNFromJoinPlan(ctx, peCtx, bestPlanNodeId, estimates));
     LOGV2_DEBUG(11179803, 5, "QSN for winning plan", "qsn"_attr = ret->toString());
-    return {.soln = std::move(ret), .baseNode = baseNodeId, .estimates = std::move(estimates)};
+
+    ReorderedJoinSolution out{
+        .soln = std::move(ret), .baseNode = baseNodeId, .estimates = std::move(estimates)};
+
+    // Also generate rejected plans if we're in explain mode.
+    if (ctx.explain) {
+        auto rejectedPlans = peCtx.getRejectedFinalPlans();
+        out.rejectedSolns.reserve(rejectedPlans.size());
+
+        for (auto&& planNodeId : rejectedPlans) {
+            auto solution = std::make_unique<QuerySolution>();
+            solution->setRoot(buildQSNFromJoinPlan(ctx, peCtx, planNodeId, out.estimates));
+            out.rejectedSolns.push_back(
+                {std::move(solution), getLeftmostNodeIdOfJoinPlan(ctx, planNodeId, registry)});
+        }
+    }
+
+    return out;
 }
 }  // namespace mongo::join_ordering

@@ -1344,6 +1344,7 @@ StatusWith<std::unique_ptr<PlanExecutor, PlanExecutor::Deleter>> getSearchMetada
                                        boost::none /* cachedPlanHash */,
                                        false /* usedJoinOpt*/,
                                        {} /* estimates */,
+                                       {} /* rejectedJoinPlans */,
                                        std::move(remoteCursors));
 }
 

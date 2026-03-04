@@ -80,7 +80,8 @@ PlanExecutorSBE::PlanExecutorSBE(OperationContext* opCtx,
                                  std::unique_ptr<MultiPlanStage> classicRuntimePlannerStage,
                                  const MultipleCollectionAccessor& mca,
                                  bool usedJoinOpt,
-                                 cost_based_ranker::EstimateMap estimates)
+                                 cost_based_ranker::EstimateMap estimates,
+                                 std::vector<JoinOptPlan> rejectedJoinPlans)
     : _state{isOpen ? State::kOpened : State::kClosed},
       _opCtx(opCtx),
       _nss(std::move(nss)),
@@ -156,7 +157,8 @@ PlanExecutorSBE::PlanExecutorSBE(OperationContext* opCtx,
                                                   std::move(classicRuntimePlannerStage),
                                                   _remoteExplains.get(),
                                                   usedJoinOpt,
-                                                  std::move(estimates));
+                                                  std::move(estimates),
+                                                  std::move(rejectedJoinPlans));
     _cursorType = _rootData.staticData->cursorType;
 
     if (_remoteCursors) {

@@ -47,6 +47,7 @@
 #include "mongo/db/query/compiler/physical_model/query_solution/query_solution.h"
 #include "mongo/db/query/plan_executor.h"
 #include "mongo/db/query/plan_explainer.h"
+#include "mongo/db/query/plan_explainer_sbe.h"
 #include "mongo/db/query/plan_yield_policy_sbe.h"
 #include "mongo/db/query/restore_context.h"
 #include "mongo/db/query/sbe_plan_ranker.h"
@@ -95,7 +96,8 @@ public:
                     std::unique_ptr<MultiPlanStage> classicRuntimePlannerStage,
                     const MultipleCollectionAccessor& mca,
                     bool usedJoinOpt = false,
-                    cost_based_ranker::EstimateMap estimates = {});
+                    cost_based_ranker::EstimateMap estimates = {},
+                    std::vector<JoinOptPlan> rejectedJoinPlans = {});
 
     CanonicalQuery* getCanonicalQuery() const override {
         return _cq.get();

@@ -394,4 +394,19 @@ std::string PlanEnumeratorContext::toString() const {
     return ss.str();
 }
 
+std::vector<JoinPlanNodeId> PlanEnumeratorContext::getRejectedFinalPlans() const {
+    std::vector<JoinPlanNodeId> rejected;
+    auto bestPlan = getBestFinalPlan();
+    const auto& plans = finalSubset().plans;
+    rejected.reserve(plans.size() - 1);
+    for (auto&& plan : plans) {
+        if (plan == bestPlan) {
+            continue;
+        }
+        rejected.push_back(plan);
+    }
+    return rejected;
+}
+
+
 }  // namespace mongo::join_ordering

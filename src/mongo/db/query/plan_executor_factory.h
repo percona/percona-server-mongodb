@@ -42,6 +42,7 @@
 #include "mongo/db/query/compiler/physical_model/query_solution/query_solution.h"
 #include "mongo/db/query/multiple_collection_accessor.h"
 #include "mongo/db/query/plan_executor.h"
+#include "mongo/db/query/plan_explainer_sbe.h"
 #include "mongo/db/query/plan_yield_policy.h"
 #include "mongo/db/query/plan_yield_policy_sbe.h"
 #include "mongo/db/query/query_planner.h"
@@ -140,6 +141,7 @@ StatusWith<std::unique_ptr<PlanExecutor, PlanExecutor::Deleter>> make(
     boost::optional<size_t> cachedPlanHash,
     bool usedJoinOpt = false,
     cost_based_ranker::EstimateMap estimates = {},
+    std::vector<JoinOptPlan> rejectedJoinPlans = {},
     std::unique_ptr<RemoteCursorMap> remoteCursors = nullptr,
     std::unique_ptr<RemoteExplainVector> remoteExplains = nullptr,
     std::unique_ptr<MultiPlanStage> classicRuntimePlannerStage = nullptr);

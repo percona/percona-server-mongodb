@@ -619,7 +619,8 @@ PlanExplainerSBEBase::PlanExplainerSBEBase(
     std::shared_ptr<const plan_cache_debug_info::DebugInfoSBE> debugInfo,
     RemoteExplainVector* remoteExplains,
     bool usedJoinOpt,
-    cost_based_ranker::EstimateMap estimates)
+    cost_based_ranker::EstimateMap estimates,
+    std::vector<JoinOptPlan> rejectedPlans)
     : PlanExplainer{solution},
       _root{root},
       _rootData{data},
@@ -629,7 +630,8 @@ PlanExplainerSBEBase::PlanExplainerSBEBase(
       _usedJoinOpt{usedJoinOpt},
       _cachedPlanHash{cachedPlanHash},
       _debugInfo{debugInfo},
-      _remoteExplains{remoteExplains} {
+      _remoteExplains{remoteExplains},
+      _rejectedPlansForJoinOpt{std::move(rejectedPlans)} {
     tassert(5968203, "_debugInfo should not be null", _debugInfo);
 }
 
@@ -753,7 +755,8 @@ PlanExplainerClassicRuntimePlannerForSBE::PlanExplainerClassicRuntimePlannerForS
     std::unique_ptr<PlanStage> classicRuntimePlannerStage,
     RemoteExplainVector* remoteExplains,
     bool usedJoinOpt,
-    cost_based_ranker::EstimateMap estimates)
+    cost_based_ranker::EstimateMap estimates,
+    std::vector<JoinOptPlan> rejectedPlans)
     : PlanExplainerSBEBase{root,
                            data,
                            solution,
@@ -763,7 +766,8 @@ PlanExplainerClassicRuntimePlannerForSBE::PlanExplainerClassicRuntimePlannerForS
                            std::move(debugInfo),
                            remoteExplains,
                            usedJoinOpt,
-                           std::move(estimates)},
+                           std::move(estimates),
+                           std::move(rejectedPlans)},
       _classicRuntimePlannerStage{std::move(classicRuntimePlannerStage)},
       _classicRuntimePlannerExplainer{
           _classicRuntimePlannerStage  // If there were no multi-planning, this will be nullptr.
@@ -790,6 +794,25 @@ PlanExplainer::PlanStatsDetails PlanExplainerClassicRuntimePlannerForSBE::getWin
 std::vector<PlanExplainer::PlanStatsDetails>
 PlanExplainerClassicRuntimePlannerForSBE::getRejectedPlansStats(
     ExplainOptions::Verbosity verbosity) const {
+    if (_usedJoinOpt) {
+        std::vector<PlanExplainer::PlanStatsDetails> out;
+        for (auto&& soln : _rejectedPlansForJoinOpt) {
+            auto stats = soln.stage->getStats(true /* includeDebugInfo  */);
+            out.push_back(buildPlanStatsDetails(soln.soln.get(),
+                                                *stats,
+                                                soln.stage.get(),
+                                                &soln.data,
+                                                boost::none /* planSummary */,
+                                                boost::none /* queryParams */,
+                                                boost::none /* remotePlanInfo */,
+                                                verbosity,
+                                                false /* matchesCachedPlan */,
+                                                false /* printBytecode */,
+                                                true /* usedJoinOpt */,
+                                                _estimates));
+        }
+        return out;
+    }
     return _classicRuntimePlannerExplainer
         ? _classicRuntimePlannerExplainer->getRejectedPlansStats(verbosity)
         : std::vector<PlanExplainer::PlanStatsDetails>{};

@@ -144,6 +144,7 @@ StatusWith<std::unique_ptr<PlanExecutor, PlanExecutor::Deleter>> make(
     boost::optional<size_t> cachedPlanHash,
     bool usedJoinOpt,
     cost_based_ranker::EstimateMap estimates,
+    std::vector<JoinOptPlan> rejectedJoinPlans,
     std::unique_ptr<RemoteCursorMap> remoteCursors,
     std::unique_ptr<RemoteExplainVector> remoteExplains,
     std::unique_ptr<MultiPlanStage> classicRuntimePlannerStage) {
@@ -174,7 +175,8 @@ StatusWith<std::unique_ptr<PlanExecutor, PlanExecutor::Deleter>> make(
                                  std::move(classicRuntimePlannerStage),
                                  collections,
                                  usedJoinOpt,
-                                 std::move(estimates)),
+                                 std::move(estimates),
+                                 std::move(rejectedJoinPlans)),
              PlanExecutor::Deleter{opCtx}}};
 }
 

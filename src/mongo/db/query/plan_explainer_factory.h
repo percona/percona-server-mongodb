@@ -35,6 +35,7 @@
 #include "mongo/db/query/plan_cache/plan_cache_debug_info.h"
 #include "mongo/db/query/plan_enumerator/plan_enumerator_explain_info.h"
 #include "mongo/db/query/plan_explainer.h"
+#include "mongo/db/query/plan_explainer_sbe.h"
 #include "mongo/db/query/stage_builder/sbe/builder_data.h"
 #include "mongo/util/modules.h"
 
@@ -71,5 +72,6 @@ std::unique_ptr<PlanExplainer> make(
     std::unique_ptr<PlanStage> classicRuntimePlannerStage,
     RemoteExplainVector* remoteExplains = nullptr,
     bool usedJoinOpt = false,
-    cost_based_ranker::EstimateMap estimates = {});
+    cost_based_ranker::EstimateMap estimates = {},
+    std::vector<JoinOptPlan> rejectedPlans = {});
 }  // namespace mongo::plan_explainer_factory

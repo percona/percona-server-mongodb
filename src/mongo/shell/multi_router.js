@@ -500,11 +500,6 @@ function MultiRouterMongo(uri, encryptedDBClientCallback, apiParameters) {
             this.refreshClusterParameters();
         }
 
-        if (this.shouldDisableMultiRouter_TEMPORARY_WORKAROUND(cmd)) {
-            // Self disable the multi-router.
-            // Starting from the next runCommand, any command will run against the primary mongo until the end of the test.
-            TestData.pinToSingleMongos = true;
-        }
         return result;
     };
 
@@ -580,20 +575,6 @@ function MultiRouterMongo(uri, encryptedDBClientCallback, apiParameters) {
         // Assert the primary Mongo is connected to a mongos
         const res = assert.commandWorked(this.primaryMongo._getDefaultSession().getClient().adminCommand("ismaster"));
         return "isdbgrid" === res.msg;
-    };
-
-    // For every logic within this function there must be associated a TODO ticket.
-    // Check if the current command is currently unsupported due to a necesserary fix.
-    this.shouldDisableMultiRouter_TEMPORARY_WORKAROUND = function (cmd) {
-        // TODO (SERVER-115554) remove this check once the described issue is solved in v8.0
-        // Timeseries in v8.0 might fail to insert if the routing cache is stale.
-        // We currently don't support timeseries insertions in multi-version on multi-router.
-        let disable = false;
-        if (cmd && cmd.create && cmd.timeseries && TestData.mongosBinVersion) {
-            chatty("Disabling Multi-Router connector - the command is temporarily unsupported" + tojson(cmd));
-            disable = true;
-        }
-        return disable;
     };
 
     this.toString = function () {

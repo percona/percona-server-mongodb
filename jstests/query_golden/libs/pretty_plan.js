@@ -2,7 +2,12 @@
  * Pretty-printing helpers for query plans in explain.
  */
 import {prettyPrintTree} from "jstests/query_golden/libs/pretty_tree.js";
-import {normalizePlan, getWinningPlanFromExplain, kExplainChildFieldNames} from "jstests/libs/query/analyze_plan.js";
+import {
+    normalizePlan,
+    getWinningPlanFromExplain,
+    kExplainChildFieldNames,
+    getRejectedPlans,
+} from "jstests/libs/query/analyze_plan.js";
 
 //
 // Helpers used below to get an abbreviated join order.
@@ -111,13 +116,23 @@ function getNodeChildren(node) {
  * Pretty-prints the given plan as a tree.
  */
 export function prettyPrintPlan(plan) {
-    const winningPlan = normalizePlan(plan, false /*shouldFlatten*/);
-    prettyPrintTree(winningPlan, printPlanNode, getNodeChildren);
+    const normPlan = normalizePlan(plan, false /*shouldFlatten*/);
+    prettyPrintTree(normPlan, printPlanNode, getNodeChildren);
 }
 
 /**
  * Same as above, but extracts the winning plan from 'explain' to print.
  */
 export function prettyPrintWinningPlan(explain) {
-    return prettyPrintPlan(getWinningPlanFromExplain(explain));
+    prettyPrintPlan(getWinningPlanFromExplain(explain));
+}
+
+/**
+ * Same as above, but extracts the rejected plans from 'explain' to print.
+ */
+export function prettyPrintRejectedPlans(explain) {
+    const rejectedPlans = getRejectedPlans(explain);
+    for (const plan of rejectedPlans) {
+        prettyPrintPlan(plan.queryPlan);
+    }
 }

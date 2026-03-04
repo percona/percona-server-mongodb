@@ -76,6 +76,7 @@ std::unique_ptr<PlanExecutor, PlanExecutor::Deleter> PlannerBase::prepareSbePlan
                                                        cachedPlanHash,
                                                        false /*usedJoinOpt*/,
                                                        {} /* estimates */,
+                                                       {} /* rejectedJoinPlans */,
                                                        std::move(remoteCursors),
                                                        std::move(remoteExplains),
                                                        std::move(classicRuntimePlannerStage)));

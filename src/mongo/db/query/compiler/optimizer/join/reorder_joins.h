@@ -36,10 +36,16 @@
 namespace mongo::join_ordering {
 
 struct ReorderedJoinSolution {
+    // Winning plan lowered to SBE for use by the executor.
     std::unique_ptr<QuerySolution> soln;
+
     // Base node of new join order.
     NodeId baseNode;
-    // Estimate information for QuerySolutionNodes in 'soln'.
+
+    // Only populated for explain. Pairs rejected QuerySolutions with their base nodes.
+    std::vector<std::pair<std::unique_ptr<QuerySolution>, NodeId>> rejectedSolns;
+
+    // Only populated for explain. Estimate information for QuerySolutionNodes in 'soln'.
     cost_based_ranker::EstimateMap estimates;
 };
 
