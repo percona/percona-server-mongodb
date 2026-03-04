@@ -45,8 +45,8 @@ jobs:
         id: app-token
         uses: actions/create-github-app-token@v1
         with:
-          app-id: ${{ secrets.GH_APP_ID }}
-          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+          app-id: ${{ secrets.PSMDB_BOT_GH_APP_ID }}
+          private-key: ${{ secrets.PSMDB_BOT_GH_APP_PRIVATE_KEY }}
 
       # --- Gather PR Information ---
       # Fetch PR details since issue_comment events don't include full PR data.
