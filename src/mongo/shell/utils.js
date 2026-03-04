@@ -2057,6 +2057,7 @@ export {
     help,
     indentStr,
     isNetworkError,
+    isPSMDBOrEnterprise,
     isRetryableError,
     jsTest,
     jsTestOptions,

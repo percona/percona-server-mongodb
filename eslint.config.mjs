@@ -222,6 +222,7 @@ export default [
                 help: true,
                 indentStr: true,
                 isNetworkError: true,
+                isPSMDBOrEnterprise: true,
                 isRetryableError: true,
                 jsTest: true,
                 jsTestOptions: true,
