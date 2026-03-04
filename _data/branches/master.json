@@ -5,14 +5,14 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 328,
+    "commits_behind": 334,
     "days_behind": 9,
-    "files_affected": 1387,
-    "total_additions": 62840,
-    "total_deletions": 43049,
+    "files_affected": 1395,
+    "total_additions": 64011,
+    "total_deletions": 43053,
     "date_range": {
       "first": "2026-02-23T08:05:47+00:00",
-      "last": "2026-03-04T09:53:13+00:00"
+      "last": "2026-03-04T14:34:55+00:00"
     }
   },
   "last_merged_commit": {
@@ -36,6 +36,66 @@
     "summary": "SERVER-119199 Enable multi-router on tests that create timeseries collections on multiversion (#48244)"
   },
   "unmerged_commits": [
+    {
+      "sha": "e52b4f65c9f973b8b28a90e131358bb861281f17",
+      "short_sha": "e52b4f65c9f",
+      "date": "2026-03-04T14:34:55+00:00",
+      "author": {
+        "name": "Vesko Karaganev",
+        "email": "vesko.karaganev@mongodb.com"
+      },
+      "summary": "SERVER-119380 Add document transformation helpers (#48231)"
+    },
+    {
+      "sha": "c8cbd182f1c2eb5ac18ff50ba8cf9b50558a4b2d",
+      "short_sha": "c8cbd182f1c",
+      "date": "2026-03-04T09:33:16-05:00",
+      "author": {
+        "name": "Cedric Sirianni",
+        "email": "cedric.sirianni@mongodb.com"
+      },
+      "summary": "SERVER-120812: Fix shouldEnforceFastCountOrSize() typo (#48906)"
+    },
+    {
+      "sha": "c9529e76b139c12125990d1f6c7da4ca081beef0",
+      "short_sha": "c9529e76b13",
+      "date": "2026-03-04T13:53:12+00:00",
+      "author": {
+        "name": "Vesko Karaganev",
+        "email": "vesko.karaganev@mongodb.com"
+      },
+      "summary": "SERVER-119380 Introduce DescribesDocumentTransformation concept (#48063)"
+    },
+    {
+      "sha": "6ede91918fff8156d516ee789197d43808e508bb",
+      "short_sha": "6ede91918ff",
+      "date": "2026-03-04T16:16:14+03:00",
+      "author": {
+        "name": "Abdul Qadeer",
+        "email": "abdul.qadeer@mongodb.com"
+      },
+      "summary": "SERVER-120863 Increase connectTimeoutMS for some commands in ShardedClusterFixture (#48949)"
+    },
+    {
+      "sha": "0111dee6ffa3c8a07bb56508c836e5daba279a1e",
+      "short_sha": "0111dee6ffa",
+      "date": "2026-03-04T13:12:22+01:00",
+      "author": {
+        "name": "Igor Praznik",
+        "email": "95708172+igpraznik@users.noreply.github.com"
+      },
+      "summary": "SERVER-120698 Disable multi-mongos execution in jstests/core/catalog/list_databases.js (#48842)"
+    },
+    {
+      "sha": "8d6f7f14cab279f5cefbc82eaa6138b2b619b01c",
+      "short_sha": "8d6f7f14cab",
+      "date": "2026-03-04T10:33:50+00:00",
+      "author": {
+        "name": "mongo-pr-bot[bot]",
+        "email": "230616009+mongo-pr-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "SERVER-110427 Update profiling data (#48962)"
+    },
     {
       "sha": "ab3980420ec2a4c98d7b7faaae6ecda611cfc641",
       "short_sha": "ab3980420ec",
@@ -3780,7 +3840,7 @@
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-03-04 10:46:02",
+  "generated_at": "2026-03-04 16:03:52",
   "branch_name": "master",
   "display_name": "master"
 }
