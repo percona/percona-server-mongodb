@@ -165,7 +165,7 @@ function runTestRenameFileExist(fileName, format) {
     // Maximum number of seconds to create rotated files ahead of the current time.
     // This should be big enough to make sure that the second instance of mongod will
     // attempt to rename the audit log file to a file that already exists.
-    const maxSeconds = 15;
+    const maxSeconds = 30;
 
     const config = {
         auditDestination: "file",
