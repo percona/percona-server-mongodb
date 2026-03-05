@@ -23,6 +23,9 @@
  *   requires_getmore,
  *   # $text is not supported on views.
  *   incompatible_with_views,
+ *   # Primary-driven index builds must have batched writes enabled which config.image_collection
+ *   # does not support.
+ *   primary_driven_index_builds_incompatible_with_retryable_writes,
  * ]
  */
 import {arrayEq} from "jstests/aggregation/extras/utils.js";

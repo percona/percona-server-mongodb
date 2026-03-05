@@ -260,6 +260,8 @@ std::unique_ptr<PlanStageStats> HashJoinStage::getStats(bool includeDebugInfo) c
             .appendNumber("numPartitionsSpilled", specificStats->numPartitionsSpilled)
             .appendNumber("numPartitionSwaps", specificStats->numPartitionSwaps)
             .appendNumber("recursionDepthMax", specificStats->recursionDepthMax)
+            .appendNumber("numFallbacksToBlockNestedLoopJoin",
+                          specificStats->numFallbacksToBlockNestedLoopJoin)
             .appendNumber("spills", static_cast<long long>(spillingStats.getSpills()))
             .appendNumber("spilledRecords",
                           static_cast<long long>(spillingStats.getSpilledRecords()))

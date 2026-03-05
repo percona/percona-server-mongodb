@@ -17,6 +17,9 @@
 //   assumes_no_implicit_cursor_exhaustion,
 //   # Test relies on mapReduce or unsupported $expr behaviors (e.g. $divide error codes) on time-series.
 //   exclude_from_timeseries_crud_passthrough,
+//   # Primary-driven index builds must have batched writes enabled which config.image_collection
+//   # does not support.
+//   primary_driven_index_builds_incompatible_with_retryable_writes,
 // ]
 
 import "jstests/libs/query/sbe_assert_error_override.js";

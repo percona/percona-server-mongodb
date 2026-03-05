@@ -5,6 +5,9 @@
 //   requires_non_retryable_writes,
 //   does_not_support_transactions,
 //   requires_getmore,
+//   # Primary-driven index builds must have batched writes enabled which config.image_collection
+//   # does not support.
+//   primary_driven_index_builds_incompatible_with_retryable_writes,
 // ]
 import {assertArrayEq} from "jstests/aggregation/extras/utils.js";
 

@@ -7,6 +7,9 @@
  *   requires_non_retryable_writes,
  *   # Ignore because the find command is rewritten for TS collections before reaching the failpoint.
  *   exclude_from_timeseries_crud_passthrough,
+ *   # Primary-driven index builds must have batched writes enabled which config.image_collection
+ *   # does not support.
+ *   primary_driven_index_builds_incompatible_with_retryable_writes,
  * ]
  */
 import {arrayEq} from "jstests/aggregation/extras/utils.js";

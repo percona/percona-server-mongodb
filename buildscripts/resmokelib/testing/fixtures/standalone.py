@@ -74,7 +74,7 @@ class MongoDFixture(interface.Fixture, interface._DockerComposeInterface):
 
         # Process load_extensions: ["*"] means all, otherwise load named extensions.
         _load_exts = normalize_load_extensions(load_extensions)
-        if self.config.LOAD_ALL_EXTENSIONS and "*" not in _load_exts:
+        if load_extensions is None and self.config.LOAD_ALL_EXTENSIONS:
             _load_exts = ["*"]
 
         self.loaded_extensions = None

@@ -1,0 +1,21 @@
+load("//bazel:export_header.bzl", "generate_dummy_export_header")
+load("@rules_cc//cc:defs.bzl", "cc_library")
+
+generate_dummy_export_header(
+    name = "export_header",
+    basename = "PROMETHEUS_CPP_CORE",
+    header = "include/prometheus/detail/core_export.h",
+)
+
+cc_library(
+    name = "core",
+    srcs = glob([
+        "src/**/*.cc",
+        "src/**/*.h",
+    ]),
+    hdrs = glob(
+        ["include/**/*.h"],
+    ) + [":export_header"],
+    strip_include_prefix = "include",
+    visibility = ["//visibility:public"],
+)

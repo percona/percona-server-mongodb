@@ -402,6 +402,12 @@ class ReplSetBuilder(FixtureBuilder):
                 mongod_executable=executables[BinVersionEnum.OLD],
                 mongod_options=mongod_options,
                 preserve_dbpath=replset.preserve_dbpath,
+                # Child MongoDFixtures receive load_extensions=[] to prevent them from re-processing
+                # the LOAD_ALL_EXTENSIONS global flag. The parent ReplicaSetFixture already handled
+                # extension loading and populated mongod_options["loadExtensions"]; passing [] (rather
+                # than the default None) signals "skip the global flag" without suppressing explicitly
+                # requested extensions.
+                load_extensions=[],
                 use_priority_port=use_priority_port,
             )
 
@@ -420,6 +426,7 @@ class ReplSetBuilder(FixtureBuilder):
             preserve_dbpath=replset.preserve_dbpath,
             port=new_fixture_port,
             launch_mongot=launch_mongot,
+            load_extensions=[],
             use_priority_port=use_priority_port,
         )
 
@@ -651,6 +658,8 @@ class ShardedClusterBuilder(FixtureBuilder):
         configsvr_logger = sharded_cluster.get_configsvr_logger()
         configsvr_kwargs = sharded_cluster.get_configsvr_kwargs()
         configsvr_kwargs["use_priority_ports"] = use_priority_ports
+        # Parent ShardedClusterFixture already loaded extensions; see comment above in _new_mongod().
+        configsvr_kwargs["load_extensions"] = []
 
         mixed_bin_versions = None
         if is_multiversion:
@@ -693,6 +702,8 @@ class ShardedClusterBuilder(FixtureBuilder):
         rs_shard_kwargs = sharded_cluster.get_rs_shard_kwargs(rs_shard_index)
         rs_shard_kwargs["launch_mongot"] = launch_mongot
         rs_shard_kwargs["use_priority_ports"] = use_priority_ports
+        # Parent ShardedClusterFixture already loaded extensions; see comment above in _new_mongod().
+        rs_shard_kwargs["load_extensions"] = []
 
         if mixed_bin_versions is not None:
             start_index = rs_shard_index * num_rs_nodes_per_shard

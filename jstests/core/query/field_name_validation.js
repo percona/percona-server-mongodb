@@ -12,6 +12,9 @@
  *   requires_getmore,
  *   # Time-series collections have different _id properties.
  *   exclude_from_timeseries_crud_passthrough,
+ *   # Primary-driven index builds must have batched writes enabled which config.image_collection
+ *   # does not support.
+ *   primary_driven_index_builds_incompatible_with_retryable_writes,
  * ]
  */
 const coll = db.field_name_validation;

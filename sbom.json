@@ -2058,6 +2058,57 @@
     },
     {
       "type": "library",
+      "bom-ref": "pkg:github/jupp0r/prometheus-cpp@1.3.0",
+      "supplier": {
+        "name": "Prometheus",
+        "url": [
+          "https://prometheus.io/"
+        ]
+      },
+      "author": "Jupp Mueller",
+      "name": "prometheus-cpp",
+      "version": "1.3.0",
+      "description": "Prometheus client library for C++",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "copyright": "Jupp Mueller, Gregor Jasny",
+      "purl": "pkg:github/jupp0r/prometheus-cpp@1.3.0",
+      "externalReferences": [
+        {
+          "url": "https://github.com/jupp0r/prometheus-cpp",
+          "type": "vcs"
+        }
+      ],
+      "properties": [
+        {
+          "name": "internal:team_responsible",
+          "value": "Networking & Observability"
+        },
+        {
+          "name": "emits_persisted_data",
+          "value": "true"
+        },
+        {
+          "name": "import_script_path",
+          "value": "src/third_party/prometheus-cpp/scripts/import.sh"
+        }
+      ],
+      "evidence": {
+        "occurrences": [
+          {
+            "location": "src/third_party/prometheus-cpp"
+          }
+        ]
+      },
+      "scope": "optional"
+    },
+    {
+      "type": "library",
       "bom-ref": "pkg:github/protocolbuffers/protobuf@v6.31.1",
       "supplier": {
         "name": "Google LLC",

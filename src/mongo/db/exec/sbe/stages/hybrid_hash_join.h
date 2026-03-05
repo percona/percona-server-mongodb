@@ -99,6 +99,44 @@ private:
     std::unique_ptr<Impl> _impl;
 };
 
+// Encapsulates spill storage and writer for a single side (build or probe).
+struct SpillHandle {
+    sorter::FileBasedSorterStorage<FileKey, FileValue> storage;
+    std::unique_ptr<SortedStorageWriter<FileKey, FileValue>> writer;
+    SorterRange range;
+    int64_t size = 0;  // refers to size in memory rather than serialized size
+
+    static constexpr int64_t kWriteBufferSize = (int64_t)sorter::kSortedFileBufferSize;
+
+    SpillHandle(const boost::filesystem::path& tempDir, SorterFileStats* fileStats)
+        : storage(std::make_shared<SorterFile>(sorter::nextFileName(tempDir), fileStats), tempDir),
+          writer(storage.makeWriter(SortOptions{})) {}
+
+    void finishWrite() {
+        range = writer->done()->getRange();
+    }
+
+    std::shared_ptr<SpillIterator> getIterator() {
+        return storage.getSortedIterator(range, SpillIterator::Settings());
+    }
+};
+
+struct SpilledPartition {
+    SpillHandle buildSpill;
+    SpillHandle probeSpill;
+
+    SpilledPartition(const boost::filesystem::path& tempDir, SorterFileStats* fileStats)
+        : buildSpill(tempDir, fileStats), probeSpill(tempDir, fileStats) {}
+
+    bool swapIfProbeIsSmaller() {
+        if (buildSpill.size > probeSpill.size) {
+            std::swap(buildSpill, probeSpill);
+            return true;
+        }
+        return false;
+    }
+};
+
 /**
  * Implements a hybrid hash join algorithm with spill-to-disk support for memory-bounded
  * execution. This class provides the core join logic used by HashJoinStage.
@@ -177,42 +215,6 @@ public:
 
 private:
     enum class Phase { kBuild, kProbe, kProcessSpilled };
-
-    // Encapsulates spill storage and batched writer for a single side (build or probe).
-    struct SpillHandle {
-        std::shared_ptr<SorterFile> file;
-        std::unique_ptr<sorter::SortedFileWriter<FileKey, FileValue>> writer;
-        std::unique_ptr<SpillIterator> iterator;
-        int64_t size = 0;  // refers to size in memory rather than serialized size
-
-        static constexpr int64_t kWriteBufferSize = (int64_t)sorter::kSortedFileBufferSize;
-
-        SpillHandle(const boost::filesystem::path& tempDir, SorterFileStats* fileStats)
-            : file(std::make_shared<SorterFile>(sorter::nextFileName(tempDir), fileStats)),
-              writer(std::make_unique<sorter::SortedFileWriter<FileKey, FileValue>>(SortOptions{},
-                                                                                    file)) {}
-
-        void finishWrite() {
-            iterator = writer->doneUnique();
-            writer.reset();  // this releases the underlying buffer.
-        }
-    };
-
-    struct SpilledPartition {
-        SpillHandle buildSpill;
-        SpillHandle probeSpill;
-
-        SpilledPartition(const boost::filesystem::path& tempDir, SorterFileStats* fileStats)
-            : buildSpill(tempDir, fileStats), probeSpill(tempDir, fileStats) {}
-
-        bool swapIfProbeIsSmaller() {
-            if (buildSpill.size > probeSpill.size) {
-                std::swap(buildSpill, probeSpill);
-                return true;
-            }
-            return false;
-        }
-    };
 
     // Computes partition index using hash bits at the current recursion level.
     int getPartitionId(const value::MaterializedRow& key) const;

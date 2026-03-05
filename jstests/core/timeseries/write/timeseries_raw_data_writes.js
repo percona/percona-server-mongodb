@@ -4,6 +4,9 @@
  *   requires_timeseries,
  *   does_not_support_transactions,
  *   requires_non_retryable_writes,
+ *   # Primary-driven index builds must have batched writes enabled which config.image_collection
+ *   # does not support.
+ *   primary_driven_index_builds_incompatible_with_retryable_writes,
  * ]
  */
 

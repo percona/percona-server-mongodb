@@ -412,6 +412,7 @@ struct HashJoinStats : public SpecificStats {
 
     // The maximum depth of the recursion.
     int recursionDepthMax = 0;
+    int numFallbacksToBlockNestedLoopJoin = 0;
 };
 
 struct WindowStats : public SpecificStats {

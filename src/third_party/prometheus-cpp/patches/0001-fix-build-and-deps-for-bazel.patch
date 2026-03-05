@@ -1,0 +1,49 @@
+diff --git b/src/third_party/prometheus-cpp/dist/MODULE.bazel a/src/third_party/prometheus-cpp/dist/MODULE.bazel
+index 8bcc2f444ee..3725746ef6a 100644
+--- b/src/third_party/prometheus-cpp/dist/MODULE.bazel
++++ a/src/third_party/prometheus-cpp/dist/MODULE.bazel
+@@ -4,12 +4,17 @@ module(
+     repo_name = "com_github_jupp0r_prometheus_cpp",
+ )
+
+-bazel_dep(name = "boringssl", version = "0.0.0-20240530-2db0eb3")
+-bazel_dep(name = "civetweb", version = "1.16")
+-bazel_dep(name = "curl", version = "8.7.1", repo_name = "com_github_curl")
++bazel_dep(name = "boringssl", version = "")
++local_path_override(
++    module_name = "boringssl",
++    path = "../boringssl_replacement",
++)
++
+ bazel_dep(name = "platforms", version = "0.0.10")
+-bazel_dep(name = "rules_cc", version = "0.0.9")
++bazel_dep(name = "rules_cc", version = "0.2.10")
++bazel_dep(name = "rules_foreign_cc", version = "0.15.1")
+ bazel_dep(name = "zlib", version = "1.3.1")
+-
+-bazel_dep(name = "google_benchmark", version = "1.8.3", dev_dependency = True, repo_name = "com_github_google_benchmark")
+-bazel_dep(name = "googletest", version = "1.12.1", dev_dependency = True, repo_name = "com_google_googletest")
++local_path_override(
++    module_name = "zlib",
++    path = "../zlib",
++)
+diff --git b/src/third_party/prometheus-cpp/dist/core/BUILD.bazel a/src/third_party/prometheus-cpp/dist/core/BUILD.bazel
+index a302f19572f..f4f21248361 100644
+--- b/src/third_party/prometheus-cpp/dist/core/BUILD.bazel
++++ a/src/third_party/prometheus-cpp/dist/core/BUILD.bazel
+@@ -1,4 +1,5 @@
+ load("//bazel:export_header.bzl", "generate_dummy_export_header")
++load("@rules_cc//cc:defs.bzl", "cc_library")
+ 
+ generate_dummy_export_header(
+     name = "export_header",
+diff --git b/src/third_party/prometheus-cpp/dist/util/BUILD.bazel a/src/third_party/prometheus-cpp/dist/util/BUILD.bazel
+index e9e8a31a378..2dcf40f08b0 100644
+--- b/src/third_party/prometheus-cpp/dist/util/BUILD.bazel
++++ a/src/third_party/prometheus-cpp/dist/util/BUILD.bazel
+@@ -1,3 +1,5 @@
++load("@rules_cc//cc:defs.bzl", "cc_library")
++
+ cc_library(
+     name = "util",
+     hdrs = glob(["include/**/*.h"]),

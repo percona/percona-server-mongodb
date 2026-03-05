@@ -17,6 +17,12 @@ const testName = "pre_image_truncate_after_shutdown_oldest_oplog_ts";
 const preImageTruncateAfterShutdownTest = new PreImageTruncateAfterShutdownTest(testName);
 preImageTruncateAfterShutdownTest.setup();
 
+if (preImageTruncateAfterShutdownTest.isRunningReplicatedPreImageTruncation()) {
+    jsTest.log.info("This test is only relevant for unreplicated pre-image truncation. Skipping test.");
+    preImageTruncateAfterShutdownTest.teardown();
+    quit();
+}
+
 /////////////////////////////////////////////////////////////////////////////////////////////////
 //
 //      UNCLEAN SHUTDOWNS

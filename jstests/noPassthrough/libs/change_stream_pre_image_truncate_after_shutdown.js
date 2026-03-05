@@ -24,6 +24,7 @@
  */
 
 import {assertDropAndRecreateCollection} from "jstests/libs/collection_drop_recreate.js";
+import {FeatureFlagUtil} from "jstests/libs/feature_flag_util.js";
 import {
     getPreImages,
     getPreImagesCollection,
@@ -591,5 +592,13 @@ export class PreImageTruncateAfterShutdownTest {
             restartWithRepair,
             restartFn,
         });
+    }
+
+    isRunningReplicatedPreImageTruncation() {
+        // DSC only supports replicated truncates.
+        if (TestData.notASC) {
+            return true;
+        }
+        return FeatureFlagUtil.isPresentAndEnabled(this._rst.getPrimary(), "UseReplicatedTruncatesForDeletions");
     }
 }

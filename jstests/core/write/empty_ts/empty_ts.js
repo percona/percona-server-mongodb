@@ -6,6 +6,9 @@
  *   # For inserts on time-series collections, mongod does _not_ replace empty timestamp values
  *   # with the current time.
  *   exclude_from_timeseries_crud_passthrough,
+ *   # Primary-driven index builds must have batched writes enabled which config.image_collection
+ *   # does not support.
+ *   primary_driven_index_builds_incompatible_with_retryable_writes,
  * ]
  */
 

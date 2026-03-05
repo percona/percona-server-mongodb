@@ -124,11 +124,30 @@ py_binary(
     ],
 )
 
+py_library(
+    name = "resource_monitor",
+    srcs = [
+        "resource_monitor.py",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        dependency(
+            "psutil",
+            group = "core",
+        ),
+    ],
+)
+
 py_binary(
     name = "resmoke_shim",
-    srcs = ["resmoke_shim.py"],
+    srcs = [
+        "resmoke_shim.py",
+    ],
     main = "resmoke_shim.py",
     visibility = ["//visibility:public"],
+    deps = [
+        ":resource_monitor",
+    ],
 )
 
 exports_files([

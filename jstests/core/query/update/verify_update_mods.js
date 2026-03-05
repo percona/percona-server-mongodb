@@ -8,6 +8,9 @@
  *   requires_non_retryable_writes,
  *   # Incompatible with the update option manipulation from the override.
  *   exclude_from_timeseries_crud_passthrough,
+ *   # Primary-driven index builds must have batched writes enabled which config.image_collection
+ *   # does not support.
+ *   primary_driven_index_builds_incompatible_with_retryable_writes,
  * ]
  */
 const testDB = db.getSiblingDB(jsTestName());

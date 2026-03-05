@@ -69,6 +69,29 @@ PlanTreeShape getPlanTreeShape(JoinPlanTreeShapeEnum shape) {
     }
 }
 
+PerSubsetLevelEnumerationMode getMode(size_t minLevel, size_t maxLevel) {
+    // Only try to update the enumeration mode to ALL if the query knobs are set to sane values.
+    if (minLevel < maxLevel && minLevel < kHardMaxNodesInJoin) {
+        if (minLevel == 0) {
+            return {{{0, PlanEnumerationMode::ALL}, {maxLevel, PlanEnumerationMode::CHEAPEST}}};
+        }
+
+        return {{{0, PlanEnumerationMode::CHEAPEST},
+                 {minLevel, PlanEnumerationMode::ALL},
+                 {maxLevel, PlanEnumerationMode::CHEAPEST}}};
+    }
+
+    return PlanEnumerationMode::CHEAPEST;
+}
+
+EnumerationStrategy getEnumerationStrategy(const QueryKnobConfiguration& qkc) {
+    auto minLevel = qkc.getInternalMinAllPlansEnumerationSubsetLevel();
+    auto maxLevel = qkc.getInternalMaxAllPlansEnumerationSubsetLevel();
+    return {.planShape = getPlanTreeShape(qkc.getJoinPlanTreeShape()),
+            .mode = getMode(minLevel, maxLevel),
+            .enableHJOrderPruning = qkc.getEnableJoinEnumerationHJOrderPruning()};
+}
+
 bool anySecondaryNamespacesDontExist(const MultipleCollectionAccessor& mca) {
     auto colls = mca.getSecondaryCollectionAcquisitions();
     return std::any_of(
@@ -261,12 +284,10 @@ StatusWith<JoinReorderedExecutorResult> getJoinReorderedExecutor(
                 std::make_unique<JoinCardinalityEstimator>(JoinCardinalityEstimator::make(
                     ctx, swAccessPlans.getValue().estimate, samplingEstimators));
             auto costEstimator = std::make_unique<JoinCostEstimatorImpl>(ctx, *cardEstimator);
-            EnumerationStrategy strategy{.planShape = getPlanTreeShape(qkc.getJoinPlanTreeShape()),
-                                         .mode = PlanEnumerationMode::CHEAPEST,
-                                         .enableHJOrderPruning =
-                                             qkc.getEnableJoinEnumerationHJOrderPruning()};
-            reordered = constructSolutionBottomUp(
-                ctx, std::move(cardEstimator), std::move(costEstimator), std::move(strategy));
+            reordered = constructSolutionBottomUp(ctx,
+                                                  std::move(cardEstimator),
+                                                  std::move(costEstimator),
+                                                  getEnumerationStrategy(qkc));
             break;
         }
         case JoinReorderModeEnum::kRandom:

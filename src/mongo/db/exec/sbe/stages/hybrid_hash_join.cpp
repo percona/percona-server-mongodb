@@ -141,8 +141,8 @@ boost::optional<MatchResult> InMemoryJoinCursor::next() {
 class SpilledPartitionJoinCursor final : public JoinCursor::Impl {
 public:
     SpilledPartitionJoinCursor(HHJTableType& ht,
-                               std::unique_ptr<SpillIterator> buildIterator,
-                               std::unique_ptr<SpillIterator> probeIterator,
+                               std::shared_ptr<SpillIterator> buildIterator,
+                               std::shared_ptr<SpillIterator> probeIterator,
                                bool swapped)
         : _ht(ht), _probeIterator(std::move(probeIterator)), _swapped(swapped) {
         // Load the build side into the hash table.
@@ -156,7 +156,7 @@ public:
 
 private:
     HHJTableType& _ht;
-    std::unique_ptr<SpillIterator> _probeIterator;
+    std::shared_ptr<SpillIterator> _probeIterator;
     bool _swapped;
     HHJTableType::iterator _htIt{};
     HHJTableType::iterator _htItEnd{};
@@ -200,8 +200,8 @@ boost::optional<MatchResult> SpilledPartitionJoinCursor::next() {
 class RecursiveJoinJoinCursor final : public JoinCursor::Impl {
 public:
     RecursiveJoinJoinCursor(std::unique_ptr<HybridHashJoin> join,
-                            std::unique_ptr<SpillIterator> buildIterator,
-                            std::unique_ptr<SpillIterator> probeIterator,
+                            std::shared_ptr<SpillIterator> buildIterator,
+                            std::shared_ptr<SpillIterator> probeIterator,
                             bool swapped,
                             HashJoinStats& stats)
         : _join(std::move(join)),
@@ -224,7 +224,7 @@ private:
         kComplete          // All done
     };
     std::unique_ptr<HybridHashJoin> _join;
-    std::unique_ptr<SpillIterator> _probeIterator;
+    std::shared_ptr<SpillIterator> _probeIterator;
     value::MaterializedRow _probeKey;
     value::MaterializedRow _probeProject;
     bool _swapped;
@@ -274,6 +274,142 @@ boost::optional<MatchResult> RecursiveJoinJoinCursor::next() {
     }
 }
 
+// Performs block nested loop join
+class BlockNestedLoopJoinCursor final : public JoinCursor::Impl {
+public:
+    BlockNestedLoopJoinCursor(SpilledPartition& spilledPartition,
+                              uint64_t memLimit,
+                              CollatorInterface* collator,
+                              bool swapped,
+                              HashJoinStats& stats)
+        : _partition(spilledPartition),
+          _memLimit(memLimit),
+          _collator(collator),
+          _swapped(swapped),
+          _stats(stats) {
+        if (loadNextBuildChunk()) {
+            _probeIterator = _partition.probeSpill.getIterator();
+            _hasProbeRow = advanceProbeIterator();
+        }
+    }
+
+    boost::optional<MatchResult> next() override;
+
+private:
+    // Loads the next chunk of build data into _buildBuffer until memory limit is reached.
+    // Returns true if any data was loaded, false if build side is exhausted.
+    bool loadNextBuildChunk();
+
+    // Advances the probe iterator to the next row and sets _probeKey/_probeProject to the new row.
+    // Returns true if a new row was found, false if the probe side is exhausted.
+    bool advanceProbeIterator();
+
+    SpilledPartition& _partition;
+    uint64_t _memLimit;
+    CollatorInterface* _collator;
+    bool _swapped;
+    HashJoinStats& _stats;
+
+    std::shared_ptr<SpillIterator> _buildIterator;
+    std::shared_ptr<SpillIterator> _probeIterator;
+    BuildBuffer _buildBuffer;
+    uint64_t _buildBufferMemUsage{0};
+
+    size_t _buildBufferIdx{0};  // Current position in _buildBuffer
+    value::MaterializedRow _probeKey;
+    value::MaterializedRow _probeProject;
+    bool _hasProbeRow{false};  // True if _probeKey/_probeProject are valid
+};
+
+/**
+ * Loads the next chunk of build data into _buildBuffer until memory limit is reached.
+ * Returns true if any data was loaded, false if build side is exhausted.
+ */
+bool BlockNestedLoopJoinCursor::loadNextBuildChunk() {
+    _buildBuffer.clear();
+    _buildBufferMemUsage = 0;
+    _buildBufferIdx = 0;
+
+    if (!_buildIterator) {
+        _buildIterator = _partition.buildSpill.getIterator();
+    }
+
+    while (_buildIterator->more()) {
+        auto record = _buildIterator->next();
+
+        auto keyRow = std::move(record.first);
+        auto projectRow = std::move(record.second);
+
+        auto memUsage = keyRow.memUsageForSorter() + projectRow.memUsageForSorter();
+        _buildBuffer.emplace_back(std::move(keyRow), std::move(projectRow));
+        _buildBufferMemUsage += memUsage;
+
+        if (_buildBufferMemUsage >= _memLimit) {
+            break;
+        }
+    }
+
+    _stats.peakTrackedMemBytes = std::max(_stats.peakTrackedMemBytes, _buildBufferMemUsage);
+    return !_buildBuffer.empty();
+}
+
+bool BlockNestedLoopJoinCursor::advanceProbeIterator() {
+    if (_probeIterator && _probeIterator->more()) {
+        auto record = _probeIterator->next();
+        _probeKey = std::move(record.first);
+        _probeProject = std::move(record.second);
+        return true;
+    }
+    return false;
+}
+
+/**
+ * Implements block nested loop join algorithm:
+ * 1. Load a chunk of build-side records into memory (up to memory limit)
+ * 2. For each probe record, compare against all build records in memory
+ * 3. When all probe records are exhausted, load next build chunk and rewind probe
+ * 4. Repeat until all build chunks are processed
+ */
+boost::optional<MatchResult> BlockNestedLoopJoinCursor::next() {
+    const value::MaterializedRowEq keyEq(_collator);
+
+    while (_hasProbeRow) {
+        // Scan remaining build rows for the current probe row.
+        while (_buildBufferIdx < _buildBuffer.size()) {
+            auto& [buildKey, buildProject] = _buildBuffer[_buildBufferIdx++];
+
+            // Check if keys match
+            if (keyEq(buildKey, _probeKey)) {
+                MatchResult result;
+                result.buildKeyRow = &buildKey;
+                result.buildProjectRow = &buildProject;
+                result.probeKeyRow = &_probeKey;
+                result.probeProjectRow = &_probeProject;
+
+                if (_swapped) {
+                    result.swapRecords();
+                }
+                return result;
+            }
+        }
+
+        // Build buffer exhausted for this probe row. Try next probe row.
+        _buildBufferIdx = 0;
+        _hasProbeRow = advanceProbeIterator();
+        if (_hasProbeRow) {
+            continue;
+        }
+
+        // Probe exhausted for current build chunk. Load next chunk and rewind probe.
+        if (!loadNextBuildChunk()) {
+            break;
+        }
+        _probeIterator = _partition.probeSpill.getIterator();
+        _hasProbeRow = advanceProbeIterator();
+    }
+
+    return boost::none;
+}
 
 // ==================== Build Phase ====================
 
@@ -427,7 +563,7 @@ void HybridHashJoin::spillPartition(int pIdx) {
     partitionBuffer.shrink_to_fit();
 }
 
-std::unique_ptr<HybridHashJoin::SpilledPartition> HybridHashJoin::createSpilledPartition() {
+std::unique_ptr<SpilledPartition> HybridHashJoin::createSpilledPartition() {
     if (!_fileStats) {
         _fileStats = std::make_shared<SorterFileStats>(nullptr);
     }
@@ -549,8 +685,10 @@ boost::optional<JoinCursor> HybridHashJoin::nextSpilledJoinCursor() {
 
     if (partitionSize > _memLimit) {
         if (_recursionLevel == kMaxRecursionDepth) {
-            // TODO SERVER-115389 Fall back to block nested loop join to guarantee completion.
-            MONGO_UNIMPLEMENTED;
+            // Fall back to block nested loop join to guarantee completion.
+            _stats.numFallbacksToBlockNestedLoopJoin += 1;
+            return JoinCursor(std::make_unique<BlockNestedLoopJoinCursor>(
+                spill, _memLimit, _collator, swappedPartition, _stats));
         }
 
         // Partition is still too large to fit in memory. Create a nested HybridHashJoin
@@ -563,23 +701,19 @@ boost::optional<JoinCursor> HybridHashJoin::nextSpilledJoinCursor() {
         join->_fileStats = _fileStats;
         _stats.recursionDepthMax = std::max(_stats.recursionDepthMax, 1 + _recursionLevel);
 
-        return JoinCursor(
-            std::make_unique<RecursiveJoinJoinCursor>(std::move(join),
-                                                      std::move(spill.buildSpill.iterator),
-                                                      std::move(spill.probeSpill.iterator),
-                                                      swappedPartition,
-                                                      _stats));
+        return JoinCursor(std::make_unique<RecursiveJoinJoinCursor>(std::move(join),
+                                                                    spill.buildSpill.getIterator(),
+                                                                    spill.probeSpill.getIterator(),
+                                                                    swappedPartition,
+                                                                    _stats));
     }
 
     // Update peakTrackedMemBytes to the partition size that will be loaded to memory.
     _stats.peakTrackedMemBytes =
         std::max(_stats.peakTrackedMemBytes, static_cast<uint64_t>(partitionSize));
 
-    return JoinCursor(
-        std::make_unique<SpilledPartitionJoinCursor>(*_ht,
-                                                     std::move(spill.buildSpill.iterator),
-                                                     std::move(spill.probeSpill.iterator),
-                                                     swappedPartition));
+    return JoinCursor(std::make_unique<SpilledPartitionJoinCursor>(
+        *_ht, spill.buildSpill.getIterator(), spill.probeSpill.getIterator(), swappedPartition));
 }
 
 // ==================== Helpers ====================

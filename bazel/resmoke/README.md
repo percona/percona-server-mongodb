@@ -65,6 +65,7 @@ bazel-testlogs/buildscripts/resmokeconfig/core/
 ├── test.log                           # Primary test output log. Contains the output of resmoke.py
 ├── test.outputs/
 │   ├── report.json                    # Test results in JSON format
+│   ├── resource_usage.txt             # Periodically recorded resource usage metrics
 │   └── data/                          # The data directory for the resmoke fixture
 │       └── job0/
 │           ├── mongorunner/

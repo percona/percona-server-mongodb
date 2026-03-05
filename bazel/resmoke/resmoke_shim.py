@@ -8,6 +8,7 @@ import psutil
 
 REPO_ROOT = pathlib.Path(__file__).parent.parent.parent
 sys.path.append(str(REPO_ROOT))
+from bazel.resmoke.resource_monitor import ResourceMonitor
 from buildscripts.bazel_local_resources import acquire_local_resource
 from buildscripts.resmokelib import cli
 from buildscripts.resmokelib.hang_analyzer.process import signal_python
@@ -54,6 +55,7 @@ def add_evergreen_build_info(args):
 class ResmokeShimContext:
     def __init__(self):
         self.links = []
+        self.resource_monitor = None
 
     def __enter__(self):
         # Use the Bazel provided TEST_TMPDIR. Note this must occur after uses of acquire_local_resource
@@ -74,9 +76,32 @@ class ResmokeShimContext:
             link = os.path.join(working_dir, entry.name)
             self.links.append(link)
             os.symlink(entry.path, link)
+
+        try:
+            output_dir = os.environ.get("TEST_UNDECLARED_OUTPUTS_DIR")
+            if output_dir:
+                output_file = os.path.join(output_dir, "resource_usage.txt")
+                self.resource_monitor = ResourceMonitor(
+                    output_file=output_file, root_pid=os.getpid()
+                )
+                self.resource_monitor.write_snapshot(self.resource_monitor.collect_snapshot())
+                self.resource_monitor.start_periodic_monitoring()
+        except Exception as e:
+            # Log but don't fail - monitoring is non-critical
+            print(f"Warning: Failed to initialize resource monitoring: {e}", file=sys.stderr)
+            self.resource_monitor = None
+
         return self
 
     def __exit__(self, exception_type, exception_value, exception_traceback):
+        if self.resource_monitor:
+            try:
+                self.resource_monitor.stop_periodic_monitoring()
+                final_snapshot = self.resource_monitor.collect_snapshot()
+                self.resource_monitor.write_snapshot(final_snapshot)
+            except Exception as e:
+                print(f"Warning: Error during resource monitoring cleanup: {e}", file=sys.stderr)
+
         for link in self.links:
             os.unlink(link)
 
@@ -131,7 +156,7 @@ if __name__ == "__main__":
 
     undeclared_output_dir = os.environ.get("TEST_UNDECLARED_OUTPUTS_DIR")
     resmoke_args.append(f"--taskWorkDir={undeclared_output_dir}")
-    resmoke_args.append(f"--reportFile={os.path.join(undeclared_output_dir,'report.json')}")
+    resmoke_args.append(f"--reportFile={os.path.join(undeclared_output_dir, 'report.json')}")
     os.chdir(undeclared_output_dir)
 
     # Locally, it is nice for the data directory to preserved in the test output. However, we

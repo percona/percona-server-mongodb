@@ -10,6 +10,9 @@
  *   requires_fcv_80,
  *   # Time series collections do not support `sort` in `updateOne` commands.
  *   exclude_from_timeseries_crud_passthrough,
+ *   # Primary-driven index builds must have batched writes enabled which config.image_collection
+ *   # does not support.
+ *   primary_driven_index_builds_incompatible_with_retryable_writes,
  * ]
  */
 import {isMongos} from "jstests/concurrency/fsm_workload_helpers/server_types.js";

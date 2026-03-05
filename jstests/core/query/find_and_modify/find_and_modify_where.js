@@ -6,6 +6,9 @@
 //     requires_scripting,
 //     # TODO(SERVER-84158): Try to include this test(s).
 //     exclude_from_timeseries_crud_passthrough,
+//     # Primary-driven index builds must have batched writes enabled which config.image_collection
+//     # does not support.
+//     primary_driven_index_builds_incompatible_with_retryable_writes,
 // ]
 
 const t = db[jsTestName()];

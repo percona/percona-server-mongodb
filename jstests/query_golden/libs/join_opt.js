@@ -61,6 +61,10 @@ export function joinTestWrapper(testFun) {
             internalMaxNodesInJoinGraph: 1,
             internalMaxEdgesInJoinGraph: 1,
             internalMaxNumberNodesConsideredForImplicitEdges: 1,
+            internalJoinPlanSamplingSize: 1,
+            internalJoinEnumerateCollScanPlans: 1,
+            internalMinAllPlansEnumerationSubsetLevel: 1,
+            internalMaxAllPlansEnumerationSubsetLevel: 1,
         }),
     );
     delete params.ok;

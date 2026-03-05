@@ -804,6 +804,36 @@ server_parameters:
         default: true
         redact: false
 
+    internalMinAllPlansEnumerationSubsetLevel:
+        description: >-
+            For queries running through join optimization, controls the minimum subset level for
+            which all plans enumeration is enabled. Subset levels prior to this one only enumerate
+            plans if they have a lower cost than the best plan so far. Note: we can have at most
+            as many levels as nodes in the join graph.
+        set_at: [startup, runtime]
+        cpp_varname: "internalMinAllPlansEnumerationSubsetLevel"
+        cpp_vartype: AtomicWord<int>
+        default: 64
+        validator:
+            gte: 0
+            lte: 64
+        redact: false
+
+    internalMaxAllPlansEnumerationSubsetLevel:
+        description: >-
+            For queries running through join optimization, controls the maximum subset level for
+            which all plans enumeration is enabled. Subset levels including and following this one
+            only enumerate plans if they have a lower cost than the best plan so far. Note: we can
+            have at most as many levels as nodes in the join graph.
+        set_at: [startup, runtime]
+        cpp_varname: "internalMaxAllPlansEnumerationSubsetLevel"
+        cpp_vartype: AtomicWord<int>
+        default: 64
+        validator:
+            gte: 0
+            lte: 64
+        redact: false
+
     internalQueryNumWorksPerPlanForMPEstimation:
         description: >-
             Number of works per plan that the cost-based plan ranker choice should do to evaluate

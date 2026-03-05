@@ -1,6 +1,7 @@
 /**
  * Pretty-printing helpers for query plans in explain.
  */
+import {line} from "jstests/libs/query/pretty_md.js";
 import {prettyPrintTree} from "jstests/query_golden/libs/pretty_tree.js";
 import {
     normalizePlan,
@@ -130,8 +131,16 @@ export function prettyPrintWinningPlan(explain) {
 /**
  * Same as above, but extracts the rejected plans from 'explain' to print.
  */
-export function prettyPrintRejectedPlans(explain) {
-    const rejectedPlans = getRejectedPlans(explain);
+export function prettyPrintRejectedPlans(explain, max = undefined) {
+    let rejectedPlans = getRejectedPlans(explain);
+    if (max && rejectedPlans.length > max) {
+        line(`Too many plans, printing only top ${max} by cost.`);
+        rejectedPlans = rejectedPlans
+            .sort((l, r) => {
+                return l.queryPlan.costEstimate - r.queryPlan.costEstimate;
+            })
+            .slice(0, max);
+    }
     for (const plan of rejectedPlans) {
         prettyPrintPlan(plan.queryPlan);
     }

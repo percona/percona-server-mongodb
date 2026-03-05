@@ -4,6 +4,8 @@
  * - Unmarked jumbo chunks are marked as jumbo and NOT moved during draining, requiring manual move with `forceJumbo: true`
  *
  * Regression test for SERVER-76550.
+ *
+ * @tags: [requires_fcv_83]
  */
 
 import {ShardingTest} from "jstests/libs/shardingtest.js";

@@ -18,6 +18,9 @@
  *   # Antithesis can inject a fault while an invalid view still exists, which causes validation
  *   # failures in hooks, as they leave the database in a broken state where listCollections fails.
  *   antithesis_incompatible,
+ *   # Primary-driven index builds must have batched writes enabled which config.image_collection
+ *   # does not support.
+ *   primary_driven_index_builds_incompatible_with_retryable_writes,
  * ]
  */
 import {FixtureHelpers} from "jstests/libs/fixture_helpers.js";

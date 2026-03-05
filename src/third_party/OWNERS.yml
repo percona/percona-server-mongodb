@@ -103,6 +103,9 @@ filters:
   - "private/.placeholder":
     approvers:
       - 10gen/devprod-build
+  - "prometheus-cpp":
+    approvers:
+      - 10gen/server-networking-and-observability
   - "protobuf":
     approvers:
       - 10gen/server-networking-and-observability

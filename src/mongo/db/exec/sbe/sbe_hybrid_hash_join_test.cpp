@@ -958,5 +958,102 @@ TEST_F(HybridHashJoinTestFixture, ProbeIsSmallerThanBuildWithRecursion) {
     ASSERT_GT(stats.numPartitionSwaps, 0);
     ASSERT_GT(stats.recursionDepthMax, 0);
 }
+
+TEST_F(HybridHashJoinTestFixture, BasicBlockNestedLoopJoin) {
+    auto hhj = makeHHJ();
+
+    // Insert records with same keys to ensure all go to same partition
+    std::set<std::string> buildProjects;
+    for (int i = 0; i < 20; ++i) {
+        auto payload = "build_" + std::to_string(i);
+        hhj->addBuild(makeKeyRow(42), makeProjectRow(payload));
+        buildProjects.insert(payload);
+    }
+    hhj->finishBuild();
+
+    ASSERT_TRUE(stats.usedDisk);
+
+    // Probe all keys
+    std::set<std::string> probeProjects;
+    value::MaterializedRow probeKey(1);
+    value::MaterializedRow probeProject(1);
+    auto cursor = JoinCursor::empty();
+    for (int i = 0; i < 40; ++i) {
+        auto probePayload = "probe_" + std::to_string(i);
+        probeKey = makeKeyRow(42);
+        probeProject = makeProjectRow(probePayload);
+        hhj->probe(probeKey, probeProject, cursor);
+        ASSERT_EQ(cursor.next(), boost::none);
+        probeProjects.insert(probePayload);
+    }
+    hhj->finishProbe();
+
+    // Process spilled partitions - should use BlockNestedLoopJoin
+    int numMatches = 0;
+    while (auto cursorOpt = hhj->nextSpilledJoinCursor()) {
+        while (auto matchOpt = cursorOpt->next()) {
+            ASSERT_EQ(getKeyValue(matchOpt->buildKeyRow), getKeyValue(matchOpt->probeKeyRow));
+            ASSERT_EQ(getKeyValue(matchOpt->buildKeyRow), 42);
+            ASSERT_TRUE(buildProjects.contains(getStringValue(matchOpt->buildProjectRow)));
+            ASSERT_TRUE(probeProjects.contains(getStringValue(matchOpt->probeProjectRow)));
+            numMatches++;
+        }
+    }
+
+    ASSERT_EQ(stats.numFallbacksToBlockNestedLoopJoin, 1);
+    ASSERT_EQ(numMatches, 40 * 20);
+}
+
+TEST_F(HybridHashJoinTestFixture, BlockNestedLoopJoinWithAlwaysEqualCollator) {
+    CollatorInterfaceMock collator(CollatorInterfaceMock::MockType::kAlwaysEqual);
+    auto hhj = makeHHJ(&collator);
+
+    for (int i = 0; i < 20; ++i) {
+        std::string key = "build_key_" + std::to_string(i);
+        std::string proj = "build_project_" + std::to_string(i);
+        hhj->addBuild(makeStringKeyRow(key), makeProjectRow(proj));
+    }
+    hhj->finishBuild();
+
+    ASSERT_TRUE(stats.usedDisk);
+
+    value::MaterializedRow probeKeyRow(1);
+    value::MaterializedRow probeProjectRow(1);
+    auto cursor = JoinCursor::empty();
+    for (int i = 0; i < 40; ++i) {
+        std::string key = "probe_key_" + std::to_string(i);
+        std::string probeProj = "probe_project_" + std::to_string(i);
+        probeKeyRow = makeStringKeyRow(key);
+        probeProjectRow = makeProjectRow(probeProj);
+        hhj->probe(probeKeyRow, probeProjectRow, cursor);
+        ASSERT_EQ(cursor.next(), boost::none);
+    }
+    hhj->finishProbe();
+
+    // Process spilled partitions
+    std::set<int> matchedBuildIndices;
+    std::set<int> matchedProbeIndices;
+    int numMatches = 0;
+    while (auto cursorOpt = hhj->nextSpilledJoinCursor()) {
+        while (auto matchOpt = cursorOpt->next()) {
+            std::string buildKey = getStringValue(matchOpt->buildKeyRow);
+            int buildIdx = std::stoi(buildKey.substr(10));
+            matchedBuildIndices.insert(buildIdx);
+
+            std::string probeKey = getStringValue(matchOpt->probeKeyRow);
+            int probeIdx = std::stoi(probeKey.substr(10));
+            matchedProbeIndices.insert(probeIdx);
+
+            numMatches++;
+        }
+    }
+
+    ASSERT_EQ(stats.numFallbacksToBlockNestedLoopJoin, 1);
+    ASSERT_EQ(numMatches, 40 * 20);
+
+    ASSERT_EQ(matchedBuildIndices.size(), 20);
+    ASSERT_EQ(matchedProbeIndices.size(), 40);
+}
+
 }  // namespace
 }  // namespace mongo::sbe

@@ -1,6 +1,12 @@
 // Test basic behavior for no-op writes.
 // Use a high enough number of documents so background operations in passthrough tests, e.g.
 // failovers or migrations, can reliably occur.
+//
+// @tags: [
+//   # Primary-driven index builds must have batched writes enabled which config.image_collection
+//   # does not support.
+//   primary_driven_index_builds_incompatible_with_retryable_writes,
+// ]
 const kNumDocs = 20;
 
 const coll = db[jsTestName()];
