@@ -5,37 +5,57 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 378,
-    "days_behind": 10,
-    "files_affected": 1491,
-    "total_additions": 69636,
-    "total_deletions": 44509,
+    "commits_behind": 372,
+    "days_behind": 9,
+    "files_affected": 1478,
+    "total_additions": 70631,
+    "total_deletions": 43256,
     "date_range": {
-      "first": "2026-02-23T08:05:47+00:00",
-      "last": "2026-03-05T03:30:29+00:00"
+      "first": "2026-02-23T15:00:07+00:00",
+      "last": "2026-03-05T09:51:31+00:00"
     }
   },
   "last_merged_commit": {
-    "sha": "94b7881463eef7adea24ad163bb761bf96fbf112",
-    "short_sha": "94b7881463e",
-    "date": "2026-02-23T13:29:54+11:00",
+    "sha": "bd001dece7a504005815974711eed151d87a1a39",
+    "short_sha": "bd001dece7a",
+    "date": "2026-02-23T14:56:08+00:00",
     "author": {
-      "name": "wt-vendoring-bot[bot]",
-      "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
+      "name": "auto-revert-app[bot]",
+      "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
     },
-    "summary": "Import wiredtiger: ba957128fdeb502d3fd9c878c993afa46875834d from branch mongodb-master (#48438)"
+    "summary": "Revert \"SERVER-113184: Wait in initial sync for sync source to advance last c… (#46334)\" (#48460)"
   },
   "first_unmerged_commit": {
-    "sha": "14034e4971cc980846f5ab45a13b1cd0ddca070f",
-    "short_sha": "14034e4971c",
-    "date": "2026-02-23T09:05:47+01:00",
+    "sha": "55472b711e1c30fe6159b56ce67f56eb211e5610",
+    "short_sha": "55472b711e1",
+    "date": "2026-02-23T10:00:07-05:00",
     "author": {
-      "name": "Silvia Surroca",
-      "email": "silvia.surroca@mongodb.com"
+      "name": "Sean Lyons",
+      "email": "sean.lyons@mongodb.com"
     },
-    "summary": "SERVER-119199 Enable multi-router on tests that create timeseries collections on multiversion (#48244)"
+    "summary": "SERVER-118940 Record system resource usage under resmoke_suite_test (#48417)"
   },
   "unmerged_commits": [
+    {
+      "sha": "16f0579a9133a8c53fae8a58b7dfda67817c1e5f",
+      "short_sha": "16f0579a913",
+      "date": "2026-03-05T09:51:31+00:00",
+      "author": {
+        "name": "Henri Nikku",
+        "email": "henri.nikku@mongodb.com"
+      },
+      "summary": "SERVER-119838 Add golden test for the dependency graph (#48258)"
+    },
+    {
+      "sha": "6e42dfdd0c99e454f7f175d80a366ac3cf7df75f",
+      "short_sha": "6e42dfdd0c9",
+      "date": "2026-03-05T08:24:59+01:00",
+      "author": {
+        "name": "Alberto Massari",
+        "email": "alberto.massari@mongodb.com"
+      },
+      "summary": "SERVER-120666 Detect fields used in dotted paths as coming from joined source (#49027)"
+    },
     {
       "sha": "e320852fbd8410a540e18ea9176966c945ce3933",
       "short_sha": "e320852fbd8",
@@ -3735,108 +3755,9 @@
         "email": "sean.lyons@mongodb.com"
       },
       "summary": "SERVER-118940 Record system resource usage under resmoke_suite_test (#48417)"
-    },
-    {
-      "sha": "bd001dece7a504005815974711eed151d87a1a39",
-      "short_sha": "bd001dece7a",
-      "date": "2026-02-23T14:56:08+00:00",
-      "author": {
-        "name": "auto-revert-app[bot]",
-        "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
-      },
-      "summary": "Revert \"SERVER-113184: Wait in initial sync for sync source to advance last c… (#46334)\" (#48460)"
-    },
-    {
-      "sha": "fe3ad9e0d13de063d9f4d0f152392217b7aba90f",
-      "short_sha": "fe3ad9e0d13",
-      "date": "2026-02-23T09:20:33-05:00",
-      "author": {
-        "name": "Sean Lyons",
-        "email": "sean.lyons@mongodb.com"
-      },
-      "summary": "SERVER-119992: Add evergreen_remote_exec expansion to linux-64-debug-required (#48356)"
-    },
-    {
-      "sha": "6b7306e471aed798b8d34ebb170185b1618d51e0",
-      "short_sha": "6b7306e471a",
-      "date": "2026-02-23T12:49:51+01:00",
-      "author": {
-        "name": "Igor Praznik",
-        "email": "95708172+igpraznik@users.noreply.github.com"
-      },
-      "summary": "SERVER-115900 Allow remove_shard_util.js to use new shard removal API for transition to dedicated (#48384)"
-    },
-    {
-      "sha": "8b13939423f0aaf59c2739b7d883e6ecec1359c5",
-      "short_sha": "8b13939423f",
-      "date": "2026-02-23T11:23:55+00:00",
-      "author": {
-        "name": "Joan Bruguera Micó (at MongoDB)",
-        "email": "joan.bruguera-mico@mongodb.com"
-      },
-      "summary": "SERVER-96887 Create feature flag for Symmetric FCV (#48409)"
-    },
-    {
-      "sha": "2f580663ac918106e6c79bf804838e33b362d198",
-      "short_sha": "2f580663ac9",
-      "date": "2026-02-23T10:10:52+01:00",
-      "author": {
-        "name": "Yujin Kang Park",
-        "email": "36410031+ykangpark@users.noreply.github.com"
-      },
-      "summary": "SERVER-120049 Cleanup db_raii.cpp (#48398)"
-    },
-    {
-      "sha": "aaf89a8b00ed32607d3a42a169c0d658c3742f27",
-      "short_sha": "aaf89a8b00e",
-      "date": "2026-02-23T09:25:34+01:00",
-      "author": {
-        "name": "mongo-pr-bot[bot]",
-        "email": "230616009+mongo-pr-bot[bot]@users.noreply.github.com"
-      },
-      "summary": "SERVER-110427 Update profiling data (#48433)"
-    },
-    {
-      "sha": "4b8a90d9f185fffc1309474039db08956c21f22e",
-      "short_sha": "4b8a90d9f18",
-      "date": "2026-02-23T09:24:07+01:00",
-      "author": {
-        "name": "Alya Carina Berciu",
-        "email": "alya.berciu@mongodb.com"
-      },
-      "summary": "SERVER-119736 Populate rejectedPlans for join opt in explain (#48141)"
-    },
-    {
-      "sha": "14034e4971cc980846f5ab45a13b1cd0ddca070f",
-      "short_sha": "14034e4971c",
-      "date": "2026-02-23T09:05:47+01:00",
-      "author": {
-        "name": "Silvia Surroca",
-        "email": "silvia.surroca@mongodb.com"
-      },
-      "summary": "SERVER-119199 Enable multi-router on tests that create timeseries collections on multiversion (#48244)"
     }
   ],
   "merge_picks": [
-    {
-      "commit": {
-        "sha": "bd001dece7a504005815974711eed151d87a1a39",
-        "short_sha": "bd001dece7a",
-        "date": "2026-02-23T14:56:08+00:00",
-        "author": {
-          "name": "auto-revert-app[bot]",
-          "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
-        },
-        "summary": "Revert \"SERVER-113184: Wait in initial sync for sync source to advance last c… (#46334)\" (#48460)"
-      },
-      "strategy_name": "important_files",
-      "result": {
-        "matched_files": [
-          "src/mongo/db/repl/initial_sync/initial_syncer.cpp",
-          "src/mongo/db/repl/initial_sync/initial_syncer.h"
-        ]
-      }
-    },
     {
       "commit": {
         "sha": "5244cf0a85845d895dd564c37680e658d7da3a73",
@@ -4280,7 +4201,7 @@
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-03-05 06:16:36",
+  "generated_at": "2026-03-05 10:47:24",
   "branch_name": "master",
   "display_name": "master"
 }
