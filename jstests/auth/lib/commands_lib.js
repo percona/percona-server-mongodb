@@ -250,6 +250,7 @@ const skippedAuthTestingAggStages = [
 //TODO SERVER-112286: Audit commands skipped.
 const skippedAuthTestingCommands = [
     "analyzeShardKey",
+    "auditGetOptions",
     "authenticate",
     "autoSplitVector",
     "balancerCollectionStatus",
@@ -259,6 +260,7 @@ const skippedAuthTestingCommands = [
     "configureCollectionBalancing",
     "configureQueryAnalyzer",
     "coordinateCommitTransaction",
+    "createBackup",
     "createUnsplittableCollection",
     "dbCheck",
     "dropAllRolesFromDatabase",

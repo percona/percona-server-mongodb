@@ -21,7 +21,8 @@ function assertResult(expect, result, context) {
                 delete result["$clusterTime"];
                 delete result["operationTime"];
 
-                assert.eq(Object.keys(result).length, 2, "Too many fields in buildInfo reply");
+                // PSMDB contains psmdbVersion in the output, so we expect 3 fields
+                assert.eq(Object.keys(result).length, 3, "Too many fields in buildInfo reply");
                 assert(result.version !== undefined, "Missing 'version' field");
                 assert(result.versionArray !== undefined, "Missing 'versionArray' field");
                 break;
