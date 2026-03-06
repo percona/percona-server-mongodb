@@ -69,7 +69,7 @@ export function makeMeasurementDocArb(
     const dateMax = dateRange?.max ?? defaultDateMax;
 
     // Special-field generators
-    const idArb = fc.uuid();
+    const idArb = fc.uuid({version: 4});
     const timeArb = fc.date({min: dateMin, max: dateMax});
 
     // Parent metric arb used for meta (when not fixed) and for extra fields

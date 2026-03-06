@@ -726,7 +726,7 @@ protected:
             Lock::CollectionLock collLock(operationContext(), kNss, MODE_IX);
             CollectionShardingRuntime::assertCollectionLockedAndAcquireExclusive(operationContext(),
                                                                                  kNss)
-                ->setFilteringMetadata(
+                ->setFilteringMetadata_nonAuthoritative(
                     operationContext(),
                     CollectionMetadata(
                         CurrentChunkManager(makeStandaloneRoutingTableHistory(std::move(rt))),

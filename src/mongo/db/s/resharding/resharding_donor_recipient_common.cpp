@@ -473,8 +473,11 @@ void clearFilteringMetadata(OperationContext* opCtx,
             CollectionAcquisitionRequest::fromOpCtx(opCtx, nss, AcquisitionPrerequisites::kWrite),
             MODE_IX);
 
-        CollectionShardingRuntime::assertCollectionLockedAndAcquireExclusive(opCtx, nss)
-            ->clearFilteringMetadata(opCtx);
+        {
+            auto scopedCsr =
+                CollectionShardingRuntime::assertCollectionLockedAndAcquireExclusive(opCtx, nss);
+            scopedCsr->clearFilteringMetadata_nonAuthoritative(opCtx);
+        }
 
         if (!scheduleAsyncRefresh) {
             continue;

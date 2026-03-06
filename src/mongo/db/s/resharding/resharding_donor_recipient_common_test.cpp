@@ -350,7 +350,7 @@ protected:
             boost::none /* databaseVersion */};
 
         CollectionShardingRuntime::assertCollectionLockedAndAcquireExclusive(opCtx, sourceNss)
-            ->setFilteringMetadata(opCtx, metadata);
+            ->setFilteringMetadata_nonAuthoritative(opCtx, metadata);
     }
 
 private:

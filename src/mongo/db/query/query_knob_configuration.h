@@ -89,6 +89,7 @@ public:
     bool getInternalJoinEnumerateCollScanPlans() const;
     size_t getInternalMinAllPlansEnumerationSubsetLevel() const;
     size_t getInternalMaxAllPlansEnumerationSubsetLevel() const;
+    bool getEnableJoinOptimizationUseIndexUniqueness() const;
 
     /**
      * Returns whether we can push down fully compatible stages to sbe. This is only true when the
@@ -152,6 +153,7 @@ private:
     bool _internalJoinEnumerateCollScanPlans;
     size_t _minAllPlansEnumerationSubsetLevel;
     size_t _maxAllPlansEnumerationSubsetLevel;
+    bool _enableJoinOptimizationUseIndexUniqueness;
 
     int64_t _internalQuerySpillingMinAvailableDiskSpaceBytes;
     int64_t _internalMaxGroupAccumulatorsInSbe;

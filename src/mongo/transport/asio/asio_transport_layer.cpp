@@ -47,6 +47,7 @@
 #include "mongo/db/sharding_environment/sharding_feature_flags_gen.h"
 #include "mongo/db/stats/counters.h"
 #include "mongo/logv2/log.h"
+#include "mongo/stdx/chrono.h"
 #include "mongo/transport/asio/asio_tcp_fast_open.h"
 #include "mongo/transport/asio/asio_utils.h"
 #include "mongo/transport/service_entry_point.h"
@@ -234,7 +235,7 @@ private:
 
 class AsioReactor final : public Reactor {
 public:
-    AsioReactor() : _clkSource(this), _stats(&_clkSource), _ioContext() {}
+    AsioReactor() : _tickSource(this), _stats(&_tickSource), _ioContext() {}
 
     void run() override {
         try {
@@ -273,8 +274,8 @@ public:
         return std::make_unique<AsioReactorTimer>(_ioContext);
     }
 
-    Date_t now() override {
-        return Date_t(asio::system_timer::clock_type::now());
+    stdx::chrono::system_clock::time_point systemTime() override {
+        return asio::system_timer::clock_type::now();
     }
 
     void schedule(Task task) override {
@@ -301,7 +302,7 @@ public:
     }
 
 private:
-    ReactorClockSource _clkSource;
+    ReactorTickSource _tickSource;
 
     ExecutorStats _stats;
 

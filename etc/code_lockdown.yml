@@ -7,24 +7,24 @@ notifications:
     thresholds:
       overall:
         hot:
-          count: 53 # temporary while we get AFs under control, then should reduce to 60
-          grace_period_days: 7
+          count: 35
+          grace_period_days: 5
         cold:
-          count: 75
-          grace_period_days: 7
+          count: 50
+          grace_period_days: 5
       group:
         hot:
-          count: 12
-          grace_period_days: 7
+          count: 8
+          grace_period_days: 5
         cold:
-          count: 24
-          grace_period_days: 7
+          count: 16
+          grace_period_days: 5
       team:
         hot:
-          count: 5
+          count: 4
           grace_period_days: 2
         cold:
-          count: 8
+          count: 6
           grace_period_days: 2
     slack:
       channel: "#10gen-mongo-code-lockdown"

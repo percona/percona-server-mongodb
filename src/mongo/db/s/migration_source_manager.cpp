@@ -646,8 +646,10 @@ void MigrationSourceManager::commitChunkMetadataOnConfig() {
             UninterruptibleLockGuard noInterrupt(_opCtx);  // NOLINT.
             AutoGetCollection autoColl(_opCtx, nss(), MODE_IX);
             withChangelogErrMsg("Failed to acquire exclusive lock", [&] {
-                CollectionShardingRuntime::assertCollectionLockedAndAcquireExclusive(_opCtx, nss())
-                    ->clearFilteringMetadata(_opCtx);
+                auto scopedCsr =
+                    CollectionShardingRuntime::assertCollectionLockedAndAcquireExclusive(_opCtx,
+                                                                                         nss());
+                scopedCsr->clearFilteringMetadata_nonAuthoritative(_opCtx);
             });
         }
         scopedGuard.dismiss();
@@ -693,8 +695,10 @@ void MigrationSourceManager::commitChunkMetadataOnConfig() {
             UninterruptibleLockGuard noInterrupt(_opCtx);  // NOLINT.
             AutoGetCollection autoColl(_opCtx, nss(), MODE_IX);
             withChangelogErrMsg("Failed to acquire exclusive lock", [&] {
-                CollectionShardingRuntime::assertCollectionLockedAndAcquireExclusive(_opCtx, nss())
-                    ->clearFilteringMetadata(_opCtx);
+                auto scopedCsr =
+                    CollectionShardingRuntime::assertCollectionLockedAndAcquireExclusive(_opCtx,
+                                                                                         nss());
+                scopedCsr->clearFilteringMetadata_nonAuthoritative(_opCtx);
             });
         }
         scopedGuard.dismiss();
@@ -945,8 +949,9 @@ void MigrationSourceManager::_cleanup(bool completeMigration) {
             auto_get_collection::Options{}.globalLockOptions(Lock::GlobalLockOptions{
                 .explicitIntent = rss::consensus::IntentRegistry::Intent::LocalWrite});
         AutoGetCollection autoColl(_opCtx, nss(), MODE_IX, autoGetCollOptions);
-        CollectionShardingRuntime::assertCollectionLockedAndAcquireExclusive(_opCtx, nss())
-            ->clearFilteringMetadata(_opCtx);
+        auto scopedCsr =
+            CollectionShardingRuntime::assertCollectionLockedAndAcquireExclusive(_opCtx, nss());
+        scopedCsr->clearFilteringMetadata_nonAuthoritative(_opCtx);
     }
 }
 

@@ -35,6 +35,7 @@
 #include "mongo/db/pipeline/document_source_lookup.h"
 #include "mongo/db/query/compiler/optimizer/join/agg_join_model.h"
 #include "mongo/db/query/compiler/optimizer/join/cardinality_estimator.h"
+#include "mongo/db/query/compiler/optimizer/join/catalog_stats.h"
 #include "mongo/db/query/compiler/optimizer/join/join_cost_estimator_impl.h"
 #include "mongo/db/query/compiler/optimizer/join/join_reordering_context.h"
 #include "mongo/db/query/compiler/optimizer/join/reorder_joins.h"
@@ -201,6 +202,32 @@ CatalogStats createCatalogStats(OperationContext* opCtx, const MultipleCollectio
             .numPagesInStorageEngineCache = cacheSizeBytes / (32 * 1024)};
 }
 
+// Initialize unique field information for all namespaces in the join graph.
+PerCollUniqueFieldInfo buildUniqueFieldInfo(const AvailableIndexes& perCollIdxs) {
+    PerCollUniqueFieldInfo uniqueFieldInfoMap;
+    for (const auto& nssAndIndexes : perCollIdxs) {
+        const auto& nss = nssAndIndexes.first;
+
+        // Build the per-collection unique field information iteratively, tracking the unique,
+        // indexed fields seen so far ('ftb') and the field combinations known to be unique ('ufs').
+        FieldToBit ftb;
+        UniqueFieldSets ufs;
+        for (const auto& index : nssAndIndexes.second) {
+            if (!index->descriptor()->unique()) {
+                continue;
+            }
+
+            if (auto indexFields =
+                    buildUniqueFieldSetForIndex(index->descriptor()->keyPattern(), ftb)) {
+                ufs.insert(*indexFields);
+            }
+        }
+        uniqueFieldInfoMap.emplace(
+            nss,
+            UniqueFieldInformation{.fieldToBit = std::move(ftb), .uniqueFieldSet = std::move(ufs)});
+    }
+    return uniqueFieldInfoMap;
+}
 }  // namespace
 
 /**
@@ -269,11 +296,17 @@ StatusWith<JoinReorderedExecutorResult> getJoinReorderedExecutor(
 
     // Pre-process indexes per collection to facilitate INLJ enumeration.
     auto indexesPerColl = extractINLJEligibleIndexes(solns, mca);
+    PerCollUniqueFieldInfo uniqueFieldInfo;
+    if (qkc.getEnableJoinOptimizationUseIndexUniqueness()) {
+        uniqueFieldInfo = buildUniqueFieldInfo(indexesPerColl);
+    }
+
     JoinReorderingContext ctx{.joinGraph = model.graph,
                               .resolvedPaths = model.resolvedPaths,
                               .cbrCqQsns = std::move(solns),
                               .perCollIdxs = std::move(indexesPerColl),
                               .catStats = createCatalogStats(opCtx, mca),
+                              .uniqueFieldInfo = std::move(uniqueFieldInfo),
                               .explain = expCtx->getExplain().has_value()};
 
     ReorderedJoinSolution reordered;

@@ -6,6 +6,7 @@
  */
 import {assertRepairSucceeds, getUriForColl, startMongodOnExistingPath} from "jstests/disk/libs/wt_file_helper.js";
 import {assertCreateCollection, assertDropCollection} from "jstests/libs/collection_drop_recreate.js";
+import {getTimeseriesCollForRawOps} from "jstests/libs/raw_operation_utils.js";
 
 const dbName = jsTestName();
 const collName = "test";
@@ -25,10 +26,12 @@ const runRepairTest = function runRepairTestOnMongoDInstance(collectionOptions, 
     assert.commandWorked(testColl.insert(docToInsert));
 
     // A document repaired from a timeseries collection will be in a different format than the
-    // original document. This is because the timeseries's system.views collection will be not be
-    // associated with the orphaned clustered collection. Thus, the data will show up as it would
-    // have in the raw system.buckets collection for the timeseries collection.
-    const expectedOrphanDoc = isTimeseries ? db["system.buckets." + collName].findOne() : testColl.findOne();
+    // original document. This is because the timeseries metadata will not be associated with the
+    // orphaned clustered collection after repair. The data will show up as raw bucket documents.
+    // We use rawData() on the main namespace so this works for both legacy and viewless timeseries.
+    const expectedOrphanDoc = isTimeseries
+        ? getTimeseriesCollForRawOps(db, testColl).find().rawData().next()
+        : testColl.findOne();
 
     MongoRunner.stopMongod(mongod);
 

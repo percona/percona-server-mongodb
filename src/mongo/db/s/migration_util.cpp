@@ -376,8 +376,10 @@ void resumeMigrationCoordinationsOnStepUp(OperationContext* opCtx, long long ter
 
             {
                 AutoGetCollection autoColl(opCtx, nss, MODE_IX);
-                CollectionShardingRuntime::assertCollectionLockedAndAcquireExclusive(opCtx, nss)
-                    ->clearFilteringMetadata(opCtx);
+                auto scopedCsr =
+                    CollectionShardingRuntime::assertCollectionLockedAndAcquireExclusive(opCtx,
+                                                                                         nss);
+                scopedCsr->clearFilteringMetadata_nonAuthoritative(opCtx);
             }
 
             recoveryFutures.emplace_back(

@@ -837,7 +837,7 @@ TEST_F(MetadataConsistencyTest, ShardUntrackedCollectionInconsistencyTest) {
     // filtering information.
     {
         auto scopedCSR = CollectionShardingRuntime::acquireExclusive(opCtx, _nss);
-        scopedCSR->clearFilteringMetadata(opCtx);
+        scopedCSR->clearFilteringMetadata_nonAuthoritative(opCtx);
     }
     inconsistencies = metadata_consistency_util::checkCollectionMetadataConsistency(
         opCtx,
@@ -885,7 +885,7 @@ TEST_F(MetadataConsistencyTest, ShardTrackedCollectionInconsistencyTest) {
         const auto collectionMetadata = CollectionMetadata(CurrentChunkManager(rtHandle), _shardId);
 
         auto scopedCSR = CollectionShardingRuntime::acquireExclusive(opCtx, _nss);
-        scopedCSR->setFilteringMetadata(opCtx, collectionMetadata);
+        scopedCSR->setFilteringMetadata_nonAuthoritative(opCtx, collectionMetadata);
     }
 
     auto inconsistencies = metadata_consistency_util::checkCollectionMetadataConsistency(
@@ -906,7 +906,7 @@ TEST_F(MetadataConsistencyTest, ShardTrackedCollectionInconsistencyTest) {
     // filtering information.
     {
         auto scopedCSR = CollectionShardingRuntime::acquireExclusive(opCtx, _nss);
-        scopedCSR->clearFilteringMetadata(opCtx);
+        scopedCSR->clearFilteringMetadata_nonAuthoritative(opCtx);
     }
     inconsistencies = metadata_consistency_util::checkCollectionMetadataConsistency(
         opCtx,

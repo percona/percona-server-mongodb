@@ -130,7 +130,7 @@ void installUntrackedCollectionMetadata(OperationContext* opCtx, const Namespace
     const auto untrackedCollectionMetadata = CollectionMetadata::UNTRACKED();
     AutoGetCollection coll(opCtx, nss, MODE_IX);
     CollectionShardingRuntime::assertCollectionLockedAndAcquireExclusive(opCtx, nss)
-        ->setFilteringMetadata(opCtx, untrackedCollectionMetadata);
+        ->setFilteringMetadata_nonAuthoritative(opCtx, untrackedCollectionMetadata);
 }
 
 void installShardedCollectionMetadata(OperationContext* opCtx,
@@ -171,7 +171,7 @@ void installShardedCollectionMetadata(OperationContext* opCtx,
 
     AutoGetCollection coll(opCtx, nss, MODE_IX);
     CollectionShardingRuntime::assertCollectionLockedAndAcquireExclusive(opCtx, nss)
-        ->setFilteringMetadata(opCtx, collectionMetadata);
+        ->setFilteringMetadata_nonAuthoritative(opCtx, collectionMetadata);
 }
 
 

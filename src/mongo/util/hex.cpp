@@ -34,6 +34,7 @@
 #include "mongo/util/ctype.h"
 
 #include <algorithm>
+#include <array>
 #include <cstddef>
 #include <string>
 
@@ -46,20 +47,43 @@ namespace {
 constexpr StringData kHexUpper = "0123456789ABCDEF"_sd;
 constexpr StringData kHexLower = "0123456789abcdef"_sd;
 
-std::string _hexPack(StringData data, StringData hexchars) {
-    std::string out;
-    out.reserve(2 * data.size());
+using EncodeLookupTable = std::array<std::array<char, 2>, 256>;
+
+consteval EncodeLookupTable generateHexDumpTable(StringData hexDigits) {
+    std::array<std::array<char, 2>, 256> arr;
+    for (size_t i = 0; i < arr.size(); ++i) {
+        arr[i][0] = hexDigits[(i >> 4) & 0xf];
+        arr[i][1] = hexDigits[(i >> 0) & 0xf];
+    }
+    return arr;
+}
+
+/**
+ * Encodes the raw input string 'data' to hex, two bytes at a time. The resulting string will be
+ * exactly twice as long as the input string.
+ */
+std::string _hexPack(StringData data, const EncodeLookupTable& table) {
+    std::string out(2 * data.size(), '\0');
+    auto p = out.begin();
     for (auto c : data) {
-        out.append({hexchars[(c & 0xF0) >> 4], hexchars[(c & 0x0F)]});
+        auto lookup = table[static_cast<unsigned char>(c)];
+        *p++ = lookup[0];
+        *p++ = lookup[1];
     }
     return out;
 }
 
+/**
+ * Decodes the hex-encoded input string 's' into a raw string, two bytes at a time.
+ * Only safe to call if the length of the input string is a multiple of 2.
+ */
 template <typename F>
 void _decode(StringData s, const F& f) {
-    uassert(ErrorCodes::FailedToParse, "Hex blob with odd digit count", s.size() % 2 == 0);
-    for (std::size_t i = 0; i != s.size(); i += 2)
-        f(hexblob::decodePair(s.substr(i, 2)));
+    for (auto p = s.begin(); p != s.end();) {
+        auto hi = hexblob::decodeDigit(*p++);
+        auto lo = hexblob::decodeDigit(*p++);
+        f((hi << 4) | lo);
+    }
 }
 
 }  // namespace
@@ -89,21 +113,29 @@ bool validate(StringData s) {
 }
 
 std::string encode(StringData data) {
-    return _hexPack(data, kHexUpper);
+    static constexpr EncodeLookupTable lookupTable = generateHexDumpTable(kHexUpper);
+    return _hexPack(data, lookupTable);
 }
 
 std::string encodeLower(StringData data) {
-    return _hexPack(data, kHexLower);
+    static constexpr EncodeLookupTable lookupTable = generateHexDumpTable(kHexLower);
+    return _hexPack(data, lookupTable);
 }
 
 void decode(StringData s, BufBuilder* buf) {
+    uassert(ErrorCodes::FailedToParse, "Hex blob with odd digit count", s.size() % 2 == 0);
     _decode(s, [&](unsigned char c) { buf->appendChar(c); });
 }
 
 std::string decode(StringData s) {
-    std::string r;
-    r.reserve(s.size() / 2);
-    _decode(s, [&](unsigned char c) { r.push_back(c); });
+    uassert(ErrorCodes::FailedToParse, "Hex blob with odd digit count", s.size() % 2 == 0);
+    return decodeFromValidSizedInput(s);
+}
+
+std::string decodeFromValidSizedInput(StringData s) {
+    std::string r(s.size() / 2, '\0');
+    size_t i = 0;
+    _decode(s, [&](unsigned char c) { r[i++] = c; });
     return r;
 }
 

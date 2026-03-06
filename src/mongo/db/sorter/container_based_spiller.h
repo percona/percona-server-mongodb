@@ -42,10 +42,11 @@
 #include "mongo/util/bufreader.h"
 #include "mongo/util/modules.h"
 
-#include <limits>
+#include <algorithm>
 #include <memory>
 #include <span>
 #include <utility>
+#include <vector>
 
 #include <boost/optional.hpp>
 
@@ -383,28 +384,30 @@ public:
                 auto mergeIterator = sorter::merge<Key, Value>(spillsToMerge, opts, comp);
                 auto writer = this->_storage->makeWriter(opts, settings);
 
-                int64_t start = std::numeric_limits<int64_t>::max();
-                int64_t end = 0;
+                std::vector<std::pair<int64_t, int64_t>> rangesToDelete;
+                rangesToDelete.reserve(spillsToMerge.size());
+                int64_t numSourceRows = 0;
+                for (const auto& iter : spillsToMerge) {
+                    auto range = iter->getRange();
+                    rangesToDelete.emplace_back(range.getStartOffset(), range.getEndOffset());
+                    numSourceRows += range.getEndOffset() - range.getStartOffset();
+                }
+                std::sort(rangesToDelete.begin(), rangesToDelete.end());
+
                 int64_t numSpilled = 0;
 
                 while (mergeIterator->more()) {
-                    auto range = mergeIterator->iterator().getRange();
-                    if (range.getStartOffset() < start) {
-                        start = range.getStartOffset();
-                    }
-                    if (range.getEndOffset() > end) {
-                        end = range.getEndOffset();
-                    }
-
                     auto next = mergeIterator->next();
                     writer->addAlreadySorted(next.first, next.second);
                     ++numSpilled;
                 }
-                invariant(numSpilled == end - start);
+                invariant((opts.limit) ? numSpilled <= numSourceRows : numSpilled == numSourceRows);
 
-                // TOOD (SERVER-117546): Use a truncate rather than individual deletes.
-                for (int64_t current = start; current < end; ++current) {
-                    _containerBasedStorage().remove(current);
+                // TODO(SERVER-117546): Use a truncate rather than individual deletes.
+                for (const auto& [start, end] : rangesToDelete) {
+                    for (int64_t current = start; current < end; ++current) {
+                        _containerBasedStorage().remove(current);
+                    }
                 }
 
                 iters.push_back(writer->done());

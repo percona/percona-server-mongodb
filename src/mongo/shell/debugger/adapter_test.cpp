@@ -1,5 +1,5 @@
 /**
- *    Copyright (C) 2026-present MongoDB, Inc.
+ *    Copyright (C) 2025-present MongoDB, Inc.
  *
  *    This program is free software: you can redistribute it and/or modify
  *    it under the terms of the Server Side Public License, version 1,
@@ -27,38 +27,35 @@
  *    it in the license file.
  */
 
-#pragma once
+#include "mongo/shell/debugger/adapter.h"
 
-#include "mongo/db/storage/recovery_unit.h"
-#include "mongo/util/duration.h"
+#include "mongo/unittest/unittest.h"
 
-namespace MONGO_MOD_PUB mongo {
+namespace mongo {
+namespace mozjs {
 
-/*
- * RAII guard that temporarily opts the requested RecoveryUnit out of optional cache eviction, and
- * restores the previous timeout on destruction.
- */
-class CacheEvictionOptOutGuard {
-public:
-    /*
-     * Construct a CacheEvictionOptOutGuard for the given RecoveryUnit.
-     */
-    explicit CacheEvictionOptOutGuard(RecoveryUnit& ru);
+TEST(Request, fromJSON) {
 
-    CacheEvictionOptOutGuard(const CacheEvictionOptOutGuard&) = delete;
-    CacheEvictionOptOutGuard(CacheEvictionOptOutGuard&& other) = delete;
+    std::string json =
+        R"({"type":"request","seq":17,"command":"setBreakpoints","arguments":{"source":"","lines":[]}})";
+    Request req = Request::fromJSON(json);
+    SetBreakpointsRequest sbr = SetBreakpointsRequest::fromRequest(req);
+    ASSERT_EQ(req.seq, 17);
+    ASSERT_EQ(req.command, "setBreakpoints");
+}
 
-    CacheEvictionOptOutGuard& operator=(const CacheEvictionOptOutGuard&) = delete;
-    CacheEvictionOptOutGuard& operator=(CacheEvictionOptOutGuard&&) = delete;
+TEST(SetBreakpointsRequest, fromRequest) {
 
-    /*
-     * Destroy the guard and restore the RecoveryUnit's previous cache max wait timeout.
-     */
-    ~CacheEvictionOptOutGuard();
+    std::string json =
+        R"({"type":"request","seq":17,"command":"setBreakpoints","arguments":{"source":"/home/ubuntu/mongo/jstests/my_test.js","lines":[{"line":5},{"line":6}]}})";
+    Request req = Request::fromJSON(json);
+    SetBreakpointsRequest sbr = SetBreakpointsRequest::fromRequest(req);
+    ASSERT_EQ(sbr.seq, 17);
+    ASSERT_EQ(sbr.source, "/home/ubuntu/mongo/jstests/my_test.js");
+    ASSERT_EQ(sbr.lines, std::vector<int>({5, 6}));
+}
 
-private:
-    RecoveryUnit& _ru;
-    Milliseconds _prevCacheMaxWait;
-};
+// TODO: add more, but not prematurely until necessary datatypes get more concrete
 
-}  // namespace MONGO_MOD_PUB mongo
+}  // namespace mozjs
+}  // namespace mongo

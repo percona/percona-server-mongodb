@@ -100,9 +100,9 @@ public:
         auto scopedCss =
             CollectionShardingRuntime::assertCollectionLockedAndAcquireExclusive(opCtx, _nss);
         if (_droppingCollection)
-            scopedCss->clearFilteringMetadataForDroppedCollection(opCtx);
+            scopedCss->clearFilteringMetadataForDroppedCollection_nonAuthoritative(opCtx);
         else
-            scopedCss->clearFilteringMetadata(opCtx);
+            scopedCss->clearFilteringMetadata_nonAuthoritative(opCtx);
     }
 
     void rollback(OperationContext* opCtx) noexcept override {}
@@ -397,8 +397,9 @@ void ShardServerOpObserver::onUpdate(OperationContext* opCtx,
             // Force subsequent uses of the namespace to refresh the filtering metadata so they
             // can synchronize with any work happening on the primary (e.g., migration critical
             // section).
-            CollectionShardingRuntime::assertCollectionLockedAndAcquireExclusive(opCtx, updatedNss)
-                ->clearFilteringMetadata(opCtx);
+            auto scopedCss = CollectionShardingRuntime::assertCollectionLockedAndAcquireExclusive(
+                opCtx, updatedNss);
+            scopedCss->clearFilteringMetadata_nonAuthoritative(opCtx);
         }
     }
 
@@ -623,7 +624,7 @@ void ShardServerOpObserver::onDelete(OperationContext* opCtx,
                     // Secondaries that are in oplog application must clear the collection
                     // filtering metadata before releasing the in-memory critical section.
                     if (!opCtx->isEnforcingConstraints()) {
-                        scopedCsr->clearFilteringMetadata(opCtx);
+                        scopedCsr->clearFilteringMetadata_nonAuthoritative(opCtx);
                     }
 
                     scopedCsr->exitCriticalSection(opCtx, reason);
@@ -687,7 +688,7 @@ void ShardServerOpObserver::onCreateCollection(
         if (ShardingState::get(opCtx)->enabled()) {
             auto scopedCsr = CollectionShardingRuntime::assertCollectionLockedAndAcquireExclusive(
                 opCtx, collectionName);
-            scopedCsr->clearFilteringMetadata(opCtx);
+            scopedCsr->clearFilteringMetadata_nonAuthoritative(opCtx);
         }
 
         return;
@@ -701,8 +702,9 @@ void ShardServerOpObserver::onCreateCollection(
 
     // Temp collections are always UNTRACKED
     if (options.temp) {
-        CollectionShardingRuntime::assertCollectionLockedAndAcquireExclusive(opCtx, collectionName)
-            ->setFilteringMetadata(opCtx, CollectionMetadata::UNTRACKED());
+        auto scopedCsr = CollectionShardingRuntime::assertCollectionLockedAndAcquireExclusive(
+            opCtx, collectionName);
+        scopedCsr->setFilteringMetadata_nonAuthoritative(opCtx, CollectionMetadata::UNTRACKED());
         return;
     }
 
@@ -720,9 +722,10 @@ void ShardServerOpObserver::onCreateCollection(
     auto scopedCsr =
         CollectionShardingRuntime::assertCollectionLockedAndAcquireExclusive(opCtx, collectionName);
     if (oss._implicitCreationInfo._forceCSRAsUnknownAfterCollectionCreation) {
-        scopedCsr->clearFilteringMetadata(opCtx);
+        scopedCsr->clearFilteringMetadata_nonAuthoritative(opCtx);
+
     } else if (!scopedCsr->getCurrentMetadataIfKnown()) {
-        scopedCsr->setFilteringMetadata(opCtx, CollectionMetadata::UNTRACKED());
+        scopedCsr->setFilteringMetadata_nonAuthoritative(opCtx, CollectionMetadata::UNTRACKED());
     }
 }
 

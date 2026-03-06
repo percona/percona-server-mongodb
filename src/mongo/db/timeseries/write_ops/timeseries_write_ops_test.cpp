@@ -274,10 +274,6 @@ public:
 
         const auto untrackedCollectionMetadata = CollectionMetadata::UNTRACKED();
 
-        // AutoGetCollection coll(_opCtx, _nss, MODE_IX);
-        // CollectionShardingRuntime::assertCollectionLockedAndAcquireExclusive(_opCtx, _nss)
-        //     ->setFilteringMetadata(_opCtx, untrackedCollectionMetadata);
-
         _uuid = std::invoke([&] {
             const auto optUuid = CollectionCatalog::get(_opCtx)->lookupUUIDByNSS(_opCtx, _nss);
             ASSERT(optUuid);
@@ -318,7 +314,7 @@ public:
 
         AutoGetCollection coll(_opCtx, _nss, MODE_IX);
         CollectionShardingRuntime::assertCollectionLockedAndAcquireExclusive(_opCtx, _nss)
-            ->setFilteringMetadata(_opCtx, collectionMetadata);
+            ->setFilteringMetadata_nonAuthoritative(_opCtx, collectionMetadata);
     }
 
 protected:

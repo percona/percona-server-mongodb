@@ -158,6 +158,7 @@ export class DatasetWideArray extends Dataset {
             ArrayWorkloads.WorkloadAll,
             ArrayWorkloads.WorkloadAllElementsTrue,
             ArrayWorkloads.WorkloadAnyElementTrue,
+            ArrayWorkloads.WorkloadArray,
             ArrayWorkloads.WorkloadArrayToObject,
             ArrayWorkloads.WorkloadConcatArrays,
             ArrayWorkloads.WorkloadElemMatchGte,

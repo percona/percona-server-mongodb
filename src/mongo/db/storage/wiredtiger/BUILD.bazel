@@ -46,7 +46,6 @@ mongo_cc_library(
         "spill_wiredtiger_kv_engine.cpp",
         "wiredtiger_backup_cursor_hooks.cpp",
         "wiredtiger_begin_transaction_block.cpp",
-        "wiredtiger_cache_eviction_opt_out_guard.cpp",
         "wiredtiger_cache_pressure_monitor.cpp",
         "wiredtiger_compiled_configuration.cpp",
         "wiredtiger_connection.cpp",
@@ -201,7 +200,6 @@ mongo_cc_unit_test(
     srcs = [
         "spill_wiredtiger_kv_engine_test.cpp",
         "wiredtiger_c_api_test.cpp",
-        "wiredtiger_cache_eviction_opt_out_guard_test.cpp",
         "wiredtiger_connection_test.cpp",
         "wiredtiger_error_util_test.cpp",
         "wiredtiger_init_test.cpp",

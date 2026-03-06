@@ -2303,6 +2303,12 @@ Status applyOperation_inlock(OperationContext* opCtx,
                                     "error when inserting");
                                 fassertFailedNoTrace(28750);
                             }
+
+                            ScopedDebugInfo inTxnDbg("inTxn", inTxn);
+                            ScopedDebugInfo assignOperationTimestampDbg("assignOperationTimestamp",
+                                                                        assignOperationTimestamp);
+                            ScopedDebugInfo timestampDbg("operationTimestamp", timestamp);
+
                             wuow.commit();
                         },
                         mode == repl::OplogApplication::Mode::kSecondary);

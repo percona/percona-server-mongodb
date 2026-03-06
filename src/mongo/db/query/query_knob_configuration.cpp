@@ -100,6 +100,8 @@ QueryKnobConfiguration::QueryKnobConfiguration(const query_settings::QuerySettin
         internalMaxNumberNodesConsideredForImplicitEdges.load();
     _internalMaxGroupAccumulatorsInSbe = gInternalMaxGroupAccumulatorsInSbe.loadRelaxed();
     _enableJoinEnumerationHJOrderPruning = internalEnableJoinEnumerationHJOrderPruning.load();
+    _enableJoinOptimizationUseIndexUniqueness =
+        internalEnableJoinOptimizationUseIndexUniqueness.load();
     _enablePathArrayness = internalEnablePathArrayness.loadRelaxed();
     _enablePipelineOptimizationAdditionalTestingRules =
         internalEnablePipelineOptimizationAdditionalTestingRules.loadRelaxed();
@@ -180,6 +182,10 @@ size_t QueryKnobConfiguration::getInternalMinAllPlansEnumerationSubsetLevel() co
 
 size_t QueryKnobConfiguration::getInternalMaxAllPlansEnumerationSubsetLevel() const {
     return _maxAllPlansEnumerationSubsetLevel;
+}
+
+bool QueryKnobConfiguration::getEnableJoinOptimizationUseIndexUniqueness() const {
+    return _enableJoinOptimizationUseIndexUniqueness;
 }
 
 double QueryKnobConfiguration::getSamplingMarginOfError() const {

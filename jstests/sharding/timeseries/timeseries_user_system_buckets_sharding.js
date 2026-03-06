@@ -15,7 +15,7 @@
  * ]
  */
 
-import {FeatureFlagUtil} from "jstests/libs/feature_flag_util.js";
+import {areViewlessTimeseriesEnabled} from "jstests/core/timeseries/libs/viewless_timeseries_util.js";
 import {ShardingTest} from "jstests/libs/shardingtest.js";
 
 let st = new ShardingTest({shards: 2});
@@ -129,7 +129,8 @@ function runTest(testCase, minRequiredVersion = null) {
 }
 
 // Case prexisting collection: bucket timeseries.
-{
+// Skipped when viewless timeseries are enabled since direct system.buckets creation is rejected.
+if (!areViewlessTimeseriesEnabled(db)) {
     jsTest.log("Case collection: bucket timeseries / collection: sharded standard.");
     runTest(() => {
         createWorked(kBucket, tsOptions);
@@ -168,13 +169,15 @@ function runTest(testCase, minRequiredVersion = null) {
         createFailed(kColl, tsOptions, ErrorCodes.NamespaceExists);
     });
 
-    jsTest.log("Case collection: sharded standard / collection: bucket timeseries.");
-    runTest(() => {
-        shardCollectionWorked(kColl);
-        // TODO SERVER-85855 creating a bucket timeseries when the main namespace already exists
-        // and is not timeseries should fail
-        createWorked(kBucket, tsOptions);
-    });
+    if (!areViewlessTimeseriesEnabled(db)) {
+        jsTest.log("Case collection: sharded standard / collection: bucket timeseries.");
+        runTest(() => {
+            shardCollectionWorked(kColl);
+            // TODO SERVER-85855 creating a bucket timeseries when the main namespace already exists
+            // and is not timeseries should fail
+            createWorked(kBucket, tsOptions);
+        });
+    }
 
     jsTest.log("Case collection: sharded standard / collection: sharded standard.");
     runTest(() => {
@@ -213,15 +216,17 @@ function runTest(testCase, minRequiredVersion = null) {
         createFailed(kColl, tsOptions2, ErrorCodes.NamespaceExists);
     });
 
-    jsTest.log("Case collection: sharded timeseries / collection: bucket timeseries.");
-    runTest(
-        () => {
-            shardCollectionWorked(kColl, tsOptions);
-            createWorked(kBucket, tsOptions);
-        },
-        // Creation of bucket namespace is not idempotent before 8.0 (SERVER-89827)
-        "8.0", // minRequiredVersion
-    );
+    if (!areViewlessTimeseriesEnabled(db)) {
+        jsTest.log("Case collection: sharded timeseries / collection: bucket timeseries.");
+        runTest(
+            () => {
+                shardCollectionWorked(kColl, tsOptions);
+                createWorked(kBucket, tsOptions);
+            },
+            // Creation of bucket namespace is not idempotent before 8.0 (SERVER-89827)
+            "8.0", // minRequiredVersion
+        );
+    }
 
     jsTest.log("Case collection: sharded timeseries / collection: sharded standard.");
     runTest(() => {
@@ -235,19 +240,21 @@ function runTest(testCase, minRequiredVersion = null) {
         shardCollectionWorked(kColl, tsOptions);
     });
 
-    jsTest.log("Creation of unsharded bucket collections without timeseries options is not permitted.");
-    runTest(
-        () => {
-            createFailed(kBucket, {}, ErrorCodes.IllegalOperation);
-        },
-        // TODO BACKPORT-20546: Remove minRequired version once the backport is completed.
-        "8.1", // minRequiredVersion
-    );
+    if (!areViewlessTimeseriesEnabled(db)) {
+        jsTest.log("Creation of unsharded bucket collections without timeseries options is not permitted.");
+        runTest(
+            () => {
+                createFailed(kBucket, {}, ErrorCodes.IllegalOperation);
+            },
+            // TODO BACKPORT-20546: Remove minRequired version once the backport is completed.
+            "8.1", // minRequiredVersion
+        );
 
-    jsTest.log("Creation of sharded bucket collections without timeseries options is not permitted.");
-    runTest(() => {
-        shardCollectionFailed(kBucket, {}, 5731501);
-    });
+        jsTest.log("Creation of sharded bucket collections without timeseries options is not permitted.");
+        runTest(() => {
+            shardCollectionFailed(kBucket, {}, 5731501);
+        });
+    }
 }
 
 st.stop();

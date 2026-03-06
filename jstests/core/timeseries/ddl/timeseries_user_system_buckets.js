@@ -4,6 +4,7 @@
  * an already created collection/timeseries (with a non-bucket/bucket nss). This test also attempts
  * to be a reference on what behaviour expect when creating a bucket namespaces and performing an
  * insert on it.
+ * TODO SERVER-120014: Remove this test once 9.0 becomes last LTS and all timeseries collections are viewless.
  *
  *  @tags: [
  *   # We need a timeseries collection.
@@ -13,11 +14,12 @@
  *   # Running shardCollection instead of createCollection returns different error types which are
  *   # not expected by the test
  *   assumes_unsharded_collection,
+ *   # This test directly creates system.buckets collections which is rejected with viewless
+ *   # timeseries. The relevant scenarios are covered in timeseries_create_collection.js.
+ *   featureFlagCreateViewlessTimeseriesCollections_incompatible,
  *  ]
  */
-import {FeatureFlagUtil} from "jstests/libs/feature_flag_util.js";
 import {FixtureHelpers} from "jstests/libs/fixture_helpers.js";
-import {areViewlessTimeseriesEnabled} from "jstests/core/timeseries/libs/viewless_timeseries_util.js";
 
 const tsOptions = {
     timeField: "timestamp",
@@ -138,12 +140,7 @@ db.dropDatabase();
     jsTest.log("Case collection: timeseries / collection: bucket timeseries with different options.");
     runTest(() => {
         createWorked(kColl, tsOptions);
-        if (areViewlessTimeseriesEnabled(db)) {
-            // TODO SERVER-101597 creation of system.buckets collections with TS options in FCV 9.0 must fail
-            createWorked(kBucket, tsOptions2);
-        } else {
-            createFailed(kColl, tsOptions2, ErrorCodes.NamespaceExists);
-        }
+        createFailed(kBucket, tsOptions2, ErrorCodes.NamespaceExists);
     });
 }
 
@@ -177,12 +174,7 @@ db.dropDatabase();
     jsTest.log("Case collection: bucket timeseries / collection: timeseries with different options.");
     runTest(() => {
         createWorked(kBucket, tsOptions);
-        if (areViewlessTimeseriesEnabled(db)) {
-            // TODO SERVER-101597 creation of system.buckets collections with TS options in FCV 9.0 must fail
-            createWorked(kColl, tsOptions2);
-        } else {
-            createFailed(kColl, tsOptions2, ErrorCodes.NamespaceExists);
-        }
+        createFailed(kColl, tsOptions2, ErrorCodes.NamespaceExists);
     });
 
     jsTest.log("Case collection: bucket timeseries / collection: bucket timeseries with different options.");

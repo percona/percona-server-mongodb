@@ -30,6 +30,7 @@
 #include "mongo/shell/debugger/debugger.h"
 
 #include "mongo/scripting/mozjs/shell/implscope.h"
+#include "mongo/shell/debugger/adapter.h"
 
 #include <jsapi.h>
 
@@ -467,6 +468,11 @@ Status DebuggerGlobal::init(JSContext* cx) {
         }
 
     }  // Exit debugger compartment - JSAutoRealm goes out of scope here
+
+    status = DebugAdapter::connect();
+    if (!status.isOK()) {
+        return status;
+    }
 
     // Start stdin handling thread for debug commands
     _stdinThread = std::make_unique<std::thread>(handleStdinThread);

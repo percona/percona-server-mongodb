@@ -379,7 +379,7 @@ void FilteringMetadataCache::forceCollectionPlacementRefresh(OperationContext* o
 
     if (!cm.hasRoutingTable()) {
         auto scopedCsr = CollectionShardingRuntime::acquireExclusive(opCtx, nss);
-        scopedCsr->setFilteringMetadata(opCtx, CollectionMetadata::UNTRACKED());
+        scopedCsr->setFilteringMetadata_nonAuthoritative(opCtx, CollectionMetadata::UNTRACKED());
         return;
     }
 
@@ -412,7 +412,7 @@ void FilteringMetadataCache::forceCollectionPlacementRefresh(OperationContext* o
     }
 
     CollectionMetadata metadata(cm, ShardingState::get(opCtx)->shardId());
-    scopedCsr->setFilteringMetadata(opCtx, std::move(metadata));
+    scopedCsr->setFilteringMetadata_nonAuthoritative(opCtx, std::move(metadata));
 }
 
 Status FilteringMetadataCache::onDbVersionMismatch(
@@ -555,7 +555,8 @@ void FilteringMetadataCache::_recoverMigrationCoordinations(OperationContext* op
                 invariant(!optMetadata);
 
                 if (!cancellationToken.isCanceled()) {
-                    scopedCsr->setFilteringMetadata(opCtx, std::move(currentMetadata));
+                    scopedCsr->setFilteringMetadata_nonAuthoritative(opCtx,
+                                                                     std::move(currentMetadata));
                 }
             };
 
@@ -994,7 +995,7 @@ SharedSemiFuture<void> FilteringMetadataCache::_recoverRefreshCollectionPlacemen
                 if (!cancellationToken.isCanceled()) {
                     // Atomically set the new filtering metadata and check if there is a migration
                     // that must be aborted.
-                    scopedCsr->setFilteringMetadata(opCtx, currentMetadata);
+                    scopedCsr->setFilteringMetadata_nonAuthoritative(opCtx, currentMetadata);
 
                     if (currentMetadata.isSharded() && !currentMetadata.allowMigrations()) {
                         if (auto msm = MigrationSourceManager::get(*scopedCsr)) {

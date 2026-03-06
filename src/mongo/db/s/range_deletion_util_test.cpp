@@ -138,8 +138,8 @@ public:
         AutoGetDb autoDb(_opCtx, kNss.dbName(), MODE_IX);
         Lock::CollectionLock collLock(_opCtx, kNss, MODE_IX);
         CollectionShardingRuntime::assertCollectionLockedAndAcquireExclusive(_opCtx, kNss)
-            ->setFilteringMetadata(_opCtx,
-                                   CollectionMetadata(std::move(cm), ShardId("dummyShardId")));
+            ->setFilteringMetadata_nonAuthoritative(
+                _opCtx, CollectionMetadata(std::move(cm), ShardId("dummyShardId")));
     }
 
     UUID uuid() const {

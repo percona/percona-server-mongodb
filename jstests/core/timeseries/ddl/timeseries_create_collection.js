@@ -104,6 +104,39 @@ describe("Non-timeseries coll exists", () => {
     });
 });
 
+describe("Timeseries coll exists", () => {
+    beforeEach(() => {
+        assert.commandWorked(
+            testDB.createCollection(collName, {timeseries: {timeField: timeFieldName, metaField: metaFieldName}}),
+        );
+        assertCollExists(true, testDB, collName);
+    });
+    afterEach(() => {
+        assertCollExists(true, testDB, collName);
+        dropMainNamespace();
+    });
+    it("Create non-timeseries coll", () => {
+        assert.commandFailedWithCode(testDB.createCollection(collName), ErrorCodes.NamespaceExists);
+    });
+    it("Create timeseries coll - same options", () => {
+        assert.commandWorked(
+            testDB.createCollection(collName, {timeseries: {timeField: timeFieldName, metaField: metaFieldName}}),
+        );
+    });
+    it("Create timeseries coll - different options", () => {
+        assert.commandFailedWithCode(
+            testDB.createCollection(collName, {timeseries: {timeField: timeFieldName, metaField: "differentMeta"}}),
+            ErrorCodes.NamespaceExists,
+        );
+    });
+    it("Create view", () => {
+        assert.commandFailedWithCode(
+            testDB.runCommand({create: collName, viewOn: otherName, pipeline: viewPipeline}),
+            ErrorCodes.NamespaceExists,
+        );
+    });
+});
+
 describe("view exists", () => {
     beforeEach(() => {
         assert.commandWorked(testDB.runCommand({create: collName, viewOn: otherName, pipeline: viewPipeline}));

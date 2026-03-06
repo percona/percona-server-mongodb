@@ -175,3 +175,12 @@ inline StringBuilder& operator<<(StringBuilder& s, const Timestamp& t) {
 }
 
 }  // namespace mongo
+
+namespace fmt {
+template <>
+struct formatter<mongo::Timestamp> : formatter<std::string_view> {
+    auto format(const mongo::Timestamp& t, auto& ctx) const {
+        return fmt::format_to(ctx.out(), "Timestamp({}, {})", t.getSecs(), t.getInc());
+    }
+};
+}  // namespace fmt

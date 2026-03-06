@@ -85,14 +85,14 @@ ChangeStreamUnwindTransactionStage::ChangeStreamUnwindTransactionStage(
     const boost::intrusive_ptr<ExpressionContext>& pExpCtx,
     BSONObj filter,
     std::shared_ptr<MatchExpression> expression)
-    : Stage(stageName, pExpCtx), _filter(std::move(filter)), _expression(std::move(expression)) {}
-
-GetNextResult ChangeStreamUnwindTransactionStage::doGetNext() {
-    uassert(5543812,
+    : Stage(stageName, pExpCtx), _filter(std::move(filter)), _expression(std::move(expression)) {
+    tassert(5543812,
             str::stream() << DocumentSourceChangeStreamUnwindTransaction::kStageName
                           << " cannot be executed from router",
             !pExpCtx->getInRouter());
+}
 
+GetNextResult ChangeStreamUnwindTransactionStage::doGetNext() {
     while (true) {
         // If we're unwinding an 'applyOps' from a transaction, check if there are any documents
         // we have stored that can be returned.

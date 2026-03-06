@@ -11,6 +11,7 @@
 
 import {afterEach, before, beforeEach, describe, it} from "jstests/libs/mochalite.js";
 import {ReplSetTest} from "jstests/libs/replsettest.js";
+import {areViewlessTimeseriesEnabled} from "jstests/core/timeseries/libs/viewless_timeseries_util.js";
 
 describe("promote and demote replicaset to sharded cluster", function () {
     before(() => {
@@ -205,17 +206,16 @@ describe("promote and demote replicaset to sharded cluster", function () {
     });
 
     it("direct operation is allowed after promotion", () => {
-        const collections = ["test.foo", "test.testTsColl", "test.system.buckets.testTsColl"];
         this.configRS.asCluster(
             this.configRS.getPrimary(),
             () => {
+                const adminDB = this.configRS.getPrimary().getDB("admin");
+                let collections = new Set(["test.foo", "test.testTsColl"]);
+                if (!areViewlessTimeseriesEnabled(adminDB)) {
+                    collections.add("test.system.buckets.testTsColl");
+                }
                 collections.forEach((collection) => {
-                    assert.commandWorked(
-                        this.configRS
-                            .getPrimary()
-                            .getDB("admin")
-                            .runCommand({_flushRoutingTableCacheUpdates: collection}),
-                    );
+                    assert.commandWorked(adminDB.runCommand({_flushRoutingTableCacheUpdates: collection}));
                 });
             },
             this.keyFile,

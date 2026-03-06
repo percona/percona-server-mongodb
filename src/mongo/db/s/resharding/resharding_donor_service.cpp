@@ -518,9 +518,10 @@ ExecutorFuture<void> ReshardingDonorService::DonorStateMachine::_finishReshardin
                                                                 _metadata.getTempReshardingNss(),
                                                                 AcquisitionPrerequisites::kWrite),
                         MODE_IX);
-                    CollectionShardingRuntime::assertCollectionLockedAndAcquireExclusive(
-                        opCtx.get(), _metadata.getTempReshardingNss())
-                        ->clearFilteringMetadata(opCtx.get());
+                    auto scopedCsr =
+                        CollectionShardingRuntime::assertCollectionLockedAndAcquireExclusive(
+                            opCtx.get(), _metadata.getTempReshardingNss());
+                    scopedCsr->clearFilteringMetadata_nonAuthoritative(opCtx.get());
                 }
 
                 const auto onReleaseCriticalSectionAction =

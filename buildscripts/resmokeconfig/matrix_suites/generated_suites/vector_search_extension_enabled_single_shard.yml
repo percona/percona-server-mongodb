@@ -36,6 +36,8 @@ executor:
     auth_options: *id001
     class: ShardedClusterFixture
     launch_mongot: true
+    load_extensions:
+      - add_fields_match
     mongod_options:
       keyFile: jstests/with_mongot/keyfile_for_testing
       loadExtensions: mongot-extension

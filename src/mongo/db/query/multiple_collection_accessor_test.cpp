@@ -191,7 +191,7 @@ void MultipleCollectionAccessorTest::installShardedCollectionMetadata(
                                      AcquisitionPrerequisites::kWrite),
         MODE_IX);
     CollectionShardingRuntime::assertCollectionLockedAndAcquireExclusive(opCtx, nss)
-        ->setFilteringMetadata(opCtx, collectionMetadata);
+        ->setFilteringMetadata_nonAuthoritative(opCtx, collectionMetadata);
 }
 
 TEST_F(MultipleCollectionAccessorTest, mainCollectionViaAcquisition) {

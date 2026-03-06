@@ -452,7 +452,7 @@ protected:
             AutoGetCollection autoColl(opCtx, kTestNss, MODE_X);
             auto scopedCsr = CollectionShardingRuntime::assertCollectionLockedAndAcquireExclusive(
                 opCtx, kTestNss);
-            scopedCsr->setFilteringMetadata(opCtx, metadata);
+            scopedCsr->setFilteringMetadata_nonAuthoritative(opCtx, metadata);
         }
 
         return metadata;

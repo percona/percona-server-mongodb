@@ -35,13 +35,15 @@
 #include "mongo/db/shard_role/shard_catalog/collection_mock.h"
 #include "mongo/db/shard_role/transaction_resources.h"
 #include "mongo/db/sorter/container_based_spiller.h"
-#include "mongo/db/sorter/container_test_utils.h"
 #include "mongo/db/sorter/file_based_spiller.h"
 #include "mongo/db/sorter/sorter.h"
 #include "mongo/db/sorter/sorter_file_name.h"
 #include "mongo/db/sorter/sorter_template_defs.h"
 #include "mongo/db/sorter/sorter_test_utils.h"
 #include "mongo/db/storage/ident.h"
+#include "mongo/db/storage/storage_engine.h"
+#include "mongo/db/storage/temporary_record_store.h"
+#include "mongo/db/storage/write_unit_of_work.h"
 #include "mongo/unittest/unittest.h"
 
 #include <concepts>
@@ -50,6 +52,7 @@
 #include <memory>
 #include <string>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include <boost/filesystem/path.hpp>
@@ -120,7 +123,7 @@ struct FileTraits {
 
     static std::unique_ptr<SortedStorageWriter<IntWrapper, IntWrapper>> makeWriter(
         const SortOptions& opts) {
-        invariant(opts.tempDir);
+        ASSERT(opts.tempDir);
         auto spillFile = std::make_shared<SorterFile>(sorter::nextFileName(*opts.tempDir), nullptr);
         return std::make_unique<SortedFileWriter<IntWrapper, IntWrapper>>(opts, spillFile);
     }
@@ -164,7 +167,6 @@ struct FileTraits {
     }
 };
 
-// TODO SERVER-117268: Complete.
 struct ContainerTraits {
     static constexpr bool kHasFileStats = false;
     static constexpr int kEmptyStorageErrorCode = 0;
@@ -180,12 +182,35 @@ struct ContainerTraits {
         auto* replCoordMock = dynamic_cast<repl::ReplicationCoordinatorMock*>(replCoord);
         ASSERT(replCoordMock);
         replCoordMock->alwaysAllowWrites(true);
-        _container.setIdent(std::make_shared<Ident>("sorted_storage_iterator_container"));
+        _writerTable = _makeTemporaryRecordStore();
     }
 
-    static std::shared_ptr<SorterSpiller<IntWrapper, IntWrapper>> makeSpiller(
-        const SortOptions& opts) {
-        MONGO_UNIMPLEMENTED;
+    std::shared_ptr<SorterSpiller<IntWrapper, IntWrapper>> makeSpiller(const SortOptions& opts) {
+        using Spiller = ContainerBasedSpiller<IntWrapper, IntWrapper>;
+        struct SpillerOwner {
+            std::shared_ptr<TemporaryRecordStore> table;
+            Spiller spiller;
+        };
+
+        auto table = _makeTemporaryRecordStore();
+        auto& container =
+            std::get<std::reference_wrapper<IntegerKeyedContainer>>(table->rs()->getContainer())
+                .get();
+        const auto insertionBatchSize = 1000;
+
+        auto& ru = *shard_role_details::getRecoveryUnit(_opCtx.get());
+        auto owner = std::make_shared<SpillerOwner>(SpillerOwner{
+            .table = std::move(table),
+            .spiller = Spiller(*_opCtx,
+                               ru,
+                               _collPtr,
+                               container,
+                               _containerStats,
+                               _collPtr->ns().dbName(),
+                               opts.checksumVersion,
+                               insertionBatchSize),
+        });
+        return std::shared_ptr<SorterSpiller<IntWrapper, IntWrapper>>(owner, &owner->spiller);
     }
 
     static std::shared_ptr<SorterSpiller<IntWrapper, IntWrapper>> makeSpillerForResume(
@@ -197,10 +222,14 @@ struct ContainerTraits {
         const SortOptions& opts) {
         auto& ru = *shard_role_details::getRecoveryUnit(_opCtx.get());
         const auto settings = SortedContainerWriter<IntWrapper, IntWrapper>::Settings{};
+        auto& container = std::get<std::reference_wrapper<IntegerKeyedContainer>>(
+                              _writerTable->rs()->getContainer())
+                              .get();
         return std::make_unique<SortedContainerWriter<IntWrapper, IntWrapper>>(
-            *_opCtx, ru, _collPtr, _container, _containerStats, opts, _nextKey, settings);
+            *_opCtx, ru, _collPtr, container, _containerStats, opts, _nextKey, settings);
     }
 
+    // TODO SERVER-120078
     static std::string makeEmptyStorage(const boost::filesystem::path& storageLocation) {
         MONGO_UNIMPLEMENTED;
     }
@@ -222,10 +251,21 @@ struct ContainerTraits {
     }
 
 private:
+    std::shared_ptr<TemporaryRecordStore> _makeTemporaryRecordStore() {
+        auto* storageEngine = _opCtx->getServiceContext()->getStorageEngine();
+        ASSERT(storageEngine);
+        WriteUnitOfWork wuow(_opCtx.get());
+        auto trs = storageEngine->makeTemporaryRecordStore(
+            _opCtx.get(), storageEngine->generateNewInternalIdent(), KeyFormat::Long);
+        ASSERT(trs);
+        wuow.commit();
+        return std::shared_ptr<TemporaryRecordStore>(trs.release());
+    }
+
     ServiceContext::UniqueOperationContext _opCtx;
     SorterTracker _tracker;
     SorterContainerStats _containerStats;
-    ViewableIntegerKeyedContainer _container;
+    std::shared_ptr<TemporaryRecordStore> _writerTable;
     std::shared_ptr<CollectionMock> _coll;
     CollectionPtr _collPtr;
     int64_t _nextKey = 1;

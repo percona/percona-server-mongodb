@@ -2128,8 +2128,9 @@ void MigrationDestinationManager::awaitCriticalSectionReleaseSignalAndCompleteMi
 
     if (refreshFailed) {
         AutoGetCollection autoColl(opCtx, _nss, MODE_IX);
-        CollectionShardingRuntime::assertCollectionLockedAndAcquireExclusive(opCtx, _nss)
-            ->clearFilteringMetadata(opCtx);
+        auto scopedCsr =
+            CollectionShardingRuntime::assertCollectionLockedAndAcquireExclusive(opCtx, _nss);
+        scopedCsr->clearFilteringMetadata_nonAuthoritative(opCtx);
     }
 
     // Release the critical section

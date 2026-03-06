@@ -53,9 +53,7 @@ std::string Timestamp::toStringPretty() const {
 }
 
 std::string Timestamp::toString() const {
-    std::stringstream ss;
-    ss << "Timestamp(" << secs << ", " << i << ")";
-    return ss.str();
+    return fmt::format("{}", *this);
 }
 
 BSONObj Timestamp::toBSON() const {

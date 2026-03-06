@@ -379,8 +379,8 @@ boost::optional<CriticalSectionSignal> CollectionShardingRuntime::getCriticalSec
     return {};
 }
 
-void CollectionShardingRuntime::setFilteringMetadata(OperationContext* opCtx,
-                                                     CollectionMetadata newMetadata) {
+void CollectionShardingRuntime::setFilteringMetadata_nonAuthoritative(
+    OperationContext* opCtx, CollectionMetadata newMetadata) {
     tassert(7032302,
             str::stream() << "Namespace " << _nss.toStringForErrorMsg()
                           << " must never have a routing table.",
@@ -418,10 +418,15 @@ void CollectionShardingRuntime::setFilteringMetadata(OperationContext* opCtx,
     } else if (newMetadata.hasRoutingTable()) {
         _metadataManager->setFilteringMetadata(std::move(newMetadata));
     }
+    // We reset the state on whether we are authoritative or not and delegate it to the parent
+    // caller on whether the CSS is now authoritative.
+    _authoritativeState = AuthoritativeState::kNonAuthoritative;
 }
 
 void CollectionShardingRuntime::_clearFilteringMetadata(OperationContext* opCtx,
                                                         bool collIsDropped) {
+    _authoritativeState = AuthoritativeState::kNonAuthoritative;
+
     if (_placementVersionInRecoverOrRefresh) {
         _placementVersionInRecoverOrRefresh->cancellationSource.cancel();
     }
@@ -446,11 +451,11 @@ void CollectionShardingRuntime::_clearFilteringMetadata(OperationContext* opCtx,
         _metadataManager.reset();
 }
 
-void CollectionShardingRuntime::clearFilteringMetadata(OperationContext* opCtx) {
+void CollectionShardingRuntime::clearFilteringMetadata_nonAuthoritative(OperationContext* opCtx) {
     _clearFilteringMetadata(opCtx, /* collIsDropped */ false);
 }
 
-void CollectionShardingRuntime::clearFilteringMetadataForDroppedCollection(
+void CollectionShardingRuntime::clearFilteringMetadataForDroppedCollection_nonAuthoritative(
     OperationContext* opCtx) {
     _clearFilteringMetadata(opCtx, /* collIsDropped */ true);
 }
@@ -713,6 +718,11 @@ boost::optional<SharedSemiFuture<void>> CollectionShardingRuntime::getMetadataRe
 void CollectionShardingRuntime::resetPlacementVersionRecoverRefreshFuture() {
     invariant(_placementVersionInRecoverOrRefresh);
     _placementVersionInRecoverOrRefresh = boost::none;
+}
+
+CollectionShardingRuntime::AuthoritativeState CollectionShardingRuntime::getAuthoritativeState()
+    const {
+    return _authoritativeState;
 }
 
 CollectionCriticalSection::CollectionCriticalSection(OperationContext* opCtx,

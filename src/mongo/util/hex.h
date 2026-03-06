@@ -99,6 +99,13 @@ void decode(StringData s, BufBuilder* buf);
 /** Overload that returns the decoded hex blob as a `std::string`. */
 std::string decode(StringData s);
 
+/**
+ * Same as 'decode(StringData)', but slightly faster by omitting the size check on the input value.
+ * Should only ever be called with trusted inputs that are known to have a multiple-of-2 length,
+ * otherwise the behavior is undefined.
+ */
+std::string decodeFromValidSizedInput(StringData s);
+
 }  // namespace hexblob
 
 static const size_t kHexDumpMaxSize = 1000000;

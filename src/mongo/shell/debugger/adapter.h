@@ -27,17 +27,73 @@
  *    it in the license file.
  */
 
-#include "mongo/db/storage/wiredtiger/wiredtiger_cache_eviction_opt_out_guard.h"
+#pragma once
+
+#include "mongo/base/status.h"
+#include "mongo/bson/bsonobj.h"
+
+#include <string>
 
 namespace mongo {
+namespace mozjs {
 
-CacheEvictionOptOutGuard::CacheEvictionOptOutGuard(RecoveryUnit& ru) : _ru(ru) {
-    _prevCacheMaxWait = _ru.getCacheMaxWaitTimeout();
-    _ru.optOutOfCacheEviction();
-}
+/**
+ * https://microsoft.github.io/debug-adapter-protocol//specification.htm
+ */
 
-CacheEvictionOptOutGuard::~CacheEvictionOptOutGuard() {
-    _ru.setCacheMaxWaitTimeout(_prevCacheMaxWait);
-}
+// Base Protocol
+class Message {
+public:
+    int seq;
+};
 
+class Request : public Message {
+public:
+    std::string command;
+    BSONObj arguments;
+
+    static Request fromJSON(std::string json);
+};
+
+class Response : public Message {
+public:
+    int request_seq;
+    bool success;
+    std::string message;
+    std::string body;
+};
+
+class SetBreakpointsRequest {
+public:
+    int seq;
+    std::string source;
+    std::vector<int> lines;
+
+    static SetBreakpointsRequest fromRequest(Request msg);
+};
+
+class SetBreakpointsResponse {
+private:
+    SetBreakpointsRequest request;
+
+public:
+    int seq;
+    static SetBreakpointsResponse fromRequest(SetBreakpointsRequest req);
+    void send();
+};
+
+class DebugAdapter {
+
+public:
+    static Status connect();
+    static void disconnect();
+
+    static void handleMessagesThread();
+    static void handleRequest(const Request& msg);
+    static void handleSetBreakpoints(SetBreakpointsRequest req);
+    static void sendMessage(std::string json);
+};
+
+
+}  // namespace mozjs
 }  // namespace mongo

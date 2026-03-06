@@ -1168,6 +1168,16 @@ mongo_cc_benchmark(
 )
 
 mongo_cc_benchmark(
+    name = "hex_bm",
+    srcs = [
+        "hex_bm.cpp",
+    ],
+    tags = [
+        "first_half_bm",
+    ],
+)
+
+mongo_cc_benchmark(
     name = "stacktrace_bm",
     srcs = [
         "stacktrace_bm.cpp",
