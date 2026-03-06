@@ -62,6 +62,8 @@ struct LDAPGlobalParams {
     synchronized_value<std::string> ldapUserToDNMapping;
     bool ldapUseConnectionPool;
     AtomicWord<int> ldapUserCacheInvalidationInterval;
+    AtomicWord<int> ldapUserCacheRefreshInterval;
+    bool ldapShouldRefreshUserCacheEntries;
     synchronized_value<std::string> ldapQueryTemplate;
     AtomicWord<bool> ldapDebug;
     AtomicWord<bool> ldapFollowReferrals;

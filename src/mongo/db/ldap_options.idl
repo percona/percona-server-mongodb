@@ -69,15 +69,33 @@ server_parameters:
             callback: validateLDAPUserToDNMappingServerParam
         redact: false
     ldapUseConnectionPool:
-        description: ""
+        description: "Use connection pooling when connecting to the LDAP server for authentication/authorization"
         set_at: startup
         cpp_varname: "ldapGlobalParams.ldapUseConnectionPool"
         redact: false
     ldapUserCacheInvalidationInterval:
-        description: ""
+        description: "Interval in seconds for LDAP user cache invalidation when ldapShouldRefreshUserCacheEntries is false"
         set_at: [startup, runtime]
         cpp_varname: "ldapGlobalParams.ldapUserCacheInvalidationInterval"
         default: 30
+        validator:
+            gte: 1
+            lte: 86400
+        redact: false
+    ldapUserCacheRefreshInterval:
+        description: "Interval in seconds for proactive LDAP user cache refresh when ldapShouldRefreshUserCacheEntries is true"
+        set_at: [startup, runtime]
+        cpp_varname: "ldapGlobalParams.ldapUserCacheRefreshInterval"
+        default: 30
+        validator:
+            gte: 1
+            lte: 86400
+        redact: false
+    ldapShouldRefreshUserCacheEntries:
+        description: "When true, proactively refresh LDAP user cache entries instead of invalidating them"
+        set_at: startup
+        cpp_varname: "ldapGlobalParams.ldapShouldRefreshUserCacheEntries"
+        default: false
         redact: false
     ldapDebug:
         description: "Print debug information for LDAP connections"
