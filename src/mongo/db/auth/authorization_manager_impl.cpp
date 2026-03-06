@@ -233,14 +233,54 @@ public:
         LOGV2_DEBUG(29057, 1, "starting thread", "name"_attr = name());
         stdx::unique_lock<stdx::mutex> lock(_mutex);
 
-        while (!_shuttingDown) {
-            MONGO_IDLE_THREAD_BLOCK;
-            auto cv_status = _condvar.wait_for(
-                lock,
-                stdx::chrono::seconds(ldapGlobalParams.ldapUserCacheInvalidationInterval.load()));
+        const bool shouldRefresh = ldapGlobalParams.ldapShouldRefreshUserCacheEntries;
+        stdx::cv_status cv_status = stdx::cv_status::no_timeout;
 
-            if (cv_status == stdx::cv_status::timeout) {
-                _authzManager->invalidateUsersFromDB(DatabaseName::kExternal);
+        while (!_shuttingDown) {
+            const auto intervalSeconds = shouldRefresh
+                ? ldapGlobalParams.ldapUserCacheRefreshInterval.load()
+                : ldapGlobalParams.ldapUserCacheInvalidationInterval.load();
+
+            {
+                MONGO_IDLE_THREAD_BLOCK;
+                cv_status = _condvar.wait_for(lock, stdx::chrono::seconds(intervalSeconds));
+            }
+
+            if (cv_status == stdx::cv_status::timeout && !_shuttingDown) {
+                lock.unlock();
+
+                // Invalidate $external users if ldapShouldRefreshUserCacheEntries is false or if
+                // refreshing external users from LDAP fails. In the latter case, we want to ensure
+                // that we don't end up with stale user data in the cache.
+                bool shouldInvalidate = true;
+                if (shouldRefresh) {
+                    try {
+                        auto opCtx = cc().makeOperationContext();
+                        auto status = _authzManager->refreshExternalUsers(opCtx.get());
+                        if (!status.isOK()) {
+                            LOGV2_WARNING(29147,
+                                          "Error refreshing external users from LDAP",
+                                          "error"_attr = status);
+                        } else {
+                            shouldInvalidate = false;
+                        }
+                    } catch (const DBException& e) {
+                        LOGV2_WARNING(29148,
+                                      "Exception refreshing external users from LDAP",
+                                      "error"_attr = e.toStatus());
+                    }
+                }
+                if (shouldInvalidate) {
+                    try {
+                        _authzManager->invalidateUsersFromDB(DatabaseName::kExternal);
+                    } catch (const DBException& e) {
+                        LOGV2_WARNING(29149,
+                                      "Exception invalidating $external users from user cache",
+                                      "error"_attr = e.toStatus());
+                    }
+                }
+
+                lock.lock();
             }
         }
         LOGV2_DEBUG(29058, 1, "stopping thread", "name"_attr = name());
