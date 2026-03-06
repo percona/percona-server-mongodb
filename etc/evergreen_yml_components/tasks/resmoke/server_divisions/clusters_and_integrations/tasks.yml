@@ -1865,6 +1865,20 @@ tasks:
       - func: "generate resmoke tasks"
 
   - <<: *gen_task_template
+    name: sharded_collections_jscore_passthrough_with_balancer_drop_config_cache_collections_gen
+    tags:
+      [
+        "assigned_to_jira_team_server_catalog_and_routing",
+        "default",
+        "incompatible_mac",
+        "sharding",
+        "jscore",
+        "common",
+      ]
+    commands:
+      - func: "generate resmoke tasks"
+
+  - <<: *gen_task_template
     name: sharding_jscore_passthrough_priority_ports_gen
     tags:
       [
@@ -2395,6 +2409,24 @@ tasks:
     name: fcv_upgrade_downgrade_replica_sets_jscore_passthrough_gen
     tags:
       ["assigned_to_jira_team_server_catalog_and_routing", "default", "jscore"]
+    commands:
+      - func: "generate resmoke tasks"
+        vars:
+          # TODO(SERVER-109882): Enable viewless timeseries in upgrade/downgrade suites
+          resmoke_args: >-
+            --disableFeatureFlags=featureFlagCreateViewlessTimeseriesCollections
+
+  - <<: *gen_task_template
+    name: fcv_upgrade_downgrade_retryable_writes_replica_sets_jscore_passthrough_gen
+    tags: [
+        "assigned_to_jira_team_server_catalog_and_routing",
+        "default",
+        "replica_sets",
+        "jscore",
+        # we already have `fcv_upgrade_downgrade_replica_sets_jscore_passthrough` in required variants
+        # thus we only include this in `suggested` variants
+        "suggested_excluding_required__for_devprod_mitigation_only",
+      ]
     commands:
       - func: "generate resmoke tasks"
         vars:

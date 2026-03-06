@@ -46,6 +46,7 @@
 #include "mongo/db/record_id_helpers.h"
 #include "mongo/db/repl/local_oplog_info.h"
 #include "mongo/db/repl/replication_coordinator.h"
+#include "mongo/db/replicated_fast_count/replicated_fast_count_enabled.h"
 #include "mongo/db/replicated_fast_count/replicated_fast_count_uncommitted_changes.h"
 #include "mongo/db/server_feature_flags_gen.h"
 #include "mongo/db/server_options.h"
@@ -401,9 +402,7 @@ Status insertDocumentsImpl(OperationContext* opCtx,
             recordIds,
             /*fromMigrate=*/makeFromMigrateForInserts(opCtx, nss, begin, end, fromMigrate),
             /*defaultFromMigrate=*/fromMigrate);
-        if (gFeatureFlagReplicatedFastCount.isEnabledUseLastLTSFCVWhenUninitialized(
-                VersionContext::getDecoration(opCtx),
-                serverGlobalParams.featureCompatibility.acquireFCVSnapshot())) {
+        if (isReplicatedFastCountEnabled(opCtx)) {
             UncommittedFastCountChange::getForWrite(opCtx).record(
                 collection->uuid(),
                 records.size(),
@@ -773,9 +772,7 @@ void updateDocument(OperationContext* opCtx,
 
     opCtx->getServiceContext()->getOpObserver()->onUpdate(opCtx, onUpdateArgs);
 
-    if (gFeatureFlagReplicatedFastCount.isEnabledUseLastLTSFCVWhenUninitialized(
-            VersionContext::getDecoration(opCtx),
-            serverGlobalParams.featureCompatibility.acquireFCVSnapshot())) {
+    if (isReplicatedFastCountEnabled(opCtx)) {
         UncommittedFastCountChange::getForWrite(opCtx).record(
             collection->uuid(), 0, newDoc.objsize() - oldDoc.value().objsize());
     }
@@ -871,9 +868,7 @@ StatusWith<BSONObj> updateDocumentWithDamages(OperationContext* opCtx,
     }
 
     opCtx->getServiceContext()->getOpObserver()->onUpdate(opCtx, onUpdateArgs);
-    if (gFeatureFlagReplicatedFastCount.isEnabledUseLastLTSFCVWhenUninitialized(
-            VersionContext::getDecoration(opCtx),
-            serverGlobalParams.featureCompatibility.acquireFCVSnapshot())) {
+    if (isReplicatedFastCountEnabled(opCtx)) {
         UncommittedFastCountChange::getForWrite(opCtx).record(
             collection->uuid(), 0, newDoc.objsize() - oldDoc.value().objsize());
     }
@@ -965,9 +960,7 @@ void deleteDocument(OperationContext* opCtx,
     opCtx->getServiceContext()->getOpObserver()->onDelete(
         opCtx, collection, stmtId, doc.value(), documentKey, deleteArgs);
 
-    if (gFeatureFlagReplicatedFastCount.isEnabledUseLastLTSFCVWhenUninitialized(
-            VersionContext::getDecoration(opCtx),
-            serverGlobalParams.featureCompatibility.acquireFCVSnapshot())) {
+    if (isReplicatedFastCountEnabled(opCtx)) {
         UncommittedFastCountChange::getForWrite(opCtx).record(
             collection->uuid(), -1, -doc.value().objsize());
     }
@@ -1038,9 +1031,7 @@ repl::OpTime truncateRange(OperationContext* opCtx,
 
     opCtx->getServiceContext()->getOpObserver()->onTruncateRange(
         opCtx, collection, minRecordId, maxRecordId, bytesDeleted, docsDeleted, opTime);
-    if (gFeatureFlagReplicatedFastCount.isEnabledUseLastLTSFCVWhenUninitialized(
-            VersionContext::getDecoration(opCtx),
-            serverGlobalParams.featureCompatibility.acquireFCVSnapshot())) {
+    if (isReplicatedFastCountEnabled(opCtx)) {
         UncommittedFastCountChange::getForWrite(opCtx).record(
             collection->uuid(), -docsDeleted, -bytesDeleted);
     }

@@ -95,16 +95,26 @@ TEST(ContainerIteratorTest, Iterate) {
     key5.serializeForSorter(containerValue5);
     value5.serializeForSorter(containerValue5);
 
-    ASSERT_OK(container.insert(
-        ru, containerKey1, {containerValue1.buf(), static_cast<size_t>(containerValue1.len())}));
-    ASSERT_OK(container.insert(
-        ru, containerKey2, {containerValue2.buf(), static_cast<size_t>(containerValue2.len())}));
-    ASSERT_OK(container.insert(
-        ru, containerKey3, {containerValue3.buf(), static_cast<size_t>(containerValue3.len())}));
-    ASSERT_OK(container.insert(
-        ru, containerKey4, {containerValue4.buf(), static_cast<size_t>(containerValue4.len())}));
-    ASSERT_OK(container.insert(
-        ru, containerKey5, {containerValue5.buf(), static_cast<size_t>(containerValue5.len())}));
+    ASSERT_OK(container.insert(ru,
+                               containerKey1,
+                               {containerValue1.buf(), static_cast<size_t>(containerValue1.len())},
+                               container::ExistingKeyPolicy::reject));
+    ASSERT_OK(container.insert(ru,
+                               containerKey2,
+                               {containerValue2.buf(), static_cast<size_t>(containerValue2.len())},
+                               container::ExistingKeyPolicy::reject));
+    ASSERT_OK(container.insert(ru,
+                               containerKey3,
+                               {containerValue3.buf(), static_cast<size_t>(containerValue3.len())},
+                               container::ExistingKeyPolicy::reject));
+    ASSERT_OK(container.insert(ru,
+                               containerKey4,
+                               {containerValue4.buf(), static_cast<size_t>(containerValue4.len())},
+                               container::ExistingKeyPolicy::reject));
+    ASSERT_OK(container.insert(ru,
+                               containerKey5,
+                               {containerValue5.buf(), static_cast<size_t>(containerValue5.len())},
+                               container::ExistingKeyPolicy::reject));
 
     ContainerIterator<IntWrapper, IntWrapper> iterator{container.getCursor(ru),
                                                        containerKey1,
@@ -173,14 +183,22 @@ TEST(ContainerIteratorTest, MultipleCursors) {
     key4.serializeForSorter(containerValue4);
     value4.serializeForSorter(containerValue4);
 
-    ASSERT_OK(container.insert(
-        ru, containerKey1, {containerValue1.buf(), static_cast<size_t>(containerValue1.len())}));
-    ASSERT_OK(container.insert(
-        ru, containerKey2, {containerValue2.buf(), static_cast<size_t>(containerValue2.len())}));
-    ASSERT_OK(container.insert(
-        ru, containerKey3, {containerValue3.buf(), static_cast<size_t>(containerValue3.len())}));
-    ASSERT_OK(container.insert(
-        ru, containerKey4, {containerValue4.buf(), static_cast<size_t>(containerValue4.len())}));
+    ASSERT_OK(container.insert(ru,
+                               containerKey1,
+                               {containerValue1.buf(), static_cast<size_t>(containerValue1.len())},
+                               container::ExistingKeyPolicy::reject));
+    ASSERT_OK(container.insert(ru,
+                               containerKey2,
+                               {containerValue2.buf(), static_cast<size_t>(containerValue2.len())},
+                               container::ExistingKeyPolicy::reject));
+    ASSERT_OK(container.insert(ru,
+                               containerKey3,
+                               {containerValue3.buf(), static_cast<size_t>(containerValue3.len())},
+                               container::ExistingKeyPolicy::reject));
+    ASSERT_OK(container.insert(ru,
+                               containerKey4,
+                               {containerValue4.buf(), static_cast<size_t>(containerValue4.len())},
+                               container::ExistingKeyPolicy::reject));
 
     ContainerIterator<IntWrapper, IntWrapper> iterator1{
         container.getCursor(ru),
@@ -240,8 +258,10 @@ TEST(ContainerIteratorTest, ContainerMissingKey) {
     EXPECT_THROW(iterator.next(), DBException);
     EXPECT_THROW(iterator.nextWithDeferredValue(), DBException);
 
-    ASSERT_OK(container.insert(
-        ru, containerKey1, {containerValue1.buf(), static_cast<size_t>(containerValue1.len())}));
+    ASSERT_OK(container.insert(ru,
+                               containerKey1,
+                               {containerValue1.buf(), static_cast<size_t>(containerValue1.len())},
+                               container::ExistingKeyPolicy::reject));
     EXPECT_EQ(iterator.nextWithDeferredValue(), key1);
 
     ASSERT_OK(container.remove(ru, containerKey1));
@@ -261,8 +281,10 @@ TEST(ContainerIteratorTest, InvalidDeferredValueUsage) {
     key1.serializeForSorter(containerValue1);
     value1.serializeForSorter(containerValue1);
 
-    ASSERT_OK(container.insert(
-        ru, containerKey1, {containerValue1.buf(), static_cast<size_t>(containerValue1.len())}));
+    ASSERT_OK(container.insert(ru,
+                               containerKey1,
+                               {containerValue1.buf(), static_cast<size_t>(containerValue1.len())},
+                               container::ExistingKeyPolicy::reject));
 
     ContainerIterator<IntWrapper, IntWrapper> iterator{container.getCursor(ru),
                                                        containerKey1,
@@ -291,8 +313,10 @@ DEATH_TEST(ContainerIteratorChecksumDeathTest, IncorrectChecksumV1Fails, "116059
     key1.serializeForSorter(containerValue1);
     value1.serializeForSorter(containerValue1);
 
-    ASSERT_OK(container.insert(
-        ru, containerKey1, {containerValue1.buf(), static_cast<size_t>(containerValue1.len())}));
+    ASSERT_OK(container.insert(ru,
+                               containerKey1,
+                               {containerValue1.buf(), static_cast<size_t>(containerValue1.len())},
+                               container::ExistingKeyPolicy::reject));
 
     ContainerIterator<IntWrapper, IntWrapper> iterator{container.getCursor(ru),
                                                        containerKey1,
@@ -318,8 +342,10 @@ DEATH_TEST(ContainerIteratorChecksumDeathTest, IncorrectChecksumV2Fails, "116059
     key1.serializeForSorter(containerValue1);
     value1.serializeForSorter(containerValue1);
 
-    ASSERT_OK(container.insert(
-        ru, containerKey1, {containerValue1.buf(), static_cast<size_t>(containerValue1.len())}));
+    ASSERT_OK(container.insert(ru,
+                               containerKey1,
+                               {containerValue1.buf(), static_cast<size_t>(containerValue1.len())},
+                               container::ExistingKeyPolicy::reject));
 
     ContainerIterator<IntWrapper, IntWrapper> iterator{container.getCursor(ru),
                                                        containerKey1,

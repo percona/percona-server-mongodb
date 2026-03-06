@@ -57,6 +57,15 @@ filters:
   - "vector_search_extension.yml":
     approvers:
       - 10gen/query-integration-extensions-api
+  - "retryable_writes.yml":
+    approvers:
+      - 10gen/server-transactions
   - "check_system_buckets_hook.yml":
     approvers:
       - 10gen/server-catalog-and-routing-ddl
+  - "no_causal_consistency.yml":
+    approvers:
+      - 10gen/server-replication-reviewers
+  - "drop_config_cache_collections_hook.yml":
+    approvers:
+      - 10gen/server-catalog-and-routing-shard-catalog

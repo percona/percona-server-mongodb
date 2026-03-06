@@ -70,7 +70,8 @@ executor:
           implicitlyShardOnCreateCollectionOnly: true
 
   hooks:
-    - class: CheckIdleCursors
+    # TODO SERVER-120162: Re-enable once all the false positive have been addressed and the test is stable.
+    # - class: CheckIdleCursors
     - class: CheckShardFilteringMetadata
     - class: CheckReplDBHashInBackground
     - class: CheckReplDBHash

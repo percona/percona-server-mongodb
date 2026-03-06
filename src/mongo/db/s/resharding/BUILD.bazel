@@ -141,3 +141,15 @@ idl_generator(
         "//src/mongo/db:basic_types_gen",
     ],
 )
+
+mongo_cc_library(
+    name = "sharding_write_router",
+    srcs = [
+        "sharding_write_router.cpp",
+    ],
+    deps = [
+        "//src/mongo/db:shard_role_api",
+        "//src/mongo/db/s:local_resharding_operations_registry",
+        "//src/mongo/s:grid",
+    ],
+)

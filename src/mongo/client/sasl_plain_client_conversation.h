@@ -54,6 +54,14 @@ public:
     ~SaslPLAINClientConversation() override;
 
     StatusWith<bool> step(StringData inputData, std::string* outputData) override;
+
+    boost::optional<std::uint32_t> currentStep() const override {
+        return 1;
+    }
+
+    boost::optional<std::uint32_t> totalSteps() const override {
+        return 1;
+    }
 };
 
 }  // namespace mongo

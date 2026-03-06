@@ -52,6 +52,10 @@ boost::optional<StorageEngineLockFile>& StorageEngineLockFile::get(ServiceContex
     return getLockFile(service);
 }
 
+std::string StorageEngineLockFile::lockFilePath(StringData dbpath, StringData fileName) {
+    return (boost::filesystem::path(std::string{dbpath}) / std::string{fileName}).string();
+}
+
 Status StorageEngineLockFile::writePid() {
     ProcessId pid = ProcessId::getCurrent();
     std::stringstream ss;

@@ -42,9 +42,11 @@
 #include "mongo/bson/util/builder_fwd.h"
 #include "mongo/client/mongo_uri.h"
 #include "mongo/client/sasl_oidc_client_types_gen.h"
+#include "mongo/db/auth/authentication_metrics.h"
 #include "mongo/db/auth/oauth_authorization_server_metadata_gen.h"
 #include "mongo/db/auth/oauth_discovery_factory.h"
 #include "mongo/db/auth/oidc_protocol_gen.h"
+#include "mongo/db/connection_health_metrics_parameter_gen.h"
 #include "mongo/idl/idl_parser.h"
 #include "mongo/rpc/object_check.h"  // IWYU pragma: keep
 #include "mongo/util/assert_util.h"
@@ -59,6 +61,8 @@
 #include <boost/move/utility_core.hpp>
 #include <boost/optional/optional.hpp>
 #include <fmt/format.h>
+
+#define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kAccessControl
 
 namespace mongo {
 namespace {

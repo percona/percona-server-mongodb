@@ -11,15 +11,14 @@
  */
 
 import {getTimeseriesCollForRawOps} from "jstests/core/libs/raw_operation_utils.js";
+import {TimeseriesTest} from "jstests/core/timeseries/libs/timeseries.js";
 
 (function testSeconds() {
     let coll = db[jsTestName() + "_granularitySeconds"];
     coll.drop();
 
     assert.commandWorked(db.createCollection(coll.getName(), {timeseries: {timeField: "t", granularity: "seconds"}}));
-    if (TestData.runningWithBalancer) {
-        assert.commandWorked(coll.createIndex({"t": 1}));
-    }
+    TimeseriesTest.createTimeFieldIndexToAllowBucketsReopening(coll);
 
     // Ensure min time is rounded down to nearest bucketRoundingSeconds (minute).
     assert.commandWorked(coll.insert({t: ISODate("2021-04-22T20:10:14.134Z")}));
@@ -46,9 +45,7 @@ import {getTimeseriesCollForRawOps} from "jstests/core/libs/raw_operation_utils.
     coll.drop();
 
     assert.commandWorked(db.createCollection(coll.getName(), {timeseries: {timeField: "t", granularity: "minutes"}}));
-    if (TestData.runningWithBalancer) {
-        assert.commandWorked(coll.createIndex({"t": 1}));
-    }
+    TimeseriesTest.createTimeFieldIndexToAllowBucketsReopening(coll);
 
     // Ensure min time is rounded down to nearest bucketRoundingSeconds (hour).
     assert.commandWorked(coll.insert({t: ISODate("2021-04-22T20:10:14.134Z")}));
@@ -75,9 +72,7 @@ import {getTimeseriesCollForRawOps} from "jstests/core/libs/raw_operation_utils.
     coll.drop();
 
     assert.commandWorked(db.createCollection(coll.getName(), {timeseries: {timeField: "t", granularity: "hours"}}));
-    if (TestData.runningWithBalancer) {
-        assert.commandWorked(coll.createIndex({"t": 1}));
-    }
+    TimeseriesTest.createTimeFieldIndexToAllowBucketsReopening(coll);
 
     // Ensure min time is rounded down to nearest bucketRoundingSeconds (day).
     assert.commandWorked(coll.insert({t: ISODate("2021-04-22T20:10:14.134Z")}));
@@ -105,9 +100,7 @@ import {getTimeseriesCollForRawOps} from "jstests/core/libs/raw_operation_utils.
     coll.drop();
 
     assert.commandWorked(db.createCollection(coll.getName(), {timeseries: {timeField: "t", granularity: "seconds"}}));
-    if (TestData.runningWithBalancer) {
-        assert.commandWorked(coll.createIndex({"t": 1}));
-    }
+    TimeseriesTest.createTimeFieldIndexToAllowBucketsReopening(coll);
 
     // Ensure min time is rounded down to nearest bucketRoundingSeconds (minute).
     assert.commandWorked(coll.insert({t: ISODate("2021-04-22T20:10:14.134Z")}));
@@ -152,9 +145,7 @@ import {getTimeseriesCollForRawOps} from "jstests/core/libs/raw_operation_utils.
     coll.drop();
 
     assert.commandWorked(db.createCollection(coll.getName(), {timeseries: {timeField: "t", granularity: "minutes"}}));
-    if (TestData.runningWithBalancer) {
-        assert.commandWorked(coll.createIndex({"t": 1}));
-    }
+    TimeseriesTest.createTimeFieldIndexToAllowBucketsReopening(coll);
 
     // Ensure min time is rounded down to nearest bucketRoundingSeconds (hour).
     assert.commandWorked(coll.insert({t: ISODate("2021-04-22T20:10:14.134Z")}));

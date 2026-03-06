@@ -38,13 +38,14 @@ Status insert(OperationContext* opCtx,
               const CollectionPtr& coll,
               IntegerKeyedContainer& container,
               int64_t key,
-              std::span<const char> value) {
+              std::span<const char> value,
+              container::ExistingKeyPolicy policy) {
     uassert(ErrorCodes::NotWritablePrimary,
             str::stream() << "Not primary while inserting to container for "
                           << coll->ns().toStringForErrorMsg(),
             repl::ReplicationCoordinator::get(opCtx)->canAcceptWritesFor(opCtx, coll->ns()));
 
-    auto status = container.insert(ru, key, value);
+    auto status = container.insert(ru, key, value, policy);
     if (!status.isOK()) {
         return status;
     }
@@ -60,13 +61,14 @@ Status insert(OperationContext* opCtx,
               const CollectionPtr& coll,
               StringKeyedContainer& container,
               std::span<const char> key,
-              std::span<const char> value) {
+              std::span<const char> value,
+              container::ExistingKeyPolicy policy) {
     uassert(ErrorCodes::NotWritablePrimary,
             str::stream() << "Not primary while inserting to container for "
                           << coll->ns().toStringForErrorMsg(),
             repl::ReplicationCoordinator::get(opCtx)->canAcceptWritesFor(opCtx, coll->ns()));
 
-    auto status = container.insert(ru, key, value);
+    auto status = container.insert(ru, key, value, policy);
     if (!status.isOK()) {
         return status;
     }

@@ -243,8 +243,8 @@ public:
         return Status::OK();
     }
 
-    virtual boost::optional<unsigned int> currentStep() const = 0;
-    virtual boost::optional<unsigned int> totalSteps() const = 0;
+    virtual boost::optional<std::uint32_t> currentStep() const = 0;
+    virtual boost::optional<std::uint32_t> totalSteps() const = 0;
 
     /**
      * Create a UserRequest to send to AuthorizationSession.

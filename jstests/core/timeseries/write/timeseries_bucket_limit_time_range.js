@@ -34,8 +34,12 @@ TimeseriesTest.run((insert) => {
         const coll = db.getCollection(collNamePrefix + numDocsPerInsert);
         coll.drop();
 
-        assert.commandWorked(db.createCollection(coll.getName(), {timeseries: {timeField: timeFieldName}}));
-
+        assert.commandWorked(
+            db.createCollection(coll.getName(), {
+                timeseries: {timeField: timeFieldName},
+            }),
+        );
+        TimeseriesTest.createTimeFieldIndexToAllowBucketsReopening(coll);
         let docs = [];
         for (let i = 0; i < numDocs; i++) {
             docs.push({_id: i, [timeFieldName]: docTimes[i], x: i});

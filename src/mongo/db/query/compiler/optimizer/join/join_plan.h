@@ -107,6 +107,11 @@ enum class JoinMethod {
 };
 
 /**
+ * Helper to pretty-print join method.
+ */
+std::string joinMethodToString(JoinMethod method);
+
+/**
  * A JoinPlan node representing a base collection access.
  */
 struct BaseNode {

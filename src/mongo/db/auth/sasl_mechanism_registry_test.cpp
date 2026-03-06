@@ -85,11 +85,11 @@ public:
     explicit BaseMockMechanism(std::string authenticationDatabase)
         : MakeServerMechanism<Policy>(std::move(authenticationDatabase)) {}
 
-    boost::optional<unsigned int> currentStep() const override {
+    boost::optional<std::uint32_t> currentStep() const override {
         return boost::none;
     }
 
-    boost::optional<unsigned int> totalSteps() const override {
+    boost::optional<std::uint32_t> totalSteps() const override {
         return boost::none;
     }
 

@@ -31,6 +31,7 @@
 
 #include "mongo/db/persistent_task_store.h"
 #include "mongo/db/s/resharding/resharding_metrics_helpers.h"
+#include "mongo/db/s/resharding/resharding_util.h"
 #include "mongo/util/assert_util.h"
 
 namespace mongo {
@@ -46,11 +47,10 @@ void updateFromNamespace(OperationContext* opCtx,
     PersistentTaskStore<Document> store(nss);
     auto role = resharding_metrics::getRoleForStateDocument<Document>();
     store.forEach(opCtx, {}, [&](const Document& doc) {
-        if constexpr (std::is_same_v<Document, ReshardingCoordinatorDocument>) {
-            if (doc.getState() == CoordinatorStateEnum::kQuiesced) {
-                return true;
-            }
+        if (resharding::excludeFromRegistry(doc)) {
+            return true;
         }
+
         registry.registerOperation(role, doc.getCommonReshardingMetadata());
         return true;
     });

@@ -109,7 +109,7 @@ auto& scramCacheSection =
 }  // namespace
 
 NativeSaslClientSession::NativeSaslClientSession()
-    : SaslClientSession(), _step(0), _success(false), _saslConversation(nullptr) {}
+    : SaslClientSession(), _success(false), _saslConversation(nullptr) {}
 
 NativeSaslClientSession::~NativeSaslClientSession() {}
 
@@ -164,5 +164,13 @@ Status NativeSaslClientSession::step(StringData inputData, std::string* outputDa
         _success = status.getValue();
     }
     return status.getStatus();
+}
+
+boost::optional<std::uint32_t> NativeSaslClientSession::currentStep() const {
+    return _saslConversation->currentStep();
+}
+
+boost::optional<std::uint32_t> NativeSaslClientSession::totalSteps() const {
+    return _saslConversation->totalSteps();
 }
 }  // namespace mongo

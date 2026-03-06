@@ -1,0 +1,5 @@
+base_suite: sharded_collections_jscore_passthrough_base
+extends:
+  - "drop_config_cache_collections_hook.drop_config_cache_collections_hook_extends"
+overrides:
+  - "drop_config_cache_collections_hook.drop_config_cache_collections_hook_overrides"

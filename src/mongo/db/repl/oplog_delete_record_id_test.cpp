@@ -155,6 +155,46 @@ TEST_F(DeleteWithRecordIdTestEnableSteadyStateConstraints, IdMismatchFails) {
     ASSERT_TRUE(documentExistsAtRecordId(_opCtx.get(), _nss, rid));
 }
 
+TEST_F(DeleteWithRecordIdTestDisableSteadyStateConstraints, NonExistentCollectionFails) {
+    // Insert a document at a known recordId with _id = 1.
+    const RecordId rid(1);
+    const BSONObj doc = BSON("_id" << 1 << "x" << 100);
+    insertDocumentAtRecordId(_opCtx.get(), _nss, doc, rid);
+
+    // Create a delete oplog entry that references a collection that does not exist.
+    auto op = makeDeleteOplogEntryWithRecordId(
+        nextOpTime(),
+        NamespaceString::createNamespaceString_forTest("test.NonExistentCollection"),
+        _uuid,
+        BSON("_id" << 1),
+        rid);
+
+    // In kSecondary mode with steady state constraints disabled, this should fail and the record
+    // should not be deleted.
+    ASSERT_EQ(runOpSteadyState(op).code(), 11979200);
+    ASSERT_TRUE(documentExistsAtRecordId(_opCtx.get(), _nss, rid));
+}
+
+TEST_F(DeleteWithRecordIdTestEnableSteadyStateConstraints, NonExistentCollectionFails) {
+    // Insert a document at a known recordId with _id = 1.
+    const RecordId rid(1);
+    const BSONObj doc = BSON("_id" << 1 << "x" << 100);
+    insertDocumentAtRecordId(_opCtx.get(), _nss, doc, rid);
+
+    // Create a delete oplog entry that references a collection that does not exist.
+    auto op = makeDeleteOplogEntryWithRecordId(
+        nextOpTime(),
+        NamespaceString::createNamespaceString_forTest("test.NonExistentCollection"),
+        _uuid,
+        BSON("_id" << 1),
+        rid);
+
+    // In kSecondary mode with steady state constraints enabled, this should fail and the record
+    // should not be deleted.
+    ASSERT_EQ(runOpSteadyState(op).code(), 11979200);
+    ASSERT_TRUE(documentExistsAtRecordId(_opCtx.get(), _nss, rid));
+}
+
 // =============================================================================
 // Tests for kInitialSync mode
 // =============================================================================

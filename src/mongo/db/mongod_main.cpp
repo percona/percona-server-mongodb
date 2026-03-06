@@ -140,6 +140,8 @@
 #include "mongo/db/repl/replication_recovery.h"
 #include "mongo/db/repl/storage_interface_impl.h"
 #include "mongo/db/repl/wait_for_majority_service.h"
+#include "mongo/db/replicated_fast_count/replicated_fast_count_enabled.h"
+#include "mongo/db/replicated_fast_count/replicated_fast_count_init.h"
 #include "mongo/db/replicated_fast_count/replicated_fast_count_manager.h"
 #include "mongo/db/replication_state_transition_lock_guard.h"
 #include "mongo/db/request_execution_context.h"
@@ -721,6 +723,19 @@ ExitCode _initAndListen(ServiceContext* serviceContext) {
         FeatureCompatibilityVersion::afterStartupActions(startupOpCtx.get());
     }
 
+    // Start up the replicated fast count manager thread on startup only if we are a standalone
+    // node. In replica sets, we start this up as part of step-up. Supported primarily for testing
+    // purposes.
+    if (!rss.getPersistenceProvider().shouldDelayDataAccessDuringStartup() &&
+        gFeatureFlagReplicatedFastCount.isEnabledUseLatestFCVWhenUninitialized(
+            VersionContext::getDecoration(startupOpCtx.get()),
+            serverGlobalParams.featureCompatibility.acquireFCVSnapshot()) &&
+        !replCoord->getSettings().isReplSet()) {
+        uassertStatusOK(createFastcountCollection(startupOpCtx.get()));
+        ReplicatedFastCountManager::get(startupOpCtx.get()->getServiceContext())
+            .startup(startupOpCtx.get());
+    }
+
     if (gFlowControlEnabled.load()) {
         LOGV2(20536, "Flow Control is enabled on this deployment");
     }
@@ -1268,6 +1283,73 @@ MONGO_INITIALIZER_GENERAL(ForkServer, ("EndStartupOptionHandling"), ("default"))
     initialize_server_global_state::forkServerOrDie();
 }
 
+#ifdef __linux__
+/**
+ * Read the pid file from the dbpath for the process ID used by this instance of the server.
+ * Use that process number to kill the running server.
+ *
+ * Equivalent to: `kill -SIGTERM $(cat $DBPATH/mongod.lock)`
+ *
+ * Performs additional checks to make sure the PID as read is reasonable (>= 1)
+ * and can be found in the /proc filesystem.
+ */
+Status shutdownProcessByDBPathPidFile(const std::string& dbpath) {
+    auto pidfile = StorageEngineLockFile::lockFilePath(dbpath);
+    if (!boost::filesystem::exists(pidfile)) {
+        return {ErrorCodes::OperationFailed,
+                str::stream() << "There doesn't seem to be a server running with dbpath: "
+                              << dbpath};
+    }
+
+    pid_t pid;
+    try {
+        std::ifstream f(pidfile.c_str());
+        f >> pid;
+    } catch (const std::exception& ex) {
+        return {ErrorCodes::OperationFailed,
+                str::stream() << "Error reading pid from lock file [" << pidfile
+                              << "]: " << ex.what()};
+    }
+
+    if (pid <= 0) {
+        return {ErrorCodes::OperationFailed,
+                str::stream() << "Invalid process ID '" << pid
+                              << "' read from pidfile: " << pidfile};
+    }
+
+    std::string procPath = str::stream() << "/proc/" << pid;
+    if (!boost::filesystem::exists(procPath)) {
+        return {ErrorCodes::OperationFailed,
+                str::stream() << "Process ID '" << pid << "' read from pidfile '" << pidfile
+                              << "' does not appear to be running"};
+    }
+
+    std::cout << "Killing process with pid: " << pid << std::endl;
+    int ret = kill(pid, SIGTERM);
+    if (ret) {
+        auto ec = lastSystemError();
+        return {ErrorCodes::OperationFailed,
+                str::stream() << "Failed to kill process: " << errorMessage(ec)};
+    }
+
+    // Wait for process to terminate.
+    for (;;) {
+        std::uintmax_t pidsize = boost::filesystem::file_size(pidfile);
+        if (pidsize == 0) {
+            // File empty.
+            break;
+        }
+        if (pidsize == static_cast<decltype(pidsize)>(-1)) {
+            // File does not exist.
+            break;
+        }
+        sleepsecs(1);
+    }
+
+    return Status::OK();
+}
+#endif  // __linux__
+
 /*
  * This function should contain the startup "actions" that we take based on the startup config.
  * It is intended to separate the actions from "storage" and "validation" of our startup
@@ -1305,6 +1387,19 @@ void startupConfigActions(const std::vector<std::string>& args) {
                                 std::vector<std::string>(),
                                 args);
 #endif  // _WIN32
+
+#ifdef __linux__
+    if (moe::startupOptionsParsed.count("shutdown") &&
+        moe::startupOptionsParsed["shutdown"].as<bool>() == true) {
+        auto status = shutdownProcessByDBPathPidFile(storageGlobalParams.dbpath);
+        if (!status.isOK()) {
+            std::cerr << status.reason() << std::endl;
+            quickExit(ExitCode::fail);
+        }
+
+        quickExit(ExitCode::clean);
+    }
+#endif
 }
 
 void setUpCatalog(ServiceContext* serviceContext) {
@@ -1911,9 +2006,7 @@ void shutdownTask(const ShutdownTaskArgs& shutdownArgs) {
     }
 
     // Shut down the thread managing fast size and count information.
-    if (gFeatureFlagReplicatedFastCount.isEnabledUseLatestFCVWhenUninitialized(
-            VersionContext::getDecoration(opCtx),
-            serverGlobalParams.featureCompatibility.acquireFCVSnapshot())) {
+    if (isReplicatedFastCountEnabled(opCtx)) {
         ReplicatedFastCountManager::get(serviceContext).shutdown();
     }
 

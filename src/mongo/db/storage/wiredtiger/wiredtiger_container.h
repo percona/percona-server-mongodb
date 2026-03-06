@@ -76,7 +76,10 @@ public:
                                     std::string uri,
                                     uint64_t tableId);
 
-    Status insert(RecoveryUnit& ru, int64_t key, std::span<const char> value) final;
+    Status insert(RecoveryUnit& ru,
+                  int64_t key,
+                  std::span<const char> value,
+                  container::ExistingKeyPolicy policy) final;
 
     int insert(WiredTigerRecoveryUnit& ru,
                WT_CURSOR& cursor,
@@ -107,7 +110,10 @@ public:
 
     WiredTigerStringKeyedContainer(std::shared_ptr<Ident> ident, std::string uri, uint64_t tableId);
 
-    Status insert(RecoveryUnit& ru, std::span<const char> key, std::span<const char> value) final;
+    Status insert(RecoveryUnit& ru,
+                  std::span<const char> key,
+                  std::span<const char> value,
+                  container::ExistingKeyPolicy policy) final;
 
     int insert(WiredTigerRecoveryUnit& ru,
                WT_CURSOR& cursor,

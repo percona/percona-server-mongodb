@@ -35,6 +35,8 @@
 #include "mongo/db/namespace_string.h"
 #include "mongo/db/op_observer/op_observer.h"
 #include "mongo/db/op_observer/op_observer_util.h"
+#include "mongo/db/replicated_fast_count/replicated_fast_count_uncommitted_changes.h"
+#include "mongo/db/server_feature_flags_gen.h"
 #include "mongo/db/service_context.h"
 #include "mongo/db/session/logical_session_id.h"
 #include "mongo/db/shard_role/lock_manager/lock_manager_defs.h"
@@ -202,6 +204,13 @@ void cappedDeleteUntilBelowConfiguredMaximum(OperationContext* opCtx,
             opDebug->getAdditiveMetrics().incrementNdeleted(1);
         }
         serviceOpCounters(opCtx).gotDelete();
+    }
+
+    if (gFeatureFlagReplicatedFastCount.isEnabledUseLatestFCVWhenUninitialized(
+            VersionContext::getDecoration(opCtx),
+            serverGlobalParams.featureCompatibility.acquireFCVSnapshot())) {
+        UncommittedFastCountChange::getForWrite(opCtx).record(
+            collection->uuid(), -docsRemoved, -sizeSaved);
     }
 
     // Update the next record to be deleted. The next record must exist as we're using the same

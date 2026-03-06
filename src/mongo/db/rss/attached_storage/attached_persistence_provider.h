@@ -35,7 +35,7 @@
 
 namespace mongo::rss {
 
-class AttachedPersistenceProvider : public PersistenceProvider {
+class MONGO_MOD_OPEN AttachedPersistenceProvider : public PersistenceProvider {
 public:
     std::string name() const override;
 

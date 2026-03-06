@@ -63,7 +63,7 @@ function prepareCompressedBucket() {
 
     // Check the buckets to make sure it generated what we expect.
     const bucketDocs = getTimeseriesCollForRawOps(coll).find().rawData().sort({"control.min._id": 1}).toArray();
-    if (!TestData.runningWithBalancer) {
+    if (TestData.canAssumeCanonicalTimeseriesBucketsLayout()) {
         assert.eq(2, bucketDocs.length, tojson(bucketDocs));
         assert.eq(0, bucketDocs[0].control.min.f, "Expected first bucket to start at 0. " + tojson(bucketDocs));
         assert.eq(

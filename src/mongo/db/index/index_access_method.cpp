@@ -463,7 +463,8 @@ Status SortedDataIndexAccessMethod::insertKeys(OperationContext* opCtx,
                                              coll,
                                              _newInterface->getContainer(),
                                              keyString.getView(),
-                                             keyString.getTypeBitsView());
+                                             keyString.getTypeBitsView(),
+                                             container::ExistingKeyPolicy::reject);
             if (auto& status = std::get<Status>(result); status == ErrorCodes::KeyExists) {
                 // It's okay if the entire key (including record id) matches a key already inserted.
                 status = Status::OK();
@@ -1392,7 +1393,8 @@ void BulkBuilderImpl::_addKeyForCommit(OperationContext* opCtx,
                                                 coll,
                                                 _iam->getSortedDataInterface()->getContainer(),
                                                 key.getKeyAndRecordIdView(),
-                                                key.getTypeBitsView()));
+                                                key.getTypeBitsView(),
+                                                container::ExistingKeyPolicy::overwrite));
         return;
     }
 

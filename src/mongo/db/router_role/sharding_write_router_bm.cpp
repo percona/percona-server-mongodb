@@ -27,7 +27,7 @@
  *    it in the license file.
  */
 
-#include "mongo/db/router_role/sharding_write_router.h"
+#include "mongo/db/s/resharding/sharding_write_router.h"
 
 #include "mongo/base/string_data.h"
 #include "mongo/bson/bsonmisc.h"

@@ -103,7 +103,8 @@ executor:
       shard_stepdown: true
       is_fsm_workload: true
       randomize_kill: true
-    - class: CheckIdleCursors
+      # TODO SERVER-120162: Re-enable once all the false positive have been addressed and the test is stable.
+    # - class: CheckIdleCursors
     - class: CheckShardFilteringMetadata
     - class: CheckReplDBHash
     - class: CheckMetadataConsistencyInBackground

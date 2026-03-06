@@ -1619,6 +1619,17 @@ mongo_cc_benchmark(
     ],
 )
 
+mongo_cc_benchmark(
+    name = "document_path_support_bm",
+    srcs = ["document_path_support_bm.cpp"],
+    tags = ["query_bm"],
+    deps = [
+        ":document_path_support",
+        ":field_path",
+        "//src/mongo/db/query/compiler/dependency_analysis:dependencies",
+    ],
+)
+
 idl_generator(
     name = "document_source_coll_stats_gen",
     src = "document_source_coll_stats.idl",

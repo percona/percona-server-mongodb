@@ -1724,7 +1724,6 @@ StatusWith<std::vector<std::unique_ptr<QuerySolution>>> QueryPlanner::plan(
 }  // QueryPlanner::plan
 
 StatusWith<PlanRankingResult> QueryPlanner::planWithCostBasedRanking(
-    const CanonicalQuery& query,
     const QueryPlannerParams& params,
     ce::SamplingEstimator* samplingEstimator,
     const ce::ExactCardinalityEstimator* exactCardinality,

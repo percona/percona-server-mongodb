@@ -37,6 +37,7 @@
 #include "mongo/base/string_data.h"
 #include "mongo/client/sasl_aws_client_options.h"
 #include "mongo/client/sasl_aws_client_protocol.h"
+#include "mongo/db/connection_health_metrics_parameter_gen.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/net/http_client.h"
 #include "mongo/util/str.h"
@@ -46,6 +47,8 @@
 #include <string>
 
 #include <boost/move/utility_core.hpp>
+
+#define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kAccessControl
 
 namespace mongo {
 namespace awsIam {
@@ -117,7 +120,6 @@ awsIam::AWSCredentials SaslAWSClientConversation::_getLocalAWSCredentials() cons
     if (!ecsMetadata.empty()) {
         return _getEcsCredentials(ecsMetadata);
     }
-
     return _getEc2Credentials();
 }
 

@@ -30,18 +30,19 @@
 
 #include "mongo/base/error_codes.h"
 #include "mongo/base/status.h"
-#include "mongo/base/status_with.h"
 #include "mongo/base/string_data.h"
 #include "mongo/bson/bsonobj.h"
-#include "mongo/bson/bsonobjbuilder.h"
 #include "mongo/db/auth/action_type.h"
 #include "mongo/db/auth/authorization_session.h"
 #include "mongo/db/auth/resource_pattern.h"
 #include "mongo/db/commands.h"
+#include "mongo/db/commands/query_cmd/plan_cache_clear_gen.h"
 #include "mongo/db/commands/query_cmd/plan_cache_commands.h"
 #include "mongo/db/database_name.h"
+#include "mongo/db/matcher/extensions_callback_real.h"
 #include "mongo/db/namespace_string.h"
 #include "mongo/db/operation_context.h"
+#include "mongo/db/pipeline/expression_context_builder.h"
 #include "mongo/db/profile_settings.h"
 #include "mongo/db/query/canonical_query_encoder.h"
 #include "mongo/db/query/collection_query_info.h"
@@ -52,6 +53,7 @@
 #include "mongo/db/shard_role/shard_catalog/db_raii.h"
 #include "mongo/db/timeseries/catalog_helper.h"
 #include "mongo/logv2/log.h"
+#include "mongo/logv2/redaction.h"
 #include "mongo/stdx/unordered_set.h"
 #include "mongo/util/assert_util.h"
 
@@ -73,63 +75,6 @@ PlanCache* getPlanCache(OperationContext* opCtx, const CollectionPtr& collection
     return planCache;
 }
 
-/**
- * Clears collection's plan cache. If query shape is provided, clears plans for that single query
- * shape only.
- */
-Status clear(OperationContext* opCtx,
-             const CollectionPtr& collection,
-             PlanCache* planCache,
-             const NamespaceString& nss,
-             const BSONObj& cmdObj) {
-    invariant(planCache);
-
-    // According to the specification, the planCacheClear command runs in two modes:
-    // - clear all query shapes; or
-    // - clear plans for single query shape when a query shape is described in the
-    //   command arguments.
-    if (cmdObj.hasField("query")) {
-        auto statusWithCQ = plan_cache_commands::canonicalize(opCtx, nss, cmdObj);
-        if (!statusWithCQ.isOK()) {
-            return statusWithCQ.getStatus();
-        }
-
-        auto cq = std::move(statusWithCQ.getValue());
-
-        // Based on a query shape only, we cannot be sure whether a query with the given query shape
-        // can be executed with the SBE engine or not. Therefore, we try to clean the plan caches in
-        // both cases.
-        stdx::unordered_set<uint32_t> planCacheCommandKeys = {canonical_query_encoder::computeHash(
-            canonical_query_encoder::encodeForPlanCacheCommand(*cq))};
-        plan_cache_commands::removePlanCacheEntriesByPlanCacheCommandKeys(planCacheCommandKeys,
-                                                                          planCache);
-        plan_cache_commands::removePlanCacheEntriesByPlanCacheCommandKeys(
-            planCacheCommandKeys, collection->uuid(), &sbe::getPlanCache(opCtx));
-
-        return Status::OK();
-    }
-
-    // If query is not provided, make sure sort, projection, and collation are not in arguments.
-    // We do not want to clear the entire cache inadvertently when the user
-    // forgets to provide a value for "query".
-    if (cmdObj.hasField("sort") || cmdObj.hasField("projection") || cmdObj.hasField("collation")) {
-        return Status(ErrorCodes::BadValue,
-                      "sort, projection, or collation provided without query");
-    }
-
-    planCache->clear();
-
-    auto version = CollectionQueryInfo::get(collection).getPlanCacheInvalidatorVersion();
-    sbe::clearPlanCacheEntriesWith(opCtx->getServiceContext(),
-                                   collection->uuid(),
-                                   version,
-                                   false /*matchSecondaryCollections*/);
-
-    LOGV2_DEBUG(23908, 1, "Cleared plan cache", logAttrs(nss));
-
-    return Status::OK();
-}
-
 }  // namespace
 
 /**
@@ -144,75 +89,163 @@ Status clear(OperationContext* opCtx,
  *        projection: <projection>
  *    }
  */
-class PlanCacheClearCommand final : public BasicCommand {
+class PlanCacheClearCommand final : public TypedCommand<PlanCacheClearCommand> {
 public:
-    PlanCacheClearCommand() : BasicCommand("planCacheClear") {}
+    using Request = PlanCacheClearCommandRequest;
+    using Reply = OkReply;
 
-    bool run(OperationContext* opCtx,
-             const DatabaseName& dbName,
-             const BSONObj& cmdObj,
-             BSONObjBuilder& result) override;
-
-    bool supportsWriteConcern(const BSONObj& cmd) const override {
-        return false;
-    }
+    PlanCacheClearCommand() : TypedCommand(Request::kCommandName) {}
 
     AllowedOnSecondary secondaryAllowed(ServiceContext*) const override {
         return AllowedOnSecondary::kOptIn;
     }
 
-    Status checkAuthForOperation(OperationContext* opCtx,
-                                 const DatabaseName& dbName,
-                                 const BSONObj& cmdObj) const override;
-
     std::string help() const override {
         return "Drops one or all plan cache entries in a collection.";
     }
+
+    class Invocation final : public InvocationBase {
+    public:
+        using InvocationBase::InvocationBase;
+
+        void typedRun(OperationContext* opCtx) {
+            const auto& nss = ns();
+            AutoStatsTracker statsTracker(opCtx,
+                                          nss,
+                                          Top::LockType::ReadLocked,
+                                          AutoStatsTracker::LogMode::kUpdateTopAndCurOp,
+                                          DatabaseProfileSettings::get(opCtx->getServiceContext())
+                                              .getDatabaseProfileLevel(nss.dbName()));
+
+            // This is a read lock. The query cache is owned by the collection.
+            // TODO SERVER-104759: switch to normal acquireCollection once 9.0 becomes last LTS
+            auto [ctx, _] = timeseries::acquireCollectionWithBucketsLookup(
+                opCtx,
+                CollectionAcquisitionRequest::fromOpCtx(
+                    opCtx, nss, AcquisitionPrerequisites::OperationType::kRead),
+                LockMode::MODE_IS);
+
+            if (!ctx.exists()) {
+                // Clearing a non-existent collection always succeeds.
+                return;
+            }
+
+            auto planCache = getPlanCache(opCtx, ctx.getCollectionPtr());
+            uassertStatusOK(clear(opCtx, ctx.getCollectionPtr(), planCache));
+        }
+
+    private:
+        void doCheckAuthorization(OperationContext* opCtx) const override {
+            AuthorizationSession* authzSession = AuthorizationSession::get(opCtx->getClient());
+            ResourcePattern pattern = CommandHelpers::resourcePatternForNamespace(ns());
+
+            if (!authzSession->isAuthorizedForActionsOnResource(pattern,
+                                                                ActionType::planCacheWrite)) {
+                uasserted(ErrorCodes::Unauthorized, "unauthorized");
+            }
+        }
+
+        bool supportsWriteConcern() const override {
+            return false;
+        }
+
+        NamespaceString ns() const override {
+            return request().getNamespace();
+        }
+
+        /**
+         * Clears collection's plan cache. If query shape is provided, clears plans for that single
+         * query shape only.
+         */
+        Status clear(OperationContext* opCtx,
+                     const CollectionPtr& collection,
+                     PlanCache* planCache) {
+            invariant(planCache);
+            const auto& query = request().getQuery();
+            const auto& projection = request().getProjection();
+            const auto& sort = request().getSort();
+            const auto& collation = request().getCollation();
+            const auto& nss = ns();
+
+            // According to the specification, the planCacheClear command runs in two modes:
+            // - clear all query shapes; or
+            // - clear plans for single query shape when a query shape is described in the
+            //   command arguments.
+            if (query) {
+                auto findCommand = std::make_unique<FindCommandRequest>(nss);
+                findCommand->setFilter(*query);
+                if (sort) {
+                    findCommand->setSort(*sort);
+                }
+                if (projection) {
+                    findCommand->setProjection(*projection);
+                }
+                if (collation) {
+                    findCommand->setCollation(*collation);
+                }
+
+                tassert(ErrorCodes::BadValue,
+                        "Unsupported type UUID for namespace",
+                        findCommand->getNamespaceOrUUID().isNamespaceString());
+
+                auto statusWithCQ = CanonicalQuery::make(
+                    {.expCtx = ExpressionContextBuilder{}.fromRequest(opCtx, *findCommand).build(),
+                     .parsedFind = ParsedFindCommandParams{
+                         .findCommand = std::move(findCommand),
+                         .extensionsCallback = ExtensionsCallbackReal(opCtx, &nss),
+                         .allowedFeatures = MatchExpressionParser::kAllowAllSpecialFeatures}});
+
+                if (!statusWithCQ.isOK()) {
+                    return statusWithCQ.getStatus();
+                }
+
+                auto cq = std::move(statusWithCQ.getValue());
+
+                // Based on a query shape only, we cannot be sure whether a query with the given
+                // query shape can be executed with the SBE engine or not. Therefore, we try to
+                // clean the plan caches in both cases.
+                stdx::unordered_set<uint32_t> planCacheCommandKeys = {
+                    canonical_query_encoder::computeHash(
+                        canonical_query_encoder::encodeForPlanCacheCommand(*cq))};
+                plan_cache_commands::removePlanCacheEntriesByPlanCacheCommandKeys(
+                    planCacheCommandKeys, planCache);
+                plan_cache_commands::removePlanCacheEntriesByPlanCacheCommandKeys(
+                    planCacheCommandKeys, collection->uuid(), &sbe::getPlanCache(opCtx));
+
+                LOGV2_DEBUG(11929701,
+                            1,
+                            "Removed entry from plan cache for query shape",
+                            logAttrs(nss),
+                            "query"_attr = redact(*query),
+                            "sort"_attr = sort ? redact(*sort) : BSONObj(),
+                            "projection"_attr = projection ? redact(*projection) : BSONObj(),
+                            "collation"_attr = collation ? redact(*collation) : BSONObj());
+
+                return Status::OK();
+            }
+
+            // If query is not provided, make sure sort, projection, and collation are not in
+            // arguments. We do not want to clear the entire cache inadvertently when the user
+            // forgets to provide a value for "query".
+            if (projection || sort || collation) {
+                return Status(ErrorCodes::BadValue,
+                              "sort, projection, or collation provided without query");
+            }
+
+
+            planCache->clear();
+
+            auto version = CollectionQueryInfo::get(collection).getPlanCacheInvalidatorVersion();
+            sbe::clearPlanCacheEntriesWith(opCtx->getServiceContext(),
+                                           collection->uuid(),
+                                           version,
+                                           false /*matchSecondaryCollections*/);
+
+            LOGV2_DEBUG(23908, 1, "Cleared plan cache", logAttrs(nss));
+
+            return Status::OK();
+        }
+    };
 };
 MONGO_REGISTER_COMMAND(PlanCacheClearCommand).forShard();
-
-Status PlanCacheClearCommand::checkAuthForOperation(OperationContext* opCtx,
-                                                    const DatabaseName& dbName,
-                                                    const BSONObj& cmdObj) const {
-    AuthorizationSession* authzSession = AuthorizationSession::get(opCtx->getClient());
-    ResourcePattern pattern = parseResourcePattern(dbName, cmdObj);
-
-    if (authzSession->isAuthorizedForActionsOnResource(pattern, ActionType::planCacheWrite)) {
-        return Status::OK();
-    }
-
-    return Status(ErrorCodes::Unauthorized, "unauthorized");
-}
-
-bool PlanCacheClearCommand::run(OperationContext* opCtx,
-                                const DatabaseName& dbName,
-                                const BSONObj& cmdObj,
-                                BSONObjBuilder& result) {
-    const NamespaceString nss(CommandHelpers::parseNsCollectionRequired(dbName, cmdObj));
-
-    AutoStatsTracker statsTracker(opCtx,
-                                  nss,
-                                  Top::LockType::ReadLocked,
-                                  AutoStatsTracker::LogMode::kUpdateTopAndCurOp,
-                                  DatabaseProfileSettings::get(opCtx->getServiceContext())
-                                      .getDatabaseProfileLevel(nss.dbName()));
-
-    // This is a read lock. The query cache is owned by the collection.
-    // TODO SERVER-104759: switch to normal acquireCollection once 9.0 becomes last LTS
-    auto [ctx, _] = timeseries::acquireCollectionWithBucketsLookup(
-        opCtx,
-        CollectionAcquisitionRequest::fromOpCtx(
-            opCtx, nss, AcquisitionPrerequisites::OperationType::kRead),
-        LockMode::MODE_IS);
-
-    if (!ctx.exists()) {
-        // Clearing a non-existent collection always succeeds.
-        return true;
-    }
-
-    auto planCache = getPlanCache(opCtx, ctx.getCollectionPtr());
-    uassertStatusOK(clear(opCtx, ctx.getCollectionPtr(), planCache, ctx.nss(), cmdObj));
-    return true;
-}
-
 }  // namespace mongo

@@ -77,6 +77,7 @@
 #include "mongo/db/query/util/make_data_structure.h"
 #include "mongo/db/repl/local_oplog_info.h"
 #include "mongo/db/repl/oplog.h"
+#include "mongo/db/replicated_fast_count/replicated_fast_count_enabled.h"
 #include "mongo/db/replicated_fast_count/replicated_fast_count_manager.h"
 #include "mongo/db/replicated_fast_count/replicated_fast_count_uncommitted_changes.h"
 #include "mongo/db/server_feature_flags_gen.h"
@@ -1091,18 +1092,14 @@ long long CollectionImpl::getCappedMaxSize() const {
 }
 
 long long CollectionImpl::numRecords(OperationContext* opCtx) const {
-    return (gFeatureFlagReplicatedFastCount.isEnabledUseLastLTSFCVWhenUninitialized(
-               VersionContext::getDecoration(opCtx),
-               serverGlobalParams.featureCompatibility.acquireFCVSnapshot()))
+    return isReplicatedFastCountEnabled(opCtx)
         ? ReplicatedFastCountManager::get(opCtx->getServiceContext()).find(uuid()).count +
             UncommittedFastCountChange::getForRead(opCtx).find(uuid()).count
         : _shared->_recordStore->numRecords();
 }
 
 long long CollectionImpl::dataSize(OperationContext* opCtx) const {
-    return (gFeatureFlagReplicatedFastCount.isEnabledUseLastLTSFCVWhenUninitialized(
-               VersionContext::getDecoration(opCtx),
-               serverGlobalParams.featureCompatibility.acquireFCVSnapshot()))
+    return isReplicatedFastCountEnabled(opCtx)
         ? ReplicatedFastCountManager::get(opCtx->getServiceContext()).find(uuid()).size +
             UncommittedFastCountChange::getForRead(opCtx).find(uuid()).size
         : _shared->_recordStore->dataSize();

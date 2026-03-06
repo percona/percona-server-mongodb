@@ -29,8 +29,17 @@
 
 #include "mongo/db/operation_context.h"
 #include "mongo/db/replicated_fast_count/replicated_fast_count_manager.h"
+#include "mongo/db/rss/attached_storage/attached_persistence_provider.h"
 
 namespace mongo::replicated_fast_count_test_helpers {
+/**
+ * Mock persistence provider for enabling the replicated fast count collection.
+ */
+class ReplicatedFastCountPersistenceProvider : public rss::AttachedPersistenceProvider {
+    bool shouldUseReplicatedFastCount() const override {
+        return true;
+    }
+};
 
 /**
  * Checks the persisted values of count and size for the given UUID in the internal

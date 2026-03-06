@@ -179,13 +179,13 @@ SaslReply doSaslStep(OperationContext* opCtx,
             BSONObjBuilder bob;
 
             auto currentStepOpt = mechanism.currentStep();
-            if (currentStepOpt != boost::none) {
-                bob << "step" << static_cast<int>(currentStepOpt.get());
+            if (currentStepOpt) {
+                bob << "step" << static_cast<std::int32_t>(*currentStepOpt);
             }
 
             auto totalStepOpt = mechanism.totalSteps();
-            if (totalStepOpt != boost::none) {
-                bob << "step_total" << static_cast<int>(totalStepOpt.get());
+            if (totalStepOpt) {
+                bob << "step_total" << static_cast<std::int32_t>(*totalStepOpt);
             }
 
             bob << "duration_micros" << elapsed.count();

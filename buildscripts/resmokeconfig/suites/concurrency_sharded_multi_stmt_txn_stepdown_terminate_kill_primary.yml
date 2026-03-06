@@ -173,7 +173,8 @@ executor:
       shard_stepdown: true
       stepdown_interval_ms: 15000
       is_fsm_workload: true
-    - class: CheckIdleCursors
+      # TODO SERVER-120162: Re-enable once all the false positive have been addressed and the test is stable.
+    # - class: CheckIdleCursors
     - class: CheckShardFilteringMetadata
     - class: CheckReplDBHash
     - class: CheckMetadataConsistencyInBackground

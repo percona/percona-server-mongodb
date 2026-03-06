@@ -1521,6 +1521,33 @@ UpdateResult updateObjectByRid(OperationContext* opCtx,
     const CollectionPtr& collPtr = coll.getCollectionPtr();
 
     tassert(7834903, "updateObjectByRid does not support upsert requests", !request.isUpsert());
+
+    // TODO SERVER-118695 Upsert oplogs should also be allowed to create collections
+    if (!collPtr) {
+        if (mode == OplogApplication::Mode::kSecondary) {
+            const auto& opObj = redact(op.toBSONForLogging());
+            opCounters->gotUpdateOnMissingDoc();
+            logOplogConstraintViolation(opCtx,
+                                        op.getNss(),
+                                        OplogConstraintViolationEnum::kUpdateOnMissingDoc,
+                                        "update",
+                                        opObj,
+                                        boost::none /* status */);
+            uasserted(11979201,
+                      fmt::format("While applying an update oplog entry : '{}' during steady state "
+                                  "replication with timestamp : '{}' and term : '{}' to a "
+                                  "replicated record id collection, the collection did not exist",
+                                  opObj.toString(),
+                                  op.getTimestamp().toString(),
+                                  op.getTerm().has_value() ? op.getTerm().value() : -1));
+        }
+        return {false, /* existing */
+                false, /* modifiers */
+                0ULL,  /* numDocsModified */
+                0ULL,  /* numMatched */
+                BSONObj::kEmptyObject /* upsertedObject */};
+    }
+
     auto rid = *op.getDurableReplOperation().getRecordId();
 
     auto cursor = collPtr.get()->getCursor(opCtx);
@@ -1540,11 +1567,13 @@ UpdateResult updateObjectByRid(OperationContext* opCtx,
             // This error is always fatal regardless of steady state constraints. We throw an error
             // here instead of deferring to the typical numMatched = 0 handling since this should
             // be a fatal error for capped collections.
-            uasserted(
-                11902401,
-                fmt::format("While applying an oplog entry : '{}' during steady state replication "
-                            "to a replicated record id collection, the record was not found",
-                            opObj.toString()));
+            uasserted(11902401,
+                      fmt::format("While applying an update oplog entry : '{}' during steady state "
+                                  "replication with timestamp : '{}' and term : '{}' to a "
+                                  "replicated record id collection, the record was not found",
+                                  opObj.toString(),
+                                  op.getTimestamp().toString(),
+                                  op.getTerm().has_value() ? op.getTerm().value() : -1));
         }
         return {false, /* existing */
                 false, /* modifiers */
@@ -1580,13 +1609,16 @@ UpdateResult updateObjectByRid(OperationContext* opCtx,
             // This error is always fatal regardless of steady state constraints. We throw an error
             // here instead of deferring to the typical numMatched = 0 handling since this should
             // also be a fatal error for capped collections.
-            uasserted(7834902,
-                      fmt::format("While applying an oplog entry : '{}' during steady "
-                                  "state replication to a replicated record id "
-                                  "collection, the record : '{}' had a different _id "
-                                  "than we were expecting.",
-                                  opObj.toString(),
-                                  redact(obj.value()).toString()));
+            uasserted(
+                7834902,
+                fmt::format(
+                    "While applying an update oplog entry : '{}' during steady state replication "
+                    "with timestamp : '{}' and term : '{}' to a replicated record id collection, "
+                    "the record : '{}' had a different _id than we were expecting.",
+                    opObj.toString(),
+                    op.getTimestamp().toString(),
+                    op.getTerm().has_value() ? op.getTerm().value() : -1,
+                    redact(obj.value()).toString()));
         }
         return {false, /* existing */
                 false, /* modifiers */
@@ -1637,6 +1669,26 @@ DeleteResult deleteObjectByRid(OperationContext* opCtx,
                                bool recordChangeStreamPreImage) {
     const CollectionPtr& collPtr = coll.getCollectionPtr();
 
+    if (!collPtr) {
+        if (mode == OplogApplication::Mode::kSecondary) {
+            const auto& opObj = redact(op.toBSONForLogging());
+            opCounters->gotDeleteFromMissingNamespace();
+            logOplogConstraintViolation(opCtx,
+                                        op.getNss(),
+                                        OplogConstraintViolationEnum::kDeleteOnMissingNs,
+                                        "delete",
+                                        opObj,
+                                        boost::none /* status */);
+            uasserted(11979200,
+                      fmt::format("While applying a delete oplog entry : '{}' during steady state "
+                                  "replication with timestamp : '{}' and term : '{}' to a "
+                                  "replicated record id collection, the collection did not exist",
+                                  opObj.toString(),
+                                  op.getTimestamp().toString(),
+                                  op.getTerm().has_value() ? op.getTerm().value() : -1));
+        }
+    }
+
     DeleteResult result;
     auto rid = *op.getDurableReplOperation().getRecordId();
 
@@ -1662,11 +1714,13 @@ DeleteResult deleteObjectByRid(OperationContext* opCtx,
             // config.image_collection.
             // TODO SERVER-119691 Do we need these exceptions for change streams pre-images or
             // config.image_collection.
-            uasserted(
-                11902400,
-                fmt::format("While applying an oplog entry : '{}' during steady state replication "
-                            "to a replicated record id collection, the record was not found",
-                            opObj.toString()));
+            uasserted(11902400,
+                      fmt::format("While applying a delete oplog entry : '{}' during steady state "
+                                  "replication with timestamp : '{}' and term : '{}' to a "
+                                  "replicated record id collection, the record was not found",
+                                  opObj.toString(),
+                                  op.getTimestamp().toString(),
+                                  op.getTerm().has_value() ? op.getTerm().value() : -1));
         }
         return {.nDeleted = 0};
     }
@@ -1689,13 +1743,16 @@ DeleteResult deleteObjectByRid(OperationContext* opCtx,
             // This error is always fatal regardless of steady state constraints. We throw an error
             // here instead of deferring to the typical nDeleted = 0 handling since this should also
             // be a fatal error for capped collections.
-            uasserted(7835001,
-                      fmt::format("While applying an oplog entry : '{}' during steady "
-                                  "state replication to a replicated record id "
-                                  "collection, the record : '{}' had a different _id "
-                                  "than we were expecting.",
-                                  opObj.toString(),
-                                  redact(preImage.value()).toString()));
+            uasserted(
+                7835001,
+                fmt::format(
+                    "While applying an oplog entry : '{}' during steady state replication with "
+                    "timestamp : '{}' and term : '{}'  to a replicated record id collection, the "
+                    "record : '{}' had a different _id than we were expecting.",
+                    opObj.toString(),
+                    op.getTimestamp().toString(),
+                    op.getTerm().has_value() ? op.getTerm().value() : -1,
+                    redact(preImage.value()).toString()));
         }
         return {.nDeleted = 0};
     }
@@ -1854,7 +1911,7 @@ Status applyOperation_inlock(OperationContext* opCtx,
     constexpr auto ridErrMsg =
         "Unexpected recordId value for collection with ns: '{}', uuid: '{}', recordIdsReplicated: "
         "'{}' when applying oplog entry: '{}'";
-    boost::optional<RecordId> opRid = boost::none;
+    boost::optional<RecordId> opRid = op.getDurableReplOperation().getRecordId();
     bool skipUsingRid = false;
     if (collection &&
         (opType == OpTypeEnum::kInsert || opType == OpTypeEnum::kUpdate ||
@@ -1866,8 +1923,8 @@ Status applyOperation_inlock(OperationContext* opCtx,
                            VersionContext::getDecoration(opCtx),
                            serverGlobalParams.featureCompatibility.acquireFCVSnapshot()) &&
             mode == repl::OplogApplication::Mode::kApplyOpsCmd;
-        if (!skipUsingRid) {
-            opRid = op.getDurableReplOperation().getRecordId();
+        if (skipUsingRid) {
+            opRid = boost::none;
         }
         if (mode == repl::OplogApplication::Mode::kApplyOpsCmd) {
             // Only disallow applying an operation with 'rid' field on a collection not using
@@ -2292,8 +2349,8 @@ Status applyOperation_inlock(OperationContext* opCtx,
             // entries for timeseries bucket collections which still rely on the idempotency
             // guarantee, which then means we shouldn't apply these optimizations.
             write_ops::UpdateModification::DiffOptions options;
-            if (mode == OplogApplication::Mode::kSecondary && collection->getTimeseriesOptions() &&
-                !op.getCheckExistenceForDiffInsert()) {
+            if (mode == OplogApplication::Mode::kSecondary && collection &&
+                collection->getTimeseriesOptions() && !op.getCheckExistenceForDiffInsert()) {
                 options.mustCheckExistenceForInsertOperations = false;
             }
             auto updateMod = write_ops::UpdateModification::parseFromOplogEntry(o, options);

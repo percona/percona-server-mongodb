@@ -81,6 +81,7 @@
 #include "mongo/db/repl/replication_metrics.h"
 #include "mongo/db/repl/replication_process.h"
 #include "mongo/db/repl/storage_interface.h"
+#include "mongo/db/replicated_fast_count/replicated_fast_count_enabled.h"
 #include "mongo/db/replicated_fast_count/replicated_fast_count_init.h"
 #include "mongo/db/replicated_fast_count/replicated_fast_count_manager.h"
 #include "mongo/db/s/transaction_coordinator_service.h"
@@ -681,10 +682,7 @@ OpTime ReplicationCoordinatorExternalStateImpl::onTransitionToPrimary(OperationC
         }
     });
 
-    // TODO SERVER-118440: Revisit initializing this in ASC
-    if (gFeatureFlagReplicatedFastCount.isEnabledUseLatestFCVWhenUninitialized(
-            VersionContext::getDecoration(opCtx),
-            serverGlobalParams.featureCompatibility.acquireFCVSnapshot())) {
+    if (isReplicatedFastCountEnabled(opCtx)) {
         uassertStatusOK(createFastcountCollection(opCtx));
         ReplicatedFastCountManager::get(opCtx->getServiceContext()).startup(opCtx);
     }
@@ -1273,9 +1271,7 @@ bool ReplicationCoordinatorExternalStateImpl::isCWWCSetOnConfigShard(
 
 void ReplicationCoordinatorExternalStateImpl::_stopReplicatedFastCountThread() {
     auto opCtx = cc().getOperationContext();
-    if (gFeatureFlagReplicatedFastCount.isEnabledUseLatestFCVWhenUninitialized(
-            VersionContext::getDecoration(opCtx),
-            serverGlobalParams.featureCompatibility.acquireFCVSnapshot())) {
+    if (isReplicatedFastCountEnabled(opCtx)) {
         ReplicatedFastCountManager::get(_service).shutdown();
     }
 }

@@ -34,6 +34,7 @@
 #include "mongo/base/string_data.h"
 #include "mongo/bson/bsonobj.h"
 #include "mongo/bson/bsonobjbuilder.h"
+#include "mongo/db/auth/authentication_metrics.h"
 #include "mongo/db/auth/sasl_mechanism_registry.h"
 #include "mongo/db/auth/user_name.h"
 #include "mongo/db/client.h"
@@ -54,17 +55,6 @@
 namespace mongo {
 
 class Client;
-
-class AuthMetricsRecorder {
-public:
-    void restart();
-    BSONObj capture();
-    void appendMetric(const BSONObj& metric);
-
-private:
-    Timer _timer;
-    BSONArrayBuilder _appendedMetrics;
-};
 
 /**
  * Type representing an ongoing authentication session.
@@ -118,7 +108,7 @@ public:
     }
 
     /**
-     * Return an identifer of the type of session, so that a caller can safely cast it and
+     * Return an identifier of the type of session, so that a caller can safely cast it and
      * extract the type-specific data stored within.
      *
      * If a mechanism has not already been set, this may return nullptr.

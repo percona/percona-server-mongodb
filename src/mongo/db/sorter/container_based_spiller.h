@@ -225,8 +225,13 @@ public:
             size == 0 ? std::span<const char>{} : std::span<const char>(buffer.buf(), size);
 
         WriteUnitOfWork wuow(&_opCtx);
-        uassertStatusOK(
-            container_write::insert(&_opCtx, _ru, _collection, _container, currentKey, value));
+        uassertStatusOK(container_write::insert(&_opCtx,
+                                                _ru,
+                                                _collection,
+                                                _container,
+                                                currentKey,
+                                                value,
+                                                container::ExistingKeyPolicy::overwrite));
         wuow.commit();
 
         if (size > 0) {

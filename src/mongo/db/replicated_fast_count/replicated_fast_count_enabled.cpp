@@ -27,73 +27,22 @@
  *    it in the license file.
  */
 
-#pragma once
+#include "mongo/db/replicated_fast_count/replicated_fast_count_enabled.h"
 
-#include "mongo/base/status.h"
-#include "mongo/bson/bsonobj.h"
-
-#include <string>
+#include "mongo/db/feature_flag.h"
+#include "mongo/db/rss/replicated_storage_service.h"
+#include "mongo/db/server_feature_flags_gen.h"
+#include "mongo/db/server_options.h"
+#include "mongo/db/version_context.h"
 
 namespace mongo {
-namespace mozjs {
-
-/**
- * https://microsoft.github.io/debug-adapter-protocol//specification.htm
- */
-
-// Base Protocol
-class Message {
-public:
-    int seq;
-};
-
-class Request : public Message {
-public:
-    std::string command;
-    BSONObj arguments;
-
-    static Request fromJSON(std::string json);
-};
-
-class Response : public Message {
-public:
-    int request_seq;
-    bool success;
-    std::string message;
-    std::string body;
-};
-
-class SetBreakpointsRequest {
-public:
-    int seq;
-    std::string source;
-    std::vector<int> lines;
-
-    static SetBreakpointsRequest fromRequest(Request msg);
-};
-
-class SetBreakpointsResponse {
-private:
-    SetBreakpointsRequest request;
-
-public:
-    int seq;
-    static SetBreakpointsResponse fromRequest(SetBreakpointsRequest req);
-    void send();
-};
-
-class DebugAdapter {
-
-public:
-    static Status connect();
-    static void disconnect();
-
-    static void handleMessagesThread();
-    static void handleRequest(const Request& msg);
-    static void handleSetBreakpoints(SetBreakpointsRequest req);
-    static void sendMessage(std::string json);
-};
-
-
-}  // namespace mozjs
+bool isReplicatedFastCountEnabled(OperationContext* opCtx) {
+    // TODO(SERVER-117326): Remove feature flag check.
+    return gFeatureFlagReplicatedFastCount.isEnabledUseLatestFCVWhenUninitialized(
+               VersionContext::getDecoration(opCtx),
+               serverGlobalParams.featureCompatibility.acquireFCVSnapshot()) &&
+        rss::ReplicatedStorageService::get(opCtx)
+            .getPersistenceProvider()
+            .shouldUseReplicatedFastCount();
+}
 }  // namespace mongo

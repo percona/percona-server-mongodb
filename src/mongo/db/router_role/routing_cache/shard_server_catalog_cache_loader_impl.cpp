@@ -105,6 +105,7 @@ namespace {
 
 MONGO_FAIL_POINT_DEFINE(hangCollectionFlush);
 MONGO_FAIL_POINT_DEFINE(hangDatabaseFlush);
+MONGO_FAIL_POINT_DEFINE(noCacheMetadataTassert);
 
 AtomicWord<unsigned long long> taskIdGenerator{0};
 
@@ -890,11 +891,16 @@ ShardServerCatalogCacheLoaderImpl::_schedulePrimaryGetChunksSince(
     }
 
     // After finding metadata remotely, we must have found metadata locally.
-    tassert(7032350,
-            str::stream() << "No chunks metadata found for collection '"
-                          << nss.toStringForErrorMsg()
-                          << "' despite the config server returned actual information",
-            !collAndChunks.changedChunks.empty());
+    if (collAndChunks.changedChunks.empty()) {
+        str::stream msg{};
+        msg << "No chunks metadata found for collection '" << nss.toStringForErrorMsg()
+            << "' despite the config server returned actual information";
+        if (MONGO_unlikely(noCacheMetadataTassert.shouldFail())) {
+            uasserted(11769100, msg);
+        } else {
+            tasserted(7032350, msg);
+        }
+    }
 
     return swCollectionAndChangedChunks;
 };

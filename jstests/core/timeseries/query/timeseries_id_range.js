@@ -46,9 +46,7 @@ TimeseriesTest.run((insert) => {
 
         assert.commandWorked(db.createCollection(coll.getName(), {timeseries: {timeField: timeFieldName}}));
 
-        if (TestData.runningWithBalancer) {
-            assert.commandWorked(coll.createIndex({[timeFieldName]: 1}));
-        }
+        TimeseriesTest.createTimeFieldIndexToAllowBucketsReopening(coll);
     }
 
     (function testEQ() {

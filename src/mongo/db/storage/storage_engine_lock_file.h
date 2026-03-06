@@ -52,6 +52,11 @@ public:
     static boost::optional<StorageEngineLockFile>& get(ServiceContext* service);
 
     /**
+     * Returns the path where a lockfile would be expected to live given the dbpath.
+     */
+    static std::string lockFilePath(StringData dbpath, StringData fileName = kLockFileBasename);
+
+    /**
      * Creates the lock file used to prevent concurrent processes from accessing the data files,
      * as appropriate.
      */

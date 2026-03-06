@@ -846,7 +846,21 @@ CatalogCache::CollectionCache::LookupResult CatalogCache::CollectionCache::_look
                                   "lookupSinceVersion"_attr = lookupVersion,
                                   "timeInStore"_attr = timeInStore);
 
-        auto collectionAndChunks = _catalogCacheLoader->getChunksSince(nss, lookupVersion).get();
+        const auto collectionAndChunks = [&] {
+            int retries = 0;
+            while (true) {
+                try {
+                    return _catalogCacheLoader->getChunksSince(nss, lookupVersion).get();
+                } catch (const DBException& e) {
+                    retries++;
+                    // The error code 11769100 can only be thrown in test suites.
+                    if (e.code() == 11769100 && retries < 10) {
+                        continue;
+                    }
+                    throw;
+                }
+            }
+        }();
 
         std::shared_ptr<RoutingTableHistory> newRoutingHistory = createUpdatedRoutingTableHistory(
             opCtx, nss, isIncremental, existingHistory, collectionAndChunks);

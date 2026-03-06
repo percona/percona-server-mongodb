@@ -61,6 +61,16 @@ boost::optional<std::span<const char>> _next(WiredTigerCursor& cursor) {
     return _get(cursor);
 }
 
+bool overwrite(container::ExistingKeyPolicy policy) {
+    switch (policy) {
+        case container::ExistingKeyPolicy::overwrite:
+            return true;
+        case container::ExistingKeyPolicy::reject:
+            return false;
+    }
+    MONGO_UNREACHABLE;
+}
+
 }  // namespace
 
 WiredTigerContainer::WiredTigerContainer(std::string uri, uint64_t tableId)
@@ -73,9 +83,11 @@ WiredTigerIntegerKeyedContainer::WiredTigerIntegerKeyedContainer(std::shared_ptr
 
 Status WiredTigerIntegerKeyedContainer::insert(RecoveryUnit& ru,
                                                int64_t key,
-                                               std::span<const char> value) {
+                                               std::span<const char> value,
+                                               container::ExistingKeyPolicy policy) {
     auto& wtRu = WiredTigerRecoveryUnit::get(ru);
-    WiredTigerCursor cursor{getWiredTigerCursorParams(wtRu, tableId()), uri(), *wtRu.getSession()};
+    WiredTigerCursor cursor{
+        getWiredTigerCursorParams(wtRu, tableId(), overwrite(policy)), uri(), *wtRu.getSession()};
     wtRu.assertInActiveTxn();
     int ret = insert(wtRu, *cursor.get(), key, value);
     return wtRCToStatus(ret, cursor->session);
@@ -145,9 +157,11 @@ WiredTigerStringKeyedContainer::WiredTigerStringKeyedContainer(std::shared_ptr<I
 
 Status WiredTigerStringKeyedContainer::insert(RecoveryUnit& ru,
                                               std::span<const char> key,
-                                              std::span<const char> value) {
+                                              std::span<const char> value,
+                                              container::ExistingKeyPolicy policy) {
     auto& wtRu = WiredTigerRecoveryUnit::get(ru);
-    WiredTigerCursor cursor{getWiredTigerCursorParams(wtRu, tableId()), uri(), *wtRu.getSession()};
+    WiredTigerCursor cursor{
+        getWiredTigerCursorParams(wtRu, tableId(), overwrite(policy)), uri(), *wtRu.getSession()};
     wtRu.assertInActiveTxn();
     int ret = insert(wtRu, *cursor.get(), key, value);
     return wtRCToStatus(ret, cursor->session);

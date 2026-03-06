@@ -68,33 +68,33 @@ public:
     OpCounters() = default;
 
     void gotInserts(int n) {
-        _checkWrap(&OpCounters::_insert, n);
+        _insert->fetchAndAddRelaxed(n);
     }
     void gotInsert() {
-        _checkWrap(&OpCounters::_insert, 1);
+        _insert->fetchAndAddRelaxed(1);
     }
     void gotQuery() {
-        _checkWrap(&OpCounters::_query, 1);
+        _query->fetchAndAddRelaxed(1);
     }
     void gotUpdate() {
-        _checkWrap(&OpCounters::_update, 1);
+        _update->fetchAndAddRelaxed(1);
     }
     void gotDelete() {
-        _checkWrap(&OpCounters::_delete, 1);
+        _delete->fetchAndAddRelaxed(1);
     }
     void gotGetMore() {
-        _checkWrap(&OpCounters::_getmore, 1);
+        _getmore->fetchAndAddRelaxed(1);
     }
     void gotCommand() {
-        _checkWrap(&OpCounters::_command, 1);
+        _command->fetchAndAddRelaxed(1);
     }
 
     void gotQueryDeprecated() {
-        _checkWrap(&OpCounters::_queryDeprecated, 1);
+        _queryDeprecated->fetchAndAddRelaxed(1);
     }
 
     void gotNestedAggregate() {
-        _checkWrap(&OpCounters::_nestedAggregate, 1);
+        _nestedAggregate->fetchAndAddRelaxed(1);
     }
 
     BSONObj getObj() const;
@@ -102,22 +102,22 @@ public:
     // These opcounters record operations that would fail if we were fully enforcing our consistency
     // constraints in steady-state oplog application mode.
     void gotInsertOnExistingDoc() {
-        _checkWrap(&OpCounters::_insertOnExistingDoc, 1);
+        _insertOnExistingDoc->fetchAndAddRelaxed(1);
     }
     void gotUpdateOnMissingDoc() {
-        _checkWrap(&OpCounters::_updateOnMissingDoc, 1);
+        _updateOnMissingDoc->fetchAndAddRelaxed(1);
     }
     void gotDeleteWasEmpty() {
-        _checkWrap(&OpCounters::_deleteWasEmpty, 1);
+        _deleteWasEmpty->fetchAndAddRelaxed(1);
     }
     void gotDeleteFromMissingNamespace() {
-        _checkWrap(&OpCounters::_deleteFromMissingNamespace, 1);
+        _deleteFromMissingNamespace->fetchAndAddRelaxed(1);
     }
     void gotAcceptableErrorInCommand() {
-        _checkWrap(&OpCounters::_acceptableErrorInCommand, 1);
+        _acceptableErrorInCommand->fetchAndAddRelaxed(1);
     }
     void gotRecordIdsReplicatedDocIdMismatch() {
-        _checkWrap(&OpCounters::_recordIdsReplicatedDocIdMismatch, 1);
+        _recordIdsReplicatedDocIdMismatch->fetchAndAddRelaxed(1);
     }
 
     // thse are used by metrics things, do not remove
@@ -169,9 +169,6 @@ public:
 private:
     // Reset all counters.
     void _reset();
-
-    // Increment member `counter` by `n`, resetting all counters if it was > 2^60.
-    void _checkWrap(CacheExclusive<AtomicWord<long long>> OpCounters::* counter, int n);
 
     CacheExclusive<AtomicWord<long long>> _insert;
     CacheExclusive<AtomicWord<long long>> _query;

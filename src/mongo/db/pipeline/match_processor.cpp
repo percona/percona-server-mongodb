@@ -40,8 +40,8 @@ MatchProcessor::MatchProcessor(std::unique_ptr<MatchExpression> expr,
                                BSONObj&& predicate)
     : _expression(std::move(expr)),
       _dependencies(std::move(dependencies)),
-      _hasUniquePrefixes(_dependencies.fields.size() < 2 ||
-                         hasUniquePrefixes(_dependencies.fields)),
+      _dependenciesHaveUniqueFirstFields(_dependencies.fields.size() < 2 ||
+                                         dependenciesHaveUniqueFirstFields(_dependencies.fields)),
       _predicate(std::move(predicate)) {
     tassert(10422701, "expecting 'predicate' to be owned", _predicate.isOwned());
 }
@@ -54,29 +54,30 @@ bool MatchProcessor::process(const Document& input) const {
         if (_dependencies.needWholeDocument) {
             return input.toBson<BSONObj::LargeSizeTrait>();
         }
-        if (_hasUniquePrefixes) {
+        if (_dependenciesHaveUniqueFirstFields) {
             // Use optimized function that does not check whether we have already seen a specific
-            // prefix.
-            return document_path_support::documentToBsonWithPaths<BSONObj::LargeSizeTrait,
-                                                                  /* EnsureUniquePrefixes */ false>(
-                input, _dependencies.fields);
+            // first field.
+            return document_path_support::documentToBsonWithPaths<
+                BSONObj::LargeSizeTrait,
+                /* PathsHaveUniqueFirstFields */ true>(input, _dependencies.fields);
         }
 
-        // Use slow function that will check for prefix uniqueness.
-        return document_path_support::documentToBsonWithPaths<BSONObj::LargeSizeTrait,
-                                                              /* EnsureUniquePrefixes */ true>(
-            input, _dependencies.fields);
+        // Use slow function that will check for first field uniqueness.
+        return document_path_support::documentToBsonWithPaths<
+            BSONObj::LargeSizeTrait,
+            /* PathsHaveUniqueFirstFields */ false>(input, _dependencies.fields);
     }();
     return exec::matcher::matchesBSON(_expression.get(), toMatch);
 }
 
-bool MatchProcessor::hasUniquePrefixes(const OrderedPathSet& fields) {
-    StringDataSet prefixes;
-    for (auto&& path : fields) {
-        auto prefix = FieldPath::extractFirstFieldFromDottedPath(path);
-        if (!prefixes.insert(prefix).second) {
+bool MatchProcessor::dependenciesHaveUniqueFirstFields(const OrderedPathSet& paths) {
+    boost::optional<StringData> prevFirstField = boost::none;
+    for (auto&& path : paths) {
+        auto firstField = FieldPath::extractFirstFieldFromDottedPath(path);
+        if (prevFirstField == firstField) {
             return false;
         }
+        prevFirstField = firstField;
     }
     return true;
 }

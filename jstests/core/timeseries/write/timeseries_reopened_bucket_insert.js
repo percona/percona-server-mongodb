@@ -44,7 +44,7 @@ const checkIfBucketReopened = function (measurement, willCreateBucket = false, w
     stats = assert.commandWorked(coll.stats());
     assert(stats.timeseries);
     assert.eq(stats.timeseries["bucketCount"], expectedBucketCount);
-    if (TestData.runningWithBalancer) {
+    if (TimeseriesTest.canAssumeCanonicalTimeseriesBucketsLayout()) {
         // When resharding is happening in the background, it can cause errors that result in
         // operations being retried and the bucket reopening count being too high.
         assert.gte(TimeseriesTest.getStat(stats.timeseries, "numBucketsReopened"), expectedReopenedBuckets);

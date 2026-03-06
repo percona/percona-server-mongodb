@@ -37,7 +37,20 @@
 #include <memory>
 #include <span>
 
-namespace mongo {
+namespace MONGO_MOD_PUBLIC mongo {
+namespace container {
+
+/**
+ * The policy for inserting into a container when the provided key already exists.
+ */
+enum class ExistingKeyPolicy {
+    // Overwrite the existing value at the given key with the newly-provided one.
+    overwrite,
+    // Reject the write, returning an error.
+    reject,
+};
+
+}  // namespace container
 
 /**
  * An integer-keyed container represents a single storage ident that can be written to and read
@@ -76,7 +89,10 @@ public:
     /**
      * Inserts the given key/value into the container. Must be in an active storage transaction.
      */
-    virtual Status insert(RecoveryUnit& ru, int64_t key, std::span<const char> value) = 0;
+    virtual Status insert(RecoveryUnit& ru,
+                          int64_t key,
+                          std::span<const char> value,
+                          container::ExistingKeyPolicy policy) = 0;
 
     /**
      * Removes the given key (and its corresponding value) from the container. Must be in an active
@@ -129,7 +145,8 @@ public:
      */
     virtual Status insert(RecoveryUnit& ru,
                           std::span<const char> key,
-                          std::span<const char> value) = 0;
+                          std::span<const char> value,
+                          container::ExistingKeyPolicy policy) = 0;
 
     /**
      * Removes the given key (and its corresponding value) from the container. Must be in an active
@@ -143,4 +160,4 @@ public:
     virtual std::unique_ptr<Cursor> getCursor(RecoveryUnit& ru) const = 0;
 };
 
-}  // namespace mongo
+}  // namespace MONGO_MOD_PUBLIC mongo

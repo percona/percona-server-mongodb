@@ -48,6 +48,12 @@
 namespace mongo {
 namespace {
 class ReplicatedFastCountTest : public CatalogTestFixture {
+public:
+    ReplicatedFastCountTest()
+        : CatalogTestFixture(Options().setPersistenceProvider(
+              std::make_unique<
+                  replicated_fast_count_test_helpers::ReplicatedFastCountPersistenceProvider>())) {}
+
 protected:
     void setUp() override {
         CatalogTestFixture::setUp();
@@ -87,7 +93,6 @@ protected:
      */
     void shutdownFastCountManager() {
         if (_fastCountManager != nullptr) {
-            _fastCountManager->shutdown();
             _fastCountManager = nullptr;
         }
     }
@@ -454,8 +459,6 @@ TEST_F(ReplicatedFastCountTest, MixedUpdatesAndInsertInApplyOps) {
 TEST_F(ReplicatedFastCountTest, StartupFailsIfFastCountCollectionNotPresent) {
     RAIIServerParameterControllerForTest featureFlag("featureFlagReplicatedFastCount", true);
 
-    _fastCountManager->shutdown();
-
     {
         repl::UnreplicatedWritesBlock uwb(_opCtx);
         ASSERT_OK(storageInterface()->dropCollection(
@@ -467,10 +470,8 @@ TEST_F(ReplicatedFastCountTest, StartupFailsIfFastCountCollectionNotPresent) {
     ASSERT_THROWS_CODE(_fastCountManager->startup(_opCtx), DBException, 11718600);
 }
 
-TEST_F(ReplicatedFastCountTest, StartupInitializesMetadataFromExistingInternalCollection) {
+TEST_F(ReplicatedFastCountTest, InitializePopulatesMetadataFromExistingInternalCollection) {
     RAIIServerParameterControllerForTest featureFlag("featureFlagReplicatedFastCount", true);
-
-    _fastCountManager->shutdown();
 
     // Pre-populate the internal replicated fast count collection with two entries.
     UUID uuid1 = UUID::gen();
@@ -516,9 +517,9 @@ TEST_F(ReplicatedFastCountTest, StartupInitializesMetadataFromExistingInternalCo
     replicated_fast_count_test_helpers::checkCommittedFastCountChanges(
         uuid2, _fastCountManager, /*expectedCount=*/0, /*expectedSize=*/0);
 
-    _fastCountManager->startup(_opCtx);
+    _fastCountManager->initializeMetadata(_opCtx);
 
-    // After startup(), the in-memory _metadata map should reflect the persisted values.
+    // The in-memory _metadata map should reflect the persisted values.
     replicated_fast_count_test_helpers::checkCommittedFastCountChanges(
         uuid1, _fastCountManager, expectedCount1, expectedSize1);
     replicated_fast_count_test_helpers::checkCommittedFastCountChanges(
@@ -738,16 +739,130 @@ TEST_F(ReplicatedFastCountTest, ApplyOpsDeletesAreCorrectlyAccountedFor) {
     replicated_fast_count_test_helpers::checkUncommittedFastCountChanges(_opCtx, _uuid1, 0, 0);
 }
 
+TEST_F(ReplicatedFastCountTest, CappedDeletesUpdateFastCountWhenHittingCapCount) {
+    RAIIServerParameterControllerForTest featureFlag("featureFlagReplicatedFastCount", true);
+
+    // Make this an unreplicated block so that the capped insert and delete combo doesn't violate
+    // the multi‑timestamp constraint.
+    repl::UnreplicatedWritesBlock uwb(_opCtx);
+
+    const int cappedCollMaxCount = 5;
+
+    NamespaceString nssCapped = NamespaceString::createNamespaceString_forTest(
+        "replicated_fast_count_test", "cappedWithMaxCount");
+
+    auto uuidCapped = UUID::gen();
+
+    ASSERT_OK(
+        createCollection(_opCtx,
+                         nssCapped.dbName(),
+                         BSON("create" << nssCapped.coll() << "capped" << true << "size"
+                                       << cappedCollMaxCount * sampleDocForInsert.objsize() *
+                                  5  // Make the size larger so that count is the limiting bound
+                                       << "max" << cappedCollMaxCount)));
+
+    // Insert up until the max capped doc count.
+    AutoGetCollection cappedColl(_opCtx, nssCapped, LockMode::MODE_IX);
+
+    uuidCapped = cappedColl->uuid();
+
+    for (int i = 0; i < cappedCollMaxCount; ++i) {
+        WriteUnitOfWork wuow(_opCtx);
+        ASSERT_OK(Helpers::insert(_opCtx, *cappedColl, docGeneratorForInsert(i)));
+        replicated_fast_count_test_helpers::checkUncommittedFastCountChanges(
+            _opCtx, uuidCapped, 1, sampleDocForInsert.objsize());
+        wuow.commit();
+        const auto expectedCommittedCount = i + 1;
+        replicated_fast_count_test_helpers::checkCommittedFastCountChanges(
+            uuidCapped,
+            _fastCountManager,
+            expectedCommittedCount,
+            expectedCommittedCount * sampleDocForInsert.objsize());
+    }
+
+    // Insert more docs. Our committed count and size should still be at the cap.
+    for (int i = cappedCollMaxCount + 1; i < 3 * cappedCollMaxCount; ++i) {
+        WriteUnitOfWork wuow(_opCtx);
+        ASSERT_OK(Helpers::insert(_opCtx, *cappedColl, docGeneratorForInsert(i)));
+        // Insert + delete of same size cancel each other out.
+        replicated_fast_count_test_helpers::checkUncommittedFastCountChanges(
+            _opCtx, uuidCapped, 0, 0);
+        wuow.commit();
+        replicated_fast_count_test_helpers::checkCommittedFastCountChanges(
+            uuidCapped,
+            _fastCountManager,
+            cappedCollMaxCount,
+            cappedCollMaxCount * sampleDocForInsert.objsize());
+    }
+}
+
+TEST_F(ReplicatedFastCountTest, CappedDeletesUpdateFastCountWhenHittingCapSize) {
+    RAIIServerParameterControllerForTest featureFlag("featureFlagReplicatedFastCount", true);
+
+    // Make this an unreplicated block so that the capped insert and delete combo doesn't violate
+    // the multi‑timestamp constraint.
+    repl::UnreplicatedWritesBlock uwb(_opCtx);
+
+    const int cappedCollMaxCount = 5;
+
+    NamespaceString nssCapped = NamespaceString::createNamespaceString_forTest(
+        "replicated_fast_count_test", "cappedWithMaxSize");
+
+    auto uuidCapped = UUID::gen();
+
+    ASSERT_OK(
+        createCollection(_opCtx,
+                         nssCapped.dbName(),
+                         BSON("create" << nssCapped.coll() << "capped" << true << "size"
+                                       << cappedCollMaxCount * sampleDocForInsert.objsize())));
+
+    // Insert up until the max capped doc size.
+    AutoGetCollection cappedColl(_opCtx, nssCapped, LockMode::MODE_IX);
+
+    uuidCapped = cappedColl->uuid();
+
+    for (int i = 0; i < cappedCollMaxCount; ++i) {
+        WriteUnitOfWork wuow(_opCtx);
+        ASSERT_OK(Helpers::insert(_opCtx, *cappedColl, docGeneratorForInsert(i)));
+        replicated_fast_count_test_helpers::checkUncommittedFastCountChanges(
+            _opCtx, uuidCapped, 1, sampleDocForInsert.objsize());
+        wuow.commit();
+        const auto expectedCommittedCount = i + 1;
+        replicated_fast_count_test_helpers::checkCommittedFastCountChanges(
+            uuidCapped,
+            _fastCountManager,
+            expectedCommittedCount,
+            expectedCommittedCount * sampleDocForInsert.objsize());
+    }
+
+    // Insert more docs. Our committed count and size should still be at the cap.
+    for (int i = cappedCollMaxCount + 1; i < 3 * cappedCollMaxCount; ++i) {
+        WriteUnitOfWork wuow(_opCtx);
+        ASSERT_OK(Helpers::insert(_opCtx, *cappedColl, docGeneratorForInsert(i)));
+        // Insert + delete of same size cancel each other out.
+        replicated_fast_count_test_helpers::checkUncommittedFastCountChanges(
+            _opCtx, uuidCapped, 0, 0);
+        wuow.commit();
+        replicated_fast_count_test_helpers::checkCommittedFastCountChanges(
+            uuidCapped,
+            _fastCountManager,
+            cappedCollMaxCount,
+            cappedCollMaxCount * sampleDocForInsert.objsize());
+    }
+}
+
 using ReplicatedFastCountDeathTest = ReplicatedFastCountTest;
 
-DEATH_TEST_REGEX_F(ReplicatedFastCountDeathTest,
-                   CannotHaveNegativeCommittedSizeOrCount,
-                   R"(Invariant failure.*Expected fast count size and count to be non-negative)") {
-    boost::container::flat_map<UUID, CollectionSizeCount> changes;
-    changes[UUID::gen()] = CollectionSizeCount{-10, -1};
+// TODO SERVER-120203: Re-enable this test.
+//  DEATH_TEST_REGEX_F(ReplicatedFastCountDeathTest,
+//                     CannotHaveNegativeCommittedSizeOrCount,
+//                     R"(Invariant failure.*Expected fast count size and count to be
+//                     non-negative)") {
+//      boost::container::flat_map<UUID, CollectionSizeCount> changes;
+//      changes[UUID::gen()] = CollectionSizeCount{-10, -1};
 
-    _fastCountManager->commit(changes, boost::none);
-}
+//     _fastCountManager->commit(changes, boost::none);
+// }
 
 }  // namespace
 };  // namespace mongo

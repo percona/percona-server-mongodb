@@ -49,7 +49,9 @@
 #include "mongo/client/authenticate.h"
 #include "mongo/client/sasl_client_authenticate.h"
 #include "mongo/client/sasl_client_session.h"
+#include "mongo/db/auth/authentication_metrics.h"
 #include "mongo/db/auth/sasl_command_constants.h"
+#include "mongo/db/connection_health_metrics_parameter_gen.h"
 #include "mongo/db/database_name.h"
 #include "mongo/executor/remote_command_request.h"
 #include "mongo/executor/remote_command_response.h"
@@ -213,7 +215,28 @@ Future<void> asyncSaslConversation(auth::RunCommandHook runCommand,
 
     // Create new payload for our response
     std::string responsePayload;
-    status = session->step(payload, &responsePayload);
+    status = [&] {
+        ScopedCallbackTimer st([&](Duration<std::micro> elapsed) {
+            BSONObjBuilder bob;
+
+            auto currentStepOpt = session->currentStep();
+            if (currentStepOpt) {
+                bob << "step" << static_cast<std::int32_t>(*currentStepOpt);
+            }
+
+            auto totalStepOpt = session->totalSteps();
+            if (totalStepOpt) {
+                bob << "step_total" << static_cast<std::int32_t>(*totalStepOpt);
+            }
+
+            bob << "duration_micros" << elapsed.count();
+
+            session->metrics()->appendMetric(bob.obj());
+        });
+
+        return session->step(payload, &responsePayload);
+    }();
+
     if (!status.isOK())
         return status;
 
@@ -292,9 +315,15 @@ Future<void> saslClientAuthenticateImpl(auth::RunCommandHook runCommand,
         return ex.toStatus();
     }
 
+    std::string username;
+    Status status = bsonExtractStringFieldWithDefault(
+        saslParameters, saslCommandUserFieldName, ""_sd, &username);
+    if (!status.isOK()) {
+        return status;
+    }
+
     std::string mechanism;
-    Status status =
-        bsonExtractStringField(saslParameters, saslCommandMechanismFieldName, &mechanism);
+    status = bsonExtractStringField(saslParameters, saslCommandMechanismFieldName, &mechanism);
     if (!status.isOK()) {
         return status;
     }
@@ -313,8 +342,49 @@ Future<void> saslClientAuthenticateImpl(auth::RunCommandHook runCommand,
                                   << "options" << BSON(saslCommandOptionSkipEmptyExchange << true));
 
     BSONObj inputObj = BSON(saslCommandPayloadFieldName << "");
+
+    auto argsBlock = std::make_tuple(hostname, saslParameters, username, targetDatabase, mechanism);
+    auto sharedBlock = std::make_shared<decltype(argsBlock)>(std::move(argsBlock));
+
+    session->metrics()->restart();
+
     return asyncSaslConversation(
-        runCommand, session, saslFirstCommandPrefix, inputObj, targetDatabase, saslLogLevel);
+               runCommand, session, saslFirstCommandPrefix, inputObj, targetDatabase, saslLogLevel)
+        .onError([session, sharedBlock](Status status) {
+            auto [hostname, saslParameters, username, targetDatabase, mechanism] =
+                *sharedBlock.get();
+            BSONObj metrics = session->metrics()->captureEgress();
+            if (gEnableDetailedConnectionHealthMetricLogLines.load()) {
+                LOGV2(10748700,
+                      "Authentication to remote host failed using SASL",
+                      "hostname"_attr = hostname,
+                      "saslParameters"_attr = saslParameters,
+                      "username"_attr = username,
+                      "targetDatabase"_attr = targetDatabase,
+                      "mechanism"_attr = mechanism,
+                      "error"_attr = redact(status),
+                      "result"_attr = status.code(),
+                      "metrics"_attr = metrics);
+            }
+            return status;
+        })
+        .then([session, sharedBlock]() {
+            auto [hostname, saslParameters, username, targetDatabase, mechanism] =
+                *sharedBlock.get();
+            BSONObj metrics = session->metrics()->captureEgress();
+            if (gEnableDetailedConnectionHealthMetricLogLines.load()) {
+                LOGV2(10748701,
+                      "Authentication to remote host succeeded using SASL",
+                      "hostname"_attr = hostname,
+                      "saslParameters"_attr = saslParameters,
+                      "username"_attr = username,
+                      "targetDatabase"_attr = targetDatabase,
+                      "mechanism"_attr = mechanism,
+                      "result"_attr = Status::OK().code(),
+                      "metrics"_attr = metrics);
+            }
+        });
+    ;
 }
 
 MONGO_INITIALIZER(SaslClientAuthenticateFunction)(InitializerContext* context) {

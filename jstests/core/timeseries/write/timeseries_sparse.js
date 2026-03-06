@@ -37,13 +37,7 @@ TimeseriesTest.run((insert) => {
         );
 
         assert.commandWorked(db.createCollection(coll.getName(), {timeseries: {timeField: timeFieldName}}));
-        if (TestData.runningWithBalancer) {
-            // In suites running moveCollection in the background, it is possible to hit the issue
-            // described by SERVER-89349 which will result in more bucket documents being created.
-            // Creating an index on the time field allows the buckets to be reopened, allowing the
-            // counts in this test to be accurate.
-            assert.commandWorked(coll.createIndex({[timeFieldName]: 1}));
-        }
+        TimeseriesTest.createTimeFieldIndexToAllowBucketsReopening(coll);
 
         assert.commandWorked(
             insert(coll, docsInsert),

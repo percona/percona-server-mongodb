@@ -28,10 +28,12 @@ TimeseriesTest.run((insert) => {
         const coll = db.getCollection(collNamePrefix + numDocsPerInsert);
         coll.drop();
 
-        assert.commandWorked(db.createCollection(coll.getName(), {timeseries: {timeField: timeFieldName}}));
-        if (TestData.runningWithBalancer) {
-            assert.commandWorked(coll.createIndex({[timeFieldName]: 1}));
-        }
+        assert.commandWorked(
+            db.createCollection(coll.getName(), {
+                timeseries: {timeField: timeFieldName},
+            }),
+        );
+        TimeseriesTest.createTimeFieldIndexToAllowBucketsReopening(coll);
 
         let docs = [];
         for (let i = 0; i < numDocs; i++) {
@@ -59,7 +61,7 @@ TimeseriesTest.run((insert) => {
 
         jsTestLog("Collection stats for " + coll.getFullName() + ": " + tojson(coll.stats()));
 
-        if (!TestData.runningWithBalancer) {
+        if (!TimeseriesTest.canAssumeCanonicalTimeseriesBucketsLayout()) {
             assert.eq(2, bucketDocs.length, tojson(bucketDocs));
 
             // Check both buckets.

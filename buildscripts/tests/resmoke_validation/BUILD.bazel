@@ -21,6 +21,9 @@ py_test(
 py_test(
     name = "test_generated_matrix_suites",
     srcs = ["test_generated_matrix_suites.py"],
+    data = [
+        "//buildscripts/resmokeconfig:all_files",
+    ],
     visibility = ["//visibility:public"],
     deps = [
         "//buildscripts/resmokelib",

@@ -44,7 +44,7 @@
 #include "mongo/db/query/compiler/physical_model/query_solution/stage_types.h"
 #include "mongo/db/query/write_ops/update_request.h"
 #include "mongo/db/record_id.h"
-#include "mongo/db/router_role/sharding_write_router.h"
+#include "mongo/db/s/resharding/sharding_write_router.h"
 #include "mongo/db/shard_role/shard_catalog/scoped_collection_metadata.h"
 #include "mongo/db/shard_role/shard_role.h"
 #include "mongo/db/storage/damage_vector.h"

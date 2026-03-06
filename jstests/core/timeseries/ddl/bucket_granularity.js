@@ -15,6 +15,7 @@
 
 import {getTimeseriesCollForRawOps} from "jstests/core/libs/raw_operation_utils.js";
 import {areViewlessTimeseriesEnabled} from "jstests/core/timeseries/libs/viewless_timeseries_util.js";
+import {TimeseriesTest} from "jstests/core/timeseries/libs/timeseries.js";
 
 function assertBucketMaxSpanSecondsEquals(coll, expectedValue) {
     const cSeconds = coll.getMetadata().options.timeseries.bucketMaxSpanSeconds;
@@ -45,13 +46,7 @@ const dayInMS = 1000 * 60 * 60 * 24;
     coll.drop();
 
     assert.commandWorked(db.createCollection(coll.getName(), {timeseries: {timeField: "t", granularity: "seconds"}}));
-    if (TestData.runningWithBalancer) {
-        // In suites running moveCollection in the background, it is possible to hit the issue
-        // described by SERVER-89349 which will result in more bucket documents being created.
-        // Creating an index on the time field allows the buckets to be reopened, allowing the
-        // counts in this test to be accurate.
-        assert.commandWorked(coll.createIndex({"t": 1}));
-    }
+    TimeseriesTest.createTimeFieldIndexToAllowBucketsReopening(coll);
 
     // All measurements land in the same bucket.
     assert.commandWorked(coll.insert({t: ISODate("2021-04-22T20:00:00.000Z")}));
@@ -72,9 +67,7 @@ const dayInMS = 1000 * 60 * 60 * 24;
     coll.drop();
 
     assert.commandWorked(db.createCollection(coll.getName(), {timeseries: {timeField: "t", granularity: "minutes"}}));
-    if (TestData.runningWithBalancer) {
-        assert.commandWorked(coll.createIndex({"t": 1}));
-    }
+    TimeseriesTest.createTimeFieldIndexToAllowBucketsReopening(coll);
 
     // All measurements land in the same bucket.
     assert.commandWorked(coll.insert({t: ISODate("2021-04-22T20:00:00.000Z")}));
@@ -95,9 +88,7 @@ const dayInMS = 1000 * 60 * 60 * 24;
     coll.drop();
 
     assert.commandWorked(db.createCollection(coll.getName(), {timeseries: {timeField: "t", granularity: "hours"}}));
-    if (TestData.runningWithBalancer) {
-        assert.commandWorked(coll.createIndex({"t": 1}));
-    }
+    TimeseriesTest.createTimeFieldIndexToAllowBucketsReopening(coll);
 
     // All measurements land in the same bucket.
     assert.commandWorked(coll.insert({t: ISODate("2021-04-22T00:00:00.000Z")}));
@@ -118,9 +109,8 @@ const dayInMS = 1000 * 60 * 60 * 24;
     coll.drop();
 
     assert.commandWorked(db.createCollection(coll.getName(), {timeseries: {timeField: "t", granularity: "seconds"}}));
-    if (TestData.runningWithBalancer) {
-        assert.commandWorked(coll.createIndex({"t": 1}));
-    }
+    TimeseriesTest.createTimeFieldIndexToAllowBucketsReopening(coll);
+
     assertBucketMaxSpanSecondsEquals(coll, 60 * 60);
 
     // All measurements land in the same bucket.
@@ -170,9 +160,7 @@ const dayInMS = 1000 * 60 * 60 * 24;
     coll.drop();
 
     assert.commandWorked(db.createCollection(coll.getName(), {timeseries: {timeField: "t", granularity: "seconds"}}));
-    if (TestData.runningWithBalancer) {
-        assert.commandWorked(coll.createIndex({"t": 1}));
-    }
+    TimeseriesTest.createTimeFieldIndexToAllowBucketsReopening(coll);
     assertBucketMaxSpanSecondsEquals(coll, 60 * 60);
 
     // All measurements land in the same bucket.
@@ -217,9 +205,7 @@ const dayInMS = 1000 * 60 * 60 * 24;
     coll.drop();
 
     assert.commandWorked(db.createCollection(coll.getName(), {timeseries: {timeField: "t", granularity: "minutes"}}));
-    if (TestData.runningWithBalancer) {
-        assert.commandWorked(coll.createIndex({"t": 1}));
-    }
+    TimeseriesTest.createTimeFieldIndexToAllowBucketsReopening(coll);
     assertBucketMaxSpanSecondsEquals(coll, 24 * 60 * 60);
 
     // All measurements land in the same bucket.
@@ -264,9 +250,7 @@ const dayInMS = 1000 * 60 * 60 * 24;
     coll.drop();
 
     assert.commandWorked(db.createCollection(coll.getName(), {timeseries: {timeField: "t", granularity: "minutes"}}));
-    if (TestData.runningWithBalancer) {
-        assert.commandWorked(coll.createIndex({"t": 1}));
-    }
+    TimeseriesTest.createTimeFieldIndexToAllowBucketsReopening(coll);
 
     // Decreasing minutes -> seconds shouldn't work.
     assert.commandFailed(db.runCommand({collMod: coll.getName(), timeseries: {granularity: "seconds"}}));

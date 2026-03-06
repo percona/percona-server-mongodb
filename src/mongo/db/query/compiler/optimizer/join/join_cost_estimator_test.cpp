@@ -63,7 +63,7 @@ public:
         NodeCardinalities collCards{
             makeCard(100'000), makeCard(2'000'000), makeCard(2'000'000), makeCard(1)};
 
-        auto cardEstimator =
+        cardEstimator =
             std::make_unique<FakeJoinCardinalityEstimator>(*jCtx, subsetCards, collCards);
 
         constexpr double docSizeBytes = 500;
@@ -80,11 +80,11 @@ public:
                                      collCards[extremelySmallNodeId].toDouble() * docSizeBytes}},
             }};
 
-        auto costEstimator = std::make_unique<JoinCostEstimatorImpl>(*jCtx, *cardEstimator);
+        costEstimator = std::make_unique<JoinCostEstimatorImpl>(*jCtx, *cardEstimator);
         planEnumCtx = std::make_unique<PlanEnumeratorContext>(
             *jCtx,
-            std::move(cardEstimator),
-            std::move(costEstimator),
+            cardEstimator.get(),
+            costEstimator.get(),
             EnumerationStrategy{.planShape = PlanTreeShape::ZIG_ZAG,
                                 .mode = PlanEnumerationMode::CHEAPEST,
                                 .enableHJOrderPruning = true});
@@ -99,6 +99,8 @@ public:
     NodeId extremelySmallNodeId;
     boost::optional<JoinReorderingContext> jCtx;
     std::unique_ptr<PlanEnumeratorContext> planEnumCtx;
+    std::unique_ptr<JoinCostEstimator> costEstimator;
+    std::unique_ptr<JoinCardinalityEstimator> cardEstimator;
     CatalogStats catalogStats;
     JoinCostEstimate zeroJoinCost =
         JoinCostEstimate(CardinalityEstimate{CardinalityType{0.0}, EstimationSource::Code},

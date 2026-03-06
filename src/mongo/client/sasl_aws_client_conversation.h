@@ -56,6 +56,14 @@ public:
 
     StatusWith<bool> step(StringData inputData, std::string* outputData) override;
 
+    boost::optional<std::uint32_t> currentStep() const override {
+        return _step;
+    }
+
+    boost::optional<std::uint32_t> totalSteps() const override {
+        return _maxStep;
+    }
+
 private:
     /**
      * Get AWS credentials either from the SASL session or a local HTTP server.
@@ -88,6 +96,7 @@ private:
 private:
     // Step of protocol - either 1 or 2
     std::uint32_t _step{0};
+    const std::uint32_t _maxStep = 2;
 
     // Client nonce
     std::vector<char> _clientNonce;

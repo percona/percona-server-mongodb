@@ -49,8 +49,12 @@ class ValidateGeneratedSuites(unittest.TestCase):
                 self.assertIn(
                     suite_name,
                     suite_names,
-                    msg=f"{filename} does not have a correlated mapping file . Make a mapping file or delete it."
+                    msg=f"{filename} does not have a correlated mapping file. Make a mapping file or delete it."
                     f"You have a generated file {filename} that does not have a corresponding mapping file {expected_mapping_file}. "
                     + "If you have added a non matrix suite to resmokeconfig/matrix_suites/generated_suites, move it to the resmokeconfig/suites."
-                    + " If you have removed the mapping file be sure to remove the generated file.",
+                    + " If you have removed the mapping file be sure to rerun buildscripts/resmoke.py generate-matrix-suites.",
                 )
+
+
+if __name__ == "__main__":
+    unittest.main()

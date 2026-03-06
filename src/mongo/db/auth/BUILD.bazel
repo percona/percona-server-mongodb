@@ -680,10 +680,21 @@ mongo_cc_library(
     ],
     deps = [
         ":auth",
+        ":authentication_metrics",
         ":saslauth",
         "//src/mongo/db:audit",
         "//src/mongo/db:connection_health_metrics_parameter",
         "//src/mongo/db:service_context",
+        "//src/mongo/db/stats:counters",
+    ],
+)
+
+mongo_cc_library(
+    name = "authentication_metrics",
+    srcs = [
+        "authentication_metrics.cpp",
+    ],
+    deps = [
         "//src/mongo/db/stats:counters",
     ],
 )

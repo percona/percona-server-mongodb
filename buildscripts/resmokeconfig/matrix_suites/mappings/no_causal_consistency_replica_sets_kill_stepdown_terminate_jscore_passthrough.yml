@@ -3,7 +3,7 @@
 # across a failover.
 base_suite: replica_sets_jscore_passthrough_base
 overrides:
-  - "no_causal_consistency.replica_sets_shell_options"
+  - "no_causal_consistency.replica_sets_kill_primary_shell_options"
   - "bulk_write.kill_stepdown_hooks"
   - "kill_primary.replica_sets_archive"
   - "no_causal_consistency.replica_sets_fixture"

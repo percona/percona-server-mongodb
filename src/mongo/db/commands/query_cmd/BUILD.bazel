@@ -63,6 +63,32 @@ idl_generator(
     ],
 )
 
+idl_generator(
+    name = "plan_cache_clear_gen",
+    src = "plan_cache_clear.idl",
+    deps = [
+        "//src/mongo/db:basic_types_gen",
+        "//src/mongo/idl:generic_argument_gen",
+    ],
+)
+
+mongo_cc_library(
+    name = "plan_cache_commands",
+    srcs = [
+        "plan_cache_clear_command.cpp",
+        "plan_cache_commands.cpp",
+        ":plan_cache_clear_gen",
+    ],
+    deps = [
+        "//src/mongo:base",
+        "//src/mongo/db:commands",
+        "//src/mongo/db:query_expressions",
+        "//src/mongo/db/matcher:expressions_mongod_only",
+        "//src/mongo/db/query:canonical_query_base",
+        "//src/mongo/db/query:collection_query_info",
+    ],
+)
+
 mongo_cc_library(
     name = "current_op_common",
     srcs = [

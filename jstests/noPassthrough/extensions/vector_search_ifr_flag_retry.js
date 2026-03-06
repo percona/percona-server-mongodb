@@ -119,6 +119,7 @@ function runUnionWithVectorSearchTests({
     shouldExplain = true,
     viewName = null,
     viewPipeline = null,
+    isKickbackExecutedOnMongos = false,
 }) {
     setFeatureFlags(conn, featureFlagValue);
     // Create collection with search index on the collection namespace (not the view).
@@ -150,6 +151,11 @@ function runUnionWithVectorSearchTests({
     // and 1 for the explain, if we are running it.
     // In sharded mode, the kickback retry happens on each shard.
     let expectedUnionWithKickbackRetryDelta = expectRetry ? Number(shouldExplain) + 1 : 0;
+
+    if (shardingTest && isKickbackExecutedOnMongos) {
+        // TODO SERVER-117797 Fix double counting of kickback on mongos and remove this parameter/block.
+        expectedUnionWithKickbackRetryDelta = 2 * expectedUnionWithKickbackRetryDelta;
+    }
 
     let cursorId = 123;
     if (shouldExplain) {
@@ -215,6 +221,7 @@ function runUnionWithOnViewVectorSearchTests(conn, mongotMock, featureFlagValue,
         viewName: kTestViewName,
         viewPipeline: kTestViewPipeline,
         shouldExplain: false,
+        isKickbackExecutedOnMongos: true,
     });
 }
 
@@ -269,6 +276,7 @@ function runTests(conn, mongotMock, shardingTest = null) {
         mongotMock,
         featureFlagValue: true,
         shardingTest,
+        isKickbackExecutedOnMongos: true,
     });
     runUnionWithOnViewVectorSearchTests(conn, mongotMock, true, shardingTest);
     runUnionWithOnViewWithVectorSearchInViewDefinitionTests(conn, mongotMock, true, shardingTest);
@@ -282,6 +290,7 @@ function runTests(conn, mongotMock, shardingTest = null) {
         mongotMock,
         featureFlagValue: false,
         shardingTest,
+        isKickbackExecutedOnMongos: true,
     });
     runUnionWithOnViewVectorSearchTests(conn, mongotMock, false, shardingTest);
     runUnionWithOnViewWithVectorSearchInViewDefinitionTests(conn, mongotMock, false, shardingTest);

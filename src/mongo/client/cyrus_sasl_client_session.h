@@ -66,6 +66,10 @@ public:
 
     Status step(StringData inputData, std::string* outputData) override;
 
+    boost::optional<std::uint32_t> currentStep() const override;
+
+    boost::optional<std::uint32_t> totalSteps() const override;
+
     bool isSuccess() const override {
         return _success;
     }
@@ -78,7 +82,7 @@ private:
     sasl_conn_t* _saslConnection;
 
     // Number of successfully completed conversation steps.
-    int _step;
+    std::uint32_t _step;
 
     /// See isSuccess().
     bool _success;

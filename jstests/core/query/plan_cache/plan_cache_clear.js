@@ -13,8 +13,9 @@
 //   # If all chunks are moved off of a shard, it can cause the plan cache to miss commands.
 //   assumes_balancer_off,
 //   assumes_unsharded_collection,
-//   # The SBE plan cache was first enabled in 6.3.
-//   requires_fcv_63,
+//   # Validation for internal 'isTimeseriesNamespace' command added in 8.3.
+//   # ErrorCodes for parsing changed in in 8.3.
+//   requires_fcv_83,
 //   references_foreign_collection,
 //   requires_getmore,
 //   # Explain will return different plan than expected when a collection becomes a time-series
@@ -165,13 +166,39 @@ addToQueryCache({
 assert.eq(true, planCacheContainsQuerySet(cachedQueries, coll, 2), dumpPlanCacheState(coll));
 
 // Error cases.
-assert.commandFailedWithCode(coll.runCommand("planCacheClear", {query: 12345}), ErrorCodes.BadValue);
-assert.commandFailedWithCode(coll.runCommand("planCacheClear", {query: /regex/}), ErrorCodes.BadValue);
+assert.commandFailedWithCode(coll.runCommand("planCacheClear", {query: 12345}), ErrorCodes.TypeMismatch);
+assert.commandFailedWithCode(coll.runCommand("planCacheClear", {query: /regex/}), ErrorCodes.TypeMismatch);
 assert.commandFailedWithCode(coll.runCommand("planCacheClear", {query: {a: {$no_such_op: 1}}}), ErrorCodes.BadValue);
+
 // 'sort' parameter is not allowed without 'query' parameter.
 assert.commandFailedWithCode(coll.runCommand("planCacheClear", {sort: {a: 1}}), ErrorCodes.BadValue);
-// 'projection' parameter is not allowed with 'query' parameter.
+// 'sort' parameter must be an object.
+assert.commandFailedWithCode(coll.runCommand("planCacheClear", {query: {a: 1}, sort: 1}), ErrorCodes.TypeMismatch);
+
+// 'projection' parameter is not allowed without 'query' parameter.
 assert.commandFailedWithCode(coll.runCommand("planCacheClear", {projection: {_id: 0, a: 1}}), ErrorCodes.BadValue);
+// 'projection' parameter must be an object.
+assert.commandFailedWithCode(
+    coll.runCommand("planCacheClear", {query: {a: 1}, projection: 1}),
+    ErrorCodes.TypeMismatch,
+);
+
+// 'collation' parameter is not allowed without 'query' parameter.
+assert.commandFailedWithCode(coll.runCommand("planCacheClear", {collation: {locale: "fr"}}), ErrorCodes.BadValue);
+// 'collation' parameter must be an object.
+assert.commandFailedWithCode(coll.runCommand("planCacheClear", {query: {a: 1}, collation: 1}), ErrorCodes.TypeMismatch);
+// 'collation' parameter cannot be empty.
+assert.commandFailedWithCode(coll.runCommand("planCacheClear", {query: {a: 1}, collation: {}}), ErrorCodes.BadValue);
+
+// Internal 'isTimeseriesNamespace' parameter cannot be set when command is issued against a mongos.
+if (FixtureHelpers.isMongos(db)) {
+    assert.commandFailedWithCode(
+        coll.runCommand("planCacheClear", {query: {a: 1}, isTimeseriesNamespace: true}),
+        ErrorCodes.InvalidOptions,
+    );
+} else {
+    assert.commandWorked(coll.runCommand("planCacheClear", {query: {a: 1}, isTimeseriesNamespace: true}));
+}
 
 // Drop query cache. This clears all cached queries in the collection.
 clearQueryCaches(coll, cachedQueries);

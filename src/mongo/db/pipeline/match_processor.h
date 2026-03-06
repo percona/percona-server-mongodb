@@ -70,9 +70,9 @@ public:
     }
 
 private:
-    // Determines whether all fields have unique prefixes. This is called once during object
-    // construction to determine the value of '_hasUniquePrefixes'.
-    static bool hasUniquePrefixes(const OrderedPathSet& fields);
+    // Determines whether all paths have unique first fields. This is called once during object
+    // construction to determine the value of '_dependenciesHaveUniqueFirstFields'.
+    static bool dependenciesHaveUniqueFirstFields(const OrderedPathSet& paths);
 
     std::unique_ptr<MatchExpression> _expression;
 
@@ -80,10 +80,10 @@ private:
     // matching.
     DepsTracker _dependencies;
 
-    // Whether or not the paths in '_dependencies.fields' have unique prefixes or not. Based on the
-    // uniqueness check outcome the match processor may be able to use an optimized code path when
-    // converting input Documents to BSONObjs.
-    const bool _hasUniquePrefixes;
+    // Whether or not the paths in '_dependencies.fields' have unique first fields or not. Based on
+    // the uniqueness check outcome the match processor may be able to use an optimized code path
+    // when converting input Documents to BSONObjs.
+    const bool _dependenciesHaveUniqueFirstFields;
 
     // Store the BSONObj that backs this '_expression' so that it doesn't get disposed before the
     // match expression does.

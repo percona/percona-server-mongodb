@@ -123,6 +123,7 @@
 #include "mongo/logv2/log.h"
 #include "mongo/platform/atomic_word.h"
 #include "mongo/s/analyze_shard_key_common_gen.h"
+#include "mongo/s/query/exec/document_source_merge_cursors.h"
 #include "mongo/s/query_analysis_sampler_util.h"
 #include "mongo/stdx/unordered_set.h"
 #include "mongo/util/assert_util.h"
@@ -1018,14 +1019,27 @@ std::unique_ptr<Pipeline> buildFinalPipeline(const AggExState& aggExState,
                                              std::unique_ptr<Pipeline> pipeline,
                                              const LiteParsedPipeline& desugaredLPP,
                                              const SecondParseRequirement& secondParseRequirement) {
+    // This may be a merging pipeline that owns remote cursors. If so, we may need to dismiss cursor
+    // ownership on the current pipeline so that it doesn't kill them when we reset it.
+    auto dismissCursorDisposal = [&] {
+        if (auto mergeCursors = dynamic_cast<DocumentSourceMergeCursors*>(pipeline->peekFront())) {
+            mergeCursors->dismissCursorOwnership();
+        }
+    };
     switch (secondParseRequirement) {
-        case SecondParseRequirement::kReparseFromBson:
+        case SecondParseRequirement::kReparseFromBson: {
+            dismissCursorDisposal();
             return pipeline_factory::makePipeline(
                 aggExState.getRequest().getPipeline(), expCtx, pipeline_factory::kOptionsMinimal);
-        case SecondParseRequirement::kReparseFromLPP:
+        }
+        case SecondParseRequirement::kReparseFromLPP: {
+            dismissCursorDisposal();
             return Pipeline::parseFromLiteParsed(desugaredLPP, expCtx);
-        case SecondParseRequirement::kNone:
+        }
+        case SecondParseRequirement::kNone: {
+            // We aren't resetting the pipeline, no need to dismiss cursor ownership.
             return pipeline;
+        }
     }
     MONGO_UNREACHABLE;
 }

@@ -54,12 +54,12 @@ public:
     explicit SASLPlainServerMechanism(std::string authenticationDatabase)
         : MakeServerMechanism<PLAINPolicy>(std::move(authenticationDatabase)) {}
 
-    boost::optional<unsigned int> currentStep() const override {
-        return (unsigned int)1;
+    boost::optional<std::uint32_t> currentStep() const override {
+        return 1;
     }
 
-    boost::optional<unsigned int> totalSteps() const override {
-        return (unsigned int)1;
+    boost::optional<std::uint32_t> totalSteps() const override {
+        return 1;
     }
 
 private:

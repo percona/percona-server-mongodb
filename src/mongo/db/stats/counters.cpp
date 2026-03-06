@@ -63,14 +63,6 @@ void OpCounters::_reset() {
     _recordIdsReplicatedDocIdMismatch->store(0);
 }
 
-void OpCounters::_checkWrap(CacheExclusive<AtomicWord<long long>> OpCounters::* counter, int n) {
-    static constexpr auto maxCount = 1LL << 60;
-    auto oldValue = (this->*counter)->fetchAndAddRelaxed(n);
-    if (oldValue > maxCount) {
-        _reset();
-    }
-}
-
 BSONObj OpCounters::getObj() const {
     BSONObjBuilder b;
     b.append("insert", _insert->loadRelaxed());

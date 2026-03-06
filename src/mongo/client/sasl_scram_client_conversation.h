@@ -70,6 +70,14 @@ public:
      **/
     StatusWith<bool> step(StringData inputData, std::string* outputData) override;
 
+    boost::optional<std::uint32_t> currentStep() const override {
+        return _step;
+    }
+
+    boost::optional<std::uint32_t> totalSteps() const override {
+        return _maxStep;
+    }
+
     /**
      * Initialize the Presecrets/Secrets and return signed client proof.
      */
@@ -103,7 +111,8 @@ private:
     StatusWith<bool> _thirdStep(StringData input, std::string* outputData);
 
 protected:
-    int _step{0};
+    std::uint32_t _step{0};
+    const std::uint32_t _maxStep = 3;
     std::string _authMessage;
 
     // client and server nonce concatenated

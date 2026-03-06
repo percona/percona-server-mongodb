@@ -37,7 +37,10 @@ namespace MONGO_MOD_PUBLIC mongo {
 class StubIntegerKeyedContainer final : public IntegerKeyedContainerBase {
 public:
     StubIntegerKeyedContainer() : IntegerKeyedContainerBase(nullptr) {}
-    Status insert(RecoveryUnit& ru, int64_t key, std::span<const char> value) final {
+    Status insert(RecoveryUnit& ru,
+                  int64_t key,
+                  std::span<const char> value,
+                  container::ExistingKeyPolicy policy) final {
         return Status::OK();
     }
     Status remove(RecoveryUnit& ru, int64_t key) final {
@@ -51,7 +54,10 @@ public:
 class StubStringKeyedContainer final : public StringKeyedContainerBase {
 public:
     StubStringKeyedContainer() : StringKeyedContainerBase(nullptr) {}
-    Status insert(RecoveryUnit& ru, std::span<const char> key, std::span<const char> value) final {
+    Status insert(RecoveryUnit& ru,
+                  std::span<const char> key,
+                  std::span<const char> value,
+                  container::ExistingKeyPolicy policy) final {
         return Status::OK();
     }
     Status remove(RecoveryUnit& ru, std::span<const char> key) final {

@@ -45,11 +45,11 @@ public:
     StatusWith<std::tuple<bool, std::string>> stepImpl(OperationContext* opCtx,
                                                        StringData inputData) override;
 
-    boost::optional<unsigned int> currentStep() const override {
+    boost::optional<std::uint32_t> currentStep() const override {
         return _step;
     }
 
-    boost::optional<unsigned int> totalSteps() const override {
+    boost::optional<std::uint32_t> totalSteps() const override {
         return kMaxStep;
     }
 
@@ -59,9 +59,9 @@ public:
         OperationContext* opCtx) const override;
 
 private:
-    static constexpr unsigned int kMaxStep = 1;
+    static constexpr std::uint32_t kMaxStep = 1;
 
-    unsigned int _step{0};
+    std::uint32_t _step{0};
 };
 
 class X509ServerFactory : public MakeServerFactory<SaslX509ServerMechanism> {

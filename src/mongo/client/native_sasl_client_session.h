@@ -58,14 +58,15 @@ public:
 
     Status step(StringData inputData, std::string* outputData) override;
 
+    boost::optional<std::uint32_t> currentStep() const override;
+
+    boost::optional<std::uint32_t> totalSteps() const override;
+
     bool isSuccess() const override {
         return _success;
     }
 
 private:
-    /// Number of successfully completed conversation steps.
-    int _step;
-
     /// See isSuccess().
     bool _success;
 

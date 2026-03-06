@@ -131,4 +131,10 @@ void removePlanCacheEntriesByPlanCacheCommandKeys(
     });
 }
 
+Status validateNonEmptyCollation(const BSONObj& obj) {
+    if (obj.isEmpty()) {
+        return Status(ErrorCodes::BadValue, "optional field collation cannot be an empty object");
+    }
+    return Status::OK();
+}
 }  // namespace mongo::plan_cache_commands

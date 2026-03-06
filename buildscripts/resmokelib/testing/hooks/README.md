@@ -31,6 +31,7 @@ Specify any of the following as the `hooks` in your [Suite](../../../../buildscr
 - [`ContinuousStepdown`](./stepdown.py) - regularly connect to replica sets and send a `replSetStepDown` command.
 - [`ContinuousTransition`](./replicaset_transition_to_and_from_csrs.py) - connects to replica sets and transitions them from replica set to CSRS node in the background.
 - [`DoReconfigInBackground`](./reconfig_background.py) - A hook for running a safe reconfig against a replica set while a test is running.
+- [`DropConfigCacheCollections`](./drop_config_cache_collections.py) - A hook for dropping random entries of config.cache.collections in shards.
 - [`DropSessionsCollection`](./drop_sessions_collection.py) - A hook for dropping and recreating config.system.sessions while tests are running.
 - [`DropUserCollections`](./drop_user_collections.py) - Drops all user collections.
 - [`EnableSpuriousWriteConflicts`](./enable_spurious_write_conflicts.py) - Toggles write conflicts.

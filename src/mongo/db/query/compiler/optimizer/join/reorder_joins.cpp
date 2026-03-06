@@ -421,7 +421,7 @@ ReorderedJoinSolution constructSolutionBottomUp(const JoinReorderingContext& ctx
                                                 std::unique_ptr<JoinCardinalityEstimator> estimator,
                                                 std::unique_ptr<JoinCostEstimator> coster,
                                                 EnumerationStrategy strategy) {
-    PlanEnumeratorContext peCtx(ctx, std::move(estimator), std::move(coster), std::move(strategy));
+    PlanEnumeratorContext peCtx(ctx, estimator.get(), coster.get(), std::move(strategy));
 
     peCtx.enumerateJoinSubsets();
     auto bestPlanNodeId = peCtx.getBestFinalPlan();

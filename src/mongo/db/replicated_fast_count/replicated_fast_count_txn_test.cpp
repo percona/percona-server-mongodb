@@ -52,6 +52,12 @@ namespace {
  * Tests replicated fast count across multidocument transactions.
  */
 class ReplicatedFastCountTxnFixture : public MockReplCoordServerFixture {
+public:
+    ReplicatedFastCountTxnFixture()
+        : MockReplCoordServerFixture(Options().setPersistenceProvider(
+              std::make_unique<
+                  replicated_fast_count_test_helpers::ReplicatedFastCountPersistenceProvider>())) {}
+
 protected:
     void setUp() override {
         repl::ReplSettings replSettings;
@@ -89,7 +95,6 @@ protected:
 
     void tearDown() override {
         if (_fastCountManager) {
-            _fastCountManager->shutdown();
             _fastCountManager = nullptr;
         }
         MockReplCoordServerFixture::tearDown();

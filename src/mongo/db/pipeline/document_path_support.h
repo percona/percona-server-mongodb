@@ -58,26 +58,27 @@ void visitAllValuesAtPath(const Document& doc,
 /**
  * Extracts 'paths' from the input document and returns a BSON object containing only those paths.
  *
- * The template parameter 'EnsureUniquePrefixes' controls whether or not prefixes in the result
- * BSONObj will be checked for uniqueness. Setting it to 'false' can be used as a performance
- * optimization in case it is known that all prefixes in the result object will be unique.
- * Note: the version that needs to ensure that prefixes are unique has quadratic asymptotic
- * complexity in the worst case.
+ * The template parameter 'PathsHaveUniqueFirstFields' controls whether or not first fields in the
+ * result BSONObj will be checked for uniqueness. Setting it to 'true' can be used as a performance
+ * optimization in case it is known that all first fields in the result object will be unique.
  */
-template <bool EnsureUniquePrefixes = true>
+template <bool PathsHaveUniqueFirstFields = false>
 void documentToBsonWithPaths(const Document& input,
                              const OrderedPathSet& paths,
                              BSONObjBuilder* builder) {
+    boost::optional<StringData> prevFirstField = boost::none;
     for (auto&& path : paths) {
         // getNestedField does not handle dotted paths correctly, so instead of retrieving the
         // entire path, we just extract the first element of the path.
-        auto prefix = FieldPath::extractFirstFieldFromDottedPath(path);
+        auto firstField = FieldPath::extractFirstFieldFromDottedPath(path);
 
-        // Avoid adding the same prefix twice. Note: 'hasField()' iterates over all existing
-        // fields in the builder until it finds a field with the given name or it reaches the
-        // end of the object.
-        if (!EnsureUniquePrefixes || !builder->hasField(prefix)) {
-            input.getField(prefix).addToBsonObj(builder, prefix);
+        // Avoid adding the same first field twice. Because OrderedPathSet orders parent paths
+        // directly before their children, it suffices to check the preceding toplevel field.
+        if (PathsHaveUniqueFirstFields || firstField != prevFirstField) {
+            input.getField(firstField).addToBsonObj(builder, firstField);
+        }
+        if constexpr (!PathsHaveUniqueFirstFields) {
+            prevFirstField = firstField;
         }
     }
 }
@@ -85,14 +86,14 @@ void documentToBsonWithPaths(const Document& input,
 /**
  * Converts a 'Document' to a BSON object.
  *
- * The template parameter 'EnsureUniquePrefixes' controls whether or not prefixes in the result
- * BSONObj will be checked for uniqueness. Setting it to 'false' can be used as a performance
- * optimization in case it is known that all prefixes in the result object will be unique.
+ * The template parameter 'PathsHaveUniqueFirstFields' controls whether or not first fields in the
+ * result BSONObj will be checked for uniqueness. Setting it to 'true' can be used as a performance
+ * optimization in case it is known that all first fields in the result object will be unique.
  */
-template <typename BSONTraits = BSONObj::DefaultSizeTrait, bool EnsureUniquePrefixes = true>
+template <typename BSONTraits = BSONObj::DefaultSizeTrait, bool PathsHaveUniqueFirstFields = false>
 BSONObj documentToBsonWithPaths(const Document& input, const OrderedPathSet& paths) {
     BSONObjBuilder outputBuilder;
-    documentToBsonWithPaths<EnsureUniquePrefixes>(input, paths, &outputBuilder);
+    documentToBsonWithPaths<PathsHaveUniqueFirstFields>(input, paths, &outputBuilder);
     BSONObj docBSONObj = outputBuilder.obj<BSONTraits>();
     Document::validateDocumentBSONSize(docBSONObj, BSONTraits::MaxSize);
     return docBSONObj;

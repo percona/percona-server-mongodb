@@ -102,7 +102,10 @@ public:
         _ident = std::move(ident);
     }
 
-    Status insert(RecoveryUnit&, int64_t key, std::span<const char> value) override {
+    Status insert(RecoveryUnit&,
+                  int64_t key,
+                  std::span<const char> value,
+                  container::ExistingKeyPolicy policy) override {
         _entries.emplace_back(key, std::string(value.begin(), value.end()));
         return Status::OK();
     }

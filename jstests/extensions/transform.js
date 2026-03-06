@@ -141,6 +141,25 @@ assert.eq(results.length, 0, results);
     runTestcase(matchWithBasicLoafStage, expectedResults);
 }
 
+// Pipeline with top-level transform stage that will run the merging pipeline on a shard.
+{
+    const expectedResults = [
+        {
+            fullLoaf: {
+                slice0: {
+                    breadType: "brioche",
+                },
+                slice1: {
+                    breadType: "brioche",
+                },
+            },
+        },
+    ];
+    // The $unionWith has to run in the merging pipeline on a shard, so the $loaf stage will also run on the shard.
+    const pipeline = [{$unionWith: {coll: collName, pipeline: []}}, {$match: {breadType: "brioche"}}, basicLoafStage];
+    runTestcase(pipeline, expectedResults);
+}
+
 // Check that a partial loaf is returned (per the getNext() logic for $loaf) when the
 // number of docs returned by getNext() on the predecessor stage is less than the number of total
 // slices that could be examined. Ex: there is only one matching entry for a breadType of "rye"

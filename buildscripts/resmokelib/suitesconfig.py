@@ -5,6 +5,7 @@ import copy
 import itertools
 import os
 import pathlib
+import shutil
 import subprocess
 from threading import Lock
 from typing import Any, Optional
@@ -760,6 +761,14 @@ class MatrixSuiteConfig(SuiteConfigInterface):
 
     @classmethod
     def generate_all_matrix_suite_files(cls):
+        # To make sure we don't keep generated suites around for mappings that no longer exist,
+        #   delete any previously generated suites first.
+        suite_dirs = cls.get_suites_dirs()
+        for suite_dir in suite_dirs:
+            generated_suites = os.path.join(suite_dir, "generated_suites")
+            if os.path.isdir(generated_suites):
+                shutil.rmtree(generated_suites)
+
         suite_names = cls.get_named_suites()
         for suite_name in suite_names:
             cls.generate_matrix_suite_file(suite_name)

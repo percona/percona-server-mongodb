@@ -130,7 +130,7 @@ public:
 
 StorageEngineLockFile::StorageEngineLockFile(StringData dbpath, StringData fileName)
     : _dbpath(dbpath),
-      _filespec((boost::filesystem::path(_dbpath) / std::string{fileName}).string()),
+      _filespec(lockFilePath(_dbpath, fileName)),
       _uncleanShutdown(boost::filesystem::exists(_filespec) &&
                        boost::filesystem::file_size(_filespec) > 0),
       _lockFileHandle(new LockFileHandle()) {}

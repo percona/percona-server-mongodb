@@ -334,4 +334,12 @@ Status CyrusSaslClientSession::step(StringData inputData, std::string* outputDat
             return Status(ErrorCodes::ProtocolError, sasl_errdetail(_saslConnection));
     }
 }
+
+boost::optional<std::uint32_t> CyrusSaslClientSession::currentStep() const {
+    return _step;
+}
+
+boost::optional<std::uint32_t> CyrusSaslClientSession::totalSteps() const {
+    return boost::none;
+}
 }  // namespace mongo

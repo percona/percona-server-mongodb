@@ -317,7 +317,7 @@ catalog_and_routing.router_role:
     jira: Catalog and Routing
     fully_marked: true
   files:
-    - src/mongo/db/router_role/**
+    - src/mongo/db/router_role/
     - src/mongo/s/service_entry_point_router_role[._]*
     - src/mongo/s/commands/strategy*
 
@@ -527,6 +527,7 @@ data_movement:
     - src/mongo/db/s/metrics/**
     - src/mongo/s/request_types/*reshard*
     - src/mongo/s/commands/*reshard*
+    - src/mongo/db/s/resharding/sharding_write_router*
 
     # chunk operations
     - src/mongo/db/s/migration_chunk*

@@ -58,13 +58,22 @@ public:
 
     StatusWith<bool> step(StringData inputData, std::string* outputData) override;
 
+    boost::optional<std::uint32_t> currentStep() const override {
+        return _step;
+    }
+
+    boost::optional<std::uint32_t> totalSteps() const override {
+        return _maxStep;
+    }
+
     // Refreshes oidcClientGlobalParams.accessToken using oidcClientGlobalParams.refreshToken,
     // returning the acquired access token if successful.
     static StatusWith<std::string> doRefreshFlow();
 
 private:
-    // Step of the conversation - can be 1, 2, or 3.
-    int _step{0};
+    // Step of the conversation - can be 1 or 2.
+    std::uint32_t _step{0};
+    const std::uint32_t _maxStep = 2;
 
     // Name of the user that is trying to authenticate. It will only be non-empty
     // if the client is trying to use MONGODB-OIDC via the device authorization grant flow.

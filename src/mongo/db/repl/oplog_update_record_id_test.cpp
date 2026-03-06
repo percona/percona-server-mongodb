@@ -247,6 +247,50 @@ TEST_F(UpdateWithRecordIdTestEnableSteadyStateConstraints,
     ASSERT_BSONOBJ_EQ(BSON("_id" << 30 << "x" << 3), doc3.value());
 }
 
+TEST_F(UpdateWithRecordIdTestDisableSteadyStateConstraints, NonExistentCollectionFails) {
+    // Insert a document at a known recordId with _id = 1.
+    const RecordId rid(1);
+    const BSONObj doc = BSON("_id" << 1 << "x" << 100);
+    insertDocumentAtRecordId(_opCtx.get(), _nss, doc, rid);
+
+    // Create an update oplog entry that references a collection that doesn't exist.
+    auto op = makeUpdateOplogEntryWithRecordId(
+        nextOpTime(),
+        NamespaceString::createNamespaceString_forTest("test.nonExistentCollection"),
+        BSON("_id" << 1),
+        BSON("$set" << BSON("y" << 1)),
+        rid);
+
+    // In kSecondary mode with steady state constraints disabled, this should trigger a uassert
+    // and the record should not be updated.
+    ASSERT_EQ(runOpSteadyState(op).code(), 11979201);
+    ASSERT_TRUE(documentExistsAtRecordId(_opCtx.get(), _nss, rid));
+    auto unchangedDoc = documentAtRecordId(_opCtx.get(), _nss, rid);
+    ASSERT_BSONOBJ_EQ(doc, unchangedDoc.value());
+}
+
+TEST_F(UpdateWithRecordIdTestEnableSteadyStateConstraints, NonExistentCollectionFails) {
+    // Insert a document at a known recordId with _id = 1.
+    const RecordId rid(1);
+    const BSONObj doc = BSON("_id" << 1 << "x" << 100);
+    insertDocumentAtRecordId(_opCtx.get(), _nss, doc, rid);
+
+    // Create an update oplog entry that references a collection that doesn't exist.
+    auto op = makeUpdateOplogEntryWithRecordId(
+        nextOpTime(),
+        NamespaceString::createNamespaceString_forTest("test.nonExistentCollection"),
+        BSON("_id" << 1),
+        BSON("$set" << BSON("y" << 1)),
+        rid);
+
+    // In kSecondary mode with steady state constraints enabled, this should trigger a uassert
+    // and the record should not be updated.
+    ASSERT_EQ(runOpSteadyState(op).code(), 11979201);
+    ASSERT_TRUE(documentExistsAtRecordId(_opCtx.get(), _nss, rid));
+    auto unchangedDoc = documentAtRecordId(_opCtx.get(), _nss, rid);
+    ASSERT_BSONOBJ_EQ(doc, unchangedDoc.value());
+}
+
 // =============================================================================
 // Tests for kInitialSync mode
 // =============================================================================

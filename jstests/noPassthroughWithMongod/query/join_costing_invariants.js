@@ -17,6 +17,7 @@ if (!joinOptimizationStatus) {
 
 function populate() {
     const collSize = 1000;
+    const str_filler = "a".repeat(1000);
 
     const documents = [];
     for (let i = 0; i < collSize; i++) {
@@ -25,6 +26,7 @@ function populate() {
             i_noidx: i,
             c_idx: 1,
             d_idx: i % 10,
+            str: str_filler,
         });
     }
 
@@ -279,8 +281,7 @@ describe("Costing of individual inputs to a join", () => {
         );
     });
 
-    // TODO SERVER-118886 Join optimization: cost estimate for FETCH is incorrect
-    it.skip("COLLSCAN should have a higher cost than a narrow FETCH + IXSCAN.", () => {
+    it("COLLSCAN should have a higher cost than a narrow FETCH + IXSCAN.", () => {
         assertCostGt(
             {
                 aggregate: "many_rows",

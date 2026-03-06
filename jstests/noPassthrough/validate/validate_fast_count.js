@@ -1,11 +1,6 @@
 /**
  * This test checks the result of validating the fast count collection type with and without
  * enforceFastCount: true.
- *
- * TODO(SERVER-117326): Remove, which may involve updating the assertions in this test.
- * @tags: [
- *   featureFlagReplicatedFastCount_incompatible,
- * ]
  */
 
 import {afterEach, beforeEach, describe, it} from "jstests/libs/mochalite.js";

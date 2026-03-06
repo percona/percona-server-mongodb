@@ -50,7 +50,8 @@ Status insert(OperationContext* opCtx,
               const CollectionPtr& coll,
               IntegerKeyedContainer& container,
               int64_t key,
-              std::span<const char> value);
+              std::span<const char> value,
+              container::ExistingKeyPolicy policy);
 
 /**
  * Inserts into the given container and logs the operation in the oplog.
@@ -60,7 +61,8 @@ Status insert(OperationContext* opCtx,
               const CollectionPtr& coll,
               StringKeyedContainer& container,
               std::span<const char> key,
-              std::span<const char> value);
+              std::span<const char> value,
+              container::ExistingKeyPolicy policy);
 
 /**
  * Removes from the given container and logs the operation in the oplog.

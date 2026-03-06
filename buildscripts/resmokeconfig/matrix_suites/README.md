@@ -22,7 +22,7 @@ their eponymous directories. When you are done writing the mapping file, you mus
 
 The "mappings" directory contains YAML files that each contain a suite definition.
 Each suite definition includes `base_suite`, and a list of
-modifiers. There is also an optional `decription` field that will get output
+modifiers. There is also an optional `description` field that will get output
 with the local resmoke invocation.
 
 The fields of modifiers are the following:
@@ -70,7 +70,7 @@ The generated matrix suites live in the `buildscripts/resmokeconfig/matrix_suite
 directory. These files may be edited for local testing but must remain consistent with the mapping
 files. There is a task in the commit queue that enforces this. To generate a new version of these
 matrix suites, you may run
-`buildscripts/resmoke.py generate-matrix-suites. This command
+`buildscripts/resmoke.py generate-matrix-suites`. This command
 will overwrite the current generated matrix suites on disk so make sure you do not have any unsaved
 changes to these files.
 

@@ -1,0 +1,8 @@
+base_suite: fcv_upgrade_downgrade_replica_sets_jscore_passthrough
+overrides:
+  - "retryable_writes.shell_options_test_data"
+eval:
+  - "retryable_writes.eval"
+excludes:
+  - "retryable_writes.exclude_tags"
+  - "retryable_writes.exclude_files"

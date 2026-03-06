@@ -65,7 +65,8 @@
 #include "mongo/db/router_role/routing_cache/catalog_cache_loader.h"
 #include "mongo/db/router_role/routing_cache/catalog_cache_loader_mock.h"
 #include "mongo/db/router_role/routing_cache/shard_cannot_refresh_due_to_locks_held_exception.h"
-#include "mongo/db/router_role/sharding_write_router.h"
+#include "mongo/db/s/resharding/local_resharding_operations_registry.h"
+#include "mongo/db/s/resharding/sharding_write_router.h"
 #include "mongo/db/server_options.h"
 #include "mongo/db/session/logical_session_id.h"
 #include "mongo/db/session/session_catalog_mongod.h"
@@ -86,6 +87,7 @@
 #include "mongo/db/versioning_protocol/shard_version.h"
 #include "mongo/db/versioning_protocol/shard_version_factory.h"
 #include "mongo/idl/idl_parser.h"
+#include "mongo/idl/server_parameter_test_controller.h"
 #include "mongo/s/resharding/common_types_gen.h"
 #include "mongo/s/resharding/type_collection_fields_gen.h"
 #include "mongo/s/would_change_owning_shard_exception.h"
@@ -105,6 +107,7 @@
 #include <boost/none.hpp>
 #include <boost/optional/optional.hpp>
 #include <fmt/format.h>
+#include <gtest/gtest.h>
 
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kTest
 
@@ -143,7 +146,12 @@ void runInTransaction(OperationContext* opCtx, Callable&& func) {
     opCtx->resetMultiDocumentTransactionState();
 }
 
-class DestinedRecipientTest : public ShardServerTestFixtureWithCatalogCacheLoaderMock {
+/**
+ * Integration tests for ReshardingOpObserver, ShardingWriteRouter, and
+ * LocalReshardingOperationsRegistry.
+ */
+class DestinedRecipientTest : public ShardServerTestFixtureWithCatalogCacheLoaderMock,
+                              public testing::WithParamInterface<bool> {
 public:
     const NamespaceString kNss = NamespaceString::createNamespaceString_forTest("test.foo");
     const std::string kShardKey = "x";
@@ -151,6 +159,10 @@ public:
                                                ShardType("shard1", "Host1:12345")};
 
     void setUp() override {
+        if (GetParam()) {
+            _featureFlagScope.emplace("featureFlagReshardingRegistry", true);
+        }
+
         ShardServerTestFixtureWithCatalogCacheLoaderMock::setUp();
 
         WaitForMajorityService::get(getServiceContext()).startup(getServiceContext());
@@ -166,9 +178,17 @@ public:
     }
 
     void tearDown() override {
+        if (_registeredMetadata) {
+            LocalReshardingOperationsRegistry::get().unregisterOperation(
+                LocalReshardingOperationsRegistry::Role::kDonor, *_registeredMetadata);
+            _registeredMetadata.reset();
+        }
+
         WaitForMajorityService::get(getServiceContext()).shutDown();
 
         ShardServerTestFixtureWithCatalogCacheLoaderMock::tearDown();
+
+        _featureFlagScope.reset();
     }
 
     class StaticCatalogClient final : public ShardingCatalogClientMock {
@@ -257,13 +277,21 @@ protected:
 
         createTestCollection(opCtx, env.tempNss);
 
+        const auto reshardingUUID = UUID::gen();
+
         TypeCollectionReshardingFields reshardingFields;
-        reshardingFields.setReshardingUUID(UUID::gen());
+        reshardingFields.setReshardingUUID(reshardingUUID);
         reshardingFields.setDonorFields(TypeCollectionDonorFields{
             env.tempNss,
             BSON("y" << 1),
             {ShardId{kShardList[0].getName()}, ShardId{kShardList[1].getName()}}});
         reshardingFields.setState(CoordinatorStateEnum::kPreparingToDonate);
+
+        CommonReshardingMetadata reshardingMetadata(
+            reshardingUUID, kNss, env.sourceUuid, env.tempNss, BSON("y" << 1));
+        LocalReshardingOperationsRegistry::get().registerOperation(
+            LocalReshardingOperationsRegistry::Role::kDonor, reshardingMetadata);
+        _registeredMetadata = reshardingMetadata;
 
         CollectionType coll(kNss,
                             env.version.placementVersion().epoch(),
@@ -363,9 +391,19 @@ protected:
         const auto& doc = unittest::assertGet(oplogIter->next()).first;
         return unittest::assertGet(repl::OplogEntry::parse(doc));
     }
+
+    boost::optional<CommonReshardingMetadata> _registeredMetadata;
+    boost::optional<RAIIServerParameterControllerForTest> _featureFlagScope;
 };
 
-TEST_F(DestinedRecipientTest, TestGetDestinedRecipient) {
+INSTANTIATE_TEST_SUITE_P(DestinedRecipient,
+                         DestinedRecipientTest,
+                         testing::Bool(),
+                         [](const testing::TestParamInfo<bool>& info) {
+                             return info.param ? "WithRegistry" : "WithoutRegistry";
+                         });
+
+TEST_P(DestinedRecipientTest, TestGetDestinedRecipient) {
     auto opCtx = operationContext();
     auto env = setupReshardingEnv(opCtx, true);
 
@@ -382,7 +420,7 @@ TEST_F(DestinedRecipientTest, TestGetDestinedRecipient) {
     ASSERT_EQ(*destShardId, env.destShard);
 }
 
-TEST_F(DestinedRecipientTest, TestGetDestinedRecipientThrowsOnBlockedRefresh) {
+TEST_P(DestinedRecipientTest, TestGetDestinedRecipientThrowsOnBlockedRefresh) {
     auto opCtx = operationContext();
     auto env = setupReshardingEnv(opCtx, false);
 
@@ -403,7 +441,7 @@ TEST_F(DestinedRecipientTest, TestGetDestinedRecipientThrowsOnBlockedRefresh) {
                              });
 }
 
-TEST_F(DestinedRecipientTest, TestOpObserverSetsDestinedRecipientOnInserts) {
+TEST_P(DestinedRecipientTest, TestOpObserverSetsDestinedRecipientOnInserts) {
     auto opCtx = operationContext();
     auto env = setupReshardingEnv(opCtx, true);
 
@@ -417,7 +455,7 @@ TEST_F(DestinedRecipientTest, TestOpObserverSetsDestinedRecipientOnInserts) {
     ASSERT_EQ(*recipShard, env.destShard);
 }
 
-TEST_F(DestinedRecipientTest, TestOpObserverSetsDestinedRecipientOnInsertsInTransaction) {
+TEST_P(DestinedRecipientTest, TestOpObserverSetsDestinedRecipientOnInsertsInTransaction) {
     auto opCtx = operationContext();
     auto env = setupReshardingEnv(opCtx, true, true);
 
@@ -440,7 +478,7 @@ TEST_F(DestinedRecipientTest, TestOpObserverSetsDestinedRecipientOnInsertsInTran
     ASSERT_EQ(*recipShard, env.destShard);
 }
 
-TEST_F(DestinedRecipientTest, TestOpObserverSetsDestinedRecipientOnUpdates) {
+TEST_P(DestinedRecipientTest, TestOpObserverSetsDestinedRecipientOnUpdates) {
     auto opCtx = operationContext();
 
     DBDirectClient client(opCtx);
@@ -458,7 +496,7 @@ TEST_F(DestinedRecipientTest, TestOpObserverSetsDestinedRecipientOnUpdates) {
     ASSERT_EQ(*recipShard, env.destShard);
 }
 
-TEST_F(DestinedRecipientTest, TestOpObserverSetsDestinedRecipientOnMultiUpdates) {
+TEST_P(DestinedRecipientTest, TestOpObserverSetsDestinedRecipientOnMultiUpdates) {
     auto opCtx = operationContext();
 
     DBDirectClient client(opCtx);
@@ -479,7 +517,7 @@ TEST_F(DestinedRecipientTest, TestOpObserverSetsDestinedRecipientOnMultiUpdates)
     ASSERT_EQ(*recipShard, env.destShard);
 }
 
-TEST_F(DestinedRecipientTest, TestOpObserverSetsDestinedRecipientOnUpdatesOutOfPlace) {
+TEST_P(DestinedRecipientTest, TestOpObserverSetsDestinedRecipientOnUpdatesOutOfPlace) {
     auto opCtx = operationContext();
 
     DBDirectClient client(opCtx);
@@ -497,7 +535,7 @@ TEST_F(DestinedRecipientTest, TestOpObserverSetsDestinedRecipientOnUpdatesOutOfP
     ASSERT_EQ(*recipShard, env.destShard);
 }
 
-TEST_F(DestinedRecipientTest, TestOpObserverSetsDestinedRecipientOnUpdatesInTransaction) {
+TEST_P(DestinedRecipientTest, TestOpObserverSetsDestinedRecipientOnUpdatesInTransaction) {
     auto opCtx = operationContext();
 
     DBDirectClient client(opCtx);
@@ -525,7 +563,7 @@ TEST_F(DestinedRecipientTest, TestOpObserverSetsDestinedRecipientOnUpdatesInTran
     ASSERT_EQ(*recipShard, env.destShard);
 }
 
-TEST_F(DestinedRecipientTest, TestOpObserverSetsDestinedRecipientOnDeletes) {
+TEST_P(DestinedRecipientTest, TestOpObserverSetsDestinedRecipientOnDeletes) {
     auto opCtx = operationContext();
 
     DBDirectClient client(opCtx);
@@ -543,7 +581,7 @@ TEST_F(DestinedRecipientTest, TestOpObserverSetsDestinedRecipientOnDeletes) {
     ASSERT_EQ(*recipShard, env.destShard);
 }
 
-TEST_F(DestinedRecipientTest, TestOpObserverSetsDestinedRecipientOnDeletesInTransaction) {
+TEST_P(DestinedRecipientTest, TestOpObserverSetsDestinedRecipientOnDeletesInTransaction) {
     auto opCtx = operationContext();
 
     DBDirectClient client(opCtx);
@@ -570,7 +608,7 @@ TEST_F(DestinedRecipientTest, TestOpObserverSetsDestinedRecipientOnDeletesInTran
     ASSERT_EQ(*recipShard, env.destShard);
 }
 
-TEST_F(DestinedRecipientTest, TestUpdateChangesOwningShardThrows) {
+TEST_P(DestinedRecipientTest, TestUpdateChangesOwningShardThrows) {
     auto opCtx = operationContext();
 
     DBDirectClient client(opCtx);
@@ -590,7 +628,7 @@ TEST_F(DestinedRecipientTest, TestUpdateChangesOwningShardThrows) {
                   ExceptionFor<ErrorCodes::WouldChangeOwningShard>);
 }
 
-TEST_F(DestinedRecipientTest, TestUpdateChangesOwningShardReturnsCorrectDestinedShard) {
+TEST_P(DestinedRecipientTest, TestUpdateChangesOwningShardReturnsCorrectDestinedShard) {
     auto opCtx = operationContext();
 
     DBDirectClient client(opCtx);
@@ -614,7 +652,7 @@ TEST_F(DestinedRecipientTest, TestUpdateChangesOwningShardReturnsCorrectDestined
     }
 }
 
-TEST_F(DestinedRecipientTest, TestUpdateSameOwningShard) {
+TEST_P(DestinedRecipientTest, TestUpdateSameOwningShard) {
     auto opCtx = operationContext();
 
     DBDirectClient client(opCtx);

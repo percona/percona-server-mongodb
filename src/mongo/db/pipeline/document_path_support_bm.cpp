@@ -1,5 +1,5 @@
 /**
- *    Copyright (C) 2025-present MongoDB, Inc.
+ *    Copyright (C) 2026-present MongoDB, Inc.
  *
  *    This program is free software: you can redistribute it and/or modify
  *    it under the terms of the Server Side Public License, version 1,
@@ -27,35 +27,47 @@
  *    it in the license file.
  */
 
-#include "mongo/shell/debugger/adapter.h"
+#include "mongo/db/pipeline/document_path_support.h"
 
-#include "mongo/unittest/unittest.h"
+#include "mongo/bson/bsonobjbuilder.h"
+#include "mongo/db/exec/document_value/document.h"
+#include "mongo/db/pipeline/field_path.h"
+#include "mongo/db/query/compiler/dependency_analysis/dependencies.h"
+
+#include <benchmark/benchmark.h>
 
 namespace mongo {
-namespace mozjs {
+namespace {
 
-TEST(Request, fromJSON) {
+struct TestData {
+    Document doc;
+    OrderedPathSet paths;
+};
 
-    std::string json =
-        R"({"type":"request","seq":17,"command":"setBreakpoints","arguments":{"source":"","lines":[]}})";
-    Request req = Request::fromJSON(json);
-    SetBreakpointsRequest sbr = SetBreakpointsRequest::fromRequest(req);
-    ASSERT_EQ(req.seq, 17);
-    ASSERT_EQ(req.command, "setBreakpoints");
+TestData buildTestData(int numPrefixes) {
+    BSONObjBuilder bob;
+    OrderedPathSet paths;
+    for (int i = 0; i < numPrefixes; ++i) {
+        std::string prefix = "field_" + std::to_string(i);
+        bob.append(prefix, BSON("x" << i));
+        if (i == 0) {
+            paths.insert(prefix + ".x");
+        }
+        paths.insert(prefix);
+    }
+    return {Document{bob.obj()}, std::move(paths)};
 }
 
-TEST(SetBreakpointsRequest, fromRequest) {
-
-    std::string json =
-        R"({"type":"request","seq":17,"command":"setBreakpoints","arguments":{"source":"/home/ubuntu/mongo/jstests/my_test.js","lines":[{"line":5},{"line":6}]}})";
-    Request req = Request::fromJSON(json);
-    SetBreakpointsRequest sbr = SetBreakpointsRequest::fromRequest(req);
-    ASSERT_EQ(sbr.seq, 17);
-    ASSERT_EQ(sbr.source, "/home/ubuntu/mongo/jstests/my_test.js");
-    ASSERT_EQ(sbr.lines, std::vector<int>({5, 6}));
+void BM_DocumentToBsonWithPaths(benchmark::State& state) {
+    auto [doc, paths] = buildTestData(state.range(0));
+    for (auto _ : state) {
+        benchmark::DoNotOptimize(
+            document_path_support::documentToBsonWithPaths<BSONObj::LargeSizeTrait, false>(doc,
+                                                                                           paths));
+    }
 }
 
-// TODO: add more, but not prematurely until necessary datatypes get more concrete
+BENCHMARK(BM_DocumentToBsonWithPaths)->Arg(3)->Arg(10)->Arg(50)->Arg(100)->Arg(200)->Arg(500);
 
-}  // namespace mozjs
+}  // namespace
 }  // namespace mongo

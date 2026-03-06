@@ -1038,6 +1038,18 @@ void BulkWriteOp::noteChildBatchResponse(
 
     const auto replyItems =
         exhaustCursorForReplyItems(_opCtx, targetedBatch.getShardId(), commandReply);
+    auto replyItemsToStr = [](const std::vector<BulkWriteReplyItem>& items) {
+        auto str = str::stream();
+        str << "[";
+        for (size_t i = 0; i < items.size(); ++i) {
+            if (i > 0) {
+                str << ",";
+            }
+            str << items[i].toBSON();
+        }
+        str << "]";
+        return str;
+    };
 
     _nInserted += commandReply.getNInserted();
     _nDeleted += commandReply.getNDeleted();
@@ -1068,7 +1080,9 @@ void BulkWriteOp::noteChildBatchResponse(
         // This is only possible if we ran an errorsOnly:true command and succeeded all writes.
         if (replyItems.size() == 0) {
             tassert(8266001,
-                    "bulkWrite should always get replies when not in errorsOnly",
+                    str::stream()
+                        << "bulkWrite should always get replies when not in errorsOnly. replyItems="
+                        << replyItemsToStr(replyItems),
                     _clientRequest.getErrorsOnly());
             if (shouldDeferWriteWithoutShardKeyResponse) {
                 if (!_deferredResponses) {
@@ -1090,7 +1104,9 @@ void BulkWriteOp::noteChildBatchResponse(
         // StaleConfig.).
         if (!batchWillContinue && lastError) {
             tassert(8266002,
-                    "bulkWrite should not see replies after an error when ordered:true",
+                    str::stream() << "bulkWrite should not see replies after an error when "
+                                     "ordered:true. replyItems="
+                                  << replyItemsToStr(replyItems),
                     replyIndex >= replyItems.size());
             writeOp.resetWriteToReady(_opCtx);
             continue;
@@ -1127,14 +1143,18 @@ void BulkWriteOp::noteChildBatchResponse(
         // errorsOnly:true bulkWrite where we have successful results after the last error.
         if (replyIndex >= replyItems.size()) {
             tassert(8516601,
-                    "bulkWrite received more replies than writes",
+                    str::stream() << "bulkWrite received more replies than writes. replyItems="
+                                  << replyItemsToStr(replyItems),
                     _clientRequest.getErrorsOnly());
             noteWriteOpResponse(
                 write, writeOp, commandReply, targetedBatch.getNumOps(), boost::none);
             continue;
         }
 
-        tassert(11491901, "replyIndex out of range of replyItems", replyIndex < replyItems.size());
+        tassert(11491901,
+                str::stream() << "replyIndex out of range of replyItems. replyItems="
+                              << replyItemsToStr(replyItems),
+                replyIndex < replyItems.size());
         auto& reply = replyItems[replyIndex];
 
         // This can only happen when running an errorsOnly:true bulkWrite. We will only receive a
@@ -1144,10 +1164,15 @@ void BulkWriteOp::noteChildBatchResponse(
         // a safe assumption.
         // writeOpIdx can be > than reply.getIdx when we are duplicating the last error
         // as described in the block above.
-        tassert(11491902, "reply.getIdx() must not be negative", reply.getIdx() >= 0);
+        tassert(11491902,
+                str::stream() << "reply.getIdx() must not be negative. replyItems="
+                              << replyItemsToStr(replyItems),
+                reply.getIdx() >= 0);
         if (writeOpIdx < static_cast<size_t>(reply.getIdx())) {
             tassert(8266003,
-                    "bulkWrite should get a reply for every write op when not in errorsOnly mode",
+                    str::stream() << "bulkWrite should get a reply for every write op when not in "
+                                     "errorsOnly mode. replyItems="
+                                  << replyItemsToStr(replyItems),
                     _clientRequest.getErrorsOnly());
 
             noteWriteOpResponse(

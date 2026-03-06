@@ -66,7 +66,7 @@ void runContainerTest(KeyFormat keyFormat, Key key1, Key key2) {
 
     {
         StorageWriteTransaction txn(ru);
-        ASSERT_OK(container.insert(ru, key1, value1));
+        ASSERT_OK(container.insert(ru, key1, value1, container::ExistingKeyPolicy::reject));
         txn.commit();
 
         auto cursor = container.getCursor(ru);
@@ -78,7 +78,7 @@ void runContainerTest(KeyFormat keyFormat, Key key1, Key key2) {
     }
     {
         StorageWriteTransaction txn(ru);
-        ASSERT_OK(container.insert(ru, key2, value2));
+        ASSERT_OK(container.insert(ru, key2, value2, container::ExistingKeyPolicy::reject));
         txn.commit();
 
         auto cursor = container.getCursor(ru);
@@ -117,6 +117,26 @@ void runContainerTest(KeyFormat keyFormat, Key key1, Key key2) {
         EXPECT_FALSE(next);
         next = cursor->next();
         EXPECT_FALSE(next);
+    }
+    {
+        StorageWriteTransaction txn(ru);
+        ASSERT_NOT_OK(container.insert(ru, key1, value2, container::ExistingKeyPolicy::reject));
+        txn.commit();
+
+        auto cursor = container.getCursor(ru);
+        auto found1 = cursor->find(key1);
+        ASSERT_TRUE(found1);
+        EXPECT_EQ(std::string(found1->data(), found1->size()), value1);
+    }
+    {
+        StorageWriteTransaction txn(ru);
+        ASSERT_OK(container.insert(ru, key1, value2, container::ExistingKeyPolicy::overwrite));
+        txn.commit();
+
+        auto cursor = container.getCursor(ru);
+        auto found1 = cursor->find(key1);
+        ASSERT_TRUE(found1);
+        EXPECT_EQ(std::string(found1->data(), found1->size()), value2);
     }
     {
         StorageWriteTransaction txn(ru);

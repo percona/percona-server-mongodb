@@ -1,0 +1,15 @@
+- name: drop_config_cache_collections_hook_extends
+  value:
+    executor:
+      hooks:
+        - class: DropConfigCacheCollections
+    selector:
+      exclude_with_any_tags:
+        - assumes_balancer_off
+
+- name: drop_config_cache_collections_hook_overrides
+  value:
+    executor:
+      fixture:
+        num_rs_nodes_per_shard: 2
+        enable_balancer: true

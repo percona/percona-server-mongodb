@@ -47,7 +47,7 @@
 #include "mongo/db/query/canonical_query.h"
 #include "mongo/db/query/compiler/physical_model/query_solution/stage_types.h"
 #include "mongo/db/query/write_ops/update_request.h"
-#include "mongo/db/router_role/sharding_write_router.h"
+#include "mongo/db/s/resharding/sharding_write_router.h"
 #include "mongo/db/session/logical_session_id.h"
 #include "mongo/db/shard_role/shard_catalog/collection_operation_source.h"
 #include "mongo/db/shard_role/shard_catalog/scoped_collection_metadata.h"

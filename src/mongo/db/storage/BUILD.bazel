@@ -246,6 +246,7 @@ mongo_cc_library(
         ":storage_options",
         "//src/mongo/db:server_base",
         "//src/mongo/db:service_context",
+        "//src/mongo/db/replicated_fast_count:replicated_fast_count_manager",
         "//src/mongo/util:background_job",
         "//src/mongo/util/concurrency:spin_lock",
     ],

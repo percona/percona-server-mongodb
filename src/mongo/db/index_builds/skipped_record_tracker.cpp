@@ -159,7 +159,8 @@ void SkippedRecordTracker::record(OperationContext* opCtx,
                     coll,
                     container,
                     reservedRidBlock[0].getLong(),
-                    std::span<const char>(toInsert.objdata(), toInsert.objsize())));
+                    std::span<const char>(toInsert.objdata(), toInsert.objsize()),
+                    container::ExistingKeyPolicy::overwrite));
             } else {
                 uassertStatusOK(_skippedRecordsTable->rs()
                                     ->insertRecord(opCtx,

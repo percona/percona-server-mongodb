@@ -31,6 +31,7 @@
 
 #include "mongo/base/status.h"
 #include "mongo/base/string_data.h"
+#include "mongo/db/auth/authentication_metrics.h"
 #include "mongo/util/modules.h"
 
 #include <cstddef>
@@ -131,10 +132,26 @@ public:
      */
     virtual Status step(StringData inputData, std::string* outputData) = 0;
 
+    virtual boost::optional<std::uint32_t> currentStep() const {
+        return boost::none;
+    }
+
+    virtual boost::optional<std::uint32_t> totalSteps() const {
+        return boost::none;
+    }
+
     /**
      * Returns true if the authentication completed successfully.
      */
     virtual bool isSuccess() const = 0;
+
+    /**
+     * Returns the metrics recorder for this client session.
+     * The session retains ownership of this pointer.
+     */
+    AuthMetricsRecorder* metrics() {
+        return &_metricsRecorder;
+    }
 
 private:
     /**
@@ -147,6 +164,7 @@ private:
 
     /// Buffers for each of the settable parameters.
     DataBuffer _parameters[numParameters];
+    AuthMetricsRecorder _metricsRecorder;
 };
 
 }  // namespace mongo

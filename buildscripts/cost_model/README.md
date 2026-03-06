@@ -18,7 +18,7 @@ source python3-venv/bin/activate
 (python3-venv) bazel build --config=opt install-devcore
 ```
 
-3. Run mongod instance:
+3. Run mongod instance (only for CBR calibration, because join_start.py manages mongod's lifecycle itself):
 
 ```sh
 (python3-venv) bazel-bin/install-mongod/bin/mongod --setParameter internalMeasureQueryExecutionTimeInNanoseconds=true

@@ -1,6 +1,6 @@
 ## Overrides for the no_causal_consistency_replica_sets_kill_stepdown_terminate suite.
 
-- name: replica_sets_shell_options
+- name: replica_sets_kill_primary_shell_options
   value:
     executor:
       config:
@@ -33,6 +33,7 @@
                 # Explicitly disable causal consistency to confirm we can still read our own writes
                 # as of SERVER-53813.
                 causalConsistency: false
+              runningWithStepdowns: true
           # We specify nodb so the shell used by each test will attempt to connect after loading the
           # retry logic in auto_retry_on_network_error.js.
           nodb: ""
@@ -85,5 +86,6 @@
               TestData:
                 # Unclean shutdown can lead to inaccurate fast count.
                 skipEnforceFastCountOnValidate: true
+                runningWithStepdowns: true
         - class: CleanEveryN
           n: 20

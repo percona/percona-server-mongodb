@@ -617,7 +617,6 @@ mongo_cc_library(
     srcs = [
         "//src/mongo/db/global_catalog/ddl:shard_key_index_util.cpp",
         "//src/mongo/db/global_catalog/ddl:sharding_migration_critical_section.cpp",
-        "//src/mongo/db/router_role:sharding_write_router.cpp",
         "//src/mongo/db/s:transaction_coordinator_worker_curop_repository.cpp",
         "//src/mongo/db/shard_role:direct_shard_client_tracker.cpp",
         "//src/mongo/db/shard_role:transaction_resources.cpp",
@@ -2726,6 +2725,7 @@ mongo_cc_library(
         "//src/mongo/util/net:ssl_manager",
         "//src/mongo/util:periodic_runner_factory",
         "//src/mongo/util:signal_handlers",
+        "//src/mongo/db/replicated_fast_count:replicated_fast_count_init",
         "//src/mongo/watchdog:watchdog_mongod",
         "//src/mongo/db/admission/execution_control:ticketing_system",
         "//src/mongo/db/admission:flow_control",
@@ -2776,6 +2776,7 @@ mongo_cc_library(
         "//src/mongo/db/repl:storage_interface_impl",
         "//src/mongo/db/repl:topology_coordinator",
         "//src/mongo/db/repl:wait_for_majority_service",
+        "//src/mongo/db/replicated_fast_count:replicated_fast_count_enabled",
         "//src/mongo/db/replicated_fast_count:replicated_fast_count_manager",
         "//src/mongo/db/rss:replicated_storage_service",
         "//src/mongo/db/stats:system_buckets_metrics",

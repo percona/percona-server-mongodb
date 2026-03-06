@@ -37,22 +37,6 @@
 
 namespace mongo::join_ordering {
 namespace {
-/**
- * Helper to pretty-print join method.
- */
-std::string joinMethodToString(JoinMethod method) {
-    switch (method) {
-        case JoinMethod::HJ:
-            return "HJ";
-        case JoinMethod::NLJ:
-            return "NLJ";
-        case JoinMethod::INLJ:
-            return "INLJ";
-    }
-
-    MONGO_UNREACHABLE_TASSERT(11336901);
-}
-
 std::string joinNodeStringPrefix(const JoinPlanNode& node,
                                  size_t numNodesToPrint,
                                  std::string indentStr) {
@@ -66,6 +50,19 @@ std::string joinNodeStringPrefix(const JoinPlanNode& node,
     return ss.str();
 }
 }  // namespace
+
+std::string joinMethodToString(JoinMethod method) {
+    switch (method) {
+        case JoinMethod::HJ:
+            return "HJ";
+        case JoinMethod::NLJ:
+            return "NLJ";
+        case JoinMethod::INLJ:
+            return "INLJ";
+    }
+
+    MONGO_UNREACHABLE_TASSERT(11336901);
+}
 
 std::string BaseNode::toString(size_t numNodesToPrint, std::string indentStr) const {
     return str::stream() << joinNodeStringPrefix(*this, numNodesToPrint, indentStr) << "["

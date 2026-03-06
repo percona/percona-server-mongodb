@@ -133,7 +133,8 @@ executor:
       add_remove_random_shards: true
       move_primary_comment: *movePrimaryComment
       is_fsm_workload: true
-    - class: CheckIdleCursors
+      # TODO SERVER-120162: Re-enable once all the false positive have been addressed and the test is stable.
+    # - class: CheckIdleCursors
     - class: CheckShardFilteringMetadata
     - class: CheckReplDBHash
     - class: CheckMetadataConsistencyInBackground

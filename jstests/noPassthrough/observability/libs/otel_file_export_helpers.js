@@ -1,21 +1,13 @@
 /**
- * Finds metrics files in the given directory created after the specified timestamp.
+ * Finds metrics files in the given directory.
  * @param {string} directory - The directory path to search in.
- * @param {Date} afterDate - Only return files created after this Date. If not provided, all metrics files are returned.
- * @returns {Array<Object>} An array of file objects (from listFiles()) whose names end with "-metrics.jsonl" and were
- *     created after the specified timestamp. Each file object has a 'name' property containing the full file path.
+ * @returns {Array<Object>} An array of file objects (from listFiles()) whose names end with "-metrics.jsonl". Each file
+ *     object has a 'name' property containing the full file path.
  */
-export function findMetricsFiles(directory, afterDate = new Date(0)) {
+function findMetricsFiles(directory) {
     const files = listFiles(directory);
     return files.filter(function (file) {
         if (!file.name.endsWith("-metrics.jsonl")) {
-            return false;
-        }
-        if (file.lastModified < afterDate.getTime()) {
-            jsTest.log.info(
-                `Skipping metric file ${file.name} because it was modified ` +
-                    `${new Date(file.lastModified)} which is before ${afterDate}`,
-            );
             return false;
         }
         return true;
@@ -29,7 +21,7 @@ export function findMetricsFiles(directory, afterDate = new Date(0)) {
  *     Returns an empty array if the file is empty, doesn't exist, or if parsing fails
  *     (which can happen if the file is read mid-write).
  */
-export function readJsonlFile(filePath) {
+function readJsonlFile(filePath) {
     const content = cat(filePath);
     if (!content || content.trim() === "") {
         return [];
@@ -40,64 +32,136 @@ export function readJsonlFile(filePath) {
         if (!line.trim()) {
             continue;
         }
+        let parsedLine;
         try {
-            records.push(JSON.parse(line));
+            parsedLine = JSON.parse(line);
         } catch (e) {
-            // JSON parse can fail if we read the file while it's being written to.
-            // Return empty array to signal the caller should retry.
-            jsTest.log.info("Failed to parse JSONL line (file may be mid-write): " + e.message);
-            return [];
+            // The last record is often cut off due to being read mid-write, but previous records may be valid.
+            return records;
         }
+        records.push(parsedLine);
     }
     return records;
 }
 
+function safeConvertToNumber(value) {
+    // Comparing to the MIN and MAX safe integers guarantees that the resulting value is precise, i.e., for numbers
+    // outside this range, the result could be rounded to a slightly higher or lower value.
+    assert(value >= Number.MIN_SAFE_INTEGER);
+    assert(value <= Number.MAX_SAFE_INTEGER);
+    return Number(value);
+}
+
 /**
- * Finds the latest metric record with the given name in the OTel OTLP JSON export data.
- * Iterates in reverse order since later records in JSONL are more recent.
- * @param {Array<Object>} records - Array of OTel OTLP JSON records (from readJsonlFile()).
- * @param {string} name - The metric name to search for (e.g., "connections_processed").
- * @returns {Object|null} The metric object if found, in the following format:
- *     {
- *         "description": "Total number of ingress connections processed (accepted or rejected)",
- *         "name": "connections_processed",
- *         "sum": {
- *             "aggregationTemporality": 2,
- *             "dataPoints": [
- *                 {
- *                     "asInt": "4",
- *                     "startTimeUnixNano": "1767733224785580274",
- *                     "timeUnixNano": "1767733225285751085"
- *                 }
- *             ],
- *             "isMonotonic": true
- *         },
- *         "unit": "connections"
- *     }
- *     Returns null if no metric with the given name is found.
+ * Finds the latest time from all points in the given record.
+ * @param {Object} record - The record to search in.
+ * @returns {number} The latest time from all points in the record in milliseconds. Returns 0 if no points are found.
  */
-export function findMetric(records, name) {
-    for (let i = records.length - 1; i >= 0; i--) {
-        const record = records[i];
-        // OTel OTLP JSON format has resourceMetrics array
-        if (!record.resourceMetrics) {
-            continue;
-        }
-        for (const resourceMetric of record.resourceMetrics) {
-            if (!resourceMetric.scopeMetrics) {
-                continue;
-            }
-            for (const scopeMetric of resourceMetric.scopeMetrics) {
-                if (!scopeMetric.metrics) {
-                    continue;
-                }
-                for (const metric of scopeMetric.metrics) {
-                    if (metric.name === name) {
-                        return metric;
-                    }
-                }
+function latestTime(record) {
+    let allPoints = [];
+    for (const resourceMetric of record?.resourceMetrics ?? []) {
+        for (const scopeMetric of resourceMetric.scopeMetrics ?? []) {
+            for (const metric of scopeMetric.metrics ?? []) {
+                allPoints.push(...(metric.sum?.dataPoints ?? []));
+                allPoints.push(...(metric.gauge?.dataPoints ?? []));
+                allPoints.push(...(metric.histogram?.dataPoints ?? []));
             }
         }
     }
-    return null;
+    return allPoints.length > 0
+        ? Math.max(...allPoints.map((point) => safeConvertToNumber(BigInt(point.timeUnixNano) / 1_000_000n)))
+        : 0;
+}
+
+/**
+ * Gets the most recent metrics from the given directory.
+ * @param {string} directory - The directory path to search in.
+ * @returns {Object} An object with the metric name as the key and the metric value as the value, or null if no metrics
+ *  are found. The value is an object with the "value" property containing the metric value for counters and gauges.
+ *  Also contains a special "time" property containing the latest time from all points in the record in milliseconds.
+ *  Example:
+ *  {
+ *     "time": 1771619346,
+ *     // A counter or gauge metric.
+ *     "network.connections_processed": {
+ *          "value": 100
+ *      },
+ *      // A histogram metric.
+ *      "network.tls_handshake_latency": {
+ *          "count": 100,
+ *          "sum": 10000,
+ *          "min": 100,
+ *          "max": 10000,
+ *          "bucketCounts":   [800, 900, 800, 400, 300, 200, 150, 125, 110, 101],
+ *          "explicitBounds": [100, 200, 300, 400, 500, 600, 700, 800, 900, 1000]
+ *      }
+ *      ...
+ *  }
+ */
+export function getLatestMetrics(directory) {
+    let record = undefined;
+    const files = findMetricsFiles(directory);
+    const records = files
+        .map((file) => {
+            const record = readJsonlFile(file.name);
+            if (record.length === 0) {
+                jsTest.log.info(`No records found in file ${file.name}`);
+            }
+            return record;
+        })
+        .filter((record) => record.length > 0)
+        // Each record contains all the metrics, so just return the last, i.e. most recent, one.
+        .map((records) => records.at(-1));
+    if (records.length === 0) {
+        return null;
+    }
+    // Of all the records from multiple files, take the most recent one.
+    record = records.reduce((latest, curRecord) => {
+        return latestTime(latest) > latestTime(curRecord) ? latest : curRecord;
+    }, records.at(0));
+
+    let metrics = [];
+    for (const resourceMetric of record?.resourceMetrics ?? []) {
+        for (const scopeMetric of resourceMetric.scopeMetrics ?? []) {
+            for (const metric of scopeMetric.metrics ?? []) {
+                metrics.push(metric);
+            }
+        }
+    }
+    let result = Object.fromEntries(
+        metrics.map((metric) => {
+            let result = {};
+            for (const dataPoint of (metric.sum?.dataPoints ?? []).concat(metric.gauge?.dataPoints ?? [])) {
+                if (dataPoint.asInt) {
+                    result["value"] ??= 0;
+                    result["value"] += Number(dataPoint.asInt);
+                } else {
+                    result["value"] ??= 0;
+                    result["value"] += Number(dataPoint.asDouble);
+                }
+            }
+            for (const dataPoint of metric.histogram?.dataPoints ?? []) {
+                // There should only be one data point for the histogram.
+                result = dataPoint;
+            }
+            return [metric.name, result];
+        }),
+    );
+    result.time = latestTime(record);
+    return result;
+}
+
+/**
+ * Generates the name for a metrics directory for the given test name and ensures the directory exists. The name is
+ * randomized so the same testName will provide different results on different calls.
+ * @param {string} testName - The name of the test.
+ * @returns {string} The path to the metrics directory.
+ */
+export function createMetricsDirectory(testName) {
+    if (!Random.isInitialized()) {
+        Random.setRandomSeed();
+    }
+    const metricsDir = MongoRunner.toRealPath(`${testName}_otel_metrics_${Random.randInt(1000000)}`);
+    assert(mkdir(metricsDir), `Failed to create metrics directory: ${metricsDir}`);
+    return metricsDir;
 }

@@ -228,14 +228,14 @@ StatusWith<std::tuple<bool, std::string>> SaslSCRAMServerMechanism<Policy>::_fir
     auto authManager = AuthorizationManager::get(opCtx->getService());
 
     auto swUser = [&]() {
-        if (gEnableDetailedConnectionHealthMetricLogLines.load()) {
-            ScopedCallbackTimer timer([&](Microseconds elapsed) {
+        ScopedCallbackTimer timer([&](Microseconds elapsed) {
+            if (gEnableDetailedConnectionHealthMetricLogLines.load()) {
                 LOGV2(6788604,
                       "Auth metrics report",
                       "metric"_attr = "acquireUser",
                       "micros"_attr = elapsed.count());
-            });
-        }
+            }
+        });
 
         return authManager->acquireUser(opCtx,
                                         std::make_unique<UserRequestGeneral>(user, boost::none));

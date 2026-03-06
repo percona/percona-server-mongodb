@@ -151,6 +151,55 @@ TEST(ExtensionStatusTest, ExtensionStatusExceptionCloneTest) {
     ASSERT_EQ(exceptionPtr, exceptionPtrFromClone);
 }
 
+/**
+ * On Windows, calling std::current_exception() may create a copy of the original exception. On
+ * Linux, exceptions are heap allocated, and the current exception pointer is treated like a
+ * smartptr_handle, which does not invoke the copy constructor of the exception.
+ *
+ * Copying ExtensionStatusException incurs an additional hop across the API boundary, invoking
+ * ExtensionStatusException::_extClone(). This additional hop across the boundary means that
+ * the success counters will also be incremented due to the call to clone(), when propagating an
+ * exception across the API boundary,
+ *
+ * It is important to note that the success counters are just an indicator of how many successful
+ * calls were made across the API boundary. This discrepancy in metrics is not a detrimental side
+ * effect of the copy constructor, and can be disregarded. In this helper function, we aim to
+ * accommodate the discrepancy in test results between Windows & Linux platforms.
+ *
+ * NOTE: The discrepancy between the success counters is only present when std::current_exception()
+ * is called. This can happen by some of our test helpers such as ASSERT_THROWS_CODE_*. While we
+ * could adapt specific test cases depending on whether or not these test helpers are being used in
+ * a test, it is simpler and more future-proof to assume the discrepancy is always present.
+ *
+ * When we call std::current_exception() (i.e from ASSERT_THROWS_CODE_*), this results in the
+ * following:
+ * 1) The Host calls clone() on the extension via invokeCAndConvertStatusToException. Since the
+ * clone succeeds, this bumps the extension success counter by one.
+ * 2) In order to service the clone() call, the extension wraps its business logic in a
+ * wrapCXXAndConvertExceptionToStatus block. Because this unit test does not use dll, this results
+ * in the host success count also incrementing by one.
+ */
+void assertExpectedMetricsOnError(uint32_t expectedExtensionFailures,
+                                  uint32_t expectedHostFailures) {
+    ASSERT_EQ(TestObservabilityContext::getExtensionFailureCounter(), expectedExtensionFailures);
+    ASSERT_EQ(TestObservabilityContext::getHostFailureCounter(), expectedHostFailures);
+#ifdef _WIN32
+    ASSERT_LTE(TestObservabilityContext::getExtensionSuccessCounter(), 1u);
+    ASSERT_LTE(TestObservabilityContext::getHostSuccessCounter(), 1u);
+#else
+    ASSERT_EQ(TestObservabilityContext::getExtensionSuccessCounter(), 0u);
+    ASSERT_EQ(TestObservabilityContext::getHostSuccessCounter(), 0u);
+#endif
+}
+
+void assertExpectedMetricsOnSuccess(uint32_t expectedExtensionSuccesses,
+                                    uint32_t expectedHostSuccesses) {
+    ASSERT_EQ(TestObservabilityContext::getExtensionSuccessCounter(), expectedExtensionSuccesses);
+    ASSERT_EQ(TestObservabilityContext::getHostSuccessCounter(), expectedHostSuccesses);
+    ASSERT_EQ(TestObservabilityContext::getExtensionFailureCounter(), 0u);
+    ASSERT_EQ(TestObservabilityContext::getHostFailureCounter(), 0u);
+}
+
 // Test that a std::exception correctly returns MONGO_EXTENSION_STATUS_RUNTIME_ERROR when called via
 // wrapCXXAndConvertExceptionToStatus.
 TEST(ExtensionStatusTest, extensionStatusWrapCXXAndConvertExceptionToStatus_stdException) {
@@ -161,10 +210,7 @@ TEST(ExtensionStatusTest, extensionStatusWrapCXXAndConvertExceptionToStatus_stdE
     StatusHandle status(wrapCXXAndConvertExceptionToStatus(
         [&]() { throw std::runtime_error("Runtime exception in $noOpExtension parse."); }));
     ASSERT_TRUE(status->getCode() == MONGO_EXTENSION_STATUS_RUNTIME_ERROR);
-    ASSERT_EQ(TestObservabilityContext::getExtensionFailureCounter(), 0u);
-    ASSERT_EQ(TestObservabilityContext::getExtensionSuccessCounter(), 0u);
-    ASSERT_EQ(TestObservabilityContext::getHostFailureCounter(), 1u);
-    ASSERT_EQ(TestObservabilityContext::getHostSuccessCounter(), 0u);
+    assertExpectedMetricsOnError(0, 1);
 }
 
 // Test that a std::exception can be rethrown when it crosses from a C++ context through the C API
@@ -179,10 +225,8 @@ TEST(
                       });
                   }),
                   std::exception);
-    ASSERT_EQ(TestObservabilityContext::getExtensionFailureCounter(), 1u);
-    ASSERT_EQ(TestObservabilityContext::getExtensionSuccessCounter(), 0u);
-    ASSERT_EQ(TestObservabilityContext::getHostFailureCounter(), 1u);
-    ASSERT_EQ(TestObservabilityContext::getHostSuccessCounter(), 0u);
+
+    assertExpectedMetricsOnError(1, 1);
 }
 
 // Test that wrapCXXAndConvertExceptionToStatus correctly wraps a DBException (uassert) and returns
@@ -192,10 +236,7 @@ TEST(ExtensionStatusTest, extensionStatusWrapCXXAndConvertExceptionToStatus_Asse
     StatusHandle status(wrapCXXAndConvertExceptionToStatus(
         [&]() { uasserted(10596408, "Failed with uassert in $noOpExtension parse."); }));
     ASSERT_TRUE(status->getCode() == 10596408);
-    ASSERT_EQ(TestObservabilityContext::getExtensionFailureCounter(), 0u);
-    ASSERT_EQ(TestObservabilityContext::getExtensionSuccessCounter(), 0u);
-    ASSERT_EQ(TestObservabilityContext::getHostFailureCounter(), 1u);
-    ASSERT_EQ(TestObservabilityContext::getHostSuccessCounter(), 0u);
+    assertExpectedMetricsOnError(0, 1);
 }
 
 // Test that a DBException (uassert) can be rethrown when it crosses from a C++ context through the
@@ -211,10 +252,7 @@ TEST(
                        }),
                        AssertionException,
                        10596409);
-    ASSERT_EQ(TestObservabilityContext::getExtensionFailureCounter(), 1u);
-    ASSERT_EQ(TestObservabilityContext::getExtensionSuccessCounter(), 0u);
-    ASSERT_EQ(TestObservabilityContext::getHostFailureCounter(), 1u);
-    ASSERT_EQ(TestObservabilityContext::getHostSuccessCounter(), 0u);
+    assertExpectedMetricsOnError(1, 1);
 }
 
 /*
@@ -242,19 +280,13 @@ TEST(
     // wrapCXXAndConvertExceptionToStatus(invokeCAndConvertStatusToException(..)) is the same one we
     // originally allocated.
     ASSERT_TRUE(propagatedStatus.get() == extensionStatusOriginalPtr);
-    ASSERT_EQ(TestObservabilityContext::getExtensionFailureCounter(), 1u);
-    ASSERT_EQ(TestObservabilityContext::getExtensionSuccessCounter(), 0u);
-    ASSERT_EQ(TestObservabilityContext::getHostFailureCounter(), 1u);
-    ASSERT_EQ(TestObservabilityContext::getHostSuccessCounter(), 0u);
+    assertExpectedMetricsOnError(1, 1);
 }
 
 TEST(ExtensionStatusTest, extensionStatusInvokeCAndConvertStatusToException_ExtensionStatusOK) {
     TestObservabilityContext::resetCounters();
     invokeCAndConvertStatusToException([&]() { return &ExtensionStatusOK::getInstance(); });
-    ASSERT_EQ(TestObservabilityContext::getExtensionFailureCounter(), 0u);
-    ASSERT_EQ(TestObservabilityContext::getExtensionSuccessCounter(), 1u);
-    ASSERT_EQ(TestObservabilityContext::getHostFailureCounter(), 0u);
-    ASSERT_EQ(TestObservabilityContext::getHostSuccessCounter(), 0u);
+    assertExpectedMetricsOnSuccess(1, 0);
 }
 
 TEST(ExtensionStatusTest,
@@ -263,10 +295,7 @@ TEST(ExtensionStatusTest,
 
     StatusHandle status(wrapCXXAndConvertExceptionToStatus([&]() { return true; }));
     ASSERT_TRUE(status->getCode() == MONGO_EXTENSION_STATUS_OK);
-    ASSERT_EQ(TestObservabilityContext::getExtensionFailureCounter(), 0u);
-    ASSERT_EQ(TestObservabilityContext::getExtensionSuccessCounter(), 0u);
-    ASSERT_EQ(TestObservabilityContext::getHostFailureCounter(), 0u);
-    ASSERT_EQ(TestObservabilityContext::getHostSuccessCounter(), 1u);
+    assertExpectedMetricsOnSuccess(0, 1);
 }
 
 TEST(ExtensionStatusTest, extensionStatusInvokeCAndConvertStatusToException_ExtensionDBException) {
@@ -280,10 +309,7 @@ TEST(ExtensionStatusTest, extensionStatusInvokeCAndConvertStatusToException_Exte
         ExtensionDBException,
         10596412,
         kErrorString);
-    ASSERT_EQ(TestObservabilityContext::getExtensionFailureCounter(), 1u);
-    ASSERT_EQ(TestObservabilityContext::getExtensionSuccessCounter(), 0u);
-    ASSERT_EQ(TestObservabilityContext::getHostFailureCounter(), 0u);
-    ASSERT_EQ(TestObservabilityContext::getHostSuccessCounter(), 0u);
+    assertExpectedMetricsOnError(1, 0);
 }
 
 /*
@@ -313,10 +339,7 @@ TEST(
         });
     }));
 
-    ASSERT_EQ(TestObservabilityContext::getExtensionFailureCounter(), 2u);
-    ASSERT_EQ(TestObservabilityContext::getExtensionSuccessCounter(), 0u);
-    ASSERT_EQ(TestObservabilityContext::getHostFailureCounter(), 3u);
-    ASSERT_EQ(TestObservabilityContext::getHostSuccessCounter(), 0u);
+    assertExpectedMetricsOnError(2, 3);
 }
 
 DEATH_TEST(ExtensionStatusTestDeathTest, InvalidExtensionStatusVTableFailsGetCode, "10930105") {

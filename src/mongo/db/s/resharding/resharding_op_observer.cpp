@@ -274,12 +274,34 @@ void ReshardingOpObserver::onUpdate(OperationContext* opCtx,
         _doPin(opCtx);
     }
 
-    if (shouldUseRegistry(opCtx) && nss == NamespaceString::kConfigReshardingOperationsNamespace) {
+    const auto& useRegistry = shouldUseRegistry(opCtx);
+
+    if (useRegistry && nss == NamespaceString::kConfigReshardingOperationsNamespace) {
         auto coordinatorDoc = ReshardingCoordinatorDocument::parse(
             args.updateArgs->updatedDoc, IDLParserContext("ReshardingOpObserver::onUpdate"));
-        if (coordinatorDoc.getState() == CoordinatorStateEnum::kQuiesced) {
+        if (resharding::excludeFromRegistry(coordinatorDoc)) {
             const auto& commonMetadata = coordinatorDoc.getCommonReshardingMetadata();
             LocalReshardingOperationsRegistry::get().unregisterOperation(Role::kCoordinator,
+                                                                         commonMetadata);
+        }
+    }
+
+    if (useRegistry && nss == NamespaceString::kDonorReshardingOperationsNamespace) {
+        auto donorDoc = ReshardingDonorDocument::parse(
+            args.updateArgs->updatedDoc, IDLParserContext("ReshardingOpObserver::onUpdate"));
+        if (resharding::excludeFromRegistry(donorDoc)) {
+            const auto& commonMetadata = donorDoc.getCommonReshardingMetadata();
+            LocalReshardingOperationsRegistry::get().unregisterOperation(Role::kDonor,
+                                                                         commonMetadata);
+        }
+    }
+
+    if (useRegistry && nss == NamespaceString::kRecipientReshardingOperationsNamespace) {
+        auto recipientDoc = ReshardingRecipientDocument::parse(
+            args.updateArgs->updatedDoc, IDLParserContext("ReshardingOpObserver::onUpdate"));
+        if (resharding::excludeFromRegistry(recipientDoc)) {
+            const auto& commonMetadata = recipientDoc.getCommonReshardingMetadata();
+            LocalReshardingOperationsRegistry::get().unregisterOperation(Role::kRecipient,
                                                                          commonMetadata);
         }
     }

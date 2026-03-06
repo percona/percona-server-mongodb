@@ -52,7 +52,9 @@
 #include "mongo/db/repl/oplog_entry.h"
 #include "mongo/db/repl/primary_only_service.h"
 #include "mongo/db/s/resharding/coordinator_document_gen.h"
+#include "mongo/db/s/resharding/donor_document_gen.h"
 #include "mongo/db/s/resharding/donor_oplog_id_gen.h"
+#include "mongo/db/s/resharding/recipient_document_gen.h"
 #include "mongo/db/sharding_environment/shard_id.h"
 #include "mongo/db/timeseries/timeseries_index_schema_conversion_functions.h"
 #include "mongo/executor/task_executor.h"
@@ -417,6 +419,41 @@ std::vector<std::shared_ptr<Instance>> getReshardingStateMachines(OperationConte
         result.emplace_back(std::move(instance));
     }
     return result;
+}
+
+/**
+ * Returns true if the given resharding state document represents a completed operation that should
+ * not be tracked by the LocalReshardingOperationsRegistry.
+ *
+ * Specifically, returns true when:
+ *  - 'doc' is a ReshardingCoordinatorDocument in kQuiesced state
+ *  - 'doc' is a ReshardingDonorDocument in kDone state
+ *  - 'doc' is a ReshardingRecipientDocument in kDone state
+ *
+ * This filter is used in two contexts:
+ *  1. During resync from disk to skip registering operations whose state documents are still on
+ *     disk but represent already finished resharding operations.
+ *  2. In the ReshardingOpObserver on state document updates to detect when a resharding role has
+ *     reached its terminal state and should be unregistered from the registry.
+ */
+template <typename Document>
+bool excludeFromRegistry(const Document& doc) {
+    if constexpr (std::is_same_v<Document, ReshardingCoordinatorDocument>) {
+        if (doc.getState() == CoordinatorStateEnum::kQuiesced) {
+            return true;
+        }
+    }
+    if constexpr (std::is_same_v<Document, ReshardingDonorDocument>) {
+        if (doc.getMutableState().getState() == DonorStateEnum::kDone) {
+            return true;
+        }
+    }
+    if constexpr (std::is_same_v<Document, ReshardingRecipientDocument>) {
+        if (doc.getMutableState().getState() == RecipientStateEnum::kDone) {
+            return true;
+        }
+    }
+    return false;
 }
 
 /**

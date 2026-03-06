@@ -90,3 +90,28 @@ mongo_cc_unit_test(
         "//src/mongo/db/shard_role/shard_catalog:catalog_test_fixture",
     ],
 )
+
+mongo_cc_library(
+    name = "replicated_fast_count_enabled",
+    srcs = ["replicated_fast_count_enabled.cpp"],
+    deps = [
+        "//src/mongo/db:server_base",
+        "//src/mongo/db:server_feature_flags",
+        "//src/mongo/db/rss:replicated_storage_service",
+    ],
+)
+
+mongo_cc_unit_test(
+    name = "replicated_fast_count_enabled_test",
+    srcs = [
+        "replicated_fast_count_enabled_test.cpp",
+    ],
+    tags = [
+        "mongo_unittest_first_group",
+        "server-collection-write-path",
+    ],
+    deps = [
+        "replicated_fast_count_enabled",
+        "//src/mongo/db/shard_role/shard_catalog:catalog_test_fixture",
+    ],
+)

@@ -40,40 +40,110 @@ namespace mongo::join_ordering {
 namespace {
 static constexpr size_t kBaseLevel = 0;
 
+bool isModeValid(const PerSubsetLevelEnumerationMode::SubsetLevelMode& slm) {
+    return slm.mode != PlanEnumerationMode::HINTED || slm.hint;
+}
+
 /**
  * Validates that the enumeration strategy 'mode' has two properties- strictly ascending, and no two
- * consecutive modes are the same.
+ * consecutive modes are the same, unless the mode is HINTED.
  */
-bool isEnumerationModeValid(const std::vector<std::pair<size_t, PlanEnumerationMode>>& mode) {
-    if (mode.size() < 1) {
+bool isEnumerationModeValid(
+    const std::vector<PerSubsetLevelEnumerationMode::SubsetLevelMode>& modes) {
+    if (modes.size() < 1) {
         // Must have at least one entry.
         return false;
     }
 
-    if (mode[0].first != 0) {
-        // That entry must specify how we should start enumeration from the 1st subset.
+    if (modes[0].level != 0 || !isModeValid(modes[0])) {
+        // First entry must specify how we should start enumeration from the 1st subset.
         return false;
     }
 
-    for (size_t i = 1; i < mode.size(); i++) {
-        if (mode[i - 1].first >= mode[i].first) {
+    NodeSet seenNodes;
+    if (modes[0].hint) {
+        seenNodes.set(modes[0].hint->node);
+    }
+
+    for (size_t i = 1; i < modes.size(); i++) {
+        if (!isModeValid(modes[i])) {
+            return false;
+        }
+
+        if (modes[i - 1].level >= modes[i].level) {
             // Not strictly ascending.
             return false;
         }
 
-        if (mode[i - 1].second == mode[i].second) {
-            // Two consecutive levels specify the same enumeration mode.
+        if (modes[i - 1].mode == PlanEnumerationMode::HINTED &&
+            modes[i].level - modes[i - 1].level != 1) {
+            // If previous mode is HINTED, the current level must be the previous level + 1.
+            return false;
+        }
+
+        if (modes[i].mode == PlanEnumerationMode::HINTED) {
+            if (seenNodes.test(modes[i].hint->node)) {
+                // We can't hint on joining with the same node twice.
+                return false;
+            }
+
+            seenNodes.set(modes[i].hint->node);
+            continue;
+        }
+
+        if (modes[i - 1].mode == modes[i].mode) {
+            // Two consecutive levels specify the same enumeration mode, and that mode isn't HINTED.
             return false;
         }
     }
     return true;
 }
+
+std::string planEnumModeToString(PlanEnumerationMode mode) {
+    switch (mode) {
+        case PlanEnumerationMode::CHEAPEST:
+            return "CHEAPEST";
+        case PlanEnumerationMode::ALL:
+            return "ALL";
+        case PlanEnumerationMode::HINTED:
+            return "HINTED";
+    }
+    MONGO_UNREACHABLE_TASSERT(11458204);
+}
 }  // namespace
 
-PerSubsetLevelEnumerationMode::PerSubsetLevelEnumerationMode(
-    std::vector<std::pair<size_t, PlanEnumerationMode>> modes)
+BSONObj JoinHint::toBSON() const {
+    return BSON("node" << node << "method" << joinMethodToString(method) << "isLeftChild"
+                       << isLeftChild);
+}
+
+BSONObj PerSubsetLevelEnumerationMode::SubsetLevelMode::toBSON() const {
+    BSONObjBuilder bob;
+    bob << "level" << (int)level << "mode" << planEnumModeToString(mode);
+    if (hint) {
+        bob << "hint" << hint->toBSON();
+    }
+    return bob.obj();
+}
+
+PerSubsetLevelEnumerationMode::PerSubsetLevelEnumerationMode(PlanEnumerationMode mode)
+    : _modes{{0, mode}} {
+    tassert(11458200,
+            "Only accept hinted enumeration when at least one hint is provided",
+            mode != PlanEnumerationMode::HINTED);
+}
+
+PerSubsetLevelEnumerationMode::PerSubsetLevelEnumerationMode(std::vector<SubsetLevelMode> modes)
     : _modes{std::move(modes)} {
     tassert(11391600, "Expected valid enumeration mode", isEnumerationModeValid(_modes));
+}
+
+BSONObj PerSubsetLevelEnumerationMode::toBSON() const {
+    BSONArrayBuilder bab;
+    for (auto&& m : _modes) {
+        bab << m.toBSON();
+    }
+    return bab.arr();
 }
 
 const std::vector<JoinSubset>& PlanEnumeratorContext::getSubsets(int level) {
@@ -154,9 +224,10 @@ void PlanEnumeratorContext::enumerateINLJPlan(EdgeId edge,
         return;
     }
 
-    auto inljCost = _coster->costINLJFragment(_registry.get(leftPlan), rightNodeId, ie);
+    auto inljCost =
+        _coster ? _coster->costINLJFragment(_registry.get(leftPlan), rightNodeId, ie) : zeroCost;
     bool isBestPlan = isBestPlanSoFar(subset, inljCost);
-    if (_mode == PlanEnumerationMode::CHEAPEST && !isBestPlan) {
+    if (_mode.mode == PlanEnumerationMode::CHEAPEST && !isBestPlan) {
         // Only build this plan if it is better than what we already have.
         return;
     }
@@ -174,14 +245,14 @@ void PlanEnumeratorContext::enumerateJoinPlan(JoinMethod method,
         const auto& leftPlan = _registry.get(leftPlanId);
         const auto& rightPlan = _registry.get(rightPlanId);
         if (method == JoinMethod::NLJ) {
-            return _coster->costNLJFragment(leftPlan, rightPlan);
+            return _coster ? _coster->costNLJFragment(leftPlan, rightPlan) : zeroCost;
         }
         tassert(1748000, "Expected HJ", method == JoinMethod::HJ);
-        return _coster->costHashJoinFragment(leftPlan, rightPlan);
+        return _coster ? _coster->costHashJoinFragment(leftPlan, rightPlan) : zeroCost;
     }();
 
     bool isBestPlan = isBestPlanSoFar(subset, joinCost);
-    if (_mode == PlanEnumerationMode::CHEAPEST && !isBestPlan) {
+    if (_mode.mode == PlanEnumerationMode::CHEAPEST && !isBestPlan) {
         // Only build this plan if it is better than what we already have.
         return;
     }
@@ -246,7 +317,7 @@ void PlanEnumeratorContext::addJoinPlan(JoinMethod method,
         return;
     }
 
-    switch (_mode) {
+    switch (_mode.mode) {
         case PlanEnumerationMode::CHEAPEST: {
             enumerateCheapestJoinPlan(method, left, right, edges, subset);
             break;
@@ -254,6 +325,11 @@ void PlanEnumeratorContext::addJoinPlan(JoinMethod method,
 
         case PlanEnumerationMode::ALL: {
             enumerateAllJoinPlans(method, left, right, edges, subset);
+            break;
+        }
+
+        case PlanEnumerationMode::HINTED: {
+            MONGO_UNIMPLEMENTED_TASSERT(11458201);
             break;
         }
     }
@@ -294,7 +370,7 @@ void PlanEnumeratorContext::enumerateJoinSubsets() {
     _joinSubsets.resize(cs.next());
 
     auto modeIt = _strategy.mode.begin();
-    _mode = modeIt.get().second;
+    _mode = modeIt.get();
     modeIt.next();
 
     // Initialize base level of joinSubsets, representing single collections (no joins).
@@ -303,16 +379,19 @@ void PlanEnumeratorContext::enumerateJoinSubsets() {
         const auto* qsn = _ctx.cbrCqQsns.at(cq).get();
         _joinSubsets[kBaseLevel].push_back(JoinSubset(NodeSet{}.set(i)));
         _joinSubsets[kBaseLevel].back().plans = {_registry.registerBaseNode(
-            (NodeId)i, qsn, cq->nss(), _coster->costBaseCollectionAccess((NodeId)i))};
+            (NodeId)i,
+            qsn,
+            cq->nss(),
+            _coster ? _coster->costBaseCollectionAccess((NodeId)i) : zeroCost)};
     }
 
     // Initialize the rest of the joinSubsets.
     for (size_t level = 1; level < numNodes; ++level) {
         // Find the right enumeration mode for the current level. Only need to increment by one
         // because strategy modes change at most as frequently as once per level.
-        if (modeIt != _strategy.mode.end() && modeIt.get().first == level) {
+        if (modeIt != _strategy.mode.end() && modeIt.get().level == level) {
             // Update the mode once we reach the level it refers to.
-            _mode = modeIt.get().second;
+            _mode = modeIt.get();
             modeIt.next();
         }
 

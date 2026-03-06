@@ -78,6 +78,7 @@
         "replset",
         "reprioritization",
         "reprioritized",
+        "resmoke",
         "resumability",
         "retryable",
         "RSTL",

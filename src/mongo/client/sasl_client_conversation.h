@@ -34,6 +34,8 @@
 
 #include <string>
 
+#include <boost/optional/optional.hpp>
+
 namespace mongo {
 
 class SaslClientSession;
@@ -41,7 +43,7 @@ template <typename T>
 class StatusWith;
 
 /**
- * Abstract class for implementing the clent-side
+ * Abstract class for implementing the client-side
  * of a SASL mechanism conversation.
  */
 class MONGO_MOD_OPEN SaslClientConversation {
@@ -74,6 +76,13 @@ public:
      *
      */
     virtual StatusWith<bool> step(StringData inputData, std::string* outputData) = 0;
+
+    virtual boost::optional<std::uint32_t> currentStep() const {
+        return boost::none;
+    }
+    virtual boost::optional<std::uint32_t> totalSteps() const {
+        return boost::none;
+    }
 
 protected:
     SaslClientSession* _saslClientSession;

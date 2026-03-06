@@ -15,9 +15,8 @@
 
 import {after, before, describe, it} from "jstests/libs/mochalite.js";
 import {
-    findMetricsFiles,
-    readJsonlFile,
-    findMetric,
+    createMetricsDirectory,
+    getLatestMetrics,
 } from "jstests/noPassthrough/observability/libs/otel_file_export_helpers.js";
 import {ShardingTest} from "jstests/libs/shardingtest.js";
 
@@ -26,30 +25,18 @@ import {ShardingTest} from "jstests/libs/shardingtest.js";
  * directory that have been created after the provided date. Returns 0 if no metric is found.
  */
 function getConnectionsMetricValue(metricsDir, afterDate) {
-    let metricsFiles = [];
+    let metrics;
     assert.soon(
         () => {
-            metricsFiles = findMetricsFiles(metricsDir, afterDate);
-            return metricsFiles.length > 0;
+            metrics = getLatestMetrics(metricsDir);
+            return metrics.time > afterDate.getTime();
         },
-        `No recent metrics files found in ${metricsDir}`,
+        `No recent metrics found in ${metricsDir}`,
         30000,
         1000,
     );
 
-    for (const file of metricsFiles) {
-        const records = readJsonlFile(file.name);
-        const foundMetric = findMetric(records, "network.connections_processed");
-        if (foundMetric) {
-            jsTest.log.info(`Found metric: ${tojson(foundMetric)}`);
-            let totalValue = 0;
-            for (const dataPoint of foundMetric.sum.dataPoints) {
-                totalValue += dataPoint.asInt;
-            }
-            return totalValue;
-        }
-    }
-    return 0;
+    return metrics["network.connections_processed"]?.value ?? 0;
 }
 
 /**
@@ -90,14 +77,8 @@ function verifyConnectionsProcessedMetric(metricsDir, host, componentName) {
 
 describe("OTel network.connections_processed metric file export", function () {
     before(function () {
-        Random.setRandomSeed();
-
-        // Create separate metrics directories for mongos and mongod
-        const testName = jsTestName();
-        this.mongosMetricsDir = MongoRunner.toRealPath(`${testName}_mongos_otel_metrics_${Random.randInt(1000000)}`);
-        assert(mkdir(this.mongosMetricsDir), `Failed to create mongos metrics directory: ${this.mongosMetricsDir}`);
-        this.mongodMetricsDir = MongoRunner.toRealPath(`${testName}_mongod_otel_metrics_${Random.randInt(1000000)}`);
-        assert(mkdir(this.mongodMetricsDir), `Failed to create mongod metrics directory: ${this.mongodMetricsDir}`);
+        this.mongosMetricsDir = createMetricsDirectory(jsTestName());
+        this.mongodMetricsDir = createMetricsDirectory(jsTestName());
 
         jsTest.log.info("Starting sharded cluster with OTel file exporter");
         jsTest.log.info(`Mongos metrics directory: ${this.mongosMetricsDir}`);

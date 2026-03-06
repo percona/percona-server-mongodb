@@ -136,24 +136,6 @@ auto makeAppender(ServerMechanismBase* mech) {
 }
 }  // namespace
 
-void AuthMetricsRecorder::appendMetric(const BSONObj& metric) {
-    _appendedMetrics.append(metric);
-}
-
-BSONObj AuthMetricsRecorder::capture() {
-
-    Duration<std::micro> _duration = _timer.elapsed();
-
-    authCounter.incAuthenticationCumulativeTime(_duration.count());
-
-    return BSON("conversation_duration"
-                << BSON("micros" << _duration.count() << "summary" << _appendedMetrics.done()));
-}
-
-void AuthMetricsRecorder::restart() {
-    _timer.reset();
-}
-
 AuthenticationSession::StepGuard::StepGuard(OperationContext* opCtx, StepType currentStep)
     : _opCtx(opCtx), _currentStep(currentStep) {
     auto client = _opCtx->getClient();
@@ -359,7 +341,7 @@ void AuthenticationSession::markSuccessful() {
         audit::AuthenticateEvent(_mechName, _userName, makeAppender(_mech.get()), ErrorCodes::OK);
     audit::logAuthentication(_client, event);
 
-    BSONObj metrics = _metricsRecorder.capture();
+    BSONObj metrics = _metricsRecorder.captureIngress();
 
     if (gEnableDetailedConnectionHealthMetricLogLines.load()) {
         BSONObjBuilder extraInfoBob;
@@ -396,7 +378,7 @@ void AuthenticationSession::markFailed(const Status& status,
         audit::logAuthentication(_client, event);
     }
 
-    BSONObj metrics = _metricsRecorder.capture();
+    BSONObj metrics = _metricsRecorder.captureIngress();
 
     if (gEnableDetailedConnectionHealthMetricLogLines.load()) {
         BSONObjBuilder extraInfoBob;

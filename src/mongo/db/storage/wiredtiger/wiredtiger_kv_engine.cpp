@@ -1625,7 +1625,7 @@ void WiredTigerKVEngine::flushAllFiles(OperationContext* opCtx, bool callerHolds
                 VersionContext::getDecoration(opCtx),
                 serverGlobalParams.featureCompatibility.acquireFCVSnapshot())) {
             // TODO(SERVER-101413): Remove this once checkpointing and recovery is functional.
-            ReplicatedFastCountManager::get(opCtx->getServiceContext()).flushAsync(opCtx);
+            ReplicatedFastCountManager::get(opCtx->getServiceContext()).flushAsync();
         }
     }
     syncSizeInfo(true);
