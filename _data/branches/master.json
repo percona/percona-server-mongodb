@@ -5,14 +5,14 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 410,
+    "commits_behind": 415,
     "days_behind": 10,
-    "files_affected": 1719,
-    "total_additions": 76779,
-    "total_deletions": 47305,
+    "files_affected": 1749,
+    "total_additions": 77234,
+    "total_deletions": 47732,
     "date_range": {
       "first": "2026-02-23T18:08:37+00:00",
-      "last": "2026-03-06T03:03:21+00:00"
+      "last": "2026-03-06T11:54:50+00:00"
     }
   },
   "last_merged_commit": {
@@ -36,6 +36,56 @@
     "summary": "SERVER-119792 Handle non-existent collections for rrid update/delete oplog entries (#48344)"
   },
   "unmerged_commits": [
+    {
+      "sha": "baab1c32acfd2d654369039d0c01e42de49e8578",
+      "short_sha": "baab1c32acf",
+      "date": "2026-03-06T06:54:50-05:00",
+      "author": {
+        "name": "mongo-pr-bot[bot]",
+        "email": "230616009+mongo-pr-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "SERVER-110427 Update profiling data (#49147)"
+    },
+    {
+      "sha": "6eb1bbf86739c88e53d9999885e9396016810c54",
+      "short_sha": "6eb1bbf8673",
+      "date": "2026-03-06T11:05:52+01:00",
+      "author": {
+        "name": "mivanova3",
+        "email": "68105381+mivanova3@users.noreply.github.com"
+      },
+      "summary": "SERVER-120958 Remove automatic subplanner (#49074)"
+    },
+    {
+      "sha": "d4ceecb53196a8234f0b6e27cb84f17a962af90a",
+      "short_sha": "d4ceecb5319",
+      "date": "2026-03-06T01:27:18-08:00",
+      "author": {
+        "name": "Varun Ravichandran",
+        "email": "varun.ravichandran@mongodb.com"
+      },
+      "summary": "SERVER-117728 Allow plaintext traffic to unix domain socket even in requireTLS (#48583)"
+    },
+    {
+      "sha": "058e609f3ca3f66bd7ed54a9ff2d0b0e8e6ebfdd",
+      "short_sha": "058e609f3ca",
+      "date": "2026-03-06T08:34:05+00:00",
+      "author": {
+        "name": "Joan Bruguera Micó (at MongoDB)",
+        "email": "joan.bruguera-mico@mongodb.com"
+      },
+      "summary": "SERVER-120971 Allow HostUnreachable in FCVUpgradeDowngradeInBackground in stepdown suites (#49085)"
+    },
+    {
+      "sha": "af9480c34ff5d6d4f67d1808b027ddc4cf3202db",
+      "short_sha": "af9480c34ff",
+      "date": "2026-03-06T08:27:22+00:00",
+      "author": {
+        "name": "Joan Bruguera Micó (at MongoDB)",
+        "email": "joan.bruguera-mico@mongodb.com"
+      },
+      "summary": "SERVER-120895 Always pass cancelation token from DDL coordinator to RPC for participant commands (#49004)"
+    },
     {
       "sha": "9e964c8d110ab9b78cd70188fabe074f4411169d",
       "short_sha": "9e964c8d110",
@@ -4622,7 +4672,7 @@
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-03-06 08:04:14",
+  "generated_at": "2026-03-06 13:08:07",
   "branch_name": "master",
   "display_name": "master"
 }
