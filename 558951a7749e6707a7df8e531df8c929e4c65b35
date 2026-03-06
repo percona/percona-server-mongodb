@@ -1,0 +1,27 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "ecf3a50723877c7f9c80e54a9d5d134bfa227dc1",
+    "merge_commit": "888bac89586fb68783d8b70cd9633bef635f5429"
+  },
+  "mergai_version": "0.1.dev1+g1b75bf423",
+  "solutions": [
+    {
+      "response": {
+        "summary": "PSMDB-1963: fix format",
+        "resolved": {},
+        "unresolved": {},
+        "modified": {
+          "BUILD.bazel": "Modified by human"
+        },
+        "review_notes": "BUILD.bazel: Remove enterprise streams clang_tidy_config targets from\nclang_tidy_config_files filegroup.\n\nThe merge commit 45a55168cd5 brought in changes from MongoDB upstream which\nincluded the clang_tidy_config_files entries for enterprise/src/streams\nmodule (added in SERVER-109300 and SERVER-112653). However, PSMDB does not\ninclude MongoDB's enterprise streams module - the directory\nsrc/mongo/db/modules/enterprise/src/streams/ does not exist.\n\nWhen running 'bazel run format', the bazel_custom_formatter.py script scans\nsrc/mongo for .clang-tidy files and synchronizes the clang_tidy_config_files\ntargets accordingly. Since no .clang-tidy files exist for the streams module\n(the directory doesn't exist), the formatter correctly sets srcs to an empty\narray."
+      },
+      "author": {
+        "name": "Pawel Lebioda",
+        "email": "pawel.lebioda@percona.com",
+        "type": "human"
+      },
+      "commit_sha": "558951a7749e6707a7df8e531df8c929e4c65b35"
+    }
+  ]
+}
