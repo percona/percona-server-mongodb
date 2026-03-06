@@ -5,35 +5,35 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 423,
+    "commits_behind": 410,
     "days_behind": 10,
-    "files_affected": 1829,
-    "total_additions": 82181,
-    "total_deletions": 47497,
+    "files_affected": 1719,
+    "total_additions": 76779,
+    "total_deletions": 47305,
     "date_range": {
-      "first": "2026-02-23T15:00:07+00:00",
+      "first": "2026-02-23T18:08:37+00:00",
       "last": "2026-03-06T03:03:21+00:00"
     }
   },
   "last_merged_commit": {
-    "sha": "bd001dece7a504005815974711eed151d87a1a39",
-    "short_sha": "bd001dece7a",
-    "date": "2026-02-23T14:56:08+00:00",
+    "sha": "888bac89586fb68783d8b70cd9633bef635f5429",
+    "short_sha": "888bac89586",
+    "date": "2026-02-24T02:49:46+09:00",
     "author": {
-      "name": "auto-revert-app[bot]",
-      "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
+      "name": "Shin Yee Tan",
+      "email": "shinyee.tan@mongodb.com"
     },
-    "summary": "Revert \"SERVER-113184: Wait in initial sync for sync source to advance last c… (#46334)\" (#48460)"
+    "summary": "SERVER-120044 Disable testing retryable findAndModify in ASC with PDIB enabled (#48396)"
   },
   "first_unmerged_commit": {
-    "sha": "55472b711e1c30fe6159b56ce67f56eb211e5610",
-    "short_sha": "55472b711e1",
-    "date": "2026-02-23T10:00:07-05:00",
+    "sha": "30018a6eb35406fc2806bceb972f94a2ddaa9aa0",
+    "short_sha": "30018a6eb35",
+    "date": "2026-02-23T13:08:37-05:00",
     "author": {
-      "name": "Sean Lyons",
-      "email": "sean.lyons@mongodb.com"
+      "name": "Parker Felix",
+      "email": "68665637+parker-felix@users.noreply.github.com"
     },
-    "summary": "SERVER-118940 Record system resource usage under resmoke_suite_test (#48417)"
+    "summary": "SERVER-119792 Handle non-existent collections for rrid update/delete oplog entries (#48344)"
   },
   "unmerged_commits": [
     {
@@ -4135,185 +4135,9 @@
         "email": "68665637+parker-felix@users.noreply.github.com"
       },
       "summary": "SERVER-119792 Handle non-existent collections for rrid update/delete oplog entries (#48344)"
-    },
-    {
-      "sha": "888bac89586fb68783d8b70cd9633bef635f5429",
-      "short_sha": "888bac89586",
-      "date": "2026-02-24T02:49:46+09:00",
-      "author": {
-        "name": "Shin Yee Tan",
-        "email": "shinyee.tan@mongodb.com"
-      },
-      "summary": "SERVER-120044 Disable testing retryable findAndModify in ASC with PDIB enabled (#48396)"
-    },
-    {
-      "sha": "5244cf0a85845d895dd564c37680e658d7da3a73",
-      "short_sha": "5244cf0a858",
-      "date": "2026-02-23T12:41:07-05:00",
-      "author": {
-        "name": "Mike Nugent",
-        "email": "mike.nugent@mongodb.com"
-      },
-      "summary": "SERVER-117298: Add prometheus-cpp third-party library (#47013)"
-    },
-    {
-      "sha": "4f59c2a59ecdade6d21f92223b010f2a602513e1",
-      "short_sha": "4f59c2a59ec",
-      "date": "2026-02-23T12:09:38-05:00",
-      "author": {
-        "name": "Joshua Siegel",
-        "email": "39130209+joshbsiegel@users.noreply.github.com"
-      },
-      "summary": "SERVER-120064 Prevent double append to `loadExtensions` in resmoke (#48413)"
-    },
-    {
-      "sha": "b063bfa515a1a8b4b5e9c766cae3ec4233a0da8b",
-      "short_sha": "b063bfa515a",
-      "date": "2026-02-23T16:41:05+00:00",
-      "author": {
-        "name": "Projjal Chanda",
-        "email": "projjal.chanda@mongodb.com"
-      },
-      "summary": "SERVER-115389 Implement Block Nested Loop Join as fallback (#46359)"
-    },
-    {
-      "sha": "0036427bfc481efd94db90ef2c76e99e6dd4ee4c",
-      "short_sha": "0036427bfc4",
-      "date": "2026-02-23T11:37:34-05:00",
-      "author": {
-        "name": "Erwin Pe",
-        "email": "erwin.pe@mongodb.com"
-      },
-      "summary": "SERVER-118428 Fix mongocryptd rejecting large messages (#48266)"
-    },
-    {
-      "sha": "688dee8bb2eeded5d22157ff24da5fa547e09e88",
-      "short_sha": "688dee8bb2e",
-      "date": "2026-02-23T09:28:11-07:00",
-      "author": {
-        "name": "Ronald Steinke",
-        "email": "167128994+rsteinkeX@users.noreply.github.com"
-      },
-      "summary": "SERVER-119981: Fix binDataClean() for deprecated type (#48347)"
-    },
-    {
-      "sha": "560b4f50a913bb8114bdf14916a12a7d7bbde97c",
-      "short_sha": "560b4f50a91",
-      "date": "2026-02-23T11:24:01-05:00",
-      "author": {
-        "name": "Lynne Wang",
-        "email": "lynne.wang@mongodb.com"
-      },
-      "summary": "SERVER-120007 Complete TODO listed in SERVER-118709 (#48464)"
-    },
-    {
-      "sha": "9d070bd74b1fbf29cd6edc7ccd53f67a782749ce",
-      "short_sha": "9d070bd74b1",
-      "date": "2026-02-23T11:06:50-05:00",
-      "author": {
-        "name": "Kruti Shah",
-        "email": "70412403+krutishah139@users.noreply.github.com"
-      },
-      "summary": "SERVER-120045 Tag shard_drain_chunk_size_behavior.js with requires_fcv_83 to prevent multiversion errors (#48404)"
-    },
-    {
-      "sha": "1d41c69a5cd2374b7890f82431d8b48fee60c271",
-      "short_sha": "1d41c69a5cd",
-      "date": "2026-02-23T10:45:21-05:00",
-      "author": {
-        "name": "Steve McClure",
-        "email": "steve.mcclure@mongodb.com"
-      },
-      "summary": "SERVER-119410: Invoke a callback when setting breakpoints in VSCode editor (#48403)"
-    },
-    {
-      "sha": "4e1dc6972cf5a406d5524f718d35c3c6e729ba92",
-      "short_sha": "4e1dc6972cf",
-      "date": "2026-02-23T16:42:21+01:00",
-      "author": {
-        "name": "Denis Grebennicov",
-        "email": "denis.grebennicov@mongodb.com"
-      },
-      "summary": "SERVER-110340 Refine pre-image startup recovery for replicated truncates (#48237)"
-    },
-    {
-      "sha": "ac4148eee9e3ce5c27db1e563fae20b89973b83f",
-      "short_sha": "ac4148eee9e",
-      "date": "2026-02-23T10:34:58-05:00",
-      "author": {
-        "name": "Brett Nawrocki",
-        "email": "90278537+brettnawrocki@users.noreply.github.com"
-      },
-      "summary": "SERVER-120071 pauseBatchApplicationAfterWritingOplogEntries checks activation once (#48424)"
-    },
-    {
-      "sha": "6ee82dcff6c90db3853f6475e0b387d26da1c7ae",
-      "short_sha": "6ee82dcff6c",
-      "date": "2026-02-23T16:26:02+01:00",
-      "author": {
-        "name": "Alya Carina Berciu",
-        "email": "alya.berciu@mongodb.com"
-      },
-      "summary": "SERVER-113916 Add query knobs for per subset level enumeration mode (#48143)"
-    },
-    {
-      "sha": "55472b711e1c30fe6159b56ce67f56eb211e5610",
-      "short_sha": "55472b711e1",
-      "date": "2026-02-23T10:00:07-05:00",
-      "author": {
-        "name": "Sean Lyons",
-        "email": "sean.lyons@mongodb.com"
-      },
-      "summary": "SERVER-118940 Record system resource usage under resmoke_suite_test (#48417)"
     }
   ],
   "merge_picks": [
-    {
-      "commit": {
-        "sha": "5244cf0a85845d895dd564c37680e658d7da3a73",
-        "short_sha": "5244cf0a858",
-        "date": "2026-02-23T12:41:07-05:00",
-        "author": {
-          "name": "Mike Nugent",
-          "email": "mike.nugent@mongodb.com"
-        },
-        "summary": "SERVER-117298: Add prometheus-cpp third-party library (#47013)"
-      },
-      "strategy_name": "huge_commit",
-      "result": {
-        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
-        "evaluated_vars": {
-          "num_of_files": 62,
-          "num_of_lines": 3881,
-          "lines_added": 3535,
-          "lines_deleted": 346,
-          "num_of_dirs": 13
-        }
-      }
-    },
-    {
-      "commit": {
-        "sha": "888bac89586fb68783d8b70cd9633bef635f5429",
-        "short_sha": "888bac89586",
-        "date": "2026-02-24T02:49:46+09:00",
-        "author": {
-          "name": "Shin Yee Tan",
-          "email": "shinyee.tan@mongodb.com"
-        },
-        "summary": "SERVER-120044 Disable testing retryable findAndModify in ASC with PDIB enabled (#48396)"
-      },
-      "strategy_name": "huge_commit",
-      "result": {
-        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
-        "evaluated_vars": {
-          "num_of_files": 40,
-          "num_of_lines": 134,
-          "lines_added": 134,
-          "lines_deleted": 0,
-          "num_of_dirs": 14
-        }
-      }
-    },
     {
       "commit": {
         "sha": "e1d3eaa85e02de7ddce8ae6f3ff8543bc84bfc94",
@@ -4798,7 +4622,7 @@
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-03-06 06:15:02",
+  "generated_at": "2026-03-06 07:57:51",
   "branch_name": "master",
   "display_name": "master"
 }
