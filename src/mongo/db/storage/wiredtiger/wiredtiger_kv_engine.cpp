@@ -64,14 +64,8 @@
 #include "mongo/db/storage/storage_options.h"
 #include "mongo/db/storage/storage_parameters_gen.h"
 #include "mongo/db/storage/storage_repair_observer.h"
-<<<<<<< HEAD
 #include "mongo/db/storage/wiredtiger/encryption_keydb.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_backup_cursor_hooks.h"
-#include "mongo/db/storage/wiredtiger/wiredtiger_cache_eviction_opt_out_guard.h"
-||||||| 736490a0427
-#include "mongo/db/storage/wiredtiger/wiredtiger_cache_eviction_opt_out_guard.h"
-=======
->>>>>>> 61430ac26d642026f2755e9ceb129cae9f3852eb
 #include "mongo/db/storage/wiredtiger/wiredtiger_cache_pressure_monitor.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_connection.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_cursor.h"
