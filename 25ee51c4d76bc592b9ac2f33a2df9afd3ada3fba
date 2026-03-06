@@ -1,0 +1,28 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "384d7d49833fd5784914918b4058652b83b00898",
+    "merge_commit": "736490a04274c66324c23310a99d6453a8a9c5cb"
+  },
+  "mergai_version": "0.1.dev1+g1b75bf423",
+  "solutions": [
+    {
+      "response": {
+        "summary": "PSMDB-1963: fix format",
+        "resolved": {},
+        "unresolved": {},
+        "modified": {
+          "src/mongo/db/pipeline/BUILD.bazel": "Modified by human",
+          "src/mongo/db/storage/BUILD.bazel": "Modified by human"
+        },
+        "review_notes": null
+      },
+      "author": {
+        "name": "Pawel Lebioda",
+        "email": "pawel.lebioda@percona.com",
+        "type": "human"
+      },
+      "commit_sha": "25ee51c4d76bc592b9ac2f33a2df9afd3ada3fba"
+    }
+  ]
+}
