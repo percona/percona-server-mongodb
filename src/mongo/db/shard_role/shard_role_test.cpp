@@ -213,7 +213,7 @@ void ShardRoleTest::installUntrackedCollectionMetadata(OperationContext* opCtx,
         MODE_IX,
         auto_get_collection::Options{}.viewMode(auto_get_collection::ViewMode::kViewsPermitted));
     CollectionShardingRuntime::assertCollectionLockedAndAcquireExclusive(opCtx, nss)
-        ->setFilteringMetadata(opCtx, CollectionMetadata::UNTRACKED());
+        ->setFilteringMetadata_nonAuthoritative(opCtx, CollectionMetadata::UNTRACKED());
 }
 
 void ShardRoleTest::installShardedCollectionMetadata(
@@ -256,7 +256,7 @@ void ShardRoleTest::installShardedCollectionMetadata(
 
     AutoGetCollection coll(opCtx, nss, MODE_IX);
     CollectionShardingRuntime::assertCollectionLockedAndAcquireExclusive(opCtx, nss)
-        ->setFilteringMetadata(opCtx, collectionMetadata);
+        ->setFilteringMetadata_nonAuthoritative(opCtx, collectionMetadata);
 }
 
 void ShardRoleTest::withNewOpCtx(std::function<void(OperationContext*)> callback) {
@@ -722,7 +722,7 @@ TEST_F(ShardRoleTest, AcquireShardedCollWhenShardDoesNotKnowThePlacementVersionT
         AutoGetCollection coll(operationContext(), nssShardedCollection1, MODE_IX);
         CollectionShardingRuntime::assertCollectionLockedAndAcquireExclusive(operationContext(),
                                                                              nssShardedCollection1)
-            ->clearFilteringMetadata(operationContext());
+            ->clearFilteringMetadata_nonAuthoritative(operationContext());
     }
 
     PlacementConcern placementConcern{{}, shardVersionShardedCollection1};

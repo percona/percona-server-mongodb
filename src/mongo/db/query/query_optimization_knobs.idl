@@ -610,6 +610,14 @@ server_parameters:
         default: true
         redact: false
 
+    internalEnableJoinOptimizationUseIndexUniqueness:
+        description: "Whether or not to use index uniqueness metadata during join optimization"
+        set_at: [startup, runtime]
+        cpp_varname: "internalEnableJoinOptimizationUseIndexUniqueness"
+        cpp_vartype: AtomicWord<bool>
+        default: false
+        redact: false
+
     internalQueryEnableCSTParser:
         description: "If true, use the grammar-based parser and CST to parse queries."
         set_at: [startup, runtime]

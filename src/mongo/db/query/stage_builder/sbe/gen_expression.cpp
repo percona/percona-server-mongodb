@@ -850,23 +850,12 @@ public:
             return;
         }
 
-        SbExpr::Vector binds;
-        for (size_t idx = 0; idx < arity; ++idx) {
-            binds.emplace_back(popExpr());
-        }
-        std::reverse(std::begin(binds), std::end(binds));
-
-        auto frameId = _context->state.frameId();
         SbExpr::Vector args;
-
-        sbe::value::SlotId numLocalVars = 0;
         for (size_t idx = 0; idx < arity; ++idx) {
-            args.push_back(_b.makeFillEmptyNull(SbVar{frameId, numLocalVars++}));
+            args.emplace_back(_b.makeFillEmptyNull(popExpr()));
         }
-
-        auto arrayExpr = _b.makeFunction("newArray", std::move(args));
-
-        pushExpr(_b.makeLet(frameId, std::move(binds), std::move(arrayExpr)));
+        std::reverse(std::begin(args), std::end(args));
+        pushExpr(_b.makeFunction("newArray", std::move(args)));
     }
     void visit(const ExpressionArrayElemAt* expr) final {
         unsupportedExpression(expr->getOpName());

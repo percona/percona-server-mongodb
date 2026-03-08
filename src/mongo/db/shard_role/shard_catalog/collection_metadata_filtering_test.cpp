@@ -155,8 +155,8 @@ protected:
             AutoGetCollection autoColl(operationContext(), kNss, MODE_X);
             auto scopedCsr = CollectionShardingRuntime::assertCollectionLockedAndAcquireExclusive(
                 operationContext(), kNss);
-            scopedCsr->setFilteringMetadata(operationContext(),
-                                            CollectionMetadata(cm, ShardId("0")));
+            scopedCsr->setFilteringMetadata_nonAuthoritative(operationContext(),
+                                                             CollectionMetadata(cm, ShardId("0")));
         }
 
         _manager = std::make_shared<MetadataManager>(

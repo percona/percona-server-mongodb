@@ -186,7 +186,8 @@ public:
      * This method must be called with an exclusive collection lock and it does not acquire any
      * locks itself.
      */
-    void setFilteringMetadata(OperationContext* opCtx, CollectionMetadata newMetadata);
+    void setFilteringMetadata_nonAuthoritative(OperationContext* opCtx,
+                                               CollectionMetadata newMetadata);
 
     /**
      * Marks the collection's filtering metadata as UNKNOWN, meaning that all attempts to check for
@@ -197,12 +198,12 @@ public:
      * It is safe to call this method with only an intent lock on the collection (as opposed to
      * setFilteringMetadata which requires exclusive).
      */
-    void clearFilteringMetadata(OperationContext* opCtx);
+    void clearFilteringMetadata_nonAuthoritative(OperationContext* opCtx);
 
     /**
      * Calls to clearFilteringMetadata + clears the _metadataManager object.
      */
-    void clearFilteringMetadataForDroppedCollection(OperationContext* opCtx);
+    void clearFilteringMetadataForDroppedCollection_nonAuthoritative(OperationContext* opCtx);
 
     /**
      * Methods to control the collection's critical section. Methods listed below must be called
@@ -290,6 +291,20 @@ public:
                                                         const ChunkVersion& shardVersion,
                                                         const UUID& collectionUUID);
 
+    enum class AuthoritativeState {
+        /*
+         * The CSS is non-authoritative, meaning refreshes have to undergo the legacy protocol
+         * requiring interactions with the CSRS and or primary node in the replset.
+         */
+        kNonAuthoritative,
+        /*
+         * The CSS's latest state is authoritative, meaning any ownership/versioning decisions can
+         * be made solely by information present on the node without any external communication.
+         */
+        kAuthoritative
+    };
+    AuthoritativeState getAuthoritativeState() const;
+
 private:
     friend class CollectionShardingRuntimeTest;
 
@@ -351,6 +366,8 @@ private:
         kUntracked,  // no metadata found in the sharding catalog
         kTracked     // metadata for this collection is registered in the sharding catalog
     } _metadataType;
+
+    AuthoritativeState _authoritativeState = AuthoritativeState::kNonAuthoritative;
 
     // If the collection state is known and is untracked, this will be nullptr.
     //

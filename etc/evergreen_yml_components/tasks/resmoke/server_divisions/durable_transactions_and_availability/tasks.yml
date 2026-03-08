@@ -1805,6 +1805,37 @@ tasks:
     commands:
       - func: "do setup"
       - func: "run tests"
+  - <<: *gen_task_template
+    name: disagg_multi_shard_multi_stmt_txn_jscore_passthrough_gen
+    tags:
+      [
+        "assigned_to_jira_team_server_repl",
+        "default",
+        "large",
+        "clustered_collections",
+        "requires_extra_system_deps",
+      ]
+    commands:
+      - func: "generate resmoke tasks"
+        vars:
+          suite: disagg_multi_shard_multi_stmt_txn_jscore_passthrough
+          use_large_distro: "true"
+
+  - <<: *gen_task_template
+    name: disagg_multi_shard_local_read_write_multi_stmt_txn_jscore_passthrough_gen
+    tags:
+      [
+        "assigned_to_jira_team_server_repl",
+        "default",
+        "large",
+        "clustered_collections",
+        "requires_extra_system_deps",
+      ]
+    commands:
+      - func: "generate resmoke tasks"
+        vars:
+          suite: disagg_multi_shard_local_read_write_multi_stmt_txn_jscore_passthrough
+          use_large_distro: "true"
 
   - name: tla_plus
     tags: ["assigned_to_jira_team_server_repl", "experimental"]

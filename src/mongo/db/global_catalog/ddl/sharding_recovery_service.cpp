@@ -112,9 +112,9 @@ void ShardingRecoveryService::FilteringMetadataClearer::operator()(
     auto scopedCsr = CollectionShardingRuntime::assertCollectionLockedAndAcquireExclusive(
         opCtx, nssBeingReleased);
     if (_includeStepsForNamespaceDropped) {
-        scopedCsr->clearFilteringMetadataForDroppedCollection(opCtx);
+        scopedCsr->clearFilteringMetadataForDroppedCollection_nonAuthoritative(opCtx);
     } else {
-        scopedCsr->clearFilteringMetadata(opCtx);
+        scopedCsr->clearFilteringMetadata_nonAuthoritative(opCtx);
     }
 }
 

@@ -455,7 +455,8 @@ public:
         Lock::CollectionLock collLock(operationContext(), nss, MODE_IX);
         CollectionShardingRuntime::assertCollectionLockedAndAcquireExclusive(operationContext(),
                                                                              nss)
-            ->setFilteringMetadata(operationContext(), CollectionMetadata::UNTRACKED());
+            ->setFilteringMetadata_nonAuthoritative(operationContext(),
+                                                    CollectionMetadata::UNTRACKED());
     }
 
     CancellationSource _cancellationSource;

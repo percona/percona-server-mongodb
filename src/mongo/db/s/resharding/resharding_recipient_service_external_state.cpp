@@ -105,9 +105,9 @@ void ReshardingRecipientService::RecipientStateMachineExternalState::
         CollectionAcquisitionRequest::fromOpCtx(
             opCtx, metadata.getTempReshardingNss(), AcquisitionPrerequisites::kWrite),
         MODE_IX);
-    CollectionShardingRuntime::assertCollectionLockedAndAcquireExclusive(
-        opCtx, metadata.getTempReshardingNss())
-        ->clearFilteringMetadata(opCtx);
+    auto scopedCsr = CollectionShardingRuntime::assertCollectionLockedAndAcquireExclusive(
+        opCtx, metadata.getTempReshardingNss());
+    scopedCsr->clearFilteringMetadata_nonAuthoritative(opCtx);
 }
 
 ShardId RecipientStateMachineExternalStateImpl::myShardId(ServiceContext* serviceContext) const {

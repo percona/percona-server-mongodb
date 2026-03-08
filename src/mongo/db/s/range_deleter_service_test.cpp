@@ -158,7 +158,7 @@ void RangeDeleterServiceTest::_setFilteringMetadataByUUID(OperationContext* opCt
     }();
 
     CollectionShardingRuntime::assertCollectionLockedAndAcquireExclusive(opCtx, nss)
-        ->setFilteringMetadata(opCtx, metadata);
+        ->setFilteringMetadata_nonAuthoritative(opCtx, metadata);
 }
 
 /**

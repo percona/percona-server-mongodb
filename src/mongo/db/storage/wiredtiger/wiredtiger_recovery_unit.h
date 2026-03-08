@@ -186,10 +186,6 @@ public:
 
     void setCacheMaxWaitTimeout(Milliseconds) override;
 
-    Milliseconds getCacheMaxWaitTimeout() override {
-        return _cacheMaxWaitTimeout;
-    }
-
     void optOutOfCacheEviction() override {
         // 1 is a magic number in WiredTiger that opts this thread out of all optional eviction.
         setCacheMaxWaitTimeout(Milliseconds(1));

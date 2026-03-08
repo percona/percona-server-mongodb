@@ -179,7 +179,7 @@ public:
                     MODE_X);
                 CollectionShardingRuntime::assertCollectionLockedAndAcquireExclusive(opCtx.get(),
                                                                                      _outputNss)
-                    ->setFilteringMetadata(
+                    ->setFilteringMetadata_nonAuthoritative(
                         opCtx.get(),
                         CollectionMetadata(makeChunkManagerForOutputCollection(), _myDonorId));
             }

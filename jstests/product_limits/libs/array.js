@@ -62,9 +62,20 @@ export class WorkloadArrayToObject extends PipelineWorkload {
     }
 }
 
+export class WorkloadArray extends PipelineWorkload {
+    pipeline() {
+        let arrayList = range(this.scale()).map((i) => `$f${i}`);
+        return [{$project: {"array": arrayList}}, {$count: "cnt"}];
+    }
+
+    result() {
+        return [{"cnt": 1}];
+    }
+}
+
 export class WorkloadConcatArrays extends PipelineWorkload {
     pipeline() {
-        let arrayList = range(this.scale()).map((i) => [`$f$i`]);
+        let arrayList = range(this.scale()).map((i) => [`$f${i}`]);
         return [{$project: {"size": {$size: [{$concatArrays: arrayList}]}}}, {$unset: "_id"}];
     }
 

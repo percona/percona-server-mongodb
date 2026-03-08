@@ -1,8 +1,17 @@
+/**
+ * Tests renaming the system.buckets collection.
+ * TODO SERVER-120014: Remove this test once 9.0 becomes last LTS and all timeseries collections are viewless.
+ *
+ * @tags: [
+ *   # This test directly targets system.buckets namespaces which is rejected with viewless
+ *   # timeseries.
+ *   featureFlagCreateViewlessTimeseriesCollections_incompatible,
+ * ]
+ */
 import {assertDropCollection} from "jstests/libs/collection_drop_recreate.js";
 import {ReplSetTest} from "jstests/libs/replsettest.js";
 import {ShardingTest} from "jstests/libs/shardingtest.js";
 
-// Tests renaming the system.buckets collection.
 // Set up the test database.
 const dbName = "test";
 const collName = "mongosync.tmp.UUID123";

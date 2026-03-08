@@ -140,7 +140,8 @@ public:
             Lock::DBLock dbLock{opCtx.get(), kNss.dbName(), MODE_IX};
             Lock::CollectionLock collLock{opCtx.get(), kNss, MODE_IX};
             CollectionShardingRuntime::assertCollectionLockedAndAcquireExclusive(opCtx.get(), kNss)
-                ->setFilteringMetadata(opCtx.get(), CollectionMetadata(chunkManager, kDonorShard));
+                ->setFilteringMetadata_nonAuthoritative(
+                    opCtx.get(), CollectionMetadata(chunkManager, kDonorShard));
         }
 
         {
@@ -347,7 +348,7 @@ TEST_F(ShardingWriteRouterRegistryTest, CollDescHasNoRoutingTableReturnsNone) {
         Lock::CollectionLock collLock{opCtx.get(), untrackedNss, MODE_IX};
         CollectionShardingRuntime::assertCollectionLockedAndAcquireExclusive(opCtx.get(),
                                                                              untrackedNss)
-            ->setFilteringMetadata(opCtx.get(), CollectionMetadata());
+            ->setFilteringMetadata_nonAuthoritative(opCtx.get(), CollectionMetadata());
     }
 
     const auto client = _serviceContext->getService()->makeClient("test-unsharded-router");

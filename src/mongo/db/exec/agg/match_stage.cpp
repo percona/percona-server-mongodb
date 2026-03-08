@@ -53,12 +53,12 @@ MatchStage::MatchStage(StringData stageName,
                        const boost::intrusive_ptr<ExpressionContext>& pExpCtx,
                        const std::shared_ptr<MatchProcessor>& matchProcessor,
                        bool isTextQuery)
-    : Stage(stageName, pExpCtx), _matchProcessor(matchProcessor), _isTextQuery(isTextQuery) {}
+    : Stage(stageName, pExpCtx), _matchProcessor(matchProcessor) {
+    // The user facing error should have been generated earlier.
+    massert(17309, "Should never call getNext on a $match stage with $text clause", !isTextQuery);
+}
 
 GetNextResult MatchStage::doGetNext() {
-    // The user facing error should have been generated earlier.
-    massert(17309, "Should never call getNext on a $match stage with $text clause", !_isTextQuery);
-
     auto nextInput = pSource->getNext();
     for (; nextInput.isAdvanced(); nextInput = pSource->getNext()) {
         if (_matchProcessor->process(nextInput.getDocument())) {

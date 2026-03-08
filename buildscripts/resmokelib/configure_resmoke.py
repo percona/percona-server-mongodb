@@ -481,7 +481,10 @@ flags in common: {common_set}
                 )
             print("# Fetched unreleased incremental rollout feature flags...")
 
-            disabled_feature_flags_set = (unreleased_ifr_set - added_set) | excluded_set
+            effectively_disabled_flags_set = unreleased_ifr_set - added_set
+            enabled_feature_flags_set = enabled_feature_flags_set - effectively_disabled_flags_set
+
+            disabled_feature_flags_set = effectively_disabled_flags_set | excluded_set
         else:
             disabled_feature_flags_set = excluded_set
 

@@ -94,6 +94,8 @@ include:
 
   - filename: etc/evergreen_yml_components/variants/codecoverage/test_dev.yml
 
+  - filename: etc/evergreen_yml_components/variants/amazon/streams/streams_dev.yml
+
   - filename: src/mongo/db/modules/atlas/atlas_dev.yml
 
   - filename: monguard/.evergreen/config.yml

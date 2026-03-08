@@ -179,6 +179,10 @@ public:
                 // must be called before it is correct to use _data._value, so move construct here.
                 new (&_data._value) T(std::move(other._data._value));
             }
+        } else if (isInitialized()) {
+            // `other` is not initialized but we are so call the dtor on _value
+            // before marking ourselves as uninitialized.
+            _data._value.~T();
         }
         // Note! The moved-out-of object still needs to call a destructor, so
         // other._data._isInitialized cannot be cleared here.

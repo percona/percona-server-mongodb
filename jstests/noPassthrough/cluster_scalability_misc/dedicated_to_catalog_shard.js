@@ -8,7 +8,6 @@
  */
 
 import {FeatureFlagUtil} from "jstests/libs/feature_flag_util.js";
-import {ReplSetTest} from "jstests/libs/replsettest.js";
 import {ShardingTest} from "jstests/libs/shardingtest.js";
 
 const dbName = "foo";
@@ -35,8 +34,6 @@ const st = new ShardingTest({
     initiateWithDefaultElectionTimeout: true,
 });
 
-const configCS = st.configRS.getURL();
-
 // Dedicated config server mode tests (pre addShard).
 {
     // Can create user namespaces via direct writes.
@@ -44,6 +41,7 @@ const configCS = st.configRS.getURL();
 
     // Failover works.
     st.configRS.stepUp(st.configRS.getSecondary());
+    st.configRS.awaitReplication();
 
     // Restart works. Restart all nodes to verify they don't rely on a majority of nodes being up.
     const configNodes = st.configRS.nodes;

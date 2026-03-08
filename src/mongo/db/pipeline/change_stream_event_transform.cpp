@@ -611,23 +611,30 @@ Document ChangeStreamDefaultEventTransformation::applyTransformation(const Docum
             tasserted(11352601, str::stream() << "Invalid noop entry " << o2Field.toString());
         }
         case repl::OpTypeEnum::kContainerInsert: {
-            // Container insert ('ci') oplog entries should not show up when we get here. They
+            // Container insert ('ci') oplog entries should not show up in change streams. They
             // should have been filtered out by the change stream's oplog match filter already.
             tasserted(11888300, "Change stream encountered unexpected 'ci' oplog entry");
         }
         case repl::OpTypeEnum::kContainerDelete: {
-            // Container delete ('cd') oplog entries should not show up when we get here. They
+            // Container delete ('cd') oplog entries should not show up in change streams. They
             // should have been filtered out by the change stream's oplog match filter already.
             tasserted(11888301, "Change stream encountered unexpected 'cd' oplog entry");
         }
         case repl::OpTypeEnum::kKeyMaterial: {
-            // Key material ('km') oplog entries should not show up when we get here. They
+            // Key material ('km') oplog entries should not show up in change streams. They
             // should have been filtered out by the change stream's oplog match filter already.
             tasserted(11945200, "Change stream encountered unexpected 'km' oplog entry");
         }
         default: {
+            // This static_assert is here so that it causes a compile error when new oplog entry
+            // types are added without handling/ignoring them in change streams code. In case a new
+            // oplog entry type is added and does not need special handling in change streams,
+            // simply adjust the number of expected oplog entry types below. If the new oplog entry
+            // type needs to be handled in change streams, add it to the code below and also to the
+            // change stream oplog match filter.
+            constexpr size_t kExpectedOplogEntryTypes = 8;
             static_assert(
-                idlEnumCount<repl::OpTypeEnum> == 8,
+                idlEnumCount<repl::OpTypeEnum> == kExpectedOplogEntryTypes,
                 "unexpected number of oplog entry types - when adding a new oplog entry type, "
                 "please make sure that the change stream event transformer handles it correctly!");
 

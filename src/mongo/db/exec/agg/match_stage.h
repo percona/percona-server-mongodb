@@ -49,7 +49,6 @@ private:
     GetNextResult doGetNext() override;
 
     std::shared_ptr<MatchProcessor> _matchProcessor;
-    bool _isTextQuery;
 };
 
 }  // namespace agg

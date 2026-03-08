@@ -185,7 +185,7 @@ TEST_F(
     CollectionShardingRuntimeTest,
     GetCollectionDescriptionReturnsUnshardedAfterSetFilteringMetadataIsCalledWithUnshardedMetadata) {
     CollectionShardingRuntime csr(getServiceContext(), kTestNss);
-    csr.setFilteringMetadata(operationContext(), CollectionMetadata::UNTRACKED());
+    csr.setFilteringMetadata_nonAuthoritative(operationContext(), CollectionMetadata::UNTRACKED());
     ASSERT_FALSE(csr.getCollectionDescription(operationContext()).isSharded());
 }
 
@@ -194,7 +194,7 @@ TEST_F(CollectionShardingRuntimeTest,
     CollectionShardingRuntime csr(getServiceContext(), kTestNss);
     OperationContext* opCtx = operationContext();
     auto metadata = makeShardedMetadata(opCtx);
-    csr.setFilteringMetadata(opCtx, metadata);
+    csr.setFilteringMetadata_nonAuthoritative(opCtx, metadata);
     ScopedSetShardRole scopedSetShardRole{
         opCtx, kTestNss, ShardVersionFactory::make(metadata), boost::none /* databaseVersion */};
     ASSERT_TRUE(csr.getCollectionDescription(opCtx).isSharded());
@@ -210,7 +210,7 @@ TEST_F(
     CollectionShardingRuntimeTest,
     GetCurrentMetadataIfKnownReturnsUnshardedAfterSetFilteringMetadataIsCalledWithUntrackedMetadata) {
     CollectionShardingRuntime csr(getServiceContext(), kTestNss);
-    csr.setFilteringMetadata(operationContext(), CollectionMetadata::UNTRACKED());
+    csr.setFilteringMetadata_nonAuthoritative(operationContext(), CollectionMetadata::UNTRACKED());
     const auto optCurrMetadata = csr.getCurrentMetadataIfKnown();
     ASSERT_TRUE(optCurrMetadata);
     ASSERT_FALSE(optCurrMetadata->isSharded());
@@ -223,7 +223,7 @@ TEST_F(
     CollectionShardingRuntime csr(getServiceContext(), kTestNss);
     OperationContext* opCtx = operationContext();
     auto metadata = makeShardedMetadata(opCtx);
-    csr.setFilteringMetadata(opCtx, metadata);
+    csr.setFilteringMetadata_nonAuthoritative(opCtx, metadata);
     const auto optCurrMetadata = csr.getCurrentMetadataIfKnown();
     ASSERT_TRUE(optCurrMetadata);
     ASSERT_TRUE(optCurrMetadata->isSharded());
@@ -234,8 +234,8 @@ TEST_F(CollectionShardingRuntimeTest,
        GetCurrentMetadataIfKnownReturnsNoneAfterClearFilteringMetadataIsCalled) {
     CollectionShardingRuntime csr(getServiceContext(), kTestNss);
     OperationContext* opCtx = operationContext();
-    csr.setFilteringMetadata(opCtx, makeShardedMetadata(opCtx));
-    csr.clearFilteringMetadata(opCtx);
+    csr.setFilteringMetadata_nonAuthoritative(opCtx, makeShardedMetadata(opCtx));
+    csr.clearFilteringMetadata_nonAuthoritative(opCtx);
     ASSERT_FALSE(csr.getCurrentMetadataIfKnown());
 }
 
@@ -244,11 +244,11 @@ TEST_F(CollectionShardingRuntimeTest, SetFilteringMetadataWithSameUUIDKeepsSameM
     ASSERT_EQ(getNumMetadataManagerChanges(csr), 0);
     OperationContext* opCtx = operationContext();
     auto metadata = makeShardedMetadata(opCtx);
-    csr.setFilteringMetadata(opCtx, metadata);
+    csr.setFilteringMetadata_nonAuthoritative(opCtx, metadata);
     // Should create a new MetadataManager object, bumping the count to 1.
     ASSERT_EQ(getNumMetadataManagerChanges(csr), 1);
     // Set it again.
-    csr.setFilteringMetadata(opCtx, metadata);
+    csr.setFilteringMetadata_nonAuthoritative(opCtx, metadata);
     // Should not have reset metadata, so the counter should still be 1.
     ASSERT_EQ(getNumMetadataManagerChanges(csr), 1);
 }
@@ -258,7 +258,7 @@ TEST_F(CollectionShardingRuntimeTest,
     CollectionShardingRuntime csr(getServiceContext(), kTestNss);
     OperationContext* opCtx = operationContext();
     auto metadata = makeShardedMetadata(opCtx);
-    csr.setFilteringMetadata(opCtx, metadata);
+    csr.setFilteringMetadata_nonAuthoritative(opCtx, metadata);
     ScopedSetShardRole scopedSetShardRole{
         opCtx, kTestNss, ShardVersionFactory::make(metadata), boost::none /* databaseVersion */};
     ASSERT_EQ(getNumMetadataManagerChanges(csr), 1);
@@ -266,7 +266,7 @@ TEST_F(CollectionShardingRuntimeTest,
     // Set it again with a different metadata object (UUID is generated randomly in
     // makeShardedMetadata()).
     auto newMetadata = makeShardedMetadata(opCtx);
-    csr.setFilteringMetadata(opCtx, newMetadata);
+    csr.setFilteringMetadata_nonAuthoritative(opCtx, newMetadata);
 
     ASSERT_EQ(getNumMetadataManagerChanges(csr), 2);
     ASSERT(
@@ -280,7 +280,7 @@ TEST_F(CollectionShardingRuntimeTest,
     ASSERT_EQ(0, getNumMetadataManagerChanges(csr));
 
     // Set an UNTRACKED metadata
-    csr.setFilteringMetadata(opCtx, CollectionMetadata::UNTRACKED());
+    csr.setFilteringMetadata_nonAuthoritative(opCtx, CollectionMetadata::UNTRACKED());
 
     // Should create a new MetadataManager object, bumping the count to 1.
     ASSERT_EQ(1, getNumMetadataManagerChanges(csr));
@@ -294,7 +294,7 @@ TEST_F(CollectionShardingRuntimeTest,
 
     // Set a TRACKED METADATA
     auto metadata = makeShardedMetadata(opCtx);
-    csr.setFilteringMetadata(opCtx, metadata);
+    csr.setFilteringMetadata_nonAuthoritative(opCtx, metadata);
 
     // Should not have reset metadata, so the counter should still be 1.
     ASSERT_EQ(1, getNumMetadataManagerChanges(csr));
@@ -310,7 +310,7 @@ TEST_F(CollectionShardingRuntimeTest,
     ASSERT_EQ(0, getNumMetadataManagerChanges(csr));
 
     // Set an UNTRACKED metadata
-    csr.setFilteringMetadata(opCtx, CollectionMetadata::UNTRACKED());
+    csr.setFilteringMetadata_nonAuthoritative(opCtx, CollectionMetadata::UNTRACKED());
 
     // When a range preserver isn't bound to a metadata tracker, it gets automatically removed once
     // another filtering metadata is added. Hence, we should install a range preserver to avoid
@@ -325,7 +325,7 @@ TEST_F(CollectionShardingRuntimeTest,
     ASSERT_EQ(false, getMetadataManager(csr)->hasRoutingTable());
 
     // Set UNTRACKED METADATA again
-    csr.setFilteringMetadata(opCtx, CollectionMetadata::UNTRACKED());
+    csr.setFilteringMetadata_nonAuthoritative(opCtx, CollectionMetadata::UNTRACKED());
 
     // Should not have reset metadata, so the counter should still be 1.
     // Should not have added any snapshot to the metadata manager.
@@ -343,7 +343,7 @@ TEST_F(CollectionShardingRuntimeTest,
 
     // Set a TRACKED METADATA
     auto metadata = makeShardedMetadata(opCtx);
-    csr.setFilteringMetadata(opCtx, metadata);
+    csr.setFilteringMetadata_nonAuthoritative(opCtx, metadata);
 
     // Should create a new MetadataManager object, bumping the count to 1.
     ASSERT_EQ(1, getNumMetadataManagerChanges(csr));
@@ -352,7 +352,7 @@ TEST_F(CollectionShardingRuntimeTest,
     ASSERT_EQ(true, getMetadataManager(csr)->hasRoutingTable());
 
     // Set UNTRACKED METADATA
-    csr.setFilteringMetadata(opCtx, CollectionMetadata::UNTRACKED());
+    csr.setFilteringMetadata_nonAuthoritative(opCtx, CollectionMetadata::UNTRACKED());
 
     // Should have reset metadata, so the counter should have bumped to 1.
     ASSERT_EQ(2, getNumMetadataManagerChanges(csr));
@@ -372,7 +372,7 @@ TEST_F(CollectionShardingRuntimeTest,
 
     // Set a TRACKED METADATA
     {
-        csr.setFilteringMetadata(opCtx, metadata1);
+        csr.setFilteringMetadata_nonAuthoritative(opCtx, metadata1);
 
         // Should create a new MetadataManager object, bumping the count to 1.
         ASSERT_EQ(1, getNumMetadataManagerChanges(csr));
@@ -387,7 +387,7 @@ TEST_F(CollectionShardingRuntimeTest,
 
     // Set a TRACKED METADATA again with the same UUID
     {
-        csr.setFilteringMetadata(opCtx, metadata2);
+        csr.setFilteringMetadata_nonAuthoritative(opCtx, metadata2);
 
         // Should keep the same MetadataManager object and increase the number of snapshots
         ASSERT_EQ(1, getNumMetadataManagerChanges(csr));
@@ -409,7 +409,7 @@ TEST_F(CollectionShardingRuntimeTest,
 
     // Set a TRACKED METADATA
     {
-        csr.setFilteringMetadata(opCtx, metadata1);
+        csr.setFilteringMetadata_nonAuthoritative(opCtx, metadata1);
 
         // Should create a new MetadataManager object, bumping the count to 1.
         ASSERT_EQ(1, getNumMetadataManagerChanges(csr));
@@ -420,7 +420,7 @@ TEST_F(CollectionShardingRuntimeTest,
 
     // Set a TRACKED METADATA again with a different UUID
     {
-        csr.setFilteringMetadata(opCtx, metadata2);
+        csr.setFilteringMetadata_nonAuthoritative(opCtx, metadata2);
 
         // Should restore the MetadataManager object.
         ASSERT_EQ(2, getNumMetadataManagerChanges(csr));
@@ -435,7 +435,7 @@ TEST_F(CollectionShardingRuntimeTest, ShardVersionCheckDetectsClusterTimeConflic
     OperationContext* opCtx = operationContext();
     CollectionShardingRuntime csr(getServiceContext(), kTestNss);
     const auto metadata = makeShardedMetadata(opCtx);
-    csr.setFilteringMetadata(opCtx, metadata);
+    csr.setFilteringMetadata_nonAuthoritative(opCtx, metadata);
 
     const auto collectionTimestamp = metadata.getShardPlacementVersion().getTimestamp();
 
@@ -536,7 +536,7 @@ DEATH_TEST_REGEX_F(CollectionShardingRuntimeTestDeathTest,
                    "Tripwire assertion.*10206300") {
     CollectionShardingRuntime csr(getServiceContext(), kTestNss);
     const auto metadata = makeShardedMetadata(operationContext());
-    csr.setFilteringMetadata(operationContext(), metadata);
+    csr.setFilteringMetadata_nonAuthoritative(operationContext(), metadata);
     const auto receivedShardVersion = ShardVersionFactory::make(metadata);
 
     runWithinTxn(operationContext(), boost::none, [&]() {
@@ -559,7 +559,7 @@ TEST_F(CollectionShardingRuntimeTest, InvalidateRangePreserversOlderThanShardVer
     auto metadataInThePast =
         makeShardedMetadata(opCtx, collectionUUID, metadataShardId, metadataShardId);
     auto metadata = makeShardedMetadata(opCtx, collectionUUID, metadataShardId, metadataShardId);
-    csr.setFilteringMetadata(opCtx, metadata);
+    csr.setFilteringMetadata_nonAuthoritative(opCtx, metadata);
     const auto optCurrMetadata = csr.getCurrentMetadataIfKnown();
     ASSERT_TRUE(optCurrMetadata);
     ASSERT_TRUE(optCurrMetadata->isSharded());
@@ -596,7 +596,7 @@ TEST_F(CollectionShardingRuntimeTest, InvalidateRangePreserversOlderThanUnsharde
     auto collectionUUID = UUID::gen();
     OperationContext* opCtx = operationContext();
     auto metadata = makeShardedMetadata(opCtx, collectionUUID);
-    csr.setFilteringMetadata(opCtx, metadata);
+    csr.setFilteringMetadata_nonAuthoritative(opCtx, metadata);
 
     auto ownershipFilter = csr.getOwnershipFilter(
         opCtx, CollectionShardingState::OrphanCleanupPolicy::kDisallowOrphanCleanup, true);
@@ -617,7 +617,7 @@ TEST_F(CollectionShardingRuntimeTest, InvalidateRangePreserversUntrackedCollecti
     CollectionShardingRuntime csr(getServiceContext(), kTestNss);
     auto collectionUUID = UUID::gen();
     OperationContext* opCtx = operationContext();
-    csr.setFilteringMetadata(opCtx, CollectionMetadata::UNTRACKED());
+    csr.setFilteringMetadata_nonAuthoritative(opCtx, CollectionMetadata::UNTRACKED());
 
     auto ownershipFilter = csr.getOwnershipFilter(
         opCtx, CollectionShardingState::OrphanCleanupPolicy::kDisallowOrphanCleanup, true);
@@ -627,7 +627,7 @@ TEST_F(CollectionShardingRuntimeTest, InvalidateRangePreserversUntrackedCollecti
     // Promote the collection to a sharded collection since it only make sense to invalidat range
     // preservers on sharded collections.
     const auto metadata = makeShardedMetadata(opCtx, collectionUUID);
-    csr.setFilteringMetadata(opCtx, metadata);
+    csr.setFilteringMetadata_nonAuthoritative(opCtx, metadata);
 
     ASSERT_TRUE(ownershipFilter.isRangePreserverStillValid());
 
@@ -944,7 +944,7 @@ TEST_F(CollectionShardingRuntimeWithRangeDeleterTest,
        WaitForCleanReturnsErrorIfCollectionUUIDDoesNotMatchFilteringMetadata) {
     OperationContext* opCtx = operationContext();
     auto metadata = makeShardedMetadata(opCtx, uuid());
-    csr()->setFilteringMetadata(opCtx, metadata);
+    csr()->setFilteringMetadata_nonAuthoritative(opCtx, metadata);
     auto randomUuid = UUID::gen();
 
     auto status = CollectionShardingRuntime::waitForClean(
@@ -960,7 +960,7 @@ TEST_F(CollectionShardingRuntimeWithRangeDeleterTest,
        WaitForCleanReturnsOKIfNoDeletionsAreScheduled) {
     OperationContext* opCtx = operationContext();
     auto metadata = makeShardedMetadata(opCtx, uuid());
-    csr()->setFilteringMetadata(opCtx, metadata);
+    csr()->setFilteringMetadata_nonAuthoritative(opCtx, metadata);
 
     auto status = CollectionShardingRuntime::waitForClean(
         opCtx,
@@ -982,7 +982,7 @@ TEST_F(CollectionShardingRuntimeWithRangeDeleterTest,
     OperationContext* opCtx = operationContext();
 
     auto metadata = makeShardedMetadata(opCtx, uuid());
-    csr()->setFilteringMetadata(opCtx, metadata);
+    csr()->setFilteringMetadata_nonAuthoritative(opCtx, metadata);
     const ChunkRange range = ChunkRange(BSON(kShardKey << MINKEY), BSON(kShardKey << MAXKEY));
 
     const auto task = createRangeDeletionTask(opCtx, kTestNss, uuid(), range, 0);
@@ -1003,7 +1003,7 @@ TEST_F(CollectionShardingRuntimeWithRangeDeleterTest,
        WaitForCleanBlocksBehindAllScheduledDeletions) {
     OperationContext* opCtx = operationContext();
     auto metadata = makeShardedMetadata(opCtx, uuid());
-    csr()->setFilteringMetadata(opCtx, metadata);
+    csr()->setFilteringMetadata_nonAuthoritative(opCtx, metadata);
 
     const auto middleKey = 5;
     const ChunkRange range1 = ChunkRange(BSON(kShardKey << MINKEY), BSON(kShardKey << middleKey));
@@ -1037,7 +1037,7 @@ TEST_F(CollectionShardingRuntimeWithRangeDeleterTest,
        WaitForCleanReturnsOKAfterSuccessfulDeletion) {
     OperationContext* opCtx = operationContext();
     auto metadata = makeShardedMetadata(opCtx, uuid());
-    csr()->setFilteringMetadata(opCtx, metadata);
+    csr()->setFilteringMetadata_nonAuthoritative(opCtx, metadata);
     const ChunkRange range = ChunkRange(BSON(kShardKey << MINKEY), BSON(kShardKey << MAXKEY));
     const auto task = createRangeDeletionTask(opCtx, kTestNss, uuid(), range, 0);
 

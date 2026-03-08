@@ -48,6 +48,7 @@
 #include "mongo/db/repl/optime.h"
 #include "mongo/db/shard_role/shard_catalog/raw_data_operation.h"
 
+#include <cstdint>
 #include <set>
 #include <string>
 #include <utility>
@@ -57,6 +58,34 @@
 
 namespace mongo {
 namespace {
+
+// Return a `$in` list containing all oplog entry types that represent CRUD ops.
+BSONObj getCRUDOplogEntryTypesFilter() {
+    // This static_assert is here so that it causes a compile error when new oplog entry types are
+    // added without handling/ignoring them in change streams code. In case a new oplog entry type
+    // is added and does not need special handling in change streams, simply adjust the number of
+    // expected oplog entry types below. If the new oplog entry type needs to be handled in change
+    // streams, add it to the code below and also to the change stream event transformer, which
+    // transforms oplog entries into change events.
+    constexpr size_t kExpectedOplogEntryTypes = 8;
+    static_assert(idlEnumCount<repl::OpTypeEnum> == kExpectedOplogEntryTypes,
+                  "unexpected number of oplog entry types - when adding a new oplog entry type, "
+                  "please make sure that the change stream oplog filter handles it correctly!");
+
+    // Matches the following oplog entry types:
+    // - "d": delete
+    // - "i": insert
+    // - "u": update
+    //
+    // Intentionally does not match the following oplog entry types:
+    // - "c": command
+    // - "n": no-op
+    // - "ci": container insert
+    // - "cd": container delete
+    // - "km": key material
+    return BSON("$in" << BSON_ARRAY("d" << "i" << "u"));
+}
+
 void appendCommonTransactionFilter(BSONObjBuilder& applyOpsBuilder) {
     applyOpsBuilder.append("op", "c");
 
@@ -149,9 +178,7 @@ std::unique_ptr<MatchExpression> buildOperationFilter(
     // The standard event filter, before it is combined with the user filter, is as follows:
     //    {
     //      $or: [
-    //        {ns: nsMatch, $nor: [{op: "n"}, {op: "c"},      // no-op and CRUD events
-    //                             {op: "ci"}, {op: "cd"},    // container insert / container delete
-    //                             {op: "km"}]},              // key material (KEK)
+    //        {ns: nsMatch, op: {$in: ["d", "i", "u"]}},      // CRUD oplog entry types
     //        {ns: cmdNsMatch, op: "c", $or: [                // Commands on relevant DB(s)
     //          {"o.drop": collMatch},                        // Drops of relevant collection(s)
     //          {"o.renameCollection": nsMatch},              // Renames of relevant collection(s)
@@ -167,13 +194,7 @@ std::unique_ptr<MatchExpression> buildOperationFilter(
 
     // (1) CRUD events on a monitored namespace.
     auto crudEvents = backingBsonObjs.emplace_back(
-        BSON("ns" << nsMatch.firstElement() << "$nor"
-                  << BSON_ARRAY(BSON("op" << "n") << BSON("op" << "c") << BSON("op" << "ci")
-                                                  << BSON("op" << "cd") << BSON("op" << "km"))));
-
-    static_assert(idlEnumCount<repl::OpTypeEnum> == 8,
-                  "unexpected number of oplog entry types - when adding a new oplog entry type, "
-                  "please make sure that the change stream oplog filter handles it correctly!");
+        BSON("ns" << nsMatch.firstElement() << "op" << getCRUDOplogEntryTypesFilter()));
 
     BSONObj cmdMatch = DocumentSourceChangeStream::getCmdNsMatchObjForChangeStream(expCtx);
 
@@ -270,17 +291,13 @@ std::unique_ptr<MatchExpression> buildViewDefinitionEventFilter(
     std::vector<BSONObj>& backingBsonObjs) {
     // The view op filter is as follows:
     // {
-    //   ns: nsSystemViewsRegex, // match system.views for relevant DBs
-    //   $nor: [                 // match only CRUD events
-    //     {op: "n"},
-    //     {op: "c"}
-    //   ]
+    //   ns: nsSystemViewsRegex,     // match system.views for relevant DBs
+    //   op: {$in: ["d", "i", "u"]}  // match only CRUD events
     // }
     BSONObj nsSystemViewsMatch =
         DocumentSourceChangeStream::getViewNsMatchObjForChangeStream(expCtx);
     auto viewEventsFilter = backingBsonObjs.emplace_back(
-        BSON("ns" << nsSystemViewsMatch.firstElement() << "$nor"
-                  << BSON_ARRAY(BSON("op" << "n") << BSON("op" << "c"))));
+        BSON("ns" << nsSystemViewsMatch.firstElement() << "op" << getCRUDOplogEntryTypesFilter()));
 
     return MatchExpressionParser::parseAndNormalize(viewEventsFilter, expCtx);
 }

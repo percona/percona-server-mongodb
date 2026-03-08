@@ -261,8 +261,9 @@ void _clearFilteringMetadataByUUID(OperationContext* opCtx, const UUID& uuid) {
     NamespaceString nss = RangeDeleterServiceTest::nssWithUuid[uuid];
 
     AutoGetCollection autoColl(opCtx, nss, LockMode::MODE_X);
-    CollectionShardingRuntime::assertCollectionLockedAndAcquireExclusive(opCtx, nss)
-        ->clearFilteringMetadata(opCtx);
+    auto scopedCsr =
+        CollectionShardingRuntime::assertCollectionLockedAndAcquireExclusive(opCtx, nss);
+    scopedCsr->clearFilteringMetadata_nonAuthoritative(opCtx);
 }
 
 }  // namespace mongo

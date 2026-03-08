@@ -4,7 +4,7 @@
 import {configureFailPoint} from "jstests/libs/fail_point_util.js";
 import {FeatureFlagUtil} from "jstests/libs/feature_flag_util.js";
 import {isFCVgte} from "jstests/libs/feature_compatibility_version.js";
-import {getRawOperationSpec} from "jstests/libs/raw_operation_utils.js";
+import {getRawOperationSpec, isRawOperationSupported} from "jstests/libs/raw_operation_utils.js";
 
 export const defaultSnapshotSize = 1000;
 const infoBatchQuery = {
@@ -428,6 +428,11 @@ function listCollectionsWithoutViews(database) {
 
 // Returns a list of names of all indexes.
 function getIndexNames(db, collName, allowedErrorCodes) {
+    // TODO(SERVER-118882): Remove this once 9.0 becomes last LTS.
+    // Ignore system.buckets.*
+    if (isRawOperationSupported(db) && collName.startsWith("system.buckets")) {
+        return [];
+    }
     let failMsg = "'listIndexes' command failed";
     const rawOpSpec = getRawOperationSpec(db);
     let res = assert.commandWorkedOrFailedWithCode(

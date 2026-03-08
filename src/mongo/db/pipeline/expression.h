@@ -4742,7 +4742,12 @@ public:
         : Expression(expCtx, std::move(children)),
           _useLongestLength(useLongestLength),
           _inputs(std::move(inputs)),
-          _defaults(std::move(defaults)) {}
+          _defaults(std::move(defaults)) {
+        if (_children.size() > kMaxArgumentCountForSwitchAndSetExprForSbe &&
+            !feature_flags::gFeatureFlagSbeUpgradeBinaryTrees.checkEnabled()) {
+            expCtx->setSbeCompatibility(SbeCompatibility::notCompatible);
+        }
+    }
 
     Value evaluate(const Document& root, Variables* variables) const final;
     [[nodiscard]] boost::intrusive_ptr<Expression> optimize() final;

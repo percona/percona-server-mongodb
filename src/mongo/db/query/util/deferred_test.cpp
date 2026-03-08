@@ -36,6 +36,22 @@ using std::string;
 using namespace std::string_literals;
 
 
+namespace {
+// Type that counts destructions so we can verify the cached value is destroyed
+// when move-assigning an uninitialized Deferred over an initialized one.
+struct DestructionCounter {
+    static int destructorCount;
+    ~DestructionCounter() {
+        ++destructorCount;
+    }
+};
+int DestructionCounter::destructorCount = 0;
+
+DestructionCounter makeDestructionCounter() {
+    return DestructionCounter{};
+}
+}  // namespace
+
 TEST(DeferredTest, EagerInitialization) {
     // Note that when initialised with a value eagerly, Deferred cannot
     // deduce the initialiser type to store (as one has not been provided).
@@ -97,5 +113,23 @@ TEST(DeferredTest, DeferredInitializationWithTwoArgs) {
     ASSERT_EQ(deferred.get("cowbell", "more "), "more cowbell"s);
     ASSERT_EQ(deferred.get("cowbell", "less?"), "more cowbell"s);
     ASSERT_EQ(deferred.get("tests", "better"), "more cowbell"s);
+}
+
+TEST(DeferredTest, MoveAssignUninitializedOverInitializedDestroysOldValue) {
+    DestructionCounter::destructorCount = 0;
+
+    Deferred<DestructionCounter (*)()> initialized{&makeDestructionCounter};
+    ASSERT_FALSE(initialized.isInitialized());
+
+    initialized.get();
+    ASSERT_TRUE(initialized.isInitialized());
+    ASSERT_EQ(DestructionCounter::destructorCount, 0);
+
+    initialized = Deferred<DestructionCounter (*)()>(&makeDestructionCounter);
+
+    ASSERT_EQ(DestructionCounter::destructorCount, 1)
+        << "Expected the old cached value to be destroyed exactly once";
+    ASSERT_FALSE(initialized.isInitialized())
+        << "After assigning from uninitialized, the Deferred should be uninitialized";
 }
 }  // namespace mongo
