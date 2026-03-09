@@ -321,7 +321,8 @@ public:
      */
     static BSONObj makeCreateCollObject(const NamespaceString& collectionName,
                                         const mongo::CollectionOptions& options,
-                                        const BSONObj& idIndex);
+                                        const BSONObj& idIndex,
+                                        boost::optional<bool> recordIdsReplicated = boost::none);
 
     /**
      * Attaches local catalog identifiers into the 'o2' field of a 'create' OplogEntry.

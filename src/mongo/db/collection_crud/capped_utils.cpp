@@ -137,7 +137,14 @@ void cloneCollectionAsCapped(OperationContext* opCtx,
 
         writeConflictRetry(opCtx, "cloneCollectionAsCapped", toNss, [&] {
             WriteUnitOfWork wunit(opCtx);
-            invariant(db->createCollection(opCtx, toNss, options));
+            invariant(
+                db->createCollection(opCtx,
+                                     toNss,
+                                     options,
+                                     /*createDefaultIndexes=*/true,
+                                     /*idIndex=*/BSONObj(),
+                                     /*fromMigrate=*/false,
+                                     fromCollection.getCollectionPtr()->areRecordIdsReplicated()));
             wunit.commit();
         });
     }

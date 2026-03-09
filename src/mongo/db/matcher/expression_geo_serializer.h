@@ -61,6 +61,10 @@ void geoNearExpressionCustomSerialization(BSONObjBuilder& bob,
                                           const SerializationOptions& opts = {},
                                           bool includePath = true);
 
+void serializeGeoOperator(BSONObjBuilder& bob,
+                          const BSONObj& obj,
+                          const SerializationOptions& opts = {});
+
 void geoExpressionCustomSerialization(BSONObjBuilder& bob,
                                       const BSONObj& obj,
                                       const SerializationOptions& opts = {},

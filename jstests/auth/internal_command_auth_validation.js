@@ -646,6 +646,10 @@ const internalCommandsMap = {
         testname: "_shardsvrMovePrimaryExitCriticalSection",
         command: {_shardsvrMovePrimaryExitCriticalSection: "test", reason: {}},
     },
+    _recoverShardRegistry: {
+        testname: "_recoverShardRegistry",
+        command: {_recoverShardRegistry: 1},
+    },
     _shardsvrMoveRange: {
         testname: "_shardsvrMoveRange",
         command: {

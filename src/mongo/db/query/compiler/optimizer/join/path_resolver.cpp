@@ -29,6 +29,10 @@
 
 #include "mongo/db/query/compiler/optimizer/join/path_resolver.h"
 
+#include "mongo/db/query/compiler/optimizer/join/logical_defs.h"
+
+#include <boost/optional/optional.hpp>
+
 namespace mongo::join_ordering {
 PathResolver::PathResolver(NodeId baseNode, std::vector<ResolvedPath>& resolvedPaths)
     : _resolvedPaths(resolvedPaths) {
@@ -51,27 +55,70 @@ PathId PathResolver::addPath(NodeId nodeId, FieldPath fieldPath) {
     return it->second;
 }
 
-PathId PathResolver::resolve(const FieldPath& path) {
-    auto [nodeId, pathWithoutEmbedPath] = resolveNodeByEmbedPath(path);
-    return addPath(nodeId, std::move(pathWithoutEmbedPath));
+boost::optional<PathId> PathResolver::resolve(const FieldPath& path) {
+    if (auto resolved = resolveNodeByEmbedPath(path); resolved) {
+        auto [nodeId, pathWithoutEmbedPath] = *resolved;
+        return boost::make_optional(addPath(nodeId, std::move(pathWithoutEmbedPath)));
+    } else {
+        return boost::none;
+    }
 }
 
-std::pair<NodeId, FieldPath> PathResolver::resolveNodeByEmbedPath(
+bool PathResolver::pathResolvesToJoinNode(const FieldPath& asField, NodeId baseNodeId) {
+    if (auto resolved = resolveNodeByEmbedPath(asField); resolved) {
+        auto [nodeId, pathWithoutEmbedPath] = *resolved;
+        if (nodeId == baseNodeId) {
+            // Hooray, this path is not owned by any join nodes in the graph so it's good to go!
+            return false;
+        }
+        // This represents the case where the path in the asField is already owned by/attributed
+        // to a previous join node in the graph. Take for example this pipeline:
+        // {$lookup: {as: x, ...}}
+        // {$lookup: {as: x.y, ...}}
+        // By the time we resolve 'x.y' we see that the prefix 'x' is already owned by the
+        // join node created from the first $lookup stage.
+        return true;
+    }
+    // This is the case where the second lookup "as" field is a prefix of the first's.
+    // See code comment in resolveNodeByEmbedPath() for more details.
+    return true;
+}
+
+boost::optional<std::pair<NodeId, FieldPath>> PathResolver::resolveNodeByEmbedPath(
     const FieldPath& fieldPath) const {
+
     for (auto scopePos = _scopes.rbegin(); scopePos != _scopes.rend(); ++scopePos) {
         if (!scopePos->embedPath.has_value()) {
             // Base node case: no prefix substraction is required.
-            return {scopePos->nodeId, fieldPath};
+            return boost::make_optional(std::make_pair(scopePos->nodeId, fieldPath));
         } else if (scopePos->embedPath->isPrefixOf(fieldPath)) {
             if (scopePos->embedPath->getPathLength() == fieldPath.getPathLength()) {
-                uasserted(10985001,
-                          str::stream() << "The path '" << fieldPath.fullPath()
-                                        << "' cannot be resolved because it coflicts with "
-                                           "a previously specified document prefix.");
+                // The field cannot be resolved because it is the same as a previously
+                // specified/attributed prefix eg
+                return boost::none;
             }
-
-            return {scopePos->nodeId,
-                    fieldPath.subtractPrefix(scopePos->embedPath->getPathLength())};
+            return boost::make_optional(std::make_pair(
+                scopePos->nodeId, fieldPath.subtractPrefix(scopePos->embedPath->getPathLength())));
+        } else if (fieldPath.isPrefixOf(*scopePos->embedPath)) {
+            // This field cannot be resolved, likely because it is attributable to multiple nodes in
+            // the graph. eg Considering collection A:
+            // [{a: 1, b: 2, x: { c: 2}}]
+            // and the following query:
+            // {$lookup: {as: "x.y", from: B, ...}},
+            // {$unwind: "$x.y"},
+            // {$lookup: {as: "x", from: C, ...}},
+            // {$unwind: "$x"},
+            //
+            // The first lookup produces this intermediary pipeline result for each doc in coll A:
+            //
+            //  { ...base fields from coll A..., x: { c: ..., y: [documents on B that match the
+            //  first lookup]] } }
+            //
+            // In this case, $x contains data from node A and node B so we cannot attribute to a
+            // single node when we attempt to resolve $x during the second lookup. More importantly,
+            // the second join will overwrite the x field entirely,
+            //  which we want to prevent. So in this case, we return boost::none and fallback.
+            return boost::none;
         }
     }
 

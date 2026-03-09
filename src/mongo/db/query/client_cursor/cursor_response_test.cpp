@@ -383,22 +383,14 @@ TEST(CursorResponseTest, parseFromBSONCursorMetricsIncomplete) {
     ASSERT_OK(CursorResponse::parseFromBSON(makeResponseBSON(cursor)));
 
     // Remove each mandatory field and then check that the result is invalid.
+    // Only the original metric fields are mandatory. Newer fields that are added should not be
+    // mandatory for multiversion clusters.
     std::vector<StringData> fields{CursorMetrics::kKeysExaminedFieldName,
                                    CursorMetrics::kDocsExaminedFieldName,
                                    CursorMetrics::kWorkingTimeMillisFieldName,
                                    CursorMetrics::kHasSortStageFieldName,
                                    CursorMetrics::kUsedDiskFieldName,
-                                   CursorMetrics::kFromMultiPlannerFieldName,
-                                   CursorMetrics::kFromPlanCacheFieldName,
-                                   CursorMetrics::kPlanningTimeMicrosFieldName,
-                                   CursorMetrics::kNDocsSampledFieldName,
-                                   CursorMetrics::kCpuNanosFieldName,
-                                   CursorMetrics::kNumInterruptChecksFieldName,
-                                   CursorMetrics::kNMatchedFieldName,
-                                   CursorMetrics::kNUpsertedFieldName,
-                                   CursorMetrics::kNModifiedFieldName,
-                                   CursorMetrics::kNDeletedFieldName,
-                                   CursorMetrics::kNInsertedFieldName};
+                                   CursorMetrics::kFromMultiPlannerFieldName};
     for (auto fieldName : fields) {
         auto badMetrics = metrics.copy().removeField(fieldName);
         auto badCursor = makeCursorBSON(badMetrics);
@@ -979,16 +971,16 @@ TEST_F(CursorResponseBuilderTest, buildResponseWithAllKnownFields) {
                           false /* hasSortStage */,
                           true /* usedDisk */,
                           true /* fromMultiPlanner */,
-                          false /* fromPlanCache */,
-                          26 /* planningTimeMicros */,
-                          15 /* nDocsSampled */,
-                          -1 /* cpuNanos */,
-                          15 /* numInterruptChecks */,
-                          1 /* nMatched */,
-                          0 /* nUpserted */,
-                          1 /* nModified */,
-                          0 /* nDeleted */,
-                          0 /* nInserted */);
+                          false /* fromPlanCache */);
+    metrics.setPlanningTimeMicros(26);
+    metrics.setNDocsSampled(15);
+    metrics.setCpuNanos(-1);
+    metrics.setNumInterruptChecks(15);
+    metrics.setNMatched(1);
+    metrics.setNUpserted(0);
+    metrics.setNModified(1);
+    metrics.setNDeleted(0);
+    metrics.setNInserted(0);
     CardinalityEstimationMethods ceMethods;
     ceMethods.setHistogram(2);
     ceMethods.setSampling(1);
@@ -1050,6 +1042,48 @@ TEST_F(CursorResponseBuilderTest, buildResponseWithAllKnownFields) {
     ASSERT_TRUE(response.getPartialResultsReturned());
     ASSERT_TRUE(response.getInvalidated());
     ASSERT_TRUE(response.getWasStatementExecuted());
+}
+
+
+TEST(CursorResponseTest, parseFromBSONCursorMetricsToleratesMissingDefaultFields) {
+    // Only include mandatory metrics. All other metrics should have a default value.
+    auto mandatoryMetrics = fromjson(R"({
+        keysExamined: {"$numberLong": "1"},
+        docsExamined: {"$numberLong": "2"},
+        bytesRead: {"$numberLong": "4"},
+        readingTimeMicros: {"$numberLong": "5"},
+        workingTimeMillis: {"$numberLong": "3"},
+        hasSortStage: true,
+        usedDisk: true,
+        fromMultiPlanner: true,
+        fromPlanCache: true
+    })");
+
+    auto cursor = makeCursorBSON(mandatoryMetrics);
+    auto result = CursorResponse::parseFromBSON(makeResponseBSON(cursor));
+    ASSERT_OK(result.getStatus());
+
+    // Get all non-mandatory fields and confirm a default value.
+    auto& metrics = *result.getValue().getCursorMetrics();
+    ASSERT_EQ(metrics.getPlanningTimeMicros(), 0);
+    const auto& parsedCeMethods = metrics.getCardinalityEstimationMethods();
+    ASSERT_EQ(parsedCeMethods.getHistogram().value_or(0), 0);
+    ASSERT_EQ(metrics.getNDocsSampled(), 0);
+    ASSERT_EQ(metrics.getCpuNanos(), 0);
+    ASSERT_EQ(metrics.getDelinquentAcquisitions(), 0);
+    ASSERT_EQ(metrics.getTotalAcquisitionDelinquencyMillis(), 0);
+    ASSERT_EQ(metrics.getMaxAcquisitionDelinquencyMillis(), 0);
+    ASSERT_EQ(metrics.getNumInterruptChecks(), 0);
+    ASSERT_EQ(metrics.getOverdueInterruptApproxMaxMillis(), 0);
+    ASSERT_EQ(metrics.getNMatched(), 0);
+    ASSERT_EQ(metrics.getNUpserted(), 0);
+    ASSERT_EQ(metrics.getNModified(), 0);
+    ASSERT_EQ(metrics.getNDeleted(), 0);
+    ASSERT_EQ(metrics.getNInserted(), 0);
+    ASSERT_EQ(metrics.getTotalTimeQueuedMicros(), 0);
+    ASSERT_EQ(metrics.getTotalAdmissions(), 0);
+    ASSERT_FALSE(metrics.getWasLoadShed());
+    ASSERT_FALSE(metrics.getWasDeprioritized());
 }
 
 }  // namespace

@@ -218,11 +218,11 @@ FieldPath localCollectionFieldPath(const std::vector<LetVariable>& letVars, Vari
 
 // Insert the given join predicates into the given join graph. Assumes that the join predicates are
 // agg expressions of the form {$eq: ['$foreignCollFieldPath', '$$localCollVar']}.
-void addExprJoinPredicates(MutableJoinGraph& graph,
-                           const std::vector<boost::intrusive_ptr<const Expression>>& joinPreds,
-                           PathResolver& pathResolver,
-                           const std::vector<LetVariable>& letVars,
-                           NodeId foreignNodeId) {
+Status addExprJoinPredicates(MutableJoinGraph& graph,
+                             const std::vector<boost::intrusive_ptr<const Expression>>& joinPreds,
+                             PathResolver& pathResolver,
+                             const std::vector<LetVariable>& letVars,
+                             NodeId foreignNodeId) {
     for (auto&& joinPred : joinPreds) {
         auto eqNode = tassert_cast<const ExpressionCompare*>(joinPred.get());
         auto left = tassert_cast<const ExpressionFieldPath*>(eqNode->getChildren()[0].get());
@@ -250,12 +250,15 @@ void addExprJoinPredicates(MutableJoinGraph& graph,
             // to be a field path.
             MONGO_UNREACHABLE_TASSERT(11317203);
         }
-        tassert(11317204,
-                "expected to resolve both local and foreign paths",
-                localPath.has_value() && foreignPath.has_value());
+
+        if (!localPath) {
+            return Status(ErrorCodes::BadValue, "Local path could not be resolved");
+        }
+
         auto localNodeId = pathResolver[*localPath].nodeId;
         graph.addExprEqualityEdge(localNodeId, foreignNodeId, *localPath, *foreignPath);
     }
+    return Status::OK();
 }
 
 }  // namespace
@@ -328,6 +331,10 @@ StatusWith<AggJoinModel> AggJoinModel::constructJoinModel(const Pipeline& pipeli
                 break;
             }
 
+            if (pathResolver.pathResolvesToJoinNode(lookup->getAsField(), *baseNodeId)) {
+                break;
+            }
+
             // Attempt to extract join predicates and single table predicates from the $lookup
             // expressed as $expr in $match stage. If there is no subpipeline, this returns no join
             // predicates and a CanonicalQuery with empty predicate. If this returns a bad status,
@@ -352,12 +359,16 @@ StatusWith<AggJoinModel> AggJoinModel::constructJoinModel(const Pipeline& pipeli
                 // collection's embedPath.
                 auto localPathId = pathResolver.resolve(*lookup->getLocalField());
 
+                if (!localPathId) {
+                    return Status(ErrorCodes::BadValue, "Local path could not be resolved");
+                }
                 pathResolver.addNode(*foreignNodeId, lookup->getAsField());
+
                 auto foreignPathId =
                     pathResolver.addPath(*foreignNodeId, *lookup->getForeignField());
 
                 auto edgeId = graph.addSimpleEqualityEdge(
-                    pathResolver[localPathId].nodeId, *foreignNodeId, localPathId, foreignPathId);
+                    pathResolver[*localPathId].nodeId, *foreignNodeId, *localPathId, foreignPathId);
                 if (!edgeId) {
                     // Cannot add an edge for existing nodes.
                     return Status(ErrorCodes::BadValue, "Graph is too big: too many edges");
@@ -367,12 +378,14 @@ StatusWith<AggJoinModel> AggJoinModel::constructJoinModel(const Pipeline& pipeli
             }
 
             // Add join predicates expressed as $expr in subpipelines to join graph.
-            addExprJoinPredicates(graph,
-                                  swPreds.getValue().joinPredicates,
-                                  pathResolver,
-                                  lookup->getLetVariables(),
-                                  *foreignNodeId);
-
+            auto status = addExprJoinPredicates(graph,
+                                                swPreds.getValue().joinPredicates,
+                                                pathResolver,
+                                                lookup->getLetVariables(),
+                                                *foreignNodeId);
+            if (!status.isOK()) {
+                return status;
+            }
             auto next = suffix->popFront();
             if (prefix->getSources().empty()) {
                 prefix->addInitialSource(std::move(next));

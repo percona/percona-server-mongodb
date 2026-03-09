@@ -38,33 +38,38 @@ do
     cp -Trp $LIB_GIT_DIR/$subdir $DIST/$subdir
 done
 
-## Remote all CMakelists.txt files
+## Remove all CMakelists.txt files
 find $DIST/ -name "CMakeLists.txt" -delete
 
 # Remove unneeded directories
 pushd $DIST
 
-# Remove file uneeded functionalities (logs)
+# Remove unneeded log functionalities
 rm exporters/otlp/include/opentelemetry/exporters/otlp/*log*.h
 rm exporters/otlp/src/*log*.cc
 rm -rf api/include/opentelemetry/logs
 rm -rf sdk/include/opentelemetry/sdk/logs
 rm -rf sdk/src/logs
 
-# Uneeded  exporters
+# Unneeded exporters
 rm -rf exporters/elasticsearch
 rm -rf exporters/etw
 rm -rf exporters/ostream
-rm -rf exporters/prometheus
 rm -rf exporters/zipkin
 
 # Unneeded configuration files
 rm -rf sdk/include/opentelemetry/sdk/configuration/
 rm -rf sdk/src/configuration/
 
+# Only keep the prometheus exporter utils
+find exporters/prometheus/include/opentelemetry/exporters/prometheus/ -maxdepth 1 -type f \
+    ! -name "exporter_utils.*" -delete
+find exporters/prometheus/src/ -maxdepth 1 -type f ! -name "exporter_utils.*" -delete
+
 # Test directories
 rm -rf api/test
 rm -rf exporters/otlp/test
+rm -rf exporters/prometheus/test
 rm -rf ext/test
 rm -rf sdk/test
 popd
@@ -75,3 +80,4 @@ rm -rf ${DIST}
 
 PATCHES_DIR="${LIBDIR}/patches"
 git apply "${PATCHES_DIR}/0001-compile-1.24.patch"
+git apply "${PATCHES_DIR}/0002-SERVER-117299-prometheus-utils.patch"

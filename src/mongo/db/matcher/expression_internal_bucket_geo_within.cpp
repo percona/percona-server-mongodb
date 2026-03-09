@@ -29,6 +29,8 @@
 
 #include "mongo/db/matcher/expression_internal_bucket_geo_within.h"
 
+#include "mongo/db/matcher/expression_geo_serializer.h"
+
 namespace mongo {
 constexpr StringData InternalBucketGeoWithinMatchExpression::kName;
 
@@ -62,7 +64,11 @@ void InternalBucketGeoWithinMatchExpression::serialize(BSONObjBuilder* builder,
     // Serialize the geometry shape.
     BSONObjBuilder withinRegionBob(
         bob.subobjStart(InternalBucketGeoWithinMatchExpression::kWithinRegion));
-    opts.appendLiteral(&withinRegionBob, _geoContainer->getGeoElement());
+    if (!opts.isKeepingLiteralsUnchanged()) {
+        serializeGeoOperator(withinRegionBob, _geoContainer->getGeoElement().wrap(), opts);
+    } else {
+        opts.appendLiteral(&withinRegionBob, _geoContainer->getGeoElement());
+    }
     withinRegionBob.doneFast();
     // Serialize the field which is being searched over.
     bob.append(InternalBucketGeoWithinMatchExpression::kField,

@@ -319,15 +319,20 @@ private:
 
         auto leftPathId = _pathResolver.resolve(left->getFieldPathWithoutCurrentPrefix());
         auto rightPathId = _pathResolver.resolve(right->getFieldPathWithoutCurrentPrefix());
+        if (!leftPathId.has_value() || !rightPathId.has_value()) {
+            // 3. Both field paths must be attributable to a single node in the graph.
+            _expressionIsFullyAbsorbed = false;
+            return;
+        }
 
-        if (_pathResolver[leftPathId].nodeId == _pathResolver[rightPathId].nodeId) {
-            // 3. To be a proper join predicate the field paths must be from different collections.
+        if (_pathResolver[*leftPathId].nodeId == _pathResolver[*rightPathId].nodeId) {
+            // 4. To be a proper join predicate the field paths must be from different collections.
             _expressionIsFullyAbsorbed = false;
             return;
         }
 
         _predicates.push_back(
-            {.op = JoinPredicate::ExprEq, .left = leftPathId, .right = rightPathId});
+            {.op = JoinPredicate::ExprEq, .left = *leftPathId, .right = *rightPathId});
     }
 
     PathResolver& _pathResolver;

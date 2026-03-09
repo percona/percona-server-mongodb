@@ -93,7 +93,8 @@ MONGO_MOD_NEEDS_REPLACEMENT Status createCollectionForApplyOps(
     const BSONObj& cmdObj,
     bool allowRenameOutOfTheWay,
     const boost::optional<BSONObj>& idIndex = boost::none,
-    const boost::optional<CreateCollCatalogIdentifier>& catalogIdentifier = boost::none);
+    const boost::optional<CreateCollCatalogIdentifier>& catalogIdentifier = boost::none,
+    boost::optional<bool> recordIdsReplicated = boost::none);
 
 /**
  * Updates collection options if collections must be clustered by default.

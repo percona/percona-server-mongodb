@@ -135,7 +135,9 @@ BaseCloner::AfterStageBehavior DatabaseCloner::listCollectionsStage() {
         // collectionUUID there as part of the options, but instead places it in the 'info' field.
         // We need to move it back to CollectionOptions to create the collection properly.
         result.getOptions().uuid = result.getInfo().getUuid();
-        _collections.emplace_back(collectionNamespace, result.getOptions());
+        // TODO SERVER-119642 Use the recordIdsReplicated from listCollection info.
+        _collections.emplace_back(
+            collectionNamespace, result.getOptions(), result.getOptions().recordIdsReplicated);
     }
     return kContinueNormally;
 }
@@ -152,12 +154,10 @@ void DatabaseCloner::postStage() {
         _stats.collectionStats.reserve(_collections.size());
         for (const auto& coll : _collections) {
             _stats.collectionStats.emplace_back();
-            _stats.collectionStats.back().nss = coll.first;
+            _stats.collectionStats.back().nss = get<0>(coll);
         }
     }
-    for (const auto& coll : _collections) {
-        auto& sourceNss = coll.first;
-        auto& collectionOptions = coll.second;
+    for (const auto& [sourceNss, collectionOptions, recordIdsReplicated] : _collections) {
         {
             stdx::lock_guard<stdx::mutex> lk(_mutex);
             _currentCollectionCloner = std::make_unique<CollectionCloner>(sourceNss,
@@ -166,7 +166,8 @@ void DatabaseCloner::postStage() {
                                                                           getSource(),
                                                                           getClient(),
                                                                           getStorageInterface(),
-                                                                          getDBPool());
+                                                                          getDBPool(),
+                                                                          recordIdsReplicated);
         }
         auto collStatus = _currentCollectionCloner->run();
         if (collStatus.isOK()) {

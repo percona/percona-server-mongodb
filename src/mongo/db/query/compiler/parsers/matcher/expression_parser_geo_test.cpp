@@ -989,4 +989,114 @@ TEST(ExpressionGeoTest, RoundTripSerializeGeoExpressions) {
                                              fromjson("{$near: [1,1]}"));
 }
 
+void assertRepresentativeInternalBucketGeoWithinShapeIsStable(BSONObj inputExpr,
+                                                              BSONObj expectedRepresentativeExpr) {
+    auto opts = SerializationOptions{LiteralSerializationPolicy::kToRepresentativeParseableValue};
+    boost::intrusive_ptr<ExpressionContextForTest> expCtx(new ExpressionContextForTest());
+
+    auto result = MatchExpressionParser::parse(inputExpr, expCtx);
+    ASSERT_OK(result.getStatus());
+
+    BSONObjBuilder bob;
+    result.getValue()->serialize(&bob, opts);
+    auto serialized = bob.obj();
+    ASSERT_BSONOBJ_EQ(serialized, expectedRepresentativeExpr);
+
+    // Round-trip: parse the serialized expression and serialize again.
+    auto roundTripped = MatchExpressionParser::parse(serialized, expCtx);
+    ASSERT_OK(roundTripped.getStatus());
+
+    BSONObjBuilder bob2;
+    roundTripped.getValue()->serialize(&bob2, opts);
+    ASSERT_BSONOBJ_EQ(bob2.obj(), serialized);
+}
+
+TEST(ExpressionGeoTest, RoundTripSerializeInternalBucketGeoWithin) {
+    // $center
+    assertRepresentativeInternalBucketGeoWithinShapeIsStable(
+        fromjson(R"({$_internalBucketGeoWithin: {
+            withinRegion: { $center: [[1, 2], 3] },
+            field: "loc"
+        }})"),
+        fromjson(R"({$_internalBucketGeoWithin: {
+            withinRegion: { $center: [[1, 1], 1] },
+            field: "loc"
+        }})"));
+
+    // $centerSphere
+    assertRepresentativeInternalBucketGeoWithinShapeIsStable(
+        fromjson(R"({$_internalBucketGeoWithin: {
+            withinRegion: { $centerSphere: [[10, 20], 0.5] },
+            field: "loc"
+        }})"),
+        fromjson(R"({$_internalBucketGeoWithin: {
+            withinRegion: { $centerSphere: [[1, 1], 1] },
+            field: "loc"
+        }})"));
+
+    // $box
+    assertRepresentativeInternalBucketGeoWithinShapeIsStable(
+        fromjson(R"({$_internalBucketGeoWithin: {
+            withinRegion: { $box: [[0, 0], [10, 10]] },
+            field: "loc"
+        }})"),
+        fromjson(R"({$_internalBucketGeoWithin: {
+            withinRegion: { $box: [[1, 1], [1, 1]] },
+            field: "loc"
+        }})"));
+
+    // $polygon
+    assertRepresentativeInternalBucketGeoWithinShapeIsStable(
+        fromjson(R"({$_internalBucketGeoWithin: {
+            withinRegion: { $polygon: [[0, 0], [3, 6], [6, 1]] },
+            field: "loc"
+        }})"),
+        fromjson(R"({$_internalBucketGeoWithin: {
+            withinRegion: { $polygon: [[0, 0], [0, 1], [1, 1]] },
+            field: "loc"
+        }})"));
+
+    // $geometry with Polygon
+    assertRepresentativeInternalBucketGeoWithinShapeIsStable(
+        fromjson(R"({$_internalBucketGeoWithin: {
+            withinRegion: {
+                $geometry: {
+                    type: "Polygon",
+                    coordinates: [[[0, 0], [3, 6], [6, 1], [0, 0]]]
+                }
+            },
+            field: "loc"
+        }})"),
+        fromjson(R"({$_internalBucketGeoWithin: {
+            withinRegion: {
+                $geometry: {
+                    type: "Polygon",
+                    coordinates: [[[0, 0], [0, 1], [1, 1], [0, 0]]]
+                }
+            },
+            field: "loc"
+        }})"));
+
+    // $geometry with MultiPolygon
+    assertRepresentativeInternalBucketGeoWithinShapeIsStable(
+        fromjson(R"({$_internalBucketGeoWithin: {
+            withinRegion: {
+                $geometry: {
+                    type: "MultiPolygon",
+                    coordinates: [[[[20.0, 70.0], [30.0, 70.0], [30.0, 50.0], [20.0, 50.0], [20.0, 70.0]]]]
+                }
+            },
+            field: "loc"
+        }})"),
+        fromjson(R"({$_internalBucketGeoWithin: {
+            withinRegion: {
+                $geometry: {
+                    type: "MultiPolygon",
+                    coordinates: [[[[0, 0], [0, 1], [1, 1], [0, 0]]]]
+                }
+            },
+            field: "loc"
+        }})"));
+}
+
 }  // namespace mongo

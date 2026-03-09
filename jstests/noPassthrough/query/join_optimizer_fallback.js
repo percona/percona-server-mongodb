@@ -27,9 +27,9 @@ coll13.drop();
 coll2.drop();
 coll3.drop();
 
-assert.commandWorked(coll1.insertOne({a: 1, b: 1}));
-assert.commandWorked(coll12.insertOne({a: 1, b: 1}));
-assert.commandWorked(coll13.insertOne({a: 1, b: 1}));
+assert.commandWorked(coll1.insertOne({a: 1, b: 1, x: {c: 1}}));
+assert.commandWorked(coll12.insertOne({a: 1, b: 1, c: 1, d: "foo"}));
+assert.commandWorked(coll13.insertOne({a: 1, b: 1, d: "foo"}));
 assert.commandWorked(coll2.insertOne({a: 1, b: 1}));
 assert.commandWorked(coll3.insertOne({a: 1, b: 1}));
 
@@ -54,7 +54,6 @@ function runTestCaseIneligibleSuffix({pipeline, expectedCount, expectedJoinNodes
 
     // Since the prefix is join eligible we should see the usedJoinOptimization flag in the explain.
     assert(joinOptUsed(explain), "Expected join optimizer and actual usage differ: " + tojson(explain));
-
     let stages = getAllPlanStages(getWinningPlanFromExplain(explain));
 
     // Make sure we see the amount of join nodes in the prefix that we expected.
@@ -234,7 +233,65 @@ runTestCaseIneligibleSuffix({
     expectedJoinNodesInPrefix: 1,
 });
 
-//$lookup with no join predicate can still be optimized if the rest of the pipeline establishes
+// Conflicting prefix in the second as field
+runTestCaseIneligibleSuffix({
+    pipeline: [
+        {$lookup: {from: coll12.getName(), as: "x.y", localField: "x.c", foreignField: "c"}},
+        {$unwind: "$x.y"},
+        {$lookup: {from: coll13.getName(), as: "x.y.z", localField: "x.y.d", foreignField: "d"}},
+        {$unwind: "$x.y.z"},
+    ],
+    expectedCount: 1,
+    expectedJoinNodesInPrefix: 1,
+});
+
+// Conflicting prefix in the second as field.
+runTestCaseIneligibleSuffix({
+    pipeline: [
+        {$lookup: {from: coll12.getName(), as: "x.y.z", localField: "x.c", foreignField: "c"}},
+        {$unwind: "$x.y.z"},
+        {$lookup: {from: coll13.getName(), as: "x.y", localField: "x.y.z.d", foreignField: "d"}},
+        {$unwind: "$x.y"},
+    ],
+    expectedCount: 1,
+    expectedJoinNodesInPrefix: 1,
+});
+
+// Conflicting prefix in the second as field.
+runTestCaseIneligibleSuffix({
+    pipeline: [
+        {$lookup: {from: coll12.getName(), as: "x", localField: "x.c", foreignField: "c"}},
+        {$unwind: "$x"},
+        {$lookup: {from: coll13.getName(), as: "x.y", localField: "b", foreignField: "a"}},
+        {$unwind: "$x.y"},
+    ],
+    expectedCount: 1,
+    expectedJoinNodesInPrefix: 1,
+});
+
+// Conflicting prefix in the second as field.
+runTestCaseIneligibleSuffix({
+    pipeline: [
+        {$lookup: {from: coll12.getName(), as: "x.y", localField: "x.c", foreignField: "c"}},
+        {$unwind: "$x.y"},
+        {$lookup: {from: coll13.getName(), as: "x", localField: "b", foreignField: "a"}},
+        {$unwind: "$x"},
+    ],
+    expectedCount: 1,
+    expectedJoinNodesInPrefix: 1,
+});
+
+runTestCaseEligiblePipeline({
+    pipeline: [
+        {$lookup: {from: coll12.getName(), as: "x.y", localField: "x.c", foreignField: "c"}},
+        {$unwind: "$x.y"},
+        {$lookup: {from: coll13.getName(), as: "x.z", localField: "b", foreignField: "a"}},
+        {$unwind: "$x.z"},
+    ],
+    expectedCount: 1,
+});
+
+// $lookup with no join predicate can still be optimized if the rest of the pipeline establishes
 // a connected join graph.
 runTestCaseEligiblePipeline({
     pipeline: [

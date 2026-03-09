@@ -251,7 +251,23 @@ ShardRegistry::Cache::LookupResult ShardRegistry::_lookup(OperationContext* opCt
                 return maxTopologyTime;
             });
 
-            if (!cachedData) {
+            // If the recovery mode flag is set, return the lookup data without merging with the
+            // cached data. This ensures that shard connection strings are fully refreshed from
+            // the config server. Since recovery mode is set only during recovery operations, which
+            // happen infrequently, there is no additional synchronization mechanism to ensure that
+            // it is executed only by reloadForRecovery(). If a normal lookup occurs after the
+            // recovery mode flag is set, a full refresh will be performed, which is expected
+            // behavior.
+            const bool isRecoveryMode = _isRecoveryMode.load();
+            if (!cachedData || isRecoveryMode) {
+                if (isRecoveryMode) {
+                    LOGV2_WARNING(
+                        11032906,
+                        "Returning lookup data in recovery mode without merging with cache",
+                        "lookupData"_attr = lookupData.toBSON().toString(),
+                        "returnTopologyTime"_attr = returnTime.getTopologyTime());
+                    _isRecoveryMode.store(false);
+                }
                 return {lookupData, returnTime, {}};
             }
 
@@ -563,6 +579,84 @@ void ShardRegistry::toBSON(BSONObjBuilder* result) const {
 
 void ShardRegistry::reload(OperationContext* opCtx) {
     _reloadAsync().get(opCtx);
+}
+
+std::tuple<Timestamp, int64_t, Timestamp, int64_t> ShardRegistry::reloadForRecovery(
+    OperationContext* opCtx) {
+    Timestamp cachedTimeBefore = Timestamp::min();
+    Timestamp cachedTimeAfter = Timestamp::min();
+    Increment forceReloadIncrementBefore = 0;
+    Increment forceReloadIncrementAfter = 0;
+    auto cachedData = _getCachedData();
+    if (cachedData) {
+        auto beforeTime = cachedData.getTime();
+        forceReloadIncrementBefore = beforeTime.getForceReloadIncrement();
+        cachedTimeBefore = beforeTime.getTopologyTime();
+    }
+    _clearForRecovery(opCtx);
+    // Set the recovery mode flag to true to prevent merging of connection strings with existing
+    // connection strings, ensuring a full refresh of shard connection strings from the config
+    // server.
+    _isRecoveryMode.store(true);
+    reload(opCtx);
+
+    cachedData = _getCachedData();
+    if (cachedData) {
+        auto afterTime = cachedData.getTime();
+        forceReloadIncrementAfter = afterTime.getForceReloadIncrement();
+        cachedTimeAfter = afterTime.getTopologyTime();
+    }
+
+    return std::make_tuple(
+        cachedTimeBefore, forceReloadIncrementBefore, cachedTimeAfter, forceReloadIncrementAfter);
+}
+
+void ShardRegistry::_clearForRecovery(OperationContext* opCtx) {
+
+    LOGV2(11032902, "Recovering shard registry - clearing cached connection strings and RSMs");
+
+    {
+        stdx::lock_guard lk(_mutex);
+        // Clear the cached latest connection strings.
+        _latestConnStrings.clear();
+    }
+
+    // Helper lambda to safely remove an RSM
+    auto removeRSM = [](const ShardId& shardId, const std::shared_ptr<Shard>& shardPtr) {
+        if (!shardPtr) {
+            return;
+        }
+
+        auto setName = shardPtr->getConnString().getSetName();
+        if (setName.empty()) {
+            return;
+        }
+
+        try {
+            LOGV2_INFO(11032903,
+                       "Removing RSM during recovery",
+                       "shardId"_attr = shardId,
+                       "setName"_attr = setName);
+            ReplicaSetMonitor::remove(setName);
+        } catch (const DBException& ex) {
+            LOGV2_WARNING(11032904,
+                          "Failed to remove RSM during shard registry recovery",
+                          "shardId"_attr = shardId,
+                          "setName"_attr = setName,
+                          "error"_attr = ex);
+        }
+    };
+
+    // Clean RSMs for regular shards in cache
+    if (auto cachedData = _getCachedData()) {
+        for (const auto& shardPtr : cachedData->getAllShards()) {
+            if (shardPtr->getId() != ShardId::kConfigServerId) {
+                removeRSM(shardPtr->getId(), shardPtr);
+            }
+        }
+    }
+
+    LOGV2(11032905, "Shard registry recovery cleanup completed");
 }
 
 SharedSemiFuture<ShardRegistry::Cache::ValueHandle> ShardRegistry::_reloadAsync() {

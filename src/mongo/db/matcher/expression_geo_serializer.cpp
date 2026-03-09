@@ -372,6 +372,24 @@ void geoNearExpressionCustomSerialization(BSONObjBuilder& bob,
     }
 }
 
+void serializeGeoOperator(BSONObjBuilder& bob,
+                          const BSONObj& obj,
+                          const SerializationOptions& opts) {
+    BSONObjIterator it(obj);
+    while (it.more()) {
+        auto elem = it.next();
+        auto fieldName = elem.fieldNameStringData();
+        // $geoWithin/$geoIntersects can only have a $geometry or shape operators as operands
+        // (i.e $polygon, $box, etc.)
+        if (fieldName == kGeometryField) {
+            appendGeometryOperator(bob, elem, opts);
+            break;
+        } else {
+            appendShapeOperator(bob, elem, opts);
+        }
+    }
+}
+
 /**
  * geoExpressionCustomSerialization() implements the serialization of geoExpressions ($within,
  * $geoWithin, $geoIntersects). Examples of such expressions are:
@@ -394,19 +412,6 @@ void geoExpressionCustomSerialization(BSONObjBuilder& bob,
     auto fieldName = geoExprElem.fieldNameStringData();
 
     BSONObjBuilder subObj = BSONObjBuilder(bob.subobjStart(fieldName));
-    auto geoObj = geoExprElem.Obj();
-    BSONObjIterator embedded_it(geoObj);
-    while (embedded_it.more()) {
-        auto elem = embedded_it.next();
-        fieldName = elem.fieldNameStringData();
-        // $geoWithin/$geoIntersects can only have a $geometry or shape operators as operands
-        // (i.e $polygon, $box, etc.)
-        if (fieldName == kGeometryField) {
-            appendGeometryOperator(subObj, elem, opts);
-            break;
-        } else {
-            appendShapeOperator(subObj, elem, opts);
-        }
-    }
+    serializeGeoOperator(subObj, geoExprElem.Obj(), opts);
 }
 }  // namespace mongo

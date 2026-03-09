@@ -126,6 +126,7 @@ structs:
                 description: "Time from the moment a planning request is received to the moment the winning plan is finalized"
                 type: long
                 stability: unstable
+                default: 0
             cardinalityEstimationMethods:
                 description: "Counts of cardinality estimation methods used by the cost-based ranker."
                 type: CardinalityEstimationMethods
@@ -135,10 +136,12 @@ structs:
                 description: "Number of documents sampled by the query by the cost-based ranker."
                 type: long
                 stability: unstable
+                default: 0
             cpuNanos:
                 description: "Amount of CPU time spent by a query operation."
                 type: long
                 stability: unstable
+                default: 0
             delinquentAcquisitions:
                 description: "Number of times that execution ticket acquisition was overdue by a query operation."
                 type: long
@@ -158,6 +161,7 @@ structs:
                 description: "Number of checkForInterrupt is call by a query operation."
                 type: long
                 stability: unstable
+                default: 0
             overdueInterruptApproxMaxMillis:
                 description: "Maximum time in milliseconds that checkForInterrupt was delayed for a sampled query operation."
                 type: long
@@ -167,22 +171,27 @@ structs:
                 description: "The number of documents selected for update."
                 type: long
                 stability: unstable
+                default: 0
             nUpserted:
                 description: "The number of documents inserted by an upsert."
                 type: long
                 stability: unstable
+                default: 0
             nModified:
                 description: "The number of existing documents updated."
                 type: long
                 stability: unstable
+                default: 0
             nDeleted:
                 description: "The number of documents deleted."
                 type: long
                 stability: unstable
+                default: 0
             nInserted:
                 description: "The number of documents inserted (excluding upserts)."
                 type: long
                 stability: unstable
+                default: 0
             totalTimeQueuedMicros:
                 description: "Total time spent waiting for a ticket."
                 type: long

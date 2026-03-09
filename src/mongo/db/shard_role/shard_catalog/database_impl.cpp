@@ -158,13 +158,11 @@ void assertNoMovePrimaryInProgress(OperationContext* opCtx, NamespaceString cons
     }
 }
 
-// Given the 'nss', the 'collectionOptions' of a collection, and whether or not the collection is
-// newly created, computes whether the collection should be created with
-// 'recordIdsReplicated':true'.
+// Given the 'nss', the 'collectionOptions' of a collection, computes whether the collection should
+// be created with 'recordIdsReplicated':true'.
 bool shouldSetRecordIdsReplicated(OperationContext* opCtx,
                                   const NamespaceString& nss,
-                                  const CollectionOptions& collectionOptions,
-                                  bool isOriginalCollectionCreation) {
+                                  const CollectionOptions& collectionOptions) {
     if (MONGO_unlikely(overrideRecordIdsReplicatedFalse.shouldFail())) {
         return false;
     }
@@ -203,7 +201,7 @@ bool shouldSetRecordIdsReplicated(OperationContext* opCtx,
         gFeatureFlagRecordIdsReplicated.isEnabledUseLastLTSFCVWhenUninitialized(
             VersionContext::getDecoration(opCtx),
             serverGlobalParams.featureCompatibility.acquireFCVSnapshot());
-    if (isOriginalCollectionCreation && replicatedRidsFeatureIsEnabled) {
+    if (replicatedRidsFeatureIsEnabled) {
         LOGV2_DEBUG(8700501,
                     0,
                     "Collection will use recordIdsReplicated:true.",
@@ -230,7 +228,8 @@ std::shared_ptr<Collection> makeCollectionInstance(
     OperationContext* opCtx,
     const NamespaceString& nss,
     const CollectionOptions& collectionOptions,
-    const CreateCollCatalogIdentifier& catalogIdentifier) {
+    const CreateCollCatalogIdentifier& catalogIdentifier,
+    bool recordIdsReplicated) {
     if (CollectionCatalog::get(opCtx)->lookupCollectionByNamespace(opCtx, nss)) {
         throwWriteConflictException(str::stream() << "Namespace '" << nss.toStringForErrorMsg()
                                                   << "' is already in use.");
@@ -238,8 +237,13 @@ std::shared_ptr<Collection> makeCollectionInstance(
 
     auto mdbCatalog = opCtx->getServiceContext()->getStorageEngine()->getMDBCatalog();
     const auto& catalogId = catalogIdentifier.catalogId;
-    auto createResult = durable_catalog::createCollection(
-        opCtx, catalogId, nss, catalogIdentifier.ident, collectionOptions, mdbCatalog);
+    auto createResult = durable_catalog::createCollection(opCtx,
+                                                          catalogId,
+                                                          nss,
+                                                          catalogIdentifier.ident,
+                                                          collectionOptions,
+                                                          mdbCatalog,
+                                                          recordIdsReplicated);
     if (createResult == ErrorCodes::ObjectAlreadyExists) {
         // Each new ident must uniquely identify the collection's underlying table in the storage
         // engine. A scenario where the ident collides with a pre-existing ident should never happen
@@ -755,7 +759,8 @@ Collection* DatabaseImpl::createCollection(OperationContext* opCtx,
                                            const CollectionOptions& options,
                                            bool createIdIndex,
                                            const BSONObj& idIndex,
-                                           bool fromMigrate) const {
+                                           bool fromMigrate,
+                                           boost::optional<bool> recordIdsReplicated) const {
     VersionContext::FixedOperationFCVRegion fixedOfcvRegion(opCtx);
 
     return _createCollection(
@@ -765,7 +770,8 @@ Collection* DatabaseImpl::createCollection(OperationContext* opCtx,
         acquireCatalogIdentifierForCreate(opCtx, nss, /*providedIdentifier=*/boost::none),
         createIdIndex,
         idIndex,
-        fromMigrate);
+        fromMigrate,
+        recordIdsReplicated);
 }
 
 Collection* DatabaseImpl::_createCollection(
@@ -776,7 +782,8 @@ Collection* DatabaseImpl::_createCollection(
         voptsOrCatalogIdentifier,
     bool createIdIndex,
     const BSONObj& idIndex,
-    bool fromMigrate) const {
+    bool fromMigrate,
+    boost::optional<bool> recordIdsReplicated) const {
     invariant(!options.isView());
 
     invariant(shard_role_details::getLocker(opCtx)->isCollectionLockedForMode(nss, MODE_IX));
@@ -814,8 +821,15 @@ Collection* DatabaseImpl::_createCollection(
         createOplogSlot = repl::getNextOpTime(opCtx);
     }
 
-    if (shouldSetRecordIdsReplicated(opCtx, nss, optionsWithUUID, isGeneratedUUID)) {
-        optionsWithUUID.recordIdsReplicated = true;
+    bool useRecordIdsReplicated = false;
+    if (recordIdsReplicated.has_value()) {
+        useRecordIdsReplicated = recordIdsReplicated.value();
+        // TODO (SERVER-119864) remove when recordIdsReplicated is be removed from collection
+        // options
+        invariant(optionsWithUUID.recordIdsReplicated == useRecordIdsReplicated);
+    } else {
+        useRecordIdsReplicated = shouldSetRecordIdsReplicated(opCtx, nss, optionsWithUUID);
+        optionsWithUUID.recordIdsReplicated = useRecordIdsReplicated;
     }
 
     hangAndFailAfterCreateCollectionReservesOpTime.executeIf(
@@ -841,7 +855,10 @@ Collection* DatabaseImpl::_createCollection(
                 logAttrs(nss),
                 "uuidDisposition"_attr = (isGeneratedUUID ? "generated" : "provided"),
                 "uuid"_attr = optionsWithUUID.uuid.value(),
-                "options"_attr = options);
+                "options"_attr = options,
+                "recordIdsReplicated disposition"_attr =
+                    (recordIdsReplicated.has_value() ? "provided" : "computed"),
+                "recordIdsReplicated"_attr = useRecordIdsReplicated);
 
     boost::optional<CreateCollCatalogIdentifier> catalogIdentifierForColl;
     auto ownedCollection = std::visit(
@@ -851,7 +868,8 @@ Collection* DatabaseImpl::_createCollection(
             },
             [&](const CreateCollCatalogIdentifier& catalogIdentifier) {
                 catalogIdentifierForColl = catalogIdentifier;
-                return makeCollectionInstance(opCtx, nss, optionsWithUUID, catalogIdentifier);
+                return makeCollectionInstance(
+                    opCtx, nss, optionsWithUUID, catalogIdentifier, useRecordIdsReplicated);
             }},
         voptsOrCatalogIdentifier);
 
@@ -956,7 +974,8 @@ Status DatabaseImpl::userCreateNS(
     bool createDefaultIndexes,
     const BSONObj& idIndex,
     bool fromMigrate,
-    const boost::optional<CreateCollCatalogIdentifier>& catalogIdentifier) const {
+    const boost::optional<CreateCollCatalogIdentifier>& catalogIdentifier,
+    boost::optional<bool> recordIdsReplicated) const {
     // Acquire an OFCV to get stable FCV-gated feature flag checks even during concurrent setFCV.
     // We may not have an OFCV yet because implicit creation, moveChunk, etc. call here directly.
     VersionContext::FixedOperationFCVRegion fixedOfcvRegion(opCtx);
@@ -1058,7 +1077,8 @@ Status DatabaseImpl::userCreateNS(
                               acquireCatalogIdentifierForCreate(opCtx, nss, catalogIdentifier),
                               createDefaultIndexes,
                               idIndex,
-                              fromMigrate),
+                              fromMigrate,
+                              recordIdsReplicated),
             str::stream() << "Collection creation failed after validating options: "
                           << nss.toStringForErrorMsg()
                           << ". Options: " << collectionOptions.toBSON());
@@ -1092,7 +1112,8 @@ Status DatabaseImpl::userCreateVirtualNS(OperationContext* opCtx,
                                 vopts,
                                 /*createDefaultIndexes=*/false,
                                 /*idIndex=*/BSONObj(),
-                                /*fromMigrate=*/false),
+                                /*fromMigrate=*/false,
+                                /*recordIdsReplicated=*/false),
               str::stream() << "Collection creation failed after validating options: "
                             << nss.toStringForErrorMsg() << ". Options: " << opts.toBSON());
 

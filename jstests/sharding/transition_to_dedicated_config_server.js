@@ -27,10 +27,12 @@ describe("Check transition to dedicated config server starts, returns correct st
         // Add sharded collection
         assert.commandWorked(this.st.s.adminCommand({enableSharding: "testDB", primaryShard: "config"}));
         assert.commandWorked(this.st.s.adminCommand({shardCollection: "testDB.testColl", key: {_id: 1}}));
-        this.st.s.getDB("testDB").testColl.insert({_id: 1});
-        this.st.s.getDB("testDB").testColl.insert({_id: 2});
+        const session = this.st.s.startSession({retryWrites: true});
+        assert.commandWorked(session.getDatabase("testDB").testColl.insert({_id: 1}));
+        assert.commandWorked(session.getDatabase("testDB").testColl.insert({_id: 2}));
         // Add unsharded collection
-        assert.commandWorked(this.st.s.getDB("testDB").testCollUnsharded.insert({_id: 1}));
+        assert.commandWorked(session.getDatabase("testDB").testCollUnsharded.insert({_id: 1}));
+        session.endSession();
     });
 
     afterEach(() => {

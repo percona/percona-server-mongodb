@@ -171,6 +171,11 @@ public:
     bool supportsCompaction() const override;
 
     /**
+     * We support using magic restore in classic mode.
+     */
+    bool supportsClassicMagicRestore() const override;
+
+    /**
      * Table creation won't be timestamped.
      */
     bool shouldTimestampTableCreations() const override;
@@ -184,6 +189,13 @@ public:
      * Set minimum number of seconds of snapshot history to maintain.
      */
     void setMinSnapshotHistoryWindowInSeconds(int seconds) override;
+
+    /**
+     * Journaling can be disabled for majority writes in attached storage, so this depends on the
+     * value of writeConcernMajorityShouldJournal.
+     */
+    bool settingsProvideMajorityWriteJournalDurability(
+        bool writeConcernMajorityShouldJournal) const override;
 };
 
 }  // namespace mongo::rss

@@ -440,7 +440,9 @@ RecordStore::Options MDBCatalog::_parseRecordStoreOptions(const NamespaceString&
             BSONElement clusteredElement = optionsObj["clusteredIndex"];
             bool isClustered = clusteredElement.isABSONObj() || clusteredElement.booleanSafe();
             recordStoreOptions.keyFormat = isClustered ? KeyFormat::String : KeyFormat::Long;
-            recordStoreOptions.allowOverwrite = !isClustered;
+
+            bool recordIdsReplicated = mdElement["recordIdsReplicated"].trueValue();
+            recordStoreOptions.allowOverwrite = !(isClustered || recordIdsReplicated);
 
             if (recordStoreOptions.isOplog) {
                 BSONElement cappedSizeElement = optionsObj["size"];

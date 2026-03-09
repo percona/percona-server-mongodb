@@ -84,7 +84,7 @@ public:
                                                             const BSONObj& obj) {
         auto md = parseCatalogEntryMetaDataFromCatalog(nss, obj);
 
-        return getRecordStoreOptions(nss, md->options);
+        return getRecordStoreOptions(nss, md->options, md->recordIdsReplicated);
     }
 
 
@@ -196,6 +196,7 @@ TEST_F(MDBCatalogTest, ParseRecordStoreOptionsEquivalence) {
             \"options\" : { \
                 \"size\" : 1024, \
                 \"capped\" : false, \
+                \"recordIdsReplicated\" : true, \
                 \"storageEngine\" : { \"doc1\" : {\"a\" : 0}} \
             } \
         } \

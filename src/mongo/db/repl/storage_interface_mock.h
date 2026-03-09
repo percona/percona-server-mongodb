@@ -104,9 +104,13 @@ class MONGO_MOD_PUB StorageInterfaceMock : public StorageInterface {
 public:
     // Used for testing.
 
-    using CreateCollectionForBulkFn = std::function<StatusWith<
-        std::unique_ptr<CollectionBulkLoader>>(
-        const NamespaceString&, const CollectionOptions&, BSONObj, const std::vector<BSONObj>&)>;
+    using CreateCollectionForBulkFn =
+        std::function<StatusWith<std::unique_ptr<CollectionBulkLoader>>(
+            const NamespaceString&,
+            const CollectionOptions&,
+            BSONObj,
+            const std::vector<BSONObj>&,
+            bool /*recordIdsReplicated*/)>;
     using InsertDocumentFn = std::function<Status(
         OperationContext*, const NamespaceStringOrUUID&, const TimestampedBSONObj&, long long)>;
     using InsertDocumentsFn = std::function<Status(
@@ -151,8 +155,10 @@ public:
         const NamespaceString& nss,
         const CollectionOptions& options,
         const BSONObj idIndexSpec,
-        const std::vector<BSONObj>& secondaryIndexSpecs) override {
-        return createCollectionForBulkFn(nss, options, idIndexSpec, secondaryIndexSpecs);
+        const std::vector<BSONObj>& secondaryIndexSpecs,
+        boost::optional<bool> recordIdsReplicated = boost::none) override {
+        return createCollectionForBulkFn(
+            nss, options, idIndexSpec, secondaryIndexSpecs, *recordIdsReplicated);
     };
 
     Status insertDocument(OperationContext* opCtx,
@@ -408,7 +414,8 @@ public:
         [](const NamespaceString& nss,
            const CollectionOptions& options,
            const BSONObj idIndexSpec,
-           const std::vector<BSONObj>& secondaryIndexSpecs)
+           const std::vector<BSONObj>& secondaryIndexSpecs,
+           boost::optional<bool> recordIdsReplicated)
         -> StatusWith<std::unique_ptr<CollectionBulkLoader>> {
         return Status{ErrorCodes::IllegalOperation, "CreateCollectionForBulkFn not implemented."};
     };

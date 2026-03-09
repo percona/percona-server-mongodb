@@ -39,60 +39,73 @@ TEST(PathResolverTests, OverridedEmbedPaths) {
     std::vector<ResolvedPath> resolvedPaths;
     PathResolver pathResolver{baseNodeId, resolvedPaths};
 
-    // At this momment all paths are resolved to the base node.
+    // At this moment all paths are resolved to the base node.
 
     const auto pathA0 = pathResolver.resolve("a");
-    ASSERT_EQ(resolvedPaths[pathA0].nodeId, baseNodeId);
+    ASSERT_TRUE(pathA0.has_value());
+    ASSERT_EQ(resolvedPaths[*pathA0].nodeId, baseNodeId);
 
     const auto pathAB0 = pathResolver.resolve("a.b");
-    ASSERT_EQ(resolvedPaths[pathAB0].nodeId, baseNodeId);
+    ASSERT_TRUE(pathAB0.has_value());
+    ASSERT_EQ(resolvedPaths[*pathAB0].nodeId, baseNodeId);
 
     const auto pathB0 = pathResolver.resolve("b");
-    ASSERT_EQ(resolvedPaths[pathB0].nodeId, baseNodeId);
+    ASSERT_TRUE(pathB0.has_value());
+    ASSERT_EQ(resolvedPaths[*pathB0].nodeId, baseNodeId);
 
     const auto pathBC0 = pathResolver.resolve("b.c");
-    ASSERT_EQ(resolvedPaths[pathBC0].nodeId, baseNodeId);
+    ASSERT_TRUE(pathBC0.has_value());
+    ASSERT_EQ(resolvedPaths[*pathBC0].nodeId, baseNodeId);
 
     // Override path "b". Paths "b" and "b.c" from the base collection is not accessible any more.
     // Paths "a", "a.b" are still the same.
     constexpr NodeId firstNodeId = 10;  // The index of nodes does not really matter.
     pathResolver.addNode(firstNodeId, "b");
 
-    ASSERT_EQ(pathResolver.resolve("a"), pathA0);
-    ASSERT_EQ(resolvedPaths[pathA0].nodeId, baseNodeId);
+    const auto pathA1 = pathResolver.resolve("a");
+    ASSERT_TRUE(pathA1.has_value());
+    ASSERT_EQ(*pathA1, *pathA0);
+    ASSERT_EQ(resolvedPaths[*pathA0].nodeId, baseNodeId);
 
-    ASSERT_EQ(pathResolver.resolve("a.b"), pathAB0);
-    ASSERT_EQ(resolvedPaths[pathAB0].nodeId, baseNodeId);
+    const auto pathAB1 = pathResolver.resolve("a.b");
+    ASSERT_TRUE(pathAB1.has_value());
+    ASSERT_EQ(*pathAB1, *pathAB0);
+    ASSERT_EQ(resolvedPaths[*pathAB0].nodeId, baseNodeId);
 
     // Conflicts with the document prefix.
-    ASSERT_THROWS_CODE(pathResolver.resolve("b"), DBException, 10985001);
+    ASSERT_EQ(pathResolver.resolve("b"), boost::none);
 
     const auto pathBC1 = pathResolver.resolve("b.c");
-    ASSERT_NE(pathBC0, pathBC1);
-    ASSERT_EQ(resolvedPaths[pathBC1].nodeId, firstNodeId);
+    ASSERT_TRUE(pathBC1.has_value());
+    ASSERT_NE(*pathBC0, *pathBC1);
+    ASSERT_EQ(resolvedPaths[*pathBC1].nodeId, firstNodeId);
 
     // Override path "a". Paths "a" and "a.b" from the base collection is not accessible any more.
     constexpr NodeId secondNodeId = 5;
     pathResolver.addNode(secondNodeId, "a");
 
     // Conflicts with the document prefix.
-    ASSERT_THROWS_CODE(pathResolver.resolve("a"), DBException, 10985001);
+    ASSERT_EQ(pathResolver.resolve("a"), boost::none);
 
     const auto pathAB2 = pathResolver.resolve("a.b");
-    ASSERT_NE(pathAB0, pathAB2);
-    ASSERT_EQ(resolvedPaths[pathAB2].nodeId, secondNodeId);
+    ASSERT_TRUE(pathAB2.has_value());
+    ASSERT_NE(*pathAB0, *pathAB2);
+    ASSERT_EQ(resolvedPaths[*pathAB2].nodeId, secondNodeId);
 
-    ASSERT_EQ(pathResolver.resolve("b.c"), pathBC1);
-    ASSERT_EQ(resolvedPaths[pathBC1].nodeId, firstNodeId);
+    const auto pathBC2 = pathResolver.resolve("b.c");
+    ASSERT_TRUE(pathBC2.has_value());
+    ASSERT_EQ(*pathBC2, *pathBC1);
+    ASSERT_EQ(resolvedPaths[*pathBC1].nodeId, firstNodeId);
 
     // Override path "b" again.
     constexpr NodeId thirdNodeId = 7;  // The index of nodes does not really matter.
     pathResolver.addNode(thirdNodeId, "b");
 
     const auto pathBC3 = pathResolver.resolve("b.c");
-    ASSERT_NE(pathBC0, pathBC3);
-    ASSERT_NE(pathBC1, pathBC3);
-    ASSERT_EQ(resolvedPaths[pathBC3].nodeId, thirdNodeId);
+    ASSERT_TRUE(pathBC3.has_value());
+    ASSERT_NE(*pathBC0, *pathBC3);
+    ASSERT_NE(*pathBC1, *pathBC3);
+    ASSERT_EQ(resolvedPaths[*pathBC3].nodeId, thirdNodeId);
 }
 
 TEST(PathResolverTests, OverridedLongerEmbedPaths) {
@@ -104,48 +117,60 @@ TEST(PathResolverTests, OverridedLongerEmbedPaths) {
     pathResolver.addNode(nodeAB, "a.b");
 
     auto pathABC0 = pathResolver.resolve("a.b.c");
-    ASSERT_EQ(nodeAB, resolvedPaths.at(pathABC0).nodeId);
+    ASSERT_TRUE(pathABC0.has_value());
+    ASSERT_EQ(nodeAB, resolvedPaths.at(*pathABC0).nodeId);
 
     const NodeId nodeA = 2;
     pathResolver.addNode(nodeA, "a");
     auto pathABC1 = pathResolver.resolve("a.b.c");
+    ASSERT_TRUE(pathABC1.has_value());
     auto pathAB0 = pathResolver.resolve("a.b");
-    ASSERT_EQ(nodeA, resolvedPaths.at(pathABC1).nodeId);
-    ASSERT_EQ(nodeA, resolvedPaths.at(pathAB0).nodeId);
+    ASSERT_TRUE(pathAB0.has_value());
+    ASSERT_EQ(nodeA, resolvedPaths.at(*pathABC1).nodeId);
+    ASSERT_EQ(nodeA, resolvedPaths.at(*pathAB0).nodeId);
 
     // Bring back a.b.
     const NodeId nodeAB1 = 3;
     pathResolver.addNode(nodeAB1, "a.b");
     auto pathABC2 = pathResolver.resolve("a.b.c");
+    ASSERT_TRUE(pathABC2.has_value());
     auto pathAC0 = pathResolver.resolve("a.c");
-    ASSERT_EQ(nodeAB1, resolvedPaths.at(pathABC2).nodeId);
-    ASSERT_EQ(nodeA, resolvedPaths.at(pathAC0).nodeId);
+    ASSERT_TRUE(pathAC0.has_value());
+    ASSERT_EQ(nodeAB1, resolvedPaths.at(*pathABC2).nodeId);
+    ASSERT_EQ(nodeA, resolvedPaths.at(*pathAC0).nodeId);
 
     // Bring back a.
     const NodeId nodeA1 = 4;
     pathResolver.addNode(nodeA1, "a");
     auto pathABC3 = pathResolver.resolve("a.b.c");
+    ASSERT_TRUE(pathABC3.has_value());
     auto pathAB1 = pathResolver.resolve("a.b");
+    ASSERT_TRUE(pathAB1.has_value());
     auto pathAC1 = pathResolver.resolve("a.c");
-    ASSERT_EQ(nodeA1, resolvedPaths.at(pathABC3).nodeId);
-    ASSERT_EQ(nodeA1, resolvedPaths.at(pathAB1).nodeId);
-    ASSERT_EQ(nodeA1, resolvedPaths.at(pathAC1).nodeId);
+    ASSERT_TRUE(pathAC1.has_value());
+    ASSERT_EQ(nodeA1, resolvedPaths.at(*pathABC3).nodeId);
+    ASSERT_EQ(nodeA1, resolvedPaths.at(*pathAB1).nodeId);
+    ASSERT_EQ(nodeA1, resolvedPaths.at(*pathAC1).nodeId);
 
     // a.b again
     const NodeId nodeAB2 = 5;
     pathResolver.addNode(nodeAB2, "a.b");
     auto pathABC4 = pathResolver.resolve("a.b.c");
+    ASSERT_TRUE(pathABC4.has_value());
     auto pathAC2 = pathResolver.resolve("a.c");
-    ASSERT_EQ(nodeAB2, resolvedPaths.at(pathABC4).nodeId);
-    ASSERT_EQ(nodeA1, resolvedPaths.at(pathAC2).nodeId);
+    ASSERT_TRUE(pathAC2.has_value());
+    ASSERT_EQ(nodeAB2, resolvedPaths.at(*pathABC4).nodeId);
+    ASSERT_EQ(nodeA1, resolvedPaths.at(*pathAC2).nodeId);
 
     // Impossible a.b!
     const NodeId nodeAB3 = 6;
     pathResolver.addNode(nodeAB3, "a.b");
     auto pathABC5 = pathResolver.resolve("a.b.c");
+    ASSERT_TRUE(pathABC5.has_value());
     auto pathAC3 = pathResolver.resolve("a.c");
-    ASSERT_EQ(nodeAB3, resolvedPaths.at(pathABC5).nodeId);
-    ASSERT_EQ(nodeA1, resolvedPaths.at(pathAC3).nodeId);
+    ASSERT_TRUE(pathAC3.has_value());
+    ASSERT_EQ(nodeAB3, resolvedPaths.at(*pathABC5).nodeId);
+    ASSERT_EQ(nodeA1, resolvedPaths.at(*pathAC3).nodeId);
 }
 
 #ifdef MONGO_CONFIG_DEBUG_BUILD
@@ -174,6 +199,8 @@ TEST(PathResolverTests, AddPath) {
     auto pathABC1 = pathResolver.addPath(nodeA0, "a.b.c");
     ASSERT_NE(pathABC0, pathABC1);
     ASSERT_EQ(pathABC1, pathResolver.addPath(nodeA0, "a.b.c"));
+    auto pathAABC0 = pathResolver.resolve("a.a.b.c");
+    ASSERT_TRUE(pathAABC0.has_value());
     ASSERT_EQ(pathABC1, pathResolver.resolve("a.a.b.c"));
 
     const NodeId nodeA1 = 10;
@@ -182,7 +209,9 @@ TEST(PathResolverTests, AddPath) {
     ASSERT_NE(pathABC1, pathABC2);
     ASSERT_NE(pathABC0, pathABC2);
     ASSERT_EQ(pathABC2, pathResolver.addPath(nodeA1, "a.b.c"));
-    ASSERT_EQ(pathABC2, pathResolver.resolve("a.a.b.c"));
+    auto pathAABC1 = pathResolver.resolve("a.a.b.c");
+    ASSERT_TRUE(pathAABC1.has_value());
+    ASSERT_EQ(pathABC2, *pathAABC1);
 }
 
 TEST(PathResolverTests, OverlappingEmbedPaths) {
@@ -190,42 +219,96 @@ TEST(PathResolverTests, OverlappingEmbedPaths) {
     std::vector<ResolvedPath> resolvedPaths;
     PathResolver pathResolver{baseNodeId, resolvedPaths};
 
-    // At this momment all paths are resolved to the base node.
+    // At this moment all paths are resolved to the base node.
 
     const auto pathA0 = pathResolver.resolve("a");
-    ASSERT_EQ(resolvedPaths[pathA0].nodeId, baseNodeId);
+    ASSERT_TRUE(pathA0.has_value());
+    ASSERT_EQ(resolvedPaths[*pathA0].nodeId, baseNodeId);
 
     const auto pathAB0 = pathResolver.resolve("a.b");
-    ASSERT_EQ(resolvedPaths[pathAB0].nodeId, baseNodeId);
+    ASSERT_TRUE(pathAB0.has_value());
+    ASSERT_EQ(resolvedPaths[*pathAB0].nodeId, baseNodeId);
 
     const auto pathABC0 = pathResolver.resolve("a.b.c");
-    ASSERT_EQ(resolvedPaths[pathABC0].nodeId, baseNodeId);
+    ASSERT_TRUE(pathABC0.has_value());
+    ASSERT_EQ(resolvedPaths[*pathABC0].nodeId, baseNodeId);
 
     const auto pathAC0 = pathResolver.resolve("a.c");
-    ASSERT_EQ(resolvedPaths[pathAC0].nodeId, baseNodeId);
+    ASSERT_TRUE(pathAC0.has_value());
+    ASSERT_EQ(resolvedPaths[*pathAC0].nodeId, baseNodeId);
 
     // Override path "a".
     constexpr NodeId firstNodeId = 1;  // The index of nodes does not really matter.
     pathResolver.addNode(firstNodeId, "a");
 
     // "b" still points to the base node
-    ASSERT_EQ(resolvedPaths[pathResolver.resolve("b")].nodeId, baseNodeId);
+    const auto pathB0 = pathResolver.resolve("b");
+    ASSERT_TRUE(pathB0.has_value());
+    ASSERT_EQ(resolvedPaths[*pathB0].nodeId, baseNodeId);
 
     // "a.b" and "a.c" point to the first node
-    ASSERT_EQ(resolvedPaths[pathResolver.resolve("a.b")].nodeId, firstNodeId);
-    ASSERT_EQ(resolvedPaths[pathResolver.resolve("a.c")].nodeId, firstNodeId);
+    const auto pathAB1 = pathResolver.resolve("a.b");
+    ASSERT_TRUE(pathAB1.has_value());
+    ASSERT_EQ(resolvedPaths[*pathAB1].nodeId, firstNodeId);
+    const auto pathAC1 = pathResolver.resolve("a.c");
+    ASSERT_TRUE(pathAC1.has_value());
+    ASSERT_EQ(resolvedPaths[*pathAC1].nodeId, firstNodeId);
 
     // Override path "a.b"
     constexpr NodeId secondNodeId = 2;  // The index of nodes does not really matter.
     pathResolver.addNode(secondNodeId, "a.b");
 
     // "b" still points to the base node
-    ASSERT_EQ(resolvedPaths[pathResolver.resolve("b")].nodeId, baseNodeId);
+    const auto pathB1 = pathResolver.resolve("b");
+    ASSERT_TRUE(pathB1.has_value());
+    ASSERT_EQ(resolvedPaths[*pathB1].nodeId, baseNodeId);
 
     // "a.b.c" point to the second node
-    ASSERT_EQ(resolvedPaths[pathResolver.resolve("a.b.c")].nodeId, secondNodeId);
+    const auto pathABC1 = pathResolver.resolve("a.b.c");
+    ASSERT_TRUE(pathABC1.has_value());
+    ASSERT_EQ(resolvedPaths[*pathABC1].nodeId, secondNodeId);
 
     // "a.c" still points to the first node
-    ASSERT_EQ(resolvedPaths[pathResolver.resolve("a.c")].nodeId, firstNodeId);
+    const auto pathAC2 = pathResolver.resolve("a.c");
+    ASSERT_TRUE(pathAC2.has_value());
+    ASSERT_EQ(resolvedPaths[*pathAC2].nodeId, firstNodeId);
 }
+
+
+TEST(PathResolverTests, ConflictingEmbedPaths) {
+    // At this moment all paths are resolved to the base node.
+    constexpr NodeId baseNodeId = 0;
+    std::vector<ResolvedPath> resolvedPaths;
+    PathResolver pathResolver{baseNodeId, resolvedPaths};
+
+    // At this momment all paths are resolved to the base node.
+    ASSERT_EQ(false, pathResolver.pathResolvesToJoinNode("a", baseNodeId));
+    ASSERT_EQ(false, pathResolver.pathResolvesToJoinNode("a.b", baseNodeId));
+    ASSERT_EQ(false, pathResolver.pathResolvesToJoinNode("b", baseNodeId));
+    ASSERT_EQ(false, pathResolver.pathResolvesToJoinNode("b.c", baseNodeId));
+    ASSERT_EQ(false, pathResolver.pathResolvesToJoinNode("b.e", baseNodeId));
+
+    constexpr NodeId firstNodeId = 10;  // The index of nodes does not really matter.
+    pathResolver.addNode(firstNodeId, "b.c");
+
+    // These paths will no longer resolve to the base node because we have added
+    // the "b.c" prefix to the graph in firstNode.
+    ASSERT_EQ(true, pathResolver.pathResolvesToJoinNode("b", baseNodeId));
+    ASSERT_EQ(true, pathResolver.pathResolvesToJoinNode("b.c", baseNodeId));
+
+    // These paths will still resolve to the base node.
+    ASSERT_EQ(false, pathResolver.pathResolvesToJoinNode("b.e", baseNodeId));
+    ASSERT_EQ(false, pathResolver.pathResolvesToJoinNode("a", baseNodeId));
+    ASSERT_EQ(false, pathResolver.pathResolvesToJoinNode("a.b", baseNodeId));
+
+    constexpr NodeId secondNodeId = 100;  // The index of nodes does not really matter.
+    pathResolver.addNode(secondNodeId, "a");
+    ASSERT_EQ(true, pathResolver.pathResolvesToJoinNode("a", baseNodeId));
+    ASSERT_EQ(true, pathResolver.pathResolvesToJoinNode("a.b", baseNodeId));
+
+    // This path doesn't conflict with "a" or "b.e".
+    ASSERT_EQ(false, pathResolver.pathResolvesToJoinNode("b.e", baseNodeId));
+}
+
+
 }  // namespace mongo::join_ordering

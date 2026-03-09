@@ -180,6 +180,12 @@ public:
     void setEndOfOpMetrics(long long nreturned);
 
     /**
+     * Sets metrics collected at the end of a batched write operation onto curOp's OpDebug
+     * instance.
+     */
+    void setEndOfOpMetricsForBatchWrites();
+
+    /**
      * Marks the operation end time, records the length of the client response if a valid response
      * exists, and then - subject to the current values of slowMs and sampleRate - logs this CurOp
      * to file under the given LogComponent. Returns 'true' if, in addition to being logged, this
@@ -831,6 +837,11 @@ private:
      * while waiting for the global lock.
      */
     void _fetchStorageStatsIfNecessary(Date_t deadline, bool isFinal);
+
+    /**
+     * A helper function that collects end of op metrics into the provided AdditiveMetrics struct.
+     */
+    void _setEndOfOpMetrics(OpDebug::AdditiveMetrics& metrics);
 
     /*
      * Checks if the current operation is eligible for long-running query logging and, if so,

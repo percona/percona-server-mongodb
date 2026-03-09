@@ -29,7 +29,6 @@
 
 #include "mongo/db/sharding_environment/sharding_mongos_test_fixture.h"
 #include "mongo/db/topology/vector_clock/vector_clock.h"
-#include "mongo/unittest/death_test.h"
 #include "mongo/unittest/log_test.h"
 
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kDefault
@@ -73,6 +72,24 @@ protected:
             VectorClock::get(operationContext())
                 ->advanceTopologyTime_forTest(LogicalTime(configsvrTopologyTime));
         }
+    }
+
+    // Adds a shard with a custom ShardType (name and connection string). Used when testing
+    // host-to-shard mapping with specific hosts (e.g. recovery after host reassignment).
+    void addShard(ShardType shardType, bool advanceTopologyTime = true) {
+        configsvrTopologyTime = Timestamp(addRemoveShardCounterForTopologyTime++, 0);
+        shardType.setTopologyTime(configsvrTopologyTime);
+        shards.push_back(shardType);
+        if (advanceTopologyTime) {
+            VectorClock::get(operationContext())
+                ->advanceTopologyTime_forTest(LogicalTime(configsvrTopologyTime));
+        }
+    }
+
+    // Clears the fixture's shard list so a new topology can be set up (e.g. to simulate
+    // config.shards change before recovery).
+    void clearShards() {
+        shards.clear();
     }
 
     // Adds a shard to the fixture, simulating a config.shards with no topologyTime in any of the
@@ -180,6 +197,43 @@ protected:
 
     unittest::MinimumLoggedSeverityGuard logSeverityGuard{logv2::LogComponent::kSharding,
                                                           logv2::LogSeverity::Debug(2)};
+
+    size_t getLatestConnStringsSize() {
+        return shardRegistry()->_latestConnStrings.size();
+    }
+
+    void clearForRecovery() {
+        shardRegistry()->_clearForRecovery(operationContext());
+    }
+
+    // Sets up the host reassignment scenario: initial topology has shard1 (host1,2,3) and shard2
+    // (host4,5,6). Then it simulates a config change where host3 moves to shard2. After this, the
+    // mock config has the new topology but the registry still has the old view in memory.
+    void setupHostReassignmentScenario() {
+        addShard(ShardType("shard1", "shard1RS/host1:27017,host2:27017,host3:27017"));
+        addShard(ShardType("shard2", "shard2RS/host4:27017,host5:27017,host6:27017"));
+
+        auto future = launchAsync([this] { shardRegistry()->getAllShardIds(operationContext()); });
+        expectCSRSLookup();
+        future.default_timed_get();
+
+        ASSERT_EQ(2u, shardRegistry()->getAllShardIds(operationContext()).size());
+        auto shardForHost3 = shardRegistry()->getShardForHostNoReload(HostAndPort("host3", 27017));
+        ASSERT(shardForHost3) << "host3 should be found after initial load";
+        ASSERT_EQ(ShardId("shard1"), shardForHost3->getId())
+            << "host3 should initially belong to shard1";
+
+        // Simulate topology change: host3 moves from shard1 to shard2 in config.shards.
+        clearShards();
+        addShard(ShardType("shard1", "shard1RS/host1:27017,host2:27017"));
+        addShard(ShardType("shard2", "shard2RS/host3:27017,host4:27017,host5:27017,host6:27017"));
+
+        auto shardForHost3AfterReassignment =
+            shardRegistry()->getShardForHostNoReload(HostAndPort("host3", 27017));
+        ASSERT(shardForHost3AfterReassignment) << "host3 should be found after reassignment";
+        ASSERT_EQ(ShardId("shard1"), shardForHost3AfterReassignment->getId())
+            << "host3 should still belong to shard1 after reassignment";
+    }
 };
 
 namespace {
@@ -424,6 +478,32 @@ TEST_F(ShardRegistryTest, NewerLookupTimeGreaterThanOlder) {
     auto olderTime = makeTimeWithLookup([]() { return Timestamp(1, 1); });
     auto newerTime = makeTimeWithLookup([]() { return Timestamp(2, 1); });
     ASSERT_GT(newerTime, olderTime);
+}
+
+TEST_F(ShardRegistryTest, RecoverShardRegistryClearsCachedConnectionStrings) {
+    ASSERT_EQ(getLatestConnStringsSize(), 1);  // This is the config shard
+    clearForRecovery();
+    ASSERT_EQ(getLatestConnStringsSize(), 0);
+}
+
+TEST_F(ShardRegistryTest, RecoverShardRegistryReloadForRecovery) {
+    setupHostReassignmentScenario();
+
+    auto future = launchAsync([this] {
+        auto [cachedTimeBefore,
+              forceReloadIncrementBefore,
+              cachedTimeAfter,
+              forceReloadIncrementAfter] = shardRegistry()->reloadForRecovery(operationContext());
+        ASSERT_GT(forceReloadIncrementAfter, forceReloadIncrementBefore);
+        ASSERT_GT(cachedTimeAfter, cachedTimeBefore);
+    });
+    expectCSRSLookup();
+    future.default_timed_get();
+
+    auto shardForHost3 = shardRegistry()->getShardForHostNoReload(HostAndPort("host3", 27017));
+    ASSERT(shardForHost3) << "host3 should be found after recovery";
+    ASSERT_EQ(ShardId("shard2"), shardForHost3->getId())
+        << "host3 should now belong to shard2 after reassignment";
 }
 
 }  // namespace

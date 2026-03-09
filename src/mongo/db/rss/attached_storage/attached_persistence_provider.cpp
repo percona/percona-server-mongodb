@@ -182,6 +182,10 @@ bool AttachedPersistenceProvider::supportsCompaction() const {
     return true;
 }
 
+bool AttachedPersistenceProvider::supportsClassicMagicRestore() const {
+    return true;
+}
+
 bool AttachedPersistenceProvider::shouldTimestampTableCreations() const {
     return false;
 }
@@ -192,6 +196,11 @@ int AttachedPersistenceProvider::getMinSnapshotHistoryWindowInSeconds() const {
 
 void AttachedPersistenceProvider::setMinSnapshotHistoryWindowInSeconds(int seconds) {
     minSnapshotHistoryWindowInSeconds.store(seconds);
+}
+
+bool AttachedPersistenceProvider::settingsProvideMajorityWriteJournalDurability(
+    bool writeConcernMajorityShouldJournal) const {
+    return writeConcernMajorityShouldJournal;
 }
 
 }  // namespace mongo::rss

@@ -631,6 +631,106 @@ TEST_F(CreateCollectionTest, CreateCollectionForApplyOpsUsesIdIndexIdentIfSuppli
     ASSERT_EQ(indexIdents.size(), 2);
 }
 
+TEST_F(CreateCollectionTest,
+       CreateCollectionForApplyOpsUsesRecordIdsReplicatedIfSuppliedWhenItIsFalse) {
+    RAIIServerParameterControllerForTest featureFlagController =
+        RAIIServerParameterControllerForTest("featureFlagRecordIdsReplicated", true);
+
+    auto opCtx = makeOpCtx();
+    auto nss = NamespaceString::createNamespaceString_forTest("test.recordIdsReplicated");
+    ASSERT_FALSE(collectionExists(opCtx.get(), nss));
+
+    CollectionOptions options;
+    CreateCommand cmd = CreateCommand(nss);
+    cmd.getCreateCollectionRequest().setRecordIdsReplicated(false);
+
+    Lock::GlobalLock lk(opCtx.get(), MODE_X);
+
+    ASSERT_OK(createCollectionForApplyOps(opCtx.get(),
+                                          nss.dbName(),
+                                          UUID::gen(),
+                                          cmd.toBSON(),
+                                          false,
+                                          boost::none,
+                                          boost::none,
+                                          /*recordIdsReplicated=*/false));
+
+    ASSERT_TRUE(collectionExists(opCtx.get(), nss));
+    auto coll = acquireCollForRead(opCtx.get(), nss);
+    ASSERT_FALSE(coll.getCollectionPtr()->areRecordIdsReplicated());
+}
+
+TEST_F(CreateCollectionTest,
+       CreateCollectionForApplyOpsUsesRecordIdsReplicatedIfSuppliedWhenItIsTrue) {
+    RAIIServerParameterControllerForTest featureFlagController =
+        RAIIServerParameterControllerForTest("featureFlagRecordIdsReplicated", true);
+
+    auto opCtx = makeOpCtx();
+    auto nss = NamespaceString::createNamespaceString_forTest("test.recordIdsReplicated");
+    ASSERT_FALSE(collectionExists(opCtx.get(), nss));
+
+    CollectionOptions options;
+    options.recordIdsReplicated = true;
+    CreateCommand cmd = CreateCommand(nss);
+    cmd.getCreateCollectionRequest().setRecordIdsReplicated(true);
+
+    Lock::GlobalLock lk(opCtx.get(), MODE_X);
+
+    ASSERT_OK(createCollectionForApplyOps(opCtx.get(),
+                                          nss.dbName(),
+                                          UUID::gen(),
+                                          cmd.toBSON(),
+                                          false,
+                                          boost::none,
+                                          boost::none,
+                                          /*recordIdsReplicated=*/true));
+
+    ASSERT_TRUE(collectionExists(opCtx.get(), nss));
+    auto coll = acquireCollForRead(opCtx.get(), nss);
+    ASSERT_TRUE(coll.getCollectionPtr()->areRecordIdsReplicated());
+}
+
+TEST_F(CreateCollectionTest,
+       CreateCollectionForApplyOpsUsesRecordIdsReplicatedWhenNotSuppliedAndFeatureFlagIsOn) {
+    RAIIServerParameterControllerForTest featureFlagController =
+        RAIIServerParameterControllerForTest("featureFlagRecordIdsReplicated", true);
+
+    auto opCtx = makeOpCtx();
+    auto nss = NamespaceString::createNamespaceString_forTest("test.recordIdsReplicated");
+    ASSERT_FALSE(collectionExists(opCtx.get(), nss));
+
+    CollectionOptions options;
+    CreateCommand cmd = CreateCommand(nss);
+
+    Lock::GlobalLock lk(opCtx.get(), MODE_X);
+
+    ASSERT_OK(
+        createCollectionForApplyOps(opCtx.get(), nss.dbName(), UUID::gen(), cmd.toBSON(), false));
+
+    ASSERT_TRUE(collectionExists(opCtx.get(), nss));
+    auto coll = acquireCollForRead(opCtx.get(), nss);
+    ASSERT_TRUE(coll.getCollectionPtr()->areRecordIdsReplicated());
+}
+
+TEST_F(CreateCollectionTest,
+       CreateCollectionForApplyOpsDoesNotUseRecordIdsReplicatedWhenFeatureFlagIsOff) {
+    auto opCtx = makeOpCtx();
+    auto nss = NamespaceString::createNamespaceString_forTest("test.recordIdsReplicated");
+    ASSERT_FALSE(collectionExists(opCtx.get(), nss));
+
+    CollectionOptions options;
+    CreateCommand cmd = CreateCommand(nss);
+
+    Lock::GlobalLock lk(opCtx.get(), MODE_X);
+
+    ASSERT_OK(
+        createCollectionForApplyOps(opCtx.get(), nss.dbName(), UUID::gen(), cmd.toBSON(), false));
+
+    ASSERT_TRUE(collectionExists(opCtx.get(), nss));
+    auto coll = acquireCollForRead(opCtx.get(), nss);
+    ASSERT_FALSE(coll.getCollectionPtr()->areRecordIdsReplicated());
+}
+
 const auto kValidUrl1 = ExternalDataSourceMetadata::kUrlProtocolFile + "named_pipe1"s;
 const auto kValidUrl2 = ExternalDataSourceMetadata::kUrlProtocolFile + "named_pipe2"s;
 

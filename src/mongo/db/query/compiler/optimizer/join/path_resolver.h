@@ -103,18 +103,33 @@ public:
 
     /**
      * The function checks for known prefixes and identifies the most recently added node which
-     * 'embedPath' prefixes the 'path' is selected as the node of origin of the path.If the field is
-     * resolved for the first time a new path id is created, assigned to the winning node and
-     * returned from the function. It is important to understand that subsequent 'addNode' calls
-     * change how a particular path is resolved. For example:
+     * 'embedPath' prefixes the 'path' is selected as the node of origin of the path. However if
+     * it finds that the 'path' actually prefixes the embedPath, then function does not
+     * resolve the path and returns boost::none.
+
+     * If the field is resolved for the first time a new
+     * path id is created, assigned to the winning node and returned from the function. It is
+     * important to understand that subsequent 'addNode' calls change how a particular path is
+     * resolved. For example:
      * 1. Call for "a.b.c", no prefixes matched, the field is resolved to "a.b.c" of the base node.
      * 2. After 'addNode(1, "a.b")' is called, the field "a.b.c" is resolved to "c" of node 1.
      * 3. After 'addNode(2, "b.c")' is called, the field "a.b.c" is still resolved to "c" of
      * node 1, because embed path of Node 2 does not prefix the path.
      * 4. After 'addNode(3, "a")' is called, the field "a.b.c" is resolved to "b.c" of node 3,
      * because the node with prefix "a" was added more recently then the node with prefix "a.b".
+     *
      */
-    PathId resolve(const FieldPath& path);
+    boost::optional<PathId> resolve(const FieldPath& path);
+
+    /*
+     * Unlike resolve(), this helper identifies path conflicts *without* adding eligible paths to
+     * the pathResolver. In this way, if a field path is found to be the prefix of an existing join
+     * node's embed path or vice versa, the helper returns true and join opt falls back. If the
+     * helper returns false, join analysis continues.
+     *
+     *  Please see comments in the function implementation for more details.
+     */
+    bool pathResolvesToJoinNode(const FieldPath& fieldPath, NodeId baseNodeId);
 
     const ResolvedPath& operator[](PathId PathId) const {
         return _resolvedPaths.at(PathId);
@@ -143,7 +158,8 @@ private:
     /** Resolves the path by its longest prefix with the known node embedPaths and returns the
      * resolved node and the resolved field path without the embedPath of the node.
      */
-    std::pair<NodeId, FieldPath> resolveNodeByEmbedPath(const FieldPath& fieldPath) const;
+    boost::optional<std::pair<NodeId, FieldPath>> resolveNodeByEmbedPath(
+        const FieldPath& fieldPath) const;
 
     boost::optional<Scope&> getScopeForNode(NodeId node);
 

@@ -361,16 +361,16 @@ TEST(CurOpTest, AdditiveMetricsShouldAggregateCursorMetrics) {
                                 true /* hasSortStage */,
                                 false /* usedDisk */,
                                 true /* fromMultiPlanner */,
-                                false /* fromPlanCache */,
-                                150 /* planningTimeMicros */,
-                                15 /* nDocsSampled */,
-                                9 /* cpuNanos */,
-                                3 /* numInterruptChecks */,
-                                1 /* nMatched */,
-                                0 /* nUpserted */,
-                                1 /* nModified */,
-                                0 /* nDeleted */,
-                                0 /* nInserted */);
+                                false /* fromPlanCache */);
+    cursorMetrics.setPlanningTimeMicros(150);
+    cursorMetrics.setNDocsSampled(15);
+    cursorMetrics.setCpuNanos(9);
+    cursorMetrics.setNumInterruptChecks(3);
+    cursorMetrics.setNMatched(1);
+    cursorMetrics.setNUpserted(0);
+    cursorMetrics.setNModified(1);
+    cursorMetrics.setNDeleted(0);
+    cursorMetrics.setNInserted(0);
     CardinalityEstimationMethods ceMethods1;
     ceMethods1.setHistogram(1);
     ceMethods1.setSampling(1);
@@ -432,16 +432,16 @@ TEST(CurOpTest, AdditiveMetricsShouldAggregateNegativeCpuNanos) {
                                 true /* hasSortStage */,
                                 false /* usedDisk */,
                                 true /* fromMultiPlanner */,
-                                false /* fromPlanCache */,
-                                12 /* planningTimeMicros */,
-                                15 /* nDocsSampled */,
-                                -1 /* cpuNanos */,
-                                3 /* numInterruptChecks */,
-                                1 /* nMatched */,
-                                0 /* nUpserted */,
-                                1 /* nModified */,
-                                0 /* nDeleted */,
-                                0 /* nInserted */);
+                                false /* fromPlanCache */);
+    cursorMetrics.setPlanningTimeMicros(12);
+    cursorMetrics.setNDocsSampled(15);
+    cursorMetrics.setCpuNanos(-1);
+    cursorMetrics.setNumInterruptChecks(3);
+    cursorMetrics.setNMatched(1);
+    cursorMetrics.setNUpserted(0);
+    cursorMetrics.setNModified(1);
+    cursorMetrics.setNDeleted(0);
+    cursorMetrics.setNInserted(0);
 
     additiveMetrics.aggregateCursorMetrics(cursorMetrics);
     ASSERT_EQ(additiveMetrics.cpuNanos, Nanoseconds(-2));
@@ -464,16 +464,16 @@ TEST(CurOpTest, AdditiveMetricsAggregateCursorMetricsTreatsNoneAsZero) {
                                 true /* hasSortStage */,
                                 false /* usedDisk */,
                                 true /* fromMultiPlanner */,
-                                false /* fromPlanCache */,
-                                100 /* planningTimeMicros */,
-                                15 /* nDocsSampled */,
-                                10 /* cpuNanos */,
-                                3 /* numInterruptChecks */,
-                                1 /* nMatched */,
-                                0 /* nUpserted */,
-                                1 /* nModified */,
-                                0 /* nDeleted */,
-                                0 /* nInserted */);
+                                false /* fromPlanCache */);
+    cursorMetrics.setPlanningTimeMicros(100);
+    cursorMetrics.setNDocsSampled(15);
+    cursorMetrics.setCpuNanos(10);
+    cursorMetrics.setNumInterruptChecks(3);
+    cursorMetrics.setNMatched(1);
+    cursorMetrics.setNUpserted(0);
+    cursorMetrics.setNModified(1);
+    cursorMetrics.setNDeleted(0);
+    cursorMetrics.setNInserted(0);
 
     additiveMetrics.aggregateCursorMetrics(cursorMetrics);
 
@@ -1303,6 +1303,137 @@ TEST(CurOpTest, OpDebugAllowsMultipleAdditiveMetrics) {
     // The new set of metrics should be distinct from the one for the main operation.
     OpDebug::AdditiveMetrics& mainAm = opDebug.getAdditiveMetrics();
     ASSERT_NE(&mainAm, &am);
+}
+
+/**
+ * Characterize the full set of metrics collected by setEndOfOpMetricsForBatchWrites().
+ */
+TEST(CurOpTest, SetEndOfOpMetricsForBatchWritesPopulatesAllMetrics) {
+    RAIIServerParameterControllerForTest enableDelinquentTracking(
+        "featureFlagRecordDelinquentMetrics", true);
+    RAIIServerParameterControllerForTest alwaysTrackInterrupts("overdueInterruptCheckSamplingRate",
+                                                               1);
+
+    QueryTestServiceContext serviceContext;
+    auto tickSourcePtr = serviceContext.tickSource();
+    // The tick source is initialized to a non-zero value as CurOp equates a value of 0 with a
+    // not-started timer.
+    tickSourcePtr->advance(Milliseconds{100});
+
+    auto opCtx = serviceContext.makeOperationContext();
+    CurOp* curOp = CurOp::get(*opCtx);
+    OpDebug& opDebug = curOp->debug();
+    curOp->setTickSource_forTest(tickSourcePtr);
+
+    // Set up batch write query stats entries at two different op indices.
+    const size_t opIndex1 = 0;
+    const size_t opIndex2 = 3;
+    opDebug.setQueryStatsInfoAtOpIndex(opIndex1, {.keyHash = 42});
+    opDebug.setQueryStatsInfoAtOpIndex(opIndex2, {.keyHash = 43});
+
+    // Set up the admission context with delinquency and admission data.
+    auto& admCtx = ExecutionAdmissionContext::get(opCtx.get());
+    admCtx.recordDelinquentAcquisition(Milliseconds(20));
+    admCtx.recordDelinquentAcquisition(Milliseconds(10));
+    admCtx.setAdmission_forTest(2);
+    admCtx.setTotalTimeQueuedMicros_forTest(500);
+
+    // Start the CurOp and advance time past the overdue interrupt check interval so that
+    // interrupt check metrics are populated.
+    curOp->ensureStarted();
+    const Milliseconds interval{gOverdueInterruptCheckIntervalMillis.load()};
+    tickSourcePtr->advance(interval * 2);
+    opCtx->checkForInterrupt();
+    tickSourcePtr->advance(Milliseconds{100});
+    curOp->done();
+
+    // Call the method under test.
+    curOp->setEndOfOpMetricsForBatchWrites();
+
+    // Verify that the metrics for each batch write entry are populated.
+    auto& metrics1 = opDebug.getAdditiveMetrics(opIndex1);
+    auto& metrics2 = opDebug.getAdditiveMetrics(opIndex2);
+
+    // -- Timing metrics --
+    // executionTime should be set to the elapsed time of the CurOp.
+    ASSERT_TRUE(metrics1.executionTime.has_value());
+    ASSERT_GT(*metrics1.executionTime, Microseconds(0));
+    ASSERT_EQ(metrics1.executionTime, metrics2.executionTime);
+
+    // clusterWorkingTime should be set (elapsed minus blocked time).
+    ASSERT_TRUE(metrics1.clusterWorkingTime.has_value());
+    ASSERT_GTE(*metrics1.clusterWorkingTime, Milliseconds(0));
+    ASSERT_EQ(metrics1.clusterWorkingTime, metrics2.clusterWorkingTime);
+
+    // cpuNanos should be set. On Linux it will be a real measurement; on other platforms
+    // it may be negative.
+    ASSERT_TRUE(metrics1.cpuNanos.has_value());
+    ASSERT_EQ(metrics1.cpuNanos, metrics2.cpuNanos);
+
+    // -- Delinquency metrics --
+    // Should be populated from the ExecutionAdmissionContext.
+    ASSERT_TRUE(metrics1.delinquentAcquisitions.has_value());
+    ASSERT_EQ(*metrics1.delinquentAcquisitions, 2UL);
+    ASSERT_EQ(metrics1.delinquentAcquisitions, metrics2.delinquentAcquisitions);
+
+    ASSERT_TRUE(metrics1.totalAcquisitionDelinquency.has_value());
+    ASSERT_EQ(*metrics1.totalAcquisitionDelinquency, Milliseconds(30));
+    ASSERT_EQ(metrics1.totalAcquisitionDelinquency, metrics2.totalAcquisitionDelinquency);
+
+    ASSERT_TRUE(metrics1.maxAcquisitionDelinquency.has_value());
+    ASSERT_EQ(*metrics1.maxAcquisitionDelinquency, Milliseconds(20));
+    ASSERT_EQ(metrics1.maxAcquisitionDelinquency, metrics2.maxAcquisitionDelinquency);
+
+    // -- Admission metrics --
+    ASSERT_TRUE(metrics1.totalTimeQueuedMicros.has_value());
+    ASSERT_EQ(*metrics1.totalTimeQueuedMicros, Microseconds(500));
+    ASSERT_EQ(metrics1.totalTimeQueuedMicros, metrics2.totalTimeQueuedMicros);
+
+    ASSERT_TRUE(metrics1.totalAdmissions.has_value());
+    ASSERT_EQ(*metrics1.totalAdmissions, 2UL);
+    ASSERT_EQ(metrics1.totalAdmissions, metrics2.totalAdmissions);
+
+    // wasLoadShed and wasDeprioritized default to false when no load shedding/deprioritization
+    // has occurred.
+    ASSERT_TRUE(metrics1.wasLoadShed.has_value());
+    ASSERT_FALSE(*metrics1.wasLoadShed);
+    ASSERT_TRUE(metrics1.wasDeprioritized.has_value());
+    ASSERT_FALSE(*metrics1.wasDeprioritized);
+
+    // -- Interrupt check metrics --
+    // numInterruptChecks should reflect the checkForInterrupt() call.
+    ASSERT_TRUE(metrics1.numInterruptChecks.has_value());
+    ASSERT_EQ(*metrics1.numInterruptChecks, 1UL);
+    ASSERT_EQ(metrics1.numInterruptChecks, metrics2.numInterruptChecks);
+
+    // overdueInterruptApproxMax should be set since we advanced past the interval.
+    ASSERT_TRUE(metrics1.overdueInterruptApproxMax.has_value());
+    ASSERT_GT(*metrics1.overdueInterruptApproxMax, Milliseconds(0));
+    ASSERT_EQ(metrics1.overdueInterruptApproxMax, metrics2.overdueInterruptApproxMax);
+}
+
+/**
+ * Verify that setEndOfOpMetricsForBatchWrites is a no-op when there are no batch write entries.
+ */
+TEST(CurOpTest, SetEndOfOpMetricsForBatchWritesNoOpWithoutEntries) {
+    QueryTestServiceContext serviceContext;
+    auto tickSourcePtr = serviceContext.tickSource();
+    tickSourcePtr->advance(Milliseconds{100});
+
+    auto opCtx = serviceContext.makeOperationContext();
+    CurOp* curOp = CurOp::get(*opCtx);
+    curOp->setTickSource_forTest(tickSourcePtr);
+
+    curOp->ensureStarted();
+    tickSourcePtr->advance(Milliseconds{50});
+    curOp->done();
+
+    // No batch write entries have been created. Calling this should be a no-op and not crash.
+    curOp->setEndOfOpMetricsForBatchWrites();
+
+    // The main operation's additive metrics should not be affected.
+    auto& mainMetrics = curOp->debug().getAdditiveMetrics();
+    ASSERT_FALSE(mainMetrics.executionTime.has_value());
 }
 
 }  // namespace

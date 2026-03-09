@@ -89,7 +89,8 @@ protected:
 
 TEST_F(CollectionRecordStoreOptionsTest, DefaultRecordStoreOptions) {
     CollectionOptions collOptions;
-    const auto actualRSOptions = getRecordStoreOptions(kBasicNss, collOptions);
+    const auto actualRSOptions =
+        getRecordStoreOptions(kBasicNss, collOptions, /*recordIdsReplicated=*/false);
 
     // Default 'RecordStore::Options' should match those generated for the default
     // 'CollectionOptions'.
@@ -97,10 +98,22 @@ TEST_F(CollectionRecordStoreOptionsTest, DefaultRecordStoreOptions) {
     assertEQ(kDefaultRSOptions, actualRSOptions);
 }
 
+TEST_F(CollectionRecordStoreOptionsTest, DefaultRecordStoreOptionsWithRecordIdsReplicated) {
+    CollectionOptions collOptions;
+    collOptions.recordIdsReplicated = true;
+    const auto actualRSOptions =
+        getRecordStoreOptions(kBasicNss, collOptions, /*recordIdsReplicated=*/true);
+
+    // Overwrites are disallowed for collection with replicated record Ids
+    const RecordStore::Options kDefaultRSOptions{.allowOverwrite = false};
+    assertEQ(kDefaultRSOptions, actualRSOptions);
+}
+
 TEST_F(CollectionRecordStoreOptionsTest, ClusteredRecordStoreOptionsBasic) {
     CollectionOptions collOptions;
     collOptions.clusteredIndex = clustered_util::makeDefaultClusteredIdIndex();
-    const auto actualRSOptions = getRecordStoreOptions(kBasicNss, collOptions);
+    const auto actualRSOptions =
+        getRecordStoreOptions(kBasicNss, collOptions, /*recordIdsReplicated=*/false);
     RecordStore::Options expectedRSOptions{.keyFormat = KeyFormat::String, .allowOverwrite = false};
     assertEQ(expectedRSOptions, actualRSOptions);
 }
@@ -108,8 +121,20 @@ TEST_F(CollectionRecordStoreOptionsTest, ClusteredRecordStoreOptionsBasic) {
 TEST_F(CollectionRecordStoreOptionsTest, CappedRecordStoreOptionsBasic) {
     CollectionOptions collOptions;
     collOptions.capped = true;
-    const auto actualRSOptions = getRecordStoreOptions(kBasicNss, collOptions);
+    const auto actualRSOptions =
+        getRecordStoreOptions(kBasicNss, collOptions, /*recordIdsReplicated=*/false);
     RecordStore::Options expectedRSOptions{.isCapped = true};
+    assertEQ(expectedRSOptions, actualRSOptions);
+}
+
+TEST_F(CollectionRecordStoreOptionsTest, CappedRecordStoreOptionsBasicWithRecordIdsReplicated) {
+    CollectionOptions collOptions;
+    collOptions.capped = true;
+    collOptions.recordIdsReplicated = true;
+    const auto actualRSOptions =
+        getRecordStoreOptions(kBasicNss, collOptions, /*recordIdsReplicated=*/true);
+
+    RecordStore::Options expectedRSOptions{.isCapped = true, .allowOverwrite = false};
     assertEQ(expectedRSOptions, actualRSOptions);
 }
 
@@ -121,8 +146,24 @@ TEST_F(CollectionRecordStoreOptionsTest, CappedRecordStoreOptions) {
     collOptions.capped = true;
     collOptions.cappedMaxDocs = 100 /* arbitrary */;
     collOptions.cappedSize = 100 /* arbitrary */;
-    const auto actualRSOptions = getRecordStoreOptions(kBasicNss, collOptions);
+    const auto actualRSOptions =
+        getRecordStoreOptions(kBasicNss, collOptions, /*recordIdsReplicated=*/false);
     RecordStore::Options expectedRSOptions{.isCapped = true};
+    assertEQ(expectedRSOptions, actualRSOptions);
+}
+
+TEST_F(CollectionRecordStoreOptionsTest, CappedRecordStoreOptionsWithRecordIdsReplicated) {
+    CollectionOptions collOptions;
+    // Aside from 'capped', other capped related 'CollectionOptions' fields aren't relevant when
+    // generating a RecordStore for a non-oplog collection. For example, 'cappedSize' and
+    // 'cappedMaxDocs' don't impact the 'RecordStore::Options' generated for 'kBasicNss'.
+    collOptions.capped = true;
+    collOptions.cappedMaxDocs = 100 /* arbitrary */;
+    collOptions.cappedSize = 100 /* arbitrary */;
+    collOptions.recordIdsReplicated = true;
+    const auto actualRSOptions =
+        getRecordStoreOptions(kBasicNss, collOptions, /*recordIdsReplicated=*/true);
+    RecordStore::Options expectedRSOptions{.isCapped = true, .allowOverwrite = false};
     assertEQ(expectedRSOptions, actualRSOptions);
 }
 
@@ -130,7 +171,20 @@ TEST_F(CollectionRecordStoreOptionsTest, CappedClusteredRecordStoreOptions) {
     CollectionOptions collOptions;
     collOptions.clusteredIndex = clustered_util::makeDefaultClusteredIdIndex();
     collOptions.capped = true;
-    const auto actualRSOptions = getRecordStoreOptions(kBasicNss, collOptions);
+    const auto actualRSOptions =
+        getRecordStoreOptions(kBasicNss, collOptions, /*recordIdsReplicated=*/false);
+    RecordStore::Options expectedRSOptions{
+        .keyFormat = KeyFormat::String, .isCapped = true, .allowOverwrite = false};
+    assertEQ(expectedRSOptions, actualRSOptions);
+}
+
+TEST_F(CollectionRecordStoreOptionsTest, CappedClusteredRecordStoreOptionsWithRecordIdsReplicated) {
+    CollectionOptions collOptions;
+    collOptions.clusteredIndex = clustered_util::makeDefaultClusteredIdIndex();
+    collOptions.capped = true;
+    collOptions.recordIdsReplicated = true;
+    const auto actualRSOptions =
+        getRecordStoreOptions(kBasicNss, collOptions, /*recordIdsReplicated=*/true);
     RecordStore::Options expectedRSOptions{
         .keyFormat = KeyFormat::String, .isCapped = true, .allowOverwrite = false};
     assertEQ(expectedRSOptions, actualRSOptions);
@@ -140,8 +194,8 @@ TEST_F(CollectionRecordStoreOptionsTest, OplogRecordStoreOptions) {
     CollectionOptions collOptions;
     collOptions.capped = true;
     collOptions.cappedSize = 100;
-    const auto actualRSOptions =
-        getRecordStoreOptions(NamespaceString::kRsOplogNamespace, collOptions);
+    const auto actualRSOptions = getRecordStoreOptions(
+        NamespaceString::kRsOplogNamespace, collOptions, /*recordIdsReplicated=*/false);
     RecordStore::Options expectedRSOptions{
         .isCapped = true, .isOplog = true, .oplogMaxSize = collOptions.cappedSize};
     assertEQ(expectedRSOptions, actualRSOptions);
@@ -156,7 +210,8 @@ TEST_F(CollectionRecordStoreOptionsTest, TimeseriesRecordStoreOptionsNotClustere
     // and 'CollectionOptions::clusteredIndex' set. 'getRecordStoreOptions()' does not perform
     // validation on the provided CollectionOptions.
     collOptions.timeseries = TimeseriesOptions(/*timeField=*/"t");
-    const auto actualRSOptions = getRecordStoreOptions(kBasicNss, collOptions);
+    const auto actualRSOptions =
+        getRecordStoreOptions(kBasicNss, collOptions, /*recordIdsReplicated=*/false);
     RecordStore::Options expectedRSOptions{
         .forceUpdateWithFullDocument = true /* exclusive for timeseries */,
         .customBlockCompressor =
@@ -170,7 +225,26 @@ TEST_F(CollectionRecordStoreOptionsTest, TimeseriesRecordStoreOptions) {
     collOptions.clusteredIndex = clustered_util::makeCanonicalClusteredInfoForLegacyFormat();
     NamespaceString timeseriesNss =
         NamespaceString::createNamespaceString_forTest("test.system.buckets.ts");
-    const auto actualRSOptions = getRecordStoreOptions(timeseriesNss, collOptions);
+    const auto actualRSOptions =
+        getRecordStoreOptions(timeseriesNss, collOptions, /*recordIdsReplicated=*/false);
+    RecordStore::Options expectedRSOptions{
+        .keyFormat = KeyFormat::String,
+        .allowOverwrite = false,
+        .forceUpdateWithFullDocument = true /* exclusive for timeseries */,
+        .customBlockCompressor =
+            std::string{kDefaultTimeseriesCollectionCompressor} /* exclusive for timeseries */};
+    assertEQ(expectedRSOptions, actualRSOptions);
+}
+
+TEST_F(CollectionRecordStoreOptionsTest, TimeseriesRecordStoreOptionsWithRecordIdsReplicated) {
+    CollectionOptions collOptions;
+    collOptions.timeseries = TimeseriesOptions(/*timeField=*/"t");
+    collOptions.clusteredIndex = clustered_util::makeCanonicalClusteredInfoForLegacyFormat();
+    collOptions.recordIdsReplicated = true;
+    NamespaceString timeseriesNss =
+        NamespaceString::createNamespaceString_forTest("test.system.buckets.ts");
+    const auto actualRSOptions =
+        getRecordStoreOptions(timeseriesNss, collOptions, /*recordIdsReplicated=*/true);
     RecordStore::Options expectedRSOptions{
         .keyFormat = KeyFormat::String,
         .allowOverwrite = false,
@@ -185,9 +259,24 @@ TEST_F(CollectionRecordStoreOptionsTest, RecordStoreOptionsWithStorageEngineColl
     collOptions.storageEngine =
         BSON("create" << kBasicNss.coll() << "storageEngine"
                       << BSON("wiredTiger" << BSON("configString" << "prefix_compression=true")));
-    const auto actualRSOptions = getRecordStoreOptions(kBasicNss, collOptions);
+    const auto actualRSOptions =
+        getRecordStoreOptions(kBasicNss, collOptions, /*recordIdsReplicated=*/false);
     RecordStore::Options expectedRSOptions{.storageEngineCollectionOptions =
                                                collOptions.storageEngine};
+    assertEQ(expectedRSOptions, actualRSOptions);
+}
+
+TEST_F(CollectionRecordStoreOptionsTest,
+       RecordStoreOptionsWithStorageEngineCollectionOptionsWithRecordIdsReplicated) {
+    CollectionOptions collOptions;
+    collOptions.recordIdsReplicated = true;
+    collOptions.storageEngine =
+        BSON("create" << kBasicNss.coll() << "storageEngine"
+                      << BSON("wiredTiger" << BSON("configString" << "prefix_compression=true")));
+    const auto actualRSOptions =
+        getRecordStoreOptions(kBasicNss, collOptions, /*recordIdsReplicated=*/true);
+    RecordStore::Options expectedRSOptions{
+        .allowOverwrite = false, .storageEngineCollectionOptions = collOptions.storageEngine};
     assertEQ(expectedRSOptions, actualRSOptions);
 }
 

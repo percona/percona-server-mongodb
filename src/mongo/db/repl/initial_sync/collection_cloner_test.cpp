@@ -81,11 +81,13 @@ protected:
     void setUp() override {
         InitialSyncClonerTestFixture::setUp();
         _collectionStats = std::make_shared<CollectionMockStats>();
-        _standardCreateCollectionFn = [this](const NamespaceString& nss,
-                                             const CollectionOptions& options,
-                                             const BSONObj idIndexSpec,
-                                             const std::vector<BSONObj>& nonIdIndexSpecs)
-            -> StatusWith<std::unique_ptr<CollectionBulkLoaderMock>> {
+        _standardCreateCollectionFn =
+            [this](
+                const NamespaceString& nss,
+                const CollectionOptions& options,
+                const BSONObj idIndexSpec,
+                const std::vector<BSONObj>& nonIdIndexSpecs,
+                bool recordIdsReplicated) -> StatusWith<std::unique_ptr<CollectionBulkLoaderMock>> {
             auto localLoader = std::make_unique<CollectionBulkLoaderMock>(_collectionStats);
             Status result = localLoader->init(nonIdIndexSpecs);
             if (!result.isOK())
@@ -103,7 +105,7 @@ protected:
                                      BSON("ok" << 1 << "rbid" << getSharedData()->getRollBackId()));
     }
     std::unique_ptr<CollectionCloner> makeCollectionCloner(
-        CollectionOptions options = CollectionOptions()) {
+        CollectionOptions options = CollectionOptions(), bool recordIdsReplicated = false) {
         options.uuid = _collUuid;
         _options = options;
         return std::make_unique<CollectionCloner>(_nss,
@@ -112,7 +114,8 @@ protected:
                                                   _source,
                                                   _mockClient.get(),
                                                   &_storageInterface,
-                                                  _dbWorkThreadPool.get());
+                                                  _dbWorkThreadPool.get(),
+                                                  recordIdsReplicated);
     }
 
     ProgressMeter& getProgressMeter(CollectionCloner* cloner) {
@@ -316,12 +319,14 @@ TEST_F(CollectionClonerTestResumable, BeginCollection) {
     _storageInterface.createCollectionForBulkFn = [&](const NamespaceString& theNss,
                                                       const CollectionOptions& theOptions,
                                                       const BSONObj idIndexSpec,
-                                                      const std::vector<BSONObj>& nonIdIndexSpecs) {
+                                                      const std::vector<BSONObj>& nonIdIndexSpecs,
+                                                      bool recordIdsReplicated) {
         collNss = theNss;
         collOptions = theOptions;
         collIdIndexSpec = idIndexSpec;
         collSecondaryIndexSpecs = nonIdIndexSpecs;
-        return _standardCreateCollectionFn(theNss, theOptions, idIndexSpec, nonIdIndexSpecs);
+        return _standardCreateCollectionFn(
+            theNss, theOptions, idIndexSpec, nonIdIndexSpecs, recordIdsReplicated);
     };
 
     auto cloner = makeCollectionCloner();
@@ -350,7 +355,8 @@ TEST_F(CollectionClonerTestResumable, BeginCollectionFailed) {
     _storageInterface.createCollectionForBulkFn = [&](const NamespaceString& theNss,
                                                       const CollectionOptions& theOptions,
                                                       const BSONObj idIndexSpec,
-                                                      const std::vector<BSONObj>& theIndexSpecs) {
+                                                      const std::vector<BSONObj>& theIndexSpecs,
+                                                      bool recordIdsReplicated) {
         return Status(ErrorCodes::OperationFailed, "");
     };
 
@@ -560,16 +566,17 @@ TEST_F(CollectionClonerTestResumable, DoNotCreateIDIndexIfAutoIndexIdUsed) {
     // We initialize collIndexSpecs with fake information to ensure it is overwritten by an empty
     // vector.
     std::vector<BSONObj> collIndexSpecs{BSON("fakeindexkeys" << 1)};
-    _storageInterface.createCollectionForBulkFn = [&,
-                                                   this](const NamespaceString& theNss,
-                                                         const CollectionOptions& theOptions,
-                                                         const BSONObj idIndexSpec,
-                                                         const std::vector<BSONObj>& theIndexSpecs)
-        -> StatusWith<std::unique_ptr<CollectionBulkLoader>> {
+    _storageInterface.createCollectionForBulkFn =
+        [&, this](const NamespaceString& theNss,
+                  const CollectionOptions& theOptions,
+                  const BSONObj idIndexSpec,
+                  const std::vector<BSONObj>& theIndexSpecs,
+                  bool recordIdsReplicated) -> StatusWith<std::unique_ptr<CollectionBulkLoader>> {
         collNss = theNss;
         collOptions = theOptions;
         collIndexSpecs = theIndexSpecs;
-        return _standardCreateCollectionFn(theNss, theOptions, idIndexSpec, theIndexSpecs);
+        return _standardCreateCollectionFn(
+            theNss, theOptions, idIndexSpec, theIndexSpecs, recordIdsReplicated);
     };
 
     const BSONObj doc = BSON("_id" << 1);
@@ -1078,9 +1085,20 @@ TEST_F(CollectionClonerTestResumable, RecordIdsReplicatedFindProjects) {
     // Create a cloner that tries to replicate recordIds.
     CollectionOptions options;
     options.recordIdsReplicated = true;
-    auto cloner = makeCollectionCloner(options);
+    auto cloner = makeCollectionCloner(options, /*recordIdsReplicated=*/true);
     // Get multiple batches.
     cloner->setBatchSize_forTest(1);
+
+    bool recordIdsReplicated;
+    _storageInterface.createCollectionForBulkFn = [&](const NamespaceString& theNss,
+                                                      const CollectionOptions& theOptions,
+                                                      const BSONObj idIndexSpec,
+                                                      const std::vector<BSONObj>& nonIdIndexSpecs,
+                                                      bool theRecordIdsReplicated) {
+        recordIdsReplicated = theRecordIdsReplicated;
+        return _standardCreateCollectionFn(
+            theNss, theOptions, idIndexSpec, nonIdIndexSpecs, theRecordIdsReplicated);
+    };
 
     // Run the cloner in a separate thread.
     stdx::thread clonerThread([&] {
@@ -1090,6 +1108,9 @@ TEST_F(CollectionClonerTestResumable, RecordIdsReplicatedFindProjects) {
 
     // Wait for the failpoint to be reached
     collClonerBeforeFailPoint->waitForTimesEntered(timesEntered + 1);
+
+    // Verify the createCollectionForBulkFn was called with recordIdsReplicated true
+    ASSERT_EQ(true, recordIdsReplicated);
 
     // Intercept the loader's attempt to insert documents.
     ASSERT(_loader != nullptr);
@@ -1131,7 +1152,7 @@ protected:
     }
 
     std::unique_ptr<CollectionCloner> makeCollectionCloner(
-        CollectionOptions options = CollectionOptions()) {
+        CollectionOptions options = CollectionOptions(), bool recordIdsReplicated = false) {
         options.uuid = _collUuid;
         _options = options;
         return std::make_unique<CollectionCloner>(_nss,
@@ -1140,7 +1161,8 @@ protected:
                                                   _source,
                                                   _mockClient.get(),
                                                   &_storageInterface,
-                                                  _dbWorkThreadPool.get());
+                                                  _dbWorkThreadPool.get(),
+                                                  recordIdsReplicated);
     }
 
     NamespaceString _nss;
