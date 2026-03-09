@@ -205,6 +205,14 @@ public:
      */
     void enumerateJoinSubsets();
 
+    /**
+     * Did the plan enumerator find a plan?
+     */
+    bool enumerationSuccessful() const {
+        return _joinSubsets[_joinSubsets.size() - 1].size() == 1 &&
+            !_joinSubsets[_joinSubsets.size() - 1][0].plans.empty();
+    }
+
     JoinPlanNodeId getBestFinalPlan() const {
         return finalSubset().bestPlan();
     }
@@ -231,12 +239,14 @@ public:
      * Used for testing & debugging.
      */
     std::string toString() const;
+    const EnumerationStrategy& getStrategy() const {
+        return _strategy;
+    }
 
 private:
     const JoinSubset& finalSubset() const {
-        tassert(11336904,
-                "Expected subsets to have already been enumerated",
-                _joinSubsets.size() > 0 && _joinSubsets[_joinSubsets.size() - 1].size() == 1);
+        tassert(
+            11336904, "Expected subsets to have already been enumerated", enumerationSuccessful());
         return _joinSubsets[_joinSubsets.size() - 1][0];
     }
 
@@ -267,6 +277,11 @@ private:
                                    const JoinSubset& right,
                                    const std::vector<EdgeId>& edges,
                                    JoinSubset& subset);
+    void enumerateHintedPlan(JoinMethod method,
+                             const JoinSubset& left,
+                             const JoinSubset& right,
+                             const std::vector<EdgeId>& edges,
+                             JoinSubset& subset);
 
     /**
      * Helper for enumerating an INLJ plan with the specified left subtree & generating an index

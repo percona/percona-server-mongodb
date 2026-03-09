@@ -129,6 +129,7 @@ mongo_cc_library(
         "//src/mongo/db/repl:repl_coordinator_interface",
         "//src/mongo/db/repl:timestamp_block",
         "//src/mongo/db/repl/initial_sync:cloner_utils",
+        "//src/mongo/db/s:local_resharding_operations_registry",
         "//src/mongo/db/shard_role",
         "//src/mongo/db/shard_role/lock_manager:exception_util",
         "//src/mongo/db/shard_role/shard_catalog:collection_catalog",

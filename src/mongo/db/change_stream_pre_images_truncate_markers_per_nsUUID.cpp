@@ -76,12 +76,15 @@ bool isExpired(OperationContext* opCtx, const RecordId& highestRecordId, Date_t 
     // The 'expireAfterSeconds' may or may not be set.
     bool expiredByTimeBasedExpiration =
         opTimeExpirationDate ? highestWallTime <= opTimeExpirationDate : false;
+    if (expiredByTimeBasedExpiration) {
+        return true;
+    }
 
     const auto currentEarliestOplogEntryTs =
         repl::StorageInterface::get(opCtx->getServiceContext())->getEarliestOplogTimestamp(opCtx);
     auto highestRecordTimestamp =
         change_stream_pre_image_id_util::getPreImageTimestamp(highestRecordId);
-    return expiredByTimeBasedExpiration || highestRecordTimestamp < currentEarliestOplogEntryTs;
+    return highestRecordTimestamp < currentEarliestOplogEntryTs;
 }
 
 // Returns information (RecordId, wall time, size in bytes) about the last record for 'nsUUID' in
@@ -105,7 +108,7 @@ boost::optional<std::tuple<RecordId, Date_t, int>> getLastRecordInfo(
         return boost::none;
     }
     auto [rid, wallTime] = PreImagesTruncateMarkersPerNsUUID::getRecordIdAndWallTime(*lastRecord);
-    return std::tuple<RecordId, Date_t, int>{rid, wallTime, lastRecord->data.size()};
+    return std::tuple<RecordId, Date_t, int>{std::move(rid), wallTime, lastRecord->data.size()};
 }
 }  // namespace
 
@@ -130,7 +133,7 @@ void PreImagesTruncateMarkersPerNsUUID::refreshHighestTrackedRecord(
         // update them.
         return;
     }
-    const auto [lastRecordId, lastRecordWallTime, lastRecordBytes] = *lastRecordInfo;
+    const auto& [lastRecordId, lastRecordWallTime, lastRecordBytes] = *lastRecordInfo;
 
     // The truncate markers are already tracking the 'lastRecord', no need to update.
     bool isTrackingCurrentLastRecord = checkPartialMarkerWith(
@@ -209,7 +212,6 @@ PreImagesTruncateMarkersPerNsUUID::createInitialMarkersScanning(
     const CollectionAcquisition& preImagesCollection,
     const UUID& nsUUID,
     int64_t minBytesPerMarker) {
-
     // Snapshots the last Record to help properly account for rollbacks and other events that could
     // affect iteration
     const auto lastRecordInfo = getLastRecordInfo(opCtx, preImagesCollection, nsUUID);
@@ -274,7 +276,7 @@ PreImagesTruncateMarkersPerNsUUID::createInitialMarkersScanning(
 }
 
 void PreImagesTruncateMarkersPerNsUUID::updateMarkers(int64_t numBytes,
-                                                      RecordId recordId,
+                                                      const RecordId& recordId,
                                                       Date_t wallTime,
                                                       int64_t numRecords) {
     // TODO: SERVER-110862 Remove this parameter from CollectionTruncateMarkers. It should only be

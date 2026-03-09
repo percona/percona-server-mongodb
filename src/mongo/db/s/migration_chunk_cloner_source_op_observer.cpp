@@ -322,14 +322,24 @@ void MigrationChunkClonerSourceOpObserver::postTransactionPrepare(
             *opCtx->getLogicalSessionId(), statements, prepareOpTime));
 }
 
-void MigrationChunkClonerSourceOpObserver::onTransactionPrepareNonPrimary(
+void MigrationChunkClonerSourceOpObserver::onTransactionPrepareNonPrimaryForChunkMigration(
     OperationContext* opCtx,
     const LogicalSessionId& lsid,
-    const std::vector<repl::OplogEntry>& statements,
-    const repl::OpTime& prepareOpTime) {
+    boost::optional<const std::vector<repl::OplogEntry>&> statements,
+    boost::optional<const repl::OpTime&> prepareOpTime) {
+    if (!statements || !prepareOpTime) {
+        // Statements or prepareOpTime not being available means that the prepared transaction was
+        // reclaimed from a precise checkpoint. In this case, we intentionally do not (and cannot)
+        // install a LogTransactionOperationsForShardingHandler here. During chunk migration, before
+        // cloning stars, the donor waits for all reclaimed prepared transactions to be
+        // committed/aborted so that their effects are reflected in the initial cloning phase. As a
+        // result, we do not need an onCommit hook to the donation’s internal buffers after cloning
+        // starts.
+        return;
+    }
     shard_role_details::getRecoveryUnit(opCtx)->registerChange(
         std::make_unique<LogTransactionOperationsForShardingHandler>(
-            lsid, statements, prepareOpTime));
+            lsid, *statements, *prepareOpTime));
 }
 
 void MigrationChunkClonerSourceOpObserver::onBatchedWriteCommit(

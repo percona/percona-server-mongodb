@@ -9,7 +9,6 @@ import {FeatureFlagUtil} from "jstests/libs/feature_flag_util.js";
 import {FixtureHelpers} from "jstests/libs/fixture_helpers.js";
 import {isAggregationPlan} from "jstests/libs/query/analyze_plan.js";
 import {setParameterOnAllNonConfigNodes} from "jstests/noPassthrough/libs/server_parameter_helpers.js";
-import {configureFailPointForAllShardsAndMongos} from "jstests/libs/fail_point_util.js";
 
 function setServerParameter(knob, value) {
     setParameterOnAllNonConfigNodes(db.getMongo(), knob, value);
@@ -23,11 +22,7 @@ if (
     quit();
 }
 
-configureFailPointForAllShardsAndMongos({
-    conn: db.getMongo(),
-    failPointName: "disablePipelineOptimization",
-    failPointMode: "off",
-});
+assert.commandWorked(db.adminCommand({"configureFailPoint": "disablePipelineOptimization", "mode": "off"}));
 
 function explainPipeline(coll, pipeline) {
     const explain = coll.explain().aggregate([{$_internalInhibitOptimization: {}}, ...pipeline]);

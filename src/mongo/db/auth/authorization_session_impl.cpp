@@ -867,7 +867,6 @@ bool AuthorizationSessionImpl::isAuthorizedForClusterActions(
     }
 
     if (tenantId || !kClusterActionsQuickList.isSupersetOf(actionSet) || !isAuthenticated()) {
-        dassert(kClusterActionsQuickList.isSupersetOf(actionSet));
         // Fallback on slower method for multitenancy, non-allowlisted actions, or unauthenticated.
         return isAuthorizedForPrivilege(
             Privilege(ResourcePattern::forClusterResource(tenantId), actionSet));

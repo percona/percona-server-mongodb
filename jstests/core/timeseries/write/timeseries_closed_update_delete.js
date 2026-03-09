@@ -10,6 +10,7 @@
  *   # Primary-driven index builds must have batched writes enabled which config.image_collection
  *   # does not support.
  *   primary_driven_index_builds_incompatible_with_retryable_writes,
+ *   requires_collstats,
  * ]
  */
 import {getTimeseriesCollForRawOps, kRawOperationSpec} from "jstests/core/libs/raw_operation_utils.js";

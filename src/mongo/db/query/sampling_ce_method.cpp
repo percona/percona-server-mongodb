@@ -44,15 +44,28 @@
 
 namespace mongo {
 
-void SamplingCEMethod::append(OperationContext*,
-                              BSONObjBuilder* b,
-                              StringData name,
-                              const boost::optional<TenantId>&) {
+void CBRSamplingCEMethod::append(OperationContext*,
+                                 BSONObjBuilder* b,
+                                 StringData name,
+                                 const boost::optional<TenantId>&) {
     *b << name << SamplingCEMethod_serializer(_data.get());
 }
 
-Status SamplingCEMethod::setFromString(StringData value, const boost::optional<TenantId>&) {
+Status CBRSamplingCEMethod::setFromString(StringData value, const boost::optional<TenantId>&) {
     _data = SamplingCEMethod_parse(value, IDLParserContext("internalQuerySamplingCEMethod"));
+    return Status::OK();
+}
+
+void JoinSamplingCEMethod::append(OperationContext*,
+                                  BSONObjBuilder* b,
+                                  StringData name,
+                                  const boost::optional<TenantId>&) {
+    *b << name << SamplingCEMethod_serializer(_data.get());
+}
+
+Status JoinSamplingCEMethod::setFromString(StringData value, const boost::optional<TenantId>&) {
+    _data =
+        SamplingCEMethod_parse(value, IDLParserContext("internalJoinOptimizationSamplingCEMethod"));
     return Status::OK();
 }
 

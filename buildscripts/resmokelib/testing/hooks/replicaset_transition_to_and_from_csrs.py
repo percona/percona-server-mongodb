@@ -155,11 +155,9 @@ class _TransitionThread(threading.Thread):
         self._auth_options = auth_options
 
         self._last_exec = time.time()
-        # Event set when the thread has been stopped using the 'stop()' method.
-        self._is_stopped_evt = threading.Event()
-        # Event set when the thread is not performing stepdowns.
-        self._is_idle_evt = threading.Event()
-        self._is_idle_evt.set()
+        self._pause_timeout_secs = fixture_interface.ReplFixture.AWAIT_REPL_TIMEOUT_MINS * 60
+        self._stop_timeout_secs = fixture_interface.ReplFixture.AWAIT_REPL_TIMEOUT_MINS * 60
+        self._thread_state = lifecycle_interface.HookThreadState()
 
         # Helpers to allow us to transition to and from valid states at random. The states
         # correspond to different combinations of startup flags and replica set configurations.
@@ -197,18 +195,22 @@ class _TransitionThread(threading.Thread):
             return
         try:
             while True:
-                self._is_idle_evt.set()
+                self._thread_state.mark_idle("waiting_for_action_permitted")
 
                 permitted = self.__lifecycle.wait_for_action_permitted()
                 if not permitted:
+                    self._thread_state.mark_stopped("lifecycle_stop_requested")
                     break
 
-                self._is_idle_evt.clear()
+                self._thread_state.mark_running("transitioning_replica_set")
 
                 for index, _rs_fixture in enumerate(self._rs_fixtures):
                     now = time.time()
                     current_state = self._current_states[index]
                     new_state, forward = self._get_next_state(current_state)
+                    self._thread_state.set_phase(
+                        f"{_rs_fixture.replset_name}:{self.states[current_state]}->{self.states[new_state]}"
+                    )
                     self.logger.info(
                         "Beginning transitioning replica set '%s' from state '%s' to state '%s'",
                         _rs_fixture.replset_name,
@@ -227,6 +229,7 @@ class _TransitionThread(threading.Thread):
 
                 found_idle_request = self.__lifecycle.poll_for_idle_request()
                 if found_idle_request:
+                    self._thread_state.set_phase("sending_idle_acknowledgement")
                     self.__lifecycle.send_idle_acknowledgement()
                     continue
 
@@ -234,31 +237,42 @@ class _TransitionThread(threading.Thread):
                     self._transition_interval_min_secs,
                     self._transition_interval_max_secs,
                 )
+                self._thread_state.mark_idle("waiting_for_action_interval")
                 self.__lifecycle.wait_for_action_interval(pause_time)
-        except Exception:
+        except Exception as err:
             # Proactively log the exception when it happens so it will be
             # flushed immediately.
             self.logger.exception("Transition Thread threw exception")
-            # The event should be signaled whenever the thread is not performing stepdowns.
-            self._is_idle_evt.set()
+            self._thread_state.mark_failed(err, "run_loop")
+        finally:
+            state, _phase = self._thread_state.describe()
+            if state not in ("failed", "stopped"):
+                self._thread_state.mark_stopped("run_loop_exited")
 
     def stop(self):
         """Stop the thread."""
+        self._thread_state.mark_stopping("stop_requested")
         self.__lifecycle.stop()
-        self._is_stopped_evt.set()
         # Unpause to allow the thread to finish.
         self.resume()
-        self.join()
+        self.join(self._stop_timeout_secs)
+        if self.is_alive():
+            state, phase = self._thread_state.describe()
+            raise errors.ServerFailure(
+                "Timed out waiting for transition thread to stop; "
+                f"state={state}, phase={phase}, timeout={self._stop_timeout_secs}s."
+            )
+        self._thread_state.assert_healthy(self.is_alive(), "transition", allow_stopped=True)
 
     def pause(self):
         """Pause the thread."""
         self.__lifecycle.mark_test_finished()
 
         # Wait until we are no longer executing stepdowns.
-        self._is_idle_evt.wait()
-        # Check if the thread is alive in case it has thrown an exception while running.
-        self._check_thread()
+        self._thread_state.wait_until_idle(self._pause_timeout_secs, "transition")
+        self._thread_state.assert_healthy(self.is_alive(), "transition")
         # Wait until the replica sets have a primary.
+        self._thread_state.set_phase("awaiting_primary")
         self._await_primary()
 
         # Check that the fixture is still running
@@ -275,12 +289,6 @@ class _TransitionThread(threading.Thread):
 
     def reset(self, idx):
         self._current_states[idx] = 0
-
-    def _check_thread(self):
-        if not self.is_alive():
-            msg = "The transition thread is not running."
-            self.logger.error(msg)
-            raise errors.ServerFailure(msg)
 
     def _await_primary(self):
         for rs_fixture in self._rs_fixtures:

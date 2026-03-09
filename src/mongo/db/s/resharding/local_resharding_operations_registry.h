@@ -62,4 +62,12 @@ private:
     mutable ObservableMutex<std::shared_mutex> _mutex;
     stdx::unordered_map<NamespaceString, UuidToOperation> _namespaceToOperations;
 };
+
+namespace resharding {
+/**
+ * Throws ReshardCollectionInProgress if the registry contains an entry for the given namespace.
+ */
+void throwIfReshardingInProgress(const NamespaceString& nss);
+}  // namespace resharding
+
 }  // namespace mongo

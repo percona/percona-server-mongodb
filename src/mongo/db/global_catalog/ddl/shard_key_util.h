@@ -259,8 +259,9 @@ MONGO_MOD_NEEDS_REPLACEMENT BSONObj validateAndTranslateTimeseriesShardKey(
     const TimeseriesOptions& tsOptions, const BSONObj& tsShardKey);
 
 /**
- * Returns true if the given shard key is already translated to the internal buckets collection
- * raw key format, false otherwise.
+ * Returns true if the given shard key is a valid key already in the internal buckets collection
+ * raw key format. Returns false if the key uses user-facing field names (requiring translation)
+ * or if the key is not a recognized timeseries shard key.
  */
 MONGO_MOD_NEEDS_REPLACEMENT bool isRawTimeseriesShardKey(const TimeseriesOptions& tsOptions,
                                                          const BSONObj& tsShardKey);

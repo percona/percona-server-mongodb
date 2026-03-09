@@ -32,6 +32,7 @@
 #include "mongo/base/string_data.h"
 #include "mongo/bson/bsonelement.h"
 #include "mongo/db/exec/sbe/values/value.h"
+#include "mongo/platform/compiler.h"
 #include "mongo/util/modules.h"
 
 #include <cstddef>
@@ -101,28 +102,20 @@ inline const char* getValue(const char* be) noexcept {
 inline std::pair<value::TypeTags, value::Value> getField(const char* be,
                                                          StringData fieldStr) noexcept {
     const auto end = be + ConstDataView(be).read<LittleEndian<uint32_t>>();
+
     // Skip document length.
     be += sizeof(int);
+    const char fst =
+        MONGO_likely(fieldStr.size()) ? *fieldStr.data() : '\0';  // handle empty strings
     while (be != end - 1) {
-        auto ptr = be;
-        // Compute equality and length in a single pass. Avoids reading the same bytes twice.
-        for (auto c : fieldStr)
-            // Increment before compare to skip the type tag byte.
-            if (*++ptr != c || c == '\0')
-                goto next;  // *ptr is the first non-matching byte, possibly the 0 terminator
-
-        // If the field names are equal, incrementing ptr will step onto a null terminator byte.
-        if (*++ptr == '\0') {
+        auto size = strlen(be + 1);
+        if (size == fieldStr.size() &&  // skip over strings on non-equal sizes
+            *(be + 1) == fst &&         // skip over strings with different first chars
+            std::memcmp(be + 1, fieldStr.data(), size) == 0) {
             auto [tag, val] = bson::convertFrom<true>(be, end, fieldStr.size());
             return {tag, val};
         }
-
-next:
-        // Skip any remaining part of the field name.
-        while (*ptr != '\0')
-            ++ptr;
-
-        be = bson::advance(be, ptr - be - 1);
+        be = bson::advance(be, size);
     }
     return {value::TypeTags::Nothing, 0};
 }

@@ -9,7 +9,7 @@
  */
 
 import {getExplainedPipelineFromAggregation} from "jstests/aggregation/extras/utils.js";
-import {configureFailPointForAllShardsAndMongos} from "jstests/libs/fail_point_util.js";
+import {FixtureHelpers} from "jstests/libs/fixture_helpers.js";
 
 // The test sets a failpoint on a specific mongos and expects subsequent commands to hit that same mongos.
 // In case of multiple mongos cluster fixture, force every command to run against the same one.
@@ -17,19 +17,27 @@ import {configureFailPointForAllShardsAndMongos} from "jstests/libs/fail_point_u
 TestData.pinToSingleMongos = true;
 
 function checkResults(pipeline, expectedNumberOfStatesInPipeline) {
-    configureFailPointForAllShardsAndMongos({
-        conn: db.getMongo(),
-        failPointName: "disablePipelineOptimization",
-        failPointMode: "off",
+    FixtureHelpers.runCommandOnEachPrimary({
+        db: admin,
+        cmdObj: {
+            configureFailPoint: "disablePipelineOptimization",
+            mode: "off",
+        },
     });
+    assert.commandWorked(testDB.adminCommand({"configureFailPoint": "disablePipelineOptimization", "mode": "off"}));
     let optimizedExplain = getExplainedPipelineFromAggregation(testDB, coll, pipeline);
     let optimizedResult = coll.aggregate(pipeline).toArray();
 
-    configureFailPointForAllShardsAndMongos({
-        conn: db.getMongo(),
-        failPointName: "disablePipelineOptimization",
-        failPointMode: "alwaysOn",
+    FixtureHelpers.runCommandOnEachPrimary({
+        db: admin,
+        cmdObj: {
+            configureFailPoint: "disablePipelineOptimization",
+            mode: "alwaysOn",
+        },
     });
+    assert.commandWorked(
+        testDB.adminCommand({"configureFailPoint": "disablePipelineOptimization", "mode": "alwaysOn"}),
+    );
     let nonOptimizedResults = coll.aggregate(pipeline).toArray();
     let nonOptimizedExplain = getExplainedPipelineFromAggregation(testDB, coll, pipeline);
     // This assert makes sure that $densify produces the same results, with and without the sort
@@ -44,6 +52,7 @@ const dbName = "test";
 const testDB = db.getSiblingDB(dbName);
 const coll = testDB[jsTestName()];
 coll.drop();
+const admin = testDB.getSiblingDB("admin");
 
 let collection = [
     {val: 0},
@@ -141,8 +150,11 @@ pipeline = [
 ];
 checkResults(pipeline, 3);
 
-configureFailPointForAllShardsAndMongos({
-    conn: db.getMongo(),
-    failPointName: "disablePipelineOptimization",
-    failPointMode: "off",
+FixtureHelpers.runCommandOnEachPrimary({
+    db: admin,
+    cmdObj: {
+        configureFailPoint: "disablePipelineOptimization",
+        mode: "off",
+    },
 });
+assert.commandWorked(db.adminCommand({"configureFailPoint": "disablePipelineOptimization", "mode": "off"}));

@@ -131,6 +131,7 @@ namespace repl {
 MONGO_FAIL_POINT_DEFINE(rollbackHangAfterTransitionToRollback);
 MONGO_FAIL_POINT_DEFINE(rollbackToTimestampHangCommonPointBeforeReplCommitPoint);
 MONGO_FAIL_POINT_DEFINE(rollbackHangBeforeTransitioningToRollback);
+MONGO_FAIL_POINT_DEFINE(hangBeforeResettingOpTimesAfterRollback);
 
 namespace {
 
@@ -312,6 +313,12 @@ Status RollbackImpl::runRollback(OperationContext* opCtx) {
     // We can now accept interruptions again.
     if (_isInShutdown()) {
         return Status(ErrorCodes::ShutdownInProgress, "rollback shutting down");
+    }
+    if (MONGO_unlikely(hangBeforeResettingOpTimesAfterRollback.shouldFail())) {
+        LOGV2(
+            11909000,
+            "hangBeforeResettingOpTimesAfterRollback failpoint enabled. Blocking until disabled.");
+        hangBeforeResettingOpTimesAfterRollback.pauseWhileSet();
     }
 
     // At this point, the last applied and durable optimes on this node still point to ops on

@@ -59,8 +59,6 @@ function runSingleTest(subtitle, pipeline, seen = undefined) {
     subSection(subtitle);
     if (joinOrder) {
         prettyPrintWinningPlan(explain);
-    } else {
-        outputAggregationPlanAndResults(coll, pipeline, {}, true, false);
     }
     return coll.aggregate(pipeline).toArray();
 }

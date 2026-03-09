@@ -135,7 +135,7 @@ public:
         MONGO_UNREACHABLE;
     }
 
-    stdx::chrono::system_clock::time_point systemTime() override {
+    Date_t now() override {
         MONGO_UNREACHABLE;
     }
 
@@ -161,7 +161,7 @@ public:
         MONGO_UNREACHABLE;
     }
 
-    stdx::chrono::system_clock::time_point systemTime() override {
+    Date_t now() override {
         MONGO_UNREACHABLE;
     }
 

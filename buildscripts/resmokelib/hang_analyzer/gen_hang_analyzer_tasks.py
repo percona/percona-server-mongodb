@@ -301,7 +301,7 @@ class BazelCoreAnalysisTaskGenerator(CoreAnalysisTaskGenerator):
         for dir in results_dirs:
             boring_dump_file = os.path.join(dir, BORING_CORE_DUMP_PIDS_FILE)
             if os.path.exists(boring_dump_file):
-                with open(BORING_CORE_DUMP_PIDS_FILE, "r") as file:
+                with open(boring_dump_file, "r") as file:
                     boring_core_dump_pids = set(file.read().split())
             else:
                 boring_core_dump_pids = {}

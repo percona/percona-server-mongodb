@@ -1573,7 +1573,10 @@ static SingleWriteResult performSingleUpdateOp(
     // Register query shape here once we obtain 'parsedUpdate', before executing the update
     // command. Inside 'parsedUpdate', the parsed preoptimized query and the update driver are
     // available for computing query shape.
-    registerRequestForQueryStats(opCtx, expCtx, ns, collection, wholeOp, parsedUpdate);
+    // TODO SERVER-119643 Enable query stats for timeseries updates.
+    if (!isRequestToTimeseries) {
+        registerRequestForQueryStats(opCtx, expCtx, ns, collection, wholeOp, parsedUpdate);
+    }
 
     std::unique_ptr<CanonicalUpdate> canonicalUpdate = uassertStatusOK(CanonicalUpdate::make(
         expCtx, std::move(parsedUpdate), collection.getCollectionPtr(), isRequestToTimeseries));
@@ -2475,7 +2478,8 @@ void explainUpdate(OperationContext* opCtx,
 
     // TODO(SERVER-111843): We only need to compute the query hash for explain, registration is
     // unnecessary. Clean this up once registerRequestForQueryStats is refactored
-    if (updateOp) {
+    // TODO SERVER-119643: Compute the queryShapeHash for timeseries updates after it is supported.
+    if (updateOp && !isTimeseriesViewRequest) {
         registerRequestForQueryStats(
             opCtx, expCtx, updateRequest.getNamespaceString(), collection, *updateOp, parsedUpdate);
     }

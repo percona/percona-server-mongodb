@@ -2327,6 +2327,28 @@ TEST_F(AuthorizationSessionTest, InternalSystemClientsBypassValidateRestrictions
     ASSERT_OK(currentUser->validateRestrictions(opCtx.get()));
 }
 
+// This is meant to test the logic in `isAuthorizedForClusterAction()` to
+// determine if it properly skips the `isAuthorizedForPrivilege()` call.
+// However, the same result is returned in either case, so there's no way
+// for a unit test to determine which code path was taken.
+// Primarily, this test is added because there was an erroneous `dassert()`
+// inside the `if` clause that asserted that actionSet was in the QuickList,
+// even though one of the test conditions is to enter if any of the actions
+// are *not* in the QuickList.  That `dassert()` has been removed.
+TEST_F(AuthorizationSessionTest, IsAuthLogic) {
+    ASSERT_FALSE(
+        authzSession->isAuthorizedForClusterAction(ActionType::advanceClusterTime, boost::none));
+    authzSession->grantInternalAuthorization();
+
+    ASSERT_TRUE(
+        authzSession->isAuthorizedForClusterAction(ActionType::advanceClusterTime, kTenantId1));
+    ASSERT_TRUE(authzSession->isAuthorizedForClusterAction(ActionType::find, boost::none));
+    ASSERT_TRUE(
+        authzSession->isAuthorizedForClusterAction(ActionType::advanceClusterTime, boost::none));
+
+    authzSession->logoutAllDatabases("Test finished");
+}
+
 TEST_F(AuthorizationSessionTest, ClusterActionsTestInternal) {
     authzSession->grantInternalAuthorization();
     ASSERT_TRUE(

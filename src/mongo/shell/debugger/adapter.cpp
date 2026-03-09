@@ -32,6 +32,9 @@
 #include "mongo/bson/bsonobjbuilder.h"
 #include "mongo/bson/json.h"
 #include "mongo/bson/oid.h"
+#include "mongo/shell/debugger/debugger.h"
+#include "mongo/stdx/condition_variable.h"
+#include "mongo/stdx/mutex.h"
 
 #ifdef _WIN32
 #include <winsock2.h>
@@ -41,6 +44,7 @@
 #include <netinet/in.h>
 #include <sys/socket.h>
 #endif
+
 
 namespace mongo {
 namespace mozjs {
@@ -52,6 +56,14 @@ int _clientSocket = INVALID_SOCKET_VALUE;
 AtomicWord<bool> _running{false};
 std::unique_ptr<std::thread> _messageThread;
 
+// Configuration state
+stdx::mutex _configMutex;
+stdx::condition_variable _configCV;
+
+
+/**
+ * Request
+ */
 
 Request Request::fromJSON(std::string line) {
     BSONObj obj = fromjson(line);
@@ -59,59 +71,123 @@ Request Request::fromJSON(std::string line) {
     Request msg;
     msg.seq = obj.getIntField("seq");
     msg.command = std::string(toStdStringViewForInterop(obj.getStringField("command")));
-    msg.arguments = obj.getObjectField("arguments");
+    msg.arguments = obj.getObjectField("arguments").getOwned();
 
     return msg;
 }
 
+/**
+ * SetBreakpointsRequest
+ */
 
-SetBreakpointsRequest SetBreakpointsRequest::fromRequest(Request request) {
-    SetBreakpointsRequest req;
-    req.seq = request.seq;
+SetBreakpointsRequest::SetBreakpointsRequest(Request request) {
+    seq = request.seq;
 
     // Get source from arguments
-    req.source = std::string(toStdStringViewForInterop(request.arguments.getStringField("source")));
+    source = std::string(toStdStringViewForInterop(request.arguments.getStringField("source")));
 
     // Get lines array from arguments and extract line numbers
     std::vector<BSONElement> linesArr = request.arguments.getField("lines").Array();
     for (const auto& lineElem : linesArr) {
         BSONObj lineObj = lineElem.Obj();
         int lineNum = lineObj.getIntField("line");
-        req.lines.push_back(lineNum);
+        lines.push_back(lineNum);
     }
-
-    return req;
 }
 
-SetBreakpointsResponse SetBreakpointsResponse::fromRequest(SetBreakpointsRequest request) {
-    SetBreakpointsResponse response;
-    response.request = request;
-    response.seq = request.seq;
-    return response;
-}
-
-void SetBreakpointsResponse::send() {
-    // STUB response, simply match on "seq"
+void SetBreakpointsRequest::respond() {
+    // STUB response for now, simply match the "seq" for DAP to sync
     DebugAdapter::sendMessage("{\"type\":\"response\",\"seq\":" + std::to_string(seq) +
                               ",\"body\":{\"breakpoints\":[{\"id\":\"1\","
                               "\"verified\":true,\"line\":\"12\","
                               "\"column\":\"0\"}]}}");
 }
 
-void DebugAdapter::handleRequest(const Request& request) {
-    // Dispatch based on command
-    // std::cout << "Handling message: " << msg.raw_json << std::endl;
-    if (request.command == "setBreakpoints") {
-        SetBreakpointsRequest req = SetBreakpointsRequest::fromRequest(request);
-        DebugAdapter::handleSetBreakpoints(req);
-    }
+/**
+ * ContinueRequest
+ */
+
+ContinueRequest::ContinueRequest(Request request) {
+    seq = request.seq;
 }
 
-void DebugAdapter::handleSetBreakpoints(SetBreakpointsRequest request) {
-    // TODO: actually set the breakpoints in the underlying scripts
+void ContinueRequest::respond() {
+    DebugAdapter::sendMessage("{\"type\":\"response\",\"seq\":" + std::to_string(seq) +
+                              ",\"command\":\"continue\",\"success\":true}");
+}
 
-    SetBreakpointsResponse response = SetBreakpointsResponse::fromRequest(request);
-    response.send();
+/**
+ * StackTraceRequest
+ */
+
+StackTraceRequest::StackTraceRequest(Request request) {
+    seq = request.seq;
+}
+
+void StackTraceRequest::respond() {
+    DebugAdapter::sendMessage(
+        "{\"type\":\"response\",\"seq\":" + std::to_string(seq) +
+        ",\"body\":{\"stackFrames\":[{\"id\":1,\"name\":\"" + DebuggerGlobal::getPausedScript() +
+        "\",\"source\":{\"path\":\"" + DebuggerGlobal::getPausedScript() +
+        "\"},\"line\":" + std::to_string(DebuggerGlobal::getPausedLine()) + ",\"column\":0}]}}");
+}
+
+/**
+ * StoppedEvent
+ */
+
+void StoppedEvent::send() {
+    // Send a "stopped" event to the DAP adapter
+    DebugAdapter::sendMessage(
+        "{\"type\":\"event\",\"event\":\"stopped\","
+        "\"body\":{\"reason\":\"breakpoint\"}}");
+}
+
+/**
+ * DebugAdapter
+ */
+
+void DebugAdapter::handleRequest(Request request) {
+    if (request.command == "setBreakpoints") {
+        SetBreakpointsRequest req(request);
+        DebugAdapter::handleRequest(req);
+    } else if (request.command == "continue") {
+        ContinueRequest req(request);
+        DebugAdapter::handleRequest(req);
+    } else if (request.command == "stackTrace") {
+        StackTraceRequest req(request);
+        DebugAdapter::handleRequest(req);
+    }
+    // TODO: Add other commands: scopes, variables, next, stepIn, stepOut
+}
+
+void DebugAdapter::handleRequest(SetBreakpointsRequest request) {
+    DebuggerGlobal::setBreakpoints(request);
+    request.respond();
+}
+
+void DebugAdapter::handleRequest(ContinueRequest request) {
+    DebuggerGlobal::unpause();
+    request.respond();
+}
+
+void DebugAdapter::handleRequest(StackTraceRequest request) {
+    request.respond();
+}
+
+void DebugAdapter::waitForHandshake() {
+    // The DAP should already be running, which is probing the port for when to attach to a new
+    // shell. The shell can come up and start running tests before the DAP gets to relay any pending
+    // breakpoints. We need to wait for the DAP to sync up, and then continue.
+
+    std::unique_lock<std::mutex> lock(_configMutex);
+    // TODO(SERVER-XXX): this is just a straight up 1-second pause, and can/should be more elegant
+    _configCV.wait_for(lock, std::chrono::seconds(1), [] { return false; });
+}
+
+void DebugAdapter::sendPause() {
+    StoppedEvent e;
+    e.send();
 }
 
 void DebugAdapter::sendMessage(std::string json) {
@@ -181,7 +257,6 @@ Status DebugAdapter::connect() {
     addr.sin_family = AF_INET;
     addr.sin_port = htons(port);
     inet_pton(AF_INET, "127.0.0.1", &addr.sin_addr);
-
 
     if (::connect(_clientSocket, (sockaddr*)&addr, sizeof(addr)) == 0) {
         std::cout << "Shell connected to debug adapter client on port " << port << std::endl;

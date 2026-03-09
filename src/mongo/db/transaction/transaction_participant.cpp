@@ -2107,10 +2107,6 @@ void TransactionParticipant::Participant::restorePreparedTxnFromPreciseCheckpoin
     invariant(p().needToWriteAbortEntry);
     invariant(p().autoCommit == boost::optional<bool>(false));
 
-    // TODO SERVER-113740: These will be unset and we need a way to ensure callers can handle that
-    // and won't introduce new dependencies on it.
-    // p().transactionOperations
-
     {
         stdx::lock_guard<Client> lg(*opCtx->getClient());
         o(lg).txnState.transitionTo(TransactionState::kPrepared);

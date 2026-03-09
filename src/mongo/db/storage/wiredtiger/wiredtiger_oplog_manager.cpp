@@ -91,6 +91,7 @@ void WiredTigerOplogManager::start(OperationContext* opCtx,
     stdx::lock_guard<stdx::mutex> lk(_oplogVisibilityStateMutex);
     invariant(!_running);
     _running = true;
+    LOGV2(12035900, "Oplog visibility thread is starting");
     _oplogVisibilityThread =
         stdx::thread([this, service = opCtx->getServiceContext()->getService(), &engine, &oplog] {
             Client::initThread("OplogVisibilityThread", service);

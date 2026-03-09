@@ -57,6 +57,7 @@
 #include "mongo/db/repl/replication_coordinator.h"
 #include "mongo/db/repl/timestamp_block.h"
 #include "mongo/db/replication_state_transition_lock_guard.h"
+#include "mongo/db/s/resharding/local_resharding_operations_registry.h"
 #include "mongo/db/server_feature_flags_gen.h"
 #include "mongo/db/server_recovery.h"
 #include "mongo/db/service_context.h"
@@ -82,6 +83,7 @@
 #include "mongo/logv2/log_severity_suppressor.h"
 #include "mongo/platform/compiler.h"
 #include "mongo/rpc/message.h"
+#include "mongo/s/resharding/resharding_feature_flag_gen.h"
 #include "mongo/stdx/unordered_set.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/clock_source.h"
@@ -2638,13 +2640,22 @@ IndexBuildsCoordinator::_filterSpecsAndRegisterBuild(OperationContext* opCtx,
     CollectionWriter collection(opCtx, autoColl);
 
     const auto& nss = collection.get()->ns();
+    const bool useRegistry =
+        resharding::gFeatureFlagReshardingRegistry.isEnabledUseLatestFCVWhenUninitialized(
+            VersionContext::getDecoration(opCtx),
+            serverGlobalParams.featureCompatibility.acquireFCVSnapshot());
 
     {
         // This check is for optimization purposes only as since this lock is released after this,
         // and is acquired again when we build the index in _setUpIndexBuild.
         auto scopedCss = CollectionShardingState::assertCollectionLockedAndAcquire(opCtx, nss);
         scopedCss->checkShardVersionOrThrow(opCtx);
-        scopedCss->getCollectionDescription(opCtx).throwIfReshardingInProgress(nss);
+
+        if (useRegistry) {
+            resharding::throwIfReshardingInProgress(nss);
+        } else {
+            scopedCss->getCollectionDescription(opCtx).throwIfReshardingInProgress(nss);
+        }
     }
 
     std::vector<IndexBuildInfo> filteredIndexes;

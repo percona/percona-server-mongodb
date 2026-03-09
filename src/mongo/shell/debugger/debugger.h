@@ -30,6 +30,7 @@
 #pragma once
 
 #include "mongo/base/status.h"
+#include "mongo/shell/debugger/adapter.h"
 
 #include <jsapi.h>
 
@@ -44,6 +45,11 @@ class DebuggerGlobal {
 public:
     static Status init(JSContext* cx);
     static void handleStdinThread();
+    static void setBreakpoints(SetBreakpointsRequest request);
+
+    static std::string getPausedScript();
+    static int getPausedLine();
+    static void unpause();
 };
 
 /**
@@ -61,6 +67,7 @@ class DebuggerObject {
     static bool storeEvalResult(JSContext* cx, unsigned argc, JS::Value* vp);
     static bool hasEvalRequest(JSContext* cx, unsigned argc, JS::Value* vp);
     static bool getEvalRequest(JSContext* cx, unsigned argc, JS::Value* vp);
+    static bool getPendingBreakpointsCallback(JSContext* cx, unsigned argc, JS::Value* vp);
 
     // Helper: Register a native function in the debugger compartment.
     Status registerNativeFunction(
@@ -82,6 +89,13 @@ public:
     // Set the "onDebuggerStatement" callback in the compartment
     // https://firefox-source-docs.mozilla.org/js/Debugger/Debugger.html#ondebuggerstatement-frame
     Status setOnDebuggerStatementCallback(JS::RootedObject const& global);
+
+    // Set the "onNewScript" callback in the compartment
+    // https://firefox-source-docs.mozilla.org/js/Debugger/Debugger.html#onnewscript-script-global
+    Status setOnNewScriptCallback(JS::RootedObject const& global);
+
+    // Set breakpoints for the given request
+    void setBreakpoints(SetBreakpointsRequest request);
 };
 
 
@@ -103,5 +117,15 @@ public:
     // Uses 1-based indexing, so line 1 is the first line of the file.
     int getLineNumber();
 };
+
+/**
+ * Facade interface of https://firefox-source-docs.mozilla.org/js/Debugger/Debugger.Script.html
+ * and its relevant functionality.
+ */
+class DebuggerScript {
+public:
+    static bool breakpointHandler(JSContext* cx, unsigned argc, JS::Value* vp);
+};
+
 }  // namespace mozjs
 }  // namespace mongo

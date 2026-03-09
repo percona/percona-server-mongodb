@@ -71,6 +71,7 @@ mongo_cc_library(
 mongo_cc_library(
     name = "transaction",
     srcs = [
+        "reclaimed_prepared_txn_tracker.cpp",
         "retryable_writes_stats.cpp",
         "server_transactions_metrics.cpp",
         "session_catalog_mongod_transaction_interface_impl.cpp",
@@ -120,6 +121,7 @@ mongo_cc_unit_test(
     name = "db_transaction_test",
     srcs = [
         "integer_interval_set_test.cpp",
+        "reclaimed_prepared_txn_tracker_test.cpp",
         "transaction_api_test.cpp",
         "transaction_history_iterator_test.cpp",
         "transaction_operations_test.cpp",

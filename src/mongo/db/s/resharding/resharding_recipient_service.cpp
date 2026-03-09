@@ -58,6 +58,7 @@
 #include "mongo/db/repl/repl_client_info.h"
 #include "mongo/db/repl/wait_for_majority_service.h"
 #include "mongo/db/router_role/routing_cache/catalog_cache.h"
+#include "mongo/db/rss/replicated_storage_service.h"
 #include "mongo/db/s/migration_destination_manager.h"
 #include "mongo/db/s/resharding/coordinator_document_gen.h"
 #include "mongo/db/s/resharding/resharding_change_event_o2_field_gen.h"
@@ -1220,12 +1221,20 @@ ReshardingRecipientService::RecipientStateMachine::_buildIndexThenTransitionToAp
             return indexSpecs;
         })
         .then([this, executor, factory](const std::vector<BSONObj>& indexSpecs) {
+            auto opCtx = factory->makeOperationContext(&cc());
+            auto& rss = rss::ReplicatedStorageService::get(opCtx.get()->getServiceContext());
+            auto mustUsePrimaryDrivenIndexBuilds =
+                rss.getPersistenceProvider().mustUsePrimaryDrivenIndexBuilds();
+
             // The index builds in resharding use the "votingMembers" commit quorum. Making each
             // recipient wait for the cloning to have replicated to all voting nodes before building
             // indexes can help reduce the chance of the nodes not being able to catch up later on
             // and reduce the performance impact on the shard. Only wait if there are indexes to
             // build, i.e. the collection has non-id indexes.
-            if (containsNonIdIndex(indexSpecs)) {
+            // In the case of primary-driven index builds, there is no commit quorum that
+            // necessitates waiting for secondaries to catch up, making the wait for replication
+            // unnecessary.
+            if (!mustUsePrimaryDrivenIndexBuilds && containsNonIdIndex(indexSpecs)) {
                 LOGV2(10356603,
                       "Start waiting for replication before building indexes",
                       "reshardingUUID"_attr = _metadata.getReshardingUUID());

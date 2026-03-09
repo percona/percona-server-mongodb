@@ -104,7 +104,7 @@ server_parameters:
         description: >-
             Number of writer threads used by ReshardingCollectionCloner.
         set_at: runtime
-        cpp_vartype: int
+        cpp_vartype: AtomicWord<int>
         cpp_varname: gReshardingCollectionClonerWriteThreadCount
         default:
             expr: 2

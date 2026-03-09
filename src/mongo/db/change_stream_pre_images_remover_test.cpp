@@ -37,7 +37,6 @@
 #include "mongo/db/client.h"
 #include "mongo/db/dbhelpers.h"
 #include "mongo/db/namespace_string.h"
-#include "mongo/db/op_observer/op_observer.h"
 #include "mongo/db/op_observer/op_observer_impl.h"
 #include "mongo/db/op_observer/op_observer_registry.h"
 #include "mongo/db/op_observer/operation_logger_impl.h"
@@ -598,29 +597,29 @@ TEST_F(PreImagesRemoverServiceTest, PeriodicJobStartsWithRollbackFalse) {
     auto opCtx = operationContext();
     auto preImageRemoverService = ChangeStreamExpiredPreImagesRemoverService::get(opCtx);
 
-    ASSERT_FALSE(preImageRemoverService->startedPeriodicJob_forTest());
+    ASSERT_FALSE(preImageRemoverService->hasStartedPeriodicJob());
 
     preImageRemoverService->onConsistentDataAvailable(
         opCtx, false /* isMajority */, false /* isRollback */);
 
-    ASSERT_TRUE(preImageRemoverService->startedPeriodicJob_forTest());
+    ASSERT_TRUE(preImageRemoverService->hasStartedPeriodicJob());
 }
 
 TEST_F(PreImagesRemoverServiceTest, PeriodicJobDoesNotStartWhenRollbackTrue) {
     auto opCtx = operationContext();
     auto preImageRemoverService = ChangeStreamExpiredPreImagesRemoverService::get(opCtx);
 
-    ASSERT_FALSE(preImageRemoverService->startedPeriodicJob_forTest());
+    ASSERT_FALSE(preImageRemoverService->hasStartedPeriodicJob());
 
     preImageRemoverService->onConsistentDataAvailable(
         opCtx, false /* isMajority */, true /* isRollback */);
-    ASSERT_FALSE(preImageRemoverService->startedPeriodicJob_forTest());
+    ASSERT_FALSE(preImageRemoverService->hasStartedPeriodicJob());
 
     // Test a second call doesn't start up the periodic remover, since 'isRollback' true may be
     // called multiple times throughout the lifetime of the mongod.
     preImageRemoverService->onConsistentDataAvailable(
         opCtx, false /* isMajority */, true /* isRollback */);
-    ASSERT_FALSE(preImageRemoverService->startedPeriodicJob_forTest());
+    ASSERT_FALSE(preImageRemoverService->hasStartedPeriodicJob());
 }
 
 TEST_F(PreImagesRemoverServiceTest, PeriodicJobOnSecondary) {
@@ -630,15 +629,15 @@ TEST_F(PreImagesRemoverServiceTest, PeriodicJobOnSecondary) {
 
     auto preImageRemoverService = ChangeStreamExpiredPreImagesRemoverService::get(opCtx);
 
-    ASSERT_FALSE(preImageRemoverService->startedPeriodicJob_forTest());
+    ASSERT_FALSE(preImageRemoverService->hasStartedPeriodicJob());
 
     preImageRemoverService->onConsistentDataAvailable(
         opCtx, false /* isMajority */, true /* isRollback */);
-    ASSERT_FALSE(preImageRemoverService->startedPeriodicJob_forTest());
+    ASSERT_FALSE(preImageRemoverService->hasStartedPeriodicJob());
 
     preImageRemoverService->onConsistentDataAvailable(
         opCtx, false /* isMajority */, false /* isRollback */);
-    ASSERT_TRUE(preImageRemoverService->startedPeriodicJob_forTest());
+    ASSERT_TRUE(preImageRemoverService->hasStartedPeriodicJob());
 }
 
 TEST_F(PreImagesRemoverServiceTest, PeriodicJobDoesntStartOnStandalone) {
@@ -649,12 +648,12 @@ TEST_F(PreImagesRemoverServiceTest, PeriodicJobDoesntStartOnStandalone) {
 
     auto preImageRemoverService = ChangeStreamExpiredPreImagesRemoverService::get(opCtx);
 
-    ASSERT_FALSE(preImageRemoverService->startedPeriodicJob_forTest());
+    ASSERT_FALSE(preImageRemoverService->hasStartedPeriodicJob());
 
     preImageRemoverService->onConsistentDataAvailable(
         opCtx, false /* isMajority */, false /* isRollback */);
 
-    ASSERT_FALSE(preImageRemoverService->startedPeriodicJob_forTest());
+    ASSERT_FALSE(preImageRemoverService->hasStartedPeriodicJob());
 }
 
 }  // namespace mongo

@@ -212,11 +212,10 @@ class _StepdownThread(threading.Thread):
         self._should_downgrade = should_downgrade
 
         self._last_exec = time.time()
-        # Event set when the thread has been stopped using the 'stop()' method.
+        self._pause_timeout_secs = fixture_interface.ReplFixture.AWAIT_REPL_TIMEOUT_MINS * 60
+        self._stop_timeout_secs = fixture_interface.ReplFixture.AWAIT_REPL_TIMEOUT_MINS * 60
+        self._thread_state = lifecycle_interface.HookThreadState()
         self._is_stopped_evt = threading.Event()
-        # Event set when the thread is not performing stepdowns.
-        self._is_idle_evt = threading.Event()
-        self._is_idle_evt.set()
 
         self._step_up_stats = collections.Counter()
 
@@ -228,19 +227,22 @@ class _StepdownThread(threading.Thread):
 
         try:
             while True:
-                self._is_idle_evt.set()
+                self._thread_state.mark_idle("waiting_for_action_permitted")
 
                 permitted = self.__lifecycle.wait_for_action_permitted()
                 if not permitted:
+                    self._thread_state.mark_stopped("lifecycle_stop_requested")
                     break
 
-                self._is_idle_evt.clear()
+                self._thread_state.mark_running("stepdown_cycle")
 
                 now = time.time()
                 if now - self._last_exec > self._stepdown_interval_secs:
+                    self._thread_state.set_phase("step_down_all")
                     self.logger.info("Starting stepdown of all primaries")
                     self._step_down_all()
                     # Wait until each replica set has a primary, so the test can make progress.
+                    self._thread_state.set_phase("await_primaries_after_stepdown")
                     self._await_primaries()
                     self._last_exec = time.time()
                     self.logger.info(
@@ -250,6 +252,7 @@ class _StepdownThread(threading.Thread):
 
                 found_idle_request = self.__lifecycle.poll_for_idle_request()
                 if found_idle_request:
+                    self._thread_state.set_phase("sending_idle_acknowledgement")
                     self.__lifecycle.send_idle_acknowledgement()
                     continue
 
@@ -257,31 +260,43 @@ class _StepdownThread(threading.Thread):
                 # the last stepdown command was sent.
                 now = time.time()
                 wait_secs = max(0, self._stepdown_interval_secs - (now - self._last_exec))
+                self._thread_state.mark_idle("waiting_for_action_interval")
                 self.__lifecycle.wait_for_action_interval(wait_secs)
-        except Exception:
+        except Exception as err:
             # Proactively log the exception when it happens so it will be
             # flushed immediately.
             self.logger.exception("Stepdown Thread threw exception")
-            # The event should be signaled whenever the thread is not performing stepdowns.
-            self._is_idle_evt.set()
+            self._thread_state.mark_failed(err, "run_loop")
+        finally:
+            state, _phase = self._thread_state.describe()
+            if state not in ("failed", "stopped"):
+                self._thread_state.mark_stopped("run_loop_exited")
 
     def stop(self):
         """Stop the thread."""
-        self.__lifecycle.stop()
+        self._thread_state.mark_stopping("stop_requested")
         self._is_stopped_evt.set()
+        self.__lifecycle.stop()
         # Unpause to allow the thread to finish.
         self.resume()
-        self.join()
+        self.join(self._stop_timeout_secs)
+        if self.is_alive():
+            state, phase = self._thread_state.describe()
+            raise errors.ServerFailure(
+                "Timed out waiting for stepdown thread to stop; "
+                f"state={state}, phase={phase}, timeout={self._stop_timeout_secs}s."
+            )
+        self._thread_state.assert_healthy(self.is_alive(), "stepdown", allow_stopped=True)
 
     def pause(self):
         """Pause the thread."""
         self.__lifecycle.mark_test_finished()
 
         # Wait until we are no longer executing stepdowns.
-        self._is_idle_evt.wait()
-        # Check if the thread is alive in case it has thrown an exception while running.
-        self._check_thread()
+        self._thread_state.wait_until_idle(self._pause_timeout_secs, "stepdown")
+        self._thread_state.assert_healthy(self.is_alive(), "stepdown")
         # Wait until we all the replica sets have primaries.
+        self._thread_state.set_phase("await_primaries")
         self._await_primaries()
 
         # Check that fixtures are still running
@@ -307,19 +322,13 @@ class _StepdownThread(threading.Thread):
             self._step_up_stats,
         )
 
-    def _wait(self, timeout):
-        # Wait until stop or timeout.
-        self._is_stopped_evt.wait(timeout)
-
-    def _check_thread(self):
-        if not self.is_alive():
-            msg = "The stepdown thread is not running."
-            self.logger.error(msg)
-            raise errors.ServerFailure(msg)
-
     def _await_primaries(self):
         for fixture in self._rs_fixtures:
             fixture.get_primary()
+
+    def _wait(self, timeout):
+        # Retry backoff used in step-up retry loops, interruptible by stop.
+        self._is_stopped_evt.wait(timeout)
 
     def _create_client(self, node):
         return fixture_interface.build_client(node, self._auth_options)

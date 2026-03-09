@@ -31,6 +31,11 @@
 
 #include "mongo/scripting/mozjs/shell/implscope.h"
 #include "mongo/shell/debugger/adapter.h"
+#include "mongo/stdx/condition_variable.h"
+#include "mongo/stdx/mutex.h"
+
+#include <map>
+#include <set>
 
 #include <jsapi.h>
 
@@ -46,11 +51,21 @@ static AtomicWord<bool> _paused{false};
 static std::string _pausedScript;
 static int _pausedLine{0};
 
+static stdx::mutex _pauseMutex;
+static stdx::condition_variable _pauseCV;
+
 // Evaluation state for debugger REPL
 std::string _pendingEval;
 std::string _evalResult;
 AtomicWord<bool> _hasEvalRequest{false};
 AtomicWord<bool> _evalComplete{false};
+
+// Debugger state
+static std::unique_ptr<DebuggerObject> _debuggerObject;
+static std::unique_ptr<JS::PersistentRooted<JSObject*>> _debuggerGlobal;
+
+// Pending breakpoints: map from source URL to set of line numbers
+static std::map<std::string, std::set<int>> _pendingBreakpoints;
 
 DebuggerObject::DebuggerObject(JSContext* cx, JS::HandleObject debugger)
     : _cx(cx), _debugger(cx, debugger) {}
@@ -142,6 +157,55 @@ bool DebuggerObject::getEvalRequest(JSContext* cx, unsigned argc, JS::Value* vp)
 }
 
 /**
+ * Get pending breakpoints for a given source URL.
+ * Returns an array of line numbers.
+ */
+bool DebuggerObject::getPendingBreakpointsCallback(JSContext* cx, unsigned argc, JS::Value* vp) {
+    JS::CallArgs args = JS::CallArgsFromVp(argc, vp);
+
+    if (argc < 1 || !args[0].isString()) {
+        args.rval().setUndefined();
+        return true;
+    }
+
+    JS::RootedString urlStr(cx, args[0].toString());
+    JS::UniqueChars urlChars = JS_EncodeStringToUTF8(cx, urlStr);
+    if (!urlChars) {
+        args.rval().setUndefined();
+        return true;
+    }
+
+    std::string url(urlChars.get());
+
+    // Look up any pending breakpoints for this URL
+    auto it = _pendingBreakpoints.find(url);
+    if (it == _pendingBreakpoints.end() || it->second.empty()) {
+        // none found
+        args.rval().setUndefined();
+        return true;
+    }
+
+    // Create an array of line numbers
+    JS::RootedObject linesArray(cx, JS::NewArrayObject(cx, it->second.size()));
+    if (!linesArray) {
+        args.rval().setUndefined();
+        return true;
+    }
+
+    uint32_t index = 0;
+    for (int line : it->second) {
+        JS::RootedValue lineVal(cx, JS::Int32Value(line));
+        if (!JS_SetElement(cx, linesArray, index++, lineVal)) {
+            args.rval().setUndefined();
+            return true;
+        }
+    }
+
+    args.rval().setObject(*linesArray);
+    return true;
+}
+
+/**
  * Store the stringified result of the frame.eval
  */
 bool DebuggerObject::storeEvalResult(JSContext* cx, unsigned argc, JS::Value* vp) {
@@ -165,30 +229,29 @@ bool DebuggerObject::storeEvalResult(JSContext* cx, unsigned argc, JS::Value* vp
 Status DebuggerObject::setOnDebuggerStatementCallback(JS::RootedObject const& global) {
     Status status = Status::OK();
 
-    if (!(status = registerNativeFunction(
-              _cx, global, "__onDebuggerStatement", DebuggerObject::onDebuggerStatementCallback, 1))
-             .isOK()) {
+    status = registerNativeFunction(
+        _cx, global, "__onDebuggerStatement", DebuggerObject::onDebuggerStatementCallback, 1);
+    if (!status.isOK()) {
         return status;
     }
 
-    if (!(status = registerNativeFunction(
-              _cx, global, "__isPaused", DebuggerObject::isPausedCallback, 0))
-             .isOK()) {
+    status = registerNativeFunction(_cx, global, "__isPaused", DebuggerObject::isPausedCallback, 0);
+    if (!status.isOK()) {
         return status;
     }
-    if (!(status = registerNativeFunction(
-              _cx, global, "__storeEvalResult", DebuggerObject::storeEvalResult, 1))
-             .isOK()) {
+    status = registerNativeFunction(
+        _cx, global, "__storeEvalResult", DebuggerObject::storeEvalResult, 1);
+    if (!status.isOK()) {
         return status;
     }
-    if (!(status = registerNativeFunction(
-              _cx, global, "__hasEvalRequest", DebuggerObject::hasEvalRequest, 0))
-             .isOK()) {
+    status =
+        registerNativeFunction(_cx, global, "__hasEvalRequest", DebuggerObject::hasEvalRequest, 0);
+    if (!status.isOK()) {
         return status;
     }
-    if (!(status = registerNativeFunction(
-              _cx, global, "__getEvalRequest", DebuggerObject::getEvalRequest, 0))
-             .isOK()) {
+    status =
+        registerNativeFunction(_cx, global, "__getEvalRequest", DebuggerObject::getEvalRequest, 0);
+    if (!status.isOK()) {
         return status;
     }
 
@@ -346,6 +409,118 @@ int DebuggerFrame::getLineNumber() {
     return 0;
 }
 
+bool DebuggerScript::breakpointHandler(JSContext* cx, unsigned argc, JS::Value* vp) {
+    JS::CallArgs args = JS::CallArgsFromVp(argc, vp);
+
+    // Get current frame information (THIS IS MISSING!)
+    DebuggerFrame frame(cx);
+    _pausedScript = frame.getScriptUrl();
+    _pausedLine = frame.getLineNumber();
+
+    DebugAdapter::sendPause();
+
+    std::unique_lock<std::mutex> lock(_pauseMutex);
+    _paused.store(true);
+    _pauseCV.wait(lock, [] { return !_paused.load(); });
+
+    // Resumption value of 'undefined': The debuggee should continue execution normally.
+    args.rval().setUndefined();
+
+    return true;
+}
+
+Status DebuggerObject::setOnNewScriptCallback(JS::RootedObject const& global) {
+    Status status = Status::OK();
+
+    status = registerNativeFunction(
+        _cx, global, "__getPendingBreakpoints", DebuggerObject::getPendingBreakpointsCallback, 1);
+    if (!status.isOK()) {
+        return status;
+    }
+
+    status = registerNativeFunction(
+        _cx, global, "__onScriptSetBreakpoint", DebuggerScript::breakpointHandler, 1);
+    if (!status.isOK()) {
+        return status;
+    }
+
+    // Set up onNewScript callback - calls the helper for new scripts
+    const char* onNewScriptCode = R"JS(
+        (function(script) {
+            const url = script.url;
+            if (!url) return;
+
+            // Set callbacks via script.setBreakpoint for any pending breakpoints
+            const pendingBps = globalThis.__getPendingBreakpoints(url);
+            if (!pendingBps || pendingBps.length === 0) return;
+
+            for (const line of pendingBps) {
+                try {
+                    const offsets = script.getLineOffsets(line);
+                    if (offsets.length > 0) {
+                        const offset = offsets[0];
+                        script.setBreakpoint(offset, {
+                            hit: function(frame) {
+                                // Store location info so C++ can access it
+                                globalThis.__pausedLocation = {
+                                    script: frame.script?.url ?? "unknown",
+                                    line: frame.script?.getOffsetLocation?.call(frame.script, frame.offset)?.lineNumber ?? 0,
+                                };
+
+                                // Invoke the C++ callback
+                                globalThis.__onScriptSetBreakpoint();
+                            }
+                        });
+                    }
+                } catch (e) {
+                }
+            }
+        })
+    )JS";
+
+    JS::RootedValue onNewScript(_cx);
+    status = compileJSCodeBlock(onNewScriptCode, "onNewScript-callback", &onNewScript);
+    if (!status.isOK()) {
+        return status;
+    }
+
+    if (!JS_SetProperty(_cx, _debugger, "onNewScript", onNewScript)) {
+        return Status(ErrorCodes::JSInterpreterFailure, "Failed to set onNewScript");
+    }
+
+    return Status::OK();
+}
+
+void DebuggerObject::setBreakpoints(SetBreakpointsRequest request) {
+
+    // Assume that all breakpoints are set before running the shell.
+    // This means that the scripts that the breakpoints are in have not been loaded yet.
+    // Store these pending breakpoints to register later via debugger.onNewScript.
+    _pendingBreakpoints[request.source].clear();
+    for (int line : request.lines) {
+        _pendingBreakpoints[request.source].insert(line);
+    }
+
+    // TODO: Try to apply to already-loaded scripts, where users add more breakpoints as they go
+}
+
+void DebuggerGlobal::setBreakpoints(SetBreakpointsRequest request) {
+    _debuggerObject->setBreakpoints(request);
+}
+
+std::string DebuggerGlobal::getPausedScript() {
+    return _pausedScript;
+}
+
+int DebuggerGlobal::getPausedLine() {
+    return _pausedLine;
+}
+
+void DebuggerGlobal::unpause() {
+    _paused.store(false);
+    _pauseCV.notify_all();
+}
+
 std::unique_ptr<std::thread> _stdinThread;
 
 void DebuggerGlobal::handleStdinThread() {
@@ -447,6 +622,7 @@ Status DebuggerGlobal::init(JSContext* cx) {
     if (!debuggerGlobal) {
         return Status(ErrorCodes::JSInterpreterFailure, "Failed to create debugger compartment");
     }
+    _debuggerGlobal = std::make_unique<JS::PersistentRooted<JSObject*>>(cx, debuggerGlobal);
 
     Status status = Status::OK();
 
@@ -455,14 +631,23 @@ Status DebuggerGlobal::init(JSContext* cx) {
         // Enter the debugger's compartment
         JSAutoRealm realm(cx, debuggerGlobal);
 
-        DebuggerObject debuggerObject = DebuggerObject::create(cx, debuggerGlobal);
-        status = debuggerObject.addDebuggee(mainGlobal);
+        // Create and store the debugger object for later use (e.g., setting breakpoints)
+        _debuggerObject =
+            std::make_unique<DebuggerObject>(DebuggerObject::create(cx, debuggerGlobal));
+
+        status = _debuggerObject->addDebuggee(mainGlobal);
         if (!status.isOK()) {
             return status;
         }
 
         // Set up onDebuggerStatement hook
-        status = debuggerObject.setOnDebuggerStatementCallback(debuggerGlobal);
+        status = _debuggerObject->setOnDebuggerStatementCallback(debuggerGlobal);
+        if (!status.isOK()) {
+            return status;
+        }
+
+        // Set up script.onNewScript hook to activate breakpoints
+        status = _debuggerObject->setOnNewScriptCallback(debuggerGlobal);
         if (!status.isOK()) {
             return status;
         }
@@ -473,6 +658,10 @@ Status DebuggerGlobal::init(JSContext* cx) {
     if (!status.isOK()) {
         return status;
     }
+
+    // Wait for the debugger to send initial configuration (breakpoints, etc.)
+    // before proceeding with script execution
+    DebugAdapter::waitForHandshake();
 
     // Start stdin handling thread for debug commands
     _stdinThread = std::make_unique<std::thread>(handleStdinThread);

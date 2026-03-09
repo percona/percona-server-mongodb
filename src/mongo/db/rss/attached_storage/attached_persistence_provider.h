@@ -155,7 +155,7 @@ public:
     bool shouldDisableTransactionUpdateCoalescing() const override;
 
     /**
-     * The minimum FCV required for disaggregated storage clusters.
+     * The minimum FCV required for attached storage clusters.
      */
     multiversion::FeatureCompatibilityVersion getMinimumRequiredFCV() const override;
 

@@ -36,7 +36,6 @@
 #include "mongo/db/collection_crud/collection_write_path.h"
 #include "mongo/db/operation_context.h"
 #include "mongo/db/query/internal_plans.h"
-#include "mongo/db/rss/replicated_storage_service.h"
 #include "mongo/db/shard_role/lock_manager/exception_util.h"
 #include "mongo/db/shard_role/shard_role.h"
 #include "mongo/db/storage/collection_truncate_markers.h"
@@ -49,21 +48,10 @@
 namespace mongo {
 namespace {
 
-// Returns true iff we should run *replicated* truncates for pre-images on this node.
-bool shouldUseReplicatedTruncatesForPreImages(OperationContext* opCtx) {
-    // TODO: SERVER-114103 Implement lifecycle for replicated truncates.
-    if (const auto& rss = rss::ReplicatedStorageService::get(opCtx);
-        rss.getPersistenceProvider().shouldUseReplicatedTruncates()) {
-        return true;
-    }
-
-    return false;
-}
-
 class MaybeUnreplicatedPreImageTruncateBlock {
 public:
     explicit MaybeUnreplicatedPreImageTruncateBlock(OperationContext* opCtx) {
-        if (!shouldUseReplicatedTruncatesForPreImages(opCtx)) {
+        if (!change_stream_pre_image_util::shouldUseReplicatedTruncatesForPreImages(opCtx)) {
             _uwb.emplace(opCtx);
         }
     }
@@ -120,7 +108,7 @@ auto acquirePreImagesCollectionForRead(OperationContext* opCtx, const UUID& uuid
 
 auto acquirePreImagesCollectionForWrite(OperationContext* opCtx, const UUID& uuid) {
     AcquisitionPrerequisites::OperationType acquisitionPrerequisites =
-        shouldUseReplicatedTruncatesForPreImages(opCtx)
+        change_stream_pre_image_util::shouldUseReplicatedTruncatesForPreImages(opCtx)
         ? AcquisitionPrerequisites::kWrite
         : AcquisitionPrerequisites::kUnreplicatedWrite;
 
@@ -717,6 +705,8 @@ void populateByEqualStepSampling(OperationContext* opCtx,
 
     // Multiply the number of records by an arbitrarily-chosen average record size here to get to a
     // data size estimate.
+    // TODO SERVER-120018: Use information from replicated fast count (SizeStorer) once it is
+    // available.
     int64_t dataSize = numRecords * 1024;
     invariant(dataSize > 0);
     const auto minBytesPerMarker = gPreImagesCollectionTruncateMarkersMinBytes;

@@ -105,11 +105,10 @@ protected:
      * number, and runs the given callback function.
      */
     template <typename Callable>
-    void beginTxn(LogicalSessionId sessionId, TxnNumber txnNumber, Callable&& func) {
-        auto newClientOwned = getServiceContext()->getService()->makeClient("newClient");
-        AlternativeClientRegion acr(newClientOwned);
-        auto opCtxHolder = cc().makeOperationContext();
-        auto opCtx = opCtxHolder.get();
+    void beginTxn(OperationContext* opCtx,
+                  LogicalSessionId sessionId,
+                  TxnNumber txnNumber,
+                  Callable&& func) {
         opCtx->setLogicalSessionId(sessionId);
         opCtx->setTxnNumber(txnNumber);
         opCtx->setInMultiDocumentTransaction();
@@ -126,6 +125,14 @@ protected:
         func(opCtx);
         txnParticipant.stashTransactionResources(opCtx);
     }
+    template <typename Callable>
+    void beginTxn(LogicalSessionId sessionId, TxnNumber txnNumber, Callable&& func) {
+        auto newClientOwned = getServiceContext()->getService()->makeClient("newClient");
+        AlternativeClientRegion acr(newClientOwned);
+        auto opCtxHolder = cc().makeOperationContext();
+        beginTxn(opCtxHolder.get(), sessionId, txnNumber, func);
+    }
+
     /**
      * With a fresh OperationContext, continues the transaction with the given session id and
      * transaction number, and runs 'func' before committing.
@@ -136,6 +143,7 @@ protected:
         AlternativeClientRegion acr(newClientOwned);
         auto opCtxHolder = cc().makeOperationContext();
         auto opCtx = opCtxHolder.get();
+
         opCtx->setLogicalSessionId(sessionId);
         opCtx->setTxnNumber(txnNumber);
         opCtx->setInMultiDocumentTransaction();
@@ -156,12 +164,7 @@ protected:
         txnParticipant.stashTransactionResources(opCtx);
     }
 
-    void abortTxn(LogicalSessionId sessionId, TxnNumber txnNumber) {
-        auto newClientOwned = getServiceContext()->getService()->makeClient("newClient");
-        AlternativeClientRegion acr(newClientOwned);
-        auto opCtxHolder = cc().makeOperationContext();
-        auto opCtx = opCtxHolder.get();
-
+    void abortTxn(OperationContext* opCtx, LogicalSessionId sessionId, TxnNumber txnNumber) {
         opCtx->setInMultiDocumentTransaction();
         opCtx->setLogicalSessionId(sessionId);
         opCtx->setTxnNumber(txnNumber);
@@ -177,6 +180,13 @@ protected:
         txnParticipant.unstashTransactionResources(opCtx, "abortTransaction");
         txnParticipant.abortTransaction(opCtx);
         txnParticipant.stashTransactionResources(opCtx);
+    }
+    void abortTxn(LogicalSessionId sessionId, TxnNumber txnNumber) {
+        auto newClientOwned = getServiceContext()->getService()->makeClient("newClient");
+        AlternativeClientRegion acr(newClientOwned);
+        auto opCtxHolder = cc().makeOperationContext();
+        auto opCtx = opCtxHolder.get();
+        abortTxn(opCtx, sessionId, txnNumber);
     }
 
     OperationContext* _opCtx = nullptr;
@@ -287,6 +297,44 @@ TEST_F(ReplicatedFastCountTxnFixture, UncommittedChangesDiscardedAfterMultiDocum
     replicated_fast_count_test_helpers::checkCommittedFastCountChanges(
         *uuid, _fastCountManager, 0, 0);
     replicated_fast_count_test_helpers::checkUncommittedFastCountChanges(_opCtx, *uuid, 0, 0);
+}
+
+TEST_F(ReplicatedFastCountTxnFixture, FastCountResetForSessionBetweenTransactions) {
+    // Tests that the 'UncommittedFastCountChange' is reset when there is a new
+    // 'RecoveryUnit::Snapshot', even across a single OperationContext.
+    RAIIServerParameterControllerForTest featureFlag("featureFlagReplicatedFastCount", true);
+
+    const auto doc1 = BSON("_id" << 0 << "x" << 1);
+
+    boost::optional<UUID> uuid;
+    auto sessionId = makeLogicalSessionIdForTest();
+    TxnNumber txnNumber(0);
+
+    beginTxn(_opCtx, sessionId, txnNumber, [&](OperationContext* opCtx) {
+        AutoGetCollection coll(opCtx, _nss1, LockMode::MODE_IX);
+        uuid = coll->uuid();
+
+        {
+            WriteUnitOfWork wuow{opCtx};
+            ASSERT_OK(Helpers::insert(opCtx, *coll, doc1));
+            wuow.commit();
+        }
+
+        replicated_fast_count_test_helpers::checkCommittedFastCountChanges(
+            *uuid, _fastCountManager, 0, 0);
+        replicated_fast_count_test_helpers::checkUncommittedFastCountChanges(
+            opCtx, *uuid, 1, doc1.objsize());
+    });
+    abortTxn(_opCtx, sessionId, txnNumber);
+
+    txnNumber = TxnNumber(2);
+    beginTxn(_opCtx, sessionId, txnNumber, [&](OperationContext* opCtx) {
+        // Nothing leaked over from the previous transaction on the session.
+        replicated_fast_count_test_helpers::checkCommittedFastCountChanges(
+            *uuid, _fastCountManager, 0, 0);
+        replicated_fast_count_test_helpers::checkUncommittedFastCountChanges(opCtx, *uuid, 0, 0);
+    });
+    abortTxn(_opCtx, sessionId, txnNumber);
 }
 
 }  // namespace

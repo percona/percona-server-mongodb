@@ -78,12 +78,9 @@ UncommittedFastCountChange& UncommittedFastCountChange::getForWrite(OperationCon
             invariant(fn, "FastCountCommitFn is not set");
 
             fn(opCtx, getUncommittedFastCountChangeFromOpCtx(opCtx)->_trackedChanges, commitTime);
-            getUncommittedFastCountChangeFromOpCtx(opCtx).reset();
+            // The 'RecoveryUnit::Snapshot' is reset on commit, so decorations like the
+            // UncommittedFastCountChange don't need manual cleanup.
         });
-
-    shard_role_details::getRecoveryUnit(opCtx)->onRollback(
-        [](OperationContext* opCtx) { getUncommittedFastCountChangeFromOpCtx(opCtx).reset(); });
-
     return *ptr;
 }
 

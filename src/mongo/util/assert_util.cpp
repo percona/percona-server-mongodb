@@ -31,6 +31,7 @@
 
 #include "mongo/config.h"
 #include "mongo/logv2/log.h"
+#include "mongo/util/active_exception_witness.h"
 #include "mongo/util/debugger.h"
 #include "mongo/util/exit_code.h"
 #include "mongo/util/quick_exit.h"

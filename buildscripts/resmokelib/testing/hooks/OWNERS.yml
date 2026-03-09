@@ -85,3 +85,9 @@ filters:
   - "verify_extensions_visibility.py":
     approvers:
       - 10gen/query-integration-extensions-api
+  - "continuous_initial_sync.py":
+    approvers:
+      - 10gen/server-jstest-infra
+  - "lifecycle.py":
+    approvers:
+      - 10gen/server-jstest-infra

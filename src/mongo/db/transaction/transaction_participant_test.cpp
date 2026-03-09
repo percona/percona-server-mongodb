@@ -1000,6 +1000,7 @@ TEST_F(TxnParticipantTest, KillOpBeforeCommittingPreparedTransaction) {
     txnParticipant.unstashTransactionResources(opCtx(), "prepareTransaction");
     const auto prepareResponse = txnParticipant.prepareTransaction(opCtx(), {});
     const auto& prepareTimestamp = prepareResponse.first;
+    const auto onExitPrepare = txnParticipant.onExitPrepare();
     opCtx()->markKilled(ErrorCodes::Interrupted);
     try {
         // The commit should throw, since the operation was killed.
@@ -1014,6 +1015,7 @@ TEST_F(TxnParticipantTest, KillOpBeforeCommittingPreparedTransaction) {
 
     // The transaction state should have been unaffected.
     ASSERT_TRUE(txnParticipant.transactionIsPrepared());
+    ASSERT_FALSE(onExitPrepare.isReady());
 
     auto commitPreparedFunc = [&](OperationContext* opCtx) {
         opCtx->setLogicalSessionId(_sessionId);
@@ -1046,6 +1048,7 @@ TEST_F(TxnParticipantTest, KillOpBeforeAbortingPreparedTransaction) {
     txnParticipant.unstashTransactionResources(opCtx(), "prepareTransaction");
     const auto prepareResponse = txnParticipant.prepareTransaction(opCtx(), {});
     const auto& prepareTimestamp = prepareResponse.first;
+    const auto onExitPrepare = txnParticipant.onExitPrepare();
     opCtx()->markKilled(ErrorCodes::Interrupted);
     try {
         // The abort should throw, since the operation was killed.
@@ -1060,6 +1063,7 @@ TEST_F(TxnParticipantTest, KillOpBeforeAbortingPreparedTransaction) {
 
     // The transaction state should have been unaffected.
     ASSERT_TRUE(txnParticipant.transactionIsPrepared());
+    ASSERT_FALSE(onExitPrepare.isReady());
 
     auto commitPreparedFunc = [&](OperationContext* opCtx) {
         opCtx->setLogicalSessionId(_sessionId);
@@ -5452,10 +5456,21 @@ TEST_F(TxnParticipantTest, ExitPreparePromiseIsFulfilledOnCommitAfterPrepare) {
     txnParticipant.unstashTransactionResources(opCtx(), "find");
     ASSERT_TRUE(txnParticipant.onExitPrepare().isReady());
 
-    repl::ReplClientInfo::forClient(opCtx()->getClient()).clearLastOp();
-    const auto prepareOpTime = repl::OpTime({3, 2}, 0);
-    const auto [prepareTimestamp, namespaces] =
-        txnParticipant.prepareTransaction(opCtx(), prepareOpTime);
+    // Perform a write in the transaction so we can assert it is visible after the exitPrepare
+    // promise is fulfilled.
+    {
+        auto userColl =
+            acquireCollection(opCtx(),
+                              CollectionAcquisitionRequest(kNss,
+                                                           PlacementConcern::kPretendUnsharded,
+                                                           repl::ReadConcernArgs::get(opCtx()),
+                                                           AcquisitionPrerequisites::kWrite),
+                              MODE_IX);
+        ASSERT_OK(Helpers::insert(
+            opCtx(), userColl.getCollectionPtr(), BSON("_id" << 1 << "value" << 1)));
+    }
+
+    const auto [prepareTimestamp, namespaces] = txnParticipant.prepareTransaction(opCtx(), {});
     const auto exitPrepareFuture = txnParticipant.onExitPrepare();
     ASSERT_FALSE(exitPrepareFuture.isReady());
 
@@ -5467,6 +5482,74 @@ TEST_F(TxnParticipantTest, ExitPreparePromiseIsFulfilledOnCommitAfterPrepare) {
     // Once the promise has been fulfilled, new callers of onExitPrepare should immediately be
     // ready.
     ASSERT_TRUE(txnParticipant.onExitPrepare().isReady());
+
+    // Assert the commit made the transaction's write visible.
+    {
+        auto userColl =
+            acquireCollection(opCtx(),
+                              CollectionAcquisitionRequest(kNss,
+                                                           PlacementConcern::kPretendUnsharded,
+                                                           repl::ReadConcernArgs::get(opCtx()),
+                                                           AcquisitionPrerequisites::kRead),
+                              MODE_IS);
+        ASSERT_BSONOBJ_EQ(BSON("_id" << 1 << "value" << 1),
+                          Helpers::findOneForTesting(opCtx(), userColl, BSON("_id" << 1), true));
+    }
+
+    // Assert the config.transactions entry was updated to committed.
+    {
+        auto configTransactions = acquireCollection(
+            opCtx(),
+            CollectionAcquisitionRequest(NamespaceString::kSessionTransactionsTableNamespace,
+                                         PlacementConcern{boost::none, ShardVersion::UNTRACKED()},
+                                         repl::ReadConcernArgs::get(opCtx()),
+                                         AcquisitionPrerequisites::kRead),
+            MODE_IS);
+        BSONObj userTxnObj =
+            Helpers::findOneForTesting(opCtx(),
+                                       configTransactions,
+                                       BSON("_id.id" << opCtx()->getLogicalSessionId()->getId()),
+                                       true);
+        ASSERT(!userTxnObj.isEmpty());
+        assertSessionState(userTxnObj, DurableTxnStateEnum::kCommitted);
+    }
+}
+
+TEST_F(TxnParticipantTest, OldExitPreparePromiseRemainsFulfilledAfterNewTxnBegins) {
+    auto mongoDSessionCatalog = MongoDSessionCatalog::get(opCtx());
+    auto opCtxSession = mongoDSessionCatalog->checkOutSession(opCtx());
+    auto txnParticipant = TransactionParticipant::get(opCtx());
+
+    txnParticipant.beginOrContinue(opCtx(),
+                                   {*opCtx()->getTxnNumber()},
+                                   false /* autocommit */,
+                                   TransactionParticipant::TransactionActions::kStart);
+    txnParticipant.unstashTransactionResources(opCtx(), "find");
+
+    txnParticipant.prepareTransaction(opCtx(), boost::none);
+    const auto oldExitPrepareFuture = txnParticipant.onExitPrepare();
+    ASSERT_FALSE(oldExitPrepareFuture.isReady());
+
+    txnParticipant.abortTransaction(opCtx());
+    ASSERT_TRUE(oldExitPrepareFuture.isReady());
+
+    // Start a new transaction which will result in a new completion promise set.
+    opCtx()->setTxnNumber(*opCtx()->getTxnNumber() + 1);
+    txnParticipant.beginOrContinue(opCtx(),
+                                   {*opCtx()->getTxnNumber()},
+                                   false /* autocommit */,
+                                   TransactionParticipant::TransactionActions::kStart);
+    txnParticipant.unstashTransactionResources(opCtx(), "find");
+
+    txnParticipant.prepareTransaction(opCtx(), boost::none);
+    const auto newExitPrepareFuture = txnParticipant.onExitPrepare();
+    ASSERT_FALSE(newExitPrepareFuture.isReady());
+
+    // Even though a new completion promise was set, the old exitPrepareFuture that was fulfilled
+    // from the older transaction should still be ready.
+    ASSERT_TRUE(oldExitPrepareFuture.isReady());
+
+    txnParticipant.abortTransaction(opCtx());
 }
 
 TEST_F(ShardTxnParticipantTest, CanSpecifyTxnRetryCounterOnShardSvr) {
@@ -8094,6 +8177,7 @@ protected:
         ASSERT_FALSE(shard_role_details::getLocker(opCtx())->isRSTLLocked());
         ASSERT_FALSE(txnParticipant.hasIncompleteHistory());
         ASSERT(txnParticipant.getRecoveredFromPreciseCheckpointRequiresOplogScanForTest());
+        ASSERT_FALSE(txnParticipant.onExitPrepare().isReady());
     }
 
     LogicalSessionId _testSessionId;

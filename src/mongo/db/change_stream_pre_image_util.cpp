@@ -87,6 +87,14 @@ bool shouldUseReplicatedTruncatesForPreImages(OperationContext* opCtx) {
 
     // Next check feature flag.
     const auto fcvSnapshot = serverGlobalParams.featureCompatibility.acquireFCVSnapshot();
+
+    // 'shouldUseReplicatedTruncatesForPreImages()' is expected to always provide an accurate
+    // answer. For an accurate answer, we need the FCV snapshot to give us an accurate answer too.
+    tassert(11410300,
+            "expecting FCV snapshot to be usable when determining feature flag status for "
+            "replicated truncates",
+            fcvSnapshot.isVersionInitialized());
+
     return fcvSnapshot.isVersionInitialized() &&
         feature_flags::gFeatureFlagUseReplicatedTruncatesForDeletions.isEnabled(
             VersionContext::getDecoration(opCtx), fcvSnapshot);

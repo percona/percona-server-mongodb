@@ -66,6 +66,7 @@
 #include "mongo/db/storage/kv/kv_engine.h"
 #include "mongo/db/storage/recovery_unit.h"
 #include "mongo/db/storage/write_unit_of_work.h"
+#include "mongo/db/transaction/reclaimed_prepared_txn_tracker.h"
 #include "mongo/db/transaction/transaction_history_iterator.h"
 #include "mongo/db/transaction/transaction_participant.h"
 #include "mongo/idl/idl_parser.h"
@@ -728,9 +729,10 @@ Status _applyPrepareTransaction(OperationContext* opCtx,
             txnParticipant.prepareTransaction(opCtx, prepareOp.getOpTime());
 
             auto opObserver = opCtx->getServiceContext()->getOpObserver();
+            auto prepareOpTime = prepareOp.getOpTime();
             invariant(opObserver);
-            opObserver->onTransactionPrepareNonPrimary(
-                opCtx, *prepareOp.getSessionId(), txnOps, prepareOp.getOpTime());
+            opObserver->onTransactionPrepareNonPrimaryForChunkMigration(
+                opCtx, *prepareOp.getSessionId(), txnOps, prepareOpTime);
 
             // Prepare transaction success.
             abortOnError.dismiss();
@@ -930,11 +932,21 @@ void _recoverPreparedTransactionFromPreciseCheckpoint(
                 MODE_IX);
         }
 
+        const auto lsid = txnRecord.getSessionId();
+
         // Reload transaction participant state based on the transaction record.
         txnParticipant.restorePreparedTxnFromPreciseCheckpoint(opCtx, std::move(txnRecord));
 
-        // TODO SERVER-113740: Trigger the op observers for chunk migrations once they support
-        // not having the full operations list. e.g. onTransactionPrepareNonPrimary()
+        auto opObserver = opCtx->getServiceContext()->getOpObserver();
+        invariant(opObserver);
+
+        // Statements and prepareOpTime are not recoverable from a precise checkpoint, so we don't
+        // pass them to the op-observer. The callback is only called for completeness and is not
+        // expected to do anything for a reclaimed prepared transaction.
+        opObserver->onTransactionPrepareNonPrimaryForChunkMigration(
+            opCtx, lsid, boost::none /* statements */, boost::none /* prepareOpTime */);
+
+        ReclaimedPreparedTxnTracker::get(opCtx)->trackPrepareExit(txnParticipant.onExitPrepare());
 
         // Stash the transaction so it yields its resources and can be resumed by future user
         // operations.
@@ -988,7 +1000,7 @@ void recoverPreparedTransactionsFromPreciseCheckpoint(OperationContext* opCtx) t
     // Track the prepare timestamps we've processed so far to log more useful info on failure.
     std::vector<Timestamp> processedPrepareTimestamps;
     processedPrepareTimestamps.reserve(expectedTransactions.size());
-
+    ReclaimedPreparedTxnTracker::get(opCtx)->beginDiscovery(expectedTransactions.size());
     while (auto unclaimedPreparedId = unclaimedPreparedIt->next()) {
         auto matchingTxnRecordIt = expectedTransactions.find(*unclaimedPreparedId);
         if (MONGO_unlikely(matchingTxnRecordIt == expectedTransactions.end())) {
@@ -1014,6 +1026,8 @@ void recoverPreparedTransactionsFromPreciseCheckpoint(OperationContext* opCtx) t
         processedPrepareTimestamps.push_back(Timestamp(matchingTxnRecordIt->first));
         expectedTransactions.erase(matchingTxnRecordIt);
     }
+
+    ReclaimedPreparedTxnTracker::get(opCtx)->discoveryComplete();
 
     if (MONGO_unlikely(expectedTransactions.size())) {
         LOGV2_FATAL(11372907,

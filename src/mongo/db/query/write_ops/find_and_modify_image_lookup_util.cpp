@@ -117,14 +117,39 @@ boost::optional<BSONObj> fetchPreOrPostImageFromSnapshot(const repl::OplogEntry&
     invariant(oplogEntry.getNeedsRetryImage());
 
     auto idFilter = extractFindAndModifyIdFilter(oplogEntry);
-    auto opTimestamp = oplogEntry.getCommitTransactionTimestamp()
-        ? *oplogEntry.getCommitTransactionTimestamp()
-        : oplogEntry.getTimestamp();
+    auto inTxn = oplogEntry.getCommitTransactionTimestamp().has_value();
+    auto opTimestamp =
+        inTxn ? *oplogEntry.getCommitTransactionTimestamp() : oplogEntry.getTimestamp();
 
     repl::ReadConcernArgs snapshotReadConcern(repl::ReadConcernLevel::kSnapshotReadConcern);
-    snapshotReadConcern.setArgsAtClusterTimeForSnapshot(
-        oplogEntry.getNeedsRetryImage() == repl::RetryImageEnum::kPostImage ? opTimestamp
-                                                                            : opTimestamp - 1);
+
+    auto atClusterTime = [&] {
+        if (oplogEntry.getNeedsRetryImage() == repl::RetryImageEnum::kPostImage) {
+            return opTimestamp;
+        }
+
+        uassert(12020800,
+                str::stream() << "Failed to look up the pre-image document. Expected oplog "
+                                 "timestamp increment to start at 1 but found "
+                              << opTimestamp,
+                opTimestamp.asULL() >= 1);
+
+        if (inTxn) {
+            return opTimestamp - 1;
+        }
+        // TODO (SERVER-120074): For a retryable findAndModify executed outside a transaction,
+        // opTimestamp - 1 corresponds to to the oplog slot reserved for the forged pre/post noop
+        // oplog entry. Please refer to SERVER-120074 for why we currently should not read at this
+        // timestamp.
+        uassert(12020801,
+                str::stream()
+                    << "Failed to look up the pre-image document. Expected the to have reserved an "
+                       "additional oplog slot immediately before the findAndModify's oplog slot "
+                    << opTimestamp,
+                opTimestamp.asULL() >= 2);
+        return opTimestamp - 2;
+    }();
+    snapshotReadConcern.setArgsAtClusterTimeForSnapshot(atClusterTime);
 
     try {
         auto doc = findOneLocallyFunc(oplogEntry.getNss(), idFilter, snapshotReadConcern);

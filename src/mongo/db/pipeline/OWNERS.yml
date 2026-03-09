@@ -193,9 +193,6 @@ filters:
   - "monotonic_expression*":
     approvers:
       - 10gen/query-optimization
-  - "name_expression*":
-    approvers:
-      - 10gen/streams-engine
   - "make_js_function*":
     approvers:
       - 10gen/query-integration-features

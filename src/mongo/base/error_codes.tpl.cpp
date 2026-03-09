@@ -51,6 +51,21 @@ ErrorExtraInfo::Parser* $ec.name = nullptr;
 
 MONGO_STATIC_ASSERT(sizeof(ErrorCodes::Error) == sizeof(int));
 
+std::string toString(ErrorCategory cat) {
+    switch (cat) {
+        //#for $cat in $categories
+        case ErrorCategory::$cat.name:
+            return "$cat.name";
+        //#end for
+        default:
+            return fmt::format("Location{}", int(cat));
+    }
+}
+
+std::ostream& operator<<(std::ostream& stream, ErrorCategory cat) {
+    return stream << toString(cat);
+}
+
 std::string ErrorCodes::errorString(Error err) {
     switch (err) {
         //#for $ec in $codes
@@ -58,7 +73,7 @@ std::string ErrorCodes::errorString(Error err) {
             return "$ec.name";
         //#end for
         default:
-            return str::stream() << "Location" << int(err);
+            return fmt::format("Location{}", int(err));
     }
 }
 

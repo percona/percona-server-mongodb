@@ -47,11 +47,11 @@
 #include "mongo/db/sharding_environment/sharding_feature_flags_gen.h"
 #include "mongo/db/stats/counters.h"
 #include "mongo/logv2/log.h"
-#include "mongo/stdx/chrono.h"
 #include "mongo/transport/asio/asio_tcp_fast_open.h"
 #include "mongo/transport/asio/asio_utils.h"
 #include "mongo/transport/service_entry_point.h"
 #include "mongo/transport/transport_options_gen.h"
+#include "mongo/util/active_exception_witness.h"
 #include "mongo/util/clock_source.h"
 #include "mongo/util/errno_util.h"
 #include "mongo/util/executor_stats.h"
@@ -64,7 +64,6 @@
 #include "mongo/util/options_parser/startup_options.h"
 #include "mongo/util/processinfo.h"
 #include "mongo/util/scopeguard.h"
-#include "mongo/util/signal_handlers_synchronous.h"
 #include "mongo/util/strong_weak_finish_line.h"
 
 #include <type_traits>
@@ -235,7 +234,7 @@ private:
 
 class AsioReactor final : public Reactor {
 public:
-    AsioReactor() : _tickSource(this), _stats(&_tickSource), _ioContext() {}
+    AsioReactor() : _clkSource(this), _stats(&_clkSource), _ioContext() {}
 
     void run() override {
         try {
@@ -274,8 +273,8 @@ public:
         return std::make_unique<AsioReactorTimer>(_ioContext);
     }
 
-    stdx::chrono::system_clock::time_point systemTime() override {
-        return asio::system_timer::clock_type::now();
+    Date_t now() override {
+        return Date_t(asio::system_timer::clock_type::now());
     }
 
     void schedule(Task task) override {
@@ -302,7 +301,7 @@ public:
     }
 
 private:
-    ReactorTickSource _tickSource;
+    ReactorClockSource _clkSource;
 
     ExecutorStats _stats;
 

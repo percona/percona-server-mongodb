@@ -89,6 +89,9 @@ void PreImagesTruncateManager::updateMarkersOnInsert(OperationContext* opCtx,
         [this, nsUUID = std::move(nsUUID), recordId = std::move(recordId), bytesInserted, wallTime](
             OperationContext* opCtx, boost::optional<Timestamp>) {
             if (auto truncateMarkers = _getTruncateMarkers()) {
+                // If replicated truncates are enabled, the truncate markers will only get updated
+                // on the primary. On the secondaries, '_getTruncateMarkers()' will return a
+                // nullptr.
                 truncateMarkers->updateOnInsert(recordId, nsUUID, wallTime, bytesInserted);
             }
         });

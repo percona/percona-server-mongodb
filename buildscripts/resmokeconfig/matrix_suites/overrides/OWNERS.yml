@@ -39,6 +39,9 @@ filters:
   - "fcv_upgrade_downgrade.yml":
     approvers:
       - 10gen/server-catalog-and-routing-routing-and-topology
+  - "fcv_upgrade_downgrade_timeseries.yml":
+    approvers:
+      - 10gen/server-catalog-and-routing-ddl
   - "fcv_upgrade_downgrade_primary_step_down_overrides.yml":
     approvers:
       - 10gen/server-replication-reviewers

@@ -154,6 +154,10 @@ bool PlanEnumeratorContext::canPlanBeEnumerated(JoinMethod method,
                                                 const JoinSubset& left,
                                                 const JoinSubset& right,
                                                 const JoinSubset& subset) {
+    if (_mode.mode == PlanEnumerationMode::HINTED && _mode.hint->method != method) {
+        return false;
+    }
+
     if ((_strategy.planShape == PlanTreeShape::LEFT_DEEP || method == JoinMethod::NLJ ||
          method == JoinMethod::INLJ) &&
         !right.isBaseCollectionAccess()) {
@@ -318,6 +322,15 @@ void PlanEnumeratorContext::addJoinPlan(JoinMethod method,
     }
 
     switch (_mode.mode) {
+        // When we hint, we use the cheapest plan from the child subsets. If a child subset was
+        // hinted, there can only be one plan for that subset anyway.
+        case PlanEnumerationMode::HINTED:
+            LOGV2_DEBUG(11458210,
+                        5,
+                        "Applying hint for subset",
+                        "subset"_attr = subset.toString(_ctx.joinGraph.numNodes()),
+                        "hint"_attr = _mode.hint->toBSON());
+            [[fallthrough]];
         case PlanEnumerationMode::CHEAPEST: {
             enumerateCheapestJoinPlan(method, left, right, edges, subset);
             break;
@@ -325,11 +338,6 @@ void PlanEnumeratorContext::addJoinPlan(JoinMethod method,
 
         case PlanEnumerationMode::ALL: {
             enumerateAllJoinPlans(method, left, right, edges, subset);
-            break;
-        }
-
-        case PlanEnumerationMode::HINTED: {
-            MONGO_UNIMPLEMENTED_TASSERT(11458201);
             break;
         }
     }
@@ -371,6 +379,14 @@ void PlanEnumeratorContext::enumerateJoinSubsets() {
 
     auto modeIt = _strategy.mode.begin();
     _mode = modeIt.get();
+
+    // Special case: for the first subset, we still want to enumerate all base nodes, even when
+    // hinting. However, we just want to join with one of them.
+    NodeId hintedFirstLevelSubset = 0;
+    if (_mode.mode == PlanEnumerationMode::HINTED) {
+        hintedFirstLevelSubset = _mode.hint->node;
+    }
+
     modeIt.next();
 
     // Initialize base level of joinSubsets, representing single collections (no joins).
@@ -414,6 +430,17 @@ void PlanEnumeratorContext::enumerateJoinSubsets() {
                     continue;
                 }
 
+                if (_mode.mode == PlanEnumerationMode::HINTED && i != _mode.hint->node) {
+                    // We should only enumerate plans for the next hinted node.
+                    continue;
+                } else if (_mode.mode == PlanEnumerationMode::HINTED && level == 1 &&
+                           !prevJoinSubset.subset.test(hintedFirstLevelSubset)) {
+                    // Special case for hinting: don't try to join with all subsets in the first
+                    // level (since we enumerated all base collection accesses). Only join with the
+                    // one that was hinted.
+                    continue;
+                }
+
                 NodeSet newSubset = NodeSet{prevJoinSubset.subset}.set(i);
                 size_t subsetIdx;
 
@@ -437,9 +464,16 @@ void PlanEnumeratorContext::enumerateJoinSubsets() {
                 }
 
                 auto& cur = joinSubsetsCurrLevel[subsetIdx];
-
-                enumerateJoinPlans(prevJoinSubset, _joinSubsets[kBaseLevel][i], cur);
-                enumerateJoinPlans(_joinSubsets[kBaseLevel][i], prevJoinSubset, cur);
+                if (_mode.mode != PlanEnumerationMode::HINTED || !_mode.hint->isLeftChild) {
+                    // We don't have a hint, or our hint says to enumerate the next base collection
+                    // on the right.
+                    enumerateJoinPlans(prevJoinSubset, _joinSubsets[kBaseLevel][i], cur);
+                }
+                if (_mode.mode != PlanEnumerationMode::HINTED || _mode.hint->isLeftChild) {
+                    // We don't have a hint, or our hint says to enumerate the next base collection
+                    // on the left.
+                    enumerateJoinPlans(_joinSubsets[kBaseLevel][i], prevJoinSubset, cur);
+                }
             }
         }
     }

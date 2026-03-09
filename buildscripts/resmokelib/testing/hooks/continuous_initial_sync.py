@@ -75,7 +75,7 @@ class ContinuousInitialSync(interface.Hook):
         if self.__action_files is not None:
             lifecycle = lifecycle_interface.FileBasedThreadLifecycle(self.__action_files)
         else:
-            lifecycle_interface.FlagBasedThreadLifecycle()
+            lifecycle = lifecycle_interface.FlagBasedThreadLifecycle()
 
         self._initial_sync_thread = _InitialSyncThread(
             self.logger,
@@ -156,9 +156,9 @@ class _InitialSyncThread(threading.Thread):
         self._sync_interval_secs = sync_interval_secs
 
         self._last_exec = time.time()
-        self._is_stopped_evt = threading.Event()
-        self._is_idle_evt = threading.Event()
-        self._is_idle_evt.set()
+        self._pause_timeout_secs = fixture_interface.ReplFixture.AWAIT_REPL_TIMEOUT_MINS * 60
+        self._stop_timeout_secs = fixture_interface.ReplFixture.AWAIT_REPL_TIMEOUT_MINS * 60
+        self._thread_state = lifecycle_interface.HookThreadState()
 
     def run(self):
         """Execute the thread."""
@@ -176,14 +176,17 @@ class _InitialSyncThread(threading.Thread):
             wait_secs = None
 
             while True:
+                self._thread_state.mark_idle("waiting_for_action_permitted")
                 # Check for permission to run and also for shutdown.
                 permitted = self.__lifecycle.wait_for_action_permitted()
                 if not permitted:
+                    self._thread_state.mark_stopped("lifecycle_stop_requested")
                     break
-                self._is_idle_evt.clear()
+                self._thread_state.mark_running("initial_sync_cycle")
 
                 # Run initial sync on all replica sets.
                 if stage == SyncerStage.RUN_INITSYNC:
+                    self._thread_state.set_phase("run_initsync")
                     self.logger.info("Starting all initial syncs...")
                     for fixture in self._rs_fixtures:
                         self._start_initial_sync(fixture)
@@ -198,12 +201,14 @@ class _InitialSyncThread(threading.Thread):
 
                 # Nothing to be done. Just let the nodes stay as secondaries for the duration.
                 elif stage == SyncerStage.RUN_AS_SECONDARY:
+                    self._thread_state.set_phase("run_as_secondary")
                     self.logger.info("Letting new secondaries run...")
                     stage = SyncerStage.INITSYNC_PRIMARY
                     wait_secs = self._sync_interval_secs
 
                 # Elect initial-synced nodes as primaries.
                 elif stage == SyncerStage.INITSYNC_PRIMARY:
+                    self._thread_state.set_phase("initsync_primary")
                     self.logger.info("Stepping up new secondaries...")
                     for fixture in self._rs_fixtures:
                         self._fail_over_to_node(fixture.get_initial_sync_node(), fixture)
@@ -213,6 +218,7 @@ class _InitialSyncThread(threading.Thread):
 
                 # Failover back to the original primaries before restarting initial sync.
                 elif stage == SyncerStage.ORIGINAL_PRIMARY:
+                    self._thread_state.set_phase("restore_original_primary")
                     self.logger.info("Restoring original primaries...")
                     for fixture in self._rs_fixtures:
                         self._fail_over_to_node(fixture.get_secondaries()[0], fixture)
@@ -222,9 +228,10 @@ class _InitialSyncThread(threading.Thread):
 
                 found_idle_request = self.__lifecycle.poll_for_idle_request()
                 if found_idle_request:
+                    self._thread_state.set_phase("sending_idle_acknowledgement")
                     self.__lifecycle.send_idle_acknowledgement()
 
-                self._is_idle_evt.set()
+                self._thread_state.mark_idle("waiting_for_action_interval")
                 self.logger.info(
                     "Syncer sleeping for {} seconds before moving to the next stage.".format(
                         wait_secs
@@ -235,25 +242,36 @@ class _InitialSyncThread(threading.Thread):
         except Exception as err:
             msg = "Syncer Thread threw exception: {}".format(err)
             self.logger.exception(msg)
-            self._is_idle_evt.set()
+            self._thread_state.mark_failed(err, "run_loop")
+        finally:
+            state, _phase = self._thread_state.describe()
+            if state not in ("failed", "stopped"):
+                self._thread_state.mark_stopped("run_loop_exited")
 
     def stop(self):
         """Stop the thread."""
+        self._thread_state.mark_stopping("stop_requested")
         self.__lifecycle.stop()
-        self._is_stopped_evt.set()
         # Unpause to allow the thread to finish.
         self.resume()
-        self.join()
+        self.join(self._stop_timeout_secs)
+        if self.is_alive():
+            state, phase = self._thread_state.describe()
+            raise errors.ServerFailure(
+                "Timed out waiting for syncer thread to stop; "
+                f"state={state}, phase={phase}, timeout={self._stop_timeout_secs}s."
+            )
+        self._thread_state.assert_healthy(self.is_alive(), "syncer", allow_stopped=True)
 
     def pause(self):
         """Pause the thread."""
         self.__lifecycle.mark_test_finished()
 
         # Wait until the thread is idle.
-        self._is_idle_evt.wait()
-        # Check if the thread is alive in case it has thrown an exception while running.
-        self._check_thread()
+        self._thread_state.wait_until_idle(self._pause_timeout_secs, "syncer")
+        self._thread_state.assert_healthy(self.is_alive(), "syncer")
         # Wait until we all the replica sets have primaries.
+        self._thread_state.set_phase("await_primaries")
         self._await_primaries()
         # Check that fixtures are still running.
         self._check_fixtures()
@@ -261,17 +279,6 @@ class _InitialSyncThread(threading.Thread):
     def resume(self):
         """Resumes the thread."""
         self.__lifecycle.mark_test_started()
-
-    def _wait(self, timeout):
-        """Waits until stop or timeout."""
-        self._is_stopped_evt.wait(timeout)
-
-    def _check_thread(self):
-        """Checks if the syncer thread is still alive."""
-        if not self.is_alive():
-            msg = "The syncer thread is not running."
-            self.logger.error(msg)
-            raise errors.ServerFailure(msg)
 
     def _await_primaries(self):
         """Waits for all replica sets to have responsive primaries."""

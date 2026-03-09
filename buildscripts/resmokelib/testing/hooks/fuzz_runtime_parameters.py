@@ -291,31 +291,32 @@ class _SetParameterThread(threading.Thread):
         self._setparameter_interval_secs = 1
 
         self._last_exec = time.time()
-        # Event set when the thread has been stopped using the 'stop()' method.
-        self._is_stopped_evt = threading.Event()
-        # Event set when the thread is not performing stepdowns.
-        self._is_idle_evt = threading.Event()
-        self._is_idle_evt.set()
+        self._pause_timeout_secs = fixture_interface.ReplFixture.AWAIT_REPL_TIMEOUT_MINS * 60
+        self._stop_timeout_secs = fixture_interface.ReplFixture.AWAIT_REPL_TIMEOUT_MINS * 60
+        self._thread_state = lifecycle_interface.HookThreadState()
 
     def run(self):
         """Execute the thread."""
         try:
             while True:
-                self._is_idle_evt.set()
+                self._thread_state.mark_idle("waiting_for_action_permitted")
 
                 permitted = self.__lifecycle.wait_for_action_permitted()
                 if not permitted:
+                    self._thread_state.mark_stopped("lifecycle_stop_requested")
                     break
 
-                self._is_idle_evt.clear()
+                self._thread_state.mark_running("set_parameter_cycle")
 
                 now = time.time()
                 if now - self._last_exec > self._setparameter_interval_secs:
+                    self._thread_state.set_phase("do_set_parameter")
                     self._do_set_parameter()
                     self._last_exec = time.time()
 
                 found_idle_request = self.__lifecycle.poll_for_idle_request()
                 if found_idle_request:
+                    self._thread_state.set_phase("sending_idle_acknowledgement")
                     self.__lifecycle.send_idle_acknowledgement()
                     continue
 
@@ -323,30 +324,40 @@ class _SetParameterThread(threading.Thread):
                 # the last setParameter command was sent.
                 now = time.time()
                 wait_secs = max(0, self._setparameter_interval_secs - (now - self._last_exec))
+                self._thread_state.mark_idle("waiting_for_action_interval")
                 self.__lifecycle.wait_for_action_interval(wait_secs)
-        except Exception:
+        except Exception as err:
             # Proactively log the exception when it happens so it will be
             # flushed immediately.
             self.logger.exception("SetParameter thread threw exception")
-            # The event should be signaled whenever the thread is not performing stepdowns.
-            self._is_idle_evt.set()
+            self._thread_state.mark_failed(err, "run_loop")
+        finally:
+            state, _phase = self._thread_state.describe()
+            if state not in ("failed", "stopped"):
+                self._thread_state.mark_stopped("run_loop_exited")
 
     def stop(self):
         """Stop the thread."""
+        self._thread_state.mark_stopping("stop_requested")
         self.__lifecycle.stop()
-        self._is_stopped_evt.set()
         # Unpause to allow the thread to finish.
         self.resume()
-        self.join()
+        self.join(self._stop_timeout_secs)
+        if self.is_alive():
+            state, phase = self._thread_state.describe()
+            raise errors.ServerFailure(
+                "Timed out waiting for setParameter thread to stop; "
+                f"state={state}, phase={phase}, timeout={self._stop_timeout_secs}s."
+            )
+        self._thread_state.assert_healthy(self.is_alive(), "setParameter", allow_stopped=True)
 
     def pause(self):
         """Pause the thread."""
         self.__lifecycle.mark_test_finished()
 
         # Wait until we are no longer executing stepdowns.
-        self._is_idle_evt.wait()
-        # Check if the thread is alive in case it has thrown an exception while running.
-        self._check_thread()
+        self._thread_state.wait_until_idle(self._pause_timeout_secs, "setParameter")
+        self._thread_state.assert_healthy(self.is_alive(), "setParameter")
 
         # Check that fixtures are still running
         for rs_fixture in self._rs_fixtures:
@@ -365,16 +376,6 @@ class _SetParameterThread(threading.Thread):
     def resume(self):
         """Resume the thread."""
         self.__lifecycle.mark_test_started()
-
-    def _wait(self, timeout):
-        # Wait until stop or timeout.
-        self._is_stopped_evt.wait(timeout)
-
-    def _check_thread(self):
-        if not self.is_alive():
-            msg = "The setParameter thread is not running."
-            self.logger.error(msg)
-            raise errors.ServerFailure(msg)
 
     def _do_set_parameter(self):
         mongod_params_to_set = self._mongod_param_state.generate_parameters()

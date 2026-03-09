@@ -1,8 +1,8 @@
 load("//bazel/repository_rules:profiling_data.bzl", "DEFAULT_CLANG_PGO_DATA_CHECKSUM", "DEFAULT_CLANG_PGO_DATA_URL", "DEFAULT_GCC_PGO_DATA_CHECKSUM", "DEFAULT_GCC_PGO_DATA_URL")
+load("//bazel/toolchains/cc/mongo_linux:mongo_toolchain_version_v5.bzl", "TOOLCHAIN_MAP_V5")
 
-# TODO(SERVER-107582): Get llvm-profdata from actual pipeline build
-LLVM_PROFDATA_URL = "https://mdb-build-public.s3.us-east-1.amazonaws.com/andrew_pgo_scratch/llvm-profdata"
-LLVM_PROFDATA_CHECKSUM = "90ff926b362ca728c60dc7869184560d3b63436a6ea20606c7cd9b9524c5f470"
+LLVM_PROFDATA_URL = TOOLCHAIN_MAP_V5["amazon_linux_2023_aarch64"]["url"]
+LLVM_PROFDATA_CHECKSUM = TOOLCHAIN_MAP_V5["amazon_linux_2023_aarch64"]["sha"]
 
 # This is used so we can tell when the build created new pgo files vs. using ones from stored url
 CREATED_FILEGROUP = """
@@ -91,8 +91,9 @@ def _setup_pgo_data(repository_ctx):
             if len(profraw_files) > 0:
                 print("Found profraw files, merging them with llvm-profdata.")
                 print(profraw_files)
-                repository_ctx.download(LLVM_PROFDATA_URL, "llvm-profdata", executable = True, sha256 = LLVM_PROFDATA_CHECKSUM)
-                arguments = ["./llvm-profdata", "merge", "-output=" + clang_profdata_filename] + profraw_files
+                repository_ctx.download_and_extract(LLVM_PROFDATA_URL, "llvm-profdata", sha256 = LLVM_PROFDATA_CHECKSUM)
+                llvm_path = repository_ctx.path("./llvm-profdata/v5/bin/llvm-profdata")
+                arguments = [llvm_path, "merge", "-output=" + clang_profdata_filename] + profraw_files
                 result = repository_ctx.execute(arguments)
                 print(result.stdout)
                 if result.return_code != 0:

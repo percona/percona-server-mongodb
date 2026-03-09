@@ -90,18 +90,10 @@ function runBasicJoinTest(pipeline) {
 
     for (const internalRandomJoinOrderSeed of [44, 45]) {
         runJoinTestAndCompare(
-            `With random order, seed ${internalRandomJoinOrderSeed}, nested loop joins`,
+            `With random order, seed ${internalRandomJoinOrderSeed}`,
             coll,
             pipeline,
             {internalJoinReorderMode: "random", internalRandomJoinOrderSeed},
-            noJoinOptResults,
-        );
-
-        runJoinTestAndCompare(
-            `With random order, seed ${internalRandomJoinOrderSeed}, hash join enabled`,
-            coll,
-            pipeline,
-            {internalRandomJoinReorderDefaultToHashJoin: true},
             noJoinOptResults,
         );
     }
@@ -111,10 +103,10 @@ function runBasicJoinTest(pipeline) {
     assert.commandWorked(foreignColl2.createIndex({b: 1}));
 
     runJoinTestAndCompare(
-        "With fixed order, index join",
+        "With random order, index join",
         coll,
         pipeline,
-        {internalRandomJoinReorderDefaultToHashJoin: false},
+        {internalJoinReorderMode: "random", internalRandomJoinReorderDefaultToHashJoin: false},
         noJoinOptResults,
     );
 

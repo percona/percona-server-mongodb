@@ -769,8 +769,9 @@ tasks:
         omit_generated_tasks: true
       - name: streams_build_and_push_gen
         variant: enterprise-amazon2023-streams
-      - name: streams_build_and_push_gen
-        variant: enterprise-amazon2023-streams-arm64
+      # TODO(SERVER-120347): Re-add arm64 dependency once we are ready to switch to using arm64.
+      # - name: streams_build_and_push_gen
+      #   variant: enterprise-amazon2023-streams-arm64
     commands:
       - func: "streams publish manifest"
 
@@ -785,8 +786,9 @@ tasks:
         omit_generated_tasks: true
       - name: streams_build_and_push_break_glass_gen
         variant: enterprise-amazon2023-streams
-      - name: streams_build_and_push_break_glass_gen
-        variant: enterprise-amazon2023-streams-arm64
+      # TODO(SERVER-120347): Re-add arm64 dependency once we are ready to switch to using arm64.
+      # - name: streams_build_and_push_break_glass_gen
+      #   variant: enterprise-amazon2023-streams-arm64
     commands:
       - func: "streams publish manifest"
         vars:

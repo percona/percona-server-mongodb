@@ -16,7 +16,6 @@ import {
 } from "jstests/libs/query/query_stats_utils.js";
 import {isUweEnabled} from "jstests/libs/query/uwe_utils.js";
 import {ShardingTest} from "jstests/libs/shardingtest.js";
-import {FeatureFlagUtil} from "jstests/libs/feature_flag_util.js";
 
 const collName = jsTestName();
 const timeField = "time";
@@ -108,81 +107,77 @@ function runTimeseriesQueryStatsTests(topologyName, setupFn, teardownFn) {
             );
         });
 
-        // Make sure updates are recorded.
-        it("should record explicit meta field update in query stats", function () {
-            assert.commandWorked(
-                coll.insertMany([
-                    {[timeField]: ISODate("2021-05-18T06:00:00.000Z"), v: 7, [metaField]: "updateMetaField"},
-                    {[timeField]: ISODate("2021-05-18T07:00:00.000Z"), v: 8, [metaField]: "updateMetaField"},
-                ]),
-            );
-            const updateResult = testDB.runCommand({
-                update: collName,
-                updates: [
-                    {q: {[metaField]: "updateMetaField"}, u: {$set: {[metaField]: "didUpdateMetaField"}}, multi: true},
-                ],
-            });
-            assert.commandWorked(updateResult);
+        // TODO SERVER-119643 Combine Standalone test with sharded test.
+        // Make sure timeseries updates are not being recorded. This is only for standalone since the timeseries rewrite happens on mongod.
+        if (topologyName === "Standalone") {
+            it("shouldn't record explicit meta field update in query stats on mongod", function () {
+                assert.commandWorked(
+                    coll.insertMany([
+                        {[timeField]: ISODate("2021-05-18T06:00:00.000Z"), v: 7, [metaField]: "updateMetaField"},
+                        {[timeField]: ISODate("2021-05-18T07:00:00.000Z"), v: 8, [metaField]: "updateMetaField"},
+                    ]),
+                );
+                const updateResult = testDB.runCommand({
+                    update: collName,
+                    updates: [
+                        {
+                            q: {[metaField]: "updateMetaField"},
+                            u: {$set: {[metaField]: "didUpdateMetaField"}},
+                            multi: true,
+                        },
+                    ],
+                });
+                assert.commandWorked(updateResult);
 
-            const updateStats = getQueryStatsUpdateCmd(testDB, {collName: collName});
-            assert.eq(1, updateStats.length);
-            const entry = updateStats[0];
-
-            assertAggregatedMetricsSingleExec(entry, {
-                keysExamined: 2,
-                docsExamined: 2,
-                hasSortStage: false,
-                usedDisk: false,
-                fromMultiPlanner: false,
-                fromPlanCache: false,
-                writes: {nMatched: 2, nUpserted: 0, nModified: 2, nDeleted: 0, nInserted: 0, nUpdateOps: 1},
+                const updateStats = getQueryStatsUpdateCmd(testDB, {collName: collName});
+                assert.eq(0, updateStats.length);
             });
-            assertExpectedResults({
-                results: entry,
-                expectedQueryStatsKey: entry.key,
-                expectedExecCount: 1,
-                expectedDocsReturnedSum: 0,
-                expectedDocsReturnedMax: 0,
-                expectedDocsReturnedMin: 0,
-                expectedDocsReturnedSumOfSq: 0,
-            });
-        });
+        }
 
-        it("should record update on timeseries documents correctly", function () {
-            // TODO (SERVER-68058): Remove this condition.
-            if (!FeatureFlagUtil.isEnabled(testDB, "featureFlagTimeseriesUpdatesSupport")) {
-                return;
-            }
+        if (topologyName === "Sharded") {
+            it("should record explicit meta field update in query stats", function () {
+                assert.commandWorked(
+                    coll.insertMany([
+                        {[timeField]: ISODate("2021-05-18T06:00:00.000Z"), v: 7, [metaField]: "updateMetaField"},
+                        {[timeField]: ISODate("2021-05-18T07:00:00.000Z"), v: 8, [metaField]: "updateMetaField"},
+                    ]),
+                );
+                const updateResult = testDB.runCommand({
+                    update: collName,
+                    updates: [
+                        {
+                            q: {[metaField]: "updateMetaField"},
+                            u: {$set: {[metaField]: "didUpdateMetaField"}},
+                            multi: true,
+                        },
+                    ],
+                });
+                assert.commandWorked(updateResult);
 
-            const updateResult = testDB.runCommand({
-                update: collName,
-                updates: [{q: {v: {$lte: 3}}, u: {$inc: {v: 10}}, multi: true}],
-            });
-            assert.commandWorked(updateResult);
+                const updateStats = getQueryStatsUpdateCmd(testDB, {collName: collName});
+                assert.eq(1, updateStats.length);
+                const entry = updateStats[0];
 
-            const updateStats = getQueryStatsUpdateCmd(testDB, {collName: collName});
-            assert.eq(1, updateStats.length);
-            const entry = updateStats[0];
-
-            assertAggregatedMetricsSingleExec(entry, {
-                keysExamined: 0,
-                docsExamined: 8,
-                hasSortStage: false,
-                usedDisk: false,
-                fromMultiPlanner: false,
-                fromPlanCache: false,
-                writes: {nMatched: 3, nUpserted: 0, nModified: 3, nDeleted: 0, nInserted: 0, nUpdateOps: 1},
+                assertAggregatedMetricsSingleExec(entry, {
+                    keysExamined: 2,
+                    docsExamined: 2,
+                    hasSortStage: false,
+                    usedDisk: false,
+                    fromMultiPlanner: false,
+                    fromPlanCache: false,
+                    writes: {nMatched: 2, nUpserted: 0, nModified: 2, nDeleted: 0, nInserted: 0, nUpdateOps: 1},
+                });
+                assertExpectedResults({
+                    results: entry,
+                    expectedQueryStatsKey: entry.key,
+                    expectedExecCount: 1,
+                    expectedDocsReturnedSum: 0,
+                    expectedDocsReturnedMax: 0,
+                    expectedDocsReturnedMin: 0,
+                    expectedDocsReturnedSumOfSq: 0,
+                });
             });
-            assertExpectedResults({
-                results: entry,
-                expectedQueryStatsKey: entry.key,
-                expectedExecCount: 1,
-                expectedDocsReturnedSum: 0,
-                expectedDocsReturnedMax: 0,
-                expectedDocsReturnedMin: 0,
-                expectedDocsReturnedSumOfSq: 0,
-            });
-        });
+        }
     });
 }
 

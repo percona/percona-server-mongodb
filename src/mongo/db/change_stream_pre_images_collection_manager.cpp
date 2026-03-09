@@ -33,6 +33,7 @@
 #include "mongo/base/status.h"
 #include "mongo/bson/bsonobjbuilder.h"
 #include "mongo/db/admission/execution_control/execution_admission_context.h"
+#include "mongo/db/change_stream_pre_image_util.h"
 #include "mongo/db/collection_crud/collection_write_path.h"
 #include "mongo/db/curop.h"
 #include "mongo/db/database_name.h"
@@ -169,14 +170,15 @@ void ChangeStreamPreImagesCollectionManager::performExpiredChangeStreamPreImages
     ServiceContext::UniqueOperationContext opCtx;
     try {
         opCtx = client->makeOperationContext();
-        // TODO SERVER-114033: Use replicated truncates for change stream pre-images.
-        size_t numberOfRemovals = _deleteExpiredPreImagesWithTruncate(opCtx.get());
 
-        if (numberOfRemovals > 0) {
+        // The number of removals here can be an estimate based on collection size information,
+        // which can be inaccurate.
+        if (size_t estimatedNumberOfRemovals = _deleteExpiredPreImagesWithTruncate(opCtx.get());
+            estimatedNumberOfRemovals > 0) {
             LOGV2_DEBUG(5869104,
                         1,
                         "Periodic expired pre-images removal job finished executing",
-                        "numberOfRemovals"_attr = numberOfRemovals,
+                        "estimatedNumberOfRemovals"_attr = estimatedNumberOfRemovals,
                         "jobDuration"_attr = (Date_t::now() - startTime).toString());
         }
     } catch (const DBException& exception) {

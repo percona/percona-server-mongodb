@@ -8,6 +8,24 @@ mongo_js_library(
 )
 
 mongo_js_library(
+    name = "auto_retry_transaction",
+    srcs = ["auto_retry_transaction.js"],
+    deps = [
+        "//jstests/core/txns/libs:all_javascript_files",
+        "//jstests/libs/txns:all_javascript_files",
+    ],
+)
+
+mongo_js_library(
+    name = "fsm_workload_helpers",
+    srcs = [":all_subpackage_javascript_files"],
+    deps = [
+        "//jstests/core/txns/libs:all_javascript_files",
+        "//jstests/libs/txns:all_javascript_files",
+    ],
+)
+
+mongo_js_library(
     name = "all_javascript_files",
     srcs = glob([
         "*.js",

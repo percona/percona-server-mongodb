@@ -36,14 +36,8 @@
 #include <iostream>
 #include <mutex>
 #include <new>
-#include <sstream>
 #include <streambuf>
-#include <string>
-#include <typeinfo>
 
-#include <boost/exception/diagnostic_information.hpp>
-#include <boost/exception/exception.hpp>
-#include <fmt/format.h>
 // IWYU pragma: no_include "bits/types/siginfo_t.h"
 
 #ifdef __linux__
@@ -58,6 +52,7 @@
 #include "mongo/logv2/log.h"
 #include "mongo/stdx/exception.h"
 #include "mongo/stdx/mutex.h"
+#include "mongo/util/active_exception_witness.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/debugger.h"
 #include "mongo/util/exit_code.h"
@@ -476,48 +471,6 @@ int interruptResilienceTestingSignal() {
 #else
     return 0;
 #endif
-}
-
-ActiveExceptionWitness::ActiveExceptionWitness() {
-    // Later entries in the catch chain will become the innermost catch blocks, so
-    // these are in order of increasing specificity. User-provided probes
-    // will be appended, so they will be considered more specific than any of
-    // these, which are essentially "fallback" handlers.
-    addHandler<boost::exception>([](auto&& ex, std::ostream& os) {
-        os << "boost::diagnostic_information(): " << boost::diagnostic_information(ex) << "\n";
-    });
-    addHandler<std::exception>([](auto&& ex, std::ostream& os) {
-        os << "std::exception::what(): " << redact(ex.what()) << "\n";
-    });
-    addHandler<DBException>([](auto&& ex, std::ostream& os) {
-        os << "DBException::toString(): " << redact(ex) << "\n";
-    });
-}
-
-void ActiveExceptionWitness::describe(std::ostream& os) {
-    CatchAndDescribe dc;
-    for (const auto& config : _configurators)
-        config(dc);
-    try {
-        dc.doCatch(os);
-    } catch (...) {
-        os << "A non-standard exception type was thrown\n";
-    }
-}
-
-void ActiveExceptionWitness::_exceptionTypeBlurb(const std::type_info& ex, std::ostream& os) {
-    os << "Actual exception type: " << demangleName(ex) << "\n";
-}
-
-ActiveExceptionWitness& globalActiveExceptionWitness() {
-    static StaticImmortal<ActiveExceptionWitness> v;
-    return *v;
-}
-
-std::string describeActiveException() {
-    std::ostringstream oss;
-    globalActiveExceptionWitness().describe(oss);
-    return oss.str();
 }
 
 std::shared_ptr<void> makeMallocFreeOStreamGuard_forTest(int sig) {

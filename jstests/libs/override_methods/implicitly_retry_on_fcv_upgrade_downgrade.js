@@ -7,15 +7,24 @@ import {OverrideHelpers} from "jstests/libs/override_methods/override_helpers.js
 const kRetryTimeout = 10 * 60 * 1000;
 const kIntervalBetweenRetries = 50;
 
+// The following read operations defined in the CRUD specification are retryable.
+// Note that estimatedDocumentCount() and countDocuments() use the count command.
+const kRetryableReadCommands = new Set(["find", "aggregate", "distinct", "count", "explain"]);
+
 // These are the commands that will retry on ConflictingOperationInProgress error codes.
 const kRetryableCommands = new Set([
     // For $querySettings retry on 'queryShapeRepresentativeQueries' collection drop.
-    "aggregate",
     "setQuerySettings",
     "removeQuerySettings",
 ]);
 
-const kQueryRetryableErrors = [ErrorCodes.ConflictingOperationInProgress, ErrorCodes.QueryPlanKilled];
+const kQueryRetryableErrors = [
+    ErrorCodes.ConflictingOperationInProgress,
+    ErrorCodes.QueryPlanKilled,
+    // TODO SERVER-117477 stop retrying this error once we will not perform anymore
+    // timeseries tranformation during FCV upgrade/downgrade
+    ErrorCodes.InterruptedDueToTimeseriesUpgradeDowngrade,
+];
 
 function _runCommandWithRetry(conn, commandName, commandObj, func, makeFuncArgs) {
     const kNoRetry = true;
@@ -65,7 +74,7 @@ function runCommandWithRetry(conn, dbName, commandName, commandObj, func, makeFu
         return func.apply(conn, makeFuncArgs(commandObj));
     }
 
-    if (kRetryableCommands.has(commandName)) {
+    if (kRetryableCommands.has(commandName) || kRetryableReadCommands.has(commandName)) {
         return _runCommandWithRetry(conn, commandName, commandObj, func, makeFuncArgs);
     }
     return func.apply(conn, makeFuncArgs(commandObj));

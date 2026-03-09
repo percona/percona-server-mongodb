@@ -264,8 +264,8 @@ Status SubplanStage::pickBestPlan(const QueryPlannerParams& plannerParams,
             // If we do not have any fields that we want to sample then we just include all the
             // fields in the sample. This can occur if we encounter a find all query with no
             // project or sort specified.
-            // TODO: SERVER-119839 This generates a sample even for trivial queries.
-            // The subplanner should use the CBRPlanRankingStrategy instead.
+            // TODO: SERVER-108819 We can skip generating the sample entirely in this case and
+            // instead use collection cardinality.
             samplingEstimator->generateSample(
                 topLevelSampleFieldNames.empty()
                     ? ce::ProjectionParams{ce::NoProjection{}}
@@ -274,7 +274,8 @@ Status SubplanStage::pickBestPlan(const QueryPlannerParams& plannerParams,
 
         for (const auto& branchResult : subplanningStatus.getValue().branches) {
             auto statusWithCBRSolns =
-                QueryPlanner::planWithCostBasedRanking(plannerParams,
+                QueryPlanner::planWithCostBasedRanking(*branchResult->canonicalQuery,
+                                                       plannerParams,
                                                        samplingEstimator.get(),
                                                        exactCardinality.get(),
                                                        std::move(branchResult->solutions));

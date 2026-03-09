@@ -122,6 +122,7 @@ public:
      * select a winner.
      */
     static StatusWith<PlanRankingResult> planWithCostBasedRanking(
+        const CanonicalQuery& query,
         const QueryPlannerParams& params,
         ce::SamplingEstimator* samplingEstimator,
         const ce::ExactCardinalityEstimator* exactCardinality,

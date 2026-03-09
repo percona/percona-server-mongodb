@@ -11,9 +11,14 @@ const {
     DebugSession,
     InitializedEvent,
     OutputEvent,
+    StoppedEvent,
     // https://github.com/microsoft/vscode-debugadapter-node/tree/main/adapter
 } = require("vscode-debugadapter");
 const net = require("net");
+
+// ID of the associated thread in the debug protocol.
+// This is single-threaded here, so it is a constant 1.
+const THREAD_ID = 1;
 
 class MongoShellDebugSession extends DebugSession {
     constructor() {
@@ -130,7 +135,13 @@ class MongoShellDebugSession extends DebugSession {
 
     // Set breakpoints
     setBreakPointsRequest(response, args) {
-        const filePath = args.source.path;
+        let filePath = args.source.path;
+        const mongoRepo = process.env["MONGO_REPO"];
+        if (mongoRepo && filePath.startsWith(mongoRepo)) {
+            // Trim the MONGO_REPO prefix and any leading slash
+            filePath = filePath.substring(mongoRepo.length).replace(/^\/+/, "");
+        }
+
         const lines = (args.breakpoints || []).map((bp) => ({
             line: bp.line,
             condition: bp.condition,
@@ -211,6 +222,68 @@ class MongoShellDebugSession extends DebugSession {
                 this.pendingRequests.delete(msg.seq);
             }
         }
+    }
+
+    handleEvent(msg) {
+        switch (msg.event) {
+            case "output":
+                this.log(msg.body.output, msg.body.category);
+                break;
+            case "breakpoint": {
+                const bp = new Breakpoint(msg.body.verified, msg.body.line, msg.body.column);
+                bp.id = msg.body.id;
+                this.sendEvent(new BreakpointEvent("changed", bp));
+                break;
+            }
+            case "stopped":
+                this.stackFrames = msg.body.stackFrames || [];
+                this.sendEvent(new StoppedEvent(msg.body.reason || "pause", THREAD_ID));
+                break;
+            default:
+                this.log(`Event "${msg.event}" has no handler`);
+        }
+    }
+
+    // Pause execution
+    pauseRequest(response, _args, _request) {
+        this.sendCommand("pause", {})
+            .then(() => this.sendResponse(response))
+            .catch((err) => this.sendErrorResponse(response, 1010, `Pause failed: ${err.message}`));
+    }
+
+    continueRequest(response, _args) {
+        this.sendCommand("continue", {})
+            .then(() => this.sendResponse(response))
+            .catch((err) => this.sendErrorResponse(response, 1012, `Continue failed: ${err.message}`));
+    }
+
+    threadsRequest(response) {
+        response.body = {
+            threads: [{id: THREAD_ID, name: "MongoDB Shell"}],
+        };
+        this.sendResponse(response);
+    }
+
+    stackTraceRequest(response, _args) {
+        this.sendCommand("stackTrace", {})
+            .then((result) => {
+                // Convert relative paths back to absolute paths so VSCode can open it
+                if (result.stackFrames) {
+                    const mongoRepo = process.env["MONGO_REPO"];
+                    result.stackFrames = result.stackFrames.map((frame) => {
+                        if (frame.source?.path && mongoRepo) {
+                            // If path is relative, make it absolute
+                            if (!frame.source.path.startsWith("/")) {
+                                frame.source.path = mongoRepo + "/" + frame.source.path;
+                            }
+                        }
+                        return frame;
+                    });
+                }
+                response.body = result;
+                this.sendResponse(response);
+            })
+            .catch((err) => this.sendErrorResponse(response, 1013, `Stack trace failed: ${err.message}`));
     }
 
     // Send command to debug server

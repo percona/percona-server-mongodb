@@ -206,7 +206,7 @@ std::shared_ptr<executor::TaskExecutor> ReshardingDataReplication::_makeCollecti
     // We may transiently use 2 threads per reader while passing things around within the task
     // executor.  Each writer uses a dedicated thread, plus 1 thread for waiting on the rest.
     threadPoolLimits.maxThreads =
-        2 * numDonors + resharding::gReshardingCollectionClonerWriteThreadCount + 1;
+        2 * numDonors + resharding::gReshardingCollectionClonerWriteThreadCount.load() + 1;
     ThreadPool::Options threadPoolOptions(std::move(threadPoolLimits));
 
     auto prefix = "ReshardingCollectionCloner"_sd;

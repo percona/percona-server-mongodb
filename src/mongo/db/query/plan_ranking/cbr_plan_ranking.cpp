@@ -37,14 +37,6 @@
 #include "mongo/db/query/planner_analysis.h"
 
 namespace mongo {
-
-namespace {
-bool isTriviallyEstimable(const CanonicalQuery& cq) {
-    const auto pme = cq.getPrimaryMatchExpression();
-    return pme->isTriviallyTrue() || pme->isTriviallyFalse();
-}
-}  // namespace
-
 namespace plan_ranking {
 
 StatusWith<PlanRankingResult> CBRPlanRankingStrategy::rankPlans(PlannerData& pd) {
@@ -54,34 +46,19 @@ StatusWith<PlanRankingResult> CBRPlanRankingStrategy::rankPlans(PlannerData& pd)
 StatusWith<PlanRankingResult> CBRPlanRankingStrategy::rankPlans(
     OperationContext* opCtx,
     CanonicalQuery& query,
-    QueryPlannerParams& plannerParams,
+    const QueryPlannerParams& plannerParams,
     PlanYieldPolicy::YieldPolicy yieldPolicy,
     const MultipleCollectionAccessor& collections) const {
-    using namespace cost_based_ranker;
-
-    boost::optional<StringSet> topLevelSampleFieldNames;
-
-    if (isTriviallyEstimable(query)) {
-        // For trivially estimable queries, heuristic CE is sufficient.
-        // Note that it does not need top-level field names.
-        // TODO(SERVER-120188): This approach results in inaccurate number of keys scanned
-        // estimates for multikey indices, but this is benign for access path selection purposes.
-        plannerParams.planRankerMode = QueryPlanRankerModeEnum::kHeuristicCE;
-    } else {
-        // Populating the 'topLevelSampleFields' requires 2 steps:
-        //  1. Extract the set of top level fields from the filter, sort and project
-        //  components of the CanonicalQuery.
-        //  2. Extract the fields of the relevant indexes from the plan() function by passing in
-        //  the pointer to 'topLevelSampleFieldNames' as an output parameter.
-        topLevelSampleFieldNames =
-            ce::extractTopLevelFieldsFromMatchExpression(query.getPrimaryMatchExpression());
-    }
-
-    auto statusWithMultiPlanSolns = QueryPlanner::plan(
-        query,
-        plannerParams,
-        topLevelSampleFieldNames ? boost::optional<StringSet&>(*topLevelSampleFieldNames)
-                                 : boost::none);
+    auto rankerMode = plannerParams.planRankerMode;
+    // Populating the 'topLevelSampleFields' requires 2 steps:
+    //  1. Extract the set of top level fields from the filter, sort and project
+    //  components of the CanonicalQuery.
+    //  2. Extract the fields of the relevant indexes from the plan() function by passing in
+    //  the pointer to 'topLevelSampleFieldNames' as an output parameter.
+    auto topLevelSampleFieldNames =
+        ce::extractTopLevelFieldsFromMatchExpression(query.getPrimaryMatchExpression());
+    auto statusWithMultiPlanSolns =
+        QueryPlanner::plan(query, plannerParams, topLevelSampleFieldNames);
     if (!statusWithMultiPlanSolns.isOK()) {
         return statusWithMultiPlanSolns.getStatus().withContext(
             str::stream() << "error processing query: " << query.toStringForErrorMsg()
@@ -99,13 +76,13 @@ StatusWith<PlanRankingResult> CBRPlanRankingStrategy::rankPlans(
         return PlanRankingResult{.solutions = std::move(solns)};
     }
 
+    using namespace cost_based_ranker;
     std::unique_ptr<ce::SamplingEstimator> samplingEstimator{nullptr};
     std::unique_ptr<ce::ExactCardinalityEstimator> exactCardinality{nullptr};
-    if (plannerParams.planRankerMode == QueryPlanRankerModeEnum::kExactCE) {
+    if (rankerMode == QueryPlanRankerModeEnum::kExactCE) {
         exactCardinality = std::make_unique<ce::ExactCardinalityImpl>(
             collections.getMainCollectionAcquisition(), query, opCtx);
-    } else if (plannerParams.planRankerMode == QueryPlanRankerModeEnum::kAutomaticCE ||
-               plannerParams.planRankerMode == QueryPlanRankerModeEnum::kSamplingCE) {
+    } else {
         samplingEstimator = ce::SamplingEstimatorImpl::makeDefaultSamplingEstimator(
             query,
             CardinalityEstimate{
@@ -114,13 +91,22 @@ StatusWith<PlanRankingResult> CBRPlanRankingStrategy::rankPlans(
             yieldPolicy,
             collections);
 
-        samplingEstimator->generateSample(ce::TopLevelFieldsProjection{*topLevelSampleFieldNames});
+        // If we do not have any fields that we want to sample then we just include all the
+        // fields in the sample. This can occur if we encounter a find all query with no
+        // project or sort specified.
+        // TODO: SERVER-108819 We can skip generating the sample entirely in this case and
+        // instead use collection cardinality.
+        samplingEstimator->generateSample(
+            topLevelSampleFieldNames.empty()
+                ? ce::ProjectionParams{ce::NoProjection{}}
+                : ce::TopLevelFieldsProjection{std::move(topLevelSampleFieldNames)});
 
         auto n = samplingEstimator->getSampleSize();
         CurOp::get(opCtx)->debug().getAdditiveMetrics().nDocsSampled = static_cast<uint64_t>(n);
     }
 
-    return QueryPlanner::planWithCostBasedRanking(plannerParams,
+    return QueryPlanner::planWithCostBasedRanking(query,
+                                                  plannerParams,
                                                   samplingEstimator.get(),
                                                   exactCardinality.get(),
                                                   std::move(statusWithMultiPlanSolns));

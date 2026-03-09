@@ -3,10 +3,95 @@
 import collections
 import os.path
 import threading
+import time
 
 import buildscripts.resmokelib.utils.filesystem as fs
+from buildscripts.resmokelib import errors
 
 ActionFiles = collections.namedtuple("ActionFiles", ["permitted", "idle_request", "idle_ack"])
+
+
+class HookThreadState:
+    """Track background hook thread state and failures."""
+
+    _IDLE = "idle"
+    _RUNNING = "running"
+    _STOPPING = "stopping"
+    _STOPPED = "stopped"
+    _FAILED = "failed"
+
+    def __init__(self):
+        self._lock = threading.Lock()
+        self._cond = threading.Condition(self._lock)
+        self._state = self._IDLE
+        self._phase = "init"
+        self._failure = None
+
+    def mark_idle(self, phase="idle"):
+        with self._lock:
+            self._state = self._IDLE
+            self._phase = phase
+            self._cond.notify_all()
+
+    def mark_running(self, phase):
+        with self._lock:
+            self._state = self._RUNNING
+            self._phase = phase
+            self._cond.notify_all()
+
+    def mark_stopping(self, phase="stopping"):
+        with self._lock:
+            self._state = self._STOPPING
+            self._phase = phase
+            self._cond.notify_all()
+
+    def mark_stopped(self, phase="stopped"):
+        with self._lock:
+            self._state = self._STOPPED
+            self._phase = phase
+            self._cond.notify_all()
+
+    def mark_failed(self, exception, phase):
+        with self._lock:
+            self._state = self._FAILED
+            self._phase = phase
+            self._failure = exception
+            self._cond.notify_all()
+
+    def set_phase(self, phase):
+        with self._lock:
+            self._phase = phase
+            self._cond.notify_all()
+
+    def wait_until_idle(self, timeout_secs, thread_name):
+        deadline = time.time() + timeout_secs
+        with self._lock:
+            while self._state not in (self._IDLE, self._FAILED, self._STOPPED):
+                remaining = deadline - time.time()
+                if remaining <= 0:
+                    raise errors.ServerFailure(
+                        f"Timed out waiting for {thread_name} thread to become idle; "
+                        f"state={self._state}, phase={self._phase}, timeout={timeout_secs}s."
+                    )
+                self._cond.wait(remaining)
+
+    def assert_healthy(self, is_alive, thread_name, allow_stopped=False):
+        with self._lock:
+            if self._failure is not None:
+                raise errors.ServerFailure(
+                    f"{thread_name} thread failed during phase '{self._phase}': {self._failure}"
+                ) from self._failure
+            if allow_stopped and self._state == self._STOPPED:
+                return
+            if not is_alive:
+                raise errors.ServerFailure(
+                    f"The {thread_name} thread is not running "
+                    f"(state={self._state}, phase={self._phase})."
+                )
+
+    def describe(self):
+        with self._lock:
+            return self._state, self._phase
 
 
 class FlagBasedThreadLifecycle(object):

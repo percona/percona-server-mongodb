@@ -45,13 +45,58 @@
 
 namespace mongo::sbe {
 
-using HHJTableType = std::unordered_multimap<value::MaterializedRow,
-                                             value::MaterializedRow,
-                                             value::MaterializedRowHasher,
-                                             value::MaterializedRowEq>;
+/**
+ * Stores a key row along with its precomputed hash value to avoid repeated hash computations.
+ * Used as the key type in the hash table to enable efficient lookups without rehashing.
+ */
+struct HashedKey {
+    size_t hash;
+    value::MaterializedRow key;
+
+    HashedKey(size_t h, value::MaterializedRow k) : hash(h), key(std::move(k)) {}
+    HashedKey(HashedKey&&) noexcept = default;
+    HashedKey& operator=(HashedKey&&) noexcept = default;
+    HashedKey(const HashedKey&) = delete;
+    HashedKey& operator=(const HashedKey&) = delete;
+};
+
+struct HashedKeyHasher {
+    using is_transparent = void;
+
+    CollatorInterface* collator = nullptr;
+
+    size_t operator()(const HashedKey& hk) const {
+        return hk.hash;
+    }
+
+    size_t operator()(const value::MaterializedRow& key) const {
+        return value::MaterializedRowHasher{collator}(key);
+    }
+};
+
+struct HashedKeyEq {
+    using is_transparent = void;
+
+    CollatorInterface* collator = nullptr;
+
+    bool operator()(const HashedKey& a, const HashedKey& b) const {
+        return value::MaterializedRowEq{collator}(a.key, b.key);
+    }
+
+    bool operator()(const HashedKey& a, const value::MaterializedRow& b) const {
+        return value::MaterializedRowEq{collator}(a.key, b);
+    }
+
+    bool operator()(const value::MaterializedRow& a, const HashedKey& b) const {
+        return value::MaterializedRowEq{collator}(a, b.key);
+    }
+};
+
+using HHJTableType =
+    std::unordered_multimap<HashedKey, value::MaterializedRow, HashedKeyHasher, HashedKeyEq>;
 
 // Stores (key, project) pairs for in-memory partitions before hash table construction.
-using BuildBuffer = std::vector<std::pair<value::MaterializedRow, value::MaterializedRow>>;
+using BuildBuffer = std::vector<std::pair<HashedKey, value::MaterializedRow>>;
 
 // Key type for file iterator (key row)
 using FileKey = value::MaterializedRow;
@@ -176,13 +221,9 @@ class HybridHashJoin {
 public:
     HybridHashJoin(int64_t memLimit, CollatorInterface* collator, HashJoinStats& stats)
         : _memLimit(memLimit), _collator(collator), _stats(stats) {
-        if (_collator) {
-            const value::MaterializedRowHasher hasher(collator);
-            const value::MaterializedRowEq equator(collator);
-            _ht.emplace(0, hasher, equator);
-        } else {
-            _ht.emplace();
-        }
+        const HashedKeyHasher hasher{_collator};
+        const HashedKeyEq equator{_collator};
+        _ht.emplace(0, hasher, equator);
     }
 
     HybridHashJoin(const HybridHashJoin&) = delete;
@@ -217,7 +258,7 @@ private:
     enum class Phase { kBuild, kProbe, kProcessSpilled };
 
     // Computes partition index using hash bits at the current recursion level.
-    int getPartitionId(const value::MaterializedRow& key) const;
+    int getPartitionId(size_t hash) const;
 
     // Moves rows from in-memory partition buffers into the hash table after build phase.
     void buildHashTableFromInMemPartitions();

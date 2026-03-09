@@ -181,6 +181,7 @@ mongo_cc_library(
         "//src/mongo/platform:strcasestr.cpp",
         "//src/mongo/platform:strnlen.cpp",
         "//src/mongo/platform:waitable_atomic.cpp",
+        "//src/mongo/util:active_exception_witness.cpp",
         "//src/mongo/util:allocator.cpp",
         "//src/mongo/util:assert_util.cpp",
         "//src/mongo/util:base64.cpp",

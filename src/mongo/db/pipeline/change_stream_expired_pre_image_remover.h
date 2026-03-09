@@ -38,6 +38,8 @@
 
 #include <string>
 
+#include <boost/optional/optional.hpp>
+
 namespace mongo {
 
 /**
@@ -59,7 +61,8 @@ public:
     void onSetCurrentConfig(OperationContext* opCtx) override {}
 
     /**
-     * Controls when/if the periodic pre-image removal job starts up.
+     * Starts the pre-images removal job in case replicated truncates are disabled. Does nothing in
+     * case replicated truncates are enabled.
      */
     void onConsistentDataAvailable(OperationContext* opCtx,
                                    bool isMajority,
@@ -67,27 +70,72 @@ public:
 
     void onStepUpBegin(OperationContext* opCtx, long long term) override {}
 
-    void onStepUpComplete(OperationContext* opCtx, long long term) override {}
+    /**
+     * Starts the pre-images removal job in case replicated truncates are enabled. Does nothing in
+     * case replicated truncates are disabled.
+     */
+    void onStepUpComplete(OperationContext* opCtx, long long term) override;
 
-    void onStepDown() override {}
+    /**
+     * Stops the pre-images removal job in case replicated truncates are enabled. Does nothing in
+     * case replicated truncates are disabled.
+     */
+    void onStepDown() override;
 
     void onRollbackBegin() override {}
 
     void onBecomeArbiter() override {}
 
+    /**
+     * Stops the pre-images removal job regardless of whether replicated truncates are used.
+     */
     void onShutdown() override;
 
     std::string getServiceName() const final {
         return "ChangeStreamExpiredPreImagesRemoverService";
     }
 
-    bool startedPeriodicJob_forTest() {
+    bool hasStartedPeriodicJob() const {
         stdx::lock_guard<stdx::mutex> scopedLock(_mutex);
         return _periodicJob.isValid();
     }
 
+    boost::optional<bool> useReplicatedTruncates_forTest() const {
+        return _useReplicatedTruncates;
+    }
+
 private:
-    stdx::mutex _mutex;
+    // Populates the '_useReplicatedTruncates' flag with its initial value. Does nothing if the flag
+    // is already populated.
+    void _populateUseReplicatedTruncatesFlag(OperationContext* opCtx);
+
+    // Starts the pre-images removal job.
+    void _startChangeStreamExpiredPreImagesRemoverServiceJob(OperationContext* opCtx);
+
+    // Stops the pre-images removal job.
+    void _stopChangeStreamExpiredPreImagesRemoverServiceJob();
+
+    // Protects '_periodicJob'.
+    mutable stdx::mutex _mutex;
+
+    // Job for periodic pre-images removal.
+    // If replicated truncates are enabled, the job is started only on the primary when it steps up
+    // (via 'onStepUpComplete()'), and is stopped on every step-down (via 'onStepDown()').
+    // Secondaries do not run the pre-images removal job.
+    //
+    // If replicated truncates are disabled, the job is executed on primaries and secondaries
+    // locally and independently. It is then started as part of the 'onConsistentDataAvailable()'
+    // callback.
     PeriodicJobAnchor _periodicJob;
+
+    // Whether or not replicated truncates are used. Populated exactly once inside
+    // '_populateUseReplicatedTruncatesFlag()'. callback. Constant afterwards.
+    // The flag cannot be populated in the constructor or 'onStartup()' due to the lack of an
+    // OperationContext and/or the FCV snapshot not being initialized yet.
+    // Outside of tests, this flag is queried or set inside any of the 'ReplicaSetAwareService'
+    // callbacks (e.g. 'onConsistentDataAvailable()', 'onStepUpComplete()', 'onStepDown()'), which
+    // should never run concurrently inside the same mongod process. Thus access to this member is
+    // not synchronized.
+    boost::optional<bool> _useReplicatedTruncates;
 };
 }  // namespace mongo

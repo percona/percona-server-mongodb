@@ -877,6 +877,7 @@ tasks:
         "incompatible_s390x",
         "concurrency",
         "common",
+        "has_bazel_target",
       ]
     commands:
       - func: "generate resmoke tasks"
@@ -1183,6 +1184,7 @@ tasks:
         "requires_large_host",
         "jscore",
         "common",
+        "has_bazel_target",
       ]
     commands:
       - func: "do setup"

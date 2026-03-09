@@ -33,7 +33,6 @@
 #include "mongo/db/baton.h"
 #include "mongo/platform/atomic.h"
 #include "mongo/platform/rwmutex.h"
-#include "mongo/stdx/chrono.h"
 #include "mongo/stdx/mutex.h"
 #include "mongo/transport/transport_layer.h"
 #include "mongo/util/duration.h"
@@ -123,7 +122,7 @@ public:
         std::list<std::unique_ptr<CompletionQueueEntry>>::iterator _iter;
     };
 
-    GRPCReactor() : _tickSource(this), _stats(&_tickSource), _cq() {}
+    GRPCReactor() : _clkSource(this), _stats(&_clkSource), _cq() {}
 
     void run() override;
 
@@ -142,8 +141,8 @@ public:
         return std::make_unique<GRPCReactorTimer>(shared_from_this());
     }
 
-    stdx::chrono::system_clock::time_point systemTime() override {
-        return ::grpc::Timespec2Timepoint(gpr_now(::gpr_clock_type::GPR_CLOCK_REALTIME));
+    Date_t now() override {
+        return Date_t(::grpc::Timespec2Timepoint(gpr_now(::gpr_clock_type::GPR_CLOCK_REALTIME)));
     }
 
     void appendStats(BSONObjBuilder& bob, bool forServerStatus) const override;
@@ -169,7 +168,7 @@ private:
         return _inShutdownFlag;
     }
 
-    ReactorTickSource _tickSource;
+    ReactorClockSource _clkSource;
     ExecutorStats _stats;
 
     WriteRarelyRWMutex _shutdownMutex;

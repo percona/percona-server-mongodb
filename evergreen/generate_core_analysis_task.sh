@@ -37,6 +37,8 @@ fi
 
 echo "Core dumps found. Proceeding with core analysis task generation."
 
+set +o verbose
+
 # Virtual environment setup is performed here, so that results tasks remain fast in the
 # common case where there are no core dumps.
 bash "${workdir}/src/evergreen/functions/venv_setup.sh"
@@ -46,6 +48,7 @@ DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
 
 bash "${workdir}/src/evergreen/functions/evergreen_api_credentials_configure.sh"
 
+set -o verbose
 cd src
 
 activate_venv

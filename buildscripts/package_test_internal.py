@@ -16,7 +16,7 @@ import tarfile
 import time
 import traceback
 from logging.handlers import WatchedFileHandler
-from typing import Optional, Union
+from typing import Dict, List, Optional, Tuple, Union
 
 root = logging.getLogger()
 root.setLevel(logging.DEBUG)
@@ -39,7 +39,7 @@ JOURNALCTL_URL = (
     DOCKER_SYSTEMCTL_REPO + "/eb2a963a7d8413119b432bcb6151af6076b65f84/files/docker/journalctl3.py"
 )
 
-TestArgs = dict[str, Union[str, int, list[str]]]
+TestArgs = Dict[str, Union[str, int, List[str]]]
 
 
 def run_and_log(cmd: str, end_on_error: bool = True):
@@ -53,7 +53,7 @@ def run_and_log(cmd: str, end_on_error: bool = True):
     return proc
 
 
-def download_extract_package(package: str) -> list[str]:
+def download_extract_package(package: str) -> List[str]:
     # Handle local files (file:// protocol) - these are pre-downloaded by package_test.py
     # when using --evg-build-id for private artifacts
     if package.startswith("file://"):
@@ -82,7 +82,7 @@ def download_extract_package(package: str) -> list[str]:
     return extracted_paths
 
 
-def download_extract_all_packages(package_urls: list[str]) -> list[str]:
+def download_extract_all_packages(package_urls: List[str]) -> List[str]:
     all_packages = []  # type: List[str]
     for package_url in package_urls:
         if package_url:
@@ -91,17 +91,17 @@ def download_extract_all_packages(package_urls: list[str]) -> list[str]:
     return all_packages
 
 
-def run_apt_test(packages: list[str]):
+def run_apt_test(packages: List[str]):
     logging.info("Detected apt running test.")
     run_and_log("DEBIAN_FRONTEND=noninteractive apt-get install -y {}".format(" ".join(packages)))
 
 
-def run_yum_test(packages: list[str]):
+def run_yum_test(packages: List[str]):
     logging.info("Detected yum running test.")
     run_and_log("yum install -y {}".format(" ".join(packages)))
 
 
-def run_zypper_test(packages: list[str]):
+def run_zypper_test(packages: List[str]):
     logging.info("Detected zypper running test.")
     run_and_log("zypper -n --no-gpg-checks install {}".format(" ".join(packages)))
 
@@ -143,7 +143,7 @@ def run_mongo_query(shell, query, should_fail=False, tries=60, interval=1.0):
     raise RuntimeError("Query retries exceeded, failing test.")
 
 
-def parse_os_release(path: str) -> dict[str, str]:
+def parse_os_release(path: str) -> Dict[str, str]:
     result = {}  # type: Dict[str, str]
     with open(path, "r", encoding="utf-8") as os_release:
         for line in os_release:
@@ -156,7 +156,7 @@ def parse_os_release(path: str) -> dict[str, str]:
     return result
 
 
-def get_os_release() -> tuple[str, int, int]:
+def get_os_release() -> Tuple[str, int, int]:
     if os.path.exists("/etc/os-release"):
         release_info = parse_os_release("/etc/os-release")
     elif os.path.exists("/usr/lib/os-release"):
@@ -177,7 +177,7 @@ def get_os_release() -> tuple[str, int, int]:
     return os_name, os_version_major, os_version_minor
 
 
-def parse_ulimits(pid: int) -> dict[str, tuple[int, int, Optional[str]]]:
+def parse_ulimits(pid: int) -> Dict[str, Tuple[int, int, Optional[str]]]:
     ulimit_line_re = re.compile(
         r"(?P<name>.*?)\s{2,}(?P<soft>\S+)\s+(?P<hard>\S+)(?:\s+(?P<units>\S+))?", re.MULTILINE
     )
@@ -205,7 +205,7 @@ def parse_ulimits(pid: int) -> dict[str, tuple[int, int, Optional[str]]]:
     return result
 
 
-def get_test_args(package_manager: str, package_files: list[str]) -> TestArgs:
+def get_test_args(package_manager: str, package_files: List[str]) -> TestArgs:
     # Set up data for later tests
     test_args = {}  # type: TestArgs
 

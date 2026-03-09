@@ -8,7 +8,7 @@
  */
 
 import {assertArrayEq} from "jstests/aggregation/extras/utils.js";
-import {configureFailPointForAllShardsAndMongos} from "jstests/libs/fail_point_util.js";
+import {FixtureHelpers} from "jstests/libs/fixture_helpers.js";
 
 const collName = "lookup_let_redact";
 const coll = db[collName];
@@ -20,11 +20,12 @@ assert.commandWorked(
     ]),
 );
 
+const admin = db.getSiblingDB("admin");
+
 const setPipelineOptimizationMode = (mode) => {
-    configureFailPointForAllShardsAndMongos({
-        conn: db.getMongo(),
-        failPointName: "disablePipelineOptimization",
-        failPointMode: mode,
+    FixtureHelpers.runCommandOnEachPrimary({
+        db: admin,
+        cmdObj: {configureFailPoint: "disablePipelineOptimization", mode},
     });
 };
 

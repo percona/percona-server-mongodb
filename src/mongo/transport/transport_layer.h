@@ -38,7 +38,6 @@
 #include "mongo/db/operation_context.h"
 #include "mongo/db/service_context.h"
 #include "mongo/executor/connection_metrics.h"
-#include "mongo/stdx/chrono.h"
 #include "mongo/transport/session.h"
 #include "mongo/transport/ssl_connection_context.h"
 #include "mongo/util/duration.h"
@@ -305,11 +304,7 @@ public:
     /**
      * Get the time according to the clock driving the event engine of the reactor.
      */
-    virtual stdx::chrono::system_clock::time_point systemTime() = 0;
-
-    Date_t now() {
-        return Date_t(systemTime());
-    }
+    virtual Date_t now() = 0;
 
     /**
      * Appends stats for the reactor, typically recorded with the ExecutorStats class.
@@ -337,25 +332,22 @@ protected:
     };
 
     /**
-     * Provides `TickSource` API implemented in terms of the reactor's system
-     * clock. This is used to record `ExecutorStats`.
+     * Provides `ClockSource` API for the reactor's clock source, which can be used to record
+     * ExecutorStats.
      */
-    class ReactorTickSource final : public TickSource {
+    class ReactorClockSource final : public ClockSource {
     public:
-        explicit ReactorTickSource(Reactor* reactor) : _reactor(reactor) {}
-        ~ReactorTickSource() override = default;
+        explicit ReactorClockSource(Reactor* reactor) : _reactor(reactor) {}
+        ~ReactorClockSource() override = default;
 
-        Tick getTicks() override {
-            return _reactor->systemTime().time_since_epoch().count();
+        Milliseconds getPrecision() override {
+            MONGO_UNREACHABLE;
         }
 
-        Tick getTicksPerSecond() override {
-            using SystemDuration = decltype(_reactor->systemTime())::duration;
-            return std::chrono::seconds(1) / SystemDuration(1);
-        }
+        Date_t now() override;
 
     private:
-        Reactor* _reactor;
+        Reactor* const _reactor;
     };
 
     static thread_local Reactor* _reactorForThread;

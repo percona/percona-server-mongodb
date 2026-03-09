@@ -58,6 +58,7 @@
 #include "mongo/db/repl/read_concern_level.h"
 #include "mongo/db/repl/repl_client_info.h"
 #include "mongo/db/repl/replication_coordinator.h"
+#include "mongo/db/rss/replicated_storage_service.h"
 #include "mongo/db/s/auto_split_vector.h"
 #include "mongo/db/s/chunk_operation_precondition_checks.h"
 #include "mongo/db/s/migration_chunk_cloner_source.h"
@@ -81,6 +82,7 @@
 #include "mongo/db/timeseries/bucket_catalog/global_bucket_catalog.h"
 #include "mongo/db/topology/shard_registry.h"
 #include "mongo/db/topology/sharding_state.h"
+#include "mongo/db/transaction/reclaimed_prepared_txn_tracker.h"
 #include "mongo/db/write_concern.h"
 #include "mongo/logv2/log.h"
 #include "mongo/platform/atomic_word.h"
@@ -404,13 +406,10 @@ void MigrationSourceManager::startClone() {
     ScopeGuard scopedGuard([&] { _cleanupOnError(); });
     _stats.countDonorMoveChunkStarted.addAndFetch(1);
 
+    auto moveChunkDetails = BSON("min" << *_args.getMin() << "max" << *_args.getMax() << "from"
+                                       << _args.getFromShard() << "to" << _args.getToShard());
     auto logChangeStatus = ShardingLogging::get(_opCtx)->logChangeChecked(
-        _opCtx,
-        "moveChunk.start",
-        nss(),
-        BSON("min" << *_args.getMin() << "max" << *_args.getMax() << "from" << _args.getFromShard()
-                   << "to" << _args.getToShard()),
-        defaultMajorityWriteConcernDoNotUse());
+        _opCtx, "moveChunk.start", nss(), moveChunkDetails, defaultMajorityWriteConcernDoNotUse());
     withChangelogErrMsg(logChangeStatus.reason(), [&] { uassertStatusOK(logChangeStatus); });
 
     _cloneAndCommitTimer.reset();
@@ -421,6 +420,43 @@ void MigrationSourceManager::startClone() {
                 "Command can only be run on replica sets",
                 replCoord->getSettings().isReplSet());
     });
+
+    auto supportsPreservingPreparedTxnInPreciseCheckpoints =
+        rss::ReplicatedStorageService::get(_opCtx->getServiceContext())
+            .getPersistenceProvider()
+            .supportsPreservingPreparedTxnInPreciseCheckpoints();
+
+    if (supportsPreservingPreparedTxnInPreciseCheckpoints) {
+        auto preparedTxnResolved =
+            ReclaimedPreparedTxnTracker::get(_opCtx)->onAllReclaimedPreparedTxnsResolved();
+        if (!preparedTxnResolved.isReady()) {
+            LOGV2(11374000,
+                  "Waiting for reclaimed prepared transactions from startup recovery to commit or "
+                  "abort before starting migration cloning.",
+                  logAttrs(nss()),
+                  "details"_attr = moveChunkDetails);
+
+            const auto deadline = _opCtx->fastClockSource().now() +
+                Milliseconds(chunkMigrationWaitForReclaimedPreparedTxnsMaxWaitMS.load());
+            const auto guard = _opCtx->makeDeadlineGuard(deadline, ErrorCodes::ExceededTimeLimit);
+
+            // We need to wait because prepared transactions reclaimed from a precise checkpoint as
+            // part of startup recovery can not set up an onCommit handler to send transaction
+            // operations to chunk migration's internal buffers after cloning starts. As a result we
+            // need to wait on those reclaimed prepared transactions to complete and for their
+            // results to be transferred as part of initial cloning, otherwise we can lose data.
+            preparedTxnResolved.get(_opCtx);
+
+            LOGV2(
+                11374001,
+                "Finished waiting for all reclaimed prepared transactions from startup recovery to "
+                "commit or abort. Starting migration cloning.",
+                logAttrs(nss()),
+                "details"_attr = moveChunkDetails);
+        }
+
+        preparedTxnResolved.get(_opCtx);
+    }
 
     {
         const auto metadata = _getCurrentMetadataAndCheckForConflictingErrors();

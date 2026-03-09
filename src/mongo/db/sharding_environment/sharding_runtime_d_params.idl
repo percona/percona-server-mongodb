@@ -56,6 +56,18 @@ server_parameters:
             expr: 4 * BSONObjMaxInternalSize
         redact: false
 
+    chunkMigrationWaitForReclaimedPreparedTxnsMaxWaitMS:
+        description: >-
+            The maximum amount of time (in milliseconds) for chunk migration to wait for reclaimed 
+            prepared transactions from a precise checkpoint to resolve before timing out.
+        set_at: [startup, runtime]
+        cpp_vartype: AtomicWord<int>
+        cpp_varname: chunkMigrationWaitForReclaimedPreparedTxnsMaxWaitMS
+        validator:
+            gt: 0
+        default: 180000
+        redact: false
+
     rangeDeleterBatchSize:
         description: >-
             The maximum number of documents in each batch to delete during the cleanup stage of chunk

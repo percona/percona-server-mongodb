@@ -46,7 +46,7 @@ namespace plan_ranking {
 StatusWith<PlanRankingResult> CBRForNoMPResultsStrategy::rankPlans(PlannerData& plannerData) {
     OperationContext* opCtx = plannerData.opCtx;
     CanonicalQuery& query = *plannerData.cq;
-    QueryPlannerParams& plannerParams = *plannerData.plannerParams;
+    QueryPlannerParams& plannerParams = const_cast<QueryPlannerParams&>(*plannerData.plannerParams);
     PlanYieldPolicy::YieldPolicy yieldPolicy = plannerData.yieldPolicy;
     const MultipleCollectionAccessor& collections = plannerData.collections;
 

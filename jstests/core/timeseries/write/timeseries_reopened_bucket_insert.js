@@ -11,6 +11,7 @@
  *   assumes_read_preference_unchanged,
  *   # This test depends on the stats tracked by UUID
  *   assumes_stable_collection_uuid,
+ *   requires_collstats,
  * ]
  */
 import {getTimeseriesCollForRawOps, kRawOperationSpec} from "jstests/core/libs/raw_operation_utils.js";

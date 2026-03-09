@@ -126,7 +126,7 @@ boost::optional<MatchResult> InMemoryJoinCursor::next() {
     }
 
     MatchResult result;
-    result.buildKeyRow = &_htIt->first;
+    result.buildKeyRow = &_htIt->first.key;  // Access key from HashedKey
     result.buildProjectRow = &_htIt->second;
     result.probeKeyRow = &_probeKey;
     result.probeProjectRow = &_probeProject;
@@ -143,12 +143,18 @@ public:
     SpilledPartitionJoinCursor(HHJTableType& ht,
                                std::shared_ptr<SpillIterator> buildIterator,
                                std::shared_ptr<SpillIterator> probeIterator,
-                               bool swapped)
-        : _ht(ht), _probeIterator(std::move(probeIterator)), _swapped(swapped) {
+                               bool swapped,
+                               CollatorInterface* collator)
+        : _ht(ht),
+          _probeIterator(std::move(probeIterator)),
+          _swapped(swapped),
+          _collator(collator) {
         // Load the build side into the hash table.
         while (buildIterator->more()) {
             auto [keyRow, projectRow] = buildIterator->next();
-            _ht.emplace(std::move(keyRow), std::move(projectRow));
+            // Compute hash when loading from spill file and store with key.
+            size_t hash = value::MaterializedRowHasher{_collator}(keyRow);
+            _ht.emplace(HashedKey{hash, std::move(keyRow)}, std::move(projectRow));
         }
     }
 
@@ -158,6 +164,7 @@ private:
     HHJTableType& _ht;
     std::shared_ptr<SpillIterator> _probeIterator;
     bool _swapped;
+    CollatorInterface* _collator;
     HHJTableType::iterator _htIt{};
     HHJTableType::iterator _htItEnd{};
     value::MaterializedRow _probeKey{};
@@ -169,7 +176,7 @@ boost::optional<MatchResult> SpilledPartitionJoinCursor::next() {
         if (_htIt != _htItEnd) {
             // Continue yielding matches for the current probe row.
             MatchResult result;
-            result.buildKeyRow = &_htIt->first;
+            result.buildKeyRow = &_htIt->first.key;  // Access key from HashedKey
             result.buildProjectRow = &_htIt->second;
             result.probeKeyRow = &_probeKey;
             result.probeProjectRow = &_probeProject;
@@ -188,10 +195,15 @@ boost::optional<MatchResult> SpilledPartitionJoinCursor::next() {
         }
 
         auto record = _probeIterator->next();
-        _probeKey = std::move(record.first);
-        _probeProject = std::move(record.second);
 
-        std::tie(_htIt, _htItEnd) = _ht.equal_range(_probeKey);
+        // Compute hash once and use for hash table lookup.
+        size_t hash = value::MaterializedRowHasher{_collator}(record.first);
+        HashedKey hashedKey{hash, std::move(record.first)};
+        std::tie(_htIt, _htItEnd) = _ht.equal_range(hashedKey);
+
+        // Move the key back since we need it for the MatchResult.
+        _probeKey = std::move(hashedKey.key);
+        _probeProject = std::move(record.second);
     }
 }
 
@@ -312,7 +324,7 @@ private:
 
     std::shared_ptr<SpillIterator> _buildIterator;
     std::shared_ptr<SpillIterator> _probeIterator;
-    BuildBuffer _buildBuffer;
+    std::vector<std::pair<value::MaterializedRow, value::MaterializedRow>> _buildBuffer;
     uint64_t _buildBufferMemUsage{0};
 
     size_t _buildBufferIdx{0};  // Current position in _buildBuffer
@@ -416,7 +428,10 @@ boost::optional<MatchResult> BlockNestedLoopJoinCursor::next() {
 void HybridHashJoin::addBuild(value::MaterializedRow key, value::MaterializedRow project) {
     tassert(11538800, "called addBuild() outside of kBuild phase", _phase == Phase::kBuild);
 
-    auto memUsage = key.memUsageForSorter() + project.memUsageForSorter();
+    auto memUsage = sizeof(size_t) + key.memUsageForSorter() + project.memUsageForSorter();
+
+    // Compute hash once and reuse for both partitioning and hash table insertion.
+    size_t hash = value::MaterializedRowHasher{_collator}(key);
 
     if (!_isPartitioned) {
         // Pure in-memory mode: insert directly into hash table.
@@ -424,19 +439,19 @@ void HybridHashJoin::addBuild(value::MaterializedRow key, value::MaterializedRow
         _memUsage += memUsage;
         _stats.peakTrackedMemBytes =
             std::max(_stats.peakTrackedMemBytes, static_cast<uint64_t>(_memUsage));
-        _ht->emplace(std::move(key), std::move(project));
+        _ht->emplace(HashedKey{hash, std::move(key)}, std::move(project));
         if (_memUsage > _memLimit) {
             enablePartitioning();
         }
         return;
     }
 
-    int pIdx = getPartitionId(key);
+    int pIdx = getPartitionId(hash);
 
     if (_isSpilled[pIdx]) {
         // This partition is spilled; write to file using SortedFileWriter.
         _partitionSpills[pIdx]->buildSpill.writer->addAlreadySorted(key, project);
-        _partitionSpills[pIdx]->buildSpill.size += memUsage;
+        _partitionSpills[pIdx]->buildSpill.size += memUsage - sizeof(size_t);
         _recordsAddedToWriter++;
         return;
     }
@@ -445,7 +460,7 @@ void HybridHashJoin::addBuild(value::MaterializedRow key, value::MaterializedRow
     _partitionMemUsage[pIdx] += memUsage;
     _stats.peakTrackedMemBytes =
         std::max(_stats.peakTrackedMemBytes, static_cast<uint64_t>(_memUsage));
-    _partitionBuffers[pIdx].emplace_back(std::move(key), std::move(project));
+    _partitionBuffers[pIdx].emplace_back(HashedKey{hash, std::move(key)}, std::move(project));
     while (_memUsage >= _memLimit) {
         int victim = selectVictimPartition();
         if (victim == kNumPartitions) {
@@ -469,18 +484,20 @@ void HybridHashJoin::enablePartitioning() {
     _isSpilled.resize(kNumPartitions, false);
     _partitionSpills.resize(kNumPartitions);
 
-    // Partition all hash table records into partition buffers
-    for (auto& [key, project] : *_ht) {
-        int pIdx = getPartitionId(key);
+    _htBucketCountBeforePartitioning = _ht->bucket_count();
 
-        auto rowSize = key.memUsageForSorter() + project.memUsageForSorter();
-        _partitionBuffers[pIdx].emplace_back(std::move(key), std::move(project));
+    // Partition all hash table records into partition buffers.
+    // The hash is already stored in HashedKey, so we can reuse it for partitioning.
+    while (!_ht->empty()) {
+        auto node = _ht->extract(_ht->begin());
+        int pIdx = getPartitionId(node.key().hash);
+
+        auto rowSize =
+            sizeof(size_t) + node.key().key.memUsageForSorter() + node.mapped().memUsageForSorter();
+        _partitionBuffers[pIdx].emplace_back(std::move(node.key()), std::move(node.mapped()));
         _partitionMemUsage[pIdx] += rowSize;
     }
 
-    // Clear the hash table
-    _htBucketCountBeforePartitioning = _ht->bucket_count();
-    _ht->clear();
     _ht->rehash(0);
 
     // Spill victim partitions until under threshold
@@ -539,8 +556,9 @@ void HybridHashJoin::spillPartition(int pIdx) {
     auto spilledPartition = createSpilledPartition();
 
     auto& partitionBuffer = _partitionBuffers[pIdx];
-    for (auto& [key, project] : partitionBuffer) {
-        spilledPartition->buildSpill.writer->addAlreadySorted(key, project);
+    // Write (key, project) to disk; hash is not stored and will be recomputed when reading.
+    for (auto& [hashedKey, project] : partitionBuffer) {
+        spilledPartition->buildSpill.writer->addAlreadySorted(hashedKey.key, project);
     }
     auto prevMemUsage = _partitionMemUsage[pIdx];
 
@@ -606,7 +624,8 @@ void HybridHashJoin::probe(value::MaterializedRow& key,
     tassert(11538804, "called probe() outside of kProbe phase", _phase == Phase::kProbe);
 
     if (_isPartitioned) {
-        int pIdx = getPartitionId(key);
+        size_t hash = value::MaterializedRowHasher{_collator}(key);
+        int pIdx = getPartitionId(hash);
 
         if (_isSpilled[pIdx]) {
             // This partition is spilled; write to file using SortedFileWriter.
@@ -712,15 +731,16 @@ boost::optional<JoinCursor> HybridHashJoin::nextSpilledJoinCursor() {
     _stats.peakTrackedMemBytes =
         std::max(_stats.peakTrackedMemBytes, static_cast<uint64_t>(partitionSize));
 
-    return JoinCursor(std::make_unique<SpilledPartitionJoinCursor>(
-        *_ht, spill.buildSpill.getIterator(), spill.probeSpill.getIterator(), swappedPartition));
+    return JoinCursor(std::make_unique<SpilledPartitionJoinCursor>(*_ht,
+                                                                   spill.buildSpill.getIterator(),
+                                                                   spill.probeSpill.getIterator(),
+                                                                   swappedPartition,
+                                                                   _collator));
 }
 
 // ==================== Helpers ====================
 
-int HybridHashJoin::getPartitionId(const value::MaterializedRow& key) const {
-    size_t hash = value::MaterializedRowHasher{_collator}(key);
-
+int HybridHashJoin::getPartitionId(size_t hash) const {
     static_assert((kMaxRecursionDepth + 1) * kNumBitsInPartitionMask <= sizeof(size_t) * 8);
     return (hash >> (_recursionLevel * kNumBitsInPartitionMask)) & kPartitionMask;
 }
@@ -762,7 +782,8 @@ size_t HybridHashJoin::findNextSpilledPartitionIdx() {
 void HybridHashJoin::reset() {
     _ht->clear();
 
-    _partitionBuffers = {};
+    _partitionBuffers.clear();
+    _partitionBuffers.shrink_to_fit();
     _partitionMemUsage = {};
     _isSpilled = {};
     _partitionSpills.clear();

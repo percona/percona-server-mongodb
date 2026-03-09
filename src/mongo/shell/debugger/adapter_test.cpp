@@ -39,17 +39,17 @@ TEST(Request, fromJSON) {
     std::string json =
         R"({"type":"request","seq":17,"command":"setBreakpoints","arguments":{"source":"","lines":[]}})";
     Request req = Request::fromJSON(json);
-    SetBreakpointsRequest sbr = SetBreakpointsRequest::fromRequest(req);
+    SetBreakpointsRequest sbr(req);
     ASSERT_EQ(req.seq, 17);
     ASSERT_EQ(req.command, "setBreakpoints");
 }
 
-TEST(SetBreakpointsRequest, fromRequest) {
+TEST(SetBreakpointsRequest, parseProperties) {
 
     std::string json =
         R"({"type":"request","seq":17,"command":"setBreakpoints","arguments":{"source":"/home/ubuntu/mongo/jstests/my_test.js","lines":[{"line":5},{"line":6}]}})";
     Request req = Request::fromJSON(json);
-    SetBreakpointsRequest sbr = SetBreakpointsRequest::fromRequest(req);
+    SetBreakpointsRequest sbr(req);
     ASSERT_EQ(sbr.seq, 17);
     ASSERT_EQ(sbr.source, "/home/ubuntu/mongo/jstests/my_test.js");
     ASSERT_EQ(sbr.lines, std::vector<int>({5, 6}));

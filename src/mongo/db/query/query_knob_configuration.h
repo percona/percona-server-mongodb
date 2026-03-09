@@ -90,6 +90,7 @@ public:
     size_t getInternalMinAllPlansEnumerationSubsetLevel() const;
     size_t getInternalMaxAllPlansEnumerationSubsetLevel() const;
     bool getEnableJoinOptimizationUseIndexUniqueness() const;
+    SamplingCEMethodEnum getInternalJoinOptimizationSamplingCEMethod() const;
 
     /**
      * Returns whether we can push down fully compatible stages to sbe. This is only true when the
@@ -154,6 +155,7 @@ private:
     size_t _minAllPlansEnumerationSubsetLevel;
     size_t _maxAllPlansEnumerationSubsetLevel;
     bool _enableJoinOptimizationUseIndexUniqueness;
+    SamplingCEMethodEnum _joinSamplingCEMethod;
 
     int64_t _internalQuerySpillingMinAvailableDiskSpaceBytes;
     int64_t _internalMaxGroupAccumulatorsInSbe;

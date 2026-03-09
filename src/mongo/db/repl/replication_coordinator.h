@@ -455,8 +455,10 @@ public:
      * corresponding to that OpTime.
      *
      * When rollbackSafe is true, this returns an empty OpTimeAndWallTime if the node is in ROLLBACK
-     * state. The lastWrittenOpTime during ROLLBACK might be temporarily pointing to an oplog entry
-     * in the divergent branch of history which would become invalid after the rollback finishes.
+     * or REMOVED state. The lastWrittenOpTime during a rollback might be temporarily pointing to an
+     * oplog entry in the divergent branch of history which would become invalid after the rollback
+     * finishes. A node may transition into removed state during a rollback, so an empty time is
+     * returned in this case as well.
      */
     virtual OpTimeAndWallTime getMyLastWrittenOpTimeAndWallTime(
         bool rollbackSafe = false) const = 0;

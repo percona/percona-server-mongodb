@@ -56,19 +56,14 @@ protected:
         "libnative_vector_search_mongo_extension.so";
     static inline const std::string kMetricsStageName = "$vectorSearchMetrics";
 
-    void setUp() override {
-        ASSERT_DOES_NOT_THROW(
-            ExtensionLoader::load("nativeVectorSearch", makeNativeVectorSearchConfig()));
-    }
-
-    void tearDown() override {
-        LiteParsedDocumentSource::unregisterParser_forTest(kMetricsStageName);
-        LiteParsedDocumentSource::unregisterParser_forTest(kNativeVectorSearchStageName);
-        ExtensionLoader::unload_forTest("nativeVectorSearch");
-    }
-
-    ExtensionConfig makeNativeVectorSearchConfig() {
-        return test_util::makeEmptyExtensionConfig(kNativeVectorSearchLibExtensionPath);
+    static void SetUpTestSuite() {
+        RAIIServerParameterControllerForTest extensionsAPIController{"featureFlagExtensionsAPI",
+                                                                     true};
+        RAIIServerParameterControllerForTest vecSimilarityExprController{
+            "featureFlagVectorSimilarityExpressions", true};
+        ExtensionLoader::load(
+            "nativeVectorSearch",
+            test_util::makeEmptyExtensionConfig(kNativeVectorSearchLibExtensionPath));
     }
 
     // Test helpers

@@ -1870,7 +1870,6 @@ mongo_cc_library(
         "//src/mongo/db/pipeline:javascript_execution.cpp",
         "//src/mongo/db/pipeline:make_js_function.cpp",
         "//src/mongo/db/pipeline:monotonic_expression.cpp",
-        "//src/mongo/db/pipeline:name_expression.cpp",
         "//src/mongo/db/pipeline:variables.cpp",
         "//src/mongo/db/query:query_utils.cpp",
         "//src/mongo/db/query/query_shape:let_shape_component.cpp",

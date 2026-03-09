@@ -35,8 +35,13 @@
 #include "mongo/logv2/log.h"
 #include "mongo/util/duration.h"
 #include "mongo/util/functional.h"
+#include "mongo/util/time_support.h"
 
-#include <cmath>
+#include <atomic>
+#include <cstddef>
+#include <ratio>
+#include <string>
+#include <utility>
 
 #include <fmt/format.h>
 
@@ -45,31 +50,50 @@ namespace mongo {
 
 namespace {
 
-std::vector<Microseconds> partitions() {
-    // {1 μs, 5 μs, 25 μs, 125 μs, 625 μs, ...}
-    std::vector<Microseconds> bounds(10);
-    Microseconds upperBound{1};
-    for (Microseconds& bound : bounds) {
-        bound = upperBound;
-        upperBound *= 5;
+constexpr auto kMillisPerBucket = 50;
+
+void recordDuration(Counter64* buckets, Milliseconds duration) {
+    size_t index;
+    if (duration < Milliseconds(1)) {
+        index = 0;
+    } else if (duration >= Seconds(1)) {
+        index = ExecutorStats::kNumBuckets - 1;
+    } else {
+        // Each bucket covers a 50 milliseconds window (e.g., [1, 50), [50, 100) and so on).
+        // That's why the duration (in milliseconds) is divided by 50 to compute the index.
+        index = 1 + durationCount<Milliseconds>(duration) / kMillisPerBucket;
     }
-    return bounds;
+    buckets[index].increment();
+}
+
+void serializeBuckets(const Counter64* buckets, BSONObjBuilder bob) {
+    auto makeTag = [](size_t i) -> std::string {
+        if (i == 0)
+            return "0-999us";
+        if (i == ExecutorStats::kNumBuckets - 1)
+            return "1000ms+";
+
+        const auto lb = i > 1 ? (i - 1) * kMillisPerBucket : 1;
+        const auto ub = i * kMillisPerBucket - 1;
+        return fmt::format("{}-{}ms", lb, ub);
+    };
+
+    for (size_t i = 0; i < ExecutorStats::kNumBuckets; i++) {
+        bob.append(makeTag(i), buckets[i].get());
+    }
 }
 
 }  // namespace
 
-ExecutorStats::ExecutorStats(TickSource* tickSource)
-    : _waiting(partitions()), _running(partitions()), _tickSource(tickSource) {}
-
 ExecutorStats::Task ExecutorStats::wrapTask(ExecutorStats::Task&& task) {
     _scheduled.increment(1);
-    return [this, task = std::move(task), scheduledAt = _tickSource->getTicks()](Status status) {
-        const auto startedAt = _tickSource->getTicks();
-        const auto waitTime = _tickSource->ticksTo<Microseconds>(startedAt - scheduledAt);
+    return [this, task = std::move(task), scheduledAt = _clkSource->now()](Status status) {
+        const auto startedAt = _clkSource->now();
+        Microseconds waitTime = startedAt - scheduledAt;
         _averageWaitTimeMicros.addSample(waitTime.count());
-        _waiting.increment(waitTime);
-        const Milliseconds waitTimeThreshold{
-            serverGlobalParams.slowTaskExecutorWaitTimeProfilingMs.loadRelaxed()};
+        recordDuration(_waitingBuckets, duration_cast<Milliseconds>(waitTime));
+        Milliseconds waitTimeThreshold =
+            Milliseconds{serverGlobalParams.slowTaskExecutorWaitTimeProfilingMs.loadRelaxed()};
         if (waitTime > waitTimeThreshold) {
             LOGV2_DEBUG(9757000,
                         severitySuppressor().toInt(),
@@ -79,32 +103,23 @@ ExecutorStats::Task ExecutorStats::wrapTask(ExecutorStats::Task&& task) {
         }
         task(std::move(status));
 
-        const auto runTime =
-            _tickSource->ticksTo<Microseconds>(_tickSource->getTicks() - startedAt);
+        Microseconds runTime = _clkSource->now() - startedAt;
         _averageRunTimeMicros.addSample(runTime.count());
-        _running.increment(runTime);
+        recordDuration(_runningBuckets, duration_cast<Milliseconds>(runTime));
         _executed.increment(1);
     };
 }
 
 void ExecutorStats::serialize(BSONObjBuilder* bob, bool forServerStatus) const {
-    invariant(bob);
     bob->append("scheduled"_sd, _scheduled.get());
     bob->append("executed"_sd, _executed.get());
-    bob->append("averageWaitTimeMicros"_sd, _averageWaitTimeMicros.get().value_or(0));
-    bob->append("averageRunTimeMicros"_sd, _averageRunTimeMicros.get().value_or(0));
-    if (!forServerStatus) {
-        appendHistogram(*bob, _waiting, "waitTime");
-        appendHistogram(*bob, _running, "runTime");
+    if (forServerStatus) {
+        bob->append("averageWaitTimeMicros"_sd, _averageWaitTimeMicros.get().value_or(0));
+        bob->append("averageRunTimeMicros"_sd, _averageRunTimeMicros.get().value_or(0));
+    } else {
+        serializeBuckets(_waitingBuckets, bob->subobjStart("waitTime"_sd));
+        serializeBuckets(_runningBuckets, bob->subobjStart("runTime"_sd));
     }
-}
-
-const Histogram<Microseconds>& ExecutorStats::waiting_forTest() const {
-    return _waiting;
-}
-
-const Histogram<Microseconds>& ExecutorStats::running_forTest() const {
-    return _running;
 }
 
 }  // namespace mongo

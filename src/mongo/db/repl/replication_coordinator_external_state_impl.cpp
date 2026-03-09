@@ -151,6 +151,7 @@ namespace repl {
 namespace {
 
 MONGO_FAIL_POINT_DEFINE(skipDurableTimestampUpdates);
+MONGO_FAIL_POINT_DEFINE(hangAfterJournalFlusherGetToken);
 
 // The maximum size of the oplog write buffer is set to 256MB.
 constexpr std::size_t kOplogWriteBufferSize = 256 * 1024 * 1024;
@@ -1187,20 +1188,27 @@ std::unique_ptr<JournalListener::Token> ReplicationCoordinatorExternalStateImpl:
 
     // All other repl states use the 'lastWritten'.
     //
-    // Setting 'rollbackSafe' will ensure that a safe lastWritten value is returned if we're in
-    // ROLLBACK state. 'lastWritten' may be momentarily set to an opTime from a divergent branch
-    // of history during rollback, so a benign default value will be returned instead to prevent
-    // a divergent 'lastWritten' from being used to forward the 'lastDurable' after rollback.
+    // Setting 'rollbackSafe' will ensure that a safe lastWritten value is returned if we're rolling
+    // back, which may happen in ROLLBACK or REMOVED states. 'lastWritten' may be momentarily set to
+    // an opTime from a divergent branch of history during rollback, so a benign default value will
+    // be returned instead to prevent a divergent 'lastWritten' from being used to forward the
+    // 'lastDurable' after rollback.
     //
     // No concurrency control is necessary and it is still safe if the node goes into ROLLBACK
     // after getting the token because the JournalFlusher is shut down during rollback, before a
     // divergent 'lastWritten' value is present. The JournalFlusher will start up again in
     // ROLLBACK and never transition from non-ROLLBACK to ROLLBACK with a divergent
     // 'lastWritten' value.
-    return std::make_unique<ReplDurabilityToken>(
+    const auto opTime =
         repl::ReplicationCoordinator::get(_service)->getMyLastWrittenOpTimeAndWallTime(
-            /*rollbackSafe=*/true),
-        false /*isPrimary*/);
+            /*rollbackSafe=*/true);
+    if (MONGO_unlikely(hangAfterJournalFlusherGetToken.shouldFail())) {
+        LOGV2(11909001,
+              "hangAfterJournalFlusherGetToken failpoint enabled. Blocking until disabled.",
+              "tokenOptime"_attr = opTime);
+        hangAfterJournalFlusherGetToken.pauseWhileSet(opCtx);
+    }
+    return std::make_unique<ReplDurabilityToken>(opTime, false /*isPrimary*/);
 }
 
 void ReplicationCoordinatorExternalStateImpl::onDurable(const JournalListener::Token& t) {

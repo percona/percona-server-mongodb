@@ -38,7 +38,7 @@ namespace mongo {
 namespace mozjs {
 
 /**
- * https://microsoft.github.io/debug-adapter-protocol//specification.htm
+ * https://microsoft.github.io/debug-adapter-protocol//specification.html
  */
 
 // Base Protocol
@@ -69,16 +69,26 @@ public:
     std::string source;
     std::vector<int> lines;
 
-    static SetBreakpointsRequest fromRequest(Request msg);
+    SetBreakpointsRequest(Request msg);
+    void respond();
 };
 
-class SetBreakpointsResponse {
-private:
-    SetBreakpointsRequest request;
-
+class ContinueRequest {
 public:
     int seq;
-    static SetBreakpointsResponse fromRequest(SetBreakpointsRequest req);
+    ContinueRequest(Request req);
+    void respond();
+};
+
+class StackTraceRequest {
+public:
+    int seq;
+    StackTraceRequest(Request req);
+    void respond();
+};
+
+class StoppedEvent {
+public:
     void send();
 };
 
@@ -87,11 +97,19 @@ class DebugAdapter {
 public:
     static Status connect();
     static void disconnect();
+    static void sendMessage(std::string json);
 
     static void handleMessagesThread();
-    static void handleRequest(const Request& msg);
-    static void handleSetBreakpoints(SetBreakpointsRequest req);
-    static void sendMessage(std::string json);
+
+    // Wait for the debugger to be configured before continuing execution
+    static void waitForHandshake();
+
+    static void sendPause();
+
+    static void handleRequest(Request request);
+    static void handleRequest(SetBreakpointsRequest request);
+    static void handleRequest(ContinueRequest request);
+    static void handleRequest(StackTraceRequest request);
 };
 
 

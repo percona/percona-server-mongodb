@@ -29,9 +29,11 @@
 
 #include "mongo/base/string_data.h"
 #include "mongo/config.h"  // IWYU pragma: keep
+#include "mongo/db/service_context_d_test_fixture.h"
 #include "mongo/db/sorter/file_based_spiller.h"
 #include "mongo/db/sorter/sorter_template_defs.h"
 #include "mongo/db/sorter/sorter_test_utils.h"
+#include "mongo/db/sorter/typed_sorter_test_utils.h"
 #include "mongo/logv2/log.h"
 #include "mongo/platform/random.h"
 #include "mongo/stdx/thread.h"
@@ -46,6 +48,7 @@
 #include <numeric>
 #include <queue>
 #include <string>
+#include <type_traits>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -59,6 +62,9 @@ namespace mongo::sorter {
 namespace {
 
 namespace SorterTests {
+
+using test::ContainerTraits;
+using test::FileTraits;
 
 class SortedFileWriterAndFileIteratorTests : public unittest::Test {
 protected:
@@ -101,7 +107,7 @@ enum class ShuffleMode { kNoShuffle, kShuffle };
 
 constexpr std::array<Direction, 2> kDirections = {ASC, DESC};
 constexpr std::size_t kSmallNumberOfKeys = 100;
-constexpr std::size_t kLargeNumberOfKeys = 800 * 1000;
+constexpr std::size_t kLargeNumberOfKeys = 100 * 1000;
 constexpr std::size_t kAggressiveSpillMemLimit = 16 * 1024;
 constexpr std::size_t kManualSpillEveryN = 10;
 
@@ -306,9 +312,19 @@ void assertPersistedRangeInfo(const std::shared_ptr<IWSorter>& sorter,
     ASSERT_EQ(sorter->stats().spilledRanges(), expected.spilledRanges);
 }
 
-class SorterTest : public unittest::Test {
+template <typename Traits>
+class SorterTypedTest : public ServiceContextMongoDTest {
+public:
+    static_assert(test::StorageTraits<Traits>);
+
 protected:
     void SetUp() override {
+        ServiceContextMongoDTest::SetUp();
+        if constexpr (std::is_constructible_v<Traits, ServiceContext::UniqueOperationContext>) {
+            _storage.emplace(this->makeOperationContext());
+        } else {
+            _storage.emplace();
+        }
         resetFixtureTempDir();
     }
 
@@ -325,19 +341,19 @@ protected:
         return _opts;
     }
 
+    Traits& storage() {
+        return *_storage;
+    }
+
     virtual void addInputToSorter(IWSorter* sorter, const KeyList& input) const {
         for (int key : input) {
             sorter->add(key, -key);
         }
     }
 
-    std::shared_ptr<IWSorter> makeSorter(const SortOptions& sortOpts, Direction direction) const {
-        return std::shared_ptr<IWSorter>(IWSorter::make(
-            sortOpts,
-            IWComparator(direction),
-            sortOpts.tempDir ? std::make_shared<FileBasedSorterSpiller<IntWrapper, IntWrapper>>(
-                                   *sortOpts.tempDir, nullptr)
-                             : nullptr));
+    std::shared_ptr<IWSorter> makeSorter(const SortOptions& sortOpts, Direction direction) {
+        return std::shared_ptr<IWSorter>(
+            IWSorter::make(sortOpts, IWComparator(direction), storage().makeSpiller(sortOpts)));
     }
 
     std::shared_ptr<IWSorter> runSort(const SortOptions& sortOpts,
@@ -397,7 +413,10 @@ protected:
 #if !defined(MONGO_CONFIG_DEBUG_BUILD)
         for (Direction direction : kDirections) {
             auto mergedSorters = runMergedSortAndValidate(
-                sortOpts, input, direction, /*insertInParallel=*/direction == DESC);
+                sortOpts,
+                input,
+                direction,
+                /*insertInParallel=*/Traits::kHasFileStats && direction == DESC);
             if (expectedRangeCoverage) {
                 assertPersistedRangeInfo(mergedSorters[0], sortOpts, *expectedRangeCoverage);
                 assertPersistedRangeInfo(mergedSorters[1], sortOpts, *expectedRangeCoverage);
@@ -414,9 +433,16 @@ protected:
 private:
     std::unique_ptr<unittest::TempDir> _tempDir;
     SortOptions _opts;
+    boost::optional<Traits> _storage;
 };
 
-class SorterTestManualSpills : public SorterTest {
+using SorterTypedTestTypes = ::testing::Types<FileTraits, ContainerTraits>;
+TYPED_TEST_SUITE(SorterTypedTest, SorterTypedTestTypes);
+
+using SorterFileTest = SorterTypedTest<FileTraits>;
+
+template <typename TypeParam>
+class SorterTypedTestManualSpills : public SorterTypedTest<TypeParam> {
 protected:
     void addInputToSorter(IWSorter* sorter, const KeyList& values) const override {
         for (std::size_t i = 0; i < values.size(); ++i) {
@@ -427,8 +453,9 @@ protected:
         }
     }
 };
+TYPED_TEST_SUITE(SorterTypedTestManualSpills, SorterTypedTestTypes);
 
-class SorterTestPauseAndResumeBase : public SorterTest {
+class SorterTestPauseAndResumeBase : public SorterFileTest {
 protected:
     void assertSortAndMergeWithPauseValidation(const SortOptions& sortOpts, const KeyList& input) {
         for (Direction direction : kDirections) {
@@ -626,38 +653,38 @@ TEST(MergeIteratorTests, MergeIterator) {
     }
 }
 
-TEST_F(SorterTest, Empty) {
-    auto sorter = runSort(opts(), /*input=*/{}, ASC);
-    validateSortOutput(sorter, opts(), /*input=*/{}, ASC);
+TYPED_TEST(SorterTypedTest, Empty) {
+    auto sorter = this->runSort(this->opts(), /*input=*/{}, ASC);
+    validateSortOutput(sorter, this->opts(), /*input=*/{}, ASC);
 
-    auto limitedSorter1 = runSort(SortOptions(opts()).Limit(1), /*input=*/{}, ASC);
-    validateSortOutput(limitedSorter1, SortOptions(opts()).Limit(1), /*input=*/{}, ASC);
+    auto limitedSorter1 = this->runSort(SortOptions(this->opts()).Limit(1), /*input=*/{}, ASC);
+    validateSortOutput(limitedSorter1, SortOptions(this->opts()).Limit(1), /*input=*/{}, ASC);
 
-    auto limitedSorter10 = runSort(SortOptions(opts()).Limit(10), /*input=*/{}, ASC);
-    validateSortOutput(limitedSorter10, SortOptions(opts()).Limit(10), /*input=*/{}, ASC);
+    auto limitedSorter10 = this->runSort(SortOptions(this->opts()).Limit(10), /*input=*/{}, ASC);
+    validateSortOutput(limitedSorter10, SortOptions(this->opts()).Limit(10), /*input=*/{}, ASC);
 }
 
-TEST_F(SorterTest, Basic) {
+TYPED_TEST(SorterTypedTest, Basic) {
     const KeyList input = makeInputData(kSmallNumberOfKeys);
-    assertSortAndMerge(opts(), input);
+    this->assertSortAndMerge(this->opts(), input);
 }
 
-TEST_F(SorterTest, Limit) {
+TYPED_TEST(SorterTypedTest, Limit) {
     const KeyList input = makeInputData(kSmallNumberOfKeys + 1);
-    const auto sortOpts = SortOptions(opts()).Limit(kSmallNumberOfKeys);
-    assertSortAndMerge(sortOpts, input);
+    const auto sortOpts = SortOptions(this->opts()).Limit(kSmallNumberOfKeys);
+    this->assertSortAndMerge(sortOpts, input);
 }
 
-TEST_F(SorterTest, DuplicateValues) {
+TYPED_TEST(SorterTypedTest, DuplicateValues) {
     KeyList input = makeInputData(kSmallNumberOfKeys, ShuffleMode::kShuffle);
     input.insert(input.end(), input.begin(), input.end());
-    assertSortAndMerge(opts(), input);
+    this->assertSortAndMerge(this->opts(), input);
 }
 
 template <typename T>
 inline constexpr auto kMaxAsU64 = static_cast<unsigned long long>(std::numeric_limits<T>::max());
 
-TEST_F(SorterTest, LimitExtremes) {
+TYPED_TEST(SorterTypedTest, LimitExtremes) {
     const KeyList input = makeInputData(kSmallNumberOfKeys);
 
     constexpr auto limits = std::array{
@@ -680,49 +707,59 @@ TEST_F(SorterTest, LimitExtremes) {
     };
 
     for (auto limit : limits) {
-        assertSortAndMerge(SortOptions(opts()).Limit(limit), input);
+        this->assertSortAndMerge(SortOptions(this->opts()).Limit(limit), input);
     }
 }
 
-TEST_F(SorterTest, AggressiveSpilling) {
+TYPED_TEST(SorterTypedTest, AggressiveSpilling) {
     for (auto shuffleMode : {ShuffleMode::kNoShuffle, ShuffleMode::kShuffle}) {
-        resetFixtureTempDir();
+        this->resetFixtureTempDir();
         const auto context = fmt::format(
             "dataSize={},memoryLimit={},limit={}", kLargeNumberOfKeys, kAggressiveSpillMemLimit, 0);
         const KeyList input = makeInputData(kLargeNumberOfKeys, shuffleMode, context);
-        const auto sortOpts = SortOptions(opts()).MaxMemoryUsageBytes(kAggressiveSpillMemLimit);
-        assertSortAndMerge(sortOpts, input, expectedRangeCoverageForAggressiveSpilling());
+        const auto sortOpts =
+            SortOptions(this->opts()).MaxMemoryUsageBytes(kAggressiveSpillMemLimit);
+        if constexpr (TypeParam::kHasFileStats) {
+            this->assertSortAndMerge(sortOpts, input, expectedRangeCoverageForAggressiveSpilling());
+        } else {
+            this->assertSortAndMerge(sortOpts, input);
+        }
     }
 }
 
-TEST_F(SorterTest, LotsOfDataWithLimit) {
+TYPED_TEST(SorterTypedTest, LotsOfDataWithLimit) {
     constexpr auto limits = std::array{1ull, 100ull, 5000ull};
 
     for (auto limit : limits) {
         for (auto shuffleMode : {ShuffleMode::kNoShuffle, ShuffleMode::kShuffle}) {
-            resetFixtureTempDir();
+            this->resetFixtureTempDir();
             const auto context = fmt::format("dataSize={},memoryLimit={},limit={}",
                                              kLargeNumberOfKeys,
                                              kAggressiveSpillMemLimit,
                                              limit);
             const KeyList input = makeInputData(kLargeNumberOfKeys, shuffleMode, context);
-            const auto sortOpts =
-                SortOptions(opts()).MaxMemoryUsageBytes(kAggressiveSpillMemLimit).Limit(limit);
-            assertSortAndMerge(sortOpts, input);
+            const auto sortOpts = SortOptions(this->opts())
+                                      .MaxMemoryUsageBytes(kAggressiveSpillMemLimit)
+                                      .Limit(limit);
+            this->assertSortAndMerge(sortOpts, input);
         }
     }
 }
 
-TEST_F(SorterTestManualSpills, ManualSpills) {
+TYPED_TEST(SorterTypedTestManualSpills, ManualSpills) {
     KeyList input = makeInputData(kSmallNumberOfKeys, ShuffleMode::kShuffle);
-    assertSortAndMerge(opts(), input, expectedRangeCoverageForManualSpills());
+    if constexpr (TypeParam::kHasFileStats) {
+        this->assertSortAndMerge(this->opts(), input, expectedRangeCoverageForManualSpills());
+    } else {
+        this->assertSortAndMerge(this->opts(), input);
+    }
 }
 
-TEST_F(SorterTestManualSpills, ManualSpillsWithLimit) {
+TYPED_TEST(SorterTypedTestManualSpills, ManualSpillsWithLimit) {
     constexpr auto limit = kSmallNumberOfKeys / 2;
     KeyList input = makeInputData(kSmallNumberOfKeys, ShuffleMode::kShuffle);
-    const auto sortOpts = SortOptions(opts()).Limit(limit);
-    assertSortAndMerge(sortOpts, input);
+    const auto sortOpts = SortOptions(this->opts()).Limit(limit);
+    this->assertSortAndMerge(sortOpts, input);
 }
 
 TEST_F(SorterTestPauseAndResume, PauseAndResume) {

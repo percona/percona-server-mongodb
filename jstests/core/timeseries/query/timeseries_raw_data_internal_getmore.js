@@ -10,6 +10,7 @@
  *   incompatible_with_initial_sync,
  *   # Running setParameter is not allowed with a signed security token.
  *   not_allowed_with_signed_security_token,
+ *   requires_getmore,
  * ]
  */
 

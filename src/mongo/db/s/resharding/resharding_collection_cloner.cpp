@@ -335,7 +335,7 @@ void ReshardingCollectionCloner::_writeOnceWithNaturalOrder(
         std::move(cleanupExecutor),
         cancelToken,
         std::move(remoteCursors),
-        resharding::gReshardingCollectionClonerWriteThreadCount,
+        resharding::gReshardingCollectionClonerWriteThreadCount.load(),
         _metrics);
 
     if (reshardingCollectionClonerShouldFailWithStaleConfig.shouldFail()) {

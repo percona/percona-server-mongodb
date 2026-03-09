@@ -47,10 +47,10 @@
 #include "mongo/transport/proxy_protocol_header_parser.h"
 #include "mongo/transport/session_util.h"
 #include "mongo/transport/transport_options_gen.h"
+#include "mongo/util/active_exception_witness.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/future_util.h"
 #include "mongo/util/net/socket_utils.h"
-#include "mongo/util/signal_handlers_synchronous.h"
 
 #include <asio/detail/socket_option.hpp>
 

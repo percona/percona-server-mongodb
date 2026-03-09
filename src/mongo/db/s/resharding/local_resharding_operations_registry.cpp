@@ -132,4 +132,13 @@ void LocalReshardingOperationsRegistry::resyncFromDisk(OperationContext* opCtx) 
     _namespaceToOperations.swap(resyncedRegistry._namespaceToOperations);
 }
 
+namespace resharding {
+void throwIfReshardingInProgress(const NamespaceString& nss) {
+    if (LocalReshardingOperationsRegistry::get().getOperation(nss)) {
+        uasserted(ErrorCodes::ReshardCollectionInProgress,
+                  "reshardCollection is in progress for namespace " + nss.toStringForErrorMsg());
+    }
+}
+}  // namespace resharding
+
 }  // namespace mongo

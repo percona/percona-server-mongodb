@@ -759,10 +759,21 @@ server_parameters:
             chunk-based.
         set_at: [startup, runtime]
         cpp_class:
-            name: SamplingCEMethod
+            name: CBRSamplingCEMethod
             data: synchronized_value<SamplingCEMethodEnum>
         default:
             expr: SamplingCEMethodEnum::kChunk
+        redact: false
+
+    # TODO SERVER-63949: Consolidate CBRSamplingCEMethod and JoinSamplingCEMethod.
+    internalJoinOptimizationSamplingCEMethod:
+        description: Control sampling CE method for the join optimization codepath.
+        set_at: [startup, runtime]
+        cpp_class:
+            name: JoinSamplingCEMethod
+            data: synchronized_value<SamplingCEMethodEnum>
+        default:
+            expr: SamplingCEMethodEnum::kRandom
         redact: false
 
     internalQueryNumChunksForChunkBasedSampling:

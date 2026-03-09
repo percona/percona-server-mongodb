@@ -86,8 +86,8 @@ public:
             // how the recipient's primary-only service is set up.
             ThreadPool::Options threadPoolOptions;
             auto donorShards = Grid::get(opCtx)->shardRegistry()->getAllShardIds(opCtx).size();
-            threadPoolOptions.maxThreads =
-                1 + 2 * donorShards + resharding::gReshardingCollectionClonerWriteThreadCount;
+            threadPoolOptions.maxThreads = 1 + 2 * donorShards +
+                resharding::gReshardingCollectionClonerWriteThreadCount.load();
             threadPoolOptions.threadNamePrefix = "TestReshardCloneCollection-";
             threadPoolOptions.poolName = "TestReshardCloneCollectionThreadPool";
             threadPoolOptions.onCreateThread = [opCtx](const std::string& threadName) {

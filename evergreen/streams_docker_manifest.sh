@@ -37,13 +37,15 @@ for arg in "$@"; do
 done
 
 # Creating the manifest.
+# TODO(SERVER-120347): Re-add arm64 image once we are ready to switch to using arm64.
 docker manifest create $IMAGE:$GITSHA$DISTRO_SUFFIX \
-    $IMAGE:$GITSHA-arm64$DISTRO_SUFFIX \
     $IMAGE:$GITSHA-amd64$DISTRO_SUFFIX
+#    $IMAGE:$GITSHA-arm64$DISTRO_SUFFIX
 
-# Annotating arm64.
-docker manifest annotate $IMAGE:$GITSHA$DISTRO_SUFFIX \
-    $IMAGE:$GITSHA-arm64$DISTRO_SUFFIX --os linux --arch arm64
+# TODO(SERVER-120347): Re-add arm64 annotation once we are ready to switch to using arm64.
+# # Annotating arm64.
+# docker manifest annotate $IMAGE:$GITSHA$DISTRO_SUFFIX \
+#     $IMAGE:$GITSHA-arm64$DISTRO_SUFFIX --os linux --arch arm64
 
 # Annotating amd64.
 docker manifest annotate $IMAGE:$GITSHA$DISTRO_SUFFIX \

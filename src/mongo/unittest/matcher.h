@@ -34,6 +34,8 @@
 
 #include "mongo/base/status.h"
 #include "mongo/unittest/framework.h"
+#include "mongo/util/active_exception_witness.h"
+#include "mongo/util/assert_util.h"
 #include "mongo/util/modules.h"
 #include "mongo/util/pcre.h"
 
@@ -49,7 +51,64 @@ MONGO_MOD_PUBLIC;
  */
 namespace mongo::unittest::match {
 
-using namespace testing;
+using namespace ::testing;
+
+namespace MONGO_MOD_FILE_PRIVATE match_details {
+
+/**
+ * Implementation of the `Throws` matcher.
+ *
+ * Verifies a callable throws a specific exception type. Provides diagnostic output with the
+ * demangled type name and the exception information via the ActiveExceptionWitness.
+ *
+ * Expects a callable (function, lambda, etc.) with no parameters. If testing a function
+ * with parameters, wrap the call in a lambda.
+ */
+template <typename Exception>
+class ThrowsMatcherImpl {
+public:
+    explicit ThrowsMatcherImpl(testing::Matcher<const Exception&> matcher)
+        : _matcher(std::move(matcher)) {}
+
+    void DescribeTo(std::ostream* os) const {
+        *os << fmt::format("throws a {} which ", demangleName(typeid(Exception)));
+        _matcher.DescribeTo(os);
+    }
+
+    void DescribeNegationTo(std::ostream* os) const {
+        *os << fmt::format("throws an exception which is not a {} which ",
+                           demangleName(typeid(Exception)));
+        _matcher.DescribeNegationTo(os);
+    }
+
+    template <typename T>
+    bool MatchAndExplain(T&& x, MatchResultListener* listener) const {
+        auto describeThrow = [&] {
+            *listener << "throws an exception";
+            if (const auto& info = activeExceptionInfo()) {
+                *listener << " of type " + demangleName(*info->type);
+                *listener << " with value " << info->description;
+            }
+        };
+
+        try {
+            (void)std::forward<T>(x)();
+        } catch (const Exception& ex) {
+            describeThrow();
+            *listener << ", which is a " << demangleName(typeid(Exception)) << " ";
+            return _matcher.MatchAndExplain(ex, listener);
+        } catch (...) {
+            describeThrow();
+            return false;
+        }
+
+        *listener << "does not throw";
+        return false;
+    }
+
+    testing::Matcher<const Exception&> _matcher;
+};
+}  // namespace MONGO_MOD_FILE_PRIVATE match_details
 
 inline auto Any() {
     return _;
@@ -80,4 +139,34 @@ MATCHER_P2(StatusIs, code, reason, "") {
         result_listener);
 }
 
+/**
+ * `Throws<E>(m)`:  The `argument` is a callable object that, when called,
+ * throws an exception of type `E` that satisfies the matcher `m`.
+ *
+ * Uses the `ActiveExceptionWitness` to provide better diagnostic message than `testing::Throws`.
+ *
+ * Example:
+ *   auto func = [] { throw std::runtime_error("error msg"); };
+ *   ASSERT_THAT(func, Throws<std::runtime_error>(Property(&std::exception::what, "error msg")));
+ */
+template <typename Exception, typename Matcher>
+inline auto Throws(const Matcher& exceptionMatcher) {
+    return MakePolymorphicMatcher(match_details::ThrowsMatcherImpl<Exception>{
+        SafeMatcherCast<const Exception&>(exceptionMatcher)});
+}
+
+/**
+ * `Throws<E>()` : The `argument` is a callable object that, when called, throws
+ * an exception of the expected type `E`.
+ *
+ * Equivalent to Throws<E>(A<E>())
+ *
+ * Example:
+ *   auto func = [] { throw std::runtime_error("error msg"); };
+ *   ASSERT_THAT(func, Throws<std::runtime_error>());
+ */
+template <typename Exception>
+inline auto Throws() {
+    return match::Throws<Exception>(A<Exception>());
+}
 }  // namespace mongo::unittest::match

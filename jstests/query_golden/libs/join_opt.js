@@ -65,6 +65,7 @@ export function joinTestWrapper(testFun) {
             internalJoinEnumerateCollScanPlans: 1,
             internalMinAllPlansEnumerationSubsetLevel: 1,
             internalMaxAllPlansEnumerationSubsetLevel: 1,
+            internalJoinOptimizationSamplingCEMethod: 1,
         }),
     );
     delete params.ok;

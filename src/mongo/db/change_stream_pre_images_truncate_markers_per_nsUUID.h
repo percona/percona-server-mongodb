@@ -128,7 +128,10 @@ public:
      * called. Callers are responsible for managing when the call is executed (inside an
      * 'onCommit()' handler or on its own).
      */
-    void updateMarkers(int64_t numBytes, RecordId recordId, Date_t wallTime, int64_t numRecords);
+    void updateMarkers(int64_t numBytes,
+                       const RecordId& recordId,
+                       Date_t wallTime,
+                       int64_t numRecords);
 
 private:
     bool _hasExcessMarkers(OperationContext* opCtx) const override;

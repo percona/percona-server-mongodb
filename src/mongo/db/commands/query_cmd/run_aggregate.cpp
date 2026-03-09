@@ -840,9 +840,6 @@ void executeExplain(const AggExState& aggExState,
  * Executes the aggregation 'request' given a properly constructed AggregationExecutionState,
  * which holds the request and all necessary supporting context to execute request.
  *
- * If the query over a view that's already been resolved, the appropriate state should
- * have already been set in AggregationExecutionState.
- *
  * On success, fills out 'result' with the command response.
  */
 Status _runAggregate(std::shared_ptr<AggExState> aggExState, rpc::ReplyBuilderInterface* result);
@@ -1407,12 +1404,11 @@ Status _runAggregate(std::unique_ptr<AggExState> aggExState, rpc::ReplyBuilderIn
             OperationContext* opCtx = resolvedViewAggExState->getOpCtx();
             if (OperationShardingState::get(opCtx).shouldBeTreatedAsFromRouter(opCtx)) {
                 // Sharding-aware operation on a view: execute the resolved aggregation under the
-                // shard-role for the underlying collection, without recursing into _runAggregate.
+                // shard-role for the underlying collection.
                 return runAggregateOnShardedView(std::move(resolvedViewAggExState), result);
             }
 
-            // Non-sharded view: treat the resolved view as the new AggExState and proceed normally,
-            // running the aggregate exactly once.
+            // Non-sharded view: treat the resolved view as the new AggExState and proceed normally.
             aggExState = std::move(resolvedViewAggExState);
 
             // Re-run validation on the resolved request, then rebuild catalog state for the

@@ -455,21 +455,10 @@ Timestamp getPreImageTruncateTimestampForRecovery(OperationContext* opCtx) {
     return expirationTimestamp;
 }
 
-// Returns true iff we should run *replicated* truncates for pre-images on this node.
-bool shouldUseReplicatedTruncatesForPreImages(OperationContext* opCtx) {
-    // TODO: SERVER-114103 Implement lifecycle for replicated truncates.
-    if (const auto& rss = rss::ReplicatedStorageService::get(opCtx);
-        rss.getPersistenceProvider().shouldUseReplicatedTruncates()) {
-        return true;
-    }
-
-    return false;
-}
-
 void cleanupPreImagesCollectionAfterUncleanShutdown(OperationContext* opCtx) {
     // If pre-images truncation is replicated, replication recovery will replay the truncate
     // operations after an unclean shutdown, so no additional local truncation is required here.
-    if (shouldUseReplicatedTruncatesForPreImages(opCtx)) {
+    if (change_stream_pre_image_util::shouldUseReplicatedTruncatesForPreImages(opCtx)) {
         return;
     }
 

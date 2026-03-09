@@ -63,6 +63,9 @@ enum class ErrorCategory {
     //#end for
 };
 
+std::string toString(ErrorCategory cat);
+std::ostream& operator<<(std::ostream& os, ErrorCategory cat);
+
 /**
  * This is a generated class containing a table of error codes and their corresponding error
  * strings. The class is derived from the definitions in src/mongo/base/error_codes.yml file and the
@@ -215,3 +218,17 @@ using ErrorExtraInfoFor = typename ErrorExtraInfoForImpl<code>::type;
 MONGO_MOD_PUBLIC std::span<const ErrorCodes::Error> allErrorCodes_forTest();
 
 }  // namespace MONGO_MOD_PUBLIC mongo
+
+template<>
+struct fmt::formatter<mongo::ErrorCodes::Error> : fmt::formatter<std::string> {
+    auto format(const mongo::ErrorCodes::Error& err, fmt::format_context& ctx) const {
+        return fmt::formatter<std::string>::format(mongo::ErrorCodes::errorString(err), ctx);
+    }
+};
+
+template<>
+struct fmt::formatter<mongo::ErrorCategory> : fmt::formatter<std::string> {
+    auto format(const mongo::ErrorCategory& cat, fmt::format_context& ctx) const {
+        return fmt::formatter<std::string>::format(mongo::toString(cat), ctx);
+    }
+};

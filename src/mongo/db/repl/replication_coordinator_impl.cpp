@@ -1763,7 +1763,10 @@ OpTime ReplicationCoordinatorImpl::getMyLastWrittenOpTime() const {
 OpTimeAndWallTime ReplicationCoordinatorImpl::getMyLastWrittenOpTimeAndWallTime(
     bool rollbackSafe) const {
     stdx::lock_guard lock(_mutex);
-    if (rollbackSafe && _getMemberState(lock).rollback()) {
+    // A node rolling back may be removed from the cluster, in which case it is still not safe to
+    // return the opTime from the oplog here. So, in the rollbackSafe case we do not return the time
+    // if we are in rollback OR removed state.
+    if (rollbackSafe && (_getMemberState(lock).rollback() || _getMemberState(lock).removed())) {
         return {};
     }
     return _getMyLastWrittenOpTimeAndWallTime(lock);

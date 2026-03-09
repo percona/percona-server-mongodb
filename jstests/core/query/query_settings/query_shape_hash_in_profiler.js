@@ -8,6 +8,7 @@
 //   # Profile command doesn't support stepdowns.
 //   does_not_support_stepdowns,
 //   simulate_atlas_proxy_incompatible,
+//   requires_getmore,
 // ]
 import {after, before, describe, it} from "jstests/libs/mochalite.js";
 import {QuerySettingsUtils} from "jstests/libs/query/query_settings_utils.js";

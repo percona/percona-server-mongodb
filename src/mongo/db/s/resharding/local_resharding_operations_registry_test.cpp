@@ -36,6 +36,7 @@
 #include "mongo/db/s/resharding/coordinator_document_gen.h"
 #include "mongo/db/s/resharding/donor_document_gen.h"
 #include "mongo/db/s/resharding/recipient_document_gen.h"
+#include "mongo/db/service_context_test_fixture.h"
 #include "mongo/s/resharding/common_types_gen.h"
 #include "mongo/unittest/unittest.h"
 #include "mongo/util/assert_util.h"
@@ -405,6 +406,37 @@ TEST(LocalReshardingOperationsRegistryTest,
     registry.registerOperation(Role::kCoordinator, meta2);
 
     ASSERT_THROWS_CODE(registry.getOperation(kNs1), DBException, ErrorCodes::PrimarySteppedDown);
+}
+
+class ThrowIfReshardingInProgressTest : public ServiceContextTest {};
+
+TEST_F(ThrowIfReshardingInProgressTest, DoesNotThrowWhenNoOperationRegistered) {
+    ASSERT_DOES_NOT_THROW(resharding::throwIfReshardingInProgress(kNs1));
+}
+
+TEST_F(ThrowIfReshardingInProgressTest, ThrowsWhenOperationIsRegistered) {
+    auto& registry = LocalReshardingOperationsRegistry::get();
+    registry.registerOperation(Role::kCoordinator, makeMetadata(kNs1));
+
+    ASSERT_THROWS_CODE(resharding::throwIfReshardingInProgress(kNs1),
+                       DBException,
+                       ErrorCodes::ReshardCollectionInProgress);
+}
+
+TEST_F(ThrowIfReshardingInProgressTest, DoesNotThrowAfterOperationUnregistered) {
+    auto& registry = LocalReshardingOperationsRegistry::get();
+    auto meta = makeMetadata(kNs1);
+    registry.registerOperation(Role::kCoordinator, meta);
+    registry.unregisterOperation(Role::kCoordinator, meta);
+
+    ASSERT_DOES_NOT_THROW(resharding::throwIfReshardingInProgress(kNs1));
+}
+
+TEST_F(ThrowIfReshardingInProgressTest, DoesNotThrowForDifferentNamespace) {
+    auto& registry = LocalReshardingOperationsRegistry::get();
+    registry.registerOperation(Role::kCoordinator, makeMetadata(kNs1));
+
+    ASSERT_DOES_NOT_THROW(resharding::throwIfReshardingInProgress(kNs2));
 }
 
 }  // namespace

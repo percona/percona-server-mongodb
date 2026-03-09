@@ -31,6 +31,8 @@ buildvariants:
 
   - name: enterprise-amazon2023-streams-arm64
     display_name: "Amazon Linux 2023 enterprise streams arm64"
+    # TODO(SERVER-120347): Re-enable once we are ready to switch to using arm64.
+    activate: false
     modules: ["asp-js-engine"]
     run_on:
       - amazon2023-arm64-latest-m8g-xlarge
@@ -55,6 +57,8 @@ buildvariants:
 
   - name: enterprise-amazon2023-streams-tsan
     display_name: "TSAN Amazon Linux 2023 arm64 enterprise streams"
+    # TODO(SERVER-120347): Re-enable once we are ready to switch to using arm64.
+    activate: false
     modules: ["asp-js-engine"]
     run_on:
       - amazon2023-arm64-latest-m8g-xlarge
@@ -87,6 +91,8 @@ buildvariants:
 
   - name: enterprise-amazon2023-streams-aubsan
     display_name: "{A,UB}SAN Amazon Linux 2023 arm64 enterprise streams"
+    # TODO(SERVER-120347): Re-enable once we are ready to switch to using arm64.
+    activate: false
     modules: ["asp-js-engine"]
     run_on:
       - amazon2023-arm64-latest-m8g-xlarge

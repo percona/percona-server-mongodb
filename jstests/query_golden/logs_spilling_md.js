@@ -312,11 +312,6 @@ const animalsDocs = [
 assert.commandWorked(locations.insertMany(locationsDocs));
 assert.commandWorked(animals.insertMany(animalsDocs));
 
-// TODO: SERVER-119477 remove the disablement of Join Optimization once we can force the spilling
-// of its hash join implementation
-saveParameterToRestore("internalEnableJoinOptimization");
-setServerParameter("internalEnableJoinOptimization", false);
-
 outputPipelineAndSlowQueryLog(
     animals,
     [

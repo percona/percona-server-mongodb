@@ -334,6 +334,96 @@ TEST_F(UnitTestPrintingTest, Status) {
 ASSERT_DOES_NOT_COMPILE(DoesNotCompileCheckDeclval, typename Char = char, *std::declval<Char>());
 ASSERT_DOES_NOT_COMPILE(DoesNotCompileCheckEnableIf, bool B = false, std::enable_if_t<B, int>{});
 
+class ExceptionMatcherTest : public mongo::unittest::Test {
+protected:
+    static void doThrow() {
+        uasserted(mongo::ErrorCodes::CommandFailed, "failure message");
+    }
+
+    static void doThrowSpecialExceptionType() {
+        throw mongo::TemporarilyUnavailableException{
+            mongo::Status{mongo::ErrorCodes::CommandFailed, "failure message"}};
+    }
+
+    static void doThrowRetriableErrorCategory() {
+        uasserted(mongo::ErrorCodes::ExceededTimeLimit, "failure message");
+    }
+
+    static void doThrowStdRuntimeError() {
+        throw std::runtime_error{"error"};
+    }
+};
+
+TEST_F(ExceptionMatcherTest, TestAssertThrowsCodeSuccess) {
+    ASSERT_THROWS_CODE(doThrow(), mongo::DBException, mongo::ErrorCodes::CommandFailed);
+}
+
+TEST_F(ExceptionMatcherTest, TestAssertThrowsCodeAndWhatSuccess) {
+    ASSERT_THROWS_CODE_AND_WHAT(
+        doThrow(), mongo::DBException, mongo::ErrorCodes::CommandFailed, "failure message");
+}
+
+TEST_F(ExceptionMatcherTest, DBExceptionMatcherDescription) {
+    namespace match = mongo::unittest::match;
+
+    auto matcherSimple = match::Throws<mongo::DBException>();
+    auto matcher = match::Throws<mongo::DBException>(
+        testing::Property("code", &mongo::DBException::code, mongo::ErrorCodes::CommandFailed));
+
+    ASSERT_EQ(testing::DescribeMatcher<void (*)()>(matcherSimple),
+              fmt::format("throws a {} which is anything",
+                          mongo::demangleName(typeid(mongo::DBException))));
+    ASSERT_EQ(testing::DescribeMatcher<void (*)()>(matcher),
+              fmt::format(
+                  "throws a {} which is an object whose property `code` is equal to CommandFailed",
+                  mongo::demangleName(typeid(mongo::DBException))));
+}
+
+TEST_F(ExceptionMatcherTest, DBExceptionMatcher) {
+    namespace match = mongo::unittest::match;
+    ASSERT_THAT(doThrow, match::Throws<mongo::DBException>());
+    ASSERT_THAT(doThrowStdRuntimeError, testing::Not(match::Throws<mongo::DBException>()));
+}
+
+TEST_F(ExceptionMatcherTest, DBExceptionMatcherWithMatcher) {
+    namespace match = mongo::unittest::match;
+    ASSERT_THAT(doThrow,
+                match::Throws<mongo::DBException>(testing::Property(
+                    "code", &mongo::DBException::code, mongo::ErrorCodes::CommandFailed)));
+}
+
+TEST_F(ExceptionMatcherTest, ExceptionForCodeMatcher) {
+    namespace match = mongo::unittest::match;
+    ASSERT_THAT(doThrow, match::Throws<mongo::ExceptionFor<mongo::ErrorCodes::CommandFailed>>());
+
+    // We use APIMismatchError as an unrelated exception type so that the matcher fails.
+    // It could be any other error code that is not `CommandFailed`.
+    ASSERT_THAT(
+        doThrow,
+        testing::Not(match::Throws<mongo::ExceptionFor<mongo::ErrorCodes::APIMismatchError>>()));
+}
+
+TEST_F(ExceptionMatcherTest, ExceptionForCodeWithMatcher) {
+    namespace match = mongo::unittest::match;
+    ASSERT_THAT(doThrow,
+                match::Throws<mongo::ExceptionFor<mongo::ErrorCodes::CommandFailed>>(
+                    testing::Property("reason", &mongo::DBException::reason, "failure message")));
+}
+
+TEST_F(ExceptionMatcherTest, ExceptionSpecialTypeMatcher) {
+    namespace match = mongo::unittest::match;
+    ASSERT_THAT(doThrowSpecialExceptionType,
+                match::Throws<mongo::ExceptionFor<mongo::ErrorCodes::TemporarilyUnavailable>>());
+    ASSERT_THAT(doThrowSpecialExceptionType,
+                match::Throws<mongo::TemporarilyUnavailableException>());
+}
+
+TEST_F(ExceptionMatcherTest, ExceptionForCategoryMatcher) {
+    namespace match = mongo::unittest::match;
+    ASSERT_THAT(doThrowRetriableErrorCategory,
+                match::Throws<mongo::ExceptionFor<mongo::ErrorCategory::RetriableError>>());
+}
+
 // Uncomment to check that it fails when it is supposed to. Unfortunately we can't check in a test
 // that this fails when it is supposed to, only that it passes when it should.
 //

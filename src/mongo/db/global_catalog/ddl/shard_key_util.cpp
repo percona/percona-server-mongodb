@@ -376,6 +376,9 @@ BSONObj validateAndTranslateTimeseriesShardKey(const TimeseriesOptions& tsOption
 }
 
 bool isRawTimeseriesShardKey(const TimeseriesOptions& tsOptions, const BSONObj& tsShardKey) {
+    if (tsShardKey.isEmpty()) {
+        return false;
+    }
     const auto& timeFieldName = tsOptions.getTimeField();
     const auto& metaFieldName = tsOptions.getMetaField();
     for (const auto& elem : tsShardKey) {
@@ -386,7 +389,10 @@ bool isRawTimeseriesShardKey(const TimeseriesOptions& tsOptions, const BSONObj& 
             return false;
         }
     }
-    return true;
+
+    // After checking if any field matches user-facing field names, we need to check if it is a
+    // valid bucket format key to reject invalid keys.
+    return timeseries::createTimeseriesIndexFromBucketsIndexSpec(tsOptions, tsShardKey).has_value();
 }
 
 // TODO: SERVER-64187 move calls to validateShardKeyIsNotEncrypted into

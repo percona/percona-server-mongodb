@@ -186,7 +186,6 @@ class _AddRemoveShardThread(threading.Thread):
         self._transition_intervals = transition_intervals
         self._client = fixture_interface.build_client(self._fixture, self._auth_options)
         self._current_config_mode = self._current_fixture_mode()
-        self._should_wait_for_balancer_round = False
         self._shard_name_suffix = 0
 
         # Event set when the thread has been stopped using the 'stop()' method.
@@ -747,42 +746,6 @@ class _AddRemoveShardThread(threading.Thread):
                 if last_balancer_status is None:
                     last_balancer_status = self._client.admin.command({"balancerStatus": 1})
 
-                if self._should_wait_for_balancer_round:
-                    # TODO SERVER-90291: Remove.
-                    #
-                    # Wait for one balancer round after starting to drain if the shard owned no
-                    # chunks to avoid a race where the migration of the first chunk to the shard
-                    # can leave the collection orphaned on it after it's been removed as a shard.
-                    latest_status = self._client.admin.command({"balancerStatus": 1})
-
-                    if last_balancer_status["term"] != latest_status["term"]:
-                        self.logger.info(
-                            "Detected change in repl set term while waiting for a balancer round "
-                            "before " + msg + ". last term: %d, new term: %d",
-                            last_balancer_status["term"],
-                            latest_status["term"],
-                        )
-                        last_balancer_status = latest_status
-                        time.sleep(1)
-                        continue
-
-                    if (
-                        last_balancer_status["numBalancerRounds"]
-                        >= latest_status["numBalancerRounds"]
-                    ):
-                        self.logger.info(
-                            "Waiting for a balancer round before "
-                            + msg
-                            + ". Last round: %d, latest round: %d",
-                            last_balancer_status["numBalancerRounds"],
-                            latest_status["numBalancerRounds"],
-                        )
-                        time.sleep(1)
-                        continue
-
-                    self.logger.info("Done waiting for a balancer round before " + msg)
-                    self._should_wait_for_balancer_round = False
-
                 if shard_id == "config":
                     res = self._client.admin.command({"transitionToDedicatedConfigServer": 1})
                 else:
@@ -801,10 +764,7 @@ class _AddRemoveShardThread(threading.Thread):
                     self.logger.error(msg)
                     raise errors.ServerFailure(msg)
 
-                if res["state"] == "started":
-                    if self._client.config.chunks.count_documents({"shard": shard_id}) == 0:
-                        self._should_wait_for_balancer_round = True
-                elif res["state"] == "ongoing":
+                if res["state"] == "ongoing":
                     num_draining_rounds += 1
                     self._drain_shard_for_ongoing_transition(num_draining_rounds, res, shard_id)
 
