@@ -1367,7 +1367,6 @@ const allTestCases = {
 
         // Percona commands
         auditGetOptions: {skip: "executes locally on mongod (not sent to any remote node)"},
-        createBackup: {skip: "executes locally on mongod (not sent to any remote node)"},
     },
 };
 

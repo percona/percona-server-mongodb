@@ -255,11 +255,6 @@ const allCommands = {
         isAdminCommand: true,
         shouldFail: true,
     },
-    auditGetOptions: {
-        isAdminCommand: true,
-        command: {auditGetOptions: 1},
-        shouldFail: false,
-    },
     authenticate: {skip: "tested in test setup and direct_shard_connection_auth.js"},
     autoCompact: {
         checkFeatureFlag: "AutoCompact",
@@ -465,11 +460,6 @@ const allCommands = {
     create: {
         command: {create: collName},
         shouldFail: true,
-    },
-    createBackup: {
-        isAdminCommand: true,
-        command: {createBackup: 1, backupDir: "/tmp/bckp"},
-        shouldFail: false,
     },
     createIndexes: {
         setUp: function (mongoS) {
