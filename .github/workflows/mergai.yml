@@ -11,6 +11,12 @@ on:
     types: [closed]
     branches:
       - "mergai/*/conflict"
+  workflow_run:
+    workflows: ["clang-tidy", "format"]
+    types: [completed]
+    # Only react to workflows on mergai branches
+    branches:
+      - "mergai/**"
 
 jobs:
   trigger-merge:
@@ -142,3 +148,86 @@ jobs:
           mergai branch push main          # Push main branch to origin
           mergai notes push                # Push mergai notes to remote
           mergai pr --repo $GITHUB_REPOSITORY create main
+
+  workflow-status:
+    # Print workflow status when specific workflows complete on mergai branches
+    # 'privileged-ops' environment controls access to merge operations
+    # environment: privileged-ops
+    if: github.event_name == 'workflow_run'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Print finished workflow details
+        run: |
+          echo "=== Workflow Run Completed ==="
+          echo "Workflow: ${{ github.event.workflow_run.name }}"
+          echo "Run ID: ${{ github.event.workflow_run.id }}"
+          echo "Run Number: ${{ github.event.workflow_run.run_number }}"
+          echo "Conclusion: ${{ github.event.workflow_run.conclusion }}"
+          echo "Status: ${{ github.event.workflow_run.status }}"
+          echo "Head Branch: ${{ github.event.workflow_run.head_branch }}"
+          echo "Head SHA: ${{ github.event.workflow_run.head_sha }}"
+          echo "URL: ${{ github.event.workflow_run.html_url }}"
+          echo "Event: ${{ github.event.workflow_run.event }}"
+          echo "Run Started At: ${{ github.event.workflow_run.run_started_at }}"
+          echo "Updated At: ${{ github.event.workflow_run.updated_at }}"
+          echo "Run Attempt: ${{ github.event.workflow_run.run_attempt }}"
+          echo "Repository: ${{ github.event.workflow_run.repository.full_name }}"
+          echo "Actor: ${{ github.event.workflow_run.actor.login }}"
+          echo "Triggering Actor: ${{ github.event.workflow_run.triggering_actor.login }}"
+
+      - name: Find associated PR and print all workflow statuses
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          HEAD_SHA="${{ github.event.workflow_run.head_sha }}"
+          HEAD_BRANCH="${{ github.event.workflow_run.head_branch }}"
+
+          echo ""
+          echo "=== Finding PR for SHA: $HEAD_SHA ==="
+
+          # Find PR associated with this commit (check both by SHA and by head branch)
+          PR_DATA=$(gh api "repos/${{ github.repository }}/pulls?state=open&head=${{ github.repository_owner }}:${HEAD_BRANCH}" \
+            --jq ".[0] | {number: .number, title: .title, url: .html_url, state: .state}" 2>/dev/null || echo "")
+
+          if [ -z "$PR_DATA" ] || [ "$PR_DATA" = "null" ]; then
+            # Fallback: search by SHA across all open PRs
+            PR_DATA=$(gh api "repos/${{ github.repository }}/pulls?state=open" \
+              --jq ".[] | select(.head.sha == \"$HEAD_SHA\") | {number: .number, title: .title, url: .html_url, state: .state}" 2>/dev/null | head -1 || echo "")
+          fi
+
+          if [ -z "$PR_DATA" ] || [ "$PR_DATA" = "null" ]; then
+            echo "No open PR found for SHA $HEAD_SHA or branch $HEAD_BRANCH"
+            exit 0
+          fi
+
+          PR_NUMBER=$(echo "$PR_DATA" | jq -r '.number')
+          PR_TITLE=$(echo "$PR_DATA" | jq -r '.title')
+          PR_URL=$(echo "$PR_DATA" | jq -r '.url')
+          PR_STATE=$(echo "$PR_DATA" | jq -r '.state')
+
+          echo "Found PR #$PR_NUMBER: $PR_TITLE"
+          echo "URL: $PR_URL"
+          echo "State: $PR_STATE"
+
+          echo ""
+          echo "=== All Check Runs for PR #$PR_NUMBER (SHA: $HEAD_SHA) ==="
+          gh api "repos/${{ github.repository }}/commits/$HEAD_SHA/check-runs" \
+            --jq '.check_runs[] | "[\(.conclusion // .status | ascii_upcase)] \(.name) - \(.html_url)"' | sort
+
+          echo ""
+          echo "=== Workflow Runs for SHA: $HEAD_SHA ==="
+          gh api "repos/${{ github.repository }}/actions/runs?head_sha=$HEAD_SHA" \
+            --jq '.workflow_runs[] | "[\(.conclusion // .status | ascii_upcase)] \(.name) (Run #\(.run_number)) - \(.html_url)"' | sort
+
+          echo ""
+          echo "=== Summary ==="
+          TOTAL_CHECKS=$(gh api "repos/${{ github.repository }}/commits/$HEAD_SHA/check-runs" --jq '.total_count')
+          SUCCESS_CHECKS=$(gh api "repos/${{ github.repository }}/commits/$HEAD_SHA/check-runs" --jq '[.check_runs[] | select(.conclusion == "success")] | length')
+          FAILED_CHECKS=$(gh api "repos/${{ github.repository }}/commits/$HEAD_SHA/check-runs" --jq '[.check_runs[] | select(.conclusion == "failure")] | length')
+          PENDING_CHECKS=$(gh api "repos/${{ github.repository }}/commits/$HEAD_SHA/check-runs" --jq '[.check_runs[] | select(.status == "in_progress" or .status == "queued" or .status == "pending")] | length')
+
+          echo "Total Checks: $TOTAL_CHECKS"
+          echo "Success: $SUCCESS_CHECKS"
+          echo "Failed: $FAILED_CHECKS"
+          echo "Pending/In Progress: $PENDING_CHECKS"

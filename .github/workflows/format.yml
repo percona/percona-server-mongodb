@@ -2,13 +2,19 @@ name: format
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, labeled, unlabeled]
+    # Note: 'labeled' is intentionally excluded to avoid race conditions when
+    # automation (e.g., mergai) creates a PR and immediately adds labels.
+    # The 'opened' and 'labeled' events fire separately, causing duplicate runs.
+    # Instead, we query the GitHub API for fresh label data in the check-skip job.
+    # 'unlabeled' IS included so removing a skip label re-triggers the workflow.
+    types: [opened, synchronize, reopened, unlabeled]
 
-# Cancel in-progress runs when new events occur (e.g., labels added after PR creation)
-# This prevents race conditions where the 'opened' event triggers before labels are applied
+# Cancel in-progress runs only for 'synchronize' events (new commits pushed).
+# For 'unlabeled' events, we use a unique group to avoid cancelling runs from
+# other event types - this ensures removing a label always triggers a fresh run.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
-  cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}-${{ github.event.action == 'unlabeled' && github.run_id || 'main' }}
+  cancel-in-progress: ${{ github.event.action != 'unlabeled' }}
 
 permissions:
   contents: read
