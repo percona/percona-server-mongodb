@@ -182,14 +182,18 @@ branch:
   #
   # Available tokens:
   #   %(target_branch)           - The target branch name (required)
-  #   %(target_branch_sha)       - Full SHA of the target branch (40 chars)
-  #   %(target_branch_short_sha) - Short SHA of the target branch (11 chars)
   #   %(merge_commit_sha)        - Full SHA of the merge commit (40 chars)
   #   %(merge_commit_short_sha)  - Short SHA of the merge commit (11 chars)
+  #   %(target_branch_sha)       - Full SHA of the target branch (40 chars) [optional]
+  #   %(target_branch_short_sha) - Short SHA of the target branch (11 chars) [optional]
   #   %(type)                    - Branch type (main, conflict, solution, or custom)
   #
-  # Default: "mergai/%(target_branch)-%(merge_commit_short_sha)-%(target_branch_short_sha)/%(type)"
-  name_format: "mergai/%(target_branch)-%(target_branch_short_sha)-%(merge_commit_short_sha)/%(type)"
+  # Note: target_branch_sha tokens are optional - they can cause confusion after
+  # rebasing since the branch name stays the same but target_branch_sha in
+  # merge_info changes.
+  #
+  # Default: "mergai/%(target_branch)-%(merge_commit_short_sha)/%(type)"
+  name_format: "mergai/%(target_branch)-%(merge_commit_short_sha)/%(type)"
 
 # -----------------------------------------------------------------------------
 # COMMIT CONFIGURATION
