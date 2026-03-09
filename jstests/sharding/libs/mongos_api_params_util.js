@@ -155,6 +155,7 @@ export let MongosAPIParametersUtil = (function () {
             } */
         },
         {commandName: "appendOplogNote", skip: "TODO(SERVER-108802)"},
+        {commandName: "auditGetOptions", skip: "TODO"},
         {commandName: "autoSplitVector", skip: "TODO(SERVER-108802)"},
         {
             commandName: "bulkWrite",
