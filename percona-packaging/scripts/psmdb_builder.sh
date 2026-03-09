@@ -656,10 +656,6 @@ build_rpm(){
     TARF=$(find . -name 'percona-server-mongodb*.tar.gz' | sort | tail -n1)
     tar vxzf ${TARF} --wildcards '*/etc' --strip=1
     tar vxzf ${TARF} --wildcards '*/buildscripts' --strip=1
-    python3 buildscripts/install_bazel.py
-    export PATH=\/root/.local/bin:$PATH >> ~/.bashrc
-    source ~/.bashrc
-    rm -rf install_bazel.py
     if [ x"$RHEL" = x7 ]; then
       if [ -f /opt/rh/devtoolset-9/enable ]; then
         source /opt/rh/devtoolset-9/enable
@@ -687,7 +683,13 @@ build_rpm(){
          PATH=/opt/mongodbtoolchain/v4/bin/:$PATH
     fi
 #        PATH=/opt/mongodbtoolchain/v4/bin/:$PATH
-        pip install --upgrade pip
+
+    python3 buildscripts/install_bazel.py
+    export PATH=\/root/.local/bin:$PATH >> ~/.bashrc
+    source ~/.bashrc
+    rm -rf install_bazel.py
+
+    pip install --upgrade pip
 
     # PyYAML pkg installation fix, more info: https://github.com/yaml/pyyaml/issues/724
     pip install pyyaml==5.4.1 --no-build-isolation
