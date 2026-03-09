@@ -21,6 +21,7 @@ env.Library(
 )
 
 wtEnv = env.Clone()
+wtEnv.InjectThirdParty(libraries=['aws-sdk-cpp'])
 wtEnv.InjectThirdParty(libraries=['libarchive'])
 wtEnv.InjectThirdParty(libraries=['wiredtiger'])
 wtEnv.InjectThirdParty(libraries=['zlib'])
@@ -78,6 +79,7 @@ wtEnv.Library(
         '$BUILD_DIR/mongo/util/concurrency/ticketholder',
         '$BUILD_DIR/mongo/util/elapsed_tracker',
         '$BUILD_DIR/mongo/util/processinfo',
+        '$BUILD_DIR/third_party/shim_awssdk',
         '$BUILD_DIR/third_party/shim_libarchive',
         '$BUILD_DIR/third_party/shim_snappy',
         '$BUILD_DIR/third_party/shim_wiredtiger',
@@ -106,24 +108,6 @@ wtEnv.Library(
         'oplog_truncate_marker_parameters',
     ],
     SYSLIBDEPS=[
-        # S3 and its dependencies
-        # order is important
-        'aws-cpp-sdk-transfer',
-        'aws-cpp-sdk-s3',
-        'aws-cpp-sdk-core',
-        'aws-crt-cpp',
-        'aws-c-event-stream',
-        'aws-c-mqtt',
-        'aws-c-s3',
-        'aws-c-auth',
-        'aws-c-http',
-        'aws-c-compression',
-        'aws-c-io',
-        'aws-c-cal',
-        'aws-c-sdkutils',
-        's2n',
-        'aws-checksums',
-        'aws-c-common',
         'curl',
     ],
 )
