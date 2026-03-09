@@ -5,14 +5,14 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 389,
+    "commits_behind": 395,
     "days_behind": 12,
-    "files_affected": 1808,
-    "total_additions": 86870,
-    "total_deletions": 48388,
+    "files_affected": 1817,
+    "total_additions": 87056,
+    "total_deletions": 48441,
     "date_range": {
       "first": "2026-02-24T22:12:40+00:00",
-      "last": "2026-03-08T23:26:46+00:00"
+      "last": "2026-03-09T13:35:35+00:00"
     }
   },
   "last_merged_commit": {
@@ -36,6 +36,66 @@
     "summary": "SERVER-119281 Don't record queryStats for timeseries updates (#48039)"
   },
   "unmerged_commits": [
+    {
+      "sha": "d9d1151875a0344360bd9a7a5340e938c3459697",
+      "short_sha": "d9d1151875a",
+      "date": "2026-03-09T09:35:35-04:00",
+      "author": {
+        "name": "Nicholas Shectman",
+        "email": "nicholas.shectman@mongodb.com"
+      },
+      "summary": "SERVER-118853 Refactor code from _completeStepUp() into stepUpIfEligible() (#47625)"
+    },
+    {
+      "sha": "965d154ca89bfb17f330990573ba0ac13d504b2c",
+      "short_sha": "965d154ca89",
+      "date": "2026-03-09T11:25:03+01:00",
+      "author": {
+        "name": "Hagar Mohamed",
+        "email": "hagar.mohamed@mongodb.com"
+      },
+      "summary": "SERVER-114733 Measure and report optimization time in nanoseconds (#49227)"
+    },
+    {
+      "sha": "0ff4e953fedd32a8686425b57350d4ffab779963",
+      "short_sha": "0ff4e953fed",
+      "date": "2026-03-09T10:07:47+00:00",
+      "author": {
+        "name": "Max Verbinnen",
+        "email": "64088654+Max-Verbinnen@users.noreply.github.com"
+      },
+      "summary": "SERVER-121098 Fix floating-point sensitivity in cbr_stage_costing.js (#49167)"
+    },
+    {
+      "sha": "86d30ba4a5175c2f840ee09e5431a6252f6c1120",
+      "short_sha": "86d30ba4a51",
+      "date": "2026-03-09T10:05:23+01:00",
+      "author": {
+        "name": "ppolato",
+        "email": "82828243+ppolato@users.noreply.github.com"
+      },
+      "summary": "SERVER-118661 Restore core analysis on disagg suites (#49169)"
+    },
+    {
+      "sha": "6f0c294142611ab312cb77ad4e00ba2f319fed49",
+      "short_sha": "6f0c2941426",
+      "date": "2026-03-09T10:02:10+01:00",
+      "author": {
+        "name": "Hagar Mohamed",
+        "email": "hagar.mohamed@mongodb.com"
+      },
+      "summary": "SERVER-115325 Create a disaggregated storage flavor for existing Golden Query Suites (#48060)"
+    },
+    {
+      "sha": "0ea57bcd10a3c06c1dba86589d58903b29c65ff4",
+      "short_sha": "0ea57bcd10a",
+      "date": "2026-03-09T08:16:15+00:00",
+      "author": {
+        "name": "mongo-pr-bot[bot]",
+        "email": "230616009+mongo-pr-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "SERVER-110427 Update profiling data (#49234)"
+    },
     {
       "sha": "d62fcb71f84a5e46eb5a7f8ca0a35387e1e025b0",
       "short_sha": "d62fcb71f84",
@@ -4440,7 +4500,7 @@
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-03-09 07:00:49",
+  "generated_at": "2026-03-09 14:15:30",
   "branch_name": "master",
   "display_name": "master"
 }
