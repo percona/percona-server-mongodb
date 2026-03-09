@@ -1,0 +1,31 @@
+#!/bin/bash
+# postrm script for Percona Server for MongoDB sharded cluster query router
+#
+
+set -e
+
+if [ -f /usr/share/debconf/confmodule ]; then
+  . /usr/share/debconf/confmodule
+fi
+
+case "$1" in
+
+  purge|remove|upgrade|failed-upgrade|abort-install|abort-upgrade|disappear)
+  ;;
+
+  *)
+    echo "postrm called with unknown argument '$1'" 1>&2
+    exit 1
+  ;;
+
+esac
+
+if [ "$1" = "remove" ]; then
+  if [ -d /usr/local/percona/telemetry/psmdbs ]; then
+    rm -rf /usr/local/percona/telemetry/psmdbs
+  fi
+fi
+
+#DEBHELPER#
+
+exit 0

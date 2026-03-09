@@ -114,4 +114,18 @@ else
     fi
 fi
 
+if [ -d /usr/local/percona/telemetry ]; then
+    install -d -m 2775 -o mongod -g percona-telemetry /usr/local/percona/telemetry/psmdb
+fi
+
+cat << EOF
+** Join Percona Squad! **
+
+Participate in monthly SWAG raffles, get early access to new product features,
+invite-only ”ask me anything” sessions with database performance experts.
+
+Interested? Fill in the form at https://squad.percona.com/mongodb
+
+EOF
+
 exit 0

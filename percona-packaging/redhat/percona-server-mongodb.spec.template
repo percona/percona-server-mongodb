@@ -1,5 +1,26 @@
+%global __brp_strip_args --strip-debug
+%global __find_debuginfo /usr/lib/rpm/find-debuginfo.sh -g
+
+# Disable the addition of mini debuginfo and gdb index options
+%global _include_minidebuginfo %{nil}
+%undefine _include_gdb_index
+
+# Optionally disable source extraction to avoid empty debugsourcefiles.list errors
+%global __find_debugsource %{nil}
+
 #
 %define         mongo_home /var/lib/mongo
+%define         psmdb_telemetry /usr/local/percona/telemetry/psmdb
+%define         psmdbs_telemetry /usr/local/percona/telemetry/psmdbs
+
+%if  0%{?amzn} == 2023 || 0%{?rhel} >= 8
+%undefine _debugsource_packages
+%endif
+
+%if  0%{?amzn} == 2023 || 0%{?rhel} >= 8
+%global _find_debuginfo_dwz_opts %{nil}
+%endif
+
 #
 Name:           percona-server-mongodb
 Version:        @@VERSION@@
@@ -17,8 +38,9 @@ Source4:        percona-server-mongodb-helper.sh
 Source5:        mongod.init
 Source6:        mongod.pp
 Source7:        percona-server-mongodb-enable-auth.sh
+Source999:      call-home.sh
 
-%if 0%{?rhel} > 6
+%if  0%{?amzn} == 2023 || 0%{?rhel} > 6
 Requires(post):   systemd
 Requires(preun):  systemd
 Requires(postun): systemd
@@ -33,27 +55,24 @@ BuildRoot:      /var/tmp/%{name}-%{version}-%{release}
 %undefine       _missing_build_ids_terminate_build
 %define         _unpackaged_files_terminate_build 0
 
-%if 0%{?rhel} > 6
-%global _dwz_low_mem_die_limit 0
-%endif
-
 %define         src_dir @@SRC_DIR@@
 
 BuildRequires: gcc, make, cmake, gcc-c++, openssl-devel, cyrus-sasl-devel
 BuildRequires: snappy-devel, zlib-devel, bzip2-devel, libpcap-devel, openldap-devel, xz-devel
+%if 0%{?rhel} == 7
 BuildRequires: /usr/bin/scons
-
-# %if 0%{?rhel} >= 6
-# BuildRequires: policycoreutils-python
-# %endif
+%endif
+#%if 0%{?rhel} >= 8
+#BuildRequires: /usr/bin/scons-3
+#%endif
 
 Requires: %{name}-mongos = %{version}-%{release}
 Requires: %{name}-server = %{version}-%{release}
-Requires: %{name}-shell = %{version}-%{release}
 Requires: %{name}-tools = %{version}-%{release}
-Requires: numactl, openldap, cyrus-sasl-gssapi
+Requires: percona-mongodb-mongosh
+Requires: numactl, openldap, cyrus-sasl-gssapi, curl
 
-Conflicts: Percona-Server-MongoDB < 4.4.0
+Conflicts: Percona-Server-MongoDB < 8.0.0
 Conflicts: Percona-Server-MongoDB-32 Percona-Server-MongoDB-34 Percona-Server-MongoDB-36 mongodb-org
 
 %description
@@ -78,43 +97,50 @@ This metapackage will install the mongo shell, import/export tools, other client
 %package mongos
 Group:          Applications/Databases
 Summary:        Percona Server for MongoDB sharded cluster query router
+%if  0%{?amzn} == 2023 || 0%{?rhel} > 7
+Requires: percona-telemetry-agent
+%endif
+Conflicts: Percona-Server-MongoDB-mongos Percona-Server-MongoDB-32-mongos Percona-Server-MongoDB-34-mongos Percona-Server-MongoDB-36-mongos mongodb-org-mongos
 %description mongos
 This package contains mongos - the Percona Server for MongoDB sharded cluster query router
-Conflicts: Percona-Server-MongoDB-mongos Percona-Server-MongoDB-32-mongos Percona-Server-MongoDB-34-mongos Percona-Server-MongoDB-36-mongos mongodb-org-mongos
 
 %package server
 Group:          Applications/Databases
 Summary:        Percona Server for MongoDB database server
 Requires: policycoreutils
-Requires: %{name}-shell = %{version}-%{release}
+Requires: percona-mongodb-mongosh
+%if  0%{?amzn} == 2023 || 0%{?rhel} > 7
+Requires: percona-telemetry-agent
+%endif
+Conflicts: Percona-Server-MongoDB-server Percona-Server-MongoDB-32-server Percona-Server-MongoDB-34-server Percona-Server-MongoDB-36-server mongodb-org-server
 %description server
 This package contains the Percona Server for MongoDB server software, default configuration files and init.d scripts
-Conflicts: Percona-Server-MongoDB-server Percona-Server-MongoDB-32-server Percona-Server-MongoDB-34-server Percona-Server-MongoDB-36-server mongodb-org-server
 
 %package shell
 Group:          Applications/Databases
 Summary:        Percona Server for MongoDB shell client
 Requires:  cyrus-sasl-plain
+Conflicts: Percona-Server-MongoDB-shell Percona-Server-MongoDB-32-shell Percona-Server-MongoDB-34-shell Percona-Server-MongoDB-36-shell mongodb-org-shell
 %description shell
 This package contains the Percona Server for MongoDB shell
-Conflicts: Percona-Server-MongoDB-shell Percona-Server-MongoDB-32-shell Percona-Server-MongoDB-34-shell Percona-Server-MongoDB-36-shell mongodb-org-shell
 
 %package tools
 Group:          Applications/Databases
 Summary:        The tools package for Percona Server for MongoDB
+Conflicts: Percona-Server-MongoDB-tools Percona-Server-MongoDB-32-tools Percona-Server-MongoDB-34-tools Percona-Server-MongoDB-36-tools mongodb-org-tools mongodb-database-tools
 %description tools
 This package contains various tools from MongoDB project, recompiled for Percona Server for MongoDB
-Conflicts: Percona-Server-MongoDB-tools Percona-Server-MongoDB-32-tools Percona-Server-MongoDB-34-tools Percona-Server-MongoDB-36-tools mongodb-org-tools
 
 %prep
 
 %setup -q -n %{src_dir}
+bazel clean --expunge || true
 
 %build
 
 export CC=${CC:-gcc}
 export CXX=${CXX:-g++}
-export PSM_TARGETS="install-mongod install-mongos install-mongo install-perconadecrypt install-mongobridge"
+export PSM_TARGETS="install-mongod install-mongos install-mongo install-perconadecrypt build/install/bin/mongobridge"
 export INSTALLDIR=$RPM_BUILD_DIR/install
 export INSTALLDIR_AWS=$RPM_BUILD_DIR/install_aws
 export AWS_LIBS="/usr/local"
@@ -122,6 +148,12 @@ export TOOLS_TAGS="ssl sasl"
 export PORTABLE=1
 export USE_SSE=1
 export PATH=/usr/local/go/bin:$PATH
+%if  0%{?amzn} == 2023
+export OPT_LINKFLAGS="${LINKFLAGS} -Wl,--build-id=sha1"
+%else
+export OPT_LINKFLAGS="${LINKFLAGS} -Wl,--build-id=sha1 -B/opt/mongodbtoolchain/v4/bin"
+%endif
+export GLIBC_TUNABLES=${GLIBC_TUNABLES}
 
 export PATH=/usr/local/go/bin:${PATH}
 export GOROOT="/usr/local/go/"
@@ -132,11 +164,11 @@ export GOBINPATH="/usr/local/go/bin"
 #aws-sdk-cpp
 pushd $RPM_BUILD_DIR/%{src_dir}/aws-sdk-cpp
     pushd build
-%if 0%{?rhel} >= 7
-        cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_ONLY="s3;transfer" -DBUILD_SHARED_LIBS=OFF -DMINIMIZE_SIZE=ON -DCMAKE_INSTALL_PREFIX="${INSTALLDIR_AWS}"
+%if  0%{?amzn} == 2023 || 0%{?rhel} >= 7
+        cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_ONLY="s3;transfer" -DBUILD_SHARED_LIBS=OFF -DMINIMIZE_SIZE=ON -DCMAKE_INSTALL_PREFIX="${INSTALLDIR_AWS}" -DAUTORUN_UNIT_TESTS=OFF
         cmake --build . --target install
 %else
-        cmake3 CC=${CC} CXX=${CXX} .. -DCMAKE_BUILD_TYPE=Release -DBUILD_ONLY="s3;transfer" -DBUILD_SHARED_LIBS=OFF -DMINIMIZE_SIZE=ON -DCMAKE_INSTALL_PREFIX="${INSTALLDIR_AWS}"
+        cmake3 CC=${CC} CXX=${CXX} .. -DCMAKE_BUILD_TYPE=Release -DBUILD_ONLY="s3;transfer" -DBUILD_SHARED_LIBS=OFF -DMINIMIZE_SIZE=ON -DCMAKE_INSTALL_PREFIX="${INSTALLDIR_AWS}" -DAUTORUN_UNIT_TESTS=OFF
         cmake3 --build . --target install
 %endif
 
@@ -149,11 +181,20 @@ mv ${INSTALLDIR_AWS}/lib*/* ${INSTALLDIR}/lib/
 
 # Build PSfMDB with SCons
 pushd $RPM_BUILD_DIR/%{src_dir}
-buildscripts/scons.py CC=${CC} CXX=${CXX} --disable-warnings-as-errors --audit --release --ssl --opt=on  \
-%{?_smp_mflags} --use-sasl-client CPPPATH=${INSTALLDIR}/include LIBPATH="${INSTALLDIR}/lib ${AWS_LIBS}/lib ${AWS_LIBS}/lib64" \
---wiredtiger --inmemory --hotbackup ${PSM_TARGETS} || exit $?
+%if  0%{?amzn} == 2023
+poetry install --no-root --sync
+%else
+poetry env use /opt/mongodbtoolchain/v4/bin/python3
+poetry install --no-root --sync
+%endif
+bazel build --config=psmdb_opt_release --define=MONGO_VERSION=%{version}-@@RELEASE@@ --define=GIT_COMMIT_HASH=@@PSMDB_GIT_HASH@@ install-dist-test
 rm -fr resmoke.ini
 popd
+
+#dirty hack for centos:7 + rpm 4.11(rpmlib absence of (LargeFiles)
+%if 0%{?rhel} == 7
+eu-strip build/install/bin/mongod
+%endif
 
 # Mongo Tools compilation
 mkdir -p $RPM_BUILD_DIR/%{src_dir}/bin
@@ -167,8 +208,8 @@ mkdir -p $GOPATH/src/github.com/mongodb
 cp -r $RPM_BUILD_DIR/%{src_dir}/mongo-tools ${GOPATH}/src/github.com/mongodb
 pushd ${GOPATH}/src/github.com/mongodb/mongo-tools
 . ./set_tools_revision.sh
-sed -i '12d' buildscript/build.go
-sed -i '167,176d' buildscript/build.go
+sed -i '14d' buildscript/build.go
+sed -i '226,234d' buildscript/build.go
 sed -i "s:versionStr,:\"$PSMDB_TOOLS_REVISION\",:" buildscript/build.go
 sed -i "s:gitCommit):\"$PSMDB_TOOLS_COMMIT_HASH\"):" buildscript/build.go
 ./make build
@@ -196,7 +237,7 @@ install -m 644 %{SOURCE1} %{buildroot}/%{_sysconfdir}/mongod.conf
 sed -i 's|/var/lib/mongodb|/var/lib/mongo|' %{buildroot}/%{_sysconfdir}/mongod.conf
 sed -i 's|/var/log/mongodb/mongod.log|/var/log/mongo/mongod.log|' %{buildroot}/%{_sysconfdir}/mongod.conf
 # startup stuff
-%if 0%{?rhel} >= 7
+%if  0%{?amzn} == 2023 || 0%{?rhel} >= 7
   install -m 755 -d %{buildroot}/%{_unitdir}
   install -m 644 %{SOURCE2} %{buildroot}/%{_unitdir}/mongod.service
 %else
@@ -208,11 +249,11 @@ install -m 644 %{SOURCE3} %{buildroot}/%{_sysconfdir}/sysconfig/mongod
 install -m 755 %{SOURCE4} %{buildroot}/%{_bindir}/
 install -m 755 %{SOURCE7} %{buildroot}/%{_bindir}/
 #
-install -m 755 build/install/bin/mongo %{buildroot}/%{_bindir}/mongo
-install -m 755 build/install/bin/mongod %{buildroot}/%{_bindir}/mongod
-install -m 755 build/install/bin/mongos %{buildroot}/%{_bindir}/mongos
-install -m 755 build/install/bin/perconadecrypt %{buildroot}/%{_bindir}/
-install -m 755 build/install/bin/mongobridge %{buildroot}/%{_bindir}/mongobridge
+install -m 755 bazel-bin/install/bin/mongo %{buildroot}/%{_bindir}/mongo
+install -m 755 bazel-bin/install/bin/mongod %{buildroot}/%{_bindir}/mongod
+install -m 755 bazel-bin/install/bin/mongos %{buildroot}/%{_bindir}/mongos
+install -m 755 bazel-bin/install/bin/perconadecrypt %{buildroot}/%{_bindir}/
+install -m 755 bazel-bin/install/bin/mongobridge %{buildroot}/%{_bindir}/mongobridge
 
 install -m 755 $RPM_BUILD_DIR/%{src_dir}/bin/* %{buildroot}/%{_bindir}/
 
@@ -233,7 +274,7 @@ install -m 644 $RPM_BUILD_DIR/%{src_dir}/manpages/* %{buildroot}/%{_mandir}/man1
 %{_mandir}/man1/mongod.1.gz
 %{_bindir}/percona-server-mongodb-helper.sh
 %{_bindir}/percona-server-mongodb-enable-auth.sh
-%if 0%{?rhel} >= 7
+%if  0%{?amzn} == 2023 || 0%{?rhel} >= 7
 %{_unitdir}/mongod.service
 %else
 /etc/rc.d/init.d/mongod
@@ -269,7 +310,6 @@ install -m 644 $RPM_BUILD_DIR/%{src_dir}/manpages/* %{buildroot}/%{_mandir}/man1
 %{_mandir}/man1/mongodump.1.gz
 %{_bindir}/mongotop
 %{_mandir}/man1/mongotop.1.gz
-#%{_bindir}/mongoreplay
 
 %pre server
 if [ $1 == 1 ]; then
@@ -290,9 +330,17 @@ if [ $1 -gt 1 ]; then
 fi
 #
 
+%pre mongos
+if [ $1 == 1 ]; then
+  if ! getent passwd mongod > /dev/null 2>&1; then
+    /usr/sbin/groupadd -r mongod
+    /usr/sbin/useradd -M -r -g mongod -s /bin/false -c mongod mongod > /dev/null 2>&1
+  fi
+fi
+
 %post server
 #
-%if 0%{?rhel} >= 7
+%if  0%{?amzn} == 2023 || 0%{?rhel} >= 7
 %systemd_post mongod.service
   if [ $1 == 1 ]; then
     /usr/bin/systemctl enable mongod >/dev/null 2>&1 || :
@@ -302,7 +350,7 @@ fi
       /sbin/chkconfig --add mongod
   fi
 %endif
-%if 0%{?rhel} > 5
+%if  0%{?amzn} == 2023 || 0%{?rhel} > 5
 /usr/sbin/semodule -i /etc/selinux/targeted/modules/active/modules/mongod.pp
 %else
 /usr/sbin/semodule -i /etc/selinux/targeted/modules/active/modules/mongod.pp 2> /dev/null
@@ -362,7 +410,8 @@ if [ $1 -gt 1 ]; then
             SERVER_TO_START=''
     fi
     if [ $SERVER_TO_START == 1 ]; then
-%if 0%{?rhel} >= 7
+%if  0%{?amzn} == 2023 || 0%{?rhel} >= 7
+    systemctl daemon-reload &>/dev/null || :
     /usr/sbin/service mongod restart
 %else
 if [ -x %{_sysconfdir}/init.d/mongod ] ; then
@@ -371,9 +420,34 @@ fi
 %endif
     fi
 fi
+%if  0%{?amzn} == 2023 || 0%{?rhel} > 7
+install -d -m 2775 -o mongod -g percona-telemetry /usr/local/percona/telemetry/psmdb
+%endif
+cp %SOURCE999 /tmp/ 2>/dev/null || :
+bash /tmp/call-home.sh -f "PRODUCT_FAMILY_PSMDB" -v "@@VERSION@@-@@RELEASE@@" -d "PACKAGE" &>/dev/null || :
+%if  0%{?amzn} == 2023 || 0%{?rhel} > 7
+chgrp percona-telemetry /usr/local/percona/telemetry_uuid &>/dev/null || :
+chmod 664 /usr/local/percona/telemetry_uuid &>/dev/null || :
+%endif
+rm -f /tmp/call-home.sh
+
+cat << EOF
+** Join Percona Squad! **
+
+Participate in monthly SWAG raffles, get early access to new product features,
+invite-only ”ask me anything” sessions with database performance experts.
+
+Interested? Fill in the form at https://squad.percona.com/mongodb
+
+EOF
+
+%post mongos
+%if  0%{?amzn} == 2023 || 0%{?rhel} > 7
+install -d -m 2775 -o mongod -g percona-telemetry /usr/local/percona/telemetry/psmdbs
+%endif
 
 %preun server
-%if 0%{?rhel} >= 7
+%if  0%{?amzn} == 2023 || 0%{?rhel} >= 7
 %systemd_preun mongod.service
 %else
 if [ -x %{_sysconfdir}/init.d/mongod ] ; then
@@ -382,18 +456,21 @@ fi
 %endif
 
 %postun server
-%if 0%{?rhel} >= 7
+%if  0%{?amzn} == 2023 || 0%{?rhel} >= 7
 %systemd_postun mongod.service
 %endif
-if [ $1 == 0 ]; then
-  if /usr/bin/id -g mongod > /dev/null 2>&1; then
-    /usr/sbin/userdel mongod > /dev/null 2>&1
-    /usr/sbin/groupdel mongod > /dev/null 2>&1 || true
-  fi
+if [ -d %{psmdb_telemetry} ]; then
+  rm -rf %{psmdb_telemetry}
+fi
+rm -f /var/run/mongod.pid
+
+%postun mongos
+if [ -d %{psmdbs_telemetry} ]; then
+  rm -rf %{psmdbs_telemetry}
 fi
 
 #
 %changelog
 
-* Thu Feb 27 2020 Oleksandr Miroshnychenko <alex.miroshnychenko@percona.com> - 4.4
-- Initial RPM release for Percona Server for MongoDB 4.4
+* Mon Mar  9 2026 Oleksandr Miroshnychenko <alex.miroshnychenko@percona.com> - 8.3
+- Initial RPM release for Percona Server for MongoDB 8.3
