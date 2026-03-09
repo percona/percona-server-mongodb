@@ -9,10 +9,10 @@ usage () {
     cat <<EOF
 Usage: $0 [OPTIONS]
     The following options may be given :
-        --psmdb_version        PostgreSQL major_version.minor_version
+        --psmdb_version     PSMDB version
         --repo_type         Repository type
         --help) usage ;;
-Example $0 --psmdb_version=8.0.8-3 --repo_type=testing
+Example $0 --psmdb_version=8.3.0-0 --repo_type=testing
 EOF
         exit 1
 }
@@ -103,7 +103,7 @@ install_dependencies() {
 # Install required dependencies
 install_dependencies
 
-# Install Percona repo and PostgreSQL
+# Install Percona repo and PSMDB
 install_percona_mongodb() {
   case "$PLATFORM_ID" in
     ol|rhel|centos|oraclelinux|amzn)
@@ -135,7 +135,7 @@ install_percona_mongodb() {
   esac
 }
 
-# Install Percona repository and PostgreSQL
+# Install Percona repository and PSMDB
 install_percona_mongodb
 
 # Install Syft (if not already installed)
@@ -149,7 +149,7 @@ mkdir -p $CWD/psmdb_sbom
 echo "Generating full SBOM via db..."
 syft dir:/ --output cyclonedx-json > sbom-full-db.json
 
-# Filter PostgreSQL ${PSMDB_VERSION} components and preserve SBOM structure
+# Filter PSMDB ${PSMDB_VERSION} components and preserve SBOM structure
 jq '{
   "$schema": ."$schema",
   "bomFormat": .bomFormat,
@@ -158,6 +158,6 @@ jq '{
   "version": .version,
   "metadata": .metadata,
   "components": [.components[] | select(.name | test("mongodb|percona"; "i"))]
-}' sbom-full-db.json > $CWD/psmdb_sbom/sbom-percona-server-${PSMDB_VERSION}-${PLATFORM}-${ARCH}.json
+}' sbom-full-db.json > $CWD/psmdb_sbom/sbom-percona-server-mongodb-${PSMDB_VERSION}-${PLATFORM}-${ARCH}.json
 
-echo "✅ SBOM for Percona PostgreSQL ${PSMDB_VERSION} written to: $CWD/psmdb_sbom/sbom-percona-server-mongodb-${PSMDB_VERSION}-${PLATFORM}-${ARCH}.json"
+echo "✅ SBOM for Percona PSMDB ${PSMDB_VERSION} written to: $CWD/psmdb_sbom/sbom-percona-server-mongodb-${PSMDB_VERSION}-${PLATFORM}-${ARCH}.json"
