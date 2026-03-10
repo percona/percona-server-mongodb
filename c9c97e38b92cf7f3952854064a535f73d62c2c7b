@@ -1,0 +1,27 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "a9835388c721d1273b63086f0d7db905b265138a",
+    "merge_commit": "464a87d5b5ee8eb147b04bf3183ab38561d77092"
+  },
+  "mergai_version": "0.1.dev1+gaf1123952",
+  "solutions": [
+    {
+      "response": {
+        "summary": "Resolve remaining conflicts in sbom.json",
+        "resolved": {},
+        "unresolved": {},
+        "modified": {
+          "sbom.json": "Modified by human"
+        },
+        "review_notes": "Merged dependencies from both branches:\n- HEAD (Percona): libarchive v3.8.4, AWS SDK for C++ v1.11.471\n- Upstream (MongoDB): bzip2 v1.0.8, json-c v0.18, rnp v0.18.1\n\nAll five dependencies are now included in:\n- components section (library entries)\n- dependsOn list for main package\n- individual dependency ref entries"
+      },
+      "author": {
+        "name": "Pawel Lebioda",
+        "email": "pawel.lebioda@percona.com",
+        "type": "human"
+      },
+      "commit_sha": "c9c97e38b92cf7f3952854064a535f73d62c2c7b"
+    }
+  ]
+}
