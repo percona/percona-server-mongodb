@@ -1,0 +1,28 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "d7195fdf9efb5543e5ff7861a61574f87f07c05e",
+    "merge_commit": "63bb4b8a54415b971265b1dd248f1ea7b8ac1331"
+  },
+  "mergai_version": "0.1.dev1+gaf1123952",
+  "solutions": [
+    {
+      "response": {
+        "summary": "Fix incorrect conflict resolution in sbom.json and README.third_party.md",
+        "resolved": {
+          "README.third_party.md": "Resolved by human",
+          "sbom.json": "Resolved by human (was previously unresolved)"
+        },
+        "unresolved": {},
+        "modified": {},
+        "review_notes": "Commit ac24fb8ef12 incorrectly resolved conflicts caused by revert\n93c99cdc007, leaving bzip2, json-c, and\nrnp entries that should have been removed.\n\nChanges to sbom.json:\n- Remove conflict markers\n- Remove bzip2, json-c, rnp component entries\n- Remove their dependency entries\n\nChanges to README.third_party.md:\n- Remove dangling [json-c] URL reference\n- Remove [Apache Avro C++] entry and URL (incorrectly added)\n- Remove [librdkafka] entry and URL (incorrectly added)\n- Restore [siphash] to correct position and license (CC0-1.0, MIT, Apache 2.0 with LLVM exception)\n- Restore [siphash] URL to correct position and format"
+      },
+      "author": {
+        "name": "Pawel Lebioda",
+        "email": "pawel.lebioda@percona.com",
+        "type": "human"
+      },
+      "commit_sha": "93e48c7c458d732bb0a6bfad293112f19fbf8974"
+    }
+  ]
+}
