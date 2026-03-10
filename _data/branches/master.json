@@ -5,35 +5,35 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 382,
-    "days_behind": 12,
-    "files_affected": 1769,
-    "total_additions": 103607,
-    "total_deletions": 44543,
+    "commits_behind": 346,
+    "days_behind": 11,
+    "files_affected": 1647,
+    "total_additions": 97865,
+    "total_deletions": 43587,
     "date_range": {
-      "first": "2026-02-26T01:11:08+00:00",
+      "first": "2026-02-26T20:41:18+00:00",
       "last": "2026-03-10T05:17:06+00:00"
     }
   },
   "last_merged_commit": {
-    "sha": "7f6ac059e60ae43a6e827754447eb71abca34037",
-    "short_sha": "7f6ac059e60",
-    "date": "2026-02-25T17:10:51-08:00",
+    "sha": "464a87d5b5ee8eb147b04bf3183ab38561d77092",
+    "short_sha": "464a87d5b5e",
+    "date": "2026-02-26T15:29:33-05:00",
     "author": {
-      "name": "wt-vendoring-bot[bot]",
-      "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
+      "name": "Gabriel Marks",
+      "email": "gabriel.marks@mongodb.com"
     },
-    "summary": "Import wiredtiger: 8ac2d032cc6dcfb7f36675642e23c18ba92e5ea5 from branch mongodb-master (#48589)"
+    "summary": "SERVER-116025 Track egress in authCounter"
   },
   "first_unmerged_commit": {
-    "sha": "f807d6efed88857b0a1a4524a060cbeb5f60c0b6",
-    "short_sha": "f807d6efed8",
-    "date": "2026-02-25T20:11:08-05:00",
+    "sha": "8fc74aaafe6fca5dcafc08de3b12b04d45ca4625",
+    "short_sha": "8fc74aaafe6",
+    "date": "2026-02-26T15:41:18-05:00",
     "author": {
-      "name": "erinzhu001",
-      "email": "erin.zhu@mongodb.com"
+      "name": "Daniel Segel",
+      "email": "71151509+dhsegel@users.noreply.github.com"
     },
-    "summary": "SERVER-120358: Add default values to cursor metrics (#48608)"
+    "summary": "SERVER-120046 Statically link extensions in unit tests (#48672)"
   },
   "unmerged_commits": [
     {
@@ -3495,410 +3495,9 @@
         "email": "71151509+dhsegel@users.noreply.github.com"
       },
       "summary": "SERVER-120046 Statically link extensions in unit tests (#48672)"
-    },
-    {
-      "sha": "464a87d5b5ee8eb147b04bf3183ab38561d77092",
-      "short_sha": "464a87d5b5e",
-      "date": "2026-02-26T15:29:33-05:00",
-      "author": {
-        "name": "Gabriel Marks",
-        "email": "gabriel.marks@mongodb.com"
-      },
-      "summary": "SERVER-116025 Track egress in authCounter"
-    },
-    {
-      "sha": "a5917eb29c3afa38b8f3f26008c07dfd742e52ce",
-      "short_sha": "a5917eb29c3",
-      "date": "2026-02-26T14:38:11-05:00",
-      "author": {
-        "name": "Lee Maguire",
-        "email": "lee.maguire@mongodb.com"
-      },
-      "summary": "SERVER-120419: Add missing featureFlagExtensionStubParsers tag to extensions tests (#48629)"
-    },
-    {
-      "sha": "d7cdc7ca0b72923d6609a1d51125adfa079b5c9b",
-      "short_sha": "d7cdc7ca0b7",
-      "date": "2026-02-26T14:35:07-05:00",
-      "author": {
-        "name": "Vishnu K",
-        "email": "vishnu.kaushik@mongodb.com"
-      },
-      "summary": "SERVER-114793 Implement oplog application and checkpoint persisting in Disagg PIT Restore. (#48401)"
-    },
-    {
-      "sha": "76752fd3003623397fa1961bb24cee4b5552461f",
-      "short_sha": "76752fd3003",
-      "date": "2026-02-26T14:17:08-05:00",
-      "author": {
-        "name": "Jack Mulrow",
-        "email": "jack.mulrow@mongodb.com"
-      },
-      "summary": "SERVER-118744 Allow transactions on shards with writeConcernMajorityJournalDefault=false in DSC (#48556)"
-    },
-    {
-      "sha": "7b78b41ade2256617cb0be23432f05aaf6e528de",
-      "short_sha": "7b78b41ade2",
-      "date": "2026-02-26T14:10:14-05:00",
-      "author": {
-        "name": "Calvin Nix",
-        "email": "6693710+Calvinnix@users.noreply.github.com"
-      },
-      "summary": "SERVER-120301: set skip_debug_link to true for streams archive_dist_test (#48619)"
-    },
-    {
-      "sha": "0dae81e55c6339137af7733b41c7eb95a3359766",
-      "short_sha": "0dae81e55c6",
-      "date": "2026-02-26T19:05:54+00:00",
-      "author": {
-        "name": "Joan Bruguera Micó (at MongoDB)",
-        "email": "joan.bruguera-mico@mongodb.com"
-      },
-      "summary": "SERVER-119476 Enable setFCV to resume an interrupted FCV transition (#48058)"
-    },
-    {
-      "sha": "0bae9f82a0a7285b380dd0b3cba1e8310ba82f38",
-      "short_sha": "0bae9f82a0a",
-      "date": "2026-02-26T13:53:18-05:00",
-      "author": {
-        "name": "Cheahuychou Mao",
-        "email": "cheahuychou.mao@mongodb.com"
-      },
-      "summary": "SERVER-119867 Add disagg_retryable_writes_jscore_passthrough suite (#48563)"
-    },
-    {
-      "sha": "7238ac632eacbdf524dc4b3d948bd5c8a246cc87",
-      "short_sha": "7238ac632ea",
-      "date": "2026-02-26T13:51:23-05:00",
-      "author": {
-        "name": "Militsa Sotirova",
-        "email": "militsa.sotirova@mongodb.com"
-      },
-      "summary": "SERVER-120397 Check CBR node eligibility in exact CE mode (#48620)"
-    },
-    {
-      "sha": "6dc07b3d3184a33b48810b3210e8c4b70d6d37af",
-      "short_sha": "6dc07b3d318",
-      "date": "2026-02-26T13:42:02-05:00",
-      "author": {
-        "name": "Calvin Nix",
-        "email": "6693710+Calvinnix@users.noreply.github.com"
-      },
-      "summary": "SERVER-120487: Remove streams TSAN and AUBSAN amazon2023 variants (#48686)"
-    },
-    {
-      "sha": "db56e66e4c30668426fbef9db19ff17a99573ee4",
-      "short_sha": "db56e66e4c3",
-      "date": "2026-02-26T13:35:29-05:00",
-      "author": {
-        "name": "Sean Lyons",
-        "email": "sean.lyons@mongodb.com"
-      },
-      "summary": "SERVER-120485: Ensure no duplicate burn-in tasks are generated (#48680)"
-    },
-    {
-      "sha": "ce8671d70e656d1c33cb405c0d78a1e1c0c9c967",
-      "short_sha": "ce8671d70e6",
-      "date": "2026-02-26T18:30:14+00:00",
-      "author": {
-        "name": "auto-revert-app[bot]",
-        "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
-      },
-      "summary": "Revert \"SERVER-119543: Enable query stats in aggregation suites (#47944)\" (#48685)"
-    },
-    {
-      "sha": "41adc487736cae67c13ad000f3d8d54a3a93d06c",
-      "short_sha": "41adc487736",
-      "date": "2026-02-26T09:39:40-08:00",
-      "author": {
-        "name": "Christopher M. Wolff",
-        "email": "chris.wolff@mongodb.com"
-      },
-      "summary": "SERVER-118829 Collect all additive metrics for batched writes (#48008)"
-    },
-    {
-      "sha": "69288a729991e259d6f7821576ed685447e43eec",
-      "short_sha": "69288a72999",
-      "date": "2026-02-26T09:15:33-08:00",
-      "author": {
-        "name": "Moustafa Maher",
-        "email": "m.maher@mongodb.com"
-      },
-      "summary": "SERVER-118514 Exclude failing tests (#48664)"
-    },
-    {
-      "sha": "683ee01795cfa347e9f385c2a5ea855a48b90229",
-      "short_sha": "683ee01795c",
-      "date": "2026-02-26T17:52:08+01:00",
-      "author": {
-        "name": "Enrico Golfieri",
-        "email": "enrico.golfieri@mongodb.com"
-      },
-      "summary": "SERVER-120020 throw on multi-router in case of configureFailPoint (#48452)"
-    },
-    {
-      "sha": "dbdbdb6b26c61a5b62961be41935df092131e4aa",
-      "short_sha": "dbdbdb6b26c",
-      "date": "2026-02-26T07:56:03-08:00",
-      "author": {
-        "name": "Christopher M. Wolff",
-        "email": "chris.wolff@mongodb.com"
-      },
-      "summary": "SERVER-112050 Collect query stats for update statements on router (#48180)"
-    },
-    {
-      "sha": "f367d4938c86b8a74de2a9b8fda62a651d7d2193",
-      "short_sha": "f367d4938c8",
-      "date": "2026-02-26T07:55:16-08:00",
-      "author": {
-        "name": "Christopher M. Wolff",
-        "email": "chris.wolff@mongodb.com"
-      },
-      "summary": "SERVER-120000 Add budget verification to LRUKeyValue (#48431)"
-    },
-    {
-      "sha": "cec2d81a8c22a2efda5a06cc989eac83dc7303b8",
-      "short_sha": "cec2d81a8c2",
-      "date": "2026-02-26T10:53:31-05:00",
-      "author": {
-        "name": "Stephanie",
-        "email": "53684987+seristof@users.noreply.github.com"
-      },
-      "summary": "SERVER-120412 Make clustered_capped_collections.js use .sort({$natural: -1}) when performing finds (#48626)"
-    },
-    {
-      "sha": "76abafa35d6b6ebbd92e3394611ab1637af3dd35",
-      "short_sha": "76abafa35d6",
-      "date": "2026-02-26T16:27:15+01:00",
-      "author": {
-        "name": "Yujin Kang Park",
-        "email": "36410031+ykangpark@users.noreply.github.com"
-      },
-      "summary": "SERVER-118424 Add test command to inspect persistence provider properties (#47485)"
-    },
-    {
-      "sha": "28bb483e133176b4174dba63c3f75bb7e0e13e67",
-      "short_sha": "28bb483e133",
-      "date": "2026-02-26T10:11:09-05:00",
-      "author": {
-        "name": "Charlie Swanson",
-        "email": "charlie.swanson@mongodb.com"
-      },
-      "summary": "SERVER-119543: Enable query stats in aggregation suites (#47944)"
-    },
-    {
-      "sha": "5ae64a39921905ad10b5830e8ccc3b350f85c53e",
-      "short_sha": "5ae64a39921",
-      "date": "2026-02-26T15:55:05+01:00",
-      "author": {
-        "name": "Jan",
-        "email": "jsteemann@users.noreply.github.com"
-      },
-      "summary": "SERVER-120444 Fix tripwire assertion in change_stream_pre_image_util (#48653)"
-    },
-    {
-      "sha": "d241d3d72a515fec57790dfc465c2832a6e1c344",
-      "short_sha": "d241d3d72a5",
-      "date": "2026-02-26T09:54:52-05:00",
-      "author": {
-        "name": "Jason Hills",
-        "email": "jason.hills@mongodb.com"
-      },
-      "summary": "SERVER-117626: Exclude sbom.private.json from Copybara workflow (#48606)"
-    },
-    {
-      "sha": "e0efdcfb5020b802da043b955e922d0995109619",
-      "short_sha": "e0efdcfb502",
-      "date": "2026-02-26T14:48:43+01:00",
-      "author": {
-        "name": "Anna Maria Nestorov",
-        "email": "annamaria.nestorov@gmail.com"
-      },
-      "summary": "SERVER-120442 Enforce retryWrite during collection creations in transition_to_dedicated_config_server.js (#48654)"
-    },
-    {
-      "sha": "7d50f6c2b7aa4d263fdd86e3b3940c1ce340326d",
-      "short_sha": "7d50f6c2b7a",
-      "date": "2026-02-26T07:44:09-05:00",
-      "author": {
-        "name": "Mike Nugent",
-        "email": "mike.nugent@mongodb.com"
-      },
-      "summary": "SERVER-117299: Add prometheus exporter utils to opentelemetry. (#48538)"
-    },
-    {
-      "sha": "fd0d1e5e53084819f09a57f110af9a1600bd5ced",
-      "short_sha": "fd0d1e5e530",
-      "date": "2026-02-26T13:15:43+01:00",
-      "author": {
-        "name": "Igor Praznik",
-        "email": "95708172+igpraznik@users.noreply.github.com"
-      },
-      "summary": "SERVER-110329 Add command to force a ShardRegistry refresh (#45945)"
-    },
-    {
-      "sha": "2ca3ca4b81ce353b4e335362f6c74fb2c53eecc4",
-      "short_sha": "2ca3ca4b81c",
-      "date": "2026-02-26T11:57:38+01:00",
-      "author": {
-        "name": "Sulabh Mahajan",
-        "email": "sulabh.mahajan@mongodb.com"
-      },
-      "summary": "SERVER-120241 Close the connections before returning if opened by the ff util (#48599)"
-    },
-    {
-      "sha": "d1b07d826fe22c478fe316efc930210ba25ff87b",
-      "short_sha": "d1b07d826fe",
-      "date": "2026-02-26T10:18:25+01:00",
-      "author": {
-        "name": "mongo-pr-bot[bot]",
-        "email": "230616009+mongo-pr-bot[bot]@users.noreply.github.com"
-      },
-      "summary": "SERVER-110427 Update profiling data (#48644)"
-    },
-    {
-      "sha": "4322fbaec167d2d884b5ea89aa9d76c8a6a48865",
-      "short_sha": "4322fbaec16",
-      "date": "2026-02-26T16:27:08+11:00",
-      "author": {
-        "name": "Gregory Wlodarek",
-        "email": "gregory.wlodarek@mongodb.com"
-      },
-      "summary": "SERVER-120236 Add interruptible CancellationToken::sleepFor() and use it in LogServerManager (#48527)"
-    },
-    {
-      "sha": "1bd83d430d2c1e393cca51581f4e4d24e7f08aec",
-      "short_sha": "1bd83d430d2",
-      "date": "2026-02-26T00:21:10-05:00",
-      "author": {
-        "name": "madelinezec",
-        "email": "15312869+madelinezec@users.noreply.github.com"
-      },
-      "summary": "SERVER-113227 bail out of join opt for conflicting \"as\" fields (#48164)"
-    },
-    {
-      "sha": "74dcc238f40da05fbd9d5cf3cc6e2f16698fe04d",
-      "short_sha": "74dcc238f40",
-      "date": "2026-02-26T16:11:37+11:00",
-      "author": {
-        "name": "wt-vendoring-bot[bot]",
-        "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
-      },
-      "summary": "Import wiredtiger: 0ef42b9a55ce3402ef7d9fa19ba9bcc1868e6e2b from branch mongodb-master (#48641)"
-    },
-    {
-      "sha": "9828af515c497cad465c9f3dda3d6beb65cd882f",
-      "short_sha": "9828af515c4",
-      "date": "2026-02-26T04:10:08+00:00",
-      "author": {
-        "name": "auto-revert-app[bot]",
-        "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
-      },
-      "summary": "Revert \"SERVER-119477 Enable testing logs_spilling_md with Join Optimization (#48584)\" (#48642)"
-    },
-    {
-      "sha": "f748efbb7af5371aa1b466f9f1a86a4611533875",
-      "short_sha": "f748efbb7af",
-      "date": "2026-02-25T19:08:24-08:00",
-      "author": {
-        "name": "auto-revert-app[bot]",
-        "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
-      },
-      "summary": "Revert \"SERVER-120331 Add fsync privilege action to searchCoordinator role (#48573)\" (#48640)"
-    },
-    {
-      "sha": "19dbde771c9c9d524b0303cb996f541d25556777",
-      "short_sha": "19dbde771c9",
-      "date": "2026-02-25T17:27:22-08:00",
-      "author": {
-        "name": "Zack Winter",
-        "email": "3457246+zackwintermdb@users.noreply.github.com"
-      },
-      "summary": "SERVER-120430: Show Removed PRs in merge queue analysis script (#48636)"
-    },
-    {
-      "sha": "82ec1b90f95af83f605215843129ccb8e147b640",
-      "short_sha": "82ec1b90f95",
-      "date": "2026-02-25T20:12:20-05:00",
-      "author": {
-        "name": "Naafiyan Ahmed",
-        "email": "naafiyan.ahmed@mongodb.com"
-      },
-      "summary": "SERVER-120305: Expose setter for IDL-generated Requests that specify namespace as concatenate_with_db_or_uuid (#48562)"
-    },
-    {
-      "sha": "15eb10a19ced1ebe055571c172ebf66d305c99d5",
-      "short_sha": "15eb10a19ce",
-      "date": "2026-02-25T20:12:04-05:00",
-      "author": {
-        "name": "Ernesto Rodriguez Reina",
-        "email": "erreina@users.noreply.github.com"
-      },
-      "summary": "SERVER-119897 No relying in recordIdsReplicated from collectionOptions in create collection oplog (#48530)"
-    },
-    {
-      "sha": "8ba35bd6c32373772c39cf57ccd9b6c4968f32dc",
-      "short_sha": "8ba35bd6c32",
-      "date": "2026-02-25T20:11:34-05:00",
-      "author": {
-        "name": "erinzhu001",
-        "email": "erin.zhu@mongodb.com"
-      },
-      "summary": "SERVER-120357: Fix $_internalBucketGeoWithin reparsing (#48602)"
-    },
-    {
-      "sha": "f807d6efed88857b0a1a4524a060cbeb5f60c0b6",
-      "short_sha": "f807d6efed8",
-      "date": "2026-02-25T20:11:08-05:00",
-      "author": {
-        "name": "erinzhu001",
-        "email": "erin.zhu@mongodb.com"
-      },
-      "summary": "SERVER-120358: Add default values to cursor metrics (#48608)"
     }
   ],
   "merge_picks": [
-    {
-      "commit": {
-        "sha": "76abafa35d6b6ebbd92e3394611ab1637af3dd35",
-        "short_sha": "76abafa35d6",
-        "date": "2026-02-26T16:27:15+01:00",
-        "author": {
-          "name": "Yujin Kang Park",
-          "email": "36410031+ykangpark@users.noreply.github.com"
-        },
-        "summary": "SERVER-118424 Add test command to inspect persistence provider properties (#47485)"
-      },
-      "strategy_name": "huge_commit",
-      "result": {
-        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
-        "evaluated_vars": {
-          "num_of_files": 24,
-          "num_of_lines": 355,
-          "lines_added": 321,
-          "lines_deleted": 34,
-          "num_of_dirs": 15
-        }
-      }
-    },
-    {
-      "commit": {
-        "sha": "464a87d5b5ee8eb147b04bf3183ab38561d77092",
-        "short_sha": "464a87d5b5e",
-        "date": "2026-02-26T15:29:33-05:00",
-        "author": {
-          "name": "Gabriel Marks",
-          "email": "gabriel.marks@mongodb.com"
-        },
-        "summary": "SERVER-116025 Track egress in authCounter"
-      },
-      "strategy_name": "conflict",
-      "result": {
-        "conflicting_files": [
-          "src/mongo/shell/shell_options.cpp"
-        ]
-      }
-    },
     {
       "commit": {
         "sha": "37034808017ebafd8e77d48ac1a63a1eb8321691",
@@ -3933,16 +3532,12 @@
         },
         "summary": "SERVER-118842: Import rnpgp/rnp into the server (#47696)"
       },
-      "strategy_name": "huge_commit",
+      "strategy_name": "conflict",
       "result": {
-        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
-        "evaluated_vars": {
-          "num_of_files": 1286,
-          "num_of_lines": 238087,
-          "lines_added": 238077,
-          "lines_deleted": 10,
-          "num_of_dirs": 125
-        }
+        "conflicting_files": [
+          "README.third_party.md",
+          "sbom.json"
+        ]
       }
     },
     {
@@ -4388,7 +3983,7 @@
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-03-10 06:42:22",
+  "generated_at": "2026-03-10 07:38:56",
   "branch_name": "master",
   "display_name": "master"
 }
