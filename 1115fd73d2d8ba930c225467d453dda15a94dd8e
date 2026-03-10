@@ -1,0 +1,27 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "d7195fdf9efb5543e5ff7861a61574f87f07c05e",
+    "merge_commit": "63bb4b8a54415b971265b1dd248f1ea7b8ac1331"
+  },
+  "mergai_version": "0.1.dev1+gaf1123952",
+  "solutions": [
+    {
+      "response": {
+        "summary": "Cleanup conflict resolution in README.third_party.md",
+        "resolved": {
+          "README.third_party.md": "Resolved by human"
+        },
+        "unresolved": {},
+        "modified": {},
+        "review_notes": null
+      },
+      "author": {
+        "name": "Pawel Lebioda",
+        "email": "pawel.lebioda@percona.com",
+        "type": "human"
+      },
+      "commit_sha": "1115fd73d2d8ba930c225467d453dda15a94dd8e"
+    }
+  ]
+}
