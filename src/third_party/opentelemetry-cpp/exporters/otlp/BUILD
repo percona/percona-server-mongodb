@@ -77,7 +77,6 @@ mongo_cc_library(
     ],
     target_compatible_with = OTEL_TARGET_COMPATIBLE_WITH,
     deps = [
-        "@com_google_absl//absl/strings:strings",
         "//src/third_party/nlohmann-json:json",
         "//src/third_party/opentelemetry-cpp/api",
         "//src/third_party/opentelemetry-cpp/ext/src/http/client/curl:http_client_curl",
@@ -85,6 +84,7 @@ mongo_cc_library(
         "//src/third_party/opentelemetry-cpp/sdk/src/common:base64",
         "//src/third_party/opentelemetry-cpp/sdk/src/common:global_log_handler",
         "//src/third_party/opentelemetry-proto:common_proto_cc",
+        "@com_google_absl//absl/strings:strings",
     ],
 )
 
@@ -155,13 +155,13 @@ mongo_cc_library(
     ],
     target_compatible_with = OTEL_TARGET_COMPATIBLE_WITH,
     deps = [
-        "@com_google_absl//absl/strings:strings",
         "//src/third_party/nlohmann-json:json",
         "//src/third_party/opentelemetry-cpp/api",
         "//src/third_party/opentelemetry-cpp/sdk:headers",
         "//src/third_party/opentelemetry-cpp/sdk/src/common:base64",
         "//src/third_party/opentelemetry-cpp/sdk/src/common:global_log_handler",
         "//src/third_party/opentelemetry-proto:common_proto_cc",
+        "@com_google_absl//absl/strings:strings",
     ],
 )
 
@@ -236,8 +236,6 @@ mongo_cc_library(
         "//conditions:default": ["@platforms//:incompatible"],
     }),
     deps = [
-        "@com_google_absl//absl/strings:strings",
-        "@com_github_grpc_grpc//:grpc++",
         "//src/third_party/nlohmann-json:json",
         "//src/third_party/opentelemetry-cpp/api",
         "//src/third_party/opentelemetry-cpp/ext/src/http/client/curl:http_client_curl",
@@ -248,6 +246,8 @@ mongo_cc_library(
         "//src/third_party/opentelemetry-proto:logs_service",
         "//src/third_party/opentelemetry-proto:metrics_service",
         "//src/third_party/opentelemetry-proto:trace_service",
+        "@com_github_grpc_grpc//:grpc++",
+        "@com_google_absl//absl/strings",
     ],
 )
 

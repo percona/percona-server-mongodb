@@ -34,7 +34,11 @@
 
 namespace mongo {
 RecordStore::Options getRecordStoreOptions(const NamespaceString& nss,
-                                           const CollectionOptions& collectionOptions) {
+                                           const CollectionOptions& collectionOptions,
+                                           bool recordIdsReplicated) {
+    // TODO (SERVER-119864) remove when recordIdsReplicated is be removed from collection options
+    invariant(collectionOptions.recordIdsReplicated == recordIdsReplicated);
+
     RecordStore::Options recordStoreOptions;
 
     bool isClustered = collectionOptions.clusteredIndex.has_value();
@@ -42,7 +46,7 @@ RecordStore::Options getRecordStoreOptions(const NamespaceString& nss,
 
     // Overwrites are disallowed for clustered collections and collections with replicated record
     // IDs to guarantee record uniqueness and prevent accidental overwrites of existing records.
-    recordStoreOptions.allowOverwrite = !(isClustered || collectionOptions.recordIdsReplicated);
+    recordStoreOptions.allowOverwrite = !(isClustered || recordIdsReplicated);
 
     recordStoreOptions.isCapped = collectionOptions.capped;
 

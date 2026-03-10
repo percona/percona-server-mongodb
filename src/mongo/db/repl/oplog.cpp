@@ -916,6 +916,11 @@ const StringMap<ApplyOpMetadata> kOpsMap = {
 
           Lock::DBLock dbLock(opCtx, nss.dbName(), MODE_IX, Date_t::max(), boost::none);
 
+          boost::optional<bool> recordIdsReplicated = boost::none;
+          if (auto value = cmd["recordIdsReplicated"]; value.isBoolean()) {
+              recordIdsReplicated = value.boolean();
+          }
+
           if (auto idIndexElem = cmd["idIndex"]) {
               // Remove "idIndex" field from command.
               auto cmdWithoutIdIndex = cmd.removeField("idIndex");
@@ -925,7 +930,8 @@ const StringMap<ApplyOpMetadata> kOpsMap = {
                                                  cmdWithoutIdIndex,
                                                  allowRenameOutOfTheWay,
                                                  idIndexElem.Obj(),
-                                                 replicatedCatalogIdentifier);
+                                                 replicatedCatalogIdentifier,
+                                                 recordIdsReplicated);
           }
 
           // Collections clustered by _id do not need _id indexes.
@@ -936,7 +942,8 @@ const StringMap<ApplyOpMetadata> kOpsMap = {
                                                  cmd,
                                                  allowRenameOutOfTheWay,
                                                  boost::none,
-                                                 replicatedCatalogIdentifier);
+                                                 replicatedCatalogIdentifier,
+                                                 recordIdsReplicated);
           }
 
           // No _id index spec was provided, so we should build a v:1 _id index.
@@ -952,7 +959,8 @@ const StringMap<ApplyOpMetadata> kOpsMap = {
                                              cmd,
                                              allowRenameOutOfTheWay,
                                              idIndexSpecBuilder.done(),
-                                             replicatedCatalogIdentifier);
+                                             replicatedCatalogIdentifier,
+                                             recordIdsReplicated);
       },
       {ErrorCodes::NamespaceExists}}},
     {"createIndexes",

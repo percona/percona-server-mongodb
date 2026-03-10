@@ -88,6 +88,7 @@ const allCommands = {
     _migrateClone: {skip: isAnInternalCommand},
     _mirrorMaestroConnPoolStats: {skip: isAnInternalCommand},
     _mongotConnPoolStats: {skip: isAnInternalCommand},
+    _recoverShardRegistry: {skip: isAnInternalCommand},
     _recvChunkAbort: {skip: isAnInternalCommand},
     _recvChunkCommit: {skip: isAnInternalCommand},
     _recvChunkReleaseCritSec: {skip: isAnInternalCommand},
@@ -944,6 +945,9 @@ const allCommands = {
     oidcRefreshKeys: {
         // Skipping this command as it requires OIDC/OpenSSL setup.
         skip: "requires additional OIDC/OpenSSL setup",
+    },
+    persistenceProviderProperties: {
+        skip: isAnInternalCommand,
     },
     pinHistoryReplicated: {
         skip: isAnInternalCommand,

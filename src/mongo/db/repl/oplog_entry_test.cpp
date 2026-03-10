@@ -166,6 +166,73 @@ TEST_F(OplogEntryTest, Create) {
     ASSERT(!entry.getObject2());
 }
 
+TEST_F(OplogEntryTest, CreateWithRecordIdsReplicatedFalse) {
+    CollectionOptions opts;
+    opts.capped = true;
+    opts.cappedSize = 15;
+    opts.uuid = UUID::gen();
+
+    // The 'object' document shouldn't contain the 'uuid' as it is specified at the top level.
+    const auto oplogEntryObjectDoc = MutableOplogEntry::makeCreateCollObject(
+        nss, opts, BSONObj() /* idIndex */, /*recordIdsReplicated=*/false);
+    ASSERT_BSONOBJ_EQ(oplogEntryObjectDoc,
+                      BSON("create" << nss.coll() << "capped" << true << "size" << 15
+                                    << "recordIdsReplicated" << false));
+
+    const auto entry = makeCommandOplogEntry(
+        entryOpTime, nss, oplogEntryObjectDoc, boost::none /* object2 */, opts.uuid);
+
+    ASSERT(entry.isCommand());
+    ASSERT_FALSE(entry.isPartialTransaction());
+    ASSERT_FALSE(entry.isCrudOpType());
+    ASSERT_FALSE(entry.isContainerOpType());
+    ASSERT_FALSE(entry.shouldPrepare());
+    ASSERT_BSONOBJ_EQ(oplogEntryObjectDoc, entry.getOperationToApply());
+    ASSERT(entry.getCommandType() == OplogEntry::CommandType::kCreate);
+    ASSERT_EQ(entry.getOpTime(), entryOpTime);
+    ASSERT_EQ(entry.getUuid(), opts.uuid);
+    ASSERT(!entry.getTid());
+    ASSERT(!entry.getObject2());
+    ASSERT_TRUE(entry.getObject().hasField("recordIdsReplicated"));
+    ASSERT_FALSE(entry.getObject().getBoolField("recordIdsReplicated"));
+}
+
+TEST_F(OplogEntryTest, CreateWithRecordIdsReplicatedTrue) {
+    CollectionOptions opts;
+    opts.capped = true;
+    opts.cappedSize = 15;
+    opts.uuid = UUID::gen();
+
+    // TODO SERVER-119864 makeCreateCollObject is getting the value for recordIdsReplicated
+    // from the collection option when it is true. It will be always from the optional after
+    // the field is removed from collection options.
+    opts.recordIdsReplicated = true;
+
+    // The 'object' document shouldn't contain the 'uuid' as it is specified at the top level.
+    const auto oplogEntryObjectDoc =
+        MutableOplogEntry::makeCreateCollObject(nss, opts, BSONObj() /* idIndex */);
+    ASSERT_BSONOBJ_EQ(oplogEntryObjectDoc,
+                      BSON("create" << nss.coll() << "capped" << true << "size" << 15
+                                    << "recordIdsReplicated" << true));
+
+    const auto entry = makeCommandOplogEntry(
+        entryOpTime, nss, oplogEntryObjectDoc, boost::none /* object2 */, opts.uuid);
+
+    ASSERT(entry.isCommand());
+    ASSERT_FALSE(entry.isPartialTransaction());
+    ASSERT_FALSE(entry.isCrudOpType());
+    ASSERT_FALSE(entry.isContainerOpType());
+    ASSERT_FALSE(entry.shouldPrepare());
+    ASSERT_BSONOBJ_EQ(oplogEntryObjectDoc, entry.getOperationToApply());
+    ASSERT(entry.getCommandType() == OplogEntry::CommandType::kCreate);
+    ASSERT_EQ(entry.getOpTime(), entryOpTime);
+    ASSERT_EQ(entry.getUuid(), opts.uuid);
+    ASSERT(!entry.getTid());
+    ASSERT(!entry.getObject2());
+    ASSERT_TRUE(entry.getObject().hasField("recordIdsReplicated"));
+    ASSERT_TRUE(entry.getObject().getBoolField("recordIdsReplicated"));
+}
+
 TEST_F(OplogEntryTest, CreateWithCatalogIdentifier) {
     CollectionOptions opts;
     opts.capped = true;

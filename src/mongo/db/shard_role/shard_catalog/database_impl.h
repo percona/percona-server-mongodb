@@ -88,26 +88,28 @@ public:
 
     Status dropView(OperationContext* opCtx, NamespaceString viewName) const final;
 
-    Status userCreateNS(
-        OperationContext* opCtx,
-        const NamespaceString& nss,
-        CollectionOptions collectionOptions,
-        bool createDefaultIndexes,
-        const BSONObj& idIndex,
-        bool fromMigrate,
-        const boost::optional<CreateCollCatalogIdentifier>& catalogIdentifier) const final;
+    Status userCreateNS(OperationContext* opCtx,
+                        const NamespaceString& nss,
+                        CollectionOptions collectionOptions,
+                        bool createDefaultIndexes,
+                        const BSONObj& idIndex,
+                        bool fromMigrate,
+                        const boost::optional<CreateCollCatalogIdentifier>& catalogIdentifier,
+                        boost::optional<bool> recordIdsReplicated) const final;
 
     Status userCreateVirtualNS(OperationContext* opCtx,
                                const NamespaceString& fullns,
                                CollectionOptions opts,
                                const VirtualCollectionOptions& vopts) const final;
 
-    Collection* createCollection(OperationContext* opCtx,
-                                 const NamespaceString& nss,
-                                 const CollectionOptions& options = CollectionOptions(),
-                                 bool createDefaultIndexes = true,
-                                 const BSONObj& idIndex = BSONObj(),
-                                 bool fromMigrate = false) const final;
+    Collection* createCollection(
+        OperationContext* opCtx,
+        const NamespaceString& nss,
+        const CollectionOptions& options = CollectionOptions(),
+        bool createDefaultIndexes = true,
+        const BSONObj& idIndex = BSONObj(),
+        bool fromMigrate = false,
+        boost::optional<bool> recordIdsReplicated = boost::none) const final;
 
     StatusWith<std::unique_ptr<CollatorInterface>> validateCollator(
         OperationContext* opCtx, CollectionOptions& opts) const final;
@@ -136,7 +138,8 @@ private:
             voptsOrCatalogIdentifier,
         bool createDefaultIndexes,
         const BSONObj& idIndex,
-        bool fromMigrate) const;
+        bool fromMigrate,
+        boost::optional<bool> recordIdsReplicated) const;
 
     Status _createView(OperationContext* opCtx,
                        const NamespaceString& viewName,

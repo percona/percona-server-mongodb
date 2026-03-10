@@ -167,7 +167,8 @@ public:
     };
 
     CollectionCatalogIdAndUUID createCollection(const NamespaceString& nss,
-                                                CollectionOptions options) {
+                                                CollectionOptions options,
+                                                bool recordIdsReplicated = false) {
         Lock::GlobalWrite lk(operationContext());
         Lock::DBLock dbLk(operationContext(), nss.dbName(), MODE_IX);
         Lock::CollectionLock collLk(operationContext(), nss, MODE_IX);
@@ -177,8 +178,13 @@ public:
         options.uuid = UUID::gen();
         const auto ident = generateNewCollectionIdent(nss);
         const auto catalogId = getMDBCatalog()->reserveCatalogId(operationContext());
-        auto rs = unittest::assertGet(durable_catalog::createCollection(
-            operationContext(), catalogId, nss, ident, options, getMDBCatalog()));
+        auto rs = unittest::assertGet(durable_catalog::createCollection(operationContext(),
+                                                                        catalogId,
+                                                                        nss,
+                                                                        ident,
+                                                                        options,
+                                                                        getMDBCatalog(),
+                                                                        recordIdsReplicated));
         CollectionImplFactory factory;
         std::shared_ptr<Collection> collection = factory.make(
             operationContext(),
@@ -1267,7 +1273,8 @@ TEST_F(DurableCatalogTest, CreateTableToleratesExistingIdent) {
     const std::string ident = generateNewCollectionIdent(nss);
     CollectionOptions collOptions;
     collOptions.uuid = UUID::gen();
-    const auto recordStoreOptions = getRecordStoreOptions(nss, collOptions);
+    const auto recordStoreOptions =
+        getRecordStoreOptions(nss, collOptions, /*recordIdsReplicated=*/false);
 
     const auto catalogId = mdbCatalog->reserveCatalogId(opCtx);
 

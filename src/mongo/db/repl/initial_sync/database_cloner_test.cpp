@@ -79,8 +79,9 @@ protected:
             [this](const NamespaceString& nss,
                    const CollectionOptions& options,
                    const BSONObj& idIndexSpec,
-                   const std::vector<BSONObj>& secondaryIndexSpecs)
-            -> StatusWith<std::unique_ptr<CollectionBulkLoaderMock>> {
+                   const std::vector<BSONObj>& secondaryIndexSpecs,
+                   bool recordIdsReplicated =
+                       false) -> StatusWith<std::unique_ptr<CollectionBulkLoaderMock>> {
             const auto collInfo = &_collections[nss];
 
             auto localLoader = std::make_unique<CollectionBulkLoaderMock>(collInfo->stats);
@@ -121,8 +122,8 @@ protected:
         return bob.obj();
     }
 
-    std::vector<std::pair<NamespaceString, CollectionOptions>> getCollectionsFromCloner(
-        DatabaseCloner* cloner) {
+    std::vector<std::tuple<NamespaceString, CollectionOptions, bool /*recordIdsReplicated*/>>
+    getCollectionsFromCloner(DatabaseCloner* cloner) {
         return cloner->_collections;
     }
 
@@ -164,10 +165,46 @@ TEST_F(DatabaseClonerTest, ListCollections) {
     auto collections = getCollectionsFromCloner(cloner.get());
 
     ASSERT_EQUALS(2U, collections.size());
-    ASSERT_EQ(NamespaceString::createNamespaceString_forTest(_dbName, "a"), collections[0].first);
-    ASSERT_BSONOBJ_EQ(BSON("uuid" << uuid1), collections[0].second.toBSON());
-    ASSERT_EQ(NamespaceString::createNamespaceString_forTest(_dbName, "b"), collections[1].first);
-    ASSERT_BSONOBJ_EQ(BSON("uuid" << uuid2), collections[1].second.toBSON());
+    ASSERT_EQ(NamespaceString::createNamespaceString_forTest(_dbName, "a"),
+              std::get<0>(collections[0]));
+    ASSERT_BSONOBJ_EQ(BSON("uuid" << uuid1), std::get<1>(collections[0]).toBSON());
+    ASSERT_EQ(NamespaceString::createNamespaceString_forTest(_dbName, "b"),
+              std::get<0>(collections[1]));
+    ASSERT_BSONOBJ_EQ(BSON("uuid" << uuid2), std::get<1>(collections[1]).toBSON());
+}
+
+TEST_F(DatabaseClonerTest, ListCollectionsCollectionsWithRecordIds) {
+    auto cloner = makeDatabaseCloner();
+    cloner->setStopAfterStage_forTest("listCollections");
+    auto uuid1 = UUID::gen();
+    auto uuid2 = UUID::gen();
+    const std::vector<BSONObj> sourceInfos = {
+        BSON("name" << "a"
+                    << "type"
+                    << "collection"
+                    << "options" << BSONObj() << "info"
+                    << BSON("readOnly" << false << "uuid" << uuid1)),
+        BSON("name" << "b"
+                    << "type"
+                    << "collection"
+                    << "options" << BSON("recordIdsReplicated" << true) << "info"
+                    << BSON("readOnly" << false << "uuid" << uuid2))};
+    _mockServer->setCommandReply("listCollections",
+                                 createListCollectionsResponse({sourceInfos[0], sourceInfos[1]}));
+    ASSERT_OK(cloner->run());
+    ASSERT_OK(getSharedData()->getStatus(WithLock::withoutLock()));
+    auto collections = getCollectionsFromCloner(cloner.get());
+
+    ASSERT_EQUALS(2U, collections.size());
+    ASSERT_EQ(NamespaceString::createNamespaceString_forTest(_dbName, "a"),
+              std::get<0>(collections[0]));
+    ASSERT_BSONOBJ_EQ(BSON("uuid" << uuid1), std::get<1>(collections[0]).toBSON());
+    ASSERT_EQ(false, std::get<2>(collections[0]));
+    ASSERT_EQ(NamespaceString::createNamespaceString_forTest(_dbName, "b"),
+              std::get<0>(collections[1]));
+    ASSERT_BSONOBJ_EQ(BSON("uuid" << uuid2 << "recordIdsReplicated" << true),
+                      std::get<1>(collections[1]).toBSON());
+    ASSERT_EQ(true, std::get<2>(collections[1]));
 }
 
 // The listCollections command may return new fields in later versions; we do not want that
@@ -203,10 +240,12 @@ TEST_F(DatabaseClonerTest, ListCollectionsAllowsExtraneousFields) {
     auto collections = getCollectionsFromCloner(cloner.get());
 
     ASSERT_EQUALS(2U, collections.size());
-    ASSERT_EQ(NamespaceString::createNamespaceString_forTest(_dbName, "a"), collections[0].first);
-    ASSERT_BSONOBJ_EQ(BSON("uuid" << uuid1), collections[0].second.toBSON());
-    ASSERT_EQ(NamespaceString::createNamespaceString_forTest(_dbName, "b"), collections[1].first);
-    ASSERT_BSONOBJ_EQ(BSON("uuid" << uuid2), collections[1].second.toBSON());
+    ASSERT_EQ(NamespaceString::createNamespaceString_forTest(_dbName, "a"),
+              std::get<0>(collections[0]));
+    ASSERT_BSONOBJ_EQ(BSON("uuid" << uuid1), std::get<1>(collections[0]).toBSON());
+    ASSERT_EQ(NamespaceString::createNamespaceString_forTest(_dbName, "b"),
+              std::get<0>(collections[1]));
+    ASSERT_BSONOBJ_EQ(BSON("uuid" << uuid2), std::get<1>(collections[1]).toBSON());
 }
 
 TEST_F(DatabaseClonerTest, ListCollectionsFailsOnDuplicateNames) {
@@ -559,10 +598,12 @@ TEST_F(DatabaseClonerMultitenancyTest, ListCollectionsMultitenancySupport) {
     auto collections = getCollectionsFromCloner(cloner.get());
 
     ASSERT_EQUALS(2U, collections.size());
-    ASSERT_EQ(NamespaceString::createNamespaceString_forTest(_dbName, "a"), collections[0].first);
-    ASSERT_BSONOBJ_EQ(BSON("uuid" << uuid1), collections[0].second.toBSON());
-    ASSERT_EQ(NamespaceString::createNamespaceString_forTest(_dbName, "b"), collections[1].first);
-    ASSERT_BSONOBJ_EQ(BSON("uuid" << uuid2), collections[1].second.toBSON());
+    ASSERT_EQ(NamespaceString::createNamespaceString_forTest(_dbName, "a"),
+              std::get<0>(collections[0]));
+    ASSERT_BSONOBJ_EQ(BSON("uuid" << uuid1), std::get<1>(collections[0]).toBSON());
+    ASSERT_EQ(NamespaceString::createNamespaceString_forTest(_dbName, "b"),
+              std::get<0>(collections[1]));
+    ASSERT_BSONOBJ_EQ(BSON("uuid" << uuid2), std::get<1>(collections[1]).toBSON());
 }
 
 TEST_F(DatabaseClonerMultitenancyTest,
@@ -592,10 +633,12 @@ TEST_F(DatabaseClonerMultitenancyTest,
     auto collections = getCollectionsFromCloner(cloner.get());
 
     ASSERT_EQUALS(2U, collections.size());
-    ASSERT_EQ(NamespaceString::createNamespaceString_forTest(_dbName, "a"), collections[0].first);
-    ASSERT_BSONOBJ_EQ(BSON("uuid" << uuid1), collections[0].second.toBSON());
-    ASSERT_EQ(NamespaceString::createNamespaceString_forTest(_dbName, "b"), collections[1].first);
-    ASSERT_BSONOBJ_EQ(BSON("uuid" << uuid2), collections[1].second.toBSON());
+    ASSERT_EQ(NamespaceString::createNamespaceString_forTest(_dbName, "a"),
+              std::get<0>(collections[0]));
+    ASSERT_BSONOBJ_EQ(BSON("uuid" << uuid1), std::get<1>(collections[0]).toBSON());
+    ASSERT_EQ(NamespaceString::createNamespaceString_forTest(_dbName, "b"),
+              std::get<0>(collections[1]));
+    ASSERT_BSONOBJ_EQ(BSON("uuid" << uuid2), std::get<1>(collections[1]).toBSON());
 }
 
 }  // namespace repl

@@ -200,7 +200,8 @@ void initCollectionObject(OperationContext* opCtx,
         rs = nullptr;
     } else {
         const auto uuid = md->options.uuid;
-        const auto recordStoreOptions = getRecordStoreOptions(nss, md->options);
+        const auto recordStoreOptions =
+            getRecordStoreOptions(nss, md->options, md->recordIdsReplicated);
         rs = engine->getEngine()->getRecordStore(opCtx, nss, ident, recordStoreOptions, uuid);
         invariant(rs);
     }
@@ -1522,7 +1523,8 @@ std::shared_ptr<Collection> CollectionCatalog::_createNewPITCollection(
             opCtx,
             nss,
             catalogEntry.ident,
-            getRecordStoreOptions(nss, collectionOptions),
+            getRecordStoreOptions(
+                nss, collectionOptions, catalogEntry.metadata->recordIdsReplicated),
             collectionOptions.uuid);
 
     // Set the ident to the one returned by the ident reaper. This is to prevent the ident from

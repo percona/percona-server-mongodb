@@ -750,6 +750,9 @@ class _CommandWithUUIDNamespaceTypeInfo(_CommandBaseTypeInfo):
     def gen_methods(self, indented_writer):
         # type: (writer.IndentedTextWriter) -> None
         indented_writer.write_line(
+            "void setNamespaceOrUUID(NamespaceStringOrUUID nssOrUUID) { _nssOrUUID = std::move(nssOrUUID); }"
+        )
+        indented_writer.write_line(
             "const NamespaceStringOrUUID& getNamespaceOrUUID() const { return _nssOrUUID; }"
         )
         if self._struct.non_const_getter:

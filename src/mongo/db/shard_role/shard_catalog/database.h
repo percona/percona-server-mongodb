@@ -58,16 +58,19 @@ public:
      * indexes, in the case of system collections). Creates the collection's _id index according
      * to 'idIndex', if it is non-empty.  When 'idIndex' is empty, creates the default _id index.
      * If present, 'catalogIdentifier' specifies how to persist and identify the new collection
-     * through the catalog.
+     * through the catalog. The `recordIdsReplicated` define if the collection should use
+     * replicated record Ids or not when it is not empty. When the value is empty the
+     * decision would be made based on the collection type and other conditions.
      */
-    virtual Status userCreateNS(OperationContext* opCtx,
-                                const NamespaceString& fullns,
-                                CollectionOptions collectionOptions,
-                                bool createDefaultIndexes = true,
-                                const BSONObj& idIndex = BSONObj(),
-                                bool fromMigrate = false,
-                                const boost::optional<CreateCollCatalogIdentifier>&
-                                    catalogIdentifier = boost::none) const = 0;
+    virtual Status userCreateNS(
+        OperationContext* opCtx,
+        const NamespaceString& fullns,
+        CollectionOptions collectionOptions,
+        bool createDefaultIndexes = true,
+        const BSONObj& idIndex = BSONObj(),
+        bool fromMigrate = false,
+        const boost::optional<CreateCollCatalogIdentifier>& catalogIdentifier = boost::none,
+        boost::optional<bool> recordIdsReplicated = boost::none) const = 0;
 
     /**
      * Creates the virtual namespace 'fullns' according to 'opts' and 'vopts'.
@@ -131,12 +134,14 @@ public:
      * well as creating it. Otherwise the loop will endlessly throw WCEs: the caller must check that
      * the collection exists to break free.
      */
-    virtual Collection* createCollection(OperationContext* opCtx,
-                                         const NamespaceString& nss,
-                                         const CollectionOptions& options = CollectionOptions(),
-                                         bool createDefaultIndexes = true,
-                                         const BSONObj& idIndex = BSONObj(),
-                                         bool fromMigrate = false) const = 0;
+    virtual Collection* createCollection(
+        OperationContext* opCtx,
+        const NamespaceString& nss,
+        const CollectionOptions& options = CollectionOptions(),
+        bool createDefaultIndexes = true,
+        const BSONObj& idIndex = BSONObj(),
+        bool fromMigrate = false,
+        boost::optional<bool> recordIdsReplicated = boost::none) const = 0;
 
     virtual StatusWith<std::unique_ptr<CollatorInterface>> validateCollator(
         OperationContext* opCtx, CollectionOptions& opts) const = 0;

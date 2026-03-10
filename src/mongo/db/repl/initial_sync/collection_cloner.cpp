@@ -119,11 +119,13 @@ CollectionCloner::CollectionCloner(const NamespaceString& sourceNss,
                                    const HostAndPort& source,
                                    DBClientConnection* client,
                                    StorageInterface* storageInterface,
-                                   ThreadPool* dbPool)
+                                   ThreadPool* dbPool,
+                                   bool recordIdsReplicated)
     : InitialSyncBaseCloner(
           "CollectionCloner"_sd, sharedData, source, client, storageInterface, dbPool),
       _sourceNss(sourceNss),
       _collectionOptions(collectionOptions),
+      _recordIdsReplicated(recordIdsReplicated),
       _sourceDbAndUuid(NamespaceString::kEmpty),
       _collectionClonerBatchSize(collectionClonerBatchSize.load()),
       _collStatsStage("collStats", this, &CollectionCloner::collStatsStage),
@@ -340,7 +342,7 @@ BaseCloner::AfterStageBehavior CollectionCloner::listIndexesStage() {
 
 BaseCloner::AfterStageBehavior CollectionCloner::createCollectionStage() {
     auto collectionBulkLoader = getStorageInterface()->createCollectionForBulkLoading(
-        _sourceNss, _collectionOptions, _idIndexSpec, _readyIndexSpecs);
+        _sourceNss, _collectionOptions, _idIndexSpec, _readyIndexSpecs, _recordIdsReplicated);
     uassertStatusOK(collectionBulkLoader.getStatus());
     _collLoader = std::move(collectionBulkLoader.getValue());
     return kContinueNormally;

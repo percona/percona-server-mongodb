@@ -80,7 +80,8 @@ public:
         const NamespaceString& nss,
         const CollectionOptions& options,
         BSONObj idIndexSpec,
-        const std::vector<BSONObj>& secondaryIndexSpecs) override;
+        const std::vector<BSONObj>& secondaryIndexSpecs,
+        boost::optional<bool> recordIdsReplicated = boost::none) override;
 
     Status insertDocument(OperationContext* opCtx,
                           const NamespaceStringOrUUID& nsOrUUID,

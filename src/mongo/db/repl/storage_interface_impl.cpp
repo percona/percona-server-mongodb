@@ -221,7 +221,8 @@ StorageInterfaceImpl::createCollectionForBulkLoading(
     const NamespaceString& nss,
     const CollectionOptions& options,
     const BSONObj idIndexSpec,
-    const std::vector<BSONObj>& secondaryIndexSpecs) {
+    const std::vector<BSONObj>& secondaryIndexSpecs,
+    boost::optional<bool> recordIdsReplicated) {
 
     LOGV2_DEBUG(
         21753, 2, "StorageInterfaceImpl::createCollectionForBulkLoading called", logAttrs(nss));
@@ -281,7 +282,14 @@ StorageInterfaceImpl::createCollectionForBulkLoading(
                 // Create the collection.
                 WriteUnitOfWork wunit(opCtx.get());
                 auto db = autoDb.ensureDbExists(opCtx.get());
-                fassert(40332, db->createCollection(opCtx.get(), nss, options, false));
+                fassert(40332,
+                        db->createCollection(opCtx.get(),
+                                             nss,
+                                             options,
+                                             false,
+                                             /*idIndex=*/BSONObj(),
+                                             /*fromMigrate=*/false,
+                                             recordIdsReplicated));
                 wunit.commit();
             }
 

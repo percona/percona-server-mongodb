@@ -108,7 +108,8 @@ MONGO_MOD_PRIVATE StatusWith<std::unique_ptr<RecordStore>> createCollection(
     const NamespaceString& nss,
     const std::string& ident,
     const CollectionOptions& options,
-    MDBCatalog* mdbCatalog);
+    MDBCatalog* mdbCatalog,
+    bool recordIdsReplicated = false);
 
 MONGO_MOD_PRIVATE Status createIndex(OperationContext* opCtx,
                                      const RecordId& catalogId,

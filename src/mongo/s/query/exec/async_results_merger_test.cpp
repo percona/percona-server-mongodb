@@ -3692,16 +3692,16 @@ TEST_F(AsyncResultsMergerTest, RemoteMetricsAggregatedLocally) {
                               false /* hasSortStage */,
                               true /* usedDisk */,
                               true /* fromMultiPlanner */,
-                              true /* fromPlanCache */,
-                              100 /* planningTimeMicros */,
-                              15 /* nDocsSampled */,
-                              37 /*cpuNanos */,
-                              3 /* numInterruptChecks */,
-                              1 /* nMatched */,
-                              0 /* nUpserted */,
-                              1 /* nModified */,
-                              0 /* nDeleted */,
-                              0 /* nInserted */);
+                              true /* fromPlanCache */);
+        metrics.setPlanningTimeMicros(100);
+        metrics.setNDocsSampled(15);
+        metrics.setCpuNanos(37);
+        metrics.setNumInterruptChecks(3);
+        metrics.setNMatched(1);
+        metrics.setNUpserted(0);
+        metrics.setNModified(1);
+        metrics.setNDeleted(0);
+        metrics.setNInserted(0);
         CardinalityEstimationMethods ceMethods1;
         ceMethods1.setHistogram(2);
         metrics.setCardinalityEstimationMethods(ceMethods1);
@@ -3769,16 +3769,16 @@ TEST_F(AsyncResultsMergerTest, RemoteMetricsAggregatedLocally) {
                               false /* hasSortStage */,
                               true /* usedDisk */,
                               true /* fromMultiPlanner */,
-                              false /* fromPlanCache */,
-                              150 /* planningTimeMicros */,
-                              16 /* nDocsSampled */,
-                              121 /*cpuNanos */,
-                              2 /* numInterruptChecks */,
-                              2 /* nMatched */,
-                              1 /* nUpserted */,
-                              2 /* nModified */,
-                              1 /* nDeleted */,
-                              1 /* nInserted */);
+                              false /* fromPlanCache */);
+        metrics.setPlanningTimeMicros(150);
+        metrics.setNDocsSampled(16);
+        metrics.setCpuNanos(121);
+        metrics.setNumInterruptChecks(2);
+        metrics.setNMatched(2);
+        metrics.setNUpserted(1);
+        metrics.setNModified(2);
+        metrics.setNDeleted(1);
+        metrics.setNInserted(1);
         CardinalityEstimationMethods ceMethods2;
         ceMethods2.setHistogram(1);
         ceMethods2.setSampling(1);

@@ -108,7 +108,8 @@ public:
                      const HostAndPort& source,
                      DBClientConnection* client,
                      StorageInterface* storageInterface,
-                     ThreadPool* dbPool);
+                     ThreadPool* dbPool,
+                     bool recordIdsReplicated);
 
     ~CollectionCloner() override = default;
 
@@ -272,6 +273,7 @@ private:
     // (X)  Access only allowed from the main flow of control called from run() or constructor.
     const NamespaceString _sourceNss;            // (R)
     const CollectionOptions _collectionOptions;  // (R)
+    bool _recordIdsReplicated;                   // (R)
     // Despite the type name, this member must always contain a UUID.
     NamespaceStringOrUUID _sourceDbAndUuid;  // (R)
     // The size of the batches of documents returned in collection cloning.

@@ -76,6 +76,8 @@ def fetch_pull_request_metrics(pull_number, repo_owner, repo_name, headers):
         if target_branch != "master":
             return ("skip", pull_number, "does not target master branch")
 
+        pr_title = pull_request.get("title", "")
+
         # Get the list of events for the pull request
         response = requests.get(pull_request["issue_url"] + "/events", headers=headers, timeout=10)
         response.raise_for_status()
@@ -85,6 +87,9 @@ def fetch_pull_request_metrics(pull_number, repo_owner, repo_name, headers):
             event for event in events if event["event"] == "added_to_merge_queue"
         ]
         merged_events = [event for event in events if event["event"] == "merged"]
+        removed_from_merge_queue_events = [
+            event for event in events if event["event"] == "removed_from_merge_queue"
+        ]
 
         start_event = added_to_merge_queue_events[-1] if added_to_merge_queue_events else None
         end_event = merged_events[-1] if merged_events else None
@@ -95,7 +100,14 @@ def fetch_pull_request_metrics(pull_number, repo_owner, repo_name, headers):
             merged_at = parse_iso_timestamp(end_event["created_at"])
             # Calculate the time difference
             time_difference = merged_at - started_at
-            return ("result", pull_number, started_at, merged_at, time_difference)
+            return ("result", pull_number, started_at, merged_at, time_difference, pr_title)
+
+        # Check if PR was added to merge queue but removed (not merged)
+        if start_event is not None and end_event is None and removed_from_merge_queue_events:
+            removed_event = removed_from_merge_queue_events[-1]
+            added_at = parse_iso_timestamp(start_event["created_at"])
+            removed_at = parse_iso_timestamp(removed_event["created_at"])
+            return ("removed", pull_number, added_at, removed_at, pr_title)
 
         return None
     except Exception as e:
@@ -118,6 +130,11 @@ def main():
     parser.add_argument(
         "--count", type=int, default=1000, help="Number of pull requests to analyze"
     )
+    parser.add_argument(
+        "--show-removed",
+        action="store_true",
+        help="Print a list of PRs that were removed from the merge queue (not merged)",
+    )
     args = parser.parse_args()
 
     if not args.token:
@@ -138,6 +155,7 @@ def main():
     cache_misses = 0
 
     results = []
+    removed_results = []
     pull_numbers = range(latest_pr - args.count, latest_pr + 1)
 
     # Check cache first and collect PRs that need fetching
@@ -184,7 +202,7 @@ def main():
             elif result[0] == "error":
                 print(f"Error fetching PR {result[1]}: {result[2]}")
             elif result[0] == "result":
-                _, pull_number, started_at, merged_at, time_difference = result
+                _, pull_number, started_at, merged_at, time_difference, pr_title = result
                 results.append((pull_number, started_at, merged_at, time_difference))
                 print(f"{pull_number}, {started_at}, {time_difference}")
                 # Cache the result
@@ -194,6 +212,9 @@ def main():
                     "merged_at": merged_at.isoformat(),
                 }
                 cache_misses += 1
+            elif result[0] == "removed":
+                _, pull_number, added_at, removed_at, pr_title = result
+                removed_results.append((pull_number, added_at, removed_at, pr_title))
 
     # Save cache
     save_cache(cache)
@@ -271,6 +292,20 @@ def main():
         print("\n--- Time Difference Percentiles by Day (EST, Weekdays Only) ---")
         for day in sorted(results_by_day.keys()):
             print_percentiles(day, results_by_day[day])
+
+    # Print removed PRs if requested
+    if args.show_removed:
+        # Sort removed results by removed_at date
+        removed_results.sort(key=lambda x: x[2])
+        print(f"\n--- PRs Removed from Merge Queue (n={len(removed_results)}) ---")
+        if removed_results:
+            for pull_number, added_at, removed_at, pr_title in removed_results:
+                removed_at_est = removed_at.astimezone(EST)
+                pr_url = f"https://github.com/{repo_owner}/{repo_name}/pull/{pull_number}"
+                print(f"#{pull_number} | {removed_at_est.strftime('%Y-%m-%d %H:%M')} | {pr_url}")
+                print(f"  Title: {pr_title}")
+        else:
+            print("No PRs were removed from the merge queue in this range.")
 
 
 if __name__ == "__main__":

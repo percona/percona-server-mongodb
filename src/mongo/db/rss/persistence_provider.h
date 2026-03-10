@@ -205,6 +205,11 @@ public:
     virtual bool supportsCompaction() const = 0;
 
     /**
+     * If true, the provider supports using magic restore in classic mode.
+     */
+    virtual bool supportsClassicMagicRestore() const = 0;
+
+    /**
      * If true, this persistence provider expects collection/index table creation to be timestamped.
      */
     virtual bool shouldTimestampTableCreations() const = 0;
@@ -218,6 +223,13 @@ public:
      * Set minimum number of seconds of snapshot history to maintain.
      */
     virtual void setMinSnapshotHistoryWindowInSeconds(int seconds) = 0;
+
+    /**
+     * Whether the current settings provide guarantees of a journal / write ahead log even if not
+     * explicitly asked for.
+     */
+    virtual bool settingsProvideMajorityWriteJournalDurability(
+        bool writeConcernMajorityShouldJournal) const = 0;
 };
 
 }  // namespace rss

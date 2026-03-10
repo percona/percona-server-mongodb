@@ -196,6 +196,72 @@ TEST_F(PipelineAnalyzerTest, GroupOnMainCollection) {
     ASSERT_EQ(swJoinModel.getStatus(), ErrorCodes::QueryFeatureNotAllowed);
 }
 
+TEST_F(PipelineAnalyzerTest, ConflictingLocalFields) {
+    // Conflicting prefix in the local field
+
+    auto query = R"([
+        {$lookup: {from: "B", as: "a.b", localField: "x", foreignField: "y"}},
+        {$unwind: "$a.b"},
+        {$lookup: {from: "C", as: "c", localField: "a", foreignField: "z"}},
+        {$unwind: "$c"}
+    ])";
+
+    auto pipeline = makePipeline(query, {"B", "C"});
+    // We don't detect ineligibility of local path fields here.
+    ASSERT_TRUE(AggJoinModel::pipelineEligibleForJoinReordering(*pipeline));
+    auto swJoinModel = AggJoinModel::constructJoinModel(*pipeline, defaultBuildParams);
+    ASSERT_EQ(swJoinModel.getStatus(), ErrorCodes::BadValue);
+    ASSERT_EQ(swJoinModel.getStatus().reason(), "Local path could not be resolved");
+}
+
+TEST_F(PipelineAnalyzerTest, ConflictingLocalFieldExprSyntax) {
+    const auto query = R"([
+    {$lookup: {from: "B", as: "foo.b", localField: "x", foreignField: "y"}},
+    {$unwind: "$foo.b"},
+    {
+        $lookup: {
+            from: "A",
+            let: {foo: "$foo", bar: "$bar"},
+            pipeline: [
+                {
+                    $match: {
+                        $expr: {
+                            $and: [
+                                {$eq: ["$foo", "$$foo"]},
+                                {$eq: ["$bar", "$$bar"]}
+                            ]
+                        }
+                    }
+                }
+            ],
+            as: "a"
+        }
+    },
+    {$unwind: "$a"}
+    ])";
+
+    auto pipeline = makePipeline(query, {"B", "A"});
+    // We don't detect ineligibility of local path fields here.
+    ASSERT_TRUE(AggJoinModel::pipelineEligibleForJoinReordering(*pipeline));
+    auto swJoinModel = AggJoinModel::constructJoinModel(*pipeline, defaultBuildParams);
+    ASSERT_EQ(swJoinModel.getStatus(), ErrorCodes::BadValue);
+    ASSERT_EQ(swJoinModel.getStatus().reason(), "Local path could not be resolved");
+}
+
+TEST_F(PipelineAnalyzerTest, CompatibleAsFields) {
+    auto query = R"([
+            {$lookup: {from: "B", as: "x.y", localField: "x.c", foreignField: "c"}},
+            {$unwind: "$x.y"},
+            {$lookup: {from: "C", as: "x.z", localField: "x.y.d", foreignField: "d"}},
+            {$unwind: "$x.z"}
+        ])";
+    auto pipeline = makePipeline(query, {"B", "C"});
+
+    ASSERT_TRUE(AggJoinModel::pipelineEligibleForJoinReordering(*pipeline));
+    auto swJoinModel = AggJoinModel::constructJoinModel(*pipeline, defaultBuildParams);
+    ASSERT_OK(swJoinModel);
+}
+
 TEST_F(PipelineAnalyzerTest, GroupInMiddleIneligible) {
     unittest::GoldenTestContext goldenCtx(&goldenTestConfig);
     const auto query = R"([

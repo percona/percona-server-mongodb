@@ -234,7 +234,8 @@ ReplOperation MutableOplogEntry::makeDeleteOperation(const NamespaceString& nss,
 
 BSONObj MutableOplogEntry::makeCreateCollObject(const NamespaceString& collectionName,
                                                 const CollectionOptions& options,
-                                                const BSONObj& idIndex) {
+                                                const BSONObj& idIndex,
+                                                boost::optional<bool> recordIdsReplicated) {
     BSONObjBuilder b;
     b.append("create", std::string{collectionName.coll()});
     {
@@ -252,6 +253,10 @@ BSONObj MutableOplogEntry::makeCreateCollObject(const NamespaceString& collectio
             static_cast<IndexDescriptor::IndexVersion>(versionElem.numberInt())) {
             b.append("idIndex", idIndex);
         }
+    }
+
+    if (recordIdsReplicated.has_value()) {
+        b.appendBool("recordIdsReplicated", *recordIdsReplicated);
     }
 
     return b.obj();

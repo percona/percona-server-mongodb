@@ -365,11 +365,12 @@ protected:
             return Status::OK();
         };
         _storageInterface->createCollectionForBulkFn =
-            [this](const NamespaceString& nss,
-                   const CollectionOptions& options,
-                   const BSONObj idIndexSpec,
-                   const std::vector<BSONObj>& secondaryIndexSpecs)
-            -> StatusWith<std::unique_ptr<CollectionBulkLoaderMock>> {
+            [this](
+                const NamespaceString& nss,
+                const CollectionOptions& options,
+                const BSONObj idIndexSpec,
+                const std::vector<BSONObj>& secondaryIndexSpecs,
+                bool recordIdsReplicated) -> StatusWith<std::unique_ptr<CollectionBulkLoaderMock>> {
             // Get collection info from map.
             const auto collInfo = &_collections[nss];
             if (collInfo->stats->initCalled) {

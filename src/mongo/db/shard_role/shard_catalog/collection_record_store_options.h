@@ -40,9 +40,11 @@ static constexpr auto kDefaultTimeseriesCollectionCompressor = "zstd"_sd;
 
 /**
  * Each Collection is backed by a RecordStore in the storage layer. Translates 'CollectionOptions'
- * into 'RecordStore::Options' for a Collection's RecordStore.
+ * into 'RecordStore::Options' for a Collection's RecordStore taking into account also
+ * `recordIdsReplicated`.
  */
 RecordStore::Options getRecordStoreOptions(const NamespaceString& nss,
-                                           const CollectionOptions& collectionOptions);
+                                           const CollectionOptions& collectionOptions,
+                                           bool recordIdsReplicated);
 
 }  // namespace mongo

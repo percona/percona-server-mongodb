@@ -303,13 +303,18 @@ StatusWith<std::unique_ptr<RecordStore>> createCollection(
     const NamespaceString& nss,
     const std::string& ident,
     const CollectionOptions& collectionOptions,
-    MDBCatalog* mdbCatalog) {
+    MDBCatalog* mdbCatalog,
+    bool recordIdsReplicated) {
     invariant(shard_role_details::getLocker(opCtx)->isCollectionLockedForMode(nss, MODE_IX));
     invariant(nss.coll().size() > 0);
 
-    auto recordStoreOptions = getRecordStoreOptions(nss, collectionOptions);
-    durable_catalog::CatalogEntryMetaData md = internal::createMetaDataForNewCollection(
-        nss, collectionOptions, collectionOptions.recordIdsReplicated);
+    // TODO (SERVER-119864) remove when recordIdsReplicated is be removed from collection options.
+    // For now lets ensure that they match.
+    invariant(collectionOptions.recordIdsReplicated == recordIdsReplicated);
+
+    auto recordStoreOptions = getRecordStoreOptions(nss, collectionOptions, recordIdsReplicated);
+    durable_catalog::CatalogEntryMetaData md =
+        internal::createMetaDataForNewCollection(nss, collectionOptions, recordIdsReplicated);
 
     auto engine = opCtx->getServiceContext()->getStorageEngine()->getEngine();
     auto& ru = *shard_role_details::getRecoveryUnit(opCtx);
@@ -416,7 +421,8 @@ StatusWith<ImportResult> importCollection(OperationContext* opCtx,
         }
         return metadata;
     }();
-    RecordStore::Options recordStoreOptions = getRecordStoreOptions(nss, md.options);
+    RecordStore::Options recordStoreOptions =
+        getRecordStoreOptions(nss, md.options, md.recordIdsReplicated);
     auto importResult = mdbCatalog->importCatalogEntry(opCtx,
                                                        nss,
                                                        *md.options.uuid,

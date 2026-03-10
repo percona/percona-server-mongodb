@@ -733,7 +733,8 @@ Status _createCollection(
     const bool isForApplyOps,
     const boost::optional<BSONObj>& idIndex,
     const boost::optional<VirtualCollectionOptions>& virtualCollectionOptions = boost::none,
-    const boost::optional<CreateCollCatalogIdentifier>& catalogIdentifier = boost::none) {
+    const boost::optional<CreateCollCatalogIdentifier>& catalogIdentifier = boost::none,
+    boost::optional<bool> recordIdsReplicated = boost::none) {
 
     return writeConflictRetry(opCtx, "create", nss, [&] {
         AutoGetDb autoDb(opCtx, nss.dbName(), MODE_IX /* database lock mode*/, boost::none);
@@ -788,7 +789,8 @@ Status _createCollection(
                                    /*createIdIndex=*/false,
                                    /*idIndex=*/BSONObj(),
                                    /*fromMigrate=*/false,
-                                   catalogIdentifier);
+                                   catalogIdentifier,
+                                   recordIdsReplicated);
         } else {
             bool createIdIndex = true;
             if (MONGO_unlikely(skipIdIndex.shouldFail())) {
@@ -800,7 +802,8 @@ Status _createCollection(
                                       createIdIndex,
                                       *idIndex,
                                       /*fromMigrate=*/false,
-                                      catalogIdentifier);
+                                      catalogIdentifier,
+                                      recordIdsReplicated);
         }
         if (!status.isOK()) {
             return status;
@@ -1114,7 +1117,8 @@ Status createCollectionForApplyOps(
     const BSONObj& cmdObj,
     bool allowRenameOutOfTheWay,
     const boost::optional<BSONObj>& idIndex,
-    const boost::optional<CreateCollCatalogIdentifier>& catalogIdentifier) {
+    const boost::optional<CreateCollCatalogIdentifier>& catalogIdentifier,
+    boost::optional<bool> recordIdsReplicated) {
     // While applying a collection creation op serializes with FCV changes, acquire an OFCV so:
     // - We can check feature flags defined as `check_against_fcv: operation_fcv_only`.
     // - If we enter here through the applyOps command, the OFCV will be replicated in the oplog,
@@ -1193,7 +1197,8 @@ Status createCollectionForApplyOps(
                              /*isForApplyOps=*/true,
                              idIndex,
                              /*virtualCollectionOptions=*/boost::none,
-                             catalogIdentifier);
+                             catalogIdentifier,
+                             recordIdsReplicated);
 }
 
 

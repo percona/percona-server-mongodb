@@ -343,6 +343,15 @@ public:
     void reload(OperationContext* opCtx);
 
     /**
+     * Force a reload of the ShardRegistry for recovery.
+     *
+     * Returns the cached time before and after the reload, and the force reload increment before
+     * and after the reload.
+     */
+    std::tuple<Timestamp, int64_t, Timestamp, int64_t> reloadForRecovery(OperationContext* opCtx);
+
+
+    /**
      * To be used on mongod only. If the mongod is a primary, schedules a write to update the
      * connection string in the config.shards document for the shard it corresponds to. Upon an
      * error, retries if the mongod is still a primary.
@@ -447,11 +456,16 @@ private:
 
         /**
          * Get the topologyTime component.
-         *
-         * TODO (SERVER-102087): remove after 9.0 is branched.
          */
         const Timestamp& getTopologyTime() const {
             return _topologyTime;
+        }
+
+        /**
+         * Get the forceReloadIncrement component.
+         */
+        Increment getForceReloadIncrement() const {
+            return _forceReloadIncrement;
         }
 
     private:
@@ -596,6 +610,14 @@ private:
 
     // Set to true in shutdown call to prevent calling it twice.
     AtomicWord<bool> _isShutdown{false};
+
+    // Set to true when in recovery mode
+    AtomicWord<bool> _isRecoveryMode{false};
+
+    /**
+     * Clears the cached latest connection strings and ReplicaSetMonitors.
+     */
+    void _clearForRecovery(OperationContext* opCtx);
 };
 
 }  // namespace mongo

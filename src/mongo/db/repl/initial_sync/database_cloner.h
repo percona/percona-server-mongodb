@@ -48,7 +48,7 @@
 #include <cstddef>
 #include <memory>
 #include <string>
-#include <utility>
+#include <tuple>
 #include <vector>
 
 namespace mongo {
@@ -121,11 +121,12 @@ private:
     // (X)  Access only allowed from the main flow of control called from run() or constructor.
     // (MX) Write access with mutex from main flow of control, read access with mutex from other
     //      threads, read access allowed from main flow without mutex.
-    const DatabaseName _dbName;                                               // (R)
-    ClonerStage<DatabaseCloner> _listCollectionsStage;                        // (R)
-    std::vector<std::pair<NamespaceString, CollectionOptions>> _collections;  // (X)
-    std::unique_ptr<CollectionCloner> _currentCollectionCloner;               // (MX)
-    Stats _stats;                                                             // (MX)
+    const DatabaseName _dbName;                         // (R)
+    ClonerStage<DatabaseCloner> _listCollectionsStage;  // (R)
+    std::vector<std::tuple<NamespaceString, CollectionOptions, bool /*recordIdsReplicated*/>>
+        _collections;                                            // (X)
+    std::unique_ptr<CollectionCloner> _currentCollectionCloner;  // (MX)
+    Stats _stats;                                                // (MX)
 };
 
 }  // namespace repl

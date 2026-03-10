@@ -453,7 +453,6 @@ index 74aa8183103..e5498e292fe 100644
 -        "@com_github_opentelemetry_proto//:common_proto_cc",
 -        "@com_google_absl//absl/strings",
 -        "@github_nlohmann_json//:json",
-+        "@com_google_absl//absl/strings:strings",
 +        "//src/third_party/nlohmann-json:json",
 +        "//src/third_party/opentelemetry-cpp/api",
 +        "//src/third_party/opentelemetry-cpp/ext/src/http/client/curl:http_client_curl",
@@ -461,6 +460,7 @@ index 74aa8183103..e5498e292fe 100644
 +        "//src/third_party/opentelemetry-cpp/sdk/src/common:base64",
 +        "//src/third_party/opentelemetry-cpp/sdk/src/common:global_log_handler",
 +        "//src/third_party/opentelemetry-proto:common_proto_cc",
++        "@com_google_absl//absl/strings:strings",
      ],
  )
  
@@ -555,13 +555,13 @@ index 74aa8183103..e5498e292fe 100644
 -        "@com_github_opentelemetry_proto//:common_proto_cc",
 -        "@com_google_absl//absl/strings",
 -        "@github_nlohmann_json//:json",
-+        "@com_google_absl//absl/strings:strings",
 +        "//src/third_party/nlohmann-json:json",
 +        "//src/third_party/opentelemetry-cpp/api",
 +        "//src/third_party/opentelemetry-cpp/sdk:headers",
 +        "//src/third_party/opentelemetry-cpp/sdk/src/common:base64",
 +        "//src/third_party/opentelemetry-cpp/sdk/src/common:global_log_handler",
 +        "//src/third_party/opentelemetry-proto:common_proto_cc",
++        "@com_google_absl//absl/strings:strings",
      ],
  )
  
@@ -882,8 +882,6 @@ index 74aa8183103..e5498e292fe 100644
      deps = [
 -        ":otlp_builder_utils",
 -        ":otlp_file_log_record_exporter",
-+        "@com_google_absl//absl/strings:strings",
-+        "//src/third_party/grpc:grpc++",
 +        "//src/third_party/nlohmann-json:json",
 +        "//src/third_party/opentelemetry-cpp/api",
 +        "//src/third_party/opentelemetry-cpp/ext/src/http/client/curl:http_client_curl",
@@ -894,6 +892,8 @@ index 74aa8183103..e5498e292fe 100644
 +        "//src/third_party/opentelemetry-proto:logs_service",
 +        "//src/third_party/opentelemetry-proto:metrics_service",
 +        "//src/third_party/opentelemetry-proto:trace_service",
++        "@com_github_grpc_grpc//:grpc++",
++        "@com_google_absl//absl/strings",
      ],
  )
  

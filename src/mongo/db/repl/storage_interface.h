@@ -127,7 +127,8 @@ public:
         const NamespaceString& nss,
         const CollectionOptions& options,
         BSONObj idIndexSpec,
-        const std::vector<BSONObj>& secondaryIndexSpecs) = 0;
+        const std::vector<BSONObj>& secondaryIndexSpecs,
+        boost::optional<bool> recordIdsReplicated = boost::none) = 0;
 
     /**
      * Inserts a document with a timestamp into a collection.
