@@ -36,6 +36,7 @@
 #include <set>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include <boost/optional/optional.hpp>
 
@@ -50,10 +51,12 @@
 #include "mongo/db/auth/auth_name.h"
 #include "mongo/db/auth/authorization_manager.h"
 #include "mongo/db/auth/authorization_manager_impl.h"
+#include "mongo/db/auth/authorization_session_test_fixture.h"
 #include "mongo/db/auth/authz_manager_external_state_mock.h"
 #include "mongo/db/auth/resource_pattern.h"
 #include "mongo/db/auth/sasl_options.h"
 #include "mongo/db/client.h"
+#include "mongo/db/ldap_options.h"
 #include "mongo/db/namespace_string.h"
 #include "mongo/db/service_context_test_fixture.h"
 #include "mongo/db/storage/recovery_unit_noop.h"
@@ -66,6 +69,7 @@
 #include "mongo/util/net/ssl_peer_info.h"
 #include "mongo/util/net/ssl_types.h"
 #include "mongo/util/read_through_cache.h"
+#include "mongo/util/time_support.h"
 
 #define ASSERT_NULL(EXPR) ASSERT_FALSE(EXPR)
 #define ASSERT_NON_NULL(EXPR) ASSERT_TRUE(EXPR)
@@ -150,7 +154,7 @@ class RecoveryUnitMock : public RecoveryUnitNoop {
 class AuthorizationManagerTest : public ServiceContextTest {
 public:
     AuthorizationManagerTest() {
-        auto localExternalState = std::make_unique<AuthzManagerExternalStateMock>();
+        auto localExternalState = std::make_unique<FailureCapableAuthzManagerExternalStateMock>();
         externalState = localExternalState.get();
         auto localAuthzManager = std::make_unique<AuthorizationManagerImplForTest>(
             getService(), std::move(localExternalState));
@@ -225,7 +229,7 @@ public:
     transport::TransportLayerMock transportLayer;
     std::shared_ptr<transport::Session> session = transportLayer.createSession();
     AuthorizationManagerImplForTest* authzManager;
-    AuthzManagerExternalStateMock* externalState;
+    FailureCapableAuthzManagerExternalStateMock* externalState;
     BSONObj credentials;
     ServiceContext::UniqueOperationContext opCtx;
 };
@@ -502,6 +506,231 @@ TEST_F(AuthorizationManagerTest, testRefreshExternalV2User) {
         }
         ASSERT_FALSE(cachedUserRolesIt.more());
     }
+}
+
+// RAII guard that sets ldapGlobalParams for testing and restores originals on destruction.
+class LDAPParamsGuard {
+public:
+    LDAPParamsGuard(bool shouldRefresh, int intervalSecs)
+        : _savedServers(ldapGlobalParams.ldapServers.get()),
+          _savedShouldRefresh(ldapGlobalParams.ldapShouldRefreshUserCacheEntries),
+          _savedRefreshInterval(ldapGlobalParams.ldapUserCacheRefreshInterval.load()),
+          _savedInvalidationInterval(ldapGlobalParams.ldapUserCacheInvalidationInterval.load()),
+          _savedValidateConfig(ldapGlobalParams.ldapValidateLDAPServerConfig) {
+        ldapGlobalParams.setServersStr("localhost");
+        ldapGlobalParams.ldapShouldRefreshUserCacheEntries = shouldRefresh;
+        ldapGlobalParams.ldapUserCacheRefreshInterval.store(intervalSecs);
+        ldapGlobalParams.ldapUserCacheInvalidationInterval.store(intervalSecs);
+        ldapGlobalParams.ldapValidateLDAPServerConfig = false;
+    }
+
+    ~LDAPParamsGuard() {
+        ldapGlobalParams.ldapServers = std::move(_savedServers);
+        ldapGlobalParams.ldapShouldRefreshUserCacheEntries = _savedShouldRefresh;
+        ldapGlobalParams.ldapUserCacheRefreshInterval.store(_savedRefreshInterval);
+        ldapGlobalParams.ldapUserCacheInvalidationInterval.store(_savedInvalidationInterval);
+        ldapGlobalParams.ldapValidateLDAPServerConfig = _savedValidateConfig;
+    }
+
+private:
+    std::vector<std::string> _savedServers;
+    bool _savedShouldRefresh;
+    int _savedRefreshInterval;
+    int _savedInvalidationInterval;
+    bool _savedValidateConfig;
+};
+
+// Verifies that LDAPUserCacheInvalidator::run() takes the refresh path when
+// ldapShouldRefreshUserCacheEntries is true: the background thread calls refreshExternalUsers,
+// which updates cached $external users with changed roles from the backend. A second $external
+// user whose roles do NOT change must remain valid — this distinguishes refresh (selective update)
+// from invalidation (which would invalidate all $external entries).
+TEST_F(AuthorizationManagerTest, testLDAPCacheInvalidatorRunRefreshPath) {
+    LDAPParamsGuard paramsGuard(/*shouldRefresh=*/true, /*intervalSecs=*/1);
+
+    BSONObj externalCredentials = BSON("external" << true);
+    BSONObj changedUserDoc = BSON("_id"
+                                  << "admin.changedUser"
+                                  << "user"
+                                  << "changedUser"
+                                  << "db"
+                                  << "$external"
+                                  << "credentials" << externalCredentials << "roles"
+                                  << BSON_ARRAY(BSON("role"
+                                                     << "read"
+                                                     << "db"
+                                                     << "test")));
+    BSONObj unchangedUserDoc = BSON("_id"
+                                    << "admin.unchangedUser"
+                                    << "user"
+                                    << "unchangedUser"
+                                    << "db"
+                                    << "$external"
+                                    << "credentials" << externalCredentials << "roles"
+                                    << BSON_ARRAY(BSON("role"
+                                                       << "read"
+                                                       << "db"
+                                                       << "test")));
+
+    ASSERT_OK(externalState->insertUserDocument(opCtx.get(), changedUserDoc, BSONObj()));
+    ASSERT_OK(externalState->insertUserDocument(opCtx.get(), unchangedUserDoc, BSONObj()));
+
+    // Start the background thread via initialize() BEFORE populating the cache.
+    // initialize() calls invalidateUserCache() internally, so any handles acquired before it
+    // would be unconditionally invalidated.
+    ASSERT_OK(authzManager->initialize(opCtx.get()));
+
+    // Acquire both users to populate the cache.
+    auto swChanged =
+        authzManager->acquireUser(opCtx.get(), {UserName("changedUser", "$external"), boost::none});
+    ASSERT_OK(swChanged.getStatus());
+    auto cachedChangedUser = std::move(swChanged.getValue());
+    ASSERT(cachedChangedUser.isValid());
+
+    auto swUnchanged = authzManager->acquireUser(
+        opCtx.get(), {UserName("unchangedUser", "$external"), boost::none});
+    ASSERT_OK(swUnchanged.getStatus());
+    auto cachedUnchangedUser = std::move(swUnchanged.getValue());
+    ASSERT(cachedUnchangedUser.isValid());
+
+    // Update only one user's roles in the backend.
+    ASSERT_OK(externalState->updateOne(opCtx.get(),
+                                       NamespaceString::kAdminUsersNamespace,
+                                       BSON("user"
+                                            << "changedUser"),
+                                       BSON("$set" << BSON("roles" << BSON_ARRAY(BSON("role"
+                                                                                      << "readWrite"
+                                                                                      << "db"
+                                                                                      << "test")))),
+                                       true,
+                                       BSONObj()));
+
+    // Wait for the background thread to tick and perform the refresh.
+    sleepmillis(2000);
+
+    // The changed user's old handle should be invalid (refreshExternalUsers replaces the entry).
+    ASSERT(!cachedChangedUser.isValid());
+
+    // The unchanged user's handle must remain valid — refresh only replaces entries with
+    // different roles. If invalidation had run instead, this handle would be invalid too.
+    ASSERT(cachedUnchangedUser.isValid());
+
+    // Re-acquire the changed user and verify the refreshed cache has the updated role.
+    swChanged =
+        authzManager->acquireUser(opCtx.get(), {UserName("changedUser", "$external"), boost::none});
+    ASSERT_OK(swChanged.getStatus());
+    auto refreshedUser = std::move(swChanged.getValue());
+    RoleNameIterator roles = refreshedUser->getRoles();
+    ASSERT_EQUALS(RoleName("readWrite", "test"), roles.next());
+    ASSERT_FALSE(roles.more());
+}
+
+// Verifies that LDAPUserCacheInvalidator::run() takes the invalidation path when
+// ldapShouldRefreshUserCacheEntries is false: the background thread calls
+// invalidateUsersFromDB($external) instead of refreshExternalUsers.
+TEST_F(AuthorizationManagerTest, testLDAPCacheInvalidatorRunInvalidationPath) {
+    LDAPParamsGuard paramsGuard(/*shouldRefresh=*/false, /*intervalSecs=*/1);
+
+    BSONObj externalCredentials = BSON("external" << true);
+    BSONObj extUserDoc = BSON("_id"
+                              << "admin.extUser"
+                              << "user"
+                              << "extUser"
+                              << "db"
+                              << "$external"
+                              << "credentials" << externalCredentials << "roles"
+                              << BSON_ARRAY(BSON("role"
+                                                 << "read"
+                                                 << "db"
+                                                 << "test")));
+    BSONObj localUserDoc = BSON("_id"
+                                << "admin.localUser"
+                                << "user"
+                                << "localUser"
+                                << "db"
+                                << "test"
+                                << "credentials" << credentials << "roles"
+                                << BSON_ARRAY(BSON("role"
+                                                   << "read"
+                                                   << "db"
+                                                   << "test")));
+
+    ASSERT_OK(externalState->insertUserDocument(opCtx.get(), extUserDoc, BSONObj()));
+    ASSERT_OK(externalState->insertUserDocument(opCtx.get(), localUserDoc, BSONObj()));
+
+    // Start the background thread BEFORE populating the cache.
+    // initialize() calls invalidateUserCache() internally, so any handles acquired before it
+    // would be unconditionally invalidated.
+    ASSERT_OK(authzManager->initialize(opCtx.get()));
+
+    // Acquire both users to populate cache.
+    auto swExtUser =
+        authzManager->acquireUser(opCtx.get(), {UserName("extUser", "$external"), boost::none});
+    ASSERT_OK(swExtUser.getStatus());
+    auto extUser = std::move(swExtUser.getValue());
+
+    auto swLocalUser =
+        authzManager->acquireUser(opCtx.get(), {UserName("localUser", "test"), boost::none});
+    ASSERT_OK(swLocalUser.getStatus());
+    auto localUser = std::move(swLocalUser.getValue());
+
+    ASSERT(extUser.isValid());
+    ASSERT(localUser.isValid());
+
+    // Wait for the background thread to tick.
+    sleepmillis(2000);
+
+    // The $external user handle should be invalidated by the background thread.
+    ASSERT(!extUser.isValid());
+    // The local user should remain valid — invalidation is scoped to $external.
+    ASSERT(localUser.isValid());
+}
+
+// Verifies that LDAPUserCacheInvalidator::run() falls back to invalidation when
+// refreshExternalUsers fails. In run(), shouldRefresh=true but refresh returns an error,
+// so shouldInvalidate stays true and invalidateUsersFromDB($external) is called.
+TEST_F(AuthorizationManagerTest, testLDAPCacheInvalidatorRunRefreshFailureFallsBackToInvalidation) {
+    LDAPParamsGuard paramsGuard(/*shouldRefresh=*/true, /*intervalSecs=*/1);
+
+    BSONObj externalCredentials = BSON("external" << true);
+    BSONObj extUserDoc = BSON("_id"
+                              << "admin.extUser"
+                              << "user"
+                              << "extUser"
+                              << "db"
+                              << "$external"
+                              << "credentials" << externalCredentials << "roles"
+                              << BSON_ARRAY(BSON("role"
+                                                 << "read"
+                                                 << "db"
+                                                 << "test")));
+
+    ASSERT_OK(externalState->insertUserDocument(opCtx.get(), extUserDoc, BSONObj()));
+
+    // Start the background thread BEFORE populating the cache.
+    // initialize() calls invalidateUserCache() internally, so any handles acquired before it
+    // would be unconditionally invalidated.
+    ASSERT_OK(authzManager->initialize(opCtx.get()));
+
+    // Acquire the user to populate cache.
+    auto swUser =
+        authzManager->acquireUser(opCtx.get(), {UserName("extUser", "$external"), boost::none});
+    ASSERT_OK(swUser.getStatus());
+    auto cachedUser = std::move(swUser.getValue());
+    ASSERT(cachedUser.isValid());
+
+    // Now make backend findOne calls fail, so when the thread wakes up and calls
+    // refreshExternalUsers, it will get an error.
+    externalState->setFindsShouldFail(true);
+
+    // Wait for the background thread to tick. It will try refresh (fails), then invalidate.
+    sleepmillis(2000);
+
+    // The cached user should be invalidated because refresh failed and the fallback
+    // invalidation path was taken.
+    ASSERT(!cachedUser.isValid());
+
+    externalState->setFindsShouldFail(false);
 }
 
 TEST_F(AuthorizationManagerTest, testAuthzManagerExternalStateResolveRoles) {
