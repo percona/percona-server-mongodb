@@ -76,12 +76,7 @@ a notice will be included in
 | [Zstandard (zstd)]                                   | BSD-3-Clause OR GPL-2.0-only                   | 1.5.5                                    | ✗                    | ✗                               |
 | [siphash]                                            | MIT                                            | f26d35e964c6290ffe23d9043475ad3129f409e0 |                      | ✗                               |
 
-<<<<<<< HEAD
 [AWS SDK for C++]: https://aws.amazon.com/sdk-for-cpp/
-||||||| 63bb4b8a544
-=======
-[AWS SDK for C++]: https://github.com/aws/aws-sdk-cpp.git
->>>>>>> 93c99cdc007ca2b0a53f91a48c65aa654d96986b
 [Abseil Common Libraries (C++)]: https://github.com/abseil/abseil-cpp.git
 [Apache Avro C++]: https://github.com/apache/avro.git
 [Asio C++ Library]: https://github.com/chriskohlhoff/asio.git
@@ -113,13 +108,8 @@ a notice will be included in
 [googletest]: https://github.com/google/googletest.git
 [gperftools]: https://github.com/gperftools/gperftools.git
 [immer]: https://github.com/arximboldi/immer.git
-<<<<<<< HEAD
 [json-c]: https://github.com/json-c/json-c
 [libarchive]: https://www.libarchive.org
-||||||| 63bb4b8a544
-[json-c]: https://github.com/json-c/json-c
-=======
->>>>>>> 93c99cdc007ca2b0a53f91a48c65aa654d96986b
 [libdwarf]: https://github.com/davea42/libdwarf-code.git
 [libmongocrypt]: https://github.com/mongodb/libmongocrypt.git
 [librdkafka - The Apache Kafka C/C++ library]: https://github.com/confluentinc/librdkafka.git

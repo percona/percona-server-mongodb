@@ -3076,21 +3076,12 @@
         "pkg:github/nlohmann/json@v3.11.3",
         "pkg:github/wiredtiger/wiredtiger@12.0.0",
         "pkg:github/davea42/libdwarf-code@libdwarf-2.1.0",
-<<<<<<< HEAD
         "pkg:github/jeremy-rifkin/cpptrace@v1.0.3",
         "pkg:github/libarchive/libarchive@v3.8.4",
         "pkg:github/aws/aws-sdk-cpp@1.11.471",
         "pkg:github/libarchive/bzip2@bzip2-1.0.8",
         "pkg:github/json-c/json-c@json-c-0.18-20240915",
-        "pkg:github/rnpgp/rnp@v0.18.1"
-||||||| 63bb4b8a544
-        "pkg:github/jeremy-rifkin/cpptrace@v1.0.3",
-        "pkg:github/libarchive/bzip2@bzip2-1.0.8",
-        "pkg:github/json-c/json-c@json-c-0.18-20240915",
-        "pkg:github/rnpgp/rnp@v0.18.1"
-=======
-        "pkg:github/jeremy-rifkin/cpptrace@v1.0.3"
->>>>>>> 93c99cdc007ca2b0a53f91a48c65aa654d96986b
+        "pkg:github/rnpgp/rnp@v0.18.1" 
       ]
     },
     {
@@ -3284,7 +3275,6 @@
     {
       "ref": "pkg:pypi/ocspresponder@0.5.0",
       "dependsOn": []
-<<<<<<< HEAD
     },
     {
       "ref": "pkg:github/libarchive/libarchive@v3.8.4",
@@ -3311,25 +3301,6 @@
         "pkg:github/json-c/json-c@json-c-0.18-20240915",
         "pkg:github/madler/zlib@1.3.1"
       ]
-||||||| 63bb4b8a544
-    },
-    {
-      "ref": "pkg:github/libarchive/bzip2@bzip2-1.0.8",
-      "dependsOn": []
-    },
-    {
-      "ref": "pkg:github/json-c/json-c@json-c-0.18-20240915",
-      "dependsOn": []
-    },
-    {
-      "ref": "pkg:github/rnpgp/rnp@v0.18.1",
-      "dependsOn": [
-        "pkg:github/libarchive/bzip2@bzip2-1.0.8",
-        "pkg:github/json-c/json-c@json-c-0.18-20240915",
-        "pkg:github/madler/zlib@1.3.1"
-      ]
-=======
->>>>>>> 93c99cdc007ca2b0a53f91a48c65aa654d96986b
     }
   ]
 }
