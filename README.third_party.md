@@ -53,7 +53,7 @@ a notice will be included in
 | [MongoDB C Driver]                                   | Apache-2.0                                     | 1.28.1                                   | ✗                    | ✗                               |
 | [Mozilla Firefox ESR]                                | MPL-2.0                                        | 140.7.0esr                               |                      | ✗                               |
 | [MurmurHash3]                                        | Public Domain                                  | a6bd3ce7be8ad147ea820a7cf6229a975c0c96bb |                      | ✗                               |
-| [nlohmann/json]                                      | MIT                                            | 3.11.3                                   | ✗                    |                                 |
+| [nlohmann/json]                                      | MIT                                            | 3.11.3                                   |                      |                                 |
 | [node]                                               | ISC                                            | 22.1.0                                   |                      |                                 |
 | [opentelemetry-cpp]                                  | Apache-2.0                                     | 1.24.0                                   | ✗                    |                                 |
 | [opentelemetry-proto]                                | Apache-2.0                                     | 1.3.2                                    | ✗                    |                                 |
@@ -77,12 +77,7 @@ a notice will be included in
 | [zlib]                                               | Zlib                                           | 1.3.1                                    | ✗                    | ✗                               |
 | [Zstandard (zstd)]                                   | BSD-3-Clause OR GPL-2.0-only                   | 1.5.5                                    | ✗                    | ✗                               |
 
-<<<<<<< HEAD
 [AWS SDK for C++]: https://aws.amazon.com/sdk-for-cpp/
-||||||| 464a87d5b5e
-[AWS SDK for C++]: https://github.com/aws/aws-sdk-cpp.git
-=======
->>>>>>> 63bb4b8a54415b971265b1dd248f1ea7b8ac1331
 [Abseil Common Libraries (C++)]: https://github.com/abseil/abseil-cpp.git
 [Asio C++ Library]: https://github.com/chriskohlhoff/asio.git
 [Boost C++ Libraries]: https://github.com/boostorg/boost.git
@@ -115,12 +110,8 @@ a notice will be included in
 [googletest]: https://github.com/google/googletest.git
 [gperftools]: https://github.com/gperftools/gperftools.git
 [immer]: https://github.com/arximboldi/immer.git
-<<<<<<< HEAD
-[libarchive]: https://www.libarchive.org
-||||||| 464a87d5b5e
-=======
 [json-c]: https://github.com/json-c/json-c
->>>>>>> 63bb4b8a54415b971265b1dd248f1ea7b8ac1331
+[libarchive]: https://www.libarchive.org
 [libdwarf]: https://github.com/davea42/libdwarf-code.git
 [libmongocrypt]: https://github.com/mongodb/libmongocrypt.git
 [libunwind]: https://github.com/libunwind/libunwind.git
@@ -132,13 +123,8 @@ a notice will be included in
 [pypi/ocspbuilder]: https://pypi.org/project/ocspbuilder/
 [pypi/ocspresponder]: https://pypi.org/project/ocspresponder/
 [re2]: https://github.com/google/re2.git
-<<<<<<< HEAD
-[siphash]: https://github.com/veorq/siphash/blob/f26d35e/
-||||||| 464a87d5b5e
-=======
 [rnp]: https://github.com/rnpgp/rnp
 [siphash]: https://github.com/veorq/siphash/blob/f26d35e/
->>>>>>> 63bb4b8a54415b971265b1dd248f1ea7b8ac1331
 [snappy]: https://github.com/google/tcmalloc.git
 [tcmalloc]: https://github.com/google/tcmalloc.git
 [timelib]: https://github.com/derickr/timelib.git
@@ -182,6 +168,6 @@ of these libraries' license in a file named
    WiredTiger is maintained by MongoDB in a separate repository. As a part of our
    development process, we periodically ingest the latest snapshot of that repository.
 
-3. <a id="note_ssl" href="#ref_ssl">^</a>
+3. <a id="note_ssl" href="ref_ssl">^</a>
    OpenSSL is only shipped as a dependency of the MongoDB tools written in Go. The MongoDB
    shell and server binaries use Windows' cryptography APIs.
