@@ -53,7 +53,7 @@ a notice will be included in
 | [MongoDB C Driver]                                   | Apache-2.0                                     | 1.28.1                                   | ✗                    | ✗                               |
 | [Mozilla Firefox ESR]                                | MPL-2.0                                        | 140.7.0esr                               |                      | ✗                               |
 | [MurmurHash3]                                        | Public Domain                                  | a6bd3ce7be8ad147ea820a7cf6229a975c0c96bb |                      | ✗                               |
-| [nlohmann/json]                                      | MIT                                            | 3.11.3                                   |                      |                                 |
+| [nlohmann/json]                                      | MIT                                            | 3.11.3                                   | ✗                    |                                 |
 | [node]                                               | ISC                                            | 22.1.0                                   |                      |                                 |
 | [opentelemetry-cpp]                                  | Apache-2.0                                     | 1.24.0                                   | ✗                    |                                 |
 | [opentelemetry-proto]                                | Apache-2.0                                     | 1.3.2                                    | ✗                    |                                 |
@@ -168,6 +168,6 @@ of these libraries' license in a file named
    WiredTiger is maintained by MongoDB in a separate repository. As a part of our
    development process, we periodically ingest the latest snapshot of that repository.
 
-3. <a id="note_ssl" href="ref_ssl">^</a>
+3. <a id="note_ssl" href="#ref_ssl">^</a>
    OpenSSL is only shipped as a dependency of the MongoDB tools written in Go. The MongoDB
    shell and server binaries use Windows' cryptography APIs.
