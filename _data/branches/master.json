@@ -5,37 +5,187 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 346,
+    "commits_behind": 352,
     "days_behind": 11,
-    "files_affected": 1647,
-    "total_additions": 97865,
-    "total_deletions": 43587,
+    "files_affected": 2955,
+    "total_additions": 98996,
+    "total_deletions": 281958,
     "date_range": {
-      "first": "2026-02-26T20:41:18+00:00",
-      "last": "2026-03-10T05:17:06+00:00"
+      "first": "2026-02-26T22:13:45+00:00",
+      "last": "2026-03-10T16:07:09+00:00"
     }
   },
   "last_merged_commit": {
-    "sha": "464a87d5b5ee8eb147b04bf3183ab38561d77092",
-    "short_sha": "464a87d5b5e",
-    "date": "2026-02-26T15:29:33-05:00",
+    "sha": "63bb4b8a54415b971265b1dd248f1ea7b8ac1331",
+    "short_sha": "63bb4b8a544",
+    "date": "2026-02-26T15:58:26-06:00",
     "author": {
-      "name": "Gabriel Marks",
-      "email": "gabriel.marks@mongodb.com"
+      "name": "joe-mongodb",
+      "email": "joseph.shalabi@mongodb.com"
     },
-    "summary": "SERVER-116025 Track egress in authCounter"
+    "summary": "SERVER-118842: Import rnpgp/rnp into the server (#47696)"
   },
   "first_unmerged_commit": {
-    "sha": "8fc74aaafe6fca5dcafc08de3b12b04d45ca4625",
-    "short_sha": "8fc74aaafe6",
-    "date": "2026-02-26T15:41:18-05:00",
+    "sha": "9f9abc5569ca7a827147efb074742eefe35332b3",
+    "short_sha": "9f9abc5569c",
+    "date": "2026-02-26T17:13:45-05:00",
     "author": {
-      "name": "Daniel Segel",
-      "email": "71151509+dhsegel@users.noreply.github.com"
+      "name": "Sean Lyons",
+      "email": "sean.lyons@mongodb.com"
     },
-    "summary": "SERVER-120046 Statically link extensions in unit tests (#48672)"
+    "summary": "SERVER-120393: Improve resmoke_tests build configuration (#48614)"
   },
   "unmerged_commits": [
+    {
+      "sha": "c29d95bf76afd325f0fe31c822fcf2bb56c63fa5",
+      "short_sha": "c29d95bf76a",
+      "date": "2026-03-10T12:07:09-04:00",
+      "author": {
+        "name": "Naafiyan Ahmed",
+        "email": "naafiyan.ahmed@mongodb.com"
+      },
+      "summary": "SERVER-121032: Convert mongod getMore to TypedCommand (#49129)"
+    },
+    {
+      "sha": "3c69d47766531a6c7c3d32ae01b6e5fac0306843",
+      "short_sha": "3c69d477665",
+      "date": "2026-03-10T18:48:12+03:00",
+      "author": {
+        "name": "Abdul Qadeer",
+        "email": "abdul.qadeer@mongodb.com"
+      },
+      "summary": "SERVER-121265 Add retries on add_shard in ShardedClusterFixture (#49298)"
+    },
+    {
+      "sha": "5843c7620abb8cc728ae64d7efe1d9ec2f857e3d",
+      "short_sha": "5843c7620ab",
+      "date": "2026-03-10T10:15:25-05:00",
+      "author": {
+        "name": "Finley Lau",
+        "email": "finley.lau@mongodb.com"
+      },
+      "summary": "SERVER-120626 Desugar subpipelines recursively in LiteParsedDesugarer (#48899)"
+    },
+    {
+      "sha": "fc1b963a879bede7c1fd0acc515ae74490d58374",
+      "short_sha": "fc1b963a879",
+      "date": "2026-03-10T10:57:46-04:00",
+      "author": {
+        "name": "Naafiyan Ahmed",
+        "email": "naafiyan.ahmed@mongodb.com"
+      },
+      "summary": "SERVER-119292: Convert clusterCount commands to TypedCommand (#48107)"
+    },
+    {
+      "sha": "4dded55edc6fed9627aaa20f7667e361fa10522f",
+      "short_sha": "4dded55edc6",
+      "date": "2026-03-10T15:18:56+01:00",
+      "author": {
+        "name": "Meryama",
+        "email": "meryama.nadim@mongodb.com"
+      },
+      "summary": "SERVER-121273: Exclude timeseries_out_non_sharded.js from fcv upgrade downgrade suites (#49304)"
+    },
+    {
+      "sha": "4dbbb54c10c5646ff94e68fb72614577f6e08703",
+      "short_sha": "4dbbb54c10c",
+      "date": "2026-03-10T09:59:21-04:00",
+      "author": {
+        "name": "mpobrien",
+        "email": "mpobrien005@gmail.com"
+      },
+      "summary": "SERVER-121144 address TODO for SERVER-120830 (reenable suite) (#49284)"
+    },
+    {
+      "sha": "732cde4b9e63e4241bb06743658f8d8b3a02bac2",
+      "short_sha": "732cde4b9e6",
+      "date": "2026-03-10T09:39:53-04:00",
+      "author": {
+        "name": "Ali Mir",
+        "email": "ali.mir@mongodb.com"
+      },
+      "summary": "SERVER-120683 Add server-initial-sync as codeowner for concurrency_sharded_initial_sync suite (#49269)"
+    },
+    {
+      "sha": "8f9d95e93bb48de46cd6da9f9e248df497010615",
+      "short_sha": "8f9d95e93bb",
+      "date": "2026-03-10T09:36:09-04:00",
+      "author": {
+        "name": "Mike Nugent",
+        "email": "mike.nugent@mongodb.com"
+      },
+      "summary": "SERVER-117301: Add integration test for Prometheus file exporter (#49251)"
+    },
+    {
+      "sha": "5ea484d4483092e6ff4ca87938e6fef7cf990a21",
+      "short_sha": "5ea484d4483",
+      "date": "2026-03-10T09:25:50-04:00",
+      "author": {
+        "name": "Cedric Sirianni",
+        "email": "cedric.sirianni@mongodb.com"
+      },
+      "summary": "SERVER-120710 Keep using WT size storer for local collections (#49028)"
+    },
+    {
+      "sha": "b862d6e09a5e170a8f5981a20861e00e79ca21ad",
+      "short_sha": "b862d6e09a5",
+      "date": "2026-03-10T14:17:36+01:00",
+      "author": {
+        "name": "Pol Piñol Castuera",
+        "email": "pol.pinol@mongodb.com"
+      },
+      "summary": "SERVER-119952 Implement CSS invalidation oplog c entry (#49239)"
+    },
+    {
+      "sha": "88ed94277e9a53c0c8b2581ab294b97626be3b60",
+      "short_sha": "88ed94277e9",
+      "date": "2026-03-10T13:27:45+01:00",
+      "author": {
+        "name": "Igor Praznik",
+        "email": "95708172+igpraznik@users.noreply.github.com"
+      },
+      "summary": "SERVER-120636 Replace TODO SERVER-119726 with SERVER-60746 (#49263)"
+    },
+    {
+      "sha": "e9de8b518d1b677f269e7a85a7d9321d5d7ba12a",
+      "short_sha": "e9de8b518d1",
+      "date": "2026-03-10T13:20:00+01:00",
+      "author": {
+        "name": "mivanova3",
+        "email": "68105381+mivanova3@users.noreply.github.com"
+      },
+      "summary": "SERVER-121066 Enable pass-through suites for automatic cost-based strategy (#49151)"
+    },
+    {
+      "sha": "0084620f6af200871b5702fc6799858d002ea210",
+      "short_sha": "0084620f6af",
+      "date": "2026-03-10T10:54:48+01:00",
+      "author": {
+        "name": "mongo-pr-bot[bot]",
+        "email": "230616009+mongo-pr-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "SERVER-110427 Update profiling data (#49302)"
+    },
+    {
+      "sha": "333245683043499172d3fec2cfc1b380e0824ba4",
+      "short_sha": "33324568304",
+      "date": "2026-03-10T09:47:42+01:00",
+      "author": {
+        "name": "Jan",
+        "email": "jsteemann@users.noreply.github.com"
+      },
+      "summary": "SERVER-121232 Robustify query_settings/query_settings_cmds.js test during FCV changes (#49271)"
+    },
+    {
+      "sha": "67f5776a4d303e63539a0b5ef1017493e4ea3c7c",
+      "short_sha": "67f5776a4d3",
+      "date": "2026-03-10T09:33:10+01:00",
+      "author": {
+        "name": "Allison Easton",
+        "email": "allison.easton@mongodb.com"
+      },
+      "summary": "SERVER-121060 Add flag to curop to mark an operation which was non-deprioritizable during its execution (#49252)"
+    },
     {
       "sha": "749e7c3fc9f501f4b3a94a06b4c56cf5a4373689",
       "short_sha": "749e7c3fc9f",
@@ -3405,141 +3555,9 @@
         "email": "sean.lyons@mongodb.com"
       },
       "summary": "SERVER-120393: Improve resmoke_tests build configuration (#48614)"
-    },
-    {
-      "sha": "63bb4b8a54415b971265b1dd248f1ea7b8ac1331",
-      "short_sha": "63bb4b8a544",
-      "date": "2026-02-26T15:58:26-06:00",
-      "author": {
-        "name": "joe-mongodb",
-        "email": "joseph.shalabi@mongodb.com"
-      },
-      "summary": "SERVER-118842: Import rnpgp/rnp into the server (#47696)"
-    },
-    {
-      "sha": "37034808017ebafd8e77d48ac1a63a1eb8321691",
-      "short_sha": "37034808017",
-      "date": "2026-02-26T13:57:27-08:00",
-      "author": {
-        "name": "Andrew Bradshaw",
-        "email": "andrew.bradshaw@mongodb.com"
-      },
-      "summary": "SERVER-120217 Move python rules to using py_binary rather than using the toolchain (#48508)"
-    },
-    {
-      "sha": "a874bc8eb40fde2f9ce14494529e3e02e33bac69",
-      "short_sha": "a874bc8eb40",
-      "date": "2026-02-27T08:40:42+11:00",
-      "author": {
-        "name": "wt-vendoring-bot[bot]",
-        "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
-      },
-      "summary": "Import wiredtiger: 185f84f2df5858033cce86b95bddfe82606c86f9 from branch mongodb-master (#48656)"
-    },
-    {
-      "sha": "9ef276e75bec26deba823aa815556077c6db8664",
-      "short_sha": "9ef276e75be",
-      "date": "2026-02-26T13:31:46-08:00",
-      "author": {
-        "name": "Wei Hu",
-        "email": "wei.hu@mongodb.com"
-      },
-      "summary": "SERVER-117804 Enable more tests tagged with primary_driven_index_builds_incompatible (#48705)"
-    },
-    {
-      "sha": "bed8cf2cfe9f07e9f03396456720f064e5de9192",
-      "short_sha": "bed8cf2cfe9",
-      "date": "2026-02-26T16:31:24-05:00",
-      "author": {
-        "name": "Calvin Nix",
-        "email": "6693710+Calvinnix@users.noreply.github.com"
-      },
-      "summary": "SERVER-120487: Add tsan and aubsan rhel8 streams variants (#48701)"
-    },
-    {
-      "sha": "400b182579327838ceadee582196f8405b8b18d7",
-      "short_sha": "400b1825793",
-      "date": "2026-02-26T16:30:11-05:00",
-      "author": {
-        "name": "Steve McClure",
-        "email": "steve.mcclure@mongodb.com"
-      },
-      "summary": "SERVER-120496: Refactor Events, Requests, Responses (#48694)"
-    },
-    {
-      "sha": "73e3adc511e8cd47764737cc816725773969afdb",
-      "short_sha": "73e3adc511e",
-      "date": "2026-02-26T16:05:37-05:00",
-      "author": {
-        "name": "Erin Liang",
-        "email": "59406045+erl-ang@users.noreply.github.com"
-      },
-      "summary": "SERVER-120401 Add ExceededMemoryLimit to expected error codes in javascript_heap_limit.js (#48676)"
-    },
-    {
-      "sha": "e3fcdd74e854cc053fc148806caa171a3fa2143d",
-      "short_sha": "e3fcdd74e85",
-      "date": "2026-02-26T20:54:08+00:00",
-      "author": {
-        "name": "auto-revert-app[bot]",
-        "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
-      },
-      "summary": "Revert \"SERVER-120397 Check CBR node eligibility in exact CE mode (#48620)\" (#48706)"
-    },
-    {
-      "sha": "8fc74aaafe6fca5dcafc08de3b12b04d45ca4625",
-      "short_sha": "8fc74aaafe6",
-      "date": "2026-02-26T15:41:18-05:00",
-      "author": {
-        "name": "Daniel Segel",
-        "email": "71151509+dhsegel@users.noreply.github.com"
-      },
-      "summary": "SERVER-120046 Statically link extensions in unit tests (#48672)"
     }
   ],
   "merge_picks": [
-    {
-      "commit": {
-        "sha": "37034808017ebafd8e77d48ac1a63a1eb8321691",
-        "short_sha": "37034808017",
-        "date": "2026-02-26T13:57:27-08:00",
-        "author": {
-          "name": "Andrew Bradshaw",
-          "email": "andrew.bradshaw@mongodb.com"
-        },
-        "summary": "SERVER-120217 Move python rules to using py_binary rather than using the toolchain (#48508)"
-      },
-      "strategy_name": "huge_commit",
-      "result": {
-        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
-        "evaluated_vars": {
-          "num_of_files": 14,
-          "num_of_lines": 172,
-          "lines_added": 82,
-          "lines_deleted": 90,
-          "num_of_dirs": 11
-        }
-      }
-    },
-    {
-      "commit": {
-        "sha": "63bb4b8a54415b971265b1dd248f1ea7b8ac1331",
-        "short_sha": "63bb4b8a544",
-        "date": "2026-02-26T15:58:26-06:00",
-        "author": {
-          "name": "joe-mongodb",
-          "email": "joseph.shalabi@mongodb.com"
-        },
-        "summary": "SERVER-118842: Import rnpgp/rnp into the server (#47696)"
-      },
-      "strategy_name": "conflict",
-      "result": {
-        "conflicting_files": [
-          "README.third_party.md",
-          "sbom.json"
-        ]
-      }
-    },
     {
       "commit": {
         "sha": "43d051bf5257454cabc651d7504db424397144bf",
@@ -3574,16 +3592,12 @@
         },
         "summary": "Revert \"SERVER-118842: Import rnpgp/rnp into the server (#47696)\" (#48730)"
       },
-      "strategy_name": "huge_commit",
+      "strategy_name": "conflict",
       "result": {
-        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
-        "evaluated_vars": {
-          "num_of_files": 1286,
-          "num_of_lines": 238087,
-          "lines_added": 10,
-          "lines_deleted": 238077,
-          "num_of_dirs": 125
-        }
+        "conflicting_files": [
+          "README.third_party.md",
+          "sbom.json"
+        ]
       }
     },
     {
@@ -3983,7 +3997,7 @@
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-03-10 07:38:56",
+  "generated_at": "2026-03-10 16:41:51",
   "branch_name": "master",
   "display_name": "master"
 }
