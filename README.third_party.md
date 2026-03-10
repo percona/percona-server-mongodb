@@ -25,16 +25,15 @@ a notice will be included in
 | ---------------------------------------------------- | ---------------------------------------------- | ---------------------------------------- | -------------------- | ------------------------------- |
 | [Abseil Common Libraries (C++)]                      | Apache-2.0                                     | 20250512.1                               |                      | ✗                               |
 | [Asio C++ Library]                                   | BSL-1.0                                        | 1.34.2                                   |                      | ✗                               |
+| [AWS SDK for C++]                                    | Apache-2.0                                     | 1.11.471                                 |                      | ✗                               |
 | [benchmark]                                          | Apache-2.0                                     | 1.5.2                                    |                      |                                 |
 | [Boost C++ Libraries]                                | BSL-1.0                                        | 1.88.0                                   |                      | ✗                               |
-| [bzip2]                                              | bzip2-1.0.6                                    | 1.0.8                                    |                      | ✗                               |
 | [c-ares]                                             | MIT                                            | 1.27.0                                   |                      | ✗                               |
 | [cpptrace]                                           | MIT                                            | 1.0.3                                    |                      |                                 |
 | [CRoaring]                                           | Apache-2.0 OR MIT                              | 3.0.1                                    |                      | ✗                               |
 | [Cyrus SASL]                                         | BSD-Attribution-HPND-disclaimer                | 2.1.28                                   |                      |                                 |
 | [fmt]                                                | MIT                                            | 11.2.0                                   |                      | ✗                               |
 | [folly]                                              | Apache-2.0                                     | 2023.12.25.00                            |                      | ✗                               |
-| [fuzztest]                                           | BSD-3-Clause, Apache-2.0                       | 2025.07.28                               |                      |                                 |
 | [googletest]                                         | BSD-3-Clause                                   | 1.17.0                                   |                      |                                 |
 | [gperftools]                                         | BSD-3-Clause                                   | 2.9.1                                    |                      | ✗                               |
 | [gRPC (C++)]                                         | Apache-2.0                                     | 1.74.1                                   |                      | ✗                               |
@@ -42,7 +41,6 @@ a notice will be included in
 | [immer]                                              | BSL-1.0                                        | 0b3aaf699b9d6f2e89f8e2b6d1221c307e02bda3 |                      | ✗                               |
 | [Intel® Decimal Floating-Point Math Library]         | BSD-3-Clause                                   | 2.0.1                                    |                      | ✗                               |
 | [JSON Schema Store]                                  | Apache-2.0                                     | 6847cfc3a17a04a7664474212db50c627e1e3408 |                      |                                 |
-| [json-c]                                             | MIT                                            | 0.18                                     |                      | ✗                               |
 | [JSON-Schema-Test-Suite]                             | MIT                                            | 728066f9c5c258ba3b1804a22a5b998f2ec77ec0 |                      |                                 |
 | [libarchive]                                         | A mix of BSD-2-Clause and others               | 3.8.4                                    | ✗                    | ✗                               |
 | [libdwarf]                                           | LGPL-2.1-or-later, BSD-3-Clause, Public Domain | 2.1.0                                    |                      |                                 |
@@ -62,7 +60,6 @@ a notice will be included in
 | [pypi/ocspbuilder]                                   | MIT                                            | 0.10.2                                   |                      |                                 |
 | [pypi/ocspresponder]                                 | Apache-2.0                                     | 0.5.0                                    |                      |                                 |
 | [re2]                                                | BSD-3-Clause                                   | 2025-08-05                               |                      | ✗                               |
-| [rnp]                                                | BSD-2-Clause                                   | 0.18.1                                   |                      | ✗                               |
 | [S2 Geometry Library]                                | Apache-2.0                                     | a25c502bda9d7e0274b9e2b7825fbddf13cc0306 | ✗                    | ✗                               |
 | [SafeInt]                                            | MIT                                            | 3.0.28a                                  |                      | ✗                               |
 | [siphash]                                            | CC0-1.0, MIT, Apache 2.0 with LLVM exception   | f26d35e964c6290ffe23d9043475ad3129f409e0 |                      | ✗                               |
@@ -100,17 +97,14 @@ a notice will be included in
 [WiredTiger]: https://github.com/wiredtiger/wiredtiger.git
 [Zstandard (zstd)]: https://github.com/facebook/zstd.git
 [benchmark]: https://github.com/google/benchmark.git
-[bzip2]: https://github.com/libarchive/bzip2
 [c-ares]: https://github.com/c-ares/c-ares.git
 [cpptrace]: https://github.com/jeremy-rifkin/cpptrace.git
 [fmt]: https://github.com/fmtlib/fmt.git
 [folly]: https://github.com/facebook/folly.git
-[fuzztest]: https://github.com/google/fuzztest.git
 [gRPC (C++)]: https://github.com/grpc/grpc.git
 [googletest]: https://github.com/google/googletest.git
 [gperftools]: https://github.com/gperftools/gperftools.git
 [immer]: https://github.com/arximboldi/immer.git
-[json-c]: https://github.com/json-c/json-c
 [libarchive]: https://www.libarchive.org
 [libdwarf]: https://github.com/davea42/libdwarf-code.git
 [libmongocrypt]: https://github.com/mongodb/libmongocrypt.git
@@ -123,7 +117,6 @@ a notice will be included in
 [pypi/ocspbuilder]: https://pypi.org/project/ocspbuilder/
 [pypi/ocspresponder]: https://pypi.org/project/ocspresponder/
 [re2]: https://github.com/google/re2.git
-[rnp]: https://github.com/rnpgp/rnp
 [siphash]: https://github.com/veorq/siphash/blob/f26d35e/
 [snappy]: https://github.com/google/tcmalloc.git
 [tcmalloc]: https://github.com/google/tcmalloc.git
