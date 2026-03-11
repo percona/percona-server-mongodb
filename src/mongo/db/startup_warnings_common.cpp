@@ -32,6 +32,7 @@
 #include <string>
 #include <vector>
 
+#include "mongo/bson/bsonelement.h"
 #include "mongo/client/internal_auth.h"
 #include "mongo/config.h"  // IWYU pragma: keep
 #include "mongo/db/server_options.h"
@@ -176,6 +177,32 @@ void logCommonStartupWarnings(const ServerGlobalParams& serverParams) {
             {logv2::LogTag::kStartupWarnings},
             "Multiple keys specified in security key file. If cluster key file rollover is not in "
             "progress, only one key should be specified in the key file");
+    }
+
+    // Warn when ldapUserCacheInvalidationInterval is set but the user has not explicitly
+    // configured ldapShouldRefreshUserCacheEntries. In a future major version after v8.0 the
+    // default for ldapShouldRefreshUserCacheEntries will change to true, at which point the
+    // server will use ldapUserCacheRefreshInterval instead of ldapUserCacheInvalidationInterval.
+    // We skip this warning if ldapShouldRefreshUserCacheEntries or ldapUserCacheRefreshInterval
+    // is set, since that indicates the user is already aware of the new parameters.
+    if (serverParams.parsedOpts.hasField("setParameter")) {
+        BSONElement setParamEl = serverParams.parsedOpts.getField("setParameter");
+        if (setParamEl.isABSONObj()) {
+            BSONObj setParam = setParamEl.Obj();
+            if (setParam.hasField("ldapUserCacheInvalidationInterval") &&
+                !setParam.hasField("ldapUserCacheRefreshInterval") &&
+                !setParam.hasField("ldapShouldRefreshUserCacheEntries")) {
+                LOGV2_WARNING_OPTIONS(
+                    29150,
+                    {logv2::LogTag::kStartupWarnings},
+                    "Server parameter ldapUserCacheInvalidationInterval is set but the default "
+                    "value of ldapShouldRefreshUserCacheEntries will change to true in a future "
+                    "major version after v8.0, causing the server to use "
+                    "ldapUserCacheRefreshInterval instead. To suppress this warning, explicitly "
+                    "set ldapShouldRefreshUserCacheEntries to false in your configuration, or "
+                    "consider using ldapUserCacheRefreshInterval instead.");
+            }
+        }
     }
 }
 }  // namespace mongo
