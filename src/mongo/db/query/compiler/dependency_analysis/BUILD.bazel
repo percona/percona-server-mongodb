@@ -28,6 +28,7 @@ mongo_cc_library(
     ],
     deps = [
         ":dependencies",
+        ":document_transformation",
         "//src/mongo:base",
         "//src/mongo/db:query_expressions",
     ],
@@ -41,6 +42,66 @@ mongo_cc_unit_test(
     tags = ["mongo_unittest_eighth_group"],
     deps = [
         ":dependency_analysis",
+        "//src/mongo/db/pipeline:expression_context_for_test",
+    ],
+)
+
+mongo_cc_library(
+    name = "document_transformation",
+    srcs = [
+        "document_transformation.cpp",
+        "document_transformation_helpers.cpp",
+    ],
+    deps = [
+        "//src/mongo/db:query_expressions",
+    ],
+)
+
+mongo_cc_unit_test(
+    name = "document_transformation_test",
+    srcs = [
+        "document_transformation_test.cpp",
+    ],
+    tags = ["mongo_unittest_fifth_group"],
+    deps = [
+        ":document_transformation",
+        "//src/mongo/db/pipeline:expression_context_for_test",
+    ],
+)
+
+mongo_cc_library(
+    name = "pipeline_dependency_graph",
+    srcs = [
+        "pipeline_dependency_graph.cpp",
+    ],
+    deps = [
+        "//src/mongo/db/pipeline",
+    ],
+)
+
+mongo_cc_unit_test(
+    name = "pipeline_dependency_graph_test",
+    srcs = [
+        "pipeline_dependency_graph_test.cpp",
+    ],
+    tags = ["mongo_unittest_first_group"],
+    deps = [
+        ":pipeline_dependency_graph",
+        "//src/mongo/db/pipeline:expression_context_for_test",
+    ],
+)
+
+mongo_cc_unit_test(
+    name = "pipeline_dependency_graph_golden_test",
+    srcs = [
+        "pipeline_dependency_graph_golden_test.cpp",
+    ],
+    data = [
+        "//src/mongo/db/test_output/query/compiler/dependency_analysis/pipeline_dependency_graph_golden_test:test_data",
+    ],
+    tags = ["mongo_unittest_fourth_group"],
+    deps = [
+        ":pipeline_dependency_graph",
         "//src/mongo/db/pipeline:expression_context_for_test",
     ],
 )

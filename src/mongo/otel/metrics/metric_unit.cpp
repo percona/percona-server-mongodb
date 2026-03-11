@@ -37,6 +37,10 @@ namespace mongo::otel::metrics {
 
 StringData toString(MetricUnit unit) {
     switch (unit) {
+        // Generic
+        case MetricUnit::kEvents:
+            return "events";
+
         // Time
         case MetricUnit::kMicroseconds:
             return "microseconds";

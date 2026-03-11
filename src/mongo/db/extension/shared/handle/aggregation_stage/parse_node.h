@@ -66,6 +66,12 @@ using LogicalAggStageHandle = OwnedHandle<::MongoExtensionLogicalAggStage>;
 using VariantNodeHandle = std::variant<AggStageParseNodeHandle, AggStageAstNodeHandle>;
 
 /**
+ * Wrapper function that converts an ExpandedArray to a vector of RAII handles.
+ * Declared here; defined in parse_node.cpp where ArrayElemAsRaii specializations are visible.
+ */
+std::vector<VariantNodeHandle> expandedArrayToRaiiVector(::MongoExtensionExpandedArray& arr);
+
+/**
  * Represents the possible types of elements that can be in a MongoExtensionDPLArray, as owned
  * handles.
  *
@@ -124,25 +130,18 @@ public:
      */
     AggStageParseNodeHandle clone() const;
 
+    BSONObj toBsonForLog() const;
+
     static void assertVTableConstraints(const VTable_t& vtable) {
         tassert(11217600, "AggStageParseNode 'get_name' is null", vtable.get_name != nullptr);
         tassert(10977600,
                 "AggStageParseNode 'get_query_shape' is null",
                 vtable.get_query_shape != nullptr);
-        tassert(11113800,
-                "AggStageParseNode 'get_expanded_size' is null",
-                vtable.get_expanded_size != nullptr);
         tassert(10977601, "AggStageParseNode 'expand' is null", vtable.expand != nullptr);
         tassert(11565500, "AggStageParseNode 'clone' is null", vtable.clone != nullptr);
-    }
-
-private:
-    /**
-     * Returns the number of elements the parse node will produce when expanded. This value is used
-     * by the host to size the ExpandedArray.
-     */
-    size_t getExpandedSize() const {
-        return _vtable().get_expanded_size(get());
+        tassert(11906801,
+                "AggStageParseNode 'to_bson_for_log' is null",
+                vtable.to_bson_for_log != nullptr);
     }
 };
 

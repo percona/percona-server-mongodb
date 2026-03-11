@@ -70,6 +70,10 @@ public:
         return _spec;
     }
 
+    inline BSONObj toBsonForLog() const {
+        return _spec;
+    }
+
 private:
     BSONObj _spec;
 };
@@ -173,18 +177,9 @@ private:
         });
     };
 
-    static size_t _hostGetExpandedSize(
-        const ::MongoExtensionAggStageParseNode* parseNode) noexcept {
-        // This function should not be called, but tassert cannot be used because C++ errors must
-        // not propagate across the C ABI boundary and the return type of this function is size_t.
-        // Since the invariant that get_expansion_size returns a size > 0 is enforced elsewhere,
-        // this return value still results in an error.
-        return 0;
-    }
-
     static ::MongoExtensionStatus* _hostExpand(
         const ::MongoExtensionAggStageParseNode* parseNode,
-        ::MongoExtensionExpandedArray* outExpanded) noexcept {
+        ::MongoExtensionExpandedArrayContainer** outExpanded) noexcept {
         return wrapCXXAndConvertExceptionToStatus([]() {
             tasserted(10977801,
                       "_hostExpand should not be called. Ensure that parseNode is "
@@ -202,13 +197,25 @@ private:
         });
     }
 
+    static ::MongoExtensionStatus* _hostToBsonForLog(
+        const ::MongoExtensionAggStageParseNode* parseNode,
+        ::MongoExtensionByteBuf** output) noexcept {
+        return wrapCXXAndConvertExceptionToStatus([&]() {
+            *output = nullptr;
+            const auto& impl =
+                static_cast<const HostAggStageParseNodeAdapter*>(parseNode)->getImpl();
+            // Allocate a buffer on the heap. Ownership is transferred to the caller.
+            *output = new ByteBuf(impl.toBsonForLog());
+        });
+    }
+
     static constexpr ::MongoExtensionAggStageParseNodeVTable VTABLE = {
         .destroy = &_hostDestroy,
         .get_name = &_hostGetName,
         .get_query_shape = &_hostGetQueryShape,
-        .get_expanded_size = &_hostGetExpandedSize,
         .expand = &_hostExpand,
-        .clone = &_hostClone};
+        .clone = &_hostClone,
+        .to_bson_for_log = &_hostToBsonForLog};
 
     std::unique_ptr<AggStageParseNode> _parseNode;
 };

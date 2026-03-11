@@ -30,54 +30,90 @@
 #include "mongo/db/query/engine_selection_plan.h"
 
 #include "mongo/bson/json.h"
-#include "mongo/db/pipeline/document_source_lookup.h"
-#include "mongo/db/pipeline/expression_context_for_test.h"
-#include "mongo/db/query/canonical_query.h"
-#include "mongo/db/query/compiler/optimizer/index_bounds_builder/index_bounds_builder.h"
+#include "mongo/db/query/compiler/physical_model/query_solution/query_solution_test_util.h"
 #include "mongo/unittest/unittest.h"
 #include "mongo/util/assert_util.h"
 
 namespace mongo {
 
-namespace {
+class EngineSelectionPlanFixture : public mongo::unittest::Test {
+public:
+    EngineSelectionPlanFixture()
+        : nss(NamespaceString::createNamespaceString_forTest("testdb.coll")) {}
 
-// TODO(SERVER-117622): Share fieldsToKeyPattern and buildSimpleIndexEntry with cbr_test_utils.h.
-BSONObj fieldsToKeyPattern(const std::vector<std::string>& indexFields) {
-    BSONObjBuilder bob;
-    for (auto& fieldName : indexFields) {
-        bob.append(fieldName, 1);
+    std::unique_ptr<QuerySolution> makeDistinctScanPlan(BSONObj indexKeys) {
+        auto distinct = std::make_unique<DistinctNode>(nss, buildSimpleIndexEntry(indexKeys));
+        auto solution = std::make_unique<QuerySolution>();
+        solution->setRoot(std::move(distinct));
+        return solution;
     }
-    return bob.obj();
-}
 
-IndexEntry buildSimpleIndexEntry(const std::vector<std::string>& indexFields) {
-    BSONObj kp = fieldsToKeyPattern(indexFields);
-    return {kp,
-            IndexNames::nameToType(IndexNames::findPluginName(kp)),
-            IndexConfig::kLatestIndexVersion,
-            false,
-            {},
-            {},
-            false,
-            false,
-            CoreIndexInfo::Identifier("test_foo"),
-            {},
-            nullptr};
-}
+    std::unique_ptr<QuerySolution> makeIndexScanFetchPlan(BSONObj indexKeys) {
+        auto indexScan = std::make_unique<IndexScanNode>(nss, buildSimpleIndexEntry(indexKeys));
+        auto fetch = std::make_unique<FetchNode>(std::move(indexScan), nss);
 
-TEST(GetExecutor, FetchIxScan) {
-    // FETCH(IXSCAN)
-    auto nss = NamespaceString::createNamespaceString_forTest("testdb.coll");
-    std::vector<std::string> indexFields = {"a"};
+        auto solution = std::make_unique<QuerySolution>();
+        solution->setRoot(std::move(fetch));
+        return solution;
+    }
 
-    auto indexScan = std::make_unique<IndexScanNode>(nss, buildSimpleIndexEntry(indexFields));
-    auto fetch = std::make_unique<FetchNode>(std::move(indexScan), nss);
+protected:
+    NamespaceString nss;
+};
 
+TEST_F(EngineSelectionPlanFixture, LookupUnwind) {
+    auto nssLocal = NamespaceString::createNamespaceString_forTest("testdb.collLocal");
+    auto nssForeign = NamespaceString::createNamespaceString_forTest("testdb.collForeign");
+
+    BSONObj indexFields = fromjson("{a: 1}");
+    auto indexScan = std::make_unique<IndexScanNode>(nssLocal, buildSimpleIndexEntry(indexFields));
+    auto lookupUnwind =
+        std::make_unique<EqLookupUnwindNode>(std::move(indexScan),
+                                             FieldPath("a"),
+                                             nssForeign,
+                                             FieldPath("b"),
+                                             FieldPath("c"),
+                                             EqLookupNode::LookupStrategy::kHashJoin,
+                                             boost::none,
+                                             false,
+                                             false,
+                                             boost::none);
     auto solution = std::make_unique<QuerySolution>();
-    solution->setRoot(std::move(fetch));
+    solution->setRoot(std::move(lookupUnwind));
     ASSERT_TRUE(engineSelectionForPlan(solution.get()) == EngineChoice::kSbe);
 }
 
-}  // namespace
+// Test eligibility of DISTINCT_SCAN plans.
+TEST_F(EngineSelectionPlanFixture, DistinctScanEligibility) {
+    BSONObj indexFields = fromjson("{a: 1}");
+
+    std::unique_ptr<QuerySolution> solution = makeDistinctScanPlan(indexFields);
+    ASSERT_FALSE(isPlanSbeEligible(solution.get()));
+}
+
+// Test eligibility of FETCH + IXSCAN plans with hashed indexes.
+TEST_F(EngineSelectionPlanFixture, HashedIndexIxScanEligibility) {
+    // Hashed index containing the SERVER-99889 pattern.
+    {
+        BSONObj indexFields = fromjson("{a: 1, m: 'hashed', 'm.m1': 1}");
+        std::unique_ptr<QuerySolution> solution = makeIndexScanFetchPlan(indexFields);
+        ASSERT_FALSE(isPlanSbeEligible(solution.get()));
+    }
+
+    // Single hashed index.
+    {
+        BSONObj indexFields = fromjson("{a: 'hashed'}");
+        std::unique_ptr<QuerySolution> solution = makeIndexScanFetchPlan(indexFields);
+        ASSERT_TRUE(isPlanSbeEligible(solution.get()));
+    }
+}
+
+// Test selection of FETCH + IXSCAN plans.
+TEST_F(EngineSelectionPlanFixture, FetchIxScanSelection) {
+    BSONObj indexFields = fromjson("{a: 1}");
+
+    std::unique_ptr<QuerySolution> solution = makeIndexScanFetchPlan(indexFields);
+    ASSERT_EQ(engineSelectionForPlan(solution.get()), EngineChoice::kClassic);
+}
 
 }  // namespace mongo

@@ -35,8 +35,24 @@
 namespace mongo {
 
 /**
- * Returns 'true' for all query solution plans that are enabled and should be dispatched to SBE.
+ * Returns 'false' for query plans that can not be executed in SBE.
+ */
+bool isPlanSbeEligible(const QuerySolution* solution);
+
+/**
+ * Returns the engine of choice for executing the specified query plan.
  */
 EngineChoice engineSelectionForPlan(const QuerySolution* solution);
+
+/**
+ * Returns true iff 'keyPattern' has fields A and B where all of the following hold
+ *
+ *   - A is a path prefix of B
+ *   - A is a hashed field in the index
+ *   - B is a non-hashed field in the index
+ *
+ * TODO SERVER-99889 this is a workaround for an SBE stage builder bug.
+ */
+bool indexHasHashedPathPrefixOfNonHashedPath(const BSONObj& keyPattern);
 
 }  // namespace mongo

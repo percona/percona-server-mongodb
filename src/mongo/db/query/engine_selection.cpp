@@ -52,37 +52,6 @@
 namespace mongo {
 namespace {
 /**
- * Returns true iff 'descriptor' has fields A and B where all of the following hold
- *
- *   - A is a path prefix of B
- *   - A is a hashed field in the index
- *   - B is a non-hashed field in the index
- *
- * TODO SERVER-99889 this is a workaround for an SBE stage builder bug.
- */
-bool indexHasHashedPathPrefixOfNonHashedPath(const IndexDescriptor* descriptor) {
-    boost::optional<StringData> hashedPath;
-    for (const auto& elt : descriptor->keyPattern()) {
-        if (elt.valueStringDataSafe() == "hashed") {
-            // Indexes may only contain one hashed field.
-            hashedPath = elt.fieldNameStringData();
-            break;
-        }
-    }
-    if (hashedPath == boost::none) {
-        // No hashed fields in the index.
-        return false;
-    }
-    // Check if 'hashedPath' is a path prefix for any field in the index.
-    for (const auto& elt : descriptor->keyPattern()) {
-        if (expression::isPathPrefixOf(hashedPath.get(), elt.fieldNameStringData())) {
-            return true;
-        }
-    }
-    return false;
-}
-
-/**
  * Returns true if 'collection' has an index that contains two fields, one of which is a path prefix
  * of the other, where the prefix field is hashed. Indexes can only contain one hashed field.
  *
@@ -102,7 +71,7 @@ bool collectionHasIndexWithHashedPathPrefixOfNonHashedPath(const CollectionPtr& 
         indexCatalog->getIndexIterator(IndexCatalog::InclusionPolicy::kReady);
     while (indexIter->more()) {
         const IndexCatalogEntry* entry = indexIter->next();
-        if (indexHasHashedPathPrefixOfNonHashedPath(entry->descriptor())) {
+        if (indexHasHashedPathPrefixOfNonHashedPath(entry->descriptor()->keyPattern())) {
             return true;
         }
     }
@@ -120,7 +89,9 @@ bool collectionHasIndexWithHashedPathPrefixOfNonHashedPath(const CollectionPtr& 
  * validation to make sure the query plan can be executed with SBE. If it returns false, SBE query
  * planning can be short-circuited as it is already known that the query is ineligible for SBE.
  */
-bool isQuerySbeCompatible(const CollectionPtr& collection, const CanonicalQuery& cq) {
+bool isQuerySbeCompatible(const CollectionPtr& collection,
+                          const CanonicalQuery& cq,
+                          const QuerySolution* solution) {
     auto expCtx = cq.getExpCtxRaw();
 
     // If we don't support all expressions used or the query is eligible for IDHack, don't use SBE.
@@ -161,7 +132,8 @@ bool isQuerySbeCompatible(const CollectionPtr& collection, const CanonicalQuery&
 
     // Queries against collections with a particular shape of compound hashed indexes are not
     // supported.
-    if (collection && collectionHasIndexWithHashedPathPrefixOfNonHashedPath(collection, expCtx)) {
+    if (!feature_flags::gFeatureFlagGetExecutorDeferredEngineChoice.isEnabled() && collection &&
+        collectionHasIndexWithHashedPathPrefixOfNonHashedPath(collection, expCtx)) {
         return false;
     }
 
@@ -171,25 +143,46 @@ bool isQuerySbeCompatible(const CollectionPtr& collection, const CanonicalQuery&
     }
 
     const auto& sortPattern = cq.getSortPattern();
-    return !sortPattern || isSortSbeCompatible(*sortPattern);
+    if (sortPattern && !isSortSbeCompatible(*sortPattern)) {
+        return false;
+    }
+
+    if (solution && !isPlanSbeEligible(solution)) {
+        return false;
+    }
+
+    return true;
 }
 
-
-bool hasNodeOfType(const QuerySolutionNode* node, StageType type) {
-    if (node->getType() == type) {
-        return true;
+EngineChoice shouldUseRegularSbeDeferredEngineSelection(
+    OperationContext* opCtx,
+    const CanonicalQuery& cq,
+    const CollectionPtr& mainCollection,
+    const bool sbeFull,
+    const QuerySolution* solution,
+    const std::function<void()>& extendSolutionWithPipelineFn) {
+    if (mainCollection && mainCollection->isTimeseriesCollection()) {
+        // TODO SERVER-120734 decide engine selection logic for TS collections.
+        // TS queries only use SBE when there's a pipeline.
+        return cq.cqPipeline().empty() ? EngineChoice::kClassic : EngineChoice::kSbe;
     }
-    for (auto&& child : node->children) {
-        if (hasNodeOfType(child.get(), type)) {
-            return true;
-        }
-    }
-    return false;
-}
 
-bool isPlanSbeEligible(const QuerySolution* solution) {
-    // Distinct scan plans not supported in SBE.
-    return !hasNodeOfType(solution->root(), StageType::STAGE_DISTINCT_SCAN);
+    // Check for SBE compatability.
+    const auto& queryKnob = cq.getExpCtx()->getQueryKnobConfiguration();
+    SbeCompatibility minRequiredCompatibility =
+        getMinRequiredSbeCompatibility(queryKnob.getInternalQueryFrameworkControlForOp(), sbeFull);
+    if (cq.getExpCtx()->getSbeCompatibility() < minRequiredCompatibility) {
+        return EngineChoice::kClassic;
+    }
+
+    // If `trySbeEngine` is set, we'll always use SBE when we can.
+    if (queryKnob.getInternalQueryFrameworkControlForOp() ==
+        QueryFrameworkControlEnum::kTrySbeEngine) {
+        return EngineChoice::kSbe;
+    }
+
+    extendSolutionWithPipelineFn();
+    return engineSelectionForPlan(solution);
 }
 
 /**
@@ -199,8 +192,7 @@ bool isPlanSbeEligible(const QuerySolution* solution) {
 EngineChoice shouldUseRegularSbe(OperationContext* opCtx,
                                  const CanonicalQuery& cq,
                                  const CollectionPtr& mainCollection,
-                                 const bool sbeFull,
-                                 const QuerySolution* solution) {
+                                 const bool sbeFull) {
     // When featureFlagSbeFull is not enabled, we cannot use SBE unless 'trySbeEngine' is enabled or
     // if 'trySbeRestricted' is enabled, and we have eligible pushed down stages in the cq pipeline.
     auto& queryKnob = cq.getExpCtx()->getQueryKnobConfiguration();
@@ -221,11 +213,6 @@ EngineChoice shouldUseRegularSbe(OperationContext* opCtx,
         return EngineChoice::kSbe;
     }
 
-    // If we're given a QuerySolution, evaluate the plan to see if qualifies for SBE enablement.
-    if (solution && engineSelectionForPlan(solution) == EngineChoice::kSbe) {
-        return EngineChoice::kSbe;
-    }
-
     return EngineChoice::kClassic;
 }
 }  // namespace
@@ -236,21 +223,21 @@ EngineChoice chooseEngine(OperationContext* opCtx,
                           Pipeline* pipeline,
                           bool needsMerge,
                           std::unique_ptr<QueryPlannerParams> plannerParams,
-                          const QuerySolution* solution) {
-    if (solution) {
-        tassert(11742301,
-                "Expected to choose engine based on solution only if "
-                "featureFlagGetExecutorDeferredEngineChoice is "
-                "enabled.",
-                feature_flags::gFeatureFlagGetExecutorDeferredEngineChoice.isEnabled());
-        if (!isPlanSbeEligible(solution)) {
-            return EngineChoice::kClassic;
-        }
-    }
+                          const QuerySolution* solution,
+                          const std::function<void()>& extendSolutionWithPipelineFn) {
+    const bool hasSolution = solution != nullptr;
+    const bool deferredEngineChoice =
+        feature_flags::gFeatureFlagGetExecutorDeferredEngineChoice.isEnabled();
+    tassert(11742301,
+            "Expected to choose engine based on solution only if "
+            "featureFlagGetExecutorDeferredEngineChoice is "
+            "enabled.",
+            hasSolution == deferredEngineChoice);
+
     const auto& mainColl = collections.getMainCollection();
     const bool forceClassic =
         cq->getExpCtx()->getQueryKnobConfiguration().isForceClassicEngineEnabled();
-    if (forceClassic || !isQuerySbeCompatible(mainColl, *cq)) {
+    if (forceClassic || !isQuerySbeCompatible(mainColl, *cq, solution)) {
         return EngineChoice::kClassic;
     }
 
@@ -260,11 +247,13 @@ EngineChoice chooseEngine(OperationContext* opCtx,
     attachPipelineStages(collections, pipeline, needsMerge, cq, std::move(plannerParams));
 
     const bool sbeFull = feature_flags::gFeatureFlagSbeFull.isEnabled();
-    if (sbeFull ||
-        shouldUseRegularSbe(opCtx, *cq, mainColl, sbeFull, solution) == EngineChoice::kSbe) {
+    if (sbeFull) {
         return EngineChoice::kSbe;
     }
-    return EngineChoice::kClassic;
+    return deferredEngineChoice
+        ? shouldUseRegularSbeDeferredEngineSelection(
+              opCtx, *cq, mainColl, sbeFull, solution, extendSolutionWithPipelineFn)
+        : shouldUseRegularSbe(opCtx, *cq, mainColl, sbeFull);
 }
 
 }  // namespace mongo
