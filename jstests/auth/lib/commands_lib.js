@@ -182,6 +182,7 @@ let roles_readDbAdminAny = {
 };
 let roles_monitoring = {clusterMonitor: 1, clusterAdmin: 1, root: 1, searchCoordinator: 1, __system: 1};
 let roles_hostManager = {hostManager: 1, clusterAdmin: 1, root: 1, __system: 1};
+let roles_fsync = {searchCoordinator: 1, hostManager: 1, clusterAdmin: 1, root: 1, __system: 1};
 let roles_clusterManager = {clusterManager: 1, clusterAdmin: 1, root: 1, __system: 1};
 let roles_all = {
     read: 1,
@@ -5202,7 +5203,7 @@ export const authCommandsLib = {
             testcases: [
                 {
                     runOnDb: adminDbName,
-                    roles: roles_hostManager,
+                    roles: roles_fsync,
                     privileges: [{resource: {cluster: true}, actions: ["fsync"]}],
                 },
                 {runOnDb: firstDbName, roles: {}},
@@ -7613,7 +7614,7 @@ export const authCommandsLib = {
             testcases: [
                 {
                     runOnDb: adminDbName,
-                    roles: roles_hostManager,
+                    roles: roles_fsync,
                     privileges: [{resource: {cluster: true}, actions: ["fsync"]}],
                     expectFail: TestData.storageEngine == "inMemory",
                 },
@@ -7645,7 +7646,7 @@ export const authCommandsLib = {
             testcases: [
                 {
                     runOnDb: adminDbName,
-                    roles: roles_hostManager,
+                    roles: roles_fsync,
                     privileges: [{resource: {cluster: true}, actions: ["fsync"]}],
                     expectFail: true,
                 },

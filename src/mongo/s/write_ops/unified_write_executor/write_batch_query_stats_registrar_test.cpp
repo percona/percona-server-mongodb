@@ -59,15 +59,33 @@ public:
     WriteBatchQueryStatsRegistrarTest() {
         opCtxHolder = makeOperationContext();
         opCtx = opCtxHolder.get();
+
+        // Set write cmd query stats collection to 100% (1000/1000)
+        auto& limiter =
+            query_stats::QueryStatsStoreManager::getWriteCmdRateLimiter(getServiceContext());
+        limiter.configureSampleBased(1000, 42);
     }
 
     ServiceContext::UniqueOperationContext opCtxHolder;
     OperationContext* opCtx;
+    // Enable collection of query stats for updates
+    RAIIServerParameterControllerForTest controller{"featureFlagQueryStatsUpdateCommand", true};
 };
 
-TEST_F(WriteBatchQueryStatsRegistrarTest, RegisterRequestTest) {
-    const DatabaseVersion nss1DbVersion(UUID::gen(), Timestamp(1, 0));
-    const ShardEndpoint nss1Shard1(shardId1, ShardVersion::UNTRACKED(), nss1DbVersion);
+/**
+ * Test for WriteBatchQueryStatsRegistrar::parseAndRegisterRequest
+ * Parametrized based on whether the command should be registered with the query stats store
+ */
+class WriteBatchQueryStatsRegistrarRegisterRequestFixture
+    : public WriteBatchQueryStatsRegistrarTest,
+      public testing::WithParamInterface<bool> {};
+
+/**
+ * Registers an update batch with multiple updates
+ * Note: In the multi-update case we don't compute the QueryShapeHash for the command
+ */
+TEST_P(WriteBatchQueryStatsRegistrarRegisterRequestFixture, ParseAndRegisterRequestMultiUpdate) {
+    bool skipRegistration = GetParam();
 
     // Create a batch update request
     auto update = fromjson(R"({
@@ -83,49 +101,250 @@ TEST_F(WriteBatchQueryStatsRegistrarTest, RegisterRequestTest) {
     BatchedCommandRequest batchRequest(updateCommandRequest);
     WriteCommandRef cmdRef{batchRequest};
 
-    // Enable query stats collection and configure rate limiting
-    RAIIServerParameterControllerForTest controller("featureFlagQueryStatsUpdateCommand", true);
-    auto& limiter = query_stats::QueryStatsStoreManager::getRateLimiter(getServiceContext());
-    limiter.configureWindowBased(-1);
-    WriteBatchQueryStatsRegistrar::registerRequest(opCtx, cmdRef);
+    WriteBatchQueryStatsRegistrar::parseAndRegisterRequest(opCtx, cmdRef, skipRegistration);
+
+    const auto& opDebug = CurOp::get(opCtx)->debug();
+
+    // queryShapeHash shouldn't be computed in the multi-update case
+    EXPECT_FALSE(opDebug.getQueryShapeHash());
+
+    // If registration wasn't requested, checks that info isn't populated
+    if (skipRegistration) {
+        for (size_t opIndex = 0; opIndex < 3; opIndex++) {
+            EXPECT_FALSE(opDebug.hasQueryStatsInfo(opIndex));
+        }
+        return;
+    }
 
     // Asserts that all the update ops are registered.
-    const auto& opDebug = CurOp::get(opCtx)->debug();
     for (size_t opIndex = 0; opIndex < 3; opIndex++) {
+        ASSERT_TRUE(opDebug.hasQueryStatsInfo(opIndex));
         ASSERT_TRUE(opDebug.getQueryStatsInfo(opIndex).key);
     }
 
     // Selects one of the keys and checks its query stats key.
     ASSERT_BSONOBJ_EQ_AUTO(
-        R"({                                  
-            "queryShape": {                   
-                "cmdNs": {                    
-                    "db": "testDB",           
-                    "coll": "testColl"        
-                },                            
-                "command": "update",          
-                "q": {                        
-                    "x": {                    
-                        "$eq": "?number"      
+        R"({
+            "queryShape": {
+                "cmdNs": {
+                    "db": "testDB",
+                    "coll": "testColl"
+                },
+                "command": "update",
+                "q": {
+                    "x": {
+                        "$eq": "?number"
                     }
-                },                            
-                "u": {                        
+                },
+                "u": {
                     "$set": {
-                        "bar": "?string"      
-                    }                         
-                },                            
+                        "bar": "?string"
+                    }
+                },
                 "multi": false,
-                "upsert": false               
-            },                                
-            "ordered": true,                  
+                "upsert": false
+            },
+            "ordered": true,
             "bypassDocumentValidation": false
         })",
         opDebug.getQueryStatsInfo(1).key->toBson(
             opCtx, SerializationOptions::kDebugQueryShapeSerializeOptions, {}));
 }
 
+
+TEST_P(WriteBatchQueryStatsRegistrarRegisterRequestFixture,
+       ParseAndRegisterRequestSingleUpdateReplacement) {
+    bool skipRegistration = GetParam();
+
+    // Batch update request with one update
+    auto update = fromjson(R"({
+        update: "testColl",
+        updates: [
+            { q: { x: {$eq: 3} }, u: { foo: [ "beep", "boop" ] }, multi: false, upsert: false }
+        ],
+        "$db": "testDB"
+        })"_sd);
+    auto updateCommandRequest = write_ops::UpdateCommandRequest::parse(std::move(update));
+    BatchedCommandRequest batchRequest(updateCommandRequest);
+    WriteCommandRef cmdRef{batchRequest};
+
+    WriteBatchQueryStatsRegistrar::parseAndRegisterRequest(opCtx, cmdRef, skipRegistration);
+
+    const auto& opDebug = CurOp::get(opCtx)->debug();
+
+    // Checks that queryShapeHash is set on opDebug
+    EXPECT_TRUE(opDebug.getQueryShapeHash());
+
+    // If registration wasn't requested, checks that info isn't populated
+    if (skipRegistration) {
+        EXPECT_FALSE(opDebug.hasQueryStatsInfo(0));
+        return;
+    }
+
+    // Asserts that the update op is registered.
+    ASSERT_TRUE(opDebug.hasQueryStatsInfo(0));
+    ASSERT_TRUE(opDebug.getQueryStatsInfo(0).key);
+
+    // Check the query stats key
+    ASSERT_BSONOBJ_EQ_AUTO(
+        R"({
+            "queryShape": {
+                "cmdNs": {
+                    "db": "testDB",
+                    "coll": "testColl"
+                },
+                "command": "update",
+                "q": {
+                    "x": {
+                        "$eq": "?number"
+                    }
+                },
+                "u": "?object",
+                "multi": false,
+                "upsert": false
+            },
+            "ordered": true,
+            "bypassDocumentValidation": false
+        })",
+        opDebug.getQueryStatsInfo(0).key->toBson(
+            opCtx, SerializationOptions::kDebugQueryShapeSerializeOptions, {}));
+}
+
+TEST_P(WriteBatchQueryStatsRegistrarRegisterRequestFixture,
+       ParseAndRegisterRequestSingleUpdateModifier) {
+    bool skipRegistration = GetParam();
+
+    // Batch update request with one update
+    auto update = fromjson(R"({
+        update: "testColl",
+        updates: [
+            { q: { x: {$eq: 3} }, u: { $push: { 'foo.bar' : 12 } }, multi: false, upsert: false }
+        ],
+        "$db": "testDB"
+        })"_sd);
+    auto updateCommandRequest = write_ops::UpdateCommandRequest::parse(std::move(update));
+    BatchedCommandRequest batchRequest(updateCommandRequest);
+    WriteCommandRef cmdRef{batchRequest};
+
+    WriteBatchQueryStatsRegistrar::parseAndRegisterRequest(opCtx, cmdRef, skipRegistration);
+
+    const auto& opDebug = CurOp::get(opCtx)->debug();
+
+    // Checks that queryShapeHash is set on opDebug
+    EXPECT_TRUE(opDebug.getQueryShapeHash());
+
+    // If registration wasn't requested, checks that info isn't populated
+    if (skipRegistration) {
+        EXPECT_FALSE(opDebug.hasQueryStatsInfo(0));
+        return;
+    }
+
+    // Asserts that the update op is registered.
+    ASSERT_TRUE(opDebug.hasQueryStatsInfo(0));
+    ASSERT_TRUE(opDebug.getQueryStatsInfo(0).key);
+
+    // Check the query stats key
+    ASSERT_BSONOBJ_EQ_AUTO(
+        R"({
+            "queryShape": {
+                "cmdNs": {
+                    "db": "testDB",
+                    "coll": "testColl"
+                },
+                "command": "update",
+                "q": {
+                    "x": {
+                        "$eq": "?number"
+                    }
+                },
+                "u": {
+                    "$push": {
+                        "foo.bar": {
+                            "$each": "?array<?number>"
+                        }
+                    }
+                },
+                "multi": false,
+                "upsert": false
+            },
+            "ordered": true,
+            "bypassDocumentValidation": false
+        })",
+        opDebug.getQueryStatsInfo(0).key->toBson(
+            opCtx, SerializationOptions::kDebugQueryShapeSerializeOptions, {}));
+}
+
+TEST_P(WriteBatchQueryStatsRegistrarRegisterRequestFixture,
+       ParseAndRegisterRequestSingleUpdatePipeline) {
+    bool skipRegistration = GetParam();
+
+    // Batch update request with one update
+    auto update = fromjson(R"({
+        update: "testColl",
+        updates: [
+            { q: { x: {$eq: 3} }, u: [ { $set: { baz : 15 } } ], multi: false, upsert: false }
+        ],
+        "$db": "testDB"
+        })"_sd);
+    auto updateCommandRequest = write_ops::UpdateCommandRequest::parse(std::move(update));
+    BatchedCommandRequest batchRequest(updateCommandRequest);
+    WriteCommandRef cmdRef{batchRequest};
+
+    WriteBatchQueryStatsRegistrar::parseAndRegisterRequest(opCtx, cmdRef, skipRegistration);
+
+    const auto& opDebug = CurOp::get(opCtx)->debug();
+
+    // Checks that queryShapeHash is set on opDebug
+    EXPECT_TRUE(opDebug.getQueryShapeHash());
+
+    // If registration wasn't requested, checks that info isn't populated
+    if (skipRegistration) {
+        EXPECT_FALSE(opDebug.hasQueryStatsInfo(0));
+        return;
+    }
+
+    // Asserts that the update op is registered.
+    ASSERT_TRUE(opDebug.hasQueryStatsInfo(0));
+    ASSERT_TRUE(opDebug.getQueryStatsInfo(0).key);
+
+    // Check the query stats key
+    ASSERT_BSONOBJ_EQ_AUTO(
+        R"({
+            "queryShape": {
+                "cmdNs": {
+                    "db": "testDB",
+                    "coll": "testColl"
+                },
+                "command": "update",
+                "q": {
+                    "x": {
+                        "$eq": "?number"
+                    }
+                },
+                "u": [
+                    {
+                        "$set": {
+                            "baz": "?number"
+                        }
+                    }
+                ],
+                "multi": false,
+                "upsert": false
+            },
+            "ordered": true,
+            "bypassDocumentValidation": false
+        })",
+        opDebug.getQueryStatsInfo(0).key->toBson(
+            opCtx, SerializationOptions::kDebugQueryShapeSerializeOptions, {}));
+}
+
+
+INSTANTIATE_TEST_SUITE_P(RegisterRequestSuite,
+                         WriteBatchQueryStatsRegistrarRegisterRequestFixture,
+                         testing::Bool());
+
 TEST_F(WriteBatchQueryStatsRegistrarTest, SetIncludeQueryStatsMetricsIfRequestedTest) {
-    WriteBatchQueryStatsRegistrar queryStatsRegisterer;
+    WriteBatchQueryStatsRegistrar queryStatsRegistrar;
 
     auto registerMockKey = [&](OpDebug& opDebug, size_t opIndex) {
         OpDebug::QueryStatsInfo qsi;
@@ -142,7 +361,7 @@ TEST_F(WriteBatchQueryStatsRegistrarTest, SetIncludeQueryStatsMetricsIfRequested
 
         write_ops::UpdateOpEntry updateOpEntry;
         ASSERT_FALSE(updateOpEntry.getIncludeQueryStatsMetricsForOpIndex());
-        queryStatsRegisterer.setIncludeQueryStatsMetricsIfRequested(
+        queryStatsRegistrar.setIncludeQueryStatsMetricsIfRequested(
             CurOp::get(opCtx), opIndex, updateOpEntry);
 
         // Asserts that the field includeQueryStatsMetricsForOpIndex has been set with 'opIndex'.
@@ -161,10 +380,46 @@ TEST_F(WriteBatchQueryStatsRegistrarTest, SetIncludeQueryStatsMetricsIfRequested
 
         write_ops::UpdateOpEntry updateOpEntry;
         ASSERT_FALSE(updateOpEntry.getIncludeQueryStatsMetricsForOpIndex());
-        queryStatsRegisterer.setIncludeQueryStatsMetricsIfRequested(
+        queryStatsRegistrar.setIncludeQueryStatsMetricsIfRequested(
             CurOp::get(opCtx), opIndex, updateOpEntry);
         ASSERT_FALSE(updateOpEntry.getIncludeQueryStatsMetricsForOpIndex());
     }
+}
+
+/**
+ * Show that we don't register writes for query stats collection when the write sample rate is zero,
+ * even if the read path is configured for query stats collection.
+ */
+TEST_F(WriteBatchQueryStatsRegistrarTest, RegisterRequestNotSampledWhenWriteRateIsZero) {
+    auto& writeLimiter =
+        query_stats::QueryStatsStoreManager::getWriteCmdRateLimiter(getServiceContext());
+    writeLimiter.configureSampleBased(0, 42);
+
+    auto& readLimiter = query_stats::QueryStatsStoreManager::getRateLimiter(getServiceContext());
+
+    auto runTest = [&](auto configureReadLimiter) {
+        auto update = fromjson(R"({
+            update: "testColl",
+            updates: [
+                { q: { x: {$eq: 3} }, u: { foo: "bar" }, multi: false, upsert: false }
+            ],
+            "$db": "testDB"
+            })"_sd);
+        auto updateCommandRequest = write_ops::UpdateCommandRequest::parse(std::move(update));
+        BatchedCommandRequest batchRequest(updateCommandRequest);
+        WriteCommandRef cmdRef{batchRequest};
+
+        configureReadLimiter();
+
+        WriteBatchQueryStatsRegistrar::parseAndRegisterRequest(
+            opCtx, cmdRef, false /* skip request */);
+
+        const auto& opDebug = CurOp::get(opCtx)->debug();
+        ASSERT_FALSE(opDebug.hasQueryStatsInfo(0));
+    };
+
+    runTest([&] { readLimiter.configureSampleBased(1000, 42); });
+    runTest([&] { readLimiter.configureWindowBased(1000); });
 }
 
 }  // namespace

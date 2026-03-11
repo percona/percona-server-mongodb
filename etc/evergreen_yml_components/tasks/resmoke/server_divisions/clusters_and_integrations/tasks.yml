@@ -1763,6 +1763,7 @@ tasks:
       - func: "generate resmoke tasks"
         vars:
           use_large_distro: "true"
+          resmoke_jobs_max: 4
 
   - <<: *gen_task_template
     name: sharding_gen
@@ -2717,6 +2718,21 @@ tasks:
           # TODO(SERVER-109882): Enable viewless timeseries in upgrade/downgrade suites
           resmoke_args: >-
             --disableFeatureFlags=featureFlagCreateViewlessTimeseriesCollections
+
+  - <<: *gen_task_template
+    name: fcv_upgrade_downgrade_sharding_jscore_passthrough_retryable_writes_gen
+    tags:
+      [
+        "assigned_to_jira_team_server_catalog_and_routing",
+        "default",
+        "sharding",
+        "jscore",
+        "suggested_excluding_required__for_devprod_mitigation_only",
+      ]
+    commands:
+      - func: "generate resmoke tasks"
+        vars:
+          use_large_distro: "true"
 
   ## jstestfuzz concurrent sharded cluster causal consistency ##
   - <<: *jstestfuzz_template
