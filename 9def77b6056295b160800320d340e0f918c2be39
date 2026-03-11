@@ -1,0 +1,27 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "6af9afb9e02e1b4e1671773cbf5cfc18615f3618",
+    "merge_commit": "83295e80c798b92a1f9b8a2b2fab0a2b94d29bcd"
+  },
+  "mergai_version": "0.1.dev111+gc2eff4572.d20260220",
+  "solutions": [
+    {
+      "response": {
+        "summary": "Update ProfileCmdRequest field metadata size after SERVER-114496",
+        "resolved": {},
+        "unresolved": {},
+        "modified": {
+          "src/mongo/db/commands/profile_common.cpp": "Modified by human"
+        },
+        "review_notes": "SERVER-114496 added isDirectSystemBucketsAccess to generic command\narguments, increasing fieldMetadata.size() from 48 to 49."
+      },
+      "author": {
+        "name": "Pawel Lebioda",
+        "email": "pawel.lebioda@percona.com",
+        "type": "human"
+      },
+      "commit_sha": "9def77b6056295b160800320d340e0f918c2be39"
+    }
+  ]
+}
