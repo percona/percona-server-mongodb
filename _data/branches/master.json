@@ -5,35 +5,35 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 373,
+    "commits_behind": 366,
     "days_behind": 12,
-    "files_affected": 3024,
-    "total_additions": 100236,
-    "total_deletions": 281505,
+    "files_affected": 1742,
+    "total_additions": 100286,
+    "total_deletions": 43524,
     "date_range": {
-      "first": "2026-02-26T22:13:45+00:00",
+      "first": "2026-02-27T06:02:32+00:00",
       "last": "2026-03-11T03:45:36+00:00"
     }
   },
   "last_merged_commit": {
-    "sha": "63bb4b8a54415b971265b1dd248f1ea7b8ac1331",
-    "short_sha": "63bb4b8a544",
-    "date": "2026-02-26T15:58:26-06:00",
+    "sha": "93c99cdc007ca2b0a53f91a48c65aa654d96986b",
+    "short_sha": "93c99cdc007",
+    "date": "2026-02-27T03:42:07+00:00",
     "author": {
-      "name": "joe-mongodb",
-      "email": "joseph.shalabi@mongodb.com"
+      "name": "auto-revert-app[bot]",
+      "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
     },
-    "summary": "SERVER-118842: Import rnpgp/rnp into the server (#47696)"
+    "summary": "Revert \"SERVER-118842: Import rnpgp/rnp into the server (#47696)\" (#48730)"
   },
   "first_unmerged_commit": {
-    "sha": "9f9abc5569ca7a827147efb074742eefe35332b3",
-    "short_sha": "9f9abc5569c",
-    "date": "2026-02-26T17:13:45-05:00",
+    "sha": "483c69b1e7e8eadf9223487a521bfafc6e591678",
+    "short_sha": "483c69b1e7e",
+    "date": "2026-02-27T07:02:32+01:00",
     "author": {
-      "name": "Sean Lyons",
-      "email": "sean.lyons@mongodb.com"
+      "name": "karlbozdogan",
+      "email": "karl.bozdogan@mongodb.com"
     },
-    "summary": "SERVER-120393: Improve resmoke_tests build configuration (#48614)"
+    "summary": "SERVER-119161 Fix failpoint usage in tests for multi-router test suits (#48581)"
   },
   "unmerged_commits": [
     {
@@ -3695,121 +3695,9 @@
         "email": "karl.bozdogan@mongodb.com"
       },
       "summary": "SERVER-119161 Fix failpoint usage in tests for multi-router test suits (#48581)"
-    },
-    {
-      "sha": "93c99cdc007ca2b0a53f91a48c65aa654d96986b",
-      "short_sha": "93c99cdc007",
-      "date": "2026-02-27T03:42:07+00:00",
-      "author": {
-        "name": "auto-revert-app[bot]",
-        "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
-      },
-      "summary": "Revert \"SERVER-118842: Import rnpgp/rnp into the server (#47696)\" (#48730)"
-    },
-    {
-      "sha": "6f6bd1f0e1c70b418ec7808c5052fae0f08414e0",
-      "short_sha": "6f6bd1f0e1c",
-      "date": "2026-02-26T19:47:09-05:00",
-      "author": {
-        "name": "Mihai Andrei",
-        "email": "mihai.andrei@mongodb.com"
-      },
-      "summary": "SERVER-120076 Add query-property-based-testing code owning team (#48426)"
-    },
-    {
-      "sha": "43d051bf5257454cabc651d7504db424397144bf",
-      "short_sha": "43d051bf525",
-      "date": "2026-02-26T23:25:07+00:00",
-      "author": {
-        "name": "auto-revert-app[bot]",
-        "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
-      },
-      "summary": "Revert \"SERVER-120217 Move python rules to using py_binary rather than using the toolchain (#48508)\" (#48721)"
-    },
-    {
-      "sha": "4ade56ed67c86fac88e8c5d2ab137a4895797291",
-      "short_sha": "4ade56ed67c",
-      "date": "2026-02-26T15:06:20-08:00",
-      "author": {
-        "name": "Andrew Bradshaw",
-        "email": "andrew.bradshaw@mongodb.com"
-      },
-      "summary": "SERVER-120525: Mirror PR build for CI queue for monguard (#48717)"
-    },
-    {
-      "sha": "6bf59cd295d255420f882d6ff8a5e03ba046b095",
-      "short_sha": "6bf59cd295d",
-      "date": "2026-02-26T18:00:18-05:00",
-      "author": {
-        "name": "Mariano Shaar",
-        "email": "47160550+shaargtz@users.noreply.github.com"
-      },
-      "summary": "SERVER-120418: Pin 2dsphere index version in timeseries test (#48628)"
-    },
-    {
-      "sha": "8274b87d7cdb3cbc8e276ab3f8753bfbfebabe5c",
-      "short_sha": "8274b87d7cd",
-      "date": "2026-02-26T16:40:42-06:00",
-      "author": {
-        "name": "Nathan Frank",
-        "email": "nathantfrank@users.noreply.github.com"
-      },
-      "summary": "SERVER-120509: disable streams on local compile (#48703)"
-    },
-    {
-      "sha": "9f9abc5569ca7a827147efb074742eefe35332b3",
-      "short_sha": "9f9abc5569c",
-      "date": "2026-02-26T17:13:45-05:00",
-      "author": {
-        "name": "Sean Lyons",
-        "email": "sean.lyons@mongodb.com"
-      },
-      "summary": "SERVER-120393: Improve resmoke_tests build configuration (#48614)"
     }
   ],
   "merge_picks": [
-    {
-      "commit": {
-        "sha": "43d051bf5257454cabc651d7504db424397144bf",
-        "short_sha": "43d051bf525",
-        "date": "2026-02-26T23:25:07+00:00",
-        "author": {
-          "name": "auto-revert-app[bot]",
-          "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
-        },
-        "summary": "Revert \"SERVER-120217 Move python rules to using py_binary rather than using the toolchain (#48508)\" (#48721)"
-      },
-      "strategy_name": "huge_commit",
-      "result": {
-        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
-        "evaluated_vars": {
-          "num_of_files": 14,
-          "num_of_lines": 172,
-          "lines_added": 90,
-          "lines_deleted": 82,
-          "num_of_dirs": 11
-        }
-      }
-    },
-    {
-      "commit": {
-        "sha": "93c99cdc007ca2b0a53f91a48c65aa654d96986b",
-        "short_sha": "93c99cdc007",
-        "date": "2026-02-27T03:42:07+00:00",
-        "author": {
-          "name": "auto-revert-app[bot]",
-          "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
-        },
-        "summary": "Revert \"SERVER-118842: Import rnpgp/rnp into the server (#47696)\" (#48730)"
-      },
-      "strategy_name": "conflict",
-      "result": {
-        "conflicting_files": [
-          "README.third_party.md",
-          "sbom.json"
-        ]
-      }
-    },
     {
       "commit": {
         "sha": "92222bd617ce92e66f3b9e44e4344fc370862d31",
@@ -3854,6 +3742,24 @@
           "lines_deleted": 267,
           "num_of_dirs": 11
         }
+      }
+    },
+    {
+      "commit": {
+        "sha": "f4a888182678a002b4de48230bb2b60276c301c5",
+        "short_sha": "f4a88818267",
+        "date": "2026-02-27T10:35:08-06:00",
+        "author": {
+          "name": "Daniel Moody",
+          "email": "dmoody256@gmail.com"
+        },
+        "summary": "SERVER-118928 improve gdb toolchain wrapper (#48756)"
+      },
+      "strategy_name": "conflict",
+      "result": {
+        "conflicting_files": [
+          "MODULE.bazel.lock"
+        ]
       }
     },
     {
@@ -4207,7 +4113,7 @@
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-03-11 06:16:50",
+  "generated_at": "2026-03-11 07:06:36",
   "branch_name": "master",
   "display_name": "master"
 }
