@@ -1,0 +1,27 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "6af9afb9e02e1b4e1671773cbf5cfc18615f3618",
+    "merge_commit": "83295e80c798b92a1f9b8a2b2fab0a2b94d29bcd"
+  },
+  "mergai_version": "0.1.dev1+g47bcfad77",
+  "solutions": [
+    {
+      "response": {
+        "summary": "Fix format in server_options.h",
+        "resolved": {},
+        "unresolved": {},
+        "modified": {
+          "src/mongo/db/server_options.h": "Modified by human"
+        },
+        "review_notes": null
+      },
+      "author": {
+        "name": "Pawel Lebioda",
+        "email": "pawel.lebioda@percona.com",
+        "type": "human"
+      },
+      "commit_sha": "246fbdf26bc3bcb3ebf93b69a23a32f432b57f44"
+    }
+  ]
+}
