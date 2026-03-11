@@ -23,6 +23,7 @@ a notice will be included in
 
 | Name                                                 | License                           | Vendored Version                         | Emits persisted data | Distributed in Release Binaries |
 | ---------------------------------------------------- | --------------------------------- | ---------------------------------------- | -------------------- | ------------------------------- |
+| [AWS SDK for C++]                                    | Apache-2.0                        | 1.11.471                                 |                      | ✗                               |
 | [Abseil Common Libraries (C++)]                      | Apache-2.0                        | 20211102.0                               |                      | ✗                               |
 | [Asio C++ Library]                                   | BSL-1.0                           | 1.12.2                                   |                      | ✗                               |
 | [Boost C++ Libraries]                                | BSL-1.0                           | 1.79.0                                   |                      | ✗                               |
@@ -66,6 +67,7 @@ a notice will be included in
 | [yaml-cpp]                                           | MIT                               | 0.6.3                                    |                      | ✗                               |
 | [zlib]                                               | Zlib                              | 1.2.13                                   | ✗                    | ✗                               |
 
+[AWS SDK for C++]: https://aws.amazon.com/sdk-for-cpp/
 [Abseil Common Libraries (C++)]: https://github.com/abseil/abseil-cpp.git
 [Asio C++ Library]: https://github.com/chriskohlhoff/asio.git
 [Boost C++ Libraries]: https://github.com/boostorg/boost.git

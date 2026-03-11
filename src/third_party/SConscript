@@ -23,6 +23,7 @@ variantSuffix = '-1.4.0'
 
 thirdPartyEnvironmentModifications = {
     'abseil-cpp': {'CPPPATH': ['#/src/third_party/abseil-cpp/dist'], },
+    'aws-sdk-cpp': {'CPPPATH': ['#/src/third_party/aws-sdk-cpp/dist/include'], },
     'cares': {
         'CPPPATH': [
             '#src/third_party/cares/dist/include',
@@ -655,6 +656,18 @@ else:
     ])
 
 asioEnv.ShimLibrary(name="asio")
+
+
+awsEnv = env.Clone()
+awsEnv.InjectThirdParty(libraries=['aws-sdk-cpp'])
+awsEnv.SConscript('aws-sdk-cpp/SConscript', exports={'env': awsEnv})
+awsEnv = awsEnv.Clone(LIBDEPS_INTERFACE=[
+    'aws-sdk-cpp/aws-cpp-sdk-core',
+    'aws-sdk-cpp/aws-cpp-sdk-s3',
+    'aws-sdk-cpp/aws-cpp-sdk-transfer',
+])
+awsEnv.ShimLibrary(name="awssdk")
+
 
 intelDecimal128Env = env.Clone()
 if use_system_version_of_library("intel_decimal128"):
