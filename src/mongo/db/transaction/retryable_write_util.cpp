@@ -1,5 +1,5 @@
 /**
- *    Copyright (C) 2018-present MongoDB, Inc.
+ *    Copyright (C) 2026-present MongoDB, Inc.
  *
  *    This program is free software: you can redistribute it and/or modify
  *    it under the terms of the Server Side Public License, version 1,
@@ -27,41 +27,19 @@
  *    it in the license file.
  */
 
-#pragma once
+#include "mongo/db/transaction/retryable_write_util.h"
 
-#include <algorithm>
-#include <iterator>
-#include <memory>
-#include <vector>
+#include "mongo/db/transaction/transaction_participant.h"
 
-namespace mongo {
-namespace transitional_tools_do_not_use {
-template <typename T>
-inline std::vector<T*> unspool_vector(const std::vector<std::unique_ptr<T>>& v) {
-    std::vector<T*> result;
-    result.reserve(v.size());
-    std::transform(
-        v.begin(), v.end(), std::back_inserter(result), [](const auto& p) { return p.get(); });
-    return result;
+namespace mongo::retryable_write_util {
+
+bool isRetryableWrite(OperationContext* opCtx) {
+    if (!opCtx->writesAreReplicated() || !opCtx->isRetryableWrite()) {
+        return false;
+    }
+    auto txnParticipant = TransactionParticipant::get(opCtx);
+    return txnParticipant &&
+        (!opCtx->inMultiDocumentTransaction() || txnParticipant.transactionIsOpen());
 }
 
-template <typename T>
-inline std::vector<std::unique_ptr<T>> spool_vector(const std::vector<T*>& v) {
-    std::vector<std::unique_ptr<T>> result;
-    result.reserve(v.size());
-    std::transform(v.begin(), v.end(), std::back_inserter(result), [](const auto& p) {
-        return std::unique_ptr<T>{p};
-    });
-    return result;
-}
-
-template <typename T>
-inline std::vector<T*> leak_vector(std::vector<std::unique_ptr<T>>& v) {
-    std::vector<T*> result;
-    result.reserve(v.size());
-    std::transform(
-        v.begin(), v.end(), std::back_inserter(result), [](auto& p) { return p.release(); });
-    return result;
-}
-}  // namespace transitional_tools_do_not_use
-}  // namespace mongo
+}  // namespace mongo::retryable_write_util

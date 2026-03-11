@@ -38,6 +38,7 @@
 #include "mongo/db/curop.h"
 #include "mongo/db/exec/matcher/matcher.h"
 #include "mongo/db/feature_flag.h"
+#include "mongo/db/index/index_access_method.h"
 #include "mongo/db/index/multikey_paths.h"
 #include "mongo/db/index_builds/index_builds_common.h"
 #include "mongo/db/index_builds/multi_index_block_gen.h"
@@ -187,37 +188,42 @@ bool shouldRelaxConstraints(OperationContext* opCtx, const CollectionPtr& collec
     return !isPrimary;
 }
 
-std::shared_ptr<SorterSpiller<key_string::Value, mongo::NullValue>> makeSpiller(
-    OperationContext* opCtx,
-    const CollectionPtr& collection,
-    const IndexCatalogEntry* entry,
-    const boost::optional<IndexStateInfo>& stateInfo,
-    SorterFileStats& fileStats,
-    SorterContainerStats& containerStats,
-    const DatabaseName& dbName,
-    IndexBuildMethodEnum method) {
+std::shared_ptr<SorterSpiller<key_string::Value, mongo::NullValue, BtreeExternalSortComparison>>
+makeSpiller(OperationContext* opCtx,
+            const CollectionPtr& collection,
+            const IndexCatalogEntry* entry,
+            const boost::optional<IndexStateInfo>& stateInfo,
+            SorterFileStats& fileStats,
+            SorterContainerStats& containerStats,
+            const DatabaseName& dbName,
+            IndexBuildMethodEnum method) {
     if (method == IndexBuildMethodEnum::kPrimaryDriven) {
         invariant(!stateInfo);
-        return std::make_shared<sorter::ContainerBasedSpiller<key_string::Value, mongo::NullValue>>(
+        return std::make_shared<sorter::ContainerBasedSpiller<key_string::Value,
+                                                              mongo::NullValue,
+                                                              BtreeExternalSortComparison>>(
             *opCtx,
             *shard_role_details::getRecoveryUnit(opCtx),
             collection,
             entry->indexBuildInterceptor()->getSorterContainer(),
             containerStats,
             dbName,
-            SorterChecksumVersion::v2,
+            sorter::kLatestChecksumVersion,
             primaryDrivenIndexBuildSorterInsertionBatchSize.load());
     }
 
-    using FileBasedSpiller = sorter::FileBasedSorterSpiller<key_string::Value, mongo::NullValue>;
+    using FileBasedSpiller = sorter::
+        FileBasedSorterSpiller<key_string::Value, mongo::NullValue, BtreeExternalSortComparison>;
     boost::filesystem::path tmpPath = storageGlobalParams.dbpath + "/_tmp";
     auto fileName = stateInfo ? stateInfo->getStorageIdentifier() : boost::none;
     return fileName
         ? std::make_shared<FileBasedSpiller>(
               std::make_shared<SorterFile>(tmpPath / std::string{*fileName}, &fileStats),
               tmpPath,
-              dbName)
-        : std::make_shared<FileBasedSpiller>(tmpPath, &fileStats, dbName);
+              dbName,
+              sorter::kLatestChecksumVersion)
+        : std::make_shared<FileBasedSpiller>(
+              tmpPath, &fileStats, dbName, sorter::kLatestChecksumVersion);
 }
 
 }  // namespace

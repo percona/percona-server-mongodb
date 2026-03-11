@@ -30,6 +30,7 @@ class MongoShellDebugSession extends DebugSession {
         this.debugConnection = null;
         this.debugServer = null;
         this.connected = false;
+        this.configurationDoneResponse = null;
 
         // Handles for variables
         this.breakpoints = new Map();
@@ -86,25 +87,46 @@ class MongoShellDebugSession extends DebugSession {
 
     // Set up message handling for debug protocol
     setupDebugConnection() {
+        let msgBuffer = "";
         this.debugConnection.on("data", (data) => {
-            let line = data.toString();
-            if (!line.trim()) return;
+            msgBuffer += data.toString();
 
-            try {
-                const msg = JSON.parse(line);
-                this.handleDebugMessage(msg);
-            } catch (err) {
-                this.log(`Failed to parse: ${line}`, "stderr");
-                this.log(err);
+            let pos;
+            while ((pos = msgBuffer.indexOf("\n")) !== -1) {
+                let line = msgBuffer.substring(0, pos);
+                msgBuffer = msgBuffer.substring(pos + 1);
+
+                if (!line.trim()) continue;
+
+                try {
+                    const msg = JSON.parse(line);
+                    this.handleDebugMessage(msg);
+                } catch (err) {
+                    this.log(`Failed to parse: ${line}`, "stderr");
+                    this.log(err.toString(), "stderr");
+                }
             }
         });
 
         this.debugConnection.on("end", () => {
             this.connected = false;
+            this.unverifyBreakpoints();
         });
 
         // Send any queued breakpoints from before connection (attach mode)
         this.sendQueuedBreakpoints();
+
+        this.sendDeferredConfigurationDoneRequest();
+    }
+
+    sendDeferredConfigurationDoneRequest() {
+        const response = this.configurationDoneResponse;
+        this.sendCommand("configurationDone", {})
+            .then(() => this.sendResponse(response))
+            .catch((err) => {
+                this.log(`ConfigurationDone failed: ${err.message}`, "stderr");
+                this.sendErrorResponse(response, 1011, `Configuration failed: ${err.message}`);
+            });
     }
 
     // Helper to send output to debug console
@@ -184,9 +206,6 @@ class MongoShellDebugSession extends DebugSession {
         for (const [filePath, value] of this.breakpoints.entries()) {
             // Check if these are unverified (queued) breakpoints
             if (value.lines && value.unverified) {
-                this.log(
-                    `Sending queued breakpoints for ${filePath}, lines ${value.lines.map((l) => l.line).join(", ")}`,
-                );
                 this.sendCommand("setBreakpoints", {source: filePath, lines: value.lines})
                     .then((result) => {
                         const bps = result.breakpoints.map((bp) => {
@@ -209,6 +228,23 @@ class MongoShellDebugSession extends DebugSession {
             }
         }
     }
+
+    // Reset all breakpoints to unverified state so they can be re-sent when the shell reconnects
+    unverifyBreakpoints() {
+        for (const [filePath, value] of this.breakpoints.entries()) {
+            if (Array.isArray(value)) {
+                // Convert verified breakpoints back to unverified queued format
+                const lines = value.map((bp) => ({
+                    line: bp.line,
+                    condition: bp.condition,
+                    logMessage: bp.logMessage,
+                }));
+                const unverified = lines.map((bp) => new Breakpoint(false, bp.line, 0));
+                this.breakpoints.set(filePath, {lines, unverified});
+            }
+        }
+    }
+
     // Handle incoming messages from debug server
     handleDebugMessage(msg) {
         if (msg.type === "event") {
@@ -216,7 +252,6 @@ class MongoShellDebugSession extends DebugSession {
         } else if (msg.type === "response" && msg.seq) {
             const resolver = this.pendingRequests.get(msg.seq);
             if (resolver) {
-                this.log(`Resolving pending request for seq ${msg.seq}`);
                 resolver(msg.body);
                 this.pendingRequests.delete(msg.seq);
             }
@@ -243,6 +278,12 @@ class MongoShellDebugSession extends DebugSession {
         }
     }
 
+    configurationDoneRequest(response, _args) {
+        // The DAP is expected to be started up before shells are launched for it to attach to.
+        // Store this response to reuse and pass to each new shell for a handshake
+        this.configurationDoneResponse = response;
+    }
+
     // Pause execution
     pauseRequest(response, _args, _request) {
         this.sendCommand("pause", {})
@@ -254,6 +295,27 @@ class MongoShellDebugSession extends DebugSession {
         this.sendCommand("continue", {})
             .then(() => this.sendResponse(response))
             .catch((err) => this.sendErrorResponse(response, 1012, `Continue failed: ${err.message}`));
+    }
+
+    // Step Over (Next) - stub with auto-continue
+    nextRequest(response, args) {
+        this.log("Step over is not supported in this debugger. Use continue instead.", "console");
+        // Auto-continue to provide seamless UX
+        this.continueRequest(response, args);
+    }
+
+    // Step In - stub with auto-continue
+    stepInRequest(response, args) {
+        this.log("Step in is not supported in this debugger. Use continue instead.", "console");
+        // Auto-continue to provide seamless UX
+        this.continueRequest(response, args);
+    }
+
+    // Step Out - stub with auto-continue
+    stepOutRequest(response, args) {
+        this.log("Step out is not supported in this debugger. Use continue instead.", "console");
+        // Auto-continue to provide seamless UX
+        this.continueRequest(response, args);
     }
 
     threadsRequest(response) {

@@ -1047,6 +1047,7 @@ mongo_cc_library(
         "//src/mongo/db/repl:repl_coordinator_interface",
         "//src/mongo/db/repl:wait_for_majority_service",
         "//src/mongo/db/rss:replicated_storage_service",
+        "//src/mongo/db/s/resharding:resharding_destined_recipient_util",
         "//src/mongo/db/session:kill_sessions",
         "//src/mongo/db/session:logical_session_cache",
         "//src/mongo/db/shard_role",
@@ -1755,7 +1756,7 @@ mongo_cc_library(
 )
 
 mongo_cc_library(
-    name = "sbe_values",
+    name = "sbe_values_base",
     srcs = [
         "//src/mongo/db/exec/sbe/values:arith_common.cpp",
         "//src/mongo/db/exec/sbe/values:block_interface.cpp",
@@ -1767,7 +1768,6 @@ mongo_cc_library(
         "//src/mongo/db/exec/sbe/values:path_request.cpp",
         "//src/mongo/db/exec/sbe/values:row.cpp",
         "//src/mongo/db/exec/sbe/values:slot_printer.cpp",
-        "//src/mongo/db/exec/sbe/values:ts_block.cpp",
         "//src/mongo/db/exec/sbe/values:util.cpp",
         "//src/mongo/db/exec/sbe/values:value.cpp",
         "//src/mongo/db/exec/sbe/values:value_printer.cpp",
@@ -1784,6 +1784,28 @@ mongo_cc_library(
         "//src/mongo/util:pcre_util",
         "//src/mongo/util:string_listset",
         "//src/mongo/util:summation",
+    ],
+)
+
+# Compiled without PGO because profile-guided optimization makes suboptimal decisions for
+# the bsoncolumn decompression templates instantiated in ts_block.cpp, causing timeseries
+# performance regressions. Default -O2 heuristics produce better code for this file.
+mongo_cc_library(
+    name = "sbe_values_ts_block",
+    srcs = [
+        "//src/mongo/db/exec/sbe/values:ts_block.cpp",
+    ],
+    features = ["-pgo_profile_use"],
+    deps = [
+        ":sbe_values_base",
+    ],
+)
+
+mongo_cc_library(
+    name = "sbe_values",
+    deps = [
+        ":sbe_values_base",
+        ":sbe_values_ts_block",
     ],
 )
 

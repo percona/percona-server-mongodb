@@ -35,7 +35,7 @@
 
 namespace mongo::rss {
 
-class MONGO_MOD_OPEN AttachedPersistenceProvider : public PersistenceProvider {
+class AttachedPersistenceProvider : public PersistenceProvider {
 public:
     std::string name() const override;
 
@@ -196,6 +196,11 @@ public:
      */
     bool settingsProvideMajorityWriteJournalDurability(
         bool writeConcernMajorityShouldJournal) const override;
+
+    /**
+     * Attached storage does not need to defer untimestamped drops.
+     */
+    bool shouldDeferUntimestampedDrops() const override;
 };
 
 }  // namespace mongo::rss

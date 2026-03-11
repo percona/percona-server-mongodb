@@ -74,11 +74,24 @@ std::shared_ptr<Request> Request::fromJSON(std::string line) {
     if (command == VariablesRequest::COMMAND) {
         return std::make_shared<VariablesRequest>(partial);
     }
+    if (command == ConfigurationDoneRequest::COMMAND) {
+        return std::make_shared<ConfigurationDoneRequest>(partial);
+    }
 
     // Null Object pattern
     return std::make_shared<UnknownRequest>(partial);
 }
 
+/**
+ * ConfigurationDoneRequest
+ */
+
+ConfigurationDoneRequest::ConfigurationDoneRequest(const PartialRequest& partial)
+    : VisitableRequest(partial) {}
+
+Response ConfigurationDoneRequest::response() {
+    return Response::Ack(*this);
+}
 
 /**
  * SetBreakpointsRequest
@@ -105,14 +118,15 @@ Response SetBreakpointsRequest::response() {
 
     BSONObjBuilder bodyBuilder;
     BSONArrayBuilder breakpointsArr;
-    BSONObjBuilder bpBuilder;
-
-    // STUB response for now, simply match the "seq" for DAP to sync
-    bpBuilder.append("id", "1");
-    bpBuilder.append("verified", true);
-    bpBuilder.append("line", "12");
-    bpBuilder.append("column", "0");
-    breakpointsArr.append(bpBuilder.obj());
+    // Create a breakpoint response for each requested line
+    for (size_t i = 0; i < lines.size(); ++i) {
+        BSONObjBuilder bpBuilder;
+        bpBuilder.append("id", static_cast<int>(i + 1));
+        bpBuilder.append("verified", true);
+        bpBuilder.append("line", lines[i]);
+        bpBuilder.append("column", 0);
+        breakpointsArr.append(bpBuilder.obj());
+    }
     bodyBuilder.append("breakpoints", breakpointsArr.arr());
 
     responseBuilder.append("body", bodyBuilder.obj());
@@ -281,6 +295,15 @@ Response::Response(int seq, BSONObj obj) : Message(seq), bson(obj) {}
 
 std::string Response::getJson() const {
     return bson.jsonString(LegacyStrict);
+}
+
+Response Response::Ack(Message msg) {
+    BSONObjBuilder builder;
+    builder.append("type", "response");
+    builder.append("seq", msg.seq);
+    builder.append("success", true);
+    Response response(msg.seq, builder.obj());
+    return response;
 }
 
 }  // namespace protocol

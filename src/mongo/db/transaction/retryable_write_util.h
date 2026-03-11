@@ -1,5 +1,5 @@
 /**
- *    Copyright (C) 2018-present MongoDB, Inc.
+ *    Copyright (C) 2026-present MongoDB, Inc.
  *
  *    This program is free software: you can redistribute it and/or modify
  *    it under the terms of the Server Side Public License, version 1,
@@ -27,24 +27,16 @@
  *    it in the license file.
  */
 
-/**
- * This file declares utility methods for operating on sequence containers, such as vectors, lists
- * and deques.
- */
-
 #pragma once
 
-#include <algorithm>
+#include "mongo/db/operation_context.h"
+#include "mongo/util/modules.h"
 
-namespace mongo {
+namespace mongo::retryable_write_util {
 
 /**
- *  Returns true if "container" contains "value".
+ * Returns true if we are running retryable write or retryable internal multi-document transaction.
  */
-template <typename C, typename T>
-bool sequenceContains(const C& container, const T& value) {
-    using std::find;
-    return find(container.begin(), container.end(), value) != container.end();
-}
+MONGO_MOD_PUB bool isRetryableWrite(OperationContext* opCtx);
 
-}  // namespace mongo
+}  // namespace mongo::retryable_write_util

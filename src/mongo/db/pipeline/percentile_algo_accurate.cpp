@@ -86,9 +86,12 @@ void AccuratePercentile::spill() {
 
     _numTotalValuesSpilled += _accumulatedValues.size();
 
-    sorter::FileBasedSorterStorage<Value, Value> sorterStorage(_spillFile, _expCtx->getTempDir());
+    sorter::FileBasedSorterStorage<Value, Value> sorterStorage(_spillFile,
+                                                               _expCtx->getTempDir(),
+                                                               /*dbName=*/boost::none,
+                                                               sorter::kLatestChecksumVersion);
     std::unique_ptr<SortedStorageWriter<Value, Value>> writer =
-        sorterStorage.makeWriter(SortOptions().TempDir(_expCtx->getTempDir()));
+        sorterStorage.makeWriter(SortOptions().TempDir(_expCtx->getTempDir()), /*settings=*/{});
 
     std::sort(_accumulatedValues.begin(), _accumulatedValues.end());
 
@@ -164,8 +167,8 @@ vector<double> AccuratePercentile::computePercentiles(const vector<double>& ps) 
         // the algorithm to spill again here so that all of the data is on disk when we sort it.
         spill();
 
-        std::function<int(const Value&, const Value&)> comparator =
-            [valueComparator = ValueComparator()](const Value& lhs, const Value& rhs) -> int {
+        auto comparator = [valueComparator = ValueComparator()](const Value& lhs,
+                                                                const Value& rhs) -> int {
             return valueComparator.compare(lhs, rhs);
         };
 

@@ -53,6 +53,7 @@ public:
     void registerOperation(Role role, const CommonReshardingMetadata& metadata);
     void unregisterOperation(Role role, const CommonReshardingMetadata& metadata);
     boost::optional<Operation> getOperation(const NamespaceString& nss) const;
+    boost::optional<CommonReshardingMetadata> getDonorMetadata(const NamespaceString& nss) const;
 
     void resyncFromDisk(OperationContext* opCtx);
 

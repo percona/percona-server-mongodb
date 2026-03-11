@@ -121,7 +121,7 @@ TEST(ContainerIteratorTest, Iterate) {
                                                        containerKey5 + 1,
                                                        Iterator<IntWrapper, IntWrapper>::Settings{},
                                                        /*_checksumCalculator=*/3272515249,
-                                                       SorterChecksumVersion::v2};
+                                                       sorter::kLatestChecksumVersion};
 
     ASSERT_TRUE(iterator.more());
     auto next = iterator.next();
@@ -206,14 +206,14 @@ TEST(ContainerIteratorTest, MultipleCursors) {
         containerKey2 + 1,
         Iterator<IntWrapper, IntWrapper>::Settings{},
         /*_checksumCalculator=*/71873048,
-        SorterChecksumVersion::v2};
+        sorter::kLatestChecksumVersion};
     ContainerIterator<IntWrapper, IntWrapper> iterator2{
         container.getCursor(ru),
         containerKey3,
         containerKey4 + 1,
         Iterator<IntWrapper, IntWrapper>::Settings{},
         /*_checksumCalculator=*/2815298670,
-        SorterChecksumVersion::v2};
+        sorter::kLatestChecksumVersion};
 
     ASSERT_TRUE(iterator1.more());
     ASSERT_TRUE(iterator2.more());
@@ -252,7 +252,7 @@ TEST(ContainerIteratorTest, ContainerMissingKey) {
                                                        containerKey1 + 1,
                                                        Iterator<IntWrapper, IntWrapper>::Settings{},
                                                        /*_checksumCalculator=*/4104690164,
-                                                       SorterChecksumVersion::v2};
+                                                       sorter::kLatestChecksumVersion};
 
     ASSERT_TRUE(iterator.more());
     EXPECT_THROW(iterator.next(), DBException);
@@ -291,7 +291,7 @@ TEST(ContainerIteratorTest, InvalidDeferredValueUsage) {
                                                        containerKey1 + 1,
                                                        Iterator<IntWrapper, IntWrapper>::Settings{},
                                                        /*_checksumCalculator=*/4104690164,
-                                                       SorterChecksumVersion::v2};
+                                                       sorter::kLatestChecksumVersion};
 
     ASSERT_TRUE(iterator.more());
     EXPECT_THROW(iterator.getDeferredValue(), DBException);
@@ -352,7 +352,7 @@ DEATH_TEST(ContainerIteratorChecksumDeathTest, IncorrectChecksumV2Fails, "116059
                                                        containerKey1 + 1,
                                                        Iterator<IntWrapper, IntWrapper>::Settings{},
                                                        /*_checksumCalculator=*/0,
-                                                       SorterChecksumVersion::v2};
+                                                       sorter::kLatestChecksumVersion};
 
     ASSERT_TRUE(iterator.more());
     iterator.next();
@@ -362,7 +362,8 @@ class ContainerIteratorTest : public testing::TestWithParam<SorterChecksumVersio
 
 INSTANTIATE_TEST_SUITE_P(ContainerIteratorTestSuite,
                          ContainerIteratorTest,
-                         testing::Values(SorterChecksumVersion::v1, SorterChecksumVersion::v2));
+                         testing::Values(SorterChecksumVersion::v1,
+                                         sorter::kLatestChecksumVersion));
 
 TEST_P(ContainerIteratorTest, EmptyIteratorHasZeroChecksum) {
     RecoveryUnitNoop ru;
@@ -438,6 +439,7 @@ TEST_F(SortedContainerWriterTest, ContainerWriterUsesNextKeyForContainerEntries)
         stats,
         opts,
         startingKey,
+        sorter::kLatestChecksumVersion,
         SortedContainerWriter<IntWrapper, IntWrapper>::Settings{});
 
     const IntWrapper k1{1};
@@ -490,6 +492,7 @@ TEST_F(SortedContainerWriterTest, ContainerWriterStoresEmptyValueForZeroLengthSe
         stats,
         opts,
         startingKey,
+        sorter::kLatestChecksumVersion,
         SortedContainerWriter<NullValue, NullValue>::Settings{});
     writer.addAlreadySorted(NullValue{}, NullValue{});
 
@@ -525,6 +528,7 @@ TEST_F(SortedContainerWriterTest, ContainerWriterAllowsNullValueWithNonNullKey) 
         stats,
         opts,
         startingKey,
+        sorter::kLatestChecksumVersion,
         SortedContainerWriter<IntWrapper, NullValue>::Settings{});
 
     const IntWrapper key{123};
@@ -562,23 +566,27 @@ TEST_P(ContainerBasedSpillerTest, Spill) {
     ViewableIntegerKeyedContainer container{std::make_shared<Ident>("ident")};
     SorterContainerStats stats{nullptr};
 
-    ContainerBasedSpiller<IntWrapper, NullValue> spiller{
+    ContainerBasedSpiller<IntWrapper, NullValue, IWComparator> spiller{
         *opCtx,
         *shard_role_details::getRecoveryUnit(opCtx.get()),
         collPtr,
         container,
         stats,
         ns.dbName(),
-        SorterChecksumVersion::v2,
+        sorter::kLatestChecksumVersion,
         /*batchSize=*/GetParam()};
 
     std::vector<std::pair<IntWrapper, NullValue>> data{{50, {}}, {100, {}}, {75, {}}, {125, {}}};
     std::span span{data};
 
-    auto it1 = spiller.spill(
-        SortOptions{}, SorterSpiller<IntWrapper, NullValue>::Settings{}, span.subspan(0, 2), 0);
-    auto it2 = spiller.spill(
-        SortOptions{}, SorterSpiller<IntWrapper, NullValue>::Settings{}, span.subspan(2, 2), 0);
+    auto it1 = spiller.spill(SortOptions{},
+                             SorterSpiller<IntWrapper, NullValue, IWComparator>::Settings{},
+                             span.subspan(0, 2),
+                             0);
+    auto it2 = spiller.spill(SortOptions{},
+                             SorterSpiller<IntWrapper, NullValue, IWComparator>::Settings{},
+                             span.subspan(2, 2),
+                             0);
 
     ASSERT_TRUE(it1->more());
     EXPECT_EQ(it1->next().first, 50);
@@ -605,14 +613,14 @@ TEST_P(ContainerBasedSpillerTest, MergeSpills) {
     ViewableIntegerKeyedContainer container{std::make_shared<Ident>("ident")};
     SorterContainerStats containerStats{nullptr};
 
-    ContainerBasedSpiller<IntWrapper, NullValue> spiller{
+    ContainerBasedSpiller<IntWrapper, NullValue, IWComparator> spiller{
         *opCtx,
         *shard_role_details::getRecoveryUnit(opCtx.get()),
         collPtr,
         container,
         containerStats,
         ns.dbName(),
-        SorterChecksumVersion::v2,
+        sorter::kLatestChecksumVersion,
         /*batchSize=*/GetParam()};
 
     std::vector<std::pair<IntWrapper, NullValue>> data{
@@ -620,22 +628,30 @@ TEST_P(ContainerBasedSpillerTest, MergeSpills) {
     std::span<std::pair<IntWrapper, NullValue>> span{data};
 
     std::vector<std::shared_ptr<sorter::Iterator<IntWrapper, NullValue>>> iterators;
-    iterators.push_back(spiller.spill(
-        SortOptions{}, SorterSpiller<IntWrapper, NullValue>::Settings{}, span.subspan(0, 2), 0));
-    iterators.push_back(spiller.spill(
-        SortOptions{}, SorterSpiller<IntWrapper, NullValue>::Settings{}, span.subspan(2, 2), 0));
-    iterators.push_back(spiller.spill(
-        SortOptions{}, SorterSpiller<IntWrapper, NullValue>::Settings{}, span.subspan(4, 1), 0));
+    iterators.push_back(
+        spiller.spill(SortOptions{},
+                      SorterSpiller<IntWrapper, NullValue, IWComparator>::Settings{},
+                      span.subspan(0, 2),
+                      0));
+    iterators.push_back(
+        spiller.spill(SortOptions{},
+                      SorterSpiller<IntWrapper, NullValue, IWComparator>::Settings{},
+                      span.subspan(2, 2),
+                      0));
+    iterators.push_back(
+        spiller.spill(SortOptions{},
+                      SorterSpiller<IntWrapper, NullValue, IWComparator>::Settings{},
+                      span.subspan(4, 1),
+                      0));
 
     SorterStats sorterStats{nullptr};
-    spiller.mergeSpills(
-        SortOptions{},
-        SorterSpiller<IntWrapper, NullValue>::Settings{},
-        sorterStats,
-        iterators,
-        [](const IntWrapper& left, const IntWrapper& right) { return IWComparator{}(left, right); },
-        2,
-        2);
+    spiller.mergeSpills(SortOptions{},
+                        SorterSpiller<IntWrapper, NullValue, IWComparator>::Settings{},
+                        sorterStats,
+                        iterators,
+                        IWComparator(ASC),
+                        2,
+                        2);
 
     EXPECT_EQ(iterators.size(), 2);
     EXPECT_EQ(container.entries().size(), data.size());
@@ -669,14 +685,14 @@ TEST_P(ContainerBasedSpillerTest, MergeSpillsMultiplePasses) {
     ViewableIntegerKeyedContainer container{std::make_shared<Ident>("ident")};
     SorterContainerStats containerStats{nullptr};
 
-    ContainerBasedSpiller<IntWrapper, NullValue> spiller{
+    ContainerBasedSpiller<IntWrapper, NullValue, IWComparator> spiller{
         *opCtx,
         *shard_role_details::getRecoveryUnit(opCtx.get()),
         collPtr,
         container,
         containerStats,
         ns.dbName(),
-        SorterChecksumVersion::v2,
+        sorter::kLatestChecksumVersion,
         /*batchSize=*/GetParam()};
 
     std::vector<std::pair<IntWrapper, NullValue>> data{{50, {}},
@@ -693,21 +709,21 @@ TEST_P(ContainerBasedSpillerTest, MergeSpillsMultiplePasses) {
 
     std::vector<std::shared_ptr<sorter::Iterator<IntWrapper, NullValue>>> iterators;
     for (size_t i = 0; i < data.size(); ++i) {
-        iterators.push_back(spiller.spill(SortOptions{},
-                                          SorterSpiller<IntWrapper, NullValue>::Settings{},
-                                          span.subspan(i, 1),
-                                          0));
+        iterators.push_back(
+            spiller.spill(SortOptions{},
+                          SorterSpiller<IntWrapper, NullValue, IWComparator>::Settings{},
+                          span.subspan(i, 1),
+                          0));
     }
 
     SorterStats sorterStats{nullptr};
-    spiller.mergeSpills(
-        SortOptions{},
-        SorterSpiller<IntWrapper, NullValue>::Settings{},
-        sorterStats,
-        iterators,
-        [](const IntWrapper& left, const IntWrapper& right) { return IWComparator{}(left, right); },
-        3,
-        2);
+    spiller.mergeSpills(SortOptions{},
+                        SorterSpiller<IntWrapper, NullValue, IWComparator>::Settings{},
+                        sorterStats,
+                        iterators,
+                        IWComparator(ASC),
+                        3,
+                        2);
 
     EXPECT_EQ(iterators.size(), 3);
     EXPECT_EQ(container.entries().size(), data.size());
@@ -776,7 +792,7 @@ TEST_P(ContainerBasedSpillerTest, SpillDirPathFromIdent) {
                                                                    stats,
                                                                    /*currKey=*/0,
                                                                    ns.dbName(),
-                                                                   SorterChecksumVersion::v2};
+                                                                   sorter::kLatestChecksumVersion};
 
         auto spillPath = storage.getSpillDirPath();
         ASSERT(spillPath);

@@ -201,8 +201,9 @@ public:
                           SorterContainerStats& containerStats,
                           const SortOptions& opts,
                           int64_t nextKey,
+                          SorterChecksumVersion checksumVersion,
                           const Settings& settings)
-        : SortedStorageWriter<Key, Value>(opts, settings),
+        : SortedStorageWriter<Key, Value>(opts, settings, checksumVersion),
           _opCtx(opCtx),
           _ru(ru),
           _collection(collection),
@@ -281,8 +282,8 @@ public:
                                 IntegerKeyedContainer& container,
                                 SorterContainerStats& stats,
                                 int64_t currKey,
-                                boost::optional<DatabaseName> dbName = boost::none,
-                                SorterChecksumVersion checksumVersion = SorterChecksumVersion::v2)
+                                boost::optional<DatabaseName> dbName,
+                                SorterChecksumVersion checksumVersion)
         : SorterStorageBase<Key, Value>(std::move(dbName), checksumVersion),
           _opCtx(opCtx),
           _ru(ru),
@@ -294,7 +295,15 @@ public:
     std::unique_ptr<SortedStorageWriter<Key, Value>> makeWriter(const SortOptions& opts,
                                                                 const Settings& settings) override {
         return std::make_unique<sorter::SortedContainerWriter<Key, Value>>(
-            _opCtx, _ru, _collection, _container, _stats, opts, _currKey, settings);
+            _opCtx,
+            _ru,
+            _collection,
+            _container,
+            _stats,
+            opts,
+            _currKey,
+            this->getChecksumVersion(),
+            settings);
     };
 
     size_t getIteratorSize() override {
@@ -352,8 +361,8 @@ private:
     int64_t _currKey;
 };
 
-template <typename Key, typename Value>
-class ContainerBasedSpiller : public SorterSpillerBase<Key, Value> {
+template <typename Key, typename Value, typename Comparator>
+class ContainerBasedSpiller : public SorterSpillerBase<Key, Value, Comparator> {
 public:
     ContainerBasedSpiller(OperationContext& opCtx,
                           RecoveryUnit& ru,
@@ -363,16 +372,17 @@ public:
                           boost::optional<DatabaseName> dbName,
                           SorterChecksumVersion checksumVersion,
                           int64_t batchSize)
-        : SorterSpillerBase<Key, Value>(std::make_unique<ContainerBasedSorterStorage<Key, Value>>(
-              opCtx, ru, collection, container, stats, 1, std::move(dbName), checksumVersion)),
+        : SorterSpillerBase<Key, Value, Comparator>(
+              std::make_unique<ContainerBasedSorterStorage<Key, Value>>(
+                  opCtx, ru, collection, container, stats, 1, std::move(dbName), checksumVersion)),
           _opCtx(opCtx),
           _batchSize(batchSize) {}
 
     void mergeSpills(const SortOptions& opts,
-                     const SorterSpillerBase<Key, Value>::Settings& settings,
+                     const SorterSpillerBase<Key, Value, Comparator>::Settings& settings,
                      SorterStats& stats,
                      std::vector<std::shared_ptr<sorter::Iterator<Key, Value>>>& iters,
-                     SorterSpillerBase<Key, Value>::Comparator comp,
+                     Comparator comp,
                      std::size_t numTargetedSpills,
                      std::size_t numParallelSpills) override {
         std::vector<std::shared_ptr<sorter::Iterator<Key, Value>>> oldIters;
@@ -384,15 +394,9 @@ public:
                 auto mergeIterator = sorter::merge<Key, Value>(spillsToMerge, opts, comp);
                 auto writer = this->_storage->makeWriter(opts, settings);
 
-                std::vector<std::pair<int64_t, int64_t>> rangesToDelete;
-                rangesToDelete.reserve(spillsToMerge.size());
-                int64_t numSourceRows = 0;
-                for (const auto& iter : spillsToMerge) {
-                    auto range = iter->getRange();
-                    rangesToDelete.emplace_back(range.getStartOffset(), range.getEndOffset());
-                    numSourceRows += range.getEndOffset() - range.getStartOffset();
-                }
-                std::sort(rangesToDelete.begin(), rangesToDelete.end());
+                int64_t deleteRangeStart = spillsToMerge.front()->getRange().getStartOffset();
+                int64_t deleteRangeEnd = validateMergeSpillRanges<Key, Value>(spillsToMerge);
+                const int64_t numSourceRows = deleteRangeEnd - deleteRangeStart;
 
                 int64_t numSpilled = 0;
 
@@ -404,16 +408,15 @@ public:
                 invariant((opts.limit) ? numSpilled <= numSourceRows : numSpilled == numSourceRows);
 
                 // TODO(SERVER-117546): Use a truncate rather than individual deletes.
-                for (const auto& [start, end] : rangesToDelete) {
-                    for (int64_t current = start; current < end; ++current) {
-                        _containerBasedStorage().remove(current);
-                    }
+                for (int64_t current = deleteRangeStart; current < deleteRangeEnd; ++current) {
+                    _containerBasedStorage().remove(current);
                 }
 
                 iters.push_back(writer->done());
                 _current += numSpilled;
                 _containerBasedStorage().updateCurrKey(_current);
 
+                stats.incrementMergedSpills();
                 stats.incrementSpilledRanges();
                 stats.incrementSpilledKeyValuePairs(numSpilled);
             }
@@ -428,7 +431,7 @@ private:
 
     std::unique_ptr<SortedStorageWriter<Key, Value>> _spill(
         const SortOptions& opts,
-        const SorterSpillerBase<Key, Value>::Settings& settings,
+        const SorterSpillerBase<Key, Value, Comparator>::Settings& settings,
         std::span<std::pair<Key, Value>> data,
         uint32_t idx) override {
         auto writer = this->_storage->makeWriter(opts, settings);

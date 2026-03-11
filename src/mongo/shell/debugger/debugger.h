@@ -30,6 +30,7 @@
 #pragma once
 
 #include "mongo/base/status.h"
+#include "mongo/scripting/engine.h"
 #include "mongo/shell/debugger/adapter.h"
 #include "mongo/shell/debugger/protocol.h"
 
@@ -73,7 +74,11 @@ class DebuggerObject {
     static bool onDebuggerStatementCallback(JSContext* cx, unsigned argc, JS::Value* vp);
 
     static bool isPausedCallback(JSContext* cx, unsigned argc, JS::Value* vp);
+
     static bool storeEvalResult(JSContext* cx, unsigned argc, JS::Value* vp);
+    static bool storeScopesCallback(JSContext* cx, unsigned argc, JS::Value* vp);
+    static bool storeVariablesCallback(JSContext* cx, unsigned argc, JS::Value* vp);
+
     static bool hasEvalRequest(JSContext* cx, unsigned argc, JS::Value* vp);
     static bool getEvalRequest(JSContext* cx, unsigned argc, JS::Value* vp);
     static bool getPendingBreakpointsCallback(JSContext* cx, unsigned argc, JS::Value* vp);
@@ -84,6 +89,7 @@ class DebuggerObject {
 
     // Helper: Compile a JS Code block and set a reference.
     Status compileJSCodeBlock(const char* code, const char* name, JS::MutableHandleValue out);
+    Status compileJSCodeBlock(JSFile jsfile, JS::MutableHandleValue out);
 
 public:
     DebuggerObject(JSContext* cx, JS::HandleObject debugger);

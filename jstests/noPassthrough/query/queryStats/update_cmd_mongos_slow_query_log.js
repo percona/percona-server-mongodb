@@ -9,8 +9,11 @@
  */
 
 import {after, before, beforeEach, describe, it} from "jstests/libs/mochalite.js";
-import {getSlowQueryLogs} from "jstests/libs/query/query_stats_utils.js";
-import {isUweEnabled} from "jstests/libs/query/uwe_utils.js";
+import {
+    getQueryShapeHashFromSlowLogs,
+    getSlowQueryLogs,
+    resetUpdateTestCollections,
+} from "jstests/libs/query/query_stats_utils.js";
 import {ShardingTest} from "jstests/libs/shardingtest.js";
 
 // Test data to insert into collections.
@@ -37,12 +40,6 @@ describe("Mongos - Single vs Batched Updates Query Shape Hash", function () {
                 setParameter: {internalQueryStatsRateLimit: -1, internalQueryStatsWriteCmdSampleRate: 1},
             },
         });
-        // TODO SERVER-117919 Remove skipping test due to UWE.
-        if (!isUweEnabled(this.st.s)) {
-            this.st.stop();
-            jsTest.log.info("Skipping test: featureFlagUnifiedWriteExecutor is not enabled");
-            quit();
-        }
 
         this.dbName = jsTestName();
         assert.commandWorked(
@@ -65,21 +62,12 @@ describe("Mongos - Single vs Batched Updates Query Shape Hash", function () {
     });
 
     beforeEach(function () {
-        // Reset collections.
-        const unshardedColl = this.routerDB[this.collNames.unsharded];
-        unshardedColl.drop();
-        assert.commandWorked(unshardedColl.insert(testDocuments));
-        assert.commandWorked(this.routerDB.adminCommand({untrackUnshardedCollection: unshardedColl.getFullName()}));
-
-        const shardedColl = this.routerDB[this.collNames.sharded];
-        shardedColl.drop();
-        assert.commandWorked(shardedColl.insert(testDocuments));
-
-        // Create indexes.
-        this.routerDB[this.collNames.unsharded].createIndex({v: 1});
-        this.routerDB[this.collNames.sharded].createIndex({v: 1});
-
-        assert.commandWorked(this.routerDB.adminCommand({shardCollection: shardedColl.getFullName(), key: {v: 1}}));
+        resetUpdateTestCollections({
+            routerDB: this.routerDB,
+            unshardedCollName: this.collNames.unsharded,
+            shardedCollName: this.collNames.sharded,
+            testDocuments: testDocuments,
+        });
     });
 
     describe("Single Updates", function () {
@@ -96,14 +84,12 @@ describe("Mongos - Single vs Batched Updates Query Shape Hash", function () {
                     comment: comment,
                 }),
             );
-            // Only check "Slow query" logs, not "Slow in-progress query" logs.
-            const mongosLogs = getSlowQueryLogs(this.routerDB, comment, {includeInProgress: false});
 
-            assert.eq(mongosLogs.length, 1, "Should have exactly one slow query log on mongos");
+            const hash = getQueryShapeHashFromSlowLogs({testDB: this.routerDB, queryComment: comment});
             assert.neq(
-                mongosLogs[0].attr.queryShapeHash,
-                undefined,
-                `queryShapeHash should be present on mongos for single update: ${tojson(mongosLogs[0].attr)}`,
+                hash,
+                null,
+                "queryShapeHash should be present on mongos for single update on unsharded collection",
             );
         });
 
@@ -117,16 +103,12 @@ describe("Mongos - Single vs Batched Updates Query Shape Hash", function () {
                     comment: comment,
                 }),
             );
-            // Only check "Slow query" logs, not "Slow in-progress query" logs.
-            const mongosLogs = getSlowQueryLogs(this.routerDB, comment, {includeInProgress: false});
 
-            assert.eq(mongosLogs.length, 1, "Should have exactly one slow query log on mongos");
+            const hash = getQueryShapeHashFromSlowLogs({testDB: this.routerDB, queryComment: comment});
             assert.neq(
-                mongosLogs[0].attr.queryShapeHash,
-                undefined,
-                `queryShapeHash should be present on mongos for single update on sharded collection: ${tojson(
-                    mongosLogs[0].attr,
-                )}`,
+                hash,
+                null,
+                "queryShapeHash should be present on mongos for single update on sharded collection",
             );
         });
     });

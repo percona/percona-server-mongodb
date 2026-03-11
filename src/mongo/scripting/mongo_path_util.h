@@ -1,5 +1,5 @@
 /**
- *    Copyright (C) 2023-present MongoDB, Inc.
+ *    Copyright (C) 2018-present MongoDB, Inc.
  *
  *    This program is free software: you can redistribute it and/or modify
  *    it under the terms of the Server Side Public License, version 1,
@@ -29,41 +29,32 @@
 
 #pragma once
 
-#include <sstream>
+#include <string>
 #include <vector>
 
-#include <boost/optional.hpp>
-
 namespace mongo {
-/**
- * Generic implementaion of output operator<< for std::vector<>. It requires that the vector's
- * value_type has operator<< defined.
- */
-template <typename T>
-std::ostream& operator<<(std::ostream& os, const std::vector<T>& v) {
-    os << '[';
-    for (std::size_t i = 0; i < v.size(); ++i) {
-        if (i != 0) {
-            os << ", ";
-        }
-        os << v[i];
-    }
-    os << ']';
-    return os;
-}
 
 /**
- * Generic implementation of operator<< for std::optional<>. It requires that the optional's
- * value_type has operator<< defined.
+ * Parse MONGO_PATH environment variable into a list of search directories.
+ *
+ * MONGO_PATH is a path list similar to the system PATH variable, used to locate
+ * JavaScript files for both load() and import() operations.
+ *
+ * Format:
+ * - Unix/Linux/macOS: colon-separated paths (/path1:/path2:/path3)
+ * - Windows: semicolon-separated paths (C:\path1;C:\path2;C:\path3)
+ *
+ * Behavior:
+ * - If MONGO_PATH is not set or empty, returns the current working directory
+ * - Empty path components are skipped
+ * - Paths are returned in the order they appear in MONGO_PATH
+ *
+ * Example:
+ *   MONGO_PATH=/usr/local/lib/mongo:/opt/mongo/lib
+ *   Returns: ["/usr/local/lib/mongo", "/opt/mongo/lib"]
+ *
+ * @return Vector of directory paths to search, in priority order
  */
-template <typename T>
-std::ostream& operator<<(std::ostream& os, const boost::optional<T>& val) {
-    if (val) {
-        os << *val;
-    } else {
-        os << "<nullopt>";
-    }
-    return os;
-}
+std::vector<std::string> parseMongoPath();
 
 }  // namespace mongo

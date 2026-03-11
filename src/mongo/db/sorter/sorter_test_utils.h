@@ -169,6 +169,18 @@ public:
     }
 };
 
+class RangeOnlyIterator : public EmptyIterator {
+public:
+    explicit RangeOnlyIterator(SorterRange range) : _range(std::move(range)) {}
+
+    SorterRange getRange() const override {
+        return _range;
+    }
+
+private:
+    SorterRange _range;
+};
+
 class LimitIterator : public IWIterator {
 public:
     LimitIterator(long long limit, std::shared_ptr<IWIterator> source)
@@ -268,15 +280,16 @@ void _assertIteratorsEquivalentForNSteps(It1& it1, It2& it2, int maxSteps, int l
 template <int N>
 std::shared_ptr<IWIterator> makeInMemIterator(
     const int (&array)[N],
-    std::shared_ptr<SorterSpillerBase<IntWrapper, IntWrapper>> spiller = nullptr);
+    std::shared_ptr<SorterSpillerBase<IntWrapper, IntWrapper, IWComparator>> spiller = nullptr);
 
 template <int N>
 std::shared_ptr<IWIterator> makeInMemIterator(
-    const int (&array)[N], std::shared_ptr<SorterSpillerBase<IntWrapper, IntWrapper>> spiller) {
+    const int (&array)[N],
+    std::shared_ptr<SorterSpillerBase<IntWrapper, IntWrapper, IWComparator>> spiller) {
     std::vector<IWPair> vec;
     for (int i = 0; i < N; i++)
         vec.push_back(IWPair(array[i], -array[i]));
-    return std::make_shared<InMemIterator<IntWrapper, IntWrapper>>(vec, spiller);
+    return std::make_shared<InMemIterator<IntWrapper, IntWrapper, IWComparator>>(vec, spiller);
 }
 
 /**
@@ -294,9 +307,10 @@ std::shared_ptr<IWIterator> spillToFile(IteratorPtr inputIter,
     const SortOptions opts = SortOptions().TempDir(tempDir.path());
     auto spillFile = std::make_shared<SorterFile>(sorter::nextFileName(*(opts.tempDir)), fileStats);
     // TODO(SERVER-114080): Ensure testing of non-file-based sorter storage is comprehensive.
-    FileBasedSorterStorage<IntWrapper, IntWrapper> sorterStorage(spillFile, *opts.tempDir);
+    FileBasedSorterStorage<IntWrapper, IntWrapper> sorterStorage(
+        spillFile, *opts.tempDir, /*dbName=*/boost::none, SorterChecksumVersion::v2);
     std::unique_ptr<SortedStorageWriter<IntWrapper, IntWrapper>> writer =
-        sorterStorage.makeWriter(opts);
+        sorterStorage.makeWriter(opts, /*settings=*/{});
     while (inputIter->more()) {
         auto pair = inputIter->next();
         writer->addAlreadySorted(pair.first, pair.second);
