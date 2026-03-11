@@ -30,6 +30,7 @@
 
 #include "mongo/db/startup_warnings_common.h"
 
+#include "mongo/bson/bsonelement.h"
 #include "mongo/client/internal_auth.h"
 #include "mongo/config.h"  // IWYU pragma: keep
 #include "mongo/db/server_options.h"
@@ -175,6 +176,31 @@ void logCommonStartupWarnings(const ServerGlobalParams& serverParams) {
             {logv2::LogTag::kStartupWarnings},
             "Multiple keys specified in security key file. If cluster key file rollover is not in "
             "progress, only one key should be specified in the key file");
+    }
+
+    // Warn when ldapUserCacheInvalidationInterval is set but will be ignored because other related
+    // parameters are not set: the server uses ldapUserCacheInvalidationInterval only when
+    // ldapShouldRefreshUserCacheEntries is false; the default for ldapShouldRefreshUserCacheEntries
+    // is true, so without setting it the configured invalidation interval has no effect. We will
+    // not log this warning if ldapShouldRefreshUserCacheEntries or ldapUserCacheRefreshInterval is
+    // set, since that indicates the user is aware of related server parameters.
+    if (serverParams.parsedOpts.hasField("setParameter")) {
+        BSONElement setParamEl = serverParams.parsedOpts.getField("setParameter");
+        if (setParamEl.isABSONObj()) {
+            BSONObj setParam = setParamEl.Obj();
+            if (setParam.hasField("ldapUserCacheInvalidationInterval") &&
+                !setParam.hasField("ldapUserCacheRefreshInterval") &&
+                !setParam.hasField("ldapShouldRefreshUserCacheEntries")) {
+                LOGV2_WARNING_OPTIONS(
+                    29150,
+                    {logv2::LogTag::kStartupWarnings},
+                    "Server parameter ldapUserCacheInvalidationInterval is set but will be ignored "
+                    "because ldapShouldRefreshUserCacheEntries defaults to true and the server "
+                    "uses ldapUserCacheRefreshInterval in that case. Set "
+                    "ldapShouldRefreshUserCacheEntries to false, or set "
+                    "ldapUserCacheRefreshInterval instead.");
+            }
+        }
     }
 }
 }  // namespace mongo
