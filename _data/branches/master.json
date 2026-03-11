@@ -5,14 +5,14 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 352,
-    "days_behind": 11,
-    "files_affected": 2955,
-    "total_additions": 98996,
-    "total_deletions": 281958,
+    "commits_behind": 373,
+    "days_behind": 12,
+    "files_affected": 3024,
+    "total_additions": 100236,
+    "total_deletions": 281505,
     "date_range": {
       "first": "2026-02-26T22:13:45+00:00",
-      "last": "2026-03-10T16:07:09+00:00"
+      "last": "2026-03-11T03:45:36+00:00"
     }
   },
   "last_merged_commit": {
@@ -36,6 +36,216 @@
     "summary": "SERVER-120393: Improve resmoke_tests build configuration (#48614)"
   },
   "unmerged_commits": [
+    {
+      "sha": "9496ab2aa5f56d3a35c50b4af0a6a1a6a57b375a",
+      "short_sha": "9496ab2aa5f",
+      "date": "2026-03-11T14:45:36+11:00",
+      "author": {
+        "name": "wt-vendoring-bot[bot]",
+        "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "Import wiredtiger: 1e02231468cd63a9c04f43ec2d9164a073cf6896 from branch mongodb-master (#49311)"
+    },
+    {
+      "sha": "a1a2508e40914c550797b7129825512f4bf3c761",
+      "short_sha": "a1a2508e409",
+      "date": "2026-03-10T20:44:10-07:00",
+      "author": {
+        "name": "Joseph Prince",
+        "email": "57415450+josephdprince@users.noreply.github.com"
+      },
+      "summary": "SERVER-121142 Indicate when connected to unix socket in connection accepted log (#49330)"
+    },
+    {
+      "sha": "2a06f37ec688c5acf5e0f5e7579c1fba4228593c",
+      "short_sha": "2a06f37ec68",
+      "date": "2026-03-11T15:40:30+13:00",
+      "author": {
+        "name": "Jonas Bergler",
+        "email": "jonas.bergler@mongodb.com"
+      },
+      "summary": "SERVER-121363: update issue quota config for sls teams (#49380)"
+    },
+    {
+      "sha": "21fc5f542f72d5d45f5edb14af24879598c16c38",
+      "short_sha": "21fc5f542f7",
+      "date": "2026-03-10T20:39:52-04:00",
+      "author": {
+        "name": "Alex Sarkesian",
+        "email": "alex.sarkesian@mongodb.com"
+      },
+      "summary": "SERVER-115085: Test reducing index build commit quorum during LIS (#49206)"
+    },
+    {
+      "sha": "fdf2f0bdb29d36af8d703ea308ec5191272274df",
+      "short_sha": "fdf2f0bdb29",
+      "date": "2026-03-10T16:46:40-07:00",
+      "author": {
+        "name": "Chye Lin Chee",
+        "email": "chyelin.chee@mongodb.com"
+      },
+      "summary": "SERVER-117936 Parse proxy protocol TTLV, Python mock server enhancements (#49049)"
+    },
+    {
+      "sha": "dc0b83a7b99095dc92320a37cf5fc736b86b65e9",
+      "short_sha": "dc0b83a7b99",
+      "date": "2026-03-10T18:52:12-04:00",
+      "author": {
+        "name": "Yuhong Zhang",
+        "email": "yuhong.zhang@mongodb.com"
+      },
+      "summary": "SERVER-120833 Create replicated size and count test variant with some enabled suites (#49340)"
+    },
+    {
+      "sha": "db958c21fda2236dd255588581c153b7903932bf",
+      "short_sha": "db958c21fda",
+      "date": "2026-03-10T15:44:05-07:00",
+      "author": {
+        "name": "Zack Winter",
+        "email": "3457246+zackwintermdb@users.noreply.github.com"
+      },
+      "summary": "SERVER-121322: Disable Custom Builds Until Process is Updated (#49342)"
+    },
+    {
+      "sha": "a312d7c2d942d1604c82f92d52e92d00ae0bbfa0",
+      "short_sha": "a312d7c2d94",
+      "date": "2026-03-10T17:28:54-05:00",
+      "author": {
+        "name": "Gustavo Tenrreiro",
+        "email": "123435846+mdb-gtenrreiro@users.noreply.github.com"
+      },
+      "summary": "SERVER-121353: Update asp-js-engine to v0.1.3 (#49364)"
+    },
+    {
+      "sha": "56c8756c3cc937bc8e682f7c1cd937526f58368b",
+      "short_sha": "56c8756c3cc",
+      "date": "2026-03-10T17:32:35-04:00",
+      "author": {
+        "name": "Lynne Wang",
+        "email": "lynne.wang@mongodb.com"
+      },
+      "summary": "SERVER-121343 Disable disagg_backup_restore_jscore_passthrough (#49354)"
+    },
+    {
+      "sha": "5ef9b115431f7a2cdf53c3f224be4623031c2858",
+      "short_sha": "5ef9b115431",
+      "date": "2026-03-10T17:28:27-04:00",
+      "author": {
+        "name": "Gil Alon",
+        "email": "47804748+galon1@users.noreply.github.com"
+      },
+      "summary": "SERVER-119684 Move and rename `WriteBatchQueryStatsRegistrar` to `WriteCmdQueryStatsRegistrar` outside of the UWE (#49017)"
+    },
+    {
+      "sha": "f9371501911107124c2f09d313fb4a09f23cf8f3",
+      "short_sha": "f9371501911",
+      "date": "2026-03-10T14:21:41-07:00",
+      "author": {
+        "name": "Pierre Turin",
+        "email": "pierre.turin@mongodb.com"
+      },
+      "summary": "SERVER-121040 Take client lock when calling OpCtx setters (#49140)"
+    },
+    {
+      "sha": "a75e866a4305743297b03205aa0b4b58750a930d",
+      "short_sha": "a75e866a430",
+      "date": "2026-03-10T21:15:44+00:00",
+      "author": {
+        "name": "Joan Bruguera Micó (at MongoDB)",
+        "email": "joan.bruguera-mico@mongodb.com"
+      },
+      "summary": "SERVER-121067 Tests should not depend on the locking implementation of dropCollection (#49152)"
+    },
+    {
+      "sha": "44e57c8253be8d6e8bf93546dacf46d8856deb81",
+      "short_sha": "44e57c8253b",
+      "date": "2026-03-10T15:18:41-04:00",
+      "author": {
+        "name": "Billy Donahue",
+        "email": "BillyDonahue@users.noreply.github.com"
+      },
+      "summary": "SERVER-120620 synchronized_value: remove dead Policy param (#49202)"
+    },
+    {
+      "sha": "f1bec6f20172d5e8a1fb287d0b429555714eb384",
+      "short_sha": "f1bec6f2017",
+      "date": "2026-03-10T14:49:12-04:00",
+      "author": {
+        "name": "Steve McClure",
+        "email": "steve.mcclure@mongodb.com"
+      },
+      "summary": "SERVER-121323: Remove node_modules in subdirectory after installing extension (#49343)"
+    },
+    {
+      "sha": "8d87ca3ba3e0fcdfc2c3d05a0c49aa28581052ec",
+      "short_sha": "8d87ca3ba3e",
+      "date": "2026-03-10T14:48:07-04:00",
+      "author": {
+        "name": "Mike Nugent",
+        "email": "mike.nugent@mongodb.com"
+      },
+      "summary": "SERVER-121314: Remove pid from the prometheus metrics file name. (#49339)"
+    },
+    {
+      "sha": "1cfd307ea3e04a1fad08c1cdbaea57dfbe89012d",
+      "short_sha": "1cfd307ea3e",
+      "date": "2026-03-10T14:33:11-04:00",
+      "author": {
+        "name": "Billy Donahue",
+        "email": "BillyDonahue@users.noreply.github.com"
+      },
+      "summary": "SERVER-104912 modularity marks for src/mongo/base/... (#48955)"
+    },
+    {
+      "sha": "b2707d4114d4cb15b3976db74b3de9c79cb3ba82",
+      "short_sha": "b2707d4114d",
+      "date": "2026-03-10T10:27:30-07:00",
+      "author": {
+        "name": "Zack Winter",
+        "email": "3457246+zackwintermdb@users.noreply.github.com"
+      },
+      "summary": "SERVER-110202 move db_s_resharding_test into remote execution task (#49299)"
+    },
+    {
+      "sha": "029d1661dadc87558445eb8d136cca13c3500696",
+      "short_sha": "029d1661dad",
+      "date": "2026-03-10T13:27:02-04:00",
+      "author": {
+        "name": "Damian Wasilewicz",
+        "email": "33820523+DamianWasilewicz@users.noreply.github.com"
+      },
+      "summary": "SERVER-120480: Create fast_count_metadata_store_timestamps collection (#49207)"
+    },
+    {
+      "sha": "309b84c1d87437585090296211b057b805ceb412",
+      "short_sha": "309b84c1d87",
+      "date": "2026-03-10T12:56:23-04:00",
+      "author": {
+        "name": "Shreyas Kalyan",
+        "email": "35750327+shreyaskalyan@users.noreply.github.com"
+      },
+      "summary": "Revert \"SERVER-113581 Implement DEK Rotation for Phylog (#47751)\" (#49312)"
+    },
+    {
+      "sha": "1e32eaa0ce68eed1fa2771e66d6a7102e4ab2093",
+      "short_sha": "1e32eaa0ce6",
+      "date": "2026-03-10T11:29:13-05:00",
+      "author": {
+        "name": "Anna Veselova",
+        "email": "47113149+aveselova@users.noreply.github.com"
+      },
+      "summary": "SERVER-121126: Pin 2dsphere index version in more FCV downgrade tests, include failed indexes (#49203)"
+    },
+    {
+      "sha": "a3fcc61c2522f77b866aff2a3f5065a94b2d3896",
+      "short_sha": "a3fcc61c252",
+      "date": "2026-03-10T12:27:33-04:00",
+      "author": {
+        "name": "Naafiyan Ahmed",
+        "email": "naafiyan.ahmed@mongodb.com"
+      },
+      "summary": "SERVER-121033: Convert cluster getMore to TypedCommand (#49135)"
+    },
     {
       "sha": "c29d95bf76afd325f0fe31c822fcf2bb56c63fa5",
       "short_sha": "c29d95bf76a",
@@ -3997,7 +4207,7 @@
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-03-10 16:41:51",
+  "generated_at": "2026-03-11 06:16:50",
   "branch_name": "master",
   "display_name": "master"
 }
