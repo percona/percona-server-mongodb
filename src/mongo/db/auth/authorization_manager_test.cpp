@@ -620,7 +620,7 @@ TEST_F(AuthorizationManagerTest, testLDAPCacheInvalidatorRunRefreshFailureFallsB
     auto cachedUser = std::move(swUser.getValue());
     ASSERT(cachedUser.isValid());
 
-    // Start the background thread first (initialize may also call findOne internally).
+    // Start the background thread (LDAPUserCacheInvalidator) before making backend calls fail.
     ASSERT_OK(authzManager->initialize(opCtx.get()));
 
     // Now make backend findOne calls fail, so when the thread wakes up and calls
