@@ -139,6 +139,20 @@ int getMessageSizeErrorLogSeverityLevel() {
     return logSeverity().toInt();
 }
 
+std::string makeTLVString(const std::vector<ProxiedSupplementaryDataEntry>& tlvData) {
+    std::ostringstream tlvStringStream;
+    for (const auto& tlv : tlvData) {
+        tlvStringStream << fmt::format("{:#04x}", tlv.type) << ":" << tlv.data << ",";
+    }
+
+    auto tlvString = tlvStringStream.str();
+    if (!tlvString.empty()) {
+        // Pop off the last comma if we had any TLVs.
+        tlvString.pop_back();
+    }
+    return tlvString;
+};
+
 auto& totalIngressTLSConnections =  //
     *MetricBuilder<Counter64>("network.totalIngressTLSConnections");
 auto& totalIngressTLSHandshakeTimeMillis =  //
@@ -193,7 +207,8 @@ CommonAsioSession::CommonAsioSession(
     }
 
     try {
-        _local = HostAndPort(_localAddr.toString(true));
+        const std::string localAddrWithPort = _localAddr.toString(true);
+        _local = HostAndPort(localAddrWithPort);
         if (tl->loadBalancerPort()) {
             _isConnectedToLoadBalancerPort = _local.port() == *tl->loadBalancerPort();
         }
@@ -201,11 +216,15 @@ CommonAsioSession::CommonAsioSession(
 #ifdef __linux__
             _isConnectedToPriorityPort = _localAddr.isIP()
                 ? _local.port() == *tl->priorityPort()
-                : parsePortFromUnixSockPath(_localAddr.toString(true)) == *tl->priorityPort();
+                : parsePortFromUnixSockPath(localAddrWithPort) == *tl->priorityPort();
 #else
             _isConnectedToPriorityPort = _local.port() == *tl->priorityPort();
 #endif
         }
+#ifndef _WIN32
+        _isConnectedToProxyUnixSocket =
+            (!_localAddr.isIP() && tl->isProxyUnixDomainSocket(localAddrWithPort, _local.port()));
+#endif
     } catch (...) {
         LOGV2_DEBUG(9079002,
                     1,
@@ -250,6 +269,11 @@ bool CommonAsioSession::isConnectedToPriorityPort() const {
 
 bool CommonAsioSession::isLoadBalancerPeer() const {
     return MONGO_unlikely(clientIsLoadBalancedPeer.shouldFail()) || _isLoadBalancerPeer;
+}
+
+bool CommonAsioSession::isConnectedToProxyUnixSocket() const {
+    return _isConnectedToProxyUnixSocket ||
+        MONGO_unlikely(isConnectedToProxyUnixSocketOverride.shouldFail());
 }
 
 void CommonAsioSession::setisLoadBalancerPeer(bool helloHasLoadBalancedOption) {
@@ -514,15 +538,16 @@ ExecutorFuture<void> CommonAsioSession::parseProxyProtocolHeader(const ReactorHa
     const Seconds proxyHeaderTimeout{Seconds(gProxyProtocolTimeoutSecs.load())};
     const Date_t deadline = reactor->now() + proxyHeaderTimeout;
 
-    auto buffer = std::make_shared<std::array<char, kProxyProtocolHeaderSizeUpperBound>>();
+    const size_t headerReadSize = isConnectedToProxyUnixSocket()
+        ? static_cast<size_t>(proxyUnixSocketMaximumHeaderSize.loadRelaxed())
+        : kDefaultProxyProtocolHeaderReadSize;
+
+    auto buffer = std::make_shared<std::vector<char>>(headerReadSize);
     return AsyncTry([this, buffer] {
-               const auto bytesRead = peekASIOStream(
-                   _socket, asio::buffer(buffer->data(), kProxyProtocolHeaderSizeUpperBound));
-               // TODO(SERVER-119261): Update isProxyUnixSock argument to check if we are connected
-               // to the proxy socket.
-               return transport::parseProxyProtocolHeader(
-                   StringData(buffer->data(), bytesRead),
-                   isConnectedToProxyUnixSocketOverride.shouldFail());
+               const auto bytesRead =
+                   peekASIOStream(_socket, asio::buffer(buffer->data(), buffer->size()));
+               return transport::parseProxyProtocolHeader(StringData(buffer->data(), bytesRead),
+                                                          isConnectedToProxyUnixSocket());
            })
         .until([deadline, proxyHeaderTimeout, reactor](
                    StatusWith<boost::optional<ParserResults>> sw) {
@@ -558,27 +583,6 @@ ExecutorFuture<void> CommonAsioSession::parseProxyProtocolHeader(const ReactorHa
                         RestrictionEnvironment(_proxiedSrcRemoteAddr.value(), _localAddr);
                 }
 
-                auto makeTLVString = [&results]() {
-                    std::ostringstream tlvStringStream;
-                    for (const auto& tlv : results->tlvs) {
-                        tlvStringStream << fmt::format("{:#04x}", tlv.type) << ":" << tlv.data
-                                        << ",";
-                    }
-                    if (results->sslTlvs) {
-                        for (const auto& sslTlv : results->sslTlvs->subTLVs) {
-                            tlvStringStream << fmt::format("{:#04X}", sslTlv.type) << ":"
-                                            << sslTlv.data << ",";
-                        }
-                    }
-
-                    auto tlvString = tlvStringStream.str();
-                    if (!tlvString.empty()) {
-                        // Pop off the last comma if we had any TLVs.
-                        tlvString.pop_back();
-                    }
-                    return tlvString;
-                };
-
                 // Log ParserResults for testing.
                 LOGV2_DEBUG(
                     11978400,
@@ -588,7 +592,9 @@ ExecutorFuture<void> CommonAsioSession::parseProxyProtocolHeader(const ReactorHa
                     "sourcePort"_attr = results->endpoints->sourceAddress.getPort(),
                     "destinationAddress"_attr = results->endpoints->destinationAddress.toString(),
                     "destinationPort"_attr = results->endpoints->destinationAddress.getPort(),
-                    "tlvs"_attr = makeTLVString(),
+                    "tlvs"_attr = makeTLVString(results->tlvs),
+                    "sslTlvs"_attr =
+                        results->sslTlvs ? makeTLVString(results->sslTlvs->subTLVs) : "",
                     "bytesParsed"_attr = results->bytesParsed);
             } else {
                 _proxiedSrcRemoteAddr = {};
@@ -603,7 +609,7 @@ ExecutorFuture<void> CommonAsioSession::parseProxyProtocolHeader(const ReactorHa
             ScopeGuard guard([&] { _asyncOpState.complete(); });
 
             // Drain the read buffer.
-            opportunisticRead(_socket, asio::buffer(buffer.get(), results->bytesParsed)).get();
+            opportunisticRead(_socket, asio::buffer(buffer->data(), results->bytesParsed)).get();
         })
         .onError([this](Status s) {
             LOGV2_DEBUG(6067900,

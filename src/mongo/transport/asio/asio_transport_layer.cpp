@@ -47,6 +47,7 @@
 #include "mongo/db/sharding_environment/sharding_feature_flags_gen.h"
 #include "mongo/db/stats/counters.h"
 #include "mongo/logv2/log.h"
+#include "mongo/stdx/chrono.h"
 #include "mongo/transport/asio/asio_tcp_fast_open.h"
 #include "mongo/transport/asio/asio_utils.h"
 #include "mongo/transport/service_entry_point.h"
@@ -119,6 +120,9 @@ using TcpInfoOption = SocketOption<IPPROTO_TCP, TCP_INFO, tcp_info>;
 #endif  // __linux__
 
 const Seconds kSessionShutdownTimeout{10};
+#ifndef _WIN32
+constexpr int kProxyUnixDomainSocketPerms = S_IRUSR | S_IWUSR;
+#endif
 
 std::set<mongo::transport::WrappedEndpoint> getEndpoints(
     const std::vector<int>& ports,
@@ -234,7 +238,7 @@ private:
 
 class AsioReactor final : public Reactor {
 public:
-    AsioReactor() : _clkSource(this), _stats(&_clkSource), _ioContext() {}
+    AsioReactor() : _tickSource(this), _stats(&_tickSource), _ioContext() {}
 
     void run() override {
         try {
@@ -273,8 +277,8 @@ public:
         return std::make_unique<AsioReactorTimer>(_ioContext);
     }
 
-    Date_t now() override {
-        return Date_t(asio::system_timer::clock_type::now());
+    stdx::chrono::system_clock::time_point systemTime() override {
+        return asio::system_timer::clock_type::now();
     }
 
     void schedule(Task task) override {
@@ -301,7 +305,7 @@ public:
     }
 
 private:
-    ReactorClockSource _clkSource;
+    ReactorTickSource _tickSource;
 
     ExecutorStats _stats;
 
@@ -315,6 +319,7 @@ AsioTransportLayer::Options::Options(const ServerGlobalParams* params)
       ipList(params->bind_ips),
 #ifndef _WIN32
       useUnixSockets(!params->noUnixSocket),
+      unixProxySocketPrefix{params->proxySocketPrefix},
 #endif
       enableIPv6(params->enableIPv6),
       maxConns(params->maxConns) {
@@ -620,7 +625,8 @@ StatusWith<std::vector<std::unique_ptr<AsioTransportLayer::AcceptorRecord>>>
 AsioTransportLayer::ListenerInterface::_createAcceptorRecords(
     const std::vector<int>& ports,
     const std::set<WrappedEndpoint>& endpoints,
-    const Options& listenerOptions) {
+    const Options& listenerOptions,
+    bool isProxyUnixDomainSocket) {
     std::vector<std::unique_ptr<AcceptorRecord>> acceptorRecords;
     for (const auto& addr : endpoints) {
 #ifndef _WIN32
@@ -693,7 +699,9 @@ AsioTransportLayer::ListenerInterface::_createAcceptorRecords(
         }
 
 #ifndef _WIN32
-        if (addr.family() == AF_UNIX) {
+        if (isProxyUnixDomainSocket) {
+            setUnixDomainSocketPermissions(addr.toString(), kProxyUnixDomainSocketPerms);
+        } else if (addr.family() == AF_UNIX) {
             setUnixDomainSocketPermissions(addr.toString(),
                                            serverGlobalParams.unixSocketPermissions);
         }
@@ -721,31 +729,30 @@ AsioTransportLayer::ListenerInterface::_retrieveAllAcceptorRecords(
     const std::vector<int>& ports,
     const std::vector<std::string>& listenIPAddrs,
     const std::vector<std::string>& listenUnixSocketsAddrs,
+    const std::vector<std::string>& listenProxyUnixSocketsAddrs,
     const Options& listenerOptions) {
-    // Self-deduplicating list of unique endpoint addresses.
-    std::set<WrappedEndpoint> inetEndpoints;
-    std::set<WrappedEndpoint> unixEndpoints;
     WrappedResolver resolver(*getReactor());
     std::vector<std::unique_ptr<AcceptorRecord>> acceptorRecords;
+    acceptorRecords.reserve(listenIPAddrs.size() + listenUnixSocketsAddrs.size() +
+                            listenProxyUnixSocketsAddrs.size());
+    auto addToRecords = [&](const std::vector<std::string>& addrs, bool isProxy) {
+        // We process each vector of addresses separately and use the set<> below for deduplication
+        std::set<WrappedEndpoint> endpoints = getEndpoints(ports, addrs, resolver, listenerOptions);
+        auto resultAddrs = _createAcceptorRecords(ports, endpoints, listenerOptions, isProxy);
+        if (!resultAddrs.isOK())
+            return resultAddrs.getStatus();
+        for (auto& p : resultAddrs.getValue())
+            acceptorRecords.push_back(std::move(p));
+        return Status::OK();
+    };
 
-    inetEndpoints = getEndpoints(ports, listenIPAddrs, resolver, listenerOptions);
-    auto resultIpAddrs = _createAcceptorRecords(ports, inetEndpoints, listenerOptions);
-    if (!resultIpAddrs.isOK()) {
-        return resultIpAddrs.getStatus();
-    }
-    acceptorRecords = std::move(resultIpAddrs.getValue());
-
-    unixEndpoints = getEndpoints(ports, listenUnixSocketsAddrs, resolver, listenerOptions);
-    auto resultUnixSockets = _createAcceptorRecords(ports, unixEndpoints, listenerOptions);
-    if (!resultUnixSockets.isOK()) {
-        return resultUnixSockets.getStatus();
-    }
-    auto& acceptorRecordsSockets = resultUnixSockets.getValue();
-    acceptorRecords.insert(acceptorRecords.end(),
-                           std::make_move_iterator(acceptorRecordsSockets.begin()),
-                           std::make_move_iterator(acceptorRecordsSockets.end()));
-
-    return std::move(acceptorRecords);
+    if (Status status = addToRecords(listenIPAddrs, false); !status.isOK())
+        return status;
+    if (Status status = addToRecords(listenUnixSocketsAddrs, false); !status.isOK())
+        return status;
+    if (Status status = addToRecords(listenProxyUnixSocketsAddrs, true); !status.isOK())
+        return status;
+    return acceptorRecords;
 }
 
 void AsioTransportLayer::ListenerInterface::stopListenerWithLock(
@@ -1306,6 +1313,7 @@ Status AsioTransportLayer::ListenerInterface::setup(
     const std::vector<int>& ports,
     const std::vector<std::string>& listenIPAddrs,
     const std::vector<std::string>& listenUnixSocketsAddrs,
+    const std::vector<std::string>& listenProxyUnixSocketsAddrs,
     Options& listenerOptions) {
 
     if (auto foStatus = tfo::ensureInitialized(); !foStatus.isOK()) {
@@ -1318,8 +1326,8 @@ Status AsioTransportLayer::ListenerInterface::setup(
                 "Cannot bind to listening sockets with ingress networking is disabled"};
     }
 
-    auto result =
-        _retrieveAllAcceptorRecords(ports, listenIPAddrs, listenUnixSocketsAddrs, listenerOptions);
+    auto result = _retrieveAllAcceptorRecords(
+        ports, listenIPAddrs, listenUnixSocketsAddrs, listenProxyUnixSocketsAddrs, listenerOptions);
     if (!result.isOK()) {
         return result.getStatus();
     }
@@ -1369,6 +1377,21 @@ Status AsioTransportLayer::setup() {
 #endif
     };
 
+
+    auto getProxyUnixDomainSocketAddrs = [&](const std::vector<int>& ports) {
+        std::vector<std::string> listenAddrs;
+#ifndef _WIN32
+        if (!_listenerOptions.unixProxySocketPrefix.empty() && _listenerOptions.isIngress()) {
+            listenAddrs.reserve(ports.size());
+            for (auto port : ports) {
+                listenAddrs.emplace_back(
+                    makeProxyUnixSockPath(port, _listenerOptions.unixProxySocketPrefix));
+            }
+        }
+#endif
+        return listenAddrs;
+    };
+
     const auto listenIPAddrs = getlistenIPAddrs();
 
     std::vector<int> ports = {_listenerOptions.port};
@@ -1376,20 +1399,27 @@ Status AsioTransportLayer::setup() {
         ports.push_back(*_listenerOptions.loadBalancerPort);
     }
     const auto listenUnixDomainSocketAddrs = getUnixDomainSocketAddrs(ports);
-    auto status = _listenerInterfaceMainPort->setup(
-        ports, listenIPAddrs, listenUnixDomainSocketAddrs, _listenerOptions);
-    if (!status.isOK()) {
+    const auto listenProxyUnixDomainSocketAddrs{
+        getProxyUnixDomainSocketAddrs({_listenerOptions.port})};
+    if (auto status = _listenerInterfaceMainPort->setup(ports,
+                                                        listenIPAddrs,
+                                                        listenUnixDomainSocketAddrs,
+                                                        listenProxyUnixDomainSocketAddrs,
+                                                        _listenerOptions);
+        !status.isOK())
         return status;
-    }
-
     if (_listenerInterfacePriorityPort) {
         std::vector<int> ports = {*_listenerOptions.priorityPort};
         const auto listenUnixDomainSocketAddrs = getUnixDomainSocketAddrs(ports);
-        auto status = _listenerInterfacePriorityPort->setup(
-            ports, listenIPAddrs, listenUnixDomainSocketAddrs, _listenerOptions);
-    }
-    if (!status.isOK()) {
-        return status;
+        const auto listenProxyUnixDomainSocketAddrs{getProxyUnixDomainSocketAddrs(ports)};
+        auto status = _listenerInterfacePriorityPort->setup(ports,
+                                                            listenIPAddrs,
+                                                            listenUnixDomainSocketAddrs,
+                                                            listenProxyUnixDomainSocketAddrs,
+                                                            _listenerOptions);
+        if (!status.isOK()) {
+            return status;
+        }
     }
 
 #ifdef MONGO_CONFIG_SSL
@@ -1808,6 +1838,13 @@ AsioTransportLayer::createTransientSSLContext(const TransientSSLParams& transien
 #ifdef __linux__
 BatonHandle AsioTransportLayer::makeBaton(OperationContext* opCtx) const {
     return std::make_shared<AsioNetworkingBaton>(this, opCtx);
+}
+#endif
+
+#ifndef _WIN32
+bool AsioTransportLayer::isProxyUnixDomainSocket(StringData path, int port) const {
+    return !_listenerOptions.unixProxySocketPrefix.empty() &&
+        makeProxyUnixSockPath(port, _listenerOptions.unixProxySocketPrefix) == path;
 }
 #endif
 

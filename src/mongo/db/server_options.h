@@ -114,10 +114,10 @@ struct MONGO_MOD_PUB ServerGlobalParams {
     boost::optional<BSONObj> defaultProfileFilter;
     Atomic<int> slowMS{100};  // --time in ms that is "slow"
     Atomic<int> defaultSlowInProgMS{
-        5000};                     // --time in ms that is "slow" to log a query in-progress.
-    AtomicWord<int> rateLimit{1};  // --rate limit in the range 1-RATE_LIMIT_MAX represents a  1/N
-                                   // probability that a query will be profiled
-    Atomic<double> sampleRate{1.0};        // --samplerate rate at which to sample slow queries
+        5000};                       // --time in ms that is "slow" to log a query in-progress.
+    AtomicWord<int> rateLimit{1};    // --rate limit in the range 1-RATE_LIMIT_MAX represents a  1/N
+                                     // probability that a query will be profiled
+    Atomic<double> sampleRate{1.0};  // --samplerate rate at which to sample slow queries
     int defaultLocalThresholdMillis = 15;  // --localThreshold in ms to consider a node local
 
     Atomic<int> slowTaskExecutorWaitTimeProfilingMs{
@@ -126,7 +126,8 @@ struct MONGO_MOD_PUB ServerGlobalParams {
     bool doFork = false;        // --fork
     bool isMongoBridge = false;
 
-    std::string socket = "/tmp";  // UNIX domain socket directory
+    std::string proxySocketPrefix;  // Proxy UNIX domain socket directory
+    std::string socket = "/tmp";    // UNIX domain socket directory
 
     size_t maxConns = DEFAULT_MAX_CONN;  // Maximum number of simultaneous open connections.
     VersionedValue<CIDRList> maxIncomingConnsOverride;
