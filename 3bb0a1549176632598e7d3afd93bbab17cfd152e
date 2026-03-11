@@ -1,0 +1,27 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "0224586cf148ee479da98494990298c968bb5152",
+    "merge_commit": "83295e80c798b92a1f9b8a2b2fab0a2b94d29bcd"
+  },
+  "mergai_version": "0.1.dev1+g47bcfad77",
+  "solutions": [
+    {
+      "response": {
+        "summary": "Resolve conflicts for merge commit '83295e80c79' into master",
+        "resolved": {
+          "MODULE.bazel.lock": "Resolved by human"
+        },
+        "unresolved": {},
+        "modified": {},
+        "review_notes": "Resolved conflict in MODULE.bazel.lock and regenerated the lockfile\nusing bazel query.\n\nResolved:\n\tMODULE.bazel.lock\n\nNote: commit created by mergai"
+      },
+      "author": {
+        "name": "Pawel Lebioda",
+        "email": "pawel.lebioda@percona.com",
+        "type": "human"
+      },
+      "commit_sha": "3bb0a1549176632598e7d3afd93bbab17cfd152e"
+    }
+  ]
+}
