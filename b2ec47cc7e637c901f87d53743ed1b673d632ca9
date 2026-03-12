@@ -1,0 +1,65 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "66c1cffce207f01bed011009fabeec8ab7cc2fc9",
+    "merge_commit": "c3e45333645ecb8e841065b8e47e803c5a7a59a6"
+  },
+  "mergai_version": "0.1.dev111+gc2eff4572.d20260220",
+  "solutions": [
+    {
+      "status": "stop",
+      "cost": 0,
+      "response": {
+        "resolved": [
+          "README.third_party.md",
+          "sbom.json"
+        ],
+        "unresolved": [],
+        "modified": []
+      },
+      "tokens": {
+        "input": 3725,
+        "output": 63,
+        "reasoning": 0,
+        "cache": {
+          "read": 11246,
+          "write": 0
+        }
+      },
+      "session": {
+        "id": "ses_31eaf280dffe3lqdgP14eiNzUW",
+        "slug": "tidy-panda",
+        "version": "1.1.41",
+        "projectID": "1ac1389bda227bb64773bf10ba30107b3ed35231",
+        "directory": "/home/plebioda/psmdb",
+        "title": "Output format for prompt_20260312_101135_585535.md",
+        "time": {
+          "created": 1773306697714,
+          "updated": 1773307286940
+        },
+        "summary": {
+          "additions": 0,
+          "deletions": 83,
+          "files": 2
+        }
+      },
+      "stats": {
+        "models": {
+          "github-copilot/gemini-3-pro-preview": {
+            "tokens": {
+              "input": 350318,
+              "output": 30296,
+              "reasoning": 0,
+              "cache.read": 738751,
+              "cache.write": 0
+            }
+          }
+        }
+      },
+      "agent_info": {
+        "agent_type": "opencode_cli",
+        "version": "1.1.41"
+      }
+    }
+  ]
+}
