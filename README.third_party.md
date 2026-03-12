@@ -63,12 +63,7 @@ a notice will be included in
 | [re2]                                                | BSD-3-Clause                                   | 2025-08-05                               |                      | ✗                               |
 | [S2 Geometry Library]                                | Apache-2.0                                     | a25c502bda9d7e0274b9e2b7825fbddf13cc0306 | ✗                    | ✗                               |
 | [SafeInt]                                            | MIT                                            | 3.0.28a                                  |                      | ✗                               |
-<<<<<<< HEAD
-| [siphash]                                            | CC0-1.0, MIT, Apache 2.0 with LLVM exception   | f26d35e964c6290ffe23d9043475ad3129f409e0 |                      | ✗                               |
-||||||| b3b8da53ce7
-=======
 | [siphash]                                            | CC0-1.0, MIT, Apache 2.0 with LLVM exception   | eee7d0d84dc7731df2359b243aa5e75d85f6eaef |                      | ✗                               |
->>>>>>> c3e45333645ecb8e841065b8e47e803c5a7a59a6
 | [snappy]                                             | BSD-3-Clause                                   | 1.1.10                                   | ✗                    | ✗                               |
 | [Snowball Stemming Algorithms (libstemmer)]          | BSD-3-Clause                                   | 1.0.0                                    | ✗                    | ✗                               |
 | [tcmalloc]                                           | Apache-2.0                                     | f3b20f9a07e175c5d897df7b49d9830d4efa6110 |                      | ✗                               |
@@ -80,12 +75,7 @@ a notice will be included in
 | [zlib]                                               | Zlib                                           | 1.3.1                                    | ✗                    | ✗                               |
 | [Zstandard (zstd)]                                   | BSD-3-Clause OR GPL-2.0-only                   | 1.5.5                                    | ✗                    | ✗                               |
 
-<<<<<<< HEAD
 [AWS SDK for C++]: https://aws.amazon.com/sdk-for-cpp/
-||||||| b3b8da53ce7
-[AWS SDK for C++]: https://github.com/aws/aws-sdk-cpp.git
-=======
->>>>>>> c3e45333645ecb8e841065b8e47e803c5a7a59a6
 [Abseil Common Libraries (C++)]: https://github.com/abseil/abseil-cpp.git
 [Asio C++ Library]: https://github.com/chriskohlhoff/asio.git
 [Boost C++ Libraries]: https://github.com/boostorg/boost.git
@@ -130,12 +120,7 @@ a notice will be included in
 [pypi/ocspbuilder]: https://pypi.org/project/ocspbuilder/
 [pypi/ocspresponder]: https://pypi.org/project/ocspresponder/
 [re2]: https://github.com/google/re2.git
-<<<<<<< HEAD
-[siphash]: https://github.com/veorq/siphash/blob/f26d35e/
-||||||| b3b8da53ce7
-=======
 [siphash]: https://github.com/veorq/siphash/
->>>>>>> c3e45333645ecb8e841065b8e47e803c5a7a59a6
 [snappy]: https://github.com/google/tcmalloc.git
 [tcmalloc]: https://github.com/google/tcmalloc.git
 [timelib]: https://github.com/derickr/timelib.git
