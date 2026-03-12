@@ -1,0 +1,67 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "66c1cffce207f01bed011009fabeec8ab7cc2fc9",
+    "merge_commit": "c3e45333645ecb8e841065b8e47e803c5a7a59a6"
+  },
+  "mergai_version": "0.1.dev111+gc2eff4572.d20260220",
+  "solutions": [
+    {
+      "status": "stop",
+      "cost": 0,
+      "response": {
+        "summary": "Resolved merge conflicts in README.third_party.md (3 conflict blocks) and sbom.json (2 conflict blocks). Updated siphash version and URL to theirs (eee7d0d84dc7731df2359b243aa5e75d85f6eaef), kept Percona-specific AWS SDK for C++ link, preserved Percona's libarchive and AWS SDK component entries and dependencies in sbom.json, and accepted MongoDB's update to add properties block for ocsp_responder instead of scope.",
+        "resolved": {
+          "README.third_party.md": "Resolved 3 conflicts: (1) siphash table row - took theirs' updated version hash eee7d0d84dc7731df2359b243aa5e75d85f6eaef; (2) AWS SDK for C++ link - kept ours (Percona-specific: https://aws.amazon.com/sdk-for-cpp/) since theirs deleted it but it's needed for Percona's AWS SDK dependency; (3) siphash link - took theirs' generic URL (https://github.com/veorq/siphash/) to match the updated version.",
+          "sbom.json": "Resolved 2 conflicts: (1) Components section - merged theirs' change to ocsp_responder (replaced scope:excluded with properties block containing emits_persisted_data) while preserving Percona-specific libarchive and AWS SDK for C++ component entries; (2) Dependencies section - removed the old duplicate dependency block (theirs deleted it due to restructuring) while adding Percona-specific dependencies (libarchive@v3.8.4 and aws-sdk-cpp@1.11.471) to the new mongo@master dependsOn list that already existed later in the file."
+        },
+        "unresolved": {},
+        "modified": {},
+        "review_notes": "The siphash version was updated from f26d35e to eee7d0d per MongoDB's upstream change. The Percona-specific entries (libarchive v3.8.4 and AWS SDK for C++ v1.11.471) with their internal:team_responsible properties were preserved in both components and dependencies sections. The sbom.json was validated as proper JSON after resolution."
+      },
+      "tokens": {
+        "input": 1,
+        "output": 525,
+        "reasoning": 0,
+        "cache": {
+          "read": 66799,
+          "write": 260
+        }
+      },
+      "session": {
+        "id": "ses_31e276054ffe0NZQw9D6Zmqqko",
+        "slug": "happy-squid",
+        "version": "1.1.41",
+        "projectID": "1ac1389bda227bb64773bf10ba30107b3ed35231",
+        "directory": "/home/plebioda/psmdb",
+        "title": "Prompt task completion",
+        "time": {
+          "created": 1773315596203,
+          "updated": 1773315769507
+        },
+        "summary": {
+          "additions": 10,
+          "deletions": 140,
+          "files": 2
+        }
+      },
+      "stats": {
+        "models": {
+          "anthropic/claude-opus-4-6": {
+            "tokens": {
+              "input": 25,
+              "output": 9712,
+              "reasoning": 0,
+              "cache.read": 1172727,
+              "cache.write": 57463
+            }
+          }
+        }
+      },
+      "agent_info": {
+        "agent_type": "opencode_cli",
+        "version": "1.1.41"
+      }
+    }
+  ]
+}
