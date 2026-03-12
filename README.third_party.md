@@ -25,7 +25,6 @@ a notice will be included in
 | ---------------------------------------------------- | ---------------------------------------------- | ---------------------------------------- | -------------------- | ------------------------------- |
 | [Abseil Common Libraries (C++)]                      | Apache-2.0                                     | 20250512.1                               |                      | ✗                               |
 | [Asio C++ Library]                                   | BSL-1.0                                        | 1.34.2                                   |                      | ✗                               |
-| [AWS SDK for C++]                                    | Apache-2.0                                     | 1.11.471                                 |                      | ✗                               |
 | [benchmark]                                          | Apache-2.0                                     | 1.5.2                                    |                      |                                 |
 | [Boost C++ Libraries]                                | BSL-1.0                                        | 1.88.0                                   |                      | ✗                               |
 | [c-ares]                                             | MIT                                            | 1.27.0                                   |                      | ✗                               |
@@ -34,11 +33,12 @@ a notice will be included in
 | [Cyrus SASL]                                         | BSD-Attribution-HPND-disclaimer                | 2.1.28                                   |                      |                                 |
 | [fmt]                                                | MIT                                            | 11.2.0                                   |                      | ✗                               |
 | [folly]                                              | Apache-2.0                                     | 2023.12.25.00                            |                      | ✗                               |
+| [fuzztest]                                           | BSD-3-Clause, Apache-2.0, HPND                 | 2025-07-28                               |                      |                                 |
 | [googletest]                                         | BSD-3-Clause                                   | 1.17.0                                   |                      |                                 |
 | [gperftools]                                         | BSD-3-Clause                                   | 2.9.1                                    |                      | ✗                               |
 | [gRPC (C++)]                                         | Apache-2.0                                     | 1.74.1                                   |                      | ✗                               |
 | [ICU4C - International Components for Unicode C/C++] | Unicode-3.0                                    | 57.1                                     | ✗                    | ✗                               |
-| [immer]                                              | BSL-1.0                                        | 0b3aaf699b9d6f2e89f8e2b6d1221c307e02bda3 |                      | ✗                               |
+| [immer]                                              | BSL-1.0                                        | 0.9.1                                    |                      | ✗                               |
 | [Intel® Decimal Floating-Point Math Library]         | BSD-3-Clause                                   | 2.0.1                                    |                      | ✗                               |
 | [JSON Schema Store]                                  | Apache-2.0                                     | 6847cfc3a17a04a7664474212db50c627e1e3408 |                      |                                 |
 | [JSON-Schema-Test-Suite]                             | MIT                                            | 728066f9c5c258ba3b1804a22a5b998f2ec77ec0 |                      |                                 |
@@ -56,13 +56,19 @@ a notice will be included in
 | [opentelemetry-cpp]                                  | Apache-2.0                                     | 1.24.0                                   | ✗                    |                                 |
 | [opentelemetry-proto]                                | Apache-2.0                                     | 1.3.2                                    | ✗                    |                                 |
 | [PCRE2 - Perl-Compatible Regular Expressions]        | BSD-3-Clause WITH PCRE2-exception              | 10.40                                    |                      | ✗                               |
+| [Prometheus Client Library for Modern C++]           | MIT                                            | 1.2.2                                    |                      |                                 |
 | [Protobuf]                                           | BSD-3-Clause                                   | 6.31.1                                   |                      | ✗                               |
 | [pypi/ocspbuilder]                                   | MIT                                            | 0.10.2                                   |                      |                                 |
 | [pypi/ocspresponder]                                 | Apache-2.0                                     | 0.5.0                                    |                      |                                 |
 | [re2]                                                | BSD-3-Clause                                   | 2025-08-05                               |                      | ✗                               |
 | [S2 Geometry Library]                                | Apache-2.0                                     | a25c502bda9d7e0274b9e2b7825fbddf13cc0306 | ✗                    | ✗                               |
 | [SafeInt]                                            | MIT                                            | 3.0.28a                                  |                      | ✗                               |
+<<<<<<< HEAD
 | [siphash]                                            | CC0-1.0, MIT, Apache 2.0 with LLVM exception   | f26d35e964c6290ffe23d9043475ad3129f409e0 |                      | ✗                               |
+||||||| b3b8da53ce7
+=======
+| [siphash]                                            | CC0-1.0, MIT, Apache 2.0 with LLVM exception   | eee7d0d84dc7731df2359b243aa5e75d85f6eaef |                      | ✗                               |
+>>>>>>> c3e45333645ecb8e841065b8e47e803c5a7a59a6
 | [snappy]                                             | BSD-3-Clause                                   | 1.1.10                                   | ✗                    | ✗                               |
 | [Snowball Stemming Algorithms (libstemmer)]          | BSD-3-Clause                                   | 1.0.0                                    | ✗                    | ✗                               |
 | [tcmalloc]                                           | Apache-2.0                                     | f3b20f9a07e175c5d897df7b49d9830d4efa6110 |                      | ✗                               |
@@ -74,7 +80,12 @@ a notice will be included in
 | [zlib]                                               | Zlib                                           | 1.3.1                                    | ✗                    | ✗                               |
 | [Zstandard (zstd)]                                   | BSD-3-Clause OR GPL-2.0-only                   | 1.5.5                                    | ✗                    | ✗                               |
 
+<<<<<<< HEAD
 [AWS SDK for C++]: https://aws.amazon.com/sdk-for-cpp/
+||||||| b3b8da53ce7
+[AWS SDK for C++]: https://github.com/aws/aws-sdk-cpp.git
+=======
+>>>>>>> c3e45333645ecb8e841065b8e47e803c5a7a59a6
 [Abseil Common Libraries (C++)]: https://github.com/abseil/abseil-cpp.git
 [Asio C++ Library]: https://github.com/chriskohlhoff/asio.git
 [Boost C++ Libraries]: https://github.com/boostorg/boost.git
@@ -89,6 +100,7 @@ a notice will be included in
 [Mozilla Firefox ESR]: https://github.com/mozilla-firefox/firefox.git
 [MurmurHash3]: https://github.com/aappleby/smhasher/blob/a6bd3ce/
 [PCRE2 - Perl-Compatible Regular Expressions]: https://github.com/pcre2project/pcre2.git
+[Prometheus Client Library for Modern C++]: https://github.com/jupp0r/prometheus-cpp.git
 [Protobuf]: https://github.com/protocolbuffers/protobuf.git
 [S2 Geometry Library]: https://github.com/google/s2geometry.git
 [SafeInt]: https://github.com/dcleblanc/safeint.git
@@ -101,6 +113,7 @@ a notice will be included in
 [cpptrace]: https://github.com/jeremy-rifkin/cpptrace.git
 [fmt]: https://github.com/fmtlib/fmt.git
 [folly]: https://github.com/facebook/folly.git
+[fuzztest]: https://github.com/google/fuzztest.git
 [gRPC (C++)]: https://github.com/grpc/grpc.git
 [googletest]: https://github.com/google/googletest.git
 [gperftools]: https://github.com/gperftools/gperftools.git
@@ -117,7 +130,12 @@ a notice will be included in
 [pypi/ocspbuilder]: https://pypi.org/project/ocspbuilder/
 [pypi/ocspresponder]: https://pypi.org/project/ocspresponder/
 [re2]: https://github.com/google/re2.git
+<<<<<<< HEAD
 [siphash]: https://github.com/veorq/siphash/blob/f26d35e/
+||||||| b3b8da53ce7
+=======
+[siphash]: https://github.com/veorq/siphash/
+>>>>>>> c3e45333645ecb8e841065b8e47e803c5a7a59a6
 [snappy]: https://github.com/google/tcmalloc.git
 [tcmalloc]: https://github.com/google/tcmalloc.git
 [timelib]: https://github.com/derickr/timelib.git
