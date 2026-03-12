@@ -5,14 +5,14 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 254,
-    "days_behind": 7,
-    "files_affected": 1357,
-    "total_additions": 80040,
-    "total_deletions": 18034,
+    "commits_behind": 268,
+    "days_behind": 8,
+    "files_affected": 1404,
+    "total_additions": 83261,
+    "total_deletions": 19561,
     "date_range": {
       "first": "2026-03-03T23:27:21+00:00",
-      "last": "2026-03-11T17:57:58+00:00"
+      "last": "2026-03-12T03:42:07+00:00"
     }
   },
   "last_merged_commit": {
@@ -36,6 +36,146 @@
     "summary": "SERVER-120648 remove util/hierarchical_acquisition (#48808)"
   },
   "unmerged_commits": [
+    {
+      "sha": "6efa48969872ee9a29ed082b26e63c83ab6a6fe6",
+      "short_sha": "6efa4896987",
+      "date": "2026-03-12T14:42:07+11:00",
+      "author": {
+        "name": "Ivan Kochin",
+        "email": "ivan.kochin@mongodb.com"
+      },
+      "summary": "Import wiredtiger: d7cc50ce27371afa14c2c7a8fbac454c3489b4bb from branch mongodb-master (#49452)"
+    },
+    {
+      "sha": "b8c030b20a84ca8e793575c4e3a0c581cf596ed6",
+      "short_sha": "b8c030b20a8",
+      "date": "2026-03-11T20:24:08-04:00",
+      "author": {
+        "name": "Steve McClure",
+        "email": "steve.mcclure@mongodb.com"
+      },
+      "summary": "SERVER-120815: Support evaluation while in breakpoint (#49441)"
+    },
+    {
+      "sha": "aef2c8b34a009255cb543bf964b42c83e0758281",
+      "short_sha": "aef2c8b34a0",
+      "date": "2026-03-11T19:20:30-04:00",
+      "author": {
+        "name": "Billy Donahue",
+        "email": "BillyDonahue@users.noreply.github.com"
+      },
+      "summary": "SERVER-110071 static init VersionInfo (#49433)"
+    },
+    {
+      "sha": "b3fb5254fd55499cfa8ac29b75942dd4e190f63b",
+      "short_sha": "b3fb5254fd5",
+      "date": "2026-03-12T10:02:34+11:00",
+      "author": {
+        "name": "wt-vendoring-bot[bot]",
+        "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "Import wiredtiger: 9f61a9bc1a0b84839bc1ca8b6756ddbc6d2acae6 from branch mongodb-master (#49397)"
+    },
+    {
+      "sha": "161ab750403417b7fc45b5d6e3e9b60e2928b8f9",
+      "short_sha": "161ab750403",
+      "date": "2026-03-11T16:28:58-04:00",
+      "author": {
+        "name": "Sergei B",
+        "email": "sergei.b@mongodb.com"
+      },
+      "summary": "SERVER-117934 Add the check permissions parameter (#49016)"
+    },
+    {
+      "sha": "d8b909c82b475c3c7ccbbe86525f027436ab9d8f",
+      "short_sha": "d8b909c82b4",
+      "date": "2026-03-11T16:28:53-04:00",
+      "author": {
+        "name": "Daniel Hill",
+        "email": "daniel.hill@mongodb.com"
+      },
+      "summary": "SERVER-121412 exclude bsoncolumn from PGO (#49418)"
+    },
+    {
+      "sha": "49658e024b9a1451549838cae54b5466a5fd2b3b",
+      "short_sha": "49658e024b9",
+      "date": "2026-03-11T16:08:09-04:00",
+      "author": {
+        "name": "Didier Nadeau",
+        "email": "didier.nadeau@mongodb.com"
+      },
+      "summary": "SERVER-121342: Add documentation for split horizon (#49352)"
+    },
+    {
+      "sha": "e11dd08b062ff02b6531172348dd6766c6aada08",
+      "short_sha": "e11dd08b062",
+      "date": "2026-03-11T21:03:46+01:00",
+      "author": {
+        "name": "Jan",
+        "email": "jsteemann@users.noreply.github.com"
+      },
+      "summary": "SERVER-120138 Avoid opening redundant config server cursors in v2 change streams (#48604)"
+    },
+    {
+      "sha": "e97a9defbc0bff3b9ec96d70ebc494a9034ad4e3",
+      "short_sha": "e97a9defbc0",
+      "date": "2026-03-11T21:01:38+01:00",
+      "author": {
+        "name": "Jan",
+        "email": "jsteemann@users.noreply.github.com"
+      },
+      "summary": "SERVER-121233 Add bounds checks to sbe::ByteCode::runInternal() (#49274)"
+    },
+    {
+      "sha": "e16c603503bf57eb138e3877ffc5abefec890593",
+      "short_sha": "e16c603503b",
+      "date": "2026-03-11T21:01:32+01:00",
+      "author": {
+        "name": "Jan",
+        "email": "jsteemann@users.noreply.github.com"
+      },
+      "summary": "SERVER-120644 Fix resuming from change stream invalidate events (#48740)"
+    },
+    {
+      "sha": "f04b4641d6d92ae48548a27b70c27d0e90f3734d",
+      "short_sha": "f04b4641d6d",
+      "date": "2026-03-11T15:51:54-04:00",
+      "author": {
+        "name": "Ruchitha Rajaghatta",
+        "email": "77162985+ruchitharajaghatta@users.noreply.github.com"
+      },
+      "summary": "SERVER-121418: Change jstests/libs/txns/OWNERS.yml to be replication (#49417)"
+    },
+    {
+      "sha": "ae4d6428bd15f91eac58436173ed0ff4104a1726",
+      "short_sha": "ae4d6428bd1",
+      "date": "2026-03-11T15:13:33-04:00",
+      "author": {
+        "name": "Wenqin",
+        "email": "wenqinYe@users.noreply.github.com"
+      },
+      "summary": "SERVER-121347 Check feature flag in addition to persistence provider when using ReclaimedPreparedTxnTracker (#49362)"
+    },
+    {
+      "sha": "ce212899bc4f16e2d8e1b8309f7d05d720f96df4",
+      "short_sha": "ce212899bc4",
+      "date": "2026-03-11T19:35:07+01:00",
+      "author": {
+        "name": "Tommaso Tocci",
+        "email": "58224719+toto-dev@users.noreply.github.com"
+      },
+      "summary": "SERVER-121293 Fail view/collection creation if orphan legacy timeseries buckets collection exists (#49321)"
+    },
+    {
+      "sha": "a55765090e94b656e5ae803a7e7421d201c0fd17",
+      "short_sha": "a55765090e9",
+      "date": "2026-03-11T14:11:48-04:00",
+      "author": {
+        "name": "seanzimm",
+        "email": "102551488+seanzimm@users.noreply.github.com"
+      },
+      "summary": "SERVER-121193: Remove fcv tag and add to backports required for multiversion file (#49260)"
+    },
     {
       "sha": "3c5e78f00bce08600617116f10308bef41b3bff0",
       "short_sha": "3c5e78f00bc",
@@ -2907,7 +3047,7 @@
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-03-11 18:49:19",
+  "generated_at": "2026-03-12 06:18:20",
   "branch_name": "master",
   "display_name": "master"
 }
