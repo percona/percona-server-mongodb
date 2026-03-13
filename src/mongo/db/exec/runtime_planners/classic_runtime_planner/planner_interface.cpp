@@ -62,7 +62,7 @@ OperationContext* ClassicPlannerInterface::opCtx() {
     return _plannerData.opCtx;
 }
 
-CanonicalQuery* ClassicPlannerInterface::cq() {
+const CanonicalQuery* ClassicPlannerInterface::cq() const {
     return _plannerData.cq;
 }
 
@@ -87,6 +87,13 @@ boost::optional<size_t> ClassicPlannerInterface::cachedPlanHash() const {
     return _plannerData.cachedPlanHash;
 }
 
+boost::optional<std::string> ClassicPlannerInterface::replanReason() const {
+    if (!_plannerData.plannerParams->replanningData) {
+        return boost::none;
+    }
+    return _plannerData.plannerParams->replanningData->replanReason;
+}
+
 WorkingSet* ClassicPlannerInterface::ws() const {
     return _plannerData.workingSet.get();
 }
@@ -97,7 +104,7 @@ SavedExecState ClassicPlannerInterface::extractExecState() && {
 
 void ClassicPlannerInterface::addDeleteStage(ParsedDelete* parsedDelete,
                                              projection_ast::Projection* projection,
-                                             std::unique_ptr<DeleteStageParams> deleteStageParams) {
+                                             DeleteStageParams deleteStageParams) {
     invariant(_state == kNotInitialized);
     invariant(collections().hasMainCollection());
     const auto& coll = collections().getMainCollectionAcquisition();
@@ -112,16 +119,16 @@ void ClassicPlannerInterface::addDeleteStage(ParsedDelete* parsedDelete,
              RecoveryUnit::State::kActiveNotInUnitOfWork) &&
         !opCtx()->inMultiDocumentTransaction() && !opCtx()->isRetryableWrite() &&
         !collectionPtr->isChangeStreamPreAndPostImagesEnabled() &&
-        !collectionPtr->ns().isConfigDB() && deleteStageParams->isMulti &&
-        !deleteStageParams->fromMigrate && !deleteStageParams->returnDeleted &&
-        deleteStageParams->sort.isEmpty() && !deleteStageParams->numStatsForDoc;
+        !collectionPtr->ns().isConfigDB() && deleteStageParams.isMulti &&
+        !deleteStageParams.fromMigrate && !deleteStageParams.returnDeleted &&
+        deleteStageParams.sort.isEmpty() && !deleteStageParams.numStatsForDoc;
 
     if (parsedDelete->isEligibleForArbitraryTimeseriesDelete()) {
         // Checks if the delete is on a time-series collection and cannot run on bucket
         // documents directly.
         _root = std::make_unique<TimeseriesModifyStage>(
             cq()->getExpCtxRaw(),
-            TimeseriesModifyParams(deleteStageParams.get()),
+            TimeseriesModifyParams(&deleteStageParams),
             ws(),
             std::move(_root),
             coll,
@@ -267,6 +274,7 @@ std::unique_ptr<PlanExecutor, PlanExecutor::Deleter> ClassicPlannerInterface::ma
                                                        std::move(_nss),
                                                        yieldPolicy(),
                                                        cachedPlanHash(),
+                                                       replanReason(),
                                                        std::move(_planExplainerData)));
 }
 

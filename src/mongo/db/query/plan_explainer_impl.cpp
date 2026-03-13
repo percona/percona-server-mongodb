@@ -135,20 +135,21 @@ void flattenExecTree(const PlanStage* root, std::vector<const PlanStage*>* flatt
 }
 
 /**
- * Traverses the tree rooted at 'root', and adds all tree nodes into the list 'flattened'.
+ * Traverses the tree rooted at 'root', and call the callback for each node.
  * If there is a MultiPlanStage node, follows the subplan at 'planIdx'.
  */
-void flattenStatsTree(const PlanStageStats* root,
-                      const boost::optional<size_t> planIdx,
-                      std::vector<const PlanStageStats*>* flattened) {
+template <typename Callback>
+void traverseStatsTree(const PlanStageStats* root,
+                       const boost::optional<size_t> planIdx,
+                       const Callback& callback) {
     if (STAGE_MULTI_PLAN == root->stageType) {
         // Skip the MultiPlanStage, and continue with its planIdx child
         tassert(3420002, "Invalid child plan index", planIdx && planIdx < root->children.size());
         root = root->children[*planIdx].get();
     }
-    flattened->push_back(root);
+    callback(root);
     for (auto&& child : root->children) {
-        flattenStatsTree(child.get(), planIdx, flattened);
+        traverseStatsTree(child.get(), planIdx, callback);
     }
 }
 
@@ -764,19 +765,14 @@ PlanSummaryStats collectExecutionStatsSummary(const PlanStageStats* stats,
     summary.nReturned = stats->common.advanced;
     summary.executionTime = stats->common.executionTime;
 
-    // Flatten the stats tree into a list.
-    std::vector<const PlanStageStats*> statsNodes;
-    flattenStatsTree(stats, planIdx, &statsNodes);
-
-    // Iterate over all stages in the tree and get the total number of keys/docs examined.
-    // These are just aggregations of information already available in the stats tree.
-    for (const auto* statsNode : statsNodes) {
+    const auto statsNodeCallback = [&summary](const PlanStageStats* statsNode) {
         tassert(3420005, "Unexpected MultiPlanStage", STAGE_MULTI_PLAN != statsNode->stageType);
         summary.totalKeysExamined +=
             getKeysExamined(statsNode->stageType, statsNode->specific.get());
         summary.totalDocsExamined +=
             getDocsExamined(statsNode->stageType, statsNode->specific.get());
-    }
+    };
+    traverseStatsTree(stats, planIdx, statsNodeCallback);
 
     summary.planFailed = stats->common.failed;
 
@@ -903,6 +899,8 @@ void PlanExplainerImpl::getSummaryStats(PlanSummaryStats* statsOut) const {
     statsOut->collectionScans = 0;
     statsOut->collectionScansNonTailable = 0;
 
+    statsOut->replanReason = _replanReason;
+
     PlanSummaryStatsVisitor visitor(*statsOut);
 
     for (const auto* stage : stages) {
@@ -960,25 +958,10 @@ void PlanExplainerImpl::getSummaryStats(PlanSummaryStats* statsOut) const {
                 break;
             }
             case STAGE_CACHED_PLAN: {
-                const CachedPlanStage* cachedPlan = static_cast<const CachedPlanStage*>(stage);
-                const CachedPlanStats* cachedStats =
-                    static_cast<const CachedPlanStats*>(cachedPlan->getSpecificStats());
-                statsOut->replanReason = cachedStats->replanReason;
-                // Nonnull replanReason indicates cached plan was less effecient than expected and
-                // an alternative plan was chosen.
-                statsOut->replanReason ? statsOut->fromPlanCache = false
-                                       : statsOut->fromPlanCache = true;
+                statsOut->fromPlanCache = true;
                 break;
             }
             case STAGE_MULTI_PLAN: {
-                const MultiPlanStage* multiPlan = static_cast<const MultiPlanStage*>(stage);
-                const MultiPlanStats* multiPlanStats =
-                    static_cast<const MultiPlanStats*>(multiPlan->getSpecificStats());
-                tassert(8737700,
-                        "Replan reason has to be consistent if it already exists",
-                        !statsOut->replanReason ||
-                            statsOut->replanReason == multiPlanStats->replanReason);
-                statsOut->replanReason = multiPlanStats->replanReason;
                 statsOut->fromMultiPlanner = true;
                 break;
             }
