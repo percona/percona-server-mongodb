@@ -5,14 +5,14 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 260,
+    "commits_behind": 266,
     "days_behind": 7,
-    "files_affected": 1504,
-    "total_additions": 85836,
-    "total_deletions": 19647,
+    "files_affected": 1512,
+    "total_additions": 86202,
+    "total_deletions": 19833,
     "date_range": {
       "first": "2026-03-05T15:53:41+00:00",
-      "last": "2026-03-13T04:57:07+00:00"
+      "last": "2026-03-13T10:22:10+00:00"
     }
   },
   "last_merged_commit": {
@@ -36,6 +36,66 @@
     "summary": "SERVER-120889 Use the priority port in runCmdOnPrimaryAndAwaitResponse (#48971)"
   },
   "unmerged_commits": [
+    {
+      "sha": "46eebc2da4e028bf286c2c45aeb432ca78e7cb5e",
+      "short_sha": "46eebc2da4e",
+      "date": "2026-03-13T10:22:10+00:00",
+      "author": {
+        "name": "Henri Nikku",
+        "email": "henri.nikku@mongodb.com"
+      },
+      "summary": "SERVER-119938 Add benchmark for dependency graph initialization (#48335)"
+    },
+    {
+      "sha": "59626852fa0ffe8aae1e3c0db507908056868c5a",
+      "short_sha": "59626852fa0",
+      "date": "2026-03-13T10:52:05+01:00",
+      "author": {
+        "name": "Enrico Golfieri",
+        "email": "enrico.golfieri@mongodb.com"
+      },
+      "summary": "SERVER-121197 wrap transactions into an automatic retry-helper for fle tests (#49470)"
+    },
+    {
+      "sha": "0e72b4deb509150104ceeeadd73b5a801097dfb3",
+      "short_sha": "0e72b4deb50",
+      "date": "2026-03-13T10:37:57+02:00",
+      "author": {
+        "name": "mongo-pr-bot[bot]",
+        "email": "230616009+mongo-pr-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "SERVER-110427 Update profiling data (#49552)"
+    },
+    {
+      "sha": "70d695213ffded77f9d9f246f5853486600620d9",
+      "short_sha": "70d695213ff",
+      "date": "2026-03-13T08:03:55+01:00",
+      "author": {
+        "name": "wolfee",
+        "email": "adam.farkas@mongodb.com"
+      },
+      "summary": "SERVER-119151 Re-enable timeseries tests in sharded collections passthrough with config transitions and add/remove shard suite (#48537)"
+    },
+    {
+      "sha": "7f9bd4ad0336a9b1299264d967ed2361686e6353",
+      "short_sha": "7f9bd4ad033",
+      "date": "2026-03-13T01:51:38-04:00",
+      "author": {
+        "name": "Malik Endsley",
+        "email": "malik.endsley@mongodb.com"
+      },
+      "summary": "SERVER-119059: Add first round of otel metrics for side writes (#49119)"
+    },
+    {
+      "sha": "5078886095847628d5feddb7afa690c93839a9cc",
+      "short_sha": "50788860958",
+      "date": "2026-03-13T01:45:08-04:00",
+      "author": {
+        "name": "Malik Endsley",
+        "email": "malik.endsley@mongodb.com"
+      },
+      "summary": "SERVER-110676: Include temporary idents used for index in startIndexBuild oplog entry (with JSTest added) (#49528)"
+    },
     {
       "sha": "772b23ba0b50ef06a95376ba1ed9420ef89dc562",
       "short_sha": "772b23ba0b5",
@@ -2989,7 +3049,7 @@
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-03-13 06:17:22",
+  "generated_at": "2026-03-13 11:11:10",
   "branch_name": "master",
   "display_name": "master"
 }
