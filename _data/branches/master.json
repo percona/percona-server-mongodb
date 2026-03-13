@@ -5,14 +5,14 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 237,
+    "commits_behind": 260,
     "days_behind": 7,
-    "files_affected": 1458,
-    "total_additions": 77828,
-    "total_deletions": 18226,
+    "files_affected": 1504,
+    "total_additions": 85836,
+    "total_deletions": 19647,
     "date_range": {
       "first": "2026-03-05T15:53:41+00:00",
-      "last": "2026-03-12T18:02:20+00:00"
+      "last": "2026-03-13T04:57:07+00:00"
     }
   },
   "last_merged_commit": {
@@ -36,6 +36,236 @@
     "summary": "SERVER-120889 Use the priority port in runCmdOnPrimaryAndAwaitResponse (#48971)"
   },
   "unmerged_commits": [
+    {
+      "sha": "772b23ba0b50ef06a95376ba1ed9420ef89dc562",
+      "short_sha": "772b23ba0b5",
+      "date": "2026-03-13T04:57:07+00:00",
+      "author": {
+        "name": "auto-revert-app[bot]",
+        "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
+      },
+      "summary": "Revert \"SERVER-111381 Implement shard targeter for AllDatabases (#47915)\" (#49550)"
+    },
+    {
+      "sha": "a6365381ece29e078c86d7d67d1989787a1114d5",
+      "short_sha": "a6365381ece",
+      "date": "2026-03-13T04:48:07+00:00",
+      "author": {
+        "name": "auto-revert-app[bot]",
+        "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
+      },
+      "summary": "Revert \"SERVER-120707 Require group/lookup/unpackBuckets in trySbeRestricted-eligible prefix (#49282)\" (#49549)"
+    },
+    {
+      "sha": "3fa775d000f1ae95a0432814b1c27f88c1af6f79",
+      "short_sha": "3fa775d000f",
+      "date": "2026-03-13T14:21:03+11:00",
+      "author": {
+        "name": "Ivan Kochin",
+        "email": "ivan.kochin@mongodb.com"
+      },
+      "summary": "Import wiredtiger: 9d096969de4b71bc4313d1d0368b7f5a1936478c from branch mongodb-master (#49533)"
+    },
+    {
+      "sha": "44ea8a30ff761457296642c3b96f29af2d04b2e0",
+      "short_sha": "44ea8a30ff7",
+      "date": "2026-03-12T23:33:07+00:00",
+      "author": {
+        "name": "Joan Bruguera Micó (at MongoDB)",
+        "email": "joan.bruguera-mico@mongodb.com"
+      },
+      "summary": "SERVER-121459 Tests in jstests/core/timeseries/ddl should not check the viewless timeseries feature flag in FCV suites (#49467)"
+    },
+    {
+      "sha": "fb2e10f5608b3a3d137826209d9e02e14f5b3fe3",
+      "short_sha": "fb2e10f5608",
+      "date": "2026-03-13T00:05:16+01:00",
+      "author": {
+        "name": "Hagar Mohamed",
+        "email": "hagar.mohamed@mongodb.com"
+      },
+      "summary": "SERVER-114733 Enhancing tests for optimizationTimeMicros and Nanos (#49394)"
+    },
+    {
+      "sha": "7fb0982564cec30671f0c7c040cc2bafdecc0549",
+      "short_sha": "7fb0982564c",
+      "date": "2026-03-12T23:51:16+01:00",
+      "author": {
+        "name": "Ivan Fefer",
+        "email": "ivan.fefer@mongodb.com"
+      },
+      "summary": "SERVER-119535 Move engine_selection to a separate library (#49474)"
+    },
+    {
+      "sha": "b599fc01aa07ce54916dd8f35f7444270fd3e0f6",
+      "short_sha": "b599fc01aa0",
+      "date": "2026-03-12T17:37:11-04:00",
+      "author": {
+        "name": "Benjamin Pearce",
+        "email": "benjamin.pearce@mongodb.com"
+      },
+      "summary": "SERVER-121129 Continue on invalid commands if both collections return the same result doc (#49416)"
+    },
+    {
+      "sha": "7eaa426518c5cf39328f454efa6be75f3f6e38c5",
+      "short_sha": "7eaa426518c",
+      "date": "2026-03-12T17:03:05-04:00",
+      "author": {
+        "name": "joseph obaraye",
+        "email": "joseph.obaraye@mongodb.com"
+      },
+      "summary": "SERVER-120526 Disagg PIT Restore Prevent TTL Monitor from starting (#49504)"
+    },
+    {
+      "sha": "c7ef108d02b3e4e784aaed49ca2e5c5a781c6e25",
+      "short_sha": "c7ef108d02b",
+      "date": "2026-03-12T22:01:44+01:00",
+      "author": {
+        "name": "Jordi Serra Torrens",
+        "email": "jordist@users.noreply.github.com"
+      },
+      "summary": "SERVER-18737 Replicate timestamped ident drops from KVDropPendingIdentReaper in DSC mode (#49356)"
+    },
+    {
+      "sha": "066a53f92427f23cdb7f6cca94b6fd2706b06795",
+      "short_sha": "066a53f9242",
+      "date": "2026-03-12T16:56:10-04:00",
+      "author": {
+        "name": "Benjamin Pearce",
+        "email": "benjamin.pearce@mongodb.com"
+      },
+      "summary": "SERVER-121339: Vendor fast-check@4.6.0 (#49338)"
+    },
+    {
+      "sha": "0868d799b26e4a82e9df07cd8b7456f9bbf17403",
+      "short_sha": "0868d799b26",
+      "date": "2026-03-12T16:45:42-04:00",
+      "author": {
+        "name": "Wenqin",
+        "email": "wenqinYe@users.noreply.github.com"
+      },
+      "summary": "SERVER-120803 SERVER-120729 Re-enable disabled disagg replica set transaction suites (#49369)"
+    },
+    {
+      "sha": "f916c7f1dd703ff61c52c8d7088342b36bac4ff2",
+      "short_sha": "f916c7f1dd7",
+      "date": "2026-03-12T13:38:26-07:00",
+      "author": {
+        "name": "Christopher M. Wolff",
+        "email": "chris.wolff@mongodb.com"
+      },
+      "summary": "SERVER-120403 Test various kinds of writes on mongos for query stats (#49332)"
+    },
+    {
+      "sha": "11585b37ccd84285fc5b4fcd7134175f01bfe499",
+      "short_sha": "11585b37ccd",
+      "date": "2026-03-12T21:25:07+01:00",
+      "author": {
+        "name": "Meryama",
+        "email": "meryama.nadim@mongodb.com"
+      },
+      "summary": "SERVER-121497: Exclude system.bucket from listIndexes validation when BlockDirectSystemBucketsAccess is enabled (#49499)"
+    },
+    {
+      "sha": "bafbe0f0945c78b066ec16564bdd4b030c4e3f39",
+      "short_sha": "bafbe0f0945",
+      "date": "2026-03-13T09:14:54+13:00",
+      "author": {
+        "name": "Jonas Bergler",
+        "email": "jonas.bergler@mongodb.com"
+      },
+      "summary": "SERVER-121519: reduce Storage Engines quotas further (#49509)"
+    },
+    {
+      "sha": "9391b4043b02028a48c1c2838d87e32d19f82306",
+      "short_sha": "9391b4043b0",
+      "date": "2026-03-12T16:12:16-04:00",
+      "author": {
+        "name": "Jiaqi Tian",
+        "email": "jiaqi.tian@mongodb.com"
+      },
+      "summary": "SERVER-121054 mark key collection operations non-deprioritizable (#49285)"
+    },
+    {
+      "sha": "badf40d1be73b4d7a97b1ad1350df1c53f7b6788",
+      "short_sha": "badf40d1be7",
+      "date": "2026-03-12T16:05:06-04:00",
+      "author": {
+        "name": "Evan Bergeron",
+        "email": "evanbergeron@users.noreply.github.com"
+      },
+      "summary": "SERVER-120707 Require group/lookup/unpackBuckets in trySbeRestricted-eligible prefix (#49282)"
+    },
+    {
+      "sha": "4dc2835b60affa7c650f0a769ce5b3fa661f8611",
+      "short_sha": "4dc2835b60a",
+      "date": "2026-03-12T15:31:29-04:00",
+      "author": {
+        "name": "Kruti Shah",
+        "email": "70412403+krutishah139@users.noreply.github.com"
+      },
+      "summary": "SERVER-121348 Move mongod resharding internal commands outside of reshard_collection.idl (#49511)"
+    },
+    {
+      "sha": "320647404a6727cafedc0b5a72c25b08dfbf82f5",
+      "short_sha": "320647404a6",
+      "date": "2026-03-12T19:30:10+00:00",
+      "author": {
+        "name": "David Goffredo",
+        "email": "david.goffredo@mongodb.com"
+      },
+      "summary": "SERVER-121527: fix typo in name of jstest (#49515)"
+    },
+    {
+      "sha": "3911c33941455355dfc7e337d5e49130079dbc58",
+      "short_sha": "3911c339414",
+      "date": "2026-03-12T12:25:30-07:00",
+      "author": {
+        "name": "Christopher M. Wolff",
+        "email": "chris.wolff@mongodb.com"
+      },
+      "summary": "SERVER-119313 Incorporate metrics reference table into README.md (#49409)"
+    },
+    {
+      "sha": "521c92f8b1900fc986876cf86397e02b5c3eb26e",
+      "short_sha": "521c92f8b19",
+      "date": "2026-03-12T15:12:36-04:00",
+      "author": {
+        "name": "Cedric Sirianni",
+        "email": "cedric.sirianni@mongodb.com"
+      },
+      "summary": "SERVER-121504 Fix ReplicatedFastCountManager shutdown assertion (#49506)"
+    },
+    {
+      "sha": "49a7cac1c7357bd26fb4b308aa62e048303dce56",
+      "short_sha": "49a7cac1c73",
+      "date": "2026-03-12T15:11:28-04:00",
+      "author": {
+        "name": "Mike Nugent",
+        "email": "mike.nugent@mongodb.com"
+      },
+      "summary": "SERVER-121422: Refactor metric tests to be type parameterized (#49415)"
+    },
+    {
+      "sha": "571b9373ea4fa26afcf79aa1779e5fc9cb82c4a4",
+      "short_sha": "571b9373ea4",
+      "date": "2026-03-12T14:53:11-04:00",
+      "author": {
+        "name": "Daniel Segel",
+        "email": "71151509+dhsegel@users.noreply.github.com"
+      },
+      "summary": "SERVER-121490 Add _hostExplain to host-allocated MongoExtensionExecAggStageVTable (#49510)"
+    },
+    {
+      "sha": "e804b0a6a377ff5f27f6c5c9979a3595bfe85d58",
+      "short_sha": "e804b0a6a37",
+      "date": "2026-03-12T18:23:16+00:00",
+      "author": {
+        "name": "David Goffredo",
+        "email": "david.goffredo@mongodb.com"
+      },
+      "summary": "SERVER-121437: don't update value snapshot concurrently (#49436)"
+    },
     {
       "sha": "fddb7bbc1ac0f201be431907851b42aba27d6ccb",
       "short_sha": "fddb7bbc1ac",
@@ -2710,10 +2940,56 @@
           "num_of_dirs": 12
         }
       }
+    },
+    {
+      "commit": {
+        "sha": "066a53f92427f23cdb7f6cca94b6fd2706b06795",
+        "short_sha": "066a53f9242",
+        "date": "2026-03-12T16:56:10-04:00",
+        "author": {
+          "name": "Benjamin Pearce",
+          "email": "benjamin.pearce@mongodb.com"
+        },
+        "summary": "SERVER-121339: Vendor fast-check@4.6.0 (#49338)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 13,
+          "num_of_lines": 8319,
+          "lines_added": 8308,
+          "lines_deleted": 11,
+          "num_of_dirs": 4
+        }
+      }
+    },
+    {
+      "commit": {
+        "sha": "3fa775d000f1ae95a0432814b1c27f88c1af6f79",
+        "short_sha": "3fa775d000f",
+        "date": "2026-03-13T14:21:03+11:00",
+        "author": {
+          "name": "Ivan Kochin",
+          "email": "ivan.kochin@mongodb.com"
+        },
+        "summary": "Import wiredtiger: 9d096969de4b71bc4313d1d0368b7f5a1936478c from branch mongodb-master (#49533)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 37,
+          "num_of_lines": 2017,
+          "lines_added": 1280,
+          "lines_deleted": 737,
+          "num_of_dirs": 19
+        }
+      }
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-03-12 18:59:52",
+  "generated_at": "2026-03-13 06:17:22",
   "branch_name": "master",
   "display_name": "master"
 }
