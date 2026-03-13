@@ -374,7 +374,7 @@ void TTLMonitor::shutdown() {
 }
 
 void TTLMonitor::_doTTLPass(OperationContext* opCtx, Date_t at) {
-    admission::execution_control::ScopedLowPriorityBackgroundTask backgroundTask(opCtx);
+    admission::execution_control::ScopedTaskTypeBackground backgroundTask(opCtx);
 
     // Don't do work if we are a secondary (TTL will be handled by primary)
     auto replCoordinator = repl::ReplicationCoordinator::get(opCtx);
@@ -600,11 +600,11 @@ bool TTLMonitor::_deleteExpiredWithIndex(OperationContext* opCtx,
         .expCtx = ExpressionContextBuilder{}.fromRequest(opCtx, *findCommand).build(),
         .parsedFind = ParsedFindCommandParams{std::move(findCommand)}});
 
-    auto params = std::make_unique<DeleteStageParams>();
+    DeleteStageParams params;
     OpDebug opDebug;
-    params->opDebug = &opDebug;
-    params->isMulti = true;
-    params->canonicalQuery = canonicalQuery.get();
+    params.opDebug = &opDebug;
+    params.isMulti = true;
+    params.canonicalQuery = canonicalQuery.get();
 
     // Maintain a consistent view of whether batching is enabled - batching depends on
     // parameters that can be set at runtime, and it is illegal to try to get
@@ -751,10 +751,10 @@ bool TTLMonitor::_performDeleteExpiredWithCollscan(OperationContext* opCtx,
                                                    const RecordIdBound& endBound,
                                                    bool forward,
                                                    const MatchExpression* filter) {
-    auto params = std::make_unique<DeleteStageParams>();
+    DeleteStageParams params;
     OpDebug opDebug;
-    params->opDebug = &opDebug;
-    params->isMulti = true;
+    params.opDebug = &opDebug;
+    params.isMulti = true;
 
     // Maintain a consistent view of whether batching is enabled - batching depends on
     // parameters that can be set at runtime, and it is illegal to try to get

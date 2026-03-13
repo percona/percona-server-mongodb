@@ -67,7 +67,7 @@ public:
     CachedPlanStage(ExpressionContext* expCtx,
                     CollectionAcquisition collection,
                     WorkingSet* ws,
-                    CanonicalQuery* cq,
+                    const CanonicalQuery* cq,
                     size_t decisionWorks,
                     std::unique_ptr<PlanStage> root,
                     size_t cachedPlanHash = 0);
@@ -102,18 +102,11 @@ public:
 
 private:
     /**
-     * Uses the QueryPlanner and the MultiPlanStage to re-generate candidate plans for this
-     * query and select a new winner.
-     *
-     * We fallback to a new plan if updatePlanCache() tells us that the performance was worse
-     * than anticipated during the trial period.
+     * Returns a non-OK Status to restart the query planning flow to pick a new plan.
      *
      * We only modify the plan cache if 'shouldCache' is true.
      */
-    Status replan(const QueryPlannerParams& plannerParams,
-                  PlanYieldPolicy* yieldPolicy,
-                  bool shouldCache,
-                  std::string reason);
+    Status replan(bool shouldCache, std::string reason);
 
     /**
      * May yield during the cached plan stage's trial period or replanning phases.
@@ -128,7 +121,7 @@ private:
     WorkingSet* _ws;
 
     // Not owned.
-    CanonicalQuery* _canonicalQuery;
+    const CanonicalQuery* _canonicalQuery;
 
     // The number of work cycles taken to decide on a winning plan when the plan was first
     // cached.
