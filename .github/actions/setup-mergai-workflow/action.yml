@@ -62,7 +62,7 @@ runs:
       run: |
         npm install -g @google/gemini-cli
 
-    # Configure git for automated commits by the mergai bot.
+    # Configure git for automated commits by the psmdb-bot.
     # - Sets both GITHUB_TOKEN and GH_TOKEN for compatibility with different tools
     # - Uses GitHub App identity format for the bot email
     # - Enables diff3 conflict style for better merge conflict resolution
@@ -72,8 +72,8 @@ runs:
       run: |
         echo "GITHUB_TOKEN=${{ inputs.github-app-token }}" >> $GITHUB_ENV
         echo "GH_TOKEN=${{ inputs.github-app-token }}" >> $GITHUB_ENV
-        git config user.name "mergai-bot[bot]"
-        git config user.email "${{ inputs.github-app-id }}+mergai-bot[bot]@users.noreply.github.com"
+        git config user.name "psmdb-bot[bot]"
+        git config user.email "${{ inputs.github-app-id }}+psmdb-bot[bot]@users.noreply.github.com"
         git config merge.conflictstyle diff3
         git config notes.displayRef refs/notes/mergai-marker
 
