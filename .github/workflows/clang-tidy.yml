@@ -113,6 +113,26 @@ jobs:
             //:compiledb \
             //src/mongo/tools/mongo_tidy_checks:mongo_tidy_checks
 
+      - name: Generate all required headers
+        run: |
+          # Generate all templated/generated source files (config.h, wiredtiger.h, etc.)
+          # This matches what compiledb.py does locally
+          bazel \
+            --bazelrc=.bazelrc.compiledb \
+            build \
+            --build_tag_filters=gen_source \
+            //src/...
+          # Build prometheus exporter to fetch external dependencies (prometheus-cpp)
+          # needed for clang-tidy to analyze otel/metrics files
+          bazel \
+            --bazelrc=.bazelrc.compiledb \
+            build \
+            //src/third_party/opentelemetry-cpp/exporters/prometheus:prometheus_exporter_utils
+
+      - name: Setup clang-tidy config
+        run: |
+          cp bazel-bin/.clang-tidy .clang-tidy
+
       - name: Run clang-tidy
         run: |
           CHANGED="${{ needs.changed_files.outputs.changed_files }}"
