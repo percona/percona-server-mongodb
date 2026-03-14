@@ -17,6 +17,7 @@
         setParameter: {
             authenticationMechanisms: "PLAIN,SCRAM-SHA-256,SCRAM-SHA-1",
             ldapUserCacheInvalidationInterval: 1, // 1 second
+            ldapShouldRefreshUserCacheEntries: false, // use invalidation mode for this test
         },
     });
 
