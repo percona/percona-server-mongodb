@@ -116,8 +116,12 @@ class CPPUnitTestCase(interface.ProcessTestCase):
             self.logger.error("Failed to create runfiles directory %s: %s", runfiles_dir, e)
 
     def _make_process(self):
+        # Merge fixture environment variables into program_options
+        program_options = self.program_options.copy()
+        self._merge_fixture_environment_variables(program_options)
+
         return core.programs.make_process(
             self.logger,
             [self.program_executable, "--enhancedReporter=false"],
-            **self.program_options,
+            **program_options,
         )

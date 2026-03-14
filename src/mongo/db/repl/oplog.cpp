@@ -916,7 +916,12 @@ const StringMap<ApplyOpMetadata> kOpsMap = {
 
           Lock::DBLock dbLock(opCtx, nss.dbName(), MODE_IX, Date_t::max(), boost::none);
 
-          boost::optional<bool> recordIdsReplicated = boost::none;
+          // For applyOps commands if we don't see a recordIdReplicated field we let the node decide
+          // the option depending if the fature flag is On. For all other create oplogs, the absence
+          // of the field indicate it is a collection without recordIdsReplicated.
+          boost::optional<bool> recordIdsReplicated =
+              repl::OplogApplication::Mode::kApplyOpsCmd == mode ? boost::none
+                                                                 : boost::optional<bool>(false);
           if (auto value = cmd["recordIdsReplicated"]; value.isBoolean()) {
               recordIdsReplicated = value.boolean();
           }
@@ -1376,7 +1381,11 @@ const StringMap<ApplyOpMetadata> kOpsMap = {
         "dropIdent",
         {[](OperationContext* opCtx, const ApplierOperation& op, OplogApplication::Mode mode)
              -> Status {
-             // TODO: SERVER-118737 implement.
+             const auto& ident = op->getObject().firstElement().valueStringData();
+             const Timestamp& dropIdentTs = op->getTimestamp();
+
+             opCtx->getServiceContext()->getStorageEngine()->dropIdentTimestamped(
+                 opCtx, ident, dropIdentTs);
              return Status::OK();
          },
          {}},

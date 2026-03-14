@@ -1,7 +1,16 @@
 #!/bin/bash
 
-cd $MONGO_REPO
-cd src/mongo/shell/debugger/vscode
+set -o errexit
+
+SCRIPT_DIR=$(dirname "$(realpath "${BASH_SOURCE[0]}")")
+pushd $SCRIPT_DIR >/dev/null
+
+# Check npm version is at least 10
+NPM_VERSION=$(npm --version | cut -d. -f1)
+if [ "$NPM_VERSION" -lt 10 ]; then
+    echo "Error: npm version 10 or higher is required (found: $(npm --version))"
+    exit 1
+fi
 
 npm install
 
@@ -9,14 +18,11 @@ npm install
 VERSION=$(node -p "require('./package.json').version")
 EXT_NAME=$(node -p "require('./package.json').name")
 
-# Install vsce to package extensions
-npm install -g @vscode/vsce
-
 # Package extension
-vsce package --skip-license
+npm run package
 
 # Install via VSCode
 code --install-extension $EXT_NAME-$VERSION.vsix
 rm $EXT_NAME-$VERSION.vsix
 
-cd $MONGO_REPO
+popd >/dev/null

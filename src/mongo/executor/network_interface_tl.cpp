@@ -49,6 +49,7 @@
 #include "mongo/db/service_context.h"
 #include "mongo/db/wire_version.h"
 #include "mongo/executor/async_client_factory.h"
+#include "mongo/executor/egress_networking_parameters_gen.h"
 #include "mongo/executor/exhaust_response_reader_tl.h"
 #include "mongo/executor/network_interface.h"
 #include "mongo/executor/remote_command_request.h"
@@ -65,6 +66,7 @@
 #include "mongo/util/concurrency/thread_name.h"
 #include "mongo/util/fail_point.h"
 #include "mongo/util/net/socket_utils.h"
+#include "mongo/util/observable_mutex_registry.h"
 #include "mongo/util/out_of_line_executor.h"
 #include "mongo/util/scopeguard.h"
 #include "mongo/util/str.h"
@@ -91,6 +93,10 @@ auto& numConnectionNetworkTimeouts =
     *MetricBuilder<Counter64>("operation.numConnectionNetworkTimeouts");
 auto& timeSpentWaitingBeforeConnectionTimeoutMillis =
     *MetricBuilder<Counter64>("operation.totalTimeWaitingBeforeConnectionTimeoutMillis");
+auto& numRequestsTimedOutBeforeConnectionAcquisitionAttempt =
+    *MetricBuilder<Counter64>("operation.numRequestsTimedOutBeforeConnectionAcquisitionAttempt");
+auto& numRequestsTimedOutBeforeSending =
+    *MetricBuilder<Counter64>("operation.numRequestsTimedOutBeforeSentToRemote");
 
 void appendMetadata(RemoteCommandRequest* request,
                     const std::unique_ptr<rpc::EgressMetadataHook>& hook) {
@@ -158,7 +164,9 @@ NetworkInterfaceTL::NetworkInterfaceTL(std::string instanceName,
     : _instanceName(std::move(instanceName)),
       _clientFactory(std::move(factory)),
       _metadataHook(std::move(metadataHook)),
-      _state(kDefault) {}
+      _state(kDefault) {
+    ObservableMutexRegistry::get().add("NetworkInterfaceTL::_mutex", _mutex);
+}
 
 NetworkInterfaceTL::~NetworkInterfaceTL() {
     shutdown();
@@ -374,8 +382,8 @@ void NetworkInterfaceTL::_registerCommand(const TaskExecutor::CallbackHandle& cb
         _inProgress.insert({cbHandle, cmdState});
     }
 
-    if (cmdState->request.timeout != RemoteCommandRequest::kNoTimeout) {
-        cmdState->deadline = cmdState->stopwatch.start() + cmdState->request.timeout;
+    if (cmdState->request.deadline != RemoteCommandRequest::kNoDeadline) {
+        cmdState->stopwatch.start();
     }
 
     // Okay to inline this callback since all it does is log.
@@ -397,6 +405,7 @@ NetworkInterfaceTL::CommandStateBase::CommandStateBase(
     : interface(interface_),
       request(std::move(request_)),
       cbHandle(cbHandle_),
+      deadline(request.deadline),
       baton(baton_),
       timer(interface->_reactor->makeTimer()),
       cancelSource(token) {}
@@ -433,8 +442,6 @@ void NetworkInterfaceTL::CommandStateBase::cancel(Status status) {
 }
 
 void NetworkInterfaceTL::CommandStateBase::setTimer() {
-    auto nowVal = interface->now();
-
     triggerSendRequestNetworkTimeout.executeIf(
         [&](const BSONObj& data) {
             LOGV2(6496503,
@@ -442,7 +449,7 @@ void NetworkInterfaceTL::CommandStateBase::setTimer() {
                   "request"_attr = request.cmdObj.toString());
             // Sleep to make sure the elapsed wait time for connection timeout is > 1 millisecond.
             sleepmillis(100);
-            deadline = nowVal;
+            deadline = interface->now();
         },
         [&](const BSONObj& data) {
             return data["collectionNS"].valueStringData() ==
@@ -456,10 +463,15 @@ void NetworkInterfaceTL::CommandStateBase::setTimer() {
     const auto timeoutCode =
         request.timeoutCode.get_value_or(ErrorCodes::NetworkInterfaceExceededTimeLimit);
 
-    // We don't need to capture an anchor for the CommandStateBase (i.e. this). If the request gets
-    // fulfilled and misses cancelling the timer (i.e. we can't lock the weak_ptr), we just want to
-    // return. Ideally we'd ensure that cancellation could never miss timers, but since they will
-    // eventually fire anyways it's not a huge deal that we don't.
+    if (auto maxTimeMsLocalBufferTimeMillis = Milliseconds(gMaxTimeMsLocalBufferTimeMillis.load());
+        maxTimeMsLocalBufferTimeMillis > Milliseconds::zero()) {
+        deadline += maxTimeMsLocalBufferTimeMillis;
+    }
+
+    // We don't need to capture an anchor for the CommandStateBase (i.e. this). If the request
+    // gets fulfilled and misses cancelling the timer (i.e. we can't lock the weak_ptr), we just
+    // want to return. Ideally we'd ensure that cancellation could never miss timers, but since
+    // they will eventually fire anyways it's not a huge deal that we don't.
     timer->waitUntil(deadline, baton)
         .getAsync([this, weakState = weak_from_this(), timeoutCode](Status status) {
             if (!status.isOK()) {
@@ -546,6 +558,8 @@ ExecutorFuture<RemoteCommandResponse> NetworkInterfaceTL::CommandState::sendRequ
     RemoteCommandRequest req) {
     return makeReadyFutureWith([this, req = std::move(req)] {
                const auto connAcquiredTimer = clientHandle->getAcquiredTimer();
+               // This is a bit early, but lets err on the side of caution here.
+               isSentToRemote = true;
                return clientHandle->getClient().runCommandRequest(
                    std::move(req), baton, std::move(connAcquiredTimer), cancelSource.token());
            })
@@ -568,8 +582,9 @@ void NetworkInterfaceTL::CommandStateBase::doMetadataHook(const RemoteCommandRes
 
 ExecutorFuture<RemoteCommandResponse> NetworkInterfaceTL::ExhaustCommandState::sendRequestImpl(
     RemoteCommandRequest req) try {
-    return clientHandle->getClient()
-        .beginExhaustCommandRequest(req, baton, cancelSource.token())
+    auto& client = clientHandle->getClient();
+    isSentToRemote = true;
+    return client.beginExhaustCommandRequest(req, baton, cancelSource.token())
         .thenRunOn(makeGuaranteedExecutor());
 } catch (const DBException& ex) {
     return ExecutorFuture<RemoteCommandResponse>(makeGuaranteedExecutor(), ex.toStatus());
@@ -621,7 +636,7 @@ void NetworkInterfaceTL::cancelCommand(const TaskExecutor::CallbackHandle& cbHan
                                        const BatonHandle&) {
     std::shared_ptr<NetworkInterfaceTL::CommandStateBase> cmdStateToCancel;
     {
-        stdx::unique_lock<stdx::mutex> lk(_mutex);
+        stdx::unique_lock<ObservableMutex<stdx::mutex>> lk(_mutex);
         auto it = _inProgress.find(cbHandle);
         if (it == _inProgress.end()) {
             return;
@@ -640,6 +655,10 @@ void NetworkInterfaceTL::cancelCommand(const TaskExecutor::CallbackHandle& cbHan
 void NetworkInterfaceTL::_killOperation(CommandStateBase* cmdStateToKill) try {
     auto operationKey = cmdStateToKill->request.operationKey;
     invariant(operationKey);
+
+    if (!cmdStateToKill->isSentToRemote) {
+        return;
+    }
 
     LOGV2_DEBUG(4664801,
                 2,
@@ -700,7 +719,7 @@ SemiFuture<void> NetworkInterfaceTL::setAlarm(Date_t when, const CancellationTok
     auto alarmState = std::make_shared<AlarmState>(this, id, _reactor->makeTimer(), token);
 
     {
-        stdx::lock_guard<stdx::mutex> lk(_mutex);
+        stdx::lock_guard<ObservableMutex<stdx::mutex>> lk(_mutex);
 
         if (_inShutdown_inlock(lk)) {
             // Check that we've won any possible race with _shutdownAllAlarms();
@@ -741,7 +760,7 @@ SemiFuture<void> NetworkInterfaceTL::setAlarm(Date_t when, const CancellationTok
 
 void NetworkInterfaceTL::_shutdownAllAlarms() {
     auto alarms = [&] {
-        stdx::unique_lock<stdx::mutex> lk(_mutex);
+        stdx::unique_lock<ObservableMutex<stdx::mutex>> lk(_mutex);
         invariant(_state == kStopping);
         return _inProgressAlarms;
     }();
@@ -755,13 +774,13 @@ void NetworkInterfaceTL::_shutdownAllAlarms() {
     }
 
     {
-        stdx::unique_lock<stdx::mutex> lk(_mutex);
+        stdx::unique_lock<ObservableMutex<stdx::mutex>> lk(_mutex);
         _stoppedCV.wait(lk, [&] { return _inProgressAlarms.empty(); });
     }
 }
 
 void NetworkInterfaceTL::_removeAlarm(std::uint64_t id) {
-    stdx::lock_guard<stdx::mutex> lk(_mutex);
+    stdx::lock_guard<ObservableMutex<stdx::mutex>> lk(_mutex);
     auto it = _inProgressAlarms.find(id);
     invariant(it != _inProgressAlarms.end());
     _inProgressAlarms.erase(it);
@@ -830,7 +849,24 @@ NetworkInterfaceTL::CommandStateBase::getClient(AsyncClientFactory& factory) {
     if (!failPointStatus.isOK()) {
         return failPointStatus;
     }
-    return factory.get(request.target, request.sslMode, request.timeout, cancelSource.token());
+
+    if (deadline != RemoteCommandRequest::kNoDeadline) {
+        auto now = interface->now();
+        poolTimeout = deadline - now;
+
+        if (poolTimeout.count() <= 0) {
+            numRequestsTimedOutBeforeConnectionAcquisitionAttempt.increment();
+            return SemiFuture<std::shared_ptr<AsyncClientFactory::AsyncClientHandle>>::makeReady(
+                Status(
+                    request.timeoutCode.get_value_or(ErrorCodes::NetworkInterfaceExceededTimeLimit),
+                    fmt::format("Request deadline passed before attempting to acquire connection "
+                                "for remote command. Request deadline: {}, now: {}",
+                                request.deadline.toString(),
+                                now.toString())));
+        }
+    }
+
+    return factory.get(request.target, request.sslMode, poolTimeout, cancelSource.token());
 }
 
 ExecutorFuture<RemoteCommandResponse> NetworkInterfaceTL::CommandStateBase::sendRequest(
@@ -847,17 +883,34 @@ ExecutorFuture<RemoteCommandResponse> NetworkInterfaceTL::CommandStateBase::send
 
     clientHandle = std::move(retrievedClient);
 
-    if (interface->_svcCtx && requestToSend.timeout != RemoteCommandRequest::kNoTimeout &&
+    if (interface->_svcCtx && requestToSend.deadline != RemoteCommandRequest::kNoDeadline &&
         WireSpec::getWireSpec(interface->_svcCtx).isInternalClient()) {
+        auto now = interface->now();
+        auto remainingTimeout = Milliseconds(request.deadline - now).count();
+        if (remainingTimeout <= 0) {
+            // If we haven't sent the request yet, then return the connection handle with an OK
+            // status as it hasn't been used to send anything.
+            releaseClientHandle(Status::OK());
+            numRequestsTimedOutBeforeSending.increment();
+            return Future<RemoteCommandResponse>::makeReady(
+                       Status(request.timeoutCode.get_value_or(
+                                  ErrorCodes::NetworkInterfaceExceededTimeLimit),
+                              fmt::format("Request deadline passed before sending command to "
+                                          "remote. Request deadline: {} now: {}",
+                                          request.deadline.toString(),
+                                          now.toString())))
+                .thenRunOn(makeGuaranteedExecutor());
+        }
+
         BSONObjBuilder updatedCmdBuilder;
         updatedCmdBuilder.appendElements(request.cmdObj);
-        updatedCmdBuilder.append("maxTimeMSOpOnly", request.timeout.count());
+        updatedCmdBuilder.append("maxTimeMSOpOnly", remainingTimeout);
         requestToSend.cmdObj = updatedCmdBuilder.obj();
 
         LOGV2_DEBUG(4924402,
                     2,
                     "Set maxTimeMSOpOnly for request",
-                    "maxTimeMSOpOnly"_attr = request.timeout,
+                    "maxTimeMSOpOnly"_attr = remainingTimeout,
                     "requestId"_attr = request.id,
                     "target"_attr = request.target);
     }
@@ -910,7 +963,7 @@ Status NetworkInterfaceTL::CommandStateBase::handleClientAcquisitionError(Status
         durationCount<Milliseconds>(connTimeoutWaitTime));
 
     auto timeoutCode = request.timeoutCode;
-    if (timeoutCode && connTimeoutWaitTime >= request.timeout) {
+    if (timeoutCode && connTimeoutWaitTime >= poolTimeout) {
         status = Status(*timeoutCode, status.reason());
     }
 
@@ -933,6 +986,16 @@ ExecutorPtr NetworkInterfaceTL::CommandStateBase::makeGuaranteedExecutor() {
 
 ExecutorFuture<RemoteCommandResponse> NetworkInterfaceTL::_runCommand(
     std::shared_ptr<CommandStateBase> cmdState) {
+    if (auto maxTimeMsLocalBufferTimeMillis = Milliseconds(gMaxTimeMsLocalBufferTimeMillis.load());
+        maxTimeMsLocalBufferTimeMillis > Milliseconds::zero()) {
+        // Extend the deadline on the opCtx to ensure the baton doesn't get interupted
+        // (which also churns the connection it is associated with).
+        if (cmdState->request.opCtx) {
+            cmdState->opCtxDeadlineOverride =
+                std::make_unique<OperationContext::OverrideDeadlineGuard>(
+                    cmdState->request.opCtx, maxTimeMsLocalBufferTimeMillis);
+        }
+    }
     return cmdState->getClient(*_clientFactory)
         .thenRunOn(cmdState->makeGuaranteedExecutor())
         .onError([cmdState](Status status)

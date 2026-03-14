@@ -30,7 +30,6 @@
 #include "mongo/db/query/plan_ranking/cost_based_plan_ranking.h"
 
 #include "mongo/base/status_with.h"
-#include "mongo/db/exec/classic/subplan.h"
 #include "mongo/db/exec/runtime_planners/classic_runtime_planner/planner_interface.h"
 #include "mongo/db/exec/runtime_planners/planner_interface.h"
 #include "mongo/db/query/compiler/ce/sampling/sampling_estimator_impl.h"
@@ -126,15 +125,6 @@ StatusWith<PlanRankingResult> CostBasedPlanRankingStrategy::rankPlans(PlannerDat
         std::move(statusWithMultiPlanSolns.getValue());
     size_t numSolutions = solutions.size();
 
-    // TODO: SERVER-115496: move the check below to wherever we enumerate plans.
-    // If this is a rooted $or query and there are more than kMaxNumberOrPlans plans, use the
-    // subplanner.
-    if (SubplanStage::needsSubplanning(query) && numSolutions > maxNumberOfOrPlans()) {
-        return Status(ErrorCodes::MaxNumberOfOrPlansExceeded,
-                      str::stream()
-                          << "exceeded " << maxNumberOfOrPlans() << " plans. Switch to subplanner");
-    }
-
     if (solutions.size() == 1) {
         // TODO SERVER-115496 Make sure this short circuit logic is also taken to main plan_ranking
         // so it applies everywhere. Only one solution, no need to rank.
@@ -207,7 +197,14 @@ StatusWith<PlanRankingResult> CostBasedPlanRankingStrategy::rankPlans(PlannerDat
             stats->totalWorks / numSolutions == numWorksPerPlanEst);
 
     // Estimate the cost of MP based on the "estimation" trial.
-    auto estRes = mp.estimateAllPlans();
+    auto estResWithStatus = mp.estimateAllPlans();
+    if (!estResWithStatus.isOK()) {
+        LOGV2_INFO(12023300,
+                   "AutomaticCE chooses MP (2)",
+                   "Reason"_attr = " because plan contains inestimable node(s)");
+        return getBestMPPlan(mp);
+    }
+    auto estRes = estResWithStatus.getValue();
     tassert(11306805,
             "The MP estimation phase should not have filled a full batch",
             numResultsMP > estRes.bestPlanNumResults);
@@ -227,7 +224,7 @@ StatusWith<PlanRankingResult> CostBasedPlanRankingStrategy::rankPlans(PlannerDat
     const double minProductivityForMP = static_cast<double>(numResultsMP) / numWorksPerPlanMP;
     if (estRes.bestPlanProductivity <= minProductivityForMP) {
         LOGV2_INFO(11306804,
-                   "AutomaticCE chooses CBR (2)",
+                   "AutomaticCE chooses CBR (3)",
                    "Reason"_attr = "very low productivity",
                    "Condition"_attr = "estRes.bestPlanProductivity < minProductivityForMP",
                    "minProductivityForMPAdjusted"_attr = minProductivityForMP,
@@ -270,7 +267,7 @@ StatusWith<PlanRankingResult> CostBasedPlanRankingStrategy::rankPlans(PlannerDat
         }
         stats = mp.getSpecificStats();
         LOGV2_INFO(11306802,
-                   "AutomaticCE chooses MP (3)",
+                   "AutomaticCE chooses MP (4)",
                    "Reason"_attr = "the required improvement is not achievable",
                    "Condition"_attr =
                        "maxAchievableImprovementRatio < minRequiredImprovementRatio");
@@ -283,7 +280,7 @@ StatusWith<PlanRankingResult> CostBasedPlanRankingStrategy::rankPlans(PlannerDat
     }
 
     // CBR is substantially more efficient than the remaining MP, choose the best plan using CBR
-    LOGV2_INFO(11306800, "AutomaticCE chooses CBR (4)", "Reason"_attr = "it is cheaper than MP");
+    LOGV2_INFO(11306800, "AutomaticCE chooses CBR (5)", "Reason"_attr = "it is cheaper than MP");
     return getBestCBRPlan(opCtx, query, plannerParams, yieldPolicy, collections);
 }
 
