@@ -5,14 +5,14 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 283,
-    "days_behind": 8,
-    "files_affected": 1432,
-    "total_additions": 85989,
-    "total_deletions": 20936,
+    "commits_behind": 288,
+    "days_behind": 10,
+    "files_affected": 1435,
+    "total_additions": 86654,
+    "total_deletions": 20979,
     "date_range": {
       "first": "2026-03-06T01:24:46+00:00",
-      "last": "2026-03-14T03:55:05+00:00"
+      "last": "2026-03-16T01:00:02+00:00"
     }
   },
   "last_merged_commit": {
@@ -36,6 +36,56 @@
     "summary": "SERVER-121042: disable new vector search extension suites (#49142)"
   },
   "unmerged_commits": [
+    {
+      "sha": "4d84ddb223bfe8b00727d9f4a535cbdd4b2278fa",
+      "short_sha": "4d84ddb223b",
+      "date": "2026-03-16T01:00:02+00:00",
+      "author": {
+        "name": "auto-revert-app[bot]",
+        "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
+      },
+      "summary": "Revert \"SERVER-119737 Join Optimization: A plan stability framework for testing joins (#49301)\" (#49640)"
+    },
+    {
+      "sha": "0f93cdd994b64cd3dc000bea678ad7f8a96e9329",
+      "short_sha": "0f93cdd994b",
+      "date": "2026-03-16T11:58:33+11:00",
+      "author": {
+        "name": "wt-vendoring-bot[bot]",
+        "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "Import wiredtiger: 45fbfb7375c838044fc85a4a2224088c533726c6 from branch mongodb-master (#49636)"
+    },
+    {
+      "sha": "19b2d56f40012623f6d882cf81da6d708ddf2241",
+      "short_sha": "19b2d56f400",
+      "date": "2026-03-15T18:55:06+02:00",
+      "author": {
+        "name": "Philip Stoev",
+        "email": "philip.stoev@mongodb.com"
+      },
+      "summary": "SERVER-119737 Join Optimization: A plan stability framework for testing joins (#49301)"
+    },
+    {
+      "sha": "5c84c002410ee9d7190853872abe1789f1366b4c",
+      "short_sha": "5c84c002410",
+      "date": "2026-03-15T04:49:06+00:00",
+      "author": {
+        "name": "auto-revert-app[bot]",
+        "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
+      },
+      "summary": "Revert \"SERVER-121324 Victim block cache (#48123)\" (#49633)"
+    },
+    {
+      "sha": "b597f2bbde93eb22b4af1152b5b682291a528241",
+      "short_sha": "b597f2bbde9",
+      "date": "2026-03-14T20:49:04-04:00",
+      "author": {
+        "name": "Billy Donahue",
+        "email": "BillyDonahue@users.noreply.github.com"
+      },
+      "summary": "SERVER-120620 rm auto_clear_ptr.h (#49447)"
+    },
     {
       "sha": "ac56cbf16ef7068e4a4f716965449f26923787b4",
       "short_sha": "ac56cbf16ef",
@@ -3224,7 +3274,7 @@
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-03-14 08:15:14",
+  "generated_at": "2026-03-16 06:32:28",
   "branch_name": "master",
   "display_name": "master"
 }
