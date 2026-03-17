@@ -5,14 +5,14 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 316,
+    "commits_behind": 318,
     "days_behind": 8,
-    "files_affected": 1361,
-    "total_additions": 83476,
-    "total_deletions": 23205,
+    "files_affected": 1389,
+    "total_additions": 84033,
+    "total_deletions": 23328,
     "date_range": {
       "first": "2026-03-09T08:16:15+00:00",
-      "last": "2026-03-17T14:12:53+00:00"
+      "last": "2026-03-17T14:24:58+00:00"
     }
   },
   "last_merged_commit": {
@@ -36,6 +36,26 @@
     "summary": "SERVER-110427 Update profiling data (#49234)"
   },
   "unmerged_commits": [
+    {
+      "sha": "6fa6d77e0b98c12a3d8648584bad7e4049d33297",
+      "short_sha": "6fa6d77e0b9",
+      "date": "2026-03-17T09:24:58-05:00",
+      "author": {
+        "name": "Trevor Guidry",
+        "email": "trevor.guidry@mongodb.com"
+      },
+      "summary": "SERVER-121737 Add fixture and hook support to external resmoke modules (#49689)"
+    },
+    {
+      "sha": "d1ffae38adbe46e56fc4d146d8d59af23b3def5e",
+      "short_sha": "d1ffae38adb",
+      "date": "2026-03-17T14:15:19+00:00",
+      "author": {
+        "name": "Vesko Karaganev",
+        "email": "vesko.karaganev@mongodb.com"
+      },
+      "summary": "SERVER-119962 Print known fields using shorthand (#49502)"
+    },
     {
       "sha": "3b1ee75ce2841ca05d66eccb74bc0ece4ad9bd8f",
       "short_sha": "3b1ee75ce28",
@@ -3563,10 +3583,33 @@
           "num_of_dirs": 11
         }
       }
+    },
+    {
+      "commit": {
+        "sha": "6fa6d77e0b98c12a3d8648584bad7e4049d33297",
+        "short_sha": "6fa6d77e0b9",
+        "date": "2026-03-17T09:24:58-05:00",
+        "author": {
+          "name": "Trevor Guidry",
+          "email": "trevor.guidry@mongodb.com"
+        },
+        "summary": "SERVER-121737 Add fixture and hook support to external resmoke modules (#49689)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 33,
+          "num_of_lines": 672,
+          "lines_added": 586,
+          "lines_deleted": 86,
+          "num_of_dirs": 12
+        }
+      }
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-03-17 14:54:00",
+  "generated_at": "2026-03-17 14:56:40",
   "branch_name": "master",
   "display_name": "master"
 }
