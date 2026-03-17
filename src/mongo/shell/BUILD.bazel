@@ -416,7 +416,7 @@ mongo_cc_library(
         ],
         "//conditions:default": [],
     }) + select({
-        "//bazel/config:enterprise_feature_sasl_enabled": [
+        "//bazel/config:use_sasl_client_required_settings": [
             "//src/mongo/client:cyrus_sasl_client",
         ],
         "//conditions:default": [],
