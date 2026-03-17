@@ -661,6 +661,8 @@ last-continuous:
     ticket: SERVER-85772
   - test_file: jstests/concurrency/fsm_workloads/timeseries_agg_out.js
     ticket: SERVER-85772
+  - test_file: jstests/concurrency/fsm_workloads/ddl/collMod/collMod_options_with_index_ops.js
+    ticket: SERVER-107819
   - test_file: jstests/core/timeseries/timeseries_computed_field.js
     ticket: SERVER-88072
   - test_file: jstests/auth/commands_builtin_roles_replset.js
@@ -873,37 +875,28 @@ last-continuous:
     ticket: SERVER-92978
   - test_file: jstests/change_streams/ddl_abort_index_build_event.js
     ticket: SERVER-93154
-<<<<<<< HEAD
-  - test_file: jstests/aggregation/expressions/reduce_overflow.js
-    ticket: SERVER-102364
-||||||| 6649991c993
-=======
   - test_file: jstests/aggregation/expressions/reduce_overflow.js
     ticket: SERVER-102364
   - test_file: jstests/change_streams/events_containing_version_literals.js
     ticket: SERVER-111406
->>>>>>> r8.0.20
   - test_file: jstests/core/query/update/update_set_unset.js
     ticket: SERVER-103960
   - test_file: jstests/sharding/resharding_commit_monitor_repl_lag.js
     ticket: SERVER-103932
   - test_file: jstests/sharding/txn_lookup_hits_migration_conflict_all_colls_local.js
     ticket: SERVER-107535
-<<<<<<< HEAD
-  - test_file: jstests/replsets/insert_documents_close_to_size_limit.js
-    ticket: SERVER-113532
-  - test_file: jstests/sharding/migration_fails_with_spurious_documents.js
-    ticket: SERVER-110953
-||||||| 6649991c993
-=======
   - test_file: jstests/sharding/timeseries_user_system_buckets_sharding.js
     ticket: SERVER-113933
+  - test_file: jstests/core/query/regex/regex_max_pattern_length.js
+    ticket: SERVER-86326
   - test_file: jstests/replsets/insert_documents_close_to_size_limit.js
     ticket: SERVER-113532
   - test_file: jstests/concurrency/fsm_workloads/update_and_batched_delete.js
     ticket: SERVER-95570
   - test_file: jstests/sharding/migration_fails_with_spurious_documents.js
     ticket: SERVER-110953
+  - test_file: jstests/sharding/cannot_track_temporary_collection.js
+    ticket: SERVER-114666
   - test_file: jstests/core/compound_wildcard_index_validation.js
     ticket: SERVER-97229
   - test_file: jstests/sharding/coordinate_txn_commit_with_tickets_exhausted.js
@@ -914,7 +907,18 @@ last-continuous:
     ticket: SERVER-109200
   - test_file: jstests/sharding/resharding_skip_cloning.js
     ticket: SERVER-111929
->>>>>>> r8.0.20
+  - test_file: jstests/core/cluster_parameters/cluster_parameter_commands.js
+    ticket: SERVER-117009
+  - test_file: jstests/noPassthrough/server_parameters/cluster_parameter_validate.js
+    ticket: SERVER-117009
+  - test_file: jstests/noPassthrough/fle2_compaction_options.js
+    ticket: SERVER-117009
+  - test_file: jstests/replsets/election_term_over_int_max.js
+    ticket: SERVER-119413
+  - test_file: jstests/core/index/index_on_incorrect_collection.js
+    ticket: SERVER-116327
+  - test_file: jstests/core/index/geo/geo_polygon3.js
+    ticket: SERVER-106239
   suites: null
 last-lts:
   all:
@@ -1632,6 +1636,8 @@ last-lts:
     ticket: SERVER-85772
   - test_file: jstests/concurrency/fsm_workloads/timeseries_agg_out.js
     ticket: SERVER-85772
+  - test_file: jstests/concurrency/fsm_workloads/ddl/collMod/collMod_options_with_index_ops.js
+    ticket: SERVER-107819
   - test_file: jstests/core/timeseries/timeseries_computed_field.js
     ticket: SERVER-88072
   - test_file: jstests/auth/commands_builtin_roles_replset.js
@@ -1860,12 +1866,18 @@ last-lts:
     ticket: SERVER-103932
   - test_file: jstests/sharding/txn_lookup_hits_migration_conflict_all_colls_local.js
     ticket: SERVER-107535
+  - test_file: jstests/sharding/timeseries_user_system_buckets_sharding.js
+    ticket: SERVER-113933
+  - test_file: jstests/core/query/regex/regex_max_pattern_length.js
+    ticket: SERVER-86326
   - test_file: jstests/replsets/insert_documents_close_to_size_limit.js
     ticket: SERVER-113532
   - test_file: jstests/concurrency/fsm_workloads/update_and_batched_delete.js
     ticket: SERVER-95570
   - test_file: jstests/sharding/migration_fails_with_spurious_documents.js
     ticket: SERVER-110953
+  - test_file: jstests/sharding/cannot_track_temporary_collection.js
+    ticket: SERVER-114666
   - test_file: jstests/core/compound_wildcard_index_validation.js
     ticket: SERVER-97229
   - test_file: jstests/sharding/coordinate_txn_commit_with_tickets_exhausted.js
@@ -1876,4 +1888,16 @@ last-lts:
     ticket: SERVER-109200
   - test_file: jstests/sharding/resharding_skip_cloning.js
     ticket: SERVER-111929
+  - test_file: jstests/core/cluster_parameters/cluster_parameter_commands.js
+    ticket: SERVER-117009
+  - test_file: jstests/noPassthrough/server_parameters/cluster_parameter_validate.js
+    ticket: SERVER-117009
+  - test_file: jstests/noPassthrough/fle2_compaction_options.js
+    ticket: SERVER-117009
+  - test_file: jstests/replsets/election_term_over_int_max.js
+    ticket: SERVER-119413
+  - test_file: jstests/core/index/index_on_incorrect_collection.js
+    ticket: SERVER-116327
+  - test_file: jstests/core/index/geo/geo_polygon3.js
+    ticket: SERVER-106239
   suites: null
