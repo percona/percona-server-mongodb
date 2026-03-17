@@ -5,35 +5,35 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 310,
-    "days_behind": 10,
-    "files_affected": 1399,
-    "total_additions": 86368,
-    "total_deletions": 24673,
+    "commits_behind": 304,
+    "days_behind": 8,
+    "files_affected": 1357,
+    "total_additions": 84518,
+    "total_deletions": 23081,
     "date_range": {
-      "first": "2026-03-06T23:47:07+00:00",
+      "first": "2026-03-09T08:16:15+00:00",
       "last": "2026-03-17T03:15:26+00:00"
     }
   },
   "last_merged_commit": {
-    "sha": "8ceb6ed9880bbe68940515b1f9a89d71b751657d",
-    "short_sha": "8ceb6ed9880",
-    "date": "2026-03-06T23:09:30+00:00",
+    "sha": "d62fcb71f84a5e46eb5a7f8ca0a35387e1e025b0",
+    "short_sha": "d62fcb71f84",
+    "date": "2026-03-09T10:26:46+11:00",
     "author": {
-      "name": "Lee Maguire",
-      "email": "lee.maguire@mongodb.com"
+      "name": "wt-vendoring-bot[bot]",
+      "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
     },
-    "summary": "SERVER-115422 Implement the WASM MozJS wrapper and WIT exported interface (#48033)"
+    "summary": "Import wiredtiger: 874fcacca42ab0069d570775ecaee226a0a1bd37 from branch mongodb-master (#49228)"
   },
   "first_unmerged_commit": {
-    "sha": "6bc0d4cba2456e4e54e14fc32d2dd2092b8218ba",
-    "short_sha": "6bc0d4cba24",
-    "date": "2026-03-06T23:47:07+00:00",
+    "sha": "0ea57bcd10a3c06c1dba86589d58903b29c65ff4",
+    "short_sha": "0ea57bcd10a",
+    "date": "2026-03-09T08:16:15+00:00",
     "author": {
-      "name": "auto-revert-app[bot]",
-      "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
+      "name": "mongo-pr-bot[bot]",
+      "email": "230616009+mongo-pr-bot[bot]@users.noreply.github.com"
     },
-    "summary": "Revert \"SERVER-120914 UnshardCollection now fails with NamespaceNotSharded for untracked collections (#49130)\" (#49219)"
+    "summary": "SERVER-110427 Update profiling data (#49234)"
   },
   "unmerged_commits": [
     {
@@ -3075,115 +3075,9 @@
         "email": "230616009+mongo-pr-bot[bot]@users.noreply.github.com"
       },
       "summary": "SERVER-110427 Update profiling data (#49234)"
-    },
-    {
-      "sha": "d62fcb71f84a5e46eb5a7f8ca0a35387e1e025b0",
-      "short_sha": "d62fcb71f84",
-      "date": "2026-03-09T10:26:46+11:00",
-      "author": {
-        "name": "wt-vendoring-bot[bot]",
-        "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
-      },
-      "summary": "Import wiredtiger: 874fcacca42ab0069d570775ecaee226a0a1bd37 from branch mongodb-master (#49228)"
-    },
-    {
-      "sha": "5f0dd1ca0bb0ac3e88840218900fddf324c69f1c",
-      "short_sha": "5f0dd1ca0bb",
-      "date": "2026-03-07T12:04:14-06:00",
-      "author": {
-        "name": "Nathan Frank",
-        "email": "nathantfrank@users.noreply.github.com"
-      },
-      "summary": "SERVER-120043: add time partition transforms; dlq docs with unsupported types for partition transform (re-submission) (#49186)"
-    },
-    {
-      "sha": "1a8c354d490796e294d6a86940c723f4ee2d5563",
-      "short_sha": "1a8c354d490",
-      "date": "2026-03-07T10:16:43+01:00",
-      "author": {
-        "name": "Silvia Surroca",
-        "email": "silvia.surroca@mongodb.com"
-      },
-      "summary": "SERVER-98651 Enable multiversion tests for $listClusterCatalog (#48965)"
-    },
-    {
-      "sha": "01b3f71df03a6b38ce2511a2820e78d9de5bade3",
-      "short_sha": "01b3f71df03",
-      "date": "2026-03-06T17:02:57-08:00",
-      "author": {
-        "name": "Daniel Segel",
-        "email": "71151509+dhsegel@users.noreply.github.com"
-      },
-      "summary": "SERVER-120937 Decouple non-const bindViewInfo() from const ViewPolicy callback in extensions (#49112)"
-    },
-    {
-      "sha": "6f971ec981b714c805a869ad6887093fb5f6180c",
-      "short_sha": "6f971ec981b",
-      "date": "2026-03-06T16:46:21-08:00",
-      "author": {
-        "name": "Joseph Prince",
-        "email": "57415450+josephdprince@users.noreply.github.com"
-      },
-      "summary": "SERVER-121140: Fix unix_socket.js (#49221)"
-    },
-    {
-      "sha": "6bc0d4cba2456e4e54e14fc32d2dd2092b8218ba",
-      "short_sha": "6bc0d4cba24",
-      "date": "2026-03-06T23:47:07+00:00",
-      "author": {
-        "name": "auto-revert-app[bot]",
-        "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
-      },
-      "summary": "Revert \"SERVER-120914 UnshardCollection now fails with NamespaceNotSharded for untracked collections (#49130)\" (#49219)"
     }
   ],
   "merge_picks": [
-    {
-      "commit": {
-        "sha": "01b3f71df03a6b38ce2511a2820e78d9de5bade3",
-        "short_sha": "01b3f71df03",
-        "date": "2026-03-06T17:02:57-08:00",
-        "author": {
-          "name": "Daniel Segel",
-          "email": "71151509+dhsegel@users.noreply.github.com"
-        },
-        "summary": "SERVER-120937 Decouple non-const bindViewInfo() from const ViewPolicy callback in extensions (#49112)"
-      },
-      "strategy_name": "huge_commit",
-      "result": {
-        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
-        "evaluated_vars": {
-          "num_of_files": 31,
-          "num_of_lines": 455,
-          "lines_added": 137,
-          "lines_deleted": 318,
-          "num_of_dirs": 13
-        }
-      }
-    },
-    {
-      "commit": {
-        "sha": "d62fcb71f84a5e46eb5a7f8ca0a35387e1e025b0",
-        "short_sha": "d62fcb71f84",
-        "date": "2026-03-09T10:26:46+11:00",
-        "author": {
-          "name": "wt-vendoring-bot[bot]",
-          "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
-        },
-        "summary": "Import wiredtiger: 874fcacca42ab0069d570775ecaee226a0a1bd37 from branch mongodb-master (#49228)"
-      },
-      "strategy_name": "huge_commit",
-      "result": {
-        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
-        "evaluated_vars": {
-          "num_of_files": 21,
-          "num_of_lines": 2847,
-          "lines_added": 1646,
-          "lines_deleted": 1201,
-          "num_of_dirs": 16
-        }
-      }
-    },
     {
       "commit": {
         "sha": "25177ea67eb2a5bf0ff37d7ac421973f4e205b9f",
@@ -3529,7 +3423,7 @@
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-03-17 06:24:11",
+  "generated_at": "2026-03-17 07:51:31",
   "branch_name": "master",
   "display_name": "master"
 }
