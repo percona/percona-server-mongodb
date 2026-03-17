@@ -5,14 +5,14 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 304,
+    "commits_behind": 316,
     "days_behind": 8,
-    "files_affected": 1357,
-    "total_additions": 84518,
-    "total_deletions": 23081,
+    "files_affected": 1361,
+    "total_additions": 83476,
+    "total_deletions": 23205,
     "date_range": {
       "first": "2026-03-09T08:16:15+00:00",
-      "last": "2026-03-17T03:15:26+00:00"
+      "last": "2026-03-17T14:12:53+00:00"
     }
   },
   "last_merged_commit": {
@@ -36,6 +36,126 @@
     "summary": "SERVER-110427 Update profiling data (#49234)"
   },
   "unmerged_commits": [
+    {
+      "sha": "3b1ee75ce2841ca05d66eccb74bc0ece4ad9bd8f",
+      "short_sha": "3b1ee75ce28",
+      "date": "2026-03-17T15:12:53+01:00",
+      "author": {
+        "name": "Igor Praznik",
+        "email": "95708172+igpraznik@users.noreply.github.com"
+      },
+      "summary": "SERVER-121392 Unify different types of stale routing errors in collection_routing_info_targeter.cpp (#49570)"
+    },
+    {
+      "sha": "61850c3e577576cafec732ae21731d683502fca2",
+      "short_sha": "61850c3e577",
+      "date": "2026-03-17T09:58:21-04:00",
+      "author": {
+        "name": "Joshua Siegel",
+        "email": "39130209+joshbsiegel@users.noreply.github.com"
+      },
+      "summary": "SERVER-121677 Fallback to legacy `$vectorSearch` when `returnStoredSource: true` (#49704)"
+    },
+    {
+      "sha": "2cbf35e39dbefad644ed8e5a29806ebb61dc97ee",
+      "short_sha": "2cbf35e39db",
+      "date": "2026-03-17T08:46:36-05:00",
+      "author": {
+        "name": "Daniel Moody",
+        "email": "dmoody256@gmail.com"
+      },
+      "summary": "Revert \"SERVER-117726 move compiledb generation into the bazel graph\" (#49754)"
+    },
+    {
+      "sha": "067405934809b2570a10db6066625d9dfbf93c10",
+      "short_sha": "06740593480",
+      "date": "2026-03-17T14:05:28+01:00",
+      "author": {
+        "name": "Jan",
+        "email": "jsteemann@users.noreply.github.com"
+      },
+      "summary": "SERVER-121636 Fix high watermark going back to lower timestamp (#49626)"
+    },
+    {
+      "sha": "be3c720472a099487239e189dc00c2c9fe8fc9cb",
+      "short_sha": "be3c720472a",
+      "date": "2026-03-17T13:43:13+01:00",
+      "author": {
+        "name": "Jan",
+        "email": "jsteemann@users.noreply.github.com"
+      },
+      "summary": "SERVER-121783 Add more documentation for resume tokens (#49716)"
+    },
+    {
+      "sha": "ea1a1c3bbc6f2ccbf228f9e24e86c3ad493284f7",
+      "short_sha": "ea1a1c3bbc6",
+      "date": "2026-03-17T13:19:33+01:00",
+      "author": {
+        "name": "Ivan Fefer",
+        "email": "ivan.fefer@mongodb.com"
+      },
+      "summary": "SERVER-104955 In SBE VM use math instead of conditions (#48160)"
+    },
+    {
+      "sha": "fc1d9000bda7022107caa50caa47de94bcd90eaf",
+      "short_sha": "fc1d9000bda",
+      "date": "2026-03-17T11:57:08+01:00",
+      "author": {
+        "name": "karlbozdogan",
+        "email": "karl.bozdogan@mongodb.com"
+      },
+      "summary": "SERVER-117635 Improve plan cache insertion by resuming MP stage when CBR plan is chosen (#49750)"
+    },
+    {
+      "sha": "957f8190585652324c9fc9708bf97a00dc22f5c5",
+      "short_sha": "957f8190585",
+      "date": "2026-03-17T10:20:46+00:00",
+      "author": {
+        "name": "fotiniAlvanaki",
+        "email": "78495594+fotiniAlvanaki@users.noreply.github.com"
+      },
+      "summary": "SERVER-118971 : Make hash_lookup_unwind release memory test more resilient to background activity (#49569)"
+    },
+    {
+      "sha": "7f7748b8278272ae8ca75309397425974303849e",
+      "short_sha": "7f7748b8278",
+      "date": "2026-03-17T09:56:20+00:00",
+      "author": {
+        "name": "fotiniAlvanaki",
+        "email": "78495594+fotiniAlvanaki@users.noreply.github.com"
+      },
+      "summary": "SERVER-121702 : Set QE as the owner of release_memory_util.js (#49655)"
+    },
+    {
+      "sha": "0d717daa23755e77dda2eba3e9290c1f3ecbba96",
+      "short_sha": "0d717daa237",
+      "date": "2026-03-17T05:41:24-04:00",
+      "author": {
+        "name": "natalie-hill",
+        "email": "natalie.hill@mongodb.com"
+      },
+      "summary": "SERVER-120369 Add server status metrics for CBR (#49480)"
+    },
+    {
+      "sha": "4bbdedc1521bad4674967f1e10a012db525b1a4d",
+      "short_sha": "4bbdedc1521",
+      "date": "2026-03-17T10:02:09+01:00",
+      "author": {
+        "name": "wolfee",
+        "email": "adam.farkas@mongodb.com"
+      },
+      "summary": "SERVER-119927 FCV Upgrade Downgrade suites can execute tests that require FCV 8.0 (#49076)"
+    },
+    {
+      "sha": "dd4d2b697bbe5632dd07f6278f5cd6c3f66a45f0",
+      "short_sha": "dd4d2b697bb",
+      "date": "2026-03-17T06:51:06+00:00",
+      "author": {
+        "name": "auto-revert-app[bot]",
+        "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
+      },
+      "summary": "Revert \"SERVER-117635 Improve plan cache insertion by resuming MP stage when CBR plan is chosen (#49122)\" (#49748)"
+    },
     {
       "sha": "eb4c6148f6a25c444be39a0e330506834526d935",
       "short_sha": "eb4c6148f6a",
@@ -3420,10 +3540,33 @@
           "num_of_dirs": 11
         }
       }
+    },
+    {
+      "commit": {
+        "sha": "2cbf35e39dbefad644ed8e5a29806ebb61dc97ee",
+        "short_sha": "2cbf35e39db",
+        "date": "2026-03-17T08:46:36-05:00",
+        "author": {
+          "name": "Daniel Moody",
+          "email": "dmoody256@gmail.com"
+        },
+        "summary": "Revert \"SERVER-117726 move compiledb generation into the bazel graph\" (#49754)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 23,
+          "num_of_lines": 2567,
+          "lines_added": 304,
+          "lines_deleted": 2263,
+          "num_of_dirs": 11
+        }
+      }
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-03-17 07:51:31",
+  "generated_at": "2026-03-17 14:54:00",
   "branch_name": "master",
   "display_name": "master"
 }
