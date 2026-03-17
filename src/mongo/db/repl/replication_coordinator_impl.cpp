@@ -1764,8 +1764,10 @@ bool ReplicationCoordinatorImpl::_setMyLastAppliedOpTimeAndWallTimeForward(
         // timestamp. So, in pv1, its not possible for us to get opTime with lower term and
         // timestamp higher than or equal to our current lastAppliedOptime.
         invariant(opTime.getTerm() == OpTime::kUninitializedTerm ||
-                  myLastAppliedOpTime.getTerm() == OpTime::kUninitializedTerm ||
-                  opTime.getTimestamp() < myLastAppliedOpTime.getTimestamp());
+                      myLastAppliedOpTime.getTerm() == OpTime::kUninitializedTerm ||
+                      opTime.getTimestamp() < myLastAppliedOpTime.getTimestamp(),
+                  str::stream() << "opTime: " << opTime.toString()
+                                << ", myLastAppliedOpTime:" << myLastAppliedOpTime.toString());
     }
 
     if (_readWriteAbility->canAcceptNonLocalWrites(lk) &&
@@ -3364,7 +3366,10 @@ bool ReplicationCoordinatorImpl::isWritablePrimaryForReportingPurposes() {
 bool ReplicationCoordinatorImpl::canAcceptWritesForDatabase(OperationContext* opCtx,
                                                             const DatabaseName& dbName) {
     // The answer isn't meaningful unless we hold the ReplicationStateTransitionLock.
-    invariant(opCtx->isLockFreeReadsOp() || shard_role_details::getLocker(opCtx)->isRSTLLocked());
+    invariant(opCtx->isLockFreeReadsOp() || shard_role_details::getLocker(opCtx)->isRSTLLocked(),
+              str::stream() << "isLockFreeRead: " << opCtx->isLockFreeReadsOp()
+                            << ", isRSTLLocked: "
+                            << shard_role_details::getLocker(opCtx)->isRSTLLocked());
     return canAcceptWritesForDatabase_UNSAFE(opCtx, dbName);
 }
 
@@ -3472,7 +3477,10 @@ bool ReplicationCoordinatorImpl::_isCollectionReplicated(OperationContext* opCtx
 Status ReplicationCoordinatorImpl::checkCanServeReadsFor(OperationContext* opCtx,
                                                          const NamespaceString& ns,
                                                          bool secondaryOk) {
-    invariant(opCtx->isLockFreeReadsOp() || shard_role_details::getLocker(opCtx)->isRSTLLocked());
+    invariant(opCtx->isLockFreeReadsOp() || shard_role_details::getLocker(opCtx)->isRSTLLocked(),
+              str::stream() << "isLockFreeRead: " << opCtx->isLockFreeReadsOp()
+                            << ", isRSTLLocked: "
+                            << shard_role_details::getLocker(opCtx)->isRSTLLocked());
     return checkCanServeReadsFor_UNSAFE(opCtx, ns, secondaryOk);
 }
 
@@ -4068,7 +4076,9 @@ Status ReplicationCoordinatorImpl::_doReplSetReconfig(OperationContext* opCtx,
         // reconfig, we should never have a config in an older term. If the current config was
         // installed via a force reconfig, we aren't concerned about this safety guarantee.
         invariant(_rsConfig.unsafePeek().getConfigTerm() == OpTime::kUninitializedTerm ||
-                  _rsConfig.unsafePeek().getConfigTerm() == topCoordTerm);
+                      _rsConfig.unsafePeek().getConfigTerm() == topCoordTerm,
+                  str::stream() << "config term: " << _rsConfig.unsafePeek().getConfigTerm()
+                                << ", topology coordinator term: " << topCoordTerm);
     }
 
     auto configWriteConcern = _getConfigReplicationWriteConcern();
@@ -6650,7 +6660,10 @@ bool ReplicationCoordinatorImpl::ReadWriteAbility::canServeNonLocalReads(
     OperationContext* opCtx) const {
     // We must be holding the RSTL.
     invariant(opCtx);
-    invariant(opCtx->isLockFreeReadsOp() || shard_role_details::getLocker(opCtx)->isRSTLLocked());
+    invariant(opCtx->isLockFreeReadsOp() || shard_role_details::getLocker(opCtx)->isRSTLLocked(),
+              str::stream() << "isLockFreeRead: " << opCtx->isLockFreeReadsOp()
+                            << ", isRSTLLocked: "
+                            << shard_role_details::getLocker(opCtx)->isRSTLLocked());
     return _canServeNonLocalReads.loadRelaxed();
 }
 
