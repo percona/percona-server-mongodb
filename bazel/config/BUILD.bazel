@@ -2835,6 +2835,22 @@ config_setting(
     },
 )
 
+selects.config_setting_group(
+    name = "sasl_client_selected",
+    match_any = [
+        "use_sasl_client_enabled",
+        "enterprise_feature_sasl_enabled",
+    ],
+)
+
+selects.config_setting_group(
+    name = "use_sasl_client_required_settings",
+    match_all = [
+        "ssl_enabled",
+        "sasl_client_selected",
+    ],
+)
+
 # --------------------------------------
 # link_timeout
 # --------------------------------------
