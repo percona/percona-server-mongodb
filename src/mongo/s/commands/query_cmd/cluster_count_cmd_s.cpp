@@ -45,13 +45,15 @@ namespace {
  * Implements the cluster count command on mongos.
  */
 struct ClusterCountCmdS {
-    static constexpr StringData kName = "count"_sd;
+    using Request = CountCommandRequest;
+    using Reply = CountCommandRequest::Reply;
+    static constexpr StringData kCommandName = Request::kCommandName;
 
     static const std::set<std::string>& getApiVersions() {
         return kApiVersions1;
     }
 
-    static Status checkAuthForOperation(OperationContext*, const DatabaseName&, const BSONObj&) {
+    static Status checkAuthForOperation(OperationContext*, const DatabaseName&, const Request&) {
         // No additional required privileges on a mongos.
         return Status::OK();
     }

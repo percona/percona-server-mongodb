@@ -64,14 +64,13 @@ protected:
         registry->addObserver(
             std::make_unique<OpObserverImpl>(std::make_unique<OperationLoggerImpl>()));
 
-        ASSERT_OK(createFastcountCollection(_opCtx));
-
         _fastCountManager = &ReplicatedFastCountManager::get(_opCtx->getServiceContext());
         // Allow for control over when we write to our internal collection for testing. We only
         // write to the internal collection when we explicitly call
         // ReplicatedFastCountManager::flushSync_ForTest().
         _fastCountManager->disablePeriodicWrites_ForTest();
-        _fastCountManager->startup(_opCtx);
+
+        setUpReplicatedFastCount(_opCtx);
 
         ASSERT_OK(createCollection(_opCtx, _nss1.dbName(), BSON("create" << _nss1.coll())));
         ASSERT_OK(createCollection(_opCtx, _nss2.dbName(), BSON("create" << _nss2.coll())));
@@ -854,6 +853,75 @@ TEST_F(ReplicatedFastCountTest, CappedDeletesUpdateFastCountWhenHittingCapSize) 
             _fastCountManager,
             cappedCollMaxCount,
             cappedCollMaxCount * sampleDocForInsert.objsize());
+    }
+}
+
+TEST_F(ReplicatedFastCountTest, ReplicatedFastCountDoesNotTrackLocalCollections) {
+    const NamespaceString internalNss =
+        NamespaceString::createNamespaceString_forTest("local.coll");
+    ASSERT_OK(createCollection(_opCtx, internalNss.dbName(), BSON("create" << internalNss.coll())));
+
+    AutoGetCollection internalColl(_opCtx, internalNss, LockMode::MODE_IX);
+    const UUID internalUuid = internalColl->uuid();
+    const long long docsToInsertCount = 10;
+
+    long long expectedSize = 0;
+    WriteUnitOfWork wuow(_opCtx, WriteUnitOfWork::kGroupForPossiblyRetryableOperations);
+    for (size_t i = 0; i < docsToInsertCount; ++i) {
+        const BSONObj document = docGeneratorForInsert(i);
+        ASSERT_OK(Helpers::insert(_opCtx, *internalColl, document));
+        expectedSize += document.objsize();
+    }
+
+    replicated_fast_count_test_helpers::checkCommittedFastCountChanges(
+        internalUuid, _fastCountManager, 0, 0);
+    replicated_fast_count_test_helpers::checkUncommittedFastCountChanges(
+        _opCtx, internalUuid, 0, 0);
+
+    wuow.commit();
+
+    // Replicated fast count collection has no record of the writes to `internalColl`.
+    replicated_fast_count_test_helpers::checkCommittedFastCountChanges(
+        internalUuid, _fastCountManager, 0, 0);
+    replicated_fast_count_test_helpers::checkUncommittedFastCountChanges(
+        _opCtx, internalUuid, 0, 0);
+
+    // Size and count data for `internalColl` are still tracked through the record store.
+    EXPECT_EQ(internalColl->numRecords(_opCtx), docsToInsertCount);
+    EXPECT_EQ(internalColl->dataSize(_opCtx), expectedSize);
+}
+
+TEST_F(ReplicatedFastCountTest, ReplicatedFastCountTracksNonLocalInternalCollections) {
+    for (const auto& internalDbName : {"config", "admin"}) {
+        const NamespaceString internalNss =
+            NamespaceString::createNamespaceString_forTest(internalDbName, "coll");
+        ASSERT_OK(
+            createCollection(_opCtx, internalNss.dbName(), BSON("create" << internalNss.coll())));
+
+        AutoGetCollection internalColl(_opCtx, internalNss, LockMode::MODE_IX);
+        const UUID internalUuid = internalColl->uuid();
+        const long long docsToInsertCount = 10;
+
+        long long expectedSize = 0;
+        WriteUnitOfWork wuow(_opCtx, WriteUnitOfWork::kGroupForPossiblyRetryableOperations);
+        for (size_t i = 0; i < docsToInsertCount; ++i) {
+            const BSONObj document = docGeneratorForInsert(i);
+            ASSERT_OK(Helpers::insert(_opCtx, *internalColl, document));
+            expectedSize += document.objsize();
+        }
+
+        replicated_fast_count_test_helpers::checkCommittedFastCountChanges(
+            internalUuid, _fastCountManager, 0, 0);
+        replicated_fast_count_test_helpers::checkUncommittedFastCountChanges(
+            _opCtx, internalUuid, docsToInsertCount, expectedSize);
+
+        wuow.commit();
+
+        // Replicated fast count collection has record of the writes to `internalColl`.
+        replicated_fast_count_test_helpers::checkCommittedFastCountChanges(
+            internalUuid, _fastCountManager, docsToInsertCount, expectedSize);
+        replicated_fast_count_test_helpers::checkUncommittedFastCountChanges(
+            _opCtx, internalUuid, 0, 0);
     }
 }
 
