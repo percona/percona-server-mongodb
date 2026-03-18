@@ -1,21 +1,11 @@
-// Prepare for start with auth enabled
-// - create 'root' user
+// Utility to create 'root' user on a mongod instance.
+// Used by tests that need a local admin user (e.g., for setParameter).
 
-function setupRun()
-{
-    'use strict'
-
-    var conn = MongoRunner.runMongod();
+export function createAdminUser(conn) {
     var db = conn.getDB("admin");
-
-    // create administrator
     db.createUser({
         user: 'admin',
         pwd: 'password',
         roles: [ 'root' ]
     });
-
-    MongoRunner.stopMongod(conn);
 }
-
-setupRun()
