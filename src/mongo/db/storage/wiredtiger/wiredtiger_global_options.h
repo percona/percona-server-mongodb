@@ -46,6 +46,7 @@ public:
     WiredTigerGlobalOptions()
         : cacheSizeGB(0),
           checkpointSizeMB(0),
+          cacheSizePct(0),
           statisticsLogDelaySecs(0),
           zstdCompressorLevel(0),
           directoryForIndexes(false),
@@ -57,6 +58,7 @@ public:
 
     double cacheSizeGB;
     size_t checkpointSizeMB;
+    double cacheSizePct;
     size_t statisticsLogDelaySecs;
     std::string journalCompressor;
     int zstdCompressorLevel;

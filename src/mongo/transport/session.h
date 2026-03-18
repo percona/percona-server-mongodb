@@ -114,11 +114,11 @@ public:
      */
     virtual void end() = 0;
 
-    virtual void setRestrictedMode(bool mode) {
+    void setRestrictedMode(bool mode) {
         _restrictedMode = mode;
     }
 
-    virtual bool getRestrictedMode() const {
+    bool getRestrictedMode() const {
         return _restrictedMode;
     }
 

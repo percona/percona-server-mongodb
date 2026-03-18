@@ -1230,12 +1230,21 @@ ReshardingCoordinatorExternalStateImpl::calculateParticipantShardsAndChunks(
                                        ChunkRange{reshardedChunk.getMin(), reshardedChunk.getMax()},
                                        version,
                                        reshardedChunk.getRecipientShardId());
+
+            auto& newChunk = initialChunks.back();
+            newChunk.setOnCurrentShardSince(version.getTimestamp());
+            newChunk.setHistory({ChunkHistory(*newChunk.getOnCurrentShardSince(),
+                                              reshardedChunk.getRecipientShardId())});
             version.incMinor();
         }
     } else {
         int numInitialChunks = coordinatorDoc.getNumInitialChunks()
             ? *coordinatorDoc.getNumInitialChunks()
             : kReshardingNumInitialChunksDefault;
+
+        int numSamplesPerChunk = coordinatorDoc.getNumSamplesPerChunk()
+            ? *coordinatorDoc.getNumSamplesPerChunk()
+            : SamplingBasedSplitPolicy::kDefaultSamplesPerChunk;
 
         ShardKeyPattern shardKey(coordinatorDoc.getReshardingKey());
         const auto tempNs = coordinatorDoc.getTempReshardingNss();
@@ -1285,17 +1294,18 @@ ReshardingCoordinatorExternalStateImpl::calculateParticipantShardsAndChunks(
                                                                       shardKey,
                                                                       numInitialChunks,
                                                                       std::move(parsedZones),
-                                                                      availableShardIds);
+                                                                      availableShardIds,
+                                                                      numSamplesPerChunk);
                 splitResult = initialSplitter.createFirstChunks(opCtx, shardKey, splitParams);
             }
         } else {
-            auto initialSplitter =
-                SamplingBasedSplitPolicy::make(opCtx,
-                                               coordinatorDoc.getSourceNss(),
-                                               shardKey,
-                                               numInitialChunks,
-                                               std::move(parsedZones),
-                                               boost::none /*availableShardIds*/);
+            auto initialSplitter = SamplingBasedSplitPolicy::make(opCtx,
+                                                                  coordinatorDoc.getSourceNss(),
+                                                                  shardKey,
+                                                                  numInitialChunks,
+                                                                  std::move(parsedZones),
+                                                                  boost::none /*availableShardIds*/,
+                                                                  numSamplesPerChunk);
             // Note: The resharding initial split policy doesn't care about what is the real
             // primary shard, so just pass in a random shard.
             const SplitPolicyParams splitParams{coordinatorDoc.getReshardingUUID(),

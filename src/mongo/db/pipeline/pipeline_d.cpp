@@ -756,34 +756,33 @@ namespace {
  * DISTINCT_SCAN plan that visits the first document in each group (SERVER-9507). If found, return
  * the stage that would replace them in the pipeline on top of DISTINCT_SCAN.
  *
- * Returns a pair of:
- * - first: the optional sort pattern of $group's $top and/or $bottom's common sort pattern.
- * - second: the stage that would replace $group in the pipeline on top of DISTINCT_SCAN.
+ * Returns RewriteOnFirstDocumentResult.
  */
-std::pair<boost::optional<SortPattern>, std::unique_ptr<GroupFromFirstDocumentTransformation>>
-tryDistinctGroupRewrite(const Pipeline::SourceContainer& sources) {
+RewriteOnFirstDocumentResult tryDistinctGroupRewrite(const Pipeline::SourceContainer& sources) {
     auto sourcesIt = sources.begin();
+    boost::optional<SortPattern> sortStagePattern{};
     if (sourcesIt != sources.end()) {
         auto sortStage = dynamic_cast<DocumentSourceSort*>(sourcesIt->get());
         if (sortStage) {
             if (!sortStage->hasLimit()) {
+                sortStagePattern = sortStage->getSortKeyPattern();
                 ++sourcesIt;
             } else {
                 // This $sort stage was previously followed by a $limit stage which disqualifies it
                 // from DISTINCT_SCAN.
-                return {boost::none, nullptr};
+                return {};
             }
         }
     }
 
     if (sourcesIt == sources.end()) {
-        return {boost::none, nullptr};
+        return {};
     }
 
     if (auto groupStage = dynamic_cast<DocumentSourceGroupBase*>(sourcesIt->get()); groupStage) {
-        return groupStage->rewriteGroupAsTransformOnFirstDocument();
+        return groupStage->rewriteGroupAsTransformOnFirstDocument(std::move(sortStagePattern));
     } else {
-        return {boost::none, nullptr};
+        return {};
     }
 }
 
@@ -1115,7 +1114,9 @@ tryPrepareDistinctExecutor(const intrusive_ptr<ExpressionContext>& expCtx,
                            bool timeseriesBoundedSortOptimization) {
     // We want to do this before createCanonicalQuery() which does the last-minute optimization to
     // 'pipeline' and hence modifies it.
-    auto [sortPattern, rewrittenGroupStage] = tryDistinctGroupRewrite(pipeline->getSources());
+    auto rewriteResult = tryDistinctGroupRewrite(pipeline->getSources());
+    auto sortPattern = std::move(rewriteResult.sortPattern);
+    auto rewrittenGroupStage = std::move(rewriteResult.rewrittenGroupStage);
 
     auto swCq =
         createCanonicalQuery(expCtx,
@@ -1152,13 +1153,19 @@ tryPrepareDistinctExecutor(const intrusive_ptr<ExpressionContext>& expCtx,
 
     CanonicalDistinct canonicalDistinct(std::move(swCq.getValue()), rewrittenGroupStage->groupId());
 
-    // If the GroupFromFirst transformation was generated for the $last or $bottom case, we will
-    // need to flip the direction of any generated DISTINCT_SCAN to preserve the semantics of
-    // the query.
+    // If the GroupFromFirst transformation was generated for the $last or $bottom case in case of
+    // the same sort directions in the stages or $first and $top in case of the opposite sort
+    // directions, we will need to flip the direction of any generated DISTINCT_SCAN to preserve the
+    // semantics of the query.
     const bool flipDistinctScanDirection = [&, groupStage = rewrittenGroupStage.get()] {
         const auto docsNeeded = groupStage->docsNeeded();
-        return docsNeeded == AccumulatorDocumentsNeeded::kLastInputDocument ||
-            docsNeeded == AccumulatorDocumentsNeeded::kLastOutputDocument;
+        if (rewriteResult.sortDirectionChangeIsRequired) {
+            return (docsNeeded == AccumulatorDocumentsNeeded::kFirstInputDocument ||
+                    docsNeeded == AccumulatorDocumentsNeeded::kFirstOutputDocument);
+        } else {
+            return (docsNeeded == AccumulatorDocumentsNeeded::kLastInputDocument ||
+                    docsNeeded == AccumulatorDocumentsNeeded::kLastOutputDocument);
+        }
     }();
 
     // We have to request a "strict" distinct plan because:
@@ -1166,6 +1173,9 @@ tryPrepareDistinctExecutor(const intrusive_ptr<ExpressionContext>& expCtx,
     // 2) Non-strict parameter would allow use of multikey indexes for DISTINCT_SCAN, which
     //    means that for {a: [1, 2]} two distinct values would be returned, but for group keys
     //    arrays shouldn't be traversed.
+    // 3) Non-strict parameter would allow use of sparse indexes for DISTINCT_SCAN, which means that
+    //    for document {b: 5} no values would be returned, but for group keys we want to treat
+    //    missing fields as null.
     StatusWith<std::unique_ptr<PlanExecutor, PlanExecutor::Deleter>> swExecutorGrouped =
         tryGetExecutorDistinct(collections,
                                plannerOpts | QueryPlannerParams::STRICT_DISTINCT_ONLY,
@@ -1491,7 +1501,8 @@ bool PipelineD::sortAndKeyPatternPartAgreeAndOnMeta(
     const timeseries::BucketUnpacker& bucketUnpacker,
     StringData keyPatternFieldName,
     const FieldPath& sortFieldPath) {
-    FieldPath keyPatternFieldPath = FieldPath(keyPatternFieldName);
+    FieldPath keyPatternFieldPath = FieldPath(
+        keyPatternFieldName, false /* precomputeHashes */, false /* validateFieldNames */);
 
     // If they don't have the same path length they cannot agree.
     if (keyPatternFieldPath.getPathLength() != sortFieldPath.getPathLength())

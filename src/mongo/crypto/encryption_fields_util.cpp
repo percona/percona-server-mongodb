@@ -53,17 +53,36 @@ boost::optional<EncryptedFieldMatchResult> findMatchingEncryptedField(
     return {{*itr, key.numParts() <= itr->numParts()}};
 }
 
-Status checkForVersion70IncompatibleFields(const FLECompactionOptions& newVal,
-                                           const boost::optional<TenantId>& tenantId) {
-    if (!gFeatureFlagQERangeV2.isEnabledUseLastLTSFCVWhenUninitialized(
-            serverGlobalParams.featureCompatibility.acquireFCVSnapshot())) {
-        if (newVal.getCompactAnchorPaddingFactor().has_value()) {
-            return Status{ErrorCodes::BadValue,
-                          "Cannot set fleCompactionOptions.compactAnchorPaddingFactor unless "
-                          "Queryable Encryption range version 2 is enabled"};
+bool visitQueryTypeConfigs(const EncryptedField& field,
+                           const QueryTypeConfigVisitor& visitOne,
+                           const UnindexedEncryptedFieldVisitor& onEmptyField) {
+    if (!field.getQueries()) {
+        if (onEmptyField) {
+            return onEmptyField(field);
+        }
+        return false;
+    }
+
+    return visit(OverloadedVisitor{[&](QueryTypeConfig query) { return visitOne(field, query); },
+                                   [&](std::vector<QueryTypeConfig> queries) {
+                                       return std::any_of(queries.cbegin(),
+                                                          queries.cend(),
+                                                          [&](const QueryTypeConfig& qtc) {
+                                                              return visitOne(field, qtc);
+                                                          });
+                                   }},
+                 field.getQueries().get());
+}
+
+bool visitQueryTypeConfigs(const EncryptedFieldConfig& efc,
+                           const QueryTypeConfigVisitor& visitOne,
+                           const UnindexedEncryptedFieldVisitor& onEmptyField) {
+    for (const auto& field : efc.getFields()) {
+        if (visitQueryTypeConfigs(field, visitOne, onEmptyField)) {
+            return true;
         }
     }
-    return Status::OK();
+    return false;
 }
 
 }  // namespace mongo

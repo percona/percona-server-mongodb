@@ -37,7 +37,6 @@ for (let recursiveObjectDepth = 10; recursiveObjectDepth < 150; recursiveObjectD
         assert.commandWorked(bulk.execute());
         try {
             coll.aggregate(pipeline);
-            jsTestLog("Pipeline succeeded");
             seenSuccess = true;
             assert(!seenOverflow);
         } catch (error) {

@@ -410,10 +410,6 @@ void WiredTigerRecordStore::OplogTruncateMarkers::getOplogTruncateMarkersStats(
     }
 
     builder.appendNumber("truncateMarkersCount", static_cast<long long>(numMarkers()));
-
-    if (auto oplogMinRetentionHours = storageGlobalParams.oplogMinRetentionHours.load()) {
-        builder.append("oplogMinRetentionHours", oplogMinRetentionHours);
-    }
 }
 
 bool WiredTigerRecordStore::OplogTruncateMarkers::awaitHasExcessMarkersOrDead(
@@ -864,6 +860,11 @@ void WiredTigerRecordStore::getOplogTruncateStats(BSONObjBuilder& builder) const
     if (_oplogTruncateMarkers) {
         _oplogTruncateMarkers->getOplogTruncateMarkersStats(builder);
     }
+
+    if (auto oplogMinRetentionHours = storageGlobalParams.oplogMinRetentionHours.load()) {
+        builder.append("oplogMinRetentionHours", oplogMinRetentionHours);
+    }
+
     builder.append("totalTimeTruncatingMicros", _totalTimeTruncating.load());
     builder.append("truncateCount", _truncateCount.load());
 }
@@ -2174,8 +2175,9 @@ Status WiredTigerRecordStore::updateOplogSize(OperationContext* opCtx, long long
     _oplogMaxSize.store(newOplogSize);
 
     std::shared_lock lk(_oplogTruncateMarkersMutex);  // NOLINT
-    invariant(_oplogTruncateMarkers);
-    _oplogTruncateMarkers->adjust(opCtx, newOplogSize);
+    if (_oplogTruncateMarkers) {
+        _oplogTruncateMarkers->adjust(opCtx, newOplogSize);
+    }
     return Status::OK();
 }
 

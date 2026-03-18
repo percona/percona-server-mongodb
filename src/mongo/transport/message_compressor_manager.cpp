@@ -38,7 +38,6 @@
 
 #include "mongo/base/data_range.h"
 #include "mongo/base/data_range_cursor.h"
-#include "mongo/base/data_type_endian.h"
 #include "mongo/base/error_codes.h"
 #include "mongo/bson/bsonelement.h"
 #include "mongo/bson/bsonobj.h"
@@ -47,6 +46,7 @@
 #include "mongo/logv2/log_attr.h"
 #include "mongo/logv2/log_component.h"
 #include "mongo/rpc/message.h"
+#include "mongo/rpc/op_compressed.h"
 #include "mongo/transport/message_compressor_manager.h"
 #include "mongo/transport/message_compressor_registry.h"
 #include "mongo/transport/session.h"
@@ -59,7 +59,6 @@
 
 namespace mongo {
 namespace {
-
 const transport::Session::Decoration<MessageCompressorManager> getForSession =
     transport::Session::declareDecoration<MessageCompressorManager>();
 }  // namespace

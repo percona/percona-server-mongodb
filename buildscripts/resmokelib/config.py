@@ -86,6 +86,7 @@ DEFAULTS = {
     "mongot-localdev/mongot_executable": None,
     "mongot_set_parameters": [],
     "mongocryptd_set_parameters": [],
+    "mongo_set_parameters": [],
     "mrlog": None,
     "no_journal": False,
     "num_clients_per_fixture": 1,
@@ -114,6 +115,7 @@ DEFAULTS = {
     "shell_seed": None,
     "storage_engine": "wiredTiger",
     "storage_engine_cache_size_gb": None,
+    "storage_engine_cache_size_pct": None,
     "suite_files": "with_server",
     "tag_files": [],
     "test_files": [],
@@ -126,15 +128,12 @@ DEFAULTS = {
     "export_mongod_config": "off",
     "tls_mode": None,
     "tls_ca_file": None,
-    "shell_grpc": False,
     "shell_tls_enabled": False,
     "shell_tls_certificate_key_file": None,
     "mongos_tls_certificate_key_file": None,
     "mongod_tls_certificate_key_file": None,
-
     # Internal testing options.
     "internal_params": [],
-
     # Evergreen options.
     "evergreen_url": "evergreen.mongodb.com",
     "build_id": None,
@@ -151,65 +150,55 @@ DEFAULTS = {
     "version_id": None,
     "work_dir": None,
     "evg_project_config_path": "etc/evergreen.yml",
-
     # WiredTiger options.
     "wt_coll_config": None,
     "wt_engine_config": None,
     "wt_index_config": None,
-
     # Benchmark options.
     "benchmark_filter": None,
     "benchmark_list_tests": None,
     "benchmark_min_time_secs": None,
     "benchmark_repetitions": None,
-
     # Config Dir
     "config_dir": "buildscripts/resmokeconfig",
-
     # Directory with jstests
     "jstests_dir": "jstests",
-
     # UndoDB options
     "undo_recorder_path": None,
-
     # Generate multiversion exclude tags options
     "exclude_tags_file_path": "generated_resmoke_config/multiversion_exclude_tags.yml",
-
     # Limit the number of tests to execute
     "max_test_queue_size": None,
-
     # Sanity check
     "sanity_check": False,
-
     # otel info
     "otel_trace_id": None,
     "otel_parent_id": None,
     "otel_collector_dir": None,
-
     # The images to build for an External System Under Test
     "docker_compose_build_images": None,
-
     # Where the `--dockerComposeBuildImages` is happening.
     "docker_compose_build_env": "local",
-
     # Tag to use for images built & used for an External System Under Test
     "docker_compose_tag": "development",
-
     # Whether or not this resmoke suite is running against an External System Under Test
     "external_sut": False,
 }
 
-_SuiteOptions = collections.namedtuple("_SuiteOptions", [
-    "description",
-    "fail_fast",
-    "include_tags",
-    "num_jobs",
-    "num_repeat_suites",
-    "num_repeat_tests",
-    "num_repeat_tests_max",
-    "num_repeat_tests_min",
-    "time_repeat_tests_secs",
-])
+_SuiteOptions = collections.namedtuple(
+    "_SuiteOptions",
+    [
+        "description",
+        "fail_fast",
+        "include_tags",
+        "num_jobs",
+        "num_repeat_suites",
+        "num_repeat_tests",
+        "num_repeat_tests_max",
+        "num_repeat_tests_min",
+        "time_repeat_tests_secs",
+    ],
+)
 
 
 class SuiteOptions(_SuiteOptions):
@@ -246,7 +235,9 @@ class SuiteOptions(_SuiteOptions):
 
                 combined_value = combined_options[field]
                 if combined_value is not cls.INHERIT and combined_value != value:
-                    raise ValueError("Attempted to set '{}' option multiple times".format(field))
+                    raise ValueError(
+                        "Attempted to set '{}' option multiple times".format(field)
+                    )
                 combined_options[field] = value
 
         if include_tags_list:
@@ -265,17 +256,22 @@ class SuiteOptions(_SuiteOptions):
         include_tags = None
         parent = dict(
             list(
-                zip(SuiteOptions._fields, [
-                    description,
-                    FAIL_FAST,
-                    include_tags,
-                    JOBS,
-                    REPEAT_SUITES,
-                    REPEAT_TESTS,
-                    REPEAT_TESTS_MAX,
-                    REPEAT_TESTS_MIN,
-                    REPEAT_TESTS_SECS,
-                ])))
+                zip(
+                    SuiteOptions._fields,
+                    [
+                        description,
+                        FAIL_FAST,
+                        include_tags,
+                        JOBS,
+                        REPEAT_SUITES,
+                        REPEAT_TESTS,
+                        REPEAT_TESTS_MAX,
+                        REPEAT_TESTS_MIN,
+                        REPEAT_TESTS_SECS,
+                    ],
+                )
+            )
+        )
 
         options = self._asdict()
         for field in SuiteOptions._fields:
@@ -286,7 +282,8 @@ class SuiteOptions(_SuiteOptions):
 
 
 SuiteOptions.ALL_INHERITED = SuiteOptions(  # type: ignore
-    **dict(list(zip(SuiteOptions._fields, itertools.repeat(SuiteOptions.INHERIT)))))
+    **dict(list(zip(SuiteOptions._fields, itertools.repeat(SuiteOptions.INHERIT))))
+)
 
 
 class MultiversionOptions(object):
@@ -479,6 +476,9 @@ MONGOT_SET_PARAMETERS = []
 # The --setParameter options passed to mongocryptd.
 MONGOCRYPTD_SET_PARAMETERS = []
 
+# The --setParameter options passed to mongo shell.
+MONGO_SET_PARAMETERS = []
+
 # If true, then all mongod's started by resmoke.py and by the mongo shell will not have journaling
 # enabled.
 NO_JOURNAL = None
@@ -545,8 +545,6 @@ MIXED_BIN_VERSIONS = None
 # Specifies the binary version of last-lts or last-continous when multiversion enabled
 MULTIVERSION_BIN_VERSION = None
 
-# Specifies whether to use gRPC when connecting via the shell by default.
-SHELL_GRPC = None
 
 # Specifies what tlsMode the server(s) should be started with.
 TLS_MODE = None
@@ -593,6 +591,10 @@ STORAGE_ENGINE = None
 # If set, then all mongod's started by resmoke.py and by the mongo shell will use the specified
 # storage engine cache size.
 STORAGE_ENGINE_CACHE_SIZE = None
+
+# If set, then all mongod's started by resmoke.py and by the mongo shell will use the specified
+# storage engine cache size.
+STORAGE_ENGINE_CACHE_SIZE_PCT = None
 
 # Yaml suites that specify how tests should be executed.
 SUITE_FILES = None
@@ -656,14 +658,31 @@ BENCHMARK_OUT_FORMAT = "json"
 ORDER_TESTS_BY_NAME = True
 
 # Default file names for externally generated lists of tests created during the build.
-DEFAULT_BENCHMARK_TEST_LIST = "bazel-bin/install/install-mongo_benchmark-stripped_test_list.txt"
+DEFAULT_BENCHMARK_TEST_LIST = (
+    "bazel-bin/install/install-mongo_benchmark-stripped_test_list.txt"
+)
 DEFAULT_UNIT_TEST_LIST = "bazel-bin/install/install-mongo_unittest_test_list.txt"
-DEFAULT_INTEGRATION_TEST_LIST = "bazel-bin/install/install-mongo_integration_test_test_list.txt"
-DEFAULT_LIBFUZZER_TEST_LIST = "bazel-bin/install/install-mongo_fuzzer_test_test_list.txt"
-DEFAULT_PRETTY_PRINTER_TEST_LIST = "bazel-bin/install/install-dist-test-stripped_test_list.txt"
+DEFAULT_INTEGRATION_TEST_LIST = (
+    "bazel-bin/install/install-mongo_integration_test_test_list.txt"
+)
+DEFAULT_LIBFUZZER_TEST_LIST = (
+    "bazel-bin/install/install-mongo_fuzzer_test_test_list.txt"
+)
+DEFAULT_PRETTY_PRINTER_TEST_LIST = (
+    "bazel-bin/install/install-dist-test-stripped_test_list.txt"
+)
 SPLIT_UNITTESTS_LISTS = [
     f"bazel-bin/install/install-mongo_unittest_{test_group}_group_test_list.txt"
-    for test_group in ["first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth"]
+    for test_group in [
+        "first",
+        "second",
+        "third",
+        "fourth",
+        "fifth",
+        "sixth",
+        "seventh",
+        "eighth",
+    ]
 ]
 BENCHMARK_SUITE_TEST_LISTS = [
     "bazel-bin/install/install-repl_bm_test_list.txt",
@@ -676,10 +695,16 @@ BENCHMARK_SUITE_TEST_LISTS = [
 ]
 # External files or executables, used as suite selectors, that are created during the build and
 # therefore might not be available when creating a test membership map.
-EXTERNAL_SUITE_SELECTORS = (DEFAULT_BENCHMARK_TEST_LIST, DEFAULT_UNIT_TEST_LIST,
-                            DEFAULT_INTEGRATION_TEST_LIST, DEFAULT_DBTEST_EXECUTABLE,
-                            DEFAULT_LIBFUZZER_TEST_LIST, DEFAULT_PRETTY_PRINTER_TEST_LIST,
-                            *SPLIT_UNITTESTS_LISTS, *BENCHMARK_SUITE_TEST_LISTS)
+EXTERNAL_SUITE_SELECTORS = (
+    DEFAULT_BENCHMARK_TEST_LIST,
+    DEFAULT_UNIT_TEST_LIST,
+    DEFAULT_INTEGRATION_TEST_LIST,
+    DEFAULT_DBTEST_EXECUTABLE,
+    DEFAULT_LIBFUZZER_TEST_LIST,
+    DEFAULT_PRETTY_PRINTER_TEST_LIST,
+    *SPLIT_UNITTESTS_LISTS,
+    *BENCHMARK_SUITE_TEST_LISTS,
+)
 
 # Where to look for logging and suite configuration files
 CONFIG_DIR = None
@@ -701,7 +726,7 @@ USE_LEGACY_MULTIVERSION = True
 # Expansions file location
 # in CI, the expansions file is located in the ${workdir}, one dir up
 # from src, the checkout directory
-EXPANSIONS_FILE = "../expansions.yml" if 'CI' in os.environ else "expansions.yml"
+EXPANSIONS_FILE = "../expansions.yml" if "CI" in os.environ else "expansions.yml"
 
 # Symbolizer secrets
 SYMBOLIZER_CLIENT_SECRET = None

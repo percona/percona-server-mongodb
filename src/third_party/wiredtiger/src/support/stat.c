@@ -135,6 +135,7 @@ static const char *const __stats_dsrc_desc[] = {
   "cache: number of times dirty trigger was reached",
   "cache: number of times eviction trigger was reached",
   "cache: number of times updates trigger was reached",
+  "cache: obsolete updates removed",
   "cache: overflow keys on a multiblock row-store page blocked its eviction",
   "cache: overflow pages read into cache",
   "cache: page split during eviction deepened the tree",
@@ -146,6 +147,7 @@ static const char *const __stats_dsrc_desc[] = {
   "cache: pages read into cache by checkpoint",
   "cache: pages requested from the cache",
   "cache: pages requested from the cache due to pre-fetch",
+  "cache: pages requested from the history store",
   "cache: pages seen by eviction walk",
   "cache: pages written from cache",
   "cache: pages written requiring in-memory restoration",
@@ -506,6 +508,7 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cache_eviction_trigger_dirty_reached = 0;
     stats->cache_eviction_trigger_reached = 0;
     stats->cache_eviction_trigger_updates_reached = 0;
+    stats->cache_obsolete_updates_removed = 0;
     stats->cache_eviction_blocked_overflow_keys = 0;
     stats->cache_read_overflow = 0;
     stats->cache_eviction_deepen = 0;
@@ -517,6 +520,7 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cache_read_checkpoint = 0;
     stats->cache_pages_requested = 0;
     stats->cache_pages_prefetch = 0;
+    stats->cache_pages_requested_hs = 0;
     stats->cache_eviction_pages_seen = 0;
     stats->cache_write = 0;
     stats->cache_write_restore = 0;
@@ -866,6 +870,7 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cache_eviction_trigger_dirty_reached += from->cache_eviction_trigger_dirty_reached;
     to->cache_eviction_trigger_reached += from->cache_eviction_trigger_reached;
     to->cache_eviction_trigger_updates_reached += from->cache_eviction_trigger_updates_reached;
+    to->cache_obsolete_updates_removed += from->cache_obsolete_updates_removed;
     to->cache_eviction_blocked_overflow_keys += from->cache_eviction_blocked_overflow_keys;
     to->cache_read_overflow += from->cache_read_overflow;
     to->cache_eviction_deepen += from->cache_eviction_deepen;
@@ -877,6 +882,7 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cache_read_checkpoint += from->cache_read_checkpoint;
     to->cache_pages_requested += from->cache_pages_requested;
     to->cache_pages_prefetch += from->cache_pages_prefetch;
+    to->cache_pages_requested_hs += from->cache_pages_requested_hs;
     to->cache_eviction_pages_seen += from->cache_eviction_pages_seen;
     to->cache_write += from->cache_write;
     to->cache_write_restore += from->cache_write_restore;
@@ -1238,6 +1244,7 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cache_eviction_trigger_reached += WT_STAT_READ(from, cache_eviction_trigger_reached);
     to->cache_eviction_trigger_updates_reached +=
       WT_STAT_READ(from, cache_eviction_trigger_updates_reached);
+    to->cache_obsolete_updates_removed += WT_STAT_READ(from, cache_obsolete_updates_removed);
     to->cache_eviction_blocked_overflow_keys +=
       WT_STAT_READ(from, cache_eviction_blocked_overflow_keys);
     to->cache_read_overflow += WT_STAT_READ(from, cache_read_overflow);
@@ -1250,6 +1257,7 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cache_read_checkpoint += WT_STAT_READ(from, cache_read_checkpoint);
     to->cache_pages_requested += WT_STAT_READ(from, cache_pages_requested);
     to->cache_pages_prefetch += WT_STAT_READ(from, cache_pages_prefetch);
+    to->cache_pages_requested_hs += WT_STAT_READ(from, cache_pages_requested_hs);
     to->cache_eviction_pages_seen += WT_STAT_READ(from, cache_eviction_pages_seen);
     to->cache_write += WT_STAT_READ(from, cache_write);
     to->cache_write_restore += WT_STAT_READ(from, cache_write_restore);
@@ -1532,6 +1540,8 @@ static const char *const __stats_connection_desc[] = {
   "block-manager: number of times the file was remapped because it changed size via fallocate or "
   "truncate",
   "block-manager: number of times the region was remapped via write",
+  "block-manager: time spent(usecs) on the most recent linear walk of extents during first-fit "
+  "allocation",
   "cache: application thread time evicting (usecs)",
   "cache: application threads eviction requested with cache fill ratio < 25%",
   "cache: application threads eviction requested with cache fill ratio >= 25% and < 50%",
@@ -1699,6 +1709,7 @@ static const char *const __stats_connection_desc[] = {
   "cache: number of times dirty trigger was reached",
   "cache: number of times eviction trigger was reached",
   "cache: number of times updates trigger was reached",
+  "cache: obsolete updates removed",
   "cache: operations timed out waiting for space in cache",
   "cache: overflow keys on a multiblock row-store page blocked its eviction",
   "cache: overflow pages read into cache",
@@ -1722,6 +1733,7 @@ static const char *const __stats_connection_desc[] = {
   "cache: pages removed from the ordinary queue to be queued for urgent eviction",
   "cache: pages requested from the cache",
   "cache: pages requested from the cache due to pre-fetch",
+  "cache: pages requested from the history store",
   "cache: pages seen by eviction walk",
   "cache: pages seen by eviction walk that are already queued",
   "cache: pages selected for eviction unable to be evicted",
@@ -2334,6 +2346,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->block_byte_map_read = 0;
     stats->block_remap_file_resize = 0;
     stats->block_remap_file_write = 0;
+    /* not clearing block_first_srch_walk_time */
     stats->cache_eviction_app_time = 0;
     stats->cache_eviction_app_threads_fill_ratio_lt_25 = 0;
     stats->cache_eviction_app_threads_fill_ratio_25_50 = 0;
@@ -2483,6 +2496,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_eviction_trigger_dirty_reached = 0;
     stats->cache_eviction_trigger_reached = 0;
     stats->cache_eviction_trigger_updates_reached = 0;
+    stats->cache_obsolete_updates_removed = 0;
     stats->cache_timed_out_ops = 0;
     stats->cache_eviction_blocked_overflow_keys = 0;
     stats->cache_read_overflow = 0;
@@ -2506,6 +2520,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_eviction_clear_ordinary = 0;
     stats->cache_pages_requested = 0;
     stats->cache_pages_prefetch = 0;
+    stats->cache_pages_requested_hs = 0;
     stats->cache_eviction_pages_seen = 0;
     stats->cache_eviction_pages_already_queued = 0;
     stats->cache_eviction_fail = 0;
@@ -3086,6 +3101,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->block_byte_map_read += WT_STAT_READ(from, block_byte_map_read);
     to->block_remap_file_resize += WT_STAT_READ(from, block_remap_file_resize);
     to->block_remap_file_write += WT_STAT_READ(from, block_remap_file_write);
+    to->block_first_srch_walk_time += WT_STAT_READ(from, block_first_srch_walk_time);
     to->cache_eviction_app_time += WT_STAT_READ(from, cache_eviction_app_time);
     to->cache_eviction_app_threads_fill_ratio_lt_25 +=
       WT_STAT_READ(from, cache_eviction_app_threads_fill_ratio_lt_25);
@@ -3290,6 +3306,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cache_eviction_trigger_reached += WT_STAT_READ(from, cache_eviction_trigger_reached);
     to->cache_eviction_trigger_updates_reached +=
       WT_STAT_READ(from, cache_eviction_trigger_updates_reached);
+    to->cache_obsolete_updates_removed += WT_STAT_READ(from, cache_obsolete_updates_removed);
     to->cache_timed_out_ops += WT_STAT_READ(from, cache_timed_out_ops);
     to->cache_eviction_blocked_overflow_keys +=
       WT_STAT_READ(from, cache_eviction_blocked_overflow_keys);
@@ -3319,6 +3336,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cache_eviction_clear_ordinary += WT_STAT_READ(from, cache_eviction_clear_ordinary);
     to->cache_pages_requested += WT_STAT_READ(from, cache_pages_requested);
     to->cache_pages_prefetch += WT_STAT_READ(from, cache_pages_prefetch);
+    to->cache_pages_requested_hs += WT_STAT_READ(from, cache_pages_requested_hs);
     to->cache_eviction_pages_seen += WT_STAT_READ(from, cache_eviction_pages_seen);
     to->cache_eviction_pages_already_queued +=
       WT_STAT_READ(from, cache_eviction_pages_already_queued);

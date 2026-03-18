@@ -1806,6 +1806,7 @@ void ExpressionBenchmarkFixture::benchmarkReduceConcatArrays(benchmark::State& s
         reduceExpression, state, std::vector<Document>(1, {{"entries"_sd, entries}}));
 }
 
+
 /**
  * Tests performance of $reduce that transforms an array into a deeply nested document.
  *

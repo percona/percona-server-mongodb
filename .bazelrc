@@ -84,8 +84,10 @@ common --strategy=CcGenerateDwp=local
 common --modify_execution_info=^(TestRunner|CppLink|CppArchive|SolibSymlink|ExtractDebuginfo|StripDebuginfo|CcGenerateIntermediateDwp|CcGenerateDwp)$=+no-remote-cache
 
 # Global clang tidy flags to avoid invalidating analysis cache between clang-tidy / regular runs
-common --@bazel_clang_tidy//:clang_tidy_excludes=".pb.cc,icu_init.cpp"
+common --@bazel_clang_tidy//:clang_tidy_excludes=".pb.cc,icu_init.cpp,parser_gen.cpp"
+common --@bazel_clang_tidy//:clang_tidy_additional_configs=//:clang_tidy_config_files
 common --@bazel_clang_tidy//:clang_tidy_config=//:clang_tidy_config_strict
+common --@bazel_clang_tidy//:clang_tidy_merge_tool=//bazel:merge_tidy_configs
 common --@bazel_clang_tidy//:clang_tidy_executable=//:clang_tidy
 common --@bazel_clang_tidy//:clang_tidy_additional_deps=//:toolchain_files
 common --@bazel_clang_tidy//:clang_tidy_plugin_deps=//src/mongo/tools/mongo_tidy_checks:mongo_tidy_checks
@@ -110,7 +112,6 @@ common --flag_alias=use_disable_ref_track=//bazel/config:use_disable_ref_track
 common --flag_alias=use_wiredtiger=//bazel/config:use_wiredtiger
 common --flag_alias=use_glibcxx_debug=//bazel/config:use_glibcxx_debug
 common --flag_alias=use_tracing_profiler=//bazel/config:use_tracing_profiler
-common --flag_alias=build_otel=//bazel/config:build_otel
 common --flag_alias=detect_odr_violations=//bazel/config:detect_odr_violations
 common --flag_alias=shared_archive=//bazel/config:shared_archive
 common --flag_alias=skip_archive=//bazel/config:skip_archive

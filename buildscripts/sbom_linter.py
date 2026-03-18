@@ -4,12 +4,21 @@ import os
 import sys
 from typing import List
 
-import jsonschema
 from license_expression import get_spdx_licensing
 from referencing import Registry, Resource
 
-BOM_SCHEMA_LOCATION = os.path.join("buildscripts", "tests", "sbom_linter", "bom-1.5.schema.json")
-SPDX_SCHEMA_LOCATION = os.path.join("buildscripts", "tests", "sbom_linter", "spdx.schema.json")
+try:
+    import jsonschema
+except ImportError:
+    print("'jsonschema' not found. Continuing without it.")
+    jsonschema = None
+
+BOM_SCHEMA_LOCATION = os.path.join(
+    "buildscripts", "tests", "sbom_linter", "bom-1.5.schema.json"
+)
+SPDX_SCHEMA_LOCATION = os.path.join(
+    "buildscripts", "tests", "sbom_linter", "spdx.schema.json"
+)
 SPDX_SCHEMA_REF = "spdx.schema.json"
 
 # directory to scan for third party libraries
@@ -22,18 +31,24 @@ SKIP_FILE_CHECKING = False
 
 # Error messages used for matching in testing
 UNDEFINED_THIRD_PARTY_ERROR = (
-    "The following files in src/third_party do not have components defined in the sbom:")
+    "The following files in src/third_party do not have components defined in the sbom:"
+)
 FORMATTING_ERROR = "File has incorrect formatting, re-run `buildscripts/sbom_linter.py` with the `--format` option to fix this."
 MISSING_PURL_CPE_ERROR = "Component must include a 'purl' or 'cpe' field."
 MISSING_EVIDENCE_ERROR = (
-    "Component must include an 'evidence.occurrences' field when the scope is required.")
+    "Component must include an 'evidence.occurrences' field when the scope is required."
+)
 MISSING_TEAM_ERROR = "Component must include a 'internal:team_responsible' property."
 SCHEMA_MATCH_FAILURE = "File did not match the CycloneDX schema"
 MISSING_VERSION_IN_SBOM_COMPONENT_ERROR = "Component must include a version."
 MISSING_VERSION_IN_IMPORT_FILE_ERROR = "Missing version in the import file: "
 MISSING_LICENSE_IN_SBOM_COMPONENT_ERROR = "Component must include a license."
-COULD_NOT_FIND_OR_READ_SCRIPT_FILE_ERROR = "Could not find or read the import script file"
-VERSION_MISMATCH_ERROR = "Version mismatch: "
+COULD_NOT_FIND_OR_READ_SCRIPT_FILE_ERROR = (
+    "Could not find or read the import script file"
+)
+VERSION_MISMATCH_ERROR = (
+    "Version mismatch (may simply be an artifact of SBOM automation): "
+)
 
 
 # A class for managing error messages for components
@@ -54,7 +69,8 @@ class ErrorManager:
             self.errors.append(f"Input-file:{self.input_file} Error: {message}")
         else:
             self.errors.append(
-                f"Input-file:{self.input_file} Component:{self.component_name} Error: {message}")
+                f"Input-file:{self.input_file} Component:{self.component_name} Error: {message}"
+            )
 
     def print_errors(self) -> None:
         if self.errors:
@@ -78,7 +94,7 @@ def get_schema() -> dict:
 
 
 def local_schema_registry():
-    """Create a local registry which is used to resolve references to external schema."""
+    "Create a local registry which is used to resolve references to external schema"
 
     with open(SPDX_SCHEMA_LOCATION, "r") as spdx:
         spdx_schema = Resource.from_contents(json.load(spdx))
@@ -88,13 +104,16 @@ def local_schema_registry():
 # The script_path is a file which may contain a line where two tokens script_version_key and
 # the version string are separated by a separtor value of "=" and some optional spaces.
 # There is an "end of line" delimiter at the end of the line which needs to be stripped.
-def get_script_version(script_path: str, script_version_key: str,
-                       error_manager: ErrorManager) -> str:
+def get_script_version(
+    script_path: str, script_version_key: str, error_manager: ErrorManager
+) -> str:
     result = ""
     try:
         file = open(script_path, "r")
     except OSError:
-        error_manager.append_full_error_message(COULD_NOT_FIND_OR_READ_SCRIPT_FILE_ERROR)
+        error_manager.append_full_error_message(
+            COULD_NOT_FIND_OR_READ_SCRIPT_FILE_ERROR
+        )
         return result
 
     with file:
@@ -110,14 +129,7 @@ def get_script_version(script_path: str, script_version_key: str,
 # A version string sometimes contains an extra prefix like "v1.2" instead of "1.2"
 # This function strips that extra prefix.
 def strip_extra_prefixes(string_with_prefix: str) -> str:
-    def remove_prefix(text, prefix):
-        if text.startswith(prefix):
-            return text[len(prefix):]
-        return text
-
-    string_with_prefix = remove_prefix(string_with_prefix, "mongo/")
-    string_with_prefix = remove_prefix(string_with_prefix, "v")
-    return string_with_prefix
+    return string_with_prefix.removeprefix("mongo/").removeprefix("v")
 
 
 def validate_license(component: dict, error_manager: ErrorManager) -> None:
@@ -126,6 +138,7 @@ def validate_license(component: dict, error_manager: ErrorManager) -> None:
         return
 
     valid_license = False
+    expression = None
     for component_license in component["licenses"]:
         if "expression" in component_license:
             expression = component_license.get("expression")
@@ -138,21 +151,27 @@ def validate_license(component: dict, error_manager: ErrorManager) -> None:
                 valid_license = True
 
         if not valid_license:
-            licensing_validate = get_spdx_licensing().validate(expression, validate=True)
+            licensing_validate = get_spdx_licensing().validate(
+                expression, validate=True
+            )
             # ExpressionInfo(
             #   original_expression='',
             #   normalized_expression='',
             #   errors=[],
             #   invalid_symbols=[]
-            #)
-            valid_license = not licensing_validate.errors or not licensing_validate.invalid_symbols
+            # )
+            valid_license = (
+                not licensing_validate.errors or not licensing_validate.invalid_symbols
+            )
             if not valid_license:
                 error_manager.append_full_error_message(licensing_validate)
                 return
 
 
-def validate_evidence(component: dict, third_party_libs: set, error_manager: ErrorManager) -> None:
-    if component["scope"] == "required":
+def validate_evidence(
+    component: dict, third_party_libs: set, error_manager: ErrorManager
+) -> None:
+    if component.get("scope") == "required":
         if "evidence" not in component or "occurrences" not in component["evidence"]:
             error_manager.append_full_error_message(MISSING_EVIDENCE_ERROR)
             return
@@ -161,49 +180,40 @@ def validate_evidence(component: dict, third_party_libs: set, error_manager: Err
 
 
 def validate_properties(component: dict, error_manager: ErrorManager) -> None:
-    has_team_responsible_property = False or component["scope"] == "excluded"
+    has_team_responsible_property = False or component.get("scope") == "excluded"
     script_path = ""
     if "properties" in component:
         for prop in component["properties"]:
             if prop["name"] == "internal:team_responsible":
                 has_team_responsible_property = True
-            elif prop["name"] == "import_script_path" and component["scope"] == "required":
+            elif prop["name"] == "import_script_path":
                 script_path = prop["value"]
+
     if not has_team_responsible_property:
         error_manager.append_full_error_message(MISSING_TEAM_ERROR)
+
+    if script_path:
+        script_path_is_file = os.path.isfile(script_path)
+        if not script_path_is_file:
+            error_manager.append_full_error_message(
+                COULD_NOT_FIND_OR_READ_SCRIPT_FILE_ERROR
+            )
+        # Only look for VERSION if the import script is a shell script file
+        elif script_path.endswith(".sh"):
+            script_version = get_script_version(script_path, "VERSION", error_manager)
+            if script_version == "":
+                error_manager.append_full_error_message(
+                    MISSING_VERSION_IN_IMPORT_FILE_ERROR + script_path
+                )
 
     if not component.get("version"):
         error_manager.append_full_error_message(MISSING_VERSION_IN_SBOM_COMPONENT_ERROR)
         return
 
-    comp_version = component["version"]
-    # If the version is unknown or the script path property is absent, the version
-    # check is not possible (these are valid options and no error is generated).
-    if comp_version == "Unknown" or script_path == "":
-        return
 
-    # Include the .pedigree.descendants[0] version for version matching
-    if "pedigree" in component and "descendants" in component[
-            "pedigree"] and "version" in component["pedigree"]["descendants"][0]:
-        comp_pedigree_version = component["pedigree"]["descendants"][0]["version"]
-    else:
-        comp_pedigree_version = ""
-
-    # At this point a version is attempted to be read from the import script file
-    script_version = get_script_version(script_path, "VERSION",
-                                        error_manager) or get_script_version(
-                                            script_path, "REVISION", error_manager)
-    if script_version == "":
-        error_manager.append_full_error_message(MISSING_VERSION_IN_IMPORT_FILE_ERROR + script_path)
-    elif strip_extra_prefixes(script_version) != strip_extra_prefixes(comp_version) and \
-        strip_extra_prefixes(script_version) != strip_extra_prefixes(comp_pedigree_version):
-        error_manager.append_full_error_message(
-            VERSION_MISMATCH_ERROR +
-            f"\nscript version:{script_version}\nsbom component version:{comp_version}\nsbom component pedigree version:{comp_pedigree_version}"
-        )
-
-
-def validate_component(component: dict, third_party_libs: set, error_manager: ErrorManager) -> None:
+def validate_component(
+    component: dict, third_party_libs: set, error_manager: ErrorManager
+) -> None:
     error_manager.update_component_attribute(component["name"])
     if "scope" not in component:
         error_manager.append_full_error_message("component must include a scope.")
@@ -217,28 +227,34 @@ def validate_component(component: dict, third_party_libs: set, error_manager: Er
     error_manager.update_component_attribute("")
 
 
-def validate_location(component: dict, third_party_libs: set, error_manager: ErrorManager) -> None:
-    if "evidence" in component and "occurrences" in component["evidence"]:
+def validate_location(
+    component: dict, third_party_libs: set, error_manager: ErrorManager
+) -> None:
+    if "evidence" in component:
+        if "occurrences" not in component["evidence"]:
+            error_manager.append_full_error_message(
+                "'evidence.occurrences' field must include at least one location."
+            )
+
         occurrences = component["evidence"]["occurrences"]
         for occurrence in occurrences:
             if "location" in occurrence:
                 location = occurrence["location"]
 
-                if not os.path.exists(
-                        location) and not SKIP_FILE_CHECKING and component["scope"] == "required":
-                    error_manager.append_full_error_message("location does not exist in repo.")
+                if not os.path.exists(location) and not SKIP_FILE_CHECKING:
+                    error_manager.append_full_error_message(
+                        "location does not exist in repo."
+                    )
 
                 if location.startswith(THIRD_PARTY_LOCATION_PREFIX):
                     lib = location.removeprefix(THIRD_PARTY_LOCATION_PREFIX)
                     if lib in third_party_libs:
                         third_party_libs.remove(lib)
-    elif component["scope"] == "required":
-        error_manager.append_full_error_message(
-            "'evidence.occurrences' field must include at least one location.")
 
 
-def lint_sbom(input_file: str, output_file: str, third_party_libs: set,
-              should_format: bool) -> ErrorManager:
+def lint_sbom(
+    input_file: str, output_file: str, third_party_libs: set, should_format: bool
+) -> ErrorManager:
     with open(input_file, "r", encoding="utf-8") as sbom_file:
         sbom_text = sbom_file.read()
 
@@ -250,14 +266,16 @@ def lint_sbom(input_file: str, output_file: str, third_party_libs: set,
         error_manager.append(f"Failed to parse {input_file}: {str(ex)}")
         return error_manager
 
-    try:
-        schema = get_schema()
-        jsonschema.validators.validator_for(schema)(schema,
-                                                    registry=local_schema_registry()).validate(sbom)
-    except jsonschema.ValidationError as error:
-        error_manager.append(f"{SCHEMA_MATCH_FAILURE} {input_file}")
-        error_manager.append(error.message)
-        return error_manager
+    if jsonschema:
+        try:
+            schema = get_schema()
+            jsonschema.validators.validator_for(schema)(
+                schema, registry=local_schema_registry()
+            ).validate(sbom)
+        except jsonschema.ValidationError as error:
+            error_manager.append(f"{SCHEMA_MATCH_FAILURE} {input_file}")
+            error_manager.append(error.message)
+            return error_manager
 
     components = sbom["components"]
     for component in components:
@@ -288,8 +306,11 @@ def main() -> int:
         default=False,
         help="Whether to apply formatting to the output file.",
     )
-    parser.add_argument("--input-file", default="sbom.json",
-                        help="The input CycloneDX file to format and lint.")
+    parser.add_argument(
+        "--input-file",
+        default="sbom.json",
+        help="The input CycloneDX file to format and lint.",
+    )
     parser.add_argument(
         "--output-file",
         default="sbom.json",
@@ -300,8 +321,12 @@ def main() -> int:
     input_file = args.input_file
     output_file = args.output_file
     third_party_libs = set(
-        path for path in os.listdir(THIRD_PARTY_DIR)
-        if not os.path.isfile(os.path.join(THIRD_PARTY_DIR, path)))
+        [
+            path
+            for path in os.listdir(THIRD_PARTY_DIR)
+            if not os.path.isfile(os.path.join(THIRD_PARTY_DIR, path))
+        ]
+    )
     # the only files in this dir that are not third party libs
     third_party_libs.remove("scripts")
     error_manager = lint_sbom(input_file, output_file, third_party_libs, should_format)

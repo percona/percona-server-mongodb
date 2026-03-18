@@ -646,9 +646,6 @@ MongoRunner.mongoOptions = function(opts) {
     const setParameters = jsTestOptions().setParameters || {};
     const tlsEnabled = (opts.tlsMode && opts.tlsMode != "disabled") ||
         (opts.sslMode && opts.sslMode != "disabled");
-    if (setParameters.featureFlagGRPC && tlsEnabled) {
-        opts.grpcPort = opts.grpcPort || allocatePort();
-    }
 
     opts.pathOpts =
         Object.merge(opts.pathOpts || {}, {port: "" + opts.port, runId: "" + opts.runId});
@@ -1594,6 +1591,11 @@ function appendSetParameterArgs(argArray) {
                         !argArrayContains('--wiredTigerCacheSizeGB')) {
                         argArray.push(...['--wiredTigerCacheSizeGB',
                                           jsTest.options().storageEngineCacheSizeGB]);
+                    }
+                    if (jsTest.options().storageEngineCacheSizePct &&
+                        !argArrayContains('--wiredTigerCacheSizePct')) {
+                        argArray.push(...['--wiredTigerCacheSizePct',
+                                          jsTest.options().storageEngineCacheSizePct]);
                     }
                     if (jsTest.options().wiredTigerEngineConfigString &&
                         !argArrayContains('--wiredTigerEngineConfigString')) {

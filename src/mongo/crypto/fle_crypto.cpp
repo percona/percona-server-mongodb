@@ -2370,7 +2370,7 @@ BSONObj FLEClientCrypto::generateCompactionTokens(const EncryptedFieldConfig& cf
     return tokensBuilder.obj();
 }
 
-BSONObj FLEClientCrypto::decryptDocument(BSONObj& doc, FLEKeyVault* keyVault) {
+BSONObj FLEClientCrypto::decryptDocument(const BSONObj& doc, FLEKeyVault* keyVault) {
     auto crypt = createMongoCrypt();
 
     SymmetricKey& key = keyVault->getKMSLocalKey();
@@ -2660,12 +2660,7 @@ BSONObj ESCCollectionAnchorPadding::generateNullAnchorDocument(
 }
 
 StatusWith<ESCNullDocument> ESCCollection::decryptNullDocument(
-    const ESCTwiceDerivedValueToken& valueToken, BSONObj& doc) {
-    return decryptNullDocument(valueToken, std::move(doc));
-}
-
-StatusWith<ESCNullDocument> ESCCollection::decryptNullDocument(
-    const ESCTwiceDerivedValueToken& valueToken, BSONObj&& doc) {
+    const ESCTwiceDerivedValueToken& valueToken, const BSONObj& doc) {
     BSONElement encryptedValue;
     auto status = bsonExtractTypedField(doc, kValue, BinData, &encryptedValue);
     if (!status.isOK()) {
@@ -2685,13 +2680,7 @@ StatusWith<ESCNullDocument> ESCCollection::decryptNullDocument(
 
 template <class TagToken, class ValueToken>
 StatusWith<ESCDocument> ESCCollectionCommon<TagToken, ValueToken>::decryptDocument(
-    const ValueToken& valueToken, BSONObj& doc) {
-    return decryptDocument(valueToken, std::move(doc));
-}
-
-template <class TagToken, class ValueToken>
-StatusWith<ESCDocument> ESCCollectionCommon<TagToken, ValueToken>::decryptDocument(
-    const ValueToken& valueToken, BSONObj&& doc) {
+    const ValueToken& valueToken, const BSONObj& doc) {
     BSONElement encryptedValue;
     auto status = bsonExtractTypedField(doc, kValue, BinData, &encryptedValue);
     if (!status.isOK()) {
@@ -2712,7 +2701,7 @@ StatusWith<ESCDocument> ESCCollectionCommon<TagToken, ValueToken>::decryptDocume
 
 template <class TagToken, class ValueToken>
 StatusWith<ESCDocument> ESCCollectionCommon<TagToken, ValueToken>::decryptAnchorDocument(
-    const ValueToken& valueToken, BSONObj& doc) {
+    const ValueToken& valueToken, const BSONObj& doc) {
     return decryptDocument(valueToken, doc);
 }
 
@@ -4281,34 +4270,17 @@ ConstDataRange binDataToCDR(BSONElement element) {
 }
 
 bool hasQueryType(const EncryptedField& field, QueryTypeEnum queryType) {
-    if (!field.getQueries()) {
-        return false;
-    }
-
-    return visit(OverloadedVisitor{
-                     [&](QueryTypeConfig query) { return (query.getQueryType() == queryType); },
-                     [&](std::vector<QueryTypeConfig> queries) {
-                         return std::any_of(
-                             queries.cbegin(), queries.cend(), [&](const QueryTypeConfig& qtc) {
-                                 return qtc.getQueryType() == queryType;
-                             });
-                     }},
-                 field.getQueries().get());
+    return visitQueryTypeConfigs(field,
+                                 [&queryType](const EncryptedField&, const QueryTypeConfig& qtc) {
+                                     return qtc.getQueryType() == queryType;
+                                 });
 }
 
 bool hasQueryType(const EncryptedFieldConfig& config, QueryTypeEnum queryType) {
-
-    for (const auto& field : config.getFields()) {
-
-        if (field.getQueries().has_value()) {
-            bool hasQuery = hasQueryType(field, queryType);
-            if (hasQuery) {
-                return hasQuery;
-            }
-        }
-    }
-
-    return false;
+    return visitQueryTypeConfigs(config,
+                                 [&queryType](const EncryptedField&, const QueryTypeConfig& qtc) {
+                                     return qtc.getQueryType() == queryType;
+                                 });
 }
 
 QueryTypeConfig getQueryType(const EncryptedField& field, QueryTypeEnum queryType) {

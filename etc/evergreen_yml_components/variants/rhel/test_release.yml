@@ -263,7 +263,7 @@ buildvariants:
     push_bucket: downloads.10gen.com
     push_name: linux
     push_arch: x86_64-enterprise-rhel93
-    compile_flags: --define=MONGO_DISTMOD=rhel93
+    bazel_compile_flags: --define=MONGO_DISTMOD=rhel93
     test_flags: --excludeWithAnyTags=requires_external_data_source,requires_latch_analyzer
     multiversion_platform: rhel93
     multiversion_edition: enterprise
@@ -349,7 +349,7 @@ buildvariants:
     push_bucket: downloads.10gen.com
     push_name: linux
     push_arch: aarch64-enterprise-rhel93
-    compile_flags: >-
+    bazel_compile_flags: >-
       --define=MONGO_DISTMOD=rhel93
     test_flags: --excludeWithAnyTags=requires_external_data_source,requires_latch_analyzer
     has_packages: true
@@ -374,25 +374,3 @@ buildvariants:
   - name: .release_critical .requires_large_host
     distros:
       - rhel93-arm64-large
-
-- name: enterprise-rhel-8-arm64-grpc
-  display_name: "Enterprise RHEL 8 arm64 GRPC"
-  tags: []
-  cron: "0 4 * * *" # From the ${project_nightly_cron} parameter.
-  run_on:
-  - rhel8.8-arm64-large
-  stepback: false
-  expansions:
-    test_flags: >-
-      --excludeWithAnyTags=requires_latch_analyzer
-      --mongodSetParameters="{internalQueryEnableAggressiveSpillsInGroup: true}"
-    compile_flags: >-
-      --dbg=True
-      --define=MONGO_DISTMOD=rhel88
-      --linkstatic=False
-      --build_grpc=True
-    compile_variant: enterprise-rhel-8-arm64-grpc
-  tasks:
-    - name: run_unit_tests_TG
-    - name: compile_test_parallel_core_stream_TG
-    - name: compile_test_parallel_dbtest_stream_TG

@@ -85,6 +85,7 @@
 #include "mongo/db/timeseries/bucket_catalog/reopening.h"
 #include "mongo/db/timeseries/bucket_compression.h"
 #include "mongo/db/timeseries/bucket_compression_failure.h"
+#include "mongo/db/timeseries/metadata.h"
 #include "mongo/db/timeseries/timeseries_constants.h"
 #include "mongo/db/timeseries/timeseries_index_schema_conversion_functions.h"
 #include "mongo/db/timeseries/timeseries_options.h"
@@ -169,7 +170,7 @@ doc_diff::VerifierFunc makeVerifierFunction(std::vector<details::Measurement> so
 
         auto actualMeta = docToWrite.getField(kBucketMetaFieldName);
         auto expectedMeta = batch->bucketKey.metadata.element();
-        if (!actualMeta.binaryEqualValues(expectedMeta)) {
+        if (!timeseries::metadata::areMetadataEqual(actualMeta, expectedMeta)) {
             failed(
                 "mismatched metaField value",
                 [](logv2::DynamicAttributes&) {},
@@ -1049,6 +1050,7 @@ write_ops::InsertCommandRequest makeTimeseriesInsertOp(
 
     write_ops::InsertCommandRequest op{bucketsNs, {bucketToInsert}};
     op.setWriteCommandRequestBase(makeTimeseriesWriteOpBase(std::move(stmtIds)));
+    op.setCollectionUUID(batch->bucketId.collectionUUID);
     return op;
 }
 
@@ -1063,6 +1065,7 @@ write_ops::UpdateCommandRequest makeTimeseriesUpdateOp(
     write_ops::UpdateCommandRequest op(bucketsNs,
                                        {makeTimeseriesUpdateOpEntry(opCtx, batch, metadata)});
     op.setWriteCommandRequestBase(makeTimeseriesWriteOpBase(std::move(stmtIds)));
+    op.setCollectionUUID(batch->bucketId.collectionUUID);
     return op;
 }
 
@@ -1103,6 +1106,7 @@ write_ops::UpdateCommandRequest makeTimeseriesCompressedDiffUpdateOp(
         makeTimeseriesCompressedDiffEntry(opCtx, batch, changedToUnsorted, sortedMeasurements);
     write_ops::UpdateCommandRequest op(bucketsNs, {updateEntry});
     op.setWriteCommandRequestBase(makeTimeseriesWriteOpBase(std::move(stmtIds)));
+    op.setCollectionUUID(batch->bucketId.collectionUUID);
     return op;
 }
 
@@ -1375,8 +1379,10 @@ void commitTimeseriesBucketsAtomically(
         auto& mainBucketCatalog = bucket_catalog::BucketCatalog::get(opCtx);
         for (auto batch : batchesToCommit) {
             auto metadata = getMetadata(sideBucketCatalog, batch.get()->bucketId);
-            auto prepareCommitStatus =
-                prepareCommit(sideBucketCatalog, coll->ns().getTimeseriesViewNamespace(), batch);
+            auto prepareCommitStatus = prepareCommit(sideBucketCatalog,
+                                                     coll->ns().getTimeseriesViewNamespace(),
+                                                     batch,
+                                                     coll->getDefaultCollator());
             if (!prepareCommitStatus.isOK()) {
                 abortStatus = prepareCommitStatus;
                 return;

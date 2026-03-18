@@ -37,7 +37,7 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage
     btree = S2BT(session);
     page = ref->page;
 
-    __wt_verbose(session, WT_VERB_RECONCILE, "%p reconcile %s (%s%s)", (void *)ref,
+    __wt_verbose_debug1(session, WT_VERB_RECONCILE, "%p reconcile %s (%s%s)", (void *)ref,
       __wt_page_type_string(page->type), LF_ISSET(WT_REC_EVICT) ? "evict" : "checkpoint",
       LF_ISSET(WT_REC_HS) ? ", history store" : "");
 
@@ -85,7 +85,8 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage
      * permitted. The page's state could have changed while we were waiting to acquire the lock
      * (e.g., the page could have split).
      */
-    if (LF_ISSET(WT_REC_EVICT) && !__wt_page_can_evict(session, ref, NULL))
+    if (LF_ISSET(WT_REC_EVICT) && !LF_ISSET(WT_REC_EVICT_CALL_CLOSING) &&
+      !__wt_page_can_evict(session, ref, NULL))
         WT_ERR(__wt_set_return(session, EBUSY));
 
     /*
@@ -324,6 +325,9 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
          */
         return (ret);
     }
+
+    __wt_verbose_debug1(
+      session, WT_VERB_RECONCILE, "finished building disk image for %p", (void *)ref);
 
     /* Wrap up the page reconciliation. Panic on failure. */
     WT_ERR(__rec_write_wrapup(session, r, page));
@@ -869,8 +873,12 @@ __rec_write(WT_SESSION_IMPL *session, WT_ITEM *buf, uint8_t *addr, size_t *addr_
     WT_PAGE_HEADER *dsk;
     size_t result_len;
 
+    dsk = buf->mem;
     btree = S2BT(session);
     result_len = 0;
+
+    if (dsk->type == WT_PAGE_INVALID || dsk->type >= WT_PAGE_TYPE_COUNT)
+        return (__wt_illegal_value(session, dsk->type));
 
     if (EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAGNOSTIC_DISK_VALIDATE)) {
         /* Checkpoint calls are different than standard calls. */
@@ -887,7 +895,6 @@ __rec_write(WT_SESSION_IMPL *session, WT_ITEM *buf, uint8_t *addr, size_t *addr_
          * We're passed a table's disk image. Decompress if necessary and verify the image. Always
          * check the in-memory length for accuracy.
          */
-        dsk = buf->mem;
         if (compressed) {
             WT_ASSERT_ALWAYS(session, __wt_scr_alloc(session, dsk->mem_size, &ctmp),
               "Failed to allocate scratch buffer");
@@ -2518,8 +2525,8 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
     __rec_page_modify_ta_safe_free(session, &mod->stop_ta);
     WT_TIME_AGGREGATE_INIT_MERGE(&stop_ta);
 
-    __wt_verbose(session, WT_VERB_RECONCILE, "%p reconciled into %" PRIu32 " pages", (void *)ref,
-      r->multi_next);
+    __wt_verbose_debug1(session, WT_VERB_RECONCILE, "%p reconciled into %" PRIu32 " pages",
+      (void *)ref, r->multi_next);
 
     switch (r->multi_next) {
     case 0: /* Page delete */
@@ -2690,6 +2697,9 @@ __rec_hs_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 
     btree = S2BT(session);
 
+    __wt_verbose_debug1(session, WT_VERB_RECONCILE,
+      "start moving updates to the history store for %p", (void *)r->ref);
+
     /* Set a flag in the session to track that we're in HS wrapup */
     F_SET(session, WT_SESSION_HS_WRAPUP);
     session->reconcile_stats.hs_wrapup_next_prev_calls = 0;
@@ -2707,13 +2717,6 @@ __rec_hs_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r)
      */
     WT_ERR(__wt_hs_delete_updates(session, r));
 
-    /* Check if there's work to do. */
-    for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i)
-        if (multi->supd != NULL)
-            break;
-    if (i == r->multi_next)
-        return (0);
-
     for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i)
         if (multi->supd != NULL) {
             WT_ERR(__wt_hs_insert_updates(session, r, multi));
@@ -2725,6 +2728,9 @@ __rec_hs_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 
     WT_STAT_CONN_INCRV(
       session, rec_hs_wrapup_next_prev_calls, session->reconcile_stats.hs_wrapup_next_prev_calls);
+
+    __wt_verbose_debug1(session, WT_VERB_RECONCILE,
+      "finished moving updates to the history store for %p", (void *)r->ref);
 err:
     F_CLR(session, WT_SESSION_HS_WRAPUP);
     return (ret);

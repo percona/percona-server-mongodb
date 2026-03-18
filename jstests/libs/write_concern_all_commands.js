@@ -187,6 +187,8 @@ const wcCommandsTests = {
     _shardsvrMovePrimaryExitCriticalSection: {skip: "internal command"},
     _shardsvrMoveRange: {skip: "internal command"},
     _shardsvrNotifyShardingEvent: {skip: "internal command"},
+    _shardsvrRecreateRangeDeletionTasks: {skip: "internal command"},
+    _shardsvrRecreateRangeDeletionTasksParticipant: {skip: "internal command"},
     _shardsvrRefineCollectionShardKey: {skip: "internal command"},
     _shardsvrRenameCollection: {skip: "internal command"},
     _shardsvrRenameCollectionParticipant: {skip: "internal command"},
@@ -2002,6 +2004,7 @@ const wcCommandsTests = {
     recipientVoteImportedFiles: {skip: "does not accept write concern"},
     reIndex: {skip: "does not accept write concern"},
     reapLogicalSessionCacheNow: {skip: "does not accept write concern"},
+    recreateRangeDeletionTasks: {skip: "does not accept write concern"},
     refineCollectionShardKey: {
         noop: {
             // Refine to same shard key
@@ -3127,6 +3130,8 @@ const wcTimeseriesViewsCommandsTests = {
     _shardsvrMovePrimaryExitCriticalSection: {skip: "internal command"},
     _shardsvrMoveRange: {skip: "internal command"},
     _shardsvrNotifyShardingEvent: {skip: "internal command"},
+    _shardsvrRecreateRangeDeletionTasks: {skip: "internal command"},
+    _shardsvrRecreateRangeDeletionTasksParticipant: {skip: "internal command"},
     _shardsvrRefineCollectionShardKey: {skip: "internal command"},
     _shardsvrRenameCollection: {skip: "internal command"},
     _shardsvrRenameCollectionParticipant: {skip: "internal command"},
@@ -3991,6 +3996,7 @@ const wcTimeseriesViewsCommandsTests = {
     recipientForgetMigration: {skip: "does not accept write concern"},
     recipientSyncData: {skip: "does not accept write concern"},
     recipientVoteImportedFiles: {skip: "does not accept write concern"},
+    recreateRangeDeletionTasks: {skip: "does not accept write concern"},
     refineCollectionShardKey: {
 
         noop: {
@@ -5958,11 +5964,11 @@ export function checkWriteConcernBehaviorForAllCommands(
         limitToTimeseriesViews ? wcTimeseriesViewsCommandsTests : wcCommandsTests;
     const commandsList = AllCommandsTest.checkCommandCoverage(conn, commandsToTest);
 
-    // Randomly execute commands with 50% probability to reduce test runtime.
+    // Randomly execute commands with 25% probability to reduce test runtime.
     // This mitigates long internal write concern timeouts (30-60s) that override
     // test-specified timeouts, as timeout handling improvements from SERVER-102770
     // and SERVER-103553 are not being backported to versions below 8.2.
-    const selectedCommands = commandsList.filter(() => Math.random() < 0.5);
+    const selectedCommands = commandsList.filter(() => Math.random() < 0.25);
     jsTestLog("Running " + selectedCommands.length + "/" + commandsList.length + " commands");
 
     let coll = conn.getDB(dbName).getCollection(collName);

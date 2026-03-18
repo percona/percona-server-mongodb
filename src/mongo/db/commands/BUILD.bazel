@@ -49,6 +49,7 @@ mongo_cc_library(
         "//src/mongo/db/commands:server_status_servers.cpp",
     ],
     deps = [
+        "//src/mongo/db/admission:ingress_request_rate_limiter",
         "//src/mongo/db/commands:server_status_core",
         "//src/mongo/db/stats:counters",
         "//src/mongo/transport:message_compressor",
@@ -295,7 +296,6 @@ mongo_cc_library(
         "//src/mongo/db:query_exec",
         "//src/mongo/db:server_base",
         "//src/mongo/db:server_feature_flags",
-        "//src/mongo/db:server_parameter_insert_max_batch_size",
         "//src/mongo/db:service_context",
         "//src/mongo/db/auth",
         "//src/mongo/db/auth:authprivilege",

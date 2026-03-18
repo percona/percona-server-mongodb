@@ -54,8 +54,7 @@ class MessageCompressorManager {
     MessageCompressorManager& operator=(const MessageCompressorManager&) = delete;
 
 public:
-    // TODO(JBR): This should be changed so it 's closer to the MSGHEADER View/ConstView classes
-    // than this little struct.
+    // TODO SERVER-106196 Replace this struct with a View/ConstView class
     struct CompressionHeader {
         int32_t originalOpCode;
         int32_t uncompressedSize;

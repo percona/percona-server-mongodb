@@ -92,6 +92,7 @@ const std::set<std::string> kSetShellParameterAllowlist = {
     "skipShellCursorFinalize",
     "tlsOCSPSlowResponderWarningSecs",
     "enableDetailedConnectionHealthMetricLogLines",
+    "defaultFindReplicaSetHostTimeoutMS",
     "multitenancySupport"};
 
 std::string getMongoShellHelp(StringData name, const moe::OptionSection& options) {
@@ -214,16 +215,6 @@ Status storeMongoShellOptions(const moe::Environment& params,
     if (params.count("disableImplicitSessions")) {
         shellGlobalParams.shouldUseImplicitSessions = false;
     }
-
-// TODO: SERVER-80343 Remove this ifdef once gRPC is compiled on all variants
-#ifdef MONGO_CONFIG_GRPC
-    if (params.count("gRPC")) {
-        shellGlobalParams.gRPC = true;
-    }
-    if (params.count("gRPCAuthToken")) {
-        shellGlobalParams.gRPCAuthToken = params["gRPCAuthToken"].as<string>();
-    }
-#endif
 
     /* This is a bit confusing, here are the rules:
      *

@@ -217,7 +217,8 @@ bool OplogCapMaintainerThread::_deleteExcessDocuments(OperationContext* opCtx) {
             rs->reclaimOplog(opCtx);
         }
     } catch (ExceptionForCat<ErrorCategory::Interruption>& ex) {
-        LOGV2(11212204, "OplogCapMaintainerThread interrupted", "reason"_attr = ex.reason());
+        LOGV2_DEBUG(
+            11212204, 1, "OplogCapMaintainerThread interrupted", "reason"_attr = ex.reason());
         interruptCount.fetchAndAdd(1);
     } catch (const std::exception& e) {
         LOGV2_FATAL_NOTRACE(22243, "Error in OplogCapMaintainerThread", "error"_attr = e.what());
@@ -239,7 +240,7 @@ void OplogCapMaintainerThread::run() {
     boost::optional<ScopedAdmissionPriority<ExecutionAdmissionContext>> admissionPriority;
 
     {
-        stdx::lock_guard<stdx::mutex> lk(_opCtxMutex);
+        stdx::lock_guard<Latch> lk(_opCtxMutex);
 
         // Initialize the thread's opCtx.
         _uniqueCtx.emplace(tc->makeOperationContext());
@@ -251,7 +252,7 @@ void OplogCapMaintainerThread::run() {
     }
 
     ON_BLOCK_EXIT([&] {
-        stdx::lock_guard<stdx::mutex> lk(_opCtxMutex);
+        stdx::lock_guard<Latch> lk(_opCtxMutex);
         admissionPriority.reset();
         _uniqueCtx.reset();
     });
@@ -260,7 +261,7 @@ void OplogCapMaintainerThread::run() {
     if (gOplogSamplingAsyncEnabled) {
         try {
             {
-                stdx::unique_lock<stdx::mutex> lk(_stateMutex);
+                stdx::unique_lock<Latch> lk(_stateMutex);
                 if (_shuttingDown) {
                     return;
                 }
@@ -308,7 +309,7 @@ void OplogCapMaintainerThread::run() {
         // We need this check since the first check to _shuttingDown is guarded by
         // gOplogSamplingAsyncEnabled and we will never check this value if async is disabled.
         {
-            stdx::unique_lock<stdx::mutex> lk(_stateMutex);
+            stdx::unique_lock<Latch> lk(_stateMutex);
             if (_shuttingDown) {
                 return;
             }
@@ -344,7 +345,7 @@ void OplogCapMaintainerThread::shutdown(const Status& reason) {
     LOGV2_INFO(7474902, "Shutting down oplog cap maintainer thread", "reason"_attr = reason);
 
     {
-        stdx::lock_guard<stdx::mutex> lk(_opCtxMutex);
+        stdx::lock_guard<Latch> lk(_opCtxMutex);
         if (_uniqueCtx) {
             stdx::lock_guard<Client> lk(*_uniqueCtx->get()->getClient());
             _uniqueCtx->get()->markKilled(reason.code());
@@ -352,7 +353,7 @@ void OplogCapMaintainerThread::shutdown(const Status& reason) {
     }
 
     {
-        stdx::lock_guard<stdx::mutex> lk(_stateMutex);
+        stdx::lock_guard<Latch> lk(_stateMutex);
         _shuttingDown = true;
         _shutdownReason = reason;
     }

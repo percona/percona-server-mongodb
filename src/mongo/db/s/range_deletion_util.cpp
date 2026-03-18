@@ -121,11 +121,6 @@ StatusWith<int> deleteNextBatch(OperationContext* opCtx,
                         "Unable to find range shard key index",
                         "keyPattern"_attr = keyPattern,
                         logAttrs(nss));
-
-            // When a shard key index is not found, the range deleter moves the task to the bottom
-            // of the range deletion queue. This sleep is aimed at avoiding logging too aggressively
-            // in order to prevent log files to increase too much in size.
-            opCtx->sleepFor(Seconds(5));
         }
 
         iasserted(ErrorCodes::IndexNotFound,
@@ -510,11 +505,8 @@ void removePersistentRangeDeletionTask(OperationContext* opCtx,
                                        const ChunkRange& range) {
     PersistentTaskStore<RangeDeletionTask> store(NamespaceString::kRangeDeletionNamespace);
 
-    auto overlappingRangeDeletionsQuery = BSON(
-        RangeDeletionTask::kCollectionUuidFieldName
-        << collectionUuid << RangeDeletionTask::kRangeFieldName + "." + ChunkRange::kMinKey << GTE
-        << range.getMin() << RangeDeletionTask::kRangeFieldName + "." + ChunkRange::kMaxKey << LTE
-        << range.getMax());
+    const auto overlappingRangeDeletionsQuery =
+        getQueryFilterForRangeDeletionTask(collectionUuid, range);
     store.remove(opCtx, overlappingRangeDeletionsQuery);
 }
 

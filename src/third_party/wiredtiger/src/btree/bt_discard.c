@@ -41,12 +41,6 @@ __wt_ref_out(WT_SESSION_IMPL *session, WT_REF *ref)
       __wt_hazard_check_assert(session, ref, true),
       "Attempted to free a page with active hazard pointers");
 
-    /* Check we are not evicting an accessible internal page with an active split generation. */
-    WT_ASSERT(session,
-      !F_ISSET(ref, WT_REF_FLAG_INTERNAL) ||
-        F_ISSET(session->dhandle, WT_DHANDLE_DEAD | WT_DHANDLE_EXCLUSIVE) ||
-        !__wt_gen_active(session, WT_GEN_SPLIT, ref->page->pg_intl_split_gen));
-
     __wt_page_out(session, &ref->page);
 }
 
@@ -531,4 +525,40 @@ __wt_free_update_list(WT_SESSION_IMPL *session, WT_UPDATE **updp)
         __wt_free(session, upd);
     }
     *updp = NULL;
+}
+
+/*
+ * __wt_free_obsolete_updates --
+ *     Following a globally visible update, free any obsolete updates in the update chain. After a
+ *     globally visible update, no reader finds any updates. It is the responsibility of the caller
+ *     to lock the page before freeing the updates.
+ */
+void
+__wt_free_obsolete_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_UPDATE *visible_all_upd)
+{
+    WT_UPDATE *next, *upd;
+    size_t size;
+
+    size = 0;
+    next = visible_all_upd->next;
+
+    /*
+     * No need to use a compare and swap because we have obtained a page lock. The page lock
+     * protects freeing the updates concurrently by other threads. Whereas the reader threads use
+     * transaction visibility to avoid traversing obsolete updates beyond the globally visible
+     * update.
+     */
+    visible_all_upd->next = NULL;
+
+    /* There must be at least a single obsolete update. */
+    WT_ASSERT(session, next != NULL);
+
+    for (upd = next; upd != NULL; upd = next) {
+        next = upd->next;
+        size += WT_UPDATE_MEMSIZE(upd);
+        __wt_free(session, upd);
+    }
+
+    WT_ASSERT(session, size != 0);
+    __wt_cache_page_inmem_decr(session, page, size);
 }

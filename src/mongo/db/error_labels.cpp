@@ -123,6 +123,10 @@ bool ErrorLabelBuilder::isNonResumableChangeStreamError() const {
     return _code && ErrorCodes::isNonResumableChangeStreamError(_code.value());
 }
 
+bool ErrorLabelBuilder::isSystemOverloadedError() const {
+    return _code && mongo::isSystemOverloadedError(_code.value());
+}
+
 bool ErrorLabelBuilder::isResumableChangeStreamError() const {
     // Determine whether this operation is a candidate for the ResumableChangeStreamError label.
     const bool mayNeedResumableChangeStreamErrorLabel =
@@ -168,6 +172,12 @@ bool ErrorLabelBuilder::isResumableChangeStreamError() const {
     return swLitePipe.isOK() && swLitePipe.getValue().hasChangeStream();
 }
 
+bool ErrorLabelBuilder::isOperationIdempotent() const {
+    // TODO: SERVER-108898 When OperationContext support marking an operation as idempotent, check
+    //       for idempotency to apply the error label
+    return false;
+}
+
 bool ErrorLabelBuilder::isErrorWithNoWritesPerformed() const {
     if (!_code && !_wcCode) {
         return false;
@@ -199,6 +209,9 @@ void ErrorLabelBuilder::build(BSONArrayBuilder& labels) const {
                 // SERVER-66479 and DRIVERS-2327).
                 labels << ErrorLabel::kNoWritesPerformed;
             }
+        } else if (isOperationIdempotent()) {
+            // TODO SERVER-108898: apply the NoWritesPerformed error label here too, if appropriate.
+            labels << ErrorLabel::kRetryableError;
         }
     }
 
@@ -296,4 +309,7 @@ bool isTransientTransactionError(ErrorCodes::Error code,
     return isTransient;
 }
 
+bool isSystemOverloadedError(ErrorCodes::Error code) {
+    return ErrorCodes::isSystemOverloadedError(code);
+}
 }  // namespace mongo

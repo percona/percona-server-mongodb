@@ -648,6 +648,18 @@ const internalCommandsMap = {
         testname: "_shardsvrNotifyShardingEvent",
         command: {_shardsvrNotifyShardingEvent: "test", eventType: "databasesAdded", details: {}},
     },
+    _shardsvrRecreateRangeDeletionTasks: {
+        testname: "_shardsvrRecreateRangeDeletionTasks",
+        command: {_shardsvrRecreateRangeDeletionTasks: "collection", skipEmptyRanges: true},
+    },
+    _shardsvrRecreateRangeDeletionTasksParticipant: {
+        testname: "_shardsvrRecreateRangeDeletionTasksParticipant",
+        command: {
+            _shardsvrRecreateRangeDeletionTasksParticipant: "collection",
+            skipEmptyRanges: true,
+            uuid: UUID()
+        },
+    },
     _shardsvrRenameCollection: {
         testname: "_shardsvrRenameCollection",
         command: {_shardsvrRenameCollection: "test.collection", to: "db.collection_renamed"},
@@ -680,6 +692,8 @@ const internalCommandsMap = {
         testname: "_shardsvrDropDatabase",
         command: {
             _shardsvrDropDatabase: 1,
+            // This test relies on failing due to write concern not being majority since running this command on the admin database will hang.
+            writeConcern: {w: 1},
         },
     },
     _shardsvrDropDatabaseParticipant: {

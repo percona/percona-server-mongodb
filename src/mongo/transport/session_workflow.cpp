@@ -48,12 +48,15 @@
 #include "mongo/bson/bsonobj.h"
 #include "mongo/bson/bsonobjbuilder.h"
 #include "mongo/config.h"  // IWYU pragma: keep
+#include "mongo/db/admission/ingress_request_rate_limiter.h"
+#include "mongo/db/admission/ingress_request_rate_limiter_gen.h"
 #include "mongo/db/client.h"
 #include "mongo/db/client_strand.h"
 #include "mongo/db/commands/server_status_metric.h"
 #include "mongo/db/connection_health_metrics_parameter_gen.h"
 #include "mongo/db/cursor_id.h"
 #include "mongo/db/dbmessage.h"
+#include "mongo/db/error_labels.h"
 #include "mongo/db/namespace_string.h"
 #include "mongo/db/operation_context.h"
 #include "mongo/db/query/kill_cursors_gen.h"
@@ -68,8 +71,11 @@
 #include "mongo/logv2/log_severity.h"
 #include "mongo/platform/atomic_word.h"
 #include "mongo/platform/compiler.h"
+#include "mongo/rpc/factory.h"
 #include "mongo/rpc/message.h"
+#include "mongo/rpc/op_compressed.h"
 #include "mongo/rpc/op_msg.h"
+#include "mongo/rpc/protocol.h"
 #include "mongo/transport/ingress_handshake_metrics.h"
 #include "mongo/transport/message_compressor_base.h"
 #include "mongo/transport/message_compressor_manager.h"
@@ -405,7 +411,7 @@ bool isPreAuth(Client* client) {
     }
 
     return !authorizationSession->isAuthenticated();
-};
+}
 
 // Counts the # of responses to completed operations that we were unable to send back to the client.
 auto& unsendableCompletedResponses =
@@ -535,6 +541,8 @@ private:
 
     /** Receives a message from the session and creates a new WorkItem from it. */
     std::unique_ptr<WorkItem> _receiveRequest();
+
+    Status _rateLimit() const;
 
     /** Sends work to the ServiceEntryPoint, obtaining a future for its completion. */
     Future<DbResponse> _dispatchWork();
@@ -738,6 +746,46 @@ void SessionWorkflow::Impl::_sendResponse() {
     }
 }
 
+Status SessionWorkflow::Impl::_rateLimit() const {
+    // (Ignore FCV check): This feature flag is not FCV-gated.
+    if (!gFeatureFlagIngressRateLimiting.isEnabledAndIgnoreFCVUnsafe() ||
+        !gIngressRequestRateLimiterEnabled.load()) {
+        return Status::OK();
+    }
+
+    auto& admissionRateLimiter = IngressRequestRateLimiter::get(_serviceContext);
+    return admissionRateLimiter.admitRequest(client());
+}
+
+DbResponse makeDbResponseErrorForRateLimiting(const Message& message, const Status& status) {
+    invariant(!status.isOK());
+
+    // When the MoreToCome flag is set, return an empty response as this is a fire and forget
+    // request.
+    if (OpMsg::isFlagSet(message, OpMsg::kMoreToCome)) {
+        return DbResponse{};
+    }
+
+    const auto replyBuilder = rpc::makeReplyBuilder(rpc::protocolForMessage(message));
+    replyBuilder->setCommandReply(status, {});
+
+    // We need to add error labels manually as ErrorLabelBuilder requires an operation context and
+    // we are still before the creation of the operation context at this point.
+    if (MONGO_likely(status == ErrorCodes::IngressRequestRateLimitExceeded)) {
+        auto commandBodyBob = replyBuilder->getBodyBuilder();
+        {
+            BSONArrayBuilder arrayBuilder(commandBodyBob.subarrayStart(kErrorLabelsFieldName));
+            arrayBuilder.append(ErrorLabel::kSystemOverloadedError);
+            arrayBuilder.append(ErrorLabel::kRetryableError);
+            // It can't be determined whether the request being rejected is a write or not without
+            // deserializing it, so we just always append the NoWritesPerformed label.
+            arrayBuilder.append(ErrorLabel::kNoWritesPerformed);
+        }
+    }
+
+    return DbResponse{.response = replyBuilder->done()};
+}
+
 Future<DbResponse> SessionWorkflow::Impl::_dispatchWork() {
     invariant(_work);
     invariant(!_work->in().empty());
@@ -745,6 +793,10 @@ Future<DbResponse> SessionWorkflow::Impl::_dispatchWork() {
     TrafficRecorder::get(_serviceContext).observe(session(), _work->in(), _serviceContext);
 
     _work->decompressRequest();
+
+    if (const auto status = _rateLimit(); !status.isOK()) {
+        return makeDbResponseErrorForRateLimiting(_work->in(), status);
+    }
 
     networkCounter.hitLogicalIn(_work->in().size());
 
@@ -764,7 +816,12 @@ void SessionWorkflow::Impl::_acceptResponse(DbResponse response) {
     // Note that destroying futures after execution, rather that postponing the destruction
     // until completion of the future-chain, would expose the cost of destroying opCtx to
     // the critical path and result in serious performance implications.
-    _serviceContext->delistOperation(work.opCtx());
+    // It may happen that the opCtx is null, when _dispatchWork is returning a DbResponse before
+    // starting the actual operation. Request rate limiting will do that in order to return a
+    // passable error response without paying the cost of starting the operation.
+    if (const auto opCtx = work.opCtx()) {
+        _serviceContext->delistOperation(opCtx);
+    }
     // Format our response, if we have one
     Message& toSink = response.response;
     if (toSink.empty())
