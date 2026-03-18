@@ -1077,6 +1077,7 @@ const allTestCases = {
         _shardsvrRenameIndexMetadata: {skip: "TODO"},
         _shardsvrReshardCollection: {skip: "TODO"},
         _shardsvrReshardDonorInitialize: {skip: "TODO"},
+        _shardsvrReshardRecipientInitialize: {skip: "TODO"},
         _shardsvrReshardRecipientClone: {skip: "TODO"},
         _shardsvrReshardRecipientCriticalSectionStarted: {
             run: {

@@ -122,8 +122,8 @@ public:
                         << "Unexpected parameter during the internal execution of "
                            "checkMetadataConsistency command. The shard server was expecting to "
                            "receive a database or collection level parameter, but received "
-                        << MetadataConsistencyCommandLevel_serializer(commandLevel)
-                        << " with namespace " << nss.toStringForErrorMsg(),
+                        << idl::serialize(commandLevel) << " with namespace "
+                        << nss.toStringForErrorMsg(),
                     commandLevel == MetadataConsistencyCommandLevelEnum::kCollectionLevel ||
                         commandLevel == MetadataConsistencyCommandLevelEnum::kDatabaseLevel);
 
@@ -141,16 +141,17 @@ public:
                             VersionContext::getDecoration(opCtx),
                             serverGlobalParams.featureCompatibility.acquireFCVSnapshot()));
 
+            const auto optionalCheckIndexes = request().getCommonFields().getCheckIndexes();
             auto inconsistencies = checkCollectionMetadataConsistency(opCtx,
                                                                       nss,
                                                                       commandLevel,
                                                                       shardId,
                                                                       primaryShardId,
                                                                       configsvrCollections,
-                                                                      checkRangeDeletionIndexes);
+                                                                      checkRangeDeletionIndexes,
+                                                                      optionalCheckIndexes);
 
             // If this is the primary shard of the db coordinate index check across shards
-            const auto optionalCheckIndexes = request().getCommonFields().getCheckIndexes();
             if (shardId == primaryShardId) {
                 if (optionalCheckIndexes) {
                     auto indexInconsistencies =
@@ -243,8 +244,8 @@ public:
                             << "Unexpected parameter during the internal execution of "
                                "checkMetadataConsistency command. The shard server was expecting "
                                "to receive a database or collection level parameter, but received "
-                            << MetadataConsistencyCommandLevel_serializer(commandLevel)
-                            << " with namespace " << nss.toStringForErrorMsg());
+                            << idl::serialize(commandLevel) << " with namespace "
+                            << nss.toStringForErrorMsg());
             }
         }
 
@@ -261,7 +262,8 @@ public:
             const ShardId& shardId,
             const ShardId& primaryShardId,
             const std::vector<mongo::CollectionType>& shardingCatalogCollections,
-            const bool checkRangeDeletionIndexes) {
+            const bool checkRangeDeletionIndexes,
+            const bool optionalCheckIndexes) {
             std::vector<CollectionPtr> localCatalogCollections;
             auto collCatalogSnapshot = [&] {
                 switch (commandLevel) {
@@ -334,8 +336,8 @@ public:
                                          "expecting "
                                          "to receive a database or collection level parameter, but "
                                          "received "
-                                      << MetadataConsistencyCommandLevel_serializer(commandLevel)
-                                      << " with namespace " << nss.toStringForErrorMsg());
+                                      << idl::serialize(commandLevel) << " with namespace "
+                                      << nss.toStringForErrorMsg());
                 }
             }();
 
@@ -347,7 +349,8 @@ public:
                 shardingCatalogCollections,
                 collCatalogSnapshot,
                 localCatalogCollections,
-                checkRangeDeletionIndexes);
+                checkRangeDeletionIndexes,
+                optionalCheckIndexes);
         }
 
         NamespaceString ns() const override {

@@ -32,11 +32,11 @@
 #include "mongo/db/query/query_execution_knobs_gen.h"
 #include "mongo/db/query/query_integration_knobs_gen.h"
 #include "mongo/db/query/query_optimization_knobs_gen.h"
-#include "mongo/db/query/util/spill_util.h"
 #include "mongo/db/sorter/sorter.h"
 #include "mongo/db/sorter/sorter_stats.h"
 #include "mongo/db/stats/counters_sort.h"
 #include "mongo/db/storage/encryption_hooks.h"
+#include "mongo/db/storage/spill_util.h"
 #include "mongo/logv2/log.h"
 
 #include <snappy.h>
@@ -506,22 +506,26 @@ public:
     FileBasedSorterSpiller(boost::filesystem::path tempDir,
                            SorterFileStats* fileStats,
                            boost::optional<DatabaseName> dbName,
-                           SorterChecksumVersion checksumVersion)
+                           SorterChecksumVersion checksumVersion,
+                           int64_t minAvailableDiskBytesToSpill)
         : SorterSpillerBase<Key, Value, Comparator>(
               std::make_unique<FileBasedSorterStorage<Key, Value>>(
                   std::make_shared<SorterFile>(sorter::nextFileName(tempDir), fileStats),
                   tempDir,
                   dbName,
-                  checksumVersion)),
+                  checksumVersion),
+              minAvailableDiskBytesToSpill),
           _fileStats(fileStats) {}
 
     FileBasedSorterSpiller(std::shared_ptr<SorterFile> file,
                            boost::filesystem::path tempDir,
                            boost::optional<DatabaseName> dbName,
-                           SorterChecksumVersion checksumVersion)
+                           SorterChecksumVersion checksumVersion,
+                           int64_t minAvailableDiskBytesToSpill)
         : SorterSpillerBase<Key, Value, Comparator>(
               std::make_unique<FileBasedSorterStorage<Key, Value>>(
-                  file, tempDir, dbName, checksumVersion)),
+                  file, tempDir, dbName, checksumVersion),
+              minAvailableDiskBytesToSpill),
           _fileStats(file->getFileStats()) {}
 
     void mergeSpills(const SortOptions& opts,
@@ -590,9 +594,8 @@ void FileBasedSorterSpiller<Key, Value, Comparator>::mergeSpills(
                 minRequiredDiskSpace +=
                     it->getRange().getEndOffset() - it->getRange().getStartOffset();
             }
-            minRequiredDiskSpace = std::max(
-                minRequiredDiskSpace,
-                static_cast<int64_t>(internalQuerySpillingMinAvailableDiskSpaceBytes.load()));
+            minRequiredDiskSpace =
+                std::max(minRequiredDiskSpace, this->_minAvailableDiskBytesToSpill);
             uassertStatusOK(
                 ensureSufficientDiskSpaceForSpilling(*opts.tempDir, minRequiredDiskSpace));
 

@@ -40,6 +40,7 @@
 #include "mongo/db/logical_time.h"
 #include "mongo/db/server_feature_flags_gen.h"
 #include "mongo/db/session/logical_session_id.h"
+#include "mongo/db/shard_role/shard_catalog/collection_catalog.h"
 #include "mongo/db/shard_role/shard_catalog/participant_block_gen.h"
 #include "mongo/db/shard_role/shard_role.h"
 #include "mongo/db/sharding_environment/sharding_logging.h"
@@ -78,6 +79,29 @@ std::vector<ShardId> getParticipantShards(OperationContext* opCtx, bool isTracke
     }
 }
 
+/**
+ * Reads the timeseries metadata fields from the local shard catalog for the given viewless
+ * timeseries collection and updates the TypeCollectionTimeseriesFields accordingly.
+ * Must be called after the collection has been converted to viewless format.
+ */
+void populateTimeseriesFields(OperationContext* opCtx,
+                              const NamespaceString& nss,
+                              TypeCollectionTimeseriesFields& tsFields) {
+    // Use lookupCollectionByNamespace is enough because we already hold the DDL lock and critical
+    // section, no need to acquire collection locks.
+    const auto* coll = CollectionCatalog::get(opCtx)->lookupCollectionByNamespace(opCtx, nss);
+
+    tassert(12088301,
+            fmt::format("Expected collection '{}' to exist locally after conversion",
+                        nss.toStringForErrorMsg()),
+            coll);
+
+    // Set timeseriesBucketsMayHaveMixedSchemaData field by mirroring the shard-local mixed schema
+    // state into the global catalog.
+    tsFields.setTimeseriesBucketsMayHaveMixedSchemaData(
+        coll->getTimeseriesMixedSchemaBucketsState().mustConsiderMixedSchemaBucketsInReads());
+}
+
 }  // namespace
 
 void TimeseriesUpgradeDowngradeCoordinator::checkIfOptionsConflict(const BSONObj& doc) const {
@@ -96,8 +120,7 @@ void TimeseriesUpgradeDowngradeCoordinator::checkIfOptionsConflict(const BSONObj
 
 logv2::DynamicAttributes TimeseriesUpgradeDowngradeCoordinator::getCoordinatorLogAttrs() const {
     return logv2::DynamicAttributes{getBasicCoordinatorAttrs(),
-                                    "mode"_attr =
-                                        TimeseriesUpgradeDowngradeMode_serializer(_doc.getMode())};
+                                    "mode"_attr = idl::serialize(_doc.getMode())};
 }
 
 /**
@@ -229,8 +252,7 @@ ExecutorFuture<void> TimeseriesUpgradeDowngradeCoordinator::_runImpl(
                     opCtx,
                     "upgradeDowngradeViewlessTimeseries.start",
                     originalNss(),
-                    BSON("mode" << TimeseriesUpgradeDowngradeMode_serializer(_doc.getMode())
-                                << "isTracked" << isTracked));
+                    BSON("mode" << idl::serialize(_doc.getMode()) << "isTracked" << isTracked));
                 return isTracked;
             },  // Only for tracked collections
             [this, executor = executor, anchor = shared_from_this()](auto* opCtx) {
@@ -372,6 +394,26 @@ ExecutorFuture<void> TimeseriesUpgradeDowngradeCoordinator::_runImpl(
                 newCollType.setTimestamp(newTimestamp);
                 newCollType.setEpoch(newEpoch);
 
+                // Update timeseries fields based on conversion direction.
+                tassert(12088302,
+                        fmt::format("Expected timeseriesFields to be set for "
+                                    "tracked timeseries collection '{}'",
+                                    newCollType.getNss().toStringForErrorMsg()),
+                        newCollType.getTimeseriesFields().has_value());
+                auto updatedTsFields = *newCollType.getTimeseriesFields();
+
+                if (_doc.getMode() == TimeseriesUpgradeDowngradeModeEnum::kToViewless) {
+                    // On upgrade: read timeseries metadata from the local catalog
+                    // of the converted collection. The collection has already been
+                    // converted to viewless on this shard in kCommitOnShards.
+                    populateTimeseriesFields(opCtx, originalNss(), updatedTsFields);
+                } else {
+                    // On downgrade: remove viewless-only fields from the entry,
+                    // since legacy format does not include them.
+                    updatedTsFields.setTimeseriesBucketsMayHaveMixedSchemaData(boost::none);
+                }
+                newCollType.setTimeseriesFields(updatedTsFields);
+
                 const auto collUuid = collType->getUuid();
                 const auto oldTrackedNss = nss();
                 const auto osi = getNewSession(opCtx);
@@ -484,8 +526,7 @@ ExecutorFuture<void> TimeseriesUpgradeDowngradeCoordinator::_runImpl(
                 opCtx,
                 "upgradeDowngradeViewlessTimeseries.end",
                 originalNss(),
-                BSON("mode" << TimeseriesUpgradeDowngradeMode_serializer(_doc.getMode())
-                            << "isTracked" << isTracked));
+                BSON("mode" << idl::serialize(_doc.getMode()) << "isTracked" << isTracked));
         })
         .onError<ErrorCodes::RequestAlreadyFulfilled>(
             [this, anchor = shared_from_this()](const Status& status) { return Status::OK(); })
@@ -524,12 +565,10 @@ ExecutorFuture<void> TimeseriesUpgradeDowngradeCoordinator::_cleanupOnAbort(
 
             // From kCommitOnShards onwards, we've done irreversible work on the shards and must
             // always make progress. We should never enter cleanup from that point.
-            tassert(
-                11590620,
-                str::stream() << "Unexpected cleanup at phase "
-                              << TimeseriesUpgradeDowngradeCoordinatorPhase_serializer(failedPhase)
-                              << " which is >= kCommitOnShards",
-                failedPhase < Phase::kCommitOnShards);
+            tassert(11590620,
+                    str::stream() << "Unexpected cleanup at phase " << idl::serialize(failedPhase)
+                                  << " which is >= kCommitOnShards",
+                    failedPhase < Phase::kCommitOnShards);
 
             // If we failed before kFreezeMigrations, we haven't done any work that needs cleanup.
             if (failedPhase < Phase::kFreezeMigrations) {

@@ -31,8 +31,8 @@
 
 #include "mongo/db/curop.h"
 #include "mongo/db/exec/sbe/size_estimator.h"
-#include "mongo/db/query/util/spill_util.h"
 #include "mongo/db/stats/counters.h"
+#include "mongo/db/storage/spill_util.h"
 #include "mongo/db/storage/storage_options.h"
 
 #include <algorithm>
@@ -244,7 +244,8 @@ void LookupHashTable::spillBufferedValueToDisk(SpillingStore* rs,
     // Ensure there is sufficient disk space for spilling
     if (shouldCheckDiskSpace()) {
         uassertStatusOK(ensureSufficientDiskSpaceForSpilling(
-            storageGlobalParams.dbpath, internalQuerySpillingMinAvailableDiskSpaceBytes.load()));
+            storageGlobalParams.dbpath,
+            static_cast<int64_t>(internalQuerySpillingMinAvailableDiskSpaceBytes.load())));
     }
 
     RecordId rid = getValueRecordId(bufferIdx);
@@ -314,7 +315,8 @@ void LookupHashTable::spillIndicesToRecordStore(SpillingStore* rs,
     // Ensure there is sufficient disk space for spilling
     if (shouldCheckDiskSpace()) {
         uassertStatusOK(ensureSufficientDiskSpaceForSpilling(
-            storageGlobalParams.dbpath, internalQuerySpillingMinAvailableDiskSpaceBytes.load()));
+            storageGlobalParams.dbpath,
+            static_cast<int64_t>(internalQuerySpillingMinAvailableDiskSpaceBytes.load())));
     }
 
     auto keyColl = normalizeStringIfCollator(key);

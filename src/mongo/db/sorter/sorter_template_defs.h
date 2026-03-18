@@ -34,7 +34,6 @@
 #include "mongo/db/query/query_execution_knobs_gen.h"
 #include "mongo/db/query/query_integration_knobs_gen.h"
 #include "mongo/db/query/query_optimization_knobs_gen.h"
-#include "mongo/db/query/util/spill_util.h"
 #include "mongo/db/server_options.h"
 #include "mongo/db/service_context.h"
 #include "mongo/db/sorter/sorter.h"
@@ -42,6 +41,7 @@
 #include "mongo/db/sorter/sorter_file_name.h"
 #include "mongo/db/sorter/sorter_gen.h"
 #include "mongo/db/sorter/sorter_stats.h"
+#include "mongo/db/storage/spill_util.h"
 #include "mongo/db/storage/storage_parameters_gen.h"
 #include "mongo/logv2/log.h"
 #include "mongo/util/assert_util.h"
@@ -188,7 +188,8 @@ public:
                 _spiller != nullptr);
 
         uassertStatusOK(ensureSufficientDiskSpaceForSpilling(
-            *opts.tempDir, internalQuerySpillingMinAvailableDiskSpaceBytes.load()));
+            *opts.tempDir,
+            static_cast<int64_t>(internalQuerySpillingMinAvailableDiskSpaceBytes.load())));
 
         auto iterator = _spiller->spillUnique(opts, settings, _data, _index);
 
@@ -732,7 +733,7 @@ private:
         // Ensure there is sufficient disk space for spilling
         uassertStatusOK(ensureSufficientDiskSpaceForSpilling(
             *(this->_spiller->getStorage().getSpillDirPath()),
-            internalQuerySpillingMinAvailableDiskSpaceBytes.load()));
+            static_cast<int64_t>(internalQuerySpillingMinAvailableDiskSpaceBytes.load())));
 
         sort();
 

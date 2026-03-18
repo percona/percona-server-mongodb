@@ -58,8 +58,7 @@ template <typename MetadataDetailsType>
 MetadataInconsistencyItem makeInconsistency(const MetadataInconsistencyTypeEnum& type,
                                             const MetadataDetailsType& details) {
     return {type,
-            std::string{MetadataInconsistencyDescription_serializer(
-                static_cast<MetadataInconsistencyDescriptionEnum>(type))},
+            std::string{idl::serialize(static_cast<MetadataInconsistencyDescriptionEnum>(type))},
             details.toBSON()};
 }
 
@@ -99,7 +98,8 @@ std::vector<MetadataInconsistencyItem> checkCollectionMetadataConsistency(
     const std::vector<CollectionType>& shardingCatalogCollections,
     std::shared_ptr<const CollectionCatalog> localCatalogSnapshot,
     const std::vector<CollectionPtr>& localCatalogCollections,
-    bool checkRangeDeletionIndexes);
+    bool checkRangeDeletionIndexes,
+    bool optionalCheckIndexes);
 
 /**
  * For every collection, check that all the shards currently owning chunks for that collection have
