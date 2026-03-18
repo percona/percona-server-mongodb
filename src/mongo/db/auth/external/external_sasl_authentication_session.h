@@ -96,7 +96,7 @@ public:
     explicit OpenLDAPServerMechanism(std::string authenticationDatabase)
         : MakeServerMechanism<PLAINPolicy>(std::move(authenticationDatabase)) {}
 
-    virtual ~OpenLDAPServerMechanism();
+    ~OpenLDAPServerMechanism() override = default;
 
     boost::optional<unsigned int> currentStep() const override {
         return _step;
@@ -108,7 +108,6 @@ public:
 
 private:
     int _step{0};
-    LDAP* _ld{nullptr};
     std::string _principal;
 
     StatusWith<std::tuple<bool, std::string>> stepImpl(OperationContext* opCtx,
