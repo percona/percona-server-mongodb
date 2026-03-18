@@ -5,14 +5,14 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 290,
-    "days_behind": 7,
-    "files_affected": 1329,
-    "total_additions": 61061,
-    "total_deletions": 17098,
+    "commits_behind": 327,
+    "days_behind": 8,
+    "files_affected": 1511,
+    "total_additions": 69410,
+    "total_deletions": 19978,
     "date_range": {
       "first": "2026-03-10T01:37:57+00:00",
-      "last": "2026-03-17T16:04:43+00:00"
+      "last": "2026-03-18T04:33:09+00:00"
     }
   },
   "last_merged_commit": {
@@ -36,6 +36,376 @@
     "summary": "SERVER-121045: Modify the test for to skip checking the initialSyncId based on the persistence provider. (#49143)"
   },
   "unmerged_commits": [
+    {
+      "sha": "3542b0ed3ef59f1db53a7aa9ff9dacc20b594db3",
+      "short_sha": "3542b0ed3ef",
+      "date": "2026-03-17T21:33:09-07:00",
+      "author": {
+        "name": "Zack Winter",
+        "email": "3457246+zackwintermdb@users.noreply.github.com"
+      },
+      "summary": "SERVER-121919 Allow SERVER -XXXX tickets to pass through PR title validator in PR status check (#49839)"
+    },
+    {
+      "sha": "0107dc33e869c9eea3a2476ee8cc71532bb61e89",
+      "short_sha": "0107dc33e86",
+      "date": "2026-03-17T18:06:25-07:00",
+      "author": {
+        "name": "Chye Lin Chee",
+        "email": "chyelin.chee@mongodb.com"
+      },
+      "summary": "SERVER-112416 FCV Support for LDAP/OIDC internal authz (#47626)"
+    },
+    {
+      "sha": "4997d2ca49171f09a47f9f34945fd3ead6481279",
+      "short_sha": "4997d2ca491",
+      "date": "2026-03-17T23:32:47+00:00",
+      "author": {
+        "name": "Joan Bruguera Micó (at MongoDB)",
+        "email": "joan.bruguera-mico@mongodb.com"
+      },
+      "summary": "SERVER-121785 Add a passthrough test for split+move+merge chunks on timeseries collections (#49721)"
+    },
+    {
+      "sha": "3634a70cf50568d5b4a8ee2c6856dc46f2bfb2f3",
+      "short_sha": "3634a70cf50",
+      "date": "2026-03-17T18:05:35-04:00",
+      "author": {
+        "name": "Steve McClure",
+        "email": "steve.mcclure@mongodb.com"
+      },
+      "summary": "SERVER-121793: prettier-format README files (#49712)"
+    },
+    {
+      "sha": "87dede76a6c25650035372d06c4f463140a6ec96",
+      "short_sha": "87dede76a6c",
+      "date": "2026-03-17T18:04:00-04:00",
+      "author": {
+        "name": "Steve McClure",
+        "email": "steve.mcclure@mongodb.com"
+      },
+      "summary": "SERVER-121775: prettier-format .d.ts files (#49701)"
+    },
+    {
+      "sha": "5490094a267d24bb7cdb990d91ff7f464d5a81c7",
+      "short_sha": "5490094a267",
+      "date": "2026-03-17T17:53:10-04:00",
+      "author": {
+        "name": "Mark Benvenuto",
+        "email": "mark.benvenuto@mongodb.com"
+      },
+      "summary": "SERVER-121260 Fix server_status_cbr.js test for histogram output changes (#49822)"
+    },
+    {
+      "sha": "e8cf205d0bf46053a1bd5b3d31e783afc7c2251b",
+      "short_sha": "e8cf205d0bf",
+      "date": "2026-03-17T17:36:07-04:00",
+      "author": {
+        "name": "Nick Jefferies",
+        "email": "nick.jefferies@mongodb.com"
+      },
+      "summary": "SERVER-121511: Update remaining Python 3.10 references to 3.13 (#49522)"
+    },
+    {
+      "sha": "fb291a9a9e26b6846b45ff9d68dee26455e17b26",
+      "short_sha": "fb291a9a9e2",
+      "date": "2026-03-17T22:34:31+01:00",
+      "author": {
+        "name": "Tommaso Tocci",
+        "email": "58224719+toto-dev@users.noreply.github.com"
+      },
+      "summary": "SERVER-121406 Enable viewless timeseries feature flag in sharding_stepdown_fcv_upgrade_downgrade_jscore suite (#49406)"
+    },
+    {
+      "sha": "0201e895beab813d9f0164d7135b9ac696d4f05a",
+      "short_sha": "0201e895bea",
+      "date": "2026-03-17T22:33:00+01:00",
+      "author": {
+        "name": "Tommaso Tocci",
+        "email": "58224719+toto-dev@users.noreply.github.com"
+      },
+      "summary": "SERVER-120247 Add test coverage for collStats on timeseries collections during FCV upgrade/downgrade (#49534)"
+    },
+    {
+      "sha": "94b1b630ca44bce03cd1d5ce6d186f2f5221be9e",
+      "short_sha": "94b1b630ca4",
+      "date": "2026-03-17T17:30:39-04:00",
+      "author": {
+        "name": "Stephanie",
+        "email": "53684987+seristof@users.noreply.github.com"
+      },
+      "summary": "SERVER-120944 Unit test ensureSufficientDiskSpaceForSpilling (#49705)"
+    },
+    {
+      "sha": "0d79f092eadaf98ec1b6ecf125b1613c3a6aaae8",
+      "short_sha": "0d79f092ead",
+      "date": "2026-03-17T17:29:31-04:00",
+      "author": {
+        "name": "Naafiyan Ahmed",
+        "email": "naafiyan.ahmed@mongodb.com"
+      },
+      "summary": "SERVER-121453: Convert mongod distinct command to TypedCommand (#49337)"
+    },
+    {
+      "sha": "7926ed1c06149c953b1053a9edba307fd1a99b2e",
+      "short_sha": "7926ed1c061",
+      "date": "2026-03-17T17:23:06-04:00",
+      "author": {
+        "name": "Gregory Noma",
+        "email": "gregory.noma@gmail.com"
+      },
+      "summary": "SERVER-121883 Limit batch size bytes when loading into index for PDIB (#49800)"
+    },
+    {
+      "sha": "e73212eb1ebd6536686a615d8f74978e063b0ada",
+      "short_sha": "e73212eb1eb",
+      "date": "2026-03-17T20:53:16+00:00",
+      "author": {
+        "name": "auto-revert-app[bot]",
+        "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
+      },
+      "summary": "Revert \"SERVER-120837 Make SBE builtin array functions use Value RAII types (#49699)\" (#49816)"
+    },
+    {
+      "sha": "52cd8758bc998298bfe42bf50e72698fcad15fef",
+      "short_sha": "52cd8758bc9",
+      "date": "2026-03-17T13:31:18-07:00",
+      "author": {
+        "name": "Varun Ravichandran",
+        "email": "varun.ravichandran@mongodb.com"
+      },
+      "summary": "SERVER-121821 Load test certs separately for macOS on ssl_modes_not_disabled_ingress.js (#49788)"
+    },
+    {
+      "sha": "9e8e55229c99b3256594548e7811e02c8dbd9a61",
+      "short_sha": "9e8e55229c9",
+      "date": "2026-03-17T16:12:54-04:00",
+      "author": {
+        "name": "Brett Nawrocki",
+        "email": "90278537+brettnawrocki@users.noreply.github.com"
+      },
+      "summary": "SERVER-120986 Modularize ShardingDDLCoordinator OperationSessionInfo (#49458)"
+    },
+    {
+      "sha": "9a4548da1b1b3d41bf2e35346c734925093893b9",
+      "short_sha": "9a4548da1b1",
+      "date": "2026-03-17T20:52:39+01:00",
+      "author": {
+        "name": "Tommaso Tocci",
+        "email": "58224719+toto-dev@users.noreply.github.com"
+      },
+      "summary": "SERVER-121880 Relax buckets check in timeseries_reopened_bucket_insert.js test (#49794)"
+    },
+    {
+      "sha": "3f02dafeb26a6a705ef69c321cb85bc49703119b",
+      "short_sha": "3f02dafeb26",
+      "date": "2026-03-17T15:47:04-04:00",
+      "author": {
+        "name": "mongo-pr-bot[bot]",
+        "email": "230616009+mongo-pr-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "SERVER-111072 Auto-generated SBOM files [master] (#49747)"
+    },
+    {
+      "sha": "4ddb25a02441642d3a2805c3f08577c440bc6e7f",
+      "short_sha": "4ddb25a0244",
+      "date": "2026-03-17T15:37:25-04:00",
+      "author": {
+        "name": "Mark Benvenuto",
+        "email": "mark.benvenuto@mongodb.com"
+      },
+      "summary": "SERVER-121260 Change output format of HistogramServerStatusMetric (#49373)"
+    },
+    {
+      "sha": "7fbd72d6f0e4b2141ceeabb92563c9b484bd8603",
+      "short_sha": "7fbd72d6f0e",
+      "date": "2026-03-17T13:57:37-05:00",
+      "author": {
+        "name": "Daniel Moody",
+        "email": "dmoody256@gmail.com"
+      },
+      "summary": "SERVER-117726 move compiledb generation into the bazel graph (#49797)"
+    },
+    {
+      "sha": "04b80e7822044c22a1bd5204abb0c212140de7c3",
+      "short_sha": "04b80e78220",
+      "date": "2026-03-17T14:53:51-04:00",
+      "author": {
+        "name": "Billy Donahue",
+        "email": "BillyDonahue@users.noreply.github.com"
+      },
+      "summary": "SERVER-120620 FixedString C++20 (#49602)"
+    },
+    {
+      "sha": "5057e4bad7c0791c7629184783aa18328acb0dfc",
+      "short_sha": "5057e4bad7c",
+      "date": "2026-03-17T19:39:00+01:00",
+      "author": {
+        "name": "Peter Volk",
+        "email": "77723508+HCSPete@users.noreply.github.com"
+      },
+      "summary": "SERVER-120288 Add early return guard in TrafficRecorder::observe() before BSON serialization (#48663)"
+    },
+    {
+      "sha": "4c9de70e1da5e30be6babd2ec221e4b6e6facfe6",
+      "short_sha": "4c9de70e1da",
+      "date": "2026-03-17T13:36:54-05:00",
+      "author": {
+        "name": "Finley Lau",
+        "email": "finley.lau@mongodb.com"
+      },
+      "summary": "SERVER-120625 Implement LPDS::isScored/isRanked/isSelection for future hybrid search validation (#49217)"
+    },
+    {
+      "sha": "67d49e46eda5d1c7d8d7ca6c1b6f0bcd5daf0904",
+      "short_sha": "67d49e46eda",
+      "date": "2026-03-17T13:31:35-05:00",
+      "author": {
+        "name": "Nathan Frank",
+        "email": "nathantfrank@users.noreply.github.com"
+      },
+      "summary": "SERVER-119298: disable streams everywhere unless flag is present (#48696)"
+    },
+    {
+      "sha": "0adf06d3945221f0d92aa8a64836edebcfdd076b",
+      "short_sha": "0adf06d3945",
+      "date": "2026-03-17T14:31:07-04:00",
+      "author": {
+        "name": "Didier Nadeau",
+        "email": "didier.nadeau@mongodb.com"
+      },
+      "summary": "SERVER-115428 Remove todo (#49763)"
+    },
+    {
+      "sha": "458c0617f1beb09f9e587ccd748fe420aa152d43",
+      "short_sha": "458c0617f1b",
+      "date": "2026-03-17T14:25:40-04:00",
+      "author": {
+        "name": "Naafiyan Ahmed",
+        "email": "naafiyan.ahmed@mongodb.com"
+      },
+      "summary": "SERVER-119264: Convert clusterAggregate commands to TypedCommand (#49139)"
+    },
+    {
+      "sha": "49073adcd02dd398b40f3aaf7a3bd99cae8118bb",
+      "short_sha": "49073adcd02",
+      "date": "2026-03-17T14:24:08-04:00",
+      "author": {
+        "name": "Nick Jefferies",
+        "email": "nick.jefferies@mongodb.com"
+      },
+      "summary": "SERVER-121882: Fix missing return statement in get_git_file_content retry path (#49795)"
+    },
+    {
+      "sha": "db91064f0ddc156aa6424276a4a7b031223b3d74",
+      "short_sha": "db91064f0dd",
+      "date": "2026-03-17T18:51:09+01:00",
+      "author": {
+        "name": "Tommaso Tocci",
+        "email": "58224719+toto-dev@users.noreply.github.com"
+      },
+      "summary": "SERVER-121289 Make timeseries create path idempotent and concurrency safe (#49329)"
+    },
+    {
+      "sha": "a954de0618a49cd236288249cd3f4c3eb7fa81c6",
+      "short_sha": "a954de0618a",
+      "date": "2026-03-17T13:44:08-04:00",
+      "author": {
+        "name": "Matt Olma",
+        "email": "67564577+mattsimply@users.noreply.github.com"
+      },
+      "summary": "SERVER-121751: Implement renames for $alwaysBoolean MatchExpressions (#49695)"
+    },
+    {
+      "sha": "1812b6d550503580be9cf84de1eb60ff326f32f6",
+      "short_sha": "1812b6d5505",
+      "date": "2026-03-17T13:28:50-04:00",
+      "author": {
+        "name": "Teo Voinea",
+        "email": "teo.voinea@mongodb.com"
+      },
+      "summary": "SERVER-121755: Migrate rhel8-debug-aubsan-lite_fuzzer (#49677)"
+    },
+    {
+      "sha": "7241888b25c6a5532f241c7c36f47c2a173d6f27",
+      "short_sha": "7241888b25c",
+      "date": "2026-03-17T18:17:11+01:00",
+      "author": {
+        "name": "Marcos Grillo",
+        "email": "marcos.grillo@mongodb.com"
+      },
+      "summary": "SERVER-121825 Make background operations bypass max queue length check (#49765)"
+    },
+    {
+      "sha": "6110a2c6e59858a582277959868cc5c572bf0d78",
+      "short_sha": "6110a2c6e59",
+      "date": "2026-03-17T13:07:42-04:00",
+      "author": {
+        "name": "Ian Boros",
+        "email": "87138302+borosaurus@users.noreply.github.com"
+      },
+      "summary": "SERVER-120837 Make SBE builtin array functions use Value RAII types (#49699)"
+    },
+    {
+      "sha": "625c8cc4d3b7783760915cf6addb1f3cb7ad80e1",
+      "short_sha": "625c8cc4d3b",
+      "date": "2026-03-17T18:07:28+01:00",
+      "author": {
+        "name": "Alya Carina Berciu",
+        "email": "alya.berciu@mongodb.com"
+      },
+      "summary": "SERVER-120163 Add serialization/deserialization for join hinting (#49308)"
+    },
+    {
+      "sha": "693299eb8ca7a7b411b4e090764aa36608a9780e",
+      "short_sha": "693299eb8ca",
+      "date": "2026-03-17T10:04:20-07:00",
+      "author": {
+        "name": "Thomas Goyne",
+        "email": "thomas.goyne@mongodb.com"
+      },
+      "summary": "SERVER-119893 Remove uses of writeConflictRetry from validate repair (#49616)"
+    },
+    {
+      "sha": "d2422987898296fa81ada5ca071c4566dd808320",
+      "short_sha": "d2422987898",
+      "date": "2026-03-17T10:01:35-07:00",
+      "author": {
+        "name": "Alexander Neben",
+        "email": "alex.neben@mongodb.com"
+      },
+      "summary": "SERVER-121861: Add B&V leads to code lockdown (#49776)"
+    },
+    {
+      "sha": "79b7c2ab968a4b0aa91616ebef294c90254295bd",
+      "short_sha": "79b7c2ab968",
+      "date": "2026-03-17T12:54:53-04:00",
+      "author": {
+        "name": "Naafiyan Ahmed",
+        "email": "naafiyan.ahmed@mongodb.com"
+      },
+      "summary": "SERVER-119295: Convert explain command to TypedCommand (#48793)"
+    },
+    {
+      "sha": "5f63dfaead79f2e3ba5cc7d3d718c76ced8f179c",
+      "short_sha": "5f63dfaead7",
+      "date": "2026-03-17T17:41:24+01:00",
+      "author": {
+        "name": "Allison Easton",
+        "email": "allison.easton@mongodb.com"
+      },
+      "summary": "SERVER-121287 Mark resharding operations under the critical section as non-deprioritizable (#49650)"
+    },
+    {
+      "sha": "61526273dcd21cf78a5c4172340766761e2a64f2",
+      "short_sha": "61526273dcd",
+      "date": "2026-03-17T12:35:24-04:00",
+      "author": {
+        "name": "Daniel Segel",
+        "email": "71151509+dhsegel@users.noreply.github.com"
+      },
+      "summary": "SERVER-121851 Handle empty pipelines on views in $rankFusion and $scoreFusion (#49769)"
+    },
     {
       "sha": "8718c94babc4d8ef14b70c05e507fecb2eae4f78",
       "short_sha": "8718c94babc",
@@ -3262,10 +3632,56 @@
           "num_of_dirs": 12
         }
       }
+    },
+    {
+      "commit": {
+        "sha": "67d49e46eda5d1c7d8d7ca6c1b6f0bcd5daf0904",
+        "short_sha": "67d49e46eda",
+        "date": "2026-03-17T13:31:35-05:00",
+        "author": {
+          "name": "Nathan Frank",
+          "email": "nathantfrank@users.noreply.github.com"
+        },
+        "summary": "SERVER-119298: disable streams everywhere unless flag is present (#48696)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 18,
+          "num_of_lines": 342,
+          "lines_added": 187,
+          "lines_deleted": 155,
+          "num_of_dirs": 12
+        }
+      }
+    },
+    {
+      "commit": {
+        "sha": "7fbd72d6f0e4b2141ceeabb92563c9b484bd8603",
+        "short_sha": "7fbd72d6f0e",
+        "date": "2026-03-17T13:57:37-05:00",
+        "author": {
+          "name": "Daniel Moody",
+          "email": "dmoody256@gmail.com"
+        },
+        "summary": "SERVER-117726 move compiledb generation into the bazel graph (#49797)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 29,
+          "num_of_lines": 3072,
+          "lines_added": 2745,
+          "lines_deleted": 327,
+          "num_of_dirs": 13
+        }
+      }
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-03-17 16:36:28",
+  "generated_at": "2026-03-18 06:23:58",
   "branch_name": "master",
   "display_name": "master"
 }
