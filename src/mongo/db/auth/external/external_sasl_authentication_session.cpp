@@ -181,6 +181,11 @@ StatusWith<std::tuple<bool, std::string>> OpenLDAPServerMechanism::stepImpl(Oper
                               uri, ldap_err2string(res)));
         }
 
+        if (!set_ldap_timeouts(_ld, logv2::LogSeverity::Warning())) {
+            return Status(ErrorCodes::LDAPLibraryError,
+                          "Failed to set LDAP timeout options for auth connection");
+        }
+
         Status status = LDAPbind(_ld, mappedUser.c_str(), pw);
         if (!status.isOK())
             return status;
