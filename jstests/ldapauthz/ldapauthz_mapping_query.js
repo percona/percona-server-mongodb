@@ -1,9 +1,6 @@
 (function() {
 'use strict';
 
-// prepare for the auth mode
-load('jstests/ldapauthz/_setup.js');
-
 // test command line parameters related to LDAP authorization
 var conn = MongoRunner.runMongod({
     auth: '',
