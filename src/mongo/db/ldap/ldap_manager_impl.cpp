@@ -167,6 +167,42 @@ struct LDAPConnInfo {
 
 using namespace fmt::literals;
 
+static void init_ldap_timeout(timeval* tv, int timeoutMS) {
+    tv->tv_sec = timeoutMS / 1000;
+    tv->tv_usec = (timeoutMS % 1000) * 1000;
+}
+
+static void init_ldap_timeout(timeval* tv) {
+    init_ldap_timeout(tv, ldapGlobalParams.ldapTimeoutMS.load());
+}
+
+bool set_ldap_timeouts(LDAP* ldap, logv2::LogSeverity logSeverity) {
+    timeval tv;
+    auto timeoutMS = ldapGlobalParams.ldapTimeoutMS.load();
+    init_ldap_timeout(&tv, timeoutMS);
+
+    int res = ldap_set_option(ldap, LDAP_OPT_NETWORK_TIMEOUT, &tv);
+    if (res != LDAP_OPT_SUCCESS) {
+        LOGV2_SEVERITY(29151,
+                       logSeverity,
+                       "Cannot set LDAP network timeout",
+                       "err"_attr = ldap_err2string(res),
+                       "timeoutMS"_attr = timeoutMS);
+        return false;
+    }
+
+    res = ldap_set_option(ldap, LDAP_OPT_TIMEOUT, &tv);
+    if (res != LDAP_OPT_SUCCESS) {
+        LOGV2_SEVERITY(29152,
+                       logSeverity,
+                       "Cannot set LDAP operation timeout",
+                       "err"_attr = ldap_err2string(res),
+                       "timeoutMS"_attr = timeoutMS);
+        return false;
+    }
+    return true;
+}
+
 static LDAP* create_connection(void* connect_cb_arg = nullptr,
                                logv2::LogSeverity logSeverity = logv2::LogSeverity::Debug(1)) {
     LDAP* ldap = nullptr;
@@ -179,6 +215,11 @@ static LDAP* create_connection(void* connect_cb_arg = nullptr,
                        "Cannot initialize LDAP structure for {uri} ; LDAP error: {err}",
                        "uri"_attr = uri,
                        "err"_attr = ldap_err2string(res));
+        return nullptr;
+    }
+    ScopeGuard guard([&ldap] { ldap_unbind_ext(ldap, nullptr, nullptr); });
+
+    if (!set_ldap_timeouts(ldap, logSeverity)) {
         return nullptr;
     }
 
@@ -218,6 +259,7 @@ static LDAP* create_connection(void* connect_cb_arg = nullptr,
         }
     }
 
+    guard.dismiss();
     return ldap;
 }
 
@@ -402,7 +444,16 @@ public:
                 }
                 // wait for some connection returned from borrowed state
                 // or killed after failure
-                _condvar_pool.wait(lock);
+                auto timeout_ms = ldapGlobalParams.ldapTimeoutMS.load();
+                if (_condvar_pool.wait_for(lock, stdx::chrono::milliseconds(timeout_ms)) ==
+                    stdx::cv_status::timeout) {
+                    LOGV2_WARNING(29154,
+                                  "Timed out waiting for available LDAP connection from pool",
+                                  "timeoutMS"_attr = timeout_ms,
+                                  "poolSize"_attr =
+                                      ldapGlobalParams.ldapConnectionPoolSizePerHost.load());
+                    return nullptr;
+                }
             }
         }
         // LDAP connect callback will add entry to the _poll_fds
@@ -586,14 +637,13 @@ LDAP* LDAPManagerImpl::borrow_search_connection() {
 
     auto ret = LDAPbind(
         ldap, ldapGlobalParams.ldapQueryUser.get(), ldapGlobalParams.ldapQueryPassword.get());
+    if (!ret.isOK()) {
+        LOGV2_ERROR(29153, "LDAP bind failed for search connection", "error"_attr = ret.toString());
+        _connPoller->return_ldap_connection(ldap);
+        return nullptr;
+    }
 
     return ldap;
-}
-
-static void init_ldap_timeout(timeval* tv) {
-    auto timeout = ldapGlobalParams.ldapTimeoutMS.load();
-    tv->tv_sec = timeout / 1000;
-    tv->tv_usec = (timeout % 1000) * 1000;
 }
 
 Status LDAPManagerImpl::execQuery(const std::string& ldapurl,
