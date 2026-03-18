@@ -31,7 +31,7 @@ if (!isLinux()) {
 
     const db = conn.getDB("admin");
 
-    // TODO This can only run on small linux machines with properly set ulimits, so some of burn-in
+    // Note: This can only run on small linux machines with properly set ulimits, so some of burn-in
     // tests will fail since they run on very large machines. This needs to be adjusted.
     const hostInfo = assert.commandWorked(db.hostInfo());
     const memLimitBytes = hostInfo.system.memLimitMB * 1024 * 1024;
