@@ -5,14 +5,14 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 286,
+    "commits_behind": 299,
     "days_behind": 6,
-    "files_affected": 1391,
-    "total_additions": 69785,
-    "total_deletions": 20287,
+    "files_affected": 1592,
+    "total_additions": 72051,
+    "total_deletions": 20643,
     "date_range": {
       "first": "2026-03-12T14:02:14+00:00",
-      "last": "2026-03-18T20:20:09+00:00"
+      "last": "2026-03-19T02:46:36+00:00"
     }
   },
   "last_merged_commit": {
@@ -36,6 +36,136 @@
     "summary": "SERVER-120718: Move join noPassthrough tests into corresponding join directory (#48844)"
   },
   "unmerged_commits": [
+    {
+      "sha": "26cb8d58d82b86d39d05f38105bc9e526d04c399",
+      "short_sha": "26cb8d58d82",
+      "date": "2026-03-19T13:46:36+11:00",
+      "author": {
+        "name": "DennisSHCheung",
+        "email": "40588409+DennisSHCheung@users.noreply.github.com"
+      },
+      "summary": "SERVER-108281 Lower default WiredTiger session maximum (#49295)"
+    },
+    {
+      "sha": "b72fa8f11c2f3ddeffa36a76e14c1433afc8a9ef",
+      "short_sha": "b72fa8f11c2",
+      "date": "2026-03-19T00:48:10+01:00",
+      "author": {
+        "name": "Antonio Fuschetto",
+        "email": "antonio.fuschetto@mongodb.com"
+      },
+      "summary": "SERVER-113358 Move ownership of `util/namespace_string*` and `util/database_name*` to CAR (#49760)"
+    },
+    {
+      "sha": "bece3f8f6cd1ebe64bb1d58aa55b4f6422d3a2ca",
+      "short_sha": "bece3f8f6cd",
+      "date": "2026-03-18T18:17:15-04:00",
+      "author": {
+        "name": "Patrick Freed",
+        "email": "patrick.freed@mongodb.com"
+      },
+      "summary": "SERVER-121740 Disable overload-retargeting by default (#49904)"
+    },
+    {
+      "sha": "d16c1bd58a0678a10a3b3d7daa24b670e9514374",
+      "short_sha": "d16c1bd58a0",
+      "date": "2026-03-18T15:15:11-07:00",
+      "author": {
+        "name": "Andrew Bradshaw",
+        "email": "andrew.bradshaw@mongodb.com"
+      },
+      "summary": "SERVER-122049: Fix cross toolchain lock (#49937)"
+    },
+    {
+      "sha": "6395f96b284f943dd614638f2e77bf1b5fae91b0",
+      "short_sha": "6395f96b284",
+      "date": "2026-03-18T18:08:44-04:00",
+      "author": {
+        "name": "Mariano Shaar",
+        "email": "47160550+shaargtz@users.noreply.github.com"
+      },
+      "summary": "SERVER-117862 Add custom $unionWith StageParams (#48930)"
+    },
+    {
+      "sha": "f7b34712ea9cc05aec775333f54da712f0696d78",
+      "short_sha": "f7b34712ea9",
+      "date": "2026-03-18T18:06:43-04:00",
+      "author": {
+        "name": "Gregory Noma",
+        "email": "gregory.noma@gmail.com"
+      },
+      "summary": "SERVER-111304 Apply PDIB on secondaries without builder thread (#49404)"
+    },
+    {
+      "sha": "3097a550f0ed437e39ba4815ce4758ba5ce7fa0c",
+      "short_sha": "3097a550f0e",
+      "date": "2026-03-18T17:45:44-04:00",
+      "author": {
+        "name": "Sergei B",
+        "email": "sergei.b@mongodb.com"
+      },
+      "summary": "SERVER-121995 Add a millisecond (#49894)"
+    },
+    {
+      "sha": "ad6e0c37eb24eec92f0f67b6bd7a577bb7461b55",
+      "short_sha": "ad6e0c37eb2",
+      "date": "2026-03-18T17:45:40-04:00",
+      "author": {
+        "name": "Matthew Boros",
+        "email": "mattBoros@users.noreply.github.com"
+      },
+      "summary": "SERVER-121877 Create temporary no_passthrough suites for deferred engine selection project (#49790)"
+    },
+    {
+      "sha": "80c892aa7d2a6ec6eded861ee4ea121071d02bf5",
+      "short_sha": "80c892aa7d2",
+      "date": "2026-03-18T17:01:58-04:00",
+      "author": {
+        "name": "Billy Donahue",
+        "email": "BillyDonahue@users.noreply.github.com"
+      },
+      "summary": "SERVER-120620 Move DiagStr to its only caller (#49841)"
+    },
+    {
+      "sha": "776ba4d4c816945e44afd9b8d9ca61a93422409f",
+      "short_sha": "776ba4d4c81",
+      "date": "2026-03-18T16:55:52-04:00",
+      "author": {
+        "name": "Shreyas Kalyan",
+        "email": "35750327+shreyaskalyan@users.noreply.github.com"
+      },
+      "summary": "SERVER-121663 Fix server key construction to use server.size() instead of stored.size() (#49911)"
+    },
+    {
+      "sha": "2718e600e93c72113624c017024ca3fe63e88e6a",
+      "short_sha": "2718e600e93",
+      "date": "2026-03-18T13:45:45-07:00",
+      "author": {
+        "name": "Joseph Prince",
+        "email": "57415450+josephdprince@users.noreply.github.com"
+      },
+      "summary": "SERVER-121904 Make async ftdc tests less racy (#49821)"
+    },
+    {
+      "sha": "b3e9eafb736f9fe9302958ecb5f2756dc7f39552",
+      "short_sha": "b3e9eafb736",
+      "date": "2026-03-18T20:42:16+00:00",
+      "author": {
+        "name": "auto-revert-app[bot]",
+        "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
+      },
+      "summary": "Revert \"SERVER-121875: Capture JS Stacktrace (#49707)\" (#49916)"
+    },
+    {
+      "sha": "0f1e9f39b980d81fe095667eda5561ac4b4dd226",
+      "short_sha": "0f1e9f39b98",
+      "date": "2026-03-18T16:39:27-04:00",
+      "author": {
+        "name": "Gregory Noma",
+        "email": "gregory.noma@gmail.com"
+      },
+      "summary": "SERVER-118845 Handle write conflicts when loading into index for PDIB (#49898)"
+    },
     {
       "sha": "f8c3c5f6ddf66d98a77305f8b427c29682f7e7a5",
       "short_sha": "f8c3c5f6ddf",
@@ -3268,10 +3398,51 @@
           "num_of_dirs": 11
         }
       }
+    },
+    {
+      "commit": {
+        "sha": "b72fa8f11c2f3ddeffa36a76e14c1433afc8a9ef",
+        "short_sha": "b72fa8f11c2",
+        "date": "2026-03-19T00:48:10+01:00",
+        "author": {
+          "name": "Antonio Fuschetto",
+          "email": "antonio.fuschetto@mongodb.com"
+        },
+        "summary": "SERVER-113358 Move ownership of `util/namespace_string*` and `util/database_name*` to CAR (#49760)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 219,
+          "num_of_lines": 491,
+          "lines_added": 245,
+          "lines_deleted": 246,
+          "num_of_dirs": 54
+        }
+      }
+    },
+    {
+      "commit": {
+        "sha": "26cb8d58d82b86d39d05f38105bc9e526d04c399",
+        "short_sha": "26cb8d58d82",
+        "date": "2026-03-19T13:46:36+11:00",
+        "author": {
+          "name": "DennisSHCheung",
+          "email": "40588409+DennisSHCheung@users.noreply.github.com"
+        },
+        "summary": "SERVER-108281 Lower default WiredTiger session maximum (#49295)"
+      },
+      "strategy_name": "important_files",
+      "result": {
+        "matched_files": [
+          "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine_test.cpp"
+        ]
+      }
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-03-18 21:07:11",
+  "generated_at": "2026-03-19 06:21:47",
   "branch_name": "master",
   "display_name": "master"
 }
