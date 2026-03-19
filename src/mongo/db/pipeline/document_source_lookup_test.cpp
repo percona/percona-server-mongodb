@@ -1594,10 +1594,14 @@ static boost::intrusive_ptr<DocumentSourceLookUp> makeLookupWithLet(
     const boost::intrusive_ptr<ExpressionContext>& expCtx, NamespaceString fromNs) {
     expCtx->setResolvedNamespaces(ResolvedNamespaceMap{{fromNs, {fromNs, std::vector<BSONObj>()}}});
 
-    auto spec =
-        BSON("$lookup" << BSON("from" << fromNs.coll() << "let" << BSON("v" << "$x") << "pipeline"
-                                      << BSON_ARRAY(BSON("$match" << BSON("y" << "$$v"))) << "as"
-                                      << "out"));
+    auto spec = BSON("$lookup" << BSON("from" << fromNs.coll() << "let"
+                                              << BSON("v"
+                                                      << "$x")
+                                              << "pipeline"
+                                              << BSON_ARRAY(BSON("$match" << BSON("y"
+                                                                                  << "$$v")))
+                                              << "as"
+                                              << "out"));
     auto ds = DocumentSourceLookUp::createFromBson(spec.firstElement(), expCtx);
     return boost::static_pointer_cast<DocumentSourceLookUp>(ds);
 }
