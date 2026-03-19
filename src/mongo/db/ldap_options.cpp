@@ -32,7 +32,9 @@ Copyright (C) 2019-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/ldap_options.h"
 
 #include "mongo/bson/json.h"
+#include "mongo/db/ldap/ldap_manager.h"
 #include "mongo/db/ldap_options_gen.h"
+#include "mongo/db/service_context.h"
 #include "mongo/util/str.h"
 
 #include <regex>
@@ -92,6 +94,15 @@ std::string LDAPGlobalParams::ldapURIList() const {
 }
 
 
+static void invalidateLDAPConnections() {
+    if (hasGlobalServiceContext()) {
+        auto* manager = LDAPManager::get(getGlobalServiceContext());
+        if (manager) {
+            manager->invalidateConnections();
+        }
+    }
+}
+
 void LDAPServersParameter::append(OperationContext*,
                                   BSONObjBuilder* b,
                                   StringData name,
@@ -102,6 +113,31 @@ void LDAPServersParameter::append(OperationContext*,
 Status LDAPServersParameter::setFromString(StringData newValueString,
                                            const boost::optional<TenantId>&) {
     ldapGlobalParams.setServersStr(newValueString);
+    invalidateLDAPConnections();
+    return Status::OK();
+}
+
+void LDAPQueryUserParameter::append(OperationContext*,
+                                    BSONObjBuilder* b,
+                                    StringData name,
+                                    const boost::optional<TenantId>&) {
+    b->append(name, ldapGlobalParams.ldapQueryUser.get());
+}
+
+Status LDAPQueryUserParameter::setFromString(StringData newValueString,
+                                             const boost::optional<TenantId>&) {
+    ldapGlobalParams.ldapQueryUser = std::string(newValueString);
+    invalidateLDAPConnections();
+    return Status::OK();
+}
+
+// We do not implement LDAPQueryPasswordParameter:append here because this parameter has redact=true
+// so this method is implemented by idl generator
+
+Status LDAPQueryPasswordParameter::setFromString(StringData newValueString,
+                                                 const boost::optional<TenantId>&) {
+    ldapGlobalParams.ldapQueryPassword = std::string(newValueString);
+    invalidateLDAPConnections();
     return Status::OK();
 }
 

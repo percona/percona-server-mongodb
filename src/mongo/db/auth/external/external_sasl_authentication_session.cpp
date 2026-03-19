@@ -46,6 +46,7 @@ Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/ldap_options.h"
 #include "mongo/logv2/log.h"
 #include "mongo/util/net/socket_utils.h"
+#include "mongo/util/scopeguard.h"
 #include "mongo/util/str.h"
 
 #include <ldap.h>
@@ -145,13 +146,6 @@ StringData SaslExternalLDAPServerMechanism::getPrincipalName() const {
     return "";
 }
 
-OpenLDAPServerMechanism::~OpenLDAPServerMechanism() {
-    if (_ld) {
-        ldap_unbind_ext(_ld, nullptr, nullptr);
-        _ld = nullptr;
-    }
-}
-
 StatusWith<std::tuple<bool, std::string>> OpenLDAPServerMechanism::stepImpl(OperationContext* opCtx,
                                                                             StringData inputData) {
     if (_step++ == 0) {
@@ -176,15 +170,22 @@ StatusWith<std::tuple<bool, std::string>> OpenLDAPServerMechanism::stepImpl(Oper
         }
 
         auto uri = ldapGlobalParams.ldapURIList();
-        int res = ldap_initialize(&_ld, uri.c_str());
+        LDAP* ld = nullptr;
+        int res = ldap_initialize(&ld, uri.c_str());
         if (res != LDAP_SUCCESS) {
             return Status(ErrorCodes::LDAPLibraryError,
                           fmt::format("Cannot initialize LDAP structure for {}; LDAP error: {}",
                                       uri,
                                       ldap_err2string(res)));
         }
+        ScopeGuard guard([ld] { ldap_unbind_ext(ld, nullptr, nullptr); });
 
-        Status status = LDAPbind(_ld, mappedUser.c_str(), pw);
+        if (!set_ldap_timeouts(ld, logv2::LogSeverity::Warning())) {
+            return Status(ErrorCodes::LDAPLibraryError,
+                          "Failed to set LDAP timeout options for auth connection");
+        }
+
+        Status status = LDAPbind(ld, mappedUser.c_str(), pw);
         if (!status.isOK())
             return status;
         _principal = authn_id;

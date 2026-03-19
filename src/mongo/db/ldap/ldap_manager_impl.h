@@ -32,6 +32,7 @@ Copyright (C) 2019-present Percona and/or its affiliates. All rights reserved.
 #pragma once
 
 #include "mongo/db/ldap/ldap_manager.h"
+#include "mongo/logv2/log_severity.h"
 
 #include <ldap.h>
 
@@ -52,11 +53,13 @@ public:
 
     Status mapUserToDN(const std::string& user, std::string& out) override;
 
+    void invalidateConnections() override;
+
 private:
     std::unique_ptr<ConnectionPoller> _connPoller;
 
     LDAP* borrow_search_connection();
-    void return_search_connection(LDAP* ldap);
+    void return_search_connection(LDAP* ldap, bool destroy = false);
 
     Status execQuery(const std::string& ldapurl,
                      bool entitiesonly,
@@ -66,5 +69,8 @@ private:
 // bind either simple or sasl using global LDAP parameters
 Status LDAPbind(LDAP* ld, const char* usr, const char* psw);
 Status LDAPbind(LDAP* ld, const std::string& usr, const std::string& psw);
+
+// Set LDAP_OPT_NETWORK_TIMEOUT and LDAP_OPT_TIMEOUT on an LDAP handle using ldapTimeoutMS
+bool set_ldap_timeouts(LDAP* ldap, logv2::LogSeverity logSeverity = logv2::LogSeverity::Debug(1));
 
 }  // namespace mongo
