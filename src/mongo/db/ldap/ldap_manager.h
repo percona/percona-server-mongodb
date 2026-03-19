@@ -58,6 +58,9 @@ public:
                                   stdx::unordered_set<RoleName>& roles) = 0;
 
     virtual Status mapUserToDN(const std::string& user, std::string& out) = 0;
+
+    // Invalidate all pooled LDAP connections. Called when bind credentials change.
+    virtual void invalidateConnections() {}
 };
 
 }  // namespace mongo
