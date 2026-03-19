@@ -58,7 +58,7 @@ private:
     std::unique_ptr<ConnectionPoller> _connPoller;
 
     LDAP* borrow_search_connection();
-    void return_search_connection(LDAP* ldap);
+    void return_search_connection(LDAP* ldap, bool destroy = false);
 
     Status execQuery(const std::string& ldapurl,
                      bool entitiesonly,
