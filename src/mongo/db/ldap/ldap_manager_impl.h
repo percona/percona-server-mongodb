@@ -53,6 +53,8 @@ public:
 
     Status mapUserToDN(const std::string& user, std::string& out) override;
 
+    void invalidateConnections() override;
+
 private:
     std::unique_ptr<ConnectionPoller> _connPoller;
 
