@@ -61,6 +61,17 @@ const userpwd = "exttestro9a5S";
         db.auth({user: username, pwd: userpwd, mechanism: "PLAIN"}),
         "Auth should succeed after switching to a valid LDAP server",
     );
+    db.logout();
+
+    // Switch back to the non-listening port — pool should be invalidated again
+    assert(adminDb.auth({user: "admin", pwd: "password"}));
+    assert.commandWorked(adminDb.adminCommand({setParameter: 1, ldapServers: "localhost:39999"}));
+    adminDb.logout();
+
+    assert(
+        !db.auth({user: username, pwd: userpwd, mechanism: "PLAIN"}),
+        "Auth should fail after switching back to non-listening LDAP server",
+    );
 
     MongoRunner.stopMongod(conn);
 }
