@@ -168,14 +168,18 @@ struct LDAPConnInfo {
 
 using namespace fmt::literals;
 
-static void init_ldap_timeout(timeval* tv, int timeoutMS) {
+namespace {
+
+void init_ldap_timeout(timeval* tv, int timeoutMS) {
     tv->tv_sec = timeoutMS / 1000;
     tv->tv_usec = (timeoutMS % 1000) * 1000;
 }
 
-static void init_ldap_timeout(timeval* tv) {
+void init_ldap_timeout(timeval* tv) {
     init_ldap_timeout(tv, ldapGlobalParams.ldapTimeoutMS.load());
 }
+
+}  // namespace
 
 bool set_ldap_timeouts(LDAP* ldap, logv2::LogSeverity logSeverity) {
     timeval tv;
@@ -204,8 +208,10 @@ bool set_ldap_timeouts(LDAP* ldap, logv2::LogSeverity logSeverity) {
     return true;
 }
 
-static LDAP* create_connection(void* connect_cb_arg = nullptr,
-                               logv2::LogSeverity logSeverity = logv2::LogSeverity::Debug(1)) {
+namespace {
+
+LDAP* create_connection(void* connect_cb_arg = nullptr,
+                        logv2::LogSeverity logSeverity = logv2::LogSeverity::Debug(1)) {
     LDAP* ldap = nullptr;
     auto uri = ldapGlobalParams.ldapURIList();
 
@@ -263,6 +269,8 @@ static LDAP* create_connection(void* connect_cb_arg = nullptr,
     guard.dismiss();
     return ldap;
 }
+
+}  // namespace
 
 class LDAPManagerImpl::ConnectionPoller : public BackgroundJob {
 public:
