@@ -147,6 +147,7 @@ namespace mongo {
 struct LDAPConnInfo {
     LDAP* conn = nullptr;
     bool borrowed = false;
+    bool destroy = false;  // marked for destruction on return
 
     void close() {
         invariant(!borrowed);
@@ -439,7 +440,7 @@ public:
         // returning connection which was not borrowed is an error
         invariant(it->second.borrowed);
         it->second.borrowed = false;
-        if (destroy) {
+        if (destroy || it->second.destroy) {
             it->second.close();
             _poll_fds.erase(it);
         }
@@ -448,6 +449,21 @@ public:
         _condvar_pool.notify_one();
     }
 
+    // Mark all connections for destruction. Non-borrowed ones are destroyed
+    // immediately. Borrowed ones will be destroyed when returned.
+    void invalidate_connections() {
+        stdx::unique_lock<stdx::mutex> lock{_mutex};
+        for (auto it = _poll_fds.begin(); it != _poll_fds.end();) {
+            if (!it->second.borrowed) {
+                it->second.close();
+                it = _poll_fds.erase(it);
+                _condvar_pool.notify_one();
+            } else {
+                it->second.destroy = true;
+                ++it;
+            }
+        }
+    }
     LDAP* borrow_or_create() {
         // create scope block to ensure that _mutex is released before call to create_connection
         {
@@ -641,6 +657,12 @@ void LDAPManagerImpl::start_threads() {
     if (!_connPoller) {
         _connPoller = std::make_unique<ConnectionPoller>();
         _connPoller->go();
+    }
+}
+
+void LDAPManagerImpl::invalidateConnections() {
+    if (_connPoller) {
+        _connPoller->invalidate_connections();
     }
 }
 
