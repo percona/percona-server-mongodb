@@ -51,11 +51,11 @@ server_parameters:
     ldapQueryUser:
         description: "LDAP user used to connect or query LDAP server"
         set_at: runtime
-        cpp_varname: "ldapGlobalParams.ldapQueryUser"
+        cpp_class: LDAPQueryUserParameter
     ldapQueryPassword:
         description: "Password used with queryUser to bind to an LDAP server"
         set_at: runtime
-        cpp_varname: "ldapGlobalParams.ldapQueryPassword"
+        cpp_class: LDAPQueryPasswordParameter
         redact: true
     ldapUserToDNMapping:
         description: "Provides mechanism to transform authenticated user name to a LDAP Distinguished Name (DN)"
