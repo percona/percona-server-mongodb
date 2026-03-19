@@ -423,6 +423,31 @@ public:
         return nullptr;
     }
 
+    void return_ldap_connection(LDAP* ldap, bool destroy = false) {
+        stdx::unique_lock<Latch> lock{_mutex};
+        auto it = std::find_if(_poll_fds.begin(), _poll_fds.end(), [&](auto const& e) {
+            return e.second.conn == ldap;
+        });
+        if (it == _poll_fds.end()) {
+            // for this connection there was no cb_add call
+            // or it was removed from _poll_fds by start_poll()'s logic
+            // or it was removed from _poll_fds due to some event reported by poll()
+            // unbind it here
+            ldap_unbind_ext(ldap, nullptr, nullptr);
+            return;
+        }
+        // returning connection which was not borrowed is an error
+        invariant(it->second.borrowed);
+        it->second.borrowed = false;
+        if (destroy) {
+            it->second.close();
+            _poll_fds.erase(it);
+        }
+        // notify regardless — either a slot was freed or the pool shrank
+        // so a waiter can create a new connection
+        _condvar_pool.notify_one();
+    }
+
     LDAP* borrow_or_create() {
         // create scope block to ensure that _mutex is released before call to create_connection
         {
@@ -457,27 +482,19 @@ public:
             }
         }
         // LDAP connect callback will add entry to the _poll_fds
-        return create_connection(this);
-    }
-
-    void return_ldap_connection(LDAP* ldap) {
-        stdx::unique_lock<Latch> lock{_mutex};
-        auto it = std::find_if(_poll_fds.begin(), _poll_fds.end(), [&](auto const& e) {
-            return e.second.conn == ldap;
-        });
-        if (it == _poll_fds.end()) {
-            // for this connection there was no cb_add call
-            // or it was removed from _poll_fds by start_poll()'s logic
-            // or it was removed from _poll_fds due to some event reported by poll()
-            // unbind it here
-            ldap_unbind_ext(ldap, nullptr, nullptr);
-            return;
+        auto* ldap = create_connection(this);
+        if (!ldap) {
+            return nullptr;
         }
-        // returning connection which was not borrowed is an error
-        invariant(it->second.borrowed);
-        it->second.borrowed = false;
-        // poller should be always notified here
-        _condvar_pool.notify_one();
+        auto ret = LDAPbind(
+            ldap, ldapGlobalParams.ldapQueryUser.get(), ldapGlobalParams.ldapQueryPassword.get());
+        if (!ret.isOK()) {
+            LOGV2_ERROR(
+                29153, "LDAP bind failed for new pool connection", "error"_attr = ret.toString());
+            return_ldap_connection(ldap, true);
+            return nullptr;
+        }
+        return ldap;
     }
 
 private:
@@ -584,8 +601,8 @@ LDAPManagerImpl::~LDAPManagerImpl() {
     }
 }
 
-void LDAPManagerImpl::return_search_connection(LDAP* ldap) {
-    _connPoller->return_ldap_connection(ldap);
+void LDAPManagerImpl::return_search_connection(LDAP* ldap, bool destroy) {
+    _connPoller->return_ldap_connection(ldap, destroy);
 }
 
 Status LDAPManagerImpl::initialize() {
@@ -628,22 +645,7 @@ void LDAPManagerImpl::start_threads() {
 }
 
 LDAP* LDAPManagerImpl::borrow_search_connection() {
-
-    auto* ldap = _connPoller->borrow_or_create();
-
-    if (!ldap) {
-        return ldap;
-    }
-
-    auto ret = LDAPbind(
-        ldap, ldapGlobalParams.ldapQueryUser.get(), ldapGlobalParams.ldapQueryPassword.get());
-    if (!ret.isOK()) {
-        LOGV2_ERROR(29153, "LDAP bind failed for search connection", "error"_attr = ret.toString());
-        _connPoller->return_ldap_connection(ldap);
-        return nullptr;
-    }
-
-    return ldap;
+    return _connPoller->borrow_or_create();
 }
 
 Status LDAPManagerImpl::execQuery(const std::string& ldapurl,
@@ -661,12 +663,13 @@ Status LDAPManagerImpl::execQuery(const std::string& ldapurl,
     init_ldap_timeout(&tv);  // use ldapTimeoutMS
     LDAPMessage* answer = nullptr;
     LDAPURLDesc* ludp{nullptr};
+    bool destroyOnReturn = false;
     int res = ldap_url_parse(ldapurl.c_str(), &ludp);
-    // 'ldap' should be captured by reference because its value can be changed as part of retry
-    // logic below (search for 'borrow_search_connection' call)
+    // 'ldap' and 'destroyOnReturn' are captured by reference because their values
+    // can be changed as part of retry logic below
     ON_BLOCK_EXIT([&, ludp] {
         ldap_free_urldesc(ludp);
-        return_search_connection(ldap);
+        return_search_connection(ldap, destroyOnReturn);
     });
     if (res != LDAP_SUCCESS) {
         return Status(ErrorCodes::LDAPLibraryError,
@@ -723,7 +726,7 @@ Status LDAPManagerImpl::execQuery(const std::string& ldapurl,
                 // res is LDAP_SUCCESS, answer is nullptr
                 LOGV2_ERROR(29116, "LDAP search 'succeeded' but answer is nullptr");
             }
-            return_search_connection(ldap);
+            return_search_connection(ldap, true);
             ldap = borrow_search_connection();
             if (!ldap) {
                 return Status(ErrorCodes::LDAPLibraryError,
@@ -734,9 +737,11 @@ Status LDAPManagerImpl::execQuery(const std::string& ldapurl,
 
     ON_BLOCK_EXIT([=] { ldap_msgfree(answer); });
     if (res != LDAP_SUCCESS) {
+        destroyOnReturn = true;
         return Status(ErrorCodes::LDAPLibraryError,
                       "LDAP search failed with error: {}"_format(ldap_err2string(res)));
     } else if (answer == nullptr) {
+        destroyOnReturn = true;
         return Status(ErrorCodes::LDAPLibraryError, "LDAP search failed to return non-null answer");
     }
 
