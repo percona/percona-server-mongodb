@@ -5,14 +5,14 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 343,
+    "commits_behind": 357,
     "days_behind": 7,
-    "files_affected": 1828,
-    "total_additions": 95687,
-    "total_deletions": 29971,
+    "files_affected": 3165,
+    "total_additions": 334739,
+    "total_deletions": 30550,
     "date_range": {
       "first": "2026-03-12T14:02:14+00:00",
-      "last": "2026-03-19T18:40:11+00:00"
+      "last": "2026-03-20T04:45:54+00:00"
     }
   },
   "last_merged_commit": {
@@ -36,6 +36,146 @@
     "summary": "SERVER-120718: Move join noPassthrough tests into corresponding join directory (#48844)"
   },
   "unmerged_commits": [
+    {
+      "sha": "8550552e79d9ef69617aa36285c00af8c8e8e736",
+      "short_sha": "8550552e79d",
+      "date": "2026-03-20T00:45:54-04:00",
+      "author": {
+        "name": "Mihai Andrei",
+        "email": "mihai.andrei@mongodb.com"
+      },
+      "summary": "SERVER-120367 Introduce core_high_yielding and aggregation_high_yielding suites (#48946)"
+    },
+    {
+      "sha": "91455284e25fc8df98e03a3c3a44805dc705d0be",
+      "short_sha": "91455284e25",
+      "date": "2026-03-20T03:57:07+00:00",
+      "author": {
+        "name": "auto-revert-app[bot]",
+        "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
+      },
+      "summary": "Revert \"SERVER-120540 Record allDurableTs in replicated fast count store timestamps collection on flush (#49400)\" (#50032)"
+    },
+    {
+      "sha": "3feea1ff73ec65636f2a6443b15612a4fe151ba3",
+      "short_sha": "3feea1ff73e",
+      "date": "2026-03-19T22:21:45-05:00",
+      "author": {
+        "name": "joe-mongodb",
+        "email": "joseph.shalabi@mongodb.com"
+      },
+      "summary": "SERVER-118842: Import rnpgp/rnp into the server (#49182)"
+    },
+    {
+      "sha": "541d6c822ceccf5aa08911fc2c223bc66dd173ee",
+      "short_sha": "541d6c822ce",
+      "date": "2026-03-20T00:20:07+00:00",
+      "author": {
+        "name": "auto-revert-app[bot]",
+        "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
+      },
+      "summary": "Revert \"SERVER-122127 Allow killop to accept an array of opIds (#49981)\" (#50027)"
+    },
+    {
+      "sha": "2fcbcca38f3d19e89725cd94ce74e9d8622381b5",
+      "short_sha": "2fcbcca38f3",
+      "date": "2026-03-19T19:18:08-04:00",
+      "author": {
+        "name": "Damian Wasilewicz",
+        "email": "33820523+DamianWasilewicz@users.noreply.github.com"
+      },
+      "summary": "SERVER-120540 Record allDurableTs in replicated fast count store timestamps collection on flush (#49400)"
+    },
+    {
+      "sha": "d41513ae3c6e6e7233eb0a9faf6848113a1ca6fc",
+      "short_sha": "d41513ae3c6",
+      "date": "2026-03-19T17:53:11-04:00",
+      "author": {
+        "name": "Steve McClure",
+        "email": "steve.mcclure@mongodb.com"
+      },
+      "summary": "SERVER-120754: Support modifying JS breakpoints after script is already loaded (#49996)"
+    },
+    {
+      "sha": "118d7d16b9a6ccc6f2cb56ea2ea9b3cefb2c4aa5",
+      "short_sha": "118d7d16b9a",
+      "date": "2026-03-19T17:14:17-04:00",
+      "author": {
+        "name": "Yuhong Zhang",
+        "email": "yuhong.zhang@mongodb.com"
+      },
+      "summary": "SERVER-121631 Log both records by record id and _id during oplog application record id constraint violation (#49731)"
+    },
+    {
+      "sha": "ddb8e5cbc12f43955fb86450d9d4126cd1eb1c21",
+      "short_sha": "ddb8e5cbc12",
+      "date": "2026-03-19T17:01:08-04:00",
+      "author": {
+        "name": "Wenqin",
+        "email": "wenqinYe@users.noreply.github.com"
+      },
+      "summary": "SERVER-122017 Enable disagg_multi_stmt_txn_jscore_passthrough_with_migration (#49908)"
+    },
+    {
+      "sha": "73fa1543325e1f451f749b48478ba4313fa1e5a9",
+      "short_sha": "73fa1543325",
+      "date": "2026-03-19T16:50:04-04:00",
+      "author": {
+        "name": "Ian Boros",
+        "email": "87138302+borosaurus@users.noreply.github.com"
+      },
+      "summary": "SERVER-120834 Change sbe bson API to use RAII types instead of manual management (#49713)"
+    },
+    {
+      "sha": "3e7ead0ee101b15f18dfcd972dc840ab6a2da826",
+      "short_sha": "3e7ead0ee10",
+      "date": "2026-03-19T16:31:28-04:00",
+      "author": {
+        "name": "Kyle Burgess",
+        "email": "90669224+kyleburgess2025@users.noreply.github.com"
+      },
+      "summary": "SERVER-122127 Allow killop to accept an array of opIds (#49981)"
+    },
+    {
+      "sha": "f5764ae7fd33ee68513e5ec76481f3200e3e9407",
+      "short_sha": "f5764ae7fd3",
+      "date": "2026-03-19T21:21:26+01:00",
+      "author": {
+        "name": "Jan",
+        "email": "jsteemann@users.noreply.github.com"
+      },
+      "summary": "SERVER-121991 Enable more change streams tests in nopassthrough_disagg_override (#49865)"
+    },
+    {
+      "sha": "7444273fd772dc2a2ee227a8f4e9f19772c8e94a",
+      "short_sha": "7444273fd77",
+      "date": "2026-03-19T16:14:10-04:00",
+      "author": {
+        "name": "Nicholas Shectman",
+        "email": "nicholas.shectman@mongodb.com"
+      },
+      "summary": "SERVER-118853 Commanded step up (#49333)"
+    },
+    {
+      "sha": "0216fb1e682c52a9f09b7a3b35743c3a1567fb4b",
+      "short_sha": "0216fb1e682",
+      "date": "2026-03-19T15:07:57-05:00",
+      "author": {
+        "name": "Daniel Moody",
+        "email": "dmoody256@gmail.com"
+      },
+      "summary": "SERVER-122044 fix clang-tidy ide setup and coverity run (#49986)"
+    },
+    {
+      "sha": "d22d958b4a53bb90b393e8505b448aba4e67dbcc",
+      "short_sha": "d22d958b4a5",
+      "date": "2026-03-19T14:57:23-04:00",
+      "author": {
+        "name": "Cedric Sirianni",
+        "email": "cedric.sirianni@mongodb.com"
+      },
+      "summary": "SERVER-122162: Fix syntax errors in otel/metrics/README.md (#49992)"
+    },
     {
       "sha": "ccf0e0de8ede93f1812bf892bf4eb8ada24978be",
       "short_sha": "ccf0e0de8ed",
@@ -3948,10 +4088,56 @@
           "num_of_dirs": 6
         }
       }
+    },
+    {
+      "commit": {
+        "sha": "73fa1543325e1f451f749b48478ba4313fa1e5a9",
+        "short_sha": "73fa1543325",
+        "date": "2026-03-19T16:50:04-04:00",
+        "author": {
+          "name": "Ian Boros",
+          "email": "87138302+borosaurus@users.noreply.github.com"
+        },
+        "summary": "SERVER-120834 Change sbe bson API to use RAII types instead of manual management (#49713)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 41,
+          "num_of_lines": 499,
+          "lines_added": 292,
+          "lines_deleted": 207,
+          "num_of_dirs": 13
+        }
+      }
+    },
+    {
+      "commit": {
+        "sha": "3feea1ff73ec65636f2a6443b15612a4fe151ba3",
+        "short_sha": "3feea1ff73e",
+        "date": "2026-03-19T22:21:45-05:00",
+        "author": {
+          "name": "joe-mongodb",
+          "email": "joseph.shalabi@mongodb.com"
+        },
+        "summary": "SERVER-118842: Import rnpgp/rnp into the server (#49182)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 1286,
+          "num_of_lines": 237924,
+          "lines_added": 237914,
+          "lines_deleted": 10,
+          "num_of_dirs": 125
+        }
+      }
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-03-19 19:19:47",
+  "generated_at": "2026-03-20 06:18:56",
   "branch_name": "master",
   "display_name": "master"
 }
