@@ -48,7 +48,7 @@ envAwsCCommon.Append(
         "_POSIX_C_SOURCE=200809L",
         "_XOPEN_SOURCE=500",
         "aws_c_common_EXPORTS",
-    ] + ["USE_SIMD_ENCODING"] if ARCH == AMD64 else [],
+    ] + (["USE_SIMD_ENCODING"] if ARCH == AMD64 else []),
     CCFLAGS=[
         "-Wno-error",
         "-Wno-sign-compare",
