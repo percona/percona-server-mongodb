@@ -142,8 +142,6 @@ export CC=${CC:-gcc}
 export CXX=${CXX:-g++}
 export PSM_TARGETS="install-mongod install-mongos install-mongo install-perconadecrypt build/install/bin/mongobridge"
 export INSTALLDIR=$RPM_BUILD_DIR/install
-export INSTALLDIR_AWS=$RPM_BUILD_DIR/install_aws
-export AWS_LIBS="/usr/local"
 export TOOLS_TAGS="ssl sasl"
 export PORTABLE=1
 export USE_SSE=1
@@ -160,24 +158,6 @@ export GOROOT="/usr/local/go/"
 export GOPATH=$(pwd)/
 export PATH="/usr/local/go/bin:$PATH:$GOPATH"
 export GOBINPATH="/usr/local/go/bin"
-
-#aws-sdk-cpp
-pushd $RPM_BUILD_DIR/%{src_dir}/aws-sdk-cpp
-    pushd build
-%if  0%{?amzn} == 2023 || 0%{?rhel} >= 7
-        cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_ONLY="s3;transfer" -DBUILD_SHARED_LIBS=OFF -DMINIMIZE_SIZE=ON -DCMAKE_INSTALL_PREFIX="${INSTALLDIR_AWS}" -DAUTORUN_UNIT_TESTS=OFF
-        cmake --build . --target install
-%else
-        cmake3 CC=${CC} CXX=${CXX} .. -DCMAKE_BUILD_TYPE=Release -DBUILD_ONLY="s3;transfer" -DBUILD_SHARED_LIBS=OFF -DMINIMIZE_SIZE=ON -DCMAKE_INSTALL_PREFIX="${INSTALLDIR_AWS}" -DAUTORUN_UNIT_TESTS=OFF
-        cmake3 --build . --target install
-%endif
-
-    popd
-popd
-mkdir -p ${INSTALLDIR}/include/
-mkdir -p ${INSTALLDIR}/lib/
-mv ${INSTALLDIR_AWS}/include/* ${INSTALLDIR}/include/
-mv ${INSTALLDIR_AWS}/lib*/* ${INSTALLDIR}/lib/
 
 # Build PSfMDB with SCons
 pushd $RPM_BUILD_DIR/%{src_dir}
