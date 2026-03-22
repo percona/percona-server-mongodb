@@ -19,6 +19,8 @@
 #define AWS_HAVE_EXECINFO
 /* #undef AWS_HAVE_WINAPI_DESKTOP */
 #define AWS_HAVE_LINUX_IF_LINK_H
+
+#if defined(__x86_64__) || defined(_M_X64)
 #define AWS_HAVE_AVX2_INTRINSICS
 #define AWS_HAVE_AVX512_INTRINSICS
 #define AWS_HAVE_MM256_EXTRACT_EPI64
@@ -28,6 +30,20 @@
 /* #undef AWS_ARCH_ARM64 */
 #define AWS_ARCH_INTEL
 #define AWS_ARCH_INTEL_X64
+#elif defined(__aarch64__) || defined(_M_ARM64)
+/* #undef AWS_HAVE_AVX2_INTRINSICS */
+/* #undef AWS_HAVE_AVX512_INTRINSICS */
+/* #undef AWS_HAVE_MM256_EXTRACT_EPI64 */
+/* #undef AWS_HAVE_CLMUL */
+#define AWS_HAVE_ARM32_CRC
+#define AWS_HAVE_ARMv8_1
+#define AWS_ARCH_ARM64
+/* #undef AWS_ARCH_INTEL */
+/* #undef AWS_ARCH_INTEL_X64 */
+#else
+#error "Unsupported architecture for aws-common config"
+#endif
+
 #define AWS_USE_CPU_EXTENSIONS
 
 #endif
