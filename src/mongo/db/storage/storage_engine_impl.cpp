@@ -124,8 +124,25 @@ Status StorageEngineImpl::hotBackup(OperationContext* opCtx,
     return _engine->hotBackup(opCtx, s3params);
 }
 
-void StorageEngineImpl::keydbDropDatabase(const DatabaseName& dbName) {
-    _engine->keydbDropDatabase(dbName);
+// PSMDB-1997: Deferred key deletion
+void StorageEngineImpl::keydbMarkDatabaseDropped(const DatabaseName& dbName) {
+    _engine->keydbMarkDatabaseDropped(dbName);
+}
+
+void StorageEngineImpl::keydbIncrementPendingDropCount(const std::string& keyid) {
+    _engine->keydbIncrementPendingDropCount(keyid);
+}
+
+void StorageEngineImpl::keydbDecrementPendingDropCount(const std::string& keyid) {
+    _engine->keydbDecrementPendingDropCount(keyid);
+}
+
+std::string StorageEngineImpl::keydbGetCurrentKeyId(const std::string& dbName) {
+    return _engine->keydbGetCurrentKeyId(dbName);
+}
+
+std::string StorageEngineImpl::getIdentEncryptionKeyId(RecoveryUnit& ru, StringData ident) {
+    return _engine->getIdentEncryptionKeyId(ru, ident);
 }
 
 StorageEngineImpl::StorageEngineImpl(OperationContext* opCtx,

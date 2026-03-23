@@ -1728,7 +1728,7 @@ public:
         : StorageEngine::StreamingCursor(options),
           _session(session),
           _path(path),
-          _wtBackup(wtBackup) {};
+          _wtBackup(wtBackup){};
 
     ~StreamingCursorImpl() override = default;
 
@@ -1957,9 +1957,7 @@ WiredTigerKVEngine::beginNonBlockingBackup(const StorageEngine::BackupOptions& o
 
     // Create ongoingBackup.lock file to signal recovery that it should delete WiredTiger.backup
     // if we have an unclean shutdown with the cursor still open.
-    {
-        boost::filesystem::ofstream ongoingBackup(getOngoingBackupPath());
-    }
+    { boost::filesystem::ofstream ongoingBackup(getOngoingBackupPath()); }
 
     // Oplog truncation thread won't remove oplog since the checkpoint pinned by the backup
     // cursor.
@@ -2492,8 +2490,8 @@ Status WiredTigerKVEngine::hotBackup(OperationContext* opCtx,
         auto outcome = s3_client->ListBuckets();
         if (!outcome.IsSuccess()) {
             return Status(ErrorCodes::InternalError,
-                          str::stream() << "Cannot list buckets on storage server"
-                                        << " : " << outcome.GetError().GetExceptionName() << " : "
+                          str::stream() << "Cannot list buckets on storage server" << " : "
+                                        << outcome.GetError().GetExceptionName() << " : "
                                         << outcome.GetError().GetMessage());
         }
         for (auto&& bucket : outcome.GetResult().GetBuckets()) {
@@ -2531,8 +2529,8 @@ Status WiredTigerKVEngine::hotBackup(OperationContext* opCtx,
         auto outcome = s3_client->ListObjects(request);
         if (!outcome.IsSuccess()) {
             return Status(ErrorCodes::InvalidPath,
-                          str::stream() << "Cannot list objects in the target location"
-                                        << " : " << outcome.GetError().GetExceptionName() << " : "
+                          str::stream() << "Cannot list objects in the target location" << " : "
+                                        << outcome.GetError().GetExceptionName() << " : "
                                         << outcome.GetError().GetMessage());
         }
         const auto root = s3params.path + '/';
@@ -2540,8 +2538,8 @@ Status WiredTigerKVEngine::hotBackup(OperationContext* opCtx,
         for (auto const& s3_object : object_list) {
             if (s3_object.GetKey() != root) {
                 return Status(ErrorCodes::InvalidPath,
-                              str::stream() << "Target location is not empty"
-                                            << " : " << s3params.bucket << '/' << s3params.path);
+                              str::stream() << "Target location is not empty" << " : "
+                                            << s3params.bucket << '/' << s3params.path);
             }
         }
     }
@@ -2582,8 +2580,8 @@ Status WiredTigerKVEngine::hotBackup(OperationContext* opCtx,
                                                     .WithUploadId(upload_id));
             if (!outcome2.IsSuccess()) {
                 return Status(ErrorCodes::InternalError,
-                              str::stream() << "Cannot abort test multipart upload"
-                                            << " : " << upload_id);
+                              str::stream()
+                                  << "Cannot abort test multipart upload" << " : " << upload_id);
             }
         }
     }
@@ -2848,17 +2846,16 @@ Status WiredTigerKVEngine::hotBackup(OperationContext* opCtx,
             "AWS", srcFile.string(), std::ios_base::in | std::ios_base::binary);
         if (!fileToUpload) {
             return Status(ErrorCodes::InvalidPath,
-                          str::stream()
-                              << "Cannot open file '" << srcFile.string() << "' for backup"
-                              << " : " << strerror(errno));
+                          str::stream() << "Cannot open file '" << srcFile.string()
+                                        << "' for backup" << " : " << strerror(errno));
         }
         request.SetBody(fileToUpload);
 
         auto outcome = s3_client->PutObject(request);
         if (!outcome.IsSuccess()) {
             return Status(ErrorCodes::InternalError,
-                          str::stream() << "Cannot backup '" << srcFile.string() << "'"
-                                        << " : " << outcome.GetError().GetExceptionName() << " : "
+                          str::stream() << "Cannot backup '" << srcFile.string() << "'" << " : "
+                                        << outcome.GetError().GetExceptionName() << " : "
                                         << outcome.GetError().GetMessage());
         }
         {
@@ -3591,16 +3588,51 @@ void WiredTigerKVEngine::dropIdentForImport(Interruptible& interruptible,
     invariant(dropStatus);
 }
 
-void WiredTigerKVEngine::keydbDropDatabase(const DatabaseName& dbName) {
+// PSMDB-1997: Deferred key deletion to handle database drop/recreate race conditions.
+// Instead of deleting the key immediately when a database is dropped, we:
+// 1. Mark the database as dropped
+// 2. Track pending ident drops
+// 3. Only delete the key when ALL pending idents are dropped AND the database wasn't recreated
+
+void WiredTigerKVEngine::keydbMarkDatabaseDropped(const DatabaseName& dbName) {
     if (_restEncr) {
-        int res = _restEncr->keyDb()->delete_key_by_id(
+        _restEncr->keyDb()->markDatabaseDropped(
             DatabaseNameUtil::serialize(dbName, SerializationContext::stateDefault()));
-        if (res) {
-            // we cannot throw exceptions here because we are inside WUOW::commit
-            // every other part of DB is already dropped so we just log error message
-            LOGV2_ERROR(29001, "failed to delete encryption key for db", logAttrs(dbName));
-        }
     }
+}
+
+void WiredTigerKVEngine::keydbIncrementPendingDropCount(const std::string& dbName) {
+    if (_restEncr) {
+        _restEncr->keyDb()->incrementPendingDropCount(dbName);
+    }
+}
+
+void WiredTigerKVEngine::keydbDecrementPendingDropCount(const std::string& dbName) {
+    if (_restEncr) {
+        _restEncr->keyDb()->decrementPendingDropCount(dbName);
+    }
+}
+
+std::string WiredTigerKVEngine::keydbGetCurrentKeyId(const std::string& dbName) {
+    if (_restEncr) {
+        return _restEncr->keyDb()->getCurrentKeyId(dbName);
+    }
+    return dbName;
+}
+
+std::string WiredTigerKVEngine::getIdentEncryptionKeyId(RecoveryUnit& ru, StringData ident) {
+    auto& wtRu = WiredTigerRecoveryUnit::get(ru);
+    auto uri = WiredTigerUtil::buildTableUri(ident);
+    auto result = WiredTigerUtil::getEncryptionKeyId(*wtRu.getSessionNoTxn(), uri);
+    if (!result.isOK()) {
+        LOGV2_DEBUG(29072,
+                    4,
+                    "Failed to get encryption keyid for ident",
+                    "ident"_attr = ident,
+                    "error"_attr = result.getStatus());
+        return std::string();
+    }
+    return result.getValue();
 }
 
 void WiredTigerKVEngine::_checkpoint(WiredTigerSession& session, bool useTimestamp) {

@@ -31,6 +31,8 @@ Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
 
 #pragma once
 
+#include <string>
+
 namespace mongo {
 class DatabaseName;
 }
@@ -45,10 +47,40 @@ struct KeyDBAPI {
     virtual ~KeyDBAPI() {}
 
     /**
-     * Returns whether the engine supports feature compatibility version 3.6
+     * Mark a database as dropped and pending key deletion.
+     * The encryption key will be deleted when all pending ident drops complete,
+     * unless the database is recreated (which cancels the pending deletion).
      */
-    virtual void keydbDropDatabase(const mongo::DatabaseName& dbName) {
+    virtual void keydbMarkDatabaseDropped(const mongo::DatabaseName& dbName) {
         // do nothing for engines which do not support KeyDB
+    }
+
+    /**
+     * Increment pending drop count for a database.
+     * Called when an ident is scheduled for deferred drop.
+     */
+    virtual void keydbIncrementPendingDropCount(const std::string& keyid) {
+        // do nothing for engines which do not support KeyDB
+    }
+
+    /**
+     * Decrement pending drop count for a database.
+     * When count reaches zero AND the database is still marked for deletion
+     * (wasn't recreated), delete the encryption key.
+     */
+    virtual void keydbDecrementPendingDropCount(const std::string& keyid) {
+        // do nothing for engines which do not support KeyDB
+    }
+
+    /**
+     * Get the current keyid for a database (with generation suffix if applicable).
+     * For a database "test" that was dropped and recreated, this returns "test.v1", etc.
+     * For a database that was never dropped, returns the plain database name.
+     * This is used when creating new tables to get the correct encryption keyid.
+     */
+    virtual std::string keydbGetCurrentKeyId(const std::string& dbName) {
+        // Default: return dbName unchanged (for non-TDE engines)
+        return dbName;
     }
 };
 
