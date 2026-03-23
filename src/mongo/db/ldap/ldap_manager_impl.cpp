@@ -34,6 +34,7 @@ Copyright (C) 2019-present Percona and/or its affiliates. All rights reserved.
 
 #include <algorithm>
 #include <map>
+#include <memory>
 #include <regex>
 #include <utility>
 #include <vector>
@@ -1063,6 +1064,19 @@ Status LDAPbind(LDAP* ld, const std::string& usr, const std::string& psw) {
 }
 
 namespace {
+
+ServiceContext::ConstructorActionRegisterer createLDAPManager(
+    "CreateLDAPManager", {"EndStartupOptionStorage"}, [](ServiceContext* service) {
+        if (!ldapGlobalParams.ldapServers->empty()) {
+            std::unique_ptr<LDAPManager> ldapManager = std::make_unique<LDAPManagerImpl>();
+            Status res = ldapManager->initialize();
+            using namespace fmt::literals;
+            uassertStatusOKWithContext(res,
+                                       "Cannot initialize LDAP manager (parameters are: {})"_format(
+                                           ldapGlobalParams.logString()));
+            LDAPManager::set(service, std::move(ldapManager));
+        }
+    });
 
 ServiceContext::ConstructorActionRegisterer ldapServerConfigValidationRegisterer{
     "ldapServerConfigValidationRegisterer", {"CreateLDAPManager"}, [](ServiceContext* svcCtx) {

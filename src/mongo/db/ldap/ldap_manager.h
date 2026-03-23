@@ -31,11 +31,12 @@ Copyright (C) 2019-present Percona and/or its affiliates. All rights reserved.
 
 #pragma once
 
+#include <memory>
+
 #include "mongo/base/status.h"
 #include "mongo/db/auth/role_name.h"
 #include "mongo/db/auth/user_name.h"
 #include "mongo/db/service_context.h"
-#include "mongo/stdx/unordered_set.h"
 
 namespace mongo {
 
@@ -48,8 +49,6 @@ public:
     LDAPManager() = default;
     virtual ~LDAPManager() = default;
 
-    static std::unique_ptr<LDAPManager> create();
-
     virtual Status initialize() = 0;
 
     virtual void start_threads() = 0;
@@ -60,7 +59,7 @@ public:
     virtual Status mapUserToDN(const std::string& user, std::string& out) = 0;
 
     // Invalidate all pooled LDAP connections. Called when bind credentials change.
-    virtual void invalidateConnections() {}
+    virtual void invalidateConnections() = 0;
 };
 
 }  // namespace mongo
