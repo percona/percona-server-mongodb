@@ -330,6 +330,8 @@ mongo_cc_library(
     deps = [
         ":server_base",
         "//src/mongo:base",
+        "//src/mongo/db:service_context",
+        "//src/mongo/db/ldap:ldap_manager_base",
         "//src/mongo/util/options_parser",
     ],
 )
