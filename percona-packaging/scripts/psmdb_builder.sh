@@ -187,18 +187,7 @@ get_sources(){
 
     sed -i 's:build-id:build-id=sha1:' SConstruct
 
-        git clone https://github.com/aws/aws-sdk-cpp.git
-            cd aws-sdk-cpp
-                git reset --hard
-                git clean -xdf
-                git checkout 1.9.379
-                git submodule update --init --recursive
-                if [[ x"${RHEL}" =~ ^x(7|8|9|2023)$ ]]; then
-                    sed -i 's:v0.4.42:v0.6.10:' third-party/CMakeLists.txt
-                    sed -i 's:"-Werror" ::' cmake/compiler_settings.cmake
-                fi
-                mkdir build
-    cd ../../
+    cd ../
     tar --owner=0 --group=0 --exclude=.* -czf ${PRODUCT}-${PSM_VER}-${PSM_RELEASE}.tar.gz ${PRODUCT}-${PSM_VER}-${PSM_RELEASE}
     echo "UPLOAD=UPLOAD/experimental/BUILDS/${PRODUCT}-7.0/${PRODUCT}-${PSM_VER}-${PSM_RELEASE}/${PSM_BRANCH}/${REVISION}/${BUILD_ID}" >> percona-server-mongodb-70.properties
     mkdir -p $WORKDIR/source_tarball
@@ -312,37 +301,6 @@ fix_rules(){
     sed -i 's|CXX = g++-5|CXX = /opt/mongodbtoolchain/v4/bin/g++|' debian/rules
     sed -i 's:release:release --disable-warnings-as-errors :g' debian/rules
     return
-}
-
-aws_sdk_build(){
-    cd $WORKDIR
-        git clone https://github.com/aws/aws-sdk-cpp.git
-        cd aws-sdk-cpp
-            git reset --hard
-            git clean -xdf
-            git checkout 1.9.379
-            git submodule update --init --recursive
-            if [[ x"${RHEL}" =~ ^x(7|8|9|2023)$ ]]; then
-                sed -i 's:v0.4.42:v0.6.10:' third-party/CMakeLists.txt
-                sed -i 's:"-Werror" ::' cmake/compiler_settings.cmake
-            fi
-            mkdir build
-            cd build
-            CMAKE_CMD="cmake"
-            set_compiler
-            CMAKE_CXX_FLAGS=""
-            if [ x"${DEBIAN}" = xjammy -o x"${DEBIAN}" = xbookworm -o x"${DEBIAN}" = xnoble ]; then
-                CMAKE_CXX_FLAGS=" -Wno-error=maybe-uninitialized -Wno-error=deprecated-declarations -Wno-error=uninitialized "
-                CMAKE_C_FLAGS=" -Wno-error=maybe-uninitialized -Wno-error=maybe-uninitialized -Wno-error=uninitialized "
-            fi
-            if [ -z "${CC}" -a -z "${CXX}" ]; then
-                ${CMAKE_CMD} .. -DCMAKE_C_FLAGS="${CMAKE_C_FLAGS}" -DCMAKE_CXX_FLAGS="${CMAKE_CXX_FLAGS}" -DCMAKE_BUILD_TYPE=Release -DBUILD_ONLY="s3;transfer" -DBUILD_SHARED_LIBS=OFF -DMINIMIZE_SIZE=ON -DAUTORUN_UNIT_TESTS=OFF || exit $?
-            else
-                ${CMAKE_CMD} CC=${CC} CXX=${CXX} .. -DCMAKE_C_FLAGS="${CMAKE_C_FLAGS}" -DCMAKE_CXX_FLAGS="${CMAKE_CXX_FLAGS}" -DCMAKE_BUILD_TYPE=Release -DBUILD_ONLY="s3;transfer" -DBUILD_SHARED_LIBS=OFF -DMINIMIZE_SIZE=ON -DAUTORUN_UNIT_TESTS=OFF || exit $?
-            fi
-            make -j${NCPU} || exit $?
-            make install
-    cd ${WORKDIR}
 }
 
 install_deps() {
@@ -481,7 +439,6 @@ install_deps() {
       easy_install pip
       pip install setuptools
     fi
-    aws_sdk_build
      #keep symbol table in the binary
     sed -i 's:$strip, "--remove-section=.comment":$strip, "--strip-debug", "--remove-section=.comment":g' /usr/bin/dh_strip
     return;
@@ -949,7 +906,6 @@ build_tarball(){
     export CXXFLAGS="${CFLAGS} -Wno-error=deprecated-declarations"
     fi
     export INSTALLDIR=/usr/local
-    export AWS_LIBS=/usr/local
     export PORTABLE=1
     export USE_SSE=1
     #
@@ -967,49 +923,6 @@ build_tarball(){
 
     pip install --user -r etc/pip/dev-requirements.txt
     pip install --user -r etc/pip/evgtest-requirements.txt
-    if [ -f /etc/redhat-release -o -f /etc/amazon-linux-release ]; then
-        if [ $RHEL = 7 -o $RHEL = 8 ]; then
-            if [ -d aws-sdk-cpp ]; then
-                rm -rf aws-sdk-cpp
-            fi
-            export INSTALLDIR=$PWD/../install
-            export INSTALLDIR_AWS=$PWD/../install_aws
-            git clone https://github.com/aws/aws-sdk-cpp.git
-            cd aws-sdk-cpp
-            git reset --hard
-            git clean -xdf
-            git checkout 1.9.379
-            git submodule update --init --recursive
-            if [[ x"${RHEL}" =~ ^x(7|8|9|2023)$ ]]; then
-                sed -i 's:v0.4.42:v0.6.10:' third-party/CMakeLists.txt
-                sed -i 's:"-Werror" ::' cmake/compiler_settings.cmake
-            fi
-            mkdir build
-            cd build
-            set_compiler
-            if [ x"${DEBIAN}" = xjammy ]; then
-                CMAKE_CXX_FLAGS=" -Wno-error=maybe-uninitialized -Wno-error=deprecated-declarations -Wno-error=uninitialized "
-                CMAKE_C_FLAGS=" -Wno-error=maybe-uninitialized -Wno-error=maybe-uninitialized -Wno-error=uninitialized "
-            fi
-            CMAKE_CMD="cmake"
-#            if [ x"$RHEL" = x7 ]; then
-#                CMAKE_CMD="cmake3"
-#            fi
-            if [ -z "${CC}" -a -z "${CXX}" ]; then
-                ${CMAKE_CMD} .. -DCMAKE_C_FLAGS="${CMAKE_C_FLAGS}" -DCMAKE_CXX_FLAGS="${CMAKE_CXX_FLAGS}" -DCMAKE_BUILD_TYPE=Release -DBUILD_ONLY="s3;transfer" -DBUILD_SHARED_LIBS=OFF -DMINIMIZE_SIZE=ON -DCMAKE_INSTALL_PREFIX="${INSTALLDIR_AWS}" -DAUTORUN_UNIT_TESTS=OFF || exit $?
-            else
-                ${CMAKE_CMD} CC=${CC} CXX=${CXX} .. -DCMAKE_C_FLAGS="${CMAKE_C_FLAGS}" -DCMAKE_CXX_FLAGS="${CMAKE_CXX_FLAGS}" -DCMAKE_BUILD_TYPE=Release -DBUILD_ONLY="s3;transfer" -DBUILD_SHARED_LIBS=OFF -DMINIMIZE_SIZE=ON -DCMAKE_INSTALL_PREFIX="${INSTALLDIR_AWS}" -DAUTORUN_UNIT_TESTS=OFF || exit $?
-            fi
-            make -j${NCPU} || exit $?
-            make install
-            mkdir -p ${INSTALLDIR}/include/
-            mkdir -p ${INSTALLDIR}/lib/
-            mv ${INSTALLDIR_AWS}/include/* ${INSTALLDIR}/include/
-            mv ${INSTALLDIR_AWS}/lib*/* ${INSTALLDIR}/lib/
-            cd ../../
-
-        fi
-    fi
     export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
     if [ "x${RHEL}" == "x2023" ]; then
         export OPT_LINKFLAGS="${LINKFLAGS} -Wl,--build-id=sha1 "
@@ -1021,10 +934,10 @@ build_tarball(){
       export OPT_LINKFLAGS="${OPT_LINKFLAGS} ${CURL_LINKFLAGS}"
     fi
     if [ ${DEBUG} = 0 ]; then
-        buildscripts/scons.py CC=${CC} CXX=${CXX} --disable-warnings-as-errors --release --ssl --opt=on -j${NCPU} --use-sasl-client --wiredtiger CPPPATH="${INSTALLDIR}/include ${AWS_LIBS}/include" LIBPATH="${INSTALLDIR}/lib ${AWS_LIBS}/lib ${AWS_LIBS}/lib64" LINKFLAGS="${OPT_LINKFLAGS}" ${PSM_REAL_TARGETS[@]} || exit $?
+        buildscripts/scons.py CC=${CC} CXX=${CXX} --disable-warnings-as-errors --release --ssl --opt=on -j${NCPU} --use-sasl-client --wiredtiger CPPPATH="${INSTALLDIR}/include" LIBPATH="${INSTALLDIR}/lib" LINKFLAGS="${OPT_LINKFLAGS}" ${PSM_REAL_TARGETS[@]} || exit $?
     else
         buildscripts/scons.py CC=${CC} CXX=${CXX} --disable-warnings-as-errors --ssl --dbg=on -j${NCPU} --use-sasl-client \
-        CPPPATH="${INSTALLDIR}/include ${AWS_LIBS}/include" LIBPATH="${INSTALLDIR}/lib ${AWS_LIBS}/lib ${AWS_LIBS}/lib64" LINKFLAGS="${OPT_LINKFLAGS}" --wiredtiger ${PSM_REAL_TARGETS[@]} || exit $?
+        CPPPATH="${INSTALLDIR}/include" LIBPATH="${INSTALLDIR}/lib" LINKFLAGS="${OPT_LINKFLAGS}" --wiredtiger ${PSM_REAL_TARGETS[@]} || exit $?
     fi
     #
     # scons install doesn't work - it installs the binaries not linked with fractal tree
