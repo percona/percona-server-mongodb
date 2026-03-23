@@ -37,6 +37,7 @@ Copyright (C) 2019-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/auth/role_name.h"
 #include "mongo/db/auth/user_name.h"
 #include "mongo/db/service_context.h"
+#include "mongo/stdx/unordered_set.h"
 
 namespace mongo {
 
