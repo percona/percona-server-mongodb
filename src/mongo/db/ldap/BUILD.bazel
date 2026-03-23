@@ -21,9 +21,19 @@ filegroup(
 )
 
 mongo_cc_library(
-    name = "ldap_manager",
+    name = "ldap_manager_base",
     srcs = [
         "//src/mongo/db/ldap:ldap_manager.cpp",
+    ],
+    deps = [
+        "//src/mongo:base",
+        "//src/mongo/db:service_context",
+    ],
+)
+
+mongo_cc_library(
+    name = "ldap_manager",
+    srcs = [
         "//src/mongo/db/ldap:ldap_manager_impl.cpp",
     ],
     linkopts = [
@@ -31,8 +41,10 @@ mongo_cc_library(
         "-llber",
     ],
     deps = [
+        "//src/mongo:base",
         "//src/mongo/db:ldap_options",
         "//src/mongo/db:service_context",
+        "//src/mongo/db/ldap:ldap_manager_base",
         "//src/mongo/util:background_job",
     ],
 )

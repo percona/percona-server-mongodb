@@ -32,20 +32,8 @@ Copyright (C) 2019-present Percona and/or its affiliates. All rights reserved.
 
 #include "mongo/db/ldap/ldap_manager.h"
 
-#include <fmt/format.h>
-
-#include "mongo/db/ldap/ldap_manager_impl.h"
-#include "mongo/db/ldap_options.h"
-#include "mongo/util/assert_util.h"
-
-#define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kAccessControl
-
 
 namespace mongo {
-
-std::unique_ptr<LDAPManager> LDAPManager::create() {
-    return std::make_unique<LDAPManagerImpl>();
-}
 
 namespace {
 
@@ -64,18 +52,5 @@ LDAPManager* LDAPManager::get(ServiceContext& service) {
 void LDAPManager::set(ServiceContext* service, std::unique_ptr<LDAPManager> authzManager) {
     getLDAPManager(service) = std::move(authzManager);
 }
-
-ServiceContext::ConstructorActionRegisterer createLDAPManager(
-    "CreateLDAPManager", {"EndStartupOptionStorage"}, [](ServiceContext* service) {
-        if (!ldapGlobalParams.ldapServers->empty()) {
-            auto ldapManager = LDAPManager::create();
-            Status res = ldapManager->initialize();
-            using namespace fmt::literals;
-            uassertStatusOKWithContext(res,
-                                       "Cannot initialize LDAP manager (parameters are: {})"_format(
-                                           ldapGlobalParams.logString()));
-            LDAPManager::set(service, std::move(ldapManager));
-        }
-    });
 
 }  // namespace mongo
