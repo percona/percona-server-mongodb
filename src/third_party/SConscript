@@ -23,17 +23,22 @@ variantSuffix = '-1.4.0'
 
 thirdPartyEnvironmentModifications = {
     'abseil-cpp': {'CPPPATH': ['#/src/third_party/abseil-cpp/dist'], },
-    'aws-sdk-cpp': {'CPPPATH': ['#/src/third_party/aws-sdk-cpp/dist/include'], },
+    'aws-sdk-cpp': {
+        'CPPPATH': [
+            '#/src/third_party/aws-sdk-cpp/dist/include',
+            f'#/src/third_party/aws-sdk-cpp/platform/{env["TARGET_OS"]}_{env["TARGET_ARCH"]}/crt/aws-crt-cpp/crt/aws-c-common/generated/include'
+        ],
+    },
     'cares': {
         'CPPPATH': [
             '#src/third_party/cares/dist/include',
-            '#src/third_party/cares/platform/${TARGET_OS}_${TARGET_ARCH}/install/include'
+            f'#src/third_party/cares/platform/{env["TARGET_OS"]}_{env["TARGET_ARCH"]}/install/include'
         ],
     },
     'percona_incl': {'CPPPATH': ['#/src/third_party/install/include'], },
     'libarchive': {'CPPPATH': ['#/src/third_party/libarchive/dist'], },
-    'libkmip': {'CPPPATH': ['#/src/third_party/libkmip' + libkmipSuffix + '/libkmip/include'], },
-    'kmippp': {'CPPPATH': ['#/src/third_party/libkmip' + libkmipSuffix], },
+    'libkmip': {'CPPPATH': [f'#/src/third_party/libkmip{libkmipSuffix}/libkmip/include'], },
+    'kmippp': {'CPPPATH': [f'#/src/third_party/libkmip{libkmipSuffix}'], },
     'folly': {'CPPPATH': ['#src/third_party/folly/dist'], },
     'fmt': {'CPPPATH': ['#src/third_party/fmt/dist/include'], },
     'immer': {'CPPPATH': ['#src/third_party/immer/dist'], },
@@ -45,13 +50,12 @@ thirdPartyEnvironmentModifications = {
     },
     'timelib': {'CPPPATH': ['#/src/third_party/timelib/dist'], },
     'unwind': {},
-    'variant': {'CPPPATH': ['#src/third_party/variant' + variantSuffix + '/include'], },
+    'variant': {'CPPPATH': [f'#src/third_party/variant{variantSuffix}/include'], },
     'mozjs': {
         'CPPPATH': [
             '#/src/third_party/mozjs/include',
             '#/src/third_party/mozjs/mongo_sources',
-            '#/src/third_party/mozjs/platform/' + env["TARGET_ARCH"] + "/" + env["TARGET_OS"] +
-            "/include",
+            f'#/src/third_party/mozjs/platform/{env["TARGET_ARCH"]}/{env["TARGET_OS"]}/include',
         ],
         'FORCEINCLUDES': ['js-config.h', ],
     },
