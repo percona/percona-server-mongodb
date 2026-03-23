@@ -4,10 +4,24 @@ Import("env")
 env = env.Clone()
 
 env.Library(
-    target='ldapmanager',
+    target='ldapmanagerbase',
     source=[
         'ldap_manager.cpp',
+    ],
+    LIBDEPS=[
+        '$BUILD_DIR/mongo/base',
+        '$BUILD_DIR/mongo/db/service_context',
+    ],
+)
+
+env.Library(
+    target='ldapmanager',
+    source=[
         'ldap_manager_impl.cpp',
+    ],
+    LIBDEPS=[
+        '$BUILD_DIR/mongo/base',
+        'ldapmanagerbase',
     ],
     LIBDEPS_PRIVATE=[
         '$BUILD_DIR/mongo/db/ldap_options',
