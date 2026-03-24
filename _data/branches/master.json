@@ -5,14 +5,14 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 485,
+    "commits_behind": 487,
     "days_behind": 11,
-    "files_affected": 3507,
-    "total_additions": 347476,
-    "total_deletions": 34291,
+    "files_affected": 3521,
+    "total_additions": 347582,
+    "total_deletions": 34337,
     "date_range": {
       "first": "2026-03-12T14:02:14+00:00",
-      "last": "2026-03-23T22:53:33+00:00"
+      "last": "2026-03-24T04:47:32+00:00"
     }
   },
   "last_merged_commit": {
@@ -36,6 +36,26 @@
     "summary": "SERVER-120718: Move join noPassthrough tests into corresponding join directory (#48844)"
   },
   "unmerged_commits": [
+    {
+      "sha": "fcb014284e2cf71acab97fd330873ff7f86e346f",
+      "short_sha": "fcb014284e2",
+      "date": "2026-03-24T00:47:32-04:00",
+      "author": {
+        "name": "Alex Li",
+        "email": "98560274+lia394126@users.noreply.github.com"
+      },
+      "summary": "SERVER-122125 Silence false positive for -Warray-bounds in collection_cloner_test.cpp (#49982)"
+    },
+    {
+      "sha": "f2f0c0a5dbbd2a259626b97ecaec15215277ff76",
+      "short_sha": "f2f0c0a5dbb",
+      "date": "2026-03-23T20:44:25-05:00",
+      "author": {
+        "name": "Shin Yee Tan",
+        "email": "shinyee.tan@mongodb.com"
+      },
+      "summary": "SERVER-118907 Gate ci/cd oplog entries behind their own feature flag (#48674)"
+    },
     {
       "sha": "bfb3d4b72f4a84a879470d8322b55104d048e88b",
       "short_sha": "bfb3d4b72f4",
@@ -5498,10 +5518,33 @@
           "src/mongo/db/repl/initial_sync/initial_syncer.h"
         ]
       }
+    },
+    {
+      "commit": {
+        "sha": "f2f0c0a5dbbd2a259626b97ecaec15215277ff76",
+        "short_sha": "f2f0c0a5dbb",
+        "date": "2026-03-23T20:44:25-05:00",
+        "author": {
+          "name": "Shin Yee Tan",
+          "email": "shinyee.tan@mongodb.com"
+        },
+        "summary": "SERVER-118907 Gate ci/cd oplog entries behind their own feature flag (#48674)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 25,
+          "num_of_lines": 161,
+          "lines_added": 110,
+          "lines_deleted": 51,
+          "num_of_dirs": 11
+        }
+      }
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-03-24 00:16:08",
+  "generated_at": "2026-03-24 06:24:10",
   "branch_name": "master",
   "display_name": "master"
 }
