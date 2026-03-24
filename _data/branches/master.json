@@ -5,14 +5,14 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 481,
+    "commits_behind": 494,
     "days_behind": 11,
-    "files_affected": 3453,
-    "total_additions": 334873,
-    "total_deletions": 31023,
+    "files_affected": 3480,
+    "total_additions": 336180,
+    "total_deletions": 31483,
     "date_range": {
       "first": "2026-03-12T21:01:44+00:00",
-      "last": "2026-03-24T16:16:01+00:00"
+      "last": "2026-03-24T17:46:52+00:00"
     }
   },
   "last_merged_commit": {
@@ -36,6 +36,136 @@
     "summary": "SERVER-18737 Replicate timestamped ident drops from KVDropPendingIdentReaper in DSC mode (#49356)"
   },
   "unmerged_commits": [
+    {
+      "sha": "af73b9ebcbce1207487fde8fbf1216459074507f",
+      "short_sha": "af73b9ebcbc",
+      "date": "2026-03-24T12:46:52-05:00",
+      "author": {
+        "name": "Finley Lau",
+        "email": "finley.lau@mongodb.com"
+      },
+      "summary": "SERVER-100170 Subsume ResolvedView/ViewInfo in ResolvedNamespace (#49770)"
+    },
+    {
+      "sha": "b41c2ede6939e4e3bd76a11dae69ec2033f0d6b3",
+      "short_sha": "b41c2ede693",
+      "date": "2026-03-24T17:41:12+00:00",
+      "author": {
+        "name": "Alexander Ignatyev",
+        "email": "alexander.ignatyev@mongodb.com"
+      },
+      "summary": "SERVER-121163 Ban empty field names in $group (#50304)"
+    },
+    {
+      "sha": "75fcc28e45c84ef79a9550200bda185fac3f614e",
+      "short_sha": "75fcc28e45c",
+      "date": "2026-03-24T12:40:44-05:00",
+      "author": {
+        "name": "Finley Lau",
+        "email": "finley.lau@mongodb.com"
+      },
+      "summary": "SERVER-117793 Consolidate pipeline_factory::makePipeline functions (#47985)"
+    },
+    {
+      "sha": "125d55cc1d2f3994d94e9041d409a4c62600626e",
+      "short_sha": "125d55cc1d2",
+      "date": "2026-03-24T10:39:48-07:00",
+      "author": {
+        "name": "Denis Trailin",
+        "email": "denis.trailin@gmail.com"
+      },
+      "summary": "SERVER-122126: Fix InitialSyncerTransitionsToCompleteWhenFinishCallbackThrowsException (#50111)"
+    },
+    {
+      "sha": "d7c6e08e780d35994f0db9af5c3d2174ca8e5231",
+      "short_sha": "d7c6e08e780",
+      "date": "2026-03-24T17:27:55+00:00",
+      "author": {
+        "name": "Joan Bruguera Micó (at MongoDB)",
+        "email": "joan.bruguera-mico@mongodb.com"
+      },
+      "summary": "SERVER-122488 Disable multirouting in version_context_propagation.js (#50268)"
+    },
+    {
+      "sha": "4b30590b09e34fd4bdc0bd021791a7502fbea63b",
+      "short_sha": "4b30590b09e",
+      "date": "2026-03-24T18:11:20+01:00",
+      "author": {
+        "name": "Meryama",
+        "email": "meryama.nadim@mongodb.com"
+      },
+      "summary": "SERVER-118012: Add test for TimeseriesBucketMetadataInconsistent (#50262)"
+    },
+    {
+      "sha": "2b08dd7207de35059a912ed2ecb94a95bb3b423b",
+      "short_sha": "2b08dd7207d",
+      "date": "2026-03-24T11:59:02-05:00",
+      "author": {
+        "name": "Gustavo Tenrreiro",
+        "email": "123435846+mdb-gtenrreiro@users.noreply.github.com"
+      },
+      "summary": "Revert \"SERVER-122048: If the parameter \"enableExternalScripting\" is set the MozJS engine is not started\" (#50293)"
+    },
+    {
+      "sha": "59e8a835a69684365aa0ee08146884444d79e1a5",
+      "short_sha": "59e8a835a69",
+      "date": "2026-03-24T12:58:09-04:00",
+      "author": {
+        "name": "Damian Wasilewicz",
+        "email": "33820523+DamianWasilewicz@users.noreply.github.com"
+      },
+      "summary": "SERVER-122036 Exclude timeseries_insert_respect_max_bson_size_too_big.js from slow variants (#50034)"
+    },
+    {
+      "sha": "56ccaa3aedc8bc24c385e595088ed98bffe10091",
+      "short_sha": "56ccaa3aedc",
+      "date": "2026-03-24T12:53:38-04:00",
+      "author": {
+        "name": "Matt Olma",
+        "email": "67564577+mattsimply@users.noreply.github.com"
+      },
+      "summary": "SERVER-121756: Implement renames for $_internalSchema MatchExpressions (#49710)"
+    },
+    {
+      "sha": "afe78fd7791b1935c045c9863802b87538410e0c",
+      "short_sha": "afe78fd7791",
+      "date": "2026-03-24T12:50:58-04:00",
+      "author": {
+        "name": "Daniel Segel",
+        "email": "71151509+dhsegel@users.noreply.github.com"
+      },
+      "summary": "SERVER-122451 Create test extension for $search and $searchMeta (#50286)"
+    },
+    {
+      "sha": "4ffc55f73bd87a4028f3dc2ea1c3c849045407d3",
+      "short_sha": "4ffc55f73bd",
+      "date": "2026-03-24T12:38:06-04:00",
+      "author": {
+        "name": "Gregory Noma",
+        "email": "gregory.noma@gmail.com"
+      },
+      "summary": "SERVER-122321 Ensure no timestamp was set before batched write commit (#50134)"
+    },
+    {
+      "sha": "467466dd582c7818cbba85942ff6cb95152e4ca6",
+      "short_sha": "467466dd582",
+      "date": "2026-03-24T11:34:18-05:00",
+      "author": {
+        "name": "rehangillswe",
+        "email": "rehan.gill@mongodb.com"
+      },
+      "summary": "SERVER-113884 Ensure User Supplied Resharding UUID Is Consistently Referred to As Such (#50190)"
+    },
+    {
+      "sha": "1a328a64ed196a01bf68d56eeb6d2a74821ed631",
+      "short_sha": "1a328a64ed1",
+      "date": "2026-03-24T12:33:46-04:00",
+      "author": {
+        "name": "Billy Donahue",
+        "email": "BillyDonahue@users.noreply.github.com"
+      },
+      "summary": "SERVER-120620 move find-specific funcs out of idl_parser (#49477)"
+    },
     {
       "sha": "9e0ee8484d0f9a0bce0a76be9516e7801bb9ea62",
       "short_sha": "9e0ee8484d0",
@@ -5481,7 +5611,7 @@
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-03-24 17:22:51",
+  "generated_at": "2026-03-24 18:39:09",
   "branch_name": "master",
   "display_name": "master"
 }
