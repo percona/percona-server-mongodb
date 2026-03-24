@@ -5,14 +5,14 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 479,
+    "commits_behind": 485,
     "days_behind": 11,
-    "files_affected": 3506,
-    "total_additions": 347091,
-    "total_deletions": 34283,
+    "files_affected": 3507,
+    "total_additions": 347476,
+    "total_deletions": 34291,
     "date_range": {
       "first": "2026-03-12T14:02:14+00:00",
-      "last": "2026-03-23T20:31:54+00:00"
+      "last": "2026-03-23T22:53:33+00:00"
     }
   },
   "last_merged_commit": {
@@ -36,6 +36,66 @@
     "summary": "SERVER-120718: Move join noPassthrough tests into corresponding join directory (#48844)"
   },
   "unmerged_commits": [
+    {
+      "sha": "bfb3d4b72f4a84a879470d8322b55104d048e88b",
+      "short_sha": "bfb3d4b72f4",
+      "date": "2026-03-23T17:53:33-05:00",
+      "author": {
+        "name": "Jess Balint",
+        "email": "jbalint@gmail.com"
+      },
+      "summary": "SERVER-121482 Add OTel metrics for collscan + bulk load during index … (#49479)"
+    },
+    {
+      "sha": "80cadee14523733c228cb24baf3badb68ae557e0",
+      "short_sha": "80cadee1452",
+      "date": "2026-03-23T18:48:49-04:00",
+      "author": {
+        "name": "Alex Sarkesian",
+        "email": "alex.sarkesian@mongodb.com"
+      },
+      "summary": "SERVER-122330: Increase resources for selected tests on {A,UB}SAN builds (#50128)"
+    },
+    {
+      "sha": "b6caa38e76927ac26ac295f15cb35af228c38f8f",
+      "short_sha": "b6caa38e769",
+      "date": "2026-03-23T18:12:10-04:00",
+      "author": {
+        "name": "Ruby Chen",
+        "email": "ruby.chen@mongodb.com"
+      },
+      "summary": "SERVER-121697 Remove startLsnTruncated failover mechanism (#50199)"
+    },
+    {
+      "sha": "0fdb2202f043fbd7b42f597c82fdea221cca591f",
+      "short_sha": "0fdb2202f04",
+      "date": "2026-03-23T17:57:55-04:00",
+      "author": {
+        "name": "Sergei B",
+        "email": "sergei.b@mongodb.com"
+      },
+      "summary": "SERVER-122181 Honor request timeout code for connection acquisition failures (#50003)"
+    },
+    {
+      "sha": "6174511bc7f1e1cdc4ad17b114422ea4509c059e",
+      "short_sha": "6174511bc7f",
+      "date": "2026-03-23T17:41:44-04:00",
+      "author": {
+        "name": "Stephanie",
+        "email": "53684987+seristof@users.noreply.github.com"
+      },
+      "summary": "SERVER-122150 Ensure the constraint violation trackers table are there when replicating internal idents in unique PDIB indexes (#50099)"
+    },
+    {
+      "sha": "0dcbd6a9f34172d02460cf8bbb1f517444a8b16a",
+      "short_sha": "0dcbd6a9f34",
+      "date": "2026-03-23T17:19:53-04:00",
+      "author": {
+        "name": "Gregory Noma",
+        "email": "gregory.noma@gmail.com"
+      },
+      "summary": "SERVER-122301 Handle write conflicts when merging spills for PDIB (#50222)"
+    },
     {
       "sha": "39c4c7a296531e93f95fa9fcb6b9672f7fea279b",
       "short_sha": "39c4c7a2965",
@@ -5441,7 +5501,7 @@
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-03-23 21:55:07",
+  "generated_at": "2026-03-24 00:16:08",
   "branch_name": "master",
   "display_name": "master"
 }
