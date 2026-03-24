@@ -135,6 +135,9 @@ find . -type d \
     \(  -name "darwin" -o -name "windows" -o -name "android" -o -name "msvc" -o -name "msvc" -o \
         -name "platform_fallback_stubs" -o -name "huffman_generator" -o -name "bsd" \) \
     -exec rm -rf {} \; || true
+# The `config.h` file is platform-dependent and a dedicated version for each
+# supported platform exists in the `${PLATFORM_DIR}` directory.
+rm -f include/aws/common/config.h
 
 pushd ${DIST_DIR}/src
 find . -maxdepth 1 -type d \
