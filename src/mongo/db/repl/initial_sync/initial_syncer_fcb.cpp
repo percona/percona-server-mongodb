@@ -77,6 +77,7 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/server_recovery.h"
 #include "mongo/db/service_context.h"
 #include "mongo/db/shard_role/lock_manager/d_concurrency.h"
+#include "mongo/db/shard_role/lock_manager/exception_util.h"
 #include "mongo/db/shard_role/shard_catalog/catalog_control.h"
 #include "mongo/db/shard_role/shard_catalog/collection_catalog.h"
 #include "mongo/db/shard_role/transaction_resources.h"
@@ -1660,14 +1661,13 @@ Status InitialSyncerFCB::_moveFiles(const boost::filesystem::path& sourceDir,
 }
 
 // Open a local backup cursor and obtain a list of files from that.
-StatusWith<std::vector<std::string>> InitialSyncerFCB::_getBackupFiles() {
+StatusWith<std::vector<std::string>> InitialSyncerFCB::_getBackupFiles(OperationContext* opCtx) {
     std::vector<std::string> files;
     try {
         // Open a local backup cursor and obtain a list of files from that.
 
         // Try to use DBDirectClient
-        auto opCtx = makeOpCtx();
-        DBDirectClient client(opCtx.get());
+        DBDirectClient client(opCtx);
         auto cursor = uassertStatusOK(DBClientCursor::fromAggregationRequest(
             &client, makeBackupCursorRequest(), true /* secondaryOk */, false /* useExhaust */));
         if (cursor->more()) {
@@ -1690,7 +1690,8 @@ StatusWith<std::vector<std::string>> InitialSyncerFCB::_getBackupFiles() {
 // Switch storage location
 Status InitialSyncerFCB::_switchStorageLocation(OperationContext* opCtx,
                                                 const std::string& newLocation,
-                                                bool runRecovery) {
+                                                bool runRecovery) try {
+    LOGV2_DEBUG(128469, 1, "Switching storage location", "newLocation"_attr = newLocation);
     invariant(shard_role_details::getLocker(opCtx)->isW());
 
     boost::system::error_code ec;
@@ -1707,6 +1708,17 @@ Status InitialSyncerFCB::_switchStorageLocation(OperationContext* opCtx,
         opCtx->getServiceContext(),
         {ErrorCodes::InterruptedDueToStorageChange, "Interrupted due to storage change"},
         /*forRestart=*/false);
+
+    // During initial sync, timestamps may not be initialized. The abort of index builds
+    // modifies _mdb_catalog.wt which requires untimestamped writes to be allowed.
+    // abandonSnapshot() first to ensure no active WT transaction (required by the invariant
+    // in allowAllUntimestampedWrites).
+    shard_role_details::getRecoveryUnit(opCtx)->abandonSnapshot();
+    shard_role_details::getRecoveryUnit(opCtx)->allowAllUntimestampedWrites();
+
+    // closeCatalog invariants if any index builds are in progress
+    IndexBuildsCoordinator::get(opCtx)->abortAllIndexBuildsForInitialSync(
+        opCtx, "Aborting index builds before closing catalog for changing storage location");
 
     auto previousCatalogState = catalog::closeCatalog(opCtx);
 
@@ -1733,12 +1745,7 @@ Status InitialSyncerFCB::_switchStorageLocation(OperationContext* opCtx,
     if (runRecovery) {
         // We need to run startup recovery to ensure that the storage engine is in a consistent
         // state.
-        try {
-            startup_recovery::runStartupRecovery(opCtx, lastShutdownState);
-        } catch (const ExceptionFor<ErrorCodes::MustDowngrade>& error) {
-            // versions incompatibility (we actually should check this when we select sync source)
-            return error.toStatus();
-        }
+        startup_recovery::runStartupRecovery(opCtx, lastShutdownState);
     }
 
     catalog::openCatalogAfterStorageChange(opCtx);
@@ -1749,6 +1756,13 @@ Status InitialSyncerFCB::_switchStorageLocation(OperationContext* opCtx,
 
     LOGV2_DEBUG(128415, 1, "Switched storage location", "newLocation"_attr = newLocation);
     return Status::OK();
+} catch (const DBException& e) {
+    LOGV2_DEBUG(128473,
+                1,
+                "Failed to switch storage location",
+                "newLocation"_attr = newLocation,
+                "error"_attr = e);
+    return e.toStatus();
 }
 
 void InitialSyncerFCB::_restoreStorageLocation(stdx::unique_lock<stdx::mutex>& lock,
@@ -2256,6 +2270,27 @@ void InitialSyncerFCB::_compareLastAppliedCallback(
     onCompletionGuard->setResultAndCancelRemainingWork(lock, exceptionToStatus());
 }
 
+namespace {
+
+Status resetLocalLastVoteDocument(OperationContext* opCtx) try {
+    writeConflictRetry(
+        opCtx, "reset last vote document", NamespaceString::kLastVoteNamespace, [opCtx] {
+            auto coll = acquireCollection(
+                opCtx,
+                CollectionAcquisitionRequest::fromOpCtx(
+                    opCtx, NamespaceString::kLastVoteNamespace, AcquisitionPrerequisites::kWrite),
+                MODE_X);
+
+            LastVote lastVote{OpTime::kInitialTerm, -1};
+            Helpers::putSingleton(opCtx, coll, lastVote.toBSON());
+        });
+    return Status::OK();
+} catch (const DBException& e) {
+    return e.toStatus();
+}
+
+}  // namespace
+
 void InitialSyncerFCB::_switchToDownloadedCallback(
     const executor::TaskExecutor::CallbackArgs& callbackArgs,
     // NOLINTNEXTLINE(*-unnecessary-value-param)
@@ -2269,9 +2304,11 @@ void InitialSyncerFCB::_switchToDownloadedCallback(
         return;
     }
 
+    auto opCtx = makeOpCtx();
+
     // Save list of files existing in dbpath. We will delete them later
     LOGV2_DEBUG(128404, 2, "Reading the list of local files via $backupCursor");
-    auto bfiles = _getBackupFiles();
+    auto bfiles = _getBackupFiles(opCtx.get());
     if (!bfiles.isOK()) {
         LOGV2_DEBUG(
             128405, 2, "Failed to get the list of local files", "status"_attr = bfiles.getStatus());
@@ -2282,7 +2319,6 @@ void InitialSyncerFCB::_switchToDownloadedCallback(
         128406, 2, "Retrieved names of local files", "number"_attr = bfiles.getValue().size());
     _localFiles = bfiles.getValue();
 
-    auto opCtx = makeOpCtx();
     Lock::GlobalLock lk(opCtx.get(), MODE_X);
     // retrieve the current on-disk replica set configuration
     auto* rs = repl::ReplicationCoordinator::get(opCtx->getServiceContext());
@@ -2303,14 +2339,32 @@ void InitialSyncerFCB::_switchToDownloadedCallback(
         _switchStorageLocation(opCtx.get(), _cfgDBPath + "/.initialsync", true /* runRecovery */);
     lock.lock();
     if (!status.isOK()) {
+        // Corner case: we need to reset _inStorageChange flag here because
+        // _restoreStorageLocation will not be called in this case
+        _inStorageChange = false;
+        _inStorageChangeCondition.notify_all();
         onCompletionGuard->setResultAndCancelRemainingWork(lock, status);
         return;
     }
 
     ScopeGuard storageGuard([this, &lock, opCtx = opCtx.get()] {
+        LOGV2_DEBUG(
+            128470, 1, "Restoring original storage location after failed switch to downloaded");
         // Restore storage location back to original dbpath in case of any failure
         _restoreStorageLocation(lock, opCtx);
     });
+
+    // Shutdown could be initiated while we released the lock for storage switch, no need to go
+    // further in that case. Just return and let the storageGuard switch back to original storage
+    // location.
+    status = _checkForShutdownAndConvertStatus(
+        lock,
+        callbackArgs,
+        "_switchToDownloadedCallback cancelled by shutdown after switching storage location");
+    if (!status.isOK()) {
+        onCompletionGuard->setResultAndCancelRemainingWork(lock, status);
+        return;
+    }
 
     // do some cleanup
     auto* consistencyMarkers = _replicationProcess->getConsistencyMarkers();
@@ -2326,13 +2380,7 @@ void InitialSyncerFCB::_switchToDownloadedCallback(
                                                           StorageInterface::get(opCtx.get()),
                                                           ReplicationProcess::get(opCtx.get()));
     // replace the lastVote document with a default one
-    status = StorageInterface::get(opCtx.get())
-                 ->dropCollection(opCtx.get(), NamespaceString::kLastVoteNamespace);
-    if (!status.isOK()) {
-        onCompletionGuard->setResultAndCancelRemainingWork(lock, status);
-        return;
-    }
-    status = externalState.createLocalLastVoteCollection(opCtx.get());
+    status = resetLocalLastVoteDocument(opCtx.get());
     if (!status.isOK()) {
         onCompletionGuard->setResultAndCancelRemainingWork(lock, status);
         return;
@@ -2353,6 +2401,10 @@ void InitialSyncerFCB::_switchToDownloadedCallback(
         &_currentHandle,
         "_executeRecovery");
     if (!status.isOK()) {
+        LOGV2_DEBUG(128471,
+                    1,
+                    "Failed to schedule recovery after switching to downloaded files",
+                    "reason"_attr = status);
         onCompletionGuard->setResultAndCancelRemainingWork(lock, status);
         return;
     }
@@ -2451,6 +2503,18 @@ void InitialSyncerFCB::_switchToDummyToDBPathCallback(
         lock.unlock();
         status = _switchStorageLocation(opCtx.get(), _cfgDBPath + "/.initialsync/.dummy");
         lock.lock();
+        if (!status.isOK()) {
+            onCompletionGuard->setResultAndCancelRemainingWork(lock, status);
+            return;
+        }
+
+        // Shutdown could be initiated while we released the lock for storage switch, no need to go
+        // further in that case. Just return and let the storageGuard switch back to original
+        // storage location.
+        status = _checkForShutdownAndConvertStatus(lock,
+                                                   callbackArgs,
+                                                   "_switchToDummyToDBPathCallback cancelled by "
+                                                   "shutdown after switching storage location");
         if (!status.isOK()) {
             onCompletionGuard->setResultAndCancelRemainingWork(lock, status);
             return;
