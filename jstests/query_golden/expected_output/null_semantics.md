@@ -25,32 +25,32 @@ rightEmbeddingField: "lf"
   COLLSCAN [test.null_semantics_md]
   direction: "forward"
 ```
-### internalJoinReorderMode = random, internalRandomJoinReorderDefaultToHashJoin = true, internalRandomJoinOrderSeed = 42
-usedJoinOptimization: true
-
-```
-HASH_JOIN_EMBEDDING [key = key]
-leftEmbeddingField: "none"
-rightEmbeddingField: "lf"
-  |  |
-  |  COLLSCAN [test.null_semantics_md_other]
-  |  direction: "forward"
-  |
-  COLLSCAN [test.null_semantics_md]
-  direction: "forward"
-```
-### internalJoinReorderMode = random, internalRandomJoinReorderDefaultToHashJoin = false, internalRandomJoinOrderSeed = 64
+### internalJoinReorderMode = random, internalRandomJoinOrderSeed = 42
 usedJoinOptimization: true
 
 ```
 NESTED_LOOP_JOIN_EMBEDDING [key = key]
-leftEmbeddingField: "none"
-rightEmbeddingField: "lf"
+leftEmbeddingField: "lf"
+rightEmbeddingField: "none"
   |  |
-  |  COLLSCAN [test.null_semantics_md_other]
+  |  COLLSCAN [test.null_semantics_md]
   |  direction: "forward"
   |
-  COLLSCAN [test.null_semantics_md]
+  COLLSCAN [test.null_semantics_md_other]
+  direction: "forward"
+```
+### internalJoinReorderMode = random, internalRandomJoinOrderSeed = 64
+usedJoinOptimization: true
+
+```
+NESTED_LOOP_JOIN_EMBEDDING [key = key]
+leftEmbeddingField: "lf"
+rightEmbeddingField: "none"
+  |  |
+  |  COLLSCAN [test.null_semantics_md]
+  |  direction: "forward"
+  |
+  COLLSCAN [test.null_semantics_md_other]
   direction: "forward"
 ```
 ## 2. Simple local-foreign field join (nested field)
@@ -98,32 +98,32 @@ rightEmbeddingField: "lf"
   COLLSCAN [test.null_semantics_md]
   direction: "forward"
 ```
-### internalJoinReorderMode = random, internalRandomJoinReorderDefaultToHashJoin = true, internalRandomJoinOrderSeed = 42
-usedJoinOptimization: true
-
-```
-HASH_JOIN_EMBEDDING [key.foo = key.foo]
-leftEmbeddingField: "none"
-rightEmbeddingField: "lf"
-  |  |
-  |  COLLSCAN [test.null_semantics_md_other]
-  |  direction: "forward"
-  |
-  COLLSCAN [test.null_semantics_md]
-  direction: "forward"
-```
-### internalJoinReorderMode = random, internalRandomJoinReorderDefaultToHashJoin = false, internalRandomJoinOrderSeed = 64
+### internalJoinReorderMode = random, internalRandomJoinOrderSeed = 42
 usedJoinOptimization: true
 
 ```
 NESTED_LOOP_JOIN_EMBEDDING [key.foo = key.foo]
-leftEmbeddingField: "none"
-rightEmbeddingField: "lf"
+leftEmbeddingField: "lf"
+rightEmbeddingField: "none"
   |  |
-  |  COLLSCAN [test.null_semantics_md_other]
+  |  COLLSCAN [test.null_semantics_md]
   |  direction: "forward"
   |
-  COLLSCAN [test.null_semantics_md]
+  COLLSCAN [test.null_semantics_md_other]
+  direction: "forward"
+```
+### internalJoinReorderMode = random, internalRandomJoinOrderSeed = 64
+usedJoinOptimization: true
+
+```
+NESTED_LOOP_JOIN_EMBEDDING [key.foo = key.foo]
+leftEmbeddingField: "lf"
+rightEmbeddingField: "none"
+  |  |
+  |  COLLSCAN [test.null_semantics_md]
+  |  direction: "forward"
+  |
+  COLLSCAN [test.null_semantics_md_other]
   direction: "forward"
 ```
 ## 3. Correlated sub-pipeline
@@ -151,32 +151,32 @@ rightEmbeddingField: "cor"
   COLLSCAN [test.null_semantics_md]
   direction: "forward"
 ```
-### internalJoinReorderMode = random, internalRandomJoinReorderDefaultToHashJoin = true, internalRandomJoinOrderSeed = 42
-usedJoinOptimization: true
-
-```
-HASH_JOIN_EMBEDDING [key $= key]
-leftEmbeddingField: "none"
-rightEmbeddingField: "cor"
-  |  |
-  |  COLLSCAN [test.null_semantics_md_other]
-  |  direction: "forward"
-  |
-  COLLSCAN [test.null_semantics_md]
-  direction: "forward"
-```
-### internalJoinReorderMode = random, internalRandomJoinReorderDefaultToHashJoin = false, internalRandomJoinOrderSeed = 64
+### internalJoinReorderMode = random, internalRandomJoinOrderSeed = 42
 usedJoinOptimization: true
 
 ```
 NESTED_LOOP_JOIN_EMBEDDING [key $= key]
-leftEmbeddingField: "none"
-rightEmbeddingField: "cor"
+leftEmbeddingField: "cor"
+rightEmbeddingField: "none"
   |  |
-  |  COLLSCAN [test.null_semantics_md_other]
+  |  COLLSCAN [test.null_semantics_md]
   |  direction: "forward"
   |
-  COLLSCAN [test.null_semantics_md]
+  COLLSCAN [test.null_semantics_md_other]
+  direction: "forward"
+```
+### internalJoinReorderMode = random, internalRandomJoinOrderSeed = 64
+usedJoinOptimization: true
+
+```
+NESTED_LOOP_JOIN_EMBEDDING [key $= key]
+leftEmbeddingField: "cor"
+rightEmbeddingField: "none"
+  |  |
+  |  COLLSCAN [test.null_semantics_md]
+  |  direction: "forward"
+  |
+  COLLSCAN [test.null_semantics_md_other]
   direction: "forward"
 ```
 ## 4. Correlated sub-pipeline (nested field)
@@ -216,32 +216,32 @@ rightEmbeddingField: "cor"
   COLLSCAN [test.null_semantics_md]
   direction: "forward"
 ```
-### internalJoinReorderMode = random, internalRandomJoinReorderDefaultToHashJoin = true, internalRandomJoinOrderSeed = 42
-usedJoinOptimization: true
-
-```
-HASH_JOIN_EMBEDDING [key.foo $= key.foo]
-leftEmbeddingField: "none"
-rightEmbeddingField: "cor"
-  |  |
-  |  COLLSCAN [test.null_semantics_md_other]
-  |  direction: "forward"
-  |
-  COLLSCAN [test.null_semantics_md]
-  direction: "forward"
-```
-### internalJoinReorderMode = random, internalRandomJoinReorderDefaultToHashJoin = false, internalRandomJoinOrderSeed = 64
+### internalJoinReorderMode = random, internalRandomJoinOrderSeed = 42
 usedJoinOptimization: true
 
 ```
 NESTED_LOOP_JOIN_EMBEDDING [key.foo $= key.foo]
-leftEmbeddingField: "none"
-rightEmbeddingField: "cor"
+leftEmbeddingField: "cor"
+rightEmbeddingField: "none"
   |  |
-  |  COLLSCAN [test.null_semantics_md_other]
+  |  COLLSCAN [test.null_semantics_md]
   |  direction: "forward"
   |
-  COLLSCAN [test.null_semantics_md]
+  COLLSCAN [test.null_semantics_md_other]
+  direction: "forward"
+```
+### internalJoinReorderMode = random, internalRandomJoinOrderSeed = 64
+usedJoinOptimization: true
+
+```
+NESTED_LOOP_JOIN_EMBEDDING [key.foo $= key.foo]
+leftEmbeddingField: "cor"
+rightEmbeddingField: "none"
+  |  |
+  |  COLLSCAN [test.null_semantics_md]
+  |  direction: "forward"
+  |
+  COLLSCAN [test.null_semantics_md_other]
   direction: "forward"
 ```
 ## 5. Implicit cycle (local-foreign)
@@ -282,46 +282,46 @@ rightEmbeddingField: "lf2"
   COLLSCAN [test.null_semantics_md]
   direction: "forward"
 ```
-### internalJoinReorderMode = random, internalRandomJoinReorderDefaultToHashJoin = true, internalRandomJoinOrderSeed = 42
+### internalJoinReorderMode = random, internalRandomJoinOrderSeed = 42
 usedJoinOptimization: true
 
 ```
-HASH_JOIN_EMBEDDING [lf.key = key,key = key]
-leftEmbeddingField: "none"
-rightEmbeddingField: "lf2"
-  |  |
-  |  COLLSCAN [test.null_semantics_md_third]
-  |  direction: "forward"
-  |
-  HASH_JOIN_EMBEDDING [key = key]
-  leftEmbeddingField: "none"
-  rightEmbeddingField: "lf"
-  |  |
-  |  COLLSCAN [test.null_semantics_md_other]
-  |  direction: "forward"
-  |
-  COLLSCAN [test.null_semantics_md]
-  direction: "forward"
-```
-### internalJoinReorderMode = random, internalRandomJoinReorderDefaultToHashJoin = false, internalRandomJoinOrderSeed = 64
-usedJoinOptimization: true
-
-```
-NESTED_LOOP_JOIN_EMBEDDING [lf.key = key,lf2.key = key]
-leftEmbeddingField: "none"
+HASH_JOIN_EMBEDDING [key = lf.key,key = key]
+leftEmbeddingField: "lf2"
 rightEmbeddingField: "none"
   |  |
-  |  COLLSCAN [test.null_semantics_md]
-  |  direction: "forward"
-  |
-  NESTED_LOOP_JOIN_EMBEDDING [key = key]
-  leftEmbeddingField: "lf2"
-  rightEmbeddingField: "lf"
+  |  HASH_JOIN_EMBEDDING [key = key]
+  |  leftEmbeddingField: "lf"
+  |  rightEmbeddingField: "none"
+  |  |  |
+  |  |  COLLSCAN [test.null_semantics_md]
+  |  |  direction: "forward"
   |  |
   |  COLLSCAN [test.null_semantics_md_other]
   |  direction: "forward"
   |
   COLLSCAN [test.null_semantics_md_third]
+  direction: "forward"
+```
+### internalJoinReorderMode = random, internalRandomJoinOrderSeed = 64
+usedJoinOptimization: true
+
+```
+HASH_JOIN_EMBEDDING [key = lf.key,key = lf2.key]
+leftEmbeddingField: "none"
+rightEmbeddingField: "none"
+  |  |
+  |  HASH_JOIN_EMBEDDING [key = key]
+  |  leftEmbeddingField: "lf"
+  |  rightEmbeddingField: "lf2"
+  |  |  |
+  |  |  COLLSCAN [test.null_semantics_md_third]
+  |  |  direction: "forward"
+  |  |
+  |  COLLSCAN [test.null_semantics_md_other]
+  |  direction: "forward"
+  |
+  COLLSCAN [test.null_semantics_md]
   direction: "forward"
 ```
 ## 6. Implicit cycle (mixed)
@@ -361,46 +361,46 @@ rightEmbeddingField: "cor"
   COLLSCAN [test.null_semantics_md]
   direction: "forward"
 ```
-### internalJoinReorderMode = random, internalRandomJoinReorderDefaultToHashJoin = true, internalRandomJoinOrderSeed = 42
+### internalJoinReorderMode = random, internalRandomJoinOrderSeed = 42
 usedJoinOptimization: true
 
 ```
-HASH_JOIN_EMBEDDING [lf.key $= key.foo,key = key.foo]
-leftEmbeddingField: "none"
-rightEmbeddingField: "cor"
-  |  |
-  |  COLLSCAN [test.null_semantics_md_third]
-  |  direction: "forward"
-  |
-  HASH_JOIN_EMBEDDING [key = key]
-  leftEmbeddingField: "none"
-  rightEmbeddingField: "lf"
-  |  |
-  |  COLLSCAN [test.null_semantics_md_other]
-  |  direction: "forward"
-  |
-  COLLSCAN [test.null_semantics_md]
-  direction: "forward"
-```
-### internalJoinReorderMode = random, internalRandomJoinReorderDefaultToHashJoin = false, internalRandomJoinOrderSeed = 64
-usedJoinOptimization: true
-
-```
-NESTED_LOOP_JOIN_EMBEDDING [lf.key = key,cor.key.foo = key]
-leftEmbeddingField: "none"
+HASH_JOIN_EMBEDDING [key.foo $= lf.key,key.foo = key]
+leftEmbeddingField: "cor"
 rightEmbeddingField: "none"
   |  |
-  |  COLLSCAN [test.null_semantics_md]
-  |  direction: "forward"
-  |
-  NESTED_LOOP_JOIN_EMBEDDING [key.foo $= key]
-  leftEmbeddingField: "cor"
-  rightEmbeddingField: "lf"
+  |  HASH_JOIN_EMBEDDING [key = key]
+  |  leftEmbeddingField: "lf"
+  |  rightEmbeddingField: "none"
+  |  |  |
+  |  |  COLLSCAN [test.null_semantics_md]
+  |  |  direction: "forward"
   |  |
   |  COLLSCAN [test.null_semantics_md_other]
   |  direction: "forward"
   |
   COLLSCAN [test.null_semantics_md_third]
+  direction: "forward"
+```
+### internalJoinReorderMode = random, internalRandomJoinOrderSeed = 64
+usedJoinOptimization: true
+
+```
+HASH_JOIN_EMBEDDING [key = lf.key,key = cor.key.foo]
+leftEmbeddingField: "none"
+rightEmbeddingField: "none"
+  |  |
+  |  HASH_JOIN_EMBEDDING [key $= key.foo]
+  |  leftEmbeddingField: "lf"
+  |  rightEmbeddingField: "cor"
+  |  |  |
+  |  |  COLLSCAN [test.null_semantics_md_third]
+  |  |  direction: "forward"
+  |  |
+  |  COLLSCAN [test.null_semantics_md_other]
+  |  direction: "forward"
+  |
+  COLLSCAN [test.null_semantics_md]
   direction: "forward"
 ```
 ## 7. Implicit cycle (correlated)
@@ -453,28 +453,28 @@ rightEmbeddingField: "cor2"
   COLLSCAN [test.null_semantics_md]
   direction: "forward"
 ```
-### internalJoinReorderMode = random, internalRandomJoinReorderDefaultToHashJoin = true, internalRandomJoinOrderSeed = 42
+### internalJoinReorderMode = random, internalRandomJoinOrderSeed = 42
 usedJoinOptimization: true
 
 ```
-HASH_JOIN_EMBEDDING [cor.foo $= key.foo]
+NESTED_LOOP_JOIN_EMBEDDING [cor.foo $= key.foo]
 leftEmbeddingField: "none"
 rightEmbeddingField: "cor2"
   |  |
   |  COLLSCAN [test.null_semantics_md_other]
   |  direction: "forward"
   |
-  HASH_JOIN_EMBEDDING [key $= key]
-  leftEmbeddingField: "none"
-  rightEmbeddingField: "cor"
+  NESTED_LOOP_JOIN_EMBEDDING [key $= key]
+  leftEmbeddingField: "cor"
+  rightEmbeddingField: "none"
   |  |
-  |  COLLSCAN [test.null_semantics_md_third]
+  |  COLLSCAN [test.null_semantics_md]
   |  direction: "forward"
   |
-  COLLSCAN [test.null_semantics_md]
+  COLLSCAN [test.null_semantics_md_third]
   direction: "forward"
 ```
-### internalJoinReorderMode = random, internalRandomJoinReorderDefaultToHashJoin = false, internalRandomJoinOrderSeed = 64
+### internalJoinReorderMode = random, internalRandomJoinOrderSeed = 64
 usedJoinOptimization: true
 
 ```
@@ -485,14 +485,14 @@ rightEmbeddingField: "none"
   |  COLLSCAN [test.null_semantics_md]
   |  direction: "forward"
   |
-  NESTED_LOOP_JOIN_EMBEDDING [key.foo $= foo]
-  leftEmbeddingField: "cor2"
-  rightEmbeddingField: "cor"
+  NESTED_LOOP_JOIN_EMBEDDING [foo $= key.foo]
+  leftEmbeddingField: "cor"
+  rightEmbeddingField: "cor2"
   |  |
-  |  COLLSCAN [test.null_semantics_md_third]
+  |  COLLSCAN [test.null_semantics_md_other]
   |  direction: "forward"
   |
-  COLLSCAN [test.null_semantics_md_other]
+  COLLSCAN [test.null_semantics_md_third]
   direction: "forward"
 ```
 ## 8. Implicit cycle (mixed) + indexes
@@ -532,62 +532,54 @@ rightEmbeddingField: "cor"
   COLLSCAN [test.null_semantics_md]
   direction: "forward"
 ```
-### internalJoinReorderMode = random, internalRandomJoinReorderDefaultToHashJoin = true, internalRandomJoinOrderSeed = 42
+### internalJoinReorderMode = random, internalRandomJoinOrderSeed = 42
 usedJoinOptimization: true
 
 ```
-HASH_JOIN_EMBEDDING [lf.key $= key.foo,key = key.foo]
+INDEXED_NESTED_LOOP_JOIN_EMBEDDING [key = key,cor.key.foo $= key]
 leftEmbeddingField: "none"
-rightEmbeddingField: "cor"
+rightEmbeddingField: "lf"
+  |  |
+  |  FETCH [test.null_semantics_md_other]
+  |  
+  |  |
+  |  INDEX_PROBE_NODE [test.null_semantics_md_other]
+  |  keyPattern: { "key" : 1 }
+  |  indexName: "key_1"
+  |  isMultiKey: false
+  |  isUnique: false
+  |  isSparse: false
+  |  isPartial: false
+  |
+  NESTED_LOOP_JOIN_EMBEDDING [key = key.foo]
+  leftEmbeddingField: "none"
+  rightEmbeddingField: "cor"
   |  |
   |  COLLSCAN [test.null_semantics_md_third]
   |  direction: "forward"
   |
-  INDEXED_NESTED_LOOP_JOIN_EMBEDDING [key = key]
-  leftEmbeddingField: "none"
-  rightEmbeddingField: "lf"
-  |  |
-  |  FETCH [test.null_semantics_md_other]
-  |  
-  |  |
-  |  INDEX_PROBE_NODE [test.null_semantics_md_other]
-  |  keyPattern: { "key" : 1 }
-  |  indexName: "key_1"
-  |  isMultiKey: false
-  |  isUnique: false
-  |  isSparse: false
-  |  isPartial: false
-  |
   COLLSCAN [test.null_semantics_md]
   direction: "forward"
 ```
-### internalJoinReorderMode = random, internalRandomJoinReorderDefaultToHashJoin = false, internalRandomJoinOrderSeed = 64
+### internalJoinReorderMode = random, internalRandomJoinOrderSeed = 64
 usedJoinOptimization: true
 
 ```
-NESTED_LOOP_JOIN_EMBEDDING [lf.key = key,cor.key.foo = key]
+HASH_JOIN_EMBEDDING [key = lf.key,key = cor.key.foo]
 leftEmbeddingField: "none"
 rightEmbeddingField: "none"
   |  |
-  |  COLLSCAN [test.null_semantics_md]
+  |  HASH_JOIN_EMBEDDING [key $= key.foo]
+  |  leftEmbeddingField: "lf"
+  |  rightEmbeddingField: "cor"
+  |  |  |
+  |  |  COLLSCAN [test.null_semantics_md_third]
+  |  |  direction: "forward"
+  |  |
+  |  COLLSCAN [test.null_semantics_md_other]
   |  direction: "forward"
   |
-  INDEXED_NESTED_LOOP_JOIN_EMBEDDING [key.foo $= key]
-  leftEmbeddingField: "cor"
-  rightEmbeddingField: "lf"
-  |  |
-  |  FETCH [test.null_semantics_md_other]
-  |  
-  |  |
-  |  INDEX_PROBE_NODE [test.null_semantics_md_other]
-  |  keyPattern: { "key" : 1 }
-  |  indexName: "key_1"
-  |  isMultiKey: false
-  |  isUnique: false
-  |  isSparse: false
-  |  isPartial: false
-  |
-  COLLSCAN [test.null_semantics_md_third]
+  COLLSCAN [test.null_semantics_md]
   direction: "forward"
 ```
 ## 9. Large implicit cycle (5 nodes)
@@ -636,97 +628,73 @@ rightEmbeddingField: "c4"
   COLLSCAN [test.null_semantics_md]
   direction: "forward"
 ```
-### internalJoinReorderMode = random, internalRandomJoinReorderDefaultToHashJoin = true, internalRandomJoinOrderSeed = 42
+### internalJoinReorderMode = random, internalRandomJoinOrderSeed = 42
 usedJoinOptimization: true
 
 ```
-HASH_JOIN_EMBEDDING [c2.key $= key,c4.key $= key,key = key,c1.key = key]
-leftEmbeddingField: "none"
-rightEmbeddingField: "c3"
+HASH_JOIN_EMBEDDING [key $= key,key $= c2.key,key = c3.key,key = c4.key]
+leftEmbeddingField: "c1"
+rightEmbeddingField: "none"
   |  |
-  |  COLLSCAN [test.null_semantics_md_fourth]
-  |  direction: "forward"
-  |
-  HASH_JOIN_EMBEDDING [key = key,c1.key = key,c2.key = key]
-  leftEmbeddingField: "none"
-  rightEmbeddingField: "c4"
+  |  HASH_JOIN_EMBEDDING [key $= c3.key,key = key,key = c2.key]
+  |  leftEmbeddingField: "c4"
+  |  rightEmbeddingField: "none"
+  |  |  |
+  |  |  HASH_JOIN_EMBEDDING [key $= c2.key,key = key]
+  |  |  leftEmbeddingField: "c3"
+  |  |  rightEmbeddingField: "none"
+  |  |  |  |
+  |  |  |  NESTED_LOOP_JOIN_EMBEDDING [key = key]
+  |  |  |  leftEmbeddingField: "c2"
+  |  |  |  rightEmbeddingField: "none"
+  |  |  |  |  |
+  |  |  |  |  COLLSCAN [test.null_semantics_md]
+  |  |  |  |  direction: "forward"
+  |  |  |  |
+  |  |  |  COLLSCAN [test.null_semantics_md_third]
+  |  |  |  direction: "forward"
+  |  |  |
+  |  |  COLLSCAN [test.null_semantics_md_fourth]
+  |  |  direction: "forward"
   |  |
   |  COLLSCAN [test.null_semantics_md_fifth]
   |  direction: "forward"
   |
-  INDEXED_NESTED_LOOP_JOIN_EMBEDDING [key $= key,c2.key $= key]
-  leftEmbeddingField: "none"
-  rightEmbeddingField: "c1"
-  |  |
-  |  FETCH [test.null_semantics_md_other]
-  |  
-  |  |
-  |  INDEX_PROBE_NODE [test.null_semantics_md_other]
-  |  keyPattern: { "key" : 1 }
-  |  indexName: "key_1"
-  |  isMultiKey: false
-  |  isUnique: false
-  |  isSparse: false
-  |  isPartial: false
-  |
-  HASH_JOIN_EMBEDDING [key = key]
-  leftEmbeddingField: "c2"
-  rightEmbeddingField: "none"
-  |  |
-  |  COLLSCAN [test.null_semantics_md]
-  |  direction: "forward"
-  |
-  COLLSCAN [test.null_semantics_md_third]
+  COLLSCAN [test.null_semantics_md_other]
   direction: "forward"
 ```
-### internalJoinReorderMode = random, internalRandomJoinReorderDefaultToHashJoin = false, internalRandomJoinOrderSeed = 64
+### internalJoinReorderMode = random, internalRandomJoinOrderSeed = 64
 usedJoinOptimization: true
 
 ```
-INDEXED_NESTED_LOOP_JOIN_EMBEDDING [key $= key,c2.key $= key,c3.key = key,c4.key = key]
-leftEmbeddingField: "none"
-rightEmbeddingField: "c1"
+HASH_JOIN_EMBEDDING [key $= key,key $= c2.key,key = c3.key,key = c4.key]
+leftEmbeddingField: "c1"
+rightEmbeddingField: "none"
   |  |
-  |  FETCH [test.null_semantics_md_other]
-  |  
+  |  HASH_JOIN_EMBEDDING [key $= c3.key,key = key,key = c4.key]
+  |  leftEmbeddingField: "c2"
+  |  rightEmbeddingField: "none"
+  |  |  |
+  |  |  HASH_JOIN_EMBEDDING [key = c3.key,key = c4.key]
+  |  |  leftEmbeddingField: "none"
+  |  |  rightEmbeddingField: "none"
+  |  |  |  |
+  |  |  |  HASH_JOIN_EMBEDDING [key $= key]
+  |  |  |  leftEmbeddingField: "c4"
+  |  |  |  rightEmbeddingField: "c3"
+  |  |  |  |  |
+  |  |  |  |  COLLSCAN [test.null_semantics_md_fourth]
+  |  |  |  |  direction: "forward"
+  |  |  |  |
+  |  |  |  COLLSCAN [test.null_semantics_md_fifth]
+  |  |  |  direction: "forward"
+  |  |  |
+  |  |  COLLSCAN [test.null_semantics_md]
+  |  |  direction: "forward"
   |  |
-  |  INDEX_PROBE_NODE [test.null_semantics_md_other]
-  |  keyPattern: { "key" : 1 }
-  |  indexName: "key_1"
-  |  isMultiKey: false
-  |  isUnique: false
-  |  isSparse: false
-  |  isPartial: false
-  |
-  NESTED_LOOP_JOIN_EMBEDDING [c2.key = key,c3.key = key,c4.key = key]
-  leftEmbeddingField: "none"
-  rightEmbeddingField: "none"
-  |  |
-  |  COLLSCAN [test.null_semantics_md]
+  |  COLLSCAN [test.null_semantics_md_third]
   |  direction: "forward"
   |
-  INDEXED_NESTED_LOOP_JOIN_EMBEDDING [c3.key $= key,c4.key = key]
-  leftEmbeddingField: "none"
-  rightEmbeddingField: "c2"
-  |  |
-  |  FETCH [test.null_semantics_md_third]
-  |  
-  |  |
-  |  INDEX_PROBE_NODE [test.null_semantics_md_third]
-  |  keyPattern: { "key" : 1 }
-  |  indexName: "key_1"
-  |  isMultiKey: false
-  |  isUnique: false
-  |  isSparse: false
-  |  isPartial: false
-  |
-  NESTED_LOOP_JOIN_EMBEDDING [key $= key]
-  leftEmbeddingField: "c3"
-  rightEmbeddingField: "c4"
-  |  |
-  |  COLLSCAN [test.null_semantics_md_fifth]
-  |  direction: "forward"
-  |
-  COLLSCAN [test.null_semantics_md_fourth]
+  COLLSCAN [test.null_semantics_md_other]
   direction: "forward"
 ```
