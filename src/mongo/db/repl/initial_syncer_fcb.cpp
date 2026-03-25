@@ -1749,6 +1749,11 @@ Status InitialSyncerFCB::_switchStorageLocation(
 
     catalog::openCatalogAfterStorageChange(opCtx);
 
+    // At this point we might have the recovery unit with an active WT transaction.
+    // Abandon the snapshot so the RU is kInactive before callers invoke setMinValid(), which
+    // calls allowOneUntimestampedWrite() and invariants on !_isActive().
+    shard_role_details::getRecoveryUnit(opCtx)->abandonSnapshot();
+
     LOGV2_DEBUG(128415, 1, "Switched storage location", "newLocation"_attr = newLocation);
     return Status::OK();
 } catch (const DBException& e) {
