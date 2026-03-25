@@ -95,13 +95,14 @@ Response ConfigurationDoneRequest::response() {
 SetBreakpointsRequest::SetBreakpointsRequest(const PartialRequest& partial)
     : VisitableRequest(partial) {
     // Get source from arguments
-    source = std::string(toStdStringViewForInterop(arguments.getStringField("source")));
+    auto sourceField = arguments.getObjectField("source");
+    source = std::string(toStdStringViewForInterop(sourceField.getStringField("path")));
 
     // Get lines array from arguments and extract line numbers
-    std::vector<BSONElement> linesArr = arguments.getField("lines").Array();
-    for (const auto& lineElem : linesArr) {
-        BSONObj lineObj = lineElem.Obj();
-        int lineNum = lineObj.getIntField("line");
+    std::vector<BSONElement> bpArr = arguments.getField("breakpoints").Array();
+    for (const auto& bpElem : bpArr) {
+        BSONObj bpObj = bpElem.Obj();
+        int lineNum = bpObj.getIntField("line");
         lines.push_back(lineNum);
     }
 }
@@ -317,13 +318,27 @@ Response SetVariableRequest::response(std::string value) {
  * StoppedEvent
  */
 
+StoppedEvent StoppedEvent::Breakpoint() {
+    StoppedEvent e("breakpoint");
+    return e;
+}
+
+StoppedEvent StoppedEvent::Exception(std::string text) {
+    StoppedEvent e("exception");
+    e.text = text;
+    return e;
+}
+
 std::string StoppedEvent::getJson() const {
     BSONObjBuilder eventBuilder;
     eventBuilder.append("type", "event");
     eventBuilder.append("event", "stopped");
 
     BSONObjBuilder bodyBuilder;
-    bodyBuilder.append("reason", "breakpoint");
+    bodyBuilder.append("reason", reason);
+    if (text) {
+        bodyBuilder.append("text", *text);
+    }
 
     eventBuilder.append("body", bodyBuilder.obj());
 

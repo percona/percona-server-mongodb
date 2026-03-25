@@ -26,43 +26,18 @@
  *    exception statement from all source files in the program, then also delete
  *    it in the license file.
  */
+#include "mongo/otel/metrics/metrics_attributes.h"
 
-#pragma once
+namespace mongo::otel::metrics {
 
-#include "mongo/s/change_streams/change_stream_shard_targeter_state_event_handler.h"
-#include "mongo/util/modules.h"
-
-namespace mongo {
-
-class AllDatabasesShardTargeterStateEventHandler
-    : public ChangeStreamShardTargeterStateEventHandler {
-public:
-    ChangeStreamShardTargeterStateEventHandler::DbPresenceState getDbPresenceState()
-        const override {
-        return ChangeStreamShardTargeterStateEventHandler::DbPresenceState::kUnknown;
+bool containsDuplicates(std::span<const std::string> values) {
+    absl::flat_hash_set<StringData> seenValues;
+    for (StringData value : values) {
+        if (!seenValues.insert(value).second) {
+            return true;
+        }
     }
+    return false;
+}
 
-    ShardTargeterDecision handleEvent(OperationContext* opCtx,
-                                      const ControlEvent& event,
-                                      ChangeStreamShardTargeterStateEventHandlingContext& ctx,
-                                      ChangeStreamReaderContext& readerCtx) override;
-
-    ShardTargeterDecision handleEventInDegradedMode(
-        OperationContext* opCtx,
-        const ControlEvent& event,
-        ChangeStreamShardTargeterStateEventHandlingContext& ctx,
-        ChangeStreamReaderContext& readerCtx) override;
-
-protected:
-    std::string toString() const override;
-
-private:
-    ShardTargeterDecision handlePlacementRefresh(
-        OperationContext* opCtx,
-        const ControlEvent& event,
-        Timestamp clusterTime,
-        ChangeStreamShardTargeterStateEventHandlingContext& ctx,
-        ChangeStreamReaderContext& readerCtx);
-};
-
-}  // namespace mongo
+}  // namespace mongo::otel::metrics

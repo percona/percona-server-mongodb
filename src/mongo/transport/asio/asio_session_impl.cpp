@@ -65,7 +65,6 @@ MONGO_FAIL_POINT_DEFINE(asioTransportLayerBlockBeforeOpportunisticRead);
 MONGO_FAIL_POINT_DEFINE(asioTransportLayerBlockBeforeAddSession);
 MONGO_FAIL_POINT_DEFINE(clientIsConnectedToLoadBalancerPort);
 MONGO_FAIL_POINT_DEFINE(clientIsLoadBalancedPeer);
-MONGO_FAIL_POINT_DEFINE(isConnectedToProxyUnixSocketOverride);
 MONGO_FAIL_POINT_DEFINE(proxyUnixDomainSocketPeerCredentialValidationOverride);
 
 namespace {
@@ -274,8 +273,7 @@ bool CommonAsioSession::isLoadBalancerPeer() const {
 }
 
 bool CommonAsioSession::isConnectedToProxyUnixSocket() const {
-    return _isConnectedToProxyUnixSocket ||
-        MONGO_unlikely(isConnectedToProxyUnixSocketOverride.shouldFail());
+    return _isConnectedToProxyUnixSocket;
 }
 
 Status CommonAsioSession::validateProxyUnixSocketPeerPermissions() {
@@ -291,12 +289,21 @@ Status CommonAsioSession::validateProxyUnixSocketPeerPermissions() {
     socklen_t optLen = sizeof(credentials);
     if (::getsockopt(handle, SOL_SOCKET, SO_PEERCRED, &credentials, &optLen) != 0)
         return Status(ErrorCodes::InternalError, errorMessage(lastSocketError()));
-    auto expectedUid = ::geteuid();
-    if (expectedUid != credentials.uid)
+    auto remoteGid = credentials.gid;
+    auto expectedGid = ::getegid();
+    if (auto fp = proxyUnixDomainSocketPeerCredentialValidationOverride.scoped();
+        MONGO_unlikely(fp.isActive()))
+        if (auto data = fp.getData()["data"]; data.ok()) {
+            if (auto gid = data["remoteGid"]; gid.ok())
+                remoteGid = gid.Int();
+            if (auto gid = data["expectedGid"]; gid.ok())
+                expectedGid = gid.Int();
+        }
+    if (expectedGid != remoteGid)
         return Status(ErrorCodes::Unauthorized,
                       fmt::format("Proxy unix domain socket peer UID mismatch: expected {}, got {}",
-                                  expectedUid,
-                                  credentials.uid));
+                                  expectedGid,
+                                  remoteGid));
 #endif
     return Status::OK();
 }

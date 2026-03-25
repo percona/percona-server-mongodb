@@ -120,6 +120,10 @@ bool AttachedPersistenceProvider::shouldAvoidDuplicateCheckpoints() const {
     return false;
 }
 
+bool AttachedPersistenceProvider::shouldForceUpdateWithFullDocument() const {
+    return false;
+}
+
 bool AttachedPersistenceProvider::supportsCursorReuseForExpressPathQueries() const {
     return true;
 }
@@ -206,6 +210,10 @@ bool AttachedPersistenceProvider::settingsProvideMajorityWriteJournalDurability(
 
 bool AttachedPersistenceProvider::shouldDeferUntimestampedDrops() const {
     return false;
+}
+
+bool AttachedPersistenceProvider::supportsProfilingLevel(int profilingLevel) const {
+    return true;
 }
 
 bool AttachedPersistenceProvider::oplogHasBeenTruncated(const BSONObj& firstOplogEntry) const {

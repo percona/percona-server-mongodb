@@ -100,6 +100,7 @@ void DebugAdapter::handleRequest(ConfigurationDoneRequest& request) {
 void DebugAdapter::handleRequest(SetBreakpointsRequest& request) {
     request.source = abs2rel(request.source);
     DebuggerGlobal::setBreakpoints(request);
+    request.source = rel2abs(request.source);
     sendMessage(request.response());
 }
 
@@ -159,7 +160,12 @@ void DebugAdapter::waitForHandshake() {
 }
 
 void DebugAdapter::sendPause() {
-    StoppedEvent e;
+    auto e = StoppedEvent::Breakpoint();
+    sendMessage(e);
+}
+
+void DebugAdapter::sendStoppedOnException(std::string text) {
+    auto e = StoppedEvent::Exception(text);
     sendMessage(e);
 }
 
