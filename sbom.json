@@ -2393,7 +2393,6 @@
           "value": "false"
         }
       ]
-<<<<<<< HEAD
     },
     {
       "supplier": {
@@ -2487,8 +2486,6 @@
         ]
       },
       "scope": "required"
-||||||| c92c5c5bb73
-=======
     },
     {
       "bom-ref": "pkg:github/apache/arrow-nanoarrow@apache-arrow-nanoarrow-0.7.0?package-id=614f3463351947a8",
@@ -2521,12 +2518,10 @@
       "version": "v0.2.0-rc1",
       "scope": "excluded",
       "properties": []
->>>>>>> 7cc7996c854f7bb20c7f34efb089a64d3906a88b
     }
   ],
   "dependencies": [
     {
-
       "ref": "pkg:deb/debian/firefox-esr@140.7.0esr-1?arch=source",
       "dependsOn": []
     },
@@ -2782,7 +2777,6 @@
     {
       "ref": "pkg:pypi/ocspresponder@0.5.0",
       "dependsOn": []
-<<<<<<< HEAD
     },
     {
       "ref": "pkg:github/libarchive/libarchive@v3.8.4",
@@ -2793,8 +2787,6 @@
       "dependsOn": [
         "pkg:github/madler/zlib@v1.3.1"
       ]
-||||||| c92c5c5bb73
-=======
     },
     {
       "ref": "pkg:github/apache/arrow-nanoarrow@apache-arrow-nanoarrow-0.7.0?package-id=614f3463351947a8",
@@ -2803,7 +2795,6 @@
     {
       "ref": "pkg:github/apache/iceberg-cpp@v0.2.0-rc1?package-id=ce0b9d2c8402061a",
       "dependsOn": []
->>>>>>> 7cc7996c854f7bb20c7f34efb089a64d3906a88b
     }
   ]
 }
