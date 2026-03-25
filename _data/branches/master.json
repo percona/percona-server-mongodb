@@ -5,14 +5,14 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 494,
-    "days_behind": 11,
-    "files_affected": 3480,
-    "total_additions": 336180,
-    "total_deletions": 31483,
+    "commits_behind": 518,
+    "days_behind": 12,
+    "files_affected": 3556,
+    "total_additions": 337984,
+    "total_deletions": 31800,
     "date_range": {
       "first": "2026-03-12T21:01:44+00:00",
-      "last": "2026-03-24T17:46:52+00:00"
+      "last": "2026-03-25T02:41:45+00:00"
     }
   },
   "last_merged_commit": {
@@ -36,6 +36,246 @@
     "summary": "SERVER-18737 Replicate timestamped ident drops from KVDropPendingIdentReaper in DSC mode (#49356)"
   },
   "unmerged_commits": [
+    {
+      "sha": "1218fbc9ddbd62ce5a897be70c38dbd238de647a",
+      "short_sha": "1218fbc9ddb",
+      "date": "2026-03-24T21:41:45-05:00",
+      "author": {
+        "name": "mongodb-matthew-normyle",
+        "email": "120420718+mongodb-matthew-normyle@users.noreply.github.com"
+      },
+      "summary": "SERVER-122462: Iceberg: conflict detection for combineDataFiles (#50310)"
+    },
+    {
+      "sha": "71db5b1461b43e6b29af394c409dabc5766c202b",
+      "short_sha": "71db5b1461b",
+      "date": "2026-03-24T21:50:07-04:00",
+      "author": {
+        "name": "Calvin Nix",
+        "email": "6693710+Calvinnix@users.noreply.github.com"
+      },
+      "summary": "SERVER-120818: Re-add publish manifest task (#50361)"
+    },
+    {
+      "sha": "f9be842af6a20342e31734ed54e522e1442ce1e2",
+      "short_sha": "f9be842af6a",
+      "date": "2026-03-24T15:49:47-07:00",
+      "author": {
+        "name": "Aditya Deshpande",
+        "email": "aditya.deshpande@mongodb.com"
+      },
+      "summary": "SERVER-122483 Add std::to_chars compatibility for macOS < 10.15 (#50345)"
+    },
+    {
+      "sha": "6c894199f2788eac1d4acdd8c73c041ff2006950",
+      "short_sha": "6c894199f27",
+      "date": "2026-03-24T17:31:32-05:00",
+      "author": {
+        "name": "Shin Yee Tan",
+        "email": "shinyee.tan@mongodb.com"
+      },
+      "summary": "SERVER-122556 Cleanup find_and_modify_image_lookup_util_test.cpp (#50325)"
+    },
+    {
+      "sha": "ea677a2b1e15e69e8dde35c9ca468fb85ea155ca",
+      "short_sha": "ea677a2b1e1",
+      "date": "2026-03-24T18:07:01-04:00",
+      "author": {
+        "name": "Ben Shteinfeld",
+        "email": "ben.shteinfeld@mongodb.com"
+      },
+      "summary": "SERVER-122314: Fix collection number leaf pages calculation to use on disk size (#49667)"
+    },
+    {
+      "sha": "da8cb07c33cee577e0edb81a8386681ab2c08538",
+      "short_sha": "da8cb07c33c",
+      "date": "2026-03-24T17:02:59-05:00",
+      "author": {
+        "name": "mongodb-matthew-normyle",
+        "email": "120420718+mongodb-matthew-normyle@users.noreply.github.com"
+      },
+      "summary": "SERVER-122568: Iceberg: handle commitFiles with deleteFiles and dataFilesToRemove (#50338)"
+    },
+    {
+      "sha": "a05fa9519b4cf57fa86f5ce4ad433883a6d089cf",
+      "short_sha": "a05fa9519b4",
+      "date": "2026-03-24T16:50:21-05:00",
+      "author": {
+        "name": "rehangillswe",
+        "email": "rehan.gill@mongodb.com"
+      },
+      "summary": "SERVER-122294 Make commands in random_update_delete_with_resharding.js robust against resharding collection rename (#50217)"
+    },
+    {
+      "sha": "568e6a2364ff859bc0c2f1df26fb0eed71297516",
+      "short_sha": "568e6a2364f",
+      "date": "2026-03-24T14:42:23-07:00",
+      "author": {
+        "name": "Pierre Turin",
+        "email": "pierre.turin@mongodb.com"
+      },
+      "summary": "SERVER-122476 Add timeout in ReplSetTest._callHello() (#50255)"
+    },
+    {
+      "sha": "b51da5ccb8e46af07e6a78d5f7967c3f576f8fe8",
+      "short_sha": "b51da5ccb8e",
+      "date": "2026-03-24T22:30:23+01:00",
+      "author": {
+        "name": "Jan",
+        "email": "jsteemann@users.noreply.github.com"
+      },
+      "summary": "SERVER-122242 Adjust wording for size/count estimates (#50052)"
+    },
+    {
+      "sha": "ee7da426ee3d9e6441f38d4a7ff1ba4642f64451",
+      "short_sha": "ee7da426ee3",
+      "date": "2026-03-24T17:16:01-04:00",
+      "author": {
+        "name": "Nick Jefferies",
+        "email": "nick.jefferies@mongodb.com"
+      },
+      "summary": "SERVER-122534: Fix generate-fuzz-config crash when config.MODULES is None (#50307)"
+    },
+    {
+      "sha": "6f414a559b21459a1b11f783e39c963fffcb9612",
+      "short_sha": "6f414a559b2",
+      "date": "2026-03-24T17:07:18-04:00",
+      "author": {
+        "name": "Sean Lyons",
+        "email": "sean.lyons@mongodb.com"
+      },
+      "summary": "SERVER-120035 Add bazel targets for release-critical, security resmoke suites (#50060)"
+    },
+    {
+      "sha": "df06cebb51c76939d67d005e562a3c55c279e6fe",
+      "short_sha": "df06cebb51c",
+      "date": "2026-03-24T17:00:16-04:00",
+      "author": {
+        "name": "Daniel Hill",
+        "email": "daniel.hill@mongodb.com"
+      },
+      "summary": "SERVER-108378 Cache cluster-wide read concern bool to bypass _extractReadConcern on every query (#50243)"
+    },
+    {
+      "sha": "ada1ece0356583840178abd30412bdc03d2719ab",
+      "short_sha": "ada1ece0356",
+      "date": "2026-03-24T15:50:07-04:00",
+      "author": {
+        "name": "Haley Connelly",
+        "email": "haley.connelly@mongodb.com"
+      },
+      "summary": "SERVER-121700 Aggregate oplog size count deltas after a given TS (#50213)"
+    },
+    {
+      "sha": "3dc99cfd4eda63420f2fbd8174cda63ec81e2fc9",
+      "short_sha": "3dc99cfd4ed",
+      "date": "2026-03-24T15:38:42-04:00",
+      "author": {
+        "name": "Sean Lyons",
+        "email": "sean.lyons@mongodb.com"
+      },
+      "summary": "SERVER-122566: Use the Evergreen config for the correct project when generating bazel tasks (#50334)"
+    },
+    {
+      "sha": "0e9cac63a72ce6ae9cf40c0abc6dcd0c20b1bbad",
+      "short_sha": "0e9cac63a72",
+      "date": "2026-03-24T20:30:10+01:00",
+      "author": {
+        "name": "Tommaso Tocci",
+        "email": "58224719+toto-dev@users.noreply.github.com"
+      },
+      "summary": "SERVER-121847 backup builtin role cannot perform rawData finds on admin collections (#49803)"
+    },
+    {
+      "sha": "4afe8bd39dc27275ddecd39280c2872917198bfe",
+      "short_sha": "4afe8bd39dc",
+      "date": "2026-03-24T15:25:30-04:00",
+      "author": {
+        "name": "Gil Alon",
+        "email": "47804748+galon1@users.noreply.github.com"
+      },
+      "summary": "SERVER-122436 Clarify ownership in clusterAgg::chainViews (#50238)"
+    },
+    {
+      "sha": "3c20719fbea9ea6f9ac1e2a8a0bf46c59f243583",
+      "short_sha": "3c20719fbea",
+      "date": "2026-03-24T15:12:10-04:00",
+      "author": {
+        "name": "Matt Olma",
+        "email": "67564577+mattsimply@users.noreply.github.com"
+      },
+      "summary": "SERVER-119387: Specify in StageConstraints if the stage operates on single document input (#50147)"
+    },
+    {
+      "sha": "75c0143f6596825773cf4864ea3214117b8681b3",
+      "short_sha": "75c0143f659",
+      "date": "2026-03-24T12:00:12-07:00",
+      "author": {
+        "name": "Manoj Pillay",
+        "email": "113068853+manoj-pillay-10gen@users.noreply.github.com"
+      },
+      "summary": "SERVER-122553: Add incompatible_amazon_linux2 tag to mongot_e2e_* tasks (#50314)"
+    },
+    {
+      "sha": "b3083482ec3df0cb6be3fdcdde09c3e56fc27180",
+      "short_sha": "b3083482ec3",
+      "date": "2026-03-24T14:57:01-04:00",
+      "author": {
+        "name": "Stephanie",
+        "email": "53684987+seristof@users.noreply.github.com"
+      },
+      "summary": "SERVER-122469 Make the commitIndexBuild pass parseO2 conditionally on shouldReplicateLocalCatalogIdentifiers (#50252)"
+    },
+    {
+      "sha": "9c3570171e82e40729416324097a2c79ef69a79a",
+      "short_sha": "9c3570171e8",
+      "date": "2026-03-24T19:37:23+01:00",
+      "author": {
+        "name": "Tommaso Tocci",
+        "email": "58224719+toto-dev@users.noreply.github.com"
+      },
+      "summary": "SERVER-122490 Fix malformed TODOs in builtin_roles.yml (#50266)"
+    },
+    {
+      "sha": "c81eb69757d0d18db98ae727d7cbd53ec59bf5c8",
+      "short_sha": "c81eb69757d",
+      "date": "2026-03-24T18:20:40+00:00",
+      "author": {
+        "name": "David Goffredo",
+        "email": "david.goffredo@mongodb.com"
+      },
+      "summary": "SERVER-120733: check local and remote hello errors (#50035)"
+    },
+    {
+      "sha": "ee5663865b01d55ea5aaa0a46002d84f4cb893d3",
+      "short_sha": "ee5663865b0",
+      "date": "2026-03-24T14:18:47-04:00",
+      "author": {
+        "name": "Alyssa Clark",
+        "email": "alyssa.clark@mongodb.com"
+      },
+      "summary": "SERVER-122551: Skip extension-dependent search index test case on unsupported platforms (#50289)"
+    },
+    {
+      "sha": "e2dfe2cc2ed0ed9e7e839be24e91b996e06f68ee",
+      "short_sha": "e2dfe2cc2ed",
+      "date": "2026-03-24T13:17:14-05:00",
+      "author": {
+        "name": "Jess Balint",
+        "email": "jbalint@gmail.com"
+      },
+      "summary": "SERVER-122453 Introduce container write behavior enum in bulk builder (#50237)"
+    },
+    {
+      "sha": "48196b5590d856fafe7f59a7f862e4e4d6eac0d8",
+      "short_sha": "48196b5590d",
+      "date": "2026-03-24T14:07:46-04:00",
+      "author": {
+        "name": "Binh Vo",
+        "email": "146007384+binhvomongodb@users.noreply.github.com"
+      },
+      "summary": "SERVER-116270 Add validation tests for minmax in nested types (#50219)"
+    },
     {
       "sha": "af73b9ebcbce1207487fde8fbf1216459074507f",
       "short_sha": "af73b9ebcbc",
@@ -5608,10 +5848,33 @@
           "num_of_dirs": 11
         }
       }
+    },
+    {
+      "commit": {
+        "sha": "6f414a559b21459a1b11f783e39c963fffcb9612",
+        "short_sha": "6f414a559b2",
+        "date": "2026-03-24T17:07:18-04:00",
+        "author": {
+          "name": "Sean Lyons",
+          "email": "sean.lyons@mongodb.com"
+        },
+        "summary": "SERVER-120035 Add bazel targets for release-critical, security resmoke suites (#50060)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 26,
+          "num_of_lines": 470,
+          "lines_added": 416,
+          "lines_deleted": 54,
+          "num_of_dirs": 13
+        }
+      }
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-03-24 18:39:09",
+  "generated_at": "2026-03-25 06:23:47",
   "branch_name": "master",
   "display_name": "master"
 }
