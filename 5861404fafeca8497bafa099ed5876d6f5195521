@@ -1,0 +1,27 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "02b829d92e35aa0b91344ec8576859d670078255",
+    "merge_commit": "7cc7996c854f7bb20c7f34efb089a64d3906a88b"
+  },
+  "mergai_version": "0.1.dev1+gb9fd60fbc",
+  "solutions": [
+    {
+      "response": {
+        "summary": "Resolve conflicts for merge commit '7cc7996c854' into master",
+        "resolved": {
+          "sbom.json": "Resolved by human"
+        },
+        "unresolved": {},
+        "modified": {},
+        "review_notes": "Resolved merge conflict in sbom.json by merging new components and\ndependencies from both branches.\n\nResolved:\n\tsbom.json\n\nNote: commit created by mergai"
+      },
+      "author": {
+        "name": "psmdb-bot[bot]",
+        "email": "2942401+psmdb-bot[bot]@users.noreply.github.com",
+        "type": "human"
+      },
+      "commit_sha": "5861404fafeca8497bafa099ed5876d6f5195521"
+    }
+  ]
+}
