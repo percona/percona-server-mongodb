@@ -1,5 +1,5 @@
 /**
- *    Copyright (C) 2020-present MongoDB, Inc.
+ *    Copyright (C) 2026-present MongoDB, Inc.
  *
  *    This program is free software: you can redistribute it and/or modify
  *    it under the terms of the Server Side Public License, version 1,
@@ -27,33 +27,23 @@
  *    it in the license file.
  */
 
-#pragma once
+#include "mongo/db/change_stream_pre_images_truncate_markers_sampling_strategy/scanning_sampling_strategy.h"
 
-#include "mongo/util/modules.h"
+#include "mongo/db/change_stream_pre_image_util.h"
 
-#include <memory>
+namespace mongo::pre_image_marker_initialization_internal {
+bool ScanningSamplingStrategy::performSampling(OperationContext* opCtx,
+                                               const CollectionAcquisition& preImagesCollection,
+                                               MarkersMap& markersMap) {
+    const auto nsUUIDs = change_stream_pre_image_util::getNsUUIDs(opCtx, preImagesCollection);
+    for (const auto& nsUUID : nsUUIDs) {
+        auto initialSetOfMarkers = PreImagesTruncateMarkersPerNsUUID::createInitialMarkersScanning(
+            opCtx, preImagesCollection, nsUUID, _minBytesPerMarker);
 
-namespace MONGO_MOD_PUB mongo {
+        markersMap.getOrEmplace(nsUUID, nsUUID, std::move(initialSetOfMarkers), _minBytesPerMarker);
+    }
 
-template <class Container>
-class MONGO_MOD_FILE_PRIVATE
-ClearDeleter{public : void operator()(Container* container){container->clear();
+    return true;
 }
-}
-;
-
-/**
- * A RAII style move-only pointer that calls clear() when going out of scope
- */
-template <class Container>
-using AutoClearPtr = std::unique_ptr<Container, ClearDeleter<Container>>;
-
-template <class Container>
-auto makeAutoClearPtr(Container* container) {
-    // It should always be cleared when it is accessed
-    dassert(container);
-    dassert(container->empty());
-    return AutoClearPtr<Container>{container, ClearDeleter<Container>{}};
-}
-
-}  // namespace MONGO_MOD_PUB mongo
+};  // namespace mongo::pre_image_marker_initialization_internal
+// namespace mongo
