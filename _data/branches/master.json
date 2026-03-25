@@ -5,14 +5,14 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 471,
+    "commits_behind": 478,
     "days_behind": 11,
-    "files_affected": 3383,
-    "total_additions": 339173,
-    "total_deletions": 30731,
+    "files_affected": 3393,
+    "total_additions": 340090,
+    "total_deletions": 30801,
     "date_range": {
       "first": "2026-03-13T21:25:50+00:00",
-      "last": "2026-03-25T14:20:10+00:00"
+      "last": "2026-03-25T15:35:53+00:00"
     }
   },
   "last_merged_commit": {
@@ -36,6 +36,76 @@
     "summary": "SERVER-120621 Fix underestimation of random I/O for INLJ (#48860)"
   },
   "unmerged_commits": [
+    {
+      "sha": "2472acd6691fa0edfdc8c59dc154830055e5228d",
+      "short_sha": "2472acd6691",
+      "date": "2026-03-25T15:35:53+00:00",
+      "author": {
+        "name": "Daniele Alessandrelli",
+        "email": "daniele.alessandrelli@gmail.com"
+      },
+      "summary": "SERVER-119599 Use AtomicWord<int> for autoMergerIntervalSecs parameter (#50292)"
+    },
+    {
+      "sha": "ef0b0f1ddff96e026296b0541c26ab2a1198fc13",
+      "short_sha": "ef0b0f1ddff",
+      "date": "2026-03-25T11:00:38-04:00",
+      "author": {
+        "name": "Randolph Tan",
+        "email": "randolph@10gen.com"
+      },
+      "summary": "SERVER-122336 Refactor logic to fetch delta post cloning from donor by resharding validator (#50185)"
+    },
+    {
+      "sha": "26e9f9d1cf460dacf99deafbc5e7a7da66b3d7bb",
+      "short_sha": "26e9f9d1cf4",
+      "date": "2026-03-25T10:54:12-04:00",
+      "author": {
+        "name": "Chye Lin Chee",
+        "email": "chyelin.chee@mongodb.com"
+      },
+      "summary": "SERVER-113194 More meaningful error message for OpenSSL FIPS misconfiguration (#50101)"
+    },
+    {
+      "sha": "e5c40a36b176921c9a9d19af8a028b1d9a772b46",
+      "short_sha": "e5c40a36b17",
+      "date": "2026-03-25T09:52:03-05:00",
+      "author": {
+        "name": "nandinibhartiyaMDB",
+        "email": "104035932+nandinibhartiyaMDB@users.noreply.github.com"
+      },
+      "summary": "SERVER-120915: Re-enable readPreference Nearest for the resharding cloner in DSC (#50326)"
+    },
+    {
+      "sha": "adfd81463c8d9b520c1004ef8db58eeedd7fd020",
+      "short_sha": "adfd81463c8",
+      "date": "2026-03-25T15:42:11+01:00",
+      "author": {
+        "name": "karlbozdogan",
+        "email": "karl.bozdogan@mongodb.com"
+      },
+      "summary": "SERVER-117488 Multiplan only CBR best candidate + not estimables when CBR cannot estimate (#50187)"
+    },
+    {
+      "sha": "8f79bc27775fae8eca62f032b1e8b8fa1e14ea43",
+      "short_sha": "8f79bc27775",
+      "date": "2026-03-25T09:24:44-05:00",
+      "author": {
+        "name": "Jess Balint",
+        "email": "jbalint@gmail.com"
+      },
+      "summary": "SERVER-122454 Introduce primary-driven index build protocol (#50313)"
+    },
+    {
+      "sha": "2b3ca2b2ba6d7510fcc344ec63f51f971ddec0c9",
+      "short_sha": "2b3ca2b2ba6",
+      "date": "2026-03-25T15:23:31+01:00",
+      "author": {
+        "name": "Igor Praznik",
+        "email": "95708172+igpraznik@users.noreply.github.com"
+      },
+      "summary": "SERVER-122380 Handle transient errors RANGE_NOT_IN_SINGLE_CHUNK 11089203 during moveRange in add_remove_shards.py (#50209)"
+    },
     {
       "sha": "a6215091ce3e01993dd3f0ab0b861d8c6fa6a4a2",
       "short_sha": "a6215091ce3",
@@ -5340,7 +5410,7 @@
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-03-25 16:04:49",
+  "generated_at": "2026-03-25 16:11:17",
   "branch_name": "master",
   "display_name": "master"
 }
