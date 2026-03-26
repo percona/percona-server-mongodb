@@ -58,8 +58,8 @@
 #include "mongo/db/global_catalog/ddl/drop_collection_coordinator.h"
 #include "mongo/db/global_catalog/ddl/placement_history_commands_gen.h"
 #include "mongo/db/global_catalog/ddl/sharding_catalog_manager.h"
-#include "mongo/db/global_catalog/ddl/sharding_ddl_coordinator_gen.h"
-#include "mongo/db/global_catalog/ddl/sharding_ddl_coordinator_service.h"
+#include "mongo/db/global_catalog/ddl/sharding_coordinator_gen.h"
+#include "mongo/db/global_catalog/ddl/sharding_coordinator_service.h"
 #include "mongo/db/global_catalog/ddl/sharding_ddl_util.h"
 #include "mongo/db/global_catalog/ddl/shardsvr_join_ddl_coordinators_request_gen.h"
 #include "mongo/db/global_catalog/type_shard_identity.h"
@@ -325,7 +325,7 @@ void handleDropPendingDBsGarbage(OperationContext* parentOpCtx) {
 
         ShardsvrJoinDDLCoordinators request;
         request.setDbName(DatabaseName::kAdmin);
-        request.setTypes({{idl::serialize(DDLCoordinatorTypeEnum::kDropDatabase)}});
+        request.setTypes({{idl::serialize(CoordinatorTypeEnum::kDropDatabase)}});
 
         const auto response = shard->runCommand(opCtx,
                                                 ReadPreferenceSetting{ReadPreference::PrimaryOnly},
@@ -752,18 +752,18 @@ public:
             if (role && role->has(ClusterRole::ConfigServer)) {
                 // Waiting for recovery here to avoid waiting for recovery while holding the
                 // fcvChangeRegion
-                ShardingDDLCoordinatorService::getService(opCtx)->waitForRecovery(opCtx);
+                ShardingCoordinatorService::getService(opCtx)->waitForRecovery(opCtx);
 
                 if (requestedVersion <= actualVersion) {
                     // A background initialization of config.placementHistory may be setting
                     // cluster parameters (a condition that may cause this command to fail with
                     // a CannotDowngrade error in the checks performed under the
                     // fcvChangeRegion); perform a best-effort drain to avoid the scenario.
-                    ShardingDDLCoordinatorService::getService(opCtx)
+                    ShardingCoordinatorService::getService(opCtx)
                         ->waitForOngoingCoordinatorsToFinish(
-                            opCtx, [](const ShardingDDLCoordinator& instance) -> bool {
+                            opCtx, [](const ShardingCoordinator& instance) -> bool {
                                 return instance.operationType() ==
-                                    DDLCoordinatorTypeEnum::kInitializePlacementHistory;
+                                    CoordinatorTypeEnum::kInitializePlacementHistory;
                             });
                 }
             }
@@ -796,9 +796,9 @@ public:
                     uassert(
                         ErrorCodes::ConflictingOperationInProgress,
                         "Failed to start FCV change because an addShardCoordinator is in progress",
-                        ShardingDDLCoordinatorService::getService(opCtx)
+                        ShardingCoordinatorService::getService(opCtx)
                             ->areAllCoordinatorsOfTypeFinished(opCtx,
-                                                               DDLCoordinatorTypeEnum::kAddShard));
+                                                               CoordinatorTypeEnum::kAddShard));
                 }
 
                 // If this is a config server, then there must be no active
@@ -867,7 +867,7 @@ public:
                 // This helper function is only for any actions that should be done specifically on
                 // shard servers during phase 1 of the 3-phase setFCV protocol for sharded clusters.
                 // For example, before completing phase 1, we must wait for backward incompatible
-                // ShardingDDLCoordinators to finish.
+                // ShardingCoordinators to finish.
                 // We do not expect any other feature-specific work to be done in the 'start' phase.
                 _shardServerPhase1Tasks(opCtx, requestedVersion);
             }
@@ -1006,12 +1006,12 @@ private:
     // This helper function is only for any actions that should be done specifically on
     // shard servers during phase 1 of the 3-phase setFCV protocol for sharded clusters.
     // For example, before completing phase 1, we must wait for backward incompatible
-    // ShardingDDLCoordinators to finish. This is important in order to ensure that no
+    // ShardingCoordinators to finish. This is important in order to ensure that no
     // shard that is currently a participant of such a backward-incompatible
-    // ShardingDDLCoordinator can transition to the fully downgraded state (and thus,
+    // ShardingCoordinator can transition to the fully downgraded state (and thus,
     // possibly downgrade its binary) while the coordinator is still in progress.
     // The fact that the FCV has already transitioned to kDowngrading ensures that no
-    // new backward-incompatible ShardingDDLCoordinators can start.
+    // new backward-incompatible ShardingCoordinators can start.
     // We do not expect any other feature-specific work to be done in the 'start' phase.
     void _shardServerPhase1Tasks(OperationContext* opCtx, FCV requestedVersion) {
         const auto fcvSnapshot = serverGlobalParams.featureCompatibility.acquireFCVSnapshot();
@@ -1031,7 +1031,7 @@ private:
             // TODO SERVER-99655: update once gSnapshotFCVInDDLCoordinators is enabled
             // on the lastLTS
             if (feature_flags::gSnapshotFCVInDDLCoordinators.isEnabledOnVersion(originalVersion)) {
-                ShardingDDLCoordinatorService::getService(opCtx)
+                ShardingCoordinatorService::getService(opCtx)
                     ->waitForCoordinatorsOfGivenOfcvToComplete(
                         opCtx, [originalVersion](boost::optional<FCV> ofcv) -> bool {
                             return ofcv == originalVersion;
@@ -1041,53 +1041,53 @@ private:
                 if (feature_flags::gTrackUnshardedCollectionsUponMoveCollection
                         .isDisabledOnTargetFCVButEnabledOnOriginalFCV(requestedVersion,
                                                                       originalVersion)) {
-                    ShardingDDLCoordinatorService::getService(opCtx)
+                    ShardingCoordinatorService::getService(opCtx)
                         ->waitForCoordinatorsOfGivenTypeToComplete(
-                            opCtx, DDLCoordinatorTypeEnum::kRenameCollection);
+                            opCtx, CoordinatorTypeEnum::kRenameCollection);
                 }
 
                 // TODO (SERVER-100309): Remove once 9.0 becomes last lts.
                 if (feature_flags::gSessionsCollectionCoordinatorOnConfigServer
                         .isDisabledOnTargetFCVButEnabledOnOriginalFCV(requestedVersion,
                                                                       originalVersion)) {
-                    ShardingDDLCoordinatorService::getService(opCtx)
+                    ShardingCoordinatorService::getService(opCtx)
                         ->waitForCoordinatorsOfGivenTypeToComplete(
-                            opCtx, DDLCoordinatorTypeEnum::kCreateCollection);
+                            opCtx, CoordinatorTypeEnum::kCreateCollection);
                 }
 
                 // TODO SERVER-77915: Remove once v8.0 branches out.
                 if (feature_flags::gTrackUnshardedCollectionsUponMoveCollection
                         .isDisabledOnTargetFCVButEnabledOnOriginalFCV(requestedVersion,
                                                                       originalVersion)) {
-                    ShardingDDLCoordinatorService::getService(opCtx)
-                        ->waitForCoordinatorsOfGivenTypeToComplete(
-                            opCtx, DDLCoordinatorTypeEnum::kCollMod);
+                    ShardingCoordinatorService::getService(opCtx)
+                        ->waitForCoordinatorsOfGivenTypeToComplete(opCtx,
+                                                                   CoordinatorTypeEnum::kCollMod);
                 }
 
                 // TODO (SERVER-76436) Remove once global balancing becomes last lts.
                 if (feature_flags::gBalanceUnshardedCollections
                         .isDisabledOnTargetFCVButEnabledOnOriginalFCV(requestedVersion,
                                                                       originalVersion)) {
-                    ShardingDDLCoordinatorService::getService(opCtx)
+                    ShardingCoordinatorService::getService(opCtx)
                         ->waitForCoordinatorsOfGivenTypeToComplete(
-                            opCtx, DDLCoordinatorTypeEnum::kMovePrimary);
+                            opCtx, CoordinatorTypeEnum::kMovePrimary);
                 }
 
                 // TODO (SERVER-97816): Remove once 9.0 becomes last lts.
                 if (feature_flags::gUseTopologyChangeCoordinators
                         .isDisabledOnTargetFCVButEnabledOnOriginalFCV(requestedVersion,
                                                                       originalVersion)) {
-                    ShardingDDLCoordinatorService::getService(opCtx)
+                    ShardingCoordinatorService::getService(opCtx)
                         ->waitForCoordinatorsOfGivenTypeToComplete(
-                            opCtx, DDLCoordinatorTypeEnum::kRemoveShardCommit);
+                            opCtx, CoordinatorTypeEnum::kRemoveShardCommit);
                 }
             }
         }
 
         if (isUpgrading) {
             if (feature_flags::gSnapshotFCVInDDLCoordinators.isEnabledOnVersion(requestedVersion)) {
-                // Wait until all DDL coordinators that run are on the kUpgrading* FCV
-                ShardingDDLCoordinatorService::getService(opCtx)
+                // Wait until all sharding coordinators that run are on the kUpgrading* FCV
+                ShardingCoordinatorService::getService(opCtx)
                     ->waitForCoordinatorsOfGivenOfcvToComplete(
                         opCtx, [fcvSnapshot](boost::optional<FCV> ofcv) -> bool {
                             return ofcv != fcvSnapshot.getVersion();
@@ -1101,13 +1101,13 @@ private:
                     // coordinators that started in FCV 8.0. waitForOngoingCoordinatorsToFinish may
                     // also wait for coordinators that started AFTER the transition to kUpgrading.
                     // That's OK, it's a performance penalty, but there is no correctness issue.
-                    ShardingDDLCoordinatorService::getService(opCtx)
+                    ShardingCoordinatorService::getService(opCtx)
                         ->waitForOngoingCoordinatorsToFinish(
-                            opCtx, [](const ShardingDDLCoordinator& coordinatorInstance) -> bool {
+                            opCtx, [](const ShardingCoordinator& coordinatorInstance) -> bool {
                                 static constexpr std::array drainCoordinatorTypes{
-                                    DDLCoordinatorTypeEnum::kMovePrimary,
-                                    DDLCoordinatorTypeEnum::kDropDatabase,
-                                    DDLCoordinatorTypeEnum::kCreateDatabase,
+                                    CoordinatorTypeEnum::kMovePrimary,
+                                    CoordinatorTypeEnum::kDropDatabase,
+                                    CoordinatorTypeEnum::kCreateDatabase,
                                 };
                                 const auto opType = coordinatorInstance.operationType();
                                 return std::ranges::any_of(drainCoordinatorTypes, [&](auto&& type) {
@@ -1226,17 +1226,17 @@ private:
             rangedeletionutil::setPreMigrationShardVersionOnRangeDeletionTasks(opCtx);
         }
 
-        _cleanUpDeprecatedCatalogMetadata(opCtx);
+        _cleanUpIndexCatalogMetadataOnUpgrade(opCtx);
 
         FCVStepRegistry::get(opCtx->getServiceContext())
             .upgradeServerMetadata(opCtx, originalVersion, requestedVersion);
     }
 
     // TODO(SERVER-100328): remove after 9.0 is branched.
-    // WARNING: do not rely on this method to clean up metadata that can be created concurrently. It
-    // is fine to rely on this only when missing concurrently created collections is fine, when
-    // newly created collections no longer use the metadata format we wish to remove.
-    void _cleanUpDeprecatedCatalogMetadata(OperationContext* opCtx) {
+    // WARNING: do not rely on this method to clean up index metadata that can be created
+    // concurrently. It is fine to rely on this only when missing concurrently created collections
+    // is fine, when newly created collections no longer use the metadata format we wish to remove.
+    void _cleanUpIndexCatalogMetadataOnUpgrade(OperationContext* opCtx) {
         // We bypass the UserWritesBlock mode here in order to not see errors arising from the
         // block. The user already has permission to run FCV at this point and the writes performed
         // here aren't modifying any user data with the exception of fixing up the collection
@@ -1249,8 +1249,9 @@ private:
             Lock::DBLock dbLock(opCtx, dbName, MODE_IX);
             catalog::forEachCollectionFromDb(
                 opCtx, dbName, MODE_X, [&](const Collection* collection) {
-                    // To remove deprecated catalog metadata, issue a collmod with no other options
-                    // set.
+                    // Issue a no-op collMod command to each collection to trigger removal of
+                    // deprecated catalog metadata and to correct any invalid value types previously
+                    // allowed in metadata.
                     BSONObjBuilder responseBuilder;
                     uassertStatusOK(processCollModCommand(opCtx,
                                                           collection->ns(),
@@ -1987,11 +1988,10 @@ private:
             // TODO SERVER-99655: remove the comment below.
             // The draining logic relies on the OFCV infrastructure, which has been introduced in
             // FCV 8.2 and may behave sub-optimally when requestedVersion is lower than 8.2.
-            ShardingDDLCoordinatorService::getService(opCtx)
-                ->waitForCoordinatorsOfGivenOfcvToComplete(
-                    opCtx, [requestedVersion](boost::optional<FCV> ofcv) -> bool {
-                        return ofcv != requestedVersion;
-                    });
+            ShardingCoordinatorService::getService(opCtx)->waitForCoordinatorsOfGivenOfcvToComplete(
+                opCtx, [requestedVersion](boost::optional<FCV> ofcv) -> bool {
+                    return ofcv != requestedVersion;
+                });
         }
 
         // This wait serves as a barrier to gurantee that, from now on:
@@ -2073,11 +2073,9 @@ private:
                 feature_flags::gSnapshotFCVInDDLCoordinators.isEnabledOnVersion(requestedVersion)
                 ? boost::make_optional(requestedVersion)
                 : boost::none;
-            ShardingDDLCoordinatorService::getService(opCtx)
-                ->waitForCoordinatorsOfGivenOfcvToComplete(
-                    opCtx, [expectedOfcv](boost::optional<FCV> ofcv) -> bool {
-                        return ofcv != expectedOfcv;
-                    });
+            ShardingCoordinatorService::getService(opCtx)->waitForCoordinatorsOfGivenOfcvToComplete(
+                opCtx,
+                [expectedOfcv](boost::optional<FCV> ofcv) -> bool { return ofcv != expectedOfcv; });
         }
 
         // This wait serves as a barrier to guarantee that, from now on:

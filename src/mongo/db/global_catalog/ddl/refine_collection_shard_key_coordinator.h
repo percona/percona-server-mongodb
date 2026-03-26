@@ -35,8 +35,8 @@
 #include "mongo/bson/bsonobjbuilder.h"
 #include "mongo/db/global_catalog/ddl/refine_collection_shard_key_coordinator_document_gen.h"
 #include "mongo/db/global_catalog/ddl/sharded_ddl_commands_gen.h"
+#include "mongo/db/global_catalog/ddl/sharding_coordinator_service.h"
 #include "mongo/db/global_catalog/ddl/sharding_ddl_coordinator.h"
-#include "mongo/db/global_catalog/ddl/sharding_ddl_coordinator_service.h"
 #include "mongo/db/keypattern.h"
 #include "mongo/db/query/write_ops/write_ops.h"
 #include "mongo/executor/scoped_task_executor.h"
@@ -60,7 +60,7 @@ public:
     using StateDoc = RefineCollectionShardKeyCoordinatorDocument;
     using Phase = RefineCollectionShardKeyCoordinatorPhaseEnum;
 
-    RefineCollectionShardKeyCoordinator(ShardingDDLCoordinatorService* service,
+    RefineCollectionShardKeyCoordinator(ShardingCoordinatorService* service,
                                         const BSONObj& initialState);
 
     void checkIfOptionsConflict(const BSONObj& coorDoc) const override;
@@ -74,12 +74,8 @@ private:
 
     bool _mustAlwaysMakeProgress() override;
 
-    void _performNoopWriteOnDataShardsAndConfigServer(
-        OperationContext* opCtx,
-        const NamespaceString& nss,
-        const OperationSessionInfo& osi,
-        const std::shared_ptr<executor::TaskExecutor>& executor,
-        const CancellationToken& token);
+    std::vector<ShardId> _getDataShardsAndConfigServer(OperationContext* opCtx,
+                                                       const NamespaceString& nss);
 
     ExecutorFuture<void> _runImpl(std::shared_ptr<executor::ScopedTaskExecutor> executor,
                                   const CancellationToken& token) noexcept override;
@@ -90,7 +86,8 @@ private:
 
     void _exitCriticalSection(OperationContext* opCtx,
                               const std::shared_ptr<executor::ScopedTaskExecutor>& executor,
-                              const CancellationToken& token);
+                              const CancellationToken& token,
+                              bool hasOperationCommitted);
 
     const mongo::RefineCollectionShardKeyRequest _request;
 

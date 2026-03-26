@@ -43,8 +43,7 @@ public:
     using StateDoc = ConvertToCappedCoordinatorDocument;
     using Phase = ConvertToCappedCoordinatorPhaseEnum;
 
-    ConvertToCappedCoordinator(ShardingDDLCoordinatorService* service,
-                               const BSONObj& initialStateDoc)
+    ConvertToCappedCoordinator(ShardingCoordinatorService* service, const BSONObj& initialStateDoc)
         : RecoverableShardingDDLCoordinator(service, "ConvertToCappedCoordinator", initialStateDoc),
           _request(_doc.getShardsvrConvertToCappedRequest()),
           _critSecReason(BSON("convertToCapped" << NamespaceStringUtil::serialize(
@@ -101,11 +100,7 @@ private:
         const std::shared_ptr<executor::ScopedTaskExecutor>& executor,
         const CancellationToken& token);
 
-    void _performNoopRetryableWriteOnParticipantShardsAndConfigsvr(
-        OperationContext* opCtx,
-        const OperationSessionInfo& osi,
-        const std::shared_ptr<executor::TaskExecutor>& executor,
-        const CancellationToken& token);
+    std::vector<ShardId> _getParticipantShards(OperationContext* opCtx);
 
     const mongo::ShardsvrConvertToCappedRequest _request;
 

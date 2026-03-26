@@ -79,6 +79,10 @@
 
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kWrite
 
+namespace {
+MONGO_FAIL_POINT_DEFINE(hangBeforeUpdaterEnsureDocStillMatchesAndYield);
+}  // namespace
+
 namespace mongo {
 
 namespace {
@@ -222,13 +226,25 @@ PlanStage::StageState UpdateStage::doWork(WorkingSetID* out) {
             return PlanStage::NEED_TIME;
         }
 
+        if (MONGO_unlikely(hangBeforeUpdaterEnsureDocStillMatchesAndYield.shouldFail())) {
+            hangBeforeUpdaterEnsureDocStillMatchesAndYield.pauseWhileSet();
+            memberFreer.dismiss();
+            prepareToRetryWSM(id, out);
+            return PlanStage::NEED_TIME;
+        }
+
         bool docStillMatches;
         const auto ensureStillMatchesRet = handlePlanStageYield(
             expCtx(),
             "UpdateStage ensureStillMatches",
             [&] {
-                docStillMatches = write_stage_common::ensureStillMatches(
-                    collectionPtr(), opCtx(), _ws, id, _params.canonicalQuery);
+                docStillMatches =
+                    write_stage_common::ensureStillMatches(collectionPtr(),
+                                                           opCtx(),
+                                                           _ws,
+                                                           id,
+                                                           _params.canonicalQuery,
+                                                           _specificStats.docsFetched);
                 return PlanStage::NEED_TIME;
             },
             [&] {

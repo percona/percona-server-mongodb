@@ -5,11 +5,8 @@
 .clang-tidy
 
 *.code-workspace
-*.d.ts
 *.json
 *.wxs
-
-README
 
 # Ignore files that fail after format
 jstests/noPassthrough/js_exceptions.js

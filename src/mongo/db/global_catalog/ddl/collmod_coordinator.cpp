@@ -38,7 +38,7 @@
 #include "mongo/db/commands.h"
 #include "mongo/db/generic_argument_util.h"
 #include "mongo/db/global_catalog/chunk_manager.h"
-#include "mongo/db/global_catalog/ddl/sharding_ddl_coordinator_gen.h"
+#include "mongo/db/global_catalog/ddl/sharding_coordinator_gen.h"
 #include "mongo/db/global_catalog/ddl/sharding_ddl_util.h"
 #include "mongo/db/global_catalog/sharding_catalog_client.h"
 #include "mongo/db/global_catalog/type_collection.h"
@@ -120,7 +120,7 @@ void _appendResponseCollModIndexChanges(
 
 }  // namespace
 
-CollModCoordinator::CollModCoordinator(ShardingDDLCoordinatorService* service,
+CollModCoordinator::CollModCoordinator(ShardingCoordinatorService* service,
                                        const BSONObj& initialState)
     : RecoverableShardingDDLCoordinator(service, "CollModCoordinator", initialState),
       _request{_doc.getCollModRequest()} {}
@@ -141,25 +141,6 @@ void CollModCoordinator::checkIfOptionsConflict(const BSONObj& doc) const {
 void CollModCoordinator::appendCommandInfo(BSONObjBuilder* cmdInfoBuilder) const {
     cmdInfoBuilder->appendElements(_request.toBSON());
 };
-
-void CollModCoordinator::_performNoopRetryableWriteOnParticipants(
-    OperationContext* opCtx,
-    const std::shared_ptr<executor::TaskExecutor>& executor,
-    const CancellationToken& token) {
-    auto shardsAndConfigsvr = [&] {
-        const auto shardRegistry = Grid::get(opCtx)->shardRegistry();
-        auto participants = shardRegistry->getAllShardIds(opCtx);
-        if (std::find(participants.begin(), participants.end(), ShardId::kConfigServerId) ==
-            participants.end()) {
-            // The config server may be a shard, so only add if it isn't already in participants.
-            participants.emplace_back(shardRegistry->getConfigShard()->getId());
-        }
-        return participants;
-    }();
-
-    sharding_ddl_util::performNoopRetryableWriteOnShards(
-        opCtx, shardsAndConfigsvr, getNewSession(opCtx), executor, token);
-}
 
 void CollModCoordinator::_saveCollectionInfoOnCoordinatorIfNecessary(OperationContext* opCtx) {
     if (!_collInfo) {
@@ -299,7 +280,8 @@ ExecutorFuture<void> CollModCoordinator::_runImpl(
             auto* opCtx = opCtxHolder.get();
 
             if (_doc.getPhase() > Phase::kUnset) {
-                _performNoopRetryableWriteOnParticipants(opCtx, **executor, token);
+                AllShardsAndConfigCausalityBarrier barrier{**executor, token};
+                performCausalityBarrier(opCtx, barrier);
             }
 
             {

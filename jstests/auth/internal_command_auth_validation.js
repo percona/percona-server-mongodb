@@ -62,6 +62,12 @@ const internalCommandsMap = {
             },
         },
     },
+    _internalClearCollectionShardingMetadata: {
+        testname: "_internalClearCollectionShardingMetadata",
+        command: {
+            _internalClearCollectionShardingMetadata: "test.x",
+        },
+    },
     _clusterWriteWithoutShardKey: {
         testname: "_clusterWriteWithoutShardKey",
         command: {_clusterWriteWithoutShardKey: 1, writeCmd: {}, shardId: "", targetDocId: {}},
@@ -788,6 +794,12 @@ const internalCommandsMap = {
     _shardsvrRefineCollectionShardKey: {
         testname: "_shardsvrRefineCollectionShardKey",
         command: {_shardsvrRefineCollectionShardKey: "test.x", newShardKey: {}},
+    },
+    _shardsvrCommitRefineCollectionShardKey: {
+        testname: "_shardsvrCommitRefineCollectionShardKey",
+        command: {
+            _shardsvrCommitRefineCollectionShardKey: "test.x",
+        },
     },
     _shardsvrSetAllowMigrations: {
         testname: "_shardsvrSetAllowMigrations",

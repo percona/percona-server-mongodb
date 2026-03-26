@@ -79,6 +79,7 @@ let validateTestCase = function (test) {
 
 let testCases = {
     _addShard: {skip: "internal command"},
+    _internalClearCollectionShardingMetadata: {skip: "internal command"},
     _cloneCollectionOptionsFromPrimaryShard: {skip: "internal command"},
     _clusterQueryWithoutShardKey: {skip: "internal command"},
     _clusterWriteWithoutShardKey: {skip: "internal command"},
@@ -191,6 +192,7 @@ let testCases = {
     _shardsvrRecreateRangeDeletionTasks: {skip: "internal command"},
     _shardsvrRecreateRangeDeletionTasksParticipant: {skip: "internal command"},
     _shardsvrRefineCollectionShardKey: {skip: "internal command"},
+    _shardsvrCommitRefineCollectionShardKey: {skip: "internal command"},
     _shardsvrRenameCollection: {skip: "internal command"},
     _shardsvrRenameCollectionParticipant: {skip: "internal command"},
     _shardsvrRenameCollectionParticipantUnblock: {skip: "internal command"},

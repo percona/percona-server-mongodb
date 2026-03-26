@@ -2706,7 +2706,7 @@ mongo_cc_library(
         ],
         "//conditions:default": [],
     }) + select({
-        "//bazel/config:enterprise_feature_streams_and_streams_build_enabled": [
+        "//bazel/config:enterprise_feature_queryable_and_streams_build_enabled": [
             "//src/mongo/db/modules/enterprise/src/streams/commands:streams_commands",
         ],
         "//conditions:default": [],
@@ -3644,7 +3644,7 @@ idl_generator(
     deps = [
         "//src/mongo/db:basic_types_gen",
         "//src/mongo/db/commands:fle2_cleanup_gen",
-        "//src/mongo/db/global_catalog/ddl:sharding_ddl_coordinator_gen",
+        "//src/mongo/db/global_catalog/ddl:sharding_coordinator_gen",
     ],
 )
 
@@ -3655,7 +3655,7 @@ idl_generator(
         "//src/mongo/crypto:fle_field_schema_gen",
         "//src/mongo/db:basic_types_gen",
         "//src/mongo/db/commands:fle2_compact_gen",
-        "//src/mongo/db/global_catalog/ddl:sharding_ddl_coordinator_gen",
+        "//src/mongo/db/global_catalog/ddl:sharding_coordinator_gen",
     ],
 )
 

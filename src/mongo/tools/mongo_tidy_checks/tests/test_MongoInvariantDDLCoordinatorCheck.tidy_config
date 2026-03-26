@@ -1,3 +1,0 @@
-Checks: '-*,mongo-invariant-ddl-coordinator-check'
-WarningsAsErrors: '*'
-HeaderFilterRegex: 'mongo/[-A-Za-z0-9_/]*\.(h|hpp|ipp|inl|cstruct.h|defs|def.h)'
