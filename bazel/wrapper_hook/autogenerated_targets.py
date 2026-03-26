@@ -75,25 +75,7 @@ def get_bazel_labels_from_tags(args, bazel, tag):
         "--starlark:file=bazel/wrapper_hook/target_compatable.cquery",
     ]
     proc = subprocess.run(
-<<<<<<< HEAD
-        [bazel, "cquery"]
-        + extra_args
-        + [
-            f"kind(extract_debuginfo_test, attr(tags, '\\b{tag}\\b', //src/...))",
-            "--output=starlark",
-            "--starlark:file=bazel/wrapper_hook/target_compatable.cquery",
-        ],
-||||||| 7cc7996c854
-        [bazel, "cquery", "--config=local"]
-        + extra_args
-        + [
-            f"kind(extract_debuginfo_test, attr(tags, '\\b{tag}\\b', //src/...))",
-            "--output=starlark",
-            "--starlark:file=bazel/wrapper_hook/target_compatable.cquery",
-        ],
-=======
         [bazel, "cquery", "--remote_executor="] + extra_args + query_args,
->>>>>>> d1988ceadf8643df90ac9c939e9b7c8b77bb65e3
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
