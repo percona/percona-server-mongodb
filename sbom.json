@@ -2813,7 +2813,6 @@
     {
       "ref": "pkg:pypi/ocspresponder@0.5.0",
       "dependsOn": []
-<<<<<<< HEAD
     },
     {
       "ref": "pkg:github/libarchive/libarchive@v3.8.4",
@@ -2832,17 +2831,6 @@
     {
       "ref": "pkg:github/apache/iceberg-cpp@v0.2.0-rc1?package-id=ce0b9d2c8402061a",
       "dependsOn": []
-||||||| 0115b2026da
-    },
-    {
-      "ref": "pkg:github/apache/arrow-nanoarrow@apache-arrow-nanoarrow-0.7.0?package-id=614f3463351947a8",
-      "dependsOn": []
-    },
-    {
-      "ref": "pkg:github/apache/iceberg-cpp@v0.2.0-rc1?package-id=ce0b9d2c8402061a",
-      "dependsOn": []
-=======
->>>>>>> ac6584f4061d8209fde5bd4ce7a6597f42d2196c
     }
   ]
 }

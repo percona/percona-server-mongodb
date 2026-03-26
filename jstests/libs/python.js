@@ -5,32 +5,13 @@ export function getPython3Binary() {
     // or else we will pick up a python that is not in our venv
     clearRawMongoProgramOutput();
     assert.eq(runNonMongoProgram("python", "--version"), 0);
-<<<<<<< HEAD
-    const pythonVersion = rawMongoProgramOutput("Python"); // Will look like "Python 3.10.4\n"
+    const pythonVersion = rawMongoProgramOutput("Python"); // Will look like "Python 3.13.4\n"
     // TODO(SERVER-117568): Remove Python 3.10 check after upgrade is complete
     const match = pythonVersion.match(/Python 3\.(\d+)\./);
     if (match && match[1] >= 10) {
         jsTest.log.info(
             "Found python 3." + match[1] + " by default. Likely this is because we are using a virtual environment.",
         );
-        return "python";
-    }
-
-||||||| 0115b2026da
-    const pythonVersion = rawMongoProgramOutput("Python"); // Will look like "Python 3.10.4\n"
-    // TODO(SERVER-117568): Remove Python 3.10 check after upgrade is complete
-    const usingPython310 = /Python 3\.10/.exec(pythonVersion);
-    if (usingPython310) {
-        jsTest.log.info("Found python 3.10 by default. Likely this is because we are using a virtual environment.");
-        return "python";
-    }
-
-=======
-    const pythonVersion = rawMongoProgramOutput("Python"); // Will look like "Python 3.13.4\n"
->>>>>>> ac6584f4061d8209fde5bd4ce7a6597f42d2196c
-    const usingPython313 = /Python 3\.13/.exec(pythonVersion);
-    if (usingPython313) {
-        jsTest.log.info("Found python 3.13 by default. Likely this is because we are using a virtual environment.");
         return "python";
     }
 
