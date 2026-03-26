@@ -82,6 +82,7 @@ const isDeprecated = "deprecated command";
 
 let viewsCommandTests = {
     _addShard: {skip: isAnInternalCommand},
+    _internalClearCollectionShardingMetadata: {skip: isAnInternalCommand},
     _cloneCatalogData: {skip: isAnInternalCommand},
     _cloneCollectionOptionsFromPrimaryShard: {skip: isAnInternalCommand},
     _clusterQueryWithoutShardKey: {skip: isAnInternalCommand},
@@ -200,6 +201,7 @@ let viewsCommandTests = {
     _shardsvrRecreateRangeDeletionTasks: {skip: isAnInternalCommand},
     _shardsvrRecreateRangeDeletionTasksParticipant: {skip: isAnInternalCommand},
     _shardsvrRefineCollectionShardKey: {skip: isAnInternalCommand},
+    _shardsvrCommitRefineCollectionShardKey: {skip: isAnInternalCommand},
     _shardsvrRenameCollection: {skip: isAnInternalCommand},
     _shardsvrRenameCollectionParticipant: {skip: isAnInternalCommand},
     _shardsvrRenameCollectionParticipantUnblock: {skip: isAnInternalCommand},

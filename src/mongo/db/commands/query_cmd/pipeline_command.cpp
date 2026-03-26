@@ -266,6 +266,16 @@ public:
                 verbosity = ExplainOptions::Verbosity::kQueryPlanner;
             }
 
+            // TODO: SERVER-121373 remove this and provide a more generic way of marking remote
+            // query as non-deprioritizable. We disallow deprioritization of the applying phase of
+            // resharding to ensure that the operation does not time out during the critical
+            // section.
+            const bool isOplogNss = (ns() == NamespaceString::kRsOplogNamespace);
+            boost::optional<admission::execution_control::ScopedTaskTypeNonDeprioritizable>
+                reshardingApplyPhaseAggregateTaskType;
+            if (isOplogNss && opCtx->getClient()->isInternalClient()) {
+                reshardingApplyPhaseAggregateTaskType.emplace(opCtx);
+            }
 
             uassertStatusOK(runAggregate(opCtx,
                                          request(),
@@ -296,13 +306,14 @@ public:
 
             uassertNoQuerySettings(opCtx);
 
+            // Mark this request as 'explain' so that downstream components such as query stats key
+            // construction can see it.
+            request().setExplain(true);
+
             // See run() for why we need this validation.
             // TODO SERVER-119402: Change explainVerbosity parameter to bool.
             aggregation_request_helper::validate(request(), body, ns(), verbosity);
 
-            // Mark this request as 'explain' so that downstream components such as query stats key
-            // construction can see it.
-            request().setExplain(true);
 
             // See run() method for details.
             uassertStatusOK(runAggregate(opCtx,

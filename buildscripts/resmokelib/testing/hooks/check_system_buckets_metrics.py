@@ -49,13 +49,13 @@ class CheckSystemBucketsMetrics(interface.Hook):
         "jstests/core/timeseries/write/timeseries_insert_mixed_schema_bucket.js",
         # Calls compact on system.buckets collection.
         "jstests/core/timeseries/ddl/timeseries_compact.js",
-        # Calls getMore on system.buckets collection.
-        "jstests/core/timeseries/query/timeseries_raw_data_internal_getmore.js",
         # Calls updateZoneKeyRange on system.buckets collection.
         "jstests/core_sharding/resharding/reshard_collection_timeseries.js",
         "jstests/core_sharding/zones/zone_timeseries_basic.js",
         # Calls moveRange on system.buckets collection.
         "jstests/core_sharding/chunk_migration/move_range_timeseries.js",
+        # Calls moveChunk/split/mergeChunks on system.buckets collection.
+        "jstests/core_sharding/chunk_migration/move_chunk_split_merge_timeseries.js",
         # Calls collStats on system.buckets collection from getTimeseriesBucketsColl
         "jstests/core/timeseries/ddl/timeseries_list_collections.js",
         "jstests/core/timeseries/ddl/timeseries_create_collection.js",

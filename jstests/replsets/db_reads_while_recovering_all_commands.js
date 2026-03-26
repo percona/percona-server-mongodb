@@ -23,6 +23,7 @@ const isDeprecated = "deprecated command";
 
 const allCommands = {
     _addShard: {skip: isPrimaryOnly},
+    _internalClearCollectionShardingMetadata: {skip: isAnInternalCommand},
     _cloneCollectionOptionsFromPrimaryShard: {skip: isPrimaryOnly},
     _clusterQueryWithoutShardKey: {skip: isAnInternalCommand},
     _clusterWriteWithoutShardKey: {skip: isAnInternalCommand},
@@ -138,6 +139,7 @@ const allCommands = {
     _shardsvrReshardRecipientClone: {skip: isPrimaryOnly},
     _shardsvrReshardRecipientCriticalSectionStarted: {skip: isPrimaryOnly},
     _shardsvrRefineCollectionShardKey: {skip: isPrimaryOnly},
+    _shardsvrCommitRefineCollectionShardKey: {skip: isPrimaryOnly},
     _shardsvrSetAllowMigrations: {skip: isPrimaryOnly},
     _shardsvrSetClusterParameter: {skip: isAnInternalCommand},
     _shardsvrSetUserWriteBlockMode: {skip: isPrimaryOnly},

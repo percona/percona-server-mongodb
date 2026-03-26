@@ -153,7 +153,6 @@ common --flag_alias=build_otel=//bazel/config:build_otel
 common --flag_alias=shared_archive=//bazel/config:shared_archive
 common --flag_alias=skip_archive=//bazel/config:skip_archive
 common --flag_alias=streams_release_build=//bazel/config:streams_release_build
-common --flag_alias=disable_streams=//bazel/config:disable_streams
 common --flag_alias=release=//bazel/config:release
 common --flag_alias=build_enterprise=//bazel/config:build_enterprise
 common --flag_alias=visibility_support=//bazel/config:visibility_support
@@ -551,6 +550,15 @@ common:mod-scanner --output_groups=report
 common:mod-scanner --aspects //modules_poc:mod_scanner.bzl%mod_scanner_aspect
 common:mod-scanner --remote_download_regex=.*\.mod_scanner_decls.json$
 
+--config=compiledb
+common:compiledb --aspects //bazel/compiledb:compiledb_aspect.bzl%compiledb_aspect
+common:compiledb --output_groups=compiledb_report
+common:compiledb --keep_going
+common:compiledb --remote_download_regex=.*\.compile_command\.json$
+
+--config=compiledb-aspect
+common:compiledb-aspect --config=compiledb
+
 --config=symbol-checker
 common:symbol-checker --aspects //bazel/symbol_checker:symbol_checker.bzl%symbol_checker_aspect
 common:symbol-checker --output_groups=symbol_checker
@@ -675,3 +683,21 @@ try-import %workspace%/.bazelrc.fuzztest
 
 # Repository root absolute path to set --execution_log_compact_file
 #try-import %workspace%/.bazelrc.exec_log_file
+
+# ============================================================
+# macOS Cross-Compilation Configuration
+# ============================================================
+# To cross-compile for macOS from Linux, you need:
+# LLVM and the macOS SDK are automatically downloaded from S3.
+# To override with local paths, set LLVM_PATH and/or MACOS_SDK_PATH env vars.
+#
+# The toolchain is hermetic (LLVM tools + SDK placed into the repo),
+# so both local and remote execution work.
+#
+# Cross-compile for macOS arm64
+build:macos-cross-arm64 --platforms=//bazel/platforms:macos_arm64_cross
+build:macos-cross-arm64 --copt=-w
+
+# Cross-compile for macOS x86_64
+build:macos-cross-x86_64 --platforms=//bazel/platforms:macos_x86_64_cross
+build:macos-cross-x86_64 --copt=-w

@@ -80,6 +80,25 @@ py_binary(
     ],
 )
 
+py_binary(
+    name = "setup_clang_tidy",
+    srcs = ["setup_clang_tidy.py"],
+    args = [
+        "--config-rlocation=$(rlocationpath //:clang_tidy_config)",
+    ],
+    data = [
+        "//:clang_tidy_config",
+        "//src/mongo/tools/mongo_tidy_checks",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        dependency(
+            "bazel-runfiles",
+            group = "testing",
+        ),
+    ],
+)
+
 py_library(
     name = "install_bazel",
     srcs = [
@@ -309,6 +328,8 @@ py_binary(
     ],
     visibility = ["//visibility:public"],
     deps = [
+        "//buildscripts/ciconfig",
+        "//buildscripts/util",
         dependency(
             "typer",
             group = "core",
@@ -319,24 +340,6 @@ py_binary(
         ),
         dependency(
             "bazel-runfiles",
-            group = "testing",
-        ),
-    ],
-)
-
-py_binary(
-    name = "append_result_tasks",
-    srcs = ["append_result_tasks.py"],
-    visibility = ["//visibility:public"],
-    deps = [
-        "//buildscripts:bazel_burn_in",
-        "//buildscripts:gather_failed_tests",
-        dependency(
-            "typer",
-            group = "core",
-        ),
-        dependency(
-            "shrub-py",
             group = "testing",
         ),
     ],

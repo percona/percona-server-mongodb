@@ -52,8 +52,8 @@
 #include "mongo/db/global_catalog/ddl/shard_key_index_util.h"
 #include "mongo/db/global_catalog/ddl/shard_key_util.h"
 #include "mongo/db/global_catalog/ddl/shard_util.h"
+#include "mongo/db/global_catalog/ddl/sharding_coordinator_gen.h"
 #include "mongo/db/global_catalog/ddl/sharding_ddl_coordinator.h"
-#include "mongo/db/global_catalog/ddl/sharding_ddl_coordinator_gen.h"
 #include "mongo/db/global_catalog/ddl/sharding_ddl_util.h"
 #include "mongo/db/global_catalog/ddl/sharding_recovery_service.h"
 #include "mongo/db/global_catalog/ddl/sharding_util.h"
@@ -1483,7 +1483,6 @@ void CreateCollectionCoordinator::_exitCriticalSectionOnShards(
     ShardsvrParticipantBlock unblockCRUDOperationsRequest(nss());
     unblockCRUDOperationsRequest.setBlockType(CriticalSectionBlockTypeEnum::kUnblock);
     unblockCRUDOperationsRequest.setReason(_critSecReason);
-    unblockCRUDOperationsRequest.setClearFilteringMetadata(true);
     unblockCRUDOperationsRequest.setThrowIfReasonDiffers(throwIfReasonDiffers);
     generic_argument_util::setMajorityWriteConcern(unblockCRUDOperationsRequest);
     generic_argument_util::setOperationSessionInfo(unblockCRUDOperationsRequest,
@@ -1850,8 +1849,8 @@ void CreateCollectionCoordinator::_enterWriteCriticalSectionOnDataShardAndCheckC
 
     // TODO (SERVER-87265) Remove this call if possible.
     if (!_firstExecution) {
-        _performNoopRetryableWriteOnAllShardsAndConfigsvr(
-            opCtx, getNewSession(opCtx), **executor, token);
+        AllShardsAndConfigCausalityBarrier barrier{**executor, token};
+        performCausalityBarrier(opCtx, barrier);
     }
 
     _enterCriticalSectionOnShards(opCtx,
@@ -1908,8 +1907,8 @@ void CreateCollectionCoordinator::_syncIndexesOnCoordinator(
 
     // TODO (SERVER-87265) Remove this call if possible.
     if (!_firstExecution) {
-        _performNoopRetryableWriteOnAllShardsAndConfigsvr(
-            opCtx, getNewSession(opCtx), **executor, token);
+        AllShardsAndConfigCausalityBarrier barrier{**executor, token};
+        performCausalityBarrier(opCtx, barrier);
     }
 
     auto optUuid = sharding_ddl_util::getCollectionUUID(opCtx, nss());
@@ -2035,8 +2034,8 @@ void CreateCollectionCoordinator::_enterCriticalSection(
     const std::shared_ptr<executor::ScopedTaskExecutor>& executor,
     const CancellationToken& token) {
     if (!_firstExecution) {
-        _performNoopRetryableWriteOnAllShardsAndConfigsvr(
-            opCtx, getNewSession(opCtx), **executor, token);
+        AllShardsAndConfigCausalityBarrier barrier{**executor, token};
+        performCausalityBarrier(opCtx, barrier);
     }
 
     // Block reads and writes on all shards other than the dbPrimary.
@@ -2118,8 +2117,8 @@ void CreateCollectionCoordinator::_createCollectionOnParticipants(
     const std::shared_ptr<executor::ScopedTaskExecutor>& executor,
     const CancellationToken& token) {
     if (!_firstExecution) {
-        _performNoopRetryableWriteOnAllShardsAndConfigsvr(
-            opCtx, getNewSession(opCtx), **executor, token);
+        AllShardsAndConfigCausalityBarrier barrier{**executor, token};
+        performCausalityBarrier(opCtx, barrier);
 
         _uuid = sharding_ddl_util::getCollectionUUID(opCtx, nss());
     }
@@ -2216,8 +2215,8 @@ void CreateCollectionCoordinator::_commitOnShardingCatalog(
     }
 
     if (!_firstExecution) {
-        _performNoopRetryableWriteOnAllShardsAndConfigsvr(
-            opCtx, getNewSession(opCtx), **executor, token);
+        AllShardsAndConfigCausalityBarrier barrier{**executor, token};
+        performCausalityBarrier(opCtx, barrier);
 
         // Check if a previous request already created and committed the collection.
         const auto shardKeyPattern =
@@ -2316,8 +2315,8 @@ void CreateCollectionCoordinator::_setPostCommitMetadata(
     const std::shared_ptr<executor::ScopedTaskExecutor>& executor,
     const CancellationToken& token) {
     if (!_firstExecution) {
-        _performNoopRetryableWriteOnAllShardsAndConfigsvr(
-            opCtx, getNewSession(opCtx), **executor, token);
+        AllShardsAndConfigCausalityBarrier barrier{**executor, token};
+        performCausalityBarrier(opCtx, barrier);
 
         _uuid = sharding_ddl_util::getCollectionUUID(opCtx, nss());
 
@@ -2387,8 +2386,8 @@ void CreateCollectionCoordinator::_exitCriticalSection(
     const std::shared_ptr<executor::ScopedTaskExecutor>& executor,
     const CancellationToken& token) {
     if (!_firstExecution) {
-        _performNoopRetryableWriteOnAllShardsAndConfigsvr(
-            opCtx, getNewSession(opCtx), **executor, token);
+        AllShardsAndConfigCausalityBarrier barrier{**executor, token};
+        performCausalityBarrier(opCtx, barrier);
     }
 
     // Exit critical section on all shards other than the coordinator.
@@ -2423,8 +2422,8 @@ ExecutorFuture<void> CreateCollectionCoordinator::_cleanupOnAbort(
             const auto opCtxHolder = makeOperationContext();
             auto* opCtx = opCtxHolder.get();
 
-            _performNoopRetryableWriteOnAllShardsAndConfigsvr(
-                opCtx, getNewSession(opCtx), **executor, token);
+            AllShardsAndConfigCausalityBarrier barrier{**executor, token};
+            performCausalityBarrier(opCtx, barrier);
 
             if (_doc.getPhase() >= Phase::kCreateCollectionOnParticipants) {
                 _uuid = sharding_ddl_util::getCollectionUUID(opCtx, nss());

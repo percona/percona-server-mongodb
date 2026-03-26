@@ -45,6 +45,7 @@
 #include "mongo/db/namespace_string.h"
 #include "mongo/db/op_observer/op_observer.h"
 #include "mongo/db/router_role/router_role.h"
+#include "mongo/db/s/primary_only_service_helpers/participant_causality_barrier.h"
 #include "mongo/db/shard_role/lock_manager/exception_util.h"
 #include "mongo/db/shard_role/lock_manager/lock_manager_defs.h"
 #include "mongo/db/shard_role/shard_catalog/catalog_raii.h"
@@ -130,7 +131,7 @@ std::vector<ShardId> getShardsWithDataForCollection(OperationContext* opCtx,
 }  // namespace
 
 RefineCollectionShardKeyCoordinator::RefineCollectionShardKeyCoordinator(
-    ShardingDDLCoordinatorService* service, const BSONObj& initialState)
+    ShardingCoordinatorService* service, const BSONObj& initialState)
     : RecoverableShardingDDLCoordinator(
           service, "RefineCollectionShardKeyCoordinator", initialState),
       _request(_doc.getRefineCollectionShardKeyRequest()),
@@ -163,15 +164,11 @@ bool RefineCollectionShardKeyCoordinator::_mustAlwaysMakeProgress() {
     return _doc.getPhase() >= Phase::kRemoteIndexValidation;
 }
 
-void RefineCollectionShardKeyCoordinator::_performNoopWriteOnDataShardsAndConfigServer(
-    OperationContext* opCtx,
-    const NamespaceString& nss,
-    const OperationSessionInfo& osi,
-    const std::shared_ptr<executor::TaskExecutor>& executor,
-    const CancellationToken& token) {
+std::vector<ShardId> RefineCollectionShardKeyCoordinator::_getDataShardsAndConfigServer(
+    OperationContext* opCtx, const NamespaceString& nss) {
     auto shards = getShardsWithDataForCollection(opCtx, nss);
     shards.push_back(Grid::get(opCtx)->shardRegistry()->getConfigShard()->getId());
-    sharding_ddl_util::performNoopRetryableWriteOnShards(opCtx, shards, osi, executor, token);
+    return shards;
 }
 
 ExecutorFuture<void> RefineCollectionShardKeyCoordinator::_runImpl(
@@ -248,9 +245,9 @@ ExecutorFuture<void> RefineCollectionShardKeyCoordinator::_runImpl(
             Phase::kRemoteIndexValidation,
             [this, token, anchor = shared_from_this(), executor](auto* opCtx) {
                 if (!_firstExecution) {
-                    const auto session = getNewSession(opCtx);
-                    _performNoopWriteOnDataShardsAndConfigServer(
-                        opCtx, nss(), session, **executor, token);
+                    ParticipantCausalityBarrier barrier{
+                        _getDataShardsAndConfigServer(opCtx, nss()), **executor, token};
+                    performCausalityBarrier(opCtx, barrier);
                 }
 
                 // Stop migrations during most of the execution of the coordinator to guarantee a
@@ -284,15 +281,27 @@ ExecutorFuture<void> RefineCollectionShardKeyCoordinator::_runImpl(
             Phase::kBlockCrud,
             [this, token, anchor = shared_from_this(), executor](auto* opCtx) {
                 if (!_firstExecution) {
-                    const auto session = getNewSession(opCtx);
-                    _performNoopWriteOnDataShardsAndConfigServer(
-                        opCtx, nss(), session, **executor, token);
+                    ParticipantCausalityBarrier barrier{
+                        _getDataShardsAndConfigServer(opCtx, nss()), **executor, token};
+                    performCausalityBarrier(opCtx, barrier);
                 }
 
                 ShardsvrParticipantBlock blockCRUDOperationsRequest(nss());
                 blockCRUDOperationsRequest.setBlockType(
                     CriticalSectionBlockTypeEnum::kReadsAndWrites);
                 blockCRUDOperationsRequest.setReason(_critSecReason);
+
+                // When shards are authoritative, there is no need to clear the filtering metadata
+                // upon releasing the critical section; the commit phase is responsible for updating
+                // the shard catalog with current information. This flag is evaluated at insertion
+                // time because on secondaries, metadata is cleared during the onDelete of the
+                // critical section document.
+                if (feature_flags::gShardAuthoritativeCollMetadata.isEnabled(
+                        VersionContext::getDecoration(opCtx),
+                        serverGlobalParams.featureCompatibility.acquireFCVSnapshot())) {
+                    blockCRUDOperationsRequest.setClearCollMetadata(false);
+                }
+
                 generic_argument_util::setMajorityWriteConcern(blockCRUDOperationsRequest);
                 generic_argument_util::setOperationSessionInfo(blockCRUDOperationsRequest,
                                                                getNewSession(opCtx));
@@ -323,9 +332,9 @@ ExecutorFuture<void> RefineCollectionShardKeyCoordinator::_runImpl(
             Phase::kCommit,
             [this, token, anchor = shared_from_this(), executor](auto* opCtx) {
                 if (!_firstExecution) {
-                    const auto session = getNewSession(opCtx);
-                    _performNoopWriteOnDataShardsAndConfigServer(
-                        opCtx, nss(), session, **executor, token);
+                    ParticipantCausalityBarrier barrier{
+                        _getDataShardsAndConfigServer(opCtx, nss()), **executor, token};
+                    performCausalityBarrier(opCtx, barrier);
                 }
 
                 ConfigsvrCommitRefineCollectionShardKey commitRequest(nss());
@@ -348,21 +357,35 @@ ExecutorFuture<void> RefineCollectionShardKeyCoordinator::_runImpl(
 
                 uassertStatusOK(Shard::CommandResponse::getEffectiveStatus(commitResponse));
 
+                if (feature_flags::gShardAuthoritativeCollMetadata.isEnabled(
+                        VersionContext::getDecoration(opCtx),
+                        serverGlobalParams.featureCompatibility.acquireFCVSnapshot())) {
+                    const auto session = getNewSession(opCtx);
+                    sharding_ddl_util::commitRefineCollectionShardKeyToShardCatalog(
+                        opCtx,
+                        nss(),
+                        getShardsWithDataForCollection(opCtx, nss()),
+                        session,
+                        executor,
+                        token);
+                }
+
                 // Checkpoint the configTime to ensure that, in the case of a stepdown, the new
                 // primary will start-up from a configTime that is inclusive of the metadata
                 // removable that was committed during the critical section.
                 VectorClockMutable::get(opCtx)->waitForDurableConfigTime().get(opCtx);
             }))
-        .then(_buildPhaseHandler(Phase::kReleaseCritSec,
-                                 [this, token, anchor = shared_from_this(), executor](auto* opCtx) {
-                                     if (!_firstExecution) {
-                                         const auto session = getNewSession(opCtx);
-                                         _performNoopWriteOnDataShardsAndConfigServer(
-                                             opCtx, nss(), session, **executor, token);
-                                     }
+        .then(_buildPhaseHandler(
+            Phase::kReleaseCritSec,
+            [this, token, anchor = shared_from_this(), executor](auto* opCtx) {
+                if (!_firstExecution) {
+                    ParticipantCausalityBarrier barrier{
+                        _getDataShardsAndConfigServer(opCtx, nss()), **executor, token};
+                    performCausalityBarrier(opCtx, barrier);
+                }
 
-                                     _exitCriticalSection(opCtx, executor, token);
-                                 }))
+                _exitCriticalSection(opCtx, executor, token, true /* hasOperationCommitted */);
+            }))
         .then(_buildPhaseHandler(
             Phase::kResumeMigrations,
             [this, token, anchor = shared_from_this(), executor](auto* opCtx) {
@@ -379,9 +402,13 @@ ExecutorFuture<void> RefineCollectionShardKeyCoordinator::_runImpl(
             auto opCtxHolder = makeOperationContext();
             auto* opCtx = opCtxHolder.get();
 
-            // Refresh all shards so cache is warmed up for queries.
-            sharding_util::tellShardsToRefreshCollection(
-                opCtx, getShardsWithDataForCollection(opCtx, nss()), nss(), **executor);
+            if (!feature_flags::gShardAuthoritativeCollMetadata.isEnabled(
+                    VersionContext::getDecoration(opCtx),
+                    serverGlobalParams.featureCompatibility.acquireFCVSnapshot())) {
+                // Refresh all shards so cache is warmed up for queries.
+                sharding_util::tellShardsToRefreshCollection(
+                    opCtx, getShardsWithDataForCollection(opCtx, nss()), nss(), **executor);
+            }
         })
         .onError([this, anchor = shared_from_this()](const Status& status) {
             // Ensure migrations are re-enabled and the critical section released if we haven't
@@ -419,11 +446,11 @@ ExecutorFuture<void> RefineCollectionShardKeyCoordinator::_cleanupOnAbort(
             const auto opCtxHolder = makeOperationContext();
             auto* opCtx = opCtxHolder.get();
 
-            _performNoopRetryableWriteOnAllShardsAndConfigsvr(
-                opCtx, getNewSession(opCtx), **executor, token);
+            AllShardsAndConfigCausalityBarrier barrier{**executor, token};
+            performCausalityBarrier(opCtx, barrier);
 
             if (_doc.getPhase() >= Phase::kBlockCrud) {
-                _exitCriticalSection(opCtx, executor, token);
+                _exitCriticalSection(opCtx, executor, token, false /* hasOperationCommitted */);
             }
 
             if (_doc.getPhase() >= Phase::kRemoteIndexValidation) {
@@ -436,15 +463,30 @@ ExecutorFuture<void> RefineCollectionShardKeyCoordinator::_cleanupOnAbort(
 void RefineCollectionShardKeyCoordinator::_exitCriticalSection(
     OperationContext* opCtx,
     const std::shared_ptr<executor::ScopedTaskExecutor>& executor,
-    const CancellationToken& token) {
+    const CancellationToken& token,
+    bool hasOperationCommitted) {
     ShardsvrParticipantBlock unblockCRUDOperationsRequest(nss());
     unblockCRUDOperationsRequest.setBlockType(CriticalSectionBlockTypeEnum::kUnblock);
     unblockCRUDOperationsRequest.setReason(_critSecReason);
-    unblockCRUDOperationsRequest.setClearFilteringMetadata(true);
+
+    // TODO (SERVER-121704): Make secondary nodes also clear the filtering metadata upon releasing
+    // the critical section when aborting.
+
+    // When shards are authoritative, there is no need to clear the filtering metadata upon
+    // releasing the critical section; the commit phase is responsible for updating the shard
+    // catalog (both durable and in-memory) with current information on both primary and secondary
+    // nodes.
+    bool isDDLAuthoritative = feature_flags::gShardAuthoritativeCollMetadata.isEnabled(
+        VersionContext::getDecoration(opCtx),
+        serverGlobalParams.featureCompatibility.acquireFCVSnapshot());
+    if (isDDLAuthoritative && hasOperationCommitted) {
+        unblockCRUDOperationsRequest.setClearCollMetadata(false);
+    }
 
     generic_argument_util::setMajorityWriteConcern(unblockCRUDOperationsRequest);
     generic_argument_util::setOperationSessionInfo(unblockCRUDOperationsRequest,
                                                    getNewSession(opCtx));
+
     auto opts = std::make_shared<async_rpc::AsyncRPCOptions<ShardsvrParticipantBlock>>(
         **executor, token, unblockCRUDOperationsRequest);
     sharding_ddl_util::sendAuthenticatedCommandToShards(

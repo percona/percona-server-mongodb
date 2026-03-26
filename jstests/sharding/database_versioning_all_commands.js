@@ -942,6 +942,7 @@ const allTestCases = {
     },
     mongod: {
         _addShard: {skip: "not on a user database"},
+        _internalClearCollectionShardingMetadata: {skip: "internal command"},
         _configsvrAbortReshardCollection: {skip: "TODO"},
         _configsvrAddShard: {skip: "not on a user database"},
         _configsvrAddShardToZone: {skip: "TODO"},
@@ -1071,6 +1072,7 @@ const allTestCases = {
         _shardsvrRecreateRangeDeletionTasks: {skip: "TODO"},
         _shardsvrRecreateRangeDeletionTasksParticipant: {skip: "TODO"},
         _shardsvrRefineCollectionShardKey: {skip: "TODO"},
+        _shardsvrCommitRefineCollectionShardKey: {skip: "internal command"},
         _shardsvrRenameCollection: {skip: "TODO"},
         _shardsvrRenameCollectionParticipant: {skip: "TODO"},
         _shardsvrRenameCollectionParticipantUnblock: {skip: "TODO"},
