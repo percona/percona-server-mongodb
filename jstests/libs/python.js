@@ -6,9 +6,8 @@ export function getPython3Binary() {
     clearRawMongoProgramOutput();
     assert.eq(runNonMongoProgram("python", "--version"), 0);
     const pythonVersion = rawMongoProgramOutput("Python"); // Will look like "Python 3.13.4\n"
-    // TODO(SERVER-117568): Remove Python 3.10 check after upgrade is complete
     const match = pythonVersion.match(/Python 3\.(\d+)\./);
-    if (match && match[1] >= 10) {
+    if (match && match[1] >= 13) {
         jsTest.log.info(
             "Found python 3." + match[1] + " by default. Likely this is because we are using a virtual environment.",
         );

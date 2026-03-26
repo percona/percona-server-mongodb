@@ -2393,7 +2393,6 @@
           "value": "false"
         }
       ]
-<<<<<<< HEAD
     },
     {
       "supplier": {
@@ -2487,73 +2486,6 @@
         ]
       },
       "scope": "required"
-    },
-    {
-      "bom-ref": "pkg:github/apache/arrow-nanoarrow@apache-arrow-nanoarrow-0.7.0?package-id=614f3463351947a8",
-      "licenses": [
-        {
-          "license": {
-            "id": "Apache-2.0"
-          }
-        }
-      ],
-      "name": "github.com/apache/arrow-nanoarrow",
-      "purl": "pkg:github/apache/arrow-nanoarrow@apache-arrow-nanoarrow-0.7.0",
-      "type": "library",
-      "version": "apache-arrow-nanoarrow-0.7.0",
-      "scope": "excluded",
-      "properties": []
-    },
-    {
-      "bom-ref": "pkg:github/apache/iceberg-cpp@v0.2.0-rc1?package-id=ce0b9d2c8402061a",
-      "licenses": [
-        {
-          "license": {
-            "id": "Apache-2.0"
-          }
-        }
-      ],
-      "name": "github.com/apache/iceberg-cpp",
-      "purl": "pkg:github/apache/iceberg-cpp@v0.2.0-rc1",
-      "type": "library",
-      "version": "v0.2.0-rc1",
-      "scope": "excluded",
-      "properties": []
-||||||| 0115b2026da
-    },
-    {
-      "bom-ref": "pkg:github/apache/arrow-nanoarrow@apache-arrow-nanoarrow-0.7.0?package-id=614f3463351947a8",
-      "licenses": [
-        {
-          "license": {
-            "id": "Apache-2.0"
-          }
-        }
-      ],
-      "name": "github.com/apache/arrow-nanoarrow",
-      "purl": "pkg:github/apache/arrow-nanoarrow@apache-arrow-nanoarrow-0.7.0",
-      "type": "library",
-      "version": "apache-arrow-nanoarrow-0.7.0",
-      "scope": "excluded",
-      "properties": []
-    },
-    {
-      "bom-ref": "pkg:github/apache/iceberg-cpp@v0.2.0-rc1?package-id=ce0b9d2c8402061a",
-      "licenses": [
-        {
-          "license": {
-            "id": "Apache-2.0"
-          }
-        }
-      ],
-      "name": "github.com/apache/iceberg-cpp",
-      "purl": "pkg:github/apache/iceberg-cpp@v0.2.0-rc1",
-      "type": "library",
-      "version": "v0.2.0-rc1",
-      "scope": "excluded",
-      "properties": []
-=======
->>>>>>> ac6584f4061d8209fde5bd4ce7a6597f42d2196c
     }
   ],
   "dependencies": [
@@ -2823,14 +2755,6 @@
       "dependsOn": [
         "pkg:github/madler/zlib@v1.3.1"
       ]
-    },
-    {
-      "ref": "pkg:github/apache/arrow-nanoarrow@apache-arrow-nanoarrow-0.7.0?package-id=614f3463351947a8",
-      "dependsOn": []
-    },
-    {
-      "ref": "pkg:github/apache/iceberg-cpp@v0.2.0-rc1?package-id=ce0b9d2c8402061a",
-      "dependsOn": []
     }
   ]
 }
