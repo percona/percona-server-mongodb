@@ -49,7 +49,7 @@ last-continuous:
       ticket: SERVER-107211
     - test_file: jstests/concurrency/fsm_workloads/query/yield/repl_set_resize_oplog.js
       ticket: SERVER-94787
-    - test_file: jstests/core/timeseries/ddl/rename_timeseries.js
+    - test_file: jstests/core/timeseries/ddl/rename_timeseries_legacy.js
       ticket: SERVER-109087
     - test_file: jstests/sharding/query/agg/agg_orphan_filtering_renamed_shardkey.js
       ticket: SERVER-105047
@@ -153,6 +153,8 @@ last-continuous:
       ticket: SERVER-120644
     - test_file: jstests/replsets/retryable_write_interrupted_on_stepdown.js
       ticket: SERVER-110728
+    - test_file: jstests/sharding/query/change_streams/change_stream_move_primary_from_migrate.js
+      ticket: SERVER-120349
     - test_file: jstests/aggregation/expressions/trim.js
       ticket: SERVER-120668
     - test_file: jstests/replsets/reconfig_waits_for_config_majority.js
@@ -704,7 +706,7 @@ last-lts:
       ticket: SERVER-107211
     - test_file: jstests/concurrency/fsm_workloads/query/yield/repl_set_resize_oplog.js
       ticket: SERVER-94787
-    - test_file: jstests/core/timeseries/ddl/rename_timeseries.js
+    - test_file: jstests/core/timeseries/ddl/rename_timeseries_legacy.js
       ticket: SERVER-109087
     - test_file: jstests/sharding/query/agg/agg_orphan_filtering_renamed_shardkey.js
       ticket: SERVER-105047
@@ -810,6 +812,8 @@ last-lts:
       ticket: SERVER-120644
     - test_file: jstests/replsets/retryable_write_interrupted_on_stepdown.js
       ticket: SERVER-110728
+    - test_file: jstests/sharding/query/change_streams/change_stream_move_primary_from_migrate.js
+      ticket: SERVER-120349
     - test_file: jstests/aggregation/expressions/trim.js
       ticket: SERVER-120668
     - test_file: jstests/replsets/reconfig_waits_for_config_majority.js

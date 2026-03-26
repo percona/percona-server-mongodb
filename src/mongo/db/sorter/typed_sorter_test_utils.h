@@ -68,22 +68,21 @@ struct SpillStorageState {
 
 inline std::unique_ptr<FileBasedSorterSpiller<IntWrapper, IntWrapper, IWComparator>>
 makeFileSorterSpiller(const SortOptions& opts,
+                      const boost::filesystem::path& spillDir,
                       SorterFileStats* fileStats,
                       const SorterChecksumVersion checksumVersion = sorter::kLatestChecksumVersion,
                       std::string storageIdentifier = "") {
-    ASSERT(opts.tempDir);
-
     if (storageIdentifier.empty()) {
         return std::make_unique<FileBasedSorterSpiller<IntWrapper, IntWrapper, IWComparator>>(
-            *opts.tempDir,
+            spillDir,
             fileStats,
             /*dbName=*/boost::none,
             checksumVersion,
             testSpillingMinAvailableDiskSpaceBytes);
     }
     return std::make_unique<FileBasedSorterSpiller<IntWrapper, IntWrapper, IWComparator>>(
-        std::make_shared<SorterFile>(*opts.tempDir / storageIdentifier, fileStats),
-        *opts.tempDir,
+        std::make_shared<SorterFile>(spillDir / storageIdentifier, fileStats),
+        spillDir,
         /*dbName=*/boost::none,
         checksumVersion,
         testSpillingMinAvailableDiskSpaceBytes);
@@ -92,7 +91,7 @@ makeFileSorterSpiller(const SortOptions& opts,
 template <typename Traits>
 concept StorageTraits = requires(Traits& traits,
                                  SorterTracker* tracker,
-                                 const boost::filesystem::path& storageLocation,
+                                 const boost::filesystem::path& spillDir,
                                  const SortOptions& opts,
                                  const std::string& storageIdentifier,
                                  const SorterChecksumVersion checksumVersion,
@@ -101,17 +100,17 @@ concept StorageTraits = requires(Traits& traits,
     { Traits::kEmptyStorageErrorCode } -> std::convertible_to<int>;
     { Traits::kCorruptedStorageErrorCode } -> std::convertible_to<int>;
     {
-        traits.makeSpiller(opts, checksumVersion)
+        traits.makeSpiller(opts, spillDir, checksumVersion)
     } -> std::same_as<std::shared_ptr<SorterSpiller<IntWrapper, IntWrapper, IWComparator>>>;
     {
-        traits.makeSpillerForResume(opts, checksumVersion, storageIdentifier)
+        traits.makeSpillerForResume(opts, spillDir, checksumVersion, storageIdentifier)
     } -> std::same_as<std::shared_ptr<SorterSpiller<IntWrapper, IntWrapper, IWComparator>>>;
     {
-        traits.makeWriter(opts)
+        traits.makeWriter(opts, spillDir)
     } -> std::same_as<std::unique_ptr<SortedStorageWriter<IntWrapper, IntWrapper>>>;
-    { traits.makeEmptyStorage(storageLocation) } -> std::same_as<std::string>;
-    { traits.makeCorruptedStorage(storageLocation) } -> std::same_as<std::string>;
-    { traits.makeSpillState(storageLocation) } -> std::same_as<SpillStorageState>;
+    { traits.makeEmptyStorage(spillDir) } -> std::same_as<std::string>;
+    { traits.makeCorruptedStorage(spillDir) } -> std::same_as<std::string>;
+    { traits.makeSpillState(spillDir) } -> std::same_as<SpillStorageState>;
     { traits.corruptSpillState(spillState) } -> std::same_as<void>;
     { traits.iteratorSizeBytes() } -> std::same_as<std::size_t>;
 };
@@ -123,24 +122,26 @@ struct FileTraits {
 
     static std::shared_ptr<SorterSpiller<IntWrapper, IntWrapper, IWComparator>> makeSpiller(
         const SortOptions& opts,
+        const boost::filesystem::path& spillDir,
         const SorterChecksumVersion checksumVersion = sorter::kLatestChecksumVersion) {
         return std::shared_ptr<SorterSpiller<IntWrapper, IntWrapper, IWComparator>>(
-            makeFileSorterSpiller(opts, /*fileStats=*/nullptr, checksumVersion));
+            makeFileSorterSpiller(opts, spillDir, /*fileStats=*/nullptr, checksumVersion));
     }
 
     static std::shared_ptr<SorterSpiller<IntWrapper, IntWrapper, IWComparator>>
     makeSpillerForResume(
         const SortOptions& opts,
+        const boost::filesystem::path& spillDir,
         const SorterChecksumVersion checksumVersion = sorter::kLatestChecksumVersion,
         const std::string& storageIdentifier = "") {
         return std::shared_ptr<SorterSpiller<IntWrapper, IntWrapper, IWComparator>>(
-            makeFileSorterSpiller(opts, /*fileStats=*/nullptr, checksumVersion, storageIdentifier));
+            makeFileSorterSpiller(
+                opts, spillDir, /*fileStats=*/nullptr, checksumVersion, storageIdentifier));
     }
 
     static std::unique_ptr<SortedStorageWriter<IntWrapper, IntWrapper>> makeWriter(
-        const SortOptions& opts) {
-        ASSERT(opts.tempDir);
-        auto spillFile = std::make_shared<SorterFile>(sorter::nextFileName(*opts.tempDir), nullptr);
+        const SortOptions& opts, const boost::filesystem::path& spillDir) {
+        auto spillFile = std::make_shared<SorterFile>(sorter::nextFileName(spillDir), nullptr);
         return std::make_unique<SortedFileWriter<IntWrapper, IntWrapper>>(
             opts,
             spillFile,
@@ -149,26 +150,27 @@ struct FileTraits {
             SortedFileWriter<IntWrapper, IntWrapper>::Settings{});
     }
 
-    static std::string makeEmptyStorage(const boost::filesystem::path& storageLocation) {
-        auto storagePath = storageLocation / "empty_sorter_storage";
+    static std::string makeEmptyStorage(const boost::filesystem::path& spillDir) {
+        auto storagePath = spillDir / "empty_sorter_storage";
         std::ofstream ofs(storagePath.string());
         ASSERT(ofs) << "failed to create empty temporary file: " << storagePath.string();
         return storagePath.filename().string();
     }
 
-    static std::string makeCorruptedStorage(const boost::filesystem::path& storageLocation) {
-        auto storagePath = storageLocation / "corrupted_sorter_storage";
+    static std::string makeCorruptedStorage(const boost::filesystem::path& spillDir) {
+        auto storagePath = spillDir / "corrupted_sorter_storage";
         std::ofstream ofs(storagePath.string());
         ASSERT(ofs) << "failed to create temporary file: " << storagePath.string();
         ofs << "invalid sorter data";
         return storagePath.filename().string();
     }
 
-    static SpillStorageState makeSpillState(const boost::filesystem::path& storageLocation) {
+    static SpillStorageState makeSpillState(const boost::filesystem::path& spillDir) {
         SpillStorageState ret;
-        ret.opts = SortOptions().TempDir(storageLocation).Tracker(nullptr);
+        ret.opts = SortOptions().Tracker(nullptr);
 
-        auto sorter = IWSorter::make(ret.opts, ret.comp, makeSpiller(ret.opts), /*settings=*/{});
+        auto sorter =
+            IWSorter::make(ret.opts, ret.comp, makeSpiller(ret.opts, spillDir), /*settings=*/{});
         for (int i = 0; i < 10; ++i) {
             sorter->add(i, -i);
         }
@@ -208,6 +210,7 @@ struct ContainerTraits {
 
     std::shared_ptr<SorterSpiller<IntWrapper, IntWrapper, IWComparator>> makeSpiller(
         const SortOptions& opts,
+        const boost::filesystem::path& spillDir,
         const SorterChecksumVersion checksumVersion = sorter::kLatestChecksumVersion) {
         using Spiller = ContainerBasedSpiller<IntWrapper, IntWrapper, IWComparator>;
         struct SpillerOwner {
@@ -240,13 +243,14 @@ struct ContainerTraits {
 
     static std::shared_ptr<SorterSpiller<IntWrapper, IntWrapper, IWComparator>>
     makeSpillerForResume(const SortOptions& opts,
+                         const boost::filesystem::path& spillDir,
                          const SorterChecksumVersion,
                          const std::string& storageIdentifier) {
         MONGO_UNIMPLEMENTED;
     }
 
     std::unique_ptr<SortedStorageWriter<IntWrapper, IntWrapper>> makeWriter(
-        const SortOptions& opts) {
+        const SortOptions& opts, const boost::filesystem::path& spillDir) {
         auto& ru = *shard_role_details::getRecoveryUnit(_opCtx.get());
         const auto settings = SortedContainerWriter<IntWrapper, IntWrapper>::Settings{};
         auto& container = std::get<std::reference_wrapper<IntegerKeyedContainer>>(
@@ -265,15 +269,15 @@ struct ContainerTraits {
     }
 
     // TODO SERVER-120078
-    static std::string makeEmptyStorage(const boost::filesystem::path& storageLocation) {
+    static std::string makeEmptyStorage(const boost::filesystem::path& spillDir) {
         MONGO_UNIMPLEMENTED;
     }
 
-    static std::string makeCorruptedStorage(const boost::filesystem::path& storageLocation) {
+    static std::string makeCorruptedStorage(const boost::filesystem::path& spillDir) {
         MONGO_UNIMPLEMENTED;
     }
 
-    static SpillStorageState makeSpillState(const boost::filesystem::path& storageLocation) {
+    static SpillStorageState makeSpillState(const boost::filesystem::path& spillDir) {
         MONGO_UNIMPLEMENTED;
     }
 

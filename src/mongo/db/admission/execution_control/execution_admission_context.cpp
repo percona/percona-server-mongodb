@@ -137,13 +137,18 @@ boost::optional<ExecutionAdmissionContext::FinalizedStats> ExecutionAdmissionCon
     return result;
 }
 
-void ExecutionAdmissionContext::recordExecutionAcquisition() {
+void ExecutionAdmissionContext::recordExecutionAcquisition(AdmissionContext::Priority priority) {
     if (!_shouldRecordStats()) {
         return;
     }
 
     auto& stats = _getOperationExecutionStats();
     stats.totalAdmissions.fetchAndAddRelaxed(1);
+    if (priority == AdmissionContext::Priority::kLow) {
+        stats.totalLowPriorityAdmissions.fetchAndAddRelaxed(1);
+    } else {
+        stats.totalNormalPriorityAdmissions.fetchAndAddRelaxed(1);
+    }
 }
 
 void ExecutionAdmissionContext::recordExecutionWaitedAcquisition(Microseconds queueTimeMicros) {
@@ -260,6 +265,7 @@ admission::execution_control::ScopedTaskTypeModifierBase::ScopedTaskTypeModifier
     LOGV2_DEBUG(12043501,
                 1,
                 "Changing task type on ExecutionAdmissionContext",
+                "oldValue"_attr = to_string(currentType),
                 "newValue"_attr = to_string(newType));
 }
 
@@ -268,12 +274,18 @@ admission::execution_control::ScopedTaskTypeModifierBase::~ScopedTaskTypeModifie
     // ExecutionAdmissionContext) is a 1 to 1 relation.
     // Nobody should update the ExecutionAdmissionContext's counter from a different thread (sharing
     // opCtx is prohibited).
+    const auto currentType = ExecutionAdmissionContext::get(_opCtx).getTaskType();
     const auto recursionCount =
         --ExecutionAdmissionContext::get(_opCtx)._scopedTaskTypeModifierRecursion;
     dassert(recursionCount >= 0);
     if (recursionCount == 0) {
         ExecutionAdmissionContext::get(_opCtx)._taskType.store(
             ExecutionAdmissionContext::TaskType::Default);
+        LOGV2_DEBUG(12137201,
+                    1,
+                    "Resetting task type on ExecutionAdmissionContext",
+                    "oldValue"_attr = to_string(currentType),
+                    "newValue"_attr = to_string(ExecutionAdmissionContext::TaskType::Default));
     }
 }
 

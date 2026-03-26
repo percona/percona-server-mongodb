@@ -428,7 +428,8 @@ inline std::size_t hashInit() noexcept {
 }
 
 inline std::size_t hashCombine(std::size_t state, std::size_t val) noexcept {
-    return state * 31 + val;
+    state ^= val + 0x9e3779b9 + (state << 6) + (state >> 2);
+    return state;
 }
 
 /**
@@ -2139,8 +2140,7 @@ inline std::pair<TypeTags, Value> makeCopyBsonCodeWScope(const BsonCodeWScope& c
     return makeNewBsonCodeWScope(cws.code, cws.scope);
 }
 
-std::pair<TypeTags, Value> makeKeyString(std::unique_ptr<key_string::Value> inKey);
-std::pair<TypeTags, Value> makeKeyString(const key_string::Value& inKey);
+std::pair<TypeTags, Value> makeKeyString(key_string::Value inKey);
 
 std::pair<TypeTags, Value> makeCopyCollator(const CollatorInterface& collator);
 

@@ -85,6 +85,18 @@ TEST(StackTraceRequest, parseRequestAndResponse) {
     ASSERT_EQ(response.getJson(), expectedResponse);
 }
 
+TEST(StackTraceRequest, EmptyFrames) {
+
+    std::string json = R"({"type":"request","seq":17,"command":"stackTrace","arguments":{}})";
+    auto request = std::static_pointer_cast<StackTraceRequest>(Request::fromJSON(json));
+
+    std::vector<StackFrame> frames = {};
+    auto response = request->response(frames);
+    std::string expectedResponse =
+        R"({ "type" : "response", "seq" : 17, "body" : { "stackFrames" : [] } })";
+    ASSERT_EQ(response.getJson(), expectedResponse);
+}
+
 TEST(ContinueRequest, parseRequestAndResponse) {
 
     std::string json = R"({"type":"request","seq":17,"command":"continue","arguments":{}})";
@@ -161,11 +173,19 @@ TEST(SetVariableRequest, parseRequestAndResponse) {
     ASSERT_EQ(response.getJson(), expectedResponse);
 }
 
-TEST(StoppedEvent, parseEvent) {
+TEST(StoppedEvent, parseEventFromBreakpoint) {
 
-    auto event = StoppedEvent();
+    auto event = StoppedEvent::Breakpoint();
     std::string expectedJson =
         R"({ "type" : "event", "event" : "stopped", "body" : { "reason" : "breakpoint" } })";
+    ASSERT_EQ(event.getJson(), expectedJson);
+}
+
+TEST(StoppedEvent, parseEventFromException) {
+
+    auto event = StoppedEvent::Exception("my text");
+    std::string expectedJson =
+        R"({ "type" : "event", "event" : "stopped", "body" : { "reason" : "exception", "text" : "my text" } })";
     ASSERT_EQ(event.getJson(), expectedJson);
 }
 
