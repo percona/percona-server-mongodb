@@ -44,6 +44,7 @@
 #include "mongo/bson/bsonobj.h"
 #include "mongo/bson/bsonobjbuilder.h"
 #include "mongo/bson/bsontypes.h"
+#include "mongo/db/commands/server_status/server_status_metric.h"
 #include "mongo/db/index/index_constants.h"
 #include "mongo/db/index_names.h"
 #include "mongo/db/matcher/expression_algo.h"
@@ -103,6 +104,26 @@
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kQuery
 
 namespace mongo {
+
+namespace {
+/**
+ * Aggregation of the total number of candidate plans that couldn't be costed in CBR.
+ */
+auto& numPlansFailedCostEstimation =
+    *MetricBuilder<Counter64>{"query.cbr.numPlansFailedCostEstimation"};
+
+/**
+ * Aggregation of the total number of times candidate plans tied in cost estimation in CBR.
+ */
+auto& numPlansTiedCostEstimation =
+    *MetricBuilder<Counter64>{"query.cbr.numPlansTiedCostEstimation"};
+
+/**
+ * Aggregation of the total number of times CBR successfully chose a winning plan.
+ */
+auto& cbrChoseWinningPlan = *MetricBuilder<Counter64>{"query.cbr.choseWinningPlan"};
+
+}  // namespace
 
 namespace {
 MONGO_FAIL_POINT_DEFINE(queryPlannerAlwaysFails);
@@ -1766,6 +1787,7 @@ StatusWith<PlanRankingResult> QueryPlanner::planWithCostBasedRanking(
             : cardEstimator.estimatePlan(*soln);
         if (!ceRes.isOK()) {
             // This plan's cardinality cannot be estimated.
+            numPlansFailedCostEstimation.increment();
             if (cbrMode == QueryPlanRankerModeEnum::kAutomaticCE ||
                 ceRes.getStatus().code() == ErrorCodes::UnsupportedCbrNode) {
                 // We'll fallback to multi-planning for an inestimable plan if either:
@@ -1791,6 +1813,8 @@ StatusWith<PlanRankingResult> QueryPlanner::planWithCostBasedRanking(
                 // TODO SERVER-97933: handle equal cost plans in a deterministic way
                 // For now, we pick one and put the other in rejected plans.
                 rejectedSoln.push_back(std::move(soln));
+
+                numPlansTiedCostEstimation.increment();
             }
         }
     }
@@ -1811,12 +1835,18 @@ StatusWith<PlanRankingResult> QueryPlanner::planWithCostBasedRanking(
             SolutionWithPlanStage{std::move(soln), nullptr /* rootStage */});
     }
 
+    // If only the best plan is in the accepted solutions, CBR successfully chose a winner.
+    bool successfullyChoseWinner = acceptedSoln.size() == 1;
+    if (successfullyChoseWinner) {
+        cbrChoseWinningPlan.increment();
+    }
+
     return PlanRankingResult{
         .solutions = std::move(acceptedSoln),
         .maybeExplainData =
             PlanExplainerData{.rejectedPlansWithStages = std::move(rejectedSolnWithStages),
                               .estimates = std::move(estimates)},
-        .needsWorksMeasured = true};
+        .needsWorksMeasuredForPlanCache = successfullyChoseWinner};
 }
 
 /**
@@ -1854,9 +1884,6 @@ std::unique_ptr<QuerySolution> QueryPlanner::extendWithAggPipeline(
 
         auto lookupStage = dynamic_cast<DocumentSourceLookUp*>(innerStage);
         if (lookupStage) {
-            tassert(6369000,
-                    "This $lookup stage should be compatible with SBE",
-                    lookupStage->sbeCompatibility() != SbeCompatibility::notCompatible);
             auto [strategy, idxEntry, scanDirection] =
                 QueryPlannerAnalysis::determineLookupStrategy(
                     lookupStage->getFromNs(),

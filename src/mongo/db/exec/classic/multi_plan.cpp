@@ -50,6 +50,7 @@
 #include "mongo/db/query/query_optimization_knobs_gen.h"
 #include "mongo/db/query/restore_context.h"
 #include "mongo/db/service_context.h"
+#include "mongo/db/stats/counters.h"
 #include "mongo/db/storage/exceptions.h"
 #include "mongo/logv2/log.h"
 #include "mongo/platform/atomic_word.h"
@@ -88,7 +89,8 @@ void markShouldCollectTimingInfoOnSubtree(PlanStage* root) {
 /**
  * Aggregation of the total number of microseconds spent (in the classic multiplanner).
  */
-auto& classicMicrosTotal = *MetricBuilder<Counter64>{"query.multiPlanner.classicMicros"};
+auto& classicMicrosTotal =
+    *MetricBuilder<DurationCounter64<Microseconds>>{"query.multiPlanner.classicMicros"};
 
 /**
  * Aggregation of the total number of "works" performed (in the classic multiplanner).
@@ -152,6 +154,14 @@ auto& multiPlannerHitWorksLimitTotal =
  */
 auto& multiPlannerAllPlansHitMemoryLimitTotal =
     *MetricBuilder<Counter64>{"query.multiPlanner.allPlansHitMemoryLimit"};
+
+/**
+ * Aggregation of the total number of times multiplanning chose the winning plan. With the
+ * introduction of automaticCE mode, this may differ from the number of times multiplanning is
+ * invoked.
+ */
+auto& multiPlannerChoseWinningPlan =
+    *MetricBuilder<Counter64>{"query.multiPlanner.choseWinningPlan"};
 }  // namespace
 
 MONGO_FAIL_POINT_DEFINE(sleepWhileMultiplanning);
@@ -160,12 +170,14 @@ MultiPlanStage::MultiPlanStage(ExpressionContext* expCtx,
                                CollectionAcquisition collection,
                                const CanonicalQuery* cq,
                                OnPickBestPlan onPickBestPlan,
-                               boost::optional<std::string> replanReason)
+                               boost::optional<std::string> replanReason,
+                               bool addingCBRChosenPlanToPlanCache)
     : RequiresCollectionStage(kStageType, expCtx, collection),
       _query(cq),
       _onPickBestPlan(std::move(onPickBestPlan)),
       _bestPlanIdx(kNoSuchPlan),
-      _backupPlanIdx(kNoSuchPlan) {
+      _backupPlanIdx(kNoSuchPlan),
+      _shouldNotCollectMetrics(addingCBRChosenPlanToPlanCache) {
     _specificStats.replanReason = replanReason;
 }
 
@@ -323,9 +335,11 @@ Status MultiPlanStage::runTrials(PlanYieldPolicy* yieldPolicy,
     auto tickSource = opCtx()->getServiceContext()->getTickSource();
     auto startTicks = tickSource->getTicks();
 
-    classicNumPlansHistogram.increment(_candidates.size());
-    classicNumPlansTotal.increment(_candidates.size());
-    classicCount.increment();
+    if (!_shouldNotCollectMetrics) {
+        classicNumPlansHistogram.increment(_candidates.size());
+        classicNumPlansTotal.increment(_candidates.size());
+        classicCount.increment();
+    }
 
     try {
         // Work the plans, stopping when a plan hits EOF or returns some fixed number of results.
@@ -335,9 +349,13 @@ Status MultiPlanStage::runTrials(PlanYieldPolicy* yieldPolicy,
             moreToDo = workAllPlans(trialConfig.targetNumResults, yieldPolicy);
         }
         auto totalWorks = ix * _candidates.size();
-        classicWorksHistogram.increment(totalWorks);
-        classicWorksTotal.increment(totalWorks);
-        if (moreToDo && !trialConfig.isCappedTrialPhase) {
+
+        if (!_shouldNotCollectMetrics) {
+            classicWorksHistogram.increment(totalWorks);
+            classicWorksTotal.increment(totalWorks);
+        }
+
+        if (moreToDo && !trialConfig.isCappedTrialPhase && !_shouldNotCollectMetrics) {
             multiPlannerHitWorksLimitTotal.incrementRelaxed();
         }
 
@@ -354,10 +372,12 @@ Status MultiPlanStage::runTrials(PlanYieldPolicy* yieldPolicy,
         return e.toStatus().withContext("error while multiplanner was selecting best plan");
     }
 
-    auto durationMicros = durationCount<Microseconds>(
-        tickSource->ticksTo<Microseconds>(tickSource->getTicks() - startTicks));
-    classicMicrosHistogram.increment(durationMicros);
-    classicMicrosTotal.increment(durationMicros);
+    if (!_shouldNotCollectMetrics) {
+        auto durationMicros =
+            tickSource->ticksTo<Microseconds>(tickSource->getTicks() - startTicks);
+        classicMicrosHistogram.increment(durationCount<Microseconds>(durationMicros));
+        classicMicrosTotal.increment(durationMicros);
+    }
 
     // Save state after running trials so that we are safe to yield or do other things
     // (like run CBR)
@@ -437,6 +457,11 @@ Status MultiPlanStage::pickBestPlan() {
 
     removeRejectedPlans();
 
+    // Increment relevant server status metric.
+    if (!_shouldNotCollectMetrics) {
+        multiPlannerChoseWinningPlan.increment();
+    }
+
     return Status::OK();
 }
 
@@ -468,7 +493,9 @@ bool MultiPlanStage::workAllPlans(size_t numResults, PlanYieldPolicy* yieldPolic
             // If all children have failed, then rethrow. Otherwise, swallow the error and move onto
             // the next candidate plan.
             if (_failureCount == _candidates.size()) {
-                multiPlannerAllPlansHitMemoryLimitTotal.incrementRelaxed();
+                if (!_shouldNotCollectMetrics) {
+                    multiPlannerAllPlansHitMemoryLimitTotal.incrementRelaxed();
+                }
                 throw;
             }
 
@@ -487,14 +514,20 @@ bool MultiPlanStage::workAllPlans(size_t numResults, PlanYieldPolicy* yieldPolic
             if (candidate.results.size() >= numResults || candidate.root->isEOF()) {
                 candidate.exitedEarly = true;
                 doneWorking = true;
-                multiPlannerHitResultsLimitTotal.incrementRelaxed();
+
+                if (!_shouldNotCollectMetrics) {
+                    multiPlannerHitResultsLimitTotal.incrementRelaxed();
+                }
             }
         } else if (PlanStage::IS_EOF == state) {
             // First plan to hit EOF wins automatically.  Stop evaluating other plans.
             // Assumes that the ranking will pick this plan.
             doneWorking = true;
             candidate.exitedEarly = true;
-            multiPlannerHitEofTotal.incrementRelaxed();
+
+            if (!_shouldNotCollectMetrics) {
+                multiPlannerHitEofTotal.incrementRelaxed();
+            }
         } else if (PlanStage::NEED_YIELD == state) {
             // Run-time plan selection occurs before a WriteUnitOfWork is opened and it's not
             // subject to TemporarilyUnavailableException's.
