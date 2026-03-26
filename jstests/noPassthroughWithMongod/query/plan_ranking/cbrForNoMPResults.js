@@ -27,6 +27,7 @@ function testNoResultsQueryIsPlannedWithCBR() {
     // TODO SERVER-115958: This test fails with featureFlagSbeFull.
     if (getEngine(explain) === "classic") {
         const winningPlan = getWinningPlanFromExplain(explain);
+        // TODO(SERVER-121641): The winning plan should have CBR metrics.
         assertPlanNotCosted(winningPlan);
         const rejectedPlans = getRejectedPlans(explain);
         assert.eq(rejectedPlans.length, 2, toJsonForLog(explain));

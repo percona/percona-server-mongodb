@@ -204,7 +204,7 @@ function preferShortestIndexWithComparisonsInFilter(indexPruningActive) {
 
         // TODO(SERVER-121641): Switch this back to isPlanCosted() after fixing the winning plan
         // not having CBR estimates even if picked by CBR.
-        if (getPlanRankerMode(conn) !== "multiPlanner" && !checkSbeFullyEnabled(db)) {
+        if (getPlanRankerMode(conn) !== "multiPlanning" && !checkSbeFullyEnabled(db)) {
             assertIndexScan(false, filter, [{a: 1, b: 1}], explain);
         } else {
             assertIndexScan(false, filter, [{a: 1, b: 1, c: 1}], explain);
