@@ -301,15 +301,15 @@ std::shared_ptr<IWIterator> makeInMemIterator(
 template <typename IteratorPtr>
 std::shared_ptr<IWIterator> spillToFile(IteratorPtr inputIter,
                                         SorterFileStats* fileStats,
-                                        const unittest::TempDir& tempDir) {
+                                        const unittest::TempDir& spillDir) {
     if (!inputIter->more()) {
         return std::make_shared<EmptyIterator>();
     }
-    const SortOptions opts = SortOptions().TempDir(tempDir.path());
-    auto spillFile = std::make_shared<SorterFile>(sorter::nextFileName(*(opts.tempDir)), fileStats);
+    const SortOptions opts = SortOptions();
+    auto spillFile = std::make_shared<SorterFile>(sorter::nextFileName(spillDir.path()), fileStats);
     // TODO(SERVER-114080): Ensure testing of non-file-based sorter storage is comprehensive.
     FileBasedSorterStorage<IntWrapper, IntWrapper> sorterStorage(
-        spillFile, *opts.tempDir, /*dbName=*/boost::none, SorterChecksumVersion::v2);
+        spillFile, /*dbName=*/boost::none, SorterChecksumVersion::v2);
     std::unique_ptr<SortedStorageWriter<IntWrapper, IntWrapper>> writer =
         sorterStorage.makeWriter(opts, /*settings=*/{});
     while (inputIter->more()) {
@@ -321,14 +321,13 @@ std::shared_ptr<IWIterator> spillToFile(IteratorPtr inputIter,
 
 template <typename IteratorPtr, int N>
 std::shared_ptr<IWIterator> mergeIterators(IteratorPtr (&array)[N],
-                                           const unittest::TempDir& tempDir,
+                                           const unittest::TempDir& spillDir,
                                            Direction Dir = ASC,
                                            const SortOptions& opts = SortOptions()) {
-    invariant(!opts.tempDir);
     std::vector<std::shared_ptr<IWIterator>> vec;
     for (auto& it : array) {
         // Spill iterator outputs to a file and obtain a new iterator for it.
-        vec.push_back(spillToFile(std::move(it), /*fileStats=*/nullptr, tempDir));
+        vec.push_back(spillToFile(std::move(it), /*fileStats=*/nullptr, spillDir));
     }
     return sorter::merge<IntWrapper, IntWrapper>(vec, opts, IWComparator(Dir));
 }

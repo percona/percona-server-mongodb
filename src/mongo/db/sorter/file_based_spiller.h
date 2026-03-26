@@ -413,7 +413,6 @@ public:
         Settings;
 
     FileBasedSorterStorage(std::shared_ptr<SorterFile> file,
-                           boost::filesystem::path pathToSpillDir,
                            boost::optional<DatabaseName> dbName,
                            SorterChecksumVersion checksumVersion);
 
@@ -431,21 +430,15 @@ public:
 
     void keep() override;
 
-    boost::optional<boost::filesystem::path> getSpillDirPath() override;
-
 private:
     std::shared_ptr<SorterFile> _file;
-    boost::optional<boost::filesystem::path> _pathToSpillDir;
 };
 
 template <typename Key, typename Value>
 FileBasedSorterStorage<Key, Value>::FileBasedSorterStorage(std::shared_ptr<SorterFile> file,
-                                                           boost::filesystem::path pathToSpillDir,
                                                            boost::optional<DatabaseName> dbName,
                                                            SorterChecksumVersion checksumVersion)
-    : SorterStorageBase<Key, Value>(dbName, checksumVersion),
-      _file(std::move(file)),
-      _pathToSpillDir(pathToSpillDir) {}
+    : SorterStorageBase<Key, Value>(dbName, checksumVersion), _file(std::move(file)) {}
 
 template <typename Key, typename Value>
 std::unique_ptr<SortedStorageWriter<Key, Value>> FileBasedSorterStorage<Key, Value>::makeWriter(
@@ -487,11 +480,6 @@ std::string FileBasedSorterStorage<Key, Value>::getStorageIdentifier() {
     return this->_file->path().filename().string();
 }
 
-template <typename Key, typename Value>
-boost::optional<boost::filesystem::path> FileBasedSorterStorage<Key, Value>::getSpillDirPath() {
-    return _pathToSpillDir;
-}
-
 /**
  * How we merge spills when we use a file as the underlying storage for the sorter.
  */
@@ -503,30 +491,30 @@ public:
                       typename Value::SorterDeserializeSettings>
         Settings;
 
-    FileBasedSorterSpiller(boost::filesystem::path tempDir,
+    FileBasedSorterSpiller(boost::filesystem::path spillDir,
                            SorterFileStats* fileStats,
                            boost::optional<DatabaseName> dbName,
                            SorterChecksumVersion checksumVersion,
                            int64_t minAvailableDiskBytesToSpill)
         : SorterSpillerBase<Key, Value, Comparator>(
               std::make_unique<FileBasedSorterStorage<Key, Value>>(
-                  std::make_shared<SorterFile>(sorter::nextFileName(tempDir), fileStats),
-                  tempDir,
+                  std::make_shared<SorterFile>(sorter::nextFileName(spillDir), fileStats),
                   dbName,
                   checksumVersion),
               minAvailableDiskBytesToSpill),
-          _fileStats(fileStats) {}
+          _fileStats(fileStats),
+          _spillDir(spillDir) {}
 
     FileBasedSorterSpiller(std::shared_ptr<SorterFile> file,
-                           boost::filesystem::path tempDir,
+                           boost::filesystem::path spillDir,
                            boost::optional<DatabaseName> dbName,
                            SorterChecksumVersion checksumVersion,
                            int64_t minAvailableDiskBytesToSpill)
         : SorterSpillerBase<Key, Value, Comparator>(
-              std::make_unique<FileBasedSorterStorage<Key, Value>>(
-                  file, tempDir, dbName, checksumVersion),
+              std::make_unique<FileBasedSorterStorage<Key, Value>>(file, dbName, checksumVersion),
               minAvailableDiskBytesToSpill),
-          _fileStats(file->getFileStats()) {}
+          _fileStats(file->getFileStats()),
+          _spillDir(spillDir) {}
 
     void mergeSpills(const SortOptions& opts,
                      const Settings& settings,
@@ -535,6 +523,8 @@ public:
                      Comparator comp,
                      std::size_t numTargetedSpills,
                      std::size_t numParallelSpills) override;
+
+    boost::filesystem::path getSpillDir() override;
 
 private:
     std::unique_ptr<SortedStorageWriter<Key, Value>> _spill(const SortOptions& opts,
@@ -551,6 +541,7 @@ private:
     }
 
     SorterFileStats* _fileStats;
+    boost::filesystem::path _spillDir;
 };
 
 template <typename Key, typename Value, typename Comparator>
@@ -565,17 +556,15 @@ void FileBasedSorterSpiller<Key, Value, Comparator>::mergeSpills(
     using File = SorterFile;
 
     std::shared_ptr<File> newSpillsFile =
-        std::make_shared<File>(sorter::nextFileName(*opts.tempDir), _fileStats);
-    FileBasedSorterStorage<Key, Value> sorterStorage(newSpillsFile,
-                                                     *opts.tempDir,
-                                                     this->getStorage().getDbName(),
-                                                     this->getStorage().getChecksumVersion());
+        std::make_shared<File>(sorter::nextFileName(_spillDir), _fileStats);
+    FileBasedSorterStorage<Key, Value> sorterStorage(
+        newSpillsFile, this->getStorage().getDbName(), this->getStorage().getChecksumVersion());
 
     std::vector<std::shared_ptr<Iterator>> iterators;
     while (iters.size() > numTargetedSpills) {
         iterators.swap(iters);
 
-        newSpillsFile = std::make_shared<File>(sorter::nextFileName(*opts.tempDir), _fileStats);
+        newSpillsFile = std::make_shared<File>(sorter::nextFileName(_spillDir), _fileStats);
         LOGV2_DEBUG(6033103,
                     1,
                     "Created new intermediate file for merged spills",
@@ -595,8 +584,7 @@ void FileBasedSorterSpiller<Key, Value, Comparator>::mergeSpills(
             }
             minRequiredDiskSpace =
                 std::max(minRequiredDiskSpace, this->_minAvailableDiskBytesToSpill);
-            uassertStatusOK(
-                ensureSufficientDiskSpaceForSpilling(*opts.tempDir, minRequiredDiskSpace));
+            uassertStatusOK(ensureSufficientDiskSpaceForSpilling(_spillDir, minRequiredDiskSpace));
 
             LOGV2_DEBUG(
                 6033102, 2, "Merging spills", "beginIdx"_attr = i, "endIdx"_attr = i + count - 1);
@@ -604,7 +592,6 @@ void FileBasedSorterSpiller<Key, Value, Comparator>::mergeSpills(
             auto mergeIterator = sorter::merge<Key, Value, Comparator>(spillsToMerge, opts, comp);
             sorterStorage =
                 FileBasedSorterStorage<Key, Value>(newSpillsFile,
-                                                   *opts.tempDir,
                                                    this->getStorage().getDbName(),
                                                    this->getStorage().getChecksumVersion());
             std::unique_ptr<SortedStorageWriter<Key, Value>> writer =
@@ -631,6 +618,11 @@ void FileBasedSorterSpiller<Key, Value, Comparator>::mergeSpills(
 
     LOGV2_INFO(6033100, "Finished merging spills");
     this->_storage = std::make_unique<FileBasedSorterStorage<Key, Value>>(std::move(sorterStorage));
+}
+
+template <typename Key, typename Value, typename Comparator>
+boost::filesystem::path FileBasedSorterSpiller<Key, Value, Comparator>::getSpillDir() {
+    return _spillDir;
 }
 
 }  // namespace sorter
