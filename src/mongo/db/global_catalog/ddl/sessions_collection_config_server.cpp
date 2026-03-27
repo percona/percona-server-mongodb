@@ -45,6 +45,7 @@
 #include "mongo/db/global_catalog/type_collection.h"
 #include "mongo/db/global_catalog/type_collection_gen.h"
 #include "mongo/db/namespace_string.h"
+#include "mongo/db/namespace_string_util.h"
 #include "mongo/db/operation_context.h"
 #include "mongo/db/pipeline/legacy_runtime_constants_gen.h"
 #include "mongo/db/repl/replication_coordinator.h"
@@ -62,7 +63,6 @@
 #include "mongo/rpc/get_status_from_command_result.h"
 #include "mongo/s/async_requests_sender.h"
 #include "mongo/util/assert_util.h"
-#include "mongo/util/namespace_string_util.h"
 #include "mongo/util/str.h"
 
 #include <cstdint>
@@ -101,7 +101,7 @@ void SessionsCollectionConfigServer::_shardCollectionIfNeeded(OperationContext* 
 
     Lock::GlobalLock lock(opCtx, MODE_IX);
     if (const auto replCoord = repl::ReplicationCoordinator::get(opCtx);
-        replCoord->canAcceptWritesFor(opCtx, CollectionType::ConfigNS)) {
+        replCoord->canAcceptWritesFor(opCtx, NamespaceString::kConfigsvrCollectionsNamespace)) {
         auto filterQuery =
             BSON("_id" << NamespaceStringUtil::serialize(NamespaceString::kLogicalSessionsNamespace,
                                                          SerializationContext::stateDefault())
@@ -126,7 +126,7 @@ void SessionsCollectionConfigServer::_shardCollectionIfNeeded(OperationContext* 
 
         uassertStatusOK(catalogClient->updateConfigDocument(
             opCtx,
-            CollectionType::ConfigNS,
+            NamespaceString::kConfigsvrCollectionsNamespace,
             filterQuery,
             updateQuery,
             false,

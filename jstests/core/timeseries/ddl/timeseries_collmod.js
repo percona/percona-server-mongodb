@@ -8,17 +8,12 @@
  *   requires_non_retryable_commands,
  *   # We need a timeseries collection.
  *   requires_timeseries,
+ *   # There is a separate test for legacy timeseries: /timeseries_collmod_legacy.js
+ *   featureFlagCreateViewlessTimeseriesCollections
  * ]
  */
 
-import {
-    assertOnlyForViewlessTimeseries,
-    getTimeseriesBucketsColl,
-    isViewfulTimeseriesOnlySuite,
-} from "jstests/core/timeseries/libs/viewless_timeseries_util.js";
-
 const collName = jsTestName();
-const bucketsCollName = "system.buckets." + collName;
 const coll = db.getCollection(collName);
 const bucketMaxSpanSecondsHours = 60 * 60 * 24 * 30;
 const bucketRoundingSecondsHours = 60 * 60 * 24;
@@ -58,50 +53,17 @@ assert.commandFailedWithCode(
     ErrorCodes.InvalidOptions,
 );
 
-if (isViewfulTimeseriesOnlySuite(db)) {
-    // Tries to set the validator for a time-series collection using the buckets namespace.
-    assert.commandFailedWithCode(db.runCommand({"collMod": bucketsCollName, "validator": {required: ["time"]}}), [
-        ErrorCodes.InvalidNamespace,
-        // TODO SERVER-105548 Remove the following error code once 9.0 becomes LTS. Needed for
-        // multiversion compatibility. As of 8.3 calling collMod on the buckets namespace
-        // returns InvalidNamespace.
-        ErrorCodes.InvalidOptions,
-    ]);
-}
-
 // Tries to set the validationLevel for a time-series collection.
 assert.commandFailedWithCode(
     db.runCommand({"collMod": collName, "validationLevel": "moderate"}),
     ErrorCodes.InvalidOptions,
 );
 
-if (isViewfulTimeseriesOnlySuite(db)) {
-    // Tries to set the validationLevel for a time-series collection using the buckets namespace.
-    assert.commandFailedWithCode(db.runCommand({"collMod": bucketsCollName, "validationLevel": "moderate"}), [
-        ErrorCodes.InvalidNamespace,
-        // TODO SERVER-105548 Remove the following error code once 9.0 becomes LTS. Needed for
-        // multiversion compatibility. As of 8.3 calling collMod on the buckets namespace
-        // returns InvalidNamespace.
-        ErrorCodes.InvalidOptions,
-    ]);
-}
-
 // Tries to set the validationAction for a time-series collection.
 assert.commandFailedWithCode(
     db.runCommand({"collMod": collName, "validationAction": "warn"}),
     ErrorCodes.InvalidOptions,
 );
-
-if (isViewfulTimeseriesOnlySuite(db)) {
-    // Tries to set the validationLevel for a time-series collection using the buckets namespace.
-    assert.commandFailedWithCode(db.runCommand({"collMod": bucketsCollName, "validationAction": "warn"}), [
-        ErrorCodes.InvalidNamespace,
-        // TODO SERVER-105548 Remove the following error code once 9.0 becomes LTS. Needed for
-        // multiversion compatibility. As of 8.3 calling collMod on the buckets namespace
-        // returns InvalidNamespace.
-        ErrorCodes.InvalidOptions,
-    ]);
-}
 
 // Tries to modify the view for a time-series collection.
 assert.commandFailedWithCode(
@@ -123,23 +85,6 @@ assert.commandFailedWithCode(
 
 // Successfully sets the granularity to a higher value for a time-series collection.
 assert.commandWorked(db.runCommand({"collMod": collName, "timeseries": {"granularity": "hours"}}));
-
-// collMod against the underlying buckets collection should fail: not allowed to target the buckets
-// collection.
-assert.commandFailedWithCode(
-    db.runCommand({"collMod": getTimeseriesBucketsColl(collName), "timeseries": {"granularity": "hours"}}),
-    [
-        ErrorCodes.InvalidNamespace,
-        // When viewless timeseries are enabled, any request targeting system.buckets directly is rejected.
-        ErrorCodes.CommandNotSupportedOnLegacyTimeseriesBucketsNamespace,
-        // Error code thrown by collmod coordinator.
-        //
-        // TODO SERVER-105548 remove the following error code once 9.0 becomes last LTS
-        // Currently needed for multiversion compatibility. Since 8.2 we throw InvalidNamespace also
-        // on sharded clusters.
-        6201808,
-    ],
-);
 
 // Tries to set one seconds parameter without the other (bucketMaxSpanSeconds or
 // bucketRoundingSeconds).
@@ -254,15 +199,8 @@ assert.commandFailedWithCode(
     ErrorCodes.InvalidOptions,
 );
 
-// Verify seconds was correctly set on the collection and granularity removed since a custom
-// value was added.
-const bucketsEntry = getTimeseriesBucketsColl(coll).getMetadata();
-assertOnlyForViewlessTimeseries(db, !bucketsEntry);
-if (bucketsEntry) {
-    assert.eq(bucketsEntry.options.timeseries.bucketRoundingSeconds, bucketMaxSpanSecondsHours + 1);
-    assert.eq(bucketsEntry.options.timeseries.bucketMaxSpanSeconds, bucketMaxSpanSecondsHours + 1);
-    assert.isnull(bucketsEntry.options.timeseries.granularity);
-}
+const bucketsEntry = db.getCollection("system.buckets." + collName).getMetadata();
+assert(!bucketsEntry, "system.buckets namespace should not be accessible for viewless timeseries");
 
 const collectionEntry = coll.getMetadata();
 assert(collectionEntry);

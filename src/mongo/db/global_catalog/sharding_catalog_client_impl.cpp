@@ -52,6 +52,7 @@
 #include "mongo/db/global_catalog/type_shard.h"
 #include "mongo/db/global_catalog/type_tags.h"
 #include "mongo/db/namespace_string.h"
+#include "mongo/db/namespace_string_util.h"
 #include "mongo/db/operation_context.h"
 #include "mongo/db/pipeline/aggregate_command_gen.h"
 #include "mongo/db/pipeline/document_source_group.h"
@@ -80,7 +81,6 @@
 #include "mongo/s/write_ops/batched_command_response.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/intrusive_counter.h"
-#include "mongo/util/namespace_string_util.h"
 #include "mongo/util/pcre_util.h"
 #include "mongo/util/str.h"
 #include "mongo/util/string_map.h"
@@ -170,14 +170,14 @@ AggregateCommandRequest makeCollectionAndChunksAggregation(OperationContext* opC
                                                            const NamespaceString& nss,
                                                            const ChunkVersion& sinceVersion) {
     ResolvedNamespaceMap resolvedNamespaces;
-    resolvedNamespaces[CollectionType::ConfigNS] = {CollectionType::ConfigNS,
-                                                    std::vector<BSONObj>()};
+    resolvedNamespaces[NamespaceString::kConfigsvrCollectionsNamespace] = {
+        NamespaceString::kConfigsvrCollectionsNamespace, std::vector<BSONObj>()};
     resolvedNamespaces[NamespaceString::kConfigsvrChunksNamespace] = {
         NamespaceString::kConfigsvrChunksNamespace, std::vector<BSONObj>()};
 
     auto expCtx = ExpressionContextBuilder{}
                       .opCtx(opCtx)
-                      .ns(CollectionType::ConfigNS)
+                      .ns(NamespaceString::kConfigsvrCollectionsNamespace)
                       .resolvedNamespace(std::move(resolvedNamespaces))
                       .build();
     using Doc = Document;
@@ -318,7 +318,7 @@ AggregateCommandRequest makeCollectionAndChunksAggregation(OperationContext* opC
         }();
 
         return Doc{
-            {"coll", CollectionType::ConfigNS.coll()},
+            {"coll", NamespaceString::kConfigsvrCollectionsNamespace.coll()},
             {"pipeline",
              Arr{Value{Doc{{"$match",
                             Doc{{CollectionType::kNssFieldName,
@@ -331,17 +331,26 @@ AggregateCommandRequest makeCollectionAndChunksAggregation(OperationContext* opC
                      {"$project", Doc{{"_id", false}, {chunksLookupOutputFieldName, true}}}}}}}};
     };
 
-    stages.emplace_back(DocumentSourceUnionWith::createFromBson(
-        Doc{{"$unionWith", buildUnionWithFn(true /* incremental */)}}.toBson().firstElement(),
-        expCtx));
+    auto buildUnionWithStage = [&](bool incremental) -> boost::intrusive_ptr<DocumentSource> {
+        // TODO SERVER-120179 Remove the feature flag guard and the createFromBson path.
+        if (feature_flags::gFeatureFlagExtensionViewsAndUnionWith.isEnabled()) {
+            auto bsonDoc = Doc{{"$unionWith", buildUnionWithFn(incremental)}}.toBson();
+            auto liteParsed = LiteParsedUnionWith::parse(
+                expCtx->getNamespaceString(), bsonDoc.firstElement(), LiteParserOptions{});
+            return DocumentSource::parseFromLiteParsed(expCtx, *liteParsed).front();
+        } else {
+            return DocumentSourceUnionWith::createFromBson(
+                Doc{{"$unionWith", buildUnionWithFn(incremental)}}.toBson().firstElement(), expCtx);
+        }
+    };
 
-    stages.emplace_back(DocumentSourceUnionWith::createFromBson(
-        Doc{{"$unionWith", buildUnionWithFn(false /* incremental */)}}.toBson().firstElement(),
-        expCtx));
+    stages.emplace_back(buildUnionWithStage(true /* incremental */));
+    stages.emplace_back(buildUnionWithStage(false /* incremental */));
 
     auto pipeline = Pipeline::create(std::move(stages), expCtx);
     auto serializedPipeline = pipeline->serializeToBson();
-    return AggregateCommandRequest(CollectionType::ConfigNS, std::move(serializedPipeline));
+    return AggregateCommandRequest(NamespaceString::kConfigsvrCollectionsNamespace,
+                                   std::move(serializedPipeline));
 }
 
 AggregateCommandRequest makeUnsplittableCollectionsDataShardAggregation(
@@ -349,13 +358,13 @@ AggregateCommandRequest makeUnsplittableCollectionsDataShardAggregation(
     const DatabaseName& dbName,
     const std::vector<ShardId>& excludedShards) {
     ResolvedNamespaceMap resolvedNamespaces;
-    resolvedNamespaces[CollectionType::ConfigNS] = {CollectionType::ConfigNS,
-                                                    std::vector<BSONObj>()};
+    resolvedNamespaces[NamespaceString::kConfigsvrCollectionsNamespace] = {
+        NamespaceString::kConfigsvrCollectionsNamespace, std::vector<BSONObj>()};
     resolvedNamespaces[NamespaceString::kConfigsvrChunksNamespace] = {
         NamespaceString::kConfigsvrChunksNamespace, std::vector<BSONObj>()};
     auto expCtx = ExpressionContextBuilder{}
                       .opCtx(opCtx)
-                      .ns(CollectionType::ConfigNS)
+                      .ns(NamespaceString::kConfigsvrCollectionsNamespace)
                       .resolvedNamespace(std::move(resolvedNamespaces))
                       .build();
     using Doc = Document;
@@ -412,7 +421,8 @@ AggregateCommandRequest makeUnsplittableCollectionsDataShardAggregation(
 
     auto pipeline = Pipeline::create(std::move(stages), expCtx);
     auto serializedPipeline = pipeline->serializeToBson();
-    return AggregateCommandRequest(CollectionType::ConfigNS, std::move(serializedPipeline));
+    return AggregateCommandRequest(NamespaceString::kConfigsvrCollectionsNamespace,
+                                   std::move(serializedPipeline));
 }
 
 /**
@@ -598,7 +608,7 @@ CollectionType ShardingCatalogClientImpl::getCollection(OperationContext* opCtx,
                             opCtx,
                             getConfigReadPreference(opCtx),
                             readConcernLevel,
-                            CollectionType::ConfigNS,
+                            NamespaceString::kConfigsvrCollectionsNamespace,
                             BSON(CollectionType::kNssFieldName << NamespaceStringUtil::serialize(
                                      nss, SerializationContext::stateDefault())),
                             BSONObj(),
@@ -619,7 +629,7 @@ CollectionType ShardingCatalogClientImpl::getCollection(OperationContext* opCtx,
         uassertStatusOK(_exhaustiveFindOnConfig(opCtx,
                                                 getConfigReadPreference(opCtx),
                                                 readConcernLevel,
-                                                CollectionType::ConfigNS,
+                                                NamespaceString::kConfigsvrCollectionsNamespace,
                                                 BSON(CollectionType::kUuidFieldName << uuid),
                                                 BSONObj(),
                                                 1))
@@ -645,14 +655,15 @@ std::vector<CollectionType> ShardingCatalogClientImpl::getShardedCollections(
 
     b.append(CollectionType::kUnsplittableFieldName, BSON("$ne" << true));
 
-    auto collDocs = uassertStatusOK(_exhaustiveFindOnConfig(opCtx,
-                                                            getConfigReadPreference(opCtx),
-                                                            readConcernLevel,
-                                                            CollectionType::ConfigNS,
-                                                            b.obj(),
-                                                            sort,
-                                                            boost::none))
-                        .value;
+    auto collDocs =
+        uassertStatusOK(_exhaustiveFindOnConfig(opCtx,
+                                                getConfigReadPreference(opCtx),
+                                                readConcernLevel,
+                                                NamespaceString::kConfigsvrCollectionsNamespace,
+                                                b.obj(),
+                                                sort,
+                                                boost::none))
+            .value;
     std::vector<CollectionType> collections;
     collections.reserve(collDocs.size());
     for (const BSONObj& obj : collDocs)
@@ -674,14 +685,15 @@ std::vector<CollectionType> ShardingCatalogClientImpl::getCollections(
                       fmt::format("^{}\\.", pcre_util::quoteMeta(db)));
     }
 
-    auto collDocs = uassertStatusOK(_exhaustiveFindOnConfig(opCtx,
-                                                            getConfigReadPreference(opCtx),
-                                                            readConcernLevel,
-                                                            CollectionType::ConfigNS,
-                                                            b.obj(),
-                                                            sort,
-                                                            boost::none))
-                        .value;
+    auto collDocs =
+        uassertStatusOK(_exhaustiveFindOnConfig(opCtx,
+                                                getConfigReadPreference(opCtx),
+                                                readConcernLevel,
+                                                NamespaceString::kConfigsvrCollectionsNamespace,
+                                                b.obj(),
+                                                sort,
+                                                boost::none))
+            .value;
     std::vector<CollectionType> collections;
     collections.reserve(collDocs.size());
     for (const BSONObj& obj : collDocs)
@@ -701,14 +713,15 @@ std::vector<NamespaceString> ShardingCatalogClientImpl::getShardedCollectionName
     b.appendRegex(CollectionType::kNssFieldName, fmt::format("^{}\\.", pcre_util::quoteMeta(db)));
     b.append(CollectionTypeBase::kUnsplittableFieldName, BSON("$ne" << true));
 
-    auto collDocs = uassertStatusOK(_exhaustiveFindOnConfig(opCtx,
-                                                            getConfigReadPreference(opCtx),
-                                                            readConcern,
-                                                            CollectionType::ConfigNS,
-                                                            b.obj(),
-                                                            sort,
-                                                            boost::none))
-                        .value;
+    auto collDocs =
+        uassertStatusOK(_exhaustiveFindOnConfig(opCtx,
+                                                getConfigReadPreference(opCtx),
+                                                readConcern,
+                                                NamespaceString::kConfigsvrCollectionsNamespace,
+                                                b.obj(),
+                                                sort,
+                                                boost::none))
+            .value;
 
     std::vector<NamespaceString> collections;
     collections.reserve(collDocs.size());
@@ -747,14 +760,15 @@ std::vector<NamespaceString> ShardingCatalogClientImpl::getUnsplittableCollectio
     b.appendRegex(CollectionType::kNssFieldName, fmt::format("^{}\\.", pcre_util::quoteMeta(db)));
     b.append(CollectionTypeBase::kUnsplittableFieldName, true);
 
-    auto collDocs = uassertStatusOK(_exhaustiveFindOnConfig(opCtx,
-                                                            getConfigReadPreference(opCtx),
-                                                            readConcern,
-                                                            CollectionType::ConfigNS,
-                                                            b.obj(),
-                                                            sort,
-                                                            boost::none))
-                        .value;
+    auto collDocs =
+        uassertStatusOK(_exhaustiveFindOnConfig(opCtx,
+                                                getConfigReadPreference(opCtx),
+                                                readConcern,
+                                                NamespaceString::kConfigsvrCollectionsNamespace,
+                                                b.obj(),
+                                                sort,
+                                                boost::none))
+            .value;
 
     std::vector<NamespaceString> collections;
     collections.reserve(collDocs.size());

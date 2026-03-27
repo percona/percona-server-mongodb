@@ -49,7 +49,7 @@ constexpr std::string_view kInvokeMap = "invoke-map";
 constexpr std::string_view kDrainEmitBuffer = "drain-emit-buffer";
 constexpr std::string_view kGetGlobal = "get-global";
 constexpr std::string_view kGetReturnValueBson = "get-return-value-bson";
-constexpr std::string kReturnValue = "__returnValue";
+constexpr std::string_view kReturnValue = "__returnValue";
 
 std::shared_ptr<WasmEngineContext> WasmEngineContext::create(const std::vector<uint8_t>& bytes) {
     wt::Config config;
@@ -66,6 +66,21 @@ std::shared_ptr<WasmEngineContext> WasmEngineContext::create(const std::vector<u
     invariant(result);
 
     // TODO(SERVER-121743): Make use of options.
+    return std::shared_ptr<WasmEngineContext>(
+        new WasmEngineContext(std::move(engine), result.ok()));
+}
+
+std::shared_ptr<WasmEngineContext> WasmEngineContext::createFromPrecompiled(const uint8_t* data,
+                                                                            size_t size) {
+    wt::Config config;
+    config.wasm_component_model(true);
+
+    wt::Engine engine(std::move(config));
+
+    wt::Span<uint8_t> span(const_cast<uint8_t*>(data), size);
+    auto result = wc::Component::deserialize(engine, span);
+    invariant(result);
+
     return std::shared_ptr<WasmEngineContext>(
         new WasmEngineContext(std::move(engine), result.ok()));
 }

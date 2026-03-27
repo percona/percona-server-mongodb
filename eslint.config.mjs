@@ -251,6 +251,7 @@ export default [
                 // src/mongo/scripting/mozjs/bson.d.ts
                 bsonBinaryEqual: true,
                 bsonObjToArray: true,
+                bsonToBase64: true,
                 bsonUnorderedFieldsCompare: true,
                 bsonWoCompare: true,
 

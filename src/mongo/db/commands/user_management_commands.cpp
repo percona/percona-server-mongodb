@@ -71,10 +71,12 @@
 #include "mongo/db/commands/user_management_commands_common.h"
 #include "mongo/db/commands/user_management_commands_gen.h"
 #include "mongo/db/database_name.h"
+#include "mongo/db/database_name_util.h"
 #include "mongo/db/dbdirectclient.h"
 #include "mongo/db/dbmessage.h"
 #include "mongo/db/local_executor.h"
 #include "mongo/db/namespace_string.h"
+#include "mongo/db/namespace_string_util.h"
 #include "mongo/db/operation_context.h"
 #include "mongo/db/pipeline/aggregate_command_gen.h"
 #include "mongo/db/pipeline/aggregation_request_helper.h"
@@ -107,13 +109,11 @@
 #include "mongo/transport/service_entry_point.h"
 #include "mongo/transport/session.h"
 #include "mongo/util/assert_util.h"
-#include "mongo/util/database_name_util.h"
 #include "mongo/util/decorable.h"
 #include "mongo/util/duration.h"
 #include "mongo/util/fail_point.h"
 #include "mongo/util/future.h"
 #include "mongo/util/icu.h"
-#include "mongo/util/namespace_string_util.h"
 #include "mongo/util/net/ssl_manager.h"
 #include "mongo/util/net/ssl_options.h"
 #include "mongo/util/net/ssl_types.h"
@@ -965,10 +965,6 @@ public:
     using Request = RequestT;
     using Reply = typename RequestT::Reply;
     using TC = TypedCommand<CmdUMCTyped<RequestT, Params>>;
-
-    bool requiresAuthzChecks() const final {
-        return false;
-    }
 
     class Invocation final : public TC::InvocationBase {
     public:
@@ -2116,7 +2112,6 @@ public:
     }
 
     bool allowedWithSecurityToken() const final {
-        // TODO (SERVER-TBD) Support mergeAuthzCollections in multitenancy
         return false;
     }
 };
@@ -2445,7 +2440,7 @@ void CmdMergeAuthzCollections::Invocation::typedRun(OperationContext* opCtx) {
     const auto tempRolesColl = cmd.getTempRolesCollection();
 
     uassert(ErrorCodes::BadValue,
-            "Must provide at least one of \"tempUsersCollection\" and \"tempRolescollection\"",
+            "Must provide at least one of \"tempUsersCollection\" and \"tempRolesCollection\"",
             !tempUsersColl.empty() || !tempRolesColl.empty());
 
     auto* service = opCtx->getClient()->getService();

@@ -37,11 +37,13 @@
 #include "mongo/db/auth/authorization_session.h"
 #include "mongo/db/collection_index_usage_tracker.h"
 #include "mongo/db/curop.h"
+#include "mongo/db/database_name_util.h"
 #include "mongo/db/dbhelpers.h"
 #include "mongo/db/exec/agg/pipeline_builder.h"
 #include "mongo/db/exec/document_value/value.h"
 #include "mongo/db/exec/matcher/matcher.h"
 #include "mongo/db/flow_control_ticketholder.h"
+#include "mongo/db/namespace_string_util.h"
 #include "mongo/db/pipeline/aggregate_command_gen.h"
 #include "mongo/db/pipeline/catalog_resource_handle.h"
 #include "mongo/db/pipeline/document_source.h"
@@ -116,9 +118,7 @@
 #include "mongo/s/query_analysis_sample_tracker.h"
 #include "mongo/s/query_analysis_sampler_util.h"
 #include "mongo/util/assert_util.h"
-#include "mongo/util/database_name_util.h"
 #include "mongo/util/future.h"
-#include "mongo/util/namespace_string_util.h"
 #include "mongo/util/str.h"
 
 #include <algorithm>
@@ -276,23 +276,35 @@ bool acquireCollectionsForPipeline(const boost::intrusive_ptr<ExpressionContext>
                        });
         // Append acquisition for the primary nss.
         requests.emplace_back(CollectionOrViewAcquisitionRequest::fromOpCtx(
-            opCtx,
-            primaryNss,
-            AcquisitionPrerequisites::kRead,
-            AcquisitionPrerequisites::kMustBeCollection));
+            opCtx, primaryNss, AcquisitionPrerequisites::kRead));
 
         // Acquire all the nss at the same snapshot.
         allAcquisitions =
             makeAcquisitionMap(acquireCollectionsOrViewsMaybeLockFree(opCtx, requests));
-
-        // If we resolved a legacy timeseries view but did not subsequently find the
-        // targeted buckets collection, the timeseries collection may have been
-        // concurrently converted to viewless. In that case, throw CollectionBecameView
-        // to restart the aggregation.
-        // TODO SERVER-111172: Remove this logic once all timeseries collections are viewless.
         const auto& primaryAcq = allAcquisitions.at(primaryNss);
-        if (!primaryAcq.isView() && !primaryAcq.collectionExists() &&
-            primaryNss.isTimeseriesBucketsCollection()) {
+
+        // TODO SERVER-111172: Remove this logic once all timeseries collections are viewless and
+        // enforce that 'primaryAcq' cannot be a view.
+        // We must restart the aggregation by throwing 'CollectionBecameView' if one of the
+        // following occurred:
+        // 1. If we did not resolve the legacy timeseries view in the beginning of the aggregate
+        // command but subsequently found a legacy timeseries view, the timeseries collection may
+        // have been concurrently converted to view-ful.
+        // 2. If we resolved a legacy timeseries view but did not subsequently find the
+        // targeted buckets collection, the timeseries collection may have been
+        // concurrently converted to viewless.
+        //
+        // In all other cases, we should error if the primary acquisition is a view.
+        if (primaryAcq.isView()) {
+            uasserted(primaryAcq.getView().getViewDefinition().timeseries()
+                          ? ErrorCodes::CollectionBecameView
+                          : ErrorCodes::CommandNotSupportedOnView,
+                      fmt::format("Namespace '{}' changed from collection to view during "
+                                  "aggregation planning",
+                                  primaryNss.toStringForErrorMsg()));
+        }
+
+        if (!primaryAcq.collectionExists() && primaryNss.isTimeseriesBucketsCollection()) {
             const auto& mainTimeseriesNss = primaryNss.getTimeseriesViewNamespace();
             auto mainTimeseriesColl = CollectionCatalog::get(opCtx)->establishConsistentCollection(
                 opCtx, mainTimeseriesNss, boost::none /* readTimestamp */);

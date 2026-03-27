@@ -52,6 +52,7 @@
 #include "mongo/db/global_catalog/type_shard.h"
 #include "mongo/db/global_catalog/type_tags.h"
 #include "mongo/db/logical_time.h"
+#include "mongo/db/namespace_string_util.h"
 #include "mongo/db/operation_context.h"
 #include "mongo/db/pipeline/aggregate_command_gen.h"
 #include "mongo/db/pipeline/expression_context.h"
@@ -95,7 +96,6 @@
 #include "mongo/util/future.h"
 #include "mongo/util/future_impl.h"
 #include "mongo/util/log_and_backoff.h"
-#include "mongo/util/namespace_string_util.h"
 #include "mongo/util/out_of_line_executor.h"
 #include "mongo/util/scopeguard.h"
 
@@ -534,9 +534,10 @@ Status ShardingCatalogManager::_initConfigCollections(OperationContext* opCtx) {
     // collection for the first time) but not in yet in the committed snapshot).
     DBDirectClient client(opCtx);
 
-    BSONObj cmd = BSON("create" << CollectionType::ConfigNS.coll());
+    BSONObj cmd = BSON("create" << NamespaceString::kConfigsvrCollectionsNamespace.coll());
     BSONObj result;
-    const bool ok = client.runCommand(CollectionType::ConfigNS.dbName(), cmd, result);
+    const bool ok =
+        client.runCommand(NamespaceString::kConfigsvrCollectionsNamespace.dbName(), cmd, result);
     if (!ok) {  // create returns error NamespaceExists if collection already exists
         Status status = getStatusFromCommandResult(result);
         if (status != ErrorCodes::NamespaceExists) {

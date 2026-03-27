@@ -31,8 +31,8 @@ global:
     mod_visibility: needs_replacement
 
 imports:
-    - "mongo/db/session/logical_session_id.idl"
     - "mongo/db/basic_types.idl"
+    - "mongo/db/global_catalog/ddl/coordinator_session.idl"
 
 enums:
     ConfigsvrCoordinatorType:
@@ -56,17 +56,6 @@ structs:
                 type: string
                 optional: true
 
-    ConfigsvrCoordinatorSession:
-        description:
-            "Container for configsvr coordinator session used for guaranteeing remote
-            command idempotency."
-        strict: false
-        fields:
-            lsid:
-                type: LogicalSessionId
-            txnNumber:
-                type: TxnNumber
-
     ConfigsvrCoordinatorMetadata:
         description: "Common metadata for all ConfigsvrCoordinators"
         generate_comparison_operators: false
@@ -76,5 +65,5 @@ structs:
                 cpp_name: id
                 type: ConfigsvrCoordinatorId
             session:
-                type: ConfigsvrCoordinatorSession
+                type: CoordinatorSession
                 optional: true

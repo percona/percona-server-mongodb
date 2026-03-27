@@ -1,0 +1,78 @@
+VARIATION ComplexRename
+input: {
+    "pipeline": [
+        {
+            "$set": {
+                "a": {
+                    "b": {
+                        "$const": 1
+                    }
+                }
+            }
+        },
+        {
+            "$set": {
+                "c": "$a.b"
+            }
+        }
+    ]
+}
+output: {
+    "$set:0": {
+        "scope:0": {
+            "exhaustiveScope": "scope:-1",
+            "fields": {
+                "<missing>:0": {
+                    "declaringScope": "scope:0",
+                    "dependencies": []
+                },
+                "a:1": {
+                    "declaringScope": "scope:0",
+                    "scope:1": {
+                        "exhaustiveScope": "scope:-1",
+                        "fields": {
+                            "<missing>:2": {
+                                "declaringScope": "scope:1",
+                                "dependencies": []
+                            },
+                            "b:3": {
+                                "declaringScope": "scope:1",
+                                "dependencies": [
+                                    "<base document>:-1"
+                                ]
+                            }
+                        }
+                    },
+                    "dependencies": [
+                        "b:3"
+                    ]
+                }
+            }
+        },
+        "dependencies": [
+            "<base document>:-1"
+        ]
+    },
+    "$set:1": {
+        "scope:2": {
+            "exhaustiveScope": "scope:-1",
+            "fields": {
+                "<missing>:4": {
+                    "declaringScope": "scope:2",
+                    "dependencies": []
+                },
+                "a:1": "a:1",
+                "c:5": {
+                    "declaringScope": "scope:2",
+                    "dependencies": [
+                        "b:3"
+                    ]
+                }
+            }
+        },
+        "dependencies": [
+            "b:3"
+        ]
+    }
+}
+

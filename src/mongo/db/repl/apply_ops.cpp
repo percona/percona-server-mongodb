@@ -36,6 +36,7 @@
 #include "mongo/crypto/oplog_key_entry_handler.h"
 #include "mongo/db/database_name.h"
 #include "mongo/db/namespace_string.h"
+#include "mongo/db/namespace_string_util.h"
 #include "mongo/db/operation_context.h"
 #include "mongo/db/profile_settings.h"
 #include "mongo/db/repl/apply_ops_command_info.h"
@@ -53,7 +54,6 @@
 #include "mongo/platform/compiler.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/fail_point.h"
-#include "mongo/util/namespace_string_util.h"
 #include "mongo/util/str.h"
 #include "mongo/util/time_support.h"
 #include "mongo/util/uuid.h"
@@ -133,14 +133,15 @@ Status _applyOps(OperationContext* opCtx,
                     switch (entry.getOpType()) {
                         case OpTypeEnum::kContainerInsert:
                         case OpTypeEnum::kContainerDelete: {
-                            if (const auto fcv =
-                                    serverGlobalParams.featureCompatibility.acquireFCVSnapshot();
-                                !(fcv.isVersionInitialized() &&
-                                  ::mongo::feature_flags::gFeatureFlagPrimaryDrivenIndexBuilds
-                                      .isEnabled(VersionContext::getDecoration(opCtx), fcv)) &&
-                                oplogApplicationMode == OplogApplication::Mode::kApplyOpsCmd) {
-                                uasserted(ErrorCodes::InvalidOptions,
-                                          "Container ops are not enabled");
+                            if (oplogApplicationMode == OplogApplication::Mode::kApplyOpsCmd) {
+                                uassert(ErrorCodes::InvalidOptions,
+                                        "Container ops are not enabled",
+                                        ::mongo::feature_flags::gFeatureFlagPrimaryDrivenIndexBuilds
+                                                .isEnabledUseLatestFCVWhenUninitialized(
+                                                    VersionContext::getDecoration(opCtx),
+                                                    serverGlobalParams.featureCompatibility
+                                                        .acquireFCVSnapshot()) &&
+                                            getTestCommandsEnabled());
                             }
                             auto coll = acquireCollection(opCtx,
                                                           {nss,
