@@ -1,0 +1,44 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "a8e2faf282b6075699183fa4e8261f57932fc116",
+    "merge_commit": "ac6584f4061d8209fde5bd4ce7a6597f42d2196c"
+  },
+  "mergai_version": "0.1.dev111+gc2eff4572.d20260220",
+  "solutions": [
+    {
+      "status": "stop",
+      "cost": 0,
+      "response": {
+        "summary": "Resolved merge conflicts in python.js and sbom.json by keeping Percona-specific enhancements while incorporating upstream changes",
+        "resolved": {
+          "jstests/libs/python.js": "Merged upstream comment update (Python 3.13 reference) with Percona's enhanced flexible Python version check (supports 3.10+). The flexible regex-based version check is kept as it provides better compatibility across Python versions.",
+          "sbom.json": "Kept Percona-specific components (libarchive and AWS SDK for C++) which were added in HEAD. Removed apache arrow-nanoarrow and iceberg-cpp components that were deleted upstream. Updated dependencies section to reflect the Percona additions while removing references to deleted upstream components."
+        },
+        "unresolved": {},
+        "modified": {},
+        "review_notes": "In python.js, the resolution combines the best of both changes: upstream's updated comment referencing Python 3.13 with Percona's more flexible version detection that supports any Python 3.10+ version. In sbom.json, the Percona-specific third-party libraries (libarchive for hot backup functionality and AWS SDK for cloud integration) are preserved, while the upstream removal of apache arrow-nanoarrow and iceberg-cpp is respected since those were not Percona-specific additions."
+      },
+      "tokens": {
+        "total": 67907,
+        "input": 1,
+        "output": 187,
+        "reasoning": 0,
+        "cache": {
+          "read": 67278,
+          "write": 441
+        }
+      },
+      "session": {
+        "messages": []
+      },
+      "stats": {
+        "models": {}
+      },
+      "agent_info": {
+        "agent_type": "opencode_cli",
+        "version": "1.2.27"
+      }
+    }
+  ]
+}
