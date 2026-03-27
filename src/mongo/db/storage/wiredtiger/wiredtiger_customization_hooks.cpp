@@ -33,6 +33,7 @@
 #include "mongo/base/string_data.h"
 #include "mongo/db/encryption/encryption_options.h"
 #include "mongo/db/service_context.h"
+#include "mongo/db/storage/storage_engine.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/database_name_util.h"
 #include "mongo/util/decorable.h"
@@ -65,6 +66,13 @@ public:
             boost::none, tableName, SerializationContext::stateDefault());
         std::string keyIdStr =
             DatabaseNameUtil::serialize(ns.dbName(), SerializationContext::stateDefault());
+
+        // Get the versioned keyid from the storage engine.
+        // This handles generation-based keyids for dropped and recreated databases.
+        auto* storageEngine = getGlobalServiceContext()->getStorageEngine();
+        if (storageEngine) {
+            keyIdStr = storageEngine->keydbGetCurrentKeyId(keyIdStr);
+        }
         StringData keyid(keyIdStr);
         // Keep compatibility with v3.6 after SERVER-34617
         const size_t minsize = 6;  // Minimum size which allows following condition to be true

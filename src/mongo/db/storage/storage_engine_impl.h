@@ -86,7 +86,12 @@ class StorageEngineImpl final : public StorageEngine {
     Status hotBackup(OperationContext* opCtx, const std::string& path) override;
     Status hotBackupTar(OperationContext* opCtx, const std::string& path) override;
     Status hotBackup(OperationContext* opCtx, const percona::S3BackupParameters& s3params) override;
-    void keydbDropDatabase(const DatabaseName& dbName) override;
+    // PSMDB-1997: Deferred key deletion
+    void keydbMarkDatabaseDropped(const DatabaseName& dbName) override;
+    void keydbIncrementPendingDropCount(const std::string& keyid) override;
+    void keydbDecrementPendingDropCount(const std::string& keyid) override;
+    std::string keydbGetCurrentKeyId(const std::string& dbName) override;
+    std::string getIdentEncryptionKeyId(RecoveryUnit& ru, StringData ident) override;
 
 public:
     StorageEngineImpl(OperationContext* opCtx,

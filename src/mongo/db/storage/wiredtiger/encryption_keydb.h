@@ -38,6 +38,7 @@ Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/stdx/mutex.h"
 
 #include <map>
+#include <set>
 #include <string>
 
 #include <wiredtiger.h>
@@ -88,6 +89,30 @@ public:
 
     // drop key for specific keyid (used in dropDatabase)
     int delete_key_by_id(const std::string& keyid);
+
+    // PSMDB-1997: Deferred key deletion to handle database drop/recreate race conditions.
+    // When a database is dropped, we defer key deletion until all pending ident drops complete.
+    // If the database is recreated before all drops complete, we do NOT delete the key.
+
+    // Increment pending drop count for a database.
+    // Called when an ident is scheduled for deferred drop.
+    void incrementPendingDropCount(const std::string& keyid);
+
+    // Decrement pending drop count and potentially delete the key.
+    // When count reaches zero AND the database is marked for deletion (wasn't recreated),
+    // delete the key.
+    void decrementPendingDropCount(const std::string& keyid);
+
+    // Mark database as dropped and pending key deletion.
+    // The key will be deleted when all pending ident drops complete,
+    // unless the database is recreated (which clears the pending deletion flag).
+    // This also increments the generation so new database gets a new keyid.
+    void markDatabaseDropped(const std::string& dbName);
+
+    // Get the current keyid for a database (with generation suffix if applicable).
+    // For a database "test" that was dropped and recreated, this returns "test.v1", etc.
+    // For a database that was never dropped, returns the plain database name.
+    std::string getCurrentKeyId(const std::string& dbName);
 
     // get new counter value for IV in GCM mode
     int get_iv_gcm(uint8_t* buf, int len);
@@ -148,6 +173,21 @@ private:
     int reserve_gcm_iv_range();
     void generate_secure_key_inlock(char key[]);  // uses _srng without locks
 
+    // Persist generation number to table:parameters for a database.
+    // Key format: "dbgen:<dbName>" → uint64_t generation
+    int persistGeneration(const std::string& dbName, uint64_t generation);
+
+    // Load generation number from table:parameters for a database.
+    // Returns 0 if not found (database was never dropped).
+    uint64_t loadGeneration(const std::string& dbName);
+
+    static constexpr StringData kKeyIdGenerationSeparator = "."_sd;
+
+    static std::string to_keyid(const std::string& dbName, uint64_t generation) {
+        return generation > 0 ? dbName + kKeyIdGenerationSeparator + std::to_string(generation)
+                              : dbName;
+    }
+
     const bool _rotation;
     const std::string _path;
     std::string _wtOpenConfig;
@@ -167,6 +207,20 @@ private:
     // get_key_by_id creates entry
     // delete_key_by_it lets encryptor know that DB was deleted and deletes entry
     std::map<std::string, void*> _encryptors;
+
+    // PSMDB-1997: Track pending ident drops for deferred key deletion.
+    // _pendingDropMutex protects _pendingDropCounts, _keysPendingDeletion, and _nextGeneration.
+    stdx::mutex _pendingDropMutex;
+    // Counts of pending ident drops per versioned keyid (e.g., "test" or "test.v1").
+    // Now keyed by the actual versioned keyid from the ident's WiredTiger metadata.
+    std::map<std::string, int> _pendingDropCounts;
+    // Set of versioned keyids that are marked for deletion when all pending drops complete.
+    // A keyid is added here when markDatabaseDropped() is called.
+    std::set<std::string> _keysPendingDeletion;
+    // Maps database name to the next generation number to use.
+    // When a database is dropped, we increment this so new collections get a new keyid.
+    // Generation 0 means use plain dbName, generation 1 means use "dbName.v1", etc.
+    std::map<std::string, uint64_t> _nextGeneration;
 
     std::unique_ptr<WiredTigerSession> _backupSession;
     WT_CURSOR* _backupCursor;

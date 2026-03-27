@@ -298,17 +298,55 @@ void EncryptionKeyDB::init() {
 void EncryptionKeyDB::import_data_from(const EncryptionKeyDB* proto) {
     // not doing any synchronization here because key rotation process is single threaded
     try {
-        // copy parameters table
+        // copy parameters table (including generation data for PSMDB-1997)
         // clone is called right after init(). at this point _gcm_iv_reserved is equal to _gcm_iv
         _gcm_iv_reserved = proto->_gcm_iv_reserved;
         if (store_gcm_iv_reserved()) {
             throw std::runtime_error("failed to copy key db data during rotation");
         }
-        // copy key table
+
         int res;
         auto cursor_close = [](WT_CURSOR* c) {
             c->close(c);
         };
+
+        // Copy all parameters (including "dbgen:*" entries for generation tracking)
+        {
+            WT_CURSOR* srcc;
+            res = proto->_sess->open_cursor(
+                proto->_sess, "table:parameters", nullptr, nullptr, &srcc);
+            if (res)
+                throw std::runtime_error(std::string("clone: error opening parameters cursor: ") +
+                                         wiredtiger_strerror(res));
+            std::unique_ptr<WT_CURSOR, std::function<void(WT_CURSOR*)>> srcc_guard(srcc,
+                                                                                   cursor_close);
+            WT_CURSOR* dstc;
+            res = _sess->open_cursor(_sess, "table:parameters", nullptr, nullptr, &dstc);
+            if (res)
+                throw std::runtime_error(std::string("clone: error opening parameters cursor: ") +
+                                         wiredtiger_strerror(res));
+            std::unique_ptr<WT_CURSOR, std::function<void(WT_CURSOR*)>> dstc_guard(dstc,
+                                                                                   cursor_close);
+            while ((res = srcc->next(srcc)) == 0) {
+                char* k;
+                WT_ITEM v;
+                if ((res = srcc->get_key(srcc, &k)) || (res = srcc->get_value(srcc, &v)))
+                    throw std::runtime_error(
+                        std::string("clone: error getting key/value from parameters table: ") +
+                        wiredtiger_strerror(res));
+                dstc->set_key(dstc, k);
+                dstc->set_value(dstc, &v);
+                if ((res = dstc->insert(dstc)) != 0)
+                    throw std::runtime_error(
+                        std::string("clone: error writing parameters table: ") +
+                        wiredtiger_strerror(res));
+            }
+            if (res != WT_NOTFOUND)
+                throw std::runtime_error(std::string("clone: error reading parameters table: ") +
+                                         wiredtiger_strerror(res));
+        }
+
+        // copy key table
         WT_CURSOR* srcc;
         res = proto->_sess->open_cursor(proto->_sess, "table:key", nullptr, nullptr, &srcc);
         if (res)
@@ -464,6 +502,207 @@ int EncryptionKeyDB::delete_key_by_id(const std::string& keyid) {
     }
 
     return res;
+}
+
+// PSMDB-1997: Deferred key deletion implementation
+//
+// The approach: track pending drops by versioned keyid (e.g., "test" or "test.v1").
+// The keyid is obtained from the ident's WiredTiger metadata at increment time.
+// When markDatabaseDropped is called, we mark the current keyid for deletion.
+// When all pending drops for a keyid complete AND it's marked for deletion, we delete the key.
+
+void EncryptionKeyDB::incrementPendingDropCount(const std::string& keyid) {
+    stdx::lock_guard<stdx::mutex> lk(_pendingDropMutex);
+    _pendingDropCounts[keyid]++;
+    LOGV2_DEBUG(29060,
+                4,
+                "incrementPendingDropCount",
+                "keyid"_attr = keyid,
+                "count"_attr = _pendingDropCounts[keyid]);
+}
+
+void EncryptionKeyDB::decrementPendingDropCount(const std::string& keyid) {
+    std::string keyidToDelete;
+
+    {
+        stdx::lock_guard<stdx::mutex> lk(_pendingDropMutex);
+        auto countIt = _pendingDropCounts.find(keyid);
+        if (countIt == _pendingDropCounts.end()) {
+            LOGV2_WARNING(
+                29061, "decrementPendingDropCount called for unknown keyid", "keyid"_attr = keyid);
+            return;
+        }
+
+        countIt->second--;
+        LOGV2_DEBUG(29062,
+                    4,
+                    "decrementPendingDropCount",
+                    "keyid"_attr = keyid,
+                    "count"_attr = countIt->second);
+
+        if (countIt->second <= 0) {
+            _pendingDropCounts.erase(countIt);
+
+            // Check if this keyid is marked for deletion (database was dropped).
+            // If so, delete the key now that all idents using it are dropped.
+            auto pendingIt = _keysPendingDeletion.find(keyid);
+            if (pendingIt != _keysPendingDeletion.end()) {
+                _keysPendingDeletion.erase(pendingIt);
+                keyidToDelete = keyid;
+                LOGV2_DEBUG(29063,
+                            4,
+                            "All pending drops completed, will delete encryption key",
+                            "keyid"_attr = keyid);
+            }
+        }
+    }
+
+    // Delete key outside the lock to avoid potential deadlock
+    if (!keyidToDelete.empty()) {
+        delete_key_by_id(keyidToDelete);
+    }
+}
+
+void EncryptionKeyDB::markDatabaseDropped(const std::string& dbName) {
+    stdx::lock_guard<stdx::mutex> lk(_pendingDropMutex);
+
+    // Get the current keyid for this database (before incrementing generation)
+    std::string currentKeyId = getCurrentKeyId(dbName);
+
+    // Mark this keyid for deletion when all pending drops complete.
+    // The keyid will only be deleted when decrementPendingDropCount brings its count to 0.
+    _keysPendingDeletion.insert(currentKeyId);
+
+    // Increment generation so new database gets a new keyid
+    // If _nextGeneration[dbName] doesn't exist, it defaults to 0
+    // After increment, generation 1 means new collections use "dbName.v1"
+    _nextGeneration[dbName]++;
+
+    // Persist the new generation to table:parameters so it survives restart
+    persistGeneration(dbName, _nextGeneration[dbName]);
+
+    // Re-enable sessioncreate for the old encryptor so checkpoint-cleanup works
+    auto it = _encryptors.find(currentKeyId);
+    if (it != _encryptors.end()) {
+        percona_encryption_extension_drop_keyid(it->second);
+    }
+
+    LOGV2_DEBUG(29065,
+                4,
+                "markDatabaseDropped",
+                "dbName"_attr = dbName,
+                "droppedKeyId"_attr = currentKeyId,
+                "nextGeneration"_attr = _nextGeneration[dbName]);
+}
+
+std::string EncryptionKeyDB::getCurrentKeyId(const std::string& dbName) {
+    // Note: caller must hold _pendingDropMutex if thread safety is needed,
+    // but for table creation this is called from a single-threaded context.
+
+    // Check if we have a next generation cached in memory
+    auto it = _nextGeneration.find(dbName);
+    if (it != _nextGeneration.end()) {
+        if (it->second > 0) {
+            // Database was dropped, use versioned keyid
+            return to_keyid(dbName, it->second);
+        }
+        // Generation is 0 - use plain dbName
+        return dbName;
+    }
+
+    // First access after restart - load generation from table:parameters (O(1) lookup)
+    uint64_t generation = loadGeneration(dbName);
+    _nextGeneration[dbName] = generation;
+
+    if (generation > 0) {
+        // Database was dropped before restart, use versioned keyid
+        return to_keyid(dbName, generation);
+    }
+
+    // Generation is 0 - database was never dropped, use plain dbName
+    return dbName;
+}
+
+int EncryptionKeyDB::persistGeneration(const std::string& dbName, uint64_t generation) {
+    // Store generation in table:parameters with key "dbgen:<dbName>"
+    std::string paramKey = "dbgen:" + dbName;
+
+    int res;
+    WT_CURSOR* cursor;
+    stdx::lock_guard<stdx::mutex> lk(_lock_sess);
+    res = _sess->open_cursor(_sess, "table:parameters", nullptr, nullptr, &cursor);
+    if (res) {
+        LOGV2_ERROR(29066,
+                    "persistGeneration: error opening cursor: {err}",
+                    "err"_attr = wiredtiger_strerror(res));
+        return res;
+    }
+
+    std::unique_ptr<WT_CURSOR, std::function<void(WT_CURSOR*)>> cursor_guard(
+        cursor, [](WT_CURSOR* c) { c->close(c); });
+
+    // Store generation as 8-byte value
+    uint8_t buf[sizeof(uint64_t)];
+    memcpy(buf, &generation, sizeof(uint64_t));
+
+    WT_ITEM v;
+    v.size = sizeof(uint64_t);
+    v.data = buf;
+    cursor->set_key(cursor, paramKey.c_str());
+    cursor->set_value(cursor, &v);
+    res = cursor->insert(cursor);
+    if (res) {
+        LOGV2_ERROR(29067,
+                    "persistGeneration: cursor->insert error {code}: {desc}",
+                    "code"_attr = res,
+                    "desc"_attr = wiredtiger_strerror(res));
+        return res;
+    }
+
+    LOGV2_DEBUG(
+        29068, 4, "persistGeneration", "dbName"_attr = dbName, "generation"_attr = generation);
+    return 0;
+}
+
+uint64_t EncryptionKeyDB::loadGeneration(const std::string& dbName) {
+    // Load generation from table:parameters with key "dbgen:<dbName>"
+    std::string paramKey = "dbgen:" + dbName;
+
+    int res;
+    WT_CURSOR* cursor;
+    stdx::lock_guard<stdx::mutex> lk(_lock_sess);
+    res = _sess->open_cursor(_sess, "table:parameters", nullptr, nullptr, &cursor);
+    if (res) {
+        LOGV2_ERROR(29069,
+                    "loadGeneration: error opening cursor: {err}",
+                    "err"_attr = wiredtiger_strerror(res));
+        return 0;
+    }
+
+    std::unique_ptr<WT_CURSOR, std::function<void(WT_CURSOR*)>> cursor_guard(
+        cursor, [](WT_CURSOR* c) { c->close(c); });
+
+    cursor->set_key(cursor, paramKey.c_str());
+    res = cursor->search(cursor);
+    if (res == 0) {
+        WT_ITEM v;
+        cursor->get_value(cursor, &v);
+        if (v.size == sizeof(uint64_t)) {
+            uint64_t generation;
+            memcpy(&generation, v.data, sizeof(uint64_t));
+            LOGV2_DEBUG(
+                29070, 4, "loadGeneration", "dbName"_attr = dbName, "generation"_attr = generation);
+            return generation;
+        }
+    } else if (res != WT_NOTFOUND) {
+        LOGV2_ERROR(29071,
+                    "loadGeneration: cursor->search error {code}: {desc}",
+                    "code"_attr = res,
+                    "desc"_attr = wiredtiger_strerror(res));
+    }
+
+    // Not found or error - return 0 (database was never dropped)
+    return 0;
 }
 
 int EncryptionKeyDB::store_gcm_iv_reserved() {

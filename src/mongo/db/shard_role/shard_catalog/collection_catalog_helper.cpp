@@ -49,6 +49,7 @@
 #include "mongo/db/storage/recovery_unit_noop.h"
 #include "mongo/db/views/view.h"
 #include "mongo/util/assert_util.h"
+#include "mongo/util/database_name_util.h"
 #include "mongo/util/fail_point.h"
 #include "mongo/util/str.h"
 
@@ -275,6 +276,28 @@ void removeIndex(OperationContext* opCtx,
 
     const bool isTwoPhaseDrop = dataRemoval == DataRemoval::kTwoPhase;
 
+    // PSMDB-1997: For TDE deferred key deletion, we need to track pending ident drops.
+    // Get the versioned keyid from the ident's metadata and increment the pending drop count.
+    std::string keyid;
+    if (isTwoPhaseDrop) {
+        // Get the actual keyid from the ident's WiredTiger metadata.
+        // This is the versioned keyid (e.g., "test" or "test.v1") that the ident was created with.
+        keyid = storageEngine->getIdentEncryptionKeyId(*shard_role_details::getRecoveryUnit(opCtx),
+                                                       ident->getIdent());
+        if (keyid.empty()) {
+            // Fallback to database name if encryption is not enabled or keyid not found
+            keyid = DatabaseNameUtil::serialize(collection->ns().dbName(),
+                                                SerializationContext::stateDefault());
+        }
+        storageEngine->keydbIncrementPendingDropCount(keyid);
+
+        // Register rollback handler to decrement if transaction fails
+        shard_role_details::getRecoveryUnit(opCtx)->onRollback(
+            [storageEngine, keyid](OperationContext*) {
+                storageEngine->keydbDecrementPendingDropCount(keyid);
+            });
+    }
+
     // Schedule the second phase of drop to delete the data when it is no longer in use, if the
     // first phase is successfully committed.
     shard_role_details::getRecoveryUnit(opCtx)->onCommitForTwoPhaseDrop(
@@ -285,7 +308,8 @@ void removeIndex(OperationContext* opCtx,
          nss = collection->ns(),
          indexNameStr = std::string{indexName},
          ident,
-         isTwoPhaseDrop](OperationContext*, boost::optional<Timestamp> commitTimestamp) {
+         isTwoPhaseDrop,
+         keyid](OperationContext*, boost::optional<Timestamp> commitTimestamp) {
             if (isTwoPhaseDrop) {
                 StorageEngine::DropTime dropTime;
                 if (!commitTimestamp) {
@@ -302,7 +326,13 @@ void removeIndex(OperationContext* opCtx,
                                 "uuid"_attr = uuid,
                                 "ident"_attr = ident->getIdent(),
                                 "dropTime"_attr = dropTime);
-                storageEngine->addDropPendingIdent(dropTime, ident);
+
+                // PSMDB-1997: Create callback to decrement pending drop count when ident is dropped
+                auto onDrop = [storageEngine, keyid]() {
+                    storageEngine->keydbDecrementPendingDropCount(keyid);
+                };
+
+                storageEngine->addDropPendingIdent(dropTime, ident, std::move(onDrop));
             } else {
                 LOGV2(6361201,
                       "Completing drop for index table immediately",
@@ -342,11 +372,26 @@ Status dropCollection(OperationContext* opCtx,
     auto recoveryUnit = shard_role_details::getRecoveryUnit(opCtx);
     auto storageEngine = opCtx->getServiceContext()->getStorageEngine();
 
+    // PSMDB-1997: For TDE deferred key deletion, track pending ident drops.
+    // Get the actual keyid from the ident's WiredTiger metadata.
+    std::string keyid = storageEngine->getIdentEncryptionKeyId(
+        *shard_role_details::getRecoveryUnit(opCtx), ident->getIdent());
+    if (keyid.empty()) {
+        // Fallback to database name if encryption is not enabled or keyid not found
+        keyid = DatabaseNameUtil::serialize(nss.dbName(), SerializationContext::stateDefault());
+    }
+    storageEngine->keydbIncrementPendingDropCount(keyid);
+
+    // Register rollback handler to decrement if transaction fails
+    shard_role_details::getRecoveryUnit(opCtx)->onRollback(
+        [storageEngine, keyid](OperationContext*) {
+            storageEngine->keydbDecrementPendingDropCount(keyid);
+        });
 
     // Schedule the second phase of drop to delete the data when it is no longer in use, if the
     // first phase is successfully committed.
     shard_role_details::getRecoveryUnit(opCtx)->onCommitForTwoPhaseDrop(
-        [svcCtx = opCtx->getServiceContext(), recoveryUnit, storageEngine, nss, ident](
+        [svcCtx = opCtx->getServiceContext(), recoveryUnit, storageEngine, nss, ident, keyid](
             OperationContext*, boost::optional<Timestamp> commitTimestamp) {
             StorageEngine::DropTime dropTime;
             if (!commitTimestamp) {
@@ -361,7 +406,13 @@ Status dropCollection(OperationContext* opCtx,
                             logAttrs(nss),
                             "ident"_attr = ident->getIdent(),
                             "dropTime"_attr = dropTime);
-            storageEngine->addDropPendingIdent(dropTime, ident);
+
+            // PSMDB-1997: Create callback to decrement pending drop count when ident is dropped
+            auto onDrop = [storageEngine, keyid]() {
+                storageEngine->keydbDecrementPendingDropCount(keyid);
+            };
+
+            storageEngine->addDropPendingIdent(dropTime, ident, std::move(onDrop));
         });
 
     return Status::OK();
@@ -386,10 +437,13 @@ Status dropCollectionsWithPrefix(OperationContext* opCtx,
 
     const auto status = dropCollections(opCtx, toDrop, collectionNamePrefix);
 
-    // If all collections were dropped successfully then drop database's encryption key
+    // PSMDB-1997: If all collections were dropped successfully, mark the database as dropped.
+    // This increments the generation counter. The encryption key will be deleted when
+    // all pending ident drops complete AND the generation still matches (i.e., the database
+    // wasn't recreated in the meantime).
     if (status.isOK()) {
         auto storageEngine = opCtx->getServiceContext()->getStorageEngine();
-        storageEngine->keydbDropDatabase(dbName);
+        storageEngine->keydbMarkDatabaseDropped(dbName);
     }
 
     return status;
