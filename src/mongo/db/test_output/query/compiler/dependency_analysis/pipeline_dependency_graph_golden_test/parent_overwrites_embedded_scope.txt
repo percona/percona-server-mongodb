@@ -47,11 +47,15 @@ output: {
                             },
                             "b:3": {
                                 "declaringScope": "scope:1",
-                                "dependencies": []
+                                "dependencies": [
+                                    "<base document>:-1"
+                                ]
                             },
                             "c:4": {
                                 "declaringScope": "scope:1",
-                                "dependencies": []
+                                "dependencies": [
+                                    "<base document>:-1"
+                                ]
                             }
                         }
                     },
@@ -62,7 +66,9 @@ output: {
                 }
             }
         },
-        "dependencies": []
+        "dependencies": [
+            "<base document>:-1"
+        ]
     },
     "$set:1": {
         "scope:2": {
@@ -82,7 +88,9 @@ output: {
     },
     "$match:2": {
         "scope:2": "scope:2",
-        "dependencies": []
+        "dependencies": [
+            "a:6"
+        ]
     }
 }
 

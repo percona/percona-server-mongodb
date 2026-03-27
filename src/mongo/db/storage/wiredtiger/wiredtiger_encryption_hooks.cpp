@@ -32,12 +32,12 @@ Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
 
 #include "mongo/db/storage/wiredtiger/wiredtiger_encryption_hooks.h"
 
+#include "mongo/db/database_name_util.h"
 #include "mongo/db/encryption/encryption_options.h"
 #include "mongo/db/storage/wiredtiger/encryption_keydb.h"
 #include "mongo/db/storage/wiredtiger/encryption_keydb_c_api.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_data_protector.h"
 #include "mongo/logv2/log.h"
-#include "mongo/util/database_name_util.h"
 
 #include <wiredtiger.h>
 

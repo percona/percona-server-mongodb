@@ -182,6 +182,8 @@ class LintRunner:
 
     def simple_file_size_check(self, files_to_lint: list[str]):
         for file in files_to_lint:
+            if not os.path.isfile(file):
+                continue
             if os.path.getsize(file) > LARGE_FILE_THRESHOLD:
                 print(f"File {file} exceeds large file threshold of {LARGE_FILE_THRESHOLD}")
                 self.fail = True
@@ -401,6 +403,7 @@ def run_rules_lint(bazel_bin: str, args: list[str]):
 
     files_with_targets = list_files_with_targets(bazel_bin)
     lr.list_files_without_targets(files_with_targets, "C++", "cpp", ["src/mongo"])
+    lr.list_files_without_targets(files_with_targets, "idl", "idl", ["src"])
     lr.list_files_without_targets(
         files_with_targets,
         "javascript",

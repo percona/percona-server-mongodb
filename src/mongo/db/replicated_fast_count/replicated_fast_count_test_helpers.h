@@ -122,6 +122,10 @@ class ReplicatedFastCountTestPersistenceProvider : public rss::StubPersistencePr
     bool shouldDeferUntimestampedDrops() const override {
         return false;
     }
+
+    bool supportsColdCollections() const override {
+        return false;
+    }
 };
 
 /**
@@ -278,5 +282,12 @@ void assertOpsMatchSpecs(const std::vector<repl::OplogEntry>& oplogEntries,
 boost::optional<repl::OplogEntry> getMostRecentOplogEntry(OperationContext* opCtx,
                                                           const NamespaceString& nss,
                                                           const repl::OpTypeEnum& opType);
+
+/**
+ * Performs a scan over all the documents in 'nss' to get an accurate total size and count for the
+ * collection.
+ */
+CollectionSizeCount scanForAccurateSizeCount(OperationContext* opCtx, const NamespaceString& nss);
+
 
 }  // namespace mongo::replicated_fast_count_test_helpers

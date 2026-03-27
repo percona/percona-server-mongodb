@@ -43,6 +43,7 @@
 #include "mongo/db/index_builds/index_builds_coordinator.h"
 #include "mongo/db/index_key_validate.h"
 #include "mongo/db/namespace_string.h"
+#include "mongo/db/namespace_string_util.h"
 #include "mongo/db/op_observer/op_observer.h"
 #include "mongo/db/operation_context.h"
 #include "mongo/db/pipeline/change_stream_pre_and_post_images_options_gen.h"
@@ -90,7 +91,6 @@
 #include "mongo/platform/compiler.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/fail_point.h"
-#include "mongo/util/namespace_string_util.h"
 #include "mongo/util/str.h"
 
 #include <cstdint>
@@ -1361,7 +1361,7 @@ StatusWith<CollectionOptions> parseCollectionOptionsFromCreateCmdObj(
 std::pair<CollectionOptions, boost::optional<BSONObj>> getCollectionOptionsFromCreateCmd(
     OperationContext* opCtx, const CreateCommand& cmd) {
 
-    auto options = CollectionOptions::fromCreateCommand(cmd);
+    auto options = CollectionOptions::fromCreateCommand(opCtx, cmd);
     auto idIndex = std::exchange(options.idIndex, {});
     bool hasExplicitlyDisabledClustering = cmd.getClusteredIndex() &&
         holds_alternative<bool>(*cmd.getClusteredIndex()) && !get<bool>(*cmd.getClusteredIndex());

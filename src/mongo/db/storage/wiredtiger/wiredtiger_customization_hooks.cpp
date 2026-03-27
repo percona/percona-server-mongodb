@@ -31,12 +31,12 @@
 
 #include "mongo/base/init.h"  // IWYU pragma: keep
 #include "mongo/base/string_data.h"
+#include "mongo/db/database_name_util.h"
 #include "mongo/db/encryption/encryption_options.h"
+#include "mongo/db/namespace_string_util.h"
 #include "mongo/db/service_context.h"
 #include "mongo/util/assert_util.h"
-#include "mongo/util/database_name_util.h"
 #include "mongo/util/decorable.h"
-#include "mongo/util/namespace_string_util.h"
 #include "mongo/util/str.h"
 
 #include <memory>

@@ -30,8 +30,13 @@
 #pragma once
 
 #include "mongo/bson/bsonobj.h"
+#include "mongo/db/database_name.h"
 #include "mongo/util/modules.h"
 #include "mongo/util/uuid.h"
+
+#include <string>
+#include <tuple>
+#include <vector>
 
 namespace MONGO_MOD_PUBLIC mongo {
 
@@ -39,11 +44,13 @@ namespace MONGO_MOD_PUBLIC mongo {
  * Describes an index build on a collection.
  */
 struct IndexBuildsEntry {
+    DatabaseName dbName;
+
     // Collection UUID.
     const UUID collUUID;
 
     // Index specs for the build.
-    std::vector<BSONObj> indexSpecs;
+    std::vector<std::tuple<BSONObj, std::string>> indexSpecsAndIdents;
 };
 
 /**
