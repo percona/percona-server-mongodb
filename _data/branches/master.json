@@ -5,14 +5,14 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 371,
-    "days_behind": 7,
-    "files_affected": 1316,
-    "total_additions": 42540,
-    "total_deletions": 11345,
+    "commits_behind": 377,
+    "days_behind": 10,
+    "files_affected": 1315,
+    "total_additions": 42892,
+    "total_deletions": 11317,
     "date_range": {
       "first": "2026-03-20T04:45:54+00:00",
-      "last": "2026-03-28T00:04:10+00:00"
+      "last": "2026-03-30T02:56:07+00:00"
     }
   },
   "last_merged_commit": {
@@ -36,6 +36,66 @@
     "summary": "SERVER-120367 Introduce core_high_yielding and aggregation_high_yielding suites (#48946)"
   },
   "unmerged_commits": [
+    {
+      "sha": "3d041411453c871470211ab739931a932a2fce32",
+      "short_sha": "3d041411453",
+      "date": "2026-03-30T02:56:07+00:00",
+      "author": {
+        "name": "auto-revert-app[bot]",
+        "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
+      },
+      "summary": "Revert \"SERVER-121409 Introduce white-box integration tests for cluster-wide change stream v2 shard targeting (#49696)\" (#50716)"
+    },
+    {
+      "sha": "b554bf4432c5806376d01b0f69e1e2e825728d37",
+      "short_sha": "b554bf4432c",
+      "date": "2026-03-30T10:54:43+11:00",
+      "author": {
+        "name": "adelinexchen",
+        "email": "100674217+adelinexchen@users.noreply.github.com"
+      },
+      "summary": "SERVER-121694 default to 128kb max leaf pages size for cold collections (#50363)"
+    },
+    {
+      "sha": "9468cc109d12fec7f69ac1c110dfc4710008b89b",
+      "short_sha": "9468cc109d1",
+      "date": "2026-03-30T11:06:56+11:00",
+      "author": {
+        "name": "auto-revert-app[bot]",
+        "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
+      },
+      "summary": "Revert \"SERVER-108947 Expand PBT model to test empty paths (#48976)\" (#50709)"
+    },
+    {
+      "sha": "a3989fb05c6dabc373e24c7af6517fca9aa5271f",
+      "short_sha": "a3989fb05c6",
+      "date": "2026-03-29T15:58:07-05:00",
+      "author": {
+        "name": "mongodb-matthew-normyle",
+        "email": "120420718+mongodb-matthew-normyle@users.noreply.github.com"
+      },
+      "summary": "SERVER-121968: Iceberg: comments, assertions, test cleanups (#50424)"
+    },
+    {
+      "sha": "ff5179a975433d9952367a3d80bb89b4910e3547",
+      "short_sha": "ff5179a9754",
+      "date": "2026-03-28T22:55:09+01:00",
+      "author": {
+        "name": "romanskas",
+        "email": "30618745+romanskas@users.noreply.github.com"
+      },
+      "summary": "SERVER-122507 Add change stream cursor.totalOpened and cursor.lifespan metrics on mongoD (#50398)"
+    },
+    {
+      "sha": "fb5530fd533636e36fa16966f79eeec67d5c6ff0",
+      "short_sha": "fb5530fd533",
+      "date": "2026-03-28T20:04:12+02:00",
+      "author": {
+        "name": "Lyublena Antova",
+        "email": "lyublena.antova@mongodb.com"
+      },
+      "summary": "SERVER-121409 Introduce white-box integration tests for cluster-wide change stream v2 shard targeting (#49696)"
+    },
     {
       "sha": "3610c02c1a1fc111938a249e509a49b6e7bd55a6",
       "short_sha": "3610c02c1a1",
@@ -4000,10 +4060,28 @@
           "num_of_dirs": 13
         }
       }
+    },
+    {
+      "commit": {
+        "sha": "b554bf4432c5806376d01b0f69e1e2e825728d37",
+        "short_sha": "b554bf4432c",
+        "date": "2026-03-30T10:54:43+11:00",
+        "author": {
+          "name": "adelinexchen",
+          "email": "100674217+adelinexchen@users.noreply.github.com"
+        },
+        "summary": "SERVER-121694 default to 128kb max leaf pages size for cold collections (#50363)"
+      },
+      "strategy_name": "important_files",
+      "result": {
+        "matched_files": [
+          "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp"
+        ]
+      }
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-03-28 02:30:35",
+  "generated_at": "2026-03-30 07:20:08",
   "branch_name": "master",
   "display_name": "master"
 }
