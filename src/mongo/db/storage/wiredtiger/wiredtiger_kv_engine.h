@@ -509,7 +509,12 @@ public:
 
     Status alterMetadata(StringData uri, StringData config) override;
 
-    void keydbDropDatabase(const DatabaseName& dbName) override;
+    // PSMDB-1997: Deferred key deletion to handle database drop/recreate race conditions
+    void keydbMarkDatabaseDropped(const DatabaseName& dbName) override;
+    void keydbIncrementPendingDropCount(const std::string& keyid) override;
+    void keydbDecrementPendingDropCount(const std::string& keyid) override;
+    std::string keydbGetCurrentKeyId(const std::string& dbName) override;
+    std::string getIdentEncryptionKeyId(RecoveryUnit& ru, StringData ident) override;
 
     void flushAllFiles(OperationContext* opCtx, bool callerHoldsReadLock) override;
 

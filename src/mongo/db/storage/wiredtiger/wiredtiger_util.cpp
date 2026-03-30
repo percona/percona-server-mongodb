@@ -185,6 +185,48 @@ StatusWith<std::string> WiredTigerUtil::getSourceMetadata(WiredTigerSession& ses
     return _getMetadata(cursor, StringData(item.str, item.len));
 }
 
+StatusWith<std::string> WiredTigerUtil::getEncryptionKeyId(WiredTigerSession& session,
+                                                           StringData uri) {
+    // Get the metadata for the table
+    StatusWith<std::string> metadataResult = getMetadataCreate(session, uri);
+    if (!metadataResult.isOK()) {
+        return metadataResult.getStatus();
+    }
+
+    // Parse the metadata to find encryption config
+    WiredTigerConfigParser parser(metadataResult.getValue());
+    WT_CONFIG_ITEM encryptionItem;
+    int ret = parser.get("encryption", &encryptionItem);
+    if (ret == WT_NOTFOUND) {
+        // No encryption configured
+        return std::string();
+    }
+    if (ret != 0) {
+        return Status(ErrorCodes::InternalError,
+                      str::stream() << "Failed to get encryption config: " << ret);
+    }
+
+    // Parse the encryption sub-config to get keyid
+    if (encryptionItem.type != WT_CONFIG_ITEM::WT_CONFIG_ITEM_STRUCT) {
+        return std::string();
+    }
+
+    WiredTigerConfigParser encryptionParser(encryptionItem);
+    WT_CONFIG_ITEM keyidItem;
+    ret = encryptionParser.get("keyid", &keyidItem);
+    if (ret == WT_NOTFOUND || keyidItem.len == 0) {
+        // No keyid configured
+        return std::string();
+    }
+    if (ret != 0) {
+        return Status(ErrorCodes::InternalError,
+                      str::stream() << "Failed to get keyid from encryption config: " << ret);
+    }
+
+    // Return the keyid string
+    return std::string(keyidItem.str, keyidItem.len);
+}
+
 Status WiredTigerUtil::getApplicationMetadata(WiredTigerSession& session,
                                               StringData uri,
                                               BSONObjBuilder* bob) {

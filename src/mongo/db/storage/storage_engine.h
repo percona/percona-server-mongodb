@@ -348,7 +348,7 @@ public:
     class StreamingCursor {
     public:
         StreamingCursor() = delete;
-        explicit StreamingCursor(BackupOptions options) : options(options) {};
+        explicit StreamingCursor(BackupOptions options) : options(options){};
 
         virtual ~StreamingCursor() = default;
 
@@ -1075,6 +1075,15 @@ public:
      * the files available and runs compaction if they are eligible.
      */
     virtual Status autoCompact(RecoveryUnit&, const AutoCompactOptions& options) = 0;
+
+    /**
+     * Gets the encryption keyid for an ident.
+     *
+     * Returns the keyid string if the ident is encrypted.
+     * Returns an empty string if the ident is not encrypted or keyid is not available.
+     * This is used for TDE deferred key deletion to track which keyid an ident belongs to.
+     */
+    virtual std::string getIdentEncryptionKeyId(RecoveryUnit& ru, StringData ident) = 0;
 
     /**
      * Return true if the storage engine indicates that it is under cache pressure.

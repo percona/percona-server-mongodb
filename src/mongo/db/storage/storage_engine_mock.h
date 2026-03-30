@@ -302,6 +302,10 @@ public:
         return Status::OK();
     }
 
+    std::string getIdentEncryptionKeyId(RecoveryUnit& ru, StringData ident) final {
+        return std::string();
+    }
+
     bool hasOngoingLiveRestore() final {
         return false;
     }

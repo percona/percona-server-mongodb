@@ -641,6 +641,17 @@ public:
     }
 
     /**
+     * Gets the encryption keyid for an ident.
+     *
+     * Returns the keyid string if the ident is encrypted.
+     * Returns an empty string if the ident is not encrypted or keyid is not available.
+     * This is used for TDE deferred key deletion to track which keyid an ident belongs to.
+     */
+    virtual std::string getIdentEncryptionKeyId(RecoveryUnit& ru, StringData ident) {
+        return std::string();
+    }
+
+    /**
      * The destructor will never be called from mongod, but may be called from tests.
      * Engines may assume that this will only be called in the case of clean shutdown, even if
      * cleanShutdown() hasn't been called.

@@ -222,6 +222,15 @@ public:
     static StatusWith<std::string> getSourceMetadata(WiredTigerSession& session, StringData uri);
 
     /**
+     * Gets the encryption keyid for a table at the given URI.
+     *
+     * Returns the keyid string if encryption is configured for the table.
+     * Returns an empty string if encryption is not configured or keyid is not set.
+     * Returns an error status if the metadata cannot be read.
+     */
+    static StatusWith<std::string> getEncryptionKeyId(WiredTigerSession& session, StringData uri);
+
+    /**
      * Reads app_metadata for collection/index at URI as a BSON document.
      */
     static Status getApplicationMetadata(WiredTigerSession& session,
