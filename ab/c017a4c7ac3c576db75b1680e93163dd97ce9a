@@ -1,0 +1,351 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "dbb5b06fee040ea1db3cafe4c3ea723b94debabb",
+    "merge_commit": "6f414a559b21459a1b11f783e39c963fffcb9612"
+  },
+  "mergai_version": "0.1.dev1+ge0f9cea7d",
+  "conflict_context": {
+    "ours_commit": "dbb5b06fee040ea1db3cafe4c3ea723b94debabb",
+    "theirs_commit": "6f414a559b21459a1b11f783e39c963fffcb9612",
+    "base_commit": "91455284e25fc8df98e03a3c3a44805dc705d0be",
+    "files": [
+      "buildscripts/resmokeconfig/suites/ssl.yml"
+    ],
+    "conflict_types": {
+      "buildscripts/resmokeconfig/suites/ssl.yml": "both modified"
+    },
+    "diffs": {
+      "buildscripts/resmokeconfig/suites/ssl.yml": "diff --cc buildscripts/resmokeconfig/suites/ssl.yml\nindex f49414ab31e,6624b2716ff..00000000000\n--- a/buildscripts/resmokeconfig/suites/ssl.yml\n+++ b/buildscripts/resmokeconfig/suites/ssl.yml\n@@@ -4,2 -4,1 +4,10 @@@ selector\n++<<<<<<< HEAD\n +  roots:\n +    - jstests/ssl/*.js\n++||||||| 91455284e25\n++  roots:\n++    - jstests/ssl/*.js\n++    - src/mongo/db/modules/*/jstests/fips/*.js\n++=======\n+   from_target: //jstests/suites/security:ssl\n++>>>>>>> 6f414a559b21459a1b11f783e39c963fffcb9612"
+    },
+    "their_commits": {
+      "buildscripts/resmokeconfig/suites/ssl.yml": [
+        "6f414a559b21459a1b11f783e39c963fffcb9612"
+      ]
+    }
+  },
+  "merge_context": {
+    "merge_commit": "6f414a559b21459a1b11f783e39c963fffcb9612",
+    "merged_commits": [
+      "6f414a559b21459a1b11f783e39c963fffcb9612",
+      "df06cebb51c76939d67d005e562a3c55c279e6fe",
+      "ada1ece0356583840178abd30412bdc03d2719ab",
+      "3dc99cfd4eda63420f2fbd8174cda63ec81e2fc9",
+      "0e9cac63a72ce6ae9cf40c0abc6dcd0c20b1bbad",
+      "4afe8bd39dc27275ddecd39280c2872917198bfe",
+      "3c20719fbea9ea6f9ac1e2a8a0bf46c59f243583",
+      "75c0143f6596825773cf4864ea3214117b8681b3",
+      "b3083482ec3df0cb6be3fdcdde09c3e56fc27180",
+      "9c3570171e82e40729416324097a2c79ef69a79a",
+      "c81eb69757d0d18db98ae727d7cbd53ec59bf5c8",
+      "ee5663865b01d55ea5aaa0a46002d84f4cb893d3",
+      "e2dfe2cc2ed0ed9e7e839be24e91b996e06f68ee",
+      "48196b5590d856fafe7f59a7f862e4e4d6eac0d8",
+      "af73b9ebcbce1207487fde8fbf1216459074507f",
+      "b41c2ede6939e4e3bd76a11dae69ec2033f0d6b3",
+      "75fcc28e45c84ef79a9550200bda185fac3f614e",
+      "125d55cc1d2f3994d94e9041d409a4c62600626e",
+      "d7c6e08e780d35994f0db9af5c3d2174ca8e5231",
+      "4b30590b09e34fd4bdc0bd021791a7502fbea63b",
+      "2b08dd7207de35059a912ed2ecb94a95bb3b423b",
+      "59e8a835a69684365aa0ee08146884444d79e1a5",
+      "56ccaa3aedc8bc24c385e595088ed98bffe10091",
+      "afe78fd7791b1935c045c9863802b87538410e0c",
+      "4ffc55f73bd87a4028f3dc2ea1c3c849045407d3",
+      "467466dd582c7818cbba85942ff6cb95152e4ca6",
+      "1a328a64ed196a01bf68d56eeb6d2a74821ed631",
+      "9e0ee8484d0f9a0bce0a76be9516e7801bb9ea62",
+      "890142a3e5aa91955ec08118b69791a8e2b4cf11",
+      "6b1d878ddca1d0bef5c8f7e8aece5313a888e7ec",
+      "a5ea32d0f15c33e549dda37a0cf020aff48a4509",
+      "bbc2cbdd28b015a44688fcdba3cb4a0b2b35bcc3",
+      "c5d417391a9c5a56185d5fd32c1787dc91916192",
+      "8e5b6098cd5c32a05cdf37eda1751c71a9a8d14c",
+      "e5ef0d7b6d8c3261f6eb70d9821240a0546b053f",
+      "4c1cd774d3de2d1d0ee1fb1aa882739a3f2f8f8e",
+      "5b78a0cfe7ae60b773bf534f9d44a6c4115b3d1a",
+      "a40721dfc6940d03a5637504fcfc432e209bf4e1",
+      "7e9500f63797d0ae68764206483a0daf265248d9",
+      "39a053d3c3b9a06b8c2ac4a180d67c1e9853419a",
+      "e042dfe99f30f196daed4ac4bf2c15dfe2b4ef33",
+      "d1831019c8014c473f6f79b895773d77abf50044",
+      "45ab6671ca45ec968654872ca11e391c826f83fa",
+      "0a98303051120e6138943a0db10e04763750a77c",
+      "777e66a038fa2ed25d4bbe86a36b6bbf726b8777",
+      "cdf20b228be2a358207ca290644facda41027d7a",
+      "687d10309500030ca5d9dc88b87eaec32805f9ee",
+      "25dbb61db6dcf28e95fe68b40bb139ad4abd1186",
+      "0de5c4a182cdb5ca23aa7a3a4ed5143b86f8725b",
+      "f5f04011a0deb07e14a17dd318c37adc10d7f29d",
+      "511e71dd9af26db6833ed6f2fc398b2b193c37aa",
+      "c690520f92a05a29ed387a0bf3c364dee4035b1f",
+      "f63c56e886f79fa41d46e76417f29a36bc85eeb4",
+      "7690aa40d6eed1649766bd49058f77c520a9ddc3",
+      "1f0df4d2e29540e4b2310a5b5ad26f0e3e079f38",
+      "090c26e97bc97a18c3b1a474982e3203f5503eb3",
+      "baef369e11ceda27d952b443e0fb101ce84ed4a2",
+      "fb2c49d36278dab1d983a9e3245baa16cefd4dee",
+      "f2a454ebb6f9d69c985bea2a8a43ea56c6cd6ad2",
+      "da29bb6f78df607ba33f7ec0f35878357ef8cfcd",
+      "fcb014284e2cf71acab97fd330873ff7f86e346f",
+      "f2f0c0a5dbbd2a259626b97ecaec15215277ff76",
+      "bfb3d4b72f4a84a879470d8322b55104d048e88b",
+      "80cadee14523733c228cb24baf3badb68ae557e0",
+      "b6caa38e76927ac26ac295f15cb35af228c38f8f",
+      "0fdb2202f043fbd7b42f597c82fdea221cca591f",
+      "6174511bc7f1e1cdc4ad17b114422ea4509c059e",
+      "0dcbd6a9f34172d02460cf8bbb1f517444a8b16a",
+      "39c4c7a296531e93f95fa9fcb6b9672f7fea279b",
+      "514a0172938b5c4711908f2d0447b5660bab8d54",
+      "212139f48442b0f1d4a6055054e53571859ab0a9",
+      "ef674f38a1af5f2f2a94836e8e2013331aaa5ac8",
+      "54b1d9f2ca3b1d986ec02a287334e0f7dcdeecc9",
+      "9ecb49fba7a0a08ff15a34af44ec756e68ee43bd",
+      "5fb78d46242bf50b28f364154df3b881880e0841",
+      "22e29ad02d55be2b0aafb77f9ed0a0db933b254b",
+      "ee64c6515997ee877571acbbb76beecbc3ec8696",
+      "3e2d06b1221b5f900180e8be76de1139a39e9f67",
+      "5ce24b8805a1439e7af2781972fc0b8228d6c3c7",
+      "75959b89b0cec19e8844b9cfce3c64f7efd82235",
+      "717f831c5f7624ead5fab2661c5807c8c2223536",
+      "01021118a8dbe67d5e60d3625c024d6931741943",
+      "2b8482f4739436a03521fbc81627d524b6ab2749",
+      "365831ef3b53b5d65cd607e5d5aed005a9358fcc",
+      "285e58f0d771bbe4d0ea2e089ce525f5db372226",
+      "404c6cca1d7aa77f9103c5e32d37ec711c76a8c0",
+      "797735683bbd5b983cd0f750f57d9f8fd50ca271",
+      "21ab554b7587853eb07c413797f5c3e0f9825f6b",
+      "b3dbab0b967d16b6258ba10554f4d9cfd1742b0a",
+      "2e50cb55abf4ea33954d3bac112b6ff7102313b0",
+      "14bd51ec410fc2cfe60a1f9c9d9a57b7382a4762",
+      "b773e32b94b9d51914afcc0f803c5948e0878956",
+      "a1963129f246d4c7b9e5218005937f1dde21b152",
+      "d2cf4e0b1466ff180389549dda68c3fd7a4cbdfb",
+      "d8bd4d8b2079281ab951f227bcdd74799c8d5123",
+      "13efe6ad9ba9760b0e521d925a231ad09f9a08f5",
+      "c6a753feb789e21c1443f98e85b7ab6ab2497cd1",
+      "4711c4763570492a705a06adf41d6d5bb265b9a6",
+      "c8a4cd2d282243a0ed12c582e78371f8607c45ea",
+      "b98703a83a67e21b18fab11516f6142e618e9f72",
+      "848db590abc74f7b40a4919f2aaccb2b1da7198c",
+      "003dc8719e30c5cba3f601b3fb477c930315dc07",
+      "9e63eebeac0d9b66e20c671d7b2d78b900a5d503",
+      "f7bb1647e5e9956d0fa01ece7023481f4d02c9c4",
+      "22a46476075bdc32c530177d40bcea2a7af79524",
+      "229bc713d30be9c6bc3df0388d8a335baac770d2",
+      "d80e1b6f0f116d3847d9a983e7621f1bbe629dec",
+      "d781b39b811c2f188cdae00d3858d7abe66cfe0d",
+      "d41ff17d44198640711766a6abfb8bb6eb1f968f",
+      "d4f1d43e71252d4c2889f817646852dd910d8f95",
+      "357c937cb4a44c9fab1dfc4ad2fd94c68903a17b",
+      "d4e340325c13976f449ab5048ff7c1e6c947dcc1",
+      "5b08f3e6334f8497efcbb4c76d459df9a5292f2c",
+      "2fe10d9fdff1b1e0fa105a5a92af698013bfe14a",
+      "fc5b3b9737e05d0700e31c55e2b90db2c7209dff",
+      "1fb4e14be9f33a47107023b2c47742753b8ea942",
+      "1425a42f2d090a5521426b8997fddfb1d1848cc0",
+      "9da29cebf62dd612e90805b837e36a58fa0bfa26",
+      "012b565d26012356fbc0dc12b0cb6311cdecfc95",
+      "309620037ca7ef4350358d5cb22ca3ac50ab6e40",
+      "c87fdcd865b3ea222e72d1b0566e9c6cba11808e",
+      "7dbc71038c7f0ad46edee185392be2c6210b981f",
+      "ac8bf006023e193654fd6dfdccf843ad711bebe0",
+      "9dfe3da4f65823c6e25b42eefee149aaa13cadeb",
+      "081ed1c832a372e4cc14d67cd0d06401f9e533c7",
+      "3f4bacddb8fd11353d6b95c75780e61931419b69",
+      "b73388104e0dd9d07fdd7f08ed5a17c469a889d8",
+      "a422b6a252b7a1a999601eb6b3c5b600ed31e70d",
+      "c3a562f7cfbf47d6db0c069102aba56c7e7ed36d",
+      "6277192441294d3008f8190254a0a0338a170f36",
+      "de539a835f7d566f6b90bf5d6a4f0381a1d1410f",
+      "24198730b6e0053cc829db6b595a438e23af0722",
+      "e062b9a934b741f93abe2125521732249cb00104",
+      "b87368be3a37715b6fdca692f7dfeb2d1265ba8c",
+      "e1e1c205bbd2960173b9764925af19520dda13fb",
+      "bc20fa214e2cf83660032d9d8b6774b3cc3dfdfd",
+      "b74091fbe2c424dfdc75ab0bd1eb9eac9492cbc3",
+      "6649992c93fb4eb7a85936ddf604ef96d768ceff",
+      "131cb5aa9a727bd918ef79730631ab4f4e073935",
+      "bf251444a13489f6f6b357e37c8749e9f2359266",
+      "031a43b0df58f8a618bd3f860657aec5de582916",
+      "12409ee2c2d628426f97ea6e3cb75b0e28a46596",
+      "c64a11b1468435b3a9146c883b6520a7b864b3b7",
+      "f448e0094fb47c4860f566bd4a3cdaac527280dc",
+      "1261bdbacbe42276e9899933a936b1bfa205050d",
+      "919c714e8d692c889415f4ed4e9a488a2d992e8f",
+      "472fbe5134e88db049cc29b70bd85291d5b7315f",
+      "747704734ab60d6a47ce4cf60d88f028606c9987",
+      "1120877044eb9d67f66828a9d7195ea7c6e81ea2",
+      "fd62e6f2439c3dd9d5042c68dd07eef06da361ab",
+      "677d41213377c4bc39ee2cb0b13dd8b002d357e2",
+      "a2e48907ed9b4bf766b1d54a684b9bb6747d71f0",
+      "8a0d9e5ee18f8f3b0016966ff66626d161bedc95",
+      "61a2bf4f34a54e6c6a073b39ed56caddf1a5e623",
+      "29d864a16153def56e04fbf3c2ea1775bbefad47",
+      "3d975b7a20b42af3fd8454b3df3457b0c110e4c4",
+      "3ef9c3d30c579f818cf04126b60c88ac931f9823",
+      "b312195241d25354de3d96e90b94f8a84b003491",
+      "d2be3343f4c34c126b31cd491a0836efb5971557",
+      "39b6f843e8104fd6b305e4e4db52197f1c57c0b5",
+      "8a37094763f21c053c2e255bd3f7ae62f32cbab6",
+      "8169c677e1d2fc1cdbf7b199714f6384dec5d1c7",
+      "f858149c97c235db7c9731262bf849fdcff3927e",
+      "b08cefa47c3f0d69226e8fac3439c2766f7dfdb7",
+      "9eafd498d2f1a4fce82c3c4abf966113772bc0e8",
+      "21cee7c6601d6719e7899a169654fb71134c5e47",
+      "0d4a8a0379e87deeb718318d30ea5fad004d4b54",
+      "75fe3eb07e00861e539bb83c4862a4036d025add",
+      "5301c3537e04687bf749e340c53d2781c5d81541",
+      "cf72a91eef9d8175c7e73d8ad50c18ba76df480e",
+      "0388d3b2751639e053c62e8ed4977a61fa78659d",
+      "8f8e25577b67817a8fa17103deac5d34f17b9e09",
+      "678417f8607e7cab1f916e071652ec5d0a691b3b",
+      "8cc2ab1e53fa4516b9a215925e926a2140b38611",
+      "ca78295726f46164a3802c7f4c20947f2e89a2bc",
+      "d2ca5954063e541b85b5ef7133077f0d4ec91f06",
+      "a80932acf64e62c3de3095d7c9ad329aaee2d3f6",
+      "12698957cf8d248e556d438d00659daeda8604d2",
+      "fe70a48480f755e697164df91a046bc8f022f77d",
+      "c65ab014c8f6280061409d89e93b27a8f3b7cbc1",
+      "64280e17ae5df82b7849e6b71922a0e2634f9aad",
+      "6cfc452c33905b64f49e23815cec186ee02305d2",
+      "11a15a850cc52e25b04e34fa9a615b6cf6b4ba2a",
+      "516d0cab311d1d914ccdb3668ed704c4a9e8baaa",
+      "9a9a537596feae9268bf476281b0dccf7d76d59f",
+      "a933c137cce761d36f4c894b8de969ec0fcfd9f3",
+      "eefbef199f31daf1cfb4bed73dc6d43f50a8b306",
+      "054f892670810d0a9fddd8efc1a92adecfb98544",
+      "1abb8ba5f54aa44e23136f37fdc651c25924f093",
+      "b566a6384f95466d6c9d3e454b48deb441c9da35",
+      "8550552e79d9ef69617aa36285c00af8c8e8e736"
+    ],
+    "important_files_modified": [
+      "src/mongo/db/repl/initial_sync/initial_syncer.cpp",
+      "src/mongo/db/repl/initial_sync/initial_syncer.h",
+      "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp",
+      "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine_test.cpp"
+    ],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        "buildscripts/resmokelib/configure_resmoke.py",
+        "jstests/auth/lib/commands_lib.js",
+        "jstests/libs/python.js",
+        "sbom.json",
+        "src/mongo/base/error_codes.yml",
+        "src/mongo/db/BUILD.bazel",
+        "src/mongo/db/auth/builtin_roles.yml",
+        "src/mongo/db/curop.cpp",
+        "src/mongo/db/pipeline/BUILD.bazel",
+        "src/mongo/db/pipeline/process_interface/common_mongod_process_interface.cpp",
+        "src/mongo/db/storage/wiredtiger/BUILD.bazel",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h"
+      ]
+    }
+  },
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 80899,
+    "num_turns": 3,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.3367872499999999,
+    "modelUsage": {
+      "claude-opus-4-5": {
+        "inputTokens": 26,
+        "outputTokens": 1809,
+        "cacheReadInputTokens": 77477,
+        "cacheCreationInputTokens": 40431,
+        "webSearchRequests": 0,
+        "costUSD": 0.3367872499999999,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-opus-4-5": {
+          "tokens": {
+            "input": 26,
+            "output": 1809,
+            "cache_read": 77477,
+            "cache_creation": 40431
+          },
+          "cost_usd": 0.3367872499999999
+        }
+      }
+    },
+    "text_result": "Done. I've written the JSON response analyzing the merge:\n\n- **Conflict**: `ssl.yml` - MongoDB switched from glob-based `roots:` to Bazel `from_target:` approach\n- **Auto-merged**: 13 files including critical ones like `wiredtiger_kv_engine.cpp` and `curop.cpp` where Percona-specific code (encryption, hotbackup, audit logging) was preserved alongside upstream changes\n- **Review focus**: Verify WiredTiger and auth-related auto-merges preserved Percona features correctly",
+    "response": {
+      "summary": "Large merge bringing 180+ MongoDB upstream commits. Key changes include WiredTiger storage engine improvements, initial sync enhancements, Bazel build system updates for test suites (moving from glob patterns to Bazel targets), and various query/pipeline optimizations. The single conflict is in ssl.yml where MongoDB switched from roots-based test selection to Bazel from_target approach.",
+      "auto_merged": {
+        "buildscripts/resmokelib/configure_resmoke.py": "Resmoke configuration changes merged automatically - likely new configuration options or refactoring",
+        "jstests/auth/lib/commands_lib.js": "Auth test library updates merged - command definitions or test helpers",
+        "jstests/libs/python.js": "Python helper library changes merged automatically",
+        "sbom.json": "Software Bill of Materials updated with new dependencies",
+        "src/mongo/base/error_codes.yml": "New error codes added from upstream",
+        "src/mongo/db/BUILD.bazel": "Build configuration changes merged - new targets or dependencies",
+        "src/mongo/db/auth/builtin_roles.yml": "Built-in roles definitions updated from upstream",
+        "src/mongo/db/curop.cpp": "Current operation tracking changes merged - Percona audit logging additions preserved alongside upstream changes",
+        "src/mongo/db/pipeline/BUILD.bazel": "Pipeline build configuration updated",
+        "src/mongo/db/pipeline/process_interface/common_mongod_process_interface.cpp": "Process interface changes merged automatically",
+        "src/mongo/db/storage/wiredtiger/BUILD.bazel": "WiredTiger build configuration updated - new benchmark or test targets",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp": "WiredTiger KV engine changes merged - includes Percona encryption/hotbackup code alongside upstream improvements",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h": "WiredTiger KV engine header changes merged - Percona-specific methods preserved"
+      },
+      "review_notes": "CONFLICT in buildscripts/resmokeconfig/suites/ssl.yml: MongoDB changed from roots-based glob patterns to Bazel from_target approach. Percona's version had removed the FIPS module path (src/mongo/db/modules/*/jstests/fips/*.js). Resolution should adopt MongoDB's new from_target approach since: (1) it's a structural improvement for build system consistency, (2) Percona's change was removing a path that wouldn't apply in the new approach anyway. Verify the Bazel target //jstests/suites/security:ssl includes appropriate tests. Important auto-merged files to verify: wiredtiger_kv_engine.cpp (Percona encryption/hotbackup code), curop.cpp (audit logging), and auth files (Percona LDAP/external auth features)."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [
+            "Let me analyze the merge conflict and auto-merged files to create the response."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Read"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [
+            "Now I'll write the JSON response analyzing this merge."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [
+            "Done. I've written the JSON response analyzing the merge:\n\n- **Conflict**: `ssl.yml` - MongoDB switched from glob-based `roots:` to Bazel `from_target:` approach\n- **Auto-merged**: 13 files including critical ones like `wiredtiger_kv_engine.cpp` and `curop.cpp` where Percona-specific code (encryption, hotbackup, audit logging) was preserved alongside upstream changes\n- **Review focus**: Verify WiredTiger and auth-related auto-merges preserved Percona features correctly"
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20260330_120012_963674.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.87 (Claude Code)"
+    }
+  }
+}
