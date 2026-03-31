@@ -14,6 +14,10 @@ inputs:
     description: "Install gemini-cli"
     required: false
     default: "false"
+  setup-claude:
+    description: "Install Claude CLI"
+    required: false
+    default: "false"
   setup-mergai:
     description: "Setup mergai tool and run fork init"
     required: false
@@ -34,6 +38,10 @@ inputs:
     description: "MergAI git ref to checkout"
     required: false
     default: "master"
+  claude-api-key:
+    description: "Anthropic API key for Claude CLI (required if setup-claude: true)"
+    required: false
+    default: ""
 
 runs:
   using: "composite"
@@ -48,10 +56,9 @@ runs:
         chmod 600 $RUNNER_TEMP/gcp-key.json
         echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/gcp-key.json" >> $GITHUB_ENV
 
-    # Install Google's Gemini CLI tool globally via npm.
-    # Automatically sets up Node.js 22 as a dependency.
+    # Install Node.js 22 for npm-based CLI tools (gemini-cli, claude-cli).
     - name: Install Node
-      if: inputs.setup-gemini == 'true'
+      if: inputs.setup-gemini == 'true' || inputs.setup-claude == 'true'
       uses: actions/setup-node@v4
       with:
         node-version: "22"
@@ -61,6 +68,19 @@ runs:
       shell: bash
       run: |
         npm install -g @google/gemini-cli
+
+    # Install Anthropic's Claude Code CLI tool globally via npm.
+    # Validates API key, installs the CLI, and exports the environment variable.
+    - name: Install claude-cli
+      if: inputs.setup-claude == 'true'
+      shell: bash
+      run: |
+        if [ -z "${{ inputs.claude-api-key }}" ]; then
+          echo "::error::CLAUDE_API_KEY secret is required when setup-claude is true"
+          exit 1
+        fi
+        npm install -g @anthropic-ai/claude-code
+        echo "ANTHROPIC_API_KEY=${{ inputs.claude-api-key }}" >> $GITHUB_ENV
 
     # Configure git for automated commits by the psmdb-bot.
     # - Sets both GITHUB_TOKEN and GH_TOKEN for compatibility with different tools

@@ -7,6 +7,15 @@ on:
         description: "Commit hash to merge (leave empty to use merge-pick --next)"
         required: false
         type: string
+      mergai-ref:
+        description: "MergAI git ref to use (branch/tag/commit)"
+        required: false
+        type: string
+        default: "master"
+      mergai-agent:
+        description: "AI agent to use for merge/describe/resolve (e.g., claude-cli:claude-opus-4-5)"
+        required: false
+        type: string
   pull_request:
     types: [closed]
     branches:
@@ -53,11 +62,13 @@ jobs:
         with:
           setup-gcp: "true"
           setup-gemini: "true"
+          setup-claude: "true"
           setup-mergai: "true"
           gcp-credentials: ${{ secrets.GCP_CREDENTIALS }}
+          claude-api-key: ${{ secrets.CLAUDE_API_KEY }}
           github-app-token: ${{ steps.app-token.outputs.token }}
           github-app-id: ${{ secrets.PSMDB_BOT_GH_APP_ID }}
-          mergai-ref: master
+          mergai-ref: ${{ inputs['mergai-ref'] }}
 
       # Get next prioritized commit to merge from upstream based on configured strategies
       - name: mergai merge-pick
@@ -77,12 +88,22 @@ jobs:
           mergai context init $MERGE_PICK
 
       - name: merge
+        env:
+          MERGAI_AGENT: ${{ inputs['mergai-agent'] }}
         run: |
           # Fetch and merge notes from remote
           mergai notes update
 
+          # Build merge command with optional agent
+          MERGE_CMD="mergai merge"
+          RESOLVE_CMD="mergai resolve -y"
+          if [ -n "$MERGAI_AGENT" ]; then
+            MERGE_CMD="$MERGE_CMD --agent \"$MERGAI_AGENT\""
+            RESOLVE_CMD="$RESOLVE_CMD --agent \"$MERGAI_AGENT\""
+          fi
+
           # Attempt merge; exit code 0 = success, 1 = conflicts
-          if mergai merge; then
+          if eval $MERGE_CMD; then
             echo "Merge successful. Committing merge."
             mergai commit merge              # Create merge commit with note attached
             mergai branch create main        # Create and checkout main working branch
@@ -94,7 +115,7 @@ jobs:
             mergai commit conflict           # Commit conflict state with markers
             mergai branch create conflict    # Create branch with conflict markers
             mergai branch create solution    # Create branch for AI solution
-            mergai resolve -y                # Run AI conflict resolution (yolo mode)
+            eval $RESOLVE_CMD                # Run AI conflict resolution (yolo mode)
             mergai commit solution           # Commit resolved files with note
             mergai branch push solution      # Push solution branch
             mergai branch push conflict      # Push conflict branch
