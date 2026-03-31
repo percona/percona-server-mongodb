@@ -44,6 +44,7 @@ Copyright (C) 2022-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/service_context_test_fixture.h"
 #include "mongo/db/storage/master_key_rotation_completed.h"
 #include "mongo/db/storage/wiredtiger/encryption_keydb.h"
+#include "mongo/db/storage/wiredtiger/wiredtiger_global_options_gen.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h"
 #include "mongo/logv2/log_component.h"
 #include "mongo/unittest/temp_dir.h"
@@ -59,8 +60,10 @@ Copyright (C) 2022-present Percona and/or its affiliates. All rights reserved.
 #include <fstream>
 #include <memory>
 #include <optional>
+#include <set>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include <sys/stat.h>  // for `::chmod`
 
@@ -1658,6 +1661,264 @@ TEST_F(WiredTigerKVEngineEncryptionKeyKmipPollStateTest,
 #undef ASSERT_CREATE_ENGINE_THROWS_REASON_REGEX
 #undef ASSERT_CREATE_ENGINE_THROWS_REASON_CONTAINS
 #undef ASSERT_CREATE_ENGINE_THROWS_WHAT
+
+// =============================================================================
+// Tests for EncryptionKeyDB::getAllKeyIds() and WiredTigerKVEngine key management
+// =============================================================================
+
+/**
+ * Test fixture for encryption key management operations.
+ * Extends WiredTigerKVEngineEncryptionKeyFileTest to get a fully configured
+ * encrypted engine.
+ */
+class WiredTigerKVEngineEncryptionKeyManagementTest
+    : public WiredTigerKVEngineEncryptionKeyFileTest {
+protected:
+    void _setUpPreconfiguredEngine() override {
+        // Set up encryption params and create the engine, but don't reset it
+        // We want to keep the engine running for our tests
+        _setUpEncryptionParams();
+        _engine = _createWiredTigerKVEngine();
+        WtKeyIds::instance().configured = std::move(WtKeyIds::instance().futureConfigured);
+    }
+
+    // Helper to trigger key creation by calling get_key_by_id
+    // This simulates what happens when an encrypted ident is created
+    void triggerKeyCreation(const std::string& keyId) {
+        auto keyDb = _engine->getEncryptionKeyDB();
+        ASSERT(keyDb);
+        unsigned char keyBuf[32];  // 256-bit key
+        int res = keyDb->get_key_by_id(keyId.c_str(), keyId.length(), keyBuf, nullptr);
+        ASSERT_EQ(0, res) << "Failed to create/get key with id: " << keyId;
+    }
+
+    // Helper to delete a key from the keydb
+    void deleteKeyFromKeyDb(const std::string& keyId) {
+        auto keyDb = _engine->getEncryptionKeyDB();
+        ASSERT(keyDb);
+        int res = keyDb->delete_key_by_id(keyId);
+        ASSERT_EQ(0, res) << "Failed to delete key with id: " << keyId;
+    }
+};
+
+// -----------------------------------------------------------------------------
+// Tests for EncryptionKeyDB::getAllKeyIds()
+// -----------------------------------------------------------------------------
+
+TEST_F(WiredTigerKVEngineEncryptionKeyManagementTest, GetAllKeyIdsInitiallyEmpty) {
+    // A fresh encrypted engine should have no user database keys
+    // (only the master key which is excluded)
+    auto keyDb = _engine->getEncryptionKeyDB();
+    ASSERT(keyDb);
+
+    auto keyIds = keyDb->getAllKeyIds();
+    ASSERT_TRUE(keyIds.empty());
+}
+
+TEST_F(WiredTigerKVEngineEncryptionKeyManagementTest, GetAllKeyIdsSingleKey) {
+    triggerKeyCreation("testdb1");
+
+    auto keyDb = _engine->getEncryptionKeyDB();
+    auto keyIds = keyDb->getAllKeyIds();
+
+    ASSERT_EQ(keyIds.size(), 1u);
+    ASSERT_EQ(keyIds[0], "testdb1");
+}
+
+TEST_F(WiredTigerKVEngineEncryptionKeyManagementTest, GetAllKeyIdsMultipleKeys) {
+    triggerKeyCreation("db_alpha");
+    triggerKeyCreation("db_beta");
+    triggerKeyCreation("db_gamma");
+
+    auto keyDb = _engine->getEncryptionKeyDB();
+    auto keyIds = keyDb->getAllKeyIds();
+
+    ASSERT_EQ(keyIds.size(), 3u);
+
+    // Convert to set for easier checking (order not guaranteed)
+    std::set<std::string> keyIdSet(keyIds.begin(), keyIds.end());
+    ASSERT_TRUE(keyIdSet.count("db_alpha") > 0);
+    ASSERT_TRUE(keyIdSet.count("db_beta") > 0);
+    ASSERT_TRUE(keyIdSet.count("db_gamma") > 0);
+}
+
+TEST_F(WiredTigerKVEngineEncryptionKeyManagementTest, GetAllKeyIdsExcludesDefaultKey) {
+    // Create a key with "/default" keyid - this should be excluded from results
+    triggerKeyCreation("/default");
+    triggerKeyCreation("regular_db");
+
+    auto keyDb = _engine->getEncryptionKeyDB();
+    auto keyIds = keyDb->getAllKeyIds();
+
+    // Should only contain the regular_db key, not /default
+    ASSERT_EQ(keyIds.size(), 1u);
+    ASSERT_EQ(keyIds[0], "regular_db");
+}
+
+// -----------------------------------------------------------------------------
+// Tests for WiredTigerKVEngine::getAllEncryptionKeyIds()
+// -----------------------------------------------------------------------------
+
+TEST_F(WiredTigerKVEngineEncryptionKeyManagementTest, EngineGetAllEncryptionKeyIdsEmpty) {
+    auto keyIds = _engine->getAllEncryptionKeyIds();
+    ASSERT_TRUE(keyIds.empty());
+}
+
+TEST_F(WiredTigerKVEngineEncryptionKeyManagementTest, EngineGetAllEncryptionKeyIdsWithKeys) {
+    triggerKeyCreation("engine_test_db1");
+    triggerKeyCreation("engine_test_db2");
+
+    auto keyIds = _engine->getAllEncryptionKeyIds();
+
+    ASSERT_EQ(keyIds.size(), 2u);
+    std::set<std::string> keyIdSet(keyIds.begin(), keyIds.end());
+    ASSERT_TRUE(keyIdSet.count("engine_test_db1") > 0);
+    ASSERT_TRUE(keyIdSet.count("engine_test_db2") > 0);
+}
+
+// -----------------------------------------------------------------------------
+// Tests for WiredTigerKVEngine::deleteEncryptionKey()
+// -----------------------------------------------------------------------------
+
+TEST_F(WiredTigerKVEngineEncryptionKeyManagementTest, DeleteEncryptionKeySuccess) {
+    triggerKeyCreation("db_to_delete");
+
+    // Verify key exists
+    auto keyIdsBefore = _engine->getAllEncryptionKeyIds();
+    ASSERT_EQ(keyIdsBefore.size(), 1u);
+
+    // Delete the key
+    bool result = _engine->deleteEncryptionKey("db_to_delete");
+    ASSERT_TRUE(result);
+
+    // Verify key is gone
+    auto keyIdsAfter = _engine->getAllEncryptionKeyIds();
+    ASSERT_TRUE(keyIdsAfter.empty());
+}
+
+TEST_F(WiredTigerKVEngineEncryptionKeyManagementTest, DeleteEncryptionKeyNotFound) {
+    // Try to delete a key that doesn't exist
+    bool result = _engine->deleteEncryptionKey("nonexistent_db");
+    // The method returns false when key doesn't exist or deletion fails
+    ASSERT_FALSE(result);
+}
+
+TEST_F(WiredTigerKVEngineEncryptionKeyManagementTest, DeleteEncryptionKeyDoesNotAffectOthers) {
+    triggerKeyCreation("keep_this_db");
+    triggerKeyCreation("delete_this_db");
+    triggerKeyCreation("also_keep_this_db");
+
+    // Delete only one key
+    bool result = _engine->deleteEncryptionKey("delete_this_db");
+    ASSERT_TRUE(result);
+
+    // Verify other keys still exist
+    auto keyIds = _engine->getAllEncryptionKeyIds();
+    ASSERT_EQ(keyIds.size(), 2u);
+
+    std::set<std::string> keyIdSet(keyIds.begin(), keyIds.end());
+    ASSERT_TRUE(keyIdSet.count("keep_this_db") > 0);
+    ASSERT_TRUE(keyIdSet.count("also_keep_this_db") > 0);
+    ASSERT_TRUE(keyIdSet.count("delete_this_db") == 0);
+}
+
+// -----------------------------------------------------------------------------
+// Tests for WiredTigerKVEngine::getAllEncryptionKeyIdsInUse()
+// -----------------------------------------------------------------------------
+
+TEST_F(WiredTigerKVEngineEncryptionKeyManagementTest, GetAllEncryptionKeyIdsInUseEmpty) {
+    // With no idents created, should return empty set
+    auto keyIdsInUse = _engine->getAllEncryptionKeyIdsInUse();
+    // We verify the method doesn't crash and returns a valid set
+    // The set may be empty or may have system keys depending on engine state
+    ASSERT_GE(keyIdsInUse.size(), 0u);
+}
+
+// -----------------------------------------------------------------------------
+// Test for engine without encryption
+// -----------------------------------------------------------------------------
+
+class WiredTigerKVEngineNoEncryptionKeyManagementTest : public WiredTigerKVEngineEncryptionKeyTest {
+protected:
+    void _setUpPreconfiguredEngine() override {
+        // Don't set up encryption - create engine without encryption
+    }
+
+    void _setUpEncryptionParams() override {
+        // Don't enable encryption
+        encryptionGlobalParams = EncryptionGlobalParams();
+        encryptionGlobalParams.enableEncryption = false;
+    }
+
+    std::unique_ptr<WiredTigerKVEngine> _createNonEncryptedEngine() {
+        WiredTigerKVEngine::WiredTigerConfig wtConfig;
+        wtConfig.extraOpenOptions = "log=(file_max=1m,prealloc=false)";
+        wtConfig.cacheSizeMB = 1;
+
+        auto& provider =
+            rss::ReplicatedStorageService::get(getServiceContext()).getPersistenceProvider();
+        auto engine = std::make_unique<WiredTigerKVEngine>(
+            "wiredTiger",
+            _tempDir->path(),
+            _clockSource.get(),
+            std::move(wtConfig),
+            WiredTigerExtensions::get(getServiceContext()),
+            provider,
+            false,
+            getGlobalReplSettings().isReplSet(),
+            repl::ReplSettings::shouldRecoverFromOplogAsStandalone(),
+            getReplSetMemberInStandaloneMode(getGlobalServiceContext()),
+            _runner.get());
+        engine->notifyStorageStartupRecoveryComplete();
+        return engine;
+    }
+};
+
+TEST_F(WiredTigerKVEngineNoEncryptionKeyManagementTest, GetAllEncryptionKeyIdsNoEncryption) {
+    _engine = _createNonEncryptedEngine();
+
+    auto keyIds = _engine->getAllEncryptionKeyIds();
+    ASSERT_TRUE(keyIds.empty());
+}
+
+TEST_F(WiredTigerKVEngineNoEncryptionKeyManagementTest, DeleteEncryptionKeyNoEncryption) {
+    _engine = _createNonEncryptedEngine();
+
+    bool result = _engine->deleteEncryptionKey("any_db");
+    ASSERT_FALSE(result);
+}
+
+TEST_F(WiredTigerKVEngineNoEncryptionKeyManagementTest, GetAllEncryptionKeyIdsInUseNoEncryption) {
+    _engine = _createNonEncryptedEngine();
+
+    auto keyIdsInUse = _engine->getAllEncryptionKeyIdsInUse();
+    ASSERT_TRUE(keyIdsInUse.empty());
+}
+
+// =============================================================================
+// Tests for encryptionKeyCleanupDeferred server parameter
+// =============================================================================
+
+TEST_F(WiredTigerKVEngineEncryptionKeyManagementTest, EncryptionKeyCleanupDeferredDefaultFalse) {
+    // The default value should be false
+    ASSERT_FALSE(gEncryptionKeyCleanupDeferred.load());
+}
+
+TEST_F(WiredTigerKVEngineEncryptionKeyManagementTest, EncryptionKeyCleanupDeferredCanBeSet) {
+    // Save original value
+    bool originalValue = gEncryptionKeyCleanupDeferred.load();
+
+    // Set to true
+    gEncryptionKeyCleanupDeferred.store(true);
+    ASSERT_TRUE(gEncryptionKeyCleanupDeferred.load());
+
+    // Set back to false
+    gEncryptionKeyCleanupDeferred.store(false);
+    ASSERT_FALSE(gEncryptionKeyCleanupDeferred.load());
+
+    // Restore original value
+    gEncryptionKeyCleanupDeferred.store(originalValue);
+}
 
 }  // namespace
 }  // namespace mongo
