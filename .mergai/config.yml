@@ -167,7 +167,7 @@ resolve:
   # Agent type/model to use for conflict resolution.
   # Supported values: "gemini-cli" or "gemini-cli:<model>"
   # Default: "gemini-cli"
-  agent: gemini-cli:gemini-2.5-pro
+  agent: claude-cli:claude-opus-4-5
 
   # Maximum number of retry attempts when resolution validation fails.
   # Default: 3

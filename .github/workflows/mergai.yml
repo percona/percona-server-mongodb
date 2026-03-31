@@ -53,11 +53,13 @@ jobs:
         with:
           setup-gcp: "true"
           setup-gemini: "true"
+          setup-claude: "true"
           setup-mergai: "true"
           gcp-credentials: ${{ secrets.GCP_CREDENTIALS }}
+          claude-api-key: ${{ secrets.CLAUDE_API_KEY }}
           github-app-token: ${{ steps.app-token.outputs.token }}
           github-app-id: ${{ secrets.PSMDB_BOT_GH_APP_ID }}
-          mergai-ref: master
+          mergai-ref: claude
 
       # Get next prioritized commit to merge from upstream based on configured strategies
       - name: mergai merge-pick
