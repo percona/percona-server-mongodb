@@ -1293,5 +1293,99 @@ TEST(SimpleWiredTigerUtilTest, SpillCacheSize) {
         WiredTigerUtil::getSpillCacheSizeMB(1024 * 8, 5, 101, 100), DBException, 10698700);
 }
 
+// =============================================================================
+// Tests for WiredTigerUtil::getEncryptionKeyId()
+// =============================================================================
+
+TEST(WiredTigerUtilGetEncryptionKeyIdTest, EmptyConfigReturnsNone) {
+    auto result = WiredTigerUtil::getEncryptionKeyId("");
+    ASSERT_FALSE(result.has_value());
+}
+
+TEST(WiredTigerUtilGetEncryptionKeyIdTest, ConfigWithoutEncryptionReturnsNone) {
+    auto result = WiredTigerUtil::getEncryptionKeyId(
+        "access_pattern_hint=none,allocation_size=4KB,app_metadata=,block_allocation=best");
+    ASSERT_FALSE(result.has_value());
+}
+
+TEST(WiredTigerUtilGetEncryptionKeyIdTest, EncryptionWithoutKeyIdReturnsNone) {
+    auto result = WiredTigerUtil::getEncryptionKeyId("encryption=(name=percona)");
+    ASSERT_FALSE(result.has_value());
+}
+
+TEST(WiredTigerUtilGetEncryptionKeyIdTest, QuotedKeyIdExtracted) {
+    auto result = WiredTigerUtil::getEncryptionKeyId("encryption=(name=percona,keyid=\"testdb\")");
+    ASSERT_TRUE(result.has_value());
+    ASSERT_EQ(*result, "testdb");
+}
+
+TEST(WiredTigerUtilGetEncryptionKeyIdTest, UnquotedKeyIdExtracted) {
+    auto result = WiredTigerUtil::getEncryptionKeyId("encryption=(name=percona,keyid=testdb)");
+    ASSERT_TRUE(result.has_value());
+    ASSERT_EQ(*result, "testdb");
+}
+
+TEST(WiredTigerUtilGetEncryptionKeyIdTest, DefaultKeyExtracted) {
+    auto result =
+        WiredTigerUtil::getEncryptionKeyId("encryption=(name=percona,keyid=\"/default\")");
+    ASSERT_TRUE(result.has_value());
+    ASSERT_EQ(*result, "/default");
+}
+
+TEST(WiredTigerUtilGetEncryptionKeyIdTest, EmptyKeyIdExtracted) {
+    auto result = WiredTigerUtil::getEncryptionKeyId("encryption=(name=percona,keyid=\"\")");
+    ASSERT_TRUE(result.has_value());
+    ASSERT_EQ(*result, "");
+}
+
+TEST(WiredTigerUtilGetEncryptionKeyIdTest, ComplexConfigKeyIdExtracted) {
+    auto result = WiredTigerUtil::getEncryptionKeyId(
+        "access_pattern_hint=none,allocation_size=4KB,app_metadata=(formatVersion=12,infoObj={ "
+        "\"v\" : 2, \"key\" : { \"_id\" : 1 }, \"name\" : \"_id_\" }),"
+        "block_allocation=best,block_compressor=snappy,encryption=(name=percona,keyid=\"mydb\"),"
+        "format=btree,huffman_value=none");
+    ASSERT_TRUE(result.has_value());
+    ASSERT_EQ(*result, "mydb");
+}
+
+TEST(WiredTigerUtilGetEncryptionKeyIdTest, EncryptionNotStructReturnsNone) {
+    // If encryption= is followed by something other than '(', should return none
+    auto result = WiredTigerUtil::getEncryptionKeyId("encryption=none,other=value");
+    ASSERT_FALSE(result.has_value());
+}
+
+TEST(WiredTigerUtilGetEncryptionKeyIdTest, KeyIdAtStartOfEncryptionStruct) {
+    auto result = WiredTigerUtil::getEncryptionKeyId("encryption=(keyid=\"firstdb\",name=percona)");
+    ASSERT_TRUE(result.has_value());
+    ASSERT_EQ(*result, "firstdb");
+}
+
+TEST(WiredTigerUtilGetEncryptionKeyIdTest, DatabaseNameWithSpecialChars) {
+    auto result =
+        WiredTigerUtil::getEncryptionKeyId("encryption=(name=percona,keyid=\"my-test_db.123\")");
+    ASSERT_TRUE(result.has_value());
+    ASSERT_EQ(*result, "my-test_db.123");
+}
+
+TEST(WiredTigerUtilGetEncryptionKeyIdTest, SystemDatabaseKey) {
+    auto result = WiredTigerUtil::getEncryptionKeyId("encryption=(name=percona,keyid=\"admin\")");
+    ASSERT_TRUE(result.has_value());
+    ASSERT_EQ(*result, "admin");
+}
+
+TEST(WiredTigerUtilGetEncryptionKeyIdTest, RealWorldCollectionConfig) {
+    // A realistic config string from a collection
+    auto result = WiredTigerUtil::getEncryptionKeyId(
+        "access_pattern_hint=none,allocation_size=4KB,"
+        "app_metadata=(formatVersion=12,infoObj={ \"v\" : 2, \"key\" : { \"_id\" : 1 }, "
+        "\"name\" : \"_id_\" }),assert=(commit_timestamp=none,durable_timestamp=none,"
+        "read_timestamp=none,write_timestamp=off),block_allocation=best,"
+        "block_compressor=snappy,cache_resident=false,checksum=on,colgroups=,"
+        "collator=,columns=,dictionary=0,encryption=(name=percona,keyid=\"production_db\"),"
+        "exclusive=false,extractor=,format=btree");
+    ASSERT_TRUE(result.has_value());
+    ASSERT_EQ(*result, "production_db");
+}
+
 }  // namespace
 }  // namespace mongo
