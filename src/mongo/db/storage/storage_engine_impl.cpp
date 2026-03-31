@@ -38,7 +38,9 @@
 #include "mongo/db/index/multikey_paths.h"
 #include "mongo/db/operation_context.h"
 #include "mongo/db/rss/replicated_storage_service.h"
+#include "mongo/db/shard_role/lock_manager/d_concurrency.h"
 #include "mongo/db/shard_role/shard_catalog/catalog_raii.h"
+#include "mongo/db/shard_role/shard_catalog/collection_catalog.h"
 #include "mongo/db/shard_role/transaction_resources.h"
 #include "mongo/db/storage/backup_cursor_hooks.h"
 #include "mongo/db/storage/deferred_drop_record_store.h"
@@ -61,6 +63,7 @@
 #include "mongo/platform/compiler.h"
 #include "mongo/stdx/unordered_set.h"
 #include "mongo/util/assert_util.h"
+#include "mongo/util/database_name_util.h"
 #include "mongo/util/fail_point.h"
 #include "mongo/util/log_and_backoff.h"
 #include "mongo/util/str.h"
@@ -141,6 +144,9 @@ StorageEngineImpl::StorageEngineImpl(OperationContext* opCtx,
           [this](OperationContext* opCtx, Timestamp timestamp) {
               _onMinOfCheckpointAndOldestTimestampChanged(opCtx, timestamp);
           }),
+      _encryptionKeyCleanupListener(
+          TimestampMonitor::TimestampType::kMinOfCheckpointAndOldest,
+          [this](OperationContext* opCtx, Timestamp) { _cleanupOrphanedEncryptionKeys(opCtx); }),
       _supportsCappedCollections(_engine->supportsCappedCollections()) {
 
     // Replace the noop recovery unit for the startup operation context now that the storage engine
@@ -574,6 +580,7 @@ void StorageEngineImpl::startTimestampMonitor(
         _engine.get(), getGlobalServiceContext()->getPeriodicRunner());
 
     _timestampMonitor->addListener(&_minOfCheckpointAndOldestTimestampListener);
+    _timestampMonitor->addListener(&_encryptionKeyCleanupListener);
 
     // Caller must provide listener for cleanup of CollectionCatalog when oldest timestamp advances.
     invariant(!std::empty(listeners));
@@ -1028,6 +1035,104 @@ void StorageEngineImpl::_onMinOfCheckpointAndOldestTimestampChanged(OperationCon
                     "No drop-pending idents have expired",
                     "timestamp"_attr = timestamp,
                     "pendingIdentsCount"_attr = _dropPendingIdentReaper.getNumIdents());
+    }
+}
+
+void StorageEngineImpl::_cleanupOrphanedEncryptionKeys(OperationContext* opCtx) {
+    // Check if deferred encryption key cleanup is enabled
+    if (!_engine->isEncryptionKeyCleanupDeferred()) {
+        return;
+    }
+
+    // Check if enough time has passed since the last cleanup
+    auto now = Date_t::now();
+    auto lastCleanup = _lastEncryptionKeyCleanupTime.load();
+    auto intervalSeconds = _engine->getEncryptionKeyCleanupIntervalSeconds();
+    if (lastCleanup != Date_t{} && (now - lastCleanup) < Seconds(intervalSeconds)) {
+        return;
+    }
+    _lastEncryptionKeyCleanupTime.store(now);
+
+    // Get all encryption key IDs from the key database
+    auto keyIds = _engine->getAllEncryptionKeyIds();
+    if (keyIds.empty()) {
+        return;
+    }
+
+    LOGV2_DEBUG(29066, 2, "Checking for orphaned encryption keys", "keyCount"_attr = keyIds.size());
+
+    // CRITICAL: Get the set of keyIds actually in use by idents in WiredTiger storage.
+    // This is the AUTHORITATIVE check - if ANY ident (including drop-pending ones that haven't
+    // been physically removed yet) uses this key, it MUST NOT be deleted.
+    // This prevents the race condition where a key is deleted while drop-pending idents
+    // encrypted with that key still exist in storage.
+    auto keyIdsInUse = _engine->getAllEncryptionKeyIdsInUse();
+
+    LOGV2_DEBUG(29070,
+                2,
+                "Encryption key cleanup check",
+                "keysInKeyDb"_attr = keyIds.size(),
+                "keysInUseByIdents"_attr = keyIdsInUse.size());
+
+    // Get the list of existing databases from the catalog
+    auto catalog = CollectionCatalog::get(opCtx);
+    auto existingDbs = catalog->getAllDbNames();
+
+    // Create a set of serialized database names for quick lookup
+    std::set<std::string> existingDbSet;
+    for (const auto& db : existingDbs) {
+        existingDbSet.insert(DatabaseNameUtil::serialize(db, SerializationContext::stateDefault()));
+    }
+
+    for (const auto& keyId : keyIds) {
+        // Skip special keys
+        if (keyId.empty() || keyId == "/default") {
+            continue;
+        }
+
+        // Quick check: if database exists in catalog, skip
+        if (existingDbSet.find(keyId) != existingDbSet.end()) {
+            continue;
+        }
+
+        // CRITICAL CHECK: If ANY ident in storage uses this key, do NOT delete it.
+        // This includes drop-pending idents that haven't been physically removed yet.
+        if (keyIdsInUse.count(keyId) > 0) {
+            LOGV2(29069,
+                  "Skipping encryption key deletion - key is still in use by storage idents",
+                  "keyId"_attr = keyId);
+            continue;
+        }
+
+        // Database doesn't appear to exist and no idents use this key -
+        // acquire lock and verify with synchronization
+        try {
+            auto dbName = DatabaseNameUtil::deserialize(
+                boost::none, keyId, SerializationContext::stateDefault());
+
+            // Acquire MODE_IS lock to ensure no concurrent drop/create operations
+            Lock::DBLock dbLock(opCtx, dbName, MODE_IS);
+
+            // Re-check with lock held
+            auto freshCatalog = CollectionCatalog::get(opCtx);
+            auto freshDbs = freshCatalog->getAllDbNames();
+            bool dbExists = std::find(freshDbs.begin(), freshDbs.end(), dbName) != freshDbs.end();
+            bool dropPending = freshCatalog->isDropPending(dbName);
+
+            if (!dbExists && !dropPending) {
+                LOGV2(29067,
+                      "Deleting orphaned encryption key for non-existent database",
+                      "keyId"_attr = keyId);
+                _engine->keydbDropDatabase(dbName);
+            }
+        } catch (const DBException& e) {
+            // Log and continue with other keys - don't let one failure stop cleanup
+            LOGV2_DEBUG(29068,
+                        1,
+                        "Failed to clean up encryption key",
+                        "keyId"_attr = keyId,
+                        "error"_attr = e.toStatus());
+        }
     }
 }
 
