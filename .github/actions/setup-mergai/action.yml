@@ -17,7 +17,8 @@ runs:
   using: "composite"
   steps:
     # Clone the mergai tool repository into a subdirectory.
-    # Uses a separate path to avoid conflicts with the main repository checkout.
+    # After installation, the directory is removed to avoid untracked files
+    # that would interfere with git operations.
     - name: Checkout mergai repo
       uses: actions/checkout@v6
       with:
@@ -31,7 +32,8 @@ runs:
     # Steps:
     #   1. Install pipx via pip (user install to avoid permission issues)
     #   2. Ensure pipx bin directory is in PATH
-    #   3. Install mergai from the local checkout (./mergai contains setup.py/pyproject.toml)
+    #   3. Install mergai from the local checkout
+    #   4. Remove the checkout directory to keep the workspace clean
     - name: Install mergai
       shell: bash
       run: |
@@ -41,3 +43,5 @@ runs:
         echo "$HOME/.local/bin" >> "$GITHUB_PATH"
         python3 -m pipx ensurepath
         python3 -m pipx install ./mergai
+        # Remove checkout directory to avoid untracked files in git operations
+        rm -rf ./mergai

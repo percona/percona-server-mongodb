@@ -165,9 +165,9 @@ fork:
 # Configuration for the 'resolve' command which handles merge conflict resolution.
 resolve:
   # Agent type/model to use for conflict resolution.
-  # Supported values: "gemini-cli" or "gemini-cli:<model>"
-  # Default: "gemini-cli"
-  agent: gemini-cli:gemini-2.5-pro
+  # Supported values: "gemini-cli" or "gemini-cli:<model>", "claude-cli" or "claude-cli:<model>"
+  # Default: "claude-cli:claude-opus-4-5"
+  agent: claude-cli:claude-opus-4-5
 
   # Maximum number of retry attempts when resolution validation fails.
   # Default: 3
