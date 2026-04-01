@@ -1,0 +1,276 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "d9799a21265146d833fdb852a6ec7d6951f660ad",
+    "merge_commit": "f2f0c0a5dbbd2a259626b97ecaec15215277ff76"
+  },
+  "mergai_version": "0.1.dev1+gc36897ef8",
+  "merge_context": {
+    "merge_commit": "f2f0c0a5dbbd2a259626b97ecaec15215277ff76",
+    "merged_commits": [
+      "f2f0c0a5dbbd2a259626b97ecaec15215277ff76",
+      "bfb3d4b72f4a84a879470d8322b55104d048e88b",
+      "80cadee14523733c228cb24baf3badb68ae557e0",
+      "b6caa38e76927ac26ac295f15cb35af228c38f8f",
+      "0fdb2202f043fbd7b42f597c82fdea221cca591f",
+      "6174511bc7f1e1cdc4ad17b114422ea4509c059e",
+      "0dcbd6a9f34172d02460cf8bbb1f517444a8b16a",
+      "39c4c7a296531e93f95fa9fcb6b9672f7fea279b",
+      "514a0172938b5c4711908f2d0447b5660bab8d54",
+      "212139f48442b0f1d4a6055054e53571859ab0a9",
+      "ef674f38a1af5f2f2a94836e8e2013331aaa5ac8",
+      "54b1d9f2ca3b1d986ec02a287334e0f7dcdeecc9",
+      "9ecb49fba7a0a08ff15a34af44ec756e68ee43bd",
+      "5fb78d46242bf50b28f364154df3b881880e0841",
+      "22e29ad02d55be2b0aafb77f9ed0a0db933b254b",
+      "ee64c6515997ee877571acbbb76beecbc3ec8696",
+      "3e2d06b1221b5f900180e8be76de1139a39e9f67",
+      "5ce24b8805a1439e7af2781972fc0b8228d6c3c7",
+      "75959b89b0cec19e8844b9cfce3c64f7efd82235",
+      "717f831c5f7624ead5fab2661c5807c8c2223536",
+      "01021118a8dbe67d5e60d3625c024d6931741943",
+      "2b8482f4739436a03521fbc81627d524b6ab2749",
+      "365831ef3b53b5d65cd607e5d5aed005a9358fcc",
+      "285e58f0d771bbe4d0ea2e089ce525f5db372226",
+      "404c6cca1d7aa77f9103c5e32d37ec711c76a8c0",
+      "797735683bbd5b983cd0f750f57d9f8fd50ca271",
+      "21ab554b7587853eb07c413797f5c3e0f9825f6b",
+      "b3dbab0b967d16b6258ba10554f4d9cfd1742b0a",
+      "2e50cb55abf4ea33954d3bac112b6ff7102313b0",
+      "14bd51ec410fc2cfe60a1f9c9d9a57b7382a4762",
+      "b773e32b94b9d51914afcc0f803c5948e0878956",
+      "a1963129f246d4c7b9e5218005937f1dde21b152",
+      "d2cf4e0b1466ff180389549dda68c3fd7a4cbdfb",
+      "d8bd4d8b2079281ab951f227bcdd74799c8d5123",
+      "13efe6ad9ba9760b0e521d925a231ad09f9a08f5",
+      "c6a753feb789e21c1443f98e85b7ab6ab2497cd1",
+      "4711c4763570492a705a06adf41d6d5bb265b9a6",
+      "c8a4cd2d282243a0ed12c582e78371f8607c45ea",
+      "b98703a83a67e21b18fab11516f6142e618e9f72",
+      "848db590abc74f7b40a4919f2aaccb2b1da7198c",
+      "003dc8719e30c5cba3f601b3fb477c930315dc07",
+      "9e63eebeac0d9b66e20c671d7b2d78b900a5d503",
+      "f7bb1647e5e9956d0fa01ece7023481f4d02c9c4",
+      "22a46476075bdc32c530177d40bcea2a7af79524",
+      "229bc713d30be9c6bc3df0388d8a335baac770d2",
+      "d80e1b6f0f116d3847d9a983e7621f1bbe629dec",
+      "d781b39b811c2f188cdae00d3858d7abe66cfe0d",
+      "d41ff17d44198640711766a6abfb8bb6eb1f968f",
+      "d4f1d43e71252d4c2889f817646852dd910d8f95",
+      "357c937cb4a44c9fab1dfc4ad2fd94c68903a17b",
+      "d4e340325c13976f449ab5048ff7c1e6c947dcc1",
+      "5b08f3e6334f8497efcbb4c76d459df9a5292f2c",
+      "2fe10d9fdff1b1e0fa105a5a92af698013bfe14a",
+      "fc5b3b9737e05d0700e31c55e2b90db2c7209dff",
+      "1fb4e14be9f33a47107023b2c47742753b8ea942",
+      "1425a42f2d090a5521426b8997fddfb1d1848cc0",
+      "9da29cebf62dd612e90805b837e36a58fa0bfa26",
+      "012b565d26012356fbc0dc12b0cb6311cdecfc95",
+      "309620037ca7ef4350358d5cb22ca3ac50ab6e40",
+      "c87fdcd865b3ea222e72d1b0566e9c6cba11808e",
+      "7dbc71038c7f0ad46edee185392be2c6210b981f",
+      "ac8bf006023e193654fd6dfdccf843ad711bebe0",
+      "9dfe3da4f65823c6e25b42eefee149aaa13cadeb",
+      "081ed1c832a372e4cc14d67cd0d06401f9e533c7",
+      "3f4bacddb8fd11353d6b95c75780e61931419b69",
+      "b73388104e0dd9d07fdd7f08ed5a17c469a889d8",
+      "a422b6a252b7a1a999601eb6b3c5b600ed31e70d",
+      "c3a562f7cfbf47d6db0c069102aba56c7e7ed36d",
+      "6277192441294d3008f8190254a0a0338a170f36",
+      "de539a835f7d566f6b90bf5d6a4f0381a1d1410f",
+      "24198730b6e0053cc829db6b595a438e23af0722",
+      "e062b9a934b741f93abe2125521732249cb00104",
+      "b87368be3a37715b6fdca692f7dfeb2d1265ba8c",
+      "e1e1c205bbd2960173b9764925af19520dda13fb",
+      "bc20fa214e2cf83660032d9d8b6774b3cc3dfdfd",
+      "b74091fbe2c424dfdc75ab0bd1eb9eac9492cbc3",
+      "6649992c93fb4eb7a85936ddf604ef96d768ceff",
+      "131cb5aa9a727bd918ef79730631ab4f4e073935",
+      "bf251444a13489f6f6b357e37c8749e9f2359266",
+      "031a43b0df58f8a618bd3f860657aec5de582916",
+      "12409ee2c2d628426f97ea6e3cb75b0e28a46596",
+      "c64a11b1468435b3a9146c883b6520a7b864b3b7",
+      "f448e0094fb47c4860f566bd4a3cdaac527280dc",
+      "1261bdbacbe42276e9899933a936b1bfa205050d",
+      "919c714e8d692c889415f4ed4e9a488a2d992e8f",
+      "472fbe5134e88db049cc29b70bd85291d5b7315f",
+      "747704734ab60d6a47ce4cf60d88f028606c9987",
+      "1120877044eb9d67f66828a9d7195ea7c6e81ea2",
+      "fd62e6f2439c3dd9d5042c68dd07eef06da361ab"
+    ],
+    "important_files_modified": [
+      "src/mongo/db/repl/initial_sync/initial_syncer.cpp",
+      "src/mongo/db/repl/initial_sync/initial_syncer.h"
+    ],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        "buildscripts/resmokelib/configure_resmoke.py",
+        "jstests/auth/lib/commands_lib.js",
+        "sbom.json",
+        "src/mongo/db/BUILD.bazel",
+        "src/mongo/db/pipeline/BUILD.bazel"
+      ]
+    }
+  },
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 58995,
+    "num_turns": 11,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.33152349999999997,
+    "modelUsage": {
+      "claude-opus-4-5": {
+        "inputTokens": 2173,
+        "outputTokens": 3371,
+        "cacheReadInputTokens": 79642,
+        "cacheCreationInputTokens": 31450,
+        "webSearchRequests": 0,
+        "costUSD": 0.33152349999999997,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-opus-4-5": {
+          "tokens": {
+            "input": 2173,
+            "output": 3371,
+            "cache_read": 79642,
+            "cache_creation": 31450
+          },
+          "cost_usd": 0.33152349999999997
+        }
+      }
+    },
+    "text_result": "Written the JSON response to `/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/response_20260401_091428_304845.json`.\n\nThe merge includes 89 upstream MongoDB commits with several PSMDB-specific features affected in the auto-merged files:\n- **configure_resmoke.py**: PSMDB's gRPC tracing skip was overwritten\n- **commands_lib.js**: PSMDB audit/backup commands removed from skip list\n- **BUILD.bazel files**: LDAP, encryption, and backup cursor targets removed\n\nThese PSMDB-specific features may need to be re-integrated after this merge.",
+    "response": {
+      "summary": "Merge of 89 MongoDB upstream commits including SERVER-118907 (ci/cd oplog feature flag gating), SERVER-121174 (improved initial sync phase tracking and logging), Primary Driven Index Build (PDIB) improvements, cost model enhancements, timeseries fixes, and various bug fixes. Notable additions include new Phase enum for initial sync tracking, EOF multiplanning optimization, and OTel metrics for collection scans.",
+      "auto_merged": {
+        "buildscripts/resmokelib/configure_resmoke.py": "Two changes merged: (1) The _should_skip_grpc_tracing() function was changed - PSMDB previously unconditionally returned True to skip gRPC tracing, but MongoDB's version has platform-specific checks for linux ppc/powerpc/s390. The PSMDB modification was overwritten by the upstream change. (2) Renamed 'shell_jsdebugmode' config option to 'jsdbg' per SERVER-122288.",
+        "jstests/auth/lib/commands_lib.js": "Multiple changes merged: (1) Removed 'auditGetOptions' and 'createBackup' from skippedAuthTestingCommands list - these were PSMDB-specific commands that may need re-adding. (2) Changed feature flag checks from 'featureFlagPrimaryDrivenIndexBuilds' to 'featureFlagContainerWrites' for container operation tests. (3) Changed isPSMDBOrEnterprise() checks to getBuildInfo().modules.includes('enterprise') for backup cursor tests - this removes PSMDB support for these backup cursor aggregation stages.",
+        "sbom.json": "Auto-generated SBOM update with new version (5->6), updated timestamp (2026-03-23), and reorganized tools metadata section. Standard upstream refresh.",
+        "src/mongo/db/BUILD.bazel": "Removed several PSMDB-specific Bazel targets including: redaction_parameter_gen IDL, ldap_options_gen IDL, ldap_options and ldap_options_init libraries, mongod_options_encryption_gen IDL, mongod_options_ldapauthz_gen IDL. Also removed encryption_options dependency from auth_options target. These represent PSMDB-specific features that may need to be re-integrated.",
+        "src/mongo/db/pipeline/BUILD.bazel": "Added timeseries_2dsphere_index_version_lookup dependency to pipeline library (SERVER-121534). Removed pipeline_mongod library target which contained backup cursor document sources (document_source_backup_cursor.cpp, document_source_backup_cursor_extend.cpp, document_source_backup_file.cpp) - these are PSMDB enterprise features that may need re-integration."
+      },
+      "review_notes": "IMPORTANT - Several PSMDB-specific features were removed during auto-merge and require review:\n\n1. **configure_resmoke.py**: The gRPC tracing skip was a deliberate PSMDB modification (no access to MongoDB's otel-collector). Verify if this needs to be restored.\n\n2. **commands_lib.js**: 'auditGetOptions' and 'createBackup' commands were removed from skip list. The isPSMDBOrEnterprise() helper was replaced with enterprise-only checks for backup cursor tests. These changes affect PSMDB-specific functionality.\n\n3. **BUILD.bazel files**: LDAP options, encryption options, and redaction parameter Bazel targets were removed. The pipeline_mongod target with backup cursor sources was also removed. These are core PSMDB enterprise features that will need to be re-added.\n\n4. **initial_syncer.cpp/h**: Important upstream changes add detailed phase tracking for initial sync (Phase enum, phase transitions, improved progress reporting). These changes should integrate cleanly with PSMDB.\n\nRecommendation: After this merge, verify PSMDB-specific features (LDAP, encryption, backup cursors, audit) still build and function correctly. The removed Bazel targets and source references may need to be restored in subsequent commits."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [
+            "Let me examine the merged commits and auto-merged files to understand the changes."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [
+            "Now I have a comprehensive understanding of the merge. Let me write the JSON response."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [
+            "Written the JSON response to `/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/response_20260401_091428_304845.json`.\n\nThe merge includes 89 upstream MongoDB commits with several PSMDB-specific features affected in the auto-merged files:\n- **configure_resmoke.py**: PSMDB's gRPC tracing skip was overwritten\n- **commands_lib.js**: PSMDB audit/backup commands removed from skip list\n- **BUILD.bazel files**: LDAP, encryption, and backup cursor targets removed\n\nThese PSMDB-specific features may need to be re-integrated after this merge."
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20260401_091428_304684.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.89 (Claude Code)"
+    }
+  }
+}
