@@ -31,9 +31,15 @@ Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
 
 #pragma once
 
+#include "mongo/base/string_data.h"
+
+#include <string>
+#include <vector>
+
 namespace mongo {
 class DatabaseName;
-}
+class OperationContext;
+}  // namespace mongo
 
 namespace percona {
 
@@ -45,9 +51,61 @@ struct KeyDBAPI {
     virtual ~KeyDBAPI() {}
 
     /**
-     * Returns whether the engine supports feature compatibility version 3.6
+     * Delete the encryption key for the specified database.
+     *
+     * This method is called by the deferred cleanup process after verifying:
+     * 1. The database no longer exists in the catalog
+     * 2. No storage idents (including drop-pending ones) use the key
+     *
+     * NOTE: This should NOT be called directly during dropDatabase operations
+     * because drop-pending idents may still exist and require the key for
+     * checkpoint cleanup. Use the deferred cleanup mechanism instead.
      */
     virtual void keydbDropDatabase(const mongo::DatabaseName& dbName) {
+        // do nothing for engines which do not support KeyDB
+    }
+
+    /**
+     * Returns the sorted set of encryption keyIds that exist in the key database
+     * but are not referenced by any storage ident (including drop-pending ones).
+     *
+     * Computed inside the engine because both inputs — the keydb listing and the
+     * WT-metadata scan — are engine-internal. Callers re-verify each candidate
+     * under a DB lock before deleting it; this method does not consult the
+     * CollectionCatalog.
+     */
+    virtual std::vector<std::string> findOrphanedEncryptionKeyIds() {
+        return {};  // empty for engines which do not support KeyDB
+    }
+
+    /**
+     * Returns the interval in seconds between orphaned encryption key cleanup attempts.
+     * 0 means periodic cleanup is disabled; >0 means enabled with that interval.
+     */
+    virtual int32_t getEncryptionKeyCleanupIntervalSeconds() const {
+        return 0;  // disabled for engines which do not support KeyDB
+    }
+
+    /**
+     * Cleans up orphaned encryption keys - keys that belong to databases that
+     * no longer exist and are not in use by any storage idents.
+     * Called unconditionally on startup, by the periodic cleanup process, and
+     * by the cleanupOrphanedEncryptionKeys admin command. `trigger` is a short
+     * string identifying the call site ("startup" / "periodic" / "command") so
+     * the completion summary log can be filtered/audited.
+     */
+    virtual void cleanupOrphanedEncryptionKeys(mongo::OperationContext* opCtx,
+                                               mongo::StringData trigger) {
+        // do nothing for engines which do not support KeyDB
+    }
+
+    /**
+     * Marks that an orphaned-encryption-key cleanup should run at the next
+     * periodic tick. Called from dropDatabase paths so the periodic job can
+     * skip the WT-metadata scan when nothing has been dropped since the last
+     * run.
+     */
+    virtual void markEncryptionKeyCleanupDirty() {
         // do nothing for engines which do not support KeyDB
     }
 };

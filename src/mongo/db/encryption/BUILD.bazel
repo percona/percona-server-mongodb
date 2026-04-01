@@ -83,8 +83,8 @@ mongo_cc_library(
         "master_key_provider.cpp",
     ],
     deps = [
-        ":encryption_options",
         ":encryption_key",
+        ":encryption_options",
         ":kmip_client",
         ":read_file_to_secure_string",
         ":vault_client",
