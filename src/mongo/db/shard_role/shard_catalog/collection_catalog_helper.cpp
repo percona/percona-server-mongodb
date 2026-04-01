@@ -384,15 +384,17 @@ Status dropCollectionsWithPrefix(OperationContext* opCtx,
 
     std::vector<UUID> toDrop = catalog->getAllCollectionUUIDsFromDb(dbName);
 
-    const auto status = dropCollections(opCtx, toDrop, collectionNamePrefix);
+    // NOTE: Encryption key cleanup is NOT performed here.
+    // The key cannot be safely deleted at this point because drop-pending idents
+    // (encrypted with this key) may still exist in storage and will be accessed
+    // during checkpoint cleanup. Deleting the key here would cause WT_NOTFOUND errors.
+    // Instead, orphaned encryption keys are cleaned up by a background process
+    // (_cleanupOrphanedEncryptionKeys) that runs periodically and verifies:
+    // 1. The database no longer exists in the catalog
+    // 2. No storage idents (including drop-pending ones) use the key
+    // This deferred cleanup is enabled via the encryptionKeyCleanupDeferred server parameter.
 
-    // If all collections were dropped successfully then drop database's encryption key
-    if (status.isOK()) {
-        auto storageEngine = opCtx->getServiceContext()->getStorageEngine();
-        storageEngine->keydbDropDatabase(dbName);
-    }
-
-    return status;
+    return dropCollections(opCtx, toDrop, collectionNamePrefix);
 }
 
 void shutDownCollectionCatalogAndGlobalStorageEngineCleanly(ServiceContext* service,

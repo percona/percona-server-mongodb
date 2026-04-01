@@ -299,6 +299,32 @@ server_parameters:
         default: false
         redact: false
 
+    encryptionKeyCleanupDeferred:
+        description: >-
+            Encryption keys are never deleted on dropDatabase. When this parameter
+            is enabled, orphaned keys are cleaned up asynchronously by a background
+            process that verifies the associated database no longer exists. This
+            helps avoid race conditions between key deletion and checkpoint cleanup.
+            The cleanup frequency is controlled by encryptionKeyCleanupIntervalSeconds.
+        set_at: [startup, runtime]
+        cpp_vartype: "AtomicWord<bool>"
+        cpp_varname: gEncryptionKeyCleanupDeferred
+        default: false
+        redact: false
+
+    encryptionKeyCleanupIntervalSeconds:
+        description: >-
+            The interval in seconds between orphaned encryption key cleanup attempts.
+            Only effective when encryptionKeyCleanupDeferred is enabled.
+        set_at: [startup, runtime]
+        cpp_vartype: "AtomicWord<std::int32_t>"
+        cpp_varname: gEncryptionKeyCleanupIntervalSeconds
+        default: 60
+        validator:
+            gte: 1
+            lte: 86400
+        redact: false
+
     spillWiredTigerEngineRuntimeConfig:
         description: "Spill WiredTiger Configuration"
         set_at: runtime
