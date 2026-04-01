@@ -1,0 +1,290 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "a8850170cdfb5f2f0717e13e9efd8d54a954ef12",
+    "merge_commit": "677d41213377c4bc39ee2cb0b13dd8b002d357e2"
+  },
+  "mergai_version": "0.1.dev1+gc36897ef8",
+  "merge_context": {
+    "merge_commit": "677d41213377c4bc39ee2cb0b13dd8b002d357e2",
+    "merged_commits": [
+      "677d41213377c4bc39ee2cb0b13dd8b002d357e2",
+      "a2e48907ed9b4bf766b1d54a684b9bb6747d71f0",
+      "8a0d9e5ee18f8f3b0016966ff66626d161bedc95",
+      "61a2bf4f34a54e6c6a073b39ed56caddf1a5e623",
+      "29d864a16153def56e04fbf3c2ea1775bbefad47",
+      "3d975b7a20b42af3fd8454b3df3457b0c110e4c4",
+      "3ef9c3d30c579f818cf04126b60c88ac931f9823",
+      "b312195241d25354de3d96e90b94f8a84b003491",
+      "d2be3343f4c34c126b31cd491a0836efb5971557",
+      "39b6f843e8104fd6b305e4e4db52197f1c57c0b5",
+      "8a37094763f21c053c2e255bd3f7ae62f32cbab6",
+      "8169c677e1d2fc1cdbf7b199714f6384dec5d1c7",
+      "f858149c97c235db7c9731262bf849fdcff3927e",
+      "b08cefa47c3f0d69226e8fac3439c2766f7dfdb7",
+      "9eafd498d2f1a4fce82c3c4abf966113772bc0e8",
+      "21cee7c6601d6719e7899a169654fb71134c5e47",
+      "0d4a8a0379e87deeb718318d30ea5fad004d4b54",
+      "75fe3eb07e00861e539bb83c4862a4036d025add",
+      "5301c3537e04687bf749e340c53d2781c5d81541",
+      "cf72a91eef9d8175c7e73d8ad50c18ba76df480e",
+      "0388d3b2751639e053c62e8ed4977a61fa78659d",
+      "8f8e25577b67817a8fa17103deac5d34f17b9e09",
+      "678417f8607e7cab1f916e071652ec5d0a691b3b",
+      "8cc2ab1e53fa4516b9a215925e926a2140b38611",
+      "ca78295726f46164a3802c7f4c20947f2e89a2bc",
+      "d2ca5954063e541b85b5ef7133077f0d4ec91f06",
+      "a80932acf64e62c3de3095d7c9ad329aaee2d3f6",
+      "12698957cf8d248e556d438d00659daeda8604d2",
+      "fe70a48480f755e697164df91a046bc8f022f77d",
+      "c65ab014c8f6280061409d89e93b27a8f3b7cbc1",
+      "64280e17ae5df82b7849e6b71922a0e2634f9aad",
+      "6cfc452c33905b64f49e23815cec186ee02305d2",
+      "11a15a850cc52e25b04e34fa9a615b6cf6b4ba2a",
+      "516d0cab311d1d914ccdb3668ed704c4a9e8baaa",
+      "9a9a537596feae9268bf476281b0dccf7d76d59f",
+      "a933c137cce761d36f4c894b8de969ec0fcfd9f3",
+      "eefbef199f31daf1cfb4bed73dc6d43f50a8b306",
+      "054f892670810d0a9fddd8efc1a92adecfb98544",
+      "1abb8ba5f54aa44e23136f37fdc651c25924f093",
+      "b566a6384f95466d6c9d3e454b48deb441c9da35",
+      "8550552e79d9ef69617aa36285c00af8c8e8e736"
+    ],
+    "important_files_modified": [
+      "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp",
+      "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine_test.cpp"
+    ],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        "src/mongo/db/curop.cpp",
+        "src/mongo/db/storage/wiredtiger/BUILD.bazel",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h"
+      ]
+    }
+  },
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 63223,
+    "num_turns": 16,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.38866324999999996,
+    "modelUsage": {
+      "claude-opus-4-5": {
+        "inputTokens": 688,
+        "outputTokens": 3396,
+        "cacheReadInputTokens": 134684,
+        "cacheCreationInputTokens": 37277,
+        "webSearchRequests": 0,
+        "costUSD": 0.38866324999999996,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-opus-4-5": {
+          "tokens": {
+            "input": 688,
+            "output": 3396,
+            "cache_read": 134684,
+            "cache_creation": 37277
+          },
+          "cost_usd": 0.38866324999999996
+        }
+      }
+    },
+    "text_result": "JSON response written to `/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/response_20260401_090459_796852.json` with:\n\n- **Summary**: 41 commits including opCounters cleanup (SERVER-121449), mutex race fix (SERVER-122123), non-MDT timestamp handling (SERVER-119287), ARM entropy optimization (SERVER-120286), and various query/replication improvements\n- **Auto-merged files**: All 4 files documented with explanations of the changes\n- **Review notes**: Highlights for Percona-specific code preservation in storage and performance-critical paths",
+    "response": {
+      "summary": "This merge brings in 41 MongoDB upstream commits including SERVER-121449 (removing cluster-role specific allocation for opCounters), SERVER-122123 (fixing metadata mutex race condition during shutdown), SERVER-119287 (setting table timestamps when committing non-MDT write units of work), SERVER-120286 (avoiding slow software emulated entropy on ARM), various query and replication improvements, and test infrastructure enhancements including new high-yielding test suites and DSC integration tests.",
+      "auto_merged": {
+        "src/mongo/db/curop.cpp": "Auto-merged changes from SERVER-120286 which optimizes random number generation on ARM by avoiding slow software-emulated entropy. The change modifies how random sources are accessed, using getFastPRNG() instead of direct random device access.",
+        "src/mongo/db/storage/wiredtiger/BUILD.bazel": "Auto-merged changes from SERVER-119287 that add new benchmark targets (wiredtiger_all_durable_timestamp_bm) and test dependencies for the table timestamp functionality in non-MDT write units of work.",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp": "Auto-merged changes from SERVER-119287 implementing table timestamp handling when committing non-MDT (multi-document transaction) write units of work. This includes new logic for setting timestamps on table operations and tracking all-durable timestamps.",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h": "Auto-merged changes from SERVER-119287 adding new interface methods and members for non-MDT timestamp handling, including methods for setting timestamps on write units and tracking the all-durable timestamp for non-MDT operations."
+      },
+      "review_notes": "Key areas to review: (1) The wiredtiger_kv_engine changes are significant and affect how timestamps are handled for non-MDT operations - verify Percona's storage-related enhancements remain intact, (2) The curop.cpp changes affect performance-critical random number generation paths, (3) Check that any Percona-specific modifications to these auto-merged files were preserved correctly by the merge strategy."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [
+            "I need to analyze the merge and the auto-merged files to provide a summary. Let me examine the auto-merged files and the commit history."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [
+            "Let me examine the auto-merged files to understand the changes."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [
+            "Let me check the current state and examine the files more directly."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [
+            "Let me examine the commits that modified the auto-merged files."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [
+            "Now I have enough information to write the JSON response."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [
+            "JSON response written to `/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/response_20260401_090459_796852.json` with:\n\n- **Summary**: 41 commits including opCounters cleanup (SERVER-121449), mutex race fix (SERVER-122123), non-MDT timestamp handling (SERVER-119287), ARM entropy optimization (SERVER-120286), and various query/replication improvements\n- **Auto-merged files**: All 4 files documented with explanations of the changes\n- **Review notes**: Highlights for Percona-specific code preservation in storage and performance-critical paths"
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20260401_090459_796715.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.89 (Claude Code)"
+    }
+  }
+}
