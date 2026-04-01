@@ -299,6 +299,21 @@ server_parameters:
         default: false
         redact: false
 
+    encryptionKeyCleanupIntervalSeconds:
+        description: >-
+            The interval in seconds between periodic orphaned encryption key cleanup
+            attempts. Set to 0 to disable periodic cleanup. Non-zero enables periodic
+            cleanup with that interval. Startup cleanup always runs regardless of
+            this setting.
+        set_at: [startup, runtime]
+        cpp_vartype: "AtomicWord<std::int32_t>"
+        cpp_varname: gEncryptionKeyCleanupIntervalSeconds
+        default: 0
+        validator:
+            gte: 0
+            lte: 86400
+        redact: false
+
     spillWiredTigerEngineRuntimeConfig:
         description: "Spill WiredTiger Configuration"
         set_at: runtime

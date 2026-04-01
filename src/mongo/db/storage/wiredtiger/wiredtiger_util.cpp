@@ -157,6 +157,40 @@ StatusWith<std::string> WiredTigerUtil::getMetadata(WiredTigerSession& session, 
     return _getMetadata(cursor, uri);
 }
 
+boost::optional<std::string> WiredTigerUtil::getEncryptionKeyId(StringData config) {
+    WiredTigerConfigParser parser(config);
+
+    // Get the "encryption" key which contains a nested struct
+    WT_CONFIG_ITEM encryptionValue;
+    if (parser.get("encryption", &encryptionValue) != 0) {
+        // No encryption key found
+        return boost::none;
+    }
+
+    // Encryption value must be a struct: encryption=(name=percona,keyid="...")
+    if (encryptionValue.type != WT_CONFIG_ITEM::WT_CONFIG_ITEM_STRUCT) {
+        return boost::none;
+    }
+
+    // Parse the nested encryption struct
+    WiredTigerConfigParser encryptionParser(encryptionValue);
+
+    // Get the "keyid" sub-key
+    WT_CONFIG_ITEM keyidValue;
+    if (encryptionParser.get("keyid", &keyidValue) != 0) {
+        // No keyid found in encryption config
+        return boost::none;
+    }
+
+    // keyid is typically a STRING type (quoted like keyid="...") but could also be ID type
+    if (keyidValue.type == WT_CONFIG_ITEM::WT_CONFIG_ITEM_STRING ||
+        keyidValue.type == WT_CONFIG_ITEM::WT_CONFIG_ITEM_ID) {
+        return std::string(keyidValue.str, keyidValue.len);
+    }
+
+    return boost::none;
+}
+
 StatusWith<std::string> WiredTigerUtil::getSourceMetadata(WiredTigerSession& session,
                                                           StringData uri) {
     if (uri.starts_with("file:")) {

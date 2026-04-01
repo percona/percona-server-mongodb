@@ -569,6 +569,18 @@ mongo_cc_library(
 )
 
 mongo_cc_library(
+    name = "cleanup_orphaned_encryption_keys_cmd",
+    srcs = [
+        "cleanup_orphaned_encryption_keys_cmd.cpp",
+    ],
+    deps = [
+        "//src/mongo/db:commands",
+        "//src/mongo/db/auth",
+        "//src/mongo/db/auth:authprivilege",
+    ],
+)
+
+mongo_cc_library(
     name = "set_index_commit_quorum_idl",
     srcs = [
         ":set_index_commit_quorum_gen",
@@ -992,6 +1004,7 @@ mongo_cc_library(
         "//src/mongo/db/topology/user_write_block:set_user_write_block_mode_command.cpp",
     ],
     deps = [
+        "cleanup_orphaned_encryption_keys_cmd",
         "cluster_server_parameter_commands_invocation",
         "core",
         "create_command",
