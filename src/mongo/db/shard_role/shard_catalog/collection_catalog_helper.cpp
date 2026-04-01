@@ -439,15 +439,14 @@ Status dropCollectionsWithPrefix(OperationContext* opCtx,
 
     std::vector<UUID> toDrop = catalog->getAllCollectionUUIDsFromDb(dbName);
 
-    const auto status = dropCollections(opCtx, toDrop, collectionNamePrefix);
+    // NOTE: Encryption key cleanup is NOT performed here.
+    // The key cannot be safely deleted at this point because drop-pending idents
+    // (encrypted with this key) may still exist in storage and will be accessed
+    // during checkpoint cleanup. Deleting the key here would cause WT_NOTFOUND errors.
+    // Orphaned encryption keys are instead cleaned up unconditionally on startup,
+    // after catalog initialization.
 
-    // If all collections were dropped successfully then drop database's encryption key
-    if (status.isOK()) {
-        auto storageEngine = opCtx->getServiceContext()->getStorageEngine();
-        storageEngine->keydbDropDatabase(dbName);
-    }
-
-    return status;
+    return dropCollections(opCtx, toDrop, collectionNamePrefix);
 }
 
 void shutDownCollectionCatalogAndGlobalStorageEngineCleanly(ServiceContext* service,
@@ -491,6 +490,9 @@ void startUpCollectionCatalogDeferred(OperationContext* opCtx) {
     auto storageEngine = opCtx->getServiceContext()->getStorageEngine();
     storageEngine->loadMDBCatalog(opCtx, StorageEngine::LastShutdownState::kClean);
     catalog::initializeCollectionCatalog(opCtx, storageEngine);
+
+    // Unconditionally clean up orphaned encryption keys at startup.
+    storageEngine->cleanupOrphanedEncryptionKeys(opCtx, "startup"_sd);
 }
 
 StorageEngine::LastShutdownState startUpStorageEngineAndCollectionCatalog(
@@ -505,9 +507,16 @@ StorageEngine::LastShutdownState startUpStorageEngineAndCollectionCatalog(
     auto lastShutdownState = startUpStorageEngine(
         initializeStorageEngineOpCtx.get(), initFlags, startupTimeElapsedBuilder);
 
-    Lock::GlobalWrite globalLk(initializeStorageEngineOpCtx.get());
-    catalog::initializeCollectionCatalog(initializeStorageEngineOpCtx.get(),
-                                         service->getStorageEngine());
+    {
+        Lock::GlobalWrite globalLk(initializeStorageEngineOpCtx.get());
+        catalog::initializeCollectionCatalog(initializeStorageEngineOpCtx.get(),
+                                             service->getStorageEngine());
+    }
+
+    // Unconditionally clean up orphaned encryption keys at startup.
+    // The catalog is fully initialized and no client operations are running yet.
+    service->getStorageEngine()->cleanupOrphanedEncryptionKeys(initializeStorageEngineOpCtx.get(),
+                                                               "startup"_sd);
 
     return lastShutdownState;
 }

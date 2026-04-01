@@ -567,6 +567,8 @@ public:
 
     void keydbDropDatabase(const DatabaseName& dbName) override;
 
+    std::vector<std::string> findOrphanedEncryptionKeyIds() override;
+
     void flushAllFiles(OperationContext* opCtx, bool callerHoldsReadLock) override;
 
     Status beginBackup() override;
