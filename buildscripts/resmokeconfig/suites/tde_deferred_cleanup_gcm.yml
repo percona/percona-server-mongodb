@@ -1,0 +1,24 @@
+# Resmoke suite for testing deferred encryption key cleanup with AES256-GCM cipher mode.
+# These tests stress test the encryptionKeyCleanupDeferred feature with aggressive
+# cleanup intervals (1 second) while performing many dropDatabase operations.
+
+config_variables:
+  - &keyFileGood jstests/percona/tde/ekf
+  - &cipherMode AES256-GCM
+
+test_kind: js_test
+
+selector:
+  roots:
+    - jstests/percona/tde/deferred_key_cleanup_drop_database.js
+    - jstests/percona/tde/deferred_key_cleanup_stress.js
+
+# Tests start their own mongod with encryption and deferred cleanup enabled.
+executor:
+  config:
+    shell_options:
+      global_vars:
+        TestData:
+          keyFileGood: *keyFileGood
+          cipherMode: *cipherMode
+      nodb: ""
