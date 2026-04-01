@@ -50,6 +50,7 @@
 #include "mongo/db/storage/storage_engine.h"
 #include "mongo/db/tenant_id.h"
 #include "mongo/util/modules.h"
+#include "mongo/util/periodic_runner.h"
 #include "mongo/util/uuid.h"
 
 #include <cstddef>
@@ -59,7 +60,6 @@
 #include <list>
 #include <memory>
 #include <mutex>
-#include <set>
 #include <string>
 #include <utility>
 #include <vector>
@@ -86,6 +86,10 @@ class StorageEngineImpl final : public StorageEngine {
     Status hotBackupTar(OperationContext* opCtx, const std::string& path) override;
     Status hotBackup(OperationContext* opCtx, const percona::S3BackupParameters& s3params) override;
     void keydbDropDatabase(const DatabaseName& dbName) override;
+
+    void cleanupOrphanedEncryptionKeys(OperationContext* opCtx, StringData trigger) override;
+
+    void markEncryptionKeyCleanupDirty() override;
 
 public:
     StorageEngineImpl(OperationContext* opCtx,
@@ -356,6 +360,20 @@ private:
 
     void _dumpCatalog(OperationContext* opCtx);
 
+    /**
+     * PeriodicRunner job body for orphaned encryption-key cleanup. Skips when
+     * the dirty flag is clear (no dropDatabase since last scan) and otherwise
+     * invokes cleanupOrphanedEncryptionKeys after clearing the flag.
+     */
+    void _runEncryptionKeyCleanupJob(Client* client);
+
+    /**
+     * Starts/stops the orphaned-encryption-key cleanup PeriodicRunner job.
+     * No-op if the configured interval is 0.
+     */
+    void _startEncryptionKeyCleanupJob();
+    void _stopEncryptionKeyCleanupJob();
+
     // Main KVEngine instance used for all user tables.
     // This must be the first member so it is destroyed last.
     std::unique_ptr<KVEngine> _engine;
@@ -371,6 +389,16 @@ private:
 
     // Listener for timestamp changes.
     TimestampMonitor::TimestampListener _timestampListener;
+
+    // Set by markEncryptionKeyCleanupDirty() on every dropDatabase. The
+    // periodic cleanup job clears it before running its scan, so ticks with
+    // no drops since the previous run skip the expensive metadata walk.
+    // Initialized true so the first tick after startup always runs.
+    AtomicWord<bool> _encryptionKeyCleanupDirty{true};
+
+    // Background job that runs _runEncryptionKeyCleanupJob() on the
+    // configured interval. Not scheduled when the interval is 0.
+    PeriodicJobAnchor _encryptionKeyCleanupJob;
 
     const bool _supportsCappedCollections;
 

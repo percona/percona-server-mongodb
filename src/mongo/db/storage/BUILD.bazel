@@ -730,6 +730,16 @@ mongo_cc_library(
 )
 
 mongo_cc_benchmark(
+    name = "encryption_key_cleanup_bm",
+    srcs = [
+        "encryption_key_cleanup_bm.cpp",
+    ],
+    deps = [
+        "//src/mongo/db:server_base",
+    ],
+)
+
+mongo_cc_benchmark(
     name = "storage_record_id_bm",
     srcs = [
         "record_id_bm.cpp",

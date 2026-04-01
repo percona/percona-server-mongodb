@@ -214,6 +214,15 @@ public:
     static StatusWith<std::string> getMetadata(WiredTigerSession& session, StringData uri);
 
     /**
+     * Extracts the encryption keyid from a WiredTiger config string.
+     * The keyid is found within the encryption config: encryption=(name=percona,keyid="...")
+     *
+     * @param config The WiredTiger configuration string (from getMetadata or getMetadataCreate)
+     * @return The keyid if found, boost::none otherwise. Empty string indicates master key.
+     */
+    static boost::optional<std::string> getEncryptionKeyId(StringData config);
+
+    /**
      * Gets the source metadata string for collection or index at URI.
      *
      * This is the WiredTiger config string for a specific file. If given a table: URI, it will
