@@ -511,6 +511,14 @@ public:
 
     void keydbDropDatabase(const DatabaseName& dbName) override;
 
+    std::vector<std::string> getAllEncryptionKeyIds() override;
+
+    std::set<std::string> getAllEncryptionKeyIdsInUse() override;
+
+    bool isEncryptionKeyCleanupDeferred() const override;
+
+    int32_t getEncryptionKeyCleanupIntervalSeconds() const override;
+
     void flushAllFiles(OperationContext* opCtx, bool callerHoldsReadLock) override;
 
     Status beginBackup() override;
