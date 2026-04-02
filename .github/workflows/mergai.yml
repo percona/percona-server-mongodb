@@ -12,6 +12,10 @@ on:
         required: false
         type: string
         default: "master"
+      mergai-agent:
+        description: "AI agent to use for merge/describe/resolve (e.g., claude-cli:claude-opus-4-5)"
+        required: false
+        type: string
   pull_request:
     types: [closed]
     branches:
@@ -84,12 +88,14 @@ jobs:
           mergai context init $MERGE_PICK
 
       - name: merge
+        env:
+          MERGAI_AGENT_ARG: ${{ inputs.mergai-agent && format('--agent {0}', inputs.mergai-agent) || '' }}
         run: |
           # Fetch and merge notes from remote
           mergai notes update
 
           # Attempt merge; exit code 0 = success, 1 = conflicts
-          if mergai merge; then
+          if mergai merge $MERGAI_AGENT_ARG; then
             echo "Merge successful. Committing merge."
             mergai commit merge              # Create merge commit with note attached
             mergai branch create main        # Create and checkout main working branch
@@ -101,7 +107,7 @@ jobs:
             mergai commit conflict           # Commit conflict state with markers
             mergai branch create conflict    # Create branch with conflict markers
             mergai branch create solution    # Create branch for AI solution
-            mergai resolve -y                # Run AI conflict resolution (yolo mode)
+            mergai resolve -y $MERGAI_AGENT_ARG  # Run AI conflict resolution (yolo mode)
             mergai commit solution           # Commit resolved files with note
             mergai branch push solution      # Push solution branch
             mergai branch push conflict      # Push conflict branch
