@@ -364,6 +364,25 @@ private:
     void _onMinOfCheckpointAndOldestTimestampChanged(OperationContext* opCtx,
                                                      const Timestamp& timestamp);
 
+    /**
+     * Cleans up orphaned encryption keys - keys that belong to databases that no longer exist.
+     * Only active when encryptionKeyCleanupDeferred server parameter is enabled.
+     */
+    void _cleanupOrphanedEncryptionKeys(OperationContext* opCtx);
+
+    /**
+     * Checks if enough time has passed since the last encryption key cleanup.
+     * If so, updates the last cleanup time and returns true.
+     * Returns false if the cleanup interval has not yet elapsed.
+     */
+    bool _shouldRunEncryptionKeyCleanup();
+
+    /**
+     * Returns the set of existing database names as serialized strings.
+     * Acquires a global IS lock to read from the catalog.
+     */
+    std::set<std::string> _getExistingDatabaseNames(OperationContext* opCtx);
+
     // Main KVEngine instance used for all user tables.
     // This must be the first member so it is destroyed last.
     std::unique_ptr<KVEngine> _engine;
@@ -379,6 +398,12 @@ private:
 
     // Listener for min of checkpoint and oldest timestamp changes.
     TimestampMonitor::TimestampListener _minOfCheckpointAndOldestTimestampListener;
+
+    // Listener for orphaned encryption key cleanup.
+    TimestampMonitor::TimestampListener _encryptionKeyCleanupListener;
+
+    // Tracks the last time orphaned encryption key cleanup was performed.
+    AtomicWord<Date_t> _lastEncryptionKeyCleanupTime{Date_t{}};
 
     const bool _supportsCappedCollections;
 
