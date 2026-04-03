@@ -2046,7 +2046,7 @@
         "pkg:github/schemastore/schemastore@6847cfc3a17a04a7664474212db50c627e1e3408",
         "pkg:github/snowballstem/snowball@1.0.0",
         "pkg:github/unicode-org/icu@icu-release-57-1",
-        "pkg:github/wiredtiger/wiredtiger@11.3.0"
+        "pkg:github/wiredtiger/wiredtiger@11.3.0",
         "pkg:github/libarchive/libarchive@v3.8.4",
         "pkg:github/aws/aws-sdk-cpp@1.11.471"
       ]
