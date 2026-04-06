@@ -230,7 +230,7 @@ MongoDB and specify the dependencies of the library itself. For instance, for
 After amending `sbom.json` , validate it with the script:
 ```shell
 $ source <path_to_venv>/bin/activate
-(venv) $ python buildscripts/sbom_linter.py
+(venv) $ python buildscripts/sbom_linter.py --input-file sbom.json
 ```
 where `<path_to_venv>` is a path to the Python virtual environment that was
 previously set up for this particular branch/commit of PSMDB, including
