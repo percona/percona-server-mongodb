@@ -44,6 +44,7 @@ a notice will be included in
 | [JSON-Schema-Test-Suite]                             | MIT                                            | 728066f9c5c258ba3b1804a22a5b998f2ec77ec0 |                      |                                 |
 | [libarchive]                                         | A mix of BSD-2-Clause and others               | 3.8.4                                    | ✗                    | ✗                               |
 | [libdwarf]                                           | LGPL-2.1-or-later, BSD-3-Clause, Public Domain | 2.1.0                                    |                      |                                 |
+| [libkmip]                                            | Apache-2.0 OR BSD-3-Clause                     | 66119416e2c89ab182343900418cecafe02b6e8d |                      | ✗                               |
 | [libmongocrypt]                                      | Apache-2.0                                     | 1.15.0                                   | ✗                    | ✗                               |
 | [LibTomCrypt]                                        | Unlicense                                      | 1.18.2                                   | ✗                    | ✗                               |
 | [libunwind]                                          | MIT                                            | 1.8.1                                    |                      | ✗                               |
@@ -110,6 +111,7 @@ a notice will be included in
 [immer]: https://github.com/arximboldi/immer.git
 [libarchive]: https://www.libarchive.org
 [libdwarf]: https://github.com/davea42/libdwarf-code.git
+[libkmip]: https://github.com/OpenKMIP/libkmip.git
 [libmongocrypt]: https://github.com/mongodb/libmongocrypt.git
 [libunwind]: https://github.com/libunwind/libunwind.git
 [linenoise]: https://github.com/antirez/linenoise
