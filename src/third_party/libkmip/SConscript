@@ -1,0 +1,15 @@
+Import("env")
+
+env = env.Clone()
+env.Append(CPPPATH=["dist/include"])
+
+env.Library(
+    target="libkmip",
+    source=[
+        "dist/src/kmip.c",
+        "dist/src/kmip_memset.c",
+    ],
+    LIBDEPS_TAGS=[
+        'init-no-global-side-effects',
+    ],
+)

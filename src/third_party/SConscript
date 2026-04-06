@@ -18,7 +18,6 @@ Import([
 snappySuffix = '-1.1.7'
 icuSuffix = '-57.1'
 tomcryptSuffix = '-1.18.2'
-libkmipSuffix = '-0ecda33'
 variantSuffix = '-1.4.0'
 
 thirdPartyEnvironmentModifications = {
@@ -37,8 +36,7 @@ thirdPartyEnvironmentModifications = {
     },
     'percona_incl': {'CPPPATH': ['#/src/third_party/install/include'], },
     'libarchive': {'CPPPATH': ['#/src/third_party/libarchive/dist'], },
-    'libkmip': {'CPPPATH': [f'#/src/third_party/libkmip{libkmipSuffix}/libkmip/include'], },
-    'kmippp': {'CPPPATH': [f'#/src/third_party/libkmip{libkmipSuffix}'], },
+    'libkmip': {'CPPPATH': [f'#/src/third_party/libkmip/dist/include'], },
     'folly': {'CPPPATH': ['#src/third_party/folly/dist'], },
     'fmt': {'CPPPATH': ['#src/third_party/fmt/dist/include'], },
     'immer': {'CPPPATH': ['#src/third_party/immer/dist'], },
@@ -787,25 +785,13 @@ libarchiveEnv.Library(target='shim_libarchive', source=[
 
 libkmipEnv = env.Clone()
 libkmipEnv.InjectThirdParty(libraries=['libkmip'])
-libkmipEnv.SConscript('libkmip' + libkmipSuffix + '/libkmip/SConscript',
-                      exports={'env': libkmipEnv})
+libkmipEnv.SConscript('libkmip/SConscript', exports={'env': libkmipEnv})
 libkmipEnv = libkmipEnv.Clone(LIBDEPS_INTERFACE=[
-    'libkmip' + libkmipSuffix + '/libkmip/libkmip',
+    'libkmip/libkmip',
 ])
 
 libkmipEnv.Library(target='shim_libkmip', source=[
     'shim_libkmip.cpp',
-])
-
-kmipppEnv = env.Clone()
-kmipppEnv.InjectThirdParty(libraries=['kmippp'])
-kmipppEnv.SConscript('libkmip' + libkmipSuffix + '/kmippp/SConscript', exports={'env': kmipppEnv})
-kmipppEnv = kmipppEnv.Clone(LIBDEPS_INTERFACE=[
-    'libkmip' + libkmipSuffix + '/kmippp/kmippp',
-])
-
-kmipppEnv.Library(target='shim_kmippp', source=[
-    'shim_kmippp.cpp',
 ])
 
 if env.ShouldBuildStreams():
