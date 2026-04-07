@@ -86,7 +86,7 @@ env.CppUnitTest(
 )
 
 kmipClientEnv = env.Clone()
-kmipClientEnv.InjectThirdParty(libraries=['libkmip', 'kmippp'])
+kmipClientEnv.InjectThirdParty(libraries=['libkmip'])
 kmipClientEnv.Library(
     target='kmip_client',
     source=[
@@ -100,8 +100,10 @@ kmipClientEnv.Library(
         '$BUILD_DIR/mongo/base',
         '$BUILD_DIR/mongo/base/secure_allocator',
         '$BUILD_DIR/third_party/shim_boost',
-        '$BUILD_DIR/third_party/shim_kmippp',
         '$BUILD_DIR/third_party/shim_libkmip',
+    ],
+    SYSLIBDEPS_PRIVATE=[
+        'ssl',
     ],
 )
 
