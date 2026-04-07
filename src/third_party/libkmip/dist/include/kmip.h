@@ -11,7 +11,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
-#include <assert.h>
+#include <stdio.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -730,7 +730,6 @@ enum tag
     KMIP_TAG_MACHINE_IDENTIFIER               = 0x4200A9,
     KMIP_TAG_MEDIA_IDENTIFIER                 = 0x4200AA,
     KMIP_TAG_NETWORK_IDENTIFIER               = 0x4200AB,
-    KMIP_TAG_OBJECT_GROUP_MEMBER              = 0x4200AC,
     KMIP_TAG_DIGITAL_SIGNATURE_ALGORITHM      = 0x4200AE,
     KMIP_TAG_DEVICE_SERIAL_NUMBER             = 0x4200B0,
     /* KMIP 1.2 */
@@ -748,8 +747,6 @@ enum tag
     KMIP_TAG_INITIAL_COUNTER_VALUE            = 0x4200D1,
     KMIP_TAG_INVOCATION_FIELD_LENGTH          = 0x4200D2,
     KMIP_TAG_ATTESTATION_CAPABLE_INDICATOR    = 0x4200D3,
-    KMIP_TAG_OFFSET_ITEMS                     = 0x4200D4,
-    KMIP_TAG_LOCATED_ITEMS                    = 0x4200D5,
     /* KMIP 1.4 */
     KMIP_TAG_KEY_WRAP_TYPE                    = 0x4200F8,
     KMIP_TAG_SALT_LENGTH                      = 0x420100,
@@ -1037,25 +1034,6 @@ typedef struct create_request_payload
     ProtectionStorageMasks *protection_storage_masks;
 } CreateRequestPayload;
 
-typedef struct register_request_payload
-{
-    /* KMIP 1.0 */
-    enum object_type object_type; // both
-    TemplateAttribute *template_attribute;
-    /* KMIP 2.0 */
-    Attributes *attributes;
-    ProtectionStorageMasks *protection_storage_masks;
-    // TODO: data could be many things. But we only care about symmetric keys
-    SymmetricKey object; // both 1.0 and 2.0
-} RegisterRequestPayload;
-
-typedef struct register_response_payload
-{
-    /* KMIP 1.0 */
-    TextString *unique_identifier;
-    TemplateAttribute *template_attribute;
-} RegisterResponsePayload;
-
 typedef struct create_response_payload
 {
     /* KMIP 1.0 */
@@ -1063,6 +1041,30 @@ typedef struct create_response_payload
     TextString *unique_identifier;
     TemplateAttribute *template_attribute;
 } CreateResponsePayload;
+
+typedef struct register_request_payload
+{
+    /* both KMIP 1.x and KMIP 2.0 */
+    enum object_type object_type;
+    /* KMIP 1.x */
+    TemplateAttribute *template_attribute;
+    /* KMIP 2.0 */
+    Attributes *attributes;
+    /* both KMIP 1.x and KMIP 2.0 */
+    /* Object can be of any type, but we now support only symmetric keys */
+    SymmetricKey object;
+    /* KMIP 2.0 */
+    ProtectionStorageMasks *protection_storage_masks;
+
+} RegisterRequestPayload;
+
+typedef struct register_response_payload
+{
+    /* both KMIP 1.x and KMIP 2.0 */
+    TextString *unique_identifier;
+    /* KMIP 1.x */
+    TemplateAttribute *template_attribute;
+} RegisterResponsePayload;
 
 typedef struct get_request_payload
 {
@@ -1082,19 +1084,28 @@ typedef struct get_response_payload
     void *object;
 } GetResponsePayload;
 
-typedef struct get_attribute_request_payload
+/*
+ * At the time of writing, for the `Get Attributes` operation, we support only
+ * KMIP 1.x and only one attribute name per request.
+ */
+typedef struct get_attributes_request_payload
 {
-    /* KMIP 1.0 */
+    /* KMIP 1.x */
     TextString *unique_identifier;
     TextString *attribute_name;
-} GetAttributeRequestPayload;
+} GetAttributesRequestPayload;
 
-typedef struct get_attribute_response_payload
+/*
+ * At the time of writing, for the `Get Attributes` operation, we support only
+ * KMIP 1.x and only one attribute value per response. The latter is technically
+ * against the standard but works for our use-case since we request only the
+ * `State` attrubute, which has a single value.
+ */
+typedef struct get_attributes_response_payload
 {
     TextString *unique_identifier;
     Attribute *attribute;
-    void *object;
-} GetAttributeResponsePayload;
+} GetAttributesResponsePayload;
 
 typedef struct activate_request_payload
 {
@@ -1535,88 +1546,6 @@ void kmip_init_response_header(ResponseHeader *);
 void kmip_init_request_batch_item(RequestBatchItem *);
 
 /*
-Printing Functions
-*/
-
-void kmip_print_buffer(FILE *, void *, int);
-void kmip_print_stack_trace(FILE *, KMIP *);
-void kmip_print_error_string(FILE *, int);
-void kmip_print_batch_error_continuation_option(FILE *, enum batch_error_continuation_option);
-void kmip_print_operation_enum(FILE *, enum operation);
-void kmip_print_result_status_enum(FILE *, enum result_status);
-void kmip_print_result_reason_enum(FILE *, enum result_reason);
-void kmip_print_object_type_enum(FILE *, enum object_type);
-void kmip_print_key_format_type_enum(FILE *, enum key_format_type);
-void kmip_print_key_compression_type_enum(FILE *, enum key_compression_type);
-void kmip_print_cryptographic_algorithm_enum(FILE *, enum cryptographic_algorithm);
-void kmip_print_name_type_enum(FILE *, enum name_type);
-void kmip_print_attribute_type_enum(FILE *, enum attribute_type);
-void kmip_print_state_enum(FILE *, enum state);
-void kmip_print_block_cipher_mode_enum(FILE *, enum block_cipher_mode);
-void kmip_print_padding_method_enum(FILE *, enum padding_method);
-void kmip_print_hashing_algorithm_enum(FILE *, enum hashing_algorithm);
-void kmip_print_key_role_type_enum(FILE *, enum key_role_type);
-void kmip_print_digital_signature_algorithm_enum(FILE *, enum digital_signature_algorithm);
-void kmip_print_mask_generator_enum(FILE *, enum mask_generator);
-void kmip_print_wrapping_method_enum(FILE *, enum wrapping_method);
-void kmip_print_encoding_option_enum(FILE *, enum encoding_option);
-void kmip_print_key_wrap_type_enum(FILE *, enum key_wrap_type);
-void kmip_print_credential_type_enum(FILE *, enum credential_type);
-void kmip_print_cryptographic_usage_mask_enums(FILE *, int, int32);
-void kmip_print_integer(FILE *, int32);
-void kmip_print_bool(FILE *, int32);
-void kmip_print_text_string(FILE *, int, const char *, TextString *);
-void kmip_print_byte_string(FILE *, int, const char *, ByteString *);
-void kmip_print_date_time(FILE *, int64);
-void kmip_print_protocol_version(FILE *, int, ProtocolVersion *);
-void kmip_print_name(FILE *, int, Name *);
-void kmip_print_nonce(FILE *, int, Nonce *);
-void kmip_print_protection_storage_masks_enum(FILE *, int, int32);
-void kmip_print_protection_storage_masks(FILE *, int, ProtectionStorageMasks *);
-void kmip_print_application_specific_information(FILE *, int, ApplicationSpecificInformation *);
-void kmip_print_cryptographic_parameters(FILE *, int, CryptographicParameters *);
-void kmip_print_encryption_key_information(FILE *, int, EncryptionKeyInformation *);
-void kmip_print_mac_signature_key_information(FILE *, int, MACSignatureKeyInformation *);
-void kmip_print_key_wrapping_data(FILE *, int, KeyWrappingData *);
-void kmip_print_attribute_value(FILE *, int, enum attribute_type, void *);
-void kmip_print_attribute(FILE *, int, Attribute *);
-void kmip_print_attributes(FILE *, int, Attributes *);
-void kmip_print_key_material(FILE *, int, enum key_format_type, void *);
-void kmip_print_key_value(FILE *, int, enum type, enum key_format_type, void *);
-void kmip_print_key_block(FILE *, int, KeyBlock *);
-void kmip_print_symmetric_key(FILE *, int, SymmetricKey *);
-void kmip_print_object(FILE *, int, enum object_type, void *);
-void kmip_print_key_wrapping_specification(FILE *, int, KeyWrappingSpecification *);
-void kmip_print_template_attribute(FILE *, int, TemplateAttribute *);
-void kmip_print_create_request_payload(FILE *, int, CreateRequestPayload *);
-void kmip_print_create_response_payload(FILE *, int, CreateResponsePayload *);
-void kmip_print_get_request_payload(FILE *, int, GetRequestPayload *);
-void kmip_print_get_response_payload(FILE *, int, GetResponsePayload *);
-void kmip_print_destroy_request_payload(FILE *, int, DestroyRequestPayload *);
-void kmip_print_destroy_response_payload(FILE *, int, DestroyResponsePayload *);
-void kmip_print_request_payload(FILE *, int, enum operation, void *);
-void kmip_print_response_payload(FILE *, int, enum operation, void *);
-void kmip_print_username_password_credential(FILE *, int, UsernamePasswordCredential *);
-void kmip_print_device_credential(FILE *, int, DeviceCredential *);
-void kmip_print_attestation_credential(FILE *, int, AttestationCredential *);
-void kmip_print_credential_value(FILE *, int, enum credential_type, void *);
-void kmip_print_credential(FILE *, int, Credential *);
-void kmip_print_authentication(FILE *, int, Authentication *);
-void kmip_print_request_batch_item(FILE *, int, RequestBatchItem *);
-void kmip_print_response_batch_item(FILE *, int, ResponseBatchItem *);
-void kmip_print_request_header(FILE *, int, RequestHeader *);
-void kmip_print_response_header(FILE *, int, ResponseHeader *);
-void kmip_print_request_message(FILE *, RequestMessage *);
-void kmip_print_response_message(FILE *, ResponseMessage *);
-void kmip_print_query_function_enum(FILE*, int, enum query_function);
-void kmip_print_query_functions(FILE*, int, Functions*);
-void kmip_print_operations(FILE*, int, Operations *);
-void kmip_print_object_types(FILE*, int, ObjectTypes*);
-void kmip_print_query_request_payload(FILE*, int, QueryRequestPayload *);
-void kmip_print_query_response_payload(FILE*, int, QueryResponsePayload *);
-void kmip_print_server_information(FILE*, int, ServerInformation*);
-
-/*
 Freeing Functions
 */
 
@@ -1643,8 +1572,12 @@ void kmip_free_private_key(KMIP *, PrivateKey *);
 void kmip_free_key_wrapping_specification(KMIP *, KeyWrappingSpecification *);
 void kmip_free_create_request_payload(KMIP *, CreateRequestPayload *);
 void kmip_free_create_response_payload(KMIP *, CreateResponsePayload *);
+void kmip_free_register_request_payload(KMIP *, RegisterRequestPayload *);
+void kmip_free_register_response_payload(KMIP *, RegisterResponsePayload *);
 void kmip_free_get_request_payload(KMIP *, GetRequestPayload *);
 void kmip_free_get_response_payload(KMIP *, GetResponsePayload *);
+void kmip_free_get_attributes_request_payload(KMIP *, GetAttributesRequestPayload *);
+void kmip_free_get_attributes_response_payload(KMIP *, GetAttributesResponsePayload *);
 void kmip_free_activate_request_payload(KMIP *, ActivateRequestPayload *);
 void kmip_free_activate_response_payload(KMIP *, ActivateResponsePayload *);
 void kmip_free_destroy_request_payload(KMIP *, DestroyRequestPayload *);
@@ -1713,8 +1646,14 @@ int kmip_compare_private_key(const PrivateKey *, const PrivateKey *);
 int kmip_compare_key_wrapping_specification(const KeyWrappingSpecification *, const KeyWrappingSpecification *);
 int kmip_compare_create_request_payload(const CreateRequestPayload *, const CreateRequestPayload *);
 int kmip_compare_create_response_payload(const CreateResponsePayload *, const CreateResponsePayload *);
+int kmip_compare_register_request_payload(const RegisterRequestPayload *, const RegisterRequestPayload *);
+int kmip_compare_register_response_payload(const RegisterResponsePayload *, const RegisterResponsePayload *);
 int kmip_compare_get_request_payload(const GetRequestPayload *, const GetRequestPayload *);
 int kmip_compare_get_response_payload(const GetResponsePayload *, const GetResponsePayload *);
+int kmip_compare_get_attributes_request_payload(const GetAttributesRequestPayload *, const GetAttributesRequestPayload *);
+int kmip_compare_get_attributes_response_payload(const GetAttributesResponsePayload *, const GetAttributesResponsePayload *);
+int kmip_compare_activate_request_payload(const ActivateRequestPayload *, const ActivateRequestPayload *);
+int kmip_compare_activate_response_payload(const ActivateResponsePayload *, const ActivateResponsePayload *);
 int kmip_compare_destroy_request_payload(const DestroyRequestPayload *, const DestroyRequestPayload *);
 int kmip_compare_destroy_response_payload(const DestroyResponsePayload *, const DestroyResponsePayload *);
 int kmip_compare_request_batch_item(const RequestBatchItem *, const RequestBatchItem *);
@@ -1778,8 +1717,12 @@ int kmip_encode_private_key(KMIP *, const PrivateKey *);
 int kmip_encode_key_wrapping_specification(KMIP *, const KeyWrappingSpecification *);
 int kmip_encode_create_request_payload(KMIP *, const CreateRequestPayload *);
 int kmip_encode_create_response_payload(KMIP *, const CreateResponsePayload *);
+int kmip_encode_register_request_payload(KMIP *, const RegisterRequestPayload *);
+int kmip_encode_register_response_payload(KMIP *, const RegisterResponsePayload *);
 int kmip_encode_get_request_payload(KMIP *, const GetRequestPayload *);
 int kmip_encode_get_response_payload(KMIP *, const GetResponsePayload *);
+int kmip_encode_get_attributes_request_payload(KMIP *, const GetAttributesRequestPayload *);
+int kmip_encode_get_attributes_response_payload(KMIP *, const GetAttributesResponsePayload *);
 int kmip_encode_activate_request_payload(KMIP *, const ActivateRequestPayload *);
 int kmip_encode_activate_response_payload(KMIP *, const ActivateResponsePayload *);
 int kmip_encode_destroy_request_payload(KMIP *, const DestroyRequestPayload *);
@@ -1810,13 +1753,13 @@ int kmip_decode_int32_be(KMIP *, void *);
 int kmip_decode_int64_be(KMIP *, void *);
 int kmip_decode_integer(KMIP *, enum tag, int32 *);
 int kmip_decode_long(KMIP *, enum tag, int64 *);
-int kmip_decode_length(KMIP* ctx, uint32*);
 int kmip_decode_enum(KMIP *, enum tag, void *);
 int kmip_decode_bool(KMIP *, enum tag, bool32 *);
 int kmip_decode_text_string(KMIP *, enum tag, TextString *);
 int kmip_decode_byte_string(KMIP *, enum tag, ByteString *);
 int kmip_decode_date_time(KMIP *, enum tag, int64 *);
 int kmip_decode_interval(KMIP *, enum tag, uint32 *);
+int kmip_decode_length(KMIP* ctx, uint32*);
 int kmip_decode_name(KMIP *, Name *);
 int kmip_decode_attribute_name(KMIP *, enum attribute_type *);
 int kmip_decode_attribute_v1(KMIP *, Attribute *);
@@ -1841,8 +1784,12 @@ int kmip_decode_private_key(KMIP *, PrivateKey *);
 int kmip_decode_key_wrapping_specification(KMIP *, KeyWrappingSpecification *);
 int kmip_decode_create_request_payload(KMIP *, CreateRequestPayload *);
 int kmip_decode_create_response_payload(KMIP *, CreateResponsePayload *);
+int kmip_decode_register_request_payload(KMIP *, RegisterRequestPayload *);
+int kmip_decode_register_response_payload(KMIP *, RegisterResponsePayload *);
 int kmip_decode_get_request_payload(KMIP *, GetRequestPayload *);
 int kmip_decode_get_response_payload(KMIP *, GetResponsePayload *);
+int kmip_decode_get_attributes_request_payload(KMIP *, GetAttributesRequestPayload *);
+int kmip_decode_get_attributes_response_payload(KMIP *, GetAttributesResponsePayload *);
 int kmip_decode_activate_request_payload(KMIP *, ActivateRequestPayload *);
 int kmip_decode_activate_response_payload(KMIP *, ActivateResponsePayload *);
 int kmip_decode_destroy_request_payload(KMIP *, DestroyRequestPayload *);
@@ -1866,6 +1813,7 @@ int kmip_decode_object_types(KMIP *, ObjectTypes *);
 int kmip_decode_query_request_payload(KMIP *, QueryRequestPayload *);
 int kmip_decode_query_response_payload(KMIP *, QueryResponsePayload *);
 int kmip_decode_server_information(KMIP *ctx, ServerInformation *);
+
 
 #ifdef __cplusplus
 }

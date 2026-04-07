@@ -10,6 +10,14 @@
 
 #include <stddef.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 void* kmip_memset(void *ptr, int value, size_t size);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* KMIP_MEMSET_H */
