@@ -5,14 +5,14 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 645,
+    "commits_behind": 649,
     "days_behind": 18,
-    "files_affected": 2369,
-    "total_additions": 99106,
-    "total_deletions": 25262,
+    "files_affected": 2376,
+    "total_additions": 99559,
+    "total_deletions": 25426,
     "date_range": {
       "first": "2026-03-20T04:45:54+00:00",
-      "last": "2026-04-07T04:05:16+00:00"
+      "last": "2026-04-07T08:56:22+00:00"
     }
   },
   "last_merged_commit": {
@@ -36,6 +36,46 @@
     "summary": "SERVER-120367 Introduce core_high_yielding and aggregation_high_yielding suites (#48946)"
   },
   "unmerged_commits": [
+    {
+      "sha": "0821fec802924bb44db7697235d4e749048cb887",
+      "short_sha": "0821fec8029",
+      "date": "2026-04-07T09:56:22+01:00",
+      "author": {
+        "name": "mongo-pr-bot[bot]",
+        "email": "230616009+mongo-pr-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "SERVER-110427 Update profiling data (#51173)"
+    },
+    {
+      "sha": "ca4eb07f5b39b0aae3d53a2ed1dd3101b8cbd585",
+      "short_sha": "ca4eb07f5b3",
+      "date": "2026-04-07T10:12:48+02:00",
+      "author": {
+        "name": "Alberto Massari",
+        "email": "alberto.massari@mongodb.com"
+      },
+      "summary": "SERVER-123397 Reduce stack usage in buildEqLookup (#51111)"
+    },
+    {
+      "sha": "63f1205f84f24e0c3c3e45e38cbcab1b2063b326",
+      "short_sha": "63f1205f84f",
+      "date": "2026-04-07T09:16:54+02:00",
+      "author": {
+        "name": "Jan",
+        "email": "jsteemann@users.noreply.github.com"
+      },
+      "summary": "SERVER-123444 Exclude disagg tests in aubsan variant (#51145)"
+    },
+    {
+      "sha": "e4c311177d8dcd053418c8152e61d76c04878eb1",
+      "short_sha": "e4c311177d8",
+      "date": "2026-04-07T16:29:55+10:00",
+      "author": {
+        "name": "wt-vendoring-bot[bot]",
+        "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "Import wiredtiger: 0c974c8bfd6fc8e47d3a65900d82ccdc98624ec5 from branch mongodb-master (#51249)"
+    },
     {
       "sha": "d50fb160b1d39a16700b501f6407a8f72af32ca1",
       "short_sha": "d50fb160b1d",
@@ -7235,7 +7275,7 @@
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-04-07 06:31:41",
+  "generated_at": "2026-04-07 10:27:26",
   "branch_name": "master",
   "display_name": "master"
 }
