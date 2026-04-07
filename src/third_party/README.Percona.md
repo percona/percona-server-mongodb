@@ -254,11 +254,9 @@ Commit updated `sbom.json`.
 This stage is quite simple and straightforward:
 ```shell
 $ source <path_to_venv>/bin/activate
-(venv) $ pushd src/third_party/scripts/
-(venv) $ python gen_thirdpartyreadme.py
-2026-01-25 09:13:30,662 - INFO - ../../../sbom.json JSON data loaded.
+(venv) $ python src/third_party/scripts/gen_thirdpartyreadme.py
+2026-01-25 09:13:30,662 - INFO - sbom.json JSON data loaded.
 2026-01-25 09:13:30,666 - INFO - Markdown file created successfully.
-(venv) $ popd
 (venv) $ git add README.third_parthy.md
 (venv) $ git commit -m "Update README.third_parthy.md"
 ```

@@ -2006,6 +2006,53 @@
         ]
       },
       "scope": "required"
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:github/OpenKMIP/libkmip@66119416e2c89ab182343900418cecafe02b6e8d",
+      "supplier": {
+        "name": "OpenKMIP"
+      },
+      "author": "Peter Hamilton",
+      "group": "OpenKMIP",
+      "name": "libkmip",
+      "version": "66119416e2c89ab182343900418cecafe02b6e8d",
+      "description": "A C implementation of the KMIP specification",
+      "licenses": [
+        {
+          "expression": "Apache-2.0 OR BSD-3-Clause"
+        }
+      ],
+      "copyright": "Copyright (C) Peter Hamilton",
+      "purl": "pkg:github/OpenKMIP/libkmip@66119416e2c89ab182343900418cecafe02b6e8d",
+      "externalReferences": [
+        {
+          "url": "https://github.com/OpenKMIP/libkmip.git",
+          "type": "distribution"
+        }
+      ],
+      "properties": [
+        {
+          "name": "internal:team_responsible",
+          "value": "Percona Server for MongoDB Team"
+        },
+        {
+          "name": "emits_persisted_data",
+          "value": "false"
+        },
+        {
+          "name": "import_script_path",
+          "value": "src/third_party/libkmip/scripts/import.sh"
+        }
+      ],
+      "evidence": {
+        "occurrences": [
+          {
+            "location": "src/third_party/libkmip"
+          }
+        ]
+      },
+      "scope": "required"
     }
   ],
   "dependencies": [
@@ -2048,7 +2095,8 @@
         "pkg:github/unicode-org/icu@icu-release-57-1",
         "pkg:github/wiredtiger/wiredtiger@11.3.0",
         "pkg:github/libarchive/libarchive@v3.8.4",
-        "pkg:github/aws/aws-sdk-cpp@1.11.471"
+        "pkg:github/aws/aws-sdk-cpp@1.11.471",
+        "pkg:github/OpenKMIP/libkmip@66119416e2c89ab182343900418cecafe02b6e8d"
       ]
     },
     {
@@ -2208,6 +2256,10 @@
       "dependsOn": [
         "pkg:github/madler/zlib@v1.3.1"
       ]
+    },
+    {
+      "ref": "pkg:github/OpenKMIP/libkmip@66119416e2c89ab182343900418cecafe02b6e8d",
+      "dependsOn": []
     }
   ]
 }

@@ -1,0 +1,677 @@
+diff --git a/include/kmip.h b/include/kmip.h
+index a0ce2da..47e6bac 100644
+--- a/include/kmip.h
++++ b/include/kmip.h
+@@ -1042,6 +1042,30 @@ typedef struct create_response_payload
+     TemplateAttribute *template_attribute;
+ } CreateResponsePayload;
+ 
++typedef struct register_request_payload
++{
++    /* both KMIP 1.x and KMIP 2.0 */
++    enum object_type object_type;
++    /* KMIP 1.x */
++    TemplateAttribute *template_attribute;
++    /* KMIP 2.0 */
++    Attributes *attributes;
++    /* both KMIP 1.x and KMIP 2.0 */
++    /* Object can be of any type, but we now support only symmetric keys */
++    SymmetricKey object;
++    /* KMIP 2.0 */
++    ProtectionStorageMasks *protection_storage_masks;
++
++} RegisterRequestPayload;
++
++typedef struct register_response_payload
++{
++    /* both KMIP 1.x and KMIP 2.0 */
++    TextString *unique_identifier;
++    /* KMIP 1.x */
++    TemplateAttribute *template_attribute;
++} RegisterResponsePayload;
++
+ typedef struct get_request_payload
+ {
+     /* KMIP 1.0 */
+@@ -1525,6 +1549,8 @@ void kmip_free_private_key(KMIP *, PrivateKey *);
+ void kmip_free_key_wrapping_specification(KMIP *, KeyWrappingSpecification *);
+ void kmip_free_create_request_payload(KMIP *, CreateRequestPayload *);
+ void kmip_free_create_response_payload(KMIP *, CreateResponsePayload *);
++void kmip_free_register_request_payload(KMIP *, RegisterRequestPayload *);
++void kmip_free_register_response_payload(KMIP *, RegisterResponsePayload *);
+ void kmip_free_get_request_payload(KMIP *, GetRequestPayload *);
+ void kmip_free_get_response_payload(KMIP *, GetResponsePayload *);
+ void kmip_free_activate_request_payload(KMIP *, ActivateRequestPayload *);
+@@ -1595,6 +1621,8 @@ int kmip_compare_private_key(const PrivateKey *, const PrivateKey *);
+ int kmip_compare_key_wrapping_specification(const KeyWrappingSpecification *, const KeyWrappingSpecification *);
+ int kmip_compare_create_request_payload(const CreateRequestPayload *, const CreateRequestPayload *);
+ int kmip_compare_create_response_payload(const CreateResponsePayload *, const CreateResponsePayload *);
++int kmip_compare_register_request_payload(const RegisterRequestPayload *, const RegisterRequestPayload *);
++int kmip_compare_register_response_payload(const RegisterResponsePayload *, const RegisterResponsePayload *);
+ int kmip_compare_get_request_payload(const GetRequestPayload *, const GetRequestPayload *);
+ int kmip_compare_get_response_payload(const GetResponsePayload *, const GetResponsePayload *);
+ int kmip_compare_activate_request_payload(const ActivateRequestPayload *, const ActivateRequestPayload *);
+@@ -1662,6 +1690,8 @@ int kmip_encode_private_key(KMIP *, const PrivateKey *);
+ int kmip_encode_key_wrapping_specification(KMIP *, const KeyWrappingSpecification *);
+ int kmip_encode_create_request_payload(KMIP *, const CreateRequestPayload *);
+ int kmip_encode_create_response_payload(KMIP *, const CreateResponsePayload *);
++int kmip_encode_register_request_payload(KMIP *, const RegisterRequestPayload *);
++int kmip_encode_register_response_payload(KMIP *, const RegisterResponsePayload *);
+ int kmip_encode_get_request_payload(KMIP *, const GetRequestPayload *);
+ int kmip_encode_get_response_payload(KMIP *, const GetResponsePayload *);
+ int kmip_encode_activate_request_payload(KMIP *, const ActivateRequestPayload *);
+@@ -1725,6 +1755,8 @@ int kmip_decode_private_key(KMIP *, PrivateKey *);
+ int kmip_decode_key_wrapping_specification(KMIP *, KeyWrappingSpecification *);
+ int kmip_decode_create_request_payload(KMIP *, CreateRequestPayload *);
+ int kmip_decode_create_response_payload(KMIP *, CreateResponsePayload *);
++int kmip_decode_register_request_payload(KMIP *, RegisterRequestPayload *);
++int kmip_decode_register_response_payload(KMIP *, RegisterResponsePayload *);
+ int kmip_decode_get_request_payload(KMIP *, GetRequestPayload *);
+ int kmip_decode_get_response_payload(KMIP *, GetResponsePayload *);
+ int kmip_decode_activate_request_payload(KMIP *, ActivateRequestPayload *);
+diff --git a/include/kmip_io.h b/include/kmip_io.h
+index f41dd21..8060346 100644
+--- a/include/kmip_io.h
++++ b/include/kmip_io.h
+@@ -73,6 +73,8 @@ void kmip_print_key_wrapping_specification(FILE *, int, KeyWrappingSpecification
+ void kmip_print_template_attribute(FILE *, int, TemplateAttribute *);
+ void kmip_print_create_request_payload(FILE *, int, CreateRequestPayload *);
+ void kmip_print_create_response_payload(FILE *, int, CreateResponsePayload *);
++void kmip_print_register_request_payload(FILE *, int, RegisterRequestPayload *);
++void kmip_print_register_response_payload(FILE *, int, RegisterResponsePayload *);
+ void kmip_print_get_request_payload(FILE *, int, GetRequestPayload *);
+ void kmip_print_get_response_payload(FILE *, int, GetResponsePayload *);
+ void kmip_print_activate_request_payload(FILE *, int, ActivateRequestPayload *);
+diff --git a/src/kmip.c b/src/kmip.c
+index e46f0d8..5f4e8d8 100644
+--- a/src/kmip.c
++++ b/src/kmip.c
+@@ -867,6 +867,7 @@ kmip_check_enum_value(enum kmip_version version, enum tag t, int value)
+         {
+             /* KMIP 1.0 */
+             case KMIP_OP_CREATE:
++            case KMIP_OP_REGISTER:
+             case KMIP_OP_GET:
+             case KMIP_OP_ACTIVATE:
+             case KMIP_OP_DESTROY:
+@@ -2447,6 +2448,62 @@ kmip_free_create_response_payload(KMIP *ctx, CreateResponsePayload *value)
+     return;
+ }
+ 
++void
++kmip_free_register_request_payload(KMIP *ctx, RegisterRequestPayload *value)
++{
++    if(value != NULL)
++    {
++        value->object_type = 0;
++        kmip_free_symmetric_key(ctx, &value->object);
++
++        if(value->template_attribute != NULL)
++        {
++            kmip_free_template_attribute(ctx, value->template_attribute);
++            ctx->free_func(ctx->state, value->template_attribute);
++            value->template_attribute = NULL;
++        }
++
++        if(value->attributes != NULL)
++        {
++            kmip_free_attributes(ctx, value->attributes);
++            ctx->free_func(ctx->state, value->attributes);
++            value->attributes = NULL;
++        }
++
++        if(value->protection_storage_masks != NULL)
++        {
++            kmip_free_protection_storage_masks(ctx, value->protection_storage_masks);
++            ctx->free_func(ctx->state, value->protection_storage_masks);
++            value->protection_storage_masks = NULL;
++        }
++    }
++
++    return;
++}
++
++void
++kmip_free_register_response_payload(KMIP *ctx, RegisterResponsePayload *value)
++{
++    if(value != NULL)
++    {
++        if(value->unique_identifier != NULL)
++        {
++            kmip_free_text_string(ctx, value->unique_identifier);
++            ctx->free_func(ctx->state, value->unique_identifier);
++            value->unique_identifier = NULL;
++        }
++
++        if(value->template_attribute != NULL)
++        {
++            kmip_free_template_attribute(ctx, value->template_attribute);
++            ctx->free_func(ctx->state, value->template_attribute);
++            value->template_attribute = NULL;
++        }
++    }
++
++    return;
++}
++
+ void
+ kmip_free_get_request_payload(KMIP *ctx, GetRequestPayload *value)
+ {
+@@ -2608,6 +2665,10 @@ kmip_free_request_batch_item(KMIP *ctx, RequestBatchItem *value)
+                 kmip_free_create_request_payload(ctx, (CreateRequestPayload *)value->request_payload);
+                 break;
+                 
++                case KMIP_OP_REGISTER:
++                kmip_free_register_request_payload(ctx, (RegisterRequestPayload *)value->request_payload);
++                break;
++
+                 case KMIP_OP_GET:
+                 kmip_free_get_request_payload(ctx, (GetRequestPayload *)value->request_payload);
+                 break;
+@@ -2681,6 +2742,10 @@ kmip_free_response_batch_item(KMIP *ctx, ResponseBatchItem *value)
+                 kmip_free_create_response_payload(ctx, (CreateResponsePayload *)value->response_payload);
+                 break;
+                 
++                case KMIP_OP_REGISTER:
++                kmip_free_register_response_payload(ctx, (RegisterResponsePayload *)value->response_payload);
++                break;
++
+                 case KMIP_OP_GET:
+                 kmip_free_get_response_payload(ctx, (GetResponsePayload *)value->response_payload);
+                 break;
+@@ -4791,6 +4856,109 @@ kmip_compare_create_response_payload(const CreateResponsePayload *a, const Creat
+     return(KMIP_TRUE);
+ }
+ 
++int
++kmip_compare_register_request_payload(const RegisterRequestPayload *a, const RegisterRequestPayload *b)
++{
++    if(a != b)
++    {
++        if((a == NULL) || (b == NULL))
++        {
++            return(KMIP_FALSE);
++        }
++
++        if(a->object_type != b->object_type)
++        {
++            return(KMIP_FALSE);
++        }
++
++        if(a->template_attribute != b->template_attribute)
++        {
++            if((a->template_attribute == NULL) || (b->template_attribute == NULL))
++            {
++                return(KMIP_FALSE);
++            }
++
++            if(kmip_compare_template_attribute(a->template_attribute, b->template_attribute) == KMIP_FALSE)
++            {
++                return(KMIP_FALSE);
++            }
++        }
++
++        if(a->attributes != b->attributes)
++        {
++            if((a->attributes == NULL) || (b->attributes == NULL))
++            {
++                return(KMIP_FALSE);
++            }
++
++            if(kmip_compare_attributes(a->attributes, b->attributes) == KMIP_FALSE)
++            {
++                return(KMIP_FALSE);
++            }
++        }
++
++        if(kmip_compare_symmetric_key(&a->object, &b->object) == KMIP_FALSE)
++        {
++            return(KMIP_FALSE);
++        }
++
++        if(a->protection_storage_masks != b->protection_storage_masks)
++        {
++            if((a->protection_storage_masks == NULL) || (b->protection_storage_masks == NULL))
++            {
++                return(KMIP_FALSE);
++            }
++
++            if(kmip_compare_protection_storage_masks(a->protection_storage_masks, b->protection_storage_masks) == KMIP_FALSE)
++            {
++                return(KMIP_FALSE);
++            }
++        }
++    }
++
++    return(KMIP_TRUE);
++}
++
++int
++kmip_compare_register_response_payload(const RegisterResponsePayload *a, const RegisterResponsePayload *b)
++{
++    if(a != b)
++    {
++        if((a == NULL) || (b == NULL))
++        {
++            return(KMIP_FALSE);
++        }
++
++        if(a->unique_identifier != b->unique_identifier)
++        {
++            if((a->unique_identifier == NULL) || (b->unique_identifier == NULL))
++            {
++                return(KMIP_FALSE);
++            }
++
++            if(kmip_compare_text_string(a->unique_identifier, b->unique_identifier) == KMIP_FALSE)
++            {
++                return(KMIP_FALSE);
++            }
++        }
++
++        if(a->template_attribute != b->template_attribute)
++        {
++            if((a->template_attribute == NULL) || (b->template_attribute == NULL))
++            {
++                return(KMIP_FALSE);
++            }
++
++            if(kmip_compare_template_attribute(a->template_attribute, b->template_attribute) == KMIP_FALSE)
++            {
++                return(KMIP_FALSE);
++            }
++        }
++    }
++
++    return(KMIP_TRUE);
++}
++
+ int
+ kmip_compare_get_request_payload(const GetRequestPayload *a, const GetRequestPayload *b)
+ {
+@@ -5067,6 +5235,13 @@ kmip_compare_request_batch_item(const RequestBatchItem *a, const RequestBatchIte
+                 }
+                 break;
+                 
++                case KMIP_OP_REGISTER:
++                if(kmip_compare_register_request_payload((RegisterRequestPayload *)a->request_payload, (RegisterRequestPayload *)b->request_payload) == KMIP_FALSE)
++                {
++                    return(KMIP_FALSE);
++                }
++                break;
++
+                 case KMIP_OP_GET:
+                 if(kmip_compare_get_request_payload((GetRequestPayload *)a->request_payload, (GetRequestPayload *)b->request_payload) == KMIP_FALSE)
+                 {
+@@ -5186,6 +5361,13 @@ kmip_compare_response_batch_item(const ResponseBatchItem *a, const ResponseBatch
+                 }
+                 break;
+                 
++                case KMIP_OP_REGISTER:
++                if(kmip_compare_register_response_payload((RegisterResponsePayload *)a->response_payload, (RegisterResponsePayload *)b->response_payload) == KMIP_FALSE)
++                {
++                    return(KMIP_FALSE);
++                }
++                break;
++
+                 case KMIP_OP_GET:
+                 if(kmip_compare_get_response_payload((GetResponsePayload *)a->response_payload, (GetResponsePayload *)b->response_payload) == KMIP_FALSE)
+                 {
+@@ -7745,6 +7927,106 @@ kmip_encode_create_response_payload(KMIP *ctx, const CreateResponsePayload *valu
+     return(KMIP_OK);
+ }
+ 
++int
++kmip_encode_register_request_payload(KMIP *ctx, const RegisterRequestPayload *value)
++{
++    CHECK_ENCODE_ARGS(ctx, value);
++
++    int result = 0;
++    result = kmip_encode_int32_be(ctx, TAG_TYPE(KMIP_TAG_REQUEST_PAYLOAD, KMIP_TYPE_STRUCTURE));
++    CHECK_RESULT(ctx, result);
++
++    uint8 *length_index = ctx->index;
++    uint8 *value_index = ctx->index += 4;
++
++    result = kmip_encode_enum(ctx, KMIP_TAG_OBJECT_TYPE, value->object_type);
++    CHECK_RESULT(ctx, result);
++
++    if(ctx->version < KMIP_2_0)
++    {
++        result = kmip_encode_template_attribute(ctx, value->template_attribute);
++        CHECK_RESULT(ctx, result);
++    }
++    else
++    {
++        if(value->attributes)
++        {
++            result = kmip_encode_attributes(ctx, value->attributes);
++            CHECK_RESULT(ctx, result);
++        }
++        else if(value->template_attribute)
++        {
++            Attributes *attributes = ctx->calloc_func(ctx->state, 1, sizeof(Attributes));
++            LinkedList *list = ctx->calloc_func(ctx->state, 1, sizeof(LinkedList));
++            attributes->attribute_list = list;
++            for(size_t i = 0; i < value->template_attribute->attribute_count; i++)
++            {
++                LinkedListItem *item = ctx->calloc_func(ctx->state, 1, sizeof(LinkedListItem));
++                item->data = kmip_deep_copy_attribute(ctx, &value->template_attribute->attributes[i]);
++                kmip_linked_list_enqueue(list, item);
++            }
++
++            result = kmip_encode_attributes(ctx, attributes);
++
++            kmip_free_attributes(ctx, attributes);
++            ctx->free_func(ctx->state, attributes);
++
++            CHECK_RESULT(ctx, result);
++        }
++    }
++
++    result = kmip_encode_symmetric_key(ctx, &value->object);
++    CHECK_RESULT(ctx, result);
++
++    if((ctx->version >= KMIP_2_0) && (value->protection_storage_masks != NULL))
++    {
++        result = kmip_encode_protection_storage_masks(ctx, value->protection_storage_masks);
++        CHECK_RESULT(ctx, result);
++    }
++
++    uint8 *curr_index = ctx->index;
++    ctx->index = length_index;
++
++    result = kmip_encode_length(ctx, curr_index - value_index);
++    CHECK_RESULT(ctx, result);
++
++    ctx->index = curr_index;
++
++    return(KMIP_OK);
++}
++
++int
++kmip_encode_register_response_payload(KMIP *ctx, const RegisterResponsePayload *value)
++{
++    CHECK_ENCODE_ARGS(ctx, value);
++
++    int result = 0;
++    result = kmip_encode_int32_be(ctx, TAG_TYPE(KMIP_TAG_RESPONSE_PAYLOAD, KMIP_TYPE_STRUCTURE));
++    CHECK_RESULT(ctx, result);
++
++    uint8 *length_index = ctx->index;
++    uint8 *value_index = ctx->index += 4;
++
++    result = kmip_encode_text_string(ctx, KMIP_TAG_UNIQUE_IDENTIFIER, value->unique_identifier);
++    CHECK_RESULT(ctx, result);
++
++    if((ctx->version < KMIP_2_0) && (value->template_attribute != NULL))
++    {
++        result = kmip_encode_template_attribute(ctx, value->template_attribute);
++        CHECK_RESULT(ctx, result);
++    }
++
++    uint8 *curr_index = ctx->index;
++    ctx->index = length_index;
++
++    result = kmip_encode_length(ctx, curr_index - value_index);
++    CHECK_RESULT(ctx, result);
++
++    ctx->index = curr_index;
++
++    return(KMIP_OK);
++}
++
+ int
+ kmip_encode_get_request_payload(KMIP *ctx, const GetRequestPayload *value)
+ {
+@@ -8382,6 +8664,10 @@ kmip_encode_request_batch_item(KMIP *ctx, const RequestBatchItem *value)
+         case KMIP_OP_CREATE:
+         result = kmip_encode_create_request_payload(ctx, (CreateRequestPayload*)value->request_payload);
+         break;
++
++        case KMIP_OP_REGISTER:
++        result = kmip_encode_register_request_payload(ctx, (RegisterRequestPayload*)value->request_payload);
++        break;
+         
+         case KMIP_OP_GET:
+         result = kmip_encode_get_request_payload(ctx, (GetRequestPayload*)value->request_payload);
+@@ -8463,6 +8749,10 @@ kmip_encode_response_batch_item(KMIP *ctx, const ResponseBatchItem *value)
+         result = kmip_encode_create_response_payload(ctx, (CreateResponsePayload*)value->response_payload);
+         break;
+         
++        case KMIP_OP_REGISTER:
++        result = kmip_encode_register_response_payload(ctx, (RegisterResponsePayload*)value->response_payload);
++        break;
++
+         case KMIP_OP_GET:
+         result = kmip_encode_get_response_payload(ctx, (GetResponsePayload*)value->response_payload);
+         break;
+@@ -10344,6 +10634,138 @@ kmip_decode_create_response_payload(KMIP *ctx, CreateResponsePayload *value)
+     return(KMIP_OK);
+ }
+ 
++int
++kmip_decode_register_request_payload(KMIP *ctx, RegisterRequestPayload *value)
++{
++    CHECK_DECODE_ARGS(ctx, value);
++    CHECK_BUFFER_FULL(ctx, 8);
++
++    int result = 0;
++    int32 tag_type = 0;
++    uint32 length = 0;
++
++    kmip_decode_int32_be(ctx, &tag_type);
++    CHECK_TAG_TYPE(ctx, tag_type, KMIP_TAG_REQUEST_PAYLOAD, KMIP_TYPE_STRUCTURE);
++
++    kmip_decode_length(ctx, &length);
++    CHECK_BUFFER_FULL(ctx, length);
++
++    result = kmip_decode_enum(ctx, KMIP_TAG_OBJECT_TYPE, &value->object_type);
++    CHECK_RESULT(ctx, result);
++    CHECK_ENUM(ctx, KMIP_TAG_OBJECT_TYPE, value->object_type);
++
++    if(ctx->version < KMIP_2_0)
++    {
++        value->template_attribute = ctx->calloc_func(ctx->state, 1, sizeof(TemplateAttribute));
++        if(value->template_attribute == NULL)
++        {
++            HANDLE_FAILED_ALLOC(ctx, sizeof(TemplateAttribute), "TemplateAttribute");
++        }
++        result = kmip_decode_template_attribute(ctx, value->template_attribute);
++        if(result != KMIP_OK)
++        {
++            kmip_free_template_attribute(ctx, value->template_attribute);
++            ctx->free_func(ctx, value->template_attribute);
++            value->template_attribute = NULL;
++            HANDLE_FAILURE(ctx, result);
++        }
++    }
++    else
++    {
++        value->attributes = ctx->calloc_func(ctx->state, 1, sizeof(Attributes));
++        if(value->attributes == NULL)
++        {
++            HANDLE_FAILED_ALLOC(ctx, sizeof(Attributes), "Attributes");
++        }
++        result = kmip_decode_attributes(ctx, value->attributes);
++        if(result != KMIP_OK)
++        {
++            kmip_free_attributes(ctx, value->attributes);
++            ctx->free_func(ctx, value->attributes);
++            value->attributes = NULL;
++
++            HANDLE_FAILURE(ctx, result);
++        }
++    }
++
++    result = kmip_decode_symmetric_key(ctx, &value->object);
++    if (result != KMIP_OK)
++    {
++        kmip_free_template_attribute(ctx, value->template_attribute);
++        kmip_free_attributes(ctx, value->attributes);
++        ctx->free_func(ctx, value->template_attribute);
++        ctx->free_func(ctx, value->attributes);
++        value->template_attribute = NULL;
++        value->attributes = NULL;
++
++        HANDLE_FAILURE(ctx, result);
++    }
++    CHECK_RESULT(ctx, result);
++
++    if((ctx->version >= KMIP_2_0) && kmip_is_tag_next(ctx, KMIP_TAG_PROTECTION_STORAGE_MASKS))
++    {
++        value->protection_storage_masks = ctx->calloc_func(ctx->state, 1, sizeof(ProtectionStorageMasks));
++        if(value->protection_storage_masks == NULL)
++        {
++            kmip_free_attributes(ctx, value->attributes);
++            kmip_free_symmetric_key(ctx, &value->object);
++            ctx->free_func(ctx, value->attributes);
++            value->attributes = NULL;
++
++            HANDLE_FAILED_ALLOC(ctx, sizeof(ProtectionStorageMasks), "ProtectionStorageMasks");
++        }
++        result = kmip_decode_protection_storage_masks(ctx, value->protection_storage_masks);
++        if(result != KMIP_OK)
++        {
++            kmip_free_attributes(ctx, value->attributes);
++            kmip_free_symmetric_key(ctx, &value->object);
++            kmip_free_protection_storage_masks(ctx, value->protection_storage_masks);
++            ctx->free_func(ctx, value->attributes);
++            ctx->free_func(ctx, value->protection_storage_masks);
++            value->attributes = NULL;
++            value->protection_storage_masks = NULL;
++
++            HANDLE_FAILURE(ctx, result);
++        }
++    }
++
++    return(KMIP_OK);
++}
++
++int
++kmip_decode_register_response_payload(KMIP *ctx, RegisterResponsePayload *value)
++{
++    CHECK_DECODE_ARGS(ctx, value);
++    CHECK_BUFFER_FULL(ctx, 8);
++
++    int result = 0;
++    int32 tag_type = 0;
++    uint32 length = 0;
++
++    kmip_decode_int32_be(ctx, &tag_type);
++    CHECK_TAG_TYPE(ctx, tag_type, KMIP_TAG_RESPONSE_PAYLOAD, KMIP_TYPE_STRUCTURE);
++
++    kmip_decode_length(ctx, &length);
++    CHECK_BUFFER_FULL(ctx, length);
++
++    value->unique_identifier = ctx->calloc_func(ctx->state, 1, sizeof(TextString));
++    CHECK_NEW_MEMORY(ctx, value->unique_identifier, sizeof(TextString), "UniqueIdentifier text string");
++
++    result = kmip_decode_text_string(ctx, KMIP_TAG_UNIQUE_IDENTIFIER, value->unique_identifier);
++    CHECK_RESULT(ctx, result);
++
++    if((ctx->version < KMIP_2_0) && kmip_is_tag_next(ctx, KMIP_TAG_TEMPLATE_ATTRIBUTE))
++    {
++        value->template_attribute = ctx->calloc_func(ctx->state, 1, sizeof(TemplateAttribute));
++        CHECK_NEW_MEMORY(ctx, value->template_attribute, sizeof(TemplateAttribute), "TemplateAttribute structure");
++
++        result = kmip_decode_template_attribute(ctx, value->template_attribute);
++        CHECK_RESULT(ctx, result);
++    }
++
++    return(KMIP_OK);
++}
++
+ int
+ kmip_decode_get_request_payload(KMIP *ctx, GetRequestPayload *value)
+ {
+@@ -10604,6 +11026,12 @@ kmip_decode_request_batch_item(KMIP *ctx, RequestBatchItem *value)
+         result = kmip_decode_create_request_payload(ctx, (CreateRequestPayload *)value->request_payload);
+         break;
+         
++        case KMIP_OP_REGISTER:
++        value->request_payload = ctx->calloc_func(ctx->state, 1, sizeof(RegisterRequestPayload));
++        CHECK_NEW_MEMORY(ctx, value->request_payload, sizeof(RegisterRequestPayload), "RegisterRequestPayload structure");
++        result = kmip_decode_register_request_payload(ctx, (RegisterRequestPayload *)value->request_payload);
++        break;
++
+         case KMIP_OP_GET:
+         value->request_payload = ctx->calloc_func(ctx->state, 1, sizeof(GetRequestPayload));
+         CHECK_NEW_MEMORY(ctx, value->request_payload, sizeof(GetRequestPayload), "GetRequestPayload structure");
+@@ -10708,6 +11136,12 @@ kmip_decode_response_batch_item(KMIP *ctx, ResponseBatchItem *value)
+             result = kmip_decode_create_response_payload(ctx, value->response_payload);
+             break;
+             
++            case KMIP_OP_REGISTER:
++            value->response_payload = ctx->calloc_func(ctx->state, 1, sizeof(RegisterResponsePayload));
++            CHECK_NEW_MEMORY(ctx, value->response_payload, sizeof(RegisterResponsePayload), "RegisterResponsePayload structure");
++            result = kmip_decode_register_response_payload(ctx, value->response_payload);
++            break;
++
+             case KMIP_OP_GET:
+             value->response_payload = ctx->calloc_func(ctx->state, 1, sizeof(GetResponsePayload));
+             CHECK_NEW_MEMORY(ctx, value->response_payload, sizeof(GetResponsePayload), "GetResponsePayload structure");
+diff --git a/src/kmip_io.c b/src/kmip_io.c
+index 2ee8876..993959c 100644
+--- a/src/kmip_io.c
++++ b/src/kmip_io.c
+@@ -2752,6 +2752,37 @@ kmip_print_create_response_payload(FILE *f, int indent, CreateResponsePayload *v
+     }
+ }
+ 
++void
++kmip_print_register_request_payload(FILE *f, int indent, RegisterRequestPayload *value)
++{
++    fprintf(f, "%*sRegister Request Payload @ %p\n", indent, "", (void *)value);
++
++    if(value != NULL)
++    {
++        fprintf(f, "%*sObject Type: ", indent + 2, "");
++        kmip_print_object_type_enum(f, value->object_type);
++        fprintf(f, "\n");
++
++        kmip_print_symmetric_key(f, indent + 2, &value->object);
++
++        kmip_print_template_attribute(f, indent + 2, value->template_attribute);
++        kmip_print_attributes(f, indent + 2, value->attributes);
++        kmip_print_protection_storage_masks(f, indent + 2, value->protection_storage_masks);
++    }
++}
++
++void
++kmip_print_register_response_payload(FILE *f, int indent, RegisterResponsePayload *value)
++{
++    fprintf(f, "%*sRegister Response Payload @ %p\n", indent, "", (void *)value);
++
++    if(value != NULL)
++    {
++        kmip_print_text_string(f, indent + 2, "Unique Identifier", value->unique_identifier);
++        kmip_print_template_attribute(f, indent + 2, value->template_attribute);
++    }
++}
++
+ void
+ kmip_print_get_request_payload(FILE *f, int indent, GetRequestPayload *value)
+ {
+@@ -2848,6 +2879,10 @@ kmip_print_request_payload(FILE *f, int indent, enum operation type, void *value
+         kmip_print_create_request_payload(f, indent, value);
+         break;
+         
++        case KMIP_OP_REGISTER:
++        kmip_print_register_request_payload(f, indent, value);
++        break;
++
+         case KMIP_OP_GET:
+         kmip_print_get_request_payload(f, indent, (GetRequestPayload *)value);
+         break;
+@@ -2879,6 +2914,10 @@ kmip_print_response_payload(FILE *f, int indent, enum operation type, void *valu
+         kmip_print_create_response_payload(f, indent, value);
+         break;
+         
++        case KMIP_OP_REGISTER:
++        kmip_print_register_response_payload(f, indent, value);
++        break;
++
+         case KMIP_OP_GET:
+         kmip_print_get_response_payload(f, indent, (GetResponsePayload *)value);
+         break;
