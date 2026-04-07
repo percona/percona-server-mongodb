@@ -5,14 +5,14 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 649,
+    "commits_behind": 651,
     "days_behind": 18,
-    "files_affected": 2376,
-    "total_additions": 99559,
-    "total_deletions": 25426,
+    "files_affected": 2387,
+    "total_additions": 100170,
+    "total_deletions": 29044,
     "date_range": {
       "first": "2026-03-20T04:45:54+00:00",
-      "last": "2026-04-07T08:56:22+00:00"
+      "last": "2026-04-07T12:17:00+00:00"
     }
   },
   "last_merged_commit": {
@@ -36,6 +36,26 @@
     "summary": "SERVER-120367 Introduce core_high_yielding and aggregation_high_yielding suites (#48946)"
   },
   "unmerged_commits": [
+    {
+      "sha": "73b7dac37ab32c351f7edba40a88cf5ba5e8bc15",
+      "short_sha": "73b7dac37ab",
+      "date": "2026-04-07T14:17:00+02:00",
+      "author": {
+        "name": "Jordi Olivares Provencio",
+        "email": "jordi.olivares-provencio@mongodb.com"
+      },
+      "summary": "SERVER-109829 Add support for deep copies of Collection in the CollectionCatalog (#50197)"
+    },
+    {
+      "sha": "15d212e2626ec5a4b138b5649a92918f7675aefb",
+      "short_sha": "15d212e2626",
+      "date": "2026-04-07T14:12:07+02:00",
+      "author": {
+        "name": "Peter Volk",
+        "email": "77723508+HCSPete@users.noreply.github.com"
+      },
+      "summary": "SERVER-106839 Make the test consistent between the 8.0 backport for collation CA  (#50941)"
+    },
     {
       "sha": "0821fec802924bb44db7697235d4e749048cb887",
       "short_sha": "0821fec8029",
@@ -7275,7 +7295,7 @@
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-04-07 11:45:33",
+  "generated_at": "2026-04-07 13:28:54",
   "branch_name": "master",
   "display_name": "master"
 }
