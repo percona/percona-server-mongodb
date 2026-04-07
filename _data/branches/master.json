@@ -5,14 +5,14 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 612,
-    "days_behind": 17,
-    "files_affected": 2295,
-    "total_additions": 86030,
-    "total_deletions": 22399,
+    "commits_behind": 645,
+    "days_behind": 18,
+    "files_affected": 2369,
+    "total_additions": 99106,
+    "total_deletions": 25262,
     "date_range": {
       "first": "2026-03-20T04:45:54+00:00",
-      "last": "2026-04-06T02:45:54+00:00"
+      "last": "2026-04-07T04:05:16+00:00"
     }
   },
   "last_merged_commit": {
@@ -36,6 +36,336 @@
     "summary": "SERVER-120367 Introduce core_high_yielding and aggregation_high_yielding suites (#48946)"
   },
   "unmerged_commits": [
+    {
+      "sha": "d50fb160b1d39a16700b501f6407a8f72af32ca1",
+      "short_sha": "d50fb160b1d",
+      "date": "2026-04-06T23:05:16-05:00",
+      "author": {
+        "name": "Jess Balint",
+        "email": "jbalint@gmail.com"
+      },
+      "summary": "SERVER-122456 Add index build protocol to index options (#50457)"
+    },
+    {
+      "sha": "aafa98cfe78bfd5b24b4a9f52277e10b45e87cf0",
+      "short_sha": "aafa98cfe78",
+      "date": "2026-04-06T20:50:07-07:00",
+      "author": {
+        "name": "auto-revert-app[bot]",
+        "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
+      },
+      "summary": "Revert \"SERVER-120541: Add and remove fast count entries on collection create and drop (#50809)\" (#51253)"
+    },
+    {
+      "sha": "398b6844e68aee98e9b7917820a00892f4c08bbb",
+      "short_sha": "398b6844e68",
+      "date": "2026-04-06T20:39:27-07:00",
+      "author": {
+        "name": "Andrew Bradshaw",
+        "email": "andrew.bradshaw@mongodb.com"
+      },
+      "summary": "SERVER-123038 Use wit-bindgen to create api_component_type.o (#51169)"
+    },
+    {
+      "sha": "4555f8554c46cbfbe605553b05412588d96ded41",
+      "short_sha": "4555f8554c4",
+      "date": "2026-04-06T18:33:11-05:00",
+      "author": {
+        "name": "Haley Connelly",
+        "email": "haley.connelly@mongodb.com"
+      },
+      "summary": "SERVER-123115 Integrate size count checkpoints into ReplicatedFastCountManager (#50998)"
+    },
+    {
+      "sha": "439297f11a85c4b44dec5d3763346e2787ce6db8",
+      "short_sha": "439297f11a8",
+      "date": "2026-04-06T19:23:10-04:00",
+      "author": {
+        "name": "Santiago Roche",
+        "email": "69868136+sroches@users.noreply.github.com"
+      },
+      "summary": "SERVER-115289 SignatureValidator RNP should use aligned access in sanitizer builds (#51245)"
+    },
+    {
+      "sha": "5de5d3436b141a74b35cf227745f98a271a9d46d",
+      "short_sha": "5de5d3436b1",
+      "date": "2026-04-06T22:35:08+00:00",
+      "author": {
+        "name": "auto-revert-app[bot]",
+        "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
+      },
+      "summary": "Revert \"SERVER-123500 Prevent huge_plan_cache_entry.js from sending queries t… (#51206)\" (#51242)"
+    },
+    {
+      "sha": "499be82f1361a68508b86bbe2b32b4b6a581260c",
+      "short_sha": "499be82f136",
+      "date": "2026-04-06T16:54:06-05:00",
+      "author": {
+        "name": "Indy Prentice",
+        "email": "iprentic@users.noreply.github.com"
+      },
+      "summary": "SERVER-123479: Remove TODO about write conflict exceptions which is already done (#51239)"
+    },
+    {
+      "sha": "77278d93d1f1388e2bd6789f971502dd757ff0b5",
+      "short_sha": "77278d93d1f",
+      "date": "2026-04-06T17:10:21-04:00",
+      "author": {
+        "name": "Binh Vo",
+        "email": "146007384+binhvomongodb@users.noreply.github.com"
+      },
+      "summary": "SERVER-123032 Add validation check to timeseries PBTs (#50858)"
+    },
+    {
+      "sha": "1a961be2d7699f55b0acdd3fd9512f0f82b3764d",
+      "short_sha": "1a961be2d76",
+      "date": "2026-04-06T16:49:29-04:00",
+      "author": {
+        "name": "Santiago Roche",
+        "email": "69868136+sroches@users.noreply.github.com"
+      },
+      "summary": "SERVER-115289 Implement RNP signature validation (#50330)"
+    },
+    {
+      "sha": "d08906e6aa1fbef988a430e60fa73683a3ff33b7",
+      "short_sha": "d08906e6aa1",
+      "date": "2026-04-06T16:36:56-04:00",
+      "author": {
+        "name": "huayu-ouyang",
+        "email": "huayu.ouyang@mongodb.com"
+      },
+      "summary": "SERVER-121536 Split batches in OplogApplicationCoordinator if it exceeds queue size (#51068)"
+    },
+    {
+      "sha": "10ebeafb3f3594d77a484ebe08e244a16d80dfb1",
+      "short_sha": "10ebeafb3f3",
+      "date": "2026-04-06T22:31:00+02:00",
+      "author": {
+        "name": "romanskas",
+        "email": "30618745+romanskas@users.noreply.github.com"
+      },
+      "summary": "SERVER-91065 Add change stream metrics for currently opened and pinned cursors (#50026)"
+    },
+    {
+      "sha": "a27b36f7c797d7e07c57f0c1e8591ef655668584",
+      "short_sha": "a27b36f7c79",
+      "date": "2026-04-06T15:50:07-04:00",
+      "author": {
+        "name": "Damian Wasilewicz",
+        "email": "33820523+DamianWasilewicz@users.noreply.github.com"
+      },
+      "summary": "SERVER-120541: Add and remove fast count entries on collection create and drop (#50809)"
+    },
+    {
+      "sha": "07f03ea3a12c4ce60986447fce10d214f93edd62",
+      "short_sha": "07f03ea3a12",
+      "date": "2026-04-06T15:41:32-04:00",
+      "author": {
+        "name": "madelinezec",
+        "email": "15312869+madelinezec@users.noreply.github.com"
+      },
+      "summary": "SERVER-122606 replace dynamic cast with static cast (#51221)"
+    },
+    {
+      "sha": "d3a4297d78bf0f629f2846d12e717d606e55b42a",
+      "short_sha": "d3a4297d78b",
+      "date": "2026-04-06T15:35:42-04:00",
+      "author": {
+        "name": "Damian Wasilewicz",
+        "email": "33820523+DamianWasilewicz@users.noreply.github.com"
+      },
+      "summary": "SERVER-120901 Disallow repair for modal validation (#50499)"
+    },
+    {
+      "sha": "080a88d4b4901d01ba09728775e759f939db0190",
+      "short_sha": "080a88d4b49",
+      "date": "2026-04-06T15:27:50-04:00",
+      "author": {
+        "name": "Ernesto Rodriguez Reina",
+        "email": "erreina@users.noreply.github.com"
+      },
+      "summary": "SERVER-123360 Clean up applyOps related code with in oplog (#51091)"
+    },
+    {
+      "sha": "4842f46db5f49666e641c8e2d6e3e41aa1091fb5",
+      "short_sha": "4842f46db5f",
+      "date": "2026-04-06T12:16:35-07:00",
+      "author": {
+        "name": "Andrew Bradshaw",
+        "email": "andrew.bradshaw@mongodb.com"
+      },
+      "summary": "SERVER-123502: Fix wasm coverage, x86 macos and warnings (#51213)"
+    },
+    {
+      "sha": "d0b76f23dccafbef50d46d18a59cd58ee77184d0",
+      "short_sha": "d0b76f23dcc",
+      "date": "2026-04-06T13:53:10-05:00",
+      "author": {
+        "name": "Shin Yee Tan",
+        "email": "shinyee.tan@mongodb.com"
+      },
+      "summary": "SERVER-123512 Temporarily disable CheckReplDBHash from running in retryable_writes_jscore_stepdown_passthrough_primary_driven_index_builds (#51225)"
+    },
+    {
+      "sha": "cfea4209934b58081cefd5710e78ab594c3a7060",
+      "short_sha": "cfea4209934",
+      "date": "2026-04-06T13:44:15-05:00",
+      "author": {
+        "name": "mongodb-matthew-normyle",
+        "email": "120420718+mongodb-matthew-normyle@users.noreply.github.com"
+      },
+      "summary": "SERVER-123110: Streams: faster input setup in benchmark_utils.js (#50870)"
+    },
+    {
+      "sha": "91ea8dee5f4174a5df08b3d6ac232b4951839208",
+      "short_sha": "91ea8dee5f4",
+      "date": "2026-04-06T14:19:12-04:00",
+      "author": {
+        "name": "James Wahlin",
+        "email": "james@mongodb.com"
+      },
+      "summary": "SERVER-123506 Reduce hot/cold issue thresholds for Query Integration (#51219)"
+    },
+    {
+      "sha": "652550c1f3a2854514a61e190e69332c7106777e",
+      "short_sha": "652550c1f3a",
+      "date": "2026-04-06T14:12:45-04:00",
+      "author": {
+        "name": "Calvin Nix",
+        "email": "6693710+Calvinnix@users.noreply.github.com"
+      },
+      "summary": "SERVER-123490: Skip multi-arch manifest creation for variant-tagged streams builds (#51203)"
+    },
+    {
+      "sha": "c933908088b683093f140bab2ce080b3f0a03d13",
+      "short_sha": "c933908088b",
+      "date": "2026-04-06T12:59:57-05:00",
+      "author": {
+        "name": "Jess Balint",
+        "email": "jbalint@gmail.com"
+      },
+      "summary": "SERVER-123500 Prevent huge_plan_cache_entry.js from sending queries t… (#51206)"
+    },
+    {
+      "sha": "1ec83b0e265f5b4fd244d24da516570e1be78d8f",
+      "short_sha": "1ec83b0e265",
+      "date": "2026-04-06T13:51:31-04:00",
+      "author": {
+        "name": "Ian Boros",
+        "email": "87138302+borosaurus@users.noreply.github.com"
+      },
+      "summary": "Revert \"SERVER-121822: Add scan direction check for clustered scan bo… (#51201)"
+    },
+    {
+      "sha": "9c5f442f94fe18f9c8eca6826eb977db1efd75db",
+      "short_sha": "9c5f442f94f",
+      "date": "2026-04-06T12:38:41-05:00",
+      "author": {
+        "name": "rehangillswe",
+        "email": "rehan.gill@mongodb.com"
+      },
+      "summary": "SERVER-102348 Add metrics for diagnosing resharding validation (#50867)"
+    },
+    {
+      "sha": "6141d08deaab22517972f3e8b4ae5ec8bc5a65f9",
+      "short_sha": "6141d08deaa",
+      "date": "2026-04-06T13:29:11-04:00",
+      "author": {
+        "name": "Benjamin Pearce",
+        "email": "benjamin.pearce@mongodb.com"
+      },
+      "summary": "SERVER-120256 Add PBT testing inserts with large measurement sizes (#50315)"
+    },
+    {
+      "sha": "075130bc24336194b64b0c7f12951fce8254faec",
+      "short_sha": "075130bc243",
+      "date": "2026-04-06T13:27:50-04:00",
+      "author": {
+        "name": "Yuhong Zhang",
+        "email": "yuhong.zhang@mongodb.com"
+      },
+      "summary": "SERVER-123475 Create new ownership group for replicated size and count (#51189)"
+    },
+    {
+      "sha": "09d54720d681a7b07c3e8fd93f2b816a00097a85",
+      "short_sha": "09d54720d68",
+      "date": "2026-04-06T12:45:18-04:00",
+      "author": {
+        "name": "Steve McClure",
+        "email": "steve.mcclure@mongodb.com"
+      },
+      "summary": "SERVER-123419: Fix HistoryDict.copy() re-entrancy via __setitem__ (#51131)"
+    },
+    {
+      "sha": "906af6a4ae97ce80ae85c9aee9aba8cacf7c1c8a",
+      "short_sha": "906af6a4ae9",
+      "date": "2026-04-06T09:22:48-07:00",
+      "author": {
+        "name": "Andrew Bradshaw",
+        "email": "andrew.bradshaw@mongodb.com"
+      },
+      "summary": "SERVER-116378 Add new variant for publishing spidermonkey side wasm build (#51150)"
+    },
+    {
+      "sha": "ad75d31afc780c3858d25e29325ea514849d5e55",
+      "short_sha": "ad75d31afc7",
+      "date": "2026-04-06T10:55:08-05:00",
+      "author": {
+        "name": "Haley Connelly",
+        "email": "haley.connelly@mongodb.com"
+      },
+      "summary": "SERVER-123454 Make size count flushes exempt from ticket acquisitions (#51165)"
+    },
+    {
+      "sha": "c2ff23c841bfaf895663ad0f807a8d521ff16b18",
+      "short_sha": "c2ff23c841b",
+      "date": "2026-04-06T10:20:06-05:00",
+      "author": {
+        "name": "Samuel Mercier",
+        "email": "samontea@users.noreply.github.com"
+      },
+      "summary": "SERVER-123458 Fix mozjs wasm scope tests (#51166)"
+    },
+    {
+      "sha": "c73a9db3cc01bc4706001fb781393b88edb47107",
+      "short_sha": "c73a9db3cc0",
+      "date": "2026-04-06T10:54:22-04:00",
+      "author": {
+        "name": "Damian Wasilewicz",
+        "email": "33820523+DamianWasilewicz@users.noreply.github.com"
+      },
+      "summary": "SERVER-122878 Do not advance timestamp store checkpoint for writes to the fast count store (#51043)"
+    },
+    {
+      "sha": "4deac05b827ae31a2b9b40b3ef39c44305e987a0",
+      "short_sha": "4deac05b827",
+      "date": "2026-04-06T10:25:54-04:00",
+      "author": {
+        "name": "Cheahuychou Mao",
+        "email": "cheahuychou.mao@mongodb.com"
+      },
+      "summary": "SERVER-123237 Make MetricsService register metrics on globalMetricTreeSet if ServerStatusOptions is specified (#51119)"
+    },
+    {
+      "sha": "45feeef829bfaae7590b210bb0af4c1a314923d2",
+      "short_sha": "45feeef829b",
+      "date": "2026-04-06T10:12:35-04:00",
+      "author": {
+        "name": "Ted Tuckman",
+        "email": "TedTuckman@users.noreply.github.com"
+      },
+      "summary": "SERVER-121606 Change TODO references from closed SERVER-118628 (#50179)"
+    },
+    {
+      "sha": "f71685c15c7a53a2c40bc1a7d4912a8b7314a123",
+      "short_sha": "f71685c15c7",
+      "date": "2026-04-06T09:22:08-04:00",
+      "author": {
+        "name": "Alyssa Clark",
+        "email": "alyssa.clark@mongodb.com"
+      },
+      "summary": "SERVER-119978 Remove collectionType field from slow query log when it is unavailable (#50628)"
+    },
     {
       "sha": "b735f29638dbbb04181f0eb4d2b03c440214b213",
       "short_sha": "b735f29638d",
@@ -6879,10 +7209,33 @@
           "num_of_dirs": 12
         }
       }
+    },
+    {
+      "commit": {
+        "sha": "398b6844e68aee98e9b7917820a00892f4c08bbb",
+        "short_sha": "398b6844e68",
+        "date": "2026-04-06T20:39:27-07:00",
+        "author": {
+          "name": "Andrew Bradshaw",
+          "email": "andrew.bradshaw@mongodb.com"
+        },
+        "summary": "SERVER-123038 Use wit-bindgen to create api_component_type.o (#51169)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 15,
+          "num_of_lines": 11871,
+          "lines_added": 9629,
+          "lines_deleted": 2242,
+          "num_of_dirs": 8
+        }
+      }
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-04-06 06:37:02",
+  "generated_at": "2026-04-07 06:31:41",
   "branch_name": "master",
   "display_name": "master"
 }
