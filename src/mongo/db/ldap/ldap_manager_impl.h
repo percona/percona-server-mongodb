@@ -31,10 +31,15 @@ Copyright (C) 2019-present Percona and/or its affiliates. All rights reserved.
 
 #pragma once
 
+#include <ldap.h>
+
+#include "mongo/bson/bsonobj.h"
 #include "mongo/db/ldap/ldap_manager.h"
 #include "mongo/logv2/log_severity.h"
-
-#include <ldap.h>
+#include "mongo/platform/mutex.h"
+#include "mongo/platform/rwmutex.h"
+#include "mongo/util/lru_cache.h"
+#include "mongo/util/time_support.h"
 
 namespace mongo {
 
@@ -55,7 +60,26 @@ public:
 
     void invalidateConnections() override;
 
+    void invalidateUserToDNCache() override;
+
 private:
+    struct UserToDNCacheEntry {
+        std::string dn;
+        Date_t insertedAt;
+    };
+
+    // RWMutex ensures invalidateUserToDNCache() waits for all in-flight mapUserToDN() calls.
+    // mapUserToDN() holds a shared lock for its entire duration (including LDAP queries).
+    // invalidateUserToDNCache() holds an exclusive lock to drain and reset the cache.
+    RWMutex _userToDNRWMutex;
+    // Inner mutex protects the cache data structure from concurrent mapUserToDN() callers.
+    Mutex _userToDNCacheMutex = MONGO_MAKE_LATCH("LDAPManagerImpl::_userToDNCacheMutex");
+    using UserToDNCache = LRUCache<std::string, UserToDNCacheEntry>;
+    std::unique_ptr<UserToDNCache> _userToDNCache;
+    int _userToDNCacheTTLSnapshot{0};
+    bool _userToDNCacheEnabled{false};
+    BSONArray _userToDNMappingSnapshot;
+
     std::unique_ptr<ConnectionPoller> _connPoller;
 
     LDAP* borrow_search_connection();
