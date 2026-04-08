@@ -65,12 +65,14 @@ mongo_cc_library(
         "kmip_client.cpp",
         "kmip_exchange.cpp",
     ],
+    linkopts = [
+        "-lssl",
+    ],
     deps = [
         ":encryption_key",
         "//src/mongo:base",
         "//src/mongo/base:secure_allocator",
-        "//src/third_party/libkmip-0ecda33:kmippp",
-        "//src/third_party/libkmip-0ecda33:libkmip",
+        "//src/third_party/libkmip",
     ],
 )
 
