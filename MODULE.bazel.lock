@@ -1022,7 +1022,7 @@
     },
     "@@googleapis~//:extensions.bzl%switched_rules": {
       "general": {
-        "bzlTransitiveDigest": "JLpojYeGHLdgnwSUuQWOrtkL9UMygBUUEFJZh7ASlmA=",
+        "bzlTransitiveDigest": "vG6fuTzXD8MMvHWZEQud0MMH7eoC4GXY0va7VrFFh04=",
         "usagesDigest": "u1DsNDlYHEnzg4MhPeq0ShO+E1bcBtzwrzDydMGgLzo=",
         "recordedFileInputs": {},
         "recordedDirentsInputs": {},
