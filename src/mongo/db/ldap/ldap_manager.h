@@ -61,6 +61,9 @@ public:
 
     // Invalidate all pooled LDAP connections. Called when bind credentials change.
     virtual void invalidateConnections() = 0;
+
+    // Invalidate all cached userToDN mapping results.
+    virtual void invalidateUserToDNCache() = 0;
 };
 
 }  // namespace mongo

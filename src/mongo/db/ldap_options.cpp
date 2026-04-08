@@ -95,14 +95,17 @@ std::string LDAPGlobalParams::ldapURIList() const {
 }
 
 
-static void invalidateLDAPConnections() {
+namespace {
+void invalidateLDAPConnections() {
     if (hasGlobalServiceContext()) {
         auto* manager = LDAPManager::get(getGlobalServiceContext());
         if (manager) {
             manager->invalidateConnections();
+            manager->invalidateUserToDNCache();
         }
     }
 }
+}  // namespace
 
 void LDAPServersParameter::append(OperationContext*,
                                   BSONObjBuilder* b,
@@ -139,6 +142,27 @@ Status LDAPQueryPasswordParameter::setFromString(StringData newValueString,
                                                  const boost::optional<TenantId>&) {
     ldapGlobalParams.ldapQueryPassword = std::string(newValueString);
     invalidateLDAPConnections();
+    return Status::OK();
+}
+
+namespace {
+void invalidateUserToDNCache() {
+    if (hasGlobalServiceContext()) {
+        auto* manager = LDAPManager::get(getGlobalServiceContext());
+        if (manager) {
+            manager->invalidateUserToDNCache();
+        }
+    }
+}
+}  // namespace
+
+Status onUpdateLDAPUserToDNCacheParam(const int&) {
+    invalidateUserToDNCache();
+    return Status::OK();
+}
+
+Status onUpdateLDAPUserToDNMapping(const std::string&) {
+    invalidateUserToDNCache();
     return Status::OK();
 }
 
