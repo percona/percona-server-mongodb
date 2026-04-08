@@ -65,6 +65,7 @@ server_parameters:
         set_at: runtime
         cpp_varname: "ldapGlobalParams.ldapUserToDNMapping"
         default: '[{match: "(.+)", substitution: "{0}"}]'
+        on_update: "onUpdateLDAPUserToDNMapping"
         validator:
             callback: validateLDAPUserToDNMappingServerParam
         redact: false
@@ -116,6 +117,26 @@ server_parameters:
         default: 2
         validator:
             gt: 0
+        redact: false
+    ldapUserToDNCacheTTLSeconds:
+        description: "TTL in seconds for userToDN mapping cache entries. 0 disables caching."
+        set_at: [startup, runtime]
+        cpp_varname: "ldapGlobalParams.ldapUserToDNCacheTTLSeconds"
+        default: 30
+        on_update: "onUpdateLDAPUserToDNCacheParam"
+        validator:
+            gte: 0
+            lte: 86400
+        redact: false
+    ldapUserToDNCacheSize:
+        description: "Maximum number of entries in the userToDN mapping cache. 0 disables caching."
+        set_at: [startup, runtime]
+        cpp_varname: "ldapGlobalParams.ldapUserToDNCacheSize"
+        default: 10000
+        on_update: "onUpdateLDAPUserToDNCacheParam"
+        validator:
+            gte: 0
+            lte: 1000000
         redact: false
 
 configs:
