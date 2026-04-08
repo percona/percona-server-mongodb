@@ -28,7 +28,8 @@ jobs:
   # where the 'opened' event triggers before labels are applied
   check-skip:
     name: Check if workflow should be skipped
-    runs-on: ubuntu-latest
+    runs-on: self-hosted-arc-runners
+    container: ubuntu:latest
     outputs:
       should_skip: ${{ steps.check.outputs.should_skip }}
     steps:
@@ -85,9 +86,6 @@ jobs:
 
       - name: Setup environment
         uses: ./.github/actions/setup-env
-
-      - name: Setup AWS SDK
-        uses: ./.github/actions/setup-aws-sdk
 
       - name: clang-tidy-sarif cache
         uses: actions/cache@v4
