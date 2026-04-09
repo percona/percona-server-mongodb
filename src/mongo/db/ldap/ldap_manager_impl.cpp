@@ -44,7 +44,6 @@ Copyright (C) 2019-present Percona and/or its affiliates. All rights reserved.
 #include <map>
 #include <memory>
 #include <regex>
-#include <shared_mutex>
 #include <utility>
 #include <vector>
 
@@ -906,48 +905,44 @@ std::string substituteFromMatch(const std::string& stempl,
 
 }  // namespace
 
+LDAPManagerImpl::UserToDNCacheHolder::UserToDNCacheHolder()
+    : size(ldapGlobalParams.ldapUserToDNCacheSize.load()),
+      ttl(ldapGlobalParams.ldapUserToDNCacheTTLSeconds.load()),
+      enabled(ttl > 0 && size > 0),
+      mapping(fromjson(ldapGlobalParams.ldapUserToDNMapping.get())),
+      cache(static_cast<std::size_t>(std::max(size, 0))) {}
+
 void LDAPManagerImpl::invalidateUserToDNCache() {
-    // Exclusive lock: waits for all in-flight mapUserToDN() calls to finish,
-    // then resets the cache before allowing new mapUserToDN() invocations.
-    stdx::lock_guard rwLock(_userToDNRWMutex);
-    auto cacheSize = ldapGlobalParams.ldapUserToDNCacheSize.load();
-    auto cacheTTL = ldapGlobalParams.ldapUserToDNCacheTTLSeconds.load();
-    _userToDNCache =
-        std::make_unique<UserToDNCache>(static_cast<std::size_t>(std::max(cacheSize, 0)));
-    _userToDNCacheTTLSnapshot = cacheTTL;
-    _userToDNCacheEnabled = (cacheTTL > 0 && cacheSize > 0);
-    BSONArray bsonMapping{fromjson(ldapGlobalParams.ldapUserToDNMapping.get())};
-    _userToDNMappingSnapshot.swap(bsonMapping);
+    // Atomically replace instance of UserToDNCacheHolder
+    // the new instance is current snapshot of the ldapGlobalParams
+    _userToDNCacheHolder = std::make_shared<UserToDNCacheHolder>();
 }
 
 Status LDAPManagerImpl::mapUserToDN(const std::string& user, std::string& out) {
-    // _userToDNCacheEnabled and _userToDNCacheTTLSnapshot are safe to read without
-    // _userToDNCacheMutex because they are only written under the exclusive RW lock.
-    std::shared_lock rwLock(_userToDNRWMutex);  // NOLINT
-
-    const bool cacheEnabled = _userToDNCacheEnabled;
-    const auto ttl = _userToDNCacheTTLSnapshot;
+    // Atomically get shared pointer instance to the current cache
+    // We can work with this instance of the cache even if configuration changes trigger
+    // invalidateUserToDNCache() in parallel
+    std::shared_ptr<UserToDNCacheHolder> cache = *_userToDNCacheHolder;
 
     // Check the userToDN cache
-    if (cacheEnabled) {
-        stdx::lock_guard lock(_userToDNCacheMutex);
+    if (cache->enabled) {
+        stdx::lock_guard lock(cache->mutex);
         // Use cfind to avoid promoting outdated entries
-        auto it = _userToDNCache->cfind(user);
-        if (it != _userToDNCache->cend()) {
-            if (Date_t::now() - it->second.insertedAt < Seconds(ttl)) {
-                _userToDNCache->promote(it);
+        auto it = cache->cache.cfind(user);
+        if (it != cache->cache.cend()) {
+            if (Date_t::now() - it->second.insertedAt < Seconds(cache->ttl)) {
+                cache->cache.promote(it);
                 out = it->second.dn;
                 return Status::OK();
             }
         }
     }
 
-    // Perform the actual mapping (inner mutex NOT held during potential LDAP queries,
-    // but shared RW lock IS held to prevent concurrent cache invalidation)
+    // Perform the actual mapping (inner mutex NOT held during potential LDAP queries
     // Parameter validator checks that mapping is valid array of objects
     // see validateLDAPUserToDNMapping function
     bool mapped = false;
-    for (const auto& elt : _userToDNMappingSnapshot) {
+    for (const auto& elt : cache->mapping) {
         auto step = elt.Obj();
         std::smatch sm;
         std::regex rex{step["match"].str()};
@@ -1003,9 +998,9 @@ Status LDAPManagerImpl::mapUserToDN(const std::string& user, std::string& out) {
         return {ErrorCodes::UserNotFound, fmt::format("Failed to map user '{}' to LDAP DN", user)};
     }
 
-    if (cacheEnabled) {
-        stdx::lock_guard lock(_userToDNCacheMutex);
-        _userToDNCache->add(user, UserToDNCacheEntry{.dn = out, .insertedAt = Date_t::now()});
+    if (cache->enabled) {
+        stdx::lock_guard lock(cache->mutex);
+        cache->cache.add(user, UserToDNCacheEntry{.dn = out, .insertedAt = Date_t::now()});
     }
     return Status::OK();
 }
