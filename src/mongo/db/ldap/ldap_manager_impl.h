@@ -31,15 +31,16 @@ Copyright (C) 2019-present Percona and/or its affiliates. All rights reserved.
 
 #pragma once
 
+#include "mongo/util/synchronized_value.h"
 #include <ldap.h>
 
 #include "mongo/bson/bsonobj.h"
 #include "mongo/db/ldap/ldap_manager.h"
 #include "mongo/logv2/log_severity.h"
 #include "mongo/platform/mutex.h"
-#include "mongo/platform/rwmutex.h"
 #include "mongo/util/lru_cache.h"
 #include "mongo/util/time_support.h"
+#include <memory>
 
 namespace mongo {
 
@@ -68,17 +69,24 @@ private:
         Date_t insertedAt;
     };
 
-    // RWMutex ensures invalidateUserToDNCache() waits for all in-flight mapUserToDN() calls.
-    // mapUserToDN() holds a shared lock for its entire duration (including LDAP queries).
-    // invalidateUserToDNCache() holds an exclusive lock to drain and reset the cache.
-    RWMutex _userToDNRWMutex;
-    // Inner mutex protects the cache data structure from concurrent mapUserToDN() callers.
-    Mutex _userToDNCacheMutex = MONGO_MAKE_LATCH("LDAPManagerImpl::_userToDNCacheMutex");
-    using UserToDNCache = LRUCache<std::string, UserToDNCacheEntry>;
-    std::unique_ptr<UserToDNCache> _userToDNCache;
-    int _userToDNCacheTTLSnapshot{0};
-    bool _userToDNCacheEnabled{false};
-    BSONArray _userToDNMappingSnapshot;
+    struct UserToDNCacheHolder {
+        UserToDNCacheHolder();
+
+        using UserToDNCache = LRUCache<std::string, UserToDNCacheEntry>;
+
+        const int size;
+        const int ttl;
+        const bool enabled;
+        const BSONArray mapping;
+        Mutex mutex = MONGO_MAKE_LATCH("UserToDNCacheHolder::mutex");
+        UserToDNCache cache;
+    };
+
+    // UserToDNCacheHolder will be atomically replaced on any configuration changes
+    // This enables cache reset without blocking any client threads running mapUserToDN()
+    // Multiple threads can have shared_ptr instances pointing to the same UserToDNCacheHolder
+    // instance
+    synchronized_value<std::shared_ptr<UserToDNCacheHolder>> _userToDNCacheHolder;
 
     std::unique_ptr<ConnectionPoller> _connPoller;
 
