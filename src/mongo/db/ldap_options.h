@@ -68,6 +68,8 @@ struct LDAPGlobalParams {
     AtomicWord<bool> ldapDebug;
     AtomicWord<bool> ldapFollowReferrals;
     AtomicWord<int> ldapConnectionPoolSizePerHost;
+    AtomicWord<int> ldapUserToDNCacheTTLSeconds;
+    AtomicWord<int> ldapUserToDNCacheSize;
     bool ldapValidateLDAPServerConfig = true;
 
     std::string getServersStr() const;
@@ -80,6 +82,9 @@ Status validateLDAPBindMethod(const std::string&);
 Status validateLDAPTransportSecurity(const std::string&);
 Status validateLDAPUserToDNMapping(const std::string&);
 Status validateLDAPAuthzQueryTemplate(const std::string&);
+
+Status onUpdateLDAPUserToDNCacheParam(const int&);
+Status onUpdateLDAPUserToDNMapping(const std::string&);
 
 Status validateLDAPUserToDNMappingServerParam(const std::string&, const boost::optional<TenantId>&);
 Status validateLDAPAuthzQueryTemplateServerParam(const std::string&,

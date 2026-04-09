@@ -657,6 +657,9 @@ Status LDAPManagerImpl::initialize() {
         ber_set_option(nullptr, LBER_OPT_LOG_PRINT_FN, reinterpret_cast<const void*>(cb_log));
     }
 
+    // Initialize _userToDNCache and friends on startup
+    invalidateUserToDNCache();
+
     return Status::OK();
 }
 
@@ -902,14 +905,44 @@ std::string substituteFromMatch(const std::string& stempl,
 
 }  // namespace
 
-Status LDAPManagerImpl::mapUserToDN(const std::string& user, std::string& out) {
-    // TODO: keep BSONArray somewhere in ldapGlobalParams (but consider multithreaded access)
-    std::string mapping = ldapGlobalParams.ldapUserToDNMapping.get();
+LDAPManagerImpl::UserToDNCacheHolder::UserToDNCacheHolder()
+    : size(ldapGlobalParams.ldapUserToDNCacheSize.load()),
+      ttl(ldapGlobalParams.ldapUserToDNCacheTTLSeconds.load()),
+      enabled(ttl > 0 && size > 0),
+      mapping(fromjson(ldapGlobalParams.ldapUserToDNMapping.get())),
+      cache(static_cast<std::size_t>(std::max(size, 0))) {}
 
+void LDAPManagerImpl::invalidateUserToDNCache() {
+    // Atomically replace instance of UserToDNCacheHolder
+    // the new instance is current snapshot of the ldapGlobalParams
+    _userToDNCacheHolder = std::make_shared<UserToDNCacheHolder>();
+}
+
+Status LDAPManagerImpl::mapUserToDN(const std::string& user, std::string& out) {
+    // Atomically get shared pointer instance to the current cache
+    // We can work with this instance of the cache even if configuration changes trigger
+    // invalidateUserToDNCache() in parallel
+    std::shared_ptr<UserToDNCacheHolder> cache = *_userToDNCacheHolder;
+
+    // Check the userToDN cache
+    if (cache->enabled) {
+        stdx::lock_guard<Latch> lock(cache->mutex);
+        // Use cfind to avoid promoting outdated entries
+        auto it = cache->cache.cfind(user);
+        if (it != cache->cache.cend()) {
+            if (Date_t::now() - it->second.insertedAt < Seconds(cache->ttl)) {
+                cache->cache.promote(it);
+                out = it->second.dn;
+                return Status::OK();
+            }
+        }
+    }
+
+    // Perform the actual mapping (inner mutex NOT held during potential LDAP queries
     // Parameter validator checks that mapping is valid array of objects
     // see validateLDAPUserToDNMapping function
-    BSONArray bsonmapping{fromjson(mapping)};
-    for (const auto& elt : bsonmapping) {
+    bool mapped = false;
+    for (const auto& elt : cache->mapping) {
         auto step = elt.Obj();
         std::smatch sm;
         std::regex rex{step["match"].str()};
@@ -921,7 +954,8 @@ Status LDAPManagerImpl::mapUserToDN(const std::string& user, std::string& out) {
                 // we do not escape substituted values here because result value will be used as
                 // {USER} and will be escaped there
                 out = substituteFromMatch(eltempl.str(), sm);
-                return Status::OK();
+                mapped = true;
+                break;
             }
             // ldapQuery mode
             std::string escapedQuery;
@@ -954,12 +988,21 @@ Status LDAPManagerImpl::mapUserToDN(const std::string& user, std::string& out) {
             // otherwise continue search
             if (qresult.size() == 1) {
                 out = qresult[0];
-                return Status::OK();
+                mapped = true;
+                break;
             }
         }
     }
-    // we have no successful transformations, return error
-    return {ErrorCodes::UserNotFound, "Failed to map user '{}' to LDAP DN"_format(user)};
+
+    if (!mapped) {
+        return {ErrorCodes::UserNotFound, "Failed to map user '{}' to LDAP DN"_format(user)};
+    }
+
+    if (cache->enabled) {
+        stdx::lock_guard<Latch> lock(cache->mutex);
+        cache->cache.add(user, UserToDNCacheEntry{.dn = out, .insertedAt = Date_t::now()});
+    }
+    return Status::OK();
 }
 
 Status LDAPManagerImpl::queryUserRoles(const UserName& userName,
