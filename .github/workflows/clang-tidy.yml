@@ -81,13 +81,12 @@ jobs:
       - name: Fetch tags
         run: |
           git fetch --tags --force origin
+          # Fetch upstream MongoDB tags (r*) needed for version detection via git describe
+          git fetch --tags --force https://github.com/mongodb/mongo.git 'refs/tags/r*:refs/tags/r*'
           git describe --abbrev=0
 
       - name: Setup environment
         uses: ./.github/actions/setup-env
-
-      - name: Setup AWS SDK
-        uses: ./.github/actions/setup-aws-sdk
 
       - name: clang-tidy-sarif cache
         uses: actions/cache@v4
@@ -100,32 +99,55 @@ jobs:
         if: steps.clang_tidy_sarif_cache.outputs.cache-hit != 'true'
         run: cargo install clang-tidy-sarif --version "${CLANG_TIDY_SARIF_VERSION}" --locked
 
-      - name: Generate compile_commands.json and build dependencies
+      - name: Bazel disk cache
+        uses: actions/cache@v4
+        with:
+          path: /tmp/bazel-disk-cache
+          key: bazel-disk-cache-clang-tidy-${{ github.sha }}
+          restore-keys: |
+            bazel-disk-cache-clang-tidy-
+
+      - name: Configure Bazel
         run: |
+          # Set JVM heap in user bazelrc so it applies to ALL bazel invocations
+          # (including the wrapper hook's prereq install which runs before
+          # .bazelrc.compiledb is read)
+          echo 'startup --host_jvm_args=-Xmx8g' >> ~/.bazelrc
           {
             echo 'common --config=local'
+            echo 'common --bes_timeout=0s'
+            echo 'common --bes_upload_mode=nowait_for_upload_complete'
+            echo 'common --disk_cache=/tmp/bazel-disk-cache'
             echo 'common --//bazel/config:build_enterprise=False'
             echo 'common --//bazel/config:compiler_type=clang'
           } > .bazelrc.compiledb
-          # Build compiledb target - this triggers the wrapper hook which:
-          # 1. Generates compile_commands.json via aquery
-          # 2. Builds all gen_source targets (config.h, wiredtiger.h, etc.)
-          # 3. Builds clang_tidy_config and copies .clang-tidy to repo root
-          # Use both .bazelrc and .bazelrc.compiledb to retain baseline repo settings
+
+      - name: Generate compile_commands.json and build dependencies
+        run: |
+          # Compute the narrowest compiledb scope from the changed files.
+          # The new compiledb aspect builds the entire scope (default: //src/...)
+          # which is too heavy for CI without remote execution. Narrow it to only
+          # the packages containing changed files.
+          CHANGED="${{ needs.changed_files.outputs.changed_files }}"
+          SCOPE=$(echo "$CHANGED" | tr ' ' '\n' | python3 -c "
+          import sys, os
+          files = [l.strip() for l in sys.stdin if l.strip()]
+          dirs = sorted(set(os.path.dirname(f) for f in files))
+          if not dirs:
+              print('//src/...')
+          else:
+              common = os.path.commonpath(dirs)
+              print(f'//{common}/...')
+          ")
+          export MONGO_COMPILEDB_TARGET_SCOPE="$SCOPE"
+          echo "Compiledb scope: $SCOPE (from $(echo $CHANGED | wc -w) changed files)"
+
           bazel \
             --bazelrc=.bazelrc \
             --bazelrc=.bazelrc.compiledb \
             build \
             //:compiledb \
             //src/mongo/tools/mongo_tidy_checks:mongo_tidy_checks
-          # Build prometheus exporter to fetch external dependencies (prometheus-cpp)
-          # needed for clang-tidy to analyze otel/metrics files.
-          # This is not covered by gen_source tag.
-          bazel \
-            --bazelrc=.bazelrc \
-            --bazelrc=.bazelrc.compiledb \
-            build \
-            //src/third_party/opentelemetry-cpp/exporters/prometheus:prometheus_exporter_utils
 
       - name: Verify clang-tidy config
         run: |
@@ -151,8 +173,12 @@ jobs:
         run: |
           CHANGED="${{ needs.changed_files.outputs.changed_files }}"
           echo "Changed C++ files: '$CHANGED'"
+          TIDY_CHECKS_LIB="bazel-bin/src/mongo/tools/mongo_tidy_checks/libmongo_tidy_checks.so"
+          if [ ! -f "$TIDY_CHECKS_LIB" ]; then
+            TIDY_CHECKS_LIB="bazel-bin/src/mongo/tools/mongo_tidy_checks/libmongo_tidy_checks_static.so"
+          fi
           external/mongo_toolchain_v5/v5/bin/clang-tidy \
-            --load="bazel-bin/src/mongo/tools/mongo_tidy_checks/libmongo_tidy_checks.so" \
+            --load="$TIDY_CHECKS_LIB" \
             $CHANGED \
           | clang-tidy-sarif --output=clang-tidy-results.sarif
 
