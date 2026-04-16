@@ -370,7 +370,7 @@ bool NamespaceString::isRecycleBinCollection() const {
 
 NamespaceString NamespaceString::makeRecycleBinNamespace(long long unixSeconds,
                                                          const UUID& id) const {
-    return {db(),
+    return {dbName(),
             kRecycleBinCollectionPrefix.toString() + std::to_string(unixSeconds) + "." +
                 id.toString()};
 }
@@ -378,20 +378,20 @@ NamespaceString NamespaceString::makeRecycleBinNamespace(long long unixSeconds,
 StatusWith<long long> NamespaceString::getRecycleBinDropWallSeconds() const {
     if (!isRecycleBinCollection()) {
         return Status(ErrorCodes::BadValue,
-                      str::stream() << "Not a recycle-bin namespace: " << _ns);
+                      str::stream() << "Not a recycle-bin namespace: " << ns());
     }
     auto collectionName = coll();
     auto epochBegin = kRecycleBinCollectionPrefix.size();
     auto epochEnd = collectionName.find('.', epochBegin);
     if (epochEnd == std::string::npos) {
         return Status(ErrorCodes::FailedToParse,
-                      str::stream() << "Missing epoch separator in recycle-bin namespace: " << _ns);
+                      str::stream() << "Missing epoch separator in recycle-bin namespace: " << ns());
     }
     long long seconds = 0;
     auto status = NumberParser{}(collectionName.substr(epochBegin, epochEnd - epochBegin), &seconds);
     if (!status.isOK()) {
         return status.withContext(
-            str::stream() << "Invalid unix seconds in recycle-bin namespace: " << _ns);
+            str::stream() << "Invalid unix seconds in recycle-bin namespace: " << ns());
     }
     return seconds;
 }

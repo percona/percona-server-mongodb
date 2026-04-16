@@ -19,6 +19,7 @@ namespace {
 class UndeleteCollectionCmd final : public TypedCommand<UndeleteCollectionCmd> {
 public:
     using Request = UndeleteCollection;
+    using Reply = typename Request::Reply;
 
     std::string help() const override {
         return "{ undeleteCollection: 1, recycleNamespace: <nss>, to: <coll> } "
@@ -43,7 +44,7 @@ public:
                     "recycleNamespace must be a __recycle_bin.* collection",
                     recycleNss.isRecycleBinCollection());
 
-            const NamespaceString targetNss(recycleNss.dbName(), request().getTo());
+            const NamespaceString targetNss(recycleNss.db(), request().getTo());
             uassert(ErrorCodes::BadValue,
                     "Target namespace must stay in the same database",
                     recycleNss.dbName() == targetNss.dbName());
@@ -68,7 +69,7 @@ public:
 
         void doCheckAuthorization(OperationContext* opCtx) const override {
             const auto& recycleNss = request().getRecycleNamespace();
-            const NamespaceString targetNss(recycleNss.dbName(), request().getTo());
+            const NamespaceString targetNss(recycleNss.db(), request().getTo());
             auto* auth = AuthorizationSession::get(opCtx->getClient());
             uassert(ErrorCodes::Unauthorized,
                     "Not authorized to undelete collection",

@@ -53,7 +53,7 @@ bool shouldInterceptDropForRecycleBin(OperationContext* opCtx,
     if (nss.isRecycleBinCollection() || nss.isDropPendingNamespace()) {
         return false;
     }
-    if (nss.isAdminDB() || nss.isConfigDB() || nss.db() == NamespaceString::kLocalDb) {
+    if (nss.isAdminDB() || nss.isConfigDB() || nss.isLocalDB()) {
         return false;
     }
     if (nss.isSystem() || nss.isOplog()) {
@@ -68,7 +68,7 @@ bool shouldInterceptDropForRecycleBin(OperationContext* opCtx,
     if (collection->getCollectionOptions().encryptedFieldConfig) {
         return false;
     }
-    if (CollectionShardingState::get(opCtx, nss)->getCollectionDescription(opCtx).isSharded()) {
+    if (CollectionShardingState::acquire(opCtx, nss)->getCollectionDescription(opCtx).isSharded()) {
         return false;
     }
     return true;
