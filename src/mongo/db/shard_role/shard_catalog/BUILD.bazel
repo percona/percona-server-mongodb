@@ -218,6 +218,8 @@ mongo_cc_library(
         "unique_collection_name.cpp",
         "//src/mongo/db:collection_compact.cpp",
         "//src/mongo/db/collection_crud:capped_utils.cpp",
+        "//src/mongo/db/recycle_bin:recycle_bin.cpp",
+        "//src/mongo/db/recycle_bin:recycle_bin_gen",
     ],
     deps = [
         ":cannot_convert_index_to_unique_info",

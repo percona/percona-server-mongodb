@@ -424,6 +424,9 @@ public:
     bool isSystem() const {
         return coll().starts_with("system.");
     }
+    bool isRecycleBinCollection() const {
+        return coll().starts_with("system.recycle_bin.");
+    }
     bool isNormalCollection() const {
         return !isSystem() && !(isLocalDB() && coll().starts_with("replset."));
     }
