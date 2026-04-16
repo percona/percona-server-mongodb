@@ -541,6 +541,10 @@ bool TTLMonitor::_doTTLIndexDelete(OperationContext* opCtx,
         return false;
     }
 
+    if (nss->isRecycleBinCollection()) {
+        return false;
+    }
+
     try {
         uassertStatusOK(userAllowedWriteNS(opCtx, *nss));
 

@@ -58,6 +58,7 @@
 #include "mongo/db/catalog/create_collection.h"
 #include "mongo/db/catalog/database_holder_impl.h"
 #include "mongo/db/catalog/health_log.h"
+#include "mongo/db/catalog/recycle_bin_purge_job.h"
 #include "mongo/db/catalog/index_catalog.h"
 #include "mongo/db/catalog/index_key_validate.h"
 #include "mongo/db/catalog_shard_feature_flag_gen.h"
@@ -1023,6 +1024,13 @@ ExitCode _initAndListen(ServiceContext* serviceContext, int listenPort) {
         }
     }
 
+    try {
+        RecycleBinPurgeJob::get(serviceContext)->start();
+    } catch (const ExceptionFor<ErrorCodes::PeriodicJobIsStopped>&) {
+        LOGV2_WARNING(9876502,
+                      "Not starting recycle bin purge job as shutdown is in progress");
+    }
+
     // If not in standalone mode, start background tasks to:
     //  * Periodically remove expired pre-images from the 'system.preimages'
     //  * Periodically remove expired documents from change collections
@@ -1714,6 +1722,7 @@ void shutdownTask(const ShutdownTaskArgs& shutdownArgs) {
             LOGV2(4784908, "Shutting down the PeriodicThreadToAbortExpiredTransactions");
             PeriodicThreadToAbortExpiredTransactions::get(serviceContext)->stop();
         }
+        RecycleBinPurgeJob::get(serviceContext)->stop();
 
         ServiceContext::UniqueOperationContext uniqueOpCtx;
         OperationContext* opCtx = client->getOperationContext();

@@ -371,6 +371,7 @@ env.Library(
         'pipeline_command.cpp',
         'plan_cache_clear_command.cpp',
         'plan_cache_commands.cpp',
+        'recycle_bin_undelete_cmd.cpp',
         'rename_collection_cmd.cpp',
         'run_aggregate.cpp',
         'sleep_command.cpp',
@@ -448,6 +449,7 @@ env.Library(
         'list_collections_filter',
         'list_databases_command',
         'list_databases_for_all_tenants_command',
+        'recycle_bin_undelete_idl',
         'rename_collection_idl',
         'test_commands_enabled',
         'validate_db_metadata_command',
@@ -515,6 +517,16 @@ env.Library(
     LIBDEPS_PRIVATE=[
         '$BUILD_DIR/mongo/db/server_base',
         '$BUILD_DIR/mongo/util/namespace_string_database_name_util',
+    ],
+)
+
+env.Library(
+    target='recycle_bin_undelete_idl',
+    source=[
+        'recycle_bin_undelete.idl',
+    ],
+    LIBDEPS_PRIVATE=[
+        '$BUILD_DIR/mongo/idl/idl_parser',
     ],
 )
 

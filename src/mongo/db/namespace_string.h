@@ -180,6 +180,9 @@ public:
     // database.
     static constexpr StringData kGlobalIndexCollectionPrefix = "globalIndex."_sd;
 
+    // Prefix for soft-dropped collections held for later purge or undelete.
+    static constexpr StringData kRecycleBinCollectionPrefix = "__recycle_bin."_sd;
+
 
     // Prefix for the temporary collection used by the $out stage.
     static constexpr StringData kOutTmpCollectionPrefix = "tmp.agg_out."_sd;
@@ -685,6 +688,22 @@ public:
      * Returns an error if this namespace is not drop-pending.
      */
     StatusWith<repl::OpTime> getDropPendingNamespaceOpTime() const;
+
+    /**
+     * Returns true if this collection name is under the recycle-bin prefix (__recycle_bin.*).
+     */
+    bool isRecycleBinCollection() const;
+
+    /**
+     * Same database as this namespace; collection becomes
+     * __recycle_bin.<unixSeconds>.<uuidWithoutDashesOrWithHyphens per UUID::toString()>
+     */
+    NamespaceString makeRecycleBinNamespace(long long unixSeconds, const UUID& id) const;
+
+    /**
+     * Parses the unix second wall-clock component encoded by makeRecycleBinNamespace.
+     */
+    StatusWith<long long> getRecycleBinDropWallSeconds() const;
 
     /**
      * Returns true if the namespace is valid. Special namespaces for internal use are considered as

@@ -38,6 +38,7 @@
 #include "mongo/logv2/log.h"
 #include "mongo/unittest/unittest.h"
 #include "mongo/util/namespace_string_util.h"
+#include "mongo/util/uuid.h"
 
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kStorage
 
@@ -592,6 +593,17 @@ TEST(NamespaceStringTest, CompareNSSWithTenantId) {
     ASSERT_LT(ns1, ns2);
     ASSERT_LT(ns1, ns3);
     ASSERT_GT(ns3, ns2);
+}
+
+TEST(NamespaceStringTest, RecycleBinNamespaceRoundTrip) {
+    NamespaceString orig("test", "foo");
+    const UUID u = UUID::gen();
+    auto rb = orig.makeRecycleBinNamespace(1700000000LL, u);
+    ASSERT_TRUE(rb.isRecycleBinCollection());
+    auto sw = rb.getRecycleBinDropWallSeconds();
+    ASSERT_OK(sw.getStatus());
+    ASSERT_EQ(sw.getValue(), 1700000000LL);
+    ASSERT_EQ(rb.db(), "test");
 }
 
 }  // namespace

@@ -371,6 +371,28 @@ env.Library(
 )
 
 env.Library(
+    target='recycle_bin',
+    source=[
+        'recycle_bin_parameters.idl',
+        'recycle_bin.cpp',
+        'recycle_bin_purge_job.cpp',
+    ],
+    LIBDEPS_PRIVATE=[
+        '$BUILD_DIR/mongo/base',
+        '$BUILD_DIR/mongo/db/catalog/collection_catalog',
+        '$BUILD_DIR/mongo/db/concurrency/lock_manager',
+        '$BUILD_DIR/mongo/db/server_base',
+        '$BUILD_DIR/mongo/db/repl/repl_coordinator_interface',
+        '$BUILD_DIR/mongo/db/s/collection_sharding_state',
+        '$BUILD_DIR/mongo/db/service_context',
+        '$BUILD_DIR/mongo/db/storage/storage_engine_common',
+        '$BUILD_DIR/mongo/idl/server_parameter',
+        '$BUILD_DIR/mongo/util/periodic_runner',
+        'catalog_helpers',
+    ],
+)
+
+env.Library(
     target='catalog_impl',
     source=[
         'collection_impl.cpp',
@@ -434,6 +456,7 @@ env.Library(
         'index_key_validate',
         'index_repair',
         'local_oplog_info',
+        'recycle_bin',
         'storage_engine_collection_options_flags_parser',
         'throttle_cursor',
         'validate_idl',

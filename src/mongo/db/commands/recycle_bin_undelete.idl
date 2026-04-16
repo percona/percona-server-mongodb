@@ -1,0 +1,25 @@
+# Copyright (C) 2024-present MongoDB, Inc.
+#
+global:
+    cpp_namespace: "mongo"
+
+imports:
+    - "mongo/idl/basic_types.idl"
+
+commands:
+    undeleteCollection:
+        description: >-
+            Renames a collection from the recycle bin (__recycle_bin.*) back to a live collection
+            name in the same database.
+        command_name: undeleteCollection
+        namespace: ignored
+        api_version: ""
+        strict: true
+        fields:
+            recycleNamespace:
+                description: Full namespace of the recycle-bin collection
+                type: namespacestring
+            to:
+                description: Target collection name (same database only)
+                type: string
+        reply_type: OkReply

@@ -1,0 +1,31 @@
+# Copyright (C) 2024-present MongoDB, Inc.
+#
+# Server parameters for the collection recycle bin (soft drop).
+
+global:
+    cpp_namespace: "mongo"
+
+imports:
+    - "mongo/idl/basic_types.idl"
+
+server_parameters:
+    collectionRecycleBin:
+        description: >-
+            When true, eligible drop operations rename collections into a hidden __recycle_bin.*
+            namespace instead of destroying them immediately. Purge runs after
+            collectionRecycleBinRetentionSeconds of wall-clock time.
+        set_at: [ startup, runtime ]
+        cpp_vartype: AtomicWord<bool>
+        cpp_varname: gCollectionRecycleBin
+        default: false
+
+    collectionRecycleBinRetentionSeconds:
+        description: >-
+            Minimum wall-clock age (seconds) after soft-drop before a __recycle_bin.* collection
+            may be permanently dropped by the background purge job.
+        set_at: [ startup, runtime ]
+        cpp_vartype: AtomicWord<int>
+        cpp_varname: gCollectionRecycleBinRetentionSeconds
+        default: 86400
+        validator:
+            gte: 60

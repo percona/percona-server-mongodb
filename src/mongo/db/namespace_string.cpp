@@ -364,6 +364,38 @@ StatusWith<repl::OpTime> NamespaceString::getDropPendingNamespaceOpTime() const 
     return repl::OpTime(Timestamp(Seconds(seconds), increment), term);
 }
 
+bool NamespaceString::isRecycleBinCollection() const {
+    return coll().startsWith(kRecycleBinCollectionPrefix);
+}
+
+NamespaceString NamespaceString::makeRecycleBinNamespace(long long unixSeconds,
+                                                         const UUID& id) const {
+    return {db(),
+            kRecycleBinCollectionPrefix.toString() + std::to_string(unixSeconds) + "." +
+                id.toString()};
+}
+
+StatusWith<long long> NamespaceString::getRecycleBinDropWallSeconds() const {
+    if (!isRecycleBinCollection()) {
+        return Status(ErrorCodes::BadValue,
+                      str::stream() << "Not a recycle-bin namespace: " << _ns);
+    }
+    auto collectionName = coll();
+    auto epochBegin = kRecycleBinCollectionPrefix.size();
+    auto epochEnd = collectionName.find('.', epochBegin);
+    if (epochEnd == std::string::npos) {
+        return Status(ErrorCodes::FailedToParse,
+                      str::stream() << "Missing epoch separator in recycle-bin namespace: " << _ns);
+    }
+    long long seconds = 0;
+    auto status = NumberParser{}(collectionName.substr(epochBegin, epochEnd - epochBegin), &seconds);
+    if (!status.isOK()) {
+        return status.withContext(
+            str::stream() << "Invalid unix seconds in recycle-bin namespace: " << _ns);
+    }
+    return seconds;
+}
+
 bool NamespaceString::isNamespaceAlwaysUnsharded() const {
     // Local and admin never have sharded collections
     if (db() == DatabaseName::kLocal.db() || db() == DatabaseName::kAdmin.db())

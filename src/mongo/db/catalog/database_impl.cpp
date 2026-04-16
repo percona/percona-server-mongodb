@@ -41,6 +41,7 @@
 #include "mongo/db/catalog/collection_options.h"
 #include "mongo/db/catalog/database_holder.h"
 #include "mongo/db/catalog/drop_collection.h"
+#include "mongo/db/catalog/recycle_bin.h"
 #include "mongo/db/catalog/drop_indexes.h"
 #include "mongo/db/catalog/index_catalog.h"
 #include "mongo/db/catalog/uncommitted_catalog_updates.h"
@@ -49,6 +50,7 @@
 #include "mongo/db/clientcursor.h"
 #include "mongo/db/concurrency/d_concurrency.h"
 #include "mongo/db/concurrency/exception_util.h"
+#include "mongo/db/concurrency/locker.h"
 #include "mongo/db/curop.h"
 #include "mongo/db/index/index_access_method.h"
 #include "mongo/db/index_builds_coordinator.h"
@@ -100,6 +102,35 @@ MONGO_FAIL_POINT_DEFINE(openCreateCollectionWindowFp);
 // collection, and it is more complex technically to drive this process from one shard in the
 // cluster. For column store indexes, we just need to change local state on each mongod.
 MONGO_FAIL_POINT_DEFINE(createColumnIndexOnAllCollections);
+
+Status recycleBinSoftDropRenameAndReplicate(OperationContext* opCtx,
+                                          const Database* db,
+                                          const NamespaceString& nss,
+                                          const NamespaceString& recycleNss,
+                                          std::uint64_t numRecords,
+                                          const UUID& uuid,
+                                          bool markFromMigrate) {
+    auto opObserver = opCtx->getServiceContext()->getOpObserver();
+    AllowLockAcquisitionOnTimestampedUnitOfWork allowLockAcquisition(opCtx->lockState());
+    Lock::CollectionLock collLk(opCtx, recycleNss, MODE_X);
+    {
+        repl::UnreplicatedWritesBlock uwb(opCtx);
+        auto st = db->renameCollection(opCtx, nss, recycleNss, true /* stayTemp */);
+        if (!st.isOK()) {
+            return st;
+        }
+    }
+    UninterruptibleLockGuard noInterrupt(opCtx->lockState());
+    opObserver->onRenameCollection(opCtx,
+                                   nss,
+                                   recycleNss,
+                                   uuid,
+                                   boost::none /* dropTargetUUID */,
+                                   numRecords,
+                                   true /* stayTemp */,
+                                   markFromMigrate);
+    return Status::OK();
+}
 
 Status validateDBNameForWindows(StringData dbname) {
     const std::vector<std::string> windowsReservedNames = {
@@ -410,10 +441,14 @@ Status DatabaseImpl::dropCollectionEvenIfSystem(OperationContext* opCtx,
                           << numIndexesInProgress << " index builds in progress.",
             numIndexesInProgress == 0);
 
-    audit::logDropCollection(opCtx->getClient(), nss);
-
     auto serviceContext = opCtx->getServiceContext();
-    Top::get(serviceContext).collectionDropped(nss);
+    const bool recycleIntercept = recycle_bin::shouldInterceptDropForRecycleBin(
+        opCtx, nss, collection.get().get(), markFromMigrate, dropOpTime);
+
+    if (!recycleIntercept) {
+        audit::logDropCollection(opCtx->getClient(), nss);
+        Top::get(serviceContext).collectionDropped(nss);
+    }
 
     // Drop unreplicated collections immediately.
     // If 'dropOpTime' is provided, we should proceed to rename the collection.
@@ -437,6 +472,20 @@ Status DatabaseImpl::dropCollectionEvenIfSystem(OperationContext* opCtx,
     // storage engine and will no longer be visible at the catalog layer with 3.6-style
     // <db>.system.drop.* namespaces.
     if (serviceContext->getStorageEngine()->supportsPendingDrops()) {
+        if (recycleIntercept && dropOpTime.isNull()) {
+            auto swRecycleNss = recycle_bin::allocateUniqueRecycleNamespace(opCtx, nss);
+            if (!swRecycleNss.isOK()) {
+                return swRecycleNss.getStatus();
+            }
+            return recycleBinSoftDropRenameAndReplicate(opCtx,
+                                                        this,
+                                                        nss,
+                                                        swRecycleNss.getValue(),
+                                                        numRecords,
+                                                        uuid,
+                                                        markFromMigrate);
+        }
+
         _dropCollectionIndexes(opCtx, nss, collection.getWritableCollection(opCtx));
 
         auto commitTimestamp = opCtx->recoveryUnit()->getCommitTimestamp();
