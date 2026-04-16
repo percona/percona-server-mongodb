@@ -34,6 +34,7 @@ Copyright (C) 2026-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/client.h"
 #include "mongo/db/recycle_bin/recycle_bin_gen.h"
 #include "mongo/db/repl/replication_coordinator.h"
+#include "mongo/db/replication_state_transition_lock_guard.h"
 #include "mongo/db/shard_role/shard_catalog/collection_catalog.h"
 #include "mongo/db/shard_role/shard_catalog/drop_collection.h"
 #include "mongo/db/shard_role/shard_catalog/rename_collection.h"
@@ -79,9 +80,12 @@ void purgeExpiredEntries(Client* client) {
         }
 
         auto replCoord = repl::ReplicationCoordinator::get(opCtx.get());
-        if (replCoord && !replCoord->canAcceptWritesForDatabase(
-                             opCtx.get(), DatabaseName::kAdmin)) {
-            return;
+        if (replCoord) {
+            repl::ReplicationStateTransitionLockGuard rstl(opCtx.get(), MODE_IX);
+            if (!replCoord->canAcceptWritesForDatabase(
+                    opCtx.get(), DatabaseName::kAdmin)) {
+                return;
+            }
         }
 
         auto now = opCtx->getServiceContext()->getFastClockSource()->now();
@@ -217,7 +221,7 @@ boost::optional<RecycleBinEntryInfo> parseRecycleBinNss(const NamespaceString& n
     RecycleBinEntryInfo info;
     info.recycleBinNss = nss;
     info.originalCollection = originalColl;
-    info.db = nss.dbName().toStringForLogging();
+    info.db = toStringForLogging(nss.dbName());
     info.dropTimeSecs = timestamp;
     return info;
 }
