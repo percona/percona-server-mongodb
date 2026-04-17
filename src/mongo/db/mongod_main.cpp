@@ -222,6 +222,7 @@
 #include "mongo/db/transaction/session_catalog_mongod_transaction_interface_impl.h"
 #include "mongo/db/transaction/transaction_participant.h"
 #include "mongo/db/transaction/transaction_participant_gen.h"
+#include "mongo/db/recycle_bin/recycle_bin.h"
 #include "mongo/db/ttl/ttl.h"
 #include "mongo/db/wire_version.h"
 #include "mongo/executor/network_connection_hook.h"
@@ -1023,6 +1024,8 @@ ExitCode _initAndListen(ServiceContext* serviceContext) {
         } else {
             startTTLMonitor(serviceContext);
         }
+
+        startRecycleBinPurger(serviceContext);
 
         if (replSettings.isReplSet() || !gInternalValidateFeaturesAsPrimary) {
             serverGlobalParams.validateFeaturesAsPrimary.store(false);
@@ -1979,6 +1982,8 @@ void shutdownTask(const ShutdownTaskArgs& shutdownArgs) {
         LOGV2(4784928, "Shutting down the TTL monitor");
         shutdownTTLMonitor(serviceContext);
     }
+
+    shutdownRecycleBinPurger(serviceContext);
 
     auto& checker = PeriodicReplicaSetConfigShardMaintenanceModeChecker::get(serviceContext);
     if (checker) {

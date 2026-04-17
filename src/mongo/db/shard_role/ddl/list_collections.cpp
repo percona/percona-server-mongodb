@@ -497,6 +497,11 @@ public:
                         }
                     } else {
                         auto perCollectionWork = [&](const Collection* collection) {
+                            // Percona: hide recycle bin collections from normal listings
+                            if (collection->ns().isRecycleBinCollection()) {
+                                return true;
+                            }
+
                             // TODO SERVER-101594: remove this once 9.0 becomes last LTS
                             // buckets collection ('system.buckets') won't exists anymore.
                             if (collection->isTimeseriesCollection() &&

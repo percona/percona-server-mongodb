@@ -1,0 +1,14 @@
+test_kind: js_test
+description: |
+  Tests for the collection recycle bin feature (drop interception, restore,
+  listing, retention expiry). Tests start their own mongod instances.
+
+selector:
+  roots:
+    - jstests/recycle_bin/*.js
+
+# Tests start their own mongod via MongoRunner.
+executor:
+  config:
+    shell_options:
+      nodb: ""

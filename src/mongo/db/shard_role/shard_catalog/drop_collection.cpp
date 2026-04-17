@@ -30,6 +30,7 @@
 #include "mongo/db/shard_role/shard_catalog/drop_collection.h"
 
 #include "mongo/base/error_codes.h"
+#include "mongo/db/recycle_bin/recycle_bin.h"
 #include "mongo/base/string_data.h"
 #include "mongo/crypto/encryption_fields_gen.h"
 #include "mongo/db/audit.h"
@@ -461,6 +462,11 @@ Status dropCollection(OperationContext* opCtx,
                       bool fromMigrate) {
     if (!serverGlobalParams.quiet.load()) {
         LOGV2(518070, "CMD: drop", logAttrs(nss));
+    }
+
+    // Percona: intercept drop and redirect to recycle bin if enabled
+    if (!fromMigrate && recycleBinInterceptDrop(opCtx, nss, expectedUUID, reply)) {
+        return Status::OK();
     }
 
     if (MONGO_unlikely(hangDropCollectionBeforeLockAcquisition.shouldFail())) {
