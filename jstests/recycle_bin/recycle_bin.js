@@ -12,8 +12,7 @@ const testDB = conn.getDB(jsTestName());
 function enableRecycleBin(retentionSeconds) {
     assert.commandWorked(adminDB.runCommand({setParameter: 1, recycleBinEnabled: true}));
     if (retentionSeconds !== undefined) {
-        assert.commandWorked(
-            adminDB.runCommand({setParameter: 1, recycleBinRetentionSeconds: retentionSeconds}));
+        assert.commandWorked(adminDB.runCommand({setParameter: 1, recycleBinRetentionSeconds: retentionSeconds}));
     }
 }
 
@@ -77,7 +76,7 @@ jsTest.log("Test: drop is NOT intercepted when recycle bin is disabled");
     assert(coll.drop());
 
     const entries = listRecycleBin(testDB.getName());
-    const found = entries.filter(e => e.originalCollection === "not_intercepted");
+    const found = entries.filter((e) => e.originalCollection === "not_intercepted");
     assert.eq(0, found.length, "Should not have recycle bin entry when disabled");
 }
 
@@ -92,7 +91,7 @@ jsTest.log("Test: restore collection from recycle bin");
     assert(coll.drop());
 
     const entries = listRecycleBin(testDB.getName());
-    const entry = entries.find(e => e.originalCollection === "to_restore");
+    const entry = entries.find((e) => e.originalCollection === "to_restore");
     assert(entry, "Expected recycle bin entry for 'to_restore'");
 
     assert.commandWorked(adminDB.runCommand({undeleteCollection: entry.ns}));
@@ -103,8 +102,7 @@ jsTest.log("Test: restore collection from recycle bin");
     assert.eq(1, coll.countDocuments({name: "b"}));
 
     // Recycle bin should be empty for this collection.
-    const remaining = listRecycleBin(testDB.getName())
-                          .filter(e => e.originalCollection === "to_restore");
+    const remaining = listRecycleBin(testDB.getName()).filter((e) => e.originalCollection === "to_restore");
     assert.eq(0, remaining.length);
 }
 
@@ -119,12 +117,11 @@ jsTest.log("Test: restore with restoreAs to a different namespace");
     assert(coll.drop());
 
     const entries = listRecycleBin(testDB.getName());
-    const entry = entries.find(e => e.originalCollection === "original_name");
+    const entry = entries.find((e) => e.originalCollection === "original_name");
     assert(entry, "Expected recycle bin entry");
 
     const restoreTarget = testDB.getName() + ".renamed_coll";
-    assert.commandWorked(
-        adminDB.runCommand({undeleteCollection: entry.ns, restoreAs: restoreTarget}));
+    assert.commandWorked(adminDB.runCommand({undeleteCollection: entry.ns, restoreAs: restoreTarget}));
 
     // Original name should still not exist.
     assert.eq(null, testDB.getCollection("original_name").exists());
@@ -148,11 +145,10 @@ jsTest.log("Test: restore fails when target namespace already exists");
     assert.commandWorked(coll.insert({x: 2}));
 
     const entries = listRecycleBin(testDB.getName());
-    const entry = entries.find(e => e.originalCollection === "conflict");
+    const entry = entries.find((e) => e.originalCollection === "conflict");
     assert(entry, "Expected recycle bin entry");
 
-    assert.commandFailedWithCode(adminDB.runCommand({undeleteCollection: entry.ns}),
-                                 ErrorCodes.NamespaceExists);
+    assert.commandFailedWithCode(adminDB.runCommand({undeleteCollection: entry.ns}), ErrorCodes.NamespaceExists);
 }
 
 // --------------------------------------------------------------------------
@@ -161,8 +157,7 @@ jsTest.log("Test: restore fails when target namespace already exists");
 jsTest.log("Test: restore fails with invalid recycle bin namespace");
 {
     setup();
-    assert.commandFailed(
-        adminDB.runCommand({undeleteCollection: "mydb.not_a_recycle_bin_ns"}));
+    assert.commandFailed(adminDB.runCommand({undeleteCollection: "mydb.not_a_recycle_bin_ns"}));
 }
 
 // --------------------------------------------------------------------------
@@ -180,8 +175,7 @@ jsTest.log("Test: multiple drops of the same collection name");
     assert.commandWorked(coll.insert({round: 2}));
     assert(coll.drop());
 
-    const entries = listRecycleBin(testDB.getName())
-                        .filter(e => e.originalCollection === "multi_drop");
+    const entries = listRecycleBin(testDB.getName()).filter((e) => e.originalCollection === "multi_drop");
     assert.eq(2, entries.length, "Expected 2 recycle bin entries: " + tojson(entries));
 
     // Both entries should have distinct namespaces.
@@ -205,7 +199,7 @@ jsTest.log("Test: listRecycleBin with empty string lists all databases");
     db2.getCollection("coll_b").drop();
 
     const allEntries = listRecycleBin("");
-    const dbs = [...new Set(allEntries.map(e => e.db))];
+    const dbs = [...new Set(allEntries.map((e) => e.db))];
     assert.gte(dbs.length, 2, "Expected entries from at least 2 databases: " + tojson(dbs));
 
     // Clean up the extra database.
@@ -232,8 +226,7 @@ jsTest.log("Test: listRecycleBin filters by database name");
     // Filter by testDB — should only see entries from testDB.
     const filtered = listRecycleBin(testDB.getName());
     for (const entry of filtered) {
-        assert.eq(entry.db, testDB.getName(),
-                  "Unexpected db in filtered result: " + tojson(entry));
+        assert.eq(entry.db, testDB.getName(), "Unexpected db in filtered result: " + tojson(entry));
     }
 
     // Clean up.
@@ -257,18 +250,16 @@ jsTest.log("Test: indexes are preserved through drop and restore");
 
     assert(coll.drop());
 
-    const entry = listRecycleBin(testDB.getName()).find(
-        e => e.originalCollection === "with_indexes");
+    const entry = listRecycleBin(testDB.getName()).find((e) => e.originalCollection === "with_indexes");
     assert(entry);
 
     assert.commandWorked(adminDB.runCommand({undeleteCollection: entry.ns}));
 
     const indexesAfter = coll.getIndexes().sort((a, b) => JSON.stringify(a.key).localeCompare(JSON.stringify(b.key)));
-    assert.eq(indexesBefore.length, indexesAfter.length,
-              "Index count mismatch: " + tojson(indexesAfter));
+    assert.eq(indexesBefore.length, indexesAfter.length, "Index count mismatch: " + tojson(indexesAfter));
 
     // Verify the custom indexes exist.
-    const indexKeys = indexesAfter.map(idx => JSON.stringify(idx.key));
+    const indexKeys = indexesAfter.map((idx) => JSON.stringify(idx.key));
     assert(indexKeys.includes(JSON.stringify({a: 1})), "Missing index {a:1}");
     assert(indexKeys.includes(JSON.stringify({b: 1})), "Missing index {b:1}");
 }
@@ -285,24 +276,21 @@ jsTest.log("Test: expired entries are purged by the background purger");
     assert(coll.drop());
 
     // Verify it's in the recycle bin.
-    let entries = listRecycleBin(testDB.getName())
-                      .filter(e => e.originalCollection === "to_expire");
+    let entries = listRecycleBin(testDB.getName()).filter((e) => e.originalCollection === "to_expire");
     assert.eq(1, entries.length);
 
     // Set retention to 1 second so the entry expires immediately.
-    assert.commandWorked(
-        adminDB.runCommand({setParameter: 1, recycleBinRetentionSeconds: 1}));
+    assert.commandWorked(adminDB.runCommand({setParameter: 1, recycleBinRetentionSeconds: 1}));
 
     // The purger runs every 60 seconds. Wait up to 90s.
     assert.soon(
-        function() {
-            const remaining = listRecycleBin(testDB.getName())
-                                  .filter(e => e.originalCollection === "to_expire");
+        function () {
+            const remaining = listRecycleBin(testDB.getName()).filter((e) => e.originalCollection === "to_expire");
             return remaining.length === 0;
         },
         "Expired recycle bin entry was not purged within timeout",
-        90000,  // timeout ms
-        5000    // interval ms
+        90000, // timeout ms
+        5000, // interval ms
     );
 }
 

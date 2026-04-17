@@ -32,7 +32,9 @@ Copyright (C) 2026-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/auth/action_type.h"
 #include "mongo/db/auth/authorization_session.h"
 #include "mongo/db/commands.h"
+#include "mongo/db/database_name_util.h"
 #include "mongo/db/namespace_string.h"
+#include "mongo/db/namespace_string_util.h"
 #include "mongo/db/recycle_bin/recycle_bin.h"
 
 namespace mongo {
@@ -67,11 +69,41 @@ public:
                                  const DatabaseName&,
                                  const BSONObj& cmdObj) const override {
         auto nsStr = cmdObj.firstElement().String();
-        auto nss = NamespaceString::createNamespaceString_forTest(boost::none, nsStr);
-        return AuthorizationSession::get(opCtx->getClient())
-                       ->isAuthorizedForActionsOnNamespace(nss, ActionType::dropCollection)
-                   ? Status::OK()
-                   : Status(ErrorCodes::Unauthorized, "Unauthorized");
+        auto recycleBinNss =
+            NamespaceStringUtil::parseFromStringExpectTenantIdInMultitenancyMode(nsStr);
+
+        auto* authSession = AuthorizationSession::get(opCtx->getClient());
+
+        // Check read access on the source (recycle bin) namespace.
+        if (!authSession->isAuthorizedForActionsOnNamespace(recycleBinNss,
+                                                            ActionType::find)) {
+            return Status(ErrorCodes::Unauthorized, "Unauthorized");
+        }
+
+        // Determine the target namespace for the restore.
+        NamespaceString targetNss;
+        if (cmdObj.hasField("restoreAs")) {
+            targetNss = NamespaceStringUtil::parseFromStringExpectTenantIdInMultitenancyMode(
+                cmdObj["restoreAs"].String());
+        } else {
+            auto parsed = parseRecycleBinNss(recycleBinNss);
+            if (!parsed) {
+                return Status(ErrorCodes::InvalidNamespace,
+                              "Invalid recycle bin namespace");
+            }
+            targetNss = NamespaceStringUtil::deserialize(recycleBinNss.dbName(),
+                                                         parsed->originalCollection);
+        }
+
+        // Check write access on the target namespace.
+        if (!authSession->isAuthorizedForActionsOnNamespace(targetNss,
+                                                            ActionType::insert) ||
+            !authSession->isAuthorizedForActionsOnNamespace(targetNss,
+                                                            ActionType::createIndex)) {
+            return Status(ErrorCodes::Unauthorized, "Unauthorized");
+        }
+
+        return Status::OK();
     }
 
     bool run(OperationContext* opCtx,
@@ -80,27 +112,18 @@ public:
              BSONObjBuilder& result) override {
         auto nsStr = cmdObj.firstElement().String();
         auto recycleBinNss =
-            NamespaceString::createNamespaceString_forTest(boost::none, nsStr);
+            NamespaceStringUtil::parseFromStringExpectTenantIdInMultitenancyMode(nsStr);
 
         boost::optional<NamespaceString> restoreAs;
         if (cmdObj.hasField("restoreAs")) {
-            restoreAs = NamespaceString::createNamespaceString_forTest(
-                boost::none, cmdObj["restoreAs"].String());
+            restoreAs =
+                NamespaceStringUtil::parseFromStringExpectTenantIdInMultitenancyMode(
+                    cmdObj["restoreAs"].String());
         }
 
-        auto status = recycleBinRestore(opCtx, recycleBinNss, restoreAs);
-        uassertStatusOK(status);
-
-        auto parsed = parseRecycleBinNss(recycleBinNss);
-        if (parsed) {
-            if (restoreAs) {
-                result.append("restoredNs", restoreAs->toStringForErrorMsg());
-            } else {
-                auto targetNss = NamespaceString::createNamespaceString_forTest(
-                    recycleBinNss.dbName(), parsed->originalCollection);
-                result.append("restoredNs", targetNss.toStringForErrorMsg());
-            }
-        }
+        auto targetNss = uassertStatusOK(
+            recycleBinRestore(opCtx, recycleBinNss, restoreAs));
+        result.append("restoredNs", targetNss.toStringForErrorMsg());
 
         return true;
     }
@@ -148,7 +171,8 @@ public:
 
         DatabaseName filterDb;
         if (!dbStr.empty()) {
-            filterDb = DatabaseName::createDatabaseName_forTest(boost::none, dbStr);
+            filterDb = DatabaseNameUtil::deserialize(
+                boost::none, dbStr, SerializationContext::stateDefault());
         }
 
         auto entries = recycleBinList(opCtx, filterDb);

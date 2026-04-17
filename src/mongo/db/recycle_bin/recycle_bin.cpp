@@ -32,6 +32,7 @@ Copyright (C) 2026-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/recycle_bin/recycle_bin.h"
 
 #include "mongo/db/client.h"
+#include "mongo/db/namespace_string_util.h"
 #include "mongo/db/recycle_bin/recycle_bin_gen.h"
 #include "mongo/db/repl/replication_coordinator.h"
 #include "mongo/db/replication_state_transition_lock_guard.h"
@@ -43,6 +44,7 @@ Copyright (C) 2026-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/util/periodic_runner.h"
 
 #include <fmt/format.h>
+#include <regex>
 
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kCommand
 
@@ -60,15 +62,7 @@ const auto recycleBinPurgerDecoration =
     ServiceContext::declareDecoration<RecycleBinPurgerState>();
 
 bool isExcludedFromRecycleBin(const NamespaceString& nss) {
-    if (nss.isSystem())
-        return true;
-    if (nss.isLocalDB())
-        return true;
-    if (nss.isOnInternalDb())
-        return true;
-    if (nss.isOplog())
-        return true;
-    return false;
+    return nss.isSystem() || nss.isLocalDB() || nss.isOnInternalDb() || nss.isOplog();
 }
 
 void purgeExpiredEntries(Client* client) {
@@ -160,7 +154,7 @@ NamespaceString makeRecycleBinNss(const NamespaceString& originalNss,
             fmt::format("system.recycle_bin.{}.{}", originalNss.coll(), dropTimeSecs);
     }
 
-    return NamespaceString::createNamespaceString_forTest(originalNss.dbName(), recycleBinColl);
+    return NamespaceStringUtil::deserialize(originalNss.dbName(), recycleBinColl);
 }
 
 boost::optional<RecycleBinEntryInfo> parseRecycleBinNss(const NamespaceString& nss) {
@@ -169,49 +163,26 @@ boost::optional<RecycleBinEntryInfo> parseRecycleBinNss(const NamespaceString& n
         return boost::none;
     }
 
-    // Strip "system.recycle_bin." prefix
-    auto remainder = collStr.substr(kRecycleBinPrefix.size());
-    // remainder is: <original_coll>.<timestamp>[.<uuid_prefix>]
-    // Find the last dot-separated numeric segment as the timestamp
-    auto lastDot = remainder.rfind('.');
-    if (lastDot == std::string::npos) {
+    auto remainder = std::string(collStr.substr(kRecycleBinPrefix.size()));
+
+    // Format with UUID suffix: <original_coll>.<timestamp>.<8-char hex uuid prefix>
+    // Format without UUID:     <original_coll>.<timestamp>
+    // Try UUID format first to avoid ambiguity when UUID prefix is all digits.
+    static const std::regex kWithUuid(R"((.+)\.(\d+)\.[0-9a-f]{8})");
+    static const std::regex kWithoutUuid(R"((.+)\.(\d+))");
+
+    std::smatch match;
+    if (!std::regex_match(remainder, match, kWithUuid) &&
+        !std::regex_match(remainder, match, kWithoutUuid)) {
         return boost::none;
     }
 
-    auto lastSegment = remainder.substr(lastDot + 1);
+    auto originalColl = match[1].str();
     long long timestamp = 0;
-    std::string originalColl;
-
-    // Check if lastSegment is numeric (timestamp) or hex (uuid suffix)
-    bool lastIsNumeric = !lastSegment.empty();
-    for (auto c : lastSegment) {
-        if (!std::isdigit(c)) {
-            lastIsNumeric = false;
-            break;
-        }
-    }
-
-    if (lastIsNumeric) {
-        // Format: <original_coll>.<timestamp>
-        try {
-            timestamp = std::stoll(std::string(lastSegment));
-        } catch (...) {
-            return boost::none;
-        }
-        originalColl = std::string(remainder.substr(0, lastDot));
-    } else {
-        // Format: <original_coll>.<timestamp>.<uuid_prefix>
-        auto secondLastDot = remainder.rfind('.', lastDot - 1);
-        if (secondLastDot == std::string::npos) {
-            return boost::none;
-        }
-        auto tsSegment = remainder.substr(secondLastDot + 1, lastDot - secondLastDot - 1);
-        try {
-            timestamp = std::stoll(std::string(tsSegment));
-        } catch (...) {
-            return boost::none;
-        }
-        originalColl = std::string(remainder.substr(0, secondLastDot));
+    try {
+        timestamp = std::stoll(match[2].str());
+    } catch (...) {
+        return boost::none;
     }
 
     if (originalColl.empty() || timestamp <= 0) {
@@ -278,9 +249,9 @@ bool recycleBinInterceptDrop(OperationContext* opCtx,
     return true;
 }
 
-Status recycleBinRestore(OperationContext* opCtx,
-                         const NamespaceString& recycleBinNss,
-                         const boost::optional<NamespaceString>& restoreAs) {
+StatusWith<NamespaceString> recycleBinRestore(OperationContext* opCtx,
+                                              const NamespaceString& recycleBinNss,
+                                              const boost::optional<NamespaceString>& restoreAs) {
     auto parsed = parseRecycleBinNss(recycleBinNss);
     if (!parsed) {
         return Status(ErrorCodes::InvalidNamespace,
@@ -292,8 +263,8 @@ Status recycleBinRestore(OperationContext* opCtx,
     if (restoreAs) {
         targetNss = *restoreAs;
     } else {
-        targetNss = NamespaceString::createNamespaceString_forTest(
-            recycleBinNss.dbName(), parsed->originalCollection);
+        targetNss = NamespaceStringUtil::deserialize(recycleBinNss.dbName(),
+                                                     parsed->originalCollection);
     }
 
     auto catalog = CollectionCatalog::get(opCtx);
@@ -315,7 +286,11 @@ Status recycleBinRestore(OperationContext* opCtx,
           "target"_attr = targetNss);
 
     RenameCollectionOptions renameOpts;
-    return renameCollection(opCtx, recycleBinNss, targetNss, renameOpts);
+    auto status = renameCollection(opCtx, recycleBinNss, targetNss, renameOpts);
+    if (!status.isOK()) {
+        return status;
+    }
+    return targetNss;
 }
 
 std::vector<RecycleBinEntryInfo> recycleBinList(OperationContext* opCtx,
@@ -349,6 +324,8 @@ std::vector<RecycleBinEntryInfo> recycleBinList(OperationContext* opCtx,
 void startRecycleBinPurger(ServiceContext* serviceContext) {
     auto periodicRunner = serviceContext->getPeriodicRunner();
     if (!periodicRunner) {
+        LOGV2_WARNING(9900009,
+                      "Cannot start recycle bin purger: periodic runner is not available");
         return;
     }
 

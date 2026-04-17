@@ -22,7 +22,7 @@ mongo_cc_unit_test(
     srcs = [
         "recycle_bin_test.cpp",
     ],
-    tags = ["mongo_unittest_first_group"],
+    tags = ["mongo_unittest_second_group"],
     deps = [
         "//src/mongo/db/shard_role/shard_catalog:catalog_helpers",
     ],

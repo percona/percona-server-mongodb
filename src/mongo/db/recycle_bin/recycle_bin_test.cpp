@@ -95,6 +95,17 @@ TEST(RecycleBinNssTest, ParseNamespaceWithUuidSuffix) {
     ASSERT_EQ(parsed->dropTimeSecs, 1713260000);
 }
 
+TEST(RecycleBinNssTest, ParseNamespaceWithAllDigitUuidSuffix) {
+    // UUID prefix can be all digits (e.g., UUID starting with "12345678-...").
+    // Must not be mis-parsed as a timestamp.
+    auto nss = NamespaceString::createNamespaceString_forTest(
+        "mydb", "system.recycle_bin.mycoll.1713260000.12345678");
+    auto parsed = parseRecycleBinNss(nss);
+    ASSERT(parsed.has_value());
+    ASSERT_EQ(parsed->originalCollection, "mycoll");
+    ASSERT_EQ(parsed->dropTimeSecs, 1713260000);
+}
+
 TEST(RecycleBinNssTest, ParseNamespaceWithDottedCollectionName) {
     auto nss = NamespaceString::createNamespaceString_forTest(
         "mydb", "system.recycle_bin.my.dotted.coll.1713260000");

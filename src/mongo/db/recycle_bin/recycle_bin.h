@@ -32,6 +32,7 @@ Copyright (C) 2026-present Percona and/or its affiliates. All rights reserved.
 #pragma once
 
 #include "mongo/base/status.h"
+#include "mongo/base/status_with.h"
 #include "mongo/bson/bsonobj.h"
 #include "mongo/db/database_name.h"
 #include "mongo/db/namespace_string.h"
@@ -84,10 +85,12 @@ bool recycleBinInterceptDrop(OperationContext* opCtx,
 /**
  * Restores a collection from the recycle bin back to its original namespace.
  * Optionally allows specifying a different target namespace via restoreAs.
+ * Returns the target namespace on success.
  */
-Status recycleBinRestore(OperationContext* opCtx,
-                         const NamespaceString& recycleBinNss,
-                         const boost::optional<NamespaceString>& restoreAs = boost::none);
+StatusWith<NamespaceString> recycleBinRestore(
+    OperationContext* opCtx,
+    const NamespaceString& recycleBinNss,
+    const boost::optional<NamespaceString>& restoreAs = boost::none);
 
 /**
  * Lists all collections currently in the recycle bin for a given database.
