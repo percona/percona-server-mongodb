@@ -126,10 +126,6 @@ const internalCommandsMap = {
             _configsvrBalancerCollectionStatus: "x.y",
         },
     },
-    _configsvrCleanupReshardCollection: {
-        testname: "_configsvrCleanupReshardCollection",
-        command: {_configsvrCleanupReshardCollection: "test.x"},
-    },
     _configsvrClearJumboFlag: {
         testname: "_configsvrClearJumboFlag",
         command: {_configsvrClearJumboFlag: "x.y", epoch: ObjectId(), minKey: {x: 0}, maxKey: {x: 10}},
@@ -470,10 +466,6 @@ const internalCommandsMap = {
         testname: "_shardsvrCleanupStructuredEncryptionData",
         command: {_shardsvrCleanupStructuredEncryptionData: "test", cleanupTokens: {}},
     },
-    _shardsvrCleanupReshardCollection: {
-        testname: "_shardsvrCleanupReshardCollection",
-        command: {_shardsvrCleanupReshardCollection: "test.x", reshardingUUID: UUID()},
-    },
     _shardsvrCloneAuthoritativeMetadata: {
         testname: "_shardsvrCloneAuthoritativeMetadata",
         command: {_shardsvrCloneAuthoritativeMetadata: 1, writeConcern: {w: "majority"}},
@@ -775,8 +767,13 @@ const internalCommandsMap = {
                 tempNs: "test.resharding.x",
                 reshardingKey: {x: 1},
             },
-            donorShards: [],
-            minimumOperationDurationMillis: NumberLong(0),
+            recipientOptions: {
+                donorShards: [],
+                minimumOperationDurationMillis: NumberLong(0),
+            },
+        },
+        postcommand: (db) => {
+            db.getSiblingDB("config").localReshardingOperations.recipient.drop();
         },
     },
     _shardsvrReshardRecipientClone: {

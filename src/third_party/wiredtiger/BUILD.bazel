@@ -122,7 +122,7 @@ mongo_cc_library(
         {
             "@platforms//cpu:aarch64": WT_FILELIST_ARM64_HOST,
             "@platforms//cpu:x86_64": WT_FILELIST_X86_HOST,
-            "@platforms//cpu:ppc": WT_FILELIST_POWERPC_HOST,
+            "@platforms//cpu:ppc64le": WT_FILELIST_POWERPC_HOST,
             "@platforms//cpu:s390x": [
                 WT_FILELIST_ZSERIES_HOST[0],
                 WT_FILELIST_ZSERIES_HOST[1],
@@ -151,7 +151,8 @@ mongo_cc_library(
     local_defines = WT_DEFINES,
     srcs_select = [
         {
-            "//bazel/config:posix": WT_FILELIST_POSIX_HOST,
+            "@platforms//os:linux": WT_FILELIST_POSIX_HOST + WT_FILELIST_LINUX_HOST,
+            "@platforms//os:macos": WT_FILELIST_POSIX_HOST + WT_FILELIST_DARWIN_HOST,
             "@platforms//os:windows": [file for file in WT_FILELIST_WINDOWS_HOST if file != "src/os_win/os_futex.c"],
         },
     ],

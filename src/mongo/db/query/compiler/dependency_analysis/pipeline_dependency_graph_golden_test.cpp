@@ -406,14 +406,69 @@ TEST_F(PipelineDependencyGraphGoldenTest, SetGroupSet) {
     });
 }
 
-// TODO(SERVER-121639): Enable.
-// TEST_F(PipelineDependencyGraphGoldenTest, GroupKeyFromBaseDocument) {
-//     runVariation({
-//         .name = "GroupKeyFromBaseDocument",
-//         .pipeline = "[{$group: { _id: '$x' }},"
-//                     "{$match: { _id: 1, x: 1 }}]",
-//     });
-// }
+TEST_F(PipelineDependencyGraphGoldenTest, GroupKeyFromBaseDocument) {
+    runVariation({
+        .name = "GroupKeyFromBaseDocument",
+        .pipeline = "[{$group: { _id: '$x' }},"
+                    "{$match: { _id: 1, x: 1 }}]",
+    });
+}
+
+TEST_F(PipelineDependencyGraphGoldenTest, InternalInhibitOptimization) {
+    runVariation({
+        .name = "InternalInhibitOptimization",
+        .pipeline = "[{$_internalInhibitOptimization: {}}]",
+    });
+}
+
+TEST_F(PipelineDependencyGraphGoldenTest, MiddleStageDependsOnWholeDocument) {
+    runVariation({
+        .name = "MiddleStageDependsOnWholeDocument",
+        .pipeline = "[{$set: {}}, {$_internalInhibitOptimization: {}}, {$set: {}}]",
+    });
+}
+
+TEST_F(PipelineDependencyGraphGoldenTest, ExpressionDependencies) {
+    runVariation({
+        .name = "ExpressionDependencies",
+        .pipeline = "[{$set: {a: 1, b: 1, c: 1}},"
+                    " {$set: {a_plus_b: {$add: ['$a', '$b']}, b_plus_c: {$add: ['$b', '$c']}}},"
+                    " {$set: {a_plus_x: {$add: ['$a', '$x']}, x_plus_d: {$add: ['$x', '$d']}}}]",
+    });
+}
+
+TEST_F(PipelineDependencyGraphGoldenTest, SetFieldExpressionDependencies) {
+    runVariation({
+        .name = "SetFieldExpressionDependencies",
+        .pipeline = "[{$set: {'a.b': 1, c: 1}},"
+                    " {$set: {d: {$setField: {field: 'c', input: '$a', value: 2}}, e: '$c'}}]",
+    });
+}
+
+TEST_F(PipelineDependencyGraphGoldenTest, GetFieldExpressionDependencies) {
+    runVariation({
+        .name = "GetFieldExpressionDependencies",
+        .pipeline = "[{$set: {'a.b': 1, c: 1}},"
+                    " {$set: {d: {$getField: {field: 'b', input: '$a'}}, e: '$c'}}]",
+    });
+}
+
+TEST_F(PipelineDependencyGraphGoldenTest, NonExpressionModificationDependencies) {
+    runVariation({
+        .name = "NonExpressionModificationDependencies",
+        .pipeline = "[{$set: {a: [1, 2]}},"
+                    " {$unwind: '$a'}]",
+    });
+}
+
+TEST_F(PipelineDependencyGraphGoldenTest, ExpressionWholeDocumentDependencyInLaterStage) {
+    runVariation({
+        .name = "ExpressionWholeDocumentDependencyInLaterStage",
+        .pipeline = "[{$set: {a: 1}},"
+                    " {$set: {b: '$$ROOT'}},"
+                    " {$set: {c: 2}}]",
+    });
+}
 
 }  // namespace
 }  // namespace mongo::pipeline::dependency_graph

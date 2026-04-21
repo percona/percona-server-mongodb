@@ -824,6 +824,7 @@ mongo_cc_library(
         "validate.cpp",
         "whats_my_sni_command.cpp",
         "//src/mongo/db/commands/query_cmd:acquire_locks.cpp",
+        "//src/mongo/db/commands/query_cmd:aggregate_command.cpp",
         "//src/mongo/db/commands/query_cmd:aggregation_execution_state.cpp",
         "//src/mongo/db/commands/query_cmd:analyze_cmd.cpp",
         "//src/mongo/db/commands/query_cmd:count_cmd.cpp",
@@ -835,7 +836,6 @@ mongo_cc_library(
         "//src/mongo/db/commands/query_cmd:getmore_cmd.cpp",
         "//src/mongo/db/commands/query_cmd:index_filter_commands.cpp",
         "//src/mongo/db/commands/query_cmd:killcursors_cmd.cpp",
-        "//src/mongo/db/commands/query_cmd:pipeline_command.cpp",
         "//src/mongo/db/commands/query_cmd:run_aggregate.cpp",
         "//src/mongo/db/commands/query_cmd:write_commands.cpp",
         "//src/mongo/db/global_catalog/ddl:shuffle_list_command_results.cpp",
@@ -1094,6 +1094,7 @@ mongo_cc_unit_test(
 mongo_cc_unit_test(
     name = "db_commands_test",
     srcs = [
+        "apply_ops_cmd_test.cpp",
         "parse_log_component_settings_test.cpp",
         "profile_cmd_test.cpp",
         "set_profiling_filter_globally_cmd_test.cpp",
@@ -1114,6 +1115,7 @@ mongo_cc_unit_test(
     ],
     srcs_select = [{
         "//bazel/config:js_engine_none": [],
+        "//bazel/config:js_engine_wasm": [],
         "//bazel/config:js_engine_mozjs": [
             "//src/mongo/db/commands/query_cmd:mr_test.cpp",
         ],
@@ -1138,10 +1140,12 @@ mongo_cc_unit_test(
         "//src/mongo/db:fle_mocks",
         "//src/mongo/db:multitenancy",
         "//src/mongo/db:query_exec",
+        "//src/mongo/db:read_write_concern_defaults_mock",
         "//src/mongo/db:service_context_d_test_fixture",
         "//src/mongo/db/auth:authmocks",
         "//src/mongo/db/collection_crud",
         "//src/mongo/db/commands/server_status:server_status_core",
+        "//src/mongo/db/commands/server_status:server_status_metric",
         "//src/mongo/db/index_builds:index_builds_coordinator",
         "//src/mongo/db/memory_tracking",
         "//src/mongo/db/op_observer",

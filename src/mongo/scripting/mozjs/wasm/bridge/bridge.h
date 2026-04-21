@@ -31,6 +31,8 @@
 
 #include "mongo/scripting/mozjs/wasm/bridge/wasm_helpers.h"
 
+#include <atomic>
+
 namespace mongo::mozjs::wasm {
 
 
@@ -40,7 +42,6 @@ struct WasmEngineContext {
     WasmEngineContext(WasmEngineContext&&) = delete;
     WasmEngineContext& operator=(WasmEngineContext&&) = delete;
 
-    static std::shared_ptr<WasmEngineContext> create(const std::vector<uint8_t>& bytes);
     static std::shared_ptr<WasmEngineContext> createFromPrecompiled(const uint8_t* data,
                                                                     size_t size);
 
@@ -62,23 +63,28 @@ public:
     MozJSWasmBridge& operator=(const MozJSWasmBridge&) = delete;
 
     struct Options {
-        uint32_t jsHeapLimitBytes;
-        size_t linearMemoryLimitBytes;
-        size_t timeoutLimitMs;
+        uint32_t heapSizeMB;
     };
 
-    explicit MozJSWasmBridge(std::shared_ptr<WasmEngineContext> ctx);
+    explicit MozJSWasmBridge(std::shared_ptr<WasmEngineContext> ctx, Options opts = {});
 
-    bool initialize();
+    bool initialize(const Options& options);
     void shutdown();
 
-    void interruptCurrentOp();
+    // Signal that execution should be interrupted via Wasmtime epoch increment.
+    // Safe to call from any thread. kill() provides a DeadlineMonitor-compatible interface.
+    void kill();
+    // Triggers an epoch increment to interrupt WASM execution.
+    void signalInterrupt();
+    bool isKillPending() const;
 
     uint64_t createFunction(std::string_view source);
-    StatusWith<BSONObj> invokeFunction(uint64_t handle, const BSONObj& args);
+    StatusWith<BSONObj> invokeFunction(uint64_t handle,
+                                       const BSONObj& args,
+                                       bool ignoreReturn = false);
 
     void setGlobal(std::string_view name, const BSONObj& value);
-    BSONObj getGlobal(std::string_view name);
+    BSONObj getGlobal(std::string_view name, bool implicitNull = false);
 
     void setGlobalValue(std::string_view name, const BSONObj& value);
 
@@ -92,6 +98,9 @@ public:
         return _engineInitialized;
     }
 
+    // Returns the last JS function return value as {"__returnValue": val}, preserving array types.
+    BSONObj getReturnValueWrapped();
+
 private:
     BSONObj _getReturnValueBson();
     BSONObj _extractBSON(const wc::Val& result);
@@ -100,6 +109,8 @@ private:
     inline wt::Store::Context getContext() {
         return _store->context();
     }
+
+    mongo::Atomic<bool> _killPending{false};
 
     bool _engineInitialized = false;
 
@@ -119,7 +130,6 @@ private:
     // std::optional because wc::Func has no default constructor.
     boost::optional<wc::Func> _initEngineFunc = boost::none;
     boost::optional<wc::Func> _shutdownEngineFunc = boost::none;
-    boost::optional<wc::Func> _interruptCurrentOpFunc = boost::none;
     boost::optional<wc::Func> _createFunctionFunc = boost::none;
     boost::optional<wc::Func> _invokeFunctionFunc = boost::none;
     boost::optional<wc::Func> _invokePredicateFunc = boost::none;
@@ -129,6 +139,7 @@ private:
     boost::optional<wc::Func> _invokeMapFunc = boost::none;
     boost::optional<wc::Func> _drainEmitBufferFunc = boost::none;
     boost::optional<wc::Func> _getGlobalFunc = boost::none;
+    boost::optional<wc::Func> _getReturnValueBsonFunc = boost::none;
 };
 
 }  // namespace mongo::mozjs::wasm

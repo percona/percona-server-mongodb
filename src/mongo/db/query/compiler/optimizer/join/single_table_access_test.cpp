@@ -45,7 +45,7 @@ using SingleTableAccessTestFixture = JoinOrderingTestFixture;
 void assertQuerySolutionHasEstimate(const QuerySolutionNode* qsn, const EstimateMap& estimates) {
     auto it = estimates.find(qsn);
     ASSERT(it != estimates.end());
-    ASSERT_EQ(EstimationSource::Sampling, it->second.outCE.source());
+    ASSERT_EQ(EstimationSource::Sampling, it->second->outCE.source());
     for (auto&& child : qsn->children) {
         assertQuerySolutionHasEstimate(child.get(), estimates);
     }
@@ -94,7 +94,7 @@ TEST_F(SingleTableAccessTestFixture, EstimatesPopulated) {
     ASSERT(node2);
 
     JoinGraph graph(std::move(mgraph));
-    auto swRes = singleTableAccessPlans(opCtx, mca, graph, estimators);
+    auto swRes = singleTableAccessPlans(opCtx, mca, graph, estimators, false);
     ASSERT_OK(swRes);
 
     auto& res = swRes.getValue();

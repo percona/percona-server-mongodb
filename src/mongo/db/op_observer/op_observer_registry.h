@@ -187,7 +187,7 @@ public:
                            const NamespaceString& nss,
                            const UUID& collUUID,
                            const UUID& indexBuildUUID,
-                           const std::vector<BSONObj>& indexes,
+                           const std::vector<IndexBuildInfo>& indexes,
                            const Status& cause,
                            bool fromMigrate,
                            bool isTimeseries) override {
@@ -307,6 +307,26 @@ public:
         }
     }
 
+    void onContainerUpdate(OperationContext* opCtx,
+                           StringData ident,
+                           int64_t key,
+                           std::span<const char> value) override {
+        ReservedTimes times{opCtx};
+        for (auto&& observer : _observers) {
+            observer->onContainerUpdate(opCtx, ident, key, value);
+        }
+    }
+
+    void onContainerUpdate(OperationContext* opCtx,
+                           StringData ident,
+                           std::span<const char> key,
+                           std::span<const char> value) override {
+        ReservedTimes times{opCtx};
+        for (auto&& observer : _observers) {
+            observer->onContainerUpdate(opCtx, ident, key, value);
+        }
+    }
+
     void onContainerDelete(OperationContext* opCtx, StringData ident, int64_t key) override {
         ReservedTimes times{opCtx};
         for (auto&& observer : _observers) {
@@ -353,7 +373,8 @@ public:
         const OplogSlot& createOpTime,
         const boost::optional<CreateCollCatalogIdentifier>& createCollCatalogIdentifier,
         bool fromMigrate,
-        bool isTimeseries) override {
+        bool isTimeseries,
+        bool recordIdsReplicated) override {
         ReservedTimes times{opCtx};
         for (auto& o : _observers)
             o->onCreateCollection(opCtx,
@@ -363,7 +384,8 @@ public:
                                   createOpTime,
                                   createCollCatalogIdentifier,
                                   fromMigrate,
-                                  isTimeseries);
+                                  isTimeseries,
+                                  recordIdsReplicated);
     }
 
     void onCollMod(OperationContext* const opCtx,

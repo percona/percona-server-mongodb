@@ -852,9 +852,12 @@ buildIndexSeekStage(StageBuilderState& state,
                             b.makeInt32Constant(indexOrdering.getBits()));
         for (size_t i = 0; i < valueForIndexBounds.size(); i++) {
             if (valueForIndexBounds[i].getId() == 0) {
-                args.push_back(discriminator == key_string::Discriminator::kExclusiveBefore
-                                   ? b.makeConstant(sbe::value::TypeTags::MinKey, 0)
-                                   : b.makeConstant(sbe::value::TypeTags::MaxKey, 0));
+                // Use proper lower/upper boundaries keeping into account the index order.
+                bool lowerBound = discriminator == key_string::Discriminator::kExclusiveBefore
+                    ? indexOrdering.get(i) > 0
+                    : indexOrdering.get(i) < 0;
+                args.push_back(b.makeConstant(
+                    lowerBound ? sbe::value::TypeTags::MinKey : sbe::value::TypeTags::MaxKey, 0));
             } else {
                 args.push_back(valueForIndexBounds[i]);
             }
@@ -1281,13 +1284,13 @@ std::pair<SbSlot, SbStage> buildNonExistentForeignCollLookupStage(SbStage localS
     return {emptyArraySlot, std::move(outStage)};
 }
 
-std::pair<SbSlot, SbStage> buildLookupResultObject(SbStage stage,
-                                                   SbSlot localDocSlot,
-                                                   std::vector<ProjectNode> nodes,
-                                                   std::vector<std::string> paths,
-                                                   const PlanNodeId nodeId,
-                                                   StageBuilderState& state,
-                                                   bool shouldProduceBson) {
+std::pair<SbStage, PlanStageSlots> buildLookupResultObject(SbStage stage,
+                                                           SbSlot localDocSlot,
+                                                           std::vector<ProjectNode> nodes,
+                                                           std::vector<std::string> paths,
+                                                           const PlanNodeId nodeId,
+                                                           StageBuilderState& state,
+                                                           bool shouldProduceBson) {
     // We generate a projection with traversalDepth set to 0 to suppress array traversal.
     constexpr int32_t traversalDepth = 0;
 
@@ -1302,12 +1305,13 @@ std::pair<SbSlot, SbStage> buildLookupResultObject(SbStage stage,
 
     SbBuilder b(state, nodeId);
     auto [outStage, outSlots] = b.makeProject(std::move(stage), std::move(updatedDocExpr));
-    SbSlot updatedDocSlot = outSlots[0];
 
-    return {updatedDocSlot, std::move(outStage)};
+    PlanStageSlots outputs;
+    outputs.setResultObj(outSlots[0]);
+    return {std::move(outStage), std::move(outputs)};
 }
 
-std::pair<SbSlot, SbStage> buildLookupResultObject(
+std::pair<SbStage, PlanStageSlots> buildLookupResultObject(
     SbStage stage,
     SbSlot localDocSlot,
     SbSlot resultArraySlot,
@@ -1315,9 +1319,11 @@ std::pair<SbSlot, SbStage> buildLookupResultObject(
     const PlanNodeId nodeId,
     StageBuilderState& state,
     bool shouldProduceBson,
-    boost::optional<std::pair<FieldPath, SbSlot>> includeArrayIndex = boost::none) {
+    EqLookupNode::LookupStrategy lookupStrategy,
+    boost::optional<FieldPath> indexPath,
+    boost::optional<sbe::value::SlotId> indexSlotId) {
     // Only "as" path.
-    if (!includeArrayIndex) {
+    if (!indexSlotId || !indexPath) {
         std::vector<std::string> paths;
         paths.emplace_back(fieldPath.fullPath());
 
@@ -1333,31 +1339,57 @@ std::pair<SbSlot, SbStage> buildLookupResultObject(
                                        shouldProduceBson);
     }
 
+    SbBuilder b(state, nodeId);
+    SbSlot indexSlot{*indexSlotId};
+    // Loop joins use AggProjectStage to build a counter for the matched array index.
+    if (lookupStrategy != EqLookupNode::LookupStrategy::kHashJoin) {
+        // Materialize idxExpr into a slot, converting unmatched left join into null values.
+        auto [projStage, outSlot] =
+            b.makeProject(std::move(stage), b.makeFillEmptyNull(SbSlot{*indexSlotId}));
+        stage = std::move(projStage);
+        indexSlot = outSlot[0];
+    }
+
     // $LU case: project both "as" and "includeArrayIndex", honoring conflicting paths.
     SbExpr updatedDocExpr = generateUnwindProjection(state,
                                                      localDocSlot,
                                                      fieldPath.fullPath(),
                                                      resultArraySlot,
-                                                     includeArrayIndex->first.fullPath(),
-                                                     includeArrayIndex->second,
+                                                     indexPath->fullPath(),
+                                                     indexSlot,
                                                      shouldProduceBson);
-    SbBuilder b(state, nodeId);
     auto [outStage, outSlots] = b.makeProject(std::move(stage), std::move(updatedDocExpr));
-    SbSlot updatedDocSlot = outSlots[0];
-    return {updatedDocSlot, std::move(outStage)};
+
+    PlanStageSlots outputs;
+    outputs.setResultObj(outSlots[0]);
+    return {std::move(outStage), std::move(outputs)};
+}
+
+IndexEntry extractIndexEntry(const EqLookupNode* eqLookupNode) {
+    tassert(12339700,
+            "IndexEntry can be extracted only from index-based strategies",
+            eqLookupNode->lookupStrategy == EqLookupNode::LookupStrategy::kDynamicIndexedLoopJoin ||
+                eqLookupNode->lookupStrategy == EqLookupNode::LookupStrategy::kIndexedLoopJoin);
+    // TODO: SERVER-121730 use SlotBasedStageBuilder::build(eqLookupNode->children[1]) instead
+    // of extracting the IndexEntry and having stage builder replicating more or less the same
+    // logic.
+    auto indexFetch = dynamic_cast<FetchNode*>(eqLookupNode->children[1].get());
+    tassert(11801406,
+            "Second child in EqLookupNode must be an FetchNode when strategy is index-based",
+            indexFetch != nullptr);
+    auto indexScan = dynamic_cast<IndexScanNode*>(indexFetch->children[0].get());
+    tassert(11801407, "Grandchild in EqLookupNode must be an IndexProbeNode", indexScan != nullptr);
+    return indexScan->index;
 }
 
 }  // namespace
 
 /**
- * Stage builder entry point for EqLookupNode, which implements the normal MQL $lookup pattern,
- * where the query returns each local doc with all its foreign matches in an array field. This
- * supports several different lookup strategies.
+ * Stage builder entry point for EqLookupNode, including when it absorbs a following $unwind
+ * operation. This supports several different lookup strategies.
  */
 std::pair<SbStage, PlanStageSlots> SlotBasedStageBuilder::buildEqLookup(
     const QuerySolutionNode* root, const PlanStageReqs& reqs) {
-    SbBuilder b(_state, root->nodeId());
-
     const EqLookupNode* eqLookupNode = static_cast<const EqLookupNode*>(root);
     if (eqLookupNode->lookupStrategy == EqLookupNode::LookupStrategy::kHashJoin) {
         _state.data->foreignHashJoinCollections.emplace(eqLookupNode->foreignCollection);
@@ -1368,7 +1400,6 @@ std::pair<SbStage, PlanStageSlots> SlotBasedStageBuilder::buildEqLookup(
     childReqs.setFields(
         std::vector<std::string>{std::string(eqLookupNode->joinFieldLocal.front())});
     auto [localStage, localOutputs] = build(eqLookupNode->children[0].get(), childReqs);
-    SbSlot localRecordSlot = localOutputs.getResultObj();
 
     NamespaceString foreignNss(eqLookupNode->foreignCollection);
     auto foreignColl = _collections.lookupCollection(foreignNss);
@@ -1379,20 +1410,9 @@ std::pair<SbStage, PlanStageSlots> SlotBasedStageBuilder::buildEqLookup(
              EqLookupNode::LookupStrategy::kNonExistentForeignCollection) ||
                 (foreignColl && foreignColl->ns() == foreignNss));
 
-    boost::optional<IndexEntry> idxEntry;
-    if (eqLookupNode->lookupStrategy == EqLookupNode::LookupStrategy::kDynamicIndexedLoopJoin ||
-        eqLookupNode->lookupStrategy == EqLookupNode::LookupStrategy::kIndexedLoopJoin) {
-        // TODO: SERVER-121730 use SlotBasedStageBuilder::build(eqLookupNode->children[1]) instead
-        // of extracting the IndexEntry and having stage builder replicating more or less the same
-        // logic.
-        auto indexFetch = dynamic_cast<FetchNode*>(eqLookupNode->children[1].get());
-        tassert(11801406,
-                "Second child in EqLookupNode must be an FetchNode when strategy is index-based",
-                indexFetch != nullptr);
-        auto indexScan = dynamic_cast<IndexScanNode*>(indexFetch->children[0].get());
-        tassert(
-            11801407, "Grandchild in EqLookupNode must be an IndexProbeNode", indexScan != nullptr);
-        idxEntry = indexScan->index;
+    boost::optional<sbe::value::SlotId> indexSlotId = boost::none;
+    if (eqLookupNode->unwindSpec && eqLookupNode->unwindSpec->indexPath.has_value()) {
+        indexSlotId = _state.slotId();
     }
 
     auto [matchedDocumentsSlot, foreignStage] = [&]() {
@@ -1407,26 +1427,18 @@ std::pair<SbStage, PlanStageSlots> SlotBasedStageBuilder::buildEqLookup(
                     std::move(localStage), eqLookupNode->nodeId(), _state);
             }
             case EqLookupNode::LookupStrategy::kIndexedLoopJoin: {
-                tassert(6357200,
-                        "$lookup using index join should have a populated index entry",
-                        idxEntry);
-
                 return buildIndexJoinLookupStage(_state,
                                                  std::move(localStage),
                                                  localOutputs,
                                                  eqLookupNode->joinFieldLocal,
                                                  eqLookupNode->joinFieldForeign,
                                                  foreignColl,
-                                                 *idxEntry,
+                                                 extractIndexEntry(eqLookupNode),
                                                  eqLookupNode->nodeId(),
-                                                 boost::none /*unwindSpec*/,
-                                                 boost::none /*indexSlot*/);
+                                                 eqLookupNode->unwindSpec,
+                                                 indexSlotId);
             }
             case mongo::EqLookupNode::LookupStrategy::kDynamicIndexedLoopJoin: {
-                tassert(8155500,
-                        "$lookup using dynamic indexed loop join should have a populated index "
-                        "entry",
-                        idxEntry);
                 auto [foreignStage, foreignSlots] =
                     build(eqLookupNode->children[2].get(),
                           reqs.copyForChild().setResultObj().setFields(std::vector<std::string>{
@@ -1440,10 +1452,10 @@ std::pair<SbStage, PlanStageSlots> SlotBasedStageBuilder::buildEqLookup(
                                                               eqLookupNode->joinFieldLocal,
                                                               foreignColl,
                                                               eqLookupNode->joinFieldForeign,
-                                                              *idxEntry,
+                                                              extractIndexEntry(eqLookupNode),
                                                               eqLookupNode->nodeId(),
-                                                              boost::none /*unwindSpec*/,
-                                                              boost::none /*indexSlot*/);
+                                                              eqLookupNode->unwindSpec,
+                                                              indexSlotId);
             }
             case EqLookupNode::LookupStrategy::kNestedLoopJoin: {
                 auto [foreignStage, foreignSlots] =
@@ -1458,8 +1470,8 @@ std::pair<SbStage, PlanStageSlots> SlotBasedStageBuilder::buildEqLookup(
                                            eqLookupNode->joinFieldLocal,
                                            eqLookupNode->joinFieldForeign,
                                            eqLookupNode->nodeId(),
-                                           boost::none /*unwindSpec*/,
-                                           boost::none /*indexSlot*/);
+                                           eqLookupNode->unwindSpec,
+                                           indexSlotId);
             }
             case EqLookupNode::LookupStrategy::kHashJoin: {
                 auto [foreignStage, foreignSlots] =
@@ -1474,208 +1486,43 @@ std::pair<SbStage, PlanStageSlots> SlotBasedStageBuilder::buildEqLookup(
                                                 eqLookupNode->joinFieldLocal,
                                                 eqLookupNode->joinFieldForeign,
                                                 eqLookupNode->nodeId(),
-                                                boost::none /*unwindSpec*/,
-                                                boost::none /*indexSlot*/);
+                                                eqLookupNode->unwindSpec,
+                                                indexSlotId);
             }
             default:
                 MONGO_UNREACHABLE_TASSERT(5842605);
         }  // switch lookupStrategy
     }();
 
-    auto [resultSlot, resultStage] = buildLookupResultObject(std::move(foreignStage),
-                                                             localRecordSlot,
-                                                             matchedDocumentsSlot,
-                                                             eqLookupNode->joinField,
-                                                             eqLookupNode->nodeId(),
-                                                             _state,
-                                                             eqLookupNode->shouldProduceBson);
-
-    PlanStageSlots outputs;
-    outputs.setResultObj(resultSlot);
-    return {std::move(resultStage), std::move(outputs)};
-}  // buildEqLookup
-
-/**
- * Stage builder entry point for EqLookupUnwindNode, which implements the $LU ($lookup-$unwind)
- * pattern, where the query immediately unwinds the lookup result array and thus acts like a SQL
- * join. The implementation avoids materializing and then unwinding the lookup result array by
- * immediately returning a doc for each foreign match. This supports several different lookup
- * strategies.
- */
-std::pair<SbStage, PlanStageSlots> SlotBasedStageBuilder::buildEqLookupUnwind(
-    const QuerySolutionNode* root, const PlanStageReqs& reqs) {
-    SbBuilder b(_state, root->nodeId());
-
-    const EqLookupUnwindNode* eqLookupUnwindNode = static_cast<const EqLookupUnwindNode*>(root);
-
-    // The child must produce all of the slots required by the parent of this EqLookupUnwindNode,
-    // plus this node needs to produce the result slot.
-    PlanStageReqs childReqs = reqs.copyForChild().setResultObj();
-    auto [localStage, localOutputs] = build(eqLookupUnwindNode->children[0].get(), childReqs);
-    SbSlot localRecordSlot = localOutputs.get(PlanStageSlots::kResult);
-
-    NamespaceString foreignNss(eqLookupUnwindNode->foreignCollection);
-    auto foreignColl = _collections.lookupCollection(foreignNss);
-    uassert(ErrorCodes::NamespaceNotFound,
-            str::stream() << "Collection "
-                          << eqLookupUnwindNode->foreignCollection.toStringForErrorMsg()
-                          << " either dropped or renamed",
-            (eqLookupUnwindNode->lookupStrategy ==
-             EqLookupNode::LookupStrategy::kNonExistentForeignCollection) ||
-                (foreignColl && foreignColl->ns() == foreignNss));
-
-    boost::optional<IndexEntry> idxEntry;
-    if (eqLookupUnwindNode->lookupStrategy ==
-            EqLookupNode::LookupStrategy::kDynamicIndexedLoopJoin ||
-        eqLookupUnwindNode->lookupStrategy == EqLookupNode::LookupStrategy::kIndexedLoopJoin) {
-        auto indexFetch = dynamic_cast<FetchNode*>(eqLookupUnwindNode->children[1].get());
-        tassert(11801408,
-                "Second child in EqLookupUnwindNode must be an FetchNode when strategy is "
-                "index-based",
-                indexFetch != nullptr);
-        auto indexScan = dynamic_cast<IndexScanNode*>(indexFetch->children[0].get());
-        tassert(
-            11801409, "Grandchild in EqLookupNode must be an IndexProbeNode", indexScan != nullptr);
-        idxEntry = indexScan->index;
-    }
-
-    boost::optional<sbe::value::SlotId> indexSlotId = boost::none;
-    if (eqLookupUnwindNode->unwindSpec.indexPath.has_value()) {
-        indexSlotId = _state.slotId();
-    }
-
-    auto [matchedDocumentsSlot, foreignStage] = [&]() {
-        switch (eqLookupUnwindNode->lookupStrategy) {
-            // When foreign collection doesn't exist, we create stages that simply append empty
-            // arrays to each local document and do not consider the case that foreign
-            // collection may be created during the query, since we cannot easily create dynamic
-            // plan stages and it has messier semantics. Builds a project stage that projects an
-            // empty array for each local document.
-            case EqLookupNode::LookupStrategy::kNonExistentForeignCollection: {
-                return buildNonExistentForeignCollLookupStage(
-                    std::move(localStage), eqLookupUnwindNode->nodeId(), _state);
-            }
-            case EqLookupNode::LookupStrategy::kIndexedLoopJoin: {
-                tassert(6357201,
-                        "$lookup using index join should have a populated index entry",
-                        idxEntry);
-
-                return buildIndexJoinLookupStage(_state,
-                                                 std::move(localStage),
-                                                 localOutputs,
-                                                 eqLookupUnwindNode->joinFieldLocal,
-                                                 eqLookupUnwindNode->joinFieldForeign,
-                                                 foreignColl,
-                                                 *idxEntry,
-                                                 eqLookupUnwindNode->nodeId(),
-                                                 eqLookupUnwindNode->unwindSpec,
-                                                 indexSlotId);
-            }
-            case mongo::EqLookupNode::LookupStrategy::kDynamicIndexedLoopJoin: {
-                tassert(8155501,
-                        "$lookup using dynamic indexed loop join should have a populated index "
-                        "entry",
-                        idxEntry);
-                auto [foreignStage, foreignSlots] =
-                    build(eqLookupUnwindNode->children[2].get(),
-                          reqs.copyForChild().setResultObj().setFields(std::vector<std::string>{
-                              std::string(eqLookupUnwindNode->joinFieldForeign.front())}));
-
-                return buildDynamicIndexedLoopJoinLookupStage(_state,
-                                                              std::move(localStage),
-                                                              localOutputs,
-                                                              std::move(foreignStage),
-                                                              foreignSlots,
-                                                              eqLookupUnwindNode->joinFieldLocal,
-                                                              foreignColl,
-                                                              eqLookupUnwindNode->joinFieldForeign,
-                                                              *idxEntry,
-                                                              eqLookupUnwindNode->nodeId(),
-                                                              eqLookupUnwindNode->unwindSpec,
-                                                              indexSlotId);
-            }
-            case EqLookupNode::LookupStrategy::kNestedLoopJoin: {
-                auto [foreignStage, foreignSlots] =
-                    build(eqLookupUnwindNode->children[1].get(),
-                          reqs.copyForChild().setResultObj().setFields(std::vector<std::string>{
-                              std::string(eqLookupUnwindNode->joinFieldForeign.front())}));
-                return buildNljLookupStage(_state,
-                                           std::move(localStage),
-                                           localOutputs,
-                                           std::move(foreignStage),
-                                           foreignSlots,
-                                           eqLookupUnwindNode->joinFieldLocal,
-                                           eqLookupUnwindNode->joinFieldForeign,
-                                           eqLookupUnwindNode->nodeId(),
-                                           eqLookupUnwindNode->unwindSpec,
-                                           indexSlotId);
-            }
-            case EqLookupNode::LookupStrategy::kHashJoin: {
-                auto [foreignStage, foreignSlots] =
-                    build(eqLookupUnwindNode->children[1].get(),
-                          reqs.copyForChild().setResultObj().setFields(std::vector<std::string>{
-                              std::string(eqLookupUnwindNode->joinFieldForeign.front())}));
-                return buildHashJoinLookupStage(_state,
-                                                std::move(localStage),
-                                                localOutputs,
-                                                std::move(foreignStage),
-                                                foreignSlots,
-                                                eqLookupUnwindNode->joinFieldLocal,
-                                                eqLookupUnwindNode->joinFieldForeign,
-                                                eqLookupUnwindNode->nodeId(),
-                                                eqLookupUnwindNode->unwindSpec,
-                                                indexSlotId);
-            }
-            default:
-                MONGO_UNREACHABLE_TASSERT(5842606);
-        }  // switch lookupStrategy
-    }();
-
-    if (eqLookupUnwindNode->lookupStrategy ==
-        EqLookupNode::LookupStrategy::kNonExistentForeignCollection) {
-        // Build the absorbed $unwind as our parent. We don't need to avoid materializing the lookup
-        // result array since it is empty. (It would be much more difficult to detect non-existent
-        // foreign collection in DocumentSourceLookup::doOptimizeAt() to avoid ever absorbing the
-        // $unwind, as that computation happens later and requires several inputs that are not
-        // available at the time of doOptimizeAt().)
-        return buildOnlyUnwind(eqLookupUnwindNode->unwindSpec,
+    if (eqLookupNode->unwindSpec &&
+        eqLookupNode->lookupStrategy ==
+            EqLookupNode::LookupStrategy::kNonExistentForeignCollection) {
+        // Build the absorbed $unwind as our parent. We don't need to avoid materializing the
+        // lookup result array since it is empty. (It would be much more difficult to detect
+        // non-existent foreign collection in DocumentSourceLookup::doOptimizeAt() to avoid ever
+        // absorbing the $unwind, as that computation happens later and requires several inputs
+        // that are not available at the time of doOptimizeAt().)
+        return buildOnlyUnwind(*eqLookupNode->unwindSpec,
                                reqs,
-                               eqLookupUnwindNode->nodeId(),
+                               eqLookupNode->nodeId(),
                                foreignStage,
                                localOutputs,
-                               localRecordSlot,
+                               localOutputs.getResultObj(),
                                matchedDocumentsSlot);
     }
 
-    boost::optional<std::pair<FieldPath, SbSlot>> includeArrayIndex = boost::none;
-    if (indexSlotId) {
-        SbSlot indexSlot{*indexSlotId};
-        // Loop joins use AggProjectStage to build a counter for the matched array index.
-        if (eqLookupUnwindNode->lookupStrategy != EqLookupNode::LookupStrategy::kHashJoin) {
-            // Handle missing (unmatched left join) as null.
-            SbExpr idxExpr = b.makeFillEmptyNull(SbSlot{*indexSlotId});
-
-            // Materialize idxExpr into a slot.
-            auto [projStage, outSlot] = b.makeProject(std::move(foreignStage), std::move(idxExpr));
-            foreignStage = std::move(projStage);
-            indexSlot = outSlot[0];
-        }
-        includeArrayIndex = boost::make_optional(
-            std::make_pair(*eqLookupUnwindNode->unwindSpec.indexPath, indexSlot));
-    }
-    auto [resultSlot, resultStage] = buildLookupResultObject(std::move(foreignStage),
-                                                             localRecordSlot,
-                                                             matchedDocumentsSlot,
-                                                             eqLookupUnwindNode->joinField,
-                                                             eqLookupUnwindNode->nodeId(),
-                                                             _state,
-                                                             eqLookupUnwindNode->shouldProduceBson,
-                                                             includeArrayIndex);
-
-    PlanStageSlots outputs;
-    outputs.set(kResult, resultSlot);
-    return {std::move(resultStage), std::move(outputs)};
-}  // buildEqLookupUnwind
+    return buildLookupResultObject(std::move(foreignStage),
+                                   localOutputs.getResultObj(),
+                                   matchedDocumentsSlot,
+                                   eqLookupNode->joinField,
+                                   eqLookupNode->nodeId(),
+                                   _state,
+                                   eqLookupNode->shouldProduceBson,
+                                   eqLookupNode->lookupStrategy,
+                                   eqLookupNode->unwindSpec ? eqLookupNode->unwindSpec->indexPath
+                                                            : boost::none,
+                                   indexSlotId);
+}  // buildEqLookup
 
 namespace {
 /**
@@ -1821,19 +1668,15 @@ std::pair<SbStage, PlanStageSlots> generateJoinResult(const BinaryJoinEmbeddingN
             }
         }
     }
-    auto [resultSlot, embedStage] = buildLookupResultObject(
-        std::move(stage),
-        fieldEffect.getDefaultEffect() == FieldEffect::kDrop ? SbSlot{state.getNothingSlot()}
-                                                             : rootDocumentSlot,
-        std::move(nodes),
-        std::move(paths),
-        node->nodeId(),
-        state,
-        true /* shouldProduceBson */);
-
-    PlanStageSlots outputs;
-    outputs.setResultObj(resultSlot);
-    return {std::move(embedStage), std::move(outputs)};
+    return buildLookupResultObject(std::move(stage),
+                                   fieldEffect.getDefaultEffect() == FieldEffect::kDrop
+                                       ? SbSlot{state.getNothingSlot()}
+                                       : rootDocumentSlot,
+                                   std::move(nodes),
+                                   std::move(paths),
+                                   node->nodeId(),
+                                   state,
+                                   true /* shouldProduceBson */);
 }
 
 /**
@@ -2186,7 +2029,7 @@ std::pair<SbStage, PlanStageSlots> SlotBasedStageBuilder::buildHashJoinEmbedding
     if (_estimates) {
         if (auto it = _estimates->find(hashJoinEmbeddingNode->children[0].get());
             it != _estimates->end()) {
-            estimatedBuildCardinality = static_cast<size_t>(it->second.outCE.toDouble());
+            estimatedBuildCardinality = static_cast<size_t>(it->second->outCE.toDouble());
         }
     }
 
@@ -2333,7 +2176,7 @@ std::pair<SbStage, PlanStageSlots> SlotBasedStageBuilder::buildIndexedJoinEmbedd
         if (auto it = indexKeyPos.find(
                 indexedJoinEmbeddingNode->joinPredicates[predicateIndex].rightField.fullPath());
             it != indexKeyPos.end()) {
-            keyParts[it->second] = leftPrjOutputs[predicateIndex++];
+            keyParts[it->second] = leftPrjOutputs[predicateIndex];
         }
     }
 

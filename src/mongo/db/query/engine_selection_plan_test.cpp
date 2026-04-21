@@ -70,19 +70,21 @@ TEST_F(EngineSelectionPlanFixture, LookupUnwind) {
     children.emplace_back(
         std::make_unique<IndexScanNode>(nssLocal, buildSimpleIndexEntry(indexFields)));
     children.emplace_back(std::make_unique<CollectionScanNode>(nssForeign));
-    auto lookupUnwind =
-        std::make_unique<EqLookupUnwindNode>(std::move(children),
-                                             FieldPath("a"),
-                                             nssForeign,
-                                             FieldPath("b"),
-                                             FieldPath("c"),
-                                             EqLookupNode::LookupStrategy::kHashJoin,
-                                             false,
-                                             false,
-                                             boost::none);
+    auto lookupUnwind = std::make_unique<EqLookupNode>(std::move(children),
+                                                       nssForeign,
+                                                       FieldPath("b"),
+                                                       FieldPath("c"),
+                                                       FieldPath("a"),
+                                                       EqLookupNode::LookupStrategy::kHashJoin,
+                                                       false,
+                                                       false,
+                                                       boost::none);
     auto solution = std::make_unique<QuerySolution>();
     solution->setRoot(std::move(lookupUnwind));
-    ASSERT_TRUE(engineSelectionForPlan(solution.get()) == EngineChoice::kSbe);
+
+    EngineSelectionResult result = engineSelectionForPlan(solution.get());
+    ASSERT_EQ(result.engine, EngineChoice::kSbe);
+    ASSERT_EQ(result.planPushdownRoot, solution->root());
 }
 
 // Test eligibility of DISTINCT_SCAN plans.
@@ -141,7 +143,10 @@ TEST_F(EngineSelectionPlanFixture, FetchIxScanSelection) {
     BSONObj indexFields = fromjson("{a: 1}");
 
     std::unique_ptr<QuerySolution> solution = makeIndexScanFetchPlan(indexFields);
-    ASSERT_EQ(engineSelectionForPlan(solution.get()), EngineChoice::kClassic);
+
+    EngineSelectionResult result = engineSelectionForPlan(solution.get());
+    ASSERT_EQ(result.engine, EngineChoice::kClassic);
+    ASSERT_EQ(result.planPushdownRoot, nullptr);
 }
 
 }  // namespace mongo

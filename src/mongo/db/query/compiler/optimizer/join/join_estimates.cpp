@@ -29,7 +29,34 @@
 
 #include "mongo/db/query/compiler/optimizer/join/join_estimates.h"
 
+#include "mongo/bson/bsonobjbuilder.h"
+
 namespace mongo::join_ordering {
+
+StringData toStringData(MackertLohmanCase c) {
+    switch (c) {
+        case MackertLohmanCase::kCollectionFitsCache:
+            return "collection-fits-cache";
+        case MackertLohmanCase::kReturnedDocsFitCache:
+            return "returned-docs-fit-cache";
+        case MackertLohmanCase::kPartialEviction:
+            return "partial-eviction";
+    }
+    MONGO_UNREACHABLE;
+}
+
+void JoinExtraEstimateInfo::serialize(BSONObjBuilder& bob) const {
+    QSNEstimate::serialize(bob);
+    BSONObjBuilder subBob(bob.subobjStart("joinCostComponents"));
+    subBob.append("docsProcessed", docsProcessed);
+    subBob.append("docsOutput", docsOutput);
+    subBob.append("sequentialIOPages", sequentialIOPages);
+    subBob.append("randomIOPages", randomIOPages);
+    subBob.append("localOpCost", localOpCost);
+    if (mackertLohmanCase) {
+        subBob.append("mackertLohmanCase", toStringData(*mackertLohmanCase));
+    }
+}
 
 // These coefficients were calibrated in /buildscripts/cost_model/join_start.py,
 // which indicated that processing a single document takes 612 nanoseconds.
@@ -65,6 +92,18 @@ JoinCostEstimate::JoinCostEstimate(CardinalityEstimate numDocsProcessed,
     _totalCost = _localOpCost + leftCost.getTotalCost() + rightCost.getTotalCost();
 }
 
+JoinCostEstimate::JoinCostEstimate(CardinalityEstimate numDocsProcessed,
+                                   CardinalityEstimate numDocsOutput,
+                                   CardinalityEstimate numSeqIOs,
+                                   CardinalityEstimate numRandIOs,
+                                   JoinCostEstimate leftCost,
+                                   JoinCostEstimate rightCost,
+                                   MackertLohmanCase mackertLohmanCase)
+    : JoinCostEstimate(
+          numDocsProcessed, numDocsOutput, numSeqIOs, numRandIOs, leftCost, rightCost) {
+    _mackertLohmanCase = mackertLohmanCase;
+}
+
 JoinCostEstimate::JoinCostEstimate(CostEstimate totalCost)
     : _numDocsProcessed(zeroCE),
       _numDocsOutput(zeroCE),
@@ -78,10 +117,14 @@ std::string JoinCostEstimate::toString() const {
 }
 
 BSONObj JoinCostEstimate::toBSON() const {
-    return BSON("totalCost" << _totalCost.toBSON() << "numDocsProcessed"
-                            << _numDocsProcessed.toBSON() << "numDocsOutput"
-                            << _numDocsOutput.toBSON() << "ioSeqNumPages" << _ioSeqNumPages.toBSON()
-                            << "ioRandNumPages" << _ioRandNumPages.toBSON());
+    BSONObjBuilder bob;
+    bob << "totalCost" << _totalCost.toBSON() << "numDocsProcessed" << _numDocsProcessed.toBSON()
+        << "numDocsOutput" << _numDocsOutput.toBSON() << "ioSeqNumPages" << _ioSeqNumPages.toBSON()
+        << "ioRandNumPages" << _ioRandNumPages.toBSON();
+    if (_mackertLohmanCase) {
+        bob << "mackertLohmanCase" << toStringData(*_mackertLohmanCase);
+    }
+    return bob.obj();
 }
 
 }  // namespace mongo::join_ordering

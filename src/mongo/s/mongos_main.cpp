@@ -96,6 +96,7 @@
 #include "mongo/db/sharding_environment/shard_id.h"
 #include "mongo/db/sharding_environment/sharding_initialization.h"
 #include "mongo/db/sharding_environment/version_mongos.h"
+#include "mongo/db/startup_check_rseq.h"
 #include "mongo/db/startup_warnings_common.h"
 #include "mongo/db/stats/system_buckets_metrics.h"
 #include "mongo/db/telemetry/telemetry_thread.h"
@@ -1096,6 +1097,8 @@ ExitCode mongos_main(int argc, char* argv[]) {
     waitForDebugger();
 
     setupSignalHandlers();
+
+    validateRseqKernelCompat();
 
     Status status = runGlobalInitializers(std::vector<std::string>(argv, argv + argc));
     if (!status.isOK()) {

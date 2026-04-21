@@ -194,8 +194,25 @@ public:
         return _children;
     }
 
+    /**
+     * Removes the metric at `path` from the tree, then prunes any intermediate subtrees that
+     * become empty as a result. The path follows the same leading-dot convention as `add`: a
+     * leading '.' means the path is absolute (relative to the root of the tree), while a path
+     * without a leading '.' is implicitly rooted under "metrics.". Does nothing if `path` is
+     * empty or does not exist in the tree. Intended for use in tests only.
+     */
+    void removeForTests(StringData path);
+
 private:
     void _add(StringData path, std::unique_ptr<ServerStatusMetric> metric);
+
+    /**
+     * The helper for `removeForTests`. Removes the node at `path` (a dot-separated absolute path
+     * with no leading dot) and bottom-up prunes any intermediate subtrees that become empty after
+     * after the removal. Silently returns without modifying the tree when any component of
+     * `path` is missing or when an intermediate component is a leaf metric rather than a subtree.
+     */
+    void _removeForTests(StringData path);
 
     ChildMap _children;
 };
@@ -215,6 +232,7 @@ private:
 };
 
 MetricTreeSet& globalMetricTreeSet();
+
 
 /**
  * Write a merger of the `trees` to `b`, under field `name`. `excludePaths` is a

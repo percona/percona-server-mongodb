@@ -34,6 +34,7 @@
 #include "mongo/base/string_data.h"
 #include "mongo/bson/bsonobj.h"
 #include "mongo/bson/bsonobjbuilder.h"
+#include "mongo/db/admission/execution_control/execution_admission_context.h"
 #include "mongo/db/client.h"
 #include "mongo/db/global_catalog/ddl/sharding_coordinator_gen.h"
 #include "mongo/db/global_catalog/ddl/sharding_coordinator_service.h"
@@ -47,6 +48,7 @@
 #include "mongo/db/service_context.h"
 #include "mongo/db/session/logical_session_id_gen.h"
 #include "mongo/db/shard_role/ddl/ddl_lock_manager.h"
+#include "mongo/db/shard_role/lock_manager/lock_manager_defs.h"
 #include "mongo/db/versioning_protocol/database_version.h"
 #include "mongo/executor/scoped_task_executor.h"
 #include "mongo/executor/task_executor.h"
@@ -61,6 +63,8 @@
 #include "mongo/util/version/releases.h"
 
 #include <memory>
+#include <set>
+#include <stack>
 #include <string>
 #include <utility>
 
@@ -164,10 +168,6 @@ public:
             : boost::none;
     }
 
-    const boost::optional<mongo::DatabaseVersion>& getDatabaseVersion() const {
-        return _databaseVersion;
-    }
-
 protected:
     const NamespaceString& originalNss() const {
         return _coordId.getNss();
@@ -219,13 +219,33 @@ protected:
 
     ShardingCoordinatorExternalState* _getExternalState();
 
+    virtual bool _isInCriticalSectionGeneric(CoordinatorGenericPhase phase) const = 0;
+
     /**
      * Create an `OperationContext` with the `ForwardableOperationMetadata` from the coordinator
      * document set on it. Use this instead of `cc().makeOperationContext()`.
+     * This version will automatically mark the `OperationContext` as non-deprioritizable if the
+     * current phase is in the critical section.
      */
     ServiceContext::UniqueOperationContext makeOperationContext() {
+        const auto currentPhase = getDoc().getGenericPhase();
+        const auto deprioritizable = !_isInCriticalSectionGeneric(currentPhase);
+        return makeOperationContext(deprioritizable);
+    }
+
+    /**
+     * Create an `OperationContext` with the `ForwardableOperationMetadata` from the coordinator
+     * document set on it. Use this instead of `cc().makeOperationContext()`.
+     * If deprioritizable is false, then the `OperationContext` wil be marked as non-deprioritizable
+     */
+    ServiceContext::UniqueOperationContext makeOperationContext(bool deprioritizable) {
         auto opCtxHolder = cc().makeOperationContext();
         getForwardableOpMetadata().setOn(opCtxHolder.get());
+        if (!deprioritizable) {
+            ExecutionAdmissionContext::get(opCtxHolder.get())
+                .setTaskType(opCtxHolder.get(),
+                             ExecutionAdmissionContext::TaskType::NonDeprioritizable);
+        }
         return opCtxHolder;
     }
 
@@ -240,6 +260,9 @@ protected:
     virtual CoordinatorStateDoc& getDoc() = 0;
 
     virtual void _initialize(OperationContext* opCtx) = 0;
+
+    virtual void _checkCoordinatorPreconditions(OperationContext* opCtx,
+                                                bool afterAcquiringLocks) = 0;
 
     virtual ExecutorFuture<void> _acquireLocksAsync(
         OperationContext* opCtx,
@@ -260,7 +283,6 @@ protected:
 
     const bool _recoveredFromDisk;
     const boost::optional<mongo::ForwardableOperationMetadata> _forwardableOpMetadata;
-    const boost::optional<mongo::DatabaseVersion> _databaseVersion;
     boost::optional<NamespaceString> _bucketNss;
 
     bool _firstExecution{
@@ -483,6 +505,16 @@ template <typename TStateDoc>
 class MONGO_MOD_UNFORTUNATELY_OPEN NonRecoverableTypedDocMixin {
 protected:
     using StateDoc = TStateDoc;
+    using Phase = CoordinatorStateDocImpl<TStateDoc>::DocPhase;
+
+    /**
+     * Specify if a given phase is under holding the critical section.
+     * These phases should finish as soon as possible in order to release the critical section, so
+     * the opCtxs made under them automatically marked as non-deprioritizable.
+     */
+    virtual bool isInCriticalSection(Phase phase) const {
+        return false;
+    }
 
     explicit NonRecoverableTypedDocMixin(const BSONObj& coorDoc)
         : _docWrapper(
@@ -503,7 +535,7 @@ class MONGO_MOD_UNFORTUNATELY_OPEN RecoverableTypedDocMixin
 
 protected:
     using StateDoc = NonRecoverableTypedDocMixin<TStateDoc>::StateDoc;
-    using Phase = CoordinatorStateDocImpl<TStateDoc>::DocPhase;
+    using Phase = NonRecoverableTypedDocMixin<TStateDoc>::Phase;
 
     using NonRecoverableTypedDocMixin<TStateDoc>::NonRecoverableTypedDocMixin;
 

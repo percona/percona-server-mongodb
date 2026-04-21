@@ -24,6 +24,7 @@
  * "versioned". Determines what system profiler checks are performed.
  * @tags: [
  *    requires_scripting,
+ *    requires_profiling,
  * ]
  */
 import {
@@ -161,7 +162,6 @@ let testCases = {
     checkMetadataConsistency: {skip: "primary only"},
     checkShardingIndex: {skip: "primary only"},
     cleanupOrphaned: {skip: "primary only"},
-    cleanupReshardCollection: {skip: "primary only"},
     cleanupStructuredEncryptionData: {skip: "does not return user data"},
     clearJumboFlag: {skip: "primary only"},
     clearLog: {skip: "does not return user data"},

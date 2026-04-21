@@ -62,10 +62,11 @@ public:
     bool writesAreBatched() const;
     void setWritesAreBatched(bool batched);
 
-    void setDefaultFromMigrate(bool defaultFromMigrate);
-    bool getDefaultFromMigrate() const {
-        return _defaultFromMigrate;
-    }
+    /**
+     * Asserts that DDL and CRUD operations are not mixed in the same batched write group.
+     * Must only be called when writesAreBatched() is true.
+     */
+    void assertNoMixedBatchedOps(bool isDDL);
 
     /**
      * Adds a stored operation to the list of stored operations for the current WUOW.
@@ -84,9 +85,8 @@ public:
 private:
     // Whether batching writes is enabled.
     bool _batchWrites = false;
-    // Whether all operations in this batch are from migration.  If any batch operation in a
-    // writeUnitOfWork has _defaultFromMigrate set, all of them must.
-    bool _defaultFromMigrate = false;
+    // Whether a DDL operation has occurred in the current batched write group.
+    bool _ddlOperationOccurred = false;
 
     /**
      * Holds oplog data for operations which have been applied in the current batched

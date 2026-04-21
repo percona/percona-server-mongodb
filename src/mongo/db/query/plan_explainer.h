@@ -59,6 +59,7 @@ struct PlanExplainerData {
     boost::optional<double> multiPlannerWinningPlanScore;
     stage_builder::PlanStageToQsnMap planStageQsnMap;
     cost_based_ranker::EstimateMap estimates;
+    bool fromPlanCache = false;
 };
 
 inline PlanExplainerData& operator<<(PlanExplainerData& lhs, PlanExplainerData&& rhs) {
@@ -66,7 +67,9 @@ inline PlanExplainerData& operator<<(PlanExplainerData& lhs, PlanExplainerData&&
                                        std::make_move_iterator(rhs.rejectedPlansWithStages.begin()),
                                        std::make_move_iterator(rhs.rejectedPlansWithStages.end()));
     lhs.planStageQsnMap.insert(rhs.planStageQsnMap.begin(), rhs.planStageQsnMap.end());
-    lhs.estimates.insert(rhs.estimates.begin(), rhs.estimates.end());
+    for (auto& [k, v] : rhs.estimates) {
+        lhs.estimates.insert_or_assign(k, std::move(v));
+    }
     return lhs;
 }
 

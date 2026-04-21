@@ -243,7 +243,7 @@ public:
                                    const NamespaceString& nss,
                                    const UUID& collUUID,
                                    const UUID& indexBuildUUID,
-                                   const std::vector<BSONObj>& indexes,
+                                   const std::vector<IndexBuildInfo>& indexes,
                                    const Status& cause,
                                    bool fromMigrate,
                                    bool isTimeseries = false) = 0;
@@ -309,6 +309,16 @@ public:
                                    std::span<const char> key,
                                    std::span<const char> value) = 0;
 
+    virtual void onContainerUpdate(OperationContext* opCtx,
+                                   StringData ident,
+                                   int64_t key,
+                                   std::span<const char> value) = 0;
+
+    virtual void onContainerUpdate(OperationContext* opCtx,
+                                   StringData ident,
+                                   std::span<const char> key,
+                                   std::span<const char> value) = 0;
+
     virtual void onContainerDelete(OperationContext* opCtx, StringData ident, int64_t key) = 0;
 
     virtual void onContainerDelete(OperationContext* opCtx,
@@ -368,7 +378,8 @@ public:
         const OplogSlot& createOpTime,
         const boost::optional<CreateCollCatalogIdentifier>& createCollCatalogIdentifier,
         bool fromMigrate,
-        bool isTimeseries = false) = 0;
+        bool isTimeseries = false,
+        bool recordIdsReplicated = false) = 0;
 
     /**
      * This function logs an oplog entry when a 'collMod' command on a collection is executed.

@@ -78,9 +78,6 @@ filters:
   - "json_schema.yml":
     approvers:
       - 10gen/query-execution
-  - "query_stats*":
-    approvers:
-      - 10gen/query-integration-observability
   - "query_tester_self_test.yml":
     approvers:
       - 10gen/query-optimization
@@ -132,9 +129,6 @@ filters:
   - "mongot*":
     approvers:
       - 10gen/query-integration-search
-  - "concurrency_with_mongot_extension*":
-    approvers:
-      - 10gen/query-integration-extensions-api
   - "multiversion*":
     approvers:
       - 10gen/server-jstest-infra
@@ -201,10 +195,16 @@ filters:
   - "concurrency_sharded_with_config_shard.yml":
     approvers:
       - 10gen/server-cluster-scalability
+  - "sharding_jscore_passthrough_with_balancer.yml":
+    approvers:
+      - 10gen/server-cluster-scalability
   - "sharding_jscore_passthrough_with_config_shard.yml":
     approvers:
       - 10gen/server-cluster-scalability
   - "sharded_collections_jscore_passthrough_with_config_shard.yml":
+    approvers:
+      - 10gen/server-cluster-scalability
+  - "unsplittable_collections_created_on_any_shard_jscore_passthrough.yml":
     approvers:
       - 10gen/server-cluster-scalability
   - "concurrency_simultaneous_replication.yml":
@@ -216,9 +216,9 @@ filters:
   - "*rate_limited.yml":
     approvers:
       - 10gen/server-workload-resilience
-  - "secondary_reads_passthrough_with_replica_set_endpoint.yml":
+  - "*rseq_kernel_check*":
     approvers:
-      - 10gen/server-cluster-scalability
+      - 10gen/server-workload-resilience
   - "replica_sets_with_priority_ports.yml":
     approvers:
       - 10gen/server-catalog-and-routing
@@ -232,6 +232,9 @@ filters:
     approvers:
       - 10gen/server-cluster-scalability
   - "sharding_uninitialized_fcv_jscore_passthrough.yml":
+    approvers:
+      - 10gen/server-replication-reviewers
+  - "sharded_collections_uninitialized_fcv_jscore_passthrough.yml":
     approvers:
       - 10gen/server-replication-reviewers
   - "sharding_api_version_jscore_passthrough.yml":
@@ -252,3 +255,6 @@ filters:
   - "sharding_csrs_continuous_config_stepdown.yml":
     approvers:
       - 10gen/server-cluster-scalability
+  - "v1index_jscore_passthrough.yml":
+    approvers:
+      - 10gen/query

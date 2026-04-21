@@ -318,6 +318,9 @@ private:
         const std::shared_ptr<executor::ScopedTaskExecutor>& executor,
         std::shared_ptr<HierarchicalCancelableOperationContextFactory> factory);
 
+    bool _hasAlreadyWrittenStrictConsistencyOplog(
+        std::shared_ptr<HierarchicalCancelableOperationContextFactory> factory);
+
     void _writeStrictConsistencyOplog(
         std::shared_ptr<HierarchicalCancelableOperationContextFactory> factory);
 
@@ -480,7 +483,7 @@ private:
     SharedSemiFuture<void> _changeStreamsMonitorQuiesced;
 
     // Protects the state below
-    stdx::mutex _mutex;
+    mutable stdx::mutex _mutex;
 
     // Manages abort state and provides cancellation tokens for async operations. Initialized in
     // _initCancelState().

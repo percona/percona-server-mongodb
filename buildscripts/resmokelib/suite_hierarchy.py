@@ -16,7 +16,6 @@ SUITE_HIERARCHY = {
     # Concurrency suites
     "concurrency": {},
     "concurrency_compute_mode": {},
-    "concurrency_multitenancy_replication_with_atlas_proxy": {},
     "simulate_crash_concurrency_replication": {},
     "concurrency_sharded_replication_with_balancer_and_config_transitions_and_add_remove_shard": {
         "concurrency_sharded_with_balancer_and_config_shard": {},
@@ -54,11 +53,9 @@ SUITE_HIERARCHY = {
         }
     },
     "concurrency_replication_causal_consistency": {},
-    "concurrency_replication_causal_consistency_with_replica_set_endpoint": {},
     "concurrency_replication_for_backup_restore": {},
     "concurrency_replication_for_export_import": {},
     "concurrency_replication_multi_stmt_txn": {},
-    "concurrency_replication_multi_stmt_txn_with_replica_set_endpoint": {},
     "concurrency_replication": {},
     "concurrency_sharded_initial_sync": {"concurrency_sharded_causal_consistency": {}},
     # JScore passthrough suites

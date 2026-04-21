@@ -89,5 +89,33 @@ TEST(ReplicatedFastCountEligibleNsTest, InternalNonLocalCollectionNotEligible) {
     EXPECT_TRUE(isReplicatedFastCountEligible(adminNss));
 }
 
+TEST(ReplicatedFastCountEligibleNsTest, ImplicitlyReplicatedNotEligible) {
+    const NamespaceString configTransactionsNss =
+        NamespaceString::createNamespaceString_forTest("config", "transactions");
+    EXPECT_FALSE(isReplicatedFastCountEligible(configTransactionsNss));
+
+    const NamespaceString configPreimagesNss =
+        NamespaceString::createNamespaceString_forTest("config", "system.preimages");
+    EXPECT_FALSE(isReplicatedFastCountEligible(configPreimagesNss));
+
+    const NamespaceString configImageCollectionNss =
+        NamespaceString::createNamespaceString_forTest("config", "image_collection");
+    EXPECT_FALSE(isReplicatedFastCountEligible(configImageCollectionNss));
+}
+
+TEST(ReplicatedFastCountEligibleNsTest, SizeCountAndTimestampStoresNoteEligible) {
+    const NamespaceString fastCountStoreNss =
+        NamespaceString::makeGlobalConfigCollection(NamespaceString::kReplicatedFastCountStore);
+    EXPECT_FALSE(isReplicatedFastCountEligible(fastCountStoreNss));
+
+    const NamespaceString fastCountTimestampStoreNss = NamespaceString::makeGlobalConfigCollection(
+        NamespaceString::kReplicatedFastCountStoreTimestamps);
+    EXPECT_FALSE(isReplicatedFastCountEligible(fastCountTimestampStoreNss));
+}
+
+TEST(ReplicatedFastCountEligibleNsTest, AdminSystemVersionNotEligible) {
+    EXPECT_FALSE(isReplicatedFastCountEligible(NamespaceString::kServerConfigurationNamespace));
+}
+
 }  // namespace
 }  // namespace mongo

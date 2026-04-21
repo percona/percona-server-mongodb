@@ -62,7 +62,8 @@ public:
     /**
      * Collects explain output at the specified verbosity from this logical stage.
      */
-    BSONObj explain(ExplainOptions::Verbosity verbosity) const;
+    BSONObj explain(MongoExtensionQueryExecutionContext& execCtx,
+                    ExplainOptions::Verbosity verbosity) const;
 
     /**
      * Compiles a logical stage into an execution stage.
@@ -83,14 +84,31 @@ public:
     /**
      * Returns true if the stage sorts by vector search score, false otherwise.
      */
-    bool isSortedByVectorSearchScore() const;
+    bool isSortedByVectorSearchScore_deprecated() const;
 
     /**
      * Propagates the extracted limit value if it exists across the boundary, otherwise propagates
      * nullptr. This is needed by the $vectorSearch extension stage in order for it to apply its
      * optimizations requiring a limit value.
      */
-    void setExtractedLimitVal(boost::optional<long long> extractedLimitVal);
+    void setExtractedLimitVal_deprecated(boost::optional<long long> extractedLimitVal);
+
+    /**
+     * Evaluates the precondition of the rule identified by name. Return the precondition value.
+     */
+    bool evaluateRulePrecondition(StringData ruleName) const;
+
+    /**
+     * Applies the transform of the rule identified by name. Returns true if pipeline was modified
+     * and rule should be requeued in RBR engine.
+     */
+    bool evaluateRuleTransform(StringData ruleName);
+
+    /**
+     * Returns the filter predicate applied by this stage for shard targeting. Returns an empty
+     * BSONObj if the stage does not apply a filter.
+     */
+    BSONObj getFilter() const;
 
     static void assertVTableConstraints(const VTable_t& vtable) {
         tassert(11420603,
@@ -111,12 +129,20 @@ public:
         tassert(
             11713400, "ExtensionLogicalAggStageAdapter 'clone' is null", vtable.clone != nullptr);
         tassert(11543600,
-                "ExtensionLogicalAggStageAdapter 'is_stage_sorted_by_vector_search_score' is null",
-                vtable.is_stage_sorted_by_vector_search_score != nullptr);
-        tassert(
-            11553300,
-            "ExtensionLogicalAggStageAdapter 'set_vector_search_limit_for_optimization' is null",
-            vtable.set_vector_search_limit_for_optimization != nullptr);
+                "ExtensionLogicalAggStageAdapter "
+                "'is_stage_sorted_by_vector_search_score_deprecated' is null",
+                vtable.is_stage_sorted_by_vector_search_score_deprecated != nullptr);
+        tassert(11553300,
+                "ExtensionLogicalAggStageAdapter "
+                "'set_vector_search_limit_for_optimization_deprecated' is null",
+                vtable.set_vector_search_limit_for_optimization_deprecated != nullptr);
+        tassert(12201402,
+                "LogicalAggStage 'evaluate_rule_precondition' is null",
+                vtable.evaluate_rule_precondition != nullptr);
+        tassert(12201403,
+                "LogicalAggStage 'evaluate_rule_transform' is null",
+                vtable.evaluate_rule_transform != nullptr);
+        tassert(12200400, "LogicalAggStage 'get_filter' is null", vtable.get_filter != nullptr);
     }
 };
 

@@ -230,6 +230,15 @@ public:
     }
 
     /**
+     * Returns true if the pipeline has a $search or $searchMeta extension stage.
+     */
+    bool hasExtensionSearchStage() const {
+        return std::any_of(_stageSpecs.begin(), _stageSpecs.end(), [](auto&& spec) {
+            return spec->hasExtensionSearchStage();
+        });
+    }
+
+    /**
      * Returns true iff the pipeline has a $rankFusion or $scoreFusion stage.
      */
     bool hasHybridSearchStage() const {
@@ -239,11 +248,31 @@ public:
     }
 
     /**
-     * Returns true iff the pipeline has a $score stage.
+     * Returns true if any stage in the pipeline is a ranked stage (produces $sortKey metadata) or
+     * if the pipeline contains an explicit $sort.
      */
-    bool hasScoreStage() const {
+    bool isRankedPipeline() const {
         return std::any_of(_stageSpecs.begin(), _stageSpecs.end(), [](auto&& spec) {
-            return (spec->getParseTimeName() == "$score");
+            return spec->isRankedStage();
+        });
+    }
+
+    /**
+     * Returns true if any stage in the pipeline is a scored stage (produces score metadata).
+     */
+    bool isScoredPipeline() const {
+        return std::any_of(_stageSpecs.begin(), _stageSpecs.end(), [](auto&& spec) {
+            return spec->isScoredStage();
+        });
+    }
+
+    /**
+     * Returns true if all stages in the pipeline are selection stages (they do not modify or
+     * transform documents, only retrieve, limit, or order them).
+     */
+    bool isSelectionPipeline() const {
+        return std::all_of(_stageSpecs.begin(), _stageSpecs.end(), [](auto&& spec) {
+            return spec->isSelectionStage();
         });
     }
 

@@ -66,6 +66,7 @@
 #include "mongo/util/concurrency/with_lock.h"
 #include "mongo/util/elapsed_tracker.h"
 #include "mongo/util/modules.h"
+#include "mongo/util/string_map.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -288,6 +289,11 @@ public:
                            IdentKey key,
                            std::span<const char> value) override;
 
+    Status updateInIdent(RecoveryUnit& ru,
+                         StringData ident,
+                         IdentKey key,
+                         std::span<const char> value) override;
+
     StatusWith<UniqueBuffer> getFromIdent(RecoveryUnit& ru,
                                           StringData ident,
                                           IdentKey key) override;
@@ -333,10 +339,10 @@ public:
     getUnclaimedPreparedTransactionsForStartupRecovery(OperationContext* opCtx) const override;
 
     /**
-     * Returns whether table creations should be published with a timestamp after commit.
+     * Returns whether this engine uses schema epochs for table DDL.
      * Only true for disaggregated storage (DSC) mode.
      */
-    virtual bool shouldTimestampTableCreations() const = 0;
+    virtual bool usesSchemaEpochs() const = 0;
 
     /**
      * Returns the raw all_durable timestamp from WiredTiger without considering pins.
@@ -355,14 +361,13 @@ public:
     virtual void unpinAllDurableTimestamp(uint64_t ts) = 0;
 
     /**
-     * Publishes a table to the shared metadata at the given timestamp. In disaggregated
-     * storage mode, this ensures the table will be included in the next checkpoint with a
-     * timestamp >= publishTimestamp. Currently a no-op stub until the WiredTiger
-     * session->publish() API is implemented.
+     * Publishes a table to the shared metadata at the given schema epoch. In disaggregated storage
+     * mode, this ensures the table will be included in the next checkpoint whose schema epoch >=
+     * schemaEpoch.
      */
     virtual void publishIdent(WiredTigerRecoveryUnit& ru,
                               StringData ident,
-                              Timestamp publishTimestamp) = 0;
+                              uint64_t schemaEpoch) = 0;
 
 protected:
     /**
@@ -374,6 +379,11 @@ protected:
      * Returns all the idents known to this WiredTiger instance.
      */
     std::vector<std::string> _wtGetAllIdents(WiredTigerSession& session) const;
+
+    /**
+     * Returns the table id for the given ident, generating one if it hasn't already been assigned.
+     */
+    uint64_t _getTableIdForIdent(StringData ident);
 
     // Configuration parameters to configure the WiredTiger instance.
     WiredTigerConfig _wtConfig;
@@ -395,6 +405,11 @@ protected:
     ClockSource* const _clockSource{nullptr};
 
     std::string _wtOpenConfig;
+
+    // Maintains a stable mapping from ident to cursor cache table ID. Entries are cleaned up
+    // automatically when the ident is dropped.
+    stdx::mutex _identTableIdMutex;
+    StringMap<uint64_t> _identTableIds;
 };
 
 // WiredTigerKVEngineBase implementation for all customer or system tables. Tables created by this
@@ -476,13 +491,13 @@ public:
                                                 const RecordStore::Options& options,
                                                 boost::optional<UUID> uuid) override;
 
-    std::unique_ptr<RecordStore> getTemporaryRecordStore(RecoveryUnit& ru,
+    std::unique_ptr<RecordStore> getInternalRecordStore(RecoveryUnit& ru,
+                                                        StringData ident,
+                                                        KeyFormat keyFormat) override;
+
+    std::unique_ptr<RecordStore> makeInternalRecordStore(RecoveryUnit& ru,
                                                          StringData ident,
                                                          KeyFormat keyFormat) override;
-
-    std::unique_ptr<RecordStore> makeTemporaryRecordStore(RecoveryUnit& ru,
-                                                          StringData ident,
-                                                          KeyFormat keyFormat) override;
 
     Status createSortedDataInterface(
         const rss::PersistenceProvider&,
@@ -532,7 +547,7 @@ public:
                      StringData ident,
                      bool identHasSizeInfo,
                      const StorageEngine::DropIdentCallback& onDrop = nullptr,
-                     boost::optional<Timestamp> timestamp = boost::none) override;
+                     boost::optional<uint64_t> schemaEpoch = boost::none) override;
 
     void dropIdentForImport(Interruptible&, RecoveryUnit&, StringData ident) override;
 
@@ -634,12 +649,10 @@ public:
     uint64_t getRawAllDurableTimestamp() const override;
     void pinAllDurableTimestamp(uint64_t ts) override;
     void unpinAllDurableTimestamp(uint64_t ts) override;
-    void publishIdent(WiredTigerRecoveryUnit& ru,
-                      StringData ident,
-                      Timestamp publishTimestamp) override;
+    void publishIdent(WiredTigerRecoveryUnit& ru, StringData ident, uint64_t schemaEpoch) override;
 
-    bool shouldTimestampTableCreations() const override {
-        return _shouldTimestampTableCreations;
+    bool usesSchemaEpochs() const override {
+        return _usesSchemaEpochs;
     }
 
     bool supportsReadConcernSnapshot() const final;
@@ -805,6 +818,9 @@ public:
 
     [[nodiscard]] BSONObj setStorageTierToStorageOptions(const BSONObj& storageEngineOptions,
                                                          StringData value) const override;
+
+    boost::optional<std::string> getStorageTierFromStorageOptions(
+        const BSONObj& storageEngineOptions) const override;
 
     // TODO SERVER-81069: Remove this since it's intrinsically tied to encryption options only.
     BSONObj getSanitizedStorageOptionsForSecondaryReplication(
@@ -1032,7 +1048,7 @@ private:
     Atomic<bool> _inStandaloneMode;
 
     const bool _supportsTableLogging;
-    const bool _shouldTimestampTableCreations;
+    const bool _usesSchemaEpochs;
 
     // Protects _pinnedAllDurableTimestamps. Only acquired by pin/unpin writers.
     // Readers use _minPinnedTimestamp instead, which writers publish atomically

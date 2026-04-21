@@ -212,6 +212,7 @@ cc_library(
     }),
     local_defines = [
         "HAVE_CONFIG_H",
+        "SHA1DC_FORCE_ALIGNED_ACCESS",
     ],
     target_compatible_with = _RNP_PLATFORM,
     deps = [

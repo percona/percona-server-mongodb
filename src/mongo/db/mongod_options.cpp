@@ -174,6 +174,7 @@ StatusWith<repl::ReplSettings> populateReplSettings(const moe::Environment& para
             return Status(ErrorCodes::BadValue, sb.str());
         }
         replSettings.setOplogSizeBytes(x * 1024 * 1024);
+        replSettings.setOplogSizeInitializedUsingDefault(false);
         invariant(replSettings.getOplogSizeBytes() > 0);
     }
 
@@ -448,7 +449,7 @@ Status storeMongodOptions(const moe::Environment& params) {
         return Status::OK();
     };
 
-    // TODO: Integrate these options with their setParameter counterparts
+    // TODO(SERVER-122702): Integrate these options with their setParameter counterparts
     if (params.count("security.authSchemaVersion")) {
         return Status(ErrorCodes::BadValue,
                       "security.authSchemaVersion is currently not supported in config files");
@@ -785,6 +786,7 @@ Status storeMongodOptions(const moe::Environment& params) {
     if (params.count("storage.oplogMinRetentionHours")) {
         storageGlobalParams.oplogMinRetentionHours.store(
             params["storage.oplogMinRetentionHours"].as<double>());
+        storageGlobalParams.oplogMinRetentionInitializedUsingDefault = false;
         if (storageGlobalParams.oplogMinRetentionHours.load() < 0) {
             return Status(ErrorCodes::BadValue,
                           "bad --oplogMinRetentionHours, argument must be greater or equal to 0");

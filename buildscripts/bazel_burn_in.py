@@ -99,15 +99,15 @@ def create_burn_in_target(target_original: str, target_burn_in: str, test: str):
     with open(build_file, "a") as f:
         f.write(rule_new)
 
-    # Set the suite to only run the burn-in test, with only one shard.
-    # All existing 'srcs' are kept as 'data', since it is common for jstests
-    # to import each other.
-    buildozer.bd_move([target_burn_in], "srcs", "data")
+    # Try to remove the test label and move existing srcs to data to avoid duplicate
+    # uses of the same label. buildozer fails if srcs/data do not exist, which is fine.
+    # If the attribute is present, and buildozer fails for another reason, the build
+    # of the burn-in target produces a clear message why it fails.
     try:
-        # Try to remove the test label from data if it exists to avoid duplicate
-        # uses of the same label. buildozer fails if it does not exist, which is fine.
-        # If the label is present, and buildozer fails for another reason, the build
-        # of the burn-in target produces a clear message that it is duplicated.
+        buildozer.bd_move([target_burn_in], "srcs", "data")
+    except:
+        pass
+    try:
         buildozer.bd_remove([target_burn_in], "data", [test_label])
     except:
         pass
@@ -130,6 +130,19 @@ def create_burn_in_target(target_original: str, target_burn_in: str, test: str):
     )
     resmoke_args_str = "[" + ",".join(['"' + arg + '"' for arg in resmoke_args]) + "]"
     buildozer.bd_set([target_burn_in], "resmoke_args", resmoke_args_str)
+
+
+def _test_matches_roots(test_path: str, roots: list[str]) -> bool:
+    """Check if a test file path matches any of the selector roots patterns."""
+    from pathlib import PurePosixPath
+
+    for root in roots:
+        if root == test_path:
+            return True
+        if "*" in root or "?" in root or "[" in root:
+            if PurePosixPath(test_path).match(root):
+                return True
+    return False
 
 
 class BurnInTargetInfo(NamedTuple):
@@ -173,7 +186,7 @@ def query_targets_to_burn_in(
         for test in tests_changed:
             if test in exclusions["selector"].get(test_kind, {}).get("exclude_tests", []):
                 continue
-            if test not in config["selector"].get("roots"):
+            if not _test_matches_roots(test, config["selector"].get("roots", [])):
                 continue
 
             burn_in_target = (
@@ -194,7 +207,8 @@ def query_targets_to_burn_in(
 @cache
 def get_targets_with_tag(tag: str) -> list[str]:
     try:
-        query = f"attr(tags, '\\b{tag}(?![a-zA-Z0-9_-])', //...)"
+        excluded = "attr(tags, '\\bincompatible_with_bazel_remote_test(?![a-zA-Z0-9_-])', //...)"
+        query = f"attr(tags, '\\b{tag}(?![a-zA-Z0-9_-])', //...) - {excluded}"
         result = subprocess.run(
             ["bazel", "query", query],
             capture_output=True,
@@ -373,7 +387,7 @@ def generate_tasks(
             # Set an explicitly depends_on in the task group's reference to override it. Remove with SERVER-119809.
             if task["name"] in result_tasks:
                 task["depends_on"] = {
-                    "name": f"resmoke_tests_burn_in_{variant["name"]}",
+                    "name": f"resmoke_tests_burn_in_{variant['name']}",
                 }
             else:
                 task["depends_on"] = {

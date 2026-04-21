@@ -35,6 +35,7 @@
 #include "mongo/bson/bsonobjbuilder.h"
 #include "mongo/db/cancelable_operation_context.h"
 #include "mongo/db/client.h"
+#include "mongo/db/dbdirectclient.h"
 #include "mongo/db/dbhelpers.h"
 #include "mongo/db/feature_flag.h"
 #include "mongo/db/global_catalog/ddl/notify_sharding_event_gen.h"
@@ -138,6 +139,7 @@ MONGO_FAIL_POINT_DEFINE(reshardingPauseRecipientBeforeTransitionToCreateCollecti
 MONGO_FAIL_POINT_DEFINE(reshardingRecipientFailInPhase);
 MONGO_FAIL_POINT_DEFINE(reshardingPauseRecipientBeforeCleanup);
 MONGO_FAIL_POINT_DEFINE(reshardingPauseRecipientAfterInitCancelState);
+MONGO_FAIL_POINT_DEFINE(reshardingSkipWriteStrictConsistencyOplog);
 
 namespace {
 
@@ -268,6 +270,7 @@ void setMeticsAfterWrite(ReshardingMetrics* metrics,
             return;
         case RecipientStateEnum::kStrictConsistency:
             metrics->setEndFor(ReshardingMetrics::TimedPhase::kApplying, timestamp);
+            metrics->setStartFor(ReshardingMetrics::TimedPhase::kStrictConsistency, timestamp);
             return;
         default:
             return;
@@ -361,8 +364,12 @@ ReshardingRecipientService::RecipientStateMachine::RecipientStateMachine(
 
 CancelableOperationContext ReshardingRecipientService::RecipientStateMachine::_makeOperationContext(
     std::shared_ptr<HierarchicalCancelableOperationContextFactory> factory) const {
-    return resharding::makeReshardingOperationContext(
-        *factory, _recipientCtx.getState() >= RecipientStateEnum::kApplying);
+    auto state = [this] {
+        stdx::lock_guard<stdx::mutex> lk(_mutex);
+        return _recipientCtx.getState();
+    }();
+    return resharding::makeReshardingOperationContext(*factory,
+                                                      state >= RecipientStateEnum::kApplying);
 }
 
 ExecutorFuture<void>
@@ -654,8 +661,8 @@ ExecutorFuture<void> ReshardingRecipientService::RecipientStateMachine::_runMand
 SemiFuture<void> ReshardingRecipientService::RecipientStateMachine::run(
     std::shared_ptr<executor::ScopedTaskExecutor> executor,
     const CancellationToken& stepdownToken) noexcept {
-    auto telemetryCtx = _recipientCtx.getTelemetryContext()
-        ? otel::traces::TelemetryContextSerializer::fromBSON(*_recipientCtx.getTelemetryContext())
+    auto telemetryCtx = _metadata.getTelemetryContext()
+        ? otel::traces::TelemetryContextSerializer::fromBSON(*_metadata.getTelemetryContext())
         : otel::traces::Span::createTelemetryContext();
     auto span = _startSpan(telemetryCtx, "ReshardingRecipientService::run");
 
@@ -1049,6 +1056,10 @@ void ReshardingRecipientService::RecipientStateMachine::_createAndStartChangeStr
               "documentsDelta"_attr = batch.getDocumentsDelta(),
               "completed"_attr = batch.containsFinalEvent());
 
+        if (auto clusterTimeSecs = batch.getResumeTokenClusterTimeSecs()) {
+            _metrics->setChangeStreamMonitorLastClusterTime(Timestamp(*clusterTimeSecs, 0));
+        }
+
         invariant(_changeStreamsMonitorCtx);
         auto newChangeStreamsCtx = *_changeStreamsMonitorCtx;
         newChangeStreamsCtx.setResumeToken(batch.getResumeToken().getOwned());
@@ -1076,6 +1087,8 @@ void ReshardingRecipientService::RecipientStateMachine::_createAndStartChangeStr
                               _cancelState->getAbortOrStepdownToken(),
                               factory)
             .share();
+    _metrics->setStartFor(ReshardingMetrics::TimedPhase::kChangeStreamMonitor,
+                          resharding::getCurrentTime());
     _changeStreamsMonitorStarted.emplaceValue();
 }
 
@@ -1101,6 +1114,8 @@ ReshardingRecipientService::RecipientStateMachine::_awaitChangeStreamsMonitorCom
                   "status"_attr = status);
 
             if (status.isOK()) {
+                _metrics->setEndFor(ReshardingMetrics::TimedPhase::kChangeStreamMonitor,
+                                    resharding::getCurrentTime());
                 ensureFulfilledPromise(lk,
                                        _changeStreamsMonitorCompleted,
                                        _changeStreamsMonitorCtx->getDocumentsDelta());
@@ -1277,10 +1292,13 @@ ReshardingRecipientService::RecipientStateMachine::_buildIndexThenTransitionToAp
                                feature_flags::gFeatureFlagPrimaryDrivenIndexBuilds.isEnabled(
                                    VersionContext::getDecoration(opCtx.get()), fcvSnapshot);
                            IndexBuildsCoordinator::IndexBuildOptions indexBuildOptions{
+                               // TODO(SERVER-109664): Set this to IndexBuildMethodEnum::kHybrid
                                .indexBuildMethod =
                                    (isPrimaryDrivenIndexBuild ? IndexBuildMethodEnum::kPrimaryDriven
                                                               : IndexBuildMethodEnum::kHybrid),
-
+                               .indexBuildProtocol =
+                                   (isPrimaryDrivenIndexBuild ? IndexBuildProtocol::kPrimaryDriven
+                                                              : IndexBuildProtocol::kTwoPhase),
                                .commitQuorum =
                                    (isPrimaryDrivenIndexBuild
                                         ? CommitQuorumOptions(CommitQuorumOptions::kPrimarySelfVote)
@@ -1304,7 +1322,6 @@ ReshardingRecipientService::RecipientStateMachine::_buildIndexThenTransitionToAp
                                _metadata.getReshardingUUID(),
                                indexes,
                                buildUUID,
-                               IndexBuildProtocol::kTwoPhase,
                                indexBuildOptions);
                            if (indexBuildFuture.isOK()) {
                                return indexBuildFuture.getValue();
@@ -1364,6 +1381,21 @@ ExecutorFuture<void> ReshardingRecipientService::RecipientStateMachine::
         const std::shared_ptr<executor::ScopedTaskExecutor>& executor,
         std::shared_ptr<HierarchicalCancelableOperationContextFactory> factory) {
     if (_recipientCtx.getState() > RecipientStateEnum::kApplying) {
+        if (_recipientCtx.getState() == RecipientStateEnum::kStrictConsistency) {
+            // The node stepped down after persisting kStrictConsistency but before the
+            // resharding operation completed. The oplog entry may or may not have been
+            // written before the stepdown. Check before writing to avoid a duplicate.
+            if (!_hasAlreadyWrittenStrictConsistencyOplog(factory)) {
+                _writeStrictConsistencyOplog(factory);
+            } else {
+                LOGV2(12340302,
+                      "ReshardDoneCatchUpChangeEventO2Field oplog entry already exists, "
+                      "skipping duplicate write on recovery",
+                      logAttrs(_metadata.getSourceNss()),
+                      "reshardingUUID"_attr = _metadata.getReshardingUUID());
+            }
+        }
+
         return ExecutorFuture<void>(**executor, Status::OK());
     }
 
@@ -1414,8 +1446,32 @@ ExecutorFuture<void> ReshardingRecipientService::RecipientStateMachine::
             }
             reshardingPauseRecipientBeforeEnteringStrictConsistency.pauseWhileSet();
             _transitionState(RecipientStateEnum::kStrictConsistency, factory);
+
+            if (MONGO_unlikely(reshardingSkipWriteStrictConsistencyOplog.shouldFail())) {
+                return;
+            }
+
             _writeStrictConsistencyOplog(factory);
         });
+}
+
+bool ReshardingRecipientService::RecipientStateMachine::_hasAlreadyWrittenStrictConsistencyOplog(
+    std::shared_ptr<HierarchicalCancelableOperationContextFactory> factory) {
+    // By the time we reach kStrictConsistency, the cloneTimestamp must have been set during the
+    // kAwaitingFetchTimestamp -> kCreatingCollection transition.
+    invariant(_cloneTimestamp);
+
+    auto opCtx = _makeOperationContext(factory);
+    DBDirectClient client(opCtx.get());
+    FindCommandRequest findRequest{NamespaceString::kRsOplogNamespace};
+    findRequest.setFilter(
+        BSON("ts" << BSON("$gte" << *_cloneTimestamp) << "ns"
+                  << NamespaceStringUtil::serialize(_metadata.getTempReshardingNss(),
+                                                    SerializationContext::stateDefault())
+                  << "o2.reshardDoneCatchUp" << BSON("$exists" << true)));
+    findRequest.setSort(BSON("$natural" << -1));
+    auto lastEntry = client.findOne(std::move(findRequest));
+    return !lastEntry.isEmpty();
 }
 
 void ReshardingRecipientService::RecipientStateMachine::_writeStrictConsistencyOplog(
@@ -1451,6 +1507,11 @@ void ReshardingRecipientService::RecipientStateMachine::_writeStrictConsistencyO
                                   << oplog.getOpTime().toString() << ": " << redact(oplog.toBSON()),
                     !oplogOpTime.isNull());
             wunit.commit();
+            LOGV2(12340303,
+                  "Successfully wrote ReshardDoneCatchUp oplog entry",
+                  logAttrs(_metadata.getSourceNss()),
+                  "reshardingUUID"_attr = _metadata.getReshardingUUID(),
+                  "opTime"_attr = oplogOpTime);
         });
 }
 

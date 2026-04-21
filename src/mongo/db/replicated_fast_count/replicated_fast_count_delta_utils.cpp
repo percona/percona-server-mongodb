@@ -32,11 +32,15 @@
 #include "mongo/db/record_id_helpers.h"
 #include "mongo/db/repl/apply_ops_command_info.h"
 #include "mongo/db/repl/oplog_entry.h"
+#include "mongo/db/repl/truncate_range_oplog_entry_gen.h"
 #include "mongo/db/replicated_fast_count/replicated_fast_count_enabled.h"
 #include "mongo/db/shard_role/shard_catalog/clustered_collection_util.h"
 #include "mongo/db/storage/snapshot.h"
 #include "mongo/idl/idl_parser.h"
+#include "mongo/logv2/log.h"
 #include "mongo/util/assert_util.h"
+
+#define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kDefault
 
 #include <absl/container/flat_hash_map.h>
 
@@ -69,6 +73,20 @@ int32_t computeCountDeltaForOp(repl::OpTypeEnum opType) {
     }
 }
 
+// Extracts the size and count delta from a truncateRange oplog entry.
+CollectionSizeCount extractSizeCountDeltaForTruncateRange(const repl::OplogEntry& entry) {
+    invariant(entry.getCommandType() == repl::OplogEntry::CommandType::kTruncateRange);
+
+    massert(12117500,
+            str::stream() << "Unexpected input: Missing 'ui' field for truncateRange operation '"
+                          << redact(entry.toBSONForLogging()),
+            entry.getUuid().has_value());
+
+    const auto truncateRangeEntry = TruncateRangeOplogEntry::parse(entry.getObject());
+    return CollectionSizeCount{.size = -truncateRangeEntry.getBytesDeleted(),
+                               .count = -truncateRangeEntry.getDocsDeleted()};
+}
+
 // Updates the 'sizeCountDeltasOut' to track the new 'sizeCountDelta' for 'uuid'.
 void recordCollectionSizeCountDelta(
     const UUID& uuid,
@@ -81,12 +99,74 @@ void recordCollectionSizeCountDelta(
     }
 }
 
+// Returns true if all operations within the provided oplog entry are on the internal fast count
+// collections.
+bool operationsOnFastCountCollections(const NamespaceString& nss,
+                                      const repl::OplogEntry& oplogEntry) {
+    const auto fastCountStoreNss =
+        NamespaceString::makeGlobalConfigCollection(NamespaceString::kReplicatedFastCountStore);
+    const auto fastCountTimestampNss = NamespaceString::makeGlobalConfigCollection(
+        NamespaceString::kReplicatedFastCountStoreTimestamps);
+
+    if (nss == fastCountStoreNss || nss == fastCountTimestampNss) {
+        return true;
+    }
+
+    if (oplogEntry.getCommandType() == repl::OplogEntry::CommandType::kApplyOps) {
+        std::vector<repl::OplogEntry> innerEntries;
+        repl::ApplyOps::extractOperationsTo(
+            oplogEntry, oplogEntry.getEntry().toBSON(), &innerEntries);
+
+        for (const auto& op : innerEntries) {
+            const auto& nss = op.getNss();
+            if (nss != fastCountStoreNss && nss != fastCountTimestampNss) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    return false;
+}
+
+// Processes a single oplog entry and accumulates its size/count contribution into
+// 'sizeCountDeltasOut'. Handles applyOps (including nested), truncateRange, and CRUD operations.
+void processOplogEntry(const repl::OplogEntry& entry,
+                       const boost::optional<UUID>& uuidFilter,
+                       absl::flat_hash_map<UUID, CollectionSizeCount>& sizeCountDeltasOut) {
+    if (entry.getCommandType() == repl::OplogEntry::CommandType::kApplyOps) {
+        extractSizeCountDeltasForApplyOps(entry, uuidFilter, sizeCountDeltasOut);
+        return;
+    }
+    const auto& entryUuid = entry.getUuid();
+    if (uuidFilter && entryUuid != uuidFilter) {
+        return;
+    }
+    if (entry.getCommandType() == repl::OplogEntry::CommandType::kTruncateRange) {
+        const auto delta = extractSizeCountDeltaForTruncateRange(entry);
+        recordCollectionSizeCountDelta(*entryUuid, delta, sizeCountDeltasOut);
+        return;
+    }
+    if (auto delta = extractSizeCountDeltaForOp(entry); delta.has_value()) {
+        recordCollectionSizeCountDelta(*entryUuid, *delta, sizeCountDeltasOut);
+    }
+}
+
 }  // namespace
 
 boost::optional<CollectionSizeCount> extractSizeCountDeltaForOp(
     const repl::OplogEntry& oplogEntry) {
     const auto& sizeMd = oplogEntry.getSizeMetadata();
     if (!sizeMd) {
+        return boost::none;
+    }
+
+    if (!isReplicatedFastCountEligible(oplogEntry.getNss())) {
+        LOGV2_DEBUG(12369400,
+                    3,
+                    "Skipping size/count delta for ineligible namespace",
+                    "ns"_attr = oplogEntry.getNss().toStringForErrorMsg(),
+                    "entry"_attr = redact(oplogEntry.toBSONForLogging()));
         return boost::none;
     }
 
@@ -99,13 +179,6 @@ boost::optional<CollectionSizeCount> extractSizeCountDeltaForOp(
                           << "' incompatible with top level 'm' field: "
                           << redact(oplogEntry.toBSONForLogging()),
             isSupportedOpType(opType));
-
-    massert(12115901,
-            str::stream() << "Unexpected input: Namespace '"
-                          << oplogEntry.getNss().toStringForErrorMsg()
-                          << "' is incompatible with top level 'm' field: "
-                          << redact(oplogEntry.toBSONForLogging()),
-            isReplicatedFastCountEligible(oplogEntry.getNss()));
 
     massert(12116001,
             str::stream() << "Unexpected input: Missing 'ui' field for operation '"
@@ -134,45 +207,34 @@ void extractSizeCountDeltasForApplyOps(
         applyOpsEntry, applyOpsEntry.getEntry().toBSON(), &innerEntries);
 
     for (const auto& op : innerEntries) {
-        if (op.getCommandType() == repl::OplogEntry::CommandType::kApplyOps) {
-            extractSizeCountDeltasForApplyOps(op, uuidFilter, sizeCountDeltasOut);
-            continue;
-        }
-        const auto& opUuid = op.getUuid();
-        if (uuidFilter && opUuid != uuidFilter) {
-            continue;
-        }
-        if (auto sizeCountDelta = extractSizeCountDeltaForOp(op); sizeCountDelta.has_value()) {
-            recordCollectionSizeCountDelta(*opUuid, *sizeCountDelta, sizeCountDeltasOut);
-        }
+        processOplogEntry(op, uuidFilter, sizeCountDeltasOut);
     }
 }
 
-absl::flat_hash_map<UUID, CollectionSizeCount> aggregateSizeCountDeltasInOplog(
-    SeekableRecordCursor& oplogCursor,
-    const Timestamp& seekAfterTS,
-    const boost::optional<UUID>& uuidFilter) {
-    absl::flat_hash_map<UUID, CollectionSizeCount> aggregatedDeltas;
+OplogScanResult aggregateSizeCountDeltasInOplog(SeekableRecordCursor& oplogCursor,
+                                                const Timestamp& seekAfterTS,
+                                                const boost::optional<UUID>& uuidFilter) {
+    OplogScanResult result;
     RecordId seekRid =
         massertStatusOK(record_id_helpers::keyForOptime(seekAfterTS, KeyFormat::Long));
+
     for (auto rec = oplogCursor.seek(seekRid, SeekableRecordCursor::BoundInclusion::kExclude); rec;
          rec = oplogCursor.next()) {
         const auto entry = massertStatusOK(repl::OplogEntry::parse(rec->data.toBson()));
-        if (entry.getCommandType() == repl::OplogEntry::CommandType::kApplyOps) {
-            extractSizeCountDeltasForApplyOps(entry, uuidFilter, aggregatedDeltas);
+        const auto& nss = entry.getNss();
+        // Do not advance lastTimestamp for writes to the fast count store collections themselves.
+        // Otherwise, we create a feedback loop where we'd advance the timestamp in response to
+        // seeing oplog entries for advancing the timestamp.
+        if (operationsOnFastCountCollections(nss, entry)) {
             continue;
         }
-        if (uuidFilter && entry.getUuid() != uuidFilter) {
-            continue;
-        }
-        if (auto delta = extractSizeCountDeltaForOp(entry); delta.has_value()) {
-            recordCollectionSizeCountDelta(*entry.getUuid(), *delta, aggregatedDeltas);
-        }
+        result.lastTimestamp = entry.getTimestamp();
+        processOplogEntry(entry, uuidFilter, result.deltas);
     }
-    return aggregatedDeltas;
+    return result;
 }
 
-boost::optional<CollectionOrViewAcquisition> acquireSizeCountCollectionForRead(
+boost::optional<CollectionOrViewAcquisition> acquireFastCountCollectionForRead(
     OperationContext* opCtx) {
     CollectionOrViewAcquisition acquisition = acquireCollectionOrView(
         opCtx,
@@ -189,7 +251,7 @@ boost::optional<CollectionOrViewAcquisition> acquireSizeCountCollectionForRead(
     return boost::none;
 }
 
-boost::optional<CollectionOrViewAcquisition> acquireSizeCountCollectionForWrite(
+boost::optional<CollectionOrViewAcquisition> acquireFastCountCollectionForWrite(
     OperationContext* opCtx) {
     CollectionOrViewAcquisition acquisition = acquireCollectionOrView(
         opCtx,
@@ -206,45 +268,9 @@ boost::optional<CollectionOrViewAcquisition> acquireSizeCountCollectionForWrite(
     return boost::none;
 }
 
-boost::optional<CollectionOrViewAcquisition> acquireTimestampCollectionForRead(
-    OperationContext* opCtx) {
-    CollectionOrViewAcquisition acquisition =
-        acquireCollectionOrView(opCtx,
-                                CollectionOrViewAcquisitionRequest::fromOpCtx(
-                                    opCtx,
-                                    NamespaceString::makeGlobalConfigCollection(
-                                        NamespaceString::kReplicatedFastCountStoreTimestamps),
-                                    AcquisitionPrerequisites::OperationType::kRead),
-                                LockMode::MODE_IS);
-
-    if (acquisition.getCollectionPtr()) {
-        return acquisition;
-    }
-
-    return boost::none;
-}
-
-boost::optional<CollectionOrViewAcquisition> acquireTimestampCollectionForWrite(
-    OperationContext* opCtx) {
-    CollectionOrViewAcquisition acquisition =
-        acquireCollectionOrView(opCtx,
-                                CollectionOrViewAcquisitionRequest::fromOpCtx(
-                                    opCtx,
-                                    NamespaceString::makeGlobalConfigCollection(
-                                        NamespaceString::kReplicatedFastCountStoreTimestamps),
-                                    AcquisitionPrerequisites::OperationType::kWrite),
-                                LockMode::MODE_IX);
-
-    if (acquisition.getCollectionPtr()) {
-        return acquisition;
-    }
-
-    return boost::none;
-}
-
 void readAndIncrementSizeCounts(OperationContext* opCtx,
                                 absl::flat_hash_map<UUID, CollectionSizeCount>& deltas) {
-    const auto acquisition = acquireSizeCountCollectionForRead(opCtx).value();
+    const auto acquisition = acquireFastCountCollectionForRead(opCtx).value();
     const CollectionPtr& coll = acquisition.getCollectionPtr();
 
     for (auto& [uuid, delta] : deltas) {

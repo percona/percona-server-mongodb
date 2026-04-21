@@ -8,7 +8,6 @@
 //   # now only on one).
 //   assumes_balancer_off,
 //   directly_against_shardsvrs_incompatible,
-//   simulate_atlas_proxy_incompatible,
 //   # 'planCacheClear' command is not allowed with the security token.
 //   not_allowed_with_signed_security_token,
 //   # Test includes SBE plan cache assertions if the SBE plan cache is used.
@@ -127,17 +126,8 @@ function testAggregateQuerySettingsApplicationWithLookupEquiJoin(
 
     // Ensure query settings index application for 'mainNs', 'secondaryNs' and both.
     qstests.assertQuerySettingsIndexApplication(aggregateCmd, mainNs);
-    // TODO SERVER-95352 Investigate why some time series queries cannot be answered using only
-    // indexes with Query Settings.
-    if (!isTimeseriesTestSuite) {
-        qstests.assertQuerySettingsLookupJoinIndexApplication(aggregateCmd, secondaryNs, isSecondaryCollAView);
-        qstests.assertQuerySettingsIndexAndLookupJoinApplications(
-            aggregateCmd,
-            mainNs,
-            secondaryNs,
-            isSecondaryCollAView,
-        );
-    }
+    qstests.assertQuerySettingsLookupJoinIndexApplication(aggregateCmd, secondaryNs, isSecondaryCollAView);
+    qstests.assertQuerySettingsIndexAndLookupJoinApplications(aggregateCmd, mainNs, secondaryNs, isSecondaryCollAView);
 
     if (!isSecondaryCollAView) {
         qstests.testAggregateQuerySettingsNaturalHintEquiJoinStrategy(aggregateCmd, mainNs, secondaryNs);
@@ -238,12 +228,9 @@ function testAggregateQuerySettingsApplicationWithLookupPipeline(collOrViewName,
 
     // Ensure query settings index application for 'mainNs', 'secondaryNs' and both.
     qstests.assertQuerySettingsIndexApplication(aggregateCmd, mainNs);
-    // TODO SERVER-95352 Investigate why some time series queries cannot be answered using only
-    // indexes with Query Settings.
-    if (!isTimeseriesTestSuite) {
-        qstests.assertQuerySettingsLookupPipelineIndexApplication(aggregateCmd, secondaryNs);
-        qstests.assertQuerySettingsIndexAndLookupPipelineApplications(aggregateCmd, mainNs, secondaryNs);
-    }
+    qstests.assertQuerySettingsLookupPipelineIndexApplication(aggregateCmd, secondaryNs);
+    qstests.assertQuerySettingsIndexAndLookupPipelineApplications(aggregateCmd, mainNs, secondaryNs);
+
     // Ensure query settings ignore cursor hints when being set on main collection.
     qstests.assertQuerySettingsIgnoreCursorHints(aggregateCmd, mainNs);
 
@@ -272,7 +259,11 @@ function testAggregateQuerySettingsApplicationWithGraphLookup(collOrViewName, se
     // Ensure that query settings cluster parameter is empty.
     qsutils.assertQueryShapeConfiguration([]);
 
-    const filter = {a: {$ne: "Bond"}, b: {$ne: "James"}};
+    // Timeseries indexes are built on bucket control.min/control.max fields. $ne predicates like
+    // {a: {$ne: "Bond"}} cannot be rewritten into bucket-level predicates, so no buckets can be
+    // pruned and a COLLSCAN is the only viable plan. Use an equality-based filter on timeseries
+    // to still exercise index application.
+    const filter = isTimeseriesTestSuite ? {a: 1, b: 5} : {a: {$ne: "Bond"}, b: {$ne: "James"}};
     const pipeline = [
         {
             $match: filter,
@@ -295,12 +286,8 @@ function testAggregateQuerySettingsApplicationWithGraphLookup(collOrViewName, se
     // Ensure query settings index application for 'mainNs'.
     // TODO SERVER-88561: Ensure query settings index application for 'secondaryNs' after
     // 'indexesUsed' is added to the 'explain' command output for the $graphLookup operation.
-    // TODO SERVER-95352 Investigate why some time series queries cannot be answered using only
-    // indexes with Query Settings.
-    if (!isTimeseriesTestSuite) {
-        qstests.assertQuerySettingsIndexApplication(aggregateCmd, mainNs);
-        qstests.assertGraphLookupQuerySettingsInCache(aggregateCmd, secondaryNs);
-    }
+    qstests.assertQuerySettingsIndexApplication(aggregateCmd, mainNs);
+    qstests.assertGraphLookupQuerySettingsInCache(aggregateCmd, secondaryNs);
 }
 
 function testAggregateQuerySettingsApplicationWithUnionWithPipeline(collOrViewName, secondaryCollOrViewName) {
@@ -323,12 +310,8 @@ function testAggregateQuerySettingsApplicationWithUnionWithPipeline(collOrViewNa
 
     // Ensure query settings index application for 'mainNs', 'secondaryNs' and both.
     qstests.assertQuerySettingsIndexApplication(aggregateCmd, mainNs);
-    // TODO SERVER-95352 Investigate why some time series queries cannot be answered using only
-    // indexes with Query Settings.
-    if (!isTimeseriesTestSuite) {
-        qstests.assertQuerySettingsIndexApplication(aggregateCmd, secondaryNs);
-        qstests.assertQuerySettingsIndexApplications(aggregateCmd, mainNs, secondaryNs);
-    }
+    qstests.assertQuerySettingsIndexApplication(aggregateCmd, secondaryNs);
+    qstests.assertQuerySettingsIndexApplications(aggregateCmd, mainNs, secondaryNs);
 
     // Ensure query settings ignore cursor hints when being set on main collection.
     qstests.assertQuerySettingsIgnoreCursorHints(aggregateCmd, mainNs);

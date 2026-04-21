@@ -114,7 +114,8 @@ Status IndexBuildsManager::setUpIndexBuild(OperationContext* opCtx,
                             << nss.toStringForErrorMsg() << " is not locked in exclusive mode.");
 
     auto builder = invariant(_getBuilder(buildUUID));
-    if (options.protocol == IndexBuildProtocol::kTwoPhase) {
+    if (options.protocol == IndexBuildProtocol::kTwoPhase ||
+        options.protocol == IndexBuildProtocol::kPrimaryDriven) {
         builder->setTwoPhaseBuildUUID(buildUUID);
     }
 
@@ -400,16 +401,6 @@ bool IndexBuildsManager::abortIndexBuildWithoutCleanup(OperationContext* opCtx,
     return true;
 }
 
-bool IndexBuildsManager::keepTemporaryTables(OperationContext* opCtx, const UUID& buildUUID) {
-    auto builder = _getBuilder(buildUUID);
-    if (!builder.isOK()) {
-        return false;
-    }
-
-    builder.getValue()->keepTemporaryTables(opCtx);
-    return true;
-}
-
 bool IndexBuildsManager::isBackgroundBuilding(const UUID& buildUUID) {
     auto builder = invariant(_getBuilder(buildUUID));
     return builder->isBackgroundBuilding();
@@ -445,6 +436,7 @@ void IndexBuildsManager::tearDownAndUnregisterIndexBuild(const UUID& buildUUID) 
     if (builderIt == _builders.end()) {
         return;
     }
+    builderIt->second->markAsCleanedUp();
     _builders.erase(builderIt);
 }
 

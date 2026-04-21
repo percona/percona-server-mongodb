@@ -1,5 +1,5 @@
 # Apple cc toolchain needs to be loaded before regular cc toolchain or else Apple will just use regular cc toolchain
-bazel_dep(name = "apple_support", version = "1.17.1", repo_name = "build_bazel_apple_support")
+bazel_dep(name = "apple_support", version = "1.24.1", repo_name = "build_bazel_apple_support")
 bazel_dep(name = "bazel_features", version = "1.37.0")
 
 bazel_features_deps = use_extension("//bazel:bzlmod.bzl", "bazel_features_deps")
@@ -57,25 +57,16 @@ filegroup(
     ] * 5,
 )
 
-http_file(
-    name = "mozjs_wasm",
-    downloaded_file_path = "mozjs_wasm_api.wasm",
-    sha256 = "3d5a780b657fdfe66cc2f45f141e9e89e9bcb5ab7a1c90f0fb4778b5c0080b15",
-    urls = [
-        # Implements retry by relisting each url multiple times to be used as a failover.
-        # TODO(SERVER-86719): Re-implement http_archive to allow sleeping between retries
-        "https://mdb-build-public.s3.us-east-1.amazonaws.com/wasm_scratch/mozjs_wasm_api.wasm",
-    ] * 5,
+spidermonkey_wasi_repo = use_repo_rule(
+    "//src/mongo/scripting/mozjs/wasm:spidermonkey_wasi_repo.bzl",
+    "spidermonkey_wasi",
 )
 
-http_file(
-    name = "spidermonkey_wasip2_dist",
-    downloaded_file_path = "spidermonkey-wasip2-release.tar.gz",
-    sha256 = "f528e5730721559781aef47d355079da63185588bb14ebb6bf5266d4aa5e3eb0",
+spidermonkey_wasi_repo(
+    name = "spidermonkey_wasi",
+    sha256 = "e89f9a9959555bb08444412600e6a4594125e15d68145f97c6d88e6395be1d6b",
     urls = [
-        # Implements retry by relisting each url multiple times to be used as a failover.
-        # TODO(SERVER-86719): Re-implement http_archive to allow sleeping between retries
-        "https://mdb-build-public.s3.us-east-1.amazonaws.com/wasm_scratch/spidermonkey-wasip2-release.tar.gz",
+        "https://mdb-build-public.s3.amazonaws.com/spidermonkey-wasm/FIREFOX_140_6_0esr_RELEASE/69d013e89378880007aaa010/spidermonkey-wasip2-release.tar.gz",
     ] * 5,
 )
 
@@ -110,7 +101,7 @@ single_version_override(
     version = "0.0.11",
 )
 
-# TODO move over from WORKSPACE
+# TODO SERVER-122884: move over from WORKSPACE
 # buf does not support s390x
 #bazel_dep(name = "aspect_rules_lint", version = "1.1.0")
 #single_version_override(
@@ -174,6 +165,14 @@ local_path_override(
     path = "src/third_party/grpc/dist",
 )
 
+# googleapis still requests older grpc-java releases that import repos from
+# grpc_repo_deps_ext. Keep grpc-java on a newer module that declares those
+# dependencies directly so Bazel's module graph stays consistent with grpc@1.74.
+single_version_override(
+    module_name = "grpc-java",
+    version = "1.74.0",
+)
+
 bazel_dep(name = "boringssl", version = "")
 local_path_override(
     module_name = "boringssl",
@@ -226,7 +225,7 @@ multitool = use_extension("@rules_multitool//multitool:extension.bzl", "multitoo
 multitool.hub(lockfile = "//tools/lint:multitool.lock.json")
 use_repo(multitool, "multitool")
 
-# TODO port over from WORKSPACE
+# TODO SERVER-122885: port over from WORKSPACE
 # currently breaks pyright
 ##node = use_extension("@rules_nodejs//nodejs:extensions.bzl", "node", dev_dependency = True)
 ##node.toolchain(node_version = "18.20.4")
@@ -250,7 +249,7 @@ setup_local_config_platform(name = "internal_platforms_do_not_use")
 
 register_execution_platforms("@internal_platforms_do_not_use//host:host")
 
-# TODO port over from WORKSPACE
+# TODO SERVER-122886: port over from WORKSPACE
 # cannot be moved without changing the path or creating a symlink
 # to _main~setup_mongo_toolchains~mongo_toolchain_v4 and _main~setup_mongo_toolchains~mongo_toolchain_v5
 ##setup_mongo_toolchains_extension = use_extension("//bazel/toolchains:mongo_toolchain.bzl", "setup_mongo_toolchains_extension")
@@ -329,11 +328,32 @@ register_toolchains("@mongo_windows_toolchain//...")
 ###################### RUST DEPS ######################
 bazel_dep(name = "rules_rust", version = "0.68.1")
 
+# Right now we dont build rust on ppc, when we do unsupported_host_skip_crates.patch
+# should be removed
+single_version_override(
+    module_name = "rules_rust",
+    patches = [
+        "//bazel/rules_rust:windows_long_path.patch",
+        "//bazel/rules_rust:ppc64le_platform.patch",
+        "//bazel/rules_rust:ppc64le_crates.patch",
+        "//bazel/rules_rust:ppc64le_cargo_bazel_url.patch",
+    ],
+    version = "0.68.1",
+)
+
 rust = use_extension("@rules_rust//rust:extensions.bzl", "rust")
 rust.toolchain(
     edition = "2024",
     versions = ["nightly/2025-12-11"],
 )
+
+rust_host = use_extension("@rules_rust//rust:extensions.bzl", "rust_host_tools")
+rust_host.host_tools(
+    name = "rust_host_tools_nightly",
+    edition = "2024",
+    version = "nightly/2025-12-11",
+)
+use_repo(rust_host, "rust_host_tools_nightly")
 
 crate = use_extension("@rules_rust//crate_universe:extensions.bzl", "crate")
 crate.spec(
@@ -424,17 +444,72 @@ crate.annotation_select(
     triples = [
         "aarch64-unknown-linux-gnu",
         "x86_64-unknown-linux-gnu",
-        "powerpc-unknown-linux-gnu",
         "s390x-unknown-linux-gnu",
+    ],
+)
+crate.annotation_select(
+    build_script_data = [
+        "@@windows_libclang//file",
+    ],
+    build_script_env = {
+        "LIBCLANG_PATH": "$(execpath @@windows_libclang//file)",
+    },
+    crate = "zstd-sys",
+    repositories = ["crates"],
+    triples = [
+        "x86_64-pc-windows-msvc",
     ],
 )
 
 # Update the lock file using "CARGO_BAZEL_REPIN=1 bazel sync --only=crates"
+# You may need to delete the contents of crates.lock first
 crate.from_specs(
     cargo_lockfile = "//bazel:crates.toml",
+    host_tools = "@rust_host_tools_nightly",
     lockfile = "//bazel:crates.lock",
+    supported_platform_triples = [
+        "aarch64-apple-darwin",
+        "aarch64-unknown-linux-gnu",
+        "x86_64-apple-darwin",
+        "x86_64-unknown-linux-gnu",
+        "x86_64-pc-windows-msvc",
+        "powerpc64le-unknown-linux-gnu",
+        "s390x-unknown-linux-gnu",
+    ],
 )
 use_repo(crate, "crates")
+
+# wit-bindgen-cli must live in a separate crate extension because
+# artifact="bin" changes how crate_universe configures exec-platform
+# toolchain resolution for the entire extension, which breaks Windows
+# exec builds of other binary targets (e.g. wasmtime-cli). Any other artifact="bin"
+# should live here.
+cargo_bindeps = use_extension("@rules_rust//crate_universe:extension.bzl", "crate")
+cargo_bindeps.spec(
+    artifact = "bin",
+    package = "wit-bindgen-cli",
+    version = "=0.51.0",
+)
+cargo_bindeps.annotation(
+    crate = "wit-bindgen-cli",
+    gen_all_binaries = True,
+)
+cargo_bindeps.from_specs(
+    name = "cargo_bindeps",
+    cargo_lockfile = "//bazel:cargo_bindeps.toml",
+    host_tools = "@rust_host_tools_nightly",
+    lockfile = "//bazel:cargo_bindeps.lock",
+    supported_platform_triples = [
+        "aarch64-apple-darwin",
+        "aarch64-unknown-linux-gnu",
+        "x86_64-apple-darwin",
+        "x86_64-unknown-linux-gnu",
+        "x86_64-pc-windows-msvc",
+        "powerpc64le-unknown-linux-gnu",
+        "s390x-unknown-linux-gnu",
+    ],
+)
+use_repo(cargo_bindeps, "cargo_bindeps")
 #################### END RUST DEPS ####################
 
 wasi_deps = use_repo_rule(
@@ -452,5 +527,6 @@ spidermonkey_repo = use_repo_rule(
 spidermonkey_repo(
     name = "spidermonkey",
     repository_file = "//src/mongo/scripting/mozjs/wasm/spider-monkey:spider-monkey-repository",
+    sha256_file = "//src/mongo/scripting/mozjs/wasm/spider-monkey:spider-monkey-sha256sum",
     version_file = "//src/mongo/scripting/mozjs/wasm/spider-monkey:spider-monkey-version",
 )

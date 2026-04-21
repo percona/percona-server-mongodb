@@ -32,6 +32,7 @@
 #include "mongo/base/status_with.h"
 #include "mongo/db/index/wildcard_access_method.h"
 #include "mongo/db/pipeline/document_source.h"
+#include "mongo/db/pipeline/document_source_internal_join_hint.h"
 #include "mongo/db/pipeline/document_source_lookup.h"
 #include "mongo/db/query/compiler/optimizer/join/agg_join_model.h"
 #include "mongo/db/query/compiler/optimizer/join/cardinality_estimator.h"
@@ -216,11 +217,9 @@ CatalogStats createCatalogStats(OperationContext* opCtx, const MultipleCollectio
         auto* recordStore = coll->getRecordStore();
         // TODO SERVER-117620: set .pageSizeBytes.
         collStats.emplace(coll->ns(),
-                          CollectionStats{
-                              .logicalDataSizeBytes = static_cast<double>(recordStore->dataSize()),
-                              .onDiskSizeBytes = static_cast<double>(
-                                  recordStore->storageSize(ru) - recordStore->freeStorageSize(ru)),
-                          });
+                          CollectionStats{static_cast<double>(recordStore->dataSize()),
+                                          static_cast<double>(recordStore->storageSize(ru) -
+                                                              recordStore->freeStorageSize(ru))});
     });
     auto engine = opCtx->getServiceContext()->getStorageEngine();
     double cacheSizeBytes = engine->getCacheSizeMB() * 1024 * 1024;
@@ -314,9 +313,17 @@ StatusWith<JoinReorderedExecutorResult> getJoinReorderedExecutor(
     // Select access plans for each table in the join.
     auto yieldPolicy = PlanYieldPolicy::YieldPolicy::YIELD_AUTO;
     SamplingEstimatorMap samplingEstimators = makeSamplingEstimators(mca, model.graph, yieldPolicy);
-    auto swAccessPlans = singleTableAccessPlans(opCtx, mca, model.graph, samplingEstimators);
+    auto swAccessPlans = singleTableAccessPlans(
+        opCtx, mca, model.graph, samplingEstimators, expCtx->getExplain().has_value());
     if (!swAccessPlans.isOK()) {
         return swAccessPlans.getStatus();
+    }
+
+    // Retrieve a copy of the hint if present.
+    boost::optional<EnumerationStrategy> hintedStrat;
+    if (auto hintStage = dynamic_cast<DocumentSourceInternalJoinHint*>(model.prefix->peekFront());
+        hintStage) {
+        hintedStrat = hintStage->getStrategy();
     }
 
     auto& solns = swAccessPlans.getValue().solns;
@@ -335,6 +342,7 @@ StatusWith<JoinReorderedExecutorResult> getJoinReorderedExecutor(
                               .perCollIdxs = std::move(indexesPerColl),
                               .catStats = createCatalogStats(opCtx, mca),
                               .uniqueFieldInfo = std::move(uniqueFieldInfo),
+                              .samplingEstimators = &samplingEstimators,
                               .explain = expCtx->getExplain().has_value()};
 
     JoinCardinalityEstimator cardEstimator(
@@ -342,27 +350,32 @@ StatusWith<JoinReorderedExecutorResult> getJoinReorderedExecutor(
     JoinCostEstimatorImpl costEstimator(ctx, cardEstimator);
 
     StatusWith<ReorderedJoinSolution> swReordered = [&]() {
-        switch (qkc.getJoinReorderMode()) {
-            case JoinReorderModeEnum::kBottomUp: {
-                // Optimize join order using bottom-up Sellinger-style algorithm.
-                return constructSolutionBottomUp(
-                    ctx, cardEstimator, costEstimator, getEnumerationStrategy(qkc));
-            }
-            case JoinReorderModeEnum::kRandom:
-                // Randomly reorder joins (while still passing through bottom-up enumerator). NOTE:
-                // this currently ignores all query knobs other than the random seed, the plan tree
-                // shape and the join method, but could easily be modified to take the values of
-                // other query knobs as "overrides".
-                return constructSolutionWithRandomOrder(
-                    ctx,
-                    &cardEstimator,
-                    &costEstimator,
-                    qkc.getRandomJoinOrderSeed(),
-                    getPlanTreeShape(qkc.getJoinPlanTreeShape()),
-                    getJoinMethod(qkc.getJoinMethod()));
-            default:
-                MONGO_UNREACHABLE_TASSERT(11336911);
+        if (hintedStrat || qkc.getJoinReorderMode() == JoinReorderModeEnum::kBottomUp) {
+            uassert(12016318,
+                    "Cannot have hinted & random mode",
+                    !hintedStrat || qkc.getJoinReorderMode() != JoinReorderModeEnum::kRandom);
+            // Optimize join order using bottom-up Sellinger-style algorithm.
+            // Note: a hint will avoid invoking random reordering.
+            return constructSolutionBottomUp(ctx,
+                                             cardEstimator,
+                                             costEstimator,
+                                             hintedStrat ? std::move(*hintedStrat)
+                                                         : getEnumerationStrategy(qkc));
         }
+
+        tassert(12016315,
+                "Expected random mode",
+                qkc.getJoinReorderMode() == JoinReorderModeEnum::kRandom);
+        // Randomly reorder joins (while still passing through bottom-up enumerator). NOTE:
+        // this currently ignores all query knobs other than the random seed & plan tree
+        // shape, but could easily be modified to take the values of other query knobs as
+        // "overrides".
+        return constructSolutionWithRandomOrder(ctx,
+                                                &cardEstimator,
+                                                &costEstimator,
+                                                qkc.getRandomJoinOrderSeed(),
+                                                getPlanTreeShape(qkc.getJoinPlanTreeShape()),
+                                                getJoinMethod(qkc.getJoinMethod()));
     }();
     uassertStatusOK(swReordered.getStatus());
     auto reordered = std::move(swReordered.getValue());

@@ -31,6 +31,8 @@
 #include "mongo/db/repl/oplog_entry.h"
 #include "mongo/db/replicated_fast_count/replicated_fast_count_manager.h"
 #include "mongo/db/replicated_fast_count/replicated_fast_size_count.h"
+#include "mongo/db/replicated_fast_count/size_count_store.h"
+#include "mongo/db/replicated_fast_count/size_count_timestamp_store.h"
 #include "mongo/db/rss/stub_persistence_provider.h"
 #include "mongo/util/uuid.h"
 
@@ -38,13 +40,6 @@
 #include <boost/optional/optional.hpp>
 
 namespace mongo::replicated_fast_count_test_helpers {
-
-const NamespaceString replicatedFastCountStoreNss =
-    NamespaceString::makeGlobalConfigCollection(NamespaceString::kReplicatedFastCountStore);
-
-const NamespaceString replicatedFastCountStoreTimestampsNss =
-    NamespaceString::makeGlobalConfigCollection(
-        NamespaceString::kReplicatedFastCountStoreTimestamps);
 /**
  * Stub persistence provider for enabling the replicated fast count collection.
  */
@@ -140,29 +135,24 @@ class ReplicatedFastCountTestPersistenceProvider : public rss::StubPersistencePr
         return false;
     }
 
-    bool shouldTimestampTableCreations() const override {
+    bool usesSchemaEpochs() const override {
+        return false;
+    }
+
+    bool supportsPreservingPreparedTxnInPreciseCheckpoints() const override {
         return false;
     }
 };
 
 /**
- * Checks the persisted values of count and size for the given UUID in the fast count store
- * collection.
+ * Checks the persisted values of count and size for the given UUID in the internal
+ * replicated fast count collection.
  */
-void checkFastCountMetadataInFastCountStoreCollection(OperationContext* opCtx,
-                                                      const UUID& uuid,
-                                                      bool expectPersisted,
-                                                      int64_t expectedCount,
-                                                      int64_t expectedSize);
-
-/**
- * Checks the persisted timestamp for the given stripe in the replicated fast count store timestamps
- * collection.
- */
-void checkFastCountMetadataInTimestampsCollection(OperationContext* opCtx,
-                                                  int32_t stripe,
-                                                  bool expectedPersisted,
-                                                  const Timestamp& expectedTimestamp);
+void checkFastCountMetadataInInternalCollection(OperationContext* opCtx,
+                                                const UUID& uuid,
+                                                bool expectPersisted,
+                                                int64_t expectedCount,
+                                                int64_t expectedSize);
 
 /**
  * Checks the uncommitted fast count changes for the given UUID.
@@ -261,30 +251,13 @@ struct ExpectedFastCountOp {
     boost::optional<int64_t> expectedSize;
 };
 
-struct ExpectedFastCountTimestampsOp {
-    int32_t stripe;
-    Timestamp expectedTimestamp;
-};
-
 /**
- * Performs basic structural checks for the inputted applyOpsEntry, returning true if the entry is
- * valid
- */
-bool isApplyOpsEntryStructureValid(const repl::OplogEntry& applyOpsEntry);
-
-/**
- * Asserts that the given applyOps oplog entry contains the expected fast-count operations on the
- * replicated fast count store collection.
+ * Asserts that the given applyOps oplog entry contains fast-count operations matching the expected
+ * operations. Also performs structural checks on the applyOps entry.
  */
 void assertFastCountApplyOpsMatches(const repl::OplogEntry& applyOpsEntry,
+                                    const NamespaceString& internalNss,
                                     const std::vector<ExpectedFastCountOp>& expectedOps);
-
-/**
- * Asserts that the given applyOps oplog entry contains the expected fast-count operations on the
- * replicated fast count store timestamps collection.
- */
-void assertFastCountTimestampsApplyOpsMatches(const repl::OplogEntry& applyOpsEntry,
-                                              const ExpectedFastCountTimestampsOp& expectedOp);
 
 /**
  * Expected values for validating individual operations in an oplog entry or applyOps inner ops with
@@ -339,5 +312,54 @@ CollectionSizeCount scanForAccurateSizeCount(OperationContext* opCtx, const Name
 absl::flat_hash_map<UUID, CollectionSizeCount> extractSizeCountDeltasForApplyOps(
     const repl::OplogEntry& applyOpsEntry, const boost::optional<UUID>& uuidFilter = boost::none);
 
-
 }  // namespace mongo::replicated_fast_count_test_helpers
+
+namespace mongo::replicated_fast_count::test_helpers {
+/**
+ * Simple wrapper to ease creation and testing of replicated fast count and size.
+ */
+struct NsAndUUID {
+    NamespaceString nss;
+    UUID uuid;
+};
+
+/**
+ * Generates an oplog entry with the provided inputs and placeholders for all other required fields.
+ */
+repl::OplogEntry makeOplogEntry(Timestamp ts,
+                                NsAndUUID userColl,
+                                repl::OpTypeEnum opType,
+                                int32_t sizeDelta);
+repl::OplogEntry makeOplogEntry(Timestamp ts, NsAndUUID userColl, repl::OpTypeEnum opType);
+
+/**
+ * Generates a truncateRange command oplog entry for the given collection UUID with the specified
+ * bytesDeleted and docsDeleted values.
+ */
+repl::OplogEntry makeTruncateRangeOplogEntry(Timestamp ts,
+                                             NsAndUUID userColl,
+                                             int64_t bytesDeleted,
+                                             int64_t docsDeleted);
+
+/**
+ * Inserts `oplogEntry` into the oplog collection.
+ */
+void writeToOplog(OperationContext* opCtx, const repl::OplogEntry& oplogEntry);
+
+/**
+ * Inserts an entry into `store` for the provided `uuid`.
+ */
+// TODO(SERVER-122992): Assert return value is false.
+void insertSizeCountEntry(OperationContext* opCtx,
+                          SizeCountStore& store,
+                          UUID uuid,
+                          const SizeCountStore::Entry& entry);
+
+/**
+ * Inserts a timestamp into `store`.
+ */
+// TODO(SERVER-122992): Assert return value is false.
+void insertSizeCountTimestamp(OperationContext* opCtx,
+                              SizeCountTimestampStore& store,
+                              Timestamp timestamp);
+}  // namespace mongo::replicated_fast_count::test_helpers

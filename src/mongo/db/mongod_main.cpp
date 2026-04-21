@@ -193,6 +193,7 @@
 #include "mongo/db/sharding_environment/sharding_feature_flags_gen.h"
 #include "mongo/db/sharding_environment/sharding_initialization_mongod.h"
 #include "mongo/db/sharding_environment/sharding_ready.h"
+#include "mongo/db/startup_check_rseq.h"
 #include "mongo/db/startup_recovery.h"
 #include "mongo/db/startup_warnings_mongod.h"
 #include "mongo/db/stats/system_buckets_metrics.h"
@@ -722,16 +723,6 @@ ExitCode _initAndListen(ServiceContext* serviceContext) {
     // available. As such, post startup actions will be performed elsewhere.
     if (!rss.getPersistenceProvider().shouldDelayDataAccessDuringStartup()) {
         FeatureCompatibilityVersion::afterStartupActions(startupOpCtx.get());
-    }
-
-    // Start up the replicated fast count manager thread on startup only if we are a standalone
-    // node. In replica sets, we start this up as part of step-up. Supported primarily for testing
-    // purposes. We do not want to start this thread when we are running this binary in modal
-    // validate mode.
-    // TODO SERVER-120855: Revisit running the thread in standalone mode.
-    if (isReplicatedFastCountEnabled(startupOpCtx.get()) && isStandalone &&
-        !storageGlobalParams.validate) {
-        setUpReplicatedFastCount(startupOpCtx.get());
     }
 
     if (gFlowControlEnabled.load()) {
@@ -1955,6 +1946,15 @@ void shutdownTask(const ShutdownTaskArgs& shutdownArgs) {
         configServerRoutingInfoCache->shutDownAndJoin();
     }
 
+    {
+        SectionScopedTimer scopedTimer(serviceContext->getFastClockSource(),
+                                       TimedSectionId::shutDownAndJoinReadWriteConcernDefaults,
+                                       &shutdownTimeElapsedBuilder);
+        LOGV2_OPTIONS(
+            11437200, {LogComponent::kDefault}, "Shutting down the ReadWriteConcernDefaults");
+        ReadWriteConcernDefaults::get(serviceContext->getService()).shutDownAndJoin();
+    }
+
     // Finish shutting down the TransportLayers
     if (auto tlm = serviceContext->getTransportLayerManager()) {
         SectionScopedTimer scopedTimer(serviceContext->getFastClockSource(),
@@ -1983,17 +1983,6 @@ void shutdownTask(const ShutdownTaskArgs& shutdownArgs) {
     auto& checker = PeriodicReplicaSetConfigShardMaintenanceModeChecker::get(serviceContext);
     if (checker) {
         checker->stop();
-    }
-
-    // Shutdown the thread managing fast size and count information. This is only called for
-    // standalone nodes because replicated nodes call shutdown() during stepdown instead. We do not
-    // try to shut the thread down when this node is running in modal validate mode, as the thread
-    // is not started in that case.
-    // TODO SERVER-120855: Revisit running the thread in standalone mode.
-    const bool isStandalone =
-        !repl::ReplicationCoordinator::get(serviceContext)->getSettings().isReplSet();
-    if (isReplicatedFastCountEnabled(opCtx) && isStandalone && !storageGlobalParams.validate) {
-        ReplicatedFastCountManager::get(serviceContext).shutdown(opCtx);
     }
 
     // We should always be able to acquire the global lock at shutdown.
@@ -2101,6 +2090,8 @@ int mongod_main(int argc, char* argv[]) {
     waitForDebugger();
 
     setupSignalHandlers();
+
+    validateRseqKernelCompat();
 
     srand(static_cast<unsigned>(curTimeMicros64()));  // NOLINT
 

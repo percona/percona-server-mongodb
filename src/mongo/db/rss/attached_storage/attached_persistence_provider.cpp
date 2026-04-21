@@ -191,8 +191,12 @@ bool AttachedPersistenceProvider::supportsClassicMagicRestore() const {
     return true;
 }
 
-bool AttachedPersistenceProvider::shouldTimestampTableCreations() const {
+bool AttachedPersistenceProvider::usesSchemaEpochs() const {
     return false;
+}
+
+uint64_t AttachedPersistenceProvider::getSchemaEpochForTimestamp(Timestamp) const {
+    return 0;
 }
 
 int AttachedPersistenceProvider::getMinSnapshotHistoryWindowInSeconds() const {

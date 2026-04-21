@@ -32,6 +32,7 @@
 #include "mongo/base/status_with.h"
 #include "mongo/bson/bsonobjbuilder.h"
 #include "mongo/db/pipeline/document_source_geo_near.h"
+#include "mongo/db/pipeline/document_source_internal_join_hint.h"
 #include "mongo/db/pipeline/document_source_lookup.h"
 #include "mongo/db/pipeline/document_source_sort.h"
 #include "mongo/db/pipeline/expression_context_builder.h"
@@ -131,6 +132,12 @@ std::vector<BSONObj> pipelineToBSON(const std::unique_ptr<Pipeline>& pipeline) {
     }
 }
 
+bool isUnwindEligible(const DocumentSourceUnwind& unwind) {
+    // If 'preserveNullAndEmptyArrays' is set to true, this is an outer join, which is currently
+    // ineligible for join-opt. Similarly, we don't support $unwinds that set the array index.
+    return !unwind.preserveNullAndEmptyArrays() && !unwind.indexPath();
+}
+
 bool isLookupEligible(const DocumentSourceLookUp& lookup) {
 
     if (lookup.getExpCtx()->getSubPipelineDepth() != 0) {
@@ -138,7 +145,7 @@ bool isLookupEligible(const DocumentSourceLookUp& lookup) {
         return false;
     }
 
-    if (!lookup.hasUnwindSrc()) {
+    if (!lookup.hasUnwindSrc() || !isUnwindEligible(*lookup.getUnwindSource())) {
         return false;
     }
 
@@ -296,6 +303,12 @@ StatusWith<AggJoinModel> AggJoinModel::constructJoinModel(const Pipeline& pipeli
     auto clonedExpCtx = makeCopyFromExpressionContext(expCtx, nss);
     auto suffix = pipeline.clone(clonedExpCtx);
 
+    boost::intrusive_ptr<DocumentSource> hint;
+    if (dynamic_cast<DocumentSourceInternalJoinHint*>(suffix->peekFront())) {
+        // Remove hint stage from pipeline if present.
+        hint = suffix->popFront();
+    }
+
     ExpressionContext::PlanCacheOptions oldPlanCache = expCtx->getPlanCache();
     expCtx->setPlanCache(ExpressionContext::PlanCacheOptions::kDisablePlanCache);
     auto swCQ = createCanonicalQuery(expCtx, nss, *suffix);
@@ -320,6 +333,11 @@ StatusWith<AggJoinModel> AggJoinModel::constructJoinModel(const Pipeline& pipeli
     }
 
     auto prefix = createEmptyPipeline(suffix->getContext());
+    if (hint) {
+        // Keep hint on the pipeline prefix.
+        prefix->pushBack(std::move(hint));
+    }
+
     std::vector<ResolvedPath> resolvedPaths;
     PathResolver pathResolver{*baseNodeId, resolvedPaths};
 

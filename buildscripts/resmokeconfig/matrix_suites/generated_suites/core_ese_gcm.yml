@@ -23,7 +23,14 @@ executor:
       encryptionKeyFile: src/mongo/db/modules/enterprise/jstests/encryptdb/libs/ekf2
       set_parameters:
         enableTestCommands: 1
+        internalQueryStatsErrorsAreCommandFatal: true
+        internalQueryStatsRateLimit: -1
+        internalQueryStatsWriteCmdSampleRate: 1.0
   hooks:
+    - class: RunQueryStats
+      skip_tags:
+        - inspects_command_opcounters
+        - known_query_shape_computation_problem
     - class: ValidateCollections
       shell_options:
         global_vars:
@@ -34,9 +41,9 @@ executor:
 matrix_suite: true
 selector:
   exclude_files:
+    - jstests/core/txns/**/*.js
     - jstests/core/query/queryable_encryption/**/*.js
     - jstests/core/query/query_settings/**/*.js
-    - jstests/core/txns/**/*.js
   exclude_with_any_tags: []
   roots:
     - jstests/core/**/*.js

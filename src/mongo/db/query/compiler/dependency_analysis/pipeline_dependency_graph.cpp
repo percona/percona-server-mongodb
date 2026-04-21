@@ -175,7 +175,65 @@ using FieldMap = absl::flat_hash_map<StringPool::Id, FieldId>;
 /// When a stage depends on a field definition, it means that the stage references a field that was
 /// most recently modified by that field definition node. Similarly, field definition A can depend
 /// on field definition B if A references B through a rename or in an expression.
-using FieldDependencies = absl::flat_hash_set<FieldId>;
+class FieldDependencies {
+public:
+    static FieldDependencies wholeDocument() {
+        return FieldDependencies(true);
+    }
+
+    /// Empty field dependencies.
+    FieldDependencies() {}
+
+    /// Initialize with known field dependencies.
+    FieldDependencies(std::initializer_list<FieldId> fields) : _fields(fields) {}
+
+    FieldDependencies(const FieldDependencies&) = default;
+    FieldDependencies(FieldDependencies&&) = default;
+
+    FieldDependencies& operator=(const FieldDependencies&) = default;
+    FieldDependencies& operator=(FieldDependencies&&) = default;
+
+    /**
+     * Checks if the entire document is a dependency (including all fields).
+     */
+    bool dependsOnWholeDocument() const {
+        return _dependsOnWholeDocument;
+    }
+
+    auto begin() const {
+        tassert(12194201,
+                "Called begin() when dependsOnWholeDocument() is true",
+                !_dependsOnWholeDocument);
+        return _fields.begin();
+    }
+
+    auto end() const {
+        tassert(12194202,
+                "Called end() when dependsOnWholeDocument() is true",
+                !_dependsOnWholeDocument);
+        return _fields.end();
+    }
+
+    /**
+     * Adds a dependency on the specified field.
+     * Does nothing if the field is already a dependency.
+     */
+    void insert(FieldId field) {
+        if (_dependsOnWholeDocument) {
+            // We depend on all fields in this case, including this one.
+            return;
+        }
+        _fields.insert(field);
+    }
+
+private:
+    /// Private constructor for creating dependency on the whole document.
+    explicit FieldDependencies(bool dependsOnWholeDocument)
+        : _dependsOnWholeDocument(dependsOnWholeDocument) {}
+
+    absl::flat_hash_set<FieldId> _fields;
+    bool _dependsOnWholeDocument{false};
+};
 
 /**
  * Represents a DocumentSource that references or defines fields (or both).
@@ -264,12 +322,18 @@ struct FieldMetadata {
         return *this == FieldMetadata{};
     }
 
-    auto operator<=>(const FieldMetadata&) const = default;
+    bool operator==(const FieldMetadata&) const = default;
 
     /**
      * True if the value of this field can be type array.
      */
-    bool canFieldBeArray{true};
+    bool canFieldBeArray : 1 {true};
+
+    /**
+     * True if the value of this field is known to be the BSON missing value. I.e., the field is
+     * guaranteed to be absent.
+     */
+    bool knownToBeMissing : 1 {false};
 };
 
 // It's fine to change the assert and increase the size of the FieldMetadata, but there should be a
@@ -319,13 +383,19 @@ class DocumentSourceInfo {
 public:
     explicit DocumentSourceInfo(const DocumentSource& documentSource)
         : _documentSource(documentSource),
-          _isSingleDocumentTransformation(documentSource.getId() ==
-                                          DocumentSourceSingleDocumentTransformation::id) {
-        documentSource.getDependencies(&_deps);
+          _isSingleDocumentTransformation(typeid(documentSource) ==
+                                          typeid(DocumentSourceSingleDocumentTransformation)) {
+        if (documentSource.getDependencies(&_deps) == DepsTracker::State::NOT_SUPPORTED) {
+            _deps.needWholeDocument = true;
+        }
     }
 
     void describeTransformation(document_transformation::DocumentOperationVisitor& visitor) const {
         _documentSource.describeTransformation(visitor);
+    }
+
+    bool dependsOnWholeDocument() const {
+        return _deps.needWholeDocument;
     }
 
     const OrderedPathSet& getPathDependencies() const {
@@ -357,6 +427,26 @@ void updateMetadataFromExpression(FieldMetadata& metadata, const Expression& exp
     metadata.canFieldBeArray = canExpressionEvaluateToArray(expr);
 }
 
+void updateMetadataForMissingValue(FieldMetadata& metadata) {
+    metadata.canFieldBeArray = false;
+    metadata.knownToBeMissing = true;
+}
+
+/**
+ * Extracts the remaining suffix from a dotted path string after skipping 'count' path components.
+ */
+StringData skipPathComponents(StringData path, size_t count) {
+    size_t pos = 0;
+    for (size_t i = 0; i < count && pos < path.size(); i++) {
+        auto dot = path.find('.', pos);
+        if (dot == std::string::npos) {
+            return {};
+        }
+        pos = dot + 1;
+    }
+    return path.substr(pos);
+}
+
 /// Result type used when looking up a field.
 enum class FieldMatchType : uint8_t {
     /**
@@ -372,9 +462,9 @@ enum class FieldMatchType : uint8_t {
     kShadowed,
     /**
      * We did not find a matching field node, but we know that it could originate at the scope
-     * whose <missing> field we return.
-     * Example: lookup was for x.y, but the previous stage was a $replaceRoot which affects all
-     * fields. We return the <missing> field for the $replaceRoot scope.
+     * whose <missing> field we return. The <missing> field's metadata indicates whether the field
+     * is truly absent (knownToBeMissing=true, e.g. after inclusion projection) or merely unknown
+     * (knownToBeMissing=false, e.g. after $replaceRoot with an expression).
      */
     kMissing,
     /**
@@ -459,17 +549,30 @@ public:
         switch (type) {
             case FieldMatchType::kExact:
                 return canPrefixContainArrays(prefix) || _fields[fieldId].metadata.canFieldBeArray;
-            case FieldMatchType::kShadowed:
+            case FieldMatchType::kShadowed: {
+                // Check if the shadowing field has an alias to a collection path. If so, resolve
+                // the full path and query the PathArrayness API with it.
+                if (auto* alias = getAlias(fieldId)) {
+                    if (canPrefixContainArrays(prefix) ||
+                        _fields[fieldId].metadata.canFieldBeArray) {
+                        return true;
+                    }
+                    auto suffix = skipPathComponents(path, prefix.size() + 1);
+                    return _canMainCollPathBeArray(buildDottedPath(*alias, suffix));
+                }
                 // TODO(SERVER-119392): If our field is shadowed by another, and we know the value
-                // for that shadowing field, we can determine if the result can be array.
-                // For example, if {$set: {a: 1}}, then a.b cannot be array (it is missing).
+                // for that shadowing field, we can determine if the result can be array. For
+                // example, if {$set: {a: 1}}, then a.b cannot be array (it is missing).
                 return true;
+            }
             case FieldMatchType::kMissing:
-                // If we do not know what this field is, we have to assume it can be an array.
-                return true;
+                // Check the <missing> field's metadata: if it's known to be BSON Missing, the
+                // field is definitely absent and cannot be an array. Otherwise, it's unknown.
+                return !_fields[fieldId].metadata.knownToBeMissing;
             case FieldMatchType::kBaseDocument:
                 return _canMainCollPathBeArray(path);
         }
+
         MONGO_UNREACHABLE_TASSERT(12266805);
     }
 
@@ -500,11 +603,7 @@ private:
     void declareScope(StageId stage, ScopeId exhaustiveScope, ScopeId parentScope) {
         auto scopeId = _scopes.getNextId();
         auto missingField = _fields.append(Field{scopeId});
-        _scopes.append(Scope{
-            stage,
-            exhaustiveScope,
-            missingField,
-        });
+        _scopes.append(Scope{stage, exhaustiveScope, missingField});
         if (parentScope) {
             _scopes[scopeId].fields = _scopes[parentScope].fields;
         }
@@ -520,7 +619,8 @@ private:
     FieldId declareField(ScopeId scope,
                          ParsedPathView path,
                          FieldDependencies dependencies,
-                         FieldMetadata metadata = {}) {
+                         FieldMetadata metadata = {},
+                         ParsedPathView collectionPathPrefix = {}) {
         // Declaring 'a' should create field 'a' and exit.
         if (path.size() == 1) {
             auto field = _fields.append(
@@ -537,18 +637,18 @@ private:
         // Check if we already have 'a' in the current scope that we are building. If we do, we will
         // preserve any fields it may already contain.
         auto [existingBaseField, existingBaseFieldType] = lookupField(scope, basePath);
-        bool canReuseBaseField;
-        switch (existingBaseFieldType) {
-            case FieldMatchType::kExact:
-                canReuseBaseField = _fields[existingBaseField].declaringScope == scope &&
-                    _fields[existingBaseField].embeddedScope;
-                break;
-            case FieldMatchType::kShadowed:
-            case FieldMatchType::kMissing:
-            case FieldMatchType::kBaseDocument:
-                canReuseBaseField = false;
-                break;
-        }
+        bool canReuseBaseField = [&] {
+            switch (existingBaseFieldType) {
+                case FieldMatchType::kExact:
+                    return _fields[existingBaseField].declaringScope == scope &&
+                        _fields[existingBaseField].embeddedScope;
+                case FieldMatchType::kShadowed:
+                case FieldMatchType::kMissing:
+                case FieldMatchType::kBaseDocument:
+                    return false;
+            }
+            MONGO_UNREACHABLE_TASSERT(12227301);
+        }();
 
         // Scope for declaring 'b' field of 'a'.
         FieldId newBaseField;
@@ -573,18 +673,22 @@ private:
                 : ScopeId::none();
             if (parentEmbeddedScope) {
                 // The new field depends on the previous field, since it inherits paths.
-                _fields[newBaseField].dependencies.emplace(existingBaseField);
+                _fields[newBaseField].dependencies.insert(existingBaseField);
             }
             declareScope(_scopes[scope].stage, exhaustiveEmbeddedScope, parentEmbeddedScope);
             _scopes[scope].fields[basePath.front()] = newBaseField;
-            populateBaseFieldMetadata(newBaseField, existingBaseField);
+            populateBaseFieldMetadata(
+                newBaseField, existingBaseField, collectionPathPrefix, basePath.front());
         }
         // Finally, declare the subPath in the embeddedScope we found or created.
+        ParsedPath nestedPrefix(collectionPathPrefix.begin(), collectionPathPrefix.end());
+        nestedPrefix.push_back(basePath.front());
         auto embeddedField = declareField(_fields[newBaseField].embeddedScope,
                                           subPath,
                                           std::move(dependencies),
-                                          std::move(metadata));
-        _fields[newBaseField].dependencies.emplace(embeddedField);
+                                          std::move(metadata),
+                                          nestedPrefix);
+        _fields[newBaseField].dependencies.insert(embeddedField);
         return newBaseField;
     }
 
@@ -655,8 +759,7 @@ private:
         // value that shadows any subpath. That is, the subfield that is being included is either
         // not known or is known to not exist. We currently don't properly distinguish between the
         // two, so we declare the field to avoid incorrect dependency tracking.
-        // TODO(SERVER-122273): Revisit this when we properly distinguish between unknown and
-        // missing fields.
+        // TODO(SERVER-119392): Track whether or not the parent field is known to be a scalar.
         if (shadowedByParent) {
             declareField(scope, path, {parentBaseField});
             return;
@@ -725,8 +828,9 @@ private:
         }
 
         if (scope.exhaustiveScope) {
-            // The exact field is not explicitly known in the graph but we know the scope that
-            // could have modified it.
+            // The field is not explicitly known in the graph but we know the scope that could
+            // have modified it. The <missing> field's metadata indicates whether the field is
+            // truly absent (knownToBeMissing) or merely unknown.
             return FieldMatch::missing(_scopes[scope.exhaustiveScope].missingField);
         }
 
@@ -735,18 +839,30 @@ private:
     }
 
     /**
+     * Returns the collection path alias for the given field, or nullptr if none.
+     */
+    const ParsedPath* getAlias(FieldId fieldId) const {
+        auto it = _aliases.find(fieldId);
+        return it != _aliases.end() ? &it->second : nullptr;
+    }
+
+    /**
      * Populate metadata when a base field is redefined.
      */
-    void populateBaseFieldMetadata(FieldId newBaseField, FieldId existingBaseField) {
+    void populateBaseFieldMetadata(FieldId newBaseField,
+                                   FieldId existingBaseField,
+                                   ParsedPathView collectionPathPrefix,
+                                   StringPool::Id fieldNameId) {
         if (existingBaseField) {
             _fields[newBaseField].metadata.canFieldBeArray =
                 _fields[existingBaseField].metadata.canFieldBeArray;
         } else {
-            // The included base field is a collection field.
-            // TODO(SERVER-121932): Can we use the path prefix rename code to establish the path and
-            // query the Path Arrayness API. Note that path arrayness gives arrayness for entire
-            // path, so if the final field is non-array we could assume no element is as
-            // optimisation, but this could be harder to wire-in.
+            // The included base field is a collection field. Query the PathArrayness API to
+            // determine if the field can be an array, using the full collection path.
+            ParsedPath fullCollectionPath(collectionPathPrefix.begin(), collectionPathPrefix.end());
+            fullCollectionPath.push_back(fieldNameId);
+            _fields[newBaseField].metadata.canFieldBeArray =
+                _canMainCollPathBeArray(buildDottedPath(fullCollectionPath));
         }
     }
 
@@ -760,6 +876,26 @@ private:
             }
         }
         return false;
+    }
+
+    /**
+     * Joins the given parsed path and the given suffix by '.'.
+     */
+    std::string buildDottedPath(const ParsedPath& path, StringData suffix = {}) const {
+        str::stream ss;
+        for (size_t i = 0; i < path.size(); i++) {
+            if (i > 0) {
+                ss << '.';
+            }
+            ss << _strings.get(path[i]);
+        }
+        if (!suffix.empty()) {
+            if (!path.empty()) {
+                ss << '.';
+            }
+            ss << suffix;
+        }
+        return ss;
     }
 
     /**
@@ -801,12 +937,16 @@ private:
 
         document_transformation::describeTransformation(
             OverloadedVisitor{
-                [&](const ReplaceRoot&) {
+                [&](const ReplaceRoot& op) {
                     // All paths might be modified. This scope does not inherit the parent scope
-                    // fields. It also doesn't know all fields - all lookups will fail and we should
-                    // say we have no information about the field (as opposed to saying the field is
-                    // definitely missing like for kAllExcept).
+                    // fields. If 'isEmpty' is true (e.g. inclusion projection), any
+                    // field not explicitly added is truly missing. Otherwise (e.g. $replaceRoot
+                    // with expression), unknown fields may still exist.
                     declareScope(stage, scopeId /*exhaustiveScope*/, ScopeId::none());
+                    if (op.isEmpty()) {
+                        auto& missingField = _fields[_scopes[scopeId].missingField];
+                        updateMetadataForMissingValue(missingField.metadata);
+                    }
                     tassert(
                         11996201, "Did not expect ReplaceRoot in this position", !hasDeclaredScope);
                     hasDeclaredScope = true;
@@ -819,12 +959,21 @@ private:
                 [&](const ModifyPath& p) {
                     maybeDeclareInheritedScope();
                     auto parsedPath = internPath(p.getPath());
+                    FieldDependencies deps{};
                     FieldMetadata metadata{};
-                    if (auto expr = p.getExpression()) {
+                    if (p.isRemoved()) {
+                        updateMetadataForMissingValue(metadata);
+                    } else if (auto expr = p.getExpression()) {
                         updateMetadataFromExpression(metadata, *expr);
-                        // TODO(SERVER-121942): Extract correct field-level dependencies.
+                        deps = processExpressionDependencies(*expr, parentScope);
+                    } else {
+                        // If the modification is not determined by an expression, we cannot get
+                        // more precise dependency information. The stage dependencies will always
+                        // be a superset of any modified path dependencies, so we can use those.
+                        // Example: {$unwind: '$x'}
+                        deps = depsFromStage;
                     }
-                    declareField(scopeId, parsedPath, depsFromStage, std::move(metadata));
+                    declareField(scopeId, parsedPath, std::move(deps), std::move(metadata));
                 },
                 [&](const RenamePath& p) {
                     maybeDeclareInheritedScope();
@@ -834,6 +983,8 @@ private:
                     FieldMetadata metadata;
                     FieldDependencies deps;
                     bool isBaseDocumentField = false;
+                    ParsedPath aliasCollectionPath;
+
                     if (parentScope) {
                         // The found field could be either:
                         // - exact field from parent scope
@@ -847,13 +998,52 @@ private:
                         auto [oldPathField, oldPathFieldType] =
                             lookupField(parentScope, parsedOldPath, &prefix);
 
-                        isBaseDocumentField = oldPathFieldType == FieldMatchType::kBaseDocument;
                         deps.insert(oldPathField);
-                        // If we find the field, we can use its canFieldBeArray.
-                        if (oldPathFieldType == FieldMatchType::kExact &&
-                            !canPrefixContainArrays(prefix)) {
-                            metadata.canFieldBeArray =
-                                _fields[oldPathField].metadata.canFieldBeArray;
+
+                        switch (oldPathFieldType) {
+                            case FieldMatchType::kExact: {
+                                if (canPrefixContainArrays(prefix)) {
+                                    break;
+                                }
+                                metadata.canFieldBeArray =
+                                    _fields[oldPathField].metadata.canFieldBeArray;
+                                // Track transitive alias. If the prefix contains arrays
+                                // we skip this: canFieldBeArray is already true and any
+                                // downstream alias resolution would also yield true.
+                                if (auto* alias = getAlias(oldPathField)) {
+                                    aliasCollectionPath = *alias;
+                                }
+                                break;
+                            }
+                            case FieldMatchType::kMissing: {
+                                // A truly missing field cannot be an array. An unknown field
+                                // might be.
+                                metadata.canFieldBeArray =
+                                    !_fields[oldPathField].metadata.knownToBeMissing;
+                                break;
+                            }
+                            case FieldMatchType::kShadowed: {
+                                // The old path is shadowed: e.g., b.z where b has no
+                                // embedded scope. Check if the shadowing field has an alias
+                                // so we can resolve through it.
+                                if (auto* alias = getAlias(oldPathField)) {
+                                    aliasCollectionPath = *alias;
+                                    size_t consumed = prefix.size() + 1;
+                                    for (size_t i = consumed; i < parsedOldPath.size(); ++i) {
+                                        aliasCollectionPath.push_back(parsedOldPath[i]);
+                                    }
+                                    if (!canPrefixContainArrays(prefix) &&
+                                        !_fields[oldPathField].metadata.canFieldBeArray) {
+                                        metadata.canFieldBeArray = _canMainCollPathBeArray(
+                                            buildDottedPath(aliasCollectionPath));
+                                    }
+                                }
+                                break;
+                            }
+                            case FieldMatchType::kBaseDocument: {
+                                isBaseDocumentField = true;
+                                break;
+                            }
                         }
                     } else {
                         isBaseDocumentField = true;
@@ -864,10 +1054,18 @@ private:
                         // We represent all collection field references as FieldId::none(), without
                         // distinguishing between them.
                         metadata.canFieldBeArray = _canMainCollPathBeArray(p.getOldPath());
+                        aliasCollectionPath.assign(parsedOldPath.begin(), parsedOldPath.end());
                     }
 
                     // Each rename modifies the new field and depends on the previous field.
                     declareField(scopeId, parsedNewPath, std::move(deps), std::move(metadata));
+
+                    // Store alias for the leaf field of the new path.
+                    if (!aliasCollectionPath.empty()) {
+                        auto [leafFieldId, _] = lookupField(scopeId, parsedNewPath);
+                        tassert(12193201, "Missing leafFieldId", leafFieldId);
+                        _aliases[leafFieldId] = std::move(aliasCollectionPath);
+                    }
                 },
             },
             ds);
@@ -888,25 +1086,11 @@ private:
     void processStage(boost::intrusive_ptr<DocumentSource> documentSource,
                       const DocumentSourceInfo& dsInfo) {
         StageId stageId = _stages.getNextId();
-        _dsToStageId.emplace(documentSource.get(), stageId);
+        _dsToStageId[documentSource.get()] = stageId;
 
         auto parentScopeId = _stages.empty() ? ScopeId::none() : _stages.back().scope;
-        FieldDependencies dependencies;
-        if (parentScopeId) {
-            for (auto&& path : dsInfo.getPathDependencies()) {
-                auto parsedPath = internPath(path);
-                // The dependency could be:
-                // - exact field
-                // - shadowing field
-                // - <missing> field
-                // - collection field / FieldId::none()
-                auto fieldId = lookupField(parentScopeId, parsedPath).fieldId;
-                dependencies.insert(fieldId);
-            }
-        } else if (!dsInfo.getPathDependencies().empty()) {
-            // Any dependency in the first stage is always a collection field.
-            dependencies.insert(FieldId::none());
-        }
+        FieldDependencies dependencies = processStageDependencies(dsInfo, parentScopeId);
+
         const auto nextNewScopeId = _scopes.getNextId();
         auto scopeId = processScope(dsInfo, stageId, parentScopeId, dependencies);
 
@@ -918,32 +1102,63 @@ private:
     }
 
     /**
-     * Clears the DocumentSource <-> StageId mapping and rebuilds it, stopping at 'end'. Returns a
-     * StageId of the next stage after 'end'.
+     * Creates dependencies for a stage.
      */
-    StageId clearAndRebuildMapping(const DocumentSourceContainer& container,
-                                   DocumentSourceContainer::const_iterator stageIt) {
-        _dsToStageId.clear();
-        // Rebuild mapping from begin to stageIt.
-        StageId index{0};
-        for (auto it = container.begin(); it != stageIt; it++) {
-            _dsToStageId.emplace(it->get(), index);
-            ++index.value;
-        }
-        return index;
+    FieldDependencies processStageDependencies(const DocumentSourceInfo& dsInfo,
+                                               ScopeId parentScope) {
+        return processPathDependencies(
+            dsInfo.getPathDependencies(), dsInfo.dependsOnWholeDocument(), parentScope);
     }
 
     /**
-     * Find the lowest ID scope and field nodes corresponding to the given stage.
-     * These IDs can be used to determine the valid portion of a graph.
-     * If the range [container.begin(), stageIt) is valid, then so are
-     * [0, minId) for all node types.
+     * Creates dependencies for an expression.
      */
-    std::tuple<ScopeId, FieldId> earliestDescendants(StageId stageId) const {
-        if (stageId.value < 1) {
-            return {ScopeId{0}, FieldId{0}};
+    FieldDependencies processExpressionDependencies(const Expression& expr, ScopeId parentScope) {
+        DepsTracker depsTracker = expression::getDependencies(&expr);
+        return processPathDependencies(
+            depsTracker.fields, depsTracker.needWholeDocument, parentScope);
+    }
+
+    /**
+     * Creates dependencies from a set of paths.
+     */
+    FieldDependencies processPathDependencies(const OrderedPathSet& paths,
+                                              bool dependsOnWholeDocument,
+                                              ScopeId parentScope) {
+        if (dependsOnWholeDocument) {
+            return FieldDependencies::wholeDocument();
+        }
+        if (paths.empty()) {
+            return FieldDependencies{};
+        }
+        if (parentScope) {
+            FieldDependencies dependencies;
+            for (auto&& path : paths) {
+                auto parsedPath = internPath(path);
+                auto fieldId = lookupField(parentScope, parsedPath).fieldId;
+                dependencies.insert(fieldId);
+            }
+            return dependencies;
+        }
+        // Any dependency in the first stage is always a collection field.
+        return FieldDependencies{FieldId::none()};
+    }
+
+    /**
+     * Find the lowest ID stage, scope and field nodes corresponding to the given stage. These IDs
+     * can be used to determine the valid portion of a graph. If the range [container.begin(),
+     * stageIt) is valid, then so are [0, minId) for all node types.
+     */
+    std::tuple<StageId, ScopeId, FieldId> earliestDescendants(
+        const DocumentSourceContainer& container,
+        DocumentSourceContainer::const_iterator stageIt) const {
+        // Compute the StageId of the first stage to invalidate. Stages before stageIt are
+        // unchanged, so their map entries and StageIds remain valid.
+        if (stageIt == container.begin()) {
+            return {StageId{0}, ScopeId{0}, FieldId{0}};
         }
 
+        StageId stageId = {getStageId(std::prev(stageIt)->get()).value + 1};
         ScopeId scopeId = _stages[stageId].nextNewScope;
         FieldId fieldId = scopeId == _scopes.getNextId()
             // No scope to invalidate so no fields to invalidate.
@@ -951,7 +1166,7 @@ private:
             // Invalidate every field declared by or after the scope.
             : _scopes[scopeId].missingField;
 
-        return {scopeId, fieldId};
+        return {stageId, scopeId, fieldId};
     }
 
     /**
@@ -959,11 +1174,13 @@ private:
      */
     void invalidate(const DocumentSourceContainer& container,
                     DocumentSourceContainer::const_iterator stageIt) {
-        // TODO(SERVER-119842): See if we can just leave the dangling entries
-        StageId invalidStage = clearAndRebuildMapping(container, stageIt);
-
         // Invalidate all nodes originating from the given stage.
-        auto [invalidScope, invalidField] = earliestDescendants(invalidStage);
+        auto [invalidStage, invalidScope, invalidField] = earliestDescendants(container, stageIt);
+
+        // Clean up aliases for invalidated fields.
+        absl::erase_if(_aliases,
+                       [invalidField](const auto& entry) { return entry.first >= invalidField; });
+
         _stages.eraseFrom(invalidStage);
         _scopes.eraseFrom(invalidScope);
         _fields.eraseFrom(invalidField);
@@ -1018,8 +1235,15 @@ private:
     // String interning pool. Each entry is a path component.
     StringPool _strings;
 
-    // Mapping between DocumentSource and StageId, recomputed when the graph is recomputed.
+    // Mapping between DocumentSource and StageId. May contain dangling entries for DocumentSources
+    // that have been removed from the pipeline. This is safe because this map is never iterated and
+    // is only ever queried with valid DocumentSource pointers.
     absl::flat_hash_map<const DocumentSource*, StageId> _dsToStageId;
+
+    // Maps a FieldId to the collection path it aliases (as interned StringPool IDs).
+    // Only populated for fields created via RenamePath that reference collection fields
+    // (directly or transitively through other aliases).
+    absl::flat_hash_map<FieldId, ParsedPath> _aliases;
 
     // Callback to query the Path Arrayness API for the main collection.
     const CanPathBeArray _canMainCollPathBeArray;
@@ -1178,6 +1402,9 @@ private:
         if (!field.metadata.isDefault()) {
             serializeMetadata(field.metadata, bob);
         }
+        if (auto* alias = _graph.getAlias(fieldId)) {
+            bob.append("collectionAlias", _graph.buildDottedPath(*alias));
+        }
         serializeDependencies(field.dependencies, bob);
     }
 
@@ -1186,9 +1413,16 @@ private:
         if (!metadata.canFieldBeArray) {
             metaBuilder.append("array", false);
         }
+        if (metadata.knownToBeMissing) {
+            metaBuilder.append("missing", true);
+        }
     }
 
     void serializeDependencies(const FieldDependencies& deps, BSONObjBuilder& bob) {
+        if (deps.dependsOnWholeDocument()) {
+            bob.append("dependencies", "<all>");
+            return;
+        }
         BSONArrayBuilder depsBuilder = bob.subarrayStart("dependencies");
         for (auto depFieldId : sortedFieldDeps(deps)) {
             depsBuilder.append(formatField(depFieldId));
@@ -1241,4 +1475,19 @@ BSONObj DependencyGraph::Impl::toBSON() const {
     Serializer serializer{*this};
     return serializer.serializeToBson();
 }
+
+DependencyGraphContext::DependencyGraphContext(ExpressionContext& expCtx,
+                                               DocumentSourceContainer& container)
+    : _expCtx(expCtx), _container(container) {}
+
+const DependencyGraph& DependencyGraphContext::getGraph(
+    boost::optional<DocumentSourceContainer::const_iterator> maxStageIt) const {
+    CanPathBeArray canPathBeArray = [this](StringData path) -> bool {
+        const auto& pathArrayness = _expCtx.getMainCollPathArrayness();
+        return pathArrayness.canPathBeArray(FieldRef(path), &_expCtx);
+    };
+    _graph.emplace(_container, std::move(canPathBeArray));
+    return *_graph;
+}
+
 }  // namespace mongo::pipeline::dependency_graph

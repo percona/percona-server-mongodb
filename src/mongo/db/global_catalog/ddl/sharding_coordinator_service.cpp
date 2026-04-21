@@ -34,7 +34,6 @@
 #include "mongo/base/error_codes.h"
 #include "mongo/base/status.h"
 #include "mongo/bson/bsonelement.h"
-#include "mongo/bson/bsonmisc.h"
 #include "mongo/client/dbclient_cursor.h"
 #include "mongo/db/cleanup_structured_encryption_data_coordinator.h"
 #include "mongo/db/client.h"
@@ -61,7 +60,6 @@
 #include "mongo/db/pipeline/aggregate_command_gen.h"
 #include "mongo/db/s/forwardable_operation_metadata.h"
 #include "mongo/db/s/resharding/reshard_collection_coordinator.h"
-#include "mongo/db/shard_role/shard_catalog/database_sharding_state.h"
 #include "mongo/db/shard_role/shard_catalog/operation_sharding_state.h"
 #include "mongo/db/sharding_environment/sharding_feature_flags_gen.h"
 #include "mongo/db/topology/add_shard_coordinator.h"
@@ -90,68 +88,90 @@ namespace {
 
 MONGO_FAIL_POINT_DEFINE(pauseShardingCoordinatorServiceOnRecovery);
 
+template <typename T>
+std::shared_ptr<ShardingCoordinator> typedInstance(ShardingCoordinatorService* service,
+                                                   BSONObj initialState) {
+    return std::make_shared<T>(service, std::move(initialState));
+}
+
+std::shared_ptr<ShardingCoordinator> noInstance(ShardingCoordinatorService*, BSONObj) {
+    return nullptr;
+}
+
+constexpr std::pair<CoordinatorTypeEnum,
+                    std::shared_ptr<ShardingCoordinator> (*)(ShardingCoordinatorService*, BSONObj)>
+    kInstanceBuilders[]{
+        {CoordinatorTypeEnum::kMovePrimary, typedInstance<MovePrimaryCoordinator>},
+        {CoordinatorTypeEnum::kDropDatabase, typedInstance<DropDatabaseCoordinator>},
+        {CoordinatorTypeEnum::kDropCollection, typedInstance<DropCollectionCoordinator>},
+        {CoordinatorTypeEnum::kDropIndexes, typedInstance<DropIndexesCoordinator>},
+        {CoordinatorTypeEnum::kRenameCollection, typedInstance<RenameCollectionCoordinator>},
+        {CoordinatorTypeEnum::kCreateCollection, typedInstance<CreateCollectionCoordinator>},
+        {CoordinatorTypeEnum::kRefineCollectionShardKey,
+         typedInstance<RefineCollectionShardKeyCoordinator>},
+        {CoordinatorTypeEnum::kSetAllowMigrations, typedInstance<SetAllowMigrationsCoordinator>},
+        {CoordinatorTypeEnum::kCollMod, typedInstance<CollModCoordinator>},
+        {CoordinatorTypeEnum::kReshardCollection, typedInstance<ReshardCollectionCoordinator>},
+        {CoordinatorTypeEnum::kCompactStructuredEncryptionData,
+         typedInstance<CompactStructuredEncryptionDataCoordinator>},
+        {CoordinatorTypeEnum::kCleanupStructuredEncryptionData,
+         typedInstance<CleanupStructuredEncryptionDataCoordinator>},
+        {CoordinatorTypeEnum::kMigrationBlockingOperation,
+         typedInstance<MigrationBlockingOperationCoordinator>},
+        {CoordinatorTypeEnum::kConvertToCapped, typedInstance<ConvertToCappedCoordinator>},
+        {CoordinatorTypeEnum::kUntrackUnsplittableCollection,
+         typedInstance<UntrackUnsplittableCollectionCoordinator>},
+        {CoordinatorTypeEnum::kCreateDatabase, typedInstance<CreateDatabaseCoordinator>},
+        {CoordinatorTypeEnum::kRemoveShardCommit, typedInstance<RemoveShardCommitCoordinator>},
+        {CoordinatorTypeEnum::kAddShard, typedInstance<AddShardCoordinator>},
+        {CoordinatorTypeEnum::kCloneAuthoritativeMetadata,
+         typedInstance<CloneAuthoritativeMetadataCoordinator>},
+        {CoordinatorTypeEnum::kInitializePlacementHistory,
+         typedInstance<InitializePlacementHistoryCoordinator>},
+        // TODO (SERVER-116499): Remove this once 9.0 becomes last LTS.
+        {CoordinatorTypeEnum::kTimeseriesUpgradeDowngrade,
+         typedInstance<TimeseriesUpgradeDowngradeCoordinator>},
+        {CoordinatorTypeEnum::kTestCoordinator, noInstance},
+    };
+
+static_assert(std::size(kInstanceBuilders) >= idlEnumCount<CoordinatorTypeEnum>,
+              "Missing entries in kInstanceBuilders");
+
+static_assert(std::size(kInstanceBuilders) <= idlEnumCount<CoordinatorTypeEnum>,
+              "Too many entries in kInstanceBuilders");
+
+static_assert(
+    [] {
+        for (auto i = 0u; i < std::size(kInstanceBuilders); i++) {
+            if (static_cast<size_t>(kInstanceBuilders[i].first) != i) {
+                return false;
+            }
+        }
+        return true;
+    }(),
+    "Entries in kInstanceBuilders must be ordered");
+
 std::shared_ptr<ShardingCoordinator> constructShardingCoordinatorInstance(
     ShardingCoordinatorService* service, BSONObj initialState) {
     const auto op = extractShardingCoordinatorMetadata(initialState);
+    const auto operationType = op.getId().getOperationType();
+
     LOGV2(5390510, "Constructing new sharding coordinator", "coordinatorDoc"_attr = op.toBSON());
-    switch (op.getId().getOperationType()) {
-        case CoordinatorTypeEnum::kMovePrimary:
-            return std::make_shared<MovePrimaryCoordinator>(service, std::move(initialState));
-        case CoordinatorTypeEnum::kDropDatabase:
-            return std::make_shared<DropDatabaseCoordinator>(service, std::move(initialState));
-        case CoordinatorTypeEnum::kDropCollection:
-            return std::make_shared<DropCollectionCoordinator>(service, std::move(initialState));
-        case CoordinatorTypeEnum::kDropIndexes:
-            return std::make_shared<DropIndexesCoordinator>(service, std::move(initialState));
-        case CoordinatorTypeEnum::kRenameCollection:
-            return std::make_shared<RenameCollectionCoordinator>(service, std::move(initialState));
-        case CoordinatorTypeEnum::kCreateCollection:
-            return std::make_shared<CreateCollectionCoordinator>(service, std::move(initialState));
-        case CoordinatorTypeEnum::kRefineCollectionShardKey:
-            return std::make_shared<RefineCollectionShardKeyCoordinator>(service,
-                                                                         std::move(initialState));
-        case CoordinatorTypeEnum::kSetAllowMigrations:
-            return std::make_shared<SetAllowMigrationsCoordinator>(service,
-                                                                   std::move(initialState));
-        case CoordinatorTypeEnum::kCollMod:
-            return std::make_shared<CollModCoordinator>(service, std::move(initialState));
-        case CoordinatorTypeEnum::kReshardCollection:
-            return std::make_shared<ReshardCollectionCoordinator>(service, std::move(initialState));
-        case CoordinatorTypeEnum::kCompactStructuredEncryptionData:
-            return std::make_shared<CompactStructuredEncryptionDataCoordinator>(
-                service, std::move(initialState));
-        case CoordinatorTypeEnum::kCleanupStructuredEncryptionData:
-            return std::make_shared<CleanupStructuredEncryptionDataCoordinator>(
-                service, std::move(initialState));
-        case CoordinatorTypeEnum::kMigrationBlockingOperation:
-            return std::make_shared<MigrationBlockingOperationCoordinator>(service,
-                                                                           std::move(initialState));
-        case CoordinatorTypeEnum::kConvertToCapped:
-            return std::make_shared<ConvertToCappedCoordinator>(service, std::move(initialState));
-        case CoordinatorTypeEnum::kUntrackUnsplittableCollection:
-            return std::make_shared<UntrackUnsplittableCollectionCoordinator>(
-                service, std::move(initialState));
-        case CoordinatorTypeEnum::kCreateDatabase:
-            return std::make_shared<CreateDatabaseCoordinator>(service, std::move(initialState));
-        case CoordinatorTypeEnum::kRemoveShardCommit:
-            return std::make_shared<RemoveShardCommitCoordinator>(service, std::move(initialState));
-        case CoordinatorTypeEnum::kAddShard:
-            return std::make_shared<AddShardCoordinator>(service, std::move(initialState));
-        case CoordinatorTypeEnum::kCloneAuthoritativeMetadata:
-            return std::make_shared<CloneAuthoritativeMetadataCoordinator>(service,
-                                                                           std::move(initialState));
-        case CoordinatorTypeEnum::kInitializePlacementHistory:
-            return std::make_shared<InitializePlacementHistoryCoordinator>(service,
-                                                                           std::move(initialState));
-        // TODO (SERVER-116499): Remove this once 9.0 becomes last LTS.
-        case CoordinatorTypeEnum::kTimeseriesUpgradeDowngrade:
-            return std::make_shared<TimeseriesUpgradeDowngradeCoordinator>(service,
-                                                                           std::move(initialState));
-        default:
-            uasserted(ErrorCodes::BadValue,
-                      str::stream() << "Encountered unknown Sharding Coordinator type: "
-                                    << idl::serialize(op.getId().getOperationType()));
-    }
+
+    auto instance = [&]() -> std::shared_ptr<ShardingCoordinator> {
+        const auto index = static_cast<size_t>(operationType);
+        if (index >= std::size(kInstanceBuilders)) {
+            return nullptr;
+        }
+        return kInstanceBuilders[index].second(service, std::move(initialState));
+    }();
+
+    uassert(ErrorCodes::BadValue,
+            str::stream() << "Encountered unknown Sharding Coordinator type: "
+                          << idl::serialize(operationType),
+            instance);
+
+    return instance;
 }
 
 
@@ -394,23 +414,6 @@ ShardingCoordinatorService::getOrCreateInstance(OperationContext* opCtx,
     // Wait for all coordinators to be recovered before to allow the creation of new ones.
     waitForRecovery(opCtx);
 
-    auto coorMetadata = extractShardingCoordinatorMetadata(coorDoc);
-    const auto& nss = coorMetadata.getId().getNss();
-
-    if (!nss.isConfigDB() && !nss.isAdminDB() &&
-        coorMetadata.getId().getOperationType() != CoordinatorTypeEnum::kCreateDatabase) {
-        // Check that the operation context has a database version for this namespace
-        const auto clientDbVersion = OperationShardingState::get(opCtx).getDbVersion(nss.dbName());
-        uassert(ErrorCodes::IllegalOperation,
-                "Request sent without attaching database version",
-                clientDbVersion);
-        {
-            const auto scopedDss = DatabaseShardingState::acquire(opCtx, nss.dbName());
-            scopedDss->assertIsPrimaryShardForDb(opCtx);
-        }
-        coorMetadata.setDatabaseVersion(clientDbVersion);
-    }
-
     const auto fcv = serverGlobalParams.featureCompatibility.acquireFCVSnapshot();
     ForwardableOperationMetadata forwardableOpMetadata(opCtx);
     // We currently only propagate the Operation FCV for DDL operations.
@@ -421,6 +424,9 @@ ShardingCoordinatorService::getOrCreateInstance(OperationContext* opCtx,
                                                                fcv)) {
         forwardableOpMetadata.setVersionContext(VersionContext{fcv});
     }
+    auto coorMetadata = extractShardingCoordinatorMetadata(coorDoc);
+    coorMetadata.setDatabaseVersion(
+        OperationShardingState::get(opCtx).getDbVersion(coorMetadata.getId().getNss().dbName()));
     coorMetadata.setForwardableOpMetadata(forwardableOpMetadata);
     const auto patchedCoorDoc = coorDoc.addFields(coorMetadata.toBSON());
 

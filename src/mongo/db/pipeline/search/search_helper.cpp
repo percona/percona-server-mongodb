@@ -36,6 +36,7 @@
 #include "mongo/db/pipeline/document_source.h"
 #include "mongo/db/pipeline/document_source_replace_root.h"
 #include "mongo/db/pipeline/expression_context_builder.h"
+#include "mongo/db/pipeline/lite_parsed_document_source.h"
 #include "mongo/db/pipeline/pipeline_factory.h"
 #include "mongo/db/pipeline/search/document_source_internal_search_id_lookup.h"
 #include "mongo/db/pipeline/search/document_source_internal_search_mongot_remote.h"
@@ -48,6 +49,7 @@
 #include "mongo/db/pipeline/variables.h"
 #include "mongo/db/query/search/mongot_cursor.h"
 #include "mongo/db/query/search/search_task_executors.h"
+#include "mongo/db/shard_role/shard_catalog/operation_sharding_state.h"
 #include "mongo/db/views/resolved_view.h"
 #include "mongo/s/query/exec/document_source_merge_cursors.h"
 #include "mongo/util/assert_util.h"
@@ -312,13 +314,22 @@ bool isExtensionVectorSearchStage(std::string stageName) {
         stageName == DocumentSourceVectorSearch::kStageName;
 }
 
-bool isExtensionVectorSearchPipeline(const Pipeline* pipeline) {
+// TODO SERVER-116021 Remove this function when the extension can do this through bindViewInfo().
+bool isExtensionSearchStage(std::string stageName) {
+    return stageName == kExtensionSearchStageName ||
+        stageName == DocumentSourceSearch::kStageName ||
+        stageName == kExtensionSearchMetaStageName ||
+        stageName == DocumentSourceSearchMeta::kStageName;
+}
+
+bool isExtensionMongotPipeline(const Pipeline* pipeline) {
     if (!pipeline || pipeline->empty()) {
         return false;
     }
     const auto& stages = pipeline->getSources();
     return std::any_of(stages.begin(), stages.end(), [](const auto& stage) {
-        return isExtensionVectorSearchStage(stage->getSourceName());
+        return isExtensionVectorSearchStage(stage->getSourceName()) ||
+            isExtensionSearchStage(stage->getSourceName());
     });
 }
 
@@ -333,7 +344,7 @@ void throwIfrKickbackIfNecessary(bool kickbackCondition,
 }
 
 bool shouldPreValidateMetaDependencies(const Pipeline* pipeline) {
-    return isExtensionVectorSearchPipeline(pipeline) || isMongotPipeline(pipeline);
+    return isExtensionMongotPipeline(pipeline) || isMongotPipeline(pipeline);
 }
 
 void assertSearchMetaAccessValid(const DocumentSourceContainer& pipeline,
@@ -769,6 +780,12 @@ std::unique_ptr<SearchNode> getSearchNode(NamespaceString nss, DocumentSource* s
     } else {
         tasserted(7855801, str::stream() << "Unknown stage type" << stage->getSourceName());
     }
+}
+
+bool isExtensionFlagEnabledByRouter(const LiteParserOptions& options,
+                                    IncrementalRolloutFeatureFlag& flag) {
+    return options.opCtx && OperationShardingState::isShardingAware(options.opCtx) &&
+        options.ifrContext && options.ifrContext->getSavedFlagValue(flag);
 }
 
 }  // namespace search_helpers

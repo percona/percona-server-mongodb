@@ -34,17 +34,18 @@
 #include "mongo/db/repl/apply_ops.h"
 #include "mongo/db/repl/apply_ops_command_info.h"
 #include "mongo/db/repl/oplog_entry.h"
-#include "mongo/db/repl/oplog_entry_test_helpers.h"
 #include "mongo/db/repl/oplog_interface_local.h"
 #include "mongo/db/replicated_fast_count/replicated_fast_count_delta_utils.h"
 #include "mongo/db/replicated_fast_count/replicated_fast_count_enabled.h"
 #include "mongo/db/replicated_fast_count/replicated_fast_count_init.h"
 #include "mongo/db/replicated_fast_count/replicated_fast_count_manager.h"
 #include "mongo/db/replicated_fast_count/replicated_fast_count_test_helpers.h"
-#include "mongo/db/replicated_fast_count/replicated_fast_count_uncommitted_changes.h"
 #include "mongo/db/shard_role/shard_catalog/catalog_raii.h"
 #include "mongo/db/shard_role/shard_catalog/catalog_test_fixture.h"
 #include "mongo/db/shard_role/shard_catalog/create_collection.h"
+#include "mongo/db/shard_role/transaction_resources.h"
+#include "mongo/db/storage/recovery_unit.h"
+#include "mongo/db/storage/write_unit_of_work.h"
 #include "mongo/unittest/death_test.h"
 #include "mongo/unittest/unittest.h"
 
@@ -70,7 +71,7 @@ protected:
         _fastCountManager = &ReplicatedFastCountManager::get(_opCtx->getServiceContext());
         // Allow for control over when we write to our internal collection for testing. We only
         // write to the internal collection when we explicitly call
-        // ReplicatedFastCountManager::flushSync().
+        // ReplicatedFastCountManager::flushSync_ForTest().
         _fastCountManager->disablePeriodicWrites_ForTest();
 
         setUpReplicatedFastCount(_opCtx);
@@ -113,6 +114,9 @@ protected:
     BSONObj sampleDocForInsert = BSON("_id" << 0 << "x" << 0);
     BSONObj sampleDocForUpdate = BSON("_id" << 0 << "x" << 0 << "y" << 0);
 };
+
+const NamespaceString replicatedFastCountStoreNss =
+    NamespaceString::makeGlobalConfigCollection(NamespaceString::kReplicatedFastCountStore);
 
 const std::function<BSONObj(int)> docGeneratorForInsert = [](int i) {
     return BSON("_id" << i << "x" << i);
@@ -224,13 +228,13 @@ TEST_F(ReplicatedFastCountTest, DirtyMetadataWrittenToInternalCollection) {
 
     // Verify that the committed changes have not been written to the internal fast count collection
     // yet.
-    replicated_fast_count_test_helpers::checkFastCountMetadataInFastCountStoreCollection(
+    replicated_fast_count_test_helpers::checkFastCountMetadataInInternalCollection(
         _opCtx,
         _uuid1,
         /*expectPersisted=*/false,
         /*expectedCount=*/0,
         /*expectedSize=*/0);
-    replicated_fast_count_test_helpers::checkFastCountMetadataInFastCountStoreCollection(
+    replicated_fast_count_test_helpers::checkFastCountMetadataInInternalCollection(
         _opCtx,
         _uuid2,
         /*expectPersisted=*/false,
@@ -240,13 +244,13 @@ TEST_F(ReplicatedFastCountTest, DirtyMetadataWrittenToInternalCollection) {
     // Manually trigger an iteration to write dirty metadata to the internal collection.
     _fastCountManager->flushSync(_opCtx);
 
-    replicated_fast_count_test_helpers::checkFastCountMetadataInFastCountStoreCollection(
+    replicated_fast_count_test_helpers::checkFastCountMetadataInInternalCollection(
         _opCtx,
         _uuid1,
         /*expectPersisted=*/true,
         numDocsColl1,
         numDocsColl1 * sampleDocForInsert.objsize());
-    replicated_fast_count_test_helpers::checkFastCountMetadataInFastCountStoreCollection(
+    replicated_fast_count_test_helpers::checkFastCountMetadataInInternalCollection(
         _opCtx,
         _uuid2,
         /*expectPersisted=*/true,
@@ -280,14 +284,15 @@ TEST_F(ReplicatedFastCountTest, DirtyMetadataWrittenAsSingleApplyOpsEntry) {
 
     _fastCountManager->flushSync(_opCtx);
 
-    auto applyOpsEntries = replicated_fast_count_test_helpers::getApplyOpsForNss(
-        _opCtx, replicated_fast_count_test_helpers::replicatedFastCountStoreNss);
+    auto applyOpsEntries =
+        replicated_fast_count_test_helpers::getApplyOpsForNss(_opCtx, replicatedFastCountStoreNss);
 
     EXPECT_EQ(applyOpsEntries.size(), 1u);
     auto& applyOpsEntry = applyOpsEntries.front();
 
     replicated_fast_count_test_helpers::assertFastCountApplyOpsMatches(
         applyOpsEntry,
+        replicatedFastCountStoreNss,
         {
             {_uuid1,
              replicated_fast_count_test_helpers::FastCountOpType::kInsert,
@@ -365,7 +370,7 @@ TEST_F(ReplicatedFastCountTest, UpdatesWrittenToApplyOpsCorrectly) {
     _fastCountManager->flushSync(_opCtx);
 
     auto applyOpsEntry = replicated_fast_count_test_helpers::getLatestApplyOpsForNss(
-        _opCtx, replicated_fast_count_test_helpers::replicatedFastCountStoreNss);
+        _opCtx, replicatedFastCountStoreNss);
 
     const int64_t sizeDelta = sampleDocForUpdate.objsize() - sampleDocForInsert.objsize();
     const int64_t newExpectedSizeColl1 =
@@ -375,6 +380,7 @@ TEST_F(ReplicatedFastCountTest, UpdatesWrittenToApplyOpsCorrectly) {
 
     replicated_fast_count_test_helpers::assertFastCountApplyOpsMatches(
         applyOpsEntry,
+        replicatedFastCountStoreNss,
         {
             {_uuid1,
              replicated_fast_count_test_helpers::FastCountOpType::kUpdate,
@@ -432,7 +438,7 @@ TEST_F(ReplicatedFastCountTest, MixedUpdatesAndInsertInApplyOps) {
     _fastCountManager->flushSync(_opCtx);
 
     auto applyOpsEntry = replicated_fast_count_test_helpers::getLatestApplyOpsForNss(
-        _opCtx, replicated_fast_count_test_helpers::replicatedFastCountStoreNss);
+        _opCtx, replicatedFastCountStoreNss);
 
     const int64_t sizeDelta = sampleDocForUpdate.objsize() - sampleDocForInsert.objsize();
     const int64_t newExpectedSizeColl1 =
@@ -440,6 +446,7 @@ TEST_F(ReplicatedFastCountTest, MixedUpdatesAndInsertInApplyOps) {
 
     replicated_fast_count_test_helpers::assertFastCountApplyOpsMatches(
         applyOpsEntry,
+        replicatedFastCountStoreNss,
         {
             {_uuid1,
              replicated_fast_count_test_helpers::FastCountOpType::kUpdate,
@@ -509,9 +516,9 @@ TEST_F(ReplicatedFastCountTest, InitializePopulatesMetadataFromExistingInternalC
         wuow.commit();
     }
 
-    replicated_fast_count_test_helpers::checkFastCountMetadataInFastCountStoreCollection(
+    replicated_fast_count_test_helpers::checkFastCountMetadataInInternalCollection(
         _opCtx, uuid1, /*expectPersisted=*/true, expectedCount1, expectedSize1);
-    replicated_fast_count_test_helpers::checkFastCountMetadataInFastCountStoreCollection(
+    replicated_fast_count_test_helpers::checkFastCountMetadataInInternalCollection(
         _opCtx, uuid2, /*expectPersisted=*/true, expectedCount2, expectedSize2);
 
     replicated_fast_count_test_helpers::checkCommittedFastCountChanges(
@@ -592,7 +599,7 @@ TEST_F(ReplicatedFastCountTest, DirtyWriteNotLostIfWrittenAfterMetadataSnapshot)
     _fastCountManager->flushSync(_opCtx);
 
     // Verify that all of our writes were persisted to disk.
-    replicated_fast_count_test_helpers::checkFastCountMetadataInFastCountStoreCollection(
+    replicated_fast_count_test_helpers::checkFastCountMetadataInInternalCollection(
         _opCtx,
         _uuid1,
         /*expectPersisted=*/true,
@@ -624,60 +631,6 @@ BSONObj makeApplyOpsUpdateOp(const NamespaceString& nss,
 BSONObj makeApplyOpsDeleteOp(const NamespaceString& nss, const UUID& uuid, int id) {
     return BSON("op" << "d"
                      << "ns" << nss.ns_forTest() << "ui" << uuid << "o" << BSON("_id" << id));
-}
-
-TEST_F(ReplicatedFastCountTest, CheckApplyOpsStructureAcceptsValidApplyOps) {
-    auto uuid = UUID::gen();
-    NamespaceString innerNss = NamespaceString::createNamespaceString_forTest("test", "coll");
-    auto insertOp = repl::MutableOplogEntry::makeInsertOperation(
-        innerNss, uuid, docGeneratorForInsert(0), BSON("_id" << 0));
-    OperationSessionInfo sessionInfo;
-    repl::OpTime opTime(Timestamp(1, 1), 1);
-    auto applyOpsEntry = repl::makeApplyOpsOplogEntry(opTime,
-                                                      {insertOp},
-                                                      sessionInfo,
-                                                      /*wallClockTime=*/Date_t::now(),
-                                                      /*stmtIds=*/{},
-                                                      /*prevOpTime=*/repl::OpTime());
-    EXPECT_TRUE(replicated_fast_count_test_helpers::isApplyOpsEntryStructureValid(applyOpsEntry));
-}
-
-TEST_F(ReplicatedFastCountTest, CheckApplyOpsStructureRejectsNonCommandApplyOpsEntry) {
-    auto uuid = UUID::gen();
-    NamespaceString innerNss = NamespaceString::createNamespaceString_forTest("test", "coll");
-    auto insertOp = repl::MutableOplogEntry::makeInsertOperation(
-        innerNss, uuid, docGeneratorForInsert(0), BSON("_id" << 0));
-
-    OperationSessionInfo sessionInfo;
-    repl::OpTime opTime(Timestamp(1, 1), 1);
-
-    auto validApplyOpsEntry = repl::makeApplyOpsOplogEntry(opTime,
-                                                           {insertOp},
-                                                           sessionInfo,
-                                                           /*wallClockTime=*/Date_t::now(),
-                                                           /*stmtIds=*/{},
-                                                           /*prevOpTime=*/repl::OpTime());
-
-    BSONObj validApplyOpsBSON = validApplyOpsEntry.getEntry().toBSON();
-    BSONObjBuilder bob;
-
-    // Mutate the applyOps entry to make the top-level entry something other than "c".
-    for (auto&& elem : validApplyOpsBSON) {
-        if (elem.fieldNameStringData() == repl::OplogEntry::kOpTypeFieldName) {
-            bob.append(repl::OplogEntry::kOpTypeFieldName, "i");
-        } else {
-            bob.append(elem);
-        }
-    }
-
-    auto invalidApplyOpsBSON = bob.obj();
-
-    auto swBad = repl::OplogEntry::parse(invalidApplyOpsBSON);
-    ASSERT_OK(swBad.getStatus());
-    auto badApplyOpsEntry = swBad.getValue();
-
-    EXPECT_FALSE(
-        replicated_fast_count_test_helpers::isApplyOpsEntryStructureValid(badApplyOpsEntry));
 }
 
 TEST_F(ReplicatedFastCountTest, ApplyOpsInsertsAreCorrectlyAccountedFor) {
@@ -976,79 +929,6 @@ TEST_F(ReplicatedFastCountTest, ReplicatedFastCountTracksNonLocalInternalCollect
     }
 }
 
-TEST_F(ReplicatedFastCountTest, FlushWritesToTimestampCollection) {
-    RAIIServerParameterControllerForTest featureFlag("featureFlagReplicatedFastCount", true);
-
-    const int numDocsColl = 5;
-
-    replicated_fast_count_test_helpers::insertDocs(_opCtx,
-                                                   _fastCountManager,
-                                                   _nss1,
-                                                   numDocsColl,
-                                                   /*startingCount=*/0,
-                                                   /*startingSize=*/0,
-                                                   docGeneratorForInsert,
-                                                   sampleDocForInsert);
-
-    // There should be no records in the timestamps collection before we flush.
-    replicated_fast_count_test_helpers::checkFastCountMetadataInTimestampsCollection(
-        _opCtx, /*stripe=*/0, /*expectPersisted=*/false, Timestamp());
-
-    Timestamp firstAllDurableTs =
-        _opCtx->getServiceContext()->getStorageEngine()->getAllDurableTimestamp();
-
-    _fastCountManager->flushSync(_opCtx);
-
-    replicated_fast_count_test_helpers::checkFastCountMetadataInTimestampsCollection(
-        _opCtx, /*stripe=*/0, /*expectPersisted=*/true, firstAllDurableTs);
-
-    // Insert more docs and flush again, and check that the stored timestamp advances.
-    replicated_fast_count_test_helpers::insertDocs(_opCtx,
-                                                   _fastCountManager,
-                                                   _nss1,
-                                                   numDocsColl,
-                                                   /*startingCount=*/numDocsColl,
-                                                   /*startingSize=*/numDocsColl *
-                                                       sampleDocForInsert.objsize(),
-                                                   docGeneratorForInsert,
-                                                   sampleDocForInsert);
-
-    Timestamp secondAllDurableTs =
-        _opCtx->getServiceContext()->getStorageEngine()->getAllDurableTimestamp();
-
-    _fastCountManager->flushSync(_opCtx);
-
-    replicated_fast_count_test_helpers::checkFastCountMetadataInTimestampsCollection(
-        _opCtx, /*stripe=*/0, /*expectPersisted=*/true, secondAllDurableTs);
-}
-
-TEST_F(ReplicatedFastCountTest, WritesToTimestampCollectionReflectedInApplyOps) {
-    RAIIServerParameterControllerForTest featureFlag("featureFlagReplicatedFastCount", true);
-
-    const int numDocsColl = 5;
-
-    replicated_fast_count_test_helpers::insertDocs(_opCtx,
-                                                   _fastCountManager,
-                                                   _nss1,
-                                                   numDocsColl,
-                                                   /*startingCount=*/0,
-                                                   /*startingSize=*/0,
-                                                   docGeneratorForInsert,
-                                                   sampleDocForInsert);
-    const Timestamp allDurableTs =
-        _opCtx->getServiceContext()->getStorageEngine()->getAllDurableTimestamp();
-
-    _fastCountManager->flushSync(_opCtx);
-
-    replicated_fast_count_test_helpers::ExpectedFastCountTimestampsOp expectedOp{0, allDurableTs};
-
-    auto applyOpsEntry = replicated_fast_count_test_helpers::getLatestApplyOpsForNss(
-        _opCtx, replicated_fast_count_test_helpers::replicatedFastCountStoreTimestampsNss);
-
-    replicated_fast_count_test_helpers::assertFastCountTimestampsApplyOpsMatches(applyOpsEntry,
-                                                                                 expectedOp);
-};
-
 /**
  * Tests that operations with replicated size and count are logged with 'sizeMetadata' (information
  * stored in the top-level 'm' field) in their oplog entries.
@@ -1302,7 +1182,6 @@ TEST_F(ReplicatedFastCountDeltaUtilsTest, ExtractSizeCountDeltaOnUnsupportedOpTy
 
     // Size metadata is only supported for 'insert', 'delete', and 'update' operations. All other
     // operations are incompatible with a top-level 'm' field.
-    // TODO SERVER-121175: Include truncates in accepted opTypes comment.
     ASSERT_THROWS_CODE(
         replicated_fast_count::extractSizeCountDeltaForOp(oplogEntry), DBException, 12115900);
 }
@@ -1315,9 +1194,8 @@ TEST_F(ReplicatedFastCountDeltaUtilsTest, ExtractSizeCountDeltaOnNonEligibleNss)
     const auto oplogEntry =
         makeOplogEntryWithSizeMeta(localNss, repl::OpTypeEnum::kNoop, 400 /* sizeDelta */);
 
-    // Local namespaces are not eligible for replicated size count.
-    ASSERT_THROWS_CODE(
-        replicated_fast_count::extractSizeCountDeltaForOp(oplogEntry), DBException, 12115900);
+    // Even though the oplog entry carries size metadata, ineligible namespaces should be skipped.
+    ASSERT_FALSE(replicated_fast_count::extractSizeCountDeltaForOp(oplogEntry).has_value());
 }
 
 TEST_F(ReplicatedFastCountDeltaUtilsTest,
@@ -1680,72 +1558,58 @@ TEST_F(ReplicatedFastCountDeltaUtilsTest, ExtractSizeCountDeltaForNestedApplyOps
     ASSERT_EQ(deltas.at(_uuid2), expectedDeltasNss2);
 }
 
-class AggregateSizeCountFromOplogTest : public CatalogTestFixture {
-protected:
-    struct NsAndUUID {
-        NamespaceString nss;
-        UUID uuid;
-    };
+using ReplicatedFastCountDeathTest = ReplicatedFastCountTest;
 
-    repl::OplogEntry mockOplogEntry(const Timestamp ts,
-                                    NsAndUUID userColl,
-                                    repl::OpTypeEnum opType,
-                                    int32_t sizeDelta) {
-        return repl::DurableOplogEntry{repl::DurableOplogEntryParams{
-            .opTime = repl::OpTime(ts, 1),
-            .opType = opType,
-            .nss = userColl.nss,
-            .uuid = userColl.uuid,
-            .oField = BSONObj(),
-            .sizeMetadata = makeOperationSizeMetadata(sizeDelta),
-            .wallClockTime = Date_t::now(),
-        }};
-    }
-    repl::OplogEntry mockOplogEntry(const Timestamp ts,
-                                    NsAndUUID userColl,
-                                    repl::OpTypeEnum opType) {
-        return repl::DurableOplogEntry{repl::DurableOplogEntryParams{
-            .opTime = repl::OpTime(ts, 1),
-            .opType = opType,
-            .nss = userColl.nss,
-            .uuid = userColl.uuid,
-            .oField = BSONObj(),
-            .wallClockTime = Date_t::now(),
-        }};
-    }
+// TODO SERVER-120203: Re-enable this test.
+//  DEATH_TEST_REGEX_F(ReplicatedFastCountDeathTest,
+//                     CannotHaveNegativeCommittedSizeOrCount,
+//                     R"(Invariant failure.*Expected fast count size and count to be
+//                     non-negative)") {
+//      boost::container::flat_map<UUID, CollectionSizeCount> changes;
+//      changes[UUID::gen()] = CollectionSizeCount{-10, -1};
 
-    /**
-     * Test methods should default to testing aggregate size count with this method, as it checks
-     * both methods of aggregation (acquiring a map of deltas across uuids and aggregating deltas
-     * for a single uuid) yield equivalent results for the 'uuid'.
-     */
-    void assertExpectedAggregateDelta(const CollectionSizeCount& expectedAggDelta,
-                                      const UUID& uuid,
-                                      const Timestamp& seekAfterTS,
-                                      SeekableRecordCursor& oplogCursor) {
-        // Deltas across UUIDs.
-        const auto deltas =
-            replicated_fast_count::aggregateSizeCountDeltasInOplog(oplogCursor, seekAfterTS);
-        ASSERT_TRUE(deltas.contains(uuid));
-        EXPECT_EQ(deltas.at(uuid), expectedAggDelta);
+//     _fastCountManager->commit(changes, boost::none);
+// }
 
-        // Also correct when filtered explicitly by 'uuid'
-        const auto filteredDeltas =
-            replicated_fast_count::aggregateSizeCountDeltasInOplog(oplogCursor, seekAfterTS, uuid);
-        ASSERT_TRUE(filteredDeltas.contains(uuid));
-        ASSERT_EQ(expectedAggDelta, filteredDeltas.at(uuid));
-    }
+}  // namespace
 
-    /**
-     * Bundles information about a user "collection" needed for CRUD oplog entries.
-     */
-    NsAndUUID _collA = {
-        .nss = NamespaceString::createNamespaceString_forTest("agg_size_count_from_oplog", "collA"),
-        .uuid = UUID::gen()};
-    NsAndUUID _collB = {
-        .nss = NamespaceString::createNamespaceString_forTest("agg_size_count_from_oplog", "collB"),
-        .uuid = UUID::gen()};
+namespace replicated_fast_count {
+namespace {
+
+/**
+ * The expected aggregate size and count for a particular user collection yielded from scanning the
+ * oplog.
+ */
+struct AggregateDeltaExpectation {
+    CollectionSizeCount delta;
+
+    // The timestamp of the final oplog entry scanned when aggregating size counts for a particular
+    // user collection. The final oplog entry does not need to be an oplog entry for the user
+    // collection.
+    Timestamp lastTimestamp;
 };
+
+/**
+ * Test methods should default to testing aggregate size count with this method, as it checks
+ * both methods of aggregation (acquiring a map of deltas across uuids and aggregating deltas
+ * for a single uuid) yield equivalent results for the 'uuid'.
+ */
+void assertExpectedAggregateDelta(const AggregateDeltaExpectation& expected,
+                                  const UUID& uuid,
+                                  const Timestamp& seekAfterTS,
+                                  SeekableRecordCursor& oplogCursor) {
+    // Deltas across UUIDs.
+    const auto deltas = aggregateSizeCountDeltasInOplog(oplogCursor, seekAfterTS);
+    ASSERT_TRUE(deltas.deltas.contains(uuid));
+    EXPECT_EQ(deltas.deltas.at(uuid), expected.delta);
+    EXPECT_EQ(deltas.lastTimestamp, expected.lastTimestamp);
+
+    // Also correct when filtered explicitly by 'uuid'
+    const auto filteredDeltas = aggregateSizeCountDeltasInOplog(oplogCursor, seekAfterTS, uuid);
+    ASSERT_TRUE(filteredDeltas.deltas.contains(uuid));
+    ASSERT_EQ(expected.delta, filteredDeltas.deltas.at(uuid));
+    EXPECT_EQ(filteredDeltas.lastTimestamp, expected.lastTimestamp);
+}
 
 /**
  * Allows explicit control over the contents of the "oplog" used to aggregate size and count. This
@@ -1822,37 +1686,55 @@ private:
     std::list<std::pair<RecordId, BSONObj>>::const_iterator _it;
 };
 
+class AggregateSizeCountFromOplogTest : public CatalogTestFixture {
+protected:
+    /**
+     * Bundles information about a user "collection" needed for CRUD oplog entries.
+     */
+    test_helpers::NsAndUUID collA = {
+        .nss = NamespaceString::createNamespaceString_forTest("agg_size_count_from_oplog", "collA"),
+        .uuid = UUID::gen()};
+    test_helpers::NsAndUUID collB = {
+        .nss = NamespaceString::createNamespaceString_forTest("agg_size_count_from_oplog", "collB"),
+        .uuid = UUID::gen()};
+};
+
 TEST_F(AggregateSizeCountFromOplogTest, AggregateSingleColl) {
     const Timestamp ts1{1, 2};
     const Timestamp ts2{2, 2};
     const Timestamp ts3{3, 2};
 
     std::list<repl::OplogEntry> entries{
-        mockOplogEntry(ts1, _collA, repl::OpTypeEnum::kInsert, 10 /*sizeDelta=*/),
-        mockOplogEntry(ts2, _collA, repl::OpTypeEnum::kUpdate, 100 /*sizeDelta=*/),
-        mockOplogEntry(ts2, _collA, repl::OpTypeEnum::kDelete, -110 /*sizeDelta=*/),
+        test_helpers::makeOplogEntry(ts1, collA, repl::OpTypeEnum::kInsert, 10 /*sizeDelta=*/),
+        test_helpers::makeOplogEntry(ts2, collA, repl::OpTypeEnum::kUpdate, 100 /*sizeDelta=*/),
+        test_helpers::makeOplogEntry(ts3, collA, repl::OpTypeEnum::kDelete, -110 /*sizeDelta=*/),
     };
     OplogCursorMock oplogCursor(std::move(entries));
-    const auto& uuidA = _collA.uuid;
+    const auto& uuidA = collA.uuid;
 
     // (1) Aggregate size count deltas after Timestamp::min().
     // Since there were oplog entries with replicated size count, an entry exists, but its
     // aggregates should sum to 0 as the only document inserted was eventually deleted.
     assertExpectedAggregateDelta(
-        CollectionSizeCount{.size = 0, .count = 0}, uuidA, Timestamp::min(), oplogCursor);
+        {.delta = CollectionSizeCount{.size = 0, .count = 0}, .lastTimestamp = ts3},
+        uuidA,
+        Timestamp::min(),
+        oplogCursor);
 
     // (2) Aggregate size count deltas after ts1 accounts for update and delete.
     assertExpectedAggregateDelta(
-        CollectionSizeCount{.size = -10, .count = -1}, uuidA, ts1, oplogCursor);
+        {.delta = CollectionSizeCount{.size = -10, .count = -1}, .lastTimestamp = ts3},
+        uuidA,
+        ts1,
+        oplogCursor);
 
     // (3) Timestamp at or past the last entry yields no deltas.
     // Check the result without a uuid filter.
-    const auto deltasMap = replicated_fast_count::aggregateSizeCountDeltasInOplog(oplogCursor, ts3);
-    EXPECT_EQ(deltasMap.size(), 0u);
+    const auto oplogScanResult = aggregateSizeCountDeltasInOplog(oplogCursor, ts3);
+    EXPECT_EQ(oplogScanResult.deltas.size(), 0u);
 
     // Check the result with a uuid filter.
-    EXPECT_FALSE(replicated_fast_count::aggregateSizeCountDeltasInOplog(oplogCursor, ts3, uuidA)
-                     .contains(uuidA));
+    EXPECT_FALSE(aggregateSizeCountDeltasInOplog(oplogCursor, ts3, uuidA).deltas.contains(uuidA));
 }
 
 TEST_F(AggregateSizeCountFromOplogTest, AggregateMultipleCollections) {
@@ -1863,79 +1745,222 @@ TEST_F(AggregateSizeCountFromOplogTest, AggregateMultipleCollections) {
     const Timestamp ts4{1, 4};
     const Timestamp ts5{1, 5};
 
-    // Size deltas for respective ops on _collA and _collB.
+    // Size deltas for respective ops on collA and collB.
     const int32_t insertA1 = 50;
     const int32_t insertA2 = 60;
     const int32_t insertB1 = 70;
     const int32_t delA1 = -50;
     const int32_t delB1 = -70;
 
-    // Two inserts for _coll1, one insert for _collB, then one delete each.
+    // Two inserts for _coll1, one insert for collB, then one delete each.
     std::list<repl::OplogEntry> entries{
-        mockOplogEntry(ts1, _collA, repl::OpTypeEnum::kInsert, insertA1),
-        mockOplogEntry(ts2, _collA, repl::OpTypeEnum::kInsert, insertA2),
-        mockOplogEntry(ts3, _collB, repl::OpTypeEnum::kInsert, insertB1),
-        mockOplogEntry(ts4, _collA, repl::OpTypeEnum::kDelete, delA1),
-        mockOplogEntry(ts5, _collB, repl::OpTypeEnum::kDelete, delB1),
+        test_helpers::makeOplogEntry(ts1, collA, repl::OpTypeEnum::kInsert, insertA1),
+        test_helpers::makeOplogEntry(ts2, collA, repl::OpTypeEnum::kInsert, insertA2),
+        test_helpers::makeOplogEntry(ts3, collB, repl::OpTypeEnum::kInsert, insertB1),
+        test_helpers::makeOplogEntry(ts4, collA, repl::OpTypeEnum::kDelete, delA1),
+        test_helpers::makeOplogEntry(ts5, collB, repl::OpTypeEnum::kDelete, delB1),
     };
     OplogCursorMock oplogCursor(std::move(entries));
 
     // Aggregating from Timestamp::min() aggregates all entries.
     {
         // 2 collections tracked.
-        EXPECT_EQ(
-            replicated_fast_count::aggregateSizeCountDeltasInOplog(oplogCursor, Timestamp::min())
-                .size(),
-            2u);
+        EXPECT_EQ(aggregateSizeCountDeltasInOplog(oplogCursor, Timestamp::min()).deltas.size(), 2u);
         assertExpectedAggregateDelta(
-            CollectionSizeCount{.size = (insertA1 + insertA2 + delA1), .count = 1},
-            _collA.uuid,
+            {.delta = CollectionSizeCount{.size = (insertA1 + insertA2 + delA1), .count = 1},
+             .lastTimestamp = ts5},
+            collA.uuid,
             Timestamp::min(),
             oplogCursor);
         // Deltas sum to 0.
-        assertExpectedAggregateDelta(
-            CollectionSizeCount{}, _collB.uuid, Timestamp::min(), oplogCursor);
+        assertExpectedAggregateDelta({.delta = CollectionSizeCount{}, .lastTimestamp = ts5},
+                                     collB.uuid,
+                                     Timestamp::min(),
+                                     oplogCursor);
     }
 
     // Aggregating after ts3 (the last insert) only sees the two deletes.
     {
-        EXPECT_EQ(replicated_fast_count::aggregateSizeCountDeltasInOplog(oplogCursor, ts3).size(),
-                  2u);
+        EXPECT_EQ(aggregateSizeCountDeltasInOplog(oplogCursor, ts3).deltas.size(), 2u);
         assertExpectedAggregateDelta(
-            CollectionSizeCount{.size = delA1, .count = -1}, _collA.uuid, ts3, oplogCursor);
+            {.delta = CollectionSizeCount{.size = delA1, .count = -1}, .lastTimestamp = ts5},
+            collA.uuid,
+            ts3,
+            oplogCursor);
         assertExpectedAggregateDelta(
-            CollectionSizeCount{.size = delB1, .count = -1}, _collB.uuid, ts3, oplogCursor);
+            {.delta = CollectionSizeCount{.size = delB1, .count = -1}, .lastTimestamp = ts5},
+            collB.uuid,
+            ts3,
+            oplogCursor);
     }
 
     // Aggregating with ts5 doesn't yield deltas because the aggregation excludes the timestamp
     // provided.
     {
-        const auto deltas =
-            replicated_fast_count::aggregateSizeCountDeltasInOplog(oplogCursor, ts5);
-        EXPECT_EQ(deltas.size(), 0u);
+        const auto oplogScanResult = aggregateSizeCountDeltasInOplog(oplogCursor, ts5);
+        EXPECT_EQ(oplogScanResult.deltas.size(), 0u);
     }
 
     {
         // Timestamp::max() is too large a value to extract a RecordId from the oplog from.
-        ASSERT_THROWS_CODE(
-            replicated_fast_count::aggregateSizeCountDeltasInOplog(oplogCursor, Timestamp::max()),
-            DBException,
-            ErrorCodes::BadValue);
+        ASSERT_THROWS_CODE(aggregateSizeCountDeltasInOplog(oplogCursor, Timestamp::max()),
+                           DBException,
+                           ErrorCodes::BadValue);
     }
 }
 
-using ReplicatedFastCountDeathTest = ReplicatedFastCountTest;
+// Verifies that the forward oplog cursor respects the oplog visibility timestamp: entries committed
+// beyond the visibility point are excluded from the size count aggregation.
+TEST_F(AggregateSizeCountFromOplogTest, ForwardCursorRespectsOplogVisibilityTimestamp) {
+    auto opCtx = operationContext();
+    const Timestamp ts1{1, 1};
+    const Timestamp ts2{1, 2};
 
-// TODO SERVER-120203: Re-enable this test.
-//  DEATH_TEST_REGEX_F(ReplicatedFastCountDeathTest,
-//                     CannotHaveNegativeCommittedSizeOrCount,
-//                     R"(Invariant failure.*Expected fast count size and count to be
-//                     non-negative)") {
-//      boost::container::flat_map<UUID, CollectionSizeCount> changes;
-//      changes[UUID::gen()] = CollectionSizeCount{-10, -1};
+    // Insert two committed, durable oplog entries for collA.
+    test_helpers::writeToOplog(
+        opCtx,
+        test_helpers::makeOplogEntry(ts1, collA, repl::OpTypeEnum::kInsert, 10 /*sizeDelta=*/));
+    test_helpers::writeToOplog(
+        opCtx,
+        test_helpers::makeOplogEntry(ts2, collA, repl::OpTypeEnum::kInsert, 20 /*sizeDelta=*/));
 
-//     _fastCountManager->commit(changes, boost::none);
-// }
+    // Cap visibility to ts1. ScopedOplogVisibleTimestamp opens the WT transaction and overrides
+    // _oplogVisibleTs before the cursor is created, so initVisibility() captures ts1.
+    ScopedOplogVisibleTimestamp scopedVisibility(shard_role_details::getRecoveryUnit(opCtx),
+                                                 static_cast<int64_t>(ts1.asULL()));
+    AutoGetOplogFastPath oplogRead(opCtx, OplogAccessMode::kRead);
+    const auto& oplogColl = oplogRead.getCollection();
+    auto cursor =
+        oplogColl->getRecordStore()->getCursor(opCtx, *shard_role_details::getRecoveryUnit(opCtx));
+
+    const auto result = aggregateSizeCountDeltasInOplog(*cursor, Timestamp::min());
+
+    // Only the ts1 entry was visible; ts2 must not appear in the deltas.
+    ASSERT_EQ(result.deltas.size(), 1u);
+    ASSERT_TRUE(result.deltas.count(collA.uuid));
+    EXPECT_EQ(result.deltas.at(collA.uuid).size, 10);
+    EXPECT_EQ(result.deltas.at(collA.uuid).count, 1);
+    ASSERT_TRUE(result.lastTimestamp.has_value());
+    EXPECT_EQ(result.lastTimestamp.value(), ts1);
+}
+
+TEST_F(AggregateSizeCountFromOplogTest, AggregateTruncateRangeInsideApplyOps) {
+    const Timestamp ts1{1, 1};
+    const int64_t bytesDeleted = 120;
+    const int64_t docsDeleted = 3;
+
+    // Build an applyOps entry with a truncateRange inner op. The 'o' field is taken from the
+    // truncateRange entry produced by the test helper.
+    const auto truncateEntry =
+        test_helpers::makeTruncateRangeOplogEntry(ts1, collA, bytesDeleted, docsDeleted);
+    const NamespaceString adminCmdNss =
+        NamespaceString::createNamespaceString_forTest("admin", "$cmd");
+    BSONObj truncateInnerOp = BSON("op" << "c"
+                                        << "ns" << collA.nss.getCommandNS().ns_forTest() << "ui"
+                                        << collA.uuid << "o" << truncateEntry.getObject());
+
+    std::list<repl::OplogEntry> entries{
+        repl::OplogEntry{repl::DurableOplogEntry{repl::DurableOplogEntryParams{
+            .opTime = repl::OpTime(ts1, 1),
+            .opType = repl::OpTypeEnum::kCommand,
+            .nss = adminCmdNss,
+            .oField = BSON("applyOps" << BSON_ARRAY(truncateInnerOp)),
+            .wallClockTime = Date_t::now(),
+        }}},
+    };
+    OplogCursorMock oplogCursor(std::move(entries));
+
+    assertExpectedAggregateDelta(
+        {.delta = CollectionSizeCount{.size = -bytesDeleted, .count = -docsDeleted},
+         .lastTimestamp = ts1},
+        collA.uuid,
+        Timestamp::min(),
+        oplogCursor);
+}
+
+TEST_F(AggregateSizeCountFromOplogTest, AggregateTruncateRangeInsideNestedApplyOps) {
+    const Timestamp ts1{1, 1};
+    const int64_t bytesDeleted = 80;
+    const int64_t docsDeleted = 2;
+
+    const auto truncateEntry =
+        test_helpers::makeTruncateRangeOplogEntry(ts1, collA, bytesDeleted, docsDeleted);
+    const NamespaceString adminCmdNss =
+        NamespaceString::createNamespaceString_forTest("admin", "$cmd");
+    BSONObj truncateInnerOp = BSON("op" << "c"
+                                        << "ns" << collA.nss.getCommandNS().ns_forTest() << "ui"
+                                        << collA.uuid << "o" << truncateEntry.getObject());
+
+    // Wrap the truncateRange in an inner applyOps, then in an outer applyOps.
+    BSONObj innerApplyOpsOp = BSON("op" << "c" << "ns" << adminCmdNss.ns_forTest() << "o"
+                                        << BSON("applyOps" << BSON_ARRAY(truncateInnerOp)));
+
+    std::list<repl::OplogEntry> entries{
+        repl::OplogEntry{repl::DurableOplogEntry{repl::DurableOplogEntryParams{
+            .opTime = repl::OpTime(ts1, 1),
+            .opType = repl::OpTypeEnum::kCommand,
+            .nss = adminCmdNss,
+            .oField = BSON("applyOps" << BSON_ARRAY(innerApplyOpsOp)),
+            .wallClockTime = Date_t::now(),
+        }}},
+    };
+    OplogCursorMock oplogCursor(std::move(entries));
+
+    assertExpectedAggregateDelta(
+        {.delta = CollectionSizeCount{.size = -bytesDeleted, .count = -docsDeleted},
+         .lastTimestamp = ts1},
+        collA.uuid,
+        Timestamp::min(),
+        oplogCursor);
+}
+
+TEST_F(AggregateSizeCountFromOplogTest, AggregateSingleTruncateRange) {
+    const Timestamp ts1{1, 1};
+    const int64_t bytesDeleted = 150;
+    const int64_t docsDeleted = 3;
+
+    std::list<repl::OplogEntry> entries{
+        test_helpers::makeTruncateRangeOplogEntry(ts1, collA, bytesDeleted, docsDeleted),
+    };
+    OplogCursorMock oplogCursor(std::move(entries));
+
+    assertExpectedAggregateDelta(
+        {.delta = CollectionSizeCount{.size = -bytesDeleted, .count = -docsDeleted},
+         .lastTimestamp = ts1},
+        collA.uuid,
+        Timestamp::min(),
+        oplogCursor);
+}
+
+TEST_F(AggregateSizeCountFromOplogTest, AggregateTruncateRangeMixedWithCRUD) {
+    const Timestamp ts1{1, 1};
+    const Timestamp ts2{1, 2};
+    const Timestamp ts3{1, 3};
+    const Timestamp ts4{1, 4};
+    const Timestamp ts5{1, 5};
+    const Timestamp ts6{1, 6};
+
+    // 3 inserts (+270 bytes, +3 docs), 1 update (-10 bytes, 0 docs), 1 delete (-90 bytes, -1 doc),
+    // 1 truncateRange (-80 bytes, -1 doc).
+    std::list<repl::OplogEntry> entries{
+        test_helpers::makeOplogEntry(ts1, collA, repl::OpTypeEnum::kInsert, /*sizeDelta=*/100),
+        test_helpers::makeOplogEntry(ts2, collA, repl::OpTypeEnum::kInsert, /*sizeDelta=*/90),
+        test_helpers::makeOplogEntry(ts3, collA, repl::OpTypeEnum::kInsert, /*sizeDelta=*/80),
+        test_helpers::makeOplogEntry(ts4, collA, repl::OpTypeEnum::kUpdate, /*sizeDelta=*/-10),
+        test_helpers::makeOplogEntry(ts5, collA, repl::OpTypeEnum::kDelete, /*sizeDelta=*/-90),
+        test_helpers::makeTruncateRangeOplogEntry(
+            ts6, collA, /*bytesDeleted=*/80, /*docsDeleted=*/1),
+    };
+    OplogCursorMock oplogCursor(std::move(entries));
+
+    // Net: size = 100+90+80-10-90-80 = 90, count = 1+1+1+0-1-1 = 1.
+    assertExpectedAggregateDelta(
+        {.delta = CollectionSizeCount{.size = 90, .count = 1}, .lastTimestamp = ts6},
+        collA.uuid,
+        Timestamp::min(),
+        oplogCursor);
+}
 
 }  // namespace
+}  // namespace replicated_fast_count
 }  // namespace mongo

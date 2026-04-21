@@ -463,25 +463,6 @@ const testCases = [
         },
     },
     {
-        name: "recordIdsReplicated",
-        // TODO (SERVER-68173): Enable featureFlagRecordIdsReplicated.
-        shouldSkip: (conn) => !FeatureFlagUtil.isEnabled(conn, "RecordIdsReplicated"),
-        createCollection: (conn, dbName, collName) => {
-            assert.commandWorked(conn.getDB(dbName).runCommand({create: collName}));
-            return dbName + "." + collName;
-        },
-        insertDocuments: (conn, dbName, collName) => {
-            insertDocuments(conn, dbName, collName);
-        },
-        validateCollection: (conn, dbName, collName, shardKey) => {
-            validateCollection(conn, dbName, collName, shardKey, {
-                expectedCollOpts: {
-                    "recordIdsReplicated": true,
-                },
-            });
-        },
-    },
-    {
         name: "expireAfterSeconds",
         createCollection: (conn, dbName, collName) => {
             assert.commandWorked(

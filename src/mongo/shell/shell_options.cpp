@@ -365,8 +365,6 @@ Status storeMongoShellOptions(const moe::Environment& params,
         HttpClient::enableLocalhostException();
     }
 
-    saslGlobalParams.authenticationMechanisms = auth::kAllMechanisms;
-
     return Status::OK();
 }
 

@@ -1648,6 +1648,7 @@ tasks:
         "incompatible_mac",
         "sharding",
         "jscore",
+        "has_bazel_target",
       ]
     commands:
       - func: "generate resmoke tasks"
@@ -1909,6 +1910,7 @@ tasks:
         "sharding",
         "jscore",
         "common",
+        "has_bazel_target",
       ]
     commands:
       - func: "generate resmoke tasks"
@@ -1971,6 +1973,7 @@ tasks:
         "common",
         "requires_replicated_fast_count_recovery",
         "requires_large_host_aubsan",
+        "has_bazel_target",
       ]
     commands:
       - func: "generate resmoke tasks"
@@ -2142,12 +2145,7 @@ tasks:
 
   - <<: *gen_task_template
     name: change_streams_pre_images_replica_sets_kill_secondary_jscore_passthrough_gen
-    tags: [
-        "assigned_to_jira_team_server_catalog_and_routing",
-        "default",
-        # TODO SERVER-122625: remove tag
-        "requires_replicated_fast_count_recovery",
-      ]
+    tags: ["assigned_to_jira_team_server_catalog_and_routing", "default"]
     commands:
       - func: "generate resmoke tasks"
 
@@ -2172,6 +2170,7 @@ tasks:
         "read_concern_maj",
         "large",
         "sharded",
+        "has_bazel_target",
       ]
     commands:
       - func: "generate resmoke tasks"
@@ -2358,6 +2357,7 @@ tasks:
         "sharding",
         "jscore",
         "common",
+        "has_bazel_target",
       ]
     commands:
       - func: "generate resmoke tasks"
@@ -2429,6 +2429,7 @@ tasks:
         "read_write_concern",
         "large",
         "write",
+        "has_bazel_target",
       ]
     commands:
       - func: "generate resmoke tasks"
@@ -2443,6 +2444,7 @@ tasks:
         "release_critical",
         "incompatible_mac",
         "read_write_concern",
+        "has_bazel_target",
       ]
     commands:
       - func: "generate resmoke tasks"
@@ -2533,11 +2535,6 @@ tasks:
       ["assigned_to_jira_team_server_catalog_and_routing", "default", "jscore"]
     commands:
       - func: "generate resmoke tasks"
-        vars:
-          # Requires legacy timeseries (system.buckets) even in all feature flags variants
-          resmoke_args: >-
-            --disableFeatureFlags=featureFlagCreateViewlessTimeseriesCollections
-            --disableFeatureFlags=featureFlagBlockDirectSystemBucketsAccess
 
   - <<: *gen_task_template
     name: sharding_jscore_passthrough_with_dynamic_execution_control_gen
@@ -2745,13 +2742,6 @@ tasks:
       - func: "generate resmoke tasks"
         vars:
           use_large_distro: "true"
-          # TODO SERVER-112130 remove timeout override
-          exec_timeout_secs: 4800 # 80min
-          timeout_secs: 4800 # 80min
-          # Requires legacy timeseries (system.buckets) even in all feature flags variants
-          resmoke_args: >-
-            --disableFeatureFlags=featureFlagCreateViewlessTimeseriesCollections
-            --disableFeatureFlags=featureFlagBlockDirectSystemBucketsAccess
 
   # TODO(SERVER-108818): Remove this temporary suite.
   - <<: *gen_task_template
@@ -3326,21 +3316,22 @@ tasks:
           use_large_distro: "true"
           resmoke_jobs_max: 10
 
-  - <<: *gen_task_template
-    name: disagg_sharded_colls_jscore_passthrough_secondary_reads_with_balancer_gen
-    tags:
-      [
-        "assigned_to_jira_team_server_catalog_and_routing",
-        "default",
-        "large",
-        "requires_extra_system_deps",
-      ]
-    commands:
-      - func: "generate resmoke tasks"
-        vars:
-          suite: disagg_sharded_colls_jscore_passthrough_secondary_reads_with_balancer
-          use_large_distro: "true"
-          resmoke_jobs_max: 2
+  # TODO (SERVER-123074): Re-enable balancer related disagg suites
+  #  - <<: *gen_task_template
+  #    name: disagg_sharded_colls_jscore_passthrough_secondary_reads_with_balancer_gen
+  #    tags:
+  #      [
+  #        "assigned_to_jira_team_server_catalog_and_routing",
+  #        "default",
+  #        "large",
+  #        "requires_extra_system_deps",
+  #      ]
+  #    commands:
+  #      - func: "generate resmoke tasks"
+  #        vars:
+  #          suite: disagg_sharded_colls_jscore_passthrough_secondary_reads_with_balancer
+  #          use_large_distro: "true"
+  #          resmoke_jobs_max: 2
 
   - <<: *gen_task_template
     name: disagg_concurrency_sharded_replication_gen
@@ -3365,28 +3356,29 @@ tasks:
           suite: disagg_concurrency_sharded_replication
           use_large_distro: "true"
 
-  - <<: *gen_task_template
-    name: disagg_concurrency_sharded_replication_with_balancer_gen
-    tags:
-      [
-        "assigned_to_jira_team_server_catalog_and_routing",
-        "default",
-        "incompatible_mac",
-        "incompatible_ppc",
-        "incompatible_s390x",
-        "incompatible_debug_mode",
-        "concurrency",
-        "common",
-        "read_concern_maj",
-        "large",
-        "sharded",
-        "requires_extra_system_deps",
-      ]
-    commands:
-      - func: "generate resmoke tasks"
-        vars:
-          suite: disagg_concurrency_sharded_replication_with_balancer
-          use_large_distro: "true"
+  # TODO (SERVER-123074): Re-enable balancer related disagg suites
+  #  - <<: *gen_task_template
+  #    name: disagg_concurrency_sharded_replication_with_balancer_gen
+  #    tags:
+  #      [
+  #        "assigned_to_jira_team_server_catalog_and_routing",
+  #        "default",
+  #        "incompatible_mac",
+  #        "incompatible_ppc",
+  #        "incompatible_s390x",
+  #        "incompatible_debug_mode",
+  #        "concurrency",
+  #        "common",
+  #        "read_concern_maj",
+  #        "large",
+  #        "sharded",
+  #        "requires_extra_system_deps",
+  #      ]
+  #    commands:
+  #      - func: "generate resmoke tasks"
+  #        vars:
+  #          suite: disagg_concurrency_sharded_replication_with_balancer
+  #          use_large_distro: "true"
 
   - <<: *gen_task_template
     name: disagg_concurrency_sharded_causal_consistency_gen
@@ -3411,28 +3403,29 @@ tasks:
           suite: disagg_concurrency_sharded_causal_consistency
           use_large_distro: "true"
 
-  - <<: *gen_task_template
-    name: disagg_concurrency_sharded_causal_consistency_with_balancer_gen
-    tags:
-      [
-        "assigned_to_jira_team_server_catalog_and_routing",
-        "default",
-        "incompatible_mac",
-        "incompatible_ppc",
-        "incompatible_s390x",
-        "incompatible_debug_mode",
-        "concurrency",
-        "common",
-        "read_concern_maj",
-        "large",
-        "sharded",
-        "requires_extra_system_deps",
-      ]
-    commands:
-      - func: "generate resmoke tasks"
-        vars:
-          suite: disagg_concurrency_sharded_causal_consistency_with_balancer
-          use_large_distro: "true"
+  # TODO (SERVER-123074): Re-enable balancer related disagg suites
+  #  - <<: *gen_task_template
+  #    name: disagg_concurrency_sharded_causal_consistency_with_balancer_gen
+  #    tags:
+  #      [
+  #        "assigned_to_jira_team_server_catalog_and_routing",
+  #        "default",
+  #        "incompatible_mac",
+  #        "incompatible_ppc",
+  #        "incompatible_s390x",
+  #        "incompatible_debug_mode",
+  #        "concurrency",
+  #        "common",
+  #        "read_concern_maj",
+  #        "large",
+  #        "sharded",
+  #        "requires_extra_system_deps",
+  #      ]
+  #    commands:
+  #      - func: "generate resmoke tasks"
+  #        vars:
+  #          suite: disagg_concurrency_sharded_causal_consistency_with_balancer
+  #          use_large_distro: "true"
 
   - <<: *gen_task_template
     name: disagg_sharded_multi_stmt_txn_jscore_passthrough_gen

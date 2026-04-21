@@ -52,13 +52,13 @@ public:
 
     ~SpillWiredTigerKVEngine() override;
 
-    std::unique_ptr<RecordStore> getTemporaryRecordStore(RecoveryUnit& ru,
+    std::unique_ptr<RecordStore> getInternalRecordStore(RecoveryUnit& ru,
+                                                        StringData ident,
+                                                        KeyFormat keyFormat) override;
+
+    std::unique_ptr<RecordStore> makeInternalRecordStore(RecoveryUnit& ru,
                                                          StringData ident,
                                                          KeyFormat keyFormat) override;
-
-    std::unique_ptr<RecordStore> makeTemporaryRecordStore(RecoveryUnit& ru,
-                                                          StringData ident,
-                                                          KeyFormat keyFormat) override;
 
     int64_t storageSize(RecoveryUnit& ru);
 
@@ -76,7 +76,7 @@ public:
                      StringData ident,
                      bool identHasSizeInfo,
                      const StorageEngine::DropIdentCallback& onDrop = nullptr,
-                     boost::optional<Timestamp> timestamp = boost::none) override;
+                     boost::optional<uint64_t> schemaEpoch = boost::none) override;
 
     std::unique_ptr<RecordStore> getRecordStore(OperationContext* opCtx,
                                                 const NamespaceString& nss,
@@ -199,11 +199,16 @@ public:
         MONGO_UNREACHABLE;
     }
 
+    boost::optional<std::string> getStorageTierFromStorageOptions(
+        const BSONObj& storageEngineOptions) const override {
+        MONGO_UNREACHABLE;
+    }
+
     void dump() const override {
         MONGO_UNREACHABLE;
     }
 
-    bool shouldTimestampTableCreations() const override {
+    bool usesSchemaEpochs() const override {
         return false;
     }
 
@@ -219,9 +224,7 @@ public:
         MONGO_UNREACHABLE;
     }
 
-    void publishIdent(WiredTigerRecoveryUnit& ru,
-                      StringData ident,
-                      Timestamp publishTimestamp) override {
+    void publishIdent(WiredTigerRecoveryUnit& ru, StringData ident, uint64_t schemaEpoch) override {
         MONGO_UNREACHABLE;
     }
 

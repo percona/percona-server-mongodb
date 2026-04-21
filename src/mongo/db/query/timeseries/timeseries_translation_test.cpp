@@ -43,6 +43,7 @@
 #include "mongo/db/shard_role/shard_role.h"
 #include "mongo/db/timeseries/timeseries_gen.h"
 #include "mongo/db/timeseries/timeseries_test_fixture.h"
+#include "mongo/db/timeseries/timeseries_test_util.h"
 #include "mongo/idl/server_parameter_test_controller.h"
 #include "mongo/unittest/unittest.h"
 
@@ -193,10 +194,8 @@ TEST_F(TimeseriesRewritesTest, DontInsertUnpackStageWhenStagesDontExpectUserDocu
         BSON("$collStats" << BSON("latencyStats" << BSON("histograms" << true))),
         fromjson(
             R"({$_internalApplyOplogUpdate: {oplogUpdate: {"$v": NumberInt(2), diff: {u: {b: 3}}}}})"),
-        BSON("$_internalChangeStreamAddPreImage" << BSON("fullDocumentBeforeChange" << "required")),
-        BSON("$_internalUnpackBucket" << BSON("exclude" << BSONArray() << "timeField"
-                                                        << "time"
-                                                        << "bucketMaxSpanSeconds" << 3600))};
+        BSON("$_internalChangeStreamAddPreImage"
+             << BSON("fullDocumentBeforeChange" << "required"))};
 
     for (const auto& initialSource : testCases) {
         const auto matchStage = BSON("$match" << BSON("b" << 2));
@@ -213,6 +212,36 @@ TEST_F(TimeseriesRewritesTest, DontInsertUnpackStageWhenStagesDontExpectUserDocu
         ASSERT_BSONOBJ_EQ(translatedSerialized[0], initialSource);
         ASSERT_BSONOBJ_EQ(translatedSerialized[1], matchStage);
     }
+}
+
+TEST_F(TimeseriesRewritesTest, ExistingUnpackStageIsAugmentedWithCollectionMetadata) {
+    // When the pipeline already has an $_internalUnpackBucket stage, we should not add another
+    // one. However, populateUnpackBucketStagesFromCollection augments existing unpack stages
+    // with collection-derived metadata (e.g. assumeNoMixedSchemaData).
+    const auto initialSource =
+        BSON("$_internalUnpackBucket" << BSON("exclude" << BSONArray() << "timeField"
+                                                        << "time"
+                                                        << "bucketMaxSpanSeconds" << 3600));
+    const auto matchStage = BSON("$match" << BSON("b" << 2));
+    const auto originalSources = std::vector{initialSource, matchStage};
+    auto pipeline =
+        pipeline_factory::makePipeline(originalSources, expCtx, pipeline_factory::kOptionsMinimal);
+
+    translateStagesHelper(*pipeline);
+    ASSERT(pipeline->isTranslated());
+    const auto translatedSources = pipeline->getSources();
+    ASSERT_EQ(translatedSources.size(), originalSources.size());
+
+    const auto translatedSerialized = pipeline->serializeToBson();
+    const auto expectedUnpackStage =
+        BSON("$_internalUnpackBucket"
+             << BSON("exclude" << BSONArray() << "timeField"
+                               << "time"
+                               << "bucketMaxSpanSeconds" << 3600
+                               << DocumentSourceInternalUnpackBucket::kAssumeNoMixedSchemaData
+                               << true));
+    ASSERT_BSONOBJ_EQ(translatedSerialized[0], expectedUnpackStage);
+    ASSERT_BSONOBJ_EQ(translatedSerialized[1], matchStage);
 }
 
 TEST_F(TimeseriesRewritesTest, TranslateIndexHint) {
@@ -401,7 +430,7 @@ public:
                      << "loc_2dsphere"
                      << "2dsphereIndexVersion" << 3);
         ASSERT_OK(storageInterface()->createIndexesOnEmptyCollection(
-            opCtx, _measurementsNss.makeTimeseriesBucketsNamespace(), {indexSpec}));
+            opCtx, timeseries::test_util::resolveTimeseriesNss(_measurementsNss), {indexSpec}));
     }
 
     boost::intrusive_ptr<ExpressionContextForTest> getExpCtx() {
@@ -409,13 +438,14 @@ public:
     }
 
     CollectionOrViewAcquisition getCollAcquisition() {
-        return acquireCollectionOrView(operationContext(),
-                                       CollectionOrViewAcquisitionRequest(
-                                           _measurementsNss.makeTimeseriesBucketsNamespace(),
-                                           PlacementConcern{boost::none, ShardVersion::UNTRACKED()},
-                                           repl::ReadConcernArgs::get(operationContext()),
-                                           AcquisitionPrerequisites::kRead),
-                                       MODE_IS);
+        return acquireCollectionOrView(
+            operationContext(),
+            CollectionOrViewAcquisitionRequest(
+                timeseries::test_util::resolveTimeseriesNss(_measurementsNss),
+                PlacementConcern{boost::none, ShardVersion::UNTRACKED()},
+                repl::ReadConcernArgs::get(operationContext()),
+                AcquisitionPrerequisites::kRead),
+            MODE_IS);
     }
 
     const NamespaceString _measurementsNss =

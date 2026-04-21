@@ -5,7 +5,7 @@
  *
  * @tags: [ featureFlagExtensionsAPI ]
  */
-import {getParameter} from "jstests/noPassthrough/libs/server_parameter_helpers.js";
+import {getParameter, setParameterOnAllNonConfigNodes} from "jstests/noPassthrough/libs/server_parameter_helpers.js";
 import {FixtureHelpers} from "jstests/libs/fixture_helpers.js";
 import {
     checkPlatformCompatibleWithExtensions,
@@ -14,7 +14,9 @@ import {
 import {
     createTestCollectionAndIndex,
     createTestViewAndIndex,
+    getExtensionVectorSearchUsedCount,
     getInUnionWithKickbackRetryCount,
+    getLegacyVectorSearchUsedCount,
     getOnViewKickbackRetryCount,
     kNumShards,
     kTestCollName,
@@ -23,10 +25,9 @@ import {
     kTestViewPipeline,
     runHybridSearchTests,
     runQueriesAndVerifyMetrics,
-    setFeatureFlags,
     setUpMongotMockForVectorSearch,
     vectorSearchQuery,
-} from "jstests/noPassthrough/extensions/vector_search_ifr_flag_retry_utils.js";
+} from "jstests/noPassthrough/extensions/ifr_flag_retry_utils.js";
 
 checkPlatformCompatibleWithExtensions();
 
@@ -40,7 +41,7 @@ checkPlatformCompatibleWithExtensions();
  * @param {ShardingTest|null} shardingTest - The ShardingTest instance if available, null otherwise.
  */
 function runViewVectorSearchTests(conn, mongotMock, featureFlagValue, shardingTest = null) {
-    setFeatureFlags(conn, featureFlagValue);
+    setParameterOnAllNonConfigNodes(conn, "featureFlagVectorSearchExtension", featureFlagValue);
     const view = createTestViewAndIndex(conn, mongotMock, shardingTest);
 
     const testDb = conn.getDB(kTestDbName);
@@ -81,18 +82,21 @@ function runViewVectorSearchTests(conn, mongotMock, featureFlagValue, shardingTe
 
     runQueriesAndVerifyMetrics({
         conn,
-        testDb,
         getRetryCountFn: getOnViewKickbackRetryCount,
         retryMetricName: "onViewKickbackRetries",
+        getLegacyCountFn: getLegacyVectorSearchUsedCount,
+        getExtensionCountFn: getExtensionVectorSearchUsedCount,
+        featureFlagName: "featureFlagVectorSearchExtension",
         expectedRetryDelta: expectedViewKickbackRetryDelta,
         expectedLegacyDelta,
-        runExplainQuery: () => {
-            assert.commandWorked(view.explain("executionStats").aggregate([{$vectorSearch: vectorSearchQuery}]));
-        },
-        runAggregateQuery: () => {
-            view.aggregate([{$vectorSearch: vectorSearchQuery}]).toArray();
-        },
-        shardingTest,
+        queries: [
+            () => {
+                assert.commandWorked(view.explain("executionStats").aggregate([{$vectorSearch: vectorSearchQuery}]));
+            },
+            () => {
+                view.aggregate([{$vectorSearch: vectorSearchQuery}]).toArray();
+            },
+        ],
     });
 }
 
@@ -120,7 +124,7 @@ function runUnionWithVectorSearchTests({
     viewName = null,
     viewPipeline = null,
 }) {
-    setFeatureFlags(conn, featureFlagValue);
+    setParameterOnAllNonConfigNodes(conn, "featureFlagVectorSearchExtension", featureFlagValue);
     // Create collection with search index on the collection namespace (not the view).
     createTestCollectionAndIndex(conn, mongotMock, shardingTest);
 
@@ -185,21 +189,25 @@ function runUnionWithVectorSearchTests({
 
     runQueriesAndVerifyMetrics({
         conn,
-        testDb,
         getRetryCountFn: getInUnionWithKickbackRetryCount,
         retryMetricName: "inUnionWithKickbackRetries",
+        getLegacyCountFn: getLegacyVectorSearchUsedCount,
+        getExtensionCountFn: getExtensionVectorSearchUsedCount,
+        featureFlagName: "featureFlagVectorSearchExtension",
         expectedRetryDelta: expectedUnionWithKickbackRetryDelta,
         expectedLegacyDelta,
-        runExplainQuery: () => {
-            if (shouldExplain) {
-                const explain = coll.explain("executionStats").aggregate([unionWithStage]);
-                assert.commandWorked(explain);
-            }
-        },
-        runAggregateQuery: () => {
-            coll.aggregate([unionWithStage]).toArray();
-        },
-        shardingTest,
+        queries: [
+            ...(shouldExplain
+                ? [
+                      () => {
+                          assert.commandWorked(coll.explain("executionStats").aggregate([unionWithStage]));
+                      },
+                  ]
+                : []),
+            () => {
+                coll.aggregate([unionWithStage]).toArray();
+            },
+        ],
     });
 }
 
@@ -287,7 +295,7 @@ function runTests(conn, mongotMock, shardingTest = null) {
     runUnionWithOnViewWithVectorSearchInViewDefinitionTests(conn, mongotMock, false, shardingTest);
 
     // Run hybrid search tests ($rankFusion/$scoreFusion with $vectorSearch subpipelines).
-    // These always trigger the IFR kickback retry regardless of featureFlagExtensionViewsAndUnionWith.
+    // These trigger the IFR kickback retry when featureFlagExtensionsInsideHybridSearch is disabled.
     runHybridSearchTests(conn, mongotMock, true, shardingTest);
     runHybridSearchTests(conn, mongotMock, false, shardingTest);
 }
@@ -296,10 +304,11 @@ withExtensionsAndMongot(
     {"libvector_search_extension.so": {}},
     runTests,
     ["standalone", "sharded"],
+    {shards: kNumShards},
     {
-        shards: kNumShards,
-    },
-    {
-        setParameter: {featureFlagExtensionViewsAndUnionWith: false},
+        setParameter: {
+            featureFlagExtensionViewsAndUnionWith: false,
+            featureFlagExtensionsInsideHybridSearch: false,
+        },
     },
 );

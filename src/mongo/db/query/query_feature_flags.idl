@@ -279,6 +279,12 @@ feature_flags:
         default: false
         fcv_gated: false
 
+    featureFlagExtensionsApiSignatureValidation:
+        description: "Feature flag to enable validating extension signatures at load time."
+        cpp_varname: gFeatureFlagExtensionsApiSignatureValidation
+        default: false
+        fcv_gated: false
+
     featureFlagExtensionStubParsers:
         description: "Test feature flag for extension stub parser fallback registration. Used to test incremental rollout of extension stage parsers."
         cpp_varname: gFeatureFlagExtensionStubParsers
@@ -301,7 +307,8 @@ feature_flags:
     featureFlagQueryStatsUpdateCommand:
         description: "Feature flag to enable query stats for the write commands."
         cpp_varname: gFeatureFlagQueryStatsUpdateCommand
-        default: false
+        default: true
+        version: 9.0
         fcv_gated: true
 
     featureFlagQueryStatsCBRMetrics:
@@ -314,7 +321,7 @@ feature_flags:
     featureFlagQueryStatsMetricsSubsections:
         description: "Feature flag to enable query stats metrics being reorganized into subsections, rather than a flat structure."
         cpp_varname: gFeatureFlagQueryStatsMetricsSubsections
-        default: false
+        default: true
         fcv_gated: false
 
     featureFlagExtractFieldPathsSbeStage:
@@ -356,6 +363,8 @@ feature_flags:
         default: false
         fcv_gated: false
         incremental_rollout_phase: in_development
+        serialize_on_outgoing_requests: true
+        version: 8.3
 
     featureFlagSearchExtension:
         description: "Feature flag to enable search and searchMeta extension functionality."
@@ -363,6 +372,8 @@ feature_flags:
         default: false
         fcv_gated: false
         incremental_rollout_phase: in_development
+        serialize_on_outgoing_requests: true
+        version: 9.0
 
     featureFlagMergeStageInsertWithUpdateBackup:
         description: "Feature flag to enable $merge stage strategy that tries to insert documents and falls back to update in case of errors"
@@ -443,3 +454,15 @@ feature_flags:
         default: false
         fcv_gated: false
         incremental_rollout_phase: in_development
+
+    featureFlagExtensionsOptimizations:
+        description: "Feature flag to enable new extension stage optimizations."
+        cpp_varname: gFeatureFlagExtensionsOptimizations
+        default: false
+        fcv_gated: false
+
+    featureFlagPqsQueryKnobs:
+        description: "Feature flag to enable per-query-shape overrides of internal query parameters (query knobs) via Persistent Query Settings."
+        cpp_varname: gFeatureFlagPqsQueryKnobs
+        default: false
+        fcv_gated: true

@@ -238,16 +238,6 @@ const skippedAuthTestingAggStages = [
     "$set", // Alias for "$addFields" and already covered.
 ];
 
-// The following stages are required to be tested in stream processors.
-// Only included in skip list when streams feature is available.
-const streamsSkippedAuthTestingAggStages = [
-    "$hoppingWindow",
-    "$tumblingWindow",
-    "$sessionWindow",
-    "$validate",
-    "$setStreamMeta",
-];
-
 // The following commands are skipped in 'authCommandsLib' because they are unable to be
 // tested here and already have auth tests elsewhere.
 // TODO SERVER-112286: Audit commands skipped.
@@ -3047,49 +3037,6 @@ export const authCommandsLib = {
             ],
         },
         {
-            testname: "cleanupReshardCollection",
-            command: {cleanupReshardCollection: "test.x"},
-            skipUnlessSharded: true,
-            testcases: [
-                {
-                    runOnDb: adminDbName,
-                    roles: Object.extend({enableSharding: 1}, roles_clusterManager),
-                    privileges: [{resource: {db: "test", collection: "x"}, actions: ["reshardCollection"]}],
-                    expectFail: true,
-                },
-            ],
-        },
-        {
-            testname: "_configsvrCleanupReshardCollection",
-            command: {_configsvrCleanupReshardCollection: "test.x"},
-            skipSharded: true,
-            testcases: [
-                {
-                    runOnDb: adminDbName,
-                    roles: {__system: 1},
-                    privileges: [{resource: {cluster: true}, actions: ["internal"]}],
-                    expectFail: true,
-                },
-                {runOnDb: firstDbName, roles: {}},
-                {runOnDb: secondDbName, roles: {}},
-            ],
-        },
-        {
-            testname: "_shardsvrCleanupReshardCollection",
-            command: {_shardsvrCleanupReshardCollection: "test.x", reshardingUUID: UUID()},
-            skipSharded: true,
-            testcases: [
-                {
-                    runOnDb: adminDbName,
-                    roles: {__system: 1},
-                    privileges: [{resource: {cluster: true}, actions: ["internal"]}],
-                    expectFail: true,
-                },
-                {runOnDb: firstDbName, roles: {}},
-                {runOnDb: secondDbName, roles: {}},
-            ],
-        },
-        {
             testname: "cloneCollectionAsCapped",
             command: {cloneCollectionAsCapped: "x", toCollection: "y", size: 1000},
             skipSharded: true,
@@ -3545,8 +3492,10 @@ export const authCommandsLib = {
                     tempNs: "test.resharding.x",
                     reshardingKey: {x: 1},
                 },
-                donorShards: [],
-                minimumOperationDurationMillis: NumberLong(0),
+                recipientOptions: {
+                    donorShards: [],
+                    minimumOperationDurationMillis: NumberLong(0),
+                },
             },
             skipSharded: true,
             testcases: [
@@ -7545,7 +7494,7 @@ export const authCommandsLib = {
                 },
                 {
                     runOnDb: adminDbName,
-                    roles: {...roles_clusterManager},
+                    roles: Object.extend({enableSharding: 1}, roles_clusterManager),
                     expectFail: true, // shard0name doesn't exist
                 },
                 {
@@ -7576,7 +7525,7 @@ export const authCommandsLib = {
                 },
                 {
                     runOnDb: adminDbName,
-                    roles: {...roles_clusterManager},
+                    roles: Object.extend({enableSharding: 1}, roles_clusterManager),
                     expectFail: true, // shard0name doesn't exist
                 },
                 {
@@ -7610,7 +7559,7 @@ export const authCommandsLib = {
                 },
                 {
                     runOnDb: adminDbName,
-                    roles: {...roles_clusterManager},
+                    roles: Object.extend({enableSharding: 1}, roles_clusterManager),
                     expectFail: true,
                 },
                 {
@@ -8587,6 +8536,45 @@ export const authCommandsLib = {
             testcases: testcases_transformationOnly,
         },
         {
+            testname: "aggregate_$_internalJoinHint",
+            command: {
+                aggregate: "foo",
+                pipeline: [
+                    {$_internalJoinHint: {perSubsetLevelMode: [{level: NumberInt(0), mode: "ALL"}]}},
+                    {$lookup: {from: "foo", localField: "i", foreignField: "i", as: "z"}},
+                    {$unwind: "$z"},
+                ],
+                cursor: {},
+            },
+            testcases: testcases_transformationOnly,
+            skipTest: (conn) => {
+                // Can't run on mongos. Also, $_internalJoinHint requires join optimization which
+                // is unavailable when the classic engine is forced.
+                return !isStandalone(conn) || isForceClassicEngine(conn);
+            },
+            setup: function (db) {
+                // Only works with join optimization enabled.
+                assert.commandWorked(
+                    db.adminCommand({
+                        setParameter: 1,
+                        internalEnableJoinOptimization: true,
+                    }),
+                );
+                // Add a document to collection "foo".
+                assert.commandWorked(db.foo.insertOne({_id: 0, i: 0}));
+            },
+            teardown: function (db) {
+                assert.commandWorked(
+                    db.adminCommand({
+                        setParameter: 1,
+                        internalEnableJoinOptimization: false,
+                    }),
+                );
+                // Clean up doc.
+                assert.commandWorked(db.foo.deleteOne({_id: 0, i: 0}));
+            },
+        },
+        {
             testname: "aggregate_$addFields",
             command: {
                 aggregate: "foo",
@@ -8664,6 +8652,71 @@ export const authCommandsLib = {
             command: {
                 aggregate: "foo",
                 pipeline: [{$externalFunction: {}}],
+                cursor: {},
+            },
+            // TODO SERVER-74961: Windows is not yet supported in stream processing.
+            skipTest: (conn) =>
+                !isFeatureEnabled(conn, "featureFlagStreams") || _isWindows() || getBuildInfo().version < "8.1",
+            skipSharded: true,
+            testcases: testcases_transformationOnlyExpectFail, // Not allowed in user requests.
+        },
+        {
+            testname: "aggregate_$hoppingWindow",
+            command: {
+                aggregate: "foo",
+                pipeline: [{$hoppingWindow: {}}],
+                cursor: {},
+            },
+            // TODO SERVER-74961: Windows is not yet supported in stream processing.
+            skipTest: (conn) =>
+                !isFeatureEnabled(conn, "featureFlagStreams") || _isWindows() || getBuildInfo().version < "8.1",
+            skipSharded: true,
+            testcases: testcases_transformationOnlyExpectFail, // Not allowed in user requests.
+        },
+        {
+            testname: "aggregate_$sessionWindow",
+            command: {
+                aggregate: "foo",
+                pipeline: [{$sessionWindow: {}}],
+                cursor: {},
+            },
+            // TODO SERVER-74961: Windows is not yet supported in stream processing.
+            skipTest: (conn) =>
+                !isFeatureEnabled(conn, "featureFlagStreams") || _isWindows() || getBuildInfo().version < "8.1",
+            skipSharded: true,
+            testcases: testcases_transformationOnlyExpectFail, // Not allowed in user requests.
+        },
+        {
+            testname: "aggregate_$setStreamMeta",
+            command: {
+                aggregate: "foo",
+                pipeline: [{$setStreamMeta: {}}],
+                cursor: {},
+            },
+            // TODO SERVER-74961: Windows is not yet supported in stream processing.
+            skipTest: (conn) =>
+                !isFeatureEnabled(conn, "featureFlagStreams") || _isWindows() || getBuildInfo().version < "8.1",
+            skipSharded: true,
+            testcases: testcases_transformationOnlyExpectFail, // Not allowed in user requests.
+        },
+        {
+            testname: "aggregate_$tumblingWindow",
+            command: {
+                aggregate: "foo",
+                pipeline: [{$tumblingWindow: {}}],
+                cursor: {},
+            },
+            // TODO SERVER-74961: Windows is not yet supported in stream processing.
+            skipTest: (conn) =>
+                !isFeatureEnabled(conn, "featureFlagStreams") || _isWindows() || getBuildInfo().version < "8.1",
+            skipSharded: true,
+            testcases: testcases_transformationOnlyExpectFail, // Not allowed in user requests.
+        },
+        {
+            testname: "aggregate_$validate",
+            command: {
+                aggregate: "foo",
+                pipeline: [{$validate: {}}],
                 cursor: {},
             },
             // TODO SERVER-74961: Windows is not yet supported in stream processing.
@@ -9650,6 +9703,16 @@ function isFeatureEnabled(conn, ...features) {
     return features.every((key) => res[key]?.value);
 }
 
+function isForceClassicEngine(conn) {
+    const adminDb = conn.getDB(adminDbName);
+    const authed = adminDb.auth("admin", "password");
+    const res = adminDb.runCommand({getParameter: 1, internalQueryFrameworkControl: 1});
+    if (authed) {
+        adminDb.logout();
+    }
+    return res.ok && res.internalQueryFrameworkControl === "forceClassicEngine";
+}
+
 /**
  * Checks the test coverage on aggregation stages. If it finds any aggregation stage misses
  * authorization testing, it throws an error to remind developers to add them.
@@ -9664,21 +9727,12 @@ function checkAggStageCoverage(conn) {
         .toArray()
         .map((obj) => obj.name);
 
-    // Only skip streams stages when the feature flag is disabled. When enabled, they should
-    // be tested. When not compiled in, they won't appear anyway.
-    let skipList = skippedAuthTestingAggStages;
-    if (
-        streamsSkippedAuthTestingAggStages.some((stage) => aggStages.includes(stage)) &&
-        !FeatureFlagUtil.isPresentAndEnabled(adminDb, "Streams")
-    ) {
-        skipList = skipList.concat(streamsSkippedAuthTestingAggStages);
-    }
     adminDb.logout();
 
     const unvisited = {};
     for (let aggStage of aggStages) {
-        // Tracks 'aggStage' unless listed in the exception list 'skipList'.
-        if (!skipList.includes(aggStage)) {
+        // Tracks 'aggStage' unless listed in the exception list 'skippedAuthTestingAggStages'.
+        if (!skippedAuthTestingAggStages.includes(aggStage)) {
             unvisited[aggStage] = 1;
         }
     }

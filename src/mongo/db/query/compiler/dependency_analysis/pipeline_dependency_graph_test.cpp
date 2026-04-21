@@ -34,6 +34,8 @@
 #include "mongo/bson/json.h"
 #include "mongo/db/pipeline/aggregate_command_gen.h"
 #include "mongo/db/pipeline/document_source_facet.h"
+#include "mongo/db/pipeline/document_source_group.h"
+#include "mongo/db/pipeline/document_source_single_document_transformation.h"
 #include "mongo/db/pipeline/expression_context_for_test.h"
 #include "mongo/db/pipeline/pipeline.h"
 #include "mongo/db/pipeline/pipeline_factory.h"
@@ -336,7 +338,7 @@ TEST_F(PipelineDependencyGraphTest, ComplexPathInclusionProjectionModifiedPath) 
         ASSERT_EQUALS(graph->getDeclaringStage(stages.back().get(), "a.b"), stages[1]);
         // The inclusion modified a.b.c (filtered its subfields).
         ASSERT_EQUALS(graph->getDeclaringStage(stages.back().get(), "a.b.c"), stages[1]);
-        // TODO(SERVER-122273): This is technically kept by the inclusion (prefix "a.b.c" was
+        // TODO(SERVER-119392): This is technically kept by the inclusion (prefix "a.b.c" was
         // defined by the $set), so the declaring field should be $set.
         ASSERT_EQUALS(graph->getDeclaringStage(stages.back().get(), "a.b.c.d"), stages[1]);
         // Excluded by the inclusion.
@@ -481,7 +483,7 @@ TEST_F(PipelineDependencyGraphTest, SetFieldThenIncludeDottedPath) {
         auto* last = stages.back().get();
         // 'a' modified by inclusion (by filtering subfields).
         ASSERT_EQUALS(graph->getDeclaringStage(last, "a"), stages[1]);
-        // TODO(SERVER-122273): 'a.b' preserved by projection, originates from $set (we currently
+        // TODO(SERVER-119392): 'a.b' preserved by projection, originates from $set (we currently
         // report it as being declared by the inclusion projection).
         ASSERT_EQUALS(graph->getDeclaringStage(last, "a.b"), stages[1]);
         // 'a.c' excluded by projection.
@@ -576,8 +578,7 @@ TEST_F(PipelineDependencyGraphTest, CanRenamedChainBeArray) {
         ASSERT_FALSE(graph->canPathBeArray(ds, "b"));
         ASSERT_FALSE(graph->canPathBeArray(ds, "c"));
         ASSERT_FALSE(graph->canPathBeArray(ds, "d"));
-        // TODO(SERVER-121932): This should pass
-        ASSERT_TRUE(graph->canPathBeArray(ds, "d.x"));
+        ASSERT_FALSE(graph->canPathBeArray(ds, "d.x"));
     });
 }
 
@@ -588,9 +589,36 @@ TEST_F(PipelineDependencyGraphTest, CanRenamedWithProjectBeArray) {
         // Lookup from the end of the pipeline.
         auto* ds = stages.back().get();
         ASSERT_FALSE(graph->canPathBeArray(ds, "_id"));
-        // 'a' is missing after the $group.
+        // 'a' is not defined after the $group but may exist as an implicitly created field (e.g.
+        // accumulator), so we conservatively assume it can be an array.
         ASSERT_TRUE(graph->canPathBeArray(ds, "a"));
         ASSERT_FALSE(graph->canPathBeArray(stages.front().get(), "a"));
+    });
+}
+
+TEST_F(PipelineDependencyGraphTest, CanGroupAccumulatorFieldBeArray) {
+    pathArrayness->addPath("c", {}, true);
+    setPipeline("[{$set: {}}, {$group: { _id: '$a', b: { $avg: '$c' } }}, {$match: {b: 1}}]");
+    runTest([&] {
+        auto* ds = stages.back().get();
+        // '_id' is a rename from 'a' which has no arrayness info, so it can be array.
+        ASSERT_TRUE(graph->canPathBeArray(ds, "_id"));
+        // 'b' is an accumulator field created by $group: it exists but is not reported in
+        // getModifiedPaths(). The graph attributes it to the $group scope.
+        ASSERT_TRUE(graph->canPathBeArray(ds, "b"));
+        // getModifiedPaths() for $group doesn't report accumulated fields so we can't assume that
+        // unknown fields are definitely missing.
+        ASSERT_TRUE(graph->canPathBeArray(ds, "unknown"));
+    });
+}
+
+TEST_F(PipelineDependencyGraphTest, CanMissingBaseFieldBeArray) {
+    setPipeline("[{$project: { a: 1 }}, {$set: { 'b.c': 1 }}, {$match: {b: 1}}]");
+    runTest([&] {
+        auto* ds = stages.back().get();
+        // 'b' is missing after the inclusion projection..
+        ASSERT_FALSE(graph->canPathBeArray(ds, "b"));
+        ASSERT_FALSE(graph->canPathBeArray(ds, "b.c"));
     });
 }
 
@@ -604,9 +632,7 @@ TEST_F(PipelineDependencyGraphTest, CanDottedRenamedPathsBeArray) {
         ASSERT_TRUE(graph->canPathBeArray(ds, "a.unknown"));
         ASSERT_FALSE(graph->canPathBeArray(ds, "b"));
         ASSERT_TRUE(graph->canPathBeArray(ds, "b.unknown"));
-        // TODO(SERVER-121932): Once we can see .y, this should pass.
-        // ASSERT_FALSE(graph->canPathBeArray(ds, "b.z"));
-        ASSERT_TRUE(graph->canPathBeArray(ds, "b.z"));
+        ASSERT_FALSE(graph->canPathBeArray(ds, "b.z"));
         ASSERT_FALSE(graph->canPathBeArray(ds, "g"));
         ASSERT_TRUE(graph->canPathBeArray(ds, "c"));
         ASSERT_TRUE(graph->canPathBeArray(ds, "c.d"));
@@ -637,16 +663,93 @@ TEST_F(PipelineDependencyGraphTest, CanRedefinedBaseFieldBeArray) {
     });
 }
 
-// TODO(SERVER-121932): Implement prefix rewrite and lookup full path in path arrayness.
-// TEST_F(PipelineDependencyGraphTest, CanBeArraysLooksThroughDottedRenamedPaths) {
-//     pathArrayness->addPath("x.y.z", {}, true);
-//     setPipeline("[{$set: { a: '$x', b: '$x.y', 'c.d': '$x', 'e.f': '$x.y.z' }}]");
-//     runTest([&] {
-//         // Lookup from the end of the pipeline.
-//         auto* ds = stages.back().get();
-//         ASSERT_FALSE(graph->canPathBeArray(ds, "a.y.z"));
-//     });
-// }
+TEST_F(PipelineDependencyGraphTest, CanBeArraysLooksThroughDottedRenamedPaths) {
+    pathArrayness->addPath("x.y.z", {}, true);
+    setPipeline("[{$set: { a: '$x', b: '$x.y', 'c.d': '$x', 'e.f': '$x.y.z' }}]");
+    runTest([&] {
+        // Lookup from the end of the pipeline.
+        auto* ds = stages.back().get();
+        ASSERT_FALSE(graph->canPathBeArray(ds, "a.y.z"));
+        ASSERT_FALSE(graph->canPathBeArray(ds, "a.y"));
+        ASSERT_FALSE(graph->canPathBeArray(ds, "b.z"));
+        ASSERT_TRUE(graph->canPathBeArray(ds, "a.unknown"));
+    });
+}
+
+TEST_F(PipelineDependencyGraphTest, CanAliasChainWithDottedRenameBeArray) {
+    pathArrayness->addPath("a.x.y", {}, true);
+    setPipeline(
+        "[{$set: { b: '$a' }}, "
+        " {$set: { c: '$b.x' }}]");
+    runTest([&] {
+        auto* ds = stages.back().get();
+        ASSERT_FALSE(graph->canPathBeArray(ds, "c"));
+        ASSERT_FALSE(graph->canPathBeArray(ds, "c.y"));
+    });
+}
+
+TEST_F(PipelineDependencyGraphTest, CanOverwrittenAliasBeArray) {
+    pathArrayness->addPath("x", {}, true);
+    setPipeline(
+        "[{$set: { a: '$x' }}, "
+        " {$set: { a: 1 }}]");
+    runTest([&] {
+        auto* ds = stages.back().get();
+        // After overwrite, 'a' is 1 (constant), not an alias.
+        ASSERT_FALSE(graph->canPathBeArray(ds, "a"));
+        // a.y is shadowed by constant, no alias.
+        ASSERT_TRUE(graph->canPathBeArray(ds, "a.y"));
+    });
+}
+
+TEST_F(PipelineDependencyGraphTest, CanBaseCollectionFieldInPrefixBeArray) {
+    pathArrayness->addPath("a.b", {}, true);
+    setPipeline("[{$set: { 'a.c': '$a.b' }}]");
+    runTest([&] {
+        auto* ds = stages.back().get();
+        // "a" is a collection field known to be non-array from path arrayness.
+        ASSERT_FALSE(graph->canPathBeArray(ds, "a"));
+        // "a.c" is renamed from "a.b" which is non-array, and prefix "a" is also non-array.
+        ASSERT_FALSE(graph->canPathBeArray(ds, "a.c"));
+    });
+}
+
+TEST_F(PipelineDependencyGraphTest, DottedNewPathBaseFieldMetadataUsesFullCollectionPath) {
+    pathArrayness->addPath("a.b.c", {}, true);
+    setPipeline("[{$set: { 'a.b.c': 1 }}]");
+    runTest([&] {
+        auto* ds = stages.back().get();
+        ASSERT_FALSE(graph->canPathBeArray(ds, "a"));
+        // The intermediate "b" must check "a.b" (indexed, non-array), not just "b" (unknown).
+        ASSERT_FALSE(graph->canPathBeArray(ds, "a.b"));
+    });
+}
+
+TEST_F(PipelineDependencyGraphTest, CanPathBeArrayChecksShadowingFieldArrayness) {
+    pathArrayness->addPath("x.y", {}, true);
+    // c can be array (a is not indexed). c.y is shadowed by c: even though c's alias
+    // resolves to x.y (non-array), c itself can be array so c.y must be too.
+    setPipeline(
+        "[{$set: { 'a.b': '$x' }}, "
+        " {$set: { c: '$a.b' }}]");
+    runTest([&] {
+        auto* ds = stages.back().get();
+        ASSERT_TRUE(graph->canPathBeArray(ds, "c.y"));
+    });
+}
+
+TEST_F(PipelineDependencyGraphTest, ShadowedRenameChecksShadowingFieldArrayness) {
+    pathArrayness->addPath("x.y", {}, true);
+    // Same setup: c can be array (a is not indexed). d renames c.y, so d can be array too.
+    setPipeline(
+        "[{$set: { 'a.b': '$x' }}, "
+        " {$set: { c: '$a.b' }}, "
+        " {$set: { d: '$c.y' }}]");
+    runTest([&] {
+        auto* ds = stages.back().get();
+        ASSERT_TRUE(graph->canPathBeArray(ds, "d"));
+    });
+}
 
 TEST_F(PipelineDependencyGraphTest, ReplaceRootAttributesAllFields) {
     setPipeline(
@@ -728,18 +831,17 @@ TEST_F(PipelineDependencyGraphTest, GroupSimpleKey) {
     });
 }
 
-// TODO(SERVER-121639): Enable.
-// TEST_F(PipelineDependencyGraphTest, GroupKeyFromBaseDocument) {
-//     setPipeline(
-//         "[{$group: { _id: '$x' }},"
-//         "{$match: { _id: 1 }}]");
-//
-//     runTest([&] {
-//         auto* last = stages.back().get();
-//         // _id declared by $group.
-//         ASSERT_EQUALS(graph->getDeclaringStage(last, "_id"), stages[0]);
-//     });
-// }
+TEST_F(PipelineDependencyGraphTest, GroupKeyFromBaseDocument) {
+    setPipeline(
+        "[{$group: { _id: '$x' }},"
+        "{$match: { _id: 1 }}]");
+
+    runTest([&] {
+        auto* last = stages.back().get();
+        // _id declared by $group.
+        ASSERT_EQUALS(graph->getDeclaringStage(last, "_id"), stages[0]);
+    });
+}
 
 TEST_F(PipelineDependencyGraphTest, GroupCompoundKey) {
     setPipeline(

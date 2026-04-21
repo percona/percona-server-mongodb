@@ -1141,7 +1141,7 @@ void TransactionParticipant::Participant::_beginMultiDocumentTransaction(
             o(lk).transactionRuntimeContext = transactionRuntimeContext;
         }
 
-        invariant(p().transactionOperations.isEmpty());
+        invariant(p().transactionOperations.getExpectAvailable().isEmpty());
     }
 }
 
@@ -2053,7 +2053,7 @@ TransactionParticipant::Participant::prepareTransaction(
                 reservedSlots,
                 *completedTransactionOperations,
                 applyOpsOplogSlotAndOperationAssignment,
-                p().transactionOperations.getNumberOfPrePostImagesToWrite(),
+                p().transactionOperations.getExpectAvailable().getNumberOfPrePostImagesToWrite(),
                 wallClockTime);
             wuow.commit();
         });
@@ -2130,6 +2130,12 @@ void TransactionParticipant::Participant::restorePreparedTxnFromPreciseCheckpoin
         }
 
         p().recoveredFromPreciseCheckpointRequiresOplogScan = true;
+        p().transactionOperations.markAsUnavailable();
+        p().activeTxnCommittedStatements.markAsUnavailable();
+
+        o(lg)
+            .transactionMetricsObserver.getSingleTransactionStats()
+            .setRecoveredFromPreciseCheckpoint(true);
 
         // This should be called after checking out the session without refresh, which already sets
         // isValid.
@@ -2169,7 +2175,8 @@ void TransactionParticipant::Participant::addTransactionOperation(
     invariant(shard_role_details::getLocker(opCtx)->inAWriteUnitOfWork());
 
     auto transactionSizeLimitBytes = static_cast<std::size_t>(gTransactionSizeLimitBytes.load());
-    uassertStatusOK(p().transactionOperations.addOperation(operation, transactionSizeLimitBytes));
+    uassertStatusOK(p().transactionOperations.getExpectAvailable().addOperation(
+        operation, transactionSizeLimitBytes));
 
     addToAffectedNamespaces(opCtx, operation.getNss());
 }
@@ -2187,14 +2194,15 @@ TransactionOperations* TransactionParticipant::Participant::retrieveCompletedTra
             "transactionOperations",
             !p().recoveredFromPreciseCheckpointRequiresOplogScan);
 
-
-    return &(p().transactionOperations);
+    return &(p().transactionOperations.getExpectAvailable());
 }
 
 BSONObj TransactionParticipant::Participant::getResponseMetadata() {
     return BSON(TxnResponseMetadata::kReadOnlyFieldName
+                // An in progress transaction cannot have gone through prepare recovery, so
+                // transactionOperations should always be available.
                 << (o().txnState.isInSet(TransactionState::kInProgress) &&
-                    p().transactionOperations.isEmpty()));
+                    p().transactionOperations.getExpectAvailable().isEmpty()));
 }
 
 void TransactionParticipant::Participant::clearOperationsInMemory(OperationContext* opCtx) {
@@ -2202,7 +2210,10 @@ void TransactionParticipant::Participant::clearOperationsInMemory(OperationConte
     invariant(o().txnState.isInSet(TransactionState::kPrepared | TransactionState::kInProgress),
               str::stream() << "Current state: " << o().txnState);
     invariant(p().autoCommit);
-    p().transactionOperations.clear();
+    // Note this will blindly reset an "unavailable" transactionOperations after a prepare recovery,
+    // but this is fine since the end state is the same whether the operations were available or not
+    // before being cleared.
+    p().transactionOperations.reset();
 }
 
 void TransactionParticipant::Participant::commitUnpreparedTransaction(OperationContext* opCtx) {
@@ -2242,8 +2253,9 @@ void TransactionParticipant::Participant::commitUnpreparedTransaction(OperationC
     auto wc = opCtx->getWriteConcern();
     auto needsNoopWrite = txnOps->isEmpty() && !opCtx->getWriteConcern().usedDefaultConstructedWC;
 
-    auto operationCount = p().transactionOperations.numOperations();
-    auto oplogOperationBytes = p().transactionOperations.getTotalOperationBytes();
+    auto operationCount = p().transactionOperations.getExpectAvailable().numOperations();
+    auto oplogOperationBytes =
+        p().transactionOperations.getExpectAvailable().getTotalOperationBytes();
     clearOperationsInMemory(opCtx);
 
     // _commitStorageTransaction can throw, but it is safe for the exception to be bubbled up to
@@ -2395,8 +2407,12 @@ void TransactionParticipant::Participant::commitPreparedTransaction(
         // Once the transaction is committed, the oplog entry must be written.
         opObserver->onPreparedTransactionCommit(opCtx, commitOplogSlot, commitTimestamp);
 
-        auto operationCount = p().transactionOperations.numOperations();
-        auto oplogOperationBytes = p().transactionOperations.getTotalOperationBytes();
+        // transactionOperations may be unavailable if the transaction was recovered from a
+        // checkpoint, but that's acceptable because it will only lead to incorrect per transaction
+        // metrics.
+        auto operationCount = p().transactionOperations.getAllowUnavailable().numOperations();
+        auto oplogOperationBytes =
+            p().transactionOperations.getAllowUnavailable().getTotalOperationBytes();
         clearOperationsInMemory(opCtx);
 
         _finishCommitTransaction(opCtx, operationCount, oplogOperationBytes, commitTimestamp);
@@ -2510,9 +2526,14 @@ void TransactionParticipant::Participant::_commitSplitPreparedTxnOnPrimary(
             // try to acquire RSTL again because that could deadlock with stepdown.
             newTxnParticipant._commitStorageTransaction(splitOpCtx.get(),
                                                         true /* isSplitPreparedTxn */);
-            auto operationCount = newTxnParticipant.p().transactionOperations.numOperations();
-            auto oplogOperationBytes =
-                newTxnParticipant.p().transactionOperations.getTotalOperationBytes();
+            // transactionOperations may be unavailable if the transaction was recovered from a
+            // checkpoint, but that's acceptable because it will only lead to incorrect per
+            // transaction metrics.
+            auto operationCount =
+                newTxnParticipant.p().transactionOperations.getAllowUnavailable().numOperations();
+            auto oplogOperationBytes = newTxnParticipant.p()
+                                           .transactionOperations.getAllowUnavailable()
+                                           .getTotalOperationBytes();
             newTxnParticipant.clearOperationsInMemory(splitOpCtx.get());
 
             newTxnParticipant._finishCommitTransaction(
@@ -2550,6 +2571,7 @@ void TransactionParticipant::Participant::_finishCommitTransaction(
                                                                 curop->getOperationStorageMetrics(),
                                                                 o().txnState.isPrepared());
     }
+
     // We must clear the recovery unit and locker so any post-transaction writes can run without
     // transactional settings such as a read timestamp.
     _cleanUpTxnResourceOnOpCtx(opCtx, TerminationCause::kCommitted);
@@ -2559,6 +2581,12 @@ void TransactionParticipant::Participant::shutdown(OperationContext* opCtx) {
     stdx::lock_guard<Client> lock(*opCtx->getClient());
 
     p().inShutdown = true;
+    // The stashed RecoveryUnit may hold a dangling pointer to an OperationContext. Make sure we
+    // have a valid OperationContext set in the RecoveryUnit when it is destroyed as it is passed
+    // to registered rollback handlers.
+    if (o(lock).txnResourceStash) {
+        o(lock).txnResourceStash->recoveryUnit()->setOperationContext(opCtx);
+    }
     o(lock).txnResourceStash = boost::none;
 }
 
@@ -3204,6 +3232,10 @@ void TransactionParticipant::Participant::_transactionInfoForLog(
 
     attrs.add("queues", singleTransactionStats.getQueueStats().toBson());
 
+    if (p().recoveredFromPreciseCheckpointRequiresOplogScan) {
+        attrs.add("recoveredFromPreciseCheckpoint", true);
+    }
+
     // Total duration of the transaction.
     attrs.add("duration",
               duration_cast<Milliseconds>(singleTransactionStats.getDuration(tickSource, curTick)));
@@ -3459,7 +3491,11 @@ void TransactionParticipant::Participant::_refreshSelfFromStorageIfNeeded(Operat
         }());
         o(lg).lastWriteOpTime = lastTxnRecord->getLastWriteOpTime();
         o(lg).affectedNamespaces = std::move(activeTxnHistory.affectedNamespaces);
-        p().activeTxnCommittedStatements = std::move(activeTxnHistory.committedStatements);
+        // A recovered prepared transaction with retryable write history should always be
+        // invalidated on check-in, which should already reset this field, but since we're
+        // re-writing it anyway, use setAvailable to guarantee it becomes available.
+        p().activeTxnCommittedStatements.setAvailable(
+            std::move(activeTxnHistory.committedStatements));
         o(lg).commitTimestamp = activeTxnHistory.commitTimestamp;
         o(lg).hasIncompleteHistory = activeTxnHistory.hasIncompleteHistory;
 
@@ -3656,7 +3692,7 @@ void TransactionParticipant::Participant::_invalidate(WithLock wl) {
 }
 
 void TransactionParticipant::Participant::_resetRetryableWriteState(WithLock wl) {
-    p().activeTxnCommittedStatements.clear();
+    p().activeTxnCommittedStatements.reset();
     o(wl).hasIncompleteHistory = false;
     p().recoveredFromPreciseCheckpointRequiresOplogScan = false;
 }
@@ -3676,7 +3712,7 @@ void TransactionParticipant::Participant::_resetTransactionStateAndUnlock(
         o(*lk).txnState.transitionTo(state);
     }
 
-    p().transactionOperations.clear();
+    p().transactionOperations.reset();
     o(*lk).affectedNamespaces.clear();
     o(*lk).prepareOpTime = repl::OpTime();
     o(*lk).recoveryPrepareOpTime = repl::OpTime();
@@ -3834,8 +3870,9 @@ TransactionParticipant::Participant::_checkStatementExecutedSelf(StmtId stmtId) 
         invariant(!transactionIsAborted());
     }
 
-    const auto it = p().activeTxnCommittedStatements.find(stmtId);
-    if (it == p().activeTxnCommittedStatements.end()) {
+    const auto& committedStatements = p().activeTxnCommittedStatements.getExpectAvailable();
+    const auto it = committedStatements.find(stmtId);
+    if (it == committedStatements.end()) {
         uassert(ErrorCodes::IncompleteTransactionHistory,
                 str::stream() << "Incomplete history detected for transaction "
                               << o().activeTxnNumberAndRetryCounter.getTxnNumber() << " on session "
@@ -3925,7 +3962,7 @@ void TransactionParticipant::Participant::addCommittedStmtIds(
     const repl::OpTime& writeOpTime) {
     stdx::lock_guard<Client> lg(*opCtx->getClient());
     for (auto stmtId : stmtIdsCommitted) {
-        p().activeTxnCommittedStatements.emplace(stmtId, writeOpTime);
+        p().activeTxnCommittedStatements.getExpectAvailable().emplace(stmtId, writeOpTime);
     }
 }
 
@@ -4015,8 +4052,9 @@ void TransactionParticipant::Participant::_registerUpdateCacheOnCommit(
                     continue;
                 }
 
-                const auto insertRes = participant.p().activeTxnCommittedStatements.emplace(
-                    stmtId, lastStmtIdWriteOpTime);
+                const auto insertRes =
+                    participant.p().activeTxnCommittedStatements.getExpectAvailable().emplace(
+                        stmtId, lastStmtIdWriteOpTime);
                 if (!insertRes.second) {
                     const auto& existingOpTime = insertRes.first->second;
                     fassertOnRepeatedExecution(participant._sessionId(),

@@ -17,6 +17,7 @@ buildvariants:
     run_on:
       - amazon2023-latest-small
     expansions:
+      streams_exec_timeout_secs: 720
       test_flags: >-
         --excludeWithAnyTags=SERVER-34286,incompatible_with_amazon_linux,requires_external_data_source,requires_ldap_pool
         --additionalFeatureFlags=featureFlagStreams
@@ -31,6 +32,57 @@ buildvariants:
       large_distro_name: amazon2023.3-c5-24xlarge
       packager_distro: amazon2023
       packager_arch: x86_64
+    display_tasks:
+      - name: streams_tests
+        execution_tasks:
+          - streams_0
+          - streams_1
+          - streams_2
+          - streams_3
+          - streams_4
+          - streams_5
+          - streams_6
+          - streams_7
+          - streams_8
+          - streams_9
+      - name: streams_kafka_tests
+        execution_tasks:
+          - streams_kafka_0
+          - streams_kafka_1
+          - streams_kafka_2
+          - streams_kafka_3
+          - streams_kafka_4
+          - streams_kafka_5
+          - streams_kafka_6
+          - streams_kafka_7
+          - streams_kafka_8
+          - streams_kafka_9
+          - streams_kafka_10
+          - streams_kafka_11
+          - streams_kafka_gwproxy
+          - streams_kafka_benchmark
+      - name: streams_aspio_tests
+        execution_tasks:
+          - streams_aspio
+          - streams_aspio_iceberg_0
+          - streams_aspio_iceberg_1
+          - streams_aspio_iceberg_2
+          - streams_aspio_iceberg_3
+          - streams_aspio_iceberg_4
+          - streams_aspio_iceberg_large
+          - streams_aspio_iceberg_5
+          - streams_aspio_utilities
+          - streams_aspio_pubsub
+      - name: streams_s3_tests
+        execution_tasks:
+          - streams_s3_single
+          - streams_s3_parallel
+          - streams_s3_parallel_heavy
+      - name: streams_azure_blob_tests
+        execution_tasks:
+          - streams_azure_blob_single
+          - streams_azure_blob_parallel
+          - streams_azure_blob_parallel_heavy
     tasks:
       - name: compile_and_archive_dist_test_TG
         distros:
@@ -40,6 +92,7 @@ buildvariants:
         distros:
           - amazon2023.3-c5-24xlarge
       - name: .streams_release_test
+      - name: streams_suite_coverage_linter
       - name: generate_buildid_to_debug_symbols_mapping
 
   - name: enterprise-amazon2023-streams-arm64
@@ -50,6 +103,7 @@ buildvariants:
     run_on:
       - amazon2023-arm64-latest-m8g-xlarge
     expansions:
+      streams_exec_timeout_secs: 720
       test_flags: >-
         --excludeWithAnyTags=SERVER-34286,incompatible_with_amazon_linux,requires_external_data_source,requires_ldap_pool
         --additionalFeatureFlags=featureFlagStreams
@@ -64,6 +118,57 @@ buildvariants:
       large_distro_name: amazon2023.3-arm64-xxxlarge
       packager_distro: amazon2023
       packager_arch: aarch64
+    display_tasks:
+      - name: streams_tests
+        execution_tasks:
+          - streams_0
+          - streams_1
+          - streams_2
+          - streams_3
+          - streams_4
+          - streams_5
+          - streams_6
+          - streams_7
+          - streams_8
+          - streams_9
+      - name: streams_kafka_tests
+        execution_tasks:
+          - streams_kafka_0
+          - streams_kafka_1
+          - streams_kafka_2
+          - streams_kafka_3
+          - streams_kafka_4
+          - streams_kafka_5
+          - streams_kafka_6
+          - streams_kafka_7
+          - streams_kafka_8
+          - streams_kafka_9
+          - streams_kafka_10
+          - streams_kafka_11
+          - streams_kafka_gwproxy
+          - streams_kafka_benchmark
+      - name: streams_aspio_tests
+        execution_tasks:
+          - streams_aspio
+          - streams_aspio_iceberg_0
+          - streams_aspio_iceberg_1
+          - streams_aspio_iceberg_2
+          - streams_aspio_iceberg_3
+          - streams_aspio_iceberg_4
+          - streams_aspio_iceberg_large
+          - streams_aspio_iceberg_5
+          - streams_aspio_utilities
+          - streams_aspio_pubsub
+      - name: streams_s3_tests
+        execution_tasks:
+          - streams_s3_single
+          - streams_s3_parallel
+          - streams_s3_parallel_heavy
+      - name: streams_azure_blob_tests
+        execution_tasks:
+          - streams_azure_blob_single
+          - streams_azure_blob_parallel
+          - streams_azure_blob_parallel_heavy
     tasks:
       - name: compile_and_archive_dist_test_TG
         distros:
@@ -73,6 +178,7 @@ buildvariants:
         distros:
           - amazon2023.3-arm64-xxxlarge
       - name: .streams_release_test
+      - name: streams_suite_coverage_linter
       - name: generate_buildid_to_debug_symbols_mapping
 
   # TODO(SERVER-120489): There are issues with these variants that need to be investigated/fixed
@@ -174,6 +280,19 @@ buildvariants:
       compile_variant: enterprise-rhel8-streams-tsan
       large_distro_name: rhel8.8-xlarge
       xlarge_distro_name: rhel8.8-xxlarge
+    display_tasks:
+      - name: streams_sanitizer_tests
+        execution_tasks:
+          - streams_sanitizer_0
+          - streams_sanitizer_1
+          - streams_sanitizer_2
+          - streams_sanitizer_3
+          - streams_sanitizer_4
+          - streams_sanitizer_5
+          - streams_sanitizer_6
+          - streams_sanitizer_7
+          - streams_sanitizer_8
+          - streams_sanitizer_9
     tasks:
       - name: compile_and_archive_dist_test_TG
         distros:
@@ -181,7 +300,7 @@ buildvariants:
       - name: run_unit_tests_TG
         distros:
           - rhel8.8-xlarge
-      - name: streams_sanitizer_gen
+      - name: .streams_sanitizer_all
       - name: streams_https_sanitizer
       - name: streams_lambda_sanitizer
       - name: streams_kinesis_sanitizer
@@ -215,6 +334,19 @@ buildvariants:
       compile_variant: enterprise-rhel8-streams-aubsan
       large_distro_name: rhel8.8-xlarge
       xlarge_distro_name: rhel8.8-xxlarge
+    display_tasks:
+      - name: streams_sanitizer_tests
+        execution_tasks:
+          - streams_sanitizer_0
+          - streams_sanitizer_1
+          - streams_sanitizer_2
+          - streams_sanitizer_3
+          - streams_sanitizer_4
+          - streams_sanitizer_5
+          - streams_sanitizer_6
+          - streams_sanitizer_7
+          - streams_sanitizer_8
+          - streams_sanitizer_9
     tasks:
       - name: compile_and_archive_dist_test_TG
         distros:
@@ -222,11 +354,13 @@ buildvariants:
       - name: run_unit_tests_TG
         distros:
           - rhel8.8-xlarge
-      - name: streams_sanitizer_gen
+      - name: .streams_sanitizer_all
       - name: streams_https_sanitizer
       - name: streams_lambda_sanitizer
       - name: streams_kinesis_sanitizer
-      - name: streams_s3_sanitizer
+      - name: streams_s3_single_sanitizer
+      - name: streams_s3_parallel_sanitizer
+      - name: streams_s3_parallel_heavy_sanitizer
       - name: generate_buildid_to_debug_symbols_mapping
 
   # DSI perf harness variant

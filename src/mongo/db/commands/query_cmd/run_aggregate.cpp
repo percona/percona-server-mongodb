@@ -61,6 +61,7 @@
 #include "mongo/db/pipeline/change_stream_invalidation_info.h"
 #include "mongo/db/pipeline/document_source_exchange.h"
 #include "mongo/db/pipeline/document_source_geo_near.h"
+#include "mongo/db/pipeline/document_source_internal_join_hint.h"
 #include "mongo/db/pipeline/expression_context.h"
 #include "mongo/db/pipeline/expression_context_builder.h"
 #include "mongo/db/pipeline/expression_context_diagnostic_printer.h"
@@ -591,7 +592,9 @@ void executeUntilFirstBatch(const AggExState& aggExState,
  * single vector element.
  */
 std::vector<std::unique_ptr<Pipeline>> createExchangePipelinesIfNeeded(
-    const AggExState& aggExState, std::unique_ptr<Pipeline> pipeline) {
+    const AggExState& aggExState,
+    const AggCatalogState& aggCatalogState,
+    std::unique_ptr<Pipeline> pipeline) {
     std::vector<std::unique_ptr<Pipeline>> pipelines;
 
     if (aggExState.getRequest().getExchange() && !pipeline->getContext()->getExplain()) {
@@ -600,10 +603,8 @@ std::vector<std::unique_ptr<Pipeline>> createExchangePipelinesIfNeeded(
         // opCtx for the ExpressionContextBuilder call below, store the pointer ahead of the
         // Exchange() call.
         auto* opCtx = aggExState.getOpCtx();
-        auto exchange =
-            make_intrusive<exec::agg::Exchange>(aggExState.getOpCtx(),
-                                                aggExState.getRequest().getExchange().value(),
-                                                std::move(pipeline));
+        auto exchange = make_intrusive<exec::agg::Exchange>(
+            opCtx, aggExState.getRequest().getExchange().value(), std::move(pipeline));
 
         for (size_t idx = 0; idx < exchange->getConsumers(); ++idx) {
             // For every new pipeline we have create a new ExpressionContext as the context
@@ -612,14 +613,13 @@ std::vector<std::unique_ptr<Pipeline>> createExchangePipelinesIfNeeded(
             // shared between different exchange-producer cursors.
             auto collator = expCtx->getCollator() ? expCtx->getCollator()->clone() : nullptr;
             expCtx = ExpressionContextBuilder{}
-                         .fromRequest(aggExState.getOpCtx(),
-                                      aggExState.getRequest(),
-                                      allowDiskUseByDefault.load())
+                         .fromRequest(opCtx, aggExState.getRequest(), allowDiskUseByDefault.load())
                          .collator(std::move(collator))
                          .collUUID(expCtx->getUUID())
                          .mongoProcessInterface(MongoProcessInterface::create(opCtx))
-                         .mayDbProfile(CurOp::get(aggExState.getOpCtx())->dbProfileLevel() > 0)
-                         .resolvedNamespace(uassertStatusOK(aggExState.resolveInvolvedNamespaces()))
+                         .mayDbProfile(CurOp::get(opCtx)->dbProfileLevel() > 0)
+                         .resolvedNamespace(
+                             uassertStatusOK(aggCatalogState.resolveInvolvedNamespaces(opCtx)))
                          .tmpDir(boost::filesystem::path(storageGlobalParams.dbpath) / "_tmp")
                          .collationMatchesDefault(expCtx->getCollationMatchesDefault())
                          .canBeRejected(query_settings::canPipelineBeRejected(
@@ -721,7 +721,8 @@ std::vector<std::unique_ptr<PlanExecutor, PlanExecutor::Deleter>> prepareExecuto
                 aggExState, aggCatalogState, std::move(pipeline), mongotBounds);
         } else {
             // Takes ownership of 'pipeline'.
-            pipelines = createExchangePipelinesIfNeeded(aggExState, std::move(pipeline));
+            pipelines =
+                createExchangePipelinesIfNeeded(aggExState, aggCatalogState, std::move(pipeline));
         }
 
         for (auto&& pipelineIt : pipelines) {
@@ -837,13 +838,6 @@ void executeExplain(const AggExState& aggExState,
         std::move(CurOp::get(aggExState.getOpCtx())->debug().getQueryStatsInfo().key));
 }
 
-/**
- * Executes the aggregation 'request' given a properly constructed AggregationExecutionState,
- * which holds the request and all necessary supporting context to execute request.
- *
- * On success, fills out 'result' with the command response.
- */
-Status _runAggregate(std::shared_ptr<AggExState> aggExState, rpc::ReplyBuilderInterface* result);
 
 /**
  * If this is a view aggregation, sets up the resolved namespace on the expression context. This is
@@ -925,16 +919,17 @@ void computeShapeAndRegisterQueryStats(const AggExState& aggExState,
         expCtx, queryShapeHash, aggExState.getOriginalNss(), userRequest.getQuerySettings());
     expCtx->setQuerySettingsIfNotPresent(std::move(querySettings));
 
+    // If this is a query over a resolved view, we want to register query stats with the
+    // original user-given request and pipeline, rather than the new request generated when
+    // resolving the view.
+    auto collectionType = aggCatalogState.determineCollectionType();
+    CurOp::get(aggExState.getOpCtx())->debug().collectionType = collectionType;
+
     // Exclude queries with encrypted fields as indicated by the inclusion of encryptionInformation
     // in the request. We still collect query stats on collection-less aggregations.
     if (aggExState.getRequest().getEncryptionInformation()) {
         return;
     }
-
-    // If this is a query over a resolved view, we want to register query stats with the
-    // original user-given request and pipeline, rather than the new request generated when
-    // resolving the view.
-    auto collectionType = aggCatalogState.determineCollectionType();
     NamespaceStringSet pipelineInvolvedNamespaces(aggExState.getInvolvedNamespaces());
 
     // Register query stats with the pre-optimized pipeline.
@@ -968,6 +963,7 @@ enum class SecondParseRequirement { kNone, kReparseFromLPP, kReparseFromBson };
  * second parse.
  */
 SecondParseRequirement maybeApplyViewPipeline(const AggExState& aggExState,
+                                              const AggCatalogState& aggCatalogState,
                                               LiteParsedPipeline* desugaredLPP,
                                               const SecondParseRequirement& currentRequirement) {
     if (!aggExState.isView()) {
@@ -997,7 +993,7 @@ SecondParseRequirement maybeApplyViewPipeline(const AggExState& aggExState,
         desugaredLPP,
         aggExState.getResolvedView(),
         aggExState.getOriginalNss(),
-        uassertStatusOK(aggExState.resolveInvolvedNamespaces()));
+        uassertStatusOK(aggCatalogState.resolveInvolvedNamespaces(aggExState.getOpCtx())));
     return SecondParseRequirement::kReparseFromLPP;
 }
 
@@ -1083,7 +1079,7 @@ std::unique_ptr<Pipeline> parsePipelineAndRegisterQueryStats(
     }
 
     secondParseRequirement =
-        maybeApplyViewPipeline(aggExState, &desugaredLPP, secondParseRequirement);
+        maybeApplyViewPipeline(aggExState, aggCatalogState, &desugaredLPP, secondParseRequirement);
 
     expCtx->startExpressionCounters();
     pipeline = buildFinalPipeline(
@@ -1196,6 +1192,14 @@ StatusWith<std::unique_ptr<Pipeline>> preparePipeline(
     return std::move(pipeline);
 }
 
+/**
+ * Executes an aggregation after view resolution is complete. Receives an AggExState and
+ * AggCatalogState that already describe the final execution namespace (i.e. the underlying
+ * collection for view aggregations, or the original namespace for non-view aggregations). Does not
+ * perform any view resolution or routing decisions.
+ *
+ * On success, fills out 'result' with the command response.
+ */
 Status executeResolvedAggregate(const AggExState& aggExState,
                                 AggCatalogState& aggCatalogState,
                                 rpc::ReplyBuilderInterface* result) {
@@ -1267,6 +1271,9 @@ Status executeResolvedAggregate(const AggExState& aggExState,
                                             {} /* additionalExecutors */,
                                             false /* hasGeoNear */);
     } else {
+        uassert(12016316,
+                "$_internalJoinHint is not permitted without join optimization",
+                !dynamic_cast<DocumentSourceInternalJoinHint*>(pipeline->peekFront()));
         execs = prepareExecutors(aggExState, aggCatalogState, std::move(pipeline));
     }
 
@@ -1284,9 +1291,17 @@ Status executeResolvedAggregate(const AggExState& aggExState,
     return Status::OK();
 }
 
+/**
+ * Executes a sharding-aware aggregation on a view. Transitions into the router role to obtain
+ * routing information for the underlying collection, sets up the shard role, and then runs the
+ * resolved aggregation locally via executeResolvedAggregate() if the underlying collection lives
+ * on this shard. If not, throws a kick-back exception to let mongos re-execute the resolved
+ * pipeline across the appropriate shards.
+ *
+ * On success, fills out 'result' with the command response.
+ */
 Status runAggregateOnShardedView(std::unique_ptr<ResolvedViewAggExState> resolvedViewAggExState,
                                  rpc::ReplyBuilderInterface* result) {
-    // Resolved view available after ResolvedViewAggExState construction.
     auto resolvedView = resolvedViewAggExState->getResolvedView();
 
     auto* opCtx = resolvedViewAggExState->getOpCtx();
@@ -1352,6 +1367,15 @@ Status runAggregateOnShardedView(std::unique_ptr<ResolvedViewAggExState> resolve
     return status;
 }
 
+/**
+ * Entry point for running an aggregation given an AggExState describing the request. Handles view
+ * resolution: if the target namespace is a view, resolves it into a ResolvedViewAggExState and
+ * either routes to runAggregateOnShardedView() (for sharding-aware operations) or continues
+ * locally by rebuilding the catalog state for the underlying collection. In all cases, delegates
+ * the final pipeline execution to executeResolvedAggregate().
+ *
+ * On success, fills out 'result' with the command response.
+ */
 Status _runAggregate(std::unique_ptr<AggExState> aggExState, rpc::ReplyBuilderInterface* result) {
     // Perform the validation checks on the request and its derivatives before proceeding.
     aggExState->performValidationChecks();

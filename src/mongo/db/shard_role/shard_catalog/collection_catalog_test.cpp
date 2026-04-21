@@ -888,6 +888,107 @@ TEST_F(ForEachCollectionFromDbTest, ModifyAllCollectionsMatchingHandlesConcurren
                 ->isTemporary());
 }
 
+TEST_F(ForEachCollectionFromDbTest, ForEachCollectionInAllDbsIteratesAllDatabases) {
+    createTestData();
+    auto opCtx = operationContext();
+
+    // forEachCollectionFromAllDbs should visit all 4 user-created collections.
+    std::set<NamespaceString> visited;
+    auto result =
+        catalog::forEachCollectionFromAllDbs(opCtx, MODE_IS, [&](const Collection* collection) {
+            visited.insert(collection->ns());
+            return true;
+        });
+
+    ASSERT_TRUE(visited.contains(NamespaceString::createNamespaceString_forTest("db", "coll1")));
+    ASSERT_TRUE(visited.contains(NamespaceString::createNamespaceString_forTest("db", "coll2")));
+    ASSERT_TRUE(visited.contains(NamespaceString::createNamespaceString_forTest("db", "coll3")));
+    ASSERT_TRUE(visited.contains(NamespaceString::createNamespaceString_forTest("db2", "coll4")));
+    ASSERT_EQ(result, catalog::CollectionCatalogIterationResult::kSomeMatches);
+}
+
+TEST_F(ForEachCollectionFromDbTest, ForEachCollectionInAllDbsWithPredicate) {
+    createTestData();
+    auto opCtx = operationContext();
+
+    // Only the 2 temp collections should be visited when using a predicate.
+    std::set<NamespaceString> visited;
+    auto result = catalog::forEachCollectionFromAllDbs(
+        opCtx,
+        MODE_X,
+        [&](const Collection* collection) {
+            visited.insert(collection->ns());
+            return true;
+        },
+        [&](const Collection* collection) { return collection->getCollectionOptions().temp; });
+
+    std::set<NamespaceString> expected{
+        NamespaceString::createNamespaceString_forTest("db", "coll2"),
+        NamespaceString::createNamespaceString_forTest("db", "coll3"),
+    };
+    ASSERT_EQ(visited, expected);
+    ASSERT_EQ(result, catalog::CollectionCatalogIterationResult::kSomeMatches);
+}
+
+TEST_F(ForEachCollectionFromDbTest, ForEachCollectionInAllDbsPredicateNoMatch) {
+    createTestData();
+    auto opCtx = operationContext();
+
+    // Use a predicate that matches nothing — expect kNoMatches and callback never called.
+    int numCollectionsTraversed = 0;
+    auto result = catalog::forEachCollectionFromAllDbs(
+        opCtx,
+        MODE_IS,
+        [&](const Collection* collection) {
+            numCollectionsTraversed++;
+            return true;
+        },
+        [&](const Collection* collection) {
+            return false;  // never matches
+        });
+
+    ASSERT_EQUALS(numCollectionsTraversed, 0);
+    ASSERT_EQ(result, catalog::CollectionCatalogIterationResult::kNoMatches);
+}
+
+TEST_F(ForEachCollectionFromDbTest, ForEachCollectionInAllDbsStopsWhenCallbackReturnsFalse) {
+    createTestData();
+    auto opCtx = operationContext();
+
+    // Callback returns false after first collection — iteration should stop.
+    int numCollectionsTraversed = 0;
+    catalog::forEachCollectionFromAllDbs(opCtx, MODE_IS, [&](const Collection* collection) {
+        numCollectionsTraversed++;
+        return false;  // stop after first
+    });
+
+    ASSERT_EQUALS(numCollectionsTraversed, 1);
+}
+
+TEST_F(ForEachCollectionFromDbTest, ForEachCollectionInAllDbsLockModes) {
+    createTestData();
+    auto opCtx = operationContext();
+
+    // For each (collLockMode, expected dbLockMode) pair, verify that the DB is locked at the
+    // derived mode (IS for shared modes, IX for intent-exclusive/exclusive modes).
+    const std::vector<std::pair<LockMode, LockMode>> cases = {
+        {MODE_IS, MODE_IS},
+        {MODE_S, MODE_IS},
+        {MODE_IX, MODE_IX},
+        {MODE_X, MODE_IX},
+    };
+
+    for (auto [collMode, expectedDbMode] : cases) {
+        catalog::forEachCollectionFromAllDbs(opCtx, collMode, [&](const Collection* collection) {
+            ASSERT_TRUE(shard_role_details::getLocker(opCtx)->isDbLockedForMode(
+                collection->ns().dbName(), expectedDbMode));
+            ASSERT_TRUE(shard_role_details::getLocker(opCtx)->isCollectionLockedForMode(
+                collection->ns(), collMode));
+            return true;
+        });
+    }
+}
+
 /**
  * RAII type for operating at a timestamp. Will remove any timestamping when the object destructs.
  */
@@ -2079,6 +2180,61 @@ TEST_F(CollectionCatalogTimestampTest, CollectionLifetimeTiedToStorageTransactio
     }
 }
 
+TEST_F(CollectionCatalogTimestampTest, OpenCollectionAlwaysForDebugBuilds) {
+    if constexpr (!kDebugBuild) {
+        return;
+    }
+
+    const NamespaceString nss = NamespaceString::createNamespaceString_forTest("a.b");
+    const Timestamp createCollectionTs = Timestamp(10, 10);
+
+    createCollection(opCtx.get(), nss, createCollectionTs);
+
+    {
+        const Timestamp readTimestamp(20, 20);
+        OneOffRead oor(opCtx.get(), readTimestamp);
+        Lock::GlobalLock globalLock(opCtx.get(), MODE_IS);
+
+        auto coll = CollectionCatalog::get(opCtx.get())
+                        ->establishConsistentCollection(opCtx.get(), nss, readTimestamp);
+        ASSERT(coll);
+
+        const auto& openedColls = OpenedCollections::get(opCtx.get());
+        auto openedColl = openedColls.lookupByNamespace(nss);
+        ASSERT_EQ(openedColl->get(), coll.get());
+    }
+
+    const auto& openedColls = OpenedCollections::get(opCtx.get());
+    ASSERT_FALSE(openedColls.lookupByNamespace(nss));
+}
+
+#if __has_feature(thread_sanitizer) || __has_feature(address_sanitizer) || \
+    __has_feature(memory_sanitizer)
+TEST_F(CollectionCatalogTimestampTest, OpenCollectionAlwaysForSanitizerBuilds) {
+    const NamespaceString nss = NamespaceString::createNamespaceString_forTest("a.b");
+    const Timestamp createCollectionTs = Timestamp(10, 10);
+
+    createCollection(opCtx.get(), nss, createCollectionTs);
+
+    {
+        const Timestamp readTimestamp(20, 20);
+        OneOffRead oor(opCtx.get(), readTimestamp);
+        Lock::GlobalLock globalLock(opCtx.get(), MODE_IS);
+
+        auto coll = CollectionCatalog::get(opCtx.get())
+                        ->establishConsistentCollection(opCtx.get(), nss, readTimestamp);
+        ASSERT(coll);
+
+        const auto& openedColls = OpenedCollections::get(opCtx.get());
+        auto openedColl = openedColls.lookupByNamespace(nss);
+        ASSERT_EQ(openedColl->get(), coll.get());
+    }
+
+    const auto& openedColls = OpenedCollections::get(opCtx.get());
+    ASSERT_FALSE(openedColls.lookupByNamespace(nss));
+}
+#endif
+
 TEST_F(CollectionCatalogTimestampTest, EstablishConsistentCollectionReadYourWrites) {
     const NamespaceString nss = NamespaceString::createNamespaceString_forTest("a.b");
     const Timestamp createCollectionTs = Timestamp(10, 10);
@@ -2330,6 +2486,84 @@ TEST_F(CollectionCatalogTimeseriesUpgradeDowngradeTest,
 TEST_F(CollectionCatalogTimeseriesUpgradeDowngradeTest,
        ConcurrentTimeseriesUpgradeAndOpenCollection) {
     testConcurrentTimeseriesUpgradeDowngradeAndOpenCollection(true /* isUpgrade */);
+}
+
+// Tests that lookupView hides a timeseries view for PIT reads at a timestamp before the
+// viewless->viewful downgrade, since at that point the namespace was a viewless timeseries
+// collection, not a view.
+// TODO(SERVER-114573): Remove this which is only needed for viewless timeseries downgrade.
+TEST_F(CollectionCatalogTimeseriesUpgradeDowngradeTest,
+       LookupViewHidesTimeseriesViewForPITReadBeforeDowngrade) {
+    const Timestamp downgradeTs = Timestamp(20, 20);
+    const Timestamp beforeDowngradeTs = Timestamp(15, 15);
+    const auto mainNs = NamespaceString::createNamespaceString_forTest("a.b");
+    const auto bucketsNs = mainNs.makeTimeseriesBucketsNamespace();
+
+    // Create a viewless timeseries collection.
+    {
+        RAIIServerParameterControllerForTest featureFlagController(
+            "featureFlagCreateViewlessTimeseriesCollections", true);
+        CreateCommand cmd = CreateCommand(mainNs);
+        cmd.getCreateCollectionRequest().setTimeseries(TimeseriesOptions("t"));
+        ASSERT_OK(mongo::createCollection(opCtx.get(), cmd));
+
+        // Pre-create system.views to avoid downgrade trying to create it on a separate WUOW.
+        AutoGetDb autoDb(opCtx.get(), mainNs.dbName(), MODE_X);
+        autoDb.ensureDbExists(opCtx.get())->createSystemDotViewsIfNecessary(opCtx.get());
+    }
+
+    // Verify initial viewless state.
+    {
+        auto catalog = CollectionCatalog::get(opCtx.get());
+        ASSERT(catalog->lookupCollectionByNamespace(opCtx.get(), mainNs));
+        ASSERT(!catalog->lookupView(opCtx.get(), mainNs));
+    }
+
+    // Downgrade to viewful format at downgradeTs.
+    {
+        ConcurrentDDL ddl(getServiceContext(), downgradeTs, [&](OperationContext* opCtx) {
+            RAIIServerParameterControllerForTest featureFlagController(
+                "featureFlagCreateViewlessTimeseriesCollections", false);
+            timeseries::downgradeFromViewlessTimeseries(opCtx, mainNs);
+        });
+    }
+
+    // Verify post-downgrade state: viewful (view at mainNs, collection at bucketsNs).
+    auto catalog = CollectionCatalog::get(opCtx.get());
+    ASSERT(!catalog->lookupCollectionByNamespace(opCtx.get(), mainNs));
+    ASSERT(catalog->lookupView(opCtx.get(), mainNs));
+    ASSERT(catalog->lookupCollectionByNamespace(opCtx.get(), bucketsNs));
+
+    // PIT read BEFORE the downgrade: lookupView should hide the timeseries view because at that
+    // point the namespace was a viewless timeseries collection.
+    {
+        auto pitClient = getServiceContext()->getService()->makeClient("PITBeforeDowngradeClient");
+        auto pitOpCtx = pitClient->makeOperationContext();
+        OneOffRead oor(pitOpCtx.get(), beforeDowngradeTs);
+        ASSERT_FALSE(catalog->lookupView(pitOpCtx.get(), mainNs));
+
+        // The viewless collection should be visible at this timestamp.
+        auto coll =
+            catalog->establishConsistentCollection(pitOpCtx.get(), mainNs, beforeDowngradeTs);
+        ASSERT(coll);
+        ASSERT(coll->isTimeseriesCollection());
+    }
+
+    // PIT read AT the downgrade timestamp: lookupView should return the view because the
+    // downgrade is already visible at this point.
+    {
+        auto pitClient = getServiceContext()->getService()->makeClient("PITAtDowngradeClient");
+        auto pitOpCtx = pitClient->makeOperationContext();
+        OneOffRead oor(pitOpCtx.get(), downgradeTs);
+        ASSERT(catalog->lookupView(pitOpCtx.get(), mainNs));
+    }
+
+    // Non-PIT read: lookupView should return the view (latest state).
+    {
+        auto latestClient = getServiceContext()->getService()->makeClient("LatestReadClient");
+        auto latestOpCtx = latestClient->makeOperationContext();
+        ASSERT(catalog->lookupView(latestOpCtx.get(), mainNs));
+    }
 }
 
 using CollectionCatalogTimestampTestDeathTest = CollectionCatalogTimestampTest;

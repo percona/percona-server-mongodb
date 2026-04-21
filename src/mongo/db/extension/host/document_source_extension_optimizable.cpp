@@ -31,7 +31,11 @@
 
 #include "mongo/base/init.h"  // IWYU pragma: keep
 #include "mongo/db/extension/host/document_source_extension_for_query_shape.h"
+#include "mongo/db/extension/host/extension_search_server_status.h"
 #include "mongo/db/extension/host/extension_vector_search_server_status.h"
+#include "mongo/db/extension/host/query_execution_context.h"
+#include "mongo/db/extension/host_connector/adapter/pipeline_rewrite_context_adapter.h"
+#include "mongo/db/extension/host_connector/adapter/query_execution_context_adapter.h"
 #include "mongo/db/extension/host_connector/adapter/view_info_adapter.h"
 #include "mongo/db/extension/public/api.h"
 #include "mongo/db/extension/shared/handle/aggregation_stage/stage_descriptor.h"
@@ -202,8 +206,18 @@ bool DocumentSourceExtensionOptimizable::LiteParsedExpandable::hasExtensionVecto
 }
 
 // TODO SERVER-116021 Remove this check when the extension can do this through bindViewInfo().
+bool DocumentSourceExtensionOptimizable::LiteParsedExpandable::hasExtensionSearchStage() const {
+    return search_helpers::isExtensionSearchStage(getParseTimeName());
+}
+
+// TODO SERVER-116021 Remove this check when the extension can do this through bindViewInfo().
 bool DocumentSourceExtensionOptimizable::LiteParsedExpanded::hasExtensionVectorSearchStage() const {
     return search_helpers::isExtensionVectorSearchStage(getParseTimeName());
+}
+
+// TODO SERVER-116021 Remove this check when the extension can do this through bindViewInfo().
+bool DocumentSourceExtensionOptimizable::LiteParsedExpanded::hasExtensionSearchStage() const {
+    return search_helpers::isExtensionSearchStage(getParseTimeName());
 }
 
 FirstStageViewApplicationPolicy
@@ -214,20 +228,24 @@ DocumentSourceExtensionOptimizable::LiteParsedExpanded::getFirstStageViewApplica
 void DocumentSourceExtensionOptimizable::LiteParsedExpanded::bindViewInfo(
     const ViewInfo& viewInfo, const ResolvedNamespaceMap& resolvedNamespaces) {
     if (!feature_flags::gFeatureFlagExtensionViewsAndUnionWith.isEnabled()) {
-        // If this is not a $vectorSearch stage, views are banned entirely with the feature flag
-        // disabled.
+        // Only $vectorSearch and $search/$searchMeta support IFR kickback on views.
+        // All other extension stages are banned on views when the feature flag is disabled.
         uassert(ErrorCodes::NotImplemented,
                 str::stream() << "Extension stages are not allowed to run on a view namespace.",
-                hasExtensionVectorSearchStage());
+                hasExtensionVectorSearchStage() || hasExtensionSearchStage());
 
-        // If this is a $vectorSearch stage, we perform the IFR flag retry kickback to use legacy
-        // $vectorSearch instead. We pass 'true' here because the uassert above already guarantees
-        // we only reach this point when hasExtensionVectorSearchStage() is true.
+        // Throw an IFR retry error for extension $vectorSearch on a view.
         search_helpers::throwIfrKickbackIfNecessary(
-            true /*kickbackCondition*/,
+            hasExtensionVectorSearchStage(),
             feature_flags::gFeatureFlagVectorSearchExtension,
             vector_search_metrics::onViewKickbackRetryCount,
             "$vectorSearch-as-an-extension is not allowed against views.");
+        // Throw an IFR retry error for extension $search/$searchMeta on a view.
+        search_helpers::throwIfrKickbackIfNecessary(
+            hasExtensionSearchStage(),
+            feature_flags::gFeatureFlagSearchExtension,
+            search_metrics::onViewKickbackRetryCount,
+            "$search/$searchMeta-as-an-extension are not allowed against views.");
     }
 
     auto viewInfoAdapter = host_connector::ViewInfoAdapter::fromViewInfo(viewInfo);
@@ -292,7 +310,9 @@ Value DocumentSourceExtensionOptimizable::serialize(const SerializationOptions& 
             opts.isKeepingLiteralsUnchanged());
 
     if (opts.isSerializingForExplain()) {
-        return Value(_logicalStage->explain(*opts.verbosity));
+        auto wrappedCtx = std::make_unique<QueryExecutionContext>(getExpCtx().get());
+        host_connector::QueryExecutionContextAdapter ctxAdapter(std::move(wrappedCtx));
+        return Value(_logicalStage->explain(ctxAdapter, *opts.verbosity));
     }
 
     // Serialize the stage for query execution.
@@ -513,6 +533,19 @@ std::list<boost::intrusive_ptr<DocumentSource>> DocumentSourceExtensionOptimizab
     return outExpanded;
 }
 
+BSONObj DocumentSourceExtensionOptimizable::getQuery() const {
+    if (!feature_flags::gFeatureFlagExtensionsOptimizations.isEnabled()) {
+        return BSONObj();
+    }
+
+    // Only expose source stage filters, for shard targeting purposes.
+    return _properties.getRequiresInputDocSource() ? BSONObj() : _logicalStage->getFilter();
+}
+
+bool DocumentSourceExtensionOptimizable::hasQuery() const {
+    return !getQuery().isEmpty();
+}
+
 boost::intrusive_ptr<DocumentSource> DocumentSourceExtensionOptimizable::clone(
     const boost::intrusive_ptr<ExpressionContext>& newExpCtx) const {
     return create(newExpCtx, _logicalStage->clone(), _properties);
@@ -520,23 +553,108 @@ boost::intrusive_ptr<DocumentSource> DocumentSourceExtensionOptimizable::clone(
 
 DocumentSourceContainer::iterator DocumentSourceExtensionOptimizable::optimizeAt(
     DocumentSourceContainer::iterator itr, DocumentSourceContainer* container) {
-    // Attempt to remove a $sort on metadata if the extension stage is sorted by vector search
-    // score.
-    if (_logicalStage->isSortedByVectorSearchScore()) {
+    // TODO SERVER-123271: Only apply the sort optimization when featureFlagExtensionsOptimizations
+    // is disabled.
+
+    // Attempt to remove a $sort on metadata if the extension stage is sorted by vector
+    // search score.
+    if (_logicalStage->isSortedByVectorSearchScore_deprecated()) {
         if (auto result = search_helpers::applyVectorSearchSortOptimization(itr, container)) {
             return *result;
         }
     }
+
+    // TODO SERVER-122005: Only apply the limit optimization when featureFlagExtensionsOptimizations
+    // is disabled.
     _limit = search_helpers::setVectorSearchLimitForOptimization(itr, container, _limit);
-    _logicalStage->setExtractedLimitVal(_limit);
+    _logicalStage->setExtractedLimitVal_deprecated(_limit);
     return std::next(itr);
+}
+
+stdx::unordered_map<std::string, std::vector<PipelineRewriteRule>>
+    DocumentSourceExtensionOptimizable::_extensionRuleRegistry;
+
+// static
+void DocumentSourceExtensionOptimizable::registerStageRules(
+    StringData stageName, const std::vector<extension::PipelineRewriteRule>& rules) {
+    auto [_, inserted] = _extensionRuleRegistry.emplace(stageName, rules);
+    tassert(12201405, "Rules already registered for stage: " + stageName, inserted);
+}
+
+// static
+void DocumentSourceExtensionOptimizable::unregisterStageRules_forTest(StringData stageName) {
+    _extensionRuleRegistry.erase(std::string_view(stageName));
+}
+
+// static
+const std::vector<PipelineRewriteRule>* DocumentSourceExtensionOptimizable::getStageRules_forTest(
+    StringData stageName) {
+    auto it = _extensionRuleRegistry.find(std::string_view(stageName));
+    if (it == _extensionRuleRegistry.end()) {
+        return nullptr;
+    }
+    return &it->second;
+}
+
+// static
+std::vector<rule_based_rewrites::pipeline::PipelineRewriteRule>
+DocumentSourceExtensionOptimizable::_buildOwnedRewriteRules(
+    const std::string& stageName, MongoExtensionLogicalAggStage* logicalStage) {
+    auto it = _extensionRuleRegistry.find(stageName);
+    if (it == _extensionRuleRegistry.end()) {
+        return {};
+    }
+    std::vector<rule_based_rewrites::pipeline::PipelineRewriteRule> rules;
+    rules.reserve(it->second.size());
+    for (const auto& rule : it->second) {
+        rules.push_back(host_connector::wrapExtensionRule(rule, logicalStage));
+    }
+    return rules;
+}
+
+using PipelineRewriteContext = rule_based_rewrites::pipeline::PipelineRewriteContext;
+
+bool DocumentSourceExtensionOptimizable::dispatchExtensionRules(PipelineRewriteContext& ctx,
+                                                                PipelineRewriteRuleTags tagFilter) {
+    for (const auto& rule : _ownedRewriteRules) {
+        if (rule.tags & tagFilter) {
+            ctx.addRule(rule);
+        }
+    }
+    return false;
+}
+
+bool extensionDispatcherReorderingPrecondition(PipelineRewriteContext& ctx) {
+    auto* stage = dynamic_cast<DocumentSourceExtensionOptimizable*>(&ctx.current());
+    return stage && stage->dispatchExtensionRules(ctx, kReordering);
+}
+
+bool extensionDispatcherInPlacePrecondition(PipelineRewriteContext& ctx) {
+    auto* stage = dynamic_cast<DocumentSourceExtensionOptimizable*>(&ctx.current());
+    return stage && stage->dispatchExtensionRules(ctx, kInPlace);
 }
 }  // namespace mongo::extension::host
 
 namespace mongo::rule_based_rewrites::pipeline {
 using DocumentSourceExtensionOptimizable =
     mongo::extension::host::DocumentSourceExtensionOptimizable;
+REGISTER_RULES_WITH_FEATURE_FLAG(
+    DocumentSourceExtensionOptimizable,
+    &feature_flags::gFeatureFlagExtensionsOptimizations,
+    {
+        .name = "EXTENSION_DISPATCHER_REORDERING",
+        .precondition = mongo::extension::host::extensionDispatcherReorderingPrecondition,
+        .transform = Transforms::noop,
+        .priority = kDefaultOptimizeAtPriority + 1,
+        .tags = PipelineRewriteContext::Tags::Reordering,
+    },
+    {
+        .name = "EXTENSION_DISPATCHER_IN_PLACE",
+        .precondition = mongo::extension::host::extensionDispatcherInPlacePrecondition,
+        .transform = Transforms::noop,
+        .priority = kDefaultOptimizeInPlacePriority,
+        .tags = PipelineRewriteContext::Tags::InPlace,
+    });
 REGISTER_RULES(DocumentSourceExtensionOptimizable,
                OPTIMIZE_AT_RULE(DocumentSourceExtensionOptimizable));
-
 }  // namespace mongo::rule_based_rewrites::pipeline

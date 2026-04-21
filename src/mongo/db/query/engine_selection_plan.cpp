@@ -28,24 +28,38 @@
  */
 #include "mongo/db/query/engine_selection_plan.h"
 
+#include "mongo/util/fail_point.h"
+
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kQuery
 
 namespace mongo {
+
+// Test-only failpoint that overrides plan-based engine selection using index names. When active,
+// if the winning plan's IXSCAN uses the index named "sbe", SBE is forced; if it uses
+// the index named "classic", classic is forced. This overrides the normal rules
+// (GROUP/LOOKUP -> SBE, etc.) and exists solely to let JS tests exercise cross-engine replanning
+// where a cached plan for one engine is evicted and replaced by one that uses the other engine.
+MONGO_FAIL_POINT_DEFINE(engineSelectionOverrideByIndexName);
 
 namespace {
 
 class RuleEngine {
 public:
-    void match() {
-        _match = true;
+    // 'node': represents the node where the pattern was found.
+    void match(const QuerySolutionNode* node) {
+        _matchedNode = node;
     }
 
     bool hasMatch() const {
-        return _match;
+        return _matchedNode;
+    }
+
+    const QuerySolutionNode* getMatchedNode() const {
+        return _matchedNode;
     }
 
 private:
-    bool _match = false;
+    const QuerySolutionNode* _matchedNode = nullptr;
 };
 
 template <class Rule, class N>
@@ -62,6 +76,8 @@ concept HasFinish = requires(Rule& rule, RuleEngine& engine) { rule.finish(engin
 template <class Rule, class N>
 void callPreVisit(Rule& rule, RuleEngine& engine, const N& node) {
     if constexpr (HasPreVisit<Rule, N>) {
+        if (engine.hasMatch())
+            return;
         rule.preVisit(engine, node);
     }
 }
@@ -69,6 +85,8 @@ void callPreVisit(Rule& rule, RuleEngine& engine, const N& node) {
 template <class Rule, class N>
 void callPostVisit(Rule& rule, RuleEngine& engine, const N& node) {
     if constexpr (HasPostVisit<Rule, N>) {
+        if (engine.hasMatch())
+            return;
         rule.postVisit(engine, node);
     }
 }
@@ -76,6 +94,8 @@ void callPostVisit(Rule& rule, RuleEngine& engine, const N& node) {
 template <class Rule>
 void callFinish(Rule& rule, RuleEngine& engine) {
     if constexpr (HasFinish<Rule>) {
+        if (engine.hasMatch())
+            return;
         rule.finish(engine);
     }
 }
@@ -85,6 +105,7 @@ void visit(F&& f, const QuerySolutionNode& node) {
     // We'll add specializations as the rules need them.
     switch (node.getType()) {
         case STAGE_EQ_LOOKUP:
+        case STAGE_EQ_LOOKUP_UNWIND:
             f(static_cast<const EqLookupNode&>(node));
             break;
         case STAGE_GROUP:
@@ -92,9 +113,6 @@ void visit(F&& f, const QuerySolutionNode& node) {
             break;
         case STAGE_IXSCAN:
             f(static_cast<const IndexScanNode&>(node));
-            break;
-        case STAGE_EQ_LOOKUP_UNWIND:
-            f(static_cast<const EqLookupUnwindNode&>(node));
             break;
         case STAGE_DISTINCT_SCAN:
             f(static_cast<const DistinctNode&>(node));
@@ -112,7 +130,8 @@ void visit(F&& f, const QuerySolutionNode& node) {
 }
 
 /**
- * Returns 'true' if the query solution tree 'solution' matches any of the rules defined by 'rules'.
+ * Returns a pointer to the node in the query solution tree at 'root' that is returned by the first
+ * rule in 'rules' that triggers a match.
  *
  * Each rule is implemented as a separate visitor, and can be conceived as a state machine that
  * receives tree nodes in pre/post order and returns whether they correspond to the pattern the rule
@@ -141,7 +160,7 @@ void visit(F&& f, const QuerySolutionNode& node) {
  * };
  */
 template <class... Rules>
-bool treeMatchesAny(const QuerySolution* solution, Rules&&... rules) {
+const QuerySolutionNode* treeSearch(const QuerySolutionNode* root, Rules&&... rules) {
     RuleEngine engine;
     std::function<void(const QuerySolutionNode*)> walk = [&](const QuerySolutionNode* node) {
         visit([&](const auto& node) { (callPreVisit(rules, engine, node), ...); }, *node);
@@ -157,36 +176,19 @@ bool treeMatchesAny(const QuerySolution* solution, Rules&&... rules) {
         visit([&](const auto& node) { (callPostVisit(rules, engine, node), ...); }, *node);
     };
 
-    walk(solution->root());
-    if (!engine.hasMatch())
-        (callFinish(rules, engine), ...);
+    walk(root);
+    (callFinish(rules, engine), ...);
 
-    return engine.hasMatch();
+    return engine.getMatchedNode();
 }
 
 /**
- * This rule matches when:
- * 1. There is at least one GROUP in the tree.
+ * Returns 'true' if the query solution tree at 'node' matches any of the rules defined by 'rules'.
  */
-class GroupRule {
-public:
-    void preVisit(RuleEngine& engine, const GroupNode& node) {
-        engine.match();
-    }
-};
-static_assert(HasPreVisit<GroupRule, GroupNode>);
-
-/**
- * This rule matches when:
- * 1. There is at least one LOOKUP in the tree.
- */
-class LookupRule {
-public:
-    void preVisit(RuleEngine& engine, const EqLookupNode& node) {
-        engine.match();
-    }
-};
-static_assert(HasPreVisit<LookupRule, EqLookupNode>);
+template <class... Rules>
+bool treeMatchesAny(const QuerySolutionNode* root, Rules&&... rules) {
+    return treeSearch(root, std::forward<Rules>(rules)...) != nullptr;
+}
 
 /**
  * This rule matches when:
@@ -196,11 +198,88 @@ static_assert(HasPreVisit<LookupRule, EqLookupNode>);
  */
 class LookupUnwindRule {
 public:
-    void preVisit(RuleEngine& engine, const EqLookupUnwindNode& node) {
-        engine.match();
+    void preVisit(RuleEngine& engine, const EqLookupNode& node) {
+        if (node.unwindSpec) {
+            engine.match(&node);
+        }
     }
 };
-static_assert(HasPreVisit<LookupUnwindRule, EqLookupUnwindNode>);
+
+/**
+ * This pattern matches when SBE must be used for the input plan. The matched node points to the top
+ * of the section that will be pushed down to SBE.
+ *
+ * For example, when we receive a $LU query with a disabled data access plan for a LU stage, the top
+ * of the SBE section will point to the next SBE-eligible stage. Otherwise, if there are no disabled
+ * data access plans, we match the entire tree.
+ *
+ */
+class PlanPushdownSelector {
+public:
+    PlanPushdownSelector(bool containsLuPattern) : _containsLuPattern(containsLuPattern) {}
+
+    void preVisit(RuleEngine&, const GroupNode& node) {
+        preVisitBase(node);
+        _enableSbe = true;
+    }
+
+    void preVisit(RuleEngine&, const EqLookupNode& node) {
+        preVisitBase(node);
+
+        if (!node.unwindSpec) {
+            // $lookup case.
+            _enableSbe = true;
+            return;
+        }
+
+        // $lookup + $unwind case.
+        if (_containsLuPattern) {
+            _enableSbe = true;
+        } else {
+            // Reset the cut point, since this LU node has to be left out from the SBE plan. If we
+            // have a non-LU child, it'll become the next cut point. If it's a LU child, it'll also
+            // be excluded from the SBE plan.
+            //
+            // We also disable SBE for now, since this might be the bottom-most node in the QSN,
+            // which would make us disable SBE for this QSN.
+            _enableSbe = false;
+            _cutPoint = nullptr;
+        }
+    }
+
+    void preVisit(RuleEngine& engine, const QuerySolutionNode& node) {
+        preVisitBase(node);
+    }
+
+    void finish(RuleEngine& engine) {
+        if (_enableSbe && _cutPoint)
+            engine.match(_cutPoint);
+    }
+
+private:
+    // 'true' when the solution tree contains a LookupUnwind pattern, 'false' otherwise.
+    bool _containsLuPattern = false;
+
+    // Indicates whether the query (either as a whole or after a cut) must be executed in SBE or
+    // not. It's set to true by nodes that trigger SBE usage (e.g. GroupNode, EqLookupNode, or
+    // EqLookupUnwindNode).
+    bool _enableSbe = false;
+
+    // Represents the topmost QSN that must run in SBE. This is chosen so as to leave out the nodes
+    // with disabled patterns.
+    const QuerySolutionNode* _cutPoint = nullptr;
+
+    void preVisitBase(const QuerySolutionNode& node) {
+        if (!_cutPoint) {
+            _cutPoint = &node;
+        }
+    }
+};
+
+static_assert(HasPreVisit<PlanPushdownSelector, GroupNode>);
+static_assert(HasPreVisit<PlanPushdownSelector, EqLookupNode>);
+static_assert(HasPreVisit<PlanPushdownSelector, QuerySolutionNode>);
+static_assert(HasFinish<PlanPushdownSelector>);
 
 /**
  * This rule matches:
@@ -209,7 +288,7 @@ static_assert(HasPreVisit<LookupUnwindRule, EqLookupUnwindNode>);
 class DistinctScanRule {
 public:
     void preVisit(RuleEngine& engine, const DistinctNode& node) {
-        engine.match();
+        engine.match(&node);
     }
 };
 static_assert(HasPreVisit<DistinctScanRule, DistinctNode>);
@@ -223,11 +302,31 @@ class HashedIndexScanPatternRule {
 public:
     void preVisit(RuleEngine& engine, const IndexScanNode& node) {
         if (indexHasHashedPathPrefixOfNonHashedPath(node.index.keyPattern)) {
-            engine.match();
+            engine.match(&node);
         }
     }
 };
 static_assert(HasPreVisit<HashedIndexScanPatternRule, IndexScanNode>);
+
+/**
+ * Test-only rule that matches when the plan contains an IXSCAN whose catalog name equals
+ * 'targetIndexName'. Used by the engineSelectionOverrideByIndexName failpoint.
+ */
+class IndexNameRule_ForTest {
+public:
+    explicit IndexNameRule_ForTest(StringData targetIndexName)
+        : _targetIndexName(targetIndexName) {}
+
+    void preVisit(RuleEngine& engine, const IndexScanNode& node) {
+        if (node.index.identifier.catalogName == _targetIndexName) {
+            engine.match(&node);
+        }
+    }
+
+private:
+    StringData _targetIndexName;
+};
+static_assert(HasPreVisit<IndexNameRule_ForTest, IndexScanNode>);
 
 /**
  * This rule matches:
@@ -236,30 +335,45 @@ static_assert(HasPreVisit<HashedIndexScanPatternRule, IndexScanNode>);
 class AndHashOrSortedRule {
 public:
     void preVisit(RuleEngine& engine, const AndSortedNode& node) {
-        engine.match();
+        engine.match(&node);
     }
     void preVisit(RuleEngine& engine, const AndHashNode& node) {
-        engine.match();
+        engine.match(&node);
     }
 };
 static_assert(HasPreVisit<AndHashOrSortedRule, AndSortedNode>);
 static_assert(HasPreVisit<AndHashOrSortedRule, AndHashNode>);
-
 }  // namespace
 
 bool isPlanSbeEligible(const QuerySolution* solution) {
     return !treeMatchesAny(
-        solution, DistinctScanRule(), HashedIndexScanPatternRule(), AndHashOrSortedRule());
+        solution->root(), DistinctScanRule(), HashedIndexScanPatternRule(), AndHashOrSortedRule());
 }
 
-EngineChoice engineSelectionForPlan(const QuerySolution* solution) {
+EngineSelectionResult engineSelectionForPlan(const QuerySolution* solution) {
     LOGV2_DEBUG(11986305,
                 1,
                 "Plan-based engine selection logic invoked.",
                 "solution"_attr = solution->toString());
-    return treeMatchesAny(solution, LookupUnwindRule(), LookupRule(), GroupRule())
-        ? EngineChoice::kSbe
-        : EngineChoice::kClassic;
+
+    // Test-only: when the failpoint is active, override engine selection based on the index name
+    // used by the winning plan's IXSCAN. An IXSCAN named "sbe" forces SBE; an IXSCAN named
+    // "classic" forces classic. This takes precedence over all other rules.
+    if (auto scoped = engineSelectionOverrideByIndexName.scoped();
+        MONGO_unlikely(scoped.isActive())) {
+        if (treeMatchesAny(solution->root(), IndexNameRule_ForTest("sbe"))) {
+            return {EngineChoice::kSbe, solution->root()};
+        }
+        if (treeMatchesAny(solution->root(), IndexNameRule_ForTest("classic"))) {
+            return {EngineChoice::kClassic, nullptr};
+        }
+    }
+
+    bool containsLuPattern = treeMatchesAny(solution->root(), LookupUnwindRule());
+    const QuerySolutionNode* planPushdownRoot =
+        treeSearch(solution->root(), PlanPushdownSelector(containsLuPattern));
+
+    return {planPushdownRoot ? EngineChoice::kSbe : EngineChoice::kClassic, planPushdownRoot};
 }
 
 bool indexHasHashedPathPrefixOfNonHashedPath(const BSONObj& keyPattern) {

@@ -57,6 +57,7 @@
 #include "mongo/db/pipeline/change_stream_pre_and_post_images_options_gen.h"
 #include "mongo/db/pipeline/change_stream_preimage_gen.h"
 #include "mongo/db/query/write_ops/write_ops.h"
+#include "mongo/db/repl/apply_ops_command_info.h"
 #include "mongo/db/repl/idempotency_test_fixture.h"
 #include "mongo/db/repl/image_collection_entry_gen.h"
 #include "mongo/db/repl/member_state.h"
@@ -581,6 +582,95 @@ TEST_F(OplogApplierImplTest, applyOplogEntryToRecordChangeStreamPreImages) {
     }
 }
 
+// Test that applying extracted sub-ops from an applyOps with mixed fromMigrate values
+// correctly records pre-images only for non-fromMigrate operations. This mirrors the real
+// secondary oplog application path: extract sub-ops from applyOps, then apply individually.
+TEST_F(OplogApplierImplTest, ApplyApplyOpsWithMixedFromMigrateRecordsCorrectPreImages) {
+    // Setup the pre-images collection.
+    ChangeStreamPreImagesCollectionManager::get(_opCtx.get())
+        .createPreImagesCollection(_opCtx.get());
+
+    // Create the collection with pre-images enabled.
+    const NamespaceString nss = NamespaceString::createNamespaceString_forTest("test.t");
+    CollectionOptions options;
+    options.uuid = kUuid;
+    options.changeStreamPreAndPostImagesOptions.setEnabled(true);
+    createCollection(_opCtx.get(), nss, options);
+
+    // Insert two documents to be updated.
+    auto doc0 = BSON("_id" << 0 << "x" << 0);
+    auto doc1 = BSON("_id" << 1 << "x" << 0);
+    ASSERT_OK(getStorageInterface()->insertDocument(_opCtx.get(), nss, {doc0}, 0));
+    ASSERT_OK(getStorageInterface()->insertDocument(_opCtx.get(), nss, {doc1}, 0));
+
+    // Get an optime for the applyOps entry.
+    auto opTime = [opCtx = _opCtx.get()] {
+        WriteUnitOfWork wuow{opCtx};
+        ScopeGuard guard{[&wuow] {
+            wuow.commit();
+        }};
+        return repl::getNextOpTime(opCtx);
+    }();
+
+    auto deltaUpdate = update_oplog_entry::makeDeltaOplogEntry(
+        BSON(doc_diff::kUpdateSectionFieldName << fromjson("{a: 1}")));
+
+    // Build two update sub-ops: one NOT fromMigrate, one fromMigrate.
+    BSONObj subOp0 = BSON("op" << "u"
+                               << "ns" << nss.ns_forTest() << "ui" << *options.uuid << "o"
+                               << deltaUpdate << "o2" << BSON("_id" << 0));
+    BSONObj subOp1 = BSON("op" << "u"
+                               << "ns" << nss.ns_forTest() << "ui" << *options.uuid << "o"
+                               << deltaUpdate << "o2" << BSON("_id" << 1) << "fromMigrate" << true);
+
+    // Construct the applyOps command oplog entry (no top-level fromMigrate since mixed).
+    auto applyOpsCmd = BSON("applyOps" << BSON_ARRAY(subOp0 << subOp1));
+    auto entry = makeCommandOplogEntry(opTime, nss, applyOpsCmd);
+
+    // Extract sub-ops from the applyOps entry, mimicking the real secondary oplog application
+    // path (OplogApplierImpl extracts ops then applies them individually).
+    std::vector<OplogEntry> extractedOps;
+    ApplyOps::extractOperationsTo(entry, entry.getEntry().toBSON(), &extractedOps);
+    ASSERT_EQ(extractedOps.size(), 2);
+
+    // Verify fromMigrate propagation from extraction.
+    ASSERT_FALSE(extractedOps[0].getFromMigrate().value_or(false))
+        << "First extracted op should NOT have fromMigrate";
+    ASSERT_TRUE(extractedOps[1].getFromMigrate().value_or(false))
+        << "Second extracted op should have fromMigrate=true";
+
+    // Apply each extracted op individually on the secondary.
+    for (auto& extractedOp : extractedOps) {
+        ASSERT_OK(_applyOplogEntryOrGroupedInsertsWrapper(
+            _opCtx.get(), ApplierOperation{&extractedOp}, OplogApplication::Mode::kSecondary));
+    }
+
+    // Check pre-image for the non-fromMigrate update (doc0, applyOpsIndex=0): should exist.
+    {
+        ChangeStreamPreImageId preImageId0{*options.uuid, opTime.getTimestamp(), 0};
+        BSONObj preImageDocumentKey0 = BSON("_id" << preImageId0.toBSON());
+        auto preImageLoadResult0 =
+            getStorageInterface()->findById(_opCtx.get(),
+                                            NamespaceString::kChangeStreamPreImagesNamespace,
+                                            preImageDocumentKey0.firstElement());
+        ASSERT_OK(preImageLoadResult0) << "Pre-image should be recorded for non-fromMigrate op";
+        auto preImage0 =
+            ChangeStreamPreImage::parse(preImageLoadResult0.getValue(), IDLParserContext{"test"});
+        ASSERT_BSONOBJ_EQ(preImage0.getPreImage(), doc0);
+    }
+
+    // Check pre-image for the fromMigrate update (doc1, applyOpsIndex=1): should NOT exist.
+    {
+        ChangeStreamPreImageId preImageId1{*options.uuid, opTime.getTimestamp(), 1};
+        BSONObj preImageDocumentKey1 = BSON("_id" << preImageId1.toBSON());
+        auto preImageLoadResult1 =
+            getStorageInterface()->findById(_opCtx.get(),
+                                            NamespaceString::kChangeStreamPreImagesNamespace,
+                                            preImageDocumentKey1.firstElement());
+        ASSERT_NOT_OK(preImageLoadResult1) << "Pre-image should NOT be recorded for fromMigrate op";
+    }
+}
+
 TEST_F(OplogApplierImplTest, CreateCollectionCommand) {
     NamespaceString nss = NamespaceString::createNamespaceString_forTest("test.t");
     auto op = BSON("op" << "c"
@@ -592,7 +682,8 @@ TEST_F(OplogApplierImplTest, CreateCollectionCommand) {
                                             const NamespaceString& collNss,
                                             const CollectionOptions&,
                                             const BSONObj&,
-                                            const boost::optional<CreateCollCatalogIdentifier>&) {
+                                            const boost::optional<CreateCollCatalogIdentifier>&,
+                                            bool recordIdsReplicated) {
         applyCmdCalled = true;
         ASSERT_TRUE(opCtx);
         ASSERT_TRUE(shard_role_details::getLocker(opCtx)->isDbLockedForMode(nss.dbName(), MODE_IX));
@@ -618,7 +709,8 @@ TEST_F(OplogApplierImplTest, CreateCollectionCommandMultitenant) {
                                             const NamespaceString& collNss,
                                             const CollectionOptions&,
                                             const BSONObj&,
-                                            const boost::optional<CreateCollCatalogIdentifier>&) {
+                                            const boost::optional<CreateCollCatalogIdentifier>&,
+                                            bool recordIdsReplicated) {
         applyCmdCalled = true;
         ASSERT_TRUE(opCtx);
         ASSERT_TRUE(shard_role_details::getLocker(opCtx)->isDbLockedForMode(nss.dbName(), MODE_IX));
@@ -651,7 +743,8 @@ TEST_F(OplogApplierImplTest, CreateCollectionCommandMultitenantRequireTenantIDFa
                                             const NamespaceString& collNss,
                                             const CollectionOptions&,
                                             const BSONObj&,
-                                            const boost::optional<CreateCollCatalogIdentifier>&) {
+                                            const boost::optional<CreateCollCatalogIdentifier>&,
+                                            bool recordIdsReplicated) {
         applyCmdCalled = true;
         ASSERT_TRUE(opCtx);
         ASSERT_TRUE(shard_role_details::getLocker(opCtx)->isDbLockedForMode(nss.dbName(), MODE_IX));
@@ -691,7 +784,8 @@ TEST_F(OplogApplierImplTest, CreateCollectionCommandMultitenantAlreadyExists) {
                                             const NamespaceString& collNss,
                                             const CollectionOptions&,
                                             const BSONObj&,
-                                            const boost::optional<CreateCollCatalogIdentifier>&) {
+                                            const boost::optional<CreateCollCatalogIdentifier>&,
+                                            bool recordIdsReplicated) {
         applyCmdCalled = true;
         ASSERT_TRUE(opCtx);
         ASSERT_TRUE(
@@ -1221,32 +1315,6 @@ Status TrackOpsAppliedApplier::applyOplogBatchPerWorker(
     return Status::OK();
 }
 
-TEST_F(OplogApplierImplTest, ApplyOpsRidOnNonRridCollectionGroupedRridDisabled) {
-    auto nss = NamespaceString::createNamespaceString_forTest(
-        "test.ApplyOpsRidOnNonRridCollectionGroupedRridDisabled");
-    createCollection(_opCtx.get(), nss, {});
-
-    auto op1 = makeInsertDocumentOplogEntry({Timestamp(Seconds(1), 1), 1LL}, nss, BSON("_id" << 1));
-
-    MutableOplogEntry op2Mutable;
-    op2Mutable.setOpType(OpTypeEnum::kInsert);
-    op2Mutable.setNss(nss);
-    op2Mutable.setObject(BSON("_id" << 2));
-    op2Mutable.setObject2(BSON("_id" << 2));
-    op2Mutable.setOpTime({Timestamp(Seconds(1), 2), 1LL});
-    op2Mutable.setRecordId(RecordId(2));
-    op2Mutable.setWallClockTime(Date_t::now());
-    auto op2 = OplogEntry(op2Mutable.toBSON());
-
-    std::vector<ApplierOperation> ops = {ApplierOperation{&op1}, ApplierOperation{&op2}};
-    OplogEntryOrGroupedInserts groupedInserts(ops.begin(), ops.end());
-
-    RAIIServerParameterControllerForTest _featureFlagReplRidController{
-        "featureFlagRecordIdsReplicated", false};
-    (void)_applyOplogEntryOrGroupedInsertsWrapper(
-        _opCtx.get(), groupedInserts, OplogApplication::Mode::kApplyOpsCmd);
-}
-
 using OplogApplierImplTestDeathTest = OplogApplierImplTest;
 DEATH_TEST_F(OplogApplierImplTestDeathTest,
              MultiApplyAbortsWhenNoOperationsAreGiven,
@@ -1263,34 +1331,6 @@ DEATH_TEST_F(OplogApplierImplTestDeathTest,
         repl::OplogApplier::Options(repl::OplogApplication::Mode::kSecondary, false),
         workerPool.get());
     oplogApplier.applyOplogBatch(_opCtx.get(), {}).getStatus().ignore();
-}
-
-DEATH_TEST_F(OplogApplierImplTestDeathTest,
-             ApplyOpsRidOnNonRridCollectionGroupedRridEnabled,
-             "11454702") {
-    auto nss = NamespaceString::createNamespaceString_forTest(
-        "test.ApplyOpsRidOnNonRridCollectionGroupedRridEnabled");
-    createCollection(_opCtx.get(), nss, {});
-
-    auto op1 = makeInsertDocumentOplogEntry({Timestamp(Seconds(1), 1), 1LL}, nss, BSON("_id" << 1));
-
-    MutableOplogEntry op2Mutable;
-    op2Mutable.setOpType(OpTypeEnum::kInsert);
-    op2Mutable.setNss(nss);
-    op2Mutable.setObject(BSON("_id" << 2));
-    op2Mutable.setObject2(BSON("_id" << 2));
-    op2Mutable.setOpTime({Timestamp(Seconds(1), 2), 1LL});
-    op2Mutable.setRecordId(RecordId(2));
-    op2Mutable.setWallClockTime(Date_t::now());
-    auto op2 = OplogEntry(op2Mutable.toBSON());
-
-    std::vector<ApplierOperation> ops = {ApplierOperation{&op1}, ApplierOperation{&op2}};
-    OplogEntryOrGroupedInserts groupedInserts(ops.begin(), ops.end());
-
-    RAIIServerParameterControllerForTest _featureFlagReplRidController{
-        "featureFlagRecordIdsReplicated", true};
-    (void)_applyOplogEntryOrGroupedInsertsWrapper(
-        _opCtx.get(), groupedInserts, OplogApplication::Mode::kApplyOpsCmd);
 }
 
 DEATH_TEST_F(OplogApplierImplTestDeathTest, SteadyStateRidOnNonRridCollectionGrouped, "11454703") {
@@ -2244,7 +2284,7 @@ TEST_F(OplogApplierImplTest, ApplyApplyOpsContainerOperations) {
     auto ident = storageEngine->generateNewInternalIdent();
     auto ru = storageEngine->newRecoveryUnit();
     StorageWriteTransaction swt(*ru);
-    auto trs = storageEngine->getEngine()->makeTemporaryRecordStore(*ru, ident, KeyFormat::String);
+    auto trs = storageEngine->getEngine()->makeInternalRecordStore(*ru, ident, KeyFormat::String);
     swt.commit();
 
     auto k = BSONBinData("K", 1, BinDataGeneral);
@@ -2303,7 +2343,7 @@ TEST_F(OplogApplierImplTest, ApplyContainerOperations) {
     auto ident = storageEngine->generateNewInternalIdent();
     auto ru = storageEngine->newRecoveryUnit();
     StorageWriteTransaction swt(*ru);
-    auto trs = storageEngine->getEngine()->makeTemporaryRecordStore(*ru, ident, KeyFormat::String);
+    auto trs = storageEngine->getEngine()->makeInternalRecordStore(*ru, ident, KeyFormat::String);
     swt.commit();
 
     auto k = BSONBinData("K", 1, BinDataGeneral);
@@ -2919,22 +2959,21 @@ protected:
         _uuid = UUID::gen();
         _lsid = makeLogicalSessionId(_opCtx.get());
 
-        _opObserver->onCreateCollectionFn =
-            [&](OperationContext* opCtx,
-                const NamespaceString& collNss,
-                const CollectionOptions&,
-                const BSONObj&,
-                const boost::optional<CreateCollCatalogIdentifier>&) {
-                stdx::lock_guard<stdx::mutex> lock(_mutex);
-                if (collNss == _nss ||
-                    collNss == NamespaceString::kSessionTransactionsTableNamespace) {
-                    // Storing the documents in a sorted data structure to make checking for valid
-                    // results easier. The inserts will be performed by different threads and
-                    // there's no guarantee of the order.
-                    (_docs[collNss]).push_back(BSON("create" << collNss.coll()));
-                } else
-                    FAIL("Unexpected create") << " on " << collNss.toStringForErrorMsg();
-            };
+        _opObserver->onCreateCollectionFn = [&](OperationContext* opCtx,
+                                                const NamespaceString& collNss,
+                                                const CollectionOptions&,
+                                                const BSONObj&,
+                                                const boost::optional<CreateCollCatalogIdentifier>&,
+                                                bool recordIdsReplicated) {
+            stdx::lock_guard<stdx::mutex> lock(_mutex);
+            if (collNss == _nss || collNss == NamespaceString::kSessionTransactionsTableNamespace) {
+                // Storing the documents in a sorted data structure to make checking for valid
+                // results easier. The inserts will be performed by different threads and
+                // there's no guarantee of the order.
+                (_docs[collNss]).push_back(BSON("create" << collNss.coll()));
+            } else
+                FAIL("Unexpected create") << " on " << collNss.toStringForErrorMsg();
+        };
 
         _opObserver->onInsertsFn =
             [&](OperationContext*, const NamespaceString& nss, const std::vector<BSONObj>& docs) {
@@ -4006,7 +4045,8 @@ TEST_F(OplogApplierImplTest,
                                             const NamespaceString& collNss,
                                             const CollectionOptions&,
                                             const BSONObj&,
-                                            const boost::optional<CreateCollCatalogIdentifier>&) {
+                                            const boost::optional<CreateCollCatalogIdentifier>&,
+                                            bool recordIdsReplicated) {
         applyCmdCalled = true;
         ASSERT_EQUALS(vCtx, VersionContext::getDecoration(opCtx));
     };

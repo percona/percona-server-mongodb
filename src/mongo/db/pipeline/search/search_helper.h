@@ -54,6 +54,7 @@ namespace mongo {
 
 class Counter64;
 class IncrementalRolloutFeatureFlag;
+struct LiteParserOptions;
 
 using RemoteCursorMap = absl::flat_hash_map<size_t, std::unique_ptr<executor::TaskExecutorCursor>>;
 using RemoteExplainVector = std::vector<BSONObj>;
@@ -63,9 +64,11 @@ namespace search_helpers {
 
 static constexpr StringData kViewFieldName = "view"_sd;
 static constexpr StringData kProtocolStoredFieldsName = "storedSource"_sd;
-// The stage name of the extension's executable agg stage. IMPORTANT - if this changes in the vector
-// search extension, we must change it here or else the metrics will not be reported correctly.
+// The stage name of the extension's executable agg stage. IMPORTANT - if this changes in any of the
+// search extensions, we must change it here or else the metrics will not be reported correctly.
 static constexpr StringData kExtensionVectorSearchStageName = "$_extensionVectorSearch"_sd;
+static constexpr StringData kExtensionSearchStageName = "$_extensionSearch"_sd;
+static constexpr StringData kExtensionSearchMetaStageName = "$_extensionSearchMeta"_sd;
 
 /**
  * Consult mongot to get planning information for sharded search queries, used to configure the
@@ -137,7 +140,17 @@ bool isMongotStage(DocumentSource* stage);
  */
 bool isExtensionVectorSearchStage(std::string stageName);
 
-bool isExtensionVectorSearchPipeline(const Pipeline* pipeline);
+/**
+ * Check if this is a $search or $searchMeta extension stage.
+ * TODO SERVER-116021 Remove this function when the extension can do this through bindViewInfo().
+ */
+bool isExtensionSearchStage(std::string stageName);
+
+/**
+ * Check if the pipeline contains any extension-implemented mongot stage ($vectorSearch,
+ * $search, or $searchMeta).
+ */
+bool isExtensionMongotPipeline(const Pipeline* pipeline);
 
 /**
  * If 'kickbackCondition' is true, increments 'metric' and throws an IFRFlagRetry error for 'flag'
@@ -254,5 +267,12 @@ void promoteStoredSourceOrAddIdLookup(
  * isSearchMetaStage(stage) return 'true'. Else, an error is thrown.
  */
 std::unique_ptr<SearchNode> getSearchNode(NamespaceString nss, DocumentSource* stage);
+
+/**
+ * Returns true if the router indicated an extension feature flag is enabled but the extension is
+ * not loaded on this shard.
+ */
+bool isExtensionFlagEnabledByRouter(const LiteParserOptions& options,
+                                    IncrementalRolloutFeatureFlag& flag);
 }  // namespace search_helpers
 }  // namespace mongo

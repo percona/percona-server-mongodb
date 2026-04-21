@@ -21,6 +21,7 @@ mongo_cc_library(
         "bsoncolumn_interleaved.cpp",
         "bsoncolumn_util.cpp",
         "bsoncolumnbuilder.cpp",
+        "interleaved_schema.cpp",
         "simple8b_type_util.cpp",
     ],
     features = ["-pgo_profile_use"],
@@ -82,6 +83,7 @@ mongo_cc_unit_test(
         "bson_column_compressed_data.inl",
         "bsoncolumn_blockbased_test.cpp",
         "bsoncolumn_test.cpp",
+        "interleaved_schema_test.cpp",
         "simple8b_test.cpp",
         "simple8b_type_util_test.cpp",
     ],
@@ -165,6 +167,7 @@ mongo_cc_fuzzer_test_deprecated(
         "bsoncolumn_decompress_fuzzer.cpp",
     ],
     deps = [
+        "bsoncolumn_test_util",
         "column",
         "//src/mongo:base",
         "//src/mongo/bson:bson_validate",
@@ -178,6 +181,7 @@ mongo_cc_fuzzer_test_deprecated(
     ],
     deps = [
         "bsoncolumn_fuzzer_util",
+        "bsoncolumn_test_util",
         "column",
         "//src/mongo:base",
         "//src/mongo/bson:bson_validate",

@@ -48,9 +48,7 @@ output: {
                     "metadata": {
                         "array": false
                     },
-                    "dependencies": [
-                        "<base document>:-1"
-                    ]
+                    "dependencies": []
                 },
                 "b:2": {
                     "declaringScope": "scope:0",
@@ -66,9 +64,7 @@ output: {
                                 "metadata": {
                                     "array": false
                                 },
-                                "dependencies": [
-                                    "<base document>:-1"
-                                ]
+                                "dependencies": []
                             }
                         }
                     },
@@ -88,6 +84,10 @@ output: {
             "fields": {
                 "<missing>:5": {
                     "declaringScope": "scope:2",
+                    "metadata": {
+                        "array": false,
+                        "missing": true
+                    },
                     "dependencies": []
                 },
                 "_id:-1": "_id:-1",
@@ -107,6 +107,9 @@ output: {
                                 ]
                             }
                         }
+                    },
+                    "metadata": {
+                        "array": false
                     },
                     "dependencies": [
                         "x:8"

@@ -466,7 +466,8 @@ public:
         return BSON(kStageName << kStageSpec);
     }
 
-    BSONObj explain(::MongoExtensionExplainVerbosity verbosity) const override {
+    BSONObj explain(const QueryExecutionContextHandle&,
+                    ::MongoExtensionExplainVerbosity verbosity) const override {
         return BSON(kStageName << verbosity);
     }
 
@@ -494,25 +495,27 @@ TEST(AggregationStageTest, ExplainQueryPlanner) {
     auto logicalStage = new extension::sdk::ExtensionLogicalAggStageAdapter(
         SimpleSerializationLogicalStage::make());
     auto handle = extension::LogicalAggStageHandle{logicalStage};
+    host_connector::QueryExecutionContextAdapter ctxAdapter(
+        std::make_unique<shared_test_stages::MockQueryExecutionContext>());
 
     // Test that different verbosity levels can be passed through to the extension implementation
     // correctly.
     {
-        auto output = handle->explain(ExplainOptions::Verbosity::kQueryPlanner);
+        auto output = handle->explain(ctxAdapter, ExplainOptions::Verbosity::kQueryPlanner);
         ASSERT_BSONOBJ_EQ(BSON(SimpleSerializationLogicalStage::kStageName
                                << ::MongoExtensionExplainVerbosity::kQueryPlanner),
                           output);
     }
 
     {
-        auto output = handle->explain(ExplainOptions::Verbosity::kExecStats);
+        auto output = handle->explain(ctxAdapter, ExplainOptions::Verbosity::kExecStats);
         ASSERT_BSONOBJ_EQ(BSON(SimpleSerializationLogicalStage::kStageName
                                << ::MongoExtensionExplainVerbosity::kExecStats),
                           output);
     }
 
     {
-        auto output = handle->explain(ExplainOptions::Verbosity::kExecAllPlans);
+        auto output = handle->explain(ctxAdapter, ExplainOptions::Verbosity::kExecAllPlans);
         ASSERT_BSONOBJ_EQ(BSON(SimpleSerializationLogicalStage::kStageName
                                << ::MongoExtensionExplainVerbosity::kExecAllPlans),
                           output);
@@ -524,25 +527,27 @@ TEST(AggregationStageTest, ExplainExecutionStats) {
     auto validExecAggStage = new extension::sdk::ExtensionExecAggStageAdapter(
         shared_test_stages::ValidExtensionExecAggStage::make());
     auto handle = extension::ExecAggStageHandle{validExecAggStage};
+    host_connector::QueryExecutionContextAdapter ctxAdapter(
+        std::make_unique<shared_test_stages::MockQueryExecutionContext>());
 
     // Test that different verbosity levels can be passed through to the extension implementation
     // correctly.
     {
-        auto output = handle->explain(ExplainOptions::Verbosity::kQueryPlanner);
+        auto output = handle->explain(ctxAdapter, ExplainOptions::Verbosity::kQueryPlanner);
         ASSERT_BSONOBJ_EQ(BSON("execField" << "execMetric" << "verbosity"
                                            << ::MongoExtensionExplainVerbosity::kQueryPlanner),
                           output);
     }
 
     {
-        auto output = handle->explain(ExplainOptions::Verbosity::kExecStats);
+        auto output = handle->explain(ctxAdapter, ExplainOptions::Verbosity::kExecStats);
         ASSERT_BSONOBJ_EQ(BSON("execField" << "execMetric" << "verbosity"
                                            << ::MongoExtensionExplainVerbosity::kExecStats),
                           output);
     }
 
     {
-        auto output = handle->explain(ExplainOptions::Verbosity::kExecAllPlans);
+        auto output = handle->explain(ctxAdapter, ExplainOptions::Verbosity::kExecAllPlans);
         ASSERT_BSONOBJ_EQ(BSON("execField" << "execMetric" << "verbosity"
                                            << ::MongoExtensionExplainVerbosity::kExecAllPlans),
                           output);
@@ -922,7 +927,8 @@ public:
         return _initialized;
     }
 
-    BSONObj explain(::MongoExtensionExplainVerbosity verbosity) const override {
+    BSONObj explain(const QueryExecutionContextHandle&,
+                    ::MongoExtensionExplainVerbosity verbosity) const override {
         return BSONObj();
     }
 
@@ -1028,7 +1034,8 @@ public:
 
     void close() override {}
 
-    BSONObj explain(::MongoExtensionExplainVerbosity verbosity) const override {
+    BSONObj explain(const QueryExecutionContextHandle&,
+                    ::MongoExtensionExplainVerbosity verbosity) const override {
         return BSONObj();
     }
 
@@ -1853,6 +1860,42 @@ TEST_F(AggStageTest, ToBsonForLogIncludesCustomLogSummary) {
     ASSERT_EQ(loggedStage.getIntField("fieldCount"), 2);
     // Raw spec must not appear in log.
     ASSERT_FALSE(loggedStage.hasField("secret"));
+}
+
+class FilteredLogicalStage
+    : public sdk::TestLogicalStage<sdk::shared_test_stages::TransformExecAggStage> {
+public:
+    static const BSONObj kFilter;
+
+    FilteredLogicalStage()
+        : sdk::TestLogicalStage<sdk::shared_test_stages::TransformExecAggStage>("$filteredStage",
+                                                                                BSONObj()) {}
+
+    BSONObj getFilter() const override {
+        return kFilter;
+    }
+
+    std::unique_ptr<sdk::LogicalAggStage> clone() const override {
+        return std::make_unique<FilteredLogicalStage>();
+    }
+};
+
+const BSONObj FilteredLogicalStage::kFilter = BSON("field" << "value");
+
+TEST(AggregationStageTest, GetFilterReturnsEmptyBSONObjByDefault) {
+    auto logicalStage = new extension::sdk::ExtensionLogicalAggStageAdapter(
+        sdk::shared_test_stages::TransformLogicalAggStage::make());
+    auto handle = extension::LogicalAggStageHandle{logicalStage};
+
+    ASSERT_BSONOBJ_EQ(BSONObj(), handle->getFilter());
+}
+
+TEST(AggregationStageTest, GetFilterReturnsFilterWhenOverridden) {
+    auto logicalStage = new extension::sdk::ExtensionLogicalAggStageAdapter(
+        std::make_unique<FilteredLogicalStage>());
+    auto handle = extension::LogicalAggStageHandle{logicalStage};
+
+    ASSERT_BSONOBJ_EQ(FilteredLogicalStage::kFilter, handle->getFilter());
 }
 
 }  // namespace

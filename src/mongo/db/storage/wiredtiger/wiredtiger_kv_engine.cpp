@@ -941,6 +941,15 @@ void WiredTigerKVEngineBase::setRecordStoreExtraOptions(const std::string& optio
     _rsOptions = options;
 }
 
+uint64_t WiredTigerKVEngineBase::_getTableIdForIdent(StringData ident) {
+    stdx::lock_guard lk(_identTableIdMutex);
+    auto& id = _identTableIds[ident];
+    if (id == 0) {
+        id = WiredTigerUtil::genTableId();
+    }
+    return id;
+}
+
 Status WiredTigerKVEngineBase::insertIntoIdent(RecoveryUnit& ru,
                                                StringData ident,
                                                std::variant<std::span<const char>, int64_t> key,
@@ -948,8 +957,7 @@ Status WiredTigerKVEngineBase::insertIntoIdent(RecoveryUnit& ru,
     invariant(ru.inUnitOfWork());
     auto& wtRu = WiredTigerRecoveryUnit::get(ru);
 
-    // TODO (SERVER-109454): `genTableId()` may be replaced with different cache logic.
-    WiredTigerCursor cursor{getWiredTigerCursorParams(wtRu, WiredTigerUtil::genTableId()),
+    WiredTigerCursor cursor{getWiredTigerCursorParams(wtRu, _getTableIdForIdent(ident)),
                             WiredTigerUtil::buildTableUri(ident),
                             *wtRu.getSession()};
     wtRu.assertInActiveTxn();
@@ -963,12 +971,34 @@ Status WiredTigerKVEngineBase::insertIntoIdent(RecoveryUnit& ru,
     return wtRCToStatus(rc, cursor->session);
 }
 
+Status WiredTigerKVEngineBase::updateInIdent(RecoveryUnit& ru,
+                                             StringData ident,
+                                             std::variant<std::span<const char>, int64_t> key,
+                                             std::span<const char> value) {
+    invariant(ru.inUnitOfWork());
+    auto& wtRu = WiredTigerRecoveryUnit::get(ru);
+
+    WiredTigerCursor cursor{getWiredTigerCursorParams(wtRu, _getTableIdForIdent(ident)),
+                            WiredTigerUtil::buildTableUri(ident),
+                            *wtRu.getSession()};
+    wtRu.assertInActiveTxn();
+    WT_CURSOR* c = cursor.get();
+
+    setKeyOnCursor(c, key);
+
+    c->set_value(c, WiredTigerItem{value}.get());
+
+    int rc = WT_OP_CHECK(wiredTigerCursorUpdate(wtRu, c));
+    if (rc == WT_NOTFOUND)
+        return Status(ErrorCodes::NoSuchKey, "No such key exists in ident");
+    return wtRCToStatus(rc, cursor->session);
+}
+
 StatusWith<UniqueBuffer> WiredTigerKVEngineBase::getFromIdent(
     RecoveryUnit& ru, StringData ident, std::variant<std::span<const char>, int64_t> key) {
     auto& wtRu = WiredTigerRecoveryUnit::get(ru);
 
-    // TODO (SERVER-109454): `genTableId()` may be replaced with different cache logic.
-    WiredTigerCursor cursor{getWiredTigerCursorParams(wtRu, WiredTigerUtil::genTableId()),
+    WiredTigerCursor cursor{getWiredTigerCursorParams(wtRu, _getTableIdForIdent(ident)),
                             WiredTigerUtil::buildTableUri(ident),
                             *wtRu.getSession()};
     WT_CURSOR* c = cursor.get();
@@ -997,8 +1027,7 @@ Status WiredTigerKVEngineBase::deleteFromIdent(RecoveryUnit& ru,
     invariant(ru.inUnitOfWork());
     auto& wtRu = WiredTigerRecoveryUnit::get(ru);
 
-    // TODO (SERVER-109454): `genTableId()` may be replaced with different cache logic.
-    WiredTigerCursor cursor{getWiredTigerCursorParams(wtRu, WiredTigerUtil::genTableId()),
+    WiredTigerCursor cursor{getWiredTigerCursorParams(wtRu, _getTableIdForIdent(ident)),
                             WiredTigerUtil::buildTableUri(ident),
                             *wtRu.getSession()};
     wtRu.assertInActiveTxn();
@@ -1104,7 +1133,7 @@ WiredTigerKVEngine::WiredTigerKVEngine(
       _shouldRecoverFromOplogAsStandalone(shouldRecoverFromOplogAsStandalone),
       _inStandaloneMode(inStandaloneMode),
       _supportsTableLogging(provider.supportsTableLogging()),
-      _shouldTimestampTableCreations(provider.shouldTimestampTableCreations()),
+      _usesSchemaEpochs(provider.usesSchemaEpochs()),
       _provider(provider) {
     _pinnedOplogTimestamp.store(Timestamp::max().asULL());
     boost::filesystem::path journalPath = path;
@@ -1228,8 +1257,7 @@ WiredTigerKVEngine::WiredTigerKVEngine(
         _provider.setMinSnapshotHistoryWindowInSeconds(0);
     }
 
-    // The WT size storer table is only used if the replicated fastcount collection is disabled.
-    // When the replicated fastcount collection is enabled, _sizeStorer should be null.
+    // Disable the size storer when the storage provider should use replicated fast count.
     if (!provider.shouldUseReplicatedFastCount()) {
         std::string sizeStorerUri = WiredTigerUtil::buildTableUri(ident::kSizeStorer);
         WiredTigerSession session(_connection.get());
@@ -3272,6 +3300,10 @@ std::unique_ptr<RecordStore> WiredTigerKVEngine::getRecordStore(OperationContext
             fassert(8423353, ident::isInternalIdent(ident));
             return !_isReplSet && !_shouldRecoverFromOplogAsStandalone;
         }();
+        // Check the storage options to determine if this is a cold collection.
+        auto storageTier = getStorageTierFromStorageOptions(options.storageEngineCollectionOptions);
+        bool isColdCollection = storageTier && *storageTier == "cold";
+
         WiredTigerRecordStore::Params params{
             .uuid = uuid,
             .ident = std::string{ident},
@@ -3285,6 +3317,7 @@ std::unique_ptr<RecordStore> WiredTigerKVEngine::getRecordStore(OperationContext
             .inMemory = _wtConfig.inMemory,
             .sizeStorer = _sizeStorer.get(),
             .tracksSizeAdjustments = true,
+            .isColdCollection = isColdCollection,
         };
 
         ret = options.isCapped
@@ -3422,9 +3455,9 @@ std::unique_ptr<SortedDataInterface> WiredTigerKVEngine::getSortedDataInterface(
             provider, nss, _isReplSet, _shouldRecoverFromOplogAsStandalone));
 }
 
-std::unique_ptr<RecordStore> WiredTigerKVEngine::getTemporaryRecordStore(RecoveryUnit& ru,
-                                                                         StringData ident,
-                                                                         KeyFormat keyFormat) {
+std::unique_ptr<RecordStore> WiredTigerKVEngine::getInternalRecordStore(RecoveryUnit& ru,
+                                                                        StringData ident,
+                                                                        KeyFormat keyFormat) {
     // We don't log writes to temporary record stores.
     const bool isLogged = false;
     WiredTigerRecordStore::Params params;
@@ -3445,9 +3478,9 @@ std::unique_ptr<RecordStore> WiredTigerKVEngine::getTemporaryRecordStore(Recover
     return std::make_unique<WiredTigerRecordStore>(this, WiredTigerRecoveryUnit::get(ru), params);
 }
 
-std::unique_ptr<RecordStore> WiredTigerKVEngine::makeTemporaryRecordStore(RecoveryUnit& ru,
-                                                                          StringData ident,
-                                                                          KeyFormat keyFormat) {
+std::unique_ptr<RecordStore> WiredTigerKVEngine::makeInternalRecordStore(RecoveryUnit& ru,
+                                                                         StringData ident,
+                                                                         KeyFormat keyFormat) {
     auto& wtRu = WiredTigerRecoveryUnit::get(ru);
 
     WiredTigerRecordStore::WiredTigerTableConfig wtTableConfig;
@@ -3463,7 +3496,7 @@ std::unique_ptr<RecordStore> WiredTigerKVEngine::makeTemporaryRecordStore(Recove
     std::string uri = WiredTigerUtil::buildTableUri(ident);
     LOGV2_DEBUG(22337,
                 2,
-                "WiredTigerKVEngine::makeTemporaryRecordStore",
+                "WiredTigerKVEngine::makeInternalRecordStore",
                 "uri"_attr = uri,
                 "config"_attr = config);
     {
@@ -3471,7 +3504,7 @@ std::unique_ptr<RecordStore> WiredTigerKVEngine::makeTemporaryRecordStore(Recove
         uassertStatusOK(WiredTigerUtil::createTable(wtRu, uri.c_str(), config.c_str()));
     }
 
-    return getTemporaryRecordStore(ru, ident, keyFormat);
+    return getInternalRecordStore(ru, ident, keyFormat);
 }
 
 void WiredTigerKVEngine::alterIdentMetadata(RecoveryUnit& ru,
@@ -3522,16 +3555,22 @@ Status WiredTigerKVEngine::dropIdent(RecoveryUnit& ru,
                                      StringData ident,
                                      bool identHasSizeInfo,
                                      const StorageEngine::DropIdentCallback& onDrop,
-                                     boost::optional<Timestamp> timestamp) {
+                                     boost::optional<uint64_t> schemaEpoch) {
     string uri = WiredTigerUtil::buildTableUri(ident);
 
     auto& wtRu = WiredTigerRecoveryUnit::get(ru);
     wtRu.getSessionNoTxn()->closeAllCursors(uri);
 
+    {
+        stdx::lock_guard lk(_identTableIdMutex);
+        _identTableIds.erase(ident);
+    }
+
     // Use a separate session to avoid transactional issues, because a drop may impact the
     // in-progress transaction.
     WiredTigerSession session(_connection.get());
 
+    // TODO: SERVER-122163 pass drop schema epoch to WT.
     Status status = _drop(session, uri.c_str(), "checkpoint_wait=false");
     LOGV2_DEBUG(22338, 1, "WT drop", "uri"_attr = uri, "status"_attr = status);
 
@@ -3964,12 +4003,14 @@ void WiredTigerKVEngine::setOldestTimestamp(Timestamp newOldestTimestamp, bool f
                     "oldest_timestamp and durable_timestamp force set to {newOldestTimestamp}",
                     "newOldestTimestamp"_attr = newOldestTimestamp);
     } else {
+        // ignore backwards or equal moves when 'force' is not set
+        if (newOldestTimestamp.asULL() <= currOldestTimestamp.asULL()) {
+            return;
+        }
         auto oldestTSConfigString =
             fmt::format("oldest_timestamp={:x}", newOldestTimestamp.asULL());
         invariantWTOK(_conn->set_timestamp(_conn, oldestTSConfigString.c_str()), nullptr);
-        // set_timestamp above ignores backwards in time if 'force' is not set.
-        if (_oldestTimestamp.load() < newOldestTimestamp.asULL())
-            _oldestTimestamp.store(newOldestTimestamp.asULL());
+        _oldestTimestamp.store(newOldestTimestamp.asULL());
         LOGV2_DEBUG(22343,
                     2,
                     "oldest_timestamp set to {newOldestTimestamp}",
@@ -4158,9 +4199,11 @@ void WiredTigerKVEngine::unpinAllDurableTimestamp(uint64_t ts) {
 
 void WiredTigerKVEngine::publishIdent(WiredTigerRecoveryUnit& ru,
                                       StringData ident,
-                                      Timestamp publishTimestamp) {
-    // TODO: SERVER-122163: Call WT session->publish(uri, ts) when the API is available.
-    LOGV2_DEBUG(11928700, 1, "publishIdent", "ident"_attr = ident, "ts"_attr = publishTimestamp);
+                                      uint64_t schemaEpoch) {
+    // TODO: SERVER-122163: Call WT session->publish_at_schema_epoch(uri, schemaEpoch) when the API
+    // is available.
+    LOGV2_DEBUG(
+        11928700, 1, "publishIdent", "ident"_attr = ident, "schemaEpoch"_attr = schemaEpoch);
 }
 
 boost::optional<Timestamp> WiredTigerKVEngine::getRecoveryTimestamp() const {
@@ -4685,7 +4728,8 @@ BSONObj WiredTigerKVEngine::setStorageTierToStorageOptions(const BSONObj& storag
         }
     }
 
-    const std::string disaggConfigString = "disaggregated=(storage_tier=" + value + ")";
+    const std::string disaggConfigString = "disaggregated=(storage_tier=" + value + ")" +
+        (value == "cold" ? ",leaf_page_max=128KB" : "");
 
     const auto newConfigString =
         (configString ? WiredTigerUtil::concatConfigs(disaggConfigString, *configString)
@@ -4699,6 +4743,29 @@ BSONObj WiredTigerKVEngine::setStorageTierToStorageOptions(const BSONObj& storag
             isValidConfigStringStatus.isOK());
 
     return WiredTigerUtil::setConfigStringToStorageOptions(storageEngineOptions, newConfigString);
+}
+
+boost::optional<std::string> WiredTigerKVEngine::getStorageTierFromStorageOptions(
+    const BSONObj& storageEngineOptions) const {
+    const auto configString =
+        WiredTigerUtil::getConfigStringFromStorageOptions(storageEngineOptions);
+    if (!configString) {
+        return boost::none;
+    }
+
+    WiredTigerConfigParser parser(*configString);
+    WT_CONFIG_ITEM disaggValue;
+    if (parser.get("disaggregated", &disaggValue) != 0) {
+        return boost::none;
+    }
+
+    WiredTigerConfigParser disaggParser(StringData(disaggValue.str, disaggValue.len));
+    WT_CONFIG_ITEM storageTierValue;
+    if (disaggParser.get("storage_tier", &storageTierValue) != 0) {
+        return boost::none;
+    }
+
+    return std::string(storageTierValue.str, storageTierValue.len);
 }
 
 BSONObj WiredTigerKVEngine::getSanitizedStorageOptionsForSecondaryReplication(

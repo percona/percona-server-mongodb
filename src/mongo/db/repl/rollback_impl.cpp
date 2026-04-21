@@ -543,7 +543,8 @@ RollbackImpl::_namespacesAndUUIDsForOp(const OplogEntry& oplogEntry) {
             case OplogEntry::CommandType::kCommitTransaction:
             case OplogEntry::CommandType::kAbortTransaction:
             case OplogEntry::CommandType::kCreateDatabaseMetadata:
-            case OplogEntry::CommandType::kDropDatabaseMetadata: {
+            case OplogEntry::CommandType::kDropDatabaseMetadata:
+            case OplogEntry::CommandType::kInitReplicatedFastCount: {
                 // There is no specific namespace to save for these operations.
                 break;
             }
@@ -1217,7 +1218,12 @@ StatusWith<RollBackLocalOperations::RollbackCommonPoint> RollbackImpl::_findComm
     auto stableTimestamp =
         _storageInterface->getLastStableRecoveryTimestamp(opCtx->getServiceContext());
 
-    LOGV2(21607, "Rollback common point", "commonPointOpTime"_attr = commonPointOpTime);
+    LOGV2(21607,
+          "Checking rollback common point",
+          "commonPointOpTime"_attr = commonPointOpTime,
+          "lastCommittedOpTime"_attr = lastCommittedOpTime,
+          "committedSnapshot"_attr = committedSnapshot,
+          "stableTimestamp"_attr = stableTimestamp);
 
     // This failpoint is used for testing the invariant below.
     if (MONGO_unlikely(rollbackToTimestampHangCommonPointBeforeReplCommitPoint.shouldFail()) &&

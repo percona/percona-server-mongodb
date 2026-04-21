@@ -125,7 +125,7 @@ public:
                            const NamespaceString& nss,
                            const UUID& collUUID,
                            const UUID& indexBuildUUID,
-                           const std::vector<BSONObj>& indexes,
+                           const std::vector<IndexBuildInfo>& indexes,
                            const Status& cause,
                            bool fromMigrate,
                            bool isViewlessTimeseries) override;
@@ -147,7 +147,8 @@ public:
         const OplogSlot& createOpTime,
         const boost::optional<CreateCollCatalogIdentifier>& createCollCatalogIdentifier,
         bool fromMigrate,
-        bool isViewlessTimeseries) override;
+        bool isViewlessTimeseries,
+        bool recordIdsReplicated) override;
 
     repl::OpTime onDropCollection(OperationContext* opCtx,
                                   const NamespaceString& collectionName,
@@ -245,7 +246,7 @@ void OpObserverMock::onAbortIndexBuild(OperationContext* opCtx,
                                        const NamespaceString& nss,
                                        const UUID& collUUID,
                                        const UUID& indexBuildUUID,
-                                       const std::vector<BSONObj>& indexes,
+                                       const std::vector<IndexBuildInfo>& indexes,
                                        const Status& cause,
                                        bool fromMigrate,
                                        bool isViewlessTimeseries) {
@@ -282,7 +283,8 @@ void OpObserverMock::onCreateCollection(
     const OplogSlot& createOpTime,
     const boost::optional<CreateCollCatalogIdentifier>& createCollCatalogIdentifier,
     bool fromMigrate,
-    bool isViewlessTimeseries) {
+    bool isViewlessTimeseries,
+    bool recordIdsReplicated) {
     _logOp(opCtx, collectionName, "create");
     OpObserverNoop::onCreateCollection(opCtx,
                                        collectionName,
@@ -291,7 +293,8 @@ void OpObserverMock::onCreateCollection(
                                        createOpTime,
                                        createCollCatalogIdentifier,
                                        fromMigrate,
-                                       isViewlessTimeseries);
+                                       isViewlessTimeseries,
+                                       recordIdsReplicated);
 }
 
 repl::OpTime OpObserverMock::onDropCollection(OperationContext* opCtx,

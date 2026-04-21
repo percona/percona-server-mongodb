@@ -49,7 +49,7 @@ filters:
   - "fcv_upgrade_downgrade_primary_step_down_overrides.yml":
     approvers:
       - 10gen/server-replication-reviewers
-  - "primary_driven_index_builds.yml":
+  - "*primary_driven_index_builds.yml":
     approvers:
       - 10gen/server-index-builds
   - "replica_sets_kill_secondary.yml":
@@ -61,9 +61,6 @@ filters:
   - "priority_ports.yml":
     approvers:
       - 10gen/server-replication-reviewers
-  - "vector_search_extension.yml":
-    approvers:
-      - 10gen/query-integration-extensions-api
   - "retryable_writes.yml":
     approvers:
       - 10gen/server-transactions

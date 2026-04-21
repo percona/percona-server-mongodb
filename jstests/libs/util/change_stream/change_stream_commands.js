@@ -55,6 +55,17 @@ function getShardKeySpec(shardingType) {
 }
 
 /**
+ * Get the DB primary shard.
+ * @param {Object} connection - The MongoDB connection.
+ * @returns {string} The primary shard ID.
+ */
+function getDbPrimary(connection, dbName) {
+    const dbDoc = connection.getDB("config").databases.findOne({_id: dbName});
+    assert(dbDoc, `${this}: database ${dbName} not in config.databases`);
+    return dbDoc.primary;
+}
+
+/**
  * Base command class.
  */
 class Command {
@@ -66,29 +77,13 @@ class Command {
     }
 
     /**
-     * Execute the command.
+     * Runs the command logic. Subclasses must override this.
+     * Transient DDL errors are handled by the runCommand override
+     * (implicitly_retry_on_migration_in_progress_fsm.js) loaded by the suite.
      * @param {Object} connection - The MongoDB connection.
      */
     execute(connection) {
         throw new Error("execute() method must be implemented by subclasses");
-    }
-
-    // Transient errors from concurrent DDL on the same namespace (e.g. parallel reshards or moves).
-    static kRetryableDDLErrors = [ErrorCodes.ReshardCollectionInProgress, ErrorCodes.ConflictingOperationInProgress];
-
-    /**
-     * Wrap a DDL operation with retry logic to handle transient conflicts
-     * (e.g., concurrent DDL on the same namespace from parallel writers).
-     */
-    _executeWithDDLRetry(connection, fn) {
-        assert.soonRetryOnAcceptableErrors(
-            () => {
-                fn(connection);
-                return true;
-            },
-            Command.kRetryableDDLErrors,
-            `${this.toString()} on ${this.dbName}.${this.collName}: timed out after retries`,
-        );
     }
 
     /**
@@ -142,6 +137,20 @@ class Command {
 class InsertDocCommand extends Command {
     static numDocs = 2;
 
+    /**
+     * Insert documents in order, skipping any that already exist (from a
+     * previous attempt when execute() retries after a transient error).
+     */
+    static insertDocuments(coll, documents) {
+        for (const doc of documents) {
+            const res = coll.insert(doc);
+            if (res.hasWriteError() && res.getWriteError().code === ErrorCodes.DuplicateKey) {
+                continue;
+            }
+            assert.commandWorked(res);
+        }
+    }
+
     constructor(dbName, collName, shardSet, collectionCtx, documents = null) {
         super(dbName, collName, shardSet, collectionCtx);
         if (documents) {
@@ -163,7 +172,7 @@ class InsertDocCommand extends Command {
 
     execute(connection) {
         const coll = connection.getDB(this.dbName).getCollection(this.collName);
-        assert.commandWorked(coll.insertMany(this.documents));
+        InsertDocCommand.insertDocuments(coll, this.documents);
     }
 
     toString() {
@@ -172,15 +181,25 @@ class InsertDocCommand extends Command {
 
     getChangeEvents(watchMode) {
         const events = [];
+
         // Inserting into non-existent collection implicitly creates it.
         if (!this.collectionCtx.exists) {
             events.push(_createCollectionEventSpec(this.dbName, this.collName));
         }
+
         for (const doc of this.documents) {
+            // Build documentKey: shard key fields first (if sharded), then _id.
+            let documentKey = {_id: doc._id};
+            if (this.collectionCtx.shardKeySpec) {
+                for (const field of Object.keys(this.collectionCtx.shardKeySpec)) {
+                    documentKey[field] = doc[field];
+                }
+            }
             events.push({
                 operationType: "insert",
                 ns: {db: this.dbName, coll: this.collName},
                 fullDocument: doc,
+                documentKey,
             });
         }
         return events;
@@ -193,8 +212,17 @@ class InsertDocCommand extends Command {
  * Does not pin a primary shard — the server picks one automatically.
  */
 class CreateDatabaseCommand extends Command {
+    constructor(dbName, collName, shardSet, collectionCtx, primaryShard = null) {
+        super(dbName, collName, shardSet, collectionCtx);
+        this.primaryShard = primaryShard;
+    }
+
     execute(connection) {
-        assert.commandWorked(connection.adminCommand({enableSharding: this.dbName}));
+        const cmd = {enableSharding: this.dbName};
+        if (this.primaryShard) {
+            cmd.primaryShard = this.primaryShard;
+        }
+        assert.commandWorked(connection.adminCommand(cmd));
     }
 
     toString() {
@@ -213,14 +241,18 @@ class CreateDatabaseCommand extends Command {
  * issues on resume. Once fixed, this can target a random shard again.
  */
 class CreateUnsplittableCollectionCommand extends Command {
+    constructor(dbName, collName, shardSet, collectionCtx, dataShard = null) {
+        super(dbName, collName, shardSet, collectionCtx);
+        this.dataShard = dataShard;
+    }
+
     execute(connection) {
-        const dbDoc = connection.getDB("config").databases.findOne({_id: this.dbName});
-        assert(dbDoc, `${this}: database ${this.dbName} not in config.databases`);
+        const dataShard = this.dataShard ?? getDbPrimary(connection, this.dbName);
         const db = connection.getDB(this.dbName);
         assert.commandWorked(
             db.runCommand({
                 createUnsplittableCollection: this.collName,
-                dataShard: dbDoc.primary,
+                dataShard,
             }),
         );
     }
@@ -318,9 +350,7 @@ class DropDatabaseCommand extends Command {
     }
 
     execute(connection) {
-        this._executeWithDDLRetry(connection, (conn) => {
-            assert.commandWorked(conn.getDB(this.dbName).dropDatabase());
-        });
+        assert.commandWorked(connection.getDB(this.dbName).dropDatabase());
     }
 
     toString() {
@@ -399,8 +429,8 @@ function _getZoneName(ns) {
 }
 
 /**
- * Helper to configure zones to restrict a collection to specific shards.
- * This ensures data is only distributed to shards in the shardSet, not all cluster shards.
+ * Configure zone membership and key range to restrict a collection to specific shards.
+ * Used by ShardCollectionCommand to pin initial placement.
  *
  * @param {Object} connection - MongoDB connection.
  * @param {string} ns - Full namespace (db.collection).
@@ -411,17 +441,10 @@ function _configureZonesForShardSet(connection, ns, shardKeySpec, shardSet) {
     const zoneName = _getZoneName(ns);
     const shardKeyField = Object.keys(shardKeySpec)[0];
 
-    // Add all shardSet shards to the zone.
     for (const shard of shardSet) {
-        assert.commandWorked(
-            connection.adminCommand({
-                addShardToZone: shard._id,
-                zone: zoneName,
-            }),
-        );
+        assert.commandWorked(connection.adminCommand({addShardToZone: shard._id, zone: zoneName}));
     }
 
-    // Assign the entire key range to the zone.
     assert.commandWorked(
         connection.adminCommand({
             updateZoneKeyRange: ns,
@@ -430,6 +453,40 @@ function _configureZonesForShardSet(connection, ns, shardKeySpec, shardSet) {
             zone: zoneName,
         }),
     );
+}
+
+/**
+ * Update zone membership to match a new shard set. No-ops if membership already matches.
+ * Used by ReshardCollectionCommand where the shard key changes (so updateZoneKeyRange
+ * cannot be used -- it validates against the current key, not the new one).
+ */
+function _reconfigureZonesForShardSet(connection, ns, shardSet) {
+    const zoneName = _getZoneName(ns);
+    const newShardIds = new Set(shardSet.map((s) => s._id));
+
+    const config = connection.getDB("config");
+    const currentZoneShardIds = new Set(
+        config.shards
+            .find({tags: zoneName})
+            .toArray()
+            .map((s) => s._id),
+    );
+
+    if (currentZoneShardIds.size === newShardIds.size && [...newShardIds].every((id) => currentZoneShardIds.has(id))) {
+        return;
+    }
+
+    for (const shardId of currentZoneShardIds) {
+        if (!newShardIds.has(shardId)) {
+            assert.commandWorked(connection.adminCommand({removeShardFromZone: shardId, zone: zoneName}));
+        }
+    }
+
+    for (const shard of shardSet) {
+        if (!currentZoneShardIds.has(shard._id)) {
+            assert.commandWorked(connection.adminCommand({addShardToZone: shard._id, zone: zoneName}));
+        }
+    }
 }
 
 /**
@@ -542,20 +599,18 @@ class ShardCollectionCommand extends Command {
     }
 
     execute(connection) {
-        this._executeWithDDLRetry(connection, (conn) => {
-            const ns = `${this.dbName}.${this.collName}`;
+        const ns = `${this.dbName}.${this.collName}`;
 
-            _configureZonesForShardSet(conn, ns, this.shardKey, this.shardSet);
+        _configureZonesForShardSet(connection, ns, this.shardKey, this.shardSet);
 
-            const shardCmd = {
-                shardCollection: ns,
-                key: this.shardKey,
-            };
-            if (isHashedShardKey(this.shardKey) && !this.collectionCtx.nonEmpty) {
-                shardCmd.presplitHashedZones = true;
-            }
-            assert.commandWorked(conn.adminCommand(shardCmd));
-        });
+        const shardCmd = {
+            shardCollection: ns,
+            key: this.shardKey,
+        };
+        if (isHashedShardKey(this.shardKey) && !this.collectionCtx.nonEmpty) {
+            shardCmd.presplitHashedZones = true;
+        }
+        assert.commandWorked(connection.adminCommand(shardCmd));
     }
 
     toString() {
@@ -612,17 +667,15 @@ class UnshardCollectionCommand extends Command {
     }
 
     execute(connection) {
-        this._executeWithDDLRetry(connection, (conn) => {
-            const dbDoc = conn.getDB("config").databases.findOne({_id: this.dbName});
-            assert(dbDoc, `${this}: database ${this.dbName} not in config.databases`);
-            const ns = `${this.dbName}.${this.collName}`;
-            assert.commandWorked(
-                conn.adminCommand({
-                    unshardCollection: ns,
-                    toShard: dbDoc.primary,
-                }),
-            );
-        });
+        const dbDoc = connection.getDB("config").databases.findOne({_id: this.dbName});
+        assert(dbDoc, `${this}: database ${this.dbName} not in config.databases`);
+        const ns = `${this.dbName}.${this.collName}`;
+        assert.commandWorked(
+            connection.adminCommand({
+                unshardCollection: ns,
+                toShard: dbDoc.primary,
+            }),
+        );
     }
 
     toString() {
@@ -669,37 +722,43 @@ class ReshardCollectionCommand extends Command {
      * @param {Object} collectionCtx - Collection state.
      * @param {Object} newShardKey - The new shard key to reshard to.
      */
-    constructor(dbName, collName, shardSet, collectionCtx, newShardKey) {
+    constructor(
+        dbName,
+        collName,
+        shardSet,
+        collectionCtx,
+        newShardKey,
+        numInitialChunks = ReshardCollectionCommand.numInitialChunks,
+    ) {
         super(dbName, collName, shardSet, collectionCtx);
         assert(newShardKey, "newShardKey must be provided to ReshardCollectionCommand");
         this.newShardKey = newShardKey;
+        this.numInitialChunks = numInitialChunks;
     }
 
     execute(connection) {
-        this._executeWithDDLRetry(connection, (conn) => {
-            const ns = `${this.dbName}.${this.collName}`;
+        const ns = `${this.dbName}.${this.collName}`;
 
-            _configureZonesForShardSet(conn, ns, this.newShardKey, this.shardSet);
+        // The prior ShardCollectionCommand may have configured zones for a different shard
+        // set. Update zone membership to match the new shardSet before resharding.
+        _reconfigureZonesForShardSet(connection, ns, this.shardSet);
 
-            const zoneName = _getZoneName(ns);
-            const shardKeyField = Object.keys(this.newShardKey)[0];
-            const zones = [
-                {
-                    zone: zoneName,
-                    min: {[shardKeyField]: MinKey},
-                    max: {[shardKeyField]: MaxKey},
-                },
-            ];
-
-            assert.commandWorked(
-                conn.adminCommand({
-                    reshardCollection: ns,
-                    key: this.newShardKey,
-                    numInitialChunks: ReshardCollectionCommand.numInitialChunks,
-                    zones: zones,
-                }),
-            );
-        });
+        const zoneName = _getZoneName(ns);
+        const shardKeyField = Object.keys(this.newShardKey)[0];
+        assert.commandWorked(
+            connection.adminCommand({
+                reshardCollection: ns,
+                key: this.newShardKey,
+                numInitialChunks: this.numInitialChunks,
+                zones: [
+                    {
+                        zone: zoneName,
+                        min: {[shardKeyField]: MinKey},
+                        max: {[shardKeyField]: MaxKey},
+                    },
+                ],
+            }),
+        );
     }
 
     toString() {
@@ -867,17 +926,6 @@ class MoveCommandBase extends Command {
     }
 
     /**
-     * Get the DB primary shard.
-     * @param {Object} connection - The MongoDB connection.
-     * @returns {string} The primary shard ID.
-     */
-    _getDbPrimary(connection) {
-        const dbDoc = connection.getDB("config").databases.findOne({_id: this.dbName});
-        assert(dbDoc, `${this}: database ${this.dbName} not in config.databases`);
-        return dbDoc.primary;
-    }
-
-    /**
      * Pick a target shard different from the current shard.
      */
     _getTargetShard(connection) {
@@ -891,9 +939,7 @@ class MoveCommandBase extends Command {
     execute(connection) {
         const targetShardId = this._getTargetShard(connection);
         const moveCommand = this._buildMoveCommand(targetShardId);
-        this._executeWithDDLRetry(connection, (conn) => {
-            assert.commandWorked(conn.adminCommand(moveCommand));
-        });
+        assert.commandWorked(connection.adminCommand(moveCommand));
     }
 }
 
@@ -902,8 +948,17 @@ class MoveCommandBase extends Command {
  * TODO SERVER-122025: disabled in the FSM model — breaks cross-db rename.
  */
 class MovePrimaryCommand extends MoveCommandBase {
+    constructor(dbName, collName, shardSet, collectionCtx, targetShard = null) {
+        super(dbName, collName, shardSet, collectionCtx);
+        this.targetShard = targetShard;
+    }
+
+    _getTargetShard(connection) {
+        return this.targetShard ?? super._getTargetShard(connection);
+    }
+
     _getCurrentShard(connection) {
-        return this._getDbPrimary(connection);
+        return getDbPrimary(connection, this.dbName);
     }
 
     _buildMoveCommand(targetShardId) {
@@ -941,7 +996,7 @@ class MoveCollectionCommand extends MoveCommandBase {
         if (this.collectionCtx.isUnsplittable) {
             return this._getShardFromChunks(connection);
         }
-        return this._getDbPrimary(connection);
+        return getDbPrimary(connection, this.dbName);
     }
 
     _buildMoveCommand(targetShardId) {
@@ -1125,7 +1180,7 @@ class MoveChunkCommand extends MoveCommandBase {
 
     execute(connection) {
         const coll = connection.getDB(this.dbName).getCollection(this.collName);
-        assert.commandWorked(coll.insertMany(this.documentsToInsert));
+        InsertDocCommand.insertDocuments(coll, this.documentsToInsert);
 
         this._ensureMultipleChunks(connection);
 
@@ -1153,13 +1208,11 @@ class MoveChunkCommand extends MoveCommandBase {
         while (donorChunks.length > 0) {
             for (let i = 0; i < donorChunks.length; i++) {
                 const recipient = otherShardIds[(moved + i) % otherShardIds.length];
-                this._executeWithDDLRetry(connection, (conn) => {
-                    assert.commandWorked(conn.adminCommand(this._buildMoveChunkCmd(ns, donorChunks[i], recipient)));
-                });
+                assert.commandWorked(connection.adminCommand(this._buildMoveChunkCmd(ns, donorChunks[i], recipient)));
 
                 if (moved + i === 0 && this.interleavedDocuments.length > 0) {
                     const coll = connection.getDB(this.dbName).getCollection(this.collName);
-                    assert.commandWorked(coll.insertMany(this.interleavedDocuments));
+                    InsertDocCommand.insertDocuments(coll, this.interleavedDocuments);
                 }
             }
             moved += donorChunks.length;

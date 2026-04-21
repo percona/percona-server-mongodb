@@ -42,6 +42,17 @@ namespace mongo::extension::host_connector {
     });
 }
 
+::MongoExtensionStatus* HostPortalAdapter::_extRegisterStageRules(
+    const MongoExtensionHostPortal* hostPortal,
+    ::MongoExtensionByteView stageName,
+    const ::MongoExtensionPipelineRewriteRule* rules,
+    size_t numRules) noexcept {
+    return wrapCXXAndConvertExceptionToStatus([&]() {
+        const auto& impl = static_cast<const HostPortalAdapter*>(hostPortal)->getImpl();
+        impl.registerStageRules(stageName, rules, numRules);
+    });
+}
+
 ::MongoExtensionByteView HostPortalAdapter::_extGetOptions(
     const ::MongoExtensionHostPortal* portal) noexcept {
     return stringViewAsByteView(static_cast<const HostPortalAdapter*>(portal)->_extensionOpts);

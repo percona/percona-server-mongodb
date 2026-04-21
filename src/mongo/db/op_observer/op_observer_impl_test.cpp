@@ -41,6 +41,7 @@
 #include "mongo/bson/oid.h"
 #include "mongo/bson/util/builder.h"
 #include "mongo/client/dbclient_cursor.h"
+#include "mongo/db/change_stream_pre_images_collection_manager.h"
 #include "mongo/db/client.h"
 #include "mongo/db/collection_crud/collection_write_path.h"
 #include "mongo/db/dbdirectclient.h"
@@ -76,6 +77,8 @@
 #include "mongo/db/repl/storage_interface.h"
 #include "mongo/db/repl/storage_interface_impl.h"
 #include "mongo/db/repl/truncate_range_oplog_entry_gen.h"
+#include "mongo/db/rss/attached_storage/attached_persistence_provider.h"
+#include "mongo/db/rss/replicated_storage_service.h"
 #include "mongo/db/server_feature_flags_gen.h"
 #include "mongo/db/server_options.h"
 #include "mongo/db/service_context_d_test_fixture.h"
@@ -112,8 +115,10 @@
 #include "mongo/util/decorable.h"
 #include "mongo/util/duration.h"
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <limits>
 #include <ostream>
 #include <utility>
@@ -580,6 +585,48 @@ protected:
         ASSERT_EQ(viewless && viewlessParam, isTimeseries);
     }
 
+    void testOnCreateCollRecordIdsReplicated(bool recordIdsReplicated) {
+        RAIIServerParameterControllerForTest replicateLocalCatalogInfoController(
+            "featureFlagReplicateLocalCatalogIdentifiers", true);
+        RAIIServerParameterControllerForTest recordIdsReplicatedController(
+            "featureFlagRecordIdsReplicated", true);
+
+        auto opCtxWrapper = cc().makeOperationContext();
+        auto opCtx = opCtxWrapper.get();
+
+        // Simulate catalog information for a normal collection with a standard '_id_' index.
+        ASSERT_TRUE(nss.isReplicated());
+        auto catalogIdentifier =
+            newCatalogIdentifier(opCtx, nss.dbName(), true /* includeIdIndexIdent */);
+        CollectionOptions options{.uuid = uuid};
+
+        OpObserverImpl opObserver(std::make_unique<OperationLoggerImpl>());
+        {
+            // Generate the create oplog entry.
+            VersionContext::FixedOperationFCVRegion fixedOfcvRegion(opCtx);
+            AutoGetCollection autoColl(opCtx, nss, MODE_X);
+            WriteUnitOfWork wuow(opCtx);
+            opObserver.onCreateCollection(opCtx,
+                                          nss,
+                                          options,
+                                          BSON("v" << 2 << "key" << BSON("_id_" << 1) << "name"
+                                                   << "_id_") /* idIndex */,
+                                          repl::getNextOpTime(opCtx),
+                                          catalogIdentifier,
+                                          false /* fromMigrate*/,
+                                          false,
+                                          recordIdsReplicated);
+            wuow.commit();
+        }
+
+        const auto oplogEntryBSON = getSingleOplogEntry(opCtx);
+        const auto oplogEntry = assertGet(OplogEntry::parse(oplogEntryBSON));
+        validateReplicatedCatalogIdentifier(
+            opCtx, oplogEntry, catalogIdentifier, /*catalogReplicationEnabled=*/true);
+        ASSERT_TRUE(oplogEntry.getObject().hasField("recordIdsReplicated"));
+        ASSERT_EQ(recordIdsReplicated, oplogEntry.getObject().getBoolField("recordIdsReplicated"));
+    }
+
     void testOnCreateCollClustered(bool catalogReplicationEnabled) {
         RAIIServerParameterControllerForTest replicateLocalCatalogInfoController(
             "featureFlagReplicateLocalCatalogIdentifiers", catalogReplicationEnabled);
@@ -694,6 +741,15 @@ TEST_F(OpObserverOnCreateCollectionTest,
     testOnCreateCollBasic(
         false /* catalogReplicationEnabled */, true /* viewless */, true /* viewlessParam */);
 }
+
+TEST_F(OpObserverOnCreateCollectionTest, createCollectionRecordIdsReplicatedFalse) {
+    testOnCreateCollRecordIdsReplicated(/*recordIdsReplicated=*/false);
+}
+
+TEST_F(OpObserverOnCreateCollectionTest, createCollectionRecordIdsReplicatedTrue) {
+    testOnCreateCollRecordIdsReplicated(/*recordIdsReplicated=*/true);
+}
+
 
 TEST_F(OpObserverOnCreateCollectionTest, ClusteredReplicatedCatalogIdentifiersEnabled) {
     testOnCreateCollClustered(true /* catalogReplicationEnabled */);
@@ -847,13 +903,7 @@ TEST_F(OpObserverTest, AbortIndexBuildExpectedOplogEntry) {
     NamespaceString nss = NamespaceString::createNamespaceString_forTest(boost::none, "test.coll");
     UUID indexBuildUUID = UUID::gen();
 
-    BSONObj specX = BSON("key" << BSON("x" << 1) << "name"
-                               << "x_1"
-                               << "v" << 2);
-    BSONObj specA = BSON("key" << BSON("a" << 1) << "name"
-                               << "a_1"
-                               << "v" << 2);
-    std::vector<BSONObj> specs = {specX, specA};
+    auto specs = makeSpecs(opCtx.get(), {"x", "a"});
 
     // Write to the oplog.
     Status cause(ErrorCodes::OperationFailed, "index build failed");
@@ -871,8 +921,8 @@ TEST_F(OpObserverTest, AbortIndexBuildExpectedOplogEntry) {
     abortIndexBuildBuilder.append("abortIndexBuild", nss.coll());
     indexBuildUUID.appendToBuilder(&abortIndexBuildBuilder, "indexBuildUUID");
     BSONArrayBuilder indexesArr(abortIndexBuildBuilder.subarrayStart("indexes"));
-    indexesArr.append(specX);
-    indexesArr.append(specA);
+    indexesArr.append(specs[0].spec);
+    indexesArr.append(specs[1].spec);
     indexesArr.done();
     BSONObjBuilder causeBuilder(abortIndexBuildBuilder.subobjStart("cause"));
     causeBuilder.appendBool("ok", 0);
@@ -2301,9 +2351,19 @@ TEST_F(OpObserverTransactionTest, PreparingTransactionWritesToTransactionTable) 
 }
 
 TEST_F(OpObserverTransactionTest,
-       PreparingTransactionWritesToTransactionTablePreciseCheckpointsFlagOn) {
-    RAIIServerParameterControllerForTest featureFlagController(
-        "featureFlagPreparedTransactionsPreciseCheckpoints", true);
+       PreparingTransactionWritesToTransactionTablePreciseCheckpointsSupported) {
+    // The default AttachedPersistenceProvider returns false for
+    // supportsPreservingPreparedTxnInPreciseCheckpoints(), so the extra precise checkpoint fields
+    // won't be written to config.transactions. Override it here to test that we write those extra
+    // fields when we support preserving prepared transactions in precise checkpoints.
+    class PreciseCheckpointPersistenceProvider : public rss::AttachedPersistenceProvider {
+    public:
+        bool supportsPreservingPreparedTxnInPreciseCheckpoints() const override {
+            return true;
+        }
+    };
+    rss::ReplicatedStorageService::get(opCtx()).setPersistenceProvider(
+        std::make_unique<PreciseCheckpointPersistenceProvider>());
 
     auto txnParticipant = TransactionParticipant::get(opCtx());
     txnParticipant.unstashTransactionResources(opCtx(), "prepareTransaction");
@@ -3107,8 +3167,11 @@ protected:
                 update->retryableFindAndModifyLocation =
                     RetryableFindAndModifyLocation::kSideCollection;
                 update->updateArgs->stmtIds = {1};
-                if (testCase.retryableOptions == kRecordInSideCollection) {
+                if (testCase.retryableOptions == kRecordInSideCollection &&
+                    testCase.oplogGroupType != kGroup) {
                     // 'getNextOpTimes' requires us to be inside a WUOW when reserving oplog slots.
+                    // Skip for grouped (batched) writes -- onBatchedWriteCommit handles its own
+                    // oplog slot reservation.
                     WriteUnitOfWork wuow(opCtx);
                     auto reservedSlots = repl::getNextOpTimes(opCtx, 3);
                     update->updateArgs->oplogSlots = reservedSlots;
@@ -3234,11 +3297,6 @@ TEST_F(OnUpdateOutputsTest, TestNonTransactionFundamentalOnUpdateOutputs) {
     for (std::size_t testIdx = 0; testIdx < _cases.size(); ++testIdx) {
         const auto& testCase = _cases[testIdx];
         logTestCase(testCase);
-
-        // TODO (SERVER-122524): Re-enable test cases with grouping.
-        if (testCase.oplogGroupType == kGroup) {
-            continue;
-        }
 
         auto opCtxRaii = cc().makeOperationContext();
         OperationContext* opCtx = opCtxRaii.get();
@@ -3482,6 +3540,12 @@ protected:
     // Reusable test for asserting batched writes with a single operation are not wrapped in
     // applyOps
     void testBatchedWriteSingleOplogEntryIsNotWrappedInApplyOps(auto opLoggingFn, bool isRetryable);
+
+    // Performs a batched insert within a WUOW, commits, and returns the resulting applyOps oplog
+    // entry.
+    repl::OplogEntry commitBatchedInserts(OperationContext* opCtx,
+                                          const CollectionPtr& coll,
+                                          const std::vector<bool>& fromMigrateFlags);
 };
 
 // Verifies that a WriteUnitOfWork with groupOplogEntries=kGroupForTransaction replicates its writes
@@ -4651,6 +4715,283 @@ TEST_F(BatchedWriteOutputsTest, TestSingleContainerDeleteIsNotInApplyOps) {
         },
         false /*isRetryable*/);
 }
+
+repl::OplogEntry BatchedWriteOutputsTest::commitBatchedInserts(
+    OperationContext* opCtx, const CollectionPtr& coll, const std::vector<bool>& fromMigrateFlags) {
+    WriteUnitOfWork wuow(opCtx, WriteUnitOfWork::kGroupForPossiblyRetryableOperations);
+    ASSERT(BatchedWriteContext::get(opCtx).writesAreBatched());
+
+    std::vector<InsertStatement> inserts;
+    for (size_t i = 0; i < fromMigrateFlags.size(); ++i) {
+        inserts.emplace_back(BSON("_id" << static_cast<int>(i)));
+    }
+    bool allFromMigrate =
+        std::all_of(fromMigrateFlags.begin(), fromMigrateFlags.end(), [](bool v) { return v; });
+
+    opCtx->getServiceContext()->getOpObserver()->onInserts(opCtx,
+                                                           coll,
+                                                           inserts.begin(),
+                                                           inserts.end(),
+                                                           /*recordIds=*/{},
+                                                           /*fromMigrate=*/fromMigrateFlags,
+                                                           /*defaultFromMigrate=*/allFromMigrate);
+    wuow.commit();
+
+    auto oplogs = getNOplogEntries(opCtx, 1);
+    auto oplogEntry = unittest::assertGet(repl::OplogEntry::parse(oplogs.back()));
+    ASSERT(oplogEntry.getCommandType() == repl::OplogEntry::CommandType::kApplyOps);
+    return oplogEntry;
+}
+
+// Extracts sub-operations from an applyOps entry and verifies each sub-op's fromMigrate
+// value matches the expected flags.
+void assertSubOpsFromMigrate(const repl::OplogEntry& applyOpsEntry,
+                             const std::vector<bool>& expectedFromMigrate) {
+    std::vector<repl::OplogEntry> innerEntries;
+    repl::ApplyOps::extractOperationsTo(
+        applyOpsEntry, applyOpsEntry.getEntry().toBSON(), &innerEntries);
+    ASSERT_EQ(innerEntries.size(), expectedFromMigrate.size());
+    for (size_t i = 0; i < expectedFromMigrate.size(); ++i) {
+        ASSERT_EQ(innerEntries[i].getFromMigrate().value_or(false), expectedFromMigrate[i])
+            << "Mismatch at sub-op index " << i;
+    }
+}
+
+// Test that the applyOps wrapper's fromMigrate flag and per-sub-op fromMigrate values are correct
+// for all-true, mixed, and all-false cases.
+TEST_F(BatchedWriteOutputsTest, TestApplyOpsFromMigrateAllTrue) {
+    auto opCtxRaii = cc().makeOperationContext();
+    auto* opCtx = opCtxRaii.get();
+    reset(opCtx, _nss);
+    reset(opCtx, NamespaceString::kRsOplogNamespace);
+    AutoGetCollection autoColl(opCtx, _nss, MODE_IX);
+
+    std::vector<bool> flags = {true, true, true};
+    auto oplogEntry = commitBatchedInserts(opCtx, *autoColl, flags);
+
+    ASSERT_TRUE(oplogEntry.getFromMigrate().value_or(false));
+    assertSubOpsFromMigrate(oplogEntry, flags);
+}
+
+TEST_F(BatchedWriteOutputsTest, TestApplyOpsFromMigrateMixed) {
+    auto opCtxRaii = cc().makeOperationContext();
+    auto* opCtx = opCtxRaii.get();
+    reset(opCtx, _nss);
+    reset(opCtx, NamespaceString::kRsOplogNamespace);
+    AutoGetCollection autoColl(opCtx, _nss, MODE_IX);
+
+    std::vector<bool> flags = {false, true, false};
+    auto oplogEntry = commitBatchedInserts(opCtx, *autoColl, flags);
+
+    ASSERT_FALSE(oplogEntry.getFromMigrate().value_or(false));
+    assertSubOpsFromMigrate(oplogEntry, flags);
+}
+
+TEST_F(BatchedWriteOutputsTest, TestApplyOpsFromMigrateAllFalse) {
+    auto opCtxRaii = cc().makeOperationContext();
+    auto* opCtx = opCtxRaii.get();
+    reset(opCtx, _nss);
+    reset(opCtx, NamespaceString::kRsOplogNamespace);
+    AutoGetCollection autoColl(opCtx, _nss, MODE_IX);
+
+    std::vector<bool> flags = {false, false};
+    auto oplogEntry = commitBatchedInserts(opCtx, *autoColl, flags);
+
+    ASSERT_FALSE(oplogEntry.getFromMigrate().value_or(false));
+    assertSubOpsFromMigrate(oplogEntry, flags);
+}
+
+// Test that multiple OpObserver calls with different fromMigrate values in the same WUOW
+// are handled correctly. The applyOps.fromMigrate flag should be false if ANY operation
+// is not fromMigrate.
+TEST_F(BatchedWriteOutputsTest, TestMultipleOpObserverCallsWithMixedFromMigrate) {
+    auto opCtxRaii = cc().makeOperationContext();
+    auto* opCtx = opCtxRaii.get();
+    reset(opCtx, _nss);
+    reset(opCtx, NamespaceString::kRsOplogNamespace);
+    AutoGetCollection autoColl(opCtx, _nss, MODE_IX);
+
+    WriteUnitOfWork wuow(opCtx, WriteUnitOfWork::kGroupForTransaction);
+    ASSERT(BatchedWriteContext::get(opCtx).writesAreBatched());
+
+    auto batchInsert = [&](std::vector<BSONObj> docs, bool fromMigrate) {
+        std::vector<InsertStatement> inserts;
+        for (auto& doc : docs) {
+            inserts.emplace_back(std::move(doc));
+        }
+        opCtx->getServiceContext()->getOpObserver()->onInserts(
+            opCtx,
+            *autoColl,
+            inserts.begin(),
+            inserts.end(),
+            /*recordIds=*/{},
+            /*fromMigrate=*/std::vector<bool>(inserts.size(), fromMigrate),
+            /*defaultFromMigrate=*/fromMigrate);
+    };
+
+    batchInsert({BSON("_id" << 1), BSON("_id" << 2)}, /*fromMigrate=*/true);
+    batchInsert({BSON("_id" << 3), BSON("_id" << 4)}, /*fromMigrate=*/false);
+    batchInsert({BSON("_id" << 5)}, /*fromMigrate=*/true);
+    wuow.commit();
+
+    auto oplogs = getNOplogEntries(opCtx, 1);
+    auto oplogEntry = assertGet(OplogEntry::parse(oplogs.back()));
+    ASSERT(oplogEntry.getCommandType() == OplogEntry::CommandType::kApplyOps);
+    ASSERT_FALSE(oplogEntry.getFromMigrate());
+    assertSubOpsFromMigrate(oplogEntry, {true, true, false, false, true});
+}
+
+// Test that different operation types (insert, update, delete) with mixed fromMigrate flags
+// are handled correctly in the same batch.
+TEST_F(BatchedWriteOutputsTest, TestMixedOperationTypesWithMixedFromMigrate) {
+    auto opCtxRaii = cc().makeOperationContext();
+    auto* opCtx = opCtxRaii.get();
+    reset(opCtx, _nss);
+    reset(opCtx, NamespaceString::kRsOplogNamespace);
+    AutoGetCollection autoColl(opCtx, _nss, MODE_IX);
+
+    WriteUnitOfWork wuow(opCtx, WriteUnitOfWork::kGroupForTransaction);
+    ASSERT(BatchedWriteContext::get(opCtx).writesAreBatched());
+
+    // Insert with fromMigrate=true.
+    {
+        std::vector<InsertStatement> inserts;
+        inserts.emplace_back(BSON("_id" << 1));
+        opCtx->getServiceContext()->getOpObserver()->onInserts(opCtx,
+                                                               *autoColl,
+                                                               inserts.begin(),
+                                                               inserts.end(),
+                                                               /*recordIds=*/{},
+                                                               /*fromMigrate=*/{true},
+                                                               /*defaultFromMigrate=*/true);
+    }
+
+    // Delete with fromMigrate=false.
+    {
+        OplogDeleteEntryArgs args;
+        args.fromMigrate = false;
+        auto doc = BSON("_id" << 2);
+        opCtx->getServiceContext()->getOpObserver()->onDelete(
+            opCtx, *autoColl, kUninitializedStmtId, doc, getDocumentKey(*autoColl, doc), args);
+    }
+
+    // Update with fromMigrate=true.
+    {
+        const auto preImageDoc = BSON("_id" << 3);
+        CollectionUpdateArgs collUpdateArgs{preImageDoc};
+        collUpdateArgs.criteria = preImageDoc;
+        collUpdateArgs.update = BSON("$set" << BSON("data" << "x"));
+        collUpdateArgs.source = OperationSource::kFromMigrate;
+        auto args = OplogUpdateEntryArgs(&collUpdateArgs, *autoColl);
+        opCtx->getServiceContext()->getOpObserver()->onUpdate(opCtx, args);
+    }
+
+    wuow.commit();
+
+    auto oplogs = getNOplogEntries(opCtx, 1);
+    auto oplogEntry = assertGet(OplogEntry::parse(oplogs.back()));
+    ASSERT(oplogEntry.getCommandType() == OplogEntry::CommandType::kApplyOps);
+    ASSERT_FALSE(oplogEntry.getFromMigrate());
+
+    std::vector<repl::OplogEntry> innerEntries;
+    repl::ApplyOps::extractOperationsTo(oplogEntry, oplogEntry.getEntry().toBSON(), &innerEntries);
+    ASSERT_EQ(innerEntries.size(), 3);
+    ASSERT_EQ(innerEntries[0].getOpType(), repl::OpTypeEnum::kInsert);
+    ASSERT_TRUE(innerEntries[0].getFromMigrate());
+    ASSERT_EQ(innerEntries[1].getOpType(), repl::OpTypeEnum::kDelete);
+    ASSERT_FALSE(innerEntries[1].getFromMigrate());
+    ASSERT_EQ(innerEntries[2].getOpType(), repl::OpTypeEnum::kUpdate);
+    ASSERT_TRUE(innerEntries[2].getFromMigrate());
+}
+
+// Test that batched updates with mixed fromMigrate flags only record pre-images for
+// non-fromMigrate operations. This exercises the primary write path through
+// writeChangeStreamPreImagesForApplyOpsEntry.
+TEST_F(BatchedWriteOutputsTest, TestBatchedWritePreImagesWithMixedFromMigrate) {
+    auto opCtxRaii = cc().makeOperationContext();
+    auto* opCtx = opCtxRaii.get();
+
+    // Register the ChangeStreamPreImagesOpObserver to handle pre-image recording.
+    opObserverRegistry()->addObserver(std::make_unique<ChangeStreamPreImagesOpObserver>());
+
+    // Create the pre-images collection.
+    ChangeStreamPreImagesCollectionManager::get(opCtx).createPreImagesCollection(opCtx);
+
+    // Create a collection with pre-images enabled.
+    const auto preImageNss =
+        NamespaceString::createNamespaceString_forTest(boost::none, "test", "preimage_coll");
+    const auto preImageUuid = UUID::gen();
+    writeConflictRetry(opCtx, "createCollection", preImageNss, [&] {
+        shard_role_details::getRecoveryUnit(opCtx)->setTimestampReadSource(
+            RecoveryUnit::ReadSource::kNoTimestamp);
+        shard_role_details::getRecoveryUnit(opCtx)->abandonSnapshot();
+        WriteUnitOfWork wunit(opCtx);
+        AutoGetCollection collRaii(opCtx, preImageNss, MODE_X);
+        auto db = collRaii.ensureDbExists(opCtx);
+        CollectionOptions opts;
+        opts.uuid = preImageUuid;
+        opts.changeStreamPreAndPostImagesOptions.setEnabled(true);
+        invariant(db->createCollection(opCtx, preImageNss, opts));
+        wunit.commit();
+    });
+    reset(opCtx, NamespaceString::kRsOplogNamespace);
+
+    // Helper to build a batched update with a given fromMigrate source.
+    auto batchUpdate =
+        [&](OperationContext* opCtx, const CollectionPtr& coll, int id, OperationSource source) {
+            const auto preImageDoc = BSON("_id" << id << "x" << 0);
+            CollectionUpdateArgs collUpdateArgs{preImageDoc};
+            collUpdateArgs.criteria = BSON("_id" << id);
+            collUpdateArgs.update = BSON("$set" << BSON("x" << id));
+            collUpdateArgs.updatedDoc = BSON("_id" << id << "x" << id);
+            collUpdateArgs.source = source;
+            collUpdateArgs.changeStreamPreAndPostImagesEnabledForCollection = true;
+            auto args = OplogUpdateEntryArgs(&collUpdateArgs, coll);
+            opCtx->getServiceContext()->getOpObserver()->onUpdate(opCtx, args);
+        };
+
+    // Batched updates: doc0 is NOT fromMigrate, doc1 IS fromMigrate.
+    {
+        AutoGetCollection autoColl(opCtx, preImageNss, MODE_IX);
+        WriteUnitOfWork wuow(opCtx, WriteUnitOfWork::kGroupForTransaction);
+        ASSERT(BatchedWriteContext::get(opCtx).writesAreBatched());
+
+        batchUpdate(opCtx, *autoColl, 0, OperationSource::kStandard);
+        batchUpdate(opCtx, *autoColl, 1, OperationSource::kFromMigrate);
+        wuow.commit();
+    }
+
+    auto oplogs = getNOplogEntries(opCtx, 1);
+    auto oplogEntry = assertGet(OplogEntry::parse(oplogs.back()));
+    ASSERT(oplogEntry.getCommandType() == OplogEntry::CommandType::kApplyOps);
+    ASSERT_FALSE(oplogEntry.getFromMigrate().value_or(false));
+
+    // Pre-image for doc0 (non-fromMigrate): should exist.
+    {
+        BSONObj container;
+        ChangeStreamPreImageId preImageId0{preImageUuid, oplogEntry.getOpTime().getTimestamp(), 0};
+        auto preImage = getChangeStreamPreImage(opCtx, preImageId0, &container);
+        ASSERT_BSONOBJ_EQ(preImage.getPreImage(), BSON("_id" << 0 << "x" << 0));
+    }
+
+    // Pre-image for doc1 (fromMigrate): should NOT exist.
+    {
+        auto preImagesCollection = acquireCollection(
+            opCtx,
+            CollectionAcquisitionRequest(NamespaceString::kChangeStreamPreImagesNamespace,
+                                         PlacementConcern{boost::none, ShardVersion::UNTRACKED()},
+                                         repl::ReadConcernArgs::get(opCtx),
+                                         AcquisitionPrerequisites::kRead),
+            MODE_IS);
+        ChangeStreamPreImageId preImageId1{preImageUuid, oplogEntry.getOpTime().getTimestamp(), 1};
+        auto doc = Helpers::findOneForTesting(opCtx,
+                                              preImagesCollection,
+                                              BSON("_id" << preImageId1.toBSON()),
+                                              /*invariantOnError=*/false);
+        ASSERT_TRUE(doc.isEmpty()) << "Pre-image should NOT be recorded for fromMigrate operation";
+    }
+}
+
 class OnDeleteOutputsTest : public OpObserverTest {
 
 protected:
@@ -5880,10 +6221,33 @@ TEST_F(OpObserverTest, OnCreateIndexIncludesIndexIdent) {
     ASSERT_BSONOBJ_EQ(*entry2.getObject2(), BSON("indexIdent" << indexIdentUniqueTag1));
 }
 
-TEST_F(OpObserverTest, OnStartIndexBuildIncludesIndexIdent) {
-    RAIIServerParameterControllerForTest replicatedLocalCatalogIdentifiers(
-        "featureFlagReplicateLocalCatalogIdentifiers", true);
 
+/**
+ * IndexBuildOpParam is a uniform adapter type used for parameterized o2 ident tests for
+ * on(Start/Commit/Abort)IndexBuild.
+ */
+struct IndexBuildOpParam {
+    std::function<void(OperationContext*,
+                       OpObserverImpl&,
+                       const NamespaceString&,
+                       const std::vector<IndexBuildInfo>&)>
+        invoke;
+};
+
+class IndexBuildOplogO2Test : public OpObserverTest,
+                              public testing::WithParamInterface<IndexBuildOpParam> {
+protected:
+    void invokeOp(OperationContext* opCtx,
+                  OpObserverImpl& observer,
+                  const NamespaceString& nss,
+                  const std::vector<IndexBuildInfo>& indexes) {
+        GetParam().invoke(opCtx, observer, nss, indexes);
+    }
+};
+
+// o2 contains indexIdent when featureFlagReplicateLocalCatalogIdentifiers is enabled;
+// o2 is absent when the flag is disabled.
+TEST_P(IndexBuildOplogO2Test, IncludesIndexIdentWithReplicateLocalCatalogIdentifiersEnabled) {
     OpObserverImpl opObserver(std::make_unique<OperationLoggerImpl>());
     auto opCtx = cc().makeOperationContext();
 
@@ -5894,16 +6258,16 @@ TEST_F(OpObserverTest, OnStartIndexBuildIncludesIndexIdent) {
         AutoGetDb autoDb(opCtx.get(), nss.dbName(), MODE_X);
         WriteUnitOfWork wunit(opCtx.get());
         {
-            RAIIServerParameterControllerForTest replicatedLocalCatalogIdentifiers(
+            // With the flag enabled, o2 with indexIdent expected.
+            RAIIServerParameterControllerForTest flagEnabled(
                 "featureFlagReplicateLocalCatalogIdentifiers", true);
-            opObserver.onStartIndexBuild(
-                opCtx.get(), nss, UUID::gen(), UUID::gen(), {indexes[0]}, false);
+            invokeOp(opCtx.get(), opObserver, nss, {indexes[0]});
         }
         {
-            RAIIServerParameterControllerForTest replicatedLocalCatalogIdentifiers(
+            // With the flag disabled, no o2 entry is expected.
+            RAIIServerParameterControllerForTest flagDisabled(
                 "featureFlagReplicateLocalCatalogIdentifiers", false);
-            opObserver.onStartIndexBuild(
-                opCtx.get(), nss, UUID::gen(), UUID::gen(), {indexes[1]}, false);
+            invokeOp(opCtx.get(), opObserver, nss, {indexes[1]});
         }
         wunit.commit();
     }
@@ -5913,137 +6277,19 @@ TEST_F(OpObserverTest, OnStartIndexBuildIncludesIndexIdent) {
     auto entry2 = assertGet(OplogEntry::parse(oplogEntries[1]));
 
     ASSERT_TRUE(entry1.getObject2());
-    auto o2 = entry1.getObject2();
-    auto indexesElem = o2->getField("indexes");
-    auto indexesElemVec = indexesElem.Array();
+    auto indexesElemVec = entry1.getObject2()->getField("indexes").Array();
     ASSERT_EQ(indexesElemVec.size(), 1);
     auto indexElemObj = indexesElemVec[0].Obj();
     auto storageEngine = opCtx->getServiceContext()->getStorageEngine();
     auto indexIdentUniqueTag =
         storageEngine->getIndexIdentUniqueTag(indexes[0].indexIdent, nss.dbName());
     EXPECT_EQ(indexElemObj.getField("indexIdent").str(), indexIdentUniqueTag);
-    ASSERT_FALSE(entry2.getObject2());
-}
-
-TEST_F(OpObserverTest, OnStartIndexBuildIncludesInternalIdents) {
-    OpObserverImpl opObserver(std::make_unique<OperationLoggerImpl>());
-    auto opCtx = cc().makeOperationContext();
-
-    auto nss = NamespaceString::createNamespaceString_forTest("test.coll");
-    auto indexes = makeSpecs(opCtx.get(), {"a"});
-    AutoGetDb autoDb(opCtx.get(), nss.dbName(), MODE_X);
-    WriteUnitOfWork wunit(opCtx.get());
-    // Wait until after the WUOW is constructed to enable the feature flag. Otherwise,
-    // this top-level WUOW will be created in grouped-oplog mode, but onStartIndexBuild logs a
-    // direct command oplog entry first, so onBatchedWriteCommit starts with non-empty
-    // reservedOpTimes and trips the ReservedTimes invariant.
-    RAIIServerParameterControllerForTest primaryDrivenIndexBuildsEnabled(
-        "featureFlagPrimaryDrivenIndexBuilds", true);
-    RAIIServerParameterControllerForTest replicatedLocalCatalogIdentifiers(
-        "featureFlagReplicateLocalCatalogIdentifiers", true);
-    opObserver.onStartIndexBuild(opCtx.get(), nss, UUID::gen(), UUID::gen(), {indexes[0]}, false);
-    wunit.commit();
-
-    auto entry = assertGet(OplogEntry::parse(getNOplogEntries(opCtx.get(), 1)[0]));
-    ASSERT_TRUE(entry.getObject2());
-    auto indexesElemVec = entry.getObject2()->getField("indexes").Array();
-    ASSERT_EQ(indexesElemVec.size(), 1);
-
-    auto indexElemObj = indexesElemVec[0].Obj();
-    auto storageEngine = opCtx->getServiceContext()->getStorageEngine();
-    auto indexIdentUniqueTag =
-        storageEngine->getIndexIdentUniqueTag(indexes[0].indexIdent, nss.dbName());
-    ASSERT_EQ(indexElemObj.getField("indexIdent").str(), indexIdentUniqueTag);
-
-    ASSERT_BSONOBJ_EQ(indexElemObj.getObjectField("internalIdents"),
-                      BSON("sorterIdent" << *indexes[0].sorterIdent << "sideWritesIdent"
-                                         << *indexes[0].sideWritesIdent << "skippedRecordsIdent"
-                                         << *indexes[0].skippedRecordsIdent));
-}
-
-TEST_F(OpObserverTest, OnStartIndexBuildIncludesconstraintViolationsIdentForUniqueIndexes) {
-    OpObserverImpl opObserver(std::make_unique<OperationLoggerImpl>());
-    auto opCtx = cc().makeOperationContext();
-
-    auto nss = NamespaceString::createNamespaceString_forTest("test.coll");
-    auto storageEngine = opCtx->getServiceContext()->getStorageEngine();
-    std::vector<IndexBuildInfo> indexes;
-    indexes.emplace_back(BSON("v" << 2 << "key" << BSON("a" << 1) << "name"
-                                  << "a_1"
-                                  << "unique" << true),
-                         "index-1",
-                         *storageEngine);
-    AutoGetDb autoDb(opCtx.get(), nss.dbName(), MODE_X);
-    WriteUnitOfWork wunit(opCtx.get());
-    RAIIServerParameterControllerForTest primaryDrivenIndexBuildsEnabled(
-        "featureFlagPrimaryDrivenIndexBuilds", true);
-    RAIIServerParameterControllerForTest replicatedLocalCatalogIdentifiers(
-        "featureFlagReplicateLocalCatalogIdentifiers", true);
-    opObserver.onStartIndexBuild(opCtx.get(), nss, UUID::gen(), UUID::gen(), {indexes[0]}, false);
-    wunit.commit();
-
-    auto entry = assertGet(OplogEntry::parse(getNOplogEntries(opCtx.get(), 1)[0]));
-    ASSERT_TRUE(entry.getObject2());
-    auto indexesElemVec = entry.getObject2()->getField("indexes").Array();
-    ASSERT_EQ(indexesElemVec.size(), 1);
-
-    auto indexElemObj = indexesElemVec[0].Obj();
-    ASSERT_BSONOBJ_EQ(indexElemObj.getObjectField("internalIdents"),
-                      BSON("sorterIdent" << *indexes[0].sorterIdent << "sideWritesIdent"
-                                         << *indexes[0].sideWritesIdent << "skippedRecordsIdent"
-                                         << *indexes[0].skippedRecordsIdent
-                                         << "constraintViolationsIdent"
-                                         << *indexes[0].constraintViolationsIdent));
-}
-
-TEST_F(OpObserverTest, OnCommitIndexBuildIncludesIndexIdent) {
-    RAIIServerParameterControllerForTest replicatedLocalCatalogIdentifiers(
-        "featureFlagReplicateLocalCatalogIdentifiers", true);
-
-    OpObserverImpl opObserver(std::make_unique<OperationLoggerImpl>());
-    auto opCtx = cc().makeOperationContext();
-
-    auto nss = NamespaceString::createNamespaceString_forTest("test.coll");
-    auto indexes = makeSpecs(opCtx.get(), {"a", "a"});
-
-    {
-        AutoGetDb autoDb(opCtx.get(), nss.dbName(), MODE_X);
-        WriteUnitOfWork wunit(opCtx.get());
-        {
-            RAIIServerParameterControllerForTest replicatedLocalCatalogIdentifiersEnabled(
-                "featureFlagReplicateLocalCatalogIdentifiers", true);
-            opObserver.onCommitIndexBuild(
-                opCtx.get(), nss, UUID::gen(), UUID::gen(), {indexes[0]}, {}, false);
-        }
-        {
-            RAIIServerParameterControllerForTest replicatedLocalCatalogIdentifiersDisabled(
-                "featureFlagReplicateLocalCatalogIdentifiers", false);
-            opObserver.onCommitIndexBuild(
-                opCtx.get(), nss, UUID::gen(), UUID::gen(), {indexes[1]}, {}, false);
-        }
-        wunit.commit();
-    }
-
-    auto oplogEntries = getNOplogEntries(opCtx.get(), 2);
-    auto entry1 = assertGet(OplogEntry::parse(oplogEntries[0]));
-    auto entry2 = assertGet(OplogEntry::parse(oplogEntries[1]));
-
-    // When replicated catalog identifiers are enabled, o2 should contain the index ident.
-    ASSERT_TRUE(entry1.getObject2());
-    auto o2 = entry1.getObject2();
-    auto indexesElemVec = o2->getField("indexes").Array();
-    ASSERT_EQ(indexesElemVec.size(), 1);
-    auto indexElemObj = indexesElemVec[0].Obj();
-    auto storageEngine = opCtx->getServiceContext()->getStorageEngine();
-    auto indexIdentUniqueTag =
-        storageEngine->getIndexIdentUniqueTag(indexes[0].indexIdent, nss.dbName());
-    EXPECT_EQ(indexElemObj.getField("indexIdent").str(), indexIdentUniqueTag);
-
-    // When replicated catalog identifiers are disabled, no o2 field.
     EXPECT_FALSE(entry2.getObject2());
 }
 
-TEST_F(OpObserverTest, OnCommitIndexBuildIncludesInternalIdentsWithPrimaryDrivenIndexBuilds) {
+// With featureFlagPrimaryDrivenIndexBuilds enabled, o2 includes an internalIdents sub-object
+// containing sorterIdent, sideWritesIdent, and skippedRecordsIdent.
+TEST_P(IndexBuildOplogO2Test, IncludesInternalIdentsWhenPrimaryDrivenEnabled) {
     OpObserverImpl opObserver(std::make_unique<OperationLoggerImpl>());
     auto opCtx = cc().makeOperationContext();
 
@@ -6051,16 +6297,15 @@ TEST_F(OpObserverTest, OnCommitIndexBuildIncludesInternalIdentsWithPrimaryDriven
     auto indexes = makeSpecs(opCtx.get(), {"a"});
     AutoGetDb autoDb(opCtx.get(), nss.dbName(), MODE_X);
     WriteUnitOfWork wunit(opCtx.get());
-    // Wait until after the WUOW is constructed to enable the feature flag. Otherwise,
-    // this top-level WUOW will be created in grouped-oplog mode, but onCommitIndexBuild logs a
-    // direct command oplog entry first, so onBatchedWriteCommit starts with non-empty
-    // reservedOpTimes and trips the ReservedTimes invariant.
-    RAIIServerParameterControllerForTest primaryDrivenIndexBuildsEnabled(
-        "featureFlagPrimaryDrivenIndexBuilds", true);
-    RAIIServerParameterControllerForTest replicatedLocalCatalogIdentifiers(
+    // Enable flags *after* constructing the WUOW. Enabling featureFlagPrimaryDrivenIndexBuilds
+    // before WUOW construction puts it in grouped-oplog mode; the operation then writes a direct
+    // command oplog entry first, and onBatchedWriteCommit starts with non-empty reservedOpTimes
+    // which trips the ReservedTimes invariant.
+    RAIIServerParameterControllerForTest primaryDrivenEnabled("featureFlagPrimaryDrivenIndexBuilds",
+                                                              true);
+    RAIIServerParameterControllerForTest replicatedCatalogIdents(
         "featureFlagReplicateLocalCatalogIdentifiers", true);
-    opObserver.onCommitIndexBuild(
-        opCtx.get(), nss, UUID::gen(), UUID::gen(), {indexes[0]}, {}, false);
+    invokeOp(opCtx.get(), opObserver, nss, {indexes[0]});
     wunit.commit();
 
     auto entry = assertGet(OplogEntry::parse(getNOplogEntries(opCtx.get(), 1)[0]));
@@ -6080,26 +6325,27 @@ TEST_F(OpObserverTest, OnCommitIndexBuildIncludesInternalIdentsWithPrimaryDriven
                                          << *indexes[0].skippedRecordsIdent));
 }
 
-TEST_F(OpObserverTest, OnCommitIndexBuildIncludesconstraintViolationsIdentForUniqueIndexes) {
+// Unique indexes additionally include constraintViolationsIdent in internalIdents.
+TEST_P(IndexBuildOplogO2Test, IncludesConstraintViolationsIdentForUniqueIndexes) {
     OpObserverImpl opObserver(std::make_unique<OperationLoggerImpl>());
     auto opCtx = cc().makeOperationContext();
 
     auto nss = NamespaceString::createNamespaceString_forTest("test.coll");
     auto storageEngine = opCtx->getServiceContext()->getStorageEngine();
-    std::vector<IndexBuildInfo> indexes;
-    indexes.emplace_back(BSON("v" << 2 << "key" << BSON("a" << 1) << "name"
-                                  << "a_1"
-                                  << "unique" << true),
-                         "index-1",
-                         *storageEngine);
+
+    // Build a unique index — the constructor will automatically populate
+    // constraintViolationsIdent because the spec has "unique: true".
+    auto uniqueSpec =
+        BSON("v" << 2 << "key" << BSON("a" << 1) << "name" << "a_1" << "unique" << true);
+    IndexBuildInfo indexBuildInfo(uniqueSpec, "index-1", *storageEngine);
+
     AutoGetDb autoDb(opCtx.get(), nss.dbName(), MODE_X);
     WriteUnitOfWork wunit(opCtx.get());
-    RAIIServerParameterControllerForTest primaryDrivenIndexBuildsEnabled(
-        "featureFlagPrimaryDrivenIndexBuilds", true);
-    RAIIServerParameterControllerForTest replicatedLocalCatalogIdentifiers(
+    RAIIServerParameterControllerForTest primaryDrivenEnabled("featureFlagPrimaryDrivenIndexBuilds",
+                                                              true);
+    RAIIServerParameterControllerForTest replicatedCatalogIdents(
         "featureFlagReplicateLocalCatalogIdentifiers", true);
-    opObserver.onCommitIndexBuild(
-        opCtx.get(), nss, UUID::gen(), UUID::gen(), {indexes[0]}, {}, false);
+    invokeOp(opCtx.get(), opObserver, nss, {indexBuildInfo});
     wunit.commit();
 
     auto entry = assertGet(OplogEntry::parse(getNOplogEntries(opCtx.get(), 1)[0]));
@@ -6109,14 +6355,15 @@ TEST_F(OpObserverTest, OnCommitIndexBuildIncludesconstraintViolationsIdentForUni
 
     auto indexElemObj = indexesElemVec[0].Obj();
     ASSERT_BSONOBJ_EQ(indexElemObj.getObjectField("internalIdents"),
-                      BSON("sorterIdent" << *indexes[0].sorterIdent << "sideWritesIdent"
-                                         << *indexes[0].sideWritesIdent << "skippedRecordsIdent"
-                                         << *indexes[0].skippedRecordsIdent
+                      BSON("sorterIdent" << *indexBuildInfo.sorterIdent << "sideWritesIdent"
+                                         << *indexBuildInfo.sideWritesIdent << "skippedRecordsIdent"
+                                         << *indexBuildInfo.skippedRecordsIdent
                                          << "constraintViolationsIdent"
-                                         << *indexes[0].constraintViolationsIdent));
+                                         << *indexBuildInfo.constraintViolationsIdent));
 }
 
-TEST_F(OpObserverTest, OnCommitIndexBuildMultipleIndexesIncludesAllIdents) {
+// Multiple indexes in one oplog entry each carry their own ident data.
+TEST_P(IndexBuildOplogO2Test, MultipleIndexesIncludesAllIdents) {
     OpObserverImpl opObserver(std::make_unique<OperationLoggerImpl>());
     auto opCtx = cc().makeOperationContext();
 
@@ -6124,11 +6371,11 @@ TEST_F(OpObserverTest, OnCommitIndexBuildMultipleIndexesIncludesAllIdents) {
     auto indexes = makeSpecs(opCtx.get(), {"x", "y"});
     AutoGetDb autoDb(opCtx.get(), nss.dbName(), MODE_X);
     WriteUnitOfWork wunit(opCtx.get());
-    RAIIServerParameterControllerForTest primaryDrivenIndexBuildsEnabled(
-        "featureFlagPrimaryDrivenIndexBuilds", true);
-    RAIIServerParameterControllerForTest replicatedLocalCatalogIdentifiers(
+    RAIIServerParameterControllerForTest primaryDrivenEnabled("featureFlagPrimaryDrivenIndexBuilds",
+                                                              true);
+    RAIIServerParameterControllerForTest replicatedCatalogIdents(
         "featureFlagReplicateLocalCatalogIdentifiers", true);
-    opObserver.onCommitIndexBuild(opCtx.get(), nss, UUID::gen(), UUID::gen(), indexes, {}, false);
+    invokeOp(opCtx.get(), opObserver, nss, indexes);
     wunit.commit();
 
     auto entry = assertGet(OplogEntry::parse(getNOplogEntries(opCtx.get(), 1)[0]));
@@ -6151,7 +6398,9 @@ TEST_F(OpObserverTest, OnCommitIndexBuildMultipleIndexesIncludesAllIdents) {
     }
 }
 
-TEST_F(OpObserverTest, OnCommitIndexBuildNoInternalIdentsWhenPrimaryDrivenIndexBuildsDisabled) {
+// When featureFlagPrimaryDrivenIndexBuilds is disabled, o2 carries indexIdent but no
+// internalIdents (sorterIdent, sideWritesIdent, etc.).
+TEST_P(IndexBuildOplogO2Test, NoInternalIdentsWhenPrimaryDrivenDisabled) {
     OpObserverImpl opObserver(std::make_unique<OperationLoggerImpl>());
     auto opCtx = cc().makeOperationContext();
 
@@ -6159,11 +6408,10 @@ TEST_F(OpObserverTest, OnCommitIndexBuildNoInternalIdentsWhenPrimaryDrivenIndexB
     auto indexes = makeSpecs(opCtx.get(), {"a"});
     AutoGetDb autoDb(opCtx.get(), nss.dbName(), MODE_X);
     WriteUnitOfWork wunit(opCtx.get());
-    RAIIServerParameterControllerForTest replicatedLocalCatalogIdentifiers(
+    RAIIServerParameterControllerForTest replicatedCatalogIdents(
         "featureFlagReplicateLocalCatalogIdentifiers", true);
     // featureFlagPrimaryDrivenIndexBuilds intentionally NOT enabled
-    opObserver.onCommitIndexBuild(
-        opCtx.get(), nss, UUID::gen(), UUID::gen(), {indexes[0]}, {}, false);
+    invokeOp(opCtx.get(), opObserver, nss, {indexes[0]});
     wunit.commit();
 
     auto entry = assertGet(OplogEntry::parse(getNOplogEntries(opCtx.get(), 1)[0]));
@@ -6176,69 +6424,111 @@ TEST_F(OpObserverTest, OnCommitIndexBuildNoInternalIdentsWhenPrimaryDrivenIndexB
     auto indexIdentUniqueTag =
         storageEngine->getIndexIdentUniqueTag(indexes[0].indexIdent, nss.dbName());
     EXPECT_EQ(indexElemObj.getField("indexIdent").str(), indexIdentUniqueTag);
-    // internalIdents must be absent when primary-driven index builds are not enabled
+    // internalIdents must be absent when primary-driven index builds are not enabled.
     EXPECT_FALSE(indexElemObj.hasField("internalIdents"));
+}
+
+// Helper for the invariant death tests below. Builds a unique IndexBuildInfo and then clears
+// constraintViolationsIdent to simulate a missing ident, then calls invoke().
+// setIndexBuildO2 (shared by start/commit/abort) invariants that unique indexes always carry
+// constraintViolationsIdent when primary-driven builds are active.
+void runMissingConstraintViolationsIdentDeathTest(
+    std::function<void(OperationContext*,
+                       OpObserverImpl&,
+                       const NamespaceString&,
+                       const std::vector<IndexBuildInfo>&)> invoke) {
+    OpObserverImpl opObserver(std::make_unique<OperationLoggerImpl>());
+    auto opCtx = cc().makeOperationContext();
+
+    auto nss = NamespaceString::createNamespaceString_forTest("test.coll");
+    auto storageEngine = opCtx->getServiceContext()->getStorageEngine();
+
+    auto uniqueSpec =
+        BSON("v" << 2 << "key" << BSON("a" << 1) << "name" << "a_1" << "unique" << true);
+    IndexBuildInfo indexBuildInfo(uniqueSpec, "index-1", *storageEngine);
+    // Clear constraintViolationsIdent to simulate it being absent.
+    indexBuildInfo.setInternalIdents(*indexBuildInfo.sorterIdent,
+                                     *indexBuildInfo.sideWritesIdent,
+                                     *indexBuildInfo.skippedRecordsIdent,
+                                     boost::none);
+
+    AutoGetDb autoDb(opCtx.get(), nss.dbName(), MODE_X);
+    WriteUnitOfWork wunit(opCtx.get());
+    RAIIServerParameterControllerForTest primaryDrivenEnabled("featureFlagPrimaryDrivenIndexBuilds",
+                                                              true);
+    RAIIServerParameterControllerForTest replicatedCatalogIdents(
+        "featureFlagReplicateLocalCatalogIdentifiers", true);
+    invoke(opCtx.get(), opObserver, nss, {indexBuildInfo});
 }
 
 using OpObserverIndexBuildDeathTest = OpObserverTest;
 
 DEATH_TEST_F(OpObserverIndexBuildDeathTest,
-             OnStartIndexBuildInvariantIfUniqueIndexMissingconstraintViolationsIdent,
+             OnStartIndexBuildInvariantIfUniqueIndexMissingConstraintViolationsIdent,
              "invariant") {
-    OpObserverImpl opObserver(std::make_unique<OperationLoggerImpl>());
-    auto opCtx = cc().makeOperationContext();
+    runMissingConstraintViolationsIdentDeathTest([](OperationContext* opCtx,
+                                                    OpObserverImpl& observer,
+                                                    const NamespaceString& nss,
+                                                    const std::vector<IndexBuildInfo>& indexes) {
+        observer.onStartIndexBuild(opCtx, nss, UUID::gen(), UUID::gen(), indexes, false);
+    });
+}
 
-    auto nss = NamespaceString::createNamespaceString_forTest("test.coll");
-    auto storageEngine = opCtx->getServiceContext()->getStorageEngine();
+using OpObserverIndexBuildDeathTest = OpObserverTest;
 
-    // Build a unique index IndexBuildInfo but clear the constraintViolationsIdent to
-    // simulate it being missing.
-    auto uniqueSpec =
-        BSON("v" << 2 << "key" << BSON("a" << 1) << "name" << "a_1" << "unique" << true);
-    IndexBuildInfo indexBuildInfo(uniqueSpec, "index-1", *storageEngine);
-    indexBuildInfo.setInternalIdents(*indexBuildInfo.sorterIdent,
-                                     *indexBuildInfo.sideWritesIdent,
-                                     *indexBuildInfo.skippedRecordsIdent,
-                                     boost::none);
-
-    AutoGetDb autoDb(opCtx.get(), nss.dbName(), MODE_X);
-    WriteUnitOfWork wunit(opCtx.get());
-    RAIIServerParameterControllerForTest primaryDrivenIndexBuildsEnabled(
-        "featureFlagPrimaryDrivenIndexBuilds", true);
-    RAIIServerParameterControllerForTest replicatedLocalCatalogIdentifiers(
-        "featureFlagReplicateLocalCatalogIdentifiers", true);
-    opObserver.onStartIndexBuild(
-        opCtx.get(), nss, UUID::gen(), UUID::gen(), {indexBuildInfo}, false);
+DEATH_TEST_F(OpObserverIndexBuildDeathTest,
+             OnCommitIndexBuildInvariantIfUniqueIndexMissingConstraintViolationsIdent,
+             "invariant") {
+    runMissingConstraintViolationsIdentDeathTest([](OperationContext* opCtx,
+                                                    OpObserverImpl& observer,
+                                                    const NamespaceString& nss,
+                                                    const std::vector<IndexBuildInfo>& indexes) {
+        observer.onCommitIndexBuild(opCtx, nss, UUID::gen(), UUID::gen(), indexes, {}, false);
+    });
 }
 
 DEATH_TEST_F(OpObserverIndexBuildDeathTest,
-             OnCommitIndexBuildInvariantIfUniqueIndexMissingconstraintViolationsIdent,
+             OnAbortIndexBuildInvariantIfUniqueIndexMissingConstraintViolationsIdent,
              "invariant") {
-    OpObserverImpl opObserver(std::make_unique<OperationLoggerImpl>());
-    auto opCtx = cc().makeOperationContext();
-
-    auto nss = NamespaceString::createNamespaceString_forTest("test.coll");
-    auto storageEngine = opCtx->getServiceContext()->getStorageEngine();
-
-    // Build a unique index IndexBuildInfo but clear the constraintViolationsIdent to
-    // simulate it being missing.
-    auto uniqueSpec =
-        BSON("v" << 2 << "key" << BSON("a" << 1) << "name" << "a_1" << "unique" << true);
-    IndexBuildInfo indexBuildInfo(uniqueSpec, "index-1", *storageEngine);
-    indexBuildInfo.setInternalIdents(*indexBuildInfo.sorterIdent,
-                                     *indexBuildInfo.sideWritesIdent,
-                                     *indexBuildInfo.skippedRecordsIdent,
-                                     boost::none);
-
-    AutoGetDb autoDb(opCtx.get(), nss.dbName(), MODE_X);
-    WriteUnitOfWork wunit(opCtx.get());
-    RAIIServerParameterControllerForTest primaryDrivenIndexBuildsEnabled(
-        "featureFlagPrimaryDrivenIndexBuilds", true);
-    RAIIServerParameterControllerForTest replicatedLocalCatalogIdentifiers(
-        "featureFlagReplicateLocalCatalogIdentifiers", true);
-    opObserver.onCommitIndexBuild(
-        opCtx.get(), nss, UUID::gen(), UUID::gen(), {indexBuildInfo}, {}, false);
+    runMissingConstraintViolationsIdentDeathTest([](OperationContext* opCtx,
+                                                    OpObserverImpl& observer,
+                                                    const NamespaceString& nss,
+                                                    const std::vector<IndexBuildInfo>& indexes) {
+        Status cause(ErrorCodes::OperationFailed, "index build failed");
+        observer.onAbortIndexBuild(opCtx, nss, UUID::gen(), UUID::gen(), indexes, cause, false);
+    });
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    OnStartIndexBuild,
+    IndexBuildOplogO2Test,
+    testing::Values(IndexBuildOpParam{[](OperationContext* opCtx,
+                                         OpObserverImpl& observer,
+                                         const NamespaceString& nss,
+                                         const std::vector<IndexBuildInfo>& indexes) {
+        observer.onStartIndexBuild(opCtx, nss, UUID::gen(), UUID::gen(), indexes, false);
+    }}));
+
+INSTANTIATE_TEST_SUITE_P(
+    OnCommitIndexBuild,
+    IndexBuildOplogO2Test,
+    testing::Values(IndexBuildOpParam{[](OperationContext* opCtx,
+                                         OpObserverImpl& observer,
+                                         const NamespaceString& nss,
+                                         const std::vector<IndexBuildInfo>& indexes) {
+        observer.onCommitIndexBuild(opCtx, nss, UUID::gen(), UUID::gen(), indexes, {}, false);
+    }}));
+
+INSTANTIATE_TEST_SUITE_P(
+    OnAbortIndexBuild,
+    IndexBuildOplogO2Test,
+    testing::Values(IndexBuildOpParam{[](OperationContext* opCtx,
+                                         OpObserverImpl& observer,
+                                         const NamespaceString& nss,
+                                         const std::vector<IndexBuildInfo>& indexes) {
+        Status cause(ErrorCodes::OperationFailed, "index build failed");
+        observer.onAbortIndexBuild(opCtx, nss, UUID::gen(), UUID::gen(), indexes, cause, false);
+    }}));
 
 TEST_F(OpObserverTest, OnContainerInsert) {
     auto opCtx = cc().makeOperationContext();

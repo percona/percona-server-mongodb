@@ -73,17 +73,27 @@ public:
     }
 
     virtual BSONObj serialize() const = 0;
-    virtual BSONObj explain(::MongoExtensionExplainVerbosity verbosity) const = 0;
+    virtual BSONObj explain(const QueryExecutionContextHandle& execCtx,
+                            ::MongoExtensionExplainVerbosity verbosity) const = 0;
     virtual std::unique_ptr<ExecAggStageBase> compile() const = 0;
     virtual boost::optional<DistributedPlanLogic> getDistributedPlanLogic() const = 0;
     virtual std::unique_ptr<LogicalAggStage> clone() const = 0;
     // Extension stages (like $vectorSearch) that do sort by vector search score should override
     // this and return true.
-    virtual bool isSortedByVectorSearchScore() const {
+    virtual bool isSortedByVectorSearchScore_deprecated() const {
         return false;
     }
 
-    void setExtractedLimitVal(boost::optional<long long> extractedLimitVal) {
+    /**
+     * Returns the filter predicate applied by this stage for shard targeting. Source stages that
+     * filter documents should override this to enable shard targeting. Returns an empty BSONObj by
+     * default (no filter).
+     */
+    virtual BSONObj getFilter() const {
+        return BSONObj();
+    }
+
+    void setExtractedLimitVal_deprecated(boost::optional<long long> extractedLimitVal) {
         _limit = extractedLimitVal;
     }
 
@@ -97,6 +107,21 @@ public:
      */
     boost::optional<long long> getExtractedLimitVal() const {
         return _limit;
+    }
+
+    /**
+     * Evaluates the precondition of the rule identified by name. Extensions override this.
+     */
+    virtual bool evaluateRulePrecondition(std::string_view ruleName) const {
+        return false;
+    }
+
+    /**
+     * Applies the transform of the rule identified by name. Extensions override this.
+     * Returns true if the pipeline was modified.
+     */
+    virtual bool evaluateRuleTransform(std::string_view ruleName) {
+        return false;
     }
 
 protected:
@@ -137,6 +162,10 @@ public:
         return *_stage;
     }
 
+    static ::MongoExtensionLogicalAggStageVTable getVTable() {
+        return VTABLE;
+    }
+
 private:
     static void _extDestroy(::MongoExtensionLogicalAggStage* extlogicalStage) noexcept {
         delete static_cast<ExtensionLogicalAggStageAdapter*>(extlogicalStage);
@@ -163,6 +192,7 @@ private:
 
     static ::MongoExtensionStatus* _extExplain(
         const ::MongoExtensionLogicalAggStage* extLogicalStage,
+        ::MongoExtensionQueryExecutionContext* execCtxPtr,
         ::MongoExtensionExplainVerbosity verbosity,
         ::MongoExtensionByteBuf** output) noexcept {
         return wrapCXXAndConvertExceptionToStatus([&]() {
@@ -171,8 +201,9 @@ private:
             const auto& impl =
                 static_cast<const ExtensionLogicalAggStageAdapter*>(extLogicalStage)->getImpl();
 
+            QueryExecutionContextHandle execCtx{execCtxPtr};
             // Allocate a buffer on the heap. Ownership is transferred to the caller.
-            *output = new ByteBuf(impl.explain(verbosity));
+            *output = new ByteBuf(impl.explain(execCtx, verbosity));
         });
     };
 
@@ -213,7 +244,7 @@ private:
         return wrapCXXAndConvertExceptionToStatus([&]() {
             const auto& impl =
                 static_cast<const ExtensionLogicalAggStageAdapter*>(extLogicalStage)->getImpl();
-            *outIsSortedByVectorSearchScore = impl.isSortedByVectorSearchScore();
+            *outIsSortedByVectorSearchScore = impl.isSortedByVectorSearchScore_deprecated();
         });
     }
 
@@ -221,8 +252,48 @@ private:
         ::MongoExtensionLogicalAggStage* extLogicalStage, long long* extractedLimitVal) {
         return wrapCXXAndConvertExceptionToStatus([&]() {
             auto& impl = static_cast<ExtensionLogicalAggStageAdapter*>(extLogicalStage)->getImpl();
-            impl.setExtractedLimitVal(
+            impl.setExtractedLimitVal_deprecated(
                 extractedLimitVal ? boost::optional<long long>(*extractedLimitVal) : boost::none);
+        });
+    }
+
+    static ::MongoExtensionStatus* _extEvaluateRulePrecondition(
+        const ::MongoExtensionLogicalAggStage* extLogicalStage,
+        ::MongoExtensionByteView ruleName,
+        bool* result) noexcept {
+        return wrapCXXAndConvertExceptionToStatus([&]() {
+            *result = false;
+            auto& adapter = *static_cast<const ExtensionLogicalAggStageAdapter*>(extLogicalStage);
+            *result = adapter.getImpl().evaluateRulePrecondition(byteViewAsStringView(ruleName));
+        });
+    }
+
+    static ::MongoExtensionStatus* _extEvaluateRuleTransform(
+        ::MongoExtensionLogicalAggStage* extLogicalStage,
+        ::MongoExtensionByteView ruleName,
+        bool* result) noexcept {
+        return wrapCXXAndConvertExceptionToStatus([&]() {
+            *result = false;
+            auto& adapter = *static_cast<ExtensionLogicalAggStageAdapter*>(extLogicalStage);
+            *result = adapter.getImpl().evaluateRuleTransform(byteViewAsStringView(ruleName));
+        });
+    }
+
+    static ::MongoExtensionStatus* _extGetFilter(
+        const ::MongoExtensionLogicalAggStage* extLogicalStage,
+        ::MongoExtensionByteBuf** output) noexcept {
+        return wrapCXXAndConvertExceptionToStatus([&]() {
+            *output = nullptr;
+
+            const auto& impl =
+                static_cast<const ExtensionLogicalAggStageAdapter*>(extLogicalStage)->getImpl();
+
+            auto filter = impl.getFilter();
+            if (!filter.isEmpty()) {
+                // Only return something if we have a non-empty filter. A null output implies no
+                // filter. Allocate a buffer on the heap. Ownership is transferred to the caller.
+                *output = new ByteBuf(filter);
+            }
         });
     }
 
@@ -234,8 +305,12 @@ private:
         .compile = &_extCompile,
         .get_distributed_plan_logic = &_extGetDistributedPlanLogic,
         .clone = &_extClone,
-        .is_stage_sorted_by_vector_search_score = &_extIsStageSortedByVectorSearchScore,
-        .set_vector_search_limit_for_optimization = &_extSetVectorSearchLimitForOptimization};
+        .is_stage_sorted_by_vector_search_score_deprecated = &_extIsStageSortedByVectorSearchScore,
+        .set_vector_search_limit_for_optimization_deprecated =
+            &_extSetVectorSearchLimitForOptimization,
+        .evaluate_rule_precondition = &_extEvaluateRulePrecondition,
+        .evaluate_rule_transform = &_extEvaluateRuleTransform,
+        .get_filter = &_extGetFilter};
     std::unique_ptr<LogicalAggStage> _stage;
 };
 
@@ -693,7 +768,8 @@ public:
 
     virtual void close() = 0;
 
-    virtual BSONObj explain(::MongoExtensionExplainVerbosity verbosity) const = 0;
+    virtual BSONObj explain(const QueryExecutionContextHandle& execCtx,
+                            ::MongoExtensionExplainVerbosity verbosity) const = 0;
 
 protected:
     ExecAggStageBase(std::string_view name) : _name(name) {}
@@ -853,6 +929,7 @@ private:
     }
 
     static ::MongoExtensionStatus* _extExplain(const ::MongoExtensionExecAggStage* execAggStage,
+                                               ::MongoExtensionQueryExecutionContext* execCtxPtr,
                                                ::MongoExtensionExplainVerbosity verbosity,
                                                ::MongoExtensionByteBuf** output) noexcept {
         return wrapCXXAndConvertExceptionToStatus([&]() {
@@ -861,8 +938,9 @@ private:
             const auto& impl =
                 static_cast<const ExtensionExecAggStageAdapter*>(execAggStage)->getImpl();
 
+            QueryExecutionContextHandle execCtx{execCtxPtr};
             // Allocate a buffer on the heap. Ownership is transferred to the caller.
-            *output = new ByteBuf(impl.explain(verbosity));
+            *output = new ByteBuf(impl.explain(execCtx, verbosity));
         });
     };
 

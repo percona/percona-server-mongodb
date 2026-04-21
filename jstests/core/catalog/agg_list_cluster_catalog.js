@@ -14,6 +14,7 @@
  */
 
 import {isViewlessTimeseriesOnlySuite} from "jstests/core/timeseries/libs/viewless_timeseries_util.js";
+import {FixtureHelpers} from "jstests/libs/fixture_helpers.js";
 
 const kDb1 = "db1_agg_list_cluster_catalog";
 const kDb2 = "db2_agg_list_cluster_catalog";
@@ -57,6 +58,13 @@ function verify(listCollectionEntry, stageEntry, specs) {
         if (isMultiversion || TestData.isRunningFCVUpgradeDowngradeSuite) {
             delete listCollectionEntry.info.configDebugDump;
             delete stageEntry.info.configDebugDump;
+        }
+
+        // The router scrubs 'recordIdsReplicated' from listCollections responses because it is an
+        // internal field that can be inconsistent across shards. $listClusterCatalog returns it
+        // unconditionally, so remove it from the stage entry before comparing.
+        if (FixtureHelpers.isMongos(db)) {
+            delete stageEntry.info.recordIdsReplicated;
         }
     }
 
@@ -281,4 +289,38 @@ jsTest.log("The stage must return the collections from the 'config' database.");
         verifyAgainstListCollections(listCollectionResult, stageResultConfig, {});
         return true;
     });
+}
+
+jsTest.log("The stage must report the correct 'readOnly' field.");
+{
+    const expectedReadOnly = !FixtureHelpers.isMongos(db) && db.serverStatus().storageEngine.readOnly;
+
+    const stageResult = db
+        .getSiblingDB(kDb1)
+        .aggregate([{$listClusterCatalog: {}}])
+        .toArray();
+    assert.gt(stageResult.length, 0, "Expected at least one entry from $listClusterCatalog");
+
+    for (const entry of stageResult) {
+        assert.neq(
+            entry.info,
+            undefined,
+            "Expected 'info' field to be present in $listClusterCatalog entry: " + tojson(entry),
+        );
+        assert.neq(
+            entry.info.readOnly,
+            undefined,
+            "Expected 'info.readOnly' field to be present in $listClusterCatalog entry: " + tojson(entry),
+        );
+
+        if (entry.type === "view") {
+            assert.eq(true, entry.info.readOnly, "Views must always report readOnly: true. Entry: " + tojson(entry));
+        } else {
+            assert.eq(
+                expectedReadOnly,
+                entry.info.readOnly,
+                "Expected readOnly to be " + expectedReadOnly + " for non-view collection. Entry: " + tojson(entry),
+            );
+        }
+    }
 }

@@ -55,7 +55,6 @@ selector:
     - jstests/core/**/currentop.js
     - jstests/core/**/dbhash.js
     - jstests/core/**/fsync.js
-    - jstests/core/**/geo_s2cursorlimitskip.js
     - jstests/core/**/geo_update_btree2.js
     - jstests/core/**/queryoptimizera.js
     - jstests/core/**/startup_log.js
@@ -124,10 +123,10 @@ selector:
     - featureFlagSearchHybridScoringFull
     - featureFlagCreateViewlessTimeseriesCollections
     - uses_transactions
-    - requires_fcv_80
     - requires_fcv_81
     - requires_fcv_82
     - requires_fcv_83
+    - requires_fcv_90
     - cannot_run_during_upgrade_downgrade
     - requires_2_or_more_shards
     - does_not_support_causal_consistency

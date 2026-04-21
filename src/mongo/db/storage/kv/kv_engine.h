@@ -109,14 +109,14 @@ public:
                                                         const RecordStore::Options& options,
                                                         boost::optional<UUID> uuid) = 0;
     /**
-     * Opens an existing ident as a temporary record store. Must be used for record stores created
-     * with `makeTemporaryRecordStore`. Using `getRecordStore` would cause the record store to use
+     * Opens an existing ident as an internal record store. Must be used for record stores created
+     * with `makeInternalRecordStore`. Using `getRecordStore` would cause the record store to use
      * the same settings as a regular collection, and would differ in behaviour as when it was
-     * originally created with `makeTemporaryRecordStore`.
+     * originally created with `makeInternalRecordStore`.
      */
-    virtual std::unique_ptr<RecordStore> getTemporaryRecordStore(RecoveryUnit& ru,
-                                                                 StringData ident,
-                                                                 KeyFormat keyFormat) = 0;
+    virtual std::unique_ptr<RecordStore> getInternalRecordStore(RecoveryUnit& ru,
+                                                                StringData ident,
+                                                                KeyFormat keyFormat) = 0;
 
     virtual std::unique_ptr<SortedDataInterface> getSortedDataInterface(OperationContext* opCtx,
                                                                         RecoveryUnit& ru,
@@ -142,12 +142,12 @@ public:
                                      const RecordStore::Options& options) = 0;
 
     /**
-     * RecordStores initially created with `makeTemporaryRecordStore` must be opened with
-     * `getTemporaryRecordStore`.
+     * RecordStores initially created with `makeInternalRecordStore` must be opened with
+     * `getInternalRecordStore`.
      */
-    virtual std::unique_ptr<RecordStore> makeTemporaryRecordStore(RecoveryUnit& ru,
-                                                                  StringData ident,
-                                                                  KeyFormat keyFormat) = 0;
+    virtual std::unique_ptr<RecordStore> makeInternalRecordStore(RecoveryUnit& ru,
+                                                                 StringData ident,
+                                                                 KeyFormat keyFormat) = 0;
 
     /**
      * Similar to createRecordStore but this imports from an existing table with the provided ident
@@ -247,15 +247,15 @@ public:
      * Removes any knowledge of the ident from the storage engines metadata which includes removing
      * the underlying files belonging to the ident. If the storage engine is unable to process the
      * removal immediately, we enqueue it to be removed at a later time. If a callback is specified,
-     * it will be run upon the drop if this function returns an OK status. If a 'timestamp' is
-     * specified, it indicates the timestamp at which the ident drop should become visible in
+     * it will be run upon the drop if this function returns an OK status. If a 'schemaEpoch' is
+     * specified, it indicates the schema epoch at which the ident drop should become visible in
      * checkpoints.
      */
     virtual Status dropIdent(RecoveryUnit& ru,
                              StringData ident,
                              bool identHasSizeInfo,
                              const StorageEngine::DropIdentCallback& onDrop = nullptr,
-                             boost::optional<Timestamp> timestamp = boost::none) = 0;
+                             boost::optional<uint64_t> schemaEpoch = boost::none) = 0;
 
     /**
      * Removes any knowledge of the ident from the storage engines metadata without removing the
@@ -538,6 +538,18 @@ public:
                                    std::span<const char> value) = 0;
 
     /**
+     * Updates the value associated with 'key' in the specified 'ident'. The key must already exist.
+     * Must be called from within a storage transaction.
+     *
+     * Returns OK on success, 'NoSuchKey' if the key does not exist, or the error returned by
+     * the underlying storage engine on other failures.
+     */
+    virtual Status updateInIdent(RecoveryUnit& ru,
+                                 StringData ident,
+                                 IdentKey key,
+                                 std::span<const char> value) = 0;
+
+    /**
      * Retrieves the value associated with 'key' from the specified 'ident'.
      *
      * Returns a 'UniqueBuffer' containing the value on success, 'KeyNotFound' if the key does not
@@ -619,6 +631,13 @@ public:
      */
     [[nodiscard]] virtual BSONObj setStorageTierToStorageOptions(
         const BSONObj& storageEngineOptions, StringData value) const = 0;
+
+    /**
+     * Returns the value of `disaggregated.storage_tier` from the storage engine BSON object of a
+     * collection / index, or boost::none if not set.
+     */
+    virtual boost::optional<std::string> getStorageTierFromStorageOptions(
+        const BSONObj& storageEngineOptions) const = 0;
 
     /**
      * Returns the input storage engine options, sanitized to remove options that may not apply to

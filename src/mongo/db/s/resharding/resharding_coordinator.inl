@@ -160,7 +160,8 @@ ReshardingCoordinator::ReshardingCoordinator(
       _coordinatorDao(resharding::ReshardingCoordinatorDao(coordinatorDoc.getReshardingUUID())),
       _markKilledExecutor{resharding::makeThreadPoolForMarkKilledExecutor(
           "ReshardingCoordinatorCancelableOpCtxPool")},
-      _reshardingCoordinatorExternalState(externalState) {
+      _reshardingCoordinatorExternalState(externalState),
+      _sessionTracker(this) {
     _reshardingCoordinatorObserver = std::make_shared<ReshardingCoordinatorObserver>();
 
     // If the coordinator is recovering from step-up, make sure to properly initialize the
@@ -228,6 +229,35 @@ void ReshardingCoordinator::installCoordinatorDocOnStateTransition(
                                            bob.obj(),
                                            resharding::kMajorityWriteConcern);
 }
+
+boost::optional<OperationSessionInfo> ReshardingCoordinator::readSession(OperationContext*) const {
+    const auto& session = _coordinatorDoc.getSession();
+    if (!session) {
+        return boost::none;
+    }
+
+    OperationSessionInfo osi;
+    osi.setSessionId(session->getLsid());
+    osi.setTxnNumber(session->getTxnNumber());
+    return osi;
+}
+
+void ReshardingCoordinator::writeSession(OperationContext* opCtx,
+                                         const boost::optional<OperationSessionInfo>& osi) {
+    boost::optional<CoordinatorSession> session;
+    if (osi) {
+        session.emplace(*osi->getSessionId(), *osi->getTxnNumber());
+    }
+    _installCoordinatorDoc(_coordinatorDao.updateSession(opCtx, session));
+}
+
+OperationSessionInfo ReshardingCoordinator::_getNewSession(OperationContext* opCtx) {
+    return _sessionTracker.getNextSession(opCtx);
+}
+
+void ReshardingCoordinator::_releaseSession(OperationContext* opCtx) {
+    _sessionTracker.releaseSession(opCtx);
+}
 #endif  // RESHARDING_COORDINATOR_PART_0
 
 inline namespace resharding_coordinator_detail {
@@ -286,7 +316,7 @@ ExecutorFuture<void> ReshardingCoordinator::_tellAllParticipantsReshardingStarte
                        pauseBeforeTellDonorToRefresh.pauseWhileSet();
                        _initializeAllDonors(executor);
                    })
-                   .then([this, executor] { _establishAllRecipientsAsParticipants(executor); })
+                   .then([this, executor] { _initializeAllRecipients(executor); })
                    .onCompletion([this](Status status) {
                        // Swap back to using operation contexts canceled upon abort until ready to
                        // persist the decision or unrecoverable error.
@@ -453,16 +483,16 @@ ExecutorFuture<ReshardingCoordinatorDocument> ReshardingCoordinator::_runUntilRe
                        }
                    })
                    .then([this, executor, telemetryCtx = telemetryCtx->clone()]() {
-                       auto span = _startSpan(
-                           telemetryCtx,
-                           "ReshardingCoordinator::_fetchAndPersistNumDocumentsFinalFromDonors");
-                       return _fetchAndPersistNumDocumentsFinalFromDonors(executor);
+                       _launchDonorPostCloningDeltaCollector(executor, telemetryCtx);
                    })
                    .then([this, executor, telemetryCtx = telemetryCtx->clone()]() {
                        auto span = _startSpan(
                            telemetryCtx,
                            "ReshardingCoordinator::_awaitAllRecipientsInStrictConsistency");
                        return _awaitAllRecipientsInStrictConsistency(executor);
+                   })
+                   .then([this](ReshardingCoordinatorDocument coordinatorDocChangedOnDisk) {
+                       return _verifyFinalCollection(std::move(coordinatorDocChangedOnDisk));
                    });
            })
         .onTransientError([](const Status& status) {
@@ -792,11 +822,25 @@ ExecutorFuture<void> ReshardingCoordinator::_runReshardingOp(
         .thenRunOn(_coordinatorService->getInstanceCleanupExecutor())
         .onCompletion([this, telemetryCtx = telemetryCtx->clone()](Status outerStatus) mutable {
             auto span = _startSpan(telemetryCtx, "ReshardingCoordinator::waitForCommitMonitor");
-            // Wait for the commit monitor to halt. We ignore any ignores because the
+            // Wait for the commit monitor to halt. We ignore any errors because the
             // ReshardingCoordinator instance is already exiting at this point.
             return _commitMonitorQuiesced
                 .thenRunOn(_coordinatorService->getInstanceCleanupExecutor())
                 .onCompletion([outerStatus](Status) { return outerStatus; });
+        })
+        .onCompletion([this](Status outerStatus) {
+            // Wait for the donor post-cloning delta collector to halt if it was started.
+            // We ignore any errors because the ReshardingCoordinator instance is already exiting at
+            // this point.
+            auto deltaFuture = _deltaFuture;
+            if (!deltaFuture) {
+                return ExecutorFuture<void>(_coordinatorService->getInstanceCleanupExecutor(),
+                                            outerStatus);
+            }
+
+            return std::move(*deltaFuture)
+                .thenRunOn(_coordinatorService->getInstanceCleanupExecutor())
+                .onCompletion([outerStatus](auto) { return outerStatus; });
         })
         .onCompletion([this, self = shared_from_this(), telemetryCtx = telemetryCtx->clone()](
                           Status status) mutable {
@@ -1361,6 +1405,8 @@ ExecutorFuture<void> ReshardingCoordinator::_awaitAllRecipientsFinishedCloning(
         .thenRunOn(**executor)
         .then([this, executor](ReshardingCoordinatorDocument coordinatorDocChangedOnDisk) {
             if (_metadata.getPerformVerification()) {
+                _metrics->setStartFor(ReshardingMetrics::TimedPhase::kVerificationPreApplying,
+                                      resharding::getCurrentTime());
                 auto opCtx = _makeOperationContext();
                 // Fetch the coordinator doc from disk since the 'coordinatorDocChangedOnDisk' above
                 // came from the OpObserver and may not reflect the latest version coordinator doc
@@ -1374,6 +1420,8 @@ ExecutorFuture<void> ReshardingCoordinator::_awaitAllRecipientsFinishedCloning(
                     **executor,
                     _ctHolder->getAbortToken(),
                     coordinatorDocChangedOnDisk);
+                _metrics->setEndFor(ReshardingMetrics::TimedPhase::kVerificationPreApplying,
+                                    resharding::getCurrentTime());
             }
         })
         .then([this] {
@@ -1507,91 +1555,43 @@ ExecutorFuture<void> ReshardingCoordinator::_awaitAllRecipientsFinishedApplying(
         });
 }
 
-ExecutorFuture<void> ReshardingCoordinator::_fetchAndPersistNumDocumentsFinalFromDonors(
-    const std::shared_ptr<executor::ScopedTaskExecutor>& executor) {
-    // The final numbers of documents to copy are only need for verification so don't fetch them if
-    // verification is not enabled. Also, if they have already fetched, don't fetch again. We only
-    // need to check 'documentsFinal' on the first entry because it will either be set on all
-    // entries or on none of them.
-    bool needToFetch = (_coordinatorDoc.getState() == CoordinatorStateEnum::kBlockingWrites) &&
-        _metadata.getPerformVerification() &&
-        !_coordinatorDoc.getDonorShards().front().getDocumentsFinal().has_value();
-    if (!needToFetch) {
-        return ExecutorFuture<void>(**executor, Status::OK());
+void ReshardingCoordinator::_persistDocumentsDelta(OperationContext* opCtx,
+                                                   std::map<ShardId, int64_t> documentsDelta) {
+    // This means that we didn't try to fetch the documents because verification was not enabled or
+    // we've already persisted the final numbers.
+    if (documentsDelta.empty()) {
+        return;
     }
 
-    LOGV2(1003581,
-          "Start fetching the change in the number of documents from all donor shards",
+    auto& donorShards = _coordinatorDoc.getDonorShards();
+    std::map<ShardId, int64_t> documentsFinal;
+    tassert(10324202,
+            str::stream() << "Number of shards from documentsFinal does not "
+                             "match expected number of donor shards.",
+            documentsDelta.size() == donorShards.size());
+
+    for (auto& donorShard : donorShards) {
+        auto it = documentsDelta.find(donorShard.getId());
+        tassert(10324203,
+                str::stream() << "Donor shard " << donorShard.getId()
+                              << " not found in documentsDelta map",
+                it != documentsDelta.end());
+        auto documentsToCopy = donorShard.getDocumentsToCopy();
+        tassert(1003582,
+                str::stream() << "Expected the number of documents to copy from the "
+                                 "donor shard '"
+                              << donorShard.getId() << "' to have been set",
+                documentsToCopy);
+        documentsFinal.emplace(donorShard.getId(), *documentsToCopy + it->second);
+    }
+
+    auto updatedCoordinatorDoc =
+        _coordinatorDao.updateNumberOfDocsCopiedFinal(opCtx, documentsFinal);
+    _installCoordinatorDoc(updatedCoordinatorDoc);
+
+    LOGV2(1003583,
+          "Finished fetching the change in the number of documents from all donor shards",
           "reshardingUUID"_attr = _coordinatorDoc.getReshardingUUID());
-
-    return resharding::WithAutomaticRetry([this, executor] {
-               return ExecutorFuture<void>(**executor)
-                   .then([this, anchor = shared_from_this(), executor] {
-                       auto opCtx = _makeOperationContext();
-
-                       return _reshardingCoordinatorExternalState->getDocumentsDeltaFromDonors(
-                           opCtx.get(),
-                           **executor,
-                           _ctHolder->getAbortToken(),
-                           _coordinatorDoc.getReshardingUUID(),
-                           _coordinatorDoc.getSourceNss(),
-                           resharding::extractShardIdsFromParticipantEntries(
-                               _coordinatorDoc.getDonorShards()));
-                   })
-                   .then([this](std::map<ShardId, int64_t> documentsDelta) {
-                       auto& donorShards = _coordinatorDoc.getDonorShards();
-                       std::map<ShardId, int64_t> documentsFinal;
-                       tassert(10324202,
-                               str::stream() << "Number of shards from documentsFinal does not "
-                                                "match expected number of donor shards.",
-                               documentsDelta.size() == donorShards.size());
-
-                       for (auto& donorShard : donorShards) {
-                           auto it = documentsDelta.find(donorShard.getId());
-                           tassert(10324203,
-                                   str::stream() << "Donor shard " << donorShard.getId()
-                                                 << " not found in documentsDelta map",
-                                   it != documentsDelta.end());
-                           auto documentsToCopy = donorShard.getDocumentsToCopy();
-                           tassert(1003582,
-                                   str::stream()
-                                       << "Expected the number of documents to copy from the "
-                                          "donor shard '"
-                                       << donorShard.getId() << "' to have been set",
-                                   documentsToCopy);
-                           documentsFinal.emplace(donorShard.getId(),
-                                                  *documentsToCopy + it->second);
-                       }
-                       auto opCtx = _makeOperationContext();
-                       auto updatedCoordinatorDoc = _coordinatorDao.updateNumberOfDocsCopiedFinal(
-                           opCtx.get(), documentsFinal);
-                       _installCoordinatorDoc(updatedCoordinatorDoc);
-
-                       LOGV2(1003583,
-                             "Finished fetching the change in the number of documents from all "
-                             "donor shards",
-                             "reshardingUUID"_attr = _coordinatorDoc.getReshardingUUID());
-                   });
-           })
-        .onTransientError([](const Status& status) {
-            LOGV2(1003584,
-                  "Resharding coordinator encountered transient error while fetching the final "
-                  "number of documents from donor shards",
-                  "error"_attr = status);
-        })
-        .onUnrecoverableError([](const Status& status) {
-            LOGV2(10494620,
-                  "Resharding coordinator encountered unrecoverable error while fetching the final "
-                  "number of documents from donor shards",
-                  "error"_attr = status);
-        })
-        .runOn(**executor, _ctHolder->getAbortToken())
-        .then([this] {
-            // Wait for the update to the coordinator doc to be majority committed before moving to
-            // the next step.
-            return resharding::waitForMajority(_ctHolder->getAbortToken(),
-                                               *_cancelableOpCtxFactory);
-        });
 }
 
 ExecutorFuture<ReshardingCoordinatorDocument>
@@ -1611,24 +1611,47 @@ ReshardingCoordinator::_awaitAllRecipientsInStrictConsistency(
     return future_util::withCancellation(
                _reshardingCoordinatorObserver->awaitAllRecipientsInStrictConsistency(),
                _ctHolder->getAbortToken())
-        .thenRunOn(**executor)
-        .then([this, executor](ReshardingCoordinatorDocument coordinatorDocChangedOnDisk) {
-            if (_metadata.getPerformVerification()) {
-                auto opCtx = _makeOperationContext();
-                // Fetch the coordinator doc from disk since the 'coordinatorDocChangedOnDisk'
-                // above came from the OpObserver and may not reflect the latest version
-                // coordinator doc because the write to populate donor 'documentsFinal' metrics
-                // (to be used for verification) may occur after all recipients have reached
-                // strict consistency and updated the coordinator doc.
-                coordinatorDocChangedOnDisk = resharding::getCoordinatorDoc(
-                    opCtx.get(), coordinatorDocChangedOnDisk.getReshardingUUID());
+        .thenRunOn(**executor);
+}
 
-                _reshardingCoordinatorExternalState->verifyFinalCollection(
-                    opCtx.get(), coordinatorDocChangedOnDisk);
-            }
+ReshardingCoordinatorDocument ReshardingCoordinator::_verifyFinalCollection(
+    ReshardingCoordinatorDocument coordinatorDocChangedOnDisk) {
+    if (!_metadata.getPerformVerification()) {
+        return coordinatorDocChangedOnDisk;
+    }
 
-            return coordinatorDocChangedOnDisk;
-        });
+    if (_coordinatorDoc.getState() > CoordinatorStateEnum::kBlockingWrites) {
+        // If in recovery, there is no need to re-verify the final collection, just return the
+        // existing _stateDoc.
+        return coordinatorDocChangedOnDisk;
+    }
+
+    auto opCtx = _makeOperationContext();
+    _persistDocumentsDelta(opCtx.get(), _deltaFuture->get(opCtx.get()));
+
+    // Fetch the coordinator doc from disk since the 'coordinatorDocChangedOnDisk'
+    // above came from the OpObserver and may not reflect the latest version
+    // coordinator doc because the write to populate donor 'documentsFinal' metrics
+    // (to be used for verification) may occur after all recipients have reached
+    // strict consistency and updated the coordinator doc.
+    coordinatorDocChangedOnDisk =
+        resharding::getCoordinatorDoc(opCtx.get(), coordinatorDocChangedOnDisk.getReshardingUUID());
+
+    _metrics->setStartFor(ReshardingMetrics::TimedPhase::kVerificationPreCommit,
+                          resharding::getCurrentTime());
+    try {
+        _reshardingCoordinatorExternalState->verifyFinalCollection(opCtx.get(),
+                                                                   coordinatorDocChangedOnDisk);
+    } catch (const ExceptionFor<ErrorCodes::ReshardingValidationIncompleteData>& ex) {
+        LOGV2_WARNING(1091841,
+                      "Failed to verify the temporary resharding collection after reaching "
+                      "strict consistency",
+                      "error"_attr = redact(ex.toString()));
+    }
+    _metrics->setEndFor(ReshardingMetrics::TimedPhase::kVerificationPreCommit,
+                        resharding::getCurrentTime());
+
+    return coordinatorDocChangedOnDisk;
 }
 
 void ReshardingCoordinator::_setCriticalSectionTimeoutCallback(
@@ -1742,12 +1765,12 @@ void ReshardingCoordinator::_generateCommitNotificationForChangeStreams(
 
     // In case the recipient is running a legacy binary, swallow the error.
     try {
-        generic_argument_util::setMajorityWriteConcern(request, &resharding::kMajorityWriteConcern);
-        const auto opts =
-            std::make_shared<async_rpc::AsyncRPCOptions<ShardsvrNotifyShardingEventRequest>>(
-                **executor, _ctHolder->getStepdownToken(), request);
-        opts->cmd.setDbName(DatabaseName::kAdmin);
-        resharding::sendCommandToShards(opCtx, opts, {notifierShard});
+        resharding::sendReshardingCommand(opCtx,
+                                          _getNewSession(opCtx),
+                                          std::move(request),
+                                          _ctHolder->getStepdownToken(),
+                                          executor,
+                                          {notifierShard});
     } catch (const ExceptionFor<ErrorCodes::UnsupportedShardingEventNotification>& e) {
         LOGV2_WARNING(7403100,
                       "Unable to generate op entry on reshardCollection commit",
@@ -1773,12 +1796,12 @@ void ReshardingCoordinator::_generatePlacementChangeNotificationForChangeStreams
 
     // In case the recipient is running a legacy binary, swallow the error.
     try {
-        generic_argument_util::setMajorityWriteConcern(request, &resharding::kMajorityWriteConcern);
-        const auto opts =
-            std::make_shared<async_rpc::AsyncRPCOptions<ShardsvrNotifyShardingEventRequest>>(
-                **executor, _ctHolder->getStepdownToken(), request);
-        opts->cmd.setDbName(DatabaseName::kAdmin);
-        resharding::sendCommandToShards(opCtx, opts, {notifierShard});
+        resharding::sendReshardingCommand(opCtx,
+                                          _getNewSession(opCtx),
+                                          std::move(request),
+                                          _ctHolder->getStepdownToken(),
+                                          executor,
+                                          {notifierShard});
     } catch (const ExceptionFor<ErrorCodes::UnsupportedShardingEventNotification>& e) {
         tasserted(
             10674000,
@@ -1819,12 +1842,12 @@ ExecutorFuture<void> ReshardingCoordinator::_awaitAllParticipantShardsDone(
                 auto cmd = ShardsvrDropCollectionIfUUIDNotMatchingWithWriteConcernRequest(
                     nss, notMatchingThisUUID);
 
-                generic_argument_util::setMajorityWriteConcern(cmd,
-                                                               &resharding::kMajorityWriteConcern);
-                auto opts = std::make_shared<async_rpc::AsyncRPCOptions<
-                    ShardsvrDropCollectionIfUUIDNotMatchingWithWriteConcernRequest>>(
-                    **executor, _ctHolder->getStepdownToken(), cmd);
-                resharding::sendCommandToShards(opCtx.get(), opts, allShardIds);
+                resharding::sendReshardingCommand(opCtx.get(),
+                                                  _getNewSession(opCtx.get()),
+                                                  cmd,
+                                                  _ctHolder->getStepdownToken(),
+                                                  executor,
+                                                  allShardIds);
             }
 
             reshardingPauseCoordinatorBeforeRemovingStateDoc.pauseWhileSetAndNotCanceled(
@@ -1872,6 +1895,8 @@ void ReshardingCoordinator::_updateCoordinatorDocStateAndCatalogEntries(
 
 void ReshardingCoordinator::_removeOrQuiesceCoordinatorDocAndRemoveReshardingFields(
     OperationContext* opCtx, boost::optional<Status> abortReason) {
+    _releaseSession(opCtx);
+
     auto updatedCoordinatorDoc = resharding::removeOrQuiesceCoordinatorDocAndRemoveReshardingFields(
         opCtx,
         _metrics.get(),
@@ -1893,8 +1918,11 @@ void ReshardingCoordinator::_initializeAllDonors(
     if (resharding::gFeatureFlagReshardingInitNoRefresh.isEnabled(
             VersionContext::getDecoration(opCtx.get()),
             serverGlobalParams.featureCompatibility.acquireFCVSnapshot())) {
-        resharding::tellAllDonorsToInitialize(
-            opCtx.get(), _coordinatorDoc, _ctHolder->getStepdownToken(), executor);
+        resharding::tellAllDonorsToInitialize(opCtx.get(),
+                                              _getNewSession(opCtx.get()),
+                                              _coordinatorDoc,
+                                              _ctHolder->getStepdownToken(),
+                                              executor);
     } else {
         _reshardingCoordinatorExternalState->establishAllDonorsAsParticipants(
             opCtx.get(),
@@ -1905,17 +1933,26 @@ void ReshardingCoordinator::_initializeAllDonors(
     }
 }
 
-void ReshardingCoordinator::_establishAllRecipientsAsParticipants(
+void ReshardingCoordinator::_initializeAllRecipients(
     const std::shared_ptr<executor::ScopedTaskExecutor>& executor) {
     invariant(_coordinatorDoc.getState() == CoordinatorStateEnum::kPreparingToDonate);
     auto opCtx = _makeOperationContext();
-
-    _reshardingCoordinatorExternalState->establishAllRecipientsAsParticipants(
-        opCtx.get(),
-        _coordinatorDoc.getTempReshardingNss(),
-        _coordinatorDoc.getRecipientShards(),
-        **executor,
-        _ctHolder->getStepdownToken());
+    if (resharding::gFeatureFlagReshardingInitNoRefresh.isEnabled(
+            VersionContext::getDecoration(opCtx.get()),
+            serverGlobalParams.featureCompatibility.acquireFCVSnapshot())) {
+        resharding::tellAllRecipientsToInitialize(opCtx.get(),
+                                                  _getNewSession(opCtx.get()),
+                                                  _coordinatorDoc,
+                                                  _ctHolder->getStepdownToken(),
+                                                  executor);
+    } else {
+        _reshardingCoordinatorExternalState->establishAllRecipientsAsParticipants(
+            opCtx.get(),
+            _coordinatorDoc.getTempReshardingNss(),
+            _coordinatorDoc.getRecipientShards(),
+            **executor,
+            _ctHolder->getStepdownToken());
+    }
 }
 
 void ReshardingCoordinator::_tellAllRecipientsToClone(
@@ -1925,8 +1962,11 @@ void ReshardingCoordinator::_tellAllRecipientsToClone(
     reshardingPauseBeforeTellingRecipientsToClone.pauseWhileSetAndNotCanceled(
         opCtx.get(), _ctHolder->getAbortToken());
 
-    resharding::tellAllRecipientsToClone(
-        opCtx.get(), _coordinatorDoc, _ctHolder->getStepdownToken(), executor);
+    resharding::tellAllRecipientsToClone(opCtx.get(),
+                                         _getNewSession(opCtx.get()),
+                                         _coordinatorDoc,
+                                         _ctHolder->getStepdownToken(),
+                                         executor);
 }
 
 void ReshardingCoordinator::_tellAllRecipientsToRefresh(
@@ -1970,15 +2010,21 @@ void ReshardingCoordinator::_tellAllDonorsToStartChangeStreamsMonitor(
     }
 
     auto opCtx = _makeOperationContext();
-    resharding::tellAllDonorsToStartChangeStreamsMonitor(
-        opCtx.get(), _coordinatorDoc, _ctHolder->getStepdownToken(), executor);
+    resharding::tellAllDonorsToStartChangeStreamsMonitor(opCtx.get(),
+                                                         _getNewSession(opCtx.get()),
+                                                         _coordinatorDoc,
+                                                         _ctHolder->getStepdownToken(),
+                                                         executor);
 }
 
 void ReshardingCoordinator::_tellAllRecipientsCriticalSectionStarted(
     const std::shared_ptr<executor::ScopedTaskExecutor>& executor) {
     auto opCtx = _makeOperationContext();
-    resharding::tellAllRecipientsCriticalSectionStarted(
-        opCtx.get(), _coordinatorDoc, _ctHolder->getAbortToken(), executor);
+    resharding::tellAllRecipientsCriticalSectionStarted(opCtx.get(),
+                                                        _getNewSession(opCtx.get()),
+                                                        _coordinatorDoc,
+                                                        _ctHolder->getAbortToken(),
+                                                        executor);
 }
 
 void ReshardingCoordinator::_tellAllParticipantsToCommit(
@@ -1987,15 +2033,42 @@ void ReshardingCoordinator::_tellAllParticipantsToCommit(
     reshardingPauseBeforeTellingParticipantsToCommit.pauseWhileSetAndNotCanceled(
         opCtx.get(), _ctHolder->getAbortToken());
 
-    resharding::tellAllParticipantsToCommit(
-        opCtx.get(), _coordinatorDoc, _ctHolder->getStepdownToken(), executor);
+    resharding::tellAllParticipantsToCommit(opCtx.get(),
+                                            _getNewSession(opCtx.get()),
+                                            _coordinatorDoc,
+                                            _ctHolder->getStepdownToken(),
+                                            executor);
 }
 
 void ReshardingCoordinator::_tellAllParticipantsToAbort(
     const std::shared_ptr<executor::ScopedTaskExecutor>& executor, bool isUserAborted) {
     auto opCtx = _makeOperationContext();
-    resharding::tellAllParticipantsToAbort(
-        opCtx.get(), _coordinatorDoc, _ctHolder->getStepdownToken(), executor, isUserAborted);
+    resharding::tellAllParticipantsToAbort(opCtx.get(),
+                                           _getNewSession(opCtx.get()),
+                                           _coordinatorDoc,
+                                           _ctHolder->getStepdownToken(),
+                                           executor,
+                                           isUserAborted);
+}
+
+void ReshardingCoordinator::_launchDonorPostCloningDeltaCollector(
+    const std::shared_ptr<executor::ScopedTaskExecutor>& executor,
+    std::shared_ptr<otel::TelemetryContext> telemetryCtx) {
+    if (!_metadata.getPerformVerification()) {
+        return;
+    }
+
+    if (_deltaCollector) {
+        return;
+    }
+
+    _deltaCollector = std::make_shared<ReshardingDonorPostCloningDeltaCollector>(
+        _coordinatorDoc,
+        _reshardingCoordinatorExternalState,
+        _ctHolder->getAbortToken(),
+        _cancelableOpCtxFactory->createChild());
+    _deltaFuture = _deltaCollector->launch(
+        executor, _startSpan(telemetryCtx, "ReshardingCoordinator::PostCloningDeltaCollector"));
 }
 
 void ReshardingCoordinator::_updateChunkImbalanceMetrics(const NamespaceString& nss) {
@@ -2014,9 +2087,11 @@ void ReshardingCoordinator::_updateChunkImbalanceMetrics(const NamespaceString& 
 
         ZoneInfo zoneInfo;
         for (const auto& tag : collectionZones) {
+            // Use makeUpperInclusive=true when zone max is all-MaxKey.
             uassertStatusOK(zoneInfo.addRangeToZone(
                 ZoneRange(keyPattern.extendRangeBound(tag.getMinKey(), false),
-                          keyPattern.extendRangeBound(tag.getMaxKey(), false),
+                          keyPattern.extendRangeBound(tag.getMaxKey(),
+                                                      keyPattern.isGlobalMax(tag.getMaxKey())),
                           tag.getTag())));
         }
 

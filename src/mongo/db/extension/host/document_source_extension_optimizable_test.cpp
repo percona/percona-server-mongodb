@@ -38,11 +38,13 @@
 #include "mongo/db/extension/host/host_portal.h"
 #include "mongo/db/extension/host_connector/adapter/host_services_adapter.h"
 #include "mongo/db/extension/sdk/aggregation_stage.h"
+#include "mongo/db/extension/sdk/extension_factory.h"
 #include "mongo/db/extension/sdk/host_services.h"
 #include "mongo/db/extension/sdk/query_shape_opts_handle.h"
 #include "mongo/db/extension/sdk/tests/fruits_test_stage.h"
 #include "mongo/db/extension/sdk/tests/shared_test_stages.h"
 #include "mongo/db/namespace_string_util.h"
+#include "mongo/db/operation_context.h"
 #include "mongo/db/pipeline/aggregation_context_fixture.h"
 #include "mongo/db/pipeline/document_source_documents.h"
 #include "mongo/db/pipeline/lite_parsed_document_source.h"
@@ -53,6 +55,7 @@
 #include "mongo/unittest/death_test.h"
 #include "mongo/unittest/unittest.h"
 #include "mongo/util/serialization_context.h"
+#include "mongo/util/time_support.h"
 
 namespace mongo::extension {
 
@@ -924,7 +927,8 @@ public:
     UnownedExecAggStageHandle& _getSource() override {
         return sdk::ExecAggStageSource::_getSource();
     }
-    BSONObj explain(::MongoExtensionExplainVerbosity verbosity) const override {
+    BSONObj explain(const sdk::QueryExecutionContextHandle&,
+                    ::MongoExtensionExplainVerbosity verbosity) const override {
         return BSONObj();
     }
     void open() override {}
@@ -2672,6 +2676,277 @@ TEST_F(DocumentSourceExtensionOptimizableTest, ExtensionStageDocsNeededBoundsRet
 
     ASSERT_TRUE(std::holds_alternative<docs_needed_bounds::Unknown>(bounds.getMinBounds()));
     ASSERT_TRUE(std::holds_alternative<docs_needed_bounds::Unknown>(bounds.getMaxBounds()));
+}
+
+// Tests for registerStageRules / _extensionRuleRegistry.
+
+class StageRulesTest : public DocumentSourceExtensionOptimizableTest {
+public:
+    static constexpr StringData kStageName = "$testRulesStage"_sd;
+
+    inline static const PipelineRewriteRule kReorderRule{"reorderRule",
+                                                         kPipelineRewriteRuleTagReordering};
+    inline static const PipelineRewriteRule kInPlaceRule{"inPlaceRule",
+                                                         kPipelineRewriteRuleTagInPlace};
+    inline static const std::vector<PipelineRewriteRule> kBothRules{kReorderRule, kInPlaceRule};
+
+    void tearDown() override {
+        host::DocumentSourceExtensionOptimizable::unregisterStageRules_forTest(kStageName);
+        DocumentSourceExtensionOptimizableTest::tearDown();
+    }
+};
+
+TEST_F(StageRulesTest, RegisterStageRulesStoresMultipleRules) {
+    host::DocumentSourceExtensionOptimizable::registerStageRules(kStageName, kBothRules);
+
+    const auto* stored =
+        host::DocumentSourceExtensionOptimizable::getStageRules_forTest(kStageName);
+    ASSERT_TRUE(stored != nullptr);
+    ASSERT_EQ(stored->size(), 2u);
+    ASSERT_EQ((*stored)[0].name, kReorderRule.name);
+    ASSERT_EQ((*stored)[0].tags, kReorderRule.tags);
+    ASSERT_EQ((*stored)[1].name, kInPlaceRule.name);
+    ASSERT_EQ((*stored)[1].tags, kInPlaceRule.tags);
+}
+
+TEST_F(StageRulesTest, UnregisteredStageHasNoRules) {
+    ASSERT_TRUE(host::DocumentSourceExtensionOptimizable::getStageRules_forTest(kStageName) ==
+                nullptr);
+}
+
+TEST_F(StageRulesTest, HostPortalRegisterStageRulesConvertsRules) {
+    std::unique_ptr<host::HostPortal> hostPortal = std::make_unique<host::HostPortal>();
+    host_connector::HostPortalAdapter portal{
+        MONGODB_EXTENSION_API_VERSION, 1, "", std::move(hostPortal)};
+
+    MongoExtensionPipelineRewriteRule cRules[2] = {
+        {.name = {reinterpret_cast<const uint8_t*>(kReorderRule.name.data()),
+                  kReorderRule.name.size()},
+         .tags = kPipelineRewriteRuleTagReordering},
+        {.name = {reinterpret_cast<const uint8_t*>(kInPlaceRule.name.data()),
+                  kInPlaceRule.name.size()},
+         .tags = kPipelineRewriteRuleTagInPlace},
+    };
+    MongoExtensionByteView stageNameView{reinterpret_cast<const uint8_t*>(kStageName.data()),
+                                         kStageName.size()};
+
+    portal.getImpl().registerStageRules(stageNameView, cRules, 2);
+
+    const auto* stored =
+        host::DocumentSourceExtensionOptimizable::getStageRules_forTest(kStageName);
+    ASSERT_TRUE(stored != nullptr);
+    ASSERT_EQ(stored->size(), 2u);
+    ASSERT_EQ((*stored)[0].name, kReorderRule.name);
+    ASSERT_EQ((*stored)[0].tags, kReorderRule.tags);
+    ASSERT_EQ((*stored)[1].name, kInPlaceRule.name);
+    ASSERT_EQ((*stored)[1].tags, kInPlaceRule.tags);
+}
+
+// Subclass that makes _registerStageRules accessible for testing.
+class TestExtension : public sdk::Extension {
+public:
+    void initialize(const sdk::HostPortalHandle&) override {}
+
+    template <class StageDescriptor>
+    void callRegisterStageRules(const sdk::HostPortalHandle& portal,
+                                const std::vector<PipelineRewriteRule>& rules) {
+        _registerStageRules<StageDescriptor>(portal, rules);
+    }
+};
+
+using TestStageDescriptor =
+    sdk::TestStageDescriptor<"$testRulesStage",
+                             sdk::shared_test_stages::TransformAggStageParseNode>;
+
+TEST_F(StageRulesTest, RegisterStageRulesUassertsOnEmptyRules) {
+    std::unique_ptr<host::HostPortal> hostPortal = std::make_unique<host::HostPortal>();
+    host_connector::HostPortalAdapter portal{
+        MONGODB_EXTENSION_API_VERSION, 1, "", std::move(hostPortal)};
+    sdk::HostPortalHandle portalHandle{&portal};
+
+    TestExtension ext;
+    ASSERT_THROWS_CODE(ext.callRegisterStageRules<TestStageDescriptor>(portalHandle, {}),
+                       AssertionException,
+                       12201400);
+}
+
+TEST_F(StageRulesTest, RegisterStageRulesUassertsOnDuplicateRuleName) {
+    std::unique_ptr<host::HostPortal> hostPortal = std::make_unique<host::HostPortal>();
+    host_connector::HostPortalAdapter portal{
+        MONGODB_EXTENSION_API_VERSION, 1, "", std::move(hostPortal)};
+    sdk::HostPortalHandle portalHandle{&portal};
+
+    TestExtension ext;
+    ASSERT_THROWS_CODE(ext.callRegisterStageRules<TestStageDescriptor>(
+                           portalHandle,
+                           {PipelineRewriteRule{"myRule", kPipelineRewriteRuleTagReordering},
+                            PipelineRewriteRule{"myRule", kPipelineRewriteRuleTagInPlace}}),
+                       AssertionException,
+                       12201404);
+}
+
+using StageRulesDeathTest = StageRulesTest;
+DEATH_TEST_REGEX_F(StageRulesDeathTest, RegisterStageRulesTassertsOnDuplicateStage, "12201405") {
+    host::DocumentSourceExtensionOptimizable::unregisterStageRules_forTest(kStageName);
+    host::DocumentSourceExtensionOptimizable::registerStageRules(kStageName, kBothRules);
+    // Second registration for the same stage must tassert.
+    host::DocumentSourceExtensionOptimizable::registerStageRules(kStageName, kBothRules);
+}
+
+// A minimal logical stage that checks for interrupts and reports the operation deadline in its
+// explain() output. Used to verify that DocumentSourceExtensionOptimizable correctly forwards
+// the QueryExecutionContext to the logical stage's explain() method.
+constexpr std::string_view kExplainWithExecutionContextStageName = "$explainWithExecutionContext";
+
+class ExplainWithExecutionContextLogicalStage : public sdk::LogicalAggStage {
+public:
+    ExplainWithExecutionContextLogicalStage(std::string_view stageName,
+                                            const mongo::BSONObj& arguments)
+        : sdk::LogicalAggStage(stageName) {}
+
+    mongo::BSONObj serialize() const override {
+        return BSON(_name << BSONObj());
+    }
+
+    mongo::BSONObj explain(const sdk::QueryExecutionContextHandle& execCtx,
+                           ::MongoExtensionExplainVerbosity) const override {
+        auto interruptStatus = execCtx->checkForInterrupt();
+        if (interruptStatus.getCode() != 0) {
+            sdk_uasserted(interruptStatus.getCode(), std::string(interruptStatus.getReason()));
+        }
+        return BSON(_name << BSON("deadlineMs" << execCtx->getDeadlineTimestampMs()));
+    }
+
+    std::unique_ptr<sdk::ExecAggStageBase> compile() const override {
+        return std::make_unique<sdk::TestExecStage>(_name, BSONObj());
+    }
+
+    boost::optional<sdk::DistributedPlanLogic> getDistributedPlanLogic() const override {
+        return boost::none;
+    }
+
+    std::unique_ptr<sdk::LogicalAggStage> clone() const override {
+        return std::make_unique<ExplainWithExecutionContextLogicalStage>(_name, BSONObj());
+    }
+};
+
+DEFAULT_AST_NODE(ExplainWithExecutionContext);
+
+auto makeExplainContextOptimizable(const boost::intrusive_ptr<ExpressionContext>& expCtx) {
+    auto astNode = new sdk::ExtensionAggStageAstNodeAdapter(
+        std::make_unique<ExplainWithExecutionContextAstNode>(kExplainWithExecutionContextStageName,
+                                                             BSONObj()));
+    return host::DocumentSourceExtensionOptimizable::create(expCtx, AggStageAstNodeHandle(astNode));
+}
+
+// With maxTimeMS set, the deadline reported by explain() should be approximately now + maxTimeMS.
+TEST_F(DocumentSourceExtensionOptimizableTest, ExplainPropagatesDeadlineToLogicalStage) {
+    auto optimizable = makeExplainContextOptimizable(getExpCtx());
+
+    const Milliseconds maxTimeMs{60000};
+    const auto beforeMs = Date_t::now().toMillisSinceEpoch();
+    getOpCtx()->setDeadlineAfterNowBy(maxTimeMs, ErrorCodes::MaxTimeMSExpired);
+
+    SerializationOptions opts;
+    opts.verbosity = ExplainOptions::Verbosity::kQueryPlanner;
+    const auto result = optimizable->serialize(opts);
+    const auto afterMs = Date_t::now().toMillisSinceEpoch();
+
+    auto stageOutput = result.getDocument()
+                           .toBson()[std::string(kExplainWithExecutionContextStageName)]
+                           .embeddedObject();
+    const auto deadlineMs = stageOutput["deadlineMs"].safeNumberLong();
+
+    ASSERT_GTE(deadlineMs, beforeMs + maxTimeMs.count());
+    // setDeadlineAfterNowBy() adds the clock's precision to the deadline, which in the case of
+    // mongod/mongos is a 10ms precision. Here, we add 2 times that precision as a buffer to account
+    // for the case that beforeMs and afterMs are the same (i.e serialize runs within 1ms).
+    ASSERT_LTE(deadlineMs, afterMs + maxTimeMs.count() + 20LL);
+}
+
+// Without maxTimeMS, the deadline should be Date_t::max() (INT64_MAX ms).
+TEST_F(DocumentSourceExtensionOptimizableTest, ExplainWithNoDeadlineReportsMaxDeadline) {
+    auto optimizable = makeExplainContextOptimizable(getExpCtx());
+
+    SerializationOptions opts;
+    opts.verbosity = ExplainOptions::Verbosity::kQueryPlanner;
+    const auto result = optimizable->serialize(opts);
+
+    auto stageOutput = result.getDocument()
+                           .toBson()[std::string(kExplainWithExecutionContextStageName)]
+                           .embeddedObject();
+    const auto deadlineMs = stageOutput["deadlineMs"].safeNumberLong();
+
+    ASSERT_EQ(deadlineMs, std::numeric_limits<int64_t>::max());
+}
+
+// A killed OperationContext causes checkForInterrupt() to return non-zero, and explain() should
+// propagate that as a DBException with the interrupt code.
+TEST_F(DocumentSourceExtensionOptimizableTest, ExplainDetectsInterrupt) {
+    auto optimizable = makeExplainContextOptimizable(getExpCtx());
+
+    getOpCtx()->markKilled(ErrorCodes::Interrupted);
+
+    SerializationOptions opts;
+    opts.verbosity = ExplainOptions::Verbosity::kQueryPlanner;
+    ASSERT_THROWS_CODE(optimizable->serialize(opts), DBException, ErrorCodes::Interrupted);
+}
+
+namespace {
+/**
+ * A LogicalAggStage that returns a non-empty filter from getFilter().
+ */
+class LogicalStageWithFilter : public sdk::shared_test_stages::TransformLogicalAggStage {
+public:
+    BSONObj getFilter() const override {
+        return kFilter;
+    }
+
+    static const BSONObj kFilter;
+};
+const BSONObj LogicalStageWithFilter::kFilter = BSON("x" << 1);
+}  // namespace
+
+TEST_F(DocumentSourceExtensionOptimizableTest, GetQuery_SourceStageNoFilter) {
+    RAIIServerParameterControllerForTest featureFlag{"featureFlagExtensionsOptimizations", true};
+    auto logicalStage = new sdk::ExtensionLogicalAggStageAdapter(
+        std::make_unique<sdk::shared_test_stages::TransformLogicalAggStage>());
+    auto logicalStageHandle = LogicalAggStageHandle(logicalStage);
+    auto properties =
+        MongoExtensionStaticProperties::parse(BSON("requiresInputDocSource" << false));
+    auto optimizable = host::DocumentSourceExtensionOptimizable::create(
+        getExpCtx(), std::move(logicalStageHandle), properties);
+
+    ASSERT_FALSE(optimizable->hasQuery());
+    ASSERT_BSONOBJ_EQ(optimizable->getQuery(), BSONObj());
+}
+
+TEST_F(DocumentSourceExtensionOptimizableTest, GetQuery_SourceStageWithFilter) {
+    RAIIServerParameterControllerForTest featureFlag{"featureFlagExtensionsOptimizations", true};
+    auto logicalStage =
+        new sdk::ExtensionLogicalAggStageAdapter(std::make_unique<LogicalStageWithFilter>());
+    auto logicalStageHandle = LogicalAggStageHandle(logicalStage);
+    auto properties =
+        MongoExtensionStaticProperties::parse(BSON("requiresInputDocSource" << false));
+    auto optimizable = host::DocumentSourceExtensionOptimizable::create(
+        getExpCtx(), std::move(logicalStageHandle), properties);
+
+    ASSERT_TRUE(optimizable->hasQuery());
+    ASSERT_BSONOBJ_EQ(optimizable->getQuery(), LogicalStageWithFilter::kFilter);
+}
+
+TEST_F(DocumentSourceExtensionOptimizableTest, GetFilter_TransformStageWithFilter) {
+    RAIIServerParameterControllerForTest featureFlag{"featureFlagExtensionsOptimizations", true};
+    auto logicalStage =
+        new sdk::ExtensionLogicalAggStageAdapter(std::make_unique<LogicalStageWithFilter>());
+    auto logicalStageHandle = LogicalAggStageHandle(logicalStage);
+    // Default properties: requiresInputDocSource = true (transform stage).
+    auto optimizable = host::DocumentSourceExtensionOptimizable::create(
+        getExpCtx(), std::move(logicalStageHandle), MongoExtensionStaticProperties{});
+
+    // Transform stages do not currently report a filter even if they have one.
+    ASSERT_FALSE(optimizable->hasQuery());
+    ASSERT_BSONOBJ_EQ(optimizable->getQuery(), BSONObj());
 }
 
 }  // namespace

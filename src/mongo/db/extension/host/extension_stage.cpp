@@ -31,6 +31,7 @@
 
 #include "mongo/db/exec/agg/document_source_to_stage_registry.h"
 #include "mongo/db/extension/host/document_source_extension_optimizable.h"
+#include "mongo/db/extension/host/extension_search_server_status.h"
 #include "mongo/db/extension/host/extension_vector_search_server_status.h"
 #include "mongo/db/extension/host/query_execution_context.h"
 #include "mongo/db/extension/host_connector/adapter/executable_agg_stage_adapter.h"
@@ -47,6 +48,10 @@ auto& totalAggStageExecTime =
 
 using namespace extension::host;
 
+/**
+ * Converts a DocumentSourceExtensionOptimizable (pipeline stage) into an exec::agg::ExtensionStage.
+ * Compiles the document source to an ExecAggStageHandle and wraps it in ExtensionStage.
+ */
 boost::intrusive_ptr<exec::agg::Stage> documentSourceExtensionToStageFn(
     const boost::intrusive_ptr<DocumentSource>& source) {
     auto* documentSource = dynamic_cast<DocumentSourceExtensionOptimizable*>(source.get());
@@ -55,6 +60,12 @@ boost::intrusive_ptr<exec::agg::Stage> documentSourceExtensionToStageFn(
     // Increment extensionVectorSearchQueryCount if this is a $vectorSearch extension stage.
     if (documentSource->getSourceName() == search_helpers::kExtensionVectorSearchStageName) {
         vector_search_metrics::extensionVectorSearchQueryCount.increment(1);
+    }
+
+    // Increment extensionSearchQueryCount if this is a $search or $searchMeta extension stage.
+    if (documentSource->getSourceName() == search_helpers::kExtensionSearchStageName ||
+        documentSource->getSourceName() == search_helpers::kExtensionSearchMetaStageName) {
+        search_metrics::extensionSearchQueryCount.increment(1);
     }
 
     auto execAggStageHandle = documentSource->compile();
@@ -142,7 +153,10 @@ GetNextResult ExtensionStage::doGetNext() {
 Document ExtensionStage::getExplainOutput(const SerializationOptions& opts) const {
     MutableDocument output(Stage::getExplainOutput(opts));
 
-    BSONObj explainSerialization = _execAggStageHandle->explain(*opts.verbosity);
+    std::unique_ptr<extension::host::QueryExecutionContext> wrappedCtx =
+        std::make_unique<extension::host::QueryExecutionContext>(pExpCtx.get());
+    extension::host_connector::QueryExecutionContextAdapter ctxAdapter(std::move(wrappedCtx));
+    BSONObj explainSerialization = _execAggStageHandle->explain(ctxAdapter, *opts.verbosity);
     for (auto elem : explainSerialization) {
         output.addField(elem.fieldName(), Value(elem));
     }

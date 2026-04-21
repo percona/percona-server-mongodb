@@ -1780,6 +1780,10 @@ OpTime ReplicationCoordinatorImpl::getMyLastAppliedOpTime() const {
     return _getMyLastAppliedOpTime(lock);
 }
 
+Timestamp ReplicationCoordinatorImpl::getMyLastAppliedTimestamp() const {
+    return Timestamp(_lastAppliedTimestampShadow.loadRelaxed());
+}
+
 OpTimeAndWallTime ReplicationCoordinatorImpl::getMyLastAppliedOpTimeAndWallTime() const {
     stdx::lock_guard lock(_mutex);
     return _getMyLastAppliedOpTimeAndWallTime(lock);

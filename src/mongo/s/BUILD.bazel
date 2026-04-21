@@ -314,7 +314,6 @@ mongo_cc_library(
         "//src/mongo/s/request_types:auto_split_vector_gen",
         "//src/mongo/s/request_types:balancer_collection_status_gen",
         "//src/mongo/s/request_types:cleanup_orphaned_gen",
-        "//src/mongo/s/request_types:cleanup_reshard_collection_gen",
         "//src/mongo/s/request_types:cluster_commands_without_shard_key_gen",
         "//src/mongo/s/request_types:commit_reshard_collection_gen",
         "//src/mongo/s/request_types:configure_collection_balancing_gen",
@@ -587,6 +586,7 @@ mongo_cc_library(
         # library to inject a static or mongo initializer to mongos,
         # please add that library as a private libdep of
         # mongos_initializers.
+        "//src/mongo/db:startup_check_rseq",
         "//src/mongo/client:remote_command_targeter",
         "//src/mongo/db:audit",
         "//src/mongo/db/audit:audit_impl",

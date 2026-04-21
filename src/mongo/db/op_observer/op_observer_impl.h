@@ -106,7 +106,7 @@ public:
                            const NamespaceString& nss,
                            const UUID& collUUID,
                            const UUID& indexBuildUUID,
-                           const std::vector<BSONObj>& indexes,
+                           const std::vector<IndexBuildInfo>& indexes,
                            const Status& cause,
                            bool fromMigrate,
                            bool isTimeseries = false) final;
@@ -146,6 +146,16 @@ public:
                            std::span<const char> key,
                            std::span<const char> value) final;
 
+    void onContainerUpdate(OperationContext* opCtx,
+                           StringData ident,
+                           int64_t key,
+                           std::span<const char> value) final;
+
+    void onContainerUpdate(OperationContext* opCtx,
+                           StringData ident,
+                           std::span<const char> key,
+                           std::span<const char> value) final;
+
     void onContainerDelete(OperationContext* opCtx, StringData ident, int64_t key) final;
 
     void onContainerDelete(OperationContext* opCtx,
@@ -173,7 +183,8 @@ public:
         const OplogSlot& createOpTime,
         const boost::optional<CreateCollCatalogIdentifier>& createCollCatalogIdentifier,
         bool fromMigrate,
-        bool isTimeseries = false) final;
+        bool isTimeseries = false,
+        bool recordIdsReplicated = false) final;
     void onCollMod(OperationContext* opCtx,
                    const NamespaceString& nss,
                    const UUID& uuid,

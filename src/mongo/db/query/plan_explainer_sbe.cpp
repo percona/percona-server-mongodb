@@ -294,12 +294,7 @@ void statsToBSON(const QuerySolutionNode* node,
 
     // Cost and cardinality of the stage.
     if (estimates.contains(node)) {
-        const auto& est = estimates.at(node);
-        bob->append("costEstimate", est.cost.toDouble());
-        bob->append("cardinalityEstimate", est.outCE.toDouble());
-        BSONObjBuilder metadataBob(bob->subobjStart("estimatesMetadata"));
-        metadataBob.append("ceSource", toStringData(est.outCE.source()));
-        metadataBob.done();
+        estimates.at(node)->serialize(*bob);
     }
 
     // Display the BSON representation of the filter, if there is one.
@@ -452,7 +447,8 @@ void statsToBSON(const QuerySolutionNode* node,
             bob->append("textIndexVersion", tn->index.version);
             break;
         }
-        case STAGE_EQ_LOOKUP: {
+        case STAGE_EQ_LOOKUP:
+        case STAGE_EQ_LOOKUP_UNWIND: {
             auto eln = static_cast<const EqLookupNode*>(node);
 
             bob->append("foreignCollection",
@@ -462,18 +458,14 @@ void statsToBSON(const QuerySolutionNode* node,
             bob->append("foreignField", eln->joinFieldForeign.fullPath());
             bob->append("asField", eln->joinField.fullPath());
             bob->append("strategy", EqLookupNode::serializeLookupStrategy(eln->lookupStrategy));
-            break;
-        }
-        case STAGE_EQ_LOOKUP_UNWIND: {
-            auto eln = static_cast<const EqLookupUnwindNode*>(node);
-
-            bob->append("foreignCollection",
-                        NamespaceStringUtil::serialize(eln->foreignCollection,
-                                                       SerializationContext::stateDefault()));
-            bob->append("localField", eln->joinFieldLocal.fullPath());
-            bob->append("foreignField", eln->joinFieldForeign.fullPath());
-            bob->append("asField", eln->joinField.fullPath());
-            bob->append("strategy", EqLookupNode::serializeLookupStrategy(eln->lookupStrategy));
+            if (eln->unwindSpec) {
+                BSONObjBuilder unwindBob(bob->subobjStart("unwinding"));
+                unwindBob.appendBool("preserveNullAndEmptyArrays",
+                                     eln->unwindSpec->preserveNullAndEmptyArrays);
+                unwindBob.append("includeArrayIndex",
+                                 eln->unwindSpec->indexPath ? eln->unwindSpec->indexPath->fullPath()
+                                                            : "");
+            }
             break;
         }
         case STAGE_UNPACK_TS_BUCKET: {

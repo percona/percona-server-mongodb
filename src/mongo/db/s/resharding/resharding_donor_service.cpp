@@ -326,8 +326,12 @@ ReshardingDonorService::DonorStateMachine::DonorStateMachine(
 
 CancelableOperationContext ReshardingDonorService::DonorStateMachine::_makeOperationContext(
     std::shared_ptr<HierarchicalCancelableOperationContextFactory> factory) const {
-    return resharding::makeReshardingOperationContext(
-        *factory, _donorCtx.getState() >= DonorStateEnum::kBlockingWrites);
+    auto state = [this] {
+        stdx::lock_guard<stdx::mutex> lk(_mutex);
+        return _donorCtx.getState();
+    }();
+    return resharding::makeReshardingOperationContext(*factory,
+                                                      state >= DonorStateEnum::kBlockingWrites);
 }
 
 ExecutorFuture<void> ReshardingDonorService::DonorStateMachine::_runUntilBlockingWritesOrErrored(
@@ -620,8 +624,8 @@ ExecutorFuture<void> ReshardingDonorService::DonorStateMachine::_runMandatoryCle
 SemiFuture<void> ReshardingDonorService::DonorStateMachine::run(
     std::shared_ptr<executor::ScopedTaskExecutor> executor,
     const CancellationToken& stepdownToken) noexcept {
-    auto telemetryCtx = _donorCtx.getTelemetryContext()
-        ? otel::traces::TelemetryContextSerializer::fromBSON(*_donorCtx.getTelemetryContext())
+    auto telemetryCtx = _metadata.getTelemetryContext()
+        ? otel::traces::TelemetryContextSerializer::fromBSON(*_metadata.getTelemetryContext())
         : otel::traces::Span::createTelemetryContext();
     auto span = _startSpan(telemetryCtx, "ReshardingDonorService::DonorStateMachine::run");
 
@@ -1144,6 +1148,10 @@ ExecutorFuture<void> ReshardingDonorService::DonorStateMachine::_createAndStartC
                       "documentsDelta"_attr = batch.getDocumentsDelta(),
                       "completed"_attr = batch.containsFinalEvent());
 
+                if (auto clusterTimeSecs = batch.getResumeTokenClusterTimeSecs()) {
+                    _metrics->setChangeStreamMonitorLastClusterTime(Timestamp(*clusterTimeSecs, 0));
+                }
+
                 auto changeStreamsMonitorCtx = _changeStreamsMonitorCtx.get();
                 changeStreamsMonitorCtx.setResumeToken(batch.getResumeToken().getOwned());
                 changeStreamsMonitorCtx.setDocumentsDelta(
@@ -1178,6 +1186,8 @@ ExecutorFuture<void> ReshardingDonorService::DonorStateMachine::_createAndStartC
                                       _cancelState->getAbortOrStepdownToken(),
                                       factory)
                     .share();
+            _metrics->setStartFor(ReshardingMetrics::TimedPhase::kChangeStreamMonitor,
+                                  resharding::getCurrentTime());
             _changeStreamsMonitorStarted.emplaceValue();
         });
 }
@@ -1201,6 +1211,8 @@ ExecutorFuture<void> ReshardingDonorService::DonorStateMachine::_awaitChangeStre
 
             stdx::lock_guard<stdx::mutex> lk(_mutex);
             if (status.isOK()) {
+                _metrics->setEndFor(ReshardingMetrics::TimedPhase::kChangeStreamMonitor,
+                                    resharding::getCurrentTime());
                 ensureFulfilledPromise(lk,
                                        _changeStreamsMonitorCompleted,
                                        _changeStreamsMonitorCtx->getDocumentsDelta());

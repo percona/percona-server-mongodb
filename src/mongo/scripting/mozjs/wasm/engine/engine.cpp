@@ -32,6 +32,7 @@
 #include "mongo/base/status.h"
 #include "mongo/bson/bsonobjbuilder.h"
 #include "mongo/scripting/mozjs/common/error.h"
+#include "mongo/scripting/mozjs/common/parse_function_helper.h"
 #include "mongo/scripting/mozjs/common/runtime.h"
 #include "mongo/scripting/mozjs/common/types/bindata.h"
 #include "mongo/scripting/mozjs/common/types/bson.h"
@@ -202,18 +203,8 @@ err_code_t MozJSScriptEngine::init(const wasm_mozjs_startup_options_t* opt,
         return err ? err->code : SM_E_INTERNAL;
     }
 
-    // Stash pointer for interrupt callback (after global is set up)
+    // Stash pointer so native callbacks can reach the engine instance.
     JS_SetContextPrivate(_cx, static_cast<MozJSCommonRuntimeInterface*>(this));
-
-    // Set up interrupt callback for timeouts/cancel/interrupt
-    if (!JS_AddInterruptCallback(_cx, &MozJSScriptEngine::interruptCallback)) {
-        if (err) {
-            err->code = SM_E_INTERNAL;
-            set_string(&err->msg, &err->msg_len, "JS_AddInterruptCallback failed");
-        }
-        shutdown(nullptr);
-        return SM_E_INTERNAL;
-    }
 
     _prototypeInstaller = std::make_unique<MozJSPrototypeInstaller>(_cx);
 
@@ -221,6 +212,11 @@ err_code_t MozJSScriptEngine::init(const wasm_mozjs_startup_options_t* opt,
         JSAutoRealm ar(_cx, _global);
         _internedStrings = std::make_unique<InternedStringTable>(_cx);
         _prototypeInstaller->installTypes(_global);
+
+        if (!chk.ok(installParseJSFunctionHelper(_cx, _global), SM_E_INTERNAL)) {
+            shutdown(nullptr);
+            return err ? err->code : SM_E_INTERNAL;
+        }
     }
 
     _initialized = true;
@@ -260,13 +256,23 @@ err_code_t MozJSScriptEngine::interrupt(wasm_mozjs_error_t* err) {
         return SM_E_BAD_STATE;
 
     ExecutionCheck chk(_cx, err);
-    // Request interrupt callback - host side manages interrupt state
     JS_RequestInterruptCallback(_cx);
-    // JS_RequestInterruptCallback doesn't return a value, but we check for exceptions
     if (!chk.ok(!JS_IsExceptionPending(_cx), SM_E_INTERNAL)) {
         return err ? err->code : SM_E_INTERNAL;
     }
     return SM_OK;
+}
+
+bool MozJSScriptEngine::_parseFunctionSource(StringData raw,
+                                             std::string* out,
+                                             wasm_mozjs_error_t* err) {
+    ExecutionCheck chk(_cx, err);
+    if (!chk.ok(parseJSFunctionOrExpression(_cx, _global, raw, out), SM_E_COMPILE)) {
+        if (err && err->code == SM_E_PENDING_EXCEPTION)
+            err->code = SM_E_COMPILE;
+        return false;
+    }
+    return true;
 }
 
 err_code_t MozJSScriptEngine::createFunction(const uint8_t* src,
@@ -283,10 +289,26 @@ err_code_t MozJSScriptEngine::createFunction(const uint8_t* src,
 
     ExecutionCheck chk(_cx, err);
 
+    // Pre-validate UTF-8 before _parseFunctionSource, which converts to a JS string
+    // (silently accepting invalid bytes via SpiderMonkey's internal encoding).
+    // JS::SourceText::init does NOT validate at init time; validation happens during
+    // JS::Evaluate, but by then the source is already a JS string.
+    if (!mozilla::IsUtf8(mozilla::Span(reinterpret_cast<const char*>(src), len))) {
+        if (err) {
+            err->code = SM_E_ENCODING;
+            set_string(&err->msg, &err->msg_len, "createFunction: source is not valid UTF-8");
+        }
+        return SM_E_ENCODING;
+    }
+
+    std::string parsed;
+    if (!_parseFunctionSource(StringData(reinterpret_cast<const char*>(src), len), &parsed, err))
+        return err ? err->code : SM_E_COMPILE;
+
     std::string code_str;
-    code_str.reserve(len + 2);
+    code_str.reserve(parsed.size() + 2);
     code_str += '(';
-    code_str.append(reinterpret_cast<const char*>(src), len);
+    code_str += parsed;
     code_str += ')';
 
     JS::CompileOptions opts(_cx);
@@ -740,15 +762,6 @@ err_code_t MozJSScriptEngine::drainEmitBuffer(mongo::BSONObj* out, wasm_mozjs_er
     return SM_OK;
 }
 
-bool MozJSScriptEngine::interruptCallback(JSContext* cx) {
-    // Interrupt callback is called by MozJS when JS_RequestInterruptCallback is invoked.
-    // The host side manages interrupt/cancel state and termination logic.
-    // This callback just allows the interrupt to be processed - the host side
-    // should check return codes and exceptions to determine if execution was terminated.
-    (void)cx;
-    return true;
-}
-
 void MozJSScriptEngine::gc() {
     if (!_initialized || !_cx) {
         return;
@@ -757,13 +770,20 @@ void MozJSScriptEngine::gc() {
 }
 
 void MozJSScriptEngine::sleep(Milliseconds ms) {
-    auto count = ms.count();
-    if (count <= 0)
-        return;
-    struct timespec ts;
-    ts.tv_sec = static_cast<time_t>(count / 1000);
-    ts.tv_nsec = static_cast<long>((count % 1000) * 1000000L);
-    nanosleep(&ts, nullptr);
+    // Sleep in 1ms slices so that Wasmtime epoch interruption can fire between
+    // slices. nanosleep is a blocking host call — the WASM epoch check only
+    // triggers when control returns to WASM code. Slicing keeps sleep
+    // interruptible by the DeadlineMonitor on the host side.
+    auto remaining = ms;
+    constexpr Milliseconds kSlice{1};
+    while (remaining > Milliseconds{0}) {
+        auto slice = std::min(remaining, kSlice);
+        struct timespec ts;
+        ts.tv_sec = 0;
+        ts.tv_nsec = static_cast<long>(slice.count() * 1'000'000L);
+        nanosleep(&ts, nullptr);
+        remaining -= slice;
+    }
 }
 
 std::size_t MozJSScriptEngine::getGeneration() const {
@@ -896,11 +916,15 @@ bool MozJSScriptEngine::requiresOwnedObjects() const {
 }
 
 void MozJSScriptEngine::newFunction(StringData raw, JS::MutableHandleValue out) {
-    // Compile the code string as a function expression, same as createFunction().
+    JS::RootedObject global(_cx, JS::CurrentGlobalOrNull(_cx));
+    std::string parsed;
+    if (!parseJSFunctionOrExpression(_cx, global, raw, &parsed))
+        return;  // JS exception is pending
+
     std::string wrapped;
-    wrapped.reserve(raw.size() + 2);
+    wrapped.reserve(parsed.size() + 2);
     wrapped += '(';
-    wrapped.append(raw.data(), raw.size());
+    wrapped += parsed;
     wrapped += ')';
 
     JS::CompileOptions opts(_cx);

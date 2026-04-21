@@ -29,6 +29,7 @@
 
 #pragma once
 
+#include "mongo/db/storage/record_store.h"
 #include "mongo/db/storage/storage_engine.h"
 #include "mongo/util/modules.h"
 
@@ -94,17 +95,20 @@ public:
         return {};
     }
 
-    void dropSpillTable(RecoveryUnit& ru, StringData ident) final {};
+    void dropSpillTable(RecoveryUnit& ru, StringData ident) final {
+        _droppedSpillIdents.emplace_back(ident);
+    };
 
-    std::unique_ptr<TemporaryRecordStore> makeTemporaryRecordStore(OperationContext* opCtx,
-                                                                   StringData ident,
-                                                                   KeyFormat keyFormat) final {
+    const std::vector<std::string>& getDroppedSpillIdents() const {
+        return _droppedSpillIdents;
+    }
+
+    std::unique_ptr<RecordStore> makeInternalRecordStore(OperationContext* opCtx,
+                                                         StringData ident,
+                                                         KeyFormat keyFormat) final {
         return {};
     }
-    std::unique_ptr<TemporaryRecordStore> makeTemporaryRecordStoreFromExistingIdent(
-        OperationContext* opCtx, StringData ident, KeyFormat keyFormat) final {
-        return {};
-    }
+
     void cleanShutdown(ServiceContext* svcCtx, bool memLeakAllowed) final {}
     SnapshotManager* getSnapshotManager() const final {
         return nullptr;
@@ -136,7 +140,9 @@ public:
         _lastSetMaterializedLsn = lsn;
     }
 
-    void setRecoveryCheckpointMetadata(StringData checkpointMetadata) final {}
+    void setRecoveryCheckpointMetadata(StringData checkpointMetadata) final {
+        _operations.push_back("setRecoveryCheckpointMetadata");
+    }
 
     void promoteToLeader() final {}
 
@@ -150,7 +156,11 @@ public:
     Timestamp getInitialDataTimestamp() const override {
         return Timestamp();
     }
-    void setOldestTimestamp(Timestamp timestamp, bool force) final {}
+    void setOldestTimestamp(Timestamp timestamp, bool force) final {
+        _lastSetOldestTimestamp = timestamp;
+        _lastSetOldestTimestampForce = force;
+        _operations.push_back("setOldestTimestamp");
+    }
     Timestamp getOldestTimestamp() const final {
         return {};
     };
@@ -292,6 +302,11 @@ public:
         return storageEngineOptions;
     }
 
+    boost::optional<std::string> getStorageTierFromStorageOptions(
+        const BSONObj& storageEngineOptions) const override {
+        return boost::none;
+    }
+
     BSONObj getSanitizedStorageOptionsForSecondaryReplication(const BSONObj& options) const final {
         return options;
     }
@@ -310,8 +325,24 @@ public:
         return _lastSetMaterializedLsn;
     }
 
+    Timestamp getLastSetOldestTimestamp() const {
+        return _lastSetOldestTimestamp;
+    }
+
+    bool getLastSetOldestTimestampForce() const {
+        return _lastSetOldestTimestampForce;
+    }
+
+    const std::vector<std::string>& getOperations() const {
+        return _operations;
+    }
+
 private:
     uint64_t _lastSetMaterializedLsn;
+    std::vector<std::string> _droppedSpillIdents;
+    Timestamp _lastSetOldestTimestamp;
+    bool _lastSetOldestTimestampForce = false;
+    std::vector<std::string> _operations;
 };
 
 }  // namespace mongo

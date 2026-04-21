@@ -177,7 +177,7 @@ export function getSbeFullPushdownEligibleAggPipelineArb(
     foreignCollName,
     {allowOrs = true, deterministicBag = true, allowedStages = [], isTS = false} = {},
 ) {
-    // TODO: Add $unwind/$search/$searchMeta arb when available
+    // TODO SERVER-122621: Add $unwind/$search/$searchMeta arb when available
     return getTrySbeEnginePushdownEligibleAggPipelineArb(foreignCollName, {
         allowOrs,
         deterministicBag,

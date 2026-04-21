@@ -41,11 +41,7 @@
 #include "mongo/db/repl/repl_client_info.h"
 #include "mongo/db/repl/wait_for_majority_service.h"
 #include "mongo/db/shard_role/lock_manager/locker.h"
-#include "mongo/db/shard_role/shard_catalog/operation_sharding_state.h"
 #include "mongo/db/sharding_environment/client/shard.h"
-#include "mongo/db/sharding_environment/grid.h"
-#include "mongo/db/sharding_environment/shard_id.h"
-#include "mongo/db/topology/shard_registry.h"
 #include "mongo/db/write_concern.h"
 #include "mongo/db/write_concern_options.h"
 #include "mongo/logv2/log.h"
@@ -57,11 +53,8 @@
 #include "mongo/util/fail_point.h"
 #include "mongo/util/future_util.h"
 #include "mongo/util/out_of_line_executor.h"
-#include "mongo/util/str.h"
 #include "mongo/util/time_support.h"
 
-#include <algorithm>
-#include <type_traits>
 #include <vector>
 
 #include <boost/move/utility_core.hpp>
@@ -106,7 +99,6 @@ ShardingCoordinator::ShardingCoordinator(ShardingCoordinatorService* service,
       _forwardableOpMetadata(
           extractShardingCoordinatorMetadata(coorDoc).getForwardableOpMetadata().map(
               enableVersionContextPropagation)),
-      _databaseVersion(extractShardingCoordinatorMetadata(coorDoc).getDatabaseVersion()),
       _firstExecution(!_recoveredFromDisk),
       _externalState(_service->createExternalState()) {}
 
@@ -122,7 +114,7 @@ ShardingCoordinator::~ShardingCoordinator() {
 ExecutorFuture<bool> ShardingCoordinator::_removeDocumentUntillSuccessOrStepdown(
     std::shared_ptr<executor::TaskExecutor> executor) {
     return AsyncTry([this, anchor = shared_from_this()] {
-               auto opCtxHolder = makeOperationContext();
+               auto opCtxHolder = makeOperationContext(/*deprioritizable=*/false);
                auto* opCtx = opCtxHolder.get();
 
                return StatusWith(_removeDocument(opCtx));
@@ -180,7 +172,7 @@ ExecutorFuture<void> ShardingCoordinator::_translateTimeseriesNss(
     std::shared_ptr<executor::ScopedTaskExecutor> executor, const CancellationToken& token) {
 
     return AsyncTry([this] {
-               auto opCtxHolder = makeOperationContext();
+               auto opCtxHolder = makeOperationContext(/*deprioritizable=*/false);
                auto* opCtx = opCtxHolder.get();
 
                const auto bucketNss = originalNss().makeTimeseriesBucketsNamespace();
@@ -246,33 +238,26 @@ SemiFuture<void> ShardingCoordinator::run(std::shared_ptr<executor::ScopedTaskEx
                                           const CancellationToken& token) noexcept {
     return ExecutorFuture<void>(**executor)
         .then([this, executor, token, anchor = shared_from_this()] {
-            auto opCtxHolder = makeOperationContext();
+            auto opCtxHolder = makeOperationContext(/*deprioritizable=*/false);
             auto* opCtx = opCtxHolder.get();
             _initialize(opCtx);
         })
         .then([this, executor, token, anchor = shared_from_this()] {
-            auto opCtxHolder = makeOperationContext();
+            // Check preconditions before acquiring locks, as a "best effort".
+            auto opCtxHolder = makeOperationContext(/*deprioritizable=*/false);
+            auto* opCtx = opCtxHolder.get();
+            _checkCoordinatorPreconditions(opCtx, /*afterAcquiringLocks=*/false);
+        })
+        .then([this, executor, token, anchor = shared_from_this()] {
+            auto opCtxHolder = makeOperationContext(/*deprioritizable=*/false);
             auto* opCtx = opCtxHolder.get();
             return _acquireLocksAsync(opCtx, executor, token);
         })
         .then([this, executor, token, anchor = shared_from_this()] {
-            if (!originalNss().isConfigDB() && !originalNss().isAdminDB() && !_recoveredFromDisk &&
-                operationType() != CoordinatorTypeEnum::kCreateDatabase) {
-                auto opCtxHolder = makeOperationContext();
-                auto* opCtx = opCtxHolder.get();
-
-                tassert(10644522,
-                        "Expected databaseVersion to be set on the coordinator document metadata",
-                        metadata().getDatabaseVersion());
-
-                ScopedSetShardRole scopedSetShardRole(
-                    opCtx,
-                    originalNss(),
-                    boost::none /* shardVersion */,
-                    metadata().getDatabaseVersion() /* databaseVersion */);
-
-                _getExternalState()->assertIsPrimaryShardForDb(opCtx, originalNss().dbName());
-            };
+            // Check preconditions again now that we have the locks.
+            auto opCtxHolder = makeOperationContext(/*deprioritizable=*/false);
+            auto* opCtx = opCtxHolder.get();
+            _checkCoordinatorPreconditions(opCtx, /*afterAcquiringLocks=*/true);
         })
         .then([this, executor, token, anchor = shared_from_this()] {
             if (!_firstExecution ||
@@ -382,7 +367,7 @@ SemiFuture<void> ShardingCoordinator::run(std::shared_ptr<executor::ScopedTaskEx
                 .on(**executor, CancellationToken::uncancelable());
         })
         .onCompletion([this, executor, token, anchor = shared_from_this()](const Status& status) {
-            auto opCtxHolder = makeOperationContext();
+            auto opCtxHolder = makeOperationContext(/*deprioritizable=*/false);
             auto* opCtx = opCtxHolder.get();
 
             // If we are stepping down the token MUST be cancelled. Each implementation of the
@@ -533,7 +518,8 @@ std::function<void()> RecoverableShardingCoordinator::_buildPhaseHandlerGeneric(
             return;
         }
 
-        auto opCtxHolder = this->makeOperationContext();
+        const auto deprioritizable = !_isInCriticalSectionGeneric(newPhase);
+        auto opCtxHolder = this->makeOperationContext(deprioritizable);
         auto* opCtx = opCtxHolder.get();
 
         if (!shouldExecute(opCtx)) {
@@ -566,7 +552,7 @@ void RecoverableShardingCoordinator::_enterPhaseGeneric(CoordinatorGenericPhase 
     ServiceContext::UniqueOperationContext uniqueOpCtx;
     auto opCtx = cc().getOperationContext();
     if (!opCtx) {
-        uniqueOpCtx = this->makeOperationContext();
+        uniqueOpCtx = this->makeOperationContext(/*deprioritizable=*/false);
         opCtx = uniqueOpCtx.get();
     }
 

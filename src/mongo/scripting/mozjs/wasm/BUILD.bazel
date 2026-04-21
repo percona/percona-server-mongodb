@@ -1,39 +1,29 @@
-load("//bazel:mongo_src_rules.bzl", "mongo_cc_benchmark", "mongo_cc_binary", "mongo_cc_library", "mongo_cc_unit_test")  # @unused mongo_cc_binary mongo_cc_library
-load("//bazel/toolchains/cc/mongo_wasm/toolchain:with_wasi_config.bzl", "with_wasi_config")
-load("//src/mongo/scripting/mozjs/wasm/engine:linkset.bzl", "cc_linkset")
-load("@rules_cc//cc:defs.bzl", "cc_binary")
+load("//bazel/wasm_rules:wasm_cc_binary.bzl", "wasm_cc_binary")
+load("//bazel:mongo_src_rules.bzl", "mongo_cc_library", "mongo_cc_unit_test")
+load("//bazel/wasm_rules:embed_binary.bzl", "embed_binary_obj", "embed_binary_rc")
 load("//bazel/wasm_rules:wasm_aot_compile.bzl", "aot_compile_wasm")
-load("//bazel/wasm_rules:embed_binary_obj.bzl", "embed_binary_obj")
+load("//bazel/wasm_rules:wit_bindgen_c.bzl", "wit_bindgen_c")
 
-# Gate WASM module compilation behind --define=build_mozjs_wasm=true.
-# Without this flag the test compiles and runs but skips (no .wasm module found).
-config_setting(
-    name = "build_mozjs_wasm",
-    define_values = {"build_mozjs_wasm": "true"},
+package(default_visibility = ["//visibility:public"])
+
+exports_files(
+    glob([
+        "*.h",
+        "*.cpp",
+    ]),
 )
 
-exports_files([
-    "status.cpp",
-])
-
-cc_linkset(
-    name = "mongo_base_linkset",
-    extra_flags = [
-        "-lc++",
-        "-lc++abi",
-        "-lwasi-emulated-signal",
-        "-lwasi-emulated-mman",
-        "-lwasi-emulated-process-clocks",
-        "-lwasi-emulated-getpid",
-        "-Wl,--gc-sections",
-        "-Wl,--no-entry",
-        "-Wl,--export-memory",
-        "-Wl,--stack-first",
-        "-mexec-model=reactor",
-    ],
-    deps = ["//src/mongo:base"],
+wit_bindgen_c(
+    name = "wit_bindgen_api",
+    out_c = "api.c",
+    out_component_type = "api_component_type.o",
+    out_h = "api.h",
+    wit = "//src/mongo/scripting/mozjs/wasm/wit:mozjs.wit",
 )
 
+# Build SpiderMonkey tarball from source (manual, for re-uploading to S3).
+# If you want to try it locally replace spidermonkey_wasi module url with
+# file://<local_path>
 genrule(
     name = "spidermonkey_wasip2_dist_release_from_source",
     srcs = [
@@ -49,6 +39,7 @@ genrule(
       export SPIDER_MACH_PATH="$(location @spidermonkey//:mach)"
       export RUST_SHIMS_LIB_RS="$(location support/rust_shims/src/lib.rs)"
       export CARGO_TEMPLATE_PATH="$(location support/rust_shims/Cargo.toml.template)"
+      export HOST_CC="$(CC)"
       export OUTPUT="$@"
       bash $(location scripts/build_spidermonkey_wasip2.sh)
     """,
@@ -57,124 +48,77 @@ genrule(
         "manual",
         "no-sandbox",
     ],
+    toolchains = ["@bazel_tools//tools/cpp:current_cc_toolchain"],
     tools = [
         "@wasi_sdk//:bin",
     ],
 )
 
-alias(
-    name = "spidermonkey_wasip2_dist_release",
-    actual = select({
-        "@platforms//os:wasi": "@spidermonkey_wasip2_dist//file",
-        "//conditions:default": ":spidermonkey_wasip2_dist_release_from_source",
-    }),
-)
-
-# Source files for WASM compilation (excludes test files and stubs)
-filegroup(
-    name = "wasm_sources",
+mongo_cc_library(
+    name = "mozjs_wasm_lib",
     srcs = glob(
         ["*.cpp"],
         exclude = [
             "status.cpp",  # Included in wasi_sources filegroup
+            "wasmtime_engine.cpp",
         ],
     ) + [
-        # engine/ is its own package so glob cannot reach it; list explicitly.
+        ":api.c",
+        "//src/mongo/scripting/mozjs/wasm/engine:api.cpp",
         "//src/mongo/scripting/mozjs/wasm/engine:engine.cpp",
         "//src/mongo/scripting/mozjs/wasm/engine:error.cpp",
-    ],
-)
-
-# Rust shims for WASI linkage (provides encoding_* symbols)
-# These are built by spidermonkey_wasip2_dist_release and included in the tarball.
-# This genrule extracts them from the tarball.
-genrule(
-    name = "rust_shims",
-    srcs = [
-        ":spidermonkey_wasip2_dist_release",
-        "scripts/extract_rust_shims.sh",
-    ],
-    outs = ["rust_shims.a"],
-    cmd = """
-      export TARBALL="$(location :spidermonkey_wasip2_dist_release)"
-      export OUTPUT="$@"
-      bash $(location scripts/extract_rust_shims.sh)
-    """,
-    tags = ["manual"],
-    tools = [],
-)
-
-genrule(
-    name = "mozjs_wasm_api",
-    srcs = [
-        ":wasm_sources",
-        "//src/mongo/scripting/mozjs/common:wasi_sources",
         "//src/mongo/scripting/mozjs/wasm/engine:exception_stubs.cpp",
-        "//src/mongo/scripting/mozjs/wasm/engine:api.cpp",
-        ":spidermonkey_wasip2_dist_release",
-        ":rust_shims",
-        ":mongo_base_linkset",
-        "//src/mongo/base:error_codes_header",
-        "//src/mongo:mongo_config_header",
-        "//src/mongo:base",
-
-        # WIT + generated bindings
-        "//src/mongo/scripting/mozjs/wasm/wit:mozjs.wit",
-        "//src/mongo/scripting/mozjs/wasm/wit_gen/generated:api.c",
-        "//src/mongo/scripting/mozjs/wasm/wit_gen/generated:api.h",
-        "//src/mongo/scripting/mozjs/wasm/wit_gen/generated:api_component_type.o",
-
-        # Build scripts
-        "scripts/compile_mozjs_wasm_api.sh",
-        "scripts/compile_wasi_source.sh",
     ],
-    outs = ["mozjs_wasm_api.wasm"],
-    cmd = """
-      export WASI_SDK_BIN_FILES="$(locations @wasi_sdk//:bin)"
-      export SM_TARBALL="$(location :spidermonkey_wasip2_dist_release)"
-      export RUST_SHIMS_PATH="$(location :rust_shims)"
-      export WASM_SOURCES="$(locations :wasm_sources)"
-      export COMMON_WASI_SOURCES="$(locations //src/mongo/scripting/mozjs/common:wasi_sources)"
-      export EXCEPTION_STUBS_SRC="$(location //src/mongo/scripting/mozjs/wasm/engine:exception_stubs.cpp)"
-      export MOZJS_API_SRC="$(location //src/mongo/scripting/mozjs/wasm/engine:api.cpp)"
-      export WIT_API_C="$(location //src/mongo/scripting/mozjs/wasm/wit_gen/generated:api.c)"
-      export WIT_COMPONENT_TYPE_OBJ="$(location //src/mongo/scripting/mozjs/wasm/wit_gen/generated:api_component_type.o)"
-      export ERROR_CODES_HEADER_FILES="$(locations //src/mongo/base:error_codes_header)"
-      export CONFIG_HEADER_FILES="$(locations //src/mongo:mongo_config_header)"
-      export LINKSET_FILES="$(locations :mongo_base_linkset)"
-      export COMPILE_HELPER="$(location scripts/compile_wasi_source.sh)"
-      export OUTPUT="$@"
-      bash $(location scripts/compile_mozjs_wasm_api.sh)
-    """,
-    tags = [
-        "local",
-        "manual",
-        "no-sandbox",
+    hdrs = [
+        ":api.h",
+        "//src/mongo/scripting/mozjs/wasm/engine:engine.h",
+        "//src/mongo/scripting/mozjs/wasm/engine:error.h",
+        "//src/mongo/scripting/mozjs/wasm/engine:utils.h",
     ],
+    auto_header = False,
+    copts = [
+        "-include",
+        "js-confdefs.h",
+    ],
+    local_defines = ["MONGO_MOZJS_WASI_BUILD"],
     target_compatible_with = select({
         "@platforms//os:wasi": [],
         "//conditions:default": ["@platforms//:incompatible"],
     }),
-    tools = [
-        "@wasi_sdk//:bin",
+    deps = [
+        "//src/mongo:base",
+        "//src/mongo/scripting/mozjs/common:mozjs_common",
+        "//src/mongo/scripting/mozjs/shared:mozjs_shared_types",
+        "@spidermonkey_wasi//:spidermonkey",
     ],
-    visibility = ["//visibility:public"],
 )
 
-with_wasi_config(
-    name = "mozjs_wasm_api_data_from_source",
-    srcs = [":mozjs_wasm_api"],
-    tags = ["manual"],
-    target_compatible_with = ["@platforms//os:linux"],
-)
-
-alias(
-    name = "mozjs_wasm_api_data",
-    actual = select({
-        ":build_mozjs_wasm": ":mozjs_wasm_api_data_from_source",
-        "//conditions:default": "@mozjs_wasm//file",
+wasm_cc_binary(
+    name = "mozjs_wasm_api",
+    out = "mozjs_wasm_api.wasm",
+    additional_linker_inputs = [
+        ":api_component_type.o",
+    ],
+    linkopts = [
+        "-mexec-model=reactor",
+        "-Wl,--no-entry",
+        "-Wl,--export-memory",
+        "-Wl,--stack-first",
+        "-Wl,--export=cabi_realloc",
+    ],
+    target_compatible_with = select({
+        "@platforms//cpu:ppc64le": ["@platforms//:incompatible"],
+        "//conditions:default": [],
     }),
+    deps = [
+        ":mozjs_wasm_lib",
+    ],
 )
+
+exports_files([
+    "wasmtime_engine.cpp",
+    "wasmtime_engine.h",
+])
 
 mongo_cc_library(
     name = "bridge",
@@ -186,10 +130,17 @@ mongo_cc_library(
         "//src/mongo/scripting/mozjs/wasm/bridge:bridge.h",
         "//src/mongo/scripting/mozjs/wasm/bridge:wasm_helpers.h",
     ],
+    target_compatible_with = select({
+        "@platforms//cpu:ppc64le": ["@platforms//:incompatible"],
+        "//conditions:default": [],
+    }),
     deps = [
         "//src/mongo:base",
         "@crates//:wasmtime_c",
-    ],
+    ] + select({
+        "@platforms//os:windows": ["//bazel/rules_rust:win_allocator_shim"],
+        "//conditions:default": [],
+    }),
 )
 
 mongo_cc_unit_test(
@@ -198,20 +149,26 @@ mongo_cc_unit_test(
     timeout = "long",
     srcs = [
         "//src/mongo/scripting/mozjs/wasm/bridge:bridge_test.cpp",
-        "//src/mongo/scripting/mozjs/wasm/engine:engine_test.cpp",
     ],
     auto_header = False,
+    private_hdrs = [":embedded_wasm_resource.h"],
     tags = [
         "mongo_unittest_eighth_group",
         "mozjs_wasm_tests",
     ],
-    target_compatible_with = ["@platforms//os:linux"],
+    target_compatible_with = select({
+        "@platforms//cpu:ppc64le": ["@platforms//:incompatible"],
+        "//conditions:default": [],
+    }),
     deps = [
         ":bridge",
-        ":embed_mozjs_wasm_obj",
         "//src/mongo:base",
+        "//src/mongo/scripting:scripting_common",
         "@crates//:wasmtime_c",
-    ],
+    ] + select({
+        "@platforms//os:windows": [":embed_mozjs_wasm_rc"],
+        "//conditions:default": [":embed_mozjs_wasm_obj"],
+    }),
 )
 
 # ---------------------------------------------------------------------------
@@ -229,12 +186,11 @@ mongo_cc_unit_test(
 
 aot_compile_wasm(
     name = "aot_compile_mozjs_wasm",
-    src = ":mozjs_wasm_api_data",
+    src = ":mozjs_wasm_api",
     out = "mozjs_wasm_api.cwasm",
-    target_compatible_with = ["@platforms//os:linux"] + select({
-        "@platforms//cpu:x86_64": [],
-        "@platforms//cpu:aarch64": [],
-        "//conditions:default": ["@platforms//:incompatible"],
+    target_compatible_with = select({
+        "@platforms//cpu:ppc64le": ["@platforms//:incompatible"],
+        "//conditions:default": [],
     }),
 )
 
@@ -243,5 +199,36 @@ embed_binary_obj(
     src = ":aot_compile_mozjs_wasm",
     out = "embedded_mozjs_wasm.o",
     symbol_prefix = "binary_mozjs_wasm_api_cwasm",
-    target_compatible_with = ["@platforms//os:linux"],
+    target_compatible_with = ["//bazel/config:not_windows"],
+)
+
+embed_binary_rc(
+    name = "embed_mozjs_wasm_rc",
+    src = ":aot_compile_mozjs_wasm",
+    out = "embedded_mozjs_wasm.res",
+    resource_name = "MOZJS_WASM_CWASM",
+    target_compatible_with = ["@platforms//os:windows"],
+)
+
+mongo_cc_library(
+    name = "wasmtime_engine",
+    srcs = [
+        "wasmtime_engine.cpp",
+        "//src/mongo/scripting:config_engine_gen",
+        "//src/mongo/scripting/mozjs/wasm/scope:scope.cpp",
+    ],
+    hdrs = [
+        "wasmtime_engine.h",
+        "//src/mongo/scripting/mozjs/wasm/scope:scope.h",
+    ],
+    deps = [
+        ":bridge",
+        ":embed_mozjs_wasm_obj",
+        "//src/mongo:base",
+        "//src/mongo/db:server_options",
+        "//src/mongo/db:service_context",
+        "//src/mongo/scripting:scripting_common",
+        "//src/mongo/util/concurrency:spin_lock",
+        "@crates//:wasmtime_c",
+    ],
 )

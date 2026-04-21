@@ -6,28 +6,26 @@
  *   assumes_no_implicit_collection_creation_after_drop,
  *   expects_explicit_underscore_id_index,
  *   featureFlagRecordIdsReplicated,
+ *   # hasRecordIdsReplicated uses $_internalListCollections which requires the __system role.
+ *   auth_incompatible,
+ *   # hasRecordIdsReplicated uses $_internalListCollections which only supports local read concern.
+ *   assumes_read_concern_unchanged,
  * ]
  */
+
+import {hasRecordIdsReplicated} from "jstests/libs/collection_write_path/replicated_record_ids_utils.js";
 
 const collName = "replRecIdCollForCreate";
 const coll = db.getCollection(collName);
 coll.drop();
 
-// Validate that it's not possible to create a clustered collection with
-// {recordIdsReplicated: true}.
-assert.commandFailedWithCode(
-    db.createCollection(collName, {clusteredIndex: {key: {_id: 1}, unique: true}, recordIdsReplicated: true}),
-    ErrorCodes.InvalidOptions,
-);
-
 // Validate that a clustered collection will never have the 'recordIdsReplicated' option set
 // implicitly.
 const clusteredCollName = collName + "_clustered";
 assert.commandWorked(db.createCollection(clusteredCollName, {clusteredIndex: {key: {_id: 1}, unique: true}}));
-const clusteredCollInfo = db[clusteredCollName].exists();
 assert(
-    !clusteredCollInfo.info.hasOwnProperty("recordIdsReplicated"),
-    "clustered collection created with recordIdsReplicated collection option: " + tojson(clusteredCollInfo),
+    !hasRecordIdsReplicated(db, clusteredCollName),
+    "clustered collection created with recordIdsReplicated collection option",
 );
 
 // Create a collection with the param set.
@@ -46,6 +44,6 @@ assert(
 );
 jsTestLog("Collection options after creation: " + tojson(collInfo));
 assert(
-    collInfo.info.hasOwnProperty("recordIdsReplicated"),
+    hasRecordIdsReplicated(db, collName),
     "collection options does not contain recordIdsReplicated flag after collection creation",
 );

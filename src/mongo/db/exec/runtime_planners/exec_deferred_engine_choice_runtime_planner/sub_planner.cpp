@@ -29,6 +29,7 @@
 
 
 #include "mongo/db/exec/runtime_planners/exec_deferred_engine_choice_runtime_planner/planner_interface.h"
+#include "mongo/db/query/get_executor_helpers.h"
 #include "mongo/db/query/plan_yield_policy_impl.h"
 
 namespace mongo::exec_deferred_engine_choice {
@@ -58,6 +59,10 @@ SubPlanner::SubPlanner(PlannerData plannerData)
                                        ws(),
                                        cq(),
                                        std::move(callbacks));
+    auto trialPeriodYieldPolicy = makeClassicYieldPolicy(
+        opCtx(), cq()->nss(), static_cast<PlanStage*>(_subPlanStage.get()), yieldPolicy());
+    uassertStatusOK(_subPlanStage->pickBestPlan(*plannerParams(), trialPeriodYieldPolicy.get()));
+    incrementClassicSubplannerChoseWinningPlan();
 }
 
 PlanRankingResult SubPlanner::extractPlanRankingResult() {
@@ -65,16 +70,12 @@ PlanRankingResult SubPlanner::extractPlanRankingResult() {
             "Expected `extractPlanRankingResult` to only be called with get executor deferred "
             "feature flag enabled.",
             feature_flags::gFeatureFlagGetExecutorDeferredEngineChoice.isEnabled());
-
-    auto trialPeriodYieldPolicy = makeClassicYieldPolicy(
-        opCtx(), cq()->nss(), static_cast<PlanStage*>(_subPlanStage.get()), yieldPolicy());
-    uassertStatusOK(_subPlanStage->pickBestPlan(*plannerParams(), trialPeriodYieldPolicy.get()));
     auto querySolution = _subPlanStage->extractBestWholeQuerySolution();
 
-    return PlanRankingResult{
-        .solutions = makeQsnResult(std::move(querySolution)),
-        .execState = SavedExecState{.workingSet = extractWs(), .root = std::move(_subPlanStage)},
-        .plannerParams = extractPlannerParams(),
-        .cachedPlanHash = cachedPlanHash()};
+    return PlanRankingResult{.solutions = makeQsnResult(std::move(querySolution)),
+                             .execState = SavedExecState{ClassicExecState{
+                                 .workingSet = extractWs(), .root = std::move(_subPlanStage)}},
+                             .plannerParams = extractPlannerParams(),
+                             .cachedPlanHash = cachedPlanHash()};
 }
 }  // namespace mongo::exec_deferred_engine_choice

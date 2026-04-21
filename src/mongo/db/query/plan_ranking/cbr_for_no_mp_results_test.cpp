@@ -238,7 +238,8 @@ TEST_F(CBRForNoMPResultsTest, NoResultsMultiPlannerUsesCBR) {
     ASSERT_EQ(status.getValue().needsWorksMeasuredForPlanCache, true);
 
     ASSERT_TRUE(status.getValue().execState);
-    auto mp = dynamic_cast<MultiPlanStage*>(status.getValue().execState->root.get());
+    auto mp = dynamic_cast<MultiPlanStage*>(
+        status.getValue().execState->peekExecState<ClassicExecState>()->root.get());
     ASSERT_TRUE(mp);
     ASSERT_EQ(mp->getStats()->children.size(), 2);  // One winning and one rejected plan
 }
@@ -351,6 +352,26 @@ TEST_F(CBRForNoMPResultsTest, MPPicksBlockingSortAndEOFs) {
     ASSERT_EQ(stats->totalWorks, 4);
 
     ASSERT_TRUE(status.getValue().execState);
+}
+
+TEST_F(CBRForNoMPResultsTest, StrategyDoesNotCollectExplainData) {
+    createIndexOnEmptyCollection(operationContext(), BSON("a" << 1), "a_1");
+    createIndexOnEmptyCollection(operationContext(), BSON("b" << 1), "b_1");
+    insertNDocuments(10);
+    auto colls = getCollsAccessor();
+
+    auto [cq, plannerData] = createCQAndPlannerData(colls, BSON("a" << 4 << "b" << 4));
+    cq->getExpCtx()->setExplain(boost::none);
+
+    plannerData.plannerParams = makePlannerParams({.indices = indices});
+    CBRForNoMPResultsStrategySpy strategy;
+    auto status = planAndRank(strategy, plannerData);
+    ASSERT_OK(status.getStatus());
+    ASSERT_EQ(status.getValue().solutions.size(), 1);
+    ASSERT_FALSE(status.getValue().maybeExplainData.has_value());
+    ASSERT_EQ(status.getValue().needsWorksMeasuredForPlanCache, false);
+    ASSERT_TRUE(status.getValue().execState);
+    ASSERT_TRUE(strategy.getMultiPlanner().has_value());
 }
 }  // namespace
 }  // namespace mongo

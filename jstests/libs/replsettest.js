@@ -1,6 +1,9 @@
 import {Thread} from "jstests/libs/parallelTester.js";
 import {configureFailPoint} from "jstests/libs/fail_point_util.js";
-import {systemUsesReplicatedTruncates} from "jstests/libs/query/replicated_truncates_utils.js";
+import {
+    featureFlagMandatesReplicatedTruncates,
+    persistenceProviderRequiresReplicatedTruncates,
+} from "jstests/libs/query/replicated_truncates_utils.js";
 
 /* global retryOnRetryableError */
 
@@ -2031,14 +2034,28 @@ export class ReplSetTest {
 
     /**
      * Waits for the last oplog entry on the primary to be visible in the committed snapshot view
-     * of the oplog on *all* secondaries. When majority read concern is disabled, there is no
-     * committed snapshot view, so this function waits for the knowledge of the majority commit
-     * point on each node to advance to the optime of the last oplog entry on the primary.
+     * of the oplog on *all* secondaries (or on passed in members).
+     * Same as awaitLastOpCommittedFromNode() but uses this.getPrimary() as the primary node to get
+     * the last oplog entry from.
      * Returns last oplog entry.
      */
     awaitLastOpCommitted(timeout, members) {
+        const primary = this.getPrimary();
+        return this.awaitLastOpCommittedFromNode(timeout, primary, members);
+    }
+
+    /**
+     * Waits for the last oplog entry on the primary (passed in) to be visible in the committed
+     * snapshot view of the oplog on *all* secondaries (or on passed in members).
+     * Same as awaitLastOpCommitted() but allows passing in a primary node in case the ReplSetTest
+     * object has an inaccurate view of the current primary.
+     * When majority read concern is disabled, there is no committed snapshot view, so this function
+     * waits for the knowledge of the majority commit point on each node to advance to the optime of
+     * the last oplog entry on the primary.
+     * Returns last oplog entry.
+     */
+    awaitLastOpCommittedFromNode(timeout, primary, members) {
         let rst = this;
-        let primary = rst.getPrimary();
         let primaryOpTime = _getLastOpTime(this, primary);
 
         let membersToCheck;
@@ -2619,14 +2636,42 @@ export class ReplSetTest {
 
         const primary = this.getPrimary();
 
-        // When using replicated truncates, prevent the change stream pre-images remover thread
-        // from deleting more pre-images in the background while the data consistency check is
-        // running. Otherwise, the pre-images removal can lead to discrepancies between the
-        // primary and the secondaries for the contents of the "config.system.preimages"
-        // collection.
-        const useReplicatedTruncates =
-            (primary instanceof Mongo || primary instanceof DB) &&
-            asCluster(this, this._liveNodes, () => systemUsesReplicatedTruncates(primary, this._liveNodes));
+        // Check if the cluster uses replicated truncates.
+        // If so, we need to prevent the change stream pre-images remover thread from deleting more
+        // pre-images in the background while the data consistency check is running. Otherwise the
+        // background pre-images removal could lead to discrepancies between the primary and the
+        // secondaries for the contents of the "config.system.preimages" collection.
+        const shouldCheckDifferencesInPreImagesCollection = (() => {
+            if (!(primary instanceof Mongo || primary instanceof DB)) {
+                return false;
+            }
+
+            // If the persistence provider requires replicated truncates, then we must always check
+            // the pre-images collection for consistency. No inconsistencies are allowed here.
+            if (
+                asCluster(this, this._liveNodes, () =>
+                    persistenceProviderRequiresReplicatedTruncates(primary, this._liveNodes),
+                )
+            ) {
+                return true;
+            }
+
+            // Next, check the feature flag for replicated truncates. If this is not enabled, all
+            // nodes in the replica set apply pre-images deletion locally. Inconsistencies between
+            // the nodes are expected here.
+            if (!asCluster(this, this._liveNodes, () => featureFlagMandatesReplicatedTruncates(primary))) {
+                return false;
+            }
+
+            // Feature flag is enabled, so in general we do not expect any inconsistencies between
+            // the different nodes of the replica set. However, in multiversion tests this would
+            // still be possible if we eventually turn on the feature flag for replicated truncates
+            // globally.
+            return !(
+                Boolean(jsTest.options().useRandomBinVersionsWithinReplicaSet) ||
+                Boolean(TestData.multiversionBinVersion)
+            );
+        })();
 
         function checkDBHashesForReplSet(rst, dbDenylist = [], msgPrefix, ignoreUUIDs, secondaries) {
             // We don't expect the local database to match because some of its
@@ -2721,7 +2766,7 @@ export class ReplSetTest {
                                 ignoreUUIDs,
                                 hasSecondaryIndexes,
                                 collectionPrinted,
-                                useReplicatedTruncates,
+                                shouldCheckDifferencesInPreImagesCollection,
                             ) && success;
 
                         if (!success) {
@@ -2743,7 +2788,7 @@ export class ReplSetTest {
         }
 
         let disablePreImagesRemoverFailPoint = null;
-        if (useReplicatedTruncates) {
+        if (shouldCheckDifferencesInPreImagesCollection) {
             // Temporarily disable change streams pre-images removal. This does not guard against
             // the pre-images removal job running right now.
             try {
@@ -4135,6 +4180,13 @@ function checkOplogs(rst, msgPrefix = "checkOplogs", secondaries) {
     secondaries = secondaries || rst._secondaries;
 
     function assertOplogEntriesEq(oplogEntry0, oplogEntry1, reader0, reader1, prevOplogEntry) {
+        // We want to compare the exact bytes that we got back from the server, so we use an
+        // immutable reference that prevents any behind-the-scenes rematerialization. Even reading
+        // a sub-document of a mutable BSON object triggers reserialization, which is not guaranteed
+        // to produce the exact original bytes.
+        oplogEntry0 = bsonGetImmutable(oplogEntry0);
+        oplogEntry1 = bsonGetImmutable(oplogEntry1);
+
         // TODO SERVER-116413: Remove the skipConsistencyCheckForNewPrimaryOpEntry param and this early return.
         if (
             TestData.skipConsistencyCheckForNewPrimaryOpEntry &&

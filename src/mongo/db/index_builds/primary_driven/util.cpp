@@ -103,7 +103,6 @@ Status start(OperationContext* opCtx,
 
         IndexBuildInterceptor interceptor{
             opCtx, index, LazyRecordStore::CreateMode::immediate, descriptor.unique(), false};
-        interceptor.keepTemporaryTables(opCtx);
 
         CollectionQueryInfo::get(writableColl).rebuildIndexData(opCtx, writableColl);
         CollectionIndexUsageTrackerDecoration::write(writableColl)
@@ -155,13 +154,12 @@ Status commit(OperationContext* opCtx,
         auto entry = writableColl->getIndexCatalog()->getWritableEntryByName(
             opCtx, index.getIndexName(), IndexCatalog::InclusionPolicy::kUnfinished);
 
-        {
-            IndexBuildInterceptor interceptor{opCtx,
-                                              index,
-                                              LazyRecordStore::CreateMode::openExisting,
-                                              entry->descriptor()->unique(),
-                                              false};
-        }
+        IndexBuildInterceptor interceptor{opCtx,
+                                          index,
+                                          LazyRecordStore::CreateMode::openExisting,
+                                          entry->descriptor()->unique(),
+                                          false};
+        interceptor.dropTemporaryTables(opCtx, Timestamp::min());
 
         writableColl->indexBuildSuccess(opCtx, entry);
         if (multikey[i]) {
@@ -235,17 +233,12 @@ Status abort(OperationContext* opCtx,
         auto entry = writableColl->getIndexCatalog()->getWritableEntryByName(
             opCtx, index.getIndexName(), IndexCatalog::InclusionPolicy::kUnfinished);
 
-        {
-            // TODO (SERVER-121124): Use idents provided in index.
-            auto mutableIndex = index;
-            mutableIndex.indexIdent = entry->getIdent();
-            mutableIndex.setInternalIdents(*opCtx->getServiceContext()->getStorageEngine());
-            IndexBuildInterceptor interceptor{opCtx,
-                                              mutableIndex,
-                                              LazyRecordStore::CreateMode::openExisting,
-                                              entry->descriptor()->unique(),
-                                              false};
-        }
+        IndexBuildInterceptor interceptor{opCtx,
+                                          index,
+                                          LazyRecordStore::CreateMode::openExisting,
+                                          entry->descriptor()->unique(),
+                                          false};
+        interceptor.dropTemporaryTables(opCtx, Timestamp::min());
 
         auto status = writableColl->getIndexCatalog()->dropIndexEntry(opCtx, writableColl, entry);
         if (!status.isOK()) {
@@ -264,7 +257,7 @@ Status abort(OperationContext* opCtx,
                                                                    coll.nss(),
                                                                    collectionUUID,
                                                                    buildUUID,
-                                                                   toIndexSpecs(indexes),
+                                                                   indexes,
                                                                    cause,
                                                                    /*fromMigrate=*/false);
     shard_role_details::getRecoveryUnit(opCtx)->onCommit(

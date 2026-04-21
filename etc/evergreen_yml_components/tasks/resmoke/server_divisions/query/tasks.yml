@@ -853,6 +853,19 @@ tasks:
       - func: "run tests"
 
   - <<: *task_template
+    name: change_streams_whole_cluster_secondary_reads_sharded_collections_v2
+    tags:
+      [
+        "assigned_to_jira_team_server_query_execution",
+        "default",
+        "change_streams",
+        "secondary_reads",
+      ]
+    commands:
+      - func: "do setup"
+      - func: "run tests"
+
+  - <<: *task_template
     name: change_streams_whole_db_passthrough
     tags:
       [
@@ -971,7 +984,98 @@ tasks:
       - func: "run tests"
 
   - <<: *task_template
+    name: disagg_change_streams_mongos_sessions_passthrough
+    tags:
+      [
+        "assigned_to_jira_team_server_query_execution",
+        "default",
+        "change_streams",
+        "requires_extra_system_deps",
+      ]
+    commands:
+      - func: "do setup"
+      - func: "run tests"
+
+  - <<: *task_template
+    name: disagg_change_streams_mongos_sessions_passthrough_v2
+    tags:
+      [
+        "assigned_to_jira_team_server_query_execution",
+        "default",
+        "change_streams",
+        "requires_extra_system_deps",
+      ]
+    commands:
+      - func: "do setup"
+      - func: "run tests"
+
+  - <<: *task_template
+    name: disagg_change_streams_multi_stmt_txn_mongos_passthrough
+    tags:
+      [
+        "assigned_to_jira_team_server_query_execution",
+        "default",
+        "change_streams",
+        "requires_extra_system_deps",
+      ]
+    commands:
+      - func: "do setup"
+      - func: "run tests"
+
+  - <<: *task_template
+    name: disagg_change_streams_multi_stmt_txn_mongos_passthrough_v2
+    tags:
+      [
+        "assigned_to_jira_team_server_query_execution",
+        "default",
+        "change_streams",
+        "requires_extra_system_deps",
+      ]
+    commands:
+      - func: "do setup"
+      - func: "run tests"
+
+  - <<: *task_template
+    name: disagg_change_streams_multi_stmt_txn_sharded_collections_passthrough
+    tags:
+      [
+        "assigned_to_jira_team_server_query_execution",
+        "default",
+        "change_streams",
+        "requires_extra_system_deps",
+      ]
+    commands:
+      - func: "do setup"
+      - func: "run tests"
+
+  - <<: *task_template
+    name: disagg_change_streams_multi_stmt_txn_sharded_collections_passthrough_v2
+    tags:
+      [
+        "assigned_to_jira_team_server_query_execution",
+        "default",
+        "change_streams",
+        "requires_extra_system_deps",
+      ]
+    commands:
+      - func: "do setup"
+      - func: "run tests"
+
+  - <<: *task_template
     name: disagg_change_streams_per_shard_cursor_passthrough
+    tags:
+      [
+        "assigned_to_jira_team_server_query_execution",
+        "default",
+        "change_streams",
+        "requires_extra_system_deps",
+      ]
+    commands:
+      - func: "do setup"
+      - func: "run tests"
+
+  - <<: *task_template
+    name: disagg_change_streams_per_shard_cursor_passthrough_v2
     tags:
       [
         "assigned_to_jira_team_server_query_execution",
@@ -998,6 +1102,39 @@ tasks:
           suite: disagg_change_streams_secondary_reads_passthrough
           resmoke_jobs_max: 2
 
+  - <<: *gen_task_template
+    name: disagg_change_streams_secondary_reads_sharded_collections_gen
+    tags:
+      [
+        "assigned_to_jira_team_server_query_execution",
+        "default",
+        "change_streams",
+        "secondary_reads",
+        "requires_extra_system_deps",
+      ]
+    commands:
+      - func: "generate resmoke tasks"
+        vars:
+          suite: disagg_change_streams_secondary_reads_sharded_collections
+          resmoke_jobs_max: 2
+
+  - <<: *gen_task_template
+    name: disagg_change_streams_secondary_reads_sharded_collections_v2_gen
+    tags: [
+        "assigned_to_jira_team_server_query_execution",
+        "default",
+        "change_streams",
+        "secondary_reads",
+        # TODO: SERVER-52253 Enable feature flag for Improved change stream handling of cluster topology changes.
+        "requires_all_feature_flags",
+        "requires_extra_system_deps",
+      ]
+    commands:
+      - func: "generate resmoke tasks"
+        vars:
+          suite: disagg_change_streams_secondary_reads_sharded_collections_v2
+          resmoke_jobs_max: 2
+
   - <<: *task_template
     name: disagg_change_streams_whole_cluster_passthrough
     tags:
@@ -1012,6 +1149,47 @@ tasks:
       - func: "run tests"
 
   - <<: *task_template
+    name: disagg_change_streams_whole_cluster_passthrough_v2
+    tags:
+      [
+        "assigned_to_jira_team_server_query_execution",
+        "default",
+        "change_streams",
+        "requires_extra_system_deps",
+      ]
+    commands:
+      - func: "do setup"
+      - func: "run tests"
+
+  - <<: *task_template
+    name: disagg_change_streams_whole_cluster_secondary_reads_sharded_collections
+    tags:
+      [
+        "assigned_to_jira_team_server_query_execution",
+        "default",
+        "change_streams",
+        "secondary_reads",
+        "requires_extra_system_deps",
+      ]
+    commands:
+      - func: "do setup"
+      - func: "run tests"
+
+  - <<: *task_template
+    name: disagg_change_streams_whole_cluster_secondary_reads_sharded_collections_v2
+    tags:
+      [
+        "assigned_to_jira_team_server_query_execution",
+        "default",
+        "change_streams",
+        "secondary_reads",
+        "requires_extra_system_deps",
+      ]
+    commands:
+      - func: "do setup"
+      - func: "run tests"
+
+  - <<: *task_template
     name: disagg_change_streams_whole_db_passthrough
     tags:
       [
@@ -1019,6 +1197,79 @@ tasks:
         "default",
         "change_streams",
         "requires_extra_system_deps",
+      ]
+    commands:
+      - func: "do setup"
+      - func: "run tests"
+
+  - <<: *task_template
+    name: disagg_change_streams_whole_db_passthrough_v2
+    tags:
+      [
+        "assigned_to_jira_team_server_query_execution",
+        "default",
+        "change_streams",
+        "requires_extra_system_deps",
+      ]
+    commands:
+      - func: "do setup"
+      - func: "run tests"
+
+  - <<: *task_template
+    name: disagg_change_streams_whole_db_secondary_reads_sharded_collections
+    tags:
+      [
+        "assigned_to_jira_team_server_query_execution",
+        "default",
+        "change_streams",
+        "secondary_reads",
+        "requires_extra_system_deps",
+      ]
+    commands:
+      - func: "do setup"
+      - func: "run tests"
+
+  - <<: *task_template
+    name: disagg_change_streams_whole_db_secondary_reads_sharded_collections_v2
+    tags: [
+        "assigned_to_jira_team_server_query_execution",
+        "default",
+        "change_streams",
+        "secondary_reads",
+        "requires_extra_system_deps",
+        # TODO: SERVER-52253 Enable feature flag for Improved change stream handling of cluster topology changes.
+        "requires_all_feature_flags",
+      ]
+    commands:
+      - func: "do setup"
+      - func: "run tests"
+
+  - <<: *gen_task_template
+    name: disagg_sharding_change_streams_v2_gen
+    tags: [
+        "assigned_to_jira_team_server_query_execution",
+        "default",
+        "change_streams",
+        "requires_extra_system_deps",
+        # TODO: SERVER-52253 Enable feature flag for Improved change stream handling of cluster topology changes.
+        "requires_all_feature_flags",
+        "sharding",
+      ]
+    commands:
+      - func: "generate resmoke tasks"
+        vars:
+          use_large_distro: "true"
+
+  - <<: *task_template
+    name: disagg_sharding_change_streams_v2_ignore_removed_shards
+    tags: [
+        "assigned_to_jira_team_server_query_execution",
+        "default",
+        "change_streams",
+        "requires_extra_system_deps",
+        # TODO: SERVER-52253 Enable feature flag for Improved change stream handling of cluster topology changes.
+        "requires_all_feature_flags",
+        "sharding",
       ]
     commands:
       - func: "do setup"
@@ -1615,275 +1866,6 @@ tasks:
           resmoke_jobs_max: 1
 
   - <<: *task_template
-    name: vector_search_extension_enabled
-    tags:
-      [
-        "assigned_to_jira_team_server_query_integration",
-        "experimental",
-        "incompatible_windows",
-        "incompatible_mac",
-        "incompatible_ppc",
-        "incompatible_s390x",
-        "incompatible_amazon_linux2",
-        "mongot_e2e_tests",
-      ]
-    commands:
-      - func: "do setup"
-      - func: "get mongot version"
-      - func: "run tests"
-        vars:
-          resmoke_jobs_max: 5
-          resmoke_args: >-
-            --disableFeatureFlags=featureFlagExtensionViewsAndUnionWith
-
-  - <<: *task_template
-    name: vector_search_extension_fully_enabled
-    tags:
-      [
-        "assigned_to_jira_team_server_query_integration",
-        "experimental",
-        "incompatible_windows",
-        "incompatible_mac",
-        "incompatible_ppc",
-        "incompatible_s390x",
-        "incompatible_amazon_linux2",
-        "mongot_e2e_tests",
-      ]
-    commands:
-      - func: "do setup"
-      - func: "get mongot version"
-      - func: "run tests"
-        vars:
-          resmoke_jobs_max: 5
-
-  - <<: *task_template
-    name: vector_search_extension_disabled
-    tags:
-      [
-        "assigned_to_jira_team_server_query_integration",
-        "experimental",
-        "incompatible_windows",
-        "incompatible_mac",
-        "incompatible_ppc",
-        "incompatible_s390x",
-        "incompatible_amazon_linux2",
-        "mongot_e2e_tests",
-      ]
-    commands:
-      - func: "do setup"
-      - func: "get mongot version"
-      - func: "run tests"
-        vars:
-          resmoke_jobs_max: 5
-          resmoke_args: >-
-            --disableFeatureFlags=featureFlagVectorSearchExtension
-            --disableFeatureFlags=featureFlagExtensionViewsAndUnionWith
-
-  - <<: *task_template
-    name: vector_search_extension_enabled_sharded_collections
-    tags:
-      [
-        "assigned_to_jira_team_server_query_integration",
-        "experimental",
-        "incompatible_windows",
-        "incompatible_mac",
-        "incompatible_ppc",
-        "incompatible_s390x",
-        "incompatible_amazon_linux2",
-        "mongot_e2e_tests",
-        "requires_large_host",
-      ]
-    commands:
-      - func: "do setup"
-      - func: "get mongot version"
-      - func: "run tests"
-        vars:
-          resmoke_jobs_max: 5
-          resmoke_args: >-
-            --disableFeatureFlags=featureFlagExtensionViewsAndUnionWith
-
-  - <<: *task_template
-    name: vector_search_extension_fully_enabled_sharded_collections
-    tags:
-      [
-        "assigned_to_jira_team_server_query_integration",
-        "experimental",
-        "incompatible_windows",
-        "incompatible_mac",
-        "incompatible_ppc",
-        "incompatible_s390x",
-        "incompatible_amazon_linux2",
-        "mongot_e2e_tests",
-        "requires_large_host",
-      ]
-    commands:
-      - func: "do setup"
-      - func: "get mongot version"
-      - func: "run tests"
-        vars:
-          resmoke_jobs_max: 5
-
-  - <<: *task_template
-    name: vector_search_extension_disabled_sharded_collections
-    tags:
-      [
-        "assigned_to_jira_team_server_query_integration",
-        "experimental",
-        "incompatible_windows",
-        "incompatible_mac",
-        "incompatible_ppc",
-        "incompatible_s390x",
-        "incompatible_amazon_linux2",
-        "mongot_e2e_tests",
-        "requires_large_host",
-      ]
-    commands:
-      - func: "do setup"
-      - func: "get mongot version"
-      - func: "run tests"
-        vars:
-          resmoke_jobs_max: 5
-          resmoke_args: >-
-            --disableFeatureFlags=featureFlagVectorSearchExtension
-            --disableFeatureFlags=featureFlagExtensionViewsAndUnionWith
-
-  - <<: *task_template
-    name: vector_search_extension_enabled_sharded_cluster
-    tags:
-      [
-        "assigned_to_jira_team_server_query_integration",
-        "experimental",
-        "incompatible_windows",
-        "incompatible_mac",
-        "incompatible_ppc",
-        "incompatible_s390x",
-        "incompatible_amazon_linux2",
-        "mongot_e2e_tests",
-        "requires_large_host",
-      ]
-    commands:
-      - func: "do setup"
-      - func: "get mongot version"
-      - func: "run tests"
-        vars:
-          resmoke_jobs_max: 5
-          resmoke_args: >-
-            --disableFeatureFlags=featureFlagExtensionViewsAndUnionWith
-
-  - <<: *task_template
-    name: vector_search_extension_fully_enabled_sharded_cluster
-    tags:
-      [
-        "assigned_to_jira_team_server_query_integration",
-        "experimental",
-        "incompatible_windows",
-        "incompatible_mac",
-        "incompatible_ppc",
-        "incompatible_s390x",
-        "incompatible_amazon_linux2",
-        "mongot_e2e_tests",
-        "requires_large_host",
-      ]
-    commands:
-      - func: "do setup"
-      - func: "get mongot version"
-      - func: "run tests"
-        vars:
-          resmoke_jobs_max: 5
-
-  - <<: *task_template
-    name: vector_search_extension_disabled_sharded_cluster
-    tags:
-      [
-        "assigned_to_jira_team_server_query_integration",
-        "experimental",
-        "incompatible_windows",
-        "incompatible_mac",
-        "incompatible_ppc",
-        "incompatible_s390x",
-        "incompatible_amazon_linux2",
-        "mongot_e2e_tests",
-        "requires_large_host",
-      ]
-    commands:
-      - func: "do setup"
-      - func: "get mongot version"
-      - func: "run tests"
-        vars:
-          resmoke_jobs_max: 5
-          resmoke_args: >-
-            --disableFeatureFlags=featureFlagVectorSearchExtension
-            --disableFeatureFlags=featureFlagExtensionViewsAndUnionWith
-
-  - <<: *task_template
-    name: vector_search_extension_enabled_single_shard
-    tags:
-      [
-        "assigned_to_jira_team_server_query_integration",
-        "experimental",
-        "incompatible_windows",
-        "incompatible_mac",
-        "incompatible_ppc",
-        "incompatible_s390x",
-        "incompatible_amazon_linux2",
-        "mongot_e2e_tests",
-        "requires_large_host",
-      ]
-    commands:
-      - func: "do setup"
-      - func: "get mongot version"
-      - func: "run tests"
-        vars:
-          resmoke_jobs_max: 5
-          resmoke_args: >-
-            --disableFeatureFlags=featureFlagExtensionViewsAndUnionWith
-
-  - <<: *task_template
-    name: vector_search_extension_fully_enabled_single_shard
-    tags:
-      [
-        "assigned_to_jira_team_server_query_integration",
-        "experimental",
-        "incompatible_windows",
-        "incompatible_mac",
-        "incompatible_ppc",
-        "incompatible_s390x",
-        "incompatible_amazon_linux2",
-        "mongot_e2e_tests",
-        "requires_large_host",
-      ]
-    commands:
-      - func: "do setup"
-      - func: "get mongot version"
-      - func: "run tests"
-        vars:
-          resmoke_jobs_max: 5
-
-  - <<: *task_template
-    name: vector_search_extension_disabled_single_shard
-    tags:
-      [
-        "assigned_to_jira_team_server_query_integration",
-        "experimental",
-        "incompatible_windows",
-        "incompatible_mac",
-        "incompatible_ppc",
-        "incompatible_s390x",
-        "incompatible_amazon_linux2",
-        "mongot_e2e_tests",
-        "requires_large_host",
-      ]
-    commands:
-      - func: "do setup"
-      - func: "get mongot version"
-      - func: "run tests"
-        vars:
-          resmoke_jobs_max: 5
-          resmoke_args: >-
-            --disableFeatureFlags=featureFlagVectorSearchExtension
-            --disableFeatureFlags=featureFlagExtensionViewsAndUnionWith
-
-  - <<: *task_template
     name: mongot_community_e2e_sharded_collections
     tags:
       [
@@ -1925,74 +1907,6 @@ tasks:
       - func: "get mongot version"
       - func: "run tests"
         vars:
-          resmoke_jobs_max: 1
-
-  - <<: *task_template
-    name: concurrency_with_mongot_extension_single_node
-    tags:
-      [
-        "assigned_to_jira_team_server_query_integration",
-        "experimental",
-        "incompatible_windows",
-        "incompatible_mac",
-        "incompatible_ppc",
-        "incompatible_s390x",
-        "incompatible_amazon_linux2",
-        "mongot_e2e_tests",
-      ]
-    commands:
-      - func: "do setup"
-      - func: "get mongot version"
-      - func: "run tests"
-        vars:
-          # Small number of tests (at least upon authoring), and concurrency tests are more resource
-          # intensive.
-          resmoke_jobs_max: 1
-
-  - <<: *task_template
-    name: concurrency_with_mongot_extension_mongos
-    tags:
-      [
-        "assigned_to_jira_team_server_query_integration",
-        "experimental",
-        "incompatible_windows",
-        "incompatible_mac",
-        "incompatible_ppc",
-        "incompatible_s390x",
-        "incompatible_amazon_linux2",
-        "mongot_e2e_tests",
-        "requires_large_host",
-      ]
-    commands:
-      - func: "do setup"
-      - func: "get mongot version"
-      - func: "run tests"
-        vars:
-          # Small number of tests (at least upon authoring), and concurrency tests are more resource
-          # intensive.
-          resmoke_jobs_max: 1
-
-  - <<: *task_template
-    name: concurrency_with_mongot_extension_sharded_collections
-    tags:
-      [
-        "assigned_to_jira_team_server_query_integration",
-        "experimental",
-        "incompatible_windows",
-        "incompatible_mac",
-        "incompatible_ppc",
-        "incompatible_s390x",
-        "incompatible_amazon_linux2",
-        "mongot_e2e_tests",
-        "requires_large_host",
-      ]
-    commands:
-      - func: "do setup"
-      - func: "get mongot version"
-      - func: "run tests"
-        vars:
-          # Small number of tests (at least upon authoring), and concurrency tests are more resource
-          # intensive.
           resmoke_jobs_max: 1
 
   - <<: *task_template
@@ -2041,6 +1955,36 @@ tasks:
     commands:
       - func: "do setup"
       - func: "run tests"
+
+  - <<: *gen_task_template
+    name: change_streams_sharding_fsm_gen
+    tags:
+      [
+        "assigned_to_jira_team_server_query_execution",
+        "default",
+        "change_streams",
+        "requires_all_feature_flags",
+        "sharding",
+      ]
+    commands:
+      - func: "generate resmoke tasks"
+        vars:
+          use_large_distro: "true"
+
+  - <<: *gen_task_template
+    name: change_streams_sharding_fsm_bg_mutator_gen
+    tags:
+      [
+        "assigned_to_jira_team_server_query_execution",
+        "default",
+        "change_streams",
+        "requires_all_feature_flags",
+        "sharding",
+      ]
+    commands:
+      - func: "generate resmoke tasks"
+        vars:
+          use_large_distro: "true"
 
   - <<: *task_template
     name: sharding_api_strict_passthrough
@@ -3223,20 +3167,6 @@ tasks:
           suite: disagg_aggregation_sharded_collections_passthrough
           use_large_distro: "true"
           resmoke_jobs_max: 10
-
-  - <<: *task_template
-    name: query_stats_mongos_passthrough
-    tags: ["assigned_to_jira_team_server_query_integration", "default"]
-    commands:
-      - func: "do setup"
-      - func: "run tests"
-
-  - <<: *task_template
-    name: query_stats_passthrough
-    tags: ["assigned_to_jira_team_server_query_integration", "default"]
-    commands:
-      - func: "do setup"
-      - func: "run tests"
 
   - <<: *task_template
     name: vector_search

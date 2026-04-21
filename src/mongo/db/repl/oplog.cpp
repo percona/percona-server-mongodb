@@ -84,6 +84,7 @@
 #include "mongo/db/repl/timestamp_block.h"
 #include "mongo/db/repl/transaction_oplog_application.h"
 #include "mongo/db/repl/truncate_range_oplog_entry_gen.h"
+#include "mongo/db/replicated_fast_count/init_replicated_fast_count_oplog_entry_gen.h"
 #include "mongo/db/rss/replicated_storage_service.h"
 #include "mongo/db/server_feature_flags_gen.h"
 #include "mongo/db/service_context.h"
@@ -1145,7 +1146,11 @@ const StringMap<ApplyOpMetadata> kOpsMap = {
                       "The abortIndexBuild operation is not supported in applyOps mode"};
           }
 
-          auto swOplogEntry = IndexBuildOplogEntry::parse(opCtx, *op);
+          auto swOplogEntry = IndexBuildOplogEntry::parse(
+              opCtx,
+              *op,
+              shouldReplicateLocalCatalogIdentifiers(
+                  rss::ReplicatedStorageService::get(opCtx).getPersistenceProvider()));
           if (!swOplogEntry.isOK()) {
               return swOplogEntry.getStatus().withContext(
                   "Error parsing 'abortIndexBuild' oplog entry");
@@ -1344,13 +1349,20 @@ const StringMap<ApplyOpMetadata> kOpsMap = {
                                     << ns.toStringForErrorMsg(),
                       coll.exists());
 
+              // During recovery, replication frontiers (lastAppliedOpTime / allDurableTimestamp)
+              // are not yet fully initialized, so the RecordId range validation inside
+              // truncateRange would incorrectly reject valid ranges. The oplog entry itself is the
+              // authoritative source of truth here.
+              const bool shouldValidateRecordIdRange = !OplogApplication::inRecovering(mode);
+
               WriteUnitOfWork wuow(opCtx);
               collection_internal::truncateRange(opCtx,
                                                  coll.getCollectionPtr(),
                                                  truncateRangeEntry.getMinRecordId(),
                                                  truncateRangeEntry.getMaxRecordId(),
                                                  truncateRangeEntry.getBytesDeleted(),
-                                                 truncateRangeEntry.getDocsDeleted());
+                                                 truncateRangeEntry.getDocsDeleted(),
+                                                 shouldValidateRecordIdRange);
               wuow.commit();
           });
           return Status::OK();
@@ -1446,7 +1458,51 @@ const StringMap<ApplyOpMetadata> kOpsMap = {
              return Status::OK();
          },
          {}},
-    }};
+    },
+    {"initReplicatedFastCount",
+     {[](OperationContext* opCtx, const ApplierOperation& op, OplogApplication::Mode mode)
+          -> Status {
+          if (!op->getObject2()) {
+              return Status(ErrorCodes::BadValue,
+                            "initReplicatedFastCount oplog entry missing o2 field");
+          }
+          const auto parsedO2 = InitReplicatedFastCountO2::parse(*op->getObject2());
+
+          auto createContainerRecordStore = [&](StringData ident, int keyFormatInt) -> Status {
+              if (keyFormatInt != static_cast<int>(KeyFormat::Long) &&
+                  keyFormatInt != static_cast<int>(KeyFormat::String)) {
+                  return Status(ErrorCodes::BadValue,
+                                fmt::format("Invalid keyFormat value: {}", keyFormatInt));
+              }
+
+              auto keyFormat = static_cast<KeyFormat>(keyFormatInt);
+              auto* storageEngine = opCtx->getServiceContext()->getStorageEngine();
+              auto* ru = shard_role_details::getRecoveryUnit(opCtx);
+              auto& provider = rss::ReplicatedStorageService::get(opCtx).getPersistenceProvider();
+
+              RecordStore::Options options;
+              options.keyFormat = keyFormat;
+              return storageEngine->getEngine()->createRecordStore(
+                  provider, *ru, op->getNss(), ident, options);
+          };
+
+          WriteUnitOfWork wuow(opCtx);
+          auto status = createContainerRecordStore(parsedO2.getFastCountMetadataStoreIdent(),
+                                                   parsedO2.getFastCountMetadataStoreKeyFormat());
+          if (!status.isOK()) {
+              return status;
+          }
+          status =
+              createContainerRecordStore(parsedO2.getFastCountMetadataStoreTimestampsIdent(),
+                                         parsedO2.getFastCountMetadataStoreTimestampsKeyFormat());
+          if (!status.isOK()) {
+              return status;
+          }
+          wuow.commit();
+
+          return Status::OK();
+      },
+      {}}}};
 
 // Writes a change stream pre-image 'preImage' associated with oplog entry 'oplogEntry' and a write
 // operation to collection 'collection'.
@@ -2022,30 +2078,19 @@ Status applyOperation_inlock(OperationContext* opCtx,
         "Unexpected recordId value for collection with ns: '{}', uuid: '{}', recordIdsReplicated: "
         "'{}' when applying oplog entry: '{}'";
     boost::optional<RecordId> opRid = op.getDurableReplOperation().getRecordId();
-    bool skipUsingRid = false;
     if (collection &&
         (opType == OpTypeEnum::kInsert || opType == OpTypeEnum::kUpdate ||
          opType == OpTypeEnum::kDelete)) {
-        // In some migration cases, the oplog entries may contain the 'rid' field introduced when
-        // the feature flag is enabled, but they need to be applied to a server with the feature
-        // flag disabled. We will ignore the 'rid' field then.
-        skipUsingRid = !gFeatureFlagRecordIdsReplicated.isEnabled(
-                           VersionContext::getDecoration(opCtx),
-                           serverGlobalParams.featureCompatibility.acquireFCVSnapshot()) &&
-            mode == repl::OplogApplication::Mode::kApplyOpsCmd;
-        if (skipUsingRid) {
-            opRid = boost::none;
-        }
         if (mode == repl::OplogApplication::Mode::kApplyOpsCmd) {
-            // Only disallow applying an operation with 'rid' field on a collection not using
-            // replicated record ids.
-            tassert(11454700,
-                    fmt::format(ridErrMsg,
-                                collection->ns().toStringForErrorMsg(),
-                                collection->uuid().toString(),
-                                collection->areRecordIdsReplicated(),
-                                redact(opOrGroupedInserts.toBSON()).toString()),
-                    !opRid.has_value() || collection->areRecordIdsReplicated());
+            // We don't expect user applyOps with record Ids
+            tassert(
+                12336000,
+                fmt::format(
+                    "Received applyOps cmd with rid for ns: '{}', uuid: '{}', oplog entry: '{}'",
+                    collection->ns().toStringForErrorMsg(),
+                    collection->uuid().toString(),
+                    redact(opOrGroupedInserts.toBSON()).toString()),
+                !opRid.has_value());
         } else {
             // Check that the operation's 'rid' field is consistent with whether the collection is
             // using replicated record ids.
@@ -2136,8 +2181,8 @@ Status applyOperation_inlock(OperationContext* opCtx,
                 // This satisfies an assertion within insertDocuments that we are holding this lock
                 // when writing to a capped collection and have reserved oplog slots. However, in
                 // practice there shouldn't be any concurrency here, since all inserts to a
-                // non-clustered capped collection should belong to the same batch. TODO
-                // SERVER-106004: Revisit this acquisition.
+                // non-clustered capped collection should belong to the same batch.
+                // TODO SERVER-106004: Revisit this acquisition.
                 if (collection->needsCappedLock()) {
                     Lock::ResourceLock heldUntilEndOfWUOW{
                         opCtx, ResourceId(RESOURCE_METADATA, collection->ns()), MODE_X};
@@ -2150,21 +2195,17 @@ Status applyOperation_inlock(OperationContext* opCtx,
                 // applyOps, this has the effect of preserving recordIds when applyOps is run,
                 // which is intentional.
                 for (size_t i = 0; i < insertObjs.size(); i++) {
-                    boost::optional<RecordId> optRid;
-                    if (!skipUsingRid) {
-                        optRid = insertOps[i]->getDurableReplOperation().getRecordId();
-                    }
+                    auto optRid = insertOps[i]->getDurableReplOperation().getRecordId();
+
                     if (mode == repl::OplogApplication::Mode::kApplyOpsCmd) {
-                        // Only disallow applying an operation with 'rid' field on a collection not
-                        // using replicated record ids.
-                        tassert(11454702,
-                                fmt::format(ridErrMsg,
+                        // We don't expect user applyOps with record Ids
+                        tassert(12336001,
+                                fmt::format("Received applyOps cmd with rid for ns: '{}', uuid: "
+                                            "'{}', oplog entry: '{}'",
                                             collection->ns().toStringForErrorMsg(),
                                             collection->uuid().toString(),
-                                            collection->areRecordIdsReplicated(),
-                                            redact(insertOps[i]->getDurableReplOperation().toBSON())
-                                                .toString()),
-                                !optRid.has_value() || collection->areRecordIdsReplicated());
+                                            redact(opOrGroupedInserts.toBSON()).toString()),
+                                !optRid.has_value());
                     } else {
                         // Check that the operation's 'rid' field is consistent with whether the
                         // collection is using replicated record ids.
@@ -2248,7 +2289,6 @@ Status applyOperation_inlock(OperationContext* opCtx,
                 //     steady-state replication and existing users of applyOps.
 
                 const bool inTxn = opCtx->inMultiDocumentTransaction();
-                bool isApplyOpsCmd = (mode == OplogApplication::Mode::kApplyOpsCmd);
                 bool needToDoUpsert = haveWrappingWriteUnitOfWork && !inTxn;
 
                 Timestamp timestamp;
@@ -2334,7 +2374,7 @@ Status applyOperation_inlock(OperationContext* opCtx,
                             return Status::OK();
                         }
 
-                        if (opRid.has_value() && !isApplyOpsCmd) {
+                        if (opRid.has_value()) {
                             // For collections with replicated recordIds we are taking the hard
                             // stance in steady state that getting a DuplicatedKey error while
                             // applying an insert oplog entry is a constraint violation.
@@ -2375,37 +2415,11 @@ Status applyOperation_inlock(OperationContext* opCtx,
 
                 // Now see if we need to do an upsert.
                 if (needToDoUpsert) {
-                    auto oplogIdField = o.getField("_id");
-
-                    if (opRid.has_value()) {
-                        Snapshotted<BSONObj> doc;
-                        // If it is an applyOps cmd with recordId, and a document exists at the
-                        // oplog recordId, the _id of that document must match the _id in the oplog.
-                        // We don't need to check for non-applyOps commands as it would have failed
-                        // above due to DuplicateKey error on the recordId.
-                        if (collection->findDoc(opCtx, *opRid, &doc) &&
-                            !oplogIdField.binaryEqual(doc.value()["_id"])) {
-                            const auto& opObj = redact(op.toBSONForLogging());
-                            uasserted(
-                                8830901,
-                                fmt::format("While applying an applyOps insert oplog entry : '{}' "
-                                            "with 'rid' {}, the "
-                                            "corresponding record '{}' "
-                                            "had a different _id than the oplog.",
-                                            opObj.toString(),
-                                            opRid->toStringHumanReadable(),
-                                            redact(doc.value()).toString()));
-                        }
-                        // Here we have the record Id, we could optimize the upsert based on that
-                        // however it is not worth the effort given that we are here only on
-                        // uncommon applyOps usages.
-                    }
-
                     // Do update on DuplicateKey errors.
                     // This will only be on the _id field in replication,
                     // since we disable non-_id unique constraint violations.
                     BSONObjBuilder b;
-                    b.append(oplogIdField);
+                    b.append(o.getField("_id"));
 
                     auto request = UpdateRequest();
                     request.setNamespaceString(requestNss);
@@ -2934,6 +2948,15 @@ Status applyContainerOperation(OperationContext* opCtx,
             });
             break;
         }
+        case repl::OpTypeEnum::kContainerUpdate: {
+            int vlen = 0;
+            const char* v = o["v"].binData(vlen);
+            const std::span<const char> val{v, static_cast<size_t>(vlen)};
+            s = withKey(k, [&](auto key) {
+                return storage_engine_direct_crud::update(*engine, *ru, *ident, key, val);
+            });
+            break;
+        }
         case repl::OpTypeEnum::kContainerDelete: {
             s = withKey(k, [&](auto key) {
                 return storage_engine_direct_crud::remove(*engine, *ru, *ident, key);
@@ -3003,14 +3026,15 @@ Status applyCommand_inlock(OperationContext* opCtx,
     // for each collection dropped. 'applyOps' and 'commitTransaction' will try to apply each
     // individual operation, and those will be caught then if they are a problem. 'abortTransaction'
     // won't ever change the server configuration collection.
-    constexpr std::array<StringData, 8> allowlistedOps{"dropDatabase",
+    constexpr std::array<StringData, 9> allowlistedOps{"dropDatabase",
                                                        "applyOps",
                                                        "dbCheck",
                                                        "commitTransaction",
                                                        "abortTransaction",
                                                        "startIndexBuild",
                                                        "commitIndexBuild",
-                                                       "abortIndexBuild"};
+                                                       "abortIndexBuild",
+                                                       "initReplicatedFastCount"};
     if ((mode == OplogApplication::Mode::kInitialSync) &&
         (std::find(allowlistedOps.begin(), allowlistedOps.end(), o.firstElementFieldName()) ==
          allowlistedOps.end()) &&

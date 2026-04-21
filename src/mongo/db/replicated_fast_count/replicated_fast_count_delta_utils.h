@@ -72,14 +72,26 @@ void extractSizeCountDeltasForApplyOps(
     absl::flat_hash_map<UUID, CollectionSizeCount>& sizeCountDeltasOut);
 
 /**
+ * The result of scanning the oplog for size and count deltas.
+ *
+ * `deltas` contains an entry for each `uuid` which has replicated size count information within the
+ * scanned oplog range. May include entries where size count deltas sum to 0.
+ *
+ * `lastTimestamp` is the timestamp of the final oplog entry visited during the scan that is NOT
+ * from an internal fast count store collection, or boost::none if no such entries were scanned
+ * (i.e. the seek landed past the end of the oplog).
+ */
+struct OplogScanResult {
+    absl::flat_hash_map<UUID, CollectionSizeCount> deltas;
+    boost::optional<Timestamp> lastTimestamp;
+};
+
+/**
  * Given a cursor to the oplog, scans the oplog starting after "seekAfterTS" (exclusive bound) and
  * aggregates the size count deltas across UUIDs. Only accumulates size count information for
  * "uuidFilter" when provided.
- *
- * The map contains an entry for each 'uuid' which has replicated size count information within the
- * scanned oplog range. May include entries where size count deltas sum to 0.
  */
-absl::flat_hash_map<UUID, CollectionSizeCount> aggregateSizeCountDeltasInOplog(
+OplogScanResult aggregateSizeCountDeltasInOplog(
     SeekableRecordCursor& oplogCursor,
     const Timestamp& seekAfterTS,
     const boost::optional<UUID>& uuidFilter = boost::none);
@@ -88,28 +100,14 @@ absl::flat_hash_map<UUID, CollectionSizeCount> aggregateSizeCountDeltasInOplog(
  * Acquires the replicated fast count collection for read access.
  * Returns boost::none if the collection does not exist.
  */
-boost::optional<CollectionOrViewAcquisition> acquireSizeCountCollectionForRead(
+boost::optional<CollectionOrViewAcquisition> acquireFastCountCollectionForRead(
     OperationContext* opCtx);
 
 /**
  * Acquire the fastcount collection that underpins this class with write intent.
  * Returns boost::none if it doesn't exist.
  */
-boost::optional<CollectionOrViewAcquisition> acquireSizeCountCollectionForWrite(
-    OperationContext* opCtx);
-
-/**
- * Acquires the timestamp collection for read access. Returns boost::none if the collection does not
- * exist.
- */
-boost::optional<CollectionOrViewAcquisition> acquireTimestampCollectionForRead(
-    OperationContext* opCtx);
-
-/**
- * Acquire the timestamps collection that underpins this class with write intent. Returns
- * boost::none if it doesn't exist.
- */
-boost::optional<CollectionOrViewAcquisition> acquireTimestampCollectionForWrite(
+boost::optional<CollectionOrViewAcquisition> acquireFastCountCollectionForWrite(
     OperationContext* opCtx);
 
 /**

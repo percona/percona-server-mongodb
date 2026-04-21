@@ -166,15 +166,29 @@ std::string ConnectionPool::ConnectionControls::toString() const {
         "{{ maxPending: {}, target: {}, }}", maxPendingConnections, targetConnections);
 }
 
+std::string toString(ConnectionPoolState state) {
+    switch (state) {
+        case ConnectionPoolState::kHealthy:
+            return "healthy";
+        case ConnectionPoolState::kFailed:
+            return "failed";
+        case ConnectionPoolState::kShutdown:
+            return "shutdown";
+    }
+    MONGO_UNREACHABLE;
+}
+
 std::string ConnectionPool::PoolMetrics::toString() const {
     return fmt::format(
-        "{{ requests: {}, ready: {}, pending: {}, active: {}, leased: {}, isExpired: {} }}",
+        "{{ requests: {}, ready: {}, pending: {}, active: {}, leased: {}, state: {}, isExpired: {} "
+        "}}",
         requests,
         ready,
         pending,
         active,
         leased,
-        state == ConnectionPoolState::kExpired);
+        executor::toString(state),
+        isExpired);
 }
 
 /**
@@ -209,7 +223,7 @@ public:
             data.target = maxConns;
         }
 
-        return {{data.host}, stats.state == ConnectionPoolState::kExpired};
+        return {{data.host}, stats.isExpired};
     }
     void removeHost(PoolId id) override {
         stdx::lock_guard lk(_mutex);
@@ -633,8 +647,6 @@ private:
     // connections in the processing pool that are establising for the first time.
     size_t _establishedConnectionsReprocessing = 0;
 
-    bool _needsRefresh = false;
-
     AtomicWord<size_t> _neverUsed{0};
 
     AtomicWord<size_t> _usedOnce{0};
@@ -649,6 +661,7 @@ private:
     bool _keepOpen = true;
 
     ConnectionPoolState _state = ConnectionPoolState::kHealthy;
+    bool _isExpired = false;
 
     std::uint64_t _nextRequestId{0};
 
@@ -1220,22 +1233,22 @@ void ConnectionPool::SpecificPool::finishRefresh(
     }
 
     if (onSetup) {
-        LOGV2_DEBUG(10864501,
-                    kDiagnosticLogLevel,
-                    "Unable to establish a new connection.",
-                    "hostAndPort"_attr = _hostAndPort,
-                    "error"_attr = redact(status),
-                    "numOpenConns"_attr = openConnections(lk));
-
         // If a new connection fails to establish while there are already established connections in
         // the pool, we'll react as if the connection was rejected by the target's rate limiter.
-        // Therefore, we won't drop any open connection and will instead force a refresh when the
-        // next connection gets returned to determine whether this was the case.
+        // Therefore, we won't drop any open connection and just continue. If the node is truly
+        // down, future refreshes of idle connections, attempts to use connections, or higher levels
+        // like the RSM will detect it and process the failure normally.
         if ((status.code() == ErrorCodes::HostUnreachable ||
              status.code() == ErrorCodes::SocketException ||
              status.code() == ErrorCodes::NetworkTimeout) &&
             establishedConnections(lk) > 0) {
-            _needsRefresh = true;
+            LOGV2_DEBUG(10864501,
+                        kDiagnosticLogLevel,
+                        "Ignoring single establishment failure since the pool contains other "
+                        "already established connections",
+                        "hostAndPort"_attr = _hostAndPort,
+                        "error"_attr = redact(status),
+                        "numEstablishedConns"_attr = establishedConnections(lk));
             return;
         }
     }
@@ -1313,7 +1326,7 @@ void ConnectionPool::SpecificPool::returnConnection(
     }
 
     // If we need to refresh this connection
-    bool shouldRefreshConnection = _needsRefresh || needsRefreshTP <= _parent->_factory->now();
+    bool shouldRefreshConnection = needsRefreshTP <= _parent->_factory->now();
 
     if (MONGO_unlikely(refreshConnectionAfterEveryCommand.shouldFail())) {
         LOGV2(5505501, "refresh connection after every command is on");
@@ -1321,8 +1334,6 @@ void ConnectionPool::SpecificPool::returnConnection(
     }
 
     if (shouldRefreshConnection) {
-        _needsRefresh = false;
-
         auto controls = _parent->_controller->getControls(_id);
         if (openConnections(lk) >= controls.targetConnections) {
             // If we already have minConnections, just let the connection lapse
@@ -1661,12 +1672,8 @@ void ConnectionPool::SpecificPool::updateHealth() {
     }
 
     // We're expired if we have no sign of connection use and are past our expiry.
-    if (_requests.empty() && _checkedOutPool.empty() && _leasedPool.empty() &&
-        (_hostExpiration <= now)) {
-        _state = ConnectionPoolState::kExpired;
-    } else if (_state == ConnectionPoolState::kExpired) {
-        _state = ConnectionPoolState::kHealthy;
-    }
+    _isExpired = _requests.empty() && _checkedOutPool.empty() && _leasedPool.empty() &&
+        (_hostExpiration <= now);
 }
 
 void ConnectionPool::SpecificPool::updateEventTimer() {
@@ -1746,6 +1753,7 @@ void ConnectionPool::SpecificPool::updateController(
     // Update our own state
     PoolMetrics state{
         _state,
+        _isExpired,
         requestsPending(lk),
         refreshingConnections(lk),
         availableConnections(lk),
@@ -1769,7 +1777,7 @@ void ConnectionPool::SpecificPool::updateController(
             }
 
             auto& pool = it->second;
-            if (pool->_state != ConnectionPoolState::kExpired) {
+            if (!pool->_isExpired) {
                 // Just because a HostGroup "canShutdown" doesn't mean that a SpecificPool should
                 // shutdown. For example, it is always inappropriate to shutdown a SpecificPool with
                 // connections in use or requests outstanding unless its parent ConnectionPool is
@@ -1782,7 +1790,7 @@ void ConnectionPool::SpecificPool::updateController(
             }
 
             // At the moment, controllers will never mark for shutdown a pool with active
-            // connections or pending requests. _state is never kExpired if these invariants are
+            // connections or pending requests. _isExpired is never true if these invariants are
             // false. That's not to say that it's a terrible idea, but if this happens then we
             // should review what it means to be expired.
 

@@ -230,7 +230,6 @@ feature_flags:
         description: "Enables logic necessary to recover prepared transactions with precise checkpoints"
         cpp_varname: gFeatureFlagPreparedTransactionsPreciseCheckpoints
         default: false
-        # TODO SERVER-113736 Set this to true and correctly gate any checks on FCV
         fcv_gated: false
     featureFlagKillOpErrorCodeOverride:
         description: "Feature flag to enable specifying custom error codes when killing operations"
@@ -261,6 +260,7 @@ feature_flags:
         default: false
         fcv_gated: true
         check_against_fcv: operation_fcv_only
+    # TODO (SERVER-122670) Remove this feature flag once the feature is fully rolled out.
     featureFlagCreateSupportsStorageTierOptions:
         description: "Enables the catalog support for creating cold/hot collections and indexes for disaggregated storage"
         cpp_varname: gFeatureFlagCreateSupportsStorageTierOptions
@@ -296,6 +296,11 @@ feature_flags:
         cpp_varname: gFeatureFlagQEPrefixSuffixSearch
         default: false
         fcv_gated: true
+    featureFlagIncludeDeltaHeaderForPhylog:
+        description: "Enable including delta headers for phylog pages."
+        cpp_varname: gFeatureFlagIncludeDeltaHeaderForPhylog
+        default: false
+        fcv_gated: false
 
 server_parameters:
     allowDirectSystemBucketsAccess:

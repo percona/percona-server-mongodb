@@ -46,13 +46,18 @@ MultiPlanner::MultiPlanner(PlannerData plannerData,
         cq(),
         plan_cache_util::ClassicPlanCacheWriter{opCtx(),
                                                 collections().getMainCollectionPtrOrAcquisition()},
-        boost::none /*replanReason TODO SERVER-119037*/,
+        boost::none /*replan reason, if present, will be returned via planner params*/,
         addingCBRChosenPlanToPlanCache);
     for (auto&& solution : solutions) {
         solution->indexFilterApplied = plannerParams()->indexFiltersApplied;
         auto executableTree = buildExecutableTree(*solution);
         _multiplanStage->addPlan(std::move(solution), std::move(executableTree), ws());
     }
+
+    auto trialPeriodYieldPolicy = makeClassicYieldPolicy(
+        opCtx(), cq()->nss(), static_cast<PlanStage*>(_multiplanStage.get()), yieldPolicy());
+    uassertStatusOK(_multiplanStage->runTrials(trialPeriodYieldPolicy.get()));
+    uassertStatusOK(_multiplanStage->pickBestPlan());
 }
 
 const MultiPlanStats* MultiPlanner::getSpecificStats() const {
@@ -64,11 +69,6 @@ PlanRankingResult MultiPlanner::extractPlanRankingResult() {
             "Expected `extractPlanRankingResult` to only be called with get executor deferred "
             "feature flag enabled.",
             feature_flags::gFeatureFlagGetExecutorDeferredEngineChoice.isEnabled());
-
-    auto trialPeriodYieldPolicy = makeClassicYieldPolicy(
-        opCtx(), cq()->nss(), static_cast<PlanStage*>(_multiplanStage.get()), yieldPolicy());
-    uassertStatusOK(_multiplanStage->runTrials(trialPeriodYieldPolicy.get()));
-    uassertStatusOK(_multiplanStage->pickBestPlan());
     auto querySolution = _multiplanStage->extractBestSolution();
 
     if (!_maybeExplainData.has_value()) {
@@ -77,11 +77,11 @@ PlanRankingResult MultiPlanner::extractPlanRankingResult() {
     _maybeExplainData->planStageQsnMap.insert(std::make_move_iterator(_planStageQsnMap.begin()),
                                               std::make_move_iterator(_planStageQsnMap.end()));
 
-    return PlanRankingResult{
-        .solutions = makeQsnResult(std::move(querySolution)),
-        .maybeExplainData = std::move(_maybeExplainData),
-        .execState = SavedExecState{.workingSet = extractWs(), .root = std::move(_multiplanStage)},
-        .plannerParams = extractPlannerParams(),
-        .cachedPlanHash = cachedPlanHash()};
+    return PlanRankingResult{.solutions = makeQsnResult(std::move(querySolution)),
+                             .maybeExplainData = std::move(_maybeExplainData),
+                             .execState = SavedExecState{ClassicExecState{
+                                 .workingSet = extractWs(), .root = std::move(_multiplanStage)}},
+                             .plannerParams = extractPlannerParams(),
+                             .cachedPlanHash = cachedPlanHash()};
 }
 }  // namespace mongo::exec_deferred_engine_choice

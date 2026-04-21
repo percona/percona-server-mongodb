@@ -21,7 +21,8 @@
  * ]
  */
 import {TimeseriesAggTests} from "jstests/core/timeseries/libs/timeseries_agg_helpers.js";
-import {areViewlessTimeseriesEnabled} from "jstests/core/timeseries/libs/viewless_timeseries_util.js";
+import {isViewfulTimeseriesOnlySuite} from "jstests/core/timeseries/libs/viewless_timeseries_util.js";
+import {getRawOperationSpec, getTimeseriesCollForRawOps} from "jstests/libs/raw_operation_utils.js";
 import {FixtureHelpers} from "jstests/libs/fixture_helpers.js";
 
 const numHosts = 10;
@@ -78,7 +79,7 @@ function runOutAndCompareResults({
         validateCollectionOptions({expected: expectedTSOptions, actual: actualOptions});
 
         // TODO SERVER-101784 remove these checks once only viewless timeseries exist.
-        if (!areViewlessTimeseriesEnabled(testDB)) {
+        if (isViewfulTimeseriesOnlySuite(testDB)) {
             // Make sure we have both the buckets collection and the timeseries view.
             const bucketsColl = assert.commandWorked(
                 testDB.runCommand({listCollections: 1, filter: {name: "system.buckets." + outColl.getName()}}),
@@ -283,6 +284,14 @@ function timeseriesDefaultIndex() {
     assert.eq(indexSpecs.filter((index) => index.name == "usage_guest_1").length, 1);
 })();
 
+// TODO(SERVER-111600): Remove once $out on a different DB routed by a stale router can not fail to converge in multiversion suites (SERVER-123635).
+const isV82OrLower =
+    TestData.multiversionBinVersion &&
+    MongoRunner.compareBinVersions(MongoRunner.getBinVersionFor(TestData.multiversionBinVersion), "8.2") <= 0;
+if (isV82OrLower) {
+    TestData.pinToSingleMongos = true;
+}
+
 (function testTimeseriesOutWithNonExistingDatabase() {
     // Drop both collections.
     dropOutCollections();
@@ -298,6 +307,39 @@ function timeseriesDefaultIndex() {
     inColl.aggregate(timeseriesPipeline);
     assert.eq(300, destDB[outColl.getName()].find().itcount());
 })();
+
+(function testTimeseriesOutWithNonExistingDatabaseCreatesDefaultIndex() {
+    // Test when $out targets a non-existent database, the default
+    // timeseries index ({metaField, timeField}) must still be created on the output collection.
+    dropOutCollections();
+
+    const destDB = testDB.getSiblingDB("outDifferentDBWithMeta");
+    assert.commandWorked(destDB.dropDatabase());
+
+    const tsOptions = {timeField: "time", metaField: "tags"};
+    inColl.aggregate([{$out: {db: destDB.getName(), coll: outColl.getName(), timeseries: tsOptions}}]);
+
+    assert.eq(300, destDB[outColl.getName()].find().itcount());
+
+    // Use rawData to get indexes in buckets-internal format for both viewless and viewful:
+    // - viewless: listIndexes on the main collection with {rawData: true}
+    // - viewful:  listIndexes on system.buckets.* (rawData is a no-op there)
+    // Both paths return the same raw format, so no mode-specific branching is needed.
+    const rawColl = getTimeseriesCollForRawOps(destDB, outColl.getName());
+    const rawSpec = getRawOperationSpec(destDB);
+    const indexes = assert.commandWorked(destDB.runCommand({listIndexes: rawColl, ...rawSpec})).cursor.firstBatch;
+    const hasDefaultIndex = indexes.some(
+        (idx) => idx.key["meta"] !== undefined && idx.key["control.min.time"] !== undefined,
+    );
+    assert(
+        hasDefaultIndex,
+        "Default timeseries index not found on $out collection in non-existent DB: " + tojson(indexes),
+    );
+})();
+
+if (isV82OrLower) {
+    TestData.pinToSingleMongos = false;
+}
 
 (function testCannotCreateTimeseriesCollFromNonTimeseriesColl() {
     // Drop both collections.
@@ -477,7 +519,7 @@ function timeseriesDefaultIndex() {
     let outCollName = outColl.getName();
     let rawDataSpec = {rawData: true};
 
-    if (!areViewlessTimeseriesEnabled(testDB)) {
+    if (isViewfulTimeseriesOnlySuite(testDB)) {
         outCollName = "system.buckets." + outCollName;
         rawDataSpec = {};
     }

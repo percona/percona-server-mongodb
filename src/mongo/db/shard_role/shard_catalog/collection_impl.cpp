@@ -80,6 +80,7 @@
 #include "mongo/db/replicated_fast_count/replicated_fast_count_enabled.h"
 #include "mongo/db/replicated_fast_count/replicated_fast_count_manager.h"
 #include "mongo/db/replicated_fast_count/replicated_fast_count_uncommitted_changes.h"
+#include "mongo/db/rss/replicated_storage_service.h"
 #include "mongo/db/server_feature_flags_gen.h"
 #include "mongo/db/server_options.h"
 #include "mongo/db/service_context.h"
@@ -1038,7 +1039,7 @@ Status CollectionImpl::updateCappedSize(OperationContext* opCtx,
 }
 
 void CollectionImpl::unsetRecordIdsReplicated(OperationContext* opCtx) {
-    if (!_metadata->options.recordIdsReplicated || !_metadata->recordIdsReplicated) {
+    if (!_metadata->recordIdsReplicated) {
         return;
     }
 
@@ -1048,10 +1049,8 @@ void CollectionImpl::unsetRecordIdsReplicated(OperationContext* opCtx) {
                 logAttrs(ns()),
                 logAttrs(uuid()));
 
-    _writeMetadata(opCtx, [&](durable_catalog::CatalogEntryMetaData& md) {
-        md.options.recordIdsReplicated = false;
-        md.recordIdsReplicated = false;
-    });
+    _writeMetadata(
+        opCtx, [&](durable_catalog::CatalogEntryMetaData& md) { md.recordIdsReplicated = false; });
 }
 
 bool CollectionImpl::isChangeStreamPreAndPostImagesEnabled() const {
@@ -1070,8 +1069,6 @@ void CollectionImpl::setChangeStreamPreAndPostImages(OperationContext* opCtx,
 }
 
 bool CollectionImpl::areRecordIdsReplicated() const {
-    // TODO (SERVER-119864) remove invariant.
-    invariant(_metadata->recordIdsReplicated == _metadata->options.recordIdsReplicated);
     return _metadata->recordIdsReplicated;
 }
 
@@ -1101,6 +1098,13 @@ long long CollectionImpl::dataSize(OperationContext* opCtx) const {
         : _shared->_recordStore->dataSize();
 }
 
+CollectionSizeCount CollectionImpl::persistedSizeCount(OperationContext* opCtx) const {
+    return (isReplicatedFastCountEnabled(opCtx) && isReplicatedFastCountEligible(_ns))
+        ? ReplicatedFastCountManager::get(opCtx->getServiceContext()).findPersisted(opCtx, uuid())
+        : CollectionSizeCount{_shared->_recordStore->dataSize(),
+                              _shared->_recordStore->numRecords()};
+}
+
 int64_t CollectionImpl::sizeOnDisk(OperationContext* opCtx,
                                    const StorageEngine& storageEngine) const {
     auto& ru = *shard_role_details::getRecoveryUnit(opCtx);
@@ -1118,6 +1122,16 @@ bool CollectionImpl::isEmpty(OperationContext* opCtx) const {
     auto cursor = getCursor(opCtx, true /* forward */);
 
     auto cursorEmptyCollRes = (!cursor->next()) ? true : false;
+
+    // Return the cursor result directly for untracked collections when the provider only uses
+    // replicated fast count.
+    if (rss::ReplicatedStorageService::get(opCtx)
+            .getPersistenceProvider()
+            .shouldUseReplicatedFastCount() &&
+        !isReplicatedFastCountEligible(_ns)) {
+        return cursorEmptyCollRes;
+    }
+
     auto fastCount = numRecords(opCtx);
     auto fastCountEmptyCollRes = (fastCount == 0) ? true : false;
 

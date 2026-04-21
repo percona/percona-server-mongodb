@@ -56,10 +56,12 @@ BSONObj LogicalAggStageAPI::serialize() const {
     return bsonObjFromByteView(ownedBuf->getByteView()).getOwned();
 }
 
-BSONObj LogicalAggStageAPI::explain(mongo::ExplainOptions::Verbosity verbosity) const {
+BSONObj LogicalAggStageAPI::explain(MongoExtensionQueryExecutionContext& execCtx,
+                                    mongo::ExplainOptions::Verbosity verbosity) const {
     ::MongoExtensionByteBuf* buf{nullptr};
     invokeCAndConvertStatusToException([&]() {
-        return _vtable().explain(get(), convertHostVerbosityToExtVerbosity(verbosity), &buf);
+        return _vtable().explain(
+            get(), &execCtx, convertHostVerbosityToExtVerbosity(verbosity), &buf);
     });
 
     tassert(11239400, "buffer returned from explain must not be null", buf);
@@ -92,25 +94,58 @@ LogicalAggStageHandle LogicalAggStageAPI::clone() const {
     return LogicalAggStageHandle(logicalAggStage);
 }
 
-bool LogicalAggStageAPI::isSortedByVectorSearchScore() const {
+bool LogicalAggStageAPI::isSortedByVectorSearchScore_deprecated() const {
     bool outIsSortedByVectorSearchScore{false};
     invokeCAndConvertStatusToException([&]() {
-        return _vtable().is_stage_sorted_by_vector_search_score(get(),
-                                                                &outIsSortedByVectorSearchScore);
+        return _vtable().is_stage_sorted_by_vector_search_score_deprecated(
+            get(), &outIsSortedByVectorSearchScore);
     });
 
     return outIsSortedByVectorSearchScore;
 }
 
-void LogicalAggStageAPI::setExtractedLimitVal(boost::optional<long long> extractedLimitVal) {
+void LogicalAggStageAPI::setExtractedLimitVal_deprecated(
+    boost::optional<long long> extractedLimitVal) {
     invokeCAndConvertStatusToException([&]() {
         if (extractedLimitVal.has_value()) {
-            return _vtable().set_vector_search_limit_for_optimization(get(),
-                                                                      &extractedLimitVal.get());
+            return _vtable().set_vector_search_limit_for_optimization_deprecated(
+                get(), &extractedLimitVal.get());
         } else {
-            return _vtable().set_vector_search_limit_for_optimization(get(), nullptr);
+            return _vtable().set_vector_search_limit_for_optimization_deprecated(get(), nullptr);
         }
     });
 }
 
+bool LogicalAggStageAPI::evaluateRulePrecondition(StringData ruleName) const {
+    bool result = false;
+    auto nameView = ::MongoExtensionByteView{reinterpret_cast<const uint8_t*>(ruleName.data()),
+                                             ruleName.size()};
+    invokeCAndConvertStatusToException(
+        [&]() { return _vtable().evaluate_rule_precondition(get(), nameView, &result); });
+    return result;
+}
+
+bool LogicalAggStageAPI::evaluateRuleTransform(StringData ruleName) {
+    bool result = false;
+    auto nameView = ::MongoExtensionByteView{reinterpret_cast<const uint8_t*>(ruleName.data()),
+                                             ruleName.size()};
+    invokeCAndConvertStatusToException(
+        [&]() { return _vtable().evaluate_rule_transform(get(), nameView, &result); });
+    return result;
+}
+
+BSONObj LogicalAggStageAPI::getFilter() const {
+    ::MongoExtensionByteBuf* buf{nullptr};
+    invokeCAndConvertStatusToException([&]() { return _vtable().get_filter(get(), &buf); });
+
+    if (!buf) {
+        // 'buf' will be null if the logical stage does not have a filter.
+        return BSONObj();
+    }
+
+    // Take ownership of the returned buffer so that it gets cleaned up, then retrieve an owned
+    // BSONObj to return to the host.
+    ExtensionByteBufHandle ownedBuf{buf};
+    return bsonObjFromByteView(ownedBuf->getByteView()).getOwned();
+}
 }  // namespace mongo::extension

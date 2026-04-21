@@ -43,16 +43,33 @@ const OperationContext::Decoration<BatchedWriteContext> BatchedWriteContext::get
 
 BatchedWriteContext::BatchedWriteContext() {}
 
+void BatchedWriteContext::assertNoMixedBatchedOps(bool isDDL) {
+    if (isDDL) {
+        tassert(12073500,
+                "DDL operation should not be in a batched write group "
+                "that already contains CRUD operations",
+                _batchedOperations.numOperations() == 0);
+        _ddlOperationOccurred = true;
+    } else {
+        tassert(12073501,
+                "CRUD operation should not be added to a batched write group "
+                "that already contains a DDL operation",
+                !_ddlOperationOccurred);
+    }
+}
+
 void BatchedWriteContext::addBatchedOperation(OperationContext* opCtx,
                                               const BatchedOperation& operation) {
     invariant(_batchWrites);
+    assertNoMixedBatchedOps(/*isDDL=*/false);
 
-    // Current support is limited to only insert, update, delete, container insert, and container
-    // delete operations. No multi-doc transactions.
+    // Current support is limited to only insert, update, delete, and container operations. No
+    // multi-doc transactions.
     invariant(operation.getOpType() == repl::OpTypeEnum::kDelete ||
               operation.getOpType() == repl::OpTypeEnum::kInsert ||
               operation.getOpType() == repl::OpTypeEnum::kUpdate ||
               operation.getOpType() == repl::OpTypeEnum::kContainerInsert ||
+              operation.getOpType() == repl::OpTypeEnum::kContainerUpdate ||
               operation.getOpType() == repl::OpTypeEnum::kContainerDelete);
     invariant(!opCtx->inMultiDocumentTransaction());
     invariant(shard_role_details::getLocker(opCtx)->inAWriteUnitOfWork());
@@ -67,7 +84,7 @@ TransactionOperations* BatchedWriteContext::getBatchedOperations(OperationContex
 
 void BatchedWriteContext::clearBatchedOperations(OperationContext* opCtx) {
     _batchedOperations.clear();
-    _defaultFromMigrate = false;
+    _ddlOperationOccurred = false;
 }
 
 bool BatchedWriteContext::writesAreBatched() const {
@@ -76,10 +93,4 @@ bool BatchedWriteContext::writesAreBatched() const {
 void BatchedWriteContext::setWritesAreBatched(bool batched) {
     _batchWrites = batched;
 }
-
-void BatchedWriteContext::setDefaultFromMigrate(bool defaultFromMigrate) {
-    _defaultFromMigrate = defaultFromMigrate;
-}
-
-
 }  // namespace mongo

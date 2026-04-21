@@ -3,13 +3,13 @@
  * featureFlagExtensionViewsAndUnionWith is enabled. It tests views, $unionWith on collections,
  * and $unionWith on views.
  *
- * It also tests that $rankFusion and $scoreFusion with $vectorSearch subpipelines always use
- * legacy vector search via the IFR kickback retry mechanism, regardless of the
- * featureFlagExtensionViewsAndUnionWith setting.
+ * It also tests that $rankFusion and $scoreFusion with $vectorSearch subpipelines use
+ * legacy vector search via the IFR kickback retry mechanism when
+ * featureFlagExtensionsInsideHybridSearch is disabled.
  *
  * @tags: [ featureFlagExtensionsAPI, featureFlagExtensionViewsAndUnionWith ]
  */
-import {getParameter} from "jstests/noPassthrough/libs/server_parameter_helpers.js";
+import {getParameter, setParameterOnAllNonConfigNodes} from "jstests/noPassthrough/libs/server_parameter_helpers.js";
 import {
     checkPlatformCompatibleWithExtensions,
     withExtensionsAndMongot,
@@ -17,7 +17,9 @@ import {
 import {
     createTestCollectionAndIndex,
     createTestViewAndIndex,
+    getExtensionVectorSearchUsedCount,
     getInUnionWithKickbackRetryCount,
+    getLegacyVectorSearchUsedCount,
     getOnViewKickbackRetryCount,
     kNumShards,
     kTestCollName,
@@ -26,11 +28,10 @@ import {
     kTestViewPipeline,
     runQueriesAndVerifyMetrics,
     runHybridSearchTests,
-    setFeatureFlags,
     setUpMongotMockForVectorSearch,
     setupMockVectorSearchResponsesForView,
     vectorSearchQuery,
-} from "jstests/noPassthrough/extensions/vector_search_ifr_flag_retry_utils.js";
+} from "jstests/noPassthrough/extensions/ifr_flag_retry_utils.js";
 
 checkPlatformCompatibleWithExtensions();
 
@@ -44,9 +45,9 @@ checkPlatformCompatibleWithExtensions();
  * @param {ShardingTest|null} shardingTest - The ShardingTest instance if available, null otherwise.
  */
 function runViewVectorSearchTests(conn, mongotMock, featureFlagValue, shardingTest = null) {
-    setFeatureFlags(conn, featureFlagValue);
+    setParameterOnAllNonConfigNodes(conn, "featureFlagVectorSearchExtension", featureFlagValue);
     const view = createTestViewAndIndex(conn, mongotMock, shardingTest);
-    const {vectorSearchQuery, testDb} = setupMockVectorSearchResponsesForView(conn, mongotMock, shardingTest);
+    const {vectorSearchStage, testDb} = setupMockVectorSearchResponsesForView(conn, mongotMock, shardingTest);
 
     const numNodes = shardingTest ? kNumShards : 1;
 
@@ -61,21 +62,24 @@ function runViewVectorSearchTests(conn, mongotMock, featureFlagValue, shardingTe
 
     runQueriesAndVerifyMetrics({
         conn,
-        testDb,
         getRetryCountFn: getOnViewKickbackRetryCount,
         retryMetricName: "onViewKickbackRetries",
+        getLegacyCountFn: getLegacyVectorSearchUsedCount,
+        getExtensionCountFn: getExtensionVectorSearchUsedCount,
+        featureFlagName: "featureFlagVectorSearchExtension",
         expectedRetryDelta: 0,
         expectedLegacyDelta,
         expectedExtensionDelta,
-        runExplainQuery: () => {
-            assert.commandWorked(view.explain().aggregate([vectorSearchQuery]));
-        },
-        runAggregateQuery: () => {
-            assert.commandWorked(
-                testDb.runCommand({aggregate: view.getName(), pipeline: [vectorSearchQuery], cursor: {}}),
-            );
-        },
-        shardingTest,
+        queries: [
+            () => {
+                assert.commandWorked(view.explain().aggregate([vectorSearchStage]));
+            },
+            () => {
+                assert.commandWorked(
+                    testDb.runCommand({aggregate: view.getName(), pipeline: [vectorSearchStage], cursor: {}}),
+                );
+            },
+        ],
     });
 }
 
@@ -89,7 +93,7 @@ function runViewVectorSearchTests(conn, mongotMock, featureFlagValue, shardingTe
  * @param {ShardingTest|null} shardingTest - The ShardingTest instance if available, null otherwise.
  */
 function runUnionWithVectorSearchTests(conn, mongotMock, featureFlagValue, shardingTest = null) {
-    setFeatureFlags(conn, featureFlagValue);
+    setParameterOnAllNonConfigNodes(conn, "featureFlagVectorSearchExtension", featureFlagValue);
     // Create collection with search index on the collection namespace (not the view).
     createTestCollectionAndIndex(conn, mongotMock, shardingTest);
 
@@ -123,19 +127,19 @@ function runUnionWithVectorSearchTests(conn, mongotMock, featureFlagValue, shard
 
     runQueriesAndVerifyMetrics({
         conn,
-        testDb,
         getRetryCountFn: getInUnionWithKickbackRetryCount,
         retryMetricName: "inUnionWithKickbackRetries",
+        getLegacyCountFn: getLegacyVectorSearchUsedCount,
+        getExtensionCountFn: getExtensionVectorSearchUsedCount,
+        featureFlagName: "featureFlagVectorSearchExtension",
         expectedRetryDelta: 0,
         expectedLegacyDelta,
         expectedExtensionDelta,
-        runExplainQuery: () => {
-            // No explain query in this test - only aggregate.
-        },
-        runAggregateQuery: () => {
-            coll.aggregate([unionWithStage]).toArray();
-        },
-        shardingTest,
+        queries: [
+            () => {
+                coll.aggregate([unionWithStage]).toArray();
+            },
+        ],
     });
 }
 
@@ -149,7 +153,7 @@ function runUnionWithVectorSearchTests(conn, mongotMock, featureFlagValue, shard
  * @param {ShardingTest|null} shardingTest - The ShardingTest instance if available, null otherwise.
  */
 function runUnionWithOnViewVectorSearchTests(conn, mongotMock, featureFlagValue, shardingTest = null) {
-    setFeatureFlags(conn, featureFlagValue);
+    setParameterOnAllNonConfigNodes(conn, "featureFlagVectorSearchExtension", featureFlagValue);
     createTestViewAndIndex(conn, mongotMock, shardingTest);
 
     const testDb = conn.getDB(kTestDbName);
@@ -186,19 +190,19 @@ function runUnionWithOnViewVectorSearchTests(conn, mongotMock, featureFlagValue,
 
     runQueriesAndVerifyMetrics({
         conn,
-        testDb,
         getRetryCountFn: getInUnionWithKickbackRetryCount,
         retryMetricName: "inUnionWithKickbackRetries",
+        getLegacyCountFn: getLegacyVectorSearchUsedCount,
+        getExtensionCountFn: getExtensionVectorSearchUsedCount,
+        featureFlagName: "featureFlagVectorSearchExtension",
         expectedRetryDelta: 0,
         expectedLegacyDelta,
         expectedExtensionDelta,
-        runExplainQuery: () => {
-            // No explain query in this test - only aggregate.
-        },
-        runAggregateQuery: () => {
-            coll.aggregate([unionWithStage]).toArray();
-        },
-        shardingTest,
+        queries: [
+            () => {
+                coll.aggregate([unionWithStage]).toArray();
+            },
+        ],
     });
 }
 
@@ -222,12 +226,16 @@ function runTests(conn, mongotMock, shardingTest = null) {
     runUnionWithOnViewVectorSearchTests(conn, mongotMock, false, shardingTest);
 
     // Run hybrid search tests ($rankFusion/$scoreFusion with $vectorSearch subpipelines).
-    // These always trigger the IFR kickback retry regardless of featureFlagExtensionViewsAndUnionWith.
+    // These trigger the IFR kickback retry when featureFlagExtensionsInsideHybridSearch is disabled.
     runHybridSearchTests(conn, mongotMock, true, shardingTest);
     runHybridSearchTests(conn, mongotMock, false, shardingTest);
 }
 
 // We don't have to manually enable featureFlagExtensionViewsAndUnionWith since the test will only run if it's enabled.
-withExtensionsAndMongot({"libvector_search_extension.so": {}}, runTests, ["standalone", "sharded"], {
-    shards: kNumShards,
-});
+withExtensionsAndMongot(
+    {"libvector_search_extension.so": {}},
+    runTests,
+    ["standalone", "sharded"],
+    {shards: kNumShards},
+    {setParameter: {featureFlagExtensionsInsideHybridSearch: false}},
+);

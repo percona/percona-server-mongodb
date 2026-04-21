@@ -660,6 +660,30 @@ TEST_F(WiredTigerKVEngineTest, TestPinOldestTimestampErrors) {
 }
 
 /**
+ * Test that setOldestTimestamp with force=false silently ignores backwards moves without crashing.
+ * This is needed by the DSC checkpoint install path (SERVER-118879) where a checkpoint's
+ * oldest_timestamp may be behind the standby's current oldest due to concurrent advancement.
+ */
+TEST_F(WiredTigerKVEngineTest, SetOldestTimestampBackwardsWithoutForceIsNoop) {
+    const Timestamp initTs = Timestamp(10, 0);
+
+    _helper->getWiredTigerKVEngine()->setOldestTimestamp(initTs, false);
+    ASSERT_EQ(initTs, _helper->getWiredTigerKVEngine()->getOldestTimestamp());
+
+    // Moving backwards with force=false should be no-op.
+    _helper->getWiredTigerKVEngine()->setOldestTimestamp(initTs - 1, false);
+    ASSERT_EQ(initTs, _helper->getWiredTigerKVEngine()->getOldestTimestamp());
+
+    // Moving to the same value with force=false should also be no-op.
+    _helper->getWiredTigerKVEngine()->setOldestTimestamp(initTs, false);
+    ASSERT_EQ(initTs, _helper->getWiredTigerKVEngine()->getOldestTimestamp());
+
+    // Moving forwards with force=false should advance the timestamp.
+    _helper->getWiredTigerKVEngine()->setOldestTimestamp(initTs + 1, false);
+    ASSERT_EQ(initTs + 1, _helper->getWiredTigerKVEngine()->getOldestTimestamp());
+}
+
+/**
  * Test the various cases for the relationship between oldestTimestamp and stableTimestamp at the
  * end of startup recovery.
  */
@@ -1459,6 +1483,58 @@ TEST_F(WiredTigerKVEngineTest, PinAllDurableTimestamp) {
     // Removing the last pin lets getAllDurableTimestamp() catch up.
     engine->unpinAllDurableTimestamp(secondPinTs);
     ASSERT_GTE(engine->getAllDurableTimestamp(), Timestamp(300, 0));
+}
+
+TEST_F(WiredTigerKVEngineTest, SetStorageTierCold) {
+    auto* engine = _helper->getWiredTigerKVEngine();
+    auto result = engine->setStorageTierToStorageOptions(BSONObj(), "cold");
+    // Verify the returned storage options contain the cold tier WT config.
+    auto wtObj = result.getObjectField("wiredTiger");
+    auto configString = wtObj.getStringField("configString");
+    ASSERT_STRING_CONTAINS(configString, "storage_tier=cold");
+    ASSERT_STRING_CONTAINS(configString, "leaf_page_max=128KB");
+}
+
+TEST_F(WiredTigerKVEngineTest, IsColdCollectionRecordStore) {
+    auto opCtxPtr = _makeOperationContext();
+    auto* engine = _helper->getWiredTigerKVEngine();
+    auto& provider = rss::ReplicatedStorageService::get(opCtxPtr.get()).getPersistenceProvider();
+    auto& ru = *shard_role_details::getRecoveryUnit(opCtxPtr.get());
+
+    // Create a normal (non-cold) collection and verify isColdCollection is false.
+    NamespaceString nss = NamespaceString::createNamespaceString_forTest("a.hot");
+    std::string ident = "collection-hot";
+    RecordStore::Options options;
+    {
+        StorageWriteTransaction swt(ru);
+        ASSERT_OK(engine->createRecordStore(provider, ru, nss, ident, options));
+        swt.commit();
+    }
+
+    auto hotRs = engine->getRecordStore(opCtxPtr.get(), nss, ident, options, UUID::gen());
+    ASSERT(hotRs);
+    ASSERT_FALSE(hotRs->isColdCollection());
+
+    // Verify that constructing a WiredTigerRecordStore with isColdCollection=true in Params
+    // results in isColdCollection() returning true.
+    WiredTigerRecordStore::Params params;
+    params.uuid = UUID::gen();
+    params.ident = ident;
+    params.engineName = std::string{kWiredTigerEngineName};
+    params.keyFormat = KeyFormat::Long;
+    params.overwrite = true;
+    params.isLogged = false;
+    params.forceUpdateWithFullDocument = false;
+    params.inMemory = false;
+    params.sizeStorer = nullptr;
+    params.tracksSizeAdjustments = false;
+    params.isColdCollection = true;
+
+    auto coldRs = std::make_unique<WiredTigerRecordStore>(
+        engine,
+        WiredTigerRecoveryUnit::get(*shard_role_details::getRecoveryUnit(opCtxPtr.get())),
+        params);
+    ASSERT_TRUE(coldRs->isColdCollection());
 }
 
 }  // namespace

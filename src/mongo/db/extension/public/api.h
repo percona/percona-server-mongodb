@@ -437,18 +437,59 @@ typedef struct MongoExtensionViewInfo {
 
 /**
  * MongoExtensionCatalogContext contains a collection's catalog context information (i.e
- * MongoExtensionNamespaceString, uuidString), which is generally available when an AstNode binds
- * into a LogicalStage. Note that the members of this struct are provided as views, meaning the
- * values' underlying data is not owned by this struct. When a callee receives a
+ * MongoExtensionNamespaceString, uuidString, shardId), which is generally available when an AstNode
+ * binds into a LogicalStage. Note that the members of this struct are provided as views, meaning
+ * the values' underlying data is not owned by this struct. When a callee receives a
  * MongoExtensionCatalogContext as a parameter, the callee is responsible for immediately copying
  * the values into an owned copy if they must persist beyond the scope of the callee function.
+ *
+ * shardId is populated with the shard identifier when running on a shard server. When running on
+ * a router or a standalone deployment, shardId is empty.
  */
 typedef struct MongoExtensionCatalogContext {
     const ::MongoExtensionNamespaceString namespaceString;
     const MongoExtensionByteView uuidString;
     const uint8_t inRouter;
     const MongoExtensionExplainVerbosity verbosity;
+    const MongoExtensionByteView shardId;
 } MongoExtensionCatalogContext;
+
+////////////////////////////////////////////////////////////////
+//
+//
+//       OPTIMIZATIONS
+//
+//
+////////////////////////////////////////////////////////////////
+/**
+ * Tags that control when and how a pipeline rewrite rule is evaluated.
+ *
+ * Each rule must have exactly one tag. The tag determines which optimization pass the rule
+ * participates in:
+ *
+ *   kPipelineRewriteRuleTagInPlace    - The rule modifies only the internals of this stage and
+ *                                       never touches adjacent stages in the pipeline.
+ *
+ *   kPipelineRewriteRuleTagReordering - The rule may modify adjacent stages, for example by
+ *                                       reordering, merging, absorbing, or removing stages relative
+ *                                       to this one.
+ *
+ */
+typedef enum MongoExtensionPipelineRewriteRuleTags : uint32_t {
+    kPipelineRewriteRuleTagInPlace = 1 << 0,
+    kPipelineRewriteRuleTagReordering = 1 << 1,
+} MongoExtensionPipelineRewriteRuleTags;
+
+/**
+ * A pipeline optimization rule provided by an extension. Pipeline rules must be registered on a
+ * per-stage-name basis at startup via MongoExtensionHostPortal. For each rule that the stage
+ * registers, it must implement the rule's corresponding precondition/transform logic via the
+ * evaluatePrecondition and evaluateTransform functions on the LogicalAggStage.
+ */
+typedef struct MongoExtensionPipelineRewriteRule {
+    MongoExtensionByteView name;
+    MongoExtensionPipelineRewriteRuleTags tags;
+} MongoExtensionPipelineRewriteRule;
 
 ////////////////////////////////////////////////////////////////
 //
@@ -700,6 +741,8 @@ typedef struct MongoExtensionAggStageAstNodeVTable {
                                             const MongoExtensionViewInfo* viewInfo);
 } MongoExtensionAggStageAstNodeVTable;
 
+struct MongoExtensionQueryExecutionContext;
+
 /**
  * A MongoExtensionLogicalAggStage describes a stage that has been parsed and bound to
  * instance specific context -- the stage definition and other context data from the pipeline.
@@ -738,8 +781,12 @@ typedef struct MongoExtensionLogicalAggStageVTable {
      *
      * Note that this method will be called for all three verbosity levels, but will only populate
      * the query plan portion of explain.
+     *
+     * Explain execution must adhere to query deadlines much like get_next(). The query's deadline
+     * timestamp is propagated to the extension via the execCtx.
      */
     MongoExtensionStatus* (*explain)(const MongoExtensionLogicalAggStage* logicalStage,
+                                     MongoExtensionQueryExecutionContext* execCtx,
                                      MongoExtensionExplainVerbosity verbosity,
                                      MongoExtensionByteBuf** output);
 
@@ -771,16 +818,61 @@ typedef struct MongoExtensionLogicalAggStageVTable {
     /**
      * Populates outIsSortedByVectorSearchScore with true if the extension stage sorts by vector
      * search score, false otherwise. Intended to be used by the extension $vectorSearch stage.
+     *
+     * This method is deprecated and will be removed in a future API version.
      */
-    MongoExtensionStatus* (*is_stage_sorted_by_vector_search_score)(
+    MongoExtensionStatus* (*is_stage_sorted_by_vector_search_score_deprecated)(
         const MongoExtensionLogicalAggStage* logicalStage, bool* outIsSortedByVectorSearchScore);
 
     /**
      * Populates extractedLimitVal with the extracted limit value for the $vectorSearch extension
      * stage to use in its optimizations.
+     *
+     * This method is deprecated and will be removed in a future API version.
      */
-    MongoExtensionStatus* (*set_vector_search_limit_for_optimization)(
+    MongoExtensionStatus* (*set_vector_search_limit_for_optimization_deprecated)(
         MongoExtensionLogicalAggStage* logicalStage, long long* extractedLimitVal);
+
+
+    /**
+     * Evaluates the precondition of the rule identified by `ruleName`. This method is called to
+     * determine if the rewrite rule's transform method should be invoked—if yes, returns true,
+     * otherwise false.
+     *
+     * The host calls this instead of a per-rule function pointer, so that the extension stage can
+     * dispatch to the correct rule internally. Writes the boolean result to `*result`.
+     */
+    MongoExtensionStatus* (*evaluate_rule_precondition)(
+        const MongoExtensionLogicalAggStage* logicalStage,
+        MongoExtensionByteView ruleName,
+        bool* result);
+
+    /**
+     * Applies the transform of the rule identified by `ruleName`.
+     *
+     * The host calls this instead of a per-rule function pointer. Writes true to `*result` if the
+     * pipeline was modified. `*result` controls whether the rule will be requeued (reapplied)
+     * during optimization.
+     *
+     * Requeuing is important for reordering rules: returning true causes the rule to be
+     * re-evaluated on the next stage, allowing the transform to process a run of consecutive
+     * matching stages one at a time. Return false once no further modification is possible to stop
+     * requeuing.
+     */
+    MongoExtensionStatus* (*evaluate_rule_transform)(MongoExtensionLogicalAggStage* logicalStage,
+                                                     MongoExtensionByteView ruleName,
+                                                     bool* result);
+
+    /**
+     * Returns the filter predicate that will be applied by the stage, if applicable. If the stage
+     * does not apply a filter, the output buffer is left as nullptr.
+     *
+     * This method is called by the host for determining which shards to target on source stages.
+     *
+     * Ownership of the output buffer is transferred to the caller.
+     */
+    MongoExtensionStatus* (*get_filter)(const MongoExtensionLogicalAggStage* logicalStage,
+                                        MongoExtensionByteBuf** output);
 
 } MongoExtensionLogicalAggStageVTable;
 
@@ -823,9 +915,6 @@ typedef struct MongoExtensionGetNextResult {
 typedef struct MongoExtensionExecAggStage {
     const struct MongoExtensionExecAggStageVTable* const vtable;
 } MongoExtensionExecAggStage;
-
-// Forward delcare.
-struct MongoExtensionQueryExecutionContext;
 
 /**
  * Virtual function table for MongoExtensionExecAggStage.
@@ -905,6 +994,7 @@ typedef struct MongoExtensionExecAggStageVTable {
      * populate the execution metrics portion of the explain output.
      */
     MongoExtensionStatus* (*explain)(const MongoExtensionExecAggStage* execAggStage,
+                                     MongoExtensionQueryExecutionContext* execCtx,
                                      MongoExtensionExplainVerbosity verbosity,
                                      MongoExtensionByteBuf** output);
 } MongoExtensionExecAggStageVTable;
@@ -1177,6 +1267,15 @@ typedef struct MongoExtensionHostPortalVTable {
      * extension.
      */
     MongoExtensionByteView (*get_extension_options)(const MongoExtensionHostPortal* portal);
+
+    /**
+     * Register pipeline optimization rules for a named extension stage. Called during
+     * initialize() so the host can cache rules before any query is processed.
+     */
+    MongoExtensionStatus* (*register_stage_rules)(const MongoExtensionHostPortal* hostPortal,
+                                                  MongoExtensionByteView stageName,
+                                                  const MongoExtensionPipelineRewriteRule* rules,
+                                                  size_t numRules);
 } MongoExtensionHostPortalVTable;
 
 /**

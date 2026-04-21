@@ -103,27 +103,6 @@ tasks:
             --runAllFeatureFlagTests
 
   - <<: *antithesis_task_template
-    name: antithesis_jstestfuzz_sharded_with_config_transitions
-    tags:
-      [
-        "assigned_to_jira_team_devprod_correctness",
-        "experimental",
-        "antithesis",
-      ]
-    commands:
-      - func: "do setup"
-      - func: "do setup for antithesis"
-      - func: "set up remote credentials"
-        vars:
-          aws_key_remote: ${aws_key}
-          aws_secret_remote: ${aws_secret}
-      - func: "antithesis image build and push"
-        vars:
-          suite: jstestfuzz_sharded_with_config_transitions
-          resmoke_args: >-
-            --runAllFeatureFlagTests
-
-  - <<: *antithesis_task_template
     name: antithesis_concurrency_sharded_multi_stmt_txn_stepdown_terminate_kill_primary
     tags:
       [
@@ -207,55 +186,7 @@ tasks:
           resmoke_args: >-
             --runAllFeatureFlagTests
 
-  - <<: *antithesis_task_template
-    name: antithesis_concurrency_sharded_stepdown_terminate_kill_primary_with_balancer_config_shard
-    tags:
-      [
-        "assigned_to_jira_team_devprod_correctness",
-        "experimental",
-        "antithesis",
-      ]
-    commands:
-      - func: "do setup"
-      - func: "do setup for antithesis"
-      - func: "set up remote credentials"
-        vars:
-          aws_key_remote: ${aws_key}
-          aws_secret_remote: ${aws_secret}
-      - func: "antithesis image build and push"
-        vars:
-          suite: concurrency_sharded_stepdown_terminate_kill_primary_with_balancer
-          resmoke_args: >-
-            --configShard=0
-            --numShards=2
-            --excludeWithAnyTags=config_shard_incompatible
-            --runAllFeatureFlagTests
-
-  - <<: *antithesis_task_template
-    name: antithesis_config_fuzzer_concurrency_sharded_replication
-    tags:
-      [
-        "assigned_to_jira_team_devprod_correctness",
-        "experimental",
-        "antithesis",
-      ]
-    commands:
-      - func: "do setup"
-      - func: "do setup for antithesis"
-      - func: "set up remote credentials"
-        vars:
-          aws_key_remote: ${aws_key}
-          aws_secret_remote: ${aws_secret}
-      - func: "antithesis image build and push"
-        vars:
-          suite: concurrency_sharded_replication
-          resmoke_args: >-
-            --fuzzMongodConfigs=normal
-            --fuzzMongosConfigs=normal
-            --fuzzRuntimeParams
-            --excludeWithAnyTags=does_not_support_config_fuzzer
-            --runAllFeatureFlagTests
-
+  # This task is disabled in the daily "MongoDB Core Server" antithesis runs
   - <<: *antithesis_task_template
     name: antithesis_core
     tags:
@@ -302,7 +233,7 @@ tasks:
             --disableFeatureFlags=featureFlagBlockDirectSystemBucketsAccess
 
   - <<: *antithesis_task_template
-    name: antithesis_jstestfuzz_sharded
+    name: antithesis_jstestfuzz_replication_continuous_stepdown
     tags:
       [
         "assigned_to_jira_team_devprod_correctness",
@@ -318,7 +249,7 @@ tasks:
           aws_secret_remote: ${aws_secret}
       - func: "antithesis image build and push"
         vars:
-          suite: jstestfuzz_sharded
+          suite: jstestfuzz_replication_continuous_stepdown
           resmoke_args: >-
             --runAllFeatureFlagTests
 
@@ -831,7 +762,7 @@ tasks:
       - func: "bazel run"
         vars:
           target: >-
-            --lockfile_mode=error lint //... --lint-yaml=${project} --large-files
+            lint //... --lint-yaml=${project} --large-files
 
   # Check that the mutational fuzzer can parse all JS filess.
   - name: lint_fuzzer_sanity_all
@@ -928,19 +859,12 @@ tasks:
       - func: "get engflow creds"
       - func: "bazel coverage"
         vars:
-          # Running something like "bazel test //src/..." has to do a lot of preprocessing on *all*
-          # targets before it actually runs the much smaller fraction of test targets, unless we're
-          # certain that a full build has already been cached.
-          # It might be optimized by doing a query upfront, which uses minimal analysis:
-          #   targets=$(bazel query 'kind(".*_test", //src/...)')
-          #   bazel test $targets
           target: >-
             //src/mongo/...
           args: >-
-            --test_tag_filters=mongo_unittest_debug,-code_coverage_quarantine_debug
+            --test_tag_filters=mongo_unittest,-intermediate_debug,-code_coverage_quarantine
             --test_timeout=1800
             --verbose_failures
-            --instrumentation_filter=^//src/mongo[/:],-^//src/mongo/util:boost_assert_shim,-^//src/mongo/util:icu,-^//src/mongo/db/modules/enterprise/src/streams/third_party[/:]
 
   - name: unit_test_group1_no_sandbox
     tags: ["assigned_to_jira_team_devprod_build", "auxiliary"]
@@ -1187,7 +1111,7 @@ tasks:
             --keep_going
             --test_arg=--showEachTest
             --define GIT_COMMIT_HASH=nogitversion
-            --define=MONGO_VERSION=8.3.0-alpha-patch-nogitversion
+            --define=MONGO_VERSION=9.0.0-alpha-patch-nogitversion
             --run_under=//bazel:test_wrapper
 
   - name: unit_tests_remote_exec_incompatible
@@ -1219,7 +1143,7 @@ tasks:
             --keep_going
             --test_arg=--showEachTest
             --define GIT_COMMIT_HASH=nogitversion
-            --define=MONGO_VERSION=8.3.0-alpha-patch-nogitversion
+            --define=MONGO_VERSION=9.0.0-alpha-patch-nogitversion
             --run_under=//bazel:test_wrapper
 
   - name: unit_test_group1

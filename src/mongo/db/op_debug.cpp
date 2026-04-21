@@ -212,7 +212,17 @@ void OpDebug::report(OperationContext* opCtx,
                     client && client->session() && client->session()->isConnectedToPriorityPort());
     }
     pAttrs->addDeepCopy("ns", toStringForLogging(curop.getNSS()));
-    pAttrs->addDeepCopy("collectionType", getCollectionTypeFromNamespaceString(curop.getNSS()));
+
+    // Only include collectionType when it has been set at the command layer if this is a read
+    // command. This is because we can't reliably know if we have view information attached to this
+    // OpDebug without an indicator from the command layer. Non-read commands handle views
+    // differently (i.e. they don't resolve them in the same way), and should be logged
+    // unconditionally.
+    // TODO SERVER-122926 Determine whether it is always correct to bypass setting/using
+    // collectionType for non-read commands and document accordingly.
+    if (collectionType || curop.getReadWriteType() != Command::ReadWriteType::kRead) {
+        pAttrs->addDeepCopy("collectionType", getCollectionTypeFromNamespaceString(curop.getNSS()));
+    }
 
     if (client) {
         if (auto clientMetadata = ClientMetadata::get(client)) {
@@ -1436,6 +1446,13 @@ CursorMetrics OpDebug::getCursorMetrics(size_t opIndex) const {
     metrics.setCardinalityEstimationMethods(ceMethods);
 
     metrics.setNDocsSampled(additiveMetrics.nDocsSampled.value_or(0));
+    // Only report clusterPeakTrackedMemBytes on the final response so the router won't double count
+    // remote shard peaks.
+    bool isFinalResponse = cursorExhausted || cursorid == -1;
+    metrics.setClusterPeakTrackedMemBytes(isFinalResponse
+                                              ? additiveMetrics.clusterPeakTrackedMemBytes.value_or(
+                                                    additiveMetrics.peakTrackedMemBytes.value_or(0))
+                                              : 0);
     return metrics;
 }
 
@@ -1468,6 +1485,14 @@ std::string OpDebug::getCollectionTypeFromNamespaceString(const NamespaceString&
         return "none";
     }
 
+    // Use the stored collectionType field when it unambiguously identifies the type.
+    if (auto ct = collectionType; ct && *ct == query_shape::CollectionType::kView) {
+        return "view";
+    }
+
+    // TODO SERVER-122866 Remove this block and use 'collectionType' value for both views and
+    // timeseries. We can't do this currently because 'collectionType' is incorrectly reported as
+    // "timeseries" for queries on a view over a timeseries collection.
     if (!resolvedViews.empty()) {
         auto dependencyItr = resolvedViews.find(nss);
         // 'resolvedViews' might be populated if any other collection as a part of the query is on a
@@ -1522,6 +1547,19 @@ boost::optional<T> addOptionals(const boost::optional<T>& lhs, const boost::opti
         return lhs;
     }
     return lhs ? (*lhs + *rhs) : rhs;
+}
+
+/**
+ * Takes the maximum of two optionals, treating uninitialized values as absent (not zero). Returns
+ * boost::none if both are uninitialized. Returns 'lhs' if only 'rhs' is uninitialized and
+ * vice-versa.
+ */
+template <typename T>
+boost::optional<T> maxOptionals(const boost::optional<T>& lhs, const boost::optional<T>& rhs) {
+    if (!rhs) {
+        return lhs;
+    }
+    return lhs ? boost::optional<T>(std::max(*lhs, *rhs)) : rhs;
 }
 }  // namespace
 
@@ -1601,6 +1639,9 @@ void OpDebug::AdditiveMetrics::add(const AdditiveMetrics& otherMetrics) {
         cardinalityEstimationMethods.getCode().value_or(0) +
         otherMetrics.cardinalityEstimationMethods.getCode().value_or(0));
     nDocsSampled = addOptionals(nDocsSampled, otherMetrics.nDocsSampled);
+    peakTrackedMemBytes = maxOptionals(peakTrackedMemBytes, otherMetrics.peakTrackedMemBytes);
+    clusterPeakTrackedMemBytes =
+        maxOptionals(clusterPeakTrackedMemBytes, otherMetrics.clusterPeakTrackedMemBytes);
 }
 
 void OpDebug::AdditiveMetrics::aggregateDataBearingNodeMetrics(
@@ -1671,6 +1712,8 @@ void OpDebug::AdditiveMetrics::aggregateDataBearingNodeMetrics(
         cardinalityEstimationMethods.getCode().value_or(0) +
         metrics.cardinalityEstimationMethods.getCode().value_or(0));
     nDocsSampled = nDocsSampled.value_or(0) + metrics.nDocsSampled;
+    clusterPeakTrackedMemBytes =
+        clusterPeakTrackedMemBytes.value_or(0) + metrics.clusterPeakTrackedMemBytes;
 }
 
 void OpDebug::AdditiveMetrics::aggregateDataBearingNodeMetrics(
@@ -1711,7 +1754,8 @@ void OpDebug::AdditiveMetrics::aggregateCursorMetrics(const CursorMetrics& metri
         metrics.getWasMarkedNonDeprioritizable(),
         Microseconds(metrics.getPlanningTimeMicros()),
         metrics.getCardinalityEstimationMethods(),
-        static_cast<uint64_t>(metrics.getNDocsSampled())});
+        static_cast<uint64_t>(metrics.getNDocsSampled()),
+        static_cast<uint64_t>(metrics.getClusterPeakTrackedMemBytes())});
 }
 
 void OpDebug::AdditiveMetrics::aggregateStorageStats(const StorageStats& stats) {
@@ -1733,6 +1777,8 @@ void OpDebug::AdditiveMetrics::reset() {
     keysDeleted = boost::none;
     executionTime = boost::none;
     nUpdateOps = boost::none;
+    peakTrackedMemBytes = boost::none;
+    clusterPeakTrackedMemBytes = boost::none;
 }
 
 bool OpDebug::AdditiveMetrics::equals(const AdditiveMetrics& otherMetrics) const {

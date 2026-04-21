@@ -1,7 +1,17 @@
 test_kind: js_test
 
 selector:
-  from_target: //jstests/suites/query-execution:core
+  roots:
+    - jstests/core/**/*.js
+    - jstests/core_standalone/**/*.js
+  exclude_files:
+    # Transactions are not supported on MongoDB standalone nodes, so we do not run these tests in the
+    # 'core' suite. Instead we run them against a 1-node replica set in the 'core_txns' suite.
+    - jstests/core/txns/**/*.js
+    # Queryable encryption is not supported on standalone.
+    - jstests/core/query/queryable_encryption/**/*.js
+    # Query settings are not supported on standalone.
+    - jstests/core/query/query_settings/**/*.js
 executor:
   archive:
     hooks:
@@ -12,6 +22,13 @@ executor:
       objcheck: ""
       eval: await import("jstests/libs/override_methods/detect_spawning_own_mongod.js");
   hooks:
+    # Be sure to run the hooks which depend on the fixture being alive before the CleanEveryN hook.
+    # That way the fixture restart can't cause any trouble for the other hooks.
+    - class: RunQueryStats
+      skip_tags:
+        # Running $queryStats will increment these counters which can screw up some test assertions.
+        - inspects_command_opcounters
+        - known_query_shape_computation_problem
     - class: ValidateCollections
       shell_options:
         global_vars:
@@ -24,3 +41,6 @@ executor:
     mongod_options:
       set_parameters:
         enableTestCommands: 1
+        internalQueryStatsRateLimit: -1
+        internalQueryStatsWriteCmdSampleRate: 1.0
+        internalQueryStatsErrorsAreCommandFatal: true

@@ -5,7 +5,6 @@ py_library(
     name = "resmokelib",
     srcs = [
         "__init__.py",
-        "bazel_suite_parser.py",
         "cli.py",
         "config.py",
         "configure_resmoke.py",
@@ -62,7 +61,7 @@ py_library(
         ),
     ] + select({
         "@platforms//cpu:s390x": [],
-        "@platforms//cpu:ppc": [],
+        "@platforms//cpu:ppc64le": [],
         "//conditions:default": [dependency(
             "opentelemetry-exporter-otlp-proto-grpc",
             group = "testing",

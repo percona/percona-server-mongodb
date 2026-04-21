@@ -285,6 +285,23 @@ tasks:
       - func: "run tests"
 
   - <<: *gen_task_template
+    name: disagg_causally_consistent_jscore_txns_passthrough_gen
+    tags:
+      [
+        "assigned_to_jira_team_server_repl",
+        "default",
+        "large",
+        "clustered_collections",
+        "causally_consistent",
+        "requires_extra_system_deps",
+      ]
+    commands:
+      - func: "generate resmoke tasks"
+        vars:
+          suite: disagg_causally_consistent_jscore_txns_passthrough
+          use_large_distro: "true"
+
+  - <<: *gen_task_template
     name: causally_consistent_read_concern_snapshot_passthrough_gen
     tags:
       [
@@ -294,6 +311,7 @@ tasks:
         "causally_consistent",
         "read_write_concern",
         "durable_history",
+        "has_bazel_target",
       ]
     commands:
       - func: "generate resmoke tasks"
@@ -350,6 +368,7 @@ tasks:
         "concurrency",
         "common",
         "repl",
+        "has_bazel_target",
       ]
     commands:
       - func: "generate resmoke tasks"
@@ -531,6 +550,7 @@ tasks:
         "read_concern_maj",
         "large",
         "sharded",
+        "has_bazel_target",
       ]
     commands:
       - func: "generate resmoke tasks"
@@ -597,6 +617,7 @@ tasks:
         "large",
         "repl",
         "random_name",
+        "has_bazel_target",
       ]
     commands:
       - func: "generate resmoke tasks"
@@ -991,6 +1012,7 @@ tasks:
         "requires_execution_on_windows_patch_build",
         "requires_large_host",
         "requires_replicated_fast_count_recovery",
+        "has_bazel_target",
       ]
     commands:
       - func: "generate resmoke tasks"
@@ -1006,6 +1028,7 @@ tasks:
         "assigned_to_jira_team_server_integration",
         "release_critical",
         "requires_large_host",
+        "has_bazel_target",
       ]
     commands:
       - func: "do setup"
@@ -1024,6 +1047,7 @@ tasks:
         "read_write_concern",
         "linearize",
         "large",
+        "has_bazel_target",
       ]
     commands:
       - func: "generate resmoke tasks"
@@ -1038,6 +1062,7 @@ tasks:
         "release_critical",
         "incompatible_mac",
         "read_write_concern",
+        "has_bazel_target",
       ]
     commands:
       - func: "generate resmoke tasks"
@@ -1235,6 +1260,7 @@ tasks:
         "common",
         "san",
         "large",
+        "has_bazel_target",
       ]
     commands:
       - func: "generate resmoke tasks"
@@ -1253,6 +1279,7 @@ tasks:
         "common",
         "san",
         "large",
+        "has_bazel_target",
       ]
     commands:
       - func: "generate resmoke tasks"
@@ -1278,7 +1305,8 @@ tasks:
   - <<: *gen_task_template
     name: replica_sets_kill_secondaries_jscore_passthrough_gen
     # TODO(SERVER-69951) remove "incompatible_debug_mode" tag
-    tags: [
+    tags:
+      [
         "assigned_to_jira_team_server_repl",
         "default",
         "incompatible_debug_mode",
@@ -1287,8 +1315,6 @@ tasks:
         "large",
         "non_live_record",
         "ignore_on_code_coverage",
-        # TODO SERVER-122625: remove tag
-        "requires_replicated_fast_count_recovery",
       ]
     commands:
       - func: "generate resmoke tasks"
@@ -1303,6 +1329,7 @@ tasks:
         "common",
         "san",
         "large",
+        "has_bazel_target",
       ]
     commands:
       - func: "generate resmoke tasks"
@@ -1716,6 +1743,7 @@ tasks:
         "misc_js",
         "non_win_dbg",
         "requires_large_host",
+        "has_bazel_target",
       ]
     commands:
       - func: "do setup"
@@ -1733,6 +1761,7 @@ tasks:
         "causally_consistent",
         "read_write_concern",
         "durable_history",
+        "has_bazel_target",
       ]
     commands:
       - func: "generate resmoke tasks"
@@ -1752,6 +1781,7 @@ tasks:
         "initsync",
         "uninitialized_fcv",
         "large",
+        "has_bazel_target",
       ]
     commands:
       - func: "generate resmoke tasks"
@@ -1789,6 +1819,7 @@ tasks:
         "incompatible_mac",
         "sharding",
         "jscore",
+        "has_bazel_target",
       ]
     commands:
       - func: "generate resmoke tasks"
@@ -1810,6 +1841,7 @@ tasks:
         "initsync",
         "uninitialized_fcv",
         "large",
+        "has_bazel_target",
       ]
     commands:
       - func: "generate resmoke tasks"
@@ -2572,23 +2604,21 @@ tasks:
           # Running multiple jobs in parallel complicates getting a consistent view of the database via checkpoints.
           resmoke_jobs_max: 1
 
-  # TODO (SERVER-120736) Reenable suite with only passing tests.
-  # Disabling to complete SERVER-119891. Exclude all failing DSC tests/suites to force master patch builds to be green to enable autoreverter.
-  # - <<: *gen_task_template
-  #   name: disagg_retryable_writes_jscore_passthrough_gen
-  #   tags:
-  #     [
-  #       "assigned_to_jira_team_server_repl",
-  #       "default",
-  #       "large",
-  #       "clustered_collections",
-  #       "requires_extra_system_deps",
-  #     ]
-  #   commands:
-  #     - func: "generate resmoke tasks"
-  #       vars:
-  #         suite: disagg_retryable_writes_jscore_passthrough
-  #         use_large_distro: "true"
+  - <<: *gen_task_template
+    name: disagg_retryable_writes_jscore_passthrough_gen
+    tags:
+      [
+        "assigned_to_jira_team_server_repl",
+        "default",
+        "large",
+        "clustered_collections",
+        "requires_extra_system_deps",
+      ]
+    commands:
+      - func: "generate resmoke tasks"
+        vars:
+          suite: disagg_retryable_writes_jscore_passthrough
+          use_large_distro: "true"
 
   - <<: *gen_task_template
     name: disagg_concurrency_replication_gen
@@ -2633,4 +2663,133 @@ tasks:
       - func: "generate resmoke tasks"
         vars:
           suite: disagg_concurrency_replication_multi_stmt_txn
+          use_large_distro: "true"
+
+  - <<: *gen_task_template
+    name: disagg_concurrency_sharded_multi_stmt_txn_gen
+    tags:
+      [
+        "assigned_to_jira_team_server_repl",
+        "default",
+        "large",
+        "clustered_collections",
+        "requires_extra_system_deps",
+        "incompatible_mac",
+        "incompatible_ppc",
+        "incompatible_s390x",
+        "incompatible_debug_mode",
+        "concurrency",
+        "common",
+        "sharded",
+        "txn",
+      ]
+    commands:
+      - func: "generate resmoke tasks"
+        vars:
+          suite: disagg_concurrency_sharded_multi_stmt_txn
+          use_large_distro: "true"
+
+  # TODO (SERVER-123074): Re-enable balancer related disagg suites
+  #  - <<: *gen_task_template
+  #    name: disagg_concurrency_sharded_multi_stmt_txn_with_balancer_gen
+  #    tags:
+  #      [
+  #        "assigned_to_jira_team_server_repl",
+  #        "default",
+  #        "large",
+  #        "clustered_collections",
+  #        "requires_extra_system_deps",
+  #        "incompatible_mac",
+  #        "incompatible_ppc",
+  #        "incompatible_s390x",
+  #        "incompatible_debug_mode",
+  #        "concurrency",
+  #        "common",
+  #        "sharded",
+  #        "txn",
+  #      ]
+  #    commands:
+  #      - func: "generate resmoke tasks"
+  #        vars:
+  #          suite: disagg_concurrency_sharded_multi_stmt_txn_with_balancer
+  #          use_large_distro: "true"
+
+  - <<: *gen_task_template
+    name: disagg_concurrency_sharded_local_read_write_multi_stmt_txn_gen
+    tags:
+      [
+        "assigned_to_jira_team_server_repl",
+        "default",
+        "large",
+        "clustered_collections",
+        "requires_extra_system_deps",
+        "incompatible_mac",
+        "incompatible_ppc",
+        "incompatible_s390x",
+        "incompatible_debug_mode",
+        "concurrency",
+        "common",
+        "sharded",
+        "txn",
+      ]
+    commands:
+      - func: "generate resmoke tasks"
+        vars:
+          suite: disagg_concurrency_sharded_local_read_write_multi_stmt_txn
+          use_large_distro: "true"
+  # TODO (SERVER-123074): Re-enable balancer related disagg suites
+  #  - <<: *gen_task_template
+  #    name: disagg_concurrency_sharded_local_read_write_multi_stmt_txn_with_balancer_gen
+  #    tags:
+  #      [
+  #        "assigned_to_jira_team_server_repl",
+  #        "default",
+  #        "large",
+  #        "clustered_collections",
+  #        "requires_extra_system_deps",
+  #        "incompatible_mac",
+  #        "incompatible_ppc",
+  #        "incompatible_s390x",
+  #        "incompatible_debug_mode",
+  #        "concurrency",
+  #        "common",
+  #        "sharded",
+  #        "txn",
+  #      ]
+  #    commands:
+  #      - func: "generate resmoke tasks"
+  #        vars:
+  #          suite: disagg_concurrency_sharded_local_read_write_multi_stmt_txn_with_balancer
+  #          use_large_distro: "true"
+
+  - <<: *gen_task_template
+    name: disagg_sharded_collections_causally_consistent_jscore_txns_passthrough_gen
+    tags:
+      [
+        "assigned_to_jira_team_server_repl",
+        "default",
+        "large",
+        "clustered_collections",
+        "requires_extra_system_deps",
+      ]
+    commands:
+      - func: "generate resmoke tasks"
+        vars:
+          suite: disagg_sharded_collections_causally_consistent_jscore_txns_passthrough
+          use_large_distro: "true"
+
+  - <<: *gen_task_template
+    name: disagg_sharded_jscore_txns_sharded_collections_gen
+    tags:
+      [
+        "assigned_to_jira_team_server_repl",
+        "default",
+        "large",
+        "clustered_collections",
+        "requires_extra_system_deps",
+      ]
+    commands:
+      - func: "generate resmoke tasks"
+        vars:
+          suite: disagg_sharded_jscore_txns_sharded_collections
           use_large_distro: "true"

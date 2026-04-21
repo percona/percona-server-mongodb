@@ -2,23 +2,15 @@
   "$schema": "http://cyclonedx.org/schema/bom-1.5.schema.json",
   "bomFormat": "CycloneDX",
   "specVersion": "1.5",
-  "serialNumber": "urn:uuid:71d980f0-95c5-4dfa-8987-307eb8880ce2",
-  "version": 6,
+  "serialNumber": "urn:uuid:2d7fbf85-c8b6-4f90-9966-70da88224a36",
+  "version": 2,
   "metadata": {
-    "timestamp": "2026-03-23T17:40:57Z",
+    "timestamp": "2026-04-03T06:07:25Z",
     "lifecycles": [
       {
         "phase": "pre-build"
       }
     ],
-    "tools": {
-      "services": [
-        {
-          "name": "Endor Labs Inc",
-          "version": "v1.7.870"
-        }
-      ]
-    },
     "component": {
       "type": "application",
       "bom-ref": "pkg:github/mongodb/mongo@master",
@@ -66,12 +58,20 @@
       "url": [
         "https://mongodb.com"
       ]
+    },
+    "tools": {
+      "services": [
+        {
+          "name": "Endor Labs Inc",
+          "version": "v1.7.912"
+        }
+      ]
     }
   },
   "components": [
     {
       "type": "library",
-      "bom-ref": "pkg:deb/debian/firefox-esr@140.7.0esr-1?arch=source",
+      "bom-ref": "pkg:deb/debian/firefox-esr@140.9.0esr-1?arch=source",
       "supplier": {
         "name": "Mozilla Corporation",
         "url": [
@@ -81,7 +81,7 @@
       "author": "Mozilla Corporation",
       "group": "mozilla",
       "name": "Mozilla Firefox ESR",
-      "version": "140.7.0esr",
+      "version": "140.9.0esr",
       "description": "The C++-only SpiderMonkey component of FireFox ESR used by MongoDB.",
       "scope": "required",
       "licenses": [
@@ -92,8 +92,8 @@
         }
       ],
       "copyright": "Mozilla Corporation",
-      "cpe": "cpe:2.3:a:mozilla:firefox:140.7.0:*:*:*:esr:*:*:*",
-      "purl": "pkg:deb/debian/firefox-esr@140.7.0esr-1?arch=source",
+      "cpe": "cpe:2.3:a:mozilla:firefox:140.9.0:*:*:*:esr:*:*:*",
+      "purl": "pkg:deb/debian/firefox-esr@140.9.0esr-1?arch=source",
       "externalReferences": [
         {
           "url": "https://github.com/mozilla-firefox/firefox.git",
@@ -1804,6 +1804,10 @@
         {
           "name": "import_script_path",
           "value": "src/third_party/libmongocrypt/import.sh"
+        },
+        {
+          "name": "mdb_first_party",
+          "value": "true"
         }
       ]
     },
@@ -1853,6 +1857,10 @@
         {
           "name": "import_script_path",
           "value": "src/third_party/libbson/import.sh"
+        },
+        {
+          "name": "mdb_first_party",
+          "value": "true"
         }
       ]
     },
@@ -2463,6 +2471,10 @@
         {
           "name": "emits_persisted_data",
           "value": "true"
+        },
+        {
+          "name": "mdb_first_party",
+          "value": "true"
         }
       ]
     },
@@ -2691,7 +2703,7 @@
   ],
   "dependencies": [
     {
-      "ref": "pkg:deb/debian/firefox-esr@140.7.0esr-1?arch=source",
+      "ref": "pkg:deb/debian/firefox-esr@140.9.0esr-1?arch=source",
       "dependsOn": []
     },
     {
@@ -2847,7 +2859,7 @@
     {
       "ref": "pkg:github/mongodb/mongo@master",
       "dependsOn": [
-        "pkg:deb/debian/firefox-esr@140.7.0esr-1?arch=source",
+        "pkg:deb/debian/firefox-esr@140.9.0esr-1?arch=source",
         "pkg:generic/intel/IntelRDFPMathLib@2.0.1",
         "pkg:generic/unicode-org/unicode@8.0.0",
         "pkg:generic/valgrind/valgrind@093bef43d69236287ccc748591c9560a71181b0a",

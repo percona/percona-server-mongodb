@@ -17,7 +17,6 @@ from buildscripts.resmokelib.extensions import (
     find_and_generate_named_extension_configs,
     normalize_load_extensions,
 )
-from buildscripts.resmokelib.extensions.setup_mongot_extension import setup_mongot_extension
 from buildscripts.resmokelib.testing.fixtures import _builder, external, interface
 from buildscripts.resmokelib.utils import certs
 from buildscripts.resmokelib.utils.sharded_cluster_util import (
@@ -115,16 +114,6 @@ class ShardedClusterFixture(interface.Fixture, interface._DockerComposeInterface
                 self.config,
                 self.mongod_options,
                 self.mongos_options,
-            )
-
-        # Automatically download and configure mongot-extension if needed.
-        if "mongot-extension" in self.mongod_options.get(
-            "loadExtensions", ""
-        ) or "mongot-extension" in self.mongos_options.get("loadExtensions", ""):
-            self.logger.info("Setting up mongot-extension")
-            setup_mongot_extension(
-                is_evergreen=bool(self.config.EVERGREEN_TASK_ID),
-                logger=self.logger,
             )
 
         self.mongod_executable = mongod_executable
@@ -408,10 +397,36 @@ class ShardedClusterFixture(interface.Fixture, interface._DockerComposeInterface
                 {"getClusterParameter": self.set_cluster_parameter["parameter"]}
             )
 
+    _STOP_BALANCER_MAX_ATTEMPTS = 3
+    _STOP_BALANCER_RETRY_INTERVAL_SECS = 10
+
     def stop_balancer(self, timeout_ms=300000, join_migrations=True):
         """Stop the balancer."""
-        client = interface.build_client(self, self.auth_options, timeout_millis=timeout_ms)
-        client.admin.command({"balancerStop": 1}, maxTimeMS=timeout_ms)
+
+        # Sleep and retry on FailedToSatisfyReadPreference and connection errors. This handles cases where
+        # the config server primary is momentarily unreachable (e.g. during elections on slow TSAN
+        # variants).
+        for attempt in range(1, self._STOP_BALANCER_MAX_ATTEMPTS + 1):
+            try:
+                client = interface.build_client(self, self.auth_options, timeout_millis=timeout_ms)
+                client.admin.command({"balancerStop": 1}, maxTimeMS=timeout_ms)
+                break
+            except (pymongo.errors.OperationFailure, pymongo.errors.ConnectionFailure) as err:
+                if (
+                    isinstance(err, pymongo.errors.OperationFailure)
+                    and err.code != self._FAILED_TO_SATISFY_READ_PREFERENCE
+                ):
+                    raise
+                if attempt == self._STOP_BALANCER_MAX_ATTEMPTS:
+                    raise
+                self.logger.info(
+                    "Retrying stop_balancer (attempt %d/%d) due to transient error: %s.",
+                    attempt,
+                    self._STOP_BALANCER_MAX_ATTEMPTS,
+                    err,
+                )
+                time.sleep(self._STOP_BALANCER_RETRY_INTERVAL_SECS)
+
         if join_migrations:
             for shard in self.shards:
                 shard_client = interface.build_client(

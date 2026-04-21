@@ -532,12 +532,11 @@ mongo::write_ops::UpdateCommandRequest makeTimeseriesCompressedDiffUpdateOpFromB
     std::shared_ptr<bucket_catalog::WriteBatch> batch,
     const NamespaceString& bucketsNs) {
     invariant(batch->measurements.size() > 0);
-    auto firstMeasurementTimestamp = batch->measurements[0][batch->timeField].timestamp();
-    bool changedToUnsorted = false;
-    if (batch->bucketIsSortedByTime &&
-        firstMeasurementTimestamp < batch->measurementMap.timeOfLastMeasurement(batch->timeField)) {
+    const auto firstMeasurementTimestamp = batch->measurements[0][batch->timeField].date();
+    const bool changedToUnsorted = batch->bucketIsSortedByTime &&
+        firstMeasurementTimestamp < batch->measurementMap.timeOfLastMeasurement(batch->timeField);
+    if (changedToUnsorted) {
         batch->bucketIsSortedByTime = false;
-        changedToUnsorted = true;
         batch->stats.incNumCompressedBucketsConvertedToUnsorted();
     }
     // Invariant that the measurements are sorted from buildBatchedInsertContexts.
@@ -643,41 +642,6 @@ mongo::write_ops::UpdateOpEntry makeTimeseriesCompressedDiffEntry(
     mongo::write_ops::UpdateOpEntry update(BSON("_id" << oid), std::move(u));
     invariant(!update.getMulti(), oid.toString());
     invariant(!update.getUpsert(), oid.toString());
-    return update;
-}
-
-mongo::write_ops::UpdateCommandRequest makeTimeseriesTransformationOp(
-    OperationContext* opCtx,
-    const OID& bucketId,
-    mongo::write_ops::UpdateModification::TransformFunc transformationFunc,
-    const mongo::write_ops::InsertCommandRequest& request) {
-    mongo::write_ops::UpdateCommandRequest op(
-        makeTimeseriesBucketsNamespace(request.getNamespace()),
-        {makeTimeseriesTransformationOpEntry(opCtx, bucketId, std::move(transformationFunc))});
-
-    mongo::write_ops::WriteCommandRequestBase base;
-
-    base.setBypassEmptyTsReplacement(request.getBypassEmptyTsReplacement());
-
-    // Timeseries compression operation is not a user operation and should not use a
-    // statement id from any user op. Set to Uninitialized to bypass.
-    base.setStmtIds(std::vector<StmtId>{kUninitializedStmtId});
-
-    op.setWriteCommandRequestBase(std::move(base));
-
-    // TODO SERVER-122404: Remove this unreachable code path.
-    MONGO_UNREACHABLE;
-    return op;
-}
-
-mongo::write_ops::UpdateOpEntry makeTimeseriesTransformationOpEntry(
-    OperationContext* opCtx,
-    const OID& bucketId,
-    mongo::write_ops::UpdateModification::TransformFunc transformationFunc) {
-    mongo::write_ops::UpdateModification u(std::move(transformationFunc));
-    mongo::write_ops::UpdateOpEntry update(BSON("_id" << bucketId), std::move(u));
-    invariant(!update.getMulti(), bucketId.toString());
-    invariant(!update.getUpsert(), bucketId.toString());
     return update;
 }
 

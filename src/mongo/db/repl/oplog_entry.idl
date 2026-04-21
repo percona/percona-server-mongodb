@@ -55,6 +55,7 @@ enums:
             kUpdate: "u"
             kDelete: "d"
             kContainerInsert: "ci"
+            kContainerUpdate: "cu"
             kContainerDelete: "cd"
             kNoop: "n"
             kKeyMaterial: "km"
@@ -106,6 +107,7 @@ enums:
             kUpgradeDowngradeViewlessTimeseries: "upgradeDowngradeViewlessTimeseries"
             kSetMultikeyMetadata: "setMultikeyMetadata"
             kDropIdent: "dropIdent"
+            kInitReplicatedFastCount: "initReplicatedFastCount"
 
 types:
     zeroOneManyStmtId:

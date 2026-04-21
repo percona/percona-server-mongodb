@@ -82,10 +82,21 @@ namespace {
  */
 auto& plannerInvocationCount = *MetricBuilder<Counter64>{"query.planning.invocationCount"};
 
+/**
+ * Aggregation of the total number of times the classic subplanner chose the winning plan.
+ */
+auto& classicChoseWinningPlan =
+    *MetricBuilder<Counter64>{"query.subPlanner.classicChoseWinningPlan"};
+
 void inspectPlannerResult(
     const std::unique_ptr<PlannerInterface>& result,
     const boost::optional<QueryPlannerParams::ReplanningData>& replanningData) {
-    if (!replanningData.has_value()) {
+    // These assertions relate to replanning, so bail if the query did not replan.
+    // Also, these assertions do not apply to the deferred get_executor. The solution hash is
+    // checked after the plan ranking result is created, to update
+    // `replannedPlanIsCachedPlanCounter`.
+    if (!replanningData.has_value() ||
+        feature_flags::gFeatureFlagGetExecutorDeferredEngineChoice.isEnabled()) {
         return;
     }
 
@@ -150,6 +161,10 @@ void incrementPlannerInvocationCount() {
     plannerInvocationCount.increment();
 }
 
+void incrementClassicSubplannerChoseWinningPlan() {
+    classicChoseWinningPlan.increment();
+}
+
 std::unique_ptr<PlannerInterface> retryMakePlanner(
     std::unique_ptr<QueryPlannerParams> plannerParams,
     const MakePlannerParamsFn& makeQueryPlannerParams,
@@ -173,8 +188,10 @@ std::unique_ptr<PlannerInterface> retryMakePlanner(
             // The planner failed to generate a DISTINCT_SCAN for a distinct-like query. Remove
             // the distinct property and replan using SBE or subplanning as applicable.
             canonicalQuery->resetDistinct();
-            if (canonicalQuery->isSbeCompatible()) {
-                // Stages still need to be finalized for SBE since classic was used previously.
+            if (canonicalQuery->isSbeCompatible() &&
+                !feature_flags::gFeatureFlagGetExecutorDeferredEngineChoice.isEnabled()) {
+                // Stages still need to be finalized for SBE since classic was used previously. In
+                // the deferred get_executor, the stages are finalized during lowering.
                 finalizePipelineStages(pipeline, canonicalQuery);
             }
             return makePlanner(
@@ -228,24 +245,14 @@ bool shouldMultiPlanForSingleSolution(const PlanRankingResult& rankerResult,
     bool forceMultiPlanForSingleSolution = expCtx->getForcePlanCache() ||
         expCtx->getQueryKnobConfiguration().getUseMultiplannerForSingleSolutions();
 
-    // If there is rejected plans in the  result from 'rankPlans()' and the
-    // 'needsWorksMeasuredForPlanCache' flag is set, we run the single CBR picked solution
-    // through multiplanner to measure its number of works and add the plan to the plan cache.
-    // If 'internalQueryDisablePlanCache' disables the plan cache, we will ignore
-    // 'needsWorksMeasuredForPlanCache' and the number of rejected plans and instead only check
-    // whether we should force running the single solution plan through the multiplanner.
-    auto shouldMultiplanForCBRChosenPlan =
-        !internalQueryDisablePlanCache.load() && rankerResult.needsWorksMeasuredForPlanCache;
-
-    // We will not cache for an explain command.
-    if (!expCtx->getExplain().has_value() && shouldMultiplanForCBRChosenPlan) {
-        LOGV2_DEBUG(11918000,
-                    2,
-                    "CBR picked the best plan and it will be cached via multiplanning",
-                    "query"_attr = cq->toString());
-    }
-
-    return shouldMultiplanForCBRChosenPlan || forceMultiPlanForSingleSolution;
+    // If we have reached this point and 'needsWorksMeasuredForPlanCache' is true, then there
+    // has been no multiplanning work done so far and we will run the single CBR-chosen solution
+    // through the multiplanner to measure its number of works and add the plan to the plan
+    // cache. If 'internalQueryDisablePlanCache' disables the plan cache, we will ignore
+    // 'needsWorksMeasuredForPlanCache' and instead only check whether we should force running the
+    // single solution plan through the multiplanner.
+    return (!internalQueryDisablePlanCache.load() && rankerResult.needsWorksMeasuredForPlanCache) ||
+        forceMultiPlanForSingleSolution;
 }
 
 void captureCardinalityEstimationMethodForQueryStats(
@@ -257,7 +264,7 @@ void captureCardinalityEstimationMethodForQueryStats(
         if (it != maybeExplainData->estimates.end()) {
             auto& ceMethods =
                 CurOp::get(opCtx)->debug().getAdditiveMetrics().cardinalityEstimationMethods;
-            switch (it->second.outCE.source()) {
+            switch (it->second->outCE.source()) {
                 case cost_based_ranker::EstimationSource::Histogram:
                     ceMethods.setHistogram(ceMethods.getHistogram().value_or(0) + 1);
                     break;

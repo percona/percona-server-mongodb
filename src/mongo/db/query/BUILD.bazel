@@ -359,6 +359,7 @@ mongo_cc_library(
     deps = [
         "//src/mongo/db:query_expressions",
         "//src/mongo/db/commands/server_status:server_status_core",
+        "//src/mongo/db/query:plan_yield_policy_sbe",
         "//src/mongo/db/query/collation:collator_factory_icu",
         "//src/mongo/db/query/compiler/ce/exact:exact_cardinality_interface",
         "//src/mongo/db/query/compiler/metadata:query_metadata",
@@ -677,6 +678,7 @@ mongo_cc_unit_test(
         "plan_explainer_test.cpp",
         "plan_ranker_index_prefix_test.cpp",
         "plan_ranker_test.cpp",
+        "query_feature_flag_test.cpp",
         "query_request_test.cpp",
         "query_settings_test.cpp",
         "query_utils_test.cpp",

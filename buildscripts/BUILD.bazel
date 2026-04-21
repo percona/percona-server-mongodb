@@ -211,6 +211,10 @@ py_binary(
     visibility = ["//visibility:public"],
     deps = [
         "//buildscripts/linter",
+        dependency(
+            "evergreen-py",
+            group = "testing",
+        ),
     ],
 )
 
@@ -516,6 +520,19 @@ py_binary(
     main = "lint_markdown_links.py",
     visibility = ["//visibility:public"],
     deps = [],  # 'requests' optional (external link checks skipped if absent)
+)
+
+py_binary(
+    name = "streams_suite_coverage_linter",
+    srcs = ["streams_suite_coverage_linter.py"],
+    main = "streams_suite_coverage_linter.py",
+    visibility = ["//visibility:public"],
+    deps = [
+        dependency(
+            "pyyaml",
+            group = "core",
+        ),
+    ],
 )
 
 py_binary(

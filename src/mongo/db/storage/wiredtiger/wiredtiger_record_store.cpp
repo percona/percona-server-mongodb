@@ -232,7 +232,6 @@ std::string WiredTigerRecordStore::generateCreateString(
 
     ss << "block_compressor=" << wtTableConfig.blockCompressor << ",";
 
-    // TODO: Replace WiredTigerCustomizationHooks with WiredTigerCustomizationHooksRegistry.
     ss << WiredTigerCustomizationHooks::get(getGlobalServiceContext())
               ->getTableCreateConfig(tableName);
     ss << WiredTigerCustomizationHooksRegistry::get(getGlobalServiceContext())
@@ -611,6 +610,7 @@ WiredTigerRecordStore::WiredTigerRecordStore(WiredTigerKVEngineBase* kvEngine,
       _isLogged(params.isLogged),
       _forceUpdateWithFullDocument(params.forceUpdateWithFullDocument),
       _inMemory(params.inMemory),
+      _isColdCollection(params.isColdCollection),
       _sizeStorer(params.sizeStorer),
       _tracksSizeAdjustments(params.tracksSizeAdjustments),
       _kvEngine(kvEngine) {
@@ -666,6 +666,10 @@ WiredTigerRecordStore::~WiredTigerRecordStore() {
                     "~WiredTigerRecordStore for temporary ident: {getIdent}",
                     "getIdent"_attr = getIdent());
     }
+}
+
+bool WiredTigerRecordStore::isColdCollection() const {
+    return _isColdCollection;
 }
 
 RecordStore::RecordStoreContainer WiredTigerRecordStore::getContainer() {
@@ -806,7 +810,7 @@ Status WiredTigerRecordStore::_insertRecords(OperationContext* opCtx,
         // unique int64_t RecordIds if RecordIds are not set.
         for (size_t i = 0; i < nRecords; i++) {
             auto& record = (*records)[i];
-            // Some RecordStores, like TemporaryRecordStores, may want to set their own RecordIds.
+            // Some RecordStores may want to set their own RecordIds.
             if (!areRecordIdsProvided) {
                 // Since a recordId wasn't provided for the first record, the recordId shouldn't
                 // have been provided for any record.
@@ -1452,7 +1456,8 @@ WiredTigerRecordStore::Oplog::Oplog(WiredTigerKVEngine* engine,
               .forceUpdateWithFullDocument = oplogParams.forceUpdateWithFullDocument,
               .inMemory = oplogParams.inMemory,
               .sizeStorer = oplogParams.sizeStorer,
-              .tracksSizeAdjustments = oplogParams.tracksSizeAdjustments}),
+              .tracksSizeAdjustments = oplogParams.tracksSizeAdjustments,
+              .isColdCollection = false}),
       _maxSize(oplogParams.oplogMaxSize) {
     invariant(WiredTigerRecordStore::keyFormat() == KeyFormat::Long);
     invariant(oplogParams.oplogMaxSize);

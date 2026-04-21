@@ -17,7 +17,7 @@
  * ]
  */
 import {assertDropCollection} from "jstests/libs/collection_drop_recreate.js";
-import {areViewlessTimeseriesEnabled} from "jstests/core/timeseries/libs/viewless_timeseries_util.js";
+import {isViewlessTimeseriesOnlySuite} from "jstests/core/timeseries/libs/viewless_timeseries_util.js";
 
 // TODO: SERVER-60746 try to enable multi-router once all aggregation stages are supported on multi-router.
 TestData.pinToSingleMongos = true;
@@ -133,6 +133,11 @@ const errorTests = [
             10170100, // hybrid search must be the first stage of the pipeline.
         ],
     },
+    {
+        stage: "$_internalJoinHint",
+        pipeline: [{$_internalJoinHint: {perSubsetLevelMode: [{level: NumberInt(0), mode: "ALL"}]}}],
+        expectedErrorCodes: [40602, 10557302, 40324, ErrorCodes.IllegalOperation],
+    },
 ];
 
 // TODO SERVER-101599 remove 10170100 once 9.0 becomes lastLTS, and timeseries collections
@@ -164,22 +169,22 @@ const noUnpackTests = [
         ],
         // Viewful timeseries always appends '$_internalUnpackBucket' stage, which causes an error since the stage
         // can only appear once in a pipeline.
-        skipTest: !areViewlessTimeseriesEnabled(db),
+        skipTest: !isViewlessTimeseriesOnlySuite(db),
     },
     // There are known bugs where some of these stages do not work with viewful timeseries.
-    {stage: "$listCatalog", pipeline: [{$listCatalog: {}}], skipTest: !areViewlessTimeseriesEnabled(db)},
+    {stage: "$listCatalog", pipeline: [{$listCatalog: {}}], skipTest: !isViewlessTimeseriesOnlySuite(db)},
     {stage: "$collStats", pipeline: [{$collStats: {latencyStats: {}}}]},
     {stage: "$indexStats", pipeline: [{$indexStats: {}}]},
     {
         stage: "$planCacheStats",
         pipeline: [{$planCacheStats: {}}],
-        skipTest: !areViewlessTimeseriesEnabled(db),
+        skipTest: !isViewlessTimeseriesOnlySuite(db),
         zeroDocsReturned: true,
     },
     {
         stage: "$_unpackBucket",
         pipeline: [{$_unpackBucket: {timeField: "time", metaField: "m"}}],
-        skipTest: !areViewlessTimeseriesEnabled(db),
+        skipTest: !isViewlessTimeseriesOnlySuite(db),
     },
 ];
 

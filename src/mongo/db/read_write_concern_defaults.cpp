@@ -369,8 +369,7 @@ void ReadWriteConcernDefaults::create(Service* service, FetchDefaultsFn fetchDef
 
 ReadWriteConcernDefaults::ReadWriteConcernDefaults(Service* service,
                                                    FetchDefaultsFn fetchDefaultsFn)
-    : _defaults(service, _threadPool, std::move(fetchDefaultsFn)),
-      _threadPool([] {
+    : _threadPool([] {
           ThreadPool::Options options;
           options.poolName = "ReadWriteConcernDefaults";
           options.minThreads = 0;
@@ -378,11 +377,19 @@ ReadWriteConcernDefaults::ReadWriteConcernDefaults(Service* service,
 
           return options;
       }()),
+      _defaults(service, _threadPool, std::move(fetchDefaultsFn)),
       _implicitDefaultWriteConcernMajority(false) {
     _threadPool.startup();
 }
 
-ReadWriteConcernDefaults::~ReadWriteConcernDefaults() = default;
+ReadWriteConcernDefaults::~ReadWriteConcernDefaults() {
+    shutDownAndJoin();
+}
+
+void ReadWriteConcernDefaults::shutDownAndJoin() {
+    _threadPool.shutdown();
+    _threadPool.join();
+}
 
 ReadWriteConcernDefaults::Cache::Cache(Service* service,
                                        ThreadPoolInterface& threadPool,

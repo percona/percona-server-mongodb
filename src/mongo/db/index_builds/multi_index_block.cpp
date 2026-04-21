@@ -301,11 +301,14 @@ void MultiIndexBlock::abortIndexBuild(OperationContext* opCtx,
 
             wunit.commit();
             _buildIsCleanedUp = true;
+            // TODO (SERVER-122275) Use a valid non min timestamp ensure replication of the drop
+            // event.
+            auto timestamp = Timestamp::min();
             if (_resumeStateTempRecordStore) {
-                _resumeStateTempRecordStore->drop();
+                _resumeStateTempRecordStore->drop(opCtx, timestamp);
             }
             for (auto& index : _indexes) {
-                index.block->dropTemporaryTables();
+                index.block->dropTemporaryTables(opCtx, timestamp);
             }
             return;
         } catch (const StorageUnavailableException&) {
@@ -1387,13 +1390,16 @@ Status MultiIndexBlock::commit(OperationContext* opCtx,
         collectionQueryInfo.rebuildPathArrayness(opCtx, collection);
     }
     shard_role_details::getRecoveryUnit(opCtx)->onCommit(
-        [this](OperationContext*, boost::optional<Timestamp>) {
+        [this](OperationContext* opCtx, boost::optional<Timestamp> ts) {
             _buildIsCleanedUp = true;
+            // TODO (SERVER-122275) Use a valid non min timestamp ensure replication of the drop
+            // event.
+            auto timestamp = Timestamp::min();
             if (_resumeStateTempRecordStore) {
-                _resumeStateTempRecordStore->drop();
+                _resumeStateTempRecordStore->drop(opCtx, timestamp);
             }
             for (auto& index : _indexes) {
-                index.block->dropTemporaryTables();
+                index.block->dropTemporaryTables(opCtx, timestamp);
             }
         });
 
@@ -1452,23 +1458,13 @@ void MultiIndexBlock::abortWithoutCleanup(OperationContext* opCtx,
                            .explicitIntent = rss::consensus::IntentRegistry::Intent::LocalWrite});
         }
 
-        _writeStateToDisk(opCtx, collection, _resumeStateTempRecordStore->getOrCreateTable(opCtx));
-
-        // Ensure all temporary tables are kept around after destruction.
-        _resumeStateTempRecordStore->keepTemporaryTable(opCtx);
         for (auto& index : _indexes) {
-            index.block->keepTemporaryTables(opCtx);
+            index.block->createDeferredTables(opCtx);
         }
+
+        _writeStateToDisk(opCtx, collection, _resumeStateTempRecordStore->getOrCreateTable(opCtx));
     }
 
-    _buildIsCleanedUp = true;
-}
-
-void MultiIndexBlock::keepTemporaryTables(OperationContext* opCtx) {
-    invariant(!_buildIsCleanedUp);
-    for (auto& index : _indexes) {
-        index.block->keepTemporaryTables(opCtx);
-    }
     _buildIsCleanedUp = true;
 }
 
