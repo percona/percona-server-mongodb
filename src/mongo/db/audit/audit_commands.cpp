@@ -52,8 +52,7 @@ namespace mongo {
 
 class AuditCommand : public ErrmsgCommandDeprecated {
 public:
-    AuditCommand(const char* name, const char* oldName = NULL)
-        : ErrmsgCommandDeprecated(name, oldName) {}
+    AuditCommand(const char* name) : ErrmsgCommandDeprecated(name) {}
     ~AuditCommand() override {}
     // TODO: Investigate if any other Command class virtual
     // methods need to be overridden.
