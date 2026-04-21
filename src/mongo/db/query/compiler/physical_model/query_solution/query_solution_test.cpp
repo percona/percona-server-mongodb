@@ -82,6 +82,12 @@ std::ostream& operator<<(std::ostream& os, FieldAvailability value) {
     MONGO_UNREACHABLE;
 }
 
+void verifyClone(const QuerySolutionNode& node) {
+    auto clone = node.clone();
+    absl::Hash<QuerySolutionNode> hash{};
+    ASSERT_EQ(hash(*clone), hash(node));
+}
+
 /**
  * Output stream operator for ProvidedSortSet instances is required by ASSERT_ macros in tests.
  */
@@ -181,6 +187,8 @@ TEST(QuerySolutionTest, SimpleRangeNoneEqual) {
     ASSERT(node.providedSorts().contains(BSON("a" << 1 << "b" << 1)));
     ASSERT(node.providedSorts().contains(BSON("a" << 1)));
     ASSERT_FALSE(node.providedSorts().contains(BSON("b" << 1)));
+
+    verifyClone(node);
 }
 
 // Index: {a: 1, b: 1, c: 1, d: 1, e: 1}
@@ -210,6 +218,8 @@ TEST(QuerySolutionTest, SimpleRangeSomeEqual) {
     ASSERT(node.providedSorts().contains(BSON("c" << 1 << "d" << 1 << "e" << 1)));
     ASSERT(node.providedSorts().contains(BSON("c" << 1 << "d" << 1)));
     ASSERT(node.providedSorts().contains(BSON("c" << 1)));
+
+    verifyClone(node);
 }
 
 // Index: {a: 1, b: 1, c: 1, d: 1, e: 1}
@@ -269,6 +279,8 @@ TEST(QuerySolutionTest, IntervalListAllPoints) {
     ASSERT(node.providedSorts().contains(BSON("d" << 1 << "e" << -1)));
     ASSERT(node.providedSorts().contains(BSON("b" << 1 << "c" << -1 << "d" << 1 << "e" << 1)));
     ASSERT(node.providedSorts().contains(BSON("a" << 1 << "b" << 1 << "c" << 1 << "d" << -1)));
+
+    verifyClone(node);
 }
 
 
@@ -322,6 +334,8 @@ TEST(QuerySolutionTest, IntervalListNoPoints) {
     ASSERT(node.providedSorts().contains(BSON("a" << 1 << "b" << 1 << "c" << 1)));
     ASSERT(node.providedSorts().contains(BSON("a" << 1 << "b" << 1)));
     ASSERT(node.providedSorts().contains(BSON("a" << 1)));
+
+    verifyClone(node);
 }
 
 // Index: {a: 1, b: 1, c: 1, d: 1, e: 1}
@@ -382,6 +396,8 @@ TEST(QuerySolutionTest, IntervalListSomePoints) {
     ASSERT(node.providedSorts().contains(BSON("a" << -1 << "c" << 1 << "d" << 1 << "b" << 1)));
     ASSERT(node.providedSorts().contains(BSON("c" << 1 << "b" << -1 << "d" << 1 << "a" << 1)));
     ASSERT_FALSE(node.providedSorts().contains(BSON("a" << 1 << "d" << 1)));
+
+    verifyClone(node);
 }
 
 TEST(QuerySolutionTest, GetFieldsWithStringBoundsIdentifiesFieldsContainingStrings) {
@@ -569,6 +585,8 @@ TEST(QuerySolutionTest, IndexScanNodeRemovesNonMatchingCollatedFieldsFromSortsOn
     auto sorts = node.providedSorts();
     ASSERT_EQ(sorts, ProvidedSortSet(BSON("a" << 1), {}));
     ASSERT_TRUE(sorts.contains(BSON("a" << 1)));
+
+    verifyClone(node);
 }
 
 TEST(QuerySolutionTest, IndexScanNodeGetFieldsWithStringBoundsCorrectlyHandlesEndKeyInclusive) {
@@ -600,6 +618,8 @@ TEST(QuerySolutionTest, IndexScanNodeGetFieldsWithStringBoundsCorrectlyHandlesEn
     ASSERT_TRUE(sorts.contains(BSON("a" << 1)));
     ASSERT_FALSE(sorts.contains(BSON("a" << 1 << "b" << 1)));
     ASSERT_FALSE(sorts.contains(BSON("b" << 1)));
+
+    verifyClone(node);
 }
 
 // Index: {a: 1}
@@ -621,6 +641,8 @@ TEST(QuerySolutionTest, IndexScanNodeRemovesCollatedFieldsFromSortsIfCollationDi
     auto sorts = node.providedSorts();
     ASSERT_EQ(sorts, kEmptySet);
     ASSERT_FALSE(sorts.contains(BSON("a" << 1)));
+
+    verifyClone(node);
 }
 
 TEST(QuerySolutionTest, IndexScanNodeDoesNotRemoveCollatedFieldsFromSortsIfCollationMatches) {
@@ -640,6 +662,8 @@ TEST(QuerySolutionTest, IndexScanNodeDoesNotRemoveCollatedFieldsFromSortsIfColla
     ASSERT_EQ(sorts, ProvidedSortSet(BSON("a" << 1), {}));
 
     ASSERT_TRUE(sorts.contains(BSON("a" << 1)));
+
+    verifyClone(node);
 }
 
 // Index: {a: 1, b: "hashed", c: 1}
@@ -679,6 +703,8 @@ TEST(QuerySolutionTest, HashedIndexScanNodeTruncatesSort) {
     ASSERT_FALSE(sorts.contains(BSON("a" << 1 << "b" << 1)));
     ASSERT_FALSE(sorts.contains(BSON("a" << 1 << "c" << 1)));
     ASSERT_FALSE(sorts.contains(BSON("b" << 1 << "c" << 1)));
+
+    verifyClone(node);
 }
 
 // Index: {a: 1, b: "hashed", c: 1}
@@ -717,6 +743,8 @@ TEST(QuerySolutionTest, HashedIndexScanNodeTruncatesSortUnlessFollowedByEquality
     ASSERT_FALSE(sorts.contains(BSON("a" << 1 << "b" << 1)));
     ASSERT(sorts.contains(BSON("a" << 1 << "c" << 1)));
     ASSERT_FALSE(sorts.contains(BSON("b" << 1 << "c" << 1)));
+
+    verifyClone(node);
 }
 
 // Index: {a: 1, b: "hashed", c: 1}
@@ -755,6 +783,8 @@ TEST(QuerySolutionTest, HashedIndexScanNodeDoesNotTruncateSortWhenEquality) {
     ASSERT(sorts.contains(BSON("a" << 1 << "b" << 1)));
     ASSERT(sorts.contains(BSON("a" << 1 << "c" << 1)));
     ASSERT(sorts.contains(BSON("b" << 1 << "c" << 1)));
+
+    verifyClone(node);
 }
 
 // Index: {a: 1, b: "hashed", c: 1}
@@ -797,6 +827,8 @@ TEST(QuerySolutionTest, HashedIndexScanNodeDoesTruncatesSortWhenCollationDoesntM
     ASSERT_FALSE(sorts.contains(BSON("a" << 1 << "b" << 1)));
     ASSERT_FALSE(sorts.contains(BSON("a" << 1 << "c" << 1)));
     ASSERT_FALSE(sorts.contains(BSON("b" << 1 << "c" << 1)));
+
+    verifyClone(node);
 }
 
 // Index: {a: 1, b: "hashed", c: 1}
@@ -844,6 +876,8 @@ TEST(QuerySolutionTest,
     ASSERT_FALSE(sorts.contains(BSON("a" << 1 << "b" << 1)));
     ASSERT_FALSE(sorts.contains(BSON("a" << 1 << "c" << 1)));
     ASSERT_FALSE(sorts.contains(BSON("b" << 1 << "c" << 1)));
+
+    verifyClone(node);
 }
 
 // Expanded wildcard index: {a: 1, b.$**: 1, c: 1}
@@ -901,6 +935,8 @@ TEST(QuerySolutionTest, WildcardIndexSupportsSortWhenIndexOnlyNeedsToLookAtOnePa
     ASSERT(sorts.contains(BSON("b.d" << 1 << "c" << 1)));
     ASSERT(sorts.contains(BSON("a" << 1 << "b.d" << 1 << "c" << 1)));
     ASSERT_FALSE(sorts.contains(BSON("a" << 1 << "c" << 1)));
+
+    verifyClone(node);
 }
 
 // Index: {a: 1, b.$**: 1, c: 1}
@@ -1069,6 +1105,8 @@ TEST(QuerySolutionTest, WildcardIndexDoesNotSupportSortWhenCollationDoesntMatchW
     ASSERT_FALSE(sorts.contains(BSON("b.d" << 1 << "c" << 1)));
     ASSERT_FALSE(sorts.contains(BSON("a" << 1 << "b.d" << 1 << "c" << 1)));
     ASSERT_FALSE(sorts.contains(BSON("a" << 1 << "c" << 1)));
+
+    verifyClone(node);
 }
 
 // Index: {a: 1, b: 1, c: 1, d: 1, e: 1}
@@ -1123,6 +1161,8 @@ TEST(QuerySolutionTest, CompoundIndexWithNonMatchingCollationFiltersAllSortsWith
     ASSERT(node.providedSorts().contains(BSON("a" << 1 << "c" << 1)));
     ASSERT_FALSE(node.providedSorts().contains(BSON("a" << 1 << "c" << 1 << "d" << 1)));
     ASSERT_FALSE(node.providedSorts().contains(BSON("a" << 1 << "c" << 1 << "e" << 1)));
+
+    verifyClone(node);
 }
 
 // Index: {a : 1}
@@ -1143,6 +1183,8 @@ TEST(QuerySolutionTest, IndexScanNodeWithNonMatchingCollationFiltersObjectField)
     node.computeProperties();
 
     ASSERT_EQ(node.providedSorts(), kEmptySet);
+
+    verifyClone(node);
 }
 
 // Index: {a : 1}
@@ -1163,6 +1205,8 @@ TEST(QuerySolutionTest, IndexScanNodeWithNonMatchingCollationFiltersArrayField) 
     node.computeProperties();
 
     ASSERT_EQ(node.providedSorts(), kEmptySet);
+
+    verifyClone(node);
 }
 
 TEST(QuerySolutionTest, WithNonMatchingCollatorAndNoEqualityPrefixSortsAreNotDuplicated) {
@@ -1190,6 +1234,8 @@ TEST(QuerySolutionTest, WithNonMatchingCollatorAndNoEqualityPrefixSortsAreNotDup
     // Expected sort orders
     ASSERT_EQ(node.providedSorts(), ProvidedSortSet(BSON("a" << 1), {}));
     ASSERT(node.providedSorts().contains(BSON("a" << 1)));
+
+    verifyClone(node);
 }
 
 TEST(QuerySolutionTest, IndexScanNodeHasFieldIncludesStringFieldWhenNoCollator) {
@@ -1212,6 +1258,8 @@ TEST(QuerySolutionTest, IndexScanNodeHasFieldIncludesStringFieldWhenNoCollator) 
 
     ASSERT_TRUE(node.hasField("a"));
     ASSERT_TRUE(node.hasField("b"));
+
+    verifyClone(node);
 }
 
 TEST(QuerySolutionTest, IndexScanNodeHasFieldIncludesSimpleBoundsStringFieldWhenNoCollator) {
@@ -1225,6 +1273,8 @@ TEST(QuerySolutionTest, IndexScanNodeHasFieldIncludesSimpleBoundsStringFieldWhen
 
     ASSERT_TRUE(node.hasField("a"));
     ASSERT_TRUE(node.hasField("b"));
+
+    verifyClone(node);
 }
 
 TEST(QuerySolutionTest, IndexScanNodeHasFieldExcludesStringFieldWhenIndexHasCollator) {
@@ -1250,6 +1300,8 @@ TEST(QuerySolutionTest, IndexScanNodeHasFieldExcludesStringFieldWhenIndexHasColl
 
     ASSERT_TRUE(node.hasField("a"));
     ASSERT_FALSE(node.hasField("b"));
+
+    verifyClone(node);
 }
 
 TEST(QuerySolutionTest, IndexScanNodeHasFieldExcludesSimpleBoundsStringFieldWhenIndexHasCollator) {
@@ -1265,6 +1317,8 @@ TEST(QuerySolutionTest, IndexScanNodeHasFieldExcludesSimpleBoundsStringFieldWhen
 
     ASSERT_TRUE(node.hasField("a"));
     ASSERT_FALSE(node.hasField("b"));
+
+    verifyClone(node);
 }
 
 auto createMatchExprAndProjection(const BSONObj& query, const BSONObj& projObj) {
@@ -1366,6 +1420,8 @@ TEST(QuerySolutionTest, NonMultikeyIndexWithoutPathLevelInfoCanCoverItsFields) {
     ASSERT_FALSE(node->hasField("b.c"));
     ASSERT_FALSE(node->hasField("b"));
     ASSERT_FALSE(node->hasField("e"));
+
+    verifyClone(*node);
 }
 
 TEST(QuerySolutionTest, NonMultikeyIndexWithPathLevelInfoCanCoverItsFields) {
@@ -1379,6 +1435,8 @@ TEST(QuerySolutionTest, NonMultikeyIndexWithPathLevelInfoCanCoverItsFields) {
     ASSERT_FALSE(node->hasField("b.c"));
     ASSERT_FALSE(node->hasField("b"));
     ASSERT_FALSE(node->hasField("e"));
+
+    verifyClone(*node);
 }
 
 TEST(QuerySolutionTest, MultikeyIndexWithoutPathLevelInfoCannotCoverAnyFields) {
@@ -1392,6 +1450,8 @@ TEST(QuerySolutionTest, MultikeyIndexWithoutPathLevelInfoCannotCoverAnyFields) {
     ASSERT_FALSE(node->hasField("b.c"));
     ASSERT_FALSE(node->hasField("b"));
     ASSERT_FALSE(node->hasField("e"));
+
+    verifyClone(*node);
 }
 
 TEST(QuerySolutionTest, MultikeyIndexWithPathLevelInfoCanCoverNonMultikeyFields) {
@@ -1578,6 +1638,8 @@ TEST(QuerySolutionTest, NodeIdsAssignedInPostOrderFashionStartingFromOne) {
     ASSERT_EQ(orNode->children[0]->nodeId(), 0u);
     ASSERT_EQ(orNode->children[1]->nodeId(), 0u);
 
+    verifyClone(*orNode);
+
     auto querySolution = std::make_unique<QuerySolution>();
     querySolution->setRoot(std::move(orNode));
     auto root = querySolution->root();
@@ -1615,6 +1677,8 @@ TEST(QuerySolutionTest, GroupNodeWithIndexScan) {
     ASSERT_EQ(node.providedSorts(), kEmptySet);
 
     ASSERT_EQ(node.getFieldAvailability("any_field"), FieldAvailability::kNotProvided);
+
+    verifyClone(node);
 }
 
 TEST(QuerySolutionTest, EqLookupNodeWithIndexScan) {
@@ -1629,13 +1693,17 @@ TEST(QuerySolutionTest, EqLookupNodeWithIndexScan) {
     scanNode->bounds.startKey = BSON("a" << 1 << "b" << 1);
     scanNode->bounds.endKey = BSON("a" << 1 << "b" << 1);
 
-    EqLookupNode node(std::move(scanNode),
+    verifyClone(*scanNode);
+
+    std::vector<std::unique_ptr<QuerySolutionNode>> children;
+    children.emplace_back(std::move(scanNode));
+    children.emplace_back(std::make_unique<CollectionScanNode>(foreignColl));
+    EqLookupNode node(std::move(children),
                       foreignColl,
                       "local",
                       "foreign",
                       "as",
                       EqLookupNode::LookupStrategy::kNestedLoopJoin,
-                      boost::none /* idxEntry */,
                       false /* shouldProduceBson */);
 
     node.computeProperties();
@@ -1650,6 +1718,8 @@ TEST(QuerySolutionTest, EqLookupNodeWithIndexScan) {
     ASSERT_EQ(node.getFieldAvailability("as"), FieldAvailability::kNotProvided);
     ASSERT_EQ(node.getFieldAvailability("a"), child->getFieldAvailability("a"));
     ASSERT_EQ(node.getFieldAvailability("b"), child->getFieldAvailability("b"));
+
+    verifyClone(node);
 }
 
 TEST(QuerySolutionTest, EqLookupNodeWithIndexScanFieldOverwrite) {
@@ -1669,13 +1739,17 @@ TEST(QuerySolutionTest, EqLookupNodeWithIndexScanFieldOverwrite) {
     scanNode->bounds.endKey = BSON("a" << 1 << "b" << 1 << "c"
                                        << "1");
 
-    EqLookupNode node(std::move(scanNode),
+    verifyClone(*scanNode);
+
+    std::vector<std::unique_ptr<QuerySolutionNode>> children;
+    children.emplace_back(std::move(scanNode));
+    children.emplace_back(std::make_unique<CollectionScanNode>(foreignColl));
+    EqLookupNode node(std::move(children),
                       foreignColl,
                       "local",
                       "foreign",
                       "b",
                       EqLookupNode::LookupStrategy::kNestedLoopJoin,
-                      boost::none /* idxEntry */,
                       false /* shouldProduceBson */);
 
     node.computeProperties();
@@ -1688,6 +1762,8 @@ TEST(QuerySolutionTest, EqLookupNodeWithIndexScanFieldOverwrite) {
     ASSERT_EQ(node.getFieldAvailability("b"), FieldAvailability::kNotProvided);
     ASSERT_EQ(node.getFieldAvailability("c"), child->getFieldAvailability("c"));
     ASSERT_EQ(node.getFieldAvailability("other"), child->getFieldAvailability("other"));
+
+    verifyClone(node);
 }
 
 TEST(QuerySolutionTest, ProvidedSortSetOutputStreamOperator) {
@@ -1744,14 +1820,16 @@ TEST(QuerySolutionTest, GetSecondaryNamespaceVectorOverSingleEqLookupNode) {
     const NamespaceString mainNss = NamespaceString::createNamespaceString_forTest("db.main");
     const NamespaceString foreignColl =
         NamespaceString::createNamespaceString_forTest("db.foreign");
-    auto scanNode = std::make_unique<IndexScanNode>(mainNss, buildSimpleIndexEntry(BSON("a" << 1)));
-    auto root = std::make_unique<EqLookupNode>(std::move(scanNode),
+    std::vector<std::unique_ptr<QuerySolutionNode>> children;
+    children.emplace_back(
+        std::make_unique<IndexScanNode>(mainNss, buildSimpleIndexEntry(BSON("a" << 1))));
+    children.emplace_back(std::make_unique<CollectionScanNode>(foreignColl));
+    auto root = std::make_unique<EqLookupNode>(std::move(children),
                                                foreignColl,
                                                "local",
                                                "remote",
                                                "b",
                                                EqLookupNode::LookupStrategy::kNestedLoopJoin,
-                                               boost::none /* idxEntry */,
                                                false /* shouldProduceBson */);
 
 
@@ -1768,15 +1846,16 @@ TEST(QuerySolutionTest, AssertSameHashes) {
         const NamespaceString mainNss = NamespaceString::createNamespaceString_forTest("db.main");
         const NamespaceString foreignColl =
             NamespaceString::createNamespaceString_forTest("db.foreign");
-        auto scanNode =
-            std::make_unique<IndexScanNode>(mainNss, buildSimpleIndexEntry(BSON("a" << 1)));
-        auto root = std::make_unique<EqLookupNode>(std::move(scanNode),
+        std::vector<std::unique_ptr<QuerySolutionNode>> children;
+        children.emplace_back(
+            std::make_unique<IndexScanNode>(mainNss, buildSimpleIndexEntry(BSON("a" << 1))));
+        children.emplace_back(std::make_unique<CollectionScanNode>(foreignColl));
+        auto root = std::make_unique<EqLookupNode>(std::move(children),
                                                    foreignColl,
                                                    "local",
                                                    "remote",
                                                    "b",
                                                    EqLookupNode::LookupStrategy::kNestedLoopJoin,
-                                                   boost::none /* idxEntry */,
                                                    false /* shouldProduceBson */);
 
 
@@ -1785,6 +1864,9 @@ TEST(QuerySolutionTest, AssertSameHashes) {
         return qs;
     };
     ASSERT(makeQs()->hash() == makeQs()->hash());
+
+    auto solution = makeQs();
+    verifyClone(*solution->root());
 }
 
 TEST(QuerySolutionTest, AssertSameHashesForIdenticalBinaryJoins) {
@@ -1802,6 +1884,9 @@ TEST(QuerySolutionTest, AssertSameHashesForIdenticalBinaryJoins) {
     };
 
     ASSERT_EQ(makeHJ()->hash(), makeHJ()->hash());
+
+    auto solution = makeHJ();
+    verifyClone(*solution->root());
 }
 
 TEST(QuerySolutionTest, AssertDifferentHashesForMirroredBinaryJoins) {
@@ -1886,14 +1971,16 @@ TEST(QuerySolutionTest, AssertDifferentHashesForProbesOnDifferentIndexes) {
 
 TEST(QuerySolutionTest, GetSecondaryNamespaceVectorDeduplicatesMainNss) {
     const NamespaceString mainNss = NamespaceString::createNamespaceString_forTest("db.main");
-    auto scanNode = std::make_unique<IndexScanNode>(mainNss, buildSimpleIndexEntry(BSON("a" << 1)));
-    auto root = std::make_unique<EqLookupNode>(std::move(scanNode),
+    std::vector<std::unique_ptr<QuerySolutionNode>> children;
+    children.emplace_back(
+        std::make_unique<IndexScanNode>(mainNss, buildSimpleIndexEntry(BSON("a" << 1))));
+    children.emplace_back(std::make_unique<CollectionScanNode>(mainNss));
+    auto root = std::make_unique<EqLookupNode>(std::move(children),
                                                mainNss,
                                                "local",
                                                "remote",
                                                "b",
                                                EqLookupNode::LookupStrategy::kNestedLoopJoin,
-                                               boost::none /* idxEntry */,
                                                false /* shouldProduceBson */);
 
 
@@ -1912,25 +1999,29 @@ TEST(QuerySolutionTest, GetSecondaryNamespaceVectorOverNestedEqLookupNodes) {
         NamespaceString::createNamespaceString_forTest("db.foreign");
     const NamespaceString foreignCollTwo =
         NamespaceString::createNamespaceString_forTest("db.foreign2");
-    auto scanNode = std::make_unique<IndexScanNode>(mainNss, buildSimpleIndexEntry(BSON("a" << 1)));
+    std::vector<std::unique_ptr<QuerySolutionNode>> children1;
+    children1.emplace_back(
+        std::make_unique<IndexScanNode>(mainNss, buildSimpleIndexEntry(BSON("a" << 1))));
+    children1.emplace_back(std::make_unique<CollectionScanNode>(foreignCollOne));
     auto childEqLookupNode =
-        std::make_unique<EqLookupNode>(std::move(scanNode),
+        std::make_unique<EqLookupNode>(std::move(children1),
                                        foreignCollOne,
                                        "local",
                                        "remote",
                                        "b",
                                        EqLookupNode::LookupStrategy::kNestedLoopJoin,
-                                       boost::none /* idxEntry */,
                                        false /* shouldProduceBson */);
 
+    std::vector<std::unique_ptr<QuerySolutionNode>> children2;
+    children2.emplace_back(std::move(childEqLookupNode));
+    children2.emplace_back(std::make_unique<CollectionScanNode>(foreignCollTwo));
     auto parentEqLookupNode =
-        std::make_unique<EqLookupNode>(std::move(childEqLookupNode),
+        std::make_unique<EqLookupNode>(std::move(children2),
                                        foreignCollTwo,
                                        "local",
                                        "remote",
                                        "b",
                                        EqLookupNode::LookupStrategy::kNestedLoopJoin,
-                                       boost::none /* idxEntry */,
                                        false /* shouldProduceBson */);
 
     QuerySolution qs;
@@ -1947,25 +2038,29 @@ TEST(QuerySolutionTest, GetSecondaryNamespaceVectorDeduplicatesNestedEqLookupNod
     const NamespaceString mainNss = NamespaceString::createNamespaceString_forTest("db.main");
     const NamespaceString foreignColl =
         NamespaceString::createNamespaceString_forTest("db.foreign");
-    auto scanNode = std::make_unique<IndexScanNode>(mainNss, buildSimpleIndexEntry(BSON("a" << 1)));
+    std::vector<std::unique_ptr<QuerySolutionNode>> children1;
+    children1.emplace_back(
+        std::make_unique<IndexScanNode>(mainNss, buildSimpleIndexEntry(BSON("a" << 1))));
+    children1.emplace_back(std::make_unique<CollectionScanNode>(foreignColl));
     auto childEqLookupNode =
-        std::make_unique<EqLookupNode>(std::move(scanNode),
+        std::make_unique<EqLookupNode>(std::move(children1),
                                        foreignColl,
                                        "local",
                                        "remote",
                                        "b",
                                        EqLookupNode::LookupStrategy::kNestedLoopJoin,
-                                       boost::none /* idxEntry */,
                                        false /* shouldProduceBson */);
 
+    std::vector<std::unique_ptr<QuerySolutionNode>> children2;
+    children2.emplace_back(std::move(childEqLookupNode));
+    children2.emplace_back(std::make_unique<CollectionScanNode>(foreignColl));
     auto parentEqLookupNode =
-        std::make_unique<EqLookupNode>(std::move(childEqLookupNode),
+        std::make_unique<EqLookupNode>(std::move(children2),
                                        foreignColl,
                                        "local",
                                        "remote",
                                        "b",
                                        EqLookupNode::LookupStrategy::kNestedLoopJoin,
-                                       boost::none /* idxEntry */,
                                        false /* shouldProduceBson */);
 
     QuerySolution qs;
@@ -2023,6 +2118,8 @@ TEST(QuerySolutionTest, GetFirstNodeByTypeFindsFirstAndCountsWhenSeveral) {
     ASSERT(firstLimitNodeLimitValue != secondLimitNode->limit);
     auto skipNode = std::make_unique<SkipNode>(
         std::move(secondLimitNode), 9ll, LimitSkipParameterization::Disabled);
+
+    verifyClone(*skipNode);
 
     QuerySolution qs;
     qs.setRoot(std::move(skipNode));

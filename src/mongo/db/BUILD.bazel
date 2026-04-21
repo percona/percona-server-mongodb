@@ -44,6 +44,7 @@ mongo_cc_library(
         ":startup_warnings_common",
         "//src/mongo/db/repl:repl_coordinator_interface",
         "//src/mongo/db/repl:repl_settings",
+        "//src/mongo/db/timeseries:timeseries_options",
         "//src/mongo/util:processinfo",
     ],
 )
@@ -1304,6 +1305,7 @@ mongo_cc_library(
         "traffic_recorder.cpp",
         "traffic_recorder_gen",
         "traffic_recorder_validators.cpp",
+        "//src/mongo/db/traffic_recorder:stashed_request.cpp",
     ],
     deps = [
         ":server_base",

@@ -323,6 +323,7 @@ def mongo_shell_program(
         "wiredTigerEngineConfigString": (config.WT_ENGINE_CONFIG, ""),
         "wiredTigerIndexConfigString": (config.WT_INDEX_CONFIG, ""),
         "pauseAfterPopulate": (config.PAUSE_AFTER_POPULATE, None),
+        "fastCheckParameters": (config.FAST_CHECK_PARAMETERS, None),
     }
 
     test_data = global_vars.get("TestData", {}).copy()
@@ -474,6 +475,9 @@ def mongo_shell_program(
     if config.FUZZ_MONGOD_CONFIGS is not None and config.FUZZ_MONGOD_CONFIGS is not False:
         test_data["fuzzMongodConfigs"] = True
 
+    if config.RUN_ALL_FEATURE_FLAG_TESTS:
+        test_data["runAllFeatureFlagTests"] = True
+
     if config.FUZZ_RUNTIME_PARAMS is not None and config.FUZZ_RUNTIME_PARAMS is not False:
         test_data["fuzzRuntimeParams"] = True
         eval_sb.append(
@@ -553,7 +557,7 @@ def mongo_shell_program(
     if config.SHELL_GRPC or mongod_set_parameters.get("useGrpcForSearch"):
         args.append("--gRPC")
 
-    if config.SHELL_JSDEBUGMODE:
+    if config.JSDBG:
         # relay to the shell flags
         kwargs["jsDebugMode"] = ""
 
@@ -596,6 +600,13 @@ def mongo_shell_program(
     if config.EXTERNAL_MODULE_ROOT != config.RESMOKE_ROOT:
         mongo_path_dirs.append(config.EXTERNAL_MODULE_ROOT)
     env_vars["MONGO_PATH"] = os.pathsep.join(mongo_path_dirs)
+
+    # The mongo shell can print out the addresses of JSScope instances that are created and destroyed,
+    # which can be useful for debugging javascript stacktraces in the shell.
+    # This is only enabled for Evergreen tasks to avoid unnecessarily verbose logging in other contexts.
+    if config.EVERGREEN_TASK_ID is not None:
+        env_vars["OUTPUT_DEBUG_JSSCOPE_ADDRESSES"] = "true"
+
     process_kwargs["env_vars"] = env_vars
 
     return make_process(logger, args, **process_kwargs)

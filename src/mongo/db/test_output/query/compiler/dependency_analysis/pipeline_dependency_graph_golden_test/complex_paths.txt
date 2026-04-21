@@ -70,12 +70,18 @@ output: {
                 },
                 "a:1": {
                     "declaringScope": "scope:0",
+                    "metadata": {
+                        "array": false
+                    },
                     "dependencies": [
                         "<base document>:-1"
                     ]
                 },
                 "b:2": {
                     "declaringScope": "scope:0",
+                    "metadata": {
+                        "array": false
+                    },
                     "dependencies": [
                         "<base document>:-1"
                     ]
@@ -91,6 +97,9 @@ output: {
                             },
                             "c:5": {
                                 "declaringScope": "scope:1",
+                                "metadata": {
+                                    "array": false
+                                },
                                 "dependencies": [
                                     "<base document>:-1"
                                 ]
@@ -126,6 +135,9 @@ output: {
                             },
                             "a:9": {
                                 "declaringScope": "scope:3",
+                                "metadata": {
+                                    "array": false
+                                },
                                 "dependencies": [
                                     "a:1",
                                     "b:2"
@@ -133,12 +145,18 @@ output: {
                             },
                             "b:10": {
                                 "declaringScope": "scope:3",
+                                "metadata": {
+                                    "array": false
+                                },
                                 "dependencies": [
                                     "a:1",
                                     "b:2"
                                 ]
                             }
                         }
+                    },
+                    "metadata": {
+                        "array": false
                     },
                     "dependencies": [
                         "a:9",
@@ -165,6 +183,9 @@ output: {
                                         },
                                         "b:15": {
                                             "declaringScope": "scope:5",
+                                            "metadata": {
+                                                "array": false
+                                            },
                                             "dependencies": [
                                                 "a:1",
                                                 "b:2"
@@ -178,12 +199,18 @@ output: {
                             }
                         }
                     },
+                    "metadata": {
+                        "array": false
+                    },
                     "dependencies": [
                         "b:13"
                     ]
                 },
                 "c:16": {
                     "declaringScope": "scope:2",
+                    "metadata": {
+                        "array": false
+                    },
                     "dependencies": [
                         "a:1",
                         "b:2"
@@ -225,6 +252,9 @@ output: {
                                         },
                                         "a:22": {
                                             "declaringScope": "scope:8",
+                                            "metadata": {
+                                                "array": false
+                                            },
                                             "dependencies": [
                                                 "a:7",
                                                 "b:10",
@@ -233,11 +263,17 @@ output: {
                                         }
                                     }
                                 },
+                                "metadata": {
+                                    "array": false
+                                },
                                 "dependencies": [
                                     "a:22"
                                 ]
                             }
                         }
+                    },
+                    "metadata": {
+                        "array": false
                     },
                     "dependencies": [
                         "a:7",
@@ -255,6 +291,9 @@ output: {
                             },
                             "a:25": {
                                 "declaringScope": "scope:9",
+                                "metadata": {
+                                    "array": false
+                                },
                                 "dependencies": [
                                     "a:7",
                                     "b:10",
@@ -263,6 +302,9 @@ output: {
                             },
                             "b:26": {
                                 "declaringScope": "scope:9",
+                                "metadata": {
+                                    "array": false
+                                },
                                 "dependencies": [
                                     "a:7",
                                     "b:10",
@@ -270,6 +312,9 @@ output: {
                                 ]
                             }
                         }
+                    },
+                    "metadata": {
+                        "array": false
                     },
                     "dependencies": [
                         "a:25",

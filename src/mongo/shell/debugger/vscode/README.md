@@ -1,6 +1,6 @@
 # VSCode Extension for Debugging JS in the Mongo Shell
 
-Use VSCode's Debugger UI with resmoke's `--shellJSDebugMode` flag.
+Use VSCode's Debugger UI with resmoke's `--jsdbg` flag.
 
 ![example.png](./example.png)
 
@@ -27,7 +27,6 @@ Use VSCode's Debugger UI with resmoke's `--shellJSDebugMode` flag.
 - Watching variables is not supported.
 - Deeply nested variables are truncated in the Variables sidebar display, with only 1 level of expansion. Use the Debug Console to inspect more. See [SERVER-121664](https://jira.mongodb.org/browse/SERVER-121664).
 - Breakpoints set while the shell is paused take effect immediately. Breakpoints set while the shell is running will apply the next time a breakpoint is hit (the shell is not interrupted mid-execution).
-- Files can't be edited/modified while paused in a breakpoint (technically, they _can_ be edited, but that will cause the debugger to error). See [SERVER-122188](https://jira.mongodb.org/browse/SERVER-122188).
 - The debugger uses port 9229, the default Chrome debugging port. Any open Chrome debuggers (eg. Developer Tools open in a Chrome tab) will conflict with this VSCode Debugger.
 
 ## Install
@@ -75,9 +74,9 @@ Extension 'mongo-shell-debugger-1.0.0.vsix' was successfully installed.
    ```
    Debug server listening on port 9229
    Waiting for mongo shell to connect on port 9229...
-   Use resmoke's --shellJSDebugMode flag when running a JS test file to stop on breakpoints.
+   Use resmoke's --jsdbg flag when running a JS test file to stop on breakpoints.
    ```
-4. Run resmoke with the `--shellJSDebugMode` flag to stop on the breakpoints.
+4. Run resmoke with the `--jsdbg` flag to stop on the breakpoints.
 5. Use VSCode's breakpoint UI to navigate (continue, inspect scope variables, etc).
 
 ## Architecture
@@ -131,7 +130,7 @@ Extension 'mongo-shell-debugger-1.0.0.vsix' was successfully installed.
 **Initialization**
 
 1. VSCode starts → session.js creates TCP server on :9229
-2. Shell starts with `--shellJSDebugMode` → adapter.cpp connects to :9229
+2. Shell starts with `--jsdbg` → adapter.cpp connects to :9229
 3. Shell waits for a "handshake" (configurationDone) from session.js
 4. session.js sends all known breakpoints to the shell, then sends configurationDone
 5. Shell begins execution, pausing on any breakpoints it encounters

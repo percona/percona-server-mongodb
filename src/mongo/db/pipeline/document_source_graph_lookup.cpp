@@ -191,6 +191,7 @@ StageConstraints DocumentSourceGraphLookUp::constraints(PipelineSplitState pipeS
 
     constraints.canSwapWithMatch = true;
     constraints.canSwapWithSkippingOrLimitingStage = !_unwind;
+    constraints.outputDependsOnSingleInput = true;
 
     // If this $graphLookup is on the merging half of the pipeline and the inner collection
     // isn't sharded (that is, it is either unsplittable or untracked), then we should merge
@@ -314,7 +315,7 @@ DocumentSourceGraphLookUp::DocumentSourceGraphLookUp(
       _variables(expCtx->variables),
       _variablesParseState(expCtx->variablesParseState.copyWith(_variables.useIdGenerator())) {
     if (!getFromNs().isOnInternalDb()) {
-        serviceOpCounters(expCtx->getOperationContext()).gotNestedAggregate();
+        globalOpCounters().gotNestedAggregate();
     }
 
     const auto& resolvedNamespace = getExpCtx()->getResolvedNamespace(getFromNs());
@@ -343,6 +344,10 @@ DocumentSourceGraphLookUp::DocumentSourceGraphLookUp(
       _fromPipeline(original._fromPipeline),
       _variables(original._variables),
       _variablesParseState(original._variablesParseState.copyWith(_variables.useIdGenerator())) {
+    if (_params.startWith) {
+        // re-create startWith expression using newExpCtx.
+        _params.startWith = _params.startWith->cloneUsingNewExpCtx(newExpCtx.get());
+    }
     if (original._unwind) {
         _unwind =
             static_cast<DocumentSourceUnwind*>(original._unwind.value()->clone(getExpCtx()).get());

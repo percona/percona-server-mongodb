@@ -35,6 +35,7 @@
 #include "mongo/db/operation_context.h"
 #include "mongo/db/record_id.h"
 #include "mongo/db/replicated_fast_count/replicated_fast_count_committer.h"
+#include "mongo/db/replicated_fast_count/replicated_fast_count_metrics.h"
 #include "mongo/db/replicated_fast_count/replicated_fast_size_count.h"
 #include "mongo/db/shard_role/shard_catalog/collection.h"
 #include "mongo/db/shard_role/shard_role.h"
@@ -106,11 +107,6 @@ public:
      */
     void initializeFastCountCommitFn();
 
-    inline static StringData kMetaDataKey = "meta"_sd;
-    inline static StringData kSizeKey = "sz"_sd;
-    inline static StringData kCountKey = "ct"_sd;
-    inline static StringData kValidAsOfKey = "valid-as-of"_sd;
-
     /**
      * Spawns fastcount thread.
      * Skips running thread when _isUnderTest.
@@ -160,6 +156,10 @@ public:
      */
     void flushSync(OperationContext* opCtx);
 
+    ReplicatedFastCountMetrics& getReplicatedFastCountMetrics() {
+        return _metrics;
+    }
+
     /**
      * Disables periodic background writes of metadata for testing purposes. Must be called before
      * startup().
@@ -172,7 +172,9 @@ public:
     bool isRunning_ForTest();
 
 private:
-    void _acquireAndFlush(OperationContext* opCtx, const FastSizeCountMap& dirtyMetadata);
+    void _acquireAndFlush(OperationContext* opCtx,
+                          const FastSizeCountMap& dirtyMetadata,
+                          Timestamp validAsOfTs);
 
     /**
      * Return a copy of a subset of _metadata, only including the dirty entries. Clears the dirty
@@ -184,8 +186,10 @@ private:
      * Write out dirtyMetadata to fastCountColl.
      */
     void _doFlush(OperationContext* opCtx,
-                  const CollectionPtr& fastCountColl,
-                  const FastSizeCountMap& dirtyMetadata);
+                  const CollectionPtr& metadataStoreColl,
+                  const CollectionPtr& metadataTimestampsColl,
+                  const FastSizeCountMap& dirtyMetadata,
+                  const Timestamp& validAsOfTs);
 
     /**
      * Runs background thread, performing final flush.
@@ -202,39 +206,28 @@ private:
     /**
      * Write one collection's sizeCount to disk.
      */
-    void _writeOneMetadata(OperationContext* opCtx,
-                           const CollectionPtr& fastCountColl,
-                           const UUID& uuid,
-                           const CollectionSizeCount& sizeCount,
-                           const Timestamp& validAsOfTS,
-                           const RecordId& recordId);
+    void _writeSizeCountEntry(OperationContext* opCtx,
+                              const CollectionPtr& fastCountColl,
+                              const UUID& uuid,
+                              const CollectionSizeCount& sizeCount,
+                              const Timestamp& validAsOfTS,
+                              const RecordId& recordId);
 
-    void _updateOneMetadata(OperationContext* opCtx,
-                            const CollectionPtr& fastCountColl,
-                            const Snapshotted<BSONObj>& doc,
-                            const UUID& uuid,
-                            const CollectionSizeCount& sizeCount,
-                            const Timestamp& validAsOfTS,
-                            const RecordId& recordId);
-    void _insertOneMetadata(OperationContext* opCtx,
-                            const CollectionPtr& fastCountColl,
-                            const UUID& uuid,
-                            const CollectionSizeCount& sizeCount,
-                            const Timestamp& validAsOfTS);
+    void _writeTimestampEntry(OperationContext* opCtx,
+                              const CollectionPtr& timestampColl,
+                              int32_t stripe,
+                              const Timestamp& validAsOfTs);
 
-    /**
-     * Acquire the fastcount collection that underpins this class with write intent.
-     * Returns boost::none if it doesn't exist.
-     */
-    boost::optional<CollectionOrViewAcquisition> _acquireFastCountCollectionForWrite(
-        OperationContext* opCtx);
+    void _updateMetadata(OperationContext* opCtx,
+                         const CollectionPtr& fastCountColl,
+                         const Snapshotted<BSONObj>& doc,
+                         const BSONObj& newDoc,
+                         const BSONObj& criteria,
+                         const RecordId& recordId);
 
-    /**
-     * Acquire the fastcount collection that underpins this class with read intent.
-     * Returns boost::none if it doesn't exist.
-     */
-    boost::optional<CollectionOrViewAcquisition> _acquireFastCountCollectionForRead(
-        OperationContext* opCtx);
+    void _insertMetadata(OperationContext* opCtx,
+                         const CollectionPtr& fastCountColl,
+                         const BSONObj& newDoc);
 
     /**
      * Populates the in-memory values of _metadata with the values persisted in the internal fast
@@ -244,18 +237,43 @@ private:
                                  const CollectionOrViewAcquisition& acquisition);
 
     /**
-     * Formats and returns the document to write to the fastcount collection.
+     * Formats and returns the document to write to the fastcount store collection.
      */
     BSONObj _getDocForWrite(const UUID& uuid,
                             const CollectionSizeCount& sizeCount,
                             const Timestamp& validAsOfTS) const;
 
     /**
-     * Generates a key (RecordId) into the fastcount collection given a user
+     * Formats and returns the document to write to the fastcount store timestamps collection.
+     */
+    BSONObj _getTimestampDocForWrite(int32_t stripe, const Timestamp& validAsOfTs) const;
+
+    /**
+     * Generates a key (RecordId) into the fastcount store collection given a user
      * collection uuid.
      */
     RecordId _keyForUUID(const UUID& uuid) const;
     UUID _UUIDForKey(RecordId key) const;
+
+    /**
+     * Generates a key (RecordId) into the fast count store timestamps collection given a stripe
+     * number.
+     */
+    RecordId _keyForStripe(int32_t stripe) const;
+
+    /**
+     * Returns the stripe number into the fast count store timestamps collection for a given
+     * collection.
+     * TODO SERVER-121386: Perform actual striping. Currently this returns the same key for all
+     * entries.
+     */
+    int32_t _getStripe() const;
+
+    // Metrics for the ReplicatedFastCountManager reported via both serverStatus and OTel.
+    //
+    // Metrics are shared between ReplicatedFastCountManager instances. We assume there is exactly
+    // one ReplicatedFastCountManager per mongod process.
+    static inline ReplicatedFastCountMetrics _metrics;
 
     StringData _threadName = "replicatedSizeCount"_sd;
     stdx::thread _backgroundThread;

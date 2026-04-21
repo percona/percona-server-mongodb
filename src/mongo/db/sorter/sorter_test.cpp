@@ -225,7 +225,11 @@ template <typename Traits>
 class FileBasedMakeFromExistingRangesTest : public MakeFromExistingRangesTypedTestBase<Traits> {};
 
 template <typename Traits>
-class MakeFromExistingRangesTest : public MakeFromExistingRangesTypedTestBase<Traits> {};
+class MakeFromExistingRangesTest : public MakeFromExistingRangesTypedTestBase<Traits> {
+public:
+    // TODO (SERVER-116165): Remove.
+    RAIIServerParameterControllerForTest ffContainerWrites{"featureFlagContainerWrites", true};
+};
 
 using MakeFromExistingRangesTypes = ::testing::Types<FileTraits, ContainerTraits>;
 TYPED_TEST_SUITE(MakeFromExistingRangesTest, MakeFromExistingRangesTypes);
@@ -511,7 +515,7 @@ TYPED_TEST(MakeFromExistingRangesTest, MergeSpillsTracksMergedSpillBatches) {
     ranges.reserve(kInitialRanges);
     for (size_t i = 0; i < kInitialRanges; ++i) {
         std::vector<IWPair> oneRecord{{static_cast<int>(i), -static_cast<int>(i)}};
-        ranges.push_back(spiller->spill(opts, IWSorter::Settings{}, oneRecord, 0));
+        ranges.push_back(spiller->spill(opts, IWSorter::Settings{}, oneRecord));
     }
 
     SorterTracker tracker;
@@ -537,7 +541,7 @@ TYPED_TEST(MakeFromExistingRangesTest, MergeSpillsRejectsDisjointRanges) {
     using IteratorPtr = std::shared_ptr<sorter::Iterator<IntWrapper, IntWrapper>>;
     auto spillSingleKey = [&](int key) -> IteratorPtr {
         std::vector<IWPair> oneRecord{{key, -key}};
-        return spiller->spill(opts, IWSorter::Settings{}, oneRecord, 0);
+        return spiller->spill(opts, IWSorter::Settings{}, oneRecord);
     };
 
     auto firstRange = spillSingleKey(50);   // [0, 1)
@@ -1523,7 +1527,10 @@ TEST_F(BoundedSorterTest, LargeSpill) {
     ASSERT_GTE(sorter->stats().spilledRanges(), 1);
 }
 template <typename Traits>
-class SpillerMergeDiskSpaceTest : public MakeFromExistingRangesTypedTestBase<Traits> {};
+class SpillerMergeDiskSpaceTest : public MakeFromExistingRangesTypedTestBase<Traits> {
+    // TODO (SERVER-116165): Remove.
+    RAIIServerParameterControllerForTest ffContainerWrites{"featureFlagContainerWrites", true};
+};
 
 TYPED_TEST_SUITE(SpillerMergeDiskSpaceTest, MakeFromExistingRangesTypes);
 
@@ -1548,8 +1555,8 @@ TYPED_TEST(SpillerMergeDiskSpaceTest, MergeSpillsRespectsDiskSpaceCheck) {
     std::span<IWPair> span{data};
 
     std::vector<IteratorPtr> ranges;
-    ranges.push_back(spiller->spill(opts, IWSorter::Settings{}, span.subspan(0, 2), 0));
-    ranges.push_back(spiller->spill(opts, IWSorter::Settings{}, span.subspan(2, 2), 0));
+    ranges.push_back(spiller->spill(opts, IWSorter::Settings{}, span.subspan(0, 2)));
+    ranges.push_back(spiller->spill(opts, IWSorter::Settings{}, span.subspan(2, 2)));
 
     SorterStats sorterStats{/*sorterTracker=*/nullptr};
 

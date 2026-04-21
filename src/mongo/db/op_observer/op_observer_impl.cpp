@@ -74,6 +74,7 @@
 #include "mongo/db/shard_role/shard_catalog/collection_operation_source.h"
 #include "mongo/db/shard_role/shard_catalog/collection_options.h"
 #include "mongo/db/shard_role/shard_catalog/database_holder.h"
+#include "mongo/db/shard_role/shard_catalog/index_descriptor.h"
 #include "mongo/db/shard_role/shard_catalog/scoped_collection_metadata.h"
 #include "mongo/db/shard_role/transaction_resources.h"
 #include "mongo/db/sharding_environment/shard_id.h"
@@ -309,6 +310,48 @@ OpTimeBundle replLogDelete(OperationContext* opCtx,
     return opTimes;
 }
 
+/**
+ * Builds the vector of IndexIdents for the o2 field of a startIndexBuild or commitIndexBuild
+ * oplog entry. Each element carries the unique ident tag for the index, plus internal idents
+ * (sorter, side-writes, etc.) when primary-driven index builds are enabled.
+ */
+std::vector<repl::IndexIdents> buildIndexIdentsForO2(OperationContext* opCtx,
+                                                     const std::vector<IndexBuildInfo>& indexes,
+                                                     const NamespaceString& nss) {
+    auto storageEngine = opCtx->getServiceContext()->getStorageEngine();
+    std::vector<repl::IndexIdents> o2Indexes;
+    o2Indexes.reserve(indexes.size());
+    for (const auto& indexBuildInfo : indexes) {
+        auto indexIdentUniqueTag =
+            storageEngine->getIndexIdentUniqueTag(indexBuildInfo.indexIdent, nss.dbName());
+        repl::IndexIdents indexIdents;
+        indexIdents.setIndexIdent(std::string{indexIdentUniqueTag});
+
+        if (isPrimaryDrivenIndexBuildEnabled(VersionContext::getDecoration(opCtx))) {
+            invariant(indexBuildInfo.sorterIdent);
+            invariant(indexBuildInfo.sideWritesIdent);
+            invariant(indexBuildInfo.skippedRecordsIdent);
+            invariant(
+                !(indexBuildInfo.spec["unique"].trueValue() ||
+                  IndexDescriptor::isIdIndexPattern(indexBuildInfo.spec.getObjectField("key"))) ||
+                indexBuildInfo.constraintViolationsIdent);
+
+            repl::InternalIdents internalIdents;
+            internalIdents.setSorterIdent(*indexBuildInfo.sorterIdent);
+            internalIdents.setSideWritesIdent(*indexBuildInfo.sideWritesIdent);
+            internalIdents.setSkippedRecordsIdent(*indexBuildInfo.skippedRecordsIdent);
+            if (indexBuildInfo.constraintViolationsIdent) {
+                internalIdents.setConstraintViolationsIdent(
+                    *indexBuildInfo.constraintViolationsIdent);
+            }
+            indexIdents.setInternalIdents(std::move(internalIdents));
+        }
+
+        o2Indexes.push_back(std::move(indexIdents));
+    }
+    return o2Indexes;
+}
+
 bool shouldTimestampIndexBuildSinglePhase(OperationContext* opCtx, const NamespaceString& nss) {
     // This function returns whether a timestamp for a catalog write when beginning an index build,
     // or aborting an index build is necessary. There are four scenarios:
@@ -332,6 +375,18 @@ bool shouldTimestampIndexBuildSinglePhase(OperationContext* opCtx, const Namespa
     // better than using a ghost timestamp.  Writing an oplog entry ensures this node is
     // primary.
     return true;
+}
+
+/**
+ * We reserve two oplog slots:
+ * 1. The first slot at opTime {TS-1} is reserved so resharding can forge a no-op image oplog entry.
+ * 2. The second slot at opTime {TS} is used by the retryable findAndModify operation.
+ */
+void reserveOplogSlotsForRetryableFindAndModify(OperationContext* opCtx,
+                                                OperationLogger* operationLogger,
+                                                MutableOplogEntry& oplogEntry) {
+    auto slots = operationLogger->getNextOpTimes(opCtx, /*count*/ 2, /*opTimeOffset*/ 1);
+    oplogEntry.setOpTime(slots[1]);
 }
 
 }  // namespace
@@ -421,35 +476,6 @@ void OpObserverImpl::onStartIndexBuild(OperationContext* opCtx,
     }
     oIndexesArr.done();
 
-    auto storageEngine = opCtx->getServiceContext()->getStorageEngine();
-    std::vector<repl::IndexIdents> o2Indexes;
-    o2Indexes.reserve(indexes.size());
-    for (const auto& indexBuildInfo : indexes) {
-        auto indexIdentUniqueTag =
-            storageEngine->getIndexIdentUniqueTag(indexBuildInfo.indexIdent, nss.dbName());
-        repl::IndexIdents indexIdents;
-        indexIdents.setIndexIdent(std::string{indexIdentUniqueTag});
-
-        if (isPrimaryDrivenIndexBuildEnabled(VersionContext::getDecoration(opCtx))) {
-            invariant(indexBuildInfo.sorterIdent);
-            invariant(indexBuildInfo.sideWritesIdent);
-            invariant(indexBuildInfo.skippedRecordsTrackerIdent);
-
-            repl::InternalIdents internalIdents;
-            internalIdents.setSorterIdent(*indexBuildInfo.sorterIdent);
-            internalIdents.setSideWritesIdent(*indexBuildInfo.sideWritesIdent);
-            internalIdents.setSkippedRecordsTrackerIdent(
-                *indexBuildInfo.skippedRecordsTrackerIdent);
-            if (indexBuildInfo.constraintViolationsTrackerIdent) {
-                internalIdents.setConstraintViolationsTrackerIdent(
-                    *indexBuildInfo.constraintViolationsTrackerIdent);
-            }
-            indexIdents.setInternalIdents(std::move(internalIdents));
-        }
-
-        o2Indexes.push_back(std::move(indexIdents));
-    }
-
     MutableOplogEntry oplogEntry;
     oplogEntry.setOpType(repl::OpTypeEnum::kCommand);
     if (isTimeseries &&
@@ -464,8 +490,8 @@ void OpObserverImpl::onStartIndexBuild(OperationContext* opCtx,
     oplogEntry.setObject(oplogEntryBuilder.done());
     if (shouldReplicateLocalCatalogIdentifiers(
             rss::ReplicatedStorageService::get(opCtx).getPersistenceProvider())) {
-        repl::StartIndexBuildOplogEntryO2 o2;
-        o2.setIndexes(std::move(o2Indexes));
+        repl::IndexBuildOplogEntryO2 o2;
+        o2.setIndexes(buildIndexIdentsForO2(opCtx, indexes, nss));
         oplogEntry.setObject2(o2.toBSON());
     }
     oplogEntry.setFromMigrateIfTrue(fromMigrate);
@@ -496,7 +522,7 @@ void OpObserverImpl::onCommitIndexBuild(OperationContext* opCtx,
                                         const NamespaceString& nss,
                                         const UUID& collUUID,
                                         const UUID& indexBuildUUID,
-                                        const std::vector<BSONObj>& indexes,
+                                        const std::vector<IndexBuildInfo>& indexes,
                                         const std::vector<boost::optional<BSONObj>>& multikey,
                                         bool fromMigrate,
                                         bool isTimeseries) {
@@ -510,8 +536,8 @@ void OpObserverImpl::onCommitIndexBuild(OperationContext* opCtx,
     indexBuildUUID.appendToBuilder(&oplogEntryBuilder, "indexBuildUUID");
 
     BSONArrayBuilder indexesArr(oplogEntryBuilder.subarrayStart("indexes"));
-    for (const auto& indexDoc : indexes) {
-        indexesArr.append(indexDoc);
+    for (const auto& indexBuildInfo : indexes) {
+        indexesArr.append(indexBuildInfo.spec);
     }
     indexesArr.done();
 
@@ -543,6 +569,12 @@ void OpObserverImpl::onCommitIndexBuild(OperationContext* opCtx,
     oplogEntry.setNss(nss.getCommandNS());
     oplogEntry.setUuid(collUUID);
     oplogEntry.setObject(oplogEntryBuilder.done());
+    if (shouldReplicateLocalCatalogIdentifiers(
+            rss::ReplicatedStorageService::get(opCtx).getPersistenceProvider())) {
+        repl::IndexBuildOplogEntryO2 o2;
+        o2.setIndexes(buildIndexIdentsForO2(opCtx, indexes, nss));
+        oplogEntry.setObject2(o2.toBSON());
+    }
     oplogEntry.setFromMigrateIfTrue(fromMigrate);
     logOperation(opCtx, &oplogEntry, true /*assignCommonFields*/, _operationLogger.get());
 }
@@ -1268,16 +1300,14 @@ BSONObj buildContainerOpObject(std::variant<int64_t, std::span<const char>> key,
 }
 
 OpTimeBundle logContainerInsert(OperationContext* opCtx,
-                                const NamespaceString& ns,
-                                const UUID& uuid,
                                 StringData container,
                                 std::variant<int64_t, std::span<const char>> key,
                                 std::span<const char> value,
                                 OperationLogger& logger) {
+    const auto& ns = NamespaceString::kContainerNamespace;
     MutableOplogEntry entry;
     entry.setTid(ns.tenantId());
     entry.setNss(ns);
-    entry.setUuid(uuid);
     entry.setContainer(container);
     entry.setOpType(repl::OpTypeEnum::kContainerInsert);
     entry.setObject(buildContainerOpObject(key, value));
@@ -1290,12 +1320,11 @@ OpTimeBundle logContainerInsert(OperationContext* opCtx,
 }
 
 void _onContainerInsert(OperationContext* opCtx,
-                        const NamespaceString& ns,
-                        const UUID& collUUID,
                         StringData ident,
                         std::variant<int64_t, std::span<const char>> key,
                         std::span<const char> value,
                         OperationLogger& logger) {
+    const auto& ns = NamespaceString::kContainerNamespace;
     auto oplogDisabled = repl::ReplicationCoordinator::get(opCtx)->isOplogDisabledFor(opCtx, ns);
     auto txnParticipant = TransactionParticipant::get(opCtx);
     auto inMultiDocumentTransaction =
@@ -1308,7 +1337,6 @@ void _onContainerInsert(OperationContext* opCtx,
         op.setVersionContextIfHasOperationFCV(VersionContext::getDecoration(opCtx));
         op.setTid(ns.tenantId());
         op.setNss(ns);
-        op.setUuid(collUUID);
         op.setContainer(ident);
         op.setObject(buildContainerOpObject(key, value));
         return op;
@@ -1332,24 +1360,22 @@ void _onContainerInsert(OperationContext* opCtx,
         return;
     }
 
-    auto opTime = logContainerInsert(opCtx, ns, collUUID, ident, key, value, logger);
+    auto opTime = logContainerInsert(opCtx, ident, key, value, logger);
 
     SessionTxnRecord sessionTxnRecord;
     sessionTxnRecord.setLastWriteOpTime(opTime.writeOpTime);
     sessionTxnRecord.setLastWriteDate(opTime.wallClockTime);
-    onWriteOpCompleted(opCtx, {kUninitializedStmtId}, sessionTxnRecord, ns);
+    // We don't have any StmtId's so we don't need to call onWriteOpCompleted().
 }
 
 OpTimeBundle logContainerDelete(OperationContext* opCtx,
-                                const NamespaceString& ns,
-                                const UUID& uuid,
                                 StringData container,
                                 std::variant<int64_t, std::span<const char>> key,
                                 OperationLogger& logger) {
+    const auto& ns = NamespaceString::kContainerNamespace;
     MutableOplogEntry entry;
     entry.setTid(ns.tenantId());
     entry.setNss(ns);
-    entry.setUuid(uuid);
     entry.setContainer(container);
     entry.setOpType(repl::OpTypeEnum::kContainerDelete);
     entry.setObject(buildContainerOpObject(key));
@@ -1362,11 +1388,10 @@ OpTimeBundle logContainerDelete(OperationContext* opCtx,
 }
 
 void _onContainerDelete(OperationContext* opCtx,
-                        const NamespaceString& ns,
-                        const UUID& collUUID,
                         StringData ident,
                         std::variant<int64_t, std::span<const char>> key,
                         OperationLogger& logger) {
+    const auto& ns = NamespaceString::kContainerNamespace;
     auto oplogDisabled = repl::ReplicationCoordinator::get(opCtx)->isOplogDisabledFor(opCtx, ns);
     auto txnParticipant = TransactionParticipant::get(opCtx);
     auto inMultiDocumentTransaction =
@@ -1379,7 +1404,6 @@ void _onContainerDelete(OperationContext* opCtx,
         op.setVersionContextIfHasOperationFCV(VersionContext::getDecoration(opCtx));
         op.setTid(ns.tenantId());
         op.setNss(ns);
-        op.setUuid(collUUID);
         op.setContainer(ident);
         op.setObject(buildContainerOpObject(key));
         return op;
@@ -1403,48 +1427,38 @@ void _onContainerDelete(OperationContext* opCtx,
         return;
     }
 
-    auto opTime = logContainerDelete(opCtx, ns, collUUID, ident, key, logger);
+    auto opTime = logContainerDelete(opCtx, ident, key, logger);
 
     SessionTxnRecord sessionTxnRecord;
     sessionTxnRecord.setLastWriteOpTime(opTime.writeOpTime);
     sessionTxnRecord.setLastWriteDate(opTime.wallClockTime);
-    onWriteOpCompleted(opCtx, {kUninitializedStmtId}, sessionTxnRecord, ns);
+    // We don't have any StmtId's so we don't need to call onWriteOpCompleted().
 }
 
 }  // namespace
 
 void OpObserverImpl::onContainerInsert(OperationContext* opCtx,
-                                       const NamespaceString& ns,
-                                       const UUID& collUUID,
                                        StringData ident,
                                        int64_t key,
                                        std::span<const char> value) {
-    _onContainerInsert(opCtx, ns, collUUID, ident, key, value, *_operationLogger);
+    _onContainerInsert(opCtx, ident, key, value, *_operationLogger);
 }
 
 void OpObserverImpl::onContainerInsert(OperationContext* opCtx,
-                                       const NamespaceString& ns,
-                                       const UUID& collUUID,
                                        StringData ident,
                                        std::span<const char> key,
                                        std::span<const char> value) {
-    _onContainerInsert(opCtx, ns, collUUID, ident, key, value, *_operationLogger);
+    _onContainerInsert(opCtx, ident, key, value, *_operationLogger);
+}
+
+void OpObserverImpl::onContainerDelete(OperationContext* opCtx, StringData ident, int64_t key) {
+    _onContainerDelete(opCtx, ident, key, *_operationLogger);
 }
 
 void OpObserverImpl::onContainerDelete(OperationContext* opCtx,
-                                       const NamespaceString& ns,
-                                       const UUID& collUUID,
-                                       StringData ident,
-                                       int64_t key) {
-    _onContainerDelete(opCtx, ns, collUUID, ident, key, *_operationLogger);
-}
-
-void OpObserverImpl::onContainerDelete(OperationContext* opCtx,
-                                       const NamespaceString& ns,
-                                       const UUID& collUUID,
                                        StringData ident,
                                        std::span<const char> key) {
-    _onContainerDelete(opCtx, ns, collUUID, ident, key, *_operationLogger);
+    _onContainerDelete(opCtx, ident, key, *_operationLogger);
 }
 
 void OpObserverImpl::onInternalOpMessage(
@@ -2137,6 +2151,10 @@ void OpObserverImpl::onBatchedWriteCommit(OperationContext* opCtx,
     auto& batchedWriteContext = BatchedWriteContext::get(opCtx);
     auto* batchedOps = batchedWriteContext.getBatchedOperations(opCtx);
 
+    // Ensure that no one previously reserved any timestamps for this operation.
+    invariant(batchedOps->isEmpty() ||
+              !shard_role_details::getRecoveryUnit(opCtx)->isTimestamped());
+
     if (batchedOps->isEmpty()) {
         return;
     } else if (batchedOps->numOperations() == 1) {
@@ -2151,6 +2169,10 @@ void OpObserverImpl::onBatchedWriteCommit(OperationContext* opCtx,
                     repl::OplogLink oplogLink;
                     _operationLogger->appendOplogEntryChainInfo(
                         opCtx, &oplogEntry, &oplogLink, oplogEntry.getStatementIds());
+                }
+                if (oplogEntry.getNeedsRetryImage()) {
+                    reserveOplogSlotsForRetryableFindAndModify(
+                        opCtx, _operationLogger.get(), oplogEntry);
                 }
                 [[fallthrough]];
             }
@@ -2187,10 +2209,27 @@ void OpObserverImpl::onBatchedWriteCommit(OperationContext* opCtx,
                                     getMaxSizeOfBatchedOperationsInSingleOplogEntryBytes(),
                                     /*prepare=*/false);
 
+    std::size_t opTimeOffset = 0;
+    if (applyOpsOplogSlotAndOperationAssignment.numOperationsWithNeedsRetryImage > 0) {
+        if (const auto& applyOpsEntries = applyOpsOplogSlotAndOperationAssignment.applyOpsEntries;
+            applyOpsEntries.size() > 1) {
+            for (std::size_t entryIdx = 1; entryIdx < applyOpsEntries.size(); ++entryIdx) {
+                for (const auto& op : applyOpsEntries[entryIdx].operations) {
+                    invariant(
+                        !op.hasField(repl::OplogEntryBase::kNeedsRetryImageFieldName),
+                        "retryable findAndModify operations must be in the first applyOps entry");
+                }
+            }
+        }
+
+        // When a batch contains retryable findAndModify operations, the first opTime slot is offset
+        // so resharding may forge a noop oplog entry at the offset.
+        opTimeOffset = 1;
+    }
     // Reserve all the optimes in advance, so we only need to get the optime mutex once.  We
     // reserve enough entries for all statements in the transaction.
     auto oplogSlots = _operationLogger->getNextOpTimes(
-        opCtx, applyOpsOplogSlotAndOperationAssignment.numberOfOplogSlotsRequired);
+        opCtx, applyOpsOplogSlotAndOperationAssignment.numberOfOplogSlotsRequired, opTimeOffset);
 
     boost::optional<repl::ReplOperation::ImageBundle> noPrePostImage;
 

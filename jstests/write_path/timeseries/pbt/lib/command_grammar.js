@@ -11,53 +11,42 @@ import {makeMetricArb} from "jstests/write_path/timeseries/pbt/lib/metric_arbitr
 
 /**
  * The model is used to track the expected contents of the collections, to enable
- * delete/update commands to pick valid targets, and to check preconditions.
+ * delete/update commands to pick valid targets, and to check preconditions. In our implementation,
+ * we will simply defer this to the control collection, making the model a simple holder for the ref.
  *
  * Model shape:
- *   { docs: Map<string, doc> }
+ *   { ctrlColl, bucketColl }
  */
-export function makeEmptyModel() {
-    return {docs: new Map()};
+export function makeEmptyModel(ctrlColl, bucketColl) {
+    return {ctrlColl, bucketColl};
 }
 
 export function modelHasDoc(model, id) {
-    return model.docs.has(String(id));
+    return model.ctrlColl.findOne({_id: id}) !== null;
 }
 
-export function modelInsert(model, doc) {
-    model.docs.set(String(doc._id), doc);
-}
-
-export function modelInsertMany(model, docs) {
-    for (const doc of docs) {
-        modelInsert(model, doc);
-    }
-}
-
-export function modelDeleteById(model, id) {
-    model.docs.delete(String(id));
-}
-
-/**
- * A "stable" pick: returns some doc (the first in insertion/iteration order)
- * or null if the model is empty. Useful for commands that want a consistent
- * target instead of random choice.
- */
-export function pickStableDoc(model) {
-    const it = model.docs.values().next();
-    return it.done ? null : it.value;
-}
-
-/**
- * Helper: get all _ids from the model (as strings).
- */
-function getAllIdsFromModel(model) {
-    if (!model || !(model.docs instanceof Map)) {
+function getAllDocsFromModel(model) {
+    if (!model?.ctrlColl) {
         return [];
     }
-    return Array.from(model.docs.keys());
+    return model.ctrlColl.find({}).sort({_id: 1}).toArray();
 }
 
+export function pickStableDoc(model) {
+    const docs = getAllDocsFromModel(model);
+    return docs.length > 0 ? docs[0] : null;
+}
+
+function getAllIdsFromModel(model) {
+    return getAllDocsFromModel(model).map((doc) => doc._id);
+}
+
+function getModelSize(model) {
+    if (!model?.ctrlColl) {
+        return 0;
+    }
+    return model.ctrlColl.countDocuments({});
+}
 /**
  * InsertCommand: single doc insert.
  *
@@ -94,10 +83,7 @@ export class InsertCommand {
             }
         });
 
-        // TODO SERVER-120457 remove model updates when ctrlColl replaces model
-        // Deletes may attempt to delete missing documents
         assert.docEq(resTs, resCtrl);
-        modelInsert(model, this.doc);
     }
 }
 
@@ -141,11 +127,6 @@ export class BatchInsertCommand {
             }
         });
         assert.docEq(resTs, resCtrl);
-
-        // Use the helper that understands the Map-shaped model.
-        // TODO SERVER-120457 remove model updates when ctrlColl replaces model
-        // Deletes may attempt to delete missing documents
-        modelInsertMany(model, this.docs);
     }
 }
 
@@ -207,8 +188,8 @@ export class Filter {
     toQuery(model, fields = {}) {
         const {timeFieldname, metaFieldname} = fields;
 
-        const docs = Array.from(model.docs.values()); // deterministic (Map insertion order)
-        const ids = Array.from(model.docs.keys());
+        const docs = getAllDocsFromModel(model); // deterministic order (Map insertion order)
+        const ids = getAllIdsFromModel(model);
         const pickIdx = (n) => (n <= 0 ? 0 : Math.abs(this.seed) % n);
         const pickDoc = () => (docs.length === 0 ? null : docs[pickIdx(docs.length)]);
         const pickId = () => (ids.length === 0 ? null : ids[pickIdx(ids.length)]);
@@ -349,6 +330,79 @@ export class Filter {
 }
 
 /**
+ * InsertOldBucketCommand: insert a measurement that targets an existing bucket.
+ *
+ * Selects a bucket from model.bucketColl and crafts a measurement whose time
+ * falls within that bucket's [control.min, control.max] time range and whose
+ * meta field matches the bucket's meta. This exercises the code path for
+ * inserting into an existing (potentially old or closed) bucket.
+ */
+export class InsertOldBucketCommand {
+    /**
+     * @param {number} pick      - selects which bucket to target (by index mod count)
+     * @param {number} timeSeed  - derives the timestamp within the bucket's time range
+     * @param {string} timeFieldname
+     * @param {string} metaFieldname
+     */
+    constructor(pick, timeSeed, timeFieldname, metaFieldname) {
+        this._pick = pick | 0;
+        this._timeSeed = timeSeed | 0;
+        this._timeFieldname = timeFieldname;
+        this._metaFieldname = metaFieldname;
+        this._doc = null; // populated during run() for logging
+    }
+
+    toString() {
+        const docStr = this._doc !== null ? tojsononeline(this._doc) : "<unpopulated>";
+        return `InsertOldBucketCommand(pick=${this._pick}, timeSeed=${this._timeSeed}, doc=${docStr})`;
+    }
+
+    /**
+     * Precondition: at least one bucket must exist in bucketColl.
+     */
+    check(model) {
+        return model?.bucketColl != null && model.bucketColl.find({}).rawData().hasNext();
+    }
+
+    /**
+     * Pick a bucket, craft a measurement whose time falls within it, and insert
+     * into both tsColl and ctrlColl.
+     */
+    run(model, {tsColl, ctrlColl}) {
+        const buckets = model.bucketColl.find({}).rawData().sort({_id: 1}).toArray();
+        if (buckets.length === 0) {
+            throw new Error("InsertOldBucketCommand.run called with no buckets");
+        }
+
+        const bucket = buckets[Math.abs(this._pick) % buckets.length];
+
+        const minTime = bucket.control.min[this._timeFieldname];
+        const maxTime = bucket.control.max[this._timeFieldname];
+
+        if (!(minTime instanceof Date) || !(maxTime instanceof Date)) {
+            // Bucket has no valid time bounds for this timeField; skip.
+            return;
+        }
+
+        const minMs = minTime.getTime();
+        const maxMs = maxTime.getTime();
+        const span = Math.max(0, maxMs - minMs);
+        const pickedMs = minMs + (span > 0 ? Math.abs(this._timeSeed) % (span + 1) : 0);
+
+        const doc = {
+            _id: new ObjectId(),
+            [this._timeFieldname]: new Date(pickedMs),
+            [this._metaFieldname]: bucket.meta,
+        };
+        this._doc = doc;
+
+        const resTs = tsColl.insertOne(doc);
+        const resCtrl = ctrlColl.insertOne(doc);
+        assert.docEq(resTs, resCtrl);
+    }
+}
+
+/**
  * DeleteByRandomIdCommand: delete a pseudo-random doc by _id.
  * Randomness is generated by the arbitrary.
  */
@@ -373,8 +427,7 @@ export class DeleteByRandomIdCommand {
     }
 
     /**
-     * Pick a random _id from the model, delete it from both collections,
-     * then update the model.
+     * Pick a random _id from the model, delete it from both collections.
      */
     run(model, real) {
         const {tsColl, ctrlColl} = real;
@@ -391,10 +444,6 @@ export class DeleteByRandomIdCommand {
         const resTs = tsColl.deleteOne({_id: chosenId});
         const resCtrl = ctrlColl.deleteOne({_id: chosenId});
         assert.docEq(resTs, resCtrl);
-
-        // TODO SERVER-120457 remove model updates when ctrlColl replaces model
-        // Deletes may attempt to delete missing documents
-        modelDeleteById(model, chosenId);
     }
 }
 
@@ -421,7 +470,7 @@ export class DeleteByFilterCommand {
     }
 
     check(model) {
-        return model.docs.size > 0;
+        return getModelSize(model) > 0;
     }
 
     run(model, {tsColl, ctrlColl}) {
@@ -447,12 +496,6 @@ export class DeleteByFilterCommand {
         const resTs = tsColl.deleteMany(query);
         const resCtrl = ctrlColl.deleteMany(query);
         assert.docEq(resTs, resCtrl);
-
-        // TODO SERVER-120457 remove model updates when ctrlColl replaces model
-        // Deletes may attempt to delete missing documents
-        for (const id of ids) {
-            model.docs.delete(String(id));
-        }
     }
 }
 
@@ -484,11 +527,11 @@ export class UpdateByFilterCommand {
     }
 
     check(model) {
-        return model.docs.size > 0;
+        return getModelSize(model) > 0;
     }
 
     run(model, {tsColl, ctrlColl}) {
-        const docs = Array.from(model.docs.values()); // deterministic (Map insertion order)
+        const docs = getAllDocsFromModel(model);
 
         // Deterministically pick a base doc (for field selection + type inference).
         const baseDoc = docs[Math.abs(this._seed) % docs.length];
@@ -523,140 +566,6 @@ export class UpdateByFilterCommand {
 
         tsColl.updateMany(query, update);
         ctrlColl.updateMany(query, update);
-
-        // Keep the model in sync by applying the update to the docs that match the filter.
-        for (const doc of model.docs.values()) {
-            if (_filterMatchesDoc(this._filter, doc, model, this._timeFieldname, this._metaFieldname)) {
-                doc[key] = newValue;
-            }
-        }
-    }
-}
-
-/**
- * Minimal in-memory matcher for current Filter kinds so we can keep the model updated
- * when applying updates/deletes by query rather than by explicit ids.
- *
- * Must mirror Filter.toQuery() semantics for supported kinds.
- */
-function _filterMatchesDoc(filter, doc, model, timeFieldname, metaFieldname) {
-    const docs = Array.from(model.docs.values()); // deterministic order (Map insertion order)
-    const ids = Array.from(model.docs.keys());
-
-    const matchNothing = false;
-
-    const pickDocBySeed = (seed) => (docs.length === 0 ? null : docs[Math.abs(seed) % docs.length]);
-    const pickIdBySeed = (seed) => (ids.length === 0 ? null : ids[Math.abs(seed) % ids.length]);
-
-    switch (filter.kind) {
-        case "matchAll":
-            return true;
-
-        case "byId": {
-            const picked = pickIdBySeed(filter.seed);
-            if (picked === null) return matchNothing;
-            return String(doc._id) === String(picked);
-        }
-
-        case "byMetaEq": {
-            if (!metaFieldname) return matchNothing;
-            const pickedDoc = pickDocBySeed(filter.seed);
-            if (!pickedDoc) return matchNothing;
-            // This mirrors the query {[metaFieldname]: pickedDoc[metaFieldname]} (JS equality approximation).
-            return doc[metaFieldname] === pickedDoc[metaFieldname];
-        }
-
-        case "byTimeGte": {
-            if (!timeFieldname) return matchNothing;
-            const pickedDoc = pickDocBySeed(filter.seed);
-            if (!pickedDoc) return matchNothing;
-            const t = pickedDoc[timeFieldname];
-            const myT = doc[timeFieldname];
-            if (!(t instanceof Date) || !(myT instanceof Date)) return matchNothing;
-            return myT.getTime() >= t.getTime();
-        }
-
-        case "byTimeLte": {
-            if (!timeFieldname) return matchNothing;
-            const pickedDoc = pickDocBySeed(filter.seed);
-            if (!pickedDoc) return matchNothing;
-            const t = pickedDoc[timeFieldname];
-            const myT = doc[timeFieldname];
-            if (!(t instanceof Date) || !(myT instanceof Date)) return matchNothing;
-            return myT.getTime() <= t.getTime();
-        }
-
-        case "byTimeRange": {
-            if (!timeFieldname) return matchNothing;
-
-            const myT = doc[timeFieldname];
-            if (!(myT instanceof Date)) return matchNothing;
-
-            // Compute min/max across model for the time field.
-            let minMs = null;
-            let maxMs = null;
-            for (const d of docs) {
-                const td = d?.[timeFieldname];
-                if (td instanceof Date) {
-                    const ms = td.getTime();
-                    if (minMs === null || ms < minMs) minMs = ms;
-                    if (maxMs === null || ms > maxMs) maxMs = ms;
-                }
-            }
-            if (minMs === null || maxMs === null) return matchNothing;
-
-            const span = Math.max(0, maxMs - minMs);
-
-            // Same seed mixing as Filter.toQuery()
-            const s1 = Math.abs(filter.seed);
-            const s2 = Math.abs(remixSeed(filter.seed, 1));
-            const off1 = span === 0 ? 0 : s1 % (span + 1);
-            const off2 = span === 0 ? 0 : s2 % (span + 1);
-
-            let gteMs = minMs + Math.min(off1, off2);
-            let lteMs = minMs + Math.max(off1, off2);
-
-            const expandFactor = Number(filter.params?.expandFactor ?? 0);
-            if (expandFactor > 0 && span > 0) {
-                const pad = Math.floor(span * expandFactor);
-                gteMs = Math.max(minMs, gteMs - pad);
-                lteMs = Math.min(maxMs, lteMs + pad);
-            }
-
-            const ms = myT.getTime();
-            return ms >= gteMs && ms <= lteMs;
-        }
-
-        case "byFieldEqFromDoc": {
-            const baseDoc = pickDocBySeed(filter.seed);
-            if (!baseDoc) return matchNothing;
-
-            const exclude = new Set(filter.params?.exclude ?? ["_id", timeFieldname, metaFieldname].filter(Boolean));
-            const allow = Array.isArray(filter.params?.allow) ? new Set(filter.params.allow) : null;
-
-            const keys = Object.keys(baseDoc).filter((k) => !exclude.has(k) && (allow ? allow.has(k) : true));
-            if (keys.length === 0) return matchNothing;
-
-            const s3 = Math.abs(remixSeed(filter.seed, 2));
-            const key = keys[s3 % keys.length];
-
-            return doc[key] === baseDoc[key];
-        }
-
-        case "and": {
-            const children = filter.params?.filters ?? [];
-            if (!Array.isArray(children) || children.length === 0) return true;
-            return children.every((f) => _filterMatchesDoc(f, doc, model, timeFieldname, metaFieldname));
-        }
-
-        case "or": {
-            const children = filter.params?.filters ?? [];
-            if (!Array.isArray(children) || children.length === 0) return true;
-            return children.some((f) => _filterMatchesDoc(f, doc, model, timeFieldname, metaFieldname));
-        }
-
-        default:
-            return matchNothing;
     }
 }
 

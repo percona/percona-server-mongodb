@@ -344,10 +344,9 @@ void createIndexForApplyOps(OperationContext* opCtx,
                           << indexNss.toStringForErrorMsg(),
             indexCollection);
 
-    OpCounters* opCounters = opCtx->writesAreReplicated()
-        ? &serviceOpCounters(ClusterRole::ShardServer)
-        : &replOpCounters;
-    opCounters->gotInsert();
+    OpCounters* opCountersToUse =
+        opCtx->writesAreReplicated() ? &globalOpCounters() : &replOpCounters();
+    opCountersToUse->gotInsert();
     if (opCtx->writesAreReplicated()) {
         ServerWriteConcernMetrics::get(opCtx)->recordWriteConcernForInsert(
             opCtx->getWriteConcern());
@@ -530,9 +529,11 @@ OpTime logOp(OperationContext* opCtx, MutableOplogEntry* oplogEntry) {
     });
     // All collections should have UUIDs now, so all insert, update, and delete oplog entries should
     // also have uuids. Some no-op (n) and command (c) entries may still elide the uuid field.
+    // Container operations (ci/cd) are not collection-scoped and do not carry a UUID.
     invariant(oplogEntry->getUuid() || oplogEntry->getOpType() == OpTypeEnum::kNoop ||
                   oplogEntry->getOpType() == OpTypeEnum::kCommand ||
-                  oplogEntry->getOpType() == OpTypeEnum::kKeyMaterial,
+                  oplogEntry->getOpType() == OpTypeEnum::kKeyMaterial ||
+                  DurableOplogEntry::isContainerOpType(oplogEntry->getOpType()),
               str::stream() << "Expected uuid for logOp with oplog entry: "
                             << redact(oplogEntry->toBSON()));
 
@@ -786,8 +787,10 @@ void createOplog(OperationContext* opCtx) {
     createOplog(opCtx, NamespaceString::kRsOplogNamespace, isReplSet);
 }
 
-std::vector<OplogSlot> getNextOpTimes(OperationContext* opCtx, std::size_t count) {
-    return LocalOplogInfo::get(opCtx)->getNextOpTimes(opCtx, count);
+std::vector<OplogSlot> getNextOpTimes(OperationContext* opCtx,
+                                      std::size_t count,
+                                      std::size_t opTimeOffset) {
+    return LocalOplogInfo::get(opCtx)->getNextOpTimes(opCtx, count, opTimeOffset);
 }
 
 // -------------------------------------
@@ -1103,7 +1106,11 @@ const StringMap<ApplyOpMetadata> kOpsMap = {
           }
 
           const auto& entry = *op;
-          auto swOplogEntry = IndexBuildOplogEntry::parse(opCtx, entry);
+          auto swOplogEntry = IndexBuildOplogEntry::parse(
+              opCtx,
+              entry,
+              shouldReplicateLocalCatalogIdentifiers(
+                  rss::ReplicatedStorageService::get(opCtx).getPersistenceProvider()));
           if (!swOplogEntry.isOK()) {
               return swOplogEntry.getStatus().withContext(
                   "Error parsing 'commitIndexBuild' oplog entry");
@@ -1917,8 +1924,8 @@ Status applyOperation_inlock(OperationContext* opCtx,
     // whether writes are replicated.
     const bool shouldUseGlobalOpCounters =
         mode == repl::OplogApplication::Mode::kApplyOpsCmd || opCtx->writesAreReplicated();
-    OpCounters* opCounters =
-        shouldUseGlobalOpCounters ? &serviceOpCounters(ClusterRole::ShardServer) : &replOpCounters;
+    OpCounters* opCountersToUse =
+        shouldUseGlobalOpCounters ? &globalOpCounters() : &replOpCounters();
 
     auto opType = op.getOpType();
 
@@ -2187,7 +2194,7 @@ Status applyOperation_inlock(OperationContext* opCtx,
                 }
                 wuow.commit();
                 for (size_t i = 0; i < insertObjs.size(); i++) {
-                    opCounters->gotInsert();
+                    opCountersToUse->gotInsert();
                     if (shouldUseGlobalOpCounters) {
                         ServerWriteConcernMetrics::get(opCtx)->recordWriteConcernForInsert(
                             opCtx->getWriteConcern());
@@ -2198,7 +2205,7 @@ Status applyOperation_inlock(OperationContext* opCtx,
                 }
             } else {
                 // Single insert.
-                opCounters->gotInsert();
+                opCountersToUse->gotInsert();
                 if (shouldUseGlobalOpCounters) {
                     ServerWriteConcernMetrics::get(opCtx)->recordWriteConcernForInsert(
                         opCtx->getWriteConcern());
@@ -2263,11 +2270,14 @@ Status applyOperation_inlock(OperationContext* opCtx,
                         invariant(op.getTerm());
                         insertStmt.oplogSlot = OpTime(op.getTimestamp(), op.getTerm().value());
                     } else if (!repl::ReplicationCoordinator::get(opCtx)->isOplogDisabledFor(
-                                   opCtx, collection->ns())) {
+                                   opCtx, collection->ns()) &&
+                               !wuow.isGroupingOplogEntries()) {
                         // Primaries processing inserts always pre-allocate timestamps. For parity,
                         // we also pre-allocate timestamps for an `applyOps` of insert oplog
                         // entries. This parity is meaningful for capped collections where the
-                        // insert may result in a delete that becomes replicated.
+                        // insert may result in a delete that becomes replicated. However, we can
+                        // skip this if oplog entries are being grouped because the timestamp will
+                        // be allocated at commit time.
                         auto oplogInfo = LocalOplogInfo::get(opCtx);
                         auto oplogSlots = oplogInfo->getNextOpTimes(opCtx, /*batchSize=*/1);
                         insertStmt.oplogSlot = oplogSlots.front();
@@ -2294,7 +2304,7 @@ Status applyOperation_inlock(OperationContext* opCtx,
                         if (mode == OplogApplication::Mode::kSecondary) {
                             const auto& opObj = redact(op.toBSONForLogging());
 
-                            opCounters->gotInsertOnExistingDoc();
+                            opCountersToUse->gotInsertOnExistingDoc();
                             logOplogConstraintViolation(
                                 opCtx,
                                 op.getNss(),
@@ -2445,7 +2455,7 @@ Status applyOperation_inlock(OperationContext* opCtx,
             break;
         }
         case OpTypeEnum::kUpdate: {
-            opCounters->gotUpdate();
+            opCountersToUse->gotUpdate();
             if (shouldUseGlobalOpCounters) {
                 ServerWriteConcernMetrics::get(opCtx)->recordWriteConcernForUpdate(
                     opCtx->getWriteConcern());
@@ -2559,7 +2569,7 @@ Status applyOperation_inlock(OperationContext* opCtx,
                             return updateObjectByRid(opCtx,
                                                      op,
                                                      collectionAcquisition,
-                                                     opCounters,
+                                                     opCountersToUse,
                                                      idField,
                                                      mode,
                                                      request,
@@ -2607,7 +2617,7 @@ Status applyOperation_inlock(OperationContext* opCtx,
                         // This indicates we upconverted an update to an upsert, and it did indeed
                         // upsert. In steady state mode this is unexpected.
                         if (mode == OplogApplication::Mode::kSecondary) {
-                            opCounters->gotUpdateOnMissingDoc();
+                            opCountersToUse->gotUpdateOnMissingDoc();
                             logOplogConstraintViolation(
                                 opCtx,
                                 op.getNss(),
@@ -2687,7 +2697,7 @@ Status applyOperation_inlock(OperationContext* opCtx,
             break;
         }
         case OpTypeEnum::kDelete: {
-            opCounters->gotDelete();
+            opCountersToUse->gotDelete();
             if (shouldUseGlobalOpCounters) {
                 ServerWriteConcernMetrics::get(opCtx)->recordWriteConcernForDelete(
                     opCtx->getWriteConcern());
@@ -2748,7 +2758,7 @@ Status applyOperation_inlock(OperationContext* opCtx,
                         result = deleteObjectByRid(opCtx,
                                                    op,
                                                    collectionAcquisition,
-                                                   opCounters,
+                                                   opCountersToUse,
                                                    idField,
                                                    mode,
                                                    request,
@@ -2828,7 +2838,7 @@ Status applyOperation_inlock(OperationContext* opCtx,
                         const auto& opObj = redact(op.toBSONForLogging());
                         if (collection) {
                             isCapped = collection->isCapped();
-                            opCounters->gotDeleteWasEmpty();
+                            opCountersToUse->gotDeleteWasEmpty();
                             logOplogConstraintViolation(
                                 opCtx,
                                 op.getNss(),
@@ -2837,7 +2847,7 @@ Status applyOperation_inlock(OperationContext* opCtx,
                                 opObj,
                                 boost::none /* status */);
                         } else {
-                            opCounters->gotDeleteFromMissingNamespace();
+                            opCountersToUse->gotDeleteFromMissingNamespace();
                             logOplogConstraintViolation(
                                 opCtx,
                                 op.getNss(),
@@ -2877,11 +2887,9 @@ Status applyOperation_inlock(OperationContext* opCtx,
     return Status::OK();
 }
 
-Status applyContainerOperation_inlock(OperationContext* opCtx,
-                                      const ApplierOperation& op,
-                                      OplogApplication::Mode mode) {
-    const auto& nss = op->getNss();
-    invariant(shard_role_details::getLocker(opCtx)->isCollectionLockedForMode(nss, MODE_IX));
+Status applyContainerOperation(OperationContext* opCtx,
+                               const ApplierOperation& op,
+                               OplogApplication::Mode mode) {
 
     auto ident = op->getContainer();
     auto* engine = opCtx->getServiceContext()->getStorageEngine();
@@ -2966,10 +2974,9 @@ Status applyCommand_inlock(OperationContext* opCtx,
 
     // Choose opCounters based on running on standalone/primary or secondary by checking
     // whether writes are replicated.
-    OpCounters* opCounters = opCtx->writesAreReplicated()
-        ? &serviceOpCounters(ClusterRole::ShardServer)
-        : &replOpCounters;
-    opCounters->gotCommand();
+    OpCounters* opCountersToUse =
+        opCtx->writesAreReplicated() ? &globalOpCounters() : &replOpCounters();
+    opCountersToUse->gotCommand();
 
     BSONObj o = op->getObject();
 
@@ -3186,7 +3193,7 @@ Status applyCommand_inlock(OperationContext* opCtx,
                 if (mode == OplogApplication::Mode::kSecondary &&
                     status.code() != ErrorCodes::IndexNotFound) {
                     const auto& opObj = redact(op->toBSONForLogging());
-                    opCounters->gotAcceptableErrorInCommand();
+                    opCountersToUse->gotAcceptableErrorInCommand();
                     logOplogConstraintViolation(
                         opCtx,
                         op->getNss(),

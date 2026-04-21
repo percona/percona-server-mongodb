@@ -1,5 +1,5 @@
 /**
- *    Copyright (C) 2018-present MongoDB, Inc.
+ *    Copyright (C) 2025-present MongoDB, Inc.
  *
  *    This program is free software: you can redistribute it and/or modify
  *    it under the terms of the Server Side Public License, version 1,
@@ -26,24 +26,28 @@
  *    exception statement from all source files in the program, then also delete
  *    it in the license file.
  */
-#pragma once
 
-#include "mongo/base/concept/assignable.h"
-#include "mongo/base/concept/constructible.h"
-#include "mongo/base/concept/unique_ptr.h"
+
+#include "bson_mutator.h"
+
+#include "mongo/util/shared_buffer.h"
 
 namespace mongo {
-namespace concept {
-    /*!
-     * Objects conforming to the `CloneFactory` concept are function-like constructs which return
-     * objects that are dynamically allocated copies of their inputs.
-     * These copies can be made without knowing the actual dynamic type.  The `CloneFactory` type
-     * itself must be `Assignable`, in that it can be used with automatically generated copy
-     * constructors and copy assignment operators.
-     */
-    template <typename T>
-    struct CloneFactory : Assignable {
-        Constructible<UniquePtr<T>> operator()(const T*) const;
-    };
-}  // namespace concept
+namespace {
+
+void TestBSONDomain(ConstSharedBuffer input) {
+    auto obj = BSONObj(input);
+    std::cout << "BSON(" << obj.toString() << ")" << std::endl;
+    for (const auto& elem : obj) {
+        std::cout << "Name: " << elem.fieldName() << " | Type: " << elem.type() << std::endl;
+    }
+}
+
+#define X(Camel, cpptype, bsontype, defaultdomain) .With##Camel(#Camel)
+
+FUZZ_TEST(ArbitraryBSONFFuzz, TestBSONDomain)
+    .WithDomains(fuzztest::Arbitrary<mongo::ConstSharedBuffer>()
+                     BSON_MUTATOR_EXPAND_FIELD_TYPES(X));
+
+}  // namespace
 }  // namespace mongo

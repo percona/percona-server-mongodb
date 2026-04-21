@@ -280,9 +280,9 @@ Status applyOperation_inlock(OperationContext* opCtx,
  *
  * Returns OK on success, or the the failure status reported by the storage engine.
  */
-Status applyContainerOperation_inlock(OperationContext* opCtx,
-                                      const ApplierOperation& op,
-                                      OplogApplication::Mode oplogApplicationMode);
+Status applyContainerOperation(OperationContext* opCtx,
+                               const ApplierOperation& op,
+                               OplogApplication::Mode oplogApplicationMode);
 
 /**
  * Take a command op and apply it locally
@@ -321,7 +321,9 @@ void createIndexForApplyOps(OperationContext* opCtx,
  * Allocates optimes for new entries in the oplog.  Returns a vector of OplogSlots, which
  * contain the new optimes along with their terms.
  */
-std::vector<OplogSlot> getNextOpTimes(OperationContext* opCtx, std::size_t count);
+std::vector<OplogSlot> getNextOpTimes(OperationContext* opCtx,
+                                      std::size_t count,
+                                      std::size_t opTimeOffset = 0);
 
 inline OplogSlot getNextOpTime(OperationContext* opCtx) {
     auto slots = getNextOpTimes(opCtx, 1);

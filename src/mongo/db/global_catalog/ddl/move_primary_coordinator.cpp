@@ -52,6 +52,7 @@
 #include "mongo/db/repl/change_stream_oplog_notification.h"
 #include "mongo/db/repl/read_concern_level.h"
 #include "mongo/db/s/forwardable_operation_metadata.h"
+#include "mongo/db/s/primary_only_service_helpers/all_shards_and_config_causality_barrier.h"
 #include "mongo/db/server_feature_flags_gen.h"
 #include "mongo/db/server_options.h"
 #include "mongo/db/session/logical_session_id_gen.h"
@@ -144,10 +145,6 @@ bool MovePrimaryCoordinator::canAlwaysStartWhenUserWritesAreDisabled() const {
 logv2::DynamicAttributes MovePrimaryCoordinator::getCoordinatorLogAttrs() const {
     return logv2::DynamicAttributes{getBasicCoordinatorAttrs(),
                                     "toShardId"_attr = _doc.getToShardId()};
-}
-
-StringData MovePrimaryCoordinator::serializePhase(const Phase& phase) const {
-    return idl::serialize(phase);
 }
 
 void MovePrimaryCoordinator::appendCommandInfo(BSONObjBuilder* cmdInfoBuilder) const {

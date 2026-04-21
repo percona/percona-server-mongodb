@@ -63,7 +63,6 @@ namespace {
 
 MONGO_FAIL_POINT_DEFINE(hangAfterEnumeratingTimeseriesCollectionsForFCV);
 MONGO_FAIL_POINT_DEFINE(alwaysReportTimeseriesCollectionsNeedConversion);
-MONGO_FAIL_POINT_DEFINE(FailViewlessTimeseriesUpgradeWithUserDataInconsistent);
 
 /**
  * Returns all timeseries collection namespaces across the cluster that need to be converted
@@ -232,18 +231,6 @@ void upgradeDowngradeViewlessTimeseriesInShardedCluster(OperationContext* opCtx,
             }
 
             try {
-                // Failpoint to simulate UserDataInconsistent for a specific namespace.
-                FailViewlessTimeseriesUpgradeWithUserDataInconsistent.executeIf(
-                    [&nss](const BSONObj&) {
-                        uasserted(ErrorCodes::UserDataInconsistent,
-                                  str::stream()
-                                      << "Simulated metadata inconsistency for namespace: "
-                                      << nss.toStringForErrorMsg());
-                    },
-                    [&nss](const BSONObj& data) {
-                        return nss.ns_forTest() == data.getStringField("namespace");
-                    });
-
                 ShardsvrUpgradeDowngradeViewlessTimeseries shardsvrReq(nss);
                 shardsvrReq.setMode(isUpgrade ? TimeseriesUpgradeDowngradeModeEnum::kToViewless
                                               : TimeseriesUpgradeDowngradeModeEnum::kToLegacy);
@@ -283,7 +270,7 @@ void upgradeDowngradeViewlessTimeseriesInShardedCluster(OperationContext* opCtx,
                             "timeseries collection",
                             "isUpgrade"_attr = isUpgrade,
                             logAttrs(nss));
-            } catch (const ExceptionFor<ErrorCodes::UserDataInconsistent>&) {
+            } catch (const ExceptionFor<ErrorCodes::TimeseriesBucketMetadataInconsistent>&) {
                 // Collection has metadata inconsistencies, permanently skip it across all
                 // retry iterations since this condition won't resolve with retries.
                 namespacesWithInconsistentMetadata.insert(nss);

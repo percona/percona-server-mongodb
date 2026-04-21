@@ -666,7 +666,6 @@ TEST_F(ApplyOpsTest, ContainerOpsRequireFeatureFlagAndTestCommands) {
 
     auto makeApplyOpsCmd = [&](OpTime opTime) {
         auto entry = makeContainerInsertOplogEntry(opTime,
-                                                   nss,
                                                    containerIdent,
                                                    BSONBinData("K", 1, BinDataGeneral),
                                                    BSONBinData("V", 1, BinDataGeneral));
@@ -676,8 +675,8 @@ TEST_F(ApplyOpsTest, ContainerOpsRequireFeatureFlagAndTestCommands) {
 
     auto testContainerOps =
         [&](bool featureFlagEnabled, bool testCommandsEnabled, bool commandSucceeds) {
-            RAIIServerParameterControllerForTest featureFlagController{
-                "featureFlagPrimaryDrivenIndexBuilds", featureFlagEnabled};
+            RAIIServerParameterControllerForTest featureFlagController{"featureFlagContainerWrites",
+                                                                       featureFlagEnabled};
             setTestCommandsEnabled(testCommandsEnabled);
 
             BSONObjBuilder resultBuilder;

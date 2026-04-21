@@ -73,6 +73,9 @@
 #include "mongo/db/timeseries/timeseries_gen.h"
 #include "mongo/db/timeseries/timeseries_index_schema_conversion_functions.h"
 #include "mongo/logv2/log.h"
+#include "mongo/otel/metrics/metric_unit.h"
+#include "mongo/otel/metrics/metrics_counter.h"
+#include "mongo/otel/metrics/metrics_service.h"
 #include "mongo/platform/atomic_word.h"
 #include "mongo/platform/compiler.h"
 #include "mongo/util/assert_util.h"
@@ -110,6 +113,16 @@ MONGO_FAIL_POINT_DEFINE(hangDuringIndexBuildBulkLoadYield);
 MONGO_FAIL_POINT_DEFINE(hangDuringIndexBuildBulkLoadYieldSecond);
 
 namespace {
+
+auto& bulkDocsScannedCounter = otel::metrics::MetricsService::instance().createInt64Counter(
+    otel::metrics::MetricNames::kIndexBuildDocsScanned,
+    "Total number of documents scanned during collection scan",
+    otel::metrics::MetricUnit::kOperations);
+
+auto& bulkKeysGeneratedCounter = otel::metrics::MetricsService::instance().createInt64Counter(
+    otel::metrics::MetricNames::kIndexBuildKeysGeneratedFromScan,
+    "Total number of keys generated from collection scan",
+    otel::metrics::MetricUnit::kOperations);
 
 size_t getEachIndexBuildMaxMemoryUsageBytes(boost::optional<size_t> maxMemoryUsageBytes,
                                             size_t numIndexSpecs) {
@@ -185,15 +198,14 @@ makeSpiller(OperationContext* opCtx,
             SorterFileStats& fileStats,
             SorterContainerStats& containerStats,
             const DatabaseName& dbName,
-            IndexBuildMethodEnum method) {
-    if (method == IndexBuildMethodEnum::kPrimaryDriven) {
+            ContainerWriteBehavior containerWriteBehavior) {
+    if (containerWriteBehavior == ContainerWriteBehavior::kReplicate) {
         invariant(!stateInfo);
         return std::make_shared<sorter::ContainerBasedSpiller<key_string::Value,
                                                               mongo::NullValue,
                                                               BtreeExternalSortComparison>>(
             *opCtx,
             *shard_role_details::getRecoveryUnit(opCtx),
-            collection,
             entry->indexBuildInterceptor()->getSorterContainer(),
             containerStats,
             dbName,
@@ -492,7 +504,7 @@ StatusWith<std::vector<BSONObj>> MultiIndexBlock::init(
 
             // TODO SERVER-117551 Make initiateBulk happen for primary-driven and non-primary-driven
             // at the same call site.
-            if (_method != IndexBuildMethodEnum::kPrimaryDriven) {
+            if (_containerWriteBehavior == ContainerWriteBehavior::kDoNotReplicate) {
                 index.bulk =
                     index.real->initiateBulk(opCtx,
                                              collection.get(),
@@ -504,11 +516,11 @@ StatusWith<std::vector<BSONObj>> MultiIndexBlock::init(
                                                          index.real->getSorterFileStats(),
                                                          index.real->getSorterContainerStats(),
                                                          collection->ns().dbName(),
-                                                         _method),
+                                                         _containerWriteBehavior),
                                              eachIndexBuildMaxMemoryUsageBytes,
                                              stateInfo,
                                              collection->ns().dbName(),
-                                             _method);
+                                             _containerWriteBehavior);
             }
 
             const IndexDescriptor* descriptor = indexCatalogEntry->descriptor();
@@ -575,7 +587,7 @@ Status MultiIndexBlock::insertAllDocumentsInCollection(
     const boost::optional<RecordId>& resumeAfterRecordId) {
     invariant(!shard_role_details::getLocker(opCtx)->inAWriteUnitOfWork());
     // Primary-driven index builds need to replicate container writes.
-    auto operationType = _method == IndexBuildMethodEnum::kPrimaryDriven
+    auto operationType = _containerWriteBehavior == ContainerWriteBehavior::kReplicate
         ? AcquisitionPrerequisites::kWrite
         : AcquisitionPrerequisites::kUnreplicatedWrite;
     // TODO SERVER-109542: Use regular ShardRole acquisitions for read.
@@ -661,7 +673,7 @@ Status MultiIndexBlock::insertAllDocumentsInCollection(
     shard_role_details::getRecoveryUnit(opCtx)->setReadOnce(readOnce);
 
     // TODO (SERVER-119515): Move this to a higher level.
-    if (_method == IndexBuildMethodEnum::kPrimaryDriven &&
+    if (_containerWriteBehavior == ContainerWriteBehavior::kReplicate &&
         !opCtx->getServiceContext()->getStorageEngine()->isEphemeral()) {
         shard_role_details::getRecoveryUnit(opCtx)->setPrefetching(
             primaryDrivenIndexBuildPrefetching.load());
@@ -695,6 +707,11 @@ Status MultiIndexBlock::insertAllDocumentsInCollection(
                           shard_role_details::getRecoveryUnit(opCtx)->getTimestampReadSource()),
                       "error"_attr = ex);
 
+        // TODO (SERVER-119512): Support collection scan restart for primary-driven index builds.
+        uassert(12232700,
+                "Primary-driven index build cannot restart collection scan",
+                _method != IndexBuildMethodEnum::kPrimaryDriven);
+
         collection = shard_role_nocheck::acquireLocalCollectionNoConsistentCatalog(
             opCtx, nssOrUUID, AcquisitionPrerequisites::kUnreplicatedWrite, MODE_IX);
         tassert(7683101, "Expected collection to exist", collection->exists());
@@ -721,11 +738,11 @@ Status MultiIndexBlock::insertAllDocumentsInCollection(
                             index.real->getSorterFileStats(),
                             index.real->getSorterContainerStats(),
                             collection->nss().dbName(),
-                            _method),
+                            _containerWriteBehavior),
                 getEachIndexBuildMaxMemoryUsageBytes(boost::none, _indexes.size()),
                 /*stateInfo=*/boost::none,
                 collection->nss().dbName(),
-                _method);
+                _containerWriteBehavior);
         }
     };
 
@@ -741,7 +758,7 @@ Status MultiIndexBlock::insertAllDocumentsInCollection(
         try {
             // TODO SERVER-117551 Make initiateBulk happen for primary-driven and non-primary-driven
             // at the same call site.
-            if (_method == IndexBuildMethodEnum::kPrimaryDriven) {
+            if (_containerWriteBehavior == ContainerWriteBehavior::kReplicate) {
                 for (auto& index : _indexes) {
                     auto indexCatalogEntry =
                         index.block->getEntry(opCtx, collection->getCollectionPtr());
@@ -756,11 +773,11 @@ Status MultiIndexBlock::insertAllDocumentsInCollection(
                                     index.real->getSorterFileStats(),
                                     index.real->getSorterContainerStats(),
                                     collection->nss().dbName(),
-                                    _method),
+                                    _containerWriteBehavior),
                         getEachIndexBuildMaxMemoryUsageBytes(boost::none, _indexes.size()),
                         /*stateInfo=*/boost::none,
                         collection->nss().dbName(),
-                        _method);
+                        _containerWriteBehavior);
                 }
             }
             // Resumable index builds can only be resumed prior to the oplog recovery phase of
@@ -891,6 +908,8 @@ void MultiIndexBlock::_doCollectionScan(OperationContext* opCtx,
             continue;
         }
 
+        bulkDocsScannedCounter.add(1);
+
         {
             stdx::unique_lock<Client> lk(*opCtx->getClient());
             progress->get(lk)->setTotalWhileRunning(
@@ -1007,6 +1026,7 @@ Status MultiIndexBlock::_insert(
                                                  _indexes[i].options,
                                                  onSuppressedError,
                                                  shouldRelaxConstraints);
+            bulkKeysGeneratedCounter.add(1);
         } catch (...) {
             return exceptionToStatus();
         }
@@ -1143,10 +1163,10 @@ Status MultiIndexBlock::dumpInsertsFromBulk(
                 },
                 onDuplicateRecord,
                 yieldFn,
-                (this->_method == IndexBuildMethodEnum::kPrimaryDriven)
+                (this->_containerWriteBehavior == ContainerWriteBehavior::kReplicate)
                     ? primaryDrivenIndexBuildIndexInsertionBatchSize.load()
                     : 1,
-                (this->_method == IndexBuildMethodEnum::kPrimaryDriven)
+                (this->_containerWriteBehavior == ContainerWriteBehavior::kReplicate)
                     ? primaryDrivenIndexBuildIndexInsertionBatchBytes.load()
                     : std::numeric_limits<size_t>::max());
 
@@ -1389,6 +1409,10 @@ void MultiIndexBlock::setIndexBuildMethod(IndexBuildMethodEnum indexBuildMethod)
     _method = indexBuildMethod;
 }
 
+void MultiIndexBlock::setContainerWriteBehavior(ContainerWriteBehavior containerWriteBehavior) {
+    _containerWriteBehavior = containerWriteBehavior;
+}
+
 void MultiIndexBlock::appendBuildInfo(BSONObjBuilder* builder) const {
     builder->append("method", idl::serialize(_method));
     builder->append("phase", static_cast<int>(_phase));
@@ -1527,12 +1551,12 @@ BSONObj MultiIndexBlock::_constructStateObject(OperationContext* opCtx,
 
         auto& indexBuildInfo = index.block->getIndexBuildInfo();
         indexStateInfo.setSideWritesTable(*indexBuildInfo.sideWritesIdent);
-        indexStateInfo.setSkippedRecordTrackerTable(*indexBuildInfo.skippedRecordsTrackerIdent);
-        // For compatibility with v8.0, the constraintViolationsTrackerIdent is not persisted in the
+        indexStateInfo.setSkippedRecordTrackerTable(*indexBuildInfo.skippedRecordsIdent);
+        // For compatibility with v8.0, the constraintViolationsIdent is not persisted in the
         // resume state if the index is not unique given that version used to check explicitly for
         // this case and fail otherwise.
         if (index.block->getSpec()["unique"].trueValue()) {
-            if (auto& duplicateKeyTrackerIdent = indexBuildInfo.constraintViolationsTrackerIdent) {
+            if (auto& duplicateKeyTrackerIdent = indexBuildInfo.constraintViolationsIdent) {
                 indexStateInfo.setDuplicateKeyTrackerTable(*duplicateKeyTrackerIdent);
             }
         }

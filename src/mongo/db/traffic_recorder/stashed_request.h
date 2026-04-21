@@ -1,5 +1,5 @@
 /**
- *    Copyright (C) 2018-present MongoDB, Inc.
+ *    Copyright (C) 2026-present MongoDB, Inc.
  *
  *    This program is free software: you can redistribute it and/or modify
  *    it under the terms of the Server Side Public License, version 1,
@@ -28,21 +28,24 @@
  */
 #pragma once
 
-#include "mongo/base/concept/constructible.h"
-#include "mongo/base/concept/unique_ptr.h"
+#include "mongo/db/operation_context.h"
+
+#include <boost/optional.hpp>
+
+MONGO_MOD_PUBLIC;
 
 namespace mongo {
-namespace concept {
-    /*!
-     * Objects conforming to the Clonable concept can be dynamically copied, using `this->clone()`.
-     * The Clonable concept does not specify the return type of the `clone()` function.
-     */
-    struct Clonable {
-        /*! Clonable objects must be safe to destroy, by pointer. */
-        virtual ~Clonable() = 0;
+class StashedRequest {
+public:
+    static const OperationContext::Decoration<StashedRequest> get;
 
-        /*! Clonable objects can be cloned without knowing the actual dynamic type. */
-        Constructible<UniquePtr<Clonable>> clone() const;
-    };
-}  // namespace concept
+    void clear();
+
+    void set(const Message& message);
+
+    boost::optional<Message> take();
+
+private:
+    boost::optional<Message> _value;
+};
 }  // namespace mongo

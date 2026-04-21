@@ -3838,37 +3838,6 @@ functions:
         optional: true
     - *set_task_expansion_macros
     - *f_expansions_write
-    - command: subprocess.exec
-      display_name: "generate sha256 for streams binaries"
-      params:
-        binary: bash
-        add_expansions_to_env: true
-        args:
-          - "src/evergreen/run_python_script.sh"
-          - "buildscripts/s3_binary/sha256sum.py"
-          - "streams-binaries.tgz"
-    - command: s3.put
-      params:
-        aws_key: ${aws_key}
-        aws_secret: ${aws_secret}
-        local_file: src/streams-binaries.tgz
-        remote_file: ${mongo_binaries}
-        bucket: mciuploads
-        permissions: ${mciuploads_binary_permissions|private}
-        visibility: ${mciuploads_binary_visibility|signed}
-        content_type: application/gzip
-        display_name: Binaries (from streams build)
-    - command: s3.put
-      params:
-        aws_key: ${aws_key}
-        aws_secret: ${aws_secret}
-        local_file: src/streams-binaries.tgz.sha256
-        remote_file: ${mongo_binaries}.sha256
-        bucket: mciuploads
-        permissions: ${mciuploads_binary_permissions|private}
-        visibility: ${mciuploads_binary_visibility|signed}
-        content_type: text/plain
-        display_name: Binaries SHA256 (from streams build)
     - command: archive.targz_pack
       params:
         target: "venv.tgz"
@@ -4075,6 +4044,43 @@ functions:
         content_type: application/gzip
         display_name: Streams Debugsymbols
 
+  "streams publish manifest":
+    - command: manifest.load
+    - *git_get_shallow_project
+    - *f_expansions_write
+    - *restore_git_history_and_tags
+    - *add_git_tag
+    - *kill_processes
+    - *cleanup_environment
+    - *set_up_venv
+    - *upload_pip_requirements
+    - *configure_evergreen_api_credentials
+    - command: subprocess.exec
+      params:
+        binary: bash
+        args:
+          - "src/evergreen/run_python_script.sh"
+          - "buildscripts/evergreen_gen_streams_publish_manifest_task.py"
+          - "../expansions.yml"
+          - "--output-file=../streams_publish_manifest.json"
+          - ${break_glass_arg|}
+    - command: s3.put
+      display_name: "upload streams_publish_manifest.json"
+      params:
+        aws_key: ${aws_key}
+        aws_secret: ${aws_secret}
+        local_file: streams_publish_manifest.json
+        remote_file: ${project}/${build_variant}/${revision}/streams_publish_manifest/${task_name}-${build_id}.json
+        bucket: mciuploads
+        permissions: public-read
+        content_type: application/gzip
+        display_name: Generated Task Config - Execution ${execution}
+    - command: generate.tasks
+      display_name: "generate.tasks streams_publish_manifest.json"
+      params:
+        files:
+          - streams_publish_manifest.json
+
   "s3.put bazel build events":
     command: s3.put
     params:
@@ -4117,7 +4123,9 @@ functions:
         region: us-east-1
         remote_file: tpc-h/tpch-${scale}-normalized.archive.gz
         local_file: tpc-h/tpch-${scale}-normalized.archive.gz
-        require_checksum_sha256: ${checksum}
+        # TODO SERVER-122114 . We can not validate checksums until s3.get
+        # is able to request a specific file version via `versionId`
+        # require_checksum_sha256: ${checksum}
 
   "fetch mongodb database tools":
     - *f_expansions_write

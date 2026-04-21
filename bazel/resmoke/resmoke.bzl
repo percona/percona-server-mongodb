@@ -1,6 +1,37 @@
 load("//bazel:test_exec_properties.bzl", "test_exec_properties")
 load("@rules_python//python:defs.bzl", "py_test")
 
+def _collect_python_imports_impl(ctx):
+    """Collects Python imports from data dependencies to build PYTHONPATH."""
+    python_imports = []
+
+    # Collect PyInfo from data dependencies
+    for dep in ctx.attr.data:
+        if PyInfo in dep:
+            for import_path in dep[PyInfo].imports.to_list():
+                if import_path not in python_imports:
+                    python_imports.append(import_path)
+
+    # Write imports to a file, one per line
+    imports_file = ctx.actions.declare_file(ctx.label.name + ".python_imports")
+    ctx.actions.write(
+        output = imports_file,
+        content = "\n".join(python_imports) + "\n" if python_imports else "",
+    )
+
+    return [DefaultInfo(files = depset([imports_file]))]
+
+_collect_python_imports = rule(
+    implementation = _collect_python_imports_impl,
+    attrs = {
+        "data": attr.label_list(
+            allow_files = True,
+            doc = "Data dependencies to extract Python imports from",
+        ),
+    },
+    doc = "Helper rule to collect Python imports from data dependencies",
+)
+
 def resmoke_config_impl(ctx):
     base_name = ctx.label.name.removesuffix("_config")
     test_list_file = ctx.actions.declare_file(base_name + ".txt")
@@ -89,6 +120,17 @@ def resmoke_suite_test(
         group_size = 0,
         group_count_multiplier = "",
         **kwargs):
+    historic_runtimes = name + "_historic_runtimes"
+    native.genrule(
+        name = historic_runtimes,
+        srcs = [],
+        outs = [historic_runtimes + ".json"],
+        cmd = "$(location //bazel/resmoke:download_historic_runtimes) --suite=//{pkg}:{name} --volatile-status=bazel-out/volatile-status.txt --output=$@".format(pkg = native.package_name(), name = name),
+        tools = ["//bazel/resmoke:download_historic_runtimes"],
+        stamp = True,
+        tags = ["no-remote", "external", "no-cache"],
+    )
+
     generated_config = name + "_config"
     resmoke_config(
         name = generated_config,
@@ -100,6 +142,14 @@ def resmoke_suite_test(
         group_size = group_size,
         group_count_multiplier = group_count_multiplier,
         tags = ["resmoke_config"],
+    )
+
+    # Collect Python imports from data dependencies
+    python_imports_target = name + "_python_imports"
+    _collect_python_imports(
+        name = python_imports_target,
+        data = data,
+        tags = ["manual"],
     )
 
     resmoke_shim = Label("//bazel/resmoke:resmoke_shim.py")
@@ -132,12 +182,13 @@ def resmoke_suite_test(
         data = data + srcs + [
             config,
             generated_config,
+            python_imports_target,
             "//bazel/resmoke:on_feature_flags",
             "//bazel/resmoke:off_feature_flags",
             "//bazel/resmoke:unreleased_ifr_flags",
             "//bazel/resmoke:volatile_status",
             "//bazel/resmoke:resource_monitor",
-            "//bazel/resmoke:test_runtimes",
+            ":%s" % historic_runtimes,
             "//buildscripts/resmokeconfig:common_jstest_data",
             "//buildscripts/resmokeconfig:fully_disabled_feature_flags.yml",
             "//buildscripts/resmokeconfig:resmoke_modules.yml",
@@ -167,6 +218,7 @@ def resmoke_suite_test(
             "--archiveMode=directory",
             "--archiveLimitMb=500",
             "--testTimeout=$(RESMOKE_TEST_TIMEOUT)",
+            "--historicTestRuntimes=$(location :%s)" % historic_runtimes,
         ] + extra_args + resmoke_args,
         tags = tags + ["no-cache", "resources:port_block:1", "resmoke_suite_test"],
         timeout = timeout,
@@ -174,6 +226,7 @@ def resmoke_suite_test(
         env = {
             "LOCAL_RESOURCES": "$(LOCAL_RESOURCES)",
             "GIT_PYTHON_REFRESH": "quiet",  # Ignore "Bad git executable" error when importing git python. Git commands will still error if run.
+            "PYTHON_IMPORTS_FILE": "$(location %s)" % native.package_relative_label(python_imports_target),
         } | select({
             "//bazel/resmoke:installed_dist_test_enabled": {},
             "//bazel/resmoke:skip_deps_for_cquery_enabled": {},

@@ -491,20 +491,32 @@ buildvariants:
         --mongosSetParameters="{maxRoundsWithoutProgressParameter: 20}"
         --mongosSetParameters="{findShardsOnConfigTimeoutMS: 30000}"
     tasks:
-      - name: .development_critical !.requires_large_host !.requires_compile_variant !.incompatible_development_variant !.incompatible_aubsan !.incompatible_system_allocator !.incompatible_all_feature_flags
+      - name: .development_critical !.requires_large_host !.requires_large_host_aubsan !.requires_compile_variant !.incompatible_development_variant !.incompatible_aubsan !.incompatible_system_allocator !.incompatible_all_feature_flags
       - name: .development_critical .requires_large_host !.requires_compile_variant !.incompatible_development_variant !.incompatible_aubsan !.incompatible_system_allocator !.incompatible_all_feature_flags
         distros:
           - rhel8.8-xlarge
-      - name: .release_critical !.requires_large_host !.requires_compile_variant !.incompatible_development_variant !.incompatible_aubsan !.incompatible_system_allocator !.incompatible_all_feature_flags
+      - name: .development_critical .requires_large_host_aubsan !.requires_compile_variant !.incompatible_development_variant !.incompatible_aubsan !.incompatible_system_allocator !.incompatible_all_feature_flags
+        distros:
+          - rhel8.8-xlarge
+      - name: .release_critical !.requires_large_host !.requires_large_host_aubsan !.requires_compile_variant !.incompatible_development_variant !.incompatible_aubsan !.incompatible_system_allocator !.incompatible_all_feature_flags
       - name: .release_critical .requires_large_host !.requires_compile_variant !.incompatible_development_variant !.incompatible_aubsan !.incompatible_system_allocator !.incompatible_all_feature_flags
         distros:
           - rhel8.8-xlarge
-      - name: .default !.requires_large_host !.requires_extra_system_deps !.requires_compile_variant !.incompatible_development_variant !.incompatible_aubsan !.incompatible_system_allocator !.incompatible_all_feature_flags
+      - name: .release_critical .requires_large_host_aubsan !.requires_compile_variant !.incompatible_development_variant !.incompatible_aubsan !.incompatible_system_allocator !.incompatible_all_feature_flags
+        distros:
+          - rhel8.8-xlarge
+      - name: .default !.requires_large_host !.requires_large_host_aubsan !.requires_extra_system_deps !.requires_compile_variant !.incompatible_development_variant !.incompatible_aubsan !.incompatible_system_allocator !.incompatible_all_feature_flags
       - name: .default .requires_large_host !.requires_extra_system_deps !.requires_compile_variant !.incompatible_development_variant !.incompatible_aubsan !.incompatible_system_allocator !.incompatible_all_feature_flags
         distros:
           - rhel8.8-xlarge
-      - name: .non_deterministic !.requires_large_host !.requires_compile_variant !.incompatible_development_variant !.incompatible_aubsan !.incompatible_system_allocator !.incompatible_all_feature_flags
+      - name: .default .requires_large_host_aubsan !.requires_extra_system_deps !.requires_compile_variant !.incompatible_development_variant !.incompatible_aubsan !.incompatible_system_allocator !.incompatible_all_feature_flags
+        distros:
+          - rhel8.8-xlarge
+      - name: .non_deterministic !.requires_large_host !.requires_large_host_aubsan !.requires_compile_variant !.incompatible_development_variant !.incompatible_aubsan !.incompatible_system_allocator !.incompatible_all_feature_flags
       - name: .non_deterministic .requires_large_host !.requires_compile_variant !.incompatible_development_variant !.incompatible_aubsan !.incompatible_system_allocator !.incompatible_all_feature_flags
+        distros:
+          - rhel8.8-xlarge
+      - name: .non_deterministic .requires_large_host_aubsan !.requires_compile_variant !.incompatible_development_variant !.incompatible_aubsan !.incompatible_system_allocator !.incompatible_all_feature_flags
         distros:
           - rhel8.8-xlarge
       - name: streams_sanitizer_gen
@@ -556,20 +568,32 @@ buildvariants:
         --mongosSetParameters="{maxRoundsWithoutProgressParameter: 20}"
         --mongosSetParameters="{findShardsOnConfigTimeoutMS: 30000}"
     tasks:
-      - name: .development_critical !.requires_large_host !.requires_compile_variant !.incompatible_development_variant !.incompatible_aubsan !.incompatible_system_allocator !.incompatible_all_feature_flags
+      - name: .development_critical !.requires_large_host !.requires_large_host_aubsan !.requires_compile_variant !.incompatible_development_variant !.incompatible_aubsan !.incompatible_system_allocator !.incompatible_all_feature_flags
       - name: .development_critical .requires_large_host !.requires_compile_variant !.incompatible_development_variant !.incompatible_aubsan !.incompatible_system_allocator !.incompatible_all_feature_flags
         distros:
           - rhel8.8-xlarge
-      - name: .release_critical !.requires_large_host !.requires_compile_variant !.incompatible_development_variant !.incompatible_aubsan !.incompatible_system_allocator !.incompatible_all_feature_flags
+      - name: .development_critical .requires_large_host_aubsan !.requires_compile_variant !.incompatible_development_variant !.incompatible_aubsan !.incompatible_system_allocator !.incompatible_all_feature_flags
+        distros:
+          - rhel8.8-xlarge
+      - name: .release_critical !.requires_large_host !.requires_large_host_aubsan !.requires_compile_variant !.incompatible_development_variant !.incompatible_aubsan !.incompatible_system_allocator !.incompatible_all_feature_flags
       - name: .release_critical .requires_large_host !.requires_compile_variant !.incompatible_development_variant !.incompatible_aubsan !.incompatible_system_allocator !.incompatible_all_feature_flags
         distros:
           - rhel8.8-xlarge
-      - name: .default !.requires_large_host !.requires_extra_system_deps !.requires_compile_variant !.incompatible_development_variant !.incompatible_aubsan !.incompatible_system_allocator !.incompatible_all_feature_flags
+      - name: .release_critical .requires_large_host_aubsan !.requires_compile_variant !.incompatible_development_variant !.incompatible_aubsan !.incompatible_system_allocator !.incompatible_all_feature_flags
+        distros:
+          - rhel8.8-xlarge
+      - name: .default !.requires_large_host !.requires_large_host_aubsan !.requires_extra_system_deps !.requires_compile_variant !.incompatible_development_variant !.incompatible_aubsan !.incompatible_system_allocator !.incompatible_all_feature_flags
       - name: .default .requires_large_host !.requires_extra_system_deps !.requires_compile_variant !.incompatible_development_variant !.incompatible_aubsan !.incompatible_system_allocator !.incompatible_all_feature_flags
         distros:
           - rhel8.8-xlarge
-      - name: .non_deterministic !.requires_large_host !.requires_compile_variant !.incompatible_development_variant !.incompatible_aubsan !.incompatible_system_allocator !.incompatible_all_feature_flags
+      - name: .default .requires_large_host_aubsan !.requires_extra_system_deps !.requires_compile_variant !.incompatible_development_variant !.incompatible_aubsan !.incompatible_system_allocator !.incompatible_all_feature_flags
+        distros:
+          - rhel8.8-xlarge
+      - name: .non_deterministic !.requires_large_host !.requires_large_host_aubsan !.requires_compile_variant !.incompatible_development_variant !.incompatible_aubsan !.incompatible_system_allocator !.incompatible_all_feature_flags
       - name: .non_deterministic .requires_large_host !.requires_compile_variant !.incompatible_development_variant !.incompatible_aubsan !.incompatible_system_allocator !.incompatible_all_feature_flags
+        distros:
+          - rhel8.8-xlarge
+      - name: .non_deterministic .requires_large_host_aubsan !.requires_compile_variant !.incompatible_development_variant !.incompatible_aubsan !.incompatible_system_allocator !.incompatible_all_feature_flags
         distros:
           - rhel8.8-xlarge
 
@@ -745,7 +769,8 @@ buildvariants:
       # sharding_jscore_passthrough_with_balancer_gen are too resource intensive with TLS and
       # gRPC to run under the sanitizer.
       # sharding_jscore_passthrough_priority_ports_gen does not support GRPC.
-      - name: .jscore .common !sharding_uninitialized_fcv_jscore_passthrough_gen !sharding_jscore_passthrough_with_balancer_gen !sharding_jscore_passthrough_priority_ports_gen !.auth !.txns !.feature_flag_guarded
+      # sharding_stepdown_fcv_upgrade_downgrade_jscore_passthrough requires too much memory.
+      - name: .jscore .common !sharding_uninitialized_fcv_jscore_passthrough_gen !sharding_jscore_passthrough_with_balancer_gen !sharding_jscore_passthrough_priority_ports_gen !sharding_stepdown_fcv_upgrade_downgrade_jscore_passthrough_gen !.auth !.txns !.feature_flag_guarded
       - name: sharded_jscore_txns
       - name: .aggregation !.auth !aggregation_read_concern_majority_passthrough !aggregation_secondary_reads_gen !aggregation_sharded_collections_causally_consistent_passthrough !aggregation_sharded_collections_passthrough
       - name: .grpc_misc_js

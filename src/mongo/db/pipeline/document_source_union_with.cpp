@@ -186,7 +186,7 @@ DocumentSourceUnionWith::DocumentSourceUnionWith(
         std::move(pipeline), nullptr, UnionWithSharedState::ExecutionProgress::kIteratingSource);
 
     if (!_sharedState->_pipeline->getContext()->getNamespaceString().isOnInternalDb()) {
-        serviceOpCounters(getExpCtx()->getOperationContext()).gotNestedAggregate();
+        globalOpCounters().gotNestedAggregate();
     }
     _sharedState->_pipeline->getContext()->setInUnionWith(true);
     tassert(10577701,
@@ -237,7 +237,7 @@ DocumentSourceUnionWith::DocumentSourceUnionWith(
     }
 
     if (!_sharedState->_pipeline->getContext()->getNamespaceString().isOnInternalDb()) {
-        serviceOpCounters(getExpCtx()->getOperationContext()).gotNestedAggregate();
+        globalOpCounters().gotNestedAggregate();
     }
     _sharedState->_pipeline->getContext()->setInUnionWith(true);
 
@@ -295,7 +295,7 @@ DocumentSourceUnionWith::DocumentSourceUnionWith(
     }
 
     if (!_sharedState->_pipeline->getContext()->getNamespaceString().isOnInternalDb()) {
-        serviceOpCounters(getExpCtx()->getOperationContext()).gotNestedAggregate();
+        globalOpCounters().gotNestedAggregate();
     }
     _sharedState->_pipeline->getContext()->setInUnionWith(true);
 
@@ -557,9 +557,14 @@ Value DocumentSourceUnionWith::serialize(const SerializationOptions& opts) const
                                            _sharedState->_pipeline->getContext(),
                                            pipeline_factory::kOptionsMinimal)
                 ->serializeToBson(opts);
-        auto spec = collectionless ? DOC("pipeline" << serializedPipeline)
-                                   : DOC("coll" << opts.serializeIdentifier(_userNss.coll())
-                                                << "pipeline" << serializedPipeline);
+        auto spec = collectionless
+            ? DOC("pipeline" << serializedPipeline)
+            : (_hasForeignDB
+                   ? DOC("db" << opts.serializeIdentifier(_userNss.dbName().db(OmitTenant{}))
+                              << "coll" << opts.serializeIdentifier(_userNss.coll()) << "pipeline"
+                              << serializedPipeline)
+                   : DOC("coll" << opts.serializeIdentifier(_userNss.coll()) << "pipeline"
+                                << serializedPipeline));
         return Value(DOC(getSourceName() << spec));
     } else {
         MutableDocument spec;

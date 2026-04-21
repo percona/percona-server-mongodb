@@ -236,7 +236,9 @@ DEFAULTS = {
     # Avoids performing signature verification on test extensions at load time.
     "skip_extensions_signature_verification": False,
     # Enable shell JS debugging
-    "shell_jsdebugmode": False,
+    "jsdbg": False,
+    # Parameters for fast-check property-based tests
+    "fast_check_parameters": None,
 }
 
 _SuiteOptions = collections.namedtuple(
@@ -398,7 +400,7 @@ CONFIG_SHARD = None
 MODULES_CONFIG_PATH = None
 
 # list of enabled modules
-MODULES = None
+MODULES = []
 
 # list of dirs from enabled modules to get suites from
 MODULE_SUITE_DIRS = []
@@ -772,7 +774,10 @@ SHARD_INDEX = None
 HISTORIC_TEST_RUNTIMES = None
 
 # Shell debug options
-SHELL_JSDEBUGMODE = None
+JSDBG = None
+
+# Parameters for fast-check property-based tests (dict parsed from JSON)
+FAST_CHECK_PARAMETERS = None
 
 ##
 # Internally used configuration options that aren't exposed to the user

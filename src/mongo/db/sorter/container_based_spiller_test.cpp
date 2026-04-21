@@ -32,7 +32,6 @@
 #include "mongo/db/namespace_string.h"
 #include "mongo/db/repl/replication_coordinator_mock.h"
 #include "mongo/db/service_context_d_test_fixture.h"
-#include "mongo/db/shard_role/shard_catalog/collection_mock.h"
 #include "mongo/db/shard_role/transaction_resources.h"
 #include "mongo/db/sorter/container_test_utils.h"
 #include "mongo/db/sorter/sorter_test_utils.h"
@@ -358,7 +357,11 @@ DEATH_TEST(ContainerIteratorChecksumDeathTest, IncorrectChecksumV2Fails, "116059
     iterator.next();
 }
 
-class ContainerIteratorTest : public testing::TestWithParam<SorterChecksumVersion> {};
+class ContainerIteratorTest : public testing::TestWithParam<SorterChecksumVersion> {
+public:
+    // TODO (SERVER-116165): Remove.
+    RAIIServerParameterControllerForTest ffContainerWrites{"featureFlagContainerWrites", true};
+};
 
 INSTANTIATE_TEST_SUITE_P(ContainerIteratorTestSuite,
                          ContainerIteratorTest,
@@ -380,6 +383,8 @@ TEST_P(ContainerIteratorTest, EmptyIteratorHasZeroChecksum) {
 class SortedContainerWriterTest : public ServiceContextMongoDTest {
 public:
     SorterTracker sorterTracker;
+    // TODO (SERVER-116165): Remove.
+    RAIIServerParameterControllerForTest ffContainerWrites{"featureFlagContainerWrites", true};
 
     /**
      * Creates and exhausts iterators created from the writer to ensure that the final checksum
@@ -423,10 +428,6 @@ TEST_F(SortedContainerWriterTest, ContainerWriterUsesNextKeyForContainerEntries)
 
     ViewableIntegerKeyedContainer container;
     container.setIdent(std::make_shared<Ident>("sorted_container_writer_test"));
-    auto coll = std::make_shared<CollectionMock>(
-        NamespaceString::createNamespaceString_forTest("test", "coll"));
-    CollectionPtr collPtr(coll.get());
-
     SortOptions opts;
     const int64_t startingKey = 5;
     auto& ru = *shard_role_details::getRecoveryUnit(opCtx.get());
@@ -434,7 +435,6 @@ TEST_F(SortedContainerWriterTest, ContainerWriterUsesNextKeyForContainerEntries)
     SortedContainerWriter<IntWrapper, IntWrapper> writer(
         *opCtx,
         ru,
-        collPtr,
         container,
         stats,
         opts,
@@ -476,10 +476,6 @@ TEST_F(SortedContainerWriterTest, ContainerWriterStoresEmptyValueForZeroLengthSe
 
     ViewableIntegerKeyedContainer container;
     container.setIdent(std::make_shared<Ident>("sorted_container_writer_empty_test"));
-    auto coll = std::make_shared<CollectionMock>(
-        NamespaceString::createNamespaceString_forTest("test", "coll"));
-    CollectionPtr collPtr(coll.get());
-
     SortOptions opts;
     const int64_t startingKey = 29;
     auto& ru = *shard_role_details::getRecoveryUnit(opCtx.get());
@@ -487,7 +483,6 @@ TEST_F(SortedContainerWriterTest, ContainerWriterStoresEmptyValueForZeroLengthSe
     SortedContainerWriter<NullValue, NullValue> writer(
         *opCtx,
         ru,
-        collPtr,
         container,
         stats,
         opts,
@@ -512,10 +507,6 @@ TEST_F(SortedContainerWriterTest, ContainerWriterAllowsNullValueWithNonNullKey) 
 
     ViewableIntegerKeyedContainer container;
     container.setIdent(std::make_shared<Ident>("sorted_container_writer_null_value_test"));
-    auto coll = std::make_shared<CollectionMock>(
-        NamespaceString::createNamespaceString_forTest("test", "coll"));
-    CollectionPtr collPtr(coll.get());
-
     SortOptions opts;
     const int64_t startingKey = 2002;
     auto& ru = *shard_role_details::getRecoveryUnit(opCtx.get());
@@ -523,7 +514,6 @@ TEST_F(SortedContainerWriterTest, ContainerWriterAllowsNullValueWithNonNullKey) 
     SortedContainerWriter<IntWrapper, NullValue> writer(
         *opCtx,
         ru,
-        collPtr,
         container,
         stats,
         opts,
@@ -546,7 +536,11 @@ TEST_F(SortedContainerWriterTest, ContainerWriterAllowsNullValueWithNonNullKey) 
 }
 
 class ContainerBasedSpillerTest : public ServiceContextMongoDTest,
-                                  public testing::WithParamInterface<int64_t> {};
+                                  public testing::WithParamInterface<int64_t> {
+public:
+    // TODO (SERVER-116165): Remove.
+    RAIIServerParameterControllerForTest ffContainerWrites{"featureFlagContainerWrites", true};
+};
 
 INSTANTIATE_TEST_SUITE_P(ContainerBasedSpillerTest,
                          ContainerBasedSpillerTest,
@@ -560,9 +554,6 @@ TEST_P(ContainerBasedSpillerTest, Spill) {
     ASSERT(replCoord);
     replCoord->alwaysAllowWrites(true);
 
-    auto ns = NamespaceString::createNamespaceString_forTest("test", "container_based_spiller");
-    CollectionMock coll{ns};
-    CollectionPtr collPtr{&coll};
     const auto identStr = ident::generateNewInternalIdent("container_spill"_sd);
     ViewableIntegerKeyedContainer container{std::make_shared<Ident>(identStr)};
     SorterContainerStats stats{nullptr};
@@ -570,10 +561,9 @@ TEST_P(ContainerBasedSpillerTest, Spill) {
     ContainerBasedSpiller<IntWrapper, NullValue, IWComparator> spiller{
         *opCtx,
         *shard_role_details::getRecoveryUnit(opCtx.get()),
-        collPtr,
         container,
         stats,
-        ns.dbName(),
+        boost::none,
         sorter::kLatestChecksumVersion,
         /*batchSize=*/GetParam(),
         testSpillingMinAvailableDiskSpaceBytes};
@@ -583,12 +573,10 @@ TEST_P(ContainerBasedSpillerTest, Spill) {
 
     auto it1 = spiller.spill(SortOptions{},
                              SorterSpiller<IntWrapper, NullValue, IWComparator>::Settings{},
-                             span.subspan(0, 2),
-                             0);
+                             span.subspan(0, 2));
     auto it2 = spiller.spill(SortOptions{},
                              SorterSpiller<IntWrapper, NullValue, IWComparator>::Settings{},
-                             span.subspan(2, 2),
-                             0);
+                             span.subspan(2, 2));
 
     ASSERT_TRUE(it1->more());
     EXPECT_EQ(it1->next().first, 50);
@@ -609,9 +597,6 @@ TEST_P(ContainerBasedSpillerTest, MergeSpills) {
     ASSERT(replCoord);
     replCoord->alwaysAllowWrites(true);
 
-    auto ns = NamespaceString::createNamespaceString_forTest("test", "container_based_spiller");
-    CollectionMock coll{ns};
-    CollectionPtr collPtr{&coll};
     const auto identStr = ident::generateNewInternalIdent("container_spill"_sd);
     ViewableIntegerKeyedContainer container{std::make_shared<Ident>(identStr)};
     SorterContainerStats containerStats{nullptr};
@@ -619,10 +604,9 @@ TEST_P(ContainerBasedSpillerTest, MergeSpills) {
     ContainerBasedSpiller<IntWrapper, NullValue, IWComparator> spiller{
         *opCtx,
         *shard_role_details::getRecoveryUnit(opCtx.get()),
-        collPtr,
         container,
         containerStats,
-        ns.dbName(),
+        boost::none,
         sorter::kLatestChecksumVersion,
         /*batchSize=*/GetParam(),
         testSpillingMinAvailableDiskSpaceBytes};
@@ -635,18 +619,15 @@ TEST_P(ContainerBasedSpillerTest, MergeSpills) {
     iterators.push_back(
         spiller.spill(SortOptions{},
                       SorterSpiller<IntWrapper, NullValue, IWComparator>::Settings{},
-                      span.subspan(0, 2),
-                      0));
+                      span.subspan(0, 2)));
     iterators.push_back(
         spiller.spill(SortOptions{},
                       SorterSpiller<IntWrapper, NullValue, IWComparator>::Settings{},
-                      span.subspan(2, 2),
-                      0));
+                      span.subspan(2, 2)));
     iterators.push_back(
         spiller.spill(SortOptions{},
                       SorterSpiller<IntWrapper, NullValue, IWComparator>::Settings{},
-                      span.subspan(4, 1),
-                      0));
+                      span.subspan(4, 1)));
 
     SorterStats sorterStats{nullptr};
     spiller.mergeSpills(SortOptions{},
@@ -683,9 +664,6 @@ TEST_P(ContainerBasedSpillerTest, MergeSpillsMultiplePasses) {
     ASSERT(replCoord);
     replCoord->alwaysAllowWrites(true);
 
-    auto ns = NamespaceString::createNamespaceString_forTest("test", "container_based_spiller");
-    CollectionMock coll{ns};
-    CollectionPtr collPtr{&coll};
     const auto identStr = ident::generateNewInternalIdent("container_spill"_sd);
     ViewableIntegerKeyedContainer container{std::make_shared<Ident>(identStr)};
     SorterContainerStats containerStats{nullptr};
@@ -693,10 +671,9 @@ TEST_P(ContainerBasedSpillerTest, MergeSpillsMultiplePasses) {
     ContainerBasedSpiller<IntWrapper, NullValue, IWComparator> spiller{
         *opCtx,
         *shard_role_details::getRecoveryUnit(opCtx.get()),
-        collPtr,
         container,
         containerStats,
-        ns.dbName(),
+        boost::none,
         sorter::kLatestChecksumVersion,
         /*batchSize=*/GetParam(),
         testSpillingMinAvailableDiskSpaceBytes};
@@ -718,8 +695,7 @@ TEST_P(ContainerBasedSpillerTest, MergeSpillsMultiplePasses) {
         iterators.push_back(
             spiller.spill(SortOptions{},
                           SorterSpiller<IntWrapper, NullValue, IWComparator>::Settings{},
-                          span.subspan(i, 1),
-                          0));
+                          span.subspan(i, 1)));
     }
 
     SorterStats sorterStats{nullptr};
@@ -765,8 +741,6 @@ TEST_P(ContainerBasedSpillerTest, SpillDirPathFromIdent) {
     auto opCtx = makeOperationContext();
 
     auto ns = NamespaceString::createNamespaceString_forTest("test", "container_based_spiller");
-    CollectionMock coll{ns};
-    CollectionPtr collPtr{&coll};
     SorterContainerStats stats{nullptr};
     auto& ru = *shard_role_details::getRecoveryUnit(opCtx.get());
 
@@ -794,7 +768,6 @@ TEST_P(ContainerBasedSpillerTest, SpillDirPathFromIdent) {
         ContainerBasedSpiller<IntWrapper, NullValue, IWComparator> spiller{
             *opCtx,
             ru,
-            collPtr,
             container,
             stats,
             ns.dbName(),

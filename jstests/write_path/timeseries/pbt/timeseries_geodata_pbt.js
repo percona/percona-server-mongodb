@@ -22,16 +22,23 @@ import {
     makeGeospatialQueryArb,
 } from "jstests/write_path/timeseries/pbt/lib/geodata_arbitraries.js";
 import {assertCollectionsMatch} from "jstests/write_path/timeseries/pbt/lib/assertions.js";
+import {getFcParams, getFcAssertArgs} from "jstests/write_path/timeseries/pbt/lib/fast_check_params.js";
+import {getTimeseriesCollForRawOps} from "jstests/libs/raw_operation_utils.js";
 
+const fcParams = getFcParams();
+const fcAssertArgs = getFcAssertArgs();
 const ctrlCollName = jsTestName() + "_control";
 const tsCollName = jsTestName() + "_timeseries";
 
 const geoField = "loc";
+const timeField = "ts";
+const metaField = "meta";
 const metaValue = "geospatial";
 
 describe("Geospatial Query Comparative Test for Timeseries", () => {
     let tsColl;
     let ctrlColl;
+    let bucketColl;
 
     const beforeHook = () => {
         db[ctrlCollName].drop();
@@ -42,6 +49,7 @@ describe("Geospatial Query Comparative Test for Timeseries", () => {
 
         ctrlColl = db.getCollection(ctrlCollName);
         tsColl = db.getCollection(tsCollName);
+        bucketColl = getTimeseriesCollForRawOps(tsColl.getDB(), tsColl);
 
         // This test needs to create 2dsphere indexes to properly exercise the timeseries write path.
         ctrlColl.createIndex({[geoField]: "2dsphere"});
@@ -50,10 +58,10 @@ describe("Geospatial Query Comparative Test for Timeseries", () => {
 
     it("keeps tsColl and ctrlColl in sync under insert/batch-insert/delete of GeoPoint data", () => {
         const programArb = makeTimeseriesCommandSequenceArb(
-            /* minCommands   */ 1,
-            /* maxCommands   */ 30,
-            /* timeField     */ "ts",
-            /* metaField     */ "meta",
+            /* minCommands   */ fcParams.minCommands || 1,
+            /* maxCommands   */ fcParams.maxCommands || 30,
+            /* timeField     */ timeField,
+            /* metaField     */ metaField,
             /* metaValue     */ metaValue,
             /* minFields     */ 1,
             /* maxFields     */ 1,
@@ -63,27 +71,27 @@ describe("Geospatial Query Comparative Test for Timeseries", () => {
                 explicitArbitraries: {[geoField]: makeGeoArbFactory(makeGeoPointArb)},
             },
             /* fieldNameArb  */ undefined, // use default short-string field names
-            /* replayPath    */ undefined, // replace this value with the replay path to replicate a failure
+            /* replayPath    */ fcParams.replayPath,
         );
 
         fc.assert(
             fc
                 .property(programArb, (cmds) => {
-                    const model = makeEmptyModel();
+                    const model = makeEmptyModel(ctrlColl, bucketColl);
                     fc.modelRun(() => ({model: model, real: {tsColl, ctrlColl}}), cmds);
                     assertCollectionsMatch(tsColl, ctrlColl);
                 })
                 .beforeEach(beforeHook),
-            {numRuns: 50},
+            fcAssertArgs,
         );
     });
 
     it("produces equal geonear queries", () => {
         const programArb = makeTimeseriesCommandSequenceArb(
-            /* minCommands   */ 1,
-            /* maxCommands   */ 30,
-            /* timeField     */ "ts",
-            /* metaField     */ "meta",
+            /* minCommands   */ fcParams.minCommands || 1,
+            /* maxCommands   */ fcParams.maxCommands || 30,
+            /* timeField     */ timeField,
+            /* metaField     */ metaField,
             /* metaValue     */ metaValue,
             /* minFields     */ 1,
             /* maxFields     */ 1,
@@ -93,7 +101,7 @@ describe("Geospatial Query Comparative Test for Timeseries", () => {
                 explicitArbitraries: {[geoField]: makeGeoArbFactory(makeGeoPointArb)},
             },
             /* fieldNameArb  */ undefined, // use default short-string field names
-            /* replayPath    */ undefined, // replace this value with the replay path to replicate a failure
+            /* replayPath    */ fcParams.replayPath,
         );
 
         fc.assert(
@@ -102,7 +110,7 @@ describe("Geospatial Query Comparative Test for Timeseries", () => {
                     programArb,
                     fc.array(makeGeospatialQueryArb(geoField, 10000), {minLength: 1, maxLength: 40}),
                     (cmds, queries) => {
-                        const model = makeEmptyModel();
+                        const model = makeEmptyModel(ctrlColl, bucketColl);
                         fc.modelRun(() => ({model: model, real: {tsColl, ctrlColl}}), cmds);
                         for (const query of queries) {
                             assertCollectionsMatch(tsColl, ctrlColl, query);
@@ -110,7 +118,7 @@ describe("Geospatial Query Comparative Test for Timeseries", () => {
                     },
                 )
                 .beforeEach(beforeHook),
-            {numRuns: 50},
+            fcAssertArgs,
         );
     });
 });

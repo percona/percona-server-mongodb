@@ -296,19 +296,16 @@ void ServiceEntryPointTestFixture::testHelpField() {
 }
 
 void ServiceEntryPointTestFixture::testCommandServiceCounters(ClusterRole serviceRole) {
-    auto opCounters = [&]() -> OpCounters& {
-        return serviceOpCounters(serviceRole);
-    };
-    auto initialCommandCounter = opCounters().getCommand()->load();
-    auto initialQueryCounter = opCounters().getQuery()->load();
+    auto initialCommandCounter = globalOpCounters().getCommand()->load();
+    auto initialQueryCounter = globalOpCounters().getQuery()->load();
 
     // Test that when commands that return false for `shouldAffect(Query/Command)Counter` are
     // run, the global command and query counters do not increment.
     {
         runCommandTestWithResponse(BSON(TestCmdSucceeds::kCommandName << 1));
 
-        ASSERT_EQ(opCounters().getCommand()->load(), initialCommandCounter);
-        ASSERT_EQ(opCounters().getQuery()->load(), initialQueryCounter);
+        ASSERT_EQ(globalOpCounters().getCommand()->load(), initialCommandCounter);
+        ASSERT_EQ(globalOpCounters().getQuery()->load(), initialQueryCounter);
     }
 
     // Test that when commands that return true for `shouldAffectCommandCounter` are run, the global
@@ -316,8 +313,8 @@ void ServiceEntryPointTestFixture::testCommandServiceCounters(ClusterRole servic
     {
         runCommandTestWithResponse(BSON(TestCmdSucceedsAffectsCommandCounters::kCommandName << 1));
 
-        ASSERT_EQ(opCounters().getCommand()->load(), initialCommandCounter + 1);
-        ASSERT_EQ(opCounters().getQuery()->load(), initialQueryCounter);
+        ASSERT_EQ(globalOpCounters().getCommand()->load(), initialCommandCounter + 1);
+        ASSERT_EQ(globalOpCounters().getQuery()->load(), initialQueryCounter);
     }
 
     // Test that when commands that return true for `shouldAffectQueryCounter` are run, the global
@@ -325,8 +322,8 @@ void ServiceEntryPointTestFixture::testCommandServiceCounters(ClusterRole servic
     {
         runCommandTestWithResponse(BSON(TestCmdSucceedsAffectsQueryCounters::kCommandName << 1));
 
-        ASSERT_EQ(opCounters().getCommand()->load(), initialCommandCounter + 1);
-        ASSERT_EQ(opCounters().getQuery()->load(), initialQueryCounter + 1);
+        ASSERT_EQ(globalOpCounters().getCommand()->load(), initialCommandCounter + 1);
+        ASSERT_EQ(globalOpCounters().getQuery()->load(), initialQueryCounter + 1);
     }
 }
 
@@ -370,18 +367,18 @@ void ServiceEntryPointTestFixture::testOpCtxInterrupt(bool deferHandling) {
     }
 }
 
-void ServiceEntryPointTestFixture::testReadConcernClientUnspecifiedNoDefault() {
-    // We don't supply any read concern here, so the implicit default read concern is chosen by
-    // the ServiceEntryPoint.
+void ServiceEntryPointTestFixture::testReadConcernClientUnspecifiedNoDefault(
+    int expectedApplyDefaultLogCount) {
     unittest::LogCaptureGuard logs;
     const auto cmdBSON = BSON(TestCmdSucceeds::kCommandName << 1);
     auto opCtx = makeOperationContext();
-    auto dbResponse = runCommandTestWithResponse(cmdBSON, opCtx.get());
+    runCommandTestWithResponse(cmdBSON, opCtx.get());
+    logs.stop();
     auto& readConcernArgs = repl::ReadConcernArgs::get(opCtx.get());
     ASSERT(readConcernArgs.isImplicitDefault());
     ASSERT_EQ(readConcernArgs.getLevel(), repl::ReadConcernLevel::kLocalReadConcern);
-    logs.stop();
-    ASSERT_EQ(logs.countTextContaining("Applying default readConcern on command"), 1);
+    ASSERT_EQ(logs.countTextContaining("Applying default readConcern on command"),
+              expectedApplyDefaultLogCount);
 }
 
 void ServiceEntryPointTestFixture::testReadConcernClientUnspecifiedWithDefault() {

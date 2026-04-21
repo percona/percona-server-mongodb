@@ -134,7 +134,6 @@ TEST_F(PipelineDependencyGraphGoldenTest, ComplexPaths) {
 }
 
 TEST_F(PipelineDependencyGraphGoldenTest, InclusionProjection) {
-    // TODO(SERVER-119374): Double check how inclusion projection should be handled.
     runVariation({
         .name = "InclusionProjection",
         .pipeline = "[{$set: { a: 'foo' }},"
@@ -265,6 +264,156 @@ TEST_F(PipelineDependencyGraphGoldenTest, RenameSameFieldsTwice) {
                     " {$set: { b: '$a', c: '$a', d: '$f', e: '$f' }}]",
     });
 }
+
+TEST_F(PipelineDependencyGraphGoldenTest, InclusionMixedFieldOrigins) {
+    runVariation({
+        .name = "InclusionMixedFieldOrigins",
+        .pipeline = "[{$set: { a: 1 }},"
+                    "{$project: { a: 1, b: 1 }},"
+                    "{$match: { a: 1, b: 1, c: 1 }}]",
+    });
+}
+
+TEST_F(PipelineDependencyGraphGoldenTest, InclusionAfterReplaceRoot) {
+    runVariation({
+        .name = "InclusionAfterReplaceRoot",
+        .pipeline = "[{$replaceRoot: { newRoot: '$x' }},"
+                    "{$project: { a: 1, 'b.c': 1 }},"
+                    "{$match: { a: 1, 'b.c': 1, d: 1 }}]",
+    });
+}
+
+TEST_F(PipelineDependencyGraphGoldenTest, InclusionDottedKnownSubfields) {
+    runVariation({
+        .name = "InclusionDottedKnownSubfields",
+        .pipeline = "[{$set: { 'a.b': 1, 'a.c': 2, 'a.d': 3 }},"
+                    "{$project: { 'a.b': 1, 'a.d': 1 }},"
+                    "{$match: { 'a.b': 1, 'a.c': 1, 'a.d': 1 }}]",
+    });
+}
+
+TEST_F(PipelineDependencyGraphGoldenTest, ChainedInclusionProjections) {
+    runVariation({
+        .name = "ChainedInclusionProjections",
+        .pipeline = "[{$set: { a: 1, b: 1, c: 1 }},"
+                    "{$project: { a: 1, b: 1 }},"
+                    "{$project: { a: 1 }},"
+                    "{$match: { a: 1, b: 1 }}]",
+    });
+}
+
+TEST_F(PipelineDependencyGraphGoldenTest, ChainedExclusionProjections) {
+    runVariation({
+        .name = "ChainedExclusionProjections",
+        .pipeline = "[{$set: { a: 1, b: 1, c: 1 }},"
+                    "{$project: { c: 0 }},"
+                    "{$project: { b: 0, c: 0 }},"
+                    "{$match: { a: 1, b: 1 }}]",
+    });
+}
+
+TEST_F(PipelineDependencyGraphGoldenTest, InclusionBaseCollectionDotted) {
+    runVariation({
+        .name = "InclusionBaseCollectionDotted",
+        .pipeline = "[{$project: { 'a.b.c': 1, 'a.b.d': 1, 'x': 1 }},"
+                    "{$match: { 'a.b.c': 1, 'a.b.d': 1, 'a.b.e': 1, 'a.b': 1, x: 1 }}]",
+    });
+}
+
+// TODO(SERVER-121660): Revisit this.
+TEST_F(PipelineDependencyGraphGoldenTest, SetTopLevelFieldThenIncludeSubfields) {
+    runVariation({
+        .name = "SetTopLevelFieldThenIncludeSubfields",
+        .pipeline = "[{$set: {a: 1, b: {c: 1 }}},"
+                    "{$project: {'a.x': 1, 'b.x': 1}},"
+                    "{$match: {a: 1, 'a.x': 1, 'b.x': 1, b: 1}}]",
+    });
+}
+
+TEST_F(PipelineDependencyGraphGoldenTest, ReplaceRootThenSet) {
+    runVariation({
+        .name = "ReplaceRootThenSet",
+        .pipeline = "[{$set: { a: 1, b: 1 }},"
+                    "{$replaceRoot: { newRoot: '$a' }},"
+                    "{$set: { c: 1 }},"
+                    "{$match: { a: 1, b: 1, c: 1 }}]",
+    });
+}
+
+TEST_F(PipelineDependencyGraphGoldenTest, ReplaceRootThenInclusion) {
+    runVariation({
+        .name = "ReplaceRootThenInclusion",
+        .pipeline = "[{$replaceRoot: { newRoot: '$x' }},"
+                    "{$project: { a: 1, b: 1 }},"
+                    "{$match: { a: 1, b: 1, c: 1 }}]",
+    });
+}
+
+TEST_F(PipelineDependencyGraphGoldenTest, ChainedReplaceRoots) {
+    runVariation({
+        .name = "ChainedReplaceRoots",
+        .pipeline = "[{$set: { a: 1 }},"
+                    "{$replaceRoot: { newRoot: '$a' }},"
+                    "{$replaceRoot: { newRoot: '$b' }},"
+                    "{$set: { c: 1 }},"
+                    "{$match: { a: 1, c: 1 }}]",
+    });
+}
+
+TEST_F(PipelineDependencyGraphGoldenTest, ReplaceRootSetAndDottedLookup) {
+    runVariation({
+        .name = "ReplaceRootSetAndDottedLookup",
+        .pipeline = "[{$replaceRoot: { newRoot: '$x' }},"
+                    "{$set: { 'a.b': 1 }},"
+                    "{$match: { 'a.b': 1, 'a.c': 1, d: 1 }}]",
+    });
+}
+
+TEST_F(PipelineDependencyGraphGoldenTest, GroupSimpleKey) {
+    runVariation({
+        .name = "GroupSimpleKey",
+        .pipeline = "[{$set: { x: 1 }},"
+                    "{$group: { _id: '$x', count: { $sum: 1 } }},"
+                    "{$match: { _id: 1, count: 1, a: 1 }}]",
+    });
+}
+
+TEST_F(PipelineDependencyGraphGoldenTest, GroupCompoundKey) {
+    runVariation({
+        .name = "GroupCompoundKey",
+        .pipeline = "[{$set: { x: 1, y: 1 }},"
+                    "{$group: { _id: { a: '$x', b: '$y' } }},"
+                    "{$match: { '_id.a': 1, '_id.b': 1, '_id.c': 1 }}]",
+    });
+}
+
+TEST_F(PipelineDependencyGraphGoldenTest, GroupNullKeyThenSet) {
+    runVariation({
+        .name = "GroupNullKeyThenSet",
+        .pipeline = "[{$group: { _id: null, total: { $sum: 1 } }},"
+                    "{$set: { a: 1 }},"
+                    "{$match: { _id: 1, total: 1, a: 1, b: 1 }}]",
+    });
+}
+
+TEST_F(PipelineDependencyGraphGoldenTest, SetGroupSet) {
+    runVariation({
+        .name = "SetGroupSet",
+        .pipeline = "[{$set: { x: 1, y: 1 }},"
+                    "{$group: { _id: '$x' }},"
+                    "{$set: { a: 1 }},"
+                    "{$match: { _id: 1, a: 1, b: 1, x: 1 }}]",
+    });
+}
+
+// TODO(SERVER-121639): Enable.
+// TEST_F(PipelineDependencyGraphGoldenTest, GroupKeyFromBaseDocument) {
+//     runVariation({
+//         .name = "GroupKeyFromBaseDocument",
+//         .pipeline = "[{$group: { _id: '$x' }},"
+//                     "{$match: { _id: 1, x: 1 }}]",
+//     });
+// }
 
 }  // namespace
 }  // namespace mongo::pipeline::dependency_graph

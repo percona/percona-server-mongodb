@@ -54,6 +54,10 @@
 #include "mongo/db/storage/storage_parameters_gen.h"
 #include "mongo/db/storage/write_unit_of_work.h"
 #include "mongo/logv2/log.h"
+#include "mongo/otel/metrics/metric_names.h"
+#include "mongo/otel/metrics/metric_unit.h"
+#include "mongo/otel/metrics/metrics_counter.h"
+#include "mongo/otel/metrics/metrics_service.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/str.h"
 
@@ -64,6 +68,17 @@
 
 
 namespace mongo {
+
+namespace {
+auto& sideWritesInsertedCounter = otel::metrics::MetricsService::instance().createInt64Counter(
+    otel::metrics::MetricNames::kIndexBuildSideWritesInserted,
+    "Total number of side write inserts written",
+    otel::metrics::MetricUnit::kOperations);
+auto& sideWritesDeletedCounter = otel::metrics::MetricsService::instance().createInt64Counter(
+    otel::metrics::MetricNames::kIndexBuildSideWritesDeleted,
+    "Total number of side write deletes written",
+    otel::metrics::MetricUnit::kOperations);
+}  // namespace
 
 IndexBuildInterceptor::IndexBuildInterceptor(OperationContext* opCtx,
                                              const IndexBuildInfo& indexBuildInfo,
@@ -76,19 +91,17 @@ IndexBuildInterceptor::IndexBuildInterceptor(OperationContext* opCtx,
           return SideWritesTracker{opCtx, *indexBuildInfo.sideWritesIdent, createMode};
       }()),
       _skippedRecordTracker([&]() {
-          uassert(10709202,
-                  "skippedRecordsTrackerIdent is not provided",
-                  indexBuildInfo.skippedRecordsTrackerIdent);
-          return SkippedRecordTracker(
-              opCtx, *indexBuildInfo.skippedRecordsTrackerIdent, createMode);
+          uassert(
+              10709202, "skippedRecordsIdent is not provided", indexBuildInfo.skippedRecordsIdent);
+          return SkippedRecordTracker(opCtx, *indexBuildInfo.skippedRecordsIdent, createMode);
       }()),
       _skipNumAppliedCheck(createMode == LazyRecordStore::CreateMode::openExisting) {
     if (unique) {
         uassert(10709203,
-                "constraintViolationsTrackerIdent is not provided",
-                indexBuildInfo.constraintViolationsTrackerIdent);
+                "constraintViolationsIdent is not provided",
+                indexBuildInfo.constraintViolationsIdent);
         _duplicateKeyTracker = std::make_unique<DuplicateKeyTracker>(
-            opCtx, *indexBuildInfo.constraintViolationsTrackerIdent, createMode);
+            opCtx, *indexBuildInfo.constraintViolationsIdent, createMode);
     }
     // TODO(SERVER-110289): Use utility function instead of checking fcvSnapshot.
     const auto fcvSnapshot = serverGlobalParams.featureCompatibility.acquireFCVSnapshot();
@@ -237,6 +250,15 @@ Status IndexBuildInterceptor::sideWrite(OperationContext* opCtx,
     if (*numKeysOut == 0) {
         return Status::OK();
     }
+
+    shard_role_details::getRecoveryUnit(opCtx)->onCommit(
+        [written = *numKeysOut, op](OperationContext*, boost::optional<Timestamp>) {
+            if (op == Op::kInsert) {
+                sideWritesInsertedCounter.add(written);
+            } else {
+                sideWritesDeletedCounter.add(written);
+            }
+        });
 
     // Reuse the same builder to avoid an allocation per key.
     BufBuilder builder;

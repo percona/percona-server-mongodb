@@ -919,7 +919,9 @@ flags in common: {common_set}
     _config.NO_HOOKS = config.pop("no_hooks")
     _config.HANG_ANALYZER_HOOK_TIMEOUT = config.pop("hang_analyzer_hook_timeout")
 
-    _config.SHELL_JSDEBUGMODE = config.pop("shell_jsdebugmode")
+    _config.JSDBG = config.pop("jsdbg")
+
+    _config.FAST_CHECK_PARAMETERS = config.pop("fast_check_parameters")
 
     # Internal testing options.
     _config.INTERNAL_PARAMS = config.pop("internal_params")

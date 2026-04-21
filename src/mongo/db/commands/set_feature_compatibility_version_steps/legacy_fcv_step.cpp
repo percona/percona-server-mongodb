@@ -39,6 +39,7 @@
 #include "mongo/db/global_catalog/ddl/drop_collection_coordinator.h"
 #include "mongo/db/global_catalog/ddl/placement_history_commands_gen.h"
 #include "mongo/db/global_catalog/ddl/sharding_catalog_manager.h"
+#include "mongo/db/global_catalog/ddl/sharding_ddl_util.h"
 #include "mongo/db/global_catalog/type_shard_identity.h"
 #include "mongo/db/query/query_settings/query_settings_service.h"
 #include "mongo/db/s/migration_blocking_operation/multi_update_coordinator.h"
@@ -51,6 +52,7 @@
 #include "mongo/db/shard_role/shard_catalog/collection_catalog_helper.h"
 #include "mongo/db/shard_role/shard_catalog/database_holder.h"
 #include "mongo/db/shard_role/shard_role.h"
+#include "mongo/db/sharding_environment/grid.h"
 #include "mongo/db/sharding_environment/sharding_feature_flags_gen.h"
 #include "mongo/db/storage/storage_parameters_gen.h"
 #include "mongo/db/timeseries/upgrade_downgrade_viewless_timeseries.h"
@@ -325,10 +327,10 @@ private:
         bool errorAndLogValidationDisabled =
             (gFeatureFlagErrorAndLogValidationAction.isDisabledOnTargetFCVButEnabledOnOriginalFCV(
                 requestedVersion, originalVersion));
-        bool validatedValidationLevelDisabled =
-            (gFeatureFlagValidatedValidationLevel.isDisabledOnTargetFCVButEnabledOnOriginalFCV(
+        bool constraintValidationLevelDisabled =
+            (gFeatureFlagConstraintValidationLevel.isDisabledOnTargetFCVButEnabledOnOriginalFCV(
                 requestedVersion, originalVersion));
-        if (errorAndLogValidationDisabled || validatedValidationLevelDisabled) {
+        if (errorAndLogValidationDisabled || constraintValidationLevelDisabled) {
             for (const auto& dbName : DatabaseHolder::get(opCtx)->getNames()) {
                 Lock::DBLock dbLock(opCtx, dbName, MODE_IS);
                 catalog::forEachCollectionFromDb(
@@ -347,12 +349,13 @@ private:
                         uassert(ErrorCodes::CannotDowngrade,
                                 fmt::format(
                                     "Cannot downgrade the cluster when there are collections with "
-                                    "'validated' validation level. Please unset the option or "
+                                    "'constraint' validation level. Please unset the option or "
                                     "drop the collection(s) before downgrading. First detected "
-                                    "collection with 'validated' enabled: {} (UUID: {}).",
+                                    "collection with 'constraint' enabled: {} (UUID: {}).",
                                     collection->ns().toStringForErrorMsg(),
                                     collection->uuid().toString()),
-                                collection->getValidationLevel() != ValidationLevelEnum::validated);
+                                collection->getValidationLevel() !=
+                                    ValidationLevelEnum::constraint);
 
                         return true;
                     });

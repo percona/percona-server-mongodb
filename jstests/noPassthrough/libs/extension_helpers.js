@@ -2,14 +2,24 @@
  * Helpers for generating and deleting extension .conf files in noPassthrough tests.
  */
 import {getPython3Binary} from "jstests/libs/python.js";
-import {isLinux} from "jstests/libs/os_helpers.js";
 import {ShardingTest} from "jstests/libs/shardingtest.js";
 import {ReplSetTest} from "jstests/libs/replsettest.js";
 import {MongotMock} from "jstests/with_mongot/mongotmock/lib/mongotmock.js";
 
+/**
+ * Returns true if the current platform supports loading extensions.
+ */
+export function isPlatformCompatibleWithExtensions() {
+    const buildEnv = getBuildInfo().buildEnvironment;
+    return buildEnv.target_os === "linux" && buildEnv.distmod !== "amazon2";
+}
+
+/**
+ * Checks if the current platform supports loading extensions, and quits the test if not.
+ */
 export function checkPlatformCompatibleWithExtensions() {
-    if (!isLinux()) {
-        jsTest.log.info("Skipping test since extensions are only available on Linux platforms.");
+    if (!isPlatformCompatibleWithExtensions()) {
+        jsTest.log.info("Skipping test since extensions are not supported on this platform.");
         quit();
     }
 }

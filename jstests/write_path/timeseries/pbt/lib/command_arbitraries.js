@@ -14,6 +14,7 @@ import {
     DeleteByFilterCommand,
     DeleteByRandomIdCommand,
     Filter,
+    InsertOldBucketCommand,
     UpdateByFilterCommand,
 } from "jstests/write_path/timeseries/pbt/lib/command_grammar.js";
 
@@ -74,6 +75,7 @@ export function makeInsertCommandArb(
  * @param {number} [maxFields=5]                 // max extra metric fields per doc
  * @param {number} [minDocs=1]                   // min docs in the batch
  * @param {number} [maxDocs=500]                 // max docs in the batch
+ * @param {number} [options.mixedSchemaChance=0.0]  // chance that a given field will have a mixed schema across the stream
  * @param {Object} [options]
  * @param {Object} [options.explicitArbitraries] Object mapping field names to specific arbitrary factories to inject into the test suite
  * @param {{intRange?: Range, dateRange?: Range}} [options.ranges]
@@ -170,6 +172,28 @@ export function makeFilterArb(timeFieldname, metaFieldname, opts = {}) {
                 .map(([op, children]) => (op === "and" ? Filter.and(children) : Filter.or(children))),
         ),
     })).filter;
+}
+
+/**
+ * Arbitrary for InsertOldBucketCommand.
+ *
+ * Generates:
+ *   new InsertOldBucketCommand(pick, timeSeed, timeFieldname, metaFieldname)
+ *
+ * The actual bucket and timestamp are chosen at run-time from the model;
+ * this arb only controls which bucket is targeted and where in its range the
+ * new measurement lands.
+ *
+ * @param {string} timeFieldname
+ * @param {string} metaFieldname
+ * @returns {fc.Arbitrary<InsertOldBucketCommand>}
+ */
+export function makeInsertOldBucketCommandArb(timeFieldname, metaFieldname) {
+    const pickArb = fc.integer({min: -0x7fffffff, max: 0x7fffffff});
+    const timeSeedArb = fc.integer({min: -0x7fffffff, max: 0x7fffffff});
+    return fc
+        .tuple(pickArb, timeSeedArb)
+        .map(([pick, timeSeed]) => new InsertOldBucketCommand(pick, timeSeed, timeFieldname, metaFieldname));
 }
 
 /**

@@ -278,6 +278,7 @@ tasks:
         "incompatible_ppc",
         "incompatible_s390x",
         "causally_consistent",
+        "has_bazel_target",
       ]
     commands:
       - func: "do setup"
@@ -391,6 +392,7 @@ tasks:
         "common",
         "repl",
         "txn",
+        "has_bazel_target",
       ]
     commands:
       - func: "generate resmoke tasks"
@@ -695,6 +697,7 @@ tasks:
         "jscore",
         "common",
         "txns",
+        "has_bazel_target",
       ]
     commands:
       - func: "do setup"
@@ -714,6 +717,7 @@ tasks:
         "jscore",
         "txns",
         "multi_oplog",
+        "has_bazel_target",
       ]
     commands:
       - func: "do setup"
@@ -1274,8 +1278,7 @@ tasks:
   - <<: *gen_task_template
     name: replica_sets_kill_secondaries_jscore_passthrough_gen
     # TODO(SERVER-69951) remove "incompatible_debug_mode" tag
-    tags:
-      [
+    tags: [
         "assigned_to_jira_team_server_repl",
         "default",
         "incompatible_debug_mode",
@@ -1284,6 +1287,8 @@ tasks:
         "large",
         "non_live_record",
         "ignore_on_code_coverage",
+        # TODO SERVER-122625: remove tag
+        "requires_replicated_fast_count_recovery",
       ]
     commands:
       - func: "generate resmoke tasks"
@@ -1321,6 +1326,7 @@ tasks:
         "non_maj_read",
         "san",
         "requires_large_host",
+        "has_bazel_target",
       ]
     commands:
       - func: "do setup"
@@ -1767,6 +1773,7 @@ tasks:
         "initsync",
         "uninitialized_fcv",
         "large",
+        "has_bazel_target",
       ]
     commands:
       - func: "generate resmoke tasks"
@@ -1825,6 +1832,7 @@ tasks:
         "uninitialized_fcv",
         "large",
         "requires_large_host",
+        "has_bazel_target",
       ]
     commands:
       - func: "do setup"
@@ -2317,12 +2325,7 @@ tasks:
   - <<: *gen_task_template
     name: noPassthroughWithMongod_gen
     tags:
-      [
-        "assigned_to_jira_team_server_execution",
-        "release_critical",
-        "misc_js",
-        "requires_replicated_fast_count_recovery",
-      ]
+      ["assigned_to_jira_team_server_execution", "release_critical", "misc_js"]
     commands:
       - func: "generate resmoke tasks"
         vars:
@@ -2379,12 +2382,14 @@ tasks:
 
   - <<: *task_template
     name: read_only_sharded
+    # TODO(SERVER-122088): Remove "requires_large_host_aubsan" tag.
     tags:
       [
         "assigned_to_jira_team_server_execution",
         "default",
         "read_only",
         "requires_replicated_fast_count_recovery",
+        "requires_large_host_aubsan",
       ]
     commands:
       - func: "do setup"
@@ -2458,6 +2463,7 @@ tasks:
       - func: "run tests"
         vars:
           suite: timeseries_write_pbt
+          resmoke_args: "--fastCheckParameters=${fastCheckParameters|}"
 
   ################################################
   #           Disagg Storage tasks               #

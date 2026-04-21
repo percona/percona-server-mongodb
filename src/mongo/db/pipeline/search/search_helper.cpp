@@ -29,6 +29,9 @@
 
 #include "mongo/db/pipeline/search/search_helper.h"
 
+#include "mongo/base/counter.h"
+#include "mongo/db/feature_flag.h"
+#include "mongo/db/ifr_flag_retry_info.h"
 #include "mongo/db/namespace_string.h"
 #include "mongo/db/pipeline/document_source.h"
 #include "mongo/db/pipeline/document_source_replace_root.h"
@@ -266,21 +269,6 @@ void checkAndSetViewOnExpCtx(boost::intrusive_ptr<ExpressionContext> expCtx,
     }
 }
 
-bool isStoredSource(const Pipeline* pipeline) {
-    auto ds = pipeline->peekFront();
-    auto searchStage = dynamic_cast<DocumentSourceSearch*>(ds);
-    if (searchStage && searchStage->isStoredSource()) {
-        return true;
-    }
-
-    auto searchStageInternal = dynamic_cast<DocumentSourceInternalSearchMongotRemote*>(ds);
-    if (searchStageInternal && searchStageInternal->isStoredSource()) {
-        return true;
-    }
-
-    return false;
-}
-
 bool isMongotPipeline(const Pipeline* pipeline) {
     if (!pipeline || pipeline->empty()) {
         return false;
@@ -332,6 +320,16 @@ bool isExtensionVectorSearchPipeline(const Pipeline* pipeline) {
     return std::any_of(stages.begin(), stages.end(), [](const auto& stage) {
         return isExtensionVectorSearchStage(stage->getSourceName());
     });
+}
+
+void throwIfrKickbackIfNecessary(bool kickbackCondition,
+                                 const IncrementalRolloutFeatureFlag& flag,
+                                 Counter64& metric,
+                                 StringData errorMsg) {
+    if (kickbackCondition) {
+        metric.increment();
+        uassertStatusOK(Status(IFRFlagRetryInfo(flag.getName()), errorMsg));
+    }
 }
 
 bool shouldPreValidateMetaDependencies(const Pipeline* pipeline) {
@@ -650,8 +648,8 @@ boost::optional<SearchQueryViewSpec> getViewFromExpCtx(
     boost::intrusive_ptr<ExpressionContext> expCtx) {
     if (expCtx->getView()) {
         const auto& expCtxView = *expCtx->getView();
-        return boost::make_optional(SearchQueryViewSpec(std::string(expCtxView.viewName.coll()),
-                                                        expCtxView.getOriginalBson()));
+        return boost::make_optional(SearchQueryViewSpec(
+            std::string(expCtxView.getViewName().coll()), expCtxView.getOriginalBson()));
     }
 
     return boost::none;

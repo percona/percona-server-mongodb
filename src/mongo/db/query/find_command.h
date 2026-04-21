@@ -30,6 +30,7 @@
 #pragma once
 
 #include "mongo/db/query/find_command_gen.h"
+#include "mongo/db/query/find_command_idl_utils.h"
 #include "mongo/idl/idl_parser.h"
 #include "mongo/util/modules.h"
 

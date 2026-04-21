@@ -1362,8 +1362,7 @@ TEST_F(DocumentSourceLookUpTest, ShouldNotCacheIfCorrelatedStageIsAbsorbedIntoPl
 TEST_F(DocumentSourceLookUpTest, IncrementNestedAggregateOpCounterOnCreateButNotOnCopy) {
     auto testOpCounter = [&](const NamespaceString& nss, const int expectedIncrease) {
         auto resolvedNss = ResolvedNamespaceMap{{nss, {nss, std::vector<BSONObj>()}}};
-        auto countBeforeCreate =
-            serviceOpCounters(ClusterRole::ShardServer).getNestedAggregate()->load();
+        auto countBeforeCreate = globalOpCounters().getNestedAggregate()->load();
 
         // Create a DocumentSourceLookUp and verify that the counter increases by the expected
         // amount.
@@ -1376,16 +1375,14 @@ TEST_F(DocumentSourceLookUpTest, IncrementNestedAggregateOpCounterOnCreateButNot
                 .firstElement(),
             originalExpCtx);
         auto originalLookup = static_cast<DocumentSourceLookUp*>(docSource.get());
-        auto countAfterCreate =
-            serviceOpCounters(ClusterRole::ShardServer).getNestedAggregate()->load();
+        auto countAfterCreate = globalOpCounters().getNestedAggregate()->load();
         ASSERT_EQ(countAfterCreate - countBeforeCreate, expectedIncrease);
 
         // Copy the DocumentSourceLookUp and verify that the counter doesn't increase.
         auto newExpCtx = make_intrusive<ExpressionContextForTest>(getOpCtx(), nss);
         newExpCtx->setResolvedNamespaces(resolvedNss);
         DocumentSourceLookUp newLookup{*originalLookup, newExpCtx};
-        auto countAfterCopy =
-            serviceOpCounters(ClusterRole::ShardServer).getNestedAggregate()->load();
+        auto countAfterCopy = globalOpCounters().getNestedAggregate()->load();
         ASSERT_EQ(countAfterCopy - countAfterCreate, 0);
     };
 
@@ -1467,5 +1464,40 @@ TEST_F(DocumentSourceLookUpTest, LookupParseSerializedStageWithAbsorbedUnwind) {
     ASSERT(dynamic_cast<DocumentSourceLookUp*>(lookup.get())->hasUnwindSrc());
 }
 
+static boost::intrusive_ptr<DocumentSourceLookUp> makeLookupWithLet(
+    const boost::intrusive_ptr<ExpressionContext>& expCtx, NamespaceString fromNs) {
+    expCtx->setResolvedNamespaces(ResolvedNamespaceMap{{fromNs, {fromNs, std::vector<BSONObj>()}}});
+
+    auto spec =
+        BSON("$lookup" << BSON("from" << fromNs.coll() << "let" << BSON("v" << "$x") << "pipeline"
+                                      << BSON_ARRAY(BSON("$match" << BSON("y" << "$$v"))) << "as"
+                                      << "out"));
+    auto ds = DocumentSourceLookUp::createFromBson(spec.firstElement(), expCtx);
+    return boost::static_pointer_cast<DocumentSourceLookUp>(ds);
+}
+
+TEST_F(DocumentSourceLookUpTest, LetVariablesCloneRebindsExpressionContext) {
+    NamespaceString nss =
+        NamespaceString::createNamespaceString_forTest(boost::none, "test", "coll");
+    auto opCtx = getOpCtx();
+    auto expCtx = make_intrusive<ExpressionContextForTest>(opCtx, nss);
+
+    // Build an original $lookup with a let expression
+    auto lookup = makeLookupWithLet(expCtx, nss);
+
+    // Sanity: expressions in _letVariables use original expCtx
+    for (auto& var : lookup->getLetVariables()) {
+        ASSERT_EQ(var.expression->getExpressionContext(), expCtx);
+    }
+
+    // Clone with a new top-level ExpressionContext
+    auto newExpCtx = make_intrusive<ExpressionContextForTest>(opCtx, nss);
+    auto lookupClone = static_pointer_cast<DocumentSourceLookUp>(lookup->clone(newExpCtx));
+
+    // Check that every let expression in the clone now points to the new context
+    for (auto& var : lookupClone->getLetVariables()) {
+        ASSERT_EQ(var.expression->getExpressionContext(), newExpCtx);
+    }
+}
 }  // namespace
 }  // namespace mongo

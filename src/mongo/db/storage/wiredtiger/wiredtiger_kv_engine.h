@@ -70,6 +70,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <deque>
+#include <limits>
 #include <map>
 #include <memory>
 #include <set>
@@ -90,6 +91,7 @@ class JournalListener;
 class WiredTigerConnection;
 class WiredTigerEngineRuntimeConfigParameter;
 class WiredTigerGlobalOptions;
+class WiredTigerRecoveryUnit;
 
 /**
  * With the absolute path to an ident and the parent dbpath, return the ident.
@@ -330,6 +332,38 @@ public:
     std::unique_ptr<PreparedTransactionsIterator>
     getUnclaimedPreparedTransactionsForStartupRecovery(OperationContext* opCtx) const override;
 
+    /**
+     * Returns whether table creations should be published with a timestamp after commit.
+     * Only true for disaggregated storage (DSC) mode.
+     */
+    virtual bool shouldTimestampTableCreations() const = 0;
+
+    /**
+     * Returns the raw all_durable timestamp from WiredTiger without considering pins.
+     */
+    virtual uint64_t getRawAllDurableTimestamp() const = 0;
+
+    /**
+     * Pins the all_durable timestamp at the given value, preventing it from advancing
+     * past the pinned value.
+     */
+    virtual void pinAllDurableTimestamp(uint64_t ts) = 0;
+
+    /**
+     * Removes a pin on the all_durable timestamp previously set by pinAllDurableTimestamp().
+     */
+    virtual void unpinAllDurableTimestamp(uint64_t ts) = 0;
+
+    /**
+     * Publishes a table to the shared metadata at the given timestamp. In disaggregated
+     * storage mode, this ensures the table will be included in the next checkpoint with a
+     * timestamp >= publishTimestamp. Currently a no-op stub until the WiredTiger
+     * session->publish() API is implemented.
+     */
+    virtual void publishIdent(WiredTigerRecoveryUnit& ru,
+                              StringData ident,
+                              Timestamp publishTimestamp) = 0;
+
 protected:
     /**
      * Returns true if the given table uri exists in this WiredTiger instance.
@@ -366,7 +400,7 @@ protected:
 // WiredTigerKVEngineBase implementation for all customer or system tables. Tables created by this
 // class are retained after a restart. This class uses its own WiredTiger instance called "main"
 // WiredTiger instance.
-class WiredTigerKVEngine final : public WiredTigerKVEngineBase {
+class WiredTigerKVEngine : public WiredTigerKVEngineBase {
 public:
     /// @brief Constructor.
     ///
@@ -596,6 +630,17 @@ public:
     boost::optional<Timestamp> getLastStableRecoveryTimestamp() const override;
 
     Timestamp getAllDurableTimestamp() const override;
+
+    uint64_t getRawAllDurableTimestamp() const override;
+    void pinAllDurableTimestamp(uint64_t ts) override;
+    void unpinAllDurableTimestamp(uint64_t ts) override;
+    void publishIdent(WiredTigerRecoveryUnit& ru,
+                      StringData ident,
+                      Timestamp publishTimestamp) override;
+
+    bool shouldTimestampTableCreations() const override {
+        return _shouldTimestampTableCreations;
+    }
 
     bool supportsReadConcernSnapshot() const final;
 
@@ -987,6 +1032,16 @@ private:
     Atomic<bool> _inStandaloneMode;
 
     const bool _supportsTableLogging;
+    const bool _shouldTimestampTableCreations;
+
+    // Protects _pinnedAllDurableTimestamps. Only acquired by pin/unpin writers.
+    // Readers use _minPinnedTimestamp instead, which writers publish atomically
+    // after updating the multiset, keeping getAllDurableTimestamp() lock-free.
+    stdx::mutex _allDurablePinMutex;
+    std::multiset<uint64_t> _pinnedAllDurableTimestamps;
+    // Lock-free snapshot of the minimum pinned timestamp. Set to max uint64 when no pins
+    // exist. Writers update this under _allDurablePinMutex; readers load it without locking.
+    AtomicWord<uint64_t> _minPinnedTimestamp{std::numeric_limits<uint64_t>::max()};
 
     // Reference to the persistence provider for accessing storage configuration.
     rss::PersistenceProvider& _provider;

@@ -462,11 +462,6 @@ void statsToBSON(const QuerySolutionNode* node,
             bob->append("foreignField", eln->joinFieldForeign.fullPath());
             bob->append("asField", eln->joinField.fullPath());
             bob->append("strategy", EqLookupNode::serializeLookupStrategy(eln->lookupStrategy));
-            if (eln->idxEntry) {
-                bob->append("indexName", eln->idxEntry->identifier.catalogName);
-                bob->append("indexKeyPattern", eln->idxEntry->keyPattern);
-            }
-            bob->append("scanDirection", toString(eln->scanDirection));
             break;
         }
         case STAGE_EQ_LOOKUP_UNWIND: {
@@ -479,11 +474,6 @@ void statsToBSON(const QuerySolutionNode* node,
             bob->append("foreignField", eln->joinFieldForeign.fullPath());
             bob->append("asField", eln->joinField.fullPath());
             bob->append("strategy", EqLookupNode::serializeLookupStrategy(eln->lookupStrategy));
-            if (eln->idxEntry) {
-                bob->append("indexName", eln->idxEntry->identifier.catalogName);
-                bob->append("indexKeyPattern", eln->idxEntry->keyPattern);
-            }
-            bob->append("scanDirection", toString(eln->scanDirection));
             break;
         }
         case STAGE_UNPACK_TS_BUCKET: {
@@ -756,7 +746,8 @@ PlanExplainerClassicRuntimePlannerForSBE::PlanExplainerClassicRuntimePlannerForS
     RemoteExplainVector* remoteExplains,
     bool usedJoinOpt,
     cost_based_ranker::EstimateMap estimates,
-    std::vector<JoinOptPlan> rejectedPlans)
+    std::vector<JoinOptPlan> rejectedPlans,
+    boost::optional<PlanExplainerData> maybeExplainData)
     : PlanExplainerSBEBase{root,
                            data,
                            solution,
@@ -771,7 +762,10 @@ PlanExplainerClassicRuntimePlannerForSBE::PlanExplainerClassicRuntimePlannerForS
       _classicRuntimePlannerStage{std::move(classicRuntimePlannerStage)},
       _classicRuntimePlannerExplainer{
           _classicRuntimePlannerStage  // If there were no multi-planning, this will be nullptr.
-              ? plan_explainer_factory::make(_classicRuntimePlannerStage.get(), cachedPlanHash)
+              ? plan_explainer_factory::make(_classicRuntimePlannerStage.get(),
+                                             cachedPlanHash,
+                                             boost::none /* replanReason */,
+                                             std::move(maybeExplainData))
               : nullptr} {
     if (_classicRuntimePlannerExplainer) {
         // 'solution' is always non-null when 'classicRuntimePlannerStage' is non-null

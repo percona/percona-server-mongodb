@@ -29,11 +29,25 @@
 
 #pragma once
 
+#include "mongo/base/string_data.h"
+#include "mongo/db/operation_context.h"
 #include "mongo/db/repl/oplog_entry.h"
 #include "mongo/db/replicated_fast_count/replicated_fast_size_count.h"
+#include "mongo/db/shard_role/shard_role.h"
+#include "mongo/db/storage/record_store.h"
+#include "mongo/util/uuid.h"
+
+#include <absl/container/flat_hash_map.h>
+#include <boost/optional/optional.hpp>
 
 namespace mongo {
 namespace replicated_fast_count {
+
+inline constexpr StringData kMetadataKey = "meta"_sd;
+inline constexpr StringData kSizeKey = "sz"_sd;
+inline constexpr StringData kCountKey = "ct"_sd;
+inline constexpr StringData kValidAsOfKey = "valid-as-of"_sd;
+
 /**
  * Returns the size and count delta extracted from the oplog entry's size metadata ('m' field), if
  * present.
@@ -45,15 +59,66 @@ namespace replicated_fast_count {
 boost::optional<CollectionSizeCount> extractSizeCountDeltaForOp(const repl::OplogEntry& oplogEntry);
 
 /**
- * Returns cumulative size and count deltas for each uuid across the inner operations of the
- * 'applyOpsEntry'.
+ * Accumulates cumulative size and count deltas for each uuid across the inner operations of the
+ * 'applyOpsEntry' into 'sizeCountDeltasOut'. If 'uuidFilter' is provided, only entries for that
+ * UUID are collected.
  *
  * The OplogEntry provided must be of type 'repl::OplogEntry::CommandType::kApplyOps'; otherwise,
  * the method throws and terminates the current operation.
  */
-stdx::unordered_map<UUID, CollectionSizeCount> extractSizeCountDeltasForApplyOps(
-    const repl::OplogEntry& applyOpsEntry);
+void extractSizeCountDeltasForApplyOps(
+    const repl::OplogEntry& applyOpsEntry,
+    const boost::optional<UUID>& uuidFilter,
+    absl::flat_hash_map<UUID, CollectionSizeCount>& sizeCountDeltasOut);
 
+/**
+ * Given a cursor to the oplog, scans the oplog starting after "seekAfterTS" (exclusive bound) and
+ * aggregates the size count deltas across UUIDs. Only accumulates size count information for
+ * "uuidFilter" when provided.
+ *
+ * The map contains an entry for each 'uuid' which has replicated size count information within the
+ * scanned oplog range. May include entries where size count deltas sum to 0.
+ */
+absl::flat_hash_map<UUID, CollectionSizeCount> aggregateSizeCountDeltasInOplog(
+    SeekableRecordCursor& oplogCursor,
+    const Timestamp& seekAfterTS,
+    const boost::optional<UUID>& uuidFilter = boost::none);
+
+/**
+ * Acquires the replicated fast count collection for read access.
+ * Returns boost::none if the collection does not exist.
+ */
+boost::optional<CollectionOrViewAcquisition> acquireSizeCountCollectionForRead(
+    OperationContext* opCtx);
+
+/**
+ * Acquire the fastcount collection that underpins this class with write intent.
+ * Returns boost::none if it doesn't exist.
+ */
+boost::optional<CollectionOrViewAcquisition> acquireSizeCountCollectionForWrite(
+    OperationContext* opCtx);
+
+/**
+ * Acquires the timestamp collection for read access. Returns boost::none if the collection does not
+ * exist.
+ */
+boost::optional<CollectionOrViewAcquisition> acquireTimestampCollectionForRead(
+    OperationContext* opCtx);
+
+/**
+ * Acquire the timestamps collection that underpins this class with write intent. Returns
+ * boost::none if it doesn't exist.
+ */
+boost::optional<CollectionOrViewAcquisition> acquireTimestampCollectionForWrite(
+    OperationContext* opCtx);
+
+/**
+ * For each entry in 'deltas', looks up the persisted size and count for that UUID in the
+ * on-disk fast count collection and adds the persisted values to the entry's size and count
+ * in place. If a UUID has no on-disk entry, its delta is left unchanged.
+ */
+void readAndIncrementSizeCounts(OperationContext* opCtx,
+                                absl::flat_hash_map<UUID, CollectionSizeCount>& deltas);
 }  // namespace replicated_fast_count
 
 

@@ -66,15 +66,17 @@ TEST_F(EngineSelectionPlanFixture, LookupUnwind) {
     auto nssForeign = NamespaceString::createNamespaceString_forTest("testdb.collForeign");
 
     BSONObj indexFields = fromjson("{a: 1}");
-    auto indexScan = std::make_unique<IndexScanNode>(nssLocal, buildSimpleIndexEntry(indexFields));
+    std::vector<std::unique_ptr<QuerySolutionNode>> children;
+    children.emplace_back(
+        std::make_unique<IndexScanNode>(nssLocal, buildSimpleIndexEntry(indexFields)));
+    children.emplace_back(std::make_unique<CollectionScanNode>(nssForeign));
     auto lookupUnwind =
-        std::make_unique<EqLookupUnwindNode>(std::move(indexScan),
+        std::make_unique<EqLookupUnwindNode>(std::move(children),
                                              FieldPath("a"),
                                              nssForeign,
                                              FieldPath("b"),
                                              FieldPath("c"),
                                              EqLookupNode::LookupStrategy::kHashJoin,
-                                             boost::none,
                                              false,
                                              false,
                                              boost::none);
@@ -106,6 +108,32 @@ TEST_F(EngineSelectionPlanFixture, HashedIndexIxScanEligibility) {
         std::unique_ptr<QuerySolution> solution = makeIndexScanFetchPlan(indexFields);
         ASSERT_TRUE(isPlanSbeEligible(solution.get()));
     }
+}
+
+// Test eligibility of AND_HASH plans.
+TEST_F(EngineSelectionPlanFixture, AndHashEligibility) {
+    auto andHash = std::make_unique<AndHashNode>();
+    andHash->children.emplace_back(
+        std::make_unique<IndexScanNode>(nss, buildSimpleIndexEntry(fromjson("{a: 1}"))));
+    andHash->children.emplace_back(
+        std::make_unique<IndexScanNode>(nss, buildSimpleIndexEntry(fromjson("{b: 1}"))));
+
+    auto solution = std::make_unique<QuerySolution>();
+    solution->setRoot(std::move(andHash));
+    ASSERT_FALSE(isPlanSbeEligible(solution.get()));
+}
+
+// Test eligibility of AND_SORTED plans.
+TEST_F(EngineSelectionPlanFixture, AndSortedEligibility) {
+    auto andSorted = std::make_unique<AndSortedNode>();
+    andSorted->children.emplace_back(
+        std::make_unique<IndexScanNode>(nss, buildSimpleIndexEntry(fromjson("{a: 1}"))));
+    andSorted->children.emplace_back(
+        std::make_unique<IndexScanNode>(nss, buildSimpleIndexEntry(fromjson("{b: 1}"))));
+
+    auto solution = std::make_unique<QuerySolution>();
+    solution->setRoot(std::move(andSorted));
+    ASSERT_FALSE(isPlanSbeEligible(solution.get()));
 }
 
 // Test selection of FETCH + IXSCAN plans.

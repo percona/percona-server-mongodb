@@ -52,6 +52,9 @@
 
 namespace mongo {
 
+class Counter64;
+class IncrementalRolloutFeatureFlag;
+
 using RemoteCursorMap = absl::flat_hash_map<size_t, std::unique_ptr<executor::TaskExecutorCursor>>;
 using RemoteExplainVector = std::vector<BSONObj>;
 
@@ -99,11 +102,6 @@ void checkAndSetViewOnExpCtx(boost::intrusive_ptr<ExpressionContext> expCtx,
                              const NamespaceString& viewName);
 
 /**
- * Check if this is a stored source $search or $_internalSearchMongot pipeline.
- */
-bool isStoredSource(const Pipeline* pipeline);
-
-/**
  * Check if this is a search-related pipeline, specifically that the front of the pipeline is a
  * stage that will rely on calls to mongot.
  */
@@ -140,6 +138,16 @@ bool isMongotStage(DocumentSource* stage);
 bool isExtensionVectorSearchStage(std::string stageName);
 
 bool isExtensionVectorSearchPipeline(const Pipeline* pipeline);
+
+/**
+ * If 'kickbackCondition' is true, increments 'metric' and throws an IFRFlagRetry error for 'flag'
+ * with message 'errorMsg'. Used to implement kickback patterns where an extension stage is not yet
+ * supported in a particular context (e.g. in views, sub-pipelines, etc).
+ */
+void throwIfrKickbackIfNecessary(bool kickbackCondition,
+                                 const IncrementalRolloutFeatureFlag& flag,
+                                 Counter64& metric,
+                                 StringData errorMsg);
 
 // TODO SERVER-40900 Can remove this when all meta validation is done in run_aggregate.
 bool shouldPreValidateMetaDependencies(const Pipeline* pipeline);

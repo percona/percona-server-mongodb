@@ -356,7 +356,7 @@ void onCommitIndexBuild(OperationContext* opCtx,
 
     auto opObserver = opCtx->getServiceContext()->getOpObserver();
     const auto& collUUID = replState->collectionUUID;
-    const auto indexSpecs = toIndexSpecs(replState->getIndexes());
+    const auto& indexes = replState->getIndexes();
     auto fromMigrate = false;
 
     // Since two phase index builds are allowed to survive replication state transitions, we should
@@ -377,13 +377,13 @@ void onCommitIndexBuild(OperationContext* opCtx,
 
     std::vector<boost::optional<BSONObj>> multikeyObjs;
     if (!multikeys.empty()) {
-        invariant(multikeys.size() == indexSpecs.size());
+        invariant(multikeys.size() == indexes.size());
         multikeyObjs.reserve(multikeys.size());
         for (size_t i = 0; i < multikeys.size(); ++i) {
             if (multikeys[i]) {
                 multikeyObjs.push_back(
                     !multikeys[i]->empty()
-                        ? multikey_paths::serialize(indexSpecs[i]["key"].Obj(), *multikeys[i])
+                        ? multikey_paths::serialize(indexes[i].spec["key"].Obj(), *multikeys[i])
                         : BSONObj{});
             } else {
                 multikeyObjs.push_back(boost::none);
@@ -392,7 +392,7 @@ void onCommitIndexBuild(OperationContext* opCtx,
     }
 
     opObserver->onCommitIndexBuild(
-        opCtx, nss, collUUID, buildUUID, indexSpecs, multikeyObjs, fromMigrate, isTimeseries);
+        opCtx, nss, collUUID, buildUUID, indexes, multikeyObjs, fromMigrate, isTimeseries);
 }
 
 /**
@@ -815,6 +815,13 @@ Status IndexBuildsCoordinator::_startIndexBuildForRecovery(OperationContext* opC
                 const bool isRecoveringAsStandalone =
                     replCoord->getSettings().shouldRecoverFromOplogAsStandalone();
 
+                // If we're running magic restore, then we MUST be running magic restore in classic
+                // mode.
+                invariant(!storageGlobalParams.magicRestore ||
+                          (storageGlobalParams.magicRestore &&
+                           rss::ReplicatedStorageService::get(opCtx->getServiceContext())
+                               .getPersistenceProvider()
+                               .supportsClassicMagicRestore()));
                 // During standalone recovery and magic restore, there will be no oplog
                 // application to drive the index build to completion.
                 return isRecoveringAsStandalone || storageGlobalParams.magicRestore;
@@ -926,6 +933,8 @@ Status IndexBuildsCoordinator::_setUpResumeIndexBuild(OperationContext* opCtx,
                                                       const UUID& buildUUID,
                                                       const ResumeIndexInfo& resumeInfo) {
     NamespaceStringOrUUID nssOrUuid{dbName, collectionUUID};
+    // Make a mutable copy to populate indexIdent from the catalog; the caller's vector is const.
+    auto mutableIndexes = indexes;
 
     if (MONGO_unlikely(failSetUpResumeIndexBuild.shouldFail())) {
         return {ErrorCodes::FailPointEnabled, "failSetUpResumeIndexBuild fail point is enabled"};
@@ -945,7 +954,7 @@ Status IndexBuildsCoordinator::_setUpResumeIndexBuild(OperationContext* opCtx,
     CollectionWriter collection(opCtx, resumeInfo.getCollectionUUID());
     invariant(collection);
     const auto mdbCatalog = MDBCatalog::get(opCtx);
-    for (const auto& indexBuildInfo : indexes) {
+    for (auto& indexBuildInfo : mutableIndexes) {
         if (indexBuildInfo.getIndexName().empty()) {
             return Status(ErrorCodes::CannotCreateIndex,
                           str::stream()
@@ -974,6 +983,10 @@ Status IndexBuildsCoordinator::_setUpResumeIndexBuild(OperationContext* opCtx,
             indexIdent.size() > 0);
         uassertStatusOK(collection->checkMetaDataForIndex(
             std::string{indexBuildInfo.getIndexName()}, indexBuildInfo.spec));
+
+        // Populate the index ident so it is available when writing the commitIndexBuild oplog
+        // entry during the commit phase of this resumed build.
+        indexBuildInfo.indexIdent = std::move(indexIdent);
     }
 
     if (!collection->isInitialized()) {
@@ -984,7 +997,7 @@ Status IndexBuildsCoordinator::_setUpResumeIndexBuild(OperationContext* opCtx,
 
     auto protocol = IndexBuildProtocol::kTwoPhase;
     auto replIndexBuildState = std::make_shared<ReplIndexBuildState>(
-        buildUUID, collection->uuid(), dbName, indexes, protocol, Date_t::now());
+        buildUUID, collection->uuid(), dbName, mutableIndexes, protocol, Date_t::now());
 
     Status status = activeIndexBuilds.registerIndexBuild(replIndexBuildState);
     if (!status.isOK()) {
@@ -995,8 +1008,13 @@ Status IndexBuildsCoordinator::_setUpResumeIndexBuild(OperationContext* opCtx,
     IndexBuildsManager::SetupOptions options;
     options.protocol = protocol;
     options.generateTableWrites = replIndexBuildState->getGenerateTableWrites();
-    status = _indexBuildsManager.setUpIndexBuild(
-        opCtx, collection, indexes, buildUUID, MultiIndexBlock::kNoopOnInitFn, options, resumeInfo);
+    status = _indexBuildsManager.setUpIndexBuild(opCtx,
+                                                 collection,
+                                                 mutableIndexes,
+                                                 buildUUID,
+                                                 MultiIndexBlock::kNoopOnInitFn,
+                                                 options,
+                                                 resumeInfo);
     if (!status.isOK()) {
         activeIndexBuilds.unregisterIndexBuild(&_indexBuildsManager, replIndexBuildState);
     }
@@ -2219,21 +2237,21 @@ void IndexBuildsCoordinator::restartIndexBuildsForRecovery(
             IndexBuildInfo indexBuildInfo(indexStateInfo.getSpec(), boost::none);
             indexBuildInfo.sideWritesIdent.emplace(indexStateInfo.getSideWritesTable());
             if (auto ident = indexStateInfo.getSkippedRecordTrackerTable()) {
-                indexBuildInfo.skippedRecordsTrackerIdent.emplace(*ident);
+                indexBuildInfo.skippedRecordsIdent.emplace(*ident);
             } else {
                 // Older versions only persisted the skipped record tracker table ident if there
                 // were skipped records, so it may be missing. If it is, we can safely generate a
                 // new one as there's no existing table we need to reuse and we can't be in a
                 // primary-driven index build.
-                auto skippedRecordsTrackerIdent = storageEngine->generateNewInternalIdent();
+                auto skippedRecordsIdent = storageEngine->generateNewInternalIdent();
                 auto lazyRecordStore = LazyRecordStore(
-                    opCtx, skippedRecordsTrackerIdent, LazyRecordStore::CreateMode::immediate);
+                    opCtx, skippedRecordsIdent, LazyRecordStore::CreateMode::immediate);
                 lazyRecordStore.keepTemporaryTable(opCtx);
                 // Immediate creation ensures the table is created.
-                indexBuildInfo.skippedRecordsTrackerIdent.emplace(skippedRecordsTrackerIdent);
+                indexBuildInfo.skippedRecordsIdent.emplace(skippedRecordsIdent);
             }
             if (auto ident = indexStateInfo.getDuplicateKeyTrackerTable()) {
-                indexBuildInfo.constraintViolationsTrackerIdent.emplace(*ident);
+                indexBuildInfo.constraintViolationsIdent.emplace(*ident);
             } else {
                 // Nothing to do here, unlike in the skipped records tracker case, because the only
                 // reason for the constraint violations table to be missing is if the index being

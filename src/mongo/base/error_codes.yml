@@ -370,7 +370,7 @@ error_codes:
     }
   - {code: 144, name: IncompatibleCatalogManager}
   - {code: 145, name: PooledConnectionsDropped}
-  - {code: 146, name: ExceededMemoryLimit}
+  - {code: 146, name: ExceededMemoryLimit, categories: [ValidationError]}
   - {code: 147, name: ZLibError}
   - {
       code: 148,
@@ -1209,6 +1209,8 @@ error_codes:
       name: StreamProcessorPubSubConnectionError,
       categories: [StreamProcessorUserError, StreamProcessorRetryableError],
     }
+
+  - {code: 495, name: TimeseriesBucketMetadataInconsistent}
 
   # ^^^^
   # Add new codes, sequentially numbered, above.

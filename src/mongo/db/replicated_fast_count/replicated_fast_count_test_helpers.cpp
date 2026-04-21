@@ -34,6 +34,7 @@
 #include "mongo/db/repl/apply_ops_command_info.h"
 #include "mongo/db/repl/oplog_entry.h"
 #include "mongo/db/repl/oplog_interface_local.h"
+#include "mongo/db/replicated_fast_count/replicated_fast_count_delta_utils.h"
 #include "mongo/db/replicated_fast_count/replicated_fast_count_init.h"
 #include "mongo/db/replicated_fast_count/replicated_fast_count_manager.h"
 #include "mongo/db/replicated_fast_count/replicated_fast_count_uncommitted_changes.h"
@@ -43,11 +44,11 @@
 
 namespace mongo::replicated_fast_count_test_helpers {
 
-void checkFastCountMetadataInInternalCollection(OperationContext* opCtx,
-                                                const UUID& uuid,
-                                                bool expectPersisted,
-                                                int64_t expectedCount,
-                                                int64_t expectedSize) {
+void checkFastCountMetadataInFastCountStoreCollection(OperationContext* opCtx,
+                                                      const UUID& uuid,
+                                                      bool expectPersisted,
+                                                      int64_t expectedCount,
+                                                      int64_t expectedSize) {
     {
         AutoGetCollection fastCountColl(
             opCtx,
@@ -61,20 +62,41 @@ void checkFastCountMetadataInInternalCollection(OperationContext* opCtx,
         if (!expectPersisted) {
             return;
         }
-        int64_t persistedCount = persisted.getField(ReplicatedFastCountManager::kMetaDataKey)
+        int64_t persistedCount = persisted.getField(replicated_fast_count::kMetadataKey)
                                      .Obj()
-                                     .getField(ReplicatedFastCountManager::kCountKey)
+                                     .getField(replicated_fast_count::kCountKey)
                                      .Long();
-        int64_t persistedSize = persisted.getField(ReplicatedFastCountManager::kMetaDataKey)
+        int64_t persistedSize = persisted.getField(replicated_fast_count::kMetadataKey)
                                     .Obj()
-                                    .getField(ReplicatedFastCountManager::kSizeKey)
+                                    .getField(replicated_fast_count::kSizeKey)
                                     .Long();
         EXPECT_EQ(persistedCount, expectedCount);
         EXPECT_EQ(persistedSize, expectedSize);
 
-        // TODO SERVER-120540: Introduce validation for valid-as-of beyond its basic presence.
-        ASSERT_TRUE(persisted.hasField(ReplicatedFastCountManager::kValidAsOfKey));
+        // TODO SERVER-121625: Introduce validation for valid-as-of beyond its basic presence.
+        ASSERT_TRUE(persisted.hasField(replicated_fast_count::kValidAsOfKey));
     }
+}
+
+void checkFastCountMetadataInTimestampsCollection(OperationContext* opCtx,
+                                                  int32_t stripe,
+                                                  bool expectedPersisted,
+                                                  const Timestamp& expectedTimestamp) {
+    AutoGetCollection timestampsColl(opCtx,
+                                     NamespaceString::makeGlobalConfigCollection(
+                                         NamespaceString::kReplicatedFastCountStoreTimestamps),
+                                     LockMode::MODE_IS);
+
+    BSONObj persisted;
+    bool found = Helpers::findById(opCtx, timestampsColl->ns(), BSON("_id" << stripe), persisted);
+
+    EXPECT_EQ(found, expectedPersisted);
+    if (!expectedPersisted) {
+        return;
+    }
+    Timestamp persistedTimestamp =
+        persisted.getField(replicated_fast_count::kValidAsOfKey).timestamp();
+    EXPECT_EQ(persistedTimestamp, expectedTimestamp);
 }
 
 void checkUncommittedFastCountChanges(OperationContext* opCtx,
@@ -268,13 +290,34 @@ repl::OplogEntry getLatestApplyOpsForNss(OperationContext* opCtx, const Namespac
     return entries.back();
 }
 
+bool isApplyOpsEntryStructureValid(const repl::OplogEntry& applyOpsEntry) {
+    if (applyOpsEntry.getOpType() != repl::OpTypeEnum::kCommand) {
+        return false;
+    }
+    if (applyOpsEntry.getCommandType() != repl::OplogEntry::CommandType::kApplyOps) {
+        return false;
+    }
+    if (applyOpsEntry.getNss().ns_forTest() != "admin.$cmd"_sd) {
+        return false;
+    }
+
+    std::vector<repl::OplogEntry> innerOperations;
+    repl::ApplyOps::extractOperationsTo(
+        applyOpsEntry, applyOpsEntry.getEntry().toBSON(), &innerOperations);
+
+    for (const auto& innerEntry : innerOperations) {
+        if (innerEntry.getCommandType() != repl::OplogEntry::CommandType::kNotCommand) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 void assertFastCountApplyOpsMatches(const repl::OplogEntry& applyOpsEntry,
-                                    const NamespaceString& internalNss,
                                     const std::vector<ExpectedFastCountOp>& expectedOps) {
 
-    EXPECT_EQ(repl::OpTypeEnum::kCommand, applyOpsEntry.getOpType());
-    EXPECT_EQ(repl::OplogEntry::CommandType::kApplyOps, applyOpsEntry.getCommandType());
-    EXPECT_EQ("admin.$cmd"_sd, applyOpsEntry.getNss().ns_forTest());
+    EXPECT_EQ(isApplyOpsEntryStructureValid(applyOpsEntry), true);
 
     // Index expectations by UUID so we can match each inner op to one expected op.
     std::map<UUID, ExpectedFastCountOp> expectedByUuid;
@@ -289,10 +332,14 @@ void assertFastCountApplyOpsMatches(const repl::OplogEntry& applyOpsEntry,
     int seenFastCountOps = 0;
 
     for (const auto& innerEntry : innerOperations) {
-        EXPECT_EQ(internalNss, innerEntry.getNss())
-            << "Found unexpected non-fast-count operation in applyOps payload";
+        if (innerEntry.getNss() != replicatedFastCountStoreNss &&
+            innerEntry.getNss() != replicatedFastCountStoreTimestampsNss) {
+            FAIL("Found unexpected non-fast-count operation in applyOps payload");
+        }
 
-        EXPECT_EQ(repl::OplogEntry::CommandType::kNotCommand, innerEntry.getCommandType());
+        if (innerEntry.getNss() == replicatedFastCountStoreTimestampsNss) {
+            continue;
+        }
 
         FastCountOpType observedType = FastCountOpType::kInsert;
         UUID uuid = UUID::gen();
@@ -333,13 +380,13 @@ void assertFastCountApplyOpsMatches(const repl::OplogEntry& applyOpsEntry,
             case FastCountOpType::kInsert: {
                 const auto& obj = innerEntry.getObject();
 
-                auto metaElem = obj[ReplicatedFastCountManager::kMetaDataKey];
+                auto metaElem = obj[replicated_fast_count::kMetadataKey];
                 EXPECT_TRUE(metaElem.isABSONObj())
                     << "Meta field not numeric for UUID " << uuid << ": " << metaElem;
 
                 auto metaObj = metaElem.Obj();
-                auto countElem = metaObj[ReplicatedFastCountManager::kCountKey];
-                auto sizeElem = metaObj[ReplicatedFastCountManager::kSizeKey];
+                auto countElem = metaObj[replicated_fast_count::kCountKey];
+                auto sizeElem = metaObj[replicated_fast_count::kSizeKey];
 
                 EXPECT_TRUE(countElem.isNumber())
                     << "Count field not numeric for UUID " << uuid << ": " << countElem;
@@ -364,9 +411,8 @@ void assertFastCountApplyOpsMatches(const repl::OplogEntry& applyOpsEntry,
 
                 std::string kSubDiffSectionFieldPrefix = "s";
                 auto sizeElem =
-                    obj["diff"]
-                       [kSubDiffSectionFieldPrefix + ReplicatedFastCountManager::kMetaDataKey]["u"]
-                       [ReplicatedFastCountManager::kSizeKey];
+                    obj["diff"][kSubDiffSectionFieldPrefix + replicated_fast_count::kMetadataKey]
+                       ["u"][replicated_fast_count::kSizeKey];
                 EXPECT_TRUE(sizeElem.isNumber())
                     << "Size field not numeric for UUID " << uuid << ": " << sizeElem;
 
@@ -396,6 +442,38 @@ void assertFastCountApplyOpsMatches(const repl::OplogEntry& applyOpsEntry,
         << "Expected " << expectedByUuid.size() << " fast-count ops in applyOps, saw "
         << seenFastCountOps;
 }
+
+void assertFastCountTimestampsApplyOpsMatches(const repl::OplogEntry& applyOpsEntry,
+                                              const ExpectedFastCountTimestampsOp& expectedOp) {
+
+    EXPECT_EQ(isApplyOpsEntryStructureValid(applyOpsEntry), true);
+
+    std::vector<repl::OplogEntry> innerOperations;
+    repl::ApplyOps::extractOperationsTo(
+        applyOpsEntry, applyOpsEntry.getEntry().toBSON(), &innerOperations);
+
+    for (const auto& innerEntry : innerOperations) {
+        if (innerEntry.getNss() != replicatedFastCountStoreNss &&
+            innerEntry.getNss() != replicatedFastCountStoreTimestampsNss) {
+            FAIL("Found unexpected non-fast-count operation in applyOps payload");
+        }
+
+        if (innerEntry.getNss() == replicatedFastCountStoreNss) {
+            continue;
+        }
+
+        const BSONObj& obj = innerEntry.getObject();
+        BSONElement idElem = obj["_id"];
+        EXPECT_TRUE(idElem.isNumber());
+
+        int32_t stripeNum = idElem.safeNumberInt();
+        EXPECT_EQ(stripeNum, expectedOp.stripe) << "Mismatched stripe number for timestamp update";
+
+        Timestamp actualTimestamp = obj[replicated_fast_count::kValidAsOfKey].timestamp();
+        EXPECT_EQ(expectedOp.expectedTimestamp, actualTimestamp)
+            << "Mismatched timestamp for stripe " << stripeNum;
+    }
+};
 
 void assertReplicatedSizeCountMeta(const repl::OplogEntry& oplogEntry, int32_t expectedSizeDelta) {
     const auto entrySizeMeta = oplogEntry.getSizeMetadata();
@@ -460,6 +538,13 @@ CollectionSizeCount scanForAccurateSizeCount(OperationContext* opCtx, const Name
         sizeCount.size += record->data.size();
     }
     return sizeCount;
+}
+
+absl::flat_hash_map<UUID, CollectionSizeCount> extractSizeCountDeltasForApplyOps(
+    const repl::OplogEntry& applyOpsEntry, const boost::optional<UUID>& uuidFilter) {
+    absl::flat_hash_map<UUID, CollectionSizeCount> deltas;
+    replicated_fast_count::extractSizeCountDeltasForApplyOps(applyOpsEntry, uuidFilter, deltas);
+    return deltas;
 }
 
 }  // namespace mongo::replicated_fast_count_test_helpers

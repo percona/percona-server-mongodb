@@ -113,6 +113,7 @@
 #include "mongo/db/topology/cluster_role.h"
 #include "mongo/db/topology/sharding_state.h"
 #include "mongo/db/topology/vector_clock/vector_clock.h"
+#include "mongo/db/traffic_recorder/stashed_request.h"
 #include "mongo/db/transaction/transaction_participant.h"
 #include "mongo/db/transaction_validation.h"
 #include "mongo/db/validate_api_parameters.h"
@@ -1349,7 +1350,7 @@ void RunCommandAndWaitForWriteConcern::_setup() {
             } else if (serverGlobalParams.clusterRole.has(ClusterRole::ShardServer) ||
                        serverGlobalParams.clusterRole.has(ClusterRole::ConfigServer)) {
                 if (!genericArgs.getWriteConcern()) {
-                    // TODO: Disabled until after SERVER-44539, to avoid log spam.
+                    // TODO(SERVER-44539): Disabled to avoid log spam.
                     // LOGV2(21959, "Missing writeConcern on {command}", "Missing "
                     // "writeConcern on command", "command"_attr = command->getName());
                 }
@@ -1432,6 +1433,17 @@ void RunCommandAndWaitForWriteConcern::_checkWriteConcern() {
  */
 StatusWith<repl::ReadConcernArgs> ExecCommandDatabase::_extractReadConcern(
     OperationContext* opCtx, bool startTransaction, bool startOrContinueTransaction) {
+    // Fast path for the common case of a simple external query with no custom cluster-wide
+    // default: skip the cache lookup and return the implicit default directly.
+    if (!startTransaction && !startOrContinueTransaction &&
+        !_invocation->getGenericArguments().getReadConcern() &&
+        !opCtx->inMultiDocumentTransaction() && !_isInternalClient() &&
+        !ReadWriteConcernDefaults::get(opCtx).isCWRCSetFast()) {
+        repl::ReadConcernArgs fastDefault;
+        fastDefault.getProvenance().setSource(ReadWriteConcernProvenance::Source::implicitDefault);
+        return fastDefault;
+    }
+
     repl::ReadConcernArgs readConcernArgs;
 
     if (auto& rc = _invocation->getGenericArguments().getReadConcern()) {
@@ -1472,7 +1484,7 @@ StatusWith<repl::ReadConcernArgs> ExecCommandDatabase::_extractReadConcern(
             if ((serverGlobalParams.clusterRole.has(ClusterRole::ShardServer) ||
                  serverGlobalParams.clusterRole.has(ClusterRole::ConfigServer)) &&
                 !readConcernArgs.isSpecified()) {
-                // TODO: Disabled until after SERVER-44539, to avoid log spam.
+                // TODO(SERVER-44539): Disabled to avoid log spam.
                 // LOGV2(21954,
                 //       "Missing readConcern for command",
                 //       "command"_attr = _invocation->definition()->getName());
@@ -1744,14 +1756,14 @@ void ExecCommandDatabase::_initiateCommand() {
     }
 
     if (command->shouldAffectCommandCounter()) {
-        serviceOpCounters(opCtx).gotCommand();
+        globalOpCounters().gotCommand();
         if (analyze_shard_key::supportsSamplingQueries(opCtx)) {
             analyze_shard_key::QueryAnalysisSampler::get(opCtx).gotCommand(command->getName());
         }
     }
 
     if (command->shouldAffectQueryCounter()) {
-        serviceOpCounters(opCtx).gotQuery();
+        globalOpCounters().gotQuery();
     }
 
     auto [requestOrDefaultMaxTimeMS, usesDefaultMaxTimeMS] = getRequestOrDefaultMaxTimeMS(
@@ -2496,6 +2508,12 @@ Future<DbResponse> ServiceEntryPointShardRole::handleRequest(OperationContext* o
 
     try {
         auto response = hr.runOperation();
+        auto* cmd = hr.executionContext.getCommand();
+        if (cmd && !cmd->sensitiveFieldNames().empty()) {
+            // This request contains some sensitive fields.
+            // Do not include it in a traffic recording to avoid leaking information.
+            StashedRequest::get(opCtx).clear();
+        }
         hr.completeOperation(response);
         return response;
     } catch (const DBException& ex) {

@@ -84,7 +84,7 @@
     /*  Namespace for storing keys for validating cluster times created by other clusters. */      \
     X(kExternalKeysCollectionNamespace, DatabaseName::kConfig, "external_validation_keys"_sd)      \
                                                                                                    \
-    /*  Namespace of the the oplog collection. */                                                  \
+    /*  Namespace of the oplog collection. */                                                      \
     X(kRsOplogNamespace, DatabaseName::kLocal, "oplog.rs"_sd)                                      \
                                                                                                    \
     /*  Namespace for storing the persisted state of transaction coordinators. */                  \
@@ -310,4 +310,7 @@
                                                                                                    \
     /*  Namespace for storing feature compatibility version changes block documents */             \
     X(kBlockFCVChangesNamespace, DatabaseName::kConfig, "system.block_fcv_changes"_sd)             \
+                                                                                                   \
+    /*  Namespace used for container oplog entries. */                                             \
+    X(kContainerNamespace, DatabaseName::kAdmin, "$container"_sd)                                  \
     /**/

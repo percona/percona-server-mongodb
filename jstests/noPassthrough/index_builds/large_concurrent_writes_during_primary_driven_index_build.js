@@ -23,8 +23,16 @@ const coll = db.getCollection(collName);
 const indexName = "x_1";
 const indexSpec = {x: 1};
 
+// TODO(SERVER-109578): Remove this check when the feature flag is removed.
 if (!FeatureFlagUtil.isPresentAndEnabled(db, "PrimaryDrivenIndexBuilds")) {
     jsTest.log.info("Skipping test because featureFlagPrimaryDrivenIndexBuilds is disabled");
+    rst.stopSet();
+    quit();
+}
+
+// TODO(SERVER-109578): Remove this check when the feature flag is removed.
+if (!FeatureFlagUtil.isPresentAndEnabled(primary.getDB(dbName), "ContainerWrites")) {
+    jsTestLog("Skipping test because featureFlagContainerWrites is disabled");
     rst.stopSet();
     quit();
 }
@@ -49,11 +57,12 @@ awaitIndex();
 // Inspect the oplog.rs for applyOps generated from the concurrent write during index build.
 const oplog = primary.getDB("local").getCollection("oplog.rs");
 const nss = coll.getFullName();
+const containerNss = "admin.$container";
 const applyOps = oplog
     .find({
         op: "c",
         "o.applyOps": {$exists: true},
-        "o.applyOps.ns": nss,
+        "o.applyOps.ns": {$in: [nss, containerNss]},
     })
     .sort({ts: 1})
     .toArray();

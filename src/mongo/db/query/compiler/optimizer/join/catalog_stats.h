@@ -32,6 +32,7 @@
 #include "mongo/db/namespace_string.h"
 #include "mongo/db/pipeline/field_path.h"
 #include "mongo/stdx/unordered_map.h"
+#include "mongo/util/modules.h"
 
 namespace mongo::join_ordering {
 
@@ -42,10 +43,12 @@ struct CollectionStats {
     // Estimate of the data size of this collection when in-memory (uncompressed and unencrypted).
     double logicalDataSizeBytes;
 
-    // Approximate size, in bytes, of a single in-memory WT data page for this collection before
-    // compression and encryption. The optimizer uses this as the I/O granularity when estimating
-    // the number of disk I/Os performed by an operator for cost estimates.
-    // Default to 32KiB if not specified.
+    // Estimate of the data size of this collection on-disk post compression.
+    double onDiskSizeBytes;
+
+    // Approximate size, in bytes, of a single WT data page on-disk. The optimizer uses this as the
+    // I/O granularity when estimating the number of disk I/Os performed by an operator for cost
+    // estimates. Default to 32KiB if not specified.
     double pageSizeBytes{32 * 1024};
 };
 
@@ -53,10 +56,18 @@ struct CollectionStats {
  * Statistics extracted from the catalog useful for cost estimation.
  */
 struct CatalogStats {
+
+    /**
+     * Estimate the number of pages from the given collection that would fit in the WT cache. This
+     * function is parameterized by collection as we've found that different collections can have
+     * very different average page sizes in memory.
+     */
+    double numPagesInStorageEngineCache(const NamespaceString& nss) const;
+
     stdx::unordered_map<NamespaceString, CollectionStats> collStats;
 
-    // Default to 2GiB / 32KiB as a start
-    double numPagesInStorageEngineCache{65536};
+    // Default to 2GiB.
+    double bytesInStorageEngineCache{2.0 * 1024 * 1024 * 1024};
 };
 
 // For a single collection, the maximum number of distinct fields that are part of unique indexes

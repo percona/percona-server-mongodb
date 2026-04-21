@@ -59,10 +59,18 @@ namespace {
 
 class PipelineDependencyGraphTest : public unittest::Test {
 protected:
+    void SetUp() override {
+        pathArrayness = std::make_shared<PathArrayness>();
+    }
+
     void setPipeline(const std::string& array) {
         pipeline = parsePipeline(array);
+        pipeline->getContext()->setPathArrayness(pathArrayness);
         stages.assign(pipeline->getSources().begin(), pipeline->getSources().end());
-        graph = std::make_unique<DependencyGraph>(pipeline->getSources());
+        canPathBeArray = [this](StringData path) -> bool {
+            return pathArrayness->canPathBeArray(FieldRef(path), pipeline->getContext().get());
+        };
+        graph = std::make_unique<DependencyGraph>(pipeline->getSources(), canPathBeArray);
     }
 
     /**
@@ -78,6 +86,8 @@ protected:
     }
 
     std::unique_ptr<Pipeline> pipeline;
+    std::shared_ptr<PathArrayness> pathArrayness;
+    CanPathBeArray canPathBeArray;
     std::vector<boost::intrusive_ptr<DocumentSource>> stages;
     std::unique_ptr<DependencyGraph> graph;
 
@@ -300,14 +310,15 @@ TEST_F(PipelineDependencyGraphTest, ComplexPathInclusionProjectionNonExistent) {
         "{$set: { 'c': 1 }}]");
 
     runTest([&] {
-        // For field 'a.b.c', expect stage 2 (the $project)
-        // This is because we do not track inclusion specifically, but modified paths.
-        // $project will report it modifies a.b.
-        // TODO(SERVER-119374): Inclusion projections need to be fixed.
+        // The inclusion modified a (filtered its subfields).
         ASSERT_EQUALS(graph->getDeclaringStage(stages.back().get(), "a"), stages[1]);
+        // The inclusion modified a.b (filtered its subfields).
         ASSERT_EQUALS(graph->getDeclaringStage(stages.back().get(), "a.b"), stages[1]);
+        // Excluded by the inclusion.
         ASSERT_EQUALS(graph->getDeclaringStage(stages.back().get(), "a.b.c"), stages[1]);
-        ASSERT_EQUALS(graph->getDeclaringStage(stages.back().get(), "a.b.d"), stages[1]);
+        // Preserved from the base doc, never defined by any stage.
+        ASSERT_EQUALS(graph->getDeclaringStage(stages.back().get(), "a.b.d"), nullptr);
+        // Excluded by the inclusion.
         ASSERT_EQUALS(graph->getDeclaringStage(stages.back().get(), "a.b.c.e"), stages[1]);
     });
 }
@@ -319,15 +330,162 @@ TEST_F(PipelineDependencyGraphTest, ComplexPathInclusionProjectionModifiedPath) 
         "{$set: { 'c': 1 }}]");
 
     runTest([&] {
-        // For field 'a.b.c', expect stage 2 (the $project)
-        // This is because we do not track inclusion specifically, but modified paths.
-        // $project will report it modifies a.b.
-        // TODO(SERVER-119374): Inclusion projections need to be fixed.
+        // The inclusion modified a (filtered its subfields).
         ASSERT_EQUALS(graph->getDeclaringStage(stages.back().get(), "a"), stages[1]);
+        // The inclusion modified a.b (filtered its subfields).
         ASSERT_EQUALS(graph->getDeclaringStage(stages.back().get(), "a.b"), stages[1]);
+        // The inclusion modified a.b.c (filtered its subfields).
         ASSERT_EQUALS(graph->getDeclaringStage(stages.back().get(), "a.b.c"), stages[1]);
+        // TODO(SERVER-122273): This is technically kept by the inclusion (prefix "a.b.c" was
+        // defined by the $set), so the declaring field should be $set.
         ASSERT_EQUALS(graph->getDeclaringStage(stages.back().get(), "a.b.c.d"), stages[1]);
+        // Excluded by the inclusion.
         ASSERT_EQUALS(graph->getDeclaringStage(stages.back().get(), "a.b.c.e"), stages[1]);
+    });
+}
+
+TEST_F(PipelineDependencyGraphTest, InclusionBaseCollectionField) {
+    setPipeline(
+        "[{$set: { a: 1 }},"
+        "{$project: { a: 1, b: 1 }},"
+        "{$set: { c: 1 }}]");
+
+    runTest([&] {
+        auto* last = stages.back().get();
+        // 'a' was set by stage 0, preserved by inclusion.
+        ASSERT_EQUALS(graph->getDeclaringStage(last, "a"), stages[0]);
+        // 'b' never defined — from base collection.
+        ASSERT_EQUALS(graph->getDeclaringStage(last, "b"), nullptr);
+        // 'd' not included — excluded by projection.
+        ASSERT_EQUALS(graph->getDeclaringStage(last, "d"), stages[1]);
+    });
+}
+
+TEST_F(PipelineDependencyGraphTest, InclusionAfterExhaustiveStage) {
+    setPipeline(
+        "[{$replaceRoot: { newRoot: '$x' }},"
+        "{$project: { a: 1, b: 1 }},"
+        "{$set: { c: 1 }}]");
+
+    runTest([&] {
+        auto* last = stages.back().get();
+        // 'a' included but originates from $replaceRoot.
+        ASSERT_EQUALS(graph->getDeclaringStage(last, "a"), stages[0]);
+        // 'b' same — from $replaceRoot.
+        ASSERT_EQUALS(graph->getDeclaringStage(last, "b"), stages[0]);
+        // 'd' not included — excluded by projection.
+        ASSERT_EQUALS(graph->getDeclaringStage(last, "d"), stages[1]);
+    });
+}
+
+TEST_F(PipelineDependencyGraphTest, InclusionDottedBaseCollectionMultipleSubfields) {
+    setPipeline(
+        "[{$project: { 'a.b': 1, 'a.c': 1 }},"
+        "{$match: { 'a.b': 1, 'a.c': 1, 'a.d': 1 }}]");
+
+    runTest([&] {
+        auto* last = stages.back().get();
+        // 'a' modified by inclusion (by excluding subfields).
+        ASSERT_EQUALS(graph->getDeclaringStage(last, "a"), stages[0]);
+        // 'a.b' and 'a.c' included from base collection.
+        ASSERT_EQUALS(graph->getDeclaringStage(last, "a.b"), nullptr);
+        ASSERT_EQUALS(graph->getDeclaringStage(last, "a.c"), nullptr);
+        // 'a.d' excluded.
+        ASSERT_EQUALS(graph->getDeclaringStage(last, "a.d"), stages[0]);
+    });
+}
+
+TEST_F(PipelineDependencyGraphTest, InclusionLongDottedBaseCollectionMultipleSubfields) {
+    setPipeline(
+        "[{$project: { 'a.b.c': 1, 'a.b.d': 1 }},"
+        "{$match: { 'a.b': 1, 'a.b.c': 1, 'a.b.d': 1 }}]");
+
+    runTest([&] {
+        auto* last = stages.back().get();
+        // 'a' modified by inclusion (by excluding subfields).
+        ASSERT_EQUALS(graph->getDeclaringStage(last, "a"), stages[0]);
+        // 'a.b' modified by inclusion (by excluding subfields).
+        ASSERT_EQUALS(graph->getDeclaringStage(last, "a.b"), stages[0]);
+        // 'a.b.c' and 'a.b.d' included from base collection.
+        ASSERT_EQUALS(graph->getDeclaringStage(last, "a.b.d"), nullptr);
+        ASSERT_EQUALS(graph->getDeclaringStage(last, "a.b.c"), nullptr);
+        // 'a.d' excluded.
+        ASSERT_EQUALS(graph->getDeclaringStage(last, "a.d"), stages[0]);
+    });
+}
+
+TEST_F(PipelineDependencyGraphTest, ChainedInclusionProjections) {
+    setPipeline(
+        "[{$set: { a: 1, b: 1, c: 1 }},"
+        "{$project: { a: 1, b: 1 }},"
+        "{$project: { a: 1 }},"
+        "{$match: { a: 1 }}]");
+
+    runTest([&] {
+        auto* last = stages.back().get();
+        // 'a' preserved through both inclusions, defined by from $set.
+        ASSERT_EQUALS(graph->getDeclaringStage(last, "a"), stages[0]);
+        // 'b' excluded by second projection.
+        ASSERT_EQUALS(graph->getDeclaringStage(last, "b"), stages[2]);
+        // 'c' excluded by both projections, but most recently by the second projection.
+        // One could argue that the second $project didn't change 'c' since it was already excluded
+        // by the first one, but for simplicity we don't consider that when building the graph. This
+        // is consistent with dependency tracking for exclusion projections (see
+        // 'ChainedExclusionProjections').
+        ASSERT_EQUALS(graph->getDeclaringStage(last, "c"), stages[2]);
+    });
+}
+
+TEST_F(PipelineDependencyGraphTest, ChainedExclusionProjections) {
+    setPipeline(
+        "[{$set: { a: 1, b: 1, c: 1 }},"
+        "{$project: { c: 0 }},"
+        "{$project: { b: 0, c: 0 }},"
+        "{$match: { a: 1 }}]");
+
+    runTest([&] {
+        auto* last = stages.back().get();
+        // 'a' preserved through both inclusions, defined by from $set.
+        ASSERT_EQUALS(graph->getDeclaringStage(last, "a"), stages[0]);
+        // 'b' excluded by second projection.
+        ASSERT_EQUALS(graph->getDeclaringStage(last, "b"), stages[2]);
+        // 'c' excluded by both projections, but most recently by the second projection.
+        ASSERT_EQUALS(graph->getDeclaringStage(last, "c"), stages[2]);
+    });
+}
+
+TEST_F(PipelineDependencyGraphTest, InclusionDottedAfterExhaustive) {
+    setPipeline(
+        "[{$replaceRoot: { newRoot: '$x' }},"
+        "{$project: { 'a.b': 1 }},"
+        "{$match: { 'a.b': 1, 'a.c': 1 }}]");
+
+    runTest([&] {
+        auto* last = stages.back().get();
+        // 'a' modified by inclusion.
+        ASSERT_EQUALS(graph->getDeclaringStage(last, "a"), stages[1]);
+        // 'a.b' included — originates from $replaceRoot.
+        ASSERT_EQUALS(graph->getDeclaringStage(last, "a.b"), stages[0]);
+        // 'a.c' not included — excluded by projection.
+        ASSERT_EQUALS(graph->getDeclaringStage(last, "a.c"), stages[1]);
+    });
+}
+
+TEST_F(PipelineDependencyGraphTest, SetFieldThenIncludeDottedPath) {
+    setPipeline(
+        "[{$set: { a: 1 }},"
+        "{$project: { 'a.b': 1 }},"
+        "{$match: { 'a.b': 1, 'a.c': 1 }}]");
+
+    runTest([&] {
+        auto* last = stages.back().get();
+        // 'a' modified by inclusion (by filtering subfields).
+        ASSERT_EQUALS(graph->getDeclaringStage(last, "a"), stages[1]);
+        // TODO(SERVER-122273): 'a.b' preserved by projection, originates from $set (we currently
+        // report it as being declared by the inclusion projection).
+        ASSERT_EQUALS(graph->getDeclaringStage(last, "a.b"), stages[1]);
+        // 'a.c' excluded by projection.
+        ASSERT_EQUALS(graph->getDeclaringStage(last, "a.c"), stages[1]);
     });
 }
 
@@ -350,6 +508,325 @@ TEST_F(PipelineDependencyGraphTest, ComplexPathsMultiple) {
         ASSERT_EQUALS(graph->getDeclaringStage(ds, "b.b"), stages[2]);
         ASSERT_EQUALS(graph->getDeclaringStage(ds, "b.a"), stages[2]);
         ASSERT_EQUALS(graph->getDeclaringStage(ds, "a.b.a"), stages[2]);
+    });
+}
+
+TEST_F(PipelineDependencyGraphTest, CanPathBeArrayWithoutArraynessInfo) {
+    setPipeline("[{$set: { a: '$b' }}]");
+    runTest([&] {
+        // Lookup from the end of the pipeline.
+        auto* ds = stages.back().get();
+        ASSERT_TRUE(graph->canPathBeArray(ds, "b"));
+        ASSERT_TRUE(graph->canPathBeArray(ds, "a"));
+        ASSERT_TRUE(graph->canPathBeArray(ds, "a.a"));
+        ASSERT_TRUE(graph->canPathBeArray(ds, "a.unknown"));
+        ASSERT_TRUE(graph->canPathBeArray(ds, "unknown"));
+    });
+}
+
+TEST_F(PipelineDependencyGraphTest, CanPathBeArrayWhenMissing) {
+    setPipeline("[{$replaceWith: {}}]");
+    runTest([&] {
+        // Lookup from the end of the pipeline.
+        auto* ds = stages.back().get();
+        // TODO(SERVER-119392): These should be trivially non-array with constant propagation.
+        ASSERT_TRUE(graph->canPathBeArray(ds, "a"));
+        ASSERT_TRUE(graph->canPathBeArray(ds, "a.a"));
+    });
+}
+
+TEST_F(PipelineDependencyGraphTest, CanPathBeArrayWhenKnown) {
+    setPipeline("[{$set: { 'a.b': 1, 'a.c': [], 'a.d': {$add: [2, 2]} }}]");
+    runTest([&] {
+        // Lookup from the end of the pipeline.
+        auto* ds = stages.back().get();
+        ASSERT_TRUE(graph->canPathBeArray(ds, "a"));
+        ASSERT_TRUE(graph->canPathBeArray(ds, "a.a"));
+        ASSERT_TRUE(graph->canPathBeArray(ds, "a.b"));
+        ASSERT_TRUE(graph->canPathBeArray(ds, "a.c"));
+        ASSERT_TRUE(graph->canPathBeArray(ds, "a.d"));
+        ASSERT_TRUE(graph->canPathBeArray(ds, "a.unknown"));
+    });
+}
+
+TEST_F(PipelineDependencyGraphTest, CanRenamedPathBeArray) {
+    pathArrayness->addPath("b", {}, true);
+    setPipeline("[{$set: { a: '$b' }}]");
+    runTest([&] {
+        // Lookup from the end of the pipeline.
+        auto* ds = stages.back().get();
+        ASSERT_FALSE(graph->canPathBeArray(ds, "b"));
+        ASSERT_FALSE(graph->canPathBeArray(ds, "a"));
+        ASSERT_TRUE(graph->canPathBeArray(ds, "a.a"));
+        ASSERT_TRUE(graph->canPathBeArray(ds, "a.unknown"));
+        ASSERT_TRUE(graph->canPathBeArray(ds, "unknown"));
+    });
+}
+
+TEST_F(PipelineDependencyGraphTest, CanRenamedChainBeArray) {
+    pathArrayness->addPath("a.x", {}, true);
+    setPipeline(
+        "[{$set: { b: '$a' }}, "
+        " {$set: { c: '$b' }}, "
+        " {$set: { d: '$c' }}]");
+    runTest([&] {
+        // Lookup from the end of the pipeline.
+        auto* ds = stages.back().get();
+        ASSERT_FALSE(graph->canPathBeArray(ds, "a"));
+        ASSERT_FALSE(graph->canPathBeArray(ds, "b"));
+        ASSERT_FALSE(graph->canPathBeArray(ds, "c"));
+        ASSERT_FALSE(graph->canPathBeArray(ds, "d"));
+        // TODO(SERVER-121932): This should pass
+        ASSERT_TRUE(graph->canPathBeArray(ds, "d.x"));
+    });
+}
+
+TEST_F(PipelineDependencyGraphTest, CanRenamedWithProjectBeArray) {
+    pathArrayness->addPath("a", {}, true);
+    setPipeline("[{$set: {}}, {$group: { _id: '$a' }}]");
+    runTest([&] {
+        // Lookup from the end of the pipeline.
+        auto* ds = stages.back().get();
+        ASSERT_FALSE(graph->canPathBeArray(ds, "_id"));
+        // 'a' is missing after the $group.
+        ASSERT_TRUE(graph->canPathBeArray(ds, "a"));
+        ASSERT_FALSE(graph->canPathBeArray(stages.front().get(), "a"));
+    });
+}
+
+TEST_F(PipelineDependencyGraphTest, CanDottedRenamedPathsBeArray) {
+    pathArrayness->addPath("x.y.z", {}, true);
+    setPipeline("[{$set: { a: '$x', b: '$x.y', 'c.d': '$x', 'e.f': '$x.y.z', 'g': '$x.y.z' }}]");
+    runTest([&] {
+        // Lookup from the end of the pipeline.
+        auto* ds = stages.back().get();
+        ASSERT_FALSE(graph->canPathBeArray(ds, "a"));
+        ASSERT_TRUE(graph->canPathBeArray(ds, "a.unknown"));
+        ASSERT_FALSE(graph->canPathBeArray(ds, "b"));
+        ASSERT_TRUE(graph->canPathBeArray(ds, "b.unknown"));
+        // TODO(SERVER-121932): Once we can see .y, this should pass.
+        // ASSERT_FALSE(graph->canPathBeArray(ds, "b.z"));
+        ASSERT_TRUE(graph->canPathBeArray(ds, "b.z"));
+        ASSERT_FALSE(graph->canPathBeArray(ds, "g"));
+        ASSERT_TRUE(graph->canPathBeArray(ds, "c"));
+        ASSERT_TRUE(graph->canPathBeArray(ds, "c.d"));
+        ASSERT_TRUE(graph->canPathBeArray(ds, "c.unknown"));
+        ASSERT_TRUE(graph->canPathBeArray(ds, "e"));
+        ASSERT_TRUE(graph->canPathBeArray(ds, "e.f"));
+        ASSERT_TRUE(graph->canPathBeArray(ds, "e.unknown"));
+    });
+}
+
+TEST_F(PipelineDependencyGraphTest, CanRedefinedBaseFieldBeArray) {
+    setPipeline(
+        "[{$set: { a: 1, b: 1, 'c.c': 1 }},"
+        "{$set: { 'a.a': 1, 'a.b': 1, 'b.b.b': 1, c: 1 }},"
+        "{$set: { 'a.b.a': 1, 'b.b': 1, 'b.a': 1 }}]");
+    runTest([&] {
+        // Lookup from the end of the pipeline.
+        auto* ds = stages.back().get();
+        ASSERT_FALSE(graph->canPathBeArray(ds, "a"));
+        ASSERT_FALSE(graph->canPathBeArray(ds, "a.a"));
+        ASSERT_FALSE(graph->canPathBeArray(ds, "a.b"));
+        ASSERT_FALSE(graph->canPathBeArray(ds, "a.b.a"));
+        ASSERT_FALSE(graph->canPathBeArray(ds, "b"));
+        ASSERT_FALSE(graph->canPathBeArray(ds, "b.b"));
+        ASSERT_FALSE(graph->canPathBeArray(ds, "b.a"));
+        // TODO(SERVER-119392): This should pass.
+        // ASSERT_FALSE(graph->canPathBeArray(ds, "b.b.b"));
+    });
+}
+
+// TODO(SERVER-121932): Implement prefix rewrite and lookup full path in path arrayness.
+// TEST_F(PipelineDependencyGraphTest, CanBeArraysLooksThroughDottedRenamedPaths) {
+//     pathArrayness->addPath("x.y.z", {}, true);
+//     setPipeline("[{$set: { a: '$x', b: '$x.y', 'c.d': '$x', 'e.f': '$x.y.z' }}]");
+//     runTest([&] {
+//         // Lookup from the end of the pipeline.
+//         auto* ds = stages.back().get();
+//         ASSERT_FALSE(graph->canPathBeArray(ds, "a.y.z"));
+//     });
+// }
+
+TEST_F(PipelineDependencyGraphTest, ReplaceRootAttributesAllFields) {
+    setPipeline(
+        "[{$set: { a: 1 }},"
+        "{$replaceRoot: { newRoot: '$a' }},"
+        "{$set: { c: 1 }}]");
+
+    runTest([&] {
+        auto* last = stages.back().get();
+        // All pre-existing fields are attributed to $replaceRoot.
+        ASSERT_EQUALS(graph->getDeclaringStage(last, "a"), stages[1]);
+        ASSERT_EQUALS(graph->getDeclaringStage(last, "b"), stages[1]);
+        // 'c' set after $replaceRoot.
+        ASSERT_EQUALS(graph->getDeclaringStage(last, "c"), stages[2]);
+    });
+}
+
+
+TEST_F(PipelineDependencyGraphTest, ReplaceRootShadowsPriorDefinitions) {
+    setPipeline(
+        "[{$set: { a: 1, b: 1 }},"
+        "{$replaceRoot: { newRoot: {} }},"
+        "{$match: { a: 1, b: 1 }}]");
+
+    runTest([&] {
+        auto* last = stages.back().get();
+        // Both fields are attributed to $replaceRoot, not the $set.
+        ASSERT_EQUALS(graph->getDeclaringStage(last, "a"), stages[1]);
+        ASSERT_EQUALS(graph->getDeclaringStage(last, "b"), stages[1]);
+    });
+}
+
+TEST_F(PipelineDependencyGraphTest, ReplaceRootThenSetThenLookup) {
+    setPipeline(
+        "[{$replaceRoot: { newRoot: '$x' }},"
+        "{$set: { a: 1 }},"
+        "{$match: { a: 1, b: 1 }}]");
+
+    runTest([&] {
+        auto* last = stages.back().get();
+        // 'a' redefined after $replaceRoot.
+        ASSERT_EQUALS(graph->getDeclaringStage(last, "a"), stages[1]);
+        // 'b' not redefined — still attributed to $replaceRoot.
+        ASSERT_EQUALS(graph->getDeclaringStage(last, "b"), stages[0]);
+    });
+}
+
+TEST_F(PipelineDependencyGraphTest, ChainedReplaceRoots) {
+    setPipeline(
+        "[{$set: { a: 1 }},"
+        "{$replaceRoot: { newRoot: '$a' }},"
+        "{$replaceRoot: { newRoot: '$b' }},"
+        "{$match: { a: 1 }}]");
+
+    runTest([&] {
+        auto* last = stages.back().get();
+        // Second $replaceRoot is the last exhaustive stage.
+        ASSERT_EQUALS(graph->getDeclaringStage(last, "a"), stages[2]);
+        ASSERT_EQUALS(graph->getDeclaringStage(last, "b"), stages[2]);
+    });
+}
+
+TEST_F(PipelineDependencyGraphTest, GroupSimpleKey) {
+    setPipeline(
+        "[{$set: { x: 1 }},"
+        "{$group: { _id: '$x', count: { $sum: 1 } }},"
+        "{$match: { _id: 1, count: 1, a: 1 }}]");
+
+    runTest([&] {
+        auto* last = stages.back().get();
+        // _id declared by $group.
+        ASSERT_EQUALS(graph->getDeclaringStage(last, "_id"), stages[1]);
+        // 'count' is also declared by $group.
+        ASSERT_EQUALS(graph->getDeclaringStage(last, "count"), stages[1]);
+        // 'a' from the base document is made missing by $group.
+        ASSERT_EQUALS(graph->getDeclaringStage(last, "a"), stages[1]);
+        // 'x' is also made missing by $group.
+        ASSERT_EQUALS(graph->getDeclaringStage(last, "x"), stages[1]);
+    });
+}
+
+// TODO(SERVER-121639): Enable.
+// TEST_F(PipelineDependencyGraphTest, GroupKeyFromBaseDocument) {
+//     setPipeline(
+//         "[{$group: { _id: '$x' }},"
+//         "{$match: { _id: 1 }}]");
+//
+//     runTest([&] {
+//         auto* last = stages.back().get();
+//         // _id declared by $group.
+//         ASSERT_EQUALS(graph->getDeclaringStage(last, "_id"), stages[0]);
+//     });
+// }
+
+TEST_F(PipelineDependencyGraphTest, GroupCompoundKey) {
+    setPipeline(
+        "[{$set: { x: 1, y: 1 }},"
+        "{$group: { _id: { a: '$x', b: '$y' } }},"
+        "{$match: { '_id.a': 1, '_id.b': 1, '_id.c': 1 }}]");
+
+    runTest([&] {
+        auto* last = stages.back().get();
+        // _id.a declared by $group.
+        ASSERT_EQUALS(graph->getDeclaringStage(last, "_id.a"), stages[1]);
+        // _id.b declared by $group.
+        ASSERT_EQUALS(graph->getDeclaringStage(last, "_id.b"), stages[1]);
+        // _id declared by group.
+        ASSERT_EQUALS(graph->getDeclaringStage(last, "_id"), stages[1]);
+        // _id.c is not a group key field — attributed to $group via missing sentinel.
+        ASSERT_EQUALS(graph->getDeclaringStage(last, "_id.c"), stages[1]);
+    });
+}
+
+TEST_F(PipelineDependencyGraphTest, GroupDottedKeyNoRename) {
+    setPipeline(
+        "[{$set: { x: 1 }},"
+        "{$group: { _id: '$x.y' }},"
+        "{$match: { _id: 1 }}]");
+
+    runTest([&] {
+        auto* last = stages.back().get();
+        // _id declared by $group.
+        ASSERT_EQUALS(graph->getDeclaringStage(last, "_id"), stages[1]);
+        // Everything else is made missing by $group.
+        ASSERT_EQUALS(graph->getDeclaringStage(last, "x"), stages[1]);
+        ASSERT_EQUALS(graph->getDeclaringStage(last, "x.y"), stages[1]);
+    });
+}
+
+TEST_F(PipelineDependencyGraphTest, GroupNullKey) {
+    setPipeline(
+        "[{$group: { _id: null, total: { $sum: 1 } }},"
+        "{$set: { a: 1 }},"
+        "{$match: { _id: 1, total: 1, a: 1, b: 1 }}]");
+
+    runTest([&] {
+        auto* last = stages.back().get();
+        // _id is declared by $group.
+        ASSERT_EQUALS(graph->getDeclaringStage(last, "_id"), stages[0]);
+        // 'total' is declared by $group.
+        ASSERT_EQUALS(graph->getDeclaringStage(last, "total"), stages[0]);
+        // 'a' set after $group.
+        ASSERT_EQUALS(graph->getDeclaringStage(last, "a"), stages[1]);
+        // 'b' is made missing by $group.
+        ASSERT_EQUALS(graph->getDeclaringStage(last, "b"), stages[0]);
+    });
+}
+
+TEST_F(PipelineDependencyGraphTest, GroupThenInclusion) {
+    setPipeline(
+        "[{$group: { _id: {foo: {bar: 1}}, count: { $sum: 1 } }},"
+        "{$project: { _id: 1 }},"
+        "{$match: { _id: 1, count: 1 }}]");
+
+    runTest([&] {
+        auto* last = stages.back().get();
+        // _id preserved through inclusion, most recently declared by $group.
+        ASSERT_EQUALS(graph->getDeclaringStage(last, "_id"), stages[0]);
+        // 'count' excluded by inclusion projection.
+        ASSERT_EQUALS(graph->getDeclaringStage(last, "count"), stages[1]);
+        // Any arbitrary field last excluded by the inclusion projection.
+        ASSERT_EQUALS(graph->getDeclaringStage(last, "foo"), stages[1]);
+    });
+}
+
+TEST_F(PipelineDependencyGraphTest, SetThenGroupThenSetThenMatch) {
+    setPipeline(
+        "[{$set: { x: 1 }},"
+        "{$group: { _id: '$x' }},"
+        "{$set: { a: 1 }},"
+        "{$match: { _id: 1, a: 1, b: 1 }}]");
+
+    runTest([&] {
+        auto* last = stages.back().get();
+        // _id declared by $group.
+        ASSERT_EQUALS(graph->getDeclaringStage(last, "_id"), stages[1]);
+        // 'a' set after $group.
+        ASSERT_EQUALS(graph->getDeclaringStage(last, "a"), stages[2]);
+        // 'b' made missing by $group.
+        ASSERT_EQUALS(graph->getDeclaringStage(last, "b"), stages[1]);
     });
 }
 

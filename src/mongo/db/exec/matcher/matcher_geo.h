@@ -31,6 +31,7 @@
 
 #include "mongo/db/exec/matcher/match_details.h"
 #include "mongo/db/geo/geometry_container.h"
+#include "mongo/db/index/s2_common.h"
 #include "mongo/db/matcher/expression_geo.h"
 #include "mongo/util/modules.h"
 
@@ -41,7 +42,8 @@ namespace exec::matcher {
 bool geoContains(const GeometryContainer& queryGeom,
                  const GeoExpression::Predicate& queryPredicate,
                  bool skipValidation,
-                 const BSONElement& e);
+                 const BSONElement& e,
+                 boost::optional<S2IndexVersion> indexVersion = boost::none);
 
 bool geoContains(const GeometryContainer& queryGeom,
                  const GeoExpression::Predicate& queryPredicate,

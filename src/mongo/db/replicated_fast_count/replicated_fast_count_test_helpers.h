@@ -28,10 +28,23 @@
  */
 
 #include "mongo/db/operation_context.h"
+#include "mongo/db/repl/oplog_entry.h"
 #include "mongo/db/replicated_fast_count/replicated_fast_count_manager.h"
+#include "mongo/db/replicated_fast_count/replicated_fast_size_count.h"
 #include "mongo/db/rss/stub_persistence_provider.h"
+#include "mongo/util/uuid.h"
+
+#include <absl/container/flat_hash_map.h>
+#include <boost/optional/optional.hpp>
 
 namespace mongo::replicated_fast_count_test_helpers {
+
+const NamespaceString replicatedFastCountStoreNss =
+    NamespaceString::makeGlobalConfigCollection(NamespaceString::kReplicatedFastCountStore);
+
+const NamespaceString replicatedFastCountStoreTimestampsNss =
+    NamespaceString::makeGlobalConfigCollection(
+        NamespaceString::kReplicatedFastCountStoreTimestamps);
 /**
  * Stub persistence provider for enabling the replicated fast count collection.
  */
@@ -126,17 +139,30 @@ class ReplicatedFastCountTestPersistenceProvider : public rss::StubPersistencePr
     bool supportsColdCollections() const override {
         return false;
     }
+
+    bool shouldTimestampTableCreations() const override {
+        return false;
+    }
 };
 
 /**
- * Checks the persisted values of count and size for the given UUID in the internal
- * replicated fast count collection.
+ * Checks the persisted values of count and size for the given UUID in the fast count store
+ * collection.
  */
-void checkFastCountMetadataInInternalCollection(OperationContext* opCtx,
-                                                const UUID& uuid,
-                                                bool expectPersisted,
-                                                int64_t expectedCount,
-                                                int64_t expectedSize);
+void checkFastCountMetadataInFastCountStoreCollection(OperationContext* opCtx,
+                                                      const UUID& uuid,
+                                                      bool expectPersisted,
+                                                      int64_t expectedCount,
+                                                      int64_t expectedSize);
+
+/**
+ * Checks the persisted timestamp for the given stripe in the replicated fast count store timestamps
+ * collection.
+ */
+void checkFastCountMetadataInTimestampsCollection(OperationContext* opCtx,
+                                                  int32_t stripe,
+                                                  bool expectedPersisted,
+                                                  const Timestamp& expectedTimestamp);
 
 /**
  * Checks the uncommitted fast count changes for the given UUID.
@@ -235,13 +261,30 @@ struct ExpectedFastCountOp {
     boost::optional<int64_t> expectedSize;
 };
 
+struct ExpectedFastCountTimestampsOp {
+    int32_t stripe;
+    Timestamp expectedTimestamp;
+};
+
 /**
- * Asserts that the given applyOps oplog entry contains fast-count operations matching the expected
- * operations. Also performs structural checks on the applyOps entry.
+ * Performs basic structural checks for the inputted applyOpsEntry, returning true if the entry is
+ * valid
+ */
+bool isApplyOpsEntryStructureValid(const repl::OplogEntry& applyOpsEntry);
+
+/**
+ * Asserts that the given applyOps oplog entry contains the expected fast-count operations on the
+ * replicated fast count store collection.
  */
 void assertFastCountApplyOpsMatches(const repl::OplogEntry& applyOpsEntry,
-                                    const NamespaceString& internalNss,
                                     const std::vector<ExpectedFastCountOp>& expectedOps);
+
+/**
+ * Asserts that the given applyOps oplog entry contains the expected fast-count operations on the
+ * replicated fast count store timestamps collection.
+ */
+void assertFastCountTimestampsApplyOpsMatches(const repl::OplogEntry& applyOpsEntry,
+                                              const ExpectedFastCountTimestampsOp& expectedOp);
 
 /**
  * Expected values for validating individual operations in an oplog entry or applyOps inner ops with
@@ -288,6 +331,13 @@ boost::optional<repl::OplogEntry> getMostRecentOplogEntry(OperationContext* opCt
  * collection.
  */
 CollectionSizeCount scanForAccurateSizeCount(OperationContext* opCtx, const NamespaceString& nss);
+
+/**
+ * Convenience wrapper around extractSizeCountDeltasForApplyOps that constructs and returns the
+ * result map.
+ */
+absl::flat_hash_map<UUID, CollectionSizeCount> extractSizeCountDeltasForApplyOps(
+    const repl::OplogEntry& applyOpsEntry, const boost::optional<UUID>& uuidFilter = boost::none);
 
 
 }  // namespace mongo::replicated_fast_count_test_helpers

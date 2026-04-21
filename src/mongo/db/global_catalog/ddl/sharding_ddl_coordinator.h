@@ -1,5 +1,5 @@
 /**
- *    Copyright (C) 2020-present MongoDB, Inc.
+ *    Copyright (C) 2026-present MongoDB, Inc.
  *
  *    This program is free software: you can redistribute it and/or modify
  *    it under the terms of the Server Side Public License, version 1,
@@ -30,27 +30,127 @@
 #pragma once
 
 #include "mongo/db/global_catalog/ddl/sharding_coordinator.h"
+#include "mongo/db/shard_role/ddl/ddl_lock_manager.h"
 
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kSharding
-
 namespace mongo {
 
-template <class StateDoc>
+class MONGO_MOD_PRIVATE ShardingDDLCoordinatorMixin {
+protected:
+    void _initializeLockerAndCheckAllowedToStart(ShardingCoordinator& self,
+                                                 OperationContext* opCtx);
+
+    virtual std::set<NamespaceString> _getAdditionalLocksToAcquire(OperationContext* opCtx);
+
+    ExecutorFuture<void> _acquireAllDDLLocksAsync(
+        ShardingCoordinator& self,
+        OperationContext* opCtx,
+        std::shared_ptr<executor::ScopedTaskExecutor> executor,
+        const CancellationToken& token);
+
+    void _releaseDDLLocks(OperationContext* opCtx);
+
+private:
+    template <typename T>
+    ExecutorFuture<void> _acquireDDLLockAsync(
+        ShardingCoordinator& self,
+        std::shared_ptr<executor::ScopedTaskExecutor> executor,
+        const CancellationToken& token,
+        const T& resource,
+        LockMode lockMode);
+
+    // A Locker object works attached to an opCtx and it's destroyed once the opCtx gets out of
+    // scope. However, we must keep alive a unique Locker object during the whole
+    // ShardingCoordinator life to preserve the lock state among all the executor tasks.
+    std::unique_ptr<Locker> _locker;
+    std::stack<DDLLockManager::ScopedBaseDDLLock> _scopedLocks;
+
+    friend class ShardingDDLCoordinatorTest;
+};
+
+template <typename StateDoc>
 class MONGO_MOD_NEEDS_REPLACEMENT NonRecoverableShardingDDLCoordinator
-    : public NonRecoverableShardingCoordinator<StateDoc> {
+    : public ShardingCoordinator,
+      protected NonRecoverableTypedDocMixin<StateDoc>,
+      public ShardingDDLCoordinatorMixin {
 protected:
-    using NonRecoverableShardingCoordinator<StateDoc>::NonRecoverableShardingCoordinator;
+    explicit NonRecoverableShardingDDLCoordinator(ShardingCoordinatorService* service,
+                                                  std::string name,
+                                                  const BSONObj& coorDoc)
+        : ShardingCoordinator(service, std::move(name), coorDoc),
+          NonRecoverableTypedDocMixin<StateDoc>(coorDoc),
+          ShardingDDLCoordinatorMixin() {}
+
+    const CoordinatorStateDoc& getDoc() const override {
+        return this->_docWrapper;
+    }
+
+    CoordinatorStateDoc& getDoc() override {
+        return this->_docWrapper;
+    }
+
+private:
+    void _initialize(OperationContext* opCtx) override {
+        this->_initializeLockerAndCheckAllowedToStart(*this, opCtx);
+    }
+
+    ExecutorFuture<void> _acquireLocksAsync(OperationContext* opCtx,
+                                            std::shared_ptr<executor::ScopedTaskExecutor> executor,
+                                            const CancellationToken& token) final {
+        return this->_acquireAllDDLLocksAsync(*this, opCtx, executor, token);
+    }
+
+    void _releaseLocks(OperationContext* opCtx) override {
+        this->_releaseDDLLocks(opCtx);
+    }
+
+    friend class ShardingDDLCoordinatorTest;
 };
 
-template <class StateDoc, class Phase>
+template <typename StateDoc>
 class MONGO_MOD_UNFORTUNATELY_OPEN RecoverableShardingDDLCoordinator
-    : public RecoverableShardingCoordinator<StateDoc, Phase> {
-protected:
-    using RecoverableShardingCoordinator<StateDoc, Phase>::RecoverableShardingCoordinator;
-    using RecoverableShardingCoordinator<StateDoc, Phase>::_doc;
-    using RecoverableShardingCoordinator<StateDoc, Phase>::_docMutex;
-};
+    : public RecoverableShardingCoordinator,
+      protected RecoverableTypedDocMixin<RecoverableShardingDDLCoordinator<StateDoc>, StateDoc>,
+      public ShardingDDLCoordinatorMixin {
 
-#undef MONGO_LOGV2_DEFAULT_COMPONENT
+    friend RecoverableTypedDocMixin<RecoverableShardingDDLCoordinator<StateDoc>, StateDoc>;
+
+protected:
+    explicit RecoverableShardingDDLCoordinator(ShardingCoordinatorService* service,
+                                               std::string name,
+                                               const BSONObj& coorDoc)
+        : RecoverableShardingCoordinator(service, std::move(name), coorDoc),
+          RecoverableTypedDocMixin<RecoverableShardingDDLCoordinator<StateDoc>, StateDoc>(coorDoc),
+          ShardingDDLCoordinatorMixin() {}
+
+    const CoordinatorStateDoc& getDoc() const override {
+        return this->_docWrapper;
+    }
+
+    CoordinatorStateDoc& getDoc() override {
+        return this->_docWrapper;
+    }
+
+private:
+    void _initialize(OperationContext* opCtx) override {
+        this->_initializeLockerAndCheckAllowedToStart(*this, opCtx);
+    }
+
+    ExecutorFuture<void> _acquireLocksAsync(OperationContext* opCtx,
+                                            std::shared_ptr<executor::ScopedTaskExecutor> executor,
+                                            const CancellationToken& token) final {
+        return this->_acquireAllDDLLocksAsync(*this, opCtx, executor, token);
+    }
+
+    void _releaseLocks(OperationContext* opCtx) override {
+        this->_releaseDDLLocks(opCtx);
+    }
+
+    StringData serializeGenericPhase(CoordinatorGenericPhase phase) const final {
+        return this->serializePhase(phase);
+    }
+};
 
 }  // namespace mongo
+
+#undef MONGO_LOGV2_DEFAULT_COMPONENT

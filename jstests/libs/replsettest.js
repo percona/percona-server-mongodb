@@ -1,4 +1,6 @@
 import {Thread} from "jstests/libs/parallelTester.js";
+import {configureFailPoint} from "jstests/libs/fail_point_util.js";
+import {systemUsesReplicatedTruncates} from "jstests/libs/query/replicated_truncates_utils.js";
 
 /* global retryOnRetryableError */
 
@@ -139,7 +141,8 @@ export class ReplSetTest {
         assert.soon(
             () => {
                 try {
-                    let conn = _callHello(this);
+                    const expectedDownNodes = states.includes(ReplSetTest.State.DOWN) ? [node] : [];
+                    let conn = _callHello(this, expectedDownNodes);
                     if (!conn) {
                         conn = this._liveNodes[0];
                     }
@@ -2612,8 +2615,18 @@ export class ReplSetTest {
     checkReplicatedDataHashes(msgPrefix = "checkReplicatedDataHashes", excludedDBs = [], ignoreUUIDs = false) {
         // Return items that are in either Array `a` or `b` but not both. Note that this will
         // not work with arrays containing NaN. Array.indexOf(NaN) will always return -1.
-
         let collectionPrinted = new Set();
+
+        const primary = this.getPrimary();
+
+        // When using replicated truncates, prevent the change stream pre-images remover thread
+        // from deleting more pre-images in the background while the data consistency check is
+        // running. Otherwise, the pre-images removal can lead to discrepancies between the
+        // primary and the secondaries for the contents of the "config.system.preimages"
+        // collection.
+        const useReplicatedTruncates =
+            (primary instanceof Mongo || primary instanceof DB) &&
+            asCluster(this, this._liveNodes, () => systemUsesReplicatedTruncates(primary, this._liveNodes));
 
         function checkDBHashesForReplSet(rst, dbDenylist = [], msgPrefix, ignoreUUIDs, secondaries) {
             // We don't expect the local database to match because some of its
@@ -2708,6 +2721,7 @@ export class ReplSetTest {
                                 ignoreUUIDs,
                                 hasSecondaryIndexes,
                                 collectionPrinted,
+                                useReplicatedTruncates,
                             ) && success;
 
                         if (!success) {
@@ -2728,8 +2742,41 @@ export class ReplSetTest {
             assert(success, "dbhash mismatch between primary and secondary");
         }
 
-        const liveSecondaries = _determineLiveSecondaries(this);
-        this.checkReplicaSet(checkDBHashesForReplSet, liveSecondaries, this, excludedDBs, msgPrefix, ignoreUUIDs);
+        let disablePreImagesRemoverFailPoint = null;
+        if (useReplicatedTruncates) {
+            // Temporarily disable change streams pre-images removal. This does not guard against
+            // the pre-images removal job running right now.
+            try {
+                disablePreImagesRemoverFailPoint = configureFailPoint(primary, "disableChangeStreamPreImagesRemover");
+
+                // Wait for pre-images removal job to have finished executing. This is indicated by the
+                // 'changeStreamPreImagesRemoverInvocationCounter' having an even value.
+                assert.soon(() => {
+                    const invocationCounterFailPoint = configureFailPoint(
+                        primary,
+                        "changeStreamPreImagesRemoverInvocationCounter",
+                    );
+                    return invocationCounterFailPoint.timesEntered % 2 == 0;
+                });
+            } catch (e) {
+                // If testing commands are disabled, then it is possible to get a 'CommandNotFound'
+                // error here. In that case, still proceed with the dbhash check, but without the
+                // pre-images removal disabled.
+                if (e.code !== ErrorCodes.CommandNotFound) {
+                    throw e;
+                }
+            }
+        }
+
+        try {
+            const liveSecondaries = _determineLiveSecondaries(this);
+            this.checkReplicaSet(checkDBHashesForReplSet, liveSecondaries, this, excludedDBs, msgPrefix, ignoreUUIDs);
+        } finally {
+            // Clear failpoint set above that disables change streams pre-images removal.
+            if (disablePreImagesRemoverFailPoint) {
+                disablePreImagesRemoverFailPoint.off();
+            }
+        }
     }
 
     checkOplogs(msgPrefix) {
@@ -3758,7 +3805,7 @@ function _replSetGetConfig(conn) {
  * '_secondaries': all nodes other than '_primary' (note this includes arbiters)
  * '_liveNodes': all currently reachable nodes
  */
-function _callHello(rst) {
+function _callHello(rst, expectedDownNodes = []) {
     rst._liveNodes = [];
     rst._primary = null;
     rst._secondaries = [];
@@ -3769,7 +3816,14 @@ function _callHello(rst) {
     rst.nodes.forEach(function (node) {
         try {
             node.setSecondaryOk();
-            let n = node.getDB("admin")._helloOrLegacyHello();
+            let probeConn = node;
+            if (expectedDownNodes.includes(node)) {
+                // Use a short-lived connection with a bounded socket timeout to probe the node.
+                // This avoids blocking indefinitely if a node has crashed but the existing TCP
+                // connection hasn't been cleaned up yet (e.g. during fassert scenarios).
+                probeConn = new Mongo(`mongodb://${node.host}/?socketTimeoutMS=${rst.timeoutMS}`);
+            }
+            const n = probeConn.getDB("admin")._helloOrLegacyHello();
             rst._liveNodes.push(node);
             // We verify that the node has a valid config by checking if n.me exists. Then, we
             // check to see if the node is in primary state.

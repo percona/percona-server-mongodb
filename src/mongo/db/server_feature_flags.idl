@@ -120,9 +120,9 @@ feature_flags:
         default: true
         version: 8.1
         fcv_gated: true
-    featureFlagValidatedValidationLevel:
-        description: "Enables the use of the validated schema validation level."
-        cpp_varname: gFeatureFlagValidatedValidationLevel
+    featureFlagConstraintValidationLevel:
+        description: "Enables the use of the constraint schema validation level."
+        cpp_varname: gFeatureFlagConstraintValidationLevel
         default: false
         fcv_gated: true
     featureFlagDistinguishMetadataInconsistencyFromConflictingOperation:
@@ -144,15 +144,6 @@ feature_flags:
         version: 8.1
         fcv_gated: true
         check_against_fcv: legacy_fcv_snapshot_only
-    # TODO SERVER-119354: remove this feature flag and instead use
-    # gFeatureFlagCreateViewlessTimeseriesCollections.isEnabledAndIgnoreFCVUnsafe()
-    featureFlagViewlessTimeseriesUpgradeDowngradeRetriableError:
-        description: >-
-            Enables throwing InterruptedDueTimeseriesUpgradeDowngrade error when yielding/restoring
-            collection acquisitions concurrently with timeseries upgrade/downgrade.
-        cpp_varname: gFeatureFlagViewlessTimeseriesUpgradeDowngradeRetriableError
-        default: false
-        fcv_gated: false
     featureFlagBlockDirectSystemBucketsAccess:
         description: >-
             When enabled, external operations directly targeting legacy timeseries
@@ -298,6 +289,11 @@ feature_flags:
             is set to true if X.509 authentication is used and roles are not present in the client
             certificate.
         cpp_varname: gFeatureFlagUseInternalAuthzInsteadOfLDAP
+        default: false
+        fcv_gated: true
+    featureFlagQEPrefixSuffixSearch:
+        description: "Queryable Encryption encrypted prefix & suffix search support"
+        cpp_varname: gFeatureFlagQEPrefixSuffixSearch
         default: false
         fcv_gated: true
 

@@ -313,10 +313,28 @@ function invertShards(queryPlanner, shouldFlatten = true) {
 }
 
 /**
+ * Help function to exclude fields from explain.
+ */
+function excludeFields(obj, fields) {
+    if (Array.isArray(obj)) {
+        // Process each element in the array.
+        return obj.map((item) => excludeFields(item, fields));
+    } else if (obj !== null && typeof obj === "object") {
+        const newObj = {};
+        for (const key of Object.keys(obj)) {
+            if (!fields.includes(key)) {
+                newObj[key] = excludeFields(obj[key], fields);
+            }
+        }
+        return newObj;
+    }
+    return obj;
+}
+/**
  * Returns a formatted version of the explain, excluding fields which might differ in the explain
  * across multiple executions of the same query (e.g. caching information or UUIDs).
  */
-export function formatExplainRoot(explain, shouldFlatten = true) {
+export function formatExplainRoot(explain, shouldFlatten = true, fieldsToExclude = []) {
     let res = {};
     if (!isPlainObject(explain)) {
         return res;
@@ -349,6 +367,9 @@ export function formatExplainRoot(explain, shouldFlatten = true) {
 
     addIfPresent("queryShapeHash", explain, res);
 
+    if (fieldsToExclude.length > 0) {
+        return excludeFields(res, fieldsToExclude);
+    }
     return res;
 }
 
@@ -867,6 +888,33 @@ export function getLookupStage(root) {
 }
 
 /**
+ * Given an explain node representing a $lookup stage, identify the index used in an INLJ
+ * strategy and return its name and key pattern.
+ * TODO: SERVER-121842 Remove the check for the presence of the indexName field once all
+ * supported releases have featureFlagLookupWithPipelinesInSbe enabled
+ *
+ * @param {object} plan The explain plan node representing the $lookup stage.
+ * @returns {object} An object exposing indexName and indexKeyPattern from the INLJ strategy.
+ */
+export function getLookupStageIndexStrategy(plan) {
+    if (plan.hasOwnProperty("indexName")) {
+        return {
+            indexName: plan.indexName,
+            indexKeyPattern: plan.indexKeyPattern,
+        };
+    } else if (plan.hasOwnProperty("inputStages")) {
+        var ixscan = getPlanStage(plan.inputStages[1], "IXSCAN");
+        if (ixscan) {
+            return {
+                indexName: ixscan.indexName,
+                indexKeyPattern: ixscan.keyPattern,
+            };
+        }
+    }
+    return {indexName: null, indexKeyPattern: null};
+}
+
+/**
  * Given the root stage of agg explain's JSON representation of a query plan ('root'), returns
  * whether the plan has a stage called 'stage'. It could have more than one to allow for sharded
  * explain plans, and it can search for a query planner stage like "FETCH" or an agg stage like
@@ -1206,7 +1254,8 @@ export function flattenQueryPlanTree(winningPlan) {
     let stages = [];
     while (winningPlan) {
         stages.push(winningPlan.stage);
-        winningPlan = winningPlan.inputStage;
+        if (winningPlan.hasOwnProperty("inputStages")) winningPlan = winningPlan.inputStages[0];
+        else winningPlan = winningPlan.inputStage;
     }
     stages.reverse();
     return stages;

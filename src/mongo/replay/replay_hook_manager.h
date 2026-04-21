@@ -31,6 +31,7 @@
 #include "mongo/bson/bsonobj.h"
 #include "mongo/db/traffic_reader.h"
 #include "mongo/replay/replay_command.h"
+#include "mongo/util/modules.h"
 
 #include <concepts>
 #include <vector>
@@ -84,6 +85,14 @@ public:
     void observe(ReplayCommand& command);
 
     void observeLiveResponse(const ReplayCommand& recordedResponse, const BSONObj& liveResponse);
+
+    /**
+     * Test-only method to clear registered observers.
+     *
+     * Not safe to use outside of unit tests which can guarantee no concurrent access
+     * from a recording.
+     */
+    void reset();
 
 private:
     // Observers will be invoked for all events across all sessions, potentially

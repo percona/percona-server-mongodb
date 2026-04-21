@@ -31,6 +31,7 @@
 
 #include "mongo/db/collection_crud/container_write.h"
 #include "mongo/db/operation_context.h"
+#include "mongo/db/shard_role/lock_manager/exception_util.h"
 #include "mongo/db/shard_role/shard_catalog/collection.h"
 #include "mongo/db/sorter/sorter.h"
 #include "mongo/db/sorter/sorter_template_defs.h"
@@ -198,7 +199,6 @@ public:
 
     SortedContainerWriter(OperationContext& opCtx,
                           RecoveryUnit& ru,
-                          const CollectionPtr& collection,
                           IntegerKeyedContainer& container,
                           SorterContainerStats& containerStats,
                           const SortOptions& opts,
@@ -208,7 +208,6 @@ public:
         : SortedStorageWriter<Key, Value>(opts, settings, checksumVersion),
           _opCtx(opCtx),
           _ru(ru),
-          _collection(collection),
           _container(container),
           _containerStats(containerStats),
           _nextKey(nextKey),
@@ -223,19 +222,14 @@ public:
         key.serializeForSorter(buffer);
         val.serializeForSorter(buffer);
 
-        const auto currentKey = _nextKey++;
         const auto size = static_cast<size_t>(buffer.len());
         const std::span<const char> value =
             size == 0 ? std::span<const char>{} : std::span<const char>(buffer.buf(), size);
 
         WriteUnitOfWork wuow(&_opCtx);
-        uassertStatusOK(container_write::insert(&_opCtx,
-                                                _ru,
-                                                _collection,
-                                                _container,
-                                                currentKey,
-                                                value,
-                                                container::ExistingKeyPolicy::overwrite));
+        _ru.onRollback([this](OperationContext*) { --_nextKey; });
+        uassertStatusOK(container_write::insert(
+            &_opCtx, _ru, _container, _nextKey++, value, container::ExistingKeyPolicy::overwrite));
         wuow.commit();
 
         if (size > 0) {
@@ -266,7 +260,6 @@ public:
 private:
     OperationContext& _opCtx;
     RecoveryUnit& _ru;
-    const CollectionPtr& _collection;
     IntegerKeyedContainer& _container;
     SorterContainerStats& _containerStats;
     int64_t _nextKey;
@@ -280,7 +273,6 @@ public:
 
     ContainerBasedSorterStorage(OperationContext& opCtx,
                                 RecoveryUnit& ru,
-                                const CollectionPtr& collection,
                                 IntegerKeyedContainer& container,
                                 SorterContainerStats& stats,
                                 int64_t currKey,
@@ -289,7 +281,6 @@ public:
         : SorterStorageBase<Key, Value>(std::move(dbName), checksumVersion),
           _opCtx(opCtx),
           _ru(ru),
-          _collection(collection),
           _container(container),
           _stats(stats),
           _currKey(currKey) {}
@@ -297,15 +288,7 @@ public:
     std::unique_ptr<SortedStorageWriter<Key, Value>> makeWriter(const SortOptions& opts,
                                                                 const Settings& settings) override {
         return std::make_unique<sorter::SortedContainerWriter<Key, Value>>(
-            _opCtx,
-            _ru,
-            _collection,
-            _container,
-            _stats,
-            opts,
-            _currKey,
-            this->getChecksumVersion(),
-            settings);
+            _opCtx, _ru, _container, _stats, opts, _currKey, this->getChecksumVersion(), settings);
     };
 
     size_t getIteratorSize() override {
@@ -339,14 +322,13 @@ public:
 
     void remove(int64_t key) {
         WriteUnitOfWork wuow{&_opCtx};
-        uassertStatusOK(container_write::remove(&_opCtx, _ru, _collection, _container, key));
+        uassertStatusOK(container_write::remove(&_opCtx, _ru, _container, key));
         wuow.commit();
     }
 
 private:
     OperationContext& _opCtx;
     RecoveryUnit& _ru;
-    const CollectionPtr& _collection;
     IntegerKeyedContainer& _container;
     SorterContainerStats& _stats;
     int64_t _currKey;
@@ -357,7 +339,6 @@ class ContainerBasedSpiller : public SorterSpillerBase<Key, Value, Comparator> {
 public:
     ContainerBasedSpiller(OperationContext& opCtx,
                           RecoveryUnit& ru,
-                          const CollectionPtr& collection,
                           IntegerKeyedContainer& container,
                           SorterContainerStats& stats,
                           boost::optional<DatabaseName> dbName,
@@ -366,9 +347,10 @@ public:
                           int64_t minAvailableDiskBytesToSpill)
         : SorterSpillerBase<Key, Value, Comparator>(
               std::make_unique<ContainerBasedSorterStorage<Key, Value>>(
-                  opCtx, ru, collection, container, stats, 1, std::move(dbName), checksumVersion),
+                  opCtx, ru, container, stats, 1, std::move(dbName), checksumVersion),
               minAvailableDiskBytesToSpill),
           _opCtx(opCtx),
+          _ru(ru),
           _batchSize(batchSize) {}
 
     void mergeSpills(const SortOptions& opts,
@@ -403,14 +385,22 @@ public:
 
                 while (mergeIterator->more()) {
                     auto next = mergeIterator->next();
-                    writer->addAlreadySorted(next.first, next.second);
+                    writeConflictRetry(&_opCtx,
+                                       _ru,
+                                       "ContainerBasedSpiller::mergeSpills_insert",
+                                       NamespaceString::kEmpty,
+                                       [&] { writer->addAlreadySorted(next.first, next.second); });
                     ++numSpilled;
                 }
                 invariant((opts.limit) ? numSpilled <= numSourceRows : numSpilled == numSourceRows);
 
                 // TODO(SERVER-117546): Use a truncate rather than individual deletes.
                 for (int64_t current = deleteRangeStart; current < deleteRangeEnd; ++current) {
-                    _containerBasedStorage().remove(current);
+                    writeConflictRetry(&_opCtx,
+                                       _ru,
+                                       "ContainerBasedSpiller::mergeSpills_remove",
+                                       NamespaceString::kEmpty,
+                                       [&] { _containerBasedStorage().remove(current); });
                 }
 
                 iters.push_back(writer->done());
@@ -443,26 +433,30 @@ private:
     std::unique_ptr<SortedStorageWriter<Key, Value>> _spill(
         const SortOptions& opts,
         const SorterSpillerBase<Key, Value, Comparator>::Settings& settings,
-        std::span<std::pair<Key, Value>> data,
-        uint32_t idx) override {
+        std::span<std::pair<Key, Value>> data) override {
         auto writer = this->_storage->makeWriter(opts, settings);
-        int64_t numAdded = 0;
-        boost::optional<WriteUnitOfWork> wuow{boost::in_place_init, &_opCtx};
-        for (auto&& [key, value] : data.subspan(idx)) {
-            writer->addAlreadySorted(key, value);
-            ++numAdded;
-            ++_current;
-            if (numAdded % _batchSize == 0) {
-                wuow->commit();
-                wuow.emplace(&_opCtx);
-            }
+
+        for (size_t i = 0; i < data.size(); i += _batchSize) {
+            auto batch =
+                data.subspan(i, i + _batchSize < data.size() ? _batchSize : std::dynamic_extent);
+            writeConflictRetry(
+                &_opCtx, _ru, "ContainerBasedSpiller::_spill", NamespaceString::kEmpty, [&] {
+                    WriteUnitOfWork wuow{&_opCtx};
+                    for (auto&& [key, value] : batch) {
+                        writer->addAlreadySorted(key, value);
+                    }
+                    wuow.commit();
+                });
         }
-        wuow->commit();
+
+        _current += data.size();
         _containerBasedStorage().updateCurrKey(_current);
+
         return std::move(writer);
     }
 
     OperationContext& _opCtx;
+    RecoveryUnit& _ru;
     int64_t _batchSize;
     int64_t _current = 1;
 };

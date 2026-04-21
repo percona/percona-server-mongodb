@@ -136,20 +136,14 @@ Status _applyOps(OperationContext* opCtx,
                             if (oplogApplicationMode == OplogApplication::Mode::kApplyOpsCmd) {
                                 uassert(ErrorCodes::InvalidOptions,
                                         "Container ops are not enabled",
-                                        ::mongo::feature_flags::gFeatureFlagPrimaryDrivenIndexBuilds
+                                        ::mongo::feature_flags::gContainerWrites
                                                 .isEnabledUseLatestFCVWhenUninitialized(
                                                     VersionContext::getDecoration(opCtx),
                                                     serverGlobalParams.featureCompatibility
                                                         .acquireFCVSnapshot()) &&
                                             getTestCommandsEnabled());
                             }
-                            auto coll = acquireCollection(opCtx,
-                                                          {nss,
-                                                           PlacementConcern::kPretendUnsharded,
-                                                           ReadConcernArgs::get(opCtx),
-                                                           AcquisitionPrerequisites::kWrite},
-                                                          MODE_IX);
-                            uassertStatusOK(applyContainerOperation_inlock(
+                            uassertStatusOK(applyContainerOperation(
                                 opCtx, ApplierOperation{&entry}, oplogApplicationMode));
                             return Status::OK();
                         }

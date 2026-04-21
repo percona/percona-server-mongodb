@@ -77,10 +77,16 @@ struct NodeContainer {
     using Id = TypedId<T>;
 
     T& operator[](Id id) {
+        if constexpr (kDebugBuild) {
+            invariant(id, str::stream() << "Invalid access, container size " << size());
+        }
         return _nodes.at(id.value);
     }
 
     const T& operator[](Id id) const {
+        if constexpr (kDebugBuild) {
+            invariant(id, str::stream() << "Invalid access, container size " << size());
+        }
         return _nodes.at(id.value);
     }
 
@@ -240,42 +246,73 @@ struct Scope {
     // to $set is considered modified by $group. If we do not have an exhaustiveScope, the field
     // can be assumed to come from the document.
     ScopeId exhaustiveScope;
-    // FieldId for field made "missing" by this stage.
+    // Sentinel FieldId for any field made "missing" by this stage.
     // This is also the minimum FieldId declared by this stage.
     FieldId missingField;
 };
 
 /**
+ * Holds arrayness information or a constant value (if known).
+ *
+ * FieldMetadata is stored within every Field node in the graph. Since Field nodes are pretty
+ * numerous, we try to keep the size of this struct as small as possible.
+ *
+ * TODO(SERVER-119392): Implement constant propagation
+ */
+struct FieldMetadata {
+    bool isDefault() const {
+        return *this == FieldMetadata{};
+    }
+
+    auto operator<=>(const FieldMetadata&) const = default;
+
+    /**
+     * True if the value of this field can be type array.
+     */
+    bool canFieldBeArray{true};
+};
+
+// It's fine to change the assert and increase the size of the FieldMetadata, but there should be a
+// good reason to do so, since the knock-on effect is large (many fields in a graph). If you managed
+// to reduce it - thanks! :)
+static_assert(sizeof(FieldMetadata) == 1, "FieldMetadata size has changed");
+
+/**
  * Represents a definition of a single path component. Each redefinition of a field is represented
  * as a separate node.
+ *
+ * Since Field nodes are pretty numerous, we try to keep the size of this struct as small as
+ * possible.
  */
 struct Field {
-    /**
-     * Holds arrayness information or a constant value (if known).
-     *
-     * TODO(SERVER-119384): Implement arrayness tracking
-     * TODO(SERVER-119392): Implement constant propagation
-     */
-    struct Metadata {};
-
     Field(ScopeId declaringScope,
           ScopeId embeddedScope = ScopeId::none(),
           FieldDependencies dependencies = {},
-          Metadata metadata = {})
-        : metadata(std::move(metadata)),
-          dependencies(std::move(dependencies)),
+          FieldMetadata metadata = {})
+        : dependencies(std::move(dependencies)),
           declaringScope(declaringScope),
-          embeddedScope(embeddedScope) {}
+          embeddedScope(embeddedScope),
+          metadata(std::move(metadata)) {}
 
-    // This could also be stored as a node, and referenced here by its ID.
-    Metadata metadata{};
+    // Note: Field order is dictated by type alignment as opposed to semantics, to reduce
+    // padding and the overall size of the structure.
+
     FieldDependencies dependencies{};
     // Scope declaring this field.
     // NOTE: We might not need to track this, since we know the scope in lookupField.
     ScopeId declaringScope{ScopeId::none()};
     // Embedded scope containing nested fields (e.g. 'a.b').
     ScopeId embeddedScope{ScopeId::none()};
+    // This could also be stored as a node, and referenced here by its ID.
+    FieldMetadata metadata{};
 };
+
+// It's fine to change the assert and increase the size of a Field, but there should be a good
+// reason to do so, since the knock-on effect is large (many fields in a graph). If you managed to
+// reduce it - thanks! :)
+// The Abseil flat_hash_set seems to change size under a sanitized build. Itis easier to ignore it
+// and check the remaining overheads.
+static_assert(sizeof(Field) - sizeof(FieldDependencies) == 16, "Field size has changed");
 
 // Information extracted from DocumentSource to populate the graph.
 class DocumentSourceInfo {
@@ -308,11 +345,92 @@ private:
 };
 
 static_assert(document_transformation::DescribesDocumentTransformation<DocumentSourceInfo>);
+
+bool canExpressionEvaluateToArray(const Expression& expr) {
+    if (auto* constantExpr = dynamic_cast<const ExpressionConstant*>(&expr)) {
+        return constantExpr->getValue().isArray();
+    }
+    return true;
+}
+
+void updateMetadataFromExpression(FieldMetadata& metadata, const Expression& expr) {
+    metadata.canFieldBeArray = canExpressionEvaluateToArray(expr);
+}
+
+/// Result type used when looking up a field.
+enum class FieldMatchType : uint8_t {
+    /**
+     * We found the exact field node matching the requested path.
+     * Example: lookup was for x.y.z and we found x.y.z.
+     */
+    kExact,
+    /**
+     * We found a field node with no embedded scope which shadowed the requested path.
+     * Example: lookup was for x.y.z, but we found x.y and there is no embedded scope. We return x.y
+     * and consider it as shadowing x.y.z
+     */
+    kShadowed,
+    /**
+     * We did not find a matching field node, but we know that it could originate at the scope
+     * whose <missing> field we return.
+     * Example: lookup was for x.y, but the previous stage was a $replaceRoot which affects all
+     * fields. We return the <missing> field for the $replaceRoot scope.
+     */
+    kMissing,
+    /**
+     * We did not find a matching field node, and *we are certain* that the result of the path
+     * expression is unchanged by the pipeline, and is the same as when evaluated against the base
+     * document.
+     * Example: lookup was for x.y.z, and the scope inherits the base document fields
+     * (non-exhaustive), but it does not provide an in-graph definition for 'x', and there is no
+     * scope which could modify 'x' implicitly, therefore, it comes from the collection.
+     * Note that this is the type that should be used for any match holding a base document field
+     * reference, even if it would otherwise be an exact match due to an inclusion projection.
+     * Example:
+     * {$project: {x: 1}} and x comes from the base document, a lookup for x will return
+     * kBaseDocument instead of kExact.
+     */
+    kBaseDocument,
+};
+
+/**
+ * Result from field lookup.
+ */
+struct FieldMatch {
+    static FieldMatch exact(FieldId fieldId) {
+        tassert(12266801, "Invalid field ID in kExact match", fieldId);
+        return {fieldId, FieldMatchType::kExact};
+    }
+
+    static FieldMatch shadowed(FieldId fieldId) {
+        tassert(12266802, "Invalid field ID in kShadowed match", fieldId);
+        return {fieldId, FieldMatchType::kShadowed};
+    }
+
+    static FieldMatch missing(FieldId fieldId) {
+        tassert(12266803, "Invalid field ID in kMissing match", fieldId);
+        return {fieldId, FieldMatchType::kMissing};
+    }
+
+    static FieldMatch baseDocument() {
+        return {FieldId::none(), FieldMatchType::kBaseDocument};
+    }
+
+    FieldId fieldId;
+    FieldMatchType type;
+};
+
 }  // namespace
+
+bool defaultCanPathBeArray(StringData path) {
+    return true;
+}
 
 class DependencyGraph::Impl {
 public:
-    Impl(const DocumentSourceContainer& container) {
+    explicit Impl(const DocumentSourceContainer& container,
+                  CanPathBeArray canMainCollPathBeArray = defaultCanPathBeArray)
+        : _canMainCollPathBeArray(std::move(canMainCollPathBeArray)) {
         recompute(container);
     }
 
@@ -330,6 +448,31 @@ public:
         return nullptr;
     }
 
+    bool canPathBeArray(DocumentSource* ds, PathRef path) const {
+        auto stageId = getStageId(ds);
+        auto scopeId = _stages[stageId].scope;
+        auto parsedPath = parsePath(path);
+
+        FieldList prefix;
+        auto [fieldId, type] = lookupField(scopeId, parsedPath, &prefix);
+
+        switch (type) {
+            case FieldMatchType::kExact:
+                return canPrefixContainArrays(prefix) || _fields[fieldId].metadata.canFieldBeArray;
+            case FieldMatchType::kShadowed:
+                // TODO(SERVER-119392): If our field is shadowed by another, and we know the value
+                // for that shadowing field, we can determine if the result can be array.
+                // For example, if {$set: {a: 1}}, then a.b cannot be array (it is missing).
+                return true;
+            case FieldMatchType::kMissing:
+                // If we do not know what this field is, we have to assume it can be an array.
+                return true;
+            case FieldMatchType::kBaseDocument:
+                return _canMainCollPathBeArray(path);
+        }
+        MONGO_UNREACHABLE_TASSERT(12266805);
+    }
+
     void recompute(const DocumentSourceContainer& container,
                    boost::optional<DocumentSourceContainer::const_iterator> stageIt = {}) {
         auto recomputeFrom = stageIt ? *stageIt : container.begin();
@@ -340,24 +483,15 @@ public:
         }
     }
 
-    size_t numStages() const;
     BSONObj toBSON() const;
 
 private:
     using ParsedPath = boost::container::small_vector<StringPool::Id, 8>;
     using ParsedPathView = std::span<StringPool::Id>;
+    using FieldList = boost::container::small_vector<FieldId, 8>;
 
     class Serializer;
 
-    /**
-     * Result from field lookup. If found, the fieldId field is set. If the looked up field was
-     * shadowed by another, we return the shadowing field instead. This is the case of looking up
-     * for 'a.b' when 'a' was set previously, shadowing any subfields.
-     */
-    struct FieldLookupResult {
-        FieldId fieldId{FieldId::none()};
-        bool shadowed{false};
-    };
 
     /**
      * Declares a scope (or embedded scope), which is defined by the given state and
@@ -380,12 +514,17 @@ private:
      * Declare a field for the given (possibly dotted) path in the scope.
      * For a path like 'a.b' declares 'a' with embedded scope holding 'b'.
      * If 'a' already exists, any fields are preserved.
+     * The 'dependencies' and 'metadata' are assigned to the declared field 'a.b'.
      * Returns the FieldId for the base component in path (for 'a.b' returns 'a').
      */
-    FieldId declareField(ScopeId scope, ParsedPathView path, FieldDependencies dependencies) {
+    FieldId declareField(ScopeId scope,
+                         ParsedPathView path,
+                         FieldDependencies dependencies,
+                         FieldMetadata metadata = {}) {
         // Declaring 'a' should create field 'a' and exit.
         if (path.size() == 1) {
-            auto field = _fields.append(Field{scope, ScopeId::none(), std::move(dependencies)});
+            auto field = _fields.append(
+                Field{scope, ScopeId::none(), std::move(dependencies), std::move(metadata)});
             _scopes[scope].fields[path.front()] = field;
             return field;
         }
@@ -397,12 +536,23 @@ private:
 
         // Check if we already have 'a' in the current scope that we are building. If we do, we will
         // preserve any fields it may already contain.
-        auto existingBaseField = lookupFullPath(scope, basePath);
+        auto [existingBaseField, existingBaseFieldType] = lookupField(scope, basePath);
+        bool canReuseBaseField;
+        switch (existingBaseFieldType) {
+            case FieldMatchType::kExact:
+                canReuseBaseField = _fields[existingBaseField].declaringScope == scope &&
+                    _fields[existingBaseField].embeddedScope;
+                break;
+            case FieldMatchType::kShadowed:
+            case FieldMatchType::kMissing:
+            case FieldMatchType::kBaseDocument:
+                canReuseBaseField = false;
+                break;
+        }
 
         // Scope for declaring 'b' field of 'a'.
         FieldId newBaseField;
-        if (existingBaseField && _fields[existingBaseField].declaringScope == scope &&
-            _fields[existingBaseField].embeddedScope) {
+        if (canReuseBaseField) {
             // We already have such base field in the current scope. We can mutate the scope in this
             // case.
             newBaseField = existingBaseField;
@@ -427,10 +577,13 @@ private:
             }
             declareScope(_scopes[scope].stage, exhaustiveEmbeddedScope, parentEmbeddedScope);
             _scopes[scope].fields[basePath.front()] = newBaseField;
+            populateBaseFieldMetadata(newBaseField, existingBaseField);
         }
         // Finally, declare the subPath in the embeddedScope we found or created.
-        auto embeddedField =
-            declareField(_fields[newBaseField].embeddedScope, subPath, std::move(dependencies));
+        auto embeddedField = declareField(_fields[newBaseField].embeddedScope,
+                                          subPath,
+                                          std::move(dependencies),
+                                          std::move(metadata));
         _fields[newBaseField].dependencies.emplace(embeddedField);
         return newBaseField;
     }
@@ -438,18 +591,47 @@ private:
     /**
      * Includes the field from the parent scope into the given scope.
      * This has the semantics of an inclusion projection.
+     *
+     * If given, 'defaultFieldId' tells us the assumed origin of the field in case there is no
+     * parent scope:
+     *  - A real FieldId if some prefix of the field is defined (e.g. if "a" is defined but we don't
+     *    know if "a.b" is).
+     *  - FieldId::none() if the field originates from the base collection.
+     *  - parentScope.missingField if the field was made missing by an exhaustive stage.
      */
-    void includeField(ScopeId scope, ScopeId parentScope, ParsedPathView path) {
+    void includeField(ScopeId scope,
+                      ScopeId parentScope,
+                      ParsedPathView path,
+                      FieldId defaultFieldId = FieldId::none()) {
+        // Gets the field which defines the last component in the given path in the parent scope, or
+        // 'defaultFieldId' if there is no parent scope.
+        auto resolvePathInParent = [this, parentScope, defaultFieldId](ParsedPathView path) {
+            if (!parentScope) {
+                return defaultFieldId;
+            }
+
+            auto [fieldId, type] = lookupField(parentScope, path);
+            switch (type) {
+                case FieldMatchType::kShadowed:
+                    return FieldId::none();
+                case FieldMatchType::kExact:
+                case FieldMatchType::kMissing:
+                case FieldMatchType::kBaseDocument:
+                    return fieldId;
+            }
+            MONGO_UNREACHABLE_TASSERT(12266804);
+        };
+
         // Including 'a' should reference field 'a' and exit.
         if (path.size() == 1) {
-            auto existingField = lookupFullPath(parentScope, path);
-            if (existingField && existingField != _scopes[parentScope].missingField) {
-                _scopes[scope].fields[path.front()] = existingField;
-                return;
-            }
-            // TODO (SERVER-119374): Deps should be either missingField or whatever we use to
-            // represent a field from the base collection.
-            declareField(scope, path, {});
+            // Note that all four possible cases are covered by resolvePathInParent():
+            // 1) Included field is defined in parentScope.
+            // 2) Included field is not defined in parentScope, but not all fields are known
+            //    (return FieldId::none()).
+            // 3) Included field is not defined in parentScope and all fields are known (return the
+            //    "missing" field id of the last exhaustive stage).
+            // 4) There is no parentScope to resolve paths in (return the given 'defaultFieldId').
+            _scopes[scope].fields[path.front()] = resolvePathInParent(path);
             return;
         }
 
@@ -460,86 +642,124 @@ private:
         auto basePath = path.subspan(0, 1);
         auto subPath = path.subspan(1);
 
-        auto previousBaseField = lookupFullPath(parentScope, basePath);
-        auto existingBaseField = lookupFullPath(scope, basePath);
+        FieldId parentBaseField = resolvePathInParent(basePath);
+        ScopeId parentEmbeddedScope =
+            parentBaseField ? _fields[parentBaseField].embeddedScope : ScopeId::none();
+        ScopeId parentDeclaringScope =
+            parentBaseField ? _fields[parentBaseField].declaringScope : ScopeId::none();
 
-        if (existingBaseField && existingBaseField != _scopes[scope].missingField) {
-            // Due to the rule that we cannot have clashing paths, we know that we cannot have just
-            // "include a" and then "include a.b".
-            tassert(11937306, "Clashing paths", _fields[existingBaseField].embeddedScope);
-            // Since we are calling includeField, we expect that we cannot already have 'a' included
-            // trivially either.
-            tassert(11936307, "Already exists", _fields[existingBaseField].declaringScope == scope);
+        bool shadowedByParent = parentDeclaringScope && !parentEmbeddedScope &&
+            parentBaseField != _scopes[parentDeclaringScope].missingField;
 
-            if (previousBaseField && _fields[previousBaseField].embeddedScope) {
-                // Great, we know exactly where this 'b' comes from, just re-include in 'a'.
+        // If the parent field is defined but has no embedded scope, it's a scalar or an unknown
+        // value that shadows any subpath. That is, the subfield that is being included is either
+        // not known or is known to not exist. We currently don't properly distinguish between the
+        // two, so we declare the field to avoid incorrect dependency tracking.
+        // TODO(SERVER-122273): Revisit this when we properly distinguish between unknown and
+        // missing fields.
+        if (shadowedByParent) {
+            declareField(scope, path, {parentBaseField});
+            return;
+        }
+
+        auto [existingBaseField, existingBaseFieldType] = lookupField(scope, basePath);
+        switch (existingBaseFieldType) {
+            case FieldMatchType::kExact:
+                // Due to the rule that we cannot have clashing paths, we know that we cannot have
+                // just "include a" and then "include a.b".
+                tassert(11937306, "Clashing paths", _fields[existingBaseField].embeddedScope);
+                // Since we are calling includeField, we expect that we cannot already have 'a'
+                // included trivially either.
+                tassert(
+                    11936307, "Already exists", _fields[existingBaseField].declaringScope == scope);
+                // 'a' is already defined in the current scope.
                 includeField(_fields[existingBaseField].embeddedScope,
-                             _fields[previousBaseField].embeddedScope,
-                             subPath);
-                return;
-            }
-            // We cannot figure out where this 'b' comes from. We will re-declare it here.
-            // TODO (SERVER-119374): How to represent fields that come from the base collection?
-            declareField(_fields[existingBaseField].embeddedScope, subPath, {});
-            return;
+                             parentEmbeddedScope,
+                             subPath,
+                             parentBaseField /*defaultFieldId*/);
+                break;
+            case FieldMatchType::kShadowed:
+            case FieldMatchType::kMissing:
+            case FieldMatchType::kBaseDocument:
+                // 'a' is not included in the current scope, so we need to declare it then include
+                // 'b'.
+                FieldId newBaseField = declareField(scope, basePath, {parentBaseField});
+                ScopeId newEmbeddedScope = _scopes.getNextId();
+                declareScope(_scopes[scope].stage, newEmbeddedScope, ScopeId::none());
+                _fields[newBaseField].embeddedScope = newEmbeddedScope;
+                includeField(newEmbeddedScope, parentEmbeddedScope, subPath, parentBaseField);
+                break;
         }
-
-        // 'a' is not included in the current scope, so we need to declare it then include 'b'.
-        auto newBaseField = declareField(scope, basePath, {});
-        if (previousBaseField && _fields[previousBaseField].embeddedScope) {
-            // We know about 'a' from before, so we can include 'b'.
-            auto embeddedScope = _scopes.getNextId();
-            declareScope(_scopes[scope].stage, embeddedScope, ScopeId::none());
-            _fields[newBaseField].embeddedScope = embeddedScope;
-            includeField(embeddedScope, _fields[previousBaseField].embeddedScope, subPath);
-            return;
-        }
-
-        // We do not know about 'a', so we don't know what is being included at all.
-        // We will need to just declare 'a.b' anew.
-        // TODO (SERVER-119374): How to represent fields that come from the base collection?
-        declareField(scope, path, {});
     }
 
     /**
      * Gets the Field node that defines the given path in the given scope.
+     * The traversed base fields are appended to 'prefix' (if provided).
      */
-    FieldLookupResult lookupField(ScopeId scopeId, ParsedPathView path) const {
+    FieldMatch lookupField(ScopeId scopeId,
+                           ParsedPathView path,
+                           FieldList* prefix = nullptr) const {
+        tassert(11937401, "Missing scopeId", scopeId);
+
         const auto& scope = _scopes[scopeId];
         auto fieldNameId = path.front();
         if (auto it = scope.fields.find(fieldNameId); it != scope.fields.end()) {
             auto fieldId = it->second;
             if (!fieldId) {
                 // Not found.
-                return {FieldId::none()};
+                return FieldMatch::baseDocument();
             }
             if (path.size() == 1) {
                 // This is the last component in the dotted path we're looking for.
-                return {fieldId};
+                return FieldMatch::exact(fieldId);
             }
             if (!_fields[fieldId].embeddedScope) {
                 // We found 'a', but it has no embedded scope and we are looking for 'a.b'.
-                return FieldLookupResult{fieldId, true /*shadowed*/};
+                return FieldMatch::shadowed(fieldId);
+            }
+            if (prefix) {
+                prefix->push_back(fieldId);
             }
             // We're resolving a dotted path and there are known subpaths.
-            return lookupField(_fields[fieldId].embeddedScope, path.subspan(1));
+            return lookupField(_fields[fieldId].embeddedScope, path.subspan(1), prefix);
         }
 
         if (scope.exhaustiveScope) {
-            // Not every possible field is known; the field could be coming from the base document.
-            return {_scopes[scope.exhaustiveScope].missingField};
+            // The exact field is not explicitly known in the graph but we know the scope that
+            // could have modified it.
+            return FieldMatch::missing(_scopes[scope.exhaustiveScope].missingField);
         }
 
-        return {FieldId::none()};
+        // The field is coming from the document.
+        return FieldMatch::baseDocument();
     }
 
     /**
-     * Same as 'lookupField()', but returns FieldId::none() unless the full requested path is in
-     * scope.
+     * Populate metadata when a base field is redefined.
      */
-    FieldId lookupFullPath(ScopeId scopeId, ParsedPathView path) const {
-        auto [fieldId, shadowed] = lookupField(scopeId, path);
-        return shadowed ? FieldId::none() : fieldId;
+    void populateBaseFieldMetadata(FieldId newBaseField, FieldId existingBaseField) {
+        if (existingBaseField) {
+            _fields[newBaseField].metadata.canFieldBeArray =
+                _fields[existingBaseField].metadata.canFieldBeArray;
+        } else {
+            // The included base field is a collection field.
+            // TODO(SERVER-121932): Can we use the path prefix rename code to establish the path and
+            // query the Path Arrayness API. Note that path arrayness gives arrayness for entire
+            // path, so if the final field is non-array we could assume no element is as
+            // optimisation, but this could be harder to wire-in.
+        }
+    }
+
+    /**
+     * Returns true if any field in the list can contain arrays.
+     */
+    bool canPrefixContainArrays(const FieldList& prefix) const {
+        for (auto& containingField : prefix) {
+            if (_fields[containingField].metadata.canFieldBeArray) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -582,7 +802,6 @@ private:
         document_transformation::describeTransformation(
             OverloadedVisitor{
                 [&](const ReplaceRoot&) {
-                    // TODO(SERVER-119374): Revisit how to handle kNotSupported and kAllPaths.
                     // All paths might be modified. This scope does not inherit the parent scope
                     // fields. It also doesn't know all fields - all lookups will fail and we should
                     // say we have no information about the field (as opposed to saying the field is
@@ -600,15 +819,21 @@ private:
                 [&](const ModifyPath& p) {
                     maybeDeclareInheritedScope();
                     auto parsedPath = internPath(p.getPath());
-                    declareField(scopeId, parsedPath, depsFromStage);
+                    FieldMetadata metadata{};
+                    if (auto expr = p.getExpression()) {
+                        updateMetadataFromExpression(metadata, *expr);
+                        // TODO(SERVER-121942): Extract correct field-level dependencies.
+                    }
+                    declareField(scopeId, parsedPath, depsFromStage, std::move(metadata));
                 },
                 [&](const RenamePath& p) {
                     maybeDeclareInheritedScope();
                     auto parsedOldPath = internPath(p.getOldPath());
                     auto parsedNewPath = internPath(p.getNewPath());
 
+                    FieldMetadata metadata;
                     FieldDependencies deps;
-                    bool isCollectionField = false;
+                    bool isBaseDocumentField = false;
                     if (parentScope) {
                         // The found field could be either:
                         // - exact field from parent scope
@@ -618,23 +843,31 @@ private:
                         // 'a' depends on the $replaceWith stage's <missing> field.
                         // Example 2: [{$set: {'b': 1}}, {$set: {a: '$b.c'}}]
                         // 'a' depends on 'b'
-                        auto [oldPathField, shadowed] = lookupField(parentScope, parsedOldPath);
-                        isCollectionField = oldPathField == FieldId::none();
+                        FieldList prefix;
+                        auto [oldPathField, oldPathFieldType] =
+                            lookupField(parentScope, parsedOldPath, &prefix);
+
+                        isBaseDocumentField = oldPathFieldType == FieldMatchType::kBaseDocument;
                         deps.insert(oldPathField);
+                        // If we find the field, we can use its canFieldBeArray.
+                        if (oldPathFieldType == FieldMatchType::kExact &&
+                            !canPrefixContainArrays(prefix)) {
+                            metadata.canFieldBeArray =
+                                _fields[oldPathField].metadata.canFieldBeArray;
+                        }
                     } else {
-                        isCollectionField = true;
+                        isBaseDocumentField = true;
                         deps.insert(FieldId::none());
                     }
 
-                    if (isCollectionField) {
+                    if (isBaseDocumentField) {
                         // We represent all collection field references as FieldId::none(), without
                         // distinguishing between them.
-                        // TODO(119384): Query Path Arrayness API.
+                        metadata.canFieldBeArray = _canMainCollPathBeArray(p.getOldPath());
                     }
 
                     // Each rename modifies the new field and depends on the previous field.
-                    declareField(scopeId, parsedNewPath, std::move(deps));
-                    // TODO(SERVER-119384): Compute & store arrayness for each field along the path.
+                    declareField(scopeId, parsedNewPath, std::move(deps), std::move(metadata));
                 },
             },
             ds);
@@ -787,10 +1020,14 @@ private:
 
     // Mapping between DocumentSource and StageId, recomputed when the graph is recomputed.
     absl::flat_hash_map<const DocumentSource*, StageId> _dsToStageId;
+
+    // Callback to query the Path Arrayness API for the main collection.
+    const CanPathBeArray _canMainCollPathBeArray;
 };
 
-DependencyGraph::DependencyGraph(const DocumentSourceContainer& container)
-    : _impl(std::make_unique<Impl>(container)) {}
+DependencyGraph::DependencyGraph(const DocumentSourceContainer& container,
+                                 CanPathBeArray canMainCollPathBeArray)
+    : _impl(std::make_unique<Impl>(container, std::move(canMainCollPathBeArray))) {}
 
 DependencyGraph::~DependencyGraph() = default;
 DependencyGraph::DependencyGraph(DependencyGraph&&) noexcept = default;
@@ -799,6 +1036,10 @@ DependencyGraph& DependencyGraph::operator=(DependencyGraph&&) noexcept = defaul
 boost::intrusive_ptr<mongo::DocumentSource> DependencyGraph::getDeclaringStage(DocumentSource* ds,
                                                                                PathRef path) const {
     return _impl->getDeclaringStage(ds, path);
+}
+
+bool DependencyGraph::canPathBeArray(DocumentSource* ds, PathRef path) const {
+    return _impl->canPathBeArray(ds, path);
 }
 
 void DependencyGraph::recompute(const DocumentSourceContainer& container,
@@ -900,39 +1141,51 @@ private:
             _visitedScopes.insert(scopeId);
             BSONObjBuilder scopeBob = bob.subobjStart(scopeName);
             scopeBob.append("exhaustiveScope", formatScope(scope.exhaustiveScope));
+            BSONObjBuilder fieldsBob = scopeBob.subobjStart("fields");
             {
-                BSONObjBuilder fieldsBob = scopeBob.subobjStart("fields");
-                {
-                    BSONObjBuilder fieldObj = fieldsBob.subobjStart(fmt::format(
-                        "<missing>:{}", _orderedFieldIds.get(scope.missingField).value));
-                    serializeField(scope.missingField, fieldObj);
-                }
+                BSONObjBuilder fieldObj = fieldsBob.subobjStart(
+                    fmt::format("<missing>:{}", _orderedFieldIds.get(scope.missingField).value));
+                serializeField(scope.missingField, fieldObj);
+            }
 
-                // FieldMap doesn't guarantee any order. We need a stable order for golden testing.
-                for (auto&& name : getSortedStringKeys(scope.fields.begin(), scope.fields.end())) {
-                    auto fieldId = scope.fields.at(name);
-                    auto scopeFieldName = formatField(_graph._strings.get(name), fieldId);
-                    if (fieldId < scope.missingField) {
-                        // Field is inherited if the field ID is lower than the <missing> field of
-                        // the scope.
-                        fieldsBob.append(scopeFieldName, scopeFieldName);
-                    } else {
-                        BSONObjBuilder fieldObj = fieldsBob.subobjStart(scopeFieldName);
-                        serializeField(fieldId, fieldObj);
-                    }
+            // FieldMap doesn't guarantee any order. We need a stable order for golden testing.
+            for (auto&& name : getSortedStringKeys(scope.fields.begin(), scope.fields.end())) {
+                auto fieldId = scope.fields.at(name);
+                auto scopeFieldName = formatField(_graph._strings.get(name), fieldId);
+                if (fieldId < scope.missingField) {
+                    // Field is inherited if the field ID is lower than the <missing> field of
+                    // the scope.
+                    fieldsBob.append(scopeFieldName, scopeFieldName);
+                } else {
+                    BSONObjBuilder fieldObj = fieldsBob.subobjStart(scopeFieldName);
+                    serializeField(fieldId, fieldObj);
                 }
             }
         }
     }
 
     void serializeField(FieldId fieldId, BSONObjBuilder& bob) {
+        if (!fieldId) {
+            bob.append("source", "<base document>");
+            return;
+        }
         const auto& field = _graph._fields[fieldId];
         auto fieldScopeName = formatScope(field.declaringScope);
         bob.append("declaringScope", fieldScopeName);
         if (field.embeddedScope) {
             serializeScope(field.embeddedScope, bob);
         }
+        if (!field.metadata.isDefault()) {
+            serializeMetadata(field.metadata, bob);
+        }
         serializeDependencies(field.dependencies, bob);
+    }
+
+    void serializeMetadata(const FieldMetadata& metadata, BSONObjBuilder& bob) {
+        BSONObjBuilder metaBuilder = bob.subobjStart("metadata");
+        if (!metadata.canFieldBeArray) {
+            metaBuilder.append("array", false);
+        }
     }
 
     void serializeDependencies(const FieldDependencies& deps, BSONObjBuilder& bob) {

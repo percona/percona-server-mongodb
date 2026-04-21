@@ -172,7 +172,7 @@ public:
                             const NamespaceString& nss,
                             const UUID& collUUID,
                             const UUID& indexBuildUUID,
-                            const std::vector<BSONObj>& indexes,
+                            const std::vector<IndexBuildInfo>& indexes,
                             const std::vector<boost::optional<BSONObj>>& multikey,
                             bool fromMigrate,
                             bool isTimeseries) override {
@@ -288,48 +288,38 @@ public:
     }
 
     void onContainerInsert(OperationContext* opCtx,
-                           const NamespaceString& ns,
-                           const UUID& collUUID,
                            StringData ident,
                            int64_t key,
                            std::span<const char> value) override {
         ReservedTimes times{opCtx};
         for (auto&& observer : _observers) {
-            observer->onContainerInsert(opCtx, ns, collUUID, ident, key, value);
+            observer->onContainerInsert(opCtx, ident, key, value);
         }
     }
 
     void onContainerInsert(OperationContext* opCtx,
-                           const NamespaceString& ns,
-                           const UUID& collUUID,
                            StringData ident,
                            std::span<const char> key,
                            std::span<const char> value) override {
         ReservedTimes times{opCtx};
         for (auto&& observer : _observers) {
-            observer->onContainerInsert(opCtx, ns, collUUID, ident, key, value);
+            observer->onContainerInsert(opCtx, ident, key, value);
         }
     }
 
-    void onContainerDelete(OperationContext* opCtx,
-                           const NamespaceString& ns,
-                           const UUID& collUUID,
-                           StringData ident,
-                           int64_t key) override {
+    void onContainerDelete(OperationContext* opCtx, StringData ident, int64_t key) override {
         ReservedTimes times{opCtx};
         for (auto&& observer : _observers) {
-            observer->onContainerDelete(opCtx, ns, collUUID, ident, key);
+            observer->onContainerDelete(opCtx, ident, key);
         }
     }
 
     void onContainerDelete(OperationContext* opCtx,
-                           const NamespaceString& ns,
-                           const UUID& collUUID,
                            StringData ident,
                            std::span<const char> key) override {
         ReservedTimes times{opCtx};
         for (auto&& observer : _observers) {
-            observer->onContainerDelete(opCtx, ns, collUUID, ident, key);
+            observer->onContainerDelete(opCtx, ident, key);
         }
     }
 

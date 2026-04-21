@@ -68,7 +68,7 @@ public:
                             const NamespaceString& nss,
                             const UUID& collUUID,
                             const UUID& indexBuildUUID,
-                            const std::vector<BSONObj>& indexes,
+                            const std::vector<IndexBuildInfo>& indexes,
                             const std::vector<boost::optional<BSONObj>>& multikey,
                             bool fromMigrate,
                             bool isTimeseries) override {}
@@ -109,28 +109,18 @@ public:
                   OpStateAccumulator* opAccumulator = nullptr) override {}
 
     void onContainerInsert(OperationContext* opCtx,
-                           const NamespaceString& ns,
-                           const UUID& collUUID,
                            StringData ident,
                            int64_t key,
                            std::span<const char> value) override {}
 
     void onContainerInsert(OperationContext* opCtx,
-                           const NamespaceString& ns,
-                           const UUID& collUUID,
                            StringData ident,
                            std::span<const char> key,
                            std::span<const char> value) override {}
 
-    void onContainerDelete(OperationContext* opCtx,
-                           const NamespaceString& ns,
-                           const UUID& collUUID,
-                           StringData ident,
-                           int64_t key) override {}
+    void onContainerDelete(OperationContext* opCtx, StringData ident, int64_t key) override {}
 
     void onContainerDelete(OperationContext* opCtx,
-                           const NamespaceString& ns,
-                           const UUID& collUUID,
                            StringData ident,
                            std::span<const char> key) override {}
 

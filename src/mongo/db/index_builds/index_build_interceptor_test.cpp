@@ -69,10 +69,10 @@ struct HistogramSnapshot {
 
 // TODO SERVER-121249: Replace this local helper if SERVER-121249 introduces
 // an OTel histogram test helper that supports empty histograms.
-HistogramSnapshot readSideWritesDrainDurationOrZero(otel::metrics::OtelMetricsCapturer& capturer) {
+HistogramSnapshot readHistogramOrZero(otel::metrics::OtelMetricsCapturer& capturer,
+                                      otel::metrics::MetricName metricName) {
     try {
-        const auto histogram = capturer.readInt64Histogram(
-            otel::metrics::MetricNames::kIndexBuildSideWritesDrainDuration);
+        const auto histogram = capturer.readInt64Histogram(metricName);
         return {histogram.count, histogram.sum};
     } catch (const DBException& ex) {
         if (ex.code() == ErrorCodes::KeyNotFound) {
@@ -147,13 +147,13 @@ protected:
         return getTableContents(getTable(*info.sideWritesIdent));
     }
 
-    std::vector<BSONObj> getSkippedRecordsTrackerTableContents(const IndexBuildInfo& info) {
-        return getTableContents(getTable(*info.skippedRecordsTrackerIdent));
+    std::vector<BSONObj> getSkippedRecordsTableContents(const IndexBuildInfo& info) {
+        return getTableContents(getTable(*info.skippedRecordsIdent));
     }
 
     std::vector<std::string> getDuplicateKeyTableContents(const IndexBuildInfo& info) {
         std::vector<std::string> contents;
-        auto duplicateKeyTable = getTable(*info.constraintViolationsTrackerIdent);
+        auto duplicateKeyTable = getTable(*info.constraintViolationsIdent);
         auto cursor = duplicateKeyTable->rs()->getCursor(
             operationContext(), *shard_role_details::getRecoveryUnit(operationContext()));
         while (auto record = cursor->next()) {
@@ -179,7 +179,8 @@ protected:
 
     // Reusable function which executes the test and can be run under different configurations (eg.
     // feature flags).
-    void testSingleInsertIsSavedToSideWritesTable(LazyRecordStore::CreateMode createMode);
+    void testSingleOpIsSavedToSideWritesTable(IndexBuildInterceptor::Op op,
+                                              LazyRecordStore::CreateMode createMode);
 
     boost::optional<AutoGetCollection> _coll;
 
@@ -187,13 +188,17 @@ private:
     NamespaceString _nss = NamespaceString::createNamespaceString_forTest("testDB.interceptor");
 };
 
-void IndexBuilderInterceptorTest::testSingleInsertIsSavedToSideWritesTable(
-    LazyRecordStore::CreateMode createMode) {
+void IndexBuilderInterceptorTest::testSingleOpIsSavedToSideWritesTable(
+    IndexBuildInterceptor::Op op, LazyRecordStore::CreateMode createMode) {
+
     otel::metrics::OtelMetricsCapturer capturer;
-    int64_t writtenBefore = 0;
+    int64_t insertedBefore = 0;
+    int64_t deletedBefore = 0;
     if (capturer.canReadMetrics()) {
-        writtenBefore =
-            capturer.readInt64Counter(otel::metrics::MetricNames::kIndexBuildSideWritesWritten);
+        insertedBefore =
+            capturer.readInt64Counter(otel::metrics::MetricNames::kIndexBuildSideWritesInserted);
+        deletedBefore =
+            capturer.readInt64Counter(otel::metrics::MetricNames::kIndexBuildSideWritesDeleted);
     }
 
     auto indexBuildInfo = buildIndexBuildInfo(fromjson("{v: 2, name: 'a_1', key: {a: 1}}"));
@@ -206,14 +211,8 @@ void IndexBuilderInterceptorTest::testSingleInsertIsSavedToSideWritesTable(
 
     WriteUnitOfWork wuow(operationContext());
     int64_t numKeys = 0;
-    ASSERT_OK(interceptor->sideWrite(operationContext(),
-                                     *_coll.get(),
-                                     entry,
-                                     {keyString},
-                                     {},
-                                     {},
-                                     IndexBuildInterceptor::Op::kInsert,
-                                     &numKeys));
+    ASSERT_OK(interceptor->sideWrite(
+        operationContext(), *_coll.get(), entry, {keyString}, {}, {}, op, &numKeys));
     ASSERT_EQ(1, numKeys);
     wuow.commit();
 
@@ -223,25 +222,44 @@ void IndexBuilderInterceptorTest::testSingleInsertIsSavedToSideWritesTable(
 
     auto sideWrites = getSideWritesTableContents(indexBuildInfo);
     ASSERT_EQ(1, sideWrites.size());
-    ASSERT_BSONOBJ_EQ(BSON("op" << "i"
-                                << "key" << serializedKeyString),
+    ASSERT_BSONOBJ_EQ(BSON("op" << (op == IndexBuildInterceptor::Op::kInsert ? "i" : "d") << "key"
+                                << serializedKeyString),
                       sideWrites[0]);
 
     if (capturer.canReadMetrics()) {
         EXPECT_EQ(
-            capturer.readInt64Counter(otel::metrics::MetricNames::kIndexBuildSideWritesWritten),
-            writtenBefore + 1);
+            capturer.readInt64Counter(otel::metrics::MetricNames::kIndexBuildSideWritesInserted),
+            insertedBefore + (op == IndexBuildInterceptor::Op::kInsert ? 1 : 0));
+        EXPECT_EQ(
+            capturer.readInt64Counter(otel::metrics::MetricNames::kIndexBuildSideWritesDeleted),
+            deletedBefore + (op == IndexBuildInterceptor::Op::kDelete ? 1 : 0));
     }
 }
 
 TEST_F(IndexBuilderInterceptorTest, SingleInsertIsSavedToSideWritesTable) {
-    testSingleInsertIsSavedToSideWritesTable(LazyRecordStore::CreateMode::deferred);
+    testSingleOpIsSavedToSideWritesTable(IndexBuildInterceptor::Op::kInsert,
+                                         LazyRecordStore::CreateMode::deferred);
 }
 
 TEST_F(IndexBuilderInterceptorTest, SingleInsertIsSavedToSideWritesTablePrimaryDriven) {
-    RAIIServerParameterControllerForTest featureFlagController(
-        "featureFlagPrimaryDrivenIndexBuilds", true);
-    testSingleInsertIsSavedToSideWritesTable(LazyRecordStore::CreateMode::immediate);
+    // TODO (SERVER-116165): Remove.
+    RAIIServerParameterControllerForTest ffContainerWrites("featureFlagContainerWrites", true);
+    RAIIServerParameterControllerForTest ffPDIB("featureFlagPrimaryDrivenIndexBuilds", true);
+    testSingleOpIsSavedToSideWritesTable(IndexBuildInterceptor::Op::kInsert,
+                                         LazyRecordStore::CreateMode::immediate);
+}
+
+TEST_F(IndexBuilderInterceptorTest, SingleDeleteIsSavedToSideWritesTable) {
+    testSingleOpIsSavedToSideWritesTable(IndexBuildInterceptor::Op::kDelete,
+                                         LazyRecordStore::CreateMode::deferred);
+}
+
+TEST_F(IndexBuilderInterceptorTest, SingleDeleteIsSavedToSideWritesTablePrimaryDriven) {
+    // TODO (SERVER-116165): Remove.
+    RAIIServerParameterControllerForTest ffContainerWrites("featureFlagContainerWrites", true);
+    RAIIServerParameterControllerForTest ffPDIB("featureFlagPrimaryDrivenIndexBuilds", true);
+    testSingleOpIsSavedToSideWritesTable(IndexBuildInterceptor::Op::kDelete,
+                                         LazyRecordStore::CreateMode::immediate);
 }
 
 TEST_F(IndexBuilderInterceptorTest, SingleInsertIsSavedToSkippedRecordsIntRidTrackerTable) {
@@ -256,15 +274,15 @@ TEST_F(IndexBuilderInterceptorTest, SingleInsertIsSavedToSkippedRecordsIntRidTra
     interceptor->getSkippedRecordTracker().record(operationContext(), *_coll.get(), recordId);
     wuow.commit();
 
-    auto skippedRecordsTrackerTable = getSkippedRecordsTrackerTableContents(indexBuildInfo);
-    ASSERT_EQ(1, skippedRecordsTrackerTable.size());
-    ASSERT_BSONOBJ_EQ(builder.obj(), skippedRecordsTrackerTable[0]);
+    auto skippedRecordsTable = getSkippedRecordsTableContents(indexBuildInfo);
+    ASSERT_EQ(1, skippedRecordsTable.size());
+    ASSERT_BSONOBJ_EQ(builder.obj(), skippedRecordsTable[0]);
 }
 
-TEST_F(IndexBuilderInterceptorTest,
-       SingleInsertIsSavedToSkippedRecordsTrackerTableIntRidPrimaryDriven) {
-    RAIIServerParameterControllerForTest featureFlagController(
-        "featureFlagPrimaryDrivenIndexBuilds", true);
+TEST_F(IndexBuilderInterceptorTest, SingleInsertIsSavedToSkippedRecordsTableIntRidPrimaryDriven) {
+    // TODO (SERVER-116165): Remove.
+    RAIIServerParameterControllerForTest ffContainerWrites("featureFlagContainerWrites", true);
+    RAIIServerParameterControllerForTest ffPDIB("featureFlagPrimaryDrivenIndexBuilds", true);
 
     auto indexBuildInfo = buildIndexBuildInfo(fromjson("{v: 2, name: 'a_1', key: {a: 1}}"));
     auto interceptor =
@@ -278,12 +296,12 @@ TEST_F(IndexBuilderInterceptorTest,
     interceptor->getSkippedRecordTracker().record(operationContext(), *_coll.get(), recordId);
     wuow.commit();
 
-    auto skippedRecordsTrackerTable = getSkippedRecordsTrackerTableContents(indexBuildInfo);
-    ASSERT_EQ(1, skippedRecordsTrackerTable.size());
-    ASSERT_BSONOBJ_EQ(builder.obj(), skippedRecordsTrackerTable[0]);
+    auto skippedRecordsTable = getSkippedRecordsTableContents(indexBuildInfo);
+    ASSERT_EQ(1, skippedRecordsTable.size());
+    ASSERT_BSONOBJ_EQ(builder.obj(), skippedRecordsTable[0]);
 }
 
-TEST_F(IndexBuilderInterceptorTest, SingleInsertIsSavedToSkippedRecordsTrackerTableStringRid) {
+TEST_F(IndexBuilderInterceptorTest, SingleInsertIsSavedToskippedRecordsTableStringRid) {
     auto indexBuildInfo = buildIndexBuildInfo(fromjson("{v: 2, name: 'a_1', key: {a: 1}}"));
     auto interceptor = createIndexBuildInterceptor(indexBuildInfo);
 
@@ -295,15 +313,16 @@ TEST_F(IndexBuilderInterceptorTest, SingleInsertIsSavedToSkippedRecordsTrackerTa
     interceptor->getSkippedRecordTracker().record(operationContext(), *_coll.get(), recordId);
     wuow.commit();
 
-    auto skippedRecordsTrackerTable = getSkippedRecordsTrackerTableContents(indexBuildInfo);
-    ASSERT_EQ(1, skippedRecordsTrackerTable.size());
-    ASSERT_BSONOBJ_EQ(builder.obj(), skippedRecordsTrackerTable[0]);
+    auto skippedRecordsTable = getSkippedRecordsTableContents(indexBuildInfo);
+    ASSERT_EQ(1, skippedRecordsTable.size());
+    ASSERT_BSONOBJ_EQ(builder.obj(), skippedRecordsTable[0]);
 }
 
 TEST_F(IndexBuilderInterceptorTest,
-       SingleInsertIsSavedToSkippedRecordsTrackerTableStringRidPrimaryDriven) {
-    RAIIServerParameterControllerForTest featureFlagController(
-        "featureFlagPrimaryDrivenIndexBuilds", true);
+       SingleInsertIsSavedToskippedRecordsTableStringRidPrimaryDriven) {
+    // TODO (SERVER-116165): Remove.
+    RAIIServerParameterControllerForTest ffContainerWrites("featureFlagContainerWrites", true);
+    RAIIServerParameterControllerForTest ffPDIB("featureFlagPrimaryDrivenIndexBuilds", true);
 
     auto indexBuildInfo = buildIndexBuildInfo(fromjson("{v: 2, name: 'a_1', key: {a: 1}}"));
     auto interceptor =
@@ -317,9 +336,9 @@ TEST_F(IndexBuilderInterceptorTest,
     interceptor->getSkippedRecordTracker().record(operationContext(), *_coll.get(), recordId);
     wuow.commit();
 
-    auto skippedRecordsTrackerTable = getSkippedRecordsTrackerTableContents(indexBuildInfo);
-    ASSERT_EQ(1, skippedRecordsTrackerTable.size());
-    ASSERT_BSONOBJ_EQ(builder.obj(), skippedRecordsTrackerTable[0]);
+    auto skippedRecordsTable = getSkippedRecordsTableContents(indexBuildInfo);
+    ASSERT_EQ(1, skippedRecordsTable.size());
+    ASSERT_BSONOBJ_EQ(builder.obj(), skippedRecordsTable[0]);
 }
 
 TEST_F(IndexBuilderInterceptorTest, SingleInsertIsSavedToDuplicateKeyTable) {
@@ -345,8 +364,9 @@ TEST_F(IndexBuilderInterceptorTest, SingleInsertIsSavedToDuplicateKeyTable) {
 }
 
 TEST_F(IndexBuilderInterceptorTest, SingleInsertIsSavedToDuplicateKeyTablePrimaryDriven) {
-    RAIIServerParameterControllerForTest featureFlagController(
-        "featureFlagPrimaryDrivenIndexBuilds", true);
+    // TODO (SERVER-116165): Remove.
+    RAIIServerParameterControllerForTest ffContainerWrites("featureFlagContainerWrites", true);
+    RAIIServerParameterControllerForTest ffPDIB("featureFlagPrimaryDrivenIndexBuilds", true);
     auto indexBuildInfo =
         buildIndexBuildInfo(fromjson("{v: 2, name: 'a_1', key: {a: 1}, unique: true}"));
     auto interceptor =
@@ -373,14 +393,19 @@ TEST_F(IndexBuilderInterceptorTest, SingleInsertIsDrainedIntoIndexPrimaryDriven)
     otel::metrics::OtelMetricsCapturer capturer;
     int64_t drainedBefore = 0;
     HistogramSnapshot drainDurationBefore{0, 0};
+    HistogramSnapshot drainBytesBefore{0, 0};
     if (capturer.canReadMetrics()) {
         drainedBefore =
             capturer.readInt64Counter(otel::metrics::MetricNames::kIndexBuildSideWritesDrained);
-        drainDurationBefore = readSideWritesDrainDurationOrZero(capturer);
+        drainDurationBefore = readHistogramOrZero(
+            capturer, otel::metrics::MetricNames::kIndexBuildSideWritesDrainDuration);
+        drainBytesBefore = readHistogramOrZero(
+            capturer, otel::metrics::MetricNames::kIndexBuildSideWritesDrainBytes);
     }
 
-    RAIIServerParameterControllerForTest featureFlagController(
-        "featureFlagPrimaryDrivenIndexBuilds", true);
+    // TODO (SERVER-116165): Remove.
+    RAIIServerParameterControllerForTest ffContainerWrites("featureFlagContainerWrites", true);
+    RAIIServerParameterControllerForTest ffPDIB("featureFlagPrimaryDrivenIndexBuilds", true);
 
     auto indexBuildInfo = buildIndexBuildInfo(fromjson("{v: 2, name: 'a_1', key: {a: 1}}"));
     auto interceptor =
@@ -434,6 +459,10 @@ TEST_F(IndexBuilderInterceptorTest, SingleInsertIsDrainedIntoIndexPrimaryDriven)
             otel::metrics::MetricNames::kIndexBuildSideWritesDrainDuration);
         EXPECT_EQ(drainDurationAfter.count, drainDurationBefore.count + 1);
         EXPECT_GE(drainDurationAfter.sum, drainDurationBefore.sum);
+        const auto drainBytesAfter = capturer.readInt64Histogram(
+            otel::metrics::MetricNames::kIndexBuildSideWritesDrainBytes);
+        EXPECT_EQ(drainBytesAfter.count, drainBytesBefore.count + 1);
+        EXPECT_GE(drainBytesAfter.sum, drainBytesBefore.sum);
     }
 }
 
@@ -441,14 +470,19 @@ TEST_F(IndexBuilderInterceptorTest, SingleDeleteIsDrainedIntoIndexPrimaryDriven)
     otel::metrics::OtelMetricsCapturer capturer;
     int64_t drainedBefore = 0;
     HistogramSnapshot drainDurationBefore{0, 0};
+    HistogramSnapshot drainBytesBefore{0, 0};
     if (capturer.canReadMetrics()) {
         drainedBefore =
             capturer.readInt64Counter(otel::metrics::MetricNames::kIndexBuildSideWritesDrained);
-        drainDurationBefore = readSideWritesDrainDurationOrZero(capturer);
+        drainDurationBefore = readHistogramOrZero(
+            capturer, otel::metrics::MetricNames::kIndexBuildSideWritesDrainDuration);
+        drainBytesBefore = readHistogramOrZero(
+            capturer, otel::metrics::MetricNames::kIndexBuildSideWritesDrainBytes);
     }
 
-    RAIIServerParameterControllerForTest featureFlagController(
-        "featureFlagPrimaryDrivenIndexBuilds", true);
+    // TODO (SERVER-116165): Remove.
+    RAIIServerParameterControllerForTest ffContainerWrites("featureFlagContainerWrites", true);
+    RAIIServerParameterControllerForTest ffPDIB("featureFlagPrimaryDrivenIndexBuilds", true);
 
     auto indexBuildInfo = buildIndexBuildInfo(fromjson("{v: 2, name: 'a_1', key: {a: 1}}"));
     auto interceptor =
@@ -519,6 +553,10 @@ TEST_F(IndexBuilderInterceptorTest, SingleDeleteIsDrainedIntoIndexPrimaryDriven)
             otel::metrics::MetricNames::kIndexBuildSideWritesDrainDuration);
         EXPECT_EQ(drainDurationAfter.count, drainDurationBefore.count + 1);
         EXPECT_GE(drainDurationAfter.sum, drainDurationBefore.sum);
+        const auto drainBytesAfter = capturer.readInt64Histogram(
+            otel::metrics::MetricNames::kIndexBuildSideWritesDrainBytes);
+        EXPECT_EQ(drainBytesAfter.count, drainBytesBefore.count + 1);
+        EXPECT_GE(drainBytesAfter.sum, drainBytesBefore.sum);
     }
 }
 
@@ -531,8 +569,8 @@ TEST_F(IndexBuilderInterceptorTest, DeferredTableCreation) {
 
     // The side writes table should exist immediately but the others should not
     ASSERT_TRUE(hasTable(*indexBuildInfo.sideWritesIdent));
-    ASSERT_FALSE(hasTable(*indexBuildInfo.skippedRecordsTrackerIdent));
-    ASSERT_FALSE(hasTable(*indexBuildInfo.constraintViolationsTrackerIdent));
+    ASSERT_FALSE(hasTable(*indexBuildInfo.skippedRecordsIdent));
+    ASSERT_FALSE(hasTable(*indexBuildInfo.constraintViolationsIdent));
 
     {
         WriteUnitOfWork wuow(operationContext());
@@ -543,8 +581,8 @@ TEST_F(IndexBuilderInterceptorTest, DeferredTableCreation) {
 
     // The skipped records table should now exist, but the duplicate key table still doesn't
     ASSERT_TRUE(hasTable(*indexBuildInfo.sideWritesIdent));
-    ASSERT_TRUE(hasTable(*indexBuildInfo.skippedRecordsTrackerIdent));
-    ASSERT_FALSE(hasTable(*indexBuildInfo.constraintViolationsTrackerIdent));
+    ASSERT_TRUE(hasTable(*indexBuildInfo.skippedRecordsIdent));
+    ASSERT_FALSE(hasTable(*indexBuildInfo.constraintViolationsIdent));
 
     {
         key_string::HeapBuilder ksBuilder(key_string::Version::kLatestVersion);
@@ -558,8 +596,8 @@ TEST_F(IndexBuilderInterceptorTest, DeferredTableCreation) {
 
     // All three should now exist
     ASSERT_TRUE(hasTable(*indexBuildInfo.sideWritesIdent));
-    ASSERT_TRUE(hasTable(*indexBuildInfo.skippedRecordsTrackerIdent));
-    ASSERT_TRUE(hasTable(*indexBuildInfo.constraintViolationsTrackerIdent));
+    ASSERT_TRUE(hasTable(*indexBuildInfo.skippedRecordsIdent));
+    ASSERT_TRUE(hasTable(*indexBuildInfo.constraintViolationsIdent));
 }
 
 TEST_F(IndexBuilderInterceptorTest, ImmediateTableCreation) {
@@ -567,9 +605,9 @@ TEST_F(IndexBuilderInterceptorTest, ImmediateTableCreation) {
     auto interceptor =
         createIndexBuildInterceptor(indexBuildInfo, LazyRecordStore::CreateMode::immediate);
     ASSERT_TRUE(hasTable(*indexBuildInfo.sideWritesIdent));
-    ASSERT_TRUE(hasTable(*indexBuildInfo.skippedRecordsTrackerIdent));
+    ASSERT_TRUE(hasTable(*indexBuildInfo.skippedRecordsIdent));
     // Index isn't unique so no duplicate key table
-    ASSERT_FALSE(indexBuildInfo.constraintViolationsTrackerIdent);
+    ASSERT_FALSE(indexBuildInfo.constraintViolationsIdent);
 }
 
 TEST_F(IndexBuilderInterceptorTest, ImmediateTableCreationUnique) {
@@ -578,8 +616,8 @@ TEST_F(IndexBuilderInterceptorTest, ImmediateTableCreationUnique) {
     auto interceptor =
         createIndexBuildInterceptor(indexBuildInfo, LazyRecordStore::CreateMode::immediate);
     ASSERT_TRUE(hasTable(*indexBuildInfo.sideWritesIdent));
-    ASSERT_TRUE(hasTable(*indexBuildInfo.skippedRecordsTrackerIdent));
-    ASSERT_TRUE(hasTable(*indexBuildInfo.constraintViolationsTrackerIdent));
+    ASSERT_TRUE(hasTable(*indexBuildInfo.skippedRecordsIdent));
+    ASSERT_TRUE(hasTable(*indexBuildInfo.constraintViolationsIdent));
 }
 
 using IndexBuilderInterceptorTestDeathTest = IndexBuilderInterceptorTest;
@@ -596,8 +634,8 @@ TEST_F(IndexBuilderInterceptorTest, KeepTemporaryTablesCreatesMissingTables) {
         createIndexBuildInterceptor(indexBuildInfo, LazyRecordStore::CreateMode::deferred);
 
     ASSERT_TRUE(hasTable(*indexBuildInfo.sideWritesIdent));
-    ASSERT_FALSE(hasTable(*indexBuildInfo.skippedRecordsTrackerIdent));
-    ASSERT_FALSE(indexBuildInfo.constraintViolationsTrackerIdent);
+    ASSERT_FALSE(hasTable(*indexBuildInfo.skippedRecordsIdent));
+    ASSERT_FALSE(indexBuildInfo.constraintViolationsIdent);
     ASSERT_FALSE(hasTable(*indexBuildInfo.sorterIdent));
 
     interceptor->keepTemporaryTables(operationContext());
@@ -605,8 +643,8 @@ TEST_F(IndexBuilderInterceptorTest, KeepTemporaryTablesCreatesMissingTables) {
     // Skipped record table is created, but the duplicate key is not because the index is not unique
     // and sorter table is not because it is only used for primary driven index builds.
     ASSERT_TRUE(hasTable(*indexBuildInfo.sideWritesIdent));
-    ASSERT_TRUE(hasTable(*indexBuildInfo.skippedRecordsTrackerIdent));
-    ASSERT_FALSE(indexBuildInfo.constraintViolationsTrackerIdent);
+    ASSERT_TRUE(hasTable(*indexBuildInfo.skippedRecordsIdent));
+    ASSERT_FALSE(indexBuildInfo.constraintViolationsIdent);
     ASSERT_FALSE(hasTable(*indexBuildInfo.sorterIdent));
 
     // Creating a new interceptor in openExisting mode should work
@@ -657,7 +695,7 @@ TEST_F(IndexBuilderInterceptorTest, OpenExistingPreservesExistingData) {
                                       /*generateTableWrites=*/true);
 
     ASSERT_EQ(1, getSideWritesTableContents(indexBuildInfo).size());
-    ASSERT_EQ(1, getSkippedRecordsTrackerTableContents(indexBuildInfo).size());
+    ASSERT_EQ(1, getSkippedRecordsTableContents(indexBuildInfo).size());
     ASSERT_EQ(1, getDuplicateKeyTableContents(indexBuildInfo).size());
 }
 
@@ -668,8 +706,8 @@ TEST_F(IndexBuilderInterceptorTest, DropTemporaryTables) {
         createIndexBuildInterceptor(indexBuildInfo, LazyRecordStore::CreateMode::immediate);
 
     ASSERT_TRUE(hasTable(*indexBuildInfo.sideWritesIdent));
-    ASSERT_TRUE(hasTable(*indexBuildInfo.skippedRecordsTrackerIdent));
-    ASSERT_TRUE(hasTable(*indexBuildInfo.constraintViolationsTrackerIdent));
+    ASSERT_TRUE(hasTable(*indexBuildInfo.skippedRecordsIdent));
+    ASSERT_TRUE(hasTable(*indexBuildInfo.constraintViolationsIdent));
 
     interceptor->dropTemporaryTables();
 
@@ -677,21 +715,21 @@ TEST_F(IndexBuilderInterceptorTest, DropTemporaryTables) {
 
     // Idents still exist in WiredTiger because the drop is deferred to the reaper.
     ASSERT_TRUE(hasTable(*indexBuildInfo.sideWritesIdent));
-    ASSERT_TRUE(hasTable(*indexBuildInfo.skippedRecordsTrackerIdent));
-    ASSERT_TRUE(hasTable(*indexBuildInfo.constraintViolationsTrackerIdent));
+    ASSERT_TRUE(hasTable(*indexBuildInfo.skippedRecordsIdent));
+    ASSERT_TRUE(hasTable(*indexBuildInfo.constraintViolationsIdent));
 
     // Force reaping
     ASSERT_OK(storageEngine->immediatelyCompletePendingDrop(operationContext(),
                                                             *indexBuildInfo.sideWritesIdent));
+    ASSERT_OK(storageEngine->immediatelyCompletePendingDrop(operationContext(),
+                                                            *indexBuildInfo.skippedRecordsIdent));
     ASSERT_OK(storageEngine->immediatelyCompletePendingDrop(
-        operationContext(), *indexBuildInfo.skippedRecordsTrackerIdent));
-    ASSERT_OK(storageEngine->immediatelyCompletePendingDrop(
-        operationContext(), *indexBuildInfo.constraintViolationsTrackerIdent));
+        operationContext(), *indexBuildInfo.constraintViolationsIdent));
 
     // Table must now be dropped
     ASSERT_FALSE(hasTable(*indexBuildInfo.sideWritesIdent));
-    ASSERT_FALSE(hasTable(*indexBuildInfo.skippedRecordsTrackerIdent));
-    ASSERT_FALSE(hasTable(*indexBuildInfo.constraintViolationsTrackerIdent));
+    ASSERT_FALSE(hasTable(*indexBuildInfo.skippedRecordsIdent));
+    ASSERT_FALSE(hasTable(*indexBuildInfo.constraintViolationsIdent));
 }
 
 TEST_F(IndexBuilderInterceptorTest, DropTemporaryTablesOnDeferredTableIsNoOp) {
@@ -699,12 +737,12 @@ TEST_F(IndexBuilderInterceptorTest, DropTemporaryTablesOnDeferredTableIsNoOp) {
     auto interceptor =
         createIndexBuildInterceptor(indexBuildInfo, LazyRecordStore::CreateMode::deferred);
 
-    ASSERT_FALSE(hasTable(*indexBuildInfo.skippedRecordsTrackerIdent));
+    ASSERT_FALSE(hasTable(*indexBuildInfo.skippedRecordsIdent));
 
     // Dropping should not crash even though some tables were never created.
     ASSERT_NO_THROW(interceptor->dropTemporaryTables());
 
-    ASSERT_FALSE(hasTable(*indexBuildInfo.skippedRecordsTrackerIdent));
+    ASSERT_FALSE(hasTable(*indexBuildInfo.skippedRecordsIdent));
 }
 
 TEST_F(IndexBuilderInterceptorTest, GetTableAfterDropReturnsNull) {

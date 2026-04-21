@@ -221,7 +221,7 @@ public:
                 while (true) {
                     hasNext = it.hasNext();
                     if (elemSet.insert(element).second) {
-                        elementCount += matches(oil, element);
+                        elementCount += matchesInterval(oil, element);
                         if (elementCount > 0 && skipDuplicateMatches) {
                             break;
                         }
@@ -263,32 +263,24 @@ protected:
                                                                    OperationContext* opCtx);
 
     /**
-     * This helper checks if an element is within the given Interval.
-     */
-    static bool matches(const Interval& interval, BSONElement val);
-
-    /**
-     * This helper checks if an element is within any of the list of Interval.
-     */
-    static bool matches(const OrderedIntervalList& oil, BSONElement val);
-
-    /**
      * This helper calls the given callback for each document
      * in a given vector that matches the given bounds.
+     * The callback should return true to continue iterating, or false to stop.
      */
     template <typename T>
     static void forDocumentsMatchingBounds(const IndexBounds& bounds,
                                            const std::vector<BSONObj>& docs,
                                            const T& callback)
-    requires std::invocable<T, const BSONObj&>
+    requires std::is_invocable_r_v<bool, T, const BSONObj&>
     {
         size_t idx = 0;
+        bool stopped = false;
         forNumberKeysMatch(
             bounds,
             docs,
             [&](size_t matchCnt) {
-                if (matchCnt > 0) {
-                    callback(docs[idx]);
+                if (!stopped && matchCnt > 0) {
+                    stopped = !callback(docs[idx]);
                 }
                 idx++;
             },
