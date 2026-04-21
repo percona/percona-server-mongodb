@@ -31,9 +31,9 @@ Copyright (C) 2025-present Percona and/or its affiliates. All rights reserved.
 
 #include "mongo/db/auth/external/sasl_oidc_server_mechanism.h"
 
-#include "mongo/bson/bson_time_support.h"
 #include "mongo/bson/bsonobj.h"
 #include "mongo/crypto/jws_validated_token.h"
+#include "mongo/crypto/unix_epoch.h"
 #include "mongo/db/auth/oidc/oidc_identity_providers_registry.h"
 #include "mongo/db/auth/oidc/oidc_server_parameters_gen.h"
 #include "mongo/db/auth/oidc/user_request_oidc.h"
@@ -54,7 +54,7 @@ constexpr const char* kAuthTimeFieldName = "auth_time";
 boost::optional<Date_t> tokenGetPastDate(const crypto::JWSValidatedToken& token,
                                          StringData fieldName) {
     if (auto elem{token.getBodyBSON().getField(fieldName)}; elem.ok()) {
-        Date_t d{parseDateFromDurationSinceEpoch<Seconds>(elem)};
+        Date_t d{crypto::parseUnixEpoch(elem)};
         // The value is copied from the `JWSValidatedToken::validate` method
         // (please @see the `kNotBeforeSkewMax` variable there)
         constexpr Seconds kMaxClockSkew{60};
