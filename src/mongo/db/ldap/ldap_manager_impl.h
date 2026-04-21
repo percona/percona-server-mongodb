@@ -31,10 +31,16 @@ Copyright (C) 2019-present Percona and/or its affiliates. All rights reserved.
 
 #pragma once
 
+#include "mongo/util/synchronized_value.h"
+#include <ldap.h>
+
+#include "mongo/bson/bsonobj.h"
 #include "mongo/db/ldap/ldap_manager.h"
 #include "mongo/logv2/log_severity.h"
-
-#include <ldap.h>
+#include "mongo/platform/mutex.h"
+#include "mongo/util/lru_cache.h"
+#include "mongo/util/time_support.h"
+#include <memory>
 
 namespace mongo {
 
@@ -56,7 +62,33 @@ public:
 
     void invalidateConnections() override;
 
+    void invalidateUserToDNCache() override;
+
 private:
+    struct UserToDNCacheEntry {
+        std::string dn;
+        Date_t insertedAt;
+    };
+
+    struct UserToDNCacheHolder {
+        UserToDNCacheHolder();
+
+        using UserToDNCache = LRUCache<std::string, UserToDNCacheEntry>;
+
+        const int size;
+        const int ttl;
+        const bool enabled;
+        const BSONArray mapping;
+        Mutex mutex = MONGO_MAKE_LATCH("UserToDNCacheHolder::mutex");
+        UserToDNCache cache;
+    };
+
+    // UserToDNCacheHolder will be atomically replaced on any configuration changes
+    // This enables cache reset without blocking any client threads running mapUserToDN()
+    // Multiple threads can have shared_ptr instances pointing to the same UserToDNCacheHolder
+    // instance
+    synchronized_value<std::shared_ptr<UserToDNCacheHolder>> _userToDNCacheHolder;
+
     std::unique_ptr<ConnectionPoller> _connPoller;
 
     LDAP* borrow_search_connection();
