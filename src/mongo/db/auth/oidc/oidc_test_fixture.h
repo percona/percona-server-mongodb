@@ -37,7 +37,10 @@ Copyright (C) 2025-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/stdx/unordered_set.h"
 #include "mongo/unittest/assert.h"
 #include "mongo/util/base64.h"
+#include "mongo/util/clock_source_mock.h"
 #include "mongo/util/periodic_runner.h"
+#include "mongo/util/synchronized_value.h"
+#include "mongo/util/time_support.h"
 
 #include <type_traits>
 
@@ -236,20 +239,25 @@ struct JWKSFetcherFactoryMock : public JWKSFetcherFactory {
     class JWKSFetcherMock : public crypto::JWKSFetcher {
     public:
         explicit JWKSFetcherMock(const JWKSFetcherFactoryMock& factoryMock, std::string issuer)
-            : _factoryMock(factoryMock), _issuer(issuer) {}
+            : _factoryMock(factoryMock), _issuer(issuer), _clock() {}
 
         crypto::JWKSet fetch() override {
-
             return _factoryMock.fetch(_issuer);
         }
 
-        void setQuiesce(Date_t quiesce) override {
-            FAIL("setQuiesce() should not be called");
+        Date_t getLastAttemptedFetchTime() const override {
+            return Date_t::min();
+        }
+
+        ClockSource* getClockSource() const override {
+            _clock.reset(Date_t::now());
+            return &_clock;
         }
 
     private:
         const JWKSFetcherFactoryMock& _factoryMock;
         std::string _issuer;
+        mutable ClockSourceMock _clock;
     };
 
 public:
