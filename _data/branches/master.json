@@ -5,14 +5,14 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 479,
-    "days_behind": 11,
-    "files_affected": 2443,
-    "total_additions": 99736,
-    "total_deletions": 65057,
+    "commits_behind": 511,
+    "days_behind": 12,
+    "files_affected": 3395,
+    "total_additions": 119931,
+    "total_deletions": 78991,
     "date_range": {
       "first": "2026-04-09T12:02:33+00:00",
-      "last": "2026-04-21T09:44:02+00:00"
+      "last": "2026-04-22T05:03:08+00:00"
     }
   },
   "last_merged_commit": {
@@ -36,6 +36,326 @@
     "summary": "SERVER-122379: Extend estimateNDV for multikey and index bounds (#49576)"
   },
   "unmerged_commits": [
+    {
+      "sha": "51d162c04afc4b73f1fca2f9029380da87dbc46b",
+      "short_sha": "51d162c04af",
+      "date": "2026-04-21T22:03:08-07:00",
+      "author": {
+        "name": "Zack Winter",
+        "email": "3457246+zackwintermdb@users.noreply.github.com"
+      },
+      "summary": "SERVER-125015: Update aws_key in fast_archve.py (#52326)"
+    },
+    {
+      "sha": "f684922294c1e72c37e4d96acf69b8dcbf9fd35a",
+      "short_sha": "f684922294c",
+      "date": "2026-04-22T03:14:12+00:00",
+      "author": {
+        "name": "auto-revert-app[bot]",
+        "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
+      },
+      "summary": "Revert \"SERVER-92859 Enable viewless timeseries feature flag (#51573)\" (#52332)"
+    },
+    {
+      "sha": "7a587aefeea8893c876c365fc3993205310b8e9c",
+      "short_sha": "7a587aefeea",
+      "date": "2026-04-21T17:12:08-07:00",
+      "author": {
+        "name": "Chi-I Huang",
+        "email": "8468853+chiihuang@users.noreply.github.com"
+      },
+      "summary": "SERVER-122052 Implement query shape and query stats store key for inserts (#51354)"
+    },
+    {
+      "sha": "ace867c495178709df8f2d4b19d6e0f3137f8ddc",
+      "short_sha": "ace867c4951",
+      "date": "2026-04-22T01:40:06+02:00",
+      "author": {
+        "name": "Denis Grebennicov",
+        "email": "denis.grebennicov@mongodb.com"
+      },
+      "summary": "SERVER-124495 Ensure ensure_read_preference_election.js is working in sharding and disagg suites (#52148)"
+    },
+    {
+      "sha": "5e46312e93a7f2e6e1298486247f6bfaf7defc60",
+      "short_sha": "5e46312e93a",
+      "date": "2026-04-21T17:23:07-05:00",
+      "author": {
+        "name": "Indy Prentice",
+        "email": "iprentic@users.noreply.github.com"
+      },
+      "summary": "SERVER-124995: Use retries for step up in config_transactions_mixed_ondisk_formats.js (#52307)"
+    },
+    {
+      "sha": "9beda5b3a51ce08103d413b9afd18e17916e49e0",
+      "short_sha": "9beda5b3a51",
+      "date": "2026-04-22T00:03:16+02:00",
+      "author": {
+        "name": "Meryama",
+        "email": "meryama.nadim@mongodb.com"
+      },
+      "summary": "SERVER-92859 Enable viewless timeseries feature flag (#51573)"
+    },
+    {
+      "sha": "26ee1df7afd4c66a4819690afcb19762434c0207",
+      "short_sha": "26ee1df7afd",
+      "date": "2026-04-21T17:35:19-04:00",
+      "author": {
+        "name": "Cheahuychou Mao",
+        "email": "cheahuychou.mao@mongodb.com"
+      },
+      "summary": "SERVER-124167 Do not expose value of otel gauge metric (#52308)"
+    },
+    {
+      "sha": "d304172308d8d0535e8d4197412e623dd2d9a2d1",
+      "short_sha": "d304172308d",
+      "date": "2026-04-21T17:32:49-04:00",
+      "author": {
+        "name": "Erwin Pe",
+        "email": "erwin.pe@mongodb.com"
+      },
+      "summary": "SERVER-124174 Replace FLE2 prefix/suffix preview types with GA types in jstests and unit tests (#52170)"
+    },
+    {
+      "sha": "ae4b3b02bed2c1f84e705db174a5d649c32b4540",
+      "short_sha": "ae4b3b02bed",
+      "date": "2026-04-21T14:07:43-07:00",
+      "author": {
+        "name": "Andrew Bradshaw",
+        "email": "andrew.bradshaw@mongodb.com"
+      },
+      "summary": "SERVER-124992: Improve windows build times (#52301)"
+    },
+    {
+      "sha": "266ab6d1104b2fb27c520151194809dd8ac2cc8d",
+      "short_sha": "266ab6d1104",
+      "date": "2026-04-21T12:53:27-07:00",
+      "author": {
+        "name": "Denis Trailin",
+        "email": "denis.trailin@gmail.com"
+      },
+      "summary": "SERVER-121218: Re-enable Initial Sync stats in FTDC (#51017)"
+    },
+    {
+      "sha": "bcc1b48be775f169145d5cabe90560f117d40ab8",
+      "short_sha": "bcc1b48be77",
+      "date": "2026-04-21T15:49:15-04:00",
+      "author": {
+        "name": "Malik Endsley",
+        "email": "malik.endsley@mongodb.com"
+      },
+      "summary": "SERVER-124980: Fix endianness mismatch in BSONColumnBadExtendedSelector test (#52288)"
+    },
+    {
+      "sha": "f1c4b59ceb5ae818822b819b5a7ad92b7495f7fa",
+      "short_sha": "f1c4b59ceb5",
+      "date": "2026-04-21T14:45:16-05:00",
+      "author": {
+        "name": "Shin Yee Tan",
+        "email": "shinyee.tan@mongodb.com"
+      },
+      "summary": "SERVER-123286 Chunk migration op observer is unable to get opTime of single batched findAndModify (#51810)"
+    },
+    {
+      "sha": "2714bad9a380aacb005e9e0539901a777bc3a4a1",
+      "short_sha": "2714bad9a38",
+      "date": "2026-04-21T15:14:02-04:00",
+      "author": {
+        "name": "Daniel Segel",
+        "email": "71151509+dhsegel@users.noreply.github.com"
+      },
+      "summary": "SERVER-122012 Implement variable-reference dependency analysis for SEARCH_META (#51718)"
+    },
+    {
+      "sha": "32e8f260def5dabb0bba281f64d4d07c9ab079dd",
+      "short_sha": "32e8f260def",
+      "date": "2026-04-21T14:30:35-04:00",
+      "author": {
+        "name": "Steve McClure",
+        "email": "steve.mcclure@mongodb.com"
+      },
+      "summary": "SERVER-124136 Format markdown via prettier: wrap lines and use width of 100 (#52231)"
+    },
+    {
+      "sha": "e66373f938146ffe00334489492e8c53546bbcaa",
+      "short_sha": "e66373f9381",
+      "date": "2026-04-21T14:12:18-04:00",
+      "author": {
+        "name": "Ruchitha Rajaghatta",
+        "email": "77162985+ruchitharajaghatta@users.noreply.github.com"
+      },
+      "summary": "SERVER-120732: replSetInitiate should error (#51826)"
+    },
+    {
+      "sha": "7afff36c3fce66d7c507768ef1743daf17e646dd",
+      "short_sha": "7afff36c3fc",
+      "date": "2026-04-21T13:46:48-04:00",
+      "author": {
+        "name": "Steve McClure",
+        "email": "steve.mcclure@mongodb.com"
+      },
+      "summary": "SERVER-124166: lint --fix should fail on unfixed issues, and CI should capture failures (#52182)"
+    },
+    {
+      "sha": "4daca0fbd3783b33f5c2f7dbd30059a3205f8be2",
+      "short_sha": "4daca0fbd37",
+      "date": "2026-04-21T17:30:50+00:00",
+      "author": {
+        "name": "Joan Bruguera Micó (at MongoDB)",
+        "email": "joan.bruguera-mico@mongodb.com"
+      },
+      "summary": "SERVER-114517 Disallow applying upgradeDowngradeViewlessTimeseries during initial sync (#52053)"
+    },
+    {
+      "sha": "9022d34215ba01aa1ebd2a32e46b493591d3d565",
+      "short_sha": "9022d34215b",
+      "date": "2026-04-21T13:19:09-04:00",
+      "author": {
+        "name": "Mike Nugent",
+        "email": "mike.nugent@mongodb.com"
+      },
+      "summary": "SERVER-123547: Add signature to MetricService to support counters with attributes. (#52061)"
+    },
+    {
+      "sha": "8da3ef34aa5ab3a6d1795375e5f650e2221abbb1",
+      "short_sha": "8da3ef34aa5",
+      "date": "2026-04-21T13:01:17-04:00",
+      "author": {
+        "name": "Sean Lyons",
+        "email": "sean.lyons@mongodb.com"
+      },
+      "summary": "SERVER-124517 Disable bazel remote execution for sharding_jscore_passthrough_with_balancer suites (#52150)"
+    },
+    {
+      "sha": "082e269b6a7d56a0d20c45e8aa1830ae3d55d23e",
+      "short_sha": "082e269b6a7",
+      "date": "2026-04-21T12:20:03-04:00",
+      "author": {
+        "name": "Jordan Glassley",
+        "email": "jordan.glassley@mongodb.com"
+      },
+      "summary": "SERVER-121441: Update txn_with_added_participant_fail_to_unyield.js for DSC (#52185)"
+    },
+    {
+      "sha": "cefba8da7bc0df952414973e100c3dcb0cb56f6a",
+      "short_sha": "cefba8da7bc",
+      "date": "2026-04-21T11:56:44-04:00",
+      "author": {
+        "name": "Stephanie",
+        "email": "53684987+seristof@users.noreply.github.com"
+      },
+      "summary": "SERVER-124262 Persist indexBuild ident in o2 entries for primary-driven index build (#52057)"
+    },
+    {
+      "sha": "bb13e82a138a0919cf8e57ace429713c05dc6efc",
+      "short_sha": "bb13e82a138",
+      "date": "2026-04-21T11:53:11-04:00",
+      "author": {
+        "name": "Cheahuychou Mao",
+        "email": "cheahuychou.mao@mongodb.com"
+      },
+      "summary": "SERVER-124928 Validate that path for otel ServerStatusOptions does not contain the \"metrics\" prefix (#52244)"
+    },
+    {
+      "sha": "a682674694e39f5c6551de360acfd9a06bbf7c5b",
+      "short_sha": "a682674694e",
+      "date": "2026-04-21T11:44:14-04:00",
+      "author": {
+        "name": "Stephanie",
+        "email": "53684987+seristof@users.noreply.github.com"
+      },
+      "summary": "SERVER-124920 Rename setTwoPhaseBuildUUID to setReplicatedBuildUUID (#52206)"
+    },
+    {
+      "sha": "1a3cb844efdb1865b79da0cc3296274243af56f0",
+      "short_sha": "1a3cb844efd",
+      "date": "2026-04-21T14:57:06+00:00",
+      "author": {
+        "name": "Wenqin",
+        "email": "wenqinYe@users.noreply.github.com"
+      },
+      "summary": "SERVER-124883 Resharding internal transaction tests should retry on QueryPlanKilled (#52176)"
+    },
+    {
+      "sha": "6c1cdb3ad529142637e2692de75432432e957e44",
+      "short_sha": "6c1cdb3ad52",
+      "date": "2026-04-21T16:01:49+02:00",
+      "author": {
+        "name": "Niels Lohmann",
+        "email": "niels.lohmann@mongodb.com"
+      },
+      "summary": "SERVER-124567 Silence Coverity (#52219)"
+    },
+    {
+      "sha": "9ec7e49b350a8de7bb129b780a0970a623835143",
+      "short_sha": "9ec7e49b350",
+      "date": "2026-04-21T09:51:21-04:00",
+      "author": {
+        "name": "Gregory Noma",
+        "email": "gregory.noma@gmail.com"
+      },
+      "summary": "SERVER-124925 Add current iterator position to sorter ranges (#52205)"
+    },
+    {
+      "sha": "13afb660059c0e718f2046e3dcd827b4673e94d3",
+      "short_sha": "13afb660059",
+      "date": "2026-04-21T09:44:03-04:00",
+      "author": {
+        "name": "Cedric Sirianni",
+        "email": "cedric.sirianni@mongodb.com"
+      },
+      "summary": "SERVER-124299 Disable sharding tests incompatible with persisted size/count (#52005)"
+    },
+    {
+      "sha": "dba6a24a1077b600e5355bec315c35ba5f7ee762",
+      "short_sha": "dba6a24a107",
+      "date": "2026-04-21T13:28:33+01:00",
+      "author": {
+        "name": "Vesko Karaganev",
+        "email": "vesko.karaganev@mongodb.com"
+      },
+      "summary": "SERVER-105449 Allow $project+$match pushdown (#51882)"
+    },
+    {
+      "sha": "685559c5fece349506b72f0f4561456b93f37792",
+      "short_sha": "685559c5fec",
+      "date": "2026-04-21T08:11:06-04:00",
+      "author": {
+        "name": "Alex Li",
+        "email": "98560274+lia394126@users.noreply.github.com"
+      },
+      "summary": "SERVER-104800 Remove stdx/mutex.h, stdx/future.h, stdx/chrono.h, stdx/new.h (#47854)"
+    },
+    {
+      "sha": "47351e9fcc3e306950baca00ee3cbc74506a0b0f",
+      "short_sha": "47351e9fcc3",
+      "date": "2026-04-21T12:51:24+01:00",
+      "author": {
+        "name": "mongo-pr-bot[bot]",
+        "email": "230616009+mongo-pr-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "SERVER-110427 Update profiling data (#52224)"
+    },
+    {
+      "sha": "0e9402b1eb780b792057ac555e56637a074ff128",
+      "short_sha": "0e9402b1eb7",
+      "date": "2026-04-21T11:31:11+01:00",
+      "author": {
+        "name": "Vesko Karaganev",
+        "email": "vesko.karaganev@mongodb.com"
+      },
+      "summary": "SERVER-124323 Erase stale pointers from dsToStageId (#52031)"
+    },
+    {
+      "sha": "6cfb75b2d85dbba59437cb247ee1d44eecb3a2a4",
+      "short_sha": "6cfb75b2d85",
+      "date": "2026-04-21T11:01:05+01:00",
+      "author": {
+        "name": "Daniele Alessandrelli",
+        "email": "daniele.alessandrelli@mongodb.com"
+      },
+      "summary": "SERVER-100156 Remove changePrimary command (#50732)"
+    },
     {
       "sha": "c520ca3eb9a5109456d01cc468767728e7f1b287",
       "short_sha": "c520ca3eb9a",
@@ -5664,10 +5984,144 @@
           "num_of_dirs": 7
         }
       }
+    },
+    {
+      "commit": {
+        "sha": "6cfb75b2d85dbba59437cb247ee1d44eecb3a2a4",
+        "short_sha": "6cfb75b2d85",
+        "date": "2026-04-21T11:01:05+01:00",
+        "author": {
+          "name": "Daniele Alessandrelli",
+          "email": "daniele.alessandrelli@mongodb.com"
+        },
+        "summary": "SERVER-100156 Remove changePrimary command (#50732)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 23,
+          "num_of_lines": 569,
+          "lines_added": 4,
+          "lines_deleted": 565,
+          "num_of_dirs": 12
+        }
+      }
+    },
+    {
+      "commit": {
+        "sha": "685559c5fece349506b72f0f4561456b93f37792",
+        "short_sha": "685559c5fec",
+        "date": "2026-04-21T08:11:06-04:00",
+        "author": {
+          "name": "Alex Li",
+          "email": "98560274+lia394126@users.noreply.github.com"
+        },
+        "summary": "SERVER-104800 Remove stdx/mutex.h, stdx/future.h, stdx/chrono.h, stdx/new.h (#47854)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 905,
+          "num_of_lines": 9614,
+          "lines_added": 4665,
+          "lines_deleted": 4949,
+          "num_of_dirs": 107
+        }
+      }
+    },
+    {
+      "commit": {
+        "sha": "32e8f260def5dabb0bba281f64d4d07c9ab079dd",
+        "short_sha": "32e8f260def",
+        "date": "2026-04-21T14:30:35-04:00",
+        "author": {
+          "name": "Steve McClure",
+          "email": "steve.mcclure@mongodb.com"
+        },
+        "summary": "SERVER-124136 Format markdown via prettier: wrap lines and use width of 100 (#52231)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 205,
+          "num_of_lines": 21192,
+          "lines_added": 12956,
+          "lines_deleted": 8236,
+          "num_of_dirs": 126
+        }
+      }
+    },
+    {
+      "commit": {
+        "sha": "266ab6d1104b2fb27c520151194809dd8ac2cc8d",
+        "short_sha": "266ab6d1104",
+        "date": "2026-04-21T12:53:27-07:00",
+        "author": {
+          "name": "Denis Trailin",
+          "email": "denis.trailin@gmail.com"
+        },
+        "summary": "SERVER-121218: Re-enable Initial Sync stats in FTDC (#51017)"
+      },
+      "strategy_name": "important_files",
+      "result": {
+        "matched_files": [
+          "src/mongo/db/repl/initial_sync/initial_syncer.cpp",
+          "src/mongo/db/repl/initial_sync/initial_syncer.h"
+        ]
+      }
+    },
+    {
+      "commit": {
+        "sha": "9beda5b3a51ce08103d413b9afd18e17916e49e0",
+        "short_sha": "9beda5b3a51",
+        "date": "2026-04-22T00:03:16+02:00",
+        "author": {
+          "name": "Meryama",
+          "email": "meryama.nadim@mongodb.com"
+        },
+        "summary": "SERVER-92859 Enable viewless timeseries feature flag (#51573)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 41,
+          "num_of_lines": 78,
+          "lines_added": 43,
+          "lines_deleted": 35,
+          "num_of_dirs": 18
+        }
+      }
+    },
+    {
+      "commit": {
+        "sha": "f684922294c1e72c37e4d96acf69b8dcbf9fd35a",
+        "short_sha": "f684922294c",
+        "date": "2026-04-22T03:14:12+00:00",
+        "author": {
+          "name": "auto-revert-app[bot]",
+          "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
+        },
+        "summary": "Revert \"SERVER-92859 Enable viewless timeseries feature flag (#51573)\" (#52332)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 41,
+          "num_of_lines": 78,
+          "lines_added": 35,
+          "lines_deleted": 43,
+          "num_of_dirs": 18
+        }
+      }
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-04-21 10:32:16",
+  "generated_at": "2026-04-22 06:38:09",
   "branch_name": "master",
   "display_name": "master"
 }
