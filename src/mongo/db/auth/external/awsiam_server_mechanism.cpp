@@ -130,20 +130,20 @@ StatusWith<std::tuple<bool, std::string>> ServerMechanism::_secondStep(StringDat
     std::vector<std::string> headers;
     headers.emplace_back(fmt::format("Content-Length: {}", kSTSGetCallerIdentityBody.size()));
     headers.emplace_back("Content-Type: application/x-www-form-urlencoded");
-    headers.emplace_back("Authorization: " + clientSecond.getAuthHeader());
-    headers.emplace_back("X-Amz-Date: " + clientSecond.getXAmzDate());
+    headers.emplace_back("Authorization: " + std::string(clientSecond.getAuthHeader()));
+    headers.emplace_back("X-Amz-Date: " + std::string(clientSecond.getXAmzDate()));
     headers.emplace_back(fmt::format(
         "{}: {}", kMongoGS2CBHeader, StringData{reinterpret_cast<const char*>(&_gs2_cb_flag), 1}));
     headers.emplace_back(fmt::format("{}: {}",
                                      kMongoServerNonceHeader,
                                      base64::encode(_serverNonce.data(), _serverNonce.size())));
     if (auto stoken = clientSecond.getXAmzSecurityToken()) {
-        headers.emplace_back("X-Amz-Security-Token: " + *stoken);
+        headers.emplace_back("X-Amz-Security-Token: " + std::string(*stoken));
     }
     http->setHeaders(headers);
     auto reply =
         http->request(HttpClient::HttpMethod::kPOST,
-                      "https://" + awsStsHost(),
+                      "https://" + std::string(awsStsHost()),
                       {kSTSGetCallerIdentityBody.data(), kSTSGetCallerIdentityBody.size()});
     LOGV2_DEBUG(29114, 3, "STS GetCallerIdentity HTTP status", "code"_attr = reply.code);
     if (reply.code != 200) {

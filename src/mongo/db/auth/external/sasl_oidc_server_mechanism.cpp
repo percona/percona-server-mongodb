@@ -238,7 +238,7 @@ void SaslOidcServerMechanism::processPrincipalName(const OidcIdentityProviderCon
                 _principalName == principalName);
     }
     // Store _principalName to return it in UserRequest for authorization manager
-    _principalName = idp.getAuthNamePrefix() + "/" + principalName;
+    _principalName = std::string(idp.getAuthNamePrefix()) + "/" + principalName;
 }
 
 void SaslOidcServerMechanism::processAuthorizationClaim(const OidcIdentityProviderConfig& idp,

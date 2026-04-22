@@ -217,7 +217,7 @@ protected:
         if (rename) {
             // Rename the current file
             // Note: we append a timestamp to the file name.
-            std::string targetName = _fileName + renameSuffix;
+            std::string targetName = _fileName + std::string(renameSuffix);
 
             // Check if the target file already exists.
             auto targetExists = [&targetName]() -> StatusWith<bool> {
