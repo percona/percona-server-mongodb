@@ -5,14 +5,14 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 511,
-    "days_behind": 12,
-    "files_affected": 3395,
-    "total_additions": 119931,
-    "total_deletions": 78991,
+    "commits_behind": 517,
+    "days_behind": 13,
+    "files_affected": 3408,
+    "total_additions": 121174,
+    "total_deletions": 78984,
     "date_range": {
       "first": "2026-04-09T12:02:33+00:00",
-      "last": "2026-04-22T05:03:08+00:00"
+      "last": "2026-04-22T11:06:20+00:00"
     }
   },
   "last_merged_commit": {
@@ -36,6 +36,66 @@
     "summary": "SERVER-122379: Extend estimateNDV for multikey and index bounds (#49576)"
   },
   "unmerged_commits": [
+    {
+      "sha": "9ae20ce24dd4fbea02761fe4ad4b3965666a5ddb",
+      "short_sha": "9ae20ce24dd",
+      "date": "2026-04-22T12:06:20+01:00",
+      "author": {
+        "name": "Catalin Sumanaru",
+        "email": "catalin.sumanaru@mongodb.com"
+      },
+      "summary": "SERVER-123122 Add QueryKnob descriptor infrastructure (#51778)"
+    },
+    {
+      "sha": "99541c14c56faf3eae2a1b1f58479d8240d9e7d1",
+      "short_sha": "99541c14c56",
+      "date": "2026-04-22T06:59:37-04:00",
+      "author": {
+        "name": "mongo-pr-bot[bot]",
+        "email": "230616009+mongo-pr-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "SERVER-110427 Update profiling data (#52345)"
+    },
+    {
+      "sha": "c6350082c8ba9be532fcecf6168aee389f102f22",
+      "short_sha": "c6350082c8b",
+      "date": "2026-04-22T11:39:53+02:00",
+      "author": {
+        "name": "Niels Lohmann",
+        "email": "niels.lohmann@mongodb.com"
+      },
+      "summary": "SERVER-124585 Silence Coverity (#52223)"
+    },
+    {
+      "sha": "b991fea6a340cdcb22ec0986a9792a1976b726a9",
+      "short_sha": "b991fea6a34",
+      "date": "2026-04-22T11:31:25+02:00",
+      "author": {
+        "name": "Rui Liu",
+        "email": "33423526+lriuui0x0@users.noreply.github.com"
+      },
+      "summary": "SERVER-119401 Add more query tester tests on projection stages (#51506)"
+    },
+    {
+      "sha": "b5a284ab07829c793f9a090be65a5356a7545d42",
+      "short_sha": "b5a284ab078",
+      "date": "2026-04-22T09:50:07+02:00",
+      "author": {
+        "name": "Niels Lohmann",
+        "email": "niels.lohmann@mongodb.com"
+      },
+      "summary": "SERVER-124572 Fix initializer (#52220)"
+    },
+    {
+      "sha": "712a8284b3a1668b0a46a7996c83afd9b707ac89",
+      "short_sha": "712a8284b3a",
+      "date": "2026-04-22T09:31:11+02:00",
+      "author": {
+        "name": "Pol Piñol Castuera",
+        "email": "pol.pinol@mongodb.com"
+      },
+      "summary": "SERVER-123832 Make authoritative recovery tolerate tracked-with-no-chunks on non DB primary shards (#52035)"
+    },
     {
       "sha": "51d162c04afc4b73f1fca2f9029380da87dbc46b",
       "short_sha": "51d162c04af",
@@ -6121,7 +6181,7 @@
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-04-22 06:38:09",
+  "generated_at": "2026-04-22 13:07:12",
   "branch_name": "master",
   "display_name": "master"
 }
