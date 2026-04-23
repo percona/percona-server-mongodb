@@ -404,11 +404,11 @@ BSONObj createReshardingFieldsUpdateForOriginalNss(
                     *coordinatorDoc.getTelemetryContext());
             }
 
-            return BSON("$set" << BSON(CollectionType::kReshardingFieldsFieldName
-                                       << originalEntryReshardingFields.toBSON()
-                                       << CollectionType::kUpdatedAtFieldName
-                                       << opCtx->getServiceContext()->getPreciseClockSource()->now()
-                                       << CollectionType::kAllowMigrationsFieldName << false));
+            return BSON(
+                "$set" << BSON(CollectionType::kReshardingFieldsFieldName
+                               << originalEntryReshardingFields.toBSON()
+                               << CollectionType::kUpdatedAtFieldName
+                               << opCtx->getServiceContext()->getPreciseClockSource()->now()));
         }
         case CoordinatorStateEnum::kPreparingToDonate: {
             TypeCollectionDonorFields donorFields(coordinatorDoc.getTempReshardingNss(),
@@ -420,13 +420,15 @@ BSONObj createReshardingFieldsUpdateForOriginalNss(
             {
                 BSONObjBuilder setBuilder(updateBuilder.subobjStart("$set"));
                 {
-                    setBuilder.append(CollectionType::kReshardingFieldsFieldName + "." +
-                                          TypeCollectionReshardingFields::kStateFieldName,
-                                      idl::serialize(nextState));
+                    setBuilder.append(
+                        std::string{CollectionType::kReshardingFieldsFieldName} + "." +
+                            std::string{TypeCollectionReshardingFields::kStateFieldName},
+                        idl::serialize(nextState));
 
-                    setBuilder.append(CollectionType::kReshardingFieldsFieldName + "." +
-                                          TypeCollectionReshardingFields::kDonorFieldsFieldName,
-                                      donorFields.toBSON());
+                    setBuilder.append(
+                        std::string{CollectionType::kReshardingFieldsFieldName} + "." +
+                            std::string{TypeCollectionReshardingFields::kDonorFieldsFieldName},
+                        donorFields.toBSON());
 
                     setBuilder.append(CollectionType::kUpdatedAtFieldName,
                                       opCtx->getServiceContext()->getPreciseClockSource()->now());
@@ -466,9 +468,7 @@ BSONObj createReshardingFieldsUpdateForOriginalNss(
         case mongo::CoordinatorStateEnum::kDone:
             // Remove 'reshardingFields' from the config.collections entry
             return BSON(
-                "$unset" << BSON(CollectionType::kReshardingFieldsFieldName
-                                 << "" << CollectionType::kAllowMigrationsFieldName << "")
-                         << "$set"
+                "$unset" << BSON(CollectionType::kReshardingFieldsFieldName << "") << "$set"
                          << BSON(CollectionType::kUpdatedAtFieldName
                                  << opCtx->getServiceContext()->getPreciseClockSource()->now()));
         default: {
@@ -492,11 +492,6 @@ BSONObj createReshardingFieldsUpdateForOriginalNss(
                 }
 
                 setBuilder.doneFast();
-
-                if (coordinatorDoc.getAbortReason()) {
-                    updateBuilder.append("$unset",
-                                         BSON(CollectionType::kAllowMigrationsFieldName << ""));
-                }
             }
 
             return updateBuilder.obj();
@@ -580,8 +575,9 @@ CollectionType createTempReshardingCollectionType(
     TypeCollectionReshardingFields tempEntryReshardingFields(coordinatorDoc.getReshardingUUID());
     tempEntryReshardingFields.setState(coordinatorDoc.getState());
     tempEntryReshardingFields.setStartTime(coordinatorDoc.getStartTime());
-    tempEntryReshardingFields.setProvenance(
-        coordinatorDoc.getCommonReshardingMetadata().getProvenance());
+
+    auto provenance = coordinatorDoc.getCommonReshardingMetadata().getProvenance();
+    tempEntryReshardingFields.setProvenance(provenance);
     tempEntryReshardingFields.setPerformVerification(
         coordinatorDoc.getCommonReshardingMetadata().getPerformVerification());
     if (coordinatorDoc.getTelemetryContext()) {
@@ -591,7 +587,13 @@ CollectionType createTempReshardingCollectionType(
     auto recipientFields = constructRecipientFields(coordinatorDoc);
     tempEntryReshardingFields.setRecipientFields(std::move(recipientFields));
     collType.setReshardingFields(std::move(tempEntryReshardingFields));
-    collType.setAllowMigrations(false);
+
+    // Block migrations on the temporary resharding collection until resharding completes.
+    // unshardCollection and moveCollection produce unsplittable collections, which are not subject
+    // to migrations.
+    if (isOrdinaryReshardCollection(provenance) || isRewriteCollection(provenance)) {
+        collType.setAllowMigrations(false);
+    }
 
     return collType;
 }

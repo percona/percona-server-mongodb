@@ -35,6 +35,7 @@
 #include "mongo/db/exec/docval_to_sbeval.h"
 #include "mongo/db/exec/js_function.h"
 #include "mongo/db/exec/sbe/expressions/runtime_environment.h"
+#include "mongo/db/exec/sbe/expressions/sbe_fn_names.h"
 #include "mongo/db/exec/sbe/match_path.h"
 #include "mongo/db/exec/sbe/util/pcre.h"
 #include "mongo/db/exec/sbe/values/bson.h"
@@ -70,11 +71,16 @@
 #include "mongo/db/matcher/schema/expression_internal_schema_root_doc_eq.h"
 #include "mongo/db/matcher/schema/expression_internal_schema_unique_items.h"
 #include "mongo/db/matcher/schema/expression_internal_schema_xor.h"
+#include "mongo/db/pipeline/field_path.h"
 #include "mongo/db/query/bson_typemask.h"
+#include "mongo/db/query/compiler/metadata/path_arrayness.h"
+#include "mongo/db/query/query_feature_flags_gen.h"
 #include "mongo/db/query/stage_builder/sbe/builder.h"
+#include "mongo/db/query/stage_builder/sbe/gen_abt_helpers.h"
 #include "mongo/db/query/stage_builder/sbe/gen_expression.h"
 #include "mongo/db/query/stage_builder/sbe/sbexpr_helpers.h"
 #include "mongo/db/query/tree_walker.h"
+#include "mongo/logv2/log.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/str.h"
 
@@ -88,6 +94,8 @@
 #include <boost/none.hpp>
 #include <boost/optional/optional.hpp>
 #include <boost/smart_ptr/intrusive_ptr.hpp>
+
+#define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kQuery
 
 namespace mongo::stage_builder {
 namespace {
@@ -147,8 +155,13 @@ struct MatchExpressionVisitorContext {
                                   boost::optional<SbSlot> rootSlot,
                                   const MatchExpression* root,
                                   const PlanStageSlots* slots,
+                                  const PathArrayness& pathArrayness,
                                   bool isFilterOverIxscan)
-        : state{state}, rootSlot{rootSlot}, slots{slots}, isFilterOverIxscan{isFilterOverIxscan} {
+        : state{state},
+          rootSlot{rootSlot},
+          slots{slots},
+          pathArrayness{pathArrayness},
+          isFilterOverIxscan{isFilterOverIxscan} {
         tassert(
             7097201, "Expected 'rootSlot' or 'slots' to be defined", rootSlot || slots != nullptr);
 
@@ -199,6 +212,7 @@ struct MatchExpressionVisitorContext {
     // document ('rootSlot') or with the set of kField slots ('slots').
     boost::optional<SbSlot> rootSlot;
     const PlanStageSlots* slots = nullptr;
+    const PathArrayness& pathArrayness;
     bool isFilterOverIxscan = false;
 };
 
@@ -221,7 +235,8 @@ SbExpr generateTraverseF(SbExpr inputExpr,
                          StageBuilderState& state,
                          const MakePredicateFn& makePredicate,
                          bool matchesNothing,
-                         LeafTraversalMode mode) {
+                         LeafTraversalMode mode,
+                         bool canPathBeArray = true) {
     tassert(7097202,
             "Expected an input expression or top level field",
             !inputExpr.isNull() || topLevelFieldSlot.has_value());
@@ -233,50 +248,62 @@ SbExpr generateTraverseF(SbExpr inputExpr,
     // will be false.
     const bool childIsLeafWithEmptyName =
         (level == fp.numParts() - 2u) && fp.isPathComponentEmpty(level + 1);
-    int arrayIndex = 0;
-    const bool isNumericField = (level < fp.FieldRef::numParts()) &&
-        fp.isNumericPathComponentStrict(level) &&
-        NumberParser{}(fp.getPart(level), &arrayIndex).isOK();
-    int arrayIndexNext = 0;
-    const bool isNumericFieldNext = (level + 1 < fp.FieldRef::numParts()) &&
-        fp.isNumericPathComponentStrict(level + 1) &&
-        NumberParser{}(fp.getPart(level + 1), &arrayIndexNext).isOK();
     const bool isLeafField = (level == fp.numParts() - 1u) || childIsLeafWithEmptyName;
     const bool needsArrayCheck = (isLeafField && mode == LeafTraversalMode::kArrayAndItsElements);
     const bool needsNothingCheck = !isLeafField && matchesNothing;
-    const bool isLeafNumeric =
-        (isNumericField && (!isNumericFieldNext || mode == LeafTraversalMode::kDoNotTraverseLeaf));
+    const bool omitTraverseF = !canPathBeArray && !needsNothingCheck;
 
-    auto lambdaFrameId = frameIdGenerator->generate();
-    auto lambdaParam = SbExpr{SbVar{lambdaFrameId, 0}};
-    auto getFieldName = isNumericField ? "getFieldOrElement"_sd : "getField"_sd;
-    SbExpr fieldExpr = topLevelFieldSlot
-        ? SbExpr{*topLevelFieldSlot}
-        : b.makeFunction(getFieldName, inputExpr.clone(), b.makeStrConstant(fp.getPart(level)));
+    LOGV2_DEBUG(12166710,
+                3,
+                "generateTraverseF decision",
+                "path"_attr = fp.dottedField(),
+                "level"_attr = level,
+                "isLeafField"_attr = isLeafField,
+                "canPathBeArray"_attr = canPathBeArray,
+                "matchesNothing"_attr = matchesNothing,
+                "needsNothingCheck"_attr = needsNothingCheck,
+                "omitTraverseF"_attr = omitTraverseF);
+
+    SbExpr fieldExpr = topLevelFieldSlot ? SbExpr{*topLevelFieldSlot}
+                                         : b.makeFunction(sbe::EFn::kGetField,
+                                                          inputExpr.clone(),
+                                                          b.makeStrConstant(fp.getPart(level)));
 
     if (childIsLeafWithEmptyName) {
         auto frameId = frameIdGenerator->generate();
         auto getFieldValue = SbLocalVar{frameId, 0};
-        auto expr = b.makeIf(b.makeFunction("isArray", getFieldValue),
-                             getFieldValue,
-                             b.makeFunction("getField", getFieldValue, b.makeStrConstant(""_sd)));
+        auto expr =
+            b.makeIf(b.makeFunction(sbe::EFn::kIsArray, getFieldValue),
+                     getFieldValue,
+                     b.makeFunction(sbe::EFn::kGetField, getFieldValue, b.makeStrConstant(""_sd)));
 
         fieldExpr = b.makeLet(frameId, SbExpr::makeSeq(std::move(fieldExpr)), std::move(expr));
     }
 
-    auto resultExpr = isLeafField ? makePredicate(lambdaParam.clone())
-                                  : generateTraverseF(lambdaParam.clone(),
-                                                      boost::none /* topLevelFieldSlot */,
-                                                      fp,
-                                                      level + 1,
-                                                      frameIdGenerator,
-                                                      state,
-                                                      makePredicate,
-                                                      matchesNothing,
-                                                      mode);
+    auto makeResultExpr = [&](const SbExpr& innerInputExpr, bool innerCanPathBeArray) -> SbExpr {
+        return isLeafField ? makePredicate(innerInputExpr.clone())
+                           : generateTraverseF(innerInputExpr.clone(),
+                                               boost::none /* topLevelFieldSlot */,
+                                               fp,
+                                               level + 1,
+                                               frameIdGenerator,
+                                               state,
+                                               makePredicate,
+                                               matchesNothing,
+                                               mode,
+                                               innerCanPathBeArray);
+    };
 
-    if ((isLeafField && mode == LeafTraversalMode::kDoNotTraverseLeaf) ||
-        (!isNumericField && isNumericFieldNext)) {
+    if (omitTraverseF) {
+        return makeResultExpr(fieldExpr, false /* canPathBeArray */);
+    }
+
+    auto lambdaFrameId = frameIdGenerator->generate();
+    auto lambdaParam = SbExpr{SbVar{lambdaFrameId, 0}};
+
+    auto resultExpr = makeResultExpr(lambdaParam, true /* canPathBeArray */);
+
+    if (isLeafField && mode == LeafTraversalMode::kDoNotTraverseLeaf) {
         return b.makeLet(
             lambdaFrameId, SbExpr::makeSeq(std::move(fieldExpr)), std::move(resultExpr));
     }
@@ -287,7 +314,7 @@ SbExpr generateTraverseF(SbExpr inputExpr,
         // effectively allows us to skip over cases where we would be calling getField() on a scalar
         // value or an array and getting back Nothing. The subset of such cases where we should
         // return true is handled by the previous level before execution would reach here.
-        auto cond = b.makeFillEmptyFalse(b.makeFunction("isObject", lambdaParam.clone()));
+        auto cond = b.makeFillEmptyFalse(b.makeFunction(sbe::EFn::kIsObject, lambdaParam.clone()));
 
         resultExpr = b.makeIf(std::move(cond), std::move(resultExpr), b.makeBoolConstant(false));
     }
@@ -305,34 +332,25 @@ SbExpr generateTraverseF(SbExpr inputExpr,
 
     // traverseF() can return Nothing only when the lambda returns Nothing. All expressions that we
     // generate return Boolean, so there is no need for explicit fillEmpty here.
-    auto traverseFExpr = isNumericField
-        ? b.makeFunction(
-              "magicTraverseF",
-              inputExpr.clone(),
-              b.makeStrConstant(fp.getPart(level)),
-              b.makeInt32Constant(arrayIndex),
-              std::move(lambdaExpr),
-              b.makeInt32Constant(
-                  (isLeafNumeric ? sbe::vm::MagicTraverse::kPreTraverse : 0) +
-                  (isNumericFieldNext || isLeafField ? 0 : sbe::vm::MagicTraverse::kPostTraverse)))
-        : b.makeFunction("traverseF",
-                         fieldExpr.clone(),
-                         std::move(lambdaExpr),
-                         b.makeBoolConstant(needsArrayCheck));
+    auto traverseFExpr = b.makeFunction(sbe::EFn::kTraverseF,
+                                        fieldExpr.clone(),
+                                        std::move(lambdaExpr),
+                                        b.makeBoolConstant(needsArrayCheck));
 
     // When the predicate can match Nothing, we need to do some extra work for non-leaf fields.
     if (needsNothingCheck) {
         // If the result of getField() was Nothing or a scalar value, then don't bother traversing
         // the remaining levels of the path and just decide now if we should return true or false
         // for this value.
-        traverseFExpr = b.makeIf(b.makeFillEmptyFalse(b.makeFunction(
-                                     "typeMatch",
-                                     fieldExpr.clone(),
-                                     b.makeInt32Constant(getBSONTypeMask(BSONType::array) |
-                                                         getBSONTypeMask(BSONType::object)))),
-                                 std::move(traverseFExpr),
-                                 !inputExpr.isNull() ? b.makeFunction("exists", inputExpr.clone())
-                                                     : b.makeBoolConstant(true));
+        traverseFExpr =
+            b.makeIf(b.makeFillEmptyFalse(
+                         b.makeFunction(sbe::EFn::kTypeMatch,
+                                        fieldExpr.clone(),
+                                        b.makeInt32Constant(getBSONTypeMask(BSONType::array) |
+                                                            getBSONTypeMask(BSONType::object)))),
+                     std::move(traverseFExpr),
+                     !inputExpr.isNull() ? b.makeFunction(sbe::EFn::kExists, inputExpr.clone())
+                                         : b.makeBoolConstant(true));
     }
 
     if (frameId) {
@@ -395,10 +413,11 @@ void generatePredicate(MatchExpressionVisitorContext* context,
             slot && mode == LeafTraversalMode::kArrayElementsOnly && !matchesNothing) {
             SbExprBuilder b(context->state);
             auto lambdaFrameId = context->state.frameIdGenerator->generate();
-            auto traverseFExpr = b.makeFunction(
-                "blockTraverseFPlaceholder"_sd,
-                SbExpr{*slot},
-                b.makeLocalLambda(lambdaFrameId, makePredicate(SbExpr{SbVar{lambdaFrameId, 0}})));
+            auto traverseFExpr = SbExpr{makeABTFunction(
+                sbe::EFn::kBlockTraverseFPlaceholder,
+                SbExpr{*slot}.extractABT(),
+                b.makeLocalLambda(lambdaFrameId, makePredicate(SbExpr{SbVar{lambdaFrameId, 0}}))
+                    .extractABT())};
             frame.pushExpr(std::move(traverseFExpr));
             return;
         } else {
@@ -412,6 +431,10 @@ void generatePredicate(MatchExpressionVisitorContext* context,
             "Expected either input expr or top-level field slot to be defined",
             !frame.inputExpr.isNull() || topLevelFieldSlot.has_value());
 
+    const bool canPathBeArray = feature_flags::gFeatureFlagPathArrayness.isEnabled()
+        ? context->pathArrayness.canPathBeArray(path, context->state.expCtx.get())
+        : true;
+
     frame.pushExpr(generateTraverseF(frame.inputExpr.clone(),
                                      topLevelFieldSlot,
                                      path,
@@ -420,7 +443,8 @@ void generatePredicate(MatchExpressionVisitorContext* context,
                                      context->state,
                                      makePredicate,
                                      matchesNothing,
-                                     mode));
+                                     mode,
+                                     canPathBeArray));
 }
 
 /**
@@ -461,7 +485,7 @@ void generateArraySize(MatchExpressionVisitorContext* context,
             inputParamSlotId ? SbExpr{SbSlot{*inputParamSlotId}} : b.makeInt32Constant(size);
         return b.makeFillEmptyFalse(
             b.makeBinaryOp(abt::Operations::Eq,
-                           b.makeFunction("getArraySize", std::move(inputExpr)),
+                           b.makeFunction(sbe::EFn::kGetArraySize, std::move(inputExpr)),
                            std::move(sizeExpr)));
     };
 
@@ -799,7 +823,7 @@ public:
 
         auto lambdaBodyExpr = b.makeBooleanOpTree(
             abt::Operations::And,
-            b.makeFunction("typeMatch",
+            b.makeFunction(sbe::EFn::kTypeMatch,
                            lambdaParam,
                            b.makeInt32Constant(getBSONTypeMask(BSONType::array) |
                                                getBSONTypeMask(BSONType::object))),
@@ -812,8 +836,8 @@ public:
         auto makePredicate = [&](SbExpr inputExpr) {
             return b.makeFillEmptyFalse(
                 b.makeBooleanOpTree(abt::Operations::And,
-                                    b.makeFunction("isArray", inputExpr.clone()),
-                                    b.makeFunction("traverseF",
+                                    b.makeFunction(sbe::EFn::kIsArray, inputExpr.clone()),
+                                    b.makeFunction(sbe::EFn::kTraverseF,
                                                    inputExpr.clone(),
                                                    std::move(lambdaExpr),
                                                    b.makeBoolConstant(false))));
@@ -850,8 +874,8 @@ public:
         auto makePredicate = [&](SbExpr inputExpr) {
             return b.makeFillEmptyFalse(
                 b.makeBooleanOpTree(abt::Operations::And,
-                                    b.makeFunction("isArray", inputExpr.clone()),
-                                    b.makeFunction("traverseF",
+                                    b.makeFunction(sbe::EFn::kIsArray, inputExpr.clone()),
+                                    b.makeFunction(sbe::EFn::kTraverseF,
                                                    inputExpr.clone(),
                                                    std::move(lambdaExpr),
                                                    b.makeBoolConstant(false))));
@@ -869,7 +893,7 @@ public:
         SbExprBuilder b(_context->state);
 
         auto makePredicate = [this, &b](SbExpr inputExpr) {
-            return b.makeFunction("exists", std::move(inputExpr));
+            return b.makeFunction(sbe::EFn::kExists, std::move(inputExpr));
         };
 
         const auto traversalMode = LeafTraversalMode::kDoNotTraverseLeaf;
@@ -887,7 +911,8 @@ public:
                                        *_context->slots);
 
         // Convert the result of the '{$expr: ..}' expression to a boolean value.
-        frame.pushExpr(b.makeFillEmptyFalse(b.makeFunction("coerceToBool"_sd, std::move(expr))));
+        frame.pushExpr(
+            b.makeFillEmptyFalse(b.makeFunction(sbe::EFn::kCoerceToBool, std::move(expr))));
     }
 
     void visit(const GTEMatchExpression* expr) final {
@@ -921,7 +946,8 @@ public:
                                                      b.makeNullConstant(),
                                                      inputExpr.clone());
 
-                return b.makeFunction("isMember", std::move(valueExpr), std::move(equalitiesExpr));
+                return b.makeFunction(
+                    sbe::EFn::kIsMember, std::move(valueExpr), std::move(equalitiesExpr));
             };
 
             generatePredicate(_context, *expr->fieldRef(), makePredicate, traversalMode, hasNull);
@@ -966,10 +992,10 @@ public:
         auto makePredicate = [&, hasNull = hasNull](SbExpr inputExpr) {
             auto resultExpr = b.makeBooleanOpTree(
                 abt::Operations::Or,
-                b.makeFillEmptyFalse(
-                    b.makeFunction("isMember", inputExpr.clone(), std::move(regexSetConstant))),
                 b.makeFillEmptyFalse(b.makeFunction(
-                    "regexMatch", std::move(pcreRegexesConstant), inputExpr.clone())));
+                    sbe::EFn::kIsMember, inputExpr.clone(), std::move(regexSetConstant))),
+                b.makeFillEmptyFalse(b.makeFunction(
+                    sbe::EFn::kRegexMatch, std::move(pcreRegexesConstant), inputExpr.clone())));
 
             if (expr->getEqualities().size() > 0) {
                 // We have to match nulls and missing if a 'null' is present in equalities.
@@ -979,10 +1005,11 @@ public:
                                          inputExpr.clone());
                 }
 
-                resultExpr = b.makeBooleanOpTree(
-                    abt::Operations::Or,
-                    b.makeFunction("isMember", std::move(inputExpr), std::move(equalitiesExpr)),
-                    std::move(resultExpr));
+                resultExpr = b.makeBooleanOpTree(abt::Operations::Or,
+                                                 b.makeFunction(sbe::EFn::kIsMember,
+                                                                std::move(inputExpr),
+                                                                std::move(equalitiesExpr)),
+                                                 std::move(resultExpr));
             }
 
             return resultExpr;
@@ -1029,10 +1056,10 @@ public:
         auto translatedCmpExpr =
             generateExpressionCompare(state, cmpOp, lhsVar.clone(), b.makeConstant(rhsTag, rhsVal));
 
-        auto isArrayExpr =
-            b.makeBooleanOpTree(abt::Operations::Or,
-                                b.makeFillEmptyFalse(b.makeFunction("isArray", lhsVar.clone())),
-                                std::move(translatedCmpExpr));
+        auto isArrayExpr = b.makeBooleanOpTree(
+            abt::Operations::Or,
+            b.makeFillEmptyFalse(b.makeFunction(sbe::EFn::kIsArray, lhsVar.clone())),
+            std::move(translatedCmpExpr));
 
         // Now generate the actual field path expression for the LHS.
         FieldPath fp("CURRENT." + std::string{expr->fieldRef()->dottedField()});
@@ -1162,7 +1189,7 @@ public:
             auto typeMaskSlot = SbSlot{_context->state.registerInputParamSlot(*typeMaskParam)};
             auto makePredicate = [&](SbExpr inputExpr) {
                 return b.makeFillEmptyFalse(
-                    b.makeFunction("typeMatch", std::move(inputExpr), typeMaskSlot));
+                    b.makeFunction(sbe::EFn::kTypeMatch, std::move(inputExpr), typeMaskSlot));
             };
 
             const auto traversalMode = LeafTraversalMode::kArrayElementsOnly;
@@ -1176,8 +1203,9 @@ public:
 
         auto makePredicate = [&](SbExpr inputExpr) {
             const MatcherTypeSet& ts = expr->typeSet();
-            return b.makeFillEmptyFalse(b.makeFunction(
-                "typeMatch", std::move(inputExpr), b.makeInt32Constant(ts.getBSONTypeMask())));
+            return b.makeFillEmptyFalse(b.makeFunction(sbe::EFn::kTypeMatch,
+                                                       std::move(inputExpr),
+                                                       b.makeInt32Constant(ts.getBSONTypeMask())));
         };
 
         generatePredicate(_context, *expr->fieldRef(), makePredicate, traversalMode);
@@ -1268,13 +1296,24 @@ SbExpr generateFilter(StageBuilderState& state,
                       boost::optional<SbSlot> rootSlot,
                       const PlanStageSlots& slots,
                       bool isFilterOverIxscan) {
+    PathArrayness pathArrayness{};
+    return generateFilter(state, root, rootSlot, slots, pathArrayness, isFilterOverIxscan);
+}
+
+SbExpr generateFilter(StageBuilderState& state,
+                      const MatchExpression* root,
+                      boost::optional<SbSlot> rootSlot,
+                      const PlanStageSlots& slots,
+                      const PathArrayness& pathArrayness,
+                      bool isFilterOverIxscan) {
     // The planner adds an $and expression without the operands if the query was empty. We can bail
     // out early without generating the filter plan stage if this is the case.
     if (root->matchType() == MatchExpression::AND && root->numChildren() == 0) {
         return SbExpr{};
     }
 
-    MatchExpressionVisitorContext context{state, rootSlot, root, &slots, isFilterOverIxscan};
+    MatchExpressionVisitorContext context{
+        state, rootSlot, root, &slots, pathArrayness, isFilterOverIxscan};
 
     MatchExpressionPreVisitor preVisitor{&context};
     MatchExpressionInVisitor inVisitor{&context};
@@ -1339,13 +1378,14 @@ ExpressionType generateComparisonExpr(BuilderType& b,
                 break;
             case abt::Operations::Gt:
                 return b.makeNot(
-                    b.makeFunction("isMinKey", b.makeFillEmptyNull(std::move(inputExpr))));
+                    b.makeFunction(sbe::EFn::kIsMinKey, b.makeFillEmptyNull(std::move(inputExpr))));
             case abt::Operations::Gte:
                 return b.makeBoolConstant(true);
             case abt::Operations::Lt:
                 return b.makeBoolConstant(false);
             case abt::Operations::Lte:
-                return b.makeFunction("isMinKey", b.makeFillEmptyNull(std::move(inputExpr)));
+                return b.makeFunction(sbe::EFn::kIsMinKey,
+                                      b.makeFillEmptyNull(std::move(inputExpr)));
             default:
                 MONGO_UNREACHABLE_TASSERT(8217105);
         }
@@ -1357,10 +1397,11 @@ ExpressionType generateComparisonExpr(BuilderType& b,
             case abt::Operations::Gt:
                 return b.makeBoolConstant(false);
             case abt::Operations::Gte:
-                return b.makeFunction("isMaxKey", b.makeFillEmptyNull(std::move(inputExpr)));
+                return b.makeFunction(sbe::EFn::kIsMaxKey,
+                                      b.makeFillEmptyNull(std::move(inputExpr)));
             case abt::Operations::Lt:
                 return b.makeNot(
-                    b.makeFunction("isMaxKey", b.makeFillEmptyNull(std::move(inputExpr))));
+                    b.makeFunction(sbe::EFn::kIsMaxKey, b.makeFillEmptyNull(std::move(inputExpr))));
             case abt::Operations::Lte:
                 return b.makeBoolConstant(true);
             default:
@@ -1382,7 +1423,7 @@ ExpressionType generateComparisonExpr(BuilderType& b,
             case abt::Operations::Gte:
             case abt::Operations::Lte:
                 // If 'rhs' is NaN, then return whether the lhs is NaN.
-                return b.makeFillEmptyFalse(b.makeFunction("isNaN", std::move(inputExpr)));
+                return b.makeFillEmptyFalse(b.makeFunction(sbe::EFn::kIsNaN, std::move(inputExpr)));
             case abt::Operations::Lt:
             case abt::Operations::Gt:
                 // Always return false for non-equality operators.
@@ -1429,7 +1470,7 @@ SbExpr generateInExpr(StageBuilderState& state, const InMatchExpression* expr, S
 
     auto [equalities, hasArray, hasObject, hasNull] = _generateInExprInternal(state, expr);
 
-    return b.makeFunction("isMember", std::move(inputExpr), std::move(equalities));
+    return b.makeFunction(sbe::EFn::kIsMember, std::move(inputExpr), std::move(equalities));
 }
 
 SbExpr generateBitTestExpr(StageBuilderState& state,
@@ -1453,7 +1494,7 @@ SbExpr generateBitTestExpr(StageBuilderState& state,
     // An EExpression for the BinData and position list for the binary case of
     // BitTestMatchExpressions. This function will be applied to values carrying BinData
     // elements.
-    auto binaryBitTestExpr = b.makeFunction("bitTestPosition"_sd,
+    auto binaryBitTestExpr = b.makeFunction(sbe::EFn::kBitTestPosition,
                                             std::move(bitPosExpr),
                                             inputExpr.clone(),
                                             b.makeInt32Constant(static_cast<int32_t>(bitOp)));
@@ -1463,10 +1504,10 @@ SbExpr generateBitTestExpr(StageBuilderState& state,
     // AnySet cases are the negation of the AllSet and AllClear cases, respectively.
     auto numericBitTestFnName = [&]() {
         if (bitOp == sbe::BitTestBehavior::AllSet || bitOp == sbe::BitTestBehavior::AnyClear) {
-            return "bitTestMask"_sd;
+            return sbe::EFn::kBitTestMask;
         }
         if (bitOp == sbe::BitTestBehavior::AllClear || bitOp == sbe::BitTestBehavior::AnySet) {
-            return "bitTestZero"_sd;
+            return sbe::EFn::kBitTestZero;
         }
         MONGO_UNREACHABLE_TASSERT(5610200);
     }();
@@ -1494,7 +1535,7 @@ SbExpr generateBitTestExpr(StageBuilderState& state,
 
     // isBinData and numericBitTestExpr might produce Nothing, so we wrap everything with
     // makeFillEmptyFalse().
-    return b.makeFillEmptyFalse(b.makeIf(b.makeFunction("isBinData"_sd, std::move(inputExpr)),
+    return b.makeFillEmptyFalse(b.makeIf(b.makeFunction(sbe::EFn::kIsBinData, std::move(inputExpr)),
                                          std::move(binaryBitTestExpr),
                                          std::move(numericBitTestExpr)));
 }
@@ -1510,8 +1551,8 @@ SbExpr generateModExpr(StageBuilderState& state, const ModMatchExpression* expr,
     SbExprBuilder b(state);
 
     auto& dividend = inputExpr;
-    auto truncatedArgument = b.makeNumericConvert(b.makeFunction("trunc"_sd, dividend.clone()),
-                                                  sbe::value::TypeTags::NumberInt64);
+    auto truncatedArgument = b.makeNumericConvert(
+        b.makeFunction(sbe::EFn::kTrunc, dividend.clone()), sbe::value::TypeTags::NumberInt64);
     tassert(6142202,
             "Either both divisor and remainer are parameterized or none",
             (expr->getDivisorInputParamId() && expr->getRemainderInputParamId()) ||
@@ -1536,7 +1577,7 @@ SbExpr generateModExpr(StageBuilderState& state, const ModMatchExpression* expr,
     }();
     return b.makeFillEmptyFalse(b.makeBinaryOp(
         abt::Operations::Eq,
-        b.makeFunction("mod"_sd, std::move(truncatedArgument), std::move(divisorExpr)),
+        b.makeFunction(sbe::EFn::kMod, std::move(truncatedArgument), std::move(divisorExpr)),
         std::move(remainderExpr)));
 }
 
@@ -1575,8 +1616,8 @@ SbExpr generateRegexExpr(StageBuilderState& state,
         abt::Operations::Or,
         b.makeFillEmptyFalse(
             b.makeBinaryOp(abt::Operations::Eq, inputExpr.clone(), std::move(bsonRegexExpr))),
-        b.makeFillEmptyFalse(
-            b.makeFunction("regexMatch", std::move(compiledRegexExpr), inputExpr.clone())));
+        b.makeFillEmptyFalse(b.makeFunction(
+            sbe::EFn::kRegexMatch, std::move(compiledRegexExpr), inputExpr.clone())));
 
     return resultExpr;
 }
@@ -1602,9 +1643,10 @@ SbExpr generateWhereExpr(StageBuilderState& state,
     // register a SlotId for it and use the slot directly.
     if (auto inputParam = expr->getInputParamId()) {
         auto inputParamSlot = SbSlot{state.registerInputParamSlot(*inputParam)};
-        return b.makeFunction("runJsPredicate", inputParamSlot, std::move(inputExpr));
+        return b.makeFunction(sbe::EFn::kRunJsPredicate, inputParamSlot, std::move(inputExpr));
     } else {
-        return b.makeFunction("runJsPredicate", std::move(predicate), std::move(inputExpr));
+        return b.makeFunction(
+            sbe::EFn::kRunJsPredicate, std::move(predicate), std::move(inputExpr));
     }
 }
 }  // namespace mongo::stage_builder

@@ -143,7 +143,10 @@ function runProperty(propertyFn, namespaces, workload, sortArrays) {
     }
 
     const testHelpers = {
-        comp: sortArrays === true ? _resultSetsEqualUnorderedWithUnorderedArrays : _resultSetsEqualUnordered,
+        // Default comparator. Sorts documents but doesn't change arrays within the documents.
+        comp: _resultSetsEqualUnordered,
+        // Comparator that sorts arrays within documents before comparing results.
+        compSortArrays: _resultSetsEqualUnorderedWithUnorderedArrays,
         numQueryShapes: queries.length,
         leafParametersPerFamily,
     };
@@ -186,7 +189,7 @@ function reporter(propertyFn, namespaces) {
  * failure, `runProperty` is called again in the reporter, and prints out more details about the
  * failed property.
  */
-export function testProperty(propertyFn, namespaces, workloadModel, numRuns, examples, sortArrays) {
+export function testProperty(propertyFn, namespaces, workloadModel, numRuns, examples) {
     assert.eq(typeof propertyFn, "function");
     assert.eq(typeof numRuns, "number");
 
@@ -265,7 +268,7 @@ export function getPlanCache(coll) {
 }
 
 function unoptimize(q) {
-    return [{$_internalInhibitOptimization: {}}].concat(q);
+    return q.flatMap((stage) => [{$_internalInhibitOptimization: {}}, stage]);
 }
 
 /*
@@ -282,8 +285,13 @@ export function runDeoptimized(controlColl, queries) {
     getPlanCache(controlColl).clear();
     const db = controlColl.getDB();
     const priorSettings = assert.commandWorked(
-        db.adminCommand({getParameter: 1, internalQueryFrameworkControl: 1, internalQueryDisablePlanCache: 1}),
+        db.adminCommand({
+            getParameter: 1,
+            internalQueryFrameworkControl: 1,
+            internalQueryDisablePlanCache: 1,
+        }),
     );
+
     assert.commandWorked(
         db.adminCommand({
             setParameter: 1,
@@ -292,18 +300,18 @@ export function runDeoptimized(controlColl, queries) {
         }),
     );
 
-    let resultMap = queries.map((query) => {
-        assert(Array.isArray(query.pipeline) && typeof query.options === "object");
-        return controlColl.aggregate(unoptimize(query.pipeline), query.options).toArray();
-    });
-
-    assert.commandWorked(
-        db.adminCommand({
-            setParameter: 1,
-            internalQueryFrameworkControl: priorSettings.internalQueryFrameworkControl,
-            internalQueryDisablePlanCache: priorSettings.internalQueryDisablePlanCache,
-        }),
-    );
-
-    return resultMap;
+    try {
+        return queries.map((query) => {
+            assert(Array.isArray(query.pipeline) && typeof query.options === "object");
+            return controlColl.aggregate(unoptimize(query.pipeline), query.options).toArray();
+        });
+    } finally {
+        assert.commandWorked(
+            db.adminCommand({
+                setParameter: 1,
+                internalQueryFrameworkControl: priorSettings.internalQueryFrameworkControl,
+                internalQueryDisablePlanCache: priorSettings.internalQueryDisablePlanCache,
+            }),
+        );
+    }
 }

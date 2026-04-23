@@ -70,6 +70,7 @@
 #include "mongo/db/shard_role/shard_catalog/collection_uuid_mismatch.h"
 #include "mongo/db/shard_role/shard_catalog/participant_block_gen.h"
 #include "mongo/db/shard_role/shard_catalog/rename_collection.h"
+#include "mongo/db/shard_role/shard_role.h"
 #include "mongo/db/sharding_environment/client/shard.h"
 #include "mongo/db/sharding_environment/grid.h"
 #include "mongo/db/sharding_environment/shard_id.h"
@@ -504,7 +505,7 @@ void checkExpectedTargetIndexesMatch(OperationContext* opCtx,
                                      const NamespaceString targetNss,
                                      const std::vector<BSONObj>& expectedIndexes) {
     sharding::router::CollectionRouter router(opCtx, targetNss);
-    const auto currentIndexes = router.routeWithRoutingContext(
+    auto currentIndexes = router.routeWithRoutingContext(
         "checking indexes prerequisites within rename collection coordinator",
         [&](OperationContext* opCtx, RoutingContext& routingCtx) {
             const auto response = loadIndexesFromAuthoritativeShard(opCtx, routingCtx, targetNss);
@@ -514,6 +515,15 @@ void checkExpectedTargetIndexesMatch(OperationContext* opCtx,
             }
             return uassertStatusOK(response).docs;
         });
+
+    // The listIndexes command always includes a 'collation' field in its output as of SERVER-89953.
+    // However, we are expecting a normalized index specification, in which case the 'collation'
+    // field should be omitted when it represents the simple collation. Apply normalization here to
+    // be able to compare the index specs apropiately.
+    // TODO (SERVER-119573): Remove this normalization once listIndexes returns specs compatible
+    // with the storage format.
+    currentIndexes = IndexCatalog::normalizeIndexSpecsFromListIndexes(currentIndexes);
+
     uassertStatusOK(checkTargetCollectionIndexesMatch(targetNss, expectedIndexes, currentIndexes));
 }
 }  // namespace
@@ -586,6 +596,23 @@ ExecutorFuture<void> RenameCollectionCoordinator::_runImpl(
                             "databases",
                             fromNss.db_forSharding() == toNss.db_forSharding() ||
                                 (!_doc.getExpectedSourceUUID() && !_doc.getExpectedTargetUUID()));
+
+                    {
+                        auto acquisitions =
+                            makeAcquisitionMap(acquireCollectionsOrViewsMaybeLockFree(
+                                opCtx,
+                                {CollectionOrViewAcquisitionRequest::fromOpCtx(
+                                     opCtx,
+                                     fromNss,
+                                     AcquisitionPrerequisites::OperationType::kRead),
+                                 CollectionOrViewAcquisitionRequest::fromOpCtx(
+                                     opCtx,
+                                     toNss,
+                                     AcquisitionPrerequisites::OperationType::kRead)}));
+
+                        checkTimeseriesUpgradeDowngrade(
+                            opCtx, acquisitions.at(fromNss), acquisitions.at(toNss));
+                    }
 
                     {
                         AutoGetCollection coll{
@@ -1115,6 +1142,10 @@ ExecutorFuture<void> RenameCollectionCoordinator::_runImpl(
                     defaultMajorityWriteConcernDoNotUse());
                 LOGV2(5460504, "Collection renamed", logAttrs(nss()));
             }));
+}
+
+bool RenameCollectionCoordinator::isInCriticalSection(Phase phase) const {
+    return phase >= Phase::kSetupChangeStreamsPreconditions && phase <= Phase::kUnblockCRUD;
 }
 
 }  // namespace mongo

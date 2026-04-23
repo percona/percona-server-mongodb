@@ -493,6 +493,13 @@ void cleanupTask(const ShutdownTaskArgs& shutdownArgs) {
         // Perform all shutdown operations after setKillAllOperations is called in order to ensure
         // that any pending threads are about to terminate
 
+        {
+            SectionScopedTimer scopedTimer(serviceContext->getFastClockSource(),
+                                           TimedSectionId::shutDownRouterUptimeReporter,
+                                           &shutdownTimeElapsedBuilder);
+            RouterUptimeReporter::get(serviceContext).shutdown();
+        }
+
         if (auto validator = LogicalTimeValidator::get(serviceContext)) {
             SectionScopedTimer scopedTimer(serviceContext->getFastClockSource(),
                                            TimedSectionId::shutDownLogicalTimeValidator,
@@ -509,6 +516,15 @@ void cleanupTask(const ShutdownTaskArgs& shutdownArgs) {
                                            TimedSectionId::shutDownSearchTaskExecutors,
                                            &shutdownTimeElapsedBuilder);
             executor::shutdownSearchExecutorsIfNeeded(serviceContext);
+        }
+
+        {
+            SectionScopedTimer scopedTimer(serviceContext->getFastClockSource(),
+                                           TimedSectionId::shutDownAndJoinReadWriteConcernDefaults,
+                                           &shutdownTimeElapsedBuilder);
+            LOGV2_OPTIONS(
+                12370200, {LogComponent::kDefault}, "Shutting down the ReadWriteConcernDefaults");
+            ReadWriteConcernDefaults::get(serviceContext->getService()).shutDownAndJoin();
         }
 
         // Finish shutting down the TransportLayers

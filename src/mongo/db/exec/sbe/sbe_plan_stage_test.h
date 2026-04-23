@@ -44,6 +44,7 @@
 
 #include "mongo/base/string_data.h"
 #include "mongo/db/exec/sbe/expressions/expression.h"
+#include "mongo/db/exec/sbe/expressions/sbe_fn_names.h"
 #include "mongo/db/exec/sbe/stages/stages.h"
 #include "mongo/db/exec/sbe/values/slot.h"
 #include "mongo/db/exec/sbe/values/value.h"
@@ -72,14 +73,13 @@ inline auto makeConstant(sbe::value::TypeTags tag, sbe::value::Value val) {
     return sbe::makeE<sbe::EConstant>(tag, val);
 }
 
-inline std::unique_ptr<sbe::EExpression> makeFunction(StringData name,
-                                                      sbe::EExpression::Vector args) {
-    return sbe::makeE<sbe::EFunction>(name, std::move(args));
+inline std::unique_ptr<sbe::EExpression> makeFunction(sbe::EFn fn, sbe::EExpression::Vector args) {
+    return sbe::makeE<sbe::EFunction>(fn, std::move(args));
 }
 
 template <typename... Args>
-inline std::unique_ptr<sbe::EExpression> makeFunction(StringData name, Args&&... args) {
-    return sbe::makeE<sbe::EFunction>(name, sbe::makeEs(std::forward<Args>(args)...));
+inline std::unique_ptr<sbe::EExpression> makeFunction(sbe::EFn fn, Args&&... args) {
+    return sbe::makeE<sbe::EFunction>(fn, sbe::makeEs(std::forward<Args>(args)...));
 }
 
 inline std::unique_ptr<sbe::EExpression> makeVariable(sbe::value::SlotId slotId) {
@@ -137,7 +137,10 @@ inline std::vector<std::unique_ptr<HashAggAccumulator>> makeHashAggAccumulatorLi
  */
 class PlanStageTestFixture : public CatalogTestFixture {
 public:
-    PlanStageTestFixture(bool enableYield = true) : _enableYield(enableYield) {};
+    // SBE plan stages such as HashAgg and Sort may spill to disk, requiring the spill WiredTiger
+    // instance.
+    PlanStageTestFixture(bool enableYield = true)
+        : CatalogTestFixture(Options{}.enableSpillEngine()), _enableYield(enableYield) {};
 
     void setUp() override {
         CatalogTestFixture::setUp();

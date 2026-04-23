@@ -81,6 +81,14 @@ idl_generator(
 )
 
 idl_generator(
+    name = "container_oplog_entry_gen",
+    src = "container_oplog_entry.idl",
+    deps = [
+        "//src/mongo/db:basic_types_gen",
+    ],
+)
+
+idl_generator(
     name = "create_oplog_entry_gen",
     src = "create_oplog_entry.idl",
     deps = [
@@ -100,6 +108,7 @@ idl_generator(
         "//src/mongo/db:record_id_gen",
         "//src/mongo/db:version_context_gen",
         "//src/mongo/db/pipeline:value_gen",
+        "//src/mongo/db/replicated_fast_count:durable_size_metadata_gen",
         "//src/mongo/db/session:logical_session_id_gen",
         "//src/mongo/db/sharding_environment:sharding_types_gen",
     ],
@@ -108,6 +117,7 @@ idl_generator(
 mongo_cc_library(
     name = "oplog_entry",
     srcs = [
+        "container_oplog_entry_gen",
         "create_oplog_entry_gen",
         "oplog_entry.cpp",
         "oplog_entry_gen",
@@ -121,6 +131,7 @@ mongo_cc_library(
         "//src/mongo/db/auth:security_token_auth",
         "//src/mongo/db/commands:txn_cmd_request",
         "//src/mongo/db/exec/document_value",
+        "//src/mongo/db/replicated_fast_count:durable_size_metadata_idl",
         "//src/mongo/db/shard_role/shard_catalog:collection_options",
     ],
 )
@@ -566,6 +577,27 @@ mongo_cc_library(
         "//src/mongo/bson/util:bson_extract",
         "//src/mongo/idl:basic_types_serialization",
         "//src/mongo/idl:idl_parser",
+    ],
+)
+
+mongo_cc_library(
+    name = "optime_observer",
+    hdrs = [
+        "optime_observer.h",
+    ],
+    deps = [
+        "//src/mongo:base",
+    ],
+)
+
+mongo_cc_library(
+    name = "optime_observer_dispatcher",
+    hdrs = [
+        "optime_observer_dispatcher.h",
+    ],
+    deps = [
+        ":optime_observer",
+        "//src/mongo:base",
     ],
 )
 
@@ -1869,6 +1901,18 @@ mongo_cc_unit_test(
         "//src/mongo/unittest:task_executor_proxy",
         "//src/mongo/util:clock_source_mock",
         "//src/mongo/util/concurrency:thread_pool",
+    ],
+)
+
+mongo_cc_unit_test(
+    name = "optime_observer_dispatcher_test",
+    srcs = [
+        "optime_observer_dispatcher_test.cpp",
+    ],
+    tags = ["mongo_unittest_second_group"],
+    deps = [
+        ":optime_observer_dispatcher",
+        "//src/mongo/db:server_base",
     ],
 )
 

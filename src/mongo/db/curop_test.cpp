@@ -1038,8 +1038,8 @@ TEST(CurOpTest, ShouldReportIsFromUserConnection) {
                                        SerializationContext::Prefix::ExcludePrefix);
         auto expCtx = make_intrusive<ExpressionContextForTest>(opCtx.get(), nss, sc);
 
-        curop->reportCurrentOpForClient(expCtx, client, false, &curOpObj);
-        curop->reportCurrentOpForClient(expCtx, clientUserConn.get(), false, &curOpObjUserConn);
+        curop->reportCurrentOpForClient(lk, expCtx, client, false, &curOpObj);
+        curop->reportCurrentOpForClient(lk, expCtx, clientUserConn.get(), false, &curOpObjUserConn);
     }
     auto bsonObj = curOpObj.done();
     auto bsonObjUserConn = curOpObjUserConn.done();
@@ -1080,9 +1080,9 @@ TEST(CurOpTest, ShouldNotReportIsFromPriorityPortConnectionWhenFFDisabled) {
                                        SerializationContext::Prefix::ExcludePrefix);
         auto expCtx = make_intrusive<ExpressionContextForTest>(opCtx.get(), nss, sc);
 
-        curop->reportCurrentOpForClient(expCtx, client, false, &curOpObj);
+        curop->reportCurrentOpForClient(lk, expCtx, client, false, &curOpObj);
         curop->reportCurrentOpForClient(
-            expCtx, clientPriorityConn.get(), false, &curOpObjPriorityConn);
+            lk, expCtx, clientPriorityConn.get(), false, &curOpObjPriorityConn);
     }
     auto bsonObj = curOpObj.done();
     auto bsonObjPriorityConn = curOpObjPriorityConn.done();
@@ -1121,9 +1121,9 @@ TEST(CurOpTest, ShouldReportIsFromPriorityPortConnection) {
                                        SerializationContext::Prefix::ExcludePrefix);
         auto expCtx = make_intrusive<ExpressionContextForTest>(opCtx.get(), nss, sc);
 
-        curop->reportCurrentOpForClient(expCtx, client, false, &curOpObj);
+        curop->reportCurrentOpForClient(lk, expCtx, client, false, &curOpObj);
         curop->reportCurrentOpForClient(
-            expCtx, clientPriorityConn.get(), false, &curOpObjPriorityConn);
+            lk, expCtx, clientPriorityConn.get(), false, &curOpObjPriorityConn);
     }
     auto bsonObj = curOpObj.done();
     auto bsonObjPriorityConn = curOpObjPriorityConn.done();
@@ -1496,6 +1496,49 @@ TEST(CurOpTest, SetEndOfOpMetricsForBatchWritesNoOpWithoutEntries) {
     // The main operation's additive metrics should not be affected.
     auto& mainMetrics = curOp->debug().getAdditiveMetrics();
     ASSERT_FALSE(mainMetrics.executionTime.has_value());
+}
+
+TEST(CurOpTest, AppendStagedIdLookupMetricsOmittedWhenNotPopulated) {
+    QueryTestServiceContext serviceContext;
+    auto opCtx = serviceContext.makeOperationContext();
+    auto* curop = CurOp::get(*opCtx);
+    auto* opDebug = &curop->debug();
+
+    // The metrics should be default initialized to nullptr.
+    ASSERT_TRUE(opDebug->searchIdLookupMetrics == nullptr);
+
+    StringSet requestedFields = {
+        "idLookupSuccessRate", "docsSeenByIdLookup", "docsReturnedByIdLookup"};
+    auto makeDoc = OpDebug::appendStaged(opCtx.get(), requestedFields, /*needWholeDocument=*/false);
+    BSONObj result = makeDoc(OpDebug::AppendArgs{opCtx.get(), *opDebug, *curop});
+
+    ASSERT_TRUE(result.isEmpty()) << "Expected empty doc when searchIdLookupMetrics is null, got: "
+                                  << result;
+}
+
+TEST(CurOpTest, AppendStagedIdLookupMetricsReportedCorrectly) {
+    QueryTestServiceContext serviceContext;
+    auto opCtx = serviceContext.makeOperationContext();
+    auto* curop = CurOp::get(*opCtx);
+    auto* opDebug = &curop->debug();
+
+    // 3 docs seen, 1 returned → success rate = 1/3.
+    std::shared_ptr<OpDebug::SearchIdLookupMetrics> metrics =
+        std::make_shared<OpDebug::SearchIdLookupMetrics>();
+    metrics->incrementDocsSeenByIdLookup();
+    metrics->incrementDocsSeenByIdLookup();
+    metrics->incrementDocsSeenByIdLookup();
+    metrics->incrementDocsReturnedByIdLookup();
+    opDebug->searchIdLookupMetrics = metrics;
+
+    StringSet requestedFields = {
+        "idLookupSuccessRate", "docsSeenByIdLookup", "docsReturnedByIdLookup"};
+    auto makeDoc = OpDebug::appendStaged(opCtx.get(), requestedFields, /*needWholeDocument=*/false);
+    BSONObj result = makeDoc(OpDebug::AppendArgs{opCtx.get(), *opDebug, *curop});
+
+    ASSERT_EQ(result["docsSeenByIdLookup"].Long(), 3LL);
+    ASSERT_EQ(result["docsReturnedByIdLookup"].Long(), 1LL);
+    ASSERT_APPROX_EQUAL(result["idLookupSuccessRate"].Double(), 1.0 / 3.0, 1e-9);
 }
 
 }  // namespace

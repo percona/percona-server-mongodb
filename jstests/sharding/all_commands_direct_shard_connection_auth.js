@@ -142,11 +142,14 @@ const allCommands = {
     _shardsvrReshardCollection: {skip: isAnInternalCommand},
     _shardsvrReshardingOperationTime: {skip: isAnInternalCommand},
     _shardsvrReshardDonorInitialize: {skip: isAnInternalCommand},
+    _shardsvrReshardDonorRecipientsFinishedCloning: {skip: isAnInternalCommand},
     _shardsvrReshardRecipientInitialize: {skip: isAnInternalCommand},
     _shardsvrReshardRecipientClone: {skip: isAnInternalCommand},
     _shardsvrReshardRecipientCriticalSectionStarted: {skip: isAnInternalCommand},
     _shardsvrRefineCollectionShardKey: {skip: isAnInternalCommand},
     _shardsvrCommitRefineCollectionShardKey: {skip: isAnInternalCommand},
+    _shardsvrCommitDropCollectionMetadata: {skip: isAnInternalCommand},
+    _shardsvrCommitCreateCollectionMetadata: {skip: isAnInternalCommand},
     _shardsvrSetAllowMigrations: {skip: isAnInternalCommand},
     _shardsvrSetClusterParameter: {skip: isAnInternalCommand},
     _shardsvrSetUserWriteBlockMode: {skip: isAnInternalCommand},
@@ -991,6 +994,25 @@ const allCommands = {
         },
     },
     prepareTransaction: {skip: isAnInternalCommand},
+    blockReplicaSetWrites: {
+        checkFeatureFlag: "blockReplicaSetWrites",
+        isAdminCommand: true,
+        command: {
+            blockReplicaSetWrites: 1,
+            enabled: true,
+            allowDeletions: false,
+            reason: "InsufficientDiskSpace",
+        },
+        shouldFail: false,
+        teardown: function (conn) {
+            conn.getDB("admin").runCommand({
+                blockReplicaSetWrites: 1,
+                enabled: false,
+                allowDeletions: false,
+                reason: "InsufficientDiskSpace",
+            });
+        },
+    },
     profile: {
         isAdminCommand: true,
         command: {profile: 2},

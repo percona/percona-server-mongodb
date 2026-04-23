@@ -34,11 +34,13 @@
 #include "mongo/db/extension/host/extension_search_server_status.h"
 #include "mongo/db/extension/host/extension_vector_search_server_status.h"
 #include "mongo/db/extension/host/query_execution_context.h"
+#include "mongo/db/extension/host_connector/adapter/pipeline_dependencies_adapter.h"
 #include "mongo/db/extension/host_connector/adapter/pipeline_rewrite_context_adapter.h"
 #include "mongo/db/extension/host_connector/adapter/query_execution_context_adapter.h"
 #include "mongo/db/extension/host_connector/adapter/view_info_adapter.h"
 #include "mongo/db/extension/public/api.h"
 #include "mongo/db/extension/shared/handle/aggregation_stage/stage_descriptor.h"
+#include "mongo/db/extension/shared/handle/pipeline_rewrite_context_handle.h"
 #include "mongo/db/pipeline/lite_parsed_document_source.h"
 #include "mongo/db/pipeline/optimization/rule_based_rewriter.h"
 #include "mongo/db/pipeline/search/search_helper.h"
@@ -171,7 +173,7 @@ LiteParsedList DocumentSourceExtensionOptimizable::LiteParsedExpandable::expandI
         },
         [&](AggStageAstNodeHandle handle) {
             outExpanded.emplace_back(std::make_unique<LiteParsedExpanded>(
-                std::string(handle->getName()), std::move(handle), nss));
+                std::string(handle->getName()), std::move(handle), nss, options.ifrContext));
         });
 
     return outExpanded;
@@ -227,7 +229,9 @@ DocumentSourceExtensionOptimizable::LiteParsedExpanded::getFirstStageViewApplica
 
 void DocumentSourceExtensionOptimizable::LiteParsedExpanded::bindViewInfo(
     const ViewInfo& viewInfo, const ResolvedNamespaceMap& resolvedNamespaces) {
-    if (!feature_flags::gFeatureFlagExtensionViewsAndUnionWith.isEnabled()) {
+    auto hybridSearchFlagEnabled = _ifrContext &&
+        _ifrContext->getSavedFlagValue(feature_flags::gFeatureFlagExtensionsInsideHybridSearch);
+    if (!hybridSearchFlagEnabled) {
         // Only $vectorSearch and $search/$searchMeta support IFR kickback on views.
         // All other extension stages are banned on views when the feature flag is disabled.
         uassert(ErrorCodes::NotImplemented,
@@ -578,7 +582,7 @@ stdx::unordered_map<std::string, std::vector<PipelineRewriteRule>>
 void DocumentSourceExtensionOptimizable::registerStageRules(
     StringData stageName, const std::vector<extension::PipelineRewriteRule>& rules) {
     auto [_, inserted] = _extensionRuleRegistry.emplace(stageName, rules);
-    tassert(12201405, "Rules already registered for stage: " + stageName, inserted);
+    tassert(12201405, "Rules already registered for stage: " + std::string{stageName}, inserted);
 }
 
 // static
@@ -599,7 +603,7 @@ const std::vector<PipelineRewriteRule>* DocumentSourceExtensionOptimizable::getS
 // static
 std::vector<rule_based_rewrites::pipeline::PipelineRewriteRule>
 DocumentSourceExtensionOptimizable::_buildOwnedRewriteRules(
-    const std::string& stageName, MongoExtensionLogicalAggStage* logicalStage) {
+    const std::string& stageName, UnownedLogicalAggStageHandle logicalStage) {
     auto it = _extensionRuleRegistry.find(stageName);
     if (it == _extensionRuleRegistry.end()) {
         return {};
@@ -612,10 +616,9 @@ DocumentSourceExtensionOptimizable::_buildOwnedRewriteRules(
     return rules;
 }
 
-using PipelineRewriteContext = rule_based_rewrites::pipeline::PipelineRewriteContext;
-
-bool DocumentSourceExtensionOptimizable::dispatchExtensionRules(PipelineRewriteContext& ctx,
-                                                                PipelineRewriteRuleTags tagFilter) {
+bool DocumentSourceExtensionOptimizable::dispatchExtensionRules(
+    rule_based_rewrites::pipeline::PipelineRewriteContext& ctx,
+    PipelineRewriteRuleTags tagFilter) const {
     for (const auto& rule : _ownedRewriteRules) {
         if (rule.tags & tagFilter) {
             ctx.addRule(rule);
@@ -624,15 +627,40 @@ bool DocumentSourceExtensionOptimizable::dispatchExtensionRules(PipelineRewriteC
     return false;
 }
 
-bool extensionDispatcherReorderingPrecondition(PipelineRewriteContext& ctx) {
-    auto* stage = dynamic_cast<DocumentSourceExtensionOptimizable*>(&ctx.current());
+void DocumentSourceExtensionOptimizable::applyPipelineSuffixDependencies(
+    const host_connector::PipelineDependenciesAdapter& deps) {
+    _logicalStage->applyPipelineSuffixDependencies(&deps);
+}
+
+bool extensionDispatcherReorderingPrecondition(
+    rule_based_rewrites::pipeline::PipelineRewriteContext& ctx) {
+    const auto* stage = dynamic_cast<const DocumentSourceExtensionOptimizable*>(&ctx.current());
     return stage && stage->dispatchExtensionRules(ctx, kReordering);
 }
 
-bool extensionDispatcherInPlacePrecondition(PipelineRewriteContext& ctx) {
-    auto* stage = dynamic_cast<DocumentSourceExtensionOptimizable*>(&ctx.current());
+bool extensionDispatcherInPlacePrecondition(
+    rule_based_rewrites::pipeline::PipelineRewriteContext& ctx) {
+    const auto* stage = dynamic_cast<const DocumentSourceExtensionOptimizable*>(&ctx.current());
     return stage && stage->dispatchExtensionRules(ctx, kInPlace);
 }
+
+bool extensionApplyDependenciesPrecondition(
+    rule_based_rewrites::pipeline::PipelineRewriteContext& ctx) {
+    const auto* stage = dynamic_cast<const DocumentSourceExtensionOptimizable*>(&ctx.current());
+    // Only source stages produce documents that benefit from dependency analysis. Note that this is
+    // only run when the full pipeline is visible (i.e. not on a shard after pipeline split).
+    return stage && !stage->getStaticProperties().getRequiresInputDocSource() &&
+        !ctx.getExpCtx().getNeedsMerge();
+}
+
+bool extensionApplyDependenciesTransform(
+    rule_based_rewrites::pipeline::PipelineRewriteContext& ctx) {
+    auto* stage = dynamic_cast<DocumentSourceExtensionOptimizable*>(&ctx.current());
+    const host_connector::PipelineDependenciesAdapter adapter(ctx.getPipelineSuffixDependencies());
+    stage->applyPipelineSuffixDependencies(adapter);
+    return false;
+}
+
 }  // namespace mongo::extension::host
 
 namespace mongo::rule_based_rewrites::pipeline {
@@ -652,6 +680,13 @@ REGISTER_RULES_WITH_FEATURE_FLAG(
         .name = "EXTENSION_DISPATCHER_IN_PLACE",
         .precondition = mongo::extension::host::extensionDispatcherInPlacePrecondition,
         .transform = Transforms::noop,
+        .priority = kDefaultOptimizeInPlacePriority,
+        .tags = PipelineRewriteContext::Tags::InPlace,
+    },
+    {
+        .name = "EXTENSION_APPLY_PIPELINE_SUFFIX_DEPENDENCIES",
+        .precondition = mongo::extension::host::extensionApplyDependenciesPrecondition,
+        .transform = mongo::extension::host::extensionApplyDependenciesTransform,
         .priority = kDefaultOptimizeInPlacePriority,
         .tags = PipelineRewriteContext::Tags::InPlace,
     });

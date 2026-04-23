@@ -39,6 +39,7 @@
 #include "mongo/bson/timestamp.h"
 #include "mongo/client/dbclient_cursor.h"
 #include "mongo/db/admission/execution_control/execution_admission_context.h"
+#include "mongo/db/admission/ticketing/admission_context.h"
 #include "mongo/db/client.h"
 #include "mongo/db/commands/feature_compatibility_version.h"
 #include "mongo/db/database_name.h"
@@ -78,7 +79,6 @@
 #include "mongo/logv2/log.h"
 #include "mongo/transport/session.h"
 #include "mongo/transport/session_id.h"
-#include "mongo/util/concurrency/admission_context.h"
 #include "mongo/util/concurrency/thread_pool.h"
 #include "mongo/util/decorable.h"
 #include "mongo/util/fail_point.h"
@@ -541,11 +541,11 @@ void MongoDSessionCatalog::set(ServiceContext* service,
 BSONObj MongoDSessionCatalog::getConfigTxnPartialIndexSpec() {
     NewIndexSpec index;
     index.setV(int(IndexConfig::kLatestIndexVersion));
-    index.setKey(BSON(
-        SessionTxnRecord::kParentSessionIdFieldName
-        << 1
-        << (SessionTxnRecord::kSessionIdFieldName + "." + LogicalSessionId::kTxnNumberFieldName)
-        << 1 << SessionTxnRecord::kSessionIdFieldName << 1));
+    index.setKey(BSON(SessionTxnRecord::kParentSessionIdFieldName
+                      << 1
+                      << (std::string{SessionTxnRecord::kSessionIdFieldName} + "." +
+                          std::string{LogicalSessionId::kTxnNumberFieldName})
+                      << 1 << SessionTxnRecord::kSessionIdFieldName << 1));
     index.setName(MongoDSessionCatalog::kConfigTxnsPartialIndexName);
     index.setPartialFilterExpression(BSON("parentLsid" << BSON("$exists" << true)));
     return index.toBSON();

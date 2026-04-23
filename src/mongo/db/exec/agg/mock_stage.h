@@ -99,6 +99,16 @@ public:
             DocumentSourceMock::kStageName, expCtx, std::move(results));
     }
 
+    /**
+     * Test helper to set the source of a stage. Since Stage::setSource() is protected, tests should
+     * use this method to set the source of any stage under test. Accepts any pointer-like type
+     * (raw pointer, boost::intrusive_ptr, etc.) for the stage argument.
+     */
+    template <typename T>
+    static void setSource_forTest(const T& stage, Stage* source) {
+        stage->setSource(source);
+    }
+
     size_t size() const;
 
     /**
@@ -124,6 +134,10 @@ public:
      */
     void push_back(GetNextResult&& result, int32_t count = 1) {
         _queue.push_back(QueueItem{std::move(result), count});
+    }
+
+    bool isEOF() const final {
+        return _queue.empty();
     }
 
     void reattachToOperationContext(OperationContext* opCtx) override {

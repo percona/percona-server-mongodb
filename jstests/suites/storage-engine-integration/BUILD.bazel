@@ -1,0 +1,39 @@
+## Need to update a resmoke_suite_test?
+# Explanations of fields of the resmoke_suite_test rule are in bazel/resmoke/README.md.
+# In addition, certain `tags` and `target_compatible_with` are used to control which
+# tests are run in which CI tasks. Common cases are enumerated in jstests/suites/README.md.
+#
+# To run a suite:
+# bazel test //jstests/suites/query-execution:core
+#
+# To run a single test in a suite:
+# bazel test //jstests/suites/query-execution:core --test_sharding_strategy=disabled --test_arg=jstests/some_test.js
+#
+# To run outside the bazel sandbox, you may still use:
+# python buildscripts/resmoke.py run --suites=core
+
+load("//bazel/resmoke:resmoke.bzl", "resmoke_suite_test")
+
+resmoke_suite_test(
+    name = "disk_wiredtiger",
+    config = "//buildscripts/resmokeconfig:suites/disk_wiredtiger.yml",
+    data = [
+        "//jstests/disk/libs:all_javascript_files",
+    ],
+    tags = [
+        "ci-release-critical",
+        "requires_replicated_fast_count_recovery",
+    ],
+    target_compatible_with = select({
+        "@platforms//cpu:ppc": ["@platforms//:incompatible"],
+        "@platforms//cpu:s390x": ["@platforms//:incompatible"],
+        "//bazel/config:ubsan_enabled": ["@platforms//:incompatible"],
+        "//bazel/config:asan_enabled": ["@platforms//:incompatible"],
+        "//conditions:default": [],
+    }),
+    deps = [
+        "//src/mongo/db:mongod",
+        "//src/mongo/shell:mongo",
+        "//src/third_party/wiredtiger:wt",
+    ],
+)

@@ -10,6 +10,33 @@ exports_files(
 )
 
 idl_generator(
+    name = "block_replica_set_writes_gen",
+    src = "block_replica_set_writes.idl",
+    deps = [
+        "//src/mongo/db:basic_types_gen",
+        "//src/mongo/db/topology/user_write_block:replica_set_writes_block_reason_gen",
+        "//src/mongo/idl:generic_argument_gen",
+    ],
+)
+
+idl_generator(
+    name = "replica_set_writes_block_reason_gen",
+    src = "replica_set_writes_block_reason.idl",
+    deps = [
+        "//src/mongo/db:basic_types_gen",
+    ],
+)
+
+idl_generator(
+    name = "replica_set_writes_critical_section_document_gen",
+    src = "replica_set_writes_critical_section_document.idl",
+    deps = [
+        "//src/mongo/db:basic_types_gen",
+        "//src/mongo/db/topology/user_write_block:replica_set_writes_block_reason_gen",
+    ],
+)
+
+idl_generator(
     name = "set_user_write_block_mode_gen",
     src = "set_user_write_block_mode.idl",
     deps = [
@@ -47,6 +74,25 @@ idl_generator(
 )
 
 mongo_cc_library(
+    name = "block_replica_set_writes_idl",
+    srcs = [
+        ":block_replica_set_writes_gen",
+    ],
+    deps = [
+        ":replica_set_writes_block_reason_idl",
+        "//src/mongo/db:server_base",
+    ],
+)
+
+mongo_cc_library(
+    name = "replica_set_writes_block_reason_idl",
+    srcs = ["replica_set_writes_block_reason_gen"],
+    deps = [
+        "//src/mongo/db:server_base",
+    ],
+)
+
+mongo_cc_library(
     name = "user_writes_block_reason_idl",
     srcs = ["user_writes_block_reason_gen"],
     deps = [
@@ -69,9 +115,11 @@ mongo_cc_library(
     name = "user_writes_recoverable_critical_section",
     srcs = [
         "user_writes_recoverable_critical_section_service.cpp",
+        ":replica_set_writes_critical_section_document_gen",
         ":user_writes_critical_section_document_gen",
     ],
     deps = [
+        ":replica_set_writes_block_reason_idl",
         "//src/mongo/db:dbdirectclient",
         "//src/mongo/db:rw_concern_d",
         "//src/mongo/db:shard_role_api",

@@ -39,14 +39,18 @@
 #include "mongo/db/extension/shared/handle/aggregation_stage/distributed_plan_logic.h"
 #include "mongo/db/extension/shared/handle/aggregation_stage/logical.h"
 #include "mongo/db/extension/shared/handle/aggregation_stage/parse_node.h"
-#include "mongo/db/extension/shared/handle/aggregation_stage/pipeline_rewrite_context.h"
 #include "mongo/db/extension/shared/handle/aggregation_stage/stage_descriptor.h"
+#include "mongo/db/extension/shared/handle/pipeline_rewrite_context_handle.h"
 #include "mongo/db/pipeline/document_source.h"
 #include "mongo/db/pipeline/lite_parsed_desugarer.h"
 #include "mongo/db/pipeline/optimization/rule_based_rewriter.h"
 #include "mongo/db/pipeline/search/search_helper.h"
 #include "mongo/stdx/unordered_set.h"
 #include "mongo/util/modules.h"
+
+namespace mongo::extension::host_connector {
+class PipelineDependenciesAdapter;
+}  // namespace mongo::extension::host_connector
 
 namespace mongo::extension::host {
 
@@ -205,6 +209,11 @@ public:
         // bindViewInfo().
         bool hasExtensionSearchStage() const override;
 
+        // Extension stages are unsupported on timeseries collections.
+        Constraints constraints() const override {
+            return {.canRunOnTimeseries = false};
+        }
+
         ReadConcernSupportResult supportsReadConcern(repl::ReadConcernLevel level,
                                                      bool isImplicitDefault) const override {
             return this->onlyReadConcernLocalSupported(
@@ -266,13 +275,15 @@ public:
     public:
         LiteParsedExpanded(std::string stageName,
                            AggStageAstNodeHandle astNode,
-                           const NamespaceString& nss)
+                           const NamespaceString& nss,
+                           std::shared_ptr<IncrementalFeatureRolloutContext> ifrContext = nullptr)
             // NOTE: There is no original BSON since this stage is created from an AST node
             // desugared without BSON.
             : LiteParsedDocumentSource(BSON(stageName << BSONObj())),
               _astNode(std::move(astNode)),
               _properties(_astNode->getProperties()),
-              _nss(nss) {}
+              _nss(nss),
+              _ifrContext(std::move(ifrContext)) {}
 
         std::unique_ptr<StageParams> getStageParams() const override {
             return std::make_unique<ExpandedStageParams>(_astNode->clone());
@@ -323,7 +334,7 @@ public:
 
         std::unique_ptr<LiteParsedDocumentSource> clone() const override {
             return std::make_unique<LiteParsedExpanded>(
-                getParseTimeName(), _astNode->clone(), _nss);
+                getParseTimeName(), _astNode->clone(), _nss, _ifrContext);
         }
 
         bool hasExtensionVectorSearchStage() const override;
@@ -355,6 +366,7 @@ public:
         AggStageAstNodeHandle _astNode;
         const MongoExtensionStaticProperties _properties;
         const NamespaceString _nss;
+        std::shared_ptr<IncrementalFeatureRolloutContext> _ifrContext;
     };
 
     // Construction of a source or transform stage that expanded from a desugar stage. This stage
@@ -362,8 +374,10 @@ public:
     // responsibility comes from the desugar stage it expanded from.
     static boost::intrusive_ptr<DocumentSourceExtensionOptimizable> create(
         const boost::intrusive_ptr<ExpressionContext>& expCtx, AggStageAstNodeHandle astNode) {
-        if (expCtx->getInUnionWith() &&
-            !feature_flags::gFeatureFlagExtensionViewsAndUnionWith.isEnabled()) {
+        auto ifrCtx = expCtx->getIfrContext();
+        auto hybridSearchFlagEnabled = ifrCtx &&
+            ifrCtx->getSavedFlagValue(feature_flags::gFeatureFlagExtensionsInsideHybridSearch);
+        if (expCtx->getInUnionWith() && !hybridSearchFlagEnabled) {
             const auto stageName = std::string(astNode->getName());
             // Throw the IFR retry error for extension $vectorSearch in $unionWith if the feature
             // flag is not enabled.
@@ -468,7 +482,7 @@ public:
      * DocumentSourceExtensionOptimizable.
      */
     bool dispatchExtensionRules(rule_based_rewrites::pipeline::PipelineRewriteContext& ctx,
-                                PipelineRewriteRuleTags tagFilter);
+                                PipelineRewriteRuleTags tagFilter) const;
 
     /**
      * Static function that registers each given vector of extension pipeline rewrite rules with the
@@ -480,6 +494,11 @@ public:
 
     static void unregisterStageRules_forTest(StringData stageName);
     static const std::vector<PipelineRewriteRule>* getStageRules_forTest(StringData stageName);
+
+    /**
+     * Pushes the pipeline dependencies to the underlying extension logical stage.
+     */
+    void applyPipelineSuffixDependencies(const host_connector::PipelineDependenciesAdapter& deps);
 
 protected:
     /**
@@ -505,7 +524,8 @@ protected:
               auto catalogContext = CatalogContext(*expCtx);
               return astNode->bind(catalogContext.getAsBoundaryType());
           }()),
-          _ownedRewriteRules(_buildOwnedRewriteRules(_stageName, _logicalStage->get())) {}
+          _ownedRewriteRules(_buildOwnedRewriteRules(
+              _stageName, UnownedLogicalAggStageHandle(_logicalStage.get()))) {}
 
     DocumentSourceExtensionOptimizable(const boost::intrusive_ptr<ExpressionContext>& expCtx,
                                        LogicalAggStageHandle logicalStage,
@@ -514,7 +534,8 @@ protected:
           _stageName(std::string(logicalStage->getName())),
           _properties(properties),
           _logicalStage(std::move(logicalStage)),
-          _ownedRewriteRules(_buildOwnedRewriteRules(_stageName, _logicalStage->get())) {}
+          _ownedRewriteRules(_buildOwnedRewriteRules(
+              _stageName, UnownedLogicalAggStageHandle(_logicalStage.get()))) {}
 
 private:
     // Do not support copy or move.
@@ -539,7 +560,7 @@ private:
     // Builds the wrapped host-side rules for this stage from the extension rule registry.
     // Called once during construction.
     static std::vector<rule_based_rewrites::pipeline::PipelineRewriteRule> _buildOwnedRewriteRules(
-        const std::string& stageName, MongoExtensionLogicalAggStage* logicalStage);
+        const std::string& stageName, UnownedLogicalAggStageHandle logicalStage);
 
     // Owns the dynamically-created extension rules so that the ctx holds stable pointers into this
     // vector for the lifetime of the optimization pass. This is necessary because the

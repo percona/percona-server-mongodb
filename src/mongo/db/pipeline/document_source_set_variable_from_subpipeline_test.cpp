@@ -72,7 +72,7 @@ TEST_F(DocumentSourceSetVariableFromSubPipelineTest, testParseAndSerialize) {
                      << BSON_ARRAY(BSON("$addFields" << BSON("a" << BSON("$const" << 3))))));
     auto setVariable =
         DocumentSourceSetVariableFromSubPipeline::createFromBson(testBson.firstElement(), expCtx);
-    ASSERT(setVariable->getSourceName() == DocumentSourceSetVariableFromSubPipeline::kStageName);
+    ASSERT(setVariable->isInstanceOf<DocumentSourceSetVariableFromSubPipeline>());
     std::vector<Value> serializedArray;
     setVariable->serializeToArray(serializedArray);
     auto serializedBson = serializedArray[0].getDocument().toBson();
@@ -144,8 +144,8 @@ TEST_F(DocumentSourceSetVariableFromSubPipelineTest, testDoGetNext) {
         Variables::kSearchMetaId);
 
     setVariableFromSubPipeline->addSubPipelineInitialSource(mockSourceForSubPipeline);
-    auto stage = exec::agg::buildStage(setVariableFromSubPipeline);
-    stage->setSource(mockStageForSetVarStage.get());
+    auto stage =
+        exec::agg::buildStageAndStitch(setVariableFromSubPipeline, mockStageForSetVarStage);
 
     auto comparator = DocumentComparator();
     auto results = comparator.makeUnorderedDocumentSet();
@@ -172,8 +172,8 @@ TEST_F(DocumentSourceSetVariableFromSubPipelineTest, QueryShape) {
         Variables::kSearchMetaId);
 
     setVariableFromSubPipeline->addSubPipelineInitialSource(mockSourceForSubPipeline);
-    auto stage = exec::agg::buildStage(setVariableFromSubPipeline);
-    stage->setSource(mockStageForSetVarStage.get());
+    auto stage =
+        exec::agg::buildStageAndStitch(setVariableFromSubPipeline, mockStageForSetVarStage);
     ASSERT_BSONOBJ_EQ_AUTO(  // NOLINT
         R"({
             "$setVariableFromSubPipeline": {
@@ -209,8 +209,8 @@ TEST_F(DocumentSourceSetVariableFromSubPipelineTest, ShouldPropagateDisposeThrou
         Pipeline::create({mockSourceForSubPipeline}, ctxForSubPipeline),
         Variables::kSearchMetaId);
 
-    auto stage = exec::agg::buildStage(setVariableFromSubPipeline);
-    stage->setSource(mockSourceForSetVarStage.get());
+    auto stage =
+        exec::agg::buildStageAndStitch(setVariableFromSubPipeline, mockSourceForSetVarStage);
 
     // Make sure that if we call dispose on the outer pipeline, which includes
     // $setVariableFromSubPipeline, the subpipeline will also be properly disposed.

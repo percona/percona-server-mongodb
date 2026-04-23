@@ -36,6 +36,7 @@
 #include "mongo/db/exec/document_value/document.h"
 #include "mongo/db/exec/document_value/value.h"
 #include "mongo/db/exec/docval_to_sbeval.h"
+#include "mongo/db/exec/sbe/expressions/sbe_fn_names.h"
 #include "mongo/db/exec/sbe/match_path.h"
 #include "mongo/db/exec/sbe/sort_spec.h"
 #include "mongo/db/exec/sbe/stages/search_cursor.h"
@@ -370,10 +371,12 @@ std::vector<const QuerySolutionNode*> getAllNodesByType(const QuerySolutionNode*
 
 std::unique_ptr<fts::FTSMatcher> makeFtsMatcher(OperationContext* opCtx,
                                                 const CollectionPtr& collection,
-                                                const std::string& indexName,
+                                                const IndexEntry& textIndex,
                                                 const fts::FTSQuery* ftsQuery) {
-    auto entry = collection->getIndexCatalog()->findIndexByName(opCtx, indexName);
-    tassert(5432210,
+    const auto& indexName = textIndex.identifier.catalogName;
+    auto entry = collection->getIndexCatalog()->findIndexByIdent(
+        opCtx, textIndex.indexCatalogEntryStorage->getIdent());
+    uassert(ErrorCodes::QueryPlanKilled,
             str::stream() << "index entry not found for index named '" << indexName
                           << "' in collection '" << collection->ns().toStringForErrorMsg() << "'",
             entry);
@@ -832,8 +835,9 @@ void PlanStageSlots::mergeResultInfos(
         if (!keptFieldsMissing.empty()) {
             SbExprOptSlotVector projects;
             for (const auto& fieldName : keptFieldsMissing) {
-                auto getFieldExpr = b.makeFunction(
-                    "getField"_sd, outputs.getResultInfoBaseObj(), b.makeStrConstant(fieldName));
+                auto getFieldExpr = b.makeFunction(sbe::EFn::kGetField,
+                                                   outputs.getResultInfoBaseObj(),
+                                                   b.makeStrConstant(fieldName));
                 projects.emplace_back(std::move(getFieldExpr), boost::none);
             }
 
@@ -1049,11 +1053,13 @@ std::pair<SbStage, PlanStageSlots> SlotBasedStageBuilder::buildVirtualScan(
     SbExprOptSlotVector projects;
 
     int32_t resultIdx = vsn->hasRecordId ? 1 : 0;
-    auto getResultExpr = b.makeFunction("getElement"_sd, arraySlot, b.makeInt32Constant(resultIdx));
+    auto getResultExpr =
+        b.makeFunction(sbe::EFn::kGetElement, arraySlot, b.makeInt32Constant(resultIdx));
     projects.emplace_back(std::move(getResultExpr), boost::none);
 
     if (vsn->hasRecordId) {
-        auto getRecordIdExpr = b.makeFunction("getElement"_sd, arraySlot, b.makeInt32Constant(0));
+        auto getRecordIdExpr =
+            b.makeFunction(sbe::EFn::kGetElement, arraySlot, b.makeInt32Constant(0));
         projects.emplace_back(std::move(getRecordIdExpr), boost::none);
     }
 
@@ -1127,9 +1133,13 @@ std::pair<SbStage, PlanStageSlots> SlotBasedStageBuilder::buildCountScan(
 
     auto csn = static_cast<const CountScanNode*>(root);
 
-    auto collection = getCollection(csn->nss);
+    const auto& collection = getCollection(csn->nss);
     auto indexName = csn->index.identifier.catalogName;
-    const auto indexEntry = collection->getIndexCatalog()->findIndexByName(_state.opCtx, indexName);
+    const auto indexEntry = collection->getIndexCatalog()->findIndexByIdent(
+        _state.opCtx, csn->index.indexCatalogEntryStorage->getIdent());
+    uassert(ErrorCodes::QueryPlanKilled,
+            str::stream() << "failed to find index in catalog named: " << indexName,
+            indexEntry);
     const auto indexDescriptor = indexEntry->descriptor();
     auto indexAccessMethod = indexEntry->accessMethod()->asSortedData();
 
@@ -1316,7 +1326,16 @@ std::pair<SbStage, PlanStageSlots> SlotBasedStageBuilder::buildFetch(const Query
     }
 
     if (fn->filter) {
-        auto filterExpr = generateFilter(_state, fn->filter.get(), resultSlot, outputs);
+        SbExpr filterExpr;
+        if (_state.expCtx->hasMainCollPathArrayness()) {
+            filterExpr = generateFilter(_state,
+                                        fn->filter.get(),
+                                        resultSlot,
+                                        outputs,
+                                        _state.expCtx->getMainCollPathArrayness());
+        } else {
+            filterExpr = generateFilter(_state, fn->filter.get(), resultSlot, outputs);
+        }
         if (!filterExpr.isNull()) {
             stage = b.makeFilter(std::move(stage), std::move(filterExpr));
         }
@@ -1350,7 +1369,7 @@ std::pair<SbStage, PlanStageSlots> SlotBasedStageBuilder::buildFetch(const Query
             SbExpr sortKeyExpr = b.makeFillEmptyNull(outSlots[i]);
             if (collatorSlot) {
                 sortKeyExpr = b.makeFunction(
-                    "collComparisonKey"_sd, std::move(sortKeyExpr), SbSlot{*collatorSlot});
+                    sbe::EFn::kCollComparisonKey, std::move(sortKeyExpr), SbSlot{*collatorSlot});
             }
 
             sortKeyNames.emplace_back(name);
@@ -1491,7 +1510,7 @@ SbExpr SlotBasedStageBuilder::buildLimitSkipSumExpression(
 
     auto typeMask = b.makeInt32Constant(MatcherTypeSet{BSONType::numberLong}.getBSONTypeMask());
 
-    auto resultExpr = b.makeIf(b.makeFunction("typeMatch", sumVar, std::move(typeMask)),
+    auto resultExpr = b.makeIf(b.makeFunction(sbe::EFn::kTypeMatch, sumVar, std::move(typeMask)),
                                sumVar,
                                b.makeInt64Constant(std::numeric_limits<int64_t>::max()));
 
@@ -1620,8 +1639,9 @@ std::pair<SbStage, PlanStageSlots> SlotBasedStageBuilder::buildSort(const QueryS
 
             int i = 0;
             for (const auto& part : sortPattern) {
-                SbExpr expr = b.makeFunction(
-                    "sortKeyComponentVectorGetElement", fullSortKeySlot, b.makeInt32Constant(i));
+                SbExpr expr = b.makeFunction(sbe::EFn::kSortKeyComponentVectorGetElement,
+                                             fullSortKeySlot,
+                                             b.makeInt32Constant(i));
 
                 projects.emplace_back(std::move(expr), boost::none);
 
@@ -1741,7 +1761,7 @@ std::pair<SbStage, PlanStageSlots> SlotBasedStageBuilder::buildSortCovered(
             // "comparison keys" returned by collComparisonKey() will be used in 'orderBy' instead
             // of the fields' actual values.
             sortKeyExpr = b.makeFunction(
-                "collComparisonKey"_sd, std::move(sortKeyExpr), SbSlot{*collatorSlot});
+                sbe::EFn::kCollComparisonKey, std::move(sortKeyExpr), SbSlot{*collatorSlot});
         }
         return sortKeyExpr;
     };
@@ -1855,7 +1875,7 @@ std::pair<SbStage, PlanStageSlots> SlotBasedStageBuilder::buildSortMerge(
     if (mergeSortNode->dedup) {
         // TODO: SERVER-114436 This assumes that all results for merging come from the main
         // collection.
-        auto collection = getCollection(_mainNss);
+        const auto& collection = getCollection(_mainNss);
         if (collection->isClustered()) {
             stage = b.makeUnique(std::move(stage), outputs.get(kRecordId));
         } else {
@@ -2047,7 +2067,7 @@ std::pair<SbStage, PlanStageSlots> SlotBasedStageBuilder::buildOnlyUnwind(
         // to unwind is [], the code will do this, because getFieldSlot will exist but
         // childResultSlot will be Nothing. Include the array index unconditionally.
         finalProjectExpr = b.makeIf(
-            b.makeFunction("exists", getFieldSlot),
+            b.makeFunction(sbe::EFn::kExists, getFieldSlot),
             generateUnwindProjection(
                 _state, childResultSlot, unwindPath, unwindSlot, indexOutputPath, arrayIndexSlot),
             generateUnwindProjection(_state, childResultSlot, indexOutputPath, arrayIndexSlot));
@@ -2057,16 +2077,16 @@ std::pair<SbStage, PlanStageSlots> SlotBasedStageBuilder::buildOnlyUnwind(
 
         // If 'preserveNullAndEmptyArrays' is false, 'arrayIndexSlot' is Null if and only if
         // 'getFieldSlot' is Nothing or Null.
-        auto cond = b.makeFunction("isNull", arrayIndexSlot);
+        auto cond = b.makeFunction(sbe::EFn::kIsNull, arrayIndexSlot);
 
         if (un.preserveNullAndEmptyArrays) {
             // exists(getFieldSlot) && isArray(getFieldSlot) && isArrayEmpty(getFieldSlot)
-            auto getFieldSlotIsEmptyArrayExpr =
+            auto getFieldSlotIsEmptyArrayExpr = b.makeBinaryOp(
+                abt::Operations::And,
+                b.makeFunction(sbe::EFn::kExists, getFieldSlot),
                 b.makeBinaryOp(abt::Operations::And,
-                               b.makeFunction("exists", getFieldSlot),
-                               b.makeBinaryOp(abt::Operations::And,
-                                              b.makeFunction("isArray", getFieldSlot),
-                                              b.makeFunction("isArrayEmpty", getFieldSlot)));
+                               b.makeFunction(sbe::EFn::kIsArray, getFieldSlot),
+                               b.makeFunction(sbe::EFn::kIsArrayEmpty, getFieldSlot)));
             // If 'preserveNullAndEmptyArrays' is true, 'arrayIndexSlot' may also be Null if
             // 'getFieldSlot' is the empty array.
             cond = b.makeBinaryOp(abt::Operations::And,
@@ -2541,7 +2561,7 @@ std::pair<SbStage, PlanStageSlots> SlotBasedStageBuilder::makeResultUsingPlan(
                 args.emplace_back(SbExpr{outputs.get(std::pair(kField, field))});
             }
 
-            resultExpr = b.makeFunction("newBsonObj"_sd, std::move(args));
+            resultExpr = b.makeFunction(sbe::EFn::kNewBsonObj, std::move(args));
             break;
         }
         default:
@@ -3074,7 +3094,7 @@ std::pair<SbStage, PlanStageSlots> SlotBasedStageBuilder::buildOr(const QuerySol
     if (orn->dedup) {
         // TODO: SERVER-114436 This assumes that all results for merging come from the main
         // collection.
-        auto collection = getCollection(_mainNss);
+        const auto& collection = getCollection(_mainNss);
         if (collection->isClustered()) {
             stage = b.makeUnique(std::move(stage), outputs.get(kRecordId));
         } else {
@@ -3104,7 +3124,7 @@ std::pair<SbStage, PlanStageSlots> SlotBasedStageBuilder::buildTextMatch(
     SbBuilder b(_state, root->nodeId());
 
     auto textNode = static_cast<const TextMatchNode*>(root);
-    auto coll = getCollection(textNode->nss);
+    const auto& coll = getCollection(textNode->nss);
     tassert(5432212, "no collection object", coll);
     tassert(6023410, "buildTextMatch() does not support kSortKey", !reqs.hasSortKeys());
     tassert(5432215,
@@ -3121,13 +3141,12 @@ std::pair<SbStage, PlanStageSlots> SlotBasedStageBuilder::buildTextMatch(
     tassert(5432217, "result slot is not produced by text match sub-plan", outputs.hasResultObj());
 
     // Create an FTS 'matcher' to apply 'ftsQuery' to matching documents.
-    auto matcher = makeFtsMatcher(
-        _opCtx, coll, textNode->index.identifier.catalogName, textNode->ftsQuery.get());
+    auto matcher = makeFtsMatcher(_opCtx, coll, textNode->index, textNode->ftsQuery.get());
 
     // Build an 'ftsMatch' expression to match against the result object using the 'matcher'
     // instance.
     auto ftsMatch =
-        b.makeFunction("ftsMatch",
+        b.makeFunction(sbe::EFn::kFtsMatch,
                        b.makeConstant(sbe::value::TypeTags::ftsMatcher,
                                       sbe::value::bitcastFrom<fts::FTSMatcher*>(matcher.release())),
                        outputs.getResultObj());
@@ -3135,7 +3154,7 @@ std::pair<SbStage, PlanStageSlots> SlotBasedStageBuilder::buildTextMatch(
     // Wrap the 'ftsMatch' expression into an 'if' expression to ensure that it can be applied only
     // to a document.
     auto filter = b.makeIf(
-        b.makeFunction("isObject", outputs.getResultObj()),
+        b.makeFunction(sbe::EFn::kIsObject, outputs.getResultObj()),
         std::move(ftsMatch),
         b.makeFail(ErrorCodes::Error{4623400}, "textmatch requires input to be an object"));
 
@@ -3470,17 +3489,17 @@ std::pair<SbStage, PlanStageSlots> SlotBasedStageBuilder::buildShardFilterCovere
         } else if (shardKeyEltHashed) {
             // The shard key field is hashed but the index stores unhashed data. We must apply
             // the hash function before passing this off to the shard filter.
-            elem = b.makeFunction("shardHash"_sd, std::move(elem));
+            elem = b.makeFunction(sbe::EFn::kShardHash, std::move(elem));
         }
 
         newBsonObjArgs.emplace_back(b.makeStrConstant(shardKeyPatternElt.fieldName()));
         newBsonObjArgs.emplace_back(std::move(elem));
     }
 
-    auto shardKeyExpression = b.makeFunction("newBsonObj"_sd, std::move(newBsonObjArgs));
+    auto shardKeyExpression = b.makeFunction(sbe::EFn::kNewBsonObj, std::move(newBsonObjArgs));
 
     auto shardFilterExpression =
-        b.makeFunction("shardFilter", shardFiltererSlot, std::move(shardKeyExpression));
+        b.makeFunction(sbe::EFn::kShardFilter, shardFiltererSlot, std::move(shardKeyExpression));
 
     stage = b.makeFilter(std::move(stage), std::move(shardFilterExpression));
 
@@ -3534,7 +3553,7 @@ std::pair<SbStage, PlanStageSlots> SlotBasedStageBuilder::buildShardFilter(
     auto [stage, outputs] = build(child, childReqs);
 
     auto shardFilterExpression = b.makeFunction(
-        "shardFilter",
+        sbe::EFn::kShardFilter,
         shardFiltererSlot,
         makeShardKeyForPersistedDocuments(_state, shardKeyPaths, shardKeyHashed, outputs));
 
@@ -3706,7 +3725,7 @@ public:
                 frameId,
                 SbExpr::makeSeq(b.makeFillEmptyNull(std::move(partitionExpr))),
                 b.makeIf(
-                    b.makeFunction("isArray"_sd, partitionName),
+                    b.makeFunction(sbe::EFn::kIsArray, partitionName),
                     b.makeFail(
                         ErrorCodes::TypeMismatch,
                         "An expression used to partition cannot evaluate to value of type array"),
@@ -3736,7 +3755,7 @@ public:
             sbBlockAggExprs.emplace_back(
                 SbBlockAggExpr{SbExpr{} /*init*/,
                                SbExpr{} /*blockAgg*/,
-                               b.makeFunction("sum", b.makeInt32Constant(1)) /*agg*/},
+                               b.makeFunction(sbe::EFn::kSum, b.makeInt32Constant(1)) /*agg*/},
                 *documentBoundSlot);
 
             auto [outStage, _] = b.makeAggProject(std::move(stage), std::move(sbBlockAggExprs));
@@ -3771,7 +3790,7 @@ public:
     // Calculate slot for range and time range based window bounds
     std::tuple<SbStage, SbSlot, SbSlot> getRangeBoundSlot(SbStage stage,
                                                           boost::optional<TimeUnit> unit) {
-        auto projectRangeBoundSlot = [&](StringData typeCheckFn, SbExpr failExpr) {
+        auto projectRangeBoundSlot = [&](sbe::EFn typeCheckFn, SbExpr failExpr) {
             auto slot = state.slotId();
             auto [outStage, sortBySlot, _] = getSortBySlot(std::move(stage));
             stage = std::move(outStage);
@@ -3797,7 +3816,7 @@ public:
         if (unit) {
             if (!timeRangeBoundSlot) {
                 timeRangeBoundSlot = projectRangeBoundSlot(
-                    "isDate",
+                    sbe::EFn::kIsDate,
                     b.makeFail(ErrorCodes::Error{7956500},
                                "Invalid range: Expected the sortBy field to be a date"));
             }
@@ -3807,7 +3826,7 @@ public:
         } else {
             if (!rangeBoundSlot) {
                 rangeBoundSlot = projectRangeBoundSlot(
-                    "isNumber",
+                    sbe::EFn::kIsNumber,
                     b.makeFail(ErrorCodes::Error{7993103},
                                "Invalid range: Expected the sortBy field to be a number"));
             }
@@ -4016,18 +4035,23 @@ public:
 
             if (removable) {
                 auto key = collatorSlot
-                    ? b.makeFunction(
-                          "generateSortKey", sortSpecVar, *rootSlotOpt, SbSlot{*collatorSlot})
-                    : b.makeFunction("generateSortKey", sortSpecVar, *rootSlotOpt);
+                    ? b.makeFunction(sbe::EFn::kGenerateSortKey,
+                                     sortSpecVar,
+                                     *rootSlotOpt,
+                                     SbSlot{*collatorSlot})
+                    : b.makeFunction(sbe::EFn::kGenerateSortKey, sortSpecVar, *rootSlotOpt);
 
                 sortByExpr = convertSbExprToArgExpr(std::move(key));
             } else {
                 auto key = collatorSlot
-                    ? b.makeFunction(
-                          "generateCheapSortKey", sortSpecVar, *rootSlotOpt, SbSlot{*collatorSlot})
-                    : b.makeFunction("generateCheapSortKey", sortSpecVar, *rootSlotOpt);
+                    ? b.makeFunction(sbe::EFn::kGenerateCheapSortKey,
+                                     sortSpecVar,
+                                     *rootSlotOpt,
+                                     SbSlot{*collatorSlot})
+                    : b.makeFunction(sbe::EFn::kGenerateCheapSortKey, sortSpecVar, *rootSlotOpt);
 
-                sortByExpr = b.makeFunction("sortKeyComponentVectorToArray", std::move(key));
+                sortByExpr =
+                    b.makeFunction(sbe::EFn::kSortKeyComponentVectorToArray, std::move(key));
             }
 
             addRemoveInputs = std::make_unique<AddTopBottomNInputs>(
@@ -4125,7 +4149,7 @@ public:
                     offset.first, offset.second, sbe::value::TypeTags::NumberInt64);
                 unitGuard.reset();
                 timezoneGuard.reset();
-                return b.makeFunction("dateAdd",
+                return b.makeFunction(sbe::EFn::kDateAdd,
                                       SbSlot{*state.getTimeZoneDBSlot()},
                                       boundSlot,
                                       b.makeConstant(unitTag, unitVal),
@@ -4232,7 +4256,8 @@ public:
 
         if (outputField.expr->getOpName() == "$linearFill") {
             tassert(7971215, "expected a single initExpr", window.initExprs.size() == 1);
-            window.highBoundExpr = b.makeFunction("aggLinearFillCanAdd", window.windowExprSlots[0]);
+            window.highBoundExpr =
+                b.makeFunction(sbe::EFn::kAggLinearFillCanAdd, window.windowExprSlots[0]);
         }
 
         return stage;
@@ -4348,7 +4373,7 @@ public:
         }();
 
         if (finalExpr) {
-            finalExpr = b.makeIf(b.makeFunction("exists", window.windowExprSlots[0]),
+            finalExpr = b.makeIf(b.makeFunction(sbe::EFn::kExists, window.windowExprSlots[0]),
                                  std::move(finalExpr),
                                  std::move(emptyWindowExpr));
         } else {
@@ -4625,7 +4650,7 @@ std::pair<SbStage, PlanStageSlots> buildSearchMeta(const SearchNode* root,
     if (!expCtx->getNeedsMerge()) {
         auto searchMetaSlot = SbSlot{*state.getBuiltinVarSlot(Variables::kSearchMetaId)};
         auto stage = b.makeConstFilter(b.makeLimitOneCoScanTree(),
-                                       b.makeFunction("exists"_sd, searchMetaSlot));
+                                       b.makeFunction(sbe::EFn::kExists, searchMetaSlot));
         outputs.setResultObj(searchMetaSlot);
         return {std::move(stage), std::move(outputs)};
     }
@@ -4684,7 +4709,7 @@ std::pair<SbStage, PlanStageSlots> SlotBasedStageBuilder::buildSearch(const Quer
         return buildSearchMeta(sn, _state, _cq, &_slotIdGenerator, _env, _yieldPolicy);
     }
 
-    auto collection = getCollection(sn->nss);
+    const auto& collection = getCollection(sn->nss);
     auto expCtx = _cq.getExpCtxRaw();
 
     // Register search query parameter slots.
@@ -4776,7 +4801,7 @@ std::pair<SbStage, PlanStageSlots> SlotBasedStageBuilder::buildSearch(const Quer
     auto ordering = sortedData->getOrdering();
 
     auto makeNewKeyFunc = [&](key_string::Discriminator discriminator) {
-        StringData functionName = collatorSlot ? "collKs" : "ks";
+        sbe::EFn functionName = collatorSlot ? sbe::EFn::kCollKs : sbe::EFn::kKs;
         SbExpr::Vector args;
         args.emplace_back(b.makeInt64Constant(static_cast<int64_t>(version)));
         args.emplace_back(b.makeInt32Constant(ordering.getBits()));
@@ -4886,7 +4911,7 @@ std::pair<SbStage, bool> SlotBasedStageBuilder::buildVectorizedFilterExpr(
             auto incomingBitmapSlot = outputs.getIfExists(PlanStageSlots::kBlockSelectivityBitmap);
 
             if (incomingBitmapSlot) {
-                vectorizedFilterExpression = b.makeFunction("valueBlockLogicalAnd"_sd,
+                vectorizedFilterExpression = b.makeFunction(sbe::EFn::kValueBlockLogicalAnd,
                                                             *incomingBitmapSlot,
                                                             std::move(vectorizedFilterExpression));
             }
@@ -4905,7 +4930,7 @@ std::pair<SbStage, bool> SlotBasedStageBuilder::buildVectorizedFilterExpr(
             // Add a filter stage that pulls new data if there isn't at least one 'true' value
             // in the produced bitmap.
             auto filterSbExpr = b.makeNot(
-                b.makeFunction("valueBlockNone"_sd, bitmapSlot, b.makeBoolConstant(true)));
+                b.makeFunction(sbe::EFn::kValueBlockNone, bitmapSlot, b.makeBoolConstant(true)));
             stage = b.makeFilter(std::move(stage), std::move(filterSbExpr));
         } else {
             // The vectorised expression returns a scalar result.
@@ -4927,14 +4952,13 @@ std::pair<SbStage, bool> SlotBasedStageBuilder::buildVectorizedFilterExpr(
     }
 }
 
-CollectionPtr SlotBasedStageBuilder::getCollection(const NamespaceString& nss) const {
-    const auto coll = _collections.lookupCollection(nss);
+const CollectionPtr& SlotBasedStageBuilder::getCollection(const NamespaceString& nss) const {
+    const auto& coll = _collections.lookupCollection(nss);
     tassert(7922500,
             str::stream() << "No collection found that matches namespace '"
                           << nss.toStringForErrorMsg() << "'",
             coll != CollectionPtr::null);
-    // TODO(SERVER-103403): Investigate usage validity of CollectionPtr::CollectionPtr_UNSAFE
-    return CollectionPtr::CollectionPtr_UNSAFE(coll.get());
+    return coll;
 }
 
 // Returns a non-null pointer to the root of a plan tree, or a non-OK status if the PlanStage tree

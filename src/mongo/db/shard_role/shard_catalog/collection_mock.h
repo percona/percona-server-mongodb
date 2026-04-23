@@ -296,6 +296,10 @@ public:
         MONGO_UNREACHABLE;
     }
 
+    CollectionSizeCount latestSizeCount(OperationContext* opCtx) const override {
+        MONGO_UNREACHABLE;
+    }
+
     CollectionSizeCount persistedSizeCount(OperationContext* opCtx) const override {
         MONGO_UNREACHABLE;
     }
@@ -445,7 +449,7 @@ public:
         MONGO_UNREACHABLE;
     }
 
-    BSONObj getIndexSpec(StringData indexName) const override {
+    BSONObj getIndexSpec(StringData indexName, bool expandSimpleCollation) const override {
         MONGO_UNREACHABLE;
     }
 

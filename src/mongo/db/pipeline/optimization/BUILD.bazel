@@ -15,6 +15,7 @@ mongo_cc_library(
         "cr_rules_to_move.cpp",
         "lookup_rules.cpp",
         "match_rules.cpp",
+        "projection_rules.cpp",
         "qe_rules_to_move.cpp",
         "qi_rules_to_move.cpp",
         "qo_rules_to_move.cpp",
@@ -22,6 +23,7 @@ mongo_cc_library(
     ],
     deps = [
         "//src/mongo/db/pipeline",
+        "//src/mongo/db/query/compiler/dependency_analysis:document_transformation",
         "//src/mongo/db/query/compiler/dependency_analysis:pipeline_dependency_graph",
         "//src/mongo/db/query/compiler/metadata:path_arrayness",
     ],

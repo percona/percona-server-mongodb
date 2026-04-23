@@ -42,6 +42,7 @@ idl_generator(
     ],
     deps = [
         "//src/mongo/db:basic_types_gen",
+        "//src/mongo/db/storage:storage_tier_gen",
     ],
 )
 
@@ -71,6 +72,7 @@ mongo_cc_library(
         "//src/mongo/db/query:query_knobs",
         "//src/mongo/db/query/collation:collator_interface",
         "//src/mongo/db/query/query_shape",
+        "//src/mongo/db/storage:storage_tier",
         "//src/mongo/db/timeseries:timeseries_options",
     ],
 )
@@ -263,6 +265,7 @@ mongo_cc_library(
         "//src/mongo/db/storage/key_string",
         "//src/mongo/db/timeseries:catalog_helper",
         "//src/mongo/db/timeseries:collection_pre_conditions_util",
+        "//src/mongo/db/timeseries:timeseries_constants",
         "//src/mongo/db/timeseries:timeseries_conversion_util",
         "//src/mongo/db/timeseries:timeseries_options",
         "//src/mongo/db/timeseries:viewless_timeseries_collection_creation_helpers",
@@ -363,6 +366,7 @@ mongo_cc_library(
         "//src/mongo/db/storage:storage_engine_impl",
         "//src/mongo/db/storage:storage_options",
         "//src/mongo/db/storage/key_string",
+        "//src/mongo/db/timeseries:timeseries_bucket_validation",
         "//src/mongo/db/timeseries:timeseries_conversion_util",
         "//src/mongo/db/timeseries:timeseries_extended_range",
         "//src/mongo/db/timeseries:viewless_timeseries_collection_creation_helpers",

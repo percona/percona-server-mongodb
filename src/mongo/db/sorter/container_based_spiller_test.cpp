@@ -42,6 +42,7 @@
 #include "mongo/unittest/death_test.h"
 #include "mongo/unittest/unittest.h"
 
+#include <limits>
 #include <memory>
 #include <span>
 #include <string>
@@ -52,6 +53,8 @@
 
 namespace mongo::sorter {
 namespace {
+
+using Storage = ContainerBasedStorage<IntWrapper, IntWrapper>;
 
 TEST(ContainerIteratorTest, Iterate) {
     RecoveryUnitNoop ru;
@@ -467,6 +470,96 @@ TEST_F(SortedContainerWriterTest, ContainerWriterUsesNextKeyForContainerEntries)
     exhaustIterators<IntWrapper, IntWrapper>(writer);
 }
 
+TEST_F(SortedContainerWriterTest, GetBufferSizeReflectsAverageEntrySize) {
+    auto opCtx = makeOperationContext();
+    auto* replCoord = repl::ReplicationCoordinator::get(opCtx.get());
+    auto* replCoordMock = dynamic_cast<repl::ReplicationCoordinatorMock*>(replCoord);
+    ASSERT(replCoordMock);
+    replCoordMock->alwaysAllowWrites(true);
+
+    ViewableIntegerKeyedContainer container;
+    container.setIdent(std::make_shared<Ident>("buffer_size_test"));
+    auto& ru = *shard_role_details::getRecoveryUnit(opCtx.get());
+    SorterContainerStats stats(&this->sorterTracker);
+
+    ContainerBasedStorage<IntWrapper, IntWrapper> storage(*opCtx,
+                                                          ru,
+                                                          container,
+                                                          stats,
+                                                          /*currKey=*/1,
+                                                          /*dbName=*/boost::none,
+                                                          sorter::kLatestChecksumVersion);
+
+    // Before any spills, buffer size is 0. In production getBufferSize() is only consulted after
+    // the first spill.
+    ASSERT_EQ(storage.getBufferSize(), 0);
+
+    // Write two IntWrapper+IntWrapper entries (4 + 4 = 8 bytes each serialized).
+    SortOptions opts;
+    auto writer =
+        storage.makeWriter(opts, ContainerBasedStorage<IntWrapper, IntWrapper>::Settings{});
+    writer->addAlreadySorted(IntWrapper{1}, IntWrapper{2});
+    writer->addAlreadySorted(IntWrapper{3}, IntWrapper{4});
+
+    // Average entry size = 16 / 2 = 8, plus per-cursor overhead.
+    ASSERT_EQ(storage.getBufferSize(), 8 + Storage::kPerCursorOverheadBytes);
+
+    // Spilled bytes should have propagated to the tracker. The container-based sorter does not
+    // compress in the sorter layer, so `bytesSpilled` and `bytesSpilledUncompressed` match.
+    ASSERT_EQ(stats.bytesSpilledUncompressed(), 16);
+    ASSERT_EQ(stats.bytesSpilled(), 16);
+    ASSERT_EQ(stats.numSpilledEntries(), 2);
+    ASSERT_EQ(this->sorterTracker.bytesSpilledUncompressed.load(), 16);
+    ASSERT_EQ(this->sorterTracker.bytesSpilled.load(), 16);
+}
+
+TEST_F(SortedContainerWriterTest, GetBufferSizeEdgeCases) {
+    auto opCtx = makeOperationContext();
+    auto* replCoord = repl::ReplicationCoordinator::get(opCtx.get());
+    auto* replCoordMock = dynamic_cast<repl::ReplicationCoordinatorMock*>(replCoord);
+    ASSERT(replCoordMock);
+    replCoordMock->alwaysAllowWrites(true);
+
+    ViewableIntegerKeyedContainer container;
+    container.setIdent(std::make_shared<Ident>("buffer_size_edge_test"));
+    auto& ru = *shard_role_details::getRecoveryUnit(opCtx.get());
+
+    // Zero-byte entries (e.g. NullValue + NullValue): overhead only.
+    {
+        SorterContainerStats stats(nullptr);
+        Storage storage(*opCtx,
+                        ru,
+                        container,
+                        stats,
+                        /*currKey=*/1,
+                        /*dbName=*/boost::none,
+                        sorter::kLatestChecksumVersion);
+        stats.addSpilledDataSizeUncompressed(0);
+        stats.incrementNumSpilledEntries();
+        ASSERT_EQ(storage.getBufferSize(), Storage::kPerCursorOverheadBytes);
+    }
+
+    // Non-divisible total: 10 bytes across 3 entries truncates to 3 (not 4), plus overhead. The
+    // fixed per-cursor overhead provides the conservative bias, so truncation is safe.
+    {
+        SorterContainerStats stats(nullptr);
+        Storage storage(*opCtx,
+                        ru,
+                        container,
+                        stats,
+                        /*currKey=*/1,
+                        /*dbName=*/boost::none,
+                        sorter::kLatestChecksumVersion);
+        stats.addSpilledDataSizeUncompressed(4);
+        stats.incrementNumSpilledEntries();
+        stats.addSpilledDataSizeUncompressed(3);
+        stats.incrementNumSpilledEntries();
+        stats.addSpilledDataSizeUncompressed(3);
+        stats.incrementNumSpilledEntries();
+        ASSERT_EQ(storage.getBufferSize(), 3 + Storage::kPerCursorOverheadBytes);
+    }
+}
+
 TEST_F(SortedContainerWriterTest, ContainerWriterStoresEmptyValueForZeroLengthSerialization) {
     auto opCtx = makeOperationContext();
     auto* replCoord = repl::ReplicationCoordinator::get(opCtx.get());
@@ -536,15 +629,24 @@ TEST_F(SortedContainerWriterTest, ContainerWriterAllowsNullValueWithNonNullKey) 
 }
 
 class ContainerBasedSpillerTest : public ServiceContextMongoDTest,
-                                  public testing::WithParamInterface<int64_t> {
+                                  public testing::WithParamInterface<std::tuple<int64_t, int64_t>> {
 public:
     // TODO (SERVER-116165): Remove.
     RAIIServerParameterControllerForTest ffContainerWrites{"featureFlagContainerWrites", true};
+
+    int64_t batchSize() const {
+        return std::get<0>(GetParam());
+    }
+    int64_t batchBytes() const {
+        return std::get<1>(GetParam());
+    }
 };
 
-INSTANTIATE_TEST_SUITE_P(ContainerBasedSpillerTest,
-                         ContainerBasedSpillerTest,
-                         testing::Values(1, 2, 4));
+INSTANTIATE_TEST_SUITE_P(
+    ContainerBasedSpillerTest,
+    ContainerBasedSpillerTest,
+    testing::Combine(testing::Values(1, 2, 4),
+                     testing::Values(1, sizeof(IntWrapper), std::numeric_limits<int64_t>::max())));
 
 TEST_P(ContainerBasedSpillerTest, Spill) {
     auto opCtx = makeOperationContext();
@@ -557,6 +659,7 @@ TEST_P(ContainerBasedSpillerTest, Spill) {
     const auto identStr = ident::generateNewInternalIdent("container_spill"_sd);
     ViewableIntegerKeyedContainer container{std::make_shared<Ident>(identStr)};
     SorterContainerStats stats{nullptr};
+    int64_t spilled = 0;
 
     ContainerBasedSpiller<IntWrapper, NullValue, IWComparator> spiller{
         *opCtx,
@@ -565,18 +668,22 @@ TEST_P(ContainerBasedSpillerTest, Spill) {
         stats,
         boost::none,
         sorter::kLatestChecksumVersion,
-        /*batchSize=*/GetParam(),
+        [&spilled] { ++spilled; },
+        batchSize(),
+        batchBytes(),
         testSpillingMinAvailableDiskSpaceBytes};
 
     std::vector<std::pair<IntWrapper, NullValue>> data{{50, {}}, {100, {}}, {75, {}}, {125, {}}};
     std::span span{data};
 
     auto it1 = spiller.spill(SortOptions{},
-                             SorterSpiller<IntWrapper, NullValue, IWComparator>::Settings{},
+                             Spiller<IntWrapper, NullValue, IWComparator>::Settings{},
                              span.subspan(0, 2));
     auto it2 = spiller.spill(SortOptions{},
-                             SorterSpiller<IntWrapper, NullValue, IWComparator>::Settings{},
+                             Spiller<IntWrapper, NullValue, IWComparator>::Settings{},
                              span.subspan(2, 2));
+
+    EXPECT_EQ(spilled, 2);
 
     ASSERT_TRUE(it1->more());
     EXPECT_EQ(it1->next().first, 50);
@@ -600,6 +707,7 @@ TEST_P(ContainerBasedSpillerTest, MergeSpills) {
     const auto identStr = ident::generateNewInternalIdent("container_spill"_sd);
     ViewableIntegerKeyedContainer container{std::make_shared<Ident>(identStr)};
     SorterContainerStats containerStats{nullptr};
+    int64_t spilled = 0;
 
     ContainerBasedSpiller<IntWrapper, NullValue, IWComparator> spiller{
         *opCtx,
@@ -608,7 +716,9 @@ TEST_P(ContainerBasedSpillerTest, MergeSpills) {
         containerStats,
         boost::none,
         sorter::kLatestChecksumVersion,
-        /*batchSize=*/GetParam(),
+        [&spilled] { ++spilled; },
+        batchSize(),
+        batchBytes(),
         testSpillingMinAvailableDiskSpaceBytes};
 
     std::vector<std::pair<IntWrapper, NullValue>> data{
@@ -616,22 +726,19 @@ TEST_P(ContainerBasedSpillerTest, MergeSpills) {
     std::span<std::pair<IntWrapper, NullValue>> span{data};
 
     std::vector<std::shared_ptr<sorter::Iterator<IntWrapper, NullValue>>> iterators;
-    iterators.push_back(
-        spiller.spill(SortOptions{},
-                      SorterSpiller<IntWrapper, NullValue, IWComparator>::Settings{},
-                      span.subspan(0, 2)));
-    iterators.push_back(
-        spiller.spill(SortOptions{},
-                      SorterSpiller<IntWrapper, NullValue, IWComparator>::Settings{},
-                      span.subspan(2, 2)));
-    iterators.push_back(
-        spiller.spill(SortOptions{},
-                      SorterSpiller<IntWrapper, NullValue, IWComparator>::Settings{},
-                      span.subspan(4, 1)));
+    iterators.push_back(spiller.spill(SortOptions{},
+                                      Spiller<IntWrapper, NullValue, IWComparator>::Settings{},
+                                      span.subspan(0, 2)));
+    iterators.push_back(spiller.spill(SortOptions{},
+                                      Spiller<IntWrapper, NullValue, IWComparator>::Settings{},
+                                      span.subspan(2, 2)));
+    iterators.push_back(spiller.spill(SortOptions{},
+                                      Spiller<IntWrapper, NullValue, IWComparator>::Settings{},
+                                      span.subspan(4, 1)));
 
     SorterStats sorterStats{nullptr};
     spiller.mergeSpills(SortOptions{},
-                        SorterSpiller<IntWrapper, NullValue, IWComparator>::Settings{},
+                        Spiller<IntWrapper, NullValue, IWComparator>::Settings{},
                         sorterStats,
                         iterators,
                         IWComparator(ASC),
@@ -640,6 +747,7 @@ TEST_P(ContainerBasedSpillerTest, MergeSpills) {
 
     EXPECT_EQ(iterators.size(), 2);
     EXPECT_EQ(container.entries().size(), data.size());
+    EXPECT_EQ(spilled, 3 + 2);  // 3 spills and 2 merge passes
 
     ASSERT_TRUE(iterators[0]->more());
     EXPECT_EQ(iterators[0]->next().first, 50);
@@ -667,6 +775,7 @@ TEST_P(ContainerBasedSpillerTest, MergeSpillsMultiplePasses) {
     const auto identStr = ident::generateNewInternalIdent("container_spill"_sd);
     ViewableIntegerKeyedContainer container{std::make_shared<Ident>(identStr)};
     SorterContainerStats containerStats{nullptr};
+    int64_t spilled = 0;
 
     ContainerBasedSpiller<IntWrapper, NullValue, IWComparator> spiller{
         *opCtx,
@@ -675,7 +784,9 @@ TEST_P(ContainerBasedSpillerTest, MergeSpillsMultiplePasses) {
         containerStats,
         boost::none,
         sorter::kLatestChecksumVersion,
-        /*batchSize=*/GetParam(),
+        [&spilled] { ++spilled; },
+        batchSize(),
+        batchBytes(),
         testSpillingMinAvailableDiskSpaceBytes};
 
     std::vector<std::pair<IntWrapper, NullValue>> data{{50, {}},
@@ -692,15 +803,14 @@ TEST_P(ContainerBasedSpillerTest, MergeSpillsMultiplePasses) {
 
     std::vector<std::shared_ptr<sorter::Iterator<IntWrapper, NullValue>>> iterators;
     for (size_t i = 0; i < data.size(); ++i) {
-        iterators.push_back(
-            spiller.spill(SortOptions{},
-                          SorterSpiller<IntWrapper, NullValue, IWComparator>::Settings{},
-                          span.subspan(i, 1)));
+        iterators.push_back(spiller.spill(SortOptions{},
+                                          Spiller<IntWrapper, NullValue, IWComparator>::Settings{},
+                                          span.subspan(i, 1)));
     }
 
     SorterStats sorterStats{nullptr};
     spiller.mergeSpills(SortOptions{},
-                        SorterSpiller<IntWrapper, NullValue, IWComparator>::Settings{},
+                        Spiller<IntWrapper, NullValue, IWComparator>::Settings{},
                         sorterStats,
                         iterators,
                         IWComparator(ASC),
@@ -709,6 +819,7 @@ TEST_P(ContainerBasedSpillerTest, MergeSpillsMultiplePasses) {
 
     EXPECT_EQ(iterators.size(), 3);
     EXPECT_EQ(container.entries().size(), data.size());
+    EXPECT_EQ(spilled, data.size() + 8);  // data.size() spills and 8 merge passes
 
     ASSERT_TRUE(iterators[0]->more());
     EXPECT_EQ(iterators[0]->next().first, 50);
@@ -772,7 +883,9 @@ TEST_P(ContainerBasedSpillerTest, SpillDirPathFromIdent) {
             stats,
             ns.dbName(),
             sorter::kLatestChecksumVersion,
-            /*batchSize=*/GetParam(),
+            [] {},
+            batchSize(),
+            batchBytes(),
             testSpillingMinAvailableDiskSpaceBytes};
 
         auto spillPath = spiller.getSpillDir();

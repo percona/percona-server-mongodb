@@ -1302,6 +1302,20 @@ void ValidateAdaptor::traverseRecordStore(OperationContext* opCtx,
                                     timeseriesValidationResult.result));
                                 break;
 
+                            case TimeseriesValidationResult::kV3WithOrderedTime:
+                                LOGV2_WARNING_OPTIONS(
+                                    12351700,
+                                    {logv2::LogTruncation::Disabled},
+                                    "Document is not compliant with time-series specifications",
+                                    logAttrs(coll->ns()),
+                                    "recordId"_attr = record->id,
+                                    "record"_attr = record->data.toBson(),
+                                    "reason"_attr = timeseriesValidationResult.reason);
+                                ++nNonCompliantDocuments;
+                                results->addWarning(_describeTimeseriesValidationResult(
+                                    timeseriesValidationResult.result));
+                                break;
+
                             // All remaining result cases are errors
                             default:
                                 LOGV2_ERROR_OPTIONS(
@@ -1393,7 +1407,8 @@ void ValidateAdaptor::traverseRecordStore(OperationContext* opCtx,
         switch (fastCountType) {
             case CollectionValidation::FastCountType::legacySizeStorer:
                 if (enforceCount) {
-                    if (const auto fastCount = coll->numRecords(opCtx); fastCount != _numRecords) {
+                    if (const auto fastCount = coll->latestSizeCount(opCtx).count;
+                        fastCount != _numRecords) {
                         results->addError(
                             fmt::format("fast count ({}) does not match number of "
                                         "records ({}) for collection '{}'",
@@ -1403,7 +1418,8 @@ void ValidateAdaptor::traverseRecordStore(OperationContext* opCtx,
                     }
                 }
                 if (enforceSize) {
-                    if (const auto fastSize = coll->dataSize(opCtx); fastSize != dataSizeTotal) {
+                    if (const auto fastSize = coll->latestSizeCount(opCtx).size;
+                        fastSize != dataSizeTotal) {
                         results->addError(
                             fmt::format("fast size ({}) does not match data size ({}) for "
                                         "collection '{}'",
@@ -1415,7 +1431,8 @@ void ValidateAdaptor::traverseRecordStore(OperationContext* opCtx,
                 break;
             case CollectionValidation::FastCountType::replicated:
                 if (enforceCount) {
-                    if (const auto fastCount = coll->numRecords(opCtx); fastCount != _numRecords) {
+                    if (const auto fastCount = coll->latestSizeCount(opCtx).count;
+                        fastCount != _numRecords) {
                         results->addError(
                             fmt::format("replicated fast count ({}) does not match number of "
                                         "records ({}) for collection '{}'",
@@ -1425,7 +1442,8 @@ void ValidateAdaptor::traverseRecordStore(OperationContext* opCtx,
                     }
                 }
                 if (enforceSize) {
-                    if (const auto fastSize = coll->dataSize(opCtx); fastSize != dataSizeTotal) {
+                    if (const auto fastSize = coll->latestSizeCount(opCtx).size;
+                        fastSize != dataSizeTotal) {
                         results->addError(
                             fmt::format("replicated fast size ({}) does not match data size ({}) "
                                         "for collection '{}'",

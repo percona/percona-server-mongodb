@@ -38,11 +38,22 @@ namespace mongo {
 SorterContainerStats::SorterContainerStats(SorterTracker* sorterTracker)
     : _sorterTracker(sorterTracker) {};
 
+void SorterContainerStats::addSpilledDataSize(long long size) {
+    _bytesSpilled.fetchAndAdd(size);
+    if (_sorterTracker) {
+        _sorterTracker->bytesSpilled.fetchAndAdd(size);
+    }
+}
+
 void SorterContainerStats::addSpilledDataSizeUncompressed(long long size) {
     _bytesSpilledUncompressed.fetchAndAdd(size);
     if (_sorterTracker) {
         _sorterTracker->bytesSpilledUncompressed.fetchAndAdd(size);
     }
+}
+
+void SorterContainerStats::incrementNumSpilledEntries() {
+    _numSpilledEntries.fetchAndAdd(1);
 }
 
 SorterFileStats::SorterFileStats(SorterTracker* sorterTracker) : _sorterTracker(sorterTracker) {};

@@ -904,6 +904,178 @@ TEST_F(MetadataConsistencyTest, ShardTrackedCollectionInconsistencyTest) {
     ASSERT_EQ(0, inconsistencies.size());
 }
 
+void assertIncompatibleUniqueIndexFound(
+    const std::vector<MetadataInconsistencyItem>& inconsistencies) {
+    ASSERT_TRUE(std::any_of(inconsistencies.begin(), inconsistencies.end(), [](const auto& item) {
+        return item.getType() ==
+            MetadataInconsistencyTypeEnum::kIncompatibleUniqueIndexOnShardedCollection;
+    }));
+}
+
+void assertNoIncompatibleUniqueIndexFound(
+    const std::vector<MetadataInconsistencyItem>& inconsistencies) {
+    ASSERT_TRUE(std::none_of(inconsistencies.begin(), inconsistencies.end(), [](const auto& item) {
+        return item.getType() ==
+            MetadataInconsistencyTypeEnum::kIncompatibleUniqueIndexOnShardedCollection;
+    }));
+}
+
+TEST_F(MetadataConsistencyTest,
+       UniqueIndexWithNonSimpleCollationOnShardKeyPrefixReportsInconsistency) {
+    OperationContext* opCtx = operationContext();
+
+    createTestCollection(opCtx, _nss);
+
+    DBDirectClient client(opCtx);
+    client.createIndexes(
+        _nss,
+        {BSON("key" << BSON("x" << 1) << "name"
+                    << "x_1_en_unique"
+                    << "unique" << true << "collation" << BSON("locale" << "en"))});
+
+    const auto [localCatalogSnapshot, localCatalogCollections] = getLocalCatalog(opCtx, _nss);
+    ASSERT_EQ(1, localCatalogCollections.size());
+
+    auto configColl = generateCollectionType(
+        _nss, localCatalogCollections[0]->uuid(), KeyPattern(BSON("x" << 1)));
+
+    const auto inconsistencies = metadata_consistency_util::checkCollectionMetadataConsistency(
+        opCtx,
+        _shardId,
+        _shardId,
+        {configColl},
+        localCatalogSnapshot,
+        localCatalogCollections,
+        false /*checkRangeDeletionIndexes*/,
+        true /*optionalCheckIndexes*/);
+
+    assertIncompatibleUniqueIndexFound(inconsistencies);
+}
+
+TEST_F(MetadataConsistencyTest, NonUniqueIndexWithNonSimpleCollationDoesNotReportInconsistency) {
+    OperationContext* opCtx = operationContext();
+
+    createTestCollection(opCtx, _nss);
+
+    DBDirectClient client(opCtx);
+    client.createIndexes(_nss,
+                         {BSON("key" << BSON("x" << 1) << "name"
+                                     << "x_1_en"
+                                     << "collation" << BSON("locale" << "en"))});
+
+    const auto [localCatalogSnapshot, localCatalogCollections] = getLocalCatalog(opCtx, _nss);
+    ASSERT_EQ(1, localCatalogCollections.size());
+
+    auto configColl = generateCollectionType(
+        _nss, localCatalogCollections[0]->uuid(), KeyPattern(BSON("x" << 1)));
+
+    const auto inconsistencies = metadata_consistency_util::checkCollectionMetadataConsistency(
+        opCtx,
+        _shardId,
+        _shardId,
+        {configColl},
+        localCatalogSnapshot,
+        localCatalogCollections,
+        false /*checkRangeDeletionIndexes*/,
+        true /*optionalCheckIndexes*/);
+
+    assertNoIncompatibleUniqueIndexFound(inconsistencies);
+}
+
+TEST_F(MetadataConsistencyTest, UniqueIndexWithSimpleCollationDoesNotReportInconsistency) {
+    OperationContext* opCtx = operationContext();
+
+    createTestCollection(opCtx, _nss);
+
+    DBDirectClient client(opCtx);
+    client.createIndexes(_nss,
+                         {BSON("key" << BSON("x" << 1) << "name"
+                                     << "x_1_unique"
+                                     << "unique" << true)});
+
+    const auto [localCatalogSnapshot, localCatalogCollections] = getLocalCatalog(opCtx, _nss);
+    ASSERT_EQ(1, localCatalogCollections.size());
+
+    auto configColl = generateCollectionType(
+        _nss, localCatalogCollections[0]->uuid(), KeyPattern(BSON("x" << 1)));
+
+    const auto inconsistencies = metadata_consistency_util::checkCollectionMetadataConsistency(
+        opCtx,
+        _shardId,
+        _shardId,
+        {configColl},
+        localCatalogSnapshot,
+        localCatalogCollections,
+        false /*checkRangeDeletionIndexes*/,
+        true /*optionalCheckIndexes*/);
+
+    assertNoIncompatibleUniqueIndexFound(inconsistencies);
+}
+
+TEST_F(MetadataConsistencyTest,
+       UniqueIndexWithNonSimpleCollationNotReportedWhenOptionalCheckIndexesFalse) {
+    OperationContext* opCtx = operationContext();
+
+    createTestCollection(opCtx, _nss);
+
+    DBDirectClient client(opCtx);
+    client.createIndexes(
+        _nss,
+        {BSON("key" << BSON("x" << 1) << "name"
+                    << "x_1_en_unique"
+                    << "unique" << true << "collation" << BSON("locale" << "en"))});
+
+    const auto [localCatalogSnapshot, localCatalogCollections] = getLocalCatalog(opCtx, _nss);
+    ASSERT_EQ(1, localCatalogCollections.size());
+
+    auto configColl = generateCollectionType(
+        _nss, localCatalogCollections[0]->uuid(), KeyPattern(BSON("x" << 1)));
+
+    const auto inconsistencies = metadata_consistency_util::checkCollectionMetadataConsistency(
+        opCtx,
+        _shardId,
+        _shardId,
+        {configColl},
+        localCatalogSnapshot,
+        localCatalogCollections,
+        false /*checkRangeDeletionIndexes*/,
+        false /*optionalCheckIndexes*/);
+
+    assertNoIncompatibleUniqueIndexFound(inconsistencies);
+}
+
+TEST_F(MetadataConsistencyTest, UniqueIndexWithNonSimpleCollationAllowedInUnsplittableCollections) {
+    OperationContext* opCtx = operationContext();
+
+    createTestCollection(opCtx, _nss);
+
+    DBDirectClient client(opCtx);
+    client.createIndexes(
+        _nss,
+        {BSON("key" << BSON("x" << 1) << "name"
+                    << "x_1_en_unique"
+                    << "unique" << true << "collation" << BSON("locale" << "en"))});
+
+    const auto [localCatalogSnapshot, localCatalogCollections] = getLocalCatalog(opCtx, _nss);
+    ASSERT_EQ(1, localCatalogCollections.size());
+
+    auto configColl = generateCollectionType(
+        _nss, localCatalogCollections[0]->uuid(), KeyPattern(BSON("_id" << 1)));
+    configColl.setUnsplittable(true);
+
+    const auto inconsistencies = metadata_consistency_util::checkCollectionMetadataConsistency(
+        opCtx,
+        _shardId,
+        _shardId,
+        {configColl},
+        localCatalogSnapshot,
+        localCatalogCollections,
+        false /*checkRangeDeletionIndexes*/,
+        true /*optionalCheckIndexes*/);
+
+    assertNoIncompatibleUniqueIndexFound(inconsistencies);
+}
+
 class MetadataConsistencyRandomRoutingTableTest : public MetadataConsistencyConfigTest {
 protected:
     inline const static auto _shards = std::vector<ShardId>{kShard0, kShard1};
@@ -1101,6 +1273,30 @@ protected:
         return _localCatalogCollections[0]->uuid();
     }
 
+    void setAuthoritativeShardCatalogMetadata(const UUID& uuid,
+                                              const KeyPattern& keyPattern,
+                                              const std::vector<ChunkType>& chunks) {
+        auto rt = RoutingTableHistory::makeNewAllowingGaps(_nss,
+                                                           uuid,
+                                                           keyPattern,
+                                                           false,
+                                                           nullptr,
+                                                           false,
+                                                           chunks[0].getVersion().epoch(),
+                                                           chunks[0].getVersion().getTimestamp(),
+                                                           boost::none,
+                                                           boost::none,
+                                                           true,
+                                                           chunks);
+        const auto version = rt.getVersion();
+        const auto rtHandle = RoutingTableHistoryValueHandle(
+            std::make_shared<RoutingTableHistory>(std::move(rt)),
+            ComparableChunkVersion::makeComparableChunkVersion(version));
+        const auto collectionMetadata = CollectionMetadata(CurrentChunkManager(rtHandle), _shardId);
+        auto scopedCSR = CollectionShardingRuntime::acquireExclusive(operationContext(), _nss);
+        scopedCSR->setFilteringMetadata_authoritative(operationContext(), collectionMetadata);
+    }
+
     void setShardCatalogMetadata(const UUID& uuid,
                                  const KeyPattern& keyPattern,
                                  const std::vector<ChunkType>& chunks) {
@@ -1257,7 +1453,7 @@ TEST_F(MetadataConsistencyShardCatalogTest, ValidateCollectionMetadata_UuidMisma
 
     const auto inconsistencies = checkConsistency(globalCatalogColl);
 
-    ASSERT_EQ(1, countInconsistenciesWithDetailField(inconsistencies, "uuid"_sd));
+    ASSERT_EQ(1, countInconsistenciesWithDetailField(inconsistencies, "shardCatalogEntry"_sd));
 }
 
 TEST_F(MetadataConsistencyShardCatalogTest, ValidateCollectionMetadata_ShardKeyMismatch) {
@@ -1278,7 +1474,7 @@ TEST_F(MetadataConsistencyShardCatalogTest, ValidateCollectionMetadata_ShardKeyM
 
     const auto inconsistencies = checkConsistency(globalCatalogColl);
 
-    ASSERT_EQ(1, countInconsistenciesWithDetailField(inconsistencies, "shardKeyPattern"_sd));
+    ASSERT_EQ(1, countInconsistenciesWithDetailField(inconsistencies, "shardCatalogEntry"_sd));
 }
 
 TEST_F(MetadataConsistencyShardCatalogTest, ValidateCollectionMetadata_UuidAndShardKeyMismatch) {
@@ -1300,8 +1496,7 @@ TEST_F(MetadataConsistencyShardCatalogTest, ValidateCollectionMetadata_UuidAndSh
 
     const auto inconsistencies = checkConsistency(globalCatalogColl);
 
-    ASSERT_EQ(1, countInconsistenciesWithDetailField(inconsistencies, "uuid"_sd));
-    ASSERT_EQ(1, countInconsistenciesWithDetailField(inconsistencies, "shardKeyPattern"_sd));
+    ASSERT_EQ(1, countInconsistenciesWithDetailField(inconsistencies, "shardCatalogEntry"_sd));
 }
 
 TEST_F(MetadataConsistencyShardCatalogTest, ValidateCollectionMetadata_SplitChunksSameDomain) {
@@ -1405,6 +1600,32 @@ TEST_F(MetadataConsistencyShardCatalogTest,
     const auto inconsistencies = checkConsistency(globalCatalogColl);
 
     ASSERT_EQ(1, countInconsistenciesWithDetailField(inconsistencies, "chunksDomain"_sd));
+}
+
+TEST_F(MetadataConsistencyShardCatalogTest,
+       ValidateCollectionMetadata_NotOwnedChunksDisallowed_DurableAuthoritativeShardCatalogChunks) {
+    RAIIServerParameterControllerForTest featureFlagController(
+        "featureFlagShardAuthoritativeCollMetadata", true);
+    const auto localUuid = setUpLocalCollection();
+    auto globalCatalogColl = generateCollectionType(_nss, localUuid, _keyPattern);
+
+    const OID epoch = OID::gen();
+    auto chunk = generateChunk(
+        localUuid, _shardId, _keyPattern.globalMin(), BSON("x" << 10), kShard0History, epoch);
+    setAuthoritativeShardCatalogMetadata(localUuid, _keyPattern, {chunk});
+
+    _catalogClient->setChunksToReturn({chunk});
+    insertDurableShardCatalogCollection(globalCatalogColl);
+
+    auto foreignChunk =
+        generateChunk(localUuid, kShard1, BSON("x" << 10), BSON("x" << 20), kShard1History, epoch);
+    insertDurableShardCatalogChunks({chunk, foreignChunk});
+
+    const auto inconsistencies = checkConsistency(globalCatalogColl);
+
+    ASSERT_EQ(1,
+              countInconsistenciesWithDetailFieldAndSource(
+                  inconsistencies, "chunkHistory"_sd, "durableShardCatalog"_sd));
 }
 
 TEST_F(MetadataConsistencyShardCatalogTest,
@@ -1635,7 +1856,7 @@ TEST_F(MetadataConsistencyShardCatalogTest, DurablePath_UuidMismatch) {
 
     ASSERT_EQ(1,
               countInconsistenciesWithDetailFieldAndSource(
-                  inconsistencies, "uuid"_sd, "durableShardCatalog"_sd));
+                  inconsistencies, "shardCatalogEntry"_sd, "durableShardCatalog"_sd));
 }
 
 TEST_F(MetadataConsistencyShardCatalogTest, DurablePath_ShardKeyMismatch) {
@@ -1666,7 +1887,7 @@ TEST_F(MetadataConsistencyShardCatalogTest, DurablePath_ShardKeyMismatch) {
 
     ASSERT_EQ(1,
               countInconsistenciesWithDetailFieldAndSource(
-                  inconsistencies, "shardKeyPattern"_sd, "durableShardCatalog"_sd));
+                  inconsistencies, "shardCatalogEntry"_sd, "durableShardCatalog"_sd));
 }
 
 TEST_F(MetadataConsistencyShardCatalogTest, DurablePath_ChunksDomainMismatch) {
@@ -1873,6 +2094,74 @@ TEST_F(MakeInconsistencySeverityTest, SeverityRoundTripsViaBSON) {
     const auto roundTripped = MetadataInconsistencyItem::parse(original.toBSON());
     ASSERT_TRUE(roundTripped.getSeverity().has_value());
     ASSERT_EQ(MetadataInconsistencySeverityEnum::kHigh, roundTripped.getSeverity().value());
+}
+
+// Tests for low severity on config.system.sessions inconsistencies.
+
+TEST_F(MetadataConsistencyTest, CollectionUUIDMismatchOnSessionsNamespaceHasLowSeverity) {
+    OperationContext* opCtx = operationContext();
+    const auto& nss = NamespaceString::kLogicalSessionsNamespace;
+
+    createTestCollection(opCtx, nss);
+
+    const auto [localCatalogSnapshot, localCatalogCollections] = getLocalCatalog(opCtx, nss);
+    ASSERT_EQ(1, localCatalogCollections.size());
+
+    // Use a different UUID to trigger a CollectionUUIDMismatch.
+    auto configColl = generateCollectionType(nss, UUID::gen());
+
+    const auto inconsistencies = metadata_consistency_util::checkCollectionMetadataConsistency(
+        opCtx,
+        _shardId,
+        _shardId,
+        {configColl},
+        localCatalogSnapshot,
+        localCatalogCollections,
+        false /*checkRangeDeletionIndexes*/,
+        false /*optionalCheckIndexes*/);
+
+    const auto it =
+        std::find_if(inconsistencies.begin(), inconsistencies.end(), [](const auto& item) {
+            return item.getType() == MetadataInconsistencyTypeEnum::kCollectionUUIDMismatch;
+        });
+    ASSERT_NE(it, inconsistencies.end());
+    ASSERT_TRUE(it->getSeverity().has_value());
+    ASSERT_EQ(MetadataInconsistencySeverityEnum::kLow, it->getSeverity().value());
+}
+
+TEST_F(MetadataConsistencyTest, CollectionOptionsMismatchOnSessionsNamespaceHasLowSeverity) {
+    OperationContext* opCtx = operationContext();
+    const auto& nss = NamespaceString::kLogicalSessionsNamespace;
+
+    // Create a capped local collection to trigger CollectionOptionsMismatch.
+    CreateCommand cmd(nss);
+    cmd.getCreateCollectionRequest().setCapped(true);
+    cmd.getCreateCollectionRequest().setSize(100);
+    createTestCollection(opCtx, nss, cmd.toBSON());
+
+    const auto [localCatalogSnapshot, localCatalogCollections] = getLocalCatalog(opCtx, nss);
+    ASSERT_EQ(1, localCatalogCollections.size());
+
+    // Config entry has the same UUID but does not mark it as unsplittable, triggering the mismatch.
+    auto configColl = generateCollectionType(nss, localCatalogCollections[0]->uuid());
+
+    const auto inconsistencies = metadata_consistency_util::checkCollectionMetadataConsistency(
+        opCtx,
+        _shardId,
+        _shardId,
+        {configColl},
+        localCatalogSnapshot,
+        localCatalogCollections,
+        false /*checkRangeDeletionIndexes*/,
+        false /*optionalCheckIndexes*/);
+
+    const auto it =
+        std::find_if(inconsistencies.begin(), inconsistencies.end(), [](const auto& item) {
+            return item.getType() == MetadataInconsistencyTypeEnum::kCollectionOptionsMismatch;
+        });
+    ASSERT_NE(it, inconsistencies.end());
+    ASSERT_TRUE(it->getSeverity().has_value());
+    ASSERT_EQ(MetadataInconsistencySeverityEnum::kLow, it->getSeverity().value());
 }
 
 }  // namespace

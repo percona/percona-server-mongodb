@@ -264,6 +264,12 @@ feature_flags:
         version: 8.3
         fcv_gated: true
 
+    featureFlagConvertObjectToBinData:
+        description: "Feature flag to enable converting from Object to BinData"
+        cpp_varname: gFeatureFlagConvertObjectToBinData
+        default: false
+        fcv_gated: true
+
     featureFlagVectorSimilarityExpressions:
         description:
             "Feature flag to enable vector similarity expressions $similarityDotProduct,
@@ -311,6 +317,18 @@ feature_flags:
         version: 9.0
         fcv_gated: true
 
+    featureFlagQueryStatsInsert:
+        description: "Feature flag to enable query stats for the insert command."
+        cpp_varname: gFeatureFlagQueryStatsInsert
+        default: false
+        fcv_gated: true
+
+    featureFlagQueryStatsDelete:
+        description: "Feature flag to enable query stats for the delete command."
+        cpp_varname: gFeatureFlagQueryStatsDelete
+        default: false
+        fcv_gated: true
+
     featureFlagQueryStatsCBRMetrics:
         description: "Feature flag to enable cost-based ranker metrics in query stats."
         cpp_varname: gFeatureFlagQueryStatsCBRMetrics
@@ -350,6 +368,12 @@ feature_flags:
         default: true
         version: 8.3
         fcv_gated: true
+
+    featureFlagAllowUserFacingQuerySettings:
+        description: "Allow users to pass querySettings directly in commands as runtime hints without persistence."
+        cpp_varname: gFeatureFlagAllowUserFacingQuerySettings
+        default: false
+        fcv_gated: false
 
     featureFlagEnableTestingAggregateRewriteRules:
         description: "Feature flag to enable testing of specific aggregation re-write rules."
@@ -393,12 +417,6 @@ feature_flags:
         fcv_gated: false
         default: false
         incremental_rollout_phase: in_development
-
-    featureFlagExtensionViewsAndUnionWith:
-        description: "Feature flag to enable extension stages on views and in $unionWith."
-        cpp_varname: gFeatureFlagExtensionViewsAndUnionWith
-        default: false
-        fcv_gated: false
 
     featureFlag2dsphereIndexVersion4:
         description: "Feature flag to enable v4 of 2dsphereIndexVersion."

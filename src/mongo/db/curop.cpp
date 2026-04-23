@@ -39,6 +39,7 @@
 #include "mongo/db/admission/execution_control/execution_admission_context.h"
 #include "mongo/db/admission/execution_control/ticketing_system.h"
 #include "mongo/db/admission/ingress_admission_context.h"
+#include "mongo/db/admission/ticketing/ticketholder_queue_stats.h"
 #include "mongo/db/client.h"
 #include "mongo/db/commands.h"
 #include "mongo/db/commands/server_status/server_status_metric.h"
@@ -67,7 +68,6 @@
 #include "mongo/transport/service_executor.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/clock_source.h"
-#include "mongo/util/concurrency/ticketholder_queue_stats.h"
 #include "mongo/util/duration.h"
 #include "mongo/util/fail_point.h"
 #include "mongo/util/log_with_sampling.h"
@@ -294,7 +294,8 @@ CurOp* CurOp::get(const OperationContext& opCtx) {
     return _curopStack(opCtx).top();
 }
 
-void CurOp::reportCurrentOpForClient(const boost::intrusive_ptr<ExpressionContext>& expCtx,
+void CurOp::reportCurrentOpForClient(WithLock,
+                                     const boost::intrusive_ptr<ExpressionContext>& expCtx,
                                      Client* client,
                                      bool truncateOps,
                                      BSONObjBuilder* infoBuilder) {
@@ -382,7 +383,7 @@ void CurOp::reportCurrentOpForClient(const boost::intrusive_ptr<ExpressionContex
     }
 }
 
-bool CurOp::currentOpBelongsToTenant(Client* client, TenantId tenantId) {
+bool CurOp::currentOpBelongsToTenant(WithLock, Client* client, TenantId tenantId) {
     invariant(client);
 
     OperationContext* clientOpCtx = client->getOperationContext();
@@ -617,7 +618,7 @@ ProgressMeter& CurOp::setProgress(WithLock lk,
     return _progressMeter.value();
 }
 
-void CurOp::updateStatsOnTransactionUnstash(ClientLock&) {
+void CurOp::updateStatsOnTransactionUnstash(WithLock) {
     // Store lock stats and storage metrics from the locker and recovery unit after unstashing.
     // These stats have accrued outside of this CurOp instance so we will ignore/subtract them when
     // reporting on this operation.
@@ -625,7 +626,7 @@ void CurOp::updateStatsOnTransactionUnstash(ClientLock&) {
     _resourceStatsBase->addForUnstash(getAdditiveResourceStats(boost::none));
 }
 
-void CurOp::updateStatsOnTransactionStash(ClientLock&) {
+void CurOp::updateStatsOnTransactionStash(WithLock) {
     // Store lock stats and storage metrics that happened during this operation before the locker
     // and recovery unit are stashed. We take the delta of the stats before stashing and the base
     // stats which includes the snapshot of stats when it was unstashed. This stats delta on

@@ -214,7 +214,8 @@ public:
         MONGO_UNREACHABLE;
     }
 
-    UUID fetchCollectionUUIDFromPrimary(OperationContext* opCtx, const NamespaceString& nss) final {
+    ListCollectionsReplyItem getCollectionInfoFromPrimary(
+        OperationContext* opCtx, const NamespaceStringOrUUID& nsOrUUID) final {
         MONGO_UNREACHABLE;
     }
 
@@ -435,7 +436,8 @@ public:
                                             bool addPrimaryShard) final;
 
 protected:
-    BSONObj _reportCurrentOpForClient(const boost::intrusive_ptr<ExpressionContext>& expCtx,
+    BSONObj _reportCurrentOpForClient(WithLock,
+                                      const boost::intrusive_ptr<ExpressionContext>& expCtx,
                                       Client* client,
                                       CurrentOpTruncateMode truncateOps) const final;
 

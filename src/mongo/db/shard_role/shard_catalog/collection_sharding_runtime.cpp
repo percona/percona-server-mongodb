@@ -493,7 +493,17 @@ void CollectionShardingRuntime::clearFilteringMetadata_authoritative(OperationCo
 }
 
 void CollectionShardingRuntime::clearFilteringMetadataForDroppedCollection_authoritative(
-    OperationContext* opCtx) {
+    OperationContext* opCtx, const UUID& collectionUuid) {
+    // TODO (SERVER-123346): Re-enable this assertion once unshardCollection does not leave stale
+    // UUID metadata on shards.
+    //
+    // if (_metadataType == MetadataType::kTracked) {
+    //    tassert(12220902,
+    //        "Expected to find matching uuid if collection is tracked and metadata is known",
+    //        _metadataManager && _metadataManager->getCollectionUuid().has_value() &&
+    //            collectionUuid == _metadataManager->getCollectionUuid().get());
+    //}
+
     _clearFilteringMetadata(opCtx, /* collIsDropped */ true);
     _authoritativeState = AuthoritativeState::kAuthoritative;
 }

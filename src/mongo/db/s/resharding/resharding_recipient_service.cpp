@@ -58,6 +58,7 @@
 #include "mongo/db/repl/optime.h"
 #include "mongo/db/repl/read_concern_args.h"
 #include "mongo/db/repl/repl_client_info.h"
+#include "mongo/db/repl/replication_coordinator.h"
 #include "mongo/db/repl/wait_for_majority_service.h"
 #include "mongo/db/router_role/routing_cache/catalog_cache.h"
 #include "mongo/db/rss/replicated_storage_service.h"
@@ -217,10 +218,12 @@ void buildStateDocumentApplyMetricsForUpdate(BSONObjBuilder& bob,
         getIntervalStartFieldName<DocT>(ReshardingRecipientMetrics::kOplogApplicationFieldName),
         timestamp);
 
-    bob.append(metricsPrefix + ReshardingRecipientMetrics::kFinalDocumentsCopiedCountFieldName,
+    bob.append(metricsPrefix +
+                   std::string{ReshardingRecipientMetrics::kFinalDocumentsCopiedCountFieldName},
                recipientCtx.getTotalNumDocuments() ? *recipientCtx.getTotalNumDocuments()
                                                    : metrics->getDocumentsProcessedCount());
-    bob.append(metricsPrefix + ReshardingRecipientMetrics::kFinalBytesCopiedCountFieldName,
+    bob.append(metricsPrefix +
+                   std::string{ReshardingRecipientMetrics::kFinalBytesCopiedCountFieldName},
                recipientCtx.getTotalDocumentSize() ? *recipientCtx.getTotalDocumentSize()
                                                    : metrics->getBytesWrittenCount());
 }
@@ -318,6 +321,10 @@ ReshardingRecipientService::RecipientStateMachine::RecipientStateMachine(
       _serviceContext(serviceContext),
       _metrics{ReshardingMetrics::initializeFrom(recipientDoc, _serviceContext)},
       _metadata{recipientDoc.getCommonReshardingMetadata()},
+      _forwardableOpMetadata{
+          _metadata.getForwardableOpMetadata().map([](const ForwardableOperationMetadata& f) {
+              return f.withVersionContextPropagation_UNSAFE();
+          })},
       _minimumOperationDuration{Milliseconds{recipientDoc.getMinimumOperationDurationMillis()}},
       _oplogBatchTaskCount{recipientDoc.getOplogBatchTaskCount()},
       _skipCloningAndApplying{recipientDoc.getSkipCloningAndApplying().value_or(false)},
@@ -368,8 +375,8 @@ CancelableOperationContext ReshardingRecipientService::RecipientStateMachine::_m
         stdx::lock_guard<stdx::mutex> lk(_mutex);
         return _recipientCtx.getState();
     }();
-    return resharding::makeReshardingOperationContext(*factory,
-                                                      state >= RecipientStateEnum::kApplying);
+    return resharding::makeReshardingOperationContext(
+        *factory, state >= RecipientStateEnum::kApplying, _forwardableOpMetadata);
 }
 
 ExecutorFuture<void>
@@ -799,6 +806,7 @@ void ReshardingRecipientService::RecipientStateMachine::onReshardingFieldsChange
     stdx::lock_guard<stdx::mutex> lk(_mutex);
     auto coordinatorState = reshardingFields.getState();
     auto driveCloneViaRefresh = !resharding::gFeatureFlagReshardingCloneNoRefresh.isEnabled(
+        resharding::getVersionContextOrDefault(_forwardableOpMetadata),
         serverGlobalParams.featureCompatibility.acquireFCVSnapshot());
 
     if (driveCloneViaRefresh && coordinatorState >= CoordinatorStateEnum::kCloning) {
@@ -1050,15 +1058,25 @@ void ReshardingRecipientService::RecipientStateMachine::_createAndStartChangeStr
     }
 
     auto batchCallback = [this, factory](const auto& batch) {
+        boost::optional<long long> lagSecs;
+        if (auto clusterTimeSecs = batch.getResumeTokenClusterTimeSecs()) {
+            auto replCoord = repl::ReplicationCoordinator::get(_serviceContext);
+            auto lastCommittedSecs = replCoord->getLastCommittedOpTime().getTimestamp().getSecs();
+            auto lagMs =
+                Milliseconds(std::max<int64_t>(0,
+                                               static_cast<int64_t>(lastCommittedSecs) -
+                                                   static_cast<int64_t>(*clusterTimeSecs)) *
+                             1000);
+            _metrics->setChangeStreamMonitorLag(lagMs);
+            lagSecs = durationCount<Seconds>(lagMs);
+        }
+
         LOGV2(9858300,
               "Persisting change streams monitor's progress",
               "reshardingUUID"_attr = _metadata.getReshardingUUID(),
               "documentsDelta"_attr = batch.getDocumentsDelta(),
-              "completed"_attr = batch.containsFinalEvent());
-
-        if (auto clusterTimeSecs = batch.getResumeTokenClusterTimeSecs()) {
-            _metrics->setChangeStreamMonitorLastClusterTime(Timestamp(*clusterTimeSecs, 0));
-        }
+              "completed"_attr = batch.containsFinalEvent(),
+              "changeStreamMonitorLagSecs"_attr = lagSecs);
 
         invariant(_changeStreamsMonitorCtx);
         auto newChangeStreamsCtx = *_changeStreamsMonitorCtx;
@@ -1108,14 +1126,24 @@ ReshardingRecipientService::RecipientStateMachine::_awaitChangeStreamsMonitorCom
         .thenRunOn(**executor)
         .onCompletion([this](Status status) {
             stdx::lock_guard<stdx::mutex> lk(_mutex);
-            LOGV2(9858302,
-                  "The change streams monitor completed",
-                  "reshardingUUID"_attr = _metadata.getReshardingUUID(),
-                  "status"_attr = status);
-
             if (status.isOK()) {
                 _metrics->setEndFor(ReshardingMetrics::TimedPhase::kChangeStreamMonitor,
                                     resharding::getCurrentTime());
+            }
+
+            LOGV2(9858302,
+                  "The change streams monitor completed",
+                  "reshardingUUID"_attr = _metadata.getReshardingUUID(),
+                  "status"_attr = status,
+                  "changeStreamMonitorTotalTimeSecs"_attr = _metrics->getElapsed<Seconds>(
+                      ReshardingMetrics::TimedPhase::kChangeStreamMonitor,
+                      _serviceContext->getFastClockSource()),
+                  "strictConsistencyToMonitorCompletionSecs"_attr =
+                      _metrics->getCrossPhaseElapsed<Seconds>(
+                          ReshardingMetrics::TimedPhase::kStrictConsistency,
+                          ReshardingMetrics::TimedPhase::kChangeStreamMonitor));
+
+            if (status.isOK()) {
                 ensureFulfilledPromise(lk,
                                        _changeStreamsMonitorCompleted,
                                        _changeStreamsMonitorCtx->getDocumentsDelta());
@@ -1342,7 +1370,7 @@ ReshardingRecipientService::RecipientStateMachine::_buildIndexThenTransitionToAp
                 .then([this, factory](const ReplIndexBuildState::IndexCatalogStats& stats) {
                     if (auto opCtx = _makeOperationContext(factory);
                         resharding::gReshardingIndexVerification.load()) {
-                        auto [sourceIdxSpecs, _] = _externalState->getCollectionIndexes(
+                        auto [normalizedSourceIdxSpecs, _] = _externalState->getCollectionIndexes(
                             opCtx.get(),
                             _metadata.getSourceNss(),
                             _metadata.getSourceUUID(),
@@ -1355,10 +1383,22 @@ ReshardingRecipientService::RecipientStateMachine::_buildIndexThenTransitionToAp
                                                           _metadata.getTempReshardingNss(),
                                                           ListIndexesInclude::kNothing,
                                                           /*isRawDataRequest=*/true);
-                        resharding::verifyIndexSpecsMatch(sourceIdxSpecs.cbegin(),
-                                                          sourceIdxSpecs.cend(),
-                                                          tempCollIdxSpecs.cbegin(),
-                                                          tempCollIdxSpecs.cend());
+
+                        // The listIndexes command always includes a 'collation' field in each index
+                        // spec as of SERVER-89953, even if it represents the simple collation. In
+                        // contrast, getCollectionIndexes() returns normalized specs where the
+                        // 'collation' field is omitted when it is a simple collation. Therefore, we
+                        // normalize the listIndexes output here to enable direct comparison between
+                        // both formats.
+                        // TODO (SERVER-119573): Remove this normalization once listIndexes output
+                        // matches storage format.
+                        const auto& normalizedTempCollIdxSpecs =
+                            IndexCatalog::normalizeIndexSpecsFromListIndexes(tempCollIdxSpecs);
+
+                        resharding::verifyIndexSpecsMatch(normalizedSourceIdxSpecs.cbegin(),
+                                                          normalizedSourceIdxSpecs.cend(),
+                                                          normalizedTempCollIdxSpecs.cbegin(),
+                                                          normalizedTempCollIdxSpecs.cend());
                     }
                     _transitionToApplying(factory);
                 });
@@ -1726,9 +1766,9 @@ BSONObj ReshardingRecipientService::RecipientStateMachine::_makeQueryForCoordina
             {
                 elemMatchBuilder.append(RecipientShardEntry::kIdFieldName, shardId);
 
-                BSONObjBuilder mutableStateBuilder(
-                    elemMatchBuilder.subobjStart(RecipientShardEntry::kMutableStateFieldName + "." +
-                                                 RecipientShardContext::kStateFieldName));
+                BSONObjBuilder mutableStateBuilder(elemMatchBuilder.subobjStart(
+                    std::string{RecipientShardEntry::kMutableStateFieldName} + "." +
+                    std::string{RecipientShardContext::kStateFieldName}));
                 {
                     BSONArrayBuilder inBuilder(mutableStateBuilder.subarrayStart("$in"));
                     for (const auto& state : it->second) {
@@ -1759,9 +1799,10 @@ ExecutorFuture<void> ReshardingRecipientService::RecipientStateMachine::_updateC
             {
                 BSONObjBuilder setBuilder(updateBuilder.subobjStart("$set"));
                 {
-                    setBuilder.append(ReshardingCoordinatorDocument::kRecipientShardsFieldName +
-                                          ".$." + RecipientShardEntry::kMutableStateFieldName,
-                                      _recipientCtx.toBSON());
+                    setBuilder.append(
+                        std::string{ReshardingCoordinatorDocument::kRecipientShardsFieldName} +
+                            ".$." + std::string{RecipientShardEntry::kMutableStateFieldName},
+                        _recipientCtx.toBSON());
                 }
             }
 
@@ -1825,12 +1866,14 @@ void ReshardingRecipientService::RecipientStateMachine::_updateRecipientDocument
         if (cloneDetails) {
             setBuilder.append(ReshardingRecipientDocument::kCloneTimestampFieldName,
                               cloneDetails->cloneTimestamp);
-            setBuilder.append(ReshardingRecipientDocument::kMetricsFieldName + "." +
-                                  ReshardingRecipientMetrics::kApproxBytesToCopyFieldName,
-                              cloneDetails->approxBytesToCopy);
-            setBuilder.append(ReshardingRecipientDocument::kMetricsFieldName + "." +
-                                  ReshardingRecipientMetrics::kApproxDocumentsToCopyFieldName,
-                              cloneDetails->approxDocumentsToCopy);
+            setBuilder.append(
+                std::string{ReshardingRecipientDocument::kMetricsFieldName} + "." +
+                    std::string{ReshardingRecipientMetrics::kApproxBytesToCopyFieldName},
+                cloneDetails->approxBytesToCopy);
+            setBuilder.append(
+                std::string{ReshardingRecipientDocument::kMetricsFieldName} + "." +
+                    std::string{ReshardingRecipientMetrics::kApproxDocumentsToCopyFieldName},
+                cloneDetails->approxDocumentsToCopy);
 
             BSONArrayBuilder donorShardsArrayBuilder;
             for (const auto& donor : cloneDetails->donorShards) {
@@ -2313,6 +2356,7 @@ void ReshardingRecipientService::RecipientStateMachine::_fulfillPromisesOnStepup
     }
 
     if (!resharding::gFeatureFlagReshardingCloneNoRefresh.isEnabled(
+            resharding::getVersionContextOrDefault(_forwardableOpMetadata),
             serverGlobalParams.featureCompatibility.acquireFCVSnapshot()) ||
         _recipientCtx.getState() <= RecipientStateEnum::kAwaitingFetchTimestamp) {
         return;

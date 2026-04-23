@@ -33,7 +33,6 @@
 #include "mongo/db/exec/document_value/document.h"
 #include "mongo/db/query/query_shape/serialization_options.h"
 #include "mongo/db/sorter/sorter_checksum_calculator.h"
-#include "mongo/db/sorter/sorter_file_name.h"
 #include "mongo/db/sorter/sorter_gen.h"
 #include "mongo/db/sorter/sorter_stats.h"
 #include "mongo/util/assert_util.h"
@@ -43,7 +42,6 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <fstream>
 #include <functional>
 #include <memory>
 #include <queue>
@@ -338,89 +336,20 @@ protected:
 };
 
 
-/**
- * Represents the file that a Sorter can use to spill to disk. Supports reading and writing
- * (append-only).
- */
-class SorterFile {
-public:
-    SorterFile(boost::filesystem::path path, SorterFileStats* stats);
-    ~SorterFile();
-
-    const boost::filesystem::path& path() const {
-        return _path;
-    }
-
-    /**
-     * Signals that the on-disk file should not be cleaned up.
-     */
-    void keep() {
-        _keep = true;
-    };
-
-    /**
-     * Reads the requested data from the file. Cannot write more to the file once this has
-     * been called.
-     */
-    void read(std::streamoff offset, std::streamsize size, void* out);
-
-
-    /**
-     * Writes the given data to the end of the file. Cannot be called after reading.
-     */
-    void write(const char* data, std::streamsize size);
-
-    /**
-     * Returns the current offset of the end of the file. Cannot be called after reading.
-     */
-    std::streamoff currentOffset();
-
-    /**
-     * Returns the fileStats ptr for the current file.
-     */
-    SorterFileStats* getFileStats();
-
-private:
-    void _open();
-
-    /**
-     * Ensures that the file is open and that _offset is set to the end of the file.
-     */
-    void _ensureOpenForWriting();
-
-    /**
-     * Returns lastPosixError() or a generic iostream error code if no posix error set.
-     */
-    std::error_code _getErrorCode();
-
-    // The current offset of the end of the file if there may be unflushed data, or -1 if the
-    // file either has not yet been opened or has been flushed.
-    std::streamoff _offset = -1;
-
-    std::fstream _file;
-
-    // Whether to keep the on-disk file even after this in-memory object has been destructed.
-    bool _keep = false;
-
-    // If set, this points to an external metrics holder for tracking storage open/close
-    // activity.
-    SorterFileStats* _stats;
-
-    boost::filesystem::path _path;
-};
+namespace sorter {
 
 /**
  * A pure virtual class where we provide the factory methods to create a writer or iterator for the
  * specific type of storage the sorter is using.
  */
 template <typename Key, typename Value>
-class SorterStorage {
+class Storage {
 public:
     typedef std::pair<typename Key::SorterDeserializeSettings,
                       typename Value::SorterDeserializeSettings>
         Settings;
 
-    virtual ~SorterStorage() = default;
+    virtual ~Storage() = default;
 
     virtual std::unique_ptr<SortedStorageWriter<Key, Value>> makeWriter(
         const SortOptions& opts, const Settings& settings) = 0;
@@ -431,17 +360,16 @@ public:
     /**
      * Reconstructs a sorter when resuming an index build, following persistFromShutdown.
      */
-    virtual std::shared_ptr<sorter::Iterator<Key, Value>> getSortedIterator(
-        const SorterRange& range, const Settings& settings) = 0;
+    virtual std::shared_ptr<Iterator<Key, Value>> getSortedIterator(const SorterRange& range,
+                                                                    const Settings& settings) = 0;
 
     /**
-     * Gets the storage identifier (e.g. file name, ident) to persist a SorterStorage upon clean
-     * shutdown.
+     * Gets the storage identifier (e.g. file name, ident) to persist a Storage upon clean shutdown.
      */
     virtual std::string getStorageIdentifier() = 0;
 
     /**
-     * Persists a SorterStorage upon clean shutdown.
+     * Persists a Storage upon clean shutdown.
      */
     virtual void keep() = 0;
 
@@ -457,9 +385,9 @@ public:
 };
 
 template <typename Key, typename Value>
-class SorterStorageBase : public SorterStorage<Key, Value> {
+class StorageBase : public Storage<Key, Value> {
 public:
-    SorterStorageBase(boost::optional<DatabaseName> dbName, SorterChecksumVersion checksumVersion)
+    StorageBase(boost::optional<DatabaseName> dbName, SorterChecksumVersion checksumVersion)
         : _dbName(dbName), _checksumVersion(checksumVersion) {}
 
     boost::optional<DatabaseName> getDbName() override {
@@ -474,6 +402,8 @@ private:
     boost::optional<DatabaseName> _dbName;
     SorterChecksumVersion _checksumVersion;
 };
+
+}  // namespace sorter
 
 /**
  * Data iterator over an Input stream used in the MergeIterator.
@@ -517,7 +447,7 @@ private:
 // And also, 'Comparator' compares Keys, but std::priority_queue calls its comparator
 // on whole elements.
 //
-// Used for the BoundedSorter and spillWithHeap in the SorterSpiller class.
+// Used for the BoundedSorter and spillWithHeap in the sorter::Spiller class.
 template <typename Key, typename Value, typename Comparator>
 struct MONGO_MOD_PRIVATE Greater {
 
@@ -551,33 +481,35 @@ void validateMergeSpillRanges(
     }
 }
 
+namespace sorter {
+
 /**
  * A class where we declare how to spill depending on the underlying storage the sorter is using.
  */
 template <typename Key, typename Value, typename Comparator>
-class SorterSpiller {
+class Spiller {
 public:
-    typedef sorter::Iterator<Key, Value> Iterator;
     typedef std::pair<typename Key::SorterDeserializeSettings,
                       typename Value::SorterDeserializeSettings>
         Settings;
     typedef std::pair<Key, Value> Data;
 
-    virtual std::shared_ptr<Iterator> spill(const SortOptions& opts,
-                                            const Settings& settings,
-                                            std::span<std::pair<Key, Value>> data) = 0;
+    virtual std::shared_ptr<Iterator<Key, Value>> spill(const SortOptions& opts,
+                                                        const Settings& settings,
+                                                        std::span<std::pair<Key, Value>> data) = 0;
 
-    virtual std::unique_ptr<Iterator> spillUnique(const SortOptions& opts,
-                                                  const Settings& settings,
-                                                  std::span<std::pair<Key, Value>> data) = 0;
+    virtual std::unique_ptr<Iterator<Key, Value>> spillUnique(
+        const SortOptions& opts,
+        const Settings& settings,
+        std::span<std::pair<Key, Value>> data) = 0;
 
-    virtual std::shared_ptr<Iterator> spillWithHeap(
+    virtual std::shared_ptr<Iterator<Key, Value>> spillWithHeap(
         const SortOptions& opts,
         const Settings& settings,
         std::priority_queue<Data, std::vector<Data>, Greater<Key, Value, Comparator>>& heap) = 0;
 
     /**
-     * Merge 'iters' in groups of at most 'numParallelSpills' until at most
+     * Merge 'iters' in groups of at most 'maxSpillsPerMerge' until at most
      * 'numTargetedSpills' remain.
      *
      * 'iters' must be ordered by increasing range start offset and form one contiguous
@@ -586,46 +518,45 @@ public:
     virtual void mergeSpills(const SortOptions& opts,
                              const Settings& settings,
                              SorterStats& stats,
-                             std::vector<std::shared_ptr<sorter::Iterator<Key, Value>>>& iters,
+                             std::vector<std::shared_ptr<Iterator<Key, Value>>>& iters,
                              Comparator comp,
                              std::size_t numTargetedSpills,
-                             std::size_t numParallelSpills) = 0;
+                             std::size_t maxSpillsPerMerge) = 0;
 
-    virtual SorterStorage<Key, Value>& getStorage() = 0;
+    virtual Storage<Key, Value>& getStorage() = 0;
 
     /**
      * Retrieves the directory where the storage is created for spilling data.
      */
     virtual boost::filesystem::path getSpillDir() = 0;
 
-    virtual ~SorterSpiller() = default;
+    virtual ~Spiller() = default;
 };
 
 template <typename Key, typename Value, typename Comparator>
-class SorterSpillerBase : public SorterSpiller<Key, Value, Comparator> {
+class SpillerBase : public Spiller<Key, Value, Comparator> {
 public:
-    typedef sorter::Iterator<Key, Value> Iterator;
     typedef std::pair<Key, Value> Data;
-    using Settings = SorterSpiller<Key, Value, Comparator>::Settings;
+    using Settings = Spiller<Key, Value, Comparator>::Settings;
 
-    SorterSpillerBase(std::unique_ptr<SorterStorage<Key, Value>> storage,
-                      int64_t minAvailableDiskBytesToSpill)
+    SpillerBase(std::unique_ptr<Storage<Key, Value>> storage, int64_t minAvailableDiskBytesToSpill)
         : _storage(std::move(storage)),
           _minAvailableDiskBytesToSpill(minAvailableDiskBytesToSpill) {}
 
-    std::shared_ptr<Iterator> spill(const SortOptions& opts,
-                                    const Settings& settings,
-                                    std::span<std::pair<Key, Value>> data) override {
+    std::shared_ptr<Iterator<Key, Value>> spill(const SortOptions& opts,
+                                                const Settings& settings,
+                                                std::span<std::pair<Key, Value>> data) override {
         return _spill(opts, settings, data)->done();
     }
 
-    std::unique_ptr<Iterator> spillUnique(const SortOptions& opts,
-                                          const Settings& settings,
-                                          std::span<std::pair<Key, Value>> data) override {
+    std::unique_ptr<Iterator<Key, Value>> spillUnique(
+        const SortOptions& opts,
+        const Settings& settings,
+        std::span<std::pair<Key, Value>> data) override {
         return _spill(opts, settings, data)->doneUnique();
     }
 
-    std::shared_ptr<Iterator> spillWithHeap(
+    std::shared_ptr<Iterator<Key, Value>> spillWithHeap(
         const SortOptions& opts,
         const Settings& settings,
         std::priority_queue<Data, std::vector<Data>, Greater<Key, Value, Comparator>>& heap)
@@ -639,12 +570,12 @@ public:
         return writer->done();
     }
 
-    SorterStorage<Key, Value>& getStorage() override {
+    Storage<Key, Value>& getStorage() override {
         return *_storage;
     }
 
 protected:
-    std::unique_ptr<SorterStorage<Key, Value>> _storage;
+    std::unique_ptr<Storage<Key, Value>> _storage;
     int64_t _minAvailableDiskBytesToSpill;
 
 private:
@@ -654,15 +585,16 @@ private:
         std::span<std::pair<Key, Value>> data) = 0;
 };
 
+}  // namespace sorter
+
 /**
- * Each instance of this class accepts (Key, Value) pairs and, depending on its
- * SortOptions and the configured SorterSpiller/SorterStorage, may keep them
- * in memory or spill sorted ranges to an external storage.
+ * Each instance of this class accepts (Key, Value) pairs and, depending on its SortOptions and the
+ * configured Spiller/Storage, may keep them in memory or spill sorted ranges to an external
+ * storage.
  *
- * Ownership and cleanup of any spill storage are handled by the underlying
- * SorterStorage implementation. Callers that need spilled data to outlive
- * the Sorter itself should use persistDataForShutdown() and later reconstruct a Sorter from the
- * returned PersistedState.
+ * Ownership and cleanup of any spill storage are handled by the underlying Storage implementation.
+ * Callers that need spilled data to outlive the Sorter itself should use persistDataForShutdown()
+ * and later reconstruct a Sorter from the returned PersistedState.
  */
 template <typename Key, typename Value>
 class Sorter : public SorterBase {
@@ -685,7 +617,7 @@ public:
     explicit Sorter(const SortOptions& opts);
 
     /**
-     * ExtSort-only constructor. storageIdentifier is the file name or ident for a SorterFile or
+     * ExtSort-only constructor. storageIdentifier is the file name or ident for a sorter::File or
      * container (respectively) in it's spill directory path.
      */
     Sorter(const SortOptions& opts, std::string storageIdentifier);
@@ -694,7 +626,7 @@ public:
     static std::unique_ptr<Sorter> make(
         const SortOptions& opts,
         const Comparator& comp,
-        std::shared_ptr<SorterSpiller<Key, Value, Comparator>> spiller,
+        std::shared_ptr<sorter::Spiller<Key, Value, Comparator>> spiller,
         const Settings& settings);
 
     template <typename Comparator>
@@ -703,7 +635,7 @@ public:
         const std::vector<SorterRange>& ranges,
         const SortOptions& opts,
         const Comparator& comp,
-        std::shared_ptr<SorterSpiller<Key, Value, Comparator>> spiller,
+        std::shared_ptr<sorter::Spiller<Key, Value, Comparator>> spiller,
         const Settings& settings);
 
     virtual void add(const Key&, const Value&) = 0;
@@ -839,12 +771,12 @@ public:
 template <typename Key, typename Value, typename Comparator, typename BoundMaker>
 class BoundedSorter final : public BoundedSorterInterface<Key, Value> {
 public:
-    using Settings = SorterSpiller<Key, Value, Comparator>::Settings;
+    using Settings = sorter::Spiller<Key, Value, Comparator>::Settings;
 
     BoundedSorter(const SortOptions& opts,
                   Comparator comp,
                   BoundMaker makeBound,
-                  std::shared_ptr<SorterSpiller<Key, Value, Comparator>> spiller,
+                  std::shared_ptr<sorter::Spiller<Key, Value, Comparator>> spiller,
                   bool checkInput = true);
 
     BoundedSorter(const BoundedSorter&) = delete;
@@ -898,7 +830,7 @@ public:
     const BoundMaker makeBound;
 
 protected:
-    std::shared_ptr<SorterSpiller<Key, Value, Comparator>> _spiller;
+    std::shared_ptr<sorter::Spiller<Key, Value, Comparator>> _spiller;
 
 private:
     using SpillIterator = sorter::Iterator<Key, Value>;

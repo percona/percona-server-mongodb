@@ -54,6 +54,7 @@ idl_generator(
     src = "set_feature_compatibility_version.idl",
     deps = [
         "//src/mongo/db:basic_types_gen",
+        "//src/mongo/db:feature_compatibility_version_document_gen",
         "//src/mongo/idl:generic_argument_gen",
     ],
 )
@@ -986,6 +987,7 @@ mongo_cc_library(
         "//src/mongo/db/shard_role/ddl:internal_rename_if_options_and_indexes_match_gen",
         "//src/mongo/db/topology/cluster_parameters:get_cluster_parameter_command.cpp",
         "//src/mongo/db/topology/cluster_parameters:set_cluster_parameter_command.cpp",
+        "//src/mongo/db/topology/user_write_block:block_replica_set_writes_command.cpp",
         "//src/mongo/db/topology/user_write_block:set_user_write_block_mode_command.cpp",
     ],
     deps = [
@@ -1044,6 +1046,8 @@ mongo_cc_library(
         "//src/mongo/db/repl:repl_server_parameters",
         "//src/mongo/db/repl:replica_set_messages",
         "//src/mongo/db/repl/dbcheck",
+        "//src/mongo/db/replicated_fast_count:replicated_fast_count_init",
+        "//src/mongo/db/replicated_fast_count:replicated_fast_count_manager",
         "//src/mongo/db/rss:replicated_storage_service",
         "//src/mongo/db/s:sharding_commands_d",
         "//src/mongo/db/s:transaction_coordinator",
@@ -1057,6 +1061,7 @@ mongo_cc_library(
         "//src/mongo/db/timeseries:timeseries_conversion_util",
         "//src/mongo/db/timeseries:upgrade_downgrade_viewless_timeseries",
         "//src/mongo/db/timeseries:upgrade_downgrade_viewless_timeseries_sharded_cluster",
+        "//src/mongo/db/topology/user_write_block:block_replica_set_writes_idl",
         "//src/mongo/db/topology/user_write_block:set_user_write_block_mode_idl",
         "//src/mongo/db/topology/user_write_block:user_writes_recoverable_critical_section",
         "//src/mongo/db/transaction:transaction_api",
@@ -1115,8 +1120,8 @@ mongo_cc_unit_test(
     ],
     srcs_select = [{
         "//bazel/config:js_engine_none": [],
-        "//bazel/config:js_engine_wasm": [],
-        "//bazel/config:js_engine_mozjs": [
+        "//bazel/config:js_engine_wasm_supported": [],
+        "//bazel/config:js_engine_use_legacy": [
             "//src/mongo/db/commands/query_cmd:mr_test.cpp",
         ],
     }],
@@ -1166,6 +1171,7 @@ mongo_cc_unit_test(
         "//src/mongo/db/storage:record_store_base",
         "//src/mongo/idl:idl_parser",
         "//src/mongo/otel/metrics:metrics_test_util",
+        "//src/mongo/scripting:scripting_server",
         "//src/mongo/shell:kms_idl",
         "//src/mongo/util:version_impl",
     ],

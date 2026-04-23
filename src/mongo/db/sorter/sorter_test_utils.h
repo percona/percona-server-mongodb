@@ -29,6 +29,7 @@
 
 #pragma once
 
+#include "mongo/db/sorter/file.h"
 #include "mongo/db/sorter/file_based_spiller.h"
 #include "mongo/db/sorter/sorter.h"
 #include "mongo/db/sorter/sorter_template_defs.h"
@@ -281,12 +282,12 @@ void _assertIteratorsEquivalentForNSteps(It1& it1, It2& it2, int maxSteps, int l
 template <int N>
 std::shared_ptr<IWIterator> makeInMemIterator(
     const int (&array)[N],
-    std::shared_ptr<SorterSpillerBase<IntWrapper, IntWrapper, IWComparator>> spiller = nullptr);
+    std::shared_ptr<SpillerBase<IntWrapper, IntWrapper, IWComparator>> spiller = nullptr);
 
 template <int N>
 std::shared_ptr<IWIterator> makeInMemIterator(
     const int (&array)[N],
-    std::shared_ptr<SorterSpillerBase<IntWrapper, IntWrapper, IWComparator>> spiller) {
+    std::shared_ptr<SpillerBase<IntWrapper, IntWrapper, IWComparator>> spiller) {
     std::vector<IWPair> vec;
     for (int i = 0; i < N; i++)
         vec.push_back(IWPair(array[i], -array[i]));
@@ -306,9 +307,9 @@ std::shared_ptr<IWIterator> spillToFile(IteratorPtr inputIter,
         return std::make_shared<EmptyIterator>();
     }
     const SortOptions opts = SortOptions();
-    auto spillFile = std::make_shared<SorterFile>(sorter::nextFileName(spillDir.path()), fileStats);
+    auto spillFile = std::make_shared<File>(sorter::nextFileName(spillDir.path()), fileStats);
     // TODO(SERVER-114080): Ensure testing of non-file-based sorter storage is comprehensive.
-    FileBasedSorterStorage<IntWrapper, IntWrapper> sorterStorage(
+    FileBasedStorage<IntWrapper, IntWrapper> sorterStorage(
         spillFile, /*dbName=*/boost::none, SorterChecksumVersion::v2);
     std::unique_ptr<SortedStorageWriter<IntWrapper, IntWrapper>> writer =
         sorterStorage.makeWriter(opts, /*settings=*/{});

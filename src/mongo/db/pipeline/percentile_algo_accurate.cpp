@@ -76,8 +76,8 @@ void AccuratePercentile::spill() {
     // Initialize '_spillFile' in a lazy manner only when it is needed.
     if (!_spillFile) {
         _spillStats = std::make_unique<SorterFileStats>(nullptr /* sorterTracker */);
-        _spillFile = std::make_shared<SorterFile>(sorter::nextFileName(_expCtx->getTempDir()),
-                                                  _spillStats.get());
+        _spillFile = std::make_shared<sorter::File>(sorter::nextFileName(_expCtx->getTempDir()),
+                                                    _spillStats.get());
     }
 
     if (_accumulatedValues.size() == 0) {
@@ -86,9 +86,9 @@ void AccuratePercentile::spill() {
 
     _numTotalValuesSpilled += _accumulatedValues.size();
 
-    sorter::FileBasedSorterStorage<Value, Value> sorterStorage(_spillFile,
-                                                               /*dbName=*/boost::none,
-                                                               sorter::kLatestChecksumVersion);
+    sorter::FileBasedStorage<Value, Value> sorterStorage(_spillFile,
+                                                         /*dbName=*/boost::none,
+                                                         sorter::kLatestChecksumVersion);
     std::unique_ptr<SortedStorageWriter<Value, Value>> writer =
         sorterStorage.makeWriter(SortOptions(), /*settings=*/{});
 

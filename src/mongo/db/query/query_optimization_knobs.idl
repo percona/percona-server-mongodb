@@ -50,7 +50,6 @@ enums:
             kSamplingCE: "samplingCE"
             kHeuristicCE: "heuristicCE"
 
-    # TODO SERVER-111770. Finalise values and names.
     QueryPlanRankingStrategyForAutomaticQueryPlanRankerMode:
         description: "Enum for possible values for QueryPlanRankingStrategyForAutomaticQueryPlanRankerMode."
         type: string
@@ -97,6 +96,14 @@ enums:
             kHJ: "HJ"
             kINLJ: "INLJ"
             kNLJ: "NLJ"
+
+    TransformHoistPolicy:
+        description: "Controls when the independent prefix of a $project or $addFields is hoisted past the preceding stage."
+        type: string
+        values:
+            kNever: "never"
+            kForMatchPushdown: "forMatchPushdown"
+            kAlways: "always"
 
 structs:
     InternalQueryCutoffForSampleFromRandomCursorStorage:
@@ -555,7 +562,7 @@ server_parameters:
         description: >-
             The maximum number of nodes (1 for base collection + number of $lookup-$unwind pairs)
             allowed for join optimization. Any $lookup-$unwind pairs exceeding this limit will not
-            be included in the join optimization and will be executed in the original order as 
+            be included in the join optimization and will be executed in the original order as
             specifified in the aggregation pipeline.
         set_at: [startup, runtime]
         cpp_varname: internalMaxNodesInJoinGraph
@@ -738,7 +745,6 @@ server_parameters:
             expr: QueryPlanRankerModeEnum::kAutomaticCE
         redact: false
 
-    # TODO SERVER-111770. Finalise names.
     automaticCEPlanRankingStrategy:
         description: "Controls the plan ranking strategy to use when automaticCE is selected as internalQueryCBRCEMode"
         set_at: [startup, runtime]
@@ -956,6 +962,32 @@ server_parameters:
         cpp_varname: "internalQueryPlannerPushdownFilterToIxscanForSort"
         cpp_vartype: AtomicWord<bool>
         default: true
+        redact: false
+
+    internalQueryTransformHoistPolicy:
+        description: >-
+            Controls when the independent prefix of a $project or $addFields is hoisted past the
+            preceding stage. "never" disables hoisting entirely; "forMatchPushdown" hoists only
+            when a following $match gains pushdown eligibility; "always" hoists unconditionally.
+        set_at: [startup, runtime]
+        cpp_class:
+            name: TransformHoistPolicy
+            data: synchronized_value<TransformHoistPolicyEnum>
+        default:
+            expr: TransformHoistPolicyEnum::kNever
+        redact: false
+
+    internalQueryTransformHoistMaximumPaths:
+        description: >-
+            Maximum number of modified paths (computed fields and renames) in a $project or
+            $addFields for which the hoist transformation will be attempted. Projections with more
+            modified paths than this threshold are not hoisted, even when
+            internalQueryTransformHoistPolicy is always.
+        set_at: [startup, runtime]
+        cpp_varname: "internalQueryTransformHoistMaximumPaths"
+        cpp_vartype: AtomicWord<int>
+        default: 1024
+        validator: {gte: 0}
         redact: false
 # Note for adding additional query knobs:
 #

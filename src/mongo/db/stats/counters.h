@@ -76,8 +76,14 @@ public:
     void gotQuery() {
         _query->fetchAndAddRelaxed(1);
     }
+    void gotUpdates(int n) {
+        _update->fetchAndAddRelaxed(n);
+    }
     void gotUpdate() {
         _update->fetchAndAddRelaxed(1);
+    }
+    void gotDeletes(int n) {
+        _delete->fetchAndAddRelaxed(n);
     }
     void gotDelete() {
         _delete->fetchAndAddRelaxed(1);
@@ -161,15 +167,7 @@ public:
         return &*_recordIdsReplicatedDocIdMismatch;
     }
 
-    // Reset all counters. To used for testing purposes only.
-    void resetForTest() {
-        _reset();
-    }
-
 private:
-    // Reset all counters.
-    void _reset();
-
     CacheExclusive<AtomicWord<long long>> _insert;
     CacheExclusive<AtomicWord<long long>> _query;
     CacheExclusive<AtomicWord<long long>> _update;
@@ -885,8 +883,7 @@ private:
         ValidatorCounter(const ValidatorCounter&) = delete;
 
         static Counter64& makeMetric(StringData name, StringData leaf) {
-            return *MetricBuilder<Counter64>{std::string{"commands."} + name + ".validator." +
-                                             leaf};
+            return *MetricBuilder<Counter64>{fmt::format("commands.{}.validator.{}", name, leaf)};
         }
 
         Counter64& totalCounter;

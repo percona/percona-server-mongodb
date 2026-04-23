@@ -58,9 +58,9 @@ NearStage::NearStage(ExpressionContext* expCtx,
           makeSortOptions(),
           SorterKeyComparator{},
           NoOpBound{},
-          (feature_flags::gFeatureFlagExtendedAutoSpilling.isEnabled())
+          (expCtx->getAllowDiskUse() && feature_flags::gFeatureFlagExtendedAutoSpilling.isEnabled())
               ? std::make_shared<
-                    sorter::FileBasedSorterSpiller<SorterKey, SorterValue, SorterKeyComparator>>(
+                    sorter::FileBasedSpiller<SorterKey, SorterValue, SorterKeyComparator>>(
                     expCtx->getTempDir(),
                     &_sorterFileStats,
                     /*dbName=*/boost::none,
@@ -69,7 +69,9 @@ NearStage::NearStage(ExpressionContext* expCtx,
               : nullptr,
           /*settings=*/{}),
       _stageType(type),
-      _nextInterval(nullptr) {}
+      _nextInterval(nullptr),
+      _memoryTracker(OperationMemoryUsageTracker::createSimpleMemoryUsageTrackerForStage(
+          *expCtx, loadMemoryLimit(StageMemoryLimit::NearStageMaxMemoryBytes))) {}
 
 NearStage::~NearStage() {}
 
@@ -145,7 +147,7 @@ PlanStage::StageState NearStage::bufferNext(WorkingSetID* toReturn) {
         }
 
         tassert(10922800,
-                "Intervals must be continious",
+                "Intervals must be continuous",
                 _childrenIntervals.empty() ||
                     interval->minDistance <= _childrenIntervals.back()->maxDistance +
                             std::numeric_limits<double>::epsilon());
@@ -207,9 +209,13 @@ PlanStage::StageState NearStage::bufferNext(WorkingSetID* toReturn) {
     nextMember.makeObjOwnedIfNeeded();
     _resultBuffer.add(SorterKey{memberDistance}, std::move(nextMember));
 
-    if (feature_flags::gFeatureFlagExtendedAutoSpilling.isEnabled()) {
-        spill(loadMemoryLimit(StageMemoryLimit::NearStageMaxMemoryBytes));
+    _memoryTracker.set(_seenDocuments.getApproximateSize() + _resultBuffer.stats().memUsage());
+    if (!_memoryTracker.withinMemoryLimit() &&
+        feature_flags::gFeatureFlagExtendedAutoSpilling.isEnabled()) {
+        spill(_memoryTracker.maxAllowedMemoryUsageBytes());
     }
+    _specificStats.peakTrackedMemBytes = _memoryTracker.peakTrackedMemoryBytes();
+    uassert(12227900, "Near stage exceeded memory limit", _memoryTracker.withinMemoryLimit());
 
     return PlanStage::NEED_TIME;
 }
@@ -223,6 +229,8 @@ PlanStage::StageState NearStage::advanceNext(WorkingSetID* toReturn) {
     WorkingSetID resultID = WorkingSet::INVALID_ID;
     if (_resultBuffer.getState() == ResultBufferSorter::State::kReady) {
         auto [memberDistance, member] = _resultBuffer.next();
+        // _resultBuffer.next() removes an element from the buffer. Update memory tracking.
+        _memoryTracker.set(_seenDocuments.getApproximateSize() + _resultBuffer.stats().memUsage());
         if (member->hasRecordId()) {
             _seenDocuments.freeMemory(member->recordId);
         }
@@ -253,36 +261,39 @@ PlanStage::StageState NearStage::advanceNext(WorkingSetID* toReturn) {
 }
 
 SortOptions NearStage::makeSortOptions() {
-    if (feature_flags::gFeatureFlagExtendedAutoSpilling.isEnabled()) {
-        return SortOptions{}  // Spilling will handled externally by NearStage::spill method
-            .MaxMemoryUsageBytes(std::numeric_limits<int64_t>::max());
-    } else {
-        return SortOptions{}.MaxMemoryUsageBytes(std::numeric_limits<int64_t>::max());
-    }
+    return SortOptions{}  // Spilling will handled externally by NearStage::spill method
+        .MaxMemoryUsageBytes(std::numeric_limits<int64_t>::max());
 }
 
 void NearStage::updateSpillingStats() {
-
     auto additionalSpilledBytes = _sorterFileStats.bytesSpilledUncompressed() -
         _specificStats.spillingStats.getSpilledBytes();
+    auto additionalSpilledRecords = _resultBuffer.stats().spilledKeyValuePairs() -
+        _specificStats.spillingStats.getSpilledRecords();
 
-    auto spilledDataStorageIncrease = _specificStats.spillingStats.updateSpillingStats(
-        1 /*spills*/,
-        additionalSpilledBytes,
-        _resultBuffer.stats().spilledKeyValuePairs(),
-        _sorterFileStats.bytesSpilled());
+    auto spilledDataStorageIncrease =
+        _specificStats.spillingStats.updateSpillingStats(1 /*spills*/,
+                                                         additionalSpilledBytes,
+                                                         additionalSpilledRecords,
+                                                         _sorterFileStats.bytesSpilled());
 
-    geoNearCounters.incrementPerSpilling(1,
-                                         additionalSpilledBytes,
-                                         _resultBuffer.stats().spilledKeyValuePairs(),
-                                         spilledDataStorageIncrease);
+    geoNearCounters.incrementPerSpilling(
+        1, additionalSpilledBytes, additionalSpilledRecords, spilledDataStorageIncrease);
 }
 
 void NearStage::spill(uint64_t maxMemoryBytes) {
-    if (_resultBuffer.stats().memUsage() <= maxMemoryBytes) {
+    uint64_t totalMemoryUsage =
+        _seenDocuments.getApproximateSize() + _resultBuffer.stats().memUsage();
+    if (totalMemoryUsage <= maxMemoryBytes) {
         return;
     }
+    uassert(ErrorCodes::QueryExceededMemoryLimitNoDiskUseAllowed,
+            str::stream() << _commonStats.stageTypeStr
+                          << " stage exceeded memory limit and can't spill to disk. Set "
+                             "allowDiskUse: true to allow spilling",
+            expCtx()->getAllowDiskUse());
     _resultBuffer.forceSpill();
+    _memoryTracker.set(_seenDocuments.getApproximateSize() + _resultBuffer.stats().memUsage());
     updateSpillingStats();
 }
 
@@ -293,7 +304,7 @@ bool NearStage::isEOF() const {
 std::unique_ptr<PlanStageStats> NearStage::getStats() {
     auto ret = std::make_unique<PlanStageStats>(_commonStats, _stageType);
     updateSpillingStats();
-    ret->specific = _specificStats.clone();
+    ret->specific = std::make_unique<NearStats>(_specificStats);
     for (size_t i = 0; i < _childrenIntervals.size(); ++i) {
         ret->children.emplace_back(_childrenIntervals[i]->covering->getStats());
     }

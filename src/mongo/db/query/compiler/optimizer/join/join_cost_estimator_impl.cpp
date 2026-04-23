@@ -81,7 +81,7 @@ JoinCostEstimate JoinCostEstimatorImpl::costIndexScanFragment(NodeId nodeId) {
     // number of logical page requests instead of numDocsOutput. The NDV from estimateNDV() is for
     // the entire collection; multiplying by (numDocsOutput / collCard) gives the number of distinct
     // key groups actually accessed by this scan.
-    // TODO SERVER-122379: extend this to multikey indexes once NDV estimation supports them.
+    // TODO SERVER-123532: extend this to multikey indexes once NDV estimation supports them.
     if (_jCtx.samplingEstimators) {
         const auto* cq = _jCtx.joinGraph.accessPathAt(nodeId);
         const auto& qsn = _jCtx.cbrCqQsns.at(cq);
@@ -284,6 +284,8 @@ JoinCostEstimate JoinCostEstimatorImpl::costBaseCollectionAccess(NodeId baseNode
         return costCollScanFragment(baseNode);
     } else if (it->second->hasNode(STAGE_IXSCAN)) {
         return costIndexScanFragment(baseNode);
+    } else if (it->second->root()->getType() == STAGE_EOF) {
+        return JoinCostEstimate(zeroCost);
     }
     MONGO_UNIMPLEMENTED_TASSERT(11729102);
 }

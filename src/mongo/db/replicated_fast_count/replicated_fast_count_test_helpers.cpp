@@ -333,7 +333,7 @@ void assertFastCountApplyOpsMatches(const repl::OplogEntry& applyOpsEntry,
             }
             default: {
                 FAIL(std::string("Unexpected opType for observed fast-count applyOps entry: ") +
-                     idl::serialize(innerEntry.getOpType()));
+                     std::string{idl::serialize(innerEntry.getOpType())});
                 break;
             }
         }
@@ -379,10 +379,44 @@ void assertFastCountApplyOpsMatches(const repl::OplogEntry& applyOpsEntry,
             case FastCountOpType::kUpdate: {
                 const auto& obj = innerEntry.getObject();
 
-                std::string kSubDiffSectionFieldPrefix = "s";
-                auto sizeElem =
-                    obj["diff"][kSubDiffSectionFieldPrefix + replicated_fast_count::kMetadataKey]
-                       ["u"][replicated_fast_count::kSizeKey];
+                // Extract the size from the update diff. The diff algorithm may either use a
+                // subdiff for the meta object (smeta: {u: {sz: N}}) or replace the whole meta
+                // field as part of the top-level update (u: {meta: {sz: N}}), depending on which
+                // representation is more compact. In practice, the former will be used when we are
+                // updating only one field (sz) and the latter will be used when we replace both
+                // fields.
+                BSONElement sizeElem;
+                {
+                    auto diffField = obj.getField("diff");
+                    ASSERT_TRUE(diffField.isABSONObj())
+                        << "Expected 'diff' object in kUpdate op for UUID " << uuid << ": "
+                        << obj.toString();
+                    const BSONObj diffBson = diffField.Obj();
+
+                    const std::string smetaKey =
+                        "s" + std::string(replicated_fast_count::kMetadataKey);
+                    auto smetaField = diffBson.getField(smetaKey);
+                    if (smetaField.isABSONObj()) {
+                        // Subdiff format: {diff: {smeta: {u: {sz: N}}}}
+                        const BSONObj smetaBson = smetaField.Obj();
+                        auto uField = smetaBson.getField("u");
+                        if (uField.isABSONObj()) {
+                            const BSONObj uBson = uField.Obj();
+                            sizeElem = uBson.getField(replicated_fast_count::kSizeKey);
+                        }
+                    } else {
+                        // Full-replacement format: {diff: {u: {meta: {sz: N}}}}
+                        auto uField = diffBson.getField("u");
+                        if (uField.isABSONObj()) {
+                            const BSONObj uBson = uField.Obj();
+                            auto metaField = uBson.getField(replicated_fast_count::kMetadataKey);
+                            if (metaField.isABSONObj()) {
+                                const BSONObj metaBson = metaField.Obj();
+                                sizeElem = metaBson.getField(replicated_fast_count::kSizeKey);
+                            }
+                        }
+                    }
+                }
                 EXPECT_TRUE(sizeElem.isNumber())
                     << "Size field not numeric for UUID " << uuid << ": " << sizeElem;
 
@@ -399,7 +433,7 @@ void assertFastCountApplyOpsMatches(const repl::OplogEntry& applyOpsEntry,
             }
             default: {
                 FAIL(std::string("Unexpected opType for inputted fast-count applyOps entry: ") +
-                     idl::serialize(innerEntry.getOpType()));
+                     std::string{idl::serialize(innerEntry.getOpType())});
                 break;
             }
         }
@@ -414,9 +448,11 @@ void assertFastCountApplyOpsMatches(const repl::OplogEntry& applyOpsEntry,
 }
 
 void assertReplicatedSizeCountMeta(const repl::OplogEntry& oplogEntry, int32_t expectedSizeDelta) {
-    const auto entrySizeMeta = oplogEntry.getSizeMetadata();
+    const auto& entrySizeMeta = oplogEntry.getSizeMetadata();
     ASSERT_TRUE(entrySizeMeta.has_value());
-    ASSERT_EQ(entrySizeMeta->getSz(), expectedSizeDelta);
+    const auto* perOpMeta = std::get_if<SingleOpSizeMetadata>(&entrySizeMeta.value());
+    ASSERT_NE(perOpMeta, nullptr);
+    EXPECT_EQ(perOpMeta->getSz(), expectedSizeDelta);
 }
 
 void assertOpMatchesSpec(const repl::OplogEntry& oplogEntry, const OpValidationSpec& entrySpec) {
@@ -480,8 +516,12 @@ CollectionSizeCount scanForAccurateSizeCount(OperationContext* opCtx, const Name
 
 absl::flat_hash_map<UUID, CollectionSizeCount> extractSizeCountDeltasForApplyOps(
     const repl::OplogEntry& applyOpsEntry, const boost::optional<UUID>& uuidFilter) {
+    replicated_fast_count::SizeCountDeltas entries;
+    replicated_fast_count::extractSizeCountDeltasForApplyOps(applyOpsEntry, uuidFilter, entries);
     absl::flat_hash_map<UUID, CollectionSizeCount> deltas;
-    replicated_fast_count::extractSizeCountDeltasForApplyOps(applyOpsEntry, uuidFilter, deltas);
+    for (const auto& [uuid, entry] : entries) {
+        deltas[uuid] = entry.sizeCount;
+    }
     return deltas;
 }
 
@@ -490,7 +530,7 @@ absl::flat_hash_map<UUID, CollectionSizeCount> extractSizeCountDeltasForApplyOps
 namespace mongo::replicated_fast_count::test_helpers {
 namespace {
 repl::OplogEntrySizeMetadata makeOperationSizeMetadata(int32_t replicatedSizeDelta) {
-    repl::OplogEntrySizeMetadata m;
+    SingleOpSizeMetadata m;
     m.setSz(replicatedSizeDelta);
     return m;
 }
@@ -534,6 +574,28 @@ repl::OplogEntry makeTruncateRangeOplogEntry(Timestamp ts,
         .nss = userColl.nss.getCommandNS(),
         .uuid = userColl.uuid,
         .oField = objectEntry.toBSON(),
+        .wallClockTime = Date_t::now(),
+    }};
+}
+
+repl::OplogEntry makeCreateOplogEntry(Timestamp ts, NsAndUUID userColl) {
+    return repl::DurableOplogEntry{repl::DurableOplogEntryParams{
+        .opTime = repl::OpTime(ts, 1),
+        .opType = repl::OpTypeEnum::kCommand,
+        .nss = userColl.nss.getCommandNS(),
+        .uuid = userColl.uuid,
+        .oField = BSON("create" << userColl.nss.coll()),
+        .wallClockTime = Date_t::now(),
+    }};
+}
+
+repl::OplogEntry makeDropOplogEntry(Timestamp ts, NsAndUUID userColl) {
+    return repl::DurableOplogEntry{repl::DurableOplogEntryParams{
+        .opTime = repl::OpTime(ts, 1),
+        .opType = repl::OpTypeEnum::kCommand,
+        .nss = userColl.nss.getCommandNS(),
+        .uuid = userColl.uuid,
+        .oField = BSON("drop" << userColl.nss.coll()),
         .wallClockTime = Date_t::now(),
     }};
 }

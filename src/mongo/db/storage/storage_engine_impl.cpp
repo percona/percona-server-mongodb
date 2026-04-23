@@ -33,6 +33,7 @@
 #include "mongo/base/error_codes.h"
 #include "mongo/bson/bsonelement.h"
 #include "mongo/bson/bsonobj.h"
+#include "mongo/bson/timestamp.h"
 #include "mongo/db/admission/execution_control/execution_admission_context.h"
 #include "mongo/db/client.h"
 #include "mongo/db/index/multikey_paths.h"
@@ -134,10 +135,9 @@ StorageEngineImpl::StorageEngineImpl(OperationContext* opCtx,
       _spillEngine(std::move(spillEngine)),
       _options(std::move(options)),
       _dropPendingIdentReaper(_engine.get()),
-      _minOfCheckpointAndOldestTimestampListener(
-          TimestampMonitor::TimestampType::kMinOfCheckpointAndOldest,
-          [this](OperationContext* opCtx, Timestamp timestamp) {
-              _onMinOfCheckpointAndOldestTimestampChanged(opCtx, timestamp);
+      _timestampListener(
+          [this](OperationContext* opCtx, const TimestampMonitor::Timestamps& timestamps) {
+              _dropPendingIdentReaper.dropIdentsOlderThan(opCtx, timestamps);
           }),
       _supportsCappedCollections(_engine->supportsCappedCollections()) {
 
@@ -151,13 +151,6 @@ StorageEngineImpl::StorageEngineImpl(OperationContext* opCtx,
         opCtx, _engine->newRecoveryUnit(), WriteUnitOfWork::RecoveryUnitState::kNotInUnitOfWork);
 
     auto& rss = rss::ReplicatedStorageService::get(opCtx->getServiceContext());
-
-    // For disaggregated storage, untimestamped drops must be converted to checkpoint-based drops.
-    // This gives standbys time to synchronize via checkpoints before internal tables are removed
-    // from shared storage.
-    if (rss.getPersistenceProvider().shouldDeferUntimestampedDrops()) {
-        _dropPendingIdentReaper.enableDeferUntimestampedDrops();
-    }
 
     if (rss.getPersistenceProvider().shouldDelayDataAccessDuringStartup()) {
         LOGV2(10985326,
@@ -571,7 +564,7 @@ void StorageEngineImpl::startTimestampMonitor(
     _timestampMonitor = std::make_unique<TimestampMonitor>(
         _engine.get(), getGlobalServiceContext()->getPeriodicRunner());
 
-    _timestampMonitor->addListener(&_minOfCheckpointAndOldestTimestampListener);
+    _timestampMonitor->addListener(&_timestampListener);
 
     // Caller must provide listener for cleanup of CollectionCatalog when oldest timestamp advances.
     invariant(!std::empty(listeners));
@@ -715,6 +708,7 @@ Status StorageEngineImpl::repairRecordStore(OperationContext* opCtx,
 std::unique_ptr<SpillTable> StorageEngineImpl::makeSpillTable(OperationContext* opCtx,
                                                               KeyFormat keyFormat,
                                                               int64_t thresholdBytes) {
+    invariant(_spillEngine, "Spill engine is disabled; cannot create spill tables in this context");
     auto ru = _spillEngine->newRecoveryUnit();
     auto rs =
         _spillEngine->makeInternalRecordStore(*ru, ident::generateNewInternalIdent(), keyFormat);
@@ -941,7 +935,7 @@ void StorageEngineImpl::dropIdent(RecoveryUnit& ru, StringData ident) {
         // A concurrent operation, such as a checkpoint could be holding an open data
         // handle on the ident. Handoff the ident drop to the ident reaper to retry
         // later.
-        addDropPendingIdent(Timestamp::min(), std::make_shared<Ident>(ident), nullptr);
+        addDropPendingIdent(Immediate{}, std::make_shared<Ident>(ident), nullptr);
     }
 }
 
@@ -983,23 +977,6 @@ StorageEngine::CheckpointIteration StorageEngineImpl::getCheckpointIteration() c
 bool StorageEngineImpl::hasDataBeenCheckpointed(
     StorageEngine::CheckpointIteration checkpointIteration) const {
     return _engine->hasDataBeenCheckpointed(checkpointIteration);
-}
-
-void StorageEngineImpl::_onMinOfCheckpointAndOldestTimestampChanged(OperationContext* opCtx,
-                                                                    const Timestamp& timestamp) {
-    if (_dropPendingIdentReaper.hasExpiredIdents(timestamp)) {
-        LOGV2(22260,
-              "Removing drop-pending idents with drop timestamps before timestamp",
-              "timestamp"_attr = timestamp);
-
-        _dropPendingIdentReaper.dropIdentsOlderThan(opCtx, timestamp);
-    } else {
-        LOGV2_DEBUG(8097401,
-                    1,
-                    "No drop-pending idents have expired",
-                    "timestamp"_attr = timestamp,
-                    "pendingIdentsCount"_attr = _dropPendingIdentReaper.getNumIdents());
-    }
 }
 
 StorageEngineImpl::TimestampMonitor::TimestampMonitor(KVEngine* engine, PeriodicRunner* runner)
@@ -1048,33 +1025,15 @@ void StorageEngineImpl::TimestampMonitor::_startup() {
 
                 // The checkpoint timestamp is not cached in mongod and needs to be fetched with
                 // a call into WiredTiger, all the other timestamps are cached in mongod.
-                Timestamp checkpoint = _engine->getCheckpointTimestamp();
-                Timestamp oldest = _engine->getOldestTimestamp();
-                Timestamp stable = _engine->getStableTimestamp();
-                Timestamp minOfCheckpointAndOldest =
-                    (checkpoint.isNull() || (checkpoint > oldest)) ? oldest : checkpoint;
+                Timestamps timestamps;
+                timestamps.checkpoint = _engine->getCheckpointTimestamp();
+                timestamps.oldest = _engine->getOldestTimestamp();
+                timestamps.stable = _engine->getStableTimestamp();
 
-                {
-                    stdx::lock_guard<stdx::mutex> lock(_monitorMutex);
-                    for (const auto& listener : _listeners) {
-                        if (listener->getType() == TimestampType::kCheckpoint) {
-                            listener->notify(opCtx, checkpoint);
-                        } else if (listener->getType() == TimestampType::kOldest) {
-                            listener->notify(opCtx, oldest);
-                        } else if (listener->getType() == TimestampType::kStable) {
-                            listener->notify(opCtx, stable);
-                        } else if (listener->getType() ==
-                                   TimestampType::kMinOfCheckpointAndOldest) {
-                            listener->notify(opCtx, minOfCheckpointAndOldest);
-                        } else if (stable == Timestamp::min()) {
-                            // Special case notification of all listeners when writes do not
-                            // have timestamps. This handles standalone mode and storage engines
-                            // that don't support timestamps.
-                            listener->notify(opCtx, Timestamp::min());
-                        }
-                    }
+                stdx::lock_guard lock(_monitorMutex);
+                for (const auto& listener : _listeners) {
+                    (*listener)(opCtx, timestamps);
                 }
-
             } catch (const ExceptionFor<ErrorCodes::Interrupted>&) {
                 LOGV2(6183600, "Timestamp monitor got interrupted, retrying");
                 return;
@@ -1221,11 +1180,11 @@ BSONObj StorageEngineImpl::setFlagToStorageOptions(const BSONObj& storageEngineO
 }
 
 BSONObj StorageEngineImpl::setStorageTierToStorageOptions(const BSONObj& storageEngineOptions,
-                                                          StringData value) const {
+                                                          StorageTierLevelEnum value) const {
     return _engine->setStorageTierToStorageOptions(storageEngineOptions, value);
 }
 
-boost::optional<std::string> StorageEngineImpl::getStorageTierFromStorageOptions(
+boost::optional<StorageTierLevelEnum> StorageEngineImpl::getStorageTierFromStorageOptions(
     const BSONObj& storageEngineOptions) const {
     return _engine->getStorageTierFromStorageOptions(storageEngineOptions);
 }

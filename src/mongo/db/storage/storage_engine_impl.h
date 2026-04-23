@@ -310,9 +310,9 @@ public:
                                                     StringData flagName) const override;
 
     [[nodiscard]] BSONObj setStorageTierToStorageOptions(const BSONObj& storageEngineOptions,
-                                                         StringData value) const override;
+                                                         StorageTierLevelEnum value) const override;
 
-    boost::optional<std::string> getStorageTierFromStorageOptions(
+    boost::optional<StorageTierLevelEnum> getStorageTierFromStorageOptions(
         const BSONObj& storageEngineOptions) const override;
 
     BSONObj getSanitizedStorageOptionsForSecondaryReplication(
@@ -356,13 +356,6 @@ private:
 
     void _dumpCatalog(OperationContext* opCtx);
 
-    /**
-     * Called when the min of checkpoint timestamp (if exists) and oldest timestamp advances in the
-     * KVEngine.
-     */
-    void _onMinOfCheckpointAndOldestTimestampChanged(OperationContext* opCtx,
-                                                     const Timestamp& timestamp);
-
     // Main KVEngine instance used for all user tables.
     // This must be the first member so it is destroyed last.
     std::unique_ptr<KVEngine> _engine;
@@ -376,8 +369,8 @@ private:
     // Manages drop-pending idents. Requires access to '_engine'.
     KVDropPendingIdentReaper _dropPendingIdentReaper;
 
-    // Listener for min of checkpoint and oldest timestamp changes.
-    TimestampMonitor::TimestampListener _minOfCheckpointAndOldestTimestampListener;
+    // Listener for timestamp changes.
+    TimestampMonitor::TimestampListener _timestampListener;
 
     const bool _supportsCappedCollections;
 

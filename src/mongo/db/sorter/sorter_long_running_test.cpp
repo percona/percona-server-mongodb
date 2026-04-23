@@ -30,6 +30,7 @@
 #include "mongo/base/string_data.h"
 #include "mongo/config.h"  // IWYU pragma: keep
 #include "mongo/db/service_context_d_test_fixture.h"
+#include "mongo/db/sorter/file.h"
 #include "mongo/db/sorter/file_based_spiller.h"
 #include "mongo/db/sorter/sorter_template_defs.h"
 #include "mongo/db/sorter/sorter_test_utils.h"
@@ -83,15 +84,14 @@ protected:
                      int currentFileSize,
                      int range) const {
         auto makeFile = [&] {
-            return std::make_shared<SorterFile>(sorter::nextFileName(spillDir), sorterFileStats);
+            return std::make_shared<File>(sorter::nextFileName(spillDir), sorterFileStats);
         };
 
         int currentBufSize = 0;
         // TODO(SERVER-114080): Ensure testing of non-file-based sorter storage is comprehensive.
-        FileBasedSorterStorage<IntWrapper, IntWrapper> sorterStorage(
-            makeFile(),
-            /*dbName=*/boost::none,
-            sorter::kLatestChecksumVersion);
+        FileBasedStorage<IntWrapper, IntWrapper> sorterStorage(makeFile(),
+                                                               /*dbName=*/boost::none,
+                                                               sorter::kLatestChecksumVersion);
         std::unique_ptr<SortedStorageWriter<IntWrapper, IntWrapper>> sorter =
             sorterStorage.makeWriter(opts, /*settings=*/{});
         for (int i = 0; i < range; ++i) {

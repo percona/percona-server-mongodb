@@ -1,7 +1,12 @@
 // Helper functions for testing time-series collections.
 
 import {documentEq} from "jstests/aggregation/extras/utils.js";
-import {isShardedTimeseries, runTimeseriesChunkCommand} from "jstests/core/timeseries/libs/viewless_timeseries_util.js";
+import {
+    runningWithViewlessTimeseriesUpgradeDowngrade,
+    isShardedTimeseries,
+    isViewlessTimeseriesOnlySuite,
+    runTimeseriesChunkCommand,
+} from "jstests/core/timeseries/libs/viewless_timeseries_util.js";
 import {isStableFCVSuite} from "jstests/libs/feature_compatibility_version.js";
 import {FeatureFlagUtil} from "jstests/libs/feature_flag_util.js";
 import {FixtureHelpers} from "jstests/libs/fixture_helpers.js";
@@ -27,9 +32,9 @@ const bucketReopeningsFailedCounters = Object.freeze({
 export var TimeseriesTest = class {
     static verifyAndDropIndex(coll, shouldHaveOriginalSpec, indexName) {
         const checkIndexSpec = function (spec, userIndex) {
-            assert(spec.hasOwnProperty("v"));
-            assert(spec.hasOwnProperty("name"));
-            assert(spec.hasOwnProperty("key"));
+            assert(spec.hasOwnProperty("v"), indexName);
+            assert(spec.hasOwnProperty("name"), indexName);
+            assert(spec.hasOwnProperty("key"), indexName);
 
             if (userIndex) {
                 assert(!spec.hasOwnProperty("originalSpec"));
@@ -37,13 +42,13 @@ export var TimeseriesTest = class {
             }
 
             if (shouldHaveOriginalSpec) {
-                assert(spec.hasOwnProperty("originalSpec"));
-                assert.eq(spec.v, spec.originalSpec.v);
-                assert.eq(spec.name, spec.originalSpec.name);
-                assert.neq(spec.key, spec.originalSpec.key);
-                assert.eq(spec.collation, spec.originalSpec.collation);
+                assert(spec.hasOwnProperty("originalSpec"), indexName);
+                assert.eq(spec.v, spec.originalSpec.v, indexName);
+                assert.eq(spec.name, spec.originalSpec.name, indexName);
+                assert.neq(spec.key, spec.originalSpec.key, indexName);
+                assert.eq(spec.collation, spec.originalSpec.collation, indexName);
             } else {
-                assert(!spec.hasOwnProperty("originalSpec"));
+                assert(!spec.hasOwnProperty("originalSpec"), indexName);
             }
         };
         let sawIndex = false;
@@ -248,51 +253,88 @@ export var TimeseriesTest = class {
         testFn(insert(false));
     }
 
+    /**
+     * Ensures the given collection is distributed on multiple shards by calling moveRange on @coll with @splitPointDate
+     * @param {*} coll The collection to distribute
+     * @param {*} splitPointDate The splitpoint to use to split the data
+     */
     static ensureDataIsDistributedIfSharded(coll, splitPointDate) {
+        if (!isShardedTimeseries(coll)) {
+            return;
+        }
+
         const db = coll.getDB();
-        if (isShardedTimeseries(coll)) {
-            const timeFieldName = db.getCollectionInfos({name: coll.getName()})[0].options.timeseries.timeField;
-
-            const splitPoint = {[`control.min.${timeFieldName}`]: splitPointDate};
-            assert.commandWorked(runTimeseriesChunkCommand(db, {split: coll.getFullName(), middle: splitPoint}));
-
-            const allShards = db
-                .getSiblingDB("config")
-                .shards.find()
-                .sort({_id: 1})
-                .toArray()
-                .map((doc) => doc._id);
-            const currentShards = coll
-                .aggregate([{"$collStats": {storageStats: {}}}, {$project: {shard: 1}}, {$sort: {shard: 1}}])
-                .toArray()
-                .map((doc) => doc.shard);
-
-            if (!documentEq(allShards, currentShards)) {
-                let otherShard;
-                for (let i in allShards) {
-                    if (!currentShards.includes(allShards[i])) {
-                        otherShard = allShards[i];
-                        break;
-                    }
-                }
-                assert(otherShard);
-
-                assert.commandWorked(
-                    runTimeseriesChunkCommand(db, {
-                        movechunk: coll.getFullName(),
-                        find: splitPoint,
-                        to: otherShard,
-                        _waitForDelete: true,
-                    }),
-                );
-
-                const updatedShards = coll
+        const getDataBearingShards = () => {
+            // TODO SERVER-120014: Remove once 9.0 becomes last LTS and all timeseries collections are viewless.
+            if (!isViewlessTimeseriesOnlySuite(db)) {
+                return coll
                     .aggregate([{"$collStats": {storageStats: {}}}, {$project: {shard: 1}}, {$sort: {shard: 1}}])
                     .toArray()
                     .map((doc) => doc.shard);
+            }
+
+            const shardedDataDistribution = db
+                .getSiblingDB("admin")
+                .aggregate([{$shardedDataDistribution: {}}, {$match: {ns: coll.getFullName()}}])
+                .toArray();
+
+            assert.eq(shardedDataDistribution.length, 1);
+            return shardedDataDistribution[0].shards.map((shard) => shard.shardName);
+        };
+
+        assert.soon(() => {
+            const allShards = db.adminCommand({listShards: 1}).shards.map((shard) => shard._id);
+            const currentShards = getDataBearingShards();
+
+            if (documentEq(allShards, currentShards)) {
+                return true;
+            }
+
+            const otherShard = (() => {
+                for (let i in allShards) {
+                    if (!currentShards.includes(allShards[i])) {
+                        return allShards[i];
+                    }
+                }
+                return undefined;
+            })();
+            if (!otherShard) {
+                return false;
+            }
+
+            const timeFieldName = `control.min.${db.getCollectionInfos({name: coll.getName()})[0].options.timeseries.timeField}`;
+            try {
+                assert.commandWorked(
+                    runTimeseriesChunkCommand(db, {
+                        moveRange: coll.getFullName(),
+                        min: {[timeFieldName]: splitPointDate},
+                        max: {[timeFieldName]: MaxKey},
+                        toShard: otherShard,
+                        waitForDelete: true,
+                    }),
+                );
+            } catch (error) {
+                const acceptedErrors = [
+                    // If there is an active chunk moving operation, this move range will fail
+                    ErrorCodes.ConflictingOperationInProgress,
+                ];
+                if (TestData.shardsAddedRemoved) {
+                    // If this is a suite that adds and removes shards, it's acceptable to have a shard not found as we might had removed the target given shard already
+                    acceptedErrors.push(ErrorCodes.ShardNotFound);
+                    // If this is a suite that adds and removes shards, it's acceptable to have an operation failed as we might selected a target shard that is actively draining (preparing for remove)
+                    acceptedErrors.push(ErrorCodes.OperationFailed);
+                }
+                assert.commandFailedWithCode(error, acceptedErrors);
+                return false;
+            }
+
+            if (!TestData.runningWithBalancer) {
+                const updatedShards = getDataBearingShards();
                 assert.eq(updatedShards.length, currentShards.length + 1);
             }
-        }
+
+            return true;
+        });
     }
 
     static assertInsertWorked(res) {
@@ -417,14 +459,25 @@ export var TimeseriesTest = class {
             return false;
         }
 
+        // TODO(SERVER-100328): remove after 9.0 is branched.
         if (
             TestData.isRunningFCVUpgradeDowngradeSuite &&
             TestData.sessionOptions &&
             TestData.sessionOptions.retryWrites
         ) {
-            // TODO SERVER-119937 FCV upgrade/downgrade and retriable writes causes more buckets to be created
+            // FCV upgrade/downgrade + retriable writes can cause more buckets to be created or re-opened,
+            // (even in suites that do not perform viewful <-> viewless timeseries conversions),
+            // due to the issue described by SERVER-119937.
             return false;
         }
+
+        // TODO(SERVER-101609): remove once 9.0 becomes last LTS.
+        if (runningWithViewlessTimeseriesUpgradeDowngrade(db)) {
+            // FCV transitions between viewful and viewless timeseries can cause candidate buckets to not be re-opened,
+            // or cause retries that produce extra buckets, due to the issues described by SERVER-119937 and SERVER-122949.
+            return false;
+        }
+
         return true;
     }
 
@@ -453,9 +506,9 @@ export var TimeseriesTest = class {
      * Checks for log entries generated by failed document validation.
      * @param {DBCollection}
      * @param {object} record
-     * @param {number} errorId
+     * @param {number|number[]} errorIds
      */
-    static checkForDocumentValidationFailureLog(coll, record, errorId = 6698300) {
+    static checkForDocumentValidationFailureLog(coll, record, errorIds = [6698300, 11634800]) {
         // To avoid making log checks too strict, either the buckets namespace or view namespace is acceptable in the log message.
         // Due to differences in EJSON format, only a subset of record data is checked in the log message.
         const oidStr = JSON.parse(toJsonForLog(record))._id["$oid"];
@@ -479,12 +532,14 @@ export var TimeseriesTest = class {
             },
         };
 
+        const errorIdList = Array.isArray(errorIds) ? errorIds : [errorIds];
         assert.soon(function () {
-            return (
-                checkLog.checkContainsWithCountJson(conn, errorId, attrsMatcherBuckets, 1, null, relaxMatch) ||
-                checkLog.checkContainsWithCountJson(conn, errorId, attrsMatcherView, 1, null, relaxMatch)
+            return errorIdList.some(
+                (errorId) =>
+                    checkLog.checkContainsWithCountJson(conn, errorId, attrsMatcherBuckets, 1, null, relaxMatch) ||
+                    checkLog.checkContainsWithCountJson(conn, errorId, attrsMatcherView, 1, null, relaxMatch),
             );
-        }, `Could not find log entries containing the following id: ${errorId}, and attrs: ${attrsMatcherBuckets} or attrs: ${attrsMatcherView}`);
+        }, `Could not find log entries containing any of the following ids: ${errorIdList}, and attrs: ${attrsMatcherBuckets} or attrs: ${attrsMatcherView}`);
     }
 };
 

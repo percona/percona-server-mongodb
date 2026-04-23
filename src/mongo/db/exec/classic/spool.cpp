@@ -102,16 +102,15 @@ void SpoolStage::spill() {
     // Initialize '_file' in a lazy manner only when it is needed.
     if (!_file) {
         _spillStats = std::make_unique<SorterFileStats>(nullptr /* sorterTracker */);
-        _file = std::make_shared<SorterFile>(sorter::nextFileName(expCtx()->getTempDir()),
-                                             _spillStats.get());
+        _file = std::make_shared<sorter::File>(sorter::nextFileName(expCtx()->getTempDir()),
+                                               _spillStats.get());
     }
 
     auto opts = SortOptions();
 
-    sorter::FileBasedSorterStorage<RecordId, NullValue> sorterStorage(
-        _file,
-        /*dbName=*/boost::none,
-        sorter::kLatestChecksumVersion);
+    sorter::FileBasedStorage<RecordId, NullValue> sorterStorage(_file,
+                                                                /*dbName=*/boost::none,
+                                                                sorter::kLatestChecksumVersion);
     std::unique_ptr<SortedStorageWriter<RecordId, NullValue>> writer =
         sorterStorage.makeWriter(opts, /*settings=*/{});
     // Do not spill the records that have been already consumed.

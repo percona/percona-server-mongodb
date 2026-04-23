@@ -31,13 +31,13 @@
 
 #include "mongo/base/error_codes.h"
 #include "mongo/config.h"  // IWYU pragma: keep
+#include "mongo/db/admission/ticketing/admission_context.h"
 #include "mongo/db/client.h"
 #include "mongo/db/exec/sbe/expressions/compile_ctx.h"
 #include "mongo/db/exec/sbe/size_estimator.h"
 #include "mongo/db/exec/sbe/values/value.h"
 #include "mongo/db/storage/record_data.h"
 #include "mongo/util/assert_util.h"
-#include "mongo/util/concurrency/admission_context.h"
 #include "mongo/util/overloaded_visitor.h"  // IWYU pragma: keep
 #include "mongo/util/str.h"
 
@@ -57,7 +57,7 @@ FetchStage::FetchStage(std::unique_ptr<PlanStage> child,
                        UUID collectionUuid,
                        DatabaseName dbName,
                        std::shared_ptr<FetchStageState> state,
-                       PlanYieldPolicy* yieldPolicy,
+                       PlanYieldPolicySBE* yieldPolicy,
                        PlanNodeId nodeId,
                        bool participateInTrialRunTracking)
     : PlanStage("fetch"_sd,
@@ -207,6 +207,7 @@ void FetchStage::open(bool reOpen) {
         _cursor = _coll.getPtr()->getCursor(_opCtx, true /* forward */);
     }
     _children[0]->open(reOpen);
+    _childOpened = true;
     _recordIdAccessor.reset(
         false, value::TypeTags::RecordId, value::bitcastFrom<RecordId*>(&_seekRid));
 
@@ -290,7 +291,10 @@ PlanState FetchStage::getNext() {
 void FetchStage::close() {
     auto optTimer(getOptTimer(_opCtx));
     trackClose();
-    _children[0]->close();
+    if (_childOpened) {
+        _children[0]->close();
+        _childOpened = false;
+    }
     _cursor.reset();
     _coll.reset();
 }

@@ -34,6 +34,7 @@ Assumptions:
   measurements would be invalid.
 """
 
+import argparse
 import asyncio
 import os
 import random
@@ -46,7 +47,7 @@ from join_calibration_settings import (
     join_database,
 )
 from join_plotting import plot_cost_vs_time
-from join_workload_execution import run_join_explain
+from join_workload_execution import CachedTimes, load_execution_times, run_join_explain
 from mongod_manager import MongodManager
 from scipy.stats import trim_mean
 
@@ -192,9 +193,13 @@ async def calibrate_sequential_io(
         print(f"  [{i + 1}/{num_runs}] cold scan: {t / 1e6:.3f}ms")
 
     mean_ms = trim_mean(times_ns, proportiontocut=TRIMMED_MEAN_PROPORTION) / 1e6
+
+    # Restart with WT statistics enabled just to read the leaf page count.
+    manager.restart_cold(extra_start_args=["--wiredTigerStatisticsSetting", "all"])
     stats = await manager.database.get_stats("join_coll_1")
     num_leaf_pages = stats["wiredTiger"]["btree"]["row-store leaf pages"]
     mean_per_page_ms = mean_ms / num_leaf_pages
+    manager.stop()
 
     print("\n--- Sequential I/O summary ---")
     print(f"  Mean cold scan: {mean_ms:.3f}ms")
@@ -263,6 +268,7 @@ async def calibrate_join_algorithms(
     scenario: str,
     cache_size_gb: float,
     num_runs: int = 10,
+    cached_times: CachedTimes | None = None,
 ):
     """
     Compares INLJ vs HJ by running $lookup queries across join fields and selectivities.
@@ -281,16 +287,21 @@ async def calibrate_join_algorithms(
     to execute. For those we only collect the optimizer's algorithm pick and verify that HJ was
     chosen, which is the best algorithm for these cases.
 
+    When cached_times is provided, execution times are looked up from the cache
+    instead of being measured. This uses queryPlanner verbosity for all explains, making the run
+    much faster for iterating on cost model changes.
+
     Prints a per-combination summary showing which algorithm is genuinely faster
     and whether the optimizer's majority pick is correct.
 
     Returns a list of dicts (one per combination) with cost and timing data.
     """
+    mode = "cached times" if cached_times else "full execution"
     print(
         f"\n=== Join Algorithm Calibration: {scenario} "
         f"({left_coll} ⨝ {right_coll}, "
         f"cache {cache_size_gb} GB, "
-        f"{num_runs} runs per config) ==="
+        f"{num_runs} runs per config, {mode}) ==="
     )
 
     cache_args = ["--wiredTigerCacheSizeGB", str(cache_size_gb)]
@@ -315,6 +326,9 @@ async def calibrate_join_algorithms(
 
     results = []
 
+    if cached_times is not None:
+        manager.restart_cold(extra_start_args=cache_args)
+
     for join_field in join_fields:
         for pred_const in predicate_constants:
             pipeline = [
@@ -332,10 +346,15 @@ async def calibrate_join_algorithms(
             ]
             estimated_output = pred_const * (COLLECTION_CARDINALITY / join_field[1])
             skip_execution = estimated_output > 500_000
-            verbosity = "queryPlanner" if skip_execution else "executionStats"
+
+            cached = (
+                cached_times.get((scenario, join_field[0], pred_const)) if cached_times else None
+            )
+            verbosity = "queryPlanner" if cached_times or skip_execution else "executionStats"
 
             # Using the algorithm which the optimizer picks
-            manager.restart_cold(extra_start_args=cache_args)
+            if cached_times is None:
+                manager.restart_cold(extra_start_args=cache_args)
             await manager.database.set_parameter("internalJoinMethod", "any")
             algo_freqs: dict[str, int] = {}
             for _ in range(num_runs):
@@ -352,7 +371,8 @@ async def calibrate_join_algorithms(
             inlj_cost_mean, hj_cost_mean = None, None
 
             # Forcing INLJ
-            manager.restart_cold(extra_start_args=cache_args)
+            if cached_times is None:
+                manager.restart_cold(extra_start_args=cache_args)
             await manager.database.set_parameter("internalJoinMethod", "INLJ")
 
             inlj_times, inlj_costs = [], []
@@ -364,7 +384,8 @@ async def calibrate_join_algorithms(
                     inlj_times.append(result.exec_time_ms)
 
             # Forcing HJ
-            manager.restart_cold(extra_start_args=cache_args)
+            if cached_times is None:
+                manager.restart_cold(extra_start_args=cache_args)
             await manager.database.set_parameter("internalJoinMethod", "HJ")
 
             hj_times, hj_costs = [], []
@@ -377,13 +398,24 @@ async def calibrate_join_algorithms(
 
             inlj_cost_mean = sum(inlj_costs) / len(inlj_costs)
             hj_cost_mean = sum(hj_costs) / len(hj_costs)
-            if inlj_times:
-                inlj_mean = trim_mean(inlj_times, proportiontocut=TRIMMED_MEAN_PROPORTION)
-            if hj_times:
-                hj_mean = trim_mean(hj_times, proportiontocut=TRIMMED_MEAN_PROPORTION)
+
+            inlj_mean = (
+                cached.inlj_time_ms
+                if cached
+                else trim_mean(inlj_times, proportiontocut=TRIMMED_MEAN_PROPORTION)
+                if inlj_times
+                else None
+            )
+            hj_mean = (
+                cached.hj_time_ms
+                if cached
+                else trim_mean(hj_times, proportiontocut=TRIMMED_MEAN_PROPORTION)
+                if hj_times
+                else None
+            )
 
             # Print whether the optimizer is making the correct decision
-            faster = "HJ" if skip_execution or hj_mean < inlj_mean else "INLJ"
+            faster = "INLJ" if inlj_mean and hj_mean and inlj_mean <= hj_mean else "HJ"
             correct = "✓" if majority_algo == faster else "✗"
 
             def fmt(v, width=10, decimals=1):
@@ -418,6 +450,28 @@ async def calibrate_join_algorithms(
 
 async def main():
     """Entry point function."""
+    parser = argparse.ArgumentParser(description="Join Cost Model Calibration")
+    parser.add_argument(
+        "--join-only",
+        action="store_true",
+        help="Skip constant calibration (warm scan, CPU, sequential I/O, random I/O) "
+        "and only run the join algorithm comparison.",
+    )
+    parser.add_argument(
+        "--execution-times",
+        nargs="+",
+        metavar="CSV",
+        help="CSV file(s) with pre-recorded execution times (from a previous full run). "
+        "Only collects fresh cost estimates via queryPlanner explains, skipping actual "
+        "query execution and cold restarts.",
+    )
+    args = parser.parse_args()
+
+    cached_times = None
+    if args.execution_times:
+        cached_times = load_execution_times(args.execution_times)
+        print(f"Loaded {len(cached_times)} cached execution time entries")
+
     script_directory = os.path.abspath(os.path.dirname(__file__))
     os.chdir(script_directory)
 
@@ -428,11 +482,8 @@ async def main():
     with MongodManager(
         mongod_bin,
         db_config=join_database,
-        dbpath="~/mongo/join_calibration_db",
+        dbpath=os.path.join(script_directory, "join_calibration_db"),
         extra_args=[
-            # To be able to retrieve the WT "row-store leaf pages" statistic
-            "--wiredTigerStatisticsSetting",
-            "all",
             "--setParameter",
             "internalMeasureQueryExecutionTimeInNanoseconds=true",
             "--setParameter",
@@ -442,23 +493,26 @@ async def main():
         generator = DataGenerator(manager.database, join_data_generator)
         await generator.populate_collections()
 
-        warm_scan_tuple_ms = await measure_warm_scan_time(manager)
-        cpu_tuple_ms = await calibrate_cpu(manager)
-        time_seq_page_ms = await calibrate_sequential_io(
-            manager, warm_scan_ms=warm_scan_tuple_ms * COLLECTION_CARDINALITY
-        )
-        time_rand_page_ms = await calibrate_random_io(manager)
+        if not args.join_only:
+            warm_scan_tuple_ms = await measure_warm_scan_time(manager)
+            cpu_tuple_ms = await calibrate_cpu(manager)
+            time_seq_page_ms = await calibrate_sequential_io(
+                manager, warm_scan_ms=warm_scan_tuple_ms * COLLECTION_CARDINALITY
+            )
+            time_rand_page_ms = await calibrate_random_io(manager)
 
-        print("\n=== Cost Coefficient Ratios ===")
-        print(f"  cpuFactor    = 1.0 ({cpu_tuple_ms:.6f}ms)")
-        print(
-            f"  seqIOFactor  = {time_seq_page_ms / cpu_tuple_ms:.1f}"
-            f"  ({time_seq_page_ms:.4f}ms / {cpu_tuple_ms:.6f}ms)"
-        )
-        print(
-            f"  randIOFactor = {time_rand_page_ms / cpu_tuple_ms:.1f}"
-            f"  ({time_rand_page_ms:.4f}ms / {cpu_tuple_ms:.6f}ms)"
-        )
+            print("\n=== Cost Coefficient Ratios ===")
+            print(f"  cpuFactor    = 1.0 ({cpu_tuple_ms:.6f}ms)")
+            print(
+                f"  seqIOFactor  = {time_seq_page_ms / cpu_tuple_ms:.1f}"
+                f"  ({time_seq_page_ms:.4f}ms / {cpu_tuple_ms:.6f}ms)"
+            )
+            print(
+                f"  randIOFactor = {time_rand_page_ms / cpu_tuple_ms:.1f}"
+                f"  ({time_rand_page_ms:.4f}ms / {cpu_tuple_ms:.6f}ms)"
+            )
+        else:
+            print("\n=== Skipping constant calibration (--join-only) ===")
 
         # The ~100MB collections will fit comfortably in the 5GB cache.
         in_cache_results = await calibrate_join_algorithms(
@@ -467,6 +521,7 @@ async def main():
             right_coll="join_coll_2",
             scenario="in-cache",
             cache_size_gb=5,
+            cached_times=cached_times,
         )
         plot_cost_vs_time(in_cache_results, output_dir)
 
@@ -477,6 +532,7 @@ async def main():
             right_coll="join_coll_2_large",
             scenario="exceeds-cache",
             cache_size_gb=0.25,
+            cached_times=cached_times,
         )
         plot_cost_vs_time(exceeds_cache_results, output_dir)
 

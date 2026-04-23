@@ -24,6 +24,14 @@ idl_generator(
     src = "execution_control_heuristic_parameters.idl",
 )
 
+idl_generator(
+    name = "execution_admission_type_gen",
+    src = "execution_admission_type.idl",
+    deps = [
+        "//src/mongo/db:basic_types_gen",
+    ],
+)
+
 mongo_cc_library(
     name = "execution_control_stats",
     srcs = [
@@ -49,9 +57,9 @@ mongo_cc_library(
     deps = [
         "//src/mongo/db:server_base",
         "//src/mongo/db/admission:app_name_exemption_matcher",
+        "//src/mongo/db/admission/ticketing:ticketholder",
         "//src/mongo/db/commands:test_commands_enabled",
         "//src/mongo/util:processinfo",
-        "//src/mongo/util/concurrency:ticketholder",
     ],
 )
 
@@ -64,7 +72,8 @@ mongo_cc_library(
     deps = [
         ":execution_control_stats",
         "//src/mongo/db:server_base",
-        "//src/mongo/util/concurrency:admission_context",
+        "//src/mongo/db:server_feature_flags",
+        "//src/mongo/db/admission/ticketing:admission_context",
     ],
 )
 
@@ -103,9 +112,9 @@ mongo_cc_unit_test(
         ":execution_admission_context",
         ":ticketing_system",
         "//src/mongo/db:service_context_test_fixture",
+        "//src/mongo/db/admission/ticketing:ticketholder",
         "//src/mongo/unittest",
         "//src/mongo/util:mock_periodic_runner",
-        "//src/mongo/util/concurrency:ticketholder",
     ],
 )
 
@@ -120,11 +129,11 @@ mongo_cc_unit_test(
         "//src/mongo/db:service_context",
         "//src/mongo/db:service_context_test_fixture",
         "//src/mongo/db:shard_role_api",
+        "//src/mongo/db/admission/ticketing:ticketholder",
         "//src/mongo/db/shard_role/lock_manager",
         "//src/mongo/transport:transport_layer_common",
         "//src/mongo/unittest",
         "//src/mongo/util:mock_periodic_runner",
-        "//src/mongo/util/concurrency:ticketholder",
     ],
 )
 

@@ -32,122 +32,155 @@
 #include "mongo/otel/metrics/metric_names.h"
 #include "mongo/otel/metrics/metric_unit.h"
 #include "mongo/otel/metrics/metrics_service.h"
+#include "mongo/otel/metrics/server_status_options.h"
 
 #include <algorithm>
 
 namespace mongo {
+namespace {
 
-ReplicatedFastCountMetrics::ReplicatedFastCountMetrics()
-    : _isRunningGauge(otel::metrics::MetricsService::instance().createInt64Gauge(
-          otel::metrics::MetricNames::kReplicatedFastCountIsRunning,
-          "1 if the replicated fast count background thread is running, 0 otherwise",
-          otel::metrics::MetricUnit::kEvents,
-          {.inServerStatus = true})),
-      _flushSuccessCounter(otel::metrics::MetricsService::instance().createInt64Counter(
-          otel::metrics::MetricNames::kReplicatedFastCountFlushSuccessCount,
-          "Total number of successful replicated fast count flushes",
-          otel::metrics::MetricUnit::kEvents,
-          {.inServerStatus = true})),
-      _flushFailureCounter(otel::metrics::MetricsService::instance().createInt64Counter(
-          otel::metrics::MetricNames::kReplicatedFastCountFlushFailureCount,
-          "Total number of failed replicated fast count flushes",
-          otel::metrics::MetricUnit::kEvents,
-          {.inServerStatus = true})),
-      _flushTimeMsMinGauge(otel::metrics::MetricsService::instance().createInt64Gauge(
-          otel::metrics::MetricNames::kReplicatedFastCountFlushTimeMsMin,
-          "Minimum flush duration in milliseconds across all replicated fast count flushes",
-          otel::metrics::MetricUnit::kMilliseconds,
-          {.inServerStatus = true})),
-      _flushTimeMsMaxGauge(otel::metrics::MetricsService::instance().createInt64Gauge(
-          otel::metrics::MetricNames::kReplicatedFastCountFlushTimeMsMax,
-          "Maximum flush duration in milliseconds across all replicated fast count flushes",
-          otel::metrics::MetricUnit::kMilliseconds,
-          {.inServerStatus = true})),
-      _flushTimeMsTotalCounter(otel::metrics::MetricsService::instance().createInt64Counter(
-          otel::metrics::MetricNames::kReplicatedFastCountFlushTimeMsTotal,
-          "Total flush duration in milliseconds across all replicated fast count flushes",
-          otel::metrics::MetricUnit::kMilliseconds,
-          {.inServerStatus = true})),
-      _flushedDocsMinGauge(otel::metrics::MetricsService::instance().createInt64Gauge(
-          otel::metrics::MetricNames::kReplicatedFastCountFlushedDocsMin,
-          "Minimum number of documents written in a single replicated fast count flush",
-          otel::metrics::MetricUnit::kEvents,
-          {.inServerStatus = true})),
-      _flushedDocsMaxGauge(otel::metrics::MetricsService::instance().createInt64Gauge(
-          otel::metrics::MetricNames::kReplicatedFastCountFlushedDocsMax,
-          "Maximum number of documents written in a single replicated fast count flush",
-          otel::metrics::MetricUnit::kEvents,
-          {.inServerStatus = true})),
-      _flushedDocsTotalCounter(otel::metrics::MetricsService::instance().createInt64Counter(
-          otel::metrics::MetricNames::kReplicatedFastCountFlushedDocsTotal,
-          "Total number of documents written across all replicated fast count flushes",
-          otel::metrics::MetricUnit::kEvents,
-          {.inServerStatus = true})),
-      _emptyUpdateCounter(otel::metrics::MetricsService::instance().createInt64Counter(
-          otel::metrics::MetricNames::kReplicatedFastCountEmptyUpdateCount,
-          "Number of times an empty diff was found when writing an update to the replicated fast "
-          "count collection",
-          otel::metrics::MetricUnit::kEvents,
-          {.inServerStatus = true})),
-      _insertCounter(otel::metrics::MetricsService::instance().createInt64Counter(
-          otel::metrics::MetricNames::kReplicatedFastCountInsertCount,
-          "Number of inserts into a new record for storing size and count data in the replicated "
-          "fast count collection",
-          otel::metrics::MetricUnit::kOperations,
-          {.inServerStatus = true})),
-      _updateCounter(otel::metrics::MetricsService::instance().createInt64Counter(
-          otel::metrics::MetricNames::kReplicatedFastCountUpdateCount,
-          "Number of updates to an existing record storing size and count data in the replicated "
-          "fast count collection",
-          otel::metrics::MetricUnit::kOperations,
-          {.inServerStatus = true})),
-      _writeTimeMsTotalCounter(otel::metrics::MetricsService::instance().createInt64Counter(
-          otel::metrics::MetricNames::kReplicatedFastCountWriteTimeMsTotal,
-          "Total time in milliseconds spent writing metadata to the replicated fast count "
-          "collection",
-          otel::metrics::MetricUnit::kMilliseconds,
-          {.inServerStatus = true})) {}
+using otel::metrics::MetricNames;
+using otel::metrics::MetricsService;
+using otel::metrics::MetricUnit;
+using otel::metrics::ServerStatusOptions;
+
+// Boolean flag indicating whether or not the fast count background thread is currently running.
+// Since OTel gauges do not natively support booleans, we use an int64_t gauge instead.
+auto& isRunningGauge = MetricsService::instance().createInt64Gauge(
+    MetricNames::kReplicatedFastCountIsRunning,
+    "1 if the replicated fast count background thread is running, 0 otherwise",
+    MetricUnit::kEvents,
+    {.serverStatusOptions = ServerStatusOptions{.dottedPath = "replicatedFastCount.isRunning",
+                                                .role = ClusterRole::None}});
+
+// Flushes persist fast count information to the oplog and occur during checkpointing,
+// shutdown, etc. The total number of flush attempts = flushSuccessCounter + flushFailureCounter.
+auto& flushSuccessCounter = MetricsService::instance().createInt64Counter(
+    MetricNames::kReplicatedFastCountFlushSuccessCount,
+    "Total number of successful replicated fast count flushes",
+    MetricUnit::kEvents,
+    {.serverStatusOptions = ServerStatusOptions{
+         .dottedPath = "replicatedFastCount.flush.successCount", .role = ClusterRole::None}});
+
+auto& flushFailureCounter = MetricsService::instance().createInt64Counter(
+    MetricNames::kReplicatedFastCountFlushFailureCount,
+    "Total number of failed replicated fast count flushes",
+    MetricUnit::kEvents,
+    {.serverStatusOptions = ServerStatusOptions{
+         .dottedPath = "replicatedFastCount.flush.failureCount", .role = ClusterRole::None}});
+
+auto& flushTimeMsTotalCounter = MetricsService::instance().createInt64Counter(
+    MetricNames::kReplicatedFastCountFlushTimeMsTotal,
+    "Total flush duration in milliseconds across all replicated fast count flushes",
+    MetricUnit::kMilliseconds,
+    {.serverStatusOptions = ServerStatusOptions{.dottedPath = "replicatedFastCount.flushTime.total",
+                                                .role = ClusterRole::None}});
+
+// The total number of documents written during flushes.
+auto& flushedDocsTotalCounter = MetricsService::instance().createInt64Counter(
+    MetricNames::kReplicatedFastCountFlushedDocsTotal,
+    "Total number of documents written across all replicated fast count flushes",
+    MetricUnit::kEvents,
+    {.serverStatusOptions = ServerStatusOptions{
+         .dottedPath = "replicatedFastCount.flushedDocs.total", .role = ClusterRole::None}});
+
+// The number of inserts/updates to the replicated fast count collection.
+auto& insertCounter = MetricsService::instance().createInt64Counter(
+    MetricNames::kReplicatedFastCountInsertCount,
+    "Number of inserts into a new record for storing size and count data in the replicated "
+    "fast count collection",
+    MetricUnit::kOperations,
+    {.serverStatusOptions = ServerStatusOptions{.dottedPath = "replicatedFastCount.insertCount",
+                                                .role = ClusterRole::None}});
+
+auto& updateCounter = MetricsService::instance().createInt64Counter(
+    MetricNames::kReplicatedFastCountUpdateCount,
+    "Number of updates to an existing record storing size and count data in the replicated "
+    "fast count collection",
+    MetricUnit::kOperations,
+    {.serverStatusOptions = ServerStatusOptions{.dottedPath = "replicatedFastCount.updateCount",
+                                                .role = ClusterRole::None}});
+
+// The total time spent writing to the replicated fast count collection during flushing. This is
+// useful for determining the proportion of flush time spent writing (writeTimeMsTotalCounter /
+// flushTimeMsTotalCounter).
+auto& writeTimeMsTotalCounter = MetricsService::instance().createInt64Counter(
+    MetricNames::kReplicatedFastCountWriteTimeMsTotal,
+    "Total time in milliseconds spent writing metadata to the replicated fast count collection",
+    MetricUnit::kMilliseconds,
+    {.serverStatusOptions = ServerStatusOptions{.dottedPath = "replicatedFastCount.writeTime.total",
+                                                .role = ClusterRole::None}});
+
+}  // namespace
 
 void ReplicatedFastCountMetrics::setIsRunning(bool running) {
-    _isRunningGauge.set(running ? 1 : 0);
+    isRunningGauge.set(running ? 1 : 0);
 }
 
 void ReplicatedFastCountMetrics::recordFlush(Date_t startTime, size_t batchSize) {
     const int64_t elapsedMs = (Date_t::now() - startTime).count();
 
-    _flushSuccessCounter.add(1);
-    _flushTimeMsTotalCounter.add(elapsedMs);
-    _flushTimeMsMaxGauge.set(std::max(_flushTimeMsMaxGauge.value(), elapsedMs));
-    _flushTimeMsMinPlaceholder.storeRelaxed(
-        std::min(_flushTimeMsMinPlaceholder.loadRelaxed(), elapsedMs));
-    _flushTimeMsMinGauge.set(_flushTimeMsMinPlaceholder.loadRelaxed());
-
-    const int64_t docs = static_cast<int64_t>(batchSize);
-    _flushedDocsTotalCounter.add(docs);
-    _flushedDocsMaxGauge.set(std::max(_flushedDocsMaxGauge.value(), docs));
-    _flushedDocsMinPlaceholder.storeRelaxed(
-        std::min(_flushedDocsMinPlaceholder.loadRelaxed(), docs));
-    _flushedDocsMinGauge.set(_flushedDocsMinPlaceholder.loadRelaxed());
+    flushSuccessCounter.add(1);
+    flushTimeMsTotalCounter.add(elapsedMs);
+    flushedDocsTotalCounter.add(static_cast<int64_t>(batchSize));
 }
 
 void ReplicatedFastCountMetrics::incrementFlushFailureCount() {
-    _flushFailureCounter.add(1);
-}
-
-void ReplicatedFastCountMetrics::incrementEmptyUpdateCount() {
-    _emptyUpdateCounter.add(1);
+    flushFailureCounter.add(1);
 }
 
 void ReplicatedFastCountMetrics::incrementInsertCount() {
-    _insertCounter.add(1);
+    insertCounter.add(1);
 }
 
 void ReplicatedFastCountMetrics::incrementUpdateCount() {
-    _updateCounter.add(1);
+    updateCounter.add(1);
 }
 
 void ReplicatedFastCountMetrics::addWriteTimeMsTotal(int64_t ms) {
-    _writeTimeMsTotalCounter.add(ms);
+    writeTimeMsTotalCounter.add(ms);
+}
+
+namespace {
+
+using otel::metrics::MetricNames;
+using otel::metrics::MetricsService;
+using otel::metrics::MetricUnit;
+using otel::metrics::ServerStatusOptions;
+
+auto& checkpointOplogEntriesProcessedCounter = MetricsService::instance().createInt64Counter(
+    MetricNames::kReplicatedFastCountCheckpointOplogEntriesProcessed,
+    "Total oplog entries forwarded to delta processing during checkpoint scans",
+    MetricUnit::kEvents,
+    {.serverStatusOptions = ServerStatusOptions{
+         .dottedPath = "replicatedFastCount.checkpoint.oplogEntriesProcessed"}});
+
+auto& checkpointOplogEntriesSkippedCounter = MetricsService::instance().createInt64Counter(
+    MetricNames::kReplicatedFastCountCheckpointOplogEntriesSkipped,
+    "Total oplog entries discarded as fastcount-internal writes during checkpoint scans",
+    MetricUnit::kEvents,
+    {.serverStatusOptions =
+         ServerStatusOptions{.dottedPath = "replicatedFastCount.checkpoint.oplogEntriesSkipped"}});
+
+auto& checkpointSizeCountEntriesProcessedCounter = MetricsService::instance().createInt64Counter(
+    MetricNames::kReplicatedFastCountCheckpointSizeCountEntriesProcessed,
+    "Total individual size/count deltas accumulated during checkpoint scans",
+    MetricUnit::kEvents,
+    {.serverStatusOptions = ServerStatusOptions{
+         .dottedPath = "replicatedFastCount.checkpoint.sizeCountEntriesProcessed"}});
+
+}  // namespace
+
+void recordCheckpointOplogEntryProcessed() {
+    checkpointOplogEntriesProcessedCounter.add(1);
+}
+
+void recordCheckpointOplogEntrySkipped() {
+    checkpointOplogEntriesSkippedCounter.add(1);
+}
+
+void recordCheckpointSizeCountEntryProcessed(int count) {
+    checkpointSizeCountEntriesProcessedCounter.add(count);
 }
 
 }  // namespace mongo

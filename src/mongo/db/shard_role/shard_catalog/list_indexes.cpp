@@ -41,10 +41,12 @@
 #include "mongo/db/namespace_string.h"
 #include "mongo/db/operation_context.h"
 #include "mongo/db/query/collation/collator_interface.h"
+#include "mongo/db/server_feature_flags_gen.h"
 #include "mongo/db/shard_role/shard_catalog/clustered_collection_options_gen.h"
 #include "mongo/db/shard_role/shard_catalog/clustered_collection_util.h"
 #include "mongo/db/shard_role/shard_catalog/collection.h"
 #include "mongo/db/shard_role/shard_catalog/db_raii.h"
+#include "mongo/db/timeseries/catalog_helper.h"
 #include "mongo/db/timeseries/timeseries_index_schema_conversion_functions.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/fail_point.h"
@@ -88,6 +90,11 @@ std::vector<BSONObj> listIndexesInLock(OperationContext* opCtx,
     const bool convertBucketsIndexesToTimeseriesIndexes =
         collection->isTimeseriesCollection() && !isRawDataRequest;
 
+    const bool expandSimpleCollation =
+        feature_flags::gFeatureFlagListIndexesAlwaysIncludesSimpleCollation.isEnabled(
+            VersionContext::getDecoration(opCtx),
+            serverGlobalParams.featureCompatibility.acquireFCVSnapshot());
+
     if (collection->isClustered() && !collection->isTimeseriesCollection()) {
         BSONObj collation;
         if (auto collator = collection->getDefaultCollator()) {
@@ -96,7 +103,8 @@ std::vector<BSONObj> listIndexesInLock(OperationContext* opCtx,
         auto clusteredSpec = clustered_util::formatClusterKeyForListIndexes(
             collection->getClusteredInfo().value(),
             collation,
-            collection->getCollectionOptions().expireAfterSeconds);
+            collection->getCollectionOptions().expireAfterSeconds,
+            expandSimpleCollation);
         if (additionalInclude == ListIndexesInclude::kIndexBuildInfo) {
             indexSpecs.push_back(BSON("spec"_sd << clusteredSpec));
         } else {
@@ -104,7 +112,7 @@ std::vector<BSONObj> listIndexesInLock(OperationContext* opCtx,
         }
     }
     for (size_t i = 0; i < indexNames.size(); i++) {
-        auto spec = collection->getIndexSpec(indexNames[i]);
+        auto spec = collection->getIndexSpec(indexNames[i], expandSimpleCollation);
         if (convertBucketsIndexesToTimeseriesIndexes) {
             auto timeseriesSpec = timeseries::createTimeseriesIndexFromBucketsIndex(
                 *collection->getTimeseriesOptions(), spec);
@@ -174,9 +182,12 @@ std::vector<BSONObj> listIndexesEmptyListIfMissing(OperationContext* opCtx,
                                                    const NamespaceStringOrUUID& nss,
                                                    ListIndexesInclude additionalInclude,
                                                    bool isRawDataRequest) {
-    const auto collection = acquireCollectionMaybeLockFree(
+    // TODO SERVER-104759: switch to normal acquireCollection once 9.0 becomes last LTS
+    auto [collection, _] = timeseries::acquireCollectionWithBucketsLookup(
         opCtx,
-        CollectionAcquisitionRequest::fromOpCtx(opCtx, nss, AcquisitionPrerequisites::kRead));
+        CollectionAcquisitionRequest::fromOpCtx(
+            opCtx, nss, AcquisitionPrerequisites::OperationType::kRead),
+        LockMode::MODE_IS);
     if (!collection.exists()) {
         return {};
     }

@@ -453,8 +453,8 @@ TEST_F(ReplicatedFastCountTest, MixedUpdatesAndInsertInApplyOps) {
              /*expectedCount=*/boost::none,
              /*expectedSize=*/newExpectedSizeColl1},
             {_uuid2,
-             replicated_fast_count_test_helpers::FastCountOpType::kInsert,
-             /*expectedCount=*/numDocsColl2,
+             replicated_fast_count_test_helpers::FastCountOpType::kUpdate,
+             /*expectedCount=*/boost::none,
              /*expectedSize=*/numDocsColl2 * sampleDocForInsert.objsize()},
         });
 }
@@ -748,117 +748,60 @@ TEST_F(ReplicatedFastCountTest, ApplyOpsDeletesAreCorrectlyAccountedFor) {
     replicated_fast_count_test_helpers::checkUncommittedFastCountChanges(_opCtx, _uuid1, 0, 0);
 }
 
-TEST_F(ReplicatedFastCountTest, CappedDeletesUpdateFastCountWhenHittingCapCount) {
+enum class CapType { kCount, kSize };
+
+class ReplicatedFastCountCappedCollectionTest : public ReplicatedFastCountTest,
+                                                public ::testing::WithParamInterface<CapType> {};
+
+TEST_P(ReplicatedFastCountCappedCollectionTest, CorrectSizeCountAfterCapReached) {
     RAIIServerParameterControllerForTest featureFlag("featureFlagReplicatedFastCount", true);
-
-    // Make this an unreplicated block so that the capped insert and delete combo doesn't violate
-    // the multi‑timestamp constraint.
-    repl::UnreplicatedWritesBlock uwb(_opCtx);
-
-    const int cappedCollMaxCount = 5;
-
-    NamespaceString nssCapped = NamespaceString::createNamespaceString_forTest(
+    const int maxDocs = 5;
+    const NamespaceString nssCapped = NamespaceString::createNamespaceString_forTest(
         "replicated_fast_count_test", "cappedWithMaxCount");
 
-    auto uuidCapped = UUID::gen();
-
-    ASSERT_OK(
-        createCollection(_opCtx,
-                         nssCapped.dbName(),
-                         BSON("create" << nssCapped.coll() << "capped" << true << "size"
-                                       << cappedCollMaxCount * sampleDocForInsert.objsize() *
-                                  5  // Make the size larger so that count is the limiting bound
-                                       << "max" << cappedCollMaxCount)));
-
-    // Insert up until the max capped doc count.
-    AutoGetCollection cappedColl(_opCtx, nssCapped, LockMode::MODE_IX);
-
-    uuidCapped = cappedColl->uuid();
-
-    for (int i = 0; i < cappedCollMaxCount; ++i) {
-        WriteUnitOfWork wuow(_opCtx);
-        ASSERT_OK(Helpers::insert(_opCtx, *cappedColl, docGeneratorForInsert(i)));
-        replicated_fast_count_test_helpers::checkUncommittedFastCountChanges(
-            _opCtx, uuidCapped, 1, sampleDocForInsert.objsize());
-        wuow.commit();
-        const auto expectedCommittedCount = i + 1;
-        replicated_fast_count_test_helpers::checkCommittedFastCountChanges(
-            uuidCapped,
-            _fastCountManager,
-            expectedCommittedCount,
-            expectedCommittedCount * sampleDocForInsert.objsize());
+    if (GetParam() == CapType::kCount) {
+        // The size parameter is not optional when specifying the max count. We intentionally make
+        // the size larger here so the count is the limiting bound.
+        ASSERT_OK(createCollection(_opCtx,
+                                   nssCapped.dbName(),
+                                   BSON("create" << nssCapped.coll() << "capped" << true << "size"
+                                                 << maxDocs * sampleDocForInsert.objsize() * 5
+                                                 << "max" << maxDocs)));
+    } else {
+        ASSERT_OK(createCollection(_opCtx,
+                                   nssCapped.dbName(),
+                                   BSON("create" << nssCapped.coll() << "capped" << true << "size"
+                                                 << maxDocs * sampleDocForInsert.objsize())));
     }
 
-    // Insert more docs. Our committed count and size should still be at the cap.
-    for (int i = cappedCollMaxCount + 1; i < 3 * cappedCollMaxCount; ++i) {
-        WriteUnitOfWork wuow(_opCtx);
-        ASSERT_OK(Helpers::insert(_opCtx, *cappedColl, docGeneratorForInsert(i)));
-        // Insert + delete of same size cancel each other out.
-        replicated_fast_count_test_helpers::checkUncommittedFastCountChanges(
-            _opCtx, uuidCapped, 0, 0);
-        wuow.commit();
-        replicated_fast_count_test_helpers::checkCommittedFastCountChanges(
-            uuidCapped,
-            _fastCountManager,
-            cappedCollMaxCount,
-            cappedCollMaxCount * sampleDocForInsert.objsize());
+    AutoGetCollection cappedColl(_opCtx, nssCapped, LockMode::MODE_IX);
+
+    for (int i = 0; i < maxDocs + 5; ++i) {
+        // Using the query-level InsertCommandRequest path here lets us avoid handling capped
+        // collection multi-timestamp constraints manually.
+        write_ops::InsertCommandRequest insertCmd(nssCapped);
+        insertCmd.setDocuments({docGeneratorForInsert(i)});
+        const auto result = write_ops_exec::performInserts(_opCtx, insertCmd);
+        ASSERT_EQ(result.results.size(), 1);
+        ASSERT_OK(result.results[0].getStatus());
+
+        if (i < maxDocs - 1) {
+            const auto [actualSize, actualCount] = cappedColl->latestSizeCount(_opCtx);
+            const long long expectedCount = i + 1;
+            EXPECT_EQ(actualSize, expectedCount * sampleDocForInsert.objsize());
+            EXPECT_EQ(actualCount, expectedCount);
+        } else {
+            // After the collection cap has been reached, the size and count should stay the same.
+            const auto [actualSize, actualCount] = cappedColl->latestSizeCount(_opCtx);
+            EXPECT_EQ(actualSize, maxDocs * sampleDocForInsert.objsize());
+            EXPECT_EQ(actualCount, maxDocs);
+        }
     }
 }
 
-TEST_F(ReplicatedFastCountTest, CappedDeletesUpdateFastCountWhenHittingCapSize) {
-    RAIIServerParameterControllerForTest featureFlag("featureFlagReplicatedFastCount", true);
-
-    // Make this an unreplicated block so that the capped insert and delete combo doesn't violate
-    // the multi‑timestamp constraint.
-    repl::UnreplicatedWritesBlock uwb(_opCtx);
-
-    const int cappedCollMaxCount = 5;
-
-    NamespaceString nssCapped = NamespaceString::createNamespaceString_forTest(
-        "replicated_fast_count_test", "cappedWithMaxSize");
-
-    auto uuidCapped = UUID::gen();
-
-    ASSERT_OK(
-        createCollection(_opCtx,
-                         nssCapped.dbName(),
-                         BSON("create" << nssCapped.coll() << "capped" << true << "size"
-                                       << cappedCollMaxCount * sampleDocForInsert.objsize())));
-
-    // Insert up until the max capped doc size.
-    AutoGetCollection cappedColl(_opCtx, nssCapped, LockMode::MODE_IX);
-
-    uuidCapped = cappedColl->uuid();
-
-    for (int i = 0; i < cappedCollMaxCount; ++i) {
-        WriteUnitOfWork wuow(_opCtx);
-        ASSERT_OK(Helpers::insert(_opCtx, *cappedColl, docGeneratorForInsert(i)));
-        replicated_fast_count_test_helpers::checkUncommittedFastCountChanges(
-            _opCtx, uuidCapped, 1, sampleDocForInsert.objsize());
-        wuow.commit();
-        const auto expectedCommittedCount = i + 1;
-        replicated_fast_count_test_helpers::checkCommittedFastCountChanges(
-            uuidCapped,
-            _fastCountManager,
-            expectedCommittedCount,
-            expectedCommittedCount * sampleDocForInsert.objsize());
-    }
-
-    // Insert more docs. Our committed count and size should still be at the cap.
-    for (int i = cappedCollMaxCount + 1; i < 3 * cappedCollMaxCount; ++i) {
-        WriteUnitOfWork wuow(_opCtx);
-        ASSERT_OK(Helpers::insert(_opCtx, *cappedColl, docGeneratorForInsert(i)));
-        // Insert + delete of same size cancel each other out.
-        replicated_fast_count_test_helpers::checkUncommittedFastCountChanges(
-            _opCtx, uuidCapped, 0, 0);
-        wuow.commit();
-        replicated_fast_count_test_helpers::checkCommittedFastCountChanges(
-            uuidCapped,
-            _fastCountManager,
-            cappedCollMaxCount,
-            cappedCollMaxCount * sampleDocForInsert.objsize());
-    }
-}
+INSTANTIATE_TEST_SUITE_P(,
+                         ReplicatedFastCountCappedCollectionTest,
+                         ::testing::Values(CapType::kCount, CapType::kSize));
 
 TEST_F(ReplicatedFastCountTest, ReplicatedFastCountDoesNotTrackLocalCollections) {
     const NamespaceString internalNss =
@@ -1092,7 +1035,7 @@ protected:
 };
 
 repl::OplogEntrySizeMetadata makeOperationSizeMetadata(int32_t replicatedSizeDelta) {
-    repl::OplogEntrySizeMetadata m;
+    SingleOpSizeMetadata m;
     m.setSz(replicatedSizeDelta);
     return m;
 }
@@ -1182,8 +1125,7 @@ TEST_F(ReplicatedFastCountDeltaUtilsTest, ExtractSizeCountDeltaOnUnsupportedOpTy
 
     // Size metadata is only supported for 'insert', 'delete', and 'update' operations. All other
     // operations are incompatible with a top-level 'm' field.
-    ASSERT_THROWS_CODE(
-        replicated_fast_count::extractSizeCountDeltaForOp(oplogEntry), DBException, 12115900);
+    EXPECT_EQ(replicated_fast_count::extractSizeCountDeltaForOp(oplogEntry), boost::none);
 }
 
 TEST_F(ReplicatedFastCountDeltaUtilsTest, ExtractSizeCountDeltaOnNonEligibleNss) {
@@ -1601,13 +1543,13 @@ void assertExpectedAggregateDelta(const AggregateDeltaExpectation& expected,
     // Deltas across UUIDs.
     const auto deltas = aggregateSizeCountDeltasInOplog(oplogCursor, seekAfterTS);
     ASSERT_TRUE(deltas.deltas.contains(uuid));
-    EXPECT_EQ(deltas.deltas.at(uuid), expected.delta);
+    EXPECT_EQ(deltas.deltas.at(uuid).sizeCount, expected.delta);
     EXPECT_EQ(deltas.lastTimestamp, expected.lastTimestamp);
 
     // Also correct when filtered explicitly by 'uuid'
     const auto filteredDeltas = aggregateSizeCountDeltasInOplog(oplogCursor, seekAfterTS, uuid);
     ASSERT_TRUE(filteredDeltas.deltas.contains(uuid));
-    ASSERT_EQ(expected.delta, filteredDeltas.deltas.at(uuid));
+    ASSERT_EQ(expected.delta, filteredDeltas.deltas.at(uuid).sizeCount);
     EXPECT_EQ(filteredDeltas.lastTimestamp, expected.lastTimestamp);
 }
 
@@ -1838,8 +1780,8 @@ TEST_F(AggregateSizeCountFromOplogTest, ForwardCursorRespectsOplogVisibilityTime
     // Only the ts1 entry was visible; ts2 must not appear in the deltas.
     ASSERT_EQ(result.deltas.size(), 1u);
     ASSERT_TRUE(result.deltas.count(collA.uuid));
-    EXPECT_EQ(result.deltas.at(collA.uuid).size, 10);
-    EXPECT_EQ(result.deltas.at(collA.uuid).count, 1);
+    EXPECT_EQ(result.deltas.at(collA.uuid).sizeCount.size, 10);
+    EXPECT_EQ(result.deltas.at(collA.uuid).sizeCount.count, 1);
     ASSERT_TRUE(result.lastTimestamp.has_value());
     EXPECT_EQ(result.lastTimestamp.value(), ts1);
 }
@@ -1961,6 +1903,65 @@ TEST_F(AggregateSizeCountFromOplogTest, AggregateTruncateRangeMixedWithCRUD) {
         oplogCursor);
 }
 
+TEST_F(AggregateSizeCountFromOplogTest, CollectionCreationMarksStateCreated) {
+    const Timestamp ts1{1, 1};
+    std::list<repl::OplogEntry> entries{test_helpers::makeCreateOplogEntry(ts1, collA)};
+    OplogCursorMock oplogCursor(std::move(entries));
+
+    const auto result = aggregateSizeCountDeltasInOplog(oplogCursor, Timestamp::min());
+
+    ASSERT_TRUE(result.deltas.contains(collA.uuid));
+    EXPECT_EQ(result.deltas.at(collA.uuid).state, DDLState::kCreated);
+    EXPECT_EQ(result.deltas.at(collA.uuid).sizeCount.size, 0);
+    EXPECT_EQ(result.deltas.at(collA.uuid).sizeCount.count, 0);
+}
+
+TEST_F(AggregateSizeCountFromOplogTest, CollectionDropMarksStateDropped) {
+    const Timestamp ts1{1, 1};
+    std::list<repl::OplogEntry> entries{test_helpers::makeDropOplogEntry(ts1, collA)};
+    OplogCursorMock oplogCursor(std::move(entries));
+
+    const auto result = aggregateSizeCountDeltasInOplog(oplogCursor, Timestamp::min());
+
+    ASSERT_TRUE(result.deltas.contains(collA.uuid));
+    EXPECT_EQ(result.deltas.at(collA.uuid).state, DDLState::kDropped);
+}
+
+TEST_F(AggregateSizeCountFromOplogTest, CollectionCreationThenInsertsMarkedCreated) {
+    const Timestamp ts1{1, 1};
+    const Timestamp ts2{1, 2};
+    const Timestamp ts3{1, 3};
+    std::list<repl::OplogEntry> entries{
+        test_helpers::makeCreateOplogEntry(ts1, collA),
+        test_helpers::makeOplogEntry(ts2, collA, repl::OpTypeEnum::kInsert, 10),
+        test_helpers::makeOplogEntry(ts3, collA, repl::OpTypeEnum::kInsert, 20),
+    };
+    OplogCursorMock oplogCursor(std::move(entries));
+
+    const auto result = aggregateSizeCountDeltasInOplog(oplogCursor, Timestamp::min());
+
+    ASSERT_TRUE(result.deltas.contains(collA.uuid));
+    EXPECT_EQ(result.deltas.at(collA.uuid).state, DDLState::kCreated);
+    EXPECT_EQ(result.deltas.at(collA.uuid).sizeCount.size, 30);
+    EXPECT_EQ(result.deltas.at(collA.uuid).sizeCount.count, 2);
+}
+
+TEST_F(AggregateSizeCountFromOplogTest, InsertAndDropMarkedDropped) {
+    const Timestamp ts1{1, 1};
+    const Timestamp ts2{1, 2};
+    const Timestamp ts3{1, 3};
+    std::list<repl::OplogEntry> entries{
+        test_helpers::makeOplogEntry(ts1, collA, repl::OpTypeEnum::kInsert, 10),
+        test_helpers::makeOplogEntry(ts2, collA, repl::OpTypeEnum::kInsert, 20),
+        test_helpers::makeDropOplogEntry(ts3, collA),
+    };
+    OplogCursorMock oplogCursor(std::move(entries));
+
+    const auto result = aggregateSizeCountDeltasInOplog(oplogCursor, Timestamp::min());
+
+    ASSERT_TRUE(result.deltas.contains(collA.uuid));
+    EXPECT_EQ(result.deltas.at(collA.uuid).state, DDLState::kDropped);
+}
 }  // namespace
 }  // namespace replicated_fast_count
 }  // namespace mongo

@@ -1115,12 +1115,25 @@ const allTestCases = {
         _shardsvrRecreateRangeDeletionTasksParticipant: {skip: "TODO"},
         _shardsvrRefineCollectionShardKey: {skip: "TODO"},
         _shardsvrCommitRefineCollectionShardKey: {skip: "internal command"},
+        _shardsvrCommitDropCollectionMetadata: {skip: "internal command"},
+        _shardsvrCommitCreateCollectionMetadata: {skip: "internal command"},
         _shardsvrRenameCollection: {skip: "TODO"},
         _shardsvrRenameCollectionParticipant: {skip: "TODO"},
         _shardsvrRenameCollectionParticipantUnblock: {skip: "TODO"},
         _shardsvrRenameIndexMetadata: {skip: "TODO"},
         _shardsvrReshardCollection: {skip: "TODO"},
         _shardsvrReshardDonorInitialize: {skip: "TODO"},
+        _shardsvrReshardDonorRecipientsFinishedCloning: {
+            run: {
+                sendsDbVersion: false,
+                runsAgainstAdminDb: true,
+                command: function (dbName, collName) {
+                    return {
+                        _shardsvrReshardDonorRecipientsFinishedCloning: UUID(),
+                    };
+                },
+            },
+        },
         _shardsvrReshardRecipientInitialize: {skip: "TODO"},
         _shardsvrReshardRecipientClone: {skip: "TODO"},
         _shardsvrReshardRecipientCriticalSectionStarted: {
@@ -1322,6 +1335,7 @@ const allTestCases = {
         planCacheListFilters: {skip: "TODO"},
         planCacheSetFilter: {skip: "TODO"},
         prepareTransaction: {skip: "TODO"},
+        blockReplicaSetWrites: {skip: "not on a user database", conditional: true},
         profile: {skip: "TODO"},
         reIndex: {skip: "TODO"},
         reapLogicalSessionCacheNow: {skip: "TODO"},

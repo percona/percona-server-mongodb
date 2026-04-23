@@ -38,6 +38,7 @@
 #include "mongo/bson/oid.h"
 #include "mongo/bson/timestamp.h"
 #include "mongo/client/read_preference.h"
+#include "mongo/db/admission/ticketing/admission_context.h"
 #include "mongo/db/client.h"
 #include "mongo/db/database_name.h"
 #include "mongo/db/feature_flag.h"
@@ -76,7 +77,6 @@
 #include "mongo/platform/compiler.h"
 #include "mongo/s/resharding/type_collection_fields_gen.h"
 #include "mongo/util/assert_util.h"
-#include "mongo/util/concurrency/admission_context.h"
 #include "mongo/util/duration.h"
 #include "mongo/util/fail_point.h"
 #include "mongo/util/future_impl.h"
@@ -561,10 +561,8 @@ SemiFuture<CollectionAndChangedChunks> ShardServerCatalogCacheLoaderImpl::getChu
 
     return ExecutorFuture<void>(_executor)
         .then([=, this]() {
-            // TODO(SERVER-111753): Please revisit if this thread could be made killable.
             ThreadClient tc("ShardServerCatalogCacheLoader::getChunksSince",
-                            getGlobalServiceContext()->getService(),
-                            ClientOperationKillableByStepdown{false});
+                            getGlobalServiceContext()->getService());
             auto context = _contexts.makeOperationContext(*tc);
             // This prevents the reads from config.cache.collections/chunks and the majority noop
             // write on the primary from being deprioritized. The writes to config.cache.* on the
@@ -605,10 +603,8 @@ SemiFuture<DatabaseType> ShardServerCatalogCacheLoaderImpl::getDatabase(
 
     return ExecutorFuture<void>(_executor)
         .then([this, dbName, isPrimary = isPrimary, term = term]() {
-            // TODO(SERVER-111753): Please revisit if this thread could be made killable.
             ThreadClient tc("ShardServerCatalogCacheLoader::getDatabase",
-                            getGlobalServiceContext()->getService(),
-                            ClientOperationKillableByStepdown{false});
+                            getGlobalServiceContext()->getService());
             auto context = _contexts.makeOperationContext(*tc);
 
             // This prevents the majority noop write on the primary from being deprioritized and
@@ -1158,10 +1154,8 @@ void ShardServerCatalogCacheLoaderImpl::_ensureMajorityPrimaryAndScheduleDbTask(
 }
 
 void ShardServerCatalogCacheLoaderImpl::_runCollAndChunksTasks(const NamespaceString& nss) {
-    // TODO(SERVER-111753): Please revisit if this thread could be made killable.
     ThreadClient tc("ShardServerCatalogCacheLoader::runCollAndChunksTasks",
-                    getGlobalServiceContext()->getService(),
-                    ClientOperationKillableByStepdown{false});
+                    getGlobalServiceContext()->getService());
 
     auto context = _contexts.makeOperationContext(*tc);
     // This ensures that the writes to config.cache.collections/chunks don't get deprioritized and
@@ -1238,10 +1232,8 @@ void ShardServerCatalogCacheLoaderImpl::_runCollAndChunksTasks(const NamespaceSt
 }
 
 void ShardServerCatalogCacheLoaderImpl::_runDbTasks(const DatabaseName& dbName) {
-    // TODO(SERVER-111753): Please revisit if this thread could be made killable.
     ThreadClient tc("ShardServerCatalogCacheLoader::runDbTasks",
-                    getGlobalServiceContext()->getService(),
-                    ClientOperationKillableByStepdown{false});
+                    getGlobalServiceContext()->getService());
     auto context = _contexts.makeOperationContext(*tc);
     // This ensures that the writes to config.cache.databases don't get deprioritized and block
     // secondaries' ability to refresh.

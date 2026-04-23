@@ -756,6 +756,12 @@ const internalCommandsMap = {
             db.getSiblingDB("config").localReshardingOperations.donor.drop();
         },
     },
+    _shardsvrReshardDonorRecipientsFinishedCloning: {
+        testname: "_shardsvrReshardDonorRecipientsFinishedCloning",
+        command: {
+            _shardsvrReshardDonorRecipientsFinishedCloning: UUID(),
+        },
+    },
     _shardsvrReshardRecipientInitialize: {
         testname: "_shardsvrReshardRecipientInitialize",
         command: {
@@ -799,6 +805,16 @@ const internalCommandsMap = {
         testname: "_shardsvrCommitRefineCollectionShardKey",
         command: {
             _shardsvrCommitRefineCollectionShardKey: "test.x",
+        },
+    },
+    _shardsvrCommitDropCollectionMetadata: {
+        testname: "_shardsvrCommitDropCollectionMetadata",
+        command: {_shardsvrCommitDropCollectionMetadata: "test.x", collectionUUID: UUID()},
+    },
+    _shardsvrCommitCreateCollectionMetadata: {
+        testname: "_shardsvrCommitCreateCollectionMetadata",
+        command: {
+            _shardsvrCommitCreateCollectionMetadata: "test.x",
         },
     },
     _shardsvrSetAllowMigrations: {

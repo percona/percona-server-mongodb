@@ -31,6 +31,7 @@
 
 #include "mongo/base/error_codes.h"
 #include "mongo/bson/bsonobjbuilder.h"
+#include "mongo/db/admission/ticketing/admission_context.h"
 #include "mongo/db/client.h"
 #include "mongo/db/exec/sbe/expressions/compile_ctx.h"
 #include "mongo/db/exec/sbe/expressions/expression.h"
@@ -44,7 +45,6 @@
 #include "mongo/db/storage/recovery_unit.h"
 #include "mongo/db/storage/snapshot.h"
 #include "mongo/util/assert_util.h"
-#include "mongo/util/concurrency/admission_context.h"
 #include "mongo/util/str.h"
 
 #include <utility>
@@ -63,7 +63,7 @@ IndexScanStageBase::IndexScanStageBase(StringData stageType,
                                        boost::optional<value::SlotId> indexIdentSlot,
                                        IndexKeysInclusionSet indexKeysToInclude,
                                        value::SlotVector vars,
-                                       PlanYieldPolicy* yieldPolicy,
+                                       PlanYieldPolicySBE* yieldPolicy,
                                        PlanNodeId nodeId,
                                        bool participateInTrialRunTracking)
     : PlanStage(stageType,
@@ -464,7 +464,7 @@ IndexScanStageBaseImpl<Derived>::IndexScanStageBaseImpl(
     boost::optional<value::SlotId> indexIdentSlot,
     IndexKeysInclusionSet indexKeysToInclude,
     value::SlotVector vars,
-    PlanYieldPolicy* yieldPolicy,
+    PlanYieldPolicySBE* yieldPolicy,
     PlanNodeId nodeId,
     bool participateInTrialRunTracking)
     : IndexScanStageBase(stageType,
@@ -494,7 +494,7 @@ SimpleIndexScanStage::SimpleIndexScanStage(UUID collUuid,
                                            value::SlotVector vars,
                                            std::unique_ptr<EExpression> seekKeyLow,
                                            std::unique_ptr<EExpression> seekKeyHigh,
-                                           PlanYieldPolicy* yieldPolicy,
+                                           PlanYieldPolicySBE* yieldPolicy,
                                            PlanNodeId nodeId,
                                            bool participateInTrialRunTracking)
     : IndexScanStageBaseImpl(seekKeyLow ? "ixseek"_sd : "ixscan"_sd,
@@ -663,7 +663,7 @@ GenericIndexScanStage::GenericIndexScanStage(UUID collUuid,
                                              boost::optional<value::SlotId> indexIdentSlot,
                                              IndexKeysInclusionSet indexKeysToInclude,
                                              value::SlotVector vars,
-                                             PlanYieldPolicy* yieldPolicy,
+                                             PlanYieldPolicySBE* yieldPolicy,
                                              PlanNodeId planNodeId,
                                              bool participateInTrialRunTracking)
     : IndexScanStageBaseImpl("ixscan_generic"_sd,

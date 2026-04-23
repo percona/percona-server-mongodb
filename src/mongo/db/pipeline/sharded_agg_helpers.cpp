@@ -715,14 +715,15 @@ std::unique_ptr<Pipeline> runPipelineDirectlyOnSingleShard(
             const auto& cri = routingCtx.getCollectionRoutingInfo(nss);
 
             auto requests = buildVersionedRequests(opCtx, nss, cri, {shardId}, request.toBSON());
-            auto cursors = establishCursors(opCtx,
-                                            expCtx->getMongoProcessInterface()->taskExecutor,
-                                            nss,
-                                            std::move(readPreference),
-                                            requests,
-                                            false /* allowPartialResults */,
-                                            &routingCtx,
-                                            Shard::RetryPolicy::kIdempotent);
+            auto cursors = establishCursors(
+                opCtx,
+                expCtx->getMongoProcessInterface()->getTaskExecutor(/* withNullCheck */ false),
+                nss,
+                std::move(readPreference),
+                requests,
+                false /* allowPartialResults */,
+                &routingCtx,
+                Shard::RetryPolicy::kIdempotent);
             tassert(11282917,
                     "Expecting single cursor when running directly on single shard",
                     cursors.size() == 1);
@@ -1214,14 +1215,15 @@ DispatchShardPipelineResults dispatchTargetedShardPipeline(
                                        &routingCtx);
     } else {
         try {
-            cursors = establishShardCursors(opCtx,
-                                            routingCtx,
-                                            expCtx->getMongoProcessInterface()->taskExecutor,
-                                            targetedNss,
-                                            readPref,
-                                            requests,
-                                            std::move(designatedHostsMap),
-                                            targetAllHosts);
+            cursors = establishShardCursors(
+                opCtx,
+                routingCtx,
+                expCtx->getMongoProcessInterface()->getTaskExecutor(/* withNullCheck */ false),
+                targetedNss,
+                readPref,
+                requests,
+                std::move(designatedHostsMap),
+                targetAllHosts);
         } catch (const ExceptionFor<ErrorCodes::StaleConfig>& e) {
             // Check to see if the command failed because of a stale shard version or something
             // else.
@@ -1593,7 +1595,7 @@ BSONObj finalizePipelineAndTargetShardsForExplain(
     tassert(11282913,
             "Expect no $mergeCursors stage at the beginning of the pipeline",
             pipeline->empty() ||
-                !dynamic_cast<DocumentSourceMergeCursors*>(pipeline->getSources().front().get()));
+                !pipeline->getSources().front()->isInstanceOf<DocumentSourceMergeCursors>());
     tassert(11282912,
             "ExpressionContext is missing explain verbosity when targeting shards for explain",
             expCtx->getExplain());
@@ -1745,7 +1747,7 @@ std::unique_ptr<Pipeline> targetShardsAndAddMergeCursorsWithRoutingCtx(
     tassert(9597602,
             "Pipeline should not start with $mergeCursors",
             pipeline->empty() ||
-                !dynamic_cast<DocumentSourceMergeCursors*>(pipeline->getSources().front().get()));
+                !pipeline->getSources().front()->isInstanceOf<DocumentSourceMergeCursors>());
 
     LiteParsedPipeline liteParsedPipeline(aggRequest);
     PipelineDataSource pipelineDataSource = getPipelineDataSource(liteParsedPipeline);
@@ -1991,12 +1993,13 @@ boost::optional<RemoteCursor> openChangeStreamCursorOnConfigsvrIfNeeded(
     cursor.setBatchSize(0);
     aggReq.setCursor(cursor);
     setReadWriteConcern(expCtx->getOperationContext(), aggReq, true, !expCtx->getExplain());
-    auto configCursor = establishCursors(expCtx->getOperationContext(),
-                                         expCtx->getMongoProcessInterface()->taskExecutor,
-                                         aggReq.getNamespace(),
-                                         ReadPreferenceSetting{ReadPreference::SecondaryPreferred},
-                                         {{configShard->getId(), aggReq.toBSON()}},
-                                         false);
+    auto configCursor = establishCursors(
+        expCtx->getOperationContext(),
+        expCtx->getMongoProcessInterface()->getTaskExecutor(/* withNullCheck */ false),
+        aggReq.getNamespace(),
+        ReadPreferenceSetting{ReadPreference::SecondaryPreferred},
+        {{configShard->getId(), aggReq.toBSON()}},
+        false);
     tassert(10744201, "A single cursor over configsvr should be opened", configCursor.size() == 1);
     return std::move(*configCursor.begin());
 }

@@ -65,6 +65,7 @@
 #include "mongo/db/matcher/expression.h"
 #include "mongo/db/matcher/expression_tree.h"
 #include "mongo/db/matcher/extensions_callback_noop.h"
+#include "mongo/db/op_observer/batched_write_context.h"
 #include "mongo/db/operation_context.h"
 #include "mongo/db/pipeline/expression_context.h"
 #include "mongo/db/pipeline/expression_context_builder.h"
@@ -99,6 +100,7 @@
 #include "mongo/db/storage/oplog_truncate_markers.h"
 #include "mongo/db/storage/storage_engine.h"
 #include "mongo/db/storage/storage_parameters_gen.h"
+#include "mongo/db/timeseries/timeseries_bucket_validation.h"
 #include "mongo/db/timeseries/timeseries_constants.h"
 #include "mongo/db/timeseries/timeseries_extended_range.h"
 #include "mongo/db/timeseries/timeseries_index_schema_conversion_functions.h"
@@ -599,32 +601,51 @@ std::pair<Collection::SchemaValidationResult, Status> CollectionImpl::checkValid
         return {SchemaValidationResult::kError, status};
     }
 
-    try {
-        if (exec::matcher::matchesBSON(validatorMatchExpr, document))
-            return {SchemaValidationResult::kPass, Status::OK()};
-    } catch (DBException&) {
-    };
-
-    BSONObj generatedError = doc_validation_error::generateError(*validatorMatchExpr, document);
-
-    static constexpr auto kValidationFailureErrorStr = "Document failed validation"_sd;
-    status = Status(doc_validation_error::DocumentValidationFailureInfo(generatedError),
-                    kValidationFailureErrorStr);
-
-    switch (validationActionOrDefault(_metadata->options.validationAction)) {
-        case ValidationActionEnum::warn:
-            if (validationLevelOrDefault(_metadata->options.validationLevel) ==
-                ValidationLevelEnum::constraint) {
-                // Warn is prohibited for constraint validationLevel.
-                return {SchemaValidationResult::kError, status};
+    // Regular schema validation for everything except timeseries collections which uses a stricter
+    // validation for bucket documents.
+    if (!isTimeseriesCollection() || gTimeseriesDisableStrictBucketValidator.load()) {
+        try {
+            if (exec::matcher::matchesBSON(validatorMatchExpr, document)) {
+                return {SchemaValidationResult::kPass, Status::OK()};
             }
-            return {SchemaValidationResult::kWarn, status};
-        case ValidationActionEnum::error:
-            return {SchemaValidationResult::kError, status};
-        case ValidationActionEnum::errorAndLog:
-            return {SchemaValidationResult::kErrorAndLog, status};
+        } catch (DBException&) {
+        };
+
+        BSONObj generatedError = doc_validation_error::generateError(*validatorMatchExpr, document);
+
+        static constexpr auto kValidationFailureErrorStr = "Document failed validation"_sd;
+        status = Status(doc_validation_error::DocumentValidationFailureInfo(generatedError),
+                        kValidationFailureErrorStr);
+
+        switch (validationActionOrDefault(_metadata->options.validationAction)) {
+            case ValidationActionEnum::warn:
+                if (validationLevelOrDefault(_metadata->options.validationLevel) ==
+                    ValidationLevelEnum::constraint) {
+                    // Warn is prohibited for constraint validationLevel.
+                    return {SchemaValidationResult::kError, status};
+                }
+                return {SchemaValidationResult::kWarn, status};
+            case ValidationActionEnum::error:
+                return {SchemaValidationResult::kError, status};
+            case ValidationActionEnum::errorAndLog:
+                return {SchemaValidationResult::kErrorAndLog, status};
+        }
+        MONGO_UNREACHABLE_TASSERT(7488702);
     }
-    MONGO_UNREACHABLE_TASSERT(7488702);
+
+    // Strict validation for bucket documents in timeseries collections
+    try {
+        timeseries::validateBucketConsistency(this, document);
+        return {SchemaValidationResult::kPass, Status::OK()};
+    } catch (DBException& ex) {
+        // For strict timeseries validation we ensure that we only return kError or kErrorAndLog.
+        return {validationActionOrDefault(_metadata->options.validationAction) ==
+                        ValidationActionEnum::errorAndLog
+                    ? SchemaValidationResult::kErrorAndLog
+                    : SchemaValidationResult::kError,
+                Status(doc_validation_error::DocumentValidationFailureInfo(document),
+                       ex.toStatus().toString())};
+    };
 }
 
 Status CollectionImpl::checkValidationAndParseResult(OperationContext* opCtx,
@@ -778,12 +799,28 @@ bool CollectionImpl::isCappedAndNeedsDelete(OperationContext* opCtx) const {
         return false;
     }
 
-    if (dataSize(opCtx) > getCollectionOptions().cappedSize) {
+    // When writes are batched, the capped collection insert is not written to the oplog until the
+    // top-level WriteUnitOfWork commits. When writes are not batched, the capped collection insert
+    // is written to the oplog immediately. latestSizeCount() scans the oplog to compute the latest
+    // collection size/count, so it misses the latest insert when writes are batched. To correctly
+    // compute currentDataSize and currentNumRecords, we include the uncommitted size/count changes
+    // if and only if writes are batched.
+    const bool batched = BatchedWriteContext::get(opCtx).writesAreBatched();
+    const CollectionSizeCount uncommittedChanges = (batched)
+        ? UncommittedFastCountChange::getForRead(opCtx).find(uuid())
+        : CollectionSizeCount{.size = 0, .count = 0};
+
+    const auto [latestSize, latestCount] = latestSizeCount(opCtx);
+
+    const long long currentDataSize = latestSize + uncommittedChanges.size;
+    const long long currentNumRecords = latestCount + uncommittedChanges.count;
+
+    if (currentDataSize > getCollectionOptions().cappedSize) {
         return true;
     }
 
     const auto cappedMaxDocs = getCollectionOptions().cappedMaxDocs;
-    if ((cappedMaxDocs != 0) && (numRecords(opCtx) > cappedMaxDocs)) {
+    if ((cappedMaxDocs != 0) && (currentNumRecords > cappedMaxDocs)) {
         return true;
     }
 
@@ -1096,6 +1133,13 @@ long long CollectionImpl::dataSize(OperationContext* opCtx) const {
         ? ReplicatedFastCountManager::get(opCtx->getServiceContext()).find(uuid()).size +
             UncommittedFastCountChange::getForRead(opCtx).find(uuid()).size
         : _shared->_recordStore->dataSize();
+}
+
+CollectionSizeCount CollectionImpl::latestSizeCount(OperationContext* opCtx) const {
+    return (isReplicatedFastCountEnabled(opCtx) && isReplicatedFastCountEligible(_ns))
+        ? ReplicatedFastCountManager::get(opCtx->getServiceContext()).findLatest(opCtx, uuid())
+        : CollectionSizeCount{_shared->_recordStore->dataSize(),
+                              _shared->_recordStore->numRecords()};
 }
 
 CollectionSizeCount CollectionImpl::persistedSizeCount(OperationContext* opCtx) const {
@@ -1858,7 +1902,9 @@ bool CollectionImpl::setIndexIsMultikey(OperationContext* opCtx,
     // Mark this index that there is an ongoing multikey write. This forces readers to read from the
     // durable catalog to determine if the index is multikey or not.
     shard_role_details::getRecoveryUnit(opCtx)->registerPreCommitHook(
-        [concurrentWriteTracker](OperationContext*) { concurrentWriteTracker->preCommit(); });
+        [concurrentWriteTracker](OperationContext*, boost::optional<Timestamp>) {
+            concurrentWriteTracker->preCommit();
+        });
 
     // Capture a reference to 'concurrentWriteTracker' to extend the lifetime of this object until
     // commiting/rolling back the transaction is fully complete.
@@ -1945,13 +1991,43 @@ int CollectionImpl::getCompletedIndexCount() const {
     return num;
 }
 
-BSONObj CollectionImpl::getIndexSpec(StringData indexName) const {
+BSONObj CollectionImpl::getIndexSpec(StringData indexName, bool expandSimpleCollation) const {
     int offset = _metadata->findIndexOffset(indexName);
     invariant(offset >= 0,
               str::stream() << "cannot get index spec for " << indexName << " @ " << getCatalogId()
                             << " : " << _metadata->toBSON());
 
-    return _metadata->indexes[offset].spec;
+    const auto& spec = _metadata->indexes[offset].spec;
+    if (!expandSimpleCollation) {
+        return spec;
+    }
+
+    // TODO (SERVER-119573): Remove manual addition of the 'collation' field here once index specs
+    // in the catalog always include the 'collation' metadata. At that point, explicit insertion
+    // will no longer be needed.
+    BSONObjBuilder bob;
+
+    // Ensure top-level spec has a simple collation if missing.
+    if (!spec.hasField(IndexDescriptor::kCollationFieldName)) {
+        bob.append(IndexDescriptor::kCollationFieldName, CollationSpec::kSimpleSpec);
+    }
+
+    // If 'originalSpec' is present, ensure it contains the 'collation' field setting it to a simple
+    // collation when missing.
+    if (spec.hasField(IndexDescriptor::kOriginalSpecFieldName)) {
+        BSONObj originalSpec = spec[IndexDescriptor::kOriginalSpecFieldName].Obj();
+
+        if (originalSpec.hasField(IndexDescriptor::kCollationFieldName)) {
+            bob.append(IndexDescriptor::kOriginalSpecFieldName, originalSpec);
+        } else {
+            bob.append(IndexDescriptor::kOriginalSpecFieldName,
+                       originalSpec.addFields(BSON(IndexDescriptor::kCollationFieldName
+                                                   << CollationSpec::kSimpleSpec)));
+        }
+    }
+
+    bob.appendElementsUnique(spec);
+    return bob.obj();
 }
 
 void CollectionImpl::getAllIndexes(std::vector<std::string>* names) const {

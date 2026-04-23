@@ -79,6 +79,7 @@
 #include <functional>
 #include <memory>
 #include <set>
+#include <span>
 #include <string>
 #include <utility>
 
@@ -256,7 +257,7 @@ uint32_t OplogApplierUtils::addToWriterVector(
     return addToWriterVectorImpl(writerId, writerVectors, op);
 }
 
-void OplogApplierUtils::stableSortByNamespace(std::vector<ApplierOperation>* ops) {
+void OplogApplierUtils::stableSortByNamespace(std::vector<ApplierOperation>& ops) {
     auto nssComparator = [](const ApplierOperation& l, const ApplierOperation& r) {
         if (l->getNss().isCommand()) {
             if (r->getNss().isCommand())
@@ -273,11 +274,11 @@ void OplogApplierUtils::stableSortByNamespace(std::vector<ApplierOperation>* ops
 
     // Walk through the vector, if a prepared transaction command is encountered, sort
     // the ops between the previous prepared transaction command and the current one.
-    for (size_t start = 0, end = 0; end <= ops->size(); ++end) {
+    for (size_t start = 0, end = 0; end <= ops.size(); ++end) {
         // The end iterator acts as a dummy prepared transaction command, so we would
         // also sort the ops after the last real one encountered.
-        if (end == ops->size() || ops->at(end)->isPreparedTransactionCommand()) {
-            std::stable_sort(ops->begin() + start, ops->begin() + end, nssComparator);
+        if (end == ops.size() || ops.at(end)->isPreparedTransactionCommand()) {
+            std::stable_sort(ops.begin() + start, ops.begin() + end, nssComparator);
             start = end + 1;
         }
     }
@@ -457,7 +458,7 @@ Status OplogApplierUtils::applyOplogEntryOrGroupedInsertsCommon(
     }
 
     if (opType == OpTypeEnum::kNoop) {
-        incrementOpsAppliedStats();
+        incrementOpsAppliedStats(1);
         return Status::OK();
     } else if (opType == OpTypeEnum::kKeyMaterial) {
         auto handler = OplogKeyEntryHandler::get(opCtx->getServiceContext());
@@ -465,7 +466,7 @@ Status OplogApplierUtils::applyOplogEntryOrGroupedInsertsCommon(
         if (!status.isOK()) {
             return status;
         }
-        incrementOpsAppliedStats();
+        incrementOpsAppliedStats(1);
         return Status::OK();
     } else if (DurableOplogEntry::isCrudOpType(opType)) {
         auto status = writeConflictRetry(opCtx, "applyOplogEntryOrGroupedInserts_CRUD", nss, [&] {
@@ -597,8 +598,11 @@ Status OplogApplierUtils::applyOplogEntryOrGroupedInsertsCommon(
         return status;
     } else if (DurableOplogEntry::isContainerOpType(opType)) {
         return writeConflictRetry(opCtx, "applyOplogEntryOrGroupedInserts_container", nss, [&] {
-            Status status = applyContainerOperation(opCtx, op, oplogApplicationMode);
-            incrementOpsAppliedStats();
+            Status status = applyContainerOperations(
+                opCtx, std::span<const ApplierOperation>{&op, 1}, oplogApplicationMode);
+            if (status.isOK()) {
+                incrementOpsAppliedStats(1);
+            }
             return status;
         });
     } else if (opType == OpTypeEnum::kCommand) {
@@ -606,7 +610,7 @@ Status OplogApplierUtils::applyOplogEntryOrGroupedInsertsCommon(
             writeConflictRetry(opCtx, "applyOplogEntryOrGroupedInserts_command", nss, [&] {
                 // A special case apply for commands to avoid implicit database creation.
                 Status status = applyCommand_inlock(opCtx, op, oplogApplicationMode);
-                incrementOpsAppliedStats();
+                incrementOpsAppliedStats(1);
                 return status;
             });
         if (op->getCommandType() == mongo::repl::OplogEntry::CommandType::kDrop) {
@@ -627,13 +631,64 @@ Status OplogApplierUtils::applyOplogEntryOrGroupedInsertsCommon(
     MONGO_UNREACHABLE;
 }
 
+namespace {
+
+/**
+ * Groups consecutive container ops starting at 'it' that share the same namespace, ident,
+ * timestamp, and version context, and applies them atomically. On success, returns an iterator
+ * to the last op in the group. On failure, returns the error status.
+ */
+StatusWith<std::vector<ApplierOperation>::const_iterator> groupAndApplyContainerOps(
+    OperationContext* opCtx,
+    std::vector<ApplierOperation>::const_iterator it,
+    std::vector<ApplierOperation>::const_iterator end,
+    OplogApplication::Mode mode,
+    IncrementOpsAppliedStatsFn incrementOpsAppliedStats) {
+    const auto& op = *it;
+    const auto groupNss = op->getNss();
+    const auto groupIdent = op->getContainer();
+    const auto& groupVCtx = op->getVersionContext();
+    const auto groupTs = op->getApplyOpsTimestamp().get_value_or(op->getTimestamp());
+
+    auto groupEnd = std::find_if(it + 1, end, [&](const ApplierOperation& nextOp) {
+        return !nextOp->isContainerOpType() || nextOp->getNss() != groupNss ||
+            nextOp->getContainer() != groupIdent || nextOp->getVersionContext() != groupVCtx ||
+            nextOp->getApplyOpsTimestamp().get_value_or(nextOp->getTimestamp()) != groupTs;
+    });
+
+    const size_t groupSize = std::distance(it, groupEnd);
+    std::span<const ApplierOperation> containerOps{&*it, groupSize};
+
+    boost::optional<VersionContext::ScopedSetDecoration> scopedVersionContext;
+    if (groupVCtx) {
+        scopedVersionContext.emplace(opCtx, *groupVCtx);
+    }
+
+    auto status = writeConflictRetry(opCtx, "applyGroupedContainerOps", groupNss, [&] {
+        return applyContainerOperations(opCtx, containerOps, mode);
+    });
+
+    if (!status.isOK()) {
+        return status;
+    }
+
+    if (incrementOpsAppliedStats) {
+        incrementOpsAppliedStats(groupSize);
+    }
+
+    return groupEnd - 1;
+}
+
+}  // namespace
+
 Status OplogApplierUtils::applyOplogBatchCommon(
     OperationContext* opCtx,
-    std::vector<ApplierOperation>* ops,
+    std::vector<ApplierOperation>& ops,
     OplogApplication::Mode oplogApplicationMode,
     bool allowNamespaceNotFoundErrorsOnCrudOps,
     const bool isDataConsistent,
-    InsertGroup::ApplyFunc applyOplogEntryOrGroupedInserts) noexcept {
+    InsertGroup::ApplyFunc applyOplogEntryOrGroupedInserts,
+    IncrementOpsAppliedStatsFn incrementOpsAppliedStats) noexcept {
 
     // We cannot do document validation, because document validation could have been disabled when
     // these oplog entries were generated.
@@ -645,7 +700,7 @@ Status OplogApplierUtils::applyOplogBatchCommon(
         ops, opCtx, oplogApplicationMode, isDataConsistent, applyOplogEntryOrGroupedInserts);
 
     const bool inStableRecovery = oplogApplicationMode == OplogApplication::Mode::kStableRecovering;
-    for (auto it = ops->cbegin(); it != ops->cend(); ++it) {
+    for (auto it = ops.cbegin(); it != ops.cend(); ++it) {
         const auto& op = *it;
 
         // If we are successful in grouping and applying inserts, advance the current iterator
@@ -653,6 +708,21 @@ Status OplogApplierUtils::applyOplogBatchCommon(
         auto groupResult = insertGroup.groupAndApplyInserts(it);
         if (groupResult.isOK()) {
             it = groupResult.getValue();
+            continue;
+        }
+
+        if (op->isContainerOpType()) {
+            auto result = groupAndApplyContainerOps(
+                opCtx, it, ops.cend(), oplogApplicationMode, incrementOpsAppliedStats);
+            if (!result.isOK()) {
+                LOGV2_FATAL_CONTINUE(12337303,
+                                     "Error applying grouped container operations",
+                                     "opTime"_attr = op->getOpTime(),
+                                     "oplogEntry"_attr = redact(op->toBSONForLogging()),
+                                     "error"_attr = causedBy(redact(result.getStatus())));
+                return result.getStatus();
+            }
+            it = result.getValue();
             continue;
         }
 

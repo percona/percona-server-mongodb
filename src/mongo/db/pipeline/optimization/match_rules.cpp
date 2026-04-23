@@ -28,6 +28,7 @@
  */
 
 #include "mongo/bson/bsonobj.h"
+#include "mongo/db/field_ref.h"
 #include "mongo/db/pipeline/change_stream_constants.h"
 #include "mongo/db/pipeline/document_source.h"
 #include "mongo/db/pipeline/document_source_group.h"
@@ -36,6 +37,8 @@
 #include "mongo/db/pipeline/document_source_match.h"
 #include "mongo/db/pipeline/optimization/rule_based_rewriter.h"
 #include "mongo/db/pipeline/pipeline.h"
+#include "mongo/db/query/compiler/dependency_analysis/document_transformation_helpers.h"
+#include "mongo/db/query/query_feature_flags_gen.h"
 #include "mongo/logv2/log.h"
 
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kQuery
@@ -175,10 +178,24 @@ bool canSwapWithSubsequentMatch(PipelineRewriteContext& ctx) {
         ctx, &ctx.current(), dynamic_cast<DocumentSourceMatch*>(ctx.nextStage().get()));
 }
 
+DocumentSource::GetModPathsReturn buildModPaths(PipelineRewriteContext& ctx, DocumentSource& prev) {
+    using namespace document_transformation;
+
+    if (!feature_flags::gFeatureFlagImprovedDepsAnalysis.checkEnabled()) {
+        return toGetModPathsReturn(prev);
+    }
+
+    auto canPathBeArray = [&](StringData path) {
+        return ctx.getDependencyGraph().canPathBeArray(&prev, path);
+    };
+
+    return toGetModPathsReturn(withArraynessInfo(prev, canPathBeArray));
+}
+
 template <bool shouldAdvance>
 bool pushdownMatch(PipelineRewriteContext& ctx, DocumentSource& prev, DocumentSourceMatch& match) {
     auto [renameableMatchPart, nonRenameableMatchPart] =
-        DocumentSourceMatch::splitMatchByModifiedFields(&match, prev.getModifiedPaths());
+        DocumentSourceMatch::splitMatchByModifiedFields(&match, buildModPaths(ctx, prev));
     tassert(11010400,
             "Both sides can't be null after splitting a $match",
             renameableMatchPart || nonRenameableMatchPart);
@@ -266,12 +283,11 @@ bool introduceArrayTypeFilteringToMatch(PipelineRewriteContext& ctx) {
         StatusWithMatchExpression copyME = MatchExpressionParser::parse(bsonObj, &ctx.getExpCtx());
         std::unique_ptr<MatchExpression> me(std::move(copyME.getValue()));
 
-        auto pathArrayness = ctx.getPathArrayness();
         auto query = match.getQuery();
         for (const auto& elem : query) {
             auto typeExpr = std::make_unique<TypeMatchExpression>(
                 StringData(elem.fieldNameStringData()), MatcherTypeSet(BSONType::array));
-            if (pathArrayness.canPathBeArray(elem.fieldNameStringData(), &ctx.getExpCtx())) {
+            if (ctx.getExpCtx().canMainCollPathBeArray(FieldPath(elem.fieldNameStringData()))) {
                 additionalFilter->add(std::move(typeExpr));
             } else {
                 additionalFilter->add(std::make_unique<NotMatchExpression>(std::move(typeExpr)));

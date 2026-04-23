@@ -55,8 +55,13 @@
 #include "mongo/db/repl/replication_coordinator_mock.h"
 #include "mongo/db/repl/storage_interface.h"
 #include "mongo/db/repl/storage_interface_mock.h"
+#include "mongo/db/rss/replicated_storage_service.h"
+#include "mongo/db/rss/stub_persistence_provider.h"
+#include "mongo/db/server_feature_flags_gen.h"
+#include "mongo/db/server_options.h"
 #include "mongo/db/service_context.h"
 #include "mongo/db/service_context_d_test_fixture.h"
+#include "mongo/db/shard_role/ddl/create_gen.h"
 #include "mongo/db/shard_role/lock_manager/d_concurrency.h"
 #include "mongo/db/shard_role/lock_manager/exception_util.h"
 #include "mongo/db/shard_role/lock_manager/lock_manager_defs.h"
@@ -66,6 +71,7 @@
 #include "mongo/db/shard_role/shard_catalog/collection.h"
 #include "mongo/db/shard_role/shard_catalog/collection_catalog.h"
 #include "mongo/db/shard_role/shard_catalog/collection_options.h"
+#include "mongo/db/shard_role/shard_catalog/create_collection.h"
 #include "mongo/db/shard_role/shard_catalog/database_holder_impl.h"
 #include "mongo/db/shard_role/shard_catalog/database_impl.h"
 #include "mongo/db/shard_role/shard_catalog/db_raii.h"
@@ -76,10 +82,12 @@
 #include "mongo/db/shard_role/transaction_resources.h"
 #include "mongo/db/storage/write_unit_of_work.h"
 #include "mongo/db/timeseries/timeseries_gen.h"
+#include "mongo/idl/server_parameter_test_controller.h"
 #include "mongo/unittest/unittest.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/decorable.h"
 #include "mongo/util/duration.h"
+#include "mongo/util/fail_point.h"
 #include "mongo/util/pcre.h"
 #include "mongo/util/scopeguard.h"
 #include "mongo/util/time_support.h"
@@ -261,7 +269,7 @@ TEST_F(DatabaseTest, CreateCollectionDoesNotReportCatalogIdentifierForVirtualCol
 
     // Virtual collections are not persisted to the local catalog.
     VirtualCollectionOptions virtualCollectionOptions;
-    const auto url = ExternalDataSourceMetadata::kUrlProtocolFile + "named_pipe1";
+    const auto url = std::string(ExternalDataSourceMetadata::kUrlProtocolFile) + "named_pipe1";
     virtualCollectionOptions.dataSources.emplace_back(
         url, StorageTypeEnum::pipe, FileTypeEnum::bson);
     CollectionOptions collectionOptions;
@@ -408,8 +416,7 @@ void _testDropCollectionThrowsExceptionIfThereAreIndexesInProgress(OperationCont
             ASSERT_OK(indexBuildBlock.init(opCtx,
                                            collection,
                                            indexBuildInfo,
-                                           /*forRecovery=*/false,
-                                           /*generateTableWrites=*/true));
+                                           /*forRecovery=*/false));
             wuow.commit();
         }
         ON_BLOCK_EXIT([&indexBuildBlock, opCtx, collection] {
@@ -504,7 +511,8 @@ TEST_F(DatabaseTest, MakeUniqueCollectionNamespaceReplacesPercentSignsWithRandom
         ASSERT_TRUE(db);
 
         auto model = "tmp%%%%"_sd;
-        pcre::Regex re(_nss.db_forTest() + "\\.tmp[0-9A-Za-z][0-9A-Za-z][0-9A-Za-z][0-9A-Za-z]",
+        pcre::Regex re(std::string(_nss.db_forTest()) +
+                           "\\.tmp[0-9A-Za-z][0-9A-Za-z][0-9A-Za-z][0-9A-Za-z]",
                        pcre::ANCHORED | pcre::ENDANCHORED);
 
         auto nss1 = unittest::assertGet(makeUniqueCollectionName(_opCtx.get(), db->name(), model));
@@ -555,7 +563,7 @@ TEST_F(
             "abcdefghijklmnopqrstuvwxyz"_sd;
         for (const auto c : charsToChooseFrom) {
             NamespaceString nss = NamespaceString::createNamespaceString_forTest(
-                _nss.dbName(), model.substr(0, model.find('%')) + std::string(1U, c));
+                _nss.dbName(), std::string(model.substr(0, model.find('%'))) + std::string(1U, c));
             WriteUnitOfWork wuow(_opCtx.get());
             ASSERT_TRUE(db->createCollection(_opCtx.get(), nss));
             wuow.commit();
@@ -796,6 +804,235 @@ TEST_F(DatabaseTest, OpenDbSkipsConflictCheckWhenNotEnforcingConstraints) {
         ASSERT_TRUE(db);
         ASSERT_TRUE(justCreated);
     }
+}
+
+// --- Tests for shouldSetRecordIdsReplicated logic ---
+
+// Minimal stub provider whose shouldUseReplicatedRecordIds() returns true.
+class StubPersistenceProviderRequiringReplicatedRecordIds : public rss::StubPersistenceProvider {
+public:
+    std::string name() const override {
+        return "StubPersistenceProviderRequiringReplicatedRecordIds";
+    }
+    bool shouldUseReplicatedRecordIds() const override {
+        return true;
+    }
+    bool shouldUseReplicatedCatalogIdentifiers() const override {
+        return false;
+    }
+    bool supportsTableLogging() const override {
+        return true;
+    }
+    const char* getWTMemoryPageMaxForOplogStrValue() const override {
+        return "10m";
+    }
+    bool supportsUnstableCheckpoints() const override {
+        return true;
+    }
+    bool shouldUseOplogWritesForFlowControlSampling() const override {
+        return true;
+    }
+    bool shouldForceUpdateWithFullDocument() const override {
+        return true;
+    }
+};
+
+class RecordIdsReplicatedDatabaseTest : public DatabaseTest {
+protected:
+    void createTestCollection(OperationContext* opCtx, const NamespaceString& nss) {
+        CreateCommand cmd(nss);
+        uassertStatusOK(createCollection(opCtx, cmd));
+    }
+
+    bool areRecordIdsReplicated(OperationContext* opCtx, const NamespaceString& nss) {
+        AutoGetCollection autoColl(opCtx, nss, MODE_IS);
+        ASSERT_TRUE(*autoColl) << "Collection " << nss.toStringForErrorMsg() << " not found";
+        return (*autoColl)->areRecordIdsReplicated();
+    }
+
+    const NamespaceString _testNss =
+        NamespaceString::createNamespaceString_forTest("test.recordIdsTest");
+};
+
+// When the persistence provider requires replicated RecordIds, collections must be created with
+// recordIdsReplicated:true regardless of the feature flag state.
+TEST_F(RecordIdsReplicatedDatabaseTest, ProviderRequiresRecordIds_TrueWithoutFeatureFlag) {
+    rss::ReplicatedStorageService::get(getServiceContext())
+        .setPersistenceProvider(
+            std::make_unique<StubPersistenceProviderRequiringReplicatedRecordIds>());
+
+    auto opCtx = _opCtx.get();
+    createTestCollection(opCtx, _testNss);
+    ASSERT_TRUE(areRecordIdsReplicated(opCtx, _testNss));
+}
+
+// When the feature flag is enabled and the provider does not mandate RecordIds replication,
+// collections must still be created with recordIdsReplicated:true.
+TEST_F(RecordIdsReplicatedDatabaseTest, FeatureFlagEnabled_TrueWithoutProvider) {
+    RAIIServerParameterControllerForTest featureFlagController("featureFlagRecordIdsReplicated",
+                                                               true);
+
+    auto opCtx = _opCtx.get();
+    createTestCollection(opCtx, _testNss);
+    ASSERT_TRUE(areRecordIdsReplicated(opCtx, _testNss));
+}
+
+// When neither the provider nor the feature flag requires RecordIds replication, collections
+// must be created with recordIdsReplicated:false.
+TEST_F(RecordIdsReplicatedDatabaseTest, NeitherProviderNorFlag_False) {
+    // Both provider (default attached storage) and feature flag are disabled by default.
+    auto opCtx = _opCtx.get();
+    createTestCollection(opCtx, _testNss);
+    ASSERT_FALSE(areRecordIdsReplicated(opCtx, _testNss));
+}
+
+// --- Tests for the timeseries/viewless-timeseries mismatch guard in userCreateNS ---
+
+// Attempts to create a timeseries collection via Database::userCreateNS. Returns the Status;
+// tripwire assertions are allowed to propagate so callers can assert on them.
+Status attemptUserCreateTimeseriesNS(OperationContext* opCtx,
+                                     const NamespaceString& nss,
+                                     bool fromMigrate = false) {
+    AutoGetDb autoDb(opCtx, nss.dbName(), MODE_X);
+    auto* db = autoDb.ensureDbExists(opCtx);
+    invariant(db);
+    CollectionOptions options{.clusteredIndex =
+                                  clustered_util::makeCanonicalClusteredInfoForLegacyFormat(),
+                              .timeseries = TimeseriesOptions{"t"}};
+    WriteUnitOfWork wuow(opCtx);
+    auto status = db->userCreateNS(opCtx,
+                                   nss,
+                                   options,
+                                   /*createDefaultIndexes=*/false,
+                                   /*idIndex=*/BSONObj(),
+                                   fromMigrate);
+    if (status.isOK()) {
+        wuow.commit();
+    }
+    return status;
+}
+
+TEST_F(DatabaseTest, UserCreateNSRejectsLegacyBucketsWhenViewlessTimeseriesEnabled) {
+    RAIIServerParameterControllerForTest flag("featureFlagCreateViewlessTimeseriesCollections",
+                                              true);
+    const auto bucketsNss =
+        NamespaceString::createNamespaceString_forTest("test.system.buckets.ts");
+    ASSERT_THROWS_WITH_CHECK(
+        attemptUserCreateTimeseriesNS(_opCtx.get(), bucketsNss, /*fromMigrate=*/false),
+        DBException,
+        [](const DBException& ex) {
+            ASSERT_EQ(ex.code(), 12392800);
+            assertionCount.tripwire.subtractAndFetch(1);
+        });
+}
+
+TEST_F(DatabaseTest, UserCreateNSAllowsLegacyBucketsFromMigrateWhenViewlessTimeseriesEnabled) {
+    RAIIServerParameterControllerForTest flag("featureFlagCreateViewlessTimeseriesCollections",
+                                              true);
+    const auto bucketsNss =
+        NamespaceString::createNamespaceString_forTest("test.system.buckets.ts");
+    ASSERT_OK(attemptUserCreateTimeseriesNS(_opCtx.get(), bucketsNss, /*fromMigrate=*/true));
+}
+
+TEST_F(DatabaseTest, UserCreateNSRejectsViewlessTimeseriesWhenFlagDisabled) {
+    RAIIServerParameterControllerForTest flag("featureFlagCreateViewlessTimeseriesCollections",
+                                              false);
+    ASSERT_THROWS_WITH_CHECK(
+        attemptUserCreateTimeseriesNS(_opCtx.get(), _nss, /*fromMigrate=*/false),
+        DBException,
+        [](const DBException& ex) {
+            ASSERT_EQ(ex.code(), 12392801);
+            assertionCount.tripwire.subtractAndFetch(1);
+        });
+}
+
+// fromMigrate is not enough to bypass the guard once the FCV is fully downgraded.
+TEST_F(DatabaseTest,
+       UserCreateNSRejectsViewlessTimeseriesFromMigrateWhenFlagDisabledAndFullyDowngraded) {
+    RAIIServerParameterControllerForTest flag("featureFlagCreateViewlessTimeseriesCollections",
+                                              false);
+    ASSERT_THROWS_WITH_CHECK(
+        attemptUserCreateTimeseriesNS(_opCtx.get(), _nss, /*fromMigrate=*/true),
+        DBException,
+        [](const DBException& ex) {
+            ASSERT_EQ(ex.code(), 12392801);
+            assertionCount.tripwire.subtractAndFetch(1);
+        });
+}
+
+// Scoped override of the in-memory FCV; restores the prior value on destruction.
+class ScopedFCV {
+public:
+    explicit ScopedFCV(multiversion::FeatureCompatibilityVersion version)
+        : _prev(serverGlobalParams.featureCompatibility.acquireFCVSnapshot().getVersion()) {
+        serverGlobalParams.mutableFCV.setVersion(version);
+    }
+    ~ScopedFCV() {
+        serverGlobalParams.mutableFCV.setVersion(_prev);
+    }
+
+private:
+    multiversion::FeatureCompatibilityVersion _prev;
+};
+
+// While the FCV is still transitioning, pre-existing viewless collections are tolerated so that
+// migrations and other operations that perform collection cloning can be executed.
+TEST_F(DatabaseTest,
+       UserCreateNSAllowsViewlessTimeseriesFromMigrateWhenFlagDisabledAndFCVTransitioning) {
+    RAIIServerParameterControllerForTest flag("featureFlagCreateViewlessTimeseriesCollections",
+                                              false);
+    // (Generic FCV reference): test usage
+    ScopedFCV fcv(multiversion::GenericFCV::kDowngradingFromLatestToLastLTS);
+
+    ASSERT_OK(attemptUserCreateTimeseriesNS(_opCtx.get(), _nss, /*fromMigrate=*/true));
+}
+
+TEST_F(DatabaseTest, UserCreateNSTimeseriesMismatchCheckSkippedByFailPoint) {
+    FailPointEnableBlock fp("skipCreateTimeseriesVersionMismatchCheck");
+
+    // Flag ON + legacy buckets would normally tassert 12392800.
+    {
+        RAIIServerParameterControllerForTest flag("featureFlagCreateViewlessTimeseriesCollections",
+                                                  true);
+        const auto bucketsNss =
+            NamespaceString::createNamespaceString_forTest("test.system.buckets.ts");
+        ASSERT_OK(attemptUserCreateTimeseriesNS(_opCtx.get(), bucketsNss, /*fromMigrate=*/false));
+    }
+    // Flag OFF + viewless TS would normally tassert 12392801.
+    {
+        RAIIServerParameterControllerForTest flag("featureFlagCreateViewlessTimeseriesCollections",
+                                                  false);
+        const auto viewlessNss = NamespaceString::createNamespaceString_forTest("test.vl");
+        ASSERT_OK(attemptUserCreateTimeseriesNS(_opCtx.get(), viewlessNss, /*fromMigrate=*/false));
+    }
+}
+
+TEST_F(DatabaseTest, UserCreateNSTimeseriesMismatchCheckSkippedWhenNotEnforcingConstraints) {
+    RAIIServerParameterControllerForTest flag("featureFlagCreateViewlessTimeseriesCollections",
+                                              true);
+
+    auto opCtx = _opCtx.get();
+    opCtx->setEnforceConstraints(false);
+    ON_BLOCK_EXIT([&] { opCtx->setEnforceConstraints(true); });
+
+    const auto bucketsNss =
+        NamespaceString::createNamespaceString_forTest("test.system.buckets.ts");
+    ASSERT_OK(attemptUserCreateTimeseriesNS(opCtx, bucketsNss, /*fromMigrate=*/false));
+}
+
+// Regression: matching flag/NS combinations must keep succeeding.
+TEST_F(DatabaseTest, UserCreateNSAllowsViewlessTimeseriesWhenFlagEnabled) {
+    RAIIServerParameterControllerForTest flag("featureFlagCreateViewlessTimeseriesCollections",
+                                              true);
+    ASSERT_OK(attemptUserCreateTimeseriesNS(_opCtx.get(), _nss, /*fromMigrate=*/false));
+}
+
+TEST_F(DatabaseTest, UserCreateNSAllowsLegacyBucketsWhenFlagDisabled) {
+    RAIIServerParameterControllerForTest flag("featureFlagCreateViewlessTimeseriesCollections",
+                                              false);
+    const auto bucketsNss =
+        NamespaceString::createNamespaceString_forTest("test.system.buckets.ts");
+    ASSERT_OK(attemptUserCreateTimeseriesNS(_opCtx.get(), bucketsNss, /*fromMigrate=*/false));
 }
 
 }  // namespace

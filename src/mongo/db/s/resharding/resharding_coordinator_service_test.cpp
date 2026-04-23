@@ -265,6 +265,28 @@ public:
         }
     }
 
+    void stopMigrations(OperationContext* opCtx,
+                        const NamespaceString& nss,
+                        const UUID& expectedCollectionUUID,
+                        const OperationSessionInfo& osi) override {
+        DBDirectClient client(opCtx);
+        client.update(NamespaceString::kConfigsvrCollectionsNamespace,
+                      BSON(CollectionType::kNssFieldName << NamespaceStringUtil::serialize(
+                               nss, SerializationContext::stateDefault())),
+                      BSON("$set" << BSON(CollectionType::kAllowMigrationsFieldName << false)));
+    }
+
+    void resumeMigrations(OperationContext* opCtx,
+                          const NamespaceString& nss,
+                          const UUID& expectedCollectionUUID,
+                          const OperationSessionInfo& osi) override {
+        DBDirectClient client(opCtx);
+        client.update(NamespaceString::kConfigsvrCollectionsNamespace,
+                      BSON(CollectionType::kNssFieldName << NamespaceStringUtil::serialize(
+                               nss, SerializationContext::stateDefault())),
+                      BSON("$unset" << BSON(CollectionType::kAllowMigrationsFieldName << "")));
+    }
+
     void throwUnrecoverableErrorIn(CoordinatorStateEnum phase, ExternalFunction func) {
         _errorFunction = std::make_tuple(phase, func);
     }
@@ -567,6 +589,13 @@ public:
         ASSERT_TRUE(bool(coordinatorColl.getCollectionPtr()->isEmpty(opCtx)));
     }
 
+    CollectionType getCollectionCatalogEntry(OperationContext* opCtx) {
+        DBDirectClient client(opCtx);
+        auto doc = client.findOne(NamespaceString::kConfigsvrCollectionsNamespace,
+                                  BSON(CollectionType::kNssFieldName << _originalNss.ns_forTest()));
+        return CollectionType{std::move(doc)};
+    }
+
     CollectionType getTemporaryCollectionCatalogEntry(
         OperationContext* opCtx, const ReshardingCoordinatorDocument& coordinatorDoc) {
         DBDirectClient client(opCtx);
@@ -608,21 +637,23 @@ public:
 
         auto donorShards = coordDoc.getDonorShards();
 
-        BSONObj updates = BSON(
-            "$set" << BSON(
-                ReshardingCoordinatorDocument::kDonorShardsFieldName + ".$[].mutableState.state"
-                << idl::serialize(DonorStateEnum::kDonatingInitialData)
-                << ReshardingCoordinatorDocument::kDonorShardsFieldName +
-                    ".$[].mutableState.minFetchTimestamp"
-                << _cloneTimestamp
-                << ReshardingCoordinatorDocument::kDonorShardsFieldName +
-                    ".$[].mutableState.bytesToClone"
-                << static_cast<int64_t>(totalApproxBytesToClone / donorShards.size())
-                << ReshardingCoordinatorDocument::kDonorShardsFieldName +
-                    ".$[].mutableState.documentsToClone"
-                << static_cast<int64_t>(totalApproxDocumentsToClone / donorShards.size())));
+        auto keyPre = [](StringData suffix) {
+            return fmt::format("{}.$[].mutableState.{}",
+                               ReshardingCoordinatorDocument::kDonorShardsFieldName,
+                               suffix);
+        };
 
-        updateCoordinatorDoc(opCtx, coordDoc.getReshardingUUID(), updates);
+        BSONObjBuilder updates;
+        {
+            BSONObjBuilder{updates.subobjStart("$set")}
+                .append(keyPre("state"), idl::serialize(DonorStateEnum::kDonatingInitialData))
+                .append(keyPre("minFetchTimestamp"), _cloneTimestamp)
+                .append(keyPre("bytesToClone"),
+                        static_cast<long long>(totalApproxBytesToClone / donorShards.size()))
+                .append(keyPre("documentsToClone"),
+                        static_cast<long long>(totalApproxDocumentsToClone / donorShards.size()));
+        }
+        updateCoordinatorDoc(opCtx, coordDoc.getReshardingUUID(), updates.obj());
     }
 
     void makeRecipientsFinishedCloningWithAssert(OperationContext* opCtx) {
@@ -630,9 +661,9 @@ public:
         ASSERT_NE(coordDoc.getMetrics()->getDocumentCopy()->getStart(), Date_t::min());
 
         BSONObj updates = BSON(
-            "$set" << BSON(
-                ReshardingCoordinatorDocument::kRecipientShardsFieldName + ".$[].mutableState.state"
-                << idl::serialize(RecipientStateEnum::kApplying)));
+            "$set" << BSON(std::string(ReshardingCoordinatorDocument::kRecipientShardsFieldName) +
+                               ".$[].mutableState.state"
+                           << idl::serialize(RecipientStateEnum::kApplying)));
 
         updateCoordinatorDoc(opCtx, coordDoc.getReshardingUUID(), updates);
     }
@@ -643,18 +674,18 @@ public:
                    coordDoc.getMetrics()->getOplogApplication()->getStop());
 
         BSONObj updates = BSON(
-            "$set" << BSON(
-                ReshardingCoordinatorDocument::kRecipientShardsFieldName + ".$[].mutableState.state"
-                << idl::serialize(RecipientStateEnum::kStrictConsistency)));
+            "$set" << BSON(std::string(ReshardingCoordinatorDocument::kRecipientShardsFieldName) +
+                               ".$[].mutableState.state"
+                           << idl::serialize(RecipientStateEnum::kStrictConsistency)));
 
         updateCoordinatorDoc(opCtx, coordDoc.getReshardingUUID(), updates);
     }
 
     void makeDonorsProceedToDone(OperationContext* opCtx, UUID reshardingUUID) {
-        BSONObj updates = BSON(
-            "$set" << BSON(
-                ReshardingCoordinatorDocument::kDonorShardsFieldName + ".$[].mutableState.state"
-                << idl::serialize(DonorStateEnum::kDone)));
+        BSONObj updates =
+            BSON("$set" << BSON(std::string(ReshardingCoordinatorDocument::kDonorShardsFieldName) +
+                                    ".$[].mutableState.state"
+                                << idl::serialize(DonorStateEnum::kDone)));
 
         updateCoordinatorDoc(opCtx, reshardingUUID, updates);
     }
@@ -674,9 +705,9 @@ public:
 
     void makeRecipientsProceedToDone(OperationContext* opCtx, UUID reshardingUUID) {
         BSONObj updates = BSON(
-            "$set" << BSON(
-                ReshardingCoordinatorDocument::kRecipientShardsFieldName + ".$[].mutableState.state"
-                << idl::serialize(RecipientStateEnum::kDone)));
+            "$set" << BSON(std::string(ReshardingCoordinatorDocument::kRecipientShardsFieldName) +
+                               ".$[].mutableState.state"
+                           << idl::serialize(RecipientStateEnum::kDone)));
 
         updateCoordinatorDoc(opCtx, reshardingUUID, updates);
     }
@@ -701,13 +732,14 @@ public:
         BSONObjBuilder tmpBuilder;
         abortReasonStatus.serialize(&tmpBuilder);
 
-        BSONObj updates = BSON(
-            "$set" << BSON(
-                ReshardingCoordinatorDocument::kRecipientShardsFieldName + ".$[].mutableState.state"
-                << idl::serialize(RecipientStateEnum::kError)
-                << ReshardingCoordinatorDocument::kRecipientShardsFieldName +
-                    ".$[].mutableState.abortReason"
-                << tmpBuilder.obj()));
+        BSONObj updates =
+            BSON("$set" << BSON(
+                     std::string(ReshardingCoordinatorDocument::kRecipientShardsFieldName) +
+                         ".$[].mutableState.state"
+                     << idl::serialize(RecipientStateEnum::kError)
+                     << std::string(ReshardingCoordinatorDocument::kRecipientShardsFieldName) +
+                         ".$[].mutableState.abortReason"
+                     << tmpBuilder.obj()));
 
         updateCoordinatorDoc(opCtx, coordDoc.getReshardingUUID(), updates);
     }
@@ -996,6 +1028,7 @@ public:
 
         for (const auto state : states) {
             stateTransitionsGuard->wait(state);
+            ASSERT_FALSE(getCollectionCatalogEntry(opCtx).getAllowMigrations());
             runFunctionForState(state);
             stateTransitionsGuard->unset(state);
 
@@ -1035,6 +1068,7 @@ public:
             }
         }
         coordinator->getCompletionFuture().get(opCtx);
+        ASSERT_TRUE(getCollectionCatalogEntry(opCtx).getAllowMigrations());
 
         BSONObjBuilder bob;
         ReshardingCumulativeMetrics::getForResharding(operationContext()->getServiceContext())
@@ -1224,6 +1258,10 @@ public:
 
         // Wait for completion and verify the original abort reason is still used.
         ASSERT_EQ(coordinator->getCompletionFuture().getNoThrow(), abortReason0);
+
+        // Verify allowMigrations is restored after abort completes.
+        ASSERT_TRUE(getCollectionCatalogEntry(opCtx).getAllowMigrations());
+
         // There should be no quiescing regardless of the abort type after failover, i.e. the wait
         // should finish immediately.
         coordinator->getQuiescePeriodFinishedFuture().wait();
@@ -1281,6 +1319,9 @@ public:
 
         // Wait for the coordinator to transition to the "quiesced" state.
         waitUntilCommittedCoordinatorDocReach(opCtx, CoordinatorStateEnum::kQuiesced);
+
+        // Verify allowMigrations is restored after reaching kQuiesced.
+        ASSERT_TRUE(getCollectionCatalogEntry(opCtx).getAllowMigrations());
 
         stepDown(opCtx);
         coordinator.reset();
@@ -1766,6 +1807,23 @@ TEST_F(ReshardingCoordinatorServiceTest, ReshardingCoordinatorFailsIfMigrationNo
                            BSON(CollectionType::kNssFieldName << _originalNss.ns_forTest())));
         ASSERT_FALSE(collDoc.getAllowMigrations());
     }
+}
+
+TEST_F(ReshardingCoordinatorServiceTest,
+       AllowMigrationsRestoredOnAbortBeforeInitializationCompletes) {
+    auto fpAfterStopMigrations =
+        globalFailPointRegistry().find("pauseAfterStoppingActiveMigrations");
+    auto timesEnteredFailPoint = fpAfterStopMigrations->setMode(FailPoint::alwaysOn, 0);
+    auto coordinator = initializeAndGetCoordinator();
+    fpAfterStopMigrations->waitForTimesEntered(timesEnteredFailPoint + 1);
+
+    ASSERT_FALSE(getCollectionCatalogEntry(operationContext()).getAllowMigrations());
+
+    coordinator->abort({resharding::kUserAbortReason, resharding::AbortType::kAbortSkipQuiesce});
+    fpAfterStopMigrations->setMode(FailPoint::off, 0);
+    coordinator->getCompletionFuture().wait();
+
+    ASSERT_TRUE(getCollectionCatalogEntry(operationContext()).getAllowMigrations());
 }
 
 TEST_F(ReshardingCoordinatorServiceTest, MultipleReshardingOperationsFail) {

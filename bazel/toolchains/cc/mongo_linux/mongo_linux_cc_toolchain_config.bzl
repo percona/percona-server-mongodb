@@ -667,7 +667,7 @@ def _impl(ctx):
     # gdb crashes with -gsplit-dwarf and -gdwarf64
     dwarf64_feature = feature(
         name = "dwarf64",
-        enabled = not ctx.attr.fission and not ctx.attr.distro == "suse15",
+        enabled = not ctx.attr.fission and not ctx.attr.distro == "suse15" and not ctx.attr.compiler == COMPILERS.CLANG,
         implies = ["per_object_debug_info"],
         flag_sets = [
             flag_set(
@@ -991,7 +991,7 @@ def _impl(ctx):
 
     clang_fno_limit_debug_info_feature = feature(
         name = "clang_fno_limit_debug_info",
-        enabled = ctx.attr.compiler == COMPILERS.CLANG,
+        enabled = False,
         flag_sets = [
             flag_set(
                 actions = all_compile_actions,
@@ -999,6 +999,7 @@ def _impl(ctx):
                     # We add this flag to make clang emit debug info for c++ stl types so
                     # that our pretty printers will work with newer clang's which omit this
                     # debug info. This does increase the overall debug info size.
+                    # This will triple the debug info size.
                     "-fno-limit-debug-info",
                 ])],
             ),
@@ -1132,15 +1133,84 @@ def _impl(ctx):
         ],
     )
 
-    # Some of the linux versions are missing libatomic.so.1 - this is a hack so mold will use the one contained
-    # within the mongo toolchain rather than needing one installed on the machine
-    mold_shared_libraries_feature = feature(
-        name = "mold_shared_libraries",
+    default_linker_with_features = [
+        with_feature_set(
+            not_features = [
+                "linker_lld",
+                "linker_mold",
+            ],
+        ),
+    ]
+
+    # Some of the linux versions are missing libatomic.so.1. When using mold, prefer the copy in the
+    # mongo toolchain rather than relying on one being installed on the host.
+    mold_linker_env_entries = [
+        env_entry(key = "LD_LIBRARY_PATH", value = "external/mongo_toolchain_v5/stow/gcc-v5/lib64/"),
+    ]
+
+    default_linker_lld_feature = feature(
+        name = "default_linker_lld",
+        enabled = ctx.attr.linker == LINKERS.LLD,
+        flag_sets = [
+            flag_set(
+                actions = all_link_actions + lto_index_actions,
+                flag_groups = [flag_group(flags = ["-fuse-ld=lld"])],
+                with_features = default_linker_with_features,
+            ),
+        ],
+    )
+
+    default_linker_mold_feature = feature(
+        name = "default_linker_mold",
         enabled = ctx.attr.linker == LINKERS.MOLD,
+        flag_sets = [
+            flag_set(
+                actions = all_link_actions + lto_index_actions,
+                flag_groups = [flag_group(flags = [
+                    "-fuse-ld=mold",
+                    "-B" + ctx.attr.mold_bin_dir,
+                ])],
+                with_features = default_linker_with_features,
+            ),
+        ],
         env_sets = [
             env_set(
                 actions = all_link_actions,
-                env_entries = [env_entry(key = "LD_LIBRARY_PATH", value = "external/mongo_toolchain_v5/stow/gcc-v5/lib64/")],
+                env_entries = mold_linker_env_entries,
+                with_features = default_linker_with_features,
+            ),
+        ],
+    )
+
+    linker_lld_feature = feature(
+        name = "linker_lld",
+        enabled = False,
+        provides = ["linker_override"],
+        flag_sets = [] if ctx.attr.is_s390x else [
+            flag_set(
+                actions = all_link_actions + lto_index_actions,
+                flag_groups = [flag_group(flags = ["-fuse-ld=lld"])],
+            ),
+        ],
+    )
+
+    linker_mold_feature = feature(
+        name = "linker_mold",
+        enabled = False,
+        provides = ["linker_override"],
+        flag_sets = [
+            flag_set(
+                actions = all_link_actions + lto_index_actions,
+                flag_groups = [flag_group(flags = [
+                    "-fuse-ld=mold",
+                    "-B" + ctx.attr.mold_bin_dir,
+                ])],
+            ),
+        ],
+        env_sets = [
+            env_set(
+                actions = all_link_actions,
+                env_entries = mold_linker_env_entries,
             ),
         ],
     )
@@ -1389,6 +1459,11 @@ def _impl(ctx):
         ],
     )
 
+    shared_archive_default_link_flags = ["-Wl,-Bsymbolic"] if ctx.attr.linker == LINKERS.MOLD else ["-Wl,--no-gnu-unique", "-Wl,-Bsymbolic"]
+    shared_archive_override_link_flags = ["-Wl,--no-gnu-unique", "-Wl,-Bsymbolic"] if ctx.attr.linker == LINKERS.MOLD else ["-Wl,-Bsymbolic"]
+    shared_archive_default_with_features = [with_feature_set(not_features = ["linker_lld"])] if ctx.attr.linker == LINKERS.MOLD else [with_feature_set(not_features = ["linker_mold"])]
+    shared_archive_override_with_features = [with_feature_set(features = ["linker_lld"])] if ctx.attr.linker == LINKERS.MOLD else [with_feature_set(features = ["linker_mold"])]
+
     shared_archive_gcc_feature = feature(
         name = "shared_archive_gcc",
         enabled = ctx.attr.shared_archive and ctx.attr.compiler == COMPILERS.GCC,
@@ -1399,11 +1474,13 @@ def _impl(ctx):
             ),
             flag_set(
                 actions = all_link_actions + lto_index_actions,
-                flag_groups = [
-                    flag_group(
-                        flags = ["-Wl,--no-gnu-unique", "-Wl,-Bsymbolic"] if ctx.attr.linker != LINKERS.MOLD else ["-Wl,-Bsymbolic"],
-                    ),
-                ],
+                flag_groups = [flag_group(flags = shared_archive_default_link_flags)],
+                with_features = shared_archive_default_with_features,
+            ),
+            flag_set(
+                actions = all_link_actions + lto_index_actions,
+                flag_groups = [flag_group(flags = shared_archive_override_link_flags)],
+                with_features = shared_archive_override_with_features,
             ),
         ],
     )
@@ -1986,7 +2063,6 @@ def _impl(ctx):
         global_libs_feature,
         build_id_feature,
         gcc_no_ignored_attributes_features,
-        mold_shared_libraries_feature,
         pgo_profile_generate_feature,
         pgo_profile_use_feature,
         propeller_profile_generate_feature,
@@ -2023,6 +2099,10 @@ def _impl(ctx):
         user_compile_flags_feature,
         extra_cflags_feature,
         extra_cxxflags_feature,
+        default_linker_lld_feature,
+        default_linker_mold_feature,
+        linker_lld_feature,
+        linker_mold_feature,
         extra_ldflags_feature,
         disable_warnings_for_third_party_libraries_clang_feature,
         disable_warnings_for_third_party_libraries_gcc_feature,
@@ -2062,6 +2142,7 @@ mongo_linux_cc_toolchain_config = rule(
         "compiler": attr.string(mandatory = True),
         "dbg": attr.bool(mandatory = True),
         "linker": attr.string(mandatory = True),
+        "mold_bin_dir": attr.string(mandatory = False),
         "distro": attr.string(mandatory = False),
         "extra_cflags": attr.string_list(mandatory = False),
         "extra_cxxflags": attr.string_list(mandatory = False),

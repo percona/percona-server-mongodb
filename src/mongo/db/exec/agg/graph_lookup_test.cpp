@@ -54,13 +54,15 @@ using namespace test;
 using GraphLookUpTest = AggregationContextFixture;
 
 /**
- * This fixture also provides storage engine for spilling.
+ * Fixture for testing $graphLookup spilling behavior. Enables the spill WiredTiger instance
+ * since $graphLookup spills its visited set to disk when memory limits are exceeded.
  */
 class DocumentSourceGraphLookUpSpillingTest : public GraphLookUpTest {
 public:
     DocumentSourceGraphLookUpSpillingTest()
         : AggregationContextFixture(std::make_unique<MongoDScopedGlobalServiceContextForTest>(
-              MongoDScopedGlobalServiceContextForTest::Options{}, shouldSetupTL)) {}
+              MongoDScopedGlobalServiceContextForTest::Options{}.enableSpillEngine(),
+              shouldSetupTL)) {}
 };
 
 //
@@ -85,13 +87,12 @@ TEST_F(GraphLookUpTest, ShouldErrorWhenDoingInitialMatchIfDocumentInFromCollecti
         "results",
         "from",
         "to",
-        ExpressionFieldPath::deprecatedCreate(expCtx.get(), "_id"),
+        ExpressionFieldPath::createPathFromString(expCtx.get(), "_id", expCtx->variablesParseState),
         boost::none,
         boost::none,
         boost::none,
         boost::none);
-    auto graphLookupStage = exec::agg::buildStage(graphLookupDS);
-    graphLookupStage->setSource(inputMock.get());
+    auto graphLookupStage = exec::agg::buildStageAndStitch(graphLookupDS, inputMock);
     ASSERT_THROWS_CODE(graphLookupStage->getNext(), AssertionException, 40271);
 }
 
@@ -115,13 +116,12 @@ TEST_F(GraphLookUpTest, ShouldErrorWhenExploringGraphIfDocumentInFromCollectionI
         "results",
         "from",
         "to",
-        ExpressionFieldPath::deprecatedCreate(expCtx.get(), "_id"),
+        ExpressionFieldPath::createPathFromString(expCtx.get(), "_id", expCtx->variablesParseState),
         boost::none,
         boost::none,
         boost::none,
         boost::none);
-    auto graphLookupStage = exec::agg::buildStage(graphLookupDS);
-    graphLookupStage->setSource(inputMock.get());
+    auto graphLookupStage = exec::agg::buildStageAndStitch(graphLookupDS, inputMock);
 
     ASSERT_THROWS_CODE(graphLookupStage->getNext(), AssertionException, 40271);
 }
@@ -146,13 +146,12 @@ TEST_F(GraphLookUpTest, ShouldErrorWhenHandlingUnwindIfDocumentInFromCollectionI
         "results",
         "from",
         "to",
-        ExpressionFieldPath::deprecatedCreate(expCtx.get(), "_id"),
+        ExpressionFieldPath::createPathFromString(expCtx.get(), "_id", expCtx->variablesParseState),
         boost::none,
         boost::none,
         boost::none,
         unwindStage);
-    auto graphLookupStage = exec::agg::buildStage(graphLookupDS);
-    graphLookupStage->setSource(inputMock.get());
+    auto graphLookupStage = exec::agg::buildStageAndStitch(graphLookupDS, inputMock);
 
     ASSERT_THROWS_CODE(graphLookupStage->getNext(), AssertionException, 40271);
 }
@@ -190,14 +189,12 @@ TEST_F(GraphLookUpTest, ShouldTraverseSubgraphIfIdOfDocumentsInFromCollectionAre
         "results",
         "from",
         "to",
-        ExpressionFieldPath::deprecatedCreate(expCtx.get(), "_id"),
+        ExpressionFieldPath::createPathFromString(expCtx.get(), "_id", expCtx->variablesParseState),
         boost::none,
         boost::none,
         boost::none,
         boost::none);
-    auto graphLookupStage = exec::agg::buildStage(graphLookupDS);
-    graphLookupStage->setSource(inputMock.get());
-    graphLookupStage->setSource(inputMock.get());
+    auto graphLookupStage = exec::agg::buildStageAndStitch(graphLookupDS, inputMock);
 
     auto next = graphLookupStage->getNext();
     ASSERT_TRUE(next.isAdvanced());
@@ -256,14 +253,13 @@ TEST_F(GraphLookUpTest, ShouldPropagatePauses) {
         "results",
         "from",
         "to",
-        ExpressionFieldPath::deprecatedCreate(expCtx.get(), "startPoint"),
+        ExpressionFieldPath::createPathFromString(
+            expCtx.get(), "startPoint", expCtx->variablesParseState),
         boost::none,
         boost::none,
         boost::none,
         boost::none);
-    auto graphLookupStage = exec::agg::buildStage(graphLookupDS);
-
-    graphLookupStage->setSource(inputMock.get());
+    auto graphLookupStage = exec::agg::buildStageAndStitch(graphLookupDS, inputMock);
 
     auto next = graphLookupStage->getNext();
     ASSERT_TRUE(next.isAdvanced());
@@ -333,14 +329,13 @@ TEST_F(GraphLookUpTest, ShouldPropagatePausesWhileUnwinding) {
         "results",
         "from",
         "to",
-        ExpressionFieldPath::deprecatedCreate(expCtx.get(), "startPoint"),
+        ExpressionFieldPath::createPathFromString(
+            expCtx.get(), "startPoint", expCtx->variablesParseState),
         boost::none,
         boost::none,
         boost::none,
         unwindStage);
-    auto graphLookupStage = exec::agg::buildStage(graphLookupDS);
-
-    graphLookupStage->setSource(inputMock.get());
+    auto graphLookupStage = exec::agg::buildStageAndStitch(graphLookupDS, inputMock);
 
     // Assert it has the expected results. Note the results can be in either order.
     auto expectedA =
@@ -415,14 +410,13 @@ TEST_F(DocumentSourceGraphLookUpSpillingTest, ShouldSpillVisitedDocuments) {
         "results",
         "from",
         "to",
-        ExpressionFieldPath::deprecatedCreate(expCtx.get(), "startPoint"),
+        ExpressionFieldPath::createPathFromString(
+            expCtx.get(), "startPoint", expCtx->variablesParseState),
         boost::none,
         boost::none,
         boost::none,
         boost::none);
-    auto graphLookupStage = exec::agg::buildStage(graphLookupDS);
-
-    graphLookupStage->setSource(inputMock.get());
+    auto graphLookupStage = exec::agg::buildStageAndStitch(graphLookupDS, inputMock);
 
     auto next = graphLookupStage->getNext();
     ASSERT_TRUE(next.isAdvanced());
@@ -478,14 +472,13 @@ TEST_F(DocumentSourceGraphLookUpSpillingTest, ShouldSpillSeveralStructures) {
         "results",
         "from",
         "to",
-        ExpressionFieldPath::deprecatedCreate(expCtx.get(), "startPoint"),
+        ExpressionFieldPath::createPathFromString(
+            expCtx.get(), "startPoint", expCtx->variablesParseState),
         boost::none,
         boost::none,
         boost::none,
         boost::none);
-    auto graphLookupStage = exec::agg::buildStage(graphLookupDS);
-
-    graphLookupStage->setSource(inputMock.get());
+    auto graphLookupStage = exec::agg::buildStageAndStitch(graphLookupDS, inputMock);
 
     auto next = graphLookupStage->getNext();
     ASSERT_TRUE(next.isAdvanced());
@@ -535,14 +528,13 @@ TEST_F(DocumentSourceGraphLookUpSpillingTest, CanForceSpill) {
         "results",
         "from",
         "to",
-        ExpressionFieldPath::deprecatedCreate(expCtx.get(), "startPoint"),
+        ExpressionFieldPath::createPathFromString(
+            expCtx.get(), "startPoint", expCtx->variablesParseState),
         boost::none,
         boost::none,
         boost::none,
         unwindStage);
-    auto graphLookupStage = exec::agg::buildStage(graphLookupDS);
-
-    graphLookupStage->setSource(inputMock.get());
+    auto graphLookupStage = exec::agg::buildStageAndStitch(graphLookupDS, inputMock);
 
     std::vector<Value> results;
     results.reserve(kResultCount);
@@ -595,15 +587,15 @@ TEST_F(GraphLookUpTest, GraphLookupWithComparisonExpressionForStartWith) {
         "to",
         ExpressionCompare::create(expCtx.get(),
                                   ExpressionCompare::GT,
-                                  ExpressionFieldPath::deprecatedCreate(expCtx.get(), "a"),
-                                  ExpressionFieldPath::deprecatedCreate(expCtx.get(), "b")),
+                                  ExpressionFieldPath::createPathFromString(
+                                      expCtx.get(), "a", expCtx->variablesParseState),
+                                  ExpressionFieldPath::createPathFromString(
+                                      expCtx.get(), "b", expCtx->variablesParseState)),
         boost::none,
         boost::none,
         boost::none,
         boost::none);
-    auto graphLookupStage = exec::agg::buildStage(graphLookupDS);
-
-    graphLookupStage->setSource(inputMock.get());
+    auto graphLookupStage = exec::agg::buildStageAndStitch(graphLookupDS, inputMock);
 
     auto next = graphLookupStage->getNext();
     ASSERT_TRUE(next.isAdvanced());
@@ -657,14 +649,13 @@ TEST_F(GraphLookUpTest, ShouldExpandArraysAtEndOfConnectFromField) {
         "results",
         "to",
         "_id",
-        ExpressionFieldPath::deprecatedCreate(expCtx.get(), "startVal"),
+        ExpressionFieldPath::createPathFromString(
+            expCtx.get(), "startVal", expCtx->variablesParseState),
         boost::none,
         boost::none,
         boost::none,
         boost::none);
-    auto graphLookupStage = exec::agg::buildStage(graphLookupDS);
-
-    graphLookupStage->setSource(inputMock.get());
+    auto graphLookupStage = exec::agg::buildStageAndStitch(graphLookupDS, inputMock);
 
     auto next = graphLookupStage->getNext();
     ASSERT_TRUE(next.isAdvanced());
@@ -732,15 +723,13 @@ TEST_F(GraphLookUpTest, ShouldNotExpandArraysWithinArraysAtEndOfConnectFromField
         "results",
         "connectedTo",
         "coordinate",
-        ExpressionFieldPath::deprecatedCreate(expCtx.get(), "startVal"),
+        ExpressionFieldPath::createPathFromString(
+            expCtx.get(), "startVal", expCtx->variablesParseState),
         boost::none,
         boost::none,
         boost::none,
         boost::none);
-    auto graphLookupStage = exec::agg::buildStage(graphLookupDS);
-
-    graphLookupStage->setSource(inputMock.get());
-    graphLookupStage->setSource(inputMock.get());
+    auto graphLookupStage = exec::agg::buildStageAndStitch(graphLookupDS, inputMock);
 
     auto next = graphLookupStage->getNext();
     ASSERT_TRUE(next.isAdvanced());

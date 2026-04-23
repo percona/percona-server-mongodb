@@ -261,7 +261,8 @@ void IndexBuildsCoordinatorMongod::shutdown(OperationContext* opCtx) {
             return replState.isAwaitingPrimaryAbort();
         };
         for (const auto& replState : activeIndexBuilds.filterIndexBuilds(indexBuildFilter)) {
-            activeIndexBuilds.unregisterIndexBuild(&_indexBuildsManager, replState);
+            activeIndexBuilds.unregisterIndexBuild(
+                &_indexBuildsManager, replState, IndexBuildOutcome::kFailure);
         }
     }
 
@@ -393,7 +394,8 @@ IndexBuildsCoordinatorMongod::_startIndexBuild(OperationContext* opCtx,
         if (replIndexBuildState.isOK()) {
             auto replState = invariant(replIndexBuildState);
             if (replState->isSettingUp()) {
-                activeIndexBuilds.unregisterIndexBuild(&_indexBuildsManager, replState);
+                activeIndexBuilds.unregisterIndexBuild(
+                    &_indexBuildsManager, replState, IndexBuildOutcome::kFailure);
             }
         }
     });
@@ -501,7 +503,8 @@ IndexBuildsCoordinatorMongod::_startIndexBuild(OperationContext* opCtx,
 
         // Clean up if we failed to schedule the task.
         if (!status.isOK()) {
-            activeIndexBuilds.unregisterIndexBuild(&_indexBuildsManager, replState);
+            activeIndexBuilds.unregisterIndexBuild(
+                &_indexBuildsManager, replState, IndexBuildOutcome::kFailure);
             startPromise.setError(status);
             return;
         }
@@ -903,15 +906,12 @@ IndexBuildAction IndexBuildsCoordinatorMongod::_waitForNextIndexBuildAction(
     // allows the critical section of committing, which must drain the remainder of the side writes,
     // to be as short as possible.
     while (!waitUntilNextActionIsReady()) {
-        if (replState->getGenerateTableWrites()) {
-            _insertKeysFromSideTablesWithoutBlockingWrites(opCtx, replState);
-        }
-    }
-
-    if (replState->getGenerateTableWrites()) {
-        // Final chance to catch up before taking an X lock.
         _insertKeysFromSideTablesWithoutBlockingWrites(opCtx, replState);
     }
+
+    // Final chance to catch up before taking an X lock.
+    _insertKeysFromSideTablesWithoutBlockingWrites(opCtx, replState);
+
     return nextAction;
 }
 

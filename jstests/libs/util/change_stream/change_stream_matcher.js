@@ -14,6 +14,7 @@ class SingleChangeStreamMatcher {
         this.matchers = eventMatchers;
         this.index = 0;
         this.mismatch = null;
+        this.skipped = [];
     }
 
     matches(event, cursorClosed) {
@@ -37,6 +38,28 @@ class SingleChangeStreamMatcher {
         return false;
     }
 
+    /**
+     * Match event against expected, skipping unmatched expected events.
+     * Only modifies state on success — safe to call speculatively from
+     * MultipleChangeStreamMatcher without save/restore.
+     */
+    matchesOrSkip(event, cursorClosed) {
+        for (let i = this.index; i < this.matchers.length; i++) {
+            if (this.matchers[i].matches(event, cursorClosed)) {
+                while (this.index < i) {
+                    this.skipped.push({
+                        index: this.index,
+                        type: this.matchers[this.index].event.operationType,
+                    });
+                    this.index++;
+                }
+                this.index = i + 1;
+                return true;
+            }
+        }
+        return false;
+    }
+
     isDone() {
         return this.index === this.matchers.length;
     }
@@ -51,7 +74,7 @@ class SingleChangeStreamMatcher {
         );
     }
 
-    getMismatch() {
+    getFirstMismatch() {
         return this.mismatch;
     }
 
@@ -60,7 +83,7 @@ class SingleChangeStreamMatcher {
     }
 
     getExpectedOperationTypes() {
-        return this.matchers.map((m) => m.event.operationType);
+        return [this.matchers.map((m) => m.event.operationType)];
     }
 }
 
@@ -85,6 +108,10 @@ class MultipleChangeStreamMatcher {
         return this.matchers.some((matcher) => matcher.matches(event, cursorClosed));
     }
 
+    matchesOrSkip(event, cursorClosed) {
+        return this.matchers.some((matcher) => matcher.matchesOrSkip(event, cursorClosed));
+    }
+
     /**
      * Check if all streams have matched all their expected events.
      * @returns {boolean} True if all streams are done, false otherwise
@@ -100,6 +127,24 @@ class MultipleChangeStreamMatcher {
         this.matchers.forEach((matcher, idx) => {
             assert(matcher.isDone(), `Stream ${idx} not done. Matched ${matcher.index} of ${matcher.matchers.length}`);
         });
+    }
+
+    getFirstMismatch() {
+        for (const matcher of this.matchers) {
+            const m = matcher.getFirstMismatch();
+            if (m) {
+                return m;
+            }
+        }
+        return null;
+    }
+
+    getMatchedCount() {
+        return this.matchers.reduce((sum, m) => sum + m.getMatchedCount(), 0);
+    }
+
+    getExpectedOperationTypes() {
+        return this.matchers.flatMap((m) => m.getExpectedOperationTypes());
     }
 }
 

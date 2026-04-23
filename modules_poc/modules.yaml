@@ -79,6 +79,8 @@ core.idl:
 
 # stuff that is part of a generic mongo service
 core.service:
+  meta:
+    fully_marked: true
   files:
     - src/mongo/db/commands[._]* # not the commands directory
     - src/mongo/db/*operation_context*
@@ -421,9 +423,6 @@ admission:
   files:
     - src/mongo/db/admission/
     - src/mongo/db/flow_control_ticketholder*
-    - src/mongo/util/concurrency/admission_context*
-    - src/mongo/util/concurrency/*ticket_semaphore*
-    - src/mongo/util/concurrency/ticketholder*
 
 workload_simulation:
   meta:
@@ -1117,6 +1116,7 @@ replication.replication_coordinator:
     jira: Replication
     fully_marked: true
   files:
+    - src/mongo/db/repl/*optime_observer*
     - src/mongo/db/repl/*replication_coordinator*
     - src/mongo/db/repl/*external_state*
     - src/mongo/db/repl/*heartbeat*

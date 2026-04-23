@@ -30,7 +30,7 @@ class Connector {
     static readAllChangeEvents(conn, instanceName) {
         const db = conn.getDB(Connector.controlDatabase);
         const coll = db.getCollection(instanceName);
-        return coll.find().sort({"changeEvent._id": 1}).toArray();
+        return coll.find({}, {_id: 0}).sort({"changeEvent._id": 1}).toArray();
     }
 
     /**
@@ -141,6 +141,15 @@ class Connector {
         db.getCollection(instanceName).drop();
         // Remove the notification document.
         db.getCollection(Connector.notificationsCollection).deleteOne({_id: instanceName});
+    }
+
+    /**
+     * Drop the entire control database. Faster than per-instance cleanup
+     * when many inline readers (e.g. PrefixReadTestCase) created collections.
+     * @param {Mongo} conn - MongoDB connection.
+     */
+    static cleanupAll(conn) {
+        conn.getDB(Connector.controlDatabase).dropDatabase();
     }
 }
 

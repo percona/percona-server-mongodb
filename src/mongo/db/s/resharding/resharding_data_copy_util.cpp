@@ -38,6 +38,7 @@
 #include "mongo/db/dbhelpers.h"
 #include "mongo/db/error_labels.h"
 #include "mongo/db/namespace_string.h"
+#include "mongo/db/op_observer/batched_write_context.h"
 #include "mongo/db/operation_context.h"
 #include "mongo/db/persistent_task_store.h"
 #include "mongo/db/pipeline/expression_context.h"
@@ -254,12 +255,13 @@ void deleteRecipientResumeData(OperationContext* opCtx, const UUID& reshardingUU
                                   MODE_IX);
             if (!coll.exists())
                 return;
-            deleteObjects(opCtx,
-                          coll,
-                          BSON(ReshardingRecipientResumeData::kIdFieldName + "." +
-                                   ReshardingRecipientResumeDataId::kReshardingUUIDFieldName
-                               << reshardingUUID),
-                          false /* justOne */);
+            deleteObjects(
+                opCtx,
+                coll,
+                BSON(std::string{ReshardingRecipientResumeData::kIdFieldName} + "." +
+                         std::string{ReshardingRecipientResumeDataId::kReshardingUUIDFieldName}
+                     << reshardingUUID),
+                false /* justOne */);
         });
 }
 
@@ -422,7 +424,7 @@ int insertBatch(OperationContext* opCtx,
         WriteUnitOfWork wuow(opCtx);
 
         // If grouping, the op times will automatically be reserved together on commit.
-        if (wuow.isGroupingOplogEntries()) {
+        if (BatchedWriteContext::get(opCtx).writesAreBatched()) {
             for (auto&& insert : batch) {
                 numBytes += insert.doc.objsize();
             }
@@ -561,8 +563,8 @@ std::vector<ReshardingRecipientResumeData> getRecipientResumeData(OperationConte
                                                                   const UUID& reshardingUUID) {
     DBDirectClient client(opCtx);
     FindCommandRequest findCommand(NamespaceString::kRecipientReshardingResumeDataNamespace);
-    const auto filterField = ReshardingRecipientResumeData::kIdFieldName + "." +
-        mongo::ReshardingRecipientResumeDataId::kReshardingUUIDFieldName;
+    const auto filterField = std::string{ReshardingRecipientResumeData::kIdFieldName} + "." +
+        std::string{mongo::ReshardingRecipientResumeDataId::kReshardingUUIDFieldName};
     findCommand.setFilter(BSON(filterField << reshardingUUID));
     auto cursor = client.find(findCommand, ReadPreferenceSetting{}, ExhaustMode::kOff);
     std::vector<ReshardingRecipientResumeData> results;

@@ -127,10 +127,6 @@ class ReplicatedFastCountTestPersistenceProvider : public rss::StubPersistencePr
         return false;
     }
 
-    bool shouldDeferUntimestampedDrops() const override {
-        return false;
-    }
-
     bool supportsColdCollections() const override {
         return false;
     }
@@ -340,6 +336,11 @@ repl::OplogEntry makeTruncateRangeOplogEntry(Timestamp ts,
                                              NsAndUUID userColl,
                                              int64_t bytesDeleted,
                                              int64_t docsDeleted);
+/**
+ * Generates a command oplog entry representing a collection create or drop for 'userColl'.
+ */
+repl::OplogEntry makeCreateOplogEntry(Timestamp ts, NsAndUUID userColl);
+repl::OplogEntry makeDropOplogEntry(Timestamp ts, NsAndUUID userColl);
 
 /**
  * Inserts `oplogEntry` into the oplog collection.

@@ -81,7 +81,7 @@ long long adjustCappedMaxDocs(long long cappedMaxDocs) {
 
 void setEncryptedDefaultEncryptedCollectionNames(const NamespaceString& ns,
                                                  EncryptedFieldConfig* config) {
-    auto prefix = std::string("enxcol_.") + ns.coll();
+    auto prefix = std::string("enxcol_.") + std::string{ns.coll()};
 
     if (!config->getEscCollection()) {
         config->setEscCollection(StringData(prefix + ".esc"));
@@ -427,7 +427,7 @@ CollectionOptions CollectionOptions::fromCreateCommand(OperationContext* opCtx,
         if (storageTier->getCollection() == StorageTierLevelEnum::cold) {
             auto storageEngine = getGlobalServiceContext()->getStorageEngine();
             options.storageEngine = storageEngine->setStorageTierToStorageOptions(
-                options.storageEngine, idlSerialize(StorageTierLevelEnum::cold));
+                options.storageEngine, StorageTierLevelEnum::cold);
         }
 
         if (storageTier->getIndexes().has_value()) {

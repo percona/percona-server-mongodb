@@ -357,6 +357,10 @@ void assertSearchMetaAccessValid(const DocumentSourceContainer& pipeline,
     // for $mergeCursors because we could be on a shard doing the merge and only want to validate if
     // we have the whole pipeline.
     bool alreadyValidated = !expCtx->getInRouter() && expCtx->getNeedsMerge();
+    // NOTE: Cannot use isInstanceOf<DocumentSourceMergeCursors>() here because
+    // DocumentSourceMergeCursors::id is defined in //src/mongo/s/query/exec:router_exec_stage,
+    // which depends on //src/mongo/db/pipeline — adding the reverse dep would be circular.
+    // getSourceName() only needs the constexpr kStageName from the header, so it is safe.
     if (!alreadyValidated ||
         pipeline.front()->getSourceName() != DocumentSourceMergeCursors::kStageName) {
         assertSearchMetaAccessValidHelper({&pipeline});
@@ -713,10 +717,10 @@ void promoteStoredSourceOrAddIdLookup(
         // {$replaceRoot: {newRoot: {$ifNull: ["$storedSource", "$$ROOT"]}}
         // 'storedSource' is not always present in the document from mongot. If it's present, use it
         // as the root. Otherwise keep the original document.
-        BSONObj replaceRootSpec =
-            BSON("$replaceRoot" << BSON(
-                     "newRoot" << BSON(
-                         "$ifNull" << BSON_ARRAY("$" + kProtocolStoredFieldsName << "$$ROOT"))));
+        BSONObj replaceRootSpec = BSON(
+            "$replaceRoot" << BSON(
+                "newRoot" << BSON("$ifNull" << BSON_ARRAY(
+                                      "$" + std::string{kProtocolStoredFieldsName} << "$$ROOT"))));
         desugaredPipeline.push_back(
             DocumentSourceReplaceRoot::createFromBson(replaceRootSpec.firstElement(), expCtx));
         // Note: No shard filtering is done for storedSource. The isolation

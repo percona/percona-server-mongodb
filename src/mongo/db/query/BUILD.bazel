@@ -301,6 +301,7 @@ mongo_cc_library(
         "sampling_ce_method.cpp",
         "sampling_confidence_interval.cpp",
         "sbe_hashAgg_increased_spilling_mode.cpp",
+        "transform_hoist_policy.cpp",
     ],
     deps = [
         ":on_parameter_change_updaters",
@@ -711,6 +712,17 @@ mongo_cc_benchmark(
     srcs = ["canonical_query_bm.cpp"],
     tags = ["query_bm"],
     deps = [
+        "//src/mongo/db/query:query_fcv_environment_for_test",
+        "//src/mongo/db/query:query_test_service_context",
+    ],
+)
+
+mongo_cc_benchmark(
+    name = "query_knob_configuration_bm",
+    srcs = ["query_knob_configuration_bm.cpp"],
+    tags = ["query_bm"],
+    deps = [
+        "query_knob_configuration",
         "//src/mongo/db/query:query_fcv_environment_for_test",
         "//src/mongo/db/query:query_test_service_context",
     ],

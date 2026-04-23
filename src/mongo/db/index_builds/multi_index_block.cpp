@@ -61,6 +61,7 @@
 #include "mongo/db/shard_role/shard_catalog/index_descriptor.h"
 #include "mongo/db/shard_role/transaction_resources.h"
 #include "mongo/db/sorter/container_based_spiller.h"
+#include "mongo/db/sorter/file.h"
 #include "mongo/db/sorter/file_based_spiller.h"
 #include "mongo/db/storage/ident.h"
 #include "mongo/db/storage/key_format.h"
@@ -190,7 +191,7 @@ bool shouldRelaxConstraints(OperationContext* opCtx, const CollectionPtr& collec
     return !isPrimary;
 }
 
-std::shared_ptr<SorterSpiller<key_string::Value, mongo::NullValue, BtreeExternalSortComparison>>
+std::shared_ptr<sorter::Spiller<key_string::Value, mongo::NullValue, BtreeExternalSortComparison>>
 makeSpiller(OperationContext* opCtx,
             const CollectionPtr& collection,
             const IndexCatalogEntry* entry,
@@ -210,17 +211,19 @@ makeSpiller(OperationContext* opCtx,
             containerStats,
             dbName,
             sorter::kLatestChecksumVersion,
+            [] {},
             primaryDrivenIndexBuildSorterInsertionBatchSize.load(),
+            primaryDrivenIndexBuildSorterInsertionBatchBytes.load(),
             static_cast<int64_t>(indexBuildSpillingMinAvailableDiskSpaceBytes.load()));
     }
 
-    using FileBasedSpiller = sorter::
-        FileBasedSorterSpiller<key_string::Value, mongo::NullValue, BtreeExternalSortComparison>;
+    using FileBasedSpiller =
+        sorter::FileBasedSpiller<key_string::Value, mongo::NullValue, BtreeExternalSortComparison>;
     boost::filesystem::path tmpPath = storageGlobalParams.dbpath + "/_tmp";
     auto fileName = stateInfo ? stateInfo->getStorageIdentifier() : boost::none;
     return fileName
         ? std::make_shared<FileBasedSpiller>(
-              std::make_shared<SorterFile>(tmpPath / std::string{*fileName}, &fileStats),
+              std::make_shared<sorter::File>(tmpPath / std::string{*fileName}, &fileStats),
               tmpPath,
               dbName,
               sorter::kLatestChecksumVersion,
@@ -301,14 +304,15 @@ void MultiIndexBlock::abortIndexBuild(OperationContext* opCtx,
 
             wunit.commit();
             _buildIsCleanedUp = true;
-            // TODO (SERVER-122275) Use a valid non min timestamp ensure replication of the drop
-            // event.
-            auto timestamp = Timestamp::min();
+            // TODO(SERVER-122275) Use the drop timestamp from the WUOW commit. This requires the
+            // ability to drop based on stable timestamp rather than oldest timestamp to avoid
+            // keeping tables alive too long.
+            StorageEngine::DropTime dropTime = StorageEngine::Immediate{};
             if (_resumeStateTempRecordStore) {
-                _resumeStateTempRecordStore->drop(opCtx, timestamp);
+                _resumeStateTempRecordStore->drop(opCtx, dropTime);
             }
             for (auto& index : _indexes) {
-                index.block->dropTemporaryTables(opCtx, timestamp);
+                index.block->dropTemporaryTables(opCtx, dropTime);
             }
             return;
         } catch (const StorageUnavailableException&) {
@@ -349,7 +353,6 @@ StatusWith<std::vector<BSONObj>> MultiIndexBlock::init(
     OnInitFn onInit,
     const InitMode initMode,
     const boost::optional<ResumeIndexInfo>& resumeInfo,
-    bool generateTableWrites,
     const boost::optional<size_t> maxMemoryUsageBytes) {
     invariant(
         shard_role_details::getLocker(opCtx)->isCollectionLockedForMode(collection->ns(), MODE_X),
@@ -484,16 +487,12 @@ StatusWith<std::vector<BSONObj>> MultiIndexBlock::init(
                 auto status = index.block->initForResume(opCtx,
                                                          collection.getWritableCollection(opCtx),
                                                          indexes[i],
-                                                         resumeInfo->getPhase(),
-                                                         generateTableWrites);
+                                                         resumeInfo->getPhase());
                 if (!status.isOK())
                     return status;
             } else {
-                auto status = index.block->init(opCtx,
-                                                collection.getWritableCollection(opCtx),
-                                                indexes[i],
-                                                forRecovery,
-                                                generateTableWrites);
+                auto status = index.block->init(
+                    opCtx, collection.getWritableCollection(opCtx), indexes[i], forRecovery);
                 if (!status.isOK())
                     return status;
             }
@@ -1392,14 +1391,15 @@ Status MultiIndexBlock::commit(OperationContext* opCtx,
     shard_role_details::getRecoveryUnit(opCtx)->onCommit(
         [this](OperationContext* opCtx, boost::optional<Timestamp> ts) {
             _buildIsCleanedUp = true;
-            // TODO (SERVER-122275) Use a valid non min timestamp ensure replication of the drop
-            // event.
-            auto timestamp = Timestamp::min();
+            // TODO(SERVER-122275) Use the drop timestamp from the commit. This requires the
+            // ability to drop based on stable timestamp rather than oldest timestamp to avoid
+            // keeping tables alive too long.
+            StorageEngine::DropTime dropTime = StorageEngine::Immediate{};
             if (_resumeStateTempRecordStore) {
-                _resumeStateTempRecordStore->drop(opCtx, timestamp);
+                _resumeStateTempRecordStore->drop(opCtx, dropTime);
             }
             for (auto& index : _indexes) {
-                index.block->dropTemporaryTables(opCtx, timestamp);
+                index.block->dropTemporaryTables(opCtx, dropTime);
             }
         });
 

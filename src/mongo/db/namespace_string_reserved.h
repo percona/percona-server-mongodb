@@ -311,6 +311,14 @@
     /*  Namespace for storing feature compatibility version changes block documents */             \
     X(kBlockFCVChangesNamespace, DatabaseName::kConfig, "system.block_fcv_changes"_sd)             \
                                                                                                    \
+    /*  Namespace for storing replica set writes block critical section documents */               \
+    X(kReplicaSetWritesCriticalSectionsNamespace,                                                  \
+      DatabaseName::kConfig,                                                                       \
+      "replica_set_writes_critical_section"_sd)                                                    \
+                                                                                                   \
     /*  Namespace used for container oplog entries. */                                             \
     X(kContainerNamespace, DatabaseName::kAdmin, "$container"_sd)                                  \
-    /**/
+                                                                                                   \
+    /*  Namespace used for the log of all actions taken within a sharded cluster */                \
+    X(kConfigActionlogNamespace, DatabaseName::kConfig, "actionlog"_sd)
+/**/

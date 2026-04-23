@@ -63,6 +63,12 @@ filters:
   - "core_wildcard_indexes.yml":
     approvers:
       - 10gen/query-execution-write-exec
+  - "decimal.yml":
+    approvers:
+      - 10gen/server-programmability
+  - "disk_wiredtiger.yml":
+    approvers:
+      - 10gen/server-storage-engine-integration
   - "extensions*":
     approvers:
       - 10gen/query-integration-extensions-api
@@ -80,7 +86,7 @@ filters:
       - 10gen/query-execution
   - "query_tester_self_test.yml":
     approvers:
-      - 10gen/query-optimization
+      - 10gen/query-optimization-correctness
   - "search*":
     approvers:
       - 10gen/query-integration-search
@@ -240,16 +246,13 @@ filters:
   - "sharding_api_version_jscore_passthrough.yml":
     approvers:
       - 10gen/server-replication-reviewers
-  - "*deferred_engine_choice*":
-    approvers:
-      - 10gen/query-execution
   - "ssl*.yml":
     approvers:
       - 10gen/server-security
   - "analyze_shard_key_jscore_passthrough.yml":
     approvers:
       - 10gen/server-cluster-scalability
-  - "timeseries_write_pbt.yml":
+  - "timeseries_write_pbt*":
     approvers:
       - 10gen/server-timeseries-testing
   - "sharding_csrs_continuous_config_stepdown.yml":
@@ -258,3 +261,12 @@ filters:
   - "v1index_jscore_passthrough.yml":
     approvers:
       - 10gen/query
+  - "core_ese.yml":
+    approvers:
+      - 10gen/server-security
+  - "core_heap_profiling.yml":
+    approvers:
+      - 10gen/server-workload-resilience
+  - "session_jscore_passthrough.yml":
+    approvers:
+      - 10gen/server-transactions

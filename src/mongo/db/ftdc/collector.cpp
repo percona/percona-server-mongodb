@@ -33,6 +33,7 @@
 #include "mongo/bson/bsonobj.h"
 #include "mongo/bson/bsonobjbuilder.h"
 #include "mongo/db/admission/execution_control/execution_admission_context.h"
+#include "mongo/db/admission/ticketing/admission_context.h"
 #include "mongo/db/client.h"
 #include "mongo/db/client_strand.h"
 #include "mongo/db/ftdc/collection_metrics.h"
@@ -45,7 +46,6 @@
 #include "mongo/logv2/log.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/clock_source.h"
-#include "mongo/util/concurrency/admission_context.h"
 #include "mongo/util/concurrency/notification.h"
 #include "mongo/util/concurrency/thread_pool.h"
 #include "mongo/util/ctype.h"
@@ -59,6 +59,8 @@
 #include <tuple>
 #include <utility>
 #include <vector>
+
+#include <fmt/format.h>
 
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kFTDC
 
@@ -118,10 +120,15 @@ SampleCollectorCache::~SampleCollectorCache() {
     _shutdownPool_inlock(lk);
 }
 
-void SampleCollectorCache::addCollector(StringData name, bool hasData, SampleCollectFn&& fn) {
-    _sampleCollectors[std::string{name}] = {
+void SampleCollectorCache::addCollector(const std::string& name,
+                                        bool hasData,
+                                        SampleCollectFn&& fn) {
+    iassert(ErrorCodes::BadValue,
+            fmt::format("Duplicate FTDC collector name: '{}'", name),
+            !_sampleCollectors.contains(name));
+    _sampleCollectors[name] = {
         ClientStrand::make(getGlobalServiceContext()->getService()->makeClient(
-            std::string{name}, nullptr, ClientOperationKillableByStepdown{false})),
+            name, nullptr, ClientOperationKillableByStepdown{false})),
         boost::none,
         std::move(fn),
         0,
@@ -253,7 +260,10 @@ void AsyncFTDCCollectorCollection::_collect(
 }
 
 void SyncFTDCCollectorCollection::add(std::unique_ptr<FTDCCollectorInterface> collector) {
-    // TODO: ensure the collectors all have unique names.
+    const std::string newName = collector->name();
+    iassert(ErrorCodes::BadValue,
+            fmt::format("Duplicate FTDC collector name: '{}'", newName),
+            _collectorNames.emplace(newName).second);
     _collectors.emplace_back(std::move(collector));
 }
 

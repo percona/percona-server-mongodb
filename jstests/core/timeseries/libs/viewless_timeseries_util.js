@@ -24,6 +24,15 @@ export function areViewlessTimeseriesEnabled(db) {
     return FeatureFlagUtil.isPresentAndEnabled(db, "CreateViewlessTimeseriesCollections");
 }
 
+// Skips the current test if viewless timeseries are enabled, optionally running a cleanup
+// function (e.g. stopping a ShardingTest or ReplSetTest) before quitting.
+export function skipTestIfViewlessTimeseriesEnabled(db, cleanupFn) {
+    if (!isViewfulTimeseriesOnlySuite(db)) {
+        if (cleanupFn) cleanupFn();
+        quit();
+    }
+}
+
 // Returns true if the suite converts timeseries across viewful/viewless format in the background.
 export function runningWithViewlessTimeseriesUpgradeDowngrade(db) {
     if (isStableFCVSuite()) {
@@ -62,6 +71,37 @@ export function isViewfulTimeseriesOnlySuite(db) {
 
     // Check if the viewless timeseries feature flag is disabled in the latest FCV.
     return !FeatureFlagUtil.isPresentAndEnabled(db, "CreateViewlessTimeseriesCollections", true /* ignoreFCV */);
+}
+
+/**
+ * Asserts the format of all timeseries collections matches the current value of the viewless timeseries feature flag.
+ * TODO SERVER-101609 remove this function once 9.0 becomes lastLTS.
+ */
+export function assertTimeseriesConsistentWithViewlessFlag(db) {
+    const viewlessEnabled = FeatureFlagUtil.isPresentAndEnabled(db, "CreateViewlessTimeseriesCollections");
+    const dbNames = assert
+        .commandWorked(db.adminCommand({listDatabases: 1, nameOnly: true}))
+        .databases.map((d) => d.name);
+    for (const dbName of dbNames) {
+        // Use {type: {$ne: "view"}} to skip loading the view catalog (so we don't fail if there are invalid views).
+        const listCollections = db.getSiblingDB(dbName).getCollectionInfos({type: {$ne: "view"}});
+        for (const coll of listCollections) {
+            if (coll.type !== "timeseries") continue;
+            const isViewlessTimeseries = coll.info.uuid !== undefined;
+            assert.eq(
+                isViewlessTimeseries,
+                viewlessEnabled,
+                `Expected timeseries '${coll.name}' to be ${viewlessEnabled ? "viewless" : "viewful"}: ${tojson(listCollections)}`,
+            );
+        }
+
+        if (viewlessEnabled) {
+            assert(
+                !listCollections.some((coll) => coll.name.startsWith("system.buckets.")),
+                `Unexpected system.buckets.* collection with viewless timeseries enabled: ${tojson(listCollections)}`,
+            );
+        }
+    }
 }
 
 /**
@@ -179,24 +219,33 @@ export function findTimeseriesConfigCollectionsDocument(coll) {
     // We must use snapshot read concern to avoid racing with viewless timeseries upgrade/downgrade,
     // so bypass overrides, which may want to impose a different read concern (e.g. majority).
     return OverrideHelpers.withPreOverrideRunCommand(() => {
-        try {
-            const collEntry = coll
-                .getDB()
-                .getSiblingDB("config")
-                .collections.findOne(
-                    {_id: {$in: [coll.getFullName(), getTimeseriesBucketsColl(coll).getFullName()]}},
-                    {} /* projection */,
-                    {} /* options */,
-                    "snapshot",
-                );
-            return collEntry;
-        } catch (e) {
-            // readConcern "snapshot" is not supported on standalone nodes, but on a sharded cluster
-            // there can be no standalone nodes, so the collection is not sharded.
-            if (e.code === ErrorCodes.NotAReplicaSet) {
-                return null;
+        let retries = 3;
+        while (retries-- > 0) {
+            try {
+                const collEntry = coll
+                    .getDB()
+                    .getSiblingDB("config")
+                    .collections.findOne(
+                        {_id: {$in: [coll.getFullName(), getTimeseriesBucketsColl(coll).getFullName()]}},
+                        {} /* projection */,
+                        {} /* options */,
+                        "snapshot",
+                    );
+                return collEntry;
+            } catch (e) {
+                // readConcern "snapshot" is not supported on standalone nodes, but on a sharded cluster
+                // there can be no standalone nodes, so the collection is not sharded.
+                if (e.code === ErrorCodes.NotAReplicaSet) {
+                    return null;
+                }
+
+                if (e.code === ErrorCodes.HostUnreachable) {
+                    // Retry if the host is not available.
+                    sleep(500);
+                    continue;
+                }
+                throw e;
             }
-            throw e;
         }
     });
 }

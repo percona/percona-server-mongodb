@@ -2,8 +2,9 @@
  * End to end test for join optimization with additional filters.
  *
  * @tags: [
- *   requires_fcv_83,
- *   requires_sbe
+ *   requires_fcv_90,
+ *   requires_sbe,
+ *   featureFlagPathArrayness
  * ]
  */
 
@@ -25,6 +26,8 @@ try {
             {_id: 3, a: 2, b: 2, d: 2},
         ]),
     );
+    // Add index for multikeyness info for path arrayness.
+    assert.commandWorked(baseColl.createIndex({dummy: 1, a: 1, b: 1, d: 1}));
 
     assert.commandWorked(
         foreignColl1.insertMany([
@@ -34,6 +37,8 @@ try {
             {_id: 3, a: 2, c: "qux", d: 2},
         ]),
     );
+    // Add index for multikeyness info for path arrayness.
+    assert.commandWorked(foreignColl1.createIndex({dummy: 1, a: 1, c: 1, d: 1}));
 
     assert.commandWorked(
         foreignColl2.insertMany([
@@ -42,8 +47,11 @@ try {
             {_id: 2, b: 2, e: "baz", f: 1},
         ]),
     );
+    // Add index for multikeyness info for path arrayness.
+    assert.commandWorked(foreignColl2.createIndex({dummy: 1, b: 1, e: 1, f: 1}));
 
     runTestWithUnorderedComparison({
+        db,
         description: "Join optimization should not be used with local/foreignField syntax and additional filter",
         coll: baseColl,
         pipeline: [
@@ -68,6 +76,7 @@ try {
 
     // Same as above, without project.
     runTestWithUnorderedComparison({
+        db,
         description:
             "Join optimization should not be used with local/foreignField syntax and additional filter without project",
         coll: baseColl,
@@ -91,6 +100,7 @@ try {
     });
 
     runTestWithUnorderedComparison({
+        db,
         description: "Join optimization should not be used with let/pipeline syntax and additional filter",
         coll: baseColl,
         pipeline: [
@@ -114,6 +124,7 @@ try {
     });
 
     runTestWithUnorderedComparison({
+        db,
         description: "Join optimization should not be used with field syntax and pipeline syntax and additional filter",
         coll: baseColl,
         pipeline: [
@@ -136,6 +147,7 @@ try {
     });
 
     runTestWithUnorderedComparison({
+        db,
         description: "Join optimization can be used on a prefix even when the suffix has absorbed an additional filter",
         coll: baseColl,
         pipeline: [
@@ -164,6 +176,47 @@ try {
             {a: 1, b: 1, d: 1, foreignColl1: {a: 1, c: "bar", d: 2}, foreignColl2: {b: 1, e: "bar", f: 2}},
             {a: 1, b: 2, d: 2, foreignColl1: {a: 1, c: "bar", d: 2}, foreignColl2: {b: 1, e: "bar", f: 2}},
         ],
+        expectedUsedJoinOptimization: true,
+        expectedNumJoinStages: 1,
+    });
+
+    runTestWithUnorderedComparison({
+        db,
+        description: "Join optimization can handle filter which leads to EOF QSN",
+        coll: baseColl,
+        pipeline: [
+            {
+                $lookup: {
+                    from: foreignColl1.getName(),
+                    localField: "a",
+                    foreignField: "a",
+                    as: "foreignColl1",
+                },
+            },
+            {$unwind: "$foreignColl1"},
+            {$match: {$alwaysFalse: 1}},
+        ],
+        expectedResults: [],
+        expectedUsedJoinOptimization: true,
+    });
+
+    runTestWithUnorderedComparison({
+        db,
+        description: "Join optimization can handle filter which leads to EOF QSN in subpipeline",
+        coll: baseColl,
+        pipeline: [
+            {
+                $lookup: {
+                    from: foreignColl1.getName(),
+                    localField: "a",
+                    foreignField: "a",
+                    pipeline: [{$match: {$alwaysFalse: 1}}],
+                    as: "foreignColl1",
+                },
+            },
+            {$unwind: "$foreignColl1"},
+        ],
+        expectedResults: [],
         expectedUsedJoinOptimization: true,
     });
 } finally {

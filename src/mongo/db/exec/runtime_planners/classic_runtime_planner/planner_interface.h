@@ -63,13 +63,13 @@ public:
     /**
      * Function which adds the necessary stages for the generated PlanExecutor to perform deletes.
      */
-    void addDeleteStage(ParsedDelete* parsedDelete,
+    void addDeleteStage(ParsedDelete& parsedDelete,
                         projection_ast::Projection* projection,
                         DeleteStageParams deleteStageParams);
     /**
      * Function which adds the necessary stages for the generated PlanExecutor to perform updates.
      */
-    void addUpdateStage(CanonicalUpdate* canonicalUpdate,
+    void addUpdateStage(CanonicalUpdate& canonicalUpdate,
                         projection_ast::Projection* projection,
                         UpdateStageParams updateStageParams);
     /**
@@ -98,6 +98,9 @@ public:
     /**
      * State accessors.
      */
+    stage_builder::PlanStageToQsnMap& planStageQsnMap() {
+        return _planStageQsnMap;
+    }
     virtual const QuerySolution* querySolution() const = 0;
     const CanonicalQuery* cq() const;
     PlanStage* getRoot() const;

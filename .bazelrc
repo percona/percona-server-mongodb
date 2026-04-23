@@ -94,6 +94,10 @@ common:windows --repo_env=BAZEL_VS="C:/Program Files/Microsoft Visual Studio/202
 common:windows --repo_env=BAZEL_VC="C:/Program Files/Microsoft Visual Studio/2022.14/Professional/VC"
 common:windows --repo_env=BAZEL_VC_FULL_VERSION=14.44.35207
 
+# Pin the Windows SDK used by the Bazel MSVC toolchain. Override with
+# --repo_env=BAZEL_WINSDK_FULL_VERSION=<sdk-version> on the command line.
+common:windows --repo_env=BAZEL_WINSDK_FULL_VERSION=10.0.20348.0
+
 # Default the Visual C Redistribution to v14.3 for Windows installer.
 common:windows --repo_env=MONGO_VC_REDIST_FULL_VERSION=v143
 
@@ -437,7 +441,7 @@ common:remote_test --test_output=summary
 # The below line unsets the no-remote-cache execution info for the given strategies
 # even though upon first glance it looks like it's setting it.
 common:remote_test --modify_execution_info=^(TestRunner|CppLink|CppArchive|SolibSymlink|ExtractDebugInfo|StripDebugInfo|CcGenerateIntermediateDwp|CcGenerateDwp)$=-no-remote-cache
-common:remote_test --remote_download_regex=.*\.(zip|core|mdmp|gz)$
+common:remote_test --remote_download_regex=.*\.(core|mdmp|gz)$
 
 test:remote_test --test_tag_filters=-incompatible_with_bazel_remote_test
 
@@ -698,7 +702,13 @@ try-import %workspace%/.bazelrc.fuzztest
 # Cross-compile for macOS arm64
 build:macos-cross-arm64 --platforms=//bazel/platforms:macos_arm64_cross
 build:macos-cross-arm64 --copt=-w
+# The rust-based allocator_library bundles the full Rust stdlib into its .a;
+# on Mach-O, ld64.lld then sees the same CGUs in both liballocator_library.a and
+# libstd.a and fails with duplicate-symbol errors. Fall back to the c-based
+# allocator shim for macOS cross links.
+build:macos-cross-arm64 --@rules_rust//rust/settings:experimental_use_allocator_libraries_with_mangled_symbols=false
 
 # Cross-compile for macOS x86_64
 build:macos-cross-x86_64 --platforms=//bazel/platforms:macos_x86_64_cross
 build:macos-cross-x86_64 --copt=-w
+build:macos-cross-x86_64 --@rules_rust//rust/settings:experimental_use_allocator_libraries_with_mangled_symbols=false

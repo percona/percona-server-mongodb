@@ -39,41 +39,55 @@ function assertNoMatchInLog(logLine, regex) {
 }
 
 /**
- * Runs the aggregation and fetches the corresponding diagnostics from the source -- the slow query
- * log or profiler. The query's cursorId is used to identify the log lines or profiler entries
- * corresponding to this aggregation.
+ * Runs the command and fetches the corresponding diagnostics from the source -- the slow query log
+ * or profiler. If the command returns a cursor, it is exhausted via getMore calls. The unique
+ * comment appended to commandObj.comment is used to identify the relevant log lines and profiler
+ * entries.
  */
 export function runPipelineAndGetDiagnostics({db, collName, commandObj, source}) {
-    // Retrieve the cursor.
-    const aggregateCommandResult = db.runCommand(commandObj);
-    const cursorId = aggregateCommandResult.cursor.id;
-    let currentCursorId = cursorId;
+    const uniqueComment = commandObj.comment + "_" + ObjectId().str;
+    commandObj = Object.assign({}, commandObj, {comment: uniqueComment});
 
-    // Iteratively call getMore until the cursor is exhausted.
-    while (currentCursorId.toString() !== "NumberLong(0)") {
-        const getMoreResult = db.runCommand({
-            getMore: currentCursorId,
-            collection: collName,
-            batchSize: commandObj.cursor.batchSize,
-            comment: commandObj.comment,
-        });
-        currentCursorId = getMoreResult.cursor.id;
+    // Run the command.
+    const commandResult = db.runCommand(commandObj);
+
+    // If the command returned a cursor, exhaust it via getMore calls.
+    if (commandResult.cursor) {
+        let currentCursorId = commandResult.cursor.id;
+        while (currentCursorId.toString() !== "NumberLong(0)") {
+            const getMoreResult = db.runCommand({
+                getMore: currentCursorId,
+                collection: collName,
+                batchSize: commandObj.cursor.batchSize,
+                comment: uniqueComment,
+            });
+            currentCursorId = getMoreResult.cursor.id;
+        }
     }
 
+    // Filter diagnostics using the comment which is unique per call.
     if (source === "log") {
+        const logMatchFilter = {msg: "Slow query", comment: uniqueComment};
         let logLines = [];
-        assert.soon(() => {
-            const globalLog = assert.commandWorked(db.adminCommand({getLog: "global"}));
-            logLines = [...iterateMatchingLogLines(globalLog.log, {msg: "Slow query", cursorid: cursorId})];
-            return logLines.length >= 1;
-        }, "Failed to find a log line for cursorid: " + cursorId.toString());
+        assert.soon(
+            () => {
+                const globalLog = assert.commandWorked(db.adminCommand({getLog: "global"}));
+                logLines = [...iterateMatchingLogLines(globalLog.log, logMatchFilter)];
+                return logLines.length >= 1;
+            },
+            "Failed to find a log line for filter: " + tojson(logMatchFilter),
+        );
         return logLines;
     } else if (source === "profiler") {
+        const profilerFilter = {"command.comment": uniqueComment};
         let profilerEntries = [];
-        assert.soon(() => {
-            profilerEntries = db.system.profile.find({"cursorid": cursorId}).toArray();
-            return profilerEntries.length >= 1;
-        }, "Failed to find a profiler entry for cursorid: " + cursorId.toString());
+        assert.soon(
+            () => {
+                profilerEntries = db.system.profile.find(profilerFilter).toArray();
+                return profilerEntries.length >= 1;
+            },
+            "Failed to find a profiler entry for filter: " + tojson(profilerFilter),
+        );
         return profilerEntries;
     }
 }

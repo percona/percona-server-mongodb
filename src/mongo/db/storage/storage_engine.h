@@ -39,6 +39,8 @@
 #include "mongo/db/storage/engine_extension.h"
 #include "mongo/db/storage/ident.h"
 #include "mongo/db/storage/record_store.h"
+#include "mongo/db/storage/storage_tier_gen.h"
+#include "mongo/util/assert_util.h"
 #include "mongo/util/modules.h"
 #include "mongo/util/periodic_runner.h"
 #include "mongo/util/str.h"
@@ -377,74 +379,14 @@ public:
         /**
          * Timestamps that can be listened to for changes.
          */
-        enum class TimestampType { kCheckpoint, kOldest, kStable, kMinOfCheckpointAndOldest };
-
-        /**
-         * A TimestampListener is used to listen for changes in a given timestamp and to execute the
-         * user-provided callback to the change with a custom user-provided callback.
-         *
-         * The TimestampListener must be registered in the TimestampMonitor in order to be notified
-         * of timestamp changes and react to changes for the duration it's part of the monitor.
-         *
-         * Listeners expected to run in standalone mode should handle Timestamp::min() notifications
-         * appropriately.
-         */
-        class TimestampListener {
-        public:
-            // Caller must ensure that the lifetime of the variables used in the callback are valid.
-            using Callback = std::function<void(OperationContext* opCtx, Timestamp timestamp)>;
-
-            /**
-             * A TimestampListener saves a 'callback' that will be executed whenever the specified
-             * 'type' timestamp changes. The 'callback' function will be passed the new 'type'
-             * timestamp.
-             */
-            TimestampListener(TimestampType type, Callback callback)
-                : _type(type), _callback(std::move(callback)) {}
-
-            /**
-             * Executes the appropriate function with the callback of the listener with the new
-             * timestamp.
-             */
-            void notify(OperationContext* opCtx, Timestamp newTimestamp) {
-                if (_type == TimestampType::kCheckpoint)
-                    _onCheckpointTimestampChanged(opCtx, newTimestamp);
-                else if (_type == TimestampType::kOldest)
-                    _onOldestTimestampChanged(opCtx, newTimestamp);
-                else if (_type == TimestampType::kStable)
-                    _onStableTimestampChanged(opCtx, newTimestamp);
-                else if (_type == TimestampType::kMinOfCheckpointAndOldest)
-                    _onMinOfCheckpointAndOldestTimestampChanged(opCtx, newTimestamp);
-            }
-
-            TimestampType getType() const {
-                return _type;
-            }
-
-        private:
-            void _onCheckpointTimestampChanged(OperationContext* opCtx, Timestamp newTimestamp) {
-                _callback(opCtx, newTimestamp);
-            }
-
-            void _onOldestTimestampChanged(OperationContext* opCtx, Timestamp newTimestamp) {
-                _callback(opCtx, newTimestamp);
-            }
-
-            void _onStableTimestampChanged(OperationContext* opCtx, Timestamp newTimestamp) {
-                _callback(opCtx, newTimestamp);
-            }
-
-            void _onMinOfCheckpointAndOldestTimestampChanged(OperationContext* opCtx,
-                                                             Timestamp newTimestamp) {
-                _callback(opCtx, newTimestamp);
-            }
-
-            // Timestamp type this listener monitors.
-            TimestampType _type;
-
-            // Function to execute when the timestamp changes.
-            Callback _callback;
+        struct Timestamps {
+            Timestamp checkpoint;
+            Timestamp oldest;
+            Timestamp stable;
         };
+
+        using TimestampListener =
+            std::function<void(OperationContext* opCtx, const Timestamps& timestamps)>;
 
         /**
          * Starts monitoring timestamp changes in the background with an initial listener.
@@ -454,8 +396,7 @@ public:
         ~TimestampMonitor();
 
         /**
-         * Adds a new listener to the monitor if it isn't already registered. A listener can only be
-         * bound to one type of timestamp at a time.
+         * Adds a new listener to the monitor if it isn't already registered.
          */
         void addListener(TimestampListener* listener);
 
@@ -475,8 +416,7 @@ public:
 
     private:
         /**
-         * Monitor changes in timestamps and to notify the listeners on change. Notifies all
-         * listeners on Timestamp::min() in order to support standalone mode that is untimestamped.
+         * Monitor changes in timestamps and to notify the listeners on change.
          */
         void _startup();
 
@@ -614,40 +554,36 @@ public:
                                       Timestamp timestamp) = 0;
 
     BOOST_STRONG_TYPEDEF(uint64_t, CheckpointIteration);
+    BOOST_STRONG_TYPEDEF(Timestamp, OldestTimestamp);
+    BOOST_STRONG_TYPEDEF(Timestamp, StableTimestamp);
+    struct Immediate {
+        bool operator==(const Immediate&) const = default;
+    };
 
     /**
      * Drops can be either timestamped or untimestamped. A timestamped drop is delayed until the
-     * oldest timestamp has advanced past the drop timestamp, while an untimestamped drop happens as
-     * soon as a checkpoint has been taken. Untimestamped drops are performed by constructing a
-     * DropTime with a CheckpointIteration representing the most recent checkpoint.
+     * oldest timestamp and checkpoint timestamp have advanced past the drop timestamp.
+     * Untimestamped drops can happen either after a checkpoint has been taken (using a
+     * CheckpointIteration obtained from getCheckPointIteration()), or as soon as possible. Note
+     * that Immediate still drops the ident asynchronously.
      */
-    struct DropTime : public std::variant<Timestamp, CheckpointIteration> {
-        using Base = std::variant<Timestamp, CheckpointIteration>;
+    struct DropTime
+        : public std::variant<OldestTimestamp, StableTimestamp, CheckpointIteration, Immediate> {
+        using Base = std::variant<OldestTimestamp, StableTimestamp, CheckpointIteration, Immediate>;
         using Base::Base;
 
         BSONObj toBSON() const {
-            return std::visit(OverloadedVisitor{[](Timestamp ts) { return ts.toBSON(); },
-                                                [](CheckpointIteration iter) {
-                                                    return BSON("checkpointIteration"
-                                                                << std::to_string(uint64_t{iter}));
-                                                }},
+            return std::visit(OverloadedVisitor{
+                                  [](OldestTimestamp ts) { return ts.t.toBSON(); },
+                                  [](StableTimestamp ts) { return ts.t.toBSON(); },
+                                  [](CheckpointIteration iter) {
+                                      return BSON("checkpointIteration"
+                                                  << std::to_string(uint64_t{iter}));
+                                  },
+                                  [](Immediate) { return BSON("immediate" << 1); },
+                              },
                               *this);
         }
-
-        // CheckpointIterations are considered less than all Timestamps
-        auto operator<=>(const DropTime& other) const {
-            return std::visit(
-                OverloadedVisitor{
-                    [](Timestamp a, Timestamp b) { return a.asULL() <=> b.asULL(); },
-                    [](CheckpointIteration a, CheckpointIteration b) { return a <=> b; },
-                    [](Timestamp, CheckpointIteration) { return std::strong_ordering::greater; },
-                    [](CheckpointIteration, Timestamp) { return std::strong_ordering::less; },
-                },
-                *this,
-                other);
-        }
-
-        bool operator==(const DropTime&) const = default;
     };
 
     /**
@@ -1044,13 +980,13 @@ public:
      * index. Returns the updated storage engine options BSON object with the new value set.
      */
     [[nodiscard]] virtual BSONObj setStorageTierToStorageOptions(
-        const BSONObj& storageEngineOptions, StringData value) const = 0;
+        const BSONObj& storageEngineOptions, StorageTierLevelEnum value) const = 0;
 
     /**
      * Returns the value of `disaggregated.storage_tier` from the storage engine BSON object of a
      * collection / index, or boost::none if not set.
      */
-    virtual boost::optional<std::string> getStorageTierFromStorageOptions(
+    virtual boost::optional<StorageTierLevelEnum> getStorageTierFromStorageOptions(
         const BSONObj& storageEngineOptions) const = 0;
 
     /**

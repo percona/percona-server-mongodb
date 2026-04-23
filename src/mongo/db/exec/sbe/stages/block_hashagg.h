@@ -35,6 +35,7 @@
 #include "mongo/db/exec/sbe/values/block_interface.h"
 #include "mongo/db/exec/sbe/values/slot.h"
 #include "mongo/db/exec/sbe/vm/vm.h"
+#include "mongo/db/query/plan_yield_policy_sbe.h"
 #include "mongo/util/modules.h"
 
 
@@ -64,7 +65,7 @@ public:
                       BlockAggExprTupleVector aggs,
                       bool allowDiskUse,
                       SlotExprPairVector mergingExprs,
-                      PlanYieldPolicy* yieldPolicy,
+                      PlanYieldPolicySBE* yieldPolicy,
                       PlanNodeId planNodeId,
                       bool participateInTrialRunTracking = true,
                       bool forceIncreasedSpilling = false);
@@ -266,6 +267,7 @@ private:
     vm::ByteCode _bytecode;
     bool _compiled = false;
 
+    bool _childOpened{false};
     bool _done = false;
 
     // Partial aggregates that have been spilled and restored are passed into the bytecode in

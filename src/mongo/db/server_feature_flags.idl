@@ -28,6 +28,7 @@
 
 global:
     cpp_namespace: "mongo"
+    mod_visibility: public
 
 feature_flags:
     featureFlagSecurityToken:
@@ -249,6 +250,11 @@ feature_flags:
         cpp_varname: gFeatureFlagReplicatedFastCount
         default: false
         fcv_gated: true
+    featureFlagReplicatedFastCountDurability:
+        description: "Changes to replicated fast count that modify persisted data should be guarded behind this flag"
+        cpp_varname: gFeatureFlagReplicatedFastCountDurability
+        default: false
+        fcv_gated: true
     featureFlagOtelMetrics:
         description: "Feature flag to enable exporting OpenTelemetry metrics"
         cpp_varname: gFeatureFlagOtelMetrics
@@ -296,9 +302,28 @@ feature_flags:
         cpp_varname: gFeatureFlagQEPrefixSuffixSearch
         default: false
         fcv_gated: true
+    # TODO (SERVER-122417): Remove this feature flag once v9.0 branches out.
+    featureFlagListIndexesAlwaysIncludesSimpleCollation:
+        description: "Feature flag to enable the listIndexes command to include the collation field in the index specs, even when it is the simple collation."
+        cpp_varname: feature_flags::gFeatureFlagListIndexesAlwaysIncludesSimpleCollation
+        default: true
+        version: 9.0
+        fcv_gated: true
     featureFlagIncludeDeltaHeaderForPhylog:
         description: "Enable including delta headers for phylog pages."
         cpp_varname: gFeatureFlagIncludeDeltaHeaderForPhylog
+        default: false
+        fcv_gated: false
+    # TODO (SERVER-122847): remove this feature flag
+    featureFlagExecutionControlRemoteSpecification:
+        description: "Feature flag for enabling remote specification of execution control priority"
+        cpp_varname: gExecutionControlRemoteSpecification
+        default: true
+        fcv_gated: true
+        version: 9.0
+    featureFlagDSCLinearizableReadConcern:
+        description: "Enable linearizable read concern for dsc."
+        cpp_varname: gFeatureFlagDSCLinearizableReadConcern
         default: false
         fcv_gated: false
 

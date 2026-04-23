@@ -146,11 +146,14 @@ const allCommands = {
     _shardsvrReshardingDonorStartChangeStreamsMonitor: {skip: isAnInternalCommand},
     _shardsvrReshardingOperationTime: {skip: isAnInternalCommand},
     _shardsvrReshardDonorInitialize: {skip: isAnInternalCommand},
+    _shardsvrReshardDonorRecipientsFinishedCloning: {skip: isAnInternalCommand},
     _shardsvrReshardRecipientInitialize: {skip: isAnInternalCommand},
     _shardsvrReshardRecipientClone: {skip: isAnInternalCommand},
     _shardsvrReshardRecipientCriticalSectionStarted: {skip: isAnInternalCommand},
     _shardsvrRefineCollectionShardKey: {skip: isAnInternalCommand},
     _shardsvrCommitRefineCollectionShardKey: {skip: isAnInternalCommand},
+    _shardsvrCommitDropCollectionMetadata: {skip: isAnInternalCommand},
+    _shardsvrCommitCreateCollectionMetadata: {skip: isAnInternalCommand},
     _shardsvrSetAllowMigrations: {skip: isAnInternalCommand},
     _shardsvrSetClusterParameter: {skip: isAnInternalCommand},
     _shardsvrSetUserWriteBlockMode: {skip: isAnInternalCommand},
@@ -1209,6 +1212,29 @@ const allCommands = {
         },
     },
     prepareTransaction: {skip: isAnInternalCommand},
+    blockReplicaSetWrites: {
+        checkFeatureFlag: "blockReplicaSetWrites",
+        isShardSvrOnly: true,
+        doesNotRunOnStandalone: true,
+        isAdminCommand: true,
+        command: {
+            blockReplicaSetWrites: 1,
+            enabled: true,
+            allowDeletions: false,
+            reason: "InsufficientDiskSpace",
+        },
+        teardown: function (conn, fixture) {
+            const shardConn = fixture.shard0 ? fixture.shard0 : conn;
+            assert.commandWorked(
+                shardConn.getDB("admin").runCommand({
+                    blockReplicaSetWrites: 1,
+                    enabled: false,
+                    allowDeletions: false,
+                    reason: "InsufficientDiskSpace",
+                }),
+            );
+        },
+    },
     profile: {
         doesNotRunOnMongos: true,
         isAdminCommand: true,

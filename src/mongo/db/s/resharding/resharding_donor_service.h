@@ -40,6 +40,7 @@
 #include "mongo/db/operation_context.h"
 #include "mongo/db/pipeline/process_interface/mongo_process_interface.h"
 #include "mongo/db/repl/primary_only_service.h"
+#include "mongo/db/s/forwardable_operation_metadata.h"
 #include "mongo/db/s/primary_only_service_helpers/cancel_state.h"
 #include "mongo/db/s/resharding/donor_document_gen.h"
 #include "mongo/db/s/resharding/resharding_change_streams_monitor.h"
@@ -141,6 +142,8 @@ public:
     void onReadDuringCriticalSection();
     void onWriteDuringCriticalSection();
 
+    void notifyAllRecipientsDoneCloning();
+
     SharedSemiFuture<void> awaitCriticalSectionAcquired();
 
     SharedSemiFuture<void> awaitCriticalSectionPromoted();
@@ -165,6 +168,15 @@ public:
      * this donor. Throws an error if verification is not enabled.
      */
     SharedSemiFuture<int64_t> awaitChangeStreamsMonitorCompleted();
+
+    /**
+     * Returns a Future fulfilled once the donor transitions into
+     * DonorStateEnum::kDonatingOplogEntries, or fulfilled with an error if the donor fails before
+     * reaching that state.
+     */
+    SharedSemiFuture<void> awaitInDonatingOplogEntries() const {
+        return _inDonatingOplogEntries.getFuture();
+    }
 
     /**
      * Returns a Future fulfilled once the donor locally persists its final state before the
@@ -326,6 +338,9 @@ private:
     // The in-memory representation of the immutable portion of the document in
     // config.localReshardingOperations.donor.
     const CommonReshardingMetadata _metadata;
+
+    // Cached copy of _metadata's ForwardableOperationMetadata with cross-shard propagation enabled.
+    const boost::optional<ForwardableOperationMetadata> _forwardableOpMetadata;
     const std::vector<ShardId> _recipientShardIds;
 
     // The in-memory representation of the mutable portion of the document in
@@ -363,6 +378,8 @@ private:
     // ascending order, such that the first promise below will be the first promise fulfilled -
     // fulfillment order is not necessarily maintained if the operation gets aborted.
     SharedPromise<void> _allRecipientsDoneCloning;
+
+    SharedPromise<void> _inDonatingOplogEntries;
 
     SharedPromise<void> _allRecipientsDoneApplying;
 

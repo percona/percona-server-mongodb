@@ -30,6 +30,7 @@
 #include "mongo/db/global_catalog/ddl/drop_collection_if_uuid_not_matching_gen.h"
 #include "mongo/db/global_catalog/ddl/notify_sharding_event_utils.h"
 #include "mongo/db/global_catalog/ddl/sharding_catalog_manager.h"
+#include "mongo/db/global_catalog/ddl/sharding_ddl_util.h"
 #include "mongo/db/router_role/router_role.h"
 #include "mongo/db/router_role/routing_cache/routing_information_cache.h"
 #include "mongo/db/s/balancer/balance_stats.h"
@@ -48,6 +49,7 @@
 #include "mongo/db/sharding_environment/sharding_logging.h"
 #include "mongo/db/topology/vector_clock/vector_clock.h"
 #include "mongo/db/topology/vector_clock/vector_clock_mutable.h"
+#include "mongo/db/version_context.h"
 #include "mongo/otel/traces/telemetry_context_serialization.h"
 #include "mongo/s/request_types/reshard_collection_gen.h"
 #include "mongo/s/resharding/resharding_feature_flag_gen.h"
@@ -93,6 +95,7 @@ extern FailPoint reshardingPauseCoordinatorBeforePersistingStateTransition;
 extern FailPoint reshardingPerformValidationAfterApplying;
 extern FailPoint pauseBeforeTellDonorToRefresh;
 extern FailPoint pauseAfterInsertCoordinatorDoc;
+extern FailPoint pauseAfterStoppingActiveMigrations;
 extern FailPoint pauseBeforeCTHolderInitialization;
 extern FailPoint pauseAfterEngagingCriticalSection;
 extern FailPoint reshardingPauseBeforeTellingRecipientsToClone;
@@ -112,6 +115,7 @@ MONGO_FAIL_POINT_DEFINE(reshardingPauseCoordinatorBeforeStartingErrorFlow);
 MONGO_FAIL_POINT_DEFINE(reshardingPauseCoordinatorBeforePersistingStateTransition);
 MONGO_FAIL_POINT_DEFINE(pauseBeforeTellDonorToRefresh);
 MONGO_FAIL_POINT_DEFINE(pauseAfterInsertCoordinatorDoc);
+MONGO_FAIL_POINT_DEFINE(pauseAfterStoppingActiveMigrations);
 MONGO_FAIL_POINT_DEFINE(pauseBeforeCTHolderInitialization);
 MONGO_FAIL_POINT_DEFINE(pauseAfterEngagingCriticalSection);
 MONGO_FAIL_POINT_DEFINE(reshardingPauseBeforeTellingRecipientsToClone);
@@ -156,6 +160,10 @@ ReshardingCoordinator::ReshardingCoordinator(
       _serviceContext(serviceContext),
       _metrics{ReshardingMetrics::initializeFrom(coordinatorDoc, _serviceContext)},
       _metadata(coordinatorDoc.getCommonReshardingMetadata()),
+      _forwardableOpMetadata(
+          _metadata.getForwardableOpMetadata().map([](const ForwardableOperationMetadata& f) {
+              return f.withVersionContextPropagation_UNSAFE();
+          })),
       _coordinatorDoc(coordinatorDoc),
       _coordinatorDao(resharding::ReshardingCoordinatorDao(coordinatorDoc.getReshardingUUID())),
       _markKilledExecutor{resharding::makeThreadPoolForMarkKilledExecutor(
@@ -281,7 +289,8 @@ void markCompleted(const Status& status, ReshardingMetrics* metrics) {
 CancelableOperationContext ReshardingCoordinator::_makeOperationContext() const {
     return resharding::makeReshardingOperationContext(*_cancelableOpCtxFactory,
                                                       _coordinatorDoc.getState() >=
-                                                          CoordinatorStateEnum::kBlockingWrites);
+                                                          CoordinatorStateEnum::kBlockingWrites,
+                                                      _forwardableOpMetadata);
 }
 
 Status ReshardingCoordinator::_getEffectiveStatus(Status status) const {
@@ -342,11 +351,55 @@ ExecutorFuture<void> ReshardingCoordinator::_tellAllParticipantsReshardingStarte
         .runOn(**executor, _ctHolder->getStepdownToken());
 }
 
+void ReshardingCoordinator::_stopMigrations(
+    const std::shared_ptr<executor::ScopedTaskExecutor>& executor) {
+    if (_coordinatorDoc.getState() > CoordinatorStateEnum::kInitializing) {
+        return;
+    }
+
+    // moveCollection applies to unsplittable collections that are not subject to migrations.
+    auto provenance = _coordinatorDoc.getCommonReshardingMetadata().getProvenance();
+    if (resharding::isMoveCollection(provenance)) {
+        return;
+    }
+
+    // We must actively stop existing migrations and prevent new from starting to prevent
+    // migrations from racing with resharding to acquire the critical section.
+    auto opCtx = _makeOperationContext();
+    _reshardingCoordinatorExternalState->stopMigrations(opCtx.get(),
+                                                        _coordinatorDoc.getSourceNss(),
+                                                        _coordinatorDoc.getSourceUUID(),
+                                                        _getNewSession(opCtx.get()));
+
+    resharding::tellAllParticipantsToJoinMigrations(opCtx.get(),
+                                                    _getNewSession(opCtx.get()),
+                                                    _coordinatorDoc,
+                                                    _ctHolder->getStepdownToken(),
+                                                    executor);
+
+    pauseAfterStoppingActiveMigrations.pauseWhileSet();
+}
+
+void ReshardingCoordinator::_resumeMigrations(OperationContext* opCtx,
+                                              boost::optional<Status> abortReason) {
+    // moveCollection applies to unsplittable collections that are not subject to migrations.
+    auto provenance = _coordinatorDoc.getCommonReshardingMetadata().getProvenance();
+    if (resharding::isMoveCollection(provenance)) {
+        return;
+    }
+
+    auto collectionUUID =
+        abortReason ? _coordinatorDoc.getSourceUUID() : _coordinatorDoc.getReshardingUUID();
+    _reshardingCoordinatorExternalState->resumeMigrations(
+        opCtx, _coordinatorDoc.getSourceNss(), collectionUUID, _getNewSession(opCtx));
+}
+
 ExecutorFuture<void> ReshardingCoordinator::_initializeCoordinator(
     const std::shared_ptr<executor::ScopedTaskExecutor>& executor) {
     return resharding::WithAutomaticRetry([this, executor] {
                return ExecutorFuture<void>(**executor)
                    .then([this] { _insertCoordDocAndChangeOrigCollEntry(); })
+                   .then([this, executor] { _stopMigrations(executor); })
                    .then([this] { _calculateParticipantsAndChunksThenWriteToDisk(); });
            })
         .onTransientError([](const Status& status) {
@@ -431,6 +484,7 @@ ExecutorFuture<ReshardingCoordinatorDocument> ReshardingCoordinator::_runUntilRe
                            auto span = _startSpan(
                                telemetryCtx, "ReshardingCoordinator::_awaitAllRecipientsCloning");
                            if (resharding::gFeatureFlagReshardingCloneNoRefresh.isEnabled(
+                                   resharding::getVersionContextOrDefault(_forwardableOpMetadata),
                                    serverGlobalParams.featureCompatibility.acquireFCVSnapshot())) {
                                _tellAllRecipientsToClone(executor);
                            } else {
@@ -470,10 +524,9 @@ ExecutorFuture<ReshardingCoordinatorDocument> ReshardingCoordinator::_runUntilRe
                                telemetryCtx,
                                "ReshardingCoordinator::tellAllParticipantsReshardingReadyToCommit");
                            _tellAllDonorsToRefresh(executor);
-                           // TODO (SERVER-92437) Avoid ignoring FCV for feature flag check once
-                           // resharding starts storing what FCV it was started with.
                            if (resharding::gFeatureFlagReshardingSkipCloningAndApplyingIfApplicable
-                                   .isEnabled(kVersionContextIgnored_UNSAFE,
+                                   .isEnabled(resharding::getVersionContextOrDefault(
+                                                  _forwardableOpMetadata),
                                               serverGlobalParams.featureCompatibility
                                                   .acquireFCVSnapshot())) {
                                _tellAllRecipientsCriticalSectionStarted(executor);
@@ -624,7 +677,7 @@ ExecutorFuture<void> ReshardingCoordinator::_commitAndFinishReshardOperation(
                                return _awaitAllParticipantShardsDone(executor);
                            })
                            .then([this, executor] {
-                               _metrics->setEndFor(CoordinatorStateEnum::kBlockingWrites,
+                               _metrics->setEndFor(ReshardingMetrics::TimedPhase::kCriticalSection,
                                                    resharding::getCurrentTime());
 
                                // Best-effort attempt to trigger a refresh on the participant shards
@@ -1265,7 +1318,7 @@ ExecutorFuture<void> ReshardingCoordinator::_awaitAllDonorsReadyToDonate(
                     auto now = resharding::getCurrentTime();
                     auto updatedDocument = _coordinatorDao.transitionToCloningPhase(
                         opCtx, now, highestMinFetchTimestamp, approxCopySize, txnNumber);
-                    _metrics->setStartFor(CoordinatorStateEnum::kCloning, now);
+                    _metrics->setStartFor(ReshardingMetrics::TimedPhase::kCloning, now);
                     return updatedDocument;
                 });
         })
@@ -1287,6 +1340,9 @@ ExecutorFuture<void> ReshardingCoordinator::_fetchAndPersistNumDocumentsToCloneF
     if (!needToFetch) {
         return ExecutorFuture<void>(**executor, Status::OK());
     }
+
+    _metrics->setStartFor(ReshardingMetrics::TimedPhase::kVerificationPreApplying,
+                          resharding::getCurrentTime());
 
     LOGV2(9858100,
           "Start fetching the number of documents to copy from all donor shards",
@@ -1385,6 +1441,8 @@ ExecutorFuture<void> ReshardingCoordinator::_fetchAndPersistNumDocumentsToCloneF
         })
         .runOn(**executor, _ctHolder->getAbortToken())
         .then([this] {
+            _metrics->setEndFor(ReshardingMetrics::TimedPhase::kVerificationPreApplying,
+                                resharding::getCurrentTime());
             // Wait for the update to the coordinator doc to be majority committed before moving to
             // the next step.
             return resharding::waitForMajority(_ctHolder->getAbortToken(),
@@ -1405,8 +1463,6 @@ ExecutorFuture<void> ReshardingCoordinator::_awaitAllRecipientsFinishedCloning(
         .thenRunOn(**executor)
         .then([this, executor](ReshardingCoordinatorDocument coordinatorDocChangedOnDisk) {
             if (_metadata.getPerformVerification()) {
-                _metrics->setStartFor(ReshardingMetrics::TimedPhase::kVerificationPreApplying,
-                                      resharding::getCurrentTime());
                 auto opCtx = _makeOperationContext();
                 // Fetch the coordinator doc from disk since the 'coordinatorDocChangedOnDisk' above
                 // came from the OpObserver and may not reflect the latest version coordinator doc
@@ -1420,8 +1476,9 @@ ExecutorFuture<void> ReshardingCoordinator::_awaitAllRecipientsFinishedCloning(
                     **executor,
                     _ctHolder->getAbortToken(),
                     coordinatorDocChangedOnDisk);
-                _metrics->setEndFor(ReshardingMetrics::TimedPhase::kVerificationPreApplying,
-                                    resharding::getCurrentTime());
+                LOGV2(9858412,
+                      "Verification before applying completed",
+                      "reshardingUUID"_attr = _metadata.getReshardingUUID());
             }
         })
         .then([this] {
@@ -1437,8 +1494,8 @@ ExecutorFuture<void> ReshardingCoordinator::_awaitAllRecipientsFinishedCloning(
                     auto updatedDocument =
                         _coordinatorDao.transitionToApplyingPhase(opCtx, now, txnNumber);
 
-                    _metrics->setEndFor(CoordinatorStateEnum::kCloning, now);
-                    _metrics->setStartFor(CoordinatorStateEnum::kApplying, now);
+                    _metrics->setEndFor(ReshardingMetrics::TimedPhase::kCloning, now);
+                    _metrics->setStartFor(ReshardingMetrics::TimedPhase::kApplying, now);
                     return updatedDocument;
                 });
         })
@@ -1532,7 +1589,7 @@ ExecutorFuture<void> ReshardingCoordinator::_awaitAllRecipientsFinishedApplying(
                 [=, this](OperationContext* opCtx, TxnNumber txnNumber) {
                     auto updatedDocument = _coordinatorDao.transitionToBlockingWritesPhase(
                         opCtx, now, criticalSectionExpiresAt, txnNumber);
-                    _metrics->setStartFor(CoordinatorStateEnum::kBlockingWrites, now);
+                    _metrics->setStartFor(ReshardingMetrics::TimedPhase::kCriticalSection, now);
                     return updatedDocument;
                 });
         })
@@ -1627,6 +1684,11 @@ ReshardingCoordinatorDocument ReshardingCoordinator::_verifyFinalCollection(
     }
 
     auto opCtx = _makeOperationContext();
+
+    auto verifyPreCommitStart = resharding::getCurrentTime();
+    _metrics->setStartFor(ReshardingMetrics::TimedPhase::kVerificationPreCommit,
+                          verifyPreCommitStart);
+
     _persistDocumentsDelta(opCtx.get(), _deltaFuture->get(opCtx.get()));
 
     // Fetch the coordinator doc from disk since the 'coordinatorDocChangedOnDisk'
@@ -1637,8 +1699,6 @@ ReshardingCoordinatorDocument ReshardingCoordinator::_verifyFinalCollection(
     coordinatorDocChangedOnDisk =
         resharding::getCoordinatorDoc(opCtx.get(), coordinatorDocChangedOnDisk.getReshardingUUID());
 
-    _metrics->setStartFor(ReshardingMetrics::TimedPhase::kVerificationPreCommit,
-                          resharding::getCurrentTime());
     try {
         _reshardingCoordinatorExternalState->verifyFinalCollection(opCtx.get(),
                                                                    coordinatorDocChangedOnDisk);
@@ -1648,8 +1708,12 @@ ReshardingCoordinatorDocument ReshardingCoordinator::_verifyFinalCollection(
                       "strict consistency",
                       "error"_attr = redact(ex.toString()));
     }
-    _metrics->setEndFor(ReshardingMetrics::TimedPhase::kVerificationPreCommit,
-                        resharding::getCurrentTime());
+    auto verifyPreCommitEnd = resharding::getCurrentTime();
+    _metrics->setEndFor(ReshardingMetrics::TimedPhase::kVerificationPreCommit, verifyPreCommitEnd);
+    LOGV2(9858413,
+          "Verification before commit completed",
+          "reshardingUUID"_attr = _metadata.getReshardingUUID(),
+          "durationSecs"_attr = durationCount<Seconds>(verifyPreCommitEnd - verifyPreCommitStart));
 
     return coordinatorDocChangedOnDisk;
 }
@@ -1727,7 +1791,9 @@ void ReshardingCoordinator::_commit(const ReshardingCoordinatorDocument& coordin
                                             reshardedCollectionPlacement);
 
     // Update the in memory state
-    installCoordinatorDocOnStateTransition(opCtx.get(), updatedCoordinatorDoc);
+    installCoordinatorDocOnStateTransition(
+        opCtx.get(),
+        resharding::getCoordinatorDoc(opCtx.get(), _coordinatorDoc.getReshardingUUID()));
 }
 
 void ReshardingCoordinator::_generateCommitNotificationForChangeStreams(
@@ -1895,6 +1961,7 @@ void ReshardingCoordinator::_updateCoordinatorDocStateAndCatalogEntries(
 
 void ReshardingCoordinator::_removeOrQuiesceCoordinatorDocAndRemoveReshardingFields(
     OperationContext* opCtx, boost::optional<Status> abortReason) {
+    _resumeMigrations(opCtx, abortReason);
     _releaseSession(opCtx);
 
     auto updatedCoordinatorDoc = resharding::removeOrQuiesceCoordinatorDocAndRemoveReshardingFields(

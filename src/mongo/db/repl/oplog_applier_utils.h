@@ -107,7 +107,7 @@ public:
      *     update(ns1, docB),                        delete(ns2, docA),    -
      * ]                                         ]
      */
-    static void stableSortByNamespace(std::vector<ApplierOperation>* ops);
+    static void stableSortByNamespace(std::vector<ApplierOperation>& ops);
 
     /**
      * Adds a single oplog entry to the appropriate writer vector. Returns the index of the
@@ -242,15 +242,18 @@ public:
 
     /**
      * The logic for oplog batch application which is shared between standard and tenant oplog
-     * application.
+     * application. Consecutive container ops sharing the same ident and timestamp are applied
+     * atomically. If provided, 'incrementOpsAppliedStats' is called once per successfully
+     * applied op.
      */
     static Status applyOplogBatchCommon(
         OperationContext* opCtx,
-        std::vector<ApplierOperation>* ops,
+        std::vector<ApplierOperation>& ops,
         OplogApplication::Mode oplogApplicationMode,
         bool allowNamespaceNotFoundErrorsOnCrudOps,
         bool isDataConsistent,
-        InsertGroup::ApplyFunc applyOplogEntryOrGroupedInserts) noexcept;
+        InsertGroup::ApplyFunc applyOplogEntryOrGroupedInserts,
+        IncrementOpsAppliedStatsFn incrementOpsAppliedStats = {}) noexcept;
 };
 
 }  // namespace repl

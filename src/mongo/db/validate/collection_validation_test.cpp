@@ -792,7 +792,8 @@ BSONObj removeNestedField(const BSONObj& bson, std::span<const StringData> neste
 class TimeseriesCollectionValidationTest : public CatalogTestFixture {
 public:
     TimeseriesCollectionValidationTest(Options options = {})
-        : CatalogTestFixture(std::move(options)) {
+        : CatalogTestFixture(std::move(options)),
+          _allowCorruptTimeseriesBuckets("timeseriesDisableStrictBucketValidator", true) {
         _nss = NamespaceString::createNamespaceString_forTest("test.system.buckets.ts");
     }
 
@@ -979,6 +980,7 @@ public:
     CollectionOptions _options;
     CollectionValidation::ValidateMode _validateMode{
         CollectionValidation::ValidateMode::kForeground};
+    RAIIServerParameterControllerForTest _allowCorruptTimeseriesBuckets;
 
 protected:
     void setUp() override {
@@ -1414,6 +1416,13 @@ TEST_F(TimeseriesCollectionValidationTest, ValidationOfDocumentJustPastEpochMax)
     }
     foregroundValidate(
         _nss, _opCtx, {.valid = true, .numRecords = 1, .numErrors = 0, .numWarnings = 0});
+}
+
+TEST_F(TimeseriesCollectionValidationTest, ReportWarningForV3BucketWithMeasurementsInOrder) {
+    static constexpr std::array version = {"control"_sd, "version"_sd};
+    insertDoc(replaceNestedField(getSampleDoc(), version, 3));
+    foregroundValidate(
+        _nss, _opCtx, {.valid = true, .numRecords = 1, .numErrors = 0, .numWarnings = 1});
 }
 
 }  // namespace

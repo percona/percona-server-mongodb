@@ -140,14 +140,12 @@ public:
             cq->getExpCtxRaw(), coll, csparams, ws.get(), cq->getPrimaryMatchExpression()));
 
         // Hand the plan off to the executor.
-        auto statusWithPlanExecutor = plan_executor_factory::make(std::move(cq),
-                                                                  std::move(ws),
-                                                                  std::move(root),
-                                                                  coll,
-                                                                  yieldPolicy,
-                                                                  QueryPlannerParams::DEFAULT);
-        ASSERT_OK(statusWithPlanExecutor.getStatus());
-        return std::move(statusWithPlanExecutor.getValue());
+        return plan_executor_factory::make(std::move(cq),
+                                           std::move(ws),
+                                           std::move(root),
+                                           coll,
+                                           yieldPolicy,
+                                           QueryPlannerParams::DEFAULT);
     }
 
     /**
@@ -182,15 +180,12 @@ public:
             .parsedFind = ParsedFindCommandParams{std::move(findCommand)}});
 
         // Hand the plan off to the executor.
-        auto statusWithPlanExecutor =
-            plan_executor_factory::make(std::move(cq),
-                                        std::move(ws),
-                                        std::move(root),
-                                        coll,
-                                        PlanYieldPolicy::YieldPolicy::INTERRUPT_ONLY,
-                                        QueryPlannerParams::DEFAULT);
-        ASSERT_OK(statusWithPlanExecutor.getStatus());
-        return std::move(statusWithPlanExecutor.getValue());
+        return plan_executor_factory::make(std::move(cq),
+                                           std::move(ws),
+                                           std::move(root),
+                                           coll,
+                                           PlanYieldPolicy::YieldPolicy::INTERRUPT_ONLY,
+                                           QueryPlannerParams::DEFAULT);
     }
 
 protected:
@@ -202,9 +197,9 @@ protected:
 
 private:
     const IndexCatalogEntry* getIndex(Database* db, const BSONObj& obj) {
-        // TODO(SERVER-103403): Investigate usage validity of CollectionPtr::CollectionPtr_UNSAFE
-        CollectionPtr collection = CollectionPtr::CollectionPtr_UNSAFE(
-            CollectionCatalog::get(&_opCtx)->lookupCollectionByNamespace(&_opCtx, nss));
+        CollectionPtr collection =
+            CollectionPtr(CollectionCatalog::get(&_opCtx)->establishConsistentCollection(
+                &_opCtx, nss, boost::none));
         std::vector<const IndexCatalogEntry*> indexes;
         collection->getIndexCatalog()->findIndexesByKeyPattern(
             &_opCtx, obj, IndexCatalog::InclusionPolicy::kReady, &indexes);

@@ -386,8 +386,8 @@ export const authCommandsLib = {
             },
 
             testcases: [
-                {runOnDb: firstDbName, roles: {__system: 1, root: 1, restore: 1}},
-                {runOnDb: "local", roles: {__system: 1, root: 1, restore: 1}},
+                {runOnDb: firstDbName, roles: {__system: 1}},
+                {runOnDb: "local", roles: {__system: 1}},
                 {
                     runOnDb: firstDbName,
                     privileges: [
@@ -428,12 +428,55 @@ export const authCommandsLib = {
 
             testcases: [
                 // Attempting to delete a nonexistent key from a container fails.
-                {runOnDb: firstDbName, roles: {__system: 1, root: 1, restore: 1}, expectFail: true},
-                {runOnDb: "local", roles: {__system: 1, root: 1, restore: 1}, expectFail: true},
+                {runOnDb: firstDbName, roles: {__system: 1}, expectFail: true},
+                {runOnDb: "local", roles: {__system: 1}, expectFail: true},
                 {
                     runOnDb: firstDbName,
                     privileges: [
                         {resource: {db: firstDbName, collection: ""}, actions: ["containerDelete"]},
+                        {resource: {cluster: true}, actions: ["applyOps"]},
+                    ],
+                    expectFail: true,
+                },
+            ],
+        },
+        {
+            testname: "applyOps_container_update",
+            skipSharded: true,
+            skipTest: (conn) => !isFeatureEnabled(conn, "featureFlagContainerWrites") || !storageEngineIsWiredTiger(),
+            setup: function (db) {
+                const coll = "containerOpsColl";
+                db[coll].drop();
+                assert.commandWorked(db.createCollection(coll));
+                const uri = getUriForColl(db[coll]);
+                return {nss: db.getName() + "." + coll, coll, uri};
+            },
+
+            command: function (state) {
+                return {
+                    applyOps: [
+                        {
+                            op: "cu",
+                            ns: state.nss,
+                            container: state.uri,
+                            o: {k: BinData(0, "QQ=="), v: BinData(0, "Qg==")},
+                        },
+                    ],
+                };
+            },
+
+            teardown: function (db, state) {
+                if (state && state.coll) db[state.coll].drop();
+            },
+
+            testcases: [
+                // Attempting to update a nonexistent key in a container fails.
+                {runOnDb: firstDbName, roles: {__system: 1}, expectFail: true},
+                {runOnDb: "local", roles: {__system: 1}, expectFail: true},
+                {
+                    runOnDb: firstDbName,
+                    privileges: [
+                        {resource: {db: firstDbName, collection: ""}, actions: ["containerUpdate"]},
                         {resource: {cluster: true}, actions: ["applyOps"]},
                     ],
                     expectFail: true,
@@ -3482,6 +3525,23 @@ export const authCommandsLib = {
             ],
         },
         {
+            testname: "_shardsvrReshardDonorRecipientsFinishedCloning",
+            command: {
+                _shardsvrReshardDonorRecipientsFinishedCloning: UUID(),
+            },
+            skipSharded: true,
+            testcases: [
+                {
+                    runOnDb: adminDbName,
+                    roles: {__system: 1},
+                    privileges: [{resource: {cluster: true}, actions: ["internal"]}],
+                    expectFail: true,
+                },
+                {runOnDb: firstDbName, roles: {}},
+                {runOnDb: secondDbName, roles: {}},
+            ],
+        },
+        {
             testname: "_shardsvrReshardRecipientInitialize",
             command: {
                 _shardsvrReshardRecipientInitialize: UUID(),
@@ -6466,6 +6526,28 @@ export const authCommandsLib = {
                     runOnDb: secondDbName,
                     roles: roles_dbAdminAny,
                     privileges: [{resource: {db: secondDbName, collection: ""}, actions: ["enableProfiler"]}],
+                },
+            ],
+        },
+        {
+            testname: "blockReplicaSetWrites",
+            command: {
+                blockReplicaSetWrites: 1,
+                enabled: false,
+                allowDeletions: false,
+                reason: "InsufficientDiskSpace",
+            },
+            skipTest: (conn) => {
+                return (
+                    !FixtureHelpers.isReplSet(conn.getDB(adminDbName)) ||
+                    !isFeatureEnabled(conn, "featureFlagBlockReplicaSetWrites")
+                );
+            },
+            testcases: [
+                {
+                    runOnDb: adminDbName,
+                    roles: roles_clusterManager,
+                    privileges: [{resource: {cluster: true}, actions: ["blockReplicaSetWrites"]}],
                 },
             ],
         },

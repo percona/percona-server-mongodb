@@ -56,6 +56,7 @@
 #include "mongo/db/storage/wiredtiger/wiredtiger_util.h"
 #include "mongo/logv2/log.h"
 #include "mongo/util/processinfo.h"
+#include "mongo/util/testing_proctor.h"
 
 #include <cstddef>
 #include <memory>
@@ -172,26 +173,40 @@ public:
             wiredTigerGlobalOptions.indexConfig, provider.getMainWiredTigerTableSettings());
         kv->setSortedDataInterfaceExtraOptions(std::move(extraIndexOptions));
 
-        boost::system::error_code ec;
-        boost::filesystem::remove_all(params.getSpillDbPath(), ec);
-        if (ec) {
-            LOGV2_WARNING(10380300,
-                          "Failed to clear dbpath of the internal WiredTiger instance",
-                          "error"_attr = ec.message());
+        std::unique_ptr<KVEngine> spillWiredTigerKVEngine;
+        // enableSpillEngine is a test-only flag that defaults to false for tests to skip opening
+        // the spill WiredTiger instance, avoiding contention from multiple WiredTiger opens during
+        // concurrent unit test runs. Tests that exercise spilling must opt in via
+        // Options{}.enableSpillEngine().
+        if (!storageGlobalParams.enableSpillEngine) {
+            if (!TestingProctor::instance().isEnabled()) {
+                fasserted(12410200,
+                          Status(ErrorCodes::InvalidOptions,
+                                 "Spill engine can only be disabled in test mode"));
+            }
+            LOGV2(12254500, "Spill engine disabled");
+        } else {
+            boost::system::error_code ec;
+            boost::filesystem::remove_all(params.getSpillDbPath(), ec);
+            if (ec) {
+                LOGV2_WARNING(10380300,
+                              "Failed to clear dbpath of the internal WiredTiger instance",
+                              "error"_attr = ec.message());
+            }
+
+            spillWiredTigerKVEngine = std::make_unique<SpillWiredTigerKVEngine>(
+                std::string{getCanonicalName()},
+                params.getSpillDbPath().string(),
+                &opCtx->fastClockSource(),
+                getSpillWiredTigerConfigFromStartupOptions(),
+                SpillWiredTigerExtensions::get(opCtx->getServiceContext()));
+
+            std::call_once(spillWiredTigerServerStatusSectionFlag, [] {
+                *ServerStatusSectionBuilder<SpillWiredTigerServerStatusSection>(
+                     std::string{SpillWiredTigerServerStatusSection::kServerStatusSectionName})
+                     .forShard();
+            });
         }
-
-        auto spillWiredTigerKVEngine = std::make_unique<SpillWiredTigerKVEngine>(
-            std::string{getCanonicalName()},
-            params.getSpillDbPath().string(),
-            &opCtx->fastClockSource(),
-            getSpillWiredTigerConfigFromStartupOptions(),
-            SpillWiredTigerExtensions::get(opCtx->getServiceContext()));
-
-        std::call_once(spillWiredTigerServerStatusSectionFlag, [] {
-            *ServerStatusSectionBuilder<SpillWiredTigerServerStatusSection>(
-                 std::string{SpillWiredTigerServerStatusSection::kServerStatusSectionName})
-                 .forShard();
-        });
 
         // We're using the WT engine; register the ServerStatusSection for it.
         // Only do so once; even if we re-create the StorageEngine for FCBIS. The section is

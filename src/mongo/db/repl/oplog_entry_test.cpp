@@ -40,6 +40,7 @@
 #include "mongo/bson/unordered_fields_bsonobj_comparator.h"
 #include "mongo/db/index_builds/index_build_oplog_entry.h"
 #include "mongo/db/namespace_string.h"
+#include "mongo/db/repl/container_oplog_entry_gen.h"
 #include "mongo/db/repl/create_oplog_entry_gen.h"
 #include "mongo/db/repl/oplog_entry_gen.h"
 #include "mongo/db/repl/oplog_entry_test_helpers.h"
@@ -496,6 +497,91 @@ TEST_F(OplogEntryTest, ContainerOpMissingContainer) {
 
     auto result = DurableOplogEntry::parse(oplogBson);
     ASSERT_EQ(result.getStatus().code(), 10704701);
+}
+
+TEST_F(OplogEntryTest, ContainerInsertORoundTripIntKey) {
+    const auto rawO = BSON("k" << 42LL << "v" << BSONBinData("hello", 5, BinDataGeneral));
+
+    const auto parsed =
+        ContainerInsertOplogEntryO::parse(rawO, IDLParserContext("ContainerInsertOplogEntryO"));
+    ASSERT_TRUE(parsed.getKey().isIntKey());
+    ASSERT_EQ(parsed.getKey().getIntKey(), 42);
+    ASSERT_EQ(parsed.getValue().data().size(), 5);
+
+    const auto serialized = parsed.toBSON();
+    ASSERT_BSONOBJ_EQ(rawO, serialized);
+}
+
+TEST_F(OplogEntryTest, ContainerInsertORoundTripByteKey) {
+    const auto rawO = BSON("k" << BSONBinData("abc", 3, BinDataGeneral) << "v"
+                               << BSONBinData("val", 3, BinDataGeneral));
+
+    const auto parsed =
+        ContainerInsertOplogEntryO::parse(rawO, IDLParserContext("ContainerInsertOplogEntryO"));
+    ASSERT_FALSE(parsed.getKey().isIntKey());
+    auto keySpan = parsed.getKey().getBytesKey();
+    ASSERT_EQ(keySpan.size(), 3);
+    ASSERT_EQ(0, std::memcmp(keySpan.data(), "abc", 3));
+
+    const auto serialized = parsed.toBSON();
+    ASSERT_BSONOBJ_EQ(rawO, serialized);
+}
+
+TEST_F(OplogEntryTest, ContainerUpdateORoundTripIntKey) {
+    const auto rawO =
+        BSON("k" << 7LL << "v" << BSONBinData("data", 4, BinDataGeneral) << "$v" << 1LL);
+
+    const auto parsed =
+        ContainerUpdateOplogEntryO::parse(rawO, IDLParserContext("ContainerUpdateOplogEntryO"));
+    ASSERT_TRUE(parsed.getKey().isIntKey());
+    ASSERT_EQ(parsed.getKey().getIntKey(), 7);
+    ASSERT_EQ(parsed.getValue().data().size(), 4);
+    ASSERT_EQ(parsed.getVersion(), 1);
+
+    const auto serialized = parsed.toBSON();
+    ASSERT_BSONOBJ_EQ(rawO, serialized);
+}
+
+TEST_F(OplogEntryTest, ContainerUpdateORoundTripByteKey) {
+    const auto rawO = BSON("k" << BSONBinData("abc", 3, BinDataGeneral) << "v"
+                               << BSONBinData("data", 4, BinDataGeneral) << "$v" << 1LL);
+
+    const auto parsed =
+        ContainerUpdateOplogEntryO::parse(rawO, IDLParserContext("ContainerUpdateOplogEntryO"));
+    ASSERT_FALSE(parsed.getKey().isIntKey());
+    auto keySpan = parsed.getKey().getBytesKey();
+    ASSERT_EQ(keySpan.size(), 3);
+    ASSERT_EQ(0, std::memcmp(keySpan.data(), "abc", 3));
+    ASSERT_EQ(parsed.getVersion(), 1);
+
+    const auto serialized = parsed.toBSON();
+    ASSERT_BSONOBJ_EQ(rawO, serialized);
+}
+
+TEST_F(OplogEntryTest, ContainerDeleteORoundTripIntKey) {
+    const auto rawO = BSON("k" << 99LL);
+
+    const auto parsed =
+        ContainerDeleteOplogEntryO::parse(rawO, IDLParserContext("ContainerDeleteOplogEntryO"));
+    ASSERT_TRUE(parsed.getKey().isIntKey());
+    ASSERT_EQ(parsed.getKey().getIntKey(), 99);
+
+    const auto serialized = parsed.toBSON();
+    ASSERT_BSONOBJ_EQ(rawO, serialized);
+}
+
+TEST_F(OplogEntryTest, ContainerDeleteORoundTripByteKey) {
+    const auto rawO = BSON("k" << BSONBinData("xyz", 3, BinDataGeneral));
+
+    const auto parsed =
+        ContainerDeleteOplogEntryO::parse(rawO, IDLParserContext("ContainerDeleteOplogEntryO"));
+    ASSERT_FALSE(parsed.getKey().isIntKey());
+    auto keySpan = parsed.getKey().getBytesKey();
+    ASSERT_EQ(keySpan.size(), 3);
+    ASSERT_EQ(0, std::memcmp(keySpan.data(), "xyz", 3));
+
+    const auto serialized = parsed.toBSON();
+    ASSERT_BSONOBJ_EQ(rawO, serialized);
 }
 
 TEST_F(OplogEntryTest, ApplyOpsNotInSession) {
@@ -2215,6 +2301,98 @@ TEST_F(OplogEntryTest, ExtractCommitTransactionTimestampFails_NoopOplogEntry) {
 
     auto swCommitTimestamp = entry.extractCommitTransactionTimestamp();
     ASSERT_EQ(swCommitTimestamp.getStatus().code(), 11730800);
+}
+
+TEST_F(OplogEntryTest, SizeMetadataSingleOpRoundTrip) {
+    const int32_t opSizeBytes = 42;
+    SingleOpSizeMetadata expectedSizeMetadata;
+    expectedSizeMetadata.setSz(opSizeBytes);
+
+    const BSONObj oplogEntryBson = [&] {
+        BSONObjBuilder bob;
+        bob.append("ts", Timestamp(1, 1));
+        bob.append("t", 1LL);
+        bob.append("op", "i");
+        bob.append("ns", nss.ns_forTest());
+        bob.append("wall", Date_t());
+        bob.append("o", BSON("_id" << 1));
+        bob.append("m", expectedSizeMetadata.toBSON());
+        return bob.obj();
+    }();
+
+    const auto entry = unittest::assertGet(DurableOplogEntry::parse(oplogEntryBson));
+    const auto& parsedSizeMetadata = entry.getSizeMetadata();
+    ASSERT_TRUE(parsedSizeMetadata.has_value());
+    const auto* parsedSingleOpSizeMetadata =
+        std::get_if<SingleOpSizeMetadata>(&parsedSizeMetadata.value());
+    ASSERT_NE(parsedSingleOpSizeMetadata, nullptr);
+    EXPECT_EQ(expectedSizeMetadata.getSz(), parsedSingleOpSizeMetadata->getSz());
+}
+
+TEST_F(OplogEntryTest, SizeMetadataMultiOpRoundTrip) {
+    MultiOpSizeMetadata expectedMeta1;
+    expectedMeta1.setUuid(UUID::gen());
+    expectedMeta1.setSz(100);
+    expectedMeta1.setCt(3);
+
+    MultiOpSizeMetadata expectedMeta2;
+    expectedMeta2.setUuid(UUID::gen());
+    expectedMeta2.setSz(200);
+    expectedMeta2.setCt(5);
+
+    const BSONObj oplogEntryBson = [&] {
+        BSONObjBuilder bob;
+        bob.append("ts", Timestamp(1, 1));
+        bob.append("t", 1LL);
+        bob.append("op", "c");
+        bob.append("ns", nss.ns_forTest());
+        bob.append("wall", Date_t());
+        bob.append("o", BSON("commitTransaction" << 1));
+        BSONArrayBuilder mArr(bob.subarrayStart("m"));
+        mArr.append(expectedMeta1.toBSON());
+        mArr.append(expectedMeta2.toBSON());
+        mArr.done();
+        return bob.obj();
+    }();
+
+    const auto entry = unittest::assertGet(DurableOplogEntry::parse(oplogEntryBson));
+    const auto& parsedSizeMetadata = entry.getSizeMetadata();
+    ASSERT_TRUE(parsedSizeMetadata.has_value());
+    const auto* parsedMultiOpSizeMetadata =
+        std::get_if<std::vector<MultiOpSizeMetadata>>(&parsedSizeMetadata.value());
+    ASSERT_NE(parsedMultiOpSizeMetadata, nullptr);
+    ASSERT_EQ(parsedMultiOpSizeMetadata->size(), 2u);
+
+    EXPECT_EQ(expectedMeta1.getUuid(), (*parsedMultiOpSizeMetadata)[0].getUuid());
+    EXPECT_EQ(expectedMeta1.getSz(), (*parsedMultiOpSizeMetadata)[0].getSz());
+    EXPECT_EQ(expectedMeta1.getCt(), (*parsedMultiOpSizeMetadata)[0].getCt());
+
+    EXPECT_EQ(expectedMeta2.getUuid(), (*parsedMultiOpSizeMetadata)[1].getUuid());
+    EXPECT_EQ(expectedMeta2.getSz(), (*parsedMultiOpSizeMetadata)[1].getSz());
+    EXPECT_EQ(expectedMeta2.getCt(), (*parsedMultiOpSizeMetadata)[1].getCt());
+}
+
+TEST_F(OplogEntryTest, SizeMetadataMultiOpEmptyArray) {
+    const BSONObj oplogEntryBson = [&] {
+        BSONObjBuilder bob;
+        bob.append("ts", Timestamp(1, 1));
+        bob.append("t", 1LL);
+        bob.append("op", "c");
+        bob.append("ns", nss.ns_forTest());
+        bob.append("wall", Date_t());
+        bob.append("o", BSON("commitTransaction" << 1));
+        BSONArrayBuilder mArr(bob.subarrayStart("m"));
+        mArr.done();
+        return bob.obj();
+    }();
+
+    const auto entry = unittest::assertGet(DurableOplogEntry::parse(oplogEntryBson));
+    const auto& parsedSizeMetadata = entry.getSizeMetadata();
+    ASSERT_TRUE(parsedSizeMetadata.has_value());
+    const auto* parsedMultiOpSizeMetadata =
+        std::get_if<std::vector<MultiOpSizeMetadata>>(&parsedSizeMetadata.value());
+    ASSERT_NE(parsedMultiOpSizeMetadata, nullptr);
+    ASSERT_EQ(parsedMultiOpSizeMetadata->size(), 0);
 }
 
 }  // namespace

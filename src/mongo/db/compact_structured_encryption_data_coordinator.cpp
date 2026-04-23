@@ -271,8 +271,13 @@ void doCompactOperation(OperationContext* opCtx,
     request.setEncryptionInformation(state.getEncryptionInformation());
     request.setAnchorPaddingFactor(state.getAnchorPaddingFactor());
 
-    processFLECompactV2(
-        opCtx, request, &getTransactionWithRetriesForMongoS, namespaces, escStats, ecocStats);
+    processFLECompactV2(opCtx,
+                        request,
+                        &getTransactionWithRetriesForMongoS,
+                        namespaces,
+                        getFLE2TaskExecutorForMongoS(opCtx),
+                        escStats,
+                        ecocStats);
 
     if (MONGO_unlikely(fleCompactHangBeforeESCCleanup.shouldFail())) {
         LOGV2(7472702, "Hanging due to fleCompactHangBeforeESCCleanup fail point");
@@ -396,6 +401,11 @@ ExecutorFuture<void> CompactStructuredEncryptionDataCoordinator::_runImpl(
                     fleCompactHangAfterDropTempCollection.pauseWhileSet();
                 }
             }));
+}
+
+bool CompactStructuredEncryptionDataCoordinator::isInCriticalSection(Phase phase) const {
+    // No critical section is taken
+    return false;
 }
 
 }  // namespace mongo

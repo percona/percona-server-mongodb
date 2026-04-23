@@ -21,9 +21,27 @@ except ImportError:
 
 # Matches the top-level "selector:" block and its indented body.
 _SELECTOR_RE = re.compile(r"^selector:\s*\n((?:[ \t]+.*\n)*)", re.MULTILINE)
+# Matches the top-level "test_kind:" value.
+_TEST_KIND_RE = re.compile(r"^test_kind:\s*(\S+)", re.MULTILINE)
 
 OUTPUT_FILE = Path("bazel/resmoke/.resmoke_suites_derived.bzl")
 RESMOKE_MODULES_FILE = Path("buildscripts/resmokeconfig/resmoke_modules.yml")
+
+# Test kinds that don't enumerate individual source files via selector.roots.
+# These test binaries directly (mongos --test, dbtest, etc.) so an empty srcs
+# list is intentional — not a derive error.
+_NO_ROOTS_TEST_KINDS = frozenset(
+    [
+        "benchmark_test",
+        "cpp_integration_test",
+        "cpp_libfuzzer_test",
+        "cpp_unit_test",
+        "db_test",
+        "mongos_test",
+        "pretty_printer_test",
+        "sleep_test",
+    ]
+)
 
 # Fixed suite directories (relative to repo root).
 # Each entry is (suite_dir, bazel_package, target_prefix) where:
@@ -66,14 +84,14 @@ def _discover_suite_dirs(repo_root: Path) -> list[tuple[Path, str, str]]:
                     for suite_dir in module_cfg.get("suite_dirs", []):
                         p = Path(suite_dir)
                         # Derive bazel package from parent dir
-                        bazel_pkg = str(p.parent)
+                        bazel_pkg = p.parent.as_posix()
                         target_prefix = p.name
                         dirs.append((p, bazel_pkg, target_prefix))
 
                     # Module matrix_suite_dirs (use generated_suites subdir)
                     for matrix_dir in module_cfg.get("matrix_suite_dirs", []):
                         p = Path(matrix_dir) / "generated_suites"
-                        bazel_pkg = str(Path(matrix_dir).parent)
+                        bazel_pkg = Path(matrix_dir).parent.as_posix()
                         target_prefix = f"{Path(matrix_dir).name}/generated_suites"
                         dirs.append((p, bazel_pkg, target_prefix))
         except Exception:
@@ -115,7 +133,7 @@ def _glob_to_labels(pattern: str, repo_root: Path) -> list[str]:
     if not _has_complex_wildcards(pattern):
         # dir/*.js
         if pattern.endswith("/*.js") and "**" not in pattern:
-            dir_path = str(Path(pattern).parent)
+            dir_path = Path(pattern).parent.as_posix()
             if _has_build_file(repo_root / dir_path):
                 return [f"//{dir_path}:all_javascript_files"]
             return []
@@ -131,7 +149,7 @@ def _glob_to_labels(pattern: str, repo_root: Path) -> list[str]:
     if "*" not in pattern and "[" not in pattern and "?" not in pattern:
         p = Path(pattern)
         if _has_build_file(repo_root / p.parent):
-            return [f"//{p.parent}:{p.name}"]
+            return [f"//{p.parent.as_posix()}:{p.name}"]
         return []
 
     # Complex or non-standard patterns: expand via filesystem glob
@@ -142,9 +160,9 @@ def _glob_to_labels(pattern: str, repo_root: Path) -> list[str]:
         rel = os.path.relpath(match, repo_root)
         p = Path(rel)
         if p.is_file():
-            labels.append(f"//{p.parent}:{p.name}")
+            labels.append(f"//{p.parent.as_posix()}:{p.name}")
         elif p.is_dir():
-            labels.append(f"//{p}")
+            labels.append(f"//{p.as_posix()}")
     return labels
 
 
@@ -233,6 +251,13 @@ def gen_suite_selectors(repo_root: Path) -> dict[str, object]:
 
                 roots = selector.get("roots")
                 if not roots or not isinstance(roots, list):
+                    # For known no-roots test kinds, emit an empty entry so
+                    # resmoke_suite_test can proceed in passthrough mode.
+                    m_kind = _TEST_KIND_RE.search(text)
+                    test_kind = m_kind.group(1) if m_kind else None
+                    if test_kind in _NO_ROOTS_TEST_KINDS:
+                        key = f"//{bazel_package}:{target_prefix}/{yml_path.name}"
+                        selectors[key] = []
                     continue
 
                 # Map each root glob to Bazel labels

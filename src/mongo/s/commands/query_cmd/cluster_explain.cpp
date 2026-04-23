@@ -147,6 +147,11 @@ BSONObj ClusterExplain::wrapAsExplain(const BSONObj& cmdObj,
     BSONElement readConcernField;
     for (auto&& elem : cmdObj) {
         const auto& fieldName = elem.fieldNameStringData();
+        // Skip 'querySettings' from the original command as we're going to append it separately
+        // to avoid duplicate fields.
+        if (fieldName == "querySettings"_sd) {
+            continue;
+        }
         if (!isGenericArgument(fieldName) || fieldName == kRawDataFieldName) {
             explainBuilder.append(elem);
         } else if (fieldName == "comment"_sd) {
@@ -233,16 +238,6 @@ void ClusterExplain::validateShardResponses(
             numShardsAllPlansStats == 0 || numShardsAllPlansStats == shardResponses.size());
 }
 
-// static
-const char* ClusterExplain::getStageNameForReadOp(size_t numShards, const BSONObj& explainObj) {
-    if (numShards == 1) {
-        return kSingleShard;
-    } else if (explainObj.hasField("sort")) {
-        return kMergeSortFromShards;
-    } else {
-        return kMergeFromShards;
-    }
-}
 
 // static
 void ClusterExplain::buildPlannerInfo(OperationContext* opCtx,

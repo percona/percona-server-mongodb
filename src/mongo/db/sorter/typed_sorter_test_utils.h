@@ -34,6 +34,7 @@
 #include "mongo/db/service_context_d_test_fixture.h"
 #include "mongo/db/shard_role/transaction_resources.h"
 #include "mongo/db/sorter/container_based_spiller.h"
+#include "mongo/db/sorter/file.h"
 #include "mongo/db/sorter/file_based_spiller.h"
 #include "mongo/db/sorter/sorter.h"
 #include "mongo/db/sorter/sorter_file_name.h"
@@ -48,6 +49,7 @@
 #include <concepts>
 #include <cstddef>
 #include <fstream>
+#include <limits>
 #include <memory>
 #include <string>
 #include <utility>
@@ -65,22 +67,22 @@ struct SpillStorageState {
     IWComparator comp{ASC};
 };
 
-inline std::unique_ptr<FileBasedSorterSpiller<IntWrapper, IntWrapper, IWComparator>>
-makeFileSorterSpiller(const SortOptions& opts,
-                      const boost::filesystem::path& spillDir,
-                      SorterFileStats* fileStats,
-                      const SorterChecksumVersion checksumVersion = sorter::kLatestChecksumVersion,
-                      std::string storageIdentifier = "") {
+inline std::unique_ptr<FileBasedSpiller<IntWrapper, IntWrapper, IWComparator>> makeFileSpiller(
+    const SortOptions& opts,
+    const boost::filesystem::path& spillDir,
+    SorterFileStats* fileStats,
+    const SorterChecksumVersion checksumVersion = sorter::kLatestChecksumVersion,
+    std::string storageIdentifier = "") {
     if (storageIdentifier.empty()) {
-        return std::make_unique<FileBasedSorterSpiller<IntWrapper, IntWrapper, IWComparator>>(
+        return std::make_unique<FileBasedSpiller<IntWrapper, IntWrapper, IWComparator>>(
             spillDir,
             fileStats,
             /*dbName=*/boost::none,
             checksumVersion,
             testSpillingMinAvailableDiskSpaceBytes);
     }
-    return std::make_unique<FileBasedSorterSpiller<IntWrapper, IntWrapper, IWComparator>>(
-        std::make_shared<SorterFile>(spillDir / storageIdentifier, fileStats),
+    return std::make_unique<FileBasedSpiller<IntWrapper, IntWrapper, IWComparator>>(
+        std::make_shared<File>(spillDir / storageIdentifier, fileStats),
         spillDir,
         /*dbName=*/boost::none,
         checksumVersion,
@@ -100,10 +102,10 @@ concept StorageTraits = requires(Traits& traits,
     { Traits::kCorruptedStorageErrorCode } -> std::convertible_to<int>;
     {
         traits.makeSpiller(opts, spillDir, checksumVersion)
-    } -> std::same_as<std::shared_ptr<SorterSpiller<IntWrapper, IntWrapper, IWComparator>>>;
+    } -> std::same_as<std::shared_ptr<Spiller<IntWrapper, IntWrapper, IWComparator>>>;
     {
         traits.makeSpillerForResume(opts, spillDir, checksumVersion, storageIdentifier)
-    } -> std::same_as<std::shared_ptr<SorterSpiller<IntWrapper, IntWrapper, IWComparator>>>;
+    } -> std::same_as<std::shared_ptr<Spiller<IntWrapper, IntWrapper, IWComparator>>>;
     {
         traits.makeWriter(opts, spillDir)
     } -> std::same_as<std::unique_ptr<SortedStorageWriter<IntWrapper, IntWrapper>>>;
@@ -119,28 +121,26 @@ struct FileTraits {
     static constexpr int kEmptyStorageErrorCode = 16815;
     static constexpr int kCorruptedStorageErrorCode = 16817;
 
-    static std::shared_ptr<SorterSpiller<IntWrapper, IntWrapper, IWComparator>> makeSpiller(
+    static std::shared_ptr<Spiller<IntWrapper, IntWrapper, IWComparator>> makeSpiller(
         const SortOptions& opts,
         const boost::filesystem::path& spillDir,
         const SorterChecksumVersion checksumVersion = sorter::kLatestChecksumVersion) {
-        return std::shared_ptr<SorterSpiller<IntWrapper, IntWrapper, IWComparator>>(
-            makeFileSorterSpiller(opts, spillDir, /*fileStats=*/nullptr, checksumVersion));
+        return std::shared_ptr<Spiller<IntWrapper, IntWrapper, IWComparator>>(
+            makeFileSpiller(opts, spillDir, /*fileStats=*/nullptr, checksumVersion));
     }
 
-    static std::shared_ptr<SorterSpiller<IntWrapper, IntWrapper, IWComparator>>
-    makeSpillerForResume(
+    static std::shared_ptr<Spiller<IntWrapper, IntWrapper, IWComparator>> makeSpillerForResume(
         const SortOptions& opts,
         const boost::filesystem::path& spillDir,
         const SorterChecksumVersion checksumVersion = sorter::kLatestChecksumVersion,
         const std::string& storageIdentifier = "") {
-        return std::shared_ptr<SorterSpiller<IntWrapper, IntWrapper, IWComparator>>(
-            makeFileSorterSpiller(
-                opts, spillDir, /*fileStats=*/nullptr, checksumVersion, storageIdentifier));
+        return std::shared_ptr<Spiller<IntWrapper, IntWrapper, IWComparator>>(makeFileSpiller(
+            opts, spillDir, /*fileStats=*/nullptr, checksumVersion, storageIdentifier));
     }
 
     static std::unique_ptr<SortedStorageWriter<IntWrapper, IntWrapper>> makeWriter(
         const SortOptions& opts, const boost::filesystem::path& spillDir) {
-        auto spillFile = std::make_shared<SorterFile>(sorter::nextFileName(spillDir), nullptr);
+        auto spillFile = std::make_shared<File>(sorter::nextFileName(spillDir), nullptr);
         return std::make_unique<SortedFileWriter<IntWrapper, IntWrapper>>(
             opts,
             spillFile,
@@ -203,14 +203,14 @@ struct ContainerTraits {
         _writerTable = _makeInternalRecordStore();
     }
 
-    std::shared_ptr<SorterSpiller<IntWrapper, IntWrapper, IWComparator>> makeSpiller(
+    std::shared_ptr<Spiller<IntWrapper, IntWrapper, IWComparator>> makeSpiller(
         const SortOptions& opts,
         const boost::filesystem::path& spillDir,
         const SorterChecksumVersion checksumVersion = sorter::kLatestChecksumVersion) {
-        using Spiller = ContainerBasedSpiller<IntWrapper, IntWrapper, IWComparator>;
+        using ContainerSpiller = ContainerBasedSpiller<IntWrapper, IntWrapper, IWComparator>;
         struct SpillerOwner {
             std::shared_ptr<RecordStore> table;
-            Spiller spiller;
+            ContainerSpiller spiller;
         };
 
         auto table = _makeInternalRecordStore();
@@ -221,24 +221,27 @@ struct ContainerTraits {
         auto& ru = *shard_role_details::getRecoveryUnit(_opCtx.get());
         auto owner = std::make_shared<SpillerOwner>(SpillerOwner{
             .table = std::move(table),
-            .spiller = Spiller(*_opCtx,
-                               ru,
-                               container,
-                               _containerStats,
-                               boost::none,
-                               checksumVersion,
-                               insertionBatchSize,
-                               testSpillingMinAvailableDiskSpaceBytes),
+            .spiller = ContainerSpiller(
+                *_opCtx,
+                ru,
+                container,
+                _containerStats,
+                boost::none,
+                checksumVersion,
+                [] {},
+                insertionBatchSize,
+                std::numeric_limits<int64_t>::max(),
+                testSpillingMinAvailableDiskSpaceBytes),
         });
-        return std::shared_ptr<SorterSpiller<IntWrapper, IntWrapper, IWComparator>>(
-            owner, &owner->spiller);
+        return std::shared_ptr<Spiller<IntWrapper, IntWrapper, IWComparator>>(owner,
+                                                                              &owner->spiller);
     }
 
-    static std::shared_ptr<SorterSpiller<IntWrapper, IntWrapper, IWComparator>>
-    makeSpillerForResume(const SortOptions& opts,
-                         const boost::filesystem::path& spillDir,
-                         const SorterChecksumVersion,
-                         const std::string& storageIdentifier) {
+    static std::shared_ptr<Spiller<IntWrapper, IntWrapper, IWComparator>> makeSpillerForResume(
+        const SortOptions& opts,
+        const boost::filesystem::path& spillDir,
+        const SorterChecksumVersion,
+        const std::string& storageIdentifier) {
         MONGO_UNIMPLEMENTED;
     }
 

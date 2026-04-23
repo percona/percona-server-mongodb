@@ -30,6 +30,7 @@
 #include "mongo/db/pipeline/optimization/rule_based_rewriter.h"
 
 #include "mongo/db/pipeline/document_source.h"
+#include "mongo/db/pipeline/pipeline.h"
 #include "mongo/db/server_options.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/str.h"
@@ -147,6 +148,14 @@ void PipelineRewriteContext::advance() {
     _itr = std::next(_itr);
 }
 
+void PipelineRewriteContext::postTransform() {
+    // The transformation rules in Transforms modify the list at the current, next or previous
+    // position. The conservative approach with graph invalidation is to invalidate from the
+    // previous position onwards. This could potentially be improved if we keep track of this
+    // iterator.
+    _depGraphCtx.invalidateFrom(_itr == _container.begin() ? _container.begin() : std::prev(_itr));
+}
+
 const mongo::pipeline::dependency_graph::DependencyGraph&
 PipelineRewriteContext::getDependencyGraph() const {
     DocumentSourceContainer::const_iterator itr = atLastStage() ? _itr : std::next(_itr);
@@ -204,6 +213,16 @@ bool Transforms::eraseNext(PipelineRewriteContext& ctx) {
     return false;
 }
 
+bool Transforms::eraseNthNext(PipelineRewriteContext& ctx, size_t n) {
+    if (n == 0)
+        return eraseCurrent(ctx);
+    tassert(12200603,
+            str::stream() << "Expected to have " << n << " next stages",
+            ctx.hasAtLeastNNextStages(n));
+    ctx._container.erase(std::next(ctx._itr, n));
+    return true;
+}
+
 bool Transforms::partialPushdown(PipelineRewriteContext& ctx,
                                  boost::intrusive_ptr<DocumentSource> pushdownPart,
                                  boost::intrusive_ptr<DocumentSource> remainingPart) {
@@ -227,6 +246,16 @@ bool Transforms::partialPushdown(PipelineRewriteContext& ctx,
     // May be able to optimize stage before the pushed down $match further.
     ctx._itr = prevOrFirstItr(ctx._container, std::prev(ctx._itr));
     return true;
+}
+
+DepsTracker PipelineRewriteContext::getPipelineSuffixDependencies() const {
+    if (atLastStage()) {
+        return DepsTracker{};
+    }
+    DocumentSourceContainer suffix(std::next(_itr), _container.end());
+    return Pipeline::getDependenciesForContainer(boost::intrusive_ptr<ExpressionContext>(&_expCtx),
+                                                 suffix,
+                                                 DepsTracker::NoMetadataValidation{});
 }
 
 }  // namespace mongo::rule_based_rewrites::pipeline

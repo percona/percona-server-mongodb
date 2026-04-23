@@ -56,9 +56,6 @@
 MONGO_MOD_PUB;
 namespace mongo::sorter {
 
-// TODO SERVER-119549 Make container buffer size more accurate
-constexpr inline std::size_t kContainerBufferSize = size_t{64} << 10;
-
 template <typename Key, typename Value>
 class ContainerIterator : public Iterator<Key, Value> {
 public:
@@ -235,7 +232,12 @@ public:
         if (size > 0) {
             this->_checksumCalculator.addData(buffer.buf(), size);
         }
+        // The container-based sorter does not compress in the sorter layer, so report the
+        // same value for compressed and uncompressed bytes.
+        _containerStats.addSpilledDataSize(size);
         _containerStats.addSpilledDataSizeUncompressed(size);
+        _containerStats.incrementNumSpilledEntries();
+        _lastAddedSize = size;
     }
 
     std::shared_ptr<Iterator> done() override {
@@ -257,6 +259,10 @@ public:
 
     void writeChunk() override {};
 
+    int64_t lastAddedSize() const {
+        return _lastAddedSize;
+    }
+
 private:
     OperationContext& _opCtx;
     RecoveryUnit& _ru;
@@ -264,21 +270,26 @@ private:
     SorterContainerStats& _containerStats;
     int64_t _nextKey;
     int64_t _rangeStartKey;
+    int64_t _lastAddedSize = 0;
 };
 
 template <typename Key, typename Value>
-class ContainerBasedSorterStorage : public SorterStorageBase<Key, Value> {
+class ContainerBasedStorage : public StorageBase<Key, Value> {
 public:
-    using Settings = SorterStorageBase<Key, Value>::Settings;
+    using Settings = StorageBase<Key, Value>::Settings;
 
-    ContainerBasedSorterStorage(OperationContext& opCtx,
-                                RecoveryUnit& ru,
-                                IntegerKeyedContainer& container,
-                                SorterContainerStats& stats,
-                                int64_t currKey,
-                                boost::optional<DatabaseName> dbName,
-                                SorterChecksumVersion checksumVersion)
-        : SorterStorageBase<Key, Value>(std::move(dbName), checksumVersion),
+    // Fixed per-cursor overhead not captured by the serialized entry size.
+    // TODO(SERVER-124382): Re-evaluate the 2 KB estimate with profiling.
+    static constexpr std::size_t kPerCursorOverheadBytes = 2 * 1024;
+
+    ContainerBasedStorage(OperationContext& opCtx,
+                          RecoveryUnit& ru,
+                          IntegerKeyedContainer& container,
+                          SorterContainerStats& stats,
+                          int64_t currKey,
+                          boost::optional<DatabaseName> dbName,
+                          SorterChecksumVersion checksumVersion)
+        : StorageBase<Key, Value>(std::move(dbName), checksumVersion),
           _opCtx(opCtx),
           _ru(ru),
           _container(container),
@@ -295,9 +306,17 @@ public:
         return sizeof(sorter::ContainerIterator<Key, Value>);
     };
 
-    // TODO SERVER-119549 Make container buffer size more accurate
+    /**
+     * Returns the estimated per-iterator memory cost during merge: the average serialized entry
+     * size plus a fixed per-cursor overhead.
+     */
     size_t getBufferSize() override {
-        return kContainerBufferSize;
+        auto count = _stats.numSpilledEntries();
+        if (count == 0) {
+            return 0;
+        }
+        return static_cast<std::size_t>(_stats.bytesSpilledUncompressed() / count) +
+            kPerCursorOverheadBytes;
     }
 
     std::shared_ptr<sorter::Iterator<Key, Value>> getSortedIterator(
@@ -335,36 +354,44 @@ private:
 };
 
 template <typename Key, typename Value, typename Comparator>
-class ContainerBasedSpiller : public SorterSpillerBase<Key, Value, Comparator> {
+class ContainerBasedSpiller : public SpillerBase<Key, Value, Comparator> {
 public:
+    // Callback to be run upon spilling, including merging spills (after writing the merged ranges
+    // but before deleting the old ranges).
+    using OnSpillFn = std::function<void()>;
+
     ContainerBasedSpiller(OperationContext& opCtx,
                           RecoveryUnit& ru,
                           IntegerKeyedContainer& container,
                           SorterContainerStats& stats,
                           boost::optional<DatabaseName> dbName,
                           SorterChecksumVersion checksumVersion,
+                          OnSpillFn onSpill,
                           int64_t batchSize,
+                          int64_t batchBytes,
                           int64_t minAvailableDiskBytesToSpill)
-        : SorterSpillerBase<Key, Value, Comparator>(
-              std::make_unique<ContainerBasedSorterStorage<Key, Value>>(
+        : SpillerBase<Key, Value, Comparator>(
+              std::make_unique<ContainerBasedStorage<Key, Value>>(
                   opCtx, ru, container, stats, 1, std::move(dbName), checksumVersion),
               minAvailableDiskBytesToSpill),
           _opCtx(opCtx),
           _ru(ru),
-          _batchSize(batchSize) {}
+          _onSpill(std::move(onSpill)),
+          _batchSize(batchSize),
+          _batchBytes(batchBytes) {}
 
     void mergeSpills(const SortOptions& opts,
-                     const SorterSpillerBase<Key, Value, Comparator>::Settings& settings,
+                     const SpillerBase<Key, Value, Comparator>::Settings& settings,
                      SorterStats& stats,
                      std::vector<std::shared_ptr<sorter::Iterator<Key, Value>>>& iters,
                      Comparator comp,
                      std::size_t numTargetedSpills,
-                     std::size_t numParallelSpills) override {
+                     std::size_t maxSpillsPerMerge) override {
         std::vector<std::shared_ptr<sorter::Iterator<Key, Value>>> oldIters;
         while (iters.size() > numTargetedSpills) {
             oldIters.swap(iters);
-            for (size_t i = 0; i < oldIters.size(); i += numParallelSpills) {
-                auto count = std::min(numParallelSpills, oldIters.size() - i);
+            for (size_t i = 0; i < oldIters.size(); i += maxSpillsPerMerge) {
+                auto count = std::min(maxSpillsPerMerge, oldIters.size() - i);
                 auto spillsToMerge = std::span(oldIters).subspan(i, count);
                 validateMergeSpillRanges<Key, Value>(spillsToMerge);
 
@@ -384,24 +411,61 @@ public:
 
                 int64_t numSpilled = 0;
 
+                std::vector<std::pair<Key, Value>> batch;
+                auto& containerWriter =
+                    *static_cast<SortedContainerWriter<Key, Value>*>(writer.get());
                 while (mergeIterator->more()) {
-                    auto next = mergeIterator->next();
+                    batch.clear();
                     writeConflictRetry(&_opCtx,
                                        _ru,
                                        "ContainerBasedSpiller::mergeSpills_insert",
                                        NamespaceString::kEmpty,
-                                       [&] { writer->addAlreadySorted(next.first, next.second); });
-                    ++numSpilled;
+                                       [&] {
+                                           int64_t bytesInBatch = 0;
+
+                                           WriteUnitOfWork wuow{&_opCtx};
+
+                                           // In the case of a write conflict, re-add any buffered
+                                           // items from the batch before getting more from the
+                                           // merge iterator.
+                                           for (size_t i = 0; i < batch.size(); ++i) {
+                                               containerWriter.addAlreadySorted(batch[i].first,
+                                                                                batch[i].second);
+                                               bytesInBatch += containerWriter.lastAddedSize();
+                                           }
+
+                                           while (mergeIterator->more() &&
+                                                  static_cast<int64_t>(batch.size()) < _batchSize &&
+                                                  bytesInBatch < _batchBytes) {
+                                               batch.push_back(mergeIterator->next());
+                                               containerWriter.addAlreadySorted(
+                                                   batch.back().first, batch.back().second);
+                                               bytesInBatch += containerWriter.lastAddedSize();
+                                           }
+
+                                           wuow.commit();
+                                       });
+                    numSpilled += batch.size();
                 }
                 invariant((opts.limit) ? numSpilled <= numSourceRows : numSpilled == numSourceRows);
 
+                _onSpill();
+
                 // TODO(SERVER-117546): Use a truncate rather than individual deletes.
-                for (int64_t current = deleteRangeStart; current < deleteRangeEnd; ++current) {
+                for (int64_t batchStart = deleteRangeStart; batchStart < deleteRangeEnd;
+                     batchStart += _batchSize) {
+                    auto batchEnd = std::min(batchStart + _batchSize, deleteRangeEnd);
                     writeConflictRetry(&_opCtx,
                                        _ru,
                                        "ContainerBasedSpiller::mergeSpills_remove",
                                        NamespaceString::kEmpty,
-                                       [&] { _containerBasedStorage().remove(current); });
+                                       [&] {
+                                           WriteUnitOfWork wuow{&_opCtx};
+                                           for (int64_t key = batchStart; key < batchEnd; ++key) {
+                                               _containerBasedStorage().remove(key);
+                                           }
+                                           wuow.commit();
+                                       });
                 }
 
                 iters.push_back(writer->done());
@@ -427,24 +491,37 @@ public:
     };
 
 private:
-    ContainerBasedSorterStorage<Key, Value>& _containerBasedStorage() {
-        return *static_cast<ContainerBasedSorterStorage<Key, Value>*>(this->_storage.get());
+    ContainerBasedStorage<Key, Value>& _containerBasedStorage() {
+        return *static_cast<ContainerBasedStorage<Key, Value>*>(this->_storage.get());
     }
 
     std::unique_ptr<SortedStorageWriter<Key, Value>> _spill(
         const SortOptions& opts,
-        const SorterSpillerBase<Key, Value, Comparator>::Settings& settings,
+        const SpillerBase<Key, Value, Comparator>::Settings& settings,
         std::span<std::pair<Key, Value>> data) override {
         auto writer = this->_storage->makeWriter(opts, settings);
 
-        for (size_t i = 0; i < data.size(); i += _batchSize) {
-            auto batch =
-                data.subspan(i, i + _batchSize < data.size() ? _batchSize : std::dynamic_extent);
+        for (size_t i = 0; i < data.size();) {
+            auto batchStart = i;
+            auto batch = data.subspan(batchStart,
+                                      batchStart + _batchSize < data.size() ? _batchSize
+                                                                            : std::dynamic_extent);
             writeConflictRetry(
                 &_opCtx, _ru, "ContainerBasedSpiller::_spill", NamespaceString::kEmpty, [&] {
+                    i = batchStart;
+                    int64_t bytesInBatch = 0;
+
                     WriteUnitOfWork wuow{&_opCtx};
                     for (auto&& [key, value] : batch) {
                         writer->addAlreadySorted(key, value);
+                        ++i;
+
+                        bytesInBatch +=
+                            static_cast<SortedContainerWriter<Key, Value>*>(writer.get())
+                                ->lastAddedSize();
+                        if (bytesInBatch >= _batchBytes) {
+                            break;
+                        }
                     }
                     wuow.commit();
                 });
@@ -452,13 +529,16 @@ private:
 
         _current += data.size();
         _containerBasedStorage().updateCurrKey(_current);
+        _onSpill();
 
         return std::move(writer);
     }
 
     OperationContext& _opCtx;
     RecoveryUnit& _ru;
+    OnSpillFn _onSpill;
     int64_t _batchSize;
+    int64_t _batchBytes;
     int64_t _current = 1;
 };
 

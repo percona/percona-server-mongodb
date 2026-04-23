@@ -371,6 +371,7 @@ roles:
           - flushRouterConfig # hostManager gets this also
           - cleanupOrphaned
           - getDefaultRWConcern # clusterMonitor gets this also
+          - blockReplicaSetWrites
           - setDefaultRWConcern
           - setFeatureCompatibilityVersion
           - setClusterParameter
@@ -552,8 +553,6 @@ roles:
           - insert
           - performRawDataOperations
           - updateSearchIndex
-          - containerInsert
-          - containerDelete
       - matchType: database
         db: "config"
         actions: *restoreRoleWriteActions

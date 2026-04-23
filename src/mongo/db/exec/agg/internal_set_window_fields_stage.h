@@ -30,7 +30,9 @@
 #pragma once
 
 #include "mongo/base/string_data.h"
+#include "mongo/db/exec/add_fields_projection_executor.h"
 #include "mongo/db/exec/agg/stage.h"
+#include "mongo/db/pipeline/expression.h"
 #include "mongo/db/pipeline/expression_context.h"
 #include "mongo/db/pipeline/window_function/partition_iterator.h"
 #include "mongo/db/pipeline/window_function/window_function_exec.h"
@@ -48,11 +50,6 @@ public:
         const boost::optional<SortPattern>& sortBy,
         const std::vector<WindowFunctionStatement>& outputFields);
 
-    void setSource(Stage* source) final {
-        pSource = source;
-        _iterator.setSource(source);
-    }
-
     bool usedDisk() const final {
         return _iterator.usedDisk();
     };
@@ -65,6 +62,11 @@ public:
         const SerializationOptions& opts = SerializationOptions{}) const final;
 
 private:
+    void setSource(Stage* source) final {
+        pSource = source;
+        _iterator.setSource(source);
+    }
+
     void initialize();
 
     GetNextResult doGetNext() final;
@@ -93,6 +95,12 @@ private:
 
     boost::optional<SortPattern> _sortBy;
     std::vector<WindowFunctionStatement> _outputFields;
+
+    // _projExec and _constExprs hold references to shared ExpressionConstants.
+    // doGetNext modifies the underlying Values in the ExpressionConstants.
+    std::unique_ptr<projection_executor::AddFieldsProjectionExecutor> _projExec;
+    std::vector<boost::intrusive_ptr<ExpressionConstant>> _constExprs;
+    std::vector<WindowFunctionExec*> _orderedExecs;
 };
 
 

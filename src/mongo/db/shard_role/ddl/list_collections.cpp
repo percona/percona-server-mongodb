@@ -65,6 +65,7 @@
 #include "mongo/db/query/plan_yield_policy.h"
 #include "mongo/db/record_id.h"
 #include "mongo/db/repl/read_concern_args.h"
+#include "mongo/db/rss/replicated_storage_service.h"
 #include "mongo/db/service_context.h"
 #include "mongo/db/shard_role/ddl/list_collections_filter.h"
 #include "mongo/db/shard_role/ddl/list_collections_gen.h"
@@ -197,7 +198,10 @@ BSONObj buildInfoField(OperationContext* opCtx,
         infoBuilder.appendElements(uuid->toBSON());
     }
 
-    if (recordIdsReplicated.get_value_or(false)) {
+    // TODO SERVER-122753 Not returning recordIdsReplicated when the persintence provider
+    // requires it (DSC).
+    const auto& provider = rss::ReplicatedStorageService::get(opCtx).getPersistenceProvider();
+    if (!provider.shouldUseReplicatedRecordIds() && recordIdsReplicated.get_value_or(false)) {
         infoBuilder.appendBool("recordIdsReplicated", true);
     }
 
@@ -599,14 +603,13 @@ public:
                     root->pushBack(id);
                 }
 
-                exec = uassertStatusOK(
-                    plan_executor_factory::make(expCtx,
-                                                std::move(ws),
-                                                std::move(root),
-                                                boost::none,
-                                                PlanYieldPolicy::YieldPolicy::INTERRUPT_ONLY,
-                                                false, /* whether owned BSON must be returned */
-                                                cursorNss));
+                exec = plan_executor_factory::make(expCtx,
+                                                   std::move(ws),
+                                                   std::move(root),
+                                                   boost::none,
+                                                   PlanYieldPolicy::YieldPolicy::INTERRUPT_ONLY,
+                                                   false, /* whether owned BSON must be returned */
+                                                   cursorNss);
 
                 long long batchSize = std::numeric_limits<long long>::max();
                 if (listCollRequest.getCursor() && listCollRequest.getCursor()->getBatchSize()) {

@@ -237,12 +237,12 @@ void GroupProcessor::spill() {
     // Initialize '_file' in a lazy manner only when it is needed.
     if (!_file) {
         _spillStats = std::make_unique<SorterFileStats>(nullptr /* sorterTracker */);
-        _file = std::make_shared<SorterFile>(sorter::nextFileName(_expCtx->getTempDir()),
-                                             _spillStats.get());
+        _file = std::make_shared<sorter::File>(sorter::nextFileName(_expCtx->getTempDir()),
+                                               _spillStats.get());
     }
-    sorter::FileBasedSorterStorage<Value, Value> sorterStorage(_file,
-                                                               /*dbName=*/boost::none,
-                                                               sorter::kLatestChecksumVersion);
+    sorter::FileBasedStorage<Value, Value> sorterStorage(_file,
+                                                         /*dbName=*/boost::none,
+                                                         sorter::kLatestChecksumVersion);
     std::unique_ptr<SortedStorageWriter<Value, Value>> writer =
         sorterStorage.makeWriter(SortOptions(), /*settings=*/{});
     switch (_accumulatedFields.size()) {  // same as ptrs[i]->second.size() for all i.

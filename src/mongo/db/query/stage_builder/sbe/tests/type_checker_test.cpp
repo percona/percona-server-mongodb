@@ -555,5 +555,44 @@ TEST(TypeCheckerTest, TypeCheckNaryMult) {
     }
 }
 
+// When the child of the 'Not' can return any non-boolean type, then the 'Not' itself can return
+// Nothing. This is a regression test for SERVER-123790.
+TEST(TypeCheckerTest, NotOnNonBooleanCanReturnNothing) {
+    // Construct expression: fillEmpty(not("foo"), "bar")
+    //
+    // Prior to the fix for SERVER-123790, the type analysis returned a type signature consisting
+    // only of 'kBooleanType' causing the fillEmpty() to be incorrectly elided.
+    auto tree = make<BinaryOp>(Operations::FillEmpty,
+                               make<UnaryOp>(Operations::Not, Constant::str("foo")),
+                               Constant::str("bar"));
+
+    TypeSignature sig = TypeChecker{}.typeCheck(tree);
+
+    // The fillEmpty() node should still be present.
+    ASSERT(tree.is<BinaryOp>());
+    auto unaryOp = tree.cast<BinaryOp>();
+    ASSERT_EQ(unaryOp->op(), Operations::FillEmpty);
+
+    // The type analysis for the 'Not' should say that the output could be either boolean, string,
+    // Nothing.
+    //
+    // The fillEmpty() type analysis notices that its first child might return Nothing, and
+    // therefore the possible types at the root of the expression tree are either boolean or string
+    // -- boolean if the first child returns non-Nothing and string if the first child returns
+    // Nothing.
+    ASSERT_EQ(
+        sig.typesMask,
+        TypeSignature::kBooleanType.include(getTypeSignature(sbe::value::TypeTags::StringSmall))
+            .typesMask);
+}
+
+// The FunctionCall(StringData, ABTVector) constructor must resolve the string name to its EFn
+// value at construction time so that fn() returns the enum and name() returns the canonical string.
+TEST(TypeCheckerTest, FunctionCallStringConstructorResolvesEFn) {
+    auto node = make<FunctionCall>("abs", ABTVector{});
+    ASSERT_EQUALS(sbe::EFn::kAbs, node.cast<FunctionCall>()->fn());
+    ASSERT_EQUALS("abs"_sd, node.cast<FunctionCall>()->name());
+}
+
 }  // namespace
 }  // namespace mongo::stage_builder

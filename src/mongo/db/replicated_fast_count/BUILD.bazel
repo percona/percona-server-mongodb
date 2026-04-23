@@ -29,6 +29,26 @@ mongo_cc_library(
     ],
 )
 
+idl_generator(
+    name = "durable_size_metadata_gen",
+    src = "durable_size_metadata.idl",
+    deps = [
+        "//src/mongo/db:basic_types_gen",
+    ],
+)
+
+mongo_cc_library(
+    name = "durable_size_metadata_idl",
+    srcs = [
+        ":durable_size_metadata_gen",
+    ],
+    deps = [
+        "//src/mongo:base",
+        "//src/mongo/db:server_base",
+        "//src/mongo/idl:idl_parser",
+    ],
+)
+
 mongo_cc_library(
     name = "replicated_fast_count_metrics",
     srcs = [
@@ -95,7 +115,14 @@ mongo_cc_library(
         "replicated_fast_count_init.cpp",
     ],
     deps = [
+        "init_replicated_fast_count_oplog_entry_idl",
+        "//src/mongo/db:rw_concern_d",
+        "//src/mongo/db:server_feature_flags",
+        "//src/mongo/db/op_observer",
+        "//src/mongo/db/repl:repl_coordinator_interface",
+        "//src/mongo/db/rss:replicated_storage_service",
         "//src/mongo/db/shard_role/shard_catalog:catalog_helpers",
+        "//src/mongo/db/storage:storage_engine_impl",
     ],
 )
 
@@ -106,6 +133,7 @@ mongo_cc_library(
     ],
     deps = [
         "replicated_fast_count_enabled",
+        "replicated_fast_count_metrics",
         "//src/mongo/db:record_id_helpers",
         "//src/mongo/db/repl:apply_ops_command_info",
         "//src/mongo/db/repl:oplog_entry",
@@ -202,6 +230,26 @@ mongo_cc_unit_test(
         "replicated_fast_count_test_helpers",
         "size_count_timestamp_store",
         "//src/mongo/db/shard_role/shard_catalog:catalog_test_fixture",
+    ],
+)
+
+mongo_cc_unit_test(
+    name = "replicated_fast_count_manager_test",
+    srcs = [
+        "replicated_fast_count_manager_test.cpp",
+    ],
+    tags = [
+        "mongo_unittest_third_group",
+        "server-collection-write-path",
+    ],
+    deps = [
+        "replicated_fast_count_init",
+        "replicated_fast_count_manager",
+        "replicated_fast_count_test_helpers",
+        "size_count_store",
+        "size_count_timestamp_store",
+        "//src/mongo/db/shard_role/shard_catalog:catalog_test_fixture",
+        "//src/mongo/db/storage:recovery_unit_base",
     ],
 )
 
@@ -346,6 +394,7 @@ mongo_cc_unit_test(
     name = "replicated_fast_count_oplog_entry_test",
     srcs = [
         "oplog_applier_init_replicated_fast_count_test.cpp",
+        "oplog_applier_size_delta_test.cpp",
         "replicated_fast_count_oplog_entry_test.cpp",
     ],
     tags = ["mongo_unittest_third_group"],
@@ -372,9 +421,12 @@ mongo_cc_unit_test(
         "//conditions:default": ["@platforms//:incompatible"],
     }),
     deps = [
+        "replicated_fast_count_advance_checkpoint",
         "replicated_fast_count_init",
         "replicated_fast_count_metrics",
         "replicated_fast_count_test_helpers",
+        "size_count_store",
+        "size_count_timestamp_store",
         "//src/mongo/db/shard_role/shard_catalog:catalog_test_fixture",
         "//src/mongo/otel/metrics:metrics_test_util",
         "//src/mongo/util:fail_point",

@@ -228,8 +228,8 @@ bool validShardKeyIndexExists(OperationContext* opCtx,
             reasons += " Index has a non-simple collation.";
         }
         if (!reasons.empty()) {
-            allReasons =
-                " Index " + idx["name"] + " cannot be used for sharding because [" + reasons + " ]";
+            allReasons = " Index " + idx["name"].str() + " cannot be used for sharding because [" +
+                reasons + " ]";
         }
     }
 
@@ -358,12 +358,13 @@ void validateTimeseriesShardKey(StringData timeFieldName,
                                      "(numbers only).",
                     elem.isNumber());
         } else {
-            uassert(5914001,
-                    str::stream() << "only the time field or meta field can be "
-                                     "part of shard key pattern",
-                    metaFieldName &&
-                        (elem.fieldNameStringData() == *metaFieldName ||
-                         elem.fieldNameStringData().starts_with(*metaFieldName + ".")));
+            uassert(
+                5914001,
+                str::stream() << "only the time field or meta field can be "
+                                 "part of shard key pattern",
+                metaFieldName &&
+                    (elem.fieldNameStringData() == *metaFieldName ||
+                     elem.fieldNameStringData().starts_with(std::string{*metaFieldName} + ".")));
         }
     }
 }
@@ -387,7 +388,8 @@ bool isRawTimeseriesShardKey(const TimeseriesOptions& tsOptions, const BSONObj& 
         const auto& fieldName = elem.fieldNameStringData();
         if (fieldName == timeFieldName ||
             (metaFieldName &&
-             (fieldName == *metaFieldName || fieldName.starts_with(*metaFieldName + ".")))) {
+             (fieldName == *metaFieldName ||
+              fieldName.starts_with(std::string{*metaFieldName} + ".")))) {
             return false;
         }
     }
@@ -441,8 +443,16 @@ void validateShardKeyIsNotEncrypted(OperationContext* opCtx,
 
 std::vector<BSONObj> ValidationBehaviorsShardCollection::loadIndexes(
     const NamespaceString& nss) const {
-    return listIndexesEmptyListIfMissing(
+    const auto indexes = listIndexesEmptyListIfMissing(
         _opCtx, nss, ListIndexesInclude::kNothing, /*isRawDataRequest=*/true);
+
+    // The listIndexes command always includes a 'collation' field in its output as of SERVER-89953.
+    // However, the caller expects a normalized index specification, in which case the 'collation'
+    // field should be omitted when it represents the simple collation. Apply normalization here to
+    // ensure compatibility with storage index specs.
+    // TODO (SERVER-119573): Remove this normalization once listIndexes returns specs compatible
+    // with the storage format.
+    return IndexCatalog::normalizeIndexSpecsFromListIndexes(indexes);
 }
 
 void ValidationBehaviorsShardCollection::verifyUsefulNonMultiKeyIndex(

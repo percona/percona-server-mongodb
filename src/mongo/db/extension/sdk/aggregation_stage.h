@@ -41,6 +41,8 @@
 #include "mongo/db/extension/shared/get_next_result.h"
 #include "mongo/db/extension/shared/handle/aggregation_stage/executable_agg_stage.h"
 #include "mongo/db/extension/shared/handle/aggregation_stage/parse_node.h"
+#include "mongo/db/extension/shared/handle/pipeline_dependencies_handle.h"
+#include "mongo/db/extension/shared/handle/pipeline_rewrite_context_handle.h"
 #include "mongo/util/modules.h"
 
 #include <memory>
@@ -112,7 +114,8 @@ public:
     /**
      * Evaluates the precondition of the rule identified by name. Extensions override this.
      */
-    virtual bool evaluateRulePrecondition(std::string_view ruleName) const {
+    virtual bool evaluateRulePrecondition(
+        std::string_view ruleNam, ConstPipelineRewriteContextHandle pipelineRewriteContext) const {
         return false;
     }
 
@@ -120,9 +123,16 @@ public:
      * Applies the transform of the rule identified by name. Extensions override this.
      * Returns true if the pipeline was modified.
      */
-    virtual bool evaluateRuleTransform(std::string_view ruleName) {
+    virtual bool evaluateRuleTransform(std::string_view ruleName,
+                                       PipelineRewriteContextHandle pipelineRewriteContext) {
         return false;
     }
+
+    /**
+     * Pushes pipeline dependencies to this source stage. Extensions override this to inspect
+     * 'deps' and update internal state.
+     */
+    virtual void applyPipelineSuffixDependencies(const PipelineDependenciesHandle& deps) {}
 
 protected:
     LogicalAggStage() = delete;  // No default constructor.
@@ -260,22 +270,28 @@ private:
     static ::MongoExtensionStatus* _extEvaluateRulePrecondition(
         const ::MongoExtensionLogicalAggStage* extLogicalStage,
         ::MongoExtensionByteView ruleName,
+        const ::MongoExtensionPipelineRewriteContext* ctx,
         bool* result) noexcept {
         return wrapCXXAndConvertExceptionToStatus([&]() {
             *result = false;
             auto& adapter = *static_cast<const ExtensionLogicalAggStageAdapter*>(extLogicalStage);
-            *result = adapter.getImpl().evaluateRulePrecondition(byteViewAsStringView(ruleName));
+            ConstPipelineRewriteContextHandle rewriteContext{ctx};
+            *result = adapter.getImpl().evaluateRulePrecondition(byteViewAsStringView(ruleName),
+                                                                 rewriteContext);
         });
     }
 
     static ::MongoExtensionStatus* _extEvaluateRuleTransform(
         ::MongoExtensionLogicalAggStage* extLogicalStage,
         ::MongoExtensionByteView ruleName,
+        ::MongoExtensionPipelineRewriteContext* ctx,
         bool* result) noexcept {
         return wrapCXXAndConvertExceptionToStatus([&]() {
             *result = false;
             auto& adapter = *static_cast<ExtensionLogicalAggStageAdapter*>(extLogicalStage);
-            *result = adapter.getImpl().evaluateRuleTransform(byteViewAsStringView(ruleName));
+            PipelineRewriteContextHandle rewriteContext{ctx};
+            *result = adapter.getImpl().evaluateRuleTransform(byteViewAsStringView(ruleName),
+                                                              rewriteContext);
         });
     }
 
@@ -297,6 +313,16 @@ private:
         });
     }
 
+    static ::MongoExtensionStatus* _extApplyPipelineSuffixDependencies(
+        ::MongoExtensionLogicalAggStage* extLogicalStage,
+        const ::MongoExtensionPipelineDependencies* deps) noexcept {
+        return wrapCXXAndConvertExceptionToStatus([&]() {
+            auto& adapter = *static_cast<ExtensionLogicalAggStageAdapter*>(extLogicalStage);
+            PipelineDependenciesHandle depsHandle{deps};
+            adapter.getImpl().applyPipelineSuffixDependencies(depsHandle);
+        });
+    }
+
     static constexpr ::MongoExtensionLogicalAggStageVTable VTABLE = {
         .destroy = &_extDestroy,
         .get_name = &_extGetName,
@@ -310,7 +336,8 @@ private:
             &_extSetVectorSearchLimitForOptimization,
         .evaluate_rule_precondition = &_extEvaluateRulePrecondition,
         .evaluate_rule_transform = &_extEvaluateRuleTransform,
-        .get_filter = &_extGetFilter};
+        .get_filter = &_extGetFilter,
+        .apply_pipeline_suffix_dependencies = &_extApplyPipelineSuffixDependencies};
     std::unique_ptr<LogicalAggStage> _stage;
 };
 

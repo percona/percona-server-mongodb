@@ -134,10 +134,29 @@ public:
      * Estimates the number of distinct values of tuples of the given field names in the collection,
      * according to the equality semantics specified by each field in 'fields'.
      *
+     * If 'bounds' is provided, only documents matching those bounds contribute to the estimate.
+     * There must be one OrderedIntervalList per field, in the same order as 'fields'.
+     *
      * Note: Does not support estimating NDV over array-valued fields.
      */
     CardinalityEstimate estimateNDV(
-        const std::vector<FieldPathAndEqSemantics>& fields) const override;
+        const std::vector<FieldPathAndEqSemantics>& fields,
+        boost::optional<std::span<const OrderedIntervalList>> bounds) const override;
+    using SamplingEstimator::estimateNDV;
+
+    /**
+     * Estimates the number of distinct values of tuples of the given field names
+     * a multikey index over the provided fields would contain, from the values
+     * present in the sample.
+     *
+     * The sample documents are drawn from the collection; this is not exactly equivalent
+     * to sampling from a multikey index, as each index key is not equally weighted or
+     * drawn independently of "sibling" values in the same document.
+     */
+    CardinalityEstimate estimateNDVMultiKey(
+        const std::vector<FieldPathAndEqSemantics>& fields,
+        boost::optional<std::span<const OrderedIntervalList>> bounds) const override;
+    using SamplingEstimator::estimateNDVMultiKey;
 
     /*
      * Generates a sample using a random cursor. The caller can call this function to draw a sample
@@ -254,8 +273,8 @@ public:
 
 protected:
     /*
-     * This helper creates a CanonicalQuery for the sampling plan. This CanonicalQuery is “empty”
-     * because its sole purpose is to be passed to ‘prepareSlotBasedExecutableTree()’ as part of
+     * This helper creates a CanonicalQuery for the sampling plan. This CanonicalQuery is "empty"
+     * because its sole purpose is to be passed to 'prepareSlotBasedExecutableTree()' as part of
      * preparing the sampling plan for execution in SBE. That function uses the CanonicalQuery to
      * bind input parameters, but this is a no-op for sampling CE.
      */
@@ -291,6 +310,11 @@ protected:
     // request. The sample will be freed on destruction of the SamplingEstimator instance or when a
     // re-sample is requested. A new sample will replace this.
     std::vector<BSONObj> _sample;
+    size_t _sampleSize;
+    bool _isSampleGenerated = false;
+    // Lazily computed on the first estimateNDV() call. Counts the number of documents with
+    // distinct _id values in the sample to detect duplicates from sampling with replacement.
+    mutable boost::optional<size_t> _uniqueDocCount;
 
 private:
     /**
@@ -300,13 +324,13 @@ private:
      * '_sampleSize' of the documents for the sample.
      */
     std::pair<std::unique_ptr<sbe::PlanStage>, mongo::stage_builder::PlanStageData>
-    generateRandomSamplingPlan(PlanYieldPolicy* sbeYieldPolicy);
+    generateRandomSamplingPlan(PlanYieldPolicySBE* sbeYieldPolicy);
 
     /**
      * Constructs a sampling SBE plan using the chunk-based method.
      */
     std::pair<std::unique_ptr<sbe::PlanStage>, mongo::stage_builder::PlanStageData>
-    generateChunkSamplingPlan(PlanYieldPolicy* sbeYieldPolicy);
+    generateChunkSamplingPlan(PlanYieldPolicySBE* sbeYieldPolicy);
 
     /**
      * Generates a sample by doing a full "CollScan" against the target collection. This sample is
@@ -337,10 +361,8 @@ private:
     NamespaceString _nss;
     PlanYieldPolicy::YieldPolicy _yieldPolicy;
     SamplingCEMethodEnum _samplingStyle;
-    size_t _sampleSize;
     // The set of top level fields that we want to include in the sampled documents.
     StringSet _topLevelSampleFieldNames;
-    bool _isSampleGenerated = false;
 
     boost::optional<int> _numChunks;
 

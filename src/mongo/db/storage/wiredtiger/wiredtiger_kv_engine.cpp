@@ -84,6 +84,7 @@
 #include "mongo/db/storage/wiredtiger/wiredtiger_size_storer.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_storage_options_config_string_flags_parser.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_util.h"
+#include "mongo/idl/idl_parser.h"
 #include "mongo/logv2/log.h"
 #include "mongo/platform/atomic_word.h"
 #include "mongo/platform/compiler.h"
@@ -176,11 +177,16 @@ boost::filesystem::path getOngoingBackupPath() {
         WiredTigerBackup::kOngoingBackupFile;
 }
 
+}  // namespace
+
 // There are a few delicate restore scenarios where untimestamped writes are still required.
 bool allowUntimestampedWrites(bool inStandaloneMode, bool shouldRecoverFromOplogAsStandalone) {
-    // Magic restore may need to perform untimestamped writes on timestamped tables as a part of
-    // the server automated restore procedure.
-    if (storageGlobalParams.magicRestore) {
+    // Classic magic restore may need to perform untimestamped writes on timestamped tables as a
+    // part of the server automated restore procedure. This is not the case in DSC magic restore,
+    // so only allow untimestamped writes in the classic case.
+    auto& provider =
+        rss::ReplicatedStorageService::get(getGlobalServiceContext()).getPersistenceProvider();
+    if (storageGlobalParams.magicRestore && provider.supportsClassicMagicRestore()) {
         return true;
     }
 
@@ -203,8 +209,6 @@ bool allowUntimestampedWrites(bool inStandaloneMode, bool shouldRecoverFromOplog
 
     return false;
 }
-
-}  // namespace
 
 std::string extractIdentFromPath(const boost::filesystem::path& dbpath,
                                  const boost::filesystem::path& identAbsolutePath) {
@@ -3201,7 +3205,7 @@ Status WiredTigerKVEngine::recoverOrphanedIdent(const rss::PersistenceProvider& 
 
     boost::optional<boost::filesystem::path> identFilePath = getDataFilePathForIdent(ident);
     if (!identFilePath) {
-        return {ErrorCodes::UnknownError, "Data file for ident " + ident + " not found"};
+        return {ErrorCodes::UnknownError, fmt::format("Data file for ident {} not found", ident)};
     }
 
     boost::system::error_code ec;
@@ -3302,7 +3306,7 @@ std::unique_ptr<RecordStore> WiredTigerKVEngine::getRecordStore(OperationContext
         }();
         // Check the storage options to determine if this is a cold collection.
         auto storageTier = getStorageTierFromStorageOptions(options.storageEngineCollectionOptions);
-        bool isColdCollection = storageTier && *storageTier == "cold";
+        bool isColdCollection = storageTier && *storageTier == StorageTierLevelEnum::cold;
 
         WiredTigerRecordStore::Params params{
             .uuid = uuid,
@@ -4713,7 +4717,8 @@ boost::optional<bool> WiredTigerKVEngine::getFlagFromStorageOptions(
 }
 
 BSONObj WiredTigerKVEngine::setStorageTierToStorageOptions(const BSONObj& storageEngineOptions,
-                                                           StringData value) const {
+                                                           StorageTierLevelEnum value) const {
+    const auto serializedValue = idlSerialize(value);
     const auto configString =
         WiredTigerUtil::getConfigStringFromStorageOptions(storageEngineOptions);
 
@@ -4728,8 +4733,10 @@ BSONObj WiredTigerKVEngine::setStorageTierToStorageOptions(const BSONObj& storag
         }
     }
 
-    const std::string disaggConfigString = "disaggregated=(storage_tier=" + value + ")" +
-        (value == "cold" ? ",leaf_page_max=128KB" : "");
+    const std::string disaggConfigString =
+        fmt::format("disaggregated=(storage_tier={}){}",
+                    serializedValue,
+                    value == StorageTierLevelEnum::cold ? ",leaf_page_max=128KB" : "");
 
     const auto newConfigString =
         (configString ? WiredTigerUtil::concatConfigs(disaggConfigString, *configString)
@@ -4745,7 +4752,7 @@ BSONObj WiredTigerKVEngine::setStorageTierToStorageOptions(const BSONObj& storag
     return WiredTigerUtil::setConfigStringToStorageOptions(storageEngineOptions, newConfigString);
 }
 
-boost::optional<std::string> WiredTigerKVEngine::getStorageTierFromStorageOptions(
+boost::optional<StorageTierLevelEnum> WiredTigerKVEngine::getStorageTierFromStorageOptions(
     const BSONObj& storageEngineOptions) const {
     const auto configString =
         WiredTigerUtil::getConfigStringFromStorageOptions(storageEngineOptions);
@@ -4765,7 +4772,16 @@ boost::optional<std::string> WiredTigerKVEngine::getStorageTierFromStorageOption
         return boost::none;
     }
 
-    return std::string(storageTierValue.str, storageTierValue.len);
+    // Copy into a std::string to ensure null-termination, which the IDL-generated deserializer
+    // requires (its memcmp reads one byte past the StringData length).
+    const std::string storageTierStrOwned(storageTierValue.str, storageTierValue.len);
+    try {
+        return idl::deserialize<StorageTierLevelEnum>(storageTierStrOwned);
+    } catch (const DBException&) {
+        // WiredTiger may report tier values (e.g. "none") that are not valid
+        // StorageTierLevelEnum values. Treat any unrecognized value as unset.
+        return boost::none;
+    }
 }
 
 BSONObj WiredTigerKVEngine::getSanitizedStorageOptionsForSecondaryReplication(

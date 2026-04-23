@@ -33,6 +33,7 @@
 #include "mongo/db/replicated_fast_count/replicated_fast_count_advance_checkpoint.h"
 #include "mongo/db/replicated_fast_count/replicated_fast_count_delta_utils.h"
 #include "mongo/db/replicated_fast_count/replicated_fast_count_read.h"
+#include "mongo/db/shard_role/shard_catalog/catalog_raii.h"
 #include "mongo/db/shard_role/shard_catalog/clustered_collection_util.h"
 #include "mongo/db/update/document_diff_calculator.h"
 #include "mongo/db/update/update_oplog_entry_serialization.h"
@@ -48,6 +49,8 @@ namespace {
 
 MONGO_FAIL_POINT_DEFINE(sleepAfterFlush);
 MONGO_FAIL_POINT_DEFINE(failDuringFlush);
+MONGO_FAIL_POINT_DEFINE(hangBeforePersistingNewFastCountEntries);
+MONGO_FAIL_POINT_DEFINE(useInMemoryReplicatedSizeCount);
 
 }  // namespace
 
@@ -197,8 +200,41 @@ CollectionSizeCount ReplicatedFastCountManager::find(const UUID& uuid) const {
     return {};
 }
 
+CollectionSizeCount ReplicatedFastCountManager::findLatest(OperationContext* opCtx,
+                                                           UUID uuid) const {
+    // Callers sometimes acquire a collection lock before reading findLatest(). When we try to
+    // acquire an additional oplog collection lock here, an assertion can be triggered when multiple
+    // lock acquisitions are disallowed, for example, during capped collection deletes. These
+    // operations should be thread safe, though, since we only acquire IS locks here, but this RAII
+    // wrapper suppresses the assertion for now.
+    AllowLockAcquisitionOnTimestampedUnitOfWork allowLockAcquisition(
+        shard_role_details::getLocker(opCtx));
+
+    // The oplog visible timestamp managed by the WiredTigerOplogManager is at most the WiredTiger
+    // all_durable timestamp which never includes oplog holes. However, some callers of findLatest()
+    // expect to see all committed changes, including those beyond one or more oplog holes. We
+    // override the RecoveryUnit's oplog visible timestamp here to allow reading all oplog entries
+    // for the duration of this function.
+    ScopedOplogVisibleTimestamp scopedOplogVisibleTimestamp(
+        shard_role_details::getRecoveryUnit(opCtx), boost::none);
+
+    const AutoGetOplogFastPath oplogRead(opCtx, OplogAccessMode::kRead);
+    const auto& oplogColl = oplogRead.getCollection();
+    massert(123334, "oplog collection not found", oplogColl);
+
+    auto oplogCursor = oplogColl->getRecordStore()->getCursor(
+        opCtx, *shard_role_details::getRecoveryUnit(opCtx), /*forward=*/true);
+
+    return replicated_fast_count::readLatest(
+        opCtx, _sizeCountStore, _timestampStore, *oplogCursor, uuid);
+}
+
 CollectionSizeCount ReplicatedFastCountManager::findPersisted(OperationContext* opCtx,
-                                                              const UUID& uuid) const {
+                                                              UUID uuid) const {
+    if (MONGO_unlikely(useInMemoryReplicatedSizeCount.shouldFail())) {
+        return find(uuid);
+    }
+
     return replicated_fast_count::readPersisted(opCtx, _sizeCountStore, uuid);
 }
 
@@ -246,7 +282,7 @@ void ReplicatedFastCountManager::_doFlush(OperationContext* opCtx,
         if (MONGO_unlikely(failDuringFlush.shouldFail())) {
             uasserted(12311500, "Injected failure in _doFlush for testing");
         }
-
+        hangBeforePersistingNewFastCountEntries.pauseWhileSet();
         if (_useLegacyFlush) {
             _flushDirtyMetadata(opCtx, dirtyMetadata);
         } else {
@@ -396,16 +432,12 @@ void ReplicatedFastCountManager::_updateOneMetadata(OperationContext* opCtx,
                     doc.value().toString(),
                     newDoc.toString()));
 
-    if (!diff->isEmpty()) {
-        args.update = update_oplog_entry::makeDeltaOplogEntry(*diff);
-        args.criteria = BSON("_id" << uuid);
-        collection_internal::updateDocument(
-            opCtx, fastCountColl, recordId, doc, newDoc, &args.update, nullptr, nullptr, &args);
-    } else {
-        // TODO(SERVER-122569): Delete this metric and the associated tests.
-        _metrics.incrementEmptyUpdateCount();
-        LOGV2(11648805, "ReplicatedFastCountManager empty update", "uuid"_attr = uuid);
-    }
+    massert(12256900, "Expected non-empty diff for update", !diff->isEmpty());
+
+    args.update = update_oplog_entry::makeDeltaOplogEntry(*diff);
+    args.criteria = BSON("_id" << uuid);
+    collection_internal::updateDocument(
+        opCtx, fastCountColl, recordId, doc, newDoc, &args.update, nullptr, nullptr, &args);
 }
 
 void ReplicatedFastCountManager::_insertOneMetadata(OperationContext* opCtx,

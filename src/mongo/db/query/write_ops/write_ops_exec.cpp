@@ -52,6 +52,7 @@
 #include "mongo/db/matcher/expression_leaf.h"
 #include "mongo/db/namespace_string_util.h"
 #include "mongo/db/not_primary_error_tracker.h"
+#include "mongo/db/op_observer/batched_write_context.h"
 #include "mongo/db/pipeline/expression_context_diagnostic_printer.h"
 #include "mongo/db/pipeline/legacy_runtime_constants_gen.h"
 #include "mongo/db/pipeline/variables.h"
@@ -379,7 +380,7 @@ void insertDocumentsAtomically(OperationContext* opCtx,
         Lock::ResourceLock heldUntilEndOfWUOW{
             opCtx, ResourceId(RESOURCE_METADATA, collection.getCollectionPtr()->ns()), MODE_X};
     }
-    if (!wuow.isGroupingOplogEntries() && !inTransaction && !oplogDisabled &&
+    if (!BatchedWriteContext::get(opCtx).writesAreBatched() && !inTransaction && !oplogDisabled &&
         collection.getCollectionPtr()->isCapped()) {
         acquireOplogSlotsForInserts(opCtx, collection, begin, end);
     }
@@ -530,6 +531,12 @@ void saveStatsOnConflict(PlanExecutor* exec, CurOp* curOp) {
     PlanSummaryStats partialStats;
     exec->getPlanExplainer().getSummaryStats(&partialStats);
     curOp->debug().setPlanSummaryMetrics(std::move(partialStats));
+}
+
+[[noreturn]] void throwUnsupportedUpdateOnColdCollection(const NamespaceString& nss) {
+    uasserted(ErrorCodes::IllegalOperation,
+              str::stream() << "Updates are not supported on cold collection '"
+                            << nss.toStringForErrorMsg() << "'");
 }
 
 }  // namespace
@@ -884,6 +891,12 @@ UpdateResult performUpdate(OperationContext* opCtx,
 
     assertCanWrite_inlock(opCtx, nsString);
 
+    if (!remove && collection.exists() &&
+        collection.getCollectionPtr()->getRecordStore()->isColdCollection()) {
+        // Updates on cold collections are not allowed.
+        throwUnsupportedUpdateOnColdCollection(collection.nss());
+    }
+
     if (!collection.exists() && upsert) {
         CollectionWriter collectionWriter(opCtx, &collection);
         uassertStatusOK(userAllowedCreateNS(opCtx, nsString));
@@ -961,7 +974,7 @@ UpdateResult performUpdate(OperationContext* opCtx,
     }
 
     const auto exec = uassertStatusOK(
-        getExecutorUpdate(&curOp->debug(), collection, canonicalUpdate.get(), boost::none /* verbosity
+        getExecutorUpdate(&curOp->debug(), collection, *canonicalUpdate, boost::none /* verbosity
         */));
     // Capture diagnostics to be logged in the case of a failure.
     ScopedDebugInfo explainDiagnostics("explainDiagnostics",
@@ -1101,7 +1114,7 @@ long long performDelete(OperationContext* opCtx,
     assertCanWrite_inlock(opCtx, nsString);
 
     const auto exec = uassertStatusOK(
-        getExecutorDelete(&curOp->debug(), collection, &parsedDelete, boost::none /* verbosity
+        getExecutorDelete(&curOp->debug(), collection, parsedDelete, boost::none /* verbosity
         */));
     // Capture diagnostics to be logged in the case of a failure.
     ScopedDebugInfo explainDiagnostics("explainDiagnostics",
@@ -1453,7 +1466,7 @@ static SingleWriteResult performSingleUpdateOpNoRetry(OperationContext* opCtx,
                                                       CanonicalUpdate& canonicalUpdate,
                                                       bool* containsDotsAndDollarsField) {
     auto exec = uassertStatusOK(getExecutorUpdate(
-        &curOp.debug(), collection, &canonicalUpdate, boost::none /* verbosity */));
+        &curOp.debug(), collection, canonicalUpdate, boost::none /* verbosity */));
     // Capture diagnostics to be logged in the case of a failure.
     ScopedDebugInfo explainDiagnostics("explainDiagnostics",
                                        diagnostic_printers::ExplainDiagnosticPrinter{exec.get()});
@@ -1575,6 +1588,12 @@ static SingleWriteResult performSingleUpdateOp(
             makeCollection(opCtx, ns);
         }
     }();
+
+    if (collection.exists() &&
+        collection.getCollectionPtr()->getRecordStore()->isColdCollection()) {
+        // Updates on cold collections are not allowed.
+        throwUnsupportedUpdateOnColdCollection(collection.nss());
+    }
 
     // Create an RAII object that prints the collection's shard key in the case of a tassert
     // or crash.
@@ -1945,7 +1964,7 @@ WriteResult performUpdates(
             }
         }
 
-        // TODO: don't create nested CurOp for legacy writes.
+        // TODO (SERVER-123796): don't create nested CurOp for legacy writes.
         // Add Command pointer to the nested CurOp.
         auto& parentCurOp = *CurOp::get(opCtx);
         const Command* cmd = parentCurOp.getCommand();
@@ -2168,7 +2187,7 @@ static SingleWriteResult performSingleDeleteOp(
         &hangWithLockDuringBatchRemove, opCtx, "hangWithLockDuringBatchRemove");
 
     auto exec = uassertStatusOK(
-        getExecutorDelete(&curOp.debug(), collection, &parsedDelete, boost::none /* verbosity */));
+        getExecutorDelete(&curOp.debug(), collection, parsedDelete, boost::none /* verbosity */));
     // Capture diagnostics to be logged in the case of a failure.
     ScopedDebugInfo explainDiagnostics("explainDiagnostics",
                                        diagnostic_printers::ExplainDiagnosticPrinter{exec.get()});
@@ -2264,7 +2283,7 @@ WriteResult performDeletes(
             continue;
         }
 
-        // TODO: don't create nested CurOp for legacy writes.
+        // TODO (SERVER-123796): don't create nested CurOp for legacy writes.
         // Add Command pointer to the nested CurOp.
         auto& parentCurOp = *CurOp::get(opCtx);
         const Command* cmd = parentCurOp.getCommand();
@@ -2545,8 +2564,8 @@ void explainUpdate(OperationContext* opCtx,
     auto canonicalUpdate = uassertStatusOK(CanonicalUpdate::make(
         expCtx, std::move(parsedUpdate), collection.getCollectionPtr(), isTimeseriesViewRequest));
 
-    auto exec = uassertStatusOK(getExecutorUpdate(
-        &CurOp::get(opCtx)->debug(), collection, canonicalUpdate.get(), verbosity));
+    auto exec = uassertStatusOK(
+        getExecutorUpdate(&CurOp::get(opCtx)->debug(), collection, *canonicalUpdate, verbosity));
     auto bodyBuilder = result->getBodyBuilder();
 
     // Capture diagnostics to be logged in the case of a failure.
@@ -2592,7 +2611,7 @@ void explainDelete(OperationContext* opCtx,
 
     // Explain the plan tree.
     auto exec = uassertStatusOK(
-        getExecutorDelete(&CurOp::get(opCtx)->debug(), collection, &parsedDelete, verbosity));
+        getExecutorDelete(&CurOp::get(opCtx)->debug(), collection, parsedDelete, verbosity));
     auto bodyBuilder = result->getBodyBuilder();
 
     // Capture diagnostics to be logged in the case of a failure.

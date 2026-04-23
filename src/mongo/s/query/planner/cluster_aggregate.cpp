@@ -558,7 +558,8 @@ std::unique_ptr<Pipeline> parsePipelineAndRegisterQueryStats(
     // If the pipeline is modified by desugaring, a reparse will be required. Otherwise, we can
     // optimize out the reparse.
     auto clonedLPP = liteParsedPipeline.clone();
-    const auto wasDesugaredHere = !alreadyDesugared && LiteParsedDesugarer::desugar(&clonedLPP);
+    const auto wasDesugaredHere =
+        !alreadyDesugared && LiteParsedDesugarer::desugar(&clonedLPP, ifrContext);
 
     // Parse the user's original pipeline pre-desugar to capture query stats. Passing through
     // wasDesugaredHere will determine whether a StubMongoProcessInterface will be attached to this
@@ -580,13 +581,12 @@ std::unique_ptr<Pipeline> parsePipelineAndRegisterQueryStats(
     });
 
     // Perform the query settings lookup and attach it to 'expCtx'.
-    // In case query settings have already been looked up (in case the agg request is
-    // running over a view) we avoid performing query settings lookup.
-    expCtx->setQuerySettingsIfNotPresent(std::move(request.getQuerySettings()).value_or_eval([&] {
+    {
         auto& service = query_settings::QuerySettingsService::get(opCtx);
-        return service.lookupQuerySettingsWithRejectionCheck(
-            expCtx, queryShapeHash, nsStruct.executionNss);
-    }));
+        auto querySettings = service.lookupQuerySettingsWithRejectionCheck(
+            expCtx, queryShapeHash, nsStruct.executionNss, request.getQuerySettings());
+        expCtx->setQuerySettingsIfNotPresent(std::move(querySettings));
+    }
 
     // Skip query stats recording for queryable encryption queries.
     if (!shouldDoFLERewrite) {
@@ -1119,6 +1119,10 @@ void makeEOFExplainResult(OperationContext* opCtx,
                           BSONObjBuilder* result,
                           std::shared_ptr<IncrementalFeatureRolloutContext> ifrContext) {
     BSONObjBuilder queryPlannerBob(result->subobjStart("queryPlanner"));
+    queryPlannerBob.append("namespace",
+                           NamespaceStringUtil::serialize(namespaces.requestedNss,
+                                                          SerializationContext::stateDefault()));
+
     BSONObjBuilder winningPlanBob(queryPlannerBob.subobjStart("winningPlan"));
     winningPlanBob.append("stage", "EOF");
     winningPlanBob.appendNumber("planNodeId", 1);
@@ -1500,7 +1504,11 @@ Status ClusterAggregate::runAggregate(
             // these extensions are not eligible to run on views. If we do not implement this
             // optimization, we will eventually throw the IFR flag kickback retry and end up
             // restarting ClusterAggregate again.
-            if (!feature_flags::gFeatureFlagExtensionViewsAndUnionWith.isEnabled()) {
+            // TODO SERVER-121094 Remove when feature flag is removed.
+            auto hybridSearchFlagEnabled = ifrContext &&
+                ifrContext->getSavedFlagValue(
+                    feature_flags::gFeatureFlagExtensionsInsideHybridSearch);
+            if (!hybridSearchFlagEnabled) {
                 if (ifrContext->getSavedFlagValue(
                         feature_flags::gFeatureFlagVectorSearchExtension)) {
                     state.ifrFlagsToDisableOnRetries.insert(

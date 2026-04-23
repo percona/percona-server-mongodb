@@ -106,6 +106,10 @@ public:
         "change_streams.cursor.open.pinned"};
 
     // Storage Execution Team Metrics
+    static constexpr MetricName kIndexBuildsActive = {"index_builds.active"};
+    static constexpr MetricName kIndexBuildsStarted = {"index_builds.started"};
+    static constexpr MetricName kIndexBuildsSucceeded = {"index_builds.succeeded"};
+    static constexpr MetricName kIndexBuildsFailed = {"index_builds.failed"};
     static constexpr MetricName kIndexBuildSideWritesInserted = {
         "index_builds.side_writes.inserted"};
     static constexpr MetricName kIndexBuildSideWritesDeleted = {"index_builds.side_writes.deleted"};
@@ -134,20 +138,36 @@ public:
         "replicated_fast_count.flushed_docs.max"};
     static constexpr MetricName kReplicatedFastCountFlushedDocsTotal = {
         "replicated_fast_count.flushed_docs.total"};
-    static constexpr MetricName kReplicatedFastCountEmptyUpdateCount = {
-        "replicated_fast_count.empty_update_count"};
     static constexpr MetricName kReplicatedFastCountInsertCount = {
         "replicated_fast_count.insert_count"};
     static constexpr MetricName kReplicatedFastCountUpdateCount = {
         "replicated_fast_count.update_count"};
     static constexpr MetricName kReplicatedFastCountWriteTimeMsTotal = {
         "replicated_fast_count.write_time.total"};
+    static constexpr MetricName kReplicatedFastCountCheckpointOplogEntriesProcessed = {
+        "replicated_fast_count.checkpoint.oplog_entries_processed"};
+    static constexpr MetricName kReplicatedFastCountCheckpointOplogEntriesSkipped = {
+        "replicated_fast_count.checkpoint.oplog_entries_skipped"};
+    static constexpr MetricName kReplicatedFastCountCheckpointSizeCountEntriesProcessed = {
+        "replicated_fast_count.checkpoint.size_count_entries_processed"};
 
     static constexpr MetricName kIndexBuildKeysInsertedFromScan = {
         "index_builds.keys_inserted_from_scan"};
     static constexpr MetricName kIndexBuildDocsScanned = {"index_builds.docs_scanned"};
     static constexpr MetricName kIndexBuildKeysGeneratedFromScan = {
         "index_builds.keys_generated_from_scan"};
+
+    // Query Integration Team Metrics
+
+    // Op Counters
+    static constexpr MetricName kInsertOpCount = {"opcounters.inserts"};
+    static constexpr MetricName kQueryOpCount = {"opcounters.queries"};
+    static constexpr MetricName kUpdateOpCount = {"opcounters.updates"};
+    static constexpr MetricName kDeleteOpCount = {"opcounters.deletes"};
+    static constexpr MetricName kGetMoreOpCount = {"opcounters.get_mores"};
+    static constexpr MetricName kCommandOpCount = {"opcounters.commands"};
+    // New in SERVER-123987 - Counts every top-level 'aggregate' command.
+    static constexpr MetricName kAggregateOpCount = {"opcounters.aggregates"};
 
     // Test-only
     static constexpr MetricName kTest1 = {"test_only.metric1"};

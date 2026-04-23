@@ -211,8 +211,8 @@ BSONObj buildCountChunksInRangeCommand(const UUID& collectionUUID,
     BSONObjBuilder queryBuilder;
     queryBuilder << ChunkType::collectionUUID << collectionUUID;
     queryBuilder << ChunkType::shard(shardId.toString());
-    queryBuilder << ChunkType::min(BSON("$gte" << chunkRange.getMin()));
-    queryBuilder << ChunkType::min(BSON("$lt" << chunkRange.getMax()));
+    queryBuilder << ChunkType::min(
+        BSON("$gte" << chunkRange.getMin() << "$lt" << chunkRange.getMax()));
 
     std::vector<BSONObj> pipeline;
     pipeline.push_back(BSON("$match" << queryBuilder.obj()));
@@ -516,8 +516,8 @@ void mergeAllChunksOnShardInTransaction(OperationContext* opCtx,
             BSONObjBuilder queryBuilder;
             queryBuilder << ChunkType::collectionUUID << collectionUUID;
             queryBuilder << ChunkType::shard(shardId.toString());
-            queryBuilder << ChunkType::min(BSON("$gte" << chunk.getMin()));
-            queryBuilder << ChunkType::min(BSON("$lt" << chunk.getMax()));
+            queryBuilder << ChunkType::min(
+                BSON("$gte" << chunk.getMin() << "$lt" << chunk.getMax()));
 
             write_ops::DeleteCommandRequest deleteOp(NamespaceString::kConfigsvrChunksNamespace);
             deleteOp.setDeletes([&] {
@@ -1034,8 +1034,9 @@ void ShardingCatalogManager::_mergeChunksInTransaction(
                     BSONObjBuilder queryBuilder;
                     queryBuilder << ChunkType::collectionUUID << collectionUUID;
                     queryBuilder << ChunkType::shard(shardId.toString());
-                    queryBuilder << ChunkType::min(BSON("$gte" << chunkRangeToDelete.getMin()));
-                    queryBuilder << ChunkType::min(BSON("$lt" << chunkRangeToDelete.getMax()));
+                    queryBuilder << ChunkType::min(BSON("$gte" << chunkRangeToDelete.getMin()
+                                                               << "$lt"
+                                                               << chunkRangeToDelete.getMax()));
 
                     write_ops::DeleteCommandRequest deleteOp(
                         NamespaceString::kConfigsvrChunksNamespace);
@@ -1103,8 +1104,8 @@ ShardingCatalogManager::commitChunksMerge(OperationContext* opCtx,
         BSONObjBuilder queryBuilder;
         queryBuilder << ChunkType::collectionUUID << collUuid;
         queryBuilder << ChunkType::shard(shardId.toString());
-        queryBuilder << ChunkType::min(BSON("$gte" << chunkRange.getMin()));
-        queryBuilder << ChunkType::min(BSON("$lt" << chunkRange.getMax()));
+        queryBuilder << ChunkType::min(
+            BSON("$gte" << chunkRange.getMin() << "$lt" << chunkRange.getMax()));
         return queryBuilder.obj();
     }();
 
@@ -2350,9 +2351,15 @@ void ShardingCatalogManager::setAllowMigrationsAndBumpOneChunk(
 
     const auto cm = uassertStatusOK(
         RoutingInformationCache::get(opCtx)->getCollectionPlacementInfoWithRefresh(opCtx, nss));
+    // Allow clearing allowMigrations on an unsplittable (tracked-unsharded) collection: the field
+    // can be left over from when the collection was sharded (e.g. after unshardCollection), and
+    // resumeMigrations must be able to clear it.
     uassert(ErrorCodes::NamespaceNotSharded,
-            str::stream() << "Collection '" << nss.toStringForErrorMsg() << "' is not sharded",
-            cm.isSharded());
+            str::stream() << "Collection '" << nss.toStringForErrorMsg() << "' "
+                          << (cm.isUnsplittable()
+                                  ? "is unsplittable; disabling migrations is not supported"
+                                  : "is not sharded"),
+            cm.isSharded() || (cm.isUnsplittable() && allowMigrations));
 
     uassert(ErrorCodes::InvalidUUID,
             str::stream() << "Collection uuid " << collectionUUID

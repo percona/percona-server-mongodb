@@ -285,20 +285,6 @@ public:
                   boost::optional<Timestamp> timestamp = boost::none,
                   boost::optional<Status> abortStatus = boost::none);
 
-    /**
-     * Sets the multikey information for this index build.
-     *
-     * TODO (SERVER-111304): Remove this function.
-     */
-    void setMultikey(std::vector<boost::optional<MultikeyPaths>> multikey);
-
-    /**
-     * Returns the multikey information for this index build.
-     *
-     * TODO (SERVER-111304): Remove this function.
-     */
-    const std::vector<boost::optional<MultikeyPaths>>& getMultikey() const;
-
     bool isApplyingCommitOplogEntry() const {
         return _state == kApplyCommitOplogEntry;
     }
@@ -396,8 +382,6 @@ private:
     boost::optional<Timestamp> _timestamp;
     // Reason for abort, if any.
     Status _abortStatus = Status::OK();
-    // TODO (SERVER-111304): Remove multikey information from IndexBuildState.
-    std::vector<boost::optional<MultikeyPaths>> _multikey;
 };
 }  // namespace index_build_internal
 
@@ -452,16 +436,6 @@ public:
      * build is already killed.
      */
     void setInProgress(OperationContext* opCtx);
-
-    /**
-     * Sets '_generateTableWrites' to the specified value.
-     */
-    void setGenerateTableWrites(bool generateTableWrites);
-
-    /**
-     * Returns the value of '_generateTableWrites'.
-     */
-    bool getGenerateTableWrites() const;
 
     /**
      * Transition the index build to kFailureCleanUp state if the build isn't already in kAborted,
@@ -668,20 +642,6 @@ public:
     IndexBuildMetrics getIndexBuildMetrics() const;
 
     /**
-     * Sets the multikey information for this index build.
-     *
-     * TODO (SERVER-111304): Remove this function.
-     */
-    void setMultikey(std::vector<boost::optional<MultikeyPaths>> multikey);
-
-    /**
-     * Returns the multikey information for this index build.
-     *
-     * TODO (SERVER-111304): Remove this function.
-     */
-    const std::vector<boost::optional<MultikeyPaths>>& getMultikey() const;
-
-    /**
      * Stores the time at which which we voted to commit an index build.
      */
     void setVotedToCommitTime(const Date_t& time);
@@ -771,12 +731,6 @@ private:
 
     // Maintains the state of the index build.
     index_build_internal::IndexBuildState _indexBuildState;
-
-    // Indicates whether this node should produce any table writes during the index build. When
-    // this is false, it means that this node is a secondary and is only applying writes received
-    // from the primary via the oplog.
-    // TODO(SERVER-111304): Remove this field.
-    bool _generateTableWrites{true};
 
     // Represents the callback handle for scheduled remote command "voteCommitIndexBuild".
     executor::TaskExecutor::CallbackHandle _voteCmdCbkHandle;

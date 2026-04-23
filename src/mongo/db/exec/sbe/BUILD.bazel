@@ -22,6 +22,16 @@ mongo_cc_library(
 )
 
 mongo_cc_library(
+    name = "sbe_fn_names",
+    srcs = [
+        "//src/mongo/db/exec/sbe/expressions:sbe_fn_names.cpp",
+    ],
+    deps = [
+        "//src/mongo:base",
+    ],
+)
+
+mongo_cc_library(
     name = "query_sbe",
     srcs = [
         "extended_types.cpp",
@@ -62,6 +72,7 @@ mongo_cc_library(
         "//src/mongo/db/exec/sbe/vm:vm_printer.cpp",
     ],
     deps = [
+        ":sbe_fn_names",
         "//src/mongo:base",
         "//src/mongo/bson/dotted_path:dotted_path_support",
         "//src/mongo/db:mongohasher",
@@ -146,8 +157,10 @@ mongo_cc_library(
         "//src/mongo/db:service_context",
         "//src/mongo/db/exec:js_function",
         "//src/mongo/db/exec:scoped_timer",
+        "//src/mongo/db/memory_tracking",
         "//src/mongo/db/pipeline",
         "//src/mongo/db/query:plan_yield_policy",
+        "//src/mongo/db/query:plan_yield_policy_sbe",
         "//src/mongo/db/query:query_knobs",
         "//src/mongo/db/query/compiler/metadata:query_metadata",
         "//src/mongo/db/query/compiler/physical_model/index_bounds",
@@ -179,6 +192,7 @@ mongo_cc_library(
         "//src/mongo/db/exec:scoped_timer",
         "//src/mongo/db/index:index_access_method",
         "//src/mongo/db/index:preallocated_container_pool",
+        "//src/mongo/db/query:plan_yield_policy_sbe",
         "//src/mongo/db/query/compiler/physical_model/index_bounds",
         "//src/mongo/db/shard_role",
         "//src/mongo/db/storage:index_entry_comparison",
@@ -288,6 +302,7 @@ mongo_cc_unit_test(
         "//src/mongo/db/exec/sbe/expressions:sbe_fail_test.cpp",
         "//src/mongo/db/exec/sbe/expressions:sbe_fill_type_test.cpp",
         "//src/mongo/db/exec/sbe/expressions:sbe_firstn_lastn_test.cpp",
+        "//src/mongo/db/exec/sbe/expressions:sbe_fn_names_test.cpp",
         "//src/mongo/db/exec/sbe/expressions:sbe_get_element_builtin_test.cpp",
         "//src/mongo/db/exec/sbe/expressions:sbe_if_test.cpp",
         "//src/mongo/db/exec/sbe/expressions:sbe_index_of_test.cpp",

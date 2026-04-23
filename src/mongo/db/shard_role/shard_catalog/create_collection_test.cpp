@@ -732,8 +732,8 @@ TEST_F(CreateCollectionTest,
     ASSERT_FALSE(coll.getCollectionPtr()->areRecordIdsReplicated());
 }
 
-const auto kValidUrl1 = ExternalDataSourceMetadata::kUrlProtocolFile + "named_pipe1"s;
-const auto kValidUrl2 = ExternalDataSourceMetadata::kUrlProtocolFile + "named_pipe2"s;
+const auto kValidUrl1 = std::string(ExternalDataSourceMetadata::kUrlProtocolFile) + "named_pipe1"s;
+const auto kValidUrl2 = std::string(ExternalDataSourceMetadata::kUrlProtocolFile) + "named_pipe2"s;
 
 TEST_F(CreateVirtualCollectionTest, VirtualCollectionOptionsWithOneSource) {
     NamespaceString vcollNss = NamespaceString::createNamespaceString_forTest("myDb", "vcoll.name");
@@ -928,7 +928,8 @@ TEST_F(CreateCollectionTest, TestCollectionCreationChecks) {
 }
 
 TEST_F(CreateCollectionTest, CreateCollectionForApplyOpsTimeseries) {
-    NamespaceString newNss = NamespaceString::createNamespaceString_forTest("test.newColl");
+    NamespaceString newNss = timeseries::test_util::resolveTimeseriesNss(
+        NamespaceString::createNamespaceString_forTest("test.newColl"));
 
     auto opCtx = makeOpCtx();
     ASSERT_FALSE(collectionExists(opCtx.get(), newNss));
@@ -951,7 +952,8 @@ TEST_F(CreateCollectionTest, CreateCollectionForApplyOpsTimeseries) {
 
 // In the ApplyOps path, $-prefixed timeField or metaField should be allowed
 TEST_F(CreateCollectionTest, CreateCollectionForApplyOpsTimeseriesDollarPrefix) {
-    NamespaceString newNss = NamespaceString::createNamespaceString_forTest("test.newColl");
+    NamespaceString newNss = timeseries::test_util::resolveTimeseriesNss(
+        NamespaceString::createNamespaceString_forTest("test.newColl"));
 
     auto opCtx = makeOpCtx();
     ASSERT_FALSE(collectionExists(opCtx.get(), newNss));

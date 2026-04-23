@@ -59,6 +59,7 @@
 #include "mongo/db/record_id.h"
 #include "mongo/db/repl/oplog_entry.h"
 #include "mongo/db/repl/optime.h"
+#include "mongo/db/shard_role/ddl/list_collections_gen.h"
 #include "mongo/db/shard_role/resource_yielder.h"
 #include "mongo/db/shard_role/shard_catalog/collection_type.h"
 #include "mongo/db/storage/backup_cursor_hooks.h"
@@ -287,7 +288,13 @@ public:
 
     /**
      * Returns the complete set of index specifications for the given namespace.
+     *
      * For timeseries collections, returns index specs in their raw format.
+     *
+     * Returned indexes are in normalized form: if the index uses the simple collation, the
+     * 'collation' field is omitted. Note that because of this normalization, these index specs
+     * cannot be passed directly to a createIndexes user-like command because attempting to
+     * normalize an already-normalized spec is not supported.
      */
     virtual std::vector<BSONObj> getIndexSpecs(OperationContext* opCtx,
                                                const NamespaceString& ns,
@@ -354,8 +361,12 @@ public:
      */
     virtual BSONObj getCollectionOptions(OperationContext* opCtx, const NamespaceString& nss) = 0;
 
-    virtual UUID fetchCollectionUUIDFromPrimary(OperationContext* opCtx,
-                                                const NamespaceString& nss) = 0;
+    /**
+     * Returns the ListCollectionsReplyItem for the collection identified by the given
+     * NamespaceStringOrUUID. Throws NamespaceNotFound if no matching collection exists.
+     */
+    virtual ListCollectionsReplyItem getCollectionInfoFromPrimary(
+        OperationContext* opCtx, const NamespaceStringOrUUID& nsOrUUID) = 0;
 
     /**
      * Returns the query shape collection type in the namespace given by 'nss'. This function holds
@@ -733,7 +744,19 @@ public:
         boost::optional<ChunkVersion> targetCollectionPlacementVersion,
         const NamespaceString& outputNs) const = 0;
 
-    std::shared_ptr<executor::TaskExecutor> taskExecutor;
+    /**
+     * Returns the task executor for this process.
+     *
+     * @param withNullCheck If true (the default), throws a UserException if the task executor
+     * has not been initialized. If false, may return a null shared_ptr. Only pass false if the
+     * caller or downstream component can tolerate an uninitialized executor.
+     */
+    std::shared_ptr<executor::TaskExecutor> getTaskExecutor(bool withNullCheck = true) const {
+        if (withNullCheck) {
+            uassert(11434200, "Task executor is not initialized", taskExecutor);
+        }
+        return taskExecutor;
+    }
 
     /**
      * Creates a spill table.
@@ -774,6 +797,12 @@ public:
      */
     virtual void truncateSpillTable(const boost::intrusive_ptr<ExpressionContext>& expCtx,
                                     SpillTable& spillTable) const = 0;
+
+private:
+    /**
+     * The task executor for this process. May be null on standalone mongod nodes.
+     */
+    std::shared_ptr<executor::TaskExecutor> taskExecutor;
 };
 
 }  // namespace mongo

@@ -144,14 +144,6 @@ void IndexBuildState::setState(State state,
     }
 }
 
-void IndexBuildState::setMultikey(std::vector<boost::optional<MultikeyPaths>> multikey) {
-    _multikey = std::move(multikey);
-}
-
-const std::vector<boost::optional<MultikeyPaths>>& IndexBuildState::getMultikey() const {
-    return _multikey;
-}
-
 bool IndexBuildState::_checkIfValidTransition(IndexBuildState::State currentState,
                                               IndexBuildState::State newState) const {
     switch (currentState) {
@@ -263,16 +255,6 @@ void ReplIndexBuildState::setInProgress(OperationContext* opCtx) {
     // transtion to kInProgress would be an error.
     opCtx->checkForInterrupt();
     _indexBuildState.setState(IndexBuildState::kInProgress, false /* skipCheck */);
-}
-
-void ReplIndexBuildState::setGenerateTableWrites(bool generateTableWrites) {
-    stdx::lock_guard lk(_mutex);
-    _generateTableWrites = generateTableWrites;
-}
-
-bool ReplIndexBuildState::getGenerateTableWrites() const {
-    stdx::lock_guard lk(_mutex);
-    return _generateTableWrites;
 }
 
 void ReplIndexBuildState::setPostFailureState(const Status& status) {
@@ -781,14 +763,6 @@ void ReplIndexBuildState::setVotedToCommitTime(const Date_t& time) {
 void ReplIndexBuildState::setReceivedCommitIndexBuildEntryTime(const Date_t& time) {
     stdx::lock_guard lk(_mutex);
     _metrics.commitIndexOplogEntryTime = time;
-}
-
-void ReplIndexBuildState::setMultikey(std::vector<boost::optional<MultikeyPaths>> multikey) {
-    _indexBuildState.setMultikey(std::move(multikey));
-}
-
-const std::vector<boost::optional<MultikeyPaths>>& ReplIndexBuildState::getMultikey() const {
-    return _indexBuildState.getMultikey();
 }
 
 bool ReplIndexBuildState::_shouldSkipIndexBuildStateTransitionCheck(OperationContext* opCtx) const {

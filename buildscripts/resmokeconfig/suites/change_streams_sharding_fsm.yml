@@ -3,13 +3,11 @@ test_kind: js_test
 selector:
   roots:
     - jstests/change_stream_fsm/test_change_stream_sharding_fsm_*.js
-    - jstests/change_stream_fsm/test_change_stream_sharding_command_generator.js
 
 executor:
   archive:
     tests:
       - jstests/change_stream_fsm/test_change_stream_sharding_fsm_*.js
-      - jstests/change_stream_fsm/test_change_stream_sharding_command_generator.js
   config:
     shell_options:
       nodb: ""
@@ -18,6 +16,7 @@ executor:
         await import('jstests/libs/override_methods/implicitly_retry_on_migration_in_progress.js');
       global_vars:
         TestData:
+          migrationRetryJitterMS: 2000
           migrationRetryExtraDDLCommands:
             - "drop"
             - "dropDatabase"

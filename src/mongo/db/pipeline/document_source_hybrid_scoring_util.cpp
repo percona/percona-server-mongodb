@@ -56,10 +56,16 @@
 namespace mongo::hybrid_scoring_util {
 
 bool isScoreStage(const boost::intrusive_ptr<DocumentSource>& stage) {
-    if (stage->getSourceName() != DocumentSourceSetMetadata::kStageName) {
+    // $score is implemented as a DocumentSourceSingleDocumentTransformation wrapping a
+    // SetMetadataTransformation. Check for both to confirm this stage is a $score stage.
+    if (!stage->isInstanceOf<DocumentSourceSingleDocumentTransformation>()) {
         return false;
     }
     auto singleDocTransform = static_cast<DocumentSourceSingleDocumentTransformation*>(stage.get());
+    if (singleDocTransform->getTransformer().getType() !=
+        TransformerInterface::TransformerType::kSetMetadata) {
+        return false;
+    }
     auto setMetadataTransform =
         static_cast<SetMetadataTransformation*>(&singleDocTransform->getTransformer());
     return setMetadataTransform->getMetaType() == DocumentMetadataFields::MetaType::kScore;
@@ -124,7 +130,7 @@ StringMap<double> validateWeights(
         tassert(9967501,
                 "There must be at least some invalid weights when there are more weights "
                 "than input pipelines to " +
-                    stageName,
+                    std::string{stageName},
                 !invalidWeights.empty());
         // Fail query.
         uasserted(
@@ -298,7 +304,7 @@ Status isSelectionStage(const BSONObj& bsonStage) {
     // If here, then the stage was not a valid hybrid search selection stage.
     return Status(
         ErrorCodes::Error::BadValue,
-        fieldName +
+        std::string{fieldName} +
             " is not a selection stage because it modifies or transforms the input documents.");
 }
 

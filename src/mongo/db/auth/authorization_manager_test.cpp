@@ -108,7 +108,7 @@ class RecoveryUnitMock : public RecoveryUnitNoop {
         _setState(State::kActive);
     }
 
-    void doCommitUnitOfWork() override {
+    void doCommitUnitOfWork(boost::optional<Timestamp> commitTime) override {
         _executeCommitHandlers(boost::none);
         _setState(State::kActiveNotInUnitOfWork);
     }

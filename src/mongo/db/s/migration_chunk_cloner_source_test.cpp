@@ -446,8 +446,8 @@ public:
         return _coll->getCompletedIndexCount();
     }
 
-    BSONObj getIndexSpec(StringData indexName) const override {
-        return _coll->getIndexSpec(indexName);
+    BSONObj getIndexSpec(StringData indexName, bool expandSimpleCollation) const override {
+        return _coll->getIndexSpec(indexName, expandSimpleCollation);
     }
 
     void getAllIndexes(std::vector<std::string>* names) const override {
@@ -505,6 +505,10 @@ public:
 
     long long dataSize(OperationContext* opCtx) const override {
         return _coll->dataSize(opCtx);
+    }
+
+    CollectionSizeCount latestSizeCount(OperationContext* opCtx) const override {
+        return _coll->latestSizeCount(opCtx);
     }
 
     CollectionSizeCount persistedSizeCount(OperationContext* opCtx) const override {

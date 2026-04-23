@@ -111,6 +111,7 @@ host_connector::ExtensionHandle getMongoExtension(SharedLibrary& extensionLib,
     const ::MongoExtension* extension = nullptr;
     invokeCAndConvertStatusToException([&]() {
         return swGetExtensionFunction.getValue()(&MONGO_EXTENSION_API_VERSIONS_SUPPORTED,
+                                                 &host_connector::HostServicesAdapter::get(),
                                                  &extension);
     });
     uassert(10615503,
@@ -253,16 +254,12 @@ void ExtensionLoader::load(const std::string& name,
                .getIncomingInternalClient()
                .maxWireVersion);
 
-    // TODO SERVER-115137: Remove mongotHost config override hack.
-    auto extOptionsWithMongotHost = YAML::Clone(config.extOptions);
-    extOptionsWithMongotHost["mongotHost"] = globalMongotParams.host;
-
     std::unique_ptr<HostPortal> hostPortal = std::make_unique<HostPortal>();
     host_connector::HostPortalAdapter portal{extHandle->getVersion(),
                                              maxWireVersion,
-                                             YAML::Dump(extOptionsWithMongotHost),
+                                             YAML::Dump(config.extOptions),
                                              std::move(hostPortal)};
-    extHandle->initialize(&portal, &host_connector::HostServicesAdapter::get());
+    extHandle->initialize(&portal);
 }
 #endif
 

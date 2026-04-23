@@ -457,43 +457,6 @@ typedef struct MongoExtensionCatalogContext {
 ////////////////////////////////////////////////////////////////
 //
 //
-//       OPTIMIZATIONS
-//
-//
-////////////////////////////////////////////////////////////////
-/**
- * Tags that control when and how a pipeline rewrite rule is evaluated.
- *
- * Each rule must have exactly one tag. The tag determines which optimization pass the rule
- * participates in:
- *
- *   kPipelineRewriteRuleTagInPlace    - The rule modifies only the internals of this stage and
- *                                       never touches adjacent stages in the pipeline.
- *
- *   kPipelineRewriteRuleTagReordering - The rule may modify adjacent stages, for example by
- *                                       reordering, merging, absorbing, or removing stages relative
- *                                       to this one.
- *
- */
-typedef enum MongoExtensionPipelineRewriteRuleTags : uint32_t {
-    kPipelineRewriteRuleTagInPlace = 1 << 0,
-    kPipelineRewriteRuleTagReordering = 1 << 1,
-} MongoExtensionPipelineRewriteRuleTags;
-
-/**
- * A pipeline optimization rule provided by an extension. Pipeline rules must be registered on a
- * per-stage-name basis at startup via MongoExtensionHostPortal. For each rule that the stage
- * registers, it must implement the rule's corresponding precondition/transform logic via the
- * evaluatePrecondition and evaluateTransform functions on the LogicalAggStage.
- */
-typedef struct MongoExtensionPipelineRewriteRule {
-    MongoExtensionByteView name;
-    MongoExtensionPipelineRewriteRuleTags tags;
-} MongoExtensionPipelineRewriteRule;
-
-////////////////////////////////////////////////////////////////
-//
-//
 //       AGGREGATION STAGE NODES
 //
 //
@@ -753,6 +716,9 @@ typedef struct MongoExtensionLogicalAggStage {
     const struct MongoExtensionLogicalAggStageVTable* const vtable;
 } MongoExtensionLogicalAggStage;
 
+// Forward declare.
+struct MongoExtensionPipelineRewriteContext;
+
 /**
  * Virtual function table for MongoExtensionLogicalAggStage.
  */
@@ -845,6 +811,7 @@ typedef struct MongoExtensionLogicalAggStageVTable {
     MongoExtensionStatus* (*evaluate_rule_precondition)(
         const MongoExtensionLogicalAggStage* logicalStage,
         MongoExtensionByteView ruleName,
+        const MongoExtensionPipelineRewriteContext* ctx,
         bool* result);
 
     /**
@@ -861,6 +828,7 @@ typedef struct MongoExtensionLogicalAggStageVTable {
      */
     MongoExtensionStatus* (*evaluate_rule_transform)(MongoExtensionLogicalAggStage* logicalStage,
                                                      MongoExtensionByteView ruleName,
+                                                     MongoExtensionPipelineRewriteContext* ctx,
                                                      bool* result);
 
     /**
@@ -873,6 +841,17 @@ typedef struct MongoExtensionLogicalAggStageVTable {
      */
     MongoExtensionStatus* (*get_filter)(const MongoExtensionLogicalAggStage* logicalStage,
                                         MongoExtensionByteBuf** output);
+
+    /**
+     * Receives the field and metadata dependencies of all pipeline stages that follow this stage.
+     * Called by the host as an in-place optimization for source stages when the full pipeline is
+     * available. The extension should inspect `deps` and update its internal state accordingly.
+     *
+     * `deps` is owned by the caller and is only valid for the duration of this call.
+     */
+    MongoExtensionStatus* (*apply_pipeline_suffix_dependencies)(
+        MongoExtensionLogicalAggStage* logicalStage,
+        const struct MongoExtensionPipelineDependencies* deps);
 
 } MongoExtensionLogicalAggStageVTable;
 
@@ -1039,7 +1018,117 @@ typedef struct MongoExtensionQueryExecutionContextVTable {
      */
     MongoExtensionStatus* (*get_deadline_timestamp_ms)(
         const MongoExtensionQueryExecutionContext* ctx, int64_t* deadlineTimestampMs);
+
+    /**
+     * Returns a BSONObj containing each {metricName: metricValue} for the given host metrics.
+     * If any metric name is not valid, this method will return an error status. If a metric is
+     * valid but not yet populated on the host side, it will not appear in the result.
+     *
+     * `metricNames` is an array of `numMetricNames` byte views, each naming a metric field from
+     * the host's OpDebug. Ownership of the output is transferred to the caller.
+     */
+    MongoExtensionStatus* (*get_host_metrics)(const MongoExtensionQueryExecutionContext* ctx,
+                                              const MongoExtensionByteView* metricNames,
+                                              uint64_t numMetricNames,
+                                              MongoExtensionByteBuf** result);
 } MongoExtensionQueryExecutionContextVTable;
+
+////////////////////////////////////////////////////////////////
+//
+//
+//       OPTIMIZATIONS
+//
+//
+////////////////////////////////////////////////////////////////
+/**
+ * Tags that control when and how a pipeline rewrite rule is evaluated.
+ *
+ * Each rule must have exactly one tag. The tag determines which optimization pass the rule
+ * participates in:
+ *
+ *   kPipelineRewriteRuleTagInPlace    - The rule modifies only the internals of this stage and
+ *                                       never touches adjacent stages in the pipeline.
+ *
+ *   kPipelineRewriteRuleTagReordering - The rule may modify adjacent stages, for example by
+ *                                       reordering, merging, absorbing, or removing stages relative
+ *                                       to this one.
+ *
+ */
+typedef enum MongoExtensionPipelineRewriteRuleTags : uint32_t {
+    kPipelineRewriteRuleTagInPlace = 1 << 0,
+    kPipelineRewriteRuleTagReordering = 1 << 1,
+} MongoExtensionPipelineRewriteRuleTags;
+
+/**
+ * A pipeline optimization rule provided by an extension. Pipeline rules must be registered on a
+ * per-stage-name basis at startup via MongoExtensionHostPortal. For each rule that the stage
+ * registers, it must implement the rule's corresponding precondition/transform logic via the
+ * evaluatePrecondition and evaluateTransform functions on the LogicalAggStage.
+ */
+typedef struct MongoExtensionPipelineRewriteRule {
+    MongoExtensionByteView name;
+    MongoExtensionPipelineRewriteRuleTags tags;
+} MongoExtensionPipelineRewriteRule;
+
+/**
+ * Provides extension optimization rules with the ability to inspect and modify the
+ * pipeline during rule-based rewriting.
+ */
+typedef struct MongoExtensionPipelineRewriteContext {
+    const struct MongoExtensionPipelineRewriteContextVTable* const vtable;
+} MongoExtensionPipelineRewriteContext;
+
+typedef struct MongoExtensionPipelineRewriteContextVTable {
+    /**
+     * Returns the nth next stage stored in the underlying pipeline wrapped by
+     * MongoExtensionPipelineRewriteContext at the given index as a MongoExtensionLogicalAggStage.
+     */
+    MongoExtensionStatus* (*get_nth_next_stage)(const MongoExtensionPipelineRewriteContext* ctx,
+                                                size_t index,
+                                                MongoExtensionLogicalAggStage** out);
+
+    /**
+     * Erases the nth next stage stored in the underlying pipeline wrapped by
+     * MongoExtensionPipelineRewriteContext at the given index. Populates out with true if a stage
+     * was erased.
+     */
+    MongoExtensionStatus* (*erase_nth_next_stage)(MongoExtensionPipelineRewriteContext* ctx,
+                                                  size_t index,
+                                                  bool* out);
+
+    /**
+     * Populates out with true if the underlying pipeline wrapped by
+     * MongoExtensionPipelineRewriteContext has a stage at the given index. Populates out with false
+     * otw.
+     */
+    MongoExtensionStatus* (*has_at_least_n_next_stages)(
+        const MongoExtensionPipelineRewriteContext* ctx, size_t n, bool* out);
+} MongoExtensionPipelineRewriteContextVTable;
+
+/**
+ * Represents the dependencies of the pipeline, excluding the current source stage. Passed to
+ * extension logical stages via apply_pipeline_suffix_dependencies so they can observe downstream
+ * field and metadata usage and update their internal state.
+ */
+typedef struct MongoExtensionPipelineDependencies {
+    const struct MongoExtensionPipelineDependenciesVTable* const vtable;
+} MongoExtensionPipelineDependencies;
+
+typedef struct MongoExtensionPipelineDependenciesVTable {
+    /**
+     * Populates 'out' with true if the pipeline depends on the metadata field identified by
+     * 'name' (e.g. "searchSequenceToken").
+     */
+    MongoExtensionStatus* (*needs_metadata)(const MongoExtensionPipelineDependencies* deps,
+                                            MongoExtensionByteView name,
+                                            bool* out);
+
+    /**
+     * Populates 'out' with true if the pipeline requires the full document.
+     */
+    MongoExtensionStatus* (*needs_whole_document)(const MongoExtensionPipelineDependencies* deps,
+                                                  bool* out);
+} MongoExtensionPipelineDependenciesVTable;
 
 ////////////////////////////////////////////////////////////////
 //
@@ -1350,31 +1439,25 @@ typedef struct MongoExtensionVTable {
      * extension to avoid a dangling pointer.
      */
     MongoExtensionStatus* (*initialize)(const MongoExtension* extension,
-                                        const MongoExtensionHostPortal* portal,
-                                        const MongoExtensionHostServices* services);
+                                        const MongoExtensionHostPortal* portal);
 } MongoExtensionVTable;
 
 /**
  * The symbol that must be defined in all extension shared libraries to register the extension with
  * the MongoDB server when the extension is loaded. Returns a MongoExtensionStatus indicating
  * whether or not the parameter MongoExtension was successfully initialized. Also takes a struct
- * representing the API version requirements to comply with the host.
+ * representing the API version requirements to comply with the host, and a pointer to HostServices
+ * so that the extension can use host assertion functions during loading. The HostServices pointer
+ * is valid for the lifetime of the extension and may be saved by the extension for later use.
  *
  * NOTE: You must define this symbol in your extension shared library and avoid name mangling (for
  * example, with 'extern "C"') so that the MongoDB server can find it at loadtime.
- *
- * IMPORTANT: We require that extensions throw exceptions using the HostServices' user_asserted()
- * and tripwire_asserted() functions instead of throwing C++ exceptions across the API boundary.
- * However, the HostServices is only initialized after this function is called (during the call
- * to MongoExtension::initialize). Attempting to use HostServices in the body of
- * get_mongodb_extension would result in a crash. Therefore, if your extension needs to report
- * errors during get_mongodb_extension, you must build a "hand-crafted" MongoExtensionStatus object
- * and return it directly from this function.
- * TODO SERVER-115700: Fix this design limitation.
  */
 #define GET_MONGODB_EXTENSION_SYMBOL "get_mongodb_extension"
 typedef MongoExtensionStatus* (*get_mongo_extension_t)(
-    const MongoExtensionAPIVersionVector* hostVersions, const MongoExtension** extension);
+    const MongoExtensionAPIVersionVector* hostVersions,
+    const MongoExtensionHostServices* hostServices,
+    const MongoExtension** extension);
 
 #ifdef __cplusplus
 }  // extern "C"

@@ -135,7 +135,7 @@ class Command {
  * to override (e.g. for targeted shard-key placement tests).
  */
 class InsertDocCommand extends Command {
-    static numDocs = 2;
+    static numDocs = 1;
 
     /**
      * Insert documents in order, skipping any that already exist (from a
@@ -830,22 +830,39 @@ class RenameCommand extends Command {
         }
         // NOTE: MongoDB does NOT emit 'dropIndexes' when renaming collections,
         // regardless of whether they were resharded or not. Verified via testing.
-        const events = [
-            {
-                operationType: "rename",
-                ns: {db: this.dbName, coll: this.collName},
-            },
-        ];
-        if (watchMode === ChangeStreamWatchMode.kCollection) {
-            events.push({operationType: "invalidate"});
+        const targetDb = this.crossDatabase ? `${this.dbName}_target` : this.dbName;
+        const targetColl = `${this.collName}_renamed`;
+        const events = [];
+
+        // execute() calls createCollection(target) before rename when targetShouldExist.
+        // Collection streams don't see it (different collection). Database streams only
+        // see it if the target is in the same database (not cross-database renames).
+        // Cluster streams always see it.
+        const createVisible =
+            watchMode === ChangeStreamWatchMode.kCluster ||
+            (watchMode === ChangeStreamWatchMode.kDb && !this.crossDatabase);
+        if (this.targetShouldExist && createVisible) {
+            events.push({operationType: "create", ns: {db: targetDb, coll: targetColl}});
         }
-        // TODO SERVER-116455: For database/cluster level streams, the cleanup drop of the target
-        // collection (executed at end of execute()) will also emit a drop event. This needs
-        // verification with database-level change stream tests. If confirmed, add:
-        //   if (watchMode === ChangeStreamWatchMode.kDb || watchMode === ChangeStreamWatchMode.kCluster) {
-        //       const targetDb = this.crossDatabase ? `${this.dbName}_target` : this.dbName;
-        //       events.push({operationType: "drop", ns: {db: targetDb, coll: `${this.collName}_renamed`}});
-        //   }
+
+        events.push({
+            operationType: "rename",
+            ns: {db: this.dbName, coll: this.collName},
+        });
+
+        switch (watchMode) {
+            case ChangeStreamWatchMode.kCollection:
+                events.push({operationType: "invalidate"});
+                break;
+            case ChangeStreamWatchMode.kDb:
+                if (!this.crossDatabase) {
+                    events.push({operationType: "drop", ns: {db: targetDb, coll: targetColl}});
+                }
+                break;
+            case ChangeStreamWatchMode.kCluster:
+                events.push({operationType: "drop", ns: {db: targetDb, coll: targetColl}});
+                break;
+        }
         return events;
     }
 }
@@ -1242,6 +1259,40 @@ class MoveChunkCommand extends MoveCommandBase {
     }
 }
 
+/**
+ * Command that downgrades FCV to lastLTSFCV. Produces no user-visible change stream events.
+ */
+class FCVDowngradeCommand extends Command {
+    execute(conn) {
+        assert.commandWorked(conn.adminCommand({setFeatureCompatibilityVersion: lastLTSFCV, confirm: true}));
+    }
+
+    toString() {
+        return "FCVDowngradeCommand";
+    }
+
+    getChangeEvents() {
+        return [];
+    }
+}
+
+/**
+ * Command that upgrades FCV to latestFCV. Produces no user-visible change stream events.
+ */
+class FCVUpgradeCommand extends Command {
+    execute(conn) {
+        assert.commandWorked(conn.adminCommand({setFeatureCompatibilityVersion: latestFCV, confirm: true}));
+    }
+
+    toString() {
+        return "FCVUpgradeCommand";
+    }
+
+    getChangeEvents() {
+        return [];
+    }
+}
+
 function _registerAll(...classes) {
     for (const cls of classes) {
         Command._registry[cls.name] = cls;
@@ -1267,6 +1318,8 @@ _registerAll(
     MovePrimaryCommand,
     MoveCollectionCommand,
     MoveChunkCommand,
+    FCVDowngradeCommand,
+    FCVUpgradeCommand,
 );
 
 export {
@@ -1289,6 +1342,8 @@ export {
     MovePrimaryCommand,
     MoveCollectionCommand,
     MoveChunkCommand,
+    FCVDowngradeCommand,
+    FCVUpgradeCommand,
     ShardingType,
     getShardKeySpec,
 };

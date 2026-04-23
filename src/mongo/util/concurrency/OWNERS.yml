@@ -3,9 +3,3 @@ filters:
   - "*":
     approvers:
       - 10gen/server-programmability
-  - "*ticket*":
-    approvers:
-      - 10gen/server-workload-resilience
-  - "admission_context.*":
-    approvers:
-      - 10gen/server-workload-resilience

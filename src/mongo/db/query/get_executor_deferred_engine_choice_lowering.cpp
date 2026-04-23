@@ -30,6 +30,7 @@
 #include "mongo/db/query/get_executor_deferred_engine_choice_lowering.h"
 
 #include "mongo/db/exec/classic/count.h"
+#include "mongo/db/exec/classic/multi_plan.h"
 #include "mongo/db/exec/runtime_planners/planner_types.h"
 #include "mongo/db/operation_context.h"
 #include "mongo/db/pipeline/sbe_pushdown.h"
@@ -83,45 +84,24 @@ public:
 
         auto solution = std::move(_rankingResult.solutions[0]);
 
-        // There are two EOF-related optimizations:
-        //     - If a non-existent collection is queried, we may create an EOF plan.
-        //     - If multiplanning was used and a plan reached an EOF state, the query
-        //       has been fully answered and there's no more execution that needs to
-        //       happen. In this case we return a classic executor so that we don't
-        //       have to restart work using SBE.
-        if (solution->root()->getType() == STAGE_EOF || useEofOptimization()) {
-            return makeClassicExecutor(std::move(solution));
-        }
-
-        // If the engine has already been selected, it means a plan was retrieved from the cache
-        // and trialed. The pipeline stages are attached to the QSN and we have a partially executed
-        // plan stage that can be continued.
-        if (_rankingResult.engineSelection) {
-            const auto engine = *_rankingResult.engineSelection;
-            return engine == EngineChoice::kClassic
-                ? makeClassicExecutor(std::move(solution))
-                : makeSbePlanExecutor(std::move(solution), true /*fromCandidate*/);
-        }
-
-        // If this ranking result is from replanning, the canonical query already has the SBE
-        // eligible stages attached.
-        const bool needToAttachStagesToCq =
-            !_rankingResult.plannerParams->replanningData.has_value();
-        const auto engine = extendSolutionAndSelectEngine(solution,
-                                                          _opCtx,
-                                                          _cq.get(),
-                                                          _pipeline,
-                                                          _collections,
-                                                          *plannerParams(),
-                                                          needToAttachStagesToCq);
+        tassert(9735001,
+                "Expected engine selection to be performed during planning",
+                _rankingResult.engineSelection.has_value());
+        const auto engine = *_rankingResult.engineSelection;
+        const bool fromSbeCandidate = _rankingResult.execState &&
+            _rankingResult.execState->peekExecState<SbeExecState>() != nullptr;
         return engine == EngineChoice::kClassic
             ? makeClassicExecutor(std::move(solution))
-            : makeSbePlanExecutor(std::move(solution), false /*fromCandidate*/);
+            : makeSbePlanExecutor(std::move(solution), fromSbeCandidate);
     }
 
 private:
     QueryPlannerParams* plannerParams() {
         return _rankingResult.plannerParams.get();
+    }
+
+    MultiPlanStage* peekMps() {
+        return const_cast<MultiPlanStage*>(std::as_const(*this).peekMps());
     }
 
     const MultiPlanStage* peekMps() const {
@@ -154,24 +134,6 @@ private:
         return std::unique_ptr<MultiPlanStage>(static_cast<MultiPlanStage*>(planStage.release()));
     }
 
-    /*
-     * Analyzes the multiplan stage (if present) to see if the query is eligible for an
-     * optimization where a plan that reaches EOF can skip engine selection since the
-     * query is effectively answered already by classic.
-     */
-    bool useEofOptimization() const {
-        auto mps = peekMps();
-        return mps && mps->bestSolutionEof() &&
-            // If explain is used, go through regular engine selection to display which engine is
-            // targeted if EOF is not reached during multiplanning.
-            !_cq->getExpCtxRaw()->getExplain() &&
-            // We can't use EOF optimization if pipeline is present. Because we may need to execute
-            // the pipeline part in SBE, we have to rebuild and rerun the whole query.
-            _cq->cqPipeline().empty() &&
-            // We want more coverage for SBE in debug builds.
-            !kDebugBuild;
-    }
-
     std::unique_ptr<PlanExecutor, PlanExecutor::Deleter> makeSbePlanExecutor(
         std::unique_ptr<QuerySolution> solution, bool fromCandidate) {
         // Remove any stages from `pipeline` that will be pushed down to SBE.
@@ -193,17 +155,16 @@ private:
         if (fromCandidate) {
             auto execState = _rankingResult.execState->extractExecState<SbeExecState>();
             execState.sbeCandidate.solution = std::move(solution);
-            return uassertStatusOK(
-                plan_executor_factory::make(_opCtx,
-                                            std::move(_cq),
-                                            std::move(execState.sbeCandidate),
-                                            _collections,
-                                            _rankingResult.plannerParams->providedOptions,
-                                            std::move(nss),
-                                            std::move(execState.sbeYieldPolicy),
-                                            std::move(remoteCursors),
-                                            std::move(remoteExplains),
-                                            _rankingResult.cachedPlanHash));
+            return plan_executor_factory::make(_opCtx,
+                                               std::move(_cq),
+                                               std::move(execState.sbeCandidate),
+                                               _collections,
+                                               _rankingResult.plannerParams->providedOptions,
+                                               std::move(nss),
+                                               std::move(execState.sbeYieldPolicy),
+                                               std::move(remoteCursors),
+                                               std::move(remoteExplains),
+                                               _rankingResult.cachedPlanHash);
         }
 
         auto sbeYieldPolicy =
@@ -230,24 +191,23 @@ private:
         buildRejectedExecutableTreesForExplain(solution.get(), false /*isCountQuery*/);
 
         static const bool isFromSbePlanCache = false;
-        return uassertStatusOK(
-            plan_executor_factory::make(_opCtx,
-                                        std::move(_cq),
-                                        std::move(solution),
-                                        std::move(sbePlanAndData),
-                                        _collections,
-                                        plannerParams()->providedOptions,
-                                        std::move(nss),
-                                        std::move(sbeYieldPolicy),
-                                        isFromSbePlanCache,
-                                        _rankingResult.cachedPlanHash,
-                                        false /*usedJoinOpt*/,
-                                        {} /*estimates*/,
-                                        {} /*rejectedJoinPlans*/,
-                                        std::move(remoteCursors),
-                                        std::move(remoteExplains),
-                                        extractMps(),
-                                        std::move(_rankingResult.maybeExplainData)));
+        return plan_executor_factory::make(_opCtx,
+                                           std::move(_cq),
+                                           std::move(solution),
+                                           std::move(sbePlanAndData),
+                                           _collections,
+                                           plannerParams()->providedOptions,
+                                           std::move(nss),
+                                           std::move(sbeYieldPolicy),
+                                           isFromSbePlanCache,
+                                           _rankingResult.cachedPlanHash,
+                                           false /*usedJoinOpt*/,
+                                           {} /*estimates*/,
+                                           {} /*rejectedJoinPlans*/,
+                                           std::move(remoteCursors),
+                                           std::move(remoteExplains),
+                                           extractMps(),
+                                           std::move(_rankingResult.maybeExplainData));
     }
 
     std::unique_ptr<PlanExecutor, PlanExecutor::Deleter> makeClassicExecutor(
@@ -266,6 +226,11 @@ private:
         std::unique_ptr<WorkingSet> workingSet;
         std::unique_ptr<PlanStage> planStage;
         if (_rankingResult.execState) {
+            // If the QuerySolution was extracted from a multiplan stage, restore it so the MPS
+            // won't have a null QuerySolution when explain is run.
+            if (auto mps = peekMps(); mps && mps->bestSolution() == nullptr) {
+                mps->restoreBestSolution(std::move(solution));
+            }
             auto execState = _rankingResult.execState->extractExecState<ClassicExecState>();
             workingSet = std::move(execState.workingSet);
             planStage = std::move(execState.root);
@@ -283,14 +248,21 @@ private:
                 &_rankingResult.maybeExplainData->planStageQsnMap);
         }
 
+        const auto* solutionPtr = [&]() -> const QuerySolution* {
+            if (auto* mps = peekMps()) {
+                return mps->bestSolution();
+            }
+            return solution.get();
+        }();
+
         if (const auto* countStage = dynamic_cast<const CountStage*>(planStage.get())) {
             buildRejectedExecutableTreesForExplain(
-                solution.get(), true, countStage->getLimit(), countStage->getSkip());
+                solutionPtr, true, countStage->getLimit(), countStage->getSkip());
         } else {
-            buildRejectedExecutableTreesForExplain(solution.get(), false /*isCountQuery*/);
+            buildRejectedExecutableTreesForExplain(solutionPtr, false /*isCountQuery*/);
         }
 
-        return uassertStatusOK(plan_executor_factory::make(
+        return plan_executor_factory::make(
             _opCtx,
             std::move(workingSet),
             std::move(planStage),
@@ -306,7 +278,7 @@ private:
                 ? boost::make_optional<std::string>(
                       std::move(_rankingResult.plannerParams->replanningData->replanReason))
                 : boost::none,
-            std::move(_rankingResult.maybeExplainData)));
+            std::move(_rankingResult.maybeExplainData));
     }
 
     void buildRejectedExecutableTreesForExplain(const QuerySolution* solution,

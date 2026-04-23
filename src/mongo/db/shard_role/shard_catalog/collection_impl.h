@@ -279,6 +279,8 @@ public:
 
     long long dataSize(OperationContext* opCtx) const final;
 
+    CollectionSizeCount latestSizeCount(OperationContext* opCtx) const final;
+
     CollectionSizeCount persistedSizeCount(OperationContext* opCtx) const final;
 
     int64_t sizeOnDisk(OperationContext* opCtx, const StorageEngine& storageEngine) const final;
@@ -385,7 +387,7 @@ public:
 
     int getCompletedIndexCount() const final;
 
-    BSONObj getIndexSpec(StringData indexName) const final;
+    BSONObj getIndexSpec(StringData indexName, bool expandSimpleCollation) const final;
 
     void getAllIndexes(std::vector<std::string>* names) const final;
 

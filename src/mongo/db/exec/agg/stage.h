@@ -38,6 +38,9 @@
 #include "mongo/util/modules.h"
 
 namespace mongo {
+
+class DocumentSource;
+
 namespace exec {
 namespace agg {
 
@@ -236,14 +239,6 @@ public:
         return pExpCtx;
     }
 
-    /**
-     * Set the underlying source this stage should use to get Documents from. Must not throw
-     * exceptions.
-     */
-    virtual void setSource(Stage* source) {
-        pSource = source;
-    }
-
     virtual void detachFromOperationContext() {}
 
     virtual void reattachToOperationContext(OperationContext* opCtx) {}
@@ -257,6 +252,16 @@ public:
     }
 
     virtual bool usedDisk() const {
+        return false;
+    }
+
+    /**
+     * Returns true if the stage is known to be exhausted. Can be a false-negative (returns
+     * false when actually at EOF) but must never be a false-positive (returns true when there
+     * is more data). The default implementation conservatively returns false. Stages that can
+     * cheaply detect EOF should override this.
+     */
+    virtual bool isEOF() const {
         return false;
     }
 
@@ -297,7 +302,23 @@ protected:
 
     CommonStats _commonStats;
 
+    /**
+     * Set the underlying source this stage should use to get Documents from. Must not throw
+     * exceptions. Overrides should call this base implementation to ensure any future default
+     * behaviour is captured. External callers should use exec::agg::buildStageAndStitch() or
+     * test helpers instead.
+     */
+    virtual void setSource(Stage* source) {
+        pSource = source;
+    }
+
 private:
+    friend boost::intrusive_ptr<Stage> buildStageAndStitch(
+        const boost::intrusive_ptr<DocumentSource>& ds,
+        const boost::intrusive_ptr<Stage>& sourceStage);
+
+    friend class MockStage;
+
     /**
      * Returns an optional timer which is used to collect the execution time.
      * May return boost::none if it is not necessary to collect timing info.

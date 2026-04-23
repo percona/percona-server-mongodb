@@ -49,7 +49,7 @@ UnwindStage::UnwindStage(std::unique_ptr<PlanStage> input,
                          value::SlotId outIndex,
                          bool preserveNullAndEmptyArrays,
                          PlanNodeId planNodeId,
-                         PlanYieldPolicy* yieldPolicy,
+                         PlanYieldPolicySBE* yieldPolicy,
                          bool participateInTrialRunTracking)
     : PlanStage("unwind"_sd, yieldPolicy, planNodeId, participateInTrialRunTracking),
       _inField(inField),
@@ -104,6 +104,7 @@ void UnwindStage::open(bool reOpen) {
 
     _commonStats.opens++;
     _children[0]->open(reOpen);
+    _childOpened = true;
 
     _index = 0;
     _inArray = false;
@@ -188,7 +189,10 @@ void UnwindStage::close() {
     auto optTimer(getOptTimer(_opCtx));
 
     trackClose();
-    _children[0]->close();
+    if (_childOpened) {
+        _children[0]->close();
+        _childOpened = false;
+    }
     _index = 0;
     _inArray = false;
 }

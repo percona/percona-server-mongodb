@@ -84,7 +84,8 @@ DocumentSourceContainer DocumentSourceUnionWith::createFromStageParams(
                 !expCtx->getInRouter() && !expCtx->getFromRouter());
     }
 
-    // TODO SERVER-121087 Move to LPDS validation.
+    // TODO SERVER-121091 This can be removed once hybrid search desugars into the internal hybrid
+    // search stage.
     if (hybrid_scoring_util::isHybridSearchPipeline(params.pipeline) || params.isHybridSearch) {
         hybrid_scoring_util::assertForeignCollectionIsNotTimeseries(params.unionNss, expCtx);
     }
@@ -109,8 +110,11 @@ DocumentSourceContainer unionWithStageParamsToDocumentSourceFn(
     auto* typedParams = dynamic_cast<UnionWithStageParams*>(stageParams.get());
     tassert(11786200, "Expected UnionWithStageParams for unionWith stage", typedParams != nullptr);
 
-    // TODO SERVER-120179 Remove when the feature flag is enabled by default.
-    if (!feature_flags::gFeatureFlagExtensionViewsAndUnionWith.isEnabled()) {
+    // TODO SERVER-121094 Remove when feature flag is removed.
+    auto ifrCtx = expCtx->getIfrContext();
+    auto hybridSearchFlagEnabled = ifrCtx &&
+        ifrCtx->getSavedFlagValue(feature_flags::gFeatureFlagExtensionsInsideHybridSearch);
+    if (!hybridSearchFlagEnabled) {
         return {DocumentSourceUnionWith::createFromBson(typedParams->getOriginalBson(), expCtx)};
     }
 
@@ -423,10 +427,39 @@ DocumentSourceContainer::iterator DocumentSourceUnionWith::optimizeAt(
     return std::next(itr);
 };
 
-Value DocumentSourceUnionWith::serialize(const SerializationOptions& opts) const {
+Value DocumentSourceUnionWith::buildUnionWithResult(Value pipelineValue,
+                                                    Value db,
+                                                    Value coll) const {
     auto collectionless =
         _sharedState->_pipeline->getContext()->getNamespaceString().isCollectionlessAggregateNS();
+    MutableDocument spec;
+    if (!collectionless) {
+        if (_hasForeignDB) {
+            spec["db"] = db;
+        }
+        spec["coll"] = coll;
+    }
+    spec["pipeline"] = pipelineValue;
+    return Value(DOC(getSourceName() << spec.freezeToValue()));
+}
+
+Value DocumentSourceUnionWith::serialize(const SerializationOptions& opts) const {
+    // The db and coll values used by most serialization paths (explain, default).
+    // Query stats uses _userNss instead (see below).
+    Value pipelineContextColl{opts.serializeIdentifier(
+        _sharedState->_pipeline->getContext()->getNamespaceString().coll())};
+    Value userDb{_userNss.dbName().db(OmitTenant{})};
+
     if (opts.isSerializingForExplain()) {
+        // When $unionWith is inside a $lookup's pipeline, we cannot independently
+        // finalizePipelineAndExplain because the sub-pipeline may reference $lookup let variables
+        // that won't be in scope when the explain is forwarded to shards. Fall back to simple
+        // serialization; the $lookup handles explaining its own pipeline.
+        if (getExpCtx()->getInLookup()) {
+            return buildUnionWithResult(
+                Value(_sharedState->_pipeline->serializeToBson(opts)), userDb, pipelineContextColl);
+        }
+
         // There are several different possible states depending on the explain verbosity as well as
         // the other stages in the pipeline:
         //  * If verbosity is queryPlanner, then the sub-pipeline should be untouched and we can
@@ -476,23 +509,8 @@ Value DocumentSourceUnionWith::serialize(const SerializationOptions& opts) const
         } else {
             // The plan does not require reading from the sub-pipeline, so just include the
             // serialization in the explain output.
-            BSONArrayBuilder bab;
-            for (auto&& stage : _sharedState->_pipeline->serialize(opts))
-                bab << stage;
-            auto spec = collectionless
-                ? DOC("pipeline" << bab.arr())
-                : (_hasForeignDB
-                       ? DOC("db" << _userNss.dbName().db(OmitTenant{}) << "coll"
-                                  << opts.serializeIdentifier(_sharedState->_pipeline->getContext()
-                                                                  ->getNamespaceString()
-                                                                  .coll())
-                                  << "pipeline" << bab.arr())
-                       : DOC("coll"
-                             << opts.serializeIdentifier(_sharedState->_pipeline->getContext()
-                                                             ->getNamespaceString()
-                                                             .coll())
-                             << "pipeline" << bab.arr()));
-            return Value(DOC(getSourceName() << spec));
+            return buildUnionWithResult(
+                Value(_sharedState->_pipeline->serializeToBson(opts)), userDb, pipelineContextColl);
         }
 
         tassert(11282958, "Missing pipeline copy", pipeCopy);
@@ -539,19 +557,8 @@ Value DocumentSourceUnionWith::serialize(const SerializationOptions& opts) const
                 "Expecting pipeline explain to contain exactly 1 field",
                 explainLocal.nFields() == 1);
 
-        auto spec = collectionless
-            ? DOC("pipeline" << explainLocal.firstElement())
-            : (_hasForeignDB
-                   ? DOC("db"
-                         << _userNss.dbName().db(OmitTenant{}) << "coll"
-                         << opts.serializeIdentifier(
-                                _sharedState->_pipeline->getContext()->getNamespaceString().coll())
-                         << "pipeline" << explainLocal.firstElement())
-                   : DOC("coll"
-                         << opts.serializeIdentifier(
-                                _sharedState->_pipeline->getContext()->getNamespaceString().coll())
-                         << "pipeline" << explainLocal.firstElement()));
-        return Value(DOC(getSourceName() << spec));
+        return buildUnionWithResult(
+            Value(explainLocal.firstElement()), userDb, pipelineContextColl);
     } else if (opts.isSerializingForQueryStats()) {
         // Query shapes must reflect the original, unresolved and unoptimized pipeline, so we need a
         // special case here if we are serializing the stage for that purpose. Otherwise, we should
@@ -562,18 +569,15 @@ Value DocumentSourceUnionWith::serialize(const SerializationOptions& opts) const
                                            _sharedState->_pipeline->getContext(),
                                            pipeline_factory::kOptionsMinimal)
                 ->serializeToBson(opts);
-        auto spec = collectionless
-            ? DOC("pipeline" << serializedPipeline)
-            : (_hasForeignDB
-                   ? DOC("db" << opts.serializeIdentifier(_userNss.dbName().db(OmitTenant{}))
-                              << "coll" << opts.serializeIdentifier(_userNss.coll()) << "pipeline"
-                              << serializedPipeline)
-                   : DOC("coll" << opts.serializeIdentifier(_userNss.coll()) << "pipeline"
-                                << serializedPipeline));
-        return Value(DOC(getSourceName() << spec));
+        return buildUnionWithResult(
+            Value(serializedPipeline),
+            Value(opts.serializeIdentifier(_userNss.dbName().db(OmitTenant{}))),
+            Value(opts.serializeIdentifier(_userNss.coll())));
     } else {
         MutableDocument spec;
-        if (!collectionless) {
+        if (!_sharedState->_pipeline->getContext()
+                 ->getNamespaceString()
+                 .isCollectionlessAggregateNS()) {
             // When serializing to BSON before sending the request from router to shard, use the
             // underlying namespace rather than _userNss, since the pipeline is already resolved.
             // Using _userNss here could incorrectly retain the view name, leading to duplicated
@@ -697,7 +701,7 @@ std::unique_ptr<Pipeline> DocumentSourceUnionWith::parsePipelineFromLPPWithMaybe
 
     // TODO SERVER-117882 Remove this call once $lookup forwards its desugared LPP subpipeline in
     // StageParams.
-    LiteParsedDesugarer::desugar(&desugaredPipeline);
+    LiteParsedDesugarer::desugar(&desugaredPipeline, expCtx->getIfrContext());
 
     if (resolvedNs.ns.isTimeseriesBucketsCollection() &&
         isRawDataOperation(expCtx->getOperationContext())) {

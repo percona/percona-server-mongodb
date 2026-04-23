@@ -32,7 +32,9 @@
 #include "mongo/db/query/query_execution_knobs_gen.h"
 #include "mongo/db/query/query_integration_knobs_gen.h"
 #include "mongo/db/query/query_optimization_knobs_gen.h"
+#include "mongo/db/sorter/file.h"
 #include "mongo/db/sorter/sorter.h"
+#include "mongo/db/sorter/sorter_file_name.h"
 #include "mongo/db/sorter/sorter_stats.h"
 #include "mongo/db/stats/counters_sort.h"
 #include "mongo/db/storage/encryption_hooks.h"
@@ -81,7 +83,7 @@ public:
         Settings;
     typedef std::pair<Key, Value> Data;
 
-    FileIterator(std::shared_ptr<SorterFile> file,
+    FileIterator(std::shared_ptr<File> file,
                  std::streamoff fileStartOffset,
                  std::streamoff fileEndOffset,
                  const Settings& settings,
@@ -248,7 +250,7 @@ private:
 
     std::unique_ptr<char[]> _buffer;
     std::unique_ptr<BufReader> _bufferReader;
-    std::shared_ptr<SorterFile> _file;  // File containing the sorted data range.
+    std::shared_ptr<File> _file;        // File containing the sorted data range.
     std::streamoff _fileStartOffset;    // File offset at which the sorted data range starts.
     std::streamoff _fileCurrentOffset;  // File offset at which we are currently reading from.
     std::streamoff _fileEndOffset;      // File offset at which the sorted data range ends.
@@ -278,7 +280,7 @@ public:
         Settings;
 
     explicit SortedFileWriter(const SortOptions& opts,
-                              std::shared_ptr<SorterFile> file,
+                              std::shared_ptr<File> file,
                               boost::optional<DatabaseName> dbName,
                               SorterChecksumVersion checksumVersion,
                               const Settings& settings);
@@ -294,7 +296,7 @@ public:
 
 private:
     BufBuilder _buffer;
-    std::shared_ptr<SorterFile> _file;
+    std::shared_ptr<File> _file;
     boost::optional<DatabaseName> _dbName;
 
     // Tracks where in the file we started writing the sorted data range so that the information can
@@ -305,7 +307,7 @@ private:
 
 template <typename Key, typename Value>
 SortedFileWriter<Key, Value>::SortedFileWriter(const SortOptions& opts,
-                                               std::shared_ptr<SorterFile> file,
+                                               std::shared_ptr<File> file,
                                                boost::optional<DatabaseName> dbName,
                                                SorterChecksumVersion checksumVersion,
                                                const Settings& settings)
@@ -406,15 +408,15 @@ std::unique_ptr<sorter::Iterator<Key, Value>> SortedFileWriter<Key, Value>::done
  * file as its underlying storage.
  */
 template <typename Key, typename Value>
-class FileBasedSorterStorage : public mongo::SorterStorageBase<Key, Value> {
+class FileBasedStorage : public StorageBase<Key, Value> {
 public:
     typedef std::pair<typename Key::SorterDeserializeSettings,
                       typename Value::SorterDeserializeSettings>
         Settings;
 
-    FileBasedSorterStorage(std::shared_ptr<SorterFile> file,
-                           boost::optional<DatabaseName> dbName,
-                           SorterChecksumVersion checksumVersion);
+    FileBasedStorage(std::shared_ptr<File> file,
+                     boost::optional<DatabaseName> dbName,
+                     SorterChecksumVersion checksumVersion);
 
     std::unique_ptr<SortedStorageWriter<Key, Value>> makeWriter(const SortOptions& opts,
                                                                 const Settings& settings) override;
@@ -431,34 +433,34 @@ public:
     void keep() override;
 
 private:
-    std::shared_ptr<SorterFile> _file;
+    std::shared_ptr<File> _file;
 };
 
 template <typename Key, typename Value>
-FileBasedSorterStorage<Key, Value>::FileBasedSorterStorage(std::shared_ptr<SorterFile> file,
-                                                           boost::optional<DatabaseName> dbName,
-                                                           SorterChecksumVersion checksumVersion)
-    : SorterStorageBase<Key, Value>(dbName, checksumVersion), _file(std::move(file)) {}
+FileBasedStorage<Key, Value>::FileBasedStorage(std::shared_ptr<File> file,
+                                               boost::optional<DatabaseName> dbName,
+                                               SorterChecksumVersion checksumVersion)
+    : StorageBase<Key, Value>(dbName, checksumVersion), _file(std::move(file)) {}
 
 template <typename Key, typename Value>
-std::unique_ptr<SortedStorageWriter<Key, Value>> FileBasedSorterStorage<Key, Value>::makeWriter(
+std::unique_ptr<SortedStorageWriter<Key, Value>> FileBasedStorage<Key, Value>::makeWriter(
     const SortOptions& opts, const Settings& settings) {
     return std::make_unique<SortedFileWriter<Key, Value>>(
         opts, _file, this->getDbName(), this->getChecksumVersion(), settings);
 }
 
 template <typename Key, typename Value>
-size_t FileBasedSorterStorage<Key, Value>::getIteratorSize() {
+size_t FileBasedStorage<Key, Value>::getIteratorSize() {
     return sizeof(sorter::FileIterator<Key, Value>);
 }
 
 template <typename Key, typename Value>
-size_t FileBasedSorterStorage<Key, Value>::getBufferSize() {
+size_t FileBasedStorage<Key, Value>::getBufferSize() {
     return kSortedFileBufferSize;
 }
 
 template <typename Key, typename Value>
-std::shared_ptr<sorter::Iterator<Key, Value>> FileBasedSorterStorage<Key, Value>::getSortedIterator(
+std::shared_ptr<sorter::Iterator<Key, Value>> FileBasedStorage<Key, Value>::getSortedIterator(
     const SorterRange& range, const Settings& settings) {
     return std::make_shared<sorter::FileIterator<Key, Value>>(
         this->_file,
@@ -471,12 +473,12 @@ std::shared_ptr<sorter::Iterator<Key, Value>> FileBasedSorterStorage<Key, Value>
 }
 
 template <typename Key, typename Value>
-void FileBasedSorterStorage<Key, Value>::keep() {
+void FileBasedStorage<Key, Value>::keep() {
     this->_file->keep();
 }
 
 template <typename Key, typename Value>
-std::string FileBasedSorterStorage<Key, Value>::getStorageIdentifier() {
+std::string FileBasedStorage<Key, Value>::getStorageIdentifier() {
     return this->_file->path().filename().string();
 }
 
@@ -484,34 +486,34 @@ std::string FileBasedSorterStorage<Key, Value>::getStorageIdentifier() {
  * How we merge spills when we use a file as the underlying storage for the sorter.
  */
 template <typename Key, typename Value, typename Comparator>
-class FileBasedSorterSpiller : public mongo::SorterSpillerBase<Key, Value, Comparator> {
+class FileBasedSpiller : public SpillerBase<Key, Value, Comparator> {
 public:
     typedef sorter::Iterator<Key, Value> Iterator;
     typedef std::pair<typename Key::SorterDeserializeSettings,
                       typename Value::SorterDeserializeSettings>
         Settings;
 
-    FileBasedSorterSpiller(boost::filesystem::path spillDir,
-                           SorterFileStats* fileStats,
-                           boost::optional<DatabaseName> dbName,
-                           SorterChecksumVersion checksumVersion,
-                           int64_t minAvailableDiskBytesToSpill)
-        : SorterSpillerBase<Key, Value, Comparator>(
-              std::make_unique<FileBasedSorterStorage<Key, Value>>(
-                  std::make_shared<SorterFile>(sorter::nextFileName(spillDir), fileStats),
+    FileBasedSpiller(boost::filesystem::path spillDir,
+                     SorterFileStats* fileStats,
+                     boost::optional<DatabaseName> dbName,
+                     SorterChecksumVersion checksumVersion,
+                     int64_t minAvailableDiskBytesToSpill)
+        : SpillerBase<Key, Value, Comparator>(
+              std::make_unique<FileBasedStorage<Key, Value>>(
+                  std::make_shared<File>(sorter::nextFileName(spillDir), fileStats),
                   dbName,
                   checksumVersion),
               minAvailableDiskBytesToSpill),
           _fileStats(fileStats),
           _spillDir(spillDir) {}
 
-    FileBasedSorterSpiller(std::shared_ptr<SorterFile> file,
-                           boost::filesystem::path spillDir,
-                           boost::optional<DatabaseName> dbName,
-                           SorterChecksumVersion checksumVersion,
-                           int64_t minAvailableDiskBytesToSpill)
-        : SorterSpillerBase<Key, Value, Comparator>(
-              std::make_unique<FileBasedSorterStorage<Key, Value>>(file, dbName, checksumVersion),
+    FileBasedSpiller(std::shared_ptr<File> file,
+                     boost::filesystem::path spillDir,
+                     boost::optional<DatabaseName> dbName,
+                     SorterChecksumVersion checksumVersion,
+                     int64_t minAvailableDiskBytesToSpill)
+        : SpillerBase<Key, Value, Comparator>(
+              std::make_unique<FileBasedStorage<Key, Value>>(file, dbName, checksumVersion),
               minAvailableDiskBytesToSpill),
           _fileStats(file->getFileStats()),
           _spillDir(spillDir) {}
@@ -522,7 +524,7 @@ public:
                      std::vector<std::shared_ptr<sorter::Iterator<Key, Value>>>& iters,
                      Comparator comp,
                      std::size_t numTargetedSpills,
-                     std::size_t numParallelSpills) override;
+                     std::size_t maxSpillsPerMerge) override;
 
     boost::filesystem::path getSpillDir() override;
 
@@ -545,19 +547,17 @@ private:
 };
 
 template <typename Key, typename Value, typename Comparator>
-void FileBasedSorterSpiller<Key, Value, Comparator>::mergeSpills(
+void FileBasedSpiller<Key, Value, Comparator>::mergeSpills(
     const SortOptions& opts,
     const Settings& settings,
     SorterStats& sorterStats,
     std::vector<std::shared_ptr<sorter::Iterator<Key, Value>>>& iters,
     Comparator comp,
     std::size_t numTargetedSpills,
-    std::size_t numParallelSpills) {
-    using File = SorterFile;
-
+    std::size_t maxSpillsPerMerge) {
     std::shared_ptr<File> newSpillsFile =
         std::make_shared<File>(sorter::nextFileName(_spillDir), _fileStats);
-    FileBasedSorterStorage<Key, Value> sorterStorage(
+    FileBasedStorage<Key, Value> sorterStorage(
         newSpillsFile, this->getStorage().getDbName(), this->getStorage().getChecksumVersion());
 
     std::vector<std::shared_ptr<Iterator>> iterators;
@@ -570,8 +570,8 @@ void FileBasedSorterSpiller<Key, Value, Comparator>::mergeSpills(
                     "Created new intermediate file for merged spills",
                     "path"_attr = newSpillsFile->path().string());
 
-        for (std::size_t i = 0; i < iterators.size(); i += numParallelSpills) {
-            auto count = std::min(numParallelSpills, iterators.size() - i);
+        for (std::size_t i = 0; i < iterators.size(); i += maxSpillsPerMerge) {
+            auto count = std::min(maxSpillsPerMerge, iterators.size() - i);
             auto spillsToMerge = std::span(iterators).subspan(i, count);
 
             validateMergeSpillRanges<Key, Value>(spillsToMerge);
@@ -590,10 +590,9 @@ void FileBasedSorterSpiller<Key, Value, Comparator>::mergeSpills(
                 6033102, 2, "Merging spills", "beginIdx"_attr = i, "endIdx"_attr = i + count - 1);
 
             auto mergeIterator = sorter::merge<Key, Value, Comparator>(spillsToMerge, opts, comp);
-            sorterStorage =
-                FileBasedSorterStorage<Key, Value>(newSpillsFile,
-                                                   this->getStorage().getDbName(),
-                                                   this->getStorage().getChecksumVersion());
+            sorterStorage = FileBasedStorage<Key, Value>(newSpillsFile,
+                                                         this->getStorage().getDbName(),
+                                                         this->getStorage().getChecksumVersion());
             std::unique_ptr<SortedStorageWriter<Key, Value>> writer =
                 sorterStorage.makeWriter(opts, settings);
             uint64_t pairCount = 0;
@@ -617,11 +616,11 @@ void FileBasedSorterSpiller<Key, Value, Comparator>::mergeSpills(
     }
 
     LOGV2_INFO(6033100, "Finished merging spills");
-    this->_storage = std::make_unique<FileBasedSorterStorage<Key, Value>>(std::move(sorterStorage));
+    this->_storage = std::make_unique<FileBasedStorage<Key, Value>>(std::move(sorterStorage));
 }
 
 template <typename Key, typename Value, typename Comparator>
-boost::filesystem::path FileBasedSorterSpiller<Key, Value, Comparator>::getSpillDir() {
+boost::filesystem::path FileBasedSpiller<Key, Value, Comparator>::getSpillDir() {
     return _spillDir;
 }
 

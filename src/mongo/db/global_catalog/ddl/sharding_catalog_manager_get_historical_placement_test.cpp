@@ -121,6 +121,9 @@ void assertPlacementsEqual(const HistoricalPlacement& expected, const Historical
 
 class GetHistoricalPlacementTestFixture : public ConfigServerTestFixture {
 public:
+    // Placement history queries use aggregation pipelines that may spill to disk.
+    GetHistoricalPlacementTestFixture() : ConfigServerTestFixture(Options{}.enableSpillEngine()) {}
+
     struct PlacementDescriptor {
         PlacementDescriptor(Timestamp timestamp, std::string ns, std::vector<std::string> shardsIds)
             : timestamp(std::move(timestamp)), ns(std::move(ns)), shardsIds(std::move(shardsIds)) {}
@@ -954,7 +957,7 @@ TEST_F(GetHistoricalPlacementTestFixture,
                                   historicalPlacement);
         },
         "whole cluster",
-        BSON("$ne" << ""));
+        BSON("$nin" << BSON_ARRAY("" << "config.system.sessions")));
 }
 
 // Test 'ignoreRemovedShards' mode for a non-existing database.

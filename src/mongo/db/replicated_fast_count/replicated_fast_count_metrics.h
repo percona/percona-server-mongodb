@@ -29,8 +29,6 @@
 
 #pragma once
 
-#include "mongo/otel/metrics/metrics_counter.h"
-#include "mongo/otel/metrics/metrics_gauge.h"
 #include "mongo/platform/atomic.h"
 #include "mongo/util/time_support.h"
 
@@ -44,8 +42,6 @@ namespace mongo {
  */
 class ReplicatedFastCountMetrics {
 public:
-    ReplicatedFastCountMetrics();
-
     void setIsRunning(bool running);
 
     /**
@@ -56,52 +52,19 @@ public:
 
     void incrementFlushFailureCount();
 
-    void incrementEmptyUpdateCount();
-
     void incrementInsertCount();
 
     void incrementUpdateCount();
 
     void addWriteTimeMsTotal(int64_t ms);
-
-private:
-    // Boolean flag indicating whether or not the fast count background thread is currently running.
-    // Since OTel gauges do not natively support booleans, we use an int64_t gauge instead.
-    otel::metrics::Gauge<int64_t>& _isRunningGauge;
-
-    // Flushes persist fast count information to the oplog and occur during checkpointing,
-    // shutdown, etc. The total number of flush attempts = _flushSuccessCounter +
-    // _flushFailureCounter.
-    otel::metrics::Counter<int64_t>& _flushSuccessCounter;
-    otel::metrics::Counter<int64_t>& _flushFailureCounter;
-    otel::metrics::Gauge<int64_t>& _flushTimeMsMinGauge;
-    otel::metrics::Gauge<int64_t>& _flushTimeMsMaxGauge;
-    otel::metrics::Counter<int64_t>& _flushTimeMsTotalCounter;
-    // Aggregate metrics for the min/max number of documents inserted or updated during one
-    // flush.
-    otel::metrics::Gauge<int64_t>& _flushedDocsMinGauge;
-    otel::metrics::Gauge<int64_t>& _flushedDocsMaxGauge;
-    // The total number of documents written during flushes.
-    otel::metrics::Counter<int64_t>& _flushedDocsTotalCounter;
-
-    // The number of times an empty diff is found when writing an update to the replicated fast
-    // count collection.
-    otel::metrics::Counter<int64_t>& _emptyUpdateCounter;
-
-    // The number of inserts/updates to the replicated fast count collection.
-    otel::metrics::Counter<int64_t>& _insertCounter;
-    otel::metrics::Counter<int64_t>& _updateCounter;
-
-    // The total time spent writing to the replicated fast count collection during flushing. This is
-    // useful for determining the proportion of flush time spent writing (_writeTimeMsTotalCounter /
-    // flushTimeMsTotalCounter).
-    otel::metrics::Counter<int64_t>& _writeTimeMsTotalCounter;
-
-    // Placeholder atomics for tracking the running minimum across flushes. Since flushTimeMinGauge
-    // and flushedDocsMinGauge are initialized to 0, we compare the first flush duration to these
-    // placeholders to ensure that the aforementioned gauges do not forever remain set to 0.
-    Atomic<int64_t> _flushTimeMsMinPlaceholder{std::numeric_limits<int64_t>::max()};
-    Atomic<int64_t> _flushedDocsMinPlaceholder{std::numeric_limits<int64_t>::max()};
 };
+
+/**
+ * Free functions for recording checkpoint oplog scan metrics. These functions are safe to call from
+ * any code in the checkpoint scan path without needing a ReplicatedFastCountMetrics instance.
+ */
+void recordCheckpointOplogEntryProcessed();
+void recordCheckpointOplogEntrySkipped();
+void recordCheckpointSizeCountEntryProcessed(int count = 1);
 
 }  // namespace mongo

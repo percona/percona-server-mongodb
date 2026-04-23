@@ -59,6 +59,7 @@ extensions_with_config(
         ":add_fields_match_mongo_extension_signed_lib",
         ":modify_for_log_mongo_extension_signed_lib",
         ":shard_id_mongo_extension_signed_lib",
+        ":track_deps_mongo_extension_signed_lib",
 
         #################### EXTENSIONS FOR NO-PASSTHROUGH TESTS ####################
         # Any extension that is just loaded in a no-passthrough test MUST NOT have the
@@ -94,7 +95,6 @@ extensions_with_config(
         ":major_version_too_low_bad_extension_signed_lib",
         ":match_topN_mongo_extension_signed_lib",
         ":minor_version_too_high_bad_extension_signed_lib",
-        ":mongothost_extension_signed_lib",
         ":native_vector_search_mongo_extension_signed_lib",
         ":no_compatible_version_bad_extension_signed_lib",
         ":no_symbol_bad_extension_signed_lib",
@@ -133,6 +133,7 @@ pkg_name = "//" + package_name() + "/"
         "desugar_add_view_name",
         "view_pipeline_validator",
         "shard_id",
+        "track_deps",
     ]
 ]
 
@@ -305,9 +306,4 @@ signed_mongo_cc_extension_shared_library(
 signed_mongo_cc_extension_shared_library(
     name = "assert_deadline_increased_after_batch_extension",
     srcs = ["assert_deadline_increased_after_batch.cpp"],
-)
-
-signed_mongo_cc_extension_shared_library(
-    name = "mongothost_extension",
-    srcs = [pkg_name + "extension_options:mongothost.cpp"],
 )

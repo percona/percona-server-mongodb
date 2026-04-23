@@ -49,6 +49,7 @@
 #include "mongo/db/server_feature_flags_gen.h"
 #include "mongo/db/server_options.h"
 #include "mongo/db/shard_role/ddl/create_indexes_gen.h"
+#include "mongo/db/shard_role/ddl/list_collections_gen.h"
 #include "mongo/db/shard_role/shard_catalog/operation_sharding_state.h"
 #include "mongo/db/sharding_environment/client/shard.h"
 #include "mongo/db/sharding_environment/grid.h"
@@ -330,6 +331,32 @@ BSONObj ShardServerProcessInterface::getCollectionOptions(OperationContext* opCt
     return _getCollectionOptions(opCtx, nss);
 }
 
+ListCollectionsReplyItem ShardServerProcessInterface::getCollectionInfoFromPrimary(
+    OperationContext* opCtx, const NamespaceStringOrUUID& nsOrUUID) {
+    auto filter = nsOrUUID.isUUID() ? BSON("info.uuid" << nsOrUUID.uuid())
+                                    : BSON("name" << nsOrUUID.nss().coll());
+    // Use a listCollections command to resolve both namespace and options
+    // in a single round trip to the primary shard.
+    auto nss = NamespaceStringUtil::deserialize(nsOrUUID.dbName(), "");
+    const auto response = _runListCollectionsCommandOnAShardedCluster(
+        opCtx,
+        nss,
+        {.rawData = gFeatureFlagAllBinariesSupportRawDataOperations.isEnabled(
+             VersionContext::getDecoration(opCtx),
+             serverGlobalParams.featureCompatibility.acquireFCVSnapshot()),
+         // Use PrimaryOnly read preference
+         .runOnPrimary = true,
+         .filter = filter});
+
+    uassert(ErrorCodes::NamespaceNotFound,
+            fmt::format("Collection {} not found in database {}",
+                        nsOrUUID.toStringForErrorMsg(),
+                        nsOrUUID.dbName().toStringForErrorMsg()),
+            !response.empty());
+
+    return ListCollectionsReplyItem::parse(response[0].getOwned());
+}
+
 BSONObj ShardServerProcessInterface::_getCollectionOptions(OperationContext* opCtx,
                                                            const NamespaceString& nss,
                                                            bool runOnPrimary) {
@@ -372,13 +399,6 @@ BSONObj ShardServerProcessInterface::_getCollectionOptions(OperationContext* opC
     return BSONObj{};
 }
 
-UUID ShardServerProcessInterface::fetchCollectionUUIDFromPrimary(OperationContext* opCtx,
-                                                                 const NamespaceString& nss) {
-    const auto options = _getCollectionOptions(opCtx, nss, /*runOnPrimary*/ true);
-    auto uuid = UUID::parse(options["uuid"_sd]);
-    return uassertStatusOK(uuid);
-}
-
 query_shape::CollectionType ShardServerProcessInterface::getCollectionType(
     OperationContext* opCtx, const NamespaceString& nss) {
 
@@ -413,7 +433,7 @@ std::vector<BSONObj> ShardServerProcessInterface::getIndexSpecs(OperationContext
                                                                 const NamespaceString& ns,
                                                                 bool includeBuildUUIDs) {
     sharding::router::CollectionRouter router(opCtx, ns);
-    return router.routeWithRoutingContext(
+    const auto indexes = router.routeWithRoutingContext(
         "ShardServerProcessInterface::getIndexSpecs",
         [&](OperationContext* opCtx, RoutingContext& routingCtx) -> std::vector<BSONObj> {
             StatusWith<Shard::QueryResponse> response =
@@ -424,6 +444,14 @@ std::vector<BSONObj> ShardServerProcessInterface::getIndexSpecs(OperationContext
             uassertStatusOK(response);
             return response.getValue().docs;
         });
+
+    // The listIndexes command always includes a 'collation' field in its output as of SERVER-89953.
+    // However, the caller expects a normalized index specification, in which case the 'collation'
+    // field should be omitted when it represents the simple collation. Apply normalization here to
+    // ensure compatibility with storage index specs.
+    // TODO (SERVER-119573): Remove this normalization once listIndexes returns specs compatible
+    // with the storage format.
+    return IndexCatalog::normalizeIndexSpecsFromListIndexes(indexes);
 }
 
 std::vector<DatabaseName> ShardServerProcessInterface::getAllDatabases(

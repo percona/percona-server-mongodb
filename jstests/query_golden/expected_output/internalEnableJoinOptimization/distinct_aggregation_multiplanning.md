@@ -4200,118 +4200,89 @@ Execution Engine: classic
 [ "_id_", "a_1_b_1", "b_1_c_1" ]
 ```
 ### Summarized explain
-Execution Engine: classic
+Execution Engine: sbe
 ```json
 {
 	"queryShapeHash" : "847248D15DED36E13C8A7310ED7FB2EB4CE2B46DB3FB441A5B7AAAF9939B7B4D",
-	"stages" : [
-		{
-			"$cursor" : {
-				"rejectedPlans" : [
-					[
-						{
-							"stage" : "PROJECTION_COVERED",
-							"transformBy" : {
-								"_id" : 0,
-								"a" : 1,
-								"b" : 1
-							},
-							"usedJoinOptimization" : false
-						},
-						{
-							"direction" : "forward",
-							"indexBounds" : {
-								"a" : [
-									"(0.0, inf]"
-								],
-								"b" : [
-									"(-18.0, inf]"
-								]
-							},
-							"indexName" : "a_1_b_1",
-							"isFetching" : false,
-							"isMultiKey" : false,
-							"isPartial" : false,
-							"isShardFiltering" : false,
-							"isSparse" : false,
-							"isUnique" : false,
-							"keyPattern" : {
-								"a" : 1,
-								"b" : 1
-							},
-							"multiKeyPaths" : {
-								"a" : [ ],
-								"b" : [ ]
-							},
-							"stage" : "DISTINCT_SCAN",
-							"usedJoinOptimization" : false
-						}
+	"rejectedPlans" : [
+		[
+			{
+				"stage" : "PROJECTION_COVERED",
+				"transformBy" : {
+					"_id" : 0,
+					"a" : 1,
+					"b" : 1
+				},
+				"usedJoinOptimization" : false
+			},
+			{
+				"direction" : "forward",
+				"indexBounds" : {
+					"a" : [
+						"(0.0, inf]"
+					],
+					"b" : [
+						"(-18.0, inf]"
 					]
-				],
-				"winningPlan" : [
-					{
-						"stage" : "PROJECTION_SIMPLE",
-						"transformBy" : {
-							"_id" : 0,
-							"a" : 1,
-							"b" : 1
-						},
-						"usedJoinOptimization" : false
-					},
-					{
-						"filter" : {
-							"a" : {
-								"$gt" : 0
-							}
-						},
-						"nss" : "test.distinct_aggregation_multiplanning_md-3",
-						"stage" : "FETCH",
-						"usedJoinOptimization" : false
-					},
-					{
-						"direction" : "forward",
-						"indexBounds" : {
-							"b" : [
-								"(-18.0, inf]"
-							],
-							"c" : [
-								"[MinKey, MaxKey]"
-							]
-						},
-						"indexName" : "b_1_c_1",
-						"isMultiKey" : false,
-						"isPartial" : false,
-						"isSparse" : false,
-						"isUnique" : false,
-						"keyPattern" : {
-							"b" : 1,
-							"c" : 1
-						},
-						"multiKeyPaths" : {
-							"b" : [ ],
-							"c" : [ ]
-						},
-						"nss" : "test.distinct_aggregation_multiplanning_md-3",
-						"stage" : "IXSCAN",
-						"usedJoinOptimization" : false
-					}
-				]
+				},
+				"indexName" : "a_1_b_1",
+				"isFetching" : false,
+				"isMultiKey" : false,
+				"isPartial" : false,
+				"isShardFiltering" : false,
+				"isSparse" : false,
+				"isUnique" : false,
+				"keyPattern" : {
+					"a" : 1,
+					"b" : 1
+				},
+				"multiKeyPaths" : {
+					"a" : [ ],
+					"b" : [ ]
+				},
+				"stage" : "DISTINCT_SCAN",
+				"usedJoinOptimization" : false
 			}
+		]
+	],
+	"winningPlan" : [
+		{
+			"stage" : "GROUP"
 		},
 		{
-			"$group" : {
-				"$willBeMerged" : false,
-				"_id" : "$a",
-				"accum" : {
-					"$top" : {
-						"output" : "$b",
-						"sortBy" : {
-							"a" : 1,
-							"b" : 1
-						}
-					}
+			"filter" : {
+				"a" : {
+					"$gt" : 0
 				}
-			}
+			},
+			"nss" : "test.distinct_aggregation_multiplanning_md-3",
+			"stage" : "FETCH"
+		},
+		{
+			"direction" : "forward",
+			"indexBounds" : {
+				"b" : [
+					"(-18.0, inf]"
+				],
+				"c" : [
+					"[MinKey, MaxKey]"
+				]
+			},
+			"indexName" : "b_1_c_1",
+			"isMultiKey" : false,
+			"isPartial" : false,
+			"isSparse" : false,
+			"isUnique" : false,
+			"keyPattern" : {
+				"b" : 1,
+				"c" : 1
+			},
+			"multiKeyPaths" : {
+				"b" : [ ],
+				"c" : [ ]
+			},
+			"nss" : "test.distinct_aggregation_multiplanning_md-3",
+			"stage" : "IXSCAN"
 		}
 	]
 }
@@ -4382,6 +4353,7 @@ Execution Engine: sbe
 				"usedJoinOptimization" : false
 			},
 			{
+				"nss" : "test.distinct_aggregation_multiplanning_md",
 				"stage" : "FETCH",
 				"usedJoinOptimization" : false
 			},
@@ -4408,6 +4380,7 @@ Execution Engine: sbe
 					"a" : [ ],
 					"b" : [ ]
 				},
+				"nss" : "test.distinct_aggregation_multiplanning_md",
 				"stage" : "IXSCAN",
 				"usedJoinOptimization" : false
 			}
@@ -4424,6 +4397,7 @@ Execution Engine: sbe
 				"usedJoinOptimization" : false
 			},
 			{
+				"nss" : "test.distinct_aggregation_multiplanning_md",
 				"stage" : "FETCH",
 				"usedJoinOptimization" : false
 			},
@@ -4457,6 +4431,7 @@ Execution Engine: sbe
 						"d"
 					]
 				},
+				"nss" : "test.distinct_aggregation_multiplanning_md",
 				"stage" : "IXSCAN",
 				"usedJoinOptimization" : false
 			}
@@ -4574,6 +4549,7 @@ Execution Engine: sbe
 				"usedJoinOptimization" : false
 			},
 			{
+				"nss" : "test.distinct_aggregation_multiplanning_md",
 				"stage" : "FETCH",
 				"usedJoinOptimization" : false
 			},
@@ -4600,6 +4576,7 @@ Execution Engine: sbe
 					"a" : [ ],
 					"b" : [ ]
 				},
+				"nss" : "test.distinct_aggregation_multiplanning_md",
 				"stage" : "IXSCAN",
 				"usedJoinOptimization" : false
 			}
@@ -4616,6 +4593,7 @@ Execution Engine: sbe
 				"usedJoinOptimization" : false
 			},
 			{
+				"nss" : "test.distinct_aggregation_multiplanning_md",
 				"stage" : "FETCH",
 				"usedJoinOptimization" : false
 			},
@@ -4649,6 +4627,7 @@ Execution Engine: sbe
 						"d"
 					]
 				},
+				"nss" : "test.distinct_aggregation_multiplanning_md",
 				"stage" : "IXSCAN",
 				"usedJoinOptimization" : false
 			}
@@ -4761,6 +4740,7 @@ Execution Engine: sbe
 				"usedJoinOptimization" : false
 			},
 			{
+				"nss" : "test.distinct_aggregation_multiplanning_md",
 				"stage" : "FETCH",
 				"usedJoinOptimization" : false
 			},
@@ -4794,6 +4774,7 @@ Execution Engine: sbe
 					"b" : [ ],
 					"c" : [ ]
 				},
+				"nss" : "test.distinct_aggregation_multiplanning_md",
 				"stage" : "IXSCAN",
 				"usedJoinOptimization" : false
 			}
@@ -4809,6 +4790,7 @@ Execution Engine: sbe
 				"usedJoinOptimization" : false
 			},
 			{
+				"nss" : "test.distinct_aggregation_multiplanning_md",
 				"stage" : "FETCH",
 				"usedJoinOptimization" : false
 			},
@@ -4844,6 +4826,7 @@ Execution Engine: sbe
 						"d"
 					]
 				},
+				"nss" : "test.distinct_aggregation_multiplanning_md",
 				"stage" : "IXSCAN",
 				"usedJoinOptimization" : false
 			}

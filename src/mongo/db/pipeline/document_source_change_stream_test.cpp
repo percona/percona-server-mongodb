@@ -483,7 +483,7 @@ TEST_F(ChangeStreamStageTest, CreatingChangeStreamSucceedsWithValidVersions) {
 
         bool found = false;
         for (auto& stage : pipeline) {
-            if (stage->getSourceName() == DocumentSourceChangeStreamTransform::kStageName) {
+            if (stage->isInstanceOf<DocumentSourceChangeStreamTransform>()) {
                 // Serialize the stage to BSON and read back the "version" field.
                 std::vector<Value> serialization;
                 stage->serializeToArray(serialization);
@@ -722,7 +722,7 @@ TEST_F(ChangeStreamStageTest, CreatingV2ChangeStreamRegistersOplogMatchFilterFor
     BSONObj filter = [&]() {
         BSONArrayBuilder bab;
         for (auto& eventName : expectedEvents) {
-            bab.append(BSON("o2." + eventName << BSON("$exists" << true)));
+            bab.append(BSON("o2." + std::string{eventName} << BSON("$exists" << true)));
         }
         bab.done();
         return BSON(
@@ -1199,7 +1199,7 @@ TEST_F(ChangeStreamStageTest, SetIgnoreRemovedShards) {
 
         bool found = false;
         for (auto& stage : pipeline) {
-            if (stage->getSourceName() == DocumentSourceChangeStreamTransform::kStageName) {
+            if (stage->isInstanceOf<DocumentSourceChangeStreamTransform>()) {
                 // Serialize the stage to BSON and read back the "version" field.
                 std::vector<Value> serialization;
                 stage->serializeToArray(serialization);
@@ -3010,7 +3010,7 @@ TEST_F(ChangeStreamStageTest, TransformApplyOpsWithCreateOperation) {
         {"applyOps",
          Value{std::vector<Document>{
              Document{{"op", "c"_sd},
-                      {"ns", nss.db_forTest() + ".$cmd"},
+                      {"ns", std::string(nss.db_forTest()) + ".$cmd"},
                       {"ui", testUuid()},
                       {"o", Value{Document{{"create", nss.coll()}, {"idIndex", idIndexDef}}}},
                       {"ts", Timestamp(0, 1)}},
@@ -3020,7 +3020,7 @@ TEST_F(ChangeStreamStageTest, TransformApplyOpsWithCreateOperation) {
                       {"o", Value{Document{{"_id", 123}, {"x", "hallo"_sd}}}}},
              Document{
                  {"op", "c"_sd},
-                 {"ns", nss.db_forTest() + ".$cmd"},
+                 {"ns", std::string(nss.db_forTest()) + ".$cmd"},
                  {"ui", UUID::gen()},
                  // Operation on another collection which should be skipped.
                  {"o", Value{Document{{"create", "otherCollection"_sd}, {"idIndex", idIndexDef}}}}},
@@ -3297,8 +3297,7 @@ TEST_F(ChangeStreamStageTest, DocumentSourceChangeStreamTransformTransformSingle
         exec::agg::MockStage::createForTest({Document{entry.getEntry().toBSON()}}, getExpCtx());
     auto transformDS =
         DocumentSourceChangeStreamTransform::createFromBson(spec.firstElement(), getExpCtx());
-    auto transformStage = exec::agg::buildStage(transformDS);
-    transformStage->setSource(stage.get());
+    auto transformStage = exec::agg::buildStageAndStitch(transformDS, stage);
 
     auto next = transformStage->getNext();
     ASSERT_TRUE(next.isAdvanced());
@@ -3369,9 +3368,7 @@ TEST_F(ChangeStreamStageTest, DocumentSourceChangeStreamTransformTransformMultip
     auto stage = exec::agg::MockStage::createForTest(std::move(docs), getExpCtx());
     auto transformDS =
         DocumentSourceChangeStreamTransform::createFromBson(spec.firstElement(), getExpCtx());
-    auto transformStage = exec::agg::buildStage(transformDS);
-
-    transformStage->setSource(stage.get());
+    auto transformStage = exec::agg::buildStageAndStitch(transformDS, stage);
 
     auto next = transformStage->getNext();
     ASSERT_TRUE(next.isAdvanced());
@@ -3454,9 +3451,7 @@ TEST_F(ChangeStreamStageTest,
     auto stage = exec::agg::MockStage::createForTest(std::move(docs), getExpCtx());
     auto transformDS =
         DocumentSourceChangeStreamTransform::createFromBson(spec.firstElement(), getExpCtx());
-    auto transformStage = exec::agg::buildStage(transformDS);
-
-    transformStage->setSource(stage.get());
+    auto transformStage = exec::agg::buildStageAndStitch(transformDS, stage);
 
     auto next = transformStage->getNext();
     ASSERT_TRUE(next.isAdvanced());
@@ -3495,8 +3490,7 @@ DEATH_TEST_REGEX_F(ChangeStreamStageTestDeathTest,
         exec::agg::MockStage::createForTest({Document{entry.getEntry().toBSON()}}, getExpCtx());
     auto transformDS =
         DocumentSourceChangeStreamTransform::createFromBson(spec.firstElement(), getExpCtx());
-    auto transformStage = exec::agg::buildStage(transformDS);
-    transformStage->setSource(stage.get());
+    auto transformStage = exec::agg::buildStageAndStitch(transformDS, stage);
 
     ASSERT_THROWS_CODE(transformStage->getNext(), AssertionException, 5052201);
 }
@@ -3763,8 +3757,7 @@ TEST_F(ChangeStreamStageTest, InjectControlEventsHandlesNonMatchingInputsCorrect
         };
 
         auto stage = exec::agg::MockStage::createForTest(inputDocs, expCtx);
-        auto injectControlEventsStage = exec::agg::buildStage(injectControlEvents);
-        injectControlEventsStage->setSource(stage.get());
+        auto injectControlEventsStage = exec::agg::buildStageAndStitch(injectControlEvents, stage);
 
         auto next = injectControlEventsStage->getNext();
         ASSERT_TRUE(next.isPaused());
@@ -3826,8 +3819,7 @@ TEST_F(ChangeStreamStageTest, InjectControlEventsHandlesMatchingInputsCorrectly)
     };
 
     auto stage = exec::agg::MockStage::createForTest(inputDocs, expCtx);
-    auto injectControlEventsStage = exec::agg::buildStage(injectControlEvents);
-    injectControlEventsStage->setSource(stage.get());
+    auto injectControlEventsStage = exec::agg::buildStageAndStitch(injectControlEvents, stage);
 
     auto next = injectControlEventsStage->getNext();
     ASSERT_TRUE(next.isPaused());
@@ -3892,8 +3884,7 @@ TEST_F(ChangeStreamStageTest, ControlEventsAreReturnedByMatchStageUnmodified) {
     auto stage = exec::agg::MockStage::createForTest(inputDocs, expCtx);
 
     auto match = DocumentSourceMatch::create(BSON("foo" << "bar"), expCtx);
-    auto matchStage = exec::agg::buildStage(match);
-    matchStage->setSource(stage.get());
+    auto matchStage = exec::agg::buildStageAndStitch(match, stage);
 
     auto result = matchStage->getNext();
     ASSERT_TRUE(result.isAdvancedControlDocument());
@@ -3922,8 +3913,7 @@ TEST_F(ChangeStreamStageTest, ControlEventsAreReturnedByProjectStageUnmodified) 
 
         auto project =
             DocumentSourceProject::create(BSON("foo" << projectType), expCtx, "$project"_sd);
-        auto projectStage = exec::agg::buildStage(project);
-        projectStage->setSource(stage.get());
+        auto projectStage = exec::agg::buildStageAndStitch(project, stage);
 
         auto result = projectStage->getNext();
         ASSERT_TRUE(result.isAdvancedControlDocument());
@@ -4118,8 +4108,7 @@ TEST_F(ChangeStreamStageTest, CloseCursorEvenIfInvalidateEntriesGetFilteredOut) 
     // Add a match stage after change stream to filter out the invalidate entries.
     auto match = DocumentSourceMatch::create(fromjson("{operationType: 'insert'}"), getExpCtx());
 
-    auto matchStage = exec::agg::buildStage(match);
-    matchStage->setSource(lastStage.get());
+    auto matchStage = exec::agg::buildStageAndStitch(match, lastStage);
 
     // Throw an exception on the call of getNext().
     ASSERT_THROWS(matchStage->getNext(), ExceptionFor<ErrorCodes::ChangeStreamInvalidated>);

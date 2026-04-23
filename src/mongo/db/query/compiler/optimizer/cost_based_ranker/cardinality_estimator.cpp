@@ -43,6 +43,21 @@
 
 namespace mongo::cost_based_ranker {
 
+namespace {
+/**
+ * Returns the total number of intervals across all OILs in 'bounds'.
+ * Each oil.intervals.size() is O(1), so this is O(number of index fields).
+ */
+size_t totalIntervalCount(const IndexBounds& bounds) {
+    size_t total = 0;
+    for (const auto& oil : bounds.fields) {
+        total += oil.intervals.size();
+    }
+    return total;
+}
+
+}  // namespace
+
 CardinalityEstimator::CardinalityEstimator(const CollectionInfo& collInfo,
                                            const ce::SamplingEstimator* samplingEstimator,
                                            EstimateMap& qsnEstimates,
@@ -161,9 +176,10 @@ CEResult CardinalityEstimator::estimate(const QuerySolutionNode* node) {
 }
 
 /**
- * Check if a leaf expression can possibly be used to generate an interval. This function checks
- * for exactly the same expression types as _translatePredicate which is called from
- * IndexBoundsBuilder::translateAndIntersect via CardinalityEstimator::estimateConjWithHistogram().
+ * Check if a leaf expression can possibly be used to generate an interval against a B-tree index.
+ * This function checks for exactly the same expression types as _translatePredicate which is
+ * called from IndexBoundsBuilder::translateAndIntersect via
+ * CardinalityEstimator::estimateConjWithHistogram().
  *
  * This check cannot determine if the resulting interval will be exact or not. In order to establish
  * this, one needs to actually create the interval and check the result. Any other solution that
@@ -189,7 +205,6 @@ bool isSargableLeaf(const MatchExpression* node) {
         case MatchExpression::MOD:
         case MatchExpression::REGEX:
         case MatchExpression::TYPE_OPERATOR:
-        case MatchExpression::INTERNAL_BUCKET_GEO_WITHIN:
             return true;
         default:
             return false;
@@ -478,12 +493,15 @@ CEResult CardinalityEstimator::estimate(const IndexScanNode* node) {
         if (!bounds.size() && !filter) {
             return _collCard;
         }
-        // TODO(SERVER-105939): This is wrong for some index bounds.
-        auto matchExpr = getMatchExpressionFromBounds(bounds, filter.get());
-        if (matchExpr) {
-            return _ceCache.getOrCompute(std::move(matchExpr), [&] {
-                return _samplingEstimator->estimateRIDs(bounds, filter.get());
-            });
+
+        if (totalIntervalCount(bounds) <= kMaxNumIntervalsCached) {
+            // TODO(SERVER-105939): This is wrong for some index bounds.
+            auto matchExpr = getMatchExpressionFromBounds(bounds, filter.get());
+            if (matchExpr) {
+                return _ceCache.getOrCompute(std::move(matchExpr), [&] {
+                    return _samplingEstimator->estimateRIDs(bounds, filter.get());
+                });
+            }
         }
         // Rare case, CE not cached.
         return _samplingEstimator->estimateRIDs(bounds, filter.get());
@@ -590,13 +608,16 @@ CEResult CardinalityEstimator::estimate(const FetchNode* node) {
         ) {
             auto& bounds = static_cast<const IndexScanNode*>(node->children[0].get())->bounds;
             auto ce = [&]() -> CardinalityEstimate {
-                // TODO(SERVER-105939): This is wrong for some index bounds.
-                auto matchExpr = getMatchExpressionFromBounds(bounds, node->filter.get());
-                if (matchExpr) {
-                    return _ceCache.getOrCompute(std::move(matchExpr), [&] {
-                        return _samplingEstimator->estimateRIDs(bounds, node->filter.get());
-                    });
+                if (totalIntervalCount(bounds) <= kMaxNumIntervalsCached) {
+                    // TODO(SERVER-105939): This is wrong for some index bounds.
+                    auto matchExpr = getMatchExpressionFromBounds(bounds, node->filter.get());
+                    if (matchExpr) {
+                        return _ceCache.getOrCompute(std::move(matchExpr), [&] {
+                            return _samplingEstimator->estimateRIDs(bounds, node->filter.get());
+                        });
+                    }
                 }
+
                 // Rare case, CE not cached.
                 return _samplingEstimator->estimateRIDs(bounds, node->filter.get());
             }();

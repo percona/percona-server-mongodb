@@ -3,6 +3,8 @@
  *
  * @tags: [
  *    requires_fcv_70,
+ *    # TODO SERVER-124153: Revisit this tag.
+ *   featureFlagReplicatedFastCount_incompatible,
  * ]
  */
 
@@ -624,11 +626,11 @@ if (FeatureFlagUtil.isPresentAndEnabled(st.s, "CheckRangeDeletionsWithMissingSha
     assert.commandWorked(configDB.collections.update({_id: kNss}, {$set: {unsplittable: true}}));
 
     let inconsistencies_chunks = db.checkMetadataConsistency().toArray();
-    assert.eq(inconsistencies_chunks.length, 1);
-    assert.eq(
+    assert.eq(inconsistencies_chunks.length, 2);
+    assert.contains(
         "TrackedUnshardedCollectionHasMultipleChunks",
-        inconsistencies_chunks[0].type,
-        tojson(inconsistencies_chunks[0]),
+        inconsistencies_chunks.map((x) => x.type),
+        tojson(inconsistencies_chunks),
     );
 
     // Clean up the database to pass the hooks that detect inconsistencies
@@ -657,8 +659,12 @@ if (FeatureFlagUtil.isPresentAndEnabled(st.s, "CheckRangeDeletionsWithMissingSha
     assert.commandWorked(configDB.collections.update({_id: kNss}, {$set: {unsplittable: true}}));
 
     let inconsistencies_key = db.checkMetadataConsistency().toArray();
-    assert.eq(1, inconsistencies_key.length);
-    assert.eq("TrackedUnshardedCollectionHasInvalidKey", inconsistencies_key[0].type, tojson(inconsistencies_key[0]));
+    assert.eq(2, inconsistencies_key.length);
+    assert.contains(
+        "TrackedUnshardedCollectionHasInvalidKey",
+        inconsistencies_key.map((x) => x.type),
+        tojson(inconsistencies_key),
+    );
 
     // Clean up the database to pass the hooks that detect inconsistencies
     db.dropDatabase();
@@ -808,7 +814,7 @@ if (FeatureFlagUtil.isPresentAndEnabled(st.s, "CheckRangeDeletionsWithMissingSha
     assert.commandWorked(configDB.collections.update({_id: kNss}, {$unset: {defaultCollation: ""}}));
 
     const inconsistencies = db.checkMetadataConsistency().toArray();
-    assert.eq(1, inconsistencies.length);
+    assert.eq(2, inconsistencies.length);
     assertCollectionOptionsMismatch(inconsistencies, [
         {shards: [primaryShard.shardName], options: {defaultCollation: localCollation}},
         {shards: ["config"], options: {defaultCollation: {}}},
@@ -1464,11 +1470,45 @@ if (FeatureFlagUtil.isPresentAndEnabled(st.s, "CheckRangeDeletionsWithMissingSha
         return;
     }
 
+    function generateCollationInconsistency(shardRS) {
+        shardRS.stopSet(undefined, true /* forRestart */, {skipCheckDBHashes: true, skipValidation: true});
+
+        for (let i = 0; i < shardRS.nodes.length; i++) {
+            delete shardRS.nodes[i].fullOptions.shardsvr;
+        }
+        shardRS.startSet({}, true /* forRestart */);
+        shardRS.waitForPrimary();
+
+        const shardPrimary = shardRS.getPrimary();
+        const shardDb = shardPrimary.getDB(db.getName());
+
+        assert.commandWorked(
+            shardDb.runCommand({
+                collMod: collName,
+                index: {name: "shardKey_extra_nonSimple_idx", prepareUnique: true},
+            }),
+        );
+        assert.commandWorked(
+            shardDb.runCommand({
+                collMod: collName,
+                index: {name: "shardKey_extra_nonSimple_idx", unique: true},
+            }),
+        );
+
+        shardRS.stopSet(undefined, true /* forRestart */, {skipCheckDBHashes: true, skipValidation: true});
+
+        for (let i = 0; i < shardRS.nodes.length; i++) {
+            shardRS.nodes[i].fullOptions.shardsvr = "";
+        }
+        shardRS.startSet({}, true /* forRestart */);
+        shardRS.waitForPrimary();
+    }
+
     const db = getNewDb();
     const collName = "uniqueIdxCollationColl";
     const ns = db.getName() + "." + collName;
     const coll = db[collName];
-    const shardRS = st.rs0;
+    const primaryShardRS = st.rs0;
 
     assert.commandWorked(mongos.adminCommand({enableSharding: db.getName(), primaryShard: st.shard0.shardName}));
 
@@ -1492,45 +1532,49 @@ if (FeatureFlagUtil.isPresentAndEnabled(st.s, "CheckRangeDeletionsWithMissingSha
         "Expected no inconsistencies before index modification: " + tojson(inconsistencies),
     );
 
-    shardRS.stopSet(undefined, true /* forRestart */, {skipCheckDBHashes: true, skipValidation: true});
-
-    for (let i = 0; i < shardRS.nodes.length; i++) {
-        delete shardRS.nodes[i].fullOptions.shardsvr;
-    }
-    shardRS.startSet({}, true /* forRestart */);
-    shardRS.waitForPrimary();
-
-    const shardPrimary = shardRS.getPrimary();
-    const shardDb = shardPrimary.getDB(db.getName());
-
-    assert.commandWorked(
-        shardDb.runCommand({
-            collMod: collName,
-            index: {name: "shardKey_extra_nonSimple_idx", prepareUnique: true},
-        }),
-    );
-    assert.commandWorked(
-        shardDb.runCommand({
-            collMod: collName,
-            index: {name: "shardKey_extra_nonSimple_idx", unique: true},
-        }),
-    );
-
-    shardRS.stopSet(undefined, true /* forRestart */, {skipCheckDBHashes: true, skipValidation: true});
-
-    for (let i = 0; i < shardRS.nodes.length; i++) {
-        shardRS.nodes[i].fullOptions.shardsvr = "";
-    }
-    shardRS.startSet({}, true /* forRestart */);
-    shardRS.waitForPrimary();
-
+    generateCollationInconsistency(primaryShardRS);
     inconsistencies = db.checkMetadataConsistency({"checkIndexes": 1}).toArray();
     jsTest.log("Inconsistencies found: " + tojson(inconsistencies));
 
-    assert.gt(
+    assert.eq(
         inconsistencies.length,
-        0,
+        1,
         "Expected inconsistencies for unique index with non-simple collation on shard key prefix",
+    );
+
+    // Generate inconsistency in the other shard.
+    assert.commandWorked(st.s.adminCommand({split: ns, middle: {shardKey: 5}}));
+    assert.commandWorked(st.s.adminCommand({moveChunk: ns, find: {shardKey: 5}, to: st.shard1.shardName}));
+
+    generateCollationInconsistency(st.rs1);
+    inconsistencies = db.checkMetadataConsistency({"checkIndexes": 1}).toArray();
+    jsTest.log("Inconsistencies found: " + tojson(inconsistencies));
+
+    assert.eq(
+        inconsistencies.length,
+        2,
+        "Expected inconsistencies for unique index with non-simple collation on shard key prefix",
+    );
+
+    // Unsplittable collections can have unique indexes with non-simple collations.
+    assert(mongos.getCollection(ns).drop());
+    for (let i = 0; i < 10; i++) {
+        assert.commandWorked(coll.insert({key: i, extraField: "value_" + i}));
+    }
+
+    assert.commandWorked(
+        coll.createIndex(
+            {key: 1, extraField: 1},
+            {collation: {locale: "en_US", strength: 2}, name: "key_extra_nonSimple_idx"},
+        ),
+    );
+
+    assert.commandWorked(mongos.adminCommand({moveCollection: ns, toShard: st.shard1.shardName}));
+    inconsistencies = db.checkMetadataConsistency({"checkIndexes": 1}).toArray();
+    assert.eq(
+        0,
+        inconsistencies.length,
+        "Expected no inconsistencies on unsplittable collections: " + tojson(inconsistencies),
     );
 
     db.dropDatabase();

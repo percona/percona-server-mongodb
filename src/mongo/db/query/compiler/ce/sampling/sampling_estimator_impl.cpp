@@ -34,6 +34,7 @@
 #include "mongo/bson/bsonmisc.h"
 #include "mongo/bson/bsonobjbuilder.h"
 #include "mongo/db/exec/matcher/matcher.h"
+#include "mongo/db/exec/sbe/expressions/sbe_fn_names.h"
 #include "mongo/db/exec/sbe/makeobj_spec.h"
 #include "mongo/db/exec/sbe/stages/generic_scan.h"
 #include "mongo/db/exec/sbe/stages/limit_skip.h"
@@ -57,6 +58,7 @@
 #include "mongo/db/query/query_planner_params.h"
 #include "mongo/db/query/stage_builder/sbe/builder.h"
 #include "mongo/util/assert_util.h"
+#include "mongo/util/fail_point.h"
 
 #include <cmath>
 
@@ -68,6 +70,8 @@ namespace mongo::ce {
 
 using CardinalityType = mongo::cost_based_ranker::CardinalityType;
 using EstimationSource = mongo::cost_based_ranker::EstimationSource;
+
+MONGO_FAIL_POINT_DEFINE(hangBeforeCBRSamplingGenerateSample);
 
 namespace {
 
@@ -164,7 +168,7 @@ std::unique_ptr<sbe::PlanStage> makeScanStage(const CollectionPtr& collection,
                                               boost::optional<sbe::value::SlotId> recordIdSlot,
                                               boost::optional<sbe::value::SlotId> minRecordIdSlot,
                                               bool useRandomCursor,
-                                              PlanYieldPolicy* sbeYieldPolicy) {
+                                              PlanYieldPolicySBE* sbeYieldPolicy) {
     sbe::value::SlotVector scanFieldSlots;
     std::vector<std::string> scanFieldNames;
     sbe::ScanOpenCallback scanOpenCallback{};
@@ -274,7 +278,8 @@ std::unique_ptr<sbe::PlanStage> makeProjectStage(std::unique_ptr<sbe::PlanStage>
     // Create a built-in SBE makeBsonObj func and pass in the 2 args: MakeObjSpec and slot to read
     // input doc from (inputSlot).
     auto func = sbe::makeE<sbe::EFunction>(
-        "makeBsonObj"_sd, sbe::makeEs(std::move(specExpr), sbe::makeE<sbe::EVariable>(inputSlot)));
+        sbe::EFn::kMakeBsonObj,
+        sbe::makeEs(std::move(specExpr), sbe::makeE<sbe::EVariable>(inputSlot)));
     return sbe::makeProjectStage(std::move(stage), 0 /* nodeId */, outputSlot, std::move(func));
 }
 }  // namespace
@@ -312,7 +317,7 @@ size_t SamplingEstimatorImpl::calculateSampleSize(SamplingConfidenceIntervalEnum
 }
 
 std::pair<std::unique_ptr<sbe::PlanStage>, mongo::stage_builder::PlanStageData>
-SamplingEstimatorImpl::generateRandomSamplingPlan(PlanYieldPolicy* sbeYieldPolicy) {
+SamplingEstimatorImpl::generateRandomSamplingPlan(PlanYieldPolicySBE* sbeYieldPolicy) {
     auto staticData = std::make_unique<stage_builder::PlanStageStaticData>();
     sbe::value::SlotIdGenerator ids;
     staticData->resultSlot = ids.generate();
@@ -345,7 +350,7 @@ SamplingEstimatorImpl::generateRandomSamplingPlan(PlanYieldPolicy* sbeYieldPolic
 }
 
 std::pair<std::unique_ptr<sbe::PlanStage>, mongo::stage_builder::PlanStageData>
-SamplingEstimatorImpl::generateChunkSamplingPlan(PlanYieldPolicy* sbeYieldPolicy) {
+SamplingEstimatorImpl::generateChunkSamplingPlan(PlanYieldPolicySBE* sbeYieldPolicy) {
     auto staticData = std::make_unique<stage_builder::PlanStageStaticData>();
     sbe::value::SlotIdGenerator ids;
     staticData->resultSlot = ids.generate();
@@ -426,20 +431,20 @@ void SamplingEstimatorImpl::executeSamplingQueryAndSample(
                                    false /* preparingFromCache */);
 
     // Create a PlanExecutor for the execution of the sampling plan.
-    auto exec = std::move(mongo::plan_executor_factory::make(_opCtx,
-                                                             std::move(cq),
-                                                             nullptr /*solution*/,
-                                                             std::move(plan),
-                                                             _collections,
-                                                             QueryPlannerParams::DEFAULT,
-                                                             _nss,
-                                                             std::move(sbeYieldPolicy),
-                                                             false /* isFromPlanCache */,
-                                                             false /* cachedPlanHash */)
-                              .getValue());
+    auto exec = mongo::plan_executor_factory::make(_opCtx,
+                                                   std::move(cq),
+                                                   nullptr /*solution*/,
+                                                   std::move(plan),
+                                                   _collections,
+                                                   QueryPlannerParams::DEFAULT,
+                                                   _nss,
+                                                   std::move(sbeYieldPolicy),
+                                                   false /* isFromPlanCache */,
+                                                   false /* cachedPlanHash */);
 
     // This function call could be a re-sample request, so the previous sample should be cleared.
     _sample.clear();
+    _uniqueDocCount = boost::none;
     BSONObj obj;
     // Execute the plan, exhaust results and cache the sample.
     while (PlanExecutor::ADVANCED == exec->getNext(&obj, nullptr)) {
@@ -525,13 +530,15 @@ void SamplingEstimatorImpl::generateSample(ce::ProjectionParams projectionParams
         validateTopLevelSampleFieldNames(*topLevelSampleFieldNames);
         _topLevelSampleFieldNames = *topLevelSampleFieldNames;
     }
+
+    // Test hook: pause here so tests can arm setYieldAllLocksHang after any multiplanning
+    // trial phase is done, ensuring the yield fires inside the sampling executor.
+    hangBeforeCBRSamplingGenerateSample.pauseWhileSet(_opCtx);
+
     if (internalQuerySamplingBySequentialScan.load()) {
         // This is only used for testing purposes when a repeatable sample is needed.
         generateSampleBySeqScanningForTesting();
-        return;
-    }
-
-    if (_sampleSize >= _collectionCard.cardinality().v()) {
+    } else if (_sampleSize >= _collectionCard.cardinality().v()) {
         // If the required sample is larger than the collection, the sample is generated from all
         // the documents on the collection.
         generateFullCollScanSample();
@@ -891,12 +898,12 @@ SamplingEstimatorImpl::SamplingEstimatorImpl(OperationContext* opCtx,
                                              SamplingCEMethodEnum samplingStyle,
                                              boost::optional<int> numChunks,
                                              CardinalityEstimate collectionCard)
-    : _opCtx(opCtx),
+    : _sampleSize(sampleSize),
+      _opCtx(opCtx),
       _collections(collections),
       _nss(nss),
       _yieldPolicy(yieldPolicy),
       _samplingStyle(samplingStyle),
-      _sampleSize(sampleSize),
       _numChunks(numChunks),
       _collectionCard(collectionCard) {}
 
@@ -921,7 +928,8 @@ SamplingEstimatorImpl::SamplingEstimatorImpl(OperationContext* opCtx,
 SamplingEstimatorImpl::~SamplingEstimatorImpl() {}
 
 CardinalityEstimate SamplingEstimatorImpl::estimateNDV(
-    const std::vector<FieldPathAndEqSemantics>& fields) const {
+    const std::vector<FieldPathAndEqSemantics>& fields,
+    boost::optional<std::span<const OrderedIntervalList>> bounds) const {
     tassert(11158504, "Sample must be generated before calling estimateNDV()", _isSampleGenerated);
 
     if (!_topLevelSampleFieldNames.empty()) {
@@ -932,20 +940,38 @@ CardinalityEstimate SamplingEstimatorImpl::estimateNDV(
         }
     }
 
-    // Obtain the NDV for the sample. If this is equal to the sample size, don't bother with NR
-    // iteration, since it is likely to diverge. The best guess is that each element in the
-    // collection is unique.
-    size_t sampleNDV = countNDV(fields, _sample);
-    if (sampleNDV == _sampleSize) {
+    // Obtain the NDV for the sample. Compare against the number of unique documents. If they are
+    // equal, skip NR iteration since it is likely to diverge. The best guess is that each element
+    // in the collection is unique. We compare sampleNDV against uniqueDocCount instead of
+    // sampleSize because we sample with replacement. This can produce duplicate documents, which
+    // may result in us oscillating in and out of NR for defacto unique fields. The unique doc count
+    // is lazily computed and cached.
+    size_t sampleNDV = countNDV(fields, _sample, bounds);
+    if (!_uniqueDocCount) {
+        _uniqueDocCount = countUniqueDocuments(_sample);
+    }
+    if (sampleNDV == *_uniqueDocCount) {
         LOGV2_DEBUG(11228302,
                     5,
-                    "SamplingCE NDV is equal to the sample size, outputting collection size",
+                    "SamplingCE NDV is equal to the unique document count, outputting collection "
+                    "size",
                     "fields"_attr = fields,
                     "sampleNDV"_attr = sampleNDV,
+                    "uniqueDocCount"_attr = *_uniqueDocCount,
+                    "sampleSize"_attr = _sampleSize,
                     "collectionCard"_attr = _collectionCard);
         return _collectionCard;
     }
 
+    tassert(12237901,
+            "Non-bounded NDV count should never be zero",
+            bounds.has_value() || sampleNDV != 0);
+    if (bounds.has_value() && sampleNDV == 0) {
+        return cost_based_ranker::zeroCE;
+    }
+
+    // Note that we use '_sampleSize' instead of '_uniqueDocCount' here because the method of
+    // moments estimator that we use assumes that we perform sampling with replacement.
     CardinalityEstimate estimate = newtonRaphsonNDV(sampleNDV, _sampleSize);
     LOGV2_DEBUG(11158506,
                 5,
@@ -963,6 +989,62 @@ CardinalityEstimate SamplingEstimatorImpl::estimateNDV(
                     "estimate"_attr = estimate,
                     "collectionCard"_attr = _collectionCard);
         estimate = _collectionCard;
+    }
+    return estimate;
+}
+
+CardinalityEstimate SamplingEstimatorImpl::estimateNDVMultiKey(
+    const std::vector<FieldPathAndEqSemantics>& fields,
+    boost::optional<std::span<const OrderedIntervalList>> bounds) const {
+    tassert(10061103, "Sample must be generated before calling estimateNDV()", _isSampleGenerated);
+
+    if (!_topLevelSampleFieldNames.empty()) {
+        for (const auto& field : fields) {
+            tassert(10061104,
+                    "Sample must include the NDV fieldName as a top-level field.",
+                    _topLevelSampleFieldNames.contains(field.path.front()));
+        }
+    }
+
+    // Obtain the NDV for the sample. If this is equal to the sample size, don't bother with NR
+    // iteration, since it is likely to diverge. The best guess is that each element in the
+    // collection is unique.
+    const auto [totalSampleKeys, totalMatchingKeys, totalUniqueKeys] =
+        countNDVMultiKey(fields, _sample, bounds);
+
+    if (bounds.has_value() && !totalMatchingKeys) {
+        return cost_based_ranker::zeroCE;
+    }
+
+    const auto avgKeysPerDoc = (double(totalSampleKeys) / _sample.size());
+    const auto estimatedIndexKeys = _collectionCard * avgKeysPerDoc;
+    if (totalUniqueKeys == totalMatchingKeys) {
+        LOGV2_DEBUG(10061105,
+                    5,
+                    "SamplingCE NDV is equal to the sample size, outputting estimated index size",
+                    "fields"_attr = fields,
+                    "sampleNDV"_attr = totalUniqueKeys,
+                    "estimatedIndexKeys"_attr = estimatedIndexKeys);
+        return estimatedIndexKeys;
+    }
+
+    CardinalityEstimate estimate = newtonRaphsonNDV(totalUniqueKeys, totalSampleKeys);
+    LOGV2_DEBUG(10061106,
+                5,
+                "SamplingCE ndv (# unique values) for field",
+                "fields"_attr = fields,
+                "sampleNDV"_attr = totalUniqueKeys,
+                "estimate"_attr = estimate);
+
+    if (estimate > estimatedIndexKeys) {
+        LOGV2_DEBUG(10061107,
+                    5,
+                    "SamplingCE ndv exceeds estimated index size, rounding down",
+                    "fields"_attr = fields,
+                    "sampleNDV"_attr = totalUniqueKeys,
+                    "estimate"_attr = estimate,
+                    "estimatedIndexKeys"_attr = estimatedIndexKeys);
+        estimate = estimatedIndexKeys;
     }
     return estimate;
 }

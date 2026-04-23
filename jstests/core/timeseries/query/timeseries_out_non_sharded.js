@@ -21,7 +21,11 @@
  * ]
  */
 import {TimeseriesAggTests} from "jstests/core/timeseries/libs/timeseries_agg_helpers.js";
-import {isViewfulTimeseriesOnlySuite} from "jstests/core/timeseries/libs/viewless_timeseries_util.js";
+import {IndexCatalogHelpers} from "jstests/libs/index_catalog_helpers.js";
+import {
+    runningWithViewlessTimeseriesUpgradeDowngrade,
+    isViewfulTimeseriesOnlySuite,
+} from "jstests/core/timeseries/libs/viewless_timeseries_util.js";
 import {getRawOperationSpec, getTimeseriesCollForRawOps} from "jstests/libs/raw_operation_utils.js";
 import {FixtureHelpers} from "jstests/libs/fixture_helpers.js";
 
@@ -96,7 +100,10 @@ function runOutAndCompareResults({
         }
 
         let containsDefaultIndex = false;
-        for (const index of outColl.getIndexes()) {
+        for (let index of outColl.getIndexes()) {
+            // TODO (SERVER-122417) Remove this workaround once v9.0 branches out.
+            index = IndexCatalogHelpers.addSimpleCollationToIndexIfMissing(testDB, index);
+
             if (index == timeseriesDefaultIndex() || bsonUnorderedFieldsCompare(index, timeseriesDefaultIndex()) == 0) {
                 containsDefaultIndex = true;
                 break;
@@ -167,6 +174,7 @@ function timeseriesDefaultIndex() {
             [timeField]: 1,
         },
         "name": metaField + "_1_" + timeField + "_1",
+        "collation": {"locale": "simple"},
     };
 }
 
@@ -496,15 +504,19 @@ if (isV82OrLower) {
     assert.throwsWithCode(() => observerInColl.aggregate(pipeline), 7406103);
 })();
 
-// TODO SERVER-111600: Remove this test once only viewless timeseries exists
 (function testCannotHaveConflictingViews() {
     // Tests that an error is raised if a conflicting view exists.
     if (!FixtureHelpers.isMongos(testDB)) {
         // can not shard a view.
         assert.commandWorked(testDB.createCollection("view_out", {viewOn: "out"}));
         const pipeline = [{$out: {db: testDB.getName(), coll: "view_out", timeseries: {timeField: "time"}}}];
-        assert.throwsWithCode(() => inColl.aggregate(pipeline), 7268700);
-        assert.throwsWithCode(() => observerInColl.aggregate(pipeline), 7268700);
+        // TODO SERVER-111600: Remove 7268700 error code once 9.0 becomes last LTS.
+        // This error was thrown by older versions when $out used timeseries options with the out collection being a non-timeseries view.
+        assert.throwsWithCode(() => inColl.aggregate(pipeline), [ErrorCodes.CommandNotSupportedOnView, 7268700]);
+        assert.throwsWithCode(
+            () => observerInColl.aggregate(pipeline),
+            [ErrorCodes.CommandNotSupportedOnView, 7268700],
+        );
     }
 })();
 

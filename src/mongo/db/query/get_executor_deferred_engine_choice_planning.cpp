@@ -37,6 +37,7 @@
 #include "mongo/db/exec/runtime_planners/exec_deferred_engine_choice_runtime_planner/planner_interface.h"
 #include "mongo/db/exec/runtime_planners/planner_types.h"
 #include "mongo/db/query/canonical_query.h"
+#include "mongo/db/query/collection_query_info.h"
 #include "mongo/db/query/compiler/physical_model/query_solution/query_solution.h"
 #include "mongo/db/query/engine_selection.h"
 #include "mongo/db/query/get_executor_fast_paths.h"
@@ -344,13 +345,26 @@ PlanRankingResult planRanking(OperationContext* opCtx,
     tassert(11974306, "Expected planner params to be initialized.", expressResult.plannerParams);
     auto paramsForSingleCollectionQuery = std::move(expressResult.plannerParams);
 
-    auto makePlannerHelper = [&](std::unique_ptr<QueryPlannerParams> plannerParams) {
-        return uassertStatusOK(preparePlanner(opCtx,
-                                              canonicalQuery.get(),
-                                              std::move(plannerParams),
-                                              yieldPolicy,
-                                              collections,
-                                              pipeline));
+    // Initialize path arrayness in ExpressionContext from the CollectionQueryInfo.
+    // Do not invoke if it has been already initialized.
+    // TODO SERVER-123955 Consider moving it to a different location
+    const auto& collection = collections.getMainCollection();
+    if (feature_flags::gFeatureFlagPathArrayness.isEnabled() &&
+        !canonicalQuery->getExpCtx()->hasMainCollPathArrayness() && collection) {
+        canonicalQuery->getExpCtx()->setPathArrayness(
+            CollectionQueryInfo::get(collection).getPathArrayness());
+    }
+
+    auto makePlannerHelper = [&](std::unique_ptr<QueryPlannerParams> plannerParams)
+        -> std::unique_ptr<PlannerInterface> {
+        auto innerPlanner = uassertStatusOK(preparePlanner(opCtx,
+                                                           canonicalQuery.get(),
+                                                           std::move(plannerParams),
+                                                           yieldPolicy,
+                                                           collections,
+                                                           pipeline));
+        return std::make_unique<EngineSelectionPlanner>(
+            std::move(innerPlanner), opCtx, canonicalQuery.get(), pipeline, collections);
     };
     canonicalQuery->setUsingSbePlanCache(false);
     return retryMakePlanner(std::move(paramsForSingleCollectionQuery),

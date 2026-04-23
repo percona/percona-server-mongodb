@@ -162,6 +162,7 @@ enums:
             queryStatsRead: "queryStatsRead" # view untransformed contents of queryStats store
             queryStatsReadTransformed: "queryStatsReadTransformed" # view transformed contents of queryStats store
             performRawDataOperations: "performRawDataOperations" # allow operations that use the rawData field
+            blockReplicaSetWrites: "blockReplicaSetWrites"
             readBackupFile: "readBackupFile" # run $_backupFile aggregation
             refineCollectionShardKey: "refineCollectionShardKey"
             reIndex: "reIndex"
@@ -222,6 +223,7 @@ enums:
             applyOps: "applyOps"
             containerInsert: "containerInsert" # run "ci" ops in the applyOps command
             containerDelete: "containerDelete" # run "cd" ops in the applyOps command
+            containerUpdate: "containerUpdate" # run "cu" ops in the applyOps command
 
     # In 'MatchType' the extra_data field "serverlessActionTypes" is used
     # by the AuthorizationSession while in multitenancy mode to determine
@@ -288,6 +290,7 @@ enums:
                         - listSearchIndexes
                         - containerInsert
                         - containerDelete
+                        - containerUpdate
                         - updateSearchIndex
                         - performRawDataOperations
                         - planCacheIndexFilter
@@ -341,6 +344,7 @@ enums:
                         - updateSearchIndex
                         - containerInsert
                         - containerDelete
+                        - containerUpdate
                         - performRawDataOperations
                         - planCacheIndexFilter
                         - planCacheRead
@@ -429,6 +433,7 @@ enums:
                         - validate
                         - containerInsert
                         - containerDelete
+                        - containerUpdate
 
             # resource: { db: '', system_buckets: 'exact' }
             kMatchSystemBucketInAnyDBResource:

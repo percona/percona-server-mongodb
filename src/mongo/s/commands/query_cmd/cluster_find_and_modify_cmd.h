@@ -131,12 +131,13 @@ public:
      * one, and commits the transaction. If the original command is part of a transaction, deletes
      * the original document and inserts the new one.
      */
-    static void handleWouldChangeOwningShardErrorUsingTransactionApi(OperationContext* opCtx,
-                                                                     const ShardId& shardId,
-                                                                     const NamespaceString& nss,
-                                                                     const BSONObj& cmdObj,
-                                                                     const Status& responseStatus,
-                                                                     BSONObjBuilder* result);
+    static void handleWouldChangeOwningShardErrorUsingTransactionApi(
+        OperationContext* opCtx,
+        const ShardId& shardId,
+        const NamespaceString& nss,
+        const write_ops::FindAndModifyCommandRequest& cmdRequest,
+        const Status& responseStatus,
+        BSONObjBuilder* result);
 
 protected:
     void doInitializeClusterRole(ClusterRole role) override {
@@ -145,25 +146,26 @@ protected:
     }
 
 private:
-    static bool getCrudProcessedFromCmd(const BSONObj& cmdObj);
+    static bool getCrudProcessedFromCmd(const write_ops::FindAndModifyCommandRequest& cmdRequest);
 
     // Catches errors in the given response, and reruns the command if necessary. Uses the given
     // response to construct the findAndModify command result passed to the client.
-    static void _handleResponseAndConstructResult(OperationContext* opCtx,
-                                                  const ShardId& shardId,
-                                                  const CollectionRoutingInfo& cri,
-                                                  const NamespaceString& nss,
-                                                  const BSONObj& cmdObj,
-                                                  const Status& responseStatus,
-                                                  const BSONObj& response,
-                                                  bool isTimeseriesViewRequest,
-                                                  BSONObjBuilder* result);
+    static void _handleResponseAndConstructResult(
+        OperationContext* opCtx,
+        const ShardId& shardId,
+        const CollectionRoutingInfo& cri,
+        const NamespaceString& nss,
+        const write_ops::FindAndModifyCommandRequest& cmdRequest,
+        const Status& responseStatus,
+        const BSONObj& response,
+        bool isTimeseriesViewRequest,
+        BSONObjBuilder* result);
 
     // Two-phase protocol to run a findAndModify command without a shard key or _id.
     static void _runCommandWithoutShardKey(OperationContext* opCtx,
                                            const CollectionRoutingInfo& cri,
                                            const NamespaceString& nss,
-                                           const BSONObj& cmdObj,
+                                           const write_ops::FindAndModifyCommandRequest& cmdRequest,
                                            bool isTimeseriesViewRequest,
                                            BSONObjBuilder* result);
 
@@ -175,11 +177,15 @@ private:
                                            BSONObjBuilder* result);
 
     // Command invocation to be used if a shard key is specified or the collection is unsharded.
+    // cmdRequest is used for WouldChangeOwningShard handling; cmdObjForDispatch is the command
+    // actually sent to the shard — cmdRequest.toBSON() for run(), and an explain-wrapped command
+    // for explain().
     static void _runCommand(OperationContext* opCtx,
                             const ShardId& shardId,
                             const CollectionRoutingInfo& cri,
                             const NamespaceString& nss,
-                            const BSONObj& cmdObj,
+                            const write_ops::FindAndModifyCommandRequest& cmdRequest,
+                            const BSONObj& cmdObjForDispatch,
                             boost::optional<bool> allowShardKeyUpdatesWithoutFullShardKeyInQuery,
                             bool isTimeseriesViewRequest,
                             BSONObjBuilder* result,
@@ -191,18 +197,19 @@ private:
         const ShardId& shardId,
         const CollectionRoutingInfo& cri,
         const NamespaceString& nss,
-        const BSONObj& cmdObj,
+        const write_ops::FindAndModifyCommandRequest& cmdRequest,
         bool isTimeseriesViewRequest,
         BSONObjBuilder* result);
 
-    static void handleWouldChangeOwningShardError(OperationContext* opCtx,
-                                                  const ShardId& shardId,
-                                                  const CollectionRoutingInfo& cri,
-                                                  const NamespaceString& nss,
-                                                  const Status& responseStatus,
-                                                  const BSONObj& cmdObj,
-                                                  bool isTimeseriesViewRequest,
-                                                  BSONObjBuilder* result);
+    static void handleWouldChangeOwningShardError(
+        OperationContext* opCtx,
+        const ShardId& shardId,
+        const CollectionRoutingInfo& cri,
+        const NamespaceString& nss,
+        const Status& responseStatus,
+        const write_ops::FindAndModifyCommandRequest& cmdRequest,
+        bool isTimeseriesViewRequest,
+        BSONObjBuilder* result);
 
     // Update related command execution metrics.
     mutable boost::optional<UpdateMetrics> _updateMetrics;

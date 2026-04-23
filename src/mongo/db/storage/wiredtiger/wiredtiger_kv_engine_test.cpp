@@ -46,6 +46,7 @@
 #include "mongo/db/operation_context.h"
 #include "mongo/db/record_id.h"
 #include "mongo/db/rss/replicated_storage_service.h"
+#include "mongo/db/rss/stub_persistence_provider.h"
 #include "mongo/db/server_options.h"
 #include "mongo/db/service_context.h"
 #include "mongo/db/service_context_test_fixture.h"
@@ -78,6 +79,9 @@
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kTest
 
 namespace mongo {
+
+bool allowUntimestampedWrites(bool inStandaloneMode, bool shouldRecoverFromOplogAsStandalone);
+
 namespace {
 
 #if __has_feature(address_sanitizer)
@@ -1485,9 +1489,91 @@ TEST_F(WiredTigerKVEngineTest, PinAllDurableTimestamp) {
     ASSERT_GTE(engine->getAllDurableTimestamp(), Timestamp(300, 0));
 }
 
+TEST_F(WiredTigerKVEngineTest, AllowUntimestampedWritesWithServerParam) {
+    auto initialStorageGlobalParamsDotMagicRestore = storageGlobalParams.magicRestore;
+    ON_BLOCK_EXIT([initialStorageGlobalParamsDotMagicRestore] {
+        storageGlobalParams.magicRestore = initialStorageGlobalParamsDotMagicRestore;
+    });
+    RAIIServerParameterControllerForTest controller("allowUnsafeUntimestampedWrites", true);
+
+    storageGlobalParams.magicRestore = false;
+    // Standalone mode without oplog recovery is the only case that permits untimestamped writes.
+    ASSERT_FALSE(allowUntimestampedWrites(true, true));
+    ASSERT_TRUE(allowUntimestampedWrites(true, false));
+    ASSERT_FALSE(allowUntimestampedWrites(false, true));
+    ASSERT_FALSE(allowUntimestampedWrites(false, false));
+    // Classic magic restore unconditionally allows untimestamped writes.
+    storageGlobalParams.magicRestore = true;
+    ASSERT_TRUE(allowUntimestampedWrites(true, true));
+    ASSERT_TRUE(allowUntimestampedWrites(true, false));
+    ASSERT_TRUE(allowUntimestampedWrites(false, true));
+    ASSERT_TRUE(allowUntimestampedWrites(false, false));
+
+    // DSC magic restore is not classic, so it falls through to the normal standalone logic.
+    class DSCMagicRestoreStub : public rss::StubPersistenceProvider {
+    public:
+        bool supportsClassicMagicRestore() const override {
+            return false;
+        }
+    };
+    rss::ReplicatedStorageService::get(getServiceContext())
+        .setPersistenceProvider(std::make_unique<DSCMagicRestoreStub>());
+    storageGlobalParams.magicRestore = false;
+    ASSERT_FALSE(allowUntimestampedWrites(true, true));
+    ASSERT_TRUE(allowUntimestampedWrites(true, false));
+    ASSERT_FALSE(allowUntimestampedWrites(false, true));
+    ASSERT_FALSE(allowUntimestampedWrites(false, false));
+    storageGlobalParams.magicRestore = true;
+    ASSERT_FALSE(allowUntimestampedWrites(true, true));
+    ASSERT_TRUE(allowUntimestampedWrites(true, false));
+    ASSERT_FALSE(allowUntimestampedWrites(false, true));
+    ASSERT_FALSE(allowUntimestampedWrites(false, false));
+}
+
+TEST_F(WiredTigerKVEngineTest, AllowUntimestampedWritesWithoutServerParam) {
+    auto initialStorageGlobalParamsDotMagicRestore = storageGlobalParams.magicRestore;
+    ON_BLOCK_EXIT([initialStorageGlobalParamsDotMagicRestore] {
+        storageGlobalParams.magicRestore = initialStorageGlobalParamsDotMagicRestore;
+    });
+    RAIIServerParameterControllerForTest controller("allowUnsafeUntimestampedWrites", false);
+
+    storageGlobalParams.magicRestore = false;
+    // Standalone mode without oplog recovery is the only case that permits untimestamped writes.
+    ASSERT_FALSE(allowUntimestampedWrites(true, true));
+    ASSERT_FALSE(allowUntimestampedWrites(true, false));
+    ASSERT_FALSE(allowUntimestampedWrites(false, true));
+    ASSERT_FALSE(allowUntimestampedWrites(false, false));
+    // Classic magic restore unconditionally allows untimestamped writes.
+    storageGlobalParams.magicRestore = true;
+    ASSERT_TRUE(allowUntimestampedWrites(true, true));
+    ASSERT_TRUE(allowUntimestampedWrites(true, false));
+    ASSERT_TRUE(allowUntimestampedWrites(false, true));
+    ASSERT_TRUE(allowUntimestampedWrites(false, false));
+
+    // DSC magic restore is not classic, so it falls through to the normal standalone logic.
+    class DSCMagicRestoreStub : public rss::StubPersistenceProvider {
+    public:
+        bool supportsClassicMagicRestore() const override {
+            return false;
+        }
+    };
+    rss::ReplicatedStorageService::get(getServiceContext())
+        .setPersistenceProvider(std::make_unique<DSCMagicRestoreStub>());
+    storageGlobalParams.magicRestore = false;
+    ASSERT_FALSE(allowUntimestampedWrites(true, true));
+    ASSERT_FALSE(allowUntimestampedWrites(true, false));
+    ASSERT_FALSE(allowUntimestampedWrites(false, true));
+    ASSERT_FALSE(allowUntimestampedWrites(false, false));
+    storageGlobalParams.magicRestore = true;
+    ASSERT_FALSE(allowUntimestampedWrites(true, true));
+    ASSERT_FALSE(allowUntimestampedWrites(true, false));
+    ASSERT_FALSE(allowUntimestampedWrites(false, true));
+    ASSERT_FALSE(allowUntimestampedWrites(false, false));
+}
+
 TEST_F(WiredTigerKVEngineTest, SetStorageTierCold) {
     auto* engine = _helper->getWiredTigerKVEngine();
-    auto result = engine->setStorageTierToStorageOptions(BSONObj(), "cold");
+    auto result = engine->setStorageTierToStorageOptions(BSONObj(), StorageTierLevelEnum::cold);
     // Verify the returned storage options contain the cold tier WT config.
     auto wtObj = result.getObjectField("wiredTiger");
     auto configString = wtObj.getStringField("configString");
@@ -1535,6 +1621,28 @@ TEST_F(WiredTigerKVEngineTest, IsColdCollectionRecordStore) {
         WiredTigerRecoveryUnit::get(*shard_role_details::getRecoveryUnit(opCtxPtr.get())),
         params);
     ASSERT_TRUE(coldRs->isColdCollection());
+}
+
+TEST_F(WiredTigerKVEngineTest, GetStorageTierFromStorageOptionsNone) {
+    auto* engine = _helper->getWiredTigerKVEngine();
+    // WiredTiger's default config string uses storage_tier=none, which should be treated as unset.
+    auto options =
+        BSON("wiredTiger" << BSON("configString" << "disaggregated=(storage_tier=none)"));
+    ASSERT_EQ(engine->getStorageTierFromStorageOptions(options), boost::none);
+}
+
+TEST_F(WiredTigerKVEngineTest, GetStorageTierFromStorageOptionsCold) {
+    auto* engine = _helper->getWiredTigerKVEngine();
+    auto options =
+        BSON("wiredTiger" << BSON("configString" << "disaggregated=(storage_tier=cold)"));
+    auto result = engine->getStorageTierFromStorageOptions(options);
+    ASSERT(result);
+    ASSERT_EQ(*result, StorageTierLevelEnum::cold);
+}
+
+TEST_F(WiredTigerKVEngineTest, GetStorageTierFromStorageOptionsEmpty) {
+    auto* engine = _helper->getWiredTigerKVEngine();
+    ASSERT_EQ(engine->getStorageTierFromStorageOptions(BSONObj()), boost::none);
 }
 
 }  // namespace
