@@ -4,6 +4,7 @@
  * packets.
  *
  * Requires tcpdump with visibility to mongod->LDAP traffic.
+ * Requires root: packet capture needs privileges tcpdump does not have for a normal user.
  *
  */
 import {createAdminUser} from "jstests/ldapauthz/_setup.js";
@@ -12,11 +13,19 @@ import {createAdminUser} from "jstests/ldapauthz/_setup.js";
 "use strict";
 
 if (_isWindows()) {
+    jsTestLog("Skipping test: Windows is not supported for this capture scenario");
+    quit();
+}
+
+// Skip unless root: tcpdump capture on the chosen interface typically requires elevated privileges.
+if (runProgram("sh", "-c", "test \"$(id -u)\" -eq 0") !== 0) {
+    jsTestLog("Skipping test: not running as root (effective UID is not 0)");
     quit();
 }
 
 // Skip if tcpdump is not installed
 if (runProgram("sh", "-c", "command -v tcpdump >/dev/null") !== 0) {
+    jsTestLog("Skipping test: tcpdump is not installed or not on PATH");
     quit();
 }
 
