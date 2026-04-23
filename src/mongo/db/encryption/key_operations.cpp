@@ -38,7 +38,6 @@ Copyright (C) 2022-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/encryption/read_file_to_secure_string.h"
 #include "mongo/db/encryption/vault_client.h"
 #include "mongo/logv2/log.h"
-#include "mongo/stdx/chrono.h"
 #include "mongo/util/assert_util_core.h"
 
 #include <chrono>
@@ -68,7 +67,7 @@ auto retryKmipOperation(MemFn&& operation) {
                 encryptionGlobalParams.kmipServerCAFile,
                 encryptionGlobalParams.kmipClientCertificateFile,
                 encryptionGlobalParams.kmipClientCertificatePassword,
-                stdx::chrono::milliseconds(encryptionGlobalParams.kmipConnectTimeoutMS));
+                std::chrono::milliseconds(encryptionGlobalParams.kmipConnectTimeoutMS));
             try {
                 return std::invoke(operation, client);
             } catch (const std::runtime_error& e) {

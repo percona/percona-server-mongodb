@@ -72,7 +72,7 @@ public:
          const std::string& serverCaFile,
          const std::string& clientCertificateFile,
          const std::string& clientCertificatePassword,
-         stdx::chrono::milliseconds timeout);
+         std::chrono::milliseconds timeout);
 
     Impl(const Impl&) = delete;
     Impl& operator=(const Impl&) = delete;
@@ -114,7 +114,7 @@ private:
     std::string _serverCaFile;
     std::string _clientCertificateFile;
     std::string _clientCertificatePassword;
-    stdx::chrono::milliseconds _timeout;
+    std::chrono::milliseconds _timeout;
 
     net::io_context _ioCtx;
     net::steady_timer _timer;
@@ -131,7 +131,7 @@ KmipClient::Impl::Impl(const std::string& host,
                        const std::string& serverCaFile,
                        const std::string& clientCertificateFile,
                        const std::string& clientCertificatePassword,
-                       stdx::chrono::milliseconds timeout)
+                       std::chrono::milliseconds timeout)
     : _host(host),
       _port(port),
       _serverCaFile(serverCaFile),
@@ -415,7 +415,7 @@ KmipClient::KmipClient(const std::string& host,
                        const std::string& serverCaFile,
                        const std::string& clientCertificateFile,
                        const std::string& clientCertificatePassword,
-                       stdx::chrono::milliseconds timeout)
+                       std::chrono::milliseconds timeout)
     : _impl(std::make_unique<Impl>(
           host, port, serverCaFile, clientCertificateFile, clientCertificatePassword, timeout)) {}
 

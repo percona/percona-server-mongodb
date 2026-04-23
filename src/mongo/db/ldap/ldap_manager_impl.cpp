@@ -41,6 +41,7 @@ Copyright (C) 2019-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/util/scopeguard.h"
 
 #include <algorithm>
+#include <chrono>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -497,7 +498,7 @@ public:
                 // wait for some connection returned from borrowed state
                 // or killed after failure
                 auto timeout_ms = ldapGlobalParams.ldapTimeoutMS.load();
-                if (_condvar_pool.wait_for(lock, stdx::chrono::milliseconds(timeout_ms)) ==
+                if (_condvar_pool.wait_for(lock, std::chrono::milliseconds(timeout_ms)) ==
                     stdx::cv_status::timeout) {
                     LOGV2_WARNING(29154,
                                   "Timed out waiting for available LDAP connection from pool",

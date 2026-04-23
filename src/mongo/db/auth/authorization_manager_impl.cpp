@@ -70,6 +70,7 @@
 #include "mongo/util/time_support.h"
 
 #include <algorithm>
+#include <chrono>
 #include <iterator>
 #include <list>
 #include <memory>
@@ -243,7 +244,7 @@ public:
 
             {
                 MONGO_IDLE_THREAD_BLOCK;
-                cv_status = _condvar.wait_for(lock, stdx::chrono::seconds(intervalSeconds));
+                cv_status = _condvar.wait_for(lock, std::chrono::seconds(intervalSeconds));
             }
 
             if (cv_status == stdx::cv_status::timeout && !_shuttingDown) {
