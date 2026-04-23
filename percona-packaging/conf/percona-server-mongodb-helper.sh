@@ -8,6 +8,9 @@ chown -R mongod:mongod /var/log/@@LOGDIR@@
 KTHP=/sys/kernel/mm/transparent_hugepage
 #
 [ -z "${CONF}" ] && CONF=/etc/mongod.conf
+# Set MANAGE_THP=0 in the EnvironmentFile to skip THP tuning (e.g. when
+# managed by tuned/tmpfiles.d/separate service)
+[ -z "${MANAGE_THP}" ] && MANAGE_THP=1
 #
 print_error(){
   echo " * Error enabling Transparent Huge pages, exiting"
@@ -15,7 +18,7 @@ print_error(){
 }
 #
 
-if grep -q "pidFilePath" /etc/mongod.conf; then
+if [ -f "${CONF}" ] && grep -q "pidFilePath" "${CONF}"; then
   touch /var/run/mongod.pid
   chown mongod:mongod /var/run/mongod.pid
 fi
@@ -53,6 +56,8 @@ if [ -n "${defaults}" ] && [ -n "${config}" ]; then # engine is set in 2 places
   fi
 fi
 # enable THP
-fgrep '[always]' ${KTHP}/enabled > /dev/null 2>&1 || (echo always > ${KTHP}/enabled 2> /dev/null || print_error) || true
-fgrep '[defer+madvise]' ${KTHP}/defrag > /dev/null 2>&1 || (echo defer+madvise > ${KTHP}/defrag  2> /dev/null || print_error) || true
-fgrep '0' ${KTHP}/khugepaged/max_ptes_none > /dev/null 2>&1 || (echo 0 > ${KTHP}/khugepaged/max_ptes_none  2> /dev/null || print_error) || true
+if [ "${MANAGE_THP}" = "1" ]; then
+  fgrep '[always]' ${KTHP}/enabled > /dev/null 2>&1 || (echo always > ${KTHP}/enabled 2> /dev/null || print_error) || true
+  fgrep '[defer+madvise]' ${KTHP}/defrag > /dev/null 2>&1 || (echo defer+madvise > ${KTHP}/defrag  2> /dev/null || print_error) || true
+  fgrep '0' ${KTHP}/khugepaged/max_ptes_none > /dev/null 2>&1 || (echo 0 > ${KTHP}/khugepaged/max_ptes_none  2> /dev/null || print_error) || true
+fi
