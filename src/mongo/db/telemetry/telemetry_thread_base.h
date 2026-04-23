@@ -40,11 +40,11 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/service_context.h"
 #include "mongo/platform/atomic_word.h"
 #include "mongo/stdx/condition_variable.h"
-#include "mongo/stdx/mutex.h"
 #include "mongo/util/background.h"
 #include "mongo/util/time_support.h"
 
 #include <memory>
+#include <mutex>
 #include <string>
 
 #include <boost/filesystem.hpp>  // IWYU pragma: keep
@@ -131,7 +131,7 @@ private:
 
     AtomicWord<bool> _shuttingDown{false};
 
-    stdx::mutex _mutex;  // protects _condvar
+    std::mutex _mutex;  // protects _condvar
     // The telemetry thread idles on this condition variable for a particular time duration
     // between creating metrics files. It can be triggered early to expediate shutdown.
     stdx::condition_variable _condvar;

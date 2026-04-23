@@ -34,12 +34,12 @@ Copyright (C) 2019-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/bson/bsonobj.h"
 #include "mongo/db/ldap/ldap_manager.h"
 #include "mongo/logv2/log_severity.h"
-#include "mongo/stdx/mutex.h"
 #include "mongo/util/lru_cache.h"
 #include "mongo/util/synchronized_value.h"
 #include "mongo/util/time_support.h"
 
 #include <memory>
+#include <mutex>
 
 #include <ldap.h>
 
@@ -79,7 +79,7 @@ private:
         const int ttl;
         const bool enabled;
         const BSONArray mapping;
-        stdx::mutex mutex;
+        std::mutex mutex;
         UserToDNCache cache;
     };
 

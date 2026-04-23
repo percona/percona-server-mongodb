@@ -231,7 +231,7 @@ public:
     void run() override {
         ThreadClient tc(name(), getGlobalServiceContext()->getService());
         LOGV2_DEBUG(29057, 1, "starting thread", "name"_attr = name());
-        stdx::unique_lock<stdx::mutex> lock(_mutex);
+        std::unique_lock<std::mutex> lock(_mutex);
 
         const bool shouldRefresh = ldapGlobalParams.ldapShouldRefreshUserCacheEntries;
         stdx::cv_status cv_status = stdx::cv_status::no_timeout;
@@ -288,7 +288,7 @@ public:
 
     void shutdown() {
         {
-            stdx::unique_lock<stdx::mutex> lock(_mutex);
+            std::unique_lock<std::mutex> lock(_mutex);
             _shuttingDown = true;
         }
 
@@ -300,7 +300,7 @@ private:
     AuthorizationManagerImpl* _authzManager;
     bool _shuttingDown{false};  // should be accessed under the _mutex
     // _mutex works in pair with _condvar and also protects _shuttingDown
-    stdx::mutex _mutex;
+    std::mutex _mutex;
     stdx::condition_variable _condvar;
 };
 

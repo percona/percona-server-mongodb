@@ -44,7 +44,6 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/repl/read_concern_args.h"
 #include "mongo/db/storage/storage_options.h"
 #include "mongo/db/write_concern_options.h"
-#include "mongo/stdx/mutex.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/clock_source.h"
 #include "mongo/util/concurrency/with_lock.h"
@@ -52,6 +51,7 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/util/str.h"
 
 #include <memory>
+#include <mutex>
 #include <utility>
 
 #include <boost/optional.hpp>
@@ -106,7 +106,7 @@ BaseCloner::ClonerStages FCBFileCloner::getStages() {
 }
 
 void FCBFileCloner::preStage() {
-    stdx::lock_guard<stdx::mutex> lk(_mutex);
+    std::lock_guard<std::mutex> lk(_mutex);
     _stats.start = getSharedData()->getClock()->now();
 
     // Construct local path name from the relative path and the temp dbpath.
@@ -151,7 +151,7 @@ void FCBFileCloner::preStage() {
 
 void FCBFileCloner::postStage() {
     _localFile.close();
-    stdx::lock_guard<stdx::mutex> lk(_mutex);
+    std::lock_guard<std::mutex> lk(_mutex);
     _stats.end = getSharedData()->getClock()->now();
 }
 
@@ -172,7 +172,7 @@ BaseCloner::AfterStageBehavior FCBFileCloner::queryStage() {
 }
 
 size_t FCBFileCloner::getFileOffset() {
-    stdx::lock_guard<stdx::mutex> lk(_mutex);
+    std::lock_guard<std::mutex> lk(_mutex);
     return _fileOffset;
 }
 
@@ -223,7 +223,7 @@ void FCBFileCloner::handleNextBatch(DBClientCursor& cursor) {
                 "remoteFile"_attr = _remoteFileName,
                 "fileOffset"_attr = getFileOffset());
     {
-        stdx::lock_guard<InitialSyncSharedData> lk(*getSharedData());
+        std::lock_guard<InitialSyncSharedData> lk(*getSharedData());
         if (!getSharedData()->getStatus(lk).isOK()) {
             static constexpr char const message[] =
                 "BackupFile cloning cancelled due to cloning failure";
@@ -233,7 +233,7 @@ void FCBFileCloner::handleNextBatch(DBClientCursor& cursor) {
         }
     }
     {
-        stdx::lock_guard<stdx::mutex> lk(_mutex);
+        std::lock_guard<std::mutex> lk(_mutex);
         _stats.receivedBatches++;
         while (cursor.moreInCurrentBatch()) {
             _dataToWrite.emplace_back(cursor.nextSafe());
@@ -264,7 +264,7 @@ void FCBFileCloner::writeDataToFilesystemCallback(const executor::TaskExecutor::
                 "fileOffset"_attr = getFileOffset());
     uassertStatusOK(cbd.status);
     {
-        stdx::lock_guard<stdx::mutex> lk(_mutex);
+        std::lock_guard<std::mutex> lk(_mutex);
         if (_dataToWrite.empty()) {
             LOGV2_WARNING(6113310,
                           "writeDataToFilesystemCallback, but no data to write",

@@ -53,7 +53,6 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/executor/task_executor.h"
 #include "mongo/platform/atomic_word.h"
 #include "mongo/stdx/condition_variable.h"
-#include "mongo/stdx/mutex.h"
 #include "mongo/util/concurrency/thread_pool.h"
 #include "mongo/util/concurrency/with_lock.h"
 #include "mongo/util/duration.h"
@@ -64,6 +63,7 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <vector>
 
@@ -512,7 +512,7 @@ private:
      * - Caller must hold a GlobalLock (MODE_X) while calling this method.
      * - Logs fatal on failure.
      */
-    void _restoreStorageLocation(stdx::unique_lock<stdx::mutex>& lock, OperationContext* opCtx);
+    void _restoreStorageLocation(std::unique_lock<std::mutex>& lock, OperationContext* opCtx);
 
     Status _killBackupCursor(WithLock lk);
 
@@ -530,7 +530,7 @@ private:
     // (MX) Must hold _mutex and be in a callback in _exec to write; must either hold
     //      _mutex or be in a callback in _exec to read.
 
-    mutable stdx::mutex _mutex;                                                 // (S)
+    mutable std::mutex _mutex;                                                  // (S)
     const InitialSyncerInterface::Options _opts;                                // (R)
     std::unique_ptr<DataReplicatorExternalState> _dataReplicatorExternalState;  // (R)
     std::shared_ptr<executor::TaskExecutor> _exec;                              // (R)

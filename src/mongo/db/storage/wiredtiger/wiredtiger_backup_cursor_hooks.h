@@ -34,6 +34,8 @@ Copyright (C) 2021-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/storage/backup_cursor_hooks.h"
 #include "mongo/util/concurrency/with_lock.h"
 
+#include <mutex>
+
 namespace mongo {
 
 class WiredTigerBackupCursorHooks : public BackupCursorHooks {
@@ -73,7 +75,7 @@ private:
     enum State { kInactive, kFsyncLocked, kBackupCursorOpened, kHotBackup };
 
     // This mutex serializes all access into this class.
-    mutable stdx::mutex _mutex;
+    mutable std::mutex _mutex;
     State _state = kInactive;
     // When state is `kBackupCursorOpened`, _openCursor contains the cursorId of the active backup
     // cursor. Otherwise it is boost::none.

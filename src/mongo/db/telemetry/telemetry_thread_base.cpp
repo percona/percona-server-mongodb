@@ -45,7 +45,6 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/telemetry/telemetry_path.h"
 #include "mongo/db/telemetry/telemetry_thread.h"
 #include "mongo/logv2/log.h"
-#include "mongo/stdx/mutex.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/background.h"
 #include "mongo/util/concurrency/idle_thread_block.h"
@@ -56,6 +55,7 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include <cstddef>
 #include <fstream>
 #include <memory>
+#include <mutex>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -80,7 +80,7 @@ constexpr StringData kTrue = "true"_sd;
 bool updatesEnabled = false;
 
 // mutex to serialize external API calls and access to updatesEnabled
-stdx::mutex mutex;
+std::mutex mutex;
 
 const auto getTelemetryThread =
     ServiceContext::declareDecoration<std::unique_ptr<TelemetryThreadBase>>();
@@ -203,7 +203,7 @@ void TelemetryThreadBase::run() {
         }
 
         {
-            stdx::unique_lock<stdx::mutex> lock(_mutex);
+            std::unique_lock<std::mutex> lock(_mutex);
             MONGO_IDLE_THREAD_BLOCK;
             _condvar.wait_until(lock, _nextScrape.toSystemTimePoint());
         }
@@ -214,7 +214,7 @@ void TelemetryThreadBase::run() {
 void TelemetryThreadBase::shutdown() {
     _shuttingDown.store(true);
     {
-        stdx::unique_lock<stdx::mutex> lock(_mutex);
+        std::unique_lock<std::mutex> lock(_mutex);
         // Wake up the telemetry thread early, we do not want the shutdown
         // to wait for us too long.
         _condvar.notify_one();
@@ -376,7 +376,7 @@ std::string TelemetryThreadBase::_metricFileSuffix;
 
 
 void initPerconaTelemetryInternal(ServiceContext* serviceContext) {
-    stdx::unique_lock<stdx::mutex> lock(mutex);
+    std::unique_lock<std::mutex> lock(mutex);
     //  enable updates from server parameter
     updatesEnabled = true;
     // only create if telemetry is enabled
@@ -388,14 +388,14 @@ void initPerconaTelemetryInternal(ServiceContext* serviceContext) {
 }
 
 void shutdownPerconaTelemetry(ServiceContext* serviceContext) {
-    stdx::unique_lock<stdx::mutex> lock(mutex);
+    std::unique_lock<std::mutex> lock(mutex);
     // we do not allow any updates during shutdown
     updatesEnabled = false;
     stopTelemetryThread_inlock(serviceContext);
 }
 
 void updatePerconaTelemetry(bool state) {
-    stdx::unique_lock<stdx::mutex> lock(mutex);
+    std::unique_lock<std::mutex> lock(mutex);
     if (updatesEnabled) {
         if (state) {
             startTelemetryThread_inlock(getGlobalServiceContext());

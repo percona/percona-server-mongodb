@@ -140,7 +140,7 @@ void EncryptionKeyDB::close_handles() {
 }
 
 void EncryptionKeyDB::generate_secure_key(unsigned char* key) {
-    stdx::lock_guard<stdx::mutex> lk(_lock_key);
+    std::lock_guard<std::mutex> lk(_lock_key);
     _srng->fill(key, encryption::Key::kLength);
 }
 
@@ -366,7 +366,7 @@ int EncryptionKeyDB::get_key_by_id(const char* keyid, size_t len, unsigned char*
     // open cursor
     WT_CURSOR* cursor;
     // search/write of db encryption key should be atomic
-    stdx::lock_guard<stdx::mutex> lk(_lock_sess);
+    std::lock_guard<std::mutex> lk(_lock_sess);
     res = _sess->open_cursor(_sess, "table:key", nullptr, nullptr, &cursor);
     if (res) {
         LOGV2_ERROR(29040,
@@ -430,7 +430,7 @@ int EncryptionKeyDB::delete_key_by_id(const std::string& keyid) {
     int res;
     // open cursor
     WT_CURSOR* cursor;
-    stdx::lock_guard<stdx::mutex> lk(_lock_sess);
+    std::lock_guard<std::mutex> lk(_lock_sess);
     res = _sess->open_cursor(_sess, "table:key", nullptr, nullptr, &cursor);
     if (res) {
         LOGV2_ERROR(29045,
@@ -473,7 +473,7 @@ int EncryptionKeyDB::store_gcm_iv_reserved() {
     int res;
     // open cursor
     WT_CURSOR* cursor;
-    stdx::lock_guard<stdx::mutex> lk(_lock_sess);
+    std::lock_guard<std::mutex> lk(_lock_sess);
     res = _sess->open_cursor(_sess, "table:parameters", nullptr, nullptr, &cursor);
     if (res) {
         LOGV2_ERROR(29047,
@@ -509,7 +509,7 @@ int EncryptionKeyDB::reserve_gcm_iv_range() {
 }
 
 int EncryptionKeyDB::get_iv_gcm(uint8_t* buf, int len) {
-    stdx::lock_guard<stdx::recursive_mutex> lk(_lock);
+    std::lock_guard<std::recursive_mutex> lk(_lock);
     ++_gcm_iv;
     uint8_t tmp[_gcm_iv_bytes];
     auto end = export_bits(_gcm_iv, tmp, 8, false);
@@ -524,7 +524,7 @@ int EncryptionKeyDB::get_iv_gcm(uint8_t* buf, int len) {
 
 void EncryptionKeyDB::store_pseudo_bytes(uint8_t* buf, int len) {
     invariant((len % 4) == 0);
-    stdx::lock_guard<stdx::recursive_mutex> lk(_lock);
+    std::lock_guard<std::recursive_mutex> lk(_lock);
     for (int i = 0; i < len / 4; ++i) {
         *(int32_t*)buf = _prng->nextInt32();
         buf += 4;

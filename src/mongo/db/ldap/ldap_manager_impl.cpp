@@ -43,6 +43,8 @@ Copyright (C) 2019-present Percona and/or its affiliates. All rights reserved.
 #include <algorithm>
 #include <map>
 #include <memory>
+#include <mutex>
+
 #include <regex>
 #include <utility>
 #include <vector>
@@ -290,7 +292,7 @@ public:
             MONGO_IDLE_THREAD_BLOCK;
             std::vector<pollfd> fds;
             {
-                stdx::unique_lock<stdx::mutex> lock{_mutex};
+                std::unique_lock<std::mutex> lock{_mutex};
                 _condvar.wait(lock, [this] { return !_poll_fds.empty() || _shuttingDown.load(); });
 
                 fds.reserve(_poll_fds.size());
@@ -334,7 +336,7 @@ public:
                 LOGV2_WARNING(29064, "poll() error name", "errname"_attr = errname);
                 // restart all LDAP connections... but why?
                 {
-                    stdx::unique_lock<stdx::mutex> lock{_mutex};
+                    std::unique_lock<std::mutex> lock{_mutex};
                     for (auto& fd : _poll_fds) {
                         fd.second.safe_close();
                     }
@@ -368,7 +370,7 @@ public:
                         }
                     }
                 }
-                stdx::unique_lock<stdx::mutex> lock{_mutex};
+                std::unique_lock<std::mutex> lock{_mutex};
                 for (auto const& fd : fds) {
                     if (fd.revents & (POLLRDHUP | POLLERR | POLLHUP | POLLNVAL)) {
                         auto it = _poll_fds.find(fd.fd);
@@ -393,7 +395,7 @@ public:
     void start_poll(LDAP* ldap, int fd) {
         bool changed = false;
         {
-            stdx::unique_lock<stdx::mutex> lock{_mutex};
+            std::unique_lock<std::mutex> lock{_mutex};
             auto it = _poll_fds.find(fd);
             if (it == _poll_fds.end()) {
                 it = _poll_fds.insert({fd, {.conn = ldap, .borrowed = true}}).first;
@@ -434,7 +436,7 @@ public:
     }
 
     void return_ldap_connection(LDAP* ldap, bool destroy = false) {
-        stdx::unique_lock<stdx::mutex> lock{_mutex};
+        std::unique_lock<std::mutex> lock{_mutex};
         auto it = std::find_if(_poll_fds.begin(), _poll_fds.end(), [&](auto const& e) {
             return e.second.conn == ldap;
         });
@@ -461,7 +463,7 @@ public:
     // Mark all connections for destruction. Non-borrowed ones are destroyed
     // immediately. Borrowed ones will be destroyed when returned.
     void invalidate_connections() {
-        stdx::unique_lock<stdx::mutex> lock{_mutex};
+        std::unique_lock<std::mutex> lock{_mutex};
         for (auto it = _poll_fds.begin(); it != _poll_fds.end();) {
             if (!it->second.borrowed) {
                 it->second.close();
@@ -476,7 +478,7 @@ public:
     LDAP* borrow_or_create() {
         // create scope block to ensure that _mutex is released before call to create_connection
         {
-            stdx::unique_lock<stdx::mutex> lock{_mutex};
+            std::unique_lock<std::mutex> lock{_mutex};
             while (true) {
                 if (_shuttingDown.load()) {
                     // return nullptr if shutdown is in progress
@@ -526,7 +528,7 @@ private:
     std::map<int, LDAPConnInfo> _poll_fds;
     AtomicWord<bool> _shuttingDown{false};
     // _mutex works in pair with _condvar and also protects _poll_fds
-    stdx::mutex _mutex;
+    std::mutex _mutex;
     stdx::condition_variable _condvar;
     stdx::condition_variable _condvar_pool;
 };
@@ -926,7 +928,7 @@ Status LDAPManagerImpl::mapUserToDN(const std::string& user, std::string& out) {
 
     // Check the userToDN cache
     if (cache->enabled) {
-        stdx::lock_guard lock(cache->mutex);
+        std::lock_guard lock(cache->mutex);
         // Use cfind to avoid promoting outdated entries
         auto it = cache->cache.cfind(user);
         if (it != cache->cache.cend()) {
@@ -999,7 +1001,7 @@ Status LDAPManagerImpl::mapUserToDN(const std::string& user, std::string& out) {
     }
 
     if (cache->enabled) {
-        stdx::lock_guard lock(cache->mutex);
+        std::lock_guard lock(cache->mutex);
         cache->cache.add(user, UserToDNCacheEntry{.dn = out, .insertedAt = Date_t::now()});
     }
     return Status::OK();

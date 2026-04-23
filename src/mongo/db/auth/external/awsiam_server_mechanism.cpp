@@ -43,12 +43,12 @@ Copyright (C) 2023-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/auth/sasl_options.h"
 #include "mongo/logv2/log.h"
 #include "mongo/platform/random.h"
-#include "mongo/stdx/mutex.h"
 #include "mongo/util/base64.h"
 #include "mongo/util/net/http_client.h"
 #include "mongo/util/str.h"
 
 #include <algorithm>
+#include <mutex>
 #include <regex>
 #include <sstream>
 #include <string>
@@ -66,7 +66,7 @@ namespace mongo {
 namespace awsIam {
 namespace {
 // Secure Random for AWS SASL Nonce generation
-stdx::mutex saslAWSServerMutex;
+std::mutex saslAWSServerMutex;
 SecureRandom saslAWSServerGen;
 
 StringData toString(const DataBuilder& builder) {
@@ -111,7 +111,7 @@ StatusWith<std::tuple<bool, std::string>> ServerMechanism::_firstStep(StringData
     _serverNonce.resize(kServerFirstNonceLength);
     std::copy(clientNonce.data(), clientNonce.data() + clientNonce.length(), _serverNonce.begin());
     {
-        stdx::lock_guard<stdx::mutex> lk(saslAWSServerMutex);
+        std::lock_guard<std::mutex> lk(saslAWSServerMutex);
         saslAWSServerGen.fill(_serverNonce.data() + clientNonce.length(),
                               kServerFirstNoncePieceLength);
     }

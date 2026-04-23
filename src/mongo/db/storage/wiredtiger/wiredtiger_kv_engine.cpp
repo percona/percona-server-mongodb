@@ -88,7 +88,6 @@
 #include "mongo/logv2/log.h"
 #include "mongo/platform/atomic_word.h"
 #include "mongo/platform/compiler.h"
-#include "mongo/stdx/mutex.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/background.h"
 #include "mongo/util/concurrency/idle_thread_block.h"
@@ -2257,7 +2256,7 @@ static void copy_file_size(OperationContext* opCtx,
         dst.write(bufptr, cnt);
         fsize -= cnt;
         {
-            stdx::unique_lock<Client> lk(*opCtx->getClient());
+            std::unique_lock<Client> lk(*opCtx->getClient());
             progressMeter.get(lk)->hit(cnt);
         }
     }
@@ -2373,7 +2372,7 @@ static void setupHotBackupProgressMeter(OperationContext* opCtx,
                                         ProgressMeterHolder& progressMeter,
                                         boost::uintmax_t totalfsize) {
     constexpr auto curopMessage = "Hot Backup: copying data bytes"_sd;
-    stdx::unique_lock<Client> lk(*opCtx->getClient());
+    std::unique_lock<Client> lk(*opCtx->getClient());
     progressMeter.set(lk, CurOp::get(opCtx)->setProgress(lk, curopMessage), opCtx);
     progressMeter.get(lk)->reset(totalfsize, 10, 512);
 }
@@ -2455,7 +2454,7 @@ public:
                     uint64_t bytes_transferred) const {
         if (bytes_transferred > _bytes_reported) {
             {
-                stdx::unique_lock<Client> lk(*opCtx->getClient());
+                std::unique_lock<Client> lk(*opCtx->getClient());
                 progressMeter.get(lk)->hit(bytes_transferred - _bytes_reported);
             }
             _bytes_reported = bytes_transferred;
@@ -2862,7 +2861,7 @@ Status WiredTigerKVEngine::hotBackup(OperationContext* opCtx,
 
     // reconfigure progressMeter since in this case we will call hit() once per file
     {
-        stdx::unique_lock<Client> lk(*opCtx->getClient());
+        std::unique_lock<Client> lk(*opCtx->getClient());
         progressMeter.get(lk)->reset(totalfsize, 10, 1);
     }
 
@@ -2898,7 +2897,7 @@ Status WiredTigerKVEngine::hotBackup(OperationContext* opCtx,
                                         << outcome.GetError().GetMessage());
         }
         {
-            stdx::unique_lock<Client> lk(*opCtx->getClient());
+            std::unique_lock<Client> lk(*opCtx->getClient());
             progressMeter.get(lk)->hit(fsize);
         }
         LOGV2_DEBUG(29004,
@@ -3048,7 +3047,7 @@ Status WiredTigerKVEngine::hotBackupTar(OperationContext* opCtx, const std::stri
                 a_assert_eq(a, cnt, archive_write_data(a, bufptr, cnt));
                 fsize -= cnt;
                 {
-                    stdx::unique_lock<Client> lk(*opCtx->getClient());
+                    std::unique_lock<Client> lk(*opCtx->getClient());
                     progressMeter.get(lk)->hit(cnt);
                 }
             }

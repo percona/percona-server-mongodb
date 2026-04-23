@@ -35,9 +35,9 @@ Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/storage/storage_engine.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_connection.h"
 #include "mongo/platform/random.h"
-#include "mongo/stdx/mutex.h"
 
 #include <map>
+#include <mutex>
 #include <string>
 
 #include <wiredtiger.h>
@@ -153,9 +153,9 @@ private:
     std::string _wtOpenConfig;
     std::unique_ptr<ClockSource> _fastClockSource;
     std::unique_ptr<WiredTigerConnection> _connection;
-    stdx::recursive_mutex _lock;  // _prng, _gcm_iv, _gcm_iv_reserved
-    stdx::mutex _lock_sess;       // _sess
-    stdx::mutex _lock_key;  // serialize access to the encryption keys table, also protects _srng
+    std::recursive_mutex _lock;  // _prng, _gcm_iv, _gcm_iv_reserved
+    std::mutex _lock_sess;       // _sess
+    std::mutex _lock_key;  // serialize access to the encryption keys table, also protects _srng
     WT_SESSION* _sess = nullptr;
     std::unique_ptr<SecureRandom> _srng;
     std::unique_ptr<PseudoRandom> _prng;
