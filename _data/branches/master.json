@@ -5,14 +5,14 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 564,
+    "commits_behind": 568,
     "days_behind": 13,
-    "files_affected": 3551,
-    "total_additions": 127852,
-    "total_deletions": 84477,
+    "files_affected": 3557,
+    "total_additions": 128234,
+    "total_deletions": 84632,
     "date_range": {
       "first": "2026-04-09T12:02:33+00:00",
-      "last": "2026-04-23T03:56:09+00:00"
+      "last": "2026-04-23T07:35:51+00:00"
     }
   },
   "last_merged_commit": {
@@ -36,6 +36,46 @@
     "summary": "SERVER-122379: Extend estimateNDV for multikey and index bounds (#49576)"
   },
   "unmerged_commits": [
+    {
+      "sha": "9962c4bb8c64920fbfb95de4fc0136f7a1d00ce1",
+      "short_sha": "9962c4bb8c6",
+      "date": "2026-04-23T09:35:51+02:00",
+      "author": {
+        "name": "Jan",
+        "email": "jsteemann@users.noreply.github.com"
+      },
+      "summary": "SERVER-123598 CursorEstablisher returns retry cancellation over original failure (#52356)"
+    },
+    {
+      "sha": "493028596abf94ac9de127b308d4a2c0acbde956",
+      "short_sha": "493028596ab",
+      "date": "2026-04-23T09:32:46+02:00",
+      "author": {
+        "name": "Niels Lohmann",
+        "email": "niels.lohmann@mongodb.com"
+      },
+      "summary": "SERVER-123100 Remove isIdHackEligibleQuery() (#51777)"
+    },
+    {
+      "sha": "22fa3bed652571ebb06874a468112f8c16f060cc",
+      "short_sha": "22fa3bed652",
+      "date": "2026-04-23T09:12:25+02:00",
+      "author": {
+        "name": "Jan",
+        "email": "jsteemann@users.noreply.github.com"
+      },
+      "summary": "SERVER-125120 Remove unused connecting to random secondaries in testing (#52421)"
+    },
+    {
+      "sha": "432be8c0d2f1311422215a11fd1e5fe32c6f81e0",
+      "short_sha": "432be8c0d2f",
+      "date": "2026-04-23T06:51:02+00:00",
+      "author": {
+        "name": "auto-revert-app[bot]",
+        "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
+      },
+      "summary": "Revert \"SERVER-124146: Extend sub-pipeline dependency graphs to invoke the PathArrayness API (#52051)\" (#52465)"
+    },
     {
       "sha": "81c495c9ddefaa900191d98fbdb7e161e3b9792b",
       "short_sha": "81c495c9dde",
@@ -6674,7 +6714,7 @@
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-04-23 06:38:36",
+  "generated_at": "2026-04-23 08:14:04",
   "branch_name": "master",
   "display_name": "master"
 }
