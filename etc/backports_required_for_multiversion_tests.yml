@@ -21,6 +21,8 @@
 #
 last-continuous:
   all:
+    - test_file: jstests/replsets/initial_sync_replSetGetStatus.js
+      ticket: SERVER-121218
     - test_file: jstests/core/administrative/filemd5.js
       ticket: SERVER-119317
     - test_file: jstests/core/timeseries/write/timeseries_bypass_document_validation_raw_buckets.js
@@ -33,13 +35,19 @@ last-continuous:
       ticket: SERVER-121533
     - test_file: jstests/core/timeseries/query/timeseries_lookup_index_use.js
       ticket: SERVER-95352
+    - test_file: jstests/replsets/server_status_metrics.js
+      ticket: SERVER-120318
     - test_file: jstests/core/index/geo/geo_circle_spilling.js
       ticket: SERVER-124376
     - test_file: jstests/noPassthrough/sharded_cluster_topology/shard_registry_rsm_removal_race.js
       ticket: SERVER-123567
+    - test_file: jstests/core/clustered/clustered_collection_bounded_scan.js
+      ticket: SERVER-121822
   suites: null
 last-lts:
   all:
+    - test_file: jstests/replsets/initial_sync_replSetGetStatus.js
+      ticket: SERVER-121218
     - test_file: jstests/core/administrative/filemd5.js
       ticket: SERVER-119317
     - test_file: jstests/core/index/elemmatch_index.js
@@ -682,6 +690,8 @@ last-lts:
       ticket: SERVER-106165
     - test_file: jstests/replsets/oplog_fetch_lag_metric.js
       ticket: SERVER-116300
+    - test_file: jstests/replsets/server_status_metrics.js
+      ticket: SERVER-120318
     - test_file: jstests/sharding/resharding_collection_cloner.js
       ticket: SERVER-120210
     - test_file: jstests/noPassthrough/replication/killOp_against_repl_threads.js
@@ -714,4 +724,6 @@ last-lts:
       ticket: SERVER-124376
     - test_file: jstests/noPassthrough/sharded_cluster_topology/shard_registry_rsm_removal_race.js
       ticket: SERVER-123567
+    - test_file: jstests/core/clustered/clustered_collection_bounded_scan.js
+      ticket: SERVER-121822
   suites: null

@@ -1,5 +1,5 @@
 /**
- *    Copyright (C) 2018-present MongoDB, Inc.
+ *    Copyright (C) 2025-present MongoDB, Inc.
  *
  *    This program is free software: you can redistribute it and/or modify
  *    it under the terms of the Server Side Public License, version 1,
@@ -27,22 +27,25 @@
  *    it in the license file.
  */
 
-#pragma once
+#include "mongo/db/pipeline/lite_parsed_pipeline.h"
+#include "mongo/db/router_role/routing_cache/catalog_cache.h"
+#include "mongo/db/shard_role/shard_role.h"
 
-#include "mongo/util/modules.h"
+namespace mongo {
 
-#include <future>
+// TODO SERVER-123689 Move these functions to lite_parsed_pipeline.h.
 
-namespace MONGO_MOD_PUB mongo {
-namespace stdx {
+void LiteParsedPipeline::validateWithCollectionMetadata(
+    const CollectionOrViewAcquisition& collOrView) const {
+    if (collOrView.collectionExists() && collOrView.getCollectionPtr()->isTimeseriesCollection()) {
+        validateTimeseries();
+    }
+}
 
-using ::std::async;          // NOLINT
-using ::std::future;         // NOLINT
-using ::std::future_status;  // NOLINT
-using ::std::launch;         // NOLINT
-using ::std::packaged_task;  // NOLINT
-using ::std::promise;        // NOLINT
-using ::std::shared_future;  // NOLINT
+void LiteParsedPipeline::validateWithCollectionMetadata(const CollectionRoutingInfo& cri) const {
+    if (cri.hasRoutingTable() && cri.getChunkManager().isTimeseriesCollection()) {
+        validateTimeseries();
+    }
+}
 
-}  // namespace stdx
-}  // namespace MONGO_MOD_PUB mongo
+}  // namespace mongo

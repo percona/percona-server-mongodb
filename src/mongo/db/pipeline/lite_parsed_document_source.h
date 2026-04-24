@@ -478,11 +478,21 @@ public:
     struct Constraints {
         // If false, this stage cannot run on a timeseries collection.
         bool canRunOnTimeseries = true;
+
+        // Override for the stage name in timeseries error messages. If not set,
+        // getParseTimeName() is used. Useful when a stage is conditionally disallowed
+        // (e.g. $match is only disallowed when it contains $text).
+        boost::optional<StringData> timeseriesUnsupportedStageName;
     };
 
     virtual Constraints constraints() const {
         return {};
     }
+
+    /**
+     * Stage-specific validation. Called by LiteParsedPipeline::validate().
+     */
+    virtual void validate() const {};
 
     /**
      * Returns true if this is a search stage ($search, $vectorSearch, $rankFusion, etc.)

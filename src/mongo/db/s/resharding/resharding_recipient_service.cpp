@@ -48,6 +48,7 @@
 #include "mongo/db/index_builds/repl_index_build_state.h"
 #include "mongo/db/keypattern.h"
 #include "mongo/db/namespace_string_util.h"
+#include "mongo/db/op_observer/op_observer_util.h"
 #include "mongo/db/persistent_task_store.h"
 #include "mongo/db/query/collation/collation_spec.h"
 #include "mongo/db/query/write_ops/delete.h"
@@ -361,7 +362,7 @@ ReshardingRecipientService::RecipientStateMachine::RecipientStateMachine(
         invariant(_metadata.getPerformVerification());
 
         if (_changeStreamsMonitorCtx->getCompleted()) {
-            stdx::lock_guard<stdx::mutex> lk(_mutex);
+            std::lock_guard<std::mutex> lk(_mutex);
             ensureFulfilledPromise(lk, _changeStreamsMonitorStarted);
             ensureFulfilledPromise(
                 lk, _changeStreamsMonitorCompleted, _changeStreamsMonitorCtx->getDocumentsDelta());
@@ -372,7 +373,7 @@ ReshardingRecipientService::RecipientStateMachine::RecipientStateMachine(
 CancelableOperationContext ReshardingRecipientService::RecipientStateMachine::_makeOperationContext(
     std::shared_ptr<HierarchicalCancelableOperationContextFactory> factory) const {
     auto state = [this] {
-        stdx::lock_guard<stdx::mutex> lk(_mutex);
+        std::lock_guard<std::mutex> lk(_mutex);
         return _recipientCtx.getState();
     }();
     return resharding::makeReshardingOperationContext(
@@ -457,7 +458,7 @@ ReshardingRecipientService::RecipientStateMachine::_runUntilStrictConsistencyOrE
                   "error"_attr = redact(status));
 
             {
-                stdx::lock_guard<stdx::mutex> lk(_mutex);
+                std::lock_guard<std::mutex> lk(_mutex);
                 ensureFulfilledPromise(lk, _changeStreamsMonitorStarted, status);
                 ensureFulfilledPromise(lk, _changeStreamsMonitorCompleted, status);
                 ensureFulfilledPromise(lk, _transitionedToCreateCollection, status);
@@ -496,7 +497,7 @@ ReshardingRecipientService::RecipientStateMachine::_runUntilStrictConsistencyOrE
             {
                 // The recipient is done with all local transitions until the coordinator makes its
                 // decision.
-                stdx::lock_guard<stdx::mutex> lk(_mutex);
+                std::lock_guard<std::mutex> lk(_mutex);
                 invariant(_recipientCtx.getState() >= RecipientStateEnum::kError);
                 ensureFulfilledPromise(lk, _inStrictConsistencyOrError);
             }
@@ -654,7 +655,7 @@ ExecutorFuture<void> ReshardingRecipientService::RecipientStateMachine::_runMand
 
                 // Wait for all of the data replication components to halt. We ignore any data
                 // replication errors because resharding is known to have failed already.
-                stdx::lock_guard<stdx::mutex> lk(_mutex);
+                std::lock_guard<std::mutex> lk(_mutex);
 
                 ensureFulfilledPromise(lk, _changeStreamsMonitorStarted, statusForPromise);
                 ensureFulfilledPromise(lk, _changeStreamsMonitorCompleted, statusForPromise);
@@ -742,14 +743,14 @@ SemiFuture<void> ReshardingRecipientService::RecipientStateMachine::run(
 }
 
 void ReshardingRecipientService::RecipientStateMachine::interrupt(Status status) {
-    stdx::lock_guard<stdx::mutex> lk(_mutex);
+    std::lock_guard<std::mutex> lk(_mutex);
     if (_dataReplication) {
         _dataReplication->shutdown();
     }
 }
 
 void ReshardingRecipientService::RecipientStateMachine::prepareForCriticalSection() {
-    stdx::lock_guard<stdx::mutex> lk(_mutex);
+    std::lock_guard<std::mutex> lk(_mutex);
     if (_dataReplication) {
         _dataReplication->prepareForCriticalSection();
     }
@@ -783,7 +784,7 @@ boost::optional<BSONObj> ReshardingRecipientService::RecipientStateMachine::repo
     MongoProcessInterface::CurrentOpConnectionsMode,
     MongoProcessInterface::CurrentOpSessionsMode) noexcept {
     auto state = [this] {
-        stdx::lock_guard lk(_mutex);
+        std::lock_guard lk(_mutex);
         return _recipientCtx.getState();
     }();
     auto opCtx = cc().getOperationContext();
@@ -803,7 +804,7 @@ void ReshardingRecipientService::RecipientStateMachine::onReshardingFieldsChange
         return;
     }
 
-    stdx::lock_guard<stdx::mutex> lk(_mutex);
+    std::lock_guard<std::mutex> lk(_mutex);
     auto coordinatorState = reshardingFields.getState();
     auto driveCloneViaRefresh = !resharding::gFeatureFlagReshardingCloneNoRefresh.isEnabled(
         resharding::getVersionContextOrDefault(_forwardableOpMetadata),
@@ -881,7 +882,7 @@ ExecutorFuture<void> ReshardingRecipientService::RecipientStateMachine::
         .thenRunOn(**executor)
         .then([this] {
             {
-                stdx::lock_guard<stdx::mutex> lk(_mutex);
+                std::lock_guard<std::mutex> lk(_mutex);
                 ensureFulfilledPromise(lk, _transitionedToCreateCollection);
             }
         });
@@ -891,7 +892,7 @@ SemiFuture<void>
 ReshardingRecipientService::RecipientStateMachine::fulfillAllDonorsPreparedToDonate(
     CloneDetails cloneDetails) {
     {
-        stdx::lock_guard<stdx::mutex> lk(_mutex);
+        std::lock_guard<std::mutex> lk(_mutex);
         _assertRecipientInitialized(lk);
         ensureFulfilledPromise(lk, _allDonorsPreparedToDonate, cloneDetails);
     }
@@ -1037,7 +1038,7 @@ void ReshardingRecipientService::RecipientStateMachine::_ensureDataReplicationSt
                                              txnCloneTime.value())
                 .share();
 
-        stdx::lock_guard lk(_mutex);
+        std::lock_guard lk(_mutex);
         _dataReplication = std::move(dataReplication);
     }
 
@@ -1125,7 +1126,7 @@ ReshardingRecipientService::RecipientStateMachine::_awaitChangeStreamsMonitorCom
                                          _cancelState->getAbortOrStepdownToken())
         .thenRunOn(**executor)
         .onCompletion([this](Status status) {
-            stdx::lock_guard<stdx::mutex> lk(_mutex);
+            std::lock_guard<std::mutex> lk(_mutex);
             if (status.isOK()) {
                 _metrics->setEndFor(ReshardingMetrics::TimedPhase::kChangeStreamMonitor,
                                     resharding::getCurrentTime());
@@ -1337,10 +1338,19 @@ ReshardingRecipientService::RecipientStateMachine::_buildIndexThenTransitionToAp
                            // new idents or if we need to do something more complicated for catalog
                            // consistency.
                            auto storageEngine = opCtx->getServiceContext()->getStorageEngine();
+                           // Reuse the FCV snapshot acquired above so the two feature-flag checks
+                           // see the same FCV value.
+                           const auto vCtx = VersionContext::getDecoration(opCtx.get());
+                           const bool generateIndexBuildIdent =
+                               feature_flags::gFeatureFlagPrimaryDrivenIndexBuilds
+                                   .isEnabledUseLastLTSFCVWhenUninitialized(vCtx, fcvSnapshot) &&
+                               feature_flags::gResumablePrimaryDrivenIndexBuilds
+                                   .isEnabledUseLastLTSFCVWhenUninitialized(vCtx, fcvSnapshot);
                            auto indexes =
                                toIndexBuildInfoVec(indexSpecs,
                                                    *storageEngine,
-                                                   _metadata.getTempReshardingNss().dbName());
+                                                   _metadata.getTempReshardingNss().dbName(),
+                                                   generateIndexBuildIdent);
                            auto* indexBuildsCoordinator = IndexBuildsCoordinator::get(opCtx.get());
                            auto indexBuildFuture = indexBuildsCoordinator->startIndexBuild(
                                opCtx.get(),
@@ -1409,7 +1419,7 @@ ReshardingRecipientService::RecipientStateMachine::_buildIndexThenTransitionToAp
             }
 
             {
-                stdx::lock_guard<stdx::mutex> lk(_mutex);
+                std::lock_guard<std::mutex> lk(_mutex);
                 ensureFulfilledPromise(lk, _inApplyingOrError);
             }
             return ExecutorFuture<void>(**executor, status);
@@ -1821,7 +1831,7 @@ void ReshardingRecipientService::RecipientStateMachine::insertStateDocument(
 }
 
 void ReshardingRecipientService::RecipientStateMachine::onCriticalSectionStarted() {
-    stdx::lock_guard<stdx::mutex> lk(_mutex);
+    std::lock_guard<std::mutex> lk(_mutex);
     tassert(ErrorCodes::ReshardCollectionInProgress,
             "Critical section was engaged before this recipient enters the applying state",
             _recipientCtx.getState() >= RecipientStateEnum::kApplying);
@@ -1833,7 +1843,7 @@ void ReshardingRecipientService::RecipientStateMachine::onCriticalSectionStarted
 }
 
 void ReshardingRecipientService::RecipientStateMachine::commit() {
-    stdx::lock_guard<stdx::mutex> lk(_mutex);
+    std::lock_guard<std::mutex> lk(_mutex);
     tassert(ErrorCodes::ReshardCollectionInProgress,
             fmt::format(
                 "Attempted to commit the resharding operation in an incorrect recipient state: {}",
@@ -1913,7 +1923,7 @@ void ReshardingRecipientService::RecipientStateMachine::_updateRecipientDocument
                  kNoWaitWriteConcern);
 
     {
-        stdx::lock_guard<stdx::mutex> lk(_mutex);
+        std::lock_guard<std::mutex> lk(_mutex);
         _recipientCtx = newRecipientCtx;
         if (newChangeStreamsCtx) {
             _changeStreamsMonitorCtx = *newChangeStreamsCtx;
@@ -1948,7 +1958,7 @@ void ReshardingRecipientService::RecipientStateMachine::_updateRecipientDocument
                  updateMod,
                  kNoWaitWriteConcern);
     {
-        stdx::lock_guard<stdx::mutex> lk(_mutex);
+        std::lock_guard<std::mutex> lk(_mutex);
         _changeStreamsMonitorCtx = newChangeStreamsCtx;
     }
 }
@@ -1975,7 +1985,7 @@ void ReshardingRecipientService::RecipientStateMachine::_removeRecipientDocument
 
         shard_role_details::getRecoveryUnit(opCtx.get())
             ->onCommit([this](OperationContext*, boost::optional<Timestamp>) {
-                stdx::lock_guard<stdx::mutex> lk(_mutex);
+                std::lock_guard<std::mutex> lk(_mutex);
                 _completionPromise.emplaceValue();
             });
 
@@ -2178,7 +2188,7 @@ void ReshardingRecipientService::RecipientStateMachine::_updateContextMetrics(
     if (coll.exists()) {
         auto totalDocumentCount = [&]() -> long long {
             if (_metadata.getPerformVerification()) {
-                stdx::lock_guard<stdx::mutex> lk(_mutex);
+                std::lock_guard<std::mutex> lk(_mutex);
                 if (_changeStreamsMonitorCtx) {
                     uassert(9858303,
                             "Donor failed to record total number of documents copied "
@@ -2205,7 +2215,7 @@ void ReshardingRecipientService::RecipientStateMachine::_updateContextMetrics(
 void ReshardingRecipientService::RecipientStateMachine::_initCancelState(
     const CancellationToken& stepdownToken) {
     {
-        stdx::lock_guard<stdx::mutex> lk(_mutex);
+        std::lock_guard<std::mutex> lk(_mutex);
         _cancelState = std::make_unique<primary_only_service_helpers::CancelState>(stepdownToken);
     }
 
@@ -2322,7 +2332,7 @@ ReshardingRecipientService::RecipientStateMachine::_tryFetchCloningMetrics(
 
 void ReshardingRecipientService::RecipientStateMachine::abort(bool isUserCancelled) {
     auto cancelStateInitialized = [&] {
-        stdx::lock_guard<stdx::mutex> lk(_mutex);
+        std::lock_guard<std::mutex> lk(_mutex);
         _userCanceled.emplace(isUserCancelled);
         if (_dataReplication) {
             _dataReplication->shutdown();
@@ -2336,7 +2346,7 @@ void ReshardingRecipientService::RecipientStateMachine::abort(bool isUserCancell
     }
 
     {
-        stdx::lock_guard<stdx::mutex> lk(_mutex);
+        std::lock_guard<std::mutex> lk(_mutex);
         ensureFulfilledPromise(
             lk, _coordinatorHasEngagedCriticalSection, resharding::kCoordinatorAbortedError);
         ensureFulfilledPromise(
@@ -2346,7 +2356,7 @@ void ReshardingRecipientService::RecipientStateMachine::abort(bool isUserCancell
 
 void ReshardingRecipientService::RecipientStateMachine::_fulfillPromisesOnStepup(
     boost::optional<mongo::ReshardingRecipientMetrics> metrics) {
-    stdx::lock_guard<stdx::mutex> lk(_mutex);
+    std::lock_guard<std::mutex> lk(_mutex);
 
     if (_recipientCtx.getState() >= RecipientStateEnum::kApplying) {
         ensureFulfilledPromise(lk, _inApplyingOrError);

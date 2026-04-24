@@ -22,6 +22,10 @@
  *      - 'checkResponse': An optional function(res, context) called after a successful command to
  *      validate the response content. 'context' is an object with 'afterDropRecreate' (boolean)
  *      indicating which test scenario is running.
+ *
+ * @tags: [
+ *   resource_intensive,
+ * ]
  */
 
 import {FeatureFlagUtil} from "jstests/libs/feature_flag_util.js";
@@ -439,7 +443,6 @@ const allTestCases = {
             },
             skipMultiversion: true,
         },
-        changePrimary: {skip: "reads primary shard from sharding catalog with readConcern: local"},
         checkMetadataConsistency: {
             run: {
                 sendsDbVersion: true,
@@ -1053,7 +1056,6 @@ const allTestCases = {
         _refreshQueryAnalyzerConfiguration: {skip: "TODO"},
         _shardsvrAbortReshardCollection: {skip: "TODO"},
         _shardsvrBeginMigrationBlockingOperation: {skip: "TODO"},
-        _shardsvrChangePrimary: {skip: "TODO"},
         _shardsvrCheckCanConnectToConfigServer: {skip: "TODO"},
         _shardsvrCheckMetadataConsistency: {
             run: {
@@ -1123,6 +1125,17 @@ const allTestCases = {
         _shardsvrRenameIndexMetadata: {skip: "TODO"},
         _shardsvrReshardCollection: {skip: "TODO"},
         _shardsvrReshardDonorInitialize: {skip: "TODO"},
+        _shardsvrReshardDonorCriticalSectionStarted: {
+            run: {
+                sendsDbVersion: false,
+                runsAgainstAdminDb: true,
+                command: function (dbName, collName) {
+                    return {
+                        _shardsvrReshardDonorCriticalSectionStarted: UUID(),
+                    };
+                },
+            },
+        },
         _shardsvrReshardDonorRecipientsFinishedCloning: {
             run: {
                 sendsDbVersion: false,

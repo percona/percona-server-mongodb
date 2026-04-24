@@ -162,6 +162,8 @@ void LiteParsedPipeline::validate(const OperationContext* opCtx,
                 !((stage_it != _stageSpecs.begin()) && stage->isHybridSearchStage() &&
                   !isRunningAgainstView_ForHybridSearch()));
 
+        stage->validate();
+
         const auto& stageName = (*stage_it)->getParseTimeName();
         const auto& stageApiStrict = (*stage_it)->getApiStrict();
         const auto& stageClientType = (*stage_it)->getClientType();
@@ -183,6 +185,17 @@ void LiteParsedPipeline::validate(const OperationContext* opCtx,
         for (auto&& subPipeline : stage->getSubPipelines()) {
             subPipeline.validate(opCtx, performApiVersionChecks);
         }
+    }
+}
+
+void LiteParsedPipeline::validateTimeseries() const {
+    for (const auto& stage : _stageSpecs) {
+        auto stageConstraints = stage->constraints();
+        auto unsupportedStage = stageConstraints.timeseriesUnsupportedStageName.value_or(
+            StringData(stage->getParseTimeName()));
+        uassert(12093200,
+                str::stream() << unsupportedStage << " is unsupported for timeseries collections",
+                stageConstraints.canRunOnTimeseries);
     }
 }
 

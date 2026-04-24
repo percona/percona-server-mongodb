@@ -30,6 +30,7 @@
 
 #pragma once
 
+#include "mongo/base/counter.h"
 #include "mongo/base/status.h"
 #include "mongo/base/status_with.h"
 #include "mongo/bson/bsonobj.h"
@@ -58,7 +59,6 @@
 #include "mongo/executor/task_executor.h"
 #include "mongo/platform/atomic_word.h"
 #include "mongo/stdx/condition_variable.h"
-#include "mongo/stdx/mutex.h"
 #include "mongo/util/concurrency/thread_pool.h"
 #include "mongo/util/concurrency/with_lock.h"
 #include "mongo/util/duration.h"
@@ -95,6 +95,36 @@ struct InitialSyncState;
 struct MemberState;
 class ReplicationProcess;
 class StorageInterface;
+
+/**
+ * Lock-free summary stats for initial sync progress reporting.
+ * All fields are atomic. Written by InitialSyncer and the cloner hierarchy under their
+ * respective mutexes; read without any lock by getInitialSyncProgressSummary().
+ */
+struct InitialSyncSummaryStats {
+    // InitialSyncer-owned fields:
+    Atomic64Metric failedInitialSyncAttempts;
+    Atomic64Metric maxFailedInitialSyncAttempts;
+    Counter64 totalAttempts;
+    AtomicWord<Date_t> initialSyncStart;
+    AtomicWord<Date_t> initialSyncEnd;
+    AtomicWord<int> phase{
+        0};  // Phase enum stored as int; cast to int only at write, to Phase at read.
+    Atomic64Metric appliedOps;
+    AtomicWord<unsigned long long> beginApplyingTimestamp{0};
+    AtomicWord<unsigned long long> beginFetchingTimestamp{0};
+    AtomicWord<unsigned long long> stopTimestamp{0};
+
+    // AllDatabaseCloner-owned fields:
+    Atomic64Metric approxTotalDataSize;
+    Counter64 approxTotalBytesCopied;  // Rolling counter from collection cloners.
+    Atomic64Metric databasesToClone;
+    Atomic64Metric databasesCloned;
+    Counter64 collectionsToClone;
+    Counter64 collectionsCloned;
+
+    BSONObj getReport() const;
+};
 
 /**
  * The initial syncer provides services to keep collection in sync by replicating
@@ -219,6 +249,8 @@ public:
     void join() final;
 
     BSONObj getInitialSyncProgress() const final;
+
+    BSONObj getInitialSyncProgressSummary() const final;
 
     void cancelCurrentAttempt() final;
 
@@ -593,7 +625,7 @@ private:
      * Passes 'lock' through to completion guard.
      */
     void _checkApplierProgressAndScheduleGetNextApplierBatch(
-        const stdx::lock_guard<stdx::mutex>& lock,
+        const std::lock_guard<std::mutex>& lock,
         std::shared_ptr<OnCompletionGuard> onCompletionGuard);
 
     /**
@@ -604,7 +636,7 @@ private:
      * Passes 'lock' through to completion guard.
      */
     void _scheduleRollbackCheckerCheckForRollback(
-        const stdx::lock_guard<stdx::mutex>& lock,
+        const std::lock_guard<std::mutex>& lock,
         std::shared_ptr<OnCompletionGuard> onCompletionGuard);
 
     /**
@@ -683,7 +715,7 @@ private:
     // (MX) Must hold _mutex and be in a callback in _exec to write; must either hold
     //      _mutex or be in a callback in _exec to read.
 
-    mutable stdx::mutex _mutex;                                                 // (S)
+    mutable std::mutex _mutex;                                                  // (S)
     const InitialSyncerInterface::Options _opts;                                // (R)
     std::unique_ptr<DataReplicatorExternalState> _dataReplicatorExternalState;  // (R)
     std::shared_ptr<executor::TaskExecutor> _exec;                              // (R)
@@ -774,6 +806,10 @@ private:
 
     // Sets _currentPhase and records the transition timestamp. Caller must hold _mutex.
     void _setPhase(WithLock, Phase phase);
+
+    // Lock-free summary stats. Written under _mutex, read without any lock. (S)
+    std::shared_ptr<InitialSyncSummaryStats> _summaryStats{
+        std::make_shared<InitialSyncSummaryStats>()};
 };
 
 }  // namespace repl

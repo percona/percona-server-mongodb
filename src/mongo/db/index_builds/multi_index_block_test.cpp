@@ -290,7 +290,7 @@ TEST_F(MultiIndexBlockTest, AbortWithoutCleanupAfterInsertingSingleDocument) {
 TEST_F(MultiIndexBlockTest, PersistResumeStateOnAbortWithoutCleanup) {
     auto indexer = getIndexer();
     const auto buildUUID = UUID::gen();
-    indexer->setTwoPhaseBuildUUID(buildUUID);
+    indexer->setBuildUUID(buildUUID);
 
     AutoGetCollection autoColl(operationContext(), getNSS(), MODE_X);
     CollectionWriter coll(operationContext(), autoColl);
@@ -313,17 +313,17 @@ TEST_F(MultiIndexBlockTest, PersistResumeStateOnAbortWithoutCleanup) {
 
     auto isResumable = true;
     indexer->abortWithoutCleanup(operationContext(), coll.get(), isResumable);
-    auto resumeIndexIdent = findPersistedResumeState(
+    auto indexBuildIdent = findPersistedResumeState(
         operationContext(), buildUUID, IndexBuildPhaseEnum::kInitialized, autoColl->uuid());
-    ASSERT_TRUE(resumeIndexIdent);
+    ASSERT_TRUE(indexBuildIdent);
 
-    validateTempTableIdentsOnTeardown({*indexBuildInfo1.sideWritesIdent, *resumeIndexIdent});
+    validateTempTableIdentsOnTeardown({*indexBuildInfo1.sideWritesIdent, *indexBuildIdent});
 }
 
 TEST_F(MultiIndexBlockTest, PersistResumeStateOnRequestAndCommit) {
     auto indexer = getIndexer();
     const auto buildUUID = UUID::gen();
-    indexer->setTwoPhaseBuildUUID(buildUUID);
+    indexer->setBuildUUID(buildUUID);
 
     AutoGetCollection autoColl(operationContext(), getNSS(), MODE_X);
     CollectionWriter coll(operationContext(), autoColl);
@@ -346,9 +346,9 @@ TEST_F(MultiIndexBlockTest, PersistResumeStateOnRequestAndCommit) {
 
     auto isResumable = true;
     indexer->persistResumeState(operationContext(), coll.get(), isResumable);
-    auto resumeIndexIdent = findPersistedResumeState(
+    auto indexBuildIdent = findPersistedResumeState(
         operationContext(), buildUUID, IndexBuildPhaseEnum::kInitialized, autoColl->uuid());
-    ASSERT_TRUE(resumeIndexIdent);
+    ASSERT_TRUE(indexBuildIdent);
 
     {
         WriteUnitOfWork wuow(operationContext());
@@ -359,14 +359,14 @@ TEST_F(MultiIndexBlockTest, PersistResumeStateOnRequestAndCommit) {
         wuow.commit();
     }
 
-    validateTempTableIdentsOnTeardown({*indexBuildInfo1.sideWritesIdent, *resumeIndexIdent},
+    validateTempTableIdentsOnTeardown({*indexBuildInfo1.sideWritesIdent, *indexBuildIdent},
                                       /*droppable=*/true);
 }
 
 TEST_F(MultiIndexBlockTest, PersistResumeStateOnRequestAndOnAbort) {
     auto indexer = getIndexer();
     const auto buildUUID = UUID::gen();
-    indexer->setTwoPhaseBuildUUID(buildUUID);
+    indexer->setBuildUUID(buildUUID);
 
     AutoGetCollection autoColl(operationContext(), getNSS(), MODE_X);
     CollectionWriter coll(operationContext(), autoColl);
@@ -389,15 +389,15 @@ TEST_F(MultiIndexBlockTest, PersistResumeStateOnRequestAndOnAbort) {
 
     auto isResumable = true;
     indexer->persistResumeState(operationContext(), coll.get(), isResumable);
-    auto resumeIndexIdent = findPersistedResumeState(
+    auto indexBuildIdent = findPersistedResumeState(
         operationContext(), buildUUID, IndexBuildPhaseEnum::kInitialized, autoColl->uuid());
-    ASSERT_TRUE(resumeIndexIdent);
+    ASSERT_TRUE(indexBuildIdent);
 
     indexer->abortWithoutCleanup(operationContext(), coll.get(), isResumable);
-    resumeIndexIdent = findPersistedResumeState(operationContext(), buildUUID);
-    ASSERT_TRUE(resumeIndexIdent);
+    indexBuildIdent = findPersistedResumeState(operationContext(), buildUUID);
+    ASSERT_TRUE(indexBuildIdent);
 
-    validateTempTableIdentsOnTeardown({*indexBuildInfo1.sideWritesIdent, *resumeIndexIdent});
+    validateTempTableIdentsOnTeardown({*indexBuildInfo1.sideWritesIdent, *indexBuildIdent});
 }
 
 TEST_F(MultiIndexBlockTest, InitWriteConflictException) {
@@ -670,7 +670,7 @@ TEST_F(MultiIndexBlockTest, DrainBackgroundWritesYieldIsTracked) {
 TEST_F(MultiIndexBlockTest, CommitDropsTemporaryTables) {
     auto indexer = getIndexer();
     const auto buildUUID = UUID::gen();
-    indexer->setTwoPhaseBuildUUID(buildUUID);
+    indexer->setBuildUUID(buildUUID);
 
     AutoGetCollection autoColl(operationContext(), getNSS(), MODE_X);
     CollectionWriter coll(operationContext(), autoColl);
@@ -751,7 +751,7 @@ TEST_F(MultiIndexBlockTest, AbortDropsTemporaryTables) {
 TEST_F(MultiIndexBlockTest, AbortWithoutCleanupDoesNotDropTables) {
     auto indexer = getIndexer();
     const auto buildUUID = UUID::gen();
-    indexer->setTwoPhaseBuildUUID(buildUUID);
+    indexer->setBuildUUID(buildUUID);
 
     AutoGetCollection autoColl(operationContext(), getNSS(), MODE_X);
     CollectionWriter coll(operationContext(), autoColl);

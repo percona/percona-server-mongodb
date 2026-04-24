@@ -55,7 +55,6 @@
 #include "mongo/db/write_concern_options.h"
 #include "mongo/s/request_types/move_range_request_gen.h"
 #include "mongo/stdx/condition_variable.h"
-#include "mongo/stdx/mutex.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/concurrency/notification.h"
 #include "mongo/util/concurrency/with_lock.h"
@@ -172,14 +171,14 @@ private:
 };
 
 /**
- * Used to keep track of retryable applyOps that may include changes in documents that are
- * part of a chunk being migrated.  Only takes care of retryability; the actual operations
- * are broken out and added to the transfer mods  by the other handlers.
+ * Used to keep track of retryable batched writes that may include changes in documents that are
+ * part of a chunk being migrated. Only takes care of retryability via session migration; the
+ * actual operations are broken out and added to the transfer mods by the other handlers.
  */
-class LogRetryableApplyOpsForShardingHandler final : public RecoveryUnit::Change {
+class LogBatchedWriteForSessionMigrationHandler final : public RecoveryUnit::Change {
 public:
-    LogRetryableApplyOpsForShardingHandler(std::vector<NamespaceString> namespaces,
-                                           std::vector<repl::OpTime> opTimes);
+    LogBatchedWriteForSessionMigrationHandler(std::vector<NamespaceString> namespaces,
+                                              std::vector<repl::OpTime> opTimes);
 
     void commit(OperationContext* opCtx, boost::optional<Timestamp>) noexcept override;
 
@@ -419,7 +418,7 @@ public:
 private:
     friend class LogOpForShardingHandler;
     friend class LogTransactionOperationsForShardingHandler;
-    friend class LogRetryableApplyOpsForShardingHandler;
+    friend class LogBatchedWriteForSessionMigrationHandler;
 
     using RecordIdSet = std::set<RecordId>;
 
@@ -539,7 +538,7 @@ private:
          */
         void _finishedOneInProgressRead();
 
-        mutable stdx::mutex _mutex;
+        mutable std::mutex _mutex;
 
         RecordIdSet _recordIds;
 
@@ -667,7 +666,7 @@ private:
      * function. Should only be used in the cleanup for this class. Should use a lock wrapped
      * around this class's mutex.
      */
-    void _drainAllOutstandingOperationTrackRequests(stdx::unique_lock<stdx::mutex>& lk);
+    void _drainAllOutstandingOperationTrackRequests(std::unique_lock<std::mutex>& lk);
 
     /**
      * Sends _recvChunkStatus to the recipient shard until it receives 'steady' from the recipient,
@@ -713,7 +712,7 @@ private:
     std::unique_ptr<SessionCatalogMigrationSource> _sessionCatalogSource;
 
     // Protects the entries below
-    mutable stdx::mutex _mutex;
+    mutable std::mutex _mutex;
 
     // The current state of the cloner
     State _state{kNew};

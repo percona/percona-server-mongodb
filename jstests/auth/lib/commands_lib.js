@@ -247,7 +247,6 @@ const skippedAuthTestingCommands = [
     "authenticate",
     "autoSplitVector",
     "balancerCollectionStatus",
-    "changePrimary",
     "clearLog",
     "commitTransitionToDedicatedConfigServer",
     "configureCollectionBalancing",
@@ -3511,6 +3510,23 @@ export const authCommandsLib = {
                     reshardingKey: {x: 1},
                 },
                 recipientShards: [],
+            },
+            skipSharded: true,
+            testcases: [
+                {
+                    runOnDb: adminDbName,
+                    roles: {__system: 1},
+                    privileges: [{resource: {cluster: true}, actions: ["internal"]}],
+                    expectFail: true,
+                },
+                {runOnDb: firstDbName, roles: {}},
+                {runOnDb: secondDbName, roles: {}},
+            ],
+        },
+        {
+            testname: "_shardsvrReshardDonorCriticalSectionStarted",
+            command: {
+                _shardsvrReshardDonorCriticalSectionStarted: UUID(),
             },
             skipSharded: true,
             testcases: [

@@ -69,10 +69,12 @@
 #include "mongo/db/query/plan_explainer.h"
 #include "mongo/db/query/plan_summary_stats.h"
 #include "mongo/db/query/plan_yield_policy.h"
+#include "mongo/db/query/query_shape/insert_cmd_shape.h"
 #include "mongo/db/query/query_shape/query_shape.h"
 #include "mongo/db/query/query_shape/query_shape_hash.h"
 #include "mongo/db/query/query_shape/shape_helpers.h"
 #include "mongo/db/query/query_shape/update_cmd_shape.h"
+#include "mongo/db/query/query_stats/insert_key.h"
 #include "mongo/db/query/query_stats/query_stats.h"
 #include "mongo/db/query/query_stats/update_key.h"
 #include "mongo/db/query/shard_key_diagnostic_printer.h"
@@ -539,6 +541,45 @@ void saveStatsOnConflict(PlanExecutor* exec, CurOp* curOp) {
                             << nss.toStringForErrorMsg() << "'");
 }
 
+/**
+ * Returns a DeferredQueryShape for the insert command, or boost::none if query stats should
+ * not be collected (feature flag disabled, or encrypted fields present).
+ */
+inline boost::optional<query_shape::DeferredQueryShape> computeInsertQueryShape(
+    OperationContext* opCtx, const write_ops::InsertCommandRequest& wholeOp) {
+    if (!feature_flags::gFeatureFlagQueryStatsInsert.isEnabledUseLastLTSFCVWhenUninitialized(
+            VersionContext::getDecoration(opCtx),
+            serverGlobalParams.featureCompatibility.acquireFCVSnapshot())) {
+        return boost::none;
+    }
+    if (wholeOp.getEncryptionInformation()) {
+        return boost::none;
+    }
+    query_shape::DeferredQueryShape deferredShape{[&]() {
+        return shape_helpers::tryMakeShape<query_shape::InsertCmdShape>(wholeOp);
+    }};
+    return deferredShape;
+}
+
+/**
+ * Computes the insert query shape and registers it with the query stats store.
+ */
+void computeInsertShapeAndRegisterQueryStats(OperationContext* opCtx,
+                                             const write_ops::InsertCommandRequest& wholeOp,
+                                             query_shape::CollectionType collType) {
+    const auto maybeDeferredShape = computeInsertQueryShape(opCtx, wholeOp);
+    if (!maybeDeferredShape) {
+        return;
+    }
+    const auto& deferredShape = maybeDeferredShape.get();
+    query_stats::registerWriteRequest(opCtx, wholeOp.getNamespace(), [&]() {
+        uassertStatusOKWithContext(deferredShape->getStatus(),
+                                   "Failed to compute insert query shape");
+        return std::make_unique<query_stats::InsertKey>(
+            opCtx, wholeOp, std::move(deferredShape->getValue()), collType);
+    });
+}
+
 }  // namespace
 
 bool handleError(OperationContext* opCtx,
@@ -981,7 +1022,7 @@ UpdateResult performUpdate(OperationContext* opCtx,
                                        diagnostic_printers::ExplainDiagnosticPrinter{exec.get()});
 
     {
-        stdx::lock_guard<Client> lk(*opCtx->getClient());
+        std::lock_guard<Client> lk(*opCtx->getClient());
         CurOp::get(opCtx)->setPlanSummary(lk, exec->getPlanExplainer().getPlanSummary());
     }
 
@@ -1121,7 +1162,7 @@ long long performDelete(OperationContext* opCtx,
                                        diagnostic_printers::ExplainDiagnosticPrinter{exec.get()});
 
     {
-        stdx::lock_guard<Client> lk(*opCtx->getClient());
+        std::lock_guard<Client> lk(*opCtx->getClient());
         CurOp::get(opCtx)->setPlanSummary(lk, exec->getPlanExplainer().getPlanSummary());
     }
 
@@ -1327,7 +1368,7 @@ WriteResult performInserts(
 
     // Timeseries inserts already did as part of performTimeseriesWrites.
     if (source != OperationSource::kTimeseriesInsert) {
-        stdx::lock_guard<Client> lk(*opCtx->getClient());
+        std::lock_guard<Client> lk(*opCtx->getClient());
         curOp.setNS(lk, actualNs);
         curOp.setLogicalOp(lk, LogicalOp::opInsert);
         curOp.ensureStarted();
@@ -1366,6 +1407,23 @@ WriteResult performInserts(
     // "bypassEmptyTsReplacement=true" for fixDocumentForInsert().
     const bool bypassEmptyTsReplacement = (source == OperationSource::kFromMigrate) ||
         static_cast<bool>(wholeOp.getBypassEmptyTsReplacement());
+
+    // Register query stats once before the batch loop. We read the collection type from
+    // 'preConditions' rather than calling acquireCollection(MODE_IS). This avoids lock acquisition.
+    if (source != OperationSource::kTimeseriesInsert) {
+        query_shape::CollectionType collType;
+        if (!preConditions.exists()) {
+            collType = query_shape::CollectionType::kNonExistent;
+        } else if (preConditions.isTimeseriesCollection()) {
+            collType = query_shape::CollectionType::kTimeseries;
+        } else {
+            collType = query_shape::CollectionType::kCollection;
+        }
+        tassert(12205200,
+                "Expected collType to be set to a known value before registering query stats",
+                collType != query_shape::CollectionType::kUnknown);
+        computeInsertShapeAndRegisterQueryStats(opCtx, wholeOp, collType);
+    }
 
     for (auto&& doc : wholeOp.getDocuments()) {
         const auto currentOpIndex = nextOpIndex++;
@@ -1472,7 +1530,7 @@ static SingleWriteResult performSingleUpdateOpNoRetry(OperationContext* opCtx,
                                        diagnostic_printers::ExplainDiagnosticPrinter{exec.get()});
 
     {
-        stdx::lock_guard<Client> lk(*opCtx->getClient());
+        std::lock_guard<Client> lk(*opCtx->getClient());
         CurOp::get(opCtx)->setPlanSummary(lk, exec->getPlanExplainer().getPlanSummary());
     }
 
@@ -1722,7 +1780,7 @@ static SingleWriteResult performSingleUpdateOpWithDupKeyRetry(
     if (source != OperationSource::kTimeseriesInsert) {
         ServerWriteConcernMetrics::get(opCtx)->recordWriteConcernForUpdate(
             opCtx->getWriteConcern());
-        stdx::lock_guard<Client> lk(*opCtx->getClient());
+        std::lock_guard<Client> lk(*opCtx->getClient());
         curOp.setNS(
             lk,
             (source == OperationSource::kTimeseriesUpdate && ns.isTimeseriesBucketsCollection())
@@ -2104,7 +2162,7 @@ static SingleWriteResult performSingleDeleteOp(
     ServerWriteConcernMetrics::get(opCtx)->recordWriteConcernForDelete(opCtx->getWriteConcern());
     auto& curOp = *CurOp::get(opCtx);
     {
-        stdx::lock_guard<Client> lk(*opCtx->getClient());
+        std::lock_guard<Client> lk(*opCtx->getClient());
         curOp.setNS(lk,
                     (preConditions.isLegacyTimeseriesCollection() &&
                              source == OperationSource::kTimeseriesDelete
@@ -2193,7 +2251,7 @@ static SingleWriteResult performSingleDeleteOp(
                                        diagnostic_printers::ExplainDiagnosticPrinter{exec.get()});
 
     {
-        stdx::lock_guard<Client> lk(*opCtx->getClient());
+        std::lock_guard<Client> lk(*opCtx->getClient());
         CurOp::get(opCtx)->setPlanSummary(lk, exec->getPlanExplainer().getPlanSummary());
     }
 

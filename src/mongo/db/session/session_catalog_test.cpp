@@ -35,13 +35,13 @@
 #include "mongo/base/string_data.h"
 #include "mongo/db/session/kill_sessions.h"
 #include "mongo/db/session/session_catalog_test.h"
-#include "mongo/stdx/future.h"
 #include "mongo/unittest/barrier.h"
 #include "mongo/unittest/death_test.h"
 #include "mongo/unittest/unittest.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/duration.h"
 #include "mongo/util/fail_point.h"
+#include "mongo/util/observable_mutex_registry.h"
 #include "mongo/util/time_support.h"
 
 #include <algorithm>
@@ -74,7 +74,7 @@ void SessionCatalogTest::assertSessionCheckoutTimesOut(const LogicalSessionId& l
 }
 
 void SessionCatalogTest::assertConcurrentCheckoutTimesOut(const LogicalSessionId& lsid) {
-    auto future = stdx::async(stdx::launch::async, [this, lsid] {
+    auto future = std::async(std::launch::async, [this, lsid] {
         ThreadClient tc(getServiceContext()->getService());
         auto sideOpCtx = Client::getCurrent()->makeOperationContext();
         sideOpCtx->setLogicalSessionId(lsid);
@@ -85,7 +85,7 @@ void SessionCatalogTest::assertConcurrentCheckoutTimesOut(const LogicalSessionId
 }
 
 void SessionCatalogTest::createSession(const LogicalSessionId& lsid) {
-    stdx::async(stdx::launch::async, [this, lsid] {
+    std::async(std::launch::async, [this, lsid] {
         ThreadClient tc(getServiceContext()->getService());
         auto opCtx = makeOperationContext();
         opCtx->setLogicalSessionId(lsid);
@@ -158,13 +158,13 @@ TEST_F(SessionCatalogTestWithDefaultOpCtx, CannotCheckOutParentSessionOfCheckedO
 
         // Verify that the parent session cannot be checked out until the child session is checked
         // back in.
-        auto future = stdx::async(stdx::launch::async, [this, parentLsid] {
+        auto future = std::async(std::launch::async, [this, parentLsid] {
             ThreadClient tc(getServiceContext()->getService());
             auto opCtx = cc().makeOperationContext();
             opCtx->setLogicalSessionId(parentLsid);
             OperationContextSession ocs(opCtx.get());
         });
-        ASSERT(stdx::future_status::ready != future.wait_for(Milliseconds(10).toSystemDuration()));
+        ASSERT(std::future_status::ready != future.wait_for(Milliseconds(10).toSystemDuration()));
 
         OperationContextSession::checkIn(_opCtx, OperationContextSession::CheckInReason::kDone);
         ASSERT(!OperationContextSession::get(_opCtx));
@@ -183,13 +183,13 @@ TEST_F(SessionCatalogTestWithDefaultOpCtx, CannotCheckOutChildSessionOfCheckedOu
 
         // Verify that the child session cannot be checked out until the parent session is checked
         // back in.
-        auto future = stdx::async(stdx::launch::async, [this, childLsid] {
+        auto future = std::async(std::launch::async, [this, childLsid] {
             ThreadClient tc(getServiceContext()->getService());
             auto opCtx = cc().makeOperationContext();
             opCtx->setLogicalSessionId(childLsid);
             OperationContextSession ocs(opCtx.get());
         });
-        ASSERT(stdx::future_status::ready != future.wait_for(Milliseconds(10).toSystemDuration()));
+        ASSERT(std::future_status::ready != future.wait_for(Milliseconds(10).toSystemDuration()));
 
         OperationContextSession::checkIn(_opCtx, OperationContextSession::CheckInReason::kDone);
         ASSERT(!OperationContextSession::get(_opCtx));
@@ -208,13 +208,13 @@ TEST_F(SessionCatalogTestWithDefaultOpCtx, CannotCheckoutMultipleChildSessionsCo
 
         // Verify that another child session cannot be checked out until both the child session
         // above and the parent session are checked back in.
-        auto future = stdx::async(stdx::launch::async, [this, childLsid1] {
+        auto future = std::async(std::launch::async, [this, childLsid1] {
             ThreadClient tc(getServiceContext()->getService());
             auto childSessionOpCtx1 = cc().makeOperationContext();
             childSessionOpCtx1->setLogicalSessionId(childLsid1);
             OperationContextSession ocs(childSessionOpCtx1.get());
         });
-        ASSERT(stdx::future_status::ready != future.wait_for(Milliseconds(10).toSystemDuration()));
+        ASSERT(std::future_status::ready != future.wait_for(Milliseconds(10).toSystemDuration()));
 
         OperationContextSession::checkIn(_opCtx, OperationContextSession::CheckInReason::kDone);
         ASSERT(!OperationContextSession::get(_opCtx));
@@ -283,7 +283,7 @@ TEST_F(SessionCatalogTest, ScanSession) {
         return {lsid0, lsid1, lsid2, lsid3};
     }();
     for (const auto& lsid : lsids) {
-        stdx::async(stdx::launch::async, [this, lsid] {
+        std::async(std::launch::async, [this, lsid] {
             ThreadClient tc(getServiceContext()->getService());
             auto opCtx = makeOperationContext();
             opCtx->setLogicalSessionId(lsid);
@@ -445,7 +445,7 @@ TEST_F(SessionCatalogTestWithDefaultOpCtx, ScanSessions) {
         return {lsid0, lsid1, lsid2, lsid3};
     }();
     for (const auto& lsid : lsids) {
-        stdx::async(stdx::launch::async, [this, lsid] {
+        std::async(std::launch::async, [this, lsid] {
             ThreadClient tc(getServiceContext()->getService());
             auto opCtx = makeOperationContext();
             opCtx->setLogicalSessionId(lsid);
@@ -498,7 +498,7 @@ TEST_F(SessionCatalogTestWithDefaultOpCtx, ScanSessionsForReapWhenParentSessionI
         unittest::Barrier sessionsCheckedIn(2);
 
         // Check out parentSession.
-        auto future = stdx::async(stdx::launch::async, [&] {
+        auto future = std::async(std::launch::async, [&] {
             ThreadClient tc(getServiceContext()->getService());
             auto opCtx = makeOperationContext();
 
@@ -507,7 +507,7 @@ TEST_F(SessionCatalogTestWithDefaultOpCtx, ScanSessionsForReapWhenParentSessionI
                     globalFailPointRegistry().find("hangAfterIncrementingNumWaitingToCheckOut");
                 auto initialTimesEntered = fp->setMode(FailPoint::alwaysOn);
 
-                auto innerFuture = stdx::async(stdx::launch::async, [&] {
+                auto innerFuture = std::async(std::launch::async, [&] {
                     ThreadClient innerTc(getServiceContext()->getService());
                     auto innerOpCtx = makeOperationContext();
                     innerOpCtx->setLogicalSessionId(parentLsid);
@@ -631,7 +631,7 @@ TEST_F(SessionCatalogTestWithDefaultOpCtx, ScanSessionsForReapWhenChildSessionIs
         unittest::Barrier sessionsCheckedIn(2);
 
         // Check out childSession2.
-        auto future = stdx::async(stdx::launch::async, [&] {
+        auto future = std::async(std::launch::async, [&] {
             ThreadClient tc(getServiceContext()->getService());
             auto opCtx = makeOperationContext();
 
@@ -640,7 +640,7 @@ TEST_F(SessionCatalogTestWithDefaultOpCtx, ScanSessionsForReapWhenChildSessionIs
                     globalFailPointRegistry().find("hangAfterIncrementingNumWaitingToCheckOut");
                 auto initialTimesEntered = fp->setMode(FailPoint::alwaysOn);
 
-                auto innerFuture = stdx::async(stdx::launch::async, [&] {
+                auto innerFuture = std::async(std::launch::async, [&] {
                     ThreadClient innerTc(getServiceContext()->getService());
                     auto innerOpCtx = makeOperationContext();
                     innerOpCtx->setLogicalSessionId(childLsid2);
@@ -768,13 +768,13 @@ TEST_F(SessionCatalogTest, KillSessionWhenSessionIsNotCheckedOut) {
         // Schedule a separate "regular operation" thread, which will block on checking-out the
         // session, which we will use to confirm that session kill completion actually unblocks
         // check-out
-        auto future = stdx::async(stdx::launch::async, [this, lsid] {
+        auto future = std::async(std::launch::async, [this, lsid] {
             ThreadClient tc(getServiceContext()->getService());
             auto sideOpCtx = Client::getCurrent()->makeOperationContext();
             sideOpCtx->setLogicalSessionId(lsid);
             OperationContextSession ocs(sideOpCtx.get());
         });
-        ASSERT(stdx::future_status::ready != future.wait_for(Milliseconds(10).toSystemDuration()));
+        ASSERT(std::future_status::ready != future.wait_for(Milliseconds(10).toSystemDuration()));
 
         // Make sure that "for kill" session check-out succeeds
         {
@@ -829,13 +829,13 @@ TEST_F(SessionCatalogTest, KillSessionWhenSessionIsCheckedOut) {
         // Schedule a separate "regular operation" thread, which will block on checking-out the
         // session, which we will use to confirm that session kill completion actually unblocks
         // check-out
-        auto future = stdx::async(stdx::launch::async, [this, lsid] {
+        auto future = std::async(std::launch::async, [this, lsid] {
             ThreadClient tc(getServiceContext()->getService());
             auto sideOpCtx = Client::getCurrent()->makeOperationContext();
             sideOpCtx->setLogicalSessionId(lsid);
             OperationContextSession ocs(sideOpCtx.get());
         });
-        ASSERT(stdx::future_status::ready != future.wait_for(Milliseconds(10).toSystemDuration()));
+        ASSERT(std::future_status::ready != future.wait_for(Milliseconds(10).toSystemDuration()));
 
         // Make sure that "for kill" session check-out succeeds
         {
@@ -890,13 +890,13 @@ TEST_F(SessionCatalogTest, KillParentSessionWhenChildSessionIsCheckedOut) {
         // Schedule a separate "regular operation" thread, which will block on checking-out the
         // session, which we will use to confirm that session kill completion actually unblocks
         // check-out
-        auto future = stdx::async(stdx::launch::async, [this, childLsid] {
+        auto future = std::async(std::launch::async, [this, childLsid] {
             ThreadClient tc(getServiceContext()->getService());
             auto sideOpCtx = Client::getCurrent()->makeOperationContext();
             sideOpCtx->setLogicalSessionId(childLsid);
             OperationContextSession ocs(sideOpCtx.get());
         });
-        ASSERT(stdx::future_status::ready != future.wait_for(Milliseconds(10).toSystemDuration()));
+        ASSERT(std::future_status::ready != future.wait_for(Milliseconds(10).toSystemDuration()));
 
         // Make sure that "for kill" session check-out succeeds
         {
@@ -949,13 +949,13 @@ TEST_F(SessionCatalogTest, KillParentSessionWhenChildSessionIsNotCheckedOut) {
         // Schedule a separate "regular operation" thread, which will block on checking-out the
         // session, which we will use to confirm that session kill completion actually unblocks
         // check-out
-        auto future = stdx::async(stdx::launch::async, [this, childLsid] {
+        auto future = std::async(std::launch::async, [this, childLsid] {
             ThreadClient tc(getServiceContext()->getService());
             auto sideOpCtx = Client::getCurrent()->makeOperationContext();
             sideOpCtx->setLogicalSessionId(childLsid);
             OperationContextSession ocs(sideOpCtx.get());
         });
-        ASSERT(stdx::future_status::ready != future.wait_for(Milliseconds(10).toSystemDuration()));
+        ASSERT(std::future_status::ready != future.wait_for(Milliseconds(10).toSystemDuration()));
 
         // Make sure that "for kill" session check-out succeeds
         {
@@ -1014,22 +1014,22 @@ TEST_F(SessionCatalogTest, KillSessionWhenChildSessionIsCheckedOut) {
         // Schedule a separate "regular operation" thread, which will block on checking-out the
         // session, which we will use to confirm that session kill completion actually unblocks
         // check-out
-        auto childFuture = stdx::async(stdx::launch::async, [this, childLsid] {
+        auto childFuture = std::async(std::launch::async, [this, childLsid] {
             ThreadClient tc(getServiceContext()->getService());
             auto sideOpCtx = Client::getCurrent()->makeOperationContext();
             sideOpCtx->setLogicalSessionId(childLsid);
             OperationContextSession ocs(sideOpCtx.get());
         });
-        ASSERT(stdx::future_status::ready !=
+        ASSERT(std::future_status::ready !=
                childFuture.wait_for(Milliseconds(10).toSystemDuration()));
 
-        auto parentFuture = stdx::async(stdx::launch::async, [this, parentLsid] {
+        auto parentFuture = std::async(std::launch::async, [this, parentLsid] {
             ThreadClient tc(getServiceContext()->getService());
             auto sideOpCtx = Client::getCurrent()->makeOperationContext();
             sideOpCtx->setLogicalSessionId(parentLsid);
             OperationContextSession ocs(sideOpCtx.get());
         });
-        ASSERT(stdx::future_status::ready !=
+        ASSERT(std::future_status::ready !=
                parentFuture.wait_for(Milliseconds(10).toSystemDuration()));
 
         // Make sure that "for kill" session check-out succeeds
@@ -1084,22 +1084,22 @@ TEST_F(SessionCatalogTest, KillSessionWhenChildSessionIsNotCheckedOut) {
         // Schedule a separate "regular operation" thread, which will block on checking-out the
         // session, which we will use to confirm that session kill completion actually unblocks
         // check-out
-        auto childFuture = stdx::async(stdx::launch::async, [this, childLsid] {
+        auto childFuture = std::async(std::launch::async, [this, childLsid] {
             ThreadClient tc(getServiceContext()->getService());
             auto sideOpCtx = Client::getCurrent()->makeOperationContext();
             sideOpCtx->setLogicalSessionId(childLsid);
             OperationContextSession ocs(sideOpCtx.get());
         });
-        ASSERT(stdx::future_status::ready !=
+        ASSERT(std::future_status::ready !=
                childFuture.wait_for(Milliseconds(10).toSystemDuration()));
 
-        auto parentFuture = stdx::async(stdx::launch::async, [this, parentLsid] {
+        auto parentFuture = std::async(std::launch::async, [this, parentLsid] {
             ThreadClient tc(getServiceContext()->getService());
             auto sideOpCtx = Client::getCurrent()->makeOperationContext();
             sideOpCtx->setLogicalSessionId(parentLsid);
             OperationContextSession ocs(sideOpCtx.get());
         });
-        ASSERT(stdx::future_status::ready !=
+        ASSERT(std::future_status::ready !=
                parentFuture.wait_for(Milliseconds(10).toSystemDuration()));
 
         // Make sure that "for kill" session check-out succeeds
@@ -1490,7 +1490,7 @@ TEST_F(SessionCatalogTestWithDefaultOpCtx, KillSessionsThroughScanSessions) {
 
     for (const auto& lsid : lsids) {
         futures.emplace_back(
-            stdx::async(stdx::launch::async, [this, lsid, &firstUseOfTheSessionReachedBarrier] {
+            std::async(std::launch::async, [this, lsid, &firstUseOfTheSessionReachedBarrier] {
                 ThreadClient tc(getServiceContext()->getService());
 
                 {
@@ -1573,7 +1573,7 @@ TEST_F(SessionCatalogTestWithDefaultOpCtx, ConcurrentCheckOutAndKill) {
             OperationContextSession firstCheckOut(opCtx.get());
 
             // Normal check out should start after kill.
-            normalCheckOutFinish = stdx::async(stdx::launch::async, [&] {
+            normalCheckOutFinish = std::async(std::launch::async, [&] {
                 ThreadClient tc(getServiceContext()->getService());
                 auto sideOpCtx = Client::getCurrent()->makeOperationContext();
                 sideOpCtx->setLogicalSessionId(lsid);
@@ -1583,7 +1583,7 @@ TEST_F(SessionCatalogTestWithDefaultOpCtx, ConcurrentCheckOutAndKill) {
             });
 
             // Kill will short-cut the queue and be the next one to check out.
-            killCheckOutFinish = stdx::async(stdx::launch::async, [&] {
+            killCheckOutFinish = std::async(std::launch::async, [&] {
                 ThreadClient tc(getServiceContext()->getService());
                 auto sideOpCtx = Client::getCurrent()->makeOperationContext();
                 sideOpCtx->setLogicalSessionId(lsid);
@@ -1604,9 +1604,9 @@ TEST_F(SessionCatalogTestWithDefaultOpCtx, ConcurrentCheckOutAndKill) {
 
             // The main thread won't check in the session until it's killed.
             {
-                stdx::mutex m;
+                std::mutex m;
                 stdx::condition_variable cond;
-                stdx::unique_lock<stdx::mutex> lock(m);
+                std::unique_lock<std::mutex> lock(m);
                 ASSERT_THROWS_CODE(
                     opCtx->waitForConditionOrInterrupt(cond, lock, [] { return false; }),
                     DBException,
@@ -1660,6 +1660,20 @@ TEST_F(SessionCatalogTest, CheckOutForKillTimeout) {
     runTest(makeLogicalSessionIdWithTxnNumberAndUUIDForTest());
     runTest(makeLogicalSessionIdWithTxnUUIDForTest());
 }
+
+// TODO(SERVER-110898): Remove once TSAN works with ObservableMutex.
+#if !__has_feature(thread_sanitizer)
+TEST_F(SessionCatalogTest, MutexRegisteredWithObservableMutexRegistry) {
+    catalog()->size();
+
+    const BSONObj report = ObservableMutexRegistry::get().report(false);
+    const StringData name = "SessionCatalog::_mutex";
+    ASSERT_TRUE(report.hasField(name)) << "Missing " << name << " in " << report;
+    const BSONObj exclusive =
+        report.getObjectField(name).getObjectField(ObservableMutexRegistry::kExclusiveFieldName);
+    ASSERT_GT(exclusive.getIntField(ObservableMutexRegistry::kTotalAcquisitionsFieldName), 0);
+}
+#endif
 
 }  // namespace
 }  // namespace mongo

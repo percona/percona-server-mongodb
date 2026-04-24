@@ -9,6 +9,7 @@ export const commandsRemovedFromMongodSinceLastLTS = [
     "stageDebug",
     "_configsvrRemoveShardCommit",
     "_configsvrAddShardCoordinator",
+    "_shardsvrChangePrimary", // Removed in 9.0
     "_shardsvrCommitIndexParticipant",
     "_shardsvrDropIndexCatalogEntryParticipant",
     "_shardsvrRegisterIndex",
@@ -58,6 +59,7 @@ export const commandsAddedToMongodSinceLastLTS = [
     "_shardsvrRenameIndexMetadata",
     "getTrafficRecordingStatus",
     "_shardsvrReshardDonorInitialize",
+    "_shardsvrReshardDonorCriticalSectionStarted",
     "_shardsvrReshardDonorRecipientsFinishedCloning",
     "_shardsvrReshardRecipientInitialize",
     "_shardsvrReshardRecipientClone",

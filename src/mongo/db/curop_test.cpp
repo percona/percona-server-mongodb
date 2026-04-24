@@ -665,7 +665,7 @@ TEST(CurOpTest, OptionalAdditiveMetricsNotDisplayedIfUninitialized) {
 
     // Set dummy 'ns' and 'command'.
     {
-        stdx::lock_guard<Client> clientLock(*opCtx->getClient());
+        std::lock_guard<Client> clientLock(*opCtx->getClient());
         curop->setGenericOpRequestDetails(
             clientLock,
             NamespaceString::createNamespaceString_forTest("myDb.coll"),
@@ -1004,7 +1004,7 @@ TEST(CurOpTest, ShouldNotReportFailpointMsgIfNotSet) {
     // Test the reported state should _not_ contain 'failpointMsg'.
     BSONObjBuilder reportedStateWithoutFailpointMsg;
     {
-        stdx::lock_guard<Client> lk(*opCtx->getClient());
+        std::lock_guard<Client> lk(*opCtx->getClient());
         curop->reportState(&reportedStateWithoutFailpointMsg, SerializationContext());
     }
     auto bsonObj = reportedStateWithoutFailpointMsg.done();
@@ -1028,7 +1028,7 @@ TEST(CurOpTest, ShouldReportIsFromUserConnection) {
     BSONObjBuilder curOpObj;
     BSONObjBuilder curOpObjUserConn;
     {
-        stdx::lock_guard<Client> lk(*opCtx->getClient());
+        std::lock_guard<Client> lk(*opCtx->getClient());
         auto nss = NamespaceString::createNamespaceString_forTest("db", "coll");
 
         // Serialization Context on expression context should be non-empty in
@@ -1070,7 +1070,7 @@ TEST(CurOpTest, ShouldNotReportIsFromPriorityPortConnectionWhenFFDisabled) {
     BSONObjBuilder curOpObj;
     BSONObjBuilder curOpObjPriorityConn;
     {
-        stdx::lock_guard<Client> lk(*opCtx->getClient());
+        std::lock_guard<Client> lk(*opCtx->getClient());
         auto nss = NamespaceString::createNamespaceString_forTest("db", "coll");
 
         // Serialization Context on expression context should be non-empty in
@@ -1111,7 +1111,7 @@ TEST(CurOpTest, ShouldReportIsFromPriorityPortConnection) {
     BSONObjBuilder curOpObj;
     BSONObjBuilder curOpObjPriorityConn;
     {
-        stdx::lock_guard<Client> lk(*opCtx->getClient());
+        std::lock_guard<Client> lk(*opCtx->getClient());
         auto nss = NamespaceString::createNamespaceString_forTest("db", "coll");
 
         // Serialization Context on expression context should be non-empty in
@@ -1175,7 +1175,7 @@ TEST(CurOpTest, CheckNSAgainstSerializationContext) {
 
     // Set dummy 'ns' and 'command'.
     {
-        stdx::lock_guard<Client> clientLock(*opCtx->getClient());
+        std::lock_guard<Client> clientLock(*opCtx->getClient());
         curop->setGenericOpRequestDetails(
             clientLock,
             NamespaceString::createNamespaceString_forTest(tid, "testDb.coll"),
@@ -1191,7 +1191,7 @@ TEST(CurOpTest, CheckNSAgainstSerializationContext) {
 
         BSONObjBuilder builder;
         {
-            stdx::lock_guard<Client> lk(*opCtx->getClient());
+            std::lock_guard<Client> lk(*opCtx->getClient());
             curop->reportState(&builder, sc);
         }
         auto bsonObj = builder.done();
@@ -1288,7 +1288,7 @@ TEST(CurOpTest, SlowLogFinishesWithDuration) {
     TenantId tid = TenantId(OID::gen());
 
     {
-        stdx::lock_guard<Client> clientLock(*opCtx->getClient());
+        std::lock_guard<Client> clientLock(*opCtx->getClient());
         curop->setGenericOpRequestDetails(
             clientLock,
             NamespaceString::createNamespaceString_forTest(tid, "testDb.coll"),

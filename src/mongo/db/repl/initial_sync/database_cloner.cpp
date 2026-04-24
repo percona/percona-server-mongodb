@@ -39,19 +39,21 @@
 #include "mongo/db/namespace_string_util.h"
 #include "mongo/db/repl/initial_sync/database_cloner.h"
 #include "mongo/db/repl/initial_sync/database_cloner_gen.h"
+#include "mongo/db/repl/initial_sync/initial_syncer.h"
 #include "mongo/db/service_context.h"
 #include "mongo/db/shard_role/ddl/list_collections_filter.h"
 #include "mongo/db/shard_role/ddl/list_collections_gen.h"
 #include "mongo/db/storage/storage_engine.h"
 #include "mongo/idl/idl_parser.h"
 #include "mongo/logv2/log.h"
-#include "mongo/stdx/mutex.h"
 #include "mongo/stdx/unordered_set.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/clock_source.h"
 #include "mongo/util/duration.h"
 #include "mongo/util/str.h"
 #include "mongo/util/uuid.h"
+
+#include <mutex>
 
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kReplicationInitialSync
 
@@ -64,11 +66,13 @@ DatabaseCloner::DatabaseCloner(const DatabaseName& dbName,
                                const HostAndPort& source,
                                DBClientConnection* client,
                                StorageInterface* storageInterface,
-                               ThreadPool* dbPool)
+                               ThreadPool* dbPool,
+                               std::shared_ptr<InitialSyncSummaryStats> summaryStats)
     : InitialSyncBaseCloner(
           "DatabaseCloner"_sd, sharedData, source, client, storageInterface, dbPool),
       _dbName(dbName),
-      _listCollectionsStage("listCollections", this, &DatabaseCloner::listCollectionsStage) {
+      _listCollectionsStage("listCollections", this, &DatabaseCloner::listCollectionsStage),
+      _summaryStats(summaryStats) {
     invariant(!dbName.isEmpty());
     _stats.dbname = dbName;
 }
@@ -78,7 +82,7 @@ BaseCloner::ClonerStages DatabaseCloner::getStages() {
 }
 
 void DatabaseCloner::preStage() {
-    stdx::lock_guard<stdx::mutex> lk(_mutex);
+    std::lock_guard<std::mutex> lk(_mutex);
     _stats.start = getSharedData()->getClock()->now();
 }
 
@@ -148,7 +152,7 @@ bool DatabaseCloner::isMyFailPoint(const BSONObj& data) const {
 
 void DatabaseCloner::postStage() {
     {
-        stdx::lock_guard<stdx::mutex> lk(_mutex);
+        std::lock_guard<std::mutex> lk(_mutex);
         _stats.collections = _collections.size();
         _stats.collectionStats.reserve(_collections.size());
         for (const auto& coll : _collections) {
@@ -156,9 +160,10 @@ void DatabaseCloner::postStage() {
             _stats.collectionStats.back().nss = get<0>(coll);
         }
     }
+    _summaryStats->collectionsToClone.incrementRelaxed(_collections.size());
     for (const auto& [sourceNss, collectionOptions, recordIdsReplicated] : _collections) {
         {
-            stdx::lock_guard<stdx::mutex> lk(_mutex);
+            std::lock_guard<std::mutex> lk(_mutex);
             _currentCollectionCloner = std::make_unique<CollectionCloner>(sourceNss,
                                                                           collectionOptions,
                                                                           getSharedData(),
@@ -166,7 +171,8 @@ void DatabaseCloner::postStage() {
                                                                           getClient(),
                                                                           getStorageInterface(),
                                                                           getDBPool(),
-                                                                          recordIdsReplicated);
+                                                                          recordIdsReplicated,
+                                                                          _summaryStats);
         }
         auto collStatus = _currentCollectionCloner->run();
         if (collStatus.isOK()) {
@@ -184,21 +190,22 @@ void DatabaseCloner::postStage() {
                      .toString()});
         }
         {
-            stdx::lock_guard<stdx::mutex> lk(_mutex);
+            std::lock_guard<std::mutex> lk(_mutex);
             _stats.collectionStats[_stats.clonedCollections] = _currentCollectionCloner->getStats();
             _currentCollectionCloner = nullptr;
             // Abort the database cloner if the collection clone failed.
             if (!collStatus.isOK())
                 return;
             _stats.clonedCollections++;
+            _summaryStats->collectionsCloned.incrementRelaxed();
         }
     }
-    stdx::lock_guard<stdx::mutex> lk(_mutex);
+    std::lock_guard<std::mutex> lk(_mutex);
     _stats.end = getSharedData()->getClock()->now();
 }
 
 DatabaseCloner::Stats DatabaseCloner::getStats() const {
-    stdx::lock_guard<stdx::mutex> lk(_mutex);
+    std::lock_guard<std::mutex> lk(_mutex);
     DatabaseCloner::Stats stats = _stats;
     if (_currentCollectionCloner) {
         stats.collectionStats[_stats.clonedCollections] = _currentCollectionCloner->getStats();

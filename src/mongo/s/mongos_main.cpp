@@ -126,7 +126,6 @@
 #include "mongo/s/session_catalog_router.h"
 #include "mongo/s/transaction_router.h"
 #include "mongo/scripting/engine.h"
-#include "mongo/stdx/mutex.h"
 #include "mongo/stdx/unordered_map.h"
 #include "mongo/transport/ingress_handshake_metrics.h"
 #include "mongo/transport/service_entry_point.h"
@@ -337,7 +336,7 @@ void implicitlyAbortAllTransactions(OperationContext* opCtx) {
 
         auto session = OperationContextSession::get(newOpCtx);
         {
-            auto lk = stdx::lock_guard(*newOpCtx->getClient());
+            auto lk = std::lock_guard(*newOpCtx->getClient());
             newOpCtx->setLogicalSessionId(session->getSessionId());
         }
 
@@ -467,7 +466,7 @@ void cleanupTask(const ShutdownTaskArgs& shutdownArgs) {
         }
 
         {
-            stdx::lock_guard lg(client);
+            std::lock_guard lg(client);
             opCtx->setIsExecutingShutdown();
         }
 

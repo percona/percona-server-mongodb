@@ -107,7 +107,7 @@ public:
 
         // Sleeping some time here to guarantee that any upcoming call to this function generates a
         // different timestamp
-        stdx::this_thread::sleep_for(stdx::chrono::milliseconds(10));
+        stdx::this_thread::sleep_for(std::chrono::milliseconds(10));
 
         auto range = ChunkRange(BSON(kShardKey << MINKEY), BSON(kShardKey << MAXKEY));
         auto chunk = ChunkType(
@@ -1310,7 +1310,8 @@ TEST_F(CollectionShardingRuntimeTest, OnInvalidateCollectionMetadataClearsCSRWit
     {
         auto csr = CollectionShardingRuntime::acquireShared(opCtx, kTestNss);
         ASSERT_FALSE(csr->getCurrentMetadataIfKnown());
-        // TODO (SERVER-123844): Switch to authoritative state.
+        // TODO (SERVER-124360): Switch back to the authoritative state once the CSS
+        // authoritative flag is safe to enable on shard-catalog-committing DDLs.
         ASSERT_EQ(csr->getAuthoritativeState(),
                   CollectionShardingRuntime::AuthoritativeState::kNonAuthoritative);
     }

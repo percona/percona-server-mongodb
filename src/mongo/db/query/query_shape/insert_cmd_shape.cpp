@@ -1,5 +1,5 @@
 /**
- *    Copyright (C) 2018-present MongoDB, Inc.
+ *    Copyright (C) 2026-present MongoDB, Inc.
  *
  *    This program is free software: you can redistribute it and/or modify
  *    it under the terms of the Server Side Public License, version 1,
@@ -27,29 +27,29 @@
  *    it in the license file.
  */
 
-#pragma once
+#include "mongo/db/query/query_shape/insert_cmd_shape.h"
 
-#include "mongo/util/modules.h"
+#include "mongo/bson/bsonobjbuilder.h"
+#include "mongo/db/query/query_shape/serialization_options.h"
 
-#include <mutex>
+namespace mongo::query_shape {
 
-namespace MONGO_MOD_PUB mongo {
-namespace stdx {
+void InsertCmdShapeComponents::appendTo(BSONObjBuilder& bob,
+                                        const SerializationOptions& opts) const {
+    // 'documents' is always shapified as ?array<?object>: a placeholder array of one empty object.
+    // We create a backing BSON object so we can extract a BSONElement of array type for
+    // appendLiteral.
+    static const BSONObj kDocumentPlaceholderBacking = BSON("documents" << BSON_ARRAY(BSONObj()));
+    opts.appendLiteral(&bob, kDocumentPlaceholderBacking.firstElement());
+}
 
-using ::std::mutex;
-using ::std::recursive_mutex;  // NOLINT
-using ::std::timed_mutex;      // NOLINT
+InsertCmdShape::InsertCmdShape(const write_ops::InsertCommandRequest& request)
+    : Shape(request.getNamespace(), BSONObj{} /*no collation for insert*/) {}
 
-using ::std::adopt_lock_t;   // NOLINT
-using ::std::defer_lock_t;   // NOLINT
-using ::std::try_to_lock_t;  // NOLINT
+void InsertCmdShape::appendCmdSpecificShapeComponents(BSONObjBuilder& bob,
+                                                      OperationContext* opCtx,
+                                                      const SerializationOptions& opts) const {
+    _components.appendTo(bob, opts);
+}
 
-using ::std::lock_guard;   // NOLINT
-using ::std::unique_lock;  // NOLINT
-
-constexpr adopt_lock_t adopt_lock{};
-constexpr defer_lock_t defer_lock{};
-constexpr try_to_lock_t try_to_lock{};
-
-}  // namespace stdx
-}  // namespace MONGO_MOD_PUB mongo
+}  // namespace mongo::query_shape

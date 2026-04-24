@@ -39,12 +39,12 @@
 #include "mongo/db/session/session.h"
 #include "mongo/db/session/session_killer.h"
 #include "mongo/stdx/condition_variable.h"
-#include "mongo/stdx/mutex.h"
 #include "mongo/stdx/unordered_map.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/concurrency/with_lock.h"
 #include "mongo/util/functional.h"
 #include "mongo/util/modules.h"
+#include "mongo/util/observable_mutex.h"
 #include "mongo/util/time_support.h"
 
 #include <cstddef>
@@ -100,7 +100,7 @@ public:
         LogicalSessionId lsidToKill;
     };
 
-    SessionCatalog() = default;
+    SessionCatalog();
     ~SessionCatalog();
 
     /**
@@ -282,7 +282,7 @@ private:
         _defaultMakeSessionWorkerFnForEagerReap;
 
     // Protects the state below
-    mutable stdx::mutex _mutex;
+    mutable ObservableMutex<std::mutex> _mutex;
 
     // Owns the Session objects for all current Sessions.
     SessionRuntimeInfoMap _sessions;

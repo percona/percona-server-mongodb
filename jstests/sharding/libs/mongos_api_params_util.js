@@ -207,10 +207,6 @@ export let MongosAPIParametersUtil = (function () {
         {commandName: "stopTransitionToDedicatedConfigServer", skip: "TODO(SERVER-108802)"},
         {commandName: "untrackUnshardedCollection", skip: "TODO(SERVER-108802)"},
         {
-            commandName: "changePrimary",
-            skip: "TODO: Cannot run changePrimary with featureFlagBalanceUnshardedCollections disabled",
-        },
-        {
             commandName: "checkMetadataConsistency",
             run: {
                 inAPIVersion1: false,

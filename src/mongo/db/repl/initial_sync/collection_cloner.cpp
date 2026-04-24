@@ -45,6 +45,7 @@
 #include "mongo/db/query/count_command_gen.h"
 #include "mongo/db/query/find_command.h"
 #include "mongo/db/repl/collection_bulk_loader.h"
+#include "mongo/db/repl/initial_sync/initial_syncer.h"
 #include "mongo/db/repl/oplog_entry.h"
 #include "mongo/db/repl/read_concern_args.h"
 #include "mongo/db/repl/repl_server_parameters_gen.h"
@@ -59,7 +60,6 @@
 #include "mongo/logv2/log.h"
 #include "mongo/platform/compiler.h"
 #include "mongo/rpc/get_status_from_command_result.h"
-#include "mongo/stdx/mutex.h"
 #include "mongo/stdx/unordered_map.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/clock_source.h"
@@ -69,6 +69,7 @@
 
 #include <cstdint>
 #include <list>
+#include <mutex>
 
 #include <absl/container/node_hash_map.h>
 #include <boost/cstdint.hpp>
@@ -120,7 +121,8 @@ CollectionCloner::CollectionCloner(const NamespaceString& sourceNss,
                                    DBClientConnection* client,
                                    StorageInterface* storageInterface,
                                    ThreadPool* dbPool,
-                                   bool recordIdsReplicated)
+                                   bool recordIdsReplicated,
+                                   std::shared_ptr<InitialSyncSummaryStats> summaryStats)
     : InitialSyncBaseCloner(
           "CollectionCloner"_sd, sharedData, source, client, storageInterface, dbPool),
       _sourceNss(sourceNss),
@@ -158,7 +160,8 @@ CollectionCloner::CollectionCloner(const NamespaceString& sourceNss,
           _dbWorkTaskRunner.schedule(std::move(task));
           return executor::TaskExecutor::CallbackHandle();
       }),
-      _dbWorkTaskRunner(dbPool) {
+      _dbWorkTaskRunner(dbPool),
+      _summaryStats(summaryStats) {
     invariant(sourceNss.isValid());
     invariant(collectionOptions.uuid);
     _sourceDbAndUuid = NamespaceStringOrUUID(sourceNss.dbName(), *collectionOptions.uuid);
@@ -226,7 +229,7 @@ BaseCloner::AfterStageBehavior CollectionCloner::CollectionClonerStage::run() {
 }
 
 BaseCloner::AfterStageBehavior CollectionCloner::collStatsStage() {
-    stdx::lock_guard<stdx::mutex> lk(_mutex);
+    std::lock_guard<std::mutex> lk(_mutex);
     BSONObjBuilder b(BSON("collStats" << _sourceNss.coll()));
 
     BSONObj res;
@@ -481,7 +484,7 @@ void CollectionCloner::handleNextBatch(DBClientCursor& cursor) {
                               _sourceNss,
                               [&]() { return mustExit(); });
     {
-        stdx::lock_guard<InitialSyncSharedData> lk(*getSharedData());
+        std::lock_guard<InitialSyncSharedData> lk(*getSharedData());
         if (!getSharedData()->getStatus(lk).isOK()) {
             static constexpr char message[] =
                 "Collection cloning cancelled due to initial sync failure";
@@ -506,7 +509,7 @@ void CollectionCloner::handleNextBatch(DBClientCursor& cursor) {
     _firstBatchOfQueryRound = false;
 
     {
-        stdx::lock_guard<stdx::mutex> lk(_mutex);
+        std::lock_guard<std::mutex> lk(_mutex);
         _receivedBatches.fetchAndAddRelaxed(1);
         while (cursor.moreInCurrentBatch()) {
             _documentsToInsert.emplace_back(cursor.nextSafe());
@@ -541,7 +544,7 @@ void CollectionCloner::handleNextBatch(DBClientCursor& cursor) {
 void CollectionCloner::insertDocumentsCallback(const executor::TaskExecutor::CallbackArgs& cbd) {
     uassertStatusOK(cbd.status);
     {
-        stdx::lock_guard<stdx::mutex> lk(_mutex);
+        std::lock_guard<std::mutex> lk(_mutex);
         std::vector<BSONObj> docs;
         // Increment 'fetchedBatches' even if no documents were inserted to match the number of
         // 'receivedBatches'.
@@ -553,7 +556,9 @@ void CollectionCloner::insertDocumentsCallback(const executor::TaskExecutor::Cal
         }
         _documentsToInsert.swap(docs);
         auto copied = _documentsCopied.fetchAndAddRelaxed(docs.size()) + docs.size();
-        _approxBytesCopied.storeRelaxed(static_cast<long long>(copied) * _avgObjSize.load());
+        auto newApproxBytes = static_cast<long long>(copied) * _avgObjSize.load();
+        _approxBytesCopied.storeRelaxed(newApproxBytes);
+        _summaryStats->approxTotalBytesCopied.incrementRelaxed(docs.size() * _avgObjSize.load());
         _progressMeter.hit(int(docs.size()));
         invariant(_collLoader);
 

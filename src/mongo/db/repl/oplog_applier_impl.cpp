@@ -72,11 +72,15 @@
 #include "mongo/logv2/attribute_storage.h"
 #include "mongo/logv2/log.h"
 #include "mongo/logv2/log_util.h"
+#include "mongo/otel/metrics/metric_names.h"
+#include "mongo/otel/metrics/metric_unit.h"
+#include "mongo/otel/metrics/metrics_counter.h"
+#include "mongo/otel/metrics/metrics_service.h"
+#include "mongo/otel/metrics/server_status_options.h"
 #include "mongo/platform/atomic_word.h"
 #include "mongo/platform/compiler.h"
 #include "mongo/platform/random.h"
 #include "mongo/stdx/condition_variable.h"
-#include "mongo/stdx/mutex.h"
 #include "mongo/stdx/thread.h"
 #include "mongo/stdx/unordered_map.h"
 #include "mongo/util/assert_util.h"
@@ -124,6 +128,16 @@ auto& oplogApplicationBatchSize = *MetricBuilder<Counter64>{"repl.apply.batchSiz
 
 // Number and time of each ApplyOps worker pool round
 auto& applyBatchStats = *MetricBuilder<TimerStats>("repl.apply.batches");
+
+// Total bytes of uncompressed oplog entries applied.
+auto& oplogBytesApplied = otel::metrics::MetricsService::instance().createInt64Counter(
+    otel::metrics::MetricNames::kOplogApplyBytes,
+    "Total bytes of uncompressed oplog entries applied.",
+    otel::metrics::MetricUnit::kBytes,
+    {.serverStatusOptions = otel::metrics::ServerStatusOptions{
+         .dottedPath = "repl.apply.bytes",
+         .role = ClusterRole{ClusterRole::None},
+     }});
 
 /**
  * Used for logging a report of ops that take longer than "slowMS" to apply. This is called
@@ -415,7 +429,7 @@ private:
     void _run();
 
     // Protects _cond, _shutdownSignaled, and _latestOpTime.
-    stdx::mutex _mutex;
+    std::mutex _mutex;
     // Used to alert our thread of a new OpTime.
     stdx::condition_variable _cond;
     // The next OpTime to set as the ReplicationCoordinator's lastOpTime after flushing.
@@ -427,7 +441,7 @@ private:
 };
 
 ApplyBatchFinalizerForJournal::~ApplyBatchFinalizerForJournal() {
-    stdx::unique_lock<stdx::mutex> lock(_mutex);
+    std::unique_lock<std::mutex> lock(_mutex);
     _shutdownSignaled = true;
     _cond.notify_all();
     lock.unlock();
@@ -438,7 +452,7 @@ ApplyBatchFinalizerForJournal::~ApplyBatchFinalizerForJournal() {
 void ApplyBatchFinalizerForJournal::record(const OpTimeAndWallTime& newOpTimeAndWallTime) {
     _recordApplied(newOpTimeAndWallTime);
 
-    stdx::unique_lock<stdx::mutex> lock(_mutex);
+    std::unique_lock<std::mutex> lock(_mutex);
     _latestOpTimeAndWallTime = newOpTimeAndWallTime;
     _cond.notify_all();
 }
@@ -451,7 +465,7 @@ void ApplyBatchFinalizerForJournal::_run() {
 
     while (true) {
         {
-            stdx::unique_lock<stdx::mutex> lock(_mutex);
+            std::unique_lock<std::mutex> lock(_mutex);
             while (_latestOpTimeAndWallTime.opTime.isNull() && !_shutdownSignaled) {
                 _cond.wait(lock);
             }
@@ -572,6 +586,7 @@ void OplogApplierImpl::_run(OplogBuffer* oplogBuffer) {
         const auto lastOpTimeInBatch = lastOpInBatch.getOpTime();
         const auto lastWallTimeInBatch = lastOpInBatch.getWallClockTime();
         const auto lastAppliedOpTimeAtStartOfBatch = _replCoord->getMyLastAppliedOpTime();
+        const auto batchByteSize = ops.byteSize();
 
         // Make sure the oplog doesn't go back in time or repeat an entry.
         if (firstOpTimeInBatch <= lastAppliedOpTimeAtStartOfBatch) {
@@ -601,7 +616,7 @@ void OplogApplierImpl::_run(OplogBuffer* oplogBuffer) {
         }
 
         // Don't allow the fsync+lock thread to see intermediate states of batch application.
-        stdx::lock_guard<stdx::mutex> fsynclk(oplogApplierLockedFsync);
+        std::lock_guard<std::mutex> fsynclk(oplogApplierLockedFsync);
 
         // Obtain the validation lock to synchronise batch application with validation.
         auto lk = CollectionValidation::obtainExclusiveValidationLock(&opCtx);
@@ -619,6 +634,8 @@ void OplogApplierImpl::_run(OplogBuffer* oplogBuffer) {
         }
         fassertNoTrace(34437, swLastOpTimeAppliedInBatch);
         invariant(swLastOpTimeAppliedInBatch.getValue() == lastOpTimeInBatch);
+
+        oplogBytesApplied.add(batchByteSize);
 
         // Update various things that care about our last applied optime.
 

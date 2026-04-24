@@ -92,7 +92,6 @@
 #include "mongo/logv2/log.h"
 #include "mongo/rpc/metadata/oplog_query_metadata.h"
 #include "mongo/rpc/metadata/repl_set_metadata.h"
-#include "mongo/stdx/mutex.h"
 #include "mongo/stdx/type_traits.h"
 #include "mongo/unittest/death_test.h"
 #include "mongo/unittest/unittest.h"
@@ -111,6 +110,7 @@
 #include <list>
 #include <map>
 #include <memory>
+#include <mutex>
 #include <ostream>
 #include <ratio>
 #include <utility>
@@ -156,9 +156,9 @@ using executor::NetworkInterfaceMock;
 using executor::RemoteCommandRequest;
 using executor::RemoteCommandResponse;
 
-using LockGuard = stdx::lock_guard<stdx::mutex>;
+using LockGuard = std::lock_guard<std::mutex>;
 using NetworkGuard = executor::NetworkInterfaceMock::InNetworkGuard;
-using UniqueLock = stdx::unique_lock<stdx::mutex>;
+using UniqueLock = std::unique_lock<std::mutex>;
 
 const BSONObj kListDatabasesFailPointData = BSON("cloner" << "AllDatabaseCloner"
                                                           << "stage"
@@ -320,7 +320,7 @@ protected:
     };
 
     // protects _storageInterfaceWorkDone.
-    stdx::mutex _storageInterfaceWorkDoneMutex;
+    std::mutex _storageInterfaceWorkDoneMutex;
     StorageInterfaceResults _storageInterfaceWorkDone;
 
     void setUp() override {
@@ -4742,6 +4742,31 @@ TEST_F(InitialSyncerTest, GetInitialSyncProgressReturnsCorrectProgress) {
     ASSERT_EQUALS(5, collectionProgress.getIntField("receivedBatches")) << collectionProgress;
     ASSERT_EQUALS(bytesToCopy, collectionProgress.getIntField("bytesToCopy")) << collectionProgress;
     ASSERT_EQUALS(10, collectionProgress.getIntField("approxBytesCopied")) << collectionProgress;
+
+    // Verify getInitialSyncProgressSummary() returns lock-free summary data with
+    // phase as int and no per-attempt or per-collection detail.
+    {
+        auto summary = initialSyncer->getInitialSyncProgressSummary();
+        LOGV2(9834502, "Summary progress", "summary"_attr = summary);
+        // Summary must have all top-level scalar fields.
+        ASSERT_EQUALS(summary.getIntField("failedInitialSyncAttempts"), 1) << summary;
+        ASSERT_EQUALS(summary.getIntField("approxTotalDataSize"), 10) << summary;
+        ASSERT_EQUALS(summary.getIntField("approxTotalBytesCopied"), 10) << summary;
+        ASSERT_GREATER_THAN_OR_EQUALS(
+            summary.getIntField("phase"),
+            static_cast<int>(InitialSyncer::Phase::kDeterminingStopTimestamp))
+            << summary;
+        // Lock-free summary does not include per-attempt history.
+        ASSERT_FALSE(summary.hasField("initialSyncAttempts")) << summary;
+        // Summary databases section has aggregate counts...
+        auto summaryDbs = summary.getObjectField("databases");
+        ASSERT_EQUALS(1, summaryDbs.getIntField("databasesCloned")) << summaryDbs;
+        ASSERT_EQUALS(0, summaryDbs.getIntField("databasesToClone")) << summaryDbs;
+        ASSERT_EQUALS(1, summaryDbs.getIntField("collectionsToClone")) << summaryDbs;
+        ASSERT_EQUALS(1, summaryDbs.getIntField("collectionsCloned")) << summaryDbs;
+        // ...but no per-database sub-objects.
+        ASSERT_TRUE(summaryDbs.getObjectField("a").isEmpty()) << summaryDbs;
+    }
 
     auto attempts = progress["initialSyncAttempts"].Obj();
     ASSERT_EQUALS(attempts.nFields(), 1) << progress;

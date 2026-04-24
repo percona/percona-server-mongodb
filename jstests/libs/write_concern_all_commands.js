@@ -150,7 +150,6 @@ const wcCommandsTests = {
     _refreshQueryAnalyzerConfiguration: {skip: "internal command"},
     _shardsvrAbortReshardCollection: {skip: "internal command"},
     _shardsvrBeginMigrationBlockingOperation: {skip: "internal command"},
-    _shardsvrChangePrimary: {skip: "internal command"},
     _shardsvrCloneAuthoritativeMetadata: {skip: "internal command"},
     _shardsvrCloneCatalogData: {skip: "internal command"},
     _shardsvrCommitCreateDatabaseMetadata: {skip: "internal command"},
@@ -199,6 +198,7 @@ const wcCommandsTests = {
     _shardsvrReshardingDonorStartChangeStreamsMonitor: {skip: "internal command"},
     _shardsvrReshardingOperationTime: {skip: "internal command"},
     _shardsvrReshardDonorInitialize: {skip: "internal command"},
+    _shardsvrReshardDonorCriticalSectionStarted: {skip: "internal command"},
     _shardsvrReshardDonorRecipientsFinishedCloning: {skip: "internal command"},
     _shardsvrReshardRecipientInitialize: {skip: "internal command"},
     _shardsvrReshardRecipientClone: {skip: "internal command"},
@@ -517,48 +517,6 @@ const wcCommandsTests = {
                 assert.eq(res.nErrors, 1);
                 assert(res.cursor && res.cursor.firstBatch && res.cursor.firstBatch.length == 1);
                 assert.commandFailedWithCode(res.cursor.firstBatch[0], ErrorCodes.DuplicateKey);
-            },
-            admin: true,
-        },
-    },
-    changePrimary: {
-        noop: {
-            // The destination shard is already the primary shard for the db
-            req: (cluster) => ({changePrimary: dbName, to: getShardNames(cluster)[0]}),
-            setupFunc: (coll, cluster, clusterType, secondariesRunning, optionalArgs) => {
-                assert.commandWorked(coll.insert({_id: 1}));
-                assert.commandWorked(coll.getDB().adminCommand({changePrimary: dbName, to: getShardNames(cluster)[0]}));
-                assert.eq(coll.getDB().getDatabasePrimaryShardId(), cluster.shard0.shardName);
-
-                stopAdditionalSecondariesIfSharded(clusterType, cluster, secondariesRunning);
-            },
-            confirmFunc: (res, coll, cluster, clusterType, secondariesRunning, optionalArgs) => {
-                assert.commandWorkedIgnoringWriteConcernErrors(res);
-                assert.eq(coll.getDB().getDatabasePrimaryShardId(), cluster.shard0.shardName);
-
-                restartAdditionalSecondariesIfSharded(clusterType, cluster, secondariesRunning);
-            },
-            admin: true,
-        },
-        success: {
-            // Basic change primary
-            req: (cluster) => ({changePrimary: dbName, to: getShardNames(cluster)[1]}),
-            setupFunc: (coll, cluster, clusterType, secondariesRunning, optionalArgs) => {
-                assert.commandWorked(coll.insert({_id: 1}));
-                assert.commandWorked(coll.getDB().adminCommand({changePrimary: dbName, to: getShardNames(cluster)[0]}));
-                assert.eq(coll.getDB().getDatabasePrimaryShardId(), cluster.shard0.shardName);
-
-                stopAdditionalSecondariesIfSharded(clusterType, cluster, secondariesRunning);
-            },
-            confirmFunc: (res, coll, cluster, clusterType, secondariesRunning, optionalArgs) => {
-                assert.commandWorkedIgnoringWriteConcernErrors(res);
-                assert.eq(coll.getDB().getDatabasePrimaryShardId(), cluster.shard1.shardName);
-
-                restartAdditionalSecondariesIfSharded(clusterType, cluster, secondariesRunning);
-
-                // Change the primary back
-                assert.commandWorked(coll.getDB().adminCommand({changePrimary: dbName, to: cluster.shard0.shardName}));
-                assert.eq(coll.getDB().getDatabasePrimaryShardId(), cluster.shard0.shardName);
             },
             admin: true,
         },
@@ -3409,7 +3367,6 @@ const wcTimeseriesViewsCommandsTests = {
     _refreshQueryAnalyzerConfiguration: {skip: "internal command"},
     _shardsvrAbortReshardCollection: {skip: "internal command"},
     _shardsvrBeginMigrationBlockingOperation: {skip: "internal command"},
-    _shardsvrChangePrimary: {skip: "internal command"},
     _shardsvrCloneCatalogData: {skip: "internal command"},
     _shardsvrCommitToShardLocalCatalog: {skip: "internal command"},
     _shardsvrCheckMetadataConsistency: {skip: "internal command"},
@@ -3460,6 +3417,7 @@ const wcTimeseriesViewsCommandsTests = {
     _shardsvrReshardingDonorStartChangeStreamsMonitor: {skip: "internal command"},
     _shardsvrReshardingOperationTime: {skip: "internal command"},
     _shardsvrReshardDonorInitialize: {skip: "internal command"},
+    _shardsvrReshardDonorCriticalSectionStarted: {skip: "internal command"},
     _shardsvrReshardDonorRecipientsFinishedCloning: {skip: "internal command"},
     _shardsvrReshardRecipientInitialize: {skip: "internal command"},
     _shardsvrReshardRecipientClone: {skip: "internal command"},
@@ -3709,48 +3667,6 @@ const wcTimeseriesViewsCommandsTests = {
                 assert.eq(res.nErrors, 1);
                 assert(res.cursor && res.cursor.firstBatch && res.cursor.firstBatch.length == 1);
                 assert.includes([ErrorCodes.BadValue, ErrorCodes.InvalidOptions], res.cursor.firstBatch[0].code);
-            },
-            admin: true,
-        },
-    },
-    changePrimary: {
-        noop: {
-            // The destination shard is already the primary shard for the db
-            req: (cluster) => ({changePrimary: dbName, to: getShardNames(cluster)[0]}),
-            setupFunc: (coll, cluster, clusterType, secondariesRunning, optionalArgs) => {
-                assert.commandWorked(coll.insert({meta: 1, time: timeValue}));
-                assert.commandWorked(coll.getDB().adminCommand({changePrimary: dbName, to: getShardNames(cluster)[0]}));
-                assert.eq(coll.getDB().getDatabasePrimaryShardId(), cluster.shard0.shardName);
-
-                stopAdditionalSecondariesIfSharded(clusterType, cluster, secondariesRunning);
-            },
-            confirmFunc: (res, coll, cluster, clusterType, secondariesRunning, optionalArgs) => {
-                assert.commandWorkedIgnoringWriteConcernErrors(res);
-                assert.eq(coll.getDB().getDatabasePrimaryShardId(), cluster.shard0.shardName);
-
-                restartAdditionalSecondariesIfSharded(clusterType, cluster, secondariesRunning);
-            },
-            admin: true,
-        },
-        success: {
-            // Basic change primary
-            req: (cluster) => ({changePrimary: dbName, to: getShardNames(cluster)[1]}),
-            setupFunc: (coll, cluster, clusterType, secondariesRunning, optionalArgs) => {
-                assert.commandWorked(coll.insert({meta: 1, time: timeValue}));
-                assert.commandWorked(coll.getDB().adminCommand({changePrimary: dbName, to: getShardNames(cluster)[0]}));
-                assert.eq(coll.getDB().getDatabasePrimaryShardId(), cluster.shard0.shardName);
-
-                stopAdditionalSecondariesIfSharded(clusterType, cluster, secondariesRunning);
-            },
-            confirmFunc: (res, coll, cluster, clusterType, secondariesRunning, optionalArgs) => {
-                assert.commandWorkedIgnoringWriteConcernErrors(res);
-                assert.eq(coll.getDB().getDatabasePrimaryShardId(), cluster.shard1.shardName);
-
-                restartAdditionalSecondariesIfSharded(clusterType, cluster, secondariesRunning);
-
-                // Change the primary back
-                assert.commandWorked(coll.getDB().adminCommand({changePrimary: dbName, to: cluster.shard0.shardName}));
-                assert.eq(coll.getDB().getDatabasePrimaryShardId(), cluster.shard0.shardName);
             },
             admin: true,
         },
@@ -6094,7 +6010,6 @@ function runCommandTest(testCase, conn, coll, cluster, clusterType, preSetup, se
 // they no longer hang until the majority of the shards involved in DDL are available and return
 // WCE on timing out.
 const shardedDDLCommandsRequiringMajorityCommit = [
-    "changePrimary",
     "collMod",
     "convertToCapped",
     "drop",

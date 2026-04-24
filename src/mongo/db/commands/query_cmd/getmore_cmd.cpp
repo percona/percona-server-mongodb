@@ -71,6 +71,7 @@
 #include "mongo/db/read_concern_support_result.h"
 #include "mongo/db/repl/optime.h"
 #include "mongo/db/repl/replication_coordinator.h"
+#include "mongo/db/rss/replicated_storage_service.h"
 #include "mongo/db/service_context.h"
 #include "mongo/db/session/logical_session_id.h"
 #include "mongo/db/shard_role/transaction_resources.h"
@@ -142,6 +143,11 @@ void ensureChangeStreamReadPreferenceCanBeSatisfied(OperationContext* opCtx,
     }
 
     if (!internalChangeStreamRespectsReadPreference.loadRelaxed()) {
+        return;
+    }
+
+    const auto& provider = rss::ReplicatedStorageService::get(opCtx).getPersistenceProvider();
+    if (!provider.enforcesChangeStreamReadPreferenceOnGetMore()) {
         return;
     }
 
@@ -330,7 +336,7 @@ void setUpOperationContextAndCurOpStateForGetMore(OperationContext* opCtx,
 
     auto originatingCommand = cursor.getOriginatingCommandObj();
     if (!originatingCommand.isEmpty()) {
-        stdx::lock_guard<Client> lk(*opCtx->getClient());
+        std::lock_guard<Client> lk(*opCtx->getClient());
 
         // Ensure that the original query or command object is available in the slow query log,
         // profiler and currentOp.
@@ -593,7 +599,7 @@ public:
             {
                 auto planSummary = exec->getPlanExplainer().getPlanSummary();
 
-                stdx::lock_guard<Client> lk(*opCtx->getClient());
+                std::lock_guard<Client> lk(*opCtx->getClient());
                 curOp->setPlanSummary(lk, std::move(planSummary));
 
                 curOp->debug().queryFramework = exec->getQueryFramework();

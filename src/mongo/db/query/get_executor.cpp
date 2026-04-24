@@ -1169,6 +1169,13 @@ StatusWith<std::unique_ptr<PlanExecutor, PlanExecutor::Deleter>> getExecutorFind
         CurOp::get(opCtx)->stopQueryPlanningTimer();
     });
 
+    // isIdHackQuery was set at ExpCtx build time from the raw BSON filter (isSimpleIdQuery()),
+    // but filters like {_id: {$in: [v]}} only normalize to a simple _id equality after parsing.
+    // Upgrade the flag now that the MatchExpression and collection collator are both available.
+    // This must precede tryExpress() and chooseEngine() in both the deferred and non-deferred
+    // paths.
+    maybeUpgradeIdHackFlag(*canonicalQuery, collections.getMainCollection());
+
     if (MONGO_unlikely(feature_flags::gFeatureFlagGetExecutorDeferredEngineChoice.isEnabled())) {
         return exec_deferred_engine_choice::getExecutorFindDeferredEngineChoice(
             opCtx,
@@ -1194,10 +1201,11 @@ StatusWith<std::unique_ptr<PlanExecutor, PlanExecutor::Deleter>> getExecutorFind
     // Do not invoke if it has been already initialized.
     // TODO SERVER-123955 Consider moving it to a different location
     const auto& collection = collections.getMainCollection();
+    const auto& nss = canonicalQuery->getExpCtx()->getNamespaceString();
     if (feature_flags::gFeatureFlagPathArrayness.isEnabled() &&
-        !canonicalQuery->getExpCtx()->hasMainCollPathArrayness() && collection) {
-        canonicalQuery->getExpCtx()->setPathArrayness(
-            CollectionQueryInfo::get(collection).getPathArrayness());
+        !canonicalQuery->getExpCtx()->hasPathArraynessForNss(nss) && collection) {
+        canonicalQuery->getExpCtx()->setPathArraynessForNss(
+            nss, CollectionQueryInfo::get(collection).getPathArrayness());
     }
 
     bool useSbeEngine = chooseEngine(opCtx,
@@ -1211,7 +1219,8 @@ StatusWith<std::unique_ptr<PlanExecutor, PlanExecutor::Deleter>> getExecutorFind
                                              .canonicalQuery = *canonicalQuery,
                                              .collections = collections,
                                              .plannerOptions = plannerOptions,
-                                         })) == EngineChoice::kSbe;
+                                         }))
+                            .engine == EngineChoice::kSbe;
 
     // If distinct multi-planning is enabled and we have a distinct property, we may not be able to
     // commit to SBE yet.
@@ -1517,6 +1526,7 @@ StatusWith<std::unique_ptr<PlanExecutor, PlanExecutor::Deleter>> getExecutorDele
 
     // This is the regular path for when we have a CanonicalQuery.
     std::unique_ptr<CanonicalQuery> cq(parsedDelete.releaseParsedQuery());
+    maybeUpgradeIdHackFlag(*cq, collectionPtr);
 
     const auto policy = parsedDelete.yieldPolicy();
 
@@ -1705,6 +1715,7 @@ StatusWith<std::unique_ptr<PlanExecutor, PlanExecutor::Deleter>> getExecutorUpda
     // This is the regular path for when we have a CanonicalQuery.
     UpdateStageParams updateStageParams(request, driver, opDebug, std::move(documentCounter));
     std::unique_ptr<CanonicalQuery> cq(canonicalUpdate.releaseParsedQuery());
+    maybeUpgradeIdHackFlag(*cq, collectionPtr);
 
     std::unique_ptr<projection_ast::Projection> projection;
     if (!request->getProj().isEmpty()) {
@@ -1798,6 +1809,8 @@ StatusWith<std::unique_ptr<PlanExecutor, PlanExecutor::Deleter>> getExecutorCoun
                                            false, /* whether we must return owned BSON */
                                            cq->getFindCommandRequest().getNamespaceOrUUID().nss());
     }
+
+    maybeUpgradeIdHackFlag(*cq, coll.getCollectionPtr());
 
     // Can't encode plan cache key for non-existent collections. Add plan cache key information to
     // curOp here so both FastCountStage and multi-planner codepaths properly populate it.

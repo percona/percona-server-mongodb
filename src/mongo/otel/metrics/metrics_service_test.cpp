@@ -245,6 +245,8 @@ using MetricTypes = testing::Types<Counter<int64_t>,
                                    Histogram<double>>;
 TYPED_TEST_SUITE(MetricCreationTest, MetricTypes);
 
+// TODO SERVER-124302: Add tests for metrics with attributes once OtelMetricsCapturer is updated.
+
 TYPED_TEST(MetricCreationTest, CreateRejectsInvalidOtelMetricName) {
     ASSERT_THROWS_CODE(MetricCreator<TypeParam>::create(this->metricsService.get(),
                                                         MetricNames::kTestInvalid,
@@ -793,6 +795,72 @@ TEST_F(SerializeMetricsTreeTest, SharedPrefixShallowAndDeep) {
         BSONObjElements(UnorderedElementsAre(
             IsBSONElement("shallowMetric", _, Matcher<long long>(7)),
             IsBSONElement("nested", _, Matcher<BSONObj>(BSONObjEQ(BSON("deepMetric" << 8)))))));
+}
+
+using CreateCounterWithAttributesTest = MetricsServiceTest;
+
+TEST_F(CreateCounterWithAttributesTest, ExceptionWhenSameNameButDifferentAttributeValues) {
+    metricsService->createInt64Counter<bool>(
+        MetricNames::kTest1,
+        "description",
+        MetricUnit::kSeconds,
+        AttributeDefinition<bool>{.name = "cool", .values = {true, false}});
+    ASSERT_THROWS_CODE(metricsService->createInt64Counter<bool>(
+                           MetricNames::kTest1,
+                           "description",
+                           MetricUnit::kSeconds,
+                           AttributeDefinition<bool>{.name = "cool", .values = {true}}),
+                       DBException,
+                       ErrorCodes::ObjectAlreadyExists);
+}
+
+TEST_F(CreateCounterWithAttributesTest, ExceptionWhenSameNameButDifferentAttributeNames) {
+    metricsService->createInt64Counter<bool>(
+        MetricNames::kTest1,
+        "description",
+        MetricUnit::kSeconds,
+        AttributeDefinition<bool>{.name = "cool", .values = {true, false}});
+    ASSERT_THROWS_CODE(metricsService->createInt64Counter<bool>(
+                           MetricNames::kTest1,
+                           "description",
+                           MetricUnit::kSeconds,
+                           AttributeDefinition<bool>{.name = "other", .values = {true, false}}),
+                       DBException,
+                       ErrorCodes::ObjectAlreadyExists);
+}
+
+TEST_F(CreateCounterWithAttributesTest, ExceptionWhenSameNameButDifferentAttributeType) {
+    // Sanity check that the bool value `true` is formatted to be equal to the StringData value
+    // `"true"`, since this test would fail otherwise.
+    invariant(fmt::format("{}", true) == fmt::format("{}", "true"_sd));
+
+    metricsService->createInt64Counter<bool>(
+        MetricNames::kTest1,
+        "description",
+        MetricUnit::kSeconds,
+        AttributeDefinition<bool>{.name = "cool", .values = {true, false}});
+    ASSERT_THROWS_CODE(
+        metricsService->createInt64Counter<StringData>(
+            MetricNames::kTest1,
+            "description",
+            MetricUnit::kSeconds,
+            AttributeDefinition<StringData>{.name = "cool", .values = {"true", "false"}}),
+        DBException,
+        ErrorCodes::ObjectAlreadyExists);
+}
+
+TEST_F(CreateCounterWithAttributesTest, SameMetricReturnedWhenAttributeDefinitionsMatch) {
+    Counter<int64_t, bool>& c1 = metricsService->createInt64Counter<bool>(
+        MetricNames::kTest1,
+        "description",
+        MetricUnit::kSeconds,
+        AttributeDefinition<bool>{.name = "cool", .values = {true, false}});
+    Counter<int64_t, bool>& c2 = metricsService->createInt64Counter<bool>(
+        MetricNames::kTest1,
+        "description",
+        MetricUnit::kSeconds,
+        AttributeDefinition<bool>{.name = "cool", .values = {true, false}});
+    EXPECT_EQ(&c1, &c2);
 }
 
 using CreateInt64CounterTest = MetricsServiceTest;

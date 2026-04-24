@@ -1,5 +1,5 @@
 /**
- *    Copyright (C) 2018-present MongoDB, Inc.
+ *    Copyright (C) 2026-present MongoDB, Inc.
  *
  *    This program is free software: you can redistribute it and/or modify
  *    it under the terms of the Server Side Public License, version 1,
@@ -27,48 +27,23 @@
  *    it in the license file.
  */
 
-#pragma once
+#include "mongo/db/query/query_knob.h"
 
-#include "mongo/config.h"
-#include "mongo/platform/compiler.h"
-#include "mongo/util/modules.h"
+#include "mongo/util/static_immortal.h"
 
-#include <cstddef>
-#include <cstdint>
-#include <new>
+namespace mongo {
 
-namespace MONGO_MOD_PUB mongo {
-namespace stdx {
-
-// libc++ 8.0 and later define __cpp_lib_hardware_interference_size but don't actually implement it
-#if __cplusplus < 201703L || \
-    !(defined(__cpp_lib_hardware_interference_size) && !defined(_LIBCPP_VERSION))
-
-#if defined(MONGO_CONFIG_MAX_EXTENDED_ALIGNMENT)
-static_assert(MONGO_CONFIG_MAX_EXTENDED_ALIGNMENT >= sizeof(std::uint64_t),
-              "Bad extended alignment");
-constexpr std::size_t hardware_destructive_interference_size = MONGO_CONFIG_MAX_EXTENDED_ALIGNMENT;
-#else
-constexpr std::size_t hardware_destructive_interference_size = alignof(std::max_align_t);
-#endif
-
-constexpr auto hardware_constructive_interference_size = hardware_destructive_interference_size;
-
-#else
-
-using std::hardware_constructive_interference_size;
-using std::hardware_destructive_interference_size;
-
-#endif  // hardware_interference_size
-
-#if __cpp_lib_launder >= 201606
-using std::launder;
-#else
-template <typename T>
-[[nodiscard]] constexpr T* launder(T* p) noexcept {
-    return p;
+QueryKnobDescriptorSet& QueryKnobDescriptorSet::get() {
+    static StaticImmortal<QueryKnobDescriptorSet> instance{};
+    return *instance;
 }
-#endif  // launder
 
-}  // namespace stdx
-}  // namespace MONGO_MOD_PUB mongo
+void QueryKnobDescriptorSet::add(QueryKnobBase& knob) {
+    _knobs.push_back(&knob);
+}
+
+const std::vector<QueryKnobBase*>& QueryKnobDescriptorSet::knobs() const {
+    return _knobs;
+}
+
+}  // namespace mongo
