@@ -42,6 +42,7 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/repl/data_replicator_external_state.h"
 #include "mongo/db/repl/initial_sync/callback_completion_guard.h"
 #include "mongo/db/repl/initial_sync/initial_sync_shared_data.h"
+#include "mongo/db/repl/initial_sync/initial_syncer.h"
 #include "mongo/db/repl/initial_sync/initial_syncer_interface.h"
 #include "mongo/db/repl/multiapplier.h"
 #include "mongo/db/repl/optime.h"
@@ -649,6 +650,10 @@ private:
     // Keep alive interval is set to half of "cursorTimeoutMillis" parameter received from the sync
     // source.
     Milliseconds _keepAliveInterval;  // (M)
+
+    // Lock-free summary stats. Written under _mutex, read without any lock. (S)
+    std::shared_ptr<InitialSyncSummaryStats> _summaryStats{
+        std::make_shared<InitialSyncSummaryStats>()};
 };
 
 }  // namespace repl

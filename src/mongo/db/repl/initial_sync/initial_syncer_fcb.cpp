@@ -978,7 +978,7 @@ void InitialSyncerFCB::_fcvFetcherCallback(const StatusWith<Fetcher::QueryRespon
                                                 getGlobalServiceContext()->getFastClockSource());
     _client = _createClientFn();
     _initialSyncState = std::make_unique<InitialSyncState>(std::make_unique<AllDatabaseCloner>(
-        _sharedData.get(), _syncSource, _client.get(), _storage, _workerPool));
+        _sharedData.get(), _syncSource, _client.get(), _storage, _workerPool, _summaryStats));
 
     _initialSyncState->beginApplyingTimestamp = lastOpTime.getTimestamp();
     _initialSyncState->beginFetchingTimestamp = beginFetchingOpTime.getTimestamp();
