@@ -119,8 +119,16 @@ common:psmdb_buildfarm --remote_executor=grpc://95.216.189.238:8981
 common:psmdb_buildfarm --remote_cache=grpc://95.216.189.238:8981
 common:psmdb_buildfarm --remote_instance_name=hardlinking
 common:psmdb_buildfarm --remote_timeout=3600
-common:psmdb_buildfarm --remote_cache_compression=true
+# NOTE: --remote_cache_compression is intentionally NOT enabled here.
+# Inherits the file-wide default (false). The central node's CAS frontend
+# does not advertise zstd compression support; turning compression on
+# breaks every action with "remote does not support compression".
 common:psmdb_buildfarm --remote_upload_local_results=true
+# Override the file-wide --grpc_keepalive_time=0s default. 0s disables
+# keepalive entirely, which Bazel rejects when --remote_executor is set
+# ("keepalive time must be positive"). 30s matches Bazel's documented
+# recommendation for long-lived RBE channels.
+common:psmdb_buildfarm --grpc_keepalive_time=30s
 # spawn_strategy: try remote first, fall back to local for actions the
 # remote cluster can't satisfy (e.g. CppLink, CppArchive — kept local by
 # the Jenkins job's --strategy overrides).
