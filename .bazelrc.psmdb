@@ -93,22 +93,22 @@ common:psmdb_opt_release --//bazel/config:linkstatic=True
 common:psmdb_opt_release --//bazel/config:release=True
 
 ################################################################################
-# Percona BuildBarn (bb-psmdb-ondemand) profile
+# PSMDB RBE (psmdb_buildfarm) profile
 ################################################################################
-# Activate Percona's on-demand BuildBarn cluster for remote execution + cache.
-# This overrides the unconditional "remote disabled" defaults at the top of
-# this file by re-pointing every transport. Use it whenever you want a build
-# to dispatch CppCompile actions to Percona BuildBarn workers.
+# Activate the on-demand RBE cluster for remote execution + cache. This
+# overrides the unconditional "remote disabled" defaults at the top of this
+# file by re-pointing every transport. Use it whenever you want a build to
+# dispatch CppCompile actions to remote workers.
 #
 # Routing: PSMDB's bazel/platforms/psmdb_rbe_containers.bzl pins each
 # supported distro_or_os key to a ghcr.io/vorsel/psmdb-buildbarn-runners
 # immutable tag (`:<psmdb-version>-<git-sha>`). That URL is byte-for-byte
-# what BuildBarn's scheduler uses as the routing key against worker queues.
+# what the RBE scheduler uses as the routing key against worker queues.
 # When this file's git-sha suffixes are bumped, action cache naturally
 # invalidates because the routing key (a platform property) is part of the
 # Bazel action digest.
 #
-# Endpoint and instance name match the central node provisioned by
+# Endpoint and instance name match the central RBE node provisioned by
 # jenkins-pipelines IaC/buildbarn/ondemand/scripts/create-central.sh; if
 # the central node is reprovisioned at a new IP, only this stanza needs
 # updating. `--remote_instance_name=hardlinking` is the cluster-side mount
