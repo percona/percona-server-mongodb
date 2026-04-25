@@ -93,5 +93,39 @@ common:psmdb_opt_release --//bazel/config:linkstatic=True
 common:psmdb_opt_release --//bazel/config:release=True
 
 ################################################################################
+# Percona BuildBarn (bb-psmdb-ondemand) profile
+################################################################################
+# Activate Percona's on-demand BuildBarn cluster for remote execution + cache.
+# This overrides the unconditional "remote disabled" defaults at the top of
+# this file by re-pointing every transport. Use it whenever you want a build
+# to dispatch CppCompile actions to Percona BuildBarn workers.
+#
+# Routing: PSMDB's bazel/platforms/psmdb_rbe_containers.bzl pins each
+# supported distro_or_os key to a ghcr.io/vorsel/psmdb-buildbarn-runners
+# immutable tag (`:<psmdb-version>-<git-sha>`). That URL is byte-for-byte
+# what BuildBarn's scheduler uses as the routing key against worker queues.
+# When this file's git-sha suffixes are bumped, action cache naturally
+# invalidates because the routing key (a platform property) is part of the
+# Bazel action digest.
+#
+# Endpoint and instance name match the central node provisioned by
+# jenkins-pipelines IaC/buildbarn/ondemand/scripts/create-central.sh; if
+# the central node is reprovisioned at a new IP, only this stanza needs
+# updating. `--remote_instance_name=hardlinking` is the cluster-side mount
+# that hardlinks CAS blobs into the worker FS — same identifier the
+# scheduler's predeclared queues are anchored on.
+--config=psmdb_buildfarm
+common:psmdb_buildfarm --remote_executor=grpc://95.216.189.238:8981
+common:psmdb_buildfarm --remote_cache=grpc://95.216.189.238:8981
+common:psmdb_buildfarm --remote_instance_name=hardlinking
+common:psmdb_buildfarm --remote_timeout=3600
+common:psmdb_buildfarm --remote_cache_compression=true
+common:psmdb_buildfarm --remote_upload_local_results=true
+# spawn_strategy: try remote first, fall back to local for actions the
+# remote cluster can't satisfy (e.g. CppLink, CppArchive — kept local by
+# the Jenkins job's --strategy overrides).
+common:psmdb_buildfarm --spawn_strategy=remote,local
+
+################################################################################
 # End of Percona-specific build profiles
 ################################################################################
