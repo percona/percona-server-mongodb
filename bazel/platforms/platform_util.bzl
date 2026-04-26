@@ -2,11 +2,11 @@ load("//bazel/platforms:remote_execution_containers.bzl", "REMOTE_EXECUTION_CONT
 load("//bazel/platforms:psmdb_rbe_containers.bzl", "PSMDB_REMOTE_EXECUTION_CONTAINERS")
 
 def setup_platform(arch, distro_or_os, cache_silo):
-    # Percona override: prefer PSMDB-specific image map for distros we serve
-    # via Percona BuildBarn (ghcr.io/vorsel/psmdb-buildbarn-runners). Distros
+    # PSMDB override: prefer PSMDB-specific image map for distros we serve
+    # via the RBE cluster (ghcr.io/vorsel/psmdb-buildbarn-runners). Distros
     # we don't override fall through to upstream MongoDB's quay.io map and
-    # will route to MongoDB's BuildBarn (or fail FAILED_PRECONDITION if no
-    # such cluster is configured) — same behaviour as a vanilla upstream
+    # will route to MongoDB's RBE cluster (or fail FAILED_PRECONDITION if
+    # no such cluster is configured) — same behaviour as a vanilla upstream
     # checkout. See bazel/platforms/psmdb_rbe_containers.bzl for rationale
     # and maintenance procedure.
     psmdb_entry = PSMDB_REMOTE_EXECUTION_CONTAINERS.get(distro_or_os)
@@ -20,8 +20,12 @@ def setup_platform(arch, distro_or_os, cache_silo):
         "container-image": container_url,
         "dockerNetwork": "standard",
 
-        # EngFlow's "default" pool is ARM64
-        "Pool": "x86_64" if arch == "amd64" else "default",
+        # PSMDB RBE workers register with explicit Pool=x86_64 / Pool=aarch64
+        # (see jenkins-pipelines IaC/buildbarn/ondemand/compose/config/
+        # ondemand-pools.yaml `bazel_pool_value`). Upstream's default of
+        # "default" for non-amd64 was for EngFlow's ARM64 pool naming; we
+        # diverge here so the routing key matches our worker registration.
+        "Pool": "x86_64" if arch == "amd64" else "aarch64",
     }
 
     constraint_values = [

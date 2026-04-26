@@ -1,13 +1,25 @@
-# Percona PSMDB override of upstream MongoDB's REMOTE_EXECUTION_CONTAINERS map.
+# PSMDB override of upstream MongoDB's REMOTE_EXECUTION_CONTAINERS map.
 #
 # Loaded by bazel/platforms/platform_util.bzl as an override layer. For each
 # distro_or_os key listed here, Bazel will send the ghcr.io URL below as the
 # `container-image` exec property; it then becomes the routing key the
-# bb-scheduler matches against worker-registered platform queues. Distros NOT
+# RBE scheduler matches against worker-registered platform queues. Distros NOT
 # listed here fall through to the upstream value in
 # bazel/platforms/remote_execution_containers.bzl unchanged.
 #
-# Routing key === actual runtime image pulled by Percona BuildBarn workers.
+# Each `container-url` is published by jenkins-pipelines'
+# .github/workflows/build-psmdb-buildbarn-runners.yml. The current tags carry
+# an explicit `-x86_64` arch suffix because GHA still publishes single-arch
+# manifests; aarch64 support is gated on that workflow being refactored to
+# emit multi-arch manifest lists per (distro, version, sha), after which the
+# `-x86_64` suffix is dropped from these URLs and a sibling pool entry is
+# added on the jenkins-pipelines side per distro for the arm64 worker queue.
+# Until then this file routes only to x86_64 worker pools. The arch
+# dimension lives only in the `Pool` exec property (set by platform_util.bzl
+# / local_config_platform.bzl, which already emits `Pool=aarch64` for arm64
+# hosts so that the routing key matches once the worker pools come online).
+#
+# Routing key === actual runtime image pulled by RBE workers.
 # The per-version immutable tag (`:<psmdb-version>-<git-sha-of-jenkins-pipelines>`)
 # gives us, for free:
 #
@@ -30,9 +42,9 @@
 #   Multiple PSMDB release tags can be in active dev simultaneously
 #   (e.g. release-8.0.20-8 cut from git-sha A, release-8.0.21-9 from B).
 #   Each tag's checkout has its own copy of THIS file pinning a specific
-#   immutable image tag. As long as Percona's BuildBarn ondemand-pools.yaml
-#   declares pools for both image tags, both releases route correctly and
-#   share no cache entries with each other. Ops drops a pool entry from
+#   immutable image tag. As long as the RBE ondemand-pools.yaml declares
+#   pools for both image tags, both releases route correctly and share no
+#   cache entries with each other. Ops drops a pool entry from
 #   ondemand-pools.yaml only when the corresponding PSMDB release goes EOL.
 #
 # Maintenance:
@@ -51,10 +63,10 @@
 #        - bazel/platforms/remote_execution_containers.bzl is upstream-
 #          owned (auto-generated). It can drift freely — we don't read
 #          its values for any distro listed here.
-#        - bazel/platforms/platform_util.bzl IS Percona-modified
-#          (single load + fall-through). If upstream changes its
-#          structure, resolve the conflict to keep our `psmdb_entry`
-#          override path (the deviation is small and easy to re-apply).
+#        - bazel/platforms/platform_util.bzl IS PSMDB-modified (single
+#          load + fall-through). If upstream changes its structure,
+#          resolve the conflict to keep our `psmdb_entry` override path
+#          (the deviation is small and easy to re-apply).
 
 PSMDB_REMOTE_EXECUTION_CONTAINERS = {
     "amazon_linux_2023": {
