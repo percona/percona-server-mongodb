@@ -68,7 +68,8 @@ public:
         PrivilegeVector requiredPrivileges(
             [[maybe_unused]] bool isMongos,
             [[maybe_unused]] bool bypassDocumentValidation) const final {
-            return {Privilege(ResourcePattern::forClusterResource(boost::none), ActionType::fsync)};
+            return {Privilege(ResourcePattern::forClusterResource(boost::none),
+                              ActionType::readBackupFile)};
         }
 
         bool isInitialSource() const final {
