@@ -66,11 +66,11 @@ BackupFileStage::BackupFileStage(StringData stageName,
       _filePath(std::move(filePath)),
       _byteOffset(byteOffset),
       _file(_filePath, std::ios_base::in | std::ios_base::binary) {
-    tassert(ErrorCodes::FileOpenFailed,
+    uassert(ErrorCodes::FileOpenFailed,
             str::stream() << "Failed to open file " << _filePath,
             _file.is_open());
     _file.seekg(_byteOffset);
-    tassert(ErrorCodes::FileOpenFailed,
+    uassert(ErrorCodes::FileOpenFailed,
             str::stream() << "Failed to set read position " << _byteOffset << " in file "
                           << _filePath,
             !_file.fail());
