@@ -60,8 +60,9 @@ constexpr StringData kFile = "file"_sd;
 constexpr StringData kByteOffset = "byteOffset"_sd;
 }  // namespace
 
-REGISTER_INTERNAL_LITE_PARSED_DOCUMENT_SOURCE(_backupFile,
-                                              DocumentSourceBackupFile::LiteParsed::parse);
+REGISTER_LITE_PARSED_DOCUMENT_SOURCE(_backupFile,
+                                     DocumentSourceBackupFile::LiteParsed::parse,
+                                     AllowedWithApiStrict::kAlways);
 
 REGISTER_DOCUMENT_SOURCE_WITH_STAGE_PARAMS_DEFAULT(_backupFile,
                                                    DocumentSourceBackupFile,
