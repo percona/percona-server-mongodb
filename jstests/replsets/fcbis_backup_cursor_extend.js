@@ -14,7 +14,7 @@
  * - Ensure that $backupCursorExtend was called and worked correctly
  * - Check that the new node is in the correct state
  *
- * @tags: [requires_wiredtiger]
+ * @tags: [requires_wiredtiger, multiversion_incompatible]
  */
 import {ReplSetTest} from "jstests/libs/replsettest.js";
 import {reconfig} from "jstests/replsets/rslib.js";
