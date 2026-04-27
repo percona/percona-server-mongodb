@@ -191,6 +191,7 @@ jobs:
           echo "Using clang-tidy plugin: $TIDY_CHECKS_LIB"
           "$CLANG_TIDY" \
             --load="$TIDY_CHECKS_LIB" \
+            --warnings-as-errors='*' \
             $CHANGED \
           | clang-tidy-sarif --output=clang-tidy-results.sarif
 
