@@ -106,6 +106,7 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/util/str.h"
 #include "mongo/util/time_support.h"
 #include "mongo/util/timer.h"
+#include "mongo/util/version.h"
 #include "mongo/util/version/releases.h"
 
 #include <algorithm>
@@ -1377,6 +1378,31 @@ StatusWith<HostAndPort> InitialSyncerFCB::_chooseSyncSource(WithLock lk) {
                             kDenylistPersistent,
                             "sync source does not support file copy-based initial sync");
                         return;
+                    }
+                    // WiredTiger files are not backward-compatible: reject sources whose binary
+                    // is newer than the local binary to prevent a WiredTiger panic on the
+                    // destination.
+                    auto versionArrayElem = args.response.data.getField("versionArray");
+                    if (versionArrayElem.type() == BSONType::array) {
+                        BSONObjIterator it(versionArrayElem.Obj());
+                        int srcMajor = it.more() ? it.next().numberInt() : 0;
+                        int srcMinor = it.more() ? it.next().numberInt() : 0;
+                        const auto& vi = VersionInfoInterface::instance();
+                        if (srcMajor > vi.majorVersion() ||
+                            (srcMajor == vi.majorVersion() && srcMinor > vi.minorVersion())) {
+                            LOGV2_WARNING(128472,
+                                          "Invalid sync source: binary version is newer than local",
+                                          "sourceMajor"_attr = srcMajor,
+                                          "sourceMinor"_attr = srcMinor,
+                                          "localMajor"_attr = vi.majorVersion(),
+                                          "localMinor"_attr = vi.minorVersion());
+                            result = _invalidSyncSource(
+                                lk,
+                                syncSource,
+                                kDenylistPersistent,
+                                "sync source binary version is newer than local binary version");
+                            return;
+                        }
                     }
                 });
     if (!scheduleResult.isOK()) {
