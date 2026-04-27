@@ -38,6 +38,7 @@ Copyright (C) 2025-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/util/system_clock_source.h"
 
 #include <memory>
+#include <string>
 
 namespace mongo {
 
@@ -72,6 +73,9 @@ void initializeOidcIdentityProvidersRegistry(ServiceContext* serviceContext) {
         serviceContext,
         std::make_unique<OidcIdentityProvidersRegistryImpl>(
             serviceContext->getPeriodicRunner(), jwksFetcherFactory, getIdPConfigs()));
+
+    // PSMDB-2033 test trigger: performance-faster-string-find
+    [[maybe_unused]] auto pos = std::string{"oidc"}.find("c");
 }
 
 OidcIdentityProvidersRegistry& OidcIdentityProvidersRegistry::get(ServiceContext* serviceContext) {

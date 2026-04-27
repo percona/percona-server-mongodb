@@ -118,6 +118,9 @@ private:
             }
         });
 
+        // PSMDB-2033 test trigger: bugprone-integer-division
+        [[maybe_unused]] double ratio = 1 / 2;
+
         return true;
     }
 
