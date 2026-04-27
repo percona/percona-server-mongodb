@@ -7,17 +7,19 @@
 # listed here fall through to the upstream value in
 # bazel/platforms/remote_execution_containers.bzl unchanged.
 #
-# Each `container-url` is published by jenkins-pipelines'
-# .github/workflows/build-psmdb-buildbarn-runners.yml. The current tags carry
-# an explicit `-x86_64` arch suffix because GHA still publishes single-arch
-# manifests; aarch64 support is gated on that workflow being refactored to
-# emit multi-arch manifest lists per (distro, version, sha), after which the
-# `-x86_64` suffix is dropped from these URLs and a sibling pool entry is
-# added on the jenkins-pipelines side per distro for the arm64 worker queue.
-# Until then this file routes only to x86_64 worker pools. The arch
-# dimension lives only in the `Pool` exec property (set by platform_util.bzl
-# / local_config_platform.bzl, which already emits `Pool=aarch64` for arm64
-# hosts so that the routing key matches once the worker pools come online).
+# Each `container-url` points to a multi-arch manifest list published by
+# jenkins-pipelines' .github/workflows/build-psmdb-buildbarn-runners.yml.
+# x86_64 and arm64 hosts pull different layers from the SAME manifest list,
+# so a single URL string per distro suffices: there is NO `-x86_64`/
+# `-aarch64` arch suffix on the image name. The arch dimension lives only
+# in the `Pool` exec property (set by platform_util.bzl /
+# local_config_platform.bzl), which routes to the right worker queue.
+#
+# debian-bookworm currently has no aarch64 source dir in the GHA matrix —
+# its manifest list contains only the amd64 entry, which is still a valid
+# (single-entry) multi-arch manifest. arm64 builds with debian12 will fail
+# at image pull on the worker, so don't pair a debian-bookworm worker pool
+# with `bazel_pool_value: aarch64` until that GHA matrix entry is added.
 #
 # Routing key === actual runtime image pulled by RBE workers.
 # The per-version immutable tag (`:<psmdb-version>-<git-sha-of-jenkins-pipelines>`)
@@ -70,21 +72,21 @@
 
 PSMDB_REMOTE_EXECUTION_CONTAINERS = {
     "amazon_linux_2023": {
-        "container-url": "docker://ghcr.io/vorsel/psmdb-buildbarn-runners/amazonlinux-2023-x86_64:8.0-9873907c9659eb73f84e6d63571bca6667861f80",
+        "container-url": "docker://ghcr.io/vorsel/psmdb-buildbarn-runners/amazonlinux-2023:8.0-9b28c6ee49dc0118fe6bab8b7e28a87f8979be81",
     },
     "debian12": {
-        "container-url": "docker://ghcr.io/vorsel/psmdb-buildbarn-runners/debian-bookworm-x86_64:8.0-9873907c9659eb73f84e6d63571bca6667861f80",
+        "container-url": "docker://ghcr.io/vorsel/psmdb-buildbarn-runners/debian-bookworm:8.0-9b28c6ee49dc0118fe6bab8b7e28a87f8979be81",
     },
     "rhel8": {
-        "container-url": "docker://ghcr.io/vorsel/psmdb-buildbarn-runners/oraclelinux-8-x86_64:8.0-9873907c9659eb73f84e6d63571bca6667861f80",
+        "container-url": "docker://ghcr.io/vorsel/psmdb-buildbarn-runners/oraclelinux-8:8.0-9b28c6ee49dc0118fe6bab8b7e28a87f8979be81",
     },
     "rhel9": {
-        "container-url": "docker://ghcr.io/vorsel/psmdb-buildbarn-runners/oraclelinux-9-x86_64:8.0-9873907c9659eb73f84e6d63571bca6667861f80",
+        "container-url": "docker://ghcr.io/vorsel/psmdb-buildbarn-runners/oraclelinux-9:8.0-9b28c6ee49dc0118fe6bab8b7e28a87f8979be81",
     },
     "ubuntu22": {
-        "container-url": "docker://ghcr.io/vorsel/psmdb-buildbarn-runners/ubuntu-jammy-x86_64:8.0-9873907c9659eb73f84e6d63571bca6667861f80",
+        "container-url": "docker://ghcr.io/vorsel/psmdb-buildbarn-runners/ubuntu-jammy:8.0-9b28c6ee49dc0118fe6bab8b7e28a87f8979be81",
     },
     "ubuntu24": {
-        "container-url": "docker://ghcr.io/vorsel/psmdb-buildbarn-runners/ubuntu-noble-x86_64:8.0-9873907c9659eb73f84e6d63571bca6667861f80",
+        "container-url": "docker://ghcr.io/vorsel/psmdb-buildbarn-runners/ubuntu-noble:8.0-9b28c6ee49dc0118fe6bab8b7e28a87f8979be81",
     },
 }
