@@ -51,12 +51,26 @@ function runRollbackOplogsTest(shouldCreateRollbackFiles) {
     assert.eq(pathExists(oplogRollbackDir), shouldCreateRollbackFiles, oplogRollbackDir);
     if (shouldCreateRollbackFiles) {
         const listRollbackFiles = listFiles(oplogRollbackDir);
+        assert.gt(listRollbackFiles.length, 0, "Expected rollback files in " + oplogRollbackDir);
         let oplogsRolledBack = [];
+        let filesAreEncrypted = false;
         for (let i = 0; i < listRollbackFiles.length; i++) {
-            oplogsRolledBack = oplogsRolledBack.concat(_readDumpFile(listRollbackFiles[i].name));
+            const rollbackFile = listRollbackFiles[i].name;
+            if (
+                rollbackFile.endsWith(".enc") ||
+                rollbackFile.endsWith(".aes256-cbc") ||
+                rollbackFile.endsWith(".aes256-gcm")
+            ) {
+                print("Bypassing check of rollback file data since it is encrypted: " + rollbackFile);
+                filesAreEncrypted = true;
+                break;
+            }
+            oplogsRolledBack = oplogsRolledBack.concat(_readDumpFile(rollbackFile));
         }
-        assert.contains(oplogsToRollback[0], oplogsRolledBack);
-        assert.contains(oplogsToRollback[1], oplogsRolledBack);
+        if (!filesAreEncrypted) {
+            assert.contains(oplogsToRollback[0], oplogsRolledBack);
+            assert.contains(oplogsToRollback[1], oplogsRolledBack);
+        }
     }
     rst.stopSet();
 }
