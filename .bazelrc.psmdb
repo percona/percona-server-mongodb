@@ -108,15 +108,30 @@ common:psmdb_opt_release --//bazel/config:release=True
 # invalidates because the routing key (a platform property) is part of the
 # Bazel action digest.
 #
-# Endpoint and instance name match the central RBE node provisioned by
-# jenkins-pipelines IaC/buildbarn/ondemand/scripts/create-central.sh; if
-# the central node is reprovisioned at a new IP, only this stanza needs
-# updating. `--remote_instance_name=hardlinking` is the cluster-side mount
-# that hardlinks CAS blobs into the worker FS — same identifier the
+# Endpoint: grpcs:// (TLS terminated by Envoy on the central node), with
+# the No-IP DDNS hostname the Let's Encrypt cert is issued for. The
+# hostname resolves to a Hetzner Floating IP pinned to the central VM
+# (survives VM redeploy); the primary IP rotates and is intentionally not
+# used here. When migrating off bb-psmdb.ddns.net onto a Percona-controlled
+# domain, edit the host here AND `ISSUER` in
+# bazel/wrapper_hook/rbe_auth.py — those are the only two places.
+#
+# Auth: PSMDB-2043 — bazel/wrapper_hook/wrapper_hook.py automatically
+# obtains an OIDC bearer (Dex Device Code flow on first use, silent
+# refresh thereafter, cached at ~/.cache/rbe/token.json mode 0600)
+# whenever it sees `--config=psmdb_buildfarm` and appends
+# `--remote_header=authorization=Bearer …` to the Bazel argv. We do
+# NOT put `--remote_header` in this file: the token is per-user,
+# expires every hour, and committing it would defeat the whole point.
+# Run `bazel-rbe-login` once on a new machine (or inside a non-TTY
+# Jenkins runner) to seed the cache.
+#
+# `--remote_instance_name=hardlinking` is the cluster-side mount that
+# hardlinks CAS blobs into the worker FS — same identifier the
 # scheduler's predeclared queues are anchored on.
 --config=psmdb_buildfarm
-common:psmdb_buildfarm --remote_executor=grpc://95.216.189.238:8981
-common:psmdb_buildfarm --remote_cache=grpc://95.216.189.238:8981
+common:psmdb_buildfarm --remote_executor=grpcs://bb-psmdb.ddns.net:8981
+common:psmdb_buildfarm --remote_cache=grpcs://bb-psmdb.ddns.net:8981
 common:psmdb_buildfarm --remote_instance_name=hardlinking
 common:psmdb_buildfarm --remote_timeout=3600
 # NOTE: --remote_cache_compression is intentionally NOT enabled here.
