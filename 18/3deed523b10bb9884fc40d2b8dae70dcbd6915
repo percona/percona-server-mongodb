@@ -1,0 +1,20 @@
+{
+  "merge_info": {
+    "target_branch": "PSMDB-1931-merging-workflow",
+    "target_branch_sha": "1a6be7c0b470b6ecacb66b8038f2e87cbc0a5494",
+    "merge_commit": "d5122c7b20aa339232497bd9658b00899c7b0572"
+  },
+  "mergai_version": "0.1.dev1+g3bc9c5b7c",
+  "merge_context": {
+    "merge_commit": "d5122c7b20aa339232497bd9658b00899c7b0572",
+    "merged_commits": [
+      "d5122c7b20aa339232497bd9658b00899c7b0572",
+      "784adb1029b62bdad3d5d2caa8a8734cf514d9ef"
+    ],
+    "important_files_modified": [],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": []
+    }
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "merge_info": {
+    "target_branch": "PSMDB-1931-merging-workflow",
+    "target_branch_sha": "6ce9d7e315da1945b6de5c6b45fa43ceb156be11",
+    "merge_commit": "1d41c69a5cd2374b7890f82431d8b48fee60c271"
+  },
+  "mergai_version": "0.1.dev1+g453135fd1",
+  "merge_context": {
+    "merge_commit": "1d41c69a5cd2374b7890f82431d8b48fee60c271",
+    "merged_commits": [
+      "1d41c69a5cd2374b7890f82431d8b48fee60c271",
+      "4e1dc6972cf5a406d5524f718d35c3c6e729ba92",
+      "ac4148eee9e3ce5c27db1e563fae20b89973b83f",
+      "6ee82dcff6c90db3853f6475e0b387d26da1c7ae",
+      "55472b711e1c30fe6159b56ce67f56eb211e5610",
+      "bd001dece7a504005815974711eed151d87a1a39",
+      "fe3ad9e0d13de063d9f4d0f152392217b7aba90f",
+      "6b7306e471aed798b8d34ebb170185b1618d51e0",
+      "8b13939423f0aaf59c2739b7d883e6ecec1359c5",
+      "2f580663ac918106e6c79bf804838e33b362d198",
+      "aaf89a8b00ed32607d3a42a169c0d658c3742f27",
+      "4b8a90d9f185fffc1309474039db08956c21f22e",
+      "14034e4971cc980846f5ab45a13b1cd0ddca070f"
+    ],
+    "important_files_modified": [
+      "src/mongo/db/repl/initial_sync/initial_syncer.cpp",
+      "src/mongo/db/repl/initial_sync/initial_syncer.h"
+    ],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": []
+    }
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "merge_info": {
+    "target_branch": "PSMDB-1931-merging-workflow",
+    "target_branch_sha": "6ce9d7e315da1945b6de5c6b45fa43ceb156be11",
+    "merge_commit": "bd001dece7a504005815974711eed151d87a1a39"
+  },
+  "mergai_version": "0.1.dev1+g453135fd1",
+  "merge_context": {
+    "merge_commit": "bd001dece7a504005815974711eed151d87a1a39",
+    "merged_commits": [
+      "bd001dece7a504005815974711eed151d87a1a39",
+      "fe3ad9e0d13de063d9f4d0f152392217b7aba90f",
+      "6b7306e471aed798b8d34ebb170185b1618d51e0",
+      "8b13939423f0aaf59c2739b7d883e6ecec1359c5",
+      "2f580663ac918106e6c79bf804838e33b362d198",
+      "aaf89a8b00ed32607d3a42a169c0d658c3742f27",
+      "4b8a90d9f185fffc1309474039db08956c21f22e",
+      "14034e4971cc980846f5ab45a13b1cd0ddca070f"
+    ],
+    "important_files_modified": [
+      "src/mongo/db/repl/initial_sync/initial_syncer.cpp",
+      "src/mongo/db/repl/initial_sync/initial_syncer.h"
+    ],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": []
+    }
+  }
+}

@@ -1,0 +1,41 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "1a6c6ed8ada86cae4e99545ea61454738a5b0f6b",
+    "merge_commit": "46cfea505a3a758113135f14a4f258e7c890307a"
+  },
+  "mergai_version": "0.1.dev1+g1d7d28837",
+  "ci_fix_history": [
+    {
+      "workflow": "clang-tidy",
+      "attempt_number": 1,
+      "timestamp": "2026-04-27T11:43:14.127775+00:00",
+      "run_id": "24991938091",
+      "pr_number": 202,
+      "action_type": "resolve",
+      "context_summary": "clang-tidy reported 29 findings in 18 files",
+      "files_affected": [
+        "/home/runner/work/percona-server-mongodb/percona-server-mongodb/src/third_party/wiredtiger/bench/workgen/workgen.cpp",
+        "/home/runner/work/percona-server-mongodb/percona-server-mongodb/src/third_party/wiredtiger/test/catch2/misc_tests/test_disagg_meta_config.cpp",
+        "/home/runner/work/percona-server-mongodb/percona-server-mongodb/src/third_party/wiredtiger/test/catch2/sub_level_error/unit/test_sub_level_error_nested_api_calls.cpp",
+        "/home/runner/work/percona-server-mongodb/percona-server-mongodb/src/third_party/wiredtiger/test/checkpoint/test_checkpoint.c",
+        "/home/runner/work/percona-server-mongodb/percona-server-mongodb/src/third_party/wiredtiger/test/checkpoint/test_checkpoint.h",
+        "/home/runner/work/percona-server-mongodb/percona-server-mongodb/src/third_party/wiredtiger/test/cppsuite/src/component/component.h",
+        "/home/runner/work/percona-server-mongodb/percona-server-mongodb/src/third_party/wiredtiger/test/cppsuite/src/component/timestamp_manager.cpp",
+        "/home/runner/work/percona-server-mongodb/percona-server-mongodb/src/third_party/wiredtiger/test/cppsuite/tests/test_disagg_failover_perf.cpp",
+        "/home/runner/work/percona-server-mongodb/percona-server-mongodb/src/third_party/wiredtiger/test/csuite/schema_abort/main.c",
+        "/home/runner/work/percona-server-mongodb/percona-server-mongodb/src/third_party/wiredtiger/test/csuite/timestamp_abort/main.c",
+        "/home/runner/work/percona-server-mongodb/percona-server-mongodb/src/third_party/wiredtiger/test/csuite/wt1965_col_efficiency/main.c",
+        "/home/runner/work/percona-server-mongodb/percona-server-mongodb/src/third_party/wiredtiger/test/csuite/wt6616_checkpoint_oldest_ts/main.c",
+        "/home/runner/work/percona-server-mongodb/percona-server-mongodb/src/third_party/wiredtiger/test/csuite/wt9199_checkpoint_txn_commit_race/main.c",
+        "/home/runner/work/percona-server-mongodb/percona-server-mongodb/src/third_party/wiredtiger/test/format/format.h",
+        "/home/runner/work/percona-server-mongodb/percona-server-mongodb/src/third_party/wiredtiger/test/model/src/core/util.cpp",
+        "/home/runner/work/percona-server-mongodb/percona-server-mongodb/src/third_party/wiredtiger/test/model/src/driver/debug_log_parser.cpp",
+        "/home/runner/work/percona-server-mongodb/percona-server-mongodb/src/third_party/wiredtiger/test/thread/thread.h",
+        "src/third_party/wiredtiger/src/include/time_inline.h"
+      ],
+      "success": true,
+      "give_up": false
+    }
+  ]
+}

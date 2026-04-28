@@ -1,0 +1,18 @@
+{
+  "merge_info": {
+    "target_branch": "PSMDB-1930-github-app",
+    "target_branch_sha": "0d6eecb23c57a4c05630939e9f2713a2aed5d5fb",
+    "merge_commit": "8b146a6f57eeec827bff5e62e7d1260d3230aeb0"
+  },
+  "merge_context": {
+    "merge_commit": "8b146a6f57eeec827bff5e62e7d1260d3230aeb0",
+    "merged_commits": [
+      "8b146a6f57eeec827bff5e62e7d1260d3230aeb0",
+      "f7dd41af29dd1c02d75a7724b5dcc96693aa913a",
+      "f387afa803605c6a052289cafb8ee6a950db59bb",
+      "7a99f83c81df577b8a6a8dbb8e0940ba10814a12"
+    ],
+    "important_files_modified": [],
+    "timestamp": "2026-02-09T14:55:01.573036+00:00"
+  }
+}

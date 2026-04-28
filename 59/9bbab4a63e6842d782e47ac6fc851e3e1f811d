@@ -1,0 +1,145 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "1a6c6ed8ada86cae4e99545ea61454738a5b0f6b",
+    "merge_commit": "46cfea505a3a758113135f14a4f258e7c890307a"
+  },
+  "mergai_version": "0.1.dev1+g1d7d28837",
+  "merge_context": {
+    "merge_commit": "46cfea505a3a758113135f14a4f258e7c890307a",
+    "merged_commits": [
+      "46cfea505a3a758113135f14a4f258e7c890307a",
+      "4ed34958b910f3b653f2790831c6ae2d7e70a821"
+    ],
+    "important_files_modified": [],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": []
+    }
+  },
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 29462,
+    "num_turns": 5,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.13515325,
+    "modelUsage": {
+      "claude-haiku-4-5-20251001": {
+        "inputTokens": 425,
+        "outputTokens": 15,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0,
+        "webSearchRequests": 0,
+        "costUSD": 0.0005,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000
+      },
+      "claude-opus-4-5": {
+        "inputTokens": 34,
+        "outputTokens": 1138,
+        "cacheReadInputTokens": 75229,
+        "cacheCreationInputTokens": 10947,
+        "webSearchRequests": 0,
+        "costUSD": 0.13465325,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-haiku-4-5-20251001": {
+          "tokens": {
+            "input": 425,
+            "output": 15,
+            "cache_read": 0,
+            "cache_creation": 0
+          },
+          "cost_usd": 0.0005
+        },
+        "claude-opus-4-5": {
+          "tokens": {
+            "input": 34,
+            "output": 1138,
+            "cache_read": 75229,
+            "cache_creation": 10947
+          },
+          "cost_usd": 0.13465325
+        }
+      }
+    },
+    "text_result": "Done. Written JSON response summarizing the clean merge of two commits: a WiredTiger import (61 files) and a minor SBE type_checker fix. No conflicts were present.",
+    "response": {
+      "summary": "Clean merge of two commits: (1) WiredTiger import from mongodb-master branch bringing version 3b38d79027c44dac0b0b3ba6f434a07fbb8b3661 with updates to layered storage, checkpoint handling, transaction timestamps, sub-level error handling, and various test improvements across 61 files; (2) SERVER-125046 fix replacing 'cast' with 'is' call in SBE type_checker.cpp for improved type checking semantics.",
+      "auto_merged": {},
+      "review_notes": "This was a clean merge with no conflicts. The WiredTiger import is a substantial update affecting storage engine internals including eviction, reconciliation, and disaggregated storage features. The SBE type_checker change is a minor refactor. No Percona-specific code was affected."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [
+            "I need to analyze this merge commit and write a JSON response. Let me examine the merged commits to understand what changes were included."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [
+            "Now I have the full picture. This is a clean merge with two commits. Let me write the JSON response."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [
+            "Done. Written JSON response summarizing the clean merge of two commits: a WiredTiger import (61 files) and a minor SBE type_checker fix. No conflicts were present."
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20260427_111711_439844.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.119 (Claude Code)"
+    }
+  }
+}

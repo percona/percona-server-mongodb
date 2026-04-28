@@ -1,0 +1,212 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "f63af34bad73c222aed882e71e8ddd3ca44edfc6",
+    "merge_commit": "32e8f260def5dabb0bba281f64d4d07c9ab079dd"
+  },
+  "mergai_version": "0.1.dev1+g5a330821f",
+  "conflict_context": {
+    "ours_commit": "f63af34bad73c222aed882e71e8ddd3ca44edfc6",
+    "theirs_commit": "32e8f260def5dabb0bba281f64d4d07c9ab079dd",
+    "base_commit": "c520ca3eb9a5109456d01cc468767728e7f1b287",
+    "files": [
+      "README.md"
+    ],
+    "conflict_types": {
+      "README.md": "both modified"
+    },
+    "diffs": {
+      "README.md": "diff --cc README.md\nindex ceb9e3666a9,c2728e8d826..00000000000\n--- a/README.md\n+++ b/README.md\n@@@ -48,0 -44,10 +48,25 @@@ test> hel\n++<<<<<<< HEAD\n++||||||| c520ca3eb9a\n++## Installing Compass\n++\n++You can install compass using the `install_compass` script packaged with MongoDB:\n++\n++```bash\n++$ ./install_compass\n++```\n++\n++This will download the appropriate MongoDB Compass package for your platform\n++and install it.\n++\n++=======\n+ ## Installing Compass\n+ \n+ You can install compass using the `install_compass` script packaged with MongoDB:\n+ \n+ ```bash\n+ $ ./install_compass\n+ ```\n+ \n+ This will download the appropriate MongoDB Compass package for your platform and install it.\n+ \n++>>>>>>> 32e8f260def5dabb0bba281f64d4d07c9ab079dd\n@@@ -82,1 -90,6 +107,17 @@@ If there is no existing report, submit \n++<<<<<<< HEAD\n +Percona Server for MongoDB is [source-available software](https://en.wikipedia.org/wiki/Source-available_software).\n++||||||| c520ca3eb9a\n++MongoDB is free and the source is available. Versions released prior to\n++October 16, 2018 are published under the AGPL. All versions released after\n++October 16, 2018, including patch fixes for prior versions, are published\n++under the [Server Side Public License (SSPL) v1](LICENSE-Community.txt).\n++See individual files for details which will specify the license applicable\n++to each file. Files subject to the SSPL will be noted in their headers.\n++=======\n+ MongoDB is free and the source is available. Versions released prior to October 16, 2018 are\n+ published under the AGPL. All versions released after October 16, 2018, including patch fixes for\n+ prior versions, are published under the\n+ [Server Side Public License (SSPL) v1](LICENSE-Community.txt). See individual files for details\n+ which will specify the license applicable to each file. Files subject to the SSPL will be noted in\n+ their headers.\n++>>>>>>> 32e8f260def5dabb0bba281f64d4d07c9ab079dd"
+    },
+    "their_commits": {
+      "README.md": [
+        "32e8f260def5dabb0bba281f64d4d07c9ab079dd"
+      ]
+    }
+  },
+  "merge_context": {
+    "merge_commit": "32e8f260def5dabb0bba281f64d4d07c9ab079dd",
+    "merged_commits": [
+      "32e8f260def5dabb0bba281f64d4d07c9ab079dd",
+      "e66373f938146ffe00334489492e8c53546bbcaa",
+      "7afff36c3fce66d7c507768ef1743daf17e646dd",
+      "4daca0fbd3783b33f5c2f7dbd30059a3205f8be2",
+      "9022d34215ba01aa1ebd2a32e46b493591d3d565",
+      "8da3ef34aa5ab3a6d1795375e5f650e2221abbb1",
+      "082e269b6a7d56a0d20c45e8aa1830ae3d55d23e",
+      "cefba8da7bc0df952414973e100c3dcb0cb56f6a",
+      "bb13e82a138a0919cf8e57ace429713c05dc6efc",
+      "a682674694e39f5c6551de360acfd9a06bbf7c5b",
+      "1a3cb844efdb1865b79da0cc3296274243af56f0",
+      "6c1cdb3ad529142637e2692de75432432e957e44",
+      "9ec7e49b350a8de7bb129b780a0970a623835143",
+      "13afb660059c0e718f2046e3dcd827b4673e94d3",
+      "dba6a24a1077b600e5355bec315c35ba5f7ee762",
+      "685559c5fece349506b72f0f4561456b93f37792",
+      "47351e9fcc3e306950baca00ee3cbc74506a0b0f",
+      "0e9402b1eb780b792057ac555e56637a074ff128",
+      "6cfb75b2d85dbba59437cb247ee1d44eecb3a2a4"
+    ],
+    "important_files_modified": [
+      "src/mongo/db/repl/initial_sync/initial_syncer.cpp",
+      "src/mongo/db/repl/initial_sync/initial_syncer.h",
+      "src/mongo/db/storage/storage_engine.h",
+      "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp"
+    ],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        "bazel/wrapper_hook/wrapper_hook.py",
+        "jstests/auth/lib/commands_lib.js",
+        "jstests/core/catalog/views/views_all_commands.js",
+        "jstests/libs/write_concern_all_commands.js",
+        "jstests/replsets/all_commands_downgrading_to_upgraded.js",
+        "jstests/replsets/db_reads_while_recovering_all_commands.js",
+        "jstests/sharding/all_commands_direct_shard_connection_auth.js",
+        "jstests/sharding/database_versioning_all_commands.js",
+        "jstests/sharding/libs/mongos_api_params_util.js",
+        "jstests/sharding/read_write_concern_defaults_application.js",
+        "jstests/sharding/safe_secondary_reads_drop_recreate.js",
+        "jstests/sharding/safe_secondary_reads_single_migration_suspend_range_deletion.js",
+        "jstests/sharding/safe_secondary_reads_single_migration_waitForDelete.js",
+        "src/mongo/db/auth/authorization_manager_impl.h",
+        "src/mongo/db/curop.cpp",
+        "src/mongo/db/curop_test.cpp",
+        "src/mongo/db/mongod_main.cpp",
+        "src/mongo/db/op_debug.cpp",
+        "src/mongo/db/repl/replication_coordinator_impl.cpp",
+        "src/mongo/db/storage/storage_engine.h",
+        "src/mongo/db/storage/storage_engine_impl.cpp",
+        "src/mongo/db/storage/storage_engine_impl.h",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h",
+        "src/mongo/s/mongos_main.cpp",
+        "src/mongo/shell/mongo_main.cpp",
+        "src/mongo/util/net/http_client_curl.cpp",
+        "src/mongo/util/stacktrace_test.cpp"
+      ]
+    }
+  },
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 32503,
+    "num_turns": 2,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.13228675,
+    "modelUsage": {
+      "claude-haiku-4-5-20251001": {
+        "inputTokens": 425,
+        "outputTokens": 13,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0,
+        "webSearchRequests": 0,
+        "costUSD": 0.00049,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000
+      },
+      "claude-opus-4-5": {
+        "inputTokens": 18,
+        "outputTokens": 1764,
+        "cacheReadInputTokens": 33251,
+        "cacheCreationInputTokens": 11357,
+        "webSearchRequests": 0,
+        "costUSD": 0.13179675000000002,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-haiku-4-5-20251001": {
+          "tokens": {
+            "input": 425,
+            "output": 13,
+            "cache_read": 0,
+            "cache_creation": 0
+          },
+          "cost_usd": 0.00049
+        },
+        "claude-opus-4-5": {
+          "tokens": {
+            "input": 18,
+            "output": 1764,
+            "cache_read": 33251,
+            "cache_creation": 11357
+          },
+          "cost_usd": 0.13179675000000002
+        }
+      }
+    },
+    "text_result": "Written the JSON response to the specified file. The response summarizes the merge of 19 upstream MongoDB commits, documents all 28 auto-merged files with explanations, and provides review notes highlighting that README.md needs manual resolution to preserve Percona-specific changes (removed Compass section and Percona's license statement).",
+    "response": {
+      "summary": "Merge of 19 upstream MongoDB commits into PSMDB master. Key changes include modifications to initial_syncer, storage_engine, and wiredtiger_kv_engine components. The merge encountered a conflict in README.md where MongoDB reformatted text and PSMDB maintains its own content (removed Compass section and uses Percona-specific license statement).",
+      "auto_merged": {
+        "bazel/wrapper_hook/wrapper_hook.py": "Build system wrapper hook changes merged automatically",
+        "jstests/auth/lib/commands_lib.js": "Auth commands library updates merged automatically",
+        "jstests/core/catalog/views/views_all_commands.js": "Views catalog test updates merged automatically",
+        "jstests/libs/write_concern_all_commands.js": "Write concern test library updates merged automatically",
+        "jstests/replsets/all_commands_downgrading_to_upgraded.js": "Replica set command tests merged automatically",
+        "jstests/replsets/db_reads_while_recovering_all_commands.js": "Recovery reads test updates merged automatically",
+        "jstests/sharding/all_commands_direct_shard_connection_auth.js": "Sharding auth test updates merged automatically",
+        "jstests/sharding/database_versioning_all_commands.js": "Database versioning test updates merged automatically",
+        "jstests/sharding/libs/mongos_api_params_util.js": "Mongos API params utility updates merged automatically",
+        "jstests/sharding/read_write_concern_defaults_application.js": "Read/write concern defaults test merged automatically",
+        "jstests/sharding/safe_secondary_reads_drop_recreate.js": "Safe secondary reads test merged automatically",
+        "jstests/sharding/safe_secondary_reads_single_migration_suspend_range_deletion.js": "Migration range deletion test merged automatically",
+        "jstests/sharding/safe_secondary_reads_single_migration_waitForDelete.js": "Migration waitForDelete test merged automatically",
+        "src/mongo/db/auth/authorization_manager_impl.h": "Authorization manager header updates merged automatically",
+        "src/mongo/db/curop.cpp": "Current operation tracking changes merged automatically",
+        "src/mongo/db/curop_test.cpp": "Current operation tests merged automatically",
+        "src/mongo/db/mongod_main.cpp": "Mongod main entry point changes merged automatically",
+        "src/mongo/db/op_debug.cpp": "Operation debug logging changes merged automatically",
+        "src/mongo/db/repl/replication_coordinator_impl.cpp": "Replication coordinator implementation changes merged automatically",
+        "src/mongo/db/storage/storage_engine.h": "Storage engine interface updates merged automatically",
+        "src/mongo/db/storage/storage_engine_impl.cpp": "Storage engine implementation changes merged automatically",
+        "src/mongo/db/storage/storage_engine_impl.h": "Storage engine implementation header merged automatically",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp": "WiredTiger KV engine changes merged automatically",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h": "WiredTiger KV engine header merged automatically",
+        "src/mongo/s/mongos_main.cpp": "Mongos main entry point changes merged automatically",
+        "src/mongo/shell/mongo_main.cpp": "Mongo shell main changes merged automatically",
+        "src/mongo/util/net/http_client_curl.cpp": "HTTP client curl implementation merged automatically",
+        "src/mongo/util/stacktrace_test.cpp": "Stacktrace test changes merged automatically"
+      },
+      "review_notes": "README.md conflict requires manual resolution: (1) The Compass installation section was intentionally removed by Percona - keep it removed. (2) The license section must retain Percona's source-available statement instead of MongoDB's SSPL text. Important auto-merged files to review: storage_engine.h, wiredtiger_kv_engine.cpp, and initial_syncer components had significant changes - verify Percona-specific storage and replication features remain intact."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [
+            "I'll analyze the merge conflict information and write a JSON response describing this merge."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [
+            "Written the JSON response to the specified file. The response summarizes the merge of 19 upstream MongoDB commits, documents all 28 auto-merged files with explanations, and provides review notes highlighting that README.md needs manual resolution to preserve Percona-specific changes (removed Compass section and Percona's license statement)."
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20260423_140831_851441.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.118 (Claude Code)"
+    }
+  }
+}

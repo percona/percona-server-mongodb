@@ -1,0 +1,158 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "4bb1ce8f8e774c4e58d91a6c081901a5da5adea0",
+    "merge_commit": "9a9a537596feae9268bf476281b0dccf7d76d59f"
+  },
+  "mergai_version": "0.1.dev1+ga3825e97e",
+  "merge_context": {
+    "merge_commit": "9a9a537596feae9268bf476281b0dccf7d76d59f",
+    "merged_commits": [
+      "9a9a537596feae9268bf476281b0dccf7d76d59f",
+      "a933c137cce761d36f4c894b8de969ec0fcfd9f3",
+      "eefbef199f31daf1cfb4bed73dc6d43f50a8b306",
+      "054f892670810d0a9fddd8efc1a92adecfb98544",
+      "1abb8ba5f54aa44e23136f37fdc651c25924f093",
+      "b566a6384f95466d6c9d3e454b48deb441c9da35",
+      "8550552e79d9ef69617aa36285c00af8c8e8e736"
+    ],
+    "important_files_modified": [
+      "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp",
+      "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine_test.cpp"
+    ],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        "src/mongo/db/storage/wiredtiger/BUILD.bazel",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h"
+      ]
+    }
+  },
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 33033,
+    "num_turns": 7,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.22892025,
+    "modelUsage": {
+      "claude-opus-4-5": {
+        "inputTokens": 34,
+        "outputTokens": 1987,
+        "cacheReadInputTokens": 60813,
+        "cacheCreationInputTokens": 23787,
+        "webSearchRequests": 0,
+        "costUSD": 0.22892025,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-opus-4-5": {
+          "tokens": {
+            "input": 34,
+            "output": 1987,
+            "cache_read": 60813,
+            "cache_creation": 23787
+          },
+          "cost_usd": 0.22892025
+        }
+      }
+    },
+    "text_result": "Done. Written the merge analysis to the response file with:\n- **Summary**: SERVER-119287 adds table timestamp support for non-MDT write units of work in disaggregated storage mode\n- **Auto-merged files**: BUILD.bazel (new benchmark), wiredtiger_kv_engine.cpp (new pin/unpin methods), wiredtiger_kv_engine.h (new virtual APIs and member variables)\n- **Review notes**: Thread-safety of the pinning mechanism, stub for future WT publish() API, and class inheritance change",
+    "response": {
+      "summary": "Merged SERVER-119287 which adds support for setting table timestamps when committing non-MDT (Metadata Table) write units of work. This enables disaggregated storage (DSC) mode to publish table creations with timestamps after commit. The changes introduce new APIs for pinning/unpinning all_durable timestamps to prevent them from advancing past critical values, and add a stub for the future WiredTiger session->publish() API.",
+      "auto_merged": {
+        "src/mongo/db/storage/wiredtiger/BUILD.bazel": "Added a new benchmark target 'wiredtiger_all_durable_timestamp_bm' with its source file and dependencies for testing all_durable timestamp functionality.",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp": "Added new methods: getRawAllDurableTimestamp() to fetch raw all_durable value from WiredTiger, pinAllDurableTimestamp()/unpinAllDurableTimestamp() for managing timestamp pins via a multiset, and publishIdent() stub for future WiredTiger session->publish() API. Modified getAllDurableTimestamp() to consider pinned timestamps. Added initialization of _shouldTimestampTableCreations from the persistence provider.",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h": "Added new virtual methods to WiredTigerKVEngineBase: shouldTimestampTableCreations(), getRawAllDurableTimestamp(), pinAllDurableTimestamp(), unpinAllDurableTimestamp(), and publishIdent(). Added forward declaration for WiredTigerRecoveryUnit. Added member variables: _shouldTimestampTableCreations, _allDurablePinMutex, _pinnedAllDurableTimestamps multiset, and _minPinnedTimestamp atomic. Changed WiredTigerKVEngine class from 'final' to allow inheritance."
+      },
+      "review_notes": "The auto-merge completed successfully. Key changes to verify: (1) The new all_durable timestamp pinning mechanism uses a multiset protected by mutex for writers, with an atomic snapshot for lock-free reads - ensure this pattern is thread-safe in all scenarios. (2) The publishIdent() method is currently a no-op stub awaiting SERVER-122163 for the WiredTiger session->publish() API. (3) The WiredTigerKVEngine class was changed from 'final' to non-final to support subclassing in disaggregated storage mode."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [
+            "I'll analyze the merge commit and the auto-merged files to provide a summary. Let me examine the changes."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [
+            "Now I have all the information needed to write the response."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [
+            "Done. Written the merge analysis to the response file with:\n- **Summary**: SERVER-119287 adds table timestamp support for non-MDT write units of work in disaggregated storage mode\n- **Auto-merged files**: BUILD.bazel (new benchmark), wiredtiger_kv_engine.cpp (new pin/unpin methods), wiredtiger_kv_engine.h (new virtual APIs and member variables)\n- **Review notes**: Thread-safety of the pinning mechanism, stub for future WT publish() API, and class inheritance change"
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20260407_120117_737535.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.92 (Claude Code)"
+    }
+  }
+}

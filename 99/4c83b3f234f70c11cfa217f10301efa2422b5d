@@ -1,0 +1,168 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "51d88183d517b59fd031d06852ec60db80238dba",
+    "merge_commit": "ca78295726f46164a3802c7f4c20947f2e89a2bc"
+  },
+  "mergai_version": "0.1.dev1+ga3825e97e",
+  "merge_context": {
+    "merge_commit": "ca78295726f46164a3802c7f4c20947f2e89a2bc",
+    "merged_commits": [
+      "ca78295726f46164a3802c7f4c20947f2e89a2bc",
+      "d2ca5954063e541b85b5ef7133077f0d4ec91f06",
+      "a80932acf64e62c3de3095d7c9ad329aaee2d3f6",
+      "12698957cf8d248e556d438d00659daeda8604d2",
+      "fe70a48480f755e697164df91a046bc8f022f77d",
+      "c65ab014c8f6280061409d89e93b27a8f3b7cbc1",
+      "64280e17ae5df82b7849e6b71922a0e2634f9aad",
+      "6cfc452c33905b64f49e23815cec186ee02305d2",
+      "11a15a850cc52e25b04e34fa9a615b6cf6b4ba2a",
+      "516d0cab311d1d914ccdb3668ed704c4a9e8baaa",
+      "9a9a537596feae9268bf476281b0dccf7d76d59f",
+      "a933c137cce761d36f4c894b8de969ec0fcfd9f3",
+      "eefbef199f31daf1cfb4bed73dc6d43f50a8b306",
+      "054f892670810d0a9fddd8efc1a92adecfb98544",
+      "1abb8ba5f54aa44e23136f37fdc651c25924f093",
+      "b566a6384f95466d6c9d3e454b48deb441c9da35",
+      "8550552e79d9ef69617aa36285c00af8c8e8e736"
+    ],
+    "important_files_modified": [
+      "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp",
+      "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine_test.cpp"
+    ],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        "src/mongo/db/storage/wiredtiger/BUILD.bazel",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h"
+      ]
+    }
+  },
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 54373,
+    "num_turns": 7,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.2518155,
+    "modelUsage": {
+      "claude-opus-4-5": {
+        "inputTokens": 8017,
+        "outputTokens": 2874,
+        "cacheReadInputTokens": 49486,
+        "cacheCreationInputTokens": 18422,
+        "webSearchRequests": 0,
+        "costUSD": 0.2518155,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-opus-4-5": {
+          "tokens": {
+            "input": 8017,
+            "output": 2874,
+            "cache_read": 49486,
+            "cache_creation": 18422
+          },
+          "cost_usd": 0.2518155
+        }
+      }
+    },
+    "text_result": "Done. I've analyzed the merge commit `ca78295726f` and written the JSON response describing:\n\n- **Summary**: 17 upstream commits including timestamp management APIs (SERVER-119287), cost model calibration, high-yielding test suites, and DSC infrastructure\n- **Auto-merged files**: \n  - `BUILD.bazel` - Added upstream benchmark, removed Percona encryption dependencies/tests\n  - `wiredtiger_kv_engine.cpp` - Integrated upstream timestamp changes, removed Percona encryption code\n  - `wiredtiger_kv_engine.h` - Added new DSC timestamp APIs, removed Percona encryption interface\n- **Review notes**: Key areas for developers to verify around timestamp pinning, class inheritance changes, and encryption feature handling",
+    "response": {
+      "summary": "Merge of 17 upstream commits bringing various improvements including replica set handling (SERVER-122247), query plan explainer support (SERVER-122152), shard filtering metadata cleanup hooks (SERVER-121826), cost model calibration updates (SERVER-120892, SERVER-120017), WiredTiger timestamp management APIs (SERVER-119287), Collection deep copy support (SERVER-109829), and new high-yielding test suites (SERVER-120367). Key storage engine changes add infrastructure for disaggregated storage (DSC) mode with timestamp-aware table creation and all_durable timestamp pinning.",
+      "auto_merged": {
+        "src/mongo/db/storage/wiredtiger/BUILD.bazel": "Upstream added new wiredtiger_all_durable_timestamp_bm benchmark target. Git auto-merge removed Percona-specific encryption dependencies (key_management, encryption_options, backup_cursor_hooks, audit_impl, aws-sdk, libarchive) and encryption test targets (storage_wiredtiger_encryption_test, storage_wiredtiger_kv_engine_encryption_key_test) while preserving upstream's new benchmark addition.",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp": "Upstream changes from SERVER-119287 modified timestamp handling code. Git auto-merge removed Percona-specific encryption includes (encryption_options.h, encryption headers, master_key_provider.h, AWS SDK headers, libarchive headers) and encryption-related code (keydb functionality, copy_keydb_files, backup cursor with keydb support) while integrating upstream's timestamp management changes.",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h": "Upstream added new DSC timestamp APIs: shouldTimestampTableCreations(), getRawAllDurableTimestamp(), pinAllDurableTimestamp(), unpinAllDurableTimestamp(), publishIdent(), and associated member variables (_shouldTimestampTableCreations, _allDurablePinMutex, _pinnedAllDurableTimestamps, _minPinnedTimestamp). Changed class from final to non-final. Git auto-merge removed Percona-specific encryption interface elements (EncryptionKeyDB*, getEncryptionKeyDB(), master_key_provider.h include, hotBackup methods, keydbDropDatabase, DataAtRestEncryption class, _restEncr member, _keyDBSession) while preserving all upstream API additions."
+      },
+      "review_notes": "The auto-merge successfully integrated upstream's new WiredTiger timestamp management APIs (SERVER-119287) while removing Percona encryption-specific code. Reviewers should verify: (1) The new timestamp pinning mechanism (_pinnedAllDurableTimestamps, _minPinnedTimestamp) functions correctly without interference from removed encryption code; (2) The class change from 'final' to non-final is intentional for upstream DSC extensibility; (3) Percona's encryption features are handled elsewhere or through different mechanisms if still required; (4) The removed hotBackup overloads (S3 and tar variants) are acceptable given Percona's backup strategy."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [
+            "Let me analyze the merge commit and the auto-merged files to create the response."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [
+            "Now I have enough information to write the JSON response."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [
+            "Done. I've analyzed the merge commit `ca78295726f` and written the JSON response describing:\n\n- **Summary**: 17 upstream commits including timestamp management APIs (SERVER-119287), cost model calibration, high-yielding test suites, and DSC infrastructure\n- **Auto-merged files**: \n  - `BUILD.bazel` - Added upstream benchmark, removed Percona encryption dependencies/tests\n  - `wiredtiger_kv_engine.cpp` - Integrated upstream timestamp changes, removed Percona encryption code\n  - `wiredtiger_kv_engine.h` - Added new DSC timestamp APIs, removed Percona encryption interface\n- **Review notes**: Key areas for developers to verify around timestamp pinning, class inheritance changes, and encryption feature handling"
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20260402_105756_282122.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.90 (Claude Code)"
+    }
+  }
+}

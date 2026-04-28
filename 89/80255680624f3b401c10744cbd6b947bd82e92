@@ -1,0 +1,93 @@
+{
+  "merge_info": {
+    "target_branch": "PSMDB-1931-merging-workflow",
+    "target_branch_sha": "ba22010f23003a459b5c0ed1a83c3139274d0ee1",
+    "merge_commit": "4a3836398f77baf0ea23b8599cd381cca7995d1d"
+  },
+  "mergai_version": "0.1.dev1+g453135fd1",
+  "conflict_context": {
+    "ours_commit": "ba22010f23003a459b5c0ed1a83c3139274d0ee1",
+    "theirs_commit": "4a3836398f77baf0ea23b8599cd381cca7995d1d",
+    "base_commit": "dffa5f381ab8149344e9b64e020e8a4e6880a23e",
+    "files": [
+      "sbom.json"
+    ],
+    "conflict_types": {
+      "sbom.json": "both modified"
+    },
+    "diffs": {
+      "sbom.json": "diff --cc sbom.json\nindex dc86cc7c058,bdf7b273d50..00000000000\n--- a/sbom.json\n+++ b/sbom.json\n@@@ -2508,44 -2508,58 +2508,106 @@@\n++<<<<<<< HEAD\n +    },\n +    {\n +      \"supplier\": {\n +        \"name\": \"Organization: github\"\n +      },\n +      \"name\": \"libarchive\",\n +      \"version\": \"3.8.4\",\n +      \"licenses\": [\n +        {\n +          \"license\": {\n +            \"name\": \"A mix of BSD-2-Clause and others\",\n +            \"url\": \"https://github.com/libarchive/libarchive/blob/v3.4.0/COPYING\"\n +          }\n +        }\n +      ],\n +      \"purl\": \"pkg:github/libarchive/libarchive@v3.8.4\",\n +      \"properties\": [\n +        {\n +          \"name\": \"internal:team_responsible\",\n +          \"value\": \"Percona Server for MongoDB Team\"\n +        },\n +        {\n +          \"name\": \"emits_persisted_data\",\n +          \"value\": \"true\"\n +        },\n +        {\n +          \"name\": \"info_link\",\n +          \"value\": \"https://www.libarchive.org\"\n +        },\n +        {\n +          \"name\": \"import_script_path\",\n +          \"value\": \"src/third_party/libarchive/scripts/import.sh\"\n +        }\n +      ],\n +      \"type\": \"library\",\n +      \"bom-ref\": \"pkg:github/libarchive/libarchive@v3.8.4\",\n +      \"evidence\": {\n +        \"occurrences\": [\n +          {\n +            \"location\": \"src/third_party/libarchive\"\n +          }\n +        ]\n +      },\n +      \"scope\": \"required\"\n++||||||| dffa5f381ab\n++=======\n+     },\n+     {\n+       \"type\": \"library\",\n+ (... 51 more added lines...)\n+           }\n+         ]\n+       },\n+       \"scope\": \"excluded\"\n++>>>>>>> 4a3836398f77baf0ea23b8599cd381cca7995d1d"
+    },
+    "their_commits": {
+      "sbom.json": [
+        "9b770d3df99d8746c071419ba5fad4d4b6b9f659"
+      ]
+    }
+  },
+  "merge_context": {
+    "merge_commit": "4a3836398f77baf0ea23b8599cd381cca7995d1d",
+    "merged_commits": [
+      "4a3836398f77baf0ea23b8599cd381cca7995d1d",
+      "9187380dc56fcd35cbbb9dd79ddcb891c8fa338a",
+      "428a30b7d35cef6ce58fcd954f273e2236e53eae",
+      "0456a1fe0988018f81b03abdde368b9b208be0aa",
+      "999f17dcdaff2fbfab14d106fce9428faf4bdf73",
+      "d0c90fe5707f26215d69381e02a068aa191a9aa0",
+      "8bfff03f15bf466c86d19c561fc016eae3d9f23d",
+      "8b8768b12c588403c1ca2c99dc32d343b0fac9d1",
+      "3b721e84851fee0e63c4ea4869c3de69188dbd79",
+      "f45068705482728dff9d214f241d28a2064a4628",
+      "543c180c95aa6444002042c27d42d1d55c055905",
+      "bdb79834f559d409017b3b5431ab8b28c373dc2e",
+      "3a2b0f67554e6258cbaa37ced9ead4a8de04d8f6",
+      "da0d3763171a41e9a695d2e6c2a8740d3a195263",
+      "1b000b1fc90ab1fa05a22d3b7af824e342bbf32b",
+      "a3956983e5499619208baef57e8b984daccbc3b0",
+      "e88692f8fee5cdcaafecc2c77a0c2958f03e200d",
+      "ad8346cd0e31b24c6b74d2b447d6e2ccc6b39fc1",
+      "cb9a912eb4b439cff74987b8c47ea8134d28a659",
+      "454c057efff9bdb4d03aa4b1f1eb28dc3498de59",
+      "43a4bbefb724600eeaa7be4e5b88a5a3ae76c2cb",
+      "2924190fa3c31ba1b7e0c419c4cb644ec380ab33",
+      "bbbf3b391d252a9cbb7051b702b357c3dffc8b55",
+      "f51dc20fcf84021b6cbf05434db7fd6d2ba9ae0f",
+      "17381cc4621cbe4c16adc35b4843236ec58473f9",
+      "62a8bef4dea1110400e55d49aa70df82a243f080",
+      "bcd7293d67395d8f639f7c0bfb3bccc57c206548",
+      "6846ec39db9216fe3adefed11530333d1a152a7a",
+      "cb2689fde3045e35a9e16d4ea35c36a2950c7e16",
+      "77d23dc6b57f13923cbd4d5409c79f0904851883",
+      "2ddf948e368c52ec92c3f13e87647e26592dc9ec",
+      "044d418e521d5cd799533b76891468b723174254",
+      "89e7a6bdfc27e44750db101d876f226afec92805",
+      "ef2f4005fed303213ccaf20483a8a64132e2bcc5",
+      "8e0ca8de6930201ed248fa5e0cf937182aabcc18",
+      "98ff0c9b7f25b782bc7e0be01b8dc43fa60f6247",
+      "4b8533eb271fe7af8b97f1ff6b20bb6a81459a51",
+      "308879f5b65efacae4265697dd97540004cfb3b7",
+      "ffdb71edcd5ddef24296cdaabf9c9a60655b9cc7",
+      "77da337447438257ab9d53c02db8f612f015a96a",
+      "07e34a3950169b0f39c9174c1113ba3e0d80d90a",
+      "4f3cc786ae946cafef5e8e5477756fbcf97dafd0",
+      "40ca7008beddeabd326b6d0bded0c481d1efa0eb",
+      "611188fabd72e17663931659c3faf8e0daf6cb64",
+      "9b770d3df99d8746c071419ba5fad4d4b6b9f659",
+      "d5122c7b20aa339232497bd9658b00899c7b0572",
+      "784adb1029b62bdad3d5d2caa8a8734cf514d9ef"
+    ],
+    "important_files_modified": [
+      "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp"
+    ],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        "BUILD.bazel",
+        "MODULE.bazel.lock",
+        "sbom.json",
+        "src/mongo/db/BUILD.bazel",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h"
+      ]
+    }
+  }
+}
