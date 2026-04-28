@@ -9,8 +9,24 @@ common --experimental_remote_downloader=
 common --remote_cache=
 common --bes_backend=
 common --bes_results_url=
-common --tls_client_certificate=
-common --tls_client_key=
+# Do NOT uncomment the two lines below. They were here to "clear" the
+# upstream defaults but the empty value is itself a trap:
+#
+#common --tls_client_certificate=
+#common --tls_client_key=
+#
+# Bazel's options parser stores whatever string follows the `=` as the
+# field value, including the empty string. There is NO sentinel ("",
+# "null", "unset", "/dev/null") that means "unset" for a String option
+# — only OMITTING the flag entirely yields Java null, which is the
+# real "no client cert" state. With grpcs:// endpoints (e.g. our
+# buildfarm at grpcs://bb-psmdb.ddns.net:8981) Bazel feeds the value
+# straight into GoogleAuthUtils.createSSlContext → Netty → PemReader,
+# which tries to open the path '' as a PEM file and crashes:
+#   Failed to init TLS infrastructure using '' as client certificate:
+#   File does not contain valid certificates:
+# Our buildfarm is server-side TLS only (Envoy doesn't request a
+# client cert), so omitting both flags is correct.
 common --remote_cache_compression=false
 common --remote_upload_local_results=false
 common --grpc_keepalive_time=0s
