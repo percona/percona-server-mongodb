@@ -1,2 +1,2 @@
-etc/mongod.conf
-etc/default/mongod
+/etc/mongod.conf
+/etc/default/mongod
