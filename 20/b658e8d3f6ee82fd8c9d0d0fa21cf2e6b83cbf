@@ -1,0 +1,24 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "25f4bebebd35919edf5904b2293b29bd0b112ab8",
+    "merge_commit": "aea0c37039a9d7058daaa23ff6865631a88937d0"
+  },
+  "mergai_version": "0.1.dev111+gc2eff4572.d20260220",
+  "ci_fix_history": [
+    {
+      "workflow": "clang-tidy",
+      "attempt_number": 2,
+      "timestamp": "2026-04-28T13:25:31.146784+00:00",
+      "run_id": "25049940032",
+      "pr_number": 205,
+      "action_type": "resolve",
+      "context_summary": "clang-tidy reported 1 finding in 1 file",
+      "files_affected": [
+        "src/mongo/db/auth/external/sasl_oidc_server_mechanism.cpp"
+      ],
+      "success": true,
+      "give_up": false
+    }
+  ]
+}
