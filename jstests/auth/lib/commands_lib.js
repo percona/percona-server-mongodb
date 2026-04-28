@@ -6798,7 +6798,7 @@ export const authCommandsLib = {
           // Only enterprise knows of this aggregation stage.
           skipTest:
               (conn) =>
-                  !isPSMDBOrEnterprise(conn.getDB("admin").runCommand({buildInfo: 1})),
+                  !isPSMDBOrEnterprise(getBuildInfo()),
           testcases: [{
               runOnDb: adminDbName,
               roles: roles_hostManager,
@@ -6826,7 +6826,7 @@ export const authCommandsLib = {
           // Only enterprise knows of this aggregation stage.
           skipTest:
               (conn) =>
-                  !getBuildInfo().modules.includes("enterprise"),
+                  !isPSMDBOrEnterprise(getBuildInfo()),
           testcases: [{
               runOnDb: adminDbName,
               roles: roles_hostManager,
@@ -6849,7 +6849,7 @@ export const authCommandsLib = {
           // Only enterprise knows of this aggregation stage.
           skipTest:
               (conn) =>
-                  !getBuildInfo().modules.includes("enterprise"),
+                  !isPSMDBOrEnterprise(getBuildInfo()),
           testcases: [{
               runOnDb: adminDbName,
               roles: {__system: 1},
