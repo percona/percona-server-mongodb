@@ -72,7 +72,8 @@ class RbeAuthRequired(RbeAuthError):
     """Interactive login is required but stdin/stderr is not a TTY.
 
     Wrapper_hook re-raises this to the user with a message pointing to
-    `bazel-rbe-login`. Used to fail fast on pre-checked-out CI runners
+    `percona-packaging/scripts/rbe_login.py`. Used to fail fast on
+    pre-checked-out CI runners
     so the build doesn't hang on the device-code polling loop until
     expires_in (5 min) elapses.
     """
@@ -212,7 +213,8 @@ def _poll_device_token(device_code: str, interval: int, expires_in: int, *, stat
     while True:
         if time.monotonic() >= deadline:
             raise RbeAuthError(
-                "device code expired before approval — re-run `bazel-rbe-login` to try again"
+                "device code expired before approval — re-run "
+                "`percona-packaging/scripts/rbe_login.py` to try again"
             )
         time.sleep(interval)
         resp = _post_form(
@@ -233,7 +235,8 @@ def _poll_device_token(device_code: str, interval: int, expires_in: int, *, stat
             continue
         if err == "expired_token":
             raise RbeAuthError(
-                "device code expired before approval — re-run `bazel-rbe-login` to try again"
+                "device code expired before approval — re-run "
+                "`percona-packaging/scripts/rbe_login.py` to try again"
             )
         if err == "access_denied":
             raise RbeAuthError("login denied — your GitHub account is not in an allowed Percona team")
@@ -350,15 +353,15 @@ def get_id_token(*, status_stream=None) -> str:
         # Refresh failed (revoked, rotated out, GitHub team removed).
         # Fall through to interactive login. We do NOT clear the cache
         # here — if the user is non-TTY and we fail the next branch,
-        # `bazel-rbe-login --status` should still surface the stale
+        # `rbe_login.py --status` should still surface the stale
         # cache for diagnostics.
 
     # (3) Interactive device code — TTY only.
     if not _is_tty(status_stream):
         raise RbeAuthRequired(
             "RBE buildfarm needs a fresh login but no TTY is attached. "
-            "Run `bazel-rbe-login` from an interactive shell to authenticate, "
-            "then retry your build."
+            "Run `percona-packaging/scripts/rbe_login.py` from an interactive "
+            "shell to authenticate, then retry your build."
         )
 
     return _do_device_code_login(status_stream=status_stream)["id_token"]
@@ -368,14 +371,15 @@ def login(*, status_stream=None) -> dict:
     """Force the Device Code flow regardless of cache state.
 
     Returns the new cache dict. Used by the standalone
-    `bazel-rbe-login` CLI when the user knows their refresh token is
-    bad (GitHub team change, manual revocation in Dex storage, etc.)
-    and wants to re-prime without first hitting a build failure.
+    `percona-packaging/scripts/rbe_login.py` CLI when the user knows
+    their refresh token is bad (GitHub team change, manual revocation
+    in Dex storage, etc.) and wants to re-prime without first hitting
+    a build failure.
     """
     if status_stream is None:
         status_stream = sys.stderr
     if not _is_tty(status_stream):
-        raise RbeAuthRequired("`bazel-rbe-login` requires a TTY.")
+        raise RbeAuthRequired("`rbe_login.py` requires a TTY.")
     return _do_device_code_login(status_stream=status_stream)
 
 
@@ -393,7 +397,7 @@ def logout() -> bool:
 
 
 def status() -> dict:
-    """Snapshot of the cache for `bazel-rbe-login --status`.
+    """Snapshot of the cache for `rbe_login.py --status`.
 
     Returns: {present, fresh, expires_at, subject, groups, audience}.
     Never raises. Never makes a network call.

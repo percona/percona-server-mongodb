@@ -139,8 +139,8 @@ common:psmdb_opt_release --//bazel/config:release=True
 # `--remote_header=authorization=Bearer …` to the Bazel argv. We do
 # NOT put `--remote_header` in this file: the token is per-user,
 # expires every hour, and committing it would defeat the whole point.
-# Run `bazel-rbe-login` once on a new machine (or inside a non-TTY
-# Jenkins runner) to seed the cache.
+# Run `percona-packaging/scripts/rbe_login.py` once on a new machine
+# (or inside a non-TTY Jenkins runner) to seed the cache.
 #
 # `--remote_instance_name=hardlinking` is the cluster-side mount that
 # hardlinks CAS blobs into the worker FS — same identifier the

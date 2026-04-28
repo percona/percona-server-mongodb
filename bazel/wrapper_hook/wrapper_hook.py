@@ -69,7 +69,7 @@ def main():
         #   * no usable refresh + TTY → Device Code flow on stderr
         #     (URL + user_code), polls Dex /token until login
         #   * no usable refresh + non-TTY (Jenkins, scripted runs)
-        #     → fail fast with a pointer to `bazel-rbe-login`. We
+        #     → fail fast with a pointer to `percona-packaging/scripts/rbe_login.py`. We
         #     deliberately don't inject a stale-or-empty header here:
         #     letting Bazel run the build with no auth would just
         #     produce Envoy 401s on every action and a much noisier
