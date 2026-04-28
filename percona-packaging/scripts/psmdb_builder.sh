@@ -97,11 +97,11 @@ get_sources(){
     PRODUCT=percona-server-mongodb
     JEMALLOC_TAG=psmdb-3.2.11-3.1
 
-    echo "PRODUCT=${PRODUCT}" > percona-server-mongodb-83.properties
-    echo "PSM_BRANCH=${PSM_BRANCH}" >> percona-server-mongodb-83.properties
-    echo "JEMALLOC_TAG=${JEMALLOC_TAG}" >> percona-server-mongodb-83.properties
-    echo "BUILD_NUMBER=${BUILD_NUMBER}" >> percona-server-mongodb-83.properties
-    echo "BUILD_ID=${BUILD_ID}" >> percona-server-mongodb-83.properties
+    echo "PRODUCT=${PRODUCT}" > percona-server-mongodb-90.properties
+    echo "PSM_BRANCH=${PSM_BRANCH}" >> percona-server-mongodb-90.properties
+    echo "JEMALLOC_TAG=${JEMALLOC_TAG}" >> percona-server-mongodb-90.properties
+    echo "BUILD_NUMBER=${BUILD_NUMBER}" >> percona-server-mongodb-90.properties
+    echo "BUILD_ID=${BUILD_ID}" >> percona-server-mongodb-90.properties
     git clone "$REPO"
     retval=$?
     if [ $retval != 0 ]
@@ -136,13 +136,13 @@ get_sources(){
     #
 
     PRODUCT_FULL=${PRODUCT}-${PSM_VER}-${PSM_RELEASE}
-    echo "PRODUCT_FULL=${PRODUCT_FULL}" >> ${WORKDIR}/percona-server-mongodb-83.properties
-    echo "VERSION=${PSM_VER}" >> ${WORKDIR}/percona-server-mongodb-83.properties
-    echo "RELEASE=${PSM_RELEASE}" >> ${WORKDIR}/percona-server-mongodb-83.properties
-    echo "MONGO_TOOLS_TAG=${MONGO_TOOLS_TAG}" >> ${WORKDIR}/percona-server-mongodb-83.properties
+    echo "PRODUCT_FULL=${PRODUCT_FULL}" >> ${WORKDIR}/percona-server-mongodb-90.properties
+    echo "VERSION=${PSM_VER}" >> ${WORKDIR}/percona-server-mongodb-90.properties
+    echo "RELEASE=${PSM_RELEASE}" >> ${WORKDIR}/percona-server-mongodb-90.properties
+    echo "MONGO_TOOLS_TAG=${MONGO_TOOLS_TAG}" >> ${WORKDIR}/percona-server-mongodb-90.properties
 
-    echo "REVISION=${REVISION}" >> ${WORKDIR}/percona-server-mongodb-83.properties
-    echo "REVISION_LONG=${REVISION_LONG}" >> ${WORKDIR}/percona-server-mongodb-83.properties
+    echo "REVISION=${REVISION}" >> ${WORKDIR}/percona-server-mongodb-90.properties
+    echo "REVISION_LONG=${REVISION_LONG}" >> ${WORKDIR}/percona-server-mongodb-90.properties
     rm -fr debian rpm
     cp -a percona-packaging/manpages .
     cp -a percona-packaging/docs/* .
@@ -170,7 +170,7 @@ get_sources(){
     #fi
 
     cd ${WORKDIR}
-    source percona-server-mongodb-83.properties
+    source percona-server-mongodb-90.properties
     #
 
     mv percona-server-mongodb ${PRODUCT}-${PSM_VER}-${PSM_RELEASE}
@@ -190,7 +190,7 @@ get_sources(){
                 mkdir build
     cd ../../
     tar --owner=0 --group=0 --exclude=.* -czf ${PRODUCT}-${PSM_VER}-${PSM_RELEASE}.tar.gz ${PRODUCT}-${PSM_VER}-${PSM_RELEASE}
-    echo "UPLOAD=UPLOAD/experimental/BUILDS/${PRODUCT}-8.3/${PRODUCT}-${PSM_VER}-${PSM_RELEASE}/${PSM_BRANCH}/${REVISION}/${BUILD_ID}" >> percona-server-mongodb-83.properties
+    echo "UPLOAD=UPLOAD/experimental/BUILDS/${PRODUCT}-9.0/${PRODUCT}-${PSM_VER}-${PSM_RELEASE}/${PSM_BRANCH}/${REVISION}/${BUILD_ID}" >> percona-server-mongodb-90.properties
     mkdir -p $WORKDIR/source_tarball
     mkdir -p $CURDIR/source_tarball
     cp ${PRODUCT}-${PSM_VER}-${PSM_RELEASE}.tar.gz $WORKDIR/source_tarball
@@ -550,11 +550,11 @@ build_srpm(){
     cd $WORKDIR
     get_tar "source_tarball"
     rm -fr rpmbuild
-    ls | grep -v tar.gz | grep -v percona-server-mongodb-83.properties | xargs rm -rf
+    ls | grep -v tar.gz | grep -v percona-server-mongodb-90.properties | xargs rm -rf
     TARFILE=$(find . -name 'percona-server-mongodb*.tar.gz' | sort | tail -n1)
     SRC_DIR=${TARFILE%.tar.gz}
     tar xzf ${WORKDIR}/${TARFILE}
-    source ${WORKDIR}/percona-server-mongodb-83.properties
+    source ${WORKDIR}/percona-server-mongodb-90.properties
     cd ${PRODUCT_FULL}
     wget https://raw.githubusercontent.com/percona/percona-server-mongodb/refs/heads/${BRANCH}/.bazelignore
     wget https://raw.githubusercontent.com/percona/percona-server-mongodb/refs/heads/${BRANCH}/.bazeliskrc
@@ -711,8 +711,8 @@ build_rpm(){
     #
     cd $WORKDIR
 
-    echo "RHEL=${RHEL}" >> percona-server-mongodb-83.properties
-    echo "ARCH=${ARCH}" >> percona-server-mongodb-83.properties
+    echo "RHEL=${RHEL}" >> percona-server-mongodb-90.properties
+    echo "ARCH=${ARCH}" >> percona-server-mongodb-90.properties
     #
     #
     [[ ${PATH} == *"/usr/local/go/bin"* && -x /usr/local/go/bin/go ]] || export PATH=/usr/local/go/bin:${PATH}
@@ -835,9 +835,9 @@ build_deb(){
     export DEBIAN=$(lsb_release -sc)
     export ARCH=$(echo $(uname -m) | sed -e 's:i686:i386:g')
     #
-    echo "DEBIAN=${DEBIAN}" >> ${WORKDIR}/percona-server-mongodb-83.properties
-    echo "ARCH=${ARCH}" >> ${WORKDIR}/percona-server-mongodb-83.properties
-    source ${WORKDIR}/percona-server-mongodb-83.properties
+    echo "DEBIAN=${DEBIAN}" >> ${WORKDIR}/percona-server-mongodb-90.properties
+    echo "ARCH=${ARCH}" >> ${WORKDIR}/percona-server-mongodb-90.properties
+    source ${WORKDIR}/percona-server-mongodb-90.properties
 
     #
     DSC=$(basename $(find . -name '*.dsc' | sort | tail -n1))
@@ -928,7 +928,7 @@ build_tarball(){
     fi
     get_tar "source_tarball"
     cd $WORKDIR
-    source ${WORKDIR}/percona-server-mongodb-83.properties
+    source ${WORKDIR}/percona-server-mongodb-90.properties
     TARFILE=$(basename $(find . -name 'percona-server-mongodb*.tar.gz' | sort | tail -n1))
 
     #
@@ -1335,7 +1335,7 @@ REVISION=0
 REVISION_LONG=0
 BRANCH="master"
 REPO="https://github.com/percona/percona-server-mongodb.git"
-PSM_VER="8.3.0"
+PSM_VER="9.0.0"
 PSM_RELEASE="1"
 MONGO_TOOLS_TAG="master"
 PRODUCT=percona-server-mongodb

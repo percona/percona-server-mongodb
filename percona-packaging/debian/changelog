@@ -1,5 +1,5 @@
-percona-server-mongodb (8.3.0) UNRELEASED; urgency=medium
+percona-server-mongodb (9.0.0) UNRELEASED; urgency=medium
 
   * Updated to next upstream release.
 
- -- Oleksandr Miroshnychenko <alex.miroshnychenko@percona.com>  Mon,  9 Mar 2026 12:45:11 +0200
+ -- Oleksandr Miroshnychenko <alex.miroshnychenko@percona.com>  Mon,  1 Sep 2026 12:45:11 +0200

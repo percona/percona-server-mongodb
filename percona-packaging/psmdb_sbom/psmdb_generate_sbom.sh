@@ -12,7 +12,7 @@ Usage: $0 [OPTIONS]
         --psmdb_version     PSMDB version
         --repo_type         Repository type
         --help) usage ;;
-Example $0 --psmdb_version=8.3.0-0 --repo_type=testing
+Example $0 --psmdb_version=9.0.0-1 --repo_type=testing
 EOF
         exit 1
 }
@@ -49,7 +49,7 @@ parse_arguments() {
 }
 
 CWD=$(pwd)
-PSMDB_VERSION=8.0.8-3
+PSMDB_VERSION=9.0.0-1
 REPO_TYPE=testing
 ARCH=$(uname -m)
 

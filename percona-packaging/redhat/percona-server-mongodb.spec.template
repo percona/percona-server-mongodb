@@ -72,7 +72,7 @@ Requires: %{name}-tools = %{version}-%{release}
 Requires: percona-mongodb-mongosh
 Requires: numactl, openldap, cyrus-sasl-gssapi, curl
 
-Conflicts: Percona-Server-MongoDB < 8.0.0
+Conflicts: Percona-Server-MongoDB < 9.0.0
 Conflicts: Percona-Server-MongoDB-32 Percona-Server-MongoDB-34 Percona-Server-MongoDB-36 mongodb-org
 
 %description
@@ -472,5 +472,5 @@ fi
 #
 %changelog
 
-* Mon Mar  9 2026 Oleksandr Miroshnychenko <alex.miroshnychenko@percona.com> - 8.3
-- Initial RPM release for Percona Server for MongoDB 8.3
+* Mon Sep  1 2026 Oleksandr Miroshnychenko <alex.miroshnychenko@percona.com> - 9.0
+- Initial RPM release for Percona Server for MongoDB 9.0
