@@ -1,0 +1,22 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "25f4bebebd35919edf5904b2293b29bd0b112ab8",
+    "merge_commit": "aea0c37039a9d7058daaa23ff6865631a88937d0"
+  },
+  "mergai_version": "0.1.dev111+gc2eff4572.d20260220",
+  "ci_fix_history": [
+    {
+      "workflow": "clang-tidy",
+      "attempt_number": 1,
+      "timestamp": "2026-04-28T10:28:24.764643+00:00",
+      "run_id": "25044236228",
+      "pr_number": 205,
+      "action_type": "resolve",
+      "context_summary": "clang-tidy failed before producing SARIF; using log of job 'Run clang-tidy analysis' at step 'Generate compile_commands.json and build dependencies'",
+      "files_affected": [],
+      "success": true,
+      "give_up": false
+    }
+  ]
+}
