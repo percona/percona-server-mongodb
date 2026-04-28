@@ -63,6 +63,8 @@ jobs:
           files: |
             **/*.cpp
             **/*.c
+          files_ignore: |
+            src/third_party/**
       - name: List changed files
         run: |
           echo "Changed files: ${{ steps.changed.outputs.all_changed_files }}"
@@ -129,15 +131,16 @@ jobs:
           # which is too heavy for CI without remote execution. Narrow it to only
           # the packages containing changed files.
           CHANGED="${{ needs.changed_files.outputs.changed_files }}"
-          SCOPE=$(echo "$CHANGED" | tr ' ' '\n' | python3 - <<'PY'
-          import sys, os
-          files = [l.strip() for l in sys.stdin if l.strip()]
+          # The data goes via argv (not stdin) so it doesn't collide with
+          # the heredoc that feeds the script to `python3 -`.
+          SCOPE=$(python3 - "$CHANGED" <<'PY'
+          import os, sys
+          files = [f for f in sys.argv[1].split() if f]
           dirs = sorted(set(os.path.dirname(f) for f in files))
           if not dirs:
               print('//src/...')
           else:
-              common = os.path.commonpath(dirs)
-              print(f'//{common}/...')
+              print(f'//{os.path.commonpath(dirs)}/...')
           PY
           )
           export MONGO_COMPILEDB_TARGET_SCOPE="$SCOPE"
@@ -172,6 +175,7 @@ jobs:
 
       - name: Run clang-tidy
         run: |
+          set -o pipefail
           CHANGED="${{ needs.changed_files.outputs.changed_files }}"
           echo "Changed C++ files: '$CHANGED'"
           TIDY_CHECKS_LIB="bazel-bin/src/mongo/tools/mongo_tidy_checks/libmongo_tidy_checks.so"
@@ -183,8 +187,10 @@ jobs:
             ls -la bazel-bin/src/mongo/tools/mongo_tidy_checks || true
             exit 1
           fi
+          CLANG_TIDY="$(poetry run python buildscripts/mongo_toolchain.py clang-tidy)"
+          echo "Using clang-tidy: $CLANG_TIDY"
           echo "Using clang-tidy plugin: $TIDY_CHECKS_LIB"
-          external/mongo_toolchain_v5/v5/bin/clang-tidy \
+          "$CLANG_TIDY" \
             --load="$TIDY_CHECKS_LIB" \
             $CHANGED \
           | clang-tidy-sarif --output=clang-tidy-results.sarif
