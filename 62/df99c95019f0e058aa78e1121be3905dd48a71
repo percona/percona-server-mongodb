@@ -1,0 +1,27 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "8c89653564afc974a0d99c37f0698b898b5a6181",
+    "merge_commit": "aea0c37039a9d7058daaa23ff6865631a88937d0"
+  },
+  "mergai_version": "0.1.dev111+gc2eff4572.d20260220",
+  "solutions": [
+    {
+      "response": {
+        "summary": "Change format command",
+        "resolved": {},
+        "unresolved": {},
+        "modified": {
+          ".mergai/config.yml": "Modified by human"
+        },
+        "review_notes": null
+      },
+      "author": {
+        "name": "Pawel Lebioda",
+        "email": "pawel.lebioda@percona.com",
+        "type": "human"
+      },
+      "commit_sha": "62df99c95019f0e058aa78e1121be3905dd48a71"
+    }
+  ]
+}
