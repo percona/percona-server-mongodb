@@ -298,6 +298,7 @@ let viewsCommandTests = {
     cleanupOrphaned: {
         skip: "Tested in views/views_sharded.js",
     },
+    cleanupOrphanedEncryptionKeys: {skip: isUnrelated},
     cleanupStructuredEncryptionData: {skip: isUnrelated},
     clearJumboFlag: {
         command: {clearJumboFlag: "test.view"},

@@ -3642,15 +3642,88 @@ void WiredTigerKVEngine::dropIdentForImport(Interruptible& interruptible,
 }
 
 void WiredTigerKVEngine::keydbDropDatabase(const DatabaseName& dbName) {
-    if (_restEncr) {
-        int res = _restEncr->keyDb()->delete_key_by_id(
-            DatabaseNameUtil::serialize(dbName, SerializationContext::stateDefault()));
-        if (res) {
-            // we cannot throw exceptions here because we are inside WUOW::commit
-            // every other part of DB is already dropped so we just log error message
-            LOGV2_ERROR(29001, "failed to delete encryption key for db", logAttrs(dbName));
+    if (!_restEncr) {
+        return;
+    }
+
+    // Delete the encryption key for this database.
+    // This method is called by the deferred cleanup process after verifying:
+    // 1. The database no longer exists in the catalog
+    // 2. No storage idents (including drop-pending ones) use the key
+    int res = _restEncr->keyDb()->delete_key_by_id(
+        DatabaseNameUtil::serialize(dbName, SerializationContext::stateDefault()));
+    if (res) {
+        LOGV2_ERROR(29001, "Failed to delete encryption key for database", logAttrs(dbName));
+    } else {
+        LOGV2_DEBUG(29158, 1, "Deleted encryption key for database", logAttrs(dbName));
+    }
+}
+
+std::vector<std::string> WiredTigerKVEngine::findOrphanedEncryptionKeyIds() {
+    if (!_restEncr) {
+        return {};
+    }
+
+    auto keyIds = _restEncr->keyDb()->getAllKeyIds();
+    if (keyIds.empty()) {
+        return {};
+    }
+    std::sort(keyIds.begin(), keyIds.end());
+
+    auto session = _connection->getUninterruptibleSession();
+    auto idents = _wtGetAllIdents(*session);
+
+    LOGV2_DEBUG(
+        29163, 2, "Scanning idents for encryption keys in use", "identCount"_attr = idents.size());
+
+    std::vector<std::string> keyIdsInUse;
+    for (const auto& ident : idents) {
+        // getMetadataCreate returns the original creation config, which carries
+        // the encryption=(...) clause; the metadata: cursor value does not.
+        auto metadata =
+            WiredTigerUtil::getMetadataCreate(*session, WiredTigerUtil::buildTableUri(ident));
+        if (!metadata.isOK()) {
+            LOGV2_DEBUG(29164,
+                        3,
+                        "Failed to get metadata for ident",
+                        "ident"_attr = ident,
+                        "error"_attr = metadata.getStatus());
+            continue;
+        }
+
+        auto keyId = WiredTigerUtil::getEncryptionKeyId(metadata.getValue());
+        if (keyId && !EncryptionKeyDB::isSpecialKeyId(*keyId)) {
+            keyIdsInUse.emplace_back(std::move(*keyId));
+            LOGV2_DEBUG(29166,
+                        3,
+                        "Found ident using encryption key",
+                        "ident"_attr = ident,
+                        "keyId"_attr = keyIdsInUse.back());
         }
     }
+
+    std::sort(keyIdsInUse.begin(), keyIdsInUse.end());
+    keyIdsInUse.erase(std::unique(keyIdsInUse.begin(), keyIdsInUse.end()), keyIdsInUse.end());
+
+    std::vector<std::string> orphaned;
+    std::set_difference(keyIds.begin(),
+                        keyIds.end(),
+                        keyIdsInUse.begin(),
+                        keyIdsInUse.end(),
+                        std::back_inserter(orphaned));
+
+    LOGV2_DEBUG(29165,
+                2,
+                "Encryption key cleanup scan",
+                "keysInKeyDb"_attr = keyIds.size(),
+                "keysInUseByIdents"_attr = keyIdsInUse.size(),
+                "orphaned"_attr = orphaned.size());
+
+    return orphaned;
+}
+
+int32_t WiredTigerKVEngine::getEncryptionKeyCleanupIntervalSeconds() const {
+    return gEncryptionKeyCleanupIntervalSeconds.load();
 }
 
 void WiredTigerKVEngine::_checkpoint(WiredTigerSession& session, bool useTimestamp) {

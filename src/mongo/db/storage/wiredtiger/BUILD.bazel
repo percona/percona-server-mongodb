@@ -285,6 +285,20 @@ mongo_cc_benchmark(
 )
 
 mongo_cc_benchmark(
+    name = "wiredtiger_encryption_key_cleanup_bm",
+    srcs = [
+        "wiredtiger_encryption_key_cleanup_bm.cpp",
+    ],
+    tags = ["storage_bm"],
+    deps = [
+        ":storage_wiredtiger_core",
+        "//src/mongo/db:service_context_test_fixture",
+        "//src/mongo/db/shard_role:service_context_non_d",
+        "//src/mongo/util:clock_source_mock",
+    ],
+)
+
+mongo_cc_benchmark(
     name = "wiredtiger_all_durable_timestamp_bm",
     srcs = [
         "wiredtiger_all_durable_timestamp_bm.cpp",
