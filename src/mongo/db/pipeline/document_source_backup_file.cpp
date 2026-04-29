@@ -60,11 +60,16 @@ constexpr StringData kFile = "file"_sd;
 constexpr StringData kByteOffset = "byteOffset"_sd;
 
 // We only link this file into mongod so this stage doesn't exist in mongos
-REGISTER_INTERNAL_DOCUMENT_SOURCE(_backupFile,
-                                  LiteParsedDocumentSourceInternal::parse,
-                                  DocumentSourceBackupFile::createFromBson,
-                                  true);
+REGISTER_DOCUMENT_SOURCE(_backupFile,
+                         DocumentSourceBackupFile::LiteParsed::parse,
+                         DocumentSourceBackupFile::createFromBson,
+                         AllowedWithApiStrict::kAlways);
 }  // namespace
+
+std::unique_ptr<DocumentSourceBackupFile::LiteParsed> DocumentSourceBackupFile::LiteParsed::parse(
+    const NamespaceString& nss, const BSONElement& spec, const LiteParserOptions& options) {
+    return std::make_unique<DocumentSourceBackupFile::LiteParsed>(spec.fieldName());
+}
 
 using boost::intrusive_ptr;
 
