@@ -50,7 +50,7 @@ function baseMongodOpts(extraSetParams) {
         ldapUserCacheInvalidationInterval: 1,
         ldapShouldRefreshUserCacheEntries: false,
     },
-                                     extraSetParams || {});
+                                       extraSetParams || {});
     return {
         auth: "",
         ldapServers: TestData.ldapServers,
@@ -81,9 +81,8 @@ function parseTrailingIntegerFromProgramOutput(raw) {
 }
 
 function countMarkerInPcap(pcapPath, marker, countPath) {
-    const script = "count=$(tcpdump -r " + tojson(pcapPath) +
-        " -A 2>/dev/null | grep -cF " + tojson(marker) + " || true); echo -n \"$count\" > " +
-        tojson(countPath);
+    const script = "count=$(tcpdump -r " + tojson(pcapPath) + " -A 2>/dev/null | grep -cF " +
+        tojson(marker) + " || true); echo -n \"$count\" > " + tojson(countPath);
     assert.eq(0, runMongoProgram("bash", "-c", script), "bash/tcpdump/grep pipeline failed");
 
     clearRawMongoProgramOutput();
@@ -94,17 +93,23 @@ function countMarkerInPcap(pcapPath, marker, countPath) {
 function assertPcapNonEmpty(pcapPath) {
     clearRawMongoProgramOutput();
     assert.eq(0,
-              runMongoProgram("bash", "-c", "sz=$(stat -c%s " + tojson(pcapPath) +
-                  " 2>/dev/null || echo 0); echo -n \"$sz\""));
+              runMongoProgram("bash",
+                              "-c",
+                              "sz=$(stat -c%s " + tojson(pcapPath) +
+                                  " 2>/dev/null || echo 0); echo -n \"$sz\""));
     const sz = parseTrailingIntegerFromProgramOutput(rawMongoProgramOutput());
-    assert.gt(sz,
-              40,
-              "pcap too small or missing; tcpdump likely saw no packets (caps/netns/interface). path=" +
-                  pcapPath);
+    assert.gt(
+        sz,
+        40,
+        "pcap too small or missing; tcpdump likely saw no packets (caps/netns/interface). path=" +
+            pcapPath);
 
     clearRawMongoProgramOutput();
-    assert.eq(0, runMongoProgram("bash", "-c", "n=$(tcpdump -r " + tojson(pcapPath) +
-        " -nn 2>/dev/null | wc -l); echo -n \"$n\""));
+    assert.eq(0,
+              runMongoProgram("bash",
+                              "-c",
+                              "n=$(tcpdump -r " + tojson(pcapPath) +
+                                  " -nn 2>/dev/null | wc -l); echo -n \"$n\""));
     const lines = parseTrailingIntegerFromProgramOutput(rawMongoProgramOutput());
     assert.gt(lines, 0, "tcpdump -r produced no packet lines for " + pcapPath);
 }
@@ -175,14 +180,13 @@ jsTestLog("tcpdump interface: " + iface + " (override with TestData.ldapTcpdumpI
 const pcapCached = MongoRunner.dataPath + "ldap_user_to_dn_cache_on_" + Date.now() + ".pcap";
 const pcapNoCache = MongoRunner.dataPath + "ldap_user_to_dn_cache_off_" + Date.now() + ".pcap";
 
-//The query to LDAP should appear once if using userToDN cache
+// The query to LDAP should appear once if using userToDN cache
 jsTestLog("Capture: two PLAIN auths, userToDN cache on (defaults)...");
 const countCacheOn = runTwiceAuthedCapture({}, pcapCached, iface);
 assert.eq(1, countCacheOn);
 
-//The query to LDAP should appear 4 times without cache
+// The query to LDAP should appear 4 times without cache
 jsTestLog("Capture: two PLAIN auths, userToDN cache off (TTL=0)...");
 const countCacheOff = runTwiceAuthedCapture({ldapUserToDNCacheTTLSeconds: 0}, pcapNoCache, iface);
 assert.eq(4, countCacheOff);
-
 })();
