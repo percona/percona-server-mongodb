@@ -1,0 +1,30 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "8c89653564afc974a0d99c37f0698b898b5a6181",
+    "merge_commit": "aea0c37039a9d7058daaa23ff6865631a88937d0"
+  },
+  "mergai_version": "0.1.dev111+gc2eff4572.d20260220",
+  "solutions": [
+    {
+      "type": "ci_fix",
+      "request": {
+        "workflow": "format",
+        "run_id": "25095788502",
+        "pr_number": 206,
+        "attempt_number": 1,
+        "context_summary": "format failed: 1 file need changes",
+        "timestamp": "2026-04-29T11:30:06.005727+00:00"
+      },
+      "response": {
+        "summary": "format auto-fix: 1 file changed",
+        "resolved": {
+          "MODULE.bazel.lock": "changed by 'format' auto-fix"
+        },
+        "unresolved": {},
+        "modified": {},
+        "review_notes": ""
+      }
+    }
+  ]
+}
