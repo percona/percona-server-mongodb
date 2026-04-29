@@ -41,6 +41,7 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 
 #include "mongo/base/string_data.h"
 #include "mongo/bson/bsonelement.h"
+#include "mongo/db/auth/resource_pattern.h"
 #include "mongo/db/namespace_string.h"
 #include "mongo/db/pipeline/document_source.h"
 #include "mongo/db/pipeline/lite_parsed_document_source.h"
@@ -67,7 +68,7 @@ public:
         PrivilegeVector requiredPrivileges(
             [[maybe_unused]] bool isMongos,
             [[maybe_unused]] bool bypassDocumentValidation) const final {
-            return {Privilege(ResourcePattern::forClusterResource(), ActionType::fsync)};
+            return {Privilege(ResourcePattern::forClusterResource(), ActionType::internal)};
         }
 
         bool isInitialSource() const final {
