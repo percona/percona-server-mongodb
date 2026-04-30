@@ -3646,16 +3646,25 @@ void WiredTigerKVEngine::keydbDropDatabase(const DatabaseName& dbName) {
         return;
     }
 
-    // Delete the encryption key for this database.
-    // This method is called by the deferred cleanup process after verifying:
-    // 1. The database no longer exists in the catalog
-    // 2. No storage idents (including drop-pending ones) use the key
-    int res = _restEncr->keyDb()->delete_key_by_id(
+    // Invalidate the active keyId for the database. The next ident-create in
+    // `dbName` will allocate a new generation. The previous generation's key
+    // row stays in `table:key` until orphan cleanup verifies no ident
+    // references it, so checkpoint cleanup of drop-pending idents can keep
+    // decrypting correctly.
+    _restEncr->keyDb()->clearActiveKeyId(
         DatabaseNameUtil::serialize(dbName, SerializationContext::stateDefault()));
+    LOGV2_DEBUG(29158, 1, "Cleared active encryption keyId for database", logAttrs(dbName));
+}
+
+void WiredTigerKVEngine::deleteEncryptionKey(const std::string& keyId) {
+    if (!_restEncr) {
+        return;
+    }
+    int res = _restEncr->keyDb()->delete_key_by_id(keyId);
     if (res) {
-        LOGV2_ERROR(29001, "Failed to delete encryption key for database", logAttrs(dbName));
+        LOGV2_ERROR(29001, "Failed to delete encryption key", "keyId"_attr = keyId);
     } else {
-        LOGV2_DEBUG(29158, 1, "Deleted encryption key for database", logAttrs(dbName));
+        LOGV2_DEBUG(29190, 1, "Deleted encryption key", "keyId"_attr = keyId);
     }
 }
 
@@ -3702,6 +3711,13 @@ std::vector<std::string> WiredTigerKVEngine::findOrphanedEncryptionKeyIds() {
         }
     }
 
+    // Add every keyId currently named by `table:active_keyid` to the in-use
+    // set. Without this, a freshly-allocated generation that hasn't yet had
+    // its first ident written would look orphaned and be reaped before the
+    // first encrypted write could land.
+    auto activeKeyIds = _restEncr->keyDb()->getAllActiveKeyIds();
+    keyIdsInUse.insert(keyIdsInUse.end(), activeKeyIds.begin(), activeKeyIds.end());
+
     std::sort(keyIdsInUse.begin(), keyIdsInUse.end());
     keyIdsInUse.erase(std::unique(keyIdsInUse.begin(), keyIdsInUse.end()), keyIdsInUse.end());
 
@@ -3717,6 +3733,7 @@ std::vector<std::string> WiredTigerKVEngine::findOrphanedEncryptionKeyIds() {
                 "Encryption key cleanup scan",
                 "keysInKeyDb"_attr = keyIds.size(),
                 "keysInUseByIdents"_attr = keyIdsInUse.size(),
+                "activeMappings"_attr = activeKeyIds.size(),
                 "orphaned"_attr = orphaned.size());
 
     return orphaned;

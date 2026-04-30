@@ -87,6 +87,8 @@ class StorageEngineImpl final : public StorageEngine {
     Status hotBackup(OperationContext* opCtx, const percona::S3BackupParameters& s3params) override;
     void keydbDropDatabase(const DatabaseName& dbName) override;
 
+    void deleteEncryptionKey(const std::string& keyId) override;
+
     void cleanupOrphanedEncryptionKeys(OperationContext* opCtx, StringData trigger) override;
 
     void markEncryptionKeyCleanupDirty() override;

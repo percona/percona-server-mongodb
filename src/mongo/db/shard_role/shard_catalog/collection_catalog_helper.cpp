@@ -439,18 +439,22 @@ Status dropCollectionsWithPrefix(OperationContext* opCtx,
 
     std::vector<UUID> toDrop = catalog->getAllCollectionUUIDsFromDb(dbName);
 
-    // NOTE: Encryption key cleanup is NOT performed here.
-    // The key cannot be safely deleted at this point because drop-pending idents
-    // (encrypted with this key) may still exist in storage and will be accessed
-    // during checkpoint cleanup. Deleting the key here would cause WT_NOTFOUND errors.
-    // Instead, orphaned encryption keys are cleaned up via three mechanisms:
-    // 1. Unconditionally on startup (after catalog initialization)
-    // 2. Periodically by a background process (when encryptionKeyCleanupIntervalSeconds > 0)
-    // 3. On demand via the cleanupOrphanedEncryptionKeys admin command
-    //
-    // Signal the periodic job that there is now work to do. Steady-state ticks
-    // with no drops since the previous scan skip the expensive metadata walk.
-    opCtx->getServiceContext()->getStorageEngine()->markEncryptionKeyCleanupDirty();
+    // Invalidate the active encryption keyId for this database immediately.
+    // With keyId generations this only clears the `dbName -> active keyId`
+    // mapping in the keyDB; the actual key bytes stay alive so any
+    // drop-pending idents that still encrypt under the previous generation
+    // continue to decrypt during checkpoint cleanup. The next ident-create in
+    // `dbName` (whether after recreation or for an unrelated reason) will
+    // allocate a fresh generation, landing in a different WT keyed-encryptor
+    // cache slot than the orphaned one. Orphan cleanup later reaps the old
+    // generation's key row once no ident references it.
+    auto* storageEngine = opCtx->getServiceContext()->getStorageEngine();
+    storageEngine->keydbDropDatabase(dbName);
+
+    // Signal the periodic orphan-cleanup job that there is work to do.
+    // Steady-state ticks with no drops since the previous scan skip the
+    // expensive metadata walk.
+    storageEngine->markEncryptionKeyCleanupDirty();
 
     return dropCollections(opCtx, toDrop, collectionNamePrefix);
 }

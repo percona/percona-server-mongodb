@@ -39,6 +39,16 @@
 #include "mongo/util/decorable.h"
 #include "mongo/util/str.h"
 
+namespace mongo {
+namespace encryption {
+// Forward declaration; defined in encryption_keydb.cpp. The customization
+// hooks library is intentionally lightweight and does not depend on the
+// WiredTiger headers — this symbol gets resolved at final link time, mirroring
+// the established pattern used by encryption_keydb_c_api.h.
+std::string getOrCreateActiveKeyIdForDb(const std::string& dbName);
+}  // namespace encryption
+}  // namespace mongo
+
 #include <memory>
 #include <utility>
 
@@ -63,14 +73,26 @@ public:
     std::string getTableCreateConfig(StringData tableName) override {
         NamespaceString ns = NamespaceStringUtil::deserialize(
             boost::none, tableName, SerializationContext::stateDefault());
-        std::string keyIdStr =
+        std::string dbName =
             DatabaseNameUtil::serialize(ns.dbName(), SerializationContext::stateDefault());
-        StringData keyid(keyIdStr);
-        // Keep compatibility with v3.6 after SERVER-34617
-        const size_t minsize = 6;  // Minimum size which allows following condition to be true
-        if (keyid.size() >= minsize && (keyid == "system"_sd || keyid.starts_with("table:"_sd)))
-            keyid = "/default"_sd;
-        return str::stream() << "encryption=(name=percona,keyid=\"" << keyid << "\"),";
+        StringData dbSd(dbName);
+
+        // Internal / system idents and the keys DB itself encrypt under the
+        // shared "/default" key; they have no logical database lifetime, so the
+        // generation machinery below does not apply.
+        // Keep compatibility with v3.6 after SERVER-34617.
+        const size_t minsize = 6;
+        if (dbSd.size() >= minsize && (dbSd == "system"_sd || dbSd.starts_with("table:"_sd))) {
+            return str::stream() << "encryption=(name=percona,keyid=\"/default\"),";
+        }
+
+        // Allocate (or reuse) a generation-scoped keyId for this database so
+        // that drop+recreate of `dbName` lands on a different keyId (and thus
+        // a different WT keyed-encryptor cache slot) than any drop-pending
+        // idents that still reference the previous generation. The mapping is
+        // persistent in `table:active_keyid`; dropDatabase clears it.
+        std::string keyId = encryption::getOrCreateActiveKeyIdForDb(dbName);
+        return str::stream() << "encryption=(name=percona,keyid=\"" << keyId << "\"),";
     }
 };
 

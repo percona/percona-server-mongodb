@@ -38,6 +38,7 @@ Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/util/assert_util.h"
 #include "mongo/util/debug_util.h"
 #include "mongo/util/system_clock_source.h"
+#include "mongo/util/uuid.h"
 
 #include <cstring>  // memcpy
 
@@ -92,6 +93,22 @@ std::unique_ptr<EncryptionKeyDB> EncryptionKeyDB::create(const std::string& path
     db->init();
     return db;
 }
+
+EncryptionKeyDB* EncryptionKeyDB::instance() noexcept {
+    return encryptionKeyDB;
+}
+
+namespace encryption {
+// Forward-declared in wiredtiger_customization_hooks.cpp. Lives here so the
+// thin customization-hooks library does not need a build-time dependency on
+// the WiredTiger headers — the symbol is resolved at final link time, in the
+// same way as the C-style get_key_by_id below.
+std::string getOrCreateActiveKeyIdForDb(const std::string& dbName) {
+    auto* keyDb = EncryptionKeyDB::instance();
+    invariant(keyDb, "EncryptionKeyDB must be initialized before encrypted ident creation");
+    return keyDb->getOrCreateActiveKeyId(dbName);
+}
+}  // namespace encryption
 
 EncryptionKeyDB::EncryptionKeyDB(const std::string& path,
                                  const encryption::Key& masterKey,
@@ -263,6 +280,18 @@ void EncryptionKeyDB::init() {
                                      wiredtiger_strerror(res));
         }
 
+        // try to create 'active_keyid' table; idempotent
+        // Maps `dbName` -> the keyId currently used to encrypt new idents in
+        // that database. The mapping is set on the first ident-create after a
+        // (re)create of the database, and cleared on dropDatabase. The actual
+        // key bytes live in `table:key` keyed by the generation keyId.
+        res = _sess->create(
+            _sess, "table:active_keyid", "key_format=S,value_format=S,access_pattern_hint=random");
+        if (res) {
+            throw std::runtime_error(std::string("error creating/opening active_keyid table: ") +
+                                     wiredtiger_strerror(res));
+        }
+
         // load parameters
         {
             WT_CURSOR* cursor;
@@ -337,6 +366,40 @@ void EncryptionKeyDB::import_data_from(const EncryptionKeyDB* proto) {
         }
         if (res != WT_NOTFOUND)
             throw std::runtime_error(std::string("clone: error reading key table: ") +
+                                     wiredtiger_strerror(res));
+
+        // copy active_keyid table so the rotated keydb keeps the same dbName ->
+        // generation-keyId bindings; otherwise the first ident-create in any
+        // existing database would allocate a brand-new generation and stop
+        // referencing keys that were just copied above.
+        WT_CURSOR* srca;
+        res =
+            proto->_sess->open_cursor(proto->_sess, "table:active_keyid", nullptr, nullptr, &srca);
+        if (res)
+            throw std::runtime_error(std::string("clone: error opening active_keyid cursor: ") +
+                                     wiredtiger_strerror(res));
+        std::unique_ptr<WT_CURSOR, std::function<void(WT_CURSOR*)>> srca_guard(srca, cursor_close);
+        WT_CURSOR* dsta;
+        res = _sess->open_cursor(_sess, "table:active_keyid", nullptr, nullptr, &dsta);
+        if (res)
+            throw std::runtime_error(std::string("clone: error opening active_keyid cursor: ") +
+                                     wiredtiger_strerror(res));
+        std::unique_ptr<WT_CURSOR, std::function<void(WT_CURSOR*)>> dsta_guard(dsta, cursor_close);
+        while ((res = srca->next(srca)) == 0) {
+            const char* k;
+            const char* v;
+            if ((res = srca->get_key(srca, &k)) || (res = srca->get_value(srca, &v)))
+                throw std::runtime_error(
+                    std::string("clone: error getting key/value from active_keyid: ") +
+                    wiredtiger_strerror(res));
+            dsta->set_key(dsta, k);
+            dsta->set_value(dsta, v);
+            if ((res = dsta->insert(dsta)) != 0)
+                throw std::runtime_error(std::string("clone: error writing active_keyid: ") +
+                                         wiredtiger_strerror(res));
+        }
+        if (res != WT_NOTFOUND)
+            throw std::runtime_error(std::string("clone: error reading active_keyid: ") +
                                      wiredtiger_strerror(res));
     } catch (std::exception& e) {
         LOGV2_ERROR(29049, "Exception in EncryptionKeyDB::clone: {e}", "e"_attr = e.what());
@@ -455,17 +518,11 @@ int EncryptionKeyDB::delete_key_by_id(const std::string& keyid) {
                     "desc"_attr = wiredtiger_strerror(res));
     }
 
-    // prepare encryptor for reuse in case DB with the same name will be recreated
-    // it is not an error if encryptor is not found - that means customize was not called
-    // for the keyid and it will be called when necessary (in theory this may happen if
-    // DB is dropped just after mongod is started and before any read/write operations)
-    auto it = _encryptors.find(keyid);
-    if (it != _encryptors.end()) {
-        invariant(it->second);
-        percona_encryption_extension_drop_keyid(it->second);
-        _encryptors.erase(it);
-    }
-
+    // No encryptor manipulation here. With generation keyIds the WT keyed-encryptor
+    // cache slot for `keyid` is never reused: a recreated database goes through
+    // getOrCreateActiveKeyId and lands on a fresh `<dbName>.<uuid>` slot. Orphan
+    // cleanup is what calls this function, and by then no live ident references
+    // the keyid being removed.
     return res;
 }
 
@@ -507,6 +564,123 @@ std::vector<std::string> EncryptionKeyDB::getAllKeyIds() {
 
     LOGV2_DEBUG(29157, 2, "getAllKeyIds: found keys", "count"_attr = keyIds.size());
     return keyIds;
+}
+
+std::string EncryptionKeyDB::getOrCreateActiveKeyId(const std::string& dbName) {
+    std::lock_guard<std::mutex> lk(_lock_sess);
+
+    WT_CURSOR* cursor;
+    int res = _sess->open_cursor(_sess, "table:active_keyid", nullptr, nullptr, &cursor);
+    if (res) {
+        LOGV2_ERROR(29180,
+                    "getOrCreateActiveKeyId: error opening cursor",
+                    "error"_attr = wiredtiger_strerror(res));
+        uassertStatusOK(wtRCToStatus(res, nullptr));
+    }
+    std::unique_ptr<WT_CURSOR, std::function<void(WT_CURSOR*)>> cursorGuard(
+        cursor, [](WT_CURSOR* c) { c->close(c); });
+
+    cursor->set_key(cursor, dbName.c_str());
+    res = cursor->search(cursor);
+    if (res == 0) {
+        const char* v;
+        if (cursor->get_value(cursor, &v) == 0 && v != nullptr) {
+            return std::string(v);
+        }
+    } else if (res != WT_NOTFOUND) {
+        LOGV2_ERROR(29181,
+                    "getOrCreateActiveKeyId: search failed",
+                    "dbName"_attr = dbName,
+                    "error"_attr = wiredtiger_strerror(res));
+        uassertStatusOK(wtRCToStatus(res, nullptr));
+    }
+
+    // Allocate a fresh generation. Format: "<dbName>.<uuid>". The dot separator
+    // is safe because MongoDB database names cannot contain '.'; orphan cleanup
+    // splits on the first '.' to recover the dbName for its DBLock.
+    std::string keyId = dbName + "." + UUID::gen().toString();
+
+    // Reset cursor state (the failed search left it positioned).
+    cursor->reset(cursor);
+    cursor->set_key(cursor, dbName.c_str());
+    cursor->set_value(cursor, keyId.c_str());
+    res = cursor->insert(cursor);
+    if (res) {
+        LOGV2_ERROR(29182,
+                    "getOrCreateActiveKeyId: insert failed",
+                    "dbName"_attr = dbName,
+                    "keyId"_attr = keyId,
+                    "error"_attr = wiredtiger_strerror(res));
+        uassertStatusOK(wtRCToStatus(res, nullptr));
+    }
+
+    LOGV2_DEBUG(29183,
+                2,
+                "Allocated new active keyId for database",
+                "dbName"_attr = dbName,
+                "keyId"_attr = keyId);
+    return keyId;
+}
+
+void EncryptionKeyDB::clearActiveKeyId(const std::string& dbName) {
+    std::lock_guard<std::mutex> lk(_lock_sess);
+
+    WT_CURSOR* cursor;
+    int res = _sess->open_cursor(_sess, "table:active_keyid", nullptr, nullptr, &cursor);
+    if (res) {
+        LOGV2_ERROR(29184,
+                    "clearActiveKeyId: error opening cursor",
+                    "error"_attr = wiredtiger_strerror(res));
+        return;
+    }
+    std::unique_ptr<WT_CURSOR, std::function<void(WT_CURSOR*)>> cursorGuard(
+        cursor, [](WT_CURSOR* c) { c->close(c); });
+
+    cursor->set_key(cursor, dbName.c_str());
+    res = cursor->remove(cursor);
+    if (res != 0 && res != WT_NOTFOUND) {
+        LOGV2_ERROR(29185,
+                    "clearActiveKeyId: remove failed",
+                    "dbName"_attr = dbName,
+                    "error"_attr = wiredtiger_strerror(res));
+        return;
+    }
+    LOGV2_DEBUG(29186,
+                2,
+                "Cleared active keyId for database",
+                "dbName"_attr = dbName,
+                "found"_attr = (res == 0));
+}
+
+std::vector<std::string> EncryptionKeyDB::getAllActiveKeyIds() {
+    std::vector<std::string> active;
+
+    std::lock_guard<std::mutex> lk(_lock_sess);
+    WT_CURSOR* cursor;
+    int res = _sess->open_cursor(_sess, "table:active_keyid", nullptr, nullptr, &cursor);
+    if (res) {
+        LOGV2_ERROR(29187,
+                    "getAllActiveKeyIds: error opening cursor",
+                    "error"_attr = wiredtiger_strerror(res));
+        return active;
+    }
+    std::unique_ptr<WT_CURSOR, std::function<void(WT_CURSOR*)>> cursorGuard(
+        cursor, [](WT_CURSOR* c) { c->close(c); });
+
+    while ((res = cursor->next(cursor)) == 0) {
+        const char* v;
+        if (cursor->get_value(cursor, &v) == 0 && v != nullptr) {
+            active.emplace_back(v);
+        }
+    }
+    if (res != WT_NOTFOUND) {
+        LOGV2_ERROR(29188,
+                    "getAllActiveKeyIds: error iterating cursor",
+                    "error"_attr = wiredtiger_strerror(res));
+    }
+
+    LOGV2_DEBUG(29189, 2, "getAllActiveKeyIds: found mappings", "count"_attr = active.size());
+    return active;
 }
 
 int EncryptionKeyDB::store_gcm_iv_reserved() {

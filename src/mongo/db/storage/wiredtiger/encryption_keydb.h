@@ -64,6 +64,14 @@ public:
     static std::unique_ptr<EncryptionKeyDB> create(const std::string& path,
                                                    const encryption::Key& masterKey);
 
+    /// @brief Returns the singleton main key database (not the rotation copy).
+    ///
+    /// Set by the constructor; cleared by the destructor. Returns nullptr if
+    /// encryption is disabled or the key database has not been opened yet.
+    /// The customization hook for newly-created idents calls this to allocate
+    /// or look up the active keyId for a database.
+    static EncryptionKeyDB* instance() noexcept;
+
     /// @brief Clones the database for the purpose of master key rotation.
     ///
     /// Creates a new encryption key database with data identidal to that of this one
@@ -90,7 +98,7 @@ public:
     // drop key for specific keyid (used in dropDatabase)
     int delete_key_by_id(const std::string& keyid);
 
-    // Returns all key IDs (database names) stored in the key database.
+    // Returns all key IDs stored in the key database.
     // Excludes the master key (empty keyid) and special keys like "/default".
     // Used for deferred encryption key cleanup.
     std::vector<std::string> getAllKeyIds();
@@ -98,6 +106,26 @@ public:
     // Returns true if the key ID is a special/reserved key that should not be
     // included in user key lists (empty key for master key, "/default" key).
     static bool isSpecialKeyId(const std::string& keyId);
+
+    // Returns the keyId currently active for `dbName`, allocating a new
+    // generation (`<dbName>.<uuid>`) and persisting it in `table:active_keyid`
+    // if no active mapping exists yet. Subsequent ident creations within the
+    // same database lifetime share the returned keyId. `clearActiveKeyId` (on
+    // dropDatabase) is the only thing that causes the next call to allocate a
+    // fresh generation.
+    std::string getOrCreateActiveKeyId(const std::string& dbName);
+
+    // Removes the active mapping for `dbName`. The associated key row in
+    // `table:key` is left in place so that drop-pending idents can keep
+    // decrypting; orphan cleanup deletes it once no ident references it.
+    // Idempotent: missing entry is not an error.
+    void clearActiveKeyId(const std::string& dbName);
+
+    // Returns every keyId currently named by `table:active_keyid`. Orphan
+    // cleanup unions this with the keyIds referenced by WT idents to compute
+    // the in-use set, so a freshly-allocated generation that hasn't yet had
+    // its first ident created is not mistaken for an orphan.
+    std::vector<std::string> getAllActiveKeyIds();
 
     // get new counter value for IV in GCM mode
     int get_iv_gcm(uint8_t* buf, int len);

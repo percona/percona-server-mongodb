@@ -131,6 +131,10 @@ void StorageEngineImpl::keydbDropDatabase(const DatabaseName& dbName) {
     _engine->keydbDropDatabase(dbName);
 }
 
+void StorageEngineImpl::deleteEncryptionKey(const std::string& keyId) {
+    _engine->deleteEncryptionKey(keyId);
+}
+
 StorageEngineImpl::StorageEngineImpl(OperationContext* opCtx,
                                      std::unique_ptr<KVEngine> engine,
                                      std::unique_ptr<KVEngine> spillEngine,
@@ -1052,8 +1056,20 @@ void StorageEngineImpl::cleanupOrphanedEncryptionKeys(OperationContext* opCtx, S
     size_t deleted = 0;
     for (const auto& keyId : orphaned) {
         try {
+            // Generation keyIds have the form "<dbName>.<uuid>". Legacy keyIds
+            // (pre-generations on-disk data) are bare dbNames. Split on the
+            // first '.': prefix is the dbName for the DBLock, rest is the
+            // generation UUID. MongoDB database names cannot contain '.', so
+            // this split is unambiguous.
+            std::string dbNameStr;
+            auto dot = keyId.find('.');
+            if (dot == std::string::npos) {
+                dbNameStr = keyId;  // legacy
+            } else {
+                dbNameStr = keyId.substr(0, dot);
+            }
             auto dbName = DatabaseNameUtil::deserialize(
-                boost::none, keyId, SerializationContext::stateDefault());
+                boost::none, dbNameStr, SerializationContext::stateDefault());
 
             Lock::DBLock dbLock(opCtx, dbName, MODE_S);
             auto freshCatalog = CollectionCatalog::get(opCtx);
@@ -1063,9 +1079,10 @@ void StorageEngineImpl::cleanupOrphanedEncryptionKeys(OperationContext* opCtx, S
 
             if (!dbExists && !dropPending) {
                 LOGV2(29160,
-                      "Deleting orphaned encryption key for non-existent database",
-                      "keyId"_attr = keyId);
-                _engine->keydbDropDatabase(dbName);
+                      "Deleting orphaned encryption key",
+                      "keyId"_attr = keyId,
+                      "dbName"_attr = dbNameStr);
+                _engine->deleteEncryptionKey(keyId);
                 ++deleted;
             } else {
                 LOGV2_DEBUG(29170,

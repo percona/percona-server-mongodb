@@ -51,17 +51,24 @@ struct KeyDBAPI {
     virtual ~KeyDBAPI() {}
 
     /**
-     * Delete the encryption key for the specified database.
-     *
-     * This method is called by the deferred cleanup process after verifying:
-     * 1. The database no longer exists in the catalog
-     * 2. No storage idents (including drop-pending ones) use the key
-     *
-     * NOTE: This should NOT be called directly during dropDatabase operations
-     * because drop-pending idents may still exist and require the key for
-     * checkpoint cleanup. Use the deferred cleanup mechanism instead.
+     * Invalidates the active encryption keyId for the given database so that
+     * the next ident-create in `dbName` allocates a new generation. Called
+     * synchronously from the dropDatabase path. Safe to call eagerly: the
+     * underlying key bytes are NOT removed here, so any drop-pending idents
+     * still encrypted under the previous generation continue to decrypt
+     * correctly. Orphan cleanup deletes the actual key once no ident
+     * references it (see `deleteEncryptionKey`).
      */
     virtual void keydbDropDatabase(const mongo::DatabaseName& dbName) {
+        // do nothing for engines which do not support KeyDB
+    }
+
+    /**
+     * Deletes a specific encryption key from the keyDB. Called by the
+     * orphan-cleanup loop once `findOrphanedEncryptionKeyIds()` has determined
+     * that no live ident and no active-keyId mapping references `keyId`.
+     */
+    virtual void deleteEncryptionKey(const std::string& keyId) {
         // do nothing for engines which do not support KeyDB
     }
 
