@@ -148,6 +148,19 @@ common:psmdb_opt_release --//bazel/config:release=True
 --config=psmdb_buildfarm
 common:psmdb_buildfarm --remote_executor=grpcs://bb-psmdb.ddns.net:8981
 common:psmdb_buildfarm --remote_cache=grpcs://bb-psmdb.ddns.net:8981
+# PSMDB-2034: Build Event Stream → bb-portal (build observability).
+# Same TLS+JWT path as --remote_executor (Envoy on the central node has
+# a second listener on :1985 wired to the bb-portal-backend BES gRPC
+# server, validating the same `bazel-cli` audience JWTs against Dex's
+# JWKS). The /bazel-invocations/ URL prefix is what bb-portal's own
+# frontend serves (see https://bb-psmdb.ddns.net:7986/ home page —
+# the UI generates this exact pair when prompting clients to point at it).
+# wrapper_hook.py injects --bes_header=authorization=Bearer <jwt> at
+# argv-rewrite time; Bazel does NOT auto-forward --remote_header into
+# --bes_header (separate CLI surfaces, separate underlying gRPC
+# channels), hence the explicit injection.
+common:psmdb_buildfarm --bes_backend=grpcs://bb-psmdb.ddns.net:1985
+common:psmdb_buildfarm --bes_results_url=https://bb-psmdb.ddns.net:7986/bazel-invocations/
 common:psmdb_buildfarm --remote_instance_name=hardlinking
 common:psmdb_buildfarm --remote_timeout=3600
 # NOTE: --remote_cache_compression is intentionally NOT enabled here.

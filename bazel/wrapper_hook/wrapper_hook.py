@@ -103,9 +103,19 @@ def main():
             )
             wrapper_debug(
                 f"rbe_auth: token bearer={token[:12]}…{token[-6:]} (len={len(token)}); "
-                "appending --remote_header=authorization to args"
+                "appending --remote_header / --bes_header authorization to args"
             )
-            args = list(args) + [f"--remote_header=authorization=Bearer {token}"]
+            # Bazel does NOT auto-forward --remote_header into --bes_header:
+            # they're separate CLI surfaces driving separate gRPC channels
+            # (--remote_executor / --remote_cache vs --bes_backend). PSMDB-2034
+            # added a Build Event Stream sink on grpcs://bb-psmdb.ddns.net:1985
+            # (Envoy → bb-portal-backend), validated against the same Dex
+            # `bazel-cli` audience that gates :8981, so the same JWT works on
+            # both — but we have to attach it twice.
+            args = list(args) + [
+                f"--remote_header=authorization=Bearer {token}",
+                f"--bes_header=authorization=Bearer {token}",
+            ]
     else:
         args = sys.argv[2:]
 
