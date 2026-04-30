@@ -78,9 +78,9 @@ def _setup_local_config_platform(ctx):
         constraints_str += ',\n        "@//bazel/platforms:kernel_version_4_4_or_greater"'
 
         # PSMDB override: prefer PSMDB-specific image map for distros we serve
-        # via the RBE cluster (ghcr.io/vorsel/psmdb-buildbarn-runners) so the
-        # auto-generated host platform's container-image routes to an RBE
-        # worker queue. Distros not overridden in
+        # via the RBE cluster (see bazel/platforms/psmdb_rbe_containers.bzl
+        # for the registry URL) so the auto-generated host platform's
+        # container-image routes to an RBE worker queue. Distros not overridden in
         # PSMDB_REMOTE_EXECUTION_CONTAINERS fall through to upstream's
         # quay.io image unchanged. Mirrors the override done in
         # bazel/platforms/platform_util.bzl for the explicit

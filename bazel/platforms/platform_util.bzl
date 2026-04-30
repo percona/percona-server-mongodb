@@ -3,8 +3,9 @@ load("//bazel/platforms:psmdb_rbe_containers.bzl", "PSMDB_REMOTE_EXECUTION_CONTA
 
 def setup_platform(arch, distro_or_os, cache_silo):
     # PSMDB override: prefer PSMDB-specific image map for distros we serve
-    # via the RBE cluster (ghcr.io/vorsel/psmdb-buildbarn-runners). Distros
-    # we don't override fall through to upstream MongoDB's quay.io map and
+    # via the RBE cluster (see bazel/platforms/psmdb_rbe_containers.bzl
+    # for the registry URL and routing rationale). Distros we don't
+    # override fall through to upstream MongoDB's quay.io map and
     # will route to MongoDB's RBE cluster (or fail FAILED_PRECONDITION if
     # no such cluster is configured) — same behaviour as a vanilla upstream
     # checkout. See bazel/platforms/psmdb_rbe_containers.bzl for rationale
