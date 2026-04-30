@@ -20,8 +20,9 @@ common --bes_results_url=
 # "null", "unset", "/dev/null") that means "unset" for a String option
 # — only OMITTING the flag entirely yields Java null, which is the
 # real "no client cert" state. With grpcs:// endpoints (e.g. our
-# buildfarm at grpcs://bb-psmdb.ddns.net:8981) Bazel feeds the value
-# straight into GoogleAuthUtils.createSSlContext → Netty → PemReader,
+# buildfarm — endpoint passed via --remote_executor on the bazel build
+# command line) Bazel feeds the value straight into
+# GoogleAuthUtils.createSSlContext → Netty → PemReader,
 # which tries to open the path '' as a PEM file and crashes:
 #   Failed to init TLS infrastructure using '' as client certificate:
 #   File does not contain valid certificates:
@@ -125,12 +126,17 @@ common:psmdb_opt_release --//bazel/config:release=True
 # Bazel action digest.
 #
 # Endpoint: grpcs:// (TLS terminated by Envoy on the central node), with
-# the No-IP DDNS hostname the Let's Encrypt cert is issued for. The
-# hostname resolves to a Hetzner Floating IP pinned to the central VM
-# (survives VM redeploy); the primary IP rotates and is intentionally not
-# used here. When migrating off bb-psmdb.ddns.net onto a Percona-controlled
-# domain, edit the host here AND `ISSUER` in
-# bazel/wrapper_hook/rbe_auth.py — those are the only two places.
+# a hostname the Let's Encrypt cert is issued for. The hostname resolves
+# to a Hetzner Floating IP pinned to the central VM (survives VM redeploy);
+# the primary IP rotates and is intentionally not used.
+#
+# Endpoint URLs are NOT hardcoded in this file. They are passed at
+# `bazel build` time via four CLI flags below (--remote_executor,
+# --remote_cache, --bes_backend, --bes_results_url) — the values are
+# left empty here so a CLI override fully populates them. The OIDC
+# issuer URL similarly comes from the PSMDB_RBE_OIDC_ISSUER env var
+# read by bazel/wrapper_hook/rbe_auth.py at runtime (or from a hardcoded
+# constant once IT issues a permanent buildfarm hostname).
 #
 # Auth: PSMDB-2043 — bazel/wrapper_hook/wrapper_hook.py automatically
 # obtains an OIDC bearer (Dex Device Code flow on first use, silent
@@ -146,21 +152,20 @@ common:psmdb_opt_release --//bazel/config:release=True
 # hardlinks CAS blobs into the worker FS — same identifier the
 # scheduler's predeclared queues are anchored on.
 --config=psmdb_buildfarm
-common:psmdb_buildfarm --remote_executor=grpcs://bb-psmdb.ddns.net:8981
-common:psmdb_buildfarm --remote_cache=grpcs://bb-psmdb.ddns.net:8981
+common:psmdb_buildfarm --remote_executor=
+common:psmdb_buildfarm --remote_cache=
 # PSMDB-2034: Build Event Stream → bb-portal (build observability).
 # Same TLS+JWT path as --remote_executor (Envoy on the central node has
-# a second listener on :1985 wired to the bb-portal-backend BES gRPC
-# server, validating the same `bazel-cli` audience JWTs against Dex's
-# JWKS). The /bazel-invocations/ URL prefix is what bb-portal's own
-# frontend serves (see https://bb-psmdb.ddns.net:7986/ home page —
-# the UI generates this exact pair when prompting clients to point at it).
+# a second BES listener wired to the bb-portal-backend BES gRPC server,
+# validating the same `bazel-cli` audience JWTs against Dex's JWKS).
+# The bes_results_url path is what bb-portal's own frontend serves —
+# the UI generates this exact pair when prompting clients to point at it.
 # wrapper_hook.py injects --bes_header=authorization=Bearer <jwt> at
 # argv-rewrite time; Bazel does NOT auto-forward --remote_header into
 # --bes_header (separate CLI surfaces, separate underlying gRPC
 # channels), hence the explicit injection.
-common:psmdb_buildfarm --bes_backend=grpcs://bb-psmdb.ddns.net:1985
-common:psmdb_buildfarm --bes_results_url=https://bb-psmdb.ddns.net:7986/bazel-invocations/
+common:psmdb_buildfarm --bes_backend=
+common:psmdb_buildfarm --bes_results_url=
 common:psmdb_buildfarm --remote_instance_name=hardlinking
 common:psmdb_buildfarm --remote_timeout=3600
 # NOTE: --remote_cache_compression is intentionally NOT enabled here.

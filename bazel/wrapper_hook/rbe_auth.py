@@ -11,17 +11,23 @@ dev-psmdb).
 
 No third-party deps: only `urllib`, `json`, `ssl`, `base64` from the
 stdlib. Token is signed by Dex (RS256, key rotated by Dex every 6 h),
-verified server-side by Envoy's jwt_authn filter on :8981 — we never
-verify the signature on the client. We only decode the unsigned middle
-segment to read the `exp` claim and decide if a refresh is due.
+verified server-side by Envoy's jwt_authn filter on the buildfarm
+gRPC listener — we never verify the signature on the client. We only
+decode the unsigned middle segment to read the `exp` claim and decide
+if a refresh is due.
 
-Constants below are HARDCODED on purpose. See PSMDB-2043 / variant D in
-the design discussion: putting them in `.bazelrc.psmdb` (--action_env)
-doesn't help because wrapper_hook runs *before* Bazel and reads env
-directly; putting them in env vars adds onboarding ceremony nobody will
-remember. When the buildfarm hostname migrates off `bb-psmdb.ddns.net`
-(No-IP free DDNS, interim) onto a Percona-controlled domain, edit
-ISSUER here in all three branches (v8.0, v8.3, master).
+The OIDC issuer URL resolves in two tiers (first non-empty wins):
+  1. `PSMDB_RBE_OIDC_ISSUER` constant below (hardcode it once IT issues
+     a permanent Percona-controlled hostname for the buildfarm — that
+     lets us drop the env-var indirection in production builds).
+  2. `PSMDB_RBE_OIDC_ISSUER` env var, exported by developers / Jenkins
+     before invoking `bazel build --config=psmdb_buildfarm`.
+
+If neither is set, ISSUER stays empty and the module imports cleanly.
+Failure is lazy on purpose: the first call to `get_id_token()` — which
+only fires when wrapper_hook detects `--config=psmdb_buildfarm` — raises
+`RbeAuthError` pointing the operator at both fix paths. Builds that
+never touch the RBE buildfarm never trigger this.
 """
 
 import base64
@@ -37,8 +43,12 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-# --- Buildfarm identity (see module docstring on how to migrate) -----
-ISSUER = "https://bb-psmdb.ddns.net:5556"
+# --- Buildfarm identity (see module docstring on resolution order) ---
+# Hardcode this once IT issues a permanent buildfarm hostname; until
+# then it stays empty and tier-2 (env var) takes over. Keep this name
+# identical to the env var so operators only have one symbol to learn.
+PSMDB_RBE_OIDC_ISSUER = ""
+ISSUER = PSMDB_RBE_OIDC_ISSUER or os.environ.get("PSMDB_RBE_OIDC_ISSUER", "")
 CLIENT_ID = "bazel-cli"
 AUDIENCE = "bazel-cli"
 SCOPES = "openid groups offline_access"
@@ -77,6 +87,24 @@ class RbeAuthRequired(RbeAuthError):
     so the build doesn't hang on the device-code polling loop until
     expires_in (5 min) elapses.
     """
+
+
+def _require_issuer() -> str:
+    """Return ISSUER if configured, else raise RbeAuthError.
+
+    Two-tier resolution (see module docstring): hardcoded constant
+    `PSMDB_RBE_OIDC_ISSUER` wins; the same-named env var is the
+    fallback. Failure is intentional and lazy — only callers that
+    actually need to talk to Dex hit this guard.
+    """
+    if not ISSUER:
+        raise RbeAuthError(
+            "PSMDB_RBE_OIDC_ISSUER is not set. Either fill in the "
+            "constant at the top of bazel/wrapper_hook/rbe_auth.py or "
+            "export PSMDB_RBE_OIDC_ISSUER in your shell before running "
+            "`bazel build --config=psmdb_buildfarm`."
+        )
+    return ISSUER
 
 
 # ---------------------------------------------------------------------
@@ -149,7 +177,7 @@ def _save_cache(data: dict) -> None:
 # ---------------------------------------------------------------------
 def _ssl_context() -> ssl.SSLContext:
     # System trust store — Let's Encrypt R10/R11 (current chain for
-    # bb-psmdb.ddns.net) is in every modern distribution's CA bundle.
+    # the buildfarm) is in every modern distribution's CA bundle.
     return ssl.create_default_context()
 
 
@@ -183,7 +211,7 @@ def _post_form(url: str, form: dict) -> dict:
 def _exchange_refresh_token(refresh_token: str) -> dict:
     """grant_type=refresh_token. Silent. Used between Device Code logins."""
     return _post_form(
-        f"{ISSUER}/token",
+        f"{_require_issuer()}/token",
         {
             "grant_type": "refresh_token",
             "refresh_token": refresh_token,
@@ -194,7 +222,7 @@ def _exchange_refresh_token(refresh_token: str) -> dict:
 
 def _start_device_code() -> dict:
     return _post_form(
-        f"{ISSUER}/device/code",
+        f"{_require_issuer()}/device/code",
         {"client_id": CLIENT_ID, "scope": SCOPES},
     )
 
@@ -218,7 +246,7 @@ def _poll_device_token(device_code: str, interval: int, expires_in: int, *, stat
             )
         time.sleep(interval)
         resp = _post_form(
-            f"{ISSUER}/token",
+            f"{_require_issuer()}/token",
             {
                 "grant_type": "urn:ietf:params:oauth:grant-type:device_code",
                 "device_code": device_code,

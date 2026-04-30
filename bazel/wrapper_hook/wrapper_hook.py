@@ -56,11 +56,11 @@ def main():
 
         # PSMDB-2043: inject the OIDC bearer for the on-demand RBE
         # buildfarm only when this build actually uses it. We key off
-        # `--config=psmdb_buildfarm` (the only config that flips
-        # --remote_executor to grpcs://bb-psmdb.ddns.net:8981 — see
-        # .bazelrc.psmdb). Local / CI-side EngFlow / public-release
-        # builds keep travelling through engflow_auth above and
-        # never hit Dex.
+        # `--config=psmdb_buildfarm` (the only config that activates
+        # --remote_executor / --remote_cache / --bes_backend specified
+        # at the bazel build command line — see .bazelrc.psmdb). Local /
+        # CI-side EngFlow / public-release builds keep travelling
+        # through engflow_auth above and never hit Dex.
         #
         # Refresh / login is driven through `rbe_auth.get_id_token`:
         #   * cached + fresh → zero RTT, append the header, done
@@ -108,10 +108,10 @@ def main():
             # Bazel does NOT auto-forward --remote_header into --bes_header:
             # they're separate CLI surfaces driving separate gRPC channels
             # (--remote_executor / --remote_cache vs --bes_backend). PSMDB-2034
-            # added a Build Event Stream sink on grpcs://bb-psmdb.ddns.net:1985
-            # (Envoy → bb-portal-backend), validated against the same Dex
-            # `bazel-cli` audience that gates :8981, so the same JWT works on
-            # both — but we have to attach it twice.
+            # added a Build Event Stream sink (target specified at the bazel
+            # build command line via --bes_backend), validated against the
+            # same Dex `bazel-cli` audience that gates --remote_executor, so
+            # the same JWT works on both — but we have to attach it twice.
             args = list(args) + [
                 f"--remote_header=authorization=Bearer {token}",
                 f"--bes_header=authorization=Bearer {token}",
