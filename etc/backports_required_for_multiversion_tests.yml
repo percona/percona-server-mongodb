@@ -21,6 +21,10 @@
 #
 last-continuous:
   all:
+  - test_file: jstests/core/index/elemmatch_index.js
+    ticket: SERVER-108945
+  - test_file: jstests/core/json_schema/json_schema.js
+    ticket: SERVER-98676
   - test_file: jstests/core/filemd5.js
     ticket: SERVER-119317
   - test_file: jstests/sharding/analyze_shard_key/analyze_shard_key_cmd_validation.js
@@ -629,6 +633,8 @@ last-continuous:
     ticket: SERVER-108341
   - test_file: jstests/core/query/update/update_set_unset.js
     ticket: SERVER-103960
+  - test_file: jstests/core/write/update/updatea.js
+    ticket: SERVER-103960
   - test_file: jstests/core/txns/multi_statement_transaction_abort.js
     ticket: SERVER-84081
   - test_file: jstests/aggregation/expressions/reduce_overflow.js
@@ -647,9 +653,19 @@ last-continuous:
     ticket: SERVER-93154
   - test_file: jstests/sharding/migration_fails_with_spurious_documents.js
     ticket: SERVER-110953
+  - test_file: jstests/sharding/query/javascript_heap_limit.js
+    ticket: SERVER-109200
+  - test_file: jstests/replsets/election_term_over_int_max.js
+    ticket: SERVER-119413
+  - test_file: jstests/core/index/index_on_incorrect_collection.js
+    ticket: SERVER-116327
   suites: null
 last-lts:
   all:
+  - test_file: jstests/core/index/elemmatch_index.js
+    ticket: SERVER-108945
+  - test_file: jstests/core/json_schema/json_schema.js
+    ticket: SERVER-98676
   - test_file: jstests/core/filemd5.js
     ticket: SERVER-119317
   - test_file: jstests/sharding/analyze_shard_key/analyze_shard_key_cmd_validation.js
@@ -1328,6 +1344,8 @@ last-lts:
     ticket: SERVER-108341
   - test_file: jstests/core/query/update/update_set_unset.js
     ticket: SERVER-103960
+  - test_file: jstests/core/write/update/updatea.js
+    ticket: SERVER-103960
   - test_file: jstests/core/txns/multi_statement_transaction_abort.js
     ticket: SERVER-84081
   - test_file: jstests/aggregation/expressions/reduce_overflow.js
@@ -1346,4 +1364,10 @@ last-lts:
     ticket: SERVER-93154
   - test_file: jstests/sharding/migration_fails_with_spurious_documents.js
     ticket: SERVER-110953
+  - test_file: jstests/sharding/query/javascript_heap_limit.js
+    ticket: SERVER-109200
+  - test_file: jstests/replsets/election_term_over_int_max.js
+    ticket: SERVER-119413
+  - test_file: jstests/core/index/index_on_incorrect_collection.js
+    ticket: SERVER-116327
   suites: null

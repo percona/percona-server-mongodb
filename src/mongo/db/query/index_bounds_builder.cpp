@@ -609,7 +609,7 @@ void IndexBoundsBuilder::_translatePredicate(const MatchExpression* expr,
         // values. One exception is for collation, whose index bounds are tracked as INEXACT_FETCH,
         // but only because the index data is different than the user data, not because the range
         // is imprecise.
-        tassert(4457011,
+        uassert(4457011,
                 "Cannot invert inexact bounds",
                 *tightnessOut == IndexBoundsBuilder::EXACT || index.collator);
 
@@ -1475,12 +1475,13 @@ void IndexBoundsBuilder::alignBounds(IndexBounds* bounds,
         ++oilIdx;
     }
 
-    if (!bounds->isValidFor(kp, scanDir)) {
-        LOGV2(20933,
-              "Invalid bounds",
-              "bounds"_attr = redact(bounds->toString(hasNonSimpleCollation)),
-              "keyPattern"_attr = redact(kp),
-              "scanDirection"_attr = scanDir);
+    if (!bounds->isValidFor(kp, scanDir, hasNonSimpleCollation)) {
+        LOGV2_OPTIONS(20933,
+                      {logv2::LogTruncation::Disabled},
+                      "Invalid bounds",
+                      "bounds"_attr = redact(bounds->toString(hasNonSimpleCollation)),
+                      "keyPattern"_attr = redact(kp),
+                      "scanDirection"_attr = scanDir);
         MONGO_UNREACHABLE_TASSERT(6349900);
     }
 }
