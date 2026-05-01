@@ -6,7 +6,7 @@
   "is_up_to_date": false,
   "divergence": {
     "commits_behind": 237,
-    "days_behind": 6,
+    "days_behind": 7,
     "files_affected": 1343,
     "total_additions": 47381,
     "total_deletions": 12069,
@@ -2850,7 +2850,7 @@
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-04-30 06:52:55",
+  "generated_at": "2026-05-01 06:54:56",
   "branch_name": "master",
   "display_name": "master"
 }
