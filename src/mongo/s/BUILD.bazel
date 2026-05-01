@@ -612,6 +612,7 @@ mongo_cc_library(
         "//src/mongo/executor:async_rpc_error_info",
         "//src/mongo/executor:hedging_metrics",
         "//src/mongo/idl:cluster_server_parameter_server_status",
+        "//src/mongo/logv2/log_metric_initializer",
         "//src/mongo/transport:message_compressor_options_server_idl",
         "//src/mongo/transport:session_manager",
         "//src/mongo/transport:transport_layer_manager",
@@ -695,6 +696,7 @@ mongo_cc_library(
         # please add that library as a private libdep of
         # mongos_initializers.
         "mongos_options_idl",
+        "//src/mongo/db:startup_check_rseq",
         "//src/mongo/client:remote_command_targeter",
         "//src/mongo/db/admission:queues_server_status_section",
         "//src/mongo/db:audit",

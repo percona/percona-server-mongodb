@@ -17,6 +17,9 @@ common --experimental_remote_merkle_tree_cache
 # if we stop installing our test targets.
 common --experimental_retain_test_configuration_across_testonly
 
+# Experimental flag to collect system network usage metrics during build
+common --experimental_collect_system_network_usage
+
 # allow multiple execution infos to be set
 common --incompatible_modify_execution_info_additive
 
