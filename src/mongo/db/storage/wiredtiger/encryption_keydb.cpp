@@ -32,12 +32,24 @@ Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
 
 #include "mongo/db/storage/wiredtiger/encryption_keydb.h"
 
+#include "mongo/db/database_name.h"
+#include "mongo/db/database_name_util.h"
+#include "mongo/db/operation_context.h"
+#include "mongo/db/service_context.h"
+#include "mongo/db/shard_role/shard_catalog/collection.h"
+#include "mongo/db/shard_role/shard_catalog/collection_catalog.h"
+#include "mongo/db/storage/record_store.h"
+#include "mongo/db/storage/storage_engine.h"
 #include "mongo/db/storage/wiredtiger/encryption_keydb_c_api.h"
+#include "mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h"
+#include "mongo/db/storage/wiredtiger/wiredtiger_recovery_unit.h"
+#include "mongo/db/storage/wiredtiger/wiredtiger_session.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_util.h"
 #include "mongo/logv2/log.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/debug_util.h"
 #include "mongo/util/system_clock_source.h"
+#include "mongo/util/uuid.h"
 
 #include <cstring>  // memcpy
 
@@ -473,6 +485,38 @@ bool EncryptionKeyDB::isSpecialKeyId(const std::string& keyId) {
     return keyId.empty() || keyId == "/default";
 }
 
+boost::optional<std::string> EncryptionKeyDB::tryGetCachedActiveKeyId(
+    const DatabaseName& dbName) const {
+    std::lock_guard<std::mutex> lk(_activeKeyIdMutex);
+    auto it = _activeKeyIds.find(dbName);
+    if (it == _activeKeyIds.end()) {
+        return boost::none;
+    }
+    return it->second;
+}
+
+std::string EncryptionKeyDB::cacheActiveKeyIdIfAbsent(const DatabaseName& dbName,
+                                                     std::string keyId) {
+    std::lock_guard<std::mutex> lk(_activeKeyIdMutex);
+    auto [it, inserted] = _activeKeyIds.try_emplace(dbName, std::move(keyId));
+    return it->second;
+}
+
+void EncryptionKeyDB::clearCachedActiveKeyId(const DatabaseName& dbName) {
+    std::lock_guard<std::mutex> lk(_activeKeyIdMutex);
+    _activeKeyIds.erase(dbName);
+}
+
+std::vector<std::string> EncryptionKeyDB::getAllCachedActiveKeyIds() const {
+    std::vector<std::string> result;
+    std::lock_guard<std::mutex> lk(_activeKeyIdMutex);
+    result.reserve(_activeKeyIds.size());
+    for (const auto& [_, keyId] : _activeKeyIds) {
+        result.push_back(keyId);
+    }
+    return result;
+}
+
 std::vector<std::string> EncryptionKeyDB::getAllKeyIds() {
     std::vector<std::string> keyIds;
 
@@ -597,6 +641,120 @@ void EncryptionKeyDB::reconfigure(const char* newCfg) {
     _connection = std::make_unique<WiredTigerConnection>(
         conn, _fastClockSource.get(), /*sessionCacheMax=*/33000);
 }
+
+namespace encryption {
+
+namespace {
+
+// Resolve the user-data WiredTigerKVEngine via the storage engine stored on
+// `opCtx`'s service context. We avoid passing the engine in explicitly so the
+// hook stays decoupled from kv-engine selection. Returns nullptr if encryption
+// is not enabled or the engine is not WiredTiger-based.
+WiredTigerKVEngine* getWtEngine(OperationContext* opCtx) {
+    auto se = opCtx->getServiceContext()->getStorageEngine();
+    if (!se) {
+        return nullptr;
+    }
+    return dynamic_cast<WiredTigerKVEngine*>(se->getEngine());
+}
+
+// Reads the encryption key id stored in the WiredTiger metadata for the given
+// `ident`. Returns boost::none if the metadata cannot be read or contains no
+// key id, in which case the caller should fall through to the next candidate.
+boost::optional<std::string> readKeyIdFromIdent(WiredTigerSession& session, StringData ident) {
+    auto metadata = WiredTigerUtil::getMetadataCreate(session, WiredTigerUtil::buildTableUri(ident));
+    if (!metadata.isOK()) {
+        LOGV2_DEBUG(29200,
+                    3,
+                    "activeKeyIdForDb: unable to read WT metadata for ident",
+                    "ident"_attr = ident,
+                    "error"_attr = metadata.getStatus());
+        return boost::none;
+    }
+    auto keyId = WiredTigerUtil::getEncryptionKeyId(metadata.getValue());
+    if (!keyId || EncryptionKeyDB::isSpecialKeyId(*keyId)) {
+        return boost::none;
+    }
+    return keyId;
+}
+
+}  // namespace
+
+std::string activeKeyIdForDb(OperationContext* opCtx, const DatabaseName& dbName) {
+    invariant(opCtx);
+
+    std::string dbStr =
+        DatabaseNameUtil::serialize(dbName, SerializationContext::stateDefault());
+
+    // Early-startup fallback. The MDB catalog ident is created from inside the
+    // `StorageEngineImpl` constructor, *before* the StorageEngine has been
+    // registered on the ServiceContext. At that point we can't reach the
+    // EncryptionKeyDB through the storage engine, but the catalog also doesn't
+    // need per-generation key ids - its dbName ("_mdb_catalog") never gets
+    // dropped and recreated. Fall back to the legacy bare-`<dbName>` keyid in
+    // this window; it matches what the pre-generation code emitted, so the
+    // catalog ident keeps using the same key id across restarts.
+    auto* wtEngine = getWtEngine(opCtx);
+    if (!wtEngine) {
+        return dbStr;
+    }
+
+    EncryptionKeyDB* keyDb = wtEngine->getEncryptionKeyDB();
+    invariant(keyDb, "activeKeyIdForDb called when encryption is disabled");
+
+    if (auto cached = keyDb->tryGetCachedActiveKeyId(dbName)) {
+        return *cached;
+    }
+
+    // Scan the catalog for any live collection in `dbName` and reuse its key
+    // id. We pick the first one that yields a usable key id; on a healthy
+    // system every collection in a given db shares the same key id, so the
+    // choice doesn't matter. Defensive fall-through handles legacy / mixed
+    // states where some idents have no encryption clause.
+    //
+    // We use `CollectionCatalog::range` rather than `getAllCollectionNamesFromDb`
+    // because the latter requires the caller to hold the DB lock in MODE_S, which
+    // is incompatible with the MODE_IX held by an in-progress createCollection.
+    // `range` iterates an immutable snapshot and tolerates concurrent mutation.
+    boost::optional<std::string> resolved;
+    auto catalog = CollectionCatalog::get(opCtx);
+    auto range = catalog->range(dbName);
+    if (!range.empty()) {
+        auto session = wtEngine->getConnection().getUninterruptibleSession();
+        for (auto* coll : range) {
+            if (!coll) {
+                continue;
+            }
+            auto* rs = coll->getRecordStore();
+            if (!rs) {
+                continue;
+            }
+            auto keyId = readKeyIdFromIdent(*session, rs->getIdent());
+            if (keyId) {
+                resolved = std::move(*keyId);
+                break;
+            }
+        }
+    }
+
+    if (!resolved) {
+        // Fresh generation: `<dbName>.<UUID>`. The dot is unambiguous because
+        // MongoDB database names cannot contain '.'.
+        resolved = dbStr + "." + UUID::gen().toString();
+        LOGV2_DEBUG(29201,
+                    1,
+                    "activeKeyIdForDb: allocated fresh key id",
+                    logAttrs(dbName),
+                    "keyId"_attr = *resolved);
+    }
+
+    // Atomic check-and-set: another thread may have raced with us and won the
+    // insert. In that case we discard our value and use the winner's so all
+    // idents created in this WUOW agree on the same key id.
+    return keyDb->cacheActiveKeyIdIfAbsent(dbName, std::move(*resolved));
+}
+
+}  // namespace encryption
 
 }  // namespace mongo
 

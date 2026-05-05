@@ -95,7 +95,8 @@ TEST(WiredTigerRecordStoreTest, UpdateLargeUnloggedRecordAndReadBack) {
         WiredTigerSession* s = ru.getSession();
         invariantWTOK(
             s->create(uri.c_str(),
-                      WiredTigerRecordStore::generateCreateString(ns, wtTableConfig).c_str()),
+                      WiredTigerRecordStore::generateCreateString(nullptr, ns, wtTableConfig)
+                          .c_str()),
             *s);
         txn.commit();
     }

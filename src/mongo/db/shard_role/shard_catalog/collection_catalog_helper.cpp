@@ -439,18 +439,30 @@ Status dropCollectionsWithPrefix(OperationContext* opCtx,
 
     std::vector<UUID> toDrop = catalog->getAllCollectionUUIDsFromDb(dbName);
 
-    // NOTE: Encryption key cleanup is NOT performed here.
-    // The key cannot be safely deleted at this point because drop-pending idents
-    // (encrypted with this key) may still exist in storage and will be accessed
-    // during checkpoint cleanup. Deleting the key here would cause WT_NOTFOUND errors.
-    // Instead, orphaned encryption keys are cleaned up via three mechanisms:
+    // NOTE: The encryption key row in `table:key` is NOT deleted here.
+    // Drop-pending idents (encrypted with the old key) may still exist in
+    // storage and will be accessed during checkpoint cleanup. Deleting the
+    // row here would cause WT_NOTFOUND errors. The orphan cleanup pass reaps
+    // it later, once no idents reference it. The pass runs:
     // 1. Unconditionally on startup (after catalog initialization)
     // 2. Periodically by a background process (when encryptionKeyCleanupIntervalSeconds > 0)
     // 3. On demand via the cleanupOrphanedEncryptionKeys admin command
     //
     // Signal the periodic job that there is now work to do. Steady-state ticks
     // with no drops since the previous scan skip the expensive metadata walk.
-    opCtx->getServiceContext()->getStorageEngine()->markEncryptionKeyCleanupDirty();
+    auto* storageEngine = opCtx->getServiceContext()->getStorageEngine();
+    storageEngine->markEncryptionKeyCleanupDirty();
+
+    // For full-database drops, also invalidate the in-memory active-key-id
+    // cache so the next ident creation in this `dbName` allocates a fresh
+    // `<dbName>.<UUID>` rather than reusing the dropped generation. This is
+    // safe (no on-disk state changes) and is the mechanism that makes
+    // dropDatabase + recreate produce a new key id. We intentionally do
+    // *not* invalidate when `collectionNamePrefix` is non-empty, since the
+    // database is not actually being dropped in that case.
+    if (collectionNamePrefix.empty()) {
+        storageEngine->keydbDropDatabase(dbName);
+    }
 
     return dropCollections(opCtx, toDrop, collectionNamePrefix);
 }

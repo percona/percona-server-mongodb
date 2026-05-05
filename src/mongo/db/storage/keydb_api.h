@@ -51,17 +51,27 @@ struct KeyDBAPI {
     virtual ~KeyDBAPI() {}
 
     /**
-     * Delete the encryption key for the specified database.
+     * Invalidate any per-process state cached for `dbName` that was bound to
+     * the database's old encryption-key generation. Called when the database
+     * is dropped at the MongoDB level so that the next ident creation in the
+     * same name allocates a fresh `<dbName>.<UUID>` key id rather than
+     * reusing the old one.
      *
-     * This method is called by the deferred cleanup process after verifying:
-     * 1. The database no longer exists in the catalog
-     * 2. No storage idents (including drop-pending ones) use the key
-     *
-     * NOTE: This should NOT be called directly during dropDatabase operations
-     * because drop-pending idents may still exist and require the key for
-     * checkpoint cleanup. Use the deferred cleanup mechanism instead.
+     * This intentionally does NOT delete the row from `table:key` - drop-
+     * pending idents encrypted with the old key may still need to be read
+     * during checkpoint cleanup. The actual row is reaped later by the
+     * orphan cleanup pass via `deleteOrphanedEncryptionKey`.
      */
     virtual void keydbDropDatabase(const mongo::DatabaseName& dbName) {
+        // do nothing for engines which do not support KeyDB
+    }
+
+    /**
+     * Delete a single encryption key by its key id. Used by the orphan
+     * cleanup pass after re-verifying under a DB lock that no live or drop-
+     * pending ident references the key.
+     */
+    virtual void deleteOrphanedEncryptionKey(mongo::StringData keyId) {
         // do nothing for engines which do not support KeyDB
     }
 

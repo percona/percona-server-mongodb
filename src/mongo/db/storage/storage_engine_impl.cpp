@@ -131,6 +131,10 @@ void StorageEngineImpl::keydbDropDatabase(const DatabaseName& dbName) {
     _engine->keydbDropDatabase(dbName);
 }
 
+void StorageEngineImpl::deleteOrphanedEncryptionKey(StringData keyId) {
+    _engine->deleteOrphanedEncryptionKey(keyId);
+}
+
 StorageEngineImpl::StorageEngineImpl(OperationContext* opCtx,
                                      std::unique_ptr<KVEngine> engine,
                                      std::unique_ptr<KVEngine> spillEngine,
@@ -1036,8 +1040,16 @@ void StorageEngineImpl::cleanupOrphanedEncryptionKeys(OperationContext* opCtx, S
     size_t deleted = 0;
     for (const auto& keyId : orphaned) {
         try {
+            // Key id format is `<dbName>` (legacy, pre-generation) or
+            // `<dbName>.<UUID>` (per-generation). Database names cannot
+            // contain '.', so the first dot unambiguously separates the two
+            // pieces. We need the dbName only to take the right DB lock and
+            // to re-verify against the catalog; the actual deletion is by
+            // exact keyId.
+            auto dotPos = keyId.find('.');
+            std::string dbStr = (dotPos == std::string::npos) ? keyId : keyId.substr(0, dotPos);
             auto dbName = DatabaseNameUtil::deserialize(
-                boost::none, keyId, SerializationContext::stateDefault());
+                boost::none, dbStr, SerializationContext::stateDefault());
 
             Lock::DBLock dbLock(opCtx, dbName, MODE_S);
             auto freshCatalog = CollectionCatalog::get(opCtx);
@@ -1049,7 +1061,7 @@ void StorageEngineImpl::cleanupOrphanedEncryptionKeys(OperationContext* opCtx, S
                 LOGV2(29160,
                       "Deleting orphaned encryption key for non-existent database",
                       "keyId"_attr = keyId);
-                _engine->keydbDropDatabase(dbName);
+                _engine->deleteOrphanedEncryptionKey(keyId);
                 ++deleted;
             } else {
                 LOGV2_DEBUG(29170,

@@ -152,8 +152,12 @@ public:
      * It is possible for 'tableName' to be an empty string, in the case of internal-only temporary
      * tables. Configuration string is constructed from the parameters of 'wtTableConfig', with
      * extra settings when 'isOplog' is true.
+     *
+     * `opCtx` may be nullptr for internal-only temporary tables; user-table callers should pass
+     * their `OperationContext` so that the encryption hook can resolve the per-database key id.
      */
     static std::string generateCreateString(
+        OperationContext* opCtx,
         StringData tableName,
         const WiredTigerRecordStore::WiredTigerTableConfig& wtTableConfig,
         bool isOplog = false);
