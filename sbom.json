@@ -2,10 +2,10 @@
   "$schema": "http://cyclonedx.org/schema/bom-1.5.schema.json",
   "bomFormat": "CycloneDX",
   "specVersion": "1.5",
-  "serialNumber": "urn:uuid:2cae4261-6a5a-414c-84cf-bb2700ad36b3",
-  "version": 5,
+  "serialNumber": "urn:uuid:1b6d842e-8286-4d37-86ac-a27626ffd0df",
+  "version": 6,
   "metadata": {
-    "timestamp": "2025-12-01T17:32:19Z",
+    "timestamp": "2026-05-06T00:00:00Z",
     "lifecycles": [
       {
         "phase": "pre-build"
@@ -13,58 +13,45 @@
     ],
     "component": {
       "type": "application",
-      "bom-ref": "pkg:github/mongodb/mongo@v8.0",
+      "bom-ref": "pkg:github/percona/percona-server-mongodb@v8.0",
       "supplier": {
-        "name": "MongoDB, Inc.",
+        "name": "Percona LLC",
         "url": [
-          "https://mongodb.com"
+          "https://percona.com"
         ]
       },
-      "author": "MongoDB, Inc.",
-      "publisher": "MongoDB, Inc.",
-      "group": "mongodb",
-      "name": "mongodb/mongo",
+      "author": "Percona LLC",
+      "publisher": "Percona LLC",
+      "group": "percona",
+      "name": "percona-server-mongodb",
       "version": "v8.0",
-      "cpe": "cpe:2.3:a:mongodb:mongodb:8.0.*:*:*:*:*:*:*:*",
-      "purl": "pkg:github/mongodb/mongo@v8.0",
+      "cpe": "cpe:2.3:a:percona:percona-server-mongodb:8.0.*:*:*:*:*:*:*:*",
+      "purl": "pkg:github/percona/percona-server-mongodb@v8.0",
       "externalReferences": [
         {
           "type": "license",
-          "url": "https://raw.githubusercontent.com/mongodb/mongo/refs/heads/master/LICENSE-Community.txt",
+          "url": "https://raw.githubusercontent.com/percona/percona-server-mongodb/refs/heads/v8.0/LICENSE-Community.txt",
           "comment": "Server Side Public License 1.0"
         },
         {
           "type": "website",
-          "url": "https://www.mongodb.com/products/self-managed/community-edition",
-          "comment": "MongoDB Community Edition is self-managed and can be hosted locally or in the cloud."
-        },
-        {
-          "type": "website",
-          "url": "https://www.mongodb.com/products/self-managed/enterprise-advanced",
-          "comment": "MongoDB Enterprise Advanced has powerful tools for automation, operations, and security in self-managed environments."
+          "url": "https://docs.percona.com/percona-server-for-mongodb/8.0/index.html",
+          "comment": "documentation"
         },
         {
           "type": "release-notes",
-          "url": "https://www.mongodb.com/docs/manual/release-notes/"
+          "url": "https://docs.percona.com/percona-server-for-mongodb/8.0/release_notes/index.html"
         },
         {
           "type": "vcs",
-          "url": "https://github.com/mongodb/mongo"
+          "url": "https://github.com/percona/percona-server-mongodb/tree/v8.0"
         }
       ]
     },
     "supplier": {
-      "name": "MongoDB, Inc.",
+      "name": "Percona LLC",
       "url": [
-        "https://mongodb.com"
-      ]
-    },
-    "tools": {
-      "services": [
-        {
-          "name": "Endor Labs Inc",
-          "version": "v1.7.671"
-        }
+        "https://percona.com"
       ]
     }
   },
@@ -2064,7 +2051,7 @@
   ],
   "dependencies": [
     {
-      "ref": "pkg:github/mongodb/mongo@v8.0",
+      "ref": "pkg:github/percona/percona-server-mongodb@v8.0",
       "dependsOn": [
         "pkg:deb/debian/firefox-esr@140.7.0esr-1?arch=source",
         "pkg:generic/intel/IntelRDFPMathLib@2.0.1",
