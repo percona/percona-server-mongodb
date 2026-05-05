@@ -141,7 +141,23 @@ StorageEngineImpl::StorageEngineImpl(OperationContext* opCtx,
       _dropPendingIdentReaper(_engine.get()),
       _timestampListener(
           [this](OperationContext* opCtx, const TimestampMonitor::Timestamps& timestamps) {
+              // Drop expired drop-pending idents. After the reaper actually
+              // drops idents (via WT_SESSION::drop), their encryption keyIds
+              // may have become orphaned in the key database — earlier
+              // cleanup scans would have counted those keyIds as still
+              // in-use because the drop-pending idents were visible in WT
+              // metadata. Re-arm the encryption-key cleanup dirty flag so
+              // the next periodic tick rescans and deletes the now-orphan
+              // keys; without this, the dirty flag set at dropDatabase time
+              // would have already been consumed by a futile earlier scan
+              // and the orphans would persist until the next dropDatabase,
+              // a startup, or an admin command.
+              const size_t identsBefore = _dropPendingIdentReaper.getNumIdents();
               _dropPendingIdentReaper.dropIdentsOlderThan(opCtx, timestamps);
+              const size_t identsAfter = _dropPendingIdentReaper.getNumIdents();
+              if (identsAfter < identsBefore) {
+                  markEncryptionKeyCleanupDirty();
+              }
           }),
       _supportsCappedCollections(_engine->supportsCappedCollections()) {
 
