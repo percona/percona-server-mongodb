@@ -1822,5 +1822,124 @@ TEST_F(WiredTigerKVEngineNoEncryptionKeyManagementTest, FindOrphanedEncryptionKe
     ASSERT_TRUE(orphaned.empty());
 }
 
+// -----------------------------------------------------------------------------
+// Tests for keyId generations: getOrCreateActiveKeyId / clearActiveKeyId /
+// getAllActiveKeyIds, and orphan detection on mixed legacy + generation keys.
+// -----------------------------------------------------------------------------
+
+TEST_F(WiredTigerKVEngineEncryptionKeyManagementTest, GetOrCreateActiveKeyIdAllocatesGeneration) {
+    auto keyDb = _engine->getEncryptionKeyDB();
+    ASSERT(keyDb);
+
+    // First call for a new dbName allocates "<dbName>.<uuid>" and persists.
+    auto keyId = keyDb->getOrCreateActiveKeyId("alpha");
+    ASSERT_TRUE(keyId.starts_with("alpha."))
+        << "expected generation form '<dbName>.<uuid>', got: " << keyId;
+    ASSERT_GT(keyId.size(), std::string("alpha.").size())
+        << "expected non-empty UUID suffix in keyId: " << keyId;
+
+    // Idempotent within the same database lifetime: same keyId on subsequent calls.
+    auto keyIdAgain = keyDb->getOrCreateActiveKeyId("alpha");
+    ASSERT_EQ(keyId, keyIdAgain) << "active keyId must be stable until clearActiveKeyId fires";
+}
+
+TEST_F(WiredTigerKVEngineEncryptionKeyManagementTest, ClearActiveKeyIdProducesFreshGeneration) {
+    auto keyDb = _engine->getEncryptionKeyDB();
+    ASSERT(keyDb);
+
+    auto gen1 = keyDb->getOrCreateActiveKeyId("beta");
+    keyDb->clearActiveKeyId("beta");
+    auto gen2 = keyDb->getOrCreateActiveKeyId("beta");
+
+    ASSERT_NE(gen1, gen2) << "drop+recreate must produce a fresh generation; "
+                          << "got identical keyIds " << gen1 << " and " << gen2;
+    ASSERT_TRUE(gen1.starts_with("beta.")) << gen1;
+    ASSERT_TRUE(gen2.starts_with("beta.")) << gen2;
+}
+
+TEST_F(WiredTigerKVEngineEncryptionKeyManagementTest, GetAllActiveKeyIdsReturnsRegisteredMappings) {
+    auto keyDb = _engine->getEncryptionKeyDB();
+    ASSERT(keyDb);
+
+    auto k1 = keyDb->getOrCreateActiveKeyId("gamma_a");
+    auto k2 = keyDb->getOrCreateActiveKeyId("gamma_b");
+    auto k3 = keyDb->getOrCreateActiveKeyId("gamma_c");
+
+    auto active = keyDb->getAllActiveKeyIds();
+    std::set<std::string> activeSet(active.begin(), active.end());
+    ASSERT_EQ(activeSet.size(), 3u);
+    ASSERT_TRUE(activeSet.count(k1) > 0) << "missing " << k1;
+    ASSERT_TRUE(activeSet.count(k2) > 0) << "missing " << k2;
+    ASSERT_TRUE(activeSet.count(k3) > 0) << "missing " << k3;
+
+    // After clear, the cleared mapping no longer appears.
+    keyDb->clearActiveKeyId("gamma_b");
+    auto activeAfter = keyDb->getAllActiveKeyIds();
+    std::set<std::string> activeAfterSet(activeAfter.begin(), activeAfter.end());
+    ASSERT_EQ(activeAfterSet.size(), 2u);
+    ASSERT_FALSE(activeAfterSet.count(k2) > 0)
+        << "cleared keyId " << k2 << " should not be in active mappings";
+}
+
+TEST_F(WiredTigerKVEngineEncryptionKeyManagementTest,
+       FindOrphanedEncryptionKeyIdsHandlesGenerationFormat) {
+    // Create a key with a generation-style keyId — equivalent to what the
+    // customization hook produces in normal operation. With no idents using
+    // it AND no active mapping (we never called getOrCreateActiveKeyId), it's
+    // fully orphaned and findOrphanedEncryptionKeyIds must surface it for
+    // cleanup despite the dotted format.
+    triggerKeyCreation("delta.6f8a2b1c-cccc-dddd-eeee-1234567890ab");
+
+    auto orphaned = _engine->findOrphanedEncryptionKeyIds();
+    ASSERT_EQ(orphaned.size(), 1u);
+    ASSERT_EQ(orphaned[0], "delta.6f8a2b1c-cccc-dddd-eeee-1234567890ab");
+}
+
+TEST_F(WiredTigerKVEngineEncryptionKeyManagementTest,
+       FindOrphanedEncryptionKeyIdsActiveMappingProtectsFreshGeneration) {
+    // A freshly-allocated generation keyId in active_keyid that has no idents
+    // yet must NOT appear as orphaned — otherwise cleanup would race with
+    // the first ident-create and reap a key that's about to be used.
+    auto keyDb = _engine->getEncryptionKeyDB();
+    ASSERT(keyDb);
+    auto active = keyDb->getOrCreateActiveKeyId("epsilon");
+
+    // The active mapping causes getOrCreateActiveKeyId to also write the row
+    // in table:key (since allocation seeds the key). Verify the key exists.
+    auto allKeys = keyDb->getAllKeyIds();
+    std::set<std::string> keySet(allKeys.begin(), allKeys.end());
+    ASSERT_TRUE(keySet.count(active) > 0)
+        << "expected the freshly-allocated generation keyId in table:key";
+
+    // It should NOT be orphaned — the active_keyid row protects it.
+    auto orphaned = _engine->findOrphanedEncryptionKeyIds();
+    std::set<std::string> orphanedSet(orphaned.begin(), orphaned.end());
+    ASSERT_FALSE(orphanedSet.count(active) > 0)
+        << "freshly-allocated active keyId " << active << " must NOT be reported as orphaned";
+}
+
+TEST_F(WiredTigerKVEngineEncryptionKeyManagementTest,
+       FindOrphanedEncryptionKeyIdsHandlesMixedLegacyAndGeneration) {
+    // Realistic upgrade scenario: a keys DB carries a mix of legacy
+    // bare-dbName keyIds (created by pre-generation builds) and generation
+    // keyIds created by post-upgrade ident-creates. The orphan-cleanup
+    // pipeline must surface both formats as candidates and the per-key
+    // dbName-parser in StorageEngineImpl::cleanupOrphanedEncryptionKeys
+    // must split correctly on the first '.' (legacy keyIds have no '.').
+    triggerKeyCreation("legacy_db");                                       // legacy bare dbName
+    triggerKeyCreation("modern_db.11111111-2222-3333-4444-555555555555");  // generation form
+    triggerKeyCreation("another_legacy");                                  // legacy
+    triggerKeyCreation("another_modern.aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee");  // generation
+
+    // No idents reference these → all four are orphaned.
+    auto orphaned = _engine->findOrphanedEncryptionKeyIds();
+    ASSERT_EQ(orphaned.size(), 4u);
+    std::set<std::string> orphanedSet(orphaned.begin(), orphaned.end());
+    ASSERT_TRUE(orphanedSet.count("legacy_db") > 0);
+    ASSERT_TRUE(orphanedSet.count("modern_db.11111111-2222-3333-4444-555555555555") > 0);
+    ASSERT_TRUE(orphanedSet.count("another_legacy") > 0);
+    ASSERT_TRUE(orphanedSet.count("another_modern.aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee") > 0);
+}
+
 }  // namespace
 }  // namespace mongo

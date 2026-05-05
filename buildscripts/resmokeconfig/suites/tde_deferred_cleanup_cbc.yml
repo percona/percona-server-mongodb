@@ -13,6 +13,7 @@ selector:
     - jstests/percona/tde/deferred_key_cleanup_after_reaper.js
     - jstests/percona/tde/deferred_key_cleanup_command.js
     - jstests/percona/tde/deferred_key_cleanup_drop_database.js
+    - jstests/percona/tde/deferred_key_cleanup_keyid_generations.js
     - jstests/percona/tde/deferred_key_cleanup_on_startup.js
     - jstests/percona/tde/deferred_key_cleanup_stress.js
 
