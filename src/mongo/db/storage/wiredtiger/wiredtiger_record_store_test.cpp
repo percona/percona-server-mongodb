@@ -710,7 +710,7 @@ TEST(WiredTigerRecordStoreTest, CreateOnExistingIdentFails) {
     wtTableConfig.logEnabled = WiredTigerUtil::useTableLogging(
         provider, nss, isReplSet, shouldRecoverFromOplogAsStandalone);
     const std::string config = WiredTigerRecordStore::generateCreateString(
-        NamespaceStringUtil::serializeForCatalog(nss), wtTableConfig);
+        opCtx.get(), NamespaceStringUtil::serializeForCatalog(nss), wtTableConfig);
     {
         WriteUnitOfWork uow(opCtx.get());
         WiredTigerRecoveryUnit* ru =
@@ -753,7 +753,7 @@ TEST(WiredTigerRecordStoreTest, ClusteredRecordStore) {
     wtTableConfig.logEnabled = WiredTigerUtil::useTableLogging(
         provider, nss, isReplSet, shouldRecoverFromOplogAsStandalone);
     const std::string config = WiredTigerRecordStore::generateCreateString(
-        NamespaceStringUtil::serializeForCatalog(nss), wtTableConfig);
+        opCtx.get(), NamespaceStringUtil::serializeForCatalog(nss), wtTableConfig);
     {
         StorageWriteTransaction txn(ru);
         WiredTigerRecoveryUnit* ru =
@@ -963,8 +963,8 @@ TEST(WiredTigerRecordStoreTest, EnforceTableCreateExclusiveSameConfiguration) {
     const NamespaceString nss = NamespaceString::createNamespaceString_forTest("testRecordStore");
     WiredTigerRecordStore::WiredTigerTableConfig wtTableConfig;
     wtTableConfig.blockCompressor = wiredTigerGlobalOptions.collectionBlockCompressor;
-    const auto config =
-        WiredTigerRecordStore::generateCreateString(nss.toString_forTest(), wtTableConfig);
+    const auto config = WiredTigerRecordStore::generateCreateString(
+        opCtx.get(), nss.toString_forTest(), wtTableConfig);
     const std::string ident = "uniqueIdentifierForTableFile";
     const std::string uri = std::string(WiredTigerUtil::kTableUriPrefix) + ident;
 
@@ -989,8 +989,8 @@ TEST(WiredTigerRecordStoreTest, EnforceTableCreateExclusiveDifferentConfiguratio
     const NamespaceString nss = NamespaceString::createNamespaceString_forTest("testRecordStore");
     WiredTigerRecordStore::WiredTigerTableConfig wtTableConfig;
     wtTableConfig.blockCompressor = wiredTigerGlobalOptions.collectionBlockCompressor;
-    const std::string config =
-        WiredTigerRecordStore::generateCreateString(nss.toString_forTest(), wtTableConfig);
+    const std::string config = WiredTigerRecordStore::generateCreateString(
+        opCtx.get(), nss.toString_forTest(), wtTableConfig);
     const std::string ident = "uniqueIdentifierForTableFile";
     const std::string uri = std::string(WiredTigerUtil::kTableUriPrefix) + ident;
 
@@ -1003,8 +1003,8 @@ TEST(WiredTigerRecordStoreTest, EnforceTableCreateExclusiveDifferentConfiguratio
     // Generate a different table configuration than the original.
     WiredTigerRecordStore::WiredTigerTableConfig newWtTableConfig = wtTableConfig;
     newWtTableConfig.keyFormat = KeyFormat::String;
-    const std::string newConfig =
-        WiredTigerRecordStore::generateCreateString(nss.toString_forTest(), newWtTableConfig);
+    const std::string newConfig = WiredTigerRecordStore::generateCreateString(
+        opCtx.get(), nss.toString_forTest(), newWtTableConfig);
     ASSERT_NE(newConfig, config);
 
     // The uri for the ident is occupied, fail to create a new table with the ident.

@@ -97,7 +97,8 @@ public:
                            ordering};
 
         StatusWith<std::string> result =
-            WiredTigerIndex::generateCreateString(std::string{kWiredTigerEngineName},
+            WiredTigerIndex::generateCreateString(opCtx,
+                                                  std::string{kWiredTigerEngineName},
                                                   "",
                                                   "",
                                                   NamespaceStringUtil::serializeForCatalog(nss),
@@ -140,7 +141,8 @@ public:
                            indexName,
                            ordering};
         StatusWith<std::string> result =
-            WiredTigerIndex::generateCreateString(std::string{kWiredTigerEngineName},
+            WiredTigerIndex::generateCreateString(opCtx,
+                                                  std::string{kWiredTigerEngineName},
                                                   "",
                                                   "",
                                                   NamespaceStringUtil::serializeForCatalog(nss),

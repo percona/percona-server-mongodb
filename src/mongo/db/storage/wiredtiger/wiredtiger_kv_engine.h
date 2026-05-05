@@ -560,6 +560,8 @@ public:
 
     void keydbDropDatabase(const DatabaseName& dbName) override;
 
+    void deleteOrphanedEncryptionKey(StringData keyId) override;
+
     std::vector<std::string> findOrphanedEncryptionKeyIds() override;
 
     int32_t getEncryptionKeyCleanupIntervalSeconds() const override;

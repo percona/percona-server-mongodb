@@ -34,7 +34,9 @@
 #include "mongo/db/database_name_util.h"
 #include "mongo/db/encryption/encryption_options.h"
 #include "mongo/db/namespace_string_util.h"
+#include "mongo/db/operation_context.h"
 #include "mongo/db/service_context.h"
+#include "mongo/db/storage/wiredtiger/active_key_id.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/decorable.h"
 #include "mongo/util/str.h"
@@ -60,17 +62,32 @@ public:
      *  Gets an additional configuration string for the provided table name on a
      *  `WT_SESSION::create` call.
      */
-    std::string getTableCreateConfig(StringData tableName) override {
+    std::string getTableCreateConfig(OperationContext* opCtx, StringData tableName) override {
         NamespaceString ns = NamespaceStringUtil::deserialize(
             boost::none, tableName, SerializationContext::stateDefault());
         std::string keyIdStr =
             DatabaseNameUtil::serialize(ns.dbName(), SerializationContext::stateDefault());
         StringData keyid(keyIdStr);
-        // Keep compatibility with v3.6 after SERVER-34617
+        // System tables ("system" + tables whose URI shape starts with "table:")
+        // share a single key id. SERVER-34617 / v3.6 compat: the "system" check
+        // is on the resolved dbname, not the URI.
         const size_t minsize = 6;  // Minimum size which allows following condition to be true
-        if (keyid.size() >= minsize && (keyid == "system"_sd || keyid.starts_with("table:"_sd)))
-            keyid = "/default"_sd;
-        return str::stream() << "encryption=(name=percona,keyid=\"" << keyid << "\"),";
+        if (keyid.size() >= minsize && (keyid == "system"_sd || keyid.starts_with("table:"_sd))) {
+            return str::stream() << "encryption=(name=percona,keyid=\"/default\"),";
+        }
+
+        // No `OperationContext`: caller is an internal / startup-time path
+        // (e.g. spill engine internal record stores, the WT open config string,
+        // the size storer table). The catalog-scan path needs an OpCtx, so we
+        // fall back to the legacy bare-`<dbName>` keyid - which for the empty
+        // tableNames passed by these callers is the empty string, matching
+        // pre-generation behavior.
+        if (!opCtx) {
+            return str::stream() << "encryption=(name=percona,keyid=\"" << keyid << "\"),";
+        }
+
+        std::string activeKeyId = encryption::activeKeyIdForDb(opCtx, ns.dbName());
+        return str::stream() << "encryption=(name=percona,keyid=\"" << activeKeyId << "\"),";
     }
 };
 
@@ -106,10 +123,11 @@ void WiredTigerCustomizationHooksRegistry::addHook(
     _hooks.push_back(std::move(custHook));
 }
 
-std::string WiredTigerCustomizationHooksRegistry::getTableCreateConfig(StringData tableName) const {
+std::string WiredTigerCustomizationHooksRegistry::getTableCreateConfig(OperationContext* opCtx,
+                                                                       StringData tableName) const {
     str::stream config;
     for (const auto& h : _hooks) {
-        config << h->getTableCreateConfig(tableName);
+        config << h->getTableCreateConfig(opCtx, tableName);
     }
     return config;
 }
@@ -131,7 +149,8 @@ bool WiredTigerCustomizationHooks::enabled() const {
     return false;
 }
 
-std::string WiredTigerCustomizationHooks::getTableCreateConfig(StringData tableName) {
+std::string WiredTigerCustomizationHooks::getTableCreateConfig(OperationContext* opCtx,
+                                                               StringData tableName) {
     return "";
 }
 

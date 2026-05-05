@@ -117,9 +117,11 @@ import {checkLog} from "src/mongo/shell/check_log.js";
     assert.commandWorked(adminDb.runCommand({cleanupOrphanedEncryptionKeys: 1}));
 
     // Verify the cleanup deleted orphaned keys by checking the log file.
-    // LOGV2 ID 29160 = "Deleting orphaned encryption key for non-existent database"
+    // LOGV2 ID 29160 = "Deleting orphaned encryption key for non-existent database".
+    // The logged keyId is `<dbName>` (legacy bare format) or `<dbName>.<UUID>`
+    // (per-generation format). Match either with a regex anchored on dbName.
     for (const dbName of droppedDbs) {
-        checkLog.containsJson(logpath, 29160, {keyId: dbName});
+        checkLog.containsJson(logpath, 29160, {keyId: new RegExp("^" + dbName + "(\\..+)?$")});
     }
     jsTestLog("Verified cleanup command deleted orphaned keys for dropped databases");
 
@@ -152,9 +154,10 @@ import {checkLog} from "src/mongo/shell/check_log.js";
 
     assert.commandWorked(adminDb.runCommand({cleanupOrphanedEncryptionKeys: 1}));
 
-    // Verify the cleanup deleted orphaned keys for the remaining databases
+    // Verify the cleanup deleted orphaned keys for the remaining databases.
+    // Match `<dbName>` or `<dbName>.<UUID>` (per-generation format).
     for (const dbName of survivingDbs) {
-        checkLog.containsJson(logpath, 29160, {keyId: dbName});
+        checkLog.containsJson(logpath, 29160, {keyId: new RegExp("^" + dbName + "(\\..+)?$")});
     }
     jsTestLog("Verified cleanup command deleted orphaned keys for all dropped databases");
 

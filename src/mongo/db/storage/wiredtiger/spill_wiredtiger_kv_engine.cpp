@@ -138,8 +138,8 @@ std::unique_ptr<RecordStore> SpillWiredTigerKVEngine::makeInternalRecordStore(Re
     wtTableConfig.logEnabled = false;
     wtTableConfig.blockCompressor = gSpillWiredTigerBlockCompressor;
     wtTableConfig.extraCreateOptions = _rsOptions;
-    std::string config =
-        WiredTigerRecordStore::generateCreateString({} /* internal table */, wtTableConfig);
+    std::string config = WiredTigerRecordStore::generateCreateString(
+        nullptr, {} /* internal table */, wtTableConfig);
 
     std::string uri = WiredTigerUtil::buildTableUri(ident);
     LOGV2_DEBUG(10158008,

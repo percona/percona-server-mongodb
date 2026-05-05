@@ -919,8 +919,11 @@ std::string generateWTOpenConfigString(const WiredTigerKVEngineBase::WiredTigerC
            << ",read_size=" << wtConfig.liveRestoreReadSizeMB << "MB" << "),";
     }
 
+    // Startup-time call: no `OperationContext` exists yet. The "system" tableName
+    // resolves to the `/default` keyid in the encryption hook, which does not
+    // require a catalog lookup, so passing nullptr is safe here.
     ss << WiredTigerCustomizationHooks::get(getGlobalServiceContext())
-              ->getTableCreateConfig("system");
+              ->getTableCreateConfig(nullptr, "system");
     ss << std::string{extensionsConfig};
     ss << wtConfig.extraOpenOptions;
 
@@ -3150,8 +3153,15 @@ Status WiredTigerKVEngine::_createRecordStore(const rss::PersistenceProvider& pr
         wtTableConfig.memoryPageMax = provider.getWTMemoryPageMaxForOplogStrValue();
     }
 
+    // Resolve the active operation context from the recovery unit's client. The
+    // KVEngine interface does not currently take an OpCtx in its createRecordStore
+    // path, but in normal user-table flow the calling thread always has one
+    // (either the user's command OpCtx or the OpCtx that is driving the storage
+    // operation). The encryption hook needs it to look up the per-database key id.
+    OperationContext* opCtxForHook =
+        Client::getCurrent() ? Client::getCurrent()->getOperationContext() : nullptr;
     std::string config = WiredTigerRecordStore::generateCreateString(
-        NamespaceStringUtil::serializeForCatalog(nss), wtTableConfig, nss.isOplog());
+        opCtxForHook, NamespaceStringUtil::serializeForCatalog(nss), wtTableConfig, nss.isOplog());
     string uri = WiredTigerUtil::buildTableUri(ident);
     LOGV2_DEBUG(22331,
                 2,
@@ -3358,7 +3368,10 @@ Status WiredTigerKVEngine::createSortedDataInterface(
                                .str();
     }
 
+    OperationContext* opCtxForHook =
+        Client::getCurrent() ? Client::getCurrent()->getOperationContext() : nullptr;
     StatusWith<std::string> result = WiredTigerIndex::generateCreateString(
+        opCtxForHook,
         _canonicalName,
         _indexOptions,
         collIndexOptions,
@@ -3493,8 +3506,8 @@ std::unique_ptr<RecordStore> WiredTigerKVEngine::makeInternalRecordStore(Recover
     wtTableConfig.logEnabled = false;
     wtTableConfig.extraCreateOptions = _rsOptions;
 
-    std::string config =
-        WiredTigerRecordStore::generateCreateString({} /* internal table */, wtTableConfig);
+    std::string config = WiredTigerRecordStore::generateCreateString(
+        nullptr, {} /* internal table */, wtTableConfig);
 
     std::string uri = WiredTigerUtil::buildTableUri(ident);
     LOGV2_DEBUG(22337,
@@ -3646,16 +3659,29 @@ void WiredTigerKVEngine::keydbDropDatabase(const DatabaseName& dbName) {
         return;
     }
 
-    // Delete the encryption key for this database.
-    // This method is called by the deferred cleanup process after verifying:
-    // 1. The database no longer exists in the catalog
-    // 2. No storage idents (including drop-pending ones) use the key
-    int res = _restEncr->keyDb()->delete_key_by_id(
-        DatabaseNameUtil::serialize(dbName, SerializationContext::stateDefault()));
+    // The actual key row in `table:key` is left intact - drop-pending idents
+    // encrypted with the old key may still exist and would be unreadable
+    // during checkpoint cleanup if we removed the key now. The orphan cleanup
+    // pass (cleanupOrphanedEncryptionKeys) reaps the row later, once no idents
+    // (live or drop-pending) reference it.
+    //
+    // What we do here is invalidate the in-memory cache so that the next
+    // ident creation in this `dbName` cold-misses, scans the (now-empty)
+    // catalog, and allocates a fresh `<dbName>.<UUID>` key id. That is the
+    // mechanism that makes `dropDatabase` + recreate produce a new generation.
+    LOGV2_DEBUG(29202, 1, "Clearing cached active key id for dropped database", logAttrs(dbName));
+    _restEncr->keyDb()->clearCachedActiveKeyId(dbName);
+}
+
+void WiredTigerKVEngine::deleteOrphanedEncryptionKey(StringData keyId) {
+    if (!_restEncr) {
+        return;
+    }
+    int res = _restEncr->keyDb()->delete_key_by_id(std::string{keyId});
     if (res) {
-        LOGV2_ERROR(29001, "Failed to delete encryption key for database", logAttrs(dbName));
+        LOGV2_ERROR(29203, "Failed to delete orphaned encryption key", "keyId"_attr = keyId);
     } else {
-        LOGV2_DEBUG(29158, 1, "Deleted encryption key for database", logAttrs(dbName));
+        LOGV2_DEBUG(29204, 1, "Deleted orphaned encryption key", "keyId"_attr = keyId);
     }
 }
 
@@ -3701,6 +3727,18 @@ std::vector<std::string> WiredTigerKVEngine::findOrphanedEncryptionKeyIds() {
                         "keyId"_attr = keyIdsInUse.back());
         }
     }
+
+    // Merge in any key ids that are currently cached as the active id for
+    // some database but have not yet been bound to an ident on disk. Without
+    // this we would race: a freshly allocated `<dbName>.<UUID>` is cached
+    // *before* the ident-create commits, so a cleanup pass that fires in the
+    // same window would see the key in `table:key` (write happens in the
+    // first ident's create_table call) but not in the ident scan, and reap
+    // it. The cache snapshot is the canonical "in-flight" set.
+    auto cachedActiveKeyIds = _restEncr->keyDb()->getAllCachedActiveKeyIds();
+    keyIdsInUse.insert(keyIdsInUse.end(),
+                       std::make_move_iterator(cachedActiveKeyIds.begin()),
+                       std::make_move_iterator(cachedActiveKeyIds.end()));
 
     std::sort(keyIdsInUse.begin(), keyIdsInUse.end());
     keyIdsInUse.erase(std::unique(keyIdsInUse.begin(), keyIdsInUse.end()), keyIdsInUse.end());
