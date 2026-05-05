@@ -36,8 +36,22 @@
 namespace mongo {
 namespace mozjs {
 
-TEST(ModuleLoaderTest, ImportBaseSpecifierFails) {
-    mongo::ScriptEngine::setup();
+// Fixture ensures the global ScriptEngine is explicitly destroyed after each test rather than
+// during global-destructor time. Without this, the engine's destructor calls JS_ShutDown() after
+// libmozjs.so has already torn down its internal helper-thread mutex, causing EINVAL from
+// pthread_mutex_lock and a subsequent crash when linking dynamically.
+class ModuleLoaderTest : public unittest::Test {
+protected:
+    void setUp() override {
+        mongo::ScriptEngine::setup();
+    }
+
+    void tearDown() override {
+        setGlobalScriptEngine(nullptr);
+    }
+};
+
+TEST_F(ModuleLoaderTest, ImportBaseSpecifierFails) {
     std::unique_ptr<mongo::Scope> scope(mongo::getGlobalScriptEngine()->newScope());
 
     auto code = "import * as test from \"base_specifier\""_sd;
@@ -52,8 +66,7 @@ TEST(ModuleLoaderTest, ImportBaseSpecifierFails) {
 }
 
 #if !defined(_WIN32)
-TEST(ModuleLoaderTest, ImportDirectoryFails) {
-    mongo::ScriptEngine::setup();
+TEST_F(ModuleLoaderTest, ImportDirectoryFails) {
     std::unique_ptr<mongo::Scope> scope(mongo::getGlobalScriptEngine()->newScope());
 
     auto code = fmt::format("import * as test from \"{}\"",
@@ -69,8 +82,7 @@ TEST(ModuleLoaderTest, ImportDirectoryFails) {
 }
 #endif
 
-TEST(ModuleLoaderTest, ImportInInteractiveFails) {
-    mongo::ScriptEngine::setup();
+TEST_F(ModuleLoaderTest, ImportInInteractiveFails) {
     std::unique_ptr<mongo::Scope> scope(mongo::getGlobalScriptEngine()->newScope());
 
     auto code = "import * as test from \"some_module\""_sd;
@@ -87,8 +99,7 @@ TEST(ModuleLoaderTest, ImportInInteractiveFails) {
         });
 }
 
-TEST(ModuleLoaderTest, TopLevelAwaitWorks) {
-    mongo::ScriptEngine::setup();
+TEST_F(ModuleLoaderTest, TopLevelAwaitWorks) {
     std::unique_ptr<mongo::Scope> scope(mongo::getGlobalScriptEngine()->newScope());
     auto code = "async function test() { return 42; } await test();"_sd;
     ASSERT_DOES_NOT_THROW(scope->exec(code,
