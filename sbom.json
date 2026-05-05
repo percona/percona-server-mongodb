@@ -2,10 +2,10 @@
   "$schema": "http://cyclonedx.org/schema/bom-1.5.schema.json",
   "bomFormat": "CycloneDX",
   "specVersion": "1.5",
-  "serialNumber": "urn:uuid:2d7fbf85-c8b6-4f90-9966-70da88224a36",
-  "version": 3,
+  "serialNumber": "urn:uuid:95a559f1-b091-4a92-b80d-e6d37c5e477c",
+  "version": 4,
   "metadata": {
-    "timestamp": "2026-04-13T06:06:17Z",
+    "timestamp": "2026-05-05T00:00:00Z",
     "lifecycles": [
       {
         "phase": "pre-build"
@@ -13,58 +13,45 @@
     ],
     "component": {
       "type": "application",
-      "bom-ref": "pkg:github/mongodb/mongo@master",
+      "bom-ref": "pkg:github/percona/percona-server-mongodb@master",
       "supplier": {
-        "name": "MongoDB, Inc.",
+        "name": "Percona LLC",
         "url": [
-          "https://mongodb.com"
+          "https://percona.com"
         ]
       },
-      "author": "MongoDB, Inc.",
-      "publisher": "MongoDB, Inc.",
-      "group": "mongodb",
-      "name": "mongodb/mongo",
+      "author": "Percona LLC",
+      "publisher": "Percona LLC",
+      "group": "percona",
+      "name": "percona-server-mongodb",
       "version": "master",
-      "cpe": "cpe:2.3:a:mongodb:mongodb:master:*:*:*:*:*:*:*",
-      "purl": "pkg:github/mongodb/mongo@master",
+      "cpe": "cpe:2.3:a:percona:percona-server-mongodb:master:*:*:*:*:*:*:*",
+      "purl": "pkg:github/percona/percona-server-mongodb@master",
       "externalReferences": [
         {
-          "url": "https://raw.githubusercontent.com/mongodb/mongo/refs/heads/master/LICENSE-Community.txt",
+          "url": "https://raw.githubusercontent.com/percona/percona-server-mongodb/refs/heads/master/LICENSE-Community.txt",
           "comment": "Server Side Public License 1.0",
           "type": "license"
         },
         {
-          "url": "https://www.mongodb.com/products/self-managed/community-edition",
-          "comment": "MongoDB Community Edition is self-managed and can be hosted locally or in the cloud.",
+          "url": "https://docs.percona.com/percona-server-for-mongodb",
+          "comment": "documentation",
           "type": "website"
         },
         {
-          "url": "https://www.mongodb.com/products/self-managed/enterprise-advanced",
-          "comment": "MongoDB Enterprise Advanced has powerful tools for automation, operations, and security in self-managed environments.",
-          "type": "website"
-        },
-        {
-          "url": "https://www.mongodb.com/docs/manual/release-notes/",
+          "url": "https://docs.percona.com/percona-server-for-mongodb/release_notes",
           "type": "release-notes"
         },
         {
-          "url": "https://github.com/mongodb/mongo",
+          "url": "https://github.com/percona/percona-server-mongodb",
           "type": "vcs"
         }
       ]
     },
     "supplier": {
-      "name": "MongoDB, Inc.",
+      "name": "Percona LLC",
       "url": [
-        "https://mongodb.com"
-      ]
-    },
-    "tools": {
-      "services": [
-        {
-          "name": "Endor Labs Inc",
-          "version": "v1.7.924"
-        }
+        "https://percona.com"
       ]
     }
   },
