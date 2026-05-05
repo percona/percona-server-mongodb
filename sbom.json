@@ -2,10 +2,10 @@
   "$schema": "http://cyclonedx.org/schema/bom-1.5.schema.json",
   "bomFormat": "CycloneDX",
   "specVersion": "1.5",
-  "serialNumber": "urn:uuid:f63a29bf-2601-45d0-9fdc-4e20837c60e0",
-  "version": 3,
+  "serialNumber": "urn:uuid:ddd957bc-3e00-4f26-842d-e4901f3de844",
+  "version": 4,
   "metadata": {
-    "timestamp": "2025-12-01T21:37:39Z",
+    "timestamp": "2026-05-06T00:00:00Z",
     "lifecycles": [
       {
         "phase": "pre-build"
@@ -13,58 +13,45 @@
     ],
     "component": {
       "type": "application",
-      "bom-ref": "pkg:github/mongodb/mongo@v7.0",
+      "bom-ref": "pkg:github/percona/percona-server-mongodb@v7.0",
       "supplier": {
-        "name": "MongoDB, Inc.",
+        "name": "Percona LLC",
         "url": [
-          "https://mongodb.com"
+          "https://percona.com"
         ]
       },
-      "author": "MongoDB, Inc.",
-      "publisher": "MongoDB, Inc.",
-      "group": "mongodb",
-      "name": "mongodb/mongo",
+      "author": "Percona LLC",
+      "publisher": "Percona LLC",
+      "group": "percona",
+      "name": "percona-server-mongodb",
       "version": "v7.0",
-      "cpe": "cpe:2.3:a:mongodb:mongodb:7.0.*:*:*:*:*:*:*:*",
-      "purl": "pkg:github/mongodb/mongo@v7.0",
+      "cpe": "cpe:2.3:a:percona:percona-server-mongodb:7.0.*:*:*:*:*:*:*:*",
+      "purl": "pkg:github/percona/percona-server-mongodb@v7.0",
       "externalReferences": [
         {
           "type": "license",
-          "url": "https://raw.githubusercontent.com/mongodb/mongo/refs/heads/master/LICENSE-Community.txt",
+          "url": "https://raw.githubusercontent.com/percona/percona-server-mongodb/refs/heads/v7.0/LICENSE-Community.txt",
           "comment": "Server Side Public License 1.0"
         },
         {
           "type": "website",
-          "url": "https://www.mongodb.com/products/self-managed/community-edition",
-          "comment": "MongoDB Community Edition is self-managed and can be hosted locally or in the cloud."
-        },
-        {
-          "type": "website",
-          "url": "https://www.mongodb.com/products/self-managed/enterprise-advanced",
-          "comment": "MongoDB Enterprise Advanced has powerful tools for automation, operations, and security in self-managed environments."
+          "url": "https://docs.percona.com/percona-server-for-mongodb/7.0/index.html",
+          "comment": "documentation"
         },
         {
           "type": "release-notes",
-          "url": "https://www.mongodb.com/docs/manual/release-notes/"
+          "url": "https://docs.percona.com/percona-server-for-mongodb/7.0/release_notes/index.html"
         },
         {
           "type": "vcs",
-          "url": "https://github.com/mongodb/mongo"
+          "url": "https://github.com/percona/percona-server-mongodb/tree/v7.0"
         }
       ]
     },
     "supplier": {
-      "name": "MongoDB, Inc.",
+      "name": "Percona LLC",
       "url": [
-        "https://mongodb.com"
-      ]
-    },
-    "tools": {
-      "services": [
-        {
-          "name": "Endor Labs Inc",
-          "version": "v1.7.671"
-        }
+        "https://percona.com"
       ]
     }
   },
@@ -2233,7 +2220,7 @@
   ],
   "dependencies": [
     {
-      "ref": "pkg:github/mongodb/mongo@v7.0",
+      "ref": "pkg:github/percona/percona-server-mongodb@v7.0",
       "dependsOn": [
         "pkg:deb/debian/firefox-esr@140.7.0esr-1?arch=source",
         "pkg:generic/intel/IntelRDFPMathLib@2.0.1",
