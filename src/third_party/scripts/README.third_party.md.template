@@ -33,28 +33,29 @@ $wiredtiger_chart
 
 ## Dynamically Linked Libraries
 
-Sometimes MongoDB needs to load libraries provided and managed by the
-runtime environment. These libraries are not vendored into the MongoDB
-source directory, and are not compiled into release artifacts. Because
-they are provided by the runtime environment, the precise versions of
+Percona Server for MongoDB needs to load libraries provided and managed by the
+runtime environment. These libraries are not vendored into the Percona Server
+for MongoDB source directory, and are not compiled into release artifacts.
+Because they are provided by the runtime environment, the precise versions of
 these libraries cannot be known in advance. Further, these libraries may
 themselves load other libraries. The full set of transitively linked
 libraries will depend on the runtime environment, and cannot be outlined
-here. On Windows and Mac OS, other libraries and components provided by
-the Operating System may be loaded.
+here.
 
-For Windows Enterprise, we may ship precompiled DLLs containing some of
-these libraries. Releases prepared in this fashion will include a copy
-of these libraries' license in a file named
-`THIRD-PARTY-NOTICES.windows`.
+Percona Server for MongoDB directly links the following dynamic libraries:
 
-| Name       | Enterprise Only |                    Has Windows DLLs                     |
-| :--------- | :-------------: | :-----------------------------------------------------: |
-| Cyrus SASL |       Yes       |                           Yes                           |
-| libldap    |       Yes       |                           No                            |
-| net-snmp   |       Yes       |                           Yes                           |
-| OpenSSL    |       No        | Yes<sup>\[<a href="#note_ssl" id="ref_ssl">3</a>]</sup> |
-| libcurl    |       No        |                           No                            |
+| Name                  | Typical Linked Library Filename(s)               |
+| --------------------- | ------------------------------------------------ |
+| GNU C Library         | `libc.so.6`, `libm.so.6`, `libresolv.so.2`, etc. |
+| GCC support library   | `libgcc_s.so.1`                                  |
+| libcurl               | `libcurl.so.4`                                   |
+| Cyrus SASL            | `libsasl2.so.2`                                  |
+| Kerberos 5 GSS-API    | `libgssapi_krb5.so.2`                            |
+| OpenLDAP              | `liblber.so.2`, `libldap.so.2`                   |
+| OpenSSL               | `libcrypto.so.3`, `libssl.so.3`                  |
+
+Note. Version numbers in library filenames (e.g. `6` in `libc.so.6`) are just
+examples and can differ from platform to platform.
 
 ## Notes:
 
@@ -66,7 +67,3 @@ of these libraries' license in a file named
 2. <a id="note_wt" href="#ref_wt">^</a>
    WiredTiger is maintained by MongoDB in a separate repository. As a part of our
    development process, we periodically ingest the latest snapshot of that repository.
-
-3. <a id="note_ssl" href="#ref_ssl">^</a>
-   OpenSSL is only shipped as a dependency of the MongoDB tools written in Go. The MongoDB
-   shell and server binaries use Windows' cryptography APIs.
