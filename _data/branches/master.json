@@ -5,14 +5,14 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 449,
+    "commits_behind": 451,
     "days_behind": 13,
-    "files_affected": 1986,
-    "total_additions": 89737,
-    "total_deletions": 22946,
+    "files_affected": 1988,
+    "total_additions": 89806,
+    "total_deletions": 22990,
     "date_range": {
       "first": "2026-04-23T11:05:41+00:00",
-      "last": "2026-05-06T15:52:04+00:00"
+      "last": "2026-05-06T16:30:20+00:00"
     }
   },
   "last_merged_commit": {
@@ -36,6 +36,26 @@
     "summary": "SERVER-125046 Replace \"cast\" with \"is\" call (#52415)"
   },
   "unmerged_commits": [
+    {
+      "sha": "08065538fcc0702813a427ee54317eda4fee1a69",
+      "short_sha": "08065538fcc",
+      "date": "2026-05-06T09:30:20-07:00",
+      "author": {
+        "name": "Denis Trailin",
+        "email": "denis.trailin@gmail.com"
+      },
+      "summary": "SERVER-122587: Add GUARDED_BY annotations to replication coordinator external state (#52103)"
+    },
+    {
+      "sha": "0d3e6a173aec2e0025f24349c0498145738d7601",
+      "short_sha": "0d3e6a173ae",
+      "date": "2026-05-06T10:58:06-05:00",
+      "author": {
+        "name": "nandinibhartiyaMDB",
+        "email": "104035932+nandinibhartiyaMDB@users.noreply.github.com"
+      },
+      "summary": "SERVER-125980: Set queryAnalysisSamplerConfigurationRefreshSecs correctly in sampling_current_op_and_server_status_sharded.js (#53176)"
+    },
     {
       "sha": "ef0013e7be024b8086485f9d678a507fc01e285d",
       "short_sha": "ef0013e7be0",
@@ -5213,7 +5233,7 @@
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-05-06 16:33:28",
+  "generated_at": "2026-05-06 17:47:41",
   "branch_name": "master",
   "display_name": "master"
 }
