@@ -5,14 +5,14 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 426,
+    "commits_behind": 427,
     "days_behind": 12,
-    "files_affected": 1933,
-    "total_additions": 87711,
-    "total_deletions": 22164,
+    "files_affected": 1934,
+    "total_additions": 87715,
+    "total_deletions": 22168,
     "date_range": {
       "first": "2026-04-23T11:05:41+00:00",
-      "last": "2026-05-06T03:30:28+00:00"
+      "last": "2026-05-06T05:49:09+00:00"
     }
   },
   "last_merged_commit": {
@@ -36,6 +36,16 @@
     "summary": "SERVER-125046 Replace \"cast\" with \"is\" call (#52415)"
   },
   "unmerged_commits": [
+    {
+      "sha": "69ae50c65571ca52db068495cc0eed88caf759aa",
+      "short_sha": "69ae50c6557",
+      "date": "2026-05-06T00:49:09-05:00",
+      "author": {
+        "name": "Jess Balint",
+        "email": "jbalint@gmail.com"
+      },
+      "summary": "SERVER-126032 Return stage names by value to avoid dangling string re… (#53222)"
+    },
     {
       "sha": "e1ee4720ee2e383b4598d68359cd92f698929256",
       "short_sha": "e1ee4720ee2",
@@ -4914,7 +4924,7 @@
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-05-06 06:19:41",
+  "generated_at": "2026-05-06 06:54:42",
   "branch_name": "master",
   "display_name": "master"
 }
