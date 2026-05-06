@@ -5,14 +5,14 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 432,
-    "days_behind": 12,
-    "files_affected": 1998,
-    "total_additions": 89970,
-    "total_deletions": 22314,
+    "commits_behind": 437,
+    "days_behind": 13,
+    "files_affected": 1959,
+    "total_additions": 88746,
+    "total_deletions": 22278,
     "date_range": {
       "first": "2026-04-23T11:05:41+00:00",
-      "last": "2026-05-06T08:36:28+00:00"
+      "last": "2026-05-06T11:14:31+00:00"
     }
   },
   "last_merged_commit": {
@@ -36,6 +36,56 @@
     "summary": "SERVER-125046 Replace \"cast\" with \"is\" call (#52415)"
   },
   "unmerged_commits": [
+    {
+      "sha": "3750e4fefe36b2de91d451d70228bc130ed0cfe9",
+      "short_sha": "3750e4fefe3",
+      "date": "2026-05-06T12:14:31+01:00",
+      "author": {
+        "name": "marcobizzarri-mdb",
+        "email": "marco.bizzarri@mongodb.com"
+      },
+      "summary": "SERVER-119484 Add kEnableTargetFeatures and kCommitAddedFeatures no-op phases to FCV protocol (#52032)"
+    },
+    {
+      "sha": "75d8999664b38d78cd0add414f9bc1aa090737d9",
+      "short_sha": "75d8999664b",
+      "date": "2026-05-06T12:12:06+01:00",
+      "author": {
+        "name": "mongo-pr-bot[bot]",
+        "email": "230616009+mongo-pr-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "SERVER-110427 Update profiling data (#53289)"
+    },
+    {
+      "sha": "f5292a05f23966118782e1c1ddeea1818b04b02a",
+      "short_sha": "f5292a05f23",
+      "date": "2026-05-06T12:05:10+02:00",
+      "author": {
+        "name": "auto-revert-app[bot]",
+        "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
+      },
+      "summary": "Revert \"SERVER-120970 Create in-memory state and extend opObserver to handle operations blocking (#51698)\" (#53287)"
+    },
+    {
+      "sha": "674c81ce6088a07fa9e591efcd643728251fcfe9",
+      "short_sha": "674c81ce608",
+      "date": "2026-05-06T11:35:08+02:00",
+      "author": {
+        "name": "Pol Piñol Castuera",
+        "email": "pol.pinol@mongodb.com"
+      },
+      "summary": "SERVER-125915 Make collMod commit to the shard catalog (#53110)"
+    },
+    {
+      "sha": "80fff20ab7e061075b91cc8a818b44cc27c09592",
+      "short_sha": "80fff20ab7e",
+      "date": "2026-05-06T11:28:09+02:00",
+      "author": {
+        "name": "Pol Piñol Castuera",
+        "email": "pol.pinol@mongodb.com"
+      },
+      "summary": "SERVER-125940 Make convertToCapped commit to the shard catalog (#53182)"
+    },
     {
       "sha": "62828dbe6523fccb7a19ce5b202fcd33cb5c91b4",
       "short_sha": "62828dbe652",
@@ -4994,10 +5044,33 @@
           "num_of_dirs": 20
         }
       }
+    },
+    {
+      "commit": {
+        "sha": "f5292a05f23966118782e1c1ddeea1818b04b02a",
+        "short_sha": "f5292a05f23",
+        "date": "2026-05-06T12:05:10+02:00",
+        "author": {
+          "name": "auto-revert-app[bot]",
+          "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
+        },
+        "summary": "Revert \"SERVER-120970 Create in-memory state and extend opObserver to handle operations blocking (#51698)\" (#53287)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 73,
+          "num_of_lines": 2029,
+          "lines_added": 73,
+          "lines_deleted": 1956,
+          "num_of_dirs": 20
+        }
+      }
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-05-06 09:41:50",
+  "generated_at": "2026-05-06 13:39:35",
   "branch_name": "master",
   "display_name": "master"
 }
