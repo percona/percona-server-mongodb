@@ -2084,20 +2084,29 @@
       "scope": "excluded"
     },
     {
-      "supplier": {
-        "name": "Organization: github"
-      },
+      "type": "library",
       "name": "libarchive",
       "version": "3.8.4",
+      "bom-ref": "pkg:github/libarchive/libarchive@v3.8.4",
+      "purl": "pkg:github/libarchive/libarchive@v3.8.4",
+      "supplier": {
+        "name": "libarchive",
+        "url": [
+          "https://www.libarchive.org"
+        ]
+      },
+      "author": "Tim Kientzle and contributors",
+      "group": "libarchive",
+      "description": "Multi-format archive and compression library",
       "licenses": [
         {
           "license": {
             "name": "A mix of BSD-2-Clause and others",
-            "url": "https://github.com/libarchive/libarchive/blob/v3.4.0/COPYING"
+            "url": "https://raw.githubusercontent.com/libarchive/libarchive/refs/tags/v3.8.4/COPYING"
           }
         }
       ],
-      "purl": "pkg:github/libarchive/libarchive@v3.8.4",
+      "copyright": "Copyright (C) Tim Kientzle",
       "properties": [
         {
           "name": "internal:team_responsible",
@@ -2116,8 +2125,6 @@
           "value": "src/third_party/libarchive/scripts/import.sh"
         }
       ],
-      "type": "library",
-      "bom-ref": "pkg:github/libarchive/libarchive@v3.8.4",
       "evidence": {
         "occurrences": [
           {
