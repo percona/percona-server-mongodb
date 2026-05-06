@@ -2844,7 +2844,7 @@
       ]
     },
     {
-      "ref": "pkg:github/mongodb/mongo@master",
+      "ref": "pkg:github/percona/percona-server-mongodb@master",
       "dependsOn": [
         "pkg:deb/debian/firefox-esr@140.9.0esr-1?arch=source",
         "pkg:generic/intel/IntelRDFPMathLib@2.0.1",
