@@ -5,14 +5,14 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 437,
+    "commits_behind": 449,
     "days_behind": 13,
-    "files_affected": 1959,
-    "total_additions": 88746,
-    "total_deletions": 22278,
+    "files_affected": 1986,
+    "total_additions": 89737,
+    "total_deletions": 22946,
     "date_range": {
       "first": "2026-04-23T11:05:41+00:00",
-      "last": "2026-05-06T11:14:31+00:00"
+      "last": "2026-05-06T15:52:04+00:00"
     }
   },
   "last_merged_commit": {
@@ -36,6 +36,126 @@
     "summary": "SERVER-125046 Replace \"cast\" with \"is\" call (#52415)"
   },
   "unmerged_commits": [
+    {
+      "sha": "ef0013e7be024b8086485f9d678a507fc01e285d",
+      "short_sha": "ef0013e7be0",
+      "date": "2026-05-06T16:52:04+01:00",
+      "author": {
+        "name": "marcobizzarri-mdb",
+        "email": "marco.bizzarri@mongodb.com"
+      },
+      "summary": "SERVER-125850 A race condition exists between setFCV timeseries downgrade and DDL operations (#53025)"
+    },
+    {
+      "sha": "10e64adb04191d11044b9139685e1b055edda568",
+      "short_sha": "10e64adb041",
+      "date": "2026-05-06T17:24:05+02:00",
+      "author": {
+        "name": "Vesko Karaganev",
+        "email": "vesko.karaganev@mongodb.com"
+      },
+      "summary": "SERVER-123929 Track arrayness throguh $lookup+$unwind (#52842)"
+    },
+    {
+      "sha": "9e9bd422000a5c703c23cf12f5833b9dc36a8f2b",
+      "short_sha": "9e9bd422000",
+      "date": "2026-05-06T10:22:50-05:00",
+      "author": {
+        "name": "Anna Veselova",
+        "email": "47113149+aveselova@users.noreply.github.com"
+      },
+      "summary": "SERVER-125110: Clear truncate markers during cap maintainer thread shutdown (#52394)"
+    },
+    {
+      "sha": "708bf0fc97c9982a77b9f081c3ad3e54a6cc9e37",
+      "short_sha": "708bf0fc97c",
+      "date": "2026-05-06T17:01:11+02:00",
+      "author": {
+        "name": "ppolato",
+        "email": "82828243+ppolato@users.noreply.github.com"
+      },
+      "summary": "SERVER-126105 Stop pinning the collection epoch in the recovery document of renameCollection (#53313)"
+    },
+    {
+      "sha": "d4cd27a99708d99efbc0c9caaf0023d6889c9994",
+      "short_sha": "d4cd27a9970",
+      "date": "2026-05-06T14:40:05+00:00",
+      "author": {
+        "name": "Joan Bruguera Micó (at MongoDB)",
+        "email": "joan.bruguera-mico@mongodb.com"
+      },
+      "summary": "SERVER-126104 Add assumes_stable_shard_list tag to move_collection_timeseries* tests (#53288)"
+    },
+    {
+      "sha": "cb176f5715b2a10b2951e3d91a665b0ceda34903",
+      "short_sha": "cb176f5715b",
+      "date": "2026-05-06T14:39:26+00:00",
+      "author": {
+        "name": "Joan Bruguera Micó (at MongoDB)",
+        "email": "joan.bruguera-mico@mongodb.com"
+      },
+      "summary": "SERVER-126122 Temporally disable failing block_replica_set_writes.js test (#53309)"
+    },
+    {
+      "sha": "9fee5b1a872ac98cdd03614d76bc4ce478225581",
+      "short_sha": "9fee5b1a872",
+      "date": "2026-05-06T16:35:41+02:00",
+      "author": {
+        "name": "Pol Piñol Castuera",
+        "email": "pol.pinol@mongodb.com"
+      },
+      "summary": "SERVER-124360 Enable CSS authoritative flag on shard-catalog-committing DDLs (#52658)"
+    },
+    {
+      "sha": "6f4d069bf0387b7a01f5f083993b612992ad1a94",
+      "short_sha": "6f4d069bf03",
+      "date": "2026-05-06T16:34:16+02:00",
+      "author": {
+        "name": "Silvia Surroca",
+        "email": "silvia.surroca@mongodb.com"
+      },
+      "summary": "SERVER-125917 Make configureCollectionBalancing avoid bumping the shard version (#53181)"
+    },
+    {
+      "sha": "637267bda776c58b2332496945596729a38c8763",
+      "short_sha": "637267bda77",
+      "date": "2026-05-06T07:10:21-07:00",
+      "author": {
+        "name": "CALVIN NGUYEN",
+        "email": "calvin.nguyen@mongodb.com"
+      },
+      "summary": "SERVER-116053 WASM exception handling and MongoDB error code propagation (#53048)"
+    },
+    {
+      "sha": "6151edfe1fa958c0e48e0b8e065f3e6b9358720b",
+      "short_sha": "6151edfe1fa",
+      "date": "2026-05-06T07:05:27-07:00",
+      "author": {
+        "name": "Abdul Qadeer",
+        "email": "abdul.qadeer@mongodb.com"
+      },
+      "summary": "SERVER-96291 Enable featureFlagReshardingNoRefreshApplyingAndBlockingWrites (#53265)"
+    },
+    {
+      "sha": "da3475d278aff8663e52aa39c0a864e7c9a8d0d3",
+      "short_sha": "da3475d278a",
+      "date": "2026-05-06T15:52:27+02:00",
+      "author": {
+        "name": "Jan",
+        "email": "jsteemann@users.noreply.github.com"
+      },
+      "summary": "SERVER-125937 Fix field dependencies for add preimage stage (#53111)"
+    },
+    {
+      "sha": "9388cee3982c39fb714d94fdfa08950c210cf7e8",
+      "short_sha": "9388cee3982",
+      "date": "2026-05-06T15:39:00+02:00",
+      "author": {
+        "name": "Silvia Surroca",
+        "email": "silvia.surroca@mongodb.com"
+      },
+      "summary": "SERVER-126025 Fix count_secondaryok.js test (#53284)"
+    },
     {
       "sha": "3750e4fefe36b2de91d451d70228bc130ed0cfe9",
       "short_sha": "3750e4fefe3",
@@ -5067,10 +5187,33 @@
           "num_of_dirs": 20
         }
       }
+    },
+    {
+      "commit": {
+        "sha": "637267bda776c58b2332496945596729a38c8763",
+        "short_sha": "637267bda77",
+        "date": "2026-05-06T07:10:21-07:00",
+        "author": {
+          "name": "CALVIN NGUYEN",
+          "email": "calvin.nguyen@mongodb.com"
+        },
+        "summary": "SERVER-116053 WASM exception handling and MongoDB error code propagation (#53048)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 22,
+          "num_of_lines": 995,
+          "lines_added": 528,
+          "lines_deleted": 467,
+          "num_of_dirs": 13
+        }
+      }
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-05-06 13:39:35",
+  "generated_at": "2026-05-06 16:33:28",
   "branch_name": "master",
   "display_name": "master"
 }
