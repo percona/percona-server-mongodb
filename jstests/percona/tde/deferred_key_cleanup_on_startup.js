@@ -124,9 +124,12 @@ import {checkLog} from "src/mongo/shell/check_log.js";
     // Verify the startup cleanup deleted the orphaned keys by checking the log file.
     // We use the log file (not the RAM buffer) because startup produces many log entries
     // that can push cleanup messages out of the limited RAM log buffer.
-    // LOGV2 ID 29160 = "Deleting orphaned encryption key for non-existent database"
+    // LOGV2 ID 29160 = "Deleting orphaned encryption key" — the entry now
+    // carries both the full keyId (in generation form, "<dbName>.<UUID>")
+    // and the parsed dbName attribute. Match on dbName so the assertion is
+    // agnostic to which keyId format the cleanup pipeline picks up.
     for (const dbName of droppedDbs) {
-        checkLog.containsJson(logpath, 29160, {keyId: dbName});
+        checkLog.containsJson(logpath, 29160, {dbName: dbName});
     }
     jsTestLog("Verified startup cleanup deleted orphaned keys for dropped databases");
 

@@ -51,8 +51,11 @@
     function getKeyIdsForDb(conn, dbName) {
         const res = assert.commandWorked(conn.getDB("admin").runCommand({getLog: "global"}));
         const keyIds = [];
-        const reGen = new RegExp('keyid=\\\\"(' + dbName + '\\.[^\\\\"]+)\\\\"');
-        const reLegacy = new RegExp('keyid=\\\\"(' + dbName + ')\\\\"');
+        // After JSON.parse, the config string carries plain double-quotes
+        // (the `\"` we see in raw log lines is JSON-escaping that JSON.parse
+        // strips). Match `keyid="<dbName>.<...>"` in the unescaped form.
+        const reGen = new RegExp('keyid="(' + dbName + '\\.[^"]+)"');
+        const reLegacy = new RegExp('keyid="(' + dbName + ')"');
         for (const line of res.log) {
             let entry;
             try {
