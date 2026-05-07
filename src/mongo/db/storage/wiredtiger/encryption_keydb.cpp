@@ -614,23 +614,93 @@ std::string EncryptionKeyDB::getOrCreateActiveKeyId(const std::string& dbName) {
         return dbName;
     }
 
-    // No active mapping — allocate "<dbName>.<UUID>" and persist.
+    // No active mapping — allocate "<dbName>.<UUID>" and persist into both
+    // table:active_keyid and table:key under a single WT transaction.
+    //
+    // The two-table coupling matters because the customize callback that
+    // would otherwise lazily insert the table:key row runs *later*, on the
+    // user-data WT_SESSION::create that uses this keyid -- and a backup or
+    // checkpoint can fall in the gap between the two writes. If a backup
+    // captures table:active_keyid with the new mapping but table:key
+    // without the corresponding row, the resulting backup is internally
+    // inconsistent: a restored mongod will see the active mapping, hand
+    // the keyid back via getOrCreateActiveKeyId on first reuse, but find
+    // no key bytes when customize runs -- so it generates fresh bytes,
+    // which then fail to decrypt the existing on-disk pages encrypted with
+    // the original key. Wrapping both inserts in one transaction makes the
+    // pair atomic from any reader's point of view.
     std::string newKeyId = dbName + "." + UUID::gen().toString();
-    cursor->set_key(cursor, dbName.c_str());
-    cursor->set_value(cursor, newKeyId.c_str());
-    res = cursor->insert(cursor);
+    unsigned char keyBytes[encryption::Key::kLength];
+    generate_secure_key(keyBytes);
+
+    res = _sess->begin_transaction(_sess, nullptr);
     if (res) {
         LOGV2_ERROR(29085,
-                    "getOrCreateActiveKeyId: cursor->insert error {code}: {desc}",
+                    "getOrCreateActiveKeyId: begin_transaction error {code}: {desc}",
                     "code"_attr = res,
                     "desc"_attr = wiredtiger_strerror(res));
         return dbName;
     }
-    // The active mapping itself is one anchor unit on the keyId's refcount,
-    // released in clearActiveKeyId. This prevents a freshly-allocated
-    // generation that hasn't yet had its first customize from being reaped
-    // if a stray uri_dropped (or out-of-order startup-replay event) decrements
-    // the count. Nest under _refcounts_lock; we already hold _lock_sess.
+
+    // table:key insert. Open a separate cursor for it; the active_keyid
+    // cursor stays scoped to its existing guard above and is reused for
+    // the active_keyid insert below. Both cursor opens occur inside the
+    // active transaction so their writes are tied to the same commit.
+    WT_CURSOR* keyCursor = nullptr;
+    res = _sess->open_cursor(_sess, "table:key", nullptr, nullptr, &keyCursor);
+    if (res) {
+        LOGV2_ERROR(29101,
+                    "getOrCreateActiveKeyId: open_cursor on table:key failed: {desc}",
+                    "desc"_attr = wiredtiger_strerror(res));
+        _sess->rollback_transaction(_sess, nullptr);
+        return dbName;
+    }
+    std::unique_ptr<WT_CURSOR, std::function<void(WT_CURSOR*)>> keyCursorGuard(
+        keyCursor, [](WT_CURSOR* c) { c->close(c); });
+
+    keyCursor->set_key(keyCursor, newKeyId.c_str());
+    WT_ITEM v;
+    v.size = encryption::Key::kLength;
+    v.data = keyBytes;
+    keyCursor->set_value(keyCursor, &v);
+    res = keyCursor->insert(keyCursor);
+    if (res) {
+        LOGV2_ERROR(29102,
+                    "getOrCreateActiveKeyId: table:key insert error {code}: {desc}",
+                    "code"_attr = res,
+                    "desc"_attr = wiredtiger_strerror(res));
+        _sess->rollback_transaction(_sess, nullptr);
+        return dbName;
+    }
+    if (kDebugBuild)
+        dump_key(keyBytes, encryption::Key::kLength, "generated key for new generation");
+
+    cursor->set_key(cursor, dbName.c_str());
+    cursor->set_value(cursor, newKeyId.c_str());
+    res = cursor->insert(cursor);
+    if (res) {
+        LOGV2_ERROR(29103,
+                    "getOrCreateActiveKeyId: table:active_keyid insert error {code}: {desc}",
+                    "code"_attr = res,
+                    "desc"_attr = wiredtiger_strerror(res));
+        _sess->rollback_transaction(_sess, nullptr);
+        return dbName;
+    }
+
+    res = _sess->commit_transaction(_sess, nullptr);
+    if (res) {
+        LOGV2_ERROR(29104,
+                    "getOrCreateActiveKeyId: commit_transaction error {code}: {desc}",
+                    "code"_attr = res,
+                    "desc"_attr = wiredtiger_strerror(res));
+        return dbName;
+    }
+
+    // Both rows are durable. Increment the in-memory refcount: this is the
+    // active anchor, released in clearActiveKeyId when keydbDropDatabase
+    // runs. The matching URI-side increment will fire when customize calls
+    // get_key_by_id for this keyid (which will now hit the cache-found
+    // path since we pre-populated table:key here).
     {
         std::lock_guard<std::mutex> lkrc(_refcounts_lock);
         ++_refcounts[newKeyId];
