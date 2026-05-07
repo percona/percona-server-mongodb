@@ -36,17 +36,25 @@ Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
 extern "C" {
 #endif
 
+#include <stddef.h>
 #include <stdint.h>
 
 void store_pseudo_bytes(uint8_t* buf, int len);
 int get_iv_gcm(uint8_t* buf, int len);
 int get_key_by_id(const char* keyid, size_t len, unsigned char* key, void* pe);
-int percona_encryption_extension_drop_keyid(void* vp);
+// Forwards to EncryptionKeyDB::onUriDropped on the main keydb. Invoked from
+// the percona encryption extension's WT_ENCRYPTOR::uri_dropped callback
+// after WiredTiger has durably removed a URI's metadata.
+int notify_uri_dropped(const char* keyid, size_t len);
 void generate_secure_key(unsigned char* key);
 
 void rotation_store_pseudo_bytes(uint8_t* buf, int len);
 int rotation_get_iv_gcm(uint8_t* buf, int len);
 int rotation_get_key_by_id(const char* keyid, size_t len, unsigned char* key, void* pe);
+// Forwards to EncryptionKeyDB::onUriDropped on the rotation keydb. The
+// rotation extension instance binds to this variant via init_from_config so
+// the keydb whose key bytes back the URI is the one whose refcount drops.
+int rotation_notify_uri_dropped(const char* keyid, size_t len);
 
 #ifdef __cplusplus
 }
