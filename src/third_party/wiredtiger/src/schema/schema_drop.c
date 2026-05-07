@@ -60,6 +60,22 @@ __drop_file(
          */
         WT_TRET(__wt_meta_track_drop(session, filename));
 
+    /*
+     * The URI's metadata is now durably gone. If the URI was encrypted and
+     * its keyid's customized encryptor implements WT_ENCRYPTOR::uri_dropped,
+     * dispatch the callback so the extension can drive its own per-keyid
+     * lifecycle off WT's URI lifecycle (e.g. refcount-based key row
+     * cleanup). The dispatch needs metadata_cfg, which is why it runs
+     * before metadata_cfg is freed at function exit -- the keyid lookup
+     * reads encryption.name/keyid from the cached config string. We only
+     * dispatch if the prior metadata_remove succeeded (ret == 0); a failed
+     * removal means the URI is *not* yet durably gone, and firing the
+     * callback would violate the API contract that uri_dropped sees a
+     * post-removal world.
+     */
+    if (ret == 0 && metadata_cfg != NULL)
+        WT_TRET(__wti_conn_uri_dropped(session, uri, metadata_cfg));
+
     __wti_debug_crash_if_flag_set(
       session, WT_CONN_DEBUG_CRASH_POINT_AFTER_DROP_FILE, "after dropping file entry", uri);
 
