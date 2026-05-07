@@ -60,6 +60,11 @@ typedef struct {
     void (*store_pseudo_bytes)(uint8_t* buf, int len);
     int (*get_iv_gcm)(uint8_t* buf, int len);
     int (*get_key_by_id)(const char* keyid, size_t len, unsigned char* key, void* pe);
+    // Bridge into EncryptionKeyDB::onUriDropped. Set in init_from_config to
+    // either notify_uri_dropped (main keydb) or rotation_notify_uri_dropped
+    // (rotation keydb) so the keydb whose key bytes back the dropped URI is
+    // the one whose refcount gets decremented.
+    int (*notify_uri_dropped)(const char* keyid, size_t len);
 } PERCONA_ENCRYPTOR;
 
 
@@ -565,20 +570,25 @@ static int percona_customize(WT_ENCRYPTOR* encryptor,
     return 0;
 }
 
-static int percona_sessioncreate(WT_ENCRYPTOR* encryptor,
-                                 WT_SESSION* session,
-                                 WT_CONFIG_ARG* encrypt_config) {
+// Called by WiredTiger after a URI's metadata has been durably removed
+// (WT_ENCRYPTOR::uri_dropped). Forwards to EncryptionKeyDB::onUriDropped via
+// the C bridge so the engine can drop its per-keyid refcount and, if the
+// count hits zero, delete the underlying key row and call
+// WT_CONNECTION::release_encryptor to free this customized-encryptor slot.
+//
+// Returning non-zero from this callback propagates the error up the
+// WT_SESSION::drop call path; we keep it best-effort (return 0) because a
+// failed cleanup notification should never block a successful URI drop --
+// the engine's startup refcount-seeding walk re-establishes correct state.
+static int percona_uri_dropped(WT_ENCRYPTOR* encryptor,
+                               WT_SESSION* session,
+                               const char* uri,
+                               const char* keyid) {
     PERCONA_ENCRYPTOR* pe = (PERCONA_ENCRYPTOR*)encryptor;
-    DBG_MSG("entering sessioncreate");
-    DBG dump_config_arg(pe, session, encrypt_config);
-    // get/generate encryption key
-    // possible errors are reported from parse_customization_config
-    int ret = parse_customization_config(pe, session, encrypt_config);
-    // if everything is ok we don't need this callback until next DB drop
-    if (!ret) {
-        pe->encryptor.sessioncreate = NULL;
-    }
-    return ret;
+    DBG_MSG("entering uri_dropped for uri=%s keyid=%s", uri, keyid);
+    if (pe->notify_uri_dropped == NULL)
+        return 0;
+    return (pe->notify_uri_dropped)(keyid, strlen(keyid));
 }
 
 static int percona_terminate(WT_ENCRYPTOR* encryptor, WT_SESSION* session) {
@@ -600,6 +610,7 @@ static int init_from_config(PERCONA_ENCRYPTOR* pe, WT_CONFIG_ARG* config) {
     pe->store_pseudo_bytes = &store_pseudo_bytes;
     pe->get_iv_gcm = &get_iv_gcm;
     pe->get_key_by_id = &get_key_by_id;
+    pe->notify_uri_dropped = &notify_uri_dropped;
 
     WT_CONFIG_ITEM k, v;
     while ((ret = parser->next(parser, &k, &v)) == 0) {
@@ -624,6 +635,7 @@ static int init_from_config(PERCONA_ENCRYPTOR* pe, WT_CONFIG_ARG* config) {
             pe->store_pseudo_bytes = &rotation_store_pseudo_bytes;
             pe->get_iv_gcm = &rotation_get_iv_gcm;
             pe->get_key_by_id = &rotation_get_key_by_id;
+            pe->notify_uri_dropped = &rotation_notify_uri_dropped;
         }
     }
     parser->close(parser);
@@ -648,7 +660,7 @@ int percona_encryption_extension_init(WT_CONNECTION* connection, WT_CONFIG_ARG* 
 
     pe->encryptor.customize = percona_customize;
     pe->encryptor.terminate = percona_terminate;
-    pe->encryptor.sessioncreate = NULL;
+    pe->encryptor.uri_dropped = percona_uri_dropped;
 
     ret = init_from_config(pe, config);
     if (ret != 0)
@@ -670,17 +682,4 @@ int percona_encryption_extension_init(WT_CONNECTION* connection, WT_CONFIG_ARG* 
 failure:
     free(pe);
     return ret;
-}
-
-// This is called when database is dropped.
-// It should configure encryptor in a way to request new encryption key
-// if new database with the same name will be created.
-// (If this happens before connection is closed wiredTiger uses
-// existing encryptor with old encryption key for specific keyid.
-// This function configures encryptor to give it a chance to get new
-// encryption key.)
-int percona_encryption_extension_drop_keyid(void* vp) {
-    PERCONA_ENCRYPTOR* pe = vp;
-    pe->encryptor.sessioncreate = percona_sessioncreate;
-    return 0;
 }
