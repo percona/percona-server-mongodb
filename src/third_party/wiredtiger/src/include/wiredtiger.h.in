@@ -2851,6 +2851,41 @@ struct __wt_connection {
         const char *name, WT_ENCRYPTOR *encryptor, const char *config);
 
     /*!
+     * Release the cached customized-encryptor instance for a keyid.
+     *
+     * Each keyid that has been observed by WT_ENCRYPTOR::customize is
+     * cached at the connection level and reused for every URI that names
+     * the same keyid. The cache entry lives until the connection closes,
+     * even after every URI that referenced the keyid has been dropped.
+     * That's a problem for extensions whose customized-encryptor instance
+     * holds resources (a network handle to a KMS, decrypted key bytes
+     * pinned in memory, etc.) that should be released as soon as the keyid
+     * is unused: without this method the only way to free them is to
+     * close the connection.
+     *
+     * Calling this method removes the cache entry for \c keyid: WiredTiger
+     * calls WT_ENCRYPTOR::terminate on the cached customized instance,
+     * frees its bookkeeping, and forgets the keyid. The next
+     * WT_SESSION::create that names this keyid will see a cache miss and
+     * trigger a fresh WT_ENCRYPTOR::customize call to allocate a new
+     * customized instance.
+     *
+     * Idempotent: returns success if no encryptor is cached for the
+     * keyid (e.g. release was already called, or the keyid was never used
+     * after extension load).
+     *
+     * Typical pairing: an extension's WT_ENCRYPTOR::uri_dropped callback
+     * decrements an extension-side refcount; when that count reaches zero
+     * the extension calls WT_CONNECTION::release_encryptor to drop the WT
+     * cache entry along with its own per-keyid state.
+     *
+     * @param connection the connection handle
+     * @param keyid the keyid whose cached encryptor should be released
+     * @errors
+     */
+    int __F(release_encryptor)(WT_CONNECTION *connection, const char *keyid);
+
+    /*!
      * Configure a custom file system.
      *
      * This method can only be called from an early loaded extension
@@ -4918,6 +4953,34 @@ struct __wt_encryptor {
      */
     int (*sessioncreate)(WT_ENCRYPTOR *encryptor, WT_SESSION *session,
         WT_CONFIG_ARG *encrypt_config);
+
+    /*!
+     * If non-NULL, this callback is called when a URI's metadata has been
+     * durably removed from \c WiredTiger.wt (i.e. after the metadata-level
+     * removal in WT_SESSION::drop has succeeded). It is intended to let
+     * extensions that maintain per-keyid state -- e.g. transparent data
+     * encryption modules with refcounted key rows -- drive their cleanup
+     * off the URI lifecycle instead of polling, racing the checkpoint, or
+     * deferring deletion to extension-private timers.
+     *
+     * The encryptor argument is the customized instance returned from the
+     * customize callback for this URI's keyid; the keyid is also passed
+     * explicitly so extensions don't need to stash it inside the
+     * customized-encryptor's per-instance state.
+     *
+     * The callback runs after WiredTiger has removed the URI from the
+     * metadata; for unencrypted URIs (no encryptor cached for the URI's
+     * keyid) the callback is not invoked at all. Errors returned from
+     * this callback are propagated to the WT_SESSION::drop caller.
+     *
+     * @param[in] encryptor the customized encryptor for the URI's keyid
+     * @param[in] session the WiredTiger session
+     * @param[in] uri the URI that was just dropped
+     * @param[in] keyid the keyid the URI was encrypted with
+     * @returns zero for success, non-zero to indicate an error.
+     */
+    int (*uri_dropped)(WT_ENCRYPTOR *encryptor, WT_SESSION *session,
+        const char *uri, const char *keyid);
 };
 
 /*! WT_FILE_SYSTEM::open_file file types */

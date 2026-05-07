@@ -505,6 +505,186 @@ err:
 }
 
 /*
+ * __conn_release_encryptor --
+ *     WT_CONNECTION->release_encryptor method. Drop the cached customized-
+ *     encryptor instance for a keyid so that the next WT_SESSION::create
+ *     naming that keyid forces a fresh WT_ENCRYPTOR::customize. Idempotent:
+ *     returns success if no encryptor is cached for the keyid.
+ *
+ *     The implementation walks every named encryptor on the connection and
+ *     in each one's per-keyid hash bucket looks for a matching keyid string.
+ *     Deletes are O(named-encryptors + chain-depth-in-bucket). The lookup
+ *     mirrors the cache-hit path in __wt_encryptor_config so that a
+ *     caller's release_encryptor invariant ("WT now has no cached
+ *     encryptor for this keyid") matches the invariant relied on by
+ *     subsequent customize calls.
+ */
+static int
+__conn_release_encryptor(WT_CONNECTION *wt_conn, const char *keyid)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+    WT_KEYED_ENCRYPTOR *kenc;
+    WT_NAMED_ENCRYPTOR *nenc;
+    WT_SESSION_IMPL *session;
+    size_t keyid_len;
+    uint64_t bucket, hash;
+
+    conn = (WT_CONNECTION_IMPL *)wt_conn;
+    CONNECTION_API_CALL_NOCONF(conn, session, release_encryptor);
+
+    if (keyid == NULL)
+        WT_ERR_MSG(session, EINVAL, "release_encryptor: keyid is NULL");
+
+    keyid_len = strlen(keyid);
+    if (keyid_len == 0)
+        WT_ERR_MSG(session, EINVAL, "release_encryptor: keyid is empty");
+
+    hash = __wt_hash_city64(keyid, keyid_len);
+
+    __wt_spin_lock(session, &conn->encryptor_lock);
+
+    /*
+     * Walk every named encryptor on the connection. release_encryptor takes
+     * only a keyid string -- the namespace is connection-wide -- so any
+     * named encryptor that has cached this keyid drops its cache entry.
+     * In practice there is only one encryptor module ("percona") in PSMDB,
+     * but the WT API contract allows several.
+     */
+    TAILQ_FOREACH (nenc, &conn->encryptqh, q) {
+        bucket = hash & (conn->hash_size - 1);
+        TAILQ_FOREACH (kenc, &nenc->keyedhashqh[bucket], hashq) {
+            if (strcmp(kenc->keyid, keyid) == 0) {
+                /*
+                 * Remove from both queues before invoking terminate: the
+                 * callback may be slow (e.g. flush-to-disk), and we don't
+                 * want a concurrent WT_SESSION::create racing on the same
+                 * keyid to see a half-removed cache entry.
+                 */
+                TAILQ_REMOVE(&nenc->keyedhashqh[bucket], kenc, hashq);
+                TAILQ_REMOVE(&nenc->keyedqh, kenc, q);
+
+                /*
+                 * Drop the encryptor lock before calling terminate so the
+                 * extension can re-enter the WT API (e.g. open a session
+                 * to flush its own bookkeeping) without deadlocking. The
+                 * kenc pointer is safe -- it has been removed from the
+                 * cache, so no other thread can find it.
+                 */
+                __wt_spin_unlock(session, &conn->encryptor_lock);
+
+                if (kenc->owned && kenc->encryptor->terminate != NULL)
+                    WT_TRET(kenc->encryptor->terminate(
+                      kenc->encryptor, (WT_SESSION *)session));
+
+                __wt_free(session, kenc->keyid);
+                __wt_free(session, kenc);
+
+                /*
+                 * Successfully released. Per the API contract a keyid is
+                 * cached at most once across all named encryptors (it was
+                 * inserted under exactly one), so we can return now.
+                 */
+                goto done;
+            }
+        }
+    }
+
+    __wt_spin_unlock(session, &conn->encryptor_lock);
+
+done:
+err:
+    API_END_RET(session, ret);
+}
+
+/*
+ * __wti_conn_uri_dropped --
+ *     If \c metadata_cfg names an encryptor whose customized instance
+ *     for this URI's keyid is cached on the connection, dispatch its
+ *     WT_ENCRYPTOR::uri_dropped callback. Called from the drop path
+ *     after __wt_metadata_remove has succeeded for \c uri, so the
+ *     extension sees a "URI is durably gone" signal it can use to drive
+ *     its own cleanup (refcounted key-row deletion, key-cache eviction,
+ *     etc.).
+ *
+ *     Best-effort: if the metadata config does not name an encryptor,
+ *     names "none", names an unknown encryptor, names an encryptor
+ *     without a cached keyid, or names an encryptor that does not
+ *     implement uri_dropped, the function is a successful no-op. Errors
+ *     returned from the extension's callback are propagated.
+ */
+int
+__wti_conn_uri_dropped(WT_SESSION_IMPL *session, const char *uri, const char *metadata_cfg)
+{
+    WT_CONFIG_ITEM enc_keyid, enc_name;
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+    WT_ENCRYPTOR *encryptor;
+    WT_KEYED_ENCRYPTOR *kenc;
+    WT_NAMED_ENCRYPTOR *nenc;
+    char *keyid_copy;
+    uint64_t bucket, hash;
+
+    conn = S2C(session);
+    encryptor = NULL;
+    keyid_copy = NULL;
+
+    if (metadata_cfg == NULL)
+        return (0);
+
+    /*
+     * Read encryption.name from the URI's last-known metadata. If
+     * encryption is not configured for the URI, or it is configured to
+     * "none", the URI was unencrypted and there is no encryptor to
+     * notify -- a clean no-op.
+     */
+    WT_RET_NOTFOUND_OK(__wt_config_getones(session, metadata_cfg, "encryption.name", &enc_name));
+    if (enc_name.len == 0 || WT_CONFIG_LIT_MATCH("none", enc_name))
+        return (0);
+
+    WT_RET_NOTFOUND_OK(__wt_config_getones(session, metadata_cfg, "encryption.keyid", &enc_keyid));
+    if (enc_keyid.len == 0)
+        return (0);
+
+    /*
+     * Look up the cached customized-encryptor instance for (name, keyid).
+     * Hold encryptor_lock while reading the cache, copy the keyid string
+     * out, then drop the lock before invoking the callback. Holding the
+     * lock through the callback would deadlock if the callback re-enters
+     * WT_CONNECTION::release_encryptor (which takes the same lock) -- and
+     * that re-entry is exactly the typical pairing this API enables.
+     */
+    __wt_spin_lock(session, &conn->encryptor_lock);
+
+    TAILQ_FOREACH (nenc, &conn->encryptqh, q) {
+        if (!WT_CONFIG_MATCH(nenc->name, enc_name))
+            continue;
+        hash = __wt_hash_city64(enc_keyid.str, enc_keyid.len);
+        bucket = hash & (conn->hash_size - 1);
+        TAILQ_FOREACH (kenc, &nenc->keyedhashqh[bucket], hashq) {
+            if (WT_CONFIG_MATCH(kenc->keyid, enc_keyid)) {
+                if (kenc->encryptor->uri_dropped != NULL)
+                    encryptor = kenc->encryptor;
+                break;
+            }
+        }
+        break;
+    }
+
+    if (encryptor != NULL)
+        WT_ERR(__wt_strndup(session, enc_keyid.str, enc_keyid.len, &keyid_copy));
+
+err:
+    __wt_spin_unlock(session, &conn->encryptor_lock);
+
+    if (ret == 0 && encryptor != NULL)
+        ret = encryptor->uri_dropped(encryptor, (WT_SESSION *)session, uri, keyid_copy);
+
+    __wt_free(session, keyid_copy);
+    return (ret);
+}
+
+/*
  * __wti_conn_remove_encryptor --
  *     remove encryptors added by WT_CONNECTION->add_encryptor, only used internally.
  */
@@ -3151,9 +3331,10 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
       __conn_get_home, __conn_compile_configuration, __conn_configure_method, __conn_is_new,
       __conn_open_session, __conn_query_timestamp, __conn_set_timestamp, __conn_rollback_to_stable,
       __conn_load_extension, __conn_add_data_source, __conn_add_collator, __conn_add_compressor,
-      __conn_add_encryptor, __conn_set_file_system, __conn_add_page_log, __conn_add_storage_source,
-      __conn_get_page_log, __conn_get_storage_source, __conn_set_context_uint,
-      __conn_dump_error_log, __conn_set_key_provider, __conn_get_extension_api};
+      __conn_add_encryptor, __conn_release_encryptor, __conn_set_file_system, __conn_add_page_log,
+      __conn_add_storage_source, __conn_get_page_log, __conn_get_storage_source,
+      __conn_set_context_uint, __conn_dump_error_log, __conn_set_key_provider,
+      __conn_get_extension_api};
     static const WT_NAME_FLAG file_types[] = {
       {"data", WT_FILE_TYPE_DATA}, {"log", WT_FILE_TYPE_LOG}, {NULL, 0}};
 
