@@ -1168,6 +1168,17 @@ WiredTigerKVEngine::WiredTigerKVEngine(
     _eventHandler.setStartupSuccessful();
     _wtOpenConfig = config;
 
+    // Now that the user-data WT connection is open, seed the keys DB's
+    // per-keyId refcount from existing URIs in the metadata. Must run
+    // before any user op can fire WT_ENCRYPTOR::uri_dropped (which would
+    // hit a missing refcount and log a defensive warning), and after the
+    // keys DB itself is initialized (DataAtRestEncryption::create is
+    // called from the WiredTigerKVEngine ctor before _openWiredTiger,
+    // so the keys DB's table:active_keyid is readable here).
+    if (_restEncr) {
+        _restEncr->keyDb()->seedRefcountsFromWtMetadata(_conn);
+    }
+
     if (provider.getSentinelDataTimestamp().has_value()) {
         setInitialDataTimestamp(provider.getSentinelDataTimestamp().value());
         setLastMaterializedLsn(provider.getSentinelDataTimestamp().value().asULL());
