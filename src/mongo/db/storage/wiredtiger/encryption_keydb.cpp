@@ -531,7 +531,10 @@ int EncryptionKeyDB::delete_key_by_id(const std::string& keyid) {
 }
 
 void EncryptionKeyDB::onUriDropped(const std::string& keyid) {
-    LOGV2_DEBUG(29092, 4, "onUriDropped for keyid: '{id}'", "id"_attr = keyid);
+    // PSMDB-1997 diagnostic: promoted from LOGV2_DEBUG so we can correlate
+    // every uri_dropped event with the keyid it carries, in case the
+    // wrongkey_replset.js orphan keyid is being reaped here.
+    LOGV2(29092, "onUriDropped for keyid: '{id}'", "id"_attr = keyid);
 
     bool reap = false;
     {
@@ -568,8 +571,9 @@ void EncryptionKeyDB::onUriDropped(const std::string& keyid) {
 }
 
 std::string EncryptionKeyDB::getOrCreateActiveKeyId(const std::string& dbName) {
-    LOGV2_DEBUG(
-        29080, 4, "getOrCreateActiveKeyId for dbName: '{db}'", "db"_attr = dbName);
+    // PSMDB-1997 diagnostic: see every customization-hook entry so we can
+    // tell whether 'local' (or some other dbName) ever reached this path.
+    LOGV2(29080, "getOrCreateActiveKeyId for dbName: '{db}'", "db"_attr = dbName);
 
     std::lock_guard<std::mutex> lk(_lock_sess);
 
@@ -594,11 +598,11 @@ std::string EncryptionKeyDB::getOrCreateActiveKeyId(const std::string& dbName) {
         const char* v;
         if (cursor->get_value(cursor, &v) == 0) {
             std::string keyId(v);
-            LOGV2_DEBUG(29082,
-                        4,
-                        "getOrCreateActiveKeyId hit: db='{db}' keyId='{keyId}'",
-                        "db"_attr = dbName,
-                        "keyId"_attr = keyId);
+            // PSMDB-1997 diagnostic.
+            LOGV2(29082,
+                  "getOrCreateActiveKeyId hit: db='{db}' keyId='{keyId}'",
+                  "db"_attr = dbName,
+                  "keyId"_attr = keyId);
             return keyId;
         }
         LOGV2_ERROR(29083, "getOrCreateActiveKeyId: cursor->get_value failed");
@@ -703,16 +707,17 @@ std::string EncryptionKeyDB::getOrCreateActiveKeyId(const std::string& dbName) {
         std::lock_guard<std::mutex> lkrc(_refcounts_lock);
         ++_refcounts[newKeyId];
     }
-    LOGV2_DEBUG(29086,
-                4,
-                "getOrCreateActiveKeyId allocated: db='{db}' keyId='{keyId}'",
-                "db"_attr = dbName,
-                "keyId"_attr = newKeyId);
+    // PSMDB-1997 diagnostic: see every fresh generation allocation.
+    LOGV2(29086,
+          "getOrCreateActiveKeyId allocated: db='{db}' keyId='{keyId}'",
+          "db"_attr = dbName,
+          "keyId"_attr = newKeyId);
     return newKeyId;
 }
 
 void EncryptionKeyDB::clearActiveKeyId(const std::string& dbName) {
-    LOGV2_DEBUG(29087, 4, "clearActiveKeyId for dbName: '{db}'", "db"_attr = dbName);
+    // PSMDB-1997 diagnostic: see every keydbDropDatabase entry.
+    LOGV2(29087, "clearActiveKeyId for dbName: '{db}'", "db"_attr = dbName);
 
     // Look up the keyId still bound to this dbName in table:active_keyid,
     // remove the row, and decrement the keyId's refcount (releasing the
@@ -926,6 +931,55 @@ void EncryptionKeyDB::seedRefcountsFromWtMetadata(WT_CONNECTION* conn) {
         // active-anchor portion -- a partial seed is better than none.
     }
 
+    // PSMDB-1997 diagnostic: read every keyid currently in table:key on the
+    // keys DB so we can flag any URI-referenced or anchored keyid that has
+    // no row in table:key (the orphan that drives the bad-decrypt panic on
+    // wrongkey_replset.js's correct-key restart). The walk runs on the
+    // keys DB's own session under _lock_sess; intentionally separate from
+    // the _refcounts_lock critical section below. The result is held as a
+    // std::map<keyid, char> to reuse the already-included <map> header
+    // rather than pull in <set> just for membership lookup.
+    std::map<std::string, char> keyRowIds;
+    {
+        std::lock_guard<std::mutex> lk(_lock_sess);
+        WT_CURSOR* keyCursor = nullptr;
+        int kres = _sess->open_cursor(_sess, "table:key", nullptr, nullptr, &keyCursor);
+        if (kres) {
+            LOGV2_ERROR(29105,
+                        "seedRefcountsFromWtMetadata: open_cursor on table:key failed",
+                        "err"_attr = wiredtiger_strerror(kres));
+        } else {
+            std::unique_ptr<WT_CURSOR, std::function<void(WT_CURSOR*)>> kg(
+                keyCursor, [](WT_CURSOR* c) { c->close(c); });
+            while ((kres = keyCursor->next(keyCursor)) == 0) {
+                char* k;
+                if (keyCursor->get_key(keyCursor, &k) == 0) {
+                    keyRowIds.emplace(std::string(k), 0);
+                }
+            }
+            if (kres != WT_NOTFOUND) {
+                LOGV2_ERROR(29106,
+                            "seedRefcountsFromWtMetadata: table:key cursor walk failed",
+                            "err"_attr = wiredtiger_strerror(kres));
+            }
+        }
+    }
+
+    // Build the orphan lists: URI-referenced keyids missing from table:key,
+    // and active_keyid anchored keyids missing from table:key. Both sides
+    // are loud (LOGV2 not LOGV2_DEBUG) because finding even one of them
+    // names the keyid that's about to fail decryption.
+    std::vector<std::string> uriOrphans;
+    for (const auto& [keyId, _] : uriCounts) {
+        if (keyRowIds.count(keyId) == 0)
+            uriOrphans.push_back(keyId);
+    }
+    std::vector<std::string> anchorOrphans;
+    for (const auto& keyId : activeKeyIds) {
+        if (keyRowIds.count(keyId) == 0)
+            anchorOrphans.push_back(keyId);
+    }
+
     // Apply atomically.
     std::size_t distinct = 0;
     {
@@ -943,7 +997,22 @@ void EncryptionKeyDB::seedRefcountsFromWtMetadata(WT_CONNECTION* conn) {
           "seedRefcountsFromWtMetadata: seeded refcounts",
           "uriRefs"_attr = uriRefs,
           "activeAnchors"_attr = activeKeyIds.size(),
-          "distinctKeyIds"_attr = distinct);
+          "distinctKeyIds"_attr = distinct,
+          "tableKeyRows"_attr = keyRowIds.size(),
+          "uriOrphans"_attr = uriOrphans,
+          "anchorOrphans"_attr = anchorOrphans);
+
+    if (!uriOrphans.empty() || !anchorOrphans.empty()) {
+        LOGV2_WARNING(29107,
+                      "seedRefcountsFromWtMetadata: orphan keyIds detected -- "
+                      "the keys DB is missing rows that user-data metadata or "
+                      "table:active_keyid references; opening any URI under "
+                      "an orphaned keyId will fall into get_key_by_id's "
+                      "'create key if it does not exist' path and trigger a "
+                      "bad-decrypt panic on the next page read",
+                      "uriOrphans"_attr = uriOrphans,
+                      "anchorOrphans"_attr = anchorOrphans);
+    }
 }
 
 std::vector<std::string> EncryptionKeyDB::getAllActiveKeyIds() {
