@@ -447,7 +447,15 @@ int EncryptionKeyDB::get_key_by_id(const char* keyid, size_t len, unsigned char*
         memcpy(key, v.data, encryption::Key::kLength);
         if (kDebugBuild)
             dump_key(key, encryption::Key::kLength, "loaded key from key DB");
-        _encryptors[c_str] = pe;
+        // get_key_by_id is invoked from the encryption extension's customize
+        // callback. Customize fires exactly once per (URI, keyid) binding, so
+        // each invocation accounts for one new URI reference under this keyid.
+        // (Already holding _lock_sess via the outer scope; nest _refcounts_lock
+        // inside _lock_sess consistently across the keydb's call sites.)
+        {
+            std::lock_guard<std::mutex> lkrc(_refcounts_lock);
+            ++_refcounts[c_str];
+        }
         return 0;
     }
     if (res != WT_NOTFOUND) {
@@ -476,7 +484,10 @@ int EncryptionKeyDB::get_key_by_id(const char* keyid, size_t len, unsigned char*
 
     if (kDebugBuild)
         dump_key(key, encryption::Key::kLength, "generated and stored key");
-    _encryptors[c_str] = pe;
+    {
+        std::lock_guard<std::mutex> lkrc(_refcounts_lock);
+        ++_refcounts[c_str];
+    }
     return 0;
 }
 
@@ -509,32 +520,51 @@ int EncryptionKeyDB::delete_key_by_id(const std::string& keyid) {
                     "desc"_attr = wiredtiger_strerror(res));
     }
 
-    // The legacy "rearm percona_sessioncreate via percona_encryption_extension_drop_keyid"
-    // path is gone: with generation keyIds (Phase 1) a drop+recreate of a database always
-    // allocates a fresh "<dbName>.<UUID>", so a cached customized-encryptor slot is never
-    // reused for a different generation. The _encryptors entry kept here is dead bookkeeping
-    // until Phase 4, which replaces _encryptors with a refcount map used to drive the
-    // refcount-zero reap path (this function then becomes a pure cursor-based row delete).
-    auto it = _encryptors.find(keyid);
-    if (it != _encryptors.end()) {
-        _encryptors.erase(it);
-    }
-
+    // delete_key_by_id is now a pure cursor-based row delete on table:key.
+    // The previous "rearm percona_sessioncreate / track _encryptors" logic
+    // is gone: with generation keyIds (Phase 1) a cached customized-encryptor
+    // slot is never reused across drop+recreate, and the per-keyId refcount
+    // (Phase 4) is the authoritative driver of when this function is called
+    // (only from onUriDropped's refcount-zero path, plus the pre-existing
+    // master callers that no longer fire in the production drop path).
     return res;
 }
 
 void EncryptionKeyDB::onUriDropped(const std::string& keyid) {
-    // Phase 3 stub: log the URI-drop notification but don't yet reap the
-    // key row. Phase 4 replaces this with the refcount logic that calls
-    // delete_key_by_id when the count hits zero and then asks WiredTiger
-    // to forget the cached encryptor slot via release_encryptor. Until
-    // then, with Phases 1-3 in place, the row in table:key for a dropped
-    // generation keyId leaks.
-    LOGV2_DEBUG(29092,
-                4,
-                "onUriDropped for keyid: '{id}' (Phase 3 stub - refcount logic "
-                "added in Phase 4)",
-                "id"_attr = keyid);
+    LOGV2_DEBUG(29092, 4, "onUriDropped for keyid: '{id}'", "id"_attr = keyid);
+
+    bool reap = false;
+    {
+        std::lock_guard<std::mutex> lkrc(_refcounts_lock);
+        auto it = _refcounts.find(keyid);
+        if (it == _refcounts.end()) {
+            // Either a double uri_dropped for the same URI (which WT-core
+            // shouldn't emit), or a uri_dropped for a keyid the engine
+            // never observed via customize -- e.g. a startup-replay event
+            // arriving before seedRefcountsFromWtMetadata had run, or a
+            // race during shutdown. Defensive: log and return without
+            // reaping; reaping a row not in table:key is a no-op anyway,
+            // but spurious release_encryptor calls would still mask a
+            // real bug if we silently swallow them.
+            LOGV2_WARNING(29096, "onUriDropped: no refcount entry for keyid", "keyid"_attr = keyid);
+            return;
+        }
+        if (--it->second > 0)
+            return;
+        _refcounts.erase(it);
+        reap = true;
+    }
+
+    // Last reference released. Outside _refcounts_lock so delete_key_by_id
+    // (which takes _lock_sess) and release_encryptor (which re-enters the
+    // WT extension API) can run without lock-ordering hazards.
+    if (reap) {
+        delete_key_by_id(keyid);
+        WT_CONNECTION* conn = _connection->conn();
+        if (conn->release_encryptor != nullptr) {
+            conn->release_encryptor(conn, keyid.c_str());
+        }
+    }
 }
 
 std::string EncryptionKeyDB::getOrCreateActiveKeyId(const std::string& dbName) {
@@ -594,6 +624,15 @@ std::string EncryptionKeyDB::getOrCreateActiveKeyId(const std::string& dbName) {
                     "desc"_attr = wiredtiger_strerror(res));
         return dbName;
     }
+    // The active mapping itself is one anchor unit on the keyId's refcount,
+    // released in clearActiveKeyId. This prevents a freshly-allocated
+    // generation that hasn't yet had its first customize from being reaped
+    // if a stray uri_dropped (or out-of-order startup-replay event) decrements
+    // the count. Nest under _refcounts_lock; we already hold _lock_sess.
+    {
+        std::lock_guard<std::mutex> lkrc(_refcounts_lock);
+        ++_refcounts[newKeyId];
+    }
     LOGV2_DEBUG(29086,
                 4,
                 "getOrCreateActiveKeyId allocated: db='{db}' keyId='{keyId}'",
@@ -605,27 +644,236 @@ std::string EncryptionKeyDB::getOrCreateActiveKeyId(const std::string& dbName) {
 void EncryptionKeyDB::clearActiveKeyId(const std::string& dbName) {
     LOGV2_DEBUG(29087, 4, "clearActiveKeyId for dbName: '{db}'", "db"_attr = dbName);
 
-    std::lock_guard<std::mutex> lk(_lock_sess);
+    // Look up the keyId still bound to this dbName in table:active_keyid,
+    // remove the row, and decrement the keyId's refcount (releasing the
+    // active anchor allocated in getOrCreateActiveKeyId). If the count
+    // hits zero, reap the key row and the WT cache slot. The reap must
+    // run *outside* the locks held below: delete_key_by_id re-acquires
+    // _lock_sess (std::mutex is not recursive) and release_encryptor may
+    // re-enter the WT API.
+    std::string keyIdToReap;
+    bool reap = false;
 
-    WT_CURSOR* cursor;
-    int res = _sess->open_cursor(_sess, "table:active_keyid", nullptr, nullptr, &cursor);
+    {
+        std::lock_guard<std::mutex> lk(_lock_sess);
+
+        WT_CURSOR* cursor;
+        int res = _sess->open_cursor(_sess, "table:active_keyid", nullptr, nullptr, &cursor);
+        if (res) {
+            LOGV2_ERROR(29088,
+                        "clearActiveKeyId: error opening cursor: {err}",
+                        "err"_attr = wiredtiger_strerror(res));
+            return;
+        }
+        std::unique_ptr<WT_CURSOR, std::function<void(WT_CURSOR*)>> cursor_guard(
+            cursor, [](WT_CURSOR* c) { c->close(c); });
+
+        // Read the keyId before removing the row so we know which refcount
+        // entry to decrement. If the dbName isn't present, this is an
+        // idempotent no-op (e.g. for legacy databases whose idents predate
+        // the active_keyid table).
+        cursor->set_key(cursor, dbName.c_str());
+        res = cursor->search(cursor);
+        if (res == WT_NOTFOUND) {
+            return;
+        }
+        if (res != 0) {
+            LOGV2_ERROR(29093,
+                        "clearActiveKeyId: cursor->search error {code}: {desc}",
+                        "code"_attr = res,
+                        "desc"_attr = wiredtiger_strerror(res));
+            return;
+        }
+        const char* v;
+        if (cursor->get_value(cursor, &v) != 0) {
+            LOGV2_ERROR(29094, "clearActiveKeyId: cursor->get_value failed");
+            return;
+        }
+        std::string activeKeyId(v);
+
+        // Re-issue set_key in case get_value advanced internal state, then
+        // remove. WT_NOTFOUND from remove cannot happen here (we just
+        // searched a row), but treat it as an idempotent no-op to be safe.
+        cursor->set_key(cursor, dbName.c_str());
+        res = cursor->remove(cursor);
+        if (res != 0 && res != WT_NOTFOUND) {
+            LOGV2_ERROR(29089,
+                        "clearActiveKeyId: cursor->remove error {code}: {desc}",
+                        "code"_attr = res,
+                        "desc"_attr = wiredtiger_strerror(res));
+            return;
+        }
+
+        // Release the active anchor on the refcount; if no URIs remain
+        // either, the key is fully unreferenced and we should reap.
+        std::lock_guard<std::mutex> lkrc(_refcounts_lock);
+        auto it = _refcounts.find(activeKeyId);
+        if (it == _refcounts.end()) {
+            // Active row existed but no refcount entry. That's a bug in
+            // our bookkeeping somewhere -- log and continue without reap.
+            LOGV2_WARNING(29095,
+                          "clearActiveKeyId: no refcount entry for active keyId",
+                          "keyId"_attr = activeKeyId);
+            return;
+        }
+        if (--it->second == 0) {
+            _refcounts.erase(it);
+            keyIdToReap = std::move(activeKeyId);
+            reap = true;
+        }
+    }
+
+    if (reap) {
+        // Outside _lock_sess and _refcounts_lock. delete_key_by_id reacquires
+        // _lock_sess for the table:key cursor work; release_encryptor re-enters
+        // the WT extension API to drop the cached customized-encryptor slot
+        // and may invoke the encryptor's terminate callback.
+        delete_key_by_id(keyIdToReap);
+        WT_CONNECTION* conn = _connection->conn();
+        if (conn->release_encryptor != nullptr) {
+            conn->release_encryptor(conn, keyIdToReap.c_str());
+        }
+    }
+}
+
+namespace {
+// Parses the `keyid="..."` value out of an URI's metadata config string.
+// The encryption block has the form:
+//   ...,encryption=(name=<n>,keyid="<k>"),...
+// or, for the unencrypted case (which is unrelated to "encryption=none"
+// in the keyid sense -- "none" still has the field but signals "not
+// encrypted, do not look up an encryptor"):
+//   ...,encryption=(name=none),...
+//
+// Returns true and sets keyIdOut on success; returns false if the URI is
+// not encrypted, has no keyid, or the encryption block is malformed.
+//
+// We hand-roll the extraction (rather than reuse WT_CONFIG_PARSER from
+// the extension API) because that API requires a WT_EXTENSION_API*,
+// which isn't readily threaded through to the keydb side. The metadata
+// config format is stable and the substring search is bounded by the
+// encryption=(...) block.
+bool parseKeyIdFromMetadata(StringData metaCfg, std::string& keyIdOut) {
+    constexpr StringData kEncOpen{"encryption=("};
+    auto encStart = metaCfg.find(kEncOpen);
+    if (encStart == std::string::npos)
+        return false;
+    encStart += kEncOpen.size();
+    auto encEnd = metaCfg.find(')', encStart);
+    if (encEnd == std::string::npos)
+        return false;
+    StringData encBlock = metaCfg.substr(encStart, encEnd - encStart);
+
+    constexpr StringData kKeyId{"keyid="};
+    auto kidStart = encBlock.find(kKeyId);
+    if (kidStart == std::string::npos)
+        return false;
+    kidStart += kKeyId.size();
+
+    bool quoted = kidStart < encBlock.size() && encBlock[kidStart] == '"';
+    if (quoted)
+        ++kidStart;
+
+    auto kidEnd = kidStart;
+    while (kidEnd < encBlock.size()) {
+        const char c = encBlock[kidEnd];
+        if (quoted ? (c == '"') : (c == ','))
+            break;
+        ++kidEnd;
+    }
+    if (kidEnd <= kidStart)
+        return false;
+    keyIdOut.assign(encBlock.data() + kidStart, kidEnd - kidStart);
+    return !keyIdOut.empty();
+}
+}  // namespace
+
+void EncryptionKeyDB::seedRefcountsFromWtMetadata(WT_CONNECTION* conn) {
+    invariant(conn);
+
+    // Snapshot the active-keyId anchors first. getAllActiveKeyIds takes
+    // _lock_sess; doing it now (before _refcounts_lock is acquired below)
+    // keeps the lock order consistent with every other call site
+    // (_lock_sess -> _refcounts_lock) and avoids a reverse-order nest.
+    std::vector<std::string> activeKeyIds = getAllActiveKeyIds();
+
+    // Use a private session on the user-data connection. Don't reuse the
+    // keydb's _sess: this walk targets the user-data WT instance's
+    // metadata, not the keydb's metadata.
+    WT_SESSION* session = nullptr;
+    int res = conn->open_session(conn, nullptr, nullptr, &session);
     if (res) {
-        LOGV2_ERROR(29088,
-                    "clearActiveKeyId: error opening cursor: {err}",
+        LOGV2_ERROR(29097,
+                    "seedRefcountsFromWtMetadata: open_session failed",
+                    "err"_attr = wiredtiger_strerror(res));
+        return;
+    }
+    std::unique_ptr<WT_SESSION, std::function<void(WT_SESSION*)>> session_guard(
+        session, [](WT_SESSION* s) { s->close(s, nullptr); });
+
+    WT_CURSOR* cursor = nullptr;
+    res = session->open_cursor(session, "metadata:", nullptr, nullptr, &cursor);
+    if (res) {
+        LOGV2_ERROR(29098,
+                    "seedRefcountsFromWtMetadata: open_cursor on metadata failed",
                     "err"_attr = wiredtiger_strerror(res));
         return;
     }
     std::unique_ptr<WT_CURSOR, std::function<void(WT_CURSOR*)>> cursor_guard(
         cursor, [](WT_CURSOR* c) { c->close(c); });
 
-    cursor->set_key(cursor, dbName.c_str());
-    res = cursor->remove(cursor);
-    if (res != 0 && res != WT_NOTFOUND) {
-        LOGV2_ERROR(29089,
-                    "clearActiveKeyId: cursor->remove error {code}: {desc}",
-                    "code"_attr = res,
-                    "desc"_attr = wiredtiger_strerror(res));
+    // Walk metadata into a temp map first; then take _refcounts_lock once
+    // and apply both the URI counts and the active anchors atomically.
+    // Doing it in two phases keeps the cursor walk out of the
+    // _refcounts_lock critical section (the walk can be slow on a large
+    // metadata) and avoids holding the lock across an external callback.
+    std::map<std::string, std::size_t> uriCounts;
+    std::size_t uriRefs = 0;
+    while ((res = cursor->next(cursor)) == 0) {
+        const char* uri;
+        const char* metaCfg;
+        if (cursor->get_key(cursor, &uri) != 0 || cursor->get_value(cursor, &metaCfg) != 0)
+            continue;
+        // Only file: URIs back actual idents that go through the
+        // encryptor. Tables, indexes, etc. either delegate to file: URIs
+        // (whose metadata we'll see separately) or aren't encrypted at
+        // the WT layer. file: URIs whose creation predates the upgrade
+        // carry the legacy bare "<dbName>" keyId; those are tracked
+        // exactly like generation keyIds and reaped via the same path.
+        if (!StringData(uri).starts_with("file:"))
+            continue;
+        std::string keyId;
+        if (!parseKeyIdFromMetadata(StringData(metaCfg), keyId))
+            continue;
+        ++uriCounts[keyId];
+        ++uriRefs;
     }
+    if (res != WT_NOTFOUND) {
+        LOGV2_ERROR(29099,
+                    "seedRefcountsFromWtMetadata: metadata cursor walk failed",
+                    "err"_attr = wiredtiger_strerror(res));
+        // Fall through: we still apply whatever we collected, plus the
+        // active-anchor portion -- a partial seed is better than none.
+    }
+
+    // Apply atomically.
+    std::size_t distinct = 0;
+    {
+        std::lock_guard<std::mutex> lkrc(_refcounts_lock);
+        for (auto& [keyId, count] : uriCounts) {
+            _refcounts[keyId] += count;
+        }
+        for (auto& keyId : activeKeyIds) {
+            ++_refcounts[keyId];
+        }
+        distinct = _refcounts.size();
+    }
+
+    LOGV2(29100,
+          "seedRefcountsFromWtMetadata: seeded refcounts",
+          "uriRefs"_attr = uriRefs,
+          "activeAnchors"_attr = activeKeyIds.size(),
+          "distinctKeyIds"_attr = distinct);
 }
 
 std::vector<std::string> EncryptionKeyDB::getAllActiveKeyIds() {

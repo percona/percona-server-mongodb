@@ -111,10 +111,25 @@ public:
 
     // Called from the percona encryption extension's WT_ENCRYPTOR::uri_dropped
     // callback (via the notify_uri_dropped C bridge) when WiredTiger has
-    // durably removed a URI's metadata. The Phase 3 stub just logs; Phase 4
-    // adds the refcount logic that actually reaps the key row in table:key
-    // and frees the WT cache slot via WT_CONNECTION::release_encryptor.
+    // durably removed a URI's metadata. Decrements the per-keyId refcount;
+    // when it hits zero (no more active mappings, no more URIs referencing
+    // this keyId), removes the row from table:key and asks WiredTiger to
+    // forget the cached customized-encryptor slot via release_encryptor.
+    // Idempotent / defensive against double-fires for a keyid that is no
+    // longer tracked; logs a warning and no-ops in that case.
     void onUriDropped(const std::string& keyid);
+
+    // Seed the in-memory refcount map at startup from the user-data
+    // WiredTiger connection's metadata. Walks every "file:" URI in the
+    // metadata: cursor, parses encryption.keyid out of each URI's config,
+    // and increments _refcounts[keyid] accordingly. Then layers in one
+    // anchor unit per row in table:active_keyid so a freshly-allocated
+    // generation that hasn't yet had a customize-driven URI binding is
+    // not prematurely reaped. Must be called after the user-data WT
+    // connection is open and before any user drop operation can fire
+    // uri_dropped (so during WiredTigerKVEngine construction, right
+    // after _openWiredTiger).
+    void seedRefcountsFromWtMetadata(WT_CONNECTION* conn);
 
     // get new counter value for IV in GCM mode
     int get_iv_gcm(uint8_t* buf, int len);
@@ -190,10 +205,22 @@ private:
     _gcm_iv_type _gcm_iv{0};
     _gcm_iv_type _gcm_iv_reserved{0};
     static constexpr int _gcm_iv_bytes = (std::numeric_limits<decltype(_gcm_iv)>::digits + 7) / 8;
-    // encryptors per db name
-    // get_key_by_id creates entry
-    // delete_key_by_it lets encryptor know that DB was deleted and deletes entry
-    std::map<std::string, void*> _encryptors;
+
+    // Per-keyId refcount. The count for a keyId is the sum of:
+    //   * 1 if there is a row in table:active_keyid mapping some database
+    //     name to this keyId (the "active anchor"). Allocated by
+    //     getOrCreateActiveKeyId and released by clearActiveKeyId.
+    //   * 1 per WiredTiger URI currently encrypted with this keyId.
+    //     Allocated by get_key_by_id (which is called from the encryption
+    //     extension's customize callback exactly once per (URI, keyid)
+    //     binding) and released by onUriDropped (driven from
+    //     WT_ENCRYPTOR::uri_dropped, fired after the URI's metadata is
+    //     durably gone). At startup, seedRefcountsFromWtMetadata
+    //     reconstructs the URI portion of these counts.
+    // When the count hits zero, the row in table:key for this keyId is
+    // deleted and the WT customized-encryptor cache slot is released.
+    std::map<std::string, std::size_t> _refcounts;
+    std::mutex _refcounts_lock;
 
     std::unique_ptr<WiredTigerSession> _backupSession;
     WT_CURSOR* _backupCursor;
