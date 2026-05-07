@@ -447,15 +447,16 @@ int EncryptionKeyDB::get_key_by_id(const char* keyid, size_t len, unsigned char*
         memcpy(key, v.data, encryption::Key::kLength);
         if (kDebugBuild)
             dump_key(key, encryption::Key::kLength, "loaded key from key DB");
-        // get_key_by_id is invoked from the encryption extension's customize
-        // callback. Customize fires exactly once per (URI, keyid) binding, so
-        // each invocation accounts for one new URI reference under this keyid.
-        // (Already holding _lock_sess via the outer scope; nest _refcounts_lock
-        // inside _lock_sess consistently across the keydb's call sites.)
-        {
-            std::lock_guard<std::mutex> lkrc(_refcounts_lock);
-            ++_refcounts[c_str];
-        }
+        // No refcount increment here. WT caches the customized encryptor per
+        // keyid, so this code path fires only on the first WT_SESSION::create
+        // that names a given keyid in the lifetime of the connection -- not
+        // once per URI. Counting here would yield exactly 1 ref per keyid
+        // regardless of how many URIs reference it, which would not pair
+        // correctly against the per-URI uri_dropped events. The per-URI
+        // increment is done in `getOrCreateActiveKeyId`, which the
+        // customization hook calls on every WT_SESSION::create, and at
+        // startup `seedRefcountsFromWtMetadata` walks the user-data
+        // metadata to seed the URI portion of the count.
         return 0;
     }
     if (res != WT_NOTFOUND) {
@@ -484,10 +485,14 @@ int EncryptionKeyDB::get_key_by_id(const char* keyid, size_t len, unsigned char*
 
     if (kDebugBuild)
         dump_key(key, encryption::Key::kLength, "generated and stored key");
-    {
-        std::lock_guard<std::mutex> lkrc(_refcounts_lock);
-        ++_refcounts[c_str];
-    }
+    // No refcount increment here either; same rationale as the cache-hit
+    // branch above. This branch only fires for keyids that have no
+    // pre-existing row in table:key -- legacy bare-`<dbName>` idents from
+    // a master-format keys DB, "/default" for system idents at very first
+    // connection open, etc. -- and the customization hook routes new
+    // generation keyIds through getOrCreateActiveKeyId's atomic-insert
+    // path that pre-creates the table:key row, so this fallback should be
+    // rare in practice.
     return 0;
 }
 
@@ -603,6 +608,21 @@ std::string EncryptionKeyDB::getOrCreateActiveKeyId(const std::string& dbName) {
                   "getOrCreateActiveKeyId hit: db='{db}' keyId='{keyId}'",
                   "db"_attr = dbName,
                   "keyId"_attr = keyId);
+            // Per-URI increment. The customization hook calls
+            // getOrCreateActiveKeyIdForDb on every WT_SESSION::create, so
+            // every reach of this function corresponds to one URI that
+            // will reference this keyId. The matching `--_refcounts` runs
+            // on the per-URI uri_dropped event from WT's drop path. (The
+            // alternative -- counting in get_key_by_id -- would only fire
+            // once per keyId because WT caches the customized encryptor
+            // and skips customize/get_key_by_id on cache hits, so that
+            // would yield 1 increment vs N decrements for N idents under
+            // the same keyId, which is what produced the orphan keys
+            // before this fix.)
+            {
+                std::lock_guard<std::mutex> lkrc(_refcounts_lock);
+                ++_refcounts[keyId];
+            }
             return keyId;
         }
         LOGV2_ERROR(29083, "getOrCreateActiveKeyId: cursor->get_value failed");
@@ -698,14 +718,17 @@ std::string EncryptionKeyDB::getOrCreateActiveKeyId(const std::string& dbName) {
         return dbName;
     }
 
-    // Both rows are durable. Increment the in-memory refcount: this is the
-    // active anchor, released in clearActiveKeyId when keydbDropDatabase
-    // runs. The matching URI-side increment will fire when customize calls
-    // get_key_by_id for this keyid (which will now hit the cache-found
-    // path since we pre-populated table:key here).
+    // Both rows are durable. Increment the in-memory refcount by 2:
+    //   * +1 for the active anchor (released in clearActiveKeyId when
+    //     keydbDropDatabase runs).
+    //   * +1 for THIS caller's URI -- the customization hook called us
+    //     once for the WT_SESSION::create that triggered this allocation,
+    //     and that URI will fire one matching uri_dropped on its eventual
+    //     drop. Subsequent WT_SESSION::create calls for this same dbName
+    //     hit the cache branch above and add +1 each.
     {
         std::lock_guard<std::mutex> lkrc(_refcounts_lock);
-        ++_refcounts[newKeyId];
+        _refcounts[newKeyId] += 2;
     }
     // PSMDB-1997 diagnostic: see every fresh generation allocation.
     LOGV2(29086,
