@@ -35,6 +35,7 @@
 #include "mongo/db/encryption/encryption_options.h"
 #include "mongo/db/namespace_string_util.h"
 #include "mongo/db/service_context.h"
+#include "mongo/db/storage/wiredtiger/encryption_keydb_active_keyid.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/decorable.h"
 #include "mongo/util/str.h"
@@ -59,18 +60,29 @@ public:
     /**
      *  Gets an additional configuration string for the provided table name on a
      *  `WT_SESSION::create` call.
+     *
+     *  The returned config binds the new ident to a specific keyId. For user
+     *  databases the keyId is allocated on demand as "<dbName>.<UUID>" via the
+     *  keys DB's table:active_keyid (see `encryption_keydb_active_keyid.h`),
+     *  giving every (re)create of a database a distinct generation. System
+     *  idents (special-cased below) keep the legacy "/default" pseudo-keyId.
      */
     std::string getTableCreateConfig(StringData tableName) override {
         NamespaceString ns = NamespaceStringUtil::deserialize(
             boost::none, tableName, SerializationContext::stateDefault());
-        std::string keyIdStr =
+        std::string dbNameStr =
             DatabaseNameUtil::serialize(ns.dbName(), SerializationContext::stateDefault());
-        StringData keyid(keyIdStr);
-        // Keep compatibility with v3.6 after SERVER-34617
+        StringData dbName(dbNameStr);
+        // Keep compatibility with v3.6 after SERVER-34617: the special "system"
+        // and "table:..." pseudo-dbName values address engine-internal idents
+        // (e.g. WiredTiger metadata) and are not subject to per-database key
+        // generations — they always use the "/default" pseudo-keyId.
         const size_t minsize = 6;  // Minimum size which allows following condition to be true
-        if (keyid.size() >= minsize && (keyid == "system"_sd || keyid.starts_with("table:"_sd)))
-            keyid = "/default"_sd;
-        return str::stream() << "encryption=(name=percona,keyid=\"" << keyid << "\"),";
+        if (dbName.size() >= minsize && (dbName == "system"_sd || dbName.starts_with("table:"_sd))) {
+            return str::stream() << "encryption=(name=percona,keyid=\"/default\"),";
+        }
+        std::string keyId = encryption::getOrCreateActiveKeyIdForDb(dbName);
+        return str::stream() << "encryption=(name=percona,keyid=\"" << keyId << "\"),";
     }
 };
 

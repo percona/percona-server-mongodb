@@ -3643,13 +3643,16 @@ void WiredTigerKVEngine::dropIdentForImport(Interruptible& interruptible,
 
 void WiredTigerKVEngine::keydbDropDatabase(const DatabaseName& dbName) {
     if (_restEncr) {
-        int res = _restEncr->keyDb()->delete_key_by_id(
+        // Phase 1: clearActiveKeyId only removes the dbName -> "<dbName>.<UUID>"
+        // mapping in table:active_keyid. The actual key row in table:key is
+        // deliberately *not* deleted here; the previous-generation key bytes
+        // must remain decryptable while WiredTiger still has drop-pending
+        // idents that reference them. Cleanup of the key row is event-driven
+        // off WT's URI-drop path (Phase 4: refcount + uri_dropped). The
+        // original eager delete in this hook was the source of the
+        // PSMDB-1997 race against WiredTiger's checkpoint cleanup.
+        _restEncr->keyDb()->clearActiveKeyId(
             DatabaseNameUtil::serialize(dbName, SerializationContext::stateDefault()));
-        if (res) {
-            // we cannot throw exceptions here because we are inside WUOW::commit
-            // every other part of DB is already dropped so we just log error message
-            LOGV2_ERROR(29001, "failed to delete encryption key for db", logAttrs(dbName));
-        }
     }
 }
 
