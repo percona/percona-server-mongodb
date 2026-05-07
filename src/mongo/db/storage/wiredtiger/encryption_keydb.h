@@ -211,12 +211,15 @@ private:
     //     name to this keyId (the "active anchor"). Allocated by
     //     getOrCreateActiveKeyId and released by clearActiveKeyId.
     //   * 1 per WiredTiger URI currently encrypted with this keyId.
-    //     Allocated by get_key_by_id (which is called from the encryption
-    //     extension's customize callback exactly once per (URI, keyid)
-    //     binding) and released by onUriDropped (driven from
-    //     WT_ENCRYPTOR::uri_dropped, fired after the URI's metadata is
-    //     durably gone). At startup, seedRefcountsFromWtMetadata
-    //     reconstructs the URI portion of these counts.
+    //     Allocated in `getOrCreateActiveKeyId` (which the customization
+    //     hook calls *per WT_SESSION::create*, i.e. once per URI), and
+    //     released in `onUriDropped` (driven from WT_ENCRYPTOR::uri_dropped,
+    //     also per URI). Counting in get_key_by_id would be wrong because
+    //     WT caches the customized encryptor per keyId and skips
+    //     customize/get_key_by_id on cache hits, so an N-ident-per-keyid
+    //     workload would produce 1 increment vs N decrements.
+    //     At startup, `seedRefcountsFromWtMetadata` walks the user-data
+    //     metadata and seeds one URI ref per `file:` URI it finds.
     // When the count hits zero, the row in table:key for this keyId is
     // deleted and the WT customized-encryptor cache slot is released.
     std::map<std::string, std::size_t> _refcounts;
