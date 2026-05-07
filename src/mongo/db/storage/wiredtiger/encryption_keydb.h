@@ -39,6 +39,7 @@ Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
 #include <map>
 #include <mutex>
 #include <string>
+#include <vector>
 
 #include <wiredtiger.h>
 
@@ -88,6 +89,25 @@ public:
 
     // drop key for specific keyid (used in dropDatabase)
     int delete_key_by_id(const std::string& keyid);
+
+    // Returns the currently-active keyId for a database, allocating a fresh
+    // "<dbName>.<UUID>" generation and persisting it to table:active_keyid if
+    // none is currently active. Each (re)create of a database thus gets a
+    // distinct keyId, so a cached encryptor slot is never reused across drops.
+    std::string getOrCreateActiveKeyId(const std::string& dbName);
+
+    // Removes the active-keyId mapping for a database from table:active_keyid.
+    // Idempotent. Called from keydbDropDatabase. Does NOT delete the underlying
+    // key row in table:key — that is reaped via the URI-lifecycle refcount path
+    // (Phase 4) once all idents that referenced the keyId are durably gone.
+    void clearActiveKeyId(const std::string& dbName);
+
+    // Returns the values of every row in table:active_keyid, i.e. every keyId
+    // that currently has a database actively bound to it. Used at startup
+    // (Phase 4) to seed the per-keyId refcount with one anchor unit per active
+    // mapping so a freshly-allocated generation that hasn't yet had its first
+    // ident written is not prematurely reaped.
+    std::vector<std::string> getAllActiveKeyIds();
 
     // get new counter value for IV in GCM mode
     int get_iv_gcm(uint8_t* buf, int len);
