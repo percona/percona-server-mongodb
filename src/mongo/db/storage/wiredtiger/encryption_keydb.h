@@ -109,6 +109,13 @@ public:
     // ident written is not prematurely reaped.
     std::vector<std::string> getAllActiveKeyIds();
 
+    // Called from the percona encryption extension's WT_ENCRYPTOR::uri_dropped
+    // callback (via the notify_uri_dropped C bridge) when WiredTiger has
+    // durably removed a URI's metadata. The Phase 3 stub just logs; Phase 4
+    // adds the refcount logic that actually reaps the key row in table:key
+    // and frees the WT cache slot via WT_CONNECTION::release_encryptor.
+    void onUriDropped(const std::string& keyid);
+
     // get new counter value for IV in GCM mode
     int get_iv_gcm(uint8_t* buf, int len);
 

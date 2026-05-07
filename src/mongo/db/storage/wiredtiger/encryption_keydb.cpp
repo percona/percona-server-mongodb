@@ -509,17 +509,32 @@ int EncryptionKeyDB::delete_key_by_id(const std::string& keyid) {
                     "desc"_attr = wiredtiger_strerror(res));
     }
 
-    // prepare encryptor for reuse in case DB with the same name will be recreated
-    // it is not an error if encryptor is not found - that means customize was not called
-    // for the keyid and it will be called when necessary (in theory this may happen if
-    // DB is dropped just after mongod is started and before any read/write operations)
+    // The legacy "rearm percona_sessioncreate via percona_encryption_extension_drop_keyid"
+    // path is gone: with generation keyIds (Phase 1) a drop+recreate of a database always
+    // allocates a fresh "<dbName>.<UUID>", so a cached customized-encryptor slot is never
+    // reused for a different generation. The _encryptors entry kept here is dead bookkeeping
+    // until Phase 4, which replaces _encryptors with a refcount map used to drive the
+    // refcount-zero reap path (this function then becomes a pure cursor-based row delete).
     auto it = _encryptors.find(keyid);
     if (it != _encryptors.end()) {
-        percona_encryption_extension_drop_keyid(it->second);
         _encryptors.erase(it);
     }
 
     return res;
+}
+
+void EncryptionKeyDB::onUriDropped(const std::string& keyid) {
+    // Phase 3 stub: log the URI-drop notification but don't yet reap the
+    // key row. Phase 4 replaces this with the refcount logic that calls
+    // delete_key_by_id when the count hits zero and then asks WiredTiger
+    // to forget the cached encryptor slot via release_encryptor. Until
+    // then, with Phases 1-3 in place, the row in table:key for a dropped
+    // generation keyId leaks.
+    LOGV2_DEBUG(29092,
+                4,
+                "onUriDropped for keyid: '{id}' (Phase 3 stub - refcount logic "
+                "added in Phase 4)",
+                "id"_attr = keyid);
 }
 
 std::string EncryptionKeyDB::getOrCreateActiveKeyId(const std::string& dbName) {
@@ -774,6 +789,27 @@ extern "C" int get_key_by_id(const char* keyid, size_t len, unsigned char* key, 
 extern "C" int rotation_get_key_by_id(const char* keyid, size_t len, unsigned char* key, void* pe) {
     invariant(mongo::rotationKeyDB);
     return mongo::rotationKeyDB->get_key_by_id(keyid, len, key, pe);
+}
+
+extern "C" int notify_uri_dropped(const char* keyid, size_t len) {
+    // The encryption extension may fire uri_dropped during connection
+    // teardown after the keydb singleton has been reset to nullptr; in
+    // that case the engine is going away and there is nothing to clean
+    // up, so silently no-op rather than crashing.
+    if (mongo::encryptionKeyDB == nullptr)
+        return 0;
+    mongo::encryptionKeyDB->onUriDropped(std::string(keyid, len));
+    return 0;
+}
+
+extern "C" int rotation_notify_uri_dropped(const char* keyid, size_t len) {
+    // Same teardown-safety rationale as notify_uri_dropped; the rotation
+    // instance also disappears at end-of-rotation, before the connection
+    // it backs is necessarily quiesced.
+    if (mongo::rotationKeyDB == nullptr)
+        return 0;
+    mongo::rotationKeyDB->onUriDropped(std::string(keyid, len));
+    return 0;
 }
 
 extern "C" void generate_secure_key(unsigned char* key) {
