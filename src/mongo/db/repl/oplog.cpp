@@ -294,12 +294,14 @@ Status insertDocumentsForOplog(OperationContext* opCtx,
             }
         }();
 
-        truncateMarkers->updateCurrentMarkerAfterInsertOnCommit(opCtx,
-                                                                totalLength,
-                                                                (*records)[nRecords - 1].id,
-                                                                wall,
-                                                                nRecords,
-                                                                gOplogSamplingAsyncEnabled);
+        auto& provider = rss::ReplicatedStorageService::get(opCtx).getPersistenceProvider();
+        truncateMarkers->updateCurrentMarkerAfterInsertOnCommit(
+            opCtx,
+            totalLength,
+            (*records)[nRecords - 1].id,
+            wall,
+            nRecords,
+            provider.supportsAsyncOplogMarkerGeneration());
     }
 
     // We do not need to notify capped waiters, as we have not yet updated oplog visibility, so
@@ -1307,14 +1309,10 @@ const StringMap<ApplyOpMetadata> kOpsMap = {
      }}},
     {"commitTransaction",
      {[](OperationContext* opCtx, const ApplierOperation& op, OplogApplication::Mode mode)
-          -> Status {
-         return applyCommitTransaction(opCtx, op, mode);
-     }}},
+          -> Status { return applyCommitTransaction(opCtx, op, mode); }}},
     {"abortTransaction",
      {[](OperationContext* opCtx, const ApplierOperation& op, OplogApplication::Mode mode)
-          -> Status {
-         return applyAbortTransaction(opCtx, op, mode);
-     }}},
+          -> Status { return applyAbortTransaction(opCtx, op, mode); }}},
     {"createDatabaseMetadata",
      {[](OperationContext* opCtx, const ApplierOperation& op, OplogApplication::Mode mode)
           -> Status {

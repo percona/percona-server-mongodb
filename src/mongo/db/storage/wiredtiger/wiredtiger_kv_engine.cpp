@@ -723,9 +723,7 @@ void setUpWiredTigerEncryption(const std::string& cipherMode, EncryptionKeyDB* k
 void setKeyOnCursor(WT_CURSOR* c, const std::variant<std::span<const char>, int64_t>& key) {
     std::visit(OverloadedVisitor{
                    [&](const std::span<const char> k) { c->set_key(c, WiredTigerItem{k}.get()); },
-                   [&](int64_t k) {
-                       c->set_key(c, k);
-                   }},
+                   [&](int64_t k) { c->set_key(c, k); }},
                key);
 }
 
@@ -1659,7 +1657,8 @@ void WiredTigerKVEngine::flushAllFiles(OperationContext* opCtx, bool callerHolds
     // Immediately flush the size storer information to disk. When the node is fsync locked for
     // operations such as backup, it's imperative that we copy the most up-to-date data files.
     if (isReplicatedFastCountEnabled(opCtx)) {
-        ReplicatedFastCountManager::get(opCtx->getServiceContext()).flushAsync();
+        replicated_fast_count::ReplicatedFastCountManager::get(opCtx->getServiceContext())
+            .flushAsync();
     }
     syncSizeInfo(true);
 

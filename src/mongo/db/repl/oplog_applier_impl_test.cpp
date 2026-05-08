@@ -528,9 +528,7 @@ TEST_F(OplogApplierImplTest, applyOplogEntryToRecordChangeStreamPreImages) {
         auto op = makeOplogEntry(
             [opCtx = _opCtx.get()] {
                 WriteUnitOfWork wuow{opCtx};
-                ScopeGuard guard{[&wuow] {
-                    wuow.commit();
-                }};
+                ScopeGuard guard{[&wuow] { wuow.commit(); }};
                 return repl::getNextOpTime(opCtx);
             }(),
             testCase.opType,
@@ -605,9 +603,7 @@ TEST_F(OplogApplierImplTest, ApplyApplyOpsWithMixedFromMigrateRecordsCorrectPreI
     // Get an optime for the applyOps entry.
     auto opTime = [opCtx = _opCtx.get()] {
         WriteUnitOfWork wuow{opCtx};
-        ScopeGuard guard{[&wuow] {
-            wuow.commit();
-        }};
+        ScopeGuard guard{[&wuow] { wuow.commit(); }};
         return repl::getNextOpTime(opCtx);
     }();
 
@@ -836,9 +832,7 @@ TEST_F(OplogApplierImplTest, RenameCollectionCommandMultitenant) {
     // createCollection uses an actual opTime, so we must generate an actually opTime in the future.
     auto opTime = [opCtx = _opCtx.get()] {
         WriteUnitOfWork wuow{opCtx};
-        ScopeGuard guard{[&wuow] {
-            wuow.commit();
-        }};
+        ScopeGuard guard{[&wuow] { wuow.commit(); }};
         return repl::getNextOpTime(opCtx);
     }();
     auto op = makeCommandOplogEntry(opTime, sourceNss, oRename, {});
@@ -866,9 +860,7 @@ TEST_F(OplogApplierImplTest, RenameCollectionCommandMultitenantRequireTenantIDFa
     // createCollection uses an actual opTime, so we must generate an actually opTime in the future.
     auto opTime = [opCtx = _opCtx.get()] {
         WriteUnitOfWork wuow{opCtx};
-        ScopeGuard guard{[&wuow] {
-            wuow.commit();
-        }};
+        ScopeGuard guard{[&wuow] { wuow.commit(); }};
         return repl::getNextOpTime(opCtx);
     }();
     auto op = makeCommandOplogEntry(opTime, sourceNss, oRename, {});
@@ -901,9 +893,7 @@ TEST_F(OplogApplierImplTest, RenameCollectionCommandMultitenantAcrossTenantsRequ
     // createCollection uses an actual opTime, so we must generate an actually opTime in the future.
     auto opTime = [opCtx = _opCtx.get()] {
         WriteUnitOfWork wuow{opCtx};
-        ScopeGuard guard{[&wuow] {
-            wuow.commit();
-        }};
+        ScopeGuard guard{[&wuow] { wuow.commit(); }};
         return repl::getNextOpTime(opCtx);
     }();
     auto op = makeCommandOplogEntry(opTime, sourceNss, oRename, {});
@@ -6783,6 +6773,82 @@ TEST_F(PreparedTxnSplitTest, SinglePreparedTxnMultipleOpsOnOneDoc) {
     }
     ASSERT_EQ(kNumDocuments, splitTxnCount);
     ASSERT_EQ(expectDocIDs, docIDs);
+}
+
+class PreparedTxnSplitSizeMetadataTest : public PreparedTxnSplitTest {
+    RAIIServerParameterControllerForTest _fastCountFlag{"featureFlagReplicatedFastCount", true};
+    RAIIServerParameterControllerForTest _durabilityFlag{"featureFlagReplicatedFastCountDurability",
+                                                         true};
+};
+
+TEST_F(PreparedTxnSplitSizeMetadataTest, SizeMetadataIsSummedAcrossSplits) {
+    // Use the actual pool size as the modulus so findDocIdWithSeparateWriterId guarantees
+    // the two docs hash to different writer buckets deterministically.
+    const int nWriters = _workerPool->getStats().options.maxThreads;
+    const int kDocID1 = 1001;
+    const int kDocID2 =
+        findDocIdWithSeparateWriterId(_opCtx.get(), _nss, *_uuid, kDocID1, nWriters);
+
+    const int32_t kSz1 = 16;
+    const int32_t kSz2 = 24;
+
+    SingleOpSizeMetadata meta1;
+    meta1.setSz(kSz1);
+    SingleOpSizeMetadata meta2;
+    meta2.setSz(kSz2);
+
+    // Two inserts into the same collection, on docs that hash to different writer threads.
+    std::vector<BSONObj> innerOps = {
+        BSON("op" << "i" << "ns" << _nss.ns_forTest() << "ui" << *_uuid << "o"
+                  << BSON("_id" << kDocID1) << "m" << meta1.toBSON()),
+        BSON("op" << "i" << "ns" << _nss.ns_forTest() << "ui" << *_uuid << "o"
+                  << BSON("_id" << kDocID2) << "m" << meta2.toBSON()),
+    };
+
+    std::vector<OplogEntry> ops;
+    ops.push_back(makePrepareOplogEntry(innerOps, {Timestamp(1, 1), 1}, _lsid1, _txnNum1));
+
+    WriterVectors writerVectors(nWriters);
+    std::vector<std::vector<OplogEntry>> derivedOps;
+    _applier->fillWriterVectors_forTest(_opCtx.get(), &ops, &writerVectors, &derivedOps);
+
+    int writersWithSplitPrepare = 0;
+    for (const auto& writer : writerVectors) {
+        for (const auto& op : writer) {
+            if (op.instruction == ApplicationInstruction::applySplitPreparedTxnOp &&
+                op->shouldPrepare()) {
+                ++writersWithSplitPrepare;
+                break;
+            }
+        }
+    }
+    // Confirm the two ops landed in different writers — this validates the test setup.
+    ASSERT_GT(writersWithSplitPrepare, 1);
+
+    // Find the config.transactions derived op (there must be exactly one).
+    const OplogEntry* txnTableEntry = nullptr;
+    for (const auto& writer : writerVectors) {
+        for (const auto& op : writer) {
+            if (op->getNss() == NamespaceString::kSessionTransactionsTableNamespace) {
+                ASSERT_EQ(txnTableEntry, nullptr) << "expected exactly one config.transactions op";
+                txnTableEntry = &(*op);
+            }
+        }
+    }
+    ASSERT_NE(txnTableEntry, nullptr);
+
+    // The "o" field of a single-entry prepare update is the full SessionTxnRecord BSON.
+    auto txnRecord = SessionTxnRecord::parse(txnTableEntry->getObject(),
+                                             IDLParserContext{"SizeMetadataIsSummedAcrossSplits"});
+    const auto& sizeMetadata = txnRecord.getSizeMetadata();
+    ASSERT_TRUE(sizeMetadata.has_value());
+
+    // Both inserts are on the same collection; the "m" array has one entry with summed totals.
+    ASSERT_EQ(1, sizeMetadata->size());
+    const auto& entry = (*sizeMetadata)[0];
+    EXPECT_EQ(entry.getUuid(), *_uuid);
+    EXPECT_EQ(entry.getSz(), kSz1 + kSz2);
+    EXPECT_EQ(entry.getCt(), 2);  // two inserts
 }
 
 }  // namespace

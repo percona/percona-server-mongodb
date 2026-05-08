@@ -472,6 +472,8 @@ feature_flags:
         default: false
         fcv_gated: false
         incremental_rollout_phase: in_development
+        serialize_on_outgoing_requests: true
+        version: 9.0
 
     featureFlagExtensionsOptimizations:
         description: "Feature flag to enable new extension stage optimizations."
@@ -482,5 +484,11 @@ feature_flags:
     featureFlagPqsQueryKnobs:
         description: "Feature flag to enable per-query-shape overrides of internal query parameters (query knobs) via Persistent Query Settings."
         cpp_varname: gFeatureFlagPqsQueryKnobs
+        default: false
+        fcv_gated: true
+
+    featureFlagPersistentStats:
+        description: "Feature flag to enable persistent statistics for cost estimation."
+        cpp_varname: gFeatureFlagPersistentStats
         default: false
         fcv_gated: true

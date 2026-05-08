@@ -729,9 +729,7 @@ TEST_F(PrintAllThreadStacksTest, SessionBasic) {
     stacktrace_details::PrintAllStacksSession session;
 
     auto waiter = boost::make_optional(session.waiter());
-    stdx::thread producer{[&] {
-        auto notifier = session.notifier();
-    }};
+    stdx::thread producer{[&] { auto notifier = session.notifier(); }};
     waiter = {};
     producer.join();
 }
