@@ -1,0 +1,258 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "397e4dd4d524ddb1f76be79b90782954d47bb7a5",
+    "merge_commit": "60951b621539842f01f060bc4a35a1d0e690ae32"
+  },
+  "mergai_version": "0.1.dev1+g2c757647b",
+  "conflict_context": {
+    "ours_commit": "397e4dd4d524ddb1f76be79b90782954d47bb7a5",
+    "theirs_commit": "60951b621539842f01f060bc4a35a1d0e690ae32",
+    "base_commit": "a512a989cd8b9cc0eba528e14da375fe6e7def2e",
+    "files": [
+      "MODULE.bazel.lock",
+      "src/mongo/db/audit.cpp"
+    ],
+    "conflict_types": {
+      "MODULE.bazel.lock": "both modified",
+      "src/mongo/db/audit.cpp": "both modified"
+    },
+    "diffs": {
+      "MODULE.bazel.lock": "diff --cc MODULE.bazel.lock\nindex c3cf2426349,e9c7d37cf26..00000000000\n--- a/MODULE.bazel.lock\n+++ b/MODULE.bazel.lock\n@@@ -359,1 -359,1 +359,7 @@@\n++<<<<<<< HEAD\n +        \"bzlTransitiveDigest\": \"UyM8r5gNVZIuZDkrdMY+glNa4sv+sqIPJEVioH1gPYA=\",\n++||||||| a512a989cd8\n++        \"bzlTransitiveDigest\": \"G/WD+JnQT596GnXuqRV363uynmjbkk1qeefCHRtgT3Y=\",\n++=======\n+         \"bzlTransitiveDigest\": \"C9iJZULa/gIglBX8Lt+0bgepOigpMhxHwglLnKBMv7g=\",\n++>>>>>>> 60951b621539842f01f060bc4a35a1d0e690ae32",
+      "src/mongo/db/audit.cpp": "diff --cc src/mongo/db/audit.cpp\nindex 9c42ab385ab,356b7fa268b..00000000000\n--- a/src/mongo/db/audit.cpp\n+++ b/src/mongo/db/audit.cpp\n@@@ -45,2 -45,19 +45,45 @@@ std::function<void()> shutdownSynchroni\n++<<<<<<< HEAD\n +// @see the `src/mongo/audit/audit.cpp` file for registeting Percona's\n +// implementation of `AuditInterface`.\n++||||||| a512a989cd8\n++#if !MONGO_ENTERPRISE_AUDIT\n++void rotateAuditLog() {}\n++#endif\n++\n+ (... 32 more added lines...)\n+ void AuditInterface::set(ServiceContext* service, std::unique_ptr<AuditInterface> interface) {\n+     getAuditInterface(service) = std::move(interface);\n+ }\n+ \n++>>>>>>> 60951b621539842f01f060bc4a35a1d0e690ae32"
+    },
+    "their_commits": {
+      "MODULE.bazel.lock": [
+        "0e98e3f5e6bf7e4314fbcb7ed5b8f9d4cb809443"
+      ],
+      "src/mongo/db/audit.cpp": [
+        "c16db8966dde88ee2dc55dc4b261bf221ab1fa87"
+      ]
+    }
+  },
+  "merge_context": {
+    "merge_commit": "60951b621539842f01f060bc4a35a1d0e690ae32",
+    "merged_commits": [
+      "60951b621539842f01f060bc4a35a1d0e690ae32",
+      "0ff4fc94d0b08a56c4765cbe8e3001db9b832695",
+      "36362312e94cc81873e08856dc78be2de9e361aa",
+      "5dc293ea8f8c0286c7ef13b7c8db90e94c24b00e",
+      "17cc50e72424d8236037d6a2170c94353828ca26",
+      "de9739859b1063b0343f1530b0bb78afc4cfdc85",
+      "48310e6bf698aa92b160f32c828111ca88288ddd",
+      "2d98aee451d665f76f390ee1964edf1482393036",
+      "1aadea4b62a312e04aa16dfa926caf2b956fe4bc",
+      "974df5c5f3125dfc256126722f77d2c14198e3a7",
+      "fc763ed33508e8b42fabf3ba54b91aa3e8d566cf",
+      "259791de67b869d7dabdeaa281561457714930fd",
+      "4542d91795482829b19bc5b139d5a0c04f4724ca",
+      "626f3a33c2ed79d075ef9b9c92f24c83bf600311",
+      "d5ef841bfb32b7d0cfa943fe7e6d9283e0efedcd",
+      "fe907d24c108b0e2bee739c733489104a85177c2",
+      "7437a7c62bb750ab7365e8232c8141b16cd3a05e",
+      "5b8c0a2f7803e46d56a8654a40c673ffe011edb4",
+      "0c66681ad4b65ad33c6651bfbec231f0b027fd76",
+      "c1aa543a88eee84b1bce712ee14d93e0cc86dd4a",
+      "21e57d6ae608aefb90d18f8e7ea38e0b7df4ad92",
+      "c16db8966dde88ee2dc55dc4b261bf221ab1fa87",
+      "0e98e3f5e6bf7e4314fbcb7ed5b8f9d4cb809443",
+      "c05cc9b2a61c8d4ae0825fc92787a5cb1bb8b1d3",
+      "7a658e7fe062ee1e66bfd60e3958a02969d941d4",
+      "c94577b0419583a0151733b1c7aa534e401f2adb",
+      "bf64d875fe58c4d3e226517a1b0798840e965262",
+      "3e424a21ee471cbe1ffb68d5f52b479cbf596312",
+      "4c5aa6394f8c7337eff19ffb505e021b3a2ee27e",
+      "4f5d149de7e592bb1dc130b9e8e72250aa1fd083",
+      "2b318aa18185e31410de6ada8db054231d45c2cc",
+      "ddd3a885a509e0ea72f6ad9ec08d2de06d215d5a",
+      "cd90f28f0a69ab94a913fb5310a69a7602e2f107",
+      "8237882c2c63cc1a760b5eed7e0e11d513dd0da4",
+      "3166fae24b992f738668ba01c1df791310706095",
+      "90c831085c7c8e73ab7d5eae78fb41a60c369ea7",
+      "ea825ba1d87cdf002a51a90e1b5cf95a066952dc",
+      "4328deee01c336930703e2c22d9f9ee371ff6cca",
+      "e2dd7a32a92dba4cee68fe8581a9fb8441bd3995",
+      "b03db1016229f9e8bccaddbb4455ad6c987cb415",
+      "27caeba485284d1c9fc140f8528d5832462d7c2d",
+      "5950c980978ddbe99121b67c375e8799a46ee4b8",
+      "da1c0b5cdb1d896c42e87e6dbe2d5e918b98bde0",
+      "5c0c722f978cc71887c4966f444dc44439c57919",
+      "4d92eee2994c523bf8e6e2d82334117003ff4060",
+      "e8621d65affad9a81378a0430f0e398e1585bc4b",
+      "43f22df6c24df66c913ab3230b6fa05f68f96356",
+      "e7a51a0694ae738182ecc66c45276a5203cf2f94",
+      "3234754cc02337d1aeb791cbc39a0cfde23d4c17",
+      "1d2bacea99a1b79dda8155478749e636dc1096cc",
+      "7a3910238fcff4891e7845cacca9b280c6761862",
+      "65e687f1d5c4a2cd12560dc3e2b7dd1070b946be",
+      "41de2b33a216ea1e3144da834ca78218d77576aa",
+      "95a0f37065a0c8617b7e9f7d7964510e921681bd",
+      "72943f72dcdab9469aa9d21424741b925393a05e",
+      "0520959c004082ccf437ad3dd6e753913f952326",
+      "355772fd486b94d3cb990cf8f985837fc526fc39",
+      "7d2f54cac849ec78945c2d40c6cef61e937f16df",
+      "e9f6f5320280ee75067c00d06a5e7663850677eb",
+      "98e3f80a1ab2dda77a123ecf38eda9e2d5904a79",
+      "e7a13ac7fd64cf5ae83fbeae5085eb45ce3a5378",
+      "1f7338468f98c62762dda39265dc15e0f24a7273",
+      "46cfea505a3a758113135f14a4f258e7c890307a",
+      "4ed34958b910f3b653f2790831c6ae2d7e70a821"
+    ],
+    "important_files_modified": [
+      "src/mongo/db/audit.cpp",
+      "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp"
+    ],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        "MODULE.bazel.lock",
+        "bazel/config/BUILD.bazel",
+        "src/mongo/db/audit.cpp",
+        "src/mongo/db/pipeline/process_interface/common_mongod_process_interface.cpp",
+        "src/mongo/db/storage/BUILD.bazel",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp",
+        "src/mongo/util/net/ssl_types.h",
+        "src/mongo/util/processinfo_linux.cpp",
+        "src/mongo/util/stacktrace_test.cpp",
+        "src/third_party/wiredtiger/src/conn/conn_api.c",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in"
+      ]
+    }
+  },
+  "solutions": [
+    {
+      "response": {
+        "summary": "Resolve conflicts for merge commit '60951b62153' into master",
+        "resolved": {
+          "MODULE.bazel.lock": "Resolved by human",
+          "src/mongo/db/audit.cpp": "Resolved by human"
+        },
+        "unresolved": {},
+        "modified": {},
+        "review_notes": "Resolved merge conflicts in 2 files. For src/mongo/db/audit.cpp, kept\nPercona's implementation which uses a comment pointing to their\nAuditInterface implementation in src/mongo/audit/audit.cpp instead of\nMongoDB's inline implementation. For MODULE.bazel.lock, removed conflict\nmarkers by accepting ours version and regenerated via bazel query.\n\nResolved:\n\tsrc/mongo/db/audit.cpp\n\tMODULE.bazel.lock\n\nNote: commit created by mergai"
+      },
+      "author": {
+        "name": "psmdb-bot[bot]",
+        "email": "2942401+psmdb-bot[bot]@users.noreply.github.com",
+        "type": "human"
+      },
+      "commit_sha": "8b5f49a2650ec555ab332ffdac1a065f13222e77"
+    }
+  ],
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 26627,
+    "num_turns": 2,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.13449175000000002,
+    "modelUsage": {
+      "claude-haiku-4-5-20251001": {
+        "inputTokens": 425,
+        "outputTokens": 16,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0,
+        "webSearchRequests": 0,
+        "costUSD": 0.000505,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000
+      },
+      "claude-opus-4-5": {
+        "inputTokens": 18,
+        "outputTokens": 1631,
+        "cacheReadInputTokens": 36581,
+        "cacheCreationInputTokens": 11973,
+        "webSearchRequests": 0,
+        "costUSD": 0.13398675,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-haiku-4-5-20251001": {
+          "tokens": {
+            "input": 425,
+            "output": 16,
+            "cache_read": 0,
+            "cache_creation": 0
+          },
+          "cost_usd": 0.000505
+        },
+        "claude-opus-4-5": {
+          "tokens": {
+            "input": 18,
+            "output": 1631,
+            "cache_read": 36581,
+            "cache_creation": 11973
+          },
+          "cost_usd": 0.13398675
+        }
+      }
+    },
+    "text_result": "Written JSON response describing the merge of 64 upstream MongoDB commits. Key highlights:\n- **audit.cpp**: MongoDB introduces new `AuditInterface` abstraction; Percona's implementation reference must be preserved\n- **MODULE.bazel.lock**: Requires regeneration via `bazel query //... >/dev/null` after other conflicts resolved\n- **WiredTiger**: Storage engine and third-party source updates need review for Percona customizations",
+    "response": {
+      "summary": "Merge of 64 upstream MongoDB commits introducing Bazel build system updates and a new AuditInterface abstraction. Key changes include modifications to the audit subsystem with a service-context-based AuditInterface pattern, WiredTiger storage engine updates, and various build configuration changes across bazel files and third-party WiredTiger sources.",
+      "auto_merged": {
+        "MODULE.bazel.lock": "Lock file with conflicting bzlTransitiveDigest hashes from parallel Bazel dependency updates. Requires regeneration via 'bazel query //... >/dev/null' after resolving other conflicts.",
+        "bazel/config/BUILD.bazel": "Bazel build configuration updates from upstream.",
+        "src/mongo/db/audit.cpp": "MongoDB upstream introduces a new AuditInterface class with service-context registration pattern (AuditInterface::get/set methods). Percona's version has a comment pointing to src/mongo/audit/audit.cpp for Percona's AuditInterface implementation. The merge needs to preserve Percona's audit implementation reference while integrating MongoDB's new AuditInterface abstraction.",
+        "src/mongo/db/pipeline/process_interface/common_mongod_process_interface.cpp": "Pipeline process interface updates from upstream.",
+        "src/mongo/db/storage/BUILD.bazel": "Storage layer Bazel build configuration changes.",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp": "WiredTiger KV engine modifications from upstream commits.",
+        "src/mongo/util/net/ssl_types.h": "SSL/TLS type definitions updates.",
+        "src/mongo/util/processinfo_linux.cpp": "Linux process info utility updates.",
+        "src/mongo/util/stacktrace_test.cpp": "Stack trace test modifications.",
+        "src/third_party/wiredtiger/src/conn/conn_api.c": "WiredTiger connection API updates from third-party sync.",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in": "WiredTiger header template updates."
+      },
+      "review_notes": "Critical files requiring careful review: (1) src/mongo/db/audit.cpp - ensure Percona's audit implementation registration is preserved alongside MongoDB's new AuditInterface pattern; the Percona comment referencing src/mongo/audit/audit.cpp must be kept. (2) src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp - verify Percona-specific WiredTiger customizations are intact. (3) MODULE.bazel.lock must be regenerated after all other conflicts are resolved by running 'bazel query //... >/dev/null'."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [
+            "I'll analyze the merge conflict information and write the JSON response describing the merged commits."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [
+            "Written JSON response describing the merge of 64 upstream MongoDB commits. Key highlights:\n- **audit.cpp**: MongoDB introduces new `AuditInterface` abstraction; Percona's implementation reference must be preserved\n- **MODULE.bazel.lock**: Requires regeneration via `bazel query //... >/dev/null` after other conflicts resolved\n- **WiredTiger**: Storage engine and third-party source updates need review for Percona customizations"
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20260508_160328_329796.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.133 (Claude Code)"
+    }
+  },
+  "note_index": [
+    {
+      "sha": "c5050ae25fd66807efae87675390ab33ce8e0756",
+      "fields": [
+        "conflict_context",
+        "merge_context",
+        "solutions[0]",
+        "merge_description"
+      ]
+    }
+  ]
+}
