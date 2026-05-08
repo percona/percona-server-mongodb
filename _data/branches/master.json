@@ -5,14 +5,14 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 487,
+    "commits_behind": 498,
     "days_behind": 14,
-    "files_affected": 1951,
-    "total_additions": 87218,
-    "total_deletions": 26139,
+    "files_affected": 1994,
+    "total_additions": 87914,
+    "total_deletions": 26470,
     "date_range": {
       "first": "2026-04-24T13:35:16+00:00",
-      "last": "2026-05-08T15:47:17+00:00"
+      "last": "2026-05-08T18:43:17+00:00"
     }
   },
   "last_merged_commit": {
@@ -36,6 +36,116 @@
     "summary": "SERVER-125445 Make `onCommit` lambda mutable when starting PDIB (#52527)"
   },
   "unmerged_commits": [
+    {
+      "sha": "eb8092bf50269c9e187c36405fcf7d0cb1892d9b",
+      "short_sha": "eb8092bf502",
+      "date": "2026-05-08T13:43:17-05:00",
+      "author": {
+        "name": "Anna Veselova",
+        "email": "47113149+aveselova@users.noreply.github.com"
+      },
+      "summary": "SERVER-126049: Use thread-local counter for mozjs mmap allocations (#53369)"
+    },
+    {
+      "sha": "e67d85fc61db919d9a0d775b63e4f1b1def08c2b",
+      "short_sha": "e67d85fc61d",
+      "date": "2026-05-08T18:34:19+00:00",
+      "author": {
+        "name": "Joan Bruguera Micó (at MongoDB)",
+        "email": "joan.bruguera-mico@mongodb.com"
+      },
+      "summary": "SERVER-125546 Consolidate authoritative shards feature flags into two unified flags (part 1: bulk renames) (#53401)"
+    },
+    {
+      "sha": "b801ab08e4eb4b09c2835fdee414a4eb3b3d6a83",
+      "short_sha": "b801ab08e4e",
+      "date": "2026-05-08T14:09:56-04:00",
+      "author": {
+        "name": "Ernesto Rodriguez Reina",
+        "email": "erreina@users.noreply.github.com"
+      },
+      "summary": "SERVER-126242 Fix OpTimeObserverDispatcher::notify() perf regression (#53432)"
+    },
+    {
+      "sha": "633c62c9c4b774ad9889e47ea18273b8666d251d",
+      "short_sha": "633c62c9c4b",
+      "date": "2026-05-08T13:03:56-05:00",
+      "author": {
+        "name": "Finley Lau",
+        "email": "finley.lau@mongodb.com"
+      },
+      "summary": "SERVER-124043 Merge LPP validation library into pipeline (#53466)"
+    },
+    {
+      "sha": "0144025ddbfdd91bc0c5d779bba11658ca525e5d",
+      "short_sha": "0144025ddbf",
+      "date": "2026-05-08T13:43:52-04:00",
+      "author": {
+        "name": "Stephanie",
+        "email": "53684987+seristof@users.noreply.github.com"
+      },
+      "summary": "SERVER-117551 Make initiateBulk call level consistent between primary-driven and two-phase index builds (#53363)"
+    },
+    {
+      "sha": "f398e9200df690ac551b78ade85f994f148c7546",
+      "short_sha": "f398e9200df",
+      "date": "2026-05-08T13:35:39-04:00",
+      "author": {
+        "name": "Evan Bergeron",
+        "email": "evanbergeron@users.noreply.github.com"
+      },
+      "summary": "SERVER-121136 Guard against out-of-bounds jmp in SBE VM (#53327)"
+    },
+    {
+      "sha": "3aa49ea1f2eceb24bb9ab3b73448be99f3ccc3a4",
+      "short_sha": "3aa49ea1f2e",
+      "date": "2026-05-08T13:32:10-04:00",
+      "author": {
+        "name": "Evan Bergeron",
+        "email": "evanbergeron@users.noreply.github.com"
+      },
+      "summary": "SERVER-125796 Use QueryKnobConfiguration for path arrayness in stage builders (#52998)"
+    },
+    {
+      "sha": "3f8e4540aaa7dc6a1b31c3528e1f16789b888f0a",
+      "short_sha": "3f8e4540aaa",
+      "date": "2026-05-08T13:31:35-04:00",
+      "author": {
+        "name": "Gregory Noma",
+        "email": "gregory.noma@gmail.com"
+      },
+      "summary": "SERVER-126304 Tolerate zero buffer size reported by sorter storage (#53505)"
+    },
+    {
+      "sha": "97b79baaee007d05a0ab1dc6829c212f2728d884",
+      "short_sha": "97b79baaee0",
+      "date": "2026-05-08T13:19:32-04:00",
+      "author": {
+        "name": "Kruti Shah",
+        "email": "70412403+krutishah139@users.noreply.github.com"
+      },
+      "summary": "SERVER-126165 Mark searchIndexExistsForCollection with override in ReshardingCoordiantor's mock external state (#53365)"
+    },
+    {
+      "sha": "68778a3bf403a2137290713fe9765e8649678788",
+      "short_sha": "68778a3bf40",
+      "date": "2026-05-08T13:01:16-04:00",
+      "author": {
+        "name": "seanzimm",
+        "email": "102551488+seanzimm@users.noreply.github.com"
+      },
+      "summary": "SERVER-126284: Fix use after free in intent registry (#53498)"
+    },
+    {
+      "sha": "13380002a407e6a819c59bc0a8ba2b9b02bd64e4",
+      "short_sha": "13380002a40",
+      "date": "2026-05-08T12:50:49-04:00",
+      "author": {
+        "name": "Gregory Noma",
+        "email": "gregory.noma@gmail.com"
+      },
+      "summary": "SERVER-126297 Observe all container writes in `MultiIndexBlock` test (#53495)"
+    },
     {
       "sha": "436b627e193d0219cf9f0deb9f61a10637a715be",
       "short_sha": "436b627e193",
@@ -5347,10 +5457,56 @@
           "num_of_dirs": 12
         }
       }
+    },
+    {
+      "commit": {
+        "sha": "e67d85fc61db919d9a0d775b63e4f1b1def08c2b",
+        "short_sha": "e67d85fc61d",
+        "date": "2026-05-08T18:34:19+00:00",
+        "author": {
+          "name": "Joan Bruguera Micó (at MongoDB)",
+          "email": "joan.bruguera-mico@mongodb.com"
+        },
+        "summary": "SERVER-125546 Consolidate authoritative shards feature flags into two unified flags (part 1: bulk renames) (#53401)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 40,
+          "num_of_lines": 321,
+          "lines_added": 143,
+          "lines_deleted": 178,
+          "num_of_dirs": 23
+        }
+      }
+    },
+    {
+      "commit": {
+        "sha": "eb8092bf50269c9e187c36405fcf7d0cb1892d9b",
+        "short_sha": "eb8092bf502",
+        "date": "2026-05-08T13:43:17-05:00",
+        "author": {
+          "name": "Anna Veselova",
+          "email": "47113149+aveselova@users.noreply.github.com"
+        },
+        "summary": "SERVER-126049: Use thread-local counter for mozjs mmap allocations (#53369)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 15,
+          "num_of_lines": 440,
+          "lines_added": 416,
+          "lines_deleted": 24,
+          "num_of_dirs": 11
+        }
+      }
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-05-08 17:06:24",
+  "generated_at": "2026-05-08 19:24:23",
   "branch_name": "master",
   "display_name": "master"
 }
