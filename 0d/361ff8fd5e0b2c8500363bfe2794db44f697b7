@@ -1,0 +1,193 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "f6aca3aa0a0b8f40335c9fc671fd5d3c019d37b4",
+    "merge_commit": "266b70c6af3a31a3a78d9f7d4c320c18dcb6adff"
+  },
+  "mergai_version": "0.1.dev1+g2c757647b",
+  "merge_context": {
+    "merge_commit": "266b70c6af3a31a3a78d9f7d4c320c18dcb6adff",
+    "merged_commits": [
+      "266b70c6af3a31a3a78d9f7d4c320c18dcb6adff",
+      "441e8b8c2aadf05a1c744cdf6a9fea9e91d6f936",
+      "5c76ee76e9bb2f1e37b8c549afc12b484c47a3f9",
+      "acc4e60551e893506f48a6477c97260806526c62",
+      "ce712f81f61cf14a39990caed0e839e520ea4d58",
+      "dd02136914175eec61bd06b0b92fd364c2b2b929",
+      "419c2d9f257447330677a5f77ceffb142cb6ebb1",
+      "077f059376aa4cd1bd0819304a70cf0cb5f0b1a6",
+      "447ed6ec5fb8e90ef1606b14640fb3265e1c82b1",
+      "dcc9ea137f36005813f7b7e5429929a123b5877a",
+      "339820bfb5d52edce96bcb7d7a609f2e9e7bf37a",
+      "6d14446babcc1f893c3a75bd1583ccbed6cbffb7",
+      "b4f30fcb5ebc61a80a964c2eb73309768b87c873",
+      "18f29d2c3ac124890174ae39e7439b684442f267",
+      "2bb1e7aa5e20080518ddedcec024fc3e47fbc1c3",
+      "c6a921521a6932f957682d6e9fbd43d1e71601f7",
+      "e390d588be93df2b1ef957f21a63b1d8583478ac",
+      "cb1cbb1d014fc84335eec1df0e228229fa5ce9af",
+      "d63d2672d30640a6347cf9b86c337ee3be16ce78",
+      "5691b3ab80850e27ce568c933f25df4c4865c134",
+      "07f4ad9f360df4d58989b86b403767dbfb475600",
+      "48094d76712c8b108d929953161c7d42029385ed",
+      "3444a8a3723a884c42a12fc378a59a53ff35c559",
+      "05d3c530bfbc4693377f55ac408c343fff9a52a6"
+    ],
+    "important_files_modified": [
+      "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine_test.cpp"
+    ],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        "src/mongo/db/repl/replication_coordinator_impl.cpp",
+        "src/mongo/shell/mongo_main.cpp",
+        "src/mongo/util/stacktrace_test.cpp"
+      ]
+    }
+  },
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 41276,
+    "num_turns": 7,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.19292900000000002,
+    "modelUsage": {
+      "claude-haiku-4-5-20251001": {
+        "inputTokens": 425,
+        "outputTokens": 15,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0,
+        "webSearchRequests": 0,
+        "costUSD": 0.0005,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000
+      },
+      "claude-opus-4-5": {
+        "inputTokens": 26,
+        "outputTokens": 2758,
+        "cacheReadInputTokens": 60673,
+        "cacheCreationInputTokens": 14882,
+        "webSearchRequests": 0,
+        "costUSD": 0.19242900000000002,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-haiku-4-5-20251001": {
+          "tokens": {
+            "input": 425,
+            "output": 15,
+            "cache_read": 0,
+            "cache_creation": 0
+          },
+          "cost_usd": 0.0005
+        },
+        "claude-opus-4-5": {
+          "tokens": {
+            "input": 26,
+            "output": 2758,
+            "cache_read": 60673,
+            "cache_creation": 14882
+          },
+          "cost_usd": 0.19242900000000002
+        }
+      }
+    },
+    "text_result": "Done. The JSON response has been written to the specified file. Key findings:\n\n- **24 commits merged** covering stdx alias removal, AppliedOpTime observer mechanism, query stats enhancements, and various bug fixes\n- **Critical regressions detected** in `mongo_main.cpp`: Percona shell branding and `createBackup` s3 credentials protection were overwritten by upstream MongoDB changes\n- Reviewers should restore Percona-specific customizations in the shell welcome message and history filtering",
+    "response": {
+      "summary": "This merge incorporates 24 upstream MongoDB commits, primarily including: SERVER-104800 which removes unnecessary stdx:: aliases in favor of std:: equivalents across the codebase; SERVER-124048 which adds an AppliedOpTime observer mechanism to the replication coordinator; SERVER-114219/SERVER-114221 for fast denseness detection in BSON columns; SERVER-115335 adding originalQueryShapeHash to query stats; SERVER-124911 for index build ident improvements; SERVER-101597 forbidding views over system.buckets with viewless timeseries; SERVER-123416 blocking deprecated FLE2 suffixPreview/prefixPreview query types; and various test improvements and bug fixes.",
+      "auto_merged": {
+        "src/mongo/db/repl/replication_coordinator_impl.cpp": "Three changes were auto-merged: (1) Removed Percona-specific LOGV2_WARNING (ID 128490) about FCBIS support availability in Percona builds - this warning was shown when file copy-based initial sync failed to initialize. (2) Added _appliedOpTimeDispatcher.shutdown() call in the shutdown() method as part of SERVER-124048's AppliedOpTime observer mechanism. (3) Added new addAppliedOpTimeObserver() method to register observers for applied optime changes.",
+        "src/mongo/shell/mongo_main.cpp": "Three changes were auto-merged: (1) REGRESSION: Removed Percona-specific hiddenCreateBackup regex that prevented s3 credentials from being saved to shell history. (2) Changed stdx::as_const to std::as_const in two places (password and username handling) as part of SERVER-104800's stdx alias removal. (3) REGRESSION: Replaced Percona Server for MongoDB shell welcome message and documentation links with MongoDB's default welcome message - this overwrites Percona branding.",
+        "src/mongo/util/stacktrace_test.cpp": "Two changes were auto-merged: (1) Changed printStructuredStackTrace() calls to printStackTrace() in PosixFormat test and traceString() helper function. (2) Changed stdx::this_thread::get_id() to std::this_thread::get_id() in two places within the signal handler test as part of the stdx alias removal effort."
+      },
+      "review_notes": "CRITICAL: The auto-merge in mongo_main.cpp has overwritten Percona-specific customizations that should be restored: (1) The shell welcome message now shows MongoDB branding instead of Percona Server for MongoDB branding with Percona documentation links. (2) The hiddenCreateBackup regex for preventing s3 credentials from being stored in shell history was removed - this was Percona-specific functionality for the createBackup command. Additionally, the removal of the FCBIS warning in replication_coordinator_impl.cpp may be intentional if FCBIS handling has changed, but should be verified. Reviewers should restore Percona branding and the createBackup history protection in mongo_main.cpp."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [
+            "I'll analyze the merge commit and the auto-merged files to provide a comprehensive summary."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [
+            "Now I have a clear picture of the merge. Let me write the JSON response."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [
+            "Done. The JSON response has been written to the specified file. Key findings:\n\n- **24 commits merged** covering stdx alias removal, AppliedOpTime observer mechanism, query stats enhancements, and various bug fixes\n- **Critical regressions detected** in `mongo_main.cpp`: Percona shell branding and `createBackup` s3 credentials protection were overwritten by upstream MongoDB changes\n- Reviewers should restore Percona-specific customizations in the shell welcome message and history filtering"
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20260509_204751_841120.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.138 (Claude Code)"
+    }
+  }
+}
