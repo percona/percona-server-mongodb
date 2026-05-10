@@ -39,6 +39,7 @@
 #include "mongo/db/query/plan_explainer.h"
 #include "mongo/db/query/query_stats/query_stats.h"
 #include "mongo/db/shard_role/shard_catalog/external_data_source_scope_guard.h"
+#include "mongo/db/shard_role/shard_catalog/raw_data_operation.h"
 #include "mongo/db/storage/write_unit_of_work.h"
 #include "mongo/util/background.h"
 #include "mongo/util/clock_source.h"
@@ -134,6 +135,7 @@ ClientCursor::ClientCursor(ClientCursorParams params,
       _writeConcernOptions(std::move(params.writeConcernOptions)),
       _readConcernArgs(std::move(params.readConcernArgs)),
       _readPreferenceSetting(std::move(params.readPreferenceSetting)),
+      _rawData(isRawDataOperation(operationUsingCursor)),
       _originatingCommand(params.originatingCommandObj),
       _originatingPrivileges(std::move(params.originatingPrivileges)),
       _tailableMode(params.tailableMode),
@@ -163,6 +165,13 @@ ClientCursor::ClientCursor(ClientCursorParams params,
     if (_isChangeStreamQuery) {
         change_stream_metrics::gCursorsTotalOpened.add(1);
         change_stream_metrics::gCursorsOpenTotal.add(1);
+
+        // Initialize optime to the current high-watermark so $currentOp reflects a valid
+        // timestamp even before the first getMore.
+        auto ts = _exec->getLatestOplogTimestamp();
+        if (!ts.isNull()) {
+            _changeStreamsCursorOptime = ts;
+        }
     }
 
     if (isNoTimeout()) {
@@ -184,6 +193,10 @@ ClientCursor::~ClientCursor() {
     // If we are holding transaction resources we must dispose of them before destroying the object.
     // Not doing so is a programming failure.
     _transactionResources.dispose();
+}
+
+void ClientCursor::setChangeStreamsCursorOptime(Timestamp ts) {
+    _changeStreamsCursorOptime = ts;
 }
 
 void ClientCursor::dispose(OperationContext* opCtx, boost::optional<Date_t> now) {
@@ -239,6 +252,11 @@ GenericCursor ClientCursor::toGenericCursor() const {
         gc.setOperationUsingCursorId(opCtx->getOpID());
     }
     gc.setLastKnownCommittedOpTime(_lastKnownCommittedOpTime);
+    if (_changeStreamsCursorOptime) {
+        ChangeStreamCursorInfo cursorInfo;
+        cursorInfo.setOptime(*_changeStreamsCursorOptime);
+        gc.setChangeStreams(std::move(cursorInfo));
+    }
     return gc;
 }
 

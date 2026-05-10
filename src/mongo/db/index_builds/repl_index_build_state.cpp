@@ -44,6 +44,8 @@
 #include "mongo/db/shard_role/transaction_resources.h"
 #include "mongo/db/storage/recovery_unit.h"
 #include "mongo/db/storage/storage_options.h"
+#include "mongo/db/storage/storage_parameters_gen.h"
+#include "mongo/db/version_context.h"
 #include "mongo/logv2/log.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/str.h"
@@ -715,6 +717,11 @@ Status ReplIndexBuildState::onConflictWithNewIndexBuild(const ReplIndexBuildStat
 
 bool ReplIndexBuildState::isResumable() const {
     std::lock_guard lk(_mutex);
+    if (protocol == IndexBuildProtocol::kPrimaryDriven) {
+        return feature_flags::gResumablePrimaryDrivenIndexBuilds
+            .isEnabledUseLastLTSFCVWhenUninitialized(
+                VersionContext{}, serverGlobalParams.featureCompatibility.acquireFCVSnapshot());
+    }
     // It's implied that the IndexBuildProtocol is resumable if _lastOpTimeBeforeInterceptors is
     // set.
     return !_lastOpTimeBeforeInterceptors.isNull();

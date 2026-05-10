@@ -458,6 +458,19 @@ void Locker::lock(OperationContext* opCtx, ResourceId resId, LockMode mode, Date
     _lockComplete(opCtx, resId, mode, deadline, nullptr);
 }
 
+LockResult Locker::lockBegin(OperationContext* opCtx, ResourceId resId, LockMode mode) {
+    invariant(resId != resourceIdGlobal);
+    return _lockBegin(opCtx, resId, mode);
+}
+
+void Locker::lockComplete(OperationContext* opCtx,
+                          ResourceId resId,
+                          LockMode mode,
+                          Date_t deadline,
+                          const LockTimeoutCallback& onTimeout) {
+    _lockComplete(opCtx, resId, mode, deadline, onTimeout);
+}
+
 bool Locker::unlock(ResourceId resId) {
     LockRequestsMap::Iterator it = _requests.find(resId);
 
@@ -822,6 +835,10 @@ void Locker::setGlobalLockTakenInMode(LockMode mode) {
 
 std::vector<LockDebugInfo> Locker::getLockInfoFromResourceHolders(ResourceId resId) const {
     return _lockManager->getLockInfoFromResourceHolders(resId);
+}
+
+std::vector<LockerId> Locker::getConflictingLockerIds(ResourceId resId, LockMode mode) const {
+    return _lockManager->getConflictingLockerIds(resId, mode);
 }
 
 void Locker::dump() const {

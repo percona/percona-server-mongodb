@@ -30,11 +30,16 @@
 #include "mongo/db/session/kill_sessions_local.h"
 
 #include "mongo/db/session/session_catalog_test.h"
+#include "mongo/db/shard_role/lock_manager/locker.h"
+#include "mongo/db/shard_role/transaction_resources.h"
 #include "mongo/db/transaction/transaction_participant.h"
 #include "mongo/unittest/death_test.h"
 #include "mongo/unittest/unittest.h"
 #include "mongo/util/tick_source_mock.h"
 #include "mongo/util/time_support.h"
+
+#include <future>
+#include <memory>
 
 namespace mongo {
 namespace {
@@ -246,6 +251,7 @@ TEST_F(KillSessionsTest, killSessionsAbortUnpreparedTransactionsSuccessfully) {
         // as a part of aborting transactions.
         advanceTransactionMetricsTimer(opCtx.get(), txnParticipant);
     }
+
     auto client = getServiceContext()->getService()->makeClient("CheckOutForKillTimeout");
     AlternativeClientRegion acr(client);
     auto killOpCtx = cc().makeOperationContext();
@@ -256,6 +262,160 @@ TEST_F(KillSessionsTest, killSessionsAbortUnpreparedTransactionsSuccessfully) {
     Date_t deadline = Date_t::now() + Milliseconds(10000);
     killSessionsAbortUnpreparedTransactions(
         killOpCtx.get(), matcherAllSessions, killReason, deadline);
+}
+
+// ---------------------------------------------------------------------------
+// Tests for killSessionsAbortUnpreparedTransactionsForLockerIds
+// ---------------------------------------------------------------------------
+
+class KillSessionsForLockerIdsTest : public KillSessionsTest {
+protected:
+    // Sets up a session whose TransactionParticipant has a stashed Locker with a known id.
+    // Returns (lsid, stashedLockerId). The session is checked back in before returning so the
+    // scan in killSessionsAbortUnpreparedTransactionsForLockerIds can observe it.
+    std::pair<LogicalSessionId, LockerId> makeSessionWithStashedInProgressTxn(
+        bool prepared = false) {
+        auto lsid = makeLogicalSessionIdForTest();
+        createSession(lsid);
+        auto opCtx = makeOperationContext();
+        opCtx->setLogicalSessionId(lsid);
+
+        OperationContextSession checkout(opCtx.get());
+        auto txnParticipant = TransactionParticipant::get(opCtx.get());
+        txnParticipant.transitionToInProgressForTest();
+        advanceTransactionMetricsTimer(opCtx.get(), txnParticipant);
+
+        auto stashedId = shard_role_details::getLocker(opCtx.get())->getId();
+        txnParticipant.stashActiveTransactionForTest(opCtx.get());
+
+        if (prepared) {
+            txnParticipant.transitionToPreparedforTest(opCtx.get(), repl::OpTime({1, 1}, 1));
+        }
+
+        return {lsid, stashedId};
+    }
+
+    // Runs `fn` while a side client is active. The side opCtx is passed to `fn`.
+    template <typename Fn>
+    void withSideClient(StringData name, Fn&& fn) {
+        auto client = getServiceContext()->getService()->makeClient(std::string{name});
+        AlternativeClientRegion acr(client);
+        auto sideOpCtx = cc().makeOperationContext();
+        fn(sideOpCtx.get());
+    }
+
+    // Checks out `lsid` on a fresh side opCtx and returns whether the transaction is open.
+    bool isTransactionOpen(const LogicalSessionId& lsid) {
+        bool open = false;
+        withSideClient("verify", [&](OperationContext* sideOpCtx) {
+            sideOpCtx->setLogicalSessionId(lsid);
+            OperationContextSession verify(sideOpCtx);
+            auto txnParticipant = TransactionParticipant::get(sideOpCtx);
+            open = txnParticipant.transactionIsOpen();
+        });
+        return open;
+    }
+};
+
+TEST_F(KillSessionsForLockerIdsTest, EmptyLockerIdsIsNoOp) {
+    auto [lsid, stashedId] = makeSessionWithStashedInProgressTxn();
+
+    withSideClient("killer", [&](OperationContext* killOpCtx) {
+        killSessionsAbortUnpreparedTransactionsForLockerIds(
+            killOpCtx, /*lockerIds*/ {}, ErrorCodes::Interrupted);
+    });
+
+    ASSERT_TRUE(isTransactionOpen(lsid));
+}
+
+TEST_F(KillSessionsForLockerIdsTest, NoMatchingLockerIdReturnsWithoutKill) {
+    auto [lsid, stashedId] = makeSessionWithStashedInProgressTxn();
+
+    withSideClient("killer", [&](OperationContext* killOpCtx) {
+        killSessionsAbortUnpreparedTransactionsForLockerIds(
+            killOpCtx, {stashedId + 9999}, ErrorCodes::Interrupted);
+    });
+
+    ASSERT_TRUE(isTransactionOpen(lsid));
+}
+
+TEST_F(KillSessionsForLockerIdsTest, PreparedTransactionIsNotAborted) {
+    auto [lsid, stashedId] = makeSessionWithStashedInProgressTxn(/*prepared=*/true);
+
+    withSideClient("killer", [&](OperationContext* killOpCtx) {
+        killSessionsAbortUnpreparedTransactionsForLockerIds(
+            killOpCtx, {stashedId}, ErrorCodes::Interrupted);
+    });
+
+    // Verify still open (prepared transactions are open).
+    ASSERT_TRUE(isTransactionOpen(lsid));
+}
+
+TEST_F(KillSessionsForLockerIdsTest, AbortsViaStashedLockerIdMatch) {
+    auto [lsid, stashedId] = makeSessionWithStashedInProgressTxn();
+
+    withSideClient("killer", [&](OperationContext* killOpCtx) {
+        killSessionsAbortUnpreparedTransactionsForLockerIds(
+            killOpCtx, {stashedId}, ErrorCodes::Interrupted);
+    });
+
+    ASSERT_FALSE(isTransactionOpen(lsid));
+}
+
+// Active session in the background thread is matched and killed.
+TEST_F(KillSessionsForLockerIdsTest, AbortsViaActiveLockerIdMatch) {
+    auto lsid = makeLogicalSessionIdForTest();
+    createSession(lsid);
+
+    std::promise<LockerId> lockerIdPromise;
+    auto lockerIdFuture = lockerIdPromise.get_future();
+
+    auto bgFuture = std::async(std::launch::async, [this, lsid, &lockerIdPromise] {
+        ThreadClient tc("bg-txn-holder", getServiceContext()->getService());
+        auto bgOpCtx = Client::getCurrent()->makeOperationContext();
+        bgOpCtx->setLogicalSessionId(lsid);
+
+        OperationContextSession checkout(bgOpCtx.get());
+        auto txnParticipant = TransactionParticipant::get(bgOpCtx.get());
+        txnParticipant.transitionToInProgressForTest();
+        advanceTransactionMetricsTimer(bgOpCtx.get(), txnParticipant);
+
+        auto activeId = shard_role_details::getLocker(bgOpCtx.get())->getId();
+        lockerIdPromise.set_value(activeId);
+
+        // Block until the session kill interrupts this opCtx.
+        try {
+            bgOpCtx->sleepFor(Seconds(30));
+        } catch (const ExceptionFor<ErrorCodes::Interrupted>&) {
+            // Expected: killSessionsAction called session.kill() which interrupted us.
+        }
+    });
+
+    auto activeLockerId = lockerIdFuture.get();
+
+    withSideClient("killer", [&](OperationContext* killOpCtx) {
+        killSessionsAbortUnpreparedTransactionsForLockerIds(
+            killOpCtx, {activeLockerId}, ErrorCodes::Interrupted);
+    });
+
+    bgFuture.get();
+    ASSERT_FALSE(isTransactionOpen(lsid));
+}
+
+// Selectively abort only matching session with stashed resources.
+TEST_F(KillSessionsForLockerIdsTest, OnlyMatchingSessionIsAbortedAmongMany) {
+    auto [lsidA, idA] = makeSessionWithStashedInProgressTxn();
+    auto [lsidB, idB] = makeSessionWithStashedInProgressTxn();
+    auto [lsidC, idC] = makeSessionWithStashedInProgressTxn();
+
+    withSideClient("killer", [&](OperationContext* killOpCtx) {
+        killSessionsAbortUnpreparedTransactionsForLockerIds(
+            killOpCtx, {idB}, ErrorCodes::Interrupted);
+    });
+
+    ASSERT_TRUE(isTransactionOpen(lsidA));
+    ASSERT_FALSE(isTransactionOpen(lsidB));
+    ASSERT_TRUE(isTransactionOpen(lsidC));
 }
 
 }  // namespace

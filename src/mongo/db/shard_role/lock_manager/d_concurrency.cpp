@@ -49,6 +49,35 @@
 
 namespace mongo {
 
+namespace {
+
+/**
+ * Acquires a lock on the given resource. If lockEnqueuedAction is provided, the lock
+ * acquisition is split into lockBegin + lockComplete, and the action is invoked between them
+ * when the lock is contended.
+ */
+void lockWithOptionalAction(OperationContext* opCtx,
+                            ResourceId resId,
+                            LockMode mode,
+                            Lock::LockEnqueuedAction lockEnqueuedAction,
+                            Date_t deadline) {
+    auto* locker = shard_role_details::getLocker(opCtx);
+    if (lockEnqueuedAction) {
+        auto result = locker->lockBegin(opCtx, resId, mode);
+        invariant(result == LOCK_OK || result == LOCK_WAITING);
+        if (result == LOCK_WAITING) {
+            ScopeGuard unlockOnError([&] { locker->unlock(resId); });
+            lockEnqueuedAction(opCtx);
+            locker->lockComplete(opCtx, resId, mode, deadline, nullptr);
+            unlockOnError.dismiss();
+        }
+    } else {
+        locker->lock(opCtx, resId, mode, deadline);
+    }
+}
+
+}  // namespace
+
 Lock::ResourceLock::ResourceLock(ResourceLock&& other)
     : _opCtx(other._opCtx), _rid(std::move(other._rid)), _result(other._result) {
     other._opCtx = nullptr;
@@ -326,6 +355,13 @@ Lock::CollectionLock::CollectionLock(OperationContext* opCtx,
                                      const NamespaceString& ns,
                                      LockMode mode,
                                      Date_t deadline)
+    : CollectionLock(opCtx, ns, mode, nullptr, deadline) {}
+
+Lock::CollectionLock::CollectionLock(OperationContext* opCtx,
+                                     const NamespaceString& ns,
+                                     LockMode mode,
+                                     LockEnqueuedAction lockEnqueuedAction,
+                                     Date_t deadline)
     : _id(RESOURCE_COLLECTION, ns),
       _opCtx(opCtx),
       _oldBlockingAllowed(shard_role_details::getRecoveryUnit((_opCtx))->getBlockingAllowed()) {
@@ -333,7 +369,12 @@ Lock::CollectionLock::CollectionLock(OperationContext* opCtx,
     dassert(shard_role_details::getLocker(_opCtx)->isDbLockedForMode(
         ns.dbName(), isSharedLockMode(mode) ? MODE_IS : MODE_IX));
 
-    shard_role_details::getLocker(_opCtx)->lock(_opCtx, _id, mode, deadline);
+    if (lockEnqueuedAction) {
+        invariant(mode == MODE_S || mode == MODE_X,
+                  "CollectionLock with callback only supports MODE_S and MODE_X");
+    }
+
+    lockWithOptionalAction(_opCtx, _id, mode, std::move(lockEnqueuedAction), deadline);
 
     // If a user operation on secondaries acquires a lock in MODE_S and then blocks on a prepare
     // conflict with a prepared transaction, a deadlock will occur at the commit time of the

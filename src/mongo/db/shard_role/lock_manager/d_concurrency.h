@@ -51,6 +51,16 @@ namespace mongo {
 class Lock {
 public:
     /**
+     * Callback type invoked after a lock request has been enqueued but before waiting for it
+     * to be granted. This allows callers to perform actions (e.g. killing unprepared
+     * transactions) while the lock request is in the queue, preventing new conflicting lock
+     * requests from being granted ahead of this one.
+     *
+     * Only invoked when the lock is contended (lockBegin returns LOCK_WAITING).
+     */
+    using LockEnqueuedAction = std::function<void(OperationContext*)>;
+
+    /**
      * General purpose RAII wrapper for a resource managed by the lock manager
      *
      * See LockMode for the supported modes. Unlike DBLock/Collection lock, this will not do
@@ -361,6 +371,18 @@ public:
         CollectionLock(OperationContext* opCtx,
                        const NamespaceString& ns,
                        LockMode mode,
+                       Date_t deadline = Date_t::max());
+
+        /**
+         * Constructs a CollectionLock with an enqueue action callback. When the lock is
+         * contended, the callback is invoked after the lock request is enqueued but before
+         * waiting for it to be granted. Only MODE_S and MODE_X are supported when a callback
+         * is provided.
+         */
+        CollectionLock(OperationContext* opCtx,
+                       const NamespaceString& ns,
+                       LockMode mode,
+                       LockEnqueuedAction lockEnqueuedAction,
                        Date_t deadline = Date_t::max());
 
         CollectionLock(CollectionLock&&);

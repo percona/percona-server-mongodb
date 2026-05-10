@@ -626,6 +626,91 @@ TEST_F(ExpressionVectorSimilarityTest, LargerFloat32BinDataDotProduct) {
     ASSERT_VALUE_EQ(result, Value(256.0));
 }
 
+TEST_F(ExpressionVectorSimilarityTest, ReadFloatRoundTripsCommonValues) {
+    auto expCtx = getExpCtx();
+    auto unit = createFloat32BinDataVector({1.0f});
+    const std::vector<float> values = {
+        0.0f,
+        1.0f,
+        -1.0f,
+        2.0f,
+        -2.0f,
+        0.5f,
+        -0.5f,
+        3.14159f,
+        -3.14159f,
+        1e10f,
+        -1e10f,
+        1e-10f,
+        -1e-10f,
+        0.123456f,
+        -987654.3f,
+    };
+    for (float v : values) {
+        auto vec = createFloat32BinDataVector({v});
+        auto expr =
+            Expression::parseExpression(expCtx.get(),
+                                        BSON("$similarityDotProduct" << BSON_ARRAY(vec << unit)),
+                                        expCtx->variablesParseState);
+        auto result = expr->evaluate(Document{}, &expCtx->variables);
+        ASSERT_EQ(result.coerceToDouble(), static_cast<double>(v))
+            << "round-trip mismatch for " << v;
+    }
+}
+
+TEST_F(ExpressionVectorSimilarityTest, ReadFloatPreservesSpecialValues) {
+    auto expCtx = getExpCtx();
+    auto unit = createFloat32BinDataVector({1.0f});
+    auto evalDot = [&](const Value& vec) {
+        auto expr =
+            Expression::parseExpression(expCtx.get(),
+                                        BSON("$similarityDotProduct" << BSON_ARRAY(vec << unit)),
+                                        expCtx->variablesParseState);
+        return expr->evaluate(Document{}, &expCtx->variables).coerceToDouble();
+    };
+
+    ASSERT_EQ(evalDot(createFloat32BinDataVector({0.0f})), 0.0);
+    ASSERT_EQ(evalDot(createFloat32BinDataVector({-0.0f})), 0.0);
+
+    const double posInf =
+        evalDot(createFloat32BinDataVector({std::numeric_limits<float>::infinity()}));
+    ASSERT_TRUE(std::isinf(posInf));
+    ASSERT_FALSE(std::signbit(posInf));
+
+    const double negInf =
+        evalDot(createFloat32BinDataVector({-std::numeric_limits<float>::infinity()}));
+    ASSERT_TRUE(std::isinf(negInf));
+    ASSERT_TRUE(std::signbit(negInf));
+
+    const double nan =
+        evalDot(createFloat32BinDataVector({std::numeric_limits<float>::quiet_NaN()}));
+    ASSERT_TRUE(std::isnan(nan));
+}
+
+TEST_F(ExpressionVectorSimilarityTest, ReadFloatHandlesBoundaryValues) {
+    auto expCtx = getExpCtx();
+    auto unit = createFloat32BinDataVector({1.0f});
+    const std::vector<float> values = {
+        std::numeric_limits<float>::min(),
+        -std::numeric_limits<float>::min(),
+        std::numeric_limits<float>::max(),
+        std::numeric_limits<float>::lowest(),
+        std::numeric_limits<float>::denorm_min(),
+        -std::numeric_limits<float>::denorm_min(),
+        std::numeric_limits<float>::epsilon(),
+    };
+    for (float v : values) {
+        auto vec = createFloat32BinDataVector({v});
+        auto expr =
+            Expression::parseExpression(expCtx.get(),
+                                        BSON("$similarityDotProduct" << BSON_ARRAY(vec << unit)),
+                                        expCtx->variablesParseState);
+        auto result = expr->evaluate(Document{}, &expCtx->variables);
+        ASSERT_EQ(result.coerceToDouble(), static_cast<double>(v))
+            << "round-trip mismatch for boundary value " << v;
+    }
+}
+
 // Tests larger INT8 BinData vectors for accumulation correctness.
 TEST_F(ExpressionVectorSimilarityTest, LargerInt8BinDataEuclidean) {
     auto expCtx = getExpCtx();

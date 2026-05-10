@@ -491,6 +491,15 @@ DatabaseType ShardingCatalogClientImpl::getDatabase(OperationContext* opCtx,
         return DatabaseType(dbName, ShardId::kConfigServerId, DatabaseVersion::makeFixed());
     }
 
+    // If config only mode is enabled, we are not allowed to access any databases other than the
+    // fixed databases above.
+    if (MONGO_unlikely(serverGlobalParams.configOnly)) {
+        uasserted(12319007,
+                  str::stream() << "Cannot access database " << dbName.toStringForErrorMsg()
+                                << " while configOnly mode is enabled. For more information, see "
+                                   "https://dochub.mongodb.org/core/mongos-config-only-mode/");
+    }
+
     auto result =
         _fetchDatabaseMetadata(opCtx, dbName, getConfigReadPreference(opCtx), readConcernLevel);
     if (result == ErrorCodes::NamespaceNotFound) {
@@ -953,6 +962,15 @@ std::pair<CollectionType, std::vector<ChunkType>> ShardingCatalogClientImpl::get
     const NamespaceString& nss,
     const ChunkVersion& sinceVersion,
     const repl::ReadConcernArgs& readConcern) {
+    // If config only mode is enabled, we are not allowed to access any collections other than
+    // those which are unsharded and in the fixed databases.
+    if (MONGO_unlikely(serverGlobalParams.configOnly)) {
+        uasserted(12319005,
+                  str::stream() << "Cannot access collection " << nss.toStringForErrorMsg()
+                                << " while configOnly mode is enabled. For more information, see "
+                                   "https://dochub.mongodb.org/core/mongos-config-only-mode/");
+    }
+
     auto aggRequest = makeCollectionAndChunksAggregation(opCtx, nss, sinceVersion);
 
     std::vector<BSONObj> aggResult = runCatalogAggregation(
@@ -1098,6 +1116,13 @@ std::vector<NamespaceString> ShardingCatalogClientImpl::getAllNssThatHaveZonesFo
 
 repl::OpTimeWith<std::vector<ShardType>> ShardingCatalogClientImpl::getAllShards(
     OperationContext* opCtx, repl::ReadConcernLevel readConcern, BSONObj filter) {
+    if (MONGO_unlikely(serverGlobalParams.configOnly)) {
+        uasserted(
+            12319006,
+            str::stream() << "Cannot retrieve shard list while configOnly mode is enabled. For "
+                             "more information, see "
+                             "https://dochub.mongodb.org/core/mongos-config-only-mode/");
+    }
 
     const auto& findRes =
         uassertStatusOK(_exhaustiveFindOnConfig(opCtx,

@@ -33,6 +33,7 @@
 #include "mongo/db/persistent_task_store.h"
 #include "mongo/db/router_role/routing_cache/routing_information_cache.h"
 #include "mongo/db/s/config/initial_split_policy.h"
+#include "mongo/db/s/primary_only_service_helpers/participant_causality_barrier.h"
 #include "mongo/db/s/resharding/recipient_resume_document_gen.h"
 #include "mongo/db/s/resharding/resharding_coordinator_service_util.h"
 #include "mongo/db/s/resharding/resharding_util.h"
@@ -251,6 +252,37 @@ ReshardingCoordinatorExternalStateImpl::calculateParticipantShardsAndChunks(
     return {constructDonorShardEntries(donorShardIds),
             constructRecipientShardEntries(recipientShardIds),
             initialChunks};
+}
+
+bool ReshardingCoordinatorExternalStateImpl::searchIndexExistsForCollection(
+    OperationContext* opCtx, const NamespaceString& nss) {
+
+    // $listSearchIndex can be run on any shard that owns at least part of the collection
+    // we are interested in. Here we get the shard which owns the MinKey chunk to make the
+    // command more deterministic and easier to test.
+    const auto cri =
+        uassertStatusOK(RoutingInformationCache::get(opCtx)->getCollectionRoutingInfo(opCtx, nss));
+    const auto minKeyShardId = cri.getChunkManager().getMinKeyShardIdWithSimpleCollation();
+
+    const auto shardPtr =
+        uassertStatusOK(Grid::get(opCtx)->shardRegistry()->getShard(opCtx, minKeyShardId));
+
+    std::vector<BSONObj> pipeline{};
+    pipeline.emplace_back(BSON("$listSearchIndexes" << BSONObj{}));
+    pipeline.emplace_back(BSON("$limit" << 1));
+
+    AggregateCommandRequest aggRequest(nss, pipeline);
+    aggRequest.setWriteConcern(WriteConcernOptions());
+    aggRequest.setCursor(SimpleCursorOptions{});
+
+    try {
+        auto indexes = uassertStatusOK(
+            shardPtr->runAggregationWithResult(opCtx, aggRequest, Shard::RetryPolicy::kIdempotent));
+        return !indexes.empty();
+    } catch (const ExceptionFor<ErrorCodes::SearchNotEnabled>&) {
+        // If search is not enabled, no search indexes could exist.
+        return false;
+    }
 }
 
 void ReshardingCoordinatorExternalStateImpl::tellAllDonorsToRefresh(
@@ -634,6 +666,14 @@ void ReshardingCoordinatorExternalStateImpl::resumeMigrations(OperationContext* 
                                                               const UUID& expectedCollectionUUID,
                                                               const OperationSessionInfo& osi) {
     sharding_ddl_util::resumeMigrations(opCtx, nss, expectedCollectionUUID, osi);
+}
+
+std::unique_ptr<CausalityBarrier> ReshardingCoordinatorExternalStateImpl::buildCausalityBarrier(
+    std::vector<ShardId> participants,
+    std::shared_ptr<executor::TaskExecutor> executor,
+    CancellationToken token) {
+    return std::make_unique<ParticipantCausalityBarrier>(
+        std::move(participants), std::move(executor), std::move(token));
 }
 
 }  // namespace mongo

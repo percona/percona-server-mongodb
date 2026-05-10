@@ -589,6 +589,12 @@ bool isIndexBuildResumable(OperationContext* opCtx,
  */
 RecoveryUnit::ReadSource getReadSourceForDrainBeforeCommitQuorum(
     const ReplIndexBuildState& replState) {
+    // The kMajorityCommitted read source is tied to the two-phase '_lastOpTimeBeforeInterceptors'
+    // mechanism. Primary-driven builds use a different recovery model and must not switch the
+    // drain reader to majority-committed.
+    if (replState.protocol == IndexBuildProtocol::kPrimaryDriven) {
+        return RecoveryUnit::ReadSource::kNoTimestamp;
+    }
     return replState.isResumable() ? RecoveryUnit::ReadSource::kMajorityCommitted
                                    : RecoveryUnit::ReadSource::kNoTimestamp;
 }
@@ -2874,6 +2880,7 @@ IndexBuildsCoordinator::PostSetupAction IndexBuildsCoordinator::_setUpIndexBuild
         : IndexBuildsManager::IndexConstraints::kEnforce;
     options.protocol = replState->protocol;
     options.method = indexBuildOptions.indexBuildMethod;
+    options.isResumable = replState->isResumable();
 
     try {
         if (replCoord->canAcceptWritesFor(opCtx, collection->ns()) &&
@@ -3384,6 +3391,13 @@ void IndexBuildsCoordinator::_resumeHybridIndexBuildFromPhase(
 void IndexBuildsCoordinator::_awaitLastOpTimeBeforeInterceptorsMajorityCommitted(
     OperationContext* opCtx, std::shared_ptr<ReplIndexBuildState> replState) {
     auto replCoord = repl::ReplicationCoordinator::get(opCtx);
+
+    // This wait exists for the two-phase '_lastOpTimeBeforeInterceptors' mechanism and is not
+    // applicable to primary-driven builds, which never set that opTime and have a separate
+    // recovery model.
+    if (replState->protocol == IndexBuildProtocol::kPrimaryDriven) {
+        return;
+    }
 
     // The index build is not resumable if the node is in initial sync while building the index.
     if (!replState->isResumable()) {

@@ -2,18 +2,21 @@ import glob
 import os
 import pathlib
 from functools import cache
+from typing import Any
 
 import yaml
 
 
 # Parser for OWNERS.yml files version 1.0.0
 class OwnersParserV1:
-    def parse(self, directory: str, owners_file_path: str, contents: dict[str, any]) -> list[str]:
+    def parse(self, directory: str, owners_file_path: str, contents: dict[str, Any]) -> list[str]:
         lines = []
         no_parent_owners = False
+        no_auto_approver = False
         if "options" in contents:
             options = contents["options"]
             no_parent_owners = "no_parent_owners" in options and options["no_parent_owners"]
+            no_auto_approver = "no_auto_approver" in options and options["no_auto_approver"]
 
         if no_parent_owners:
             # Specfying no owners will ensure that no file in this directory has an owner unless it
@@ -63,7 +66,7 @@ class OwnersParserV1:
                         else:
                             process_owner(approver)
                     # Add the auto revert bot
-                    if self.should_add_auto_approver():
+                    if self.should_add_auto_approver() and not no_auto_approver:
                         process_owner("svc-auto-approve-bot")
 
                 lines.append(self.get_owner_line(directory, pattern, owners))

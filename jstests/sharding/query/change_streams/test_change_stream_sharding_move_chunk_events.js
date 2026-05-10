@@ -37,19 +37,19 @@ function buildCommands({dbName, collName, shards, shardingType, nonEmpty}) {
     const commands = [];
     let ctx = {exists: false, nonEmpty: false, shardKeySpec: null, isUnsplittable: false};
 
-    commands.push(new CreateDatabaseCommand(dbName, collName, shards, ctx));
+    commands.push(new CreateDatabaseCommand({dbName, shardSet: shards}));
 
     if (nonEmpty) {
-        commands.push(new InsertDocCommand(dbName, collName, shards, ctx));
+        commands.push(new InsertDocCommand({dbName, collName, collectionCtx: ctx}));
         ctx = {exists: true, nonEmpty: true, shardKeySpec: null, isUnsplittable: false};
-        commands.push(new CreateIndexCommand(dbName, collName, shards, ctx, shardKey));
+        commands.push(new CreateIndexCommand({dbName, collName, shardSet: shards, indexSpec: shardKey}));
     }
 
-    commands.push(new ShardCollectionCommand(dbName, collName, shards, ctx, shardKey));
+    commands.push(new ShardCollectionCommand({dbName, collName, shardSet: shards, collectionCtx: ctx, shardKey}));
 
     const shardedCtx = {exists: true, nonEmpty, shardKeySpec: shardKey, isUnsplittable: false};
-    commands.push(new MoveChunkCommand(dbName, collName, shards, shardedCtx));
-    commands.push(new UnshardCollectionCommand(dbName, collName, shards, shardedCtx));
+    commands.push(new MoveChunkCommand({dbName, collName, shardSet: shards, collectionCtx: shardedCtx}));
+    commands.push(new UnshardCollectionCommand({dbName, collName, shardSet: shards, collectionCtx: shardedCtx}));
 
     return commands;
 }
@@ -88,6 +88,7 @@ describe("MoveChunk System Events (v2)", function () {
     const collName = "coll";
 
     before(function () {
+        Random.setRandomSeed();
         this.st = createShardingTest(/* mongos */ 1, /* shards */ 3);
         this.st.stopBalancer();
         this.shards = assert.commandWorked(this.st.s.adminCommand({listShards: 1})).shards;

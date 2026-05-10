@@ -39,6 +39,7 @@
 #include "mongo/db/session/kill_sessions_gen.h"
 #include "mongo/db/session/logical_session_id_gen.h"
 #include "mongo/db/session/session_catalog.h"
+#include "mongo/db/shard_role/transaction_resources.h"
 #include "mongo/db/transaction/transaction_participant.h"
 #include "mongo/db/transaction/transaction_participant_gen.h"
 #include "mongo/logv2/log.h"
@@ -163,6 +164,76 @@ void killSessionsAbortUnpreparedTransactions(OperationContext* opCtx,
             if (participant.transactionIsInProgress()) {
                 LOGV2(11101700,
                       "Aborting unprepared transaction",
+                      "session"_attr = session.getSessionId().toBSON(),
+                      "txnNumberAndRetryCounter"_attr =
+                          participant.getActiveTxnNumberAndRetryCounter().toBSON(),
+                      "reason"_attr = reason);
+                participant.abortTransaction(opCtx);
+            }
+        },
+        reason,
+        /*perSessionTimeout*/ nullptr,
+        /*numTimeouts*/ 0,
+        killSessionsDeadline);
+}
+
+void killSessionsAbortUnpreparedTransactionsForLockerIds(OperationContext* opCtx,
+                                                         const std::vector<LockerId>& lockerIds,
+                                                         ErrorCodes::Error reason,
+                                                         Date_t killSessionsDeadline) {
+    if (lockerIds.empty()) {
+        return;
+    }
+
+    // Build a set for O(1) lookup.
+    stdx::unordered_set<LockerId> lockerIdSet(lockerIds.begin(), lockerIds.end());
+    KillAllSessionsByPatternSet patterns;
+
+    // Scan the session catalog to find in-progress transactions whose locker IDs match.
+    // This covers both stashed transactions, where the Locker lives in TxnResources) and active
+    // checked-out transactions (where the Locker is on the OperationContext).
+    SessionKiller::Matcher matcherAllSessions(
+        KillAllSessionsByPatternSet{makeKillAllSessionsByPattern(opCtx)});
+    const auto catalog = SessionCatalog::get(opCtx);
+    catalog->scanSessions(matcherAllSessions, [&](const ObservableSession& session) {
+        auto participant = TransactionParticipant::get(session);
+        if (!participant.transactionIsInProgress()) {
+            return;
+        }
+
+        // Check the stashed locker.
+        auto stashedLockerId = participant.getStashedLockerId();
+        if (stashedLockerId && lockerIdSet.count(*stashedLockerId) > 0) {
+            patterns.emplace(makeKillAllSessionsByPattern(opCtx, session.getSessionId()));
+            return;
+        }
+
+        // Check the active locker on the currently checked-out OperationContext.
+        if (auto* checkedOutOpCtx = session.currentOperationContext()) {
+            auto lockerId = shard_role_details::getLocker(checkedOutOpCtx)->getId();
+            if (lockerIdSet.count(lockerId) > 0) {
+                patterns.emplace(makeKillAllSessionsByPattern(opCtx, session.getSessionId()));
+            }
+        }
+    });
+
+    if (patterns.empty()) {
+        return;
+    }
+
+    SessionKiller::Matcher matcher(std::move(patterns));
+    killSessionsAction(
+        opCtx,
+        matcher,
+        [](const ObservableSession& session) {
+            auto participant = TransactionParticipant::get(session);
+            return participant.transactionIsInProgress();
+        },
+        [reason](OperationContext* opCtx, const SessionToKill& session) {
+            auto participant = TransactionParticipant::get(session);
+            if (participant.transactionIsInProgress()) {
+                LOGV2(10698901,
+                      "Aborting unprepared transaction for conflicting locker",
                       "session"_attr = session.getSessionId().toBSON(),
                       "txnNumberAndRetryCounter"_attr =
                           participant.getActiveTxnNumberAndRetryCounter().toBSON(),

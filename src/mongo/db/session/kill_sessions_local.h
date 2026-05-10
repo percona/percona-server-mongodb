@@ -32,6 +32,7 @@
 #include "mongo/base/error_codes.h"
 #include "mongo/db/operation_context.h"
 #include "mongo/db/session/session_killer.h"
+#include "mongo/db/shard_role/lock_manager/lock_manager_defs.h"
 #include "mongo/util/modules.h"
 
 /**
@@ -54,6 +55,16 @@ void killSessionsAbortUnpreparedTransactions(OperationContext* opCtx,
                                              const SessionKiller::Matcher& matcher,
                                              ErrorCodes::Error reason = ErrorCodes::Interrupted,
                                              Date_t deadline = Date_t::max());
+
+/**
+ * Aborts unprepared transactions whose sessions are associated with any of the given lockerIds.
+ * This can be used to kill transactions that hold locks conflicting with a pending lock request,
+ * identified by querying the lock manager for conflicting lock holders.
+ */
+void killSessionsAbortUnpreparedTransactionsForLockerIds(OperationContext* opCtx,
+                                                         const std::vector<LockerId>& lockerIds,
+                                                         ErrorCodes::Error reason,
+                                                         Date_t deadline = Date_t::max());
 
 /**
  * Aborts any expired transactions.

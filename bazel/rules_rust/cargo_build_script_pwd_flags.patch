@@ -1,0 +1,51 @@
+--- cargo/private/cargo_build_script.bzl
++++ cargo/private/cargo_build_script.bzl
+@@ -214,6 +214,39 @@
+ 
+     return res
+ 
++def _pwd_flags_isysroot(args):
++    """Prefix execroot-relative paths of -isysroot arguments with ${pwd}.
++
++    Args:
++        args (list): List of tool arguments.
++
++    Returns:
++        list: The modified argument list.
++    """
++    res = []
++    fix_next_arg = False
++    for arg in args:
++        if fix_next_arg and not paths.is_absolute(arg):
++            res.append("${{pwd}}/{}".format(arg))
++        else:
++            res.append(arg)
++
++        fix_next_arg = arg == "-isysroot"
++
++    return res
++
++def _pwd_flags_framework(args):
++    """Prefix execroot-relative paths of -F<path> arguments with ${pwd}."""
++    res = []
++    for arg in args:
++        if arg.startswith("-F") and len(arg) > 2:
++            path = arg[2:]
++            if not paths.is_absolute(path):
++                res.append("-F${{pwd}}/{}".format(path))
++                continue
++        res.append(arg)
++    return res
++
+ def _pwd_flags_fsanitize_ignorelist(args):
+     """Prefix execroot-relative paths of known arguments with ${pwd}.
+ 
+@@ -233,7 +266,7 @@
+     return res
+ 
+ def _pwd_flags(args):
+-    return _pwd_flags_fsanitize_ignorelist(_pwd_flags_isystem(_pwd_flags_bindir(_pwd_flags_sysroot(args))))
++    return _pwd_flags_framework(_pwd_flags_isysroot(_pwd_flags_fsanitize_ignorelist(_pwd_flags_isystem(_pwd_flags_bindir(_pwd_flags_sysroot(args))))))
+ 
+ def _feature_enabled(ctx, feature_name, default = False):
+     """Check if a feature is enabled.

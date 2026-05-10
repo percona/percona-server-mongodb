@@ -75,19 +75,20 @@ class ShardingCommandGenerator {
         const CommandClass = ShardingCommandGenerator.actionToCommandClass[action];
         assert(CommandClass !== undefined, `No command class found for action ${action}`);
 
+        const baseOpts = {
+            dbName: params.getDbName(),
+            collName: params.getCollName(),
+            shardSet: params.getShardSet(),
+            collectionCtx: {...collectionCtx},
+        };
+
         // Commands that need the target shard key as a separate parameter.
         if (CommandClass === ShardCollectionCommand || CommandClass === ReshardCollectionCommand) {
             assert(targetShardKey, `${CommandClass.name} requires targetShardKey`);
-            return new CommandClass(
-                params.getDbName(),
-                params.getCollName(),
-                params.getShardSet(),
-                {...collectionCtx},
-                targetShardKey,
-            );
+            return new CommandClass({...baseOpts, shardKey: targetShardKey});
         }
 
-        return new CommandClass(params.getDbName(), params.getCollName(), params.getShardSet(), {...collectionCtx});
+        return new CommandClass(baseOpts);
     }
 
     /**
@@ -463,13 +464,13 @@ class ShardingCommandGenerator {
 
             const shardCtx = {...ctx, exists: false};
             commands.push(
-                new ShardCollectionCommand(
-                    params.getDbName(),
-                    params.getCollName(),
-                    params.getShardSet(),
-                    shardCtx,
-                    targetShardKey,
-                ),
+                new ShardCollectionCommand({
+                    dbName: params.getDbName(),
+                    collName: params.getCollName(),
+                    shardSet: params.getShardSet(),
+                    collectionCtx: shardCtx,
+                    shardKey: targetShardKey,
+                }),
             );
             // Update context - collection is now sharded
             ctx.exists = true;
@@ -480,13 +481,12 @@ class ShardingCommandGenerator {
         // Create shard key index if action requires it (collection must already exist).
         if (ShardingCommandGenerator.actionsRequiringIndex.has(action)) {
             commands.push(
-                new CreateIndexCommand(
-                    params.getDbName(),
-                    params.getCollName(),
-                    params.getShardSet(),
-                    ctx,
-                    targetShardKey,
-                ),
+                new CreateIndexCommand({
+                    dbName: params.getDbName(),
+                    collName: params.getCollName(),
+                    shardSet: params.getShardSet(),
+                    indexSpec: targetShardKey,
+                }),
             );
         }
         // NOTE: We intentionally do NOT drop indexes before dropping collections.
@@ -496,10 +496,14 @@ class ShardingCommandGenerator {
         // Drop collection before dropping database (simplifies change event matching).
         if (action === Action.DROP_DATABASE && collectionCtx.exists) {
             // NOTE: We do NOT drop indexes here - see comment above about dropIndexes coverage.
-            // Pass a COPY to DropCollectionCommand so it sees exists:true.
-            // We'll set ctx.exists = false for the subsequent DropDatabaseCommand.
+            // DropCollectionCommand defaults to {exists: true}, which is what we want here
+            // (we only enter this branch when ctx.exists is true).
             commands.push(
-                new DropCollectionCommand(params.getDbName(), params.getCollName(), params.getShardSet(), {...ctx}),
+                new DropCollectionCommand({
+                    dbName: params.getDbName(),
+                    collName: params.getCollName(),
+                    shardSet: params.getShardSet(),
+                }),
             );
             // After dropping collection, update context for DropDatabaseCommand to reflect that collection no longer exists.
             ctx.exists = false;
@@ -519,18 +523,13 @@ class ShardingCommandGenerator {
             const shouldDropIndex =
                 action === Action.UNSHARD_COLLECTION || bsonWoCompare(oldShardKey, targetShardKey) !== 0;
             if (shouldDropIndex && oldShardKey) {
-                // Update context for DropIndexCommand's event count calculation:
-                // - After reshard: shardKeySpec = new shard key (collection still sharded)
-                // - After unshard: shardKeySpec = null (collection is now untracked, no shard key)
-                const postActionCtx = {...ctx, shardKeySpec: targetShardKey};
                 commands.push(
-                    new DropIndexCommand(
-                        params.getDbName(),
-                        params.getCollName(),
-                        params.getShardSet(),
-                        postActionCtx,
-                        oldShardKey,
-                    ),
+                    new DropIndexCommand({
+                        dbName: params.getDbName(),
+                        collName: params.getCollName(),
+                        shardSet: params.getShardSet(),
+                        indexSpec: oldShardKey,
+                    }),
                 );
             }
         }

@@ -29,6 +29,7 @@
 
 #include "mongo/db/extension/host/document_source_extension_optimizable.h"
 
+#include "mongo/base/error_codes.h"
 #include "mongo/bson/bsonelement.h"
 #include "mongo/bson/bsonobj.h"
 #include "mongo/bson/bsonobjbuilder.h"
@@ -36,6 +37,7 @@
 #include "mongo/db/exec/agg/mock_stage.h"
 #include "mongo/db/exec/document_value/document_value_test_util.h"
 #include "mongo/db/extension/host/aggregation_stage/parse_node.h"
+#include "mongo/db/extension/host/extension_search_server_status.h"
 #include "mongo/db/extension/host/host_portal.h"
 #include "mongo/db/extension/host_connector/adapter/host_services_adapter.h"
 #include "mongo/db/extension/sdk/aggregation_stage.h"
@@ -2951,9 +2953,100 @@ TEST_F(DocumentSourceExtensionOptimizableTest, GetFilter_TransformStageWithFilte
     auto optimizable = host::DocumentSourceExtensionOptimizable::create(
         getExpCtx(), std::move(logicalStageHandle), MongoExtensionStaticProperties{});
 
-    // Transform stages do not currently report a filter even if they have one.
-    ASSERT_FALSE(optimizable->hasQuery());
-    ASSERT_BSONOBJ_EQ(optimizable->getQuery(), BSONObj());
+    ASSERT_TRUE(optimizable->hasQuery());
+    ASSERT_BSONOBJ_EQ(optimizable->getQuery(), LogicalStageWithFilter::kFilter);
+}
+
+namespace {
+/**
+ * A LogicalAggStage that declares a non-empty sort pattern via getSortPattern().
+ */
+class LogicalStageWithSortPattern : public sdk::shared_test_stages::TransformLogicalAggStage {
+public:
+    BSONObj getSortPattern() const override {
+        return kSortPattern;
+    }
+
+    static const BSONObj kSortPattern;
+};
+const BSONObj LogicalStageWithSortPattern::kSortPattern = BSON("score" << -1);
+}  // namespace
+
+TEST_F(DocumentSourceExtensionOptimizableTest, GetSortPattern_ExtensionSortPatternPropagated) {
+    auto logicalStage =
+        new sdk::ExtensionLogicalAggStageAdapter(std::make_unique<LogicalStageWithSortPattern>());
+    auto logicalStageHandle = LogicalAggStageHandle(logicalStage);
+    auto optimizable = host::DocumentSourceExtensionOptimizable::create(
+        getExpCtx(), std::move(logicalStageHandle), MongoExtensionStaticProperties{});
+
+    auto expected = SortPattern(LogicalStageWithSortPattern::kSortPattern, getExpCtx());
+    ASSERT_EQ(optimizable->getSortPattern(), expected);
+}
+
+TEST_F(DocumentSourceExtensionOptimizableTest, GetSortPattern_EmptyWhenNotOverridden) {
+    auto logicalStage = new sdk::ExtensionLogicalAggStageAdapter(
+        std::make_unique<sdk::shared_test_stages::TransformLogicalAggStage>());
+    auto logicalStageHandle = LogicalAggStageHandle(logicalStage);
+    auto optimizable = host::DocumentSourceExtensionOptimizable::create(
+        getExpCtx(), std::move(logicalStageHandle), MongoExtensionStaticProperties{});
+
+    ASSERT_TRUE(optimizable->getSortPattern().empty());
+}
+
+// ============================================================================
+// In-$lookup IFR kickback for extension $search/$searchMeta stages.
+// ============================================================================
+
+class DocumentSourceExtensionOptimizableInLookupKickbackTest
+    : public DocumentSourceExtensionOptimizableTest {
+protected:
+    void runKickbackCase(bool hybridFlagEnabled, std::string_view stageName, bool expectKickback) {
+        RAIIServerParameterControllerForTest hybridFlag{"featureFlagExtensionsInsideHybridSearch",
+                                                        hybridFlagEnabled};
+        auto expCtx = getExpCtx();
+        expCtx->setInLookup(true);
+
+        auto initialCount = search_metrics::inLookupKickbackRetryCount.get();
+        auto invokeCreate = [&] {
+            auto astNode = new sdk::ExtensionAggStageAstNodeAdapter(
+                std::make_unique<sdk::shared_test_stages::TransformAggStageAstNode>(stageName,
+                                                                                    BSONObj()));
+            return host::DocumentSourceExtensionOptimizable::create(expCtx,
+                                                                    AggStageAstNodeHandle{astNode});
+        };
+
+        if (expectKickback) {
+            ASSERT_THROWS_CODE(invokeCreate(), DBException, ErrorCodes::IFRFlagRetry);
+            ASSERT_EQ(search_metrics::inLookupKickbackRetryCount.get(), initialCount + 1);
+        } else {
+            ASSERT_DOES_NOT_THROW(invokeCreate());
+            ASSERT_EQ(search_metrics::inLookupKickbackRetryCount.get(), initialCount);
+        }
+    }
+};
+
+TEST_F(DocumentSourceExtensionOptimizableInLookupKickbackTest, FiresForExtensionSearch) {
+    runKickbackCase(/*hybridFlagEnabled=*/false,
+                    "$_extensionSearch",
+                    /*expectKickback=*/true);
+}
+
+TEST_F(DocumentSourceExtensionOptimizableInLookupKickbackTest, FiresForExtensionSearchMeta) {
+    runKickbackCase(/*hybridFlagEnabled=*/false,
+                    "$_extensionSearchMeta",
+                    /*expectKickback=*/true);
+}
+
+TEST_F(DocumentSourceExtensionOptimizableInLookupKickbackTest, SkippedWhenHybridFlagEnabled) {
+    runKickbackCase(/*hybridFlagEnabled=*/true,
+                    "$_extensionSearch",
+                    /*expectKickback=*/false);
+}
+
+TEST_F(DocumentSourceExtensionOptimizableInLookupKickbackTest, SkippedForNonSearchExtensionStage) {
+    runKickbackCase(/*hybridFlagEnabled=*/false,
+                    sdk::shared_test_stages::kTransformName,
+                    /*expectKickback=*/false);
 }
 
 }  // namespace

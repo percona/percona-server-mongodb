@@ -66,6 +66,10 @@ public:
         std::vector<ReshardingZoneType>) override {
         MONGO_UNREACHABLE;
     }
+    bool searchIndexExistsForCollection(OperationContext* opCtx,
+                                        const NamespaceString& nss) override {
+        MONGO_UNREACHABLE;
+    }
     void tellAllDonorsToRefresh(OperationContext*,
                                 const NamespaceString&,
                                 const UUID&,
@@ -125,6 +129,12 @@ public:
                           const NamespaceString&,
                           const UUID&,
                           const OperationSessionInfo&) override {
+        MONGO_UNREACHABLE;
+    }
+    std::unique_ptr<CausalityBarrier> buildCausalityBarrier(
+        std::vector<ShardId> participants,
+        std::shared_ptr<executor::TaskExecutor> executor,
+        CancellationToken token) override {
         MONGO_UNREACHABLE;
     }
 };

@@ -43,7 +43,8 @@ static constexpr SorterChecksumVersion kLatestChecksumVersion = SorterChecksumVe
  */
 class SorterChecksumCalculator {
 public:
-    SorterChecksumCalculator(SorterChecksumVersion version) : _version(version) {}
+    SorterChecksumCalculator(SorterChecksumVersion version, size_t seed = 0)
+        : _version(version), _checksum(seed) {}
 
     void addData(const char* data, size_t size);
 

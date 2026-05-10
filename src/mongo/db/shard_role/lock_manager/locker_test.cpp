@@ -1358,5 +1358,81 @@ DEATH_TEST_F(LockerTestDeathTest, LockOrderingViolationCrashesTheServer, "991500
 }
 #endif
 
+TEST_F(LockerTest, GetConflictingLockerIds_ReturnsEmptyWhenNoConflicts) {
+    auto opCtx = makeOperationContext();
+
+    const ResourceId resId(
+        RESOURCE_COLLECTION,
+        NamespaceString::createNamespaceString_forTest(boost::none, "TestDB.collection"));
+
+    Locker locker1(opCtx->getServiceContext());
+    locker1.lockGlobal(opCtx.get(), MODE_IS);
+    locker1.lock(opCtx.get(), resId, MODE_IS);
+
+    // MODE_S is compatible with MODE_IS, so no conflicts.
+    auto conflicting = locker1.getConflictingLockerIds(resId, MODE_S);
+    ASSERT_TRUE(conflicting.empty());
+
+    locker1.unlock(resId);
+    locker1.unlockGlobal();
+}
+
+TEST_F(LockerTest, GetConflictingLockerIds_ReturnsConflictingHolder) {
+    auto opCtx = makeOperationContext();
+
+    const ResourceId resId(
+        RESOURCE_COLLECTION,
+        NamespaceString::createNamespaceString_forTest(boost::none, "TestDB.collection"));
+
+    // Use MODE_X (non-intent) for testing to avoid the partitioned lock fast path.
+    Locker locker1(opCtx->getServiceContext());
+    locker1.lockGlobal(opCtx.get(), MODE_IX);
+    locker1.lock(opCtx.get(), resId, MODE_X);
+
+    // MODE_S conflicts with MODE_X.
+    auto conflicting = locker1.getConflictingLockerIds(resId, MODE_S);
+    ASSERT_EQ(conflicting.size(), 1U);
+    ASSERT_EQ(conflicting[0], locker1.getId());
+
+    locker1.unlock(resId);
+    locker1.unlockGlobal();
+}
+
+TEST_F(LockerTest, GetConflictingLockerIds_ReturnsEmptyForUnlockedResource) {
+    auto opCtx = makeOperationContext();
+
+    const ResourceId resId(
+        RESOURCE_COLLECTION,
+        NamespaceString::createNamespaceString_forTest(boost::none, "TestDB.collection"));
+
+    Locker locker1(opCtx->getServiceContext());
+
+    // No one holds the lock.
+    auto conflicting = locker1.getConflictingLockerIds(resId, MODE_X);
+    ASSERT_TRUE(conflicting.empty());
+}
+
+DEATH_TEST_F(LockerTestDeathTest,
+             GetConflictingLockerIdsInvariantModeIS,
+             "getConflictingLockerIds does not support intent modes") {
+    auto opCtx = makeOperationContext();
+    const ResourceId resId(
+        RESOURCE_COLLECTION,
+        NamespaceString::createNamespaceString_forTest(boost::none, "TestDB.collection"));
+    Locker locker(opCtx->getServiceContext());
+    locker.getConflictingLockerIds(resId, MODE_IS);
+}
+
+DEATH_TEST_F(LockerTestDeathTest,
+             GetConflictingLockerIdsInvariantModeIX,
+             "getConflictingLockerIds does not support intent modes") {
+    auto opCtx = makeOperationContext();
+    const ResourceId resId(
+        RESOURCE_COLLECTION,
+        NamespaceString::createNamespaceString_forTest(boost::none, "TestDB.collection"));
+    Locker locker(opCtx->getServiceContext());
+    locker.getConflictingLockerIds(resId, MODE_IX);
+}
+
 }  // namespace
 }  // namespace mongo

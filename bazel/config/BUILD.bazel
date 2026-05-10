@@ -872,12 +872,23 @@ selects.config_setting_group(
     ],
 )
 
+selects.config_setting_group(
+    name = "_linker_lld_set_by_auto_gcc_ppc",
+    match_all = [
+        ":_linker_auto",
+        "@platforms//os:linux",
+        ":compiler_type_gcc",
+        "@platforms//cpu:ppc64le",
+    ],
+)
+
 # Final setting intended for external use.
-#   linker == lld || (linker == auto && clang && linux)
+#   linker == lld || (linker == auto && linux && (clang || gcc-on-ppc))
 selects.config_setting_group(
     name = "linker_lld",
     match_any = [
         ":_linker_lld_set_by_auto",
+        ":_linker_lld_set_by_auto_gcc_ppc",
         ":_linker_lld",
     ],
 )
@@ -898,11 +909,11 @@ selects.config_setting_group(
     ],
 )
 
-# mold is selected explicitly or auto-selected for gcc (except on ppc)
-# This is because gcc needs dwarf64, and only mold supports
-# linking both 32 and 64 bit debug symbols which we have
-# due to the rust toolchain. ppc is excluded from auto-selection
-# and falls back to the toolchain's default linker.
+# mold is selected explicitly or auto-selected for gcc (except on ppc).
+# This is because gcc needs dwarf64, and only mold supports linking both
+# 32 and 64 bit debug symbols which we have due to the rust toolchain.
+# ppc is excluded because mold segfaults at runtime on PPC; ppc+gcc auto
+# routes to lld instead (see :_linker_lld_set_by_auto_gcc_ppc).
 selects.config_setting_group(
     name = "_linker_mold_or_gcc_auto",
     match_any = [
@@ -920,28 +931,10 @@ selects.config_setting_group(
 )
 
 selects.config_setting_group(
-    name = "_linker_auto_not_linux",
+    name = "linker_default",
     match_all = [
         ":_linker_auto",
         ":not_linux",
-    ],
-)
-
-selects.config_setting_group(
-    name = "_linker_auto_gcc_ppc",
-    match_all = [
-        ":_linker_auto",
-        "@platforms//os:linux",
-        ":compiler_type_gcc",
-        "@platforms//cpu:ppc64le",
-    ],
-)
-
-selects.config_setting_group(
-    name = "linker_default",
-    match_any = [
-        ":_linker_auto_not_linux",
-        ":_linker_auto_gcc_ppc",
     ],
 )
 

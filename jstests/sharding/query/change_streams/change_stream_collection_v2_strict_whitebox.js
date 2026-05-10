@@ -84,7 +84,7 @@ describe("collection v2 strict whitebox", function () {
     });
 
     beforeEach(function () {
-        new CreateDatabaseCommand(dbName, null, null, null, st.shard0.shardName).execute(st.s);
+        new CreateDatabaseCommand({dbName, primaryShard: st.shard0.shardName}).execute(st.s);
     });
 
     afterEach(function () {
@@ -105,7 +105,13 @@ describe("collection v2 strict whitebox", function () {
 
     it("sharded collection across two shards - initial placement", function () {
         coll = db[collName];
-        new ShardCollectionCommand(dbName, collName, allShards, {exists: false}, {_id: 1}).execute(st.s);
+        new ShardCollectionCommand({
+            dbName,
+            collName,
+            shardSet: allShards,
+            collectionCtx: {exists: false},
+            shardKey: {_id: 1},
+        }).execute(st.s);
         distributeCollectionDataOverShards(db, coll, {
             middle: {_id: 0},
             chunks: [
@@ -135,7 +141,7 @@ describe("collection v2 strict whitebox", function () {
 
     it("unsharded collection - single shard cursor", function () {
         coll = db[collName];
-        new CreateUntrackedCollectionCommand(dbName, collName, null, {exists: false}).execute(st.s);
+        new CreateUntrackedCollectionCommand({dbName, collName}).execute(st.s);
 
         const comment = "strict_unsharded";
         csTest = new ChangeStreamTest(db);
@@ -175,7 +181,7 @@ describe("collection v2 strict whitebox", function () {
         );
 
         // Create DB to trigger DbAbsent -> DbPresent transition.
-        new CreateDatabaseCommand(dbName, null, null, null, st.shard2.shardName).execute(st.s);
+        new CreateDatabaseCommand({dbName, primaryShard: st.shard2.shardName}).execute(st.s);
         awaitLogMessageCodes(st.s, [kDbAbsentEvent], () => csTest.assertNoChange(csCursor), {
             [kDbAbsentEvent]: (attr) => assertExpectedShardsInLog(attr, 1),
         });
@@ -192,7 +198,12 @@ describe("collection v2 strict whitebox", function () {
         assert.commandWorked(db.adminCommand({split: coll.getFullName(), middle: {_id: 10}}));
 
         const docs = [{_id: -11}, {_id: 0}, {_id: 11}];
-        new InsertDocCommand(dbName, collName, allShards, {exists: true, shardKeySpec: {_id: 1}}, docs).execute(st.s);
+        new InsertDocCommand({
+            dbName,
+            collName,
+            collectionCtx: {exists: true, shardKeySpec: {_id: 1}},
+            documents: docs,
+        }).execute(st.s);
 
         const comment = "strict_movechunk_lifecycle";
         csTest = new ChangeStreamTest(db);
@@ -280,7 +291,7 @@ describe("collection v2 strict whitebox", function () {
         const originalShardId = st.shard0.shardName;
         const targetShardId = st.shard1.shardName;
 
-        new CreateUntrackedCollectionCommand(dbName, collName, null, {exists: false}).execute(st.s);
+        new CreateUntrackedCollectionCommand({dbName, collName}).execute(st.s);
 
         const comment = "strict_move_primary";
         csTest = new ChangeStreamTest(db);
@@ -295,7 +306,7 @@ describe("collection v2 strict whitebox", function () {
         });
         assertOpenCursors(st, [originalShardId], /*expectedConfigCursor=*/ false, cursorCommentFilter(comment));
 
-        new MovePrimaryCommand(dbName, collName, null, null, targetShardId).execute(st.s);
+        new MovePrimaryCommand({dbName, collName, targetShard: targetShardId}).execute(st.s);
         awaitLogMessageCodes(st.s, [kPlacementRefresh], () => csTest.assertNoChange(csCursor));
         assertOpenCursors(st, [targetShardId], /*expectedConfigCursor=*/ false, cursorCommentFilter(comment));
     });
@@ -309,8 +320,19 @@ describe("collection v2 strict whitebox", function () {
             {_id: 2, a: 2},
         ];
         [
-            new ShardCollectionCommand(dbName, collName, allShards, {exists: false}, {_id: 1}),
-            new InsertDocCommand(dbName, collName, null, {exists: true, shardKeySpec: {_id: 1}}, docs),
+            new ShardCollectionCommand({
+                dbName,
+                collName,
+                shardSet: allShards,
+                collectionCtx: {exists: false},
+                shardKey: {_id: 1},
+            }),
+            new InsertDocCommand({
+                dbName,
+                collName,
+                collectionCtx: {exists: true, shardKeySpec: {_id: 1}},
+                documents: docs,
+            }),
         ].forEach((cmd) => cmd.execute(st.s));
         distributeCollectionDataOverShards(db, coll, {
             middle: {_id: 0},
@@ -343,7 +365,14 @@ describe("collection v2 strict whitebox", function () {
         const collCtx = {exists: true, shardKeySpec: {_id: 1}};
         const newShardKey = {a: 1};
         const chunkCount = 2;
-        new ReshardCollectionCommand(dbName, collName, targetShards, collCtx, newShardKey, chunkCount).execute(st.s);
+        new ReshardCollectionCommand({
+            dbName,
+            collName,
+            shardSet: targetShards,
+            collectionCtx: collCtx,
+            shardKey: newShardKey,
+            numInitialChunks: chunkCount,
+        }).execute(st.s);
         awaitLogMessageCodes(st.s, [kPlacementRefresh], () => csTest.assertNoChange(csCursor));
         assertOpenCursors(
             st,

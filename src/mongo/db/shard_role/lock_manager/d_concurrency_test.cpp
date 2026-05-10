@@ -55,6 +55,7 @@
 #include "mongo/logv2/log.h"
 #include "mongo/platform/atomic_word.h"
 #include "mongo/stdx/thread.h"
+#include "mongo/unittest/death_test.h"
 #include "mongo/unittest/unittest.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/duration.h"
@@ -2586,6 +2587,284 @@ TEST_F(DConcurrencyTestFixture, ConflictingTenantDBLockThrows) {
 
     ASSERT_THROWS_CODE(result.get(), AssertionException, ErrorCodes::Interrupted);
     ASSERT(shard_role_details::getLocker(opCtx1)->isDbLockedForMode(dbName1, MODE_X));
+}
+
+TEST_F(DConcurrencyTestFixture, CollectionLockWithCallback_ActionCalledWhenContended) {
+    auto clients = makeKClientsWithLockers(2);
+    auto opCtx1 = clients[0].second.get();
+    auto opCtx2 = clients[1].second.get();
+
+    const auto collNss = NamespaceString::createNamespaceString_forTest("db.coll");
+    const ResourceId resId(RESOURCE_COLLECTION, collNss);
+
+    // Thread 1 holds a conflicting exclusive lock on the collection.
+    Lock::GlobalLock globalLock1(opCtx1, MODE_IX);
+    Lock::DBLock dbLock1(opCtx1, collNss.dbName(), MODE_IX);
+    boost::optional<Lock::CollectionLock> collLock1;
+    collLock1.emplace(opCtx1, collNss, MODE_X);
+
+    AtomicWord<bool> actionCalled{false};
+    stdx::thread t2([&] {
+        Lock::GlobalLock globalLock2(opCtx2, MODE_IS);
+        Lock::DBLock dbLock2(opCtx2, collNss.dbName(), MODE_IS);
+        Lock::CollectionLock collLock2(
+            opCtx2, collNss, MODE_S, [&](OperationContext*) { actionCalled.store(true); });
+        // By the time we get here, the lock should be granted.
+        ASSERT_EQ(shard_role_details::getLocker(opCtx2)->getLockMode(resId), MODE_S);
+    });
+
+    // Poll until the action is called or we time out.
+    auto deadline = Date_t::now() + Seconds(1);
+    while (!actionCalled.load() && Date_t::now() < deadline) {
+        sleepFor(Milliseconds(10));
+    }
+    ASSERT_TRUE(actionCalled.load()) << "Timed out waiting for lock enqueue action to be called";
+
+    // Release so thread can clean up.
+    collLock1.reset();
+    t2.join();
+}
+
+TEST_F(DConcurrencyTestFixture, CollectionLockWithCallback_ActionCalledThenTimeout) {
+    auto clients = makeKClientsWithLockers(2);
+    auto opCtx1 = clients[0].second.get();
+    auto opCtx2 = clients[1].second.get();
+
+    const auto collNss = NamespaceString::createNamespaceString_forTest("db.collTimeout");
+    const ResourceId resId(RESOURCE_COLLECTION, collNss);
+
+    // Thread 1 holds a conflicting exclusive lock on the collection and never releases it.
+    Lock::GlobalLock globalLock1(opCtx1, MODE_IX);
+    Lock::DBLock dbLock1(opCtx1, collNss.dbName(), MODE_IX);
+    Lock::CollectionLock collLock1(opCtx1, collNss, MODE_X);
+
+    AtomicWord<bool> actionCalled{false};
+    stdx::thread t2([&] {
+        Lock::GlobalLock globalLock2(opCtx2, MODE_IS);
+        Lock::DBLock dbLock2(opCtx2, collNss.dbName(), MODE_IS);
+
+        // Use a short deadline so lockComplete times out while the conflicting lock is held.
+        ASSERT_THROWS_CODE(Lock::CollectionLock(
+                               opCtx2,
+                               collNss,
+                               MODE_S,
+                               [&](OperationContext*) { actionCalled.store(true); },
+                               Date_t::now() + Milliseconds(50)),
+                           AssertionException,
+                           ErrorCodes::LockTimeout);
+
+        // The lock should NOT be held after the timeout — the ScopeGuard cleaned it up.
+        ASSERT_EQ(shard_role_details::getLocker(opCtx2)->getLockMode(resId), MODE_NONE);
+    });
+
+    t2.join();
+
+    // The callback should have been invoked (the lock was contended).
+    ASSERT_TRUE(actionCalled.load());
+}
+
+TEST_F(DConcurrencyTestFixture, CollectionLockWithCallback_ActionNotCalledWhenUncontended) {
+    auto clients = makeKClientsWithLockers(1);
+    auto opCtx = clients[0].second.get();
+
+    const auto collNss = NamespaceString::createNamespaceString_forTest("db.coll");
+    const ResourceId resId(RESOURCE_COLLECTION, collNss);
+
+    Lock::GlobalLock globalLock(opCtx, MODE_IX);
+    Lock::DBLock dbLock(opCtx, collNss.dbName(), MODE_IX);
+
+    bool actionCalled = false;
+    {
+        Lock::CollectionLock collLock(
+            opCtx, collNss, MODE_S, [&](OperationContext*) { actionCalled = true; });
+        ASSERT_EQ(shard_role_details::getLocker(opCtx)->getLockMode(resId), MODE_S);
+    }
+    ASSERT_FALSE(actionCalled);
+
+    // After the guard is destroyed, the lock should be released.
+    ASSERT_EQ(shard_role_details::getLocker(opCtx)->getLockMode(resId), MODE_NONE);
+}
+
+TEST_F(DConcurrencyTestFixture, CollectionLockWithCallback_UnlocksOnActionException) {
+    auto clients = makeKClientsWithLockers(2);
+    auto opCtx1 = clients[0].second.get();
+    auto opCtx2 = clients[1].second.get();
+
+    const auto collNss = NamespaceString::createNamespaceString_forTest("db.coll3");
+    const ResourceId resId(RESOURCE_COLLECTION, collNss);
+
+    // Hold a conflicting lock to force the LOCK_WAITING path.
+    Lock::GlobalLock globalLock1(opCtx1, MODE_IX);
+    Lock::DBLock dbLock1(opCtx1, collNss.dbName(), MODE_IX);
+    Lock::CollectionLock collLock1(opCtx1, collNss, MODE_X);
+
+    stdx::thread t2([&] {
+        Lock::GlobalLock globalLock2(opCtx2, MODE_IS);
+        Lock::DBLock dbLock2(opCtx2, collNss.dbName(), MODE_IS);
+        ASSERT_THROWS_CODE(Lock::CollectionLock(opCtx2,
+                                                collNss,
+                                                MODE_S,
+                                                [](OperationContext*) {
+                                                    uasserted(ErrorCodes::InternalError,
+                                                              "action threw");
+                                                }),
+                           AssertionException,
+                           ErrorCodes::InternalError);
+
+        // The lock should NOT be held after the exception.
+        ASSERT_EQ(shard_role_details::getLocker(opCtx2)->getLockMode(resId), MODE_NONE);
+    });
+
+    t2.join();
+}
+
+TEST_F(DConcurrencyTestFixture, CollectionLockWithCallback_MoveSemantics) {
+    auto clients = makeKClientsWithLockers(1);
+    auto opCtx = clients[0].second.get();
+
+    const auto collNss = NamespaceString::createNamespaceString_forTest("db.coll4");
+    const ResourceId resId(RESOURCE_COLLECTION, collNss);
+
+    Lock::GlobalLock globalLock(opCtx, MODE_IX);
+    Lock::DBLock dbLock(opCtx, collNss.dbName(), MODE_IX);
+
+    boost::optional<Lock::CollectionLock> movedGuard;
+    {
+        Lock::CollectionLock original(opCtx, collNss, MODE_S, nullptr);
+        ASSERT_EQ(shard_role_details::getLocker(opCtx)->getLockMode(resId), MODE_S);
+
+        // Move into a new guard.
+        movedGuard.emplace(std::move(original));
+    }
+    // Original is destroyed but lock should still be held via the moved guard.
+    ASSERT_EQ(shard_role_details::getLocker(opCtx)->getLockMode(resId), MODE_S);
+
+    // Destroy the moved guard — lock should be released.
+    movedGuard.reset();
+    ASSERT_EQ(shard_role_details::getLocker(opCtx)->getLockMode(resId), MODE_NONE);
+}
+
+TEST_F(DConcurrencyTestFixture, GetConflictingLockerIds_MultipleIXHoldersConflictWithS) {
+    auto clients = makeKClientsWithLockers(4);
+    auto queryOpCtx = clients[3].second.get();
+
+    const auto collNss =
+        NamespaceString::createNamespaceString_forTest(boost::none, "TestDB.collection");
+    const ResourceId collResId(RESOURCE_COLLECTION, collNss);
+
+    // Three holders each acquire MODE_IX on the collection.
+    Lock::GlobalLock hGlobal0(clients[0].second.get(), MODE_IX);
+    Lock::DBLock hDb0(clients[0].second.get(), collNss.dbName(), MODE_IX);
+    boost::optional<Lock::CollectionLock> hColl0;
+    hColl0.emplace(clients[0].second.get(), collNss, MODE_IX);
+
+    Lock::GlobalLock hGlobal1(clients[1].second.get(), MODE_IX);
+    Lock::DBLock hDb1(clients[1].second.get(), collNss.dbName(), MODE_IX);
+    boost::optional<Lock::CollectionLock> hColl1;
+    hColl1.emplace(clients[1].second.get(), collNss, MODE_IX);
+
+    Lock::GlobalLock hGlobal2(clients[2].second.get(), MODE_IX);
+    Lock::DBLock hDb2(clients[2].second.get(), collNss.dbName(), MODE_IX);
+    boost::optional<Lock::CollectionLock> hColl2;
+    hColl2.emplace(clients[2].second.get(), collNss, MODE_IX);
+
+    LockerId holderIds[3] = {
+        shard_role_details::getLocker(clients[0].second.get())->getId(),
+        shard_role_details::getLocker(clients[1].second.get())->getId(),
+        shard_role_details::getLocker(clients[2].second.get())->getId(),
+    };
+
+    // Use the callback to get the MODE_S conflict with MODE_IX list.
+    std::vector<LockerId> capturedIds;
+    AtomicWord<bool> callbackDone{false};
+    stdx::thread t([&] {
+        Lock::GlobalLock queryGlobal(queryOpCtx, MODE_IS);
+        Lock::DBLock queryDb(queryOpCtx, collNss.dbName(), MODE_IS);
+        Lock::CollectionLock queryColl(queryOpCtx, collNss, MODE_S, [&](OperationContext* cbOpCtx) {
+            capturedIds =
+                shard_role_details::getLocker(cbOpCtx)->getConflictingLockerIds(collResId, MODE_S);
+            callbackDone.store(true);
+        });
+    });
+
+    auto deadline = Date_t::now() + Seconds(1);
+    while (!callbackDone.load() && Date_t::now() < deadline) {
+        sleepFor(Milliseconds(10));
+    }
+    ASSERT_TRUE(callbackDone.load());
+
+    // Release holders so the query thread can complete.
+    hColl0.reset();
+    hColl1.reset();
+    hColl2.reset();
+    t.join();
+
+    ASSERT_EQ(capturedIds.size(), 3U);
+    stdx::unordered_set<LockerId> idSet(capturedIds.begin(), capturedIds.end());
+    for (int i = 0; i < 3; ++i) {
+        ASSERT_TRUE(idSet.count(holderIds[i])) << "Missing LockerId for holder " << i;
+    }
+}
+
+TEST_F(DConcurrencyTestFixture, GetConflictingLockerIds_MixedGrantedModesOnlyConflictsReturned) {
+    auto clients = makeKClientsWithLockers(4);
+    auto queryOpCtx = clients[3].second.get();
+
+    const auto collNss =
+        NamespaceString::createNamespaceString_forTest(boost::none, "TestDB.collection");
+    const ResourceId collResId(RESOURCE_COLLECTION, collNss);
+
+    // Three holders each acquire MODE_S. We verify that MODE_S sees no conflicts
+    // (compatible) while MODE_X sees all three as conflicting.
+    Lock::GlobalLock hGlobal0(clients[0].second.get(), MODE_IS);
+    Lock::DBLock hDb0(clients[0].second.get(), collNss.dbName(), MODE_IS);
+    Lock::CollectionLock hColl0(clients[0].second.get(), collNss, MODE_S);
+
+    Lock::GlobalLock hGlobal1(clients[1].second.get(), MODE_IS);
+    Lock::DBLock hDb1(clients[1].second.get(), collNss.dbName(), MODE_IS);
+    Lock::CollectionLock hColl1(clients[1].second.get(), collNss, MODE_S);
+
+    Lock::GlobalLock hGlobal2(clients[2].second.get(), MODE_IS);
+    Lock::DBLock hDb2(clients[2].second.get(), collNss.dbName(), MODE_IS);
+    Lock::CollectionLock hColl2(clients[2].second.get(), collNss, MODE_S);
+
+    LockerId holderIds[3] = {
+        shard_role_details::getLocker(clients[0].second.get())->getId(),
+        shard_role_details::getLocker(clients[1].second.get())->getId(),
+        shard_role_details::getLocker(clients[2].second.get())->getId(),
+    };
+
+    // MODE_S is compatible with MODE_S — none returned.
+    auto idsS =
+        shard_role_details::getLocker(queryOpCtx)->getConflictingLockerIds(collResId, MODE_S);
+    ASSERT_TRUE(idsS.empty());
+
+    // MODE_X conflicts with all three MODE_S holders.
+    auto idsX =
+        shard_role_details::getLocker(queryOpCtx)->getConflictingLockerIds(collResId, MODE_X);
+    ASSERT_EQ(idsX.size(), 3U);
+
+    stdx::unordered_set<LockerId> idSet(idsX.begin(), idsX.end());
+    for (int i = 0; i < 3; ++i) {
+        ASSERT_TRUE(idSet.count(holderIds[i])) << "Missing LockerId for holder " << i;
+    }
+}
+
+using DConcurrencyDeathTestFixture = DConcurrencyTestFixture;
+
+DEATH_TEST_F(DConcurrencyDeathTestFixture,
+             CollectionLockWithCallback_RejectsIntentModes,
+             "CollectionLock with callback only supports MODE_S and MODE_X") {
+    auto clients = makeKClientsWithLockers(1);
+    auto opCtx = clients[0].second.get();
+
+    const auto collNss = NamespaceString::createNamespaceString_forTest("db.coll");
+
+    Lock::GlobalLock globalLock(opCtx, MODE_IX);
+    Lock::DBLock dbLock(opCtx, collNss.dbName(), MODE_IX);
+
+    // MODE_IS is not allowed when a callback is provided — should invariant-fail.
+    Lock::CollectionLock collLock(opCtx, collNss, MODE_IS, [](OperationContext*) {});
 }
 
 }  // namespace

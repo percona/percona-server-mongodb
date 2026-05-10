@@ -337,6 +337,8 @@ public:
 
     void setContainerWriteBehavior(ContainerWriteBehavior containerWriteBehavior);
 
+    void setIsResumable(bool isResumable);
+
     /**
      * Appends the current state information of the index build to the builder.
      */
@@ -357,11 +359,14 @@ private:
         const IndexCatalogEntry* entryForScan = nullptr;
     };
 
-    void _writeStateToDisk(OperationContext* opCtx,
-                           const CollectionPtr& collection,
-                           RecordStore& rs) const;
+    void _writeStateToDisk(OperationContext* opCtx);
 
-    BSONObj _constructStateObject(OperationContext* opCtx, const CollectionPtr& collection) const;
+    /**
+     * Performs a container write to persist build state to the resumable table.
+     */
+    void _writeStateToContainer(OperationContext* opCtx) const;
+
+    BSONObj _constructStateObject() const;
 
     Status _failPointHangDuringBuild(OperationContext* opCtx,
                                      FailPoint* fp,
@@ -394,6 +399,8 @@ private:
     IndexBuildMethodEnum _method = IndexBuildMethodEnum::kHybrid;
 
     ContainerWriteBehavior _containerWriteBehavior = ContainerWriteBehavior::kDoNotReplicate;
+
+    bool _isResumable = false;
 
     bool _ignoreUnique = false;
 

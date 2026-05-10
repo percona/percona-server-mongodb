@@ -234,6 +234,28 @@ public:
                           const LockTimeoutCallback& onTimeout = nullptr);
 
     /**
+     * Enqueues a lock request for the specified resource in the specified mode without waiting
+     * for it to be granted. Returns LOCK_OK if the lock was immediately granted, or LOCK_WAITING
+     * if the request was queued.
+     *
+     * For each call that returns LOCK_WAITING, the caller must subsequently call either
+     * lockComplete() to wait for the grant, or unlock() to cancel the request.
+     */
+    LockResult lockBegin(OperationContext* opCtx, ResourceId resId, LockMode mode);
+
+    /**
+     * Waits for a previously enqueued lock request (via lockBegin) to be granted.
+     * Must only be called when lockBegin returned LOCK_WAITING.
+     *
+     * It may throw an exception if it is interrupted or the deadline expires.
+     */
+    void lockComplete(OperationContext* opCtx,
+                      ResourceId resId,
+                      LockMode mode,
+                      Date_t deadline,
+                      const LockTimeoutCallback& onTimeout = nullptr);
+
+    /**
      * Unlocks the RSTL when the transaction becomes prepared. This is used to bypass two-phase
      * locking and unlock the RSTL immediately, rather than at the end of the WUOW.
      *
@@ -535,6 +557,17 @@ public:
      * Returns a vector with the lock information from the given resource lock holders.
      */
     std::vector<LockDebugInfo> getLockInfoFromResourceHolders(ResourceId resId) const;
+
+    /**
+     * Returns the LockerId of every granted lock request on 'resId' whose mode conflicts with
+     * the given 'mode'.
+     *
+     * Note: The underlying functionality limits the use after partitioned lock heads have been
+     * migrated for the given resource (e.g., after lockBegin with a non-intent mode), otherwise
+     * intent-mode holders on partitions will not be visible. For this reason, the mode is limited
+     * to non-intent types.
+     */
+    std::vector<LockerId> getConflictingLockerIds(ResourceId resId, LockMode mode) const;
 
     void dump() const;
 

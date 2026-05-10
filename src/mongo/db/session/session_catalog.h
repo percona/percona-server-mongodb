@@ -481,6 +481,15 @@ public:
     MONGO_MOD_PRIVATE void markForReap(ReapMode reapMode);
 
     /**
+     * Returns the OperationContext that currently has this session checked out, or nullptr if the
+     * session is not checked out. Safe to call inside a scanSessions callback because the catalog
+     * mutex and (if applicable) the client mutex are already held.
+     */
+    OperationContext* currentOperationContext() const {
+        return _sri->checkoutOpCtx;
+    }
+
+    /**
      * Returns a pointer to the Session itself.
      */
     Session* get() const {

@@ -314,12 +314,25 @@ class LintRunner:
         else:
             print(f"All {type_name} files have BUILD.bazel targets!")
 
-    def run_bazel(self, target: str, args: list = []):
+    def run_bazel(self, target: str, args: list | None = None) -> bool:
+        args = args or []
         p = subprocess.run([self.bazel_bin, "run", target] + (["--"] + args if args else []))
         if p.returncode != 0:
             self.fail = True
             if not self.keep_going:
                 raise LinterFail("Linter failed")
+            return False
+        return True
+
+    def check_copybara_generated_evergreen(self, *, fix: bool, dry_run: bool) -> None:
+        print("Checking generated Copybara Evergreen yaml...")
+        if fix and not dry_run:
+            if self.run_bazel("//buildscripts/copybara:generate_evergreen"):
+                print("Generated Copybara Evergreen yaml has been updated")
+            return
+
+        if self.run_bazel("//buildscripts/copybara:generate_evergreen", ["--check"]):
+            print("Generated Copybara Evergreen yaml is up to date")
 
     def refresh_module_lockfile(
         self,
@@ -533,6 +546,125 @@ def _get_files_changed_since_fork_point(origin_branch: str = "origin/master") ->
     return list(file_set)
 
 
+def _get_existing_python_files(files_to_lint: list[str]) -> list[str]:
+    """Return Python files that still exist in the working tree."""
+    return [str(file) for file in files_to_lint if file.endswith(".py") and os.path.exists(file)]
+
+
+def _source_label_to_workspace_path(label: str) -> str | None:
+    """Return the workspace-relative path represented by a Bazel source-file label."""
+    local_repository_prefixes = {
+        "@bazel_rules_mongo": "buildscripts/bazel_rules_mongo",
+        "@@bazel_rules_mongo": "buildscripts/bazel_rules_mongo",
+    }
+
+    if label.startswith("//"):
+        label_body = label[2:]
+        local_root = ""
+    elif label.startswith("@"):
+        repository, _, label_body = label.partition("//")
+        local_root = local_repository_prefixes.get(repository)
+        if local_root is None:
+            return None
+    else:
+        return None
+
+    package, separator, target = label_body.partition(":")
+    if not separator:
+        return None
+
+    return os.path.normpath(os.path.join(local_root, package, target))
+
+
+def _get_rules_lint_source_labels_for_changed_files(
+    files_to_lint: list[str],
+    files_with_targets: list[str],
+) -> list[str]:
+    """Return Bazel source-file labels for changed files supported by rules_lint."""
+    path_to_label = {}
+    for label in files_with_targets:
+        workspace_path = _source_label_to_workspace_path(label)
+        if workspace_path is not None:
+            path_to_label[workspace_path] = label
+
+    rules_lint_labels = []
+    seen = set()
+    for file in files_to_lint:
+        if not file.endswith((".py", ".js", ".mjs")):
+            continue
+
+        workspace_path = os.path.normpath(file).removeprefix(f".{os.sep}")
+        label = path_to_label.get(workspace_path)
+        if label is None or label in seen:
+            continue
+
+        rules_lint_labels.append(label)
+        seen.add(label)
+
+    return rules_lint_labels
+
+
+def _get_rules_lint_targets_for_source_labels(
+    bazel_bin: str,
+    source_labels: list[str],
+) -> list[str]:
+    """Return Bazel rule targets that directly own the given source-file labels."""
+    owner_targets = []
+    seen = set()
+
+    for source_label in source_labels:
+        query = f'kind(".* rule", same_pkg_direct_rdeps({source_label}))'
+        result = subprocess.run(
+            [bazel_bin, "query", query, "--output=label"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode != 0:
+            print(f"Failed to query rules_lint owner target for {source_label}:")
+            if result.stderr.strip():
+                print(result.stderr.strip())
+            raise LinterFail(f"Failed to query rules_lint owner target for {source_label}")
+
+        for target in result.stdout.splitlines():
+            target = target.strip()
+            if not target or target in seen:
+                continue
+            owner_targets.append(target)
+            seen.add(target)
+
+    return owner_targets
+
+
+def _get_rules_lint_targets_for_changed_files(
+    bazel_bin: str,
+    files_to_lint: list[str],
+    files_with_targets: list[str],
+) -> list[str]:
+    """Return Bazel rule targets that own changed files supported by rules_lint."""
+    return _get_rules_lint_targets_for_source_labels(
+        bazel_bin,
+        _get_rules_lint_source_labels_for_changed_files(files_to_lint, files_with_targets),
+    )
+
+
+def _should_check_copybara_generated_evergreen(lint_all: bool, files_to_lint: list[str]) -> bool:
+    """Return whether lint should check the generated Copybara Evergreen YAML."""
+    if lint_all:
+        return True
+
+    copybara_prefixes = (
+        "buildscripts/copybara/",
+        "etc/evergreen_yml_components/copybara/",
+    )
+    copybara_files = {
+        "etc/evergreen.yml",
+    }
+    return any(
+        file in copybara_files or file.startswith(copybara_prefixes) for file in files_to_lint
+    )
+
+
 def get_parsed_args(args):
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -666,16 +798,20 @@ def run_rules_lint(bazel_bin: str, args: list[str]):
     ):
         lr.run_bazel("//buildscripts:errorcodes", ["--quiet"])
 
+    existing_python_files = _get_existing_python_files(files_to_lint)
     if lint_all:
         lr.run_bazel("//buildscripts:pyrightlint", ["lint-all"])
-    elif any(file.endswith(".py") for file in files_to_lint):
-        lr.run_bazel(
-            "//buildscripts:pyrightlint",
-            ["lints"] + [str(file) for file in files_to_lint if file.endswith(".py")],
-        )
+    elif existing_python_files:
+        lr.run_bazel("//buildscripts:pyrightlint", ["lints"] + existing_python_files)
 
     if lint_all or "poetry.lock" in files_to_lint or "pyproject.toml" in files_to_lint:
         lr.run_bazel("//buildscripts:poetry_lock_check")
+
+    if _should_check_copybara_generated_evergreen(lint_all, files_to_lint):
+        lr.check_copybara_generated_evergreen(
+            fix=parsed_args.fix,
+            dry_run=parsed_args.dry_run,
+        )
 
     if lint_all or any(file.endswith(".yml") for file in files_to_lint):
         print("Linting evergreen yaml...")
@@ -714,9 +850,22 @@ def run_rules_lint(bazel_bin: str, args: list[str]):
     if lr.fail:
         raise LinterFail("Linter(s) failed")
 
-    # Default to linting everything in rules_lint if no path was passed in.
+    # Default to linting changed files in rules_lint if no path was passed in.
     if len([arg for arg in args if not arg.startswith("--")]) == 0:
-        args = ["//..."] + args
+        rules_lint_targets = _get_rules_lint_targets_for_changed_files(
+            bazel_bin,
+            files_to_lint,
+            files_with_targets,
+        )
+        if not rules_lint_targets:
+            print("No changed files with rules_lint owner targets; skipping rules_lint.")
+            return
+
+        print(
+            f"No explicit rules_lint target provided; running rules_lint on "
+            f"{len(rules_lint_targets)} owner target(s)."
+        )
+        args = rules_lint_targets + args
 
     fix = ""
     buildevents_fd, buildevents_path = tempfile.mkstemp()
@@ -804,17 +953,25 @@ def run_rules_lint(bazel_bin: str, args: list[str]):
             [bazel_bin, "build"] + fix_args, check=True, stdout=sys.stdout, stderr=sys.stderr
         )
 
+        applied_patch_contents: set[str] = set()
         for patch in _jq_files(".patch", fix_buildevents_path):
             if "coverage.dat" in patch or not os.path.exists(patch) or not os.path.getsize(patch):
                 continue
+            patch_contents = pathlib.Path(patch).read_text(encoding="utf-8")
+            if patch_contents in applied_patch_contents:
+                continue
+            applied_patch_contents.add(patch_contents)
+
             if fix == "print":
                 print(f"From {patch}:")
-                with open(patch, "r", encoding="utf-8") as f:
-                    print(f.read())
+                print(patch_contents)
                 print()
             elif fix == "patch":
                 subprocess.run(
-                    ["patch", "-p1"], check=True, stdin=open(patch, "r", encoding="utf-8")
+                    ["patch", "-p1"],
+                    check=True,
+                    input=patch_contents,
+                    text=True,
                 )
             else:
                 print(f"ERROR: unknown fix type {fix}", file=sys.stderr)

@@ -226,6 +226,9 @@ public:
 
     enum class MONGO_MOD_PUB TransactionActions { kNone, kStart, kContinue, kStartOrContinue };
 
+    // Forward-declare so that TxnResources::friend resolves to the sibling nested class.
+    class Participant;
+
     /**
      * Holds state for a snapshot read or multi-statement transaction in between network
      * operations.
@@ -282,6 +285,14 @@ public:
         void setNoEvictionAfterCommitOrRollback();
 
     private:
+        friend class Participant;  // For test-only constructor access.
+
+        // Test-only constructor that creates a minimal TxnResources with just a locker.
+        // The destructor is safe because _recoveryUnit will be null.
+        explicit TxnResources(std::unique_ptr<Locker> locker)
+            : _locker(std::move(locker)),
+              _ruState(WriteUnitOfWork::RecoveryUnitState::kNotInUnitOfWork) {}
+
         bool _released = false;
         std::unique_ptr<Locker> _locker;
         std::unique_ptr<Locker::LockSnapshot> _lockSnapshot;
@@ -413,6 +424,19 @@ public:
 
         bool hasIncompleteHistory() const {
             return o().hasIncompleteHistory;
+        }
+
+        /**
+         * Returns the LockerId of the stashed locker for this transaction, if one exists.
+         * A stashed locker exists when a transaction's resources have been stashed between
+         * operations (e.g. on a primary between client commands in a multi-document transaction).
+         * The stashed locker still holds its locks in the LockManager.
+         */
+        boost::optional<LockerId> getStashedLockerId() const {
+            if (o().txnResourceStash && o().txnResourceStash->locker()) {
+                return o().txnResourceStash->locker()->getId();
+            }
+            return boost::none;
         }
 
         /**
@@ -914,6 +938,13 @@ public:
 
         void transitionToInProgressForTest() {
             _tp->_o.txnState.transitionTo(TransactionState::kInProgress);
+        }
+
+        void stashActiveTransactionForTest(OperationContext* opCtx) {
+            ClientLock lk(opCtx->getClient());
+            auto locker = shard_role_details::swapLocker(
+                opCtx, std::make_unique<Locker>(opCtx->getServiceContext()), lk);
+            o(lk).txnResourceStash = TxnResources(std::move(locker));
         }
 
         void setTransactionExpiredDate(Date_t expire) {

@@ -50,6 +50,7 @@
 #include "mongo/db/pipeline/variables.h"
 #include "mongo/db/query/compiler/dependency_analysis/dependencies.h"
 #include "mongo/db/query/compiler/dependency_analysis/document_transformation.h"
+#include "mongo/db/query/compiler/logical_model/sort_pattern/sort_pattern.h"
 #include "mongo/db/query/query_shape/serialization_options.h"
 #include "mongo/stdx/unordered_set.h"
 #include "mongo/util/assert_util.h"
@@ -402,6 +403,15 @@ public:
     virtual BSONObj getQuery() const;
 
     /**
+     * Returns the sort pattern produced by this stage, or an empty SortPattern if this stage does
+     * not produce documents in a defined sort order. Subclasses that produce sorted output should
+     * override this method.
+     */
+    virtual SortPattern getSortPattern() const {
+        return SortPattern({});
+    }
+
+    /**
      * Utility which allows for accessing and computing a ShardId to act as a merger.
      */
     boost::optional<ShardId> getMergeShardId() const {
@@ -596,6 +606,15 @@ public:
         return nullptr;
     }
 
+    /**
+     * For stages that have sub-pipelines returns the ExpressionContext of the sub-pipeline.
+     * This is available even when the sub-pipeline is empty (has no stages). Returns nullptr
+     * for stages that do not have sub-pipelines.
+     */
+    virtual boost::intrusive_ptr<ExpressionContext> getSubpipelineExpCtx() const {
+        return nullptr;
+    }
+
     virtual void detachSourceFromOperationContext() {}
 
     virtual void reattachSourceToOperationContext(OperationContext* opCtx) {}
@@ -626,6 +645,7 @@ public:
 
 protected:
     DocumentSource(StringData stageName, const boost::intrusive_ptr<ExpressionContext>& pExpCtx);
+
 
     /**
      * Utility which describes when a stage needs to nominate a merging shard.

@@ -322,7 +322,7 @@ MONGO_STATIC_ASSERT(sizeof(ResourceId) == sizeof(uint64_t));
 #endif
 
 // Type to uniquely identify a given locker object
-typedef uint64_t LockerId;
+MONGO_MOD_PUBLIC typedef uint64_t LockerId;
 
 // Global lock. Every server operation, which uses the Locker must acquire this lock at least
 // once. See comments in the header file (begin/endTransaction) for more information.

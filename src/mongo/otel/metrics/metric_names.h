@@ -34,43 +34,51 @@
 MONGO_MOD_PUBLIC;
 
 namespace mongo {
-// Forward declaration needed for MetricName to declare the friend.
+// Forward declarations needed for MetricName to declare Passkey friends.
 namespace disagg {
-class MetricName;
+class MetricNameMaker;
 }
 namespace otel::metrics {
+class MetricNameMaker;
 
-/**
- * Wrapper class around a string to ensure `MetricName`s are only constructed in the class
- * definition of `MetricNames`.
- *
- * Note that this class is "open" only to enable defining module-specific metric names - see comment
- * in the "private" section.
- */
-class MONGO_MOD_OPEN MetricName {
+/** Helper to implement the passkey idiom. */
+template <typename T>
+class MONGO_MOD_PUBLIC Passkey {
+private:
+    friend T;
+    constexpr Passkey() = default;
+};
+
+/** Wrapper class around a string to ensure `MetricName`s are only constructed in certain places. */
+class MONGO_MOD_PUBLIC MetricName {
 public:
-    virtual ~MetricName() = default;
+    /**
+     * Note that this can only be constructed by code allowed to access the passkey. N&O must have
+     * ownership of the files defining and instantiating the Passkey types. Additional Passkey types
+     * are meant to facilitate cases where the metric names should not be visible outside some
+     * module, in order to prevent leaking information related to that module.
+     */
+    constexpr MetricName(StringData name, Passkey<MetricNameMaker>) : _name(name) {}
+    constexpr MetricName(StringData name, Passkey<disagg::MetricNameMaker>) : _name(name) {}
 
     constexpr StringData getName() const {
         return _name;
-    };
+    }
 
-    bool operator==(const MetricName& other) const {
+    constexpr bool operator==(const MetricName& other) const {
         return getName() == other.getName();
     }
 
 private:
-    MONGO_MOD_PUBLIC explicit(false) constexpr MetricName(StringData name) : _name(name){};
-    friend class MetricNames;
-    /**
-     * Module-specific metric names classes. N&O must have ownership of the files defining and
-     * instantiating these classes. These classes are only allowed to use the private constructor.
-     * This is only meant to facilitate cases where the metric names should not be visible outside
-     * the module, in order to prevent leaking information related to that module.
-     */
-    friend class mongo::disagg::MetricName;
-
     StringData _name;
+};
+
+/** Helper to create MetricName instances. */
+class MONGO_MOD_FILE_PRIVATE MetricNameMaker {
+public:
+    static constexpr MetricName make(StringData name) {
+        return MetricName(name, Passkey<MetricNameMaker>{});
+    }
 };
 
 /**
@@ -85,108 +93,123 @@ private:
 class MetricNames {
 public:
     // Networking & Observability Team Metrics
-    static constexpr MetricName kPrometheusFileExporterWrites = {
-        "metrics.prometheus_file_exporter.writes"};
-    static constexpr MetricName kPrometheusFileExporterWritesFailed = {
-        "metrics.prometheus_file_exporter.failed_writes"};
-    static constexpr MetricName kPrometheusFileExporterWritesSkipped = {
-        "metrics.prometheus_file_exporter.skipped_writes"};
-    static constexpr MetricName kConnectionsProcessed = {"network.connections_processed"};
-    static constexpr MetricName kIngressTLSHandshakeLatency = {
-        "network.ingress_tls_handshake_latency"};
-    static constexpr MetricName kOpenConnections = {"network.open_ingress_connections"};
+    static constexpr MetricName kPrometheusFileExporterWrites =
+        MetricNameMaker::make("metrics.prometheus_file_exporter.writes");
+    static constexpr MetricName kPrometheusFileExporterWritesFailed =
+        MetricNameMaker::make("metrics.prometheus_file_exporter.failed_writes");
+    static constexpr MetricName kPrometheusFileExporterWritesSkipped =
+        MetricNameMaker::make("metrics.prometheus_file_exporter.skipped_writes");
+    static constexpr MetricName kConnectionsProcessed =
+        MetricNameMaker::make("network.connections_processed");
+    static constexpr MetricName kIngressTLSHandshakeLatency =
+        MetricNameMaker::make("network.ingress_tls_handshake_latency");
+    static constexpr MetricName kOpenConnections =
+        MetricNameMaker::make("network.open_ingress_connections");
 
     // Query Execution Team Metrics
-    static constexpr MetricName kChangeStreamCursorsTotalOpened = {
-        "change_streams.cursor.total_opened"};
-    static constexpr MetricName kChangeStreamCursorsLifespan = {"change_streams.cursor.lifespan"};
-    static constexpr MetricName kChangeStreamCursorsOpenTotal = {
-        "change_streams.cursor.open.total"};
-    static constexpr MetricName kChangeStreamCursorsOpenPinned = {
-        "change_streams.cursor.open.pinned"};
+    static constexpr MetricName kChangeStreamCursorsTotalOpened =
+        MetricNameMaker::make("change_streams.cursor.total_opened");
+    static constexpr MetricName kChangeStreamCursorsLifespan =
+        MetricNameMaker::make("change_streams.cursor.lifespan");
+    static constexpr MetricName kChangeStreamCursorsOpenTotal =
+        MetricNameMaker::make("change_streams.cursor.open.total");
+    static constexpr MetricName kChangeStreamCursorsOpenPinned =
+        MetricNameMaker::make("change_streams.cursor.open.pinned");
 
     // Storage Execution Team Metrics
-    static constexpr MetricName kIndexBuildsActive = {"index_builds.active"};
-    static constexpr MetricName kIndexBuildsStarted = {"index_builds.started"};
-    static constexpr MetricName kIndexBuildsSucceeded = {"index_builds.succeeded"};
-    static constexpr MetricName kIndexBuildsFailed = {"index_builds.failed"};
-    static constexpr MetricName kIndexBuildSideWritesInserted = {
-        "index_builds.side_writes.inserted"};
-    static constexpr MetricName kIndexBuildSideWritesDeleted = {"index_builds.side_writes.deleted"};
-    static constexpr MetricName kIndexBuildSideWritesDrained = {"index_builds.side_writes.drained"};
-    static constexpr MetricName kIndexBuildSideWritesDrainDuration = {
-        "index_builds.side_writes.drain_duration"};
-    static constexpr MetricName kIndexBuildSideWritesDrainBytes = {
-        "index_builds.side_writes.drain_bytes"};
-    static constexpr MetricName kIndexBuildSideWritesDrainYields = {
-        "index_builds.side_writes.drain_yields"};
-    static constexpr MetricName kReplicatedFastCountIsRunning = {
-        "replicated_fast_count.is_running"};
-    static constexpr MetricName kReplicatedFastCountFlushSuccessCount = {
-        "replicated_fast_count.flush.success_count"};
-    static constexpr MetricName kReplicatedFastCountFlushFailureCount = {
-        "replicated_fast_count.flush.failure_count"};
-    static constexpr MetricName kReplicatedFastCountFlushTimeMsMin = {
-        "replicated_fast_count.flush_time.min"};
-    static constexpr MetricName kReplicatedFastCountFlushTimeMsMax = {
-        "replicated_fast_count.flush_time.max"};
-    static constexpr MetricName kReplicatedFastCountFlushTimeMsTotal = {
-        "replicated_fast_count.flush_time.total"};
-    static constexpr MetricName kReplicatedFastCountFlushedDocsMin = {
-        "replicated_fast_count.flushed_docs.min"};
-    static constexpr MetricName kReplicatedFastCountFlushedDocsMax = {
-        "replicated_fast_count.flushed_docs.max"};
-    static constexpr MetricName kReplicatedFastCountFlushedDocsTotal = {
-        "replicated_fast_count.flushed_docs.total"};
-    static constexpr MetricName kReplicatedFastCountInsertCount = {
-        "replicated_fast_count.insert_count"};
-    static constexpr MetricName kReplicatedFastCountUpdateCount = {
-        "replicated_fast_count.update_count"};
-    static constexpr MetricName kReplicatedFastCountWriteTimeMsTotal = {
-        "replicated_fast_count.write_time.total"};
-    static constexpr MetricName kReplicatedFastCountCheckpointOplogEntriesProcessed = {
-        "replicated_fast_count.checkpoint.oplog_entries_processed"};
-    static constexpr MetricName kReplicatedFastCountCheckpointOplogEntriesSkipped = {
-        "replicated_fast_count.checkpoint.oplog_entries_skipped"};
-    static constexpr MetricName kReplicatedFastCountCheckpointSizeCountEntriesProcessed = {
-        "replicated_fast_count.checkpoint.size_count_entries_processed"};
+    static constexpr MetricName kIndexBuildsActive = MetricNameMaker::make("index_builds.active");
+    static constexpr MetricName kIndexBuildsStarted = MetricNameMaker::make("index_builds.started");
+    static constexpr MetricName kIndexBuildsSucceeded =
+        MetricNameMaker::make("index_builds.succeeded");
+    static constexpr MetricName kIndexBuildsFailed = MetricNameMaker::make("index_builds.failed");
+    static constexpr MetricName kIndexBuildSideWritesInserted =
+        MetricNameMaker::make("index_builds.side_writes.inserted");
+    static constexpr MetricName kIndexBuildSideWritesDeleted =
+        MetricNameMaker::make("index_builds.side_writes.deleted");
+    static constexpr MetricName kIndexBuildSideWritesDrained =
+        MetricNameMaker::make("index_builds.side_writes.drained");
+    static constexpr MetricName kIndexBuildSideWritesDrainDuration =
+        MetricNameMaker::make("index_builds.side_writes.drain_duration");
+    static constexpr MetricName kIndexBuildSideWritesDrainBytes =
+        MetricNameMaker::make("index_builds.side_writes.drain_bytes");
+    static constexpr MetricName kIndexBuildSideWritesDrainYields =
+        MetricNameMaker::make("index_builds.side_writes.drain_yields");
+    static constexpr MetricName kReplicatedFastCountIsRunning =
+        MetricNameMaker::make("replicated_fast_count.is_running");
+    static constexpr MetricName kReplicatedFastCountFlushSuccessCount =
+        MetricNameMaker::make("replicated_fast_count.flush.success_count");
+    static constexpr MetricName kReplicatedFastCountFlushFailureCount =
+        MetricNameMaker::make("replicated_fast_count.flush.failure_count");
+    static constexpr MetricName kReplicatedFastCountFlushTimeMsMin =
+        MetricNameMaker::make("replicated_fast_count.flush_time.min");
+    static constexpr MetricName kReplicatedFastCountFlushTimeMsMax =
+        MetricNameMaker::make("replicated_fast_count.flush_time.max");
+    static constexpr MetricName kReplicatedFastCountFlushTimeMsTotal =
+        MetricNameMaker::make("replicated_fast_count.flush_time.total");
+    static constexpr MetricName kReplicatedFastCountFlushedDocsMin =
+        MetricNameMaker::make("replicated_fast_count.flushed_docs.min");
+    static constexpr MetricName kReplicatedFastCountFlushedDocsMax =
+        MetricNameMaker::make("replicated_fast_count.flushed_docs.max");
+    static constexpr MetricName kReplicatedFastCountFlushedDocsTotal =
+        MetricNameMaker::make("replicated_fast_count.flushed_docs.total");
+    static constexpr MetricName kReplicatedFastCountInsertCount =
+        MetricNameMaker::make("replicated_fast_count.insert_count");
+    static constexpr MetricName kReplicatedFastCountUpdateCount =
+        MetricNameMaker::make("replicated_fast_count.update_count");
+    static constexpr MetricName kReplicatedFastCountWriteTimeMsTotal =
+        MetricNameMaker::make("replicated_fast_count.write_time.total");
+    static constexpr MetricName kReplicatedFastCountCheckpointOplogEntriesProcessed =
+        MetricNameMaker::make("replicated_fast_count.checkpoint.oplog_entries_processed");
+    static constexpr MetricName kReplicatedFastCountCheckpointOplogEntriesSkipped =
+        MetricNameMaker::make("replicated_fast_count.checkpoint.oplog_entries_skipped");
+    static constexpr MetricName kReplicatedFastCountCheckpointSizeCountEntriesProcessed =
+        MetricNameMaker::make("replicated_fast_count.checkpoint.size_count_entries_processed");
+    static constexpr MetricName kReplicatedFastCountOplogLagSecs =
+        MetricNameMaker::make("replicated_fast_count.oplog_lag_secs");
 
-    static constexpr MetricName kIndexBuildKeysInsertedFromScan = {
-        "index_builds.keys_inserted_from_scan"};
-    static constexpr MetricName kIndexBuildDocsScanned = {"index_builds.docs_scanned"};
-    static constexpr MetricName kIndexBuildKeysGeneratedFromScan = {
-        "index_builds.keys_generated_from_scan"};
+    static constexpr MetricName kIndexBuildKeysInsertedFromScan =
+        MetricNameMaker::make("index_builds.keys_inserted_from_scan");
+    static constexpr MetricName kIndexBuildDocsScanned =
+        MetricNameMaker::make("index_builds.docs_scanned");
+    static constexpr MetricName kIndexBuildKeysGeneratedFromScan =
+        MetricNameMaker::make("index_builds.keys_generated_from_scan");
 
     // Replication Team Metrics
-    static constexpr MetricName kOplogApplyBytes = {"oplog.apply.bytes"};
+    static constexpr MetricName kOplogApplyBytes = MetricNameMaker::make("oplog.apply.bytes");
 
     // Query Integration Team Metrics
 
     // Op Counters
-    static constexpr MetricName kInsertOpCount = {"opcounters.inserts"};
-    static constexpr MetricName kQueryOpCount = {"opcounters.queries"};
-    static constexpr MetricName kUpdateOpCount = {"opcounters.updates"};
-    static constexpr MetricName kDeleteOpCount = {"opcounters.deletes"};
-    static constexpr MetricName kGetMoreOpCount = {"opcounters.get_mores"};
-    static constexpr MetricName kCommandOpCount = {"opcounters.commands"};
+    static constexpr MetricName kInsertOpCount = MetricNameMaker::make("opcounters.inserts");
+    static constexpr MetricName kQueryOpCount = MetricNameMaker::make("opcounters.queries");
+    static constexpr MetricName kUpdateOpCount = MetricNameMaker::make("opcounters.updates");
+    static constexpr MetricName kDeleteOpCount = MetricNameMaker::make("opcounters.deletes");
+    static constexpr MetricName kGetMoreOpCount = MetricNameMaker::make("opcounters.get_mores");
+    static constexpr MetricName kCommandOpCount = MetricNameMaker::make("opcounters.commands");
     // New in SERVER-123987 - Counts every top-level 'aggregate' command.
-    static constexpr MetricName kAggregateOpCount = {"opcounters.aggregates"};
+    static constexpr MetricName kAggregateOpCount = MetricNameMaker::make("opcounters.aggregates");
 
     // Test-only
-    static constexpr MetricName kTest1 = {"test_only.metric1"};
-    static constexpr MetricName kTest2 = {"test_only.metric2"};
-    static constexpr MetricName kTest3 = {"test_only.metric3"};
-    static constexpr MetricName kTest4 = {"test_only.metric4"};
-    static constexpr MetricName kTest5 = {"test_only.metric5"};
-    static constexpr MetricName kTest6 = {"test_only.metric6"};
-    static constexpr MetricName kTestShardMergeNone = {"test_only.shard_merge_none"};
-    static constexpr MetricName kTestShardMergeShard = {"test_only.shard_merge_shard"};
-    static constexpr MetricName kTestShardMergeRouter = {"test_only.shard_merge_router"};
-    static constexpr MetricName kTestRouterMergeNone = {"test_only.router_merge_none"};
-    static constexpr MetricName kTestRouterMergeShard = {"test_only.router_merge_shard"};
-    static constexpr MetricName kTestRouterMergeRouter = {"test_only.router_merge_router"};
+    static constexpr MetricName kTest1 = MetricNameMaker::make("test_only.metric1");
+    static constexpr MetricName kTest2 = MetricNameMaker::make("test_only.metric2");
+    static constexpr MetricName kTest3 = MetricNameMaker::make("test_only.metric3");
+    static constexpr MetricName kTest4 = MetricNameMaker::make("test_only.metric4");
+    static constexpr MetricName kTest5 = MetricNameMaker::make("test_only.metric5");
+    static constexpr MetricName kTest6 = MetricNameMaker::make("test_only.metric6");
+    static constexpr MetricName kTestShardMergeNone =
+        MetricNameMaker::make("test_only.shard_merge_none");
+    static constexpr MetricName kTestShardMergeShard =
+        MetricNameMaker::make("test_only.shard_merge_shard");
+    static constexpr MetricName kTestShardMergeRouter =
+        MetricNameMaker::make("test_only.shard_merge_router");
+    static constexpr MetricName kTestRouterMergeNone =
+        MetricNameMaker::make("test_only.router_merge_none");
+    static constexpr MetricName kTestRouterMergeShard =
+        MetricNameMaker::make("test_only.router_merge_shard");
+    static constexpr MetricName kTestRouterMergeRouter =
+        MetricNameMaker::make("test_only.router_merge_router");
     // camelCase is not allowed.
-    static constexpr MetricName kTestInvalid = {"test_only.Metric"};
+    static constexpr MetricName kTestInvalid = MetricNameMaker::make("test_only.Metric");
 };
 
 }  // namespace otel::metrics

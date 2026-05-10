@@ -37,7 +37,8 @@ const TEST_COLL = "test_coll_fsm";
 const TEST_COLL_2 = "test_coll_fsm_2";
 
 // Random seed for the entire test run, logged for reproducibility.
-const TEST_SEED = Date.now();
+// Override with `--shellSeed=<n>` (resmoke) to reproduce a previous run.
+const TEST_SEED = typeof TestData !== "undefined" && Number.isFinite(TestData.seed) ? TestData.seed : Date.now();
 
 /**
  * Operation types to filter out before comparison.
@@ -70,6 +71,12 @@ function getCurrentClusterTime(conn, dbName) {
  * @returns {ShardingTest} The configured sharding test
  */
 function createShardingTest(mongos = 1, shards = 3, rsNodes = 1, configShard = false) {
+    const isMultiversion =
+        Boolean(jsTest.options().useRandomBinVersionsWithinReplicaSet) || Boolean(TestData.multiversionBinVersion);
+    // TODO (SERVER-125025): remove the failpoint.
+    const failpointSetParameter = isMultiversion
+        ? {}
+        : {"failpoint.useInMemoryReplicatedSizeCount": tojson({mode: "alwaysOn"})};
     const stOptions = {
         shards: shards,
         mongos: mongos,
@@ -79,8 +86,7 @@ function createShardingTest(mongos = 1, shards = 3, rsNodes = 1, configShard = f
             setParameter: {
                 writePeriodicNoops: true,
                 periodicNoopIntervalSecs: 1,
-                // TODO (SERVER-125025): remove the failpoint.
-                "failpoint.useInMemoryReplicatedSizeCount": tojson({mode: "alwaysOn"}),
+                ...failpointSetParameter,
             },
         },
         other: {
@@ -97,6 +103,18 @@ function createShardingTest(mongos = 1, shards = 3, rsNodes = 1, configShard = f
         stOptions.config = 1;
     }
     return new ShardingTest(stOptions);
+}
+
+/**
+ * Build expected events with cursor metadata from a command sequence.
+ * @param {Array<Command>} commands - Command objects
+ * @param {number} watchMode - ChangeStreamWatchMode
+ * @returns {Array<{event: Object, cursorClosed: boolean}>}
+ */
+function buildExpectedEvents(commands, watchMode) {
+    return commands
+        .flatMap((cmd) => cmd.getChangeEvents(watchMode))
+        .map((e) => ({event: e, cursorClosed: e.operationType === "invalidate"}));
 }
 
 /**
@@ -130,7 +148,7 @@ function computeExpectedEvents(commands, watchMode) {
         .map((e) => ({event: e, cursorClosed: e.operationType === "invalidate"}));
 }
 
-function buildCommandTrace(commands) {
+function buildCommandTrace(commands, source) {
     return commands.map((cmd, i) => {
         const shardIds = Array.isArray(cmd.shardSet) ? cmd.shardSet.map((s) => s._id) : [];
         return {
@@ -141,8 +159,13 @@ function buildCommandTrace(commands) {
             shardSet: shardIds,
             primaryShard: cmd.primaryShard ? cmd.primaryShard._id : null,
             targetShardKey: cmd.targetShardKey ?? null,
+            source,
         };
     });
+}
+
+function buildAggregatedCommandTrace(writers) {
+    return writers.flatMap((w) => buildCommandTrace(w.commands, `${w.dbName}.${w.collName}`));
 }
 
 /**
@@ -184,7 +207,7 @@ function buildReaderSpecs(commandsByWriter, startTime, batchSize, watchMode) {
                         dbName: w.dbName,
                         collName: w.collName,
                         numberOfEventsToRead: events.length,
-                        debugCommandTrace: buildCommandTrace(w.commands),
+                        debugCommandTrace: buildCommandTrace(w.commands, `${w.dbName}.${w.collName}`),
                     },
                 };
             });
@@ -206,6 +229,7 @@ function buildReaderSpecs(commandsByWriter, startTime, batchSize, watchMode) {
                         dbName,
                         collName: writers[0].collName,
                         numberOfEventsToRead: eventCount,
+                        debugCommandTrace: buildAggregatedCommandTrace(writers),
                     },
                 };
             });
@@ -224,6 +248,7 @@ function buildReaderSpecs(commandsByWriter, startTime, batchSize, watchMode) {
                         dbName: "admin",
                         collName: null,
                         numberOfEventsToRead: eventCount,
+                        debugCommandTrace: buildAggregatedCommandTrace(commandsByWriter),
                     },
                 },
             ];
@@ -244,7 +269,7 @@ function ensureDatabasesExist(writerDefs, mongos, fsmShards) {
         if (startState !== State.DATABASE_ABSENT && !createdDbs.has(w.dbName)) {
             createdDbs.add(w.dbName);
             mongos.getDB(w.dbName).dropDatabase();
-            new CreateDatabaseCommand(w.dbName, w.collName, fsmShards).execute(mongos);
+            new CreateDatabaseCommand({dbName: w.dbName, shardSet: fsmShards}).execute(mongos);
         }
     }
 }
@@ -661,9 +686,13 @@ export {
     TEST_COLL_2,
     TEST_SEED,
     kExcludedOperationTypes,
+    buildExpectedEvents,
+    createMatcher,
     createShardingTest,
+    getCurrentClusterTime,
     setupFsmCluster,
     resolveWatchConfig,
+    runTeardownSteps,
     BackgroundMutatorOpType,
     verifyContinuous,
     verifyResume,

@@ -91,6 +91,7 @@ mongo_cc_library(
         "document_source_current_op_gen",
         "document_source_densify_gen",
         "document_source_fill_gen",
+        "document_source_graph_lookup_gen",
         "document_source_hybrid_scoring_input_util.cpp",
         "document_source_internal_apply_oplog_update_gen",
         "document_source_internal_projection_gen",
@@ -428,6 +429,10 @@ mongo_cc_library(
         "group_processor.cpp",
         "group_processor_base.cpp",
         "hybrid_search_pipeline_builder.cpp",
+        "lite_parsed_graph_lookup.cpp",
+        "lite_parsed_lookup.cpp",
+        "lite_parsed_rank_fusion.cpp",
+        "lite_parsed_score_fusion.cpp",
         "lite_parsed_union_with.cpp",
         "match_processor.cpp",
         "merge_processor.cpp",
@@ -683,6 +688,14 @@ idl_generator(
     src = "document_source_fill.idl",
     deps = [
         ":value_gen",
+        "//src/mongo/db:basic_types_gen",
+    ],
+)
+
+idl_generator(
+    name = "document_source_graph_lookup_gen",
+    src = "document_source_graph_lookup.idl",
+    deps = [
         "//src/mongo/db:basic_types_gen",
     ],
 )
@@ -1085,6 +1098,7 @@ mongo_cc_library(
         ":document_source_internal_apply_oplog_update",
         ":pipeline",
         ":pipeline_visitor",
+        "//src/mongo/db/extension/host:extension_host",
     ],
 )
 
@@ -1382,6 +1396,9 @@ mongo_cc_unit_test(
         "document_source_test.cpp",
         "document_source_union_with_test.cpp",
         "document_source_unwind_test.cpp",
+        "lite_parsed_lookup_test.cpp",
+        "lite_parsed_rank_fusion_test.cpp",
+        "lite_parsed_score_fusion_test.cpp",
         "serverless_aggregation_context_fixture.cpp",
         "//src/mongo/db/pipeline:document_source_coll_stats_test.cpp",
         "//src/mongo/db/pipeline:document_source_internal_all_collection_stats_test.cpp",

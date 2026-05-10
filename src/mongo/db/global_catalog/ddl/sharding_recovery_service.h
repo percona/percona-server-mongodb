@@ -37,6 +37,7 @@
 #include "mongo/db/write_concern_options.h"
 #include "mongo/util/modules.h"
 
+#include <functional>
 #include <set>
 #include <string>
 
@@ -94,6 +95,13 @@ public:
     static ShardingRecoveryService* get(OperationContext* opCtx);
 
     /**
+     * Callback type invoked at critical section lock acquisition if there is lock contention.
+     * This allows callers to perform actions (e.g. killing unprepared transactions) while the lock
+     * request is in the queue.
+     */
+    using CriticalSectionLockContendAction = std::function<void(OperationContext*)>;
+
+    /**
      * Acquires the recoverable critical section in the catch-up phase (i.e. blocking writes) for
      * the specified namespace and reason. It works even if the namespace's current metadata are
      * UNKNOWN.
@@ -121,7 +129,8 @@ public:
         const WriteConcernOptions& writeConcern,
         bool clearDbMetadata = true,
         bool clearCollMetadata = true,
-        boost::optional<Milliseconds> lockAcquisitionTimeout = boost::none);
+        boost::optional<Milliseconds> lockAcquisitionTimeout = boost::none,
+        const CriticalSectionLockContendAction& criticalSectionLockContendAction = nullptr);
 
     /**
      * Advances the recoverable critical section from the catch-up phase (i.e. blocking writes) to

@@ -1822,7 +1822,9 @@ StatusWith<PlanRankingResult> QueryPlanner::planWithCostBasedRanking(
                 // For now, we pick one and put the other in rejected plans.
                 rejectedSoln.push_back(std::move(soln));
 
-                numPlansTiedCostEstimation.increment();
+                if (curCost == bestCost) {
+                    numPlansTiedCostEstimation.increment();
+                }
             }
         }
     }
@@ -1988,7 +1990,7 @@ std::unique_ptr<QuerySolution> QueryPlanner::extendWithAggPipeline(
         auto sortStage = dynamic_cast<DocumentSourceSort*>(innerStage);
         if (sortStage) {
             auto pattern =
-                sortStage->getSortKeyPattern()
+                sortStage->getSortPattern()
                     .serialize(SortPattern::SortKeySerialization::kForPipelineSerialization)
                     .toBson();
             auto limit = sortStage->getLimit().get_value_or(0);

@@ -36,7 +36,7 @@ import {removeShard} from "jstests/sharding/libs/remove_shard_util.js";
  * The command auto-generates a unique _id and knows which change events it produces.
  */
 function makeInsertCmd(dbName, collName) {
-    return new InsertDocCommand(dbName, collName, /* shardSet */ null, /* collectionCtx */ {exists: true});
+    return new InsertDocCommand({dbName, collName, collectionCtx: {exists: true}});
 }
 
 /**

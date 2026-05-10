@@ -7,7 +7,7 @@ import {ChangeStreamWatchMode} from "jstests/libs/query/change_stream_util.js";
  */
 export class CreateTimeseriesCollectionCommand extends Command {
     constructor({dbName, collName, timeField, metaField}) {
-        super(dbName, collName, /* shardSet */ null, /* collectionCtx */ {});
+        super({dbName, collName});
         this.timeField = timeField;
         this.metaField = metaField;
     }
@@ -81,7 +81,7 @@ export class TimeseriesInsertCommand extends Command {
      *     If true, this event is only visible when ctx.rawData === true.
      */
     constructor({insertNss, eventNss, insertDoc, expectedFullDocument, requiresRawData = false}) {
-        super(insertNss.db, insertNss.coll, /* shardSet */ null, /* collectionCtx */ {});
+        super({dbName: insertNss.db, collName: insertNss.coll});
         this.insertNss = insertNss;
         this.eventNss = eventNss;
         this.insertDoc = insertDoc;
@@ -139,7 +139,7 @@ export class TimeseriesInsertCommand extends Command {
 
 export class FCVUpgradeCommand extends Command {
     constructor({timeseriesCollections} = {}) {
-        super(/* dbName */ null, /* collName */ null, /* shardSet */ null, /* collectionCtx */ {});
+        super();
         this.timeseriesCollections = timeseriesCollections;
     }
 
@@ -185,7 +185,7 @@ export class FCVUpgradeCommand extends Command {
 
 export class FCVDowngradeCommand extends Command {
     constructor({timeseriesCollections, targetFCV} = {}) {
-        super(/* dbName */ null, /* collName */ null, /* shardSet */ null, /* collectionCtx */ {});
+        super();
         this.timeseriesCollections = timeseriesCollections;
         this.targetFCV = targetFCV;
     }

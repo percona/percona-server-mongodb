@@ -138,6 +138,18 @@ public:
      */
     std::vector<LockDebugInfo> getLockInfoFromResourceHolders(ResourceId resId);
 
+    /**
+     * Returns the LockerId of every granted lock request on 'resId' whose mode conflicts with
+     * the given 'mode'. This is useful for identifying which lockers are blocking a pending
+     * lock request.
+     *
+     * Note: This should only be called after partitioned lock heads have been migrated for the
+     * given resource (e.g., after lockBegin with a non-intent mode), otherwise intent-mode
+     * holders on partitions will not be visible. For this reason, the mode is limited to non-intent
+     * types.
+     */
+    std::vector<LockerId> getConflictingLockerIds(ResourceId resId, LockMode mode);
+
 private:
     // The lockheads need access to the partitions
     friend struct LockHead;

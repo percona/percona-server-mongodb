@@ -67,13 +67,17 @@ function getDbPrimary(connection, dbName) {
 
 /**
  * Base command class.
+ *
+ * All Command subclasses take a single options object so callers always pass
+ * named fields. This avoids positional-arg bugs (e.g. silently dropping
+ * primaryShard by passing it where collectionCtx is expected).
  */
 class Command {
-    constructor(dbName, collName, shardSet, collectionCtx = {}) {
+    constructor({dbName = null, collName = null, shardSet = null, collectionCtx = null} = {}) {
         this.dbName = dbName;
         this.collName = collName;
         this.shardSet = shardSet;
-        this.collectionCtx = collectionCtx;
+        this.collectionCtx = collectionCtx ?? {};
     }
 
     /**
@@ -151,8 +155,8 @@ class InsertDocCommand extends Command {
         }
     }
 
-    constructor(dbName, collName, shardSet, collectionCtx, documents = null) {
-        super(dbName, collName, shardSet, collectionCtx);
+    constructor({dbName, collName, collectionCtx, documents = null}) {
+        super({dbName, collName, collectionCtx});
         if (documents) {
             this.documents = documents;
         } else {
@@ -209,20 +213,24 @@ class InsertDocCommand extends Command {
 /**
  * Create database command.
  *
- * Does not pin a primary shard — the server picks one automatically.
+ * Takes an options object to avoid positional-arg confusion (in particular,
+ * silently dropping primaryShard by passing it where collectionCtx is expected).
+ *
+ * If primaryShard is omitted, one is picked at random from shardSet using the
+ * seeded PRNG. Caller must provide either primaryShard or a non-empty shardSet.
  */
 class CreateDatabaseCommand extends Command {
-    constructor(dbName, collName, shardSet, collectionCtx, primaryShard = null) {
-        super(dbName, collName, shardSet, collectionCtx);
-        this.primaryShard = primaryShard;
+    constructor({dbName, shardSet = null, primaryShard = null}) {
+        super({dbName, shardSet});
+        assert(
+            primaryShard || (shardSet && shardSet.length),
+            "CreateDatabaseCommand requires primaryShard or a non-empty shardSet",
+        );
+        this.primaryShard = primaryShard || shardSet[Random.randInt(shardSet.length)]._id;
     }
 
     execute(connection) {
-        const cmd = {enableSharding: this.dbName};
-        if (this.primaryShard) {
-            cmd.primaryShard = this.primaryShard;
-        }
-        assert.commandWorked(connection.adminCommand(cmd));
+        assert.commandWorked(connection.adminCommand({enableSharding: this.dbName, primaryShard: this.primaryShard}));
     }
 
     toString() {
@@ -237,22 +245,21 @@ class CreateDatabaseCommand extends Command {
 
 /**
  * Create unsplittable collection command.
- * TODO SERVER-121676: Pins to the DB primary shard to avoid v2 shard-targeting
- * issues on resume. Once fixed, this can target a random shard again.
+ * If dataShard is omitted, one is picked at random from shardSet using the
+ * seeded PRNG.
  */
 class CreateUnsplittableCollectionCommand extends Command {
-    constructor(dbName, collName, shardSet, collectionCtx, dataShard = null) {
-        super(dbName, collName, shardSet, collectionCtx);
-        this.dataShard = dataShard;
+    constructor({dbName, collName, shardSet, collectionCtx, dataShard = null}) {
+        super({dbName, collName, shardSet, collectionCtx});
+        this.dataShard = dataShard ?? (shardSet?.length ? shardSet[Random.randInt(shardSet.length)]._id : null);
     }
 
     execute(connection) {
-        const dataShard = this.dataShard ?? getDbPrimary(connection, this.dbName);
         const db = connection.getDB(this.dbName);
         assert.commandWorked(
             db.runCommand({
                 createUnsplittableCollection: this.collName,
-                dataShard,
+                dataShard: this.dataShard,
             }),
         );
     }
@@ -268,8 +275,16 @@ class CreateUnsplittableCollectionCommand extends Command {
 
 /**
  * Create untracked collection command.
+ *
+ * collectionCtx defaults to {exists: false} since this command is by definition used to
+ * bring a collection into existence — that's the value callers would otherwise have to
+ * pass in every call site.
  */
 class CreateUntrackedCollectionCommand extends Command {
+    constructor({dbName, collName, collectionCtx = {exists: false}} = {}) {
+        super({dbName, collName, collectionCtx});
+    }
+
     execute(connection) {
         assert.commandWorked(connection.getDB(this.dbName).createCollection(this.collName));
     }
@@ -298,8 +313,10 @@ class CreateUntrackedCollectionCommand extends Command {
  * This was verified empirically through testing.
  */
 class DropCollectionCommand extends Command {
-    constructor(dbName, collName, shardSet, collectionCtx) {
-        super(dbName, collName, shardSet, collectionCtx);
+    // Default to {exists: true}: the common case is dropping an existing collection,
+    // so callers shouldn't have to spell that out at every call site.
+    constructor({dbName, collName, shardSet, collectionCtx = {exists: true}}) {
+        super({dbName, collName, shardSet, collectionCtx});
     }
 
     execute(connection) {
@@ -345,10 +362,6 @@ class DropCollectionCommand extends Command {
  * This means we only emit the 'dropDatabase' event, not individual 'drop' events.
  */
 class DropDatabaseCommand extends Command {
-    constructor(dbName, collName, shardSet, collectionCtx) {
-        super(dbName, collName, shardSet, collectionCtx);
-    }
-
     execute(connection) {
         assert.commandWorked(connection.getDB(this.dbName).dropDatabase());
     }
@@ -504,11 +517,10 @@ class CreateIndexCommand extends Command {
      * @param {string} dbName - Database name.
      * @param {string} collName - Collection name.
      * @param {Array} shardSet - Array of shard objects.
-     * @param {Object} collectionCtx - Collection state (shardKeySpec = current shard key).
      * @param {Object} indexSpec - The index specification to create.
      */
-    constructor(dbName, collName, shardSet, collectionCtx, indexSpec) {
-        super(dbName, collName, shardSet, collectionCtx);
+    constructor({dbName, collName, shardSet, indexSpec}) {
+        super({dbName, collName, shardSet});
         assert(indexSpec, "indexSpec must be provided to CreateIndexCommand");
         this.indexSpec = indexSpec;
     }
@@ -544,11 +556,10 @@ class DropIndexCommand extends Command {
      * @param {string} dbName - Database name.
      * @param {string} collName - Collection name.
      * @param {Array} shardSet - Array of shard objects.
-     * @param {Object} collectionCtx - Collection state (shardKeySpec = current shard key).
      * @param {Object} indexSpec - The index specification to drop.
      */
-    constructor(dbName, collName, shardSet, collectionCtx, indexSpec) {
-        super(dbName, collName, shardSet, collectionCtx);
+    constructor({dbName, collName, shardSet, indexSpec}) {
+        super({dbName, collName, shardSet});
         assert(indexSpec, "indexSpec must be provided to DropIndexCommand");
         this.indexSpec = indexSpec;
     }
@@ -592,8 +603,8 @@ class ShardCollectionCommand extends Command {
      * @param {Object} collectionCtx - Collection state.
      * @param {Object} shardKey - The shard key to use for sharding.
      */
-    constructor(dbName, collName, shardSet, collectionCtx, shardKey) {
-        super(dbName, collName, shardSet, collectionCtx);
+    constructor({dbName, collName, shardSet, collectionCtx, shardKey}) {
+        super({dbName, collName, shardSet, collectionCtx});
         assert(shardKey, "shardKey must be provided to ShardCollectionCommand");
         this.shardKey = shardKey;
     }
@@ -642,8 +653,6 @@ class ShardCollectionCommand extends Command {
 /**
  * Unshard collection command.
  * Converts a sharded collection to an unsplittable (single-shard) collection.
- * TODO SERVER-121676: Pins to the DB primary shard to avoid v2 shard-targeting
- * issues on resume. Once fixed, this can target a random shard again.
  *
  * CHANGE STREAM EVENT BEHAVIOR:
  * ============================
@@ -662,10 +671,6 @@ class ShardCollectionCommand extends Command {
  * Precondition (guaranteed by FSM): collection exists and is sharded.
  */
 class UnshardCollectionCommand extends Command {
-    constructor(dbName, collName, shardSet, collectionCtx) {
-        super(dbName, collName, shardSet, collectionCtx);
-    }
-
     execute(connection) {
         const dbDoc = connection.getDB("config").databases.findOne({_id: this.dbName});
         assert(dbDoc, `${this}: database ${this.dbName} not in config.databases`);
@@ -720,19 +725,19 @@ class ReshardCollectionCommand extends Command {
      * @param {string} collName - Collection name.
      * @param {Array} shardSet - Array of shard objects.
      * @param {Object} collectionCtx - Collection state.
-     * @param {Object} newShardKey - The new shard key to reshard to.
+     * @param {Object} shardKey - The new shard key to reshard to.
      */
-    constructor(
+    constructor({
         dbName,
         collName,
         shardSet,
         collectionCtx,
-        newShardKey,
+        shardKey,
         numInitialChunks = ReshardCollectionCommand.numInitialChunks,
-    ) {
-        super(dbName, collName, shardSet, collectionCtx);
-        assert(newShardKey, "newShardKey must be provided to ReshardCollectionCommand");
-        this.newShardKey = newShardKey;
+    }) {
+        super({dbName, collName, shardSet, collectionCtx});
+        assert(shardKey, "shardKey must be provided to ReshardCollectionCommand");
+        this.shardKey = shardKey;
         this.numInitialChunks = numInitialChunks;
     }
 
@@ -744,11 +749,11 @@ class ReshardCollectionCommand extends Command {
         _reconfigureZonesForShardSet(connection, ns, this.shardSet);
 
         const zoneName = _getZoneName(ns);
-        const shardKeyField = Object.keys(this.newShardKey)[0];
+        const shardKeyField = Object.keys(this.shardKey)[0];
         assert.commandWorked(
             connection.adminCommand({
                 reshardCollection: ns,
-                key: this.newShardKey,
+                key: this.shardKey,
                 numInitialChunks: this.numInitialChunks,
                 zones: [
                     {
@@ -762,7 +767,7 @@ class ReshardCollectionCommand extends Command {
     }
 
     toString() {
-        const type = isHashedShardKey(this.newShardKey) ? "hashed" : "range";
+        const type = isHashedShardKey(this.shardKey) ? "hashed" : "range";
         return `ReshardCollectionCommand(${type})`;
     }
 
@@ -792,8 +797,13 @@ class ReshardCollectionCommand extends Command {
 class RenameCommand extends Command {
     // Subclasses must set: this.targetShouldExist, this.crossDatabase.
 
-    constructor(dbName, collName, shardSet, collectionCtx) {
-        super(dbName, collName, shardSet, collectionCtx);
+    constructor({dbName, collName, shardSet, collectionCtx, dropAfterRename = true}) {
+        super({dbName, collName, shardSet, collectionCtx});
+        // When true, drops the renamed-to collection at the end of execute() so the same
+        // rename can run again later in a long-lived test (FSM cleanup). Tests that need
+        // to observe the post-rename state should set this to false and drop the renamed
+        // collection themselves.
+        this.dropAfterRename = dropAfterRename;
     }
 
     execute(connection) {
@@ -812,8 +822,9 @@ class RenameCommand extends Command {
             }),
         );
 
-        // Drop the renamed collection to clean up for subsequent renames.
-        assert.commandWorked(connection.getDB(targetDb).runCommand({drop: targetColl}));
+        if (this.dropAfterRename) {
+            assert.commandWorked(connection.getDB(targetDb).runCommand({drop: targetColl}));
+        }
     }
 
     toString() {
@@ -869,32 +880,32 @@ class RenameCommand extends Command {
 
 // Concrete rename command classes.
 class RenameToNonExistentSameDbCommand extends RenameCommand {
-    constructor(dbName, collName, shardSet, collectionCtx) {
-        super(dbName, collName, shardSet, collectionCtx);
+    constructor(opts) {
+        super(opts);
         this.targetShouldExist = false;
         this.crossDatabase = false;
     }
 }
 
 class RenameToExistentSameDbCommand extends RenameCommand {
-    constructor(dbName, collName, shardSet, collectionCtx) {
-        super(dbName, collName, shardSet, collectionCtx);
+    constructor(opts) {
+        super(opts);
         this.targetShouldExist = true;
         this.crossDatabase = false;
     }
 }
 
 class RenameToNonExistentDifferentDbCommand extends RenameCommand {
-    constructor(dbName, collName, shardSet, collectionCtx) {
-        super(dbName, collName, shardSet, collectionCtx);
+    constructor(opts) {
+        super(opts);
         this.targetShouldExist = false;
         this.crossDatabase = true;
     }
 }
 
 class RenameToExistentDifferentDbCommand extends RenameCommand {
-    constructor(dbName, collName, shardSet, collectionCtx) {
-        super(dbName, collName, shardSet, collectionCtx);
+    constructor(opts) {
+        super(opts);
         this.targetShouldExist = true;
         this.crossDatabase = true;
     }
@@ -962,11 +973,11 @@ class MoveCommandBase extends Command {
 
 /**
  * Move primary command.
- * TODO SERVER-122025: disabled in the FSM model — breaks cross-db rename.
+ * Moves the primary shard for a database to a different shard.
  */
 class MovePrimaryCommand extends MoveCommandBase {
-    constructor(dbName, collName, shardSet, collectionCtx, targetShard = null) {
-        super(dbName, collName, shardSet, collectionCtx);
+    constructor({dbName, collName, shardSet, collectionCtx, targetShard = null}) {
+        super({dbName, collName, shardSet, collectionCtx});
         this.targetShard = targetShard;
     }
 
@@ -997,8 +1008,6 @@ class MovePrimaryCommand extends MoveCommandBase {
 
 /**
  * Move collection command.
- * TODO SERVER-121676: Currently disabled in the FSM model. Once shard-targeting on
- * resume is fixed, re-enable and allow random target shard selection.
  *
  * Resolves where the collection lives via _getCurrentShard: unsplittable → from
  * config.chunks, untracked → DB primary. The base _getTargetShard picks a different shard.
@@ -1051,8 +1060,8 @@ class MoveCollectionCommand extends MoveCommandBase {
  * are reported by getChangeEvents().
  */
 class MoveChunkCommand extends MoveCommandBase {
-    constructor(dbName, collName, shardSet, collectionCtx) {
-        super(dbName, collName, shardSet, collectionCtx);
+    constructor({dbName, collName, shardSet, collectionCtx}) {
+        super({dbName, collName, shardSet, collectionCtx});
         // Always insert enough documents for proper chunk distribution,
         // even when the collection already has data — prior inserts may
         // have fewer docs than shardSet.length requires for splitting.

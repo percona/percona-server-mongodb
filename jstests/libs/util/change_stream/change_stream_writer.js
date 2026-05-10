@@ -80,6 +80,8 @@ class Writer {
                 jsTest.log.error(`Writer [${config.instanceName}]: cmd[${i}] ${spec.type} FAILED`, {
                     error: e.toString(),
                     spec: spec,
+                    totalCommands: config.commandSpecs.length,
+                    seed: config.seed,
                 });
                 throw e;
             }

@@ -7,14 +7,14 @@ notifications:
     thresholds:
       overall:
         hot:
-          count: 80
+          count: 110
           grace_period_days: 5
         cold:
           count: 80
           grace_period_days: 5
       group:
         hot:
-          count: 16
+          count: 20
           grace_period_days: 5
         cold:
           count: 16
@@ -141,7 +141,6 @@ groups:
   - name: "Developer Productivity"
     teams:
       - "DevProd Build"
-      - "DevProd Correctness"
       - "DevProd Evergreen App"
       - "DevProd Evergreen UI"
       - "DevProd Infrastructure"
@@ -149,6 +148,7 @@ groups:
       - "DevProd Release Infrastructure"
       - "DevProd Runtime Environments"
       - "DevProd Services & Integrations"
+      - "DevProd Test Infrastructure"
     slack_tags:
       - "<@U03F4KZUYP5>" # tara.hernandez@mongodb.com - VP
       - "<@U05RNJZ9212>" # byron.hood@mongodb.com - Director
@@ -171,41 +171,23 @@ teams:
   - name: "Catalog and Routing"
     slack_tags:
       - "<@U01ALSK50HH>" # sergi.mateo-bellido@mongodb.com - Director
-    thresholds: # reduced thresholds for C&I teams
-      hot: 3
-      cold: 5
   - name: "Cluster Scalability"
     slack_tags:
       - "<@U0V2RMB1N>" # judah.schvimer@mongodb.com - Director
-    thresholds: # reduced thresholds for C&I teams
-      hot: 3
-      cold: 5
   - name: "Networking & Observability"
     slack_tags:
       - "<@U0V2RMB1N>" # judah.schvimer@mongodb.com - Director
-    thresholds: # reduced thresholds for C&I teams
-      hot: 3
-      cold: 5
   - name: "Server Programmability"
     slack_tags:
       - "<@U23L5FVFH>" # ryan.chipman@mongodb.com - Director
       - "<@U0AMLD1C9J7>" # gabriel.spil@mongodb.com - Lead
-    thresholds: # reduced thresholds for C&I teams
-      hot: 3
-      cold: 5
   - name: "Server Security"
     slack_tags:
       - "<@U23L5FVFH>" # ryan.chipman@mongodb.com - Director
       - "<@U02HWKGMAQL>" # adam.rayner@mongodb.com - Lead
-    thresholds: # reduced thresholds for C&I teams
-      hot: 3
-      cold: 5
   - name: "Workload Resilience"
     slack_tags:
       - "<@U0V2RMB1N>" # judah.schvimer@mongodb.com - Director
-    thresholds: # reduced thresholds for C&I teams
-      hot: 3
-      cold: 5
 
   # Durable Transactions & Availability teams
   - name: "RSSD"
@@ -231,30 +213,18 @@ teams:
     slack_tags:
       - "<@U0AJK68RVGT>" # mark.hunter@mongodb.com - Director
       - "<@U09EG3B1MR6>" # nick.beckenham@mongodb.com - Lead
-    thresholds: # Reduced Quotas for Storage Engines
-      hot: 2
-      cold: 4
   - name: "Storage Engines - Foundations"
     slack_tags:
       - "<@U0AJK68RVGT>" # mark.hunter@mongodb.com - Director
       - "<@U094DFQ4JGL>" # radoslav.kardum@mongodb.com - Lead
-    thresholds: # Reduced Quotas for Storage Engines
-      hot: 2
-      cold: 4
   - name: "Storage Engines - Transactions"
     slack_tags:
       - "<@U0AJK68RVGT>" # mark.hunter@mongodb.com - Director
       - "<@UKGR8F9C7>" # haribabu.kommi@mongodb.com - Lead
-    thresholds: # Reduced Quotas for Storage Engines
-      hot: 2
-      cold: 4
   - name: "Storage Engines - Persistence"
     slack_tags:
       - "<@U0AJK68RVGT>" # mark.hunter@mongodb.com - Director
       - "<@U01JK626XEY>" # etienne.petrel@mongodb.com - Lead
-    thresholds: # Reduced Quotas for Storage Engines
-      hot: 2
-      cold: 4
   - name: "Storage Layer Services"
     slack_tags:
       - "<@U06QP4BJRD2>" # jonas.bergler@mongodb.com - Director
@@ -267,28 +237,28 @@ teams:
       - "<@U06QP4BJRD2>" # jonas.bergler@mongodb.com - Director
       - "<@UK30W5J75>" # lamont.nelson@mongodb.com - Lead
     thresholds: # Reduced Quotas for SLS
-      hot: 1
+      hot: 3
       cold: 3
   - name: "SLS - Control Services"
     slack_tags:
       - "<@U06QP4BJRD2>" # jonas.bergler@mongodb.com - Director
       - "<@UAX8EUQ3A>" # thomas.zembowicz@mongodb.com - Lead
     thresholds: # Reduced Quotas for SLS
-      hot: 1
+      hot: 3
       cold: 3
   - name: "SLS - Log Service"
     slack_tags:
       - "<@U06QP4BJRD2>" # jonas.bergler@mongodb.com - Director
       - "<@UH210P78V>" # lingzhi.deng@mongodb.com - Lead
     thresholds: # Reduced Quotas for SLS
-      hot: 1
+      hot: 3
       cold: 3
   - name: "SLS - Page Services"
     slack_tags:
       - "<@U06QP4BJRD2>" # jonas.bergler@mongodb.com - Director
       - "<@U0Z7JD2G4>" # siyuan.zhou@mongodb.com - Lead
     thresholds: # Reduced Quotas for SLS
-      hot: 1
+      hot: 3
       cold: 3
 
   # Query teams
@@ -335,10 +305,6 @@ teams:
     slack_tags:
       - "<@U03D3JHNB1C>" # alex.neben@mongodb.com - Director
       - "<@U03JWS27799>" # john.daniels@mongodb.com - Lead
-  - name: "DevProd Correctness"
-    slack_tags:
-      - "<@U03D3JHNB1C>" # alex.neben@mongodb.com - Director
-      - "<@U06RQRMS2SE>" # steve.mcclure@mongodb.com - Lead
   - name: "DevProd Evergreen App"
     slack_tags:
       - "<@U05RNJZ9212>" # byron.hood@mongodb.com - Director
@@ -361,3 +327,7 @@ teams:
   - name: "DevProd Services & Integrations"
     slack_tags:
       - "<@U05RNJZ9212>" # byron.hood@mongodb.com - Director
+  - name: "DevProd Test Infrastructure"
+    slack_tags:
+      - "<@U03D3JHNB1C>" # alex.neben@mongodb.com - Director
+      - "<@U06RQRMS2SE>" # steve.mcclure@mongodb.com - Lead

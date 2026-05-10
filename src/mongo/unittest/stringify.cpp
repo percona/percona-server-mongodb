@@ -30,7 +30,7 @@
 #include "mongo/unittest/stringify.h"
 
 #include "mongo/base/string_data.h"
-#include "mongo/util/assert_util.h"
+#include "mongo/util/demangle.h"
 #include "mongo/util/hex.h"
 
 #include <string>

@@ -367,7 +367,13 @@ describe("ChangeStreamReader integration", function () {
         const numTotalInserts = numCommands * InsertDocCommand.numDocs;
         const insertCommands = [];
         for (let i = 0; i < numCommands; i++) {
-            insertCommands.push(new InsertDocCommand(dbName, collName, ctx.shards, {exists: true, nonEmpty: i > 0}));
+            insertCommands.push(
+                new InsertDocCommand({
+                    dbName,
+                    collName,
+                    collectionCtx: {exists: true},
+                }),
+            );
         }
         Writer.run(ctx.st.s, writerInstanceName, insertCommands, TEST_SEED);
 
@@ -429,12 +435,12 @@ describe("ChangeStreamReader integration", function () {
         const expectedEventTypes = ["insert", "insert", "insert", "drop", "invalidate"];
 
         // Build commands: 3 InsertDocCommands + drop.
-        const collectionCtx = {exists: true, nonEmpty: false};
+        const collectionCtx = {exists: true};
         const commands = [
-            new InsertDocCommand(dbName, collName, this.shards, collectionCtx),
-            new InsertDocCommand(dbName, collName, this.shards, {...collectionCtx, nonEmpty: true}),
-            new InsertDocCommand(dbName, collName, this.shards, {...collectionCtx, nonEmpty: true}),
-            new DropCollectionCommand(dbName, collName, this.shards, collectionCtx),
+            new InsertDocCommand({dbName, collName, collectionCtx}),
+            new InsertDocCommand({dbName, collName, collectionCtx}),
+            new InsertDocCommand({dbName, collName, collectionCtx}),
+            new DropCollectionCommand({dbName, collName, shardSet: this.shards}),
         ];
 
         /**
@@ -528,11 +534,11 @@ describe("ChangeStreamReader integration", function () {
         const expectedEventTypes = ["insert", "insert", "drop", "invalidate"];
 
         // Build commands: 2 InsertDocCommands + drop.
-        const collectionCtx = {exists: true, nonEmpty: false};
+        const collectionCtx = {exists: true};
         const commands = [
-            new InsertDocCommand(dbName, collName, this.shards, collectionCtx),
-            new InsertDocCommand(dbName, collName, this.shards, {...collectionCtx, nonEmpty: true}),
-            new DropCollectionCommand(dbName, collName, this.shards, collectionCtx),
+            new InsertDocCommand({dbName, collName, collectionCtx}),
+            new InsertDocCommand({dbName, collName, collectionCtx}),
+            new DropCollectionCommand({dbName, collName, shardSet: this.shards}),
         ];
 
         const setupCollection = () => {
@@ -622,12 +628,12 @@ describe("ChangeStreamReader integration", function () {
         const expectedEventTypes = ["insert", "insert", "insert", "insert"];
 
         // Build commands: 2 InsertDocCommands into each collection (interleaved).
-        const collectionCtx = {exists: true, nonEmpty: false};
+        const collectionCtx = {exists: true};
         const commands = [
-            new InsertDocCommand(dbName, collName1, this.shards, collectionCtx),
-            new InsertDocCommand(dbName, collName2, this.shards, collectionCtx),
-            new InsertDocCommand(dbName, collName1, this.shards, {...collectionCtx, nonEmpty: true}),
-            new InsertDocCommand(dbName, collName2, this.shards, {...collectionCtx, nonEmpty: true}),
+            new InsertDocCommand({dbName, collName: collName1, collectionCtx}),
+            new InsertDocCommand({dbName, collName: collName2, collectionCtx}),
+            new InsertDocCommand({dbName, collName: collName1, collectionCtx}),
+            new InsertDocCommand({dbName, collName: collName2, collectionCtx}),
         ];
 
         // Setup: drop and recreate collections (drop to ensure clean state before test).

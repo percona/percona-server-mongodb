@@ -38,6 +38,12 @@ namespace {
 
 constexpr StringData kData = "abacabadabacaba"_sd;
 
+class SorterChecksumCalculatorTest : public testing::TestWithParam<SorterChecksumVersion> {};
+
+INSTANTIATE_TEST_SUITE_P(AllChecksumVersions,
+                         SorterChecksumCalculatorTest,
+                         testing::Values(SorterChecksumVersion::v1, SorterChecksumVersion::v2));
+
 TEST(SorterChecksumCalculatorTest, CollisionCheck) {
     static constexpr size_t kTestCount = 1000000;
 
@@ -82,6 +88,12 @@ TEST(SorterChecksumCalculatorTest, RandomBitFlips) {
                 << "version: " << idl::serialize(version);
         }
     }
+}
+
+TEST_P(SorterChecksumCalculatorTest, Seed) {
+    size_t seed = 1;
+    SorterChecksumCalculator calculator{GetParam(), seed};
+    EXPECT_EQ(calculator.checksum(), seed);
 }
 
 }  // namespace

@@ -17,13 +17,6 @@ const bucketCollName = "system.buckets.coll";
 function testUpgradeFromFCV(conn, fromFCV) {
     const db = conn.getDB(dbName);
 
-    for (const node of DiscoverTopology.findNonConfigNodes(conn)) {
-        const nodeConn = new Mongo(node);
-        if (!FixtureHelpers.isMongos(nodeConn.getDB("admin"))) {
-            configureFailPoint(nodeConn, "skipCreateTimeseriesBucketsWithoutOptionsCheck");
-        }
-    }
-
     // Downgrade to fromFCV version
     assert.commandWorked(db.adminCommand({setFeatureCompatibilityVersion: fromFCV, confirm: true}));
 
@@ -31,9 +24,23 @@ function testUpgradeFromFCV(conn, fromFCV) {
     assert.commandWorked(db.createCollection("normalColl"));
 
     // Create bucket collection without timeseries options
-    assert.commandWorked(db.createCollection(bucketCollName));
+    // Those can not be created on newer versions, but customers may inherit them from older versions.
+    function disableSystemBucketsCreationGuardrails(skip) {
+        for (const node of DiscoverTopology.findNonConfigNodes(conn)) {
+            const conn = new Mongo(node);
+            if (FixtureHelpers.isMongos(conn.getDB("admin"))) {
+                continue;
+            }
+            assert.commandWorked(conn.adminCommand({setParameter: 1, allowDirectSystemBucketsAccess: skip}));
+            configureFailPoint(conn, "skipCreateTimeseriesBucketsWithoutOptionsCheck", {}, skip ? "alwaysOn" : "off");
+            configureFailPoint(conn, "skipCreateTimeseriesVersionMismatchCheck", {}, skip ? "alwaysOn" : "off");
+        }
+    }
 
+    disableSystemBucketsCreationGuardrails(true);
+    assert.commandWorked(db.createCollection(bucketCollName));
     assert.commandWorked(db[bucketCollName].insertOne({doc: 1}));
+    disableSystemBucketsCreationGuardrails(false);
 
     // Upgrade succeeds even though we have an invalid bucket collection
     assert.commandWorked(db.adminCommand({setFeatureCompatibilityVersion: latestFCV, confirm: true}));

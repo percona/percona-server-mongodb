@@ -8,7 +8,7 @@ filters:
       - 10gen/server-root-ownership
     metadata:
       emeritus_approvers:
-        - visemet # TODO: add back to approvers once project work is finished (Ignore linting)
+        - visemet # TODO SERVER-122669: add back to approvers once project work is finished
   - "/BUILD.bazel":
     approvers:
       - 10gen/devprod-build
@@ -50,44 +50,40 @@ filters:
       - 10gen/devprod-build
   - ".mypy.ini":
     approvers:
-      - 10gen/devprod-correctness
+      - 10gen/devprod-test-infrastructure
       - 10gen/devprod-build
   - ".prettierignore":
     approvers:
-      - 10gen/devprod-correctness
+      - 10gen/devprod-test-infrastructure
   - ".prettierrc":
     approvers:
-      - 10gen/devprod-correctness
+      - 10gen/devprod-test-infrastructure
   - "BUILD.bazel":
     approvers:
       - 10gen/devprod-build
-  - "copy.bara.sky":
-    approvers:
-      - IamXander
-      - smcclure15
   - "eslint.config.mjs":
     approvers:
-      - 10gen/devprod-correctness
+      - 10gen/devprod-test-infrastructure
   - "jsconfig.json":
     approvers:
-      - 10gen/devprod-correctness
+      - 10gen/devprod-test-infrastructure
   - "package.json":
     approvers:
-      - 10gen/devprod-correctness
+      - 10gen/devprod-test-infrastructure
   - "pnpm-lock.yaml":
     approvers:
-      - 10gen/devprod-correctness
+      - 10gen/devprod-test-infrastructure
   - "poetry.lock":
     approvers:
-      - 10gen/devprod-correctness
+      - 10gen/devprod-test-infrastructure
       - 10gen/devprod-build
   - "pyproject.toml":
     approvers:
-      - 10gen/devprod-correctness
+      - 10gen/devprod-test-infrastructure
       - 10gen/devprod-build
   - "poetry_requirements.txt":
     approvers:
-      - 10gen/devprod-correctness
+      - 10gen/devprod-test-infrastructure
       - 10gen/devprod-build
   - "README.third_party.md":
     approvers:
@@ -107,3 +103,6 @@ filters:
   - ".bazelrc.fuzztest":
     approvers:
       - 10gen/platsec-server
+  - ".bazelrc.target_mongo_version":
+    approvers:
+      - 10gen/server-release

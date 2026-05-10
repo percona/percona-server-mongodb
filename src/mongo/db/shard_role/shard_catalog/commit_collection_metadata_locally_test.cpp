@@ -238,11 +238,46 @@ TEST_F(CommitCollectionMetadataLocallyTest, CreateCollectionIsIdempotent) {
     ASSERT_EQ(countLocalDocs(NamespaceString::kConfigShardCatalogChunksNamespace), 2);
 }
 
-TEST_F(CommitCollectionMetadataLocallyTest, CreateCollectionChunklessPersistsTokenToDisk) {
+TEST_F(CommitCollectionMetadataLocallyTest, CreateCollectionReplacesStaleChunksOnReissuedOIDs) {
+    // First pass: persist the initial chunks for the collection.
+    auto [collType, chunksPass1] = makeCollectionMetadata(2);
+    mockCatalogClient()->setCollectionMetadata(collType, chunksPass1);
+    shard_catalog_commit::commitCreateCollectionLocally(operationContext(), kTestNss);
+
+    ASSERT_EQ(countLocalDocs(NamespaceString::kConfigShardCatalogChunksNamespace), 2);
+
+    // Second pass: same UUID and ranges, but with freshly generated chunk OIDs (mimicking the
+    // unsplittable->sharded transition where the global catalog reissues chunk OIDs).
+    auto chunksPass2 = chunksPass1;
+    for (auto& chunk : chunksPass2) {
+        chunk.setName(OID::gen());
+    }
+    mockCatalogClient()->setCollectionMetadata(collType, chunksPass2);
+    shard_catalog_commit::commitCreateCollectionLocally(operationContext(), kTestNss);
+
+    // Only the second-pass chunks should remain; the first-pass rows must be deleted, not appended.
+    ASSERT_EQ(countLocalDocs(NamespaceString::kConfigShardCatalogChunksNamespace), 2);
+
+    auto chunkDocs = findLocalDocs(NamespaceString::kConfigShardCatalogChunksNamespace);
+    std::set<OID> persistedNames;
+    for (const auto& doc : chunkDocs) {
+        persistedNames.insert(doc.getField(ChunkType::name.name()).OID());
+    }
+    for (const auto& chunk : chunksPass2) {
+        ASSERT(persistedNames.count(chunk.getName()))
+            << "expected new-OID chunk " << chunk.getName() << " to be persisted";
+    }
+    for (const auto& chunk : chunksPass1) {
+        ASSERT(!persistedNames.count(chunk.getName()))
+            << "stale chunk " << chunk.getName() << " should have been deleted";
+    }
+}
+
+TEST_F(CommitCollectionMetadataLocallyTest, ChunklessCollectionPersistsTokenToDisk) {
     auto [collType, chunks] = makeCollectionMetadata(0);
     mockCatalogClient()->setCollectionMetadata(collType, {});
 
-    shard_catalog_commit::commitCreateCollectionChunklessLocally(operationContext(), kTestNss);
+    shard_catalog_commit::commitChunklessCollectionLocally(operationContext(), kTestNss);
 
     ASSERT_EQ(countLocalDocs(NamespaceString::kConfigShardCatalogCollectionsNamespace), 1);
 
@@ -257,17 +292,63 @@ TEST_F(CommitCollectionMetadataLocallyTest, CreateCollectionChunklessPersistsTok
               collType.getUuid());
 }
 
-TEST_F(CommitCollectionMetadataLocallyTest, CreateCollectionChunklessUpdatesCSR) {
+TEST_F(CommitCollectionMetadataLocallyTest, ChunklessCollectionUpdatesCSR) {
     auto [collType, chunks] = makeCollectionMetadata(0);
     mockCatalogClient()->setCollectionMetadata(collType, {});
 
-    shard_catalog_commit::commitCreateCollectionChunklessLocally(operationContext(), kTestNss);
+    shard_catalog_commit::commitChunklessCollectionLocally(operationContext(), kTestNss);
 
     auto scopedCsr = CollectionShardingRuntime::acquireShared(operationContext(), kTestNss);
     auto metadata = scopedCsr->getCurrentMetadataIfKnown();
     ASSERT_TRUE(metadata);
     ASSERT_TRUE(metadata->isSharded());
+    ASSERT_EQ(metadata->getChunkManager()->getUUID(), collType.getUuid());
+    // The DB primary owns no real chunks for this collection, so its placement version is unset.
     ASSERT_FALSE(metadata->getShardPlacementVersion().isSet());
+}
+
+TEST_F(CommitCollectionMetadataLocallyTest, ChunklessCollectionIsIdempotent) {
+    auto [collType, _] = makeCollectionMetadata(0);
+    mockCatalogClient()->setCollectionMetadata(collType, {});
+
+    shard_catalog_commit::commitChunklessCollectionLocally(operationContext(), kTestNss);
+    shard_catalog_commit::commitChunklessCollectionLocally(operationContext(), kTestNss);
+
+    // Repeated calls must not accumulate placeholder rows; each call generates a fresh OID, so
+    // this only holds if the helper deletes the prior placeholder before inserting.
+    ASSERT_EQ(countLocalDocs(NamespaceString::kConfigShardCatalogCollectionsNamespace), 1);
+    ASSERT_EQ(countLocalDocs(NamespaceString::kConfigShardCatalogChunksNamespace), 1);
+}
+
+TEST_F(CommitCollectionMetadataLocallyTest, RefineShardKeyChunklessPersistsCollectionWithNewEpoch) {
+    // Seed a chunkless tracked collection at (epoch1, ts1).
+    auto [collType1, _] = makeCollectionMetadata(0);
+    mockCatalogClient()->setCollectionMetadata(collType1, {});
+    shard_catalog_commit::commitChunklessCollectionLocally(operationContext(), kTestNss);
+
+    ASSERT_EQ(countLocalDocs(NamespaceString::kConfigShardCatalogCollectionsNamespace), 1);
+    ASSERT_EQ(countLocalDocs(NamespaceString::kConfigShardCatalogChunksNamespace), 1);
+
+    // Simulate a refine to (epoch2, ts2) on the same UUID with an extended key pattern.
+    const OID epoch2 = OID::gen();
+    const Timestamp ts2(Date_t::now());
+    const BSONObj newKeyPattern = BSON("_id" << 1 << "extra" << 1);
+    CollectionType collType2{
+        kTestNss, epoch2, ts2, Date_t::now(), collType1.getUuid(), newKeyPattern};
+    mockCatalogClient()->setCollectionMetadata(collType2, {});
+
+    shard_catalog_commit::commitChunklessCollectionLocally(operationContext(), kTestNss);
+
+    // The collection doc reflects the new triple and exactly one placeholder chunk persists.
+    ASSERT_EQ(countLocalDocs(NamespaceString::kConfigShardCatalogCollectionsNamespace), 1);
+    ASSERT_EQ(countLocalDocs(NamespaceString::kConfigShardCatalogChunksNamespace), 1);
+
+    auto collDocs = findLocalDocs(NamespaceString::kConfigShardCatalogCollectionsNamespace);
+    ASSERT_BSONOBJ_EQ(collDocs[0].getObjectField("key"), newKeyPattern);
+
+    auto chunkDocs = findLocalDocs(NamespaceString::kConfigShardCatalogChunksNamespace);
+    ASSERT_EQ(UUID::fromCDR(chunkDocs[0].getField(ChunkType::collectionUUID.name()).uuid()),
+              collType1.getUuid());
 }
 
 TEST_F(CommitCollectionMetadataLocallyTest, RefineShardKeyRemovesStaleChunks) {

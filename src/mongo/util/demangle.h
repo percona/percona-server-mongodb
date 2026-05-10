@@ -1,5 +1,5 @@
 /**
- *    Copyright (C) 2026-present MongoDB, Inc.
+ *    Copyright (C) 2018-present MongoDB, Inc.
  *
  *    This program is free software: you can redistribute it and/or modify
  *    it under the terms of the Server Side Public License, version 1,
@@ -27,26 +27,17 @@
  *    it in the license file.
  */
 
-#include "mongo/db/pipeline/visitors/document_source_visitor_docs_needed_bounds.h"
+#pragma once
 
-#include "mongo/db/extension/host/document_source_extension_optimizable.h"
-#include "mongo/db/pipeline/visitors/document_source_visitor_registry.h"
+#include "mongo/util/modules.h"
+
+#include <string>
+#include <typeinfo>
+
+MONGO_MOD_PUBLIC;
 
 namespace mongo {
 
-void visit(DocsNeededBoundsContext* ctx,
-           const extension::host::DocumentSourceExtensionOptimizable& source) {
-    // We can't make any assumptions about the bounds of an extension stage, so we conservatively
-    // set bounds to unknown.
-    // TODO SERVER-118423: Allow extension stages to implement DocsNeededBounds.
-    ctx->applyUnknownStage();
-}
-
-const ServiceContext::ConstructorActionRegisterer DocsNeededBoundsRegisterer{
-    "DocsNeededBoundsRegistererExtension", [](ServiceContext* service) {
-        auto& registry = getDocumentSourceVisitorRegistry(service);
-        registerVisitFuncs<DocsNeededBoundsContext,
-                           extension::host::DocumentSourceExtensionOptimizable>(&registry);
-    }};
+std::string demangleName(const std::type_info& typeinfo);
 
 }  // namespace mongo

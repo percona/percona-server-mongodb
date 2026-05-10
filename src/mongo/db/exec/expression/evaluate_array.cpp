@@ -28,6 +28,8 @@
  */
 
 
+#include "mongo/base/data_type_endian.h"
+#include "mongo/base/data_view.h"
 #include "mongo/bson/bsontypes.h"
 #include "mongo/db/exec/convert_utils.h"
 #include "mongo/db/exec/expression/evaluate.h"
@@ -773,17 +775,19 @@ using convert_utils::BinDataVectorView;
 using convert_utils::dType;
 using convert_utils::parseBinDataVector;
 
-static_assert(std::endian::native == std::endian::little,
-              "Vector similarity BinData fast path assumes little-endian platform");
-
 /*
- * Read a float from a potentially-unaligned byte pointer. All MongoDB target platforms are
- * little-endian, matching BSON vector storage order, so no byte-swap is needed.
+ * Read a float from a potentially-unaligned byte pointer. BSON vector storage is
+ * little-endian, so on little-endian targets no byte-swap is needed; big-endian
+ * targets fall back to the portable reader.
  */
 inline float readFloat(const std::byte* p) {
-    float f;
-    std::memcpy(&f, p, sizeof(float));
-    return f;
+    if constexpr (std::endian::native == std::endian::little) {
+        float f;
+        std::memcpy(&f, p, sizeof(float));
+        return f;
+    } else {
+        return ConstDataView(reinterpret_cast<const char*>(p)).read<LittleEndian<float>>();
+    }
 }
 
 /*

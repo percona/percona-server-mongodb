@@ -135,6 +135,7 @@ Status IndexBuildsManager::setUpIndexBuild(OperationContext* opCtx,
                                                options.protocol != IndexBuildProtocol::kSinglePhase
                                            ? ContainerWriteBehavior::kReplicate
                                            : ContainerWriteBehavior::kDoNotReplicate);
+    builder->setIsResumable(options.isResumable);
 
     try {
         writeConflictRetry(opCtx, "IndexBuildsManager::setUpIndexBuild", nss, [&]() {

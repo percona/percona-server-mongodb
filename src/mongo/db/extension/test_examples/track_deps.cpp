@@ -37,7 +37,7 @@ namespace sdk = mongo::extension::sdk;
 using namespace mongo;
 
 /**
- * $trackDeps is a source stage used to test apply_pipeline_suffix_dependencies.
+ * $trackDepsSource is a source stage used to test apply_pipeline_suffix_dependencies.
  *
  * Arguments (all optional):
  *   meta: <string>  — a metadata field name to track via needsMetadata()
@@ -174,8 +174,70 @@ public:
 
 DEFAULT_PARSE_NODE(TrackDeps)
 
-using TrackDepsStageDescriptor = sdk::TestStageDescriptor<"$trackDeps", TrackDepsParseNode>;
+using TrackDepsSourceStageDescriptor =
+    sdk::TestStageDescriptor<"$trackDepsSource", TrackDepsParseNode>;
 
-DEFAULT_EXTENSION(TrackDeps)
+/**
+ * $trackDepsTransform is a transform stage that overrides applyPipelineSuffixDependencies.
+ * It verifies that applyPipelineSuffixDependencies is not invoked for transform stages.
+ *
+ * The stage definition must be empty: {$trackDepsTransform: {}}
+ *
+ * The stage is a pure passthrough at execution time. Whether applyPipelineSuffixDependencies
+ * was invoked is observable via the serialized/explain output: {depsCallbackCalled: <bool>}.
+ */
+
+class TrackDepsTransformLogicalStage : public sdk::LogicalAggStage {
+public:
+    TrackDepsTransformLogicalStage(std::string_view stageName, const BSONObj& args)
+        : sdk::LogicalAggStage(stageName),
+          _depsCallbackCalled(args["depsCallbackCalled"].booleanSafe()) {}
+
+    BSONObj serialize() const override {
+        return BSON(_name << BSON("depsCallbackCalled" << _depsCallbackCalled));
+    }
+
+    BSONObj explain(const sdk::QueryExecutionContextHandle&,
+                    ::MongoExtensionExplainVerbosity) const override {
+        return serialize();
+    }
+
+    std::unique_ptr<sdk::ExecAggStageBase> compile() const override {
+        return std::make_unique<sdk::TestExecStage>(_name, BSONObj());
+    }
+
+    std::unique_ptr<sdk::LogicalAggStage> clone() const override {
+        auto cloned = std::make_unique<TrackDepsTransformLogicalStage>(_name, BSONObj());
+        cloned->_depsCallbackCalled = _depsCallbackCalled;
+        return cloned;
+    }
+
+    boost::optional<sdk::DistributedPlanLogic> getDistributedPlanLogic() const override {
+        return boost::none;
+    }
+
+    void applyPipelineSuffixDependencies(
+        const extension::PipelineDependenciesHandle& deps) override {
+        _depsCallbackCalled = true;
+    }
+
+private:
+    bool _depsCallbackCalled = false;
+};
+
+DEFAULT_AST_NODE(TrackDepsTransform)
+DEFAULT_PARSE_NODE(TrackDepsTransform)
+
+using TrackDepsTransformStageDescriptor =
+    sdk::TestStageDescriptor<"$trackDepsTransform", TrackDepsTransformParseNode>;
+
+class TrackDepsExtension : public sdk::Extension {
+public:
+    void initialize(const sdk::HostPortalHandle& portal) override {
+        _registerStage<TrackDepsSourceStageDescriptor>(portal);
+        _registerStage<TrackDepsTransformStageDescriptor>(portal);
+    }
+};
+
 REGISTER_EXTENSION(TrackDepsExtension)
 DEFINE_GET_EXTENSION()

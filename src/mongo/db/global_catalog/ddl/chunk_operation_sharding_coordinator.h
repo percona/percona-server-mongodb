@@ -63,9 +63,7 @@ private:
 
     ExecutorFuture<void> _acquireLocksAsync(OperationContext* opCtx,
                                             std::shared_ptr<executor::ScopedTaskExecutor> executor,
-                                            const CancellationToken& token) final {
-        return ExecutorFuture<void>{**executor};
-    }
+                                            const CancellationToken& token) override = 0;
 
     void _releaseLocks(OperationContext* opCtx) override {}
 

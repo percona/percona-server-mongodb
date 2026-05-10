@@ -756,13 +756,16 @@ private:
             newBaseField = _fields.append(Field{scope, embeddedScope});
             auto parentEmbeddedScope =
                 existingBaseField ? _fields[existingBaseField].embeddedScope : ScopeId::none();
-            // We should only set the exhaustiveScope as ScopeId::none() if we can verify the field
-            // comes from the document and cannot be modified elsewhere. If baseField ==
-            // FieldId::none(), it comes from the document. If baseField == <missing>, it is
-            // modified by the scope definining it.
+            // Where unknown subfields originate:
+            //  - no previous field -> base collection.
+            //  - previous field's scope is exhaustive -> inherit it.
+            //  - previous field is a leaf in a non-exhaustive scope -> this new scope.
             auto exhaustiveEmbeddedScope = existingBaseField
                 ? _scopes[_fields[existingBaseField].declaringScope].exhaustiveScope
                 : ScopeId::none();
+            if (existingBaseField && !parentEmbeddedScope && !exhaustiveEmbeddedScope) {
+                exhaustiveEmbeddedScope = embeddedScope;
+            }
             if (parentEmbeddedScope) {
                 // The new field depends on the previous field, since it inherits paths.
                 _fields[newBaseField].dependencies.insert(existingBaseField);
@@ -1225,13 +1228,31 @@ private:
                              dsInfo.isSingleDocumentTransformation(),
                              nextNewScopeId});
 
-        // Build a separate dependency graph for sub-pipelines (e.g. $lookup, $unionWith).
-        // TODO SERVER-124146: Pass the sub-collection's PathArrayness callback so that
-        // canPathBeArray() returns precise results inside subpipelines instead of always true.
-        if (auto* subPipeline = ds->getSubPipeline()) {
-            _subpipelineGraphs.push_back(std::make_unique<DependencyGraph>(*subPipeline));
-            _stages[stageId].subpipelineGraph = _subpipelineGraphs.back().get();
+        createSubpipelineGraph(ds, stageId);
+    }
+
+    /**
+     * If the stage has a sub-pipeline (e.g. $lookup, $unionWith), builds a separate
+     * DependencyGraph for it. Initialize the corresponding PathArrayness API with
+     * canSecondaryCollPathBeArray().
+     */
+    void createSubpipelineGraph(DocumentSource* ds, StageId stageId) {
+        auto* subPipeline = ds->getSubPipeline();
+        if (!subPipeline) {
+            return;
         }
+        CanPathBeArray subPipelineCanPathBeArray = defaultCanPathBeArray;
+        if (auto expCtx = ds->getExpCtx()) {
+            if (auto subExpCtx = ds->getSubpipelineExpCtx()) {
+                subPipelineCanPathBeArray = [expCtx, subExpCtx](StringData path) -> bool {
+                    return expCtx->canPathBeArrayForNss(FieldRef(path),
+                                                        subExpCtx->getNamespaceString());
+                };
+            }
+        }
+        _subpipelineGraphs.push_back(
+            std::make_unique<DependencyGraph>(*subPipeline, std::move(subPipelineCanPathBeArray)));
+        _stages[stageId].subpipelineGraph = _subpipelineGraphs.back().get();
     }
 
     /**

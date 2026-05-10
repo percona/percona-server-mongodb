@@ -66,6 +66,7 @@
 #include "mongo/s/write_ops/batched_command_response.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/decorable.h"
+#include "mongo/util/fail_point.h"
 
 #include <algorithm>
 #include <array>
@@ -83,6 +84,8 @@
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kSharding
 
 namespace mongo {
+
+MONGO_FAIL_POINT_DEFINE(pauseShardingRecoveryServiceAfterLockBegin);
 
 namespace {
 const auto serviceDecorator = ServiceContext::declareDecoration<ShardingRecoveryService>();
@@ -133,7 +136,8 @@ void ShardingRecoveryService::acquireRecoverableCriticalSectionBlockWrites(
     const WriteConcernOptions& writeConcern,
     bool clearDbMetadata,
     bool clearCollMetadata,
-    boost::optional<Milliseconds> lockAcquisitionTimeout) {
+    boost::optional<Milliseconds> lockAcquisitionTimeout,
+    const CriticalSectionLockContendAction& criticalSectionLockContendAction) {
     LOGV2_DEBUG(5656600,
                 3,
                 "Acquiring recoverable critical section blocking writes",
@@ -160,6 +164,7 @@ void ShardingRecoveryService::acquireRecoverableCriticalSectionBlockWrites(
             opCtx, MODE_IX, lockAcquisitionDeadline, Lock::InterruptBehavior::kThrow);
         boost::optional<Lock::DBLock> dbLock;
         boost::optional<Lock::CollectionLock> collLock;
+
         if (nss.isDbOnly()) {
             tassert(8096300,
                     "Cannot acquire critical section on the config database",
@@ -170,7 +175,22 @@ void ShardingRecoveryService::acquireRecoverableCriticalSectionBlockWrites(
             // write to kCollectionCriticalSectionsNamespace.
             dbLock.emplace(
                 opCtx, nss.dbName(), nss.isConfigDB() ? MODE_IX : MODE_IS, lockAcquisitionDeadline);
-            collLock.emplace(opCtx, nss, MODE_S, lockAcquisitionDeadline);
+
+            if (criticalSectionLockContendAction) {
+                // Use the collLock that allows an action to be performed in case the lock is not
+                // immediately granted, while the lock request is queued.
+                collLock.emplace(
+                    opCtx,
+                    nss,
+                    MODE_S,
+                    [&](OperationContext* opCtx) {
+                        pauseShardingRecoveryServiceAfterLockBegin.pauseWhileSet(opCtx);
+                        criticalSectionLockContendAction(opCtx);
+                    },
+                    lockAcquisitionDeadline);
+            } else {
+                collLock.emplace(opCtx, nss, MODE_S, lockAcquisitionDeadline);
+            }
         }
 
         DBDirectClient dbClient(opCtx);

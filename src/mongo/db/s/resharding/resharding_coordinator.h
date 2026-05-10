@@ -256,6 +256,12 @@ private:
     CancelableOperationContext _makeOperationContext() const;
 
     /**
+     * Re-reads config.reshardingOperations into memory after the caller has completed a durable
+     * coordinator catalog write.
+     */
+    void _installCoordinatorDocFromCatalog();
+
+    /**
      * Construct the initial chunks splits and write down the initial coordinator state to storage.
      */
     ExecutorFuture<void> _initializeCoordinator(
@@ -514,6 +520,12 @@ private:
     void _tellAllRecipientsToClone(const std::shared_ptr<executor::ScopedTaskExecutor>& executor);
 
     /**
+     * Sends '_shardsvrReshardDonorRecipientsFinishedCloning' to all donor shards.
+     */
+    void _notifyDonorsCloningComplete(
+        const std::shared_ptr<executor::ScopedTaskExecutor>& executor);
+
+    /**
      * Sends '_flushReshardingStateChange' to all recipient shards.
      *
      * When the coordinator is in a state before 'kCommitting', refreshes the temporary
@@ -691,6 +703,8 @@ private:
     boost::optional<Status> _originalReshardingStatus;
 
     OperationSessionTracker _sessionTracker;
+
+    const bool _isRecovery;
 };
 
 }  // namespace mongo

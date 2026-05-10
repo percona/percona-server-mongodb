@@ -85,6 +85,7 @@ public:
         IndexBuildProtocol protocol = IndexBuildProtocol::kSinglePhase;
         IndexBuildMethodEnum method = IndexBuildMethodEnum::kHybrid;
         bool forRecovery = false;
+        bool isResumable = false;
     };
 
     IndexBuildsManager() = default;

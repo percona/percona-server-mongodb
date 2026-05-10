@@ -666,11 +666,18 @@ try-import %workspace%/.bazelrc.common_bes
 # Settings unconditionally written by the wrapper hook
 try-import %workspace%/.bazelrc.wrapper_hook
 
+<<<<<<< HEAD
 # local git version info
 try-import %workspace%/.bazelrc.git
 
 import %workspace%/.bazelrc.psmdb
 
+||||||| 266b70c6af3
+# local git version info
+try-import %workspace%/.bazelrc.git
+
+=======
+>>>>>>> 8596065d07d0714b272e0f105b4257803d6be4fb
 # Used for build profiles and any settings a user wants to consistently use
 try-import %workspace%/.bazelrc.local
 
@@ -685,6 +692,12 @@ try-import %workspace%/.bazelrc.engflow_creds
 
 # Flags for fuzztest
 try-import %workspace%/.bazelrc.fuzztest
+
+# Default mongo version
+try-import %workspace%/.bazelrc.target_mongo_version
+
+# local git version info (after target_mongo_version so its MONGO_VERSION override wins)
+try-import %workspace%/.bazelrc.git
 
 # Repository root absolute path to set --execution_log_compact_file
 #try-import %workspace%/.bazelrc.exec_log_file
@@ -701,7 +714,6 @@ try-import %workspace%/.bazelrc.fuzztest
 #
 # Cross-compile for macOS arm64
 build:macos-cross-arm64 --platforms=//bazel/platforms:macos_arm64_cross
-build:macos-cross-arm64 --copt=-w
 # The rust-based allocator_library bundles the full Rust stdlib into its .a;
 # on Mach-O, ld64.lld then sees the same CGUs in both liballocator_library.a and
 # libstd.a and fails with duplicate-symbol errors. Fall back to the c-based
@@ -710,5 +722,4 @@ build:macos-cross-arm64 --@rules_rust//rust/settings:experimental_use_allocator_
 
 # Cross-compile for macOS x86_64
 build:macos-cross-x86_64 --platforms=//bazel/platforms:macos_x86_64_cross
-build:macos-cross-x86_64 --copt=-w
 build:macos-cross-x86_64 --@rules_rust//rust/settings:experimental_use_allocator_libraries_with_mangled_symbols=false

@@ -2,7 +2,6 @@ import hashlib
 import os
 import pathlib
 import platform
-import subprocess
 import sys
 
 ARCH_NORMALIZE_MAP = {
@@ -23,6 +22,7 @@ def get_mongo_arch(args):
         return arch
 
 
+<<<<<<< HEAD
 def get_mongo_version(args):
     proc = subprocess.run(["git", "describe", "--abbrev=0"], capture_output=True, text=True)
     if proc.returncode != 0:
@@ -43,8 +43,15 @@ def get_mongo_version(args):
     return res
 
 
+||||||| 266b70c6af3
+def get_mongo_version(args):
+    proc = subprocess.run(["git", "describe", "--abbrev=0"], capture_output=True, text=True)
+    return proc.stdout.strip()[1:]
+
+
+=======
+>>>>>>> 8596065d07d0714b272e0f105b4257803d6be4fb
 def write_wrapper_hook_bazelrc(args):
-    mongo_version = get_mongo_version(args)
     mongo_arch = get_mongo_arch(args)
 
     python = sys.executable
@@ -65,7 +72,6 @@ def write_wrapper_hook_bazelrc(args):
 
     bazelrc_contents = f"""
 common --define=MONGO_ARCH={mongo_arch}
-common --define=MONGO_VERSION={mongo_version}
 
 build --workspace_status_command="{python} {workspace_status}"
 """

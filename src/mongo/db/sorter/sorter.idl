@@ -32,6 +32,10 @@ structs:
             checksum:
                 description: "Tracks the hash of all data objects spilled to disk."
                 type: long
+            currentChecksum:
+                description: "The running checksum of the data in this range already iterated."
+                type: long
+                optional: true
             checksumVersion:
                 description: "The version of checksum that dictates what hash was used to calculate it."
                 type: SorterChecksumVersion

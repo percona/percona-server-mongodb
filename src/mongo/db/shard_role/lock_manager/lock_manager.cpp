@@ -680,6 +680,26 @@ std::vector<LockDebugInfo> LockManager::getLockInfoFromResourceHolders(ResourceI
     return locksInfo;
 }
 
+std::vector<LockerId> LockManager::getConflictingLockerIds(ResourceId resId, LockMode mode) {
+    invariant(mode != MODE_IS && mode != MODE_IX,
+              "getConflictingLockerIds does not support intent modes");
+
+    std::vector<LockerId> lockerIds;
+    LockBucket* bucket = _getBucket(resId);
+    std::lock_guard scopedLock(bucket->mutex);
+    const auto it = bucket->data.find(resId);
+    if (it == bucket->data.end()) {
+        return lockerIds;
+    }
+    LockHead* lock = it->second;
+    for (auto iter = lock->grantedList._front; iter != nullptr; iter = iter->next) {
+        if (conflicts(mode, modeMask(iter->mode))) {
+            lockerIds.push_back(iter->locker->getId());
+        }
+    }
+    return lockerIds;
+}
+
 void LockManager::getLockInfoArray(const std::map<LockerId, BSONObj>& lockToClientMap,
                                    bool forLogging,
                                    LockManager* mutableThis,

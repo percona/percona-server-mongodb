@@ -1,7 +1,7 @@
 /**
  * Tests where/function can be interrupted through maxTimeMS and query knob.
  * @tags: [
- *   requires_scripting
+ *   requires_scripting,
  * ]
  */
 const mongodOptions = {};
