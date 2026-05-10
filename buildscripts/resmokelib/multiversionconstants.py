@@ -56,28 +56,17 @@ def generate_mongo_version_file():
             f"Failed to read version from {BAZELRC_DEFAULT_MONGO_VERSION}"
         ) from exp
 
-    # Remove a tag prefix
-    UPSTREAM_TAG_PREFIX = "r"  # e.g. res = 'r5.1.0-alpha-597-g8c345c6693\n'
-    PERCONA_TAG_PREFIX = "psmdb-"  # e.g. res = 'psmdb-7.0.22-12-44-g80c7fa9d709'
+    # Remove a tag prefix (handles both upstream 'r' prefix and Percona 'psmdb-' prefix)
+    UPSTREAM_TAG_PREFIX = "r"  # e.g. version = 'r5.1.0-alpha-597-g8c345c6693'
+    PERCONA_TAG_PREFIX = "psmdb-"  # e.g. version = 'psmdb-7.0.22-12-44-g80c7fa9d709'
     for p in [UPSTREAM_TAG_PREFIX, PERCONA_TAG_PREFIX]:
-        if res.startswith(p):
-            res = res[len(p) :]
+        if version.startswith(p):
+            version = version[len(p):]
             break
 
     # Write the current MONGO_VERSION to a data file.
-<<<<<<< HEAD
-    with open(_config.MONGO_VERSION_FILE, "w") as mongo_version_fh:
-        mongo_version_fh.write("mongo_version: " + res)
-||||||| 266b70c6af3
-    with open(_config.MONGO_VERSION_FILE, "w") as mongo_version_fh:
-        # E.g. res = 'r5.1.0-alpha-597-g8c345c6693\n'
-        res = res[1:]  # Remove the leading "r" character.
-        mongo_version_fh.write("mongo_version: " + res)
-=======
     with open(_config.MONGO_VERSION_FILE, "w", encoding="utf-8") as mongo_version_fh:
-        # E.g. version = '8.2.2'
         mongo_version_fh.write("mongo_version: " + version + "\n")
->>>>>>> 8596065d07d0714b272e0f105b4257803d6be4fb
 
 
 @retry(tries=5, delay=3)

@@ -666,18 +666,8 @@ try-import %workspace%/.bazelrc.common_bes
 # Settings unconditionally written by the wrapper hook
 try-import %workspace%/.bazelrc.wrapper_hook
 
-<<<<<<< HEAD
-# local git version info
-try-import %workspace%/.bazelrc.git
-
 import %workspace%/.bazelrc.psmdb
 
-||||||| 266b70c6af3
-# local git version info
-try-import %workspace%/.bazelrc.git
-
-=======
->>>>>>> 8596065d07d0714b272e0f105b4257803d6be4fb
 # Used for build profiles and any settings a user wants to consistently use
 try-import %workspace%/.bazelrc.local
 
