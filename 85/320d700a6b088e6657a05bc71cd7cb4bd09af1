@@ -1,0 +1,399 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "0d361ff8fd5e0b2c8500363bfe2794db44f697b7",
+    "merge_commit": "8596065d07d0714b272e0f105b4257803d6be4fb"
+  },
+  "mergai_version": "0.1.dev1+g2c757647b",
+  "conflict_context": {
+    "ours_commit": "0d361ff8fd5e0b2c8500363bfe2794db44f697b7",
+    "theirs_commit": "8596065d07d0714b272e0f105b4257803d6be4fb",
+    "base_commit": "266b70c6af3a31a3a78d9f7d4c320c18dcb6adff",
+    "files": [
+      ".bazelrc",
+      "bazel/wrapper_hook/write_wrapper_hook_bazelrc.py",
+      "buildscripts/resmokelib/multiversionconstants.py",
+      "sbom.json",
+      "src/mongo/db/storage/kv/kv_engine.h"
+    ],
+    "conflict_types": {
+      ".bazelrc": "both modified",
+      "bazel/wrapper_hook/write_wrapper_hook_bazelrc.py": "both modified",
+      "buildscripts/resmokelib/multiversionconstants.py": "both modified",
+      "sbom.json": "both modified",
+      "src/mongo/db/storage/kv/kv_engine.h": "both modified"
+    },
+    "diffs": {
+      ".bazelrc": "diff --cc .bazelrc\nindex b04ebbe774d,da3ddcaa146..00000000000\n--- a/.bazelrc\n+++ b/.bazelrc\n@@@ -669,5 -663,0 +669,12 @@@ try-import %workspace%/.bazelrc.wrapper\n++<<<<<<< HEAD\n +# local git version info\n +try-import %workspace%/.bazelrc.git\n +\n +import %workspace%/.bazelrc.psmdb\n +\n++||||||| 266b70c6af3\n++# local git version info\n++try-import %workspace%/.bazelrc.git\n++\n++=======\n++>>>>>>> 8596065d07d0714b272e0f105b4257803d6be4fb",
+      "bazel/wrapper_hook/write_wrapper_hook_bazelrc.py": "diff --cc bazel/wrapper_hook/write_wrapper_hook_bazelrc.py\nindex 54e2e920d8b,57374559aab..00000000000\n--- a/bazel/wrapper_hook/write_wrapper_hook_bazelrc.py\n+++ b/bazel/wrapper_hook/write_wrapper_hook_bazelrc.py\n@@@ -26,20 -25,0 +25,29 @@@ def get_mongo_arch(args)\n++<<<<<<< HEAD\n +def get_mongo_version(args):\n +    proc = subprocess.run([\"git\", \"describe\", \"--abbrev=0\"], capture_output=True, text=True)\n +    if proc.returncode != 0:\n +        from wrapper_hook import _info\n +\n +        _info(f\"Failed to get git tag name (git describe failure): '{proc.stderr.strip()}'\")\n +        return \"\"\n +\n +    # Remove a tag prefix\n +    res = proc.stdout.strip()\n +    UPSTREAM_TAG_PREFIX = \"r\"  # e.g. res = 'r5.1.0-alpha-597-g8c345c6693\\n'\n +    PERCONA_TAG_PREFIX = \"psmdb-\"  # e.g. res = 'psmdb-7.0.22-12-44-g80c7fa9d709'\n +    for p in [UPSTREAM_TAG_PREFIX, PERCONA_TAG_PREFIX]:\n +        if res.startswith(p):\n +            res = res[len(p) :]\n +            break\n +\n +    return res\n +\n +\n++||||||| 266b70c6af3\n++def get_mongo_version(args):\n++    proc = subprocess.run([\"git\", \"describe\", \"--abbrev=0\"], capture_output=True, text=True)\n++    return proc.stdout.strip()[1:]\n++\n++\n++=======\n++>>>>>>> 8596065d07d0714b272e0f105b4257803d6be4fb",
+      "buildscripts/resmokelib/multiversionconstants.py": "diff --cc buildscripts/resmokelib/multiversionconstants.py\nindex 30d0f5307aa,8885e0a08ff..00000000000\n--- a/buildscripts/resmokelib/multiversionconstants.py\n+++ b/buildscripts/resmokelib/multiversionconstants.py\n@@@ -54,2 -60,3 +68,13 @@@ def generate_mongo_version_file()\n++<<<<<<< HEAD\n++    with open(_config.MONGO_VERSION_FILE, \"w\") as mongo_version_fh:\n++        mongo_version_fh.write(\"mongo_version: \" + res)\n++||||||| 266b70c6af3\n +    with open(_config.MONGO_VERSION_FILE, \"w\") as mongo_version_fh:\n++        # E.g. res = 'r5.1.0-alpha-597-g8c345c6693\\n'\n++        res = res[1:]  # Remove the leading \"r\" character.\n +        mongo_version_fh.write(\"mongo_version: \" + res)\n++=======\n+     with open(_config.MONGO_VERSION_FILE, \"w\", encoding=\"utf-8\") as mongo_version_fh:\n+         # E.g. version = '8.2.2'\n+         mongo_version_fh.write(\"mongo_version: \" + version + \"\\n\")\n++>>>>>>> 8596065d07d0714b272e0f105b4257803d6be4fb",
+      "sbom.json": "diff --cc sbom.json\nindex 59ffb6b9ea4,e64e5f6ff72..00000000000\n--- a/sbom.json\n+++ b/sbom.json\n@@@ -5,2 -5,2 +5,10 @@@\n++<<<<<<< HEAD\n +  \"serialNumber\": \"urn:uuid:95a559f1-b091-4a92-b80d-e6d37c5e477c\",\n +  \"version\": 4,\n++||||||| 266b70c6af3\n++  \"serialNumber\": \"urn:uuid:2d7fbf85-c8b6-4f90-9966-70da88224a36\",\n++  \"version\": 3,\n++=======\n+   \"serialNumber\": \"urn:uuid:2d7fbf85-c8b6-4f90-9966-70da88224a36\",\n+   \"version\": 4,\n++>>>>>>> 8596065d07d0714b272e0f105b4257803d6be4fb\n@@@ -8,1 -8,1 +16,7 @@@\n++<<<<<<< HEAD\n +    \"timestamp\": \"2026-05-05T00:00:00Z\",\n++||||||| 266b70c6af3\n++    \"timestamp\": \"2026-04-13T06:06:17Z\",\n++=======\n+     \"timestamp\": \"2026-04-28T06:12:06Z\",\n++>>>>>>> 8596065d07d0714b272e0f105b4257803d6be4fb\n@@@ -54,1 -59,9 +68,23 @@@\n++<<<<<<< HEAD\n +        \"https://percona.com\"\n++||||||| 266b70c6af3\n++        \"https://mongodb.com\"\n++      ]\n++    },\n++    \"tools\": {\n++      \"services\": [\n++        {\n++          \"name\": \"Endor Labs Inc\",\n++          \"version\": \"v1.7.924\"\n++        }\n++=======\n+         \"https://mongodb.com\"\n+       ]\n+     },\n+     \"tools\": {\n+       \"services\": [\n+         {\n+           \"name\": \"Endor Labs Inc\",\n+           \"version\": \"v1.7.946\"\n+         }\n++>>>>>>> 8596065d07d0714b272e0f105b4257803d6be4fb",
+      "src/mongo/db/storage/kv/kv_engine.h": "diff --cc src/mongo/db/storage/kv/kv_engine.h\nindex d8756f18584,9ac8a561914..00000000000\n--- a/src/mongo/db/storage/kv/kv_engine.h\n+++ b/src/mongo/db/storage/kv/kv_engine.h\n@@@ -55,1 -54,13 +55,19 @@@ class SnapshotManager\n++<<<<<<< HEAD\n +class MONGO_MOD_OPEN KVEngine : public percona::EngineExtension {\n++||||||| 266b70c6af3\n++class MONGO_MOD_OPEN KVEngine {\n++=======\n+ /**\n+  * Whether a write may skip the read-before-write existence check the storage engine would\n+  * otherwise perform. A \"blind\" write is safe only when the caller has already validated the\n+  * operation (e.g. secondary oplog application of an op the primary accepted).\n+  */\n+ enum class BlindWritePolicy {\n+     // Storage engine performs its usual existence check before writing.\n+     nonBlind,\n+     // Skip the existence check; overwrite if a value is already present.\n+     blind,\n+ };\n+ \n+ class MONGO_MOD_OPEN KVEngine {\n++>>>>>>> 8596065d07d0714b272e0f105b4257803d6be4fb"
+    },
+    "their_commits": {
+      ".bazelrc": [
+        "8497e10988609b22b87f391538744c3776705ad8",
+        "aef13e05842fbabf6af262d019c85b7d61d9ceda"
+      ],
+      "bazel/wrapper_hook/write_wrapper_hook_bazelrc.py": [
+        "aef13e05842fbabf6af262d019c85b7d61d9ceda"
+      ],
+      "buildscripts/resmokelib/multiversionconstants.py": [
+        "aef13e05842fbabf6af262d019c85b7d61d9ceda"
+      ],
+      "sbom.json": [
+        "b4defc32f68a8641ed9eff4a21153068412d364c"
+      ],
+      "src/mongo/db/storage/kv/kv_engine.h": [
+        "eacb8b88544f76ddb5c8ad7ef48b22bad24dddb7"
+      ]
+    }
+  },
+  "merge_context": {
+    "merge_commit": "8596065d07d0714b272e0f105b4257803d6be4fb",
+    "merged_commits": [
+      "8596065d07d0714b272e0f105b4257803d6be4fb",
+      "3a459d35497b9e9c78819662ac07c5de08c4e4fc",
+      "82f2e078d64045ca8509a5c5bb4dc2a7b85714f6",
+      "3598e6212ff00d43aab26fbef0cbbd2d03eca603",
+      "78bf9c4258702554764fc02077acc0c5c193e3b6",
+      "94c92eba17d3f8d72e04d972efbfa03b73053cee",
+      "be92c57445c032e9a853d3b9cf420f163a291264",
+      "0e71217f58b99b9e9bad10f100f5275b831d3cb2",
+      "803914db382d0021cdb9f5759553534fccf6a45e",
+      "814d7b8e84c737fd7832252bcc957ae26d607644",
+      "d6f365c88b0013a340c0a9406d1340efa4131b79",
+      "db69621eacedff7f520858719771a34fa5de16a1",
+      "74f2ea47fea94ac8b461d2e3742c492ece31ef96",
+      "bda4565456d24c364904977ef4df5e5da56ce57c",
+      "a5f5ab12836b19ddfe9a5f29985f1f82bc555056",
+      "c61a3268a901e889faa54287446c9ac41581084f",
+      "584888fdeff79c4e47a572d72c59569d49ee7422",
+      "fc6c183e2d249147a245c34a536022a4c92f033a",
+      "2575db9dd16c2c6d712f973fe7da6c850d3bf964",
+      "6d086d138aa6b91b558bd7a753b1e0caadb4acb1",
+      "f92893881df1436ab5a15921a6752078fe50b67c",
+      "55c7f276559e6ec5eaa4c43524b43fc59ae96648",
+      "569d803e13fcc3899d21c30eedd848ea094656f0",
+      "1e199f4e551d0b3a9edda5a0418f9b588972b0cc",
+      "2628985ed672e2dd46a05d1e3a803b83eb9a62db",
+      "5e21298875490ac28f3f91ed9399bd44fe15179a",
+      "278e845819147604c068a4ebb58b78870ae8ea26",
+      "45ed8d2e32bf5bf5831c95fd088976ef5e44e56a",
+      "00cd7ceec8c7711800005174452a0a83ab81f6b2",
+      "63180176720f342b05e1b3079a5a665367501d59",
+      "1429603ec975c0685efd9ca1ee8f9c674c67ebf6",
+      "e603c57dab7de24ce92379940cdcf2feef5f6eb2",
+      "98e4233f0ee547b5ff9f98d28c21980caf01e605",
+      "8497e10988609b22b87f391538744c3776705ad8",
+      "ec070756d6c386164076e8a33a9300af503b4862",
+      "dc31f86e517c9728f4b25ffcf8b9357329076899",
+      "3da190d5035ab4db8f607102825fe1c48780c9c8",
+      "f84251980eaab7dc84a0072ce60ebc2baabdc0d3",
+      "d5cfd3d0413fcffb6042565b2136f5f1dfced3c8",
+      "fc4d62ec74b49d73c49b280b550133a0a47cc993",
+      "ad3657348bb0dab662e78cd2b2ba3f1b6b9df59d",
+      "83912b9088115507e2adee47375535886a2f1c94",
+      "2d86df93b8133a22ae4fb593b11346c4249f76ab",
+      "4007d948df1d4be631d4b9fab2fcda2713efe2e8",
+      "bac1632b9239ce866b6a46825fbff4daafa3be7b",
+      "5bec32225760f3d99c14c826d8be6090abb53a7c",
+      "56e6ee7bd1f59d003be076343cc72c55ea128840",
+      "d2c075aef7fbf182d17ac8177807aae4802abcb8",
+      "0283af5fa7ed7a78febb6687d2c680aba871069d",
+      "09176c62629db6ebdbd758ccee7a910976ff8a35",
+      "7ec567dd1f1724f38a660e8df4ab1efb8e2b5040",
+      "32debedb6f0371d6a8e081e776973f9c590825ec",
+      "aef13e05842fbabf6af262d019c85b7d61d9ceda",
+      "8f676e69abb28715c1deb4edce4dd2c7eb44d4d5",
+      "8d5a776709d7b94eb0f1c446915dc62b1a3e2142",
+      "7971eb4379d2359e03279178269b044047fff529",
+      "f3b36f638d44468e560a3596a9c6089d34f04f31",
+      "2e6173ecc6a89406440a435ec19cace68d43ad66",
+      "cd2df71cef3e2616584d143b48ee51f9407817a6",
+      "2d41cfb611a142d367be7f54733174d69daccf64",
+      "ec43b0daa841dd97190787fce832899de8f3bc21",
+      "560dc157f240e633b150751e456394b841939a41",
+      "52d72ab34ca1ddd39ccb01e9613fce0a8622e681",
+      "6a825d8fb3fd262048f3940c54fe23fb1c94cbad",
+      "fa84e8b6f5ce4119ec59abcc324726e15354b31a",
+      "e16e9edd89b84272fc4b7b3d1dcd8b429d5fef8b",
+      "0ab1c58a3e229584391ed7940f7519fb490bc683",
+      "ce652bdd246230a00839273121ab5b0e1684bce8",
+      "d4dd798500eb4efa32e7edd6c729132dee359eb0",
+      "097b089f0211ac44246d558a57ae017195bbfebe",
+      "937795e2db99fbf751c673f0c71959fb66924a88",
+      "ac3877e11220aa920bf66ff04434df98200b9d38",
+      "17bdd8ffbfcf1da9c2887ee7227491b023c08156",
+      "286760807a41461f12256068cdfd9986b70b35a9",
+      "485635492281ca37f1f837290ed17fad4d83853f",
+      "0285d3c41605d3f0097f85a7e4712d97370c37d8",
+      "da91a87218275d6978431a4969df7620f7237629",
+      "ce5b13fe1ab31b9c192999184fc464582b93439d",
+      "6f62cbeb5d74e362f6c3bfa99fc09a048f9514b0",
+      "b4defc32f68a8641ed9eff4a21153068412d364c",
+      "96ba36178cfa07d2f9b233cd5d192001fa9f3069",
+      "2da3d58c362de2a4307e7fc2749be915c3557df0",
+      "bddf22879cf2328c32f46dc67568d553306afba1",
+      "59fe59590cb2d093688d3d23065709847e37353a",
+      "8516f231cd54d5151814379e76a48b14cb4e56d9",
+      "4667062b7fce5f6b40b145edcedc74a70f292196",
+      "310a500d57a45079216b1ea1088f4ae2686429af",
+      "185cefdc42ef30aa1dd5a2e1caf659815bec7165",
+      "c058f99660ac8a921043bdf44b00cbe971ba0ca1",
+      "8a0647111eafc52b7f43bd4c877c671c38a1fd2f",
+      "727abd73f52ab970c9029a8abcafdca5fb2447bc",
+      "d621851caef306de4fd01edaf34bb43fc4646225",
+      "f1aed4df0d9902203287554d4ab5ec11d36ba2b9",
+      "dddf24a188ad6b21cfc24c7abfcaa3fb55cdc262",
+      "a13f072c3fb755bcb7a3f8dc798d71038dd42da5",
+      "60244cb01c8de95b807218a6ace691af70a0b97f",
+      "259e1f45645a50f2320f8a539adf4c70b5d40386",
+      "42cdf8a67f024ab27a04af1205152269274a0dbc",
+      "de578f7533c7cee740d9591df52170c8d027917b",
+      "afade8aa5272e5f04d167af6ebe9328026929dec",
+      "c418081257b27b0e2c3003a4e5a9c1c8415e4e2a",
+      "fd355a66c40789289282210081c6b7cd52eb6aad",
+      "e3e9127432937287bc20ae4606b06d0daeec7c96",
+      "4e78e65fa625a8d73580ad0bb72dc0ad296445b5",
+      "8dd854074824b5ee722ab8f6635708dc427d25b9",
+      "05512df72f1032afb8ce8daf575482db354a299e",
+      "951275771d708bddd052031aec8ed9d26fc3fef5",
+      "e035c148427de9d49729734162df5860acadd519",
+      "d2e1361d45f7ae7c9ed2d0106447e92d14512b56",
+      "a8831bdd0a851aecc10849f0115a33c90c63db3f",
+      "92b2da53c9c82d29db7fb5312a229ca816fa5162",
+      "71cbc4b0405660fd5525aad804f24649f34d87fa",
+      "eacb8b88544f76ddb5c8ad7ef48b22bad24dddb7",
+      "24c30ddb10112e832652964a6cec9777f1d36f11",
+      "3f75f45a77254df8c12e76711af623480f9c74c4",
+      "618e4ff87e7ab45947a9b4673e97ce6b22d7a35f",
+      "ff4afda39007761db70dcc0eeb1e917d9f87708c",
+      "43f1883fbe3e74e2a2af52827b8a54cbd3054f7a",
+      "3a15be5a286951f2060e3faf39a8d3b025d873fb",
+      "6a9d344b3e1826fb8188bfdcd4fb558f4c7de4d6",
+      "ae1d674ba25af9e9ae24a5b0271f0d0a23d147d0",
+      "15cd28f3bdb8d1a1d98990c5fe500be20229c04c",
+      "ec4223156894ec9058c90c041e2ded7854c9a6ad",
+      "36d75e11d1b5562d82dc2f5b4b527a4e64923c61",
+      "758c5ce58b8a7a730f2d44acfa6963f42c850ffe",
+      "4eccf36ba50166c6722b1e609d9aec946deb1d27",
+      "012878375d926e74a28db71664c3f50bdbca5e12",
+      "1f2a90e428f7592c3e8ff7ed6d1b0565e3c9aa19",
+      "957288b68d3bca1f9d2d49fa0b0ec29d31a54d05",
+      "33bb6b4a847c81b71c57b8963fd4370ff218d33f",
+      "83cf80888b4a8f1b9057403c71379c7fbb966d7a",
+      "50a17d628241ef81f0d79657996ed88d2332db35",
+      "850ecaf79612bcc84a27c113a9bf1431fb3a20ca",
+      "f8a548384d2022b7348d4b5167f7ae7237055dfd",
+      "03b7cbe4011580adf3ce677653f7623e9ba96f3e",
+      "eb468d18f40ab541ee284cb920023768a0a43724",
+      "1190a650cc443b62da446301af537a2bc740ab3d",
+      "ac9f8099c4e56d2347835ec8403546ac9b4e362e",
+      "20b7a1cb462a0b493fdf4ef0a7c87443d6214da4",
+      "33786255666d4778e1582764143cf83dfc0fdd88",
+      "bb57c7770419ba548252a4326c29ffb3ae1be37c",
+      "cccc90a3225b6a563dd96f31353d06614dec6c86",
+      "5ce1b552f76c5d605258799aee9c6859c3d9f283",
+      "25e1ad906f8894662986832a8aea1cfc18125fae",
+      "807ddf0e586b90286ddff97fd3e3d7e6fdae0559",
+      "5cfc534447d1952209bf2b954c17788b775a0de0",
+      "09f5173adc5a6dc20b9b27e719b99a8b28b30d3f",
+      "02d873c775b33554af510cf02deb9eba1e735942",
+      "4d4a144e77ccac46d13002d9404be13030d20d95",
+      "01e4be59eb9e50980799d67b2a696f762825b6be"
+    ],
+    "important_files_modified": [
+      "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp"
+    ],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        ".gitignore",
+        "BUILD.bazel",
+        "MODULE.bazel.lock",
+        "bazel/config/BUILD.bazel",
+        "bazel/wrapper_hook/write_wrapper_hook_bazelrc.py",
+        "buildscripts/resmokelib/configure_resmoke.py",
+        "buildscripts/resmokelib/multiversionconstants.py",
+        "jstests/libs/write_concern_all_commands.js",
+        "jstests/sharding/database_versioning_all_commands.js",
+        "jstests/sharding/libs/mongos_api_params_util.js",
+        "sbom.json",
+        "src/mongo/db/BUILD.bazel",
+        "src/mongo/db/commands/BUILD.bazel",
+        "src/mongo/db/index_builds/BUILD.bazel",
+        "src/mongo/db/mongod_main.cpp",
+        "src/mongo/db/pipeline/BUILD.bazel",
+        "src/mongo/db/pipeline/process_interface/common_mongod_process_interface.cpp",
+        "src/mongo/db/server_options.h",
+        "src/mongo/db/server_options_general.idl",
+        "src/mongo/db/server_options_server_helpers.cpp",
+        "src/mongo/db/storage/kv/kv_engine.h",
+        "src/mongo/db/storage/wiredtiger/BUILD.bazel",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_global_options.idl",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h",
+        "src/mongo/util/version.cpp",
+        "src/third_party/wiredtiger/src/conn/conn_api.c",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in"
+      ]
+    }
+  },
+  "solutions": [
+    {
+      "response": {
+        "summary": "Resolve conflicts for merge commit '8596065d07d' into master",
+        "resolved": {
+          ".bazelrc": "Resolved by human",
+          "bazel/wrapper_hook/write_wrapper_hook_bazelrc.py": "Resolved by human",
+          "buildscripts/resmokelib/multiversionconstants.py": "Resolved by human",
+          "sbom.json": "Resolved by human",
+          "src/mongo/db/storage/kv/kv_engine.h": "Resolved by human"
+        },
+        "unresolved": {},
+        "modified": {},
+        "review_notes": "Resolved all 5 merge conflicts by preserving Percona-specific\nenhancements while incorporating MongoDB's upstream changes. Kept\nPercona's .bazelrc.psmdb import, retained the enhanced get_mongo_version\nfunction with Percona tag prefix handling, fixed broken auto-merge code\nin multiversionconstants.py to properly use the version variable with\nPercona prefix stripping, preserved Percona's sbom.json metadata while\nadding the updated tools section, and merged MongoDB's new\nBlindWritePolicy enum with Percona's EngineExtension inheritance in\nkv_engine.h.\n\nResolved:\n\t.bazelrc\n\tbazel/wrapper_hook/write_wrapper_hook_bazelrc.py\n\tbuildscripts/resmokelib/multiversionconstants.py\n\tsbom.json\n\tsrc/mongo/db/storage/kv/kv_engine.h\n\nNote: commit created by mergai"
+      },
+      "author": {
+        "name": "psmdb-bot[bot]",
+        "email": "2942401+psmdb-bot[bot]@users.noreply.github.com",
+        "type": "human"
+      },
+      "commit_sha": "5c280e2cb4abb2b0583254a9f47517bda16189fa"
+    }
+  ],
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 45808,
+    "num_turns": 2,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.207637,
+    "modelUsage": {
+      "claude-haiku-4-5-20251001": {
+        "inputTokens": 425,
+        "outputTokens": 14,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0,
+        "webSearchRequests": 0,
+        "costUSD": 0.000495,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000
+      },
+      "claude-opus-4-5": {
+        "inputTokens": 18,
+        "outputTokens": 2925,
+        "cacheReadInputTokens": 41429,
+        "cacheCreationInputTokens": 18114,
+        "webSearchRequests": 0,
+        "costUSD": 0.207142,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-haiku-4-5-20251001": {
+          "tokens": {
+            "input": 425,
+            "output": 14,
+            "cache_read": 0,
+            "cache_creation": 0
+          },
+          "cost_usd": 0.000495
+        },
+        "claude-opus-4-5": {
+          "tokens": {
+            "input": 18,
+            "output": 2925,
+            "cache_read": 41429,
+            "cache_creation": 18114
+          },
+          "cost_usd": 0.207142
+        }
+      }
+    },
+    "text_result": "Written the JSON response describing the merge. Key points:\n- 148 upstream MongoDB commits being merged\n- 5 files with conflicts requiring manual resolution\n- 28 files auto-merged by git's \"ort\" strategy\n- Review notes highlight Percona-specific features that must be preserved (EngineExtension inheritance, .bazelrc.psmdb, enhanced tag prefix handling)",
+    "response": {
+      "summary": "This merge integrates 148 upstream MongoDB commits into PSMDB master. Key changes include: removal of git version tracking from bazel wrapper hooks, updates to multiversion constants with UTF-8 encoding and improved version handling, addition of a new BlindWritePolicy enum for storage engine write operations, and various SBOM metadata updates. The merge preserves Percona-specific features including the EngineExtension inheritance in KVEngine, the .bazelrc.psmdb import, and the enhanced get_mongo_version function with support for both upstream and Percona tag prefixes.",
+      "auto_merged": {
+        ".gitignore": "Standard gitignore updates merged without conflicts",
+        "BUILD.bazel": "Build configuration changes merged automatically",
+        "MODULE.bazel.lock": "Bazel module lock file auto-merged (may need regeneration via 'bazel query //...')",
+        "bazel/config/BUILD.bazel": "Bazel config build file changes merged",
+        "bazel/wrapper_hook/write_wrapper_hook_bazelrc.py": "Partial auto-merge of wrapper hook script - upstream removed get_mongo_version function while Percona version has enhanced tag prefix handling",
+        "buildscripts/resmokelib/configure_resmoke.py": "Resmoke configuration changes merged",
+        "buildscripts/resmokelib/multiversionconstants.py": "Partial auto-merge of multiversion constants - upstream changed to use 'version' variable with UTF-8 encoding and newline suffix",
+        "jstests/libs/write_concern_all_commands.js": "Test library updates for write concern commands merged",
+        "jstests/sharding/database_versioning_all_commands.js": "Sharding test updates merged",
+        "jstests/sharding/libs/mongos_api_params_util.js": "Mongos API params utility updates merged",
+        "sbom.json": "Partial auto-merge of SBOM - upstream uses mongodb.com manufacturer URL and updated Endor Labs version (v1.7.946)",
+        "src/mongo/db/BUILD.bazel": "Database build configuration merged",
+        "src/mongo/db/commands/BUILD.bazel": "Commands build configuration merged",
+        "src/mongo/db/index_builds/BUILD.bazel": "Index builds configuration merged",
+        "src/mongo/db/mongod_main.cpp": "Main mongod entry point changes merged",
+        "src/mongo/db/pipeline/BUILD.bazel": "Pipeline build configuration merged",
+        "src/mongo/db/pipeline/process_interface/common_mongod_process_interface.cpp": "Process interface implementation changes merged",
+        "src/mongo/db/server_options.h": "Server options header changes merged",
+        "src/mongo/db/server_options_general.idl": "Server options IDL definitions merged",
+        "src/mongo/db/server_options_server_helpers.cpp": "Server options helpers merged",
+        "src/mongo/db/storage/kv/kv_engine.h": "Partial auto-merge - upstream added BlindWritePolicy enum for controlling existence checks on writes",
+        "src/mongo/db/storage/wiredtiger/BUILD.bazel": "WiredTiger build configuration merged",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_global_options.idl": "WiredTiger options IDL merged",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp": "WiredTiger KV engine implementation changes merged - important file with storage engine modifications",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h": "WiredTiger KV engine header changes merged",
+        "src/mongo/util/version.cpp": "Version utility changes merged",
+        "src/third_party/wiredtiger/src/conn/conn_api.c": "WiredTiger connection API changes merged",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in": "WiredTiger header template changes merged"
+      },
+      "review_notes": "CONFLICTS REQUIRING MANUAL RESOLUTION:\n\n1. **.bazelrc**: Upstream removed git version tracking lines. Percona adds .bazelrc.psmdb import which must be preserved.\n\n2. **bazel/wrapper_hook/write_wrapper_hook_bazelrc.py**: Upstream completely removed get_mongo_version() function. Percona's version has enhanced tag prefix handling for both 'r' (upstream) and 'psmdb-' (Percona) prefixes - this Percona enhancement should be preserved.\n\n3. **buildscripts/resmokelib/multiversionconstants.py**: Upstream refactored to use 'version' variable with UTF-8 encoding. Percona simplified the version extraction (removed 'r' prefix stripping comment). Need to reconcile the variable naming and encoding approach.\n\n4. **sbom.json**: Multiple conflicts - Percona uses different serialNumber (95a559f1-...), timestamp (2026-05-05), and manufacturer URL (percona.com). Upstream updated Endor Labs version to v1.7.946. Preserve Percona's manufacturer URL and serialNumber.\n\n5. **src/mongo/db/storage/kv/kv_engine.h**: Upstream added new BlindWritePolicy enum. Percona's KVEngine class extends percona::EngineExtension. Both changes should be kept - add the enum AND preserve the EngineExtension inheritance.\n\nIMPORTANT STORAGE ENGINE CHANGE: Review wiredtiger_kv_engine.cpp carefully - this is flagged as an important modified file and may involve the new BlindWritePolicy functionality."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [
+            "I'll analyze the merge commit information and write the JSON response describing the changes."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [
+            "Written the JSON response describing the merge. Key points:\n- 148 upstream MongoDB commits being merged\n- 5 files with conflicts requiring manual resolution\n- 28 files auto-merged by git's \"ort\" strategy\n- Review notes highlight Percona-specific features that must be preserved (EngineExtension inheritance, .bazelrc.psmdb, enhanced tag prefix handling)"
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20260510_200511_252590.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.138 (Claude Code)"
+    }
+  },
+  "note_index": [
+    {
+      "sha": "85320d700a6b088e6657a05bc71cd7cb4bd09af1",
+      "fields": [
+        "conflict_context",
+        "merge_context",
+        "solutions[0]",
+        "merge_description"
+      ]
+    }
+  ]
+}
