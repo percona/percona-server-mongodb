@@ -52,11 +52,6 @@ class OperationContext;
 class RecoveryUnit;
 class SnapshotManager;
 
-<<<<<<< HEAD
-class MONGO_MOD_OPEN KVEngine : public percona::EngineExtension {
-||||||| 266b70c6af3
-class MONGO_MOD_OPEN KVEngine {
-=======
 /**
  * Whether a write may skip the read-before-write existence check the storage engine would
  * otherwise perform. A "blind" write is safe only when the caller has already validated the
@@ -69,8 +64,7 @@ enum class BlindWritePolicy {
     blind,
 };
 
-class MONGO_MOD_OPEN KVEngine {
->>>>>>> 8596065d07d0714b272e0f105b4257803d6be4fb
+class MONGO_MOD_OPEN KVEngine : public percona::EngineExtension {
 public:
     using IdentKey = std::variant<std::span<const char>, int64_t>;
 
