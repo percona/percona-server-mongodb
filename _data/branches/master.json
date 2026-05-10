@@ -5,35 +5,35 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 494,
+    "commits_behind": 470,
     "days_behind": 15,
-    "files_affected": 1931,
-    "total_additions": 85827,
-    "total_deletions": 25369,
+    "files_affected": 1798,
+    "total_additions": 82125,
+    "total_deletions": 24752,
     "date_range": {
-      "first": "2026-04-24T15:41:49+00:00",
+      "first": "2026-04-24T21:50:04+00:00",
       "last": "2026-05-08T22:53:11+00:00"
     }
   },
   "last_merged_commit": {
-    "sha": "190a9ea5f8c86d98affae39349f276380412998c",
-    "short_sha": "190a9ea5f8c",
-    "date": "2026-04-24T11:40:13-04:00",
+    "sha": "266b70c6af3a31a3a78d9f7d4c320c18dcb6adff",
+    "short_sha": "266b70c6af3",
+    "date": "2026-04-24T16:28:08-04:00",
     "author": {
-      "name": "Stephanie",
-      "email": "53684987+seristof@users.noreply.github.com"
+      "name": "Alex Li",
+      "email": "98560274+lia394126@users.noreply.github.com"
     },
-    "summary": "SERVER-125092 Move indexBuildIdent to top-level in o2 for resumable PDIB (#52429)"
+    "summary": "SERVER-104800 Remove unnecessary stdx aliases in stdx/utility.h, stdx/type_traits.h, and stdx/thread.h (#52234)"
   },
   "first_unmerged_commit": {
-    "sha": "05d3c530bfbc4693377f55ac408c343fff9a52a6",
-    "short_sha": "05d3c530bfb",
-    "date": "2026-04-24T11:41:49-04:00",
+    "sha": "01e4be59eb9e50980799d67b2a696f762825b6be",
+    "short_sha": "01e4be59eb9",
+    "date": "2026-04-24T14:50:04-07:00",
     "author": {
-      "name": "Jada Lilleboe",
-      "email": "82007190+jadalilleboe@users.noreply.github.com"
+      "name": "CALVIN NGUYEN",
+      "email": "calvin.nguyen@mongodb.com"
     },
-    "summary": "SERVER-123889 Add additional automated error handling tests and clean up pub/sub code (#52492)"
+    "summary": "SERVER-123900 Block running failing MozJS tests against a WASM-enabled server (#52296)"
   },
   "unmerged_commits": [
     {
@@ -4735,272 +4735,9 @@
         "email": "calvin.nguyen@mongodb.com"
       },
       "summary": "SERVER-123900 Block running failing MozJS tests against a WASM-enabled server (#52296)"
-    },
-    {
-      "sha": "266b70c6af3a31a3a78d9f7d4c320c18dcb6adff",
-      "short_sha": "266b70c6af3",
-      "date": "2026-04-24T16:28:08-04:00",
-      "author": {
-        "name": "Alex Li",
-        "email": "98560274+lia394126@users.noreply.github.com"
-      },
-      "summary": "SERVER-104800 Remove unnecessary stdx aliases in stdx/utility.h, stdx/type_traits.h, and stdx/thread.h (#52234)"
-    },
-    {
-      "sha": "441e8b8c2aadf05a1c744cdf6a9fea9e91d6f936",
-      "short_sha": "441e8b8c2aa",
-      "date": "2026-04-24T16:18:20-04:00",
-      "author": {
-        "name": "Christopher M. Wolff",
-        "email": "chris.wolff@mongodb.com"
-      },
-      "summary": "SERVER-114221 Make TsBlock::tryDense() to use fast bsoncolumn::dense() (#52374)"
-    },
-    {
-      "sha": "5c76ee76e9bb2f1e37b8c549afc12b484c47a3f9",
-      "short_sha": "5c76ee76e9b",
-      "date": "2026-04-24T13:17:10-07:00",
-      "author": {
-        "name": "Jinfeng Ni",
-        "email": "jinfeng.ni@mongodb.com"
-      },
-      "summary": "SERVER-115335 Add originalQueryShapeHash to query stats entries on mongod (#52049)"
-    },
-    {
-      "sha": "acc4e60551e893506f48a6477c97260806526c62",
-      "short_sha": "acc4e60551e",
-      "date": "2026-04-24T16:00:43-04:00",
-      "author": {
-        "name": "Jawwad Asghar",
-        "email": "112432173+jawwadasghar@users.noreply.github.com"
-      },
-      "summary": "SERVER-124930: Replace mutex-guarded running-thread count with atomic in ServiceExecutor yield path (#52257)"
-    },
-    {
-      "sha": "ce712f81f61cf14a39990caed0e839e520ea4d58",
-      "short_sha": "ce712f81f61",
-      "date": "2026-04-25T08:00:24+12:00",
-      "author": {
-        "name": "Jonas Bergler",
-        "email": "jonas.bergler@mongodb.com"
-      },
-      "summary": "SERVER-125459: block on red, use calculated field for cooldown instead of created time (#52550)"
-    },
-    {
-      "sha": "dd02136914175eec61bd06b0b92fd364c2b2b929",
-      "short_sha": "dd021369141",
-      "date": "2026-04-25T08:00:07+12:00",
-      "author": {
-        "name": "Jonas Bergler",
-        "email": "jonas.bergler@mongodb.com"
-      },
-      "summary": "SERVER-125462: block on red, update thresholds (#52553)"
-    },
-    {
-      "sha": "419c2d9f257447330677a5f77ceffb142cb6ebb1",
-      "short_sha": "419c2d9f257",
-      "date": "2026-04-24T15:28:44-04:00",
-      "author": {
-        "name": "Stephanie",
-        "email": "53684987+seristof@users.noreply.github.com"
-      },
-      "summary": "SERVER-124911 Create and drop underlying wt table with indexBuild ident (#52512)"
-    },
-    {
-      "sha": "077f059376aa4cd1bd0819304a70cf0cb5f0b1a6",
-      "short_sha": "077f059376a",
-      "date": "2026-04-24T19:20:56+00:00",
-      "author": {
-        "name": "Joan Bruguera Micó (at MongoDB)",
-        "email": "joan.bruguera-mico@mongodb.com"
-      },
-      "summary": "SERVER-101597 Forbid creation of views over system.buckets when viewless timeseries is enabled (#52372)"
-    },
-    {
-      "sha": "447ed6ec5fb8e90ef1606b14640fb3265e1c82b1",
-      "short_sha": "447ed6ec5fb",
-      "date": "2026-04-24T15:19:10-04:00",
-      "author": {
-        "name": "Brett Nawrocki",
-        "email": "90278537+brettnawrocki@users.noreply.github.com"
-      },
-      "summary": "SERVER-124255 Integrate resharding donor with critical section command (#52606)"
-    },
-    {
-      "sha": "dcc9ea137f36005813f7b7e5429929a123b5877a",
-      "short_sha": "dcc9ea137f3",
-      "date": "2026-04-24T21:59:06+03:00",
-      "author": {
-        "name": "Daniel Tabacaru",
-        "email": "96778637+danieltabacaru@users.noreply.github.com"
-      },
-      "summary": "SERVER-122257 Revert number of lookup-unwind stages in product limits test (#52586)"
-    },
-    {
-      "sha": "339820bfb5d52edce96bcb7d7a609f2e9e7bf37a",
-      "short_sha": "339820bfb5d",
-      "date": "2026-04-24T14:28:05-04:00",
-      "author": {
-        "name": "Erwin Pe",
-        "email": "erwin.pe@mongodb.com"
-      },
-      "summary": "SERVER-123416 Block deprecated suffixPreview/prefixPreview query type strings at collection creation and CRUD (#52384)"
-    },
-    {
-      "sha": "6d14446babcc1f893c3a75bd1583ccbed6cbffb7",
-      "short_sha": "6d14446babc",
-      "date": "2026-04-24T14:13:06-04:00",
-      "author": {
-        "name": "Malik Endsley",
-        "email": "malik.endsley@mongodb.com"
-      },
-      "summary": "SERVER-124171: Disambiguate user-defined collection schema violations from timeseries schema violations in validate (#52297)"
-    },
-    {
-      "sha": "b4f30fcb5ebc61a80a964c2eb73309768b87c873",
-      "short_sha": "b4f30fcb5eb",
-      "date": "2026-04-24T14:01:03-04:00",
-      "author": {
-        "name": "Christopher M. Wolff",
-        "email": "chris.wolff@mongodb.com"
-      },
-      "summary": "SERVER-114219 Fast denseness detection (#51079)"
-    },
-    {
-      "sha": "18f29d2c3ac124890174ae39e7439b684442f267",
-      "short_sha": "18f29d2c3ac",
-      "date": "2026-04-24T13:56:04-04:00",
-      "author": {
-        "name": "Jiaqi Tian",
-        "email": "jiaqi.tian@mongodb.com"
-      },
-      "summary": "SERVER-125404 resolve timing issue in delinquent_ops.js (#52496)"
-    },
-    {
-      "sha": "2bb1e7aa5e20080518ddedcec024fc3e47fbc1c3",
-      "short_sha": "2bb1e7aa5e2",
-      "date": "2026-04-24T19:17:40+02:00",
-      "author": {
-        "name": "Enrico Golfieri",
-        "email": "enrico.golfieri@mongodb.com"
-      },
-      "summary": "SERVER-122275 Use the commit/abort index build optime to drop index build sidetables (#50868)"
-    },
-    {
-      "sha": "c6a921521a6932f957682d6e9fbd43d1e71601f7",
-      "short_sha": "c6a921521a6",
-      "date": "2026-04-24T12:53:14-04:00",
-      "author": {
-        "name": "Ernesto Rodriguez Reina",
-        "email": "erreina@users.noreply.github.com"
-      },
-      "summary": "SERVER-124048 Implement AppliedOpTime observer mechanism (#52058)"
-    },
-    {
-      "sha": "e390d588be93df2b1ef957f21a63b1d8583478ac",
-      "short_sha": "e390d588be9",
-      "date": "2026-04-24T11:44:27-05:00",
-      "author": {
-        "name": "nandinibhartiyaMDB",
-        "email": "104035932+nandinibhartiyaMDB@users.noreply.github.com"
-      },
-      "summary": "SERVER-125019: Modify write concern for tests based on the persistence storage. (#52432)"
-    },
-    {
-      "sha": "cb1cbb1d014fc84335eec1df0e228229fa5ce9af",
-      "short_sha": "cb1cbb1d014",
-      "date": "2026-04-24T17:44:20+01:00",
-      "author": {
-        "name": "Lee Maguire",
-        "email": "lee.maguire@mongodb.com"
-      },
-      "summary": "SERVER-125486: Fix TSAN data race on Task::killPending in DeadlineMonitor test (#52587)"
-    },
-    {
-      "sha": "d63d2672d30640a6347cf9b86c337ee3be16ce78",
-      "short_sha": "d63d2672d30",
-      "date": "2026-04-24T11:34:08-05:00",
-      "author": {
-        "name": "Nathan Frank",
-        "email": "nathantfrank@users.noreply.github.com"
-      },
-      "summary": "SERVER-117494: enable gwproxy tests in evg (#52578)"
-    },
-    {
-      "sha": "5691b3ab80850e27ce568c933f25df4c4865c134",
-      "short_sha": "5691b3ab808",
-      "date": "2026-04-24T12:28:39-04:00",
-      "author": {
-        "name": "Joshua Siegel",
-        "email": "39130209+joshbsiegel@users.noreply.github.com"
-      },
-      "summary": "SERVER-125426 Remove `LiteParsedDocumentSourceForeignCollection` (#52510)"
-    },
-    {
-      "sha": "07f4ad9f360df4d58989b86b403767dbfb475600",
-      "short_sha": "07f4ad9f360",
-      "date": "2026-04-24T12:11:39-04:00",
-      "author": {
-        "name": "Sean Lyons",
-        "email": "sean.lyons@mongodb.com"
-      },
-      "summary": "SERVER-125489: Stop further test execution after timeout (#52588)"
-    },
-    {
-      "sha": "48094d76712c8b108d929953161c7d42029385ed",
-      "short_sha": "48094d76712",
-      "date": "2026-04-24T12:10:11-04:00",
-      "author": {
-        "name": "Owen Chen",
-        "email": "owen.chen@mongodb.com"
-      },
-      "summary": "SERVER-123816 Add tests for live privilege updates on authenticated sessions (#52592)"
-    },
-    {
-      "sha": "3444a8a3723a884c42a12fc378a59a53ff35c559",
-      "short_sha": "3444a8a3723",
-      "date": "2026-04-24T12:06:13-04:00",
-      "author": {
-        "name": "Calvin Nix",
-        "email": "6693710+Calvinnix@users.noreply.github.com"
-      },
-      "summary": "SERVER-125059: Streams: add kafka source benchmark (#52357)"
-    },
-    {
-      "sha": "05d3c530bfbc4693377f55ac408c343fff9a52a6",
-      "short_sha": "05d3c530bfb",
-      "date": "2026-04-24T11:41:49-04:00",
-      "author": {
-        "name": "Jada Lilleboe",
-        "email": "82007190+jadalilleboe@users.noreply.github.com"
-      },
-      "summary": "SERVER-123889 Add additional automated error handling tests and clean up pub/sub code (#52492)"
     }
   ],
   "merge_picks": [
-    {
-      "commit": {
-        "sha": "266b70c6af3a31a3a78d9f7d4c320c18dcb6adff",
-        "short_sha": "266b70c6af3",
-        "date": "2026-04-24T16:28:08-04:00",
-        "author": {
-          "name": "Alex Li",
-          "email": "98560274+lia394126@users.noreply.github.com"
-        },
-        "summary": "SERVER-104800 Remove unnecessary stdx aliases in stdx/utility.h, stdx/type_traits.h, and stdx/thread.h (#52234)"
-      },
-      "strategy_name": "huge_commit",
-      "result": {
-        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
-        "evaluated_vars": {
-          "num_of_files": 81,
-          "num_of_lines": 430,
-          "lines_added": 171,
-          "lines_deleted": 259,
-          "num_of_dirs": 33
-        }
-      }
-    },
     {
       "commit": {
         "sha": "01e4be59eb9e50980799d67b2a696f762825b6be",
@@ -5425,7 +5162,7 @@
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-05-09 20:39:40",
+  "generated_at": "2026-05-10 00:21:59",
   "branch_name": "master",
   "display_name": "master"
 }
