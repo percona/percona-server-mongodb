@@ -1,0 +1,31 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "0d361ff8fd5e0b2c8500363bfe2794db44f697b7",
+    "merge_commit": "8596065d07d0714b272e0f105b4257803d6be4fb"
+  },
+  "mergai_version": "0.1.dev1+g2c757647b",
+  "solutions": [
+    {
+      "response": {
+        "summary": "Resolve conflicts for merge commit '8596065d07d' into master",
+        "resolved": {
+          ".bazelrc": "Resolved by human",
+          "bazel/wrapper_hook/write_wrapper_hook_bazelrc.py": "Resolved by human",
+          "buildscripts/resmokelib/multiversionconstants.py": "Resolved by human",
+          "sbom.json": "Resolved by human",
+          "src/mongo/db/storage/kv/kv_engine.h": "Resolved by human"
+        },
+        "unresolved": {},
+        "modified": {},
+        "review_notes": "Resolved all 5 merge conflicts by preserving Percona-specific\nenhancements while incorporating MongoDB's upstream changes. Kept\nPercona's .bazelrc.psmdb import, retained the enhanced get_mongo_version\nfunction with Percona tag prefix handling, fixed broken auto-merge code\nin multiversionconstants.py to properly use the version variable with\nPercona prefix stripping, preserved Percona's sbom.json metadata while\nadding the updated tools section, and merged MongoDB's new\nBlindWritePolicy enum with Percona's EngineExtension inheritance in\nkv_engine.h.\n\nResolved:\n\t.bazelrc\n\tbazel/wrapper_hook/write_wrapper_hook_bazelrc.py\n\tbuildscripts/resmokelib/multiversionconstants.py\n\tsbom.json\n\tsrc/mongo/db/storage/kv/kv_engine.h\n\nNote: commit created by mergai"
+      },
+      "author": {
+        "name": "psmdb-bot[bot]",
+        "email": "2942401+psmdb-bot[bot]@users.noreply.github.com",
+        "type": "human"
+      },
+      "commit_sha": "5c280e2cb4abb2b0583254a9f47517bda16189fa"
+    }
+  ]
+}
