@@ -1,0 +1,286 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "439a3acd2274607ecfd6a1ff665669415340bf31",
+    "merge_commit": "893a84d87e1b5aba285026f976eb51abf11f095e"
+  },
+  "mergai_version": "0.1.dev1+g2c757647b",
+  "merge_context": {
+    "merge_commit": "893a84d87e1b5aba285026f976eb51abf11f095e",
+    "merged_commits": [
+      "893a84d87e1b5aba285026f976eb51abf11f095e",
+      "b91befeaad7900e63631f0a624fb395e2536b614",
+      "20c83b0ef86d5af13bf059bfe4a12941e222a827",
+      "c323b832e94a93564154dd8c56e54adff28590b1",
+      "ede3c2c0e5a4d42d81e54e56acf29bc514c41ac3",
+      "0ee04e64cea62071ed538b76a8dfa7f204275b08",
+      "d84841f4e900506358f9cc187ea8213fa906dc3e",
+      "2e5b22ad33f242d626d1ff5162eeb2f5b9c6b942",
+      "e6fa9c2e4ad4c0bee5b5ffd366f277f17231e787",
+      "5f242626e865da3c1554658947c2e36af9a6c215",
+      "932c71f2eb95b2cd23137bfd4e0052663a954b19",
+      "53723f7fc078803794d2b35b3d0e747bcfe8956a",
+      "471800b1cc8ba62729a1310ce62d3e0c77eabc5a",
+      "3499ad6e68434f84e701cf74f8bcac502925527e",
+      "090920a67311cabbaa196483f26a11953657f8c7",
+      "90ee0b41003673606397a9b61a105a07a3b3a99d",
+      "16f6621bc79f4f8ac22d4eb6b6c4d382109bfcd2",
+      "80ad88452a1f391acc372cf956affb911cb5e056",
+      "934c970f970063c7cb205c2a167602213c8468ad",
+      "447305440e71aa141d1b08ebe76fe48bf6a6fdaf",
+      "715abedfd69654b2daae1a165d9ff3fd57776937",
+      "0e8ac2952fe547a45632802c28b01271b392edbd",
+      "46a0417972aa77501df6d9627563a90568c5912d",
+      "f946e3dbfa2a0b704a1b8c49febdbf5ea7b60b5b",
+      "3f9f4f8d236733fa2c94a16ec5699be75f498a34",
+      "9ac24109afcd17eed119e3c3070c9a118589b7cf",
+      "47bd76fd01fc14008e9048b075f6bdf08bec4887",
+      "53d2dc8e9f205c4d4c6a1f921310ea5912daeb32",
+      "bac13aa485435588cb8926e806dfda26ded22bbe",
+      "bf8a367e109950287bac9f97be24f820497b6b48",
+      "081efa2b3e534fcc554d7bd01dcc1672c6f1a322",
+      "f79c669331349fbce0d6d6d60c7c5847a84fb406",
+      "a0a9f7755d5a661132b2dc4dbee35d1e8376c189",
+      "33ecce1a93f7611d3f977b1aff51080607040660",
+      "1b24819fc6ab7159442593bafaef399bd534812a",
+      "a3873528800ffaaf3db8679ab5d012cc7bc31d95",
+      "dce27977276e9c3aa2abc9d8d0a63dbf2563049b",
+      "10ff6392a65a586c7f2505c677de1d09142ec80f",
+      "839e7207a0ae480d1057e2e3675a48ec71057cb0",
+      "f126b8ff377a34998b85e584eea40dfb219c1b0f",
+      "c1be07a7f5240aec9584f1c6b229f8193a111abc",
+      "7d228c23431d16e5f9e1b0fa2080e21dba56e7ca",
+      "d636590450ff506aee8b6919341d34e37ba6f16e",
+      "6b320fa549a28d99c09801265390cd12b168b079",
+      "43d5169786d47281929832b7768aa0b3664bad32",
+      "06b9294d9fd57914b876e41954501d9cae61c911",
+      "292f09ec917bd3e4890b715b51250475e626f670",
+      "dd6e718542454009a3fe2b22bd4c41d3df35a86b",
+      "42f996bfd94487c27527900ae718e6b8d6b1db9e",
+      "0b31661aca224044056db8fd7223d9235c9be788",
+      "ace034459750eb14ef656e11e74030069116b40b",
+      "22163c0509b941ce5d64e4fecc0aaf7090c87340",
+      "19ee4666a950c761dae617d35aaedf346a1dd1d5",
+      "861664c9bd81706a11aed82ce462230760ed5ebf",
+      "7456dfe1490ce2269c4dc1d70b292b682d6131ae",
+      "bc42317102aadf27cef49eea1b248c75c41c517e",
+      "cbe2ff863bc2acd473a37fe156c7900462b1530a",
+      "74be5c1f9bedcae060eefdd243ccaa0dd1ae0c03",
+      "9065de4e90ea0a459795d4e29ff18d234e0d9cc1",
+      "c54c84a819d6f0b0be307bdde171122f10a86bf5",
+      "e88af64e334ddf1daaf4d93aaa1aa984ff6d6d0c",
+      "7d6e7af721e3977fe426e12399f3d657ab4b1c34",
+      "4432bab282f33426c11115e57869c7640d8417c0",
+      "23b48f1933749e6e4a16b725bf8aedf306af258f",
+      "62fce56118574cd41625631caefdda1d7110fec5",
+      "c61634c4a6fe27e55f299f371b7aae056c910ad0",
+      "77164a68fe086e716a0a27d9012f3a15d941293a"
+    ],
+    "important_files_modified": [
+      "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine_test.cpp"
+    ],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        ".bazelrc",
+        "bazel/config/BUILD.bazel",
+        "jstests/sharding/database_versioning_all_commands.js",
+        "src/mongo/db/BUILD.bazel",
+        "src/mongo/db/index_builds/BUILD.bazel",
+        "src/mongo/db/mongod_main.cpp",
+        "src/mongo/db/storage/storage_engine_impl.cpp",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in"
+      ]
+    }
+  },
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 60531,
+    "num_turns": 12,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.2977255,
+    "modelUsage": {
+      "claude-haiku-4-5-20251001": {
+        "inputTokens": 425,
+        "outputTokens": 12,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0,
+        "webSearchRequests": 0,
+        "costUSD": 0.00048499999999999997,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000
+      },
+      "claude-opus-4-5": {
+        "inputTokens": 42,
+        "outputTokens": 3856,
+        "cacheReadInputTokens": 121461,
+        "cacheCreationInputTokens": 22384,
+        "webSearchRequests": 0,
+        "costUSD": 0.2972405,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-haiku-4-5-20251001": {
+          "tokens": {
+            "input": 425,
+            "output": 12,
+            "cache_read": 0,
+            "cache_creation": 0
+          },
+          "cost_usd": 0.00048499999999999997
+        },
+        "claude-opus-4-5": {
+          "tokens": {
+            "input": 42,
+            "output": 3856,
+            "cache_read": 121461,
+            "cache_creation": 22384
+          },
+          "cost_usd": 0.2972405
+        }
+      }
+    },
+    "text_result": "JSON response written to `/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/response_20260511_171856_840827.json`. \n\nThe analysis identified that while the auto-merge brought in valid upstream changes (CSPGO support, WiredTiger disaggregated storage timestamps), it also removed critical Percona-specific functionality including hot backup methods, LDAP/encryption support, audit integration, and WiredTiger encryption callbacks. These need manual restoration.",
+    "response": {
+      "summary": "This merge brings 67 commits from MongoDB upstream, primarily including SERVER-125803 (WiredTigerKVEngineTest rollback timestamp fix), SERVER-125638 (CSPGO profile-guided optimization flags), SERVER-125582 (WASI v33 and Wasmtime v44.0.1 updates), SERVER-124256 (resharding coordinator using donor critical section command), and various bug fixes for index builds, dependency graphs, and sharding. The merge also imports WiredTiger changes including new stable_disaggregated_schema_epoch timestamp support.",
+      "auto_merged": {
+        ".bazelrc": "Added CSPGO (Context-Sensitive PGO) profile flags (cspgo_profile_generate, cspgo_profile_use) and their defaults. WARNING: Removed Percona-specific flag aliases (inmemory, audit, full_featured, enable_fipsmode, enable_fcbis, enable_oidc) and removed the import of .bazelrc.psmdb - these Percona customizations need to be restored.",
+        "bazel/config/BUILD.bazel": "Added CSPGO profile generate/use build settings and config settings, including cspgo_profile_generate_clang_enabled and cspgo_profile_use_clang_enabled_linkstatic_enabled config groups for Clang toolchain integration.",
+        "jstests/sharding/database_versioning_all_commands.js": "Added expectedFailureCode for _shardsvrReshardDonorCriticalSectionStarted command. WARNING: Removed Percona commands from skip lists (auditGetOptions, createBackup) - these need to be restored if the commands still exist in PSMDB.",
+        "src/mongo/db/BUILD.bazel": "WARNING: Removed Percona-specific components including redaction_parameter_gen IDL, ldap_options_gen IDL, mongod_options_encryption_gen IDL, mongod_options_ldapauthz_gen IDL, ldap_options library, ldap_options_init library, and encryption_options dependency. These are critical PSMDB features that need to be restored.",
+        "src/mongo/db/index_builds/BUILD.bazel": "Added new resumable_index_builds_common library with resumable_index_builds_common.cpp. WARNING: Removed audit_impl dependency from index_builds_coordinator_mongod - audit integration needs to be restored.",
+        "src/mongo/db/mongod_main.cpp": "Added shard_catalog_history_cleanup.h include. WARNING: Removed Percona-specific includes and functionality: audit_flusher.h, audit_options.h, oidc_identity_providers_registry.h, encryption/error.h, ldap_manager.h, master_key_rotation_completed.h, telemetry_thread.h. Also removed encryption error handling (MasterKeyRotationCompleted exception, encryption::Error handling with perconaDataAtRestEncryptionError exit code). These are critical PSMDB features that must be restored.",
+        "src/mongo/db/storage/storage_engine_impl.cpp": "WARNING: Removed Percona hot backup methods (hotBackup for path, tar, and S3, plus keydbDropDatabase). Also removed TimestampMonitor ScopedAdmissionPriority exempt setting. The hot backup functionality is a key PSMDB feature that needs to be restored.",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in": "Added stable_disaggregated_schema_epoch timestamp support for disaggregated storage checkpoints. Renumbered stats starting from WT_STAT_CONN_EVICTION_SERVER_SKIP_INTL_PAGE_NON_AGGRESSIVE (1144 instead of 1145) due to removal of WT_STAT_CONN_EVICTION_SERVER_RACE_RECONFIGURE_DISAGG. WARNING: Removed Percona's sessioncreate callback from WT_ENCRYPTOR structure - this is used for encryption key management and needs to be restored."
+      },
+      "review_notes": "CRITICAL: The auto-merge has removed significant Percona-specific functionality across multiple files. The following must be manually restored before this merge can be considered complete:\n\n1. .bazelrc: Restore Percona flag aliases (inmemory, audit, full_featured, enable_fipsmode, enable_fcbis, enable_oidc) and the .bazelrc.psmdb import\n2. src/mongo/db/BUILD.bazel: Restore LDAP options, encryption options, and redaction parameter libraries\n3. src/mongo/db/mongod_main.cpp: Restore audit, OIDC, LDAP, encryption, and telemetry includes and error handling\n4. src/mongo/db/storage/storage_engine_impl.cpp: Restore hotBackup methods and keydbDropDatabase\n5. src/third_party/wiredtiger/src/include/wiredtiger.h.in: Restore sessioncreate callback in WT_ENCRYPTOR\n6. jstests/sharding/database_versioning_all_commands.js: Restore Percona command skip entries if applicable\n7. src/mongo/db/index_builds/BUILD.bazel: Restore audit_impl dependency\n\nThe CSPGO and disaggregated storage changes from upstream are valid additions that should be kept."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [
+            "I'll examine the merge commit and auto-merged files to create the summary."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [
+            "Now I have the full picture. Let me write the JSON response."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [
+            "JSON response written to `/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/response_20260511_171856_840827.json`. \n\nThe analysis identified that while the auto-merge brought in valid upstream changes (CSPGO support, WiredTiger disaggregated storage timestamps), it also removed critical Percona-specific functionality including hot backup methods, LDAP/encryption support, audit integration, and WiredTiger encryption callbacks. These need manual restoration."
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20260511_171856_840663.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.138 (Claude Code)"
+    }
+  }
+}
