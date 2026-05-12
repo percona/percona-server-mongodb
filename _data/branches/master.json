@@ -5,37 +5,47 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 185,
+    "commits_behind": 179,
     "days_behind": 6,
-    "files_affected": 924,
-    "total_additions": 26385,
-    "total_deletions": 12109,
+    "files_affected": 854,
+    "total_additions": 25445,
+    "total_deletions": 10101,
     "date_range": {
-      "first": "2026-05-06T07:56:12+00:00",
-      "last": "2026-05-12T19:46:30+00:00"
+      "first": "2026-05-06T11:12:06+00:00",
+      "last": "2026-05-12T20:44:22+00:00"
     }
   },
   "last_merged_commit": {
-    "sha": "c800519da99fff88441975d513d1987954c7e4da",
-    "short_sha": "c800519da99",
-    "date": "2026-05-06T09:38:07+02:00",
+    "sha": "f5292a05f23966118782e1c1ddeea1818b04b02a",
+    "short_sha": "f5292a05f23",
+    "date": "2026-05-06T12:05:10+02:00",
     "author": {
-      "name": "Anna Maria Nestorov",
-      "email": "annamaria.nestorov@gmail.com"
+      "name": "auto-revert-app[bot]",
+      "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
     },
-    "summary": "SERVER-120970 Create in-memory state and extend opObserver to handle operations blocking (#51698)"
+    "summary": "Revert \"SERVER-120970 Create in-memory state and extend opObserver to handle operations blocking (#51698)\" (#53287)"
   },
   "first_unmerged_commit": {
-    "sha": "1523ca5a52cb66007b7af3699fc78ebedc926658",
-    "short_sha": "1523ca5a52c",
-    "date": "2026-05-06T09:56:12+02:00",
+    "sha": "75d8999664b38d78cd0add414f9bc1aa090737d9",
+    "short_sha": "75d8999664b",
+    "date": "2026-05-06T12:12:06+01:00",
     "author": {
-      "name": "Pol Piñol Castuera",
-      "email": "pol.pinol@mongodb.com"
+      "name": "mongo-pr-bot[bot]",
+      "email": "230616009+mongo-pr-bot[bot]@users.noreply.github.com"
     },
-    "summary": "SERVER-123323 Use read concern noop writer helper in the authoritative shard catalog recovery (#52140)"
+    "summary": "SERVER-110427 Update profiling data (#53289)"
   },
   "unmerged_commits": [
+    {
+      "sha": "f59d33ecd38bc847c4f2396cf3a4ded34c1cf28a",
+      "short_sha": "f59d33ecd38",
+      "date": "2026-05-12T16:44:22-04:00",
+      "author": {
+        "name": "Gregory Noma",
+        "email": "gregory.noma@gmail.com"
+      },
+      "summary": "SERVER-126416 Make sorter spiller callback aware of the newest spill (#53657)"
+    },
     {
       "sha": "2fd0e60d99dbbc7a887bf648d5294246b945b6e4",
       "short_sha": "2fd0e60d99d",
@@ -1815,97 +1825,9 @@
         "email": "230616009+mongo-pr-bot[bot]@users.noreply.github.com"
       },
       "summary": "SERVER-110427 Update profiling data (#53289)"
-    },
-    {
-      "sha": "f5292a05f23966118782e1c1ddeea1818b04b02a",
-      "short_sha": "f5292a05f23",
-      "date": "2026-05-06T12:05:10+02:00",
-      "author": {
-        "name": "auto-revert-app[bot]",
-        "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
-      },
-      "summary": "Revert \"SERVER-120970 Create in-memory state and extend opObserver to handle operations blocking (#51698)\" (#53287)"
-    },
-    {
-      "sha": "674c81ce6088a07fa9e591efcd643728251fcfe9",
-      "short_sha": "674c81ce608",
-      "date": "2026-05-06T11:35:08+02:00",
-      "author": {
-        "name": "Pol Piñol Castuera",
-        "email": "pol.pinol@mongodb.com"
-      },
-      "summary": "SERVER-125915 Make collMod commit to the shard catalog (#53110)"
-    },
-    {
-      "sha": "80fff20ab7e061075b91cc8a818b44cc27c09592",
-      "short_sha": "80fff20ab7e",
-      "date": "2026-05-06T11:28:09+02:00",
-      "author": {
-        "name": "Pol Piñol Castuera",
-        "email": "pol.pinol@mongodb.com"
-      },
-      "summary": "SERVER-125940 Make convertToCapped commit to the shard catalog (#53182)"
-    },
-    {
-      "sha": "62828dbe6523fccb7a19ce5b202fcd33cb5c91b4",
-      "short_sha": "62828dbe652",
-      "date": "2026-05-06T10:36:28+02:00",
-      "author": {
-        "name": "Anna Maria Nestorov",
-        "email": "annamaria.nestorov@gmail.com"
-      },
-      "summary": "SERVER-122492 Create a no_passtrough test preventing per-shard writes (#52141)"
-    },
-    {
-      "sha": "1ba393b8df83799cd313135497b5ee468b3e3fc4",
-      "short_sha": "1ba393b8df8",
-      "date": "2026-05-06T09:57:17+02:00",
-      "author": {
-        "name": "Pol Piñol Castuera",
-        "email": "pol.pinol@mongodb.com"
-      },
-      "summary": "SERVER-123830 Add unit tests for unordered versions that wake up CSS waiters (#53194)"
-    },
-    {
-      "sha": "c3357069f2f3894793e29e4550f76ca5f18942b4",
-      "short_sha": "c3357069f2f",
-      "date": "2026-05-06T09:57:06+02:00",
-      "author": {
-        "name": "Pol Piñol Castuera",
-        "email": "pol.pinol@mongodb.com"
-      },
-      "summary": "SERVER-125918 Make ensureChunkVersionIsGreaterThan flip CSS to kNonAuthoritative (#53101)"
-    },
-    {
-      "sha": "1523ca5a52cb66007b7af3699fc78ebedc926658",
-      "short_sha": "1523ca5a52c",
-      "date": "2026-05-06T09:56:12+02:00",
-      "author": {
-        "name": "Pol Piñol Castuera",
-        "email": "pol.pinol@mongodb.com"
-      },
-      "summary": "SERVER-123323 Use read concern noop writer helper in the authoritative shard catalog recovery (#52140)"
     }
   ],
   "merge_picks": [
-    {
-      "commit": {
-        "sha": "f5292a05f23966118782e1c1ddeea1818b04b02a",
-        "short_sha": "f5292a05f23",
-        "date": "2026-05-06T12:05:10+02:00",
-        "author": {
-          "name": "auto-revert-app[bot]",
-          "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
-        },
-        "summary": "Revert \"SERVER-120970 Create in-memory state and extend opObserver to handle operations blocking (#51698)\" (#53287)"
-      },
-      "strategy_name": "conflict",
-      "result": {
-        "conflicting_files": [
-          "src/mongo/db/commands/profile_common.cpp"
-        ]
-      }
-    },
     {
       "commit": {
         "sha": "637267bda776c58b2332496945596729a38c8763",
@@ -1973,6 +1895,24 @@
           "lines_deleted": 226,
           "num_of_dirs": 12
         }
+      }
+    },
+    {
+      "commit": {
+        "sha": "8aadaed958a69d7b22aa32f1c9fe0c3f0e44be24",
+        "short_sha": "8aadaed958a",
+        "date": "2026-05-07T20:50:13+00:00",
+        "author": {
+          "name": "mongo-pr-bot[bot]",
+          "email": "230616009+mongo-pr-bot[bot]@users.noreply.github.com"
+        },
+        "summary": "SERVER-111072 Auto-generated SBOM files [master] (#53094)"
+      },
+      "strategy_name": "conflict",
+      "result": {
+        "conflicting_files": [
+          "sbom.json"
+        ]
       }
     },
     {
@@ -2092,7 +2032,7 @@
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-05-12 21:18:43",
+  "generated_at": "2026-05-12 21:37:37",
   "branch_name": "master",
   "display_name": "master"
 }
