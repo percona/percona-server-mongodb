@@ -1,0 +1,304 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "7e31f77ed89d081157dc38abfc0e5837301c0378",
+    "merge_commit": "b839c2e133dc7ecee26c7486e5d0a55277df129b"
+  },
+  "mergai_version": "0.1.dev1+g2c757647b",
+  "conflict_context": {
+    "ours_commit": "7e31f77ed89d081157dc38abfc0e5837301c0378",
+    "theirs_commit": "b839c2e133dc7ecee26c7486e5d0a55277df129b",
+    "base_commit": "f5292a05f23966118782e1c1ddeea1818b04b02a",
+    "files": [
+      "sbom.json"
+    ],
+    "conflict_types": {
+      "sbom.json": "both modified"
+    },
+    "diffs": {
+      "sbom.json": "diff --cc sbom.json\nindex b0636804290,e094cfb6810..00000000000\n--- a/sbom.json\n+++ b/sbom.json\n@@@ -5,2 -5,2 +5,10 @@@\n++<<<<<<< HEAD\n +  \"serialNumber\": \"urn:uuid:95a559f1-b091-4a92-b80d-e6d37c5e477c\",\n +  \"version\": 4,\n++||||||| f5292a05f23\n++  \"serialNumber\": \"urn:uuid:2d7fbf85-c8b6-4f90-9966-70da88224a36\",\n++  \"version\": 4,\n++=======\n+   \"serialNumber\": \"urn:uuid:2d7fbf85-c8b6-4f90-9966-70da88224a36\",\n+   \"version\": 5,\n++>>>>>>> b839c2e133dc7ecee26c7486e5d0a55277df129b\n@@@ -8,1 -8,1 +16,7 @@@\n++<<<<<<< HEAD\n +    \"timestamp\": \"2026-05-05T00:00:00Z\",\n++||||||| f5292a05f23\n++    \"timestamp\": \"2026-04-28T06:12:06Z\",\n++=======\n+     \"timestamp\": \"2026-05-07T17:08:19Z\",\n++>>>>>>> b839c2e133dc7ecee26c7486e5d0a55277df129b\n@@@ -54,1 -59,9 +68,23 @@@\n++<<<<<<< HEAD\n +        \"https://percona.com\"\n++||||||| f5292a05f23\n++        \"https://mongodb.com\"\n++      ]\n++    },\n++    \"tools\": {\n++      \"services\": [\n++        {\n++          \"name\": \"Endor Labs Inc\",\n++          \"version\": \"v1.7.946\"\n++        }\n++=======\n+         \"https://mongodb.com\"\n+       ]\n+     },\n+     \"tools\": {\n+       \"services\": [\n+         {\n+           \"name\": \"Endor Labs Inc\",\n+           \"version\": \"v1.7.957\"\n+         }\n++>>>>>>> b839c2e133dc7ecee26c7486e5d0a55277df129b"
+    },
+    "their_commits": {
+      "sbom.json": [
+        "8aadaed958a69d7b22aa32f1c9fe0c3f0e44be24"
+      ]
+    }
+  },
+  "merge_context": {
+    "merge_commit": "b839c2e133dc7ecee26c7486e5d0a55277df129b",
+    "merged_commits": [
+      "b839c2e133dc7ecee26c7486e5d0a55277df129b",
+      "c0536d6d32eda7d874497a3200185c81663c0c89",
+      "15070dbef46a5b70800b4bc693b71e9b4bea7a85",
+      "3bb3a7e21045d7bc8d8ec05f4647639eb06b365d",
+      "78479d6527bc0eca30fad4821141943710c2b807",
+      "21739dc9631abbbc7e43f386353e2388df71ebd3",
+      "bd351fac69a745d838def53fa6cc1a183353ae9e",
+      "2ffccd5fe520951457a9bf0d003dd176a1ceb0f9",
+      "a338a96d237f03386025564433ab374974e5a9e0",
+      "7ab7f1f2e39eafa3c7a4a78e45fc60024724b513",
+      "a3a1821a76b177f8b938d6fa2a76b421d26e555f",
+      "ad616a5c3f2517c5eb791e13b47f0aeff2b6d234",
+      "0a62d42d1b2096fd0c2d268bc6e8575770f4e67a",
+      "dbca3268a857a9a84695b15353c8b375b467cd86",
+      "179c76d5812d78c480a6dcd378381a0c7e46ea26",
+      "fedd2f921a7bf9f5608c68cdb68c17636b09878f",
+      "1bff6b8f2e8e134dd77a25b9496eb63017aec867",
+      "4ec900b6edfc956e4b241ce6dc35881f5ed6f7f4",
+      "80ae89c943b668e51fcc91ca6d93915bc79869c1",
+      "971e4dad0734b4eacc63ecc6d26991e1ad020ca1",
+      "8aadaed958a69d7b22aa32f1c9fe0c3f0e44be24",
+      "335a3cc6e7fa755d2bbd1822bea0b9183eb318a2",
+      "5c14ec8028c71b85192fd7dcb8d4503a9972bc20",
+      "6bdbe5c9d675ee17719b89d9d6e4a0724e288cfe",
+      "8f7870313b6eafd51a305f2dbd1bdddcce9cedeb",
+      "5f89b25908cfbbffb334aa32819a161021ae0e48",
+      "7139513a1c79cdca23c828909e5c825d99321a96",
+      "53257a17395d3abd0ceb1556b846193612330543",
+      "2755bdc68105c6c3362cf38e6e42c5a1e44522fb",
+      "aae46b047b20eabf347ae6ae263f0b0abef5cf20",
+      "60dea99acef7b10db7cbd3270d9361124c0b8008",
+      "e842bbac7f930c33203039bb9129406e03294c2a",
+      "59ff43bce478e649ffcee76124ec85f0d2645cb9",
+      "1827576db795316ee6d14d27d5805d25b0addae6",
+      "5be28fd3774ae3324adec7395b9021d8f94225ef",
+      "99b2c0899986afda36d2e275e7d619fbc11a8261",
+      "024e5b86a4de1477c1e22632f61576f56ba29f8d",
+      "804d4159fdbb9905da449cf58f36850af7632148",
+      "d007f4722f97532c70c855344e831e1c9c1ca1ee",
+      "b7e63546a9128ec1de8d078918a078587229f9a7",
+      "4611c29504b4649f9fbf8a817364f44ac1bd68da",
+      "0db5a9ad337320cf170dc31d495e23e16672e395",
+      "a19048b82d36b0c9c3f7abf350809b4187904bfa",
+      "9578a82272ab513d5dd444731bf9faa3a243e370",
+      "a8b6833b5ce859f69fd726dc83227de6b2dfcff8",
+      "a7616a015782196c03da7af7833269ec8ad33b44",
+      "120881200dd89ef42f6b003a306bf229607940fd",
+      "131b6c17365daa11177727177313f6df185d4447",
+      "fc822461834eccf82f2592043a12686d0d5f6197",
+      "dc1a593f7d59de90a9f30ccb89b39cd44ce3bfd2",
+      "314b441d4a40641583ca696540d7ba4d3d5052a1",
+      "8c867125c7729da1cf0d9c2bb0d605c8ab3a57a0",
+      "8b745ca7d116970be9f16bab634685e2e54e8697",
+      "558f233060407675650dc52675ff2a4ae0a40997",
+      "caf7044ee116a6a9d2d4201dfa72c2b81e94cae0",
+      "a9ce9fc7be32fc897ff137d688901f28c4e1334a",
+      "736c350393721776e3229982661d6e81148a1cc1",
+      "49eead22a22d8035cacc1709ad37a3b1f64c2286",
+      "f869a2b8deaf82029ab843737c5d636adddc5664",
+      "3c5dfe63ec4e68499adad666e66e2b6b3ab91297",
+      "1d4ffa7619b92372510b2107fa1c61e1cf28b9d5",
+      "9245f1fe635f1c7554115a1c3920120813ddf042",
+      "08323b6817fbe3c827c171230f726cac0339f53e",
+      "13205e45f252ff3c805fa8c16ab50c66c4c88d21",
+      "6694171c481b73d2d60d8b46c229e857addf8bf8",
+      "2f976e05fe42d28bda1fa2127935da92882597b4",
+      "236735fbe09d9c3c70967da00fca6e5d570ad990",
+      "97d74f5cf5d1672c814dbc021cc039a0d0d6919b",
+      "600d0fc2689a7f0e8c3edba0f6ba7d0dca6761dd",
+      "3af20d4939164c85a0dae5a0090f361322e4ee7b",
+      "c641cf0e17169267047da8f440f18008693b64c2",
+      "248fd1337b3318805b50e8d91b7f99733fcb3adf",
+      "be5e4a9f8366231e4fe523aa8ebef5924289c129",
+      "fec9df7fc8aa24720e53725f1b24a66d5e301633",
+      "cd244d3abaf345a77b60d7c6fddeaa28bc834d07",
+      "e49f6ae0c8ccd2a7c9ddb4a69273dc938d6bbc19",
+      "e225331b25e377718c1297a15c60045ae3f80312",
+      "9c59699a92e9ba9213af56293161675327a8e293",
+      "70fa6f48b7f19d98c5fc46ac891c17365dc01479",
+      "c2dab19896fc46052b8495f0a7359c99d09916af",
+      "9ec13dc8362022e458bf7dcf317e95029a047d6a",
+      "1485ab1f553888d9cf5e7a3b6324a467f0fee3dd",
+      "5b34289087ac0bf2157e60f2db5cced47395a6b8",
+      "5d5d678a7cc71b30b9efe25486c5a9cf692383bf",
+      "4db8d6aece4a96818ea43833a0fd65f34efc1588",
+      "996b702f3009330e32fdeac78cabd6bc8e4f4e61",
+      "c0d9574b6ca71326e7461849b1c63a7c77dc0128",
+      "6320c799b3ea96eccbdadd3ddb4847c8aba2b46d",
+      "08065538fcc0702813a427ee54317eda4fee1a69",
+      "0d3e6a173aec2e0025f24349c0498145738d7601",
+      "ef0013e7be024b8086485f9d678a507fc01e285d",
+      "10e64adb04191d11044b9139685e1b055edda568",
+      "9e9bd422000a5c703c23cf12f5833b9dc36a8f2b",
+      "708bf0fc97c9982a77b9f081c3ad3e54a6cc9e37",
+      "d4cd27a99708d99efbc0c9caaf0023d6889c9994",
+      "cb176f5715b2a10b2951e3d91a665b0ceda34903",
+      "9fee5b1a872ac98cdd03614d76bc4ce478225581",
+      "6f4d069bf0387b7a01f5f083993b612992ad1a94",
+      "637267bda776c58b2332496945596729a38c8763",
+      "6151edfe1fa958c0e48e0b8e065f3e6b9358720b",
+      "da3475d278aff8663e52aa39c0a864e7c9a8d0d3",
+      "9388cee3982c39fb714d94fdfa08950c210cf7e8",
+      "3750e4fefe36b2de91d451d70228bc130ed0cfe9",
+      "75d8999664b38d78cd0add414f9bc1aa090737d9"
+    ],
+    "important_files_modified": [],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        "buildscripts/bazel_rules_mongo/utils/evergreen_git.py",
+        "sbom.json",
+        "src/mongo/base/error_codes.yml",
+        "src/mongo/db/mongod_main.cpp",
+        "src/mongo/db/pipeline/BUILD.bazel",
+        "src/mongo/db/repl/replication_coordinator_impl.cpp",
+        "src/mongo/db/storage/BUILD.bazel",
+        "src/mongo/s/mongos_main.cpp",
+        "src/third_party/wiredtiger/src/conn/conn_api.c",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in"
+      ]
+    }
+  },
+  "solutions": [
+    {
+      "response": {
+        "summary": "Resolve conflicts for merge commit 'b839c2e133d' into master",
+        "resolved": {
+          "sbom.json": "Resolved by human"
+        },
+        "unresolved": {},
+        "modified": {},
+        "review_notes": "Resolved merge conflict in sbom.json by keeping Percona's UUID and URL\nwhile adopting the incremented version number and updated tools section\nfrom upstream\n\nResolved:\n\tsbom.json\n\nNote: commit created by mergai"
+      },
+      "author": {
+        "name": "psmdb-bot[bot]",
+        "email": "2942401+psmdb-bot[bot]@users.noreply.github.com",
+        "type": "human"
+      },
+      "commit_sha": "f5e1a8ff58af5cff2b62fb8950786c2886b0f98e"
+    },
+    {
+      "response": {
+        "summary": "PSMDB-1967 sbom.json: remove Endor Labs reference appeared after AI-based conflict resolution",
+        "resolved": {
+          "sbom.json": "Resolved by human"
+        },
+        "unresolved": {},
+        "modified": {},
+        "review_notes": null
+      },
+      "author": {
+        "name": "Igor Solodovnikov",
+        "email": "igor.solodovnikov@percona.com",
+        "type": "human"
+      },
+      "commit_sha": "944c5d5abfc32aa84f5c4722f394c5eb8fa21082"
+    }
+  ],
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 29030,
+    "num_turns": 2,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.139546,
+    "modelUsage": {
+      "claude-haiku-4-5-20251001": {
+        "inputTokens": 425,
+        "outputTokens": 15,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0,
+        "webSearchRequests": 0,
+        "costUSD": 0.0005,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000
+      },
+      "claude-opus-4-5": {
+        "inputTokens": 18,
+        "outputTokens": 1553,
+        "cacheReadInputTokens": 37987,
+        "cacheCreationInputTokens": 12982,
+        "webSearchRequests": 0,
+        "costUSD": 0.139046,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-haiku-4-5-20251001": {
+          "tokens": {
+            "input": 425,
+            "output": 15,
+            "cache_read": 0,
+            "cache_creation": 0
+          },
+          "cost_usd": 0.0005
+        },
+        "claude-opus-4-5": {
+          "tokens": {
+            "input": 18,
+            "output": 1553,
+            "cache_read": 37987,
+            "cache_creation": 12982
+          },
+          "cost_usd": 0.139046
+        }
+      }
+    },
+    "text_result": "JSON response written to `/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/response_20260512_230142_483445.json`. The response describes the merge of 103 upstream commits, explains the 10 auto-merged files, and provides guidance on resolving the sbom.json conflict (keeping Percona's URL change while incorporating theirs' version/timestamp updates).",
+    "response": {
+      "summary": "This merge brings in 103 commits from upstream MongoDB into the PSMDB master branch. The changes span various areas including error codes, replication coordinator, mongod/mongos main entry points, WiredTiger storage engine updates, build system changes, and SBOM metadata updates.",
+      "auto_merged": {
+        "buildscripts/bazel_rules_mongo/utils/evergreen_git.py": "Build script utilities for Evergreen CI git operations were updated.",
+        "sbom.json": "Software Bill of Materials metadata was updated. Note: This file has a conflict requiring manual resolution. The conflict involves serialNumber UUID, version number (4 vs 5), timestamp, Percona-specific URL change (mongodb.com to percona.com), and Endor Labs tool version (v1.7.946 to v1.7.957).",
+        "src/mongo/base/error_codes.yml": "Error codes definitions were updated, likely adding new error codes or modifying existing ones.",
+        "src/mongo/db/mongod_main.cpp": "MongoDB daemon main entry point received updates.",
+        "src/mongo/db/pipeline/BUILD.bazel": "Bazel build configuration for the aggregation pipeline was modified.",
+        "src/mongo/db/repl/replication_coordinator_impl.cpp": "Replication coordinator implementation received updates.",
+        "src/mongo/db/storage/BUILD.bazel": "Bazel build configuration for storage layer was modified.",
+        "src/mongo/s/mongos_main.cpp": "MongoDB sharding router (mongos) main entry point received updates.",
+        "src/third_party/wiredtiger/src/conn/conn_api.c": "WiredTiger connection API implementation was updated.",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in": "WiredTiger public header template was updated."
+      },
+      "review_notes": "CONFLICT in sbom.json requires resolution: (1) Keep Percona's URL change (https://percona.com), (2) Use theirs' newer version number (5) and timestamp (2026-05-07T17:08:19Z), (3) Generate a new serialNumber UUID, (4) Update Endor Labs tool version to v1.7.957. The WiredTiger updates in conn_api.c and wiredtiger.h.in should be reviewed carefully as they affect the storage engine interface. The changes to mongod_main.cpp and mongos_main.cpp entry points warrant attention to ensure Percona-specific initialization code remains intact."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [
+            "I'll analyze the merge information and write the JSON response describing the merge commits."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [
+            "JSON response written to `/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/response_20260512_230142_483445.json`. The response describes the merge of 103 upstream commits, explains the 10 auto-merged files, and provides guidance on resolving the sbom.json conflict (keeping Percona's URL change while incorporating theirs' version/timestamp updates)."
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20260512_230142_483297.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.140 (Claude Code)"
+    }
+  },
+  "note_index": [
+    {
+      "sha": "0f57f8718d6f5b717649e49dc95c22f89fa0e656",
+      "fields": [
+        "conflict_context",
+        "merge_context",
+        "solutions[0]",
+        "solutions[1]",
+        "merge_description"
+      ]
+    }
+  ]
+}
