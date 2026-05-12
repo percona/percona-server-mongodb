@@ -96,10 +96,12 @@ public:
           _end(end),
           _settings(std::move(settings)),
           _checksumCalculator(checksumVersion, currentChecksum),
+          _consumedPosition(position),
+          _consumedChecksum(currentChecksum),
           _originalChecksum(checksum) {}
 
     bool more() override {
-        return !_positioned || _position < _end - 1;
+        return _positioned ? _position < _end - 1 : _position < _end;
     }
 
     std::pair<Key, Value> next() override {
@@ -107,6 +109,7 @@ public:
         BufReader reader{result.data(), static_cast<unsigned>(result.size())};
         _checksumCalculator.addData(result.data(), result.size());
         _compareChecksums();
+        _consume();
 
         return {Key::deserializeForSorter(reader, _settings.first),
                 Value::deserializeForSorter(reader, _settings.second)};
@@ -133,6 +136,7 @@ public:
 
         BufReader reader{_deferredValue->data(), static_cast<unsigned>(_deferredValue->size())};
         _deferredValue = boost::none;
+        _consume();
 
         return Value::deserializeForSorter(reader, _settings.second);
     }
@@ -143,9 +147,9 @@ public:
 
     SorterRange getRange() const override {
         SorterRange range{_start, _end, static_cast<int64_t>(_originalChecksum)};
-        if (_positioned) {
-            range.setCurrent(_position);
-            range.setCurrentChecksum(_checksumCalculator.checksum());
+        if (_anyConsumed || _position != _start) {
+            range.setCurrent(_anyConsumed ? _consumedPosition + 1 : _position);
+            range.setCurrentChecksum(_consumedChecksum);
         }
         return range;
     }
@@ -191,6 +195,12 @@ private:
         }
     }
 
+    void _consume() {
+        _consumedPosition = _position;
+        _consumedChecksum = _checksumCalculator.checksum();
+        _anyConsumed = true;
+    }
+
     std::unique_ptr<IntegerKeyedContainer::Cursor> _cursor;
     int64_t _start;
     int64_t _position;
@@ -203,6 +213,11 @@ private:
     // compare this value with _originalChecksum to check for data corruption if and only if the
     // ContainerIterator is exhausted.
     SorterChecksumCalculator _checksumCalculator;
+
+    // The "consumed" position and checksum, advanced only when a key/value is done being used.
+    int64_t _consumedPosition;
+    size_t _consumedChecksum;
+    bool _anyConsumed = false;
 
     // Checksum value retrieved from SortedContainerWriter that was calculated as data was spilled
     // to disk. This is not modified, and is only used for comparison against _afterReadChecksum
@@ -403,16 +418,18 @@ public:
                           OnSpillFn onSpill,
                           int64_t batchSize,
                           int64_t batchBytes,
-                          int64_t minAvailableDiskBytesToSpill)
+                          int64_t minAvailableDiskBytesToSpill,
+                          int64_t startingKey = 1)
         : SpillerBase<Key, Value, Comparator>(
               std::make_unique<ContainerBasedStorage<Key, Value>>(
-                  opCtx, ru, container, stats, 1, std::move(dbName), checksumVersion),
+                  opCtx, ru, container, stats, startingKey, std::move(dbName), checksumVersion),
               minAvailableDiskBytesToSpill),
           _opCtx(opCtx),
           _ru(ru),
           _onSpill(std::move(onSpill)),
           _batchSize(batchSize),
-          _batchBytes(batchBytes) {}
+          _batchBytes(batchBytes),
+          _current(startingKey) {}
 
     void mergeSpills(const SortOptions& opts,
                      const SpillerBase<Key, Value, Comparator>::Settings& settings,
@@ -591,7 +608,7 @@ private:
     OnSpillFn _onSpill;
     int64_t _batchSize;
     int64_t _batchBytes;
-    int64_t _current = 1;
+    int64_t _current;
 };
 
 }  // namespace mongo::sorter

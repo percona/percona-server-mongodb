@@ -231,7 +231,8 @@ makeSpiller(OperationContext* opCtx,
         sorter::FileBasedSpiller<key_string::Value, mongo::NullValue, BtreeExternalSortComparison>;
     boost::filesystem::path tmpPath = storageGlobalParams.dbpath + "/_tmp";
     auto fileName = stateInfo ? stateInfo->getStorageIdentifier() : boost::none;
-    return fileName
+    auto ranges = stateInfo ? stateInfo->getRanges() : boost::none;
+    return fileName && ranges && !ranges->empty()
         ? std::make_shared<FileBasedSpiller>(
               std::make_shared<sorter::File>(tmpPath / std::string{*fileName}, &fileStats),
               tmpPath,
@@ -383,12 +384,14 @@ StatusWith<std::vector<BSONObj>> MultiIndexBlock::init(
     }
 
     // When we're replicating container writes, we need to create the table immediately since that
-    // means its creation is being replicated by the start of the index build. Otherwise, we can
-    // wait to create it until its first use in case it's not needed.
+    // means its creation is being replicated by the start of the index build. On resume, the
+    // table was already created (and persisted) by the original start, so reopen it instead.
+    // Otherwise, we can wait to create it until its first use in case it's not needed.
     if (_containerWriteBehavior == ContainerWriteBehavior::kReplicate && _isResumable) {
         _resumeStateTempRecordStore.emplace(opCtx,
                                             ident::generateNewIndexBuildIdent(*_buildUUID),
-                                            LazyRecordStore::CreateMode::immediate);
+                                            resumeInfo ? LazyRecordStore::CreateMode::openExisting
+                                                       : LazyRecordStore::CreateMode::immediate);
     } else if (_containerWriteBehavior == ContainerWriteBehavior::kDoNotReplicate) {
         _resumeStateTempRecordStore.emplace(
             opCtx,
@@ -507,11 +510,28 @@ StatusWith<std::vector<BSONObj>> MultiIndexBlock::init(
                                       << _collectionUUID << ")",
                         stateInfoIt != resumeInfoIndexes.end());
 
+                auto indexTableResumeBehavior = [&] {
+                    switch (_containerWriteBehavior) {
+                        case ContainerWriteBehavior::kDoNotReplicate:
+                            // When not replicating container writes, it is required that the load
+                            // phase uses a new table. Thus, if we're in that phase, recreate it.
+                            return resumeInfo->getPhase() == IndexBuildPhaseEnum::kBulkLoad
+                                ? IndexBuildBlock::IndexTableResumeBehavior::recreate
+                                : IndexBuildBlock::IndexTableResumeBehavior::keep;
+                        case ContainerWriteBehavior::kReplicate:
+                            // When replicating container writes, it is never required to use a new
+                            // table. Further, recreating the table is inherently not a replicated
+                            // operation.
+                            return IndexBuildBlock::IndexTableResumeBehavior::keep;
+                    }
+                    MONGO_UNREACHABLE;
+                }();
+
                 stateInfo = *stateInfoIt;
                 auto status = index.block->initForResume(opCtx,
                                                          collection.getWritableCollection(opCtx),
                                                          indexes[i],
-                                                         resumeInfo->getPhase());
+                                                         indexTableResumeBehavior);
                 if (!status.isOK())
                     return status;
             } else {

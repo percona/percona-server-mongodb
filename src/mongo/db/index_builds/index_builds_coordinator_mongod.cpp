@@ -290,8 +290,9 @@ IndexBuildsCoordinatorMongod::resumeIndexBuild(OperationContext* opCtx,
                                                const UUID& collectionUUID,
                                                const std::vector<IndexBuildInfo>& indexes,
                                                const UUID& buildUUID,
-                                               const ResumeIndexInfo& resumeInfo) {
-    IndexBuildsCoordinator::IndexBuildOptions indexBuildOptions;
+                                               const ResumeIndexInfo& resumeInfo,
+                                               IndexBuildOptions indexBuildOptions) {
+    // TODO(SERVER-126057): Rename this enum such that it represents resuming, not startup.
     indexBuildOptions.applicationMode = ApplicationMode::kStartupRepair;
     return _startIndexBuild(
         opCtx, dbName, collectionUUID, indexes, buildUUID, indexBuildOptions, resumeInfo);
@@ -403,12 +404,29 @@ IndexBuildsCoordinatorMongod::_startIndexBuild(OperationContext* opCtx,
     if (indexBuildOptions.applicationMode == ApplicationMode::kStartupRepair) {
         // Two phase index build recovery goes through a different set-up procedure because we will
         // either resume the index build or the original index will be dropped first.
-        invariant(indexBuildOptions.indexBuildProtocol == IndexBuildProtocol::kTwoPhase);
+        invariant(indexBuildOptions.indexBuildProtocol == IndexBuildProtocol::kTwoPhase ||
+                  indexBuildOptions.indexBuildProtocol == IndexBuildProtocol::kPrimaryDriven);
         auto status = Status::OK();
         if (resumeInfo) {
-            status = _setUpResumeIndexBuild(
-                opCtx, dbName, collectionUUID, indexes, buildUUID, resumeInfo.value());
+            // TODO (SERVER-126234): Consolidate registration for resuming index builds.
+            status = _registerResumeIndexBuild(opCtx,
+                                               dbName,
+                                               collectionUUID,
+                                               indexes,
+                                               buildUUID,
+                                               resumeInfo.value(),
+                                               indexBuildOptions.indexBuildProtocol);
+            if (status.isOK() &&
+                indexBuildOptions.indexBuildProtocol != IndexBuildProtocol::kPrimaryDriven) {
+                // If the build is primary-driven, defer setup to the builder thread since it
+                // involves setting up storage engine resources that are tied to the calling thread.
+                status = _setUpResumeIndexBuild(
+                    opCtx, buildUUID, resumeInfo.value(), indexBuildOptions.indexBuildProtocol);
+            }
         } else {
+            // Primary-driven index builds can only be resumed or aborted, not restarted.
+            invariant(indexBuildOptions.indexBuildProtocol == IndexBuildProtocol::kTwoPhase,
+                      "kStartupRepair with kPrimaryDriven requires resumeInfo");
             status = _setUpIndexBuildForTwoPhaseRecovery(
                 opCtx, dbName, collectionUUID, indexes, buildUUID);
         }
@@ -538,6 +556,16 @@ IndexBuildsCoordinatorMongod::_startIndexBuild(OperationContext* opCtx,
                 startPromise.setError(status);
                 // Do not exit with an incomplete future, even if setup fails, we should still
                 // signal waiters.
+                invariant(replState->sharedPromise.getFuture().isReady());
+                return;
+            }
+        } else if (resumeInfo &&
+                   indexBuildOptions.indexBuildProtocol == IndexBuildProtocol::kPrimaryDriven) {
+            status = _setUpResumeIndexBuild(
+                opCtx.get(), buildUUID, *resumeInfo, indexBuildOptions.indexBuildProtocol);
+            if (!status.isOK()) {
+                startPromise.setError(status);
+                replState->sharedPromise.setError(status);
                 invariant(replState->sharedPromise.getFuture().isReady());
                 return;
             }

@@ -242,7 +242,17 @@ CardinalityEstimate makeScaledEstimate(double matchCount,
                                        double collCard) {
     size_t effectiveSampleSize = sampleSize - errorCount;
     double estimate = effectiveSampleSize > 0 ? (matchCount * collCard) / effectiveSampleSize : 0.0;
-    return CardinalityEstimate{CardinalityType{estimate}, EstimationSource::Sampling};
+    // The estimate is authoritative (tagged 'Code' rather than 'Sampling') when either:
+    // * the expression errored for every sampled document - the zero is not an approximation
+    // * the sample covers the entire collection - 'matchCount' is the true match count and
+    //   'estimate' is exact.
+    // Tagging these as Code prevents CardinalityEstimator::clampZeroEstimates from inflating
+    // the estimates.
+    const bool isAuthoritative =
+        effectiveSampleSize == 0 || static_cast<double>(effectiveSampleSize) >= collCard;
+    return CardinalityEstimate{CardinalityType{estimate},
+                               isAuthoritative ? EstimationSource::Code
+                                               : EstimationSource::Sampling};
 }
 
 /**
@@ -260,6 +270,7 @@ std::unique_ptr<sbe::PlanStage> makeProjectStage(std::unique_ptr<sbe::PlanStage>
     // Populate the vector for field actions with Keep for all fields since we want inclusion
     // projection.
     std::vector<sbe::MakeObjSpec::FieldAction> fieldActions;
+    fieldActions.reserve(topLevelSampleFieldNames.size());
     for (size_t i = 0; i < topLevelSampleFieldNames.size(); i++) {
         fieldActions.emplace_back(sbe::MakeObjSpec::Keep{});
     }
@@ -774,6 +785,7 @@ std::vector<CardinalityEstimate> SamplingEstimatorImpl::estimateCardinality(
     }
 
     std::vector<CardinalityEstimate> estimates;
+    estimates.reserve(counts.size());
     for (size_t i = 0; i < counts.size(); i++) {
         estimates.push_back(
             makeScaledEstimate(counts[i], errorCounts[i], _sampleSize, getCollCard()));

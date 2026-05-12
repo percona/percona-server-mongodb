@@ -30,6 +30,7 @@
 #include "mongo/db/query/query_knob_snapshot.h"
 
 #include "mongo/db/query/query_execution_knobs_gen.h"
+#include "mongo/db/query/query_knob.h"
 #include "mongo/unittest/assert.h"
 #include "mongo/unittest/death_test.h"
 #include "mongo/unittest/framework.h"
@@ -38,179 +39,190 @@ namespace mongo {
 namespace {
 
 TEST(QueryKnobSnapshotTest, SizeMatchesConstructorArgument) {
-    auto snap = QueryKnobSnapshotBuilder{5}.build();
-    ASSERT_EQ(snap.size(), 5u);
-}
-
-TEST(QueryKnobSnapshotTest, DefaultSourceIsDefault) {
-    auto snap = QueryKnobSnapshotBuilder{3}.build();
-    for (size_t i = 0; i < snap.size(); ++i) {
-        ASSERT_EQ(snap.getSource(i), KnobSource::kDefault);
+    auto builder = QueryKnobSnapshotBuilder{5};
+    for (QueryKnobId::value_t i = 0; i < 5; i++) {
+        builder.set(QueryKnobId{i}, QueryKnobValue{static_cast<int>(i)}, KnobSource::kDefault);
     }
+    ASSERT_EQ(std::move(builder).build().size(), 5u);
 }
 
 TEST(QueryKnobSnapshotTest, RoundTripAllQueryKnobValueTypes) {
     // One slot per QueryKnobValue alternative plus enum (stored as int).
-    // Slot 0: std::monostate — the null/removal sentinel; default-constructed slot holds it.
-    // Slot 1: int
-    // Slot 2: long long
-    // Slot 3: double
-    // Slot 4: bool
-    // Slot 5: enum (QueryFrameworkControlEnum stored as int, retrieved via get<EnumT>)
+    // Slot 0: int
+    // Slot 1: long long
+    // Slot 2: double
+    // Slot 3: bool
+    // Slot 4: enum (QueryFrameworkControlEnum stored as int, retrieved via get<EnumT>)
     constexpr auto kEnumVal = QueryFrameworkControlEnum::kTrySbeRestricted;
     auto snap =
-        std::move(QueryKnobSnapshotBuilder{6}
-                      .set(1, QueryKnobValue{42}, KnobSource::kDefault)
-                      .set(2, QueryKnobValue{123456789LL}, KnobSource::kDefault)
-                      .set(3, QueryKnobValue{2.718}, KnobSource::kDefault)
-                      .set(4, QueryKnobValue{true}, KnobSource::kDefault)
-                      .set(5, QueryKnobValue{static_cast<int>(kEnumVal)}, KnobSource::kDefault))
+        std::move(QueryKnobSnapshotBuilder{5}
+                      .set(QueryKnobId{0}, QueryKnobValue{42}, KnobSource::kDefault)
+                      .set(QueryKnobId{1}, QueryKnobValue{123456789LL}, KnobSource::kDefault)
+                      .set(QueryKnobId{2}, QueryKnobValue{2.718}, KnobSource::kDefault)
+                      .set(QueryKnobId{3}, QueryKnobValue{true}, KnobSource::kDefault)
+                      .set(QueryKnobId{4},
+                           QueryKnobValue{static_cast<int>(kEnumVal)},
+                           KnobSource::kDefault))
             .build();
 
-    ASSERT_EQ(snap.get<std::monostate>(0), std::monostate{});
-    ASSERT_EQ(snap.get<int>(1), 42);
-    ASSERT_EQ(snap.get<long long>(2), 123456789LL);
-    ASSERT_APPROX_EQUAL(snap.get<double>(3), 2.718, 1e-9);
-    ASSERT_EQ(snap.get<bool>(4), true);
-    ASSERT_EQ(snap.get<QueryFrameworkControlEnum>(5), kEnumVal);
+    ASSERT_EQ(snap.get<int>(QueryKnobId{0}), 42);
+    ASSERT_EQ(snap.get<long long>(QueryKnobId{1}), 123456789LL);
+    ASSERT_APPROX_EQUAL(snap.get<double>(QueryKnobId{2}), 2.718, 1e-9);
+    ASSERT_EQ(snap.get<bool>(QueryKnobId{3}), true);
+    ASSERT_EQ(snap.get<QueryFrameworkControlEnum>(QueryKnobId{4}), kEnumVal);
 }
 
 TEST(QueryKnobSnapshotTest, RoundTripInt) {
-    auto snap =
-        std::move(QueryKnobSnapshotBuilder{1}.set(0, QueryKnobValue{42}, KnobSource::kDefault))
-            .build();
-    ASSERT_EQ(snap.get<int>(0), 42);
+    auto snap = std::move(QueryKnobSnapshotBuilder{1}.set(
+                              QueryKnobId{0}, QueryKnobValue{42}, KnobSource::kDefault))
+                    .build();
+    ASSERT_EQ(snap.get<int>(QueryKnobId{0}), 42);
 }
 
 TEST(QueryKnobSnapshotTest, RoundTripLongLong) {
     auto snap = std::move(QueryKnobSnapshotBuilder{1}.set(
-                              0, QueryKnobValue{123456789LL}, KnobSource::kDefault))
+                              QueryKnobId{0}, QueryKnobValue{123456789LL}, KnobSource::kDefault))
                     .build();
-    ASSERT_EQ(snap.get<long long>(0), 123456789LL);
+    ASSERT_EQ(snap.get<long long>(QueryKnobId{0}), 123456789LL);
 }
 
 TEST(QueryKnobSnapshotTest, RoundTripDouble) {
-    auto snap =
-        std::move(QueryKnobSnapshotBuilder{1}.set(0, QueryKnobValue{2.718}, KnobSource::kDefault))
-            .build();
-    ASSERT_APPROX_EQUAL(snap.get<double>(0), 2.718, 1e-9);
+    auto snap = std::move(QueryKnobSnapshotBuilder{1}.set(
+                              QueryKnobId{0}, QueryKnobValue{2.718}, KnobSource::kDefault))
+                    .build();
+    ASSERT_APPROX_EQUAL(snap.get<double>(QueryKnobId{0}), 2.718, 1e-9);
 }
 
 TEST(QueryKnobSnapshotTest, RoundTripBool) {
-    auto snapFalse =
-        std::move(QueryKnobSnapshotBuilder{1}.set(0, QueryKnobValue{false}, KnobSource::kDefault))
-            .build();
-    ASSERT_EQ(snapFalse.get<bool>(0), false);
+    auto snapFalse = std::move(QueryKnobSnapshotBuilder{1}.set(
+                                   QueryKnobId{0}, QueryKnobValue{false}, KnobSource::kDefault))
+                         .build();
+    ASSERT_EQ(snapFalse.get<bool>(QueryKnobId{0}), false);
 
-    auto snapTrue =
-        std::move(QueryKnobSnapshotBuilder{1}.set(0, QueryKnobValue{true}, KnobSource::kDefault))
-            .build();
-    ASSERT_EQ(snapTrue.get<bool>(0), true);
+    auto snapTrue = std::move(QueryKnobSnapshotBuilder{1}.set(
+                                  QueryKnobId{0}, QueryKnobValue{true}, KnobSource::kDefault))
+                        .build();
+    ASSERT_EQ(snapTrue.get<bool>(QueryKnobId{0}), true);
 }
 
 TEST(QueryKnobSnapshotTest, EnumCastRoundTrip) {
     auto enumVal = QueryFrameworkControlEnum::kForceClassicEngine;
-    auto snap = std::move(QueryKnobSnapshotBuilder{1}.set(
-                              0, QueryKnobValue{static_cast<int>(enumVal)}, KnobSource::kDefault))
+    auto snap = std::move(QueryKnobSnapshotBuilder{1}.set(QueryKnobId{0},
+                                                          QueryKnobValue{static_cast<int>(enumVal)},
+                                                          KnobSource::kDefault))
                     .build();
-    ASSERT_EQ(snap.get<QueryFrameworkControlEnum>(0), enumVal);
+    ASSERT_EQ(snap.get<QueryFrameworkControlEnum>(QueryKnobId{0}), enumVal);
 }
 
 TEST(QueryKnobSnapshotTest, EnumCastAllValues) {
     auto snap =
         std::move(
             QueryKnobSnapshotBuilder{3}
-                .set(0,
+                .set(QueryKnobId{0},
                      QueryKnobValue{static_cast<int>(QueryFrameworkControlEnum::kTrySbeEngine)},
                      KnobSource::kDefault)
-                .set(1,
+                .set(QueryKnobId{1},
                      QueryKnobValue{static_cast<int>(QueryFrameworkControlEnum::kTrySbeRestricted)},
                      KnobSource::kDefault)
-                .set(2,
+                .set(QueryKnobId{2},
                      QueryKnobValue{
                          static_cast<int>(QueryFrameworkControlEnum::kForceClassicEngine)},
                      KnobSource::kDefault))
             .build();
-    ASSERT_EQ(snap.get<QueryFrameworkControlEnum>(0), QueryFrameworkControlEnum::kTrySbeEngine);
-    ASSERT_EQ(snap.get<QueryFrameworkControlEnum>(1), QueryFrameworkControlEnum::kTrySbeRestricted);
-    ASSERT_EQ(snap.get<QueryFrameworkControlEnum>(2),
+    ASSERT_EQ(snap.get<QueryFrameworkControlEnum>(QueryKnobId{0}),
+              QueryFrameworkControlEnum::kTrySbeEngine);
+    ASSERT_EQ(snap.get<QueryFrameworkControlEnum>(QueryKnobId{1}),
+              QueryFrameworkControlEnum::kTrySbeRestricted);
+    ASSERT_EQ(snap.get<QueryFrameworkControlEnum>(QueryKnobId{2}),
               QueryFrameworkControlEnum::kForceClassicEngine);
 }
 
 TEST(QueryKnobSnapshotTest, SourceTrackingSetParameter) {
-    auto snap =
-        std::move(QueryKnobSnapshotBuilder{1}.set(0, QueryKnobValue{7}, KnobSource::kSetParameter))
-            .build();
-    ASSERT_EQ(snap.getSource(0), KnobSource::kSetParameter);
+    auto snap = std::move(QueryKnobSnapshotBuilder{1}.set(
+                              QueryKnobId{0}, QueryKnobValue{7}, KnobSource::kSetParameter))
+                    .build();
+    ASSERT_EQ(snap.getSource(QueryKnobId{0}), KnobSource::kSetParameter);
 }
 
 TEST(QueryKnobSnapshotTest, SourceTrackingQuerySettings) {
-    auto snap =
-        std::move(QueryKnobSnapshotBuilder{1}.set(0, QueryKnobValue{7}, KnobSource::kQuerySettings))
-            .build();
-    ASSERT_EQ(snap.getSource(0), KnobSource::kQuerySettings);
+    auto snap = std::move(QueryKnobSnapshotBuilder{1}.set(
+                              QueryKnobId{0}, QueryKnobValue{7}, KnobSource::kQuerySettings))
+                    .build();
+    ASSERT_EQ(snap.getSource(QueryKnobId{0}), KnobSource::kQuerySettings);
 }
 
 TEST(QueryKnobSnapshotTest, MultipleSlotSourcesAreIndependent) {
     auto snap = std::move(QueryKnobSnapshotBuilder{3}
-                              .set(0, QueryKnobValue{1}, KnobSource::kDefault)
-                              .set(1, QueryKnobValue{2}, KnobSource::kSetParameter)
-                              .set(2, QueryKnobValue{3}, KnobSource::kQuerySettings))
+                              .set(QueryKnobId{0}, QueryKnobValue{1}, KnobSource::kDefault)
+                              .set(QueryKnobId{1}, QueryKnobValue{2}, KnobSource::kSetParameter)
+                              .set(QueryKnobId{2}, QueryKnobValue{3}, KnobSource::kQuerySettings))
                     .build();
-    ASSERT_EQ(snap.getSource(0), KnobSource::kDefault);
-    ASSERT_EQ(snap.getSource(1), KnobSource::kSetParameter);
-    ASSERT_EQ(snap.getSource(2), KnobSource::kQuerySettings);
+    ASSERT_EQ(snap.getSource(QueryKnobId{0}), KnobSource::kDefault);
+    ASSERT_EQ(snap.getSource(QueryKnobId{1}), KnobSource::kSetParameter);
+    ASSERT_EQ(snap.getSource(QueryKnobId{2}), KnobSource::kQuerySettings);
 }
 
 TEST(QueryKnobSnapshotTest, CopyIsIndependent) {
-    auto original = std::move(QueryKnobSnapshotBuilder{2}
-                                  .set(0, QueryKnobValue{10}, KnobSource::kDefault)
-                                  .set(1, QueryKnobValue{20LL}, KnobSource::kSetParameter))
-                        .build();
+    auto original =
+        std::move(QueryKnobSnapshotBuilder{2}
+                      .set(QueryKnobId{0}, QueryKnobValue{10}, KnobSource::kDefault)
+                      .set(QueryKnobId{1}, QueryKnobValue{20LL}, KnobSource::kSetParameter))
+            .build();
 
     // Copy-construct from original.
     QueryKnobSnapshot copy = original;
-    ASSERT_EQ(copy.get<int>(0), 10);
-    ASSERT_EQ(copy.get<long long>(1), 20LL);
-    ASSERT_EQ(copy.getSource(0), KnobSource::kDefault);
-    ASSERT_EQ(copy.getSource(1), KnobSource::kSetParameter);
+    ASSERT_EQ(copy.get<int>(QueryKnobId{0}), 10);
+    ASSERT_EQ(copy.get<long long>(QueryKnobId{1}), 20LL);
+    ASSERT_EQ(copy.getSource(QueryKnobId{0}), KnobSource::kDefault);
+    ASSERT_EQ(copy.getSource(QueryKnobId{1}), KnobSource::kSetParameter);
 
     // Assigning a new snapshot to copy does not affect original.
     copy = std::move(QueryKnobSnapshotBuilder{2}
-                         .set(0, QueryKnobValue{99}, KnobSource::kQuerySettings)
-                         .set(1, QueryKnobValue{999LL}, KnobSource::kQuerySettings))
+                         .set(QueryKnobId{0}, QueryKnobValue{99}, KnobSource::kQuerySettings)
+                         .set(QueryKnobId{1}, QueryKnobValue{999LL}, KnobSource::kQuerySettings))
                .build();
 
-    ASSERT_EQ(original.get<int>(0), 10);
-    ASSERT_EQ(original.get<long long>(1), 20LL);
-    ASSERT_EQ(original.getSource(0), KnobSource::kDefault);
-    ASSERT_EQ(original.getSource(1), KnobSource::kSetParameter);
+    ASSERT_EQ(original.get<int>(QueryKnobId{0}), 10);
+    ASSERT_EQ(original.get<long long>(QueryKnobId{1}), 20LL);
+    ASSERT_EQ(original.getSource(QueryKnobId{0}), KnobSource::kDefault);
+    ASSERT_EQ(original.getSource(QueryKnobId{1}), KnobSource::kSetParameter);
 }
 
 TEST(QueryKnobSnapshotTest, LastWriteWins) {
     auto snap = std::move(QueryKnobSnapshotBuilder{1}
-                              .set(0, QueryKnobValue{5}, KnobSource::kDefault)
-                              .set(0, QueryKnobValue{42}, KnobSource::kSetParameter))
+                              .set(QueryKnobId{0}, QueryKnobValue{5}, KnobSource::kDefault)
+                              .set(QueryKnobId{0}, QueryKnobValue{42}, KnobSource::kSetParameter))
                     .build();
 
-    ASSERT_EQ(snap.get<int>(0), 42);
-    ASSERT_EQ(snap.getSource(0), KnobSource::kSetParameter);
+    ASSERT_EQ(snap.get<int>(QueryKnobId{0}), 42);
+    ASSERT_EQ(snap.getSource(QueryKnobId{0}), KnobSource::kSetParameter);
 }
 
 DEATH_TEST_REGEX(QueryKnobSnapshotDeathTest, GetOutOfBounds, "12312300") {
-    QueryKnobSnapshotBuilder{2}.build().get<int>(2);
+    QueryKnobSnapshotBuilder{0}.build().get<int>(QueryKnobId{2});
 }
 
 DEATH_TEST_REGEX(QueryKnobSnapshotDeathTest, GetSourceOutOfBounds, "12312301") {
-    QueryKnobSnapshotBuilder{2}.build().getSource(2);
+    std::move(
+        QueryKnobSnapshotBuilder{1}.set(QueryKnobId{0}, QueryKnobValue{0}, KnobSource::kDefault))
+        .build()
+        .getSource(QueryKnobId{2});
 }
 
 DEATH_TEST_REGEX(QueryKnobSnapshotDeathTest, SetOutOfBounds, "12312302") {
-    QueryKnobSnapshotBuilder{2}.set(5, QueryKnobValue{1}, KnobSource::kDefault);
+    QueryKnobSnapshotBuilder{2}.set(QueryKnobId{5}, QueryKnobValue{1}, KnobSource::kDefault);
 }
 
-DEATH_TEST_REGEX(QueryKnobSnapshotDeathTest, SetMonostateValue, "12312303") {
-    QueryKnobSnapshotBuilder{1}.set(0, QueryKnobValue{}, KnobSource::kDefault);
+DEATH_TEST_REGEX(QueryKnobSnapshotDeathTest, SetDeleteQueryKnobOverrideValue, "12312303") {
+    QueryKnobSnapshotBuilder{1}.set(
+        QueryKnobId{0}, DeleteQueryKnobOverride(), KnobSource::kDefault);
+}
+
+DEATH_TEST_REGEX(QueryKnobSnapshotDeathTest,
+                 UnsetQueryKnobValues,
+                 "12611000.*invalid call to QueryKnobSnapshot::build\\(\\) with unset query knob "
+                 "values") {
+    std::ignore = QueryKnobSnapshotBuilder(1).build();
 }
 
 }  // namespace

@@ -32,9 +32,12 @@
 #include "mongo/base/string_data.h"
 #include "mongo/db/commands/set_feature_compatibility_version_gen.h"
 #include "mongo/db/repl/oplog.h"
+#include "mongo/db/repl/read_concern_args.h"
 #include "mongo/db/repl/replication_coordinator_mock.h"
 #include "mongo/db/shard_role/lock_manager/d_concurrency.h"
+#include "mongo/db/shard_role/shard_catalog/catalog_control.h"
 #include "mongo/db/shard_role/shard_catalog/catalog_test_fixture.h"
+#include "mongo/db/shard_role/shard_role.h"
 #include "mongo/db/topology/vector_clock/vector_clock_mutable.h"
 #include "mongo/idl/server_parameter_test_controller.h"
 #include "mongo/unittest/death_test.h"
@@ -264,27 +267,78 @@ TEST_F(FeatureCompatibilityVersionTestFixture, ResolveReturnToOriginalFCVDuringC
 
 struct FCVTestParams {
     SetFCVPhaseEnum phase;
-    bool isCleaningServerMetadata;
+    boost::optional<bool> isCleaningServerMetadata;
+    bool symmetricFCVEnabled;
+    SetFCVPhaseEnum expectedStartPhase;
+    SetFCVPhaseEnum expectedEndPhase;
 };
 
 class SetFeatureCompatibilityVersionParamTestFixture
     : public FeatureCompatibilityVersionTestFixture,
       public testing::WithParamInterface<FCVTestParams> {};
 
-INSTANTIATE_TEST_SUITE_P(UpgradingFromDifferentStartingPhases,
+// Without symmetric FCV, the phase stored in the FCV document is ignored and the transition always
+// restarts from kStart with a freshly generated timestamp (legacy "restart from beginning"
+// behavior).
+INSTANTIATE_TEST_SUITE_P(UpgradingFromDifferentStartingPhasesWithoutSymmetricFCV,
                          SetFeatureCompatibilityVersionParamTestFixture,
                          testing::ValuesIn({
-                             FCVTestParams{SetFCVPhaseEnum::kStart, false},
-                             FCVTestParams{SetFCVPhaseEnum::kPrepare, false},
-                             FCVTestParams{SetFCVPhaseEnum::kComplete, true},
+                             FCVTestParams{SetFCVPhaseEnum::kStart,
+                                           false,
+                                           false,
+                                           SetFCVPhaseEnum::kStart,
+                                           SetFCVPhaseEnum::kComplete},
+                             FCVTestParams{SetFCVPhaseEnum::kPrepare,
+                                           false,
+                                           false,
+                                           SetFCVPhaseEnum::kStart,
+                                           SetFCVPhaseEnum::kComplete},
+                             FCVTestParams{SetFCVPhaseEnum::kComplete,
+                                           true,
+                                           false,
+                                           SetFCVPhaseEnum::kStart,
+                                           SetFCVPhaseEnum::kComplete},
+                         }));
+
+// With symmetric FCV, the phase stored in the FCV document is used as the start phase, so the
+// transition resumes from where it was interrupted and reuses the existing change timestamp.
+INSTANTIATE_TEST_SUITE_P(UpgradingFromDifferentStartingPhasesWithSymmetricFCV,
+                         SetFeatureCompatibilityVersionParamTestFixture,
+                         testing::ValuesIn({
+                             FCVTestParams{SetFCVPhaseEnum::kStart,
+                                           false,
+                                           true,
+                                           SetFCVPhaseEnum::kStart,
+                                           SetFCVPhaseEnum::kCommitAddedFeatures},
+                             FCVTestParams{SetFCVPhaseEnum::kPrepare,
+                                           false,
+                                           true,
+                                           SetFCVPhaseEnum::kPrepare,
+                                           SetFCVPhaseEnum::kCommitAddedFeatures},
+                             FCVTestParams{SetFCVPhaseEnum::kComplete,
+                                           true,
+                                           true,
+                                           SetFCVPhaseEnum::kComplete,
+                                           SetFCVPhaseEnum::kCommitAddedFeatures},
+                             FCVTestParams{SetFCVPhaseEnum::kEnableTargetFeatures,
+                                           boost::none,
+                                           true,
+                                           SetFCVPhaseEnum::kEnableTargetFeatures,
+                                           SetFCVPhaseEnum::kCommitAddedFeatures},
+                             FCVTestParams{SetFCVPhaseEnum::kCommitAddedFeatures,
+                                           boost::none,
+                                           true,
+                                           SetFCVPhaseEnum::kCommitAddedFeatures,
+                                           SetFCVPhaseEnum::kCommitAddedFeatures},
                          }));
 
 TEST_P(SetFeatureCompatibilityVersionParamTestFixture, ResolveResumeInterruptedUpgrade) {
-    RAIIServerParameterControllerForTest symmetricFCV{"featureFlagSymmetricFCV", true};
+    const auto& params = GetParam();
+    RAIIServerParameterControllerForTest symmetricFCV{"featureFlagSymmetricFCV",
+                                                      params.symmetricFCVEnabled};
     const Timestamp lastChangeTimestamp =
         VectorClockMutable::get(operationContext())->tickClusterTime(2).asTimestamp();
     serverGlobalParams.clusterRole = {ClusterRole::ShardServer, ClusterRole::ConfigServer};
-    const auto& params = GetParam();
 
     doStartupFCVSequence(multiversion::GenericFCV::kLastLTS);
     FeatureCompatibilityVersion::updateFeatureCompatibilityVersionDocument(
@@ -299,11 +353,79 @@ TEST_P(SetFeatureCompatibilityVersionParamTestFixture, ResolveResumeInterruptedU
         operationContext(), request, multiversion::GenericFCV::kUpgradingFromLastLTSToLatest);
 
     ASSERT_EQ(result.transitionalVersion, multiversion::GenericFCV::kUpgradingFromLastLTSToLatest);
-    ASSERT_EQ(result.startPhase, params.phase);
-    ASSERT_EQ(result.endPhase, SetFCVPhaseEnum::kComplete);
-    ASSERT_EQ(result.changeTimestamp, lastChangeTimestamp);
+    ASSERT_EQ(result.startPhase, params.expectedStartPhase);
+    ASSERT_EQ(result.endPhase, params.expectedEndPhase);
+    if (params.symmetricFCVEnabled) {
+        ASSERT_EQ(result.changeTimestamp, lastChangeTimestamp);
+    } else {
+        ASSERT_GT(result.changeTimestamp, lastChangeTimestamp);
+    }
 }
 
+TEST_F(FeatureCompatibilityVersionTestFixture, CanInitFCVWithIncompleteForegroundIndexBuild) {
+    // Create an incomplete index build in the catalog for a collection in the admin database
+    {
+        const auto nss =
+            NamespaceString::createNamespaceString_forTest("admin.incompleteForegroundIndexBuild");
+        ASSERT_OK(
+            storageInterface()->createCollection(operationContext(), nss, CollectionOptions()));
+
+        auto coll = acquireCollection(
+            operationContext(),
+            CollectionAcquisitionRequest{nss,
+                                         PlacementConcern::kPretendUnsharded,
+                                         repl::ReadConcernArgs::get(operationContext()),
+                                         AcquisitionPrerequisites::kWrite},
+            MODE_X);
+        WriteUnitOfWork wuow(operationContext());
+        CollectionWriter writer{operationContext(), &coll};
+        auto writableColl = writer.getWritableCollection(operationContext());
+        IndexDescriptor desc{IndexNames::BTREE,
+                             BSON("v" << 2 << "name"
+                                      << "x_1"
+                                      << "key" << BSON("x" << 1))};
+        ASSERT_OK(writableColl->prepareForIndexBuild(
+            operationContext(), &desc, "index-ident", boost::none));
+        wuow.commit();
+    }
+
+    // Simulate the startup path by closing the catalog and reopening it without reconciling (as
+    // that happens after FCV is initialized). This would fail if we tried to initialize the entire
+    // admin db as a non-fcv collection is in an invalid state.
+    Lock::GlobalLock globalLk(operationContext(), MODE_X);
+    catalog::closeCatalog(operationContext());
+
+    auto* storageEngine = operationContext()->getServiceContext()->getStorageEngine();
+    storageEngine->loadMDBCatalog(operationContext(), StorageEngine::LastShutdownState::kClean);
+    catalog::initializeCollectionCatalog(operationContext(), storageEngine);
+    FeatureCompatibilityVersion::initializeForStartup(operationContext());
+}
+
+TEST_F(FeatureCompatibilityVersionTestFixture,
+       FindFeatureCompatibilityVersionDocumentDoesNotRequireIndex) {
+    doStartupFCVSequence(multiversion::GenericFCV::kLatest);
+
+    // Remove the _id index from the collection to verify that FCV lookup doesn't rely on it
+    {
+        auto coll = acquireCollection(
+            operationContext(),
+            CollectionAcquisitionRequest{NamespaceString::kServerConfigurationNamespace,
+                                         PlacementConcern::kPretendUnsharded,
+                                         repl::ReadConcernArgs::get(operationContext()),
+                                         AcquisitionPrerequisites::kWrite},
+            MODE_X);
+        WriteUnitOfWork wuow(operationContext());
+        CollectionWriter writer{operationContext(), &coll};
+        auto writableColl = writer.getWritableCollection(operationContext());
+        ASSERT_TRUE(writableColl->isIndexPresent("_id_"));
+        writableColl->removeIndex(operationContext(), "_id_");
+        ASSERT_FALSE(writableColl->isIndexPresent("_id_"));
+        wuow.commit();
+    }
+
+    ASSERT_OK(
+        FeatureCompatibilityVersion::findFeatureCompatibilityVersionDocument(operationContext()));
+}
 
 }  // namespace
 }  // namespace mongo

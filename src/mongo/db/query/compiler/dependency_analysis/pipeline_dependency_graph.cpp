@@ -172,6 +172,7 @@ using ScopeId = TypedId<Scope>;
 using FieldId = TypedId<Field>;
 
 using FieldMap = absl::flat_hash_map<StringPool::Id, FieldId>;
+using ModifiedPrefixPolicy = document_transformation::ModifiedPrefixPolicy;
 
 /// Represents the set of field definition nodes that a stage or a field definition node depends on.
 /// When a stage depends on a field definition, it means that the stage references a field that was
@@ -420,17 +421,6 @@ private:
 
 static_assert(document_transformation::DescribesDocumentTransformation<DocumentSourceInfo>);
 
-bool canExpressionEvaluateToArray(const Expression& expr) {
-    if (auto* constantExpr = dynamic_cast<const ExpressionConstant*>(&expr)) {
-        return constantExpr->getValue().isArray();
-    }
-    return true;
-}
-
-void updateMetadataFromExpression(FieldMetadata& metadata, const Expression& expr) {
-    metadata.canFieldBeArray = canExpressionEvaluateToArray(expr);
-}
-
 void updateMetadataForMissingValue(FieldMetadata& metadata) {
     metadata.canFieldBeArray = false;
     metadata.knownToBeMissing = true;
@@ -520,6 +510,17 @@ bool defaultCanPathBeArray(StringData path) {
     return true;
 }
 
+namespace {
+/// Wrapper for the PathArrayness API passed into the graph as CanPathBeArray.
+struct CanPathBeArrayForNss {
+    bool operator()(StringData path) const {
+        return expCtx.canPathBeArrayForNss(FieldRef(path), nss);
+    }
+    ExpressionContext& expCtx;
+    const NamespaceString& nss;
+};
+}  // namespace
+
 class DependencyGraph::Impl {
 public:
     explicit Impl(const DocumentSourceContainer& container,
@@ -599,6 +600,10 @@ public:
             case FieldMatchType::kExact:
                 return canPrefixContainArrays(prefix) || _fields[fieldId].metadata.canFieldBeArray;
             case FieldMatchType::kShadowed: {
+                if (canPrefixContainArrays(prefix) || _fields[fieldId].metadata.canFieldBeArray) {
+                    return true;
+                }
+
                 // If the shadowing field comes from a stage with a sub-pipeline (e.g. $lookup),
                 // resolve the suffix path against the sub-pipeline's graph.
                 ScopeId declaringScopeId = _fields[fieldId].declaringScope;
@@ -613,10 +618,6 @@ public:
                 // Check if the shadowing field has an alias to a collection path. If so, resolve
                 // the full path and query the PathArrayness API with it.
                 if (auto* alias = getAlias(fieldId)) {
-                    if (canPrefixContainArrays(prefix) ||
-                        _fields[fieldId].metadata.canFieldBeArray) {
-                        return true;
-                    }
                     auto suffix = skipPathComponents(path, prefix.size() + 1);
                     return _canPathBeArray(buildDottedPath(*alias, suffix));
                 }
@@ -712,9 +713,13 @@ private:
      * If 'a' already exists, any fields are preserved.
      * The 'dependencies' and 'metadata' are assigned to the declared field 'a.b'.
      * Returns the FieldId for the base component in path (for 'a.b' returns 'a').
+     * 'prefixPolicy' dictates whether the modification preserves arrays on the base field. When
+     * kEnsureObjects, writing to 'a.b' modifies 'a' to a plain object: if 'a' can be an array,
+     * 'a.c' from a prior stage may be discarded, so sibling subfields cannot be inherited.
      */
     FieldId declareField(ScopeId scope,
                          ParsedPathView path,
+                         ModifiedPrefixPolicy prefixPolicy,
                          FieldDependencies dependencies,
                          FieldMetadata metadata = {},
                          ParsedPathView collectionPathPrefix = {}) {
@@ -759,18 +764,10 @@ private:
             // updated embedded scope.
             auto embeddedScope = _scopes.getNextId();
             newBaseField = _fields.append(Field{scope, embeddedScope});
-            auto parentEmbeddedScope =
-                existingBaseField ? _fields[existingBaseField].embeddedScope : ScopeId::none();
-            // Where unknown subfields originate:
-            //  - no previous field -> base collection.
-            //  - previous field's scope is exhaustive -> inherit it.
-            //  - previous field is a leaf in a non-exhaustive scope -> this new scope.
-            auto exhaustiveEmbeddedScope = existingBaseField
-                ? _scopes[_fields[existingBaseField].declaringScope].exhaustiveScope
-                : ScopeId::none();
-            if (existingBaseField && !parentEmbeddedScope && !exhaustiveEmbeddedScope) {
-                exhaustiveEmbeddedScope = embeddedScope;
-            }
+
+            auto [exhaustiveEmbeddedScope, parentEmbeddedScope] = resolveNewBaseFieldScopes(
+                prefixPolicy, existingBaseField, embeddedScope, collectionPathPrefix, path.front());
+
             if (parentEmbeddedScope) {
                 // The new field depends on the previous field, since it inherits paths.
                 _fields[newBaseField].dependencies.insert(existingBaseField);
@@ -779,17 +776,90 @@ private:
             _scopes[scope].fields[basePath.front()] = newBaseField;
             populateBaseFieldMetadata(
                 newBaseField, existingBaseField, collectionPathPrefix, basePath.front());
+            if (prefixPolicy == ModifiedPrefixPolicy::kEnsureObjects) {
+                // The modification modifies 'a' to a plain object, so 'a' is no longer an array.
+                _fields[newBaseField].metadata.canFieldBeArray = false;
+            }
         }
         // Finally, declare the subPath in the embeddedScope we found or created.
         ParsedPath nestedPrefix(collectionPathPrefix.begin(), collectionPathPrefix.end());
         nestedPrefix.push_back(basePath.front());
         auto embeddedField = declareField(_fields[newBaseField].embeddedScope,
                                           subPath,
+                                          prefixPolicy,
                                           std::move(dependencies),
                                           std::move(metadata),
                                           nestedPrefix);
         _fields[newBaseField].dependencies.insert(embeddedField);
         return newBaseField;
+    }
+
+    /**
+     * Returns the ScopeIds for a new base field.
+     * 'existingBaseField' is the result of looking up the base field.
+     * 'embeddedScope' is the ScopeId for the new scope that will be created for the base field.
+     */
+    std::pair<ScopeId, ScopeId> resolveNewBaseFieldScopes(ModifiedPrefixPolicy prefixPolicy,
+                                                          FieldId existingBaseField,
+                                                          ScopeId embeddedScope,
+                                                          ParsedPathView collectionPathPrefix,
+                                                          StringPool::Id fieldNameId) const {
+        // The prior embedded scope (sibling subfields) is only safe to inherit when the base
+        // field's existing contents are guaranteed to survive the modification:
+        //   - kPreserveArrays
+        //   - kEnsureObjects + non-array base
+        bool isParentEmbeddedScopePreserved = [&]() {
+            switch (prefixPolicy) {
+                case ModifiedPrefixPolicy::kPreserveArrays:
+                    return true;
+                case ModifiedPrefixPolicy::kEnsureObjects:
+                    bool prefixCanBeArray;
+                    if (existingBaseField) {
+                        prefixCanBeArray = _fields[existingBaseField].metadata.canFieldBeArray;
+                    } else {
+                        // The base field is a collection field. Check the PathArrayness API.
+                        prefixCanBeArray =
+                            canCollectionFieldBeArray(collectionPathPrefix, fieldNameId);
+                    }
+                    return !prefixCanBeArray;
+                case ModifiedPrefixPolicy::kNotSupported:
+                    return false;
+            }
+            MONGO_UNREACHABLE_TASSERT(12569301);
+        }();
+
+        // Determines whether any fields are inherited from a parent scope.
+        ScopeId parentEmbeddedScope = [&]() {
+            if (isParentEmbeddedScopePreserved && existingBaseField) {
+                return _fields[existingBaseField].embeddedScope;
+            }
+            return ScopeId::none();
+        }();
+
+        // Determines where unknown subfields originates.
+        ScopeId exhaustiveEmbeddedScope = [&]() {
+            if (!isParentEmbeddedScopePreserved) {
+                // If the parent scope is discarded, then exhaustive scope is this one.
+                return embeddedScope;
+            }
+            if (!existingBaseField) {
+                // No previous field -> base collection.
+                return ScopeId::none();
+            }
+            if (auto previousExhaustiveScope =
+                    _scopes[_fields[existingBaseField].declaringScope].exhaustiveScope) {
+                // Previous field's scope is exhaustive -> inherit it.
+                return previousExhaustiveScope;
+            }
+            if (!parentEmbeddedScope) {
+                // Previous field is a leaf in a non-exhaustive scope -> this new scope
+                return embeddedScope;
+            }
+            // TODO(SERVER-126001): We should not return none here.
+            return ScopeId::none();
+        }();
+
+        return {exhaustiveEmbeddedScope, parentEmbeddedScope};
     }
 
     /**
@@ -861,7 +931,7 @@ private:
         // two, so we declare the field to avoid incorrect dependency tracking.
         // TODO(SERVER-119392): Track whether or not the parent field is known to be a scalar.
         if (shadowedByParent) {
-            declareField(scope, path, {parentBaseField});
+            declareField(scope, path, ModifiedPrefixPolicy::kPreserveArrays, {parentBaseField});
             return;
         }
 
@@ -886,7 +956,8 @@ private:
             case FieldMatchType::kBaseDocument:
                 // 'a' is not included in the current scope, so we need to declare it then include
                 // 'b'.
-                FieldId newBaseField = declareField(scope, basePath, {parentBaseField});
+                FieldId newBaseField = declareField(
+                    scope, basePath, ModifiedPrefixPolicy::kPreserveArrays, {parentBaseField});
                 ScopeId newEmbeddedScope = _scopes.getNextId();
                 declareScope(_scopes[scope].stage, newEmbeddedScope, ScopeId::none());
                 _fields[newBaseField].embeddedScope = newEmbeddedScope;
@@ -947,6 +1018,18 @@ private:
     }
 
     /**
+     * Returns whether a field that comes directly from the collection (not redefined by any stage)
+     * can be an array. Appends 'fieldNameId' to 'collectionPathPrefix' and queries the
+     * PathArrayness API on the resulting dotted path.
+     */
+    bool canCollectionFieldBeArray(ParsedPathView collectionPathPrefix,
+                                   StringPool::Id fieldNameId) const {
+        ParsedPath path(collectionPathPrefix.begin(), collectionPathPrefix.end());
+        path.push_back(fieldNameId);
+        return _canPathBeArray(buildDottedPath(path));
+    }
+
+    /**
      * Populate metadata when a base field is redefined.
      */
     void populateBaseFieldMetadata(FieldId newBaseField,
@@ -959,10 +1042,8 @@ private:
         } else {
             // The included base field is a collection field. Query the PathArrayness API to
             // determine if the field can be an array, using the full collection path.
-            ParsedPath fullCollectionPath(collectionPathPrefix.begin(), collectionPathPrefix.end());
-            fullCollectionPath.push_back(fieldNameId);
             _fields[newBaseField].metadata.canFieldBeArray =
-                _canPathBeArray(buildDottedPath(fullCollectionPath));
+                canCollectionFieldBeArray(collectionPathPrefix, fieldNameId);
         }
     }
 
@@ -1095,17 +1176,23 @@ private:
                     FieldMetadata metadata{};
                     if (p.isRemoved()) {
                         updateMetadataForMissingValue(metadata);
-                    } else if (auto expr = p.getExpression()) {
-                        updateMetadataFromExpression(metadata, *expr);
-                        deps = processExpressionDependencies(*expr, parentScope);
                     } else {
-                        // If the modification is not determined by an expression, we cannot get
-                        // more precise dependency information. The stage dependencies will always
-                        // be a superset of any modified path dependencies, so we can use those.
-                        // Example: {$unwind: '$x'}
-                        deps = depsFromStage;
+                        metadata.canFieldBeArray = p.canLeafBeArray();
+                        if (auto expr = p.getExpression()) {
+                            deps = processExpressionDependencies(*expr, parentScope);
+                        } else {
+                            // If the modification is not determined by an expression, we cannot get
+                            // more precise dependency information. The stage dependencies will
+                            // always be a superset of any modified path dependencies, so we can use
+                            // those. Example: {$unwind: '$x'}
+                            deps = depsFromStage;
+                        }
                     }
-                    declareField(scopeId, parsedPath, std::move(deps), std::move(metadata));
+                    declareField(scopeId,
+                                 parsedPath,
+                                 p.getPrefixPolicy(),
+                                 std::move(deps),
+                                 std::move(metadata));
                 },
                 [&](const RenamePath& p) {
                     maybeDeclareInheritedScope();
@@ -1193,7 +1280,11 @@ private:
                     }
 
                     // Each rename modifies the new field and depends on the previous field.
-                    declareField(scopeId, parsedNewPath, std::move(deps), std::move(metadata));
+                    declareField(scopeId,
+                                 parsedNewPath,
+                                 ModifiedPrefixPolicy::kPreserveArrays,
+                                 std::move(deps),
+                                 std::move(metadata));
 
                     // Store alias for the leaf field of the new path.
                     if (!aliasCollectionPath.empty()) {
@@ -1249,17 +1340,11 @@ private:
         if (!subPipeline) {
             return;
         }
-        CanPathBeArray subPipelineCanPathBeArray = defaultCanPathBeArray;
-        if (auto expCtx = ds->getExpCtx()) {
-            if (auto subExpCtx = ds->getSubpipelineExpCtx()) {
-                subPipelineCanPathBeArray = [expCtx, subExpCtx](StringData path) -> bool {
-                    return expCtx->canPathBeArrayForNss(FieldRef(path),
-                                                        subExpCtx->getNamespaceString());
-                };
-            }
-        }
-        _subpipelineGraphs.push_back(
-            std::make_unique<DependencyGraph>(*subPipeline, std::move(subPipelineCanPathBeArray)));
+        auto subExpCtx = ds->getSubpipelineExpCtx();
+        tassert(12414601, "Expected to have subpipeline expression context", subExpCtx);
+        auto& mainExpCtx = *ds->getExpCtx();
+        _subpipelineGraphs.push_back(std::make_unique<DependencyGraph>(
+            *subPipeline, CanPathBeArrayForNss{mainExpCtx, subExpCtx->getNamespaceString()}));
         _stages[stageId].subpipelineGraph = _subpipelineGraphs.back().get();
     }
 
@@ -1781,21 +1866,10 @@ DependencyGraphContext::DependencyGraphContext(ExpressionContext& expCtx,
                                                DocumentSourceContainer& container)
     : _expCtx(expCtx), _container(container) {}
 
-namespace {
-/// Wrapper for the PathArrayness API passed into the graph as CanPathBeArray.
-/// Queries the ExpressionContext's own resident namespace (getNamespaceString()).
-struct CanPathBeArrayForExpCtxNss {
-    bool operator()(StringData path) const {
-        return expCtx.canPathBeArrayForNss(FieldRef(path), expCtx.getNamespaceString());
-    }
-    ExpressionContext& expCtx;
-};
-}  // namespace
-
 std::unique_ptr<DependencyGraph> DependencyGraphContext::createGraph(
     DocumentSourceContainer::const_iterator endIt) const {
     return std::make_unique<DependencyGraph>(
-        _container, endIt, CanPathBeArrayForExpCtxNss{_expCtx});
+        _container, endIt, CanPathBeArrayForNss{_expCtx, _expCtx.getNamespaceString()});
 }
 
 const DependencyGraph& DependencyGraphContext::getGraph(

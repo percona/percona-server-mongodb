@@ -374,16 +374,26 @@ mongo_cc_unit_test(
     ],
 )
 
+idl_generator(
+    name = "query_knob_test_gen",
+    src = "query_knob_test.idl",
+    deps = [
+        "//src/mongo/db:basic_types_gen",
+    ],
+)
+
 mongo_cc_unit_test(
     name = "query_knob_test",
     srcs = [
         "query_knob_snapshot_test.cpp",
         "query_knob_test.cpp",
+        ":query_knob_test_gen",
     ],
     tags = ["mongo_unittest_second_group"],
     deps = [
         ":query_knob",
         ":query_knobs",
+        "//src/mongo/db:server_base",
     ],
 )
 
@@ -393,6 +403,7 @@ idl_generator(
     deps = [
         ":hint_gen",
         "//src/mongo/db:basic_types_gen",
+        "//src/mongo/db/query/client_cursor:cursor_response_gen",
         "//src/mongo/db/query/query_settings:query_settings_gen",
         "//src/mongo/idl:generic_argument_gen",
     ],
@@ -490,6 +501,7 @@ idl_generator(
         "//src/mongo/db:basic_types_gen",
         "//src/mongo/db/auth:access_checks_gen",
         "//src/mongo/db/auth:action_type_gen",
+        "//src/mongo/db/query/client_cursor:cursor_response_gen",
         "//src/mongo/db/query/query_shape:query_shape_hash_gen",
         "//src/mongo/idl:generic_argument_gen",
     ],

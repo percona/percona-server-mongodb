@@ -83,6 +83,7 @@
 #include "mongo/db/storage/storage_options.h"
 #include "mongo/db/storage/storage_parameters_gen.h"
 #include "mongo/db/storage/write_unit_of_work.h"
+#include "mongo/idl/idl_parser.h"
 #include "mongo/logv2/attribute_storage.h"
 #include "mongo/logv2/log.h"
 #include "mongo/logv2/log_severity_suppressor.h"
@@ -934,12 +935,13 @@ Status IndexBuildsCoordinator::_dropIndexesForRepair(OperationContext* opCtx,
     return Status::OK();
 }
 
-Status IndexBuildsCoordinator::_setUpResumeIndexBuild(OperationContext* opCtx,
-                                                      const DatabaseName& dbName,
-                                                      const UUID& collectionUUID,
-                                                      const std::vector<IndexBuildInfo>& indexes,
-                                                      const UUID& buildUUID,
-                                                      const ResumeIndexInfo& resumeInfo) {
+Status IndexBuildsCoordinator::_registerResumeIndexBuild(OperationContext* opCtx,
+                                                         const DatabaseName& dbName,
+                                                         const UUID& collectionUUID,
+                                                         const std::vector<IndexBuildInfo>& indexes,
+                                                         const UUID& buildUUID,
+                                                         const ResumeIndexInfo& resumeInfo,
+                                                         IndexBuildProtocol protocol) {
     NamespaceStringOrUUID nssOrUuid{dbName, collectionUUID};
     // Make a mutable copy to populate indexIdent from the catalog; the caller's vector is const.
     auto mutableIndexes = indexes;
@@ -1003,7 +1005,6 @@ Status IndexBuildsCoordinator::_setUpResumeIndexBuild(OperationContext* opCtx,
         wuow.commit();
     }
 
-    auto protocol = IndexBuildProtocol::kTwoPhase;
     auto replIndexBuildState = std::make_shared<ReplIndexBuildState>(
         buildUUID, collection->uuid(), dbName, mutableIndexes, protocol, Date_t::now());
 
@@ -1012,16 +1013,39 @@ Status IndexBuildsCoordinator::_setUpResumeIndexBuild(OperationContext* opCtx,
         return status;
     }
     indexBuildsSSS.registered.addAndFetch(1);
+    return Status::OK();
+}
+
+Status IndexBuildsCoordinator::_setUpResumeIndexBuild(OperationContext* opCtx,
+                                                      const UUID& buildUUID,
+                                                      const ResumeIndexInfo& resumeInfo,
+                                                      IndexBuildProtocol protocol) {
+    auto replIndexBuildState = invariant(_getIndexBuild(buildUUID));
+
+    Lock::DBLock dbLock(opCtx,
+                        replIndexBuildState->dbName,
+                        MODE_IX,
+                        Date_t::max(),
+                        Lock::DBLockSkipOptions{
+                            .explicitIntent = rss::consensus::IntentRegistry::Intent::LocalWrite});
+    CollectionNamespaceOrUUIDLock collLock(
+        opCtx, {replIndexBuildState->dbName, replIndexBuildState->collectionUUID}, MODE_X);
+    CollectionWriter collection(opCtx, replIndexBuildState->collectionUUID);
 
     IndexBuildsManager::SetupOptions options;
     options.protocol = protocol;
-    status = _indexBuildsManager.setUpIndexBuild(opCtx,
-                                                 collection,
-                                                 mutableIndexes,
-                                                 buildUUID,
-                                                 MultiIndexBlock::kNoopOnInitFn,
-                                                 options,
-                                                 resumeInfo);
+    // TODO (SERVER-109664): Remove kPrimaryDriven method check.
+    options.method = (protocol == IndexBuildProtocol::kPrimaryDriven)
+        ? IndexBuildMethodEnum::kPrimaryDriven
+        : IndexBuildMethodEnum::kHybrid;
+    options.isResumable = replIndexBuildState->isResumable();
+    auto status = _indexBuildsManager.setUpIndexBuild(opCtx,
+                                                      collection,
+                                                      replIndexBuildState->getIndexes(),
+                                                      buildUUID,
+                                                      MultiIndexBlock::kNoopOnInitFn,
+                                                      options,
+                                                      resumeInfo);
     if (!status.isOK()) {
         activeIndexBuilds.unregisterIndexBuild(
             &_indexBuildsManager, replIndexBuildState, IndexBuildOutcome::kFailure);
@@ -2134,16 +2158,34 @@ void IndexBuildsCoordinator::_resumePrimaryDrivenIndexBuildsOnStepUp(OperationCo
     const bool resumablePdibEnabled =
         feature_flags::gResumablePrimaryDrivenIndexBuilds.isEnabledUseLastLTSFCVWhenUninitialized(
             vCtx, fcvSnapshot);
+    const bool pdibEnabled =
+        feature_flags::gFeatureFlagPrimaryDrivenIndexBuilds.isEnabledUseLastLTSFCVWhenUninitialized(
+            vCtx, fcvSnapshot);
 
     for (auto&& [buildUUID, build] :
          index_builds::primary_driven::registry(opCtx->getServiceContext()).all()) {
 
-        // TODO(SERVER-125682): Attempt to resume primary-driven index build.
         bool resumeSucceeded = false;
         if (resumablePdibEnabled && build.indexBuildIdent) {
             try {
                 auto resumeInfo =
                     index_builds::primary_driven::resumeInfo(opCtx, *build.indexBuildIdent);
+
+                invariant(pdibEnabled);
+                IndexBuildsCoordinator::IndexBuildOptions indexBuildOptions = {
+                    // TODO(SERVER-109664): Set this to IndexBuildMethodEnum::kHybrid
+                    .indexBuildMethod = IndexBuildMethodEnum::kPrimaryDriven,
+                    .indexBuildProtocol = IndexBuildProtocol::kPrimaryDriven,
+                    .commitQuorum = CommitQuorumOptions(CommitQuorumOptions::kPrimarySelfVote)};
+
+                // This spawns a new thread and returns immediately.
+                [[maybe_unused]] auto fut = uassertStatusOK(resumeIndexBuild(opCtx,
+                                                                             build.dbName,
+                                                                             build.collectionUUID,
+                                                                             build.indexes,
+                                                                             buildUUID,
+                                                                             resumeInfo,
+                                                                             indexBuildOptions));
                 resumeSucceeded = true;
                 activeIndexBuilds.incrementResumeSucceeded(resumeInfo.getPhase());
             } catch (const DBException& e) {
@@ -2151,9 +2193,11 @@ void IndexBuildsCoordinator::_resumePrimaryDrivenIndexBuildsOnStepUp(OperationCo
                 LOGV2(12500301,
                       "Index build: failed to resume, aborting instead",
                       "buildUUID"_attr = buildUUID,
+                      "collectionUUID"_attr = build.collectionUUID,
                       "error"_attr = e);
             }
         }
+
         if (!resumeSucceeded) {
             uassertStatusOK(index_builds::primary_driven::abort(
                 opCtx,
@@ -2165,7 +2209,7 @@ void IndexBuildsCoordinator::_resumePrimaryDrivenIndexBuildsOnStepUp(OperationCo
                 {ErrorCodes::InterruptedDueToReplStateChange,
                  "Aborting primary-driven index build upon step up"}));
             LOGV2(11130400,
-                  "Aborted primary-driven index build upon step up",
+                  "Index build: failed to resume primary-driven index build, aborting instead",
                   "buildUUID"_attr = buildUUID);
         }
     }
@@ -2316,8 +2360,13 @@ void IndexBuildsCoordinator::restartIndexBuildsForRecovery(
         try {
             // This spawns a new thread and returns immediately. These index builds will resume and
             // wait for a commit or abort to be replicated.
-            [[maybe_unused]] auto fut = uassertStatusOK(
-                resumeIndexBuild(opCtx, nss->dbName(), collUUID, indexes, buildUUID, resumeInfo));
+            [[maybe_unused]] auto fut = uassertStatusOK(resumeIndexBuild(opCtx,
+                                                                         nss->dbName(),
+                                                                         collUUID,
+                                                                         indexes,
+                                                                         buildUUID,
+                                                                         resumeInfo,
+                                                                         IndexBuildOptions{}));
             successfullyResumed.insert(buildUUID);
         } catch (const DBException& e) {
             LOGV2(4841701,
@@ -2626,6 +2675,10 @@ void IndexBuildsCoordinator::sleepIndexBuilds_forTestOnly(bool sleep) {
 
 void IndexBuildsCoordinator::verifyNoIndexBuilds_forTestOnly() const {
     activeIndexBuilds.verifyNoIndexBuilds_forTestOnly();
+}
+
+void IndexBuildsCoordinator::awaitStepUpThread_forTestOnly() {
+    _stepUpThread.join();
 }
 
 // static
@@ -2982,12 +3035,7 @@ IndexBuildsCoordinator::PostSetupAction IndexBuildsCoordinator::_setUpIndexBuild
             // collection.
             auto lastOpTimeBeforeInterceptors =
                 indexBuildOptions.startIndexBuildOpTime.value_or(getLatestOplogOpTime(opCtx));
-            replState->setLastOpTimeBeforeInterceptors(lastOpTimeBeforeInterceptors);
-
-            // The hybrid build only becomes resumable once _lastOpTimeBeforeInterceptors is set.
-            // setUpIndexBuild ran before this and so set the builder's _isResumable to false;
-            // refresh it now so a later persistResumeState / abortWithoutCleanup will write state.
-            _indexBuildsManager.setIsResumable(replState->buildUUID, true);
+            _markTwoPhaseBuildResumable(*replState, lastOpTimeBeforeInterceptors);
         }
     } catch (DBException& ex) {
         // It is fine to let the build continue even if we are interrupted, interrupt check before
@@ -3329,6 +3377,13 @@ void IndexBuildsCoordinator::_runIndexBuildInner(
             PrepareConflictBehavior::kIgnoreConflictsAllowWrites);
 
         if (resumeInfo) {
+            LOGV2(12500800,
+                  "Index build: resuming index build from phase",
+                  "buildUUID"_attr = replState->buildUUID,
+                  "method"_attr = idl::serialize(indexBuildOptions.indexBuildMethod),
+                  "protocol"_attr =
+                      indexBuildProtocolToString(indexBuildOptions.indexBuildProtocol),
+                  "phase"_attr = idl::serialize(resumeInfo->getPhase()));
             _resumeHybridIndexBuildFromPhase(
                 opCtx, replState, indexBuildOptions, resumeInfo.value());
         } else if (indexBuildOptions.indexBuildMethod == IndexBuildMethodEnum::kHybrid) {
@@ -3404,7 +3459,9 @@ void IndexBuildsCoordinator::_resumeHybridIndexBuildFromPhase(
     std::shared_ptr<ReplIndexBuildState> replState,
     const IndexBuildOptions& indexBuildOptions,
     const ResumeIndexInfo& resumeInfo) {
-    invariant(indexBuildOptions.indexBuildMethod == IndexBuildMethodEnum::kHybrid);
+    // TODO(SERVER-109664): Make this check for simply IndexBuildMethodEnum::kHybrid
+    invariant(indexBuildOptions.indexBuildMethod == IndexBuildMethodEnum::kHybrid ||
+              indexBuildOptions.indexBuildMethod == IndexBuildMethodEnum::kPrimaryDriven);
 
     if (resumeInfo.getPhase() == IndexBuildPhaseEnum::kInitialized ||
         resumeInfo.getPhase() == IndexBuildPhaseEnum::kCollectionScan) {
@@ -3421,6 +3478,20 @@ void IndexBuildsCoordinator::_resumeHybridIndexBuildFromPhase(
     _insertKeysFromSideTablesWithoutBlockingWrites(opCtx, replState);
     _signalPrimaryForCommitReadiness(opCtx, replState);
     _waitForNextIndexBuildActionAndCommit(opCtx, replState, indexBuildOptions);
+}
+
+void IndexBuildsCoordinator::_markTwoPhaseBuildResumable(
+    ReplIndexBuildState& replState, repl::OpTime lastOpTimeBeforeInterceptors) {
+    invariant(replState.protocol == IndexBuildProtocol::kTwoPhase);
+    // The hybrid build only becomes resumable once _lastOpTimeBeforeInterceptors is set.
+    replState.setLastOpTimeBeforeInterceptors(std::move(lastOpTimeBeforeInterceptors));
+    _indexBuildsManager.setIsResumable(replState.buildUUID, true);
+}
+
+void IndexBuildsCoordinator::_markTwoPhaseBuildNonResumable(ReplIndexBuildState& replState) {
+    invariant(replState.protocol == IndexBuildProtocol::kTwoPhase);
+    replState.clearLastOpTimeBeforeInterceptors();
+    _indexBuildsManager.setIsResumable(replState.buildUUID, false);
 }
 
 void IndexBuildsCoordinator::_awaitLastOpTimeBeforeInterceptorsMajorityCommitted(
@@ -3442,7 +3513,7 @@ void IndexBuildsCoordinator::_awaitLastOpTimeBeforeInterceptorsMajorityCommitted
     auto timeoutMillis = gResumableIndexBuildMajorityOpTimeTimeoutMillis;
     if (timeoutMillis == 0) {
         // Disable resumable index build.
-        replState->clearLastOpTimeBeforeInterceptors();
+        _markTwoPhaseBuildNonResumable(*replState);
         return;
     }
 
@@ -3490,7 +3561,7 @@ void IndexBuildsCoordinator::_awaitLastOpTimeBeforeInterceptorsMajorityCommitted
 
     auto status = replCoord->waitUntilMajorityOpTime(opCtx, lastOpTimeBeforeInterceptors, deadline);
     if (!status.isOK()) {
-        replState->clearLastOpTimeBeforeInterceptors();
+        _markTwoPhaseBuildNonResumable(*replState);
         LOGV2(5053900,
               "Index build: timed out waiting for the last optime before interceptors to be "
               "majority committed, continuing as a non-resumable index build",

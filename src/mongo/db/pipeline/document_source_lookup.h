@@ -138,6 +138,9 @@ public:
      */
     GetModPathsReturn getModifiedPaths() const final;
 
+    void describeTransformation(
+        document_transformation::DocumentOperationVisitor& visitor) const override;
+
     /**
      * Reports the StageConstraints of this $lookup instance. A $lookup constructed with pipeline
      * syntax will inherit certain constraints from the stages in its pipeline.
@@ -375,7 +378,7 @@ private:
      * Clones the given vector of LetVariable objects using the newExpCtx.
      */
     void copyLetVariablesWithNewExpCtx(const std::vector<LetVariable>& src,
-                                       ExpressionContext* newExpCtx);
+                                       ExpressionContext& newExpCtx);
 
     /**
      * Builds a parsed pipeline for introspection (e.g. constraints, dependencies). Any sub-$lookup

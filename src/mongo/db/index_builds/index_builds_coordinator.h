@@ -191,7 +191,8 @@ public:
         const UUID& collectionUUID,
         const std::vector<IndexBuildInfo>& indexes,
         const UUID& buildUUID,
-        const ResumeIndexInfo& resumeInfo) = 0;
+        const ResumeIndexInfo& resumeInfo,
+        IndexBuildOptions indexBuildOptions) = 0;
 
     /**
      * Resumes and restarts index builds for recovery. Anything that fails to resume will be started
@@ -516,6 +517,8 @@ public:
 
     void verifyNoIndexBuilds_forTestOnly() const;
 
+    void awaitStepUpThread_forTestOnly();
+
     /**
      * Preprocesses a list of index specs and idents to normalize them and remove any indexes which
      * already exist in the ready state. Collation defaults are added to each spec if needed,
@@ -673,15 +676,25 @@ protected:
                                                const std::vector<IndexBuildInfo>& indexes,
                                                const UUID& buildUUID);
     /**
-     * Reconstructs the in-memory state of the index build so that it can be resumed from the phase
-     * it was in when the node cleanly shut down.
+     * Registers an index build to be resumed, validating the state against the catalog. Can be
+     * called on any thread, as no actual setup is performed.
+     */
+    Status _registerResumeIndexBuild(OperationContext* opCtx,
+                                     const DatabaseName& dbName,
+                                     const UUID& collectionUUID,
+                                     const std::vector<IndexBuildInfo>& indexes,
+                                     const UUID& buildUUID,
+                                     const ResumeIndexInfo& resumeInfo,
+                                     IndexBuildProtocol protocol);
+
+    /**
+     * Sets up an already-registerd index build to be resumed. Must be called on the builder thread
+     * if the protocol involves establishing resources tied to the calling thread.
      */
     Status _setUpResumeIndexBuild(OperationContext* opCtx,
-                                  const DatabaseName& dbName,
-                                  const UUID& collectionUUID,
-                                  const std::vector<IndexBuildInfo>& indexes,
                                   const UUID& buildUUID,
-                                  const ResumeIndexInfo& resumeInfo);
+                                  const ResumeIndexInfo& resumeInfo,
+                                  IndexBuildProtocol protocol);
 
     /**
      * Runs the index build on the caller thread. Handles unregistering the index build and setting
@@ -755,6 +768,19 @@ protected:
     void _completeAbortForShutdown(OperationContext* opCtx,
                                    std::shared_ptr<ReplIndexBuildState> replState,
                                    const CollectionPtr& collection);
+
+    /**
+     * Marks the two-phase resumability state in both ReplIndexBuildState and MultiIndexBlock to be
+     * resumable.
+     */
+    void _markTwoPhaseBuildResumable(ReplIndexBuildState& replState,
+                                     repl::OpTime lastOpTimeBeforeInterceptors);
+
+    /**
+     * Marks the two-phase resumability state in both ReplIndexBuildState and MultiIndexBlock to NOT
+     * be resumable.
+     */
+    void _markTwoPhaseBuildNonResumable(ReplIndexBuildState& replState);
 
     /**
      * Waits for the last optime before the interceptors were installed on the node to be majority

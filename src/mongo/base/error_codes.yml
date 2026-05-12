@@ -1269,5 +1269,7 @@ error_codes:
       categories: [Interruption],
     }
 
+  - {code: 506, name: NodeInStepDownPeriod, categories: [RetriableError]}
+
   # ^^^^
   # Add new codes, sequentially numbered, above.

@@ -32,7 +32,9 @@
 #include "mongo/db/query/query_knob.h"
 #include "mongo/util/assert_util.h"
 
+#include <algorithm>
 #include <type_traits>
+#include <variant>
 #include <vector>
 
 namespace mongo {
@@ -70,9 +72,9 @@ public:
     QueryKnobSnapshot& operator=(QueryKnobSnapshot&&) noexcept = default;
 
     template <typename T>
-    T get(size_t index) const {
-        tassert(12312300, "QueryKnobSnapshot index out of bounds", index < _values.size());
-        const QueryKnobValue& val = _values[index];
+    T get(QueryKnobId id) const {
+        tassert(12312300, "QueryKnobSnapshot index out of bounds", id.value < _values.size());
+        const QueryKnobValue& val = _values[id.value];
         if constexpr (std::is_enum_v<T>) {
             return static_cast<T>(std::get<int>(val));
         } else {
@@ -80,9 +82,9 @@ public:
         }
     }
 
-    KnobSource getSource(size_t index) const {
-        tassert(12312301, "QueryKnobSnapshot index out of bounds", index < _sources.size());
-        return _sources[index];
+    KnobSource getSource(QueryKnobId id) const {
+        tassert(12312301, "QueryKnobSnapshot index out of bounds", id.value < _sources.size());
+        return _sources[id.value];
     }
 
     size_t size() const {
@@ -98,8 +100,8 @@ private:
 };
 
 /**
- * Builder for QueryKnobSnapshot. Slots are pre-filled with monostate / KnobSource::kDefault;
- * call set() for each slot that needs a non-default value, then call build().
+ * Builder for QueryKnobSnapshot. Slots are pre-filled with DeleteQueryKnobOverride /
+ * KnobSource::kDefault; call set() for each slot that needs a non-default value, then call build().
  *
  * Supports fluent chaining from a temporary: QueryKnobSnapshotBuilder{n}.set(...).build().
  * For a named builder, move it before building: std::move(builder).build().
@@ -113,17 +115,23 @@ public:
     QueryKnobSnapshotBuilder(const QueryKnobSnapshotBuilder&) = delete;
     QueryKnobSnapshotBuilder& operator=(const QueryKnobSnapshotBuilder&) = delete;
 
-    QueryKnobSnapshotBuilder& set(size_t index, QueryKnobValue value, KnobSource source) {
-        tassert(12312302, "QueryKnobSnapshotBuilder index out of bounds", index < _values.size());
+    QueryKnobSnapshotBuilder& set(QueryKnobId id, QueryKnobValue value, KnobSource source) {
+        tassert(
+            12312302, "QueryKnobSnapshotBuilder index out of bounds", id.value < _values.size());
         tassert(12312303,
-                "QueryKnobSnapshotBuilder::set() value must not be monostate",
-                !std::holds_alternative<std::monostate>(value));
-        _values[index] = std::move(value);
-        _sources[index] = source;
+                "QueryKnobSnapshotBuilder::set() value must not be DeleteQueryKnobOverride",
+                !std::holds_alternative<DeleteQueryKnobOverride>(value));
+        _values[id.value] = std::move(value);
+        _sources[id.value] = source;
         return *this;
     }
 
     [[nodiscard]] QueryKnobSnapshot build() && {
+        tassert(12611000,
+                "invalid call to QueryKnobSnapshot::build() with unset query knob values",
+                std::all_of(_values.cbegin(), _values.cend(), [](const auto& v) -> bool {
+                    return !std::holds_alternative<DeleteQueryKnobOverride>(v);
+                }));
         return QueryKnobSnapshot(std::move(_values), std::move(_sources));
     }
 
