@@ -5,14 +5,14 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 179,
+    "commits_behind": 182,
     "days_behind": 6,
-    "files_affected": 855,
-    "total_additions": 29404,
-    "total_deletions": 10684,
+    "files_affected": 860,
+    "total_additions": 29570,
+    "total_deletions": 10754,
     "date_range": {
       "first": "2026-05-05T22:09:41+00:00",
-      "last": "2026-05-11T22:12:54+00:00"
+      "last": "2026-05-12T01:56:52+00:00"
     }
   },
   "last_merged_commit": {
@@ -36,6 +36,36 @@
     "summary": "SERVER-125412 Add explicit error codes to LSM loop kill paths (#52808)"
   },
   "unmerged_commits": [
+    {
+      "sha": "58a7175a6291c2521c71320b46521eb302da3130",
+      "short_sha": "58a7175a629",
+      "date": "2026-05-11T20:56:52-05:00",
+      "author": {
+        "name": "Varun Ravichandran",
+        "email": "varun.ravichandran@mongodb.com"
+      },
+      "summary": "SERVER-125492 Provide tunable server parameters for OpenSSL primary DRBG reseed interval (#52712)"
+    },
+    {
+      "sha": "a03e90f6c48bb2e39dacb890cfc80a076ac8cd98",
+      "short_sha": "a03e90f6c48",
+      "date": "2026-05-11T21:28:10-04:00",
+      "author": {
+        "name": "Gregory Noma",
+        "email": "gregory.noma@gmail.com"
+      },
+      "summary": "SERVER-126419 Store sorter iterators in spiller (#53634)"
+    },
+    {
+      "sha": "142287227a4e88c38932bc23073004bb4db9763b",
+      "short_sha": "142287227a4",
+      "date": "2026-05-11T20:51:08-04:00",
+      "author": {
+        "name": "Stephanie",
+        "email": "53684987+seristof@users.noreply.github.com"
+      },
+      "summary": "SERVER-126410 Update stale comment about the sorter not opening a storage txn (#53623)"
+    },
     {
       "sha": "fba89300943d8bf00896b7b51c88907f08a00e56",
       "short_sha": "fba89300943",
@@ -2101,7 +2131,7 @@
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-05-11 23:06:59",
+  "generated_at": "2026-05-12 06:58:00",
   "branch_name": "master",
   "display_name": "master"
 }
