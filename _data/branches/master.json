@@ -5,14 +5,14 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 182,
+    "commits_behind": 185,
     "days_behind": 6,
-    "files_affected": 919,
-    "total_additions": 26350,
-    "total_deletions": 12092,
+    "files_affected": 924,
+    "total_additions": 26385,
+    "total_deletions": 12109,
     "date_range": {
       "first": "2026-05-06T07:56:12+00:00",
-      "last": "2026-05-12T18:33:43+00:00"
+      "last": "2026-05-12T19:46:30+00:00"
     }
   },
   "last_merged_commit": {
@@ -36,6 +36,36 @@
     "summary": "SERVER-123323 Use read concern noop writer helper in the authoritative shard catalog recovery (#52140)"
   },
   "unmerged_commits": [
+    {
+      "sha": "2fd0e60d99dbbc7a887bf648d5294246b945b6e4",
+      "short_sha": "2fd0e60d99d",
+      "date": "2026-05-12T12:46:30-07:00",
+      "author": {
+        "name": "Spencer Jackson",
+        "email": "spencer.jackson@mongodb.com"
+      },
+      "summary": "SERVER-126156 Prevent Static Initialization Order Fiasco in bson_mutator (#53550)"
+    },
+    {
+      "sha": "0d4ec614c0af7adafc14031f6f6aff7e19096da7",
+      "short_sha": "0d4ec614c0a",
+      "date": "2026-05-12T12:46:20-07:00",
+      "author": {
+        "name": "Spencer Jackson",
+        "email": "spencer.jackson@mongodb.com"
+      },
+      "summary": "SERVER-125835 Simplify Fuzzer build options (#53552)"
+    },
+    {
+      "sha": "a25a070edbc175aa6fd6af7e0ce573fff26e1802",
+      "short_sha": "a25a070edbc",
+      "date": "2026-05-12T12:28:43-07:00",
+      "author": {
+        "name": "Spencer Jackson",
+        "email": "spencer.jackson@mongodb.com"
+      },
+      "summary": "SERVER-126322 Remove fextend-lifetimes from protobuf (#53554)"
+    },
     {
       "sha": "7f59a42e61116840b38a7df540404dad21298ebd",
       "short_sha": "7f59a42e611",
@@ -1869,16 +1899,11 @@
         },
         "summary": "Revert \"SERVER-120970 Create in-memory state and extend opObserver to handle operations blocking (#51698)\" (#53287)"
       },
-      "strategy_name": "huge_commit",
+      "strategy_name": "conflict",
       "result": {
-        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
-        "evaluated_vars": {
-          "num_of_files": 73,
-          "num_of_lines": 2029,
-          "lines_added": 73,
-          "lines_deleted": 1956,
-          "num_of_dirs": 20
-        }
+        "conflicting_files": [
+          "src/mongo/db/commands/profile_common.cpp"
+        ]
       }
     },
     {
@@ -1948,24 +1973,6 @@
           "lines_deleted": 226,
           "num_of_dirs": 12
         }
-      }
-    },
-    {
-      "commit": {
-        "sha": "8aadaed958a69d7b22aa32f1c9fe0c3f0e44be24",
-        "short_sha": "8aadaed958a",
-        "date": "2026-05-07T20:50:13+00:00",
-        "author": {
-          "name": "mongo-pr-bot[bot]",
-          "email": "230616009+mongo-pr-bot[bot]@users.noreply.github.com"
-        },
-        "summary": "SERVER-111072 Auto-generated SBOM files [master] (#53094)"
-      },
-      "strategy_name": "conflict",
-      "result": {
-        "conflicting_files": [
-          "sbom.json"
-        ]
       }
     },
     {
@@ -2085,7 +2092,7 @@
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-05-12 19:45:44",
+  "generated_at": "2026-05-12 21:18:43",
   "branch_name": "master",
   "display_name": "master"
 }
