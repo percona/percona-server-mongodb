@@ -7,35 +7,115 @@
   "divergence": {
     "commits_behind": 182,
     "days_behind": 6,
-    "files_affected": 860,
-    "total_additions": 29570,
-    "total_deletions": 10754,
+    "files_affected": 919,
+    "total_additions": 26350,
+    "total_deletions": 12092,
     "date_range": {
-      "first": "2026-05-05T22:09:41+00:00",
-      "last": "2026-05-12T01:56:52+00:00"
+      "first": "2026-05-06T07:56:12+00:00",
+      "last": "2026-05-12T18:33:43+00:00"
     }
   },
   "last_merged_commit": {
-    "sha": "09bb44e3b0735397e22fed9c7bfd14ed1b660317",
-    "short_sha": "09bb44e3b07",
-    "date": "2026-05-05T18:02:11-04:00",
+    "sha": "c800519da99fff88441975d513d1987954c7e4da",
+    "short_sha": "c800519da99",
+    "date": "2026-05-06T09:38:07+02:00",
     "author": {
-      "name": "Benety Goh",
-      "email": "benety@mongodb.com"
+      "name": "Anna Maria Nestorov",
+      "email": "annamaria.nestorov@gmail.com"
     },
-    "summary": "SERVER-126051 add helper for WT query_timestamp calls to WiredTigerKVEngine (#53246)"
+    "summary": "SERVER-120970 Create in-memory state and extend opObserver to handle operations blocking (#51698)"
   },
   "first_unmerged_commit": {
-    "sha": "9bc630f91e77d0f50dc6f271c498a6f73bd662c9",
-    "short_sha": "9bc630f91e7",
-    "date": "2026-05-05T18:09:41-04:00",
+    "sha": "1523ca5a52cb66007b7af3699fc78ebedc926658",
+    "short_sha": "1523ca5a52c",
+    "date": "2026-05-06T09:56:12+02:00",
     "author": {
-      "name": "awang01810",
-      "email": "andrew.wang@mongodb.com"
+      "name": "Pol Piñol Castuera",
+      "email": "pol.pinol@mongodb.com"
     },
-    "summary": "SERVER-125412 Add explicit error codes to LSM loop kill paths (#52808)"
+    "summary": "SERVER-123323 Use read concern noop writer helper in the authoritative shard catalog recovery (#52140)"
   },
   "unmerged_commits": [
+    {
+      "sha": "7f59a42e61116840b38a7df540404dad21298ebd",
+      "short_sha": "7f59a42e611",
+      "date": "2026-05-12T14:33:43-04:00",
+      "author": {
+        "name": "Malik Endsley",
+        "email": "malik.endsley@mongodb.com"
+      },
+      "summary": "SERVER-126155: Tolerate that WCE during load phase of primary driven index build can reset cursors inside the iterator (#53360)"
+    },
+    {
+      "sha": "510c2fc97d4f49f979ebb1cc426b58a2056198c5",
+      "short_sha": "510c2fc97d4",
+      "date": "2026-05-12T14:00:59-04:00",
+      "author": {
+        "name": "Mihai Andrei",
+        "email": "mihai.andrei@mongodb.com"
+      },
+      "summary": "SERVER-120910 Rename AssignableSlotAccessor::reset(bool, TypeTags, Value) to reset_raw() (#53633)"
+    },
+    {
+      "sha": "73505b35a517c121291fb90032a2c5e17c39d93f",
+      "short_sha": "73505b35a51",
+      "date": "2026-05-12T07:02:27-10:00",
+      "author": {
+        "name": "Shin Yee Tan",
+        "email": "shinyee.tan@mongodb.com"
+      },
+      "summary": "SERVER-126354 Add OplogEntryGroupType and multiOpType for atomic retryable writes (#53580)"
+    },
+    {
+      "sha": "317fc9ce1328e7998901323e6fb85c7def3757b0",
+      "short_sha": "317fc9ce132",
+      "date": "2026-05-12T12:00:19-05:00",
+      "author": {
+        "name": "Finley Lau",
+        "email": "finley.lau@mongodb.com"
+      },
+      "summary": "SERVER-120951 Refactor getSubPipelines() to return a pointer instead of reference (#53451)"
+    },
+    {
+      "sha": "c5dde14759d387c8f35bbb1dd969aeffc6b77332",
+      "short_sha": "c5dde14759d",
+      "date": "2026-05-12T12:46:55-04:00",
+      "author": {
+        "name": "Gregory Noma",
+        "email": "gregory.noma@gmail.com"
+      },
+      "summary": "SERVER-126436 Append to sorter iterators from spiller (#53653)"
+    },
+    {
+      "sha": "38c408367750d046fde47b83dde51a00b2a5f61a",
+      "short_sha": "38c40836775",
+      "date": "2026-05-12T16:14:50+00:00",
+      "author": {
+        "name": "mongo-pr-bot[bot]",
+        "email": "230616009+mongo-pr-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "SERVER-110427 Update profiling data (#53656)"
+    },
+    {
+      "sha": "f0e0fc335c56e5c65e1c72a827d50b698ea768ec",
+      "short_sha": "f0e0fc335c5",
+      "date": "2026-05-12T11:37:06-04:00",
+      "author": {
+        "name": "Gregory Noma",
+        "email": "gregory.noma@gmail.com"
+      },
+      "summary": "SERVER-126339 Pass last key to spiller on PDIB resume (#53562)"
+    },
+    {
+      "sha": "09b4b40457222242ae87da88310df2a36e39940d",
+      "short_sha": "09b4b404572",
+      "date": "2026-05-12T14:36:09+00:00",
+      "author": {
+        "name": "auto-revert-app[bot]",
+        "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
+      },
+      "summary": "Revert \"SERVER-126317 Mark fuzztests that crash as failing (#53549)\" (#53655)"
+    },
     {
       "sha": "58a7175a6291c2521c71320b46521eb302da3130",
       "short_sha": "58a7175a629",
@@ -1775,135 +1855,9 @@
         "email": "pol.pinol@mongodb.com"
       },
       "summary": "SERVER-123323 Use read concern noop writer helper in the authoritative shard catalog recovery (#52140)"
-    },
-    {
-      "sha": "c800519da99fff88441975d513d1987954c7e4da",
-      "short_sha": "c800519da99",
-      "date": "2026-05-06T09:38:07+02:00",
-      "author": {
-        "name": "Anna Maria Nestorov",
-        "email": "annamaria.nestorov@gmail.com"
-      },
-      "summary": "SERVER-120970 Create in-memory state and extend opObserver to handle operations blocking (#51698)"
-    },
-    {
-      "sha": "69ae50c65571ca52db068495cc0eed88caf759aa",
-      "short_sha": "69ae50c6557",
-      "date": "2026-05-06T00:49:09-05:00",
-      "author": {
-        "name": "Jess Balint",
-        "email": "jbalint@gmail.com"
-      },
-      "summary": "SERVER-126032 Return stage names by value to avoid dangling string re… (#53222)"
-    },
-    {
-      "sha": "e1ee4720ee2e383b4598d68359cd92f698929256",
-      "short_sha": "e1ee4720ee2",
-      "date": "2026-05-06T13:30:28+10:00",
-      "author": {
-        "name": "wt-vendoring-bot[bot]",
-        "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
-      },
-      "summary": "Import wiredtiger: aeacd8fcdae4bb1812b18a67569292ec55f471d4 from branch mongodb-master (#53266)"
-    },
-    {
-      "sha": "8cbee2f38e005a4fba564a099be068e6cd6097be",
-      "short_sha": "8cbee2f38e0",
-      "date": "2026-05-06T03:10:08+00:00",
-      "author": {
-        "name": "auto-revert-app[bot]",
-        "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
-      },
-      "summary": "Revert \"SERVER-100611: Estimate seeks required for IXSCAN (#49468)\" (#53271)"
-    },
-    {
-      "sha": "c9d6397b35a659bd1b10af4272ed8460a8604eab",
-      "short_sha": "c9d6397b35a",
-      "date": "2026-05-05T19:08:24-05:00",
-      "author": {
-        "name": "Samuel Mercier",
-        "email": "samontea@users.noreply.github.com"
-      },
-      "summary": "SERVER-119744 Unreplicated db.system.profiling may cause DatabaseDifferCase (#48920)"
-    },
-    {
-      "sha": "1672184fec18ad2549d883376b6b4d6cda2f409c",
-      "short_sha": "1672184fec1",
-      "date": "2026-05-05T18:23:32-04:00",
-      "author": {
-        "name": "Will Buerger",
-        "email": "59492746+wbuerger46@users.noreply.github.com"
-      },
-      "summary": "SERVER-126012: Tag `replacement_oplog_id_first.js` as `multiversion_incompatible` (#53205)"
-    },
-    {
-      "sha": "391b97958d15c6e5fc432696f67dfa7e5da25e95",
-      "short_sha": "391b97958d1",
-      "date": "2026-05-05T18:13:16-04:00",
-      "author": {
-        "name": "Joshua Siegel",
-        "email": "39130209+joshbsiegel@users.noreply.github.com"
-      },
-      "summary": "SERVER-126013 Add `MongoExtensionStreamType` enum to `api.h` (#53254)"
-    },
-    {
-      "sha": "9bc630f91e77d0f50dc6f271c498a6f73bd662c9",
-      "short_sha": "9bc630f91e7",
-      "date": "2026-05-05T18:09:41-04:00",
-      "author": {
-        "name": "awang01810",
-        "email": "andrew.wang@mongodb.com"
-      },
-      "summary": "SERVER-125412 Add explicit error codes to LSM loop kill paths (#52808)"
     }
   ],
   "merge_picks": [
-    {
-      "commit": {
-        "sha": "e1ee4720ee2e383b4598d68359cd92f698929256",
-        "short_sha": "e1ee4720ee2",
-        "date": "2026-05-06T13:30:28+10:00",
-        "author": {
-          "name": "wt-vendoring-bot[bot]",
-          "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
-        },
-        "summary": "Import wiredtiger: aeacd8fcdae4bb1812b18a67569292ec55f471d4 from branch mongodb-master (#53266)"
-      },
-      "strategy_name": "huge_commit",
-      "result": {
-        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
-        "evaluated_vars": {
-          "num_of_files": 52,
-          "num_of_lines": 4393,
-          "lines_added": 3726,
-          "lines_deleted": 667,
-          "num_of_dirs": 20
-        }
-      }
-    },
-    {
-      "commit": {
-        "sha": "c800519da99fff88441975d513d1987954c7e4da",
-        "short_sha": "c800519da99",
-        "date": "2026-05-06T09:38:07+02:00",
-        "author": {
-          "name": "Anna Maria Nestorov",
-          "email": "annamaria.nestorov@gmail.com"
-        },
-        "summary": "SERVER-120970 Create in-memory state and extend opObserver to handle operations blocking (#51698)"
-      },
-      "strategy_name": "huge_commit",
-      "result": {
-        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
-        "evaluated_vars": {
-          "num_of_files": 73,
-          "num_of_lines": 2029,
-          "lines_added": 1956,
-          "lines_deleted": 73,
-          "num_of_dirs": 20
-        }
-      }
-    },
     {
       "commit": {
         "sha": "f5292a05f23966118782e1c1ddeea1818b04b02a",
@@ -2131,7 +2085,7 @@
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-05-12 06:58:00",
+  "generated_at": "2026-05-12 19:45:44",
   "branch_name": "master",
   "display_name": "master"
 }
