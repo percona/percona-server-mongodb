@@ -1,0 +1,269 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "0f57f8718d6f5b717649e49dc95c22f89fa0e656",
+    "merge_commit": "24a5c4c9791c0183a5905e45f6f7d07b9ebf3c51"
+  },
+  "mergai_version": "0.1.dev1+g2c757647b",
+  "merge_context": {
+    "merge_commit": "24a5c4c9791c0183a5905e45f6f7d07b9ebf3c51",
+    "merged_commits": [
+      "24a5c4c9791c0183a5905e45f6f7d07b9ebf3c51",
+      "aecefa978c359cf5aa2f7df9a01f2bdb1c18aec5",
+      "e77d9ae12d155a37c16994c17f97b598b5541c1a",
+      "721e9e6c5a7ccbaeee5009b0c16767aff0f135d1",
+      "a987e53fda7b28284db3065296915844a4981c0e",
+      "51cc8205c2c04a918801a1e1bab612c9b747190a",
+      "38b529c5b6136de2e18a75f0e30a78afb7125025",
+      "db8d9e67a2fb712bcde264f7463d3c3b8b0f7907",
+      "a32fc4ba6e418f858c5cd89bc3ee96dfc0741f62",
+      "927f314b1dc1a5216f2ce4b388f4da33c434c231",
+      "9e5e960b14abe5691ee6c1690d2307aa68eb6306",
+      "99c6ef9b321223dd5c7c0ea0c9f1a7fe0ea62c50",
+      "c972a17fb56264911c41e3a22ed101861a576f2a",
+      "70746ba48a83ca652bbf69e5946d959429e52749",
+      "bb7b4816b5e958d07df95894ec795d3d4ae81aa3",
+      "184545c79a5af2a1fc91ebade204b85edcb87cf1",
+      "895d769cbb77915f9f19f90da5b9e00a3e0500d1",
+      "4a83b9db64abedbe9de08a7602ff26724cbed4b0",
+      "501c0663a66fe38fd7a586fddef771ed7b20b877",
+      "9d2a2179396503325f8fa82cde3f6f8e934277bb",
+      "e2776328b8bf77c354a175e5f85bfa5d6beb2f31",
+      "0b6bb7f48629abf63243086b22095613c6867a50",
+      "db1ad0b30ee4035c7911a89a9cd278b2fa937852",
+      "da6affc81b15bec1dc0d46bba81f42d9fb0e8c7d",
+      "bdefed3134293c9fbbc911859fddd3af4ded3d08",
+      "71b97e9d206d5bc6361b817ef4b3fe317134f28b",
+      "353e670b4037b181b8d73eca76346163a4b19bc3",
+      "eb8092bf50269c9e187c36405fcf7d0cb1892d9b",
+      "e67d85fc61db919d9a0d775b63e4f1b1def08c2b",
+      "b801ab08e4eb4b09c2835fdee414a4eb3b3d6a83",
+      "633c62c9c4b774ad9889e47ea18273b8666d251d",
+      "0144025ddbfdd91bc0c5d779bba11658ca525e5d",
+      "f398e9200df690ac551b78ade85f994f148c7546",
+      "3aa49ea1f2eceb24bb9ab3b73448be99f3ccc3a4",
+      "3f8e4540aaa7dc6a1b31c3528e1f16789b888f0a",
+      "97b79baaee007d05a0ab1dc6829c212f2728d884",
+      "68778a3bf403a2137290713fe9765e8649678788",
+      "13380002a407e6a819c59bc0a8ba2b9b02bd64e4",
+      "436b627e193d0219cf9f0deb9f61a10637a715be",
+      "049b49789d8e9b800093345fb0c8ac1d8c7002c9",
+      "daea726d9858e75da8c4ccefdc2e3bc1cd64b7a2",
+      "ae768845f58cf66e35a0025dc40fe4330465d255",
+      "0853d3fcb397acb7b3a527c2f848786dd89a4973",
+      "adf3c6eb659ddff22c4befeaa2b1f4117eba1d73",
+      "da6a8167cc4294a45fa91c7b8b63789bc19eb6ea",
+      "55f60db3068b6b25a9b2ba57fec1b7daad805d94",
+      "608e794dafd2f906745dfeec061db0290fccd7e6",
+      "3c36f0a96f343de9de64dad3f96cf8e19d5ccac4",
+      "865f0901c071e5d8796941278240b0b672e9ef7a",
+      "0288d680e1d0d8d69b23a32012785d50ef753e32"
+    ],
+    "important_files_modified": [],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        "jstests/auth/lib/commands_lib.js",
+        "jstests/core/catalog/views/views_all_commands.js",
+        "jstests/libs/write_concern_all_commands.js",
+        "jstests/replsets/all_commands_downgrading_to_upgraded.js",
+        "jstests/replsets/db_reads_while_recovering_all_commands.js",
+        "jstests/sharding/all_commands_direct_shard_connection_auth.js",
+        "jstests/sharding/database_versioning_all_commands.js",
+        "jstests/sharding/libs/mongos_api_params_util.js",
+        "jstests/sharding/read_write_concern_defaults_application.js",
+        "jstests/sharding/safe_secondary_reads_drop_recreate.js",
+        "jstests/sharding/safe_secondary_reads_single_migration_suspend_range_deletion.js",
+        "jstests/sharding/safe_secondary_reads_single_migration_waitForDelete.js",
+        "sbom.json",
+        "src/mongo/db/mongod_main.cpp",
+        "src/mongo/db/pipeline/BUILD.bazel",
+        "src/third_party/wiredtiger/src/conn/conn_api.c",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in"
+      ]
+    }
+  },
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 69461,
+    "num_turns": 10,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.35642674999999996,
+    "modelUsage": {
+      "claude-haiku-4-5-20251001": {
+        "inputTokens": 425,
+        "outputTokens": 13,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0,
+        "webSearchRequests": 0,
+        "costUSD": 0.00049,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000
+      },
+      "claude-opus-4-5": {
+        "inputTokens": 50,
+        "outputTokens": 3234,
+        "cacheReadInputTokens": 137761,
+        "cacheCreationInputTokens": 32953,
+        "webSearchRequests": 0,
+        "costUSD": 0.35593674999999997,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-haiku-4-5-20251001": {
+          "tokens": {
+            "input": 425,
+            "output": 13,
+            "cache_read": 0,
+            "cache_creation": 0
+          },
+          "cost_usd": 0.00049
+        },
+        "claude-opus-4-5": {
+          "tokens": {
+            "input": 50,
+            "output": 3234,
+            "cache_read": 137761,
+            "cache_creation": 32953
+          },
+          "cost_usd": 0.35593674999999997
+        }
+      }
+    },
+    "text_result": "Written the JSON response to `/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/response_20260513_122349_929105.json`. The response includes:\n\n- **Summary**: Overview of ~50 upstream MongoDB commits covering split chunk coordinator, WiredTiger updates, rate limiter improvements, pipeline reorganization, and several reverts\n- **Auto-merged file explanations**: Detailed descriptions for all 17 auto-merged files\n- **Critical review notes**: Highlights PSMDB-specific concerns including sbom.json branding, removed encryption error handling, backup cursor functionality, and WiredTiger encryption changes",
+    "response": {
+      "summary": "Merge of ~50 upstream MongoDB commits including: split chunk coordinator implementation (SERVER-121178), WiredTiger import with new cleanup/verification flow, rate limiter improvements for flow control, pipeline library reorganization (merging LPP validation into main pipeline), queryable encryption metrics, various test robustification, and several reverts (snapshot time advance fix, ingress request rate limiter queuing support).",
+      "auto_merged": {
+        "jstests/auth/lib/commands_lib.js": "Removed PSMDB-specific commands (auditGetOptions, createBackup) from skipped auth testing list. Updated splitChunk test to _shardsvrSplitChunk with proper parameters. Changed isPSMDBOrEnterprise() checks to enterprise-only checks for backup cursor aggregation stage tests.",
+        "jstests/core/catalog/views/views_all_commands.js": "Updated command list for views testing to reflect upstream API changes.",
+        "jstests/libs/write_concern_all_commands.js": "Updated write concern command testing for upstream API changes.",
+        "jstests/replsets/all_commands_downgrading_to_upgraded.js": "Updated replica set command testing for version upgrade/downgrade scenarios.",
+        "jstests/replsets/db_reads_while_recovering_all_commands.js": "Updated recovery command testing.",
+        "jstests/sharding/all_commands_direct_shard_connection_auth.js": "Updated shard connection auth command testing.",
+        "jstests/sharding/database_versioning_all_commands.js": "Updated database versioning command testing.",
+        "jstests/sharding/libs/mongos_api_params_util.js": "Removed auditGetOptions command. Updated split command test to use _shardsvrSplitChunk instead of splitChunk, temporarily disabled config server command name check.",
+        "jstests/sharding/read_write_concern_defaults_application.js": "Updated read/write concern defaults testing.",
+        "jstests/sharding/safe_secondary_reads_drop_recreate.js": "Updated secondary reads testing for drop/recreate scenarios.",
+        "jstests/sharding/safe_secondary_reads_single_migration_suspend_range_deletion.js": "Updated migration testing with suspended range deletion.",
+        "jstests/sharding/safe_secondary_reads_single_migration_waitForDelete.js": "Updated migration testing with waitForDelete.",
+        "sbom.json": "Upstream SBOM regenerated with MongoDB branding (serial number, supplier, author changed from Percona to MongoDB). This needs attention as PSMDB should retain Percona branding.",
+        "src/mongo/db/mongod_main.cpp": "Upstream removed several PSMDB-specific includes (audit_flusher, audit_options, oidc_identity_providers_registry, encryption/error, ldap_manager, master_key_rotation_completed, telemetry_thread). Removed Percona-specific try-catch for MasterKeyRotationCompleted and encryption::Error exceptions during storage engine startup. These were PSMDB additions that need to be re-integrated.",
+        "src/mongo/db/pipeline/BUILD.bazel": "Removed separate lite_parsed_pipeline_validation library (merged into main pipeline per SERVER-124043). Removed pipeline_mongod library containing backup cursor document sources and exec stages - these need to be verified as they may include PSMDB-specific backup functionality.",
+        "src/third_party/wiredtiger/src/conn/conn_api.c": "Added new __conn_startup_cleanup_and_verify function for post-recovery cleanup. Simplified encryptor config lookup by removing sessioncreate callback invocation during keyed encryptor search.",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in": "WiredTiger header updates from upstream import."
+      },
+      "review_notes": "CRITICAL ITEMS TO VERIFY:\n\n1. **PSMDB Branding in sbom.json**: The auto-merge replaced Percona branding with MongoDB branding. This should be reverted to maintain PSMDB identity (supplier: Percona LLC, author: Percona LLC, etc.).\n\n2. **mongod_main.cpp Percona Features**: The merge removed PSMDB-specific error handling for encryption and master key rotation. Verify that these features still work correctly or need to be re-added in the PSMDB layer.\n\n3. **Backup Cursor Functionality**: The pipeline_mongod library with backup cursor stages was removed from BUILD.bazel. Verify that PSMDB backup functionality (document_source_backup_cursor, document_source_backup_cursor_extend, document_source_backup_file) is properly integrated elsewhere.\n\n4. **Auth Tests**: The commands_lib.js changes switched from isPSMDBOrEnterprise() to enterprise-only checks for backup cursor tests. Ensure PSMDB backup cursor tests still run appropriately.\n\n5. **WiredTiger Encryption**: Changes to encryptor config lookup removed sessioncreate callback. Verify PSMDB encryption features work correctly with this change."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [
+            "I'll analyze the merge commit and the auto-merged files to create the response."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [
+            "Now I have enough information to write the response."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [
+            "Written the JSON response to `/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/response_20260513_122349_929105.json`. The response includes:\n\n- **Summary**: Overview of ~50 upstream MongoDB commits covering split chunk coordinator, WiredTiger updates, rate limiter improvements, pipeline reorganization, and several reverts\n- **Auto-merged file explanations**: Detailed descriptions for all 17 auto-merged files\n- **Critical review notes**: Highlights PSMDB-specific concerns including sbom.json branding, removed encryption error handling, backup cursor functionality, and WiredTiger encryption changes"
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20260513_122349_928973.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.140 (Claude Code)"
+    }
+  }
+}
