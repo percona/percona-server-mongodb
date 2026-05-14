@@ -5,14 +5,14 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 28,
-    "days_behind": 1,
-    "files_affected": 103,
-    "total_additions": 1575,
-    "total_deletions": 585,
+    "commits_behind": 48,
+    "days_behind": 2,
+    "files_affected": 262,
+    "total_additions": 5491,
+    "total_deletions": 4122,
     "date_range": {
       "first": "2026-05-11T17:45:07+00:00",
-      "last": "2026-05-13T08:24:22+00:00"
+      "last": "2026-05-14T02:34:03+00:00"
     }
   },
   "last_merged_commit": {
@@ -36,6 +36,206 @@
     "summary": "SERVER-126383 Pull early exit for shard registry periodic reloader up into sharding initialization (#53588)"
   },
   "unmerged_commits": [
+    {
+      "sha": "13c8d307d8a6e53ec1ea6e13bdfe436a5e8a7174",
+      "short_sha": "13c8d307d8a",
+      "date": "2026-05-13T21:34:03-05:00",
+      "author": {
+        "name": "Daniel Moody",
+        "email": "dmoody256@gmail.com"
+      },
+      "summary": "SERVER-126513 limit copybara public private mapping to relevant commits (#53741)"
+    },
+    {
+      "sha": "5f2a92facb3679453919b8f63e0c4d4137055ff0",
+      "short_sha": "5f2a92facb3",
+      "date": "2026-05-14T09:00:18+10:00",
+      "author": {
+        "name": "wt-vendoring-bot[bot]",
+        "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "Import wiredtiger: f807b27e6b20741458c4e179bfb23a03c94ab3b2 from branch mongodb-master (#53695)"
+    },
+    {
+      "sha": "95477808bf6975320904a06041452fe457eac47b",
+      "short_sha": "95477808bf6",
+      "date": "2026-05-14T08:58:27+10:00",
+      "author": {
+        "name": "Nic",
+        "email": "nic.hollingum@mongodb.com"
+      },
+      "summary": "SERVER-126425: Make WCRetry interruptible (#53572)"
+    },
+    {
+      "sha": "18d3bef2ba4a2199ba43d7a54f4955ae72a1229e",
+      "short_sha": "18d3bef2ba4",
+      "date": "2026-05-13T11:53:12-10:00",
+      "author": {
+        "name": "Shin Yee Tan",
+        "email": "shinyee.tan@mongodb.com"
+      },
+      "summary": "SERVER-124454 Delete any entries in sorter table outside of provided sorted ranges when resuming PDIB (#53385)"
+    },
+    {
+      "sha": "2bb786cdf499196eeb7735996d3f491f1760e528",
+      "short_sha": "2bb786cdf49",
+      "date": "2026-05-13T17:31:39-04:00",
+      "author": {
+        "name": "Stephanie",
+        "email": "53684987+seristof@users.noreply.github.com"
+      },
+      "summary": "SERVER-126467 Remove index build from PDIB registry upon abort on primary (#53709)"
+    },
+    {
+      "sha": "4ced3093b993c61be0f45ad6123141bebef14705",
+      "short_sha": "4ced3093b99",
+      "date": "2026-05-13T17:30:46-04:00",
+      "author": {
+        "name": "Mihai Andrei",
+        "email": "mihai.andrei@mongodb.com"
+      },
+      "summary": "SERVER-126038 Refactor vm_builtin_datetime.cpp date field extractors to use value RAII types (#53632)"
+    },
+    {
+      "sha": "b061e598b7e2b4229263b7f962c616e86727fc3e",
+      "short_sha": "b061e598b7e",
+      "date": "2026-05-13T17:22:58-04:00",
+      "author": {
+        "name": "Gregory Noma",
+        "email": "gregory.noma@gmail.com"
+      },
+      "summary": "SERVER-126439 Set `readOnce` and prefetching during index build setup (#53713)"
+    },
+    {
+      "sha": "868e69bd4e69ade68b6180283ecc7387492f7686",
+      "short_sha": "868e69bd4e6",
+      "date": "2026-05-13T16:27:34-04:00",
+      "author": {
+        "name": "Stephanie",
+        "email": "53684987+seristof@users.noreply.github.com"
+      },
+      "summary": "SERVER-105809 Investigate having a incorrect numIndexesBefore after an index build after restarting server (#53621)"
+    },
+    {
+      "sha": "84ca00b114a270f40589468131027e3129535440",
+      "short_sha": "84ca00b114a",
+      "date": "2026-05-13T19:52:55+00:00",
+      "author": {
+        "name": "Joan Bruguera Micó (at MongoDB)",
+        "email": "joan.bruguera-mico@mongodb.com"
+      },
+      "summary": "SERVER-126289 Fail gracefully if authoritative collection refresh is interrupted by stepdown (#53502)"
+    },
+    {
+      "sha": "0eb5395b0fda574281f5044498dc8bc04b144a5d",
+      "short_sha": "0eb5395b0fd",
+      "date": "2026-05-13T20:58:36+02:00",
+      "author": {
+        "name": "romanskas",
+        "email": "30618745+romanskas@users.noreply.github.com"
+      },
+      "summary": "SERVER-126132 Update change stream cursor metrics on cursor unpin from CurOp::debug() (#53326)"
+    },
+    {
+      "sha": "ea94802cea50764dfba4be26db9fba42c6df72d6",
+      "short_sha": "ea94802cea5",
+      "date": "2026-05-13T14:12:22-04:00",
+      "author": {
+        "name": "Gregory Noma",
+        "email": "gregory.noma@gmail.com"
+      },
+      "summary": "SERVER-126495 Make sorter spiller callback see the latest position (#53701)"
+    },
+    {
+      "sha": "6a89df6a613b1db4359a809f253b69bbc2596e54",
+      "short_sha": "6a89df6a613",
+      "date": "2026-05-13T11:50:22-05:00",
+      "author": {
+        "name": "Finley Lau",
+        "email": "finley.lau@mongodb.com"
+      },
+      "summary": "SERVER-117525 Wrap liteparsed subpipelines in an owned class (#52799)"
+    },
+    {
+      "sha": "c98d8d9a94fbd87462bbfe08931ccf89f9469b39",
+      "short_sha": "c98d8d9a94f",
+      "date": "2026-05-13T18:35:07+02:00",
+      "author": {
+        "name": "Jan",
+        "email": "jsteemann@users.noreply.github.com"
+      },
+      "summary": "SERVER-126431 Add change streams pipeline microbenchmarks (#53642)"
+    },
+    {
+      "sha": "b51c518a57cf77aa406c9ec0095148344c5a1183",
+      "short_sha": "b51c518a57c",
+      "date": "2026-05-13T12:32:15-04:00",
+      "author": {
+        "name": "Gregory Noma",
+        "email": "gregory.noma@gmail.com"
+      },
+      "summary": "SERVER-126432 Make sorter spiller callback see complete set of iterators during merge spills (#53679)"
+    },
+    {
+      "sha": "a299bab9cf62c4bfccde3bb71490e3e278285e49",
+      "short_sha": "a299bab9cf6",
+      "date": "2026-05-13T12:23:27-04:00",
+      "author": {
+        "name": "Stephanie",
+        "email": "53684987+seristof@users.noreply.github.com"
+      },
+      "summary": "SERVER-126448  Figure out why SERVER-126328 cannot be used in CatalogTestFixture-based tests (#53671)"
+    },
+    {
+      "sha": "4cd1eadf9862164d2c6b901a1aef00009b2b5b03",
+      "short_sha": "4cd1eadf986",
+      "date": "2026-05-13T11:16:26-04:00",
+      "author": {
+        "name": "Brad Cater",
+        "email": "152920274+brad-cater-mongodb@users.noreply.github.com"
+      },
+      "summary": "SERVER-120304 Snapshot time may advance before fetching a command's operationTime (redux) (#53614)"
+    },
+    {
+      "sha": "2c288ee479fabd466f1d04b370db3f0e0aaedd2c",
+      "short_sha": "2c288ee479f",
+      "date": "2026-05-13T16:53:03+02:00",
+      "author": {
+        "name": "romanskas",
+        "email": "30618745+romanskas@users.noreply.github.com"
+      },
+      "summary": "SERVER-125920 Introduce jstests-local CLAUDE.md (#53103)"
+    },
+    {
+      "sha": "a9d8aa322d5e1ece3ffb4845fba4e320e9bf8a50",
+      "short_sha": "a9d8aa322d5",
+      "date": "2026-05-13T10:52:32-04:00",
+      "author": {
+        "name": "Jada Lilleboe",
+        "email": "82007190+jadalilleboe@users.noreply.github.com"
+      },
+      "summary": "SERVER-126414 Add linter rule to prevent jstests from committing .only() with mochalite (#53658)"
+    },
+    {
+      "sha": "da7af1bad1fd6c6f6eab6d5a1774d59ab21b74b5",
+      "short_sha": "da7af1bad1f",
+      "date": "2026-05-13T10:49:12-04:00",
+      "author": {
+        "name": "Lee Maguire",
+        "email": "lee.maguire@mongodb.com"
+      },
+      "summary": "SERVER-116055 Add support for $accumulator in MozJS WASM engine. (#53341)"
+    },
+    {
+      "sha": "0289f65aedfa978d68832c88a99c3cb85bd16073",
+      "short_sha": "0289f65aedf",
+      "date": "2026-05-13T09:46:19-04:00",
+      "author": {
+        "name": "Adithi Raghavan",
+        "email": "adithi.raghavan@mongodb.com"
+      },
+      "summary": "SERVER-125724 Error when only combination.expression specified (#53590)"
+    },
     {
       "sha": "5c10467529478127fc512e0a8c15e2a4c061968a",
       "short_sha": "5c104675294",
@@ -320,23 +520,71 @@
   "merge_picks": [
     {
       "commit": {
-        "sha": "5c10467529478127fc512e0a8c15e2a4c061968a",
-        "short_sha": "5c104675294",
-        "date": "2026-05-13T10:24:22+02:00",
+        "sha": "da7af1bad1fd6c6f6eab6d5a1774d59ab21b74b5",
+        "short_sha": "da7af1bad1f",
+        "date": "2026-05-13T10:49:12-04:00",
         "author": {
-          "name": "Jordi Olivares Provencio",
-          "email": "jordi.olivares-provencio@mongodb.com"
+          "name": "Lee Maguire",
+          "email": "lee.maguire@mongodb.com"
         },
-        "summary": "SERVER-126430 Add runningWithBalancer to multi_stmt_txn_jscore_passthrough_with_migration (#53649)"
+        "summary": "SERVER-116055 Add support for $accumulator in MozJS WASM engine. (#53341)"
       },
-      "strategy_name": "most_recent",
+      "strategy_name": "huge_commit",
       "result": {
-        "fallback": true
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 21,
+          "num_of_lines": 392,
+          "lines_added": 307,
+          "lines_deleted": 85,
+          "num_of_dirs": 12
+        }
+      }
+    },
+    {
+      "commit": {
+        "sha": "b061e598b7e2b4229263b7f962c616e86727fc3e",
+        "short_sha": "b061e598b7e",
+        "date": "2026-05-13T17:22:58-04:00",
+        "author": {
+          "name": "Gregory Noma",
+          "email": "gregory.noma@gmail.com"
+        },
+        "summary": "SERVER-126439 Set `readOnce` and prefetching during index build setup (#53713)"
+      },
+      "strategy_name": "conflict",
+      "result": {
+        "conflicting_files": [
+          "src/mongo/db/index_builds/BUILD.bazel"
+        ]
+      }
+    },
+    {
+      "commit": {
+        "sha": "5f2a92facb3679453919b8f63e0c4d4137055ff0",
+        "short_sha": "5f2a92facb3",
+        "date": "2026-05-14T09:00:18+10:00",
+        "author": {
+          "name": "wt-vendoring-bot[bot]",
+          "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
+        },
+        "summary": "Import wiredtiger: f807b27e6b20741458c4e179bfb23a03c94ab3b2 from branch mongodb-master (#53695)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 56,
+          "num_of_lines": 3215,
+          "lines_added": 709,
+          "lines_deleted": 2506,
+          "num_of_dirs": 21
+        }
       }
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-05-13 12:53:51",
+  "generated_at": "2026-05-14 07:00:43",
   "branch_name": "master",
   "display_name": "master"
 }
