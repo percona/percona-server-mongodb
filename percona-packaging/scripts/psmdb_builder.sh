@@ -244,7 +244,7 @@ install_golang() {
         return 1
     fi
 
-    GO_VERSION="1.25.9"
+    GO_VERSION="1.25.10"
     GO_TAR="go${GO_VERSION}.linux-${GO_ARCH}.tar.gz"
     GO_SHA="${GO_TAR}.sha256"
     GO_URL="https://downloads.percona.com/downloads/packaging/go/${GO_TAR}"
@@ -841,7 +841,7 @@ build_tarball(){
     cd mongo-tools
     . ./set_tools_revision.sh
     sed -i '14d' buildscript/build.go
-    sed -i '226,234d' buildscript/build.go
+    sed -i '246,254d' buildscript/build.go
     sed -i "s:versionStr,:\"$PSMDB_TOOLS_REVISION\",:" buildscript/build.go
     sed -i "s:gitCommit):\"$PSMDB_TOOLS_COMMIT_HASH\"):" buildscript/build.go
     ./make build
