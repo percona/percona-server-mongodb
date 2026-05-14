@@ -154,7 +154,8 @@ std::string WiredTigerIndex::generateAppMetadataString(const IndexConfig& config
 }
 
 // static
-StatusWith<std::string> WiredTigerIndex::generateCreateString(const std::string& engineName,
+StatusWith<std::string> WiredTigerIndex::generateCreateString(OperationContext* opCtx,
+                                                              const std::string& engineName,
                                                               const std::string& sysIndexConfig,
                                                               const std::string& collIndexConfig,
                                                               StringData tableName,
@@ -171,9 +172,9 @@ StatusWith<std::string> WiredTigerIndex::generateCreateString(const std::string&
     }
 
     ss << WiredTigerCustomizationHooks::get(getGlobalServiceContext())
-              ->getTableCreateConfig(tableName);
+              ->getTableCreateConfig(opCtx, tableName);
     ss << WiredTigerCustomizationHooksRegistry::get(getGlobalServiceContext())
-              .getTableCreateConfig(tableName);
+              .getTableCreateConfig(opCtx, tableName);
     ss << sysIndexConfig << ",";
     ss << collIndexConfig << ",";
 

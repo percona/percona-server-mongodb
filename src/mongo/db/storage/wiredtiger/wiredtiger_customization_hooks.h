@@ -38,6 +38,7 @@
 namespace mongo {
 class StringData;
 class ServiceContext;
+class OperationContext;
 
 // Interface and default implementation for WiredTiger customization hooks
 class WiredTigerCustomizationHooks {
@@ -57,8 +58,14 @@ public:
     /**
      *  Gets an additional configuration string for the provided table name on a
      *  `WT_SESSION::create` call.
+     *
+     *  `opCtx` may be nullptr for startup-time / internal-table callers (e.g.
+     *  the WT open config string, the size storer table, spill-engine internal
+     *  record stores). User-table callers should pass their `OperationContext`
+     *  so that the encryption layer can resolve the active per-database keyId
+     *  via the catalog.
      */
-    virtual std::string getTableCreateConfig(StringData tableName);
+    virtual std::string getTableCreateConfig(OperationContext* opCtx, StringData tableName);
 };
 
 /**
@@ -76,9 +83,10 @@ public:
 
     /**
      * Gets a combined configuration string from all hooks in the registry for
-     * the provided table name during the `WT_SESSION::create` call.
+     * the provided table name during the `WT_SESSION::create` call. `opCtx`
+     * follows the same nullability rules as the per-hook variant above.
      */
-    std::string getTableCreateConfig(StringData tableName) const;
+    std::string getTableCreateConfig(OperationContext* opCtx, StringData tableName) const;
 
 private:
     std::vector<std::unique_ptr<WiredTigerCustomizationHooks>> _hooks;
