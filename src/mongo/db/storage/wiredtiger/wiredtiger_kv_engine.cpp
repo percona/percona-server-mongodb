@@ -932,8 +932,12 @@ std::string generateWTOpenConfigString(const WiredTigerKVEngineBase::WiredTigerC
            << ",read_size=" << wtConfig.liveRestoreReadSizeMB << "MB" << "),";
     }
 
+    // Startup-time call: no `OperationContext` is available yet (this is the
+    // WT open config). The "system" tableName resolves to the "/default"
+    // pseudo-keyId via the customization hook's special case and does not
+    // require a catalog lookup, so nullptr is safe here.
     ss << WiredTigerCustomizationHooks::get(getGlobalServiceContext())
-              ->getTableCreateConfig("system");
+              ->getTableCreateConfig(nullptr, "system");
     ss << std::string{extensionsConfig};
     ss << wtConfig.extraOpenOptions;
 
@@ -3177,8 +3181,14 @@ Status WiredTigerKVEngine::_createRecordStore(const rss::PersistenceProvider& pr
         wtTableConfig.memoryPageMax = provider.getWTMemoryPageMaxForOplogStrValue();
     }
 
+    // KVEngine::_createRecordStore doesn't take an OperationContext, so we
+    // pick it up from the current thread's Client for the encryption hook
+    // to use in its catalog-scan resolution. Null fallback yields the
+    // bare-`<dbName>` keyId.
+    OperationContext* opCtxForHook =
+        Client::getCurrent() ? Client::getCurrent()->getOperationContext() : nullptr;
     std::string config = WiredTigerRecordStore::generateCreateString(
-        NamespaceStringUtil::serializeForCatalog(nss), wtTableConfig, nss.isOplog());
+        opCtxForHook, NamespaceStringUtil::serializeForCatalog(nss), wtTableConfig, nss.isOplog());
     string uri = WiredTigerUtil::buildTableUri(ident);
     LOGV2_DEBUG(22331,
                 2,
@@ -3385,7 +3395,15 @@ Status WiredTigerKVEngine::createSortedDataInterface(
                                .str();
     }
 
+    // KVEngine::createSortedDataInterface doesn't take an OperationContext, so
+    // we pick it up from the current thread's Client. The encryption hook
+    // needs it to resolve the per-database keyId via the catalog scan.
+    // Callers in normal user-create paths always have one; if nullptr we
+    // fall back to the bare-`<dbName>` keyId in the hook.
+    OperationContext* opCtxForHook =
+        Client::getCurrent() ? Client::getCurrent()->getOperationContext() : nullptr;
     StatusWith<std::string> result = WiredTigerIndex::generateCreateString(
+        opCtxForHook,
         _canonicalName,
         _indexOptions,
         collIndexOptions,
@@ -3520,8 +3538,8 @@ std::unique_ptr<RecordStore> WiredTigerKVEngine::makeInternalRecordStore(Recover
     wtTableConfig.logEnabled = false;
     wtTableConfig.extraCreateOptions = _rsOptions;
 
-    std::string config =
-        WiredTigerRecordStore::generateCreateString({} /* internal table */, wtTableConfig);
+    std::string config = WiredTigerRecordStore::generateCreateString(
+        nullptr, {} /* internal table */, wtTableConfig);
 
     std::string uri = WiredTigerUtil::buildTableUri(ident);
     LOGV2_DEBUG(22337,
@@ -3670,16 +3688,19 @@ void WiredTigerKVEngine::dropIdentForImport(Interruptible& interruptible,
 
 void WiredTigerKVEngine::keydbDropDatabase(const DatabaseName& dbName) {
     if (_restEncr) {
-        // Phase 1: clearActiveKeyId only removes the dbName -> "<dbName>.<UUID>"
-        // mapping in table:active_keyid. The actual key row in table:key is
-        // deliberately *not* deleted here; the previous-generation key bytes
-        // must remain decryptable while WiredTiger still has drop-pending
-        // idents that reference them. Cleanup of the key row is event-driven
-        // off WT's URI-drop path (Phase 4: refcount + uri_dropped). The
-        // original eager delete in this hook was the source of the
-        // PSMDB-1997 race against WiredTiger's checkpoint cleanup.
-        _restEncr->keyDb()->clearActiveKeyId(
-            DatabaseNameUtil::serialize(dbName, SerializationContext::stateDefault()));
+        // A3 catalog-scan design: the dbName -> keyId mapping lives in
+        // the in-memory cache on `EncryptionKeyDB`, not in a persisted
+        // table. clearCachedActiveKeyId removes the cache entry and
+        // releases the cache-anchor unit on _refcounts. If the refcount
+        // for that keyId hits zero (no live URIs left), it also reaps
+        // the row in table:key and calls release_encryptor. The actual
+        // key row delete is *deferred* relative to dropDatabase's WUOW
+        // commit -- it only happens after WiredTiger's URI-drop path
+        // fires uri_dropped for every ident that referenced the keyId.
+        // The original master-branch eager delete inside the WUOW commit
+        // was the source of the PSMDB-1997 race against checkpoint
+        // cleanup.
+        _restEncr->keyDb()->clearCachedActiveKeyId(dbName);
     }
 }
 

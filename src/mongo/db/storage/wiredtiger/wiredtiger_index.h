@@ -91,7 +91,13 @@ public:
      * Note that even if this function returns an OK status, WT_SESSION:create() may still
      * fail with the constructed configuration string.
      */
-    static StatusWith<std::string> generateCreateString(const std::string& engineName,
+    /**
+     * `opCtx` is used by the encryption customization hook to resolve the
+     * per-database keyId via the `CollectionCatalog`. Pass nullptr only
+     * for internal-only / temporary index tables.
+     */
+    static StatusWith<std::string> generateCreateString(OperationContext* opCtx,
+                                                        const std::string& engineName,
                                                         const std::string& sysIndexConfig,
                                                         const std::string& collIndexConfig,
                                                         StringData tableName,

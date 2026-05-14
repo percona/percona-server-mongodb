@@ -57,8 +57,11 @@ namespace mongo {
 WiredTigerSizeStorer::WiredTigerSizeStorer(WiredTigerConnection* conn,
                                            const std::string& storageUri)
     : _conn(conn), _storageUri(storageUri), _tableId(WiredTigerUtil::genTableId()) {
+    // Size storer is an internal table; the encryption hook resolves its
+    // pseudo-dbName ("sizeStorer") to a bare-keyId via the nullptr-OpCtx
+    // fallback, which doesn't need catalog access.
     std::string config = WiredTigerCustomizationHooks::get(getGlobalServiceContext())
-                             ->getTableCreateConfig(_storageUri);
+                             ->getTableCreateConfig(nullptr, _storageUri);
 
     WiredTigerSession session(_conn);
     invariantWTOK(session.create(_storageUri.c_str(), config.c_str()), session);

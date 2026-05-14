@@ -34,8 +34,9 @@
 #include "mongo/db/database_name_util.h"
 #include "mongo/db/encryption/encryption_options.h"
 #include "mongo/db/namespace_string_util.h"
+#include "mongo/db/operation_context.h"
 #include "mongo/db/service_context.h"
-#include "mongo/db/storage/wiredtiger/encryption_keydb_active_keyid.h"
+#include "mongo/db/storage/wiredtiger/active_key_id.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/decorable.h"
 #include "mongo/util/str.h"
@@ -62,12 +63,20 @@ public:
      *  `WT_SESSION::create` call.
      *
      *  The returned config binds the new ident to a specific keyId. For user
-     *  databases the keyId is allocated on demand as "<dbName>.<UUID>" via the
-     *  keys DB's table:active_keyid (see `encryption_keydb_active_keyid.h`),
-     *  giving every (re)create of a database a distinct generation. System
-     *  idents (special-cased below) keep the legacy "/default" pseudo-keyId.
+     *  databases the keyId is resolved by `encryption::activeKeyIdForDb`,
+     *  which consults an in-memory cache on `EncryptionKeyDB` and on a miss
+     *  scans the `CollectionCatalog` for the dbName's existing ident keyId
+     *  or allocates a fresh `<dbName>.<UUID>` generation. System idents
+     *  (special-cased below) keep the legacy "/default" pseudo-keyId.
+     *
+     *  `opCtx` is required for the catalog scan. Internal-table callers
+     *  that pass nullptr (size storer, spill engine internal record stores,
+     *  the WT open config string) get the legacy bare-`<dbName>` keyId
+     *  fallback -- which matches pre-Phase-1 behavior, and for the empty
+     *  tableNames those callers use it resolves to the empty-string keyId
+     *  (the master key path).
      */
-    std::string getTableCreateConfig(StringData tableName) override {
+    std::string getTableCreateConfig(OperationContext* opCtx, StringData tableName) override {
         NamespaceString ns = NamespaceStringUtil::deserialize(
             boost::none, tableName, SerializationContext::stateDefault());
         std::string dbNameStr =
@@ -82,7 +91,13 @@ public:
             (dbName == "system"_sd || dbName.starts_with("table:"_sd))) {
             return str::stream() << "encryption=(name=percona,keyid=\"/default\"),";
         }
-        std::string keyId = encryption::getOrCreateActiveKeyIdForDb(dbName);
+        if (!opCtx) {
+            // No OperationContext -- internal startup-time or spill-engine
+            // path. The catalog-scan resolution needs an OpCtx; fall back to
+            // the bare-`<dbName>` keyid, matching pre-Phase-1 master behavior.
+            return str::stream() << "encryption=(name=percona,keyid=\"" << dbName << "\"),";
+        }
+        std::string keyId = encryption::activeKeyIdForDb(opCtx, ns.dbName());
         return str::stream() << "encryption=(name=percona,keyid=\"" << keyId << "\"),";
     }
 };
@@ -119,10 +134,11 @@ void WiredTigerCustomizationHooksRegistry::addHook(
     _hooks.push_back(std::move(custHook));
 }
 
-std::string WiredTigerCustomizationHooksRegistry::getTableCreateConfig(StringData tableName) const {
+std::string WiredTigerCustomizationHooksRegistry::getTableCreateConfig(OperationContext* opCtx,
+                                                                       StringData tableName) const {
     str::stream config;
     for (const auto& h : _hooks) {
-        config << h->getTableCreateConfig(tableName);
+        config << h->getTableCreateConfig(opCtx, tableName);
     }
     return config;
 }
@@ -144,7 +160,8 @@ bool WiredTigerCustomizationHooks::enabled() const {
     return false;
 }
 
-std::string WiredTigerCustomizationHooks::getTableCreateConfig(StringData tableName) {
+std::string WiredTigerCustomizationHooks::getTableCreateConfig(OperationContext* opCtx,
+                                                               StringData tableName) {
     return "";
 }
 

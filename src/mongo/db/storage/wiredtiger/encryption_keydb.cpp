@@ -32,8 +32,16 @@ Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
 
 #include "mongo/db/storage/wiredtiger/encryption_keydb.h"
 
-#include "mongo/db/storage/wiredtiger/encryption_keydb_active_keyid.h"
+#include "mongo/db/database_name_util.h"
+#include "mongo/db/operation_context.h"
+#include "mongo/db/service_context.h"
+#include "mongo/db/shard_role/shard_catalog/collection.h"
+#include "mongo/db/shard_role/shard_catalog/collection_catalog.h"
+#include "mongo/db/storage/record_store.h"
+#include "mongo/db/storage/storage_engine.h"
 #include "mongo/db/storage/wiredtiger/encryption_keydb_c_api.h"
+#include "mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h"
+#include "mongo/db/storage/wiredtiger/wiredtiger_session.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_util.h"
 #include "mongo/logv2/log.h"
 #include "mongo/util/assert_util.h"
@@ -265,22 +273,6 @@ void EncryptionKeyDB::init() {
                                      wiredtiger_strerror(res));
         }
 
-        // Create 'active_keyid' table mapping dbName -> "<dbName>.<UUID>".
-        // This is created on every open: a fresh keys DB gets a brand-new
-        // (empty) table; a keys DB created on `master` (which has no
-        // active_keyid table) gets the new table created on first open here,
-        // alongside its existing tables. Legacy bare keyIds in `table:key`
-        // are unaffected — they remain valid for any existing idents that
-        // reference them; new idents get fresh "<dbName>.<UUID>" generations
-        // via the customization hook (see wiredtiger_customization_hooks.cpp).
-        res = _sess->create(_sess,
-                            "table:active_keyid",
-                            "key_format=S,value_format=S,access_pattern_hint=random");
-        if (res) {
-            throw std::runtime_error(std::string("error creating/opening active_keyid table: ") +
-                                     wiredtiger_strerror(res));
-        }
-
         // load parameters
         {
             WT_CURSOR* cursor;
@@ -356,44 +348,10 @@ void EncryptionKeyDB::import_data_from(const EncryptionKeyDB* proto) {
         if (res != WT_NOTFOUND)
             throw std::runtime_error(std::string("clone: error reading key table: ") +
                                      wiredtiger_strerror(res));
-
-        // Clone table:active_keyid so the rotation instance preserves the
-        // dbName -> "<dbName>.<UUID>" bindings. Without this, a master-key
-        // rotation followed by a restart would re-allocate fresh generation
-        // keyIds on first access of each db, leaving the (still-valid)
-        // previous-generation key rows orphaned in table:key until their
-        // referencing idents are dropped.
-        WT_CURSOR* srcc2;
-        res = proto->_sess->open_cursor(
-            proto->_sess, "table:active_keyid", nullptr, nullptr, &srcc2);
-        if (res)
-            throw std::runtime_error(std::string("clone: error opening active_keyid cursor: ") +
-                                     wiredtiger_strerror(res));
-        std::unique_ptr<WT_CURSOR, std::function<void(WT_CURSOR*)>> srcc2_guard(srcc2,
-                                                                                cursor_close);
-        WT_CURSOR* dstc2;
-        res = _sess->open_cursor(_sess, "table:active_keyid", nullptr, nullptr, &dstc2);
-        if (res)
-            throw std::runtime_error(std::string("clone: error opening active_keyid cursor: ") +
-                                     wiredtiger_strerror(res));
-        std::unique_ptr<WT_CURSOR, std::function<void(WT_CURSOR*)>> dstc2_guard(dstc2,
-                                                                                cursor_close);
-        while ((res = srcc2->next(srcc2)) == 0) {
-            const char* k;
-            const char* v;
-            if ((res = srcc2->get_key(srcc2, &k)) || (res = srcc2->get_value(srcc2, &v)))
-                throw std::runtime_error(
-                    std::string("clone: error getting key/value from active_keyid table: ") +
-                    wiredtiger_strerror(res));
-            dstc2->set_key(dstc2, k);
-            dstc2->set_value(dstc2, v);
-            if ((res = dstc2->insert(dstc2)) != 0)
-                throw std::runtime_error(std::string("clone: error writing active_keyid table: ") +
-                                         wiredtiger_strerror(res));
-        }
-        if (res != WT_NOTFOUND)
-            throw std::runtime_error(std::string("clone: error reading active_keyid table: ") +
-                                     wiredtiger_strerror(res));
+        // (No table:active_keyid clone -- this branch resolves the active
+        // keyId per database via the CollectionCatalog rather than a
+        // persisted mapping. Nothing in the keys DB needs to be cloned for
+        // the rotation instance beyond table:key and table:parameters.)
     } catch (std::exception& e) {
         LOGV2_ERROR(29049, "Exception in EncryptionKeyDB::clone: {e}", "e"_attr = e.what());
         throw;
@@ -575,263 +533,106 @@ void EncryptionKeyDB::onUriDropped(const std::string& keyid) {
     }
 }
 
-std::string EncryptionKeyDB::getOrCreateActiveKeyId(const std::string& dbName) {
-    // PSMDB-1997 diagnostic: see every customization-hook entry so we can
-    // tell whether 'local' (or some other dbName) ever reached this path.
-    LOGV2(29080, "getOrCreateActiveKeyId for dbName: '{db}'", "db"_attr = dbName);
-
-    std::lock_guard<std::mutex> lk(_lock_sess);
-
-    WT_CURSOR* cursor;
-    int res = _sess->open_cursor(_sess, "table:active_keyid", nullptr, nullptr, &cursor);
-    if (res) {
-        LOGV2_ERROR(29081,
-                    "getOrCreateActiveKeyId: error opening cursor: {err}",
-                    "err"_attr = wiredtiger_strerror(res));
-        // Falling back to the bare dbName preserves master-compatible behavior
-        // for callers (the same idents would be created, just without a fresh
-        // generation). The caller is the customization hook, which has no
-        // sensible way to fail-stop, so degraded operation is preferable.
-        return dbName;
+boost::optional<std::string> EncryptionKeyDB::tryGetCachedActiveKeyId(
+    const DatabaseName& dbName) const {
+    std::lock_guard<std::mutex> lk(_activeKeyIdMutex);
+    auto it = _activeKeyIds.find(dbName);
+    if (it == _activeKeyIds.end()) {
+        return boost::none;
     }
-    std::unique_ptr<WT_CURSOR, std::function<void(WT_CURSOR*)>> cursor_guard(
-        cursor, [](WT_CURSOR* c) { c->close(c); });
-
-    cursor->set_key(cursor, dbName.c_str());
-    res = cursor->search(cursor);
-    if (res == 0) {
-        const char* v;
-        if (cursor->get_value(cursor, &v) == 0) {
-            std::string keyId(v);
-            // PSMDB-1997 diagnostic.
-            LOGV2(29082,
-                  "getOrCreateActiveKeyId hit: db='{db}' keyId='{keyId}'",
-                  "db"_attr = dbName,
-                  "keyId"_attr = keyId);
-            // Per-URI increment. The customization hook calls
-            // getOrCreateActiveKeyIdForDb on every WT_SESSION::create, so
-            // every reach of this function corresponds to one URI that
-            // will reference this keyId. The matching `--_refcounts` runs
-            // on the per-URI uri_dropped event from WT's drop path. (The
-            // alternative -- counting in get_key_by_id -- would only fire
-            // once per keyId because WT caches the customized encryptor
-            // and skips customize/get_key_by_id on cache hits, so that
-            // would yield 1 increment vs N decrements for N idents under
-            // the same keyId, which is what produced the orphan keys
-            // before this fix.)
-            {
-                std::lock_guard<std::mutex> lkrc(_refcounts_lock);
-                ++_refcounts[keyId];
-            }
-            return keyId;
-        }
-        LOGV2_ERROR(29083, "getOrCreateActiveKeyId: cursor->get_value failed");
-        return dbName;
-    }
-    if (res != WT_NOTFOUND) {
-        LOGV2_ERROR(29084,
-                    "getOrCreateActiveKeyId: cursor->search error {code}: {desc}",
-                    "code"_attr = res,
-                    "desc"_attr = wiredtiger_strerror(res));
-        return dbName;
-    }
-
-    // No active mapping — allocate "<dbName>.<UUID>" and persist into both
-    // table:active_keyid and table:key under a single WT transaction.
-    //
-    // The two-table coupling matters because the customize callback that
-    // would otherwise lazily insert the table:key row runs *later*, on the
-    // user-data WT_SESSION::create that uses this keyid -- and a backup or
-    // checkpoint can fall in the gap between the two writes. If a backup
-    // captures table:active_keyid with the new mapping but table:key
-    // without the corresponding row, the resulting backup is internally
-    // inconsistent: a restored mongod will see the active mapping, hand
-    // the keyid back via getOrCreateActiveKeyId on first reuse, but find
-    // no key bytes when customize runs -- so it generates fresh bytes,
-    // which then fail to decrypt the existing on-disk pages encrypted with
-    // the original key. Wrapping both inserts in one transaction makes the
-    // pair atomic from any reader's point of view.
-    std::string newKeyId = dbName + "." + UUID::gen().toString();
-    unsigned char keyBytes[encryption::Key::kLength];
-    generate_secure_key(keyBytes);
-
-    res = _sess->begin_transaction(_sess, nullptr);
-    if (res) {
-        LOGV2_ERROR(29085,
-                    "getOrCreateActiveKeyId: begin_transaction error {code}: {desc}",
-                    "code"_attr = res,
-                    "desc"_attr = wiredtiger_strerror(res));
-        return dbName;
-    }
-
-    // table:key insert. Open a separate cursor for it; the active_keyid
-    // cursor stays scoped to its existing guard above and is reused for
-    // the active_keyid insert below. Both cursor opens occur inside the
-    // active transaction so their writes are tied to the same commit.
-    WT_CURSOR* keyCursor = nullptr;
-    res = _sess->open_cursor(_sess, "table:key", nullptr, nullptr, &keyCursor);
-    if (res) {
-        LOGV2_ERROR(29101,
-                    "getOrCreateActiveKeyId: open_cursor on table:key failed: {desc}",
-                    "desc"_attr = wiredtiger_strerror(res));
-        _sess->rollback_transaction(_sess, nullptr);
-        return dbName;
-    }
-    std::unique_ptr<WT_CURSOR, std::function<void(WT_CURSOR*)>> keyCursorGuard(
-        keyCursor, [](WT_CURSOR* c) { c->close(c); });
-
-    keyCursor->set_key(keyCursor, newKeyId.c_str());
-    WT_ITEM v;
-    v.size = encryption::Key::kLength;
-    v.data = keyBytes;
-    keyCursor->set_value(keyCursor, &v);
-    res = keyCursor->insert(keyCursor);
-    if (res) {
-        LOGV2_ERROR(29102,
-                    "getOrCreateActiveKeyId: table:key insert error {code}: {desc}",
-                    "code"_attr = res,
-                    "desc"_attr = wiredtiger_strerror(res));
-        _sess->rollback_transaction(_sess, nullptr);
-        return dbName;
-    }
-    if (kDebugBuild)
-        dump_key(keyBytes, encryption::Key::kLength, "generated key for new generation");
-
-    cursor->set_key(cursor, dbName.c_str());
-    cursor->set_value(cursor, newKeyId.c_str());
-    res = cursor->insert(cursor);
-    if (res) {
-        LOGV2_ERROR(29103,
-                    "getOrCreateActiveKeyId: table:active_keyid insert error {code}: {desc}",
-                    "code"_attr = res,
-                    "desc"_attr = wiredtiger_strerror(res));
-        _sess->rollback_transaction(_sess, nullptr);
-        return dbName;
-    }
-
-    res = _sess->commit_transaction(_sess, nullptr);
-    if (res) {
-        LOGV2_ERROR(29104,
-                    "getOrCreateActiveKeyId: commit_transaction error {code}: {desc}",
-                    "code"_attr = res,
-                    "desc"_attr = wiredtiger_strerror(res));
-        return dbName;
-    }
-
-    // Both rows are durable. Increment the in-memory refcount by 2:
-    //   * +1 for the active anchor (released in clearActiveKeyId when
-    //     keydbDropDatabase runs).
-    //   * +1 for THIS caller's URI -- the customization hook called us
-    //     once for the WT_SESSION::create that triggered this allocation,
-    //     and that URI will fire one matching uri_dropped on its eventual
-    //     drop. Subsequent WT_SESSION::create calls for this same dbName
-    //     hit the cache branch above and add +1 each.
-    {
-        std::lock_guard<std::mutex> lkrc(_refcounts_lock);
-        _refcounts[newKeyId] += 2;
-    }
-    // PSMDB-1997 diagnostic: see every fresh generation allocation.
-    LOGV2(29086,
-          "getOrCreateActiveKeyId allocated: db='{db}' keyId='{keyId}'",
-          "db"_attr = dbName,
-          "keyId"_attr = newKeyId);
-    return newKeyId;
+    return it->second;
 }
 
-void EncryptionKeyDB::clearActiveKeyId(const std::string& dbName) {
-    // PSMDB-1997 diagnostic: see every keydbDropDatabase entry.
-    LOGV2(29087, "clearActiveKeyId for dbName: '{db}'", "db"_attr = dbName);
+std::string EncryptionKeyDB::cacheActiveKeyIdIfAbsent(const DatabaseName& dbName,
+                                                      std::string keyId) {
+    // This helper carries both refcount bumps so the caller doesn't have
+    // to coordinate two locks: on every call we add +1 URI ref (the
+    // customization hook fires once per WT_SESSION::create -- i.e. once
+    // per URI -- and is the only caller of `encryption::activeKeyIdForDb`,
+    // which always ends up here), and on first insert we additionally add
+    // +1 for the cache anchor (released in clearCachedActiveKeyId).
+    //
+    // Lock order across the keydb: _activeKeyIdMutex -> _refcounts_lock.
+    // No other site nests these the other way.
+    std::string finalKeyId;
+    bool inserted;
+    {
+        std::lock_guard<std::mutex> lk(_activeKeyIdMutex);
+        auto [it, didInsert] = _activeKeyIds.try_emplace(dbName, std::move(keyId));
+        finalKeyId = it->second;
+        inserted = didInsert;
+    }
+    {
+        std::lock_guard<std::mutex> lkrc(_refcounts_lock);
+        if (inserted) {
+            ++_refcounts[finalKeyId];  // cache anchor
+            LOGV2(29086,
+                  "cacheActiveKeyIdIfAbsent: cached keyId for dbName",
+                  logAttrs(dbName),
+                  "keyId"_attr = finalKeyId);
+        }
+        ++_refcounts[finalKeyId];  // per-URI ref for THIS caller
+    }
+    return finalKeyId;
+}
 
-    // Look up the keyId still bound to this dbName in table:active_keyid,
-    // remove the row, and decrement the keyId's refcount (releasing the
-    // active anchor allocated in getOrCreateActiveKeyId). If the count
-    // hits zero, reap the key row and the WT cache slot. The reap must
-    // run *outside* the locks held below: delete_key_by_id re-acquires
-    // _lock_sess (std::mutex is not recursive) and release_encryptor may
-    // re-enter the WT API.
+void EncryptionKeyDB::clearCachedActiveKeyId(const DatabaseName& dbName) {
+    // PSMDB-1997 diagnostic: see every keydbDropDatabase entry.
+    LOGV2(29087, "clearCachedActiveKeyId for dbName", logAttrs(dbName));
+
     std::string keyIdToReap;
     bool reap = false;
-
     {
-        std::lock_guard<std::mutex> lk(_lock_sess);
+        std::lock_guard<std::mutex> lk(_activeKeyIdMutex);
+        auto it = _activeKeyIds.find(dbName);
+        if (it == _activeKeyIds.end()) {
+            // Idempotent: the dbName was either never resolved in this
+            // process (cache cold-miss), or already cleared by a previous
+            // drop.
+            return;
+        }
+        const std::string activeKeyId = it->second;
+        _activeKeyIds.erase(it);
 
-        WT_CURSOR* cursor;
-        int res = _sess->open_cursor(_sess, "table:active_keyid", nullptr, nullptr, &cursor);
-        if (res) {
-            LOGV2_ERROR(29088,
-                        "clearActiveKeyId: error opening cursor: {err}",
-                        "err"_attr = wiredtiger_strerror(res));
-            return;
-        }
-        std::unique_ptr<WT_CURSOR, std::function<void(WT_CURSOR*)>> cursor_guard(
-            cursor, [](WT_CURSOR* c) { c->close(c); });
-
-        // Read the keyId before removing the row so we know which refcount
-        // entry to decrement. If the dbName isn't present, this is an
-        // idempotent no-op (e.g. for legacy databases whose idents predate
-        // the active_keyid table).
-        cursor->set_key(cursor, dbName.c_str());
-        res = cursor->search(cursor);
-        if (res == WT_NOTFOUND) {
-            return;
-        }
-        if (res != 0) {
-            LOGV2_ERROR(29093,
-                        "clearActiveKeyId: cursor->search error {code}: {desc}",
-                        "code"_attr = res,
-                        "desc"_attr = wiredtiger_strerror(res));
-            return;
-        }
-        const char* v;
-        if (cursor->get_value(cursor, &v) != 0) {
-            LOGV2_ERROR(29094, "clearActiveKeyId: cursor->get_value failed");
-            return;
-        }
-        std::string activeKeyId(v);
-
-        // Re-issue set_key in case get_value advanced internal state, then
-        // remove. WT_NOTFOUND from remove cannot happen here (we just
-        // searched a row), but treat it as an idempotent no-op to be safe.
-        cursor->set_key(cursor, dbName.c_str());
-        res = cursor->remove(cursor);
-        if (res != 0 && res != WT_NOTFOUND) {
-            LOGV2_ERROR(29089,
-                        "clearActiveKeyId: cursor->remove error {code}: {desc}",
-                        "code"_attr = res,
-                        "desc"_attr = wiredtiger_strerror(res));
-            return;
-        }
-
-        // Release the active anchor on the refcount; if no URIs remain
-        // either, the key is fully unreferenced and we should reap.
         std::lock_guard<std::mutex> lkrc(_refcounts_lock);
-        auto it = _refcounts.find(activeKeyId);
-        if (it == _refcounts.end()) {
-            // Active row existed but no refcount entry. That's a bug in
-            // our bookkeeping somewhere -- log and continue without reap.
+        auto rcIt = _refcounts.find(activeKeyId);
+        if (rcIt == _refcounts.end()) {
+            // Cache entry existed but the matching refcount didn't. That
+            // would mean cacheActiveKeyIdIfAbsent ran without incrementing,
+            // which is a bookkeeping bug. Log and proceed without reap.
             LOGV2_WARNING(29095,
-                          "clearActiveKeyId: no refcount entry for active keyId",
+                          "clearCachedActiveKeyId: no refcount entry for cached keyId",
                           "keyId"_attr = activeKeyId);
             return;
         }
-        if (--it->second == 0) {
-            _refcounts.erase(it);
-            keyIdToReap = std::move(activeKeyId);
+        if (--rcIt->second == 0) {
+            _refcounts.erase(rcIt);
+            keyIdToReap = activeKeyId;
             reap = true;
         }
     }
 
     if (reap) {
-        // Outside _lock_sess and _refcounts_lock. delete_key_by_id reacquires
-        // _lock_sess for the table:key cursor work; release_encryptor re-enters
-        // the WT extension API to drop the cached customized-encryptor slot
-        // and may invoke the encryptor's terminate callback.
+        // Outside both locks. delete_key_by_id reacquires _lock_sess for
+        // its cursor work, and release_encryptor re-enters the WT
+        // extension API (which may invoke the cached encryptor's
+        // terminate callback).
         delete_key_by_id(keyIdToReap);
         WT_CONNECTION* conn = _connection->conn();
         if (conn->release_encryptor != nullptr) {
             conn->release_encryptor(conn, keyIdToReap.c_str());
         }
     }
+}
+
+std::vector<std::string> EncryptionKeyDB::getAllCachedActiveKeyIds() const {
+    std::vector<std::string> result;
+    std::lock_guard<std::mutex> lk(_activeKeyIdMutex);
+    result.reserve(_activeKeyIds.size());
+    for (const auto& [_, keyId] : _activeKeyIds) {
+        result.push_back(keyId);
+    }
+    return result;
 }
 
 namespace {
@@ -889,11 +690,12 @@ bool parseKeyIdFromMetadata(StringData metaCfg, std::string& keyIdOut) {
 void EncryptionKeyDB::seedRefcountsFromWtMetadata(WT_CONNECTION* conn) {
     invariant(conn);
 
-    // Snapshot the active-keyId anchors first. getAllActiveKeyIds takes
-    // _lock_sess; doing it now (before _refcounts_lock is acquired below)
-    // keeps the lock order consistent with every other call site
-    // (_lock_sess -> _refcounts_lock) and avoids a reverse-order nest.
-    std::vector<std::string> activeKeyIds = getAllActiveKeyIds();
+    // No anchor units to seed: the in-memory cache (`_activeKeyIds`)
+    // starts empty at process start and gets populated lazily by
+    // `encryption::activeKeyIdForDb` on the first ident-create per
+    // dbName. The previous A2 design seeded an anchor per row in the
+    // persisted table:active_keyid; the A3 catalog-scan design has no
+    // such table.
 
     // Use a private session on the user-data connection. Don't reuse the
     // keydb's _sess: this walk targets the user-data WT instance's
@@ -988,19 +790,13 @@ void EncryptionKeyDB::seedRefcountsFromWtMetadata(WT_CONNECTION* conn) {
         }
     }
 
-    // Build the orphan lists: URI-referenced keyids missing from table:key,
-    // and active_keyid anchored keyids missing from table:key. Both sides
-    // are loud (LOGV2 not LOGV2_DEBUG) because finding even one of them
-    // names the keyid that's about to fail decryption.
+    // Build the URI-orphan list: keyids referenced in user-data metadata
+    // but missing from table:key. Loud (LOGV2 not LOGV2_DEBUG) because
+    // finding even one names the keyid that's about to fail decryption.
     std::vector<std::string> uriOrphans;
     for (const auto& [keyId, _] : uriCounts) {
         if (keyRowIds.count(keyId) == 0)
             uriOrphans.push_back(keyId);
-    }
-    std::vector<std::string> anchorOrphans;
-    for (const auto& keyId : activeKeyIds) {
-        if (keyRowIds.count(keyId) == 0)
-            anchorOrphans.push_back(keyId);
     }
 
     // Apply atomically.
@@ -1010,62 +806,26 @@ void EncryptionKeyDB::seedRefcountsFromWtMetadata(WT_CONNECTION* conn) {
         for (auto& [keyId, count] : uriCounts) {
             _refcounts[keyId] += count;
         }
-        for (auto& keyId : activeKeyIds) {
-            ++_refcounts[keyId];
-        }
         distinct = _refcounts.size();
     }
 
     LOGV2(29100,
           "seedRefcountsFromWtMetadata: seeded refcounts",
           "uriRefs"_attr = uriRefs,
-          "activeAnchors"_attr = activeKeyIds.size(),
           "distinctKeyIds"_attr = distinct,
           "tableKeyRows"_attr = keyRowIds.size(),
-          "uriOrphans"_attr = uriOrphans,
-          "anchorOrphans"_attr = anchorOrphans);
+          "uriOrphans"_attr = uriOrphans);
 
-    if (!uriOrphans.empty() || !anchorOrphans.empty()) {
+    if (!uriOrphans.empty()) {
         LOGV2_WARNING(29107,
                       "seedRefcountsFromWtMetadata: orphan keyIds detected -- "
-                      "the keys DB is missing rows that user-data metadata or "
-                      "table:active_keyid references; opening any URI under "
-                      "an orphaned keyId will fall into get_key_by_id's "
-                      "'create key if it does not exist' path and trigger a "
-                      "bad-decrypt panic on the next page read",
-                      "uriOrphans"_attr = uriOrphans,
-                      "anchorOrphans"_attr = anchorOrphans);
+                      "the keys DB is missing rows that user-data metadata "
+                      "references; opening any URI under an orphaned keyId "
+                      "will fall into get_key_by_id's 'create key if it does "
+                      "not exist' path and trigger a bad-decrypt panic on the "
+                      "next page read",
+                      "uriOrphans"_attr = uriOrphans);
     }
-}
-
-std::vector<std::string> EncryptionKeyDB::getAllActiveKeyIds() {
-    std::vector<std::string> result;
-    std::lock_guard<std::mutex> lk(_lock_sess);
-
-    WT_CURSOR* cursor;
-    int res = _sess->open_cursor(_sess, "table:active_keyid", nullptr, nullptr, &cursor);
-    if (res) {
-        LOGV2_ERROR(29090,
-                    "getAllActiveKeyIds: error opening cursor: {err}",
-                    "err"_attr = wiredtiger_strerror(res));
-        return result;
-    }
-    std::unique_ptr<WT_CURSOR, std::function<void(WT_CURSOR*)>> cursor_guard(
-        cursor, [](WT_CURSOR* c) { c->close(c); });
-
-    while ((res = cursor->next(cursor)) == 0) {
-        const char* v;
-        if (cursor->get_value(cursor, &v) == 0) {
-            result.emplace_back(v);
-        }
-    }
-    if (res != WT_NOTFOUND) {
-        LOGV2_ERROR(29091,
-                    "getAllActiveKeyIds: cursor->next error {code}: {desc}",
-                    "code"_attr = res,
-                    "desc"_attr = wiredtiger_strerror(res));
-    }
-    return result;
 }
 
 int EncryptionKeyDB::store_gcm_iv_reserved() {
@@ -1159,9 +919,116 @@ void EncryptionKeyDB::reconfigure(const char* newCfg) {
 
 namespace encryption {
 
-std::string getOrCreateActiveKeyIdForDb(StringData dbName) {
-    invariant(encryptionKeyDB);
-    return encryptionKeyDB->getOrCreateActiveKeyId(std::string{dbName});
+namespace {
+
+// Resolve the user-data `WiredTigerKVEngine` via the storage engine
+// registered on `opCtx`'s service context. Returns nullptr if encryption
+// is not enabled or the engine isn't WT-based. We avoid passing the
+// engine in explicitly so the hook stays decoupled from KV-engine
+// selection.
+WiredTigerKVEngine* getWtEngine(OperationContext* opCtx) {
+    auto se = opCtx->getServiceContext()->getStorageEngine();
+    if (!se) {
+        return nullptr;
+    }
+    return dynamic_cast<WiredTigerKVEngine*>(se->getEngine());
+}
+
+// Reads the encryption keyId baked into the WT ident metadata for
+// `ident`. Returns boost::none if metadata cannot be read or has no
+// usable keyId (so the caller falls through to the next candidate).
+boost::optional<std::string> readKeyIdFromIdent(WiredTigerSession& session, StringData ident) {
+    auto metadata =
+        WiredTigerUtil::getMetadataCreate(session, WiredTigerUtil::buildTableUri(ident));
+    if (!metadata.isOK()) {
+        LOGV2_DEBUG(29200,
+                    3,
+                    "activeKeyIdForDb: unable to read WT metadata for ident",
+                    "ident"_attr = ident,
+                    "error"_attr = metadata.getStatus());
+        return boost::none;
+    }
+    auto keyId = WiredTigerUtil::getEncryptionKeyId(metadata.getValue());
+    if (!keyId || keyId->empty() || *keyId == "/default") {
+        return boost::none;
+    }
+    return keyId;
+}
+
+}  // namespace
+
+std::string activeKeyIdForDb(OperationContext* opCtx, const DatabaseName& dbName) {
+    invariant(opCtx);
+
+    std::string dbStr = DatabaseNameUtil::serialize(dbName, SerializationContext::stateDefault());
+
+    // Early-startup fallback. The MDB catalog ident is created from
+    // inside the `StorageEngineImpl` constructor, before the storage
+    // engine is registered on the ServiceContext. In that window we
+    // can't reach the EncryptionKeyDB through the storage engine, but
+    // the catalog ident's dbName ("_mdb_catalog") never gets dropped
+    // and recreated either -- so falling back to the legacy bare-
+    // `<dbName>` keyId keeps it stable across restarts.
+    auto* wtEngine = getWtEngine(opCtx);
+    if (!wtEngine) {
+        return dbStr;
+    }
+
+    EncryptionKeyDB* keyDb = wtEngine->getEncryptionKeyDB();
+    invariant(keyDb, "activeKeyIdForDb called when encryption is disabled");
+
+    // Fast path: cache hit. The cacheActiveKeyIdIfAbsent call returns
+    // whatever's currently in the cache (the passed-in `*cached` is
+    // discarded for an existing entry) and adds +1 URI ref atomically.
+    // If another thread cleared the cache entry between tryGet and here,
+    // cacheActiveKeyIdIfAbsent re-installs `*cached` and counts both the
+    // anchor and the URI ref.
+    if (auto cached = keyDb->tryGetCachedActiveKeyId(dbName)) {
+        return keyDb->cacheActiveKeyIdIfAbsent(dbName, *cached);
+    }
+
+    // Cache miss: scan the CollectionCatalog for any live collection in
+    // `dbName` and reuse its keyId. We use `CollectionCatalog::range`
+    // rather than `getAllCollectionNamesFromDb` because the latter wants
+    // a MODE_S DB lock that's incompatible with the MODE_IX held by an
+    // in-progress createCollection.
+    boost::optional<std::string> resolved;
+    auto catalog = CollectionCatalog::get(opCtx);
+    auto range = catalog->range(dbName);
+    if (!range.empty()) {
+        auto session = wtEngine->getConnection().getUninterruptibleSession();
+        for (auto* coll : range) {
+            if (!coll) {
+                continue;
+            }
+            auto* rs = coll->getRecordStore();
+            if (!rs) {
+                continue;
+            }
+            auto keyId = readKeyIdFromIdent(*session, rs->getIdent());
+            if (keyId) {
+                resolved = std::move(*keyId);
+                break;
+            }
+        }
+    }
+
+    if (!resolved) {
+        // Genuinely-new database: allocate a fresh `<dbName>.<UUID>`.
+        // dbNames cannot contain '.', so the dot in `<dbName>.<UUID>`
+        // unambiguously separates the parts.
+        resolved = dbStr + "." + UUID::gen().toString();
+        LOGV2_DEBUG(29201,
+                    1,
+                    "activeKeyIdForDb: allocated fresh keyId",
+                    logAttrs(dbName),
+                    "keyId"_attr = *resolved);
+    }
+
+    // Atomic check-and-set. If a concurrent thread won the race, we use
+    // its keyId so all idents created in this WUOW agree on a single
+    // value. Installs the cache anchor (+1 on _refcounts) on insert.
+    return keyDb->cacheActiveKeyIdIfAbsent(dbName, std::move(*resolved));
 }
 
 }  // namespace encryption

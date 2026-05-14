@@ -31,6 +31,7 @@ Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
 
 #pragma once
 
+#include "mongo/db/database_name.h"
 #include "mongo/db/encryption/key.h"
 #include "mongo/db/storage/storage_engine.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_connection.h"
@@ -44,6 +45,11 @@ Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
 #include <wiredtiger.h>
 
 #include <boost/multiprecision/cpp_int.hpp>
+#include <boost/optional.hpp>
+
+namespace mongo {
+class OperationContext;
+}  // namespace mongo
 
 namespace mongo {
 
@@ -90,24 +96,31 @@ public:
     // drop key for specific keyid (used in dropDatabase)
     int delete_key_by_id(const std::string& keyid);
 
-    // Returns the currently-active keyId for a database, allocating a fresh
-    // "<dbName>.<UUID>" generation and persisting it to table:active_keyid if
-    // none is currently active. Each (re)create of a database thus gets a
-    // distinct keyId, so a cached encryptor slot is never reused across drops.
-    std::string getOrCreateActiveKeyId(const std::string& dbName);
+    // Returns the cached active keyId for the given database, if any. The
+    // cache is in-memory, scoped to the lifetime of this `EncryptionKeyDB`
+    // instance, and populated lazily by `encryption::activeKeyIdForDb`. A
+    // cache miss does *not* imply the dbName has no keyId; it means this
+    // process has not yet resolved one.
+    boost::optional<std::string> tryGetCachedActiveKeyId(const DatabaseName& dbName) const;
 
-    // Removes the active-keyId mapping for a database from table:active_keyid.
-    // Idempotent. Called from keydbDropDatabase. Does NOT delete the underlying
-    // key row in table:key — that is reaped via the URI-lifecycle refcount path
-    // (Phase 4) once all idents that referenced the keyId are durably gone.
-    void clearActiveKeyId(const std::string& dbName);
+    // Atomic check-and-insert. If `dbName` has no cache entry, insert `keyId`
+    // and increment _refcounts[keyId] by 1 (the "cache anchor" that
+    // replaces the table:active_keyid anchor of the persisted A2 design).
+    // Returns whatever ends up in the cache, so concurrent callers all see
+    // the same value.
+    std::string cacheActiveKeyIdIfAbsent(const DatabaseName& dbName, std::string keyId);
 
-    // Returns the values of every row in table:active_keyid, i.e. every keyId
-    // that currently has a database actively bound to it. Used at startup
-    // (Phase 4) to seed the per-keyId refcount with one anchor unit per active
-    // mapping so a freshly-allocated generation that hasn't yet had its first
-    // ident written is not prematurely reaped.
-    std::vector<std::string> getAllActiveKeyIds();
+    // Remove the cached active keyId for `dbName` and decrement the anchor
+    // on its _refcounts entry. If the count hits zero, reap the row in
+    // table:key and tell WiredTiger to forget the cached encryptor slot.
+    // Idempotent on a missing cache entry.
+    void clearCachedActiveKeyId(const DatabaseName& dbName);
+
+    // Returns a snapshot of every keyId currently in the in-memory cache.
+    // Used by `seedRefcountsFromWtMetadata` orphan detection so a freshly-
+    // allocated keyId not yet bound to any on-disk ident isn't flagged as
+    // an orphan.
+    std::vector<std::string> getAllCachedActiveKeyIds() const;
 
     // Called from the percona encryption extension's WT_ENCRYPTOR::uri_dropped
     // callback (via the notify_uri_dropped C bridge) when WiredTiger has
@@ -122,10 +135,11 @@ public:
     // Seed the in-memory refcount map at startup from the user-data
     // WiredTiger connection's metadata. Walks every "file:" URI in the
     // metadata: cursor, parses encryption.keyid out of each URI's config,
-    // and increments _refcounts[keyid] accordingly. Then layers in one
-    // anchor unit per row in table:active_keyid so a freshly-allocated
-    // generation that hasn't yet had a customize-driven URI binding is
-    // not prematurely reaped. Must be called after the user-data WT
+    // and increments _refcounts[keyid] accordingly. No anchor units are
+    // added here -- in the A3 cache-based design the anchor lives in the
+    // in-memory cache, which starts empty at process start and gets
+    // populated lazily by `encryption::activeKeyIdForDb` on the first
+    // ident-create per dbName. Must be called after the user-data WT
     // connection is open and before any user drop operation can fire
     // uri_dropped (so during WiredTigerKVEngine construction, right
     // after _openWiredTiger).
@@ -207,26 +221,61 @@ private:
     static constexpr int _gcm_iv_bytes = (std::numeric_limits<decltype(_gcm_iv)>::digits + 7) / 8;
 
     // Per-keyId refcount. The count for a keyId is the sum of:
-    //   * 1 if there is a row in table:active_keyid mapping some database
-    //     name to this keyId (the "active anchor"). Allocated by
-    //     getOrCreateActiveKeyId and released by clearActiveKeyId.
+    //   * 1 if `_activeKeyIds` has a cache entry mapping some dbName to
+    //     this keyId (the "cache anchor"). Allocated by
+    //     `cacheActiveKeyIdIfAbsent` on first insert and released by
+    //     `clearCachedActiveKeyId` when keydbDropDatabase fires.
     //   * 1 per WiredTiger URI currently encrypted with this keyId.
-    //     Allocated in `getOrCreateActiveKeyId` (which the customization
-    //     hook calls *per WT_SESSION::create*, i.e. once per URI), and
-    //     released in `onUriDropped` (driven from WT_ENCRYPTOR::uri_dropped,
-    //     also per URI). Counting in get_key_by_id would be wrong because
-    //     WT caches the customized encryptor per keyId and skips
-    //     customize/get_key_by_id on cache hits, so an N-ident-per-keyid
-    //     workload would produce 1 increment vs N decrements.
-    //     At startup, `seedRefcountsFromWtMetadata` walks the user-data
-    //     metadata and seeds one URI ref per `file:` URI it finds.
+    //     Allocated in `encryption::activeKeyIdForDb` (which the
+    //     customization hook calls *per WT_SESSION::create*, i.e. once
+    //     per URI), and released in `onUriDropped` (driven from
+    //     WT_ENCRYPTOR::uri_dropped, also per URI). Counting in
+    //     get_key_by_id would be wrong because WT caches the customized
+    //     encryptor per keyId and skips customize/get_key_by_id on cache
+    //     hits, so an N-ident-per-keyid workload would produce 1
+    //     increment vs N decrements. At startup,
+    //     `seedRefcountsFromWtMetadata` walks the user-data metadata and
+    //     seeds one URI ref per `file:` URI it finds.
     // When the count hits zero, the row in table:key for this keyId is
     // deleted and the WT customized-encryptor cache slot is released.
     std::map<std::string, std::size_t> _refcounts;
     std::mutex _refcounts_lock;
 
+    // In-memory cache of resolved active keyIds per database, scoped to
+    // the lifetime of this `EncryptionKeyDB` instance. Source of truth
+    // for "which keyId should new idents in dbName X use" once warmed up;
+    // on a cache miss `encryption::activeKeyIdForDb` consults the
+    // `CollectionCatalog` and populates this map. Replaces the persisted
+    // `table:active_keyid` of the older A2 design.
+    mutable std::mutex _activeKeyIdMutex;
+    std::map<DatabaseName, std::string> _activeKeyIds;
+
     std::unique_ptr<WiredTigerSession> _backupSession;
     WT_CURSOR* _backupCursor;
 };
+
+namespace encryption {
+
+// Returns the active encryption keyId for the given database. The lookup
+// goes through the in-memory cache on the global `EncryptionKeyDB`:
+//
+//   1. Cache hit -> return cached value, +1 URI ref on _refcounts.
+//   2. Cache miss + non-empty catalog for dbName -> scan
+//      `CollectionCatalog::range(dbName)`, read keyId out of the first
+//      live collection's WT ident metadata, cache it (+1 cache anchor +
+//      1 URI ref), return.
+//   3. Cache miss + empty catalog -> allocate fresh `<dbName>.<UUID>`,
+//      cache it (+1 cache anchor + 1 URI ref), return. After
+//      keydbDropDatabase followed by a recreate this is the path that
+//      produces a new generation.
+//
+// `opCtx` is required and must carry a `WiredTigerRecoveryUnit` so the
+// catalog scan and any per-ident metadata reads can run. The customization
+// hook falls back to a bare-`<dbName>` keyId for the few internal callers
+// that have no OpCtx (size storer, spill engine internal record stores,
+// etc.); those should not reach this function.
+std::string activeKeyIdForDb(OperationContext* opCtx, const DatabaseName& dbName);
+
+}  // namespace encryption
 
 }  // namespace mongo

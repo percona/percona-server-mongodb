@@ -217,6 +217,7 @@ StatusWith<std::string> WiredTigerRecordStore::parseOptionsField(const BSONObj o
 }
 
 std::string WiredTigerRecordStore::generateCreateString(
+    OperationContext* opCtx,
     StringData tableName,
     const WiredTigerRecordStore::WiredTigerTableConfig& wtTableConfig,
     bool isOplog) {
@@ -236,9 +237,9 @@ std::string WiredTigerRecordStore::generateCreateString(
     ss << "block_compressor=" << wtTableConfig.blockCompressor << ",";
 
     ss << WiredTigerCustomizationHooks::get(getGlobalServiceContext())
-              ->getTableCreateConfig(tableName);
+              ->getTableCreateConfig(opCtx, tableName);
     ss << WiredTigerCustomizationHooksRegistry::get(getGlobalServiceContext())
-              .getTableCreateConfig(tableName);
+              .getTableCreateConfig(opCtx, tableName);
 
     ss << wtTableConfig.extraCreateOptions << ",";
 
