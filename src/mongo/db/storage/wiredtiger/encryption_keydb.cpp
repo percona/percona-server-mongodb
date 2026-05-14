@@ -939,6 +939,9 @@ WiredTigerKVEngine* getWtEngine(OperationContext* opCtx) {
 // Reads the encryption keyId baked into the WT ident metadata for
 // `ident`. Returns boost::none if metadata cannot be read or has no
 // usable keyId (so the caller falls through to the next candidate).
+// Uses the file-local `parseKeyIdFromMetadata` (defined further up in
+// this translation unit) rather than `WiredTigerUtil::getEncryptionKeyId`
+// (which is a deferred-cleanup-branch helper not present on this branch).
 boost::optional<std::string> readKeyIdFromIdent(WiredTigerSession& session, StringData ident) {
     auto metadata =
         WiredTigerUtil::getMetadataCreate(session, WiredTigerUtil::buildTableUri(ident));
@@ -950,8 +953,11 @@ boost::optional<std::string> readKeyIdFromIdent(WiredTigerSession& session, Stri
                     "error"_attr = metadata.getStatus());
         return boost::none;
     }
-    auto keyId = WiredTigerUtil::getEncryptionKeyId(metadata.getValue());
-    if (!keyId || keyId->empty() || *keyId == "/default") {
+    std::string keyId;
+    if (!parseKeyIdFromMetadata(StringData(metadata.getValue()), keyId)) {
+        return boost::none;
+    }
+    if (keyId.empty() || keyId == "/default") {
         return boost::none;
     }
     return keyId;
