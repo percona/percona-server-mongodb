@@ -5,14 +5,14 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 48,
-    "days_behind": 2,
-    "files_affected": 262,
-    "total_additions": 5491,
-    "total_deletions": 4122,
+    "commits_behind": 68,
+    "days_behind": 3,
+    "files_affected": 411,
+    "total_additions": 8480,
+    "total_deletions": 6389,
     "date_range": {
       "first": "2026-05-11T17:45:07+00:00",
-      "last": "2026-05-14T02:34:03+00:00"
+      "last": "2026-05-15T01:03:44+00:00"
     }
   },
   "last_merged_commit": {
@@ -36,6 +36,206 @@
     "summary": "SERVER-126383 Pull early exit for shard registry periodic reloader up into sharding initialization (#53588)"
   },
   "unmerged_commits": [
+    {
+      "sha": "9fc5c3520345d54f65753abf97056a59a6ddc318",
+      "short_sha": "9fc5c352034",
+      "date": "2026-05-14T21:03:44-04:00",
+      "author": {
+        "name": "Evan Bergeron",
+        "email": "evanbergeron@users.noreply.github.com"
+      },
+      "summary": "SERVER-118860 Refactor sbe vm non-arithmetic builtins and unit tests to use TagValueView/Owned/MaybeOwned types (#53270)"
+    },
+    {
+      "sha": "ca62433df510c183103021a604028e51a4b7adfe",
+      "short_sha": "ca62433df51",
+      "date": "2026-05-14T16:32:08-07:00",
+      "author": {
+        "name": "Alexander Neben",
+        "email": "alex.neben@mongodb.com"
+      },
+      "summary": "Revert \"SERVER-126353: Added required patch on github PR (#53563)\" (#53835)"
+    },
+    {
+      "sha": "689faae865ca53e381fdd41054d9c851a9bda04f",
+      "short_sha": "689faae865c",
+      "date": "2026-05-14T18:59:09-04:00",
+      "author": {
+        "name": "gabrielspil-mdb",
+        "email": "gabriel.spil@mongodb.com"
+      },
+      "summary": "SERVER-113009 add std::jthread to banned names. (#53744)"
+    },
+    {
+      "sha": "1c562014e77b1e8f8181ba61af9e0a7048ff167f",
+      "short_sha": "1c562014e77",
+      "date": "2026-05-14T17:30:47-04:00",
+      "author": {
+        "name": "Evan Bergeron",
+        "email": "evanbergeron@users.noreply.github.com"
+      },
+      "summary": "SERVER-126775 Rm unused magicTraverseF SBE VM opcode (#53796)"
+    },
+    {
+      "sha": "8c7401ecaf9c90931f79731d41ebf48a9fc8eb2c",
+      "short_sha": "8c7401ecaf9",
+      "date": "2026-05-14T16:36:42-04:00",
+      "author": {
+        "name": "Evan Bergeron",
+        "email": "evanbergeron@users.noreply.github.com"
+      },
+      "summary": "SERVER-126493 Check path arrayness in RequiresCollectionStage::doRestoreState (#53698)"
+    },
+    {
+      "sha": "2f0ff414f1c2c3e95206a6504473e540318bb9cc",
+      "short_sha": "2f0ff414f1c",
+      "date": "2026-05-14T16:35:45-04:00",
+      "author": {
+        "name": "Evan Bergeron",
+        "email": "evanbergeron@users.noreply.github.com"
+      },
+      "summary": "SERVER-126307 Rm attachCollectionAcquisition from SBE plan stages (#53028)"
+    },
+    {
+      "sha": "0ebe1145e3a659df9e2ac8c216ed784d821132e5",
+      "short_sha": "0ebe1145e3a",
+      "date": "2026-05-14T14:34:04-05:00",
+      "author": {
+        "name": "Anna Veselova",
+        "email": "47113149+aveselova@users.noreply.github.com"
+      },
+      "summary": "SERVER-100910: Fix bounded sort optimization handling for timeseries queries with point predicates on sorted fields (#51994)"
+    },
+    {
+      "sha": "a60992610363a2ed1f3a75bc7ee52ccabf699583",
+      "short_sha": "a6099261036",
+      "date": "2026-05-14T14:07:14-04:00",
+      "author": {
+        "name": "Sean Lyons",
+        "email": "sean.lyons@mongodb.com"
+      },
+      "summary": "SERVER-125807 Create a remote execution variant mirroring enterprise-amazon-linux2023-arm64-all-feature-flags (#53034)"
+    },
+    {
+      "sha": "4e92b83446ef1f378d22593ad1f57919547d18de",
+      "short_sha": "4e92b83446e",
+      "date": "2026-05-14T14:06:14-04:00",
+      "author": {
+        "name": "Evan Bergeron",
+        "email": "evanbergeron@users.noreply.github.com"
+      },
+      "summary": "SERVER-125673 Check path arrayness with PlanYieldPolicySBE callback (#53059)"
+    },
+    {
+      "sha": "5316914cc7116ccfdc27d0716690c16a52bce21f",
+      "short_sha": "5316914cc71",
+      "date": "2026-05-14T11:05:51-07:00",
+      "author": {
+        "name": "Alexander Neben",
+        "email": "alex.neben@mongodb.com"
+      },
+      "summary": "SERVER-126353: Added required patch on github PR (#53563)"
+    },
+    {
+      "sha": "145524fa5e6881760ae02b2ddf3f19ebea6340a1",
+      "short_sha": "145524fa5e6",
+      "date": "2026-05-14T14:01:19-04:00",
+      "author": {
+        "name": "Mihai Andrei",
+        "email": "mihai.andrei@mongodb.com"
+      },
+      "summary": "SERVER-126771: Fix comment for TagValueView (#53787)"
+    },
+    {
+      "sha": "49907369697e457aad829446ee6d8ad0c973229b",
+      "short_sha": "49907369697",
+      "date": "2026-05-14T13:58:58-04:00",
+      "author": {
+        "name": "Mike Nugent",
+        "email": "mike.nugent@mongodb.com"
+      },
+      "summary": "SERVER-126288: Allow camel case in otel metric names, and update readme and existing names (#53491)"
+    },
+    {
+      "sha": "5dc4a004a9c9e020120918a35b559c5916cd6d92",
+      "short_sha": "5dc4a004a9c",
+      "date": "2026-05-14T13:42:08-04:00",
+      "author": {
+        "name": "Alex Sarkesian",
+        "email": "alex.sarkesian@mongodb.com"
+      },
+      "summary": "SERVER-125005: Support resuming initialized primary-driven index build (#53541)"
+    },
+    {
+      "sha": "46c367397305d30576f17343084c313be682a849",
+      "short_sha": "46c36739730",
+      "date": "2026-05-14T10:09:18-04:00",
+      "author": {
+        "name": "mongo-pr-bot[bot]",
+        "email": "230616009+mongo-pr-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "SERVER-111072 Auto-generated SBOM files [master] (#53579)"
+    },
+    {
+      "sha": "4ecfef6a149512359aa15ef250f04a8e881bd36a",
+      "short_sha": "4ecfef6a149",
+      "date": "2026-05-14T09:30:10-04:00",
+      "author": {
+        "name": "Stephanie",
+        "email": "53684987+seristof@users.noreply.github.com"
+      },
+      "summary": "SERVER-126406 Migrate WiredTiger write-conflict fail points to storage-engine-agnostic helpers in non-harness tests (#53678)"
+    },
+    {
+      "sha": "e3d5676f8a4438fbf2b53f4bc4db82b682327053",
+      "short_sha": "e3d5676f8a4",
+      "date": "2026-05-14T13:30:33+01:00",
+      "author": {
+        "name": "mongo-pr-bot[bot]",
+        "email": "230616009+mongo-pr-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "SERVER-110427 Update profiling data (#53697)"
+    },
+    {
+      "sha": "ca2c5b3faf87f71522efcfc2d8add633f03aa72e",
+      "short_sha": "ca2c5b3faf8",
+      "date": "2026-05-14T12:09:16+00:00",
+      "author": {
+        "name": "Joan Bruguera Micó (at MongoDB)",
+        "email": "joan.bruguera-mico@mongodb.com"
+      },
+      "summary": "SERVER-126607 Gate FCV document phase writes on SymmetricFCV flag (#53756)"
+    },
+    {
+      "sha": "d0bee459f9ca2fec945e1610ed7c9b6ac9140a20",
+      "short_sha": "d0bee459f9c",
+      "date": "2026-05-14T12:36:08+02:00",
+      "author": {
+        "name": "Carlos Alonso",
+        "email": "c.alonso@mongodb.com"
+      },
+      "summary": "SERVER-124328. Retrieve persistent samples (#52475)"
+    },
+    {
+      "sha": "9371c56a61825d6dc95c016a908ece10fe2c6586",
+      "short_sha": "9371c56a618",
+      "date": "2026-05-14T11:44:16+02:00",
+      "author": {
+        "name": "Pol Piñol Castuera",
+        "email": "pol.pinol@mongodb.com"
+      },
+      "summary": "SERVER-126101 Remove ConfigsvrRemoveChunks command (#53416)"
+    },
+    {
+      "sha": "c73dc857990900fc552ba08f16453dbe9cfeeeb6",
+      "short_sha": "c73dc857990",
+      "date": "2026-05-14T11:14:24+02:00",
+      "author": {
+        "name": "Pol Piñol Castuera",
+        "email": "pol.pinol@mongodb.com"
+      },
+      "summary": "SERVER-125916 SERVER-104976 Remove the repairShardedCollectionChunksHistory command (#53105)"
+    },
     {
       "sha": "13c8d307d8a6e53ec1ea6e13bdfe436a5e8a7174",
       "short_sha": "13c8d307d8a",
@@ -581,10 +781,33 @@
           "num_of_dirs": 21
         }
       }
+    },
+    {
+      "commit": {
+        "sha": "c73dc857990900fc552ba08f16453dbe9cfeeeb6",
+        "short_sha": "c73dc857990",
+        "date": "2026-05-14T11:14:24+02:00",
+        "author": {
+          "name": "Pol Piñol Castuera",
+          "email": "pol.pinol@mongodb.com"
+        },
+        "summary": "SERVER-125916 SERVER-104976 Remove the repairShardedCollectionChunksHistory command (#53105)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 27,
+          "num_of_lines": 583,
+          "lines_added": 2,
+          "lines_deleted": 581,
+          "num_of_dirs": 14
+        }
+      }
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-05-14 09:05:15",
+  "generated_at": "2026-05-15 07:06:30",
   "branch_name": "master",
   "display_name": "master"
 }
