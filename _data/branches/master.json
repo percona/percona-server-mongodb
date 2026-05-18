@@ -5,14 +5,14 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 68,
-    "days_behind": 3,
-    "files_affected": 411,
-    "total_additions": 8480,
-    "total_deletions": 6389,
+    "commits_behind": 87,
+    "days_behind": 6,
+    "files_affected": 705,
+    "total_additions": 23354,
+    "total_deletions": 22288,
     "date_range": {
       "first": "2026-05-11T17:45:07+00:00",
-      "last": "2026-05-15T01:03:44+00:00"
+      "last": "2026-05-18T06:10:15+00:00"
     }
   },
   "last_merged_commit": {
@@ -36,6 +36,196 @@
     "summary": "SERVER-126383 Pull early exit for shard registry periodic reloader up into sharding initialization (#53588)"
   },
   "unmerged_commits": [
+    {
+      "sha": "dec5c321915bfa33fd6b47fefc8b4e461e559ccb",
+      "short_sha": "dec5c321915",
+      "date": "2026-05-18T08:10:15+02:00",
+      "author": {
+        "name": "Allison Easton",
+        "email": "allison.easton@mongodb.com"
+      },
+      "summary": "SERVER-126193 Handle ShardNotFound errors with killOp in implicitly_retry_on_shard_transition_errors (#53410)"
+    },
+    {
+      "sha": "73fac26a347b68ad7ef19e84b9797646a50d70c8",
+      "short_sha": "73fac26a347",
+      "date": "2026-05-18T12:31:58+10:00",
+      "author": {
+        "name": "wt-vendoring-bot[bot]",
+        "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "Import wiredtiger: bb840c5216cd665541a7cd140217ed0a17c514c5 from branch mongodb-master (#53904)"
+    },
+    {
+      "sha": "c021919b7c312eb3318f6517bf77f5486437cee2",
+      "short_sha": "c021919b7c3",
+      "date": "2026-05-16T07:38:07+00:00",
+      "author": {
+        "name": "auto-revert-app[bot]",
+        "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
+      },
+      "summary": "Revert \"SERVER-125964: Apply initial sync oplog entries from initiating set o… (#53240)\" (#53899)"
+    },
+    {
+      "sha": "5aea7b5399f61b2de030c9d7c43b4a187f14a422",
+      "short_sha": "5aea7b5399f",
+      "date": "2026-05-16T04:25:06+00:00",
+      "author": {
+        "name": "auto-revert-app[bot]",
+        "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
+      },
+      "summary": "Revert \"SERVER-126784: Enable Remote Asset API External Artifact Caching for Releases (#53827)\" (#53898)"
+    },
+    {
+      "sha": "42b30da814c1aa8e30963c55f2aa16983ec74aef",
+      "short_sha": "42b30da814c",
+      "date": "2026-05-15T18:28:25-04:00",
+      "author": {
+        "name": "Alex Sarkesian",
+        "email": "alex.sarkesian@mongodb.com"
+      },
+      "summary": "SERVER-126898: Make clangd configuration user-controllable (#53884)"
+    },
+    {
+      "sha": "38cb5220fe3b66a2f43018ca52d0cac43d110e70",
+      "short_sha": "38cb5220fe3",
+      "date": "2026-05-15T17:30:11-04:00",
+      "author": {
+        "name": "Stephanie",
+        "email": "53684987+seristof@users.noreply.github.com"
+      },
+      "summary": "SERVER-126461 Change all storex-owned unit tests that use ASSERT_* --> EXPECT_* if able to (#53682)"
+    },
+    {
+      "sha": "b8135565eea6b55fc204ff7d7b982e2c81c60d2c",
+      "short_sha": "b8135565eea",
+      "date": "2026-05-15T16:33:18-04:00",
+      "author": {
+        "name": "Sam Frank",
+        "email": "sam.frank@mongodb.com"
+      },
+      "summary": "SERVER-121474 Propagate TransientTransactionError label for FLE BulkWrites (#53650)"
+    },
+    {
+      "sha": "29df950c07b560d8f9c351992e882d06333fc753",
+      "short_sha": "29df950c07b",
+      "date": "2026-05-15T15:36:30-04:00",
+      "author": {
+        "name": "Mihai Andrei",
+        "email": "mihai.andrei@mongodb.com"
+      },
+      "summary": "SERVER-126039 Refactor vm_builtin_datetime.cpp date construction and block operations to use value RAII types (#53716)"
+    },
+    {
+      "sha": "bd312200885003e52815a031ca814bf169946a43",
+      "short_sha": "bd312200885",
+      "date": "2026-05-15T12:28:06-07:00",
+      "author": {
+        "name": "Zack Winter",
+        "email": "3457246+zackwintermdb@users.noreply.github.com"
+      },
+      "summary": "SERVER-126784: Enable Remote Asset API External Artifact Caching for Releases (#53827)"
+    },
+    {
+      "sha": "4667bbf5653451b705d1d8c52e0d05c8e7cc29c6",
+      "short_sha": "4667bbf5653",
+      "date": "2026-05-15T14:14:11-04:00",
+      "author": {
+        "name": "Benjamin Pearce",
+        "email": "benjamin.pearce@mongodb.com"
+      },
+      "summary": "SERVER-119509: Converted ValidateState constructor invariants to uassert (#53809)"
+    },
+    {
+      "sha": "05b2e5f265a8c3abfa95d6da5b49c2b70d97fd75",
+      "short_sha": "05b2e5f265a",
+      "date": "2026-05-15T13:52:50-04:00",
+      "author": {
+        "name": "Mihai Andrei",
+        "email": "mihai.andrei@mongodb.com"
+      },
+      "summary": "SERVER-120837 Refactor vm_builtin_array.cpp to use value RAII types as return value for builtins (#53696)"
+    },
+    {
+      "sha": "846adcd293846272a09641807fef733bf5ff21ff",
+      "short_sha": "846adcd2938",
+      "date": "2026-05-15T13:52:22-04:00",
+      "author": {
+        "name": "Mihai Andrei",
+        "email": "mihai.andrei@mongodb.com"
+      },
+      "summary": "SERVER-126037 Finish converting arithmetic builtins to use value RAII types (#53718)"
+    },
+    {
+      "sha": "b302508833a9da99b44d9c4618deb7aa86dee411",
+      "short_sha": "b302508833a",
+      "date": "2026-05-15T12:47:25-04:00",
+      "author": {
+        "name": "Xuerui Fa",
+        "email": "xuerui.fa@mongodb.com"
+      },
+      "summary": "SERVER-125964: Apply initial sync oplog entries from initiating set o… (#53240)"
+    },
+    {
+      "sha": "b270115356131d5d5390cb0bd7c43c8223d51aff",
+      "short_sha": "b2701153561",
+      "date": "2026-05-15T12:25:10-04:00",
+      "author": {
+        "name": "Sean Lyons",
+        "email": "sean.lyons@mongodb.com"
+      },
+      "summary": "SERVER-126501: Add bazel targets for buildscripts tests (#53703)"
+    },
+    {
+      "sha": "4c636d3b944bb7104a43d8077dccb822be392d70",
+      "short_sha": "4c636d3b944",
+      "date": "2026-05-15T11:21:08-04:00",
+      "author": {
+        "name": "Stephanie",
+        "email": "53684987+seristof@users.noreply.github.com"
+      },
+      "summary": "SERVER-126703 Move index build tests into jstests/replsets/index_builds/ (#53814)"
+    },
+    {
+      "sha": "14bcef04af8ea17b3ff964d7ada31f0e926449d1",
+      "short_sha": "14bcef04af8",
+      "date": "2026-05-15T09:57:20-04:00",
+      "author": {
+        "name": "Sean Lyons",
+        "email": "sean.lyons@mongodb.com"
+      },
+      "summary": "SERVER-126753: Use the same Evergreen configuration for all release branches (#53778)"
+    },
+    {
+      "sha": "5203a86f277d2fc299f2acba00d511ab8166a198",
+      "short_sha": "5203a86f277",
+      "date": "2026-05-15T12:02:24+01:00",
+      "author": {
+        "name": "nicola cabiddu",
+        "email": "nicolacabiddu@gmail.com"
+      },
+      "summary": "SERVER-126208 wire sls into jepsen tests for rw concern verification (#53440)"
+    },
+    {
+      "sha": "5be3398828239c51908af7969df5982971bf1022",
+      "short_sha": "5be33988282",
+      "date": "2026-05-15T11:08:55+02:00",
+      "author": {
+        "name": "mongo-pr-bot[bot]",
+        "email": "230616009+mongo-pr-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "SERVER-110427 Update profiling data (#53779)"
+    },
+    {
+      "sha": "02ad24dea1f7b3a88ac6e5d922beaaa1f45e5f4d",
+      "short_sha": "02ad24dea1f",
+      "date": "2026-05-15T10:03:39+01:00",
+      "author": {
+        "name": "cian-mdb",
+        "email": "cian.nugentmcgealy@mongodb.com"
+      },
+      "summary": "SERVER-111158 Split document_source_change_stream_handle_topology_change_v2_test into multiple files (#53482)"
+    },
     {
       "sha": "9fc5c3520345d54f65753abf97056a59a6ddc318",
       "short_sha": "9fc5c352034",
@@ -804,10 +994,140 @@
           "num_of_dirs": 14
         }
       }
+    },
+    {
+      "commit": {
+        "sha": "02ad24dea1f7b3a88ac6e5d922beaaa1f45e5f4d",
+        "short_sha": "02ad24dea1f",
+        "date": "2026-05-15T10:03:39+01:00",
+        "author": {
+          "name": "cian-mdb",
+          "email": "cian.nugentmcgealy@mongodb.com"
+        },
+        "summary": "SERVER-111158 Split document_source_change_stream_handle_topology_change_v2_test into multiple files (#53482)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 10,
+          "num_of_lines": 7903,
+          "lines_added": 4240,
+          "lines_deleted": 3663,
+          "num_of_dirs": 1
+        }
+      }
+    },
+    {
+      "commit": {
+        "sha": "b270115356131d5d5390cb0bd7c43c8223d51aff",
+        "short_sha": "b2701153561",
+        "date": "2026-05-15T12:25:10-04:00",
+        "author": {
+          "name": "Sean Lyons",
+          "email": "sean.lyons@mongodb.com"
+        },
+        "summary": "SERVER-126501: Add bazel targets for buildscripts tests (#53703)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 103,
+          "num_of_lines": 1548,
+          "lines_added": 1477,
+          "lines_deleted": 71,
+          "num_of_dirs": 35
+        }
+      }
+    },
+    {
+      "commit": {
+        "sha": "b302508833a9da99b44d9c4618deb7aa86dee411",
+        "short_sha": "b302508833a",
+        "date": "2026-05-15T12:47:25-04:00",
+        "author": {
+          "name": "Xuerui Fa",
+          "email": "xuerui.fa@mongodb.com"
+        },
+        "summary": "SERVER-125964: Apply initial sync oplog entries from initiating set o… (#53240)"
+      },
+      "strategy_name": "important_files",
+      "result": {
+        "matched_files": [
+          "src/mongo/db/repl/initial_sync/initial_syncer.cpp",
+          "src/mongo/db/repl/initial_sync/initial_syncer.h"
+        ]
+      }
+    },
+    {
+      "commit": {
+        "sha": "38cb5220fe3b66a2f43018ca52d0cac43d110e70",
+        "short_sha": "38cb5220fe3",
+        "date": "2026-05-15T17:30:11-04:00",
+        "author": {
+          "name": "Stephanie",
+          "email": "53684987+seristof@users.noreply.github.com"
+        },
+        "summary": "SERVER-126461 Change all storex-owned unit tests that use ASSERT_* --> EXPECT_* if able to (#53682)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 82,
+          "num_of_lines": 6960,
+          "lines_added": 3480,
+          "lines_deleted": 3480,
+          "num_of_dirs": 19
+        }
+      }
+    },
+    {
+      "commit": {
+        "sha": "c021919b7c312eb3318f6517bf77f5486437cee2",
+        "short_sha": "c021919b7c3",
+        "date": "2026-05-16T07:38:07+00:00",
+        "author": {
+          "name": "auto-revert-app[bot]",
+          "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
+        },
+        "summary": "Revert \"SERVER-125964: Apply initial sync oplog entries from initiating set o… (#53240)\" (#53899)"
+      },
+      "strategy_name": "important_files",
+      "result": {
+        "matched_files": [
+          "src/mongo/db/repl/initial_sync/initial_syncer.cpp",
+          "src/mongo/db/repl/initial_sync/initial_syncer.h"
+        ]
+      }
+    },
+    {
+      "commit": {
+        "sha": "73fac26a347b68ad7ef19e84b9797646a50d70c8",
+        "short_sha": "73fac26a347",
+        "date": "2026-05-18T12:31:58+10:00",
+        "author": {
+          "name": "wt-vendoring-bot[bot]",
+          "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
+        },
+        "summary": "Import wiredtiger: bb840c5216cd665541a7cd140217ed0a17c514c5 from branch mongodb-master (#53904)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 81,
+          "num_of_lines": 13191,
+          "lines_added": 5101,
+          "lines_deleted": 8090,
+          "num_of_dirs": 28
+        }
+      }
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-05-15 07:06:30",
+  "generated_at": "2026-05-18 07:21:37",
   "branch_name": "master",
   "display_name": "master"
 }
