@@ -516,7 +516,11 @@ install_deps() {
         ln -sf /usr/bin/python3.7 /usr/bin/python3
         wget https://bootstrap.pypa.io/pip/3.7/get-pip.py -O get-pip.py
       fi
-      python get-pip.py
+      if [ x"${DEBIAN}" = "xbullseye" ]; then
+        python get-pip.py "pip<24" "wheel<0.42" "setuptools<70"
+      else
+        python get-pip.py
+      fi
       easy_install pip
       pip install setuptools
     fi
@@ -838,6 +842,7 @@ build_deb(){
 
     pip install -r etc/pip/dev-requirements.txt --ignore-installed
     pip install -r etc/pip/evgtest-requirements.txt --ignore-installed
+    pip install -r etc/pip/compile-requirements.txt --force-reinstall
     #
     cp -av percona-packaging/debian/rules debian/
 
