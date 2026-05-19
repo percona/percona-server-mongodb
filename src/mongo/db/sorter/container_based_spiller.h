@@ -46,6 +46,7 @@
 #include "mongo/util/modules.h"
 
 #include <algorithm>
+#include <iterator>
 #include <memory>
 #include <span>
 #include <utility>
@@ -178,11 +179,15 @@ private:
         uassert(11786000,
                 fmt::format("Sorter container unexpectedly reached end before key {}", _position),
                 result);
-        uassert(11786001,
-                fmt::format("Sorter container unexpectedly got key {} instead of {}",
-                            result->first,
-                            _position),
-                result->first == ++_position);
+        ++_position;
+        if (result->first != _position) {
+            // A write conflict may have reset this cursor.
+            auto found = _cursor->find(_position);
+            uassert(11786001,
+                    fmt::format("Sorter container missing expected key {}", _position),
+                    found);
+            return *found;
+        }
         return result->second;
     }
 
@@ -453,16 +458,23 @@ public:
                                 batchBytes,
                                 minAvailableDiskBytesToSpill) {}
 
+    void spill(const SortOptions& opts,
+               const SpillerBase<Key, Value, Comparator>::Settings& settings,
+               std::span<std::pair<Key, Value>> data) override {
+        SpillerBase<Key, Value, Comparator>::spill(opts, settings, data);
+        _onSpill();
+    }
+
     void mergeSpills(const SortOptions& opts,
                      const SpillerBase<Key, Value, Comparator>::Settings& settings,
                      SorterStats& stats,
-                     std::vector<std::shared_ptr<sorter::Iterator<Key, Value>>>& iters,
                      Comparator comp,
                      std::size_t numTargetedSpills,
                      std::size_t maxSpillsPerMerge) override {
-        std::vector<std::shared_ptr<sorter::Iterator<Key, Value>>> oldIters;
-        while (iters.size() > numTargetedSpills) {
-            oldIters.swap(iters);
+        while (this->_iterators.size() > numTargetedSpills) {
+            // Copy the current iterators so the merged-from iterators stay alive for the entire
+            // outer pass even after we erase them from _iterators below.
+            auto oldIters = this->_iterators;
             for (size_t i = 0; i < oldIters.size(); i += maxSpillsPerMerge) {
                 auto count = std::min(maxSpillsPerMerge, oldIters.size() - i);
                 auto spillsToMerge = std::span(oldIters).subspan(i, count);
@@ -522,6 +534,10 @@ public:
                 }
                 invariant((opts.limit) ? numSpilled <= numSourceRows : numSpilled == numSourceRows);
 
+                this->_iterators.erase(this->_iterators.begin(),
+                                       std::next(this->_iterators.begin(), count));
+                this->_iterators.push_back(writer->done());
+
                 _onSpill();
 
                 // TODO(SERVER-117546): Use a truncate rather than individual deletes.
@@ -541,7 +557,6 @@ public:
                                        });
                 }
 
-                iters.push_back(writer->done());
                 _current += numSpilled;
                 _containerBasedStorage().updateCurrKey(_current);
 
@@ -549,7 +564,6 @@ public:
                 stats.incrementSpilledRanges();
                 stats.incrementSpilledKeyValuePairs(numSpilled);
             }
-            oldIters.clear();
         }
     }
 
@@ -620,7 +634,6 @@ private:
 
         _current += data.size();
         _containerBasedStorage().updateCurrKey(_current);
-        _onSpill();
 
         return std::move(writer);
     }

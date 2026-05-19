@@ -184,8 +184,9 @@ bool checkRetryableWriteAlreadyApplied(const AggExState& aggExState,
     CursorResponseBuilder::Options options;
     options.isInitialResponse = true;
     CursorResponseBuilder responseBuilder(result, options);
+    const auto& includeMetricsOption = aggReq.getIncludeMetrics();
     const bool includeQueryStatsMetrics = aggReq.getIncludeQueryStatsMetrics().value_or(false) ||
-        aggReq.getIncludeMetrics().value_or(IncludeMetrics{}).getQueryStats();
+        (includeMetricsOption && includeMetricsOption->getQueryStats());
     boost::optional<CursorMetrics> metrics =
         includeQueryStatsMetrics ? boost::make_optional(CursorMetrics{}) : boost::none;
     responseBuilder.setWasStatementExecuted(true);
@@ -444,6 +445,17 @@ bool getFirstBatch(const AggExState& aggExState,
         if (!stashedResult) {
             responseBuilder.setPostBatchResumeToken(exec.getPostBatchResumeToken());
         }
+        if (aggExState.hasChangeStream()) {
+            // Set the initial change stream optime so that $currentOp reflects the cursor position
+            // before any getMore is issued. The executor's _latestOplogTimestamp is initialized
+            // from the initial post-batch resume token (resume token clusterTime,
+            // startAtOperationTime, or the current oplog tip when neither is specified).
+            auto ts = exec.getLatestOplogTimestamp();
+            tassert(12613200,
+                    "Change stream pipeline executor must have a non-null latest oplog timestamp",
+                    !ts.isNull());
+            curOp->debug().changeStreamMetrics.setOptime(ts);
+        }
 
         // Cursor needs to be in a saved state while we yield locks for getmore. State will be
         // restored in getMore().
@@ -491,8 +503,9 @@ boost::optional<ClientCursorPin> executeSingleExecUntilFirstBatch(
     collectQueryStats(aggExState, expCtx, execs[0].get(), maybePinnedCursor.get_ptr());
 
     const auto& aggReq = aggExState.getRequest();
+    const auto& includeMetricsOption = aggReq.getIncludeMetrics();
     const bool includeQueryStatsMetrics = aggReq.getIncludeQueryStatsMetrics().value_or(false) ||
-        aggReq.getIncludeMetrics().value_or(IncludeMetrics{}).getQueryStats();
+        (includeMetricsOption && includeMetricsOption->getQueryStats());
     boost::optional<CursorMetrics> metrics = includeQueryStatsMetrics
         ? boost::make_optional(CurOp::get(opCtx)->debug().getCursorMetrics())
         : boost::none;
@@ -952,8 +965,9 @@ void computeShapeAndRegisterQueryStats(const AggExState& aggExState,
         },
         aggExState.hasChangeStream());
 
+    const auto& includeMetricsOption = aggReq.getIncludeMetrics();
     if (aggReq.getIncludeQueryStatsMetrics().value_or(false) ||
-        aggReq.getIncludeMetrics().value_or(IncludeMetrics{}).getQueryStats()) {
+        (includeMetricsOption && includeMetricsOption->getQueryStats())) {
         CurOp::get(aggExState.getOpCtx())->debug().getQueryStatsInfo().metricsRequested = true;
     }
 }

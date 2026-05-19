@@ -47,9 +47,6 @@ using ParserMap = LiteParsedDocumentSource::ParserMap;
 
 namespace {
 
-// Empty vector used by LiteParsedDocumentSources which do not have a sub pipeline.
-inline static std::vector<LiteParsedPipeline> kNoSubPipeline = {};
-
 ParserMap parserMap;
 
 // Metrics are added to aggStageCounters upon LiteParsedDocumentSource registration. Considering
@@ -205,10 +202,6 @@ std::unique_ptr<LiteParsedDocumentSource> LiteParsedDocumentSource::parse(
     lpds->setApiStrict(lpInfo.allowedWithApiStrict);
     lpds->setClientType(lpInfo.allowedWithClientType);
     return lpds;
-}
-
-std::vector<LiteParsedPipeline>& LiteParsedDocumentSource::getMutableSubPipelines() {
-    return kNoSubPipeline;
 }
 
 const ParserMap& LiteParsedDocumentSource::getParserMap() {

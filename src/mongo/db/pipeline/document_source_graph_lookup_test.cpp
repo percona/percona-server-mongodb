@@ -39,6 +39,7 @@
 #include "mongo/db/pipeline/expression_context_for_test.h"
 #include "mongo/db/pipeline/graph_lookup_mock_mongo_interface.h"
 #include "mongo/db/pipeline/lite_parsed_graph_lookup.h"
+#include "mongo/db/pipeline/owned_lite_parsed_pipeline.h"
 #include "mongo/db/pipeline/serverless_aggregation_context_fixture.h"
 #include "mongo/db/stats/counters.h"
 #include "mongo/db/tenant_id.h"
@@ -421,7 +422,7 @@ TEST_F(DocumentSourceGraphLookUpTest, LiteParsedGraphLookupRequiredPrivileges) {
 
 TEST_F(DocumentSourceGraphLookUpTest, LiteParsedGraphLookupHasEmptySubPipelines) {
     auto liteParsed = parseLiteGraphLookup(getExpCtx());
-    ASSERT_TRUE(liteParsed->getMutableSubPipelines().empty());
+    ASSERT_TRUE(liteParsed->getMutableSubPipelines()->empty());
 }
 
 }  // namespace

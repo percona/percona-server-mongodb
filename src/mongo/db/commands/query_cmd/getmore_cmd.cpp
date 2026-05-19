@@ -595,6 +595,17 @@ public:
             exec->reattachToOperationContext(opCtx);
             exec->restoreState(nullptr);
 
+            if (cursorPin->isChangeStreamQuery()) {
+                // Initialize optime to the cursor's current position before batch generation so
+                // that $currentOp shows a non-null value while this getMore is in progress.
+                auto ts = exec->getLatestOplogTimestamp();
+                tassert(12613202,
+                        "Change stream pipeline executor must have a non-null latest oplog "
+                        "timestamp",
+                        !ts.isNull());
+                curOp->debug().changeStreamMetrics.setOptime(ts);
+            }
+
             {
                 auto planSummary = exec->getPlanExplainer().getPlanSummary();
 
@@ -672,9 +683,11 @@ public:
                 // Update optime after every getMore: reflects the last event's timestamp when
                 // events were returned, or the current high-watermark when the batch was empty.
                 auto ts = exec->getLatestOplogTimestamp();
-                if (!ts.isNull()) {
-                    cursorPin->setChangeStreamsCursorOptime(ts);
-                }
+                tassert(12613201,
+                        "Change stream pipeline executor must have a non-null latest oplog "
+                        "timestamp",
+                        !ts.isNull());
+                curOp->debug().changeStreamMetrics.setOptime(ts);
             }
 
             PlanSummaryStats postExecutionStats;
@@ -729,9 +742,10 @@ public:
             curOp->setEndOfOpMetrics(numResults);
             collectQueryStatsMongod(opCtx, cursorPin);
 
+            const auto& includeMetricsOption = cmd.getIncludeMetrics();
             const bool includeQueryStatsMetrics =
                 cmd.getIncludeQueryStatsMetrics().value_or(false) ||
-                cmd.getIncludeMetrics().value_or(IncludeMetrics{}).getQueryStats();
+                (includeMetricsOption && includeMetricsOption->getQueryStats());
             boost::optional<CursorMetrics> metrics = includeQueryStatsMetrics
                 ? boost::make_optional(CurOp::get(opCtx)->debug().getCursorMetrics())
                 : boost::none;
@@ -866,8 +880,9 @@ public:
                 admissionPriority.emplace(opCtx, AdmissionContext::Priority::kExempt);
             }
 
+            const auto& includeMetricsOption = cmd.getIncludeMetrics();
             if (cmd.getIncludeQueryStatsMetrics().value_or(false) ||
-                cmd.getIncludeMetrics().value_or(IncludeMetrics{}).getQueryStats()) {
+                (includeMetricsOption && includeMetricsOption->getQueryStats())) {
                 curOp->debug().getQueryStatsInfo().metricsRequested = true;
             }
 

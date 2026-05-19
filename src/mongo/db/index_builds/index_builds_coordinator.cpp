@@ -357,6 +357,14 @@ void onCommitIndexBuild(OperationContext* opCtx,
     invariant(shard_role_details::getLocker(opCtx)->isWriteLocked(),
               str::stream() << "onCommitIndexBuild: " << buildUUID);
 
+    if (replState->protocol == IndexBuildProtocol::kPrimaryDriven) {
+        shard_role_details::getRecoveryUnit(opCtx)->onCommit([buildUUID = replState->buildUUID](
+                                                                 OperationContext* opCtx,
+                                                                 boost::optional<Timestamp>) {
+            index_builds::primary_driven::registry(opCtx->getServiceContext()).remove(buildUUID);
+        });
+    }
+
     auto opObserver = opCtx->getServiceContext()->getOpObserver();
     const auto& collUUID = replState->collectionUUID;
     const auto& indexes = replState->getIndexes();
@@ -875,6 +883,7 @@ Status IndexBuildsCoordinator::_startIndexBuildForRecovery(OperationContext* opC
                                                                          indexes,
                                                                          protocol,
                                                                          Date_t::now());
+        replIndexBuildState->stats.numIndexesBefore = getNumIndexesTotal(opCtx, collWriter.get());
 
         Status status = activeIndexBuilds.registerIndexBuild(replIndexBuildState);
         if (!status.isOK()) {
@@ -1007,6 +1016,7 @@ Status IndexBuildsCoordinator::_registerResumeIndexBuild(OperationContext* opCtx
 
     auto replIndexBuildState = std::make_shared<ReplIndexBuildState>(
         buildUUID, collection->uuid(), dbName, mutableIndexes, protocol, Date_t::now());
+    replIndexBuildState->stats.numIndexesBefore = getNumIndexesTotal(opCtx, collection.get());
 
     Status status = activeIndexBuilds.registerIndexBuild(replIndexBuildState);
     if (!status.isOK()) {

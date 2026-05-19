@@ -209,19 +209,35 @@ makeSpiller(OperationContext* opCtx,
             ContainerWriteBehavior containerWriteBehavior,
             OnSpillFn onSpill = nullptr) {
     if (containerWriteBehavior == ContainerWriteBehavior::kReplicate) {
-        return std::make_shared<sorter::ContainerBasedSpiller<key_string::Value,
-                                                              mongo::NullValue,
-                                                              BtreeExternalSortComparison>>(
-            *opCtx,
-            *shard_role_details::getRecoveryUnit(opCtx),
-            entry->indexBuildInterceptor()->getSorterContainer(),
-            containerStats,
-            dbName,
-            sorter::kLatestChecksumVersion,
-            std::move(onSpill),
-            primaryDrivenIndexBuildSorterInsertionBatchSize.load(),
-            primaryDrivenIndexBuildSorterInsertionBatchBytes.load(),
-            static_cast<int64_t>(indexBuildSpillingMinAvailableDiskSpaceBytes.load()));
+        return stateInfo && stateInfo->getRanges() && !stateInfo->getRanges()->empty()
+            ? std::make_shared<sorter::ContainerBasedSpiller<key_string::Value,
+                                                             mongo::NullValue,
+                                                             BtreeExternalSortComparison>>(
+                  *opCtx,
+                  *shard_role_details::getRecoveryUnit(opCtx),
+                  entry->indexBuildInterceptor()->getSorterContainer(),
+                  // Use the end of the last existing range as the starting key.
+                  stateInfo->getRanges()->back().getEnd(),
+                  containerStats,
+                  dbName,
+                  sorter::kLatestChecksumVersion,
+                  std::move(onSpill),
+                  primaryDrivenIndexBuildSorterInsertionBatchSize.load(),
+                  primaryDrivenIndexBuildSorterInsertionBatchBytes.load(),
+                  static_cast<int64_t>(indexBuildSpillingMinAvailableDiskSpaceBytes.load()))
+            : std::make_shared<sorter::ContainerBasedSpiller<key_string::Value,
+                                                             mongo::NullValue,
+                                                             BtreeExternalSortComparison>>(
+                  *opCtx,
+                  *shard_role_details::getRecoveryUnit(opCtx),
+                  entry->indexBuildInterceptor()->getSorterContainer(),
+                  containerStats,
+                  dbName,
+                  sorter::kLatestChecksumVersion,
+                  std::move(onSpill),
+                  primaryDrivenIndexBuildSorterInsertionBatchSize.load(),
+                  primaryDrivenIndexBuildSorterInsertionBatchBytes.load(),
+                  static_cast<int64_t>(indexBuildSpillingMinAvailableDiskSpaceBytes.load()));
     }
     invariant(!onSpill);
 
@@ -723,17 +739,6 @@ Status MultiIndexBlock::insertAllDocumentsInCollection(
         return Status::OK();
     }
 
-    // Hint to the storage engine that this collection scan should not keep data in the cache.
-    bool readOnce = useReadOnceCursorsForIndexBuilds.load();
-    shard_role_details::getRecoveryUnit(opCtx)->setReadOnce(readOnce);
-
-    // TODO (SERVER-119515): Move this to a higher level.
-    if (_containerWriteBehavior == ContainerWriteBehavior::kReplicate &&
-        !opCtx->getServiceContext()->getStorageEngine()->isEphemeral()) {
-        shard_role_details::getRecoveryUnit(opCtx)->setPrefetching(
-            primaryDrivenIndexBuildPrefetching.load());
-    }
-
     size_t numScanRestarts = 0;
     bool restartCollectionScan = false;
     Timer timer;
@@ -965,10 +970,9 @@ void MultiIndexBlock::_doCollectionScan(OperationContext* opCtx,
                                       objToIndex,
                                       progress->get(WithLock::withoutLock())->hits()));
 
-        // The external sorter is not part of the storage engine and therefore does not need
-        // a WriteUnitOfWork to write keys. In case there are constraint violations being
-        // suppressed, resulting in a write to the side table, all WUOW and write conflict exception
-        // handling for the side table write is handled internally.
+        // In case there are constraint violations being suppressed, resulting in a write to the
+        // side table, WUOW and write conflict exception handling for the side table write are
+        // handled internally.
 
         // If kRelaxConstraints, shouldRelaxConstraints will simply be ignored and all errors
         // suppressed. If kRelaxContraintsCallback, shouldRelaxConstraints is used to determine
@@ -1049,6 +1053,10 @@ Status MultiIndexBlock::_insert(
         }
     }
 
+    // Update the last record inserted before actually performing the insert. That way if an
+    // on-spill callback runs, it can see the most up-to-date position.
+    _lastRecordIdInserted = loc;
+
     for (size_t i = 0; i < _indexes.size(); i++) {
         if (_indexes[i].filterExpression &&
             !exec::matcher::matchesBSON(_indexes[i].filterExpression, doc)) {
@@ -1076,8 +1084,6 @@ Status MultiIndexBlock::_insert(
         if (!idxStatus.isOK())
             return idxStatus;
     }
-
-    _lastRecordIdInserted = loc;
 
     return Status::OK();
 }

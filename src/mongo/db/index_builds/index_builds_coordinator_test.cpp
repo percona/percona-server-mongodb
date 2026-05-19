@@ -220,6 +220,34 @@ TEST_F(IndexBuildsCoordinatorTest, ForegroundIndexOptionsConflictRelax) {
     ASSERT_EQ(coll(opCtx, nss)->getIndexCatalog()->numIndexesTotal(), 2);
 }
 
+TEST_F(IndexBuildsCoordinatorTest, GetNumIndexesTotalReturnsCatalogCount) {
+    auto opCtx = operationContext();
+    NamespaceString nss = NamespaceString::createNamespaceString_forTest(
+        "IndexBuildsCoordinatorTest.GetNumIndexesTotalReturnsCatalogCount");
+    createCollectionWithDuplicateDocs(opCtx, nss);
+
+    {
+        auto collection = getCollectionExclusive(opCtx, nss);
+        EXPECT_EQ(1,
+                  IndexBuildsCoordinator::getNumIndexesTotal(opCtx, collection.getCollectionPtr()));
+    }
+
+    auto indexBuildsCoord = IndexBuildsCoordinator::get(opCtx);
+    auto spec = BSON("v" << int(IndexConfig::kLatestIndexVersion) << "key" << BSON("a" << 1)
+                         << "name" << "a_1");
+    {
+        auto collection = getCollectionExclusive(opCtx, nss);
+        ASSERT_DOES_NOT_THROW(indexBuildsCoord->createIndex(
+            opCtx, collection.uuid(), spec, IndexBuildsManager::IndexConstraints::kRelax, false));
+    }
+
+    {
+        auto collection = getCollectionExclusive(opCtx, nss);
+        EXPECT_EQ(2,
+                  IndexBuildsCoordinator::getNumIndexesTotal(opCtx, collection.getCollectionPtr()));
+    }
+}
+
 class OpObserverMock : public OpObserverNoop {
 public:
     std::vector<std::string> createIndexIdents;
@@ -624,6 +652,47 @@ TEST_F(IndexBuildsCoordinatorTest, StepUpPrimaryDrivenAbortsOnlyTwoPhaseBuilds) 
         opCtx, singlePhaseUUID, IndexBuildProtocol::kSinglePhase);
     ASSERT_FALSE(
         indexBuildsCoord->inProgForCollection(singlePhaseUUID, IndexBuildProtocol::kSinglePhase));
+}
+
+TEST_F(IndexBuildsCoordinatorTest, CommitRemovesBuildFromPrimaryDrivenRegistry) {
+    // TODO (SERVER-116165): Remove.
+    RAIIServerParameterControllerForTest ffContainerWrites("featureFlagContainerWrites", true);
+    RAIIServerParameterControllerForTest ffPDIB("featureFlagPrimaryDrivenIndexBuilds", true);
+
+    auto opCtx = operationContext();
+
+    auto ns = NamespaceString::createNamespaceString_forTest(
+        "IndexBuildsCoordinatorTest.CommitRemovesBuildFromPrimaryDrivenRegistry");
+    ASSERT_OK(storageInterface()->createCollection(opCtx, ns, CollectionOptions{}));
+    auto collUUID = [&] {
+        auto collection = getCollectionExclusive(opCtx, ns);
+        WriteUnitOfWork wuow(opCtx);
+        ASSERT_OK(Helpers::insert(opCtx, collection.getCollectionPtr(), BSON("_id" << 1)));
+        wuow.commit();
+        return collection.uuid();
+    }();
+
+    auto indexes = toIndexBuildInfoVec(
+        std::vector<BSONObj>{BSON("v" << 2 << "key" << BSON("a" << 1) << "name" << "a_1")},
+        *opCtx->getServiceContext()->getStorageEngine(),
+        ns.dbName());
+    auto buildUUID = UUID::gen();
+
+    auto& registry = index_builds::primary_driven::registry(opCtx->getServiceContext());
+    registry.add(buildUUID, ns.dbName(), collUUID, indexes, boost::none);
+
+    auto future = unittest::assertGet(IndexBuildsCoordinator::get(opCtx)->startIndexBuild(
+        opCtx,
+        ns.dbName(),
+        collUUID,
+        indexes,
+        buildUUID,
+        {.indexBuildMethod = IndexBuildMethodEnum::kPrimaryDriven,
+         .indexBuildProtocol = IndexBuildProtocol::kPrimaryDriven,
+         .commitQuorum = CommitQuorumOptions{CommitQuorumOptions::kPrimarySelfVote}}));
+    ASSERT_OK(future.getNoThrow());
+
+    EXPECT_TRUE(registry.all().empty());
 }
 
 // Persists a minimal kPrimaryDriven ResumeIndexInfo for `buildUUID` at the supplied phase,

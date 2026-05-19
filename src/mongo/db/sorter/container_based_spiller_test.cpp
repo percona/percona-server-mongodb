@@ -38,6 +38,8 @@
 #include "mongo/db/sorter/sorter_test_utils.h"
 #include "mongo/db/storage/container.h"
 #include "mongo/db/storage/ident.h"
+#include "mongo/db/storage/record_store.h"
+#include "mongo/db/storage/record_store_test_harness.h"
 #include "mongo/db/storage/recovery_unit_noop.h"
 #include "mongo/db/storage/storage_options.h"
 #include "mongo/unittest/death_test.h"
@@ -731,7 +733,7 @@ TEST_P(ContainerBasedSpillerTest, Spill) {
         stats,
         boost::none,
         sorter::kLatestChecksumVersion,
-        [&spilled] { ++spilled; },
+        [&spiller, &spilled] { EXPECT_EQ(spiller.iterators().size(), ++spilled); },
         batchSize(),
         batchBytes(),
         testSpillingMinAvailableDiskSpaceBytes};
@@ -739,14 +741,17 @@ TEST_P(ContainerBasedSpillerTest, Spill) {
     std::vector<std::pair<IntWrapper, NullValue>> data{{50, {}}, {100, {}}, {75, {}}, {125, {}}};
     std::span span{data};
 
-    auto it1 = spiller.spill(SortOptions{},
-                             Spiller<IntWrapper, NullValue, IWComparator>::Settings{},
-                             span.subspan(0, 2));
-    auto it2 = spiller.spill(SortOptions{},
-                             Spiller<IntWrapper, NullValue, IWComparator>::Settings{},
-                             span.subspan(2, 2));
+    spiller.spill(SortOptions{},
+                  Spiller<IntWrapper, NullValue, IWComparator>::Settings{},
+                  span.subspan(0, 2));
+    spiller.spill(SortOptions{},
+                  Spiller<IntWrapper, NullValue, IWComparator>::Settings{},
+                  span.subspan(2, 2));
 
     EXPECT_EQ(spilled, 2);
+    ASSERT_EQ(spiller.iterators().size(), 2);
+    auto it1 = spiller.iterators()[0];
+    auto it2 = spiller.iterators()[1];
 
     ASSERT_TRUE(it1->more());
     EXPECT_EQ(it1->next().first, 50);
@@ -788,26 +793,25 @@ TEST_P(ContainerBasedSpillerTest, MergeSpills) {
         {50, {}}, {100, {}}, {75, {}}, {125, {}}, {25, {}}};
     std::span<std::pair<IntWrapper, NullValue>> span{data};
 
-    std::vector<std::shared_ptr<sorter::Iterator<IntWrapper, NullValue>>> iterators;
-    iterators.push_back(spiller.spill(SortOptions{},
-                                      Spiller<IntWrapper, NullValue, IWComparator>::Settings{},
-                                      span.subspan(0, 2)));
-    iterators.push_back(spiller.spill(SortOptions{},
-                                      Spiller<IntWrapper, NullValue, IWComparator>::Settings{},
-                                      span.subspan(2, 2)));
-    iterators.push_back(spiller.spill(SortOptions{},
-                                      Spiller<IntWrapper, NullValue, IWComparator>::Settings{},
-                                      span.subspan(4, 1)));
+    spiller.spill(SortOptions{},
+                  Spiller<IntWrapper, NullValue, IWComparator>::Settings{},
+                  span.subspan(0, 2));
+    spiller.spill(SortOptions{},
+                  Spiller<IntWrapper, NullValue, IWComparator>::Settings{},
+                  span.subspan(2, 2));
+    spiller.spill(SortOptions{},
+                  Spiller<IntWrapper, NullValue, IWComparator>::Settings{},
+                  span.subspan(4, 1));
 
     SorterStats sorterStats{nullptr};
     spiller.mergeSpills(SortOptions{},
                         Spiller<IntWrapper, NullValue, IWComparator>::Settings{},
                         sorterStats,
-                        iterators,
                         IWComparator(ASC),
                         2,
                         2);
 
+    auto& iterators = spiller.iterators();
     EXPECT_EQ(iterators.size(), 2);
     EXPECT_EQ(container.entries().size(), data.size());
     EXPECT_EQ(spilled, 3 + 2);  // 3 spills and 2 merge passes
@@ -864,22 +868,21 @@ TEST_P(ContainerBasedSpillerTest, MergeSpillsMultiplePasses) {
                                                        {105, {}}};
     std::span<std::pair<IntWrapper, NullValue>> span{data};
 
-    std::vector<std::shared_ptr<sorter::Iterator<IntWrapper, NullValue>>> iterators;
     for (size_t i = 0; i < data.size(); ++i) {
-        iterators.push_back(spiller.spill(SortOptions{},
-                                          Spiller<IntWrapper, NullValue, IWComparator>::Settings{},
-                                          span.subspan(i, 1)));
+        spiller.spill(SortOptions{},
+                      Spiller<IntWrapper, NullValue, IWComparator>::Settings{},
+                      span.subspan(i, 1));
     }
 
     SorterStats sorterStats{nullptr};
     spiller.mergeSpills(SortOptions{},
                         Spiller<IntWrapper, NullValue, IWComparator>::Settings{},
                         sorterStats,
-                        iterators,
                         IWComparator(ASC),
                         3,
                         2);
 
+    auto& iterators = spiller.iterators();
     EXPECT_EQ(iterators.size(), 3);
     EXPECT_EQ(container.entries().size(), data.size());
     EXPECT_EQ(spilled, data.size() + 8);  // data.size() spills and 8 merge passes
@@ -909,6 +912,90 @@ TEST_P(ContainerBasedSpillerTest, MergeSpillsMultiplePasses) {
     ASSERT_TRUE(iterators[2]->more());
     EXPECT_EQ(iterators[2]->next().first, 175);
     EXPECT_FALSE(iterators[2]->more());
+}
+
+TEST_P(ContainerBasedSpillerTest, MergeSpillsOnSpillSeesCompleteIteratorView) {
+    auto opCtx = makeOperationContext();
+
+    auto replCoord = dynamic_cast<repl::ReplicationCoordinatorMock*>(
+        repl::ReplicationCoordinator::get(opCtx.get()));
+    ASSERT(replCoord);
+    replCoord->alwaysAllowWrites(true);
+
+    const auto identStr = ident::generateNewInternalIdent("container_spill"_sd);
+    ViewableIntegerKeyedContainer container{std::make_shared<Ident>(identStr)};
+    SorterContainerStats containerStats{nullptr};
+    std::vector<std::vector<std::pair<int64_t, int64_t>>> snapshots;
+
+    ContainerBasedSpiller<IntWrapper, NullValue, IWComparator> spiller{
+        *opCtx,
+        *shard_role_details::getRecoveryUnit(opCtx.get()),
+        container,
+        containerStats,
+        boost::none,
+        sorter::kLatestChecksumVersion,
+        [&spiller, &snapshots]() {
+            std::vector<std::pair<int64_t, int64_t>> snapshot;
+            for (const auto& it : spiller.iterators()) {
+                auto range = it->getRange();
+                snapshot.emplace_back(range.getStart(), range.getEnd());
+            }
+            snapshots.push_back(std::move(snapshot));
+        },
+        batchSize(),
+        batchBytes(),
+        testSpillingMinAvailableDiskSpaceBytes};
+
+    // Five single-element spills so each starting iterator covers exactly one container key.
+    std::vector<std::pair<IntWrapper, NullValue>> data{
+        {50, {}}, {100, {}}, {75, {}}, {125, {}}, {25, {}}};
+    std::span<std::pair<IntWrapper, NullValue>> span{data};
+    for (size_t i = 0; i < data.size(); ++i) {
+        spiller.spill(SortOptions{},
+                      Spiller<IntWrapper, NullValue, IWComparator>::Settings{},
+                      span.subspan(i, 1));
+    }
+
+    // We only care about snapshots taken during the merge pass.
+    snapshots.clear();
+
+    SorterStats sorterStats{nullptr};
+    spiller.mergeSpills(SortOptions{},
+                        Spiller<IntWrapper, NullValue, IWComparator>::Settings{},
+                        sorterStats,
+                        IWComparator(ASC),
+                        /*numTargetedSpills=*/2,
+                        /*maxSpillsPerMerge=*/2);
+
+    // Five inner-loop iterations: three in outer pass 1 (chunks [I1,I2], [I3,I4], [I5]) and two in
+    // outer pass 2 (chunks [X,Y], [Z]). The snapshot recorded at each onSpill must reflect the
+    // post-merge view: the just-written merged range replaces the merged-from entries of this
+    // chunk, even though the merged-from data is still on disk.
+    ASSERT_EQ(snapshots.size(), 5);
+    EXPECT_EQ(snapshots[0],
+              (std::vector<std::pair<int64_t, int64_t>>{{3, 4}, {4, 5}, {5, 6}, {6, 8}}));
+    EXPECT_EQ(snapshots[1], (std::vector<std::pair<int64_t, int64_t>>{{5, 6}, {6, 8}, {8, 10}}));
+    EXPECT_EQ(snapshots[2], (std::vector<std::pair<int64_t, int64_t>>{{6, 8}, {8, 10}, {10, 11}}));
+    EXPECT_EQ(snapshots[3], (std::vector<std::pair<int64_t, int64_t>>{{10, 11}, {11, 15}}));
+    EXPECT_EQ(snapshots[4], (std::vector<std::pair<int64_t, int64_t>>{{11, 15}, {15, 16}}));
+
+    auto& iterators = spiller.iterators();
+    ASSERT_EQ(iterators.size(), 2);
+    EXPECT_EQ(container.entries().size(), data.size());
+
+    ASSERT_TRUE(iterators[0]->more());
+    EXPECT_EQ(iterators[0]->next().first, 50);
+    ASSERT_TRUE(iterators[0]->more());
+    EXPECT_EQ(iterators[0]->next().first, 75);
+    ASSERT_TRUE(iterators[0]->more());
+    EXPECT_EQ(iterators[0]->next().first, 100);
+    ASSERT_TRUE(iterators[0]->more());
+    EXPECT_EQ(iterators[0]->next().first, 125);
+    EXPECT_FALSE(iterators[0]->more());
+
+    ASSERT_TRUE(iterators[1]->more());
+    EXPECT_EQ(iterators[1]->next().first, 25);
+    EXPECT_FALSE(iterators[1]->more());
 }
 
 TEST_P(ContainerBasedSpillerTest, SpillDirPathFromIdent) {
@@ -1218,6 +1305,65 @@ TEST_F(SortedContainerWriterTest, ReconstructPartiallyExhaustedIterator) {
     ASSERT_TRUE(reconstructedRange.getCurrentChecksum().has_value());
     EXPECT_EQ(*reconstructedRange.getCurrentChecksum(), *range.getCurrentChecksum());
     EXPECT_FALSE(reconstructed->more());
+}
+
+TEST(ContainerIteratorTest, RecoverCursorAfterAbandoningSnapshot) {
+    auto harnessHelper = newRecordStoreHarnessHelper();
+    auto rs = harnessHelper->newRecordStore("test.container",
+                                            RecordStore::Options{.keyFormat = KeyFormat::Long});
+    auto& container =
+        std::get<std::reference_wrapper<IntegerKeyedContainer>>(rs->getContainer()).get();
+
+    auto opCtx = harnessHelper->newOperationContext();
+    auto& ru = *shard_role_details::getRecoveryUnit(opCtx.get());
+
+    const std::vector<std::pair<IntWrapper, IntWrapper>> data = {
+        {1, 1},
+        {2, 2},
+        {3, 3},
+        {4, 4},
+        {5, 5},
+    };
+
+    SorterChecksumCalculator checksumCalc{sorter::kLatestChecksumVersion};
+    {
+        StorageWriteTransaction txn(ru);
+        int64_t containerKey = 1;
+        for (auto& [k, v] : data) {
+            BufBuilder buf;
+            k.serializeForSorter(buf);
+            v.serializeForSorter(buf);
+            ASSERT_OK(container.insert(ru,
+                                       containerKey++,
+                                       {buf.buf(), static_cast<size_t>(buf.len())},
+                                       container::ExistingKeyPolicy::reject));
+            checksumCalc.addData(buf.buf(), buf.len());
+        }
+        txn.commit();
+    }
+
+    ContainerIterator<IntWrapper, IntWrapper> iter(container.getCursor(ru),
+                                                   /*start=*/1,
+                                                   /*end=*/static_cast<int64_t>(data.size()) + 1,
+                                                   Iterator<IntWrapper, IntWrapper>::Settings{},
+                                                   checksumCalc.checksum(),
+                                                   sorter::kLatestChecksumVersion);
+
+    ASSERT_TRUE(iter.more());
+    EXPECT_EQ(iter.next(), (std::pair<IntWrapper, IntWrapper>{1, 1}));
+    ASSERT_TRUE(iter.more());
+    EXPECT_EQ(iter.next(), (std::pair<IntWrapper, IntWrapper>{2, 2}));
+
+    // Testing that we can recover from this.
+    ru.abandonSnapshot();
+
+    ASSERT_TRUE(iter.more());
+    EXPECT_EQ(iter.next(), (std::pair<IntWrapper, IntWrapper>{3, 3}));
+    ASSERT_TRUE(iter.more());
+    EXPECT_EQ(iter.next(), (std::pair<IntWrapper, IntWrapper>{4, 4}));
+    ASSERT_TRUE(iter.more());
+    EXPECT_EQ(iter.next(), (std::pair<IntWrapper, IntWrapper>{5, 5}));
+    ASSERT_FALSE(iter.more());
 }
 
 }  // namespace

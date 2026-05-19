@@ -39,6 +39,7 @@
 #include "mongo/db/pipeline/lite_parsed_document_source.h"
 #include "mongo/db/pipeline/lite_parsed_document_source_nested_pipelines.h"
 #include "mongo/db/pipeline/lite_parsed_pipeline.h"
+#include "mongo/db/pipeline/owned_lite_parsed_pipeline.h"
 #include "mongo/db/pipeline/search/document_source_internal_search_id_lookup.h"
 #include "mongo/idl/server_parameter_test_controller.h"
 #include "mongo/unittest/unittest.h"
@@ -71,19 +72,19 @@ public:
                 pipelineElem && pipelineElem.type() == BSONType::array);
 
         auto pipeline = parsePipelineFromBSON(pipelineElem);
-        auto optsCopy = options;
-        optsCopy.makeSubpipelineOwned = true;
-        auto liteParsedPipeline = LiteParsedPipeline(nss, pipeline, false, optsCopy);
+        auto ownedPipeline = OwnedLiteParsedPipeline(nss, pipeline, options);
 
         return std::make_unique<LiftSubpipelineLiteParsed>(
-            spec, boost::none, std::move(liteParsedPipeline));
+            spec, boost::none, std::move(ownedPipeline));
     }
 
     LiftSubpipelineLiteParsed(const BSONElement& spec,
                               boost::optional<NamespaceString> foreignNss,
-                              LiteParsedPipeline pipeline)
+                              OwnedLiteParsedPipeline pipeline)
         : LiteParsedDocumentSourceNestedPipelines(
-              spec, std::move(foreignNss), std::vector<LiteParsedPipeline>{std::move(pipeline)}) {}
+              spec,
+              std::move(foreignNss),
+              std::vector<OwnedLiteParsedPipeline>{std::move(pipeline)}) {}
 
     std::unique_ptr<StageParams> getStageParams() const override {
         return std::make_unique<LiftSubpipelineStageParams>(this->getOriginalBson());
@@ -108,12 +109,12 @@ public:
         LiteParsedDesugarer::registerStageExpander(
             LiftSubpipelineStageParams::id,
             [](LiteParsedPipeline* pipeline, size_t index, LiteParsedDocumentSource& stage) {
-                auto& subpipelines = stage.getSubPipelines();
+                auto* subpipelinesPtr = stage.getMutableSubPipelines();
                 tassert(8084900,
                         "$liftSubpipeline must have exactly one subpipeline",
-                        subpipelines.size() == 1);
+                        subpipelinesPtr && subpipelinesPtr->size() == 1);
                 StageSpecs lifted;
-                for (const auto& s : subpipelines[0].getStages()) {
+                for (const auto& s : (*subpipelinesPtr)[0]->getStages()) {
                     lifted.push_back(s->clone());
                 }
                 return pipeline->replaceStageWith(index, std::move(lifted));
@@ -174,9 +175,10 @@ public:
     void assertSubpipelineStageIsMatch(LiteParsedDocumentSource* stage,
                                        size_t subpipelineIdx,
                                        size_t stageIdx) {
-        auto& subpipelines = stage->getSubPipelines();
-        ASSERT_LT(subpipelineIdx, subpipelines.size());
-        auto& stages = subpipelines[subpipelineIdx].getStages();
+        auto* subpipelinesPtr = stage->getSubPipelines();
+        ASSERT_NE(subpipelinesPtr, nullptr);
+        ASSERT_LT(subpipelineIdx, subpipelinesPtr->size());
+        auto& stages = (*subpipelinesPtr)[subpipelineIdx]->getStages();
         ASSERT_LT(stageIdx, stages.size());
         ASSERT(dynamic_cast<MatchLiteParsed*>(stages[stageIdx].get()));
     }
@@ -550,9 +552,10 @@ TEST_F(LiteParsedDesugarerTest, SkipsSubpipelineDesugaringWhenIfrContextIsNull) 
     ASSERT_FALSE(LiteParsedDesugarer::desugar(&lpp, nullptr));
 
     // Subpipeline unchanged: still [$expandToHostParse] (not desugared to [$match]).
-    auto& subpipelines = lpp.getStages()[0]->getSubPipelines();
-    ASSERT_EQ(subpipelines.size(), 1);
-    auto& subpipelineStages = subpipelines[0].getStages();
+    auto* subpipelinesPtr = lpp.getStages()[0]->getSubPipelines();
+    ASSERT_NE(subpipelinesPtr, nullptr);
+    ASSERT_EQ(subpipelinesPtr->size(), 1);
+    auto& subpipelineStages = (*subpipelinesPtr)[0]->getStages();
     ASSERT_EQ(subpipelineStages.size(), 1);
     ASSERT_EQ(subpipelineStages[0]->getParseTimeName(), extStageName);
 
@@ -652,9 +655,10 @@ TEST_F(LiteParsedDesugarerTest, DesugarsNestedSubpipelines) {
     ASSERT_EQ(stages.size(), 1);
 
     // $unionWith's subpipeline: [$lookup]. The $lookup's subpipeline should be desugared.
-    auto& unionWithSubpipelines = stages[0]->getSubPipelines();
-    ASSERT_EQ(unionWithSubpipelines.size(), 1);
-    auto& unionWithPipelineStages = unionWithSubpipelines[0].getStages();
+    auto* unionWithSubpipelinesPtr = stages[0]->getSubPipelines();
+    ASSERT_NE(unionWithSubpipelinesPtr, nullptr);
+    ASSERT_EQ(unionWithSubpipelinesPtr->size(), 1);
+    auto& unionWithPipelineStages = (*unionWithSubpipelinesPtr)[0]->getStages();
     ASSERT_EQ(unionWithPipelineStages.size(), 1);
 
     // The $lookup stage's subpipeline (nested): [$expandToHostParse] -> [$match].

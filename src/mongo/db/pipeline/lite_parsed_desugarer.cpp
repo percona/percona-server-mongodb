@@ -30,6 +30,7 @@
 #include "mongo/db/pipeline/lite_parsed_desugarer.h"
 
 #include "mongo/base/init.h"
+#include "mongo/db/pipeline/owned_lite_parsed_pipeline.h"
 #include "mongo/db/pipeline/resolved_namespace.h"
 #include "mongo/db/query/query_feature_flags_gen.h"
 
@@ -58,9 +59,10 @@ bool LiteParsedDesugarer::desugar(LiteParsedPipeline* pipeline,
         auto hybridSearchFlagEnabled = ifrContext &&
             ifrContext->getSavedFlagValue(feature_flags::gFeatureFlagExtensionsInsideHybridSearch);
         if (hybridSearchFlagEnabled) {
-            auto& subpipelines = stage.getMutableSubPipelines();
-            for (auto& subpipelineLpp : subpipelines) {
-                modified |= LiteParsedDesugarer::desugar(&subpipelineLpp, ifrContext);
+            if (auto* subpipelines = stage.getMutableSubPipelines()) {
+                for (auto& subpipelineLpp : *subpipelines) {
+                    modified |= LiteParsedDesugarer::desugar(&*subpipelineLpp, ifrContext);
+                }
             }
         }
 
