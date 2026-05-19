@@ -193,13 +193,7 @@ mongo_cc_library(
         ":index_build_knobs_idl",
         ":index_builds_coordinator",
         ":resumable_index_builds_idl",
-<<<<<<< HEAD
-        ":two_phase_index_build_knobs_idl",
         "//src/mongo/db/audit:audit_impl",
-||||||| 24a5c4c9791
-        ":two_phase_index_build_knobs_idl",
-=======
->>>>>>> b061e598b7e2b4229263b7f962c616e86727fc3e
         "//src/mongo/db/s:forwardable_operation_metadata",
         "//src/mongo/db/shard_role",
         "//src/mongo/db/shard_role/shard_catalog:collection_catalog",
