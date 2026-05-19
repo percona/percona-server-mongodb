@@ -268,8 +268,11 @@ common:psmdb_buildfarm --spawn_strategy=remote,local
 #                compiles back to local.
 #   CppLink    : pinned local — remote ~2x slowdown vs local.
 #   CppArchive : not pinned — PSMDB sets --skip_archive=True (no actions emitted).
+#   GpgSign    : pinned local — gpg-agent daemon + agent IPC are a poor fit for
+#                hermetic RBE containers; remote execution is >10x slower than local.
 common:psmdb_buildfarm --strategy=CppCompile=remote,local
 common:psmdb_buildfarm --strategy=CppLink=local
+common:psmdb_buildfarm --strategy=GpgSign=local
 
 # Defensive: explicitly disable the enterprise Starlark flag here so that
 # upstream's bazel/wrapper_hook/wrapper_hook.py — which previously
