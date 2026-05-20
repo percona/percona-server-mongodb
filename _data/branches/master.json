@@ -5,14 +5,14 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 94,
+    "commits_behind": 115,
     "days_behind": 4,
-    "files_affected": 649,
-    "total_additions": 20611,
-    "total_deletions": 14615,
+    "files_affected": 761,
+    "total_additions": 26234,
+    "total_deletions": 15415,
     "date_range": {
       "first": "2026-05-18T02:31:58+00:00",
-      "last": "2026-05-20T09:20:14+00:00"
+      "last": "2026-05-20T17:59:09+00:00"
     }
   },
   "last_merged_commit": {
@@ -36,6 +36,216 @@
     "summary": "Import wiredtiger: bb840c5216cd665541a7cd140217ed0a17c514c5 from branch mongodb-master (#53904)"
   },
   "unmerged_commits": [
+    {
+      "sha": "d50a72f12e2f69af8b81088deb353779ea643e0f",
+      "short_sha": "d50a72f12e2",
+      "date": "2026-05-20T12:59:09-05:00",
+      "author": {
+        "name": "Daniel Moody",
+        "email": "dmoody256@gmail.com"
+      },
+      "summary": "SERVER-127262 add missing mongosentry dep (#54126)"
+    },
+    {
+      "sha": "5e6e35755fc6c5805bb3b9634784352552f4a853",
+      "short_sha": "5e6e35755fc",
+      "date": "2026-05-20T13:49:00-04:00",
+      "author": {
+        "name": "Sean Lyons",
+        "email": "sean.lyons@mongodb.com"
+      },
+      "summary": "SERVER-127113: Add bazel targets for extension resmoke suites (#54033)"
+    },
+    {
+      "sha": "41b16e48d982efd2701332badadb1aa521e864aa",
+      "short_sha": "41b16e48d98",
+      "date": "2026-05-20T13:37:55-04:00",
+      "author": {
+        "name": "Matt Broadstone",
+        "email": "mbroadst@mongodb.com"
+      },
+      "summary": "SERVER-126888: Add a high-resolution timer for perf testing in jstests (#53877)"
+    },
+    {
+      "sha": "0b730ee3c2390ed5699bcbea5ec2286b83469501",
+      "short_sha": "0b730ee3c23",
+      "date": "2026-05-20T13:07:13-04:00",
+      "author": {
+        "name": "Naafiyan Ahmed",
+        "email": "naafiyan.ahmed@mongodb.com"
+      },
+      "summary": "SERVER-127259: Fix resmoke invocation in join opt plan stability README (#54118)"
+    },
+    {
+      "sha": "12d7e12d1ebd90308bdce51ac771506e39ccc0ca",
+      "short_sha": "12d7e12d1eb",
+      "date": "2026-05-20T09:08:43-07:00",
+      "author": {
+        "name": "Zack Winter",
+        "email": "3457246+zackwintermdb@users.noreply.github.com"
+      },
+      "summary": "SERVER-126784: Enable Remote Asset API External Artifact Caching for Releases (#53827) (#53908)"
+    },
+    {
+      "sha": "1471d6dfadf06fd8db47be942992b8a60c2eb764",
+      "short_sha": "1471d6dfadf",
+      "date": "2026-05-20T12:08:17-04:00",
+      "author": {
+        "name": "Lynne Wang",
+        "email": "lynne.wang@mongodb.com"
+      },
+      "summary": "SERVER-111075 Enable passing disagg suites to run with TSAN on the waterfall (#53525)"
+    },
+    {
+      "sha": "2e622cf6b07935cd6b286955ce0cc8dfdc850d60",
+      "short_sha": "2e622cf6b07",
+      "date": "2026-05-20T11:42:13-04:00",
+      "author": {
+        "name": "Stephanie",
+        "email": "53684987+seristof@users.noreply.github.com"
+      },
+      "summary": "SERVER-124271 Sort spill merge can read freed WT cursor memory after a WriteConflictException (#54035)"
+    },
+    {
+      "sha": "00fbf91ff512b756a886a94301a0f3c0d7e1afbf",
+      "short_sha": "00fbf91ff51",
+      "date": "2026-05-20T11:28:31-04:00",
+      "author": {
+        "name": "natalie-hill",
+        "email": "natalie.hill@mongodb.com"
+      },
+      "summary": "SERVER-127128 Use fmt::format to make _id field helper more readable for persistent samples (#54073)"
+    },
+    {
+      "sha": "ebfca3c2a04aad310808398497e9f76b52a15803",
+      "short_sha": "ebfca3c2a04",
+      "date": "2026-05-20T11:28:02-04:00",
+      "author": {
+        "name": "Sean Lyons",
+        "email": "sean.lyons@mongodb.com"
+      },
+      "summary": "SERVER-126361 Enforce sorting of etc/backports_required_for_multiversion_tests.yml (#54061)"
+    },
+    {
+      "sha": "84e5faf9418a3184a47abcc4d25f48e799737679",
+      "short_sha": "84e5faf9418",
+      "date": "2026-05-20T11:25:07-04:00",
+      "author": {
+        "name": "Jada Lilleboe",
+        "email": "82007190+jadalilleboe@users.noreply.github.com"
+      },
+      "summary": "SERVER-126777 Add linting to ASPIO directory (#53861)"
+    },
+    {
+      "sha": "9c15da1a45b6151de3b7ae0b15a4744bafb7a136",
+      "short_sha": "9c15da1a45b",
+      "date": "2026-05-20T17:17:55+02:00",
+      "author": {
+        "name": "Hagar Mohamed",
+        "email": "hagar.mohamed@mongodb.com"
+      },
+      "summary": "SERVER-127048 Add pbt-repro skill for reproducing PBT failures from Evergreen logs (#53868)"
+    },
+    {
+      "sha": "4815dc2c775ab108a3f13beb0f3bee7095db309a",
+      "short_sha": "4815dc2c775",
+      "date": "2026-05-20T17:15:42+02:00",
+      "author": {
+        "name": "Jan",
+        "email": "jsteemann@users.noreply.github.com"
+      },
+      "summary": "SERVER-127054 Fix flaky change streams test (#54006)"
+    },
+    {
+      "sha": "bc95e3811c00857c58f43e29ff1d7ab9d872226f",
+      "short_sha": "bc95e3811c0",
+      "date": "2026-05-20T11:08:00-04:00",
+      "author": {
+        "name": "Billy Donahue",
+        "email": "BillyDonahue@users.noreply.github.com"
+      },
+      "summary": "SERVER-127140 avoid dereferencing empty optional decoration (#54084)"
+    },
+    {
+      "sha": "ca6c3c8352fca0f43f4c71cd9f2b7787761e6a2d",
+      "short_sha": "ca6c3c8352f",
+      "date": "2026-05-20T11:05:12-04:00",
+      "author": {
+        "name": "Max Hirschhorn",
+        "email": "max.hirschhorn@mongodb.com"
+      },
+      "summary": "SERVER-125888 Gossip lastStableRecoveryTimestamp between repl members. (#53168)"
+    },
+    {
+      "sha": "6833d54ea33cfd47e6d98364d243f8004c1db1de",
+      "short_sha": "6833d54ea33",
+      "date": "2026-05-20T10:49:02-04:00",
+      "author": {
+        "name": "Gregory Noma",
+        "email": "gregory.noma@gmail.com"
+      },
+      "summary": "SERVER-126902 Test resuming a PDIB multiple times (#53954)"
+    },
+    {
+      "sha": "e028d6213acc86e623d4fbc1e0b772db5be806ee",
+      "short_sha": "e028d6213ac",
+      "date": "2026-05-20T10:27:14-04:00",
+      "author": {
+        "name": "Ian Boros",
+        "email": "87138302+borosaurus@users.noreply.github.com"
+      },
+      "summary": "SERVER-111641 Update SBE open()/close() behavior documentation (#53972)"
+    },
+    {
+      "sha": "d00374ee45807f8378c67abcf90f1856bcc45683",
+      "short_sha": "d00374ee458",
+      "date": "2026-05-20T10:09:25-04:00",
+      "author": {
+        "name": "Matt Broadstone",
+        "email": "mbroadst@mongodb.com"
+      },
+      "summary": "SERVER-124943 Add queuing support to the IngressRequestRateLimiter (#53599)"
+    },
+    {
+      "sha": "c14866f57c29593e9f074adb0e3ed6cad55e2f3a",
+      "short_sha": "c14866f57c2",
+      "date": "2026-05-20T10:03:20-04:00",
+      "author": {
+        "name": "Naafiyan Ahmed",
+        "email": "naafiyan.ahmed@mongodb.com"
+      },
+      "summary": "SERVER-116033 Support absorbed single-table filters when constructing join graph for non-pipeline $lookup (#52534)"
+    },
+    {
+      "sha": "f4f724d5005efd6d08c3b150085cf805b2dcbd5a",
+      "short_sha": "f4f724d5005",
+      "date": "2026-05-20T15:37:04+02:00",
+      "author": {
+        "name": "Pol Piñol Castuera",
+        "email": "pol.pinol@mongodb.com"
+      },
+      "summary": "SERVER-100309 Remove featureFlagSessionsCollectionCoordinatorOnConfigServer feature flag (#53319)"
+    },
+    {
+      "sha": "8249ada3dbd395fd9ce069ac3022674e0745752d",
+      "short_sha": "8249ada3dbd",
+      "date": "2026-05-20T09:35:25-04:00",
+      "author": {
+        "name": "Sean Lyons",
+        "email": "sean.lyons@mongodb.com"
+      },
+      "summary": "SERVER-127108: Add bazel targets for query-optimization resmoke suites (#54032)"
+    },
+    {
+      "sha": "fa7cf24329a09a91831e3c6523d39117e68574d0",
+      "short_sha": "fa7cf24329a",
+      "date": "2026-05-20T09:34:52-04:00",
+      "author": {
+        "name": "Sean Lyons",
+        "email": "sean.lyons@mongodb.com"
+      },
+      "summary": "SERVER-127136: Add bazel targets for read-only resmoke suites (#54048)"
+    },
     {
       "sha": "09ee5cbc2c5d5bf297af5136a9ee227b2504bc27",
       "short_sha": "09ee5cbc2c5",
@@ -1109,7 +1319,7 @@
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-05-20 12:28:05",
+  "generated_at": "2026-05-20 18:56:24",
   "branch_name": "master",
   "display_name": "master"
 }
