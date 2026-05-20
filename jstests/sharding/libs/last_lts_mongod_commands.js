@@ -7,7 +7,9 @@ export const commandsRemovedFromMongodSinceLastLTS = [
     "_configsvrRefineCollectionShardKey",
     "_shardsvrCommitToShardLocalCatalog", // Removed in 8.2
     "stageDebug",
+    "_configsvrRemoveChunks",
     "_configsvrRemoveShardCommit",
+    "_configsvrRepairShardedCollectionChunksHistory", // Removed in 9.0
     "_configsvrAddShardCoordinator",
     "_shardsvrChangePrimary", // Removed in 9.0
     "_shardsvrCommitIndexParticipant",

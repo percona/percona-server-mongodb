@@ -422,6 +422,14 @@ void onAbortIndexBuild(OperationContext* opCtx,
     invariant(shard_role_details::getLocker(opCtx)->isWriteLocked(),
               replState.buildUUID.toString());
 
+    if (replState.protocol == IndexBuildProtocol::kPrimaryDriven) {
+        shard_role_details::getRecoveryUnit(opCtx)->onCommit([buildUUID = replState.buildUUID](
+                                                                 OperationContext* opCtx,
+                                                                 boost::optional<Timestamp>) {
+            index_builds::primary_driven::registry(opCtx->getServiceContext()).remove(buildUUID);
+        });
+    }
+
     auto opObserver = opCtx->getServiceContext()->getOpObserver();
     auto collUUID = replState.collectionUUID;
     auto fromMigrate = false;
@@ -2178,8 +2186,8 @@ void IndexBuildsCoordinator::_resumePrimaryDrivenIndexBuildsOnStepUp(OperationCo
         bool resumeSucceeded = false;
         if (resumablePdibEnabled && build.indexBuildIdent) {
             try {
-                auto resumeInfo =
-                    index_builds::primary_driven::resumeInfo(opCtx, *build.indexBuildIdent);
+                auto resumeInfo = index_builds::primary_driven::resumeInfo(
+                    opCtx, build.collectionUUID, buildUUID, build.indexes, *build.indexBuildIdent);
 
                 invariant(pdibEnabled);
                 IndexBuildsCoordinator::IndexBuildOptions indexBuildOptions = {
@@ -3472,6 +3480,11 @@ void IndexBuildsCoordinator::_resumeHybridIndexBuildFromPhase(
     // TODO(SERVER-109664): Make this check for simply IndexBuildMethodEnum::kHybrid
     invariant(indexBuildOptions.indexBuildMethod == IndexBuildMethodEnum::kHybrid ||
               indexBuildOptions.indexBuildMethod == IndexBuildMethodEnum::kPrimaryDriven);
+
+    if (replState->protocol == IndexBuildProtocol::kPrimaryDriven) {
+        index_builds::primary_driven::deleteSorterEntriesOutsideRanges(opCtx,
+                                                                       resumeInfo.getIndexes());
+    }
 
     if (resumeInfo.getPhase() == IndexBuildPhaseEnum::kInitialized ||
         resumeInfo.getPhase() == IndexBuildPhaseEnum::kCollectionScan) {

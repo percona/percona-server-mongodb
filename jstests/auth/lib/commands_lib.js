@@ -294,7 +294,6 @@ const skippedAuthTestingCommands = [
     "reapLogicalSessionCacheNow",
     "recreateRangeDeletionTasks",
     "releaseMemory",
-    "repairShardedCollectionChunksHistory",
     "replicateSearchIndexCommand",
     "replSetAbortPrimaryCatchUp",
     "replSetRequestVotes",

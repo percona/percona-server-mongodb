@@ -31,12 +31,15 @@
 
 #include "mongo/db/pipeline/expression_context.h"
 #include "mongo/logv2/log.h"
+#include "mongo/util/fail_point.h"
 
 #include <stack>
 
 using namespace mongo::multikey_paths;
 
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kQuery
+
+MONGO_FAIL_POINT_DEFINE(pathArraynessYieldInvalidation);
 
 namespace mongo {
 
@@ -200,14 +203,17 @@ void PathArrayness::TrieNode::insertPath(const FieldPath& path,
     _children.at(fieldNameToInsert).insertPath(path, multikeyPath, ++depth, isFullRebuild);
 }
 
-bool PathArrayness::hasInvalidatedPaths(const MonotonicallyIncreasingFieldPathSet& nonArrayPaths,
-                                        const PathArrayness& current) {
+boost::optional<FieldPath> PathArrayness::getFirstInvalidatedPath(
+    const MonotonicallyIncreasingFieldPathSet& nonArrayPaths, const PathArrayness& current) {
+    if (MONGO_unlikely(pathArraynessYieldInvalidation.shouldFail())) {
+        return FieldPath("pathArraynessYieldInvalidationShouldFail");
+    }
     for (const auto& path : nonArrayPaths) {
         if (current._root.canPathBeArray(path)) {
-            return true;
+            return path;
         }
     }
-    return false;
+    return boost::none;
 }
 
 }  // namespace mongo

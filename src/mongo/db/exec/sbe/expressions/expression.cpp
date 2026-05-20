@@ -1352,8 +1352,6 @@ static stdx::unordered_map<EFn, InstrFn> kInstrFunctions = {
      InstrFn{2, generator<2, &vm::CodeFragment::appendGetFieldOrElement>, false}},
     {EFn::kTraverseP, InstrFn{3, generateTraverseP, false}},
     {EFn::kTraverseF, InstrFn{3, generateTraverseF, false}},
-    {EFn::kMagicTraverseF,
-     InstrFn{5, generatorLegacy<&vm::CodeFragment::appendMagicTraverseF>, false}},
     {EFn::kSetField, InstrFn{3, generatorLegacy<&vm::CodeFragment::appendSetField>, false}},
     {EFn::kSum, InstrFn{1, generatorLegacy<&vm::CodeFragment::appendSum>, true}},
     {EFn::kCount, InstrFn{0, generatorLegacy<&vm::CodeFragment::appendCount>, true}},
@@ -1427,7 +1425,7 @@ vm::CodeFragment EFunction::compileDirect(CompileCtx& ctx) const {
             auto binSize = value::bitcastTo<int64_t>(binSizeLong.value());
 
             auto [timezoneTag, timezoneVal] = _nodes[4]->as<EConstant>()->getConstant();
-            auto timezone = vm::getTimezone(timezoneTag, timezoneVal, timezoneDB);
+            auto timezone = vm::getTimezone({timezoneTag, timezoneVal}, timezoneDB);
 
             DayOfWeek startOfWeek{kStartOfWeekDefault};
             if (unit == TimeUnit::week) {

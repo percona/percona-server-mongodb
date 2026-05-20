@@ -1,4 +1,4 @@
-# Copyright (C) 2021-present MongoDB, Inc.
+# Copyright (C) 2026-present MongoDB, Inc.
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the Server Side Public License, version 1,
@@ -25,23 +25,43 @@
 # exception statement from all source files in the program, then also delete
 # it in the license file.
 #
-
 global:
+    cpp_namespace: "mongo::ce"
     mod_visibility: private
-    cpp_namespace: "mongo"
 
 imports:
     - "mongo/db/basic_types.idl"
+    - "mongo/db/query/query_optimization_knobs.idl"
 
-commands:
-    _configsvrRemoveChunks:
-        command_name: _configsvrRemoveChunks
-        cpp_name: ConfigsvrRemoveChunks
-        description: "internal _configsvrRemoveChunks command for config server"
-        namespace: ignored
-        api_version: ""
-        strict: false
+structs:
+    PersistentSampleDoc:
+        description: >-
+            On-disk document stored in <db>.system.stats.samples for a persisted CE sample.
+            Populated by the analyze command and consumed by the sampling estimator.
+        strict: true
         fields:
-            collectionUUID:
-                type: uuid
-                description: "The collection uuid of the chunks to be removed"
+            _id:
+                type: string
+            schemaVersion:
+                type: int
+                validator: {gte: 1}
+            collectionUuid:
+                type: string
+            samplingMethod:
+                type: SamplingCEMethod
+            sampleSize:
+                type: long
+                validator: {gt: 0}
+            numChunks:
+                type: int
+                optional: true
+                validator: {gt: 0}
+            createdAt:
+                type: date
+            # `object` (view), not `object_owned` (per-entry getOwned()): a sample carries
+            # 384–2000 docs that the estimator iterates densely. Keeping them all in one shared
+            # buffer (via post-parse `shareOwnershipWith` in `parsePersistentSample`) avoids
+            # 2k mallocs + memcpys per parse and keeps the docs contiguous in memory for
+            # cache-friendly scanning.
+            docs:
+                type: array<object>
