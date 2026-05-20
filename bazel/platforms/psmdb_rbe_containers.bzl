@@ -85,21 +85,21 @@
 
 PSMDB_REMOTE_EXECUTION_CONTAINERS = {
     "amazon_linux_2023": {
-        "container-url": "docker://docker.io/perconalab/psmdb-rbe:amazonlinux-2023-master-52917c227b04255a129d9b5617228c2269662871",
+        "container-url": "docker://docker.io/perconalab/psmdb-rbe:amazonlinux-2023-master-a6d12841c289bb5ecfeff72cd00f0b9dbeba2479",
     },
     "debian12": {
-        "container-url": "docker://docker.io/perconalab/psmdb-rbe:debian-bookworm-master-52917c227b04255a129d9b5617228c2269662871",
+        "container-url": "docker://docker.io/perconalab/psmdb-rbe:debian-bookworm-master-a6d12841c289bb5ecfeff72cd00f0b9dbeba2479",
     },
     "rhel8": {
-        "container-url": "docker://docker.io/perconalab/psmdb-rbe:oraclelinux-8-master-52917c227b04255a129d9b5617228c2269662871",
+        "container-url": "docker://docker.io/perconalab/psmdb-rbe:oraclelinux-8-master-a6d12841c289bb5ecfeff72cd00f0b9dbeba2479",
     },
     "rhel9": {
-        "container-url": "docker://docker.io/perconalab/psmdb-rbe:oraclelinux-9-master-52917c227b04255a129d9b5617228c2269662871",
+        "container-url": "docker://docker.io/perconalab/psmdb-rbe:oraclelinux-9-master-a6d12841c289bb5ecfeff72cd00f0b9dbeba2479",
     },
     "ubuntu22": {
-        "container-url": "docker://docker.io/perconalab/psmdb-rbe:ubuntu-jammy-master-52917c227b04255a129d9b5617228c2269662871",
+        "container-url": "docker://docker.io/perconalab/psmdb-rbe:ubuntu-jammy-master-a6d12841c289bb5ecfeff72cd00f0b9dbeba2479",
     },
     "ubuntu24": {
-        "container-url": "docker://docker.io/perconalab/psmdb-rbe:ubuntu-noble-master-52917c227b04255a129d9b5617228c2269662871",
+        "container-url": "docker://docker.io/perconalab/psmdb-rbe:ubuntu-noble-master-a6d12841c289bb5ecfeff72cd00f0b9dbeba2479",
     },
 }
