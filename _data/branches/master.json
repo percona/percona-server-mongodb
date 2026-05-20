@@ -5,14 +5,14 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 88,
-    "days_behind": 3,
-    "files_affected": 638,
-    "total_additions": 20410,
-    "total_deletions": 14546,
+    "commits_behind": 89,
+    "days_behind": 4,
+    "files_affected": 640,
+    "total_additions": 20422,
+    "total_deletions": 14547,
     "date_range": {
       "first": "2026-05-18T02:31:58+00:00",
-      "last": "2026-05-20T06:16:26+00:00"
+      "last": "2026-05-20T07:31:03+00:00"
     }
   },
   "last_merged_commit": {
@@ -36,6 +36,16 @@
     "summary": "Import wiredtiger: bb840c5216cd665541a7cd140217ed0a17c514c5 from branch mongodb-master (#53904)"
   },
   "unmerged_commits": [
+    {
+      "sha": "ae76ed08a63fb926c2aff42f47183194ea0c0539",
+      "short_sha": "ae76ed08a63",
+      "date": "2026-05-20T07:31:03+00:00",
+      "author": {
+        "name": "Joan Bruguera Micó (at MongoDB)",
+        "email": "joan.bruguera-mico@mongodb.com"
+      },
+      "summary": "SERVER-127097 Fix multiversion handling of authoritativeMetadataAccessLevel in MigrationBlockingOperationCoordinator (#54046)"
+    },
     {
       "sha": "53931f4a8c7a99c1c985fad8559eae6a34112e59",
       "short_sha": "53931f4a8c7",
@@ -1049,7 +1059,7 @@
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-05-20 07:11:50",
+  "generated_at": "2026-05-20 08:35:26",
   "branch_name": "master",
   "display_name": "master"
 }
