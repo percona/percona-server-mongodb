@@ -85,21 +85,21 @@
 
 PSMDB_REMOTE_EXECUTION_CONTAINERS = {
     "amazon_linux_2023": {
-        "container-url": "docker://docker.io/perconalab/psmdb-rbe:amazonlinux-2023-8.0-4f903c5eb2b598da55a69bbc70f786238302aa14",
+        "container-url": "docker://docker.io/perconalab/psmdb-rbe:amazonlinux-2023-8.0-07c5bd008df3acb6e853ebd7c4fefa609c0d03ef",
     },
     "debian12": {
-        "container-url": "docker://docker.io/perconalab/psmdb-rbe:debian-bookworm-8.0-4f903c5eb2b598da55a69bbc70f786238302aa14",
+        "container-url": "docker://docker.io/perconalab/psmdb-rbe:debian-bookworm-8.0-07c5bd008df3acb6e853ebd7c4fefa609c0d03ef",
     },
     "rhel8": {
-        "container-url": "docker://docker.io/perconalab/psmdb-rbe:oraclelinux-8-8.0-4f903c5eb2b598da55a69bbc70f786238302aa14",
+        "container-url": "docker://docker.io/perconalab/psmdb-rbe:oraclelinux-8-8.0-07c5bd008df3acb6e853ebd7c4fefa609c0d03ef",
     },
     "rhel9": {
-        "container-url": "docker://docker.io/perconalab/psmdb-rbe:oraclelinux-9-8.0-4f903c5eb2b598da55a69bbc70f786238302aa14",
+        "container-url": "docker://docker.io/perconalab/psmdb-rbe:oraclelinux-9-8.0-07c5bd008df3acb6e853ebd7c4fefa609c0d03ef",
     },
     "ubuntu22": {
-        "container-url": "docker://docker.io/perconalab/psmdb-rbe:ubuntu-jammy-8.0-4f903c5eb2b598da55a69bbc70f786238302aa14",
+        "container-url": "docker://docker.io/perconalab/psmdb-rbe:ubuntu-jammy-8.0-07c5bd008df3acb6e853ebd7c4fefa609c0d03ef",
     },
     "ubuntu24": {
-        "container-url": "docker://docker.io/perconalab/psmdb-rbe:ubuntu-noble-8.0-4f903c5eb2b598da55a69bbc70f786238302aa14",
+        "container-url": "docker://docker.io/perconalab/psmdb-rbe:ubuntu-noble-8.0-07c5bd008df3acb6e853ebd7c4fefa609c0d03ef",
     },
 }
