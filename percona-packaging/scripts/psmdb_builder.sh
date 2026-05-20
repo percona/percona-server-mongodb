@@ -340,6 +340,9 @@ install_deps() {
         yum -y install openldap-devel krb5-devel xz-devel
         yum -y install gcc-toolset-9 gcc-c++
         yum -y install gcc-toolset-11-dwz gcc-toolset-11-elfutils
+        # PSMDB-2072: RBE Bazel build deps, mirroring upstream mongo
+        # bazel/remote_execution_container/repin_dockerfiles.sh on r8.3.2:
+        yum -y install cyrus-sasl-gssapi glibc-devel procps-ng systemtap-sdt-devel ncurses-compat-libs
 
         yum -y install python3.11 python3.11-devel python3.11-pip
         alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 11
@@ -355,6 +358,15 @@ install_deps() {
         yum -y install $OPENSSL_EXCLUDE redhat-rpm-config which e2fsprogs-devel expat-devel lz4-devel
         yum -y install $OPENSSL_EXCLUDE openldap-devel krb5-devel xz-devel
         yum -y install $OPENSSL_EXCLUDE perl
+        # PSMDB-2072: RBE Bazel build deps, mirroring upstream mongo
+        # bazel/remote_execution_container/repin_dockerfiles.sh on r8.3.2:
+        yum -y install $OPENSSL_EXCLUDE cyrus-sasl-gssapi glibc-devel procps-ng systemtap-sdt-devel ncurses-libs
+        if [ x"$RHEL" = x2023 ]; then
+          # PSMDB-2072: libzstd is in ADDITIONAL_PACKAGES["amazonlinux:2023"]
+          # in upstream mongo repin_dockerfiles.sh (SERVER-93258
+          # d4c639cf4a7).
+          yum -y install $OPENSSL_EXCLUDE libzstd
+        fi
       fi
       wget https://curl.se/download/curl-7.77.0.tar.gz -O curl-7.77.0.tar.gz
       tar -xzf curl-7.77.0.tar.gz
@@ -384,7 +396,7 @@ install_deps() {
       DEBIAN_FRONTEND=noninteractive apt-get -y install curl lsb-release wget apt-transport-https software-properties-common
       export DEBIAN=$(lsb_release -sc)
       export ARCH=$(echo $(uname -m) | sed -e 's:i686:i386:g')
-      wget https://repo.percona.com/apt/pool/main/p/percona-release/percona-release_1.0-27.generic_all.deb && dpkg -i percona-release_1.0-27.generic_all.deb
+      wget https://repo.percona.com/prel/apt/pool/main/p/percona-release/percona-release_1.0-33.generic_all.deb && DEBIAN_FRONTEND=noninteractive apt-get -y install ./percona-release_1.0-33.generic_all.deb
       percona-release enable tools testing
       apt-get update
       if [ x"${DEBIAN}" = "xfocal" ]; then
@@ -393,6 +405,18 @@ install_deps() {
       INSTALL_LIST="${INSTALL_LIST} git valgrind liblz4-dev devscripts debhelper debconf libpcap-dev libbz2-dev libsnappy-dev pkg-config zlib1g-dev libzlcore-dev libsasl2-dev gcc g++ cmake curl"
       INSTALL_LIST="${INSTALL_LIST} libssl-dev libcurl4-openssl-dev libldap2-dev libkrb5-dev liblzma-dev patchelf libexpat1-dev sudo libfile-copy-recursive-perl"
       INSTALL_LIST="${INSTALL_LIST} python3 python3-dev python3-pip python3-venv"
+      # PSMDB-2072: RBE Bazel build deps, mirroring upstream mongo
+      # bazel/remote_execution_container/repin_dockerfiles.sh on r8.3.2.
+      INSTALL_LIST="${INSTALL_LIST} build-essential libgssapi-krb5-2 libxml2-dev"
+      # PSMDB-2072: systemtap-sdt-dev is in ADDITIONAL_PACKAGES for
+      # ubuntu:22.04 and ubuntu:24.04 (SERVER-93258 d4c639cf4a7 init).
+
+      if [ x"${DEBIAN}" = "xjammy" ] || [ x"${DEBIAN}" = "xnoble" ]; then
+        INSTALL_LIST="${INSTALL_LIST} systemtap-sdt-dev"
+      fi
+      if [ x"${DEBIAN}" = "xnoble" ]; then
+        INSTALL_LIST="${INSTALL_LIST} libncurses-dev"
+      fi
       until apt-get -y install dirmngr; do
         sleep 1
         echo "waiting"
