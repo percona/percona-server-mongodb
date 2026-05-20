@@ -54,8 +54,6 @@ mongo_js_library(
         "//jstests/ssl/libs",
         "//jstests/with_mongot/e2e_lib",
         "//jstests/with_mongot/mongotmock/lib",
-        "//src/mongo/db/modules/enterprise/jstests/fle/lib:all_subpackage_javascript_files",
-        "//src/mongo/db/modules/enterprise/jstests/libs:all_subpackage_javascript_files",
     ],
 )
 
