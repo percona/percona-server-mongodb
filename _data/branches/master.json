@@ -5,14 +5,14 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 89,
+    "commits_behind": 94,
     "days_behind": 4,
-    "files_affected": 640,
-    "total_additions": 20422,
-    "total_deletions": 14547,
+    "files_affected": 649,
+    "total_additions": 20611,
+    "total_deletions": 14615,
     "date_range": {
       "first": "2026-05-18T02:31:58+00:00",
-      "last": "2026-05-20T07:31:03+00:00"
+      "last": "2026-05-20T09:20:14+00:00"
     }
   },
   "last_merged_commit": {
@@ -36,6 +36,56 @@
     "summary": "Import wiredtiger: bb840c5216cd665541a7cd140217ed0a17c514c5 from branch mongodb-master (#53904)"
   },
   "unmerged_commits": [
+    {
+      "sha": "09ee5cbc2c5d5bf297af5136a9ee227b2504bc27",
+      "short_sha": "09ee5cbc2c5",
+      "date": "2026-05-20T11:20:14+02:00",
+      "author": {
+        "name": "mongo-pr-bot[bot]",
+        "email": "230616009+mongo-pr-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "SERVER-110427 Update profiling data (#54086)"
+    },
+    {
+      "sha": "04de6c9fb50474dc381f45baa2663e4033968b99",
+      "short_sha": "04de6c9fb50",
+      "date": "2026-05-20T09:52:55+01:00",
+      "author": {
+        "name": "Vesko Karaganev",
+        "email": "vesko.karaganev@mongodb.com"
+      },
+      "summary": "SERVER-124097 Report that $function might use RNG (#53943)"
+    },
+    {
+      "sha": "16889ae97563cb5590d881d4ae3c2575f7404cc2",
+      "short_sha": "16889ae9756",
+      "date": "2026-05-20T10:50:14+02:00",
+      "author": {
+        "name": "Pol Piñol Castuera",
+        "email": "pol.pinol@mongodb.com"
+      },
+      "summary": "SERVER-91944 Clear and drop shard catalog metadata when transition to dedicated CSRS (#53312)"
+    },
+    {
+      "sha": "ec664bb49098fb2d574445e291e345f02b1c4d20",
+      "short_sha": "ec664bb4909",
+      "date": "2026-05-20T09:31:48+01:00",
+      "author": {
+        "name": "Max Verbinnen",
+        "email": "64088654+Max-Verbinnen@users.noreply.github.com"
+      },
+      "summary": "SERVER-122985 Enable featureFlagConvertObjectToBinData (#53924)"
+    },
+    {
+      "sha": "be70ed312bcfc7ea2e22e7417c886bf1789059fd",
+      "short_sha": "be70ed312bc",
+      "date": "2026-05-20T10:09:14+02:00",
+      "author": {
+        "name": "Pol Piñol Castuera",
+        "email": "pol.pinol@mongodb.com"
+      },
+      "summary": "SERVER-127052 Remove redundant metadata checks from in-memory CollectionCriticalSection (#54014)"
+    },
     {
       "sha": "ae76ed08a63fb926c2aff42f47183194ea0c0539",
       "short_sha": "ae76ed08a63",
@@ -1059,7 +1109,7 @@
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-05-20 08:35:26",
+  "generated_at": "2026-05-20 12:28:05",
   "branch_name": "master",
   "display_name": "master"
 }
