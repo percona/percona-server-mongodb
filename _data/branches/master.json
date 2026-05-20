@@ -5,14 +5,14 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 87,
+    "commits_behind": 88,
     "days_behind": 3,
-    "files_affected": 637,
-    "total_additions": 20399,
-    "total_deletions": 14540,
+    "files_affected": 638,
+    "total_additions": 20410,
+    "total_deletions": 14546,
     "date_range": {
       "first": "2026-05-18T02:31:58+00:00",
-      "last": "2026-05-20T00:11:10+00:00"
+      "last": "2026-05-20T06:16:26+00:00"
     }
   },
   "last_merged_commit": {
@@ -36,6 +36,16 @@
     "summary": "Import wiredtiger: bb840c5216cd665541a7cd140217ed0a17c514c5 from branch mongodb-master (#53904)"
   },
   "unmerged_commits": [
+    {
+      "sha": "53931f4a8c7a99c1c985fad8559eae6a34112e59",
+      "short_sha": "53931f4a8c7",
+      "date": "2026-05-20T09:16:26+03:00",
+      "author": {
+        "name": "Lyublena Antova",
+        "email": "lyublena.antova@mongodb.com"
+      },
+      "summary": "SERVER-120913 Return UnknownReplWriteConcern for unsupported write concern tags in disagg mode (#53644)"
+    },
     {
       "sha": "7ce46046c80b39983f9f3380c318ea51144f1780",
       "short_sha": "7ce46046c80",
@@ -1039,7 +1049,7 @@
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-05-20 06:43:54",
+  "generated_at": "2026-05-20 07:11:50",
   "branch_name": "master",
   "display_name": "master"
 }
