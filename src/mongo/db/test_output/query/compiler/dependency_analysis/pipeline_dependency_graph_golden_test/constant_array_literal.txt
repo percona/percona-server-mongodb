@@ -1,0 +1,42 @@
+VARIATION ConstantArrayLiteral
+input: {
+    "pipeline": [
+        {
+            "$set": {
+                "a": {
+                    "$const": [
+                        1,
+                        2,
+                        3
+                    ]
+                }
+            }
+        }
+    ]
+}
+output: {
+    "$set:0": {
+        "scope:0": {
+            "exhaustiveScope": "scope:-1",
+            "fields": {
+                "<missing>:0": {
+                    "declaringScope": "scope:0",
+                    "dependencies": []
+                },
+                "a:1": {
+                    "declaringScope": "scope:0",
+                    "metadata": {
+                        "constant": [
+                            1,
+                            2,
+                            3
+                        ]
+                    },
+                    "dependencies": []
+                }
+            }
+        },
+        "dependencies": []
+    }
+}
+

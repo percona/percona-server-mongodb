@@ -42,8 +42,51 @@ std::function<void(OpObserverRegistry*)> opObserverRegistrar;
 std::function<void(ServiceContext*)> initializeSynchronizeJob;
 std::function<void()> shutdownSynchronizeJob;
 
+<<<<<<< HEAD
 // @see the `src/mongo/audit/audit.cpp` file for registeting Percona's
 // implementation of `AuditInterface`.
+||||||| c021919b7c3
+#if !MONGO_ENTERPRISE_AUDIT
+void rotateAuditLog() {}
+#endif
+
+namespace {
+const auto getAuditInterface = ServiceContext::declareDecoration<std::unique_ptr<AuditInterface>>();
+ServiceContext::ConstructorActionRegisterer registerCreateNoopAudit{
+    "initializeNoopAuditInterface",
+    [](ServiceContext* svcCtx) { AuditInterface::set(svcCtx, std::make_unique<AuditNoOp>()); }};
+}  // namespace
+
+AuditInterface* AuditInterface::get(ServiceContext* service) {
+    return getAuditInterface(service).get();
+}
+
+void AuditInterface::set(ServiceContext* service, std::unique_ptr<AuditInterface> interface) {
+    getAuditInterface(service) = std::move(interface);
+}
+
+=======
+#if !MONGO_ENTERPRISE_AUDIT
+void rotateAuditLog() {}
+#endif
+
+namespace {
+const auto getAuditInterface = ServiceContext::declareDecoration<std::unique_ptr<AuditInterface>>();
+ServiceContext::ConstructorActionRegisterer registerCreateNoopAudit{
+    "initializeNoopAuditInterface", [](ServiceContext* svcCtx) {
+        AuditInterface::set(svcCtx, std::make_unique<AuditNoOp>());
+    }};
+}  // namespace
+
+AuditInterface* AuditInterface::get(ServiceContext* service) {
+    return getAuditInterface(service).get();
+}
+
+void AuditInterface::set(ServiceContext* service, std::unique_ptr<AuditInterface> interface) {
+    getAuditInterface(service) = std::move(interface);
+}
+
+>>>>>>> bd87181dd239f28b5eff9c4c7402f766ef031a7b
 
 void logClientMetadata(Client* client) {
     AuditInterface::get(client->getServiceContext())->logClientMetadata(client);
