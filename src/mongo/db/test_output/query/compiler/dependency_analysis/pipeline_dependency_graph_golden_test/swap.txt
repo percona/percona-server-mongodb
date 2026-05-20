@@ -37,14 +37,16 @@ output: {
                 "a:1": {
                     "declaringScope": "scope:0",
                     "metadata": {
-                        "array": false
+                        "array": false,
+                        "constant": 1
                     },
                     "dependencies": []
                 },
                 "b:2": {
                     "declaringScope": "scope:0",
                     "metadata": {
-                        "array": false
+                        "array": false,
+                        "constant": 1
                     },
                     "dependencies": []
                 }
@@ -63,7 +65,8 @@ output: {
                 "a:4": {
                     "declaringScope": "scope:1",
                     "metadata": {
-                        "array": false
+                        "array": false,
+                        "constant": 1
                     },
                     "dependencies": [
                         "b:2"
@@ -72,7 +75,8 @@ output: {
                 "b:5": {
                     "declaringScope": "scope:1",
                     "metadata": {
-                        "array": false
+                        "array": false,
+                        "constant": 1
                     },
                     "dependencies": [
                         "a:1"

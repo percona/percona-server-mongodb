@@ -738,7 +738,9 @@ void setUpWiredTigerEncryption(const std::string& cipherMode, EncryptionKeyDB* k
 void setKeyOnCursor(WT_CURSOR* c, const std::variant<std::span<const char>, int64_t>& key) {
     std::visit(OverloadedVisitor{
                    [&](const std::span<const char> k) { c->set_key(c, WiredTigerItem{k}.get()); },
-                   [&](int64_t k) { c->set_key(c, k); }},
+                   [&](int64_t k) {
+                       c->set_key(c, k);
+                   }},
                key);
 }
 

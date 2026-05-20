@@ -1,0 +1,68 @@
+VARIATION ConstantScalarSet
+input: {
+    "pipeline": [
+        {
+            "$set": {
+                "a": {
+                    "$const": 1
+                },
+                "b": {
+                    "$const": "foo"
+                },
+                "c": {
+                    "$const": true
+                },
+                "d": {
+                    "$const": null
+                }
+            }
+        }
+    ]
+}
+output: {
+    "$set:0": {
+        "scope:0": {
+            "exhaustiveScope": "scope:-1",
+            "fields": {
+                "<missing>:0": {
+                    "declaringScope": "scope:0",
+                    "dependencies": []
+                },
+                "a:1": {
+                    "declaringScope": "scope:0",
+                    "metadata": {
+                        "array": false,
+                        "constant": 1
+                    },
+                    "dependencies": []
+                },
+                "b:2": {
+                    "declaringScope": "scope:0",
+                    "metadata": {
+                        "array": false,
+                        "constant": "foo"
+                    },
+                    "dependencies": []
+                },
+                "c:3": {
+                    "declaringScope": "scope:0",
+                    "metadata": {
+                        "array": false,
+                        "constant": true
+                    },
+                    "dependencies": []
+                },
+                "d:4": {
+                    "declaringScope": "scope:0",
+                    "metadata": {
+                        "array": false,
+                        "constant": null
+                    },
+                    "dependencies": []
+                }
+            }
+        },
+        "dependencies": []
+    }
+}
+

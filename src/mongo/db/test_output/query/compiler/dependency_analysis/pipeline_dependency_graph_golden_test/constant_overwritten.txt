@@ -1,0 +1,62 @@
+VARIATION ConstantOverwritten
+input: {
+    "pipeline": [
+        {
+            "$set": {
+                "a": {
+                    "$const": 1
+                }
+            }
+        },
+        {
+            "$set": {
+                "a": {
+                    "$const": 2
+                }
+            }
+        }
+    ]
+}
+output: {
+    "$set:0": {
+        "scope:0": {
+            "exhaustiveScope": "scope:-1",
+            "fields": {
+                "<missing>:0": {
+                    "declaringScope": "scope:0",
+                    "dependencies": []
+                },
+                "a:1": {
+                    "declaringScope": "scope:0",
+                    "metadata": {
+                        "array": false,
+                        "constant": 1
+                    },
+                    "dependencies": []
+                }
+            }
+        },
+        "dependencies": []
+    },
+    "$set:1": {
+        "scope:1": {
+            "exhaustiveScope": "scope:-1",
+            "fields": {
+                "<missing>:2": {
+                    "declaringScope": "scope:1",
+                    "dependencies": []
+                },
+                "a:3": {
+                    "declaringScope": "scope:1",
+                    "metadata": {
+                        "array": false,
+                        "constant": 2
+                    },
+                    "dependencies": []
+                }
+            }
+        },
+        "dependencies": []
+    }
+}
+
