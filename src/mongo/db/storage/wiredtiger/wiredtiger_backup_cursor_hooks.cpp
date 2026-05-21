@@ -36,6 +36,7 @@ Copyright (C) 2021-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/concurrency/replication_state_transition_lock_guard.h"
 #include "mongo/db/dbhelpers.h"
 #include "mongo/db/operation_context.h"
+#include "mongo/db/repl/oplog_entry.h"
 #include "mongo/db/repl/storage_interface.h"
 #include "mongo/db/storage/encryption_hooks.h"
 #include "mongo/db/storage/storage_options.h"
@@ -168,8 +169,8 @@ BackupCursorState WiredTigerBackupCursorHooks::openBackupCursor(
         uassert(50912,
                 str::stream() << "No oplog records were found.",
                 Helpers::getSingleton(opCtx, NamespaceString::kRsOplogNamespace, firstEntry));
-        auto oplogEntry = fassertNoTrace(50918, repl::OplogEntry::parse(firstEntry));
-        oplogStart = oplogEntry.getOpTime();
+        const repl::OplogEntryParserNonStrict oplogEntryParser{firstEntry};
+        oplogStart = oplogEntryParser.getOpTime();
         uassert(50917,
                 str::stream() << "Oplog rolled over while establishing the backup cursor."
                               << " oplogStart: " << oplogStart.toString()
