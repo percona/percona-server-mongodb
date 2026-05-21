@@ -5,14 +5,14 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 102,
+    "commits_behind": 103,
     "days_behind": 2,
-    "files_affected": 645,
-    "total_additions": 22765,
-    "total_deletions": 6902,
+    "files_affected": 657,
+    "total_additions": 23299,
+    "total_deletions": 6937,
     "date_range": {
       "first": "2026-05-18T19:46:08+00:00",
-      "last": "2026-05-20T23:04:09+00:00"
+      "last": "2026-05-21T05:48:20+00:00"
     }
   },
   "last_merged_commit": {
@@ -36,6 +36,16 @@
     "summary": "SERVER-126230: move uds socket path from tmp (#53424)"
   },
   "unmerged_commits": [
+    {
+      "sha": "ed575bd8a65509ec5bd071cbff6882bdb379a288",
+      "short_sha": "ed575bd8a65",
+      "date": "2026-05-21T07:48:20+02:00",
+      "author": {
+        "name": "Allison Easton",
+        "email": "allison.easton@mongodb.com"
+      },
+      "summary": "SERVER-126209 Update sharding types to support the shardRef (#53914)"
+    },
     {
       "sha": "1edc71de45d0e93154241f51b52903b4e6e38476",
       "short_sha": "1edc71de45d",
@@ -1170,7 +1180,7 @@
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-05-21 01:09:40",
+  "generated_at": "2026-05-21 07:16:09",
   "branch_name": "master",
   "display_name": "master"
 }
