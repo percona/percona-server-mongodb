@@ -7,35 +7,85 @@
   "divergence": {
     "commits_behind": 102,
     "days_behind": 2,
-    "files_affected": 568,
-    "total_additions": 21085,
-    "total_deletions": 6014,
+    "files_affected": 645,
+    "total_additions": 22765,
+    "total_deletions": 6902,
     "date_range": {
-      "first": "2026-05-18T18:14:54+00:00",
-      "last": "2026-05-20T20:52:35+00:00"
+      "first": "2026-05-18T19:46:08+00:00",
+      "last": "2026-05-20T23:04:09+00:00"
     }
   },
   "last_merged_commit": {
-    "sha": "bd87181dd239f28b5eff9c4c7402f766ef031a7b",
-    "short_sha": "bd87181dd23",
-    "date": "2026-05-18T16:07:54+00:00",
+    "sha": "8b100f357da5131cf81a08d9a401d3ea76c38092",
+    "short_sha": "8b100f357da",
+    "date": "2026-05-18T15:27:03-04:00",
     "author": {
-      "name": "Daniel Moody",
-      "email": "daniel.moody@mongodb.com"
+      "name": "Xuerui Fa",
+      "email": "xuerui.fa@mongodb.com"
     },
-    "summary": "Revert \"SERVER-105043 LLVM 22 lint and format\""
+    "summary": "SERVER-125964: Apply initial sync oplog entries from initiating set oplog entry if the set recently initiated (#53949)"
   },
   "first_unmerged_commit": {
-    "sha": "e3ed5a819f329a501af20368c3be0d07dcc7d4ad",
-    "short_sha": "e3ed5a819f3",
-    "date": "2026-05-18T14:14:54-04:00",
+    "sha": "7cdde2ce36fc7d52dd257ff3b9d427df58d98584",
+    "short_sha": "7cdde2ce36f",
+    "date": "2026-05-18T14:46:08-05:00",
     "author": {
-      "name": "Yuhong Zhang",
-      "email": "yuhong.zhang@mongodb.com"
+      "name": "Trevor Guidry",
+      "email": "trevor.guidry@mongodb.com"
     },
-    "summary": "SERVER-125025 Re-enable replicate size and count for change stream fsm tests (#53493)"
+    "summary": "SERVER-126230: move uds socket path from tmp (#53424)"
   },
   "unmerged_commits": [
+    {
+      "sha": "1edc71de45d0e93154241f51b52903b4e6e38476",
+      "short_sha": "1edc71de45d",
+      "date": "2026-05-21T09:04:09+10:00",
+      "author": {
+        "name": "wt-vendoring-bot[bot]",
+        "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "Import wiredtiger: 7e770f5312cc46eb17bacd3f98b26da26d6d1854 from branch mongodb-master (#54101)"
+    },
+    {
+      "sha": "807840e85b407b33a2fb953dd2656b81c8dc9234",
+      "short_sha": "807840e85b4",
+      "date": "2026-05-20T15:33:25-07:00",
+      "author": {
+        "name": "Chye Lin Chee",
+        "email": "chyelin.chee@mongodb.com"
+      },
+      "summary": "SERVER-126325 Stub implementation for getESECMKIdentifierListStatus (#53947)"
+    },
+    {
+      "sha": "0f2f1ffc3917c86178727431a7b05d442b51e98f",
+      "short_sha": "0f2f1ffc391",
+      "date": "2026-05-20T18:09:11-04:00",
+      "author": {
+        "name": "Matt Broadstone",
+        "email": "mbroadst@mongodb.com"
+      },
+      "summary": "SERVER-126468: Support client authentication in NetworkInterfaceTL (#53705)"
+    },
+    {
+      "sha": "4617bedb9a643afe8a407ecf8bab9c0160a341a4",
+      "short_sha": "4617bedb9a6",
+      "date": "2026-05-20T17:47:45-04:00",
+      "author": {
+        "name": "Cheahuychou Mao",
+        "email": "cheahuychou.mao@mongodb.com"
+      },
+      "summary": "SERVER-126342 Improve unit testing for ConnectionPool leasing (#53559)"
+    },
+    {
+      "sha": "cc38b62241257e4ef4b28138a9f5e798108c9310",
+      "short_sha": "cc38b622412",
+      "date": "2026-05-20T16:47:07-05:00",
+      "author": {
+        "name": "Trevor Guidry",
+        "email": "trevor.guidry@mongodb.com"
+      },
+      "summary": "SERVER-124516 enable succeeding pyright rules (#54168)"
+    },
     {
       "sha": "131bdc527096de7d565c12b958fe6a19973096d2",
       "short_sha": "131bdc52709",
@@ -1005,78 +1055,9 @@
         "email": "trevor.guidry@mongodb.com"
       },
       "summary": "SERVER-126230: move uds socket path from tmp (#53424)"
-    },
-    {
-      "sha": "8b100f357da5131cf81a08d9a401d3ea76c38092",
-      "short_sha": "8b100f357da",
-      "date": "2026-05-18T15:27:03-04:00",
-      "author": {
-        "name": "Xuerui Fa",
-        "email": "xuerui.fa@mongodb.com"
-      },
-      "summary": "SERVER-125964: Apply initial sync oplog entries from initiating set oplog entry if the set recently initiated (#53949)"
-    },
-    {
-      "sha": "a04e66894ac93aeb29db0adb7c7e80d5d5c91ea7",
-      "short_sha": "a04e66894ac",
-      "date": "2026-05-18T15:24:23-04:00",
-      "author": {
-        "name": "Gregory Noma",
-        "email": "gregory.noma@gmail.com"
-      },
-      "summary": "SERVER-127005 Add build to PDIB registry upon start on primary (#53955)"
-    },
-    {
-      "sha": "4c63010e078da56526afd9238a2c4f3da8bdebe1",
-      "short_sha": "4c63010e078",
-      "date": "2026-05-18T14:56:43-04:00",
-      "author": {
-        "name": "Militsa Sotirova",
-        "email": "militsa.sotirova@mongodb.com"
-      },
-      "summary": "SERVER-125612 Check for dynamic_cast failure in document_source_sort (#53387)"
-    },
-    {
-      "sha": "20fb98954ecb8b2733c4f2ef3d10ade658100847",
-      "short_sha": "20fb98954ec",
-      "date": "2026-05-18T13:50:51-05:00",
-      "author": {
-        "name": "Jaroslaw Kawa",
-        "email": "105752198+Jarek0302@users.noreply.github.com"
-      },
-      "summary": "SERVER-126502 fassert on extension load failure instead of exitCleanly (#53723)"
-    },
-    {
-      "sha": "e3ed5a819f329a501af20368c3be0d07dcc7d4ad",
-      "short_sha": "e3ed5a819f3",
-      "date": "2026-05-18T14:14:54-04:00",
-      "author": {
-        "name": "Yuhong Zhang",
-        "email": "yuhong.zhang@mongodb.com"
-      },
-      "summary": "SERVER-125025 Re-enable replicate size and count for change stream fsm tests (#53493)"
     }
   ],
   "merge_picks": [
-    {
-      "commit": {
-        "sha": "8b100f357da5131cf81a08d9a401d3ea76c38092",
-        "short_sha": "8b100f357da",
-        "date": "2026-05-18T15:27:03-04:00",
-        "author": {
-          "name": "Xuerui Fa",
-          "email": "xuerui.fa@mongodb.com"
-        },
-        "summary": "SERVER-125964: Apply initial sync oplog entries from initiating set oplog entry if the set recently initiated (#53949)"
-      },
-      "strategy_name": "important_files",
-      "result": {
-        "matched_files": [
-          "src/mongo/db/repl/initial_sync/initial_syncer.cpp",
-          "src/mongo/db/repl/initial_sync/initial_syncer.h"
-        ]
-      }
-    },
     {
       "commit": {
         "sha": "0a8f7ec52072ffa37cabd5119246402029169a87",
@@ -1163,10 +1144,33 @@
           "num_of_dirs": 11
         }
       }
+    },
+    {
+      "commit": {
+        "sha": "1edc71de45d0e93154241f51b52903b4e6e38476",
+        "short_sha": "1edc71de45d",
+        "date": "2026-05-21T09:04:09+10:00",
+        "author": {
+          "name": "wt-vendoring-bot[bot]",
+          "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
+        },
+        "summary": "Import wiredtiger: 7e770f5312cc46eb17bacd3f98b26da26d6d1854 from branch mongodb-master (#54101)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 74,
+          "num_of_lines": 2881,
+          "lines_added": 1704,
+          "lines_deleted": 1177,
+          "num_of_dirs": 20
+        }
+      }
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-05-20 21:28:42",
+  "generated_at": "2026-05-21 01:09:40",
   "branch_name": "master",
   "display_name": "master"
 }
