@@ -1,0 +1,14 @@
+name: "Fetch tags"
+description: "Fetch origin tags plus upstream MongoDB r* tags for git describe"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Fetch tags
+      shell: bash
+      run: |
+        git fetch --tags --force origin
+        # Upstream MongoDB r* tags are required by buildscripts to resolve
+        # a version via `git describe` for releases.h generation.
+        git fetch --tags --force https://github.com/mongodb/mongo.git 'refs/tags/r*:refs/tags/r*'
+        git describe --abbrev=0
