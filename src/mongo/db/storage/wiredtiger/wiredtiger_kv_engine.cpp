@@ -3659,16 +3659,94 @@ void WiredTigerKVEngine::dropIdentForImport(Interruptible& interruptible,
     invariant(dropStatus);
 }
 
-void WiredTigerKVEngine::keydbDropDatabase(const DatabaseName& dbName) {
-    if (_restEncr) {
-        int res = _restEncr->keyDb()->delete_key_by_id(
-            DatabaseNameUtil::serialize(dbName, SerializationContext::stateDefault()));
-        if (res) {
-            // we cannot throw exceptions here because we are inside WUOW::commit
-            // every other part of DB is already dropped so we just log error message
-            LOGV2_ERROR(29001, "failed to delete encryption key for db", logAttrs(dbName));
+bool WiredTigerKVEngine::keydbDropKeyId(StringData keyId) {
+    if (!_restEncr) {
+        return true;
+    }
+    int res = _restEncr->keyDb()->delete_key_by_id(std::string{keyId});
+    if (res) {
+        LOGV2_ERROR(29174, "Failed to delete encryption key by raw keyId", "keyId"_attr = keyId);
+        return false;
+    }
+    LOGV2_DEBUG(29175, 1, "Deleted encryption key by raw keyId", "keyId"_attr = keyId);
+    return true;
+}
+
+std::vector<std::string> WiredTigerKVEngine::findOrphanedEncryptionKeyIds() {
+    if (!_restEncr) {
+        return {};
+    }
+
+    // candidates starts as every keyId in the keystore and shrinks as we
+    // encounter idents that reference one. Using a sorted vector (kept
+    // sorted because getAllKeyIds returns keys in WT cursor order, which
+    // is lexicographic for string keys) lets us binary_search + erase per
+    // ident and short-circuit once it's empty. This avoids the
+    // O(idents * unique-keys) memory blowup of building a parallel
+    // keyIdsInUse vector when many idents share the same key.
+    auto candidates = _restEncr->keyDb()->getAllKeyIds();
+    if (candidates.empty()) {
+        return {};
+    }
+    std::sort(candidates.begin(), candidates.end());
+    const size_t initialCandidates = candidates.size();
+
+    auto session = _connection->getUninterruptibleSession();
+    auto idents = _wtGetAllIdents(*session);
+
+    LOGV2_DEBUG(
+        29163, 2, "Scanning idents for encryption keys in use", "identCount"_attr = idents.size());
+
+    for (const auto& ident : idents) {
+        if (candidates.empty()) {
+            // Every key in the keystore is referenced - no orphans possible.
+            break;
+        }
+
+        // Must use getMetadataCreate (returns the original WT_SESSION::create
+        // config string) rather than reading the value out of a "metadata:"
+        // cursor: only the original-create config preserves the
+        // encryption=(name=..., keyid="...") clause that identifies the keyId.
+        auto metadata =
+            WiredTigerUtil::getMetadataCreate(*session, WiredTigerUtil::buildTableUri(ident));
+        if (!metadata.isOK()) {
+            // If we cannot read metadata for any ident we cannot know which
+            // keys it uses, so we cannot prove a key is orphaned.
+            // Returning an empty list skips this cleanup pass entirely - the
+            // next startup or trigger will retry. The alternative (continuing)
+            // risks deleting a key that is still referenced and leaving its
+            // ident files undecryptable.
+            LOGV2_WARNING(29164,
+                          "Aborting orphaned encryption key scan: failed to read metadata "
+                          "for an ident. Cleanup will be retried on next trigger.",
+                          "ident"_attr = ident,
+                          "error"_attr = metadata.getStatus());
+            return {};
+        }
+
+        auto keyId = WiredTigerUtil::getEncryptionKeyId(metadata.getValue());
+        if (!keyId || EncryptionKeyDB::isSpecialKeyId(*keyId)) {
+            continue;
+        }
+
+        auto it = std::lower_bound(candidates.begin(), candidates.end(), *keyId);
+        if (it != candidates.end() && *it == *keyId) {
+            LOGV2_DEBUG(29166,
+                        3,
+                        "Found ident using encryption key",
+                        "ident"_attr = ident,
+                        "keyId"_attr = *keyId);
+            candidates.erase(it);
         }
     }
+
+    LOGV2_DEBUG(29165,
+                2,
+                "Encryption key cleanup scan",
+                "keysInKeyDb"_attr = initialCandidates,
+                "orphaned"_attr = candidates.size());
+
+    return candidates;
 }
 
 void WiredTigerKVEngine::_checkpoint(WiredTigerSession& session, bool useTimestamp) {

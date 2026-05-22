@@ -565,7 +565,9 @@ public:
 
     Status alterMetadata(StringData uri, StringData config) override;
 
-    void keydbDropDatabase(const DatabaseName& dbName) override;
+    bool keydbDropKeyId(StringData keyId) override;
+
+    std::vector<std::string> findOrphanedEncryptionKeyIds() override;
 
     void flushAllFiles(OperationContext* opCtx, bool callerHoldsReadLock) override;
 

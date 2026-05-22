@@ -904,6 +904,19 @@ void startupRecovery(OperationContext* opCtx,
     reconcileCatalogAndRestartUnfinishedIndexBuilds(
         opCtx, storageEngine, lastShutdownState, startupTimeElapsedBuilder);
 
+    // Clean up orphaned encryption keys.
+    //
+    // This MUST run after reconcileCatalogAndRestartUnfinishedIndexBuilds.
+    // That call drops WT idents that the catalog no longer references (the
+    // typical case: a database was dropped but its WT files survived because
+    // the drop-pending reaper had not yet unlinked them when mongod stopped).
+    // The orphan-key scan compares keys in the keystore against the keyIds
+    // still referenced by WT idents - so it must see the post-reconcile ident
+    // set. If we ran it before reconcile, the about-to-be-dropped idents
+    // would still be visible in WT and their keys would be misclassified as
+    // in-use, deferring their cleanup to the *next* startup.
+    storageEngine->cleanupOrphanedEncryptionKeys(opCtx, "startup"_sd);
+
     const bool usingReplication =
         repl::ReplicationCoordinator::get(opCtx)->getSettings().isReplSet();
 

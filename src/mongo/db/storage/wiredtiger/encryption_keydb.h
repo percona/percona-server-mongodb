@@ -39,6 +39,7 @@ Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
 #include <map>
 #include <mutex>
 #include <string>
+#include <vector>
 
 #include <wiredtiger.h>
 
@@ -86,8 +87,19 @@ public:
     // return key from keyfile if len == 0
     int get_key_by_id(const char* keyid, size_t len, unsigned char* key, void* pe);
 
-    // drop key for specific keyid (used in dropDatabase)
+    // drop key for specific keyid (called from the deferred startup
+    // orphan-key cleanup path; not called during dropDatabase, which
+    // would race with WT checkpoint cleanup of drop-pending idents)
     int delete_key_by_id(const std::string& keyid);
+
+    // Returns all key IDs (database names) stored in the key database.
+    // Excludes the master key (empty keyid) and special keys like "/default".
+    // Used for deferred encryption key cleanup.
+    std::vector<std::string> getAllKeyIds();
+
+    // Returns true if the key ID is a special/reserved key that should not be
+    // included in user key lists (empty key for master key, "/default" key).
+    static bool isSpecialKeyId(const std::string& keyId);
 
     // get new counter value for IV in GCM mode
     int get_iv_gcm(uint8_t* buf, int len);

@@ -157,6 +157,50 @@ StatusWith<std::string> WiredTigerUtil::getMetadata(WiredTigerSession& session, 
     return _getMetadata(cursor, uri);
 }
 
+boost::optional<std::string> WiredTigerUtil::getEncryptionKeyId(StringData config) {
+    WiredTigerConfigParser parser(config);
+
+    // Get the "encryption" key which contains a nested struct.
+    // Distinguish WT_NOTFOUND (no encryption clause - return boost::none) from
+    // other errors (programmer / corruption errors - assert so we don't silently
+    // misclassify an in-use key as orphaned). See isTableLoggingEnabled() for
+    // the same pattern.
+    WT_CONFIG_ITEM encryptionValue;
+    if (auto retCode = parser.get("encryption", &encryptionValue); retCode != 0) {
+        invariant(retCode == WT_NOTFOUND,
+                  fmt::format("expected WT_NOTFOUND from WT_CONFIG_PARSER::get() but got {} "
+                              "instead while looking up 'encryption' in WT config",
+                              retCode));
+        return boost::none;
+    }
+
+    // Encryption value must be a struct: encryption=(name=percona,keyid="...")
+    if (encryptionValue.type != WT_CONFIG_ITEM::WT_CONFIG_ITEM_STRUCT) {
+        return boost::none;
+    }
+
+    // Parse the nested encryption struct
+    WiredTigerConfigParser encryptionParser(encryptionValue);
+
+    // Get the "keyid" sub-key
+    WT_CONFIG_ITEM keyidValue;
+    if (auto retCode = encryptionParser.get("keyid", &keyidValue); retCode != 0) {
+        invariant(retCode == WT_NOTFOUND,
+                  fmt::format("expected WT_NOTFOUND from WT_CONFIG_PARSER::get() but got {} "
+                              "instead while looking up 'keyid' in encryption sub-config",
+                              retCode));
+        return boost::none;
+    }
+
+    // keyid is typically a STRING type (quoted like keyid="...") but could also be ID type
+    if (keyidValue.type == WT_CONFIG_ITEM::WT_CONFIG_ITEM_STRING ||
+        keyidValue.type == WT_CONFIG_ITEM::WT_CONFIG_ITEM_ID) {
+        return std::string(keyidValue.str, keyidValue.len);
+    }
+
+    return boost::none;
+}
+
 StatusWith<std::string> WiredTigerUtil::getSourceMetadata(WiredTigerSession& session,
                                                           StringData uri) {
     if (uri.starts_with("file:")) {

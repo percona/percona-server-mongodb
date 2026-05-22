@@ -31,9 +31,14 @@ Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
 
 #pragma once
 
+#include "mongo/base/string_data.h"
+
+#include <string>
+#include <vector>
+
 namespace mongo {
-class DatabaseName;
-}
+class OperationContext;
+}  // namespace mongo
 
 namespace percona {
 
@@ -45,9 +50,50 @@ struct KeyDBAPI {
     virtual ~KeyDBAPI() {}
 
     /**
-     * Returns whether the engine supports feature compatibility version 3.6
+     * Delete the keystore entry with the given keyId.
+     *
+     * Returns true if the entry was deleted (or no entry was present),
+     * false if the deletion failed in the underlying key store. Engines
+     * that do not support KeyDB always return true.
+     *
+     * Called by the deferred cleanup process after verifying:
+     * 1. The database whose name serializes to this keyId no longer
+     *    exists in the catalog (or the keyId is not a valid serialized
+     *    DatabaseName, e.g. a legacy/corrupted entry)
+     * 2. No storage idents (including drop-pending ones) use the key
+     *
+     * NOTE: This should NOT be called directly during dropDatabase
+     * operations because drop-pending idents may still exist and require
+     * the key for checkpoint cleanup. Use the deferred cleanup mechanism
+     * instead.
      */
-    virtual void keydbDropDatabase(const mongo::DatabaseName& dbName) {
+    virtual bool keydbDropKeyId(mongo::StringData keyId) {
+        // do nothing for engines which do not support KeyDB
+        return true;
+    }
+
+    /**
+     * Returns the sorted set of encryption keyIds that exist in the key database
+     * but are not referenced by any storage ident (including drop-pending ones).
+     *
+     * Computed inside the engine because both inputs — the keydb listing and the
+     * WT-metadata scan — are engine-internal. Callers re-verify each candidate
+     * under a DB lock before deleting it; this method does not consult the
+     * CollectionCatalog.
+     */
+    virtual std::vector<std::string> findOrphanedEncryptionKeyIds() {
+        return {};  // empty for engines which do not support KeyDB
+    }
+
+    /**
+     * Cleans up orphaned encryption keys - keys that belong to databases that
+     * no longer exist and are not in use by any storage idents. Called
+     * unconditionally on startup. `trigger` is a short string identifying the
+     * call site ("startup") so the completion summary log can be
+     * filtered/audited.
+     */
+    virtual void cleanupOrphanedEncryptionKeys(mongo::OperationContext* opCtx,
+                                               mongo::StringData trigger) {
         // do nothing for engines which do not support KeyDB
     }
 };

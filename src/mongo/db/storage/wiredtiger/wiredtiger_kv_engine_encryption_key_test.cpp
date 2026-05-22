@@ -31,6 +31,7 @@ Copyright (C) 2022-present Percona and/or its affiliates. All rights reserved.
 
 #include "mongo/base/string_data.h"
 #include "mongo/bson/bsonmisc.h"
+#include "mongo/db/database_name.h"
 #include "mongo/db/encryption/encryption_options.h"
 #include "mongo/db/encryption/error.h"
 #include "mongo/db/encryption/key.h"
@@ -1658,6 +1659,132 @@ TEST_F(WiredTigerKVEngineEncryptionKeyKmipPollStateTest,
 #undef ASSERT_CREATE_ENGINE_THROWS_REASON_REGEX
 #undef ASSERT_CREATE_ENGINE_THROWS_REASON_CONTAINS
 #undef ASSERT_CREATE_ENGINE_THROWS_WHAT
+
+//
+// PSMDB-1997 - lifecycle of per-database encryption keys (orphan scan,
+// cleanup, isSpecialKeyId helper). These tests need a live engine, so
+// the fixture overrides _setUpPreconfiguredEngine() to NOT reset the
+// engine after construction.
+//
+
+TEST(EncryptionKeyDBStatic, IsSpecialKeyId) {
+    // The two reserved keyIds the engine creates for itself. Either of
+    // them showing up in a "in-use" or "orphan" set would corrupt the
+    // master/default key, so the filter is security-critical.
+    ASSERT_TRUE(EncryptionKeyDB::isSpecialKeyId(""));
+    ASSERT_TRUE(EncryptionKeyDB::isSpecialKeyId("/default"));
+
+    // Anything else is a real per-database key.
+    ASSERT_FALSE(EncryptionKeyDB::isSpecialKeyId("admin"));
+    ASSERT_FALSE(EncryptionKeyDB::isSpecialKeyId("user.db"));
+    ASSERT_FALSE(EncryptionKeyDB::isSpecialKeyId("/"));
+    ASSERT_FALSE(EncryptionKeyDB::isSpecialKeyId("default"));  // no leading slash
+    ASSERT_FALSE(EncryptionKeyDB::isSpecialKeyId("/default/sub"));
+}
+
+class WiredTigerKVEngineKeyLifecycleTest : public WiredTigerKVEngineEncryptionKeyTest {
+protected:
+    void _setUpPreconfiguredEngine() override {
+        _setUpEncryptionParams();
+        _engine = _createWiredTigerKVEngine();
+        WtKeyIds::instance().configured = std::move(WtKeyIds::instance().futureConfigured);
+        // Intentionally do NOT reset _engine here - tests need the live
+        // engine to call into EncryptionKeyDB and findOrphanedEncryptionKeyIds.
+    }
+    void _setUpEncryptionParams() override {
+        encryptionGlobalParams = encryptionParamsKeyFile(*_keyFilePath);
+    }
+
+    EncryptionKeyDB* keyDb() {
+        return _engine->getEncryptionKeyDB();
+    }
+
+    void insertKey(StringData id) {
+        unsigned char buf[encryption::Key::kLength];
+        // get_key_by_id with pe=nullptr creates the entry if missing and
+        // does NOT poison _encryptors (this is the post-fix behavior).
+        ASSERT_EQ(0, keyDb()->get_key_by_id(id.data(), id.size(), buf, nullptr));
+    }
+};
+
+TEST_F(WiredTigerKVEngineKeyLifecycleTest, GetAllKeyIdsReturnsInsertedKeys) {
+    // Key IDs in the keystore are normally serialized DatabaseNames, so use
+    // plain identifiers (no '.', '/', etc.) that round-trip cleanly through
+    // DatabaseName validation.
+    insertKey("alpha");
+    insertKey("bravo");
+
+    auto ids = keyDb()->getAllKeyIds();
+
+    // The keystore may also contain special entries (master / "/default"),
+    // which the helper excludes. We assert that our two non-special keys
+    // are present and that no special keyId leaks through.
+    ASSERT_TRUE(std::find(ids.begin(), ids.end(), "alpha") != ids.end());
+    ASSERT_TRUE(std::find(ids.begin(), ids.end(), "bravo") != ids.end());
+    for (const auto& id : ids) {
+        ASSERT_FALSE(EncryptionKeyDB::isSpecialKeyId(id))
+            << "getAllKeyIds returned special keyId '" << id << "'";
+    }
+}
+
+TEST_F(WiredTigerKVEngineKeyLifecycleTest, FindOrphanedReturnsKeysWithNoIdents) {
+    insertKey("orphan_a");
+    insertKey("orphan_b");
+
+    // No collection has been created in this engine, so no WT ident
+    // references either key. Both must be reported as orphan candidates.
+    auto orphans = _engine->findOrphanedEncryptionKeyIds();
+
+    ASSERT_TRUE(std::find(orphans.begin(), orphans.end(), "orphan_a") != orphans.end())
+        << "orphan_a missing from: " << orphans.size() << " candidates";
+    ASSERT_TRUE(std::find(orphans.begin(), orphans.end(), "orphan_b") != orphans.end())
+        << "orphan_b missing from: " << orphans.size() << " candidates";
+
+    // The scan must never classify special keys as orphan - deleting the
+    // master key would brick the keystore.
+    for (const auto& id : orphans) {
+        ASSERT_FALSE(EncryptionKeyDB::isSpecialKeyId(id))
+            << "findOrphanedEncryptionKeyIds returned special keyId '" << id << "'";
+    }
+}
+
+TEST_F(WiredTigerKVEngineKeyLifecycleTest, KeydbDropKeyIdDeletesKey) {
+    insertKey("tempdb");
+    auto before = keyDb()->getAllKeyIds();
+    ASSERT_TRUE(std::find(before.begin(), before.end(), "tempdb") != before.end());
+
+    ASSERT_TRUE(_engine->keydbDropKeyId("tempdb"));
+
+    auto after = keyDb()->getAllKeyIds();
+    ASSERT_TRUE(std::find(after.begin(), after.end(), "tempdb") == after.end())
+        << "tempdb still in keystore after keydbDropKeyId";
+}
+
+TEST_F(WiredTigerKVEngineKeyLifecycleTest, KeydbDropKeyIdDeletesNonDatabaseNameKey) {
+    // keyIds in the keystore are normally serialized DatabaseNames, but a
+    // corrupted or legacy keystore could carry an entry whose keyId is not
+    // a valid serialized DatabaseName (e.g. "table:foo" - the colon makes
+    // DatabaseName validation reject it). The startup cleanup path drops
+    // such entries by raw keyId; without this they would leak indefinitely.
+    const StringData weirdKey = "table:foo";
+    insertKey(weirdKey);
+
+    auto before = keyDb()->getAllKeyIds();
+    ASSERT_TRUE(std::find(before.begin(), before.end(), std::string{weirdKey}) != before.end());
+
+    ASSERT_TRUE(_engine->keydbDropKeyId(weirdKey));
+
+    auto after = keyDb()->getAllKeyIds();
+    ASSERT_TRUE(std::find(after.begin(), after.end(), std::string{weirdKey}) == after.end())
+        << "'table:foo' still in keystore after keydbDropKeyId";
+}
+
+TEST_F(WiredTigerKVEngineKeyLifecycleTest, KeydbDropKeyIdTrueWhenKeyMissing) {
+    // The cleanup path may legitimately race a key disappearing between
+    // scan and delete; treating a missing key as a successful no-op keeps
+    // the deleted counter accurate.
+    ASSERT_TRUE(_engine->keydbDropKeyId("never_inserted"));
+}
 
 }  // namespace
 }  // namespace mongo

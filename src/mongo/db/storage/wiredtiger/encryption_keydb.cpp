@@ -391,7 +391,12 @@ int EncryptionKeyDB::get_key_by_id(const char* keyid, size_t len, unsigned char*
         memcpy(key, v.data, encryption::Key::kLength);
         if (kDebugBuild)
             dump_key(key, encryption::Key::kLength, "loaded key from key DB");
-        _encryptors[c_str] = pe;
+        // pe is null for callers that only want the key bytes (e.g. dbKey()
+        // in the temp-data encryption hooks). Only cache real encryptor
+        // handles - those are populated by WT's customize callback.
+        if (pe) {
+            _encryptors[c_str] = pe;
+        }
         return 0;
     }
     if (res != WT_NOTFOUND) {
@@ -420,7 +425,9 @@ int EncryptionKeyDB::get_key_by_id(const char* keyid, size_t len, unsigned char*
 
     if (kDebugBuild)
         dump_key(key, encryption::Key::kLength, "generated and stored key");
-    _encryptors[c_str] = pe;
+    if (pe) {
+        _encryptors[c_str] = pe;
+    }
     return 0;
 }
 
@@ -446,7 +453,13 @@ int EncryptionKeyDB::delete_key_by_id(const std::string& keyid) {
     // delete key
     cursor->set_key(cursor, keyid.c_str());
     res = cursor->remove(cursor);
-    if (res) {
+    if (res == WT_NOTFOUND) {
+        // The key is already gone (e.g. a concurrent cleanup raced with us,
+        // or the caller did not check before deleting). Treat as success so
+        // callers can use this idempotently.
+        LOGV2_DEBUG(29059, 2, "delete_key_by_id: keyid not present", "id"_attr = keyid);
+        res = 0;
+    } else if (res) {
         LOGV2_ERROR(29046,
                     "cursor->remove error {code}: {desc}",
                     "code"_attr = res,
@@ -459,11 +472,53 @@ int EncryptionKeyDB::delete_key_by_id(const std::string& keyid) {
     // DB is dropped just after mongod is started and before any read/write operations)
     auto it = _encryptors.find(keyid);
     if (it != _encryptors.end()) {
-        percona_encryption_extension_drop_keyid(it->second);
+        if (it->second) {
+            percona_encryption_extension_drop_keyid(it->second);
+        }
         _encryptors.erase(it);
     }
 
     return res;
+}
+
+bool EncryptionKeyDB::isSpecialKeyId(const std::string& keyId) {
+    return keyId.empty() || keyId == "/default";
+}
+
+std::vector<std::string> EncryptionKeyDB::getAllKeyIds() {
+    std::vector<std::string> keyIds;
+
+    WT_CURSOR* cursor;
+    std::lock_guard<std::mutex> lk(_lock_sess);
+    int res = _sess->open_cursor(_sess, "table:key", nullptr, nullptr, &cursor);
+    if (res) {
+        LOGV2_ERROR(
+            29155, "getAllKeyIds: error opening cursor", "error"_attr = wiredtiger_strerror(res));
+        return keyIds;
+    }
+
+    // Create cursor close guard
+    std::unique_ptr<WT_CURSOR, std::function<void(WT_CURSOR*)>> cursor_guard(
+        cursor, [](WT_CURSOR* c) { c->close(c); });
+
+    while ((res = cursor->next(cursor)) == 0) {
+        char* k;
+        res = cursor->get_key(cursor, &k);
+        if (res == 0 && k != nullptr) {
+            std::string keyId(k);
+            if (!isSpecialKeyId(keyId)) {
+                keyIds.emplace_back(std::move(keyId));
+            }
+        }
+    }
+
+    if (res != WT_NOTFOUND) {
+        LOGV2_ERROR(
+            29156, "getAllKeyIds: error iterating cursor", "error"_attr = wiredtiger_strerror(res));
+    }
+
+    LOGV2_DEBUG(29157, 2, "getAllKeyIds: found keys", "count"_attr = keyIds.size());
+    return keyIds;
 }
 
 int EncryptionKeyDB::store_gcm_iv_reserved() {
