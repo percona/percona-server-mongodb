@@ -59,7 +59,6 @@
 #include <list>
 #include <memory>
 #include <mutex>
-#include <set>
 #include <string>
 #include <utility>
 #include <vector>
@@ -85,7 +84,9 @@ class StorageEngineImpl final : public StorageEngine {
     Status hotBackup(OperationContext* opCtx, const std::string& path) override;
     Status hotBackupTar(OperationContext* opCtx, const std::string& path) override;
     Status hotBackup(OperationContext* opCtx, const percona::S3BackupParameters& s3params) override;
-    void keydbDropDatabase(const DatabaseName& dbName) override;
+    bool keydbDropKeyId(StringData keyId) override;
+
+    void cleanupOrphanedEncryptionKeys(OperationContext* opCtx, StringData trigger) override;
 
 public:
     StorageEngineImpl(OperationContext* opCtx,

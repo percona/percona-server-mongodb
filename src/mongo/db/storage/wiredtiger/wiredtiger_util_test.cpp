@@ -508,6 +508,50 @@ TEST_F(WiredTigerUtilTest, RemoveEncryptionFromConfigString) {
     }
 }
 
+TEST_F(WiredTigerUtilTest, GetEncryptionKeyId) {
+    {  // No encryption clause -> none.
+        auto out = WiredTigerUtil::getEncryptionKeyId(
+            "debug_mode=(table_logging=true,checkpoint_retention=4)");
+        ASSERT_FALSE(out.has_value());
+    }
+    {  // Empty config -> none.
+        auto out = WiredTigerUtil::getEncryptionKeyId("");
+        ASSERT_FALSE(out.has_value());
+    }
+    {  // encryption present but as bare value (not a struct) -> none.
+        auto out = WiredTigerUtil::getEncryptionKeyId("encryption=foo");
+        ASSERT_FALSE(out.has_value());
+    }
+    {  // encryption struct without keyid -> none.
+        auto out = WiredTigerUtil::getEncryptionKeyId("encryption=(name=percona)");
+        ASSERT_FALSE(out.has_value());
+    }
+    {  // keyid as quoted STRING.
+        auto out = WiredTigerUtil::getEncryptionKeyId("encryption=(name=percona,keyid=\"db.foo\")");
+        ASSERT_TRUE(out.has_value());
+        ASSERT_EQUALS(*out, "db.foo");
+    }
+    {  // keyid as unquoted ID.
+        auto out = WiredTigerUtil::getEncryptionKeyId("encryption=(name=percona,keyid=systemkey)");
+        ASSERT_TRUE(out.has_value());
+        ASSERT_EQUALS(*out, "systemkey");
+    }
+    {  // Empty keyid string - special "master key" marker. Caller filters via
+       // EncryptionKeyDB::isSpecialKeyId.
+        auto out = WiredTigerUtil::getEncryptionKeyId("encryption=(name=percona,keyid=\"\")");
+        ASSERT_TRUE(out.has_value());
+        ASSERT_EQUALS(*out, "");
+    }
+    {  // Encryption sandwiched between other options.
+        auto out = WiredTigerUtil::getEncryptionKeyId(
+            "debug_mode=(table_logging=true),"
+            "encryption=(name=AES256-CBC,keyid=\".system\"),"
+            "extensions=[local={entry=mongo_addWiredTigerEncryptors,early_load=true}]");
+        ASSERT_TRUE(out.has_value());
+        ASSERT_EQUALS(*out, ".system");
+    }
+}
+
 TEST_F(WiredTigerUtilTest, GetSanitizedStorageOptionsForSecondaryReplication) {
     {  // Empty storage options.
         auto input = BSONObj();

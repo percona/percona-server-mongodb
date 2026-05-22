@@ -36,10 +36,13 @@
 #include "mongo/bson/timestamp.h"
 #include "mongo/db/admission/execution_control/execution_admission_context.h"
 #include "mongo/db/client.h"
+#include "mongo/db/database_name_util.h"
 #include "mongo/db/index/multikey_paths.h"
 #include "mongo/db/operation_context.h"
 #include "mongo/db/rss/replicated_storage_service.h"
+#include "mongo/db/shard_role/lock_manager/d_concurrency.h"
 #include "mongo/db/shard_role/shard_catalog/catalog_raii.h"
+#include "mongo/db/shard_role/shard_catalog/collection_catalog.h"
 #include "mongo/db/shard_role/transaction_resources.h"
 #include "mongo/db/storage/backup_cursor_hooks.h"
 #include "mongo/db/storage/disk_space_monitor.h"
@@ -63,6 +66,7 @@
 #include "mongo/util/fail_point.h"
 #include "mongo/util/log_and_backoff.h"
 #include "mongo/util/str.h"
+#include "mongo/util/timer.h"
 
 #include <algorithm>
 #include <memory>
@@ -123,8 +127,8 @@ Status StorageEngineImpl::hotBackup(OperationContext* opCtx,
     return _engine->hotBackup(opCtx, s3params);
 }
 
-void StorageEngineImpl::keydbDropDatabase(const DatabaseName& dbName) {
-    _engine->keydbDropDatabase(dbName);
+bool StorageEngineImpl::keydbDropKeyId(StringData keyId) {
+    return _engine->keydbDropKeyId(keyId);
 }
 
 StorageEngineImpl::StorageEngineImpl(OperationContext* opCtx,
@@ -977,6 +981,108 @@ StorageEngine::CheckpointIteration StorageEngineImpl::getCheckpointIteration() c
 bool StorageEngineImpl::hasDataBeenCheckpointed(
     StorageEngine::CheckpointIteration checkpointIteration) const {
     return _engine->hasDataBeenCheckpointed(checkpointIteration);
+}
+
+void StorageEngineImpl::cleanupOrphanedEncryptionKeys(OperationContext* opCtx, StringData trigger) {
+    Timer timer;
+
+    // Skip cleanup during backup. Deleting a key while a backup cursor is
+    // iterating the key database could produce a backup that cannot decrypt
+    // its ident files.
+    auto backupCursorHooks = BackupCursorHooks::get(opCtx->getServiceContext());
+    if (_inBackupMode || (backupCursorHooks && backupCursorHooks->isBackupCursorOpen())) {
+        LOGV2_DEBUG(29171,
+                    1,
+                    "Orphaned encryption key cleanup deferred due to backup in progress",
+                    "trigger"_attr = trigger,
+                    "reason"_attr = _inBackupMode ? "inBackupMode"_sd : "backupCursorOpen"_sd);
+        return;
+    }
+
+    // Ask the engine for keys that exist in the keydb but are not referenced by
+    // any storage ident (including drop-pending ones). Each candidate is then
+    // re-verified under a MODE_S DB lock against the CollectionCatalog before
+    // deletion - that lock is what guards against races with concurrent
+    // createDatabase / createCollection.
+    auto orphaned = _engine->findOrphanedEncryptionKeyIds();
+
+    size_t dbCount = 0;
+    {
+        Lock::GlobalLock globalLock(opCtx, MODE_IS);
+        dbCount = CollectionCatalog::get(opCtx)->getAllDbNames().size();
+    }
+
+    LOGV2_DEBUG(29172, 2, "Orphaned encryption key candidates", "keyIds"_attr = orphaned);
+
+    // Re-verify under lock and delete
+    size_t deleted = 0;
+    for (const auto& keyId : orphaned) {
+        // Step 1: deserialize the keyId to a DatabaseName. If this fails the
+        // key cannot belong to any database that the catalog could ever hold
+        // (db names with invalid characters are rejected at create time), so
+        // no DB-lock dance is needed - drop the entry directly by raw keyId.
+        // Skipping it would leak the key indefinitely.
+        DatabaseName dbName;
+        try {
+            dbName = DatabaseNameUtil::deserialize(
+                boost::none, keyId, SerializationContext::stateDefault());
+        } catch (const DBException& e) {
+            LOGV2_WARNING(29173,
+                          "Encryption keystore contains an entry whose keyId is "
+                          "not a valid serialized DatabaseName; deleting it by "
+                          "raw keyId",
+                          "keyId"_attr = keyId,
+                          "error"_attr = e.toStatus());
+            if (_engine->keydbDropKeyId(keyId)) {
+                ++deleted;
+            }
+            continue;
+        }
+
+        // Step 2: verify under a DB-S lock that the database still doesn't
+        // exist and isn't drop-pending. The lock is what guards against a
+        // concurrent createDatabase/createCollection sneaking in between
+        // findOrphanedEncryptionKeyIds() and the delete below.
+        try {
+            Lock::DBLock dbLock(opCtx, dbName, MODE_S);
+            auto freshCatalog = CollectionCatalog::get(opCtx);
+            auto freshDbs = freshCatalog->getAllDbNames();
+            // getAllDbNames() returns a sorted vector - binary_search keeps
+            // the per-key check O(log dbs) instead of O(dbs).
+            bool dbExists = std::binary_search(freshDbs.begin(), freshDbs.end(), dbName);
+            bool dropPending = freshCatalog->isDropPending(dbName);
+
+            if (!dbExists && !dropPending) {
+                LOGV2(29160,
+                      "Deleting orphaned encryption key for non-existent database",
+                      "keyId"_attr = keyId);
+                if (_engine->keydbDropKeyId(keyId)) {
+                    ++deleted;
+                }
+            } else {
+                LOGV2_DEBUG(29170,
+                            1,
+                            "Skipped orphaned encryption key deletion",
+                            "keyId"_attr = keyId,
+                            "reason"_attr = dbExists ? "dbExists"_sd : "dropPending"_sd);
+            }
+        } catch (const DBException& e) {
+            // Log and continue with other keys - don't let one failure stop cleanup
+            LOGV2_DEBUG(29161,
+                        1,
+                        "Failed to clean up encryption key",
+                        "keyId"_attr = keyId,
+                        "error"_attr = e.toStatus());
+        }
+    }
+
+    LOGV2(29169,
+          "Orphaned encryption key cleanup completed",
+          "trigger"_attr = trigger,
+          "dbCount"_attr = dbCount,
+          "candidates"_attr = orphaned.size(),
+          "deleted"_attr = deleted,
+          "durationMs"_attr = timer.millis());
 }
 
 StorageEngineImpl::TimestampMonitor::TimestampMonitor(KVEngine* engine, PeriodicRunner* runner)
