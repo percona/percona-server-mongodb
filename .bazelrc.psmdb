@@ -285,5 +285,29 @@ common:psmdb_buildfarm --strategy=GpgSign=local
 common:psmdb_buildfarm --//bazel/config:build_enterprise=False
 
 ################################################################################
+# PSMDB remote unittest profile (psmdb_remote_unittest)
+################################################################################
+# Extends upstream's --config=remote_unittest with PSMDB-specific test-tag
+# exclusions that the bb-psmdb scheduler can't currently satisfy. Keeping
+# them here rather than in the CI invocation means a local
+# `bazel test --config=psmdb_buildfarm --config=psmdb_remote_unittest //src/...`
+# reproduces the CI filter exactly.
+#
+# The -cpu:2 exclusion drops tests routed by bazel/test_exec_properties.bzl
+# to Pool=large_mem_2core_x86_64. The bb-psmdb scheduler has no registered
+# workers for that platform pool, so those tests fail at dispatch with
+# "FAILED_PRECONDITION: No workers exist for instance name prefix
+# 'hardlinking' platform ... Pool=large_mem_2core_x86_64". Once the pool
+# is provisioned, drop this exclusion and rely on --config=remote_unittest
+# directly.
+#
+# --test_tag_filters is last-wins (not merged) so the full filter from
+# upstream's test:remote_unittest line in .bazelrc must be re-stated here,
+# with -cpu:2 appended.
+--config=psmdb_remote_unittest
+common:psmdb_remote_unittest --config=remote_unittest
+test:psmdb_remote_unittest --test_tag_filters=mongo_unittest,-intermediate_debug,-incompatible_with_bazel_remote_test,-cpu:2
+
+################################################################################
 # End of Percona-specific build profiles
 ################################################################################
