@@ -23,6 +23,11 @@ import {BackupRestoreTest} from "jstests/noPassthrough/libs/backup_restore.js";
         return;
     }
 
+    // Heavy CRUD on crud.backuprestore can leave the legacy fast count stale on a hidden
+    // secondary restored from backup while oplog catch-up is still quiescing. Skip strict
+    // fast-count checks during ReplSetTest.stopSet() validation to avoid transient failures.
+    TestData.skipEnforceFastCountOnValidate = true;
+
     // Run the $backupCursor test. Will return before testing for any engine that doesn't
     // support $backupCursor
     new BackupRestoreTest({backup: "backupCursor"}).run();
