@@ -433,13 +433,11 @@ fi
 %if 0%{?amzn} == 2023 || 0%{?rhel} >= 7
 install -d -m 2775 -o mongod -g percona-telemetry /usr/local/percona/telemetry/psmdb
 %endif
-cp %SOURCE999 /tmp/ 2>/dev/null || :
-bash /tmp/call-home.sh -f "PRODUCT_FAMILY_PSMDB" -v "@@VERSION@@-@@RELEASE@@" -d "PACKAGE" &>/dev/null || :
+# CALLHOME_SPLICE_MARKER -- do not remove: psmdb_builder.sh replaces this line with the install-time telemetry call (stdin heredoc, no /tmp file)
 %if 0%{?amzn} == 2023 || 0%{?rhel} >= 7
 chgrp percona-telemetry /usr/local/percona/telemetry_uuid &>/dev/null || :
 chmod 664 /usr/local/percona/telemetry_uuid &>/dev/null || :
 %endif
-rm -f /tmp/call-home.sh
 
 %post mongos
 %if 0%{?amzn} == 2023 || 0%{?rhel} >= 7
