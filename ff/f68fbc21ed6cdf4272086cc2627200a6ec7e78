@@ -1,0 +1,196 @@
+{
+  "merge_info": {
+    "target_branch": "master-pr-1849",
+    "target_branch_sha": "e34e199ba82959c142439e3501c9528fed4957de",
+    "merge_commit": "190a9ea5f8c86d98affae39349f276380412998c"
+  },
+  "mergai_version": "0.1.dev111+gc2eff4572.d20260220",
+  "merge_context": {
+    "merge_commit": "190a9ea5f8c86d98affae39349f276380412998c",
+    "merged_commits": [
+      "190a9ea5f8c86d98affae39349f276380412998c",
+      "22672ace71daec696033f65a113ecadf0844afbf",
+      "4d42a6587781a2246ccb3a92805ed4db387710ee",
+      "38a95c681f144e01fe33c1f33cae9a99294003c4",
+      "76a684f3602c08fd68b4f3ed2be9ba7ae6cbc24e",
+      "7afd9352f4d1bad23ecf7a7dfc074233fc8f4ed6",
+      "94d300b34fbbbac9b10cf44dab3c4a68af0e15bc",
+      "3fddd10f076b6b0b4e8395299b8409cdaf8fb82e",
+      "95ea4cbc8905c23dfe41629d87a372141fc87295",
+      "cc4f6abe4f4fde096e80d38d5b45062199a69f45",
+      "c413b0436ccf562294cb627465112cb0b28dd06a",
+      "386b19bab40d705828c19649fa38679f66ebb703",
+      "e76656a08f6764b3385a447147cf22e18eb50fb7",
+      "2ccadec2579b3dcade5cc976377434c7a015795a",
+      "50859c7c9d2f42054b27cc8a8d354e1f79119b09",
+      "18025e809adbca524d5fc9f2de0fe290a09d7568",
+      "20bbf04949821de5faa8102472bc6f4337ed3ff9",
+      "a6ff8606853dc2d9f9ad4abd5064131eaaddfa96",
+      "5027083cb6ab8c214d8dd1f95ce8a0a8767a9c56"
+    ],
+    "important_files_modified": [
+      "src/mongo/db/storage/storage_engine.h"
+    ],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        "buildscripts/idl/idl/binder.py",
+        "buildscripts/idl/idl/generator.py",
+        "buildscripts/idl/idl/parser.py",
+        "buildscripts/idl/idl_schema.yml",
+        "jstests/auth/lib/commands_lib.js",
+        "src/mongo/db/BUILD.bazel",
+        "src/mongo/db/storage/storage_engine.h"
+      ]
+    }
+  },
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 51045,
+    "num_turns": 6,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.264816,
+    "modelUsage": {
+      "claude-haiku-4-5-20251001": {
+        "inputTokens": 503,
+        "outputTokens": 15,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0,
+        "webSearchRequests": 0,
+        "costUSD": 0.000578,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000
+      },
+      "claude-opus-4-5": {
+        "inputTokens": 34,
+        "outputTokens": 2861,
+        "cacheReadInputTokens": 102511,
+        "cacheCreationInputTokens": 22606,
+        "webSearchRequests": 0,
+        "costUSD": 0.264238,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-haiku-4-5-20251001": {
+          "tokens": {
+            "input": 503,
+            "output": 15,
+            "cache_read": 0,
+            "cache_creation": 0
+          },
+          "cost_usd": 0.000578
+        },
+        "claude-opus-4-5": {
+          "tokens": {
+            "input": 34,
+            "output": 2861,
+            "cache_read": 102511,
+            "cache_creation": 22606
+          },
+          "cost_usd": 0.264238
+        }
+      }
+    },
+    "text_result": "Written JSON response describing the merge. Key findings:\n\n- **IDL changes**: Added server parameter annotations feature and simplified config option parsing (requires/hidden now use plain values instead of expressions)\n- **BUILD.bazel**: Removed many PSMDB-specific targets (LDAP, audit, encryption, telemetry, storage_inmemory, etc.)\n- **storage_engine.h**: Removed Percona's EngineExtension inheritance - this is a significant change\n- **commands_lib.js**: Changed from `isPSMDBOrEnterprise()` to enterprise-only checks for backup cursor tests",
+    "response": {
+      "summary": "Merge of 19 upstream commits including SERVER-122105 (IDL compiler generic annotations block for server parameters), SERVER-113718 (join optimization fallback for non-scalar predicates), SERVER-124952 (overhead tracking changes for classic stages), SERVER-125092 (move indexBuildIdent to top-level), and various other fixes for SBE, replication, and sharding.",
+      "auto_merged": {
+        "buildscripts/idl/idl/binder.py": "Added binding for new 'annotations' field on server parameters. Simplified config option bindings: 'requires' and 'hidden' are now plain values instead of expressions.",
+        "buildscripts/idl/idl/generator.py": "Added code generation for server parameter annotations (converting them to BSONObj via new helper methods). Simplified 'hidden()' and 'requiresOption()' generation to use simple string values instead of expression wrappers.",
+        "buildscripts/idl/idl/parser.py": "Added '_parse_annotations' function to parse annotations as opaque YAML mapping. Simplified config option parsing: 'requires' is now scalar_or_sequence, 'hidden' is now bool_scalar. Removed 'scalar_or_sequence_or_mapping' node type handling and related expression parsing functions.",
+        "buildscripts/idl/idl_schema.yml": "Added 'annotations' field schema for server parameters (opaque object metadata exposed at runtime via ServerParameter::annotations()). Simplified 'requires' schema to only accept strings. Simplified 'hidden' to boolean only.",
+        "jstests/auth/lib/commands_lib.js": "Removed 'auditGetOptions' and 'createBackup' from skippedAuthTestingCommands. Changed skipTest conditions for backup cursor tests from isPSMDBOrEnterprise() to enterprise module check only. Added featureFlagPathArrayness check and index creation for $_internalJoinHint test.",
+        "src/mongo/db/BUILD.bazel": "Removed several targets: redaction_parameter_gen, ldap_options_gen, ldap_options, ldap_options_init, mongod_options_encryption_gen, mongod_options_ldapauthz_gen, mongod_options_removed_gen, ratelimit_parameter_gen, audit_interface. Removed dependencies on encryption_options, audit targets, storage_inmemory, pipeline_mongod, telemetry_d, and others. Added pipeline_dependency_graph dependency.",
+        "src/mongo/db/storage/storage_engine.h": "Removed engine_extension.h include. StorageEngine class no longer inherits from percona::EngineExtension. Added kIndexBuildIdentStem constant for resumable index builds."
+      },
+      "review_notes": "CRITICAL: The storage_engine.h changes remove Percona's EngineExtension inheritance - verify this functionality is preserved elsewhere or intentionally removed. BUILD.bazel removes many PSMDB-specific targets (LDAP, audit, encryption, ratelimit, telemetry) - ensure these are handled in separate PSMDB-specific build files. commands_lib.js removes PSMDB-specific command handling and changes isPSMDBOrEnterprise() to enterprise-only checks for backup cursor tests - this may affect PSMDB test coverage."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [
+            "I'll analyze the auto-merged files to understand what changes were made in this merge. Let me examine the diffs."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [
+            "Let me also check the merged commits for context."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [
+            "Now I have all the information needed. Let me write the JSON response."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [
+            "Written JSON response describing the merge. Key findings:\n\n- **IDL changes**: Added server parameter annotations feature and simplified config option parsing (requires/hidden now use plain values instead of expressions)\n- **BUILD.bazel**: Removed many PSMDB-specific targets (LDAP, audit, encryption, telemetry, storage_inmemory, etc.)\n- **storage_engine.h**: Removed Percona's EngineExtension inheritance - this is a significant change\n- **commands_lib.js**: Changed from `isPSMDBOrEnterprise()` to enterprise-only checks for backup cursor tests"
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/plebioda/psmdb/.cache/mergai/prompt_20260525_130832_880039.md and write your JSON response to @/home/plebioda/psmdb/.cache/mergai/response_20260525_130832_880957.json"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.148 (Claude Code)"
+    }
+  }
+}
