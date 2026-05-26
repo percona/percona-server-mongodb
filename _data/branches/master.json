@@ -5,14 +5,14 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 218,
+    "commits_behind": 222,
     "days_behind": 7,
-    "files_affected": 1423,
-    "total_additions": 56487,
-    "total_deletions": 16931,
+    "files_affected": 1436,
+    "total_additions": 57367,
+    "total_deletions": 17075,
     "date_range": {
       "first": "2026-05-18T19:46:08+00:00",
-      "last": "2026-05-26T12:25:49+00:00"
+      "last": "2026-05-26T14:05:39+00:00"
     }
   },
   "last_merged_commit": {
@@ -36,6 +36,46 @@
     "summary": "SERVER-126230: move uds socket path from tmp (#53424)"
   },
   "unmerged_commits": [
+    {
+      "sha": "08a5ef5c8097cd7e59758ca980929985b522ee09",
+      "short_sha": "08a5ef5c809",
+      "date": "2026-05-26T10:05:39-04:00",
+      "author": {
+        "name": "Felipe Farinon",
+        "email": "felipe.farinon@mongodb.com"
+      },
+      "summary": "SERVER-127519: Temporarily exclude additional test in multiversion setup (#54423)"
+    },
+    {
+      "sha": "ad681dab9bf7cc1921ef1e66addb449597ae63c1",
+      "short_sha": "ad681dab9bf",
+      "date": "2026-05-26T14:45:38+01:00",
+      "author": {
+        "name": "James H",
+        "email": "james.harrison@mongodb.com"
+      },
+      "summary": "SERVER-127337: extend golden_test.py with include/exclude suite patterns (#54204)"
+    },
+    {
+      "sha": "0c1abd37e12260a60f00c91c7a314c17f2c6178a",
+      "short_sha": "0c1abd37e12",
+      "date": "2026-05-26T15:23:38+02:00",
+      "author": {
+        "name": "Enrico Golfieri",
+        "email": "enrico.golfieri@mongodb.com"
+      },
+      "summary": "SERVER-122159 Stop deadlock between FLE2 compact/cleanup and setFCV (#52342)"
+    },
+    {
+      "sha": "ec47150c40063a5b5ddb7cc31a1f6e3db34ced26",
+      "short_sha": "ec47150c400",
+      "date": "2026-05-26T09:01:29-04:00",
+      "author": {
+        "name": "henrikedin",
+        "email": "henrik.edin@mongodb.com"
+      },
+      "summary": "SERVER-126021 Prohibit measurements with duplicate field names in timeseries collections (#53223)"
+    },
     {
       "sha": "e1986470a023e3fadc9cf3e7b9889015f63ee4e4",
       "short_sha": "e1986470a02",
@@ -2592,7 +2632,7 @@
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-05-26 13:26:35",
+  "generated_at": "2026-05-26 15:15:02",
   "branch_name": "master",
   "display_name": "master"
 }
