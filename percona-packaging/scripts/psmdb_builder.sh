@@ -232,7 +232,7 @@ install_golang() {
         return 1
     fi
 
-    GO_VERSION="1.25.5"
+    GO_VERSION="1.25.10"
     GO_TAR="go${GO_VERSION}.linux-${GO_ARCH}.tar.gz"
     GO_SHA="${GO_TAR}.sha256"
     GO_URL="https://downloads.percona.com/downloads/packaging/go/${GO_TAR}"
@@ -516,7 +516,11 @@ install_deps() {
         ln -sf /usr/bin/python3.7 /usr/bin/python3
         wget https://bootstrap.pypa.io/pip/3.7/get-pip.py -O get-pip.py
       fi
-      python get-pip.py
+      if [ x"${DEBIAN}" = "xbullseye" ]; then
+        python get-pip.py "pip<24" "wheel<0.42" "setuptools<70"
+      else
+        python get-pip.py
+      fi
       easy_install pip
       pip install setuptools
     fi
@@ -587,7 +591,13 @@ build_srpm(){
     tar vxzf ${WORKDIR}/${TARFILE} --wildcards '*/percona-packaging' --strip=1
     SPEC_TMPL=$(find percona-packaging/redhat -name 'percona-server-mongodb.spec.template' | sort | tail -n1)
     #
-    wget https://raw.githubusercontent.com/Percona-Lab/telemetry-agent/phase-0/call-home.sh
+    # call-home.sh: pinned to upstream commit + SHA-256 verified to mitigate supply-chain risk
+    # (mutable phase-0 branch and Percona-Lab -> percona org-rename redirect).
+    # To bump: update both CALLHOME_SHA and CALLHOME_SHA256 together.
+    CALLHOME_SHA="0e3a2ed40336c70727f9aad8402a8a820ebc8db0"
+    CALLHOME_SHA256="3497f6631e71799bed9dedb1d72350bf1f0565d93578955234ac30cf2fb6eba4"
+    wget -q "https://raw.githubusercontent.com/percona/telemetry-agent/${CALLHOME_SHA}/call-home.sh"
+    echo "${CALLHOME_SHA256}  call-home.sh" | sha256sum -c - || { echo "ERROR: call-home.sh checksum mismatch"; exit 1; }
     mv call-home.sh rpmbuild/SOURCES
     cp -av percona-packaging/conf/* rpmbuild/SOURCES
     cp -av percona-packaging/redhat/mongod.* rpmbuild/SOURCES
@@ -617,11 +627,14 @@ build_srpm(){
     fi
 
     cd ${WORKDIR}/rpmbuild/SPECS
-    line_number=$(grep -n SOURCE999 percona-server-mongodb.spec | awk -F ':' '{print $1}')
+    # Splice call-home.sh into %post scriptlet via stdin heredoc (no /tmp file, no LPE race).
+    # The marker line CALLHOME_SPLICE_MARKER in spec.template is removed by `head -n -1` and
+    # replaced with the `bash -s -- ... <<HEREDOC` invocation, so the script body never lands on disk.
+    line_number=$(grep -n CALLHOME_SPLICE_MARKER percona-server-mongodb.spec | awk -F ':' '{print $1}')
     cp ../SOURCES/call-home.sh ./
     awk -v n=$line_number 'NR <= n {print > "part1.txt"} NR > n {print > "part2.txt"}' percona-server-mongodb.spec
     head -n -1 part1.txt > temp && mv temp part1.txt
-    echo "cat <<'CALLHOME' > /tmp/call-home.sh" >> part1.txt
+    echo "bash -s -- -f \"PRODUCT_FAMILY_PSMDB\" -v \"%{version}-%{release}\" -d \"PACKAGE\" <<'CALLHOME' &>/dev/null || :" >> part1.txt
     cat call-home.sh >> part1.txt
     echo "CALLHOME" >> part1.txt
     cat part2.txt >> part1.txt
@@ -838,6 +851,7 @@ build_deb(){
 
     pip install -r etc/pip/dev-requirements.txt --ignore-installed
     pip install -r etc/pip/evgtest-requirements.txt --ignore-installed
+    pip install -r etc/pip/compile-requirements.txt --force-reinstall
     #
     cp -av percona-packaging/debian/rules debian/
 
@@ -860,15 +874,19 @@ build_deb(){
     fi
 
     cd debian/
-        wget https://raw.githubusercontent.com/Percona-Lab/telemetry-agent/phase-0/call-home.sh
+        # call-home.sh: pinned to upstream commit + SHA-256 verified.
+        # Keep CALLHOME_SHA / CALLHOME_SHA256 in sync with the RPM section in build_srpm().
+        CALLHOME_SHA="0e3a2ed40336c70727f9aad8402a8a820ebc8db0"
+        CALLHOME_SHA256="3497f6631e71799bed9dedb1d72350bf1f0565d93578955234ac30cf2fb6eba4"
+        wget -q "https://raw.githubusercontent.com/percona/telemetry-agent/${CALLHOME_SHA}/call-home.sh"
+        echo "${CALLHOME_SHA256}  call-home.sh" | sha256sum -c - || { echo "ERROR: call-home.sh checksum mismatch"; exit 1; }
         sed -i 's:exit 0::' percona-server-mongodb-server.postinst
-        echo "cat <<'CALLHOME' > /tmp/call-home.sh" >> percona-server-mongodb-server.postinst
+        # Inject call-home.sh into postinst via stdin heredoc (no /tmp file, no LPE race).
+        echo 'bash -s -- -f "PRODUCT_FAMILY_PSMDB" -v "'"${PSM_VER}-${PSM_RELEASE}"'" -d "PACKAGE" <<'"'"'CALLHOME'"'"' &>/dev/null || :' >> percona-server-mongodb-server.postinst
         cat call-home.sh >> percona-server-mongodb-server.postinst
         echo "CALLHOME" >> percona-server-mongodb-server.postinst
-        echo 'bash +x /tmp/call-home.sh -f "PRODUCT_FAMILY_PSMDB" -v '"${PSM_VER}-${PSM_RELEASE}"' -d "PACKAGE" &>/dev/null || :' >> percona-server-mongodb-server.postinst
         echo "chgrp percona-telemetry /usr/local/percona/telemetry_uuid &>/dev/null || :" >> percona-server-mongodb-server.postinst
         echo "chmod 664 /usr/local/percona/telemetry_uuid &>/dev/null || :" >> percona-server-mongodb-server.postinst
-        echo "rm -rf /tmp/call-home.sh" >> percona-server-mongodb-server.postinst
         echo "exit 0" >> percona-server-mongodb-server.postinst
         rm -f call-home.sh
     cd ../
@@ -1067,7 +1085,7 @@ build_tarball(){
     cd mongo-tools
     . ./set_tools_revision.sh
     sed -i '14d' buildscript/build.go
-    sed -i '226,234d' buildscript/build.go
+    sed -i '246,254d' buildscript/build.go
     sed -i "s:versionStr,:\"$PSMDB_TOOLS_REVISION\",:" buildscript/build.go
     sed -i "s:gitCommit):\"$PSMDB_TOOLS_COMMIT_HASH\"):" buildscript/build.go
     ./make build
