@@ -5,14 +5,14 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 201,
-    "days_behind": 6,
-    "files_affected": 1262,
-    "total_additions": 46813,
-    "total_deletions": 14357,
+    "commits_behind": 207,
+    "days_behind": 7,
+    "files_affected": 1331,
+    "total_additions": 50092,
+    "total_deletions": 15962,
     "date_range": {
       "first": "2026-05-18T19:46:08+00:00",
-      "last": "2026-05-25T01:42:30+00:00"
+      "last": "2026-05-26T01:33:17+00:00"
     }
   },
   "last_merged_commit": {
@@ -36,6 +36,66 @@
     "summary": "SERVER-126230: move uds socket path from tmp (#53424)"
   },
   "unmerged_commits": [
+    {
+      "sha": "e7ead1c8cfb9d3e9e6800b7e15ac8f1621c2fc1b",
+      "short_sha": "e7ead1c8cfb",
+      "date": "2026-05-26T11:33:17+10:00",
+      "author": {
+        "name": "wt-vendoring-bot[bot]",
+        "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "Import wiredtiger: 3c6ec61a01a4dbdb3351121c0a624d3996e28c03 from branch mongodb-master (#54418)"
+    },
+    {
+      "sha": "ece8a907d7b0128f3840a0f3ddde6ab0d8e6ac19",
+      "short_sha": "ece8a907d7b",
+      "date": "2026-05-25T14:10:55-07:00",
+      "author": {
+        "name": "Moustafa Maher",
+        "email": "m.maher@mongodb.com"
+      },
+      "summary": "SERVER-127512 Fix index_build_killop_secondary_before_commit for in-memory suite (#54425)"
+    },
+    {
+      "sha": "7b7ce786db9fcf4b7b193ed2540317439dfd0658",
+      "short_sha": "7b7ce786db9",
+      "date": "2026-05-25T11:59:22+01:00",
+      "author": {
+        "name": "Catalin Sumanaru",
+        "email": "catalin.sumanaru@mongodb.com"
+      },
+      "summary": "SERVER-127332 Extract query_knobs into a dedicated module (#54119)"
+    },
+    {
+      "sha": "01807c1a48581e11b47ce4d3e5e7ced3d6f2e378",
+      "short_sha": "01807c1a485",
+      "date": "2026-05-25T19:11:12+10:00",
+      "author": {
+        "name": "mongo-pr-bot[bot]",
+        "email": "230616009+mongo-pr-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "SERVER-110427 Update profiling data (#54411)"
+    },
+    {
+      "sha": "d6b7cdb26f094a92303b1e5e87e96e294308aef8",
+      "short_sha": "d6b7cdb26f0",
+      "date": "2026-05-25T19:11:04+10:00",
+      "author": {
+        "name": "Siddhartha Mahajan",
+        "email": "siddhartha.mahajan8899@gmail.com"
+      },
+      "summary": "Import wiredtiger: 46bf841062af800d92786a96abe10c02c0d9f17f from branch mongodb-master (#54412)"
+    },
+    {
+      "sha": "58ff273b100a7eb75ae9b64da2e8c3414b402b7e",
+      "short_sha": "58ff273b100",
+      "date": "2026-05-25T10:25:57+03:00",
+      "author": {
+        "name": "Philip Stoev",
+        "email": "philip.stoev@mongodb.com"
+      },
+      "summary": "SERVER-127042 Golden tests: create output directory even on success (#53994)"
+    },
     {
       "sha": "8d20d136377f3a75a1d182a0edabf2a3a2b09570",
       "short_sha": "8d20d136377",
@@ -2327,10 +2387,56 @@
           "num_of_dirs": 48
         }
       }
+    },
+    {
+      "commit": {
+        "sha": "d6b7cdb26f094a92303b1e5e87e96e294308aef8",
+        "short_sha": "d6b7cdb26f0",
+        "date": "2026-05-25T19:11:04+10:00",
+        "author": {
+          "name": "Siddhartha Mahajan",
+          "email": "siddhartha.mahajan8899@gmail.com"
+        },
+        "summary": "Import wiredtiger: 46bf841062af800d92786a96abe10c02c0d9f17f from branch mongodb-master (#54412)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 30,
+          "num_of_lines": 3487,
+          "lines_added": 2485,
+          "lines_deleted": 1002,
+          "num_of_dirs": 14
+        }
+      }
+    },
+    {
+      "commit": {
+        "sha": "e7ead1c8cfb9d3e9e6800b7e15ac8f1621c2fc1b",
+        "short_sha": "e7ead1c8cfb",
+        "date": "2026-05-26T11:33:17+10:00",
+        "author": {
+          "name": "wt-vendoring-bot[bot]",
+          "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
+        },
+        "summary": "Import wiredtiger: 3c6ec61a01a4dbdb3351121c0a624d3996e28c03 from branch mongodb-master (#54418)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 46,
+          "num_of_lines": 2787,
+          "lines_added": 1467,
+          "lines_deleted": 1320,
+          "num_of_dirs": 19
+        }
+      }
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-05-25 07:32:20",
+  "generated_at": "2026-05-26 07:11:03",
   "branch_name": "master",
   "display_name": "master"
 }
