@@ -5,14 +5,14 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 208,
+    "commits_behind": 218,
     "days_behind": 7,
-    "files_affected": 1340,
-    "total_additions": 51811,
-    "total_deletions": 16288,
+    "files_affected": 1423,
+    "total_additions": 56487,
+    "total_deletions": 16931,
     "date_range": {
       "first": "2026-05-18T19:46:08+00:00",
-      "last": "2026-05-26T06:56:53+00:00"
+      "last": "2026-05-26T12:25:49+00:00"
     }
   },
   "last_merged_commit": {
@@ -36,6 +36,106 @@
     "summary": "SERVER-126230: move uds socket path from tmp (#53424)"
   },
   "unmerged_commits": [
+    {
+      "sha": "e1986470a023e3fadc9cf3e7b9889015f63ee4e4",
+      "short_sha": "e1986470a02",
+      "date": "2026-05-26T13:25:49+01:00",
+      "author": {
+        "name": "Henri Nikku",
+        "email": "henri.nikku@mongodb.com"
+      },
+      "summary": "SERVER-108086 Enable featureFlagImprovedDepsAnalysis (#54321)"
+    },
+    {
+      "sha": "11def12714d13f5b82ea012b9dd8be634865ff81",
+      "short_sha": "11def12714d",
+      "date": "2026-05-26T21:49:37+10:00",
+      "author": {
+        "name": "Gregory Wlodarek",
+        "email": "gregory.wlodarek@mongodb.com"
+      },
+      "summary": "SERVER-127406 Assign oplog storage files to server-oplog (#54310)"
+    },
+    {
+      "sha": "10787747e68ff32d600e054032044c3e06616b76",
+      "short_sha": "10787747e68",
+      "date": "2026-05-26T13:06:08+02:00",
+      "author": {
+        "name": "Enrico Golfieri",
+        "email": "enrico.golfieri@mongodb.com"
+      },
+      "summary": "SERVER-83435 Extend sharding concurrency suites with unsharded collections state (#53299)"
+    },
+    {
+      "sha": "26d3dfa093773f8b76de0d2607bc6840d99ec4b7",
+      "short_sha": "26d3dfa0937",
+      "date": "2026-05-26T12:48:04+02:00",
+      "author": {
+        "name": "Yujin Kang Park",
+        "email": "36410031+ykangpark@users.noreply.github.com"
+      },
+      "summary": "SERVER-116091 Explicitly replicate wildcard multikeyness in txns (#51970)"
+    },
+    {
+      "sha": "1adc42dcf29f4364b37f89876d79e216b87481ec",
+      "short_sha": "1adc42dcf29",
+      "date": "2026-05-26T11:25:48+01:00",
+      "author": {
+        "name": "Henri Nikku",
+        "email": "henri.nikku@mongodb.com"
+      },
+      "summary": "SERVER-119378 Tweak the public api and comments of PipelineDependencyGraph (#54320)"
+    },
+    {
+      "sha": "5d8deadeb66ae95ad8988a83671284c3a3d75f36",
+      "short_sha": "5d8deadeb66",
+      "date": "2026-05-26T12:15:46+02:00",
+      "author": {
+        "name": "Jordi Olivares Provencio",
+        "email": "jordi.olivares-provencio@mongodb.com"
+      },
+      "summary": "SERVER-123853 Interrupt CSS waiters in the event of a clear (#54201)"
+    },
+    {
+      "sha": "876d27d03e8733055cb89fea5550ec809715c76a",
+      "short_sha": "876d27d03e8",
+      "date": "2026-05-26T12:05:52+02:00",
+      "author": {
+        "name": "Aitor Esteve Alvarado",
+        "email": "aitor.esteve@mongodb.com"
+      },
+      "summary": "SERVER-121209 setAllowChunkOperations (AKA setAllowMigrations V2) (#53927)"
+    },
+    {
+      "sha": "1da2e825aaa3f632292fe5d8f1539ff037d57ebd",
+      "short_sha": "1da2e825aaa",
+      "date": "2026-05-26T11:52:18+02:00",
+      "author": {
+        "name": "Carlos Alonso",
+        "email": "c.alonso@mongodb.com"
+      },
+      "summary": "SERVER-127504: Remove explain param from test (#54417)"
+    },
+    {
+      "sha": "6732be70c6fa83a9df06eac565f7f9598e8c5b48",
+      "short_sha": "6732be70c6f",
+      "date": "2026-05-26T11:34:45+02:00",
+      "author": {
+        "name": "mongo-pr-bot[bot]",
+        "email": "230616009+mongo-pr-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "SERVER-110427 Update profiling data (#54434)"
+    },
+    {
+      "sha": "0f94ba8b0101a3394672b7340147ecbaddcfc9fc",
+      "short_sha": "0f94ba8b010",
+      "date": "2026-05-26T10:55:21+02:00",
+      "author": {
+        "name": "Denis Grebennicov",
+        "email": "denis.grebennicov@mongodb.com"
+      },
+      "summary": "SERVER-127220 Ensure change stream topology v2 stage respects maxAwaitTimeMS in Waiting state (#54429)"
+    },
     {
       "sha": "c5ae18cad2f9f97ce1b47b8d24009bd572a7eb2b",
       "short_sha": "c5ae18cad2f",
@@ -2466,10 +2566,33 @@
           "num_of_dirs": 14
         }
       }
+    },
+    {
+      "commit": {
+        "sha": "876d27d03e8733055cb89fea5550ec809715c76a",
+        "short_sha": "876d27d03e8",
+        "date": "2026-05-26T12:05:52+02:00",
+        "author": {
+          "name": "Aitor Esteve Alvarado",
+          "email": "aitor.esteve@mongodb.com"
+        },
+        "summary": "SERVER-121209 setAllowChunkOperations (AKA setAllowMigrations V2) (#53927)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 49,
+          "num_of_lines": 1284,
+          "lines_added": 1130,
+          "lines_deleted": 154,
+          "num_of_dirs": 14
+        }
+      }
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-05-26 08:22:52",
+  "generated_at": "2026-05-26 13:26:35",
   "branch_name": "master",
   "display_name": "master"
 }
