@@ -759,7 +759,7 @@ void InitialSyncerFCB::_chooseSyncSourceCallback(
         return;
     }
 
-    auto syncSource = _chooseSyncSource_inlock();
+    auto syncSource = _chooseSyncSource(lock);
     if (!syncSource.isOK()) {
         if (chooseSyncSourceAttempt + 1 >= chooseSyncSourceMaxAttempts) {
             onCompletionGuard->setResultAndCancelRemainingWork_inlock(
@@ -1348,17 +1348,9 @@ void InitialSyncerFCB::_shutdownComponent_inlock(Component& component) {
     component->shutdown();
 }
 
-StatusWith<HostAndPort> InitialSyncerFCB::_chooseSyncSource_inlock() {
-    auto syncSource = _opts.syncSourceSelector->chooseNewSyncSource(_lastFetched);
-    if (syncSource.empty()) {
-        return Status{ErrorCodes::InvalidSyncSource,
-                      str::stream() << "No valid sync source available. Our last fetched optime: "
-                                    << _lastFetched.toString()};
-    }
+Status InitialSyncerFCB::_checkSyncSourceBuildInfo(WithLock lk, const HostAndPort& syncSource) {
+    Status result = Status::OK();
 
-    StatusWith<HostAndPort> result = syncSource;
-
-    // Check if sync source supports FCBIS.
     executor::RemoteCommandRequest buildInfoRequest(
         syncSource, DatabaseName::kAdmin, BSON("buildInfo" << 1), nullptr);
     auto scheduleResult =
@@ -1419,17 +1411,16 @@ StatusWith<HostAndPort> InitialSyncerFCB::_chooseSyncSource_inlock() {
             str::stream() << "Failed to schedule buildInfo command to sync source: "
                           << syncSource.toString());
     }
-    // Block until the command is executed.
     (*_attemptExec)->wait(scheduleResult.getValue());
+    return result;
+}
 
-    if (!result.isOK()) {
-        return result;
-    }
+Status InitialSyncerFCB::_checkSyncSourceStorageEngine(WithLock lk, const HostAndPort& syncSource) {
+    Status result = Status::OK();
 
-    // Check if storage engine on the sync source is wiredTiger.
     executor::RemoteCommandRequest serverStatusRequest(
         syncSource, DatabaseName::kAdmin, BSON("serverStatus" << 1), nullptr);
-    scheduleResult =
+    auto scheduleResult =
         (*_attemptExec)
             ->scheduleRemoteCommand(
                 serverStatusRequest,
@@ -1445,7 +1436,6 @@ StatusWith<HostAndPort> InitialSyncerFCB::_chooseSyncSource_inlock() {
                                             << args.response.status.toString());
                         return;
                     }
-                    // validate storage engine
                     auto storageEngineName =
                         args.response.data["storageEngine"].Obj().getStringField("name");
                     if (storageEngineName != "wiredTiger") {
@@ -1462,20 +1452,20 @@ StatusWith<HostAndPort> InitialSyncerFCB::_chooseSyncSource_inlock() {
             str::stream() << "Failed to schedule serverStatus command to sync source: "
                           << syncSource.toString());
     }
-    // Block until the command is executed.
     (*_attemptExec)->wait(scheduleResult.getValue());
+    return result;
+}
 
-    if (!result.isOK()) {
-        return result;
-    }
+Status InitialSyncerFCB::_checkSyncSourceStorageParameters(WithLock lk,
+                                                           const HostAndPort& syncSource) {
+    Status result = Status::OK();
 
-    // Check directoryperdb and wiredTigerDirectoryForIndexes via getParameter command.
     executor::RemoteCommandRequest getParameterRequest(syncSource,
                                                        DatabaseName::kAdmin,
                                                        BSON("getParameter"
                                                             << "*"),
                                                        nullptr);
-    scheduleResult =
+    auto scheduleResult =
         (*_attemptExec)
             ->scheduleRemoteCommand(
                 getParameterRequest,
@@ -1491,7 +1481,6 @@ StatusWith<HostAndPort> InitialSyncerFCB::_chooseSyncSource_inlock() {
                                             << args.response.status.toString());
                         return;
                     }
-                    // validate critical parameters
                     bool dirPerDB =
                         args.response.data.getBoolField("storageGlobalParams.directoryperdb");
                     if (dirPerDB != storageGlobalParams.directoryperdb) {
@@ -1514,8 +1503,7 @@ StatusWith<HostAndPort> InitialSyncerFCB::_chooseSyncSource_inlock() {
                                                       "wiredTigerDirectoryForIndexes mismatch");
                         return;
                     }
-                    // And BTW, get cursorTimeoutMillis, to fine tune the backup cursor's keep alive
-                    // code
+                    // Get cursorTimeoutMillis to fine-tune the backup cursor keep-alive.
                     _keepAliveInterval =
                         Milliseconds{args.response.data.getIntField("cursorTimeoutMillis") / 2};
                 });
@@ -1524,14 +1512,13 @@ StatusWith<HostAndPort> InitialSyncerFCB::_chooseSyncSource_inlock() {
             str::stream() << "Failed to schedule getParameter command to sync source: "
                           << syncSource.toString());
     }
-    // Block until the command is executed.
     (*_attemptExec)->wait(scheduleResult.getValue());
+    return result;
+}
 
-    if (!result.isOK()) {
-        return result;
-    }
+Status InitialSyncerFCB::_checkSyncSourceFCV(WithLock lk, const HostAndPort& syncSource) {
+    Status result = Status::OK();
 
-    // Check FCV on the sync source.
     BSONObjBuilder queryBob;
     queryBob.append("find", NamespaceString::kServerConfigurationNamespace.coll());
     auto filterBob = BSONObjBuilder(queryBob.subobjStart("filter"));
@@ -1609,8 +1596,27 @@ StatusWith<HostAndPort> InitialSyncerFCB::_chooseSyncSource_inlock() {
             str::stream() << "Failed to join feature compatibility version fetcher to sync source: "
                           << syncSource.toString());
     }
-
     return result;
+}
+
+StatusWith<HostAndPort> InitialSyncerFCB::_chooseSyncSource(WithLock lk) {
+    auto syncSource = _opts.syncSourceSelector->chooseNewSyncSource(_lastFetched);
+    if (syncSource.empty()) {
+        return Status{ErrorCodes::InvalidSyncSource,
+                      str::stream() << "No valid sync source available. Our last fetched optime: "
+                                    << _lastFetched.toString()};
+    }
+
+    if (auto s = _checkSyncSourceBuildInfo(lk, syncSource); !s.isOK())
+        return s;
+    if (auto s = _checkSyncSourceStorageEngine(lk, syncSource); !s.isOK())
+        return s;
+    if (auto s = _checkSyncSourceStorageParameters(lk, syncSource); !s.isOK())
+        return s;
+    if (auto s = _checkSyncSourceFCV(lk, syncSource); !s.isOK())
+        return s;
+
+    return syncSource;
 }
 
 Status InitialSyncerFCB::_invalidSyncSource_inlock(const HostAndPort& syncSource,

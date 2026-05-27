@@ -421,12 +421,19 @@ private:
 
     // Obtains a valid sync source from the sync source selector.
     // Returns error if a sync source cannot be found.
-    StatusWith<HostAndPort> _chooseSyncSource_inlock();
+    StatusWith<HostAndPort> _chooseSyncSource(WithLock lk);
 
     // Denylist sync source and return status with InvalidSyncSource
     Status _invalidSyncSource_inlock(const HostAndPort& syncSource,
                                      Seconds denylistDuration,
                                      const std::string& context);
+
+    // Sync-source validation helpers called by _chooseSyncSource.
+    // Each returns OK if the source passes the check, or an error status otherwise.
+    Status _checkSyncSourceBuildInfo(WithLock lk, const HostAndPort& syncSource);
+    Status _checkSyncSourceStorageEngine(WithLock lk, const HostAndPort& syncSource);
+    Status _checkSyncSourceStorageParameters(WithLock lk, const HostAndPort& syncSource);
+    Status _checkSyncSourceFCV(WithLock lk, const HostAndPort& syncSource);
 
     void _appendInitialSyncProgressMinimal_inlock(BSONObjBuilder* bob) const;
     BSONObj _getInitialSyncProgress_inlock() const;
