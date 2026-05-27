@@ -1,0 +1,200 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "1f9fd695ea2d7a16839f2643508c667e9127acc9",
+    "merge_commit": "0e7050d2b9684d7df362af39cefad394821cc3aa"
+  },
+  "mergai_version": "0.1.dev111+gc2eff4572.d20260220",
+  "merge_context": {
+    "merge_commit": "0e7050d2b9684d7df362af39cefad394821cc3aa",
+    "merged_commits": [
+      "0e7050d2b9684d7df362af39cefad394821cc3aa",
+      "c9709d65c1a40375c7e19369ff0ada7bd1d80d92",
+      "e4fc866a78abf7637e3537fca316fcf9297d1a54",
+      "4bd36565b9ae79cd4c2dd7de59f215a4f651bdd2",
+      "a48dcebbc69aec2a3f4b32614be7e48604f17204",
+      "63745eaa450b30322ff17ccf63d3d58893c796a7",
+      "7d1b18f756199542e6a41278043c8115d86815e2",
+      "862ad0e50b5a148383f86e008bdafa4ef2818303",
+      "36e3e2ea23e2067aeb3da6380b80758acbebdd56",
+      "88fbe993b7d572c3ff595c1bf8de95bb04e23be5",
+      "b7fbac8dd4d59a353895f61f93f226796f3421bd",
+      "a509e05dc1aed37f0fb1d50c516e563eefa6562e",
+      "53c3f3c5fb9115e6995b66efa686569ee10c0b3a",
+      "c1fe003eeca2a2ad632fa13d0293061069658d23",
+      "cd4d6770ed239ba4393dae802c48bd3dc3644301",
+      "3b3507cb34f8b588e8506a3db99c42f0bfb29293",
+      "460b5db2b9a40d1b3d875202322608dde5b4399a",
+      "138419c76cb5fc08755443a8712b961227c96181",
+      "25e034e700d58aadc71af425a923e9b424ca37cc"
+    ],
+    "important_files_modified": [
+      "src/mongo/db/repl/initial_sync/initial_syncer.cpp",
+      "src/mongo/db/repl/initial_sync/initial_syncer.h",
+      "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp"
+    ],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        "BUILD.bazel",
+        "bazel/config/BUILD.bazel",
+        "jstests/auth/lib/commands_lib.js",
+        "jstests/core/catalog/views/views_all_commands.js",
+        "jstests/libs/write_concern_all_commands.js",
+        "jstests/replsets/all_commands_downgrading_to_upgraded.js",
+        "jstests/replsets/db_reads_while_recovering_all_commands.js",
+        "jstests/sharding/all_commands_direct_shard_connection_auth.js",
+        "jstests/sharding/database_versioning_all_commands.js",
+        "jstests/sharding/read_write_concern_defaults_application.js",
+        "jstests/sharding/safe_secondary_reads_drop_recreate.js",
+        "jstests/sharding/safe_secondary_reads_single_migration_suspend_range_deletion.js",
+        "jstests/sharding/safe_secondary_reads_single_migration_waitForDelete.js",
+        "src/mongo/db/BUILD.bazel",
+        "src/mongo/db/auth/action_type.idl",
+        "src/mongo/db/commands/BUILD.bazel",
+        "src/mongo/db/pipeline/BUILD.bazel",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h",
+        "src/mongo/shell/utils.js"
+      ]
+    }
+  },
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 40155,
+    "num_turns": 5,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.20003425000000002,
+    "modelUsage": {
+      "claude-haiku-4-5-20251001": {
+        "inputTokens": 503,
+        "outputTokens": 15,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0,
+        "webSearchRequests": 0,
+        "costUSD": 0.000578,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000
+      },
+      "claude-opus-4-5": {
+        "inputTokens": 34,
+        "outputTokens": 2549,
+        "cacheReadInputTokens": 86860,
+        "cacheCreationInputTokens": 14741,
+        "webSearchRequests": 0,
+        "costUSD": 0.19945625,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-haiku-4-5-20251001": {
+          "tokens": {
+            "input": 503,
+            "output": 15,
+            "cache_read": 0,
+            "cache_creation": 0
+          },
+          "cost_usd": 0.000578
+        },
+        "claude-opus-4-5": {
+          "tokens": {
+            "input": 34,
+            "output": 2549,
+            "cache_read": 86860,
+            "cache_creation": 14741
+          },
+          "cost_usd": 0.19945625
+        }
+      }
+    },
+    "text_result": "Written merge summary to the response file. The merge includes 19 upstream MongoDB commits, with notable changes in initial sync (stable timestamp waiting), fsyncLock durableOpTime fix, query stats metrics, and BOLT binary optimization. The auto-merged WiredTiger files warrant careful review as they contain Percona encryption-at-rest code.",
+    "response": {
+      "summary": "This merge brings 19 upstream MongoDB commits to PSMDB master. Key changes include: SERVER-125965 adds waiting for stable timestamp to advance during initial sync (modifying initial_syncer.cpp/h), SERVER-126254 fixes fsyncLock leaving durableOpTime stuck behind lastWritten (affecting wiredtiger_kv_engine and fsync.cpp), SERVER-122063 attaches query stats metrics to insert responses on shards, SERVER-113557 introduces BOLT binary optimization before symbol splitting, SERVER-127058 refactors DocumentSource::getSourceName to use StringData, and several resharding promise registry improvements (SERVER-125598, SERVER-127276). Also includes a revert of SERVER-124332 (sample metadata in explain output) and new sharded constraint upgrade scanning (SERVER-123711).",
+      "auto_merged": {
+        "BUILD.bazel": "Updated top-level Bazel build file with new dependencies and target modifications from upstream",
+        "bazel/config/BUILD.bazel": "Bazel configuration changes, likely related to BOLT binary optimization (SERVER-113557)",
+        "jstests/auth/lib/commands_lib.js": "Auth test library updates to include new commands like updateESECMKIdentifierList (SERVER-126324)",
+        "jstests/core/catalog/views/views_all_commands.js": "Views test updates for new command coverage",
+        "jstests/libs/write_concern_all_commands.js": "Write concern test library updates for new commands",
+        "jstests/replsets/all_commands_downgrading_to_upgraded.js": "Replica set command test updates",
+        "jstests/replsets/db_reads_while_recovering_all_commands.js": "Recovery state read test updates",
+        "jstests/sharding/all_commands_direct_shard_connection_auth.js": "Sharding auth test updates for new commands",
+        "jstests/sharding/database_versioning_all_commands.js": "Database versioning test updates",
+        "jstests/sharding/read_write_concern_defaults_application.js": "Read/write concern defaults test updates",
+        "jstests/sharding/safe_secondary_reads_drop_recreate.js": "Safe secondary reads test updates",
+        "jstests/sharding/safe_secondary_reads_single_migration_suspend_range_deletion.js": "Migration suspend range deletion test updates",
+        "jstests/sharding/safe_secondary_reads_single_migration_waitForDelete.js": "Migration wait for delete test updates",
+        "src/mongo/db/BUILD.bazel": "Database module Bazel build updates for new targets and dependencies",
+        "src/mongo/db/auth/action_type.idl": "New auth action types added, likely for updateESECMKIdentifierList command (SERVER-126324)",
+        "src/mongo/db/commands/BUILD.bazel": "Commands module Bazel build updates",
+        "src/mongo/db/pipeline/BUILD.bazel": "Pipeline module Bazel build updates for StringData refactoring (SERVER-127058, SERVER-127342)",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp": "WiredTiger storage engine changes for fsyncLock durableOpTime fix (SERVER-126254) - auto-merged with Percona encryption-at-rest changes",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h": "WiredTiger header updates for journal listener interface changes (SERVER-126254) - auto-merged with Percona encryption-at-rest changes",
+        "src/mongo/shell/utils.js": "Shell utility updates for assert logging enhancement (SERVER-126358)"
+      },
+      "review_notes": "Critical files to review: 1) wiredtiger_kv_engine.cpp/h were auto-merged but contain important Percona encryption-at-rest code - verify the SERVER-126254 fsyncLock changes integrate correctly with Percona's encryption modifications. 2) initial_syncer.cpp/h have significant changes for SERVER-125965 (stable timestamp waiting) - ensure no conflicts with any Percona-specific initial sync behavior. 3) The BOLT binary optimization (SERVER-113557) affects the build system - verify it works correctly with Percona's build configuration."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [
+            "I'll analyze the merge commits to create a proper summary. Let me examine the commit messages and changes."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [
+            "Written merge summary to the response file. The merge includes 19 upstream MongoDB commits, with notable changes in initial sync (stable timestamp waiting), fsyncLock durableOpTime fix, query stats metrics, and BOLT binary optimization. The auto-merged WiredTiger files warrant careful review as they contain Percona encryption-at-rest code."
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/plebioda/psmdb/.cache/mergai/prompt_20260527_083400_815343.md and write your JSON response to @/home/plebioda/psmdb/.cache/mergai/response_20260527_083400_817063.json"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.148 (Claude Code)"
+    }
+  }
+}
