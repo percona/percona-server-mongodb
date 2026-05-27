@@ -421,6 +421,13 @@ private:
                               Seconds denylistDuration,
                               const std::string& context);
 
+    // Sync-source validation helpers called by _chooseSyncSource.
+    // Each returns OK if the source passes the check, or an error status otherwise.
+    Status _checkSyncSourceBuildInfo(WithLock lk, const HostAndPort& syncSource);
+    Status _checkSyncSourceStorageEngine(WithLock lk, const HostAndPort& syncSource);
+    Status _checkSyncSourceStorageParameters(WithLock lk, const HostAndPort& syncSource);
+    Status _checkSyncSourceFCV(WithLock lk, const HostAndPort& syncSource);
+
     void _appendInitialSyncProgressMinimal(WithLock lk, BSONObjBuilder* bob) const;
     BSONObj _getInitialSyncProgress(WithLock lk) const;
 
