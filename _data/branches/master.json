@@ -5,14 +5,14 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 350,
+    "commits_behind": 361,
     "days_behind": 10,
-    "files_affected": 1968,
-    "total_additions": 82061,
-    "total_deletions": 24631,
+    "files_affected": 2149,
+    "total_additions": 86682,
+    "total_deletions": 26053,
     "date_range": {
       "first": "2026-05-18T19:46:08+00:00",
-      "last": "2026-05-28T19:45:54+00:00"
+      "last": "2026-05-29T08:57:24+00:00"
     }
   },
   "last_merged_commit": {
@@ -36,6 +36,116 @@
     "summary": "SERVER-126230: move uds socket path from tmp (#53424)"
   },
   "unmerged_commits": [
+    {
+      "sha": "5230090c975c04940abd10d964a70114ad43b2d0",
+      "short_sha": "5230090c975",
+      "date": "2026-05-29T09:57:24+01:00",
+      "author": {
+        "name": "Henri Nikku",
+        "email": "henri.nikku@mongodb.com"
+      },
+      "summary": "SERVER-127774 Use _resultSetsEqualNormalized in computation_hoisting_match_pushdown_pbt.js (#54639)"
+    },
+    {
+      "sha": "c7da59ea8d6f1bdbce38d6ce22d67de0a33e1287",
+      "short_sha": "c7da59ea8d6",
+      "date": "2026-05-29T10:54:38+02:00",
+      "author": {
+        "name": "mongo-pr-bot[bot]",
+        "email": "230616009+mongo-pr-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "SERVER-110427 Update profiling data (#54705)"
+    },
+    {
+      "sha": "5f2c18a6eb19dee4212d555cc1c82029ed6d6d14",
+      "short_sha": "5f2c18a6eb1",
+      "date": "2026-05-29T09:00:22+02:00",
+      "author": {
+        "name": "Jan",
+        "email": "jsteemann@users.noreply.github.com"
+      },
+      "summary": "SERVER-127675 Fix flaky timeseries test (#54546)"
+    },
+    {
+      "sha": "d01f38e334439ce851436b82779b4989678026e3",
+      "short_sha": "d01f38e3344",
+      "date": "2026-05-29T14:39:02+10:00",
+      "author": {
+        "name": "Alex Pullen",
+        "email": "93811034+LX6T@users.noreply.github.com"
+      },
+      "summary": "Import wiredtiger: 50c0f77e939c22abb8aba6ab73becc48025d5a33 from branch mongodb-master (#54703)"
+    },
+    {
+      "sha": "31feb1c6c33ead0947d302b306d306c134b2d150",
+      "short_sha": "31feb1c6c33",
+      "date": "2026-05-29T13:26:24+10:00",
+      "author": {
+        "name": "Alex Pullen",
+        "email": "93811034+LX6T@users.noreply.github.com"
+      },
+      "summary": "SERVER-127492 Fix transaction_aborted_under_cache_pressure.js test hang (#54599)"
+    },
+    {
+      "sha": "0c7a419a2be4702336704d18592cf81c4dd16838",
+      "short_sha": "0c7a419a2be",
+      "date": "2026-05-28T17:34:57-05:00",
+      "author": {
+        "name": "Daniel Moody",
+        "email": "dmoody256@gmail.com"
+      },
+      "summary": "SERVER-127266 Add Debian 13 support (#54670)"
+    },
+    {
+      "sha": "1a7ffc1d7a02ae6c3626f7278b9a1d31ab917f73",
+      "short_sha": "1a7ffc1d7a0",
+      "date": "2026-05-28T17:05:06-04:00",
+      "author": {
+        "name": "Gregory Noma",
+        "email": "gregory.noma@gmail.com"
+      },
+      "summary": "SERVER-127849 Emit log line in `deleteSorterEntriesOutsideRanges` (#54687)"
+    },
+    {
+      "sha": "2fdbd59082f4ba3553684f2688819ad8cb7d6985",
+      "short_sha": "2fdbd59082f",
+      "date": "2026-05-28T16:55:58-04:00",
+      "author": {
+        "name": "Gregory Noma",
+        "email": "gregory.noma@gmail.com"
+      },
+      "summary": "SERVER-127623 Take global lock in `deleteSorterEntriesOutsideRanges` (#54686)"
+    },
+    {
+      "sha": "2a730ef58369d2d2285fbfdea92b3383d7ea9760",
+      "short_sha": "2a730ef5836",
+      "date": "2026-05-28T16:35:51-04:00",
+      "author": {
+        "name": "Jiaqi Tian",
+        "email": "jiaqi.tian@mongodb.com"
+      },
+      "summary": "SERVER-127601 Relax overdue interrupt assertions in delinquent_ops.js (#54480)"
+    },
+    {
+      "sha": "2c13e5551dc4cee373f4b3be4d664ddfaf1a7a94",
+      "short_sha": "2c13e5551dc",
+      "date": "2026-05-28T16:29:32-04:00",
+      "author": {
+        "name": "seanzimm",
+        "email": "102551488+seanzimm@users.noreply.github.com"
+      },
+      "summary": "SERVER-101475: Enable intent registry feature flag (#53875)"
+    },
+    {
+      "sha": "b1c193eca30553e9699eb2bfd02c86c4b91ef1c9",
+      "short_sha": "b1c193eca30",
+      "date": "2026-05-28T16:29:04-04:00",
+      "author": {
+        "name": "Mihai Andrei",
+        "email": "mihai.andrei@mongodb.com"
+      },
+      "summary": "SERVER-118700 Enable IFR flags for featureFlagSbeAccumulators, featureFlagSbeUpgradeBinaryTrees, and featureFlagExtractFieldPathsSbeStage (#52525)"
+    },
     {
       "sha": "64f98741786424682578def8cd6a05ea991317de",
       "short_sha": "64f98741786",
@@ -4047,10 +4157,79 @@
           "num_of_dirs": 40
         }
       }
+    },
+    {
+      "commit": {
+        "sha": "2c13e5551dc4cee373f4b3be4d664ddfaf1a7a94",
+        "short_sha": "2c13e5551dc",
+        "date": "2026-05-28T16:29:32-04:00",
+        "author": {
+          "name": "seanzimm",
+          "email": "102551488+seanzimm@users.noreply.github.com"
+        },
+        "summary": "SERVER-101475: Enable intent registry feature flag (#53875)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 24,
+          "num_of_lines": 731,
+          "lines_added": 277,
+          "lines_deleted": 454,
+          "num_of_dirs": 14
+        }
+      }
+    },
+    {
+      "commit": {
+        "sha": "0c7a419a2be4702336704d18592cf81c4dd16838",
+        "short_sha": "0c7a419a2be",
+        "date": "2026-05-28T17:34:57-05:00",
+        "author": {
+          "name": "Daniel Moody",
+          "email": "dmoody256@gmail.com"
+        },
+        "summary": "SERVER-127266 Add Debian 13 support (#54670)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 19,
+          "num_of_lines": 109,
+          "lines_added": 100,
+          "lines_deleted": 9,
+          "num_of_dirs": 11
+        }
+      }
+    },
+    {
+      "commit": {
+        "sha": "d01f38e334439ce851436b82779b4989678026e3",
+        "short_sha": "d01f38e3344",
+        "date": "2026-05-29T14:39:02+10:00",
+        "author": {
+          "name": "Alex Pullen",
+          "email": "93811034+LX6T@users.noreply.github.com"
+        },
+        "summary": "Import wiredtiger: 50c0f77e939c22abb8aba6ab73becc48025d5a33 from branch mongodb-master (#54703)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 193,
+          "num_of_lines": 7596,
+          "lines_added": 5428,
+          "lines_deleted": 2168,
+          "num_of_dirs": 26
+        }
+      }
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-05-28 20:27:16",
+  "generated_at": "2026-05-29 09:41:16",
   "branch_name": "master",
   "display_name": "master"
 }
