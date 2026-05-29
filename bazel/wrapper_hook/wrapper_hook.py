@@ -241,15 +241,28 @@ def main():
             # source (sidecar-rotated path, see credential_helper.py). Treat
             # it as a CI-token presence signal too, so pre-flight is skipped
             # whenever credential_helper can authenticate non-interactively.
+            #
+            # PSMDB-2099 — ACTIONS_ID_TOKEN_REQUEST_URL is the GitHub Actions
+            # equivalent: the runtime injects this env var only when the
+            # workflow declares `permissions: id-token: write`, which is also
+            # exactly when credential_helper's GHA tier can mint a fresh
+            # subject_token on demand. Skipping pre-flight on its presence
+            # avoids the misleading "RBE buildfarm needs a fresh login but
+            # no TTY is attached" message on GHA runners (which never have
+            # a TTY and never need an interactive Device Code flow because
+            # they authenticate via OIDC subject_token exchange).
             ci_token_present = bool(
                 os.environ.get("PSMDB_RBE_DEX_TOKEN", "").strip()
                 or os.environ.get("PSMDB_RBE_JENKINS_TOKEN", "").strip()
                 or os.environ.get("PSMDB_RBE_JENKINS_TOKEN_FILE", "").strip()
+                or os.environ.get("ACTIONS_ID_TOKEN_REQUEST_URL", "").strip()
             )
             if ci_token_present:
                 wrapper_debug(
-                    "rbe_auth: PSMDB_RBE_DEX_TOKEN / PSMDB_RBE_JENKINS_TOKEN / "
-                    "PSMDB_RBE_JENKINS_TOKEN_FILE set; skipping pre-flight "
+                    "rbe_auth: CI-token signal env var set "
+                    "(PSMDB_RBE_DEX_TOKEN / PSMDB_RBE_JENKINS_TOKEN / "
+                    "PSMDB_RBE_JENKINS_TOKEN_FILE / "
+                    "ACTIONS_ID_TOKEN_REQUEST_URL); skipping pre-flight "
                     "(credential_helper will handle CI auth)"
                 )
             else:
