@@ -1,0 +1,63 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "5750b44e73b11673af8ca4bd90265843d85f8f9a",
+    "merge_commit": "a391837ffa9847b41cd0feaedea9803fbc0cbf53"
+  },
+  "mergai_version": "0.1.dev1+gbbaceb63e",
+  "merge_context": {
+    "merge_commit": "a391837ffa9847b41cd0feaedea9803fbc0cbf53",
+    "merged_commits": [
+      "a391837ffa9847b41cd0feaedea9803fbc0cbf53",
+      "0e7050d2b9684d7df362af39cefad394821cc3aa",
+      "c9709d65c1a40375c7e19369ff0ada7bd1d80d92",
+      "e4fc866a78abf7637e3537fca316fcf9297d1a54",
+      "4bd36565b9ae79cd4c2dd7de59f215a4f651bdd2",
+      "a48dcebbc69aec2a3f4b32614be7e48604f17204",
+      "63745eaa450b30322ff17ccf63d3d58893c796a7",
+      "7d1b18f756199542e6a41278043c8115d86815e2",
+      "862ad0e50b5a148383f86e008bdafa4ef2818303",
+      "36e3e2ea23e2067aeb3da6380b80758acbebdd56",
+      "88fbe993b7d572c3ff595c1bf8de95bb04e23be5",
+      "b7fbac8dd4d59a353895f61f93f226796f3421bd",
+      "a509e05dc1aed37f0fb1d50c516e563eefa6562e",
+      "53c3f3c5fb9115e6995b66efa686569ee10c0b3a",
+      "c1fe003eeca2a2ad632fa13d0293061069658d23",
+      "cd4d6770ed239ba4393dae802c48bd3dc3644301",
+      "3b3507cb34f8b588e8506a3db99c42f0bfb29293",
+      "460b5db2b9a40d1b3d875202322608dde5b4399a",
+      "138419c76cb5fc08755443a8712b961227c96181",
+      "25e034e700d58aadc71af425a923e9b424ca37cc"
+    ],
+    "important_files_modified": [
+      "src/mongo/db/repl/initial_sync/initial_syncer.cpp",
+      "src/mongo/db/repl/initial_sync/initial_syncer.h",
+      "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp"
+    ],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        "BUILD.bazel",
+        "bazel/config/BUILD.bazel",
+        "jstests/auth/lib/commands_lib.js",
+        "jstests/core/catalog/views/views_all_commands.js",
+        "jstests/libs/write_concern_all_commands.js",
+        "jstests/replsets/all_commands_downgrading_to_upgraded.js",
+        "jstests/replsets/db_reads_while_recovering_all_commands.js",
+        "jstests/sharding/all_commands_direct_shard_connection_auth.js",
+        "jstests/sharding/database_versioning_all_commands.js",
+        "jstests/sharding/read_write_concern_defaults_application.js",
+        "jstests/sharding/safe_secondary_reads_drop_recreate.js",
+        "jstests/sharding/safe_secondary_reads_single_migration_suspend_range_deletion.js",
+        "jstests/sharding/safe_secondary_reads_single_migration_waitForDelete.js",
+        "src/mongo/db/BUILD.bazel",
+        "src/mongo/db/auth/action_type.idl",
+        "src/mongo/db/commands/BUILD.bazel",
+        "src/mongo/db/pipeline/BUILD.bazel",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h",
+        "src/mongo/shell/utils.js"
+      ]
+    }
+  }
+}
