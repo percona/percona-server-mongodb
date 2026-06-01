@@ -52,7 +52,7 @@
 #include "mongo/db/query/plan_ranking_decision.h"
 #include "mongo/db/query/plan_summary_stats.h"
 #include "mongo/db/query/query_feature_flags_gen.h"
-#include "mongo/db/query/query_knob_configuration.h"
+#include "mongo/db/query/query_knobs/query_knob_configuration.h"
 #include "mongo/db/query/query_settings.h"
 #include "mongo/db/query/query_settings_decoration.h"
 #include "mongo/util/assert_util.h"
@@ -146,6 +146,20 @@ void generatePlannerInfo(PlanExecutor* exec,
                             .getMeasureQueryExecutionTimeInNanoseconds()
                 ? QueryExecTimerPrecision::kNanos
                 : QueryExecTimerPrecision::kMillis;
+        } else {
+            // TODO (SERVER-127904): Remove else branch once this module can directly access ExpCtx
+            // without requiring a CanonicalQuery.
+
+            // For executors without a single canonical query
+            // (e.g. JOO), read the global value of the
+            // 'internalMeasureQueryExecutionTimeInNanoseconds' knob directly. Note that in this
+            // branch, the value of the knob can change during a query. In the worst case, the query
+            // may start with the server having one value of the knob but by the time this code
+            // executes for that query, it may see a different value if the knob was concurrently
+            // modified.
+            precision = internalMeasureQueryExecutionTimeInNanoseconds.load()
+                ? QueryExecTimerPrecision::kNanos
+                : QueryExecTimerPrecision::kMillis;
         }
 
         // Convert to Nanoseconds first to support all precisions, defaulting to zero if
@@ -172,6 +186,41 @@ void generatePlannerInfo(PlanExecutor* exec,
     }
 
     auto&& explainer = exec->getPlanExplainer();
+
+    if (const auto ceSamplingMeta = explainer.getCeSamplingMetadata(); ceSamplingMeta.has_value()) {
+        BSONObjBuilder ceSamplingMetaBob(plannerBob.subobjStart("ceSamplingMetadata"));
+        for (const auto& [ns, meta] : ceSamplingMeta.value()) {
+            BSONObjBuilder nsMetaBob(ceSamplingMetaBob.subobjStart(ns));
+            nsMetaBob.append("sampleSource", meta.isPersisted ? "persisted" : "onTheFly");
+            static constexpr auto techniqueToStr =
+                [](cost_based_ranker::SamplingTechnique t) -> StringData {
+                switch (t) {
+                    case cost_based_ranker::SamplingTechnique::kRandom:
+                        return "random"_sd;
+                    case cost_based_ranker::SamplingTechnique::kChunk:
+                        return "chunk"_sd;
+                    case cost_based_ranker::SamplingTechnique::kFullCollScan:
+                        return "fullCollScan"_sd;
+                    case cost_based_ranker::SamplingTechnique::kSeqScan:
+                        return "seqScan"_sd;
+                }
+                MONGO_UNREACHABLE;
+            };
+            nsMetaBob.append("sampleTechnique", techniqueToStr(meta.technique));
+            if (meta.technique == cost_based_ranker::SamplingTechnique::kChunk && meta.numChunks) {
+                nsMetaBob.appendNumber("sampleNumChunks", *meta.numChunks);
+            }
+            nsMetaBob.appendNumber("sampleRequestedDocCount",
+                                   static_cast<long long>(meta.requestedDocCount));
+            nsMetaBob.appendNumber("sampleDocCount", static_cast<long long>(meta.docCount));
+            nsMetaBob.appendNumber("sampleMemorySizeBytes",
+                                   static_cast<long long>(meta.memorySizeBytes));
+            tassert(12433203,
+                    "SamplingMetadata::createdAt must be set before explain is generated",
+                    meta.createdAt.has_value());
+            nsMetaBob.appendDate("sampleCreatedAt", meta.createdAt.value());
+        }
+    }
     auto&& enumeratorInfo = explainer.getEnumeratorInfo();
     plannerBob.append("maxIndexedOrSolutionsReached", enumeratorInfo.hitIndexedOrLimit);
     plannerBob.append("maxIndexedAndSolutionsReached", enumeratorInfo.hitIndexedAndLimit);

@@ -96,7 +96,7 @@ protected:
     }
 
     BSONObj invokeFunction(uint64_t handle, const BSONObj& args) {
-        auto result = _bridge->invokeFunction(handle, args);
+        auto result = _bridge->invokeFunction(handle, wasm_helpers::convertBsonToWcVal(args));
         uassert(result.getStatus().code(), result.getStatus().reason(), result.isOK());
         return result.getValue();
     }
@@ -120,11 +120,11 @@ protected:
     }
 
     void invokeMap(uint64_t handle, const BSONObj& value) {
-        _bridge->invokeMap(handle, value);
+        _bridge->invokeMap(handle, wasm_helpers::convertBsonToWcVal(value));
     }
 
     bool invokePredicate(uint64_t handle, const BSONObj& value) {
-        return _bridge->invokePredicate(handle, value);
+        return _bridge->invokePredicate(handle, wasm_helpers::convertBsonToWcVal(value));
     }
 
     BSONObj drainEmitBuffer() {
@@ -2444,7 +2444,9 @@ TEST_F(WasmMozJSBridgeTest, StoreLimiterTrapSetsFlag) {
         "  return big.length;"
         "}");
 
-    ASSERT_THROWS((void)_bridge->invokeFunction(handle, BSONObj()), DBException);
+    ASSERT_THROWS(
+        (void)_bridge->invokeFunction(handle, wasm_helpers::convertBsonToWcVal(BSONObj())),
+        DBException);
     ASSERT_TRUE(_bridge->hasTrapped());
     // The store is in a broken state after the trap; discard without calling shutdown.
     _bridge.reset();
@@ -2463,7 +2465,7 @@ TEST_F(WasmMozJSBridgeTest, StoreLimiterAllowsWithinLimit) {
     ASSERT_TRUE(initEngine());
 
     auto handle = createFunction("function() { return 1 + 2; }");
-    auto result = _bridge->invokeFunction(handle, BSONObj());
+    auto result = _bridge->invokeFunction(handle, wasm_helpers::convertBsonToWcVal(BSONObj()));
     ASSERT_TRUE(result.isOK());
 }
 
@@ -2487,7 +2489,7 @@ TEST_F(WasmMozJSBridgeTest, ServerParam_DefaultLimitAllowsExecution) {
     ASSERT_TRUE(initEngine());
 
     auto handle = createFunction("function() { return 42; }");
-    auto result = _bridge->invokeFunction(handle, BSONObj());
+    auto result = _bridge->invokeFunction(handle, wasm_helpers::convertBsonToWcVal(BSONObj()));
     ASSERT_TRUE(result.isOK());
 }
 
@@ -2557,6 +2559,44 @@ TEST_F(WasmMozJSBridgeTest, PostJsCallExceptionDoesNotTrapBridge) {
     ASSERT_THROWS_CODE(invokeFunction(handle, BSONObj()), DBException, ErrorCodes::BadValue);
 }
 
+/**
+ * Tests exposed javascript functions.
+ */
+TEST_F(WasmMozJSBridgeTest, InvokeToJSON) {
+    auto handle = createFunction("function() { return {answer: tojson(42)}; }");
+
+    // Invoke with empty BSON args
+    BSONObj emptyArgs;
+    auto result = invokeFunction(handle, emptyArgs);
+
+    // Retrieve result
+    ASSERT_FALSE(result.isEmpty());
+    ASSERT_EQ(result.getStringField("answer"), "42");
+}
+
+TEST_F(WasmMozJSBridgeTest, InvokeHex) {
+    auto handle = createFunction("function() { return {answer: hex_md5(\"42\")}; }");
+
+    // Invoke with empty BSON args
+    BSONObj emptyArgs;
+    auto result = invokeFunction(handle, emptyArgs);
+
+    // Retrieve result
+    ASSERT_FALSE(result.isEmpty());
+    ASSERT_EQ(result.getStringField("answer"), "a1d0c6e83f027327d8461063f4ac58a6");
+}
+
+TEST_F(WasmMozJSBridgeTest, AssertTest) {
+    // No args (empty BSON) — function receives no arguments
+    auto handle = createFunction(
+        "function() {"
+        "  assert(true);"
+        "  assert.eq(true, true);"
+        "}");
+
+    BSONObj emptyArgs;
+    auto result = invokeFunction(handle, emptyArgs);
+}
 }  // namespace
 }  // namespace wasm
 }  // namespace mozjs

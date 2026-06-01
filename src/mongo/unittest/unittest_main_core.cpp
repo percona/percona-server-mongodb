@@ -179,7 +179,7 @@ bool matchesGoogleFilter(StringData filt, StringData suite, StringData test) {
             filt.remove_prefix(1);
             continue;
         }
-        size_t pos = filt.find_first_of(":");
+        size_t pos = filt.find_first_of(':');
         StringData elem = filt.substr(0, pos);
         filt = filt.substr(pos);
         if (matchesGooglePattern(elem, fullName))
@@ -347,6 +347,15 @@ boost::optional<ExitCode> MainProgress::_parseAndAcceptOptions() {
     auto uto = parseUnitTestOptions(args());
     if (uto.help) {
         std::cerr << getUnitTestOptionsHelpString(_argVec) << std::endl;
+
+        // Hard coded construction of argv with `--gtest_help`. This is to ensure
+        // GTest help output also displays.
+        const char* gtestHelpArgv[] = {_argVec[0].c_str(), "--gtest_help", nullptr};
+        int gtestHelpArgc = 2;
+        testing::InitGoogleTest(&gtestHelpArgc, const_cast<char**>(gtestHelpArgv));
+        // This is required because we quickExit() without flushing the stdio buffer
+        // required for GTest help output.
+        std::cout.flush();
         return ExitCode::clean;
     }
 

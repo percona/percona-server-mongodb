@@ -91,6 +91,7 @@
 #include "mongo/db/sharding_environment/cluster_identity_loader.h"
 #include "mongo/db/sharding_environment/grid.h"
 #include "mongo/db/sharding_environment/shard_id.h"
+#include "mongo/db/sharding_environment/shard_ref.h"
 #include "mongo/db/sharding_environment/sharding_config_server_parameters_gen.h"
 #include "mongo/db/tenant_id.h"
 #include "mongo/db/topology/add_shard_gen.h"
@@ -101,7 +102,7 @@
 #include "mongo/db/topology/topology_change_helpers.h"
 #include "mongo/db/topology/user_write_block/set_user_write_block_mode_gen.h"
 #include "mongo/db/topology/user_write_block/user_writes_critical_section_document_gen.h"
-#include "mongo/db/topology/user_write_block/user_writes_recoverable_critical_section_service.h"
+#include "mongo/db/topology/user_write_block/writes_recoverable_critical_section_service.h"
 #include "mongo/db/topology/vector_clock/vector_clock_mutable.h"
 #include "mongo/db/transaction/transaction_api.h"
 #include "mongo/db/write_concern_options.h"
@@ -688,12 +689,17 @@ void removeAllClusterParametersFromReplicaSet(
 
 namespace topology_change_helpers {
 
-ShardIdentityType createShardIdentity(OperationContext* opCtx, const ShardId& shardName) {
+ShardIdentityType createShardIdentity(OperationContext* opCtx,
+                                      const ShardId& shardName,
+                                      boost::optional<UUID> shardUuid) {
     ShardIdentityType shardIdentity;
     shardIdentity.setShardName(shardName.toString());
     shardIdentity.setClusterId(ClusterIdentityLoader::get(opCtx)->getClusterId());
     shardIdentity.setConfigsvrConnectionString(
         repl::ReplicationCoordinator::get(opCtx)->getConfigConnectionString());
+    if (shardUuid) {
+        shardIdentity.setUuid(*shardUuid);
+    }
 
     return shardIdentity;
 }
@@ -1757,16 +1763,19 @@ void addShardInTransaction(OperationContext* opCtx,
 
         if (!databasesInNewShard.empty()) {
             std::vector<BSONObj> databaseEntries;
-            std::transform(databasesInNewShard.begin(),
-                           databasesInNewShard.end(),
-                           std::back_inserter(databaseEntries),
-                           [&](const DatabaseName& dbName) {
-                               return DatabaseType(
-                                          dbName,
-                                          newShard.getName(),
-                                          DatabaseVersion(UUID::gen(), newShard.getTopologyTime()))
-                                   .toBSON();
-                           });
+            std::transform(
+                databasesInNewShard.begin(),
+                databasesInNewShard.end(),
+                std::back_inserter(databaseEntries),
+                [&](const DatabaseName& dbName) {
+                    const auto& shardUuid = newShard.getUuid();
+                    ShardRef shardRef = shardUuid ? ShardRef{*shardUuid}
+                                                  : ShardRef{std::string{newShard.getName()}};
+                    return DatabaseType(dbName,
+                                        std::move(shardRef),
+                                        DatabaseVersion(UUID::gen(), newShard.getTopologyTime()))
+                        .toBSON();
+                });
             write_ops::InsertCommandRequest insertDatabaseEntries(
                 NamespaceString::kConfigDatabasesNamespace, std::move(databaseEntries));
             auto dbMetadataInsertionResponse = txnClient.runCRUDOpSync(insertDatabaseEntries, {});

@@ -61,6 +61,7 @@ const allCommands = {
     _configsvrResetPlacementHistory: {skip: isAnInternalCommand},
     _configsvrReshardCollection: {skip: isAnInternalCommand},
     _configsvrRunRestore: {skip: isAnInternalCommand},
+    _configsvrSetAllowChunkOperations: {skip: isAnInternalCommand},
     _configsvrSetAllowMigrations: {skip: isAnInternalCommand},
     _configsvrSetClusterParameter: {skip: isAnInternalCommand},
     _configsvrSetUserWriteBlockMode: {skip: isAnInternalCommand},
@@ -130,6 +131,7 @@ const allCommands = {
     _shardsvrRenameCollectionParticipantUnblock: {skip: isAnInternalCommand},
     _shardsvrRenameIndexMetadata: {skip: isAnInternalCommand},
     _shardsvrReshardingDonorFetchFinalCollectionStats: {skip: isAnInternalCommand},
+    _shardsvrReshardingRecipientFetchFinalCollectionStats: {skip: isAnInternalCommand},
     _shardsvrReshardingDonorStartChangeStreamsMonitor: {skip: isAnInternalCommand},
     _shardsvrResolveView: {skip: isAnInternalCommand},
     _shardsvrRunSearchIndexCommand: {skip: isAnInternalCommand},
@@ -149,6 +151,10 @@ const allCommands = {
     _shardsvrCommitCollModCollectionMetadata: {skip: isAnInternalCommand},
     _shardsvrCommitDropCollectionMetadata: {skip: isAnInternalCommand},
     _shardsvrCommitCreateCollectionMetadata: {skip: isAnInternalCommand},
+    _shardsvrCommitCreateCollectionChunklessMetadata: {skip: isAnInternalCommand},
+    _shardsvrControlShardCatalogCleanupTask: {skip: isAnInternalCommand},
+    _shardsvrCommitRenameCollectionMetadata: {skip: isAnInternalCommand},
+    _shardsvrSetAllowChunkOperations: {skip: isAnInternalCommand},
     _shardsvrSetAllowMigrations: {skip: isAnInternalCommand},
     _shardsvrSetClusterParameter: {skip: isAnInternalCommand},
     _shardsvrSetUserWriteBlockMode: {skip: isAnInternalCommand},
@@ -713,6 +719,7 @@ const allCommands = {
         command: {getDiagnosticData: 1},
         shouldFail: false,
     },
+    getESECMKIdentifierListStatus: {skip: "requires additional setup"},
     getESERotateActiveKEKStatus: {skip: "requires additional setup"},
     getLog: {
         isAdminCommand: true,
@@ -1249,6 +1256,7 @@ const allCommands = {
             assert.commandWorked(conn.getDB(dbName).runCommand({drop: collName}));
         },
     },
+    updateESECMKIdentifierList: {skip: "requires additional setup"},
     updateRole: {
         setUp: function (mongoS, withDirectConnections) {
             assert.commandWorked(

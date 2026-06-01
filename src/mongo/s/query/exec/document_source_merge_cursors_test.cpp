@@ -122,7 +122,7 @@ public:
         std::vector<ShardType> shards;
         for (size_t i = 0; i < kTestShardIds.size(); i++) {
             ShardType shardType;
-            shardType.setName(kTestShardIds[i].toString());
+            shardType.setHandle(ShardHandle{ShardId(kTestShardIds[i].toString()), boost::none});
             shardType.setHost(kTestShardHosts[i].toString());
 
             shards.push_back(shardType);
@@ -600,7 +600,6 @@ TEST_F(DocumentSourceMergeCursorsShapeTest, QueryShape) {
                 "compareWholeSortKey": "?bool",
                 "nss": "HASH<test.mergeCursors>",
                 "allowPartialResults": false,
-                "recordRemoteOpWaitTime": false,
                 "requestQueryStatsFromRemotes": false,
                 "remotes": []
             }
@@ -621,7 +620,6 @@ TEST_F(DocumentSourceMergeCursorsShapeTest, RepresentativeShapeIsReparseable) {
                 ],
                 "nss": "test.mergeCursors",
                 "allowPartialResults": false,
-                "recordRemoteOpWaitTime": false,
                 "requestQueryStatsFromRemotes": false
             }
         })");
@@ -645,4 +643,34 @@ TEST_F(DocumentSourceMergeCursorsShapeTest, RepresentativeShapeIsReparseable) {
     auto newRepresentativeShape = newSerialization[0].getDocument().toBson();
     ASSERT_BSONOBJ_EQ(representativeShape, newRepresentativeShape);
 }
+
+TEST_F(DocumentSourceMergeCursorsShapeTest, CanBeParsedDespiteRecordRemoteOpWaitTimeBeingSet) {
+    auto spec = fromjson(R"({
+            "$mergeCursors": {
+                "compareWholeSortKey": true,
+                "remotes": [
+                    {
+                        "shardId": "FakeShard1",
+                        "hostAndPort": "FakeShard1Host:12345",
+                        "cursorResponse": {ok: 1, cursor: {id: NumberLong(11111), ns: "test.mergeCursors", firstBatch: []}}
+                    }
+                ],
+                "nss": "test.mergeCursors",
+                "recordRemoteOpWaitTime": true
+            }
+        })");
+    auto stage = DocumentSourceMergeCursors::createFromBson(spec.firstElement(), getExpCtx());
+
+    // There is no need for closing remote cursors within this unit-test.
+    dynamic_cast<DocumentSourceMergeCursors*>(stage.get())->dismissCursorOwnership();
+
+    auto opts = SerializationOptions::kRepresentativeQueryShapeSerializeOptions;
+    std::vector<Value> newSerialization;
+    stage->serializeToArray(newSerialization, opts);
+    auto newRepresentativeShape = newSerialization[0].getDocument().toBson();
+    ASSERT_TRUE(newRepresentativeShape["$mergeCursors"].isABSONObj());
+    ASSERT_FALSE(newRepresentativeShape["$mergeCursors"].embeddedObject().hasField(
+        "recordRemoteOpWaitTime"));
+}
+
 }  // namespace mongo

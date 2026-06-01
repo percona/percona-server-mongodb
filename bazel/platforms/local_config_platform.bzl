@@ -1,6 +1,6 @@
 load("//bazel/platforms:psmdb_rbe_containers.bzl", "PSMDB_REMOTE_EXECUTION_CONTAINERS")
 load("//bazel/platforms:remote_execution_containers.bzl", "REMOTE_EXECUTION_CONTAINERS")
-load("//bazel/platforms:normalize.bzl", "ARCH_TO_PLATFORM_MAP", "OS_TO_PLATFORM_MAP")
+load("//bazel/platforms:normalize.bzl", "ARCH_NORMALIZE_MAP", "ARCH_TO_PLATFORM_MAP", "OS_TO_PLATFORM_MAP")
 load("//bazel/toolchains/cc/mongo_linux:mongo_toolchain_version.bzl", "TOOLCHAIN_MAP")
 load("//bazel:utils.bzl", "get_host_distro_major_version")
 
@@ -19,10 +19,11 @@ def _setup_local_config_platform(ctx):
     else:
         os = "linux"
 
-    arch = ctx.os.arch
+    raw_arch = ctx.os.arch
+    toolchain_arch = ARCH_NORMALIZE_MAP[raw_arch]
 
     os_constraint = OS_TO_PLATFORM_MAP[os]
-    arch_constraint = ARCH_TO_PLATFORM_MAP[arch]
+    arch_constraint = ARCH_TO_PLATFORM_MAP[toolchain_arch]
 
     constraints = [os_constraint, arch_constraint]
 
@@ -30,6 +31,7 @@ def _setup_local_config_platform(ctx):
     constraints_str = ",\n        ".join(['"%s"' % c for c in constraints])
 
     distro = get_host_distro_major_version(ctx)
+    arch = toolchain_arch
     if arch == "x86_64":
         arch = "amd64"
     elif arch == "aarch64":
@@ -44,7 +46,8 @@ def _setup_local_config_platform(ctx):
     # explicit //bazel/platforms:<distro>_<arch> targets.
     remote_execution_pool = "x86_64" if arch == "amd64" else "aarch64"
     result = None
-    toolchain_key = "{distro}_{arch}".format(distro = distro, arch = arch)
+    platform_key = "{distro}_{arch}".format(distro = distro, arch = arch)
+    toolchain_key = "{distro}_{arch}".format(distro = distro, arch = toolchain_arch)
     print("Trying to find toolchain for {}".format(toolchain_key))
     toolchain_exists = False
     for version in TOOLCHAIN_MAP:
@@ -52,7 +55,7 @@ def _setup_local_config_platform(ctx):
             toolchain_exists = True
             break
 
-    cache_silo = '"cache-silo-key": "' + toolchain_key + '",' if ctx.os.environ.get("evergreen_remote_exec") == "off" else ""
+    cache_silo = '"cache-silo-key": "' + platform_key + '",' if ctx.os.environ.get("evergreen_remote_exec") == "off" else ""
     if ctx.os.environ.get("USE_NATIVE_TOOLCHAIN"):
         exec_props = ""
         result = {"USE_NATIVE_TOOLCHAIN": "1"}

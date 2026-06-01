@@ -781,13 +781,15 @@ flags in common: {common_set}
 
     _config.MONGOD_EXECUTABLE = _expand_user(config.pop("mongod_executable"))
 
-    # TODO SERVER-116054, SERVER-116052, SERVER-116053: Remove this js_engine handling
-    # section and _detect_js_engine once mozjs-wasm supports $where, $function, and mapReduce,
+    # TODO SERVER-116052: Remove this js_engine handling
+    # section and _detect_js_engine once mozjs-wasm supports $function,
     # eliminating the need for this startup-time binary invocation.
     _config.JS_ENGINE = _detect_js_engine(_config.MONGOD_EXECUTABLE)
     if _config.JS_ENGINE == "mozjs-wasm":
         _config.EXCLUDE_WITH_ANY_TAGS.append("mozjs_wasm_unsupported")
         _config.EXCLUDE_FILES = _find_mozjs_jstestfuzz_files()
+    else:
+        _config.EXCLUDE_WITH_ANY_TAGS.append("requires_mozjs_wasm")
 
     mongod_set_parameters = config.pop("mongod_set_parameters")
 
@@ -1196,20 +1198,14 @@ def _set_logging_config():
 _MOZJS_PATTERNS = (
     # TODO SERVER-116052: Add support for $function.
     '"$function"',
-    # TODO SERVER-116053: Add support for mapReduce.
-    "mapReduce",
-    "mapreduce",
-    # TODO SERVER-116054: Add support for $where.
-    '"$where"',
 )
 
 
 def _find_mozjs_jstestfuzz_files() -> list[str]:
     """Return paths of jstestfuzz output files that contain MozJS-dependent operations.
 
-    Scans all files under jstestfuzz/out/ and excludes any that reference $function, $where,
-    $accumulator, or mapReduce — operators that require the MozJS JavaScript engine and fail
-    on a mozjs-wasm server.
+    Scans all files under jstestfuzz/out/ and excludes any that reference $function or $where —
+    operators that require the MozJS JavaScript engine and fail on a mozjs-wasm server.
     """
     excluded = []
     for path in glob.glob("jstestfuzz/out/*.js"):

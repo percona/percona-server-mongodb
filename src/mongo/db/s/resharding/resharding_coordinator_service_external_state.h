@@ -129,6 +129,19 @@ public:
         const std::vector<ShardId>& shardIds) = 0;
 
     /**
+     * Returns a map from each recipient shard id to the change in the number of documents in the
+     * temporary resharding collection since the cloning phase started, as reported by the
+     * recipient's change stream monitor.
+     */
+    virtual std::map<ShardId, int64_t> getDocumentsDeltaFromRecipients(
+        OperationContext* opCtx,
+        const std::shared_ptr<executor::TaskExecutor>& executor,
+        CancellationToken token,
+        const UUID& reshardingUUID,
+        const NamespaceString& nss,
+        const std::vector<ShardId>& shardIds) = 0;
+
+    /**
      * To be called before transitioning to the "applying" state to verify the temporary collection
      * after cloning by asserting that:
      * - The total number of documents to copy is equal to the total number of documents copied.
@@ -154,7 +167,7 @@ public:
     virtual void stopMigrations(OperationContext* opCtx,
                                 const NamespaceString& nss,
                                 const UUID& expectedCollectionUUID,
-                                const OperationSessionInfo& osi) = 0;
+                                std::function<OperationSessionInfo()> osiGenerator) = 0;
 
     /**
      * To be called on completion (both success and abort) to unset allowMigrations, re-enabling
@@ -163,7 +176,7 @@ public:
     virtual void resumeMigrations(OperationContext* opCtx,
                                   const NamespaceString& nss,
                                   const UUID& expectedCollectionUUID,
-                                  const OperationSessionInfo& osi) = 0;
+                                  std::function<OperationSessionInfo()> osiGenerator) = 0;
     /**
      * Builds a CausalityBarrier for the given participant shards, which is used to perform a no-op
      * retryable write on each shard.
@@ -228,6 +241,14 @@ public:
         const NamespaceString& nss,
         const std::vector<ShardId>& shardIds) override;
 
+    std::map<ShardId, int64_t> getDocumentsDeltaFromRecipients(
+        OperationContext* opCtx,
+        const std::shared_ptr<executor::TaskExecutor>& executor,
+        CancellationToken token,
+        const UUID& reshardingUUID,
+        const NamespaceString& nss,
+        const std::vector<ShardId>& shardIds) override;
+
     void verifyClonedCollection(OperationContext* opCtx,
                                 const std::shared_ptr<executor::TaskExecutor>& executor,
                                 CancellationToken token,
@@ -239,12 +260,12 @@ public:
     void stopMigrations(OperationContext* opCtx,
                         const NamespaceString& nss,
                         const UUID& expectedCollectionUUID,
-                        const OperationSessionInfo& osi) override;
+                        std::function<OperationSessionInfo()> osiGenerator) override;
 
     void resumeMigrations(OperationContext* opCtx,
                           const NamespaceString& nss,
                           const UUID& expectedCollectionUUID,
-                          const OperationSessionInfo& osi) override;
+                          std::function<OperationSessionInfo()> osiGenerator) override;
 
     std::unique_ptr<CausalityBarrier> buildCausalityBarrier(
         std::vector<ShardId> participants,

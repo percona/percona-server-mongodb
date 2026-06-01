@@ -107,6 +107,7 @@
 #include <utility>
 
 #include <boost/optional.hpp>
+#include <fmt/format.h>
 
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kReplication
 
@@ -260,7 +261,8 @@ OpTimeBundle replLogUpdate(OperationContext* opCtx,
     oplogEntry->setNss(args.coll->ns());
     oplogEntry->setUuid(args.coll->uuid());
 
-    if (args.coll->isNewTimeseriesWithoutView()) {
+    if (args.coll->isNewTimeseriesWithoutView() &&
+        shouldSetIsTimeseriesField(VersionContext::getDecoration(opCtx))) {
         oplogEntry->setIsTimeseries();
     }
     repl::OplogLink oplogLink;
@@ -302,7 +304,7 @@ OpTimeBundle replLogDelete(OperationContext* opCtx,
     oplogEntry->setUuid(uuid);
     oplogEntry->setDestinedRecipient(destinedRecipient);
 
-    if (isTimeseries) {
+    if (isTimeseries && shouldSetIsTimeseriesField(VersionContext::getDecoration(opCtx))) {
         oplogEntry->setIsTimeseries();
     }
     repl::OplogLink oplogLink;
@@ -479,10 +481,7 @@ void OpObserverImpl::onCreateIndex(OperationContext* opCtx,
     oplogEntry.setTid(nss.tenantId());
     oplogEntry.setNss(nss.getCommandNS());
     oplogEntry.setUuid(uuid);
-    if (isTimeseries &&
-        gFeatureFlagMarkTimeseriesEventsInOplog.isEnabled(
-            VersionContext::getDecoration(opCtx),
-            serverGlobalParams.featureCompatibility.acquireFCVSnapshot())) {
+    if (isTimeseries && shouldSetIsTimeseriesField(VersionContext::getDecoration(opCtx))) {
         oplogEntry.setIsTimeseries();
     }
     oplogEntry.setObject(builder.obj());
@@ -541,10 +540,7 @@ void OpObserverImpl::onStartIndexBuild(OperationContext* opCtx,
 
     MutableOplogEntry oplogEntry;
     oplogEntry.setOpType(repl::OpTypeEnum::kCommand);
-    if (isTimeseries &&
-        gFeatureFlagMarkTimeseriesEventsInOplog.isEnabled(
-            VersionContext::getDecoration(opCtx),
-            serverGlobalParams.featureCompatibility.acquireFCVSnapshot())) {
+    if (isTimeseries && shouldSetIsTimeseriesField(VersionContext::getDecoration(opCtx))) {
         oplogEntry.setIsTimeseries();
     }
     oplogEntry.setTid(nss.tenantId());
@@ -621,10 +617,7 @@ void OpObserverImpl::onCommitIndexBuild(OperationContext* opCtx,
     MutableOplogEntry oplogEntry;
     oplogEntry.setOpType(repl::OpTypeEnum::kCommand);
 
-    if (isTimeseries &&
-        gFeatureFlagMarkTimeseriesEventsInOplog.isEnabled(
-            VersionContext::getDecoration(opCtx),
-            serverGlobalParams.featureCompatibility.acquireFCVSnapshot())) {
+    if (isTimeseries && shouldSetIsTimeseriesField(VersionContext::getDecoration(opCtx))) {
         oplogEntry.setIsTimeseries();
     }
     oplogEntry.setTid(nss.tenantId());
@@ -673,10 +666,7 @@ void OpObserverImpl::onAbortIndexBuild(OperationContext* opCtx,
     MutableOplogEntry oplogEntry;
     oplogEntry.setOpType(repl::OpTypeEnum::kCommand);
 
-    if (isTimeseries &&
-        gFeatureFlagMarkTimeseriesEventsInOplog.isEnabled(
-            VersionContext::getDecoration(opCtx),
-            serverGlobalParams.featureCompatibility.acquireFCVSnapshot())) {
+    if (isTimeseries && shouldSetIsTimeseriesField(VersionContext::getDecoration(opCtx))) {
         oplogEntry.setIsTimeseries();
     }
     oplogEntry.setTid(nss.tenantId());
@@ -757,7 +747,8 @@ std::vector<repl::OpTime> _logInsertOps(OperationContext* opCtx,
         if (!recordIds.empty()) {
             oplogEntry.setRecordId(recordIds[i]);
         }
-        if (collectionPtr->isNewTimeseriesWithoutView()) {
+        if (collectionPtr->isNewTimeseriesWithoutView() &&
+            shouldSetIsTimeseriesField(VersionContext::getDecoration(opCtx))) {
             oplogEntry.setIsTimeseries();
         }
 
@@ -875,7 +866,8 @@ void OpObserverImpl::onInserts(OperationContext* opCtx,
             const auto docKey = getDocumentKey(coll, iter->doc).getShardKeyAndId();
             repl::ReplOperation operation =
                 MutableOplogEntry::makeInsertOperation(nss, uuid, iter->doc, docKey);
-            if (coll->isNewTimeseriesWithoutView()) {
+            if (coll->isNewTimeseriesWithoutView() &&
+                shouldSetIsTimeseriesField(VersionContext::getDecoration(opCtx))) {
                 operation.setIsTimeseries(true);
             }
             if (useReplicatedSizeCount) {
@@ -934,9 +926,7 @@ void OpObserverImpl::onInserts(OperationContext* opCtx,
         // This means setting optype, nss, and object at the minimum.
         MutableOplogEntry oplogEntryTemplate;
         if (coll->isNewTimeseriesWithoutView() &&
-            gFeatureFlagMarkTimeseriesEventsInOplog.isEnabled(
-                VersionContext::getDecoration(opCtx),
-                serverGlobalParams.featureCompatibility.acquireFCVSnapshot())) {
+            shouldSetIsTimeseriesField(VersionContext::getDecoration(opCtx))) {
             oplogEntryTemplate.setIsTimeseries();
         }
         oplogEntryTemplate.setOpType(repl::OpTypeEnum::kInsert);
@@ -1040,7 +1030,8 @@ void OpObserverImpl::onUpdate(OperationContext* opCtx,
         if (!args.updateArgs->replicatedRecordId.isNull()) {
             operation.setRecordId(args.updateArgs->replicatedRecordId);
         }
-        if (args.coll->isNewTimeseriesWithoutView()) {
+        if (args.coll->isNewTimeseriesWithoutView() &&
+            shouldSetIsTimeseriesField(VersionContext::getDecoration(opCtx))) {
             operation.setIsTimeseries(true);
         }
         if (args.updateArgs->changeStreamPreAndPostImagesEnabledForCollection) {
@@ -1229,7 +1220,8 @@ void OpObserverImpl::onDelete(OperationContext* opCtx,
         if (args.replicatedSizeDelta) {
             operation.setSizeMetadata(makeOperationSizeMetadata(*args.replicatedSizeDelta));
         }
-        if (coll->isNewTimeseriesWithoutView()) {
+        if (coll->isNewTimeseriesWithoutView() &&
+            shouldSetIsTimeseriesField(VersionContext::getDecoration(opCtx))) {
             operation.setIsTimeseries(true);
         }
         if (args.changeStreamPreAndPostImagesEnabledForCollection) {
@@ -1685,10 +1677,7 @@ void OpObserverImpl::onCreateCollection(
 
     MutableOplogEntry oplogEntry;
     oplogEntry.setOpType(repl::OpTypeEnum::kCommand);
-    if (isTimeseries &&
-        gFeatureFlagMarkTimeseriesEventsInOplog.isEnabled(
-            VersionContext::getDecoration(opCtx),
-            serverGlobalParams.featureCompatibility.acquireFCVSnapshot())) {
+    if (isTimeseries && shouldSetIsTimeseriesField(VersionContext::getDecoration(opCtx))) {
         oplogEntry.setIsTimeseries();
     }
     oplogEntry.setTid(collectionName.tenantId());
@@ -1781,10 +1770,7 @@ void OpObserverImpl::onCollMod(OperationContext* opCtx,
 
         oplogEntry.setTid(nss.tenantId());
         oplogEntry.setNss(nss.getCommandNS());
-        if (isTimeseries &&
-            gFeatureFlagMarkTimeseriesEventsInOplog.isEnabled(
-                VersionContext::getDecoration(opCtx),
-                serverGlobalParams.featureCompatibility.acquireFCVSnapshot())) {
+        if (isTimeseries && shouldSetIsTimeseriesField(VersionContext::getDecoration(opCtx))) {
             oplogEntry.setIsTimeseries();
         }
         oplogEntry.setUuid(uuid);
@@ -1864,10 +1850,7 @@ repl::OpTime OpObserverImpl::onDropCollection(OperationContext* opCtx,
     oplogEntry.setOpType(repl::OpTypeEnum::kCommand);
 
     oplogEntry.setTid(collectionName.tenantId());
-    if (isTimeseries &&
-        gFeatureFlagMarkTimeseriesEventsInOplog.isEnabled(
-            VersionContext::getDecoration(opCtx),
-            serverGlobalParams.featureCompatibility.acquireFCVSnapshot())) {
+    if (isTimeseries && shouldSetIsTimeseriesField(VersionContext::getDecoration(opCtx))) {
         oplogEntry.setIsTimeseries();
     }
     oplogEntry.setNss(collectionName.getCommandNS());
@@ -1904,10 +1887,7 @@ void OpObserverImpl::onDropIndex(OperationContext* opCtx,
     oplogEntry.setOpType(repl::OpTypeEnum::kCommand);
 
     oplogEntry.setTid(nss.tenantId());
-    if (isTimeseries &&
-        gFeatureFlagMarkTimeseriesEventsInOplog.isEnabled(
-            VersionContext::getDecoration(opCtx),
-            serverGlobalParams.featureCompatibility.acquireFCVSnapshot())) {
+    if (isTimeseries && shouldSetIsTimeseriesField(VersionContext::getDecoration(opCtx))) {
         oplogEntry.setIsTimeseries();
     }
     oplogEntry.setNss(nss.getCommandNS());
@@ -1956,10 +1936,7 @@ repl::OpTime OpObserverImpl::preRenameCollection(OperationContext* const opCtx,
     oplogEntry.setOpType(repl::OpTypeEnum::kCommand);
 
     oplogEntry.setTid(fromCollection.tenantId());
-    if (isTimeseries &&
-        gFeatureFlagMarkTimeseriesEventsInOplog.isEnabled(
-            VersionContext::getDecoration(opCtx),
-            serverGlobalParams.featureCompatibility.acquireFCVSnapshot())) {
+    if (isTimeseries && shouldSetIsTimeseriesField(VersionContext::getDecoration(opCtx))) {
         oplogEntry.setIsTimeseries();
     }
     oplogEntry.setNss(fromCollection.getCommandNS());
@@ -2034,10 +2011,7 @@ void OpObserverImpl::onImportCollection(OperationContext* opCtx,
     oplogEntry.setOpType(repl::OpTypeEnum::kCommand);
 
     oplogEntry.setTid(nss.tenantId());
-    if (isTimeseries &&
-        gFeatureFlagMarkTimeseriesEventsInOplog.isEnabled(
-            VersionContext::getDecoration(opCtx),
-            serverGlobalParams.featureCompatibility.acquireFCVSnapshot())) {
+    if (isTimeseries && shouldSetIsTimeseriesField(VersionContext::getDecoration(opCtx))) {
         oplogEntry.setIsTimeseries();
     }
     oplogEntry.setNss(nss.getCommandNS());
@@ -2369,6 +2343,15 @@ void OpObserverImpl::onBatchedWriteCommit(OperationContext* opCtx,
             default:
                 break;
         }
+    }
+
+    if (oplogGroupingFormat == WriteUnitOfWork::kGroupForAtomicWrite) {
+        auto numOpsWithStatementIds = batchedOps->getNumberOfOperationsWithStatementIds();
+        tassert(12782600,
+                fmt::format("kGroupForAtomicWrite WUOW must contain at most one operation with "
+                            "retryable statements, but found {}",
+                            numOpsWithStatementIds),
+                numOpsWithStatementIds <= 1);
     }
 
     // Serialize batched statements to BSON and determine their assignment to "applyOps"

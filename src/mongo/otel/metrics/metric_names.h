@@ -60,7 +60,6 @@ public:
      */
     constexpr MetricName(StringData name, Passkey<MetricNameMaker>) : _name(name) {}
     constexpr MetricName(StringData name, Passkey<disagg::MetricNameMaker>) : _name(name) {}
-
     constexpr StringData getName() const {
         return _name;
     }
@@ -80,6 +79,19 @@ class MONGO_MOD_FILE_PRIVATE MetricNameMaker{public : static constexpr MetricNam
 };  // namespace mongo
 
 /**
+ * Helper to create MetricName instances with runtime-constructed names (e.g. names that embed
+ * device names or mount paths discovered at startup). Requires N&O review since dynamic names
+ * cannot be audited at compile time.
+ *
+ * TODO(SERVER-127521): Ensure ServerStatusOptions is boost::none for any runtime metric.
+ */
+class MONGO_MOD_PUBLIC DynamicMetricNameMaker{
+    public : static MetricName make(StringData name){return MetricNameMaker::make(name);
+}
+}
+;
+
+/**
  * Central registry of OpenTelemetry metric names used in the server. When adding a new metric to
  * the server, please add an entry to MetricNames grouped under your team name.
  *
@@ -91,6 +103,22 @@ class MONGO_MOD_FILE_PRIVATE MetricNameMaker{public : static constexpr MetricNam
 class MetricNames {
 public:
     // Networking & Observability Team Metrics
+    static constexpr MetricName kNetworkIngressBytesIn =
+        MetricNameMaker::make("serverStatus.network.bytesIn");
+    static constexpr MetricName kNetworkIngressBytesOut =
+        MetricNameMaker::make("serverStatus.network.bytesOut");
+    static constexpr MetricName kNetworkIngressNumRequests =
+        MetricNameMaker::make("serverStatus.network.numRequests");
+    static constexpr MetricName kNetworkEgressBytesIn =
+        MetricNameMaker::make("serverStatus.network.egress.bytesIn");
+    static constexpr MetricName kNetworkEgressBytesOut =
+        MetricNameMaker::make("serverStatus.network.egress.bytesOut");
+    static constexpr MetricName kNetworkEgressNumRequests =
+        MetricNameMaker::make("serverStatus.network.egress.numRequests");
+    static constexpr MetricName kNetworkNumSlowDNSOperations =
+        MetricNameMaker::make("serverStatus.network.numSlowDNSOperations");
+    static constexpr MetricName kNetworkNumSlowSSLOperations =
+        MetricNameMaker::make("serverStatus.network.numSlowSSLOperations");
     static constexpr MetricName kPrometheusFileExporterWrites =
         MetricNameMaker::make("metrics.prometheus_file_exporter.writes");
     static constexpr MetricName kPrometheusFileExporterWritesFailed =
@@ -180,10 +208,47 @@ public:
     static constexpr MetricName kIndexBuildResumeFailed =
         MetricNameMaker::make("index_builds.resume.failed");
 
+    static constexpr MetricName kIndexCount =
+        MetricNameMaker::make("serverStatus.indexStats.count");
+
+    static constexpr MetricName kIndexBuildsTotal =
+        MetricNameMaker::make("serverStatus.indexBuilds.total");
+    static constexpr MetricName kIndexBuildPhasesCommit =
+        MetricNameMaker::make("serverStatus.indexBuilds.phases.commit");
+
+    static constexpr MetricName kIndexBulkBuilderNumSorted =
+        MetricNameMaker::make("serverStatus.indexBulkBuilder.numSorted");
+    static constexpr MetricName kIndexBulkBuilderBytesSorted =
+        MetricNameMaker::make("serverStatus.indexBulkBuilder.bytesSorted");
+    static constexpr MetricName kIndexBulkBuilderBytesSpilled =
+        MetricNameMaker::make("serverStatus.indexBulkBuilder.bytesSpilled");
+    static constexpr MetricName kIndexBulkBuilderBytesSpilledUncompressed =
+        MetricNameMaker::make("serverStatus.indexBulkBuilder.bytesSpilledUncompressed");
+    static constexpr MetricName kIndexBulkBuilderMemUsage =
+        MetricNameMaker::make("serverStatus.indexBulkBuilder.memUsage");
+    static constexpr MetricName kIndexBulkBuilderSpilledRanges =
+        MetricNameMaker::make("serverStatus.indexBulkBuilder.spilledRanges");
+
     // Replication Team Metrics
     static constexpr MetricName kOplogApplyBytes = MetricNameMaker::make("oplog.apply.bytes");
 
     // Query Integration Team Metrics
+
+    // Global Lock
+    static constexpr MetricName kGlobalLockTotalTime =
+        MetricNameMaker::make("serverStatus.globalLock.totalTime");
+    static constexpr MetricName kGlobalLockCurrentQueueTotal =
+        MetricNameMaker::make("serverStatus.globalLock.currentQueue.total");
+    static constexpr MetricName kGlobalLockCurrentQueueReaders =
+        MetricNameMaker::make("serverStatus.globalLock.currentQueue.readers");
+    static constexpr MetricName kGlobalLockCurrentQueueWriters =
+        MetricNameMaker::make("serverStatus.globalLock.currentQueue.writers");
+    static constexpr MetricName kGlobalLockActiveClientsTotal =
+        MetricNameMaker::make("serverStatus.globalLock.activeClients.total");
+    static constexpr MetricName kGlobalLockActiveClientsReaders =
+        MetricNameMaker::make("serverStatus.globalLock.activeClients.readers");
+    static constexpr MetricName kGlobalLockActiveClientsWriters =
+        MetricNameMaker::make("serverStatus.globalLock.activeClients.writers");
 
     // Op Counters
     static constexpr MetricName kInsertOpCount =

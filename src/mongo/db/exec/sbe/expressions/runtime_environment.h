@@ -72,7 +72,7 @@ public:
     RuntimeEnvironment(RuntimeEnvironment&&) = delete;
     RuntimeEnvironment& operator=(const RuntimeEnvironment&) = delete;
     RuntimeEnvironment& operator=(const RuntimeEnvironment&&) = delete;
-    virtual ~RuntimeEnvironment();
+    virtual ~RuntimeEnvironment() = default;
 
     class Accessor final : public value::AssignableSlotAccessor {
     public:
@@ -81,33 +81,28 @@ public:
         Accessor(RuntimeEnvironment* env, size_t index) : _env{env}, _index{index} {}
 
         value::TagValueView getViewOfValue() const override {
-            auto [owned, tag, val] = _env->_state->values[_index];
-            return {tag, val};
+            return _env->_state->values[_index].view();
         }
 
         value::TagValueOwned copyOrMoveValue() override {
             // Always make a copy.
-            auto [owned, tag, val] = _env->_state->values[_index];
-            return copyValue(tag, val);
+            auto view = _env->_state->values[_index].view();
+            return value::TagValueOwned::fromRaw(value::copyValue(view.tag, view.value));
         }
 
         void reset_raw(bool owned, value::TypeTags tag, value::Value val) override {
-            release();
-            _env->_state->values[_index] = {owned, tag, val};
-        }
-
-    private:
-        void release() {
-            auto [owned, tag, val] = _env->_state->values[_index];
-            if (owned) {
-                releaseValue(tag, val);
-                _env->_state->values[_index] = {false, value::TypeTags::Nothing, 0};
-            }
+            _env->_state->values[_index] = value::TagValueMaybeOwned(owned, tag, val);
         }
 
         RuntimeEnvironment* const _env;
         const size_t _index;
     };
+
+    /**
+     * Register the given SlotId 'slotId' as an unnamed slot. The value 'val' is then stored within
+     * the SlotAccessor.
+     */
+    void registerSlot(value::TypeTags tag, value::Value val, bool owned, value::SlotId slotId);
 
     /**
      * Registers and returns a SlotId for the given slot 'name'. The 'slotIdGenerator' is used
@@ -196,7 +191,7 @@ private:
         size_t pushSlot(value::SlotId slot) {
             auto index = values.size();
 
-            values.push_back({false, value::TypeTags::Nothing, 0});
+            values.emplace_back(false, value::TypeTags::Nothing, 0);
 
             auto [_, inserted] = slots.emplace(slot, index);
             uassert(4946302, str::stream() << "duplicate environment slot: " << slot, inserted);
@@ -214,13 +209,8 @@ private:
             state->namedSlots = namedSlots;
             state->slots = slots;
 
+            // resize() default-constructs each TagValueMaybeOwned to (false, Nothing, 0).
             state->values.resize(values.size());
-
-            // Populate slot values with default value.
-            std::fill(
-                state->values.begin(),
-                state->values.end(),
-                FastTuple<bool, value::TypeTags, value::Value>{false, value::TypeTags::Nothing, 0});
 
             return state;
         }
@@ -228,7 +218,7 @@ private:
         StringMap<value::SlotId> namedSlots;
         value::SlotMap<size_t> slots;
 
-        std::vector<FastTuple<bool, value::TypeTags, value::Value>> values;
+        std::vector<value::TagValueMaybeOwned> values;
     };
 
     void emplaceAccessor(value::SlotId slot, size_t index) {

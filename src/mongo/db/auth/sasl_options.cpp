@@ -31,6 +31,7 @@
 
 #include "mongo/base/init.h"  // IWYU pragma: keep
 #include "mongo/base/initializer.h"
+#include "mongo/db/auth/auth_mechanism.h"
 #include "mongo/db/auth/sasl_options_gen.h"
 #include "mongo/db/stats/counters.h"
 #include "mongo/util/text.h"  // IWYU pragma: keep
@@ -38,7 +39,9 @@
 namespace mongo {
 
 const std::vector<std::string> SASLGlobalParams::kDefaultAuthenticationMechanisms =
-    std::vector<std::string>{"MONGODB-X509", "SCRAM-SHA-1", "SCRAM-SHA-256"};
+    std::vector<std::string>{std::string{auth::kMechanismMongoX509},
+                             std::string{auth::kMechanismScramSha1},
+                             std::string{auth::kMechanismScramSha256}};
 SASLGlobalParams saslGlobalParams;
 
 SASLGlobalParams::SASLGlobalParams() {

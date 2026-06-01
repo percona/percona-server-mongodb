@@ -115,6 +115,7 @@ const wcCommandsTests = {
     _configsvrResetPlacementHistory: {skip: "internal command"},
     _configsvrReshardCollection: {skip: "internal command"},
     _configsvrRunRestore: {skip: "internal command"},
+    _configsvrSetAllowChunkOperations: {skip: "internal command"},
     _configsvrSetAllowMigrations: {skip: "internal command"},
     _configsvrSetClusterParameter: {skip: "internal command"},
     _configsvrSetUserWriteBlockMode: {skip: "internal command"},
@@ -189,12 +190,16 @@ const wcCommandsTests = {
     _shardsvrCommitCollModCollectionMetadata: {skip: "internal command"},
     _shardsvrCommitDropCollectionMetadata: {skip: "internal command"},
     _shardsvrCommitCreateCollectionMetadata: {skip: "internal command"},
+    _shardsvrCommitCreateCollectionChunklessMetadata: {skip: "internal command"},
+    _shardsvrControlShardCatalogCleanupTask: {skip: "internal command"},
+    _shardsvrCommitRenameCollectionMetadata: {skip: "internal command"},
     _shardsvrRenameCollection: {skip: "internal command"},
     _shardsvrRenameCollectionParticipant: {skip: "internal command"},
     _shardsvrRenameCollectionParticipantUnblock: {skip: "internal command"},
     _shardsvrRenameIndexMetadata: {skip: "internal command"},
     _shardsvrReshardCollection: {skip: "internal command"},
     _shardsvrReshardingDonorFetchFinalCollectionStats: {skip: "internal command"},
+    _shardsvrReshardingRecipientFetchFinalCollectionStats: {skip: "internal command"},
     _shardsvrReshardingDonorStartChangeStreamsMonitor: {skip: "internal command"},
     _shardsvrReshardingOperationTime: {skip: "internal command"},
     _shardsvrReshardDonorInitialize: {skip: "internal command"},
@@ -205,6 +210,7 @@ const wcCommandsTests = {
     _shardsvrReshardRecipientCriticalSectionStarted: {skip: "internal command"},
     _shardsvrResolveView: {skip: "internal command"},
     _shardsvrRunSearchIndexCommand: {skip: "internal command"},
+    _shardsvrSetAllowChunkOperations: {skip: "internal command"},
     _shardsvrSetAllowMigrations: {skip: "internal command"},
     _shardsvrSetClusterParameter: {skip: "internal command"},
     _shardsvrSetUserWriteBlockMode: {skip: "internal command"},
@@ -1542,6 +1548,7 @@ const wcCommandsTests = {
     getDatabaseVersion: {skip: "internal command"},
     getDefaultRWConcern: {skip: "does not accept write concern"},
     getDiagnosticData: {skip: "does not accept write concern"},
+    getESECMKIdentifierListStatus: {skip: "does not accept write concern"},
     getESERotateActiveKEKStatus: {skip: "does not accept write concern"},
     getLog: {skip: "does not accept write concern"},
     getMore: {skip: "does not accept write concern"},
@@ -3058,6 +3065,7 @@ const wcCommandsTests = {
             },
         },
     },
+    updateESECMKIdentifierList: {skip: "does not accept write concern"},
     updateRole: {
         targetConfigServer: true,
         noop: {
@@ -3338,6 +3346,7 @@ const wcTimeseriesCommandsTests = {
     _configsvrResetPlacementHistory: {skip: "internal command"},
     _configsvrReshardCollection: {skip: "internal command"},
     _configsvrRunRestore: {skip: "internal command"},
+    _configsvrSetAllowChunkOperations: {skip: "internal command"},
     _configsvrSetAllowMigrations: {skip: "internal command"},
     _configsvrSetClusterParameter: {skip: "internal command"},
     _configsvrSetUserWriteBlockMode: {skip: "internal command"},
@@ -3414,12 +3423,16 @@ const wcTimeseriesCommandsTests = {
     _shardsvrCommitCollModCollectionMetadata: {skip: "internal command"},
     _shardsvrCommitDropCollectionMetadata: {skip: "internal command"},
     _shardsvrCommitCreateCollectionMetadata: {skip: "internal command"},
+    _shardsvrCommitCreateCollectionChunklessMetadata: {skip: "internal command"},
+    _shardsvrControlShardCatalogCleanupTask: {skip: "internal command"},
+    _shardsvrCommitRenameCollectionMetadata: {skip: "internal command"},
     _shardsvrRenameCollection: {skip: "internal command"},
     _shardsvrRenameCollectionParticipant: {skip: "internal command"},
     _shardsvrRenameCollectionParticipantUnblock: {skip: "internal command"},
     _shardsvrRenameIndexMetadata: {skip: "internal command"},
     _shardsvrReshardCollection: {skip: "internal command"},
     _shardsvrReshardingDonorFetchFinalCollectionStats: {skip: "internal command"},
+    _shardsvrReshardingRecipientFetchFinalCollectionStats: {skip: "internal command"},
     _shardsvrReshardingDonorStartChangeStreamsMonitor: {skip: "internal command"},
     _shardsvrReshardingOperationTime: {skip: "internal command"},
     _shardsvrReshardDonorInitialize: {skip: "internal command"},
@@ -3430,6 +3443,7 @@ const wcTimeseriesCommandsTests = {
     _shardsvrReshardRecipientCriticalSectionStarted: {skip: "internal command"},
     _shardsvrResolveView: {skip: "internal command"},
     _shardsvrRunSearchIndexCommand: {skip: "internal command"},
+    _shardsvrSetAllowChunkOperations: {skip: "internal command"},
     _shardsvrSetAllowMigrations: {skip: "internal command"},
     _shardsvrSetClusterParameter: {skip: "internal command"},
     _shardsvrSetUserWriteBlockMode: {skip: "internal command"},
@@ -4133,6 +4147,7 @@ const wcTimeseriesCommandsTests = {
     getDatabaseVersion: {skip: "internal command"},
     getDefaultRWConcern: {skip: "does not accept write concern"},
     getDiagnosticData: {skip: "does not accept write concern"},
+    getESECMKIdentifierListStatus: {skip: "does not accept write concern"},
     getESERotateActiveKEKStatus: {skip: "does not accept write concern"},
     getLog: {skip: "does not accept write concern"},
     getMore: {skip: "does not accept write concern"},
@@ -4450,6 +4465,7 @@ const wcTimeseriesCommandsTests = {
             },
         },
     },
+    updateESECMKIdentifierList: {skip: "does not accept write concern"},
     updateRole: wcCommandsTests["updateRole"],
     updateSearchIndex: {skip: "does not accept write concern"},
     updateUser: wcCommandsTests["updateRole"],
@@ -6110,8 +6126,6 @@ function shouldSkipTestCase(clusterType, command, testCase, shardedCollection, w
     }
 
     if (testCase == "noop") {
-        // TODO SERVER-100309 adapt/enable setFeatureCompatibilityVersion no-op case once the
-        // upgrade procedure will not proactively shard the sessions collection.
         if (
             clusterType == "sharded" &&
             (shardedDDLCommandsRequiringMajorityCommit.includes(command) ||

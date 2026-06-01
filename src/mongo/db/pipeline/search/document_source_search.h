@@ -68,6 +68,11 @@ public:
         return true;
     }
 
+    // $search produces scoreDetails metadata when the user requests it via the mongotQuery.
+    bool isScoreDetailsStage() const final {
+        return hasScoreDetails();
+    }
+
     // $search is not a selection stage when returnStoredSource is true since it might have an
     // implicit projection applied.
     bool isSelectionStage() const final {
@@ -105,9 +110,21 @@ public:
 
     DocumentSourceSearch(const boost::intrusive_ptr<ExpressionContext> expCtx,
                          InternalSearchMongotRemoteSpec spec)
-        : DocumentSource(kStageName, expCtx), _spec(std::move(spec)) {}
+        : DocumentSource(kStageName,
+                         expCtx,
+                         [&]() -> SortPattern {
+                             if (spec.getSortSpec().has_value()) {
+                                 return SortPattern(spec.getSortSpec()->getOwned(), expCtx);
+                             }
+                             SortPattern::SortPatternPart part;
+                             part.isAscending = false;
+                             part.expression = make_intrusive<ExpressionMeta>(
+                                 expCtx.get(), DocumentMetadataFields::MetaType::kSearchScore);
+                             return SortPattern({std::move(part)});
+                         }()),
+          _spec(std::move(spec)) {}
 
-    const char* getSourceName() const override;
+    StringData getSourceName() const override;
     StageConstraints constraints(PipelineSplitState pipeState) const override;
     boost::optional<DistributedPlanLogic> distributedPlanLogic(
         const DistributedPlanContext* ctx) final;
@@ -120,15 +137,8 @@ public:
         return id;
     }
 
-    SortPattern getSortPattern() const override {
-        if (_spec.getSortSpec().has_value()) {
-            return SortPattern(_spec.getSortSpec()->getOwned(), getExpCtx());
-        }
-        SortPattern::SortPatternPart part;
-        part.isAscending = false;
-        part.expression = make_intrusive<ExpressionMeta>(
-            getExpCtx().get(), DocumentMetadataFields::MetaType::kSearchScore);
-        return SortPattern({std::move(part)});
+    bool providesSortKeyMetadata() const override {
+        return true;
     }
 
     boost::intrusive_ptr<DocumentSource> clone(

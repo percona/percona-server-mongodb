@@ -48,11 +48,53 @@
 #include "mongo/db/storage/storage_engine.h"
 #include "mongo/db/storage/write_unit_of_work.h"
 #include "mongo/db/ttl/ttl_collection_cache.h"
+#include "mongo/logv2/log.h"
+
+#define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kIndex
 
 namespace mongo::index_builds::primary_driven {
 namespace {
 
 auto _registry = ServiceContext::declareDecoration<Registry>();
+
+std::vector<std::string> getIndexBuildIdents(const std::vector<IndexBuildInfo>& indexes,
+                                             const boost::optional<std::string>& indexBuildIdent) {
+    std::vector<std::string> idents;
+    for (auto& index : indexes) {
+        if (index.sorterIdent) {
+            idents.push_back(*index.sorterIdent);
+        }
+        if (index.sideWritesIdent) {
+            idents.push_back(*index.sideWritesIdent);
+        }
+        if (index.skippedRecordsIdent) {
+            idents.push_back(*index.skippedRecordsIdent);
+        }
+        if (index.constraintViolationsIdent) {
+            idents.push_back(*index.constraintViolationsIdent);
+        }
+    }
+    if (indexBuildIdent) {
+        idents.push_back(*indexBuildIdent);
+    }
+    return idents;
+}
+
+void dropIdentsAndDeregisterOnCommit(OperationContext* opCtx,
+                                     const UUID& buildUUID,
+                                     std::vector<std::string> idents) {
+    shard_role_details::getRecoveryUnit(opCtx)->onCommit(
+        [buildUUID, idents = std::move(idents)](OperationContext* opCtx,
+                                                boost::optional<Timestamp> commitTs) {
+            invariant(commitTs && !commitTs->isNull());
+            auto dropTime = StorageEngine::DropTime{StorageEngine::StableTimestamp{*commitTs}};
+            auto* storageEngine = opCtx->getServiceContext()->getStorageEngine();
+            for (auto& ident : idents) {
+                storageEngine->addDropPendingIdent(dropTime, std::make_shared<Ident>(ident));
+            }
+            _registry(opCtx->getServiceContext()).remove(buildUUID);
+        });
+}
 
 std::vector<boost::optional<BSONObj>> multikeyPathsToObjs(
     const std::vector<IndexBuildInfo>& indexes,
@@ -85,6 +127,11 @@ Status start(OperationContext* opCtx,
              const UUID& buildUUID,
              std::vector<IndexBuildInfo> indexes,
              boost::optional<std::string> indexBuildIdent) {
+    // We create temporary interceptors to eagerly create all of the sidetables needed. These
+    // interceptors need to outlive the WUOW so that WUOW rollback can safely access the lazy record
+    // stores.
+    std::deque<IndexBuildInterceptor> interceptors;
+
     auto coll = acquireCollection(
         opCtx,
         CollectionAcquisitionRequest::fromOpCtx(
@@ -95,7 +142,7 @@ Status start(OperationContext* opCtx,
     auto writableColl = writer.getWritableCollection(opCtx);
 
     if (indexBuildIdent) {
-        LazyRecordStore{opCtx, *indexBuildIdent, LazyRecordStore::CreateMode::immediate};
+        LazyRecordStore::createTable(opCtx, *indexBuildIdent);
     }
 
     for (auto&& index : indexes) {
@@ -113,8 +160,8 @@ Status start(OperationContext* opCtx,
             return status;
         }
 
-        IndexBuildInterceptor interceptor{
-            opCtx, index, LazyRecordStore::CreateMode::immediate, descriptor.unique()};
+        interceptors.emplace_back(
+            opCtx, index, LazyRecordStore::CreateMode::immediate, descriptor.unique());
 
         CollectionQueryInfo::get(writableColl).rebuildIndexData(opCtx, writableColl);
 
@@ -163,20 +210,11 @@ Status commit(OperationContext* opCtx,
     WriteUnitOfWork wuow{opCtx};
     auto writableColl = writer.getWritableCollection(opCtx);
 
-    auto commitTs = shard_role_details::getRecoveryUnit(opCtx)->getCommitTimestamp();
-    StorageEngine::DropTime dropTime = !commitTs.isNull()
-        ? StorageEngine::DropTime{StorageEngine::StableTimestamp{commitTs}}
-        : StorageEngine::DropTime{StorageEngine::Immediate{}};
-
     for (size_t i = 0; i < indexes.size(); ++i) {
         auto&& index = indexes[i];
 
         auto entry = writableColl->getIndexCatalog()->getWritableEntryByName(
             opCtx, index.getIndexName(), IndexCatalog::InclusionPolicy::kUnfinished);
-
-        IndexBuildInterceptor interceptor{
-            opCtx, index, LazyRecordStore::CreateMode::openExisting, entry->descriptor()->unique()};
-        interceptor.dropTemporaryTables(opCtx, dropTime);
 
         writableColl->indexBuildSuccess(opCtx, entry);
         if (multikey[i]) {
@@ -221,11 +259,8 @@ Status commit(OperationContext* opCtx,
         }
     }
 
-    if (indexBuildIdent) {
-        opCtx->getServiceContext()->getStorageEngine()->addDropPendingIdent(
-            dropTime, std::make_shared<Ident>(*indexBuildIdent));
-    }
-
+    dropIdentsAndDeregisterOnCommit(
+        opCtx, buildUUID, getIndexBuildIdents(indexes, indexBuildIdent));
     opCtx->getServiceContext()->getOpObserver()->onCommitIndexBuild(
         opCtx,
         coll.nss(),
@@ -234,11 +269,6 @@ Status commit(OperationContext* opCtx,
         indexes,
         multikeyPathsToObjs(indexes, multikey),
         /*fromMigrate=*/false);
-    shard_role_details::getRecoveryUnit(opCtx)->onCommit(
-        [buildUUID](OperationContext* opCtx, boost::optional<Timestamp>) {
-            _registry(opCtx->getServiceContext()).remove(buildUUID);
-        });
-
     wuow.commit();
     return Status::OK();
 }
@@ -259,18 +289,9 @@ Status abort(OperationContext* opCtx,
     WriteUnitOfWork wuow{opCtx};
     auto writableColl = writer.getWritableCollection(opCtx);
 
-    auto commitTs = shard_role_details::getRecoveryUnit(opCtx)->getCommitTimestamp();
-    StorageEngine::DropTime dropTime = !commitTs.isNull()
-        ? StorageEngine::DropTime{StorageEngine::StableTimestamp{commitTs}}
-        : StorageEngine::DropTime{StorageEngine::Immediate{}};
-
     for (auto&& index : indexes) {
         auto entry = writableColl->getIndexCatalog()->getWritableEntryByName(
             opCtx, index.getIndexName(), IndexCatalog::InclusionPolicy::kUnfinished);
-
-        IndexBuildInterceptor interceptor{
-            opCtx, index, LazyRecordStore::CreateMode::openExisting, entry->descriptor()->unique()};
-        interceptor.dropTemporaryTables(opCtx, dropTime);
 
         auto status = writableColl->getIndexCatalog()->dropIndexEntry(opCtx, writableColl, entry);
         if (!status.isOK()) {
@@ -285,11 +306,8 @@ Status abort(OperationContext* opCtx,
                               ErrorCodes::IndexBuildAborted);
     }
 
-    if (indexBuildIdent) {
-        opCtx->getServiceContext()->getStorageEngine()->addDropPendingIdent(
-            dropTime, std::make_shared<Ident>(*indexBuildIdent));
-    }
-
+    dropIdentsAndDeregisterOnCommit(
+        opCtx, buildUUID, getIndexBuildIdents(indexes, indexBuildIdent));
     opCtx->getServiceContext()->getOpObserver()->onAbortIndexBuild(opCtx,
                                                                    coll.nss(),
                                                                    collectionUUID,
@@ -297,11 +315,6 @@ Status abort(OperationContext* opCtx,
                                                                    indexes,
                                                                    cause,
                                                                    /*fromMigrate=*/false);
-    shard_role_details::getRecoveryUnit(opCtx)->onCommit(
-        [buildUUID](OperationContext* opCtx, boost::optional<Timestamp>) {
-            _registry(opCtx->getServiceContext()).remove(buildUUID);
-        });
-
     wuow.commit();
     return Status::OK();
 }
@@ -342,13 +355,9 @@ void deleteSorterEntriesOutsideRanges(OperationContext* opCtx,
 
     for (const auto& indexStateInfo : resumeInfoIndexes) {
         auto storageId = indexStateInfo.getStorageIdentifier();
-        const auto& ranges = indexStateInfo.getRanges();
-        if (!storageId || !ranges || ranges->empty()) {
+        if (!storageId) {
             continue;
         }
-
-        int64_t firstStart = ranges->front().getStart();
-        int64_t lastEnd = ranges->back().getEnd();
 
         LazyRecordStore sorterTable(opCtx, *storageId, LazyRecordStore::CreateMode::openExisting);
         auto& container = std::get<std::reference_wrapper<IntegerKeyedContainer>>(
@@ -358,16 +367,19 @@ void deleteSorterEntriesOutsideRanges(OperationContext* opCtx,
         const auto batchMaxSize =
             static_cast<size_t>(primaryDrivenIndexBuildSorterInsertionBatchSize.load());
         std::vector<int64_t> keysToDelete;
+        int64_t numDeleted = 0;
 
         auto flushDeletes = [&] {
             writeConflictRetry(
                 opCtx, ru, "deleteSorterEntriesOutsideRanges", NamespaceString::kEmpty, [&] {
+                    Lock::GlobalLock lk(opCtx, MODE_IX);
                     WriteUnitOfWork wuow{opCtx};
                     for (auto key : keysToDelete) {
                         uassertStatusOK(container_write::remove(opCtx, ru, container, key));
                     }
                     wuow.commit();
                 });
+            numDeleted += keysToDelete.size();
             keysToDelete.clear();
         };
 
@@ -380,30 +392,52 @@ void deleteSorterEntriesOutsideRanges(OperationContext* opCtx,
 
         auto cursor = container.getCursor(ru);
 
-        // Delete keys before firstStart. Write conflicts may reset the cursor to the beginning
-        // which is safe since we only delete keys < firstStart.
-        for (auto entry = cursor->next(); entry && entry->first < firstStart;
-             entry = cursor->next()) {
-            collectKey(entry->first);
-        }
+        auto& ranges = indexStateInfo.getRanges();
+        boost::optional<int64_t> firstStart;
+        boost::optional<int64_t> lastEnd;
 
-        // Delete keys at and after lastEnd. lastEnd is kept as a seek anchor and deleted last. A
-        // key < lastEnd after flush indicates a write conflict reset the cursor so we re-seek
-        // lastEnd.
-        if (cursor->find(lastEnd)) {
-            while (auto entry = cursor->next()) {
-                if (entry->first < lastEnd) {
-                    cursor->find(lastEnd);
-                    continue;
-                }
+        if (!ranges || ranges->empty()) {
+            // Delete every entry. Write conflicts may reset the cursor to the beginning which is
+            // safe since we are deleting all keys and committed deletes never reappear.
+            for (auto entry = cursor->next(); entry; entry = cursor->next()) {
                 collectKey(entry->first);
             }
-            collectKey(lastEnd);
+        } else {
+            firstStart = ranges->front().getStart();
+            lastEnd = ranges->back().getEnd();
+
+            // Delete keys before firstStart. Write conflicts may reset the cursor to the beginning
+            // which is safe since we only delete keys < firstStart.
+            for (auto entry = cursor->next(); entry && entry->first < *firstStart;
+                 entry = cursor->next()) {
+                collectKey(entry->first);
+            }
+
+            // Delete keys at and after lastEnd. lastEnd is kept as a seek anchor and deleted last.
+            // A key < lastEnd after flush indicates a write conflict reset the cursor so we re-seek
+            // lastEnd.
+            if (cursor->find(*lastEnd)) {
+                while (auto entry = cursor->next()) {
+                    if (entry->first < *lastEnd) {
+                        cursor->find(*lastEnd);
+                        continue;
+                    }
+                    collectKey(entry->first);
+                }
+                collectKey(*lastEnd);
+            }
         }
 
         if (!keysToDelete.empty()) {
             flushDeletes();
         }
+
+        LOGV2(12784900,
+              "Index build: cleaned sorter entries outside persisted ranges",
+              "sorterIdent"_attr = *storageId,
+              "numDeleted"_attr = numDeleted,
+              "firstRangeStart"_attr = firstStart,
+              "lastRangeEnd"_attr = lastEnd);
     }
 }
 

@@ -190,6 +190,29 @@ void CollectionSizeCountStore::remove(OperationContext* opCtx, UUID uuid) {
                                         /*opDebug=*/nullptr);
 }
 
+void CollectionSizeCountStore::readAndIncrementSizeCounts(OperationContext* opCtx,
+                                                          SizeCountDeltas& deltas) const {
+    const auto acquisition = acquireFastCountCollectionForRead(opCtx).value();
+    const CollectionPtr& coll = acquisition.getCollectionPtr();
+
+    for (auto& [uuid, delta] : deltas) {
+        if (delta.state != DDLState::kNone) {
+            continue;
+        }
+        const RecordId rid = record_id_helpers::keyForDoc(
+                                 BSON("_id" << uuid),
+                                 clustered_util::makeDefaultClusteredIdIndex().getIndexSpec(),
+                                 /*collator=*/nullptr)
+                                 .getValue();
+        Snapshotted<BSONObj> doc;
+        if (coll->findDoc(opCtx, rid, &doc)) {
+            const BSONObj& data = doc.value();
+            delta.sizeCount.count += data.getField(kMetadataKey).Obj().getField(kCountKey).Long();
+            delta.sizeCount.size += data.getField(kMetadataKey).Obj().getField(kSizeKey).Long();
+        }
+    }
+}
+
 std::span<const char> ContainerSizeCountStore::uuidToContainerKey(const UUID& uuid) {
     auto cdr = uuid.toCDR();
     return {reinterpret_cast<const char*>(cdr.data()), cdr.length()};
@@ -227,8 +250,7 @@ void ContainerSizeCountStore::write(OperationContext* opCtx, UUID uuid, const En
     if (cursor->find(keySpan)) {
         massertStatusOK(container_write::update(opCtx, ru, container, keySpan, valSpan));
     } else {
-        massertStatusOK(container_write::insert(
-            opCtx, ru, container, keySpan, valSpan, container::ExistingKeyPolicy::reject));
+        massertStatusOK(container_write::insert(opCtx, ru, container, keySpan, valSpan));
     }
 }
 
@@ -236,12 +258,8 @@ void ContainerSizeCountStore::insert(OperationContext* opCtx, UUID uuid, const E
     auto& ru = *shard_role_details::getRecoveryUnit(opCtx);
     auto& container = _getStringKeyedContainer();
     auto val = entryToContainerValue(entry);
-    massertStatusOK(container_write::insert(opCtx,
-                                            ru,
-                                            container,
-                                            uuidToContainerKey(uuid),
-                                            bsonToSpan(val),
-                                            container::ExistingKeyPolicy::reject));
+    massertStatusOK(
+        container_write::insert(opCtx, ru, container, uuidToContainerKey(uuid), bsonToSpan(val)));
 }
 
 void ContainerSizeCountStore::remove(OperationContext* opCtx, UUID uuid) {
@@ -254,6 +272,25 @@ void ContainerSizeCountStore::remove(OperationContext* opCtx, UUID uuid) {
                       "container, but the operation failed.",
                       "uuid"_attr = uuid.toString(),
                       "error"_attr = status);
+    }
+}
+
+void ContainerSizeCountStore::readAndIncrementSizeCounts(OperationContext* opCtx,
+                                                         SizeCountDeltas& deltas) const {
+    auto& ru = *shard_role_details::getRecoveryUnit(opCtx);
+    auto& container = _getStringKeyedContainer();
+    auto cursor = container.getCursor(ru);
+    for (auto& [uuid, delta] : deltas) {
+        if (delta.state != DDLState::kNone) {
+            continue;
+        }
+        auto result = cursor->find(uuidToContainerKey(uuid));
+        if (!result) {
+            continue;
+        }
+        auto entry = parseContainerValue(*result);
+        delta.sizeCount.count += entry.count;
+        delta.sizeCount.size += entry.size;
     }
 }
 

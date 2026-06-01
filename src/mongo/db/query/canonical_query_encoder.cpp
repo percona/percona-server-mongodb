@@ -65,7 +65,7 @@
 #include "mongo/db/query/collation/collator_interface.h"
 #include "mongo/db/query/compiler/logical_model/projection/projection.h"
 #include "mongo/db/query/find_command.h"
-#include "mongo/db/query/query_knob_configuration.h"
+#include "mongo/db/query/query_knobs/query_knob_configuration.h"
 #include "mongo/db/query/query_request_helper.h"
 #include "mongo/db/query/tree_walker.h"
 #include "mongo/db/repl/read_concern_args.h"
@@ -1355,10 +1355,10 @@ CanonicalQuery::QueryShapeString encodeClassic(const CanonicalQuery& cq) {
 
     // Encode the deferred engine selection feature flag so that cache entries cannot be shared when
     // the flag is changed. This could lead to unpredictable scenarios.
-    const bool deferredGetExecutorEnabled =
-        feature_flags::gFeatureFlagGetExecutorDeferredEngineChoice.isEnabled();
+    const bool deferredGetExecutorEnabled = cq.getExpCtx()->getIfrContext()->getSavedFlagValue(
+        feature_flags::gFeatureFlagGetExecutorDeferredEngineChoice);
     keyBuilder << (deferredGetExecutorEnabled ? "t" : "f");
-    if (MONGO_unlikely(deferredGetExecutorEnabled)) {
+    if (deferredGetExecutorEnabled) {
         encodeDeferredGetExecutorSubplanningData(cq, &keyBuilder);
     } else {
         encodeLegacyGetExecutorSubplanningData(cq, &keyBuilder);

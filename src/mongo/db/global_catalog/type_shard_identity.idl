@@ -53,3 +53,9 @@ structs:
                 description: "If true, the writing of shard identity does not imply sharding initializations"
                 type: bool
                 optional: true
+            uuid:
+                description:
+                    "A unique identifier for this shard. Should generally not be exposed to end user through command responses.
+                    The field is optional for backward compatibility."
+                type: uuid
+                optional: true

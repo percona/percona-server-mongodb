@@ -12,7 +12,9 @@ from buildscripts.bazel_custom_formatter import (
     validate_clang_tidy_configs,
     validate_idl_naming,
     validate_private_headers,
+    validate_tcmalloc_cc_test_coverage,
 )
+from buildscripts.sort_backport_multiversion import sort_backport_multiversion
 
 
 def _git_distance(args: list) -> int:
@@ -247,15 +249,32 @@ def main() -> int:
     if files_to_format_contains_bazel_file(files_to_format):
         validate_clang_tidy_configs(generate_report=True, fix=not args.check)
         validate_bazel_groups(generate_report=True, fix=not args.check)
+        validate_tcmalloc_cc_test_coverage(generate_report=True, fix=not args.check)
         validate_idl_naming(generate_report=True, fix=not args.check)
         validate_private_headers(generate_report=True, fix=not args.check)
 
     if files_to_format != "all":
         files_to_format = [str(file) for file in files_to_format if os.path.isfile(file)]
 
+    def files_to_format_contain_backports(files: Union[list[str], str]) -> bool:
+        if files == "all":
+            return True
+        return any("backports_required_for_multiversion_tests" in f for f in files)
+
+    backports_ok = True
+    if files_to_format_contain_backports(files_to_format):
+        print("Sorting etc/backports_required_for_multiversion_tests.yml")
+        backports_ok = sort_backport_multiversion(
+            check=args.check,
+            path=pathlib.Path(default_dir)
+            / "etc"
+            / "backports_required_for_multiversion_tests.yml",
+        )
+
     return (
         0
-        if run_prettier(prettier_path, args.check, files_to_format)
+        if backports_ok
+        and run_prettier(prettier_path, args.check, files_to_format)
         and run_rules_lint(
             args.rules_lint_format, args.rules_lint_format_check, args.check, files_to_format
         )

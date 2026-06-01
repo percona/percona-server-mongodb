@@ -892,8 +892,8 @@ public:
             opCtx, recipientDoc.getTempReshardingNss(), options);
     }
 
-    SemiFuture<void> notifyToStartCloningUsingCmd(RecipientStateMachine& recipient,
-                                                  const ReshardingRecipientDocument& recipientDoc) {
+    SharedSemiFuture<void> notifyToStartCloningUsingCmd(
+        RecipientStateMachine& recipient, const ReshardingRecipientDocument& recipientDoc) {
         while (true) {
             try {
                 auto recipientFields = _makeRecipientFields(recipientDoc);
@@ -904,7 +904,7 @@ public:
                         recipientFields.getApproxDocumentsToCopy().get(),
                         recipientFields.getApproxBytesToCopy().get(),
                         recipientFields.getDonorShards()});
-                return recipient.awaitTransitionedToCreateCollection();
+                return recipient.awaitInCreatingCollection();
             } catch (const ExceptionFor<ErrorCodes::PrimaryOnlyServiceInitializing>&) {
                 sleepmillis(100);
             }
@@ -932,7 +932,7 @@ public:
             // A recipient only explicitly waits for the critical section to start before
             // transitioning to "strict-consistency" when it skips cloning and applying.
             ASSERT_OK(recipient.awaitInApplyingOrError().getNoThrow());
-            recipient.onCriticalSectionStarted();
+            recipient.onCoordinatorStateAdvanced(CoordinatorStateEnum::kBlockingWrites);
         }
     }
 
@@ -2831,6 +2831,57 @@ TEST_F(ReshardingRecipientServiceTest, AbortWhileChangeStreamsMonitorInProgress)
     ASSERT_OK(recipient->getCompletionFuture().getNoThrow());
 }
 
+TEST_F(ReshardingRecipientServiceTest, RetryableErrorDuringChangeStreamsMonitorTriggersRecreation) {
+    TestOptions testOptions{.isAlsoDonor = false, .performVerification = true};
+    LOGV2(10903207,
+          "Running case",
+          "test"_attr = unittest::getTestName(),
+          "testOptions"_attr = testOptions);
+
+    // Fire the failpoint once with a retryable error. The monitor should clean up, recreate
+    // itself from the last persisted resume token, and complete normally.
+    auto fp = globalFailPointRegistry().find(
+        "reshardingRecipientFailsUpdatingChangeStreamsMonitorProgress");
+    fp->setMode(FailPoint::nTimes, 1, BSON("errorCode" << ErrorCodes::HostUnreachable));
+
+    auto doc = makeRecipientDocument(testOptions);
+    auto opCtx = makeOperationContext();
+    RecipientStateMachine::insertStateDocument(opCtx.get(), doc);
+    auto recipient = RecipientStateMachine::getOrCreate(opCtx.get(), _service, doc.toBSON());
+
+    notifyToStartCloning(opCtx.get(), *recipient, doc);
+    awaitChangeStreamsMonitorStarted(opCtx.get(), *recipient, doc);
+    notifyCriticalSectionStarted(opCtx.get(), *recipient, doc);
+    awaitChangeStreamsMonitorCompleted(opCtx.get(), *recipient, doc);
+    notifyReshardingCommitting(opCtx.get(), *recipient, doc);
+
+    ASSERT_OK(recipient->getCompletionFuture().getNoThrow());
+    checkRecipientDocumentRemoved(opCtx.get());
+}
+
+// TODO SERVER-121788: Remove death test once validation no longer runs in critical section.
+DEATH_TEST_REGEX_F(ReshardingRecipientServiceTestDeathTest,
+                   UnrecoverableCSMErrorAfterStrictConsistencyFatals,
+                   "10903201") {
+    // _awaitChangeStreamsMonitorCompleted runs after kStrictConsistency is persisted.
+    // Any unrecoverable CSM error at this point triggers a fatal assertion.
+    TestOptions testOptions{.isAlsoDonor = false, .performVerification = true};
+
+    auto doc = makeRecipientDocument(testOptions);
+    auto opCtx = makeOperationContext();
+    RecipientStateMachine::insertStateDocument(opCtx.get(), doc);
+    auto recipient = RecipientStateMachine::getOrCreate(opCtx.get(), _service, doc.toBSON());
+
+    FailPointEnableBlock failpoint("reshardingRecipientFailsUpdatingChangeStreamsMonitorProgress",
+                                   BSON("errorCode" << ErrorCodes::InternalError));
+
+    notifyToStartCloning(opCtx.get(), *recipient, doc);
+    awaitChangeStreamsMonitorStarted(opCtx.get(), *recipient, doc);
+    notifyCriticalSectionStarted(opCtx.get(), *recipient, doc);
+
+    recipient->getCompletionFuture().getNoThrow().ignore();
+}
+
 TEST_F(ReshardingRecipientServiceTest, AbortWhileWaitingForCriticalSectionStarted) {
     for (auto& testOptions : makeBasicTestOptions()) {
         setupFeatureFlags(testOptions);
@@ -2876,11 +2927,8 @@ TEST_F(ReshardingRecipientServiceTest, AbortWhileWaitingForCriticalSectionStarte
             auto changeStreamsMonitorCompletedStatus =
                 recipient->awaitChangeStreamsMonitorCompletedForTest().getNoThrow();
             ASSERT_EQ(changeStreamsMonitorCompletedStatus, ErrorCodes::IllegalOperation);
-            // TODO (SERVER-114077): Make sure that there can never be dangling
-            // _shardsvrRecipientCriticalSectionStarted threads when resharding gets aborted both
-            // implicitly and explicitly.
-            // ASSERT_EQ(recipient->awaitInStrictConsistencyOrError().getNoThrow(),
-            //           ErrorCodes::ReshardCollectionAborted);
+            ASSERT_EQ(recipient->awaitInStrictConsistencyOrError().getNoThrow(),
+                      ErrorCodes::ReshardCollectionAborted);
             ASSERT_OK(recipient->getCompletionFuture().getNoThrow());
             checkRecipientDocumentRemoved(opCtx.get());
         }
@@ -3330,39 +3378,6 @@ TEST_F(ReshardingRecipientServiceTest, UnrecoverableErrorDuringApplying) {
     }
 }
 
-TEST_F(ReshardingRecipientServiceTest,
-       OnCoordinatorStateAdvancedSkipsAllDonorsPreparedWithoutCloneDetails) {
-    auto testOptions = makeBasicTestOptions().front();
-    setupFeatureFlags(testOptions);
-
-    auto doc = makeRecipientDocument(testOptions);
-    auto opCtx = makeOperationContext();
-    if (testOptions.isAlsoDonor) {
-        createSourceCollection(opCtx.get(), doc);
-    }
-    RecipientStateMachine::insertStateDocument(opCtx.get(), doc);
-    auto recipient = RecipientStateMachine::getOrCreate(opCtx.get(), _service, doc.toBSON());
-
-    // Wait until past initialization. Without cloneDetails the call must not fulfill
-    // _allDonorsPreparedToDonate.
-    while (true) {
-        try {
-            recipient->onCoordinatorStateAdvanced(CoordinatorStateEnum::kBlockingWrites);
-            break;
-        } catch (const ExceptionFor<ErrorCodes::PrimaryOnlyServiceInitializing>&) {
-            sleepmillis(10);
-        }
-    }
-    ASSERT_FALSE(recipient->awaitAllDonorsPreparedToDonateForTest().isReady());
-
-    // A repeat call must not throw and must not change the state.
-    recipient->onCoordinatorStateAdvanced(CoordinatorStateEnum::kBlockingWrites);
-    ASSERT_FALSE(recipient->awaitAllDonorsPreparedToDonateForTest().isReady());
-
-    // Cleanup.
-    stepDown();
-    ASSERT_NOT_OK(recipient->getCompletionFuture().getNoThrow());
-}
 
 TEST_F(ReshardingRecipientServiceTest, StepDownBeforeRunFulfillsCompletionPromise) {
     auto testOptions = makeBasicTestOptions().front();

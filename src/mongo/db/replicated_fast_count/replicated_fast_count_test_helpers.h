@@ -39,7 +39,7 @@
 #include <absl/container/flat_hash_map.h>
 #include <boost/optional/optional.hpp>
 
-namespace mongo::replicated_fast_count_test_helpers {
+namespace mongo::replicated_fast_count::test_helpers {
 /**
  * Stub persistence provider for enabling the replicated fast count collection.
  */
@@ -153,14 +153,22 @@ class ReplicatedFastCountTestPersistenceProvider : public rss::StubPersistencePr
 };
 
 /**
- * Checks the persisted values of count and size for the given UUID in the internal
- * replicated fast count collection.
+ * Returns true if `uuid` is found in the fast count metadata container, and writes the value to
+ * `outDoc`.
  */
-void checkFastCountMetadataInInternalCollection(OperationContext* opCtx,
-                                                const UUID& uuid,
-                                                bool expectPersisted,
-                                                int64_t expectedCount,
-                                                int64_t expectedSize);
+bool findPersistedDocInContainer(OperationContext* opCtx, const UUID& uuid, BSONObj& outDoc);
+
+/**
+ * Checks the persisted values of count and size for the given UUID in the underlying fast count
+ * store.
+ */
+void checkFastCountMetadataInInternalStore(
+    OperationContext* opCtx,
+    replicated_fast_count::ReplicatedFastCountManager* fastCountManager,
+    const UUID& uuid,
+    bool expectPersisted,
+    int64_t expectedCount,
+    int64_t expectedSize);
 
 /**
  * Checks the uncommitted fast count changes for the given UUID.
@@ -171,13 +179,12 @@ void checkUncommittedFastCountChanges(OperationContext* opCtx,
                                       int64_t expectedSize);
 
 /**
- * Checks the committed fast count changes for the given UUID.
+ * Checks the committed size and count for the `RecordStore` with the provided `uuid`.
+ *
+ * It is an invariant that the provided `uuid` exists in the catalog.
  */
-void checkCommittedFastCountChanges(
-    const UUID& uuid,
-    replicated_fast_count::ReplicatedFastCountManager* fastCountManager,
-    int64_t expectedCount,
-    int64_t expectedSize);
+void checkCommittedSizeCount(OperationContext* opCtx, UUID uuid, CollectionSizeCount sizeCount);
+
 /**
  * Inserts the specified number of documents into the given collection, using the provided function
  * 'makeDoc' to generate each document. Checks whether uncommitted and committed changes are updated
@@ -245,6 +252,20 @@ std::vector<repl::OplogEntry> getApplyOpsForNss(OperationContext* opCtx,
  */
 repl::OplogEntry getLatestApplyOpsForNss(OperationContext* opCtx, const NamespaceString& innerNss);
 
+/**
+ * Returns applyOps oplog entries that write to the replicated fast count metadata store, covering
+ * both the collection-backed path (inner ops on the fast count store NSS) and the container-backed
+ * path (inner ops whose `container` ident is a replicated fast count ident). Returns a vector of
+ * oplog entries sorted in ascending timestamp order.
+ */
+std::vector<repl::OplogEntry> getApplyOpsForFastCountStore(OperationContext* opCtx);
+
+/**
+ * Returns the most recent applyOps entry for the replicated fast count metadata store, covering
+ * both the collection-backed and container-backed paths.
+ */
+repl::OplogEntry getLatestApplyOpsForFastCountStore(OperationContext* opCtx);
+
 enum class FastCountOpType {
     kInsert,
     kUpdate,
@@ -261,10 +282,11 @@ struct ExpectedFastCountOp {
 
 /**
  * Asserts that the given applyOps oplog entry contains fast-count operations matching the expected
- * operations. Also performs structural checks on the applyOps entry.
+ * operations. Dispatches per-inner-op based on whether the op carries a `container` ident or a
+ * namespace. Count checks on updates are only exercised on the container path, since the
+ * collection-mode update diff does not necessarily carry a count field.
  */
 void assertFastCountApplyOpsMatches(const repl::OplogEntry& applyOpsEntry,
-                                    const NamespaceString& internalNss,
                                     const std::vector<ExpectedFastCountOp>& expectedOps);
 
 /**
@@ -320,9 +342,7 @@ CollectionSizeCount scanForAccurateSizeCount(OperationContext* opCtx, const Name
 absl::flat_hash_map<UUID, CollectionSizeCount> extractSizeCountDeltasForApplyOps(
     const repl::OplogEntry& applyOpsEntry, const boost::optional<UUID>& uuidFilter = boost::none);
 
-}  // namespace mongo::replicated_fast_count_test_helpers
 
-namespace mongo::replicated_fast_count::test_helpers {
 /**
  * Simple wrapper to ease creation and testing of replicated fast count and size.
  */
@@ -382,4 +402,20 @@ void insertSizeCountEntry(OperationContext* opCtx,
 void insertSizeCountTimestamp(OperationContext* opCtx,
                               SizeCountTimestampStore& store,
                               Timestamp timestamp);
+
+/**
+ * Creates a BSONObj representing a fast count metadata store entry with a fixed valid-as-of
+ * timestamp.
+ */
+BSONObj makeEntryBson(int64_t count, int64_t size);
+
+/**
+ * Creates a char span for a given UUID.
+ */
+std::span<const char> uuidSpan(const UUID& u);
+
+/**
+ * Creates a char span for a given BSONObj.
+ */
+std::span<const char> bsonSpan(const BSONObj& obj);
 }  // namespace mongo::replicated_fast_count::test_helpers

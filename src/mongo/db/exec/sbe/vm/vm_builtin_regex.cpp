@@ -86,10 +86,10 @@ value::TagValueMaybeOwned pcreNextMatch(pcre::Regex* pcre,
     for (size_t i = 0; i < m.captureCount(); ++i) {
         StringData cap = m[i + 1];
         if (!cap.data()) {
-            arrayView->push_back(value::TypeTags::Null, 0);
+            arrayView->push_back_raw(value::TypeTags::Null, 0);
         } else {
             auto [tag, val] = value::makeNewString(cap);
-            arrayView->push_back(tag, val);
+            arrayView->push_back_raw(tag, val);
         }
     }
 
@@ -223,12 +223,19 @@ value::TagValueMaybeOwned ByteCode::builtinRegexFindAll(ArityType arity) {
 
         auto [matchTag, matchVal] = match.raw();
         match.disownAndClear();
-        arrayView->push_back(matchTag, matchVal);
+        arrayView->push_back_raw(matchTag, matchVal);
 
         // Move indexes after the current matched string to prepare for the next search.
         auto [mstrTag, mstrVal] = value::getObjectView(matchVal)->getField("match");
         auto matchString = value::getStringView(mstrTag, mstrVal);
         if (matchString.empty()) {
+            // The regex matched an empty string. If the empty match landed at the end of the
+            // input (e.g. pattern "$" or "a*" against ""), 'startBytePos' is already at
+            // 'inputString.size()' and there is no byte to advance over. Break out so we do not
+            // read past the end of the input.
+            if (startBytePos >= inputString.size()) {
+                break;
+            }
             startBytePos += str::getCodePointLength(inputString[startBytePos]);
             ++codePointPos;
         } else {

@@ -557,6 +557,16 @@ std::map<ShardId, int64_t> ReshardingCoordinatorExternalStateImpl::getDocumentsD
     return docsDelta;
 }
 
+std::map<ShardId, int64_t> ReshardingCoordinatorExternalStateImpl::getDocumentsDeltaFromRecipients(
+    OperationContext* opCtx,
+    const std::shared_ptr<executor::TaskExecutor>& executor,
+    CancellationToken token,
+    const UUID& reshardingUUID,
+    const NamespaceString& nss,
+    const std::vector<ShardId>& shardIds) {
+    MONGO_UNREACHABLE;
+}
+
 void ReshardingCoordinatorExternalStateImpl::verifyClonedCollection(
     OperationContext* opCtx,
     const std::shared_ptr<executor::TaskExecutor>& executor,
@@ -654,18 +664,30 @@ void ReshardingCoordinatorExternalStateImpl::verifyFinalCollection(
         "recipientDocumentsFinal"_attr = numDocsTemporary);
 }
 
-void ReshardingCoordinatorExternalStateImpl::stopMigrations(OperationContext* opCtx,
-                                                            const NamespaceString& nss,
-                                                            const UUID& expectedCollectionUUID,
-                                                            const OperationSessionInfo& osi) {
-    sharding_ddl_util::stopMigrations(opCtx, nss, expectedCollectionUUID, osi);
+void ReshardingCoordinatorExternalStateImpl::stopMigrations(
+    OperationContext* opCtx,
+    const NamespaceString& nss,
+    const UUID& expectedCollectionUUID,
+    std::function<OperationSessionInfo()> osiGenerator) {
+    // TODO (SERVER-127443): take AuthoritativeMetadataAccessLevelEnum from coordinator document.
+    sharding_ddl_util::stopMigrations(opCtx,
+                                      nss,
+                                      expectedCollectionUUID,
+                                      osiGenerator,
+                                      AuthoritativeMetadataAccessLevelEnum::kNone);
 }
 
-void ReshardingCoordinatorExternalStateImpl::resumeMigrations(OperationContext* opCtx,
-                                                              const NamespaceString& nss,
-                                                              const UUID& expectedCollectionUUID,
-                                                              const OperationSessionInfo& osi) {
-    sharding_ddl_util::resumeMigrations(opCtx, nss, expectedCollectionUUID, osi);
+void ReshardingCoordinatorExternalStateImpl::resumeMigrations(
+    OperationContext* opCtx,
+    const NamespaceString& nss,
+    const UUID& expectedCollectionUUID,
+    std::function<OperationSessionInfo()> osiGenerator) {
+    // TODO (SERVER-127443): take AuthoritativeMetadataAccessLevelEnum from coordinator document.
+    sharding_ddl_util::resumeMigrations(opCtx,
+                                        nss,
+                                        expectedCollectionUUID,
+                                        osiGenerator,
+                                        AuthoritativeMetadataAccessLevelEnum::kNone);
 }
 
 std::unique_ptr<CausalityBarrier> ReshardingCoordinatorExternalStateImpl::buildCausalityBarrier(

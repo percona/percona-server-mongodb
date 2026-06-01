@@ -32,6 +32,23 @@ function extractUserStages(explain) {
     return (explain.stages || []).filter((stage) => !stage.$cursor && !stage.$_internalInhibitOptimization);
 }
 
+/// Returns true if `actual` matches `expected`, allowing any leading
+/// $set/$addFields/$project/$match stages in `expected` to be absent because SBE pushdown
+/// can absorb them into the $cursor stage.
+function stagesMatch(actual, expected) {
+    const sbeAbsorbableStages = ["$set", "$addFields", "$project", "$match"];
+    const maybePushedDownToSbe = (stage) => sbeAbsorbableStages.some((s) => s in stage);
+    for (let i = 0; i <= expected.length; i++) {
+        if (i > 0 && !maybePushedDownToSbe(expected[i - 1])) {
+            break;
+        }
+        if (friendlyEqual(actual, expected.slice(i))) {
+            return true;
+        }
+    }
+    return false;
+}
+
 /// Produces a lookup stage which stores [{fromLookup: 1}] in the 'as' field and has some optional field references.
 function lookupStage(as, references = []) {
     return {
@@ -77,7 +94,10 @@ function runTest({name, docs, pipeline, optimized, expected, policy}) {
         const optimizedExplain = coll.explain().aggregate(inhibitedOptimized);
         const expectedStages = extractUserStages(optimizedExplain);
 
-        assert.eq(actualStages, expectedStages, "not optimized as expected");
+        assert(stagesMatch(actualStages, expectedStages), "not optimized as expected", {
+            actualStages,
+            expectedStages,
+        });
 
         // Verify the original pipeline produces the same results after optimization.
         const results = coll.aggregate(pipeline).toArray().map(stripId);
@@ -575,10 +595,14 @@ it("maximum paths knob: blocks hoisting above the limit", () => {
             assert.commandWorked(coll.insertMany([{a: 0, b: 0, c: 0}]));
 
             const assertPlan = (input, expected) => {
-                assert.eq(
-                    extractUserStages(coll.explain().aggregate(input)),
-                    extractUserStages(coll.explain().aggregate(inhibitOptimizationPerStage(expected))),
+                const actualStages = extractUserStages(coll.explain().aggregate(input));
+                const expectedStages = extractUserStages(
+                    coll.explain().aggregate(inhibitOptimizationPerStage(expected)),
                 );
+                assert(stagesMatch(actualStages, expectedStages), "not optimized as expected", {
+                    actualStages,
+                    expectedStages,
+                });
             };
 
             assertPlan([lookupStage("x"), {$set: {a: 1, b: 2, c: 3}}], [lookupStage("x"), {$set: {a: 1, b: 2, c: 3}}]);
@@ -603,6 +627,16 @@ runTest({
 /// ------------------------------------
 /// $project+$match pushdown cases follow
 /// ------------------------------------
+
+// This test verifies that we apply match pushdown first before we attempt to hoist.
+runTest({
+    name: "$project+$match pushdown: $match pushdown before hoisting",
+    docs: [{a: 5, c: 1}],
+    pipeline: [lookupStage("x"), {$project: {c: "$a", x: 1}}, {$match: {c: 1}}],
+    optimized: [lookupStage("x"), {$project: {c: "$a", x: 1}}],
+    expected: [],
+    policy: "forMatchPushdown",
+});
 
 runTest({
     name: "$project+$match pushdown: independent $set hoisted before $lookup when $match follows",
@@ -670,47 +704,3 @@ runTest({
     expected: [{b: 0, x: [{fromLookup: 1}]}],
     policy: "always",
 });
-
-// TODO(SERVER-124097): Fix this incorrect rewrite.
-// it("$function side effects: outer $set with $function not hoisted before $lookup", function () {
-//     const coll = db.hoist_computation;
-//     coll.drop();
-//     coll.insertOne({c: 1});
-//
-//     const readDistinctTime = function () {
-//         var now = Date.now();
-//         while (Date.now() === now) {}
-//         return new Date(now);
-//     };
-//
-//     const timeFunction = {$function: {body: readDistinctTime, args: [], lang: "js"}};
-//
-//     // The first $set is nested inside the $lookup sub-pipeline and captures time1.
-//     // It spins until the clock ticks so time1 is at a strictly earlier millisecond.
-//     // The outer $set captures time2 after the lookup completes.
-//     // If the optimizer hoisted the outer $set before the $lookup, time2 < time1, which is wrong.
-//     const pipeline = [
-//         {
-//             $lookup: {
-//                 from: "hoist_computation_secondary",
-//                 pipeline: [{$set: {time1: timeFunction}}],
-//                 as: "result",
-//             },
-//         },
-//         {$set: {time2: timeFunction}},
-//     ];
-//
-//     // Verify the outer $set is not hoisted before the $lookup.
-//     const explain = coll.explain().aggregate(pipeline);
-//     const stageTypes = extractUserStages(explain).map((s) => Object.keys(s)[0]);
-//     assert.eq(stageTypes, ["$lookup", "$set"], tojson({stageTypes}));
-//
-//     // Verify execution order: time1 (set inside the lookup) must precede time2 (set after).
-//     const [
-//         {
-//             result: [{time1}],
-//             time2,
-//         },
-//     ] = coll.aggregate(pipeline).toArray();
-//     assert.lt(time1.getTime(), time2.getTime(), tojson({time1, time2}));
-// });

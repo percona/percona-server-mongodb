@@ -50,9 +50,8 @@ value::MaterializedRow materializeCopyOfRow(std::vector<value::SlotAccessor*>& a
 
     size_t idx = 0;
     for (auto& accessor : accessors) {
-        auto [tag, val] = accessor->getViewOfValue();
-        std::tie(tag, val) = value::copyValue(tag, val);
-        row.reset(idx++, true, tag, val);
+        auto view = accessor->getViewOfValue();
+        row.reset(idx++, value::TagValueOwned::fromRaw(value::copyValue(view.tag, view.value)));
     }
     return row;
 }
@@ -188,7 +187,6 @@ void MergeJoinStage::open(bool reOpen) {
     _commonStats.opens++;
     _children[0]->open(reOpen);
     _children[1]->open(reOpen);
-    _childrenOpened = true;
 
     // Start with an initially empty buffer.
     _outerProjectsBuffer.clear();
@@ -337,11 +335,8 @@ void MergeJoinStage::close() {
     auto optTimer(getOptTimer(_opCtx));
 
     trackClose();
-    if (_childrenOpened) {
-        _children[0]->close();
-        _children[1]->close();
-        _childrenOpened = false;
-    }
+    _children[0]->close();
+    _children[1]->close();
     _outerProjectsBuffer.clear();
     _memoryTracker.value().set(0);
     _specificStats.peakTrackedMemBytes = _memoryTracker.value().peakTrackedMemoryBytes();

@@ -6,7 +6,7 @@
  * ]
  */
 import {joinOptUsed, plannerStageIsJoinOptNode} from "jstests/libs/query/join_utils.js";
-import {getWinningPlanFromExplain, getAllPlanStages, getQueryPlanner} from "jstests/libs/query/analyze_plan.js";
+import {getWinningPlanFromExplain, getAllPlanStages} from "jstests/libs/query/analyze_plan.js";
 
 let conn = MongoRunner.runMongod({setParameter: {featureFlagPathArrayness: true}});
 
@@ -20,12 +20,18 @@ const coll12 = conn.getDB(db1)[jsTestName() + "_coll2"];
 const coll13 = conn.getDB(db1)[jsTestName() + "_coll3"];
 const coll2 = conn.getDB(db2)[jsTestName() + "_coll2"];
 const coll3 = conn.getDB(db3)[jsTestName() + "_coll3"];
+const collBase = conn.getDB(db1)[jsTestName() + "_base"];
+const collLeft = conn.getDB(db1)[jsTestName() + "_left"];
+const collRight = conn.getDB(db1)[jsTestName() + "_right"];
 
 coll1.drop();
 coll12.drop();
 coll13.drop();
 coll2.drop();
 coll3.drop();
+collBase.drop();
+collLeft.drop();
+collRight.drop();
 
 assert.commandWorked(coll1.insertOne({a: 1, b: 1, x: {c: 1}}));
 assert.commandWorked(coll12.insertOne({a: 1, b: 1, c: 1, d: "foo"}));
@@ -38,25 +44,37 @@ assert.commandWorked(coll12.createIndex({dummy: 1, a: 1, b: 1, c: 1, d: 1}));
 assert.commandWorked(coll13.createIndex({dummy: 1, a: 1, b: 1, d: 1}));
 assert.commandWorked(coll2.createIndex({dummy: 1, a: 1, b: 1}));
 assert.commandWorked(coll3.createIndex({dummy: 1, a: 1, b: 1}));
+assert.commandWorked(collBase.insert({_id: 0, lk: 1, rk: 1}));
+assert.commandWorked(collLeft.insert({_id: "left", lk: 1, a: 1}));
+assert.commandWorked(collRight.insert({_id: "right", rk: 1, b: 1}));
+assert.commandWorked(collBase.createIndex({lk: 1, rk: 1}));
+assert.commandWorked(collLeft.createIndex({lk: 1}));
+assert.commandWorked(collRight.createIndex({rk: 1}));
 
-function assertSameResultsWithJoinOptToggled(pipeline, aggOptions, expectedCount) {
+function assertSameResultsWithJoinOptToggled(coll, pipeline, aggOptions, expectedCount) {
     assert.commandWorked(conn.adminCommand({setParameter: 1, internalEnableJoinOptimization: false}));
-    assert.eq(coll1.aggregate(pipeline, aggOptions).toArray().length, expectedCount);
+    assert.eq(coll.aggregate(pipeline, aggOptions).toArray().length, expectedCount);
     assert.commandWorked(conn.adminCommand({setParameter: 1, internalEnableJoinOptimization: true}));
-    assert.eq(coll1.aggregate(pipeline, aggOptions).toArray().length, expectedCount);
+    assert.eq(coll.aggregate(pipeline, aggOptions).toArray().length, expectedCount);
 }
 
 // This helper is for test cases where the entire pipeline is ineligible for join optimization.
-function runTestCaseIneligiblePipeline({pipeline, aggOptions = {}, expectedCount}) {
-    assertSameResultsWithJoinOptToggled(pipeline, aggOptions, expectedCount);
-    const explain = coll1.explain().aggregate(pipeline, aggOptions);
+function runTestCaseIneligiblePipeline({coll = coll1, pipeline, aggOptions = {}, expectedCount}) {
+    assertSameResultsWithJoinOptToggled(coll, pipeline, aggOptions, expectedCount);
+    const explain = coll.explain().aggregate(pipeline, aggOptions);
     assert(!joinOptUsed(explain), "Expected join optimizer and actual usage differ: " + tojson(explain));
 }
 
 // This helper is for test cases where the prefix is eligible for join opt but the suffix is not.
-function runTestCaseIneligibleSuffix({pipeline, aggOptions = {}, expectedCount, expectedJoinNodesInPrefix}) {
-    assertSameResultsWithJoinOptToggled(pipeline, aggOptions, expectedCount);
-    const explain = coll1.explain().aggregate(pipeline, aggOptions);
+function runTestCaseIneligibleSuffix({
+    coll = coll1,
+    pipeline,
+    aggOptions = {},
+    expectedCount,
+    expectedJoinNodesInPrefix,
+}) {
+    assertSameResultsWithJoinOptToggled(coll, pipeline, aggOptions, expectedCount);
+    const explain = coll.explain().aggregate(pipeline, aggOptions);
 
     // Since the prefix is join eligible we should see the usedJoinOptimization flag in the explain.
     assert(joinOptUsed(explain), "Expected join optimizer and actual usage differ: " + tojson(explain));
@@ -74,9 +92,9 @@ function runTestCaseIneligibleSuffix({pipeline, aggOptions = {}, expectedCount, 
 }
 
 // This helper is for test cases where the entire pipeline is eligible for join optimization.
-function runTestCaseEligiblePipeline({pipeline, aggOptions = {}, expectedCount}) {
-    assertSameResultsWithJoinOptToggled(pipeline, aggOptions, expectedCount);
-    const explain = coll1.explain().aggregate(pipeline, aggOptions);
+function runTestCaseEligiblePipeline({coll = coll1, pipeline, aggOptions = {}, expectedCount}) {
+    assertSameResultsWithJoinOptToggled(coll, pipeline, aggOptions, expectedCount);
+    const explain = coll.explain().aggregate(pipeline, aggOptions);
     assert(joinOptUsed(explain), "Expected join optimizer and actual usage differ: " + tojson(explain));
 }
 
@@ -297,6 +315,21 @@ runTestCaseEligiblePipeline({
     expectedCount: 1,
 });
 
+// The second lookup's "as" field shadows the first lookup's localField. Embedding the second
+// lookup's result at "x" overwrites "x.c", which the first lookup reads as its localField. The two
+// joins are not commutable, so the second lookup must stay in the suffix: otherwise a reordered
+// plan would evaluate "x.c = c" against the overwritten value and drop the matching document.
+runTestCaseIneligibleSuffix({
+    pipeline: [
+        {$lookup: {from: coll12.getName(), as: "matched", localField: "x.c", foreignField: "c"}},
+        {$unwind: "$matched"},
+        {$lookup: {from: coll13.getName(), as: "x", localField: "b", foreignField: "b"}},
+        {$unwind: "$x"},
+    ],
+    expectedCount: 1,
+    expectedJoinNodesInPrefix: 1,
+});
+
 // $lookup with no join predicate can still be optimized if the rest of the pipeline establishes
 // a connected join graph.
 runTestCaseEligiblePipeline({
@@ -406,5 +439,286 @@ runTestCaseEligiblePipeline({
     aggOptions: {hint: {}},
     expectedCount: 1,
 });
+
+// Rooted $ors on the base collection disqualify the query completely.
+runTestCaseIneligiblePipeline({
+    pipeline: [
+        {$match: {$or: [{a: 1}, {a: 2}, {a: {$gt: 12}}]}},
+        {
+            $lookup: {
+                from: coll12.getName(),
+                localField: "a",
+                foreignField: "a",
+                as: "coll12",
+            },
+        },
+        {$unwind: "$coll12"},
+    ],
+    expectedCount: 1,
+});
+
+// Same goes for a rooted $or on the first collection we're joining on.
+runTestCaseIneligiblePipeline({
+    pipeline: [
+        {
+            $lookup: {
+                from: coll12.getName(),
+                localField: "a",
+                foreignField: "a",
+                as: "coll12",
+                pipeline: [{$match: {$or: [{a: 1}, {a: 2}, {a: {$gt: 12}}]}}],
+            },
+        },
+        {$unwind: "$coll12"},
+    ],
+    expectedCount: 1,
+});
+
+// But, we will permit a prefix to a rooted-$or query.
+runTestCaseIneligibleSuffix({
+    pipeline: [
+        {
+            $lookup: {
+                from: coll12.getName(),
+                localField: "a",
+                foreignField: "a",
+                as: "coll12",
+            },
+        },
+        {$unwind: "$coll12"},
+        {
+            $lookup: {
+                from: coll13.getName(),
+                let: {
+                    "a": "$a",
+                },
+                pipeline: [{$match: {$or: [{a: 1}, {a: 2}, {a: {$gt: 12}}], $expr: {$eq: ["$$a", "$a"]}}}],
+                as: "coll13",
+            },
+        },
+        {$unwind: "$coll13"},
+    ],
+    expectedCount: 1,
+    expectedJoinNodesInPrefix: 1,
+});
+
+// We don't bail out if our predicate is too complex to run as a rooted-$or.
+runTestCaseIneligibleSuffix({
+    pipeline: [
+        {
+            $lookup: {
+                from: coll12.getName(),
+                localField: "a",
+                foreignField: "a",
+                as: "coll12",
+            },
+        },
+        {$unwind: "$coll12"},
+        {
+            $lookup: {
+                from: coll13.getName(),
+                let: {
+                    "a": "$a",
+                },
+                pipeline: [{$match: {$or: [{a: 1}, {a: 2}, {a: {$gt: 12}}], $expr: {$eq: ["$$a", "$a"]}, d: "foo"}}],
+                as: "coll13",
+            },
+        },
+        {$unwind: "$coll13"},
+    ],
+    expectedCount: 1,
+    expectedJoinNodesInPrefix: 2,
+});
+
+// Numeric path in join predicate falls back gracefully even when the path is indexed.
+// An index on "a.0" is not multikey (numeric components always address a single array element),
+// but the join optimizer must still fall back because numeric paths are ineligible predicates.
+{
+    const collNumeric = conn.getDB(db1)[jsTestName() + "_numeric"];
+    collNumeric.drop();
+    assert.commandWorked(collNumeric.insertOne({a: [1, 2], b: 1}));
+
+    // Index on "a.0": valid and not multikey because "a.0" always returns a single element.
+    assert.commandWorked(collNumeric.createIndex({"a.0": 1}));
+
+    // localField/foreignField syntax: a.0 (numeric) = a.
+    runTestCaseIneligiblePipeline({
+        pipeline: [
+            {$lookup: {from: collNumeric.getName(), localField: "a", foreignField: "a.0", as: "joined"}},
+            {$unwind: "$joined"},
+        ],
+        expectedCount: 1,
+    });
+
+    // $expr syntax.
+    runTestCaseIneligiblePipeline({
+        pipeline: [
+            {
+                $lookup: {
+                    from: collNumeric.getName(),
+                    let: {aa: "$a"},
+                    pipeline: [{$match: {$expr: {$eq: ["$$aa", "$a.0"]}}}],
+                    as: "joined",
+                },
+            },
+            {$unwind: "$joined"},
+        ],
+        expectedCount: 1,
+    });
+
+    // Repeat, but now changing the base coll to be numeric.
+    runTestCaseIneligiblePipeline({
+        coll: collNumeric,
+        pipeline: [
+            {$lookup: {from: coll1.getName(), localField: "a.0", foreignField: "a", as: "joined"}},
+            {$unwind: "$joined"},
+        ],
+        expectedCount: 1,
+    });
+
+    runTestCaseIneligiblePipeline({
+        coll: collNumeric,
+        pipeline: [
+            {
+                $lookup: {
+                    from: coll1.getName(),
+                    let: {aa: "$a.0"},
+                    pipeline: [{$match: {$expr: {$eq: ["$$aa", "$a"]}}}],
+                    as: "joined",
+                },
+            },
+            {$unwind: "$joined"},
+        ],
+        expectedCount: 0,
+    });
+
+    // Validate trailing $match case.
+    runTestCaseIneligiblePipeline({
+        pipeline: [
+            {
+                $lookup: {
+                    from: collNumeric.getName(),
+                    pipeline: [],
+                    as: "joined",
+                },
+            },
+            {$unwind: "$joined"},
+            {$match: {$expr: {$eq: ["$joined.a.0", "$a"]}}},
+        ],
+        expectedCount: 0,
+    });
+
+    runTestCaseIneligiblePipeline({
+        coll: collNumeric,
+        pipeline: [
+            {
+                $lookup: {
+                    from: coll1.getName(),
+                    pipeline: [],
+                    as: "joined",
+                },
+            },
+            {$unwind: "$joined"},
+            {$match: {$expr: {$eq: ["$joined.a", "$a.0"]}}},
+        ],
+        expectedCount: 0,
+    });
+}
+
+// Verifies the pipeline produces stable results with join opt toggled and that join opt is engaged.
+function assertResultsStableAndJoinOptUsed(pipeline, expected) {
+    assert.commandWorked(conn.adminCommand({setParameter: 1, internalEnableJoinOptimization: false}));
+    assert.sameMembers(expected, collBase.aggregate(pipeline).toArray());
+    assert.commandWorked(conn.adminCommand({setParameter: 1, internalEnableJoinOptimization: true}));
+    assert.sameMembers(expected, collBase.aggregate(pipeline).toArray());
+    const explain = collBase.explain().aggregate(pipeline);
+    assert(joinOptUsed(explain), "Expected join optimization to be used", {explain});
+}
+
+// Verifies that join optimization handles system reference variables ($$NOW, $$ROOT, $$CURRENT)
+// used in a $match comparison after a join.
+for (const systemVar of ["$$NOW", "$$ROOT", "$$CURRENT"]) {
+    assertResultsStableAndJoinOptUsed(
+        [
+            {$lookup: {from: collLeft.getName(), localField: "lk", foreignField: "lk", as: "left"}},
+            {$unwind: "$left"},
+            {$lookup: {from: collRight.getName(), localField: "rk", foreignField: "rk", as: "right"}},
+            {$unwind: "$right"},
+            {$match: {$expr: {$eq: [systemVar, "$left.a"]}}},
+        ],
+        [],
+    );
+}
+
+// $$NOW.x: $$NOW is a Date so $$NOW.x is always missing; the $match matches nothing.
+assertResultsStableAndJoinOptUsed(
+    [
+        {$lookup: {from: collLeft.getName(), localField: "lk", foreignField: "lk", as: "left"}},
+        {$unwind: "$left"},
+        {$lookup: {from: collRight.getName(), localField: "rk", foreignField: "rk", as: "right"}},
+        {$unwind: "$right"},
+        {$match: {$expr: {$eq: ["$$NOW.x", "$left.a"]}}},
+    ],
+    [],
+);
+
+// A $lookup subpipeline whose only predicate is a system variable reference has no extractable
+// join predicate, so it is treated as a cross-product and the pipeline is ineligible for join opt.
+for (const systemVar of ["$$NOW", "$$ROOT", "$$CURRENT"]) {
+    runTestCaseIneligiblePipeline({
+        coll: collBase,
+        pipeline: [
+            {
+                $lookup: {
+                    from: collLeft.getName(),
+                    pipeline: [{$match: {$expr: {$eq: [systemVar, "$a"]}}}],
+                    as: "left",
+                },
+            },
+            {$unwind: "$left"},
+        ],
+        expectedCount: 0,
+    });
+}
+
+// A $lookup subpipeline that mixes a valid let-bound join predicate with a system variable
+// reference: the system variable is treated as a residual filter and join optimization is still
+// engaged for the valid predicate.
+for (const systemVar of ["$$NOW", "$$ROOT", "$$CURRENT"]) {
+    assertResultsStableAndJoinOptUsed(
+        [
+            {$lookup: {from: collLeft.getName(), localField: "lk", foreignField: "lk", as: "left"}},
+            {$unwind: "$left"},
+            {
+                $lookup: {
+                    from: collRight.getName(),
+                    let: {rk: "$rk"},
+                    pipeline: [{$match: {$expr: {$and: [{$eq: ["$$rk", "$rk"]}, {$eq: [systemVar, "$b"]}]}}}],
+                    as: "right",
+                },
+            },
+            {$unwind: "$right"},
+        ],
+        [],
+    );
+}
+
+// $$NOW.x in a $lookup subpipeline alongside a valid join predicate: also treated as residual.
+assertResultsStableAndJoinOptUsed(
+    [
+        {$lookup: {from: collLeft.getName(), localField: "lk", foreignField: "lk", as: "left"}},
+        {$unwind: "$left"},
+        {
+            $lookup: {
+                from: collRight.getName(),
+                let: {rk: "$rk"},
+                pipeline: [{$match: {$expr: {$and: [{$eq: ["$$rk", "$rk"]}, {$eq: ["$$NOW.x", "$b"]}]}}}],
+                as: "right",
+            },
+        },
+        {$unwind: "$right"},
+    ],
+    [],
+);
 
 MongoRunner.stopMongod(conn);

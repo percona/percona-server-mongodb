@@ -44,8 +44,8 @@
 
 namespace mongo::transport::grpc {
 
-GRPCSession::GRPCSession(TransportLayer* tl, HostAndPort remote)
-    : _tl(tl), _remote(std::move(remote)) {
+GRPCSession::GRPCSession(bool isIngress, TransportLayer* tl, HostAndPort remote)
+    : Session(isIngress), _tl(tl), _remote(std::move(remote)) {
     SockAddr remoteAddr;
     try {
         remoteAddr = SockAddr::create(_remote.host(), _remote.port(), AF_UNSPEC);
@@ -157,7 +157,7 @@ IngressSession::IngressSession(TransportLayer* tl,
                                boost::optional<UUID> clientId,
                                boost::optional<std::string> authToken,
                                boost::optional<StringData> encodedClientMetadata)
-    : GRPCSession(tl, ctx->getRemote()),
+    : GRPCSession(/*isIngress=*/true, tl, ctx->getRemote()),
       _ctx(ctx),
       _stream(stream),
       _authToken(std::move(authToken)),
@@ -177,8 +177,8 @@ IngressSession::~IngressSession() {
 
 StatusWith<Message> IngressSession::_readFromStream() {
     if (auto maybeBuffer = _stream->read()) {
-        networkCounter.hitPhysicalIn(NetworkCounter::ConnectionType::kIngress,
-                                     MsgData::ConstView(maybeBuffer->get()).getLen());
+        globalNetworkCounter().hitPhysicalIn(NetworkCounter::ConnectionType::kIngress,
+                                             MsgData::ConstView(maybeBuffer->get()).getLen());
         return Message(std::move(*maybeBuffer));
     }
 
@@ -194,7 +194,8 @@ StatusWith<Message> IngressSession::_readFromStream() {
 
 Status IngressSession::_writeToStream(Message message) {
     if (_stream->write(message.sharedBuffer())) {
-        networkCounter.hitPhysicalOut(NetworkCounter::ConnectionType::kIngress, message.size());
+        globalNetworkCounter().hitPhysicalOut(NetworkCounter::ConnectionType::kIngress,
+                                              message.size());
         return Status::OK();
     }
 
@@ -246,7 +247,7 @@ EgressSession::EgressSession(TransportLayer* tl,
                              UUID channelId,
                              UUID clientId,
                              std::shared_ptr<EgressSession::SharedState> sharedState)
-    : GRPCSession(tl, ctx->getRemote()),
+    : GRPCSession(/*isIngress=*/false, tl, ctx->getRemote()),
       _reactor(reactor),
       _ctx(std::move(ctx)),
       _stream(std::move(stream)),
@@ -293,8 +294,8 @@ Future<Message> EgressSession::_asyncReadFromStream() {
         })
         .then([this, msg = std::move(msg)]() {
             _updateWireVersion();
-            networkCounter.hitPhysicalIn(NetworkCounter::ConnectionType::kEgress,
-                                         MsgData::ConstView(msg->get()).getLen());
+            globalNetworkCounter().hitPhysicalIn(NetworkCounter::ConnectionType::kEgress,
+                                                 MsgData::ConstView(msg->get()).getLen());
             return Message(std::move(*msg));
         });
 }
@@ -318,7 +319,7 @@ Future<void> EgressSession::_asyncWriteToStream(Message message) {
             });
         })
         .then([msgLen]() {
-            networkCounter.hitPhysicalOut(NetworkCounter::ConnectionType::kEgress, msgLen);
+            globalNetworkCounter().hitPhysicalOut(NetworkCounter::ConnectionType::kEgress, msgLen);
         });
 }
 

@@ -49,8 +49,10 @@
 #include "mongo/dbtests/dbtests.h"  // IWYU pragma: keep
 #include "mongo/unittest/unittest.h"
 
+#include <algorithm>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "absl/strings/str_split.h"
@@ -90,6 +92,21 @@ protected:
         auto p = parsePipeline(array);
         pipeline_optimization::optimizePipeline(*p);
         setPipeline(std::move(p));
+    }
+
+    /**
+     * Asserts that 'graph->getDeadFields()' produces the given (stage, path) pairs.
+     */
+    void assertDeadFieldsEq(std::vector<std::pair<const DocumentSource*, std::string>> expected) {
+        auto dead = graph->getDeadFields();
+        std::vector<std::pair<const DocumentSource*, std::string>> actual;
+        actual.reserve(dead.size());
+        for (const auto& df : dead) {
+            actual.emplace_back(df.stage.get(), df.path.fullPath());
+        }
+        std::sort(actual.begin(), actual.end());
+        std::sort(expected.begin(), expected.end());
+        ASSERT_EQ(actual, expected);
     }
 
     /**
@@ -189,17 +206,18 @@ TEST_F(PipelineDependencyGraphTest, SubPipelineGetDeclaringStageDelegatesToSubGr
 
     runTest([&] {
         // 'docs' itself is declared by the $lookup stage.
-        ASSERT_EQUALS(graph->getDeclaringStageIncludingSubpipelines(nullptr, "docs").srcStages,
-                      stages);
-        ASSERT_EQUALS(graph->getDeclaringStage(nullptr, "docs"), stages[0]);
+        ASSERT_EQUALS(
+            graph->getDeclaringStageIncludingSubpipelines_forTest(nullptr, "docs").srcStages,
+            stages);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(nullptr, "docs"), stages[0]);
 
         // 'docs.b_ssn' should resolve across the $lookup into the sub-pipeline's $set stage.
         auto* subGraph = graph->getSubpipelineGraph(stages[0].get());
         ASSERT_NOT_EQUALS(subGraph, nullptr);
-        auto result = graph->getDeclaringStageIncludingSubpipelines(nullptr, "docs.b_ssn");
+        auto result = graph->getDeclaringStageIncludingSubpipelines_forTest(nullptr, "docs.b_ssn");
 
         // The declaring stage should come from the sub-pipeline (the $set).
-        auto subDeclaringStage = subGraph->getDeclaringStage(nullptr, "b_ssn");
+        auto subDeclaringStage = subGraph->getDeclaringStage_forTest(nullptr, "b_ssn");
         ASSERT_EQUALS(result.srcStages.back(), subDeclaringStage);
         ASSERT_TRUE(result.fromSubpipeline);
     });
@@ -218,17 +236,19 @@ TEST_F(PipelineDependencyGraphTest,
 
     runTest([&] {
         // 'docs.x' itself is declared by the $lookup stage.
-        ASSERT_EQUALS(graph->getDeclaringStageIncludingSubpipelines(nullptr, "docs.x").srcStages,
-                      stages);
-        ASSERT_EQUALS(graph->getDeclaringStage(nullptr, "docs.x"), stages[0]);
+        ASSERT_EQUALS(
+            graph->getDeclaringStageIncludingSubpipelines_forTest(nullptr, "docs.x").srcStages,
+            stages);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(nullptr, "docs.x"), stages[0]);
 
         // 'docs.x.b_ssn' should resolve across the $lookup into the sub-pipeline's $set stage.
         auto* subGraph = graph->getSubpipelineGraph(stages[0].get());
         ASSERT_NOT_EQUALS(subGraph, nullptr);
-        auto result = graph->getDeclaringStageIncludingSubpipelines(nullptr, "docs.x.b_ssn");
+        auto result =
+            graph->getDeclaringStageIncludingSubpipelines_forTest(nullptr, "docs.x.b_ssn");
 
         // The declaring stage should come from the sub-pipeline (the $set).
-        auto subDeclaringStage = subGraph->getDeclaringStage(nullptr, "b_ssn");
+        auto subDeclaringStage = subGraph->getDeclaringStage_forTest(nullptr, "b_ssn");
         ASSERT_EQUALS(result.srcStages.back(), subDeclaringStage);
         ASSERT_TRUE(result.fromSubpipeline);
     });
@@ -246,8 +266,9 @@ TEST_F(PipelineDependencyGraphTest, SubPipelineGetDeclaringStageUnknownSubField)
 
     runTest([&] {
         // 'docs.unknown' - the sub-pipeline's $set does not define 'unknown',
-        // so getDeclaringStage should return nullptr (comes from the sub-pipeline's input).
-        auto result = graph->getDeclaringStageIncludingSubpipelines(nullptr, "docs.unknown");
+        // so getDeclaringStage_forTestshould return nullptr (comes from the sub-pipeline's input).
+        auto result =
+            graph->getDeclaringStageIncludingSubpipelines_forTest(nullptr, "docs.unknown");
         ASSERT_EQUALS(result.srcStages.back(), nullptr);
         ASSERT_TRUE(result.fromSubpipeline);
     });
@@ -272,15 +293,15 @@ TEST_F(PipelineDependencyGraphTest, NestedSubPipelineGetDeclaringStageSubField) 
 
     runTest([&] {
         // 'docs.rocks.unknown' - the inner sub-pipeline's $set does not define 'unknown',
-        // so getDeclaringStage should return nullptr (comes from the sub-pipeline's input).
+        // so getDeclaringStage_forTestshould return nullptr (comes from the sub-pipeline's input).
         auto unknownResult =
-            graph->getDeclaringStageIncludingSubpipelines(nullptr, "docs.rocks.unknown");
+            graph->getDeclaringStageIncludingSubpipelines_forTest(nullptr, "docs.rocks.unknown");
         ASSERT_EQUALS(unknownResult.srcStages.back(), nullptr);
         ASSERT_TRUE(unknownResult.fromSubpipeline);
 
         // 'docs.rocks.c_ssn' is declared by the innermost $set stage.
         auto knownResult =
-            graph->getDeclaringStageIncludingSubpipelines(nullptr, "docs.rocks.c_ssn");
+            graph->getDeclaringStageIncludingSubpipelines_forTest(nullptr, "docs.rocks.c_ssn");
         // get the stage generating 'c_ssn' (subpipeline of the subpipeline)
         auto innerSetStage = stages[0]->getSubPipeline()->front()->getSubPipeline()->front();
         ASSERT_EQUALS(knownResult.srcStages.back(), innerSetStage);
@@ -300,11 +321,11 @@ TEST_F(PipelineDependencyGraphTest, SubPipelineGetDeclaringStageWithInclusionPro
 
     runTest([&] {
         auto resultSubPipelines =
-            graph->getDeclaringStageIncludingSubpipelines(nullptr, "docs.b_ssn");
+            graph->getDeclaringStageIncludingSubpipelines_forTest(nullptr, "docs.b_ssn");
         ASSERT_EQUALS(resultSubPipelines.srcStages.back(), nullptr);
         ASSERT_TRUE(resultSubPipelines.fromSubpipeline);
 
-        auto resultMainPipeline = graph->getDeclaringStage(nullptr, "docs.b_ssn");
+        auto resultMainPipeline = graph->getDeclaringStage_forTest(nullptr, "docs.b_ssn");
         ASSERT_EQUALS(resultMainPipeline, stages[0]);
     });
 }
@@ -346,8 +367,8 @@ TEST_F(PipelineDependencyGraphTest, SubPipelineLookupDottedPathDelegation) {
         // 'docs.a' should resolve through the $lookup into the subpipeline's $set.
         auto* subGraph = graph->getSubpipelineGraph(stages[0].get());
         ASSERT_NOT_EQUALS(subGraph, nullptr);
-        auto subDeclStage = subGraph->getDeclaringStage(nullptr, "a");
-        auto result = graph->getDeclaringStageIncludingSubpipelines(matchStage, "docs.a");
+        auto subDeclStage = subGraph->getDeclaringStage_forTest(nullptr, "a");
+        auto result = graph->getDeclaringStageIncludingSubpipelines_forTest(matchStage, "docs.a");
         ASSERT_EQUALS(result.srcStages.back(), subDeclStage);
         ASSERT_TRUE(result.fromSubpipeline);
     });
@@ -368,18 +389,19 @@ TEST_F(PipelineDependencyGraphTest, SubPipelineLookupInclusionProjection) {
         ASSERT_NOT_EQUALS(subGraph, nullptr);
 
         ASSERT_EQUALS(
-            graph->getDeclaringStageIncludingSubpipelines(nullptr, "docs").srcStages.back(),
+            graph->getDeclaringStageIncludingSubpipelines_forTest(nullptr, "docs").srcStages.back(),
             stages[0]);
 
         // 'docs.b_ssn' crosses into the sub-pipeline. The inclusion projection preserves
         // b_ssn from the sub-pipeline's input, so it originates from the base collection.
-        auto result = graph->getDeclaringStageIncludingSubpipelines(nullptr, "docs.b_ssn");
+        auto result = graph->getDeclaringStageIncludingSubpipelines_forTest(nullptr, "docs.b_ssn");
         ASSERT_EQUALS(result.srcStages.back(), nullptr);
         ASSERT_TRUE(result.fromSubpipeline);
 
         // 'docs.other' is excluded by the inclusion projection, so it's declared by the $project
         // (deleted).
-        auto otherResult = graph->getDeclaringStageIncludingSubpipelines(nullptr, "docs.other");
+        auto otherResult =
+            graph->getDeclaringStageIncludingSubpipelines_forTest(nullptr, "docs.other");
         ASSERT_NOT_EQUALS(otherResult.srcStages.back(), nullptr);
         ASSERT_TRUE(otherResult.fromSubpipeline);
 
@@ -413,13 +435,13 @@ TEST_F(PipelineDependencyGraphTest, AddFieldsUnionWithMatchDependencies) {
 
         // From $match (stages[2]), 's' is attributed to $unionWith (stages[1]) since
         // $unionWith replaces all paths with an exhaustive scope.
-        ASSERT_EQUALS(
-            graph->getDeclaringStageIncludingSubpipelines(stages[2].get(), "s").srcStages.back(),
-            stages[1]);
+        ASSERT_EQUALS(graph->getDeclaringStageIncludingSubpipelines_forTest(stages[2].get(), "s")
+                          .srcStages.back(),
+                      stages[1]);
 
         // Within the sub-pipeline, 's' is declared by the sub-pipeline's $addFields.
         auto subDeclStage =
-            subGraph->getDeclaringStageIncludingSubpipelines(nullptr, "s").srcStages.back();
+            subGraph->getDeclaringStageIncludingSubpipelines_forTest(nullptr, "s").srcStages.back();
         ASSERT_NOT_EQUALS(subDeclStage, nullptr);
 
         // After $unionWith, 's' could come from either branch so canPathBeArray is true.
@@ -524,10 +546,10 @@ TEST_F(PipelineDependencyGraphTest, SubPipelineGetDeclaringStageThenMatch) {
     runTest([&] {
         auto* last = stages.back().get();
         // 'docs.b_ssn' visible from the $match stage should still resolve into the sub-pipeline.
-        auto result = graph->getDeclaringStageIncludingSubpipelines(last, "docs.b_ssn");
+        auto result = graph->getDeclaringStageIncludingSubpipelines_forTest(last, "docs.b_ssn");
         auto* subGraph = graph->getSubpipelineGraph(stages[0].get());
         ASSERT_NOT_EQUALS(subGraph, nullptr);
-        auto subDeclaringStage = subGraph->getDeclaringStage(nullptr, "b_ssn");
+        auto subDeclaringStage = subGraph->getDeclaringStage_forTest(nullptr, "b_ssn");
         ASSERT_EQUALS(result.srcStages.back(), subDeclaringStage);
         ASSERT_TRUE(result.fromSubpipeline);
     });
@@ -572,7 +594,7 @@ TEST_F(PipelineDependencyGraphTest, SubPipelineUnionWithDeclaringStage) {
         // After $unionWith, any field is attributed to the $unionWith stage since it
         // replaces all paths (kAllPaths).
         auto declStage =
-            graph->getDeclaringStageIncludingSubpipelines(matchStage, "x").srcStages.back();
+            graph->getDeclaringStageIncludingSubpipelines_forTest(matchStage, "x").srcStages.back();
         ASSERT_EQUALS(declStage, stages[0]);
     });
 }
@@ -589,7 +611,7 @@ TEST_F(PipelineDependencyGraphTest, SubPipelineUnionWithDeclaringStageUnknownFie
         // Even fields NOT in the sub-pipeline are attributed to $unionWith since
         // it creates an exhaustive scope.
         auto declStage =
-            graph->getDeclaringStageIncludingSubpipelines(matchStage, "y").srcStages.back();
+            graph->getDeclaringStageIncludingSubpipelines_forTest(matchStage, "y").srcStages.back();
         ASSERT_EQUALS(declStage, stages[0]);
     });
 }
@@ -719,13 +741,13 @@ TEST_F(PipelineDependencyGraphTest, SubPipelineUnionWithSubGraphDeclaringStage) 
     {$match: {x: 1}}])");
 
     runTest([&] {
-        // Although getDeclaringStage for the main pipeline returns $unionWith,
+        // Although getDeclaringStage_forTestfor the main pipeline returns $unionWith,
         // we can independently query the sub-pipeline graph.
         auto* subGraph = graph->getSubpipelineGraph(stages[0].get());
         ASSERT_NOT_EQUALS(subGraph, nullptr);
 
         auto subDeclStage =
-            subGraph->getDeclaringStageIncludingSubpipelines(nullptr, "x").srcStages.back();
+            subGraph->getDeclaringStageIncludingSubpipelines_forTest(nullptr, "x").srcStages.back();
         ASSERT_NOT_EQUALS(subDeclStage, nullptr);
         // The sub-pipeline's $set declares "x".
     });
@@ -761,12 +783,12 @@ TEST_F(PipelineDependencyGraphTest, SubPipelineUnionWithThenSet) {
         auto* matchStage = stages[2].get();
         // $set after $unionWith overrides: field "x" is now declared by the $set.
         auto declStage =
-            graph->getDeclaringStageIncludingSubpipelines(matchStage, "x").srcStages.back();
+            graph->getDeclaringStageIncludingSubpipelines_forTest(matchStage, "x").srcStages.back();
         ASSERT_EQUALS(declStage, stages[1]);
 
         // "y" not set by the outer $set, still attributed to $unionWith.
         auto declY =
-            graph->getDeclaringStageIncludingSubpipelines(matchStage, "y").srcStages.back();
+            graph->getDeclaringStageIncludingSubpipelines_forTest(matchStage, "y").srcStages.back();
         ASSERT_EQUALS(declY, stages[0]);
     });
 }
@@ -909,7 +931,7 @@ TEST_F(PipelineDependencyGraphTest, SimpleCase) {
         "[{$set: { a: 'foo' }},"
         "{$match: { a: 'foo' }}]");
 
-    runTest([&] { ASSERT_EQUALS(graph->getDeclaringStage(nullptr, "a"), stages[0]); });
+    runTest([&] { ASSERT_EQUALS(graph->getDeclaringStage_forTest(nullptr, "a"), stages[0]); });
 }
 
 TEST_F(PipelineDependencyGraphTest, Shadowing) {
@@ -919,7 +941,7 @@ TEST_F(PipelineDependencyGraphTest, Shadowing) {
         "{$set: { a: 'baz' }},"
         "{$match: { a: 'baz' }}]");
 
-    runTest([&] { ASSERT_EQUALS(graph->getDeclaringStage(nullptr, "a"), stages[2]); });
+    runTest([&] { ASSERT_EQUALS(graph->getDeclaringStage_forTest(nullptr, "a"), stages[2]); });
 }
 
 TEST_F(PipelineDependencyGraphTest, Shadowing2) {
@@ -931,7 +953,7 @@ TEST_F(PipelineDependencyGraphTest, Shadowing2) {
 
     runTest([&] {
         // Expected stage is the first one since $match comes before the last $set
-        ASSERT_EQUALS(graph->getDeclaringStage(stages[2].get(), "a"), stages[0]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(stages[2].get(), "a"), stages[0]);
     });
 }
 
@@ -940,7 +962,7 @@ TEST_F(PipelineDependencyGraphTest, UnknownField) {
 
     runTest([&] {
         // Return nullptr to indicate it comes from document.
-        ASSERT_EQUALS(graph->getDeclaringStage(nullptr, "a"), nullptr);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(nullptr, "a"), nullptr);
     });
 }
 
@@ -949,7 +971,7 @@ TEST_F(PipelineDependencyGraphTest, UnknownComplex) {
 
     runTest([&] {
         // Return nullptr to indicate it comes from document.
-        ASSERT_EQUALS(graph->getDeclaringStage(nullptr, "a.b"), nullptr);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(nullptr, "a.b"), nullptr);
     });
 }
 
@@ -958,7 +980,7 @@ TEST_F(PipelineDependencyGraphTest, UnknownComplexPrefix) {
 
     runTest([&] {
         // Return stages[0] to indicate it was modified by setting the prefix.
-        ASSERT_EQUALS(graph->getDeclaringStage(nullptr, "a.b.c"), stages[0]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(nullptr, "a.b.c"), stages[0]);
     });
 }
 
@@ -970,7 +992,7 @@ TEST_F(PipelineDependencyGraphTest, UnknownFieldAfterExhaustive) {
 
     runTest([&] {
         // Return stage[0] to indicate it would be modified by $replaceRoot.
-        ASSERT_EQUALS(graph->getDeclaringStage(nullptr, "a"), stages[0]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(nullptr, "a"), stages[0]);
     });
 }
 
@@ -982,7 +1004,7 @@ TEST_F(PipelineDependencyGraphTest, UnknownComplexAfterExhaustive) {
 
     runTest([&] {
         // Return stage[0] to indicate it would be modified by $replaceRoot.
-        ASSERT_EQUALS(graph->getDeclaringStage(nullptr, "a.b"), stages[0]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(nullptr, "a.b"), stages[0]);
     });
 }
 
@@ -994,9 +1016,9 @@ TEST_F(PipelineDependencyGraphTest, MatchMultiple) {
 
     runTest([&] {
         // For field 'a', expect first stage.
-        ASSERT_EQUALS(graph->getDeclaringStage(nullptr, "a"), stages[0]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(nullptr, "a"), stages[0]);
         // For field 'b', expect second stage.
-        ASSERT_EQUALS(graph->getDeclaringStage(nullptr, "b"), stages[1]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(nullptr, "b"), stages[1]);
     });
 }
 
@@ -1009,9 +1031,9 @@ TEST_F(PipelineDependencyGraphTest, MatchMultipleWithShadowing) {
 
     runTest([&] {
         // For field 'a', expect stage 2 (the shadowing stage)
-        ASSERT_EQUALS(graph->getDeclaringStage(nullptr, "a"), stages[1]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(nullptr, "a"), stages[1]);
         // For field 'b', expect stage 3
-        ASSERT_EQUALS(graph->getDeclaringStage(nullptr, "b"), stages[2]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(nullptr, "b"), stages[2]);
     });
 }
 
@@ -1023,10 +1045,10 @@ TEST_F(PipelineDependencyGraphTest, MatchMultipleWithPartialShadowing) {
 
     runTest([&] {
         // For field 'a', expect stage 1 (no shadowing for 'a')
-        ASSERT_EQUALS(graph->getDeclaringStage(nullptr, "a"), stages[0]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(nullptr, "a"), stages[0]);
 
         // For field 'b', expect stage 2 (shadowing stage)
-        ASSERT_EQUALS(graph->getDeclaringStage(nullptr, "b"), stages[1]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(nullptr, "b"), stages[1]);
     });
 }
 
@@ -1039,7 +1061,7 @@ TEST_F(PipelineDependencyGraphTest, FalseDependency) {
 
     runTest([&] {
         // For field 'a', expect stage 3 (the $$REMOVE stage)
-        ASSERT_EQUALS(graph->getDeclaringStage(nullptr, "a"), stages[2]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(nullptr, "a"), stages[2]);
     });
 }
 
@@ -1053,7 +1075,7 @@ TEST_F(PipelineDependencyGraphTest, FalseDependencyFromInclusionProjection) {
 
     runTest([&] {
         // For field 'a', expect stage 4 (the $project that excludes 'a')
-        ASSERT_EQUALS(graph->getDeclaringStage(nullptr, "a"), stages[3]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(nullptr, "a"), stages[3]);
     });
 }
 
@@ -1066,7 +1088,7 @@ TEST_F(PipelineDependencyGraphTest, FalseDependencyFromInclusionProjectionWithUn
 
     runTest([&] {
         // For field 'a', expect stage 3 (the $project)
-        ASSERT_EQUALS(graph->getDeclaringStage(nullptr, "a"), stages[2]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(nullptr, "a"), stages[2]);
     });
 }
 
@@ -1078,7 +1100,7 @@ TEST_F(PipelineDependencyGraphTest, ComplexPathShadowing) {
 
     runTest([&] {
         // Lookup from the end of the pipeline.
-        ASSERT_EQUALS(graph->getDeclaringStage(nullptr, "d.b.c"), stages.back());
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(nullptr, "d.b.c"), stages.back());
     });
 }
 
@@ -1088,8 +1110,9 @@ TEST_F(PipelineDependencyGraphTest, ComplexPathInclusionProjection) {
         "{$project: { 'a.b': 1 }},"
         "{$set: { 'c': 1 }}]");
 
-    runTest(
-        [&] { ASSERT_EQUALS(graph->getDeclaringStage(stages.back().get(), "a.b.c"), stages[0]); });
+    runTest([&] {
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(stages.back().get(), "a.b.c"), stages[0]);
+    });
 }
 
 TEST_F(PipelineDependencyGraphTest, ComplexPathInclusionProjectionNonExistent) {
@@ -1100,15 +1123,15 @@ TEST_F(PipelineDependencyGraphTest, ComplexPathInclusionProjectionNonExistent) {
 
     runTest([&] {
         // The inclusion modified a (filtered its subfields).
-        ASSERT_EQUALS(graph->getDeclaringStage(stages.back().get(), "a"), stages[1]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(stages.back().get(), "a"), stages[1]);
         // The inclusion modified a.b (filtered its subfields).
-        ASSERT_EQUALS(graph->getDeclaringStage(stages.back().get(), "a.b"), stages[1]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(stages.back().get(), "a.b"), stages[1]);
         // Excluded by the inclusion.
-        ASSERT_EQUALS(graph->getDeclaringStage(stages.back().get(), "a.b.c"), stages[1]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(stages.back().get(), "a.b.c"), stages[1]);
         // Preserved from the base doc, never defined by any stage.
-        ASSERT_EQUALS(graph->getDeclaringStage(stages.back().get(), "a.b.d"), nullptr);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(stages.back().get(), "a.b.d"), nullptr);
         // Excluded by the inclusion.
-        ASSERT_EQUALS(graph->getDeclaringStage(stages.back().get(), "a.b.c.e"), stages[1]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(stages.back().get(), "a.b.c.e"), stages[1]);
     });
 }
 
@@ -1120,16 +1143,16 @@ TEST_F(PipelineDependencyGraphTest, ComplexPathInclusionProjectionModifiedPath) 
 
     runTest([&] {
         // The inclusion modified a (filtered its subfields).
-        ASSERT_EQUALS(graph->getDeclaringStage(stages.back().get(), "a"), stages[1]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(stages.back().get(), "a"), stages[1]);
         // The inclusion modified a.b (filtered its subfields).
-        ASSERT_EQUALS(graph->getDeclaringStage(stages.back().get(), "a.b"), stages[1]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(stages.back().get(), "a.b"), stages[1]);
         // The inclusion modified a.b.c (filtered its subfields).
-        ASSERT_EQUALS(graph->getDeclaringStage(stages.back().get(), "a.b.c"), stages[1]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(stages.back().get(), "a.b.c"), stages[1]);
         // TODO(SERVER-119392): This is technically kept by the inclusion (prefix "a.b.c" was
         // defined by the $set), so the declaring field should be $set.
-        ASSERT_EQUALS(graph->getDeclaringStage(stages.back().get(), "a.b.c.d"), stages[1]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(stages.back().get(), "a.b.c.d"), stages[1]);
         // Excluded by the inclusion.
-        ASSERT_EQUALS(graph->getDeclaringStage(stages.back().get(), "a.b.c.e"), stages[1]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(stages.back().get(), "a.b.c.e"), stages[1]);
     });
 }
 
@@ -1142,11 +1165,11 @@ TEST_F(PipelineDependencyGraphTest, InclusionBaseCollectionField) {
     runTest([&] {
         auto* last = stages.back().get();
         // 'a' was set by stage 0, preserved by inclusion.
-        ASSERT_EQUALS(graph->getDeclaringStage(last, "a"), stages[0]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(last, "a"), stages[0]);
         // 'b' never defined — from base collection.
-        ASSERT_EQUALS(graph->getDeclaringStage(last, "b"), nullptr);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(last, "b"), nullptr);
         // 'd' not included — excluded by projection.
-        ASSERT_EQUALS(graph->getDeclaringStage(last, "d"), stages[1]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(last, "d"), stages[1]);
     });
 }
 
@@ -1159,11 +1182,11 @@ TEST_F(PipelineDependencyGraphTest, InclusionAfterExhaustiveStage) {
     runTest([&] {
         auto* last = stages.back().get();
         // 'a' included but originates from $replaceRoot.
-        ASSERT_EQUALS(graph->getDeclaringStage(last, "a"), stages[0]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(last, "a"), stages[0]);
         // 'b' same — from $replaceRoot.
-        ASSERT_EQUALS(graph->getDeclaringStage(last, "b"), stages[0]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(last, "b"), stages[0]);
         // 'd' not included — excluded by projection.
-        ASSERT_EQUALS(graph->getDeclaringStage(last, "d"), stages[1]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(last, "d"), stages[1]);
     });
 }
 
@@ -1175,12 +1198,12 @@ TEST_F(PipelineDependencyGraphTest, InclusionDottedBaseCollectionMultipleSubfiel
     runTest([&] {
         auto* last = stages.back().get();
         // 'a' modified by inclusion (by excluding subfields).
-        ASSERT_EQUALS(graph->getDeclaringStage(last, "a"), stages[0]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(last, "a"), stages[0]);
         // 'a.b' and 'a.c' included from base collection.
-        ASSERT_EQUALS(graph->getDeclaringStage(last, "a.b"), nullptr);
-        ASSERT_EQUALS(graph->getDeclaringStage(last, "a.c"), nullptr);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(last, "a.b"), nullptr);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(last, "a.c"), nullptr);
         // 'a.d' excluded.
-        ASSERT_EQUALS(graph->getDeclaringStage(last, "a.d"), stages[0]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(last, "a.d"), stages[0]);
     });
 }
 
@@ -1192,14 +1215,14 @@ TEST_F(PipelineDependencyGraphTest, InclusionLongDottedBaseCollectionMultipleSub
     runTest([&] {
         auto* last = stages.back().get();
         // 'a' modified by inclusion (by excluding subfields).
-        ASSERT_EQUALS(graph->getDeclaringStage(last, "a"), stages[0]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(last, "a"), stages[0]);
         // 'a.b' modified by inclusion (by excluding subfields).
-        ASSERT_EQUALS(graph->getDeclaringStage(last, "a.b"), stages[0]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(last, "a.b"), stages[0]);
         // 'a.b.c' and 'a.b.d' included from base collection.
-        ASSERT_EQUALS(graph->getDeclaringStage(last, "a.b.d"), nullptr);
-        ASSERT_EQUALS(graph->getDeclaringStage(last, "a.b.c"), nullptr);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(last, "a.b.d"), nullptr);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(last, "a.b.c"), nullptr);
         // 'a.d' excluded.
-        ASSERT_EQUALS(graph->getDeclaringStage(last, "a.d"), stages[0]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(last, "a.d"), stages[0]);
     });
 }
 
@@ -1213,15 +1236,15 @@ TEST_F(PipelineDependencyGraphTest, ChainedInclusionProjections) {
     runTest([&] {
         auto* last = stages.back().get();
         // 'a' preserved through both inclusions, defined by from $set.
-        ASSERT_EQUALS(graph->getDeclaringStage(last, "a"), stages[0]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(last, "a"), stages[0]);
         // 'b' excluded by second projection.
-        ASSERT_EQUALS(graph->getDeclaringStage(last, "b"), stages[2]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(last, "b"), stages[2]);
         // 'c' excluded by both projections, but most recently by the second projection.
         // One could argue that the second $project didn't change 'c' since it was already excluded
         // by the first one, but for simplicity we don't consider that when building the graph. This
         // is consistent with dependency tracking for exclusion projections (see
         // 'ChainedExclusionProjections').
-        ASSERT_EQUALS(graph->getDeclaringStage(last, "c"), stages[2]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(last, "c"), stages[2]);
     });
 }
 
@@ -1235,11 +1258,11 @@ TEST_F(PipelineDependencyGraphTest, ChainedExclusionProjections) {
     runTest([&] {
         auto* last = stages.back().get();
         // 'a' preserved through both inclusions, defined by from $set.
-        ASSERT_EQUALS(graph->getDeclaringStage(last, "a"), stages[0]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(last, "a"), stages[0]);
         // 'b' excluded by second projection.
-        ASSERT_EQUALS(graph->getDeclaringStage(last, "b"), stages[2]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(last, "b"), stages[2]);
         // 'c' excluded by both projections, but most recently by the second projection.
-        ASSERT_EQUALS(graph->getDeclaringStage(last, "c"), stages[2]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(last, "c"), stages[2]);
     });
 }
 
@@ -1252,11 +1275,11 @@ TEST_F(PipelineDependencyGraphTest, InclusionDottedAfterExhaustive) {
     runTest([&] {
         auto* last = stages.back().get();
         // 'a' modified by inclusion.
-        ASSERT_EQUALS(graph->getDeclaringStage(last, "a"), stages[1]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(last, "a"), stages[1]);
         // 'a.b' included — originates from $replaceRoot.
-        ASSERT_EQUALS(graph->getDeclaringStage(last, "a.b"), stages[0]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(last, "a.b"), stages[0]);
         // 'a.c' not included — excluded by projection.
-        ASSERT_EQUALS(graph->getDeclaringStage(last, "a.c"), stages[1]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(last, "a.c"), stages[1]);
     });
 }
 
@@ -1269,12 +1292,12 @@ TEST_F(PipelineDependencyGraphTest, SetFieldThenIncludeDottedPath) {
     runTest([&] {
         auto* last = stages.back().get();
         // 'a' modified by inclusion (by filtering subfields).
-        ASSERT_EQUALS(graph->getDeclaringStage(last, "a"), stages[1]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(last, "a"), stages[1]);
         // TODO(SERVER-119392): 'a.b' preserved by projection, originates from $set (we currently
         // report it as being declared by the inclusion projection).
-        ASSERT_EQUALS(graph->getDeclaringStage(last, "a.b"), stages[1]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(last, "a.b"), stages[1]);
         // 'a.c' excluded by projection.
-        ASSERT_EQUALS(graph->getDeclaringStage(last, "a.c"), stages[1]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(last, "a.c"), stages[1]);
     });
 }
 
@@ -1286,12 +1309,12 @@ TEST_F(PipelineDependencyGraphTest, DottedPathAfterBaseField) {
 
     runTest([&] {
         // The a.x seen from the first stage is whatever a.x comes from the base document.
-        ASSERT_EQUALS(graph->getDeclaringStage(stages[0].get(), "a.x"), nullptr);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(stages[0].get(), "a.x"), nullptr);
         // The a.x seen from the second stage is non-existent erased by the first stage.
-        ASSERT_EQUALS(graph->getDeclaringStage(stages[1].get(), "a.x"), stages[0]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(stages[1].get(), "a.x"), stages[0]);
         // The a.x seen from the second stage is still the non-existent erased by the first stage.
-        ASSERT_EQUALS(graph->getDeclaringStage(stages[2].get(), "a.x"), stages[1]);
-        ASSERT_EQUALS(graph->getDeclaringStage(nullptr, "a.x"), stages[1]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(stages[2].get(), "a.x"), stages[1]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(nullptr, "a.x"), stages[1]);
     });
 }
 
@@ -1304,16 +1327,16 @@ TEST_F(PipelineDependencyGraphTest, ComplexPathsMultiple) {
     runTest([&] {
         // Lookup from the end of the pipeline.
         DocumentSource* ds = nullptr;
-        ASSERT_EQUALS(graph->getDeclaringStage(ds, "a"), stages[2]);
-        ASSERT_EQUALS(graph->getDeclaringStage(ds, "b"), stages[2]);
-        ASSERT_EQUALS(graph->getDeclaringStage(ds, "c"), stages[1]);
-        ASSERT_EQUALS(graph->getDeclaringStage(ds, "c.c"), stages[1]);
-        ASSERT_EQUALS(graph->getDeclaringStage(ds, "a.b"), stages[2]);
-        ASSERT_EQUALS(graph->getDeclaringStage(ds, "a.a"), stages[1]);
-        ASSERT_EQUALS(graph->getDeclaringStage(ds, "b.b.b"), stages[2]);
-        ASSERT_EQUALS(graph->getDeclaringStage(ds, "b.b"), stages[2]);
-        ASSERT_EQUALS(graph->getDeclaringStage(ds, "b.a"), stages[2]);
-        ASSERT_EQUALS(graph->getDeclaringStage(ds, "a.b.a"), stages[2]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(ds, "a"), stages[2]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(ds, "b"), stages[2]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(ds, "c"), stages[1]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(ds, "c.c"), stages[1]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(ds, "a.b"), stages[2]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(ds, "a.a"), stages[1]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(ds, "b.b.b"), stages[2]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(ds, "b.b"), stages[2]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(ds, "b.a"), stages[2]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(ds, "a.b.a"), stages[2]);
     });
 }
 
@@ -1555,10 +1578,10 @@ TEST_F(PipelineDependencyGraphTest, ReplaceRootAttributesAllFields) {
 
     runTest([&] {
         // All pre-existing fields are attributed to $replaceRoot.
-        ASSERT_EQUALS(graph->getDeclaringStage(nullptr, "a"), stages[1]);
-        ASSERT_EQUALS(graph->getDeclaringStage(nullptr, "b"), stages[1]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(nullptr, "a"), stages[1]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(nullptr, "b"), stages[1]);
         // 'c' set after $replaceRoot.
-        ASSERT_EQUALS(graph->getDeclaringStage(nullptr, "c"), stages[2]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(nullptr, "c"), stages[2]);
     });
 }
 
@@ -1572,8 +1595,8 @@ TEST_F(PipelineDependencyGraphTest, ReplaceRootShadowsPriorDefinitions) {
     runTest([&] {
         auto* last = stages.back().get();
         // Both fields are attributed to $replaceRoot, not the $set.
-        ASSERT_EQUALS(graph->getDeclaringStage(last, "a"), stages[1]);
-        ASSERT_EQUALS(graph->getDeclaringStage(last, "b"), stages[1]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(last, "a"), stages[1]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(last, "b"), stages[1]);
     });
 }
 
@@ -1586,9 +1609,9 @@ TEST_F(PipelineDependencyGraphTest, ReplaceRootThenSetThenLookup) {
     runTest([&] {
         auto* last = stages.back().get();
         // 'a' redefined after $replaceRoot.
-        ASSERT_EQUALS(graph->getDeclaringStage(last, "a"), stages[1]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(last, "a"), stages[1]);
         // 'b' not redefined — still attributed to $replaceRoot.
-        ASSERT_EQUALS(graph->getDeclaringStage(last, "b"), stages[0]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(last, "b"), stages[0]);
     });
 }
 
@@ -1602,8 +1625,8 @@ TEST_F(PipelineDependencyGraphTest, ChainedReplaceRoots) {
     runTest([&] {
         auto* last = stages.back().get();
         // Second $replaceRoot is the last exhaustive stage.
-        ASSERT_EQUALS(graph->getDeclaringStage(last, "a"), stages[2]);
-        ASSERT_EQUALS(graph->getDeclaringStage(last, "b"), stages[2]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(last, "a"), stages[2]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(last, "b"), stages[2]);
     });
 }
 
@@ -1616,13 +1639,13 @@ TEST_F(PipelineDependencyGraphTest, GroupSimpleKey) {
     runTest([&] {
         auto* last = stages.back().get();
         // _id declared by $group.
-        ASSERT_EQUALS(graph->getDeclaringStage(last, "_id"), stages[1]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(last, "_id"), stages[1]);
         // 'count' is also declared by $group.
-        ASSERT_EQUALS(graph->getDeclaringStage(last, "count"), stages[1]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(last, "count"), stages[1]);
         // 'a' from the base document is made missing by $group.
-        ASSERT_EQUALS(graph->getDeclaringStage(last, "a"), stages[1]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(last, "a"), stages[1]);
         // 'x' is also made missing by $group.
-        ASSERT_EQUALS(graph->getDeclaringStage(last, "x"), stages[1]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(last, "x"), stages[1]);
     });
 }
 
@@ -1634,7 +1657,7 @@ TEST_F(PipelineDependencyGraphTest, GroupKeyFromBaseDocument) {
     runTest([&] {
         auto* last = stages.back().get();
         // _id declared by $group.
-        ASSERT_EQUALS(graph->getDeclaringStage(last, "_id"), stages[0]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(last, "_id"), stages[0]);
     });
 }
 
@@ -1647,13 +1670,13 @@ TEST_F(PipelineDependencyGraphTest, GroupCompoundKey) {
     runTest([&] {
         auto* last = stages.back().get();
         // _id.a declared by $group.
-        ASSERT_EQUALS(graph->getDeclaringStage(last, "_id.a"), stages[1]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(last, "_id.a"), stages[1]);
         // _id.b declared by $group.
-        ASSERT_EQUALS(graph->getDeclaringStage(last, "_id.b"), stages[1]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(last, "_id.b"), stages[1]);
         // _id declared by group.
-        ASSERT_EQUALS(graph->getDeclaringStage(last, "_id"), stages[1]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(last, "_id"), stages[1]);
         // _id.c is not a group key field — attributed to $group via missing sentinel.
-        ASSERT_EQUALS(graph->getDeclaringStage(last, "_id.c"), stages[1]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(last, "_id.c"), stages[1]);
     });
 }
 
@@ -1666,10 +1689,10 @@ TEST_F(PipelineDependencyGraphTest, GroupDottedKeyNoRename) {
     runTest([&] {
         auto* last = stages.back().get();
         // _id declared by $group.
-        ASSERT_EQUALS(graph->getDeclaringStage(last, "_id"), stages[1]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(last, "_id"), stages[1]);
         // Everything else is made missing by $group.
-        ASSERT_EQUALS(graph->getDeclaringStage(last, "x"), stages[1]);
-        ASSERT_EQUALS(graph->getDeclaringStage(last, "x.y"), stages[1]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(last, "x"), stages[1]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(last, "x.y"), stages[1]);
     });
 }
 
@@ -1682,13 +1705,13 @@ TEST_F(PipelineDependencyGraphTest, GroupNullKey) {
     runTest([&] {
         auto* last = stages.back().get();
         // _id is declared by $group.
-        ASSERT_EQUALS(graph->getDeclaringStage(last, "_id"), stages[0]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(last, "_id"), stages[0]);
         // 'total' is declared by $group.
-        ASSERT_EQUALS(graph->getDeclaringStage(last, "total"), stages[0]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(last, "total"), stages[0]);
         // 'a' set after $group.
-        ASSERT_EQUALS(graph->getDeclaringStage(last, "a"), stages[1]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(last, "a"), stages[1]);
         // 'b' is made missing by $group.
-        ASSERT_EQUALS(graph->getDeclaringStage(last, "b"), stages[0]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(last, "b"), stages[0]);
     });
 }
 
@@ -1701,11 +1724,11 @@ TEST_F(PipelineDependencyGraphTest, GroupThenInclusion) {
     runTest([&] {
         auto* last = stages.back().get();
         // _id preserved through inclusion, most recently declared by $group.
-        ASSERT_EQUALS(graph->getDeclaringStage(last, "_id"), stages[0]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(last, "_id"), stages[0]);
         // 'count' excluded by inclusion projection.
-        ASSERT_EQUALS(graph->getDeclaringStage(last, "count"), stages[1]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(last, "count"), stages[1]);
         // Any arbitrary field last excluded by the inclusion projection.
-        ASSERT_EQUALS(graph->getDeclaringStage(last, "foo"), stages[1]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(last, "foo"), stages[1]);
     });
 }
 
@@ -1719,11 +1742,11 @@ TEST_F(PipelineDependencyGraphTest, SetThenGroupThenSetThenMatch) {
     runTest([&] {
         auto* last = stages.back().get();
         // _id declared by $group.
-        ASSERT_EQUALS(graph->getDeclaringStage(last, "_id"), stages[1]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(last, "_id"), stages[1]);
         // 'a' set after $group.
-        ASSERT_EQUALS(graph->getDeclaringStage(last, "a"), stages[2]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(last, "a"), stages[2]);
         // 'b' made missing by $group.
-        ASSERT_EQUALS(graph->getDeclaringStage(last, "b"), stages[1]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(last, "b"), stages[1]);
     });
 }
 
@@ -1769,8 +1792,8 @@ TEST_F(PipelineDependencyGraphTest, ModifyPathLookupDottedAsMayDestroySibling) {
 
     runTest([&] {
         // 'a.c' may have been destroyed if 'a' was an array, so we attribute it to the lookup.
-        ASSERT_EQUALS(graph->getDeclaringStage(nullptr, "a.c"), stages[0]);
-        ASSERT_EQUALS(graph->getDeclaringStage(nullptr, "a.b"), stages[0]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(nullptr, "a.c"), stages[0]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(nullptr, "a.b"), stages[0]);
         // The prefix is always a plain object.
         ASSERT_FALSE(graph->canPathBeArray(nullptr, "a"));
         ASSERT_TRUE(graph->canPathBeArray(nullptr, "a.c"));
@@ -1833,9 +1856,9 @@ TEST_F(PipelineDependencyGraphTest, LeafRedeclaredAsDottedPath) {
 
     runTest([&] {
         // Before stage 1: 'a.unknown' is shadowed by a:1, declared by stage 0.
-        ASSERT_EQUALS(graph->getDeclaringStage(stages[1].get(), "a.unknown"), stages[0]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(stages[1].get(), "a.unknown"), stages[0]);
         // After stage 1: 'a.unknown' is now attributed to stage 1.
-        ASSERT_EQUALS(graph->getDeclaringStage(nullptr, "a.unknown"), stages[1]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(nullptr, "a.unknown"), stages[1]);
     });
 }
 
@@ -1874,8 +1897,8 @@ TEST_F(PipelineDependencyGraphTest, PathEmptyString) {
     setPipeline(R"([{$match: {"": 1}}])");
 
     runTest([&] {
-        // getDeclaringStage with empty string returns nullptr (comes from base collection)
-        ASSERT_EQUALS(graph->getDeclaringStage(nullptr, ""), nullptr);
+        // getDeclaringStage_forTestwith empty string returns nullptr (comes from base collection)
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(nullptr, ""), nullptr);
 
         // canPathBeArray uses FieldRef.
         ASSERT_TRUE(graph->canPathBeArray(nullptr, ""));
@@ -1891,10 +1914,10 @@ TEST_F(PipelineDependencyGraphTest, PathWithLeadingDot) {
     setPipeline(R"([{$set: {"a": 1}}, {$match: {".a": 1}}])");
 
     runTest([&] {
-        // getDeclaringStage returns nullptr (field comes from base collection)
-        ASSERT_EQUALS(graph->getDeclaringStage(nullptr, ".a"), nullptr);
+        // getDeclaringStage_forTest returns nullptr (field comes from base collection)
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(nullptr, ".a"), nullptr);
 
-        ASSERT_EQUALS(graph->getDeclaringStage(nullptr, "a"), stages[0]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(nullptr, "a"), stages[0]);
 
         // canPathBeArray uses FieldRef.
         ASSERT_TRUE(graph->canPathBeArray(nullptr, ".a"));
@@ -1922,10 +1945,10 @@ TEST_F(PipelineDependencyGraphTest, PathWithTrailingDot) {
     setPipeline(R"([{$set: {"a": 1}}, {$match: {"a.": 1}}])");
 
     runTest([&] {
-        // getDeclaringStage returns stage[0] (field comes from the preceding stage)
-        ASSERT_EQUALS(graph->getDeclaringStage(nullptr, "a."), stages[0]);
+        // getDeclaringStage_forTest returns stage[0] (field comes from the preceding stage)
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(nullptr, "a."), stages[0]);
 
-        ASSERT_EQUALS(graph->getDeclaringStage(nullptr, "a"), stages[0]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(nullptr, "a"), stages[0]);
 
         // canPathBeArray accepts both FieldPath and FieldRef.
         ASSERT_TRUE(graph->canPathBeArray(nullptr, "a."));
@@ -1942,8 +1965,8 @@ TEST_F(PipelineDependencyGraphTest, PathWithBareDot) {
     setPipeline(R"([{$match: {".": 1}}])");
 
     runTest([&] {
-        // getDeclaringStage returns nullptr (field comes from base collection)
-        ASSERT_EQUALS(graph->getDeclaringStage(nullptr, "."), nullptr);
+        // getDeclaringStage_forTest returns nullptr (field comes from base collection)
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(nullptr, "."), nullptr);
 
         // canPathBeArray uses FieldRef which is less restrictive.
         ASSERT_TRUE(graph->canPathBeArray(nullptr, "."));
@@ -1961,8 +1984,8 @@ TEST_F(PipelineDependencyGraphTest, PathWithDoubleDot) {
     setPipeline(R"([{$match: {"a..b": 1}}])");
 
     runTest([&] {
-        // getDeclaringStage returns nullptr (field comes from base collection)
-        ASSERT_EQUALS(graph->getDeclaringStage(nullptr, "a..b"), nullptr);
+        // getDeclaringStage_forTest returns nullptr (field comes from base collection)
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(nullptr, "a..b"), nullptr);
 
         // canPathBeArray uses FieldRef which is less restrictive.
         ASSERT_TRUE(graph->canPathBeArray(nullptr, "a..b"));
@@ -2020,8 +2043,8 @@ TEST_F(PipelineDependencyGraphTest, PathWithEmptyComponentInMiddle) {
     setPipeline(R"([{$match: {"a..b.c": 1}}])");
 
     runTest([&] {
-        // getDeclaringStage returns nullptr (field comes from base collection)
-        ASSERT_EQUALS(graph->getDeclaringStage(nullptr, "a..b.c"), nullptr);
+        // getDeclaringStage_forTest returns nullptr (field comes from base collection)
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(nullptr, "a..b.c"), nullptr);
 
         // canPathBeArray accepts both FieldPath and FieldRef.
         ASSERT_TRUE(graph->canPathBeArray(nullptr, "a..b.c"));
@@ -2039,8 +2062,8 @@ TEST_F(PipelineDependencyGraphTest, PathWithMultipleEmptyComponents) {
     setPipeline(R"([{$match: {"a...b": 1}}])");
 
     runTest([&] {
-        // getDeclaringStage returns nullptr (field comes from base collection)
-        ASSERT_EQUALS(graph->getDeclaringStage(nullptr, "a...c"), nullptr);
+        // getDeclaringStage_forTest returns nullptr (field comes from base collection)
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(nullptr, "a...c"), nullptr);
 
         // canPathBeArray accepts both FieldPath and FieldRef.
         ASSERT_TRUE(graph->canPathBeArray(nullptr, "a...c"));
@@ -2071,8 +2094,8 @@ TEST_F(PipelineDependencyGraphTest, DollarSignAsComponentInFieldName) {
     setPipeline(R"([{$match: {"a.$": 1}}])");
 
     runTest([&] {
-        // getDeclaringStage returns nullptr (field comes from base collection)
-        ASSERT_EQ(graph->getDeclaringStage(nullptr, "a.$"), nullptr);
+        // getDeclaringStage_forTest returns nullptr (field comes from base collection)
+        ASSERT_EQ(graph->getDeclaringStage_forTest(nullptr, "a.$"), nullptr);
 
         ASSERT_TRUE(graph->canPathBeArray(nullptr, "a.$"));
     });
@@ -2093,8 +2116,8 @@ TEST_F(PipelineDependencyGraphTest, DollarSignInMiddleOfFieldName) {
     setPipeline(R"([{$match: {"field$name": 1}}])");
 
     runTest([&] {
-        // getDeclaringStage returns nullptr (field comes from base collection)
-        ASSERT_EQ(graph->getDeclaringStage(nullptr, "field$name"), nullptr);
+        // getDeclaringStage_forTest returns nullptr (field comes from base collection)
+        ASSERT_EQ(graph->getDeclaringStage_forTest(nullptr, "field$name"), nullptr);
 
         ASSERT_TRUE(graph->canPathBeArray(nullptr, "field$name"));
     });
@@ -2106,8 +2129,8 @@ TEST_F(PipelineDependencyGraphTest, DollarSignInMiddleOfNestedPath) {
     setPipeline(R"([{$match: {"a.b$c.d": 1}}])");
 
     runTest([&] {
-        // getDeclaringStage returns nullptr (field comes from base collection)
-        ASSERT_EQ(graph->getDeclaringStage(nullptr, "a.b$c.d"), nullptr);
+        // getDeclaringStage_forTest returns nullptr (field comes from base collection)
+        ASSERT_EQ(graph->getDeclaringStage_forTest(nullptr, "a.b$c.d"), nullptr);
 
         ASSERT_TRUE(graph->canPathBeArray(nullptr, "a"));
         ASSERT_TRUE(graph->canPathBeArray(nullptr, "a.b$c"));
@@ -2121,8 +2144,8 @@ TEST_F(PipelineDependencyGraphTest, DollarSignAtEndOfNestedPath) {
     setPipeline(R"([{$match: {"a.b.c$": 1}}])");
 
     runTest([&] {
-        // getDeclaringStage returns nullptr (field comes from base collection)
-        ASSERT_EQ(graph->getDeclaringStage(nullptr, "a.b.c$"), nullptr);
+        // getDeclaringStage_forTest returns nullptr (field comes from base collection)
+        ASSERT_EQ(graph->getDeclaringStage_forTest(nullptr, "a.b.c$"), nullptr);
 
         ASSERT_TRUE(graph->canPathBeArray(nullptr, "a"));
         ASSERT_TRUE(graph->canPathBeArray(nullptr, "a.b"));
@@ -2136,8 +2159,8 @@ TEST_F(PipelineDependencyGraphTest, MultipleDollarSignsInFieldName) {
     setPipeline(R"([{$match: {"a$b$c": 1}}])");
 
     runTest([&] {
-        // getDeclaringStage returns nullptr (field comes from base collection)
-        ASSERT_EQ(graph->getDeclaringStage(nullptr, "a$b$c"), nullptr);
+        // getDeclaringStage_forTest returns nullptr (field comes from base collection)
+        ASSERT_EQ(graph->getDeclaringStage_forTest(nullptr, "a$b$c"), nullptr);
 
         ASSERT_TRUE(graph->canPathBeArray(nullptr, "a$b$c"));
     });
@@ -2151,8 +2174,8 @@ TEST_F(PipelineDependencyGraphTest, DollarPrefixedNestedPathComponent) {
     setPipeline(R"([{$match: {"foo.$bar": 1}}])");
 
     runTest([&] {
-        // getDeclaringStage returns nullptr (field comes from base collection)
-        ASSERT_EQ(graph->getDeclaringStage(nullptr, "foo.$bar"), nullptr);
+        // getDeclaringStage_forTest returns nullptr (field comes from base collection)
+        ASSERT_EQ(graph->getDeclaringStage_forTest(nullptr, "foo.$bar"), nullptr);
 
         ASSERT_TRUE(graph->canPathBeArray(nullptr, "foo"));
         ASSERT_TRUE(graph->canPathBeArray(nullptr, "foo.$bar"));
@@ -2179,7 +2202,7 @@ TEST_F(PipelineDependencyGraphTest, LookupWithDollarInAsField) {
 
     runTest([&] {
         // The $lookup stage declares "result$data"
-        ASSERT_EQUALS(graph->getDeclaringStage(nullptr, "result$data"), stages[0]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(nullptr, "result$data"), stages[0]);
 
         // "result$data" can be an array (it's the output array from $lookup)
         ASSERT_TRUE(graph->canPathBeArray(nullptr, "result$data"));
@@ -2218,9 +2241,9 @@ TEST_F(PipelineDependencyGraphTest, NumericFirstComponentIsFieldName) {
     runTest([&] {
         // First component "0" is treated as a field name. Will look up path "0.sub".
         // Should find the stage removing "0.sub"
-        ASSERT_EQUALS(graph->getDeclaringStage(nullptr, "0.sub"), stages[1]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(nullptr, "0.sub"), stages[1]);
         // 0 comes originally from the collection
-        ASSERT_EQUALS(graph->getDeclaringStage(stages[0].get(), "0"), nullptr);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(stages[0].get(), "0"), nullptr);
 
         // "a" is removed by the 'project' operator and goes to 'kMissing'.
         ASSERT_FALSE(graph->canPathBeArray(nullptr, "a"));
@@ -2248,7 +2271,7 @@ TEST_F(PipelineDependencyGraphTest, NumericPathComponentInMiddle) {
     ])");
 
     runTest([&] {
-        ASSERT_EQUALS(graph->getDeclaringStage(nullptr, "items.0.details"), stages[1]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(nullptr, "items.0.details"), stages[1]);
 
         // "items.0.details" was set as non-array, thus this should be false.
         ASSERT_FALSE(graph->canPathBeArray(nullptr, "result"));
@@ -2267,9 +2290,9 @@ TEST_F(PipelineDependencyGraphTest, MultipleNumericComponentsInMiddle) {
 
     runTest([&] {
         // Should handle nested numeric paths without crashing
-        ASSERT_EQUALS(graph->getDeclaringStage(nullptr, "matrix"), stages[2]);
-        ASSERT_EQUALS(graph->getDeclaringStage(nullptr, "matrix.0.1"), stages[2]);
-        ASSERT_EQUALS(graph->getDeclaringStage(nullptr, "matrix.0.1.value"), stages[2]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(nullptr, "matrix"), stages[2]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(nullptr, "matrix.0.1"), stages[2]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(nullptr, "matrix.0.1.value"), stages[2]);
 
         // "matrix" was set as non-array, thus this should be false.
         // This goes to kMissing
@@ -2292,7 +2315,7 @@ TEST_F(PipelineDependencyGraphTest, NumericWithLeadingZeroNotTruncated) {
     ])");
 
     runTest([&] {
-        ASSERT_EQUALS(graph->getDeclaringStage(nullptr, "data.01.value"), stages[1]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(nullptr, "data.01.value"), stages[1]);
 
         // goes to kMissing
         ASSERT_FALSE(graph->canPathBeArray(nullptr, "data"));
@@ -2314,7 +2337,7 @@ TEST_F(PipelineDependencyGraphTest, CheckingValidityOfNumericWithLeadingZeroNotT
     ])");
 
     runTest([&] {
-        ASSERT_EQUALS(graph->getDeclaringStage(nullptr, "data.foo.value"), stages[1]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(nullptr, "data.foo.value"), stages[1]);
 
         // goes to kMissing
         ASSERT_FALSE(graph->canPathBeArray(nullptr, "data"));
@@ -2337,7 +2360,7 @@ TEST_F(PipelineDependencyGraphTest, SuffixNumericPathComponentSimple) {
     ])");
 
     runTest([&] {
-        ASSERT_EQUALS(graph->getDeclaringStage(nullptr, "arr.0"), stages[1]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(nullptr, "arr.0"), stages[1]);
 
         // goes to kMissing
         ASSERT_FALSE(graph->canPathBeArray(nullptr, "arr.0"));
@@ -2352,7 +2375,7 @@ TEST_F(PipelineDependencyGraphTest, SuffixNumericPathSetToArray) {
     ])");
 
     runTest([&] {
-        ASSERT_EQUALS(graph->getDeclaringStage(nullptr, "items.0"), stages[1]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(nullptr, "items.0"), stages[1]);
 
         ASSERT_TRUE(graph->canPathBeArray(nullptr, "first"));
 
@@ -2369,7 +2392,7 @@ TEST_F(PipelineDependencyGraphTest, SuffixNumericPathMultipleComponents) {
     ])");
 
     runTest([&] {
-        ASSERT_EQUALS(graph->getDeclaringStage(nullptr, "matrix.0"), stages[1]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(nullptr, "matrix.0"), stages[1]);
 
         ASSERT_TRUE(graph->canPathBeArray(nullptr, "val"));
 
@@ -2387,7 +2410,7 @@ TEST_F(PipelineDependencyGraphTest, SuffixNumericPathSetToNonArray) {
 
     runTest([&] {
         // The $project stage declares "matrix.0" (and by extension "matrix.0.1")
-        ASSERT_EQUALS(graph->getDeclaringStage(nullptr, "matrix.0"), stages[1]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(nullptr, "matrix.0"), stages[1]);
 
         ASSERT_FALSE(graph->canPathBeArray(nullptr, "val"));
     });
@@ -2401,7 +2424,7 @@ TEST_F(PipelineDependencyGraphTest, SuffixNumericPathSetToNonArrayWithSet) {
 
     runTest([&] {
         // The $set stage declares "val"
-        ASSERT_EQUALS(graph->getDeclaringStage(nullptr, "val"), stages[1]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(nullptr, "val"), stages[1]);
 
         ASSERT_FALSE(graph->canPathBeArray(nullptr, "val"));
     });
@@ -2416,8 +2439,8 @@ TEST_F(PipelineDependencyGraphTest, DollarPrefixedNestedPathComponentWithArrayne
     setPipeline(R"([{$match: {"foo.$bar": 1}}])");
 
     runTest([&] {
-        // getDeclaringStage returns nullptr (field comes from base collection)
-        ASSERT_EQ(graph->getDeclaringStage(nullptr, "foo.$bar"), nullptr);
+        // getDeclaringStage_forTest returns nullptr (field comes from base collection)
+        ASSERT_EQ(graph->getDeclaringStage_forTest(nullptr, "foo.$bar"), nullptr);
 
         // Without PathArrayness metadata, both conservatively assume they can be an array
         ASSERT_TRUE(graph->canPathBeArray(nullptr, "foo"));
@@ -2437,10 +2460,10 @@ TEST_F(PipelineDependencyGraphTest, SuffixNumericPathSetToNonArrayWithArrayness)
     ])");
 
     runTest([&] {
-        ASSERT_EQUALS(graph->getDeclaringStage(nullptr, "matrix"), stages[1]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(nullptr, "matrix"), stages[1]);
         // The $project stage declares "matrix.0" (and by extension "matrix.0.1")
-        ASSERT_EQUALS(graph->getDeclaringStage(nullptr, "matrix.0"), stages[1]);
-        ASSERT_EQUALS(graph->getDeclaringStage(nullptr, "matrix.0.1"), stages[1]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(nullptr, "matrix.0"), stages[1]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(nullptr, "matrix.0.1"), stages[1]);
 
         // "matrix" is explicitly marked as non-array in PathArrayness, but
         // after the $set it goes to kMissing since the $project doesn't include it
@@ -2464,7 +2487,7 @@ TEST_F(PipelineDependencyGraphTest, SuffixNumericPathSetToNonArrayWithSetAndArra
 
     runTest([&] {
         // The $set stage declares "val"
-        ASSERT_EQUALS(graph->getDeclaringStage(nullptr, "val"), stages[1]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(nullptr, "val"), stages[1]);
 
         // With $set (unlike $project), "matrix" is still accessible
         // "matrix" is explicitly marked as non-array in PathArrayness
@@ -2481,8 +2504,8 @@ TEST_F(PipelineDependencyGraphTest, ModifyPathLookupDottedAsPreservesSiblingWhen
 
     runTest([&] {
         // 'a.c' definitely comes from the base document, if it exists.
-        ASSERT_EQUALS(graph->getDeclaringStage(nullptr, "a.c"), nullptr);
-        ASSERT_EQUALS(graph->getDeclaringStage(nullptr, "a.b"), stages[0]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(nullptr, "a.c"), nullptr);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(nullptr, "a.b"), stages[0]);
         // The prefix is always a plain object.
         ASSERT_FALSE(graph->canPathBeArray(nullptr, "a"));
         ASSERT_FALSE(graph->canPathBeArray(nullptr, "a.c"));
@@ -2500,8 +2523,8 @@ TEST_F(PipelineDependencyGraphTest, ModifyPathLookupDottedAsShadowsPriorSibling)
 
     runTest([&] {
         // The $set declared 'a.c', but the $lookup will discard it if 'a' is an array.
-        ASSERT_EQUALS(graph->getDeclaringStage(nullptr, "a.c"), stages[1]);
-        ASSERT_EQUALS(graph->getDeclaringStage(nullptr, "a.b"), stages[1]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(nullptr, "a.c"), stages[1]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(nullptr, "a.b"), stages[1]);
         ASSERT_FALSE(graph->canPathBeArray(nullptr, "a"));
     });
 }
@@ -2515,8 +2538,8 @@ TEST_F(PipelineDependencyGraphTest, ModifyPathLookupDottedAsPreservesPriorSiblin
     ])");
 
     runTest([&] {
-        ASSERT_EQUALS(graph->getDeclaringStage(nullptr, "a.c"), stages[0]);
-        ASSERT_EQUALS(graph->getDeclaringStage(nullptr, "a.b"), stages[1]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(nullptr, "a.c"), stages[0]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(nullptr, "a.b"), stages[1]);
     });
 }
 
@@ -2524,8 +2547,8 @@ TEST_F(PipelineDependencyGraphTest, ModifyPathLookupDottedAsPreservesPriorSiblin
 TEST_F(PipelineDependencyGraphTest, LookupDeepAsDestroySiblingsAtAllLevels) {
     setPipeline(R"([{$lookup: {from: "coll_b", as: "a.b.c", pipeline: []}}])");
     runTest([&] {
-        ASSERT_EQUALS(graph->getDeclaringStage(nullptr, "a.d"), stages[0]);
-        ASSERT_EQUALS(graph->getDeclaringStage(nullptr, "a.b.d"), stages[0]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(nullptr, "a.d"), stages[0]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(nullptr, "a.b.d"), stages[0]);
         ASSERT_FALSE(graph->canPathBeArray(nullptr, "a"));
         ASSERT_FALSE(graph->canPathBeArray(nullptr, "a.b"));
     });
@@ -2538,8 +2561,8 @@ TEST_F(PipelineDependencyGraphTest, LookupDeepAsPartialPreservation) {
     setPipeline(R"([{$lookup: {from: "coll_b", as: "a.b.c", pipeline: []}}])");
 
     runTest([&] {
-        ASSERT_EQUALS(graph->getDeclaringStage(nullptr, "a.d"), nullptr);
-        ASSERT_EQUALS(graph->getDeclaringStage(nullptr, "a.b.d"), stages[0]);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(nullptr, "a.d"), nullptr);
+        ASSERT_EQUALS(graph->getDeclaringStage_forTest(nullptr, "a.b.d"), stages[0]);
         ASSERT_FALSE(graph->canPathBeArray(nullptr, "a"));
         ASSERT_FALSE(graph->canPathBeArray(nullptr, "a.b"));
     });
@@ -2775,6 +2798,276 @@ TEST_F(PipelineDependencyGraphTest, CanPathBeArrayDeepScalarShadow) {
         ASSERT_FALSE(graph->canPathBeArray(nullptr, "a.b.c.d"));
         ASSERT_FALSE(graph->canPathBeArray(nullptr, "a.b.c.d.e"));
     });
+}
+
+TEST_F(PipelineDependencyGraphTest, AlivenessFlagsUnreadAddFields) {
+    setPipeline("[{$addFields: {foo: 1}}, {$group: {_id: '$bar'}}]");
+    runTest([&] { assertDeadFieldsEq({{stages[0].get(), "foo"}}); });
+}
+
+TEST_F(PipelineDependencyGraphTest, AlivenessKeepsAliveAddFields) {
+    setPipeline("[{$addFields: {foo: 1}}, {$group: {_id: '$foo'}}]");
+    runTest([&] { assertDeadFieldsEq({}); });
+}
+
+TEST_F(PipelineDependencyGraphTest, AlivenessPartialAddFields) {
+    setPipeline("[{$addFields: {foo: 1, bar: 2}}, {$group: {_id: '$bar'}}]");
+    runTest([&] { assertDeadFieldsEq({{stages[0].get(), "foo"}}); });
+}
+
+TEST_F(PipelineDependencyGraphTest, AlivenessUsedInMatchThenDropped) {
+    setPipeline("[{$match: {foo: 5}}, {$project: {_id: 1}}]");
+    runTest([&] { assertDeadFieldsEq({}); });
+}
+
+TEST_F(PipelineDependencyGraphTest, AlivenessOverwriteMakesEarlierDead) {
+    setPipeline("[{$set: {foo: 1}}, {$set: {foo: 2}}, {$group: {_id: '$foo'}}]");
+    runTest([&] { assertDeadFieldsEq({{stages[0].get(), "foo"}}); });
+}
+
+TEST_F(PipelineDependencyGraphTest, AlivenessRenameTargetUnreadIsDead) {
+    setPipeline("[{$set: {foo: 1}}, {$set: {bar: '$foo'}}, {$group: {_id: '$foo'}}]");
+    runTest([&] { assertDeadFieldsEq({{stages[1].get(), "bar"}}); });
+}
+
+TEST_F(PipelineDependencyGraphTest, AlivenessRenameTargetAliveKeepsSource) {
+    setPipeline("[{$set: {foo: 1}}, {$set: {bar: '$foo'}}, {$group: {_id: '$bar'}}]");
+    runTest([&] { assertDeadFieldsEq({}); });
+}
+
+TEST_F(PipelineDependencyGraphTest, AlivenessFieldOnlyUsedByDeadFieldIsDead) {
+    setPipeline("[{$set: {foo: 1}}, {$set: {bar: '$foo'}}, {$group: {_id: '$baz'}}]");
+    runTest([&] { assertDeadFieldsEq({{stages[0].get(), "foo"}, {stages[1].get(), "bar"}}); });
+}
+
+TEST_F(PipelineDependencyGraphTest, AlivenessThreeStageDeadChain) {
+    setPipeline("[{$set: {a: 1}}, {$set: {b: '$a'}}, {$set: {c: '$b'}}, {$group: {_id: '$x'}}]");
+    runTest([&] {
+        assertDeadFieldsEq(
+            {{stages[0].get(), "a"}, {stages[1].get(), "b"}, {stages[2].get(), "c"}});
+    });
+}
+
+TEST_F(PipelineDependencyGraphTest, AlivenessAliveSiblingKeepsSharedSource) {
+    setPipeline("[{$set: {a: 1}}, {$set: {b: '$a', c: '$a'}}, {$group: {_id: '$b'}}]");
+    runTest([&] { assertDeadFieldsEq({{stages[1].get(), "c"}}); });
+}
+
+TEST_F(PipelineDependencyGraphTest, AlivenessAllDeadSiblingsKillSharedSource) {
+    setPipeline("[{$set: {a: 1}}, {$set: {b: '$a', c: '$a'}}, {$group: {_id: '$x'}}]");
+    runTest([&] {
+        assertDeadFieldsEq(
+            {{stages[0].get(), "a"}, {stages[1].get(), "b"}, {stages[1].get(), "c"}});
+    });
+}
+
+TEST_F(PipelineDependencyGraphTest, AlivenessMultiDepDeadFieldKillsAllDeps) {
+    setPipeline("[{$set: {a: 1, b: 2}}, {$set: {c: {$add: ['$a', '$b']}}}, {$group: {_id: '$x'}}]");
+    runTest([&] {
+        assertDeadFieldsEq(
+            {{stages[0].get(), "a"}, {stages[0].get(), "b"}, {stages[1].get(), "c"}});
+    });
+}
+
+TEST_F(PipelineDependencyGraphTest, AlivenessAliveSiblingDoesNotReviveDeadSiblingSource) {
+    setPipeline("[{$set: {a: 1, b: 1}}, {$set: {c: '$a', d: '$b'}}, {$group: {_id: '$c'}}]");
+    runTest([&] { assertDeadFieldsEq({{stages[0].get(), "b"}, {stages[1].get(), "d"}}); });
+}
+
+TEST_F(PipelineDependencyGraphTest, AlivenessInclusionThenExclusionProjection) {
+    setPipeline("[{$project: {a: 1}}, {$project: {a: 0}}, {$group: {_id: '$x'}}]");
+    runTest([&] { assertDeadFieldsEq({{stages[1].get(), "a"}}); });
+}
+
+TEST_F(PipelineDependencyGraphTest, AlivenessNestedPathDeadChain) {
+    setPipeline("[{$set: {'a.b': 1}}, {$set: {c: '$a.b'}}, {$group: {_id: '$x'}}]");
+    runTest([&] { assertDeadFieldsEq({{stages[0].get(), "a.b"}, {stages[1].get(), "c"}}); });
+}
+
+TEST_F(PipelineDependencyGraphTest, AlivenessInclusionProjectionKeepsUpstreamAlive) {
+    setPipeline("[{$set: {foo: '$x'}}, {$project: {foo: 1}}]");
+    runTest([&] { assertDeadFieldsEq({}); });
+}
+
+TEST_F(PipelineDependencyGraphTest, AlivenessReplaceRootKeepsUpstreamAlive) {
+    setPipeline("[{$set: {foo: 1, user: {a: 1}}}, {$replaceWith: '$user'}]");
+    runTest([&] { assertDeadFieldsEq({{stages[0].get(), "foo"}}); });
+}
+
+TEST_F(PipelineDependencyGraphTest, AlivenessReplaceRootUnobserved) {
+    setPipeline("[{$set: {x: 1}}, {$replaceWith: {a: '$x'}}, {$group: {_id: 1}}]");
+    runTest([&] { assertDeadFieldsEq({{stages[0].get(), "x"}}); });
+}
+
+TEST_F(PipelineDependencyGraphTest, AlivenessDeadChainBlockedByNonSingleDocStage) {
+    setPipeline("[{$set: {bar: 1}}, {$match: {bar: 5}}, {$set: {x: '$bar'}}, {$group: {_id: 1}}]");
+    runTest([&] { assertDeadFieldsEq({{stages[2].get(), "x"}}); });
+}
+
+TEST_F(PipelineDependencyGraphTest, AlivenessFinalScopePreservation) {
+    // foo survives to the pipeline output, so it is alive even though no stage reads it.
+    setPipeline("[{$set: {foo: 1}}]");
+    runTest([&] { assertDeadFieldsEq({}); });
+}
+
+TEST_F(PipelineDependencyGraphTest, AlivenessNestedPath) {
+    setPipeline("[{$set: {'a.b': 1}}, {$group: {_id: '$x'}}]");
+    runTest([&] { assertDeadFieldsEq({{stages[0].get(), "a.b"}}); });
+}
+
+TEST_F(PipelineDependencyGraphTest, AlivenessUnsetReported) {
+    setPipeline("[{$unset: 'foo'}, {$project: {bar: 1}}]");
+    runTest([&] { assertDeadFieldsEq({{stages[0].get(), "foo"}}); });
+}
+
+TEST_F(PipelineDependencyGraphTest, AlivenessExclusionProjectionReported) {
+    setPipeline("[{$project: {foo: 0}}, {$project: {bar: 1}}]");
+    runTest([&] { assertDeadFieldsEq({{stages[0].get(), "foo"}}); });
+}
+
+TEST_F(PipelineDependencyGraphTest, AlivenessUnwindNotReported) {
+    setPipeline("[{$unwind: '$arr'}, {$group: {_id: 1}}]");
+    runTest([&] { assertDeadFieldsEq({}); });
+}
+
+TEST_F(PipelineDependencyGraphTest, AlivenessGroupIdRenameNotReported) {
+    // $group emits the _id rename via kAllExcept, but $group is not a single-document
+    // transformation so we do not report its _id as dead even when it's unused.
+    setPipeline("[{$group: {_id: '$foo'}}, {$project: {bar: 1}}]");
+    runTest([&] { assertDeadFieldsEq({}); });
+}
+
+TEST_F(PipelineDependencyGraphTest, AlivenessReturnsAllDeadAtOnce) {
+    // Two independent dead fields in different stages.
+    setPipeline("[{$set: {foo: 1}}, {$set: {bar: 2}}, {$group: {_id: '$baz'}}]");
+    runTest([&] { assertDeadFieldsEq({{stages[0].get(), "foo"}, {stages[1].get(), "bar"}}); });
+}
+
+TEST_F(PipelineDependencyGraphTest, AlivenessSubpipelineNotAnalyzedAtTopLevel) {
+    // 'deadInner' is written and then dropped by $group inside the sub-pipeline, but the
+    // top-level analysis does not recurse into it.
+    setPipeline(R"([{$lookup: {
+        from: "coll_b",
+        localField: "a",
+        foreignField: "b",
+        as: "docs",
+        let: {},
+        pipeline: [
+            {$set: {deadInner: 1}},
+            {$group: {_id: "$other"}}
+        ]
+    }}])");
+    runTest([&] {
+        assertDeadFieldsEq({});
+
+        const auto* subGraph = graph->getSubpipelineGraph(stages[0].get());
+        ASSERT_NOT_EQUALS(subGraph, nullptr);
+        auto dead = subGraph->getDeadFields();
+        ASSERT_EQ(dead.size(), 1u);
+        ASSERT_EQ(dead[0].path.fullPath(), "deadInner");
+    });
+}
+
+TEST_F(PipelineDependencyGraphTest, AlivenessSubpipelineAliveFieldIsNotReported) {
+    // 'extra' survives to the sub-pipeline's final scope, so it is alive in the sub-graph too.
+    setPipeline(R"([{$lookup: {
+        from: "coll_b",
+        localField: "a",
+        foreignField: "b",
+        as: "docs",
+        let: {},
+        pipeline: [{$set: {extra: 1}}]
+    }}])");
+    runTest([&] {
+        assertDeadFieldsEq({});
+        const auto* subGraph = graph->getSubpipelineGraph(stages[0].get());
+        ASSERT_NOT_EQUALS(subGraph, nullptr);
+        ASSERT_EQ(subGraph->getDeadFields().size(), 0u);
+    });
+}
+
+TEST_F(PipelineDependencyGraphTest, AlivenessRenameFromBaseCollectionFieldAliveIsNotDead) {
+    // Rename whose source is a base-collection field. The target is referenced downstream, so
+    // nothing is dead.
+    setPipeline("[{$set: {bar: '$foo'}}, {$group: {_id: '$bar'}}]");
+    runTest([&] { assertDeadFieldsEq({}); });
+}
+
+TEST_F(PipelineDependencyGraphTest, AlivenessRenameFromBaseCollectionFieldUnreadIsDead) {
+    // Rename whose source is a base-collection field but the target is never referenced.
+    setPipeline("[{$set: {bar: '$foo'}}, {$group: {_id: '$baz'}}]");
+    runTest([&] { assertDeadFieldsEq({{stages[0].get(), "bar"}}); });
+}
+
+TEST_F(PipelineDependencyGraphTest, AlivenessRenameFromExplicitlyMissingFieldIsNotDead) {
+    // After the inclusion projection, every field other than 'x' is known to be missing, so
+    // '$z' resolves to the explicitly-missing field. The rename target is referenced downstream and
+    // must stay alive.
+    setPipeline("[{$project: {x: 1}}, {$set: {y: '$z'}}, {$group: {_id: '$y'}}]");
+    runTest([&] { assertDeadFieldsEq({}); });
+}
+
+TEST_F(PipelineDependencyGraphTest, AlivenessRenameFromExplicitlyMissingFieldIsDead) {
+    // Same as above, but the rename target is unread, so 'y' is reported as dead.
+    setPipeline("[{$project: {x: 1}}, {$set: {y: '$z'}}, {$group: {_id: '$x'}}]");
+    runTest([&] { assertDeadFieldsEq({{stages[1].get(), "y"}}); });
+}
+
+TEST_F(PipelineDependencyGraphTest, AlivenessExpressionWithDepsTargetAlive) {
+    // The expression at the rename target references two upstream fields; the target itself is
+    // referenced by $group, so nothing is dead.
+    setPipeline(
+        "[{$set: {a: 1, b: 2}}, {$set: {c: {$add: ['$a', '$b']}}}, "
+        "{$group: {_id: '$c'}}]");
+    runTest([&] { assertDeadFieldsEq({}); });
+}
+
+TEST_F(PipelineDependencyGraphTest, AlivenessExpressionWithDepsTargetDead) {
+    // 'a' stays alive via $group; 'b' dies with the dead 'c'.
+    setPipeline(
+        "[{$set: {a: 1, b: 2}}, {$set: {c: {$add: ['$a', '$b']}}}, "
+        "{$group: {_id: '$a'}}]");
+    runTest([&] { assertDeadFieldsEq({{stages[0].get(), "b"}, {stages[1].get(), "c"}}); });
+}
+
+TEST_F(PipelineDependencyGraphTest, AlivenessExpressionDepsKeepBaseFieldsAlive) {
+    pathArrayness->addPath("base", {}, false);
+    setPipeline(
+        "[{$set: {a: 1}}, {$set: {c: {$add: ['$a', '$base']}}}, "
+        "{$group: {_id: '$c'}}]");
+    runTest([&] { assertDeadFieldsEq({}); });
+}
+
+TEST_F(PipelineDependencyGraphTest, AlivenessRenameOfRenameTargetAliveKeepsChain) {
+    // 'b' renames 'a' and then 'c' renames 'b'; 'c' is referenced downstream so the whole chain is
+    // alive.
+    pathArrayness->addPath("a", {}, false);
+    setPipeline("[{$set: {b: '$a'}}, {$set: {c: '$b'}}, {$group: {_id: '$c'}}]");
+    runTest([&] { assertDeadFieldsEq({}); });
+}
+
+TEST_F(PipelineDependencyGraphTest, AlivenessRenameOfRenameOnlyMiddleAlive) {
+    // 'b' renames 'a' and 'c' renames 'b'; only 'b' is referenced downstream, so 'c' is dead but
+    // 'b' is alive.
+    pathArrayness->addPath("a", {}, false);
+    setPipeline("[{$set: {b: '$a'}}, {$set: {c: '$b'}}, {$group: {_id: '$b'}}]");
+    runTest([&] { assertDeadFieldsEq({{stages[1].get(), "c"}}); });
+}
+
+TEST_F(PipelineDependencyGraphTest, AlivenessThreeLevelNestedPathDead) {
+    setPipeline("[{$set: {'a.b.c': 1}}, {$group: {_id: '$x'}}]");
+    runTest([&] { assertDeadFieldsEq({{stages[0].get(), "a.b.c"}}); });
+}
+
+TEST_F(PipelineDependencyGraphTest, AlivenessThreeLevelNestedPathAlive) {
+    setPipeline("[{$set: {'a.b.c': 1}}, {$group: {_id: '$a.b.c'}}]");
+    runTest([&] { assertDeadFieldsEq({}); });
+}
+
+TEST_F(PipelineDependencyGraphTest, AlivenessThreeLevelNestedPathSiblingDead) {
+    // 'a.b.c' is referenced, but 'a.b.d' isn't, so the latter is dead.
+    setPipeline("[{$set: {'a.b.c': 1, 'a.b.d': 2}}, {$group: {_id: '$a.b.c'}}]");
+    runTest([&] { assertDeadFieldsEq({{stages[0].get(), "a.b.d"}}); });
 }
 
 }  // namespace

@@ -34,8 +34,8 @@ export function concreteQueryFromFamily(queryShape, leafId) {
     return queryShape;
 }
 
-function createColl(db, coll, isTS = false) {
-    const args = isTS ? {timeseries: {timeField: "t", metaField: "m"}} : {};
+function createColl(db, coll, isTS, metaField) {
+    const args = isTS ? {timeseries: {timeField: "t", metaField}} : {};
     assert.commandWorked(db.createCollection(coll.getName(), args));
 }
 
@@ -102,9 +102,9 @@ function runProperty(propertyFn, namespaces, workload, sortArrays) {
     let {collSpec, foreignCollSpec, queries, extraParams} = workload;
     const {controlColl, experimentColl, foreignControlColl, foreignExperimentColl} = namespaces;
 
-    function setUpCollection({collection, docs, isTS = false, indexes = []}) {
+    function setUpCollection({collection, docs, isTS = false, metaField = "m", indexes = []}) {
         assertDropCollection(collection.getDB(), collection.getName());
-        createColl(collection.getDB(), collection, isTS);
+        createColl(collection.getDB(), collection, isTS, metaField);
         assert.commandWorked(collection.insert(docs));
         createIndexesForPBT(collection, indexes);
     }
@@ -115,6 +115,7 @@ function runProperty(propertyFn, namespaces, workload, sortArrays) {
         collection: experimentColl,
         docs: collSpec.docs,
         isTS: collSpec.isTS,
+        metaField: collSpec.metaField,
         indexes: collSpec.indexes,
     });
 
@@ -131,6 +132,7 @@ function runProperty(propertyFn, namespaces, workload, sortArrays) {
             collection: foreignExperimentColl,
             docs: foreignCollSpec.docs,
             isTS: foreignCollSpec.isTS,
+            metaField: foreignCollSpec.metaField,
             indexes: foreignCollSpec.indexes,
         });
     }
@@ -147,6 +149,8 @@ function runProperty(propertyFn, namespaces, workload, sortArrays) {
         comp: _resultSetsEqualUnordered,
         // Comparator that sorts arrays within documents before comparing results.
         compSortArrays: _resultSetsEqualUnorderedWithUnorderedArrays,
+        // Comparator that also normalizes numeric values and sorts arrays.
+        compNormalized: _resultSetsEqualNormalized,
         numQueryShapes: queries.length,
         leafParametersPerFamily,
     };
@@ -189,9 +193,16 @@ function reporter(propertyFn, namespaces) {
  * failure, `runProperty` is called again in the reporter, and prints out more details about the
  * failed property.
  */
-export function testProperty(propertyFn, namespaces, workloadModel, numRuns, examples) {
+export function testProperty(propertyFn, namespaces, workloadModel, numRuns, examples, counterexamplePath) {
     assert.eq(typeof propertyFn, "function");
     assert.eq(typeof numRuns, "number");
+
+    if (counterexamplePath) {
+        jsTest.log.warning(
+            "PBT is not running fully — replaying a single counterexample path. " +
+                "Remove the counterexamplePath argument to run the full property test.",
+        );
+    }
 
     const isValidNamespaceKey = (collName) => {
         switch (collName) {
@@ -251,7 +262,13 @@ export function testProperty(propertyFn, namespaces, workloadModel, numRuns, exa
             // `runProperty` is called again and more details are exposed.
             return result.passed;
         }),
-        {seed, numRuns, reporter: reporter(propertyFn, namespaces), examples},
+        {
+            seed,
+            numRuns,
+            reporter: reporter(propertyFn, namespaces),
+            examples,
+            ...(counterexamplePath && {path: counterexamplePath}),
+        },
     );
 }
 
@@ -303,7 +320,10 @@ export function runDeoptimized(controlColl, queries) {
     try {
         return queries.map((query) => {
             assert(Array.isArray(query.pipeline) && typeof query.options === "object");
-            return controlColl.aggregate(unoptimize(query.pipeline), query.options).toArray();
+            // Strip any hint: the control collection has no indexes, so a hint referencing an
+            // experiment-only index would cause "hint does not correspond to an existing index".
+            const {hint: _hint, ...controlOptions} = query.options;
+            return controlColl.aggregate(unoptimize(query.pipeline), controlOptions).toArray();
         });
     } finally {
         assert.commandWorked(

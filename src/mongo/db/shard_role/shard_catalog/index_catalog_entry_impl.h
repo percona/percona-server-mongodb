@@ -90,13 +90,11 @@ public:
 
     void setAccessMethod(std::unique_ptr<IndexAccessMethod> accessMethod) final;
 
-    bool sideWritesAllowed() const final;
-
-    IndexBuildInterceptor* indexBuildInterceptor() const final {
-        return _indexBuildInterceptor;
+    std::shared_ptr<IndexBuildInterceptor> indexBuildInterceptor() const final {
+        return _indexBuildInterceptor.lock();
     }
 
-    void setIndexBuildInterceptor(IndexBuildInterceptor* interceptor) final {
+    void setIndexBuildInterceptor(std::shared_ptr<IndexBuildInterceptor> interceptor) final {
         _indexBuildInterceptor = interceptor;
     }
 
@@ -167,6 +165,7 @@ public:
      */
     void setMultikeyForApplyOps(OperationContext* opCtx,
                                 const CollectionPtr& coll,
+                                const KeyStringSet& multikeyMetadataKeys,
                                 const MultikeyPaths& multikeyPaths) const final;
 
     void forceSetMultikey(OperationContext* opCtx,
@@ -199,7 +198,9 @@ private:
      */
     Status _setMultikeyInMultiDocumentTransaction(OperationContext* opCtx,
                                                   const CollectionPtr& collection,
-                                                  const MultikeyPaths& multikeyPaths) const;
+                                                  const KeyStringSet& multikeyMetadataKeys,
+                                                  const MultikeyPaths& multikeyPaths,
+                                                  bool replicateMultikeyness) const;
 
     /**
      * Retrieves the multikey information associated with this index from '_collection',
@@ -241,7 +242,7 @@ private:
         UpdateIndexData _indexedPaths;
     };
 
-    IndexBuildInterceptor* _indexBuildInterceptor = nullptr;  // not owned here
+    std::weak_ptr<IndexBuildInterceptor> _indexBuildInterceptor;
 
     boost::intrusive_ptr<SharedState> _shared;
 

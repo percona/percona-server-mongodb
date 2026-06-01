@@ -49,6 +49,7 @@
 #include "mongo/db/global_catalog/ddl/drop_database_coordinator.h"
 #include "mongo/db/global_catalog/ddl/drop_indexes_coordinator.h"
 #include "mongo/db/global_catalog/ddl/initialize_placement_history_coordinator.h"
+#include "mongo/db/global_catalog/ddl/merge_all_chunks_coordinator.h"
 #include "mongo/db/global_catalog/ddl/merge_chunks_coordinator.h"
 #include "mongo/db/global_catalog/ddl/migration_blocking_operation_coordinator.h"
 #include "mongo/db/global_catalog/ddl/move_primary_coordinator.h"
@@ -56,11 +57,13 @@
 #include "mongo/db/global_catalog/ddl/rename_collection_coordinator.h"
 #include "mongo/db/global_catalog/ddl/set_allow_migrations_coordinator.h"
 #include "mongo/db/global_catalog/ddl/sharding_coordinator.h"
+#include "mongo/db/global_catalog/ddl/sharding_ddl_util.h"
 #include "mongo/db/global_catalog/ddl/split_chunk_coordinator.h"
 #include "mongo/db/global_catalog/ddl/timeseries_upgrade_downgrade_coordinator.h"
 #include "mongo/db/global_catalog/ddl/untrack_unsplittable_collection_coordinator.h"
 #include "mongo/db/pipeline/aggregate_command_gen.h"
 #include "mongo/db/s/forwardable_operation_metadata.h"
+#include "mongo/db/s/move_range_coordinator.h"
 #include "mongo/db/s/resharding/reshard_collection_coordinator.h"
 #include "mongo/db/shard_role/shard_catalog/operation_sharding_state.h"
 #include "mongo/db/sharding_environment/sharding_feature_flags_gen.h"
@@ -134,7 +137,9 @@ constexpr std::pair<CoordinatorTypeEnum,
         {CoordinatorTypeEnum::kTimeseriesUpgradeDowngrade,
          typedInstance<TimeseriesUpgradeDowngradeCoordinator>},
         {CoordinatorTypeEnum::kMergeChunks, typedInstance<MergeChunksCoordinator>},
+        {CoordinatorTypeEnum::kMergeAllChunks, typedInstance<MergeAllChunksCoordinator>},
         {CoordinatorTypeEnum::kSplitChunk, typedInstance<SplitChunkCoordinator>},
+        {CoordinatorTypeEnum::kMoveRange, typedInstance<MoveRangeCoordinator>},
         {CoordinatorTypeEnum::kTestCoordinator, noInstance},
     };
 
@@ -432,6 +437,9 @@ ShardingCoordinatorService::getOrCreateInstance(OperationContext* opCtx,
     coorMetadata.setDatabaseVersion(
         OperationShardingState::get(opCtx).getDbVersion(coorMetadata.getId().getNss().dbName()));
     coorMetadata.setForwardableOpMetadata(forwardableOpMetadata);
+    coorMetadata.setAuthoritativeMetadataAccessLevel(
+        sharding_ddl_util::getGrantedAuthoritativeMetadataAccessLevel(
+            VersionContext::getDecoration(opCtx), fcvRegion->acquireFCVSnapshot()));
     const auto patchedCoorDoc = coorDoc.addFields(coorMetadata.toBSON());
 
     auto [coordinator, created] = [&] {

@@ -63,8 +63,8 @@ REGISTER_DOCUMENT_SOURCE_WITH_STAGE_PARAMS_DEFAULT(group, DocumentSourceGroup, G
 
 ALLOCATE_DOCUMENT_SOURCE_ID(group, DocumentSourceGroup::id)
 
-const char* DocumentSourceGroup::getSourceName() const {
-    return kStageName.data();
+StringData DocumentSourceGroup::getSourceName() const {
+    return kStageName;
 }
 
 boost::intrusive_ptr<DocumentSourceGroup> DocumentSourceGroup::create(
@@ -228,7 +228,7 @@ bool DocumentSourceGroup::tryToAbsorbTopKSort(DocumentSourceSort* prospectiveSor
         return false;
     }
 
-    auto sortPattern = prospectiveSort->getSortPattern();
+    const auto sortPattern = prospectiveSort->getSortPattern();
     // Does not support sort by meta field(s).
     for (auto&& sortPatternPart : sortPattern) {
         if (sortPatternPart.expression) {

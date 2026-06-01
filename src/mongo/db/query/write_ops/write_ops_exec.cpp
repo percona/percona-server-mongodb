@@ -71,11 +71,14 @@
 #include "mongo/db/query/plan_explainer.h"
 #include "mongo/db/query/plan_summary_stats.h"
 #include "mongo/db/query/plan_yield_policy.h"
+#include "mongo/db/query/query_feature_flags_gen.h"
+#include "mongo/db/query/query_shape/delete_cmd_shape.h"
 #include "mongo/db/query/query_shape/insert_cmd_shape.h"
 #include "mongo/db/query/query_shape/query_shape.h"
 #include "mongo/db/query/query_shape/query_shape_hash.h"
 #include "mongo/db/query/query_shape/shape_helpers.h"
 #include "mongo/db/query/query_shape/update_cmd_shape.h"
+#include "mongo/db/query/query_stats/delete_key.h"
 #include "mongo/db/query/query_stats/insert_key.h"
 #include "mongo/db/query/query_stats/query_stats.h"
 #include "mongo/db/query/query_stats/update_key.h"
@@ -84,6 +87,7 @@
 #include "mongo/db/query/write_ops/canonical_update.h"
 #include "mongo/db/query/write_ops/delete_request_gen.h"
 #include "mongo/db/query/write_ops/insert.h"
+#include "mongo/db/query/write_ops/parsed_delete.h"
 #include "mongo/db/query/write_ops/parsed_update.h"
 #include "mongo/db/query/write_ops/update_request.h"
 #include "mongo/db/query/write_ops/write_ops.h"
@@ -563,7 +567,28 @@ inline boost::optional<query_shape::DeferredQueryShape> computeInsertQueryShape(
 }
 
 /**
- * Computes the insert query shape and registers it with the query stats store.
+ * Stores the query shape hash for the insert command in CurOp so that it is reported in slow
+ * query logs. Mirrors storeQueryShapeHash() for updates, but uses the OperationContext overload
+ * of shape_helpers::computeQueryShapeHash (insert has no ExpressionContext; IDHACK and Express does
+ * not apply, and FLE is already screened earlier via wholeOp.getEncryptionInformation()). Internal
+ * clients are included (skipInternalClientCheck = true) so that sharded cluster writes still
+ * record the hash on the shard side.
+ * TODO SERVER-127269 Remove duplicated code in computing query shapes for inserts, deletes, and
+ * updates.
+ */
+inline void storeInsertQueryShapeHash(OperationContext* opCtx,
+                                      const write_ops::InsertCommandRequest& wholeOp,
+                                      const query_shape::DeferredQueryShape& deferredShape) {
+    std::ignore = CurOp::get(opCtx)->debug().ensureQueryShapeHash(
+        opCtx, [&]() -> boost::optional<query_shape::QueryShapeHash> {
+            return shape_helpers::computeQueryShapeHash(
+                opCtx, deferredShape, wholeOp.getNamespace(), true /*skipInternalClientCheck*/);
+        });
+}
+
+/**
+ * Computes the insert query shape, records its hash in CurOp (for slow query logs), and
+ * registers it with the query stats store.
  */
 void computeInsertShapeAndRegisterQueryStats(OperationContext* opCtx,
                                              const write_ops::InsertCommandRequest& wholeOp,
@@ -573,11 +598,81 @@ void computeInsertShapeAndRegisterQueryStats(OperationContext* opCtx,
         return;
     }
     const auto& deferredShape = maybeDeferredShape.get();
+
+    storeInsertQueryShapeHash(opCtx, wholeOp, deferredShape);
+
     query_stats::registerWriteRequest(opCtx, wholeOp.getNamespace(), [&]() {
         uassertStatusOKWithContext(deferredShape->getStatus(),
                                    "Failed to compute insert query shape");
         return std::make_unique<query_stats::InsertKey>(
             opCtx, wholeOp, std::move(deferredShape->getValue()), collType);
+    });
+}
+
+inline boost::optional<query_shape::DeferredQueryShape> computeDeleteQueryShape(
+    OperationContext* opCtx,
+    const boost::intrusive_ptr<ExpressionContext>& expCtx,
+    const write_ops::DeleteCommandRequest& wholeOp,
+    const ParsedDelete& parsedDelete) {
+    if (!feature_flags::gFeatureFlagQueryStatsDelete.isEnabledUseLastLTSFCVWhenUninitialized(
+            VersionContext::getDecoration(opCtx),
+            serverGlobalParams.featureCompatibility.acquireFCVSnapshot())) {
+        return boost::none;
+    }
+
+    if (wholeOp.getEncryptionInformation()) {
+        return boost::none;
+    }
+
+    query_shape::DeferredQueryShape deferredShape{[&]() {
+        return shape_helpers::tryMakeShape<query_shape::DeleteCmdShape>(
+            wholeOp, parsedDelete, expCtx);
+    }};
+
+    return deferredShape;
+}
+
+inline void storeDeleteQueryShapeHash(OperationContext* opCtx,
+                                      const boost::intrusive_ptr<ExpressionContext>& expCtx,
+                                      const write_ops::DeleteCommandRequest& wholeOp,
+                                      const ParsedDelete& parsedDelete,
+                                      const query_shape::DeferredQueryShape& deferredShape) {
+    std::ignore = CurOp::get(opCtx)->debug().ensureQueryShapeHash(
+        opCtx, [&]() -> boost::optional<query_shape::QueryShapeHash> {
+            // TODO (SERVER-102484): Provide fast path QueryShape and QueryShapeHash computation for
+            // Express queries.
+            if (!parsedDelete.hasParsedFindCommand()) {
+                return boost::none;
+            }
+            return shape_helpers::computeQueryShapeHash(
+                expCtx, deferredShape, wholeOp.getNamespace(), true /*skipInternalClientCheck*/);
+        });
+}
+
+void computeShapeAndMaybeRegisterDeleteQueryStats(
+    OperationContext* opCtx,
+    const boost::intrusive_ptr<ExpressionContext>& expCtx,
+    const CollectionAcquisition& collection,
+    const write_ops::DeleteCommandRequest& wholeOp,
+    const ParsedDelete& parsedDelete) {
+    const boost::optional<query_shape::DeferredQueryShape>& maybeDeferredShape =
+        computeDeleteQueryShape(opCtx, expCtx, wholeOp, parsedDelete);
+
+    if (!maybeDeferredShape) {
+        return;
+    }
+
+    const auto& deferredShape = maybeDeferredShape.get();
+    storeDeleteQueryShapeHash(opCtx, expCtx, wholeOp, parsedDelete, deferredShape);
+
+    query_stats::registerWriteRequest(opCtx, wholeOp.getNamespace(), [&]() {
+        uassertStatusOKWithContext(deferredShape->getStatus(),
+                                   "Failed to compute delete query shape");
+        return std::make_unique<query_stats::DeleteKey>(expCtx,
+                                                        wholeOp,
+                                                        parsedDelete.getRequest()->getHint(),
+                                                        std::move(deferredShape->getValue()),
+                                                        collection.getCollectionType());
     });
 }
 
@@ -735,7 +830,6 @@ bool insertBatchAndHandleErrors(OperationContext* opCtx,
 
         curOp.raiseDbProfileLevel(DatabaseProfileSettings::get(opCtx->getServiceContext())
                                       .getDatabaseProfileLevel(nss.dbName()));
-        assertCanWrite_inlock(opCtx, collection->nss());
 
         CurOpFailpointHelpers::waitWhileFailPointEnabled(
             &hangWithLockDuringBatchInsert, opCtx, "hangWithLockDuringBatchInsert");
@@ -930,8 +1024,6 @@ UpdateResult performUpdate(OperationContext* opCtx,
             DatabaseHolder::get(opCtx)->getDb(opCtx, dbName));
     curOp->raiseDbProfileLevel(
         DatabaseProfileSettings::get(opCtx->getServiceContext()).getDatabaseProfileLevel(dbName));
-
-    assertCanWrite_inlock(opCtx, nsString);
 
     if (!remove && collection.exists() &&
         collection.getCollectionPtr()->getRecordStore()->isColdCollection()) {
@@ -1152,8 +1244,6 @@ long long performDelete(OperationContext* opCtx,
         curOp->raiseDbProfileLevel(DatabaseProfileSettings::get(opCtx->getServiceContext())
                                        .getDatabaseProfileLevel(dbName));
     }
-
-    assertCanWrite_inlock(opCtx, nsString);
 
     const auto exec = uassertStatusOK(
         getExecutorDelete(&curOp->debug(), collection, canonicalDelete, boost::none /* verbosity
@@ -1409,20 +1499,19 @@ WriteResult performInserts(
     const bool bypassEmptyTsReplacement = (source == OperationSource::kFromMigrate) ||
         static_cast<bool>(wholeOp.getBypassEmptyTsReplacement());
 
-    // Register query stats once before the batch loop. We read the collection type from
-    // 'preConditions' rather than calling acquireCollection(MODE_IS). This avoids lock acquisition.
+    // If the router requested insert metrics, mark the CurOp so that end-of-op metrics are
+    // captured and returned in the response.
+    if (wholeOp.getIncludeQueryStatsMetrics()) {
+        curOp.debug().getQueryStatsInfo().metricsRequested = true;
+    }
+
+    // Register query stats once before the batch loop.
+    // we read from 'preConditions' rather than calling acquireCollection(MODE_IS) to avoid
+    // lock acquisition on the hot path.
     if (source != OperationSource::kTimeseriesInsert) {
-        query_shape::CollectionType collType;
-        if (!preConditions.exists()) {
-            collType = query_shape::CollectionType::kNonExistent;
-        } else if (preConditions.isTimeseriesCollection()) {
-            collType = query_shape::CollectionType::kTimeseries;
-        } else {
-            collType = query_shape::CollectionType::kCollection;
-        }
-        tassert(12205200,
-                "Expected collType to be set to a known value before registering query stats",
-                collType != query_shape::CollectionType::kUnknown);
+        const query_shape::CollectionType collType = preConditions.isTimeseriesCollection()
+            ? query_shape::CollectionType::kTimeseries
+            : query_shape::CollectionType::kCollection;
         computeInsertShapeAndRegisterQueryStats(opCtx, wholeOp, collType);
     }
 
@@ -1511,6 +1600,17 @@ WriteResult performInserts(
         }
     }
     tassert(11052014, "Expected empty batch", batch.empty());
+
+    // Collect query stats for the insert operation if a QueryStats key was registered.
+    if (source != OperationSource::kTimeseriesInsert) {
+        auto key = std::move(curOp.debug().getQueryStatsInfo().key);
+        if (key || curOp.debug().getQueryStatsInfo().metricsRequested) {
+            curOp.setEndOfOpMetrics(0 /* no documents returned */);
+        }
+        if (key) {
+            collectQueryStatsMongod(opCtx, nullptr, std::move(key));
+        }
+    }
 
     return out;
 }
@@ -1739,8 +1839,6 @@ static SingleWriteResult performSingleUpdateOp(
         curOp.raiseDbProfileLevel(DatabaseProfileSettings::get(opCtx->getServiceContext())
                                       .getDatabaseProfileLevel(ns.dbName()));
     }
-
-    assertCanWrite_inlock(opCtx, collection.nss());
 
     // No need to call writeConflictRetry() since it does not retry if in a transaction,
     // but calling it can cause WCE to be double counted.
@@ -2154,7 +2252,8 @@ static SingleWriteResult performSingleDeleteOp(
     const LegacyRuntimeConstants& runtimeConstants,
     const boost::optional<BSONObj>& letParams,
     const timeseries::CollectionPreConditions& preConditions,
-    OperationSource source) {
+    OperationSource source,
+    const write_ops::DeleteCommandRequest& wholeOp) {
     uassert(ErrorCodes::InvalidOptions,
             "Cannot use (or request) retryable writes with limit=0",
             !opCtx->isRetryableWrite() || !op.getMulti() || stmtId == kUninitializedStmtId);
@@ -2219,8 +2318,30 @@ static SingleWriteResult performSingleDeleteOp(
                                                              &request);
     }
 
-    auto canonicalDelete = uassertStatusOK(CanonicalDelete::makeFromRequest(
-        opCtx, collection.getCollectionPtr(), request, isRequestToTimeseries));
+    auto [collatorToUse, collationMatchesDefault] =
+        resolveCollator(opCtx, request.getCollation(), collection.getCollectionPtr());
+
+    // TODO SERVER-120999 decide if we should add 'requiresTimeseriesExtendedRangeSupport'
+    auto expCtx = ExpressionContextBuilder{}
+                      .fromRequest(opCtx, request)
+                      .collator(std::move(collatorToUse))
+                      .collationMatchesDefault(collationMatchesDefault)
+                      .build();
+
+    auto parsedDelete = uassertStatusOK(parsed_delete_command::parse(
+        expCtx,
+        &request,
+        makeExtensionsCallback<ExtensionsCallbackReal>(opCtx, &request.getNsString())));
+
+    // Register query shape here once we have a parsed delete, before executing the delete command.
+    // TODO SERVER-120999 Enable query stats for timeseries deletes.
+    if (!isRequestToTimeseries) {
+        computeShapeAndMaybeRegisterDeleteQueryStats(
+            opCtx, expCtx, collection, wholeOp, parsedDelete);
+    }
+
+    auto canonicalDelete = uassertStatusOK(CanonicalDelete::make(
+        expCtx, std::move(parsedDelete), collection.getCollectionPtr(), isRequestToTimeseries));
 
     // Create an RAII object that prints useful information about the ExpressionContext in the case
     // of a tassert or crash.
@@ -2239,8 +2360,6 @@ static SingleWriteResult performSingleDeleteOp(
         curOp.raiseDbProfileLevel(DatabaseProfileSettings::get(opCtx->getServiceContext())
                                       .getDatabaseProfileLevel(ns.dbName()));
     }
-
-    assertCanWrite_inlock(opCtx, collection.nss());
 
     CurOpFailpointHelpers::waitWhileFailPointEnabled(
         &hangWithLockDuringBatchRemove, opCtx, "hangWithLockDuringBatchRemove");
@@ -2385,7 +2504,8 @@ WriteResult performDeletes(
                                                                     runtimeConstants,
                                                                     wholeOp.getLet(),
                                                                     preConditions,
-                                                                    source);
+                                                                    source,
+                                                                    wholeOp);
             out.results.push_back(reply);
             lastOpFixer.finishedOpSuccessfully();
 

@@ -36,8 +36,10 @@
 #include "mongo/db/pipeline/document_source_single_document_transformation.h"
 #include "mongo/db/pipeline/pipeline.h"
 #include "mongo/db/query/compiler/dependency_analysis/document_transformation_helpers.h"
+#include "mongo/util/dynamic_bitset.h"
 #include "mongo/util/string_map.h"
 
+#include <algorithm>
 #include <utility>
 #include <vector>
 
@@ -537,6 +539,28 @@ struct CanPathBeArrayForNss {
 };
 }  // namespace
 
+namespace {
+/// RAII helper that appends a dotted path component to 'buf' on construction and restores
+/// 'buf' to its prior length on destruction. Modeled after FieldRef::FieldRefTempAppend.
+class ScopedPathComponent {
+public:
+    ScopedPathComponent(std::string& buf, StringData component) : _buf(buf), _prevLen(buf.size()) {
+        if (!_buf.empty()) {
+            _buf.push_back('.');
+        }
+        _buf.append(component.data(), component.size());
+    }
+
+    ~ScopedPathComponent() {
+        _buf.resize(_prevLen);
+    }
+
+private:
+    std::string& _buf;
+    size_t _prevLen;
+};
+}  // namespace
+
 class DependencyGraph::Impl {
 public:
     explicit Impl(const DocumentSourceContainer& container,
@@ -546,7 +570,7 @@ public:
         grow(endIt);
     }
 
-    boost::intrusive_ptr<mongo::DocumentSource> getDeclaringStage(DocumentSource* ds,
+    boost::intrusive_ptr<mongo::DocumentSource> getDeclaringStage(const DocumentSource* ds,
                                                                   PathRef path) const {
         auto stageId = getPreviousStageId(ds);
         if (!stageId) {
@@ -565,7 +589,7 @@ public:
         return nullptr;
     }
 
-    DeclaringStageResult getDeclaringStageIncludingSubpipelines(DocumentSource* ds,
+    DeclaringStageResult getDeclaringStageIncludingSubpipelines(const DocumentSource* ds,
                                                                 PathRef path) const {
         auto stageId = getPreviousStageId(ds);
         if (!stageId) {
@@ -586,8 +610,8 @@ public:
             if (auto* subGraph = _stages[declaringStageId].subpipelineGraph) {
                 auto suffixPath = skipPathComponents(path, prefix.size() + 1);
                 if (!suffixPath.empty()) {
-                    auto result =
-                        subGraph->getDeclaringStageIncludingSubpipelines(nullptr, suffixPath);
+                    auto result = subGraph->getDeclaringStageIncludingSubpipelines_forTest(
+                        nullptr, suffixPath);
                     result.srcStages.insert(result.srcStages.begin(),
                                             _stages[declaringStageId].documentSource);
                     result.fromSubpipeline = true;
@@ -599,7 +623,7 @@ public:
         return {{getDeclaringStage(ds, path)}};
     }
 
-    bool canPathBeArray(DocumentSource* ds, PathRef path) const {
+    bool canPathBeArray(const DocumentSource* ds, PathRef path) const {
         auto stageId = getPreviousStageId(ds);
         if (!stageId) {
             // Empty pipeline - all paths come from the base collection.
@@ -663,7 +687,7 @@ public:
         MONGO_UNREACHABLE_TASSERT(12266805);
     }
 
-    boost::optional<Value> getConstant(DocumentSource* ds, PathRef path) const {
+    boost::optional<Value> getConstant(const DocumentSource* ds, PathRef path) const {
         auto stageId = getPreviousStageId(ds);
         if (!stageId) {
             return boost::none;
@@ -707,7 +731,7 @@ public:
         MONGO_UNREACHABLE_TASSERT(11939201);
     }
 
-    const DependencyGraph* getSubpipelineGraph(DocumentSource* ds) const {
+    const DependencyGraph* getSubpipelineGraph(const DocumentSource* ds) const {
         auto stageId = getStageId(ds);
         return _stages[stageId].subpipelineGraph;
     }
@@ -753,13 +777,139 @@ public:
 
     BSONObj toBSON() const;
 
+    /// Implements DependencyGraph::getDeadFields. Sub-pipelines are not analyzed here.
+    void collectDeadFields(std::vector<DeadField>& out) const {
+        if (_stages.empty()) {
+            return;
+        }
+        auto alive = computeAliveFields();
+        std::string pathBuf;
+        for (StageId stageId{0}; stageId < _stages.getNextId(); stageId.value++) {
+            if (const auto& stage = _stages[stageId]; stage.isSingleDocumentTransformation) {
+                walkPotentiallyDeadFields(stage.scope, alive, pathBuf, out);
+            }
+        }
+    }
+
 private:
     using ParsedPath = boost::container::small_vector<StringPool::Id, 8>;
     using ParsedPathView = std::span<StringPool::Id>;
     using FieldList = boost::container::small_vector<FieldId, 8>;
+    using Bitset = DynamicBitset<size_t, 1>;
 
     class Serializer;
 
+    /**
+     * Returns a bitset of FieldIds whose value is needed downstream: present in some stage's
+     * dependencies, surviving in the pipeline's final output scope, or transitively required
+     * by another alive field's dependencies.
+     *
+     * Deadness is transitive: single-document transformation stages (e.g. $set, $project, $unset,
+     * $replaceWith) contribute only their per-field dependencies, propagated when one of their
+     * declared fields is shown to be needed downstream. A chain of such stages whose final output
+     * is unused is therefore considered dead.
+     */
+    Bitset computeAliveFields() const {
+        Bitset alive(_fields.size());
+        if (_stages.empty()) {
+            return alive;
+        }
+
+        std::vector<FieldId> worklist;
+        auto markAlive = [&](FieldId fieldId) {
+            if (fieldId && !alive.test(fieldId.value)) {
+                alive.set(fieldId.value);
+                worklist.push_back(fieldId);
+            }
+        };
+        auto markAllScopeFieldsAlive = [&](ScopeId scopeId) {
+            if (scopeId) {
+                for (auto&& [name, fieldId] : _scopes[scopeId].fields) {
+                    markAlive(fieldId);
+                }
+                // The 'missing' field is always alive.
+                markAlive(_scopes[scopeId].missingField);
+            }
+        };
+        // A 'whole document' dependency covers every field visible at the stage's input, which is
+        // the scope produced by the previous stage. For the first stage that is the base document,
+        // but base-document fields are not represented in the graph, so there is nothing to mark.
+        auto markPredecessorScopeAlive = [&](StageId scopeId) {
+            if (scopeId > StageId(0)) {
+                StageId prevStage{scopeId.value - 1};
+                markAllScopeFieldsAlive(_stages[prevStage].scope);
+            }
+        };
+        auto markDependenciesAlive = [&](const FieldDependencies& deps, StageId scopeId) {
+            if (deps.dependsOnWholeDocument()) {
+                markPredecessorScopeAlive(scopeId);
+            } else {
+                for (FieldId dep : deps) {
+                    markAlive(dep);
+                }
+            }
+        };
+
+        // Eagerly mark the stage-level dependencies of stages that are always alive. We currently
+        // consider everything except single doc transformation stages to be always alive.
+        for (StageId stageId{0}; stageId.value < static_cast<int32_t>(_stages.size());
+             stageId.value++) {
+            if (!_stages[stageId].isSingleDocumentTransformation) {
+                markDependenciesAlive(_stages[stageId].dependencies, stageId);
+            }
+        }
+        markAllScopeFieldsAlive(_stages.back().scope);
+
+        // Walk the dependency graph depth-first: pop the most recently marked field and propagate
+        // its per-field dependencies. Stage-level dependencies of the remaining stages were already
+        // marked above.
+        while (!worklist.empty()) {
+            FieldId aliveField = worklist.back();
+            worklist.pop_back();
+            const auto& field = _fields[aliveField];
+            const StageId stageId = _scopes[field.declaringScope].stage;
+            markDependenciesAlive(field.dependencies, stageId);
+        }
+        return alive;
+    }
+
+    /// Emits a DeadField for each leaf field newly declared by the stage that owns 'scopeId' (or
+    /// any of its embedded scopes) and is not in 'alive'. The 'pathBuf' parameter is reused across
+    /// recursive calls to avoid reallocating the string buffer separately for each field.
+    void walkPotentiallyDeadFields(ScopeId scopeId,
+                                   const Bitset& alive,
+                                   std::string& pathBuf,
+                                   std::vector<DeadField>& out) const {
+        const StageId stageId = _scopes[scopeId].stage;
+        for (auto&& [nameId, fieldId] : _scopes[scopeId].fields) {
+            if (!fieldId) {
+                continue;
+            }
+
+            const auto& field = _fields[fieldId];
+            if (_scopes[field.declaringScope].stage != stageId) {
+                continue;
+            }
+
+            const bool hasOwnEmbeddedScope = field.embeddedScope != ScopeId::none() &&
+                _scopes[field.embeddedScope].stage == stageId;
+            const bool isDead = !hasOwnEmbeddedScope && !alive.test(fieldId.value);
+            if (!isDead && !hasOwnEmbeddedScope) {
+                continue;
+            }
+
+            ScopedPathComponent component{pathBuf, _strings.get(nameId)};
+            if (isDead) {
+                out.push_back(DeadField{_stages[stageId].documentSource,
+                                        FieldPath{pathBuf,
+                                                  /*precomputeHashes*/ false,
+                                                  /*validateFieldNames*/ false}});
+            }
+            if (hasOwnEmbeddedScope) {
+                walkPotentiallyDeadFields(field.embeddedScope, alive, pathBuf, out);
+            }
+        }
+    }
 
     /**
      * Declares a scope (or embedded scope), which is defined by the given state and
@@ -1217,7 +1367,7 @@ private:
     /**
      * Gets the stage node that represents the given DocumentSource in the graph.
      */
-    StageId getStageId(DocumentSource* ds) const {
+    StageId getStageId(const DocumentSource* ds) const {
         if (!ds) {
             return _stages.getLastId();
         }
@@ -1232,7 +1382,7 @@ private:
      * Gets the stage node that represents the stage before the given DocumentSource in the graph. A
      * nullptr denotes the position after last stage.
      */
-    StageId getPreviousStageId(DocumentSource* ds) const {
+    StageId getPreviousStageId(const DocumentSource* ds) const {
         auto stageId = getStageId(ds);
         if (ds) {
             if (stageId == StageId{0}) {
@@ -1291,9 +1441,14 @@ private:
                     // field not explicitly added is truly missing. Otherwise (e.g. $replaceRoot
                     // with expression), unknown fields may still exist.
                     declareScope(stage, scopeId /*exhaustiveScope*/, ScopeId::none());
+                    auto& missingField = _fields[_scopes[scopeId].missingField];
                     if (op.isEmpty()) {
-                        auto& missingField = _fields[_scopes[scopeId].missingField];
                         updateMetadataForMissingValue(missingField.metadata);
+                    } else if (ds.isSingleDocumentTransformation()) {
+                        // The new root is produced entirely by the stage's expression and the stage
+                        // emits no per-field operations (e.g. $replaceWith only emits ReplaceRoot).
+                        // Attach the expression's dependencies to the missing field.
+                        missingField.dependencies = depsFromStage;
                     }
                     tassert(
                         11996201, "Did not expect ReplaceRoot in this position", !hasDeclaredScope);
@@ -1690,7 +1845,6 @@ private:
         absl::erase_if(_constants,
                        [invalidField](const auto& entry) { return entry.first >= invalidField; });
 
-
         // Clean up for invalidated stages.
         size_t subpipelinesToRemove = 0;
         for (auto sid = invalidStage; sid < _stages.getNextId(); sid.value++) {
@@ -1791,29 +1945,30 @@ DependencyGraph::~DependencyGraph() = default;
 DependencyGraph::DependencyGraph(DependencyGraph&&) noexcept = default;
 DependencyGraph& DependencyGraph::operator=(DependencyGraph&&) noexcept = default;
 
-boost::intrusive_ptr<mongo::DocumentSource> DependencyGraph::getDeclaringStage(DocumentSource* ds,
-                                                                               PathRef path) const {
+boost::intrusive_ptr<mongo::DocumentSource> DependencyGraph::getDeclaringStage_forTest(
+    const DocumentSource* ds, PathRef path) const {
     return _impl->getDeclaringStage(ds, path);
 }
 
-DeclaringStageResult DependencyGraph::getDeclaringStageIncludingSubpipelines(DocumentSource* ds,
-                                                                             PathRef path) const {
+DeclaringStageResult DependencyGraph::getDeclaringStageIncludingSubpipelines_forTest(
+    const DocumentSource* ds, PathRef path) const {
     return _impl->getDeclaringStageIncludingSubpipelines(ds, path);
 }
 
-bool DependencyGraph::canPathBeArray(DocumentSource* ds, PathRef path) const {
+bool DependencyGraph::canPathBeArray(const DocumentSource* ds, PathRef path) const {
     return _impl->canPathBeArray(ds, path);
 }
 
-boost::optional<Value> DependencyGraph::getConstant(DocumentSource* ds, PathRef path) const {
+boost::optional<Value> DependencyGraph::getConstant(const DocumentSource* ds, PathRef path) const {
     return _impl->getConstant(ds, path);
 }
 
-const DependencyGraph* DependencyGraph::getSubpipelineGraph(DocumentSource* ds) const {
+const DependencyGraph* DependencyGraph::getSubpipelineGraph(const DocumentSource* ds) const {
     return _impl->getSubpipelineGraph(ds);
 }
 
-void DependencyGraph::recompute(boost::optional<DocumentSourceContainer::const_iterator> stageIt) {
+void DependencyGraph::recompute_forTest(
+    boost::optional<DocumentSourceContainer::const_iterator> stageIt) {
     _impl->recompute(stageIt);
 }
 
@@ -1828,6 +1983,12 @@ BSONObj DependencyGraph::toBSON() const {
 std::string DependencyGraph::toDebugString() const {
     auto bson = toBSON();
     return tojson(bson, ExtendedRelaxedV2_0_0, true /*pretty*/);
+}
+
+std::vector<DeadField> DependencyGraph::getDeadFields() const {
+    std::vector<DeadField> out;
+    _impl->collectDeadFields(out);
+    return out;
 }
 
 class DependencyGraph::Impl::Serializer {

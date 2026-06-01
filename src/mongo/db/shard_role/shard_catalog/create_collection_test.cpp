@@ -53,12 +53,13 @@
 #include "mongo/db/shard_role/lock_manager/d_concurrency.h"
 #include "mongo/db/shard_role/lock_manager/exception_util.h"
 #include "mongo/db/shard_role/lock_manager/lock_manager_defs.h"
-#include "mongo/db/shard_role/shard_catalog/catalog_raii.h"
 #include "mongo/db/shard_role/shard_catalog/collection.h"
 #include "mongo/db/shard_role/shard_catalog/collection_catalog.h"
 #include "mongo/db/shard_role/shard_catalog/database.h"
+#include "mongo/db/shard_role/shard_catalog/database_holder.h"
 #include "mongo/db/shard_role/shard_catalog/virtual_collection_impl.h"
 #include "mongo/db/shard_role/shard_catalog/virtual_collection_options.h"
+#include "mongo/db/shard_role/shard_role.h"
 #include "mongo/db/storage/kv/kv_engine.h"
 #include "mongo/db/storage/write_unit_of_work.h"
 #include "mongo/db/timeseries/timeseries_gen.h"
@@ -148,8 +149,11 @@ void CreateCollectionTest::validateValidator(const std::string& validatorStr,
     options.uuid = UUID::gen();
 
     return writeConflictRetry(opCtx.get(), "create", newNss, [&] {
-        AutoGetCollection autoColl(opCtx.get(), newNss, MODE_IX);
-        auto db = autoColl.ensureDbExists(opCtx.get());
+        auto acq = acquireCollection(opCtx.get(),
+                                     CollectionAcquisitionRequest::fromOpCtx(
+                                         opCtx.get(), newNss, AcquisitionPrerequisites::kWrite),
+                                     MODE_IX);
+        auto db = DatabaseHolder::get(opCtx.get())->openDb(opCtx.get(), newNss.dbName());
         ASSERT_TRUE(db) << "Cannot create collection " << newNss.toStringForErrorMsg()
                         << " because database " << newNss.dbName().toStringForErrorMsg()
                         << " does not exist.";
@@ -925,6 +929,66 @@ TEST_F(CreateCollectionTest, TestCollectionCreationChecks) {
         options.timeseries = TimeseriesOptions("$time");
         createCollectionTestCase(opCtx.get(), nss, options, ErrorCodes::BadValue);
     }
+
+    // Cannot set fixedBucketing when featureFlagFixedBucketingCatalog is disabled.
+    {
+        RAIIServerParameterControllerForTest flagController("featureFlagFixedBucketingCatalog",
+                                                            false);
+        RAIIServerParameterControllerForTest viewlessController(
+            "featureFlagCreateViewlessTimeseriesCollections", true);
+        auto opCtx = makeOpCtx();
+        CollectionOptions options;
+        options.timeseries = TimeseriesOptions("ts");
+        options.timeseries->setFixedBucketing(true);
+        createCollectionTestCase(opCtx.get(), nss, options, ErrorCodes::InvalidOptions);
+    }
+
+    // Cannot set fixedBucketing on a non-viewless (legacy) timeseries collection.
+    {
+        RAIIServerParameterControllerForTest flagController("featureFlagFixedBucketingCatalog",
+                                                            true);
+        RAIIServerParameterControllerForTest viewlessController(
+            "featureFlagCreateViewlessTimeseriesCollections", false);
+        auto opCtx = makeOpCtx();
+        CollectionOptions options;
+        options.timeseries = TimeseriesOptions("ts");
+        options.timeseries->setFixedBucketing(true);
+        createCollectionTestCase(opCtx.get(), nss, options, ErrorCodes::InvalidOptions);
+    }
+}
+
+// Verifies that the fixedBucketing value provided at creation is stored correctly in the
+// catalog and read back unchanged. Covers true, false, and unset to ensure all three states
+// are distinguishable on read-back.
+TEST_F(CreateCollectionTest, FixedBucketingValuePersisted) {
+    RAIIServerParameterControllerForTest flagController("featureFlagFixedBucketingCatalog", true);
+    RAIIServerParameterControllerForTest viewlessController(
+        "featureFlagCreateViewlessTimeseriesCollections", true);
+
+    auto checkPersisted = [&](StringData collName, boost::optional<bool> fixedBucketing) {
+        NamespaceString nss = NamespaceString::createNamespaceString_forTest("test", collName);
+        auto opCtx = makeOpCtx();
+        CollectionOptions options;
+        options.timeseries = TimeseriesOptions("ts");
+        if (fixedBucketing.has_value()) {
+            options.timeseries->setFixedBucketing(*fixedBucketing);
+        }
+
+        Lock::DBLock lock(opCtx.get(), nss.dbName(), MODE_IX);
+        ASSERT_OK(createCollection(opCtx.get(), nss, options, /*idIndex=*/boost::none));
+
+        const auto storedOptions = getCollectionOptions(opCtx.get(), nss);
+        ASSERT_TRUE(storedOptions.timeseries.has_value());
+        const auto storedFixedBucketing = storedOptions.timeseries->getFixedBucketing();
+        ASSERT_EQ(storedFixedBucketing.has_value(), fixedBucketing.has_value());
+        if (fixedBucketing.has_value()) {
+            ASSERT_EQ(bool(storedFixedBucketing), *fixedBucketing);
+        }
+    };
+
+    checkPersisted("fixedBucketingTrue", true);
+    checkPersisted("fixedBucketingFalse", false);
+    checkPersisted("fixedBucketingUnset", boost::none);
 }
 
 TEST_F(CreateCollectionTest, CreateCollectionForApplyOpsTimeseries) {

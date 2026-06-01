@@ -2742,7 +2742,7 @@ public:
         sbe::value::ValueGuard arrayWithEmptyStringGuard{arrayWithEmptyStringTag,
                                                          arrayWithEmptyStringVal};
         auto [emptyStrTag, emptyStrVal] = sbe::value::makeNewString("");
-        sbe::value::getArrayView(arrayWithEmptyStringVal)->push_back(emptyStrTag, emptyStrVal);
+        sbe::value::getArrayView(arrayWithEmptyStringVal)->push_back_raw(emptyStrTag, emptyStrVal);
 
         auto delimiter = popExpr();
         auto stringExpression = popExpr();
@@ -4428,6 +4428,13 @@ SbExpr generateExpressionFieldPath(StageBuilderState& state,
                 auto fpe = std::make_pair(PlanStageSlots::kPathExpr, fp->fullPath());
                 if (slots.has(fpe)) {
                     return SbExpr{slots.get(fpe)};
+                }
+
+                // Skip the dotted path traversal if the full path is already exposed as a field
+                // slot.
+                auto fullPathField = std::make_pair(PlanStageSlots::kField, fp->fullPath());
+                if (slots.has(fullPathField)) {
+                    return SbExpr{slots.get(fullPathField)};
                 }
 
                 // Obtain a slot for the top-level field referred to by 'expr', if one

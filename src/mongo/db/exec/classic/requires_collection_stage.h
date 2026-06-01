@@ -29,9 +29,11 @@
 
 #pragma once
 
+#include "mongo/base/string_data.h"
 #include "mongo/db/exec/classic/plan_stage.h"
 #include "mongo/db/namespace_string.h"
 #include "mongo/db/pipeline/expression_context.h"
+#include "mongo/db/query/compiler/metadata/path_arrayness.h"
 #include "mongo/db/query/plan_executor.h"
 #include "mongo/db/query/restore_context.h"
 #include "mongo/db/shard_role/shard_catalog/collection.h"
@@ -55,7 +57,7 @@ namespace mongo {
  */
 class RequiresCollectionStage : public PlanStage {
 public:
-    RequiresCollectionStage(const char* stageType,
+    RequiresCollectionStage(StringData stageType,
                             ExpressionContext* expCtx,
                             CollectionAcquisition coll)
         : PlanStage(stageType, expCtx),
@@ -63,7 +65,10 @@ public:
           _collectionPtr(&coll.getCollectionPtr()),
           _collectionUUID(coll.getCollectionPtr()->uuid()),
           _catalogEpoch(getCatalogEpoch()),
-          _nss(coll.getCollectionPtr()->ns()) {}
+          _nss(coll.getCollectionPtr()->ns()),
+          _pathArraynessChecker{.nonArrayPaths =
+                                    expCtx->nonArrayPathsForNss(coll.getCollectionPtr()->ns()),
+                                .prevEpoch = boost::none} {}
 
     ~RequiresCollectionStage() override = default;
 
@@ -110,12 +115,14 @@ private:
     // TODO SERVER-31695: The namespace will no longer be needed once queries can survive collection
     // renames.
     const NamespaceString _nss;
+
+    PathArraynessChecker _pathArraynessChecker;
 };
 
 // Type alias for use by PlanStages that write to a Collection.
 class RequiresWritableCollectionStage : public RequiresCollectionStage {
 public:
-    RequiresWritableCollectionStage(const char* stageType,
+    RequiresWritableCollectionStage(StringData stageType,
                                     ExpressionContext* expCtx,
                                     CollectionAcquisition coll)
         : RequiresCollectionStage(stageType, expCtx, coll), _collectionAcquisition(coll) {}

@@ -1262,14 +1262,18 @@ error_codes:
       name: StreamProcessorIcebergRetryableError,
       categories: [StreamProcessorUserError, StreamProcessorRetryableError],
     }
-
-  - {
-      code: 505,
-      name: InterruptedDueToLogServerDisconnect,
-      categories: [Interruption],
-    }
+  # Removed in v9.0
+  # - {
+  #     code: 505,
+  #     name: InterruptedDueToLogServerDisconnect,
+  #     categories: [Interruption],
+  #   }
 
   - {code: 506, name: NodeInStepDownPeriod, categories: [RetriableError]}
+  - {code: 507, name: ReplicaSetWritesBlocked}
+  - {code: 508, name: SearchIndexManagementHostUnreachable}
+
+  - {code: 509, name: TooManyOpenTransactions, categories: [Interruption]}
 
   # ^^^^
   # Add new codes, sequentially numbered, above.

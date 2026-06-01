@@ -38,20 +38,6 @@ MONGO_MOD_PARENT_PRIVATE;
 namespace mongo {
 namespace shard_catalog_commit {
 
-/**
- * Shard id for the placeholder chunk when a collection is tracked on a shard but owns no real
- * chunks (see commitCreateCollectionChunklessLocally).
- */
-inline const ShardId kChunklessPlaceholderShardId{"__chunkless_placeholder__"};
-
-/**
- * Fetches the latest collection metadata and owned chunks from the global catalog, persists them
- * to the shard catalog (config.shard.catalog.collections and config.shard.catalog.chunks), removes
- * any stale chunks whose shard key bounds don't match the refined key pattern, writes an oplog
- * entry to invalidate collection metadata on secondaries, and updates the in-memory
- * CollectionShardingRuntime (CSR) with the new routing information.
- */
-void commitRefineShardKeyLocally(OperationContext* opCtx, const NamespaceString& nss);
 
 /**
  * Deletes the collection and chunk metadata from the shard catalog
@@ -64,6 +50,26 @@ void commitDropCollectionLocally(OperationContext* opCtx,
                                  const UUID& uuid);
 
 /**
+ * Deletes only chunk metadata from the shard catalog (config.shard.catalog.chunks) and does nothing
+ * else. Only used by rename in the event of rename overwriting an existing collection.
+ */
+void commitDropOfStaleChunksForRename(OperationContext* opCtx, const UUID& uuid);
+
+/**
+ * Modifies the shard catalog for both fromNss and toNss in order to durably persist the decision to
+ * rename the collection.
+ * The command will invalidate the collection metadata for both namespaces and clear the in-memory
+ * state in order to repopulate it on the next query.
+ */
+void commitRenameOfCollectionMetadata(OperationContext* opCtx,
+                                      const NamespaceString& fromNss,
+                                      const boost::optional<UUID>& fromUUID,
+                                      const NamespaceString& toNss,
+                                      const boost::optional<UUID>& targetUUID,
+                                      const boost::optional<UUID>& newTargetUUID,
+                                      bool isUpgrading,
+                                      bool isDbPrimaryShard);
+/**
  * Performs the local persistence of up-to-date collection metadata and chunk information for a
  * sharded collection on the shard. Specifically:
  *   1. Removes any existing chunk entries for the specified collection from the shard catalog
@@ -75,16 +81,22 @@ void commitDropCollectionLocally(OperationContext* opCtx,
  *   5. Updates the in-memory CollectionShardingRuntime (CSR) to reflect the new filtering
  * information.
  */
-void commitCollectionMetadataLocally(OperationContext* opCtx, const NamespaceString& nss);
+void commitCollectionMetadataLocally(OperationContext* opCtx,
+                                     const NamespaceString& nss,
+                                     bool isDbPrimaryShard = false);
 
 /**
- * Fetches the collection metadata from the global catalog, removes any existing chunk entries for
- * this collection UUID, persists a chunkless placeholder chunk and the updated collection document
- * to the shard catalog, writes an oplog entry to invalidate secondaries, and refreshes the
- * in-memory CollectionShardingRuntime. Used for shards that participate in a tracked collection
- * but own no chunks.
+ * Persists the collection entry, without registering any empty chunks for tracked collection.
  */
-void commitChunklessCollectionLocally(OperationContext* opCtx, const NamespaceString& nss);
+void commitChunklessCollectionMetadataLocally(OperationContext* opCtx, const NamespaceString& nss);
+
+/**
+ * Commits the allowChunkOperations flag to the shard catalog (config.shard.catalog.collections).
+ */
+void commitSetAllowChunkOperationsLocally(OperationContext* opCtx,
+                                          const NamespaceString& nss,
+                                          bool allowChunkOperations,
+                                          const boost::optional<UUID>& uuid);
 
 }  // namespace shard_catalog_commit
 }  // namespace mongo

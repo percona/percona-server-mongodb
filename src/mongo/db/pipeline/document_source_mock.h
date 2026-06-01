@@ -86,13 +86,16 @@ public:
         const boost::intrusive_ptr<ExpressionContext>& expCtx);
 
     DocumentSourceMock(std::deque<GetNextResult>, const boost::intrusive_ptr<ExpressionContext>&);
+    DocumentSourceMock(std::deque<GetNextResult>,
+                       const boost::intrusive_ptr<ExpressionContext>&,
+                       SortPattern sortPattern);
 
     Value serialize(const SerializationOptions& opts = SerializationOptions{}) const final {
         // Unlike the queue, it's okay to serialize this stage for testing purposes.
         return Value(Document{{getSourceName(), Document()}});
     }
 
-    const char* getSourceName() const override;
+    StringData getSourceName() const override;
 
     static const Id& id;
 

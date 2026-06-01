@@ -69,6 +69,7 @@
 #include "mongo/db/server_options.h"
 #include "mongo/db/sharding_environment/client/shard.h"
 #include "mongo/db/sharding_environment/grid.h"
+#include "mongo/db/sharding_environment/shard_ref.h"
 #include "mongo/db/topology/cluster_parameters/sharding_cluster_parameters_gen.h"
 #include "mongo/db/topology/cluster_role.h"
 #include "mongo/db/topology/shard_registry.h"
@@ -356,78 +357,6 @@ AggregateCommandRequest makeCollectionAndChunksAggregation(OperationContext* opC
                                    std::move(serializedPipeline));
 }
 
-AggregateCommandRequest makeUnsplittableCollectionsDataShardAggregation(
-    OperationContext* opCtx,
-    const DatabaseName& dbName,
-    const std::vector<ShardId>& excludedShards) {
-    ResolvedNamespaceMap resolvedNamespaces;
-    resolvedNamespaces[NamespaceString::kConfigsvrCollectionsNamespace] = {
-        NamespaceString::kConfigsvrCollectionsNamespace, std::vector<BSONObj>()};
-    resolvedNamespaces[NamespaceString::kConfigsvrChunksNamespace] = {
-        NamespaceString::kConfigsvrChunksNamespace, std::vector<BSONObj>()};
-    auto expCtx = ExpressionContextBuilder{}
-                      .opCtx(opCtx)
-                      .ns(NamespaceString::kConfigsvrCollectionsNamespace)
-                      .resolvedNamespace(std::move(resolvedNamespaces))
-                      .build();
-    using Doc = Document;
-    using Arr = std::vector<Value>;
-
-    DocumentSourceContainer stages;
-
-    // 1. Match config.collections entries with database name = dbName
-    // {
-    //     $match: {
-    //         _id: {$regex: dbName.*, unsplittable: true}
-    //     }
-    // }
-    const auto db =
-        DatabaseNameUtil::serialize(dbName, SerializationContext::stateCommandRequest());
-    stages.emplace_back(DocumentSourceMatch::create(
-        BSON(CollectionType::kNssFieldName
-             << BSON("$regex" << fmt::format("^{}\\.", pcre_util::quoteMeta(db)))
-             << CollectionType::kUnsplittableFieldName << true),
-        expCtx));
-
-    // 2. Retrieve config.chunks entries with the same uuid as the one from the
-    // config.collections document.
-    //
-    // The $lookup stage gets the config.chunks documents and puts them in a field called
-    // "chunks" in the document produced during stage 1.
-    //
-    // {
-    //      $lookup: {
-    //          from: "chunks",
-    //          as: "chunks",
-    //          localField: "uuid",
-    //          foreignField: "uuid"
-    //      }
-    // }
-    const Doc lookupPipeline{{"from", NamespaceString::kConfigsvrChunksNamespace.coll()},
-                             {"as", "chunks"_sd},
-                             {"localField", CollectionType::kUuidFieldName},
-                             {"foreignField", CollectionType::kUuidFieldName}};
-
-    stages.emplace_back(DocumentSourceLookUp::createFromBson(
-        Doc{{"$lookup", lookupPipeline}}.toBson().firstElement(), expCtx));
-
-    // 3. Filter only the collection entries where the chunk has the shard field equal to shardId.
-    // {
-    //      $match: {
-    //          chunks.shard: {$nin: <excludedShards>}
-    //      }
-    // }
-    BSONObjBuilder ninBuilder;
-    ninBuilder.append("$nin", excludedShards);
-    stages.emplace_back(
-        DocumentSourceMatch::create(Doc{{"chunks.shard", ninBuilder.obj()}}.toBson(), expCtx));
-
-    auto pipeline = Pipeline::create(std::move(stages), expCtx);
-    auto serializedPipeline = pipeline->serializeToBson();
-    return AggregateCommandRequest(NamespaceString::kConfigsvrCollectionsNamespace,
-                                   std::move(serializedPipeline));
-}
-
 /**
  * Returns keys for the given purpose and have an expiresAt value greater than newerThanThis on the
  * given shard.
@@ -483,12 +412,14 @@ DatabaseType ShardingCatalogClientImpl::getDatabase(OperationContext* opCtx,
 
     // The admin database is always hosted on the config server.
     if (dbName.isAdminDB()) {
-        return DatabaseType(dbName, ShardId::kConfigServerId, DatabaseVersion::makeFixed());
+        return DatabaseType(
+            dbName, ShardRef{ShardId::kConfigServerId}, DatabaseVersion::makeFixed());
     }
 
     // The config database's primary shard is always config, and it is always sharded.
     if (dbName.isConfigDB()) {
-        return DatabaseType(dbName, ShardId::kConfigServerId, DatabaseVersion::makeFixed());
+        return DatabaseType(
+            dbName, ShardRef{ShardId::kConfigServerId}, DatabaseVersion::makeFixed());
     }
 
     // If config only mode is enabled, we are not allowed to access any databases other than the
@@ -795,27 +726,6 @@ std::vector<NamespaceString> ShardingCatalogClientImpl::getUnsplittableCollectio
     }
 
     return collections;
-}
-
-std::vector<NamespaceString>
-ShardingCatalogClientImpl::getUnsplittableCollectionNamespacesForDbOutsideOfShards(
-    OperationContext* opCtx,
-    const DatabaseName& dbName,
-    const std::vector<ShardId>& excludedShards,
-    repl::ReadConcernLevel readConcern) {
-    auto aggRequest =
-        makeUnsplittableCollectionsDataShardAggregation(opCtx, dbName, excludedShards);
-    std::vector<BSONObj> collectionEntries =
-        Grid::get(opCtx)->catalogClient()->runCatalogAggregation(
-            opCtx, aggRequest, repl::ReadConcernArgs(readConcern));
-    std::vector<NamespaceString> collectionNames;
-    collectionNames.reserve(collectionEntries.size());
-    for (const auto& coll : collectionEntries) {
-        auto nssField = coll.getField(CollectionType::kNssFieldName);
-        collectionNames.push_back(NamespaceStringUtil::deserialize(
-            boost::none, nssField.String(), SerializationContext::stateDefault()));
-    }
-    return collectionNames;
 }
 
 StatusWith<BSONObj> ShardingCatalogClientImpl::getGlobalSettings(OperationContext* opCtx,

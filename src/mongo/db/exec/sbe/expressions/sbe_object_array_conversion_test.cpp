@@ -118,7 +118,7 @@ public:
 
         for (auto elem : arr) {
             auto [tag, val] = bson::convertToOwned(elem).releaseToRaw();
-            arrView->push_back(tag, val);
+            arrView->push_back_raw(tag, val);
         }
         return {arrTag, arrVal};
     }
@@ -157,8 +157,7 @@ TEST_F(SBEObjectArrayConversionTest, ObjectToArrayExpression) {
         compiledObjectToArray.get(), value::TypeTags::Array, emptyArrTag, emptyArrVal);
 
     // Test when input is not object Type
-    inputAccessor.reset(
-        value::TagValueView{value::TypeTags::NumberInt64, value::bitcastFrom<int64_t>(42)});
+    inputAccessor.reset(value::TagValueView::numberInt64(42));
     runAndAssertNothing(compiledObjectToArray.get());
 }
 
@@ -211,8 +210,7 @@ TEST_F(SBEObjectArrayConversionTest, ArrayToObjectExpression) {
         compiledArrayToObject.get(), value::TypeTags::Object, emptyObjTag, emptyObjVal);
 
     // Test when input is not array Type
-    inputAccessor.reset(
-        value::TagValueView{value::TypeTags::NumberInt64, value::bitcastFrom<int64_t>(42)});
+    inputAccessor.reset(value::TagValueView::numberInt64(42));
     runAndAssertNothing(compiledArrayToObject.get());
 
     // Test error conditions
@@ -263,5 +261,38 @@ TEST_F(SBEObjectArrayConversionTest, ArrayToObjectExpression) {
                                                 value::bitcastFrom<const char*>(errIn->objdata())});
         runAndAssertErrorCode(compiledArrayToObject.get(), *errCode);
     }
+}
+
+TEST_F(SBEObjectArrayConversionTest, ArrayToObjectAcceptsReversedKV) {
+    value::OwnedValueAccessor inputAccessor;
+    auto inputSlot = bindAccessor(&inputAccessor);
+
+    auto arrayToObjectExpr =
+        sbe::makeE<sbe::EFunction>(EFn::kArrayToObject, sbe::makeEs(makeE<EVariable>(inputSlot)));
+    auto compiledArrayToObject = compileExpression(*arrayToObjectExpr);
+
+    // [{"v": 1, "k": "field1"}, {"v": {"innerField": 2}, "k": "field2"}]
+    const BSONArray reversedArr =
+        BSON_ARRAY(BSON("v" << 1 << "k" << "field1") << BSON("v" << BSON("innerField" << 2) << "k"
+                                                                 << "field2"));
+
+    inputAccessor.reset_raw(
+        false, value::TypeTags::bsonArray, value::bitcastFrom<const char*>(reversedArr.objdata()));
+    runAndAssertExpression(compiledArrayToObject.get(),
+                           value::TypeTags::Object,
+                           value::TypeTags::bsonObject,
+                           value::bitcastFrom<const char*>(bsonObj.objdata()));
+
+    // Mixed orderings within the same array.
+    const BSONArray mixedArr = BSON_ARRAY(BSON("k" << "field1"
+                                                   << "v" << 1)
+                                          << BSON("v" << BSON("innerField" << 2) << "k"
+                                                      << "field2"));
+    inputAccessor.reset_raw(
+        false, value::TypeTags::bsonArray, value::bitcastFrom<const char*>(mixedArr.objdata()));
+    runAndAssertExpression(compiledArrayToObject.get(),
+                           value::TypeTags::Object,
+                           value::TypeTags::bsonObject,
+                           value::bitcastFrom<const char*>(bsonObj.objdata()));
 }
 }  // namespace mongo::sbe

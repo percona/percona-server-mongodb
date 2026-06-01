@@ -28,6 +28,7 @@
  */
 #pragma once
 #include "mongo/bson/bsonobj.h"
+#include "mongo/bson/bsonobjbuilder.h"
 #include "mongo/db/extension/public/api.h"
 #include "mongo/db/extension/sdk/assert_util.h"
 #include "mongo/db/extension/sdk/distributed_plan_logic.h"
@@ -80,12 +81,6 @@ public:
     virtual std::unique_ptr<ExecAggStageBase> compile() const = 0;
     virtual boost::optional<DistributedPlanLogic> getDistributedPlanLogic() const = 0;
     virtual std::unique_ptr<LogicalAggStage> clone() const = 0;
-    // Extension stages (like $vectorSearch) that do sort by vector search score should override
-    // this and return true.
-    virtual bool isSortedByVectorSearchScore_deprecated() const {
-        return false;
-    }
-
     /**
      * Returns the filter predicate applied by this stage for shard targeting. Stages that filter
      * documents should override this to enable shard targeting. Returns an empty BSONObj by default
@@ -126,6 +121,15 @@ public:
     }
 
     /**
+     * Returns DocsNeededBounds info for this stage as a BSON-serialized
+     * MongoExtensionDocsNeededBoundsInfo. Override to declare how this stage affects pipeline
+     * bounds. Return empty BSONObj (the default) to use Unknown bounds.
+     */
+    virtual BSONObj getDocsNeededBounds() const {
+        return BSONObj();
+    }
+
+    /**
      * Evaluates the precondition of the rule identified by name. Extensions override this.
      */
     virtual bool evaluateRulePrecondition(
@@ -147,6 +151,12 @@ public:
      * 'deps' and update internal state.
      */
     virtual void applyPipelineSuffixDependencies(const PipelineDependenciesHandle& deps) {}
+
+    /**
+     * Notifies the logical stage that the stream identified by streamType will not produce any more
+     * documents.
+     */
+    virtual void skipStream(::MongoExtensionStreamType streamType) {}
 
 protected:
     LogicalAggStage() = delete;  // No default constructor.
@@ -262,16 +272,6 @@ private:
         });
     }
 
-    static ::MongoExtensionStatus* _extIsStageSortedByVectorSearchScore(
-        const ::MongoExtensionLogicalAggStage* extLogicalStage,
-        bool* outIsSortedByVectorSearchScore) {
-        return wrapCXXAndConvertExceptionToStatus([&]() {
-            const auto& impl =
-                static_cast<const ExtensionLogicalAggStageAdapter*>(extLogicalStage)->getImpl();
-            *outIsSortedByVectorSearchScore = impl.isSortedByVectorSearchScore_deprecated();
-        });
-    }
-
     static ::MongoExtensionStatus* _extSetVectorSearchLimitForOptimization(
         ::MongoExtensionLogicalAggStage* extLogicalStage, long long* extractedLimitVal) {
         return wrapCXXAndConvertExceptionToStatus([&]() {
@@ -338,7 +338,7 @@ private:
     }
 
     static ::MongoExtensionStatus* _extGetSortPattern(
-        ::MongoExtensionLogicalAggStage* extLogicalStage,
+        const ::MongoExtensionLogicalAggStage* extLogicalStage,
         ::MongoExtensionByteBuf** output) noexcept {
         return wrapCXXAndConvertExceptionToStatus([&]() {
             *output = nullptr;
@@ -352,6 +352,28 @@ private:
         });
     }
 
+    static ::MongoExtensionStatus* _extSkipStream(::MongoExtensionLogicalAggStage* extLogicalStage,
+                                                  ::MongoExtensionStreamType streamType) noexcept {
+        return wrapCXXAndConvertExceptionToStatus([&]() {
+            auto& impl = static_cast<ExtensionLogicalAggStageAdapter*>(extLogicalStage)->getImpl();
+            impl.skipStream(streamType);
+        });
+    }
+
+    static ::MongoExtensionStatus* _extGetDocsNeededBounds(
+        const ::MongoExtensionLogicalAggStage* extLogicalStage,
+        ::MongoExtensionByteBuf** output) noexcept {
+        return wrapCXXAndConvertExceptionToStatus([&]() {
+            *output = nullptr;
+            const auto& impl =
+                static_cast<const ExtensionLogicalAggStageAdapter*>(extLogicalStage)->getImpl();
+            auto bounds = impl.getDocsNeededBounds();
+            if (!bounds.isEmpty()) {
+                *output = new ByteBuf(bounds);
+            }
+        });
+    }
+
     static constexpr ::MongoExtensionLogicalAggStageVTable VTABLE = {
         .destroy = &_extDestroy,
         .get_name = &_extGetName,
@@ -360,14 +382,15 @@ private:
         .compile = &_extCompile,
         .get_distributed_plan_logic = &_extGetDistributedPlanLogic,
         .clone = &_extClone,
-        .is_stage_sorted_by_vector_search_score_deprecated = &_extIsStageSortedByVectorSearchScore,
         .set_vector_search_limit_for_optimization_deprecated =
             &_extSetVectorSearchLimitForOptimization,
         .evaluate_rule_precondition = &_extEvaluateRulePrecondition,
         .evaluate_rule_transform = &_extEvaluateRuleTransform,
         .get_filter = &_extGetFilter,
         .apply_pipeline_suffix_dependencies = &_extApplyPipelineSuffixDependencies,
-        .get_sort_pattern = &_extGetSortPattern};
+        .get_sort_pattern = &_extGetSortPattern,
+        .skip_stream = &_extSkipStream,
+        .get_docs_needed_bounds = &_extGetDocsNeededBounds};
     std::unique_ptr<LogicalAggStage> _stage;
 };
 
@@ -852,6 +875,46 @@ protected:
         sdk_tasserted(10957208, "Calling getSource on a source stage is not supported");
         MONGO_UNREACHABLE;
     }
+};
+
+/**
+ * Base class for source stages that produce two logical streams: a document-result stream and a
+ * metadata-result stream. The advanced() helpers wrap BSON in the envelope expected by the host
+ * Exchange: { _streamType: <N>, payload: <doc> }.
+ */
+class ExecAggStageResultsAndMetadataSource : public ExecAggStageSource {
+public:
+    /**
+     * Identifies which stream a produced document belongs to. Mirrors ::MongoExtensionStreamType
+     * from public/api.h.
+     */
+    enum class StreamType : uint8_t {
+        kDocResult = ::MongoExtensionStreamType::kMongoExtensionStreamTypeDocResult,
+        kMetaResult = ::MongoExtensionStreamType::kMongoExtensionStreamTypeMetaResult,
+    };
+
+    ExtensionGetNextResult advanced(const BSONObj& payload, StreamType streamType) {
+        BSONObjBuilder envelopeBob;
+        envelopeBob.append("_streamType", static_cast<int>(streamType));
+        envelopeBob.append("payload", payload);
+        return ExtensionGetNextResult::advanced(ExtensionBSONObj::makeAsByteBuf(envelopeBob.obj()));
+    }
+
+    /**
+     * Certain stages (e.g. $searchScore) produce per-document metadata that require this overload.
+     */
+    ExtensionGetNextResult advanced(const BSONObj& payload,
+                                    StreamType streamType,
+                                    const BSONObj& meta) {
+        BSONObjBuilder envelopeBob;
+        envelopeBob.append("_streamType", static_cast<int>(streamType));
+        envelopeBob.append("payload", payload);
+        return ExtensionGetNextResult::advanced(ExtensionBSONObj::makeAsByteBuf(envelopeBob.obj()),
+                                                ExtensionBSONObj::makeAsByteBuf(meta));
+    }
+
+protected:
+    ExecAggStageResultsAndMetadataSource(std::string_view name) : ExecAggStageSource(name) {}
 };
 
 /**

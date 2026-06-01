@@ -99,6 +99,21 @@ public:
         CardinalityEstimate collectionCard,
         SamplingSourceEnum samplingSource = SamplingSourceEnum::kPersistentSample);
 
+    /*
+     * Convenience constructor that accepts a raw record count instead of a CardinalityEstimate,
+     * for callers outside the cost_based_ranker module that cannot construct CardinalityType.
+     */
+    SamplingEstimatorImpl(
+        OperationContext* opCtx,
+        const MultipleCollectionAccessor& collections,
+        const NamespaceString& nss,
+        PlanYieldPolicy::YieldPolicy yieldPolicy,
+        size_t sampleSize,
+        SamplingCEMethodEnum samplingStyle,
+        boost::optional<int> numChunks,
+        long long numRecords,
+        SamplingSourceEnum samplingSource = SamplingSourceEnum::kPersistentSample);
+
     ~SamplingEstimatorImpl() override;
 
     /**
@@ -197,6 +212,24 @@ public:
     inline size_t getSampleSize() const final {
         return _sampleSize;
     }
+
+    /**
+     * Returns the collected sample documents.
+     */
+    const std::vector<BSONObj>& getSample() const {
+        return _sample;
+    }
+
+    /*
+     * Returns the sampling metadata for the generated sample, which includes:
+     * - the sampling technique
+     * - the requested sample size
+     * - the actual sample size
+     * - the memory size of the sample in bytes
+     * - the sampling source (persistent vs on-the-fly)
+     * - the date and time when the sample was generated
+     */
+    SamplingMetadata getSamplingMetadata() const final;
 
     /**
      * For each document in a given sample, this helper calculates the number of
@@ -390,6 +423,22 @@ private:
     // 'analyze' constructs its estimator with kOnTheFlySample so it always collects a fresh sample
     // (otherwise a refresh would just re-read the sample it's about to replace).
     SamplingSourceEnum _samplingSource;
+
+    // Set to true when tryLoadPersistentSample() successfully loads a sample from the stats
+    // collection. Used to populate SamplingMetadata for explain output.
+    bool _wasSamplePersisted = false;
+    // The timestamp when the sample was created. For persisted samples this is read from the
+    // stored document; for on-the-fly samples it is set to Date_t::now() at the end of
+    // generateSample(). Always valid after generateSample() completes.
+    boost::optional<Date_t> _sampleCreatedAt;
+    // The number of documents requested when generateSample() was called. May differ from the
+    // actual sample size (_sampleSize) in the following cases:
+    //   1. The collection is smaller than the requested sample size (full collection scan used).
+    //   2. Chunk-based sampling: if a random cursor lands on the last document in the collection,
+    //      no full chunk can be collected for that cursor, so the actual sample is smaller.
+    size_t _requestedSampleSize = 0;
+    // The actual sampling strategy used. Set by generateSample() before dispatch.
+    boost::optional<cost_based_ranker::SamplingTechnique> _usedSamplingTechnique;
 };
 
 }  // namespace mongo::ce

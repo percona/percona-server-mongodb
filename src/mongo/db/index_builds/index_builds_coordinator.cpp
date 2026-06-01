@@ -43,11 +43,13 @@
 #include "mongo/db/index_builds/index_build_entry_gen.h"
 #include "mongo/db/index_builds/index_build_entry_helpers.h"
 #include "mongo/db/index_builds/index_build_interceptor.h"
+#include "mongo/db/index_builds/index_build_knobs_gen.h"
 #include "mongo/db/index_builds/index_builds_common.h"
 #include "mongo/db/index_builds/index_builds_manager.h"
 #include "mongo/db/index_builds/multi_index_block.h"
 #include "mongo/db/index_builds/primary_driven/util.h"
 #include "mongo/db/index_builds/repl_index_build_state.h"
+#include "mongo/db/index_builds/resumable_index_builds_common.h"
 #include "mongo/db/index_builds/resumable_index_builds_gen.h"
 #include "mongo/db/index_builds/two_phase_index_build_knobs_gen.h"
 #include "mongo/db/op_observer/op_observer.h"
@@ -2354,8 +2356,7 @@ void IndexBuildsCoordinator::restartIndexBuildsForRecovery(
                 // new one as there's no existing table we need to reuse and we can't be in a
                 // primary-driven index build.
                 auto skippedRecordsIdent = storageEngine->generateNewInternalIdent();
-                auto lazyRecordStore = LazyRecordStore(
-                    opCtx, skippedRecordsIdent, LazyRecordStore::CreateMode::immediate);
+                LazyRecordStore::createTable(opCtx, skippedRecordsIdent);
                 indexBuildInfo.skippedRecordsIdent.emplace(skippedRecordsIdent);
             }
             if (auto ident = indexStateInfo.getDuplicateKeyTrackerTable()) {
@@ -3481,15 +3482,20 @@ void IndexBuildsCoordinator::_resumeHybridIndexBuildFromPhase(
     invariant(indexBuildOptions.indexBuildMethod == IndexBuildMethodEnum::kHybrid ||
               indexBuildOptions.indexBuildMethod == IndexBuildMethodEnum::kPrimaryDriven);
 
-    if (replState->protocol == IndexBuildProtocol::kPrimaryDriven) {
-        index_builds::primary_driven::deleteSorterEntriesOutsideRanges(opCtx,
-                                                                       resumeInfo.getIndexes());
-    }
-
     if (resumeInfo.getPhase() == IndexBuildPhaseEnum::kInitialized ||
         resumeInfo.getPhase() == IndexBuildPhaseEnum::kCollectionScan) {
         boost::optional<RecordId> resumeAfterRecordId;
-        if (resumeInfo.getCollectionScanPosition()) {
+        if (replState->protocol == IndexBuildProtocol::kPrimaryDriven) {
+            // Orphaned sorter entries can only exist if the build was interrupted while populating
+            // the sorter (initialized or collection scan phases); later phases have finalized
+            // ranges, so there is nothing to clean up.
+            index_builds::primary_driven::deleteSorterEntriesOutsideRanges(opCtx,
+                                                                           resumeInfo.getIndexes());
+
+            // Resume the scan after the lowest spilled record id across all indexes, or restart it
+            // from the beginning if any index never spilled.
+            resumeAfterRecordId = index_builds::minLastSpilledRecordId(resumeInfo.getIndexes());
+        } else if (resumeInfo.getCollectionScanPosition()) {
             resumeAfterRecordId = *resumeInfo.getCollectionScanPosition();
         }
 
@@ -3948,51 +3954,34 @@ IndexBuildsCoordinator::CommitResult IndexBuildsCoordinator::_insertKeysFromSide
         indexBuildsSSS.commit.addAndFetch(1);
         storeLastCommittedDuration(*replState);
 
-        std::vector<boost::optional<MultikeyPaths>> multikeys;
-
-        // If two phase index builds is enabled, index build will be coordinated using
-        // startIndexBuild and commitIndexBuild oplog entries.
-        auto onCommitFn = [&] {
+        auto onCommitFn = [&](const std::vector<boost::optional<MultikeyPaths>>& multikeys) {
+            const bool shouldReplicate =
+                replState->protocol == IndexBuildProtocol::kPrimaryDriven &&
+                IndexBuildAction::kOplogCommit != action;
             onCommitIndexBuild(opCtx,
                                collection->ns(),
                                replState,
-                               multikeys,
+                               shouldReplicate ? multikeys
+                                               : std::vector<boost::optional<MultikeyPaths>>{},
                                collection->isTimeseriesCollection());
         };
 
-        int i = 0;
-        auto onCreateEachFn = [&](const BSONObj& spec,
-                                  IndexCatalogEntry& entry,
-                                  boost::optional<MultikeyPaths>&& multikey) {
-            if (IndexBuildProtocol::kTwoPhase == replState->protocol ||
-                IndexBuildProtocol::kPrimaryDriven == replState->protocol) {
-                if (IndexBuildProtocol::kTwoPhase == replState->protocol) {
-                    // TODO (SERVER-109664): Check build protocol rather than feature flag.
-                    auto fcvSnapshot = serverGlobalParams.featureCompatibility.acquireFCVSnapshot();
-                    if (!fcvSnapshot.isVersionInitialized() ||
-                        !feature_flags::gFeatureFlagPrimaryDrivenIndexBuilds.isEnabled(
-                            VersionContext::getDecoration(opCtx), fcvSnapshot)) {
-                        return;
-                    }
+        auto onCreateEachFn =
+            [&](const BSONObj& spec, IndexCatalogEntry& entry, boost::optional<MultikeyPaths>&&) {
+                if (IndexBuildProtocol::kSinglePhase != replState->protocol) {
+                    return;
                 }
 
-                if (IndexBuildAction::kOplogCommit != action) {
-                    multikeys.push_back(std::move(multikey));
-                }
-                ++i;
-                return;
-            }
-
-            auto opObserver = opCtx->getServiceContext()->getOpObserver();
-            IndexBuildInfo indexBuildInfo(spec, std::string{entry.getIdent()});
-            auto fromMigrate = false;
-            opObserver->onCreateIndex(opCtx,
-                                      collection->ns(),
-                                      replState->collectionUUID,
-                                      indexBuildInfo,
-                                      fromMigrate,
-                                      collection->isTimeseriesCollection());
-        };
+                auto opObserver = opCtx->getServiceContext()->getOpObserver();
+                IndexBuildInfo indexBuildInfo(spec, std::string{entry.getIdent()});
+                auto fromMigrate = false;
+                opObserver->onCreateIndex(opCtx,
+                                          collection->ns(),
+                                          replState->collectionUUID,
+                                          indexBuildInfo,
+                                          fromMigrate,
+                                          collection->isTimeseriesCollection());
+            };
 
         // Commit index build.
         TimestampBlock tsBlock(opCtx, commitIndexBuildTimestamp);

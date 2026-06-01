@@ -37,6 +37,7 @@
 #include "mongo/scripting/config_engine_gen.h"
 #include "mongo/scripting/deadline_monitor.h"
 #include "mongo/scripting/mozjs/wasm/wasmtime_engine.h"
+#include "mongo/util/scopeguard.h"
 #include "mongo/util/str.h"
 
 namespace mongo::mozjs {
@@ -82,6 +83,11 @@ void WasmtimeImplScope::reset() {
     }
 
     _cachedFunctions.clear();
+    // Force loadStored() to reload system.js after the bridge is recreated above. The base class
+    // _loadedVersion is not cleared by the bridge teardown, so without this reset loadStored()
+    // would see _loadedVersion == _lastVersion and skip reloading — leaving the fresh bridge
+    // with no stored functions installed.
+    _loadedVersion = 0;
 
     init(nullptr);
     _emitCallback = nullptr;
@@ -99,6 +105,7 @@ void WasmtimeImplScope::init(const BSONObj* data) {
     }
     opts.linearMemoryLimitMB = gWasmtimeStoreMemoryLimitMB.load();
     _storeLinearMemBytes = static_cast<int64_t>(opts.linearMemoryLimitMB) * 1024 * 1024;
+    opts.javascriptProtection = gJavascriptProtection.load();
     _bridge = std::make_unique<wasm::MozJSWasmBridge>(_wasmEngineCtx, opts);
     bool initialized = _bridge->initialize();
     uassert(ErrorCodes::BadValue, "MozJS WASM bridge failed to initialize", initialized);
@@ -132,32 +139,44 @@ int WasmtimeImplScope::invoke(ScriptingFunction func,
     // TODO(SERVER-122738): readOnlyArgs and readOnlyRecv are silently ignored here. In the MozJS
     // implementation these flags cause SpiderMonkey to freeze the corresponding JS objects so that
     // JavaScript code cannot mutate them during execution.
+
+    // Convert BSON to a wc::Val before starting the deadline so the O(N) host-side work is
+    // not charged against the JS function timeout. See bridge.h for details.
+    const BSONObj& bsonArg =
+        (recv && !recv->isEmpty()) ? *recv : (args ? *args : BSONObj::kEmptyObject);
+    auto bsonVal = wasm::wasm_helpers::convertBsonToWcVal(bsonArg);
+
     if (recv && !recv->isEmpty()) {
         if (_emitCallback) {
             uassert(ErrorCodes::BadValue,
                     "emit() cannot be used in a function that returns a value",
                     ignoreReturn);
             _deadlineMonitor.startDeadline(this, timeoutMs);
-            _bridge->invokeMap(func, *recv);
-            _deadlineMonitor.stopDeadline(this);
+            {
+                ScopeGuard mapGuard([&] { _deadlineMonitor.stopDeadline(this); });
+                _bridge->invokeMap(func, std::move(bsonVal));
+            }
             _drainEmitToCallback();
             return 0;
         }
 
+        bool predicateResult;
         _deadlineMonitor.startDeadline(this, timeoutMs);
-        bool predicateResult = _bridge->invokePredicate(func, *recv);
-        _deadlineMonitor.stopDeadline(this);
+        {
+            ScopeGuard predGuard([&] { _deadlineMonitor.stopDeadline(this); });
+            predicateResult = _bridge->invokePredicate(func, std::move(bsonVal));
+        }
         if (!ignoreReturn) {
             _lastReturnValue = BSON(kReturnValueField << predicateResult);
         }
         return 0;
     }
-
+    StatusWith<BSONObj> result{BSONObj{}};
     _deadlineMonitor.startDeadline(this, timeoutMs);
-    // Consider having invokeFunction return the value directly.
-    // This would eliminate the extra round trip to the engine.
-    auto result = _bridge->invokeFunction(func, args ? *args : BSONObj(), ignoreReturn);
-    _deadlineMonitor.stopDeadline(this);
+    {
+        ScopeGuard funcGuard([&] { _deadlineMonitor.stopDeadline(this); });
+        result = _bridge->invokeFunction(func, std::move(bsonVal), ignoreReturn);
+    }
     uassertStatusOK(result.getStatus());
     if (!ignoreReturn) {
         // invokeFunction's direct return goes through getGlobal which flattens JS arrays
@@ -350,7 +369,7 @@ void WasmtimeImplScope::kill() {
         _bridge->kill();
 }
 bool WasmtimeImplScope::isKillPending() const {
-    return _bridge->isKillPending();
+    return _bridge && _bridge->isKillPending();
 }
 
 bool WasmtimeImplScope::hasOutOfMemoryException() {
@@ -386,7 +405,7 @@ void WasmtimeImplScope::_installHelpers() {
         "  };"
         "  return null;"
         "}");
-    uassertStatusOK(_bridge->invokeFunction(h, BSONObj()));
+    uassertStatusOK(_bridge->invokeFunction(h, wasm::wasm_helpers::convertBsonToWcVal(BSONObj())));
 }
 
 void WasmtimeImplScope::_drainEmitToCallback() {

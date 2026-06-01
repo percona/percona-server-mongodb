@@ -91,7 +91,7 @@ public:
 
         for (auto elem : arr) {
             auto [tag, val] = bson::convertToOwned(elem).releaseToRaw();
-            arrView->push_back(tag, val);
+            arrView->push_back_raw(tag, val);
         }
         return {arrTag, arrVal};
     }
@@ -140,8 +140,7 @@ TEST_F(SBEArraySetConversionTest, ArrayToSetExpression) {
     runAndAssertExpression(compiledArrayToSet.get(), BSONArray());
 
     // Test when input is not array Type
-    inputAccessor.reset(
-        value::TagValueView{value::TypeTags::NumberInt64, value::bitcastFrom<int64_t>(42)});
+    inputAccessor.reset(value::TagValueView::numberInt64(42));
     runAndAssertNothing(compiledArrayToSet.get());
 }
 
@@ -195,8 +194,7 @@ TEST_F(SBEArraySetConversionTest, CollArrayToSetExpression) {
     runAndAssertExpression(compiledArrayToSet.get(), BSONArray());
 
     // Test when input is not array Type
-    inputAccessor.reset(
-        value::TagValueView{value::TypeTags::NumberInt64, value::bitcastFrom<int64_t>(42)});
+    inputAccessor.reset(value::TagValueView::numberInt64(42));
     runAndAssertNothing(compiledArrayToSet.get());
 }
 }  // namespace mongo::sbe

@@ -592,14 +592,24 @@ export function ChangeStreamTest(_db, options) {
 
         let changes = self.getNextChanges(cursor, expectedNumChanges, skipFirstBatch);
         if (ignoreOrder) {
-            const errMsgFunc = () => `${tojsonMaybeTruncate(changes)} != ${tojsonMaybeTruncate(expectedChanges)}`;
-            assert.eq(changes.length, expectedNumChanges, errMsgFunc);
+            const lengthMismatchErrMsg = () =>
+                "Change stream event count mismatch (order ignored). " +
+                `Expected ${expectedNumChanges} event(s), observed ${changes.length}. ` +
+                `Expected events: ${tojsonMaybeTruncate(expectedChanges)}. ` +
+                `Observed events: ${tojsonMaybeTruncate(changes)}.`;
+            assert.eq(changes.length, expectedNumChanges, lengthMismatchErrMsg);
             for (let i = 0; i < changes.length; i++) {
+                const itemMismatchErrMsg = () =>
+                    "Change stream event mismatch (order ignored). " +
+                    `No expected event matched observed event at index ${i}. ` +
+                    `Observed event: ${tojsonMaybeTruncate(changes[i])}. ` +
+                    `Expected events: ${tojsonMaybeTruncate(expectedChanges)}. ` +
+                    `Observed events: ${tojsonMaybeTruncate(changes)}.`;
                 assert(
                     expectedChanges.some((expectedChange) => {
                         return isChangeStreamEventEq(changes[i], expectedChange, eventModifier);
                     }),
-                    errMsgFunc,
+                    itemMismatchErrMsg,
                 );
             }
         } else {
@@ -994,6 +1004,14 @@ export function getClusterTime(db) {
 }
 
 /**
+ * Returns the configsvr's currently-known configTime (the applied opTime ts on the configsvr
+ * primary).
+ */
+export function getConfigTime(st) {
+    return st.configRS.getPrimary().adminCommand({replSetGetStatus: 1}).optimes.appliedOpTime.ts;
+}
+
+/**
  * Returns the next cluster time by incrementing the 'inc' field of the provided 'clusterTime'.
  */
 export function getNextClusterTime(clusterTime) {
@@ -1171,12 +1189,14 @@ export function assertOpenCursors(st, expectedDataShards, expectedConfigCursor, 
             const shardsWithOpenCursors = dataShardCursors.map((cursor) => cursor.shard);
 
             // In config shard mode, the config server is also a data shard (named "config").
-            // Cursors on it are reported as regular data shard cursors via mongos, so we
-            // include "config" in the data shard comparison and skip the separate config
-            // cursor check below.
-            const dataShardsWithOpenCursors = jsTestOptions().configShard
-                ? shardsWithOpenCursors
-                : shardsWithOpenCursors.filter((shard) => shard !== "config");
+            // Cursors on it are reported as regular data shard cursors via mongos. When the
+            // caller expects a config cursor, attribute any "config" entry to it and strip
+            // it out before comparing against 'expectedDataShards'.
+            const isConfigShard = jsTestOptions().configShard;
+            const shouldRemoveConfigShardFromDataShardList = !isConfigShard || expectedConfigCursor;
+            const dataShardsWithOpenCursors = shouldRemoveConfigShardFromDataShardList
+                ? shardsWithOpenCursors.filter((shard) => shard !== "config")
+                : shardsWithOpenCursors;
             assert.sameMembers(
                 expectedDataShards,
                 dataShardsWithOpenCursors,
@@ -1185,11 +1205,18 @@ export function assertOpenCursors(st, expectedDataShards, expectedConfigCursor, 
 
             // With a dedicated config server, check for config cursors directly via
             // localOps since they don't appear in the mongos $currentOp results.
-            if (!jsTestOptions().configShard) {
+            if (!isConfigShard) {
                 const configCursors = listIdleCursors(configAdminDB, filter, {localOps: true});
                 jsTest.log.debug("Open config cursors", {configCursors});
                 const configMatch = expectedConfigCursor ? configCursors.length > 0 : configCursors.length == 0;
                 return configMatch;
+            } else {
+                // In config-shard mode the config server is one of the data shards. When the
+                // caller expects a config cursor, verify "config" was in the data-shard cursor
+                // list reported by mongos before we stripped it out for the sameMembers check.
+                if (expectedConfigCursor && !shardsWithOpenCursors.includes("config")) {
+                    return false;
+                }
             }
             return true;
         },

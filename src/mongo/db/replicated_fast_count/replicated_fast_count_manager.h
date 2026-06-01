@@ -113,6 +113,14 @@ public:
     }
 
     /**
+     * Initializes the stores in container mode with the given RecordStores. Ownership of each
+     * RecordStore is transferred into the corresponding SizeCount[Timestamp]Store member. Must be
+     * called before startup().
+     */
+    void initializeContainerStores(std::unique_ptr<RecordStore> metadataRS,
+                                   std::unique_ptr<RecordStore> timestampsRS);
+
+    /**
      * Registers the fast count commit function that will be called on commit to apply the changes
      * to the in-memory metadata. This function is initialized in this way to avoid introducing a
      * circular dependency by having the UncommittedFastCountChange class depend directly on
@@ -124,14 +132,17 @@ public:
     /**
      * Spawns fastcount thread.
      * Skips running thread when _isUnderTest.
+     *
+     * This function is idempotent when the background thread is already running. See implementation
+     * for more details.
      */
     void startup(OperationContext* opCtx);
 
     /**
      * Signals fastcount thread to stop and flushes final changes synchronously.
      *
-     * WARNING: This function should be called exactly once per startup() call. Calling shutdown()
-     * more than once on the same background thread is an assertion error.
+     * This function is idempotent since we cannot gaurantee that the background thread is joinable
+     * during shutdown(). See implementation for more details.
      */
     void shutdown(OperationContext* opCtx);
 
@@ -165,19 +176,6 @@ public:
      * collection.
      */
     CollectionSizeCount find(const UUID& uuid) const;
-
-    /**
-     * Returns the number of records (count) and data size for the collection with `uuid` as of the
-     * last committed change.
-     *
-     * This function traverses the oplog to compute latest size/count of the collection with `uuid`.
-     * This traversal ignores oplog visibility rules and thus accumulates oplog entries beyond oplog
-     * holes.
-     *
-     * WARNING: This function is much less performant than `findPersisted()`. Only use
-     * `findLatest()` when precise size/count information is required for correctness.
-     */
-    CollectionSizeCount findLatest(OperationContext* opCtx, UUID uuid) const;
 
     /**
      * Returns the persisted number of records (count) and data size for the collection with `uuid`.
@@ -215,6 +213,12 @@ public:
      * Returns true if the fastcount thread is running.
      */
     bool isRunning_ForTest();
+
+    /**
+     * Returns true if this manager is using the container-backed path for the size count store.
+     * Intended for tests that need to pick which on-disk read path to exercise.
+     */
+    bool usesContainers_ForTest() const;
 
 private:
     /**
@@ -271,6 +275,23 @@ private:
                             const CollectionSizeCount& sizeCount,
                             const Timestamp& validAsOfTS);
 
+    using SizeCountAccumulator = absl::flat_hash_map<UUID, CollectionSizeCount>;
+
+    /**
+     * Populates the in-memory values of _metadata with the values persisted in the internal fast
+     * count collection. Returns the number of records that were scanned.
+     */
+    int _hydrateMetadataFromCollection(OperationContext* opCtx,
+                                       SizeCountAccumulator& accumulator,
+                                       const CollectionOrViewAcquisition& acquisition);
+
+    /**
+     * Same as _hydrateMetadataFromCollection, but reads from the container's backing RecordStore.
+     */
+    int _hydrateMetadataFromContainer(OperationContext* opCtx,
+                                      SizeCountAccumulator& accumulator,
+                                      const RecordStore::RecordStoreContainer& recordStore);
+
     /**
      * Formats and returns the document to write to the fastcount collection.
      */
@@ -311,12 +332,12 @@ private:
     bool _useLegacyFlush{false};
 
     /**
-     * Interface for reads / writes to the `config.fast_count_metadata_store`.
+     * Interface for reads / writes to the fast count metadata store.
      */
     std::unique_ptr<SizeCountStore> _sizeCountStore;
 
     /**
-     * Interface for reads / writes to the `config.fast_count_metadata_timestamp_store`.
+     * Interface for reads / writes to the fast count timestamp store.
      */
     std::unique_ptr<SizeCountTimestampStore> _timestampStore;
 

@@ -46,6 +46,7 @@
 #include "mongo/scripting/mozjs/common/types/numberdecimal.h"
 #include "mongo/scripting/mozjs/common/types/numberint.h"
 #include "mongo/scripting/mozjs/common/types/numberlong.h"
+#include "mongo/scripting/mozjs/common/types/object.h"
 #include "mongo/scripting/mozjs/common/types/oid.h"
 #include "mongo/scripting/mozjs/common/types/regexp.h"
 #include "mongo/scripting/mozjs/common/types/status.h"
@@ -93,6 +94,7 @@ public:
           _maxKeyProto(_cx),
           _minKeyProto(_cx),
           _nativeFunctionProto(_cx),
+          _objectProto(_cx),
           _numberDecimalProto(_cx),
           _numberIntProto(_cx),
           _numberLongProto(_cx),
@@ -129,6 +131,9 @@ public:
     }
     WrapType<MinKeyInfo>& minKeyProto() {
         return _minKeyProto;
+    }
+    WrapType<ObjectInfo>& objectProto() {
+        return _objectProto;
     }
     WrapType<NativeFunctionInfo>& nativeFunctionProto() {
         return _nativeFunctionProto;
@@ -174,6 +179,7 @@ public:
         _numberIntProto.install(global);
         _numberLongProto.install(global);
         _oidProto.install(global);
+        _objectProto.install(global);
         _regExpProto.install(global);
         _timestampProto.install(global);
         _statusProto.install(global);
@@ -191,6 +197,7 @@ private:
     WrapType<MaxKeyInfo> _maxKeyProto;
     WrapType<MinKeyInfo> _minKeyProto;
     WrapType<NativeFunctionInfo> _nativeFunctionProto;
+    WrapType<ObjectInfo> _objectProto;
     WrapType<NumberDecimalInfo> _numberDecimalProto;
     WrapType<NumberIntInfo> _numberIntProto;
     WrapType<NumberLongInfo> _numberLongProto;
@@ -221,6 +228,8 @@ public:
     err_code_t init(const wasm_mozjs_startup_options_t* opt, wasm_mozjs_error_t* err);
     err_code_t shutdown(wasm_mozjs_error_t* err);
     err_code_t interrupt(wasm_mozjs_error_t* err);
+    bool exec(StringData code, const std::string& name);
+
     err_code_t createFunction(const uint8_t* src,
                               size_t len,
                               uint64_t* out_handle,
@@ -264,6 +273,8 @@ public:
     /// Drain the emit buffer: returns accumulated {k,v} pairs, then clears.
     err_code_t drainEmitBuffer(mongo::BSONObj* out, wasm_mozjs_error_t* err);
 
+    void injectNative(const char* field, NativeFunction func, void* data = nullptr);
+
     // MozJSCommonRuntimeInterface implementation
     void gc() override;
     void sleep(Milliseconds ms) override;
@@ -303,10 +314,12 @@ private:
     bool _parseFunctionSource(StringData raw, std::string* out, wasm_mozjs_error_t* err);
 
     bool _initialized = false;
+    bool _javascriptProtection = false;
 
     JSContext* _cx = nullptr;
     JSRuntime* _rt = nullptr;
     JS::PersistentRootedObject _global;
+    JS::PersistentRooted<JS::Value> _parseHelperFn;
 
     std::vector<FunctionSlot> _slots;
     std::unique_ptr<MozJSPrototypeInstaller> _prototypeInstaller;

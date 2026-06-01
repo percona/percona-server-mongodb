@@ -61,6 +61,7 @@ enums:
             bypassDefaultMaxTimeMS: "bypassDefaultMaxTimeMS"
             bypassDocumentValidation: "bypassDocumentValidation"
             bypassWriteBlockingMode: "bypassWriteBlockingMode"
+            bypassReplicaSetWriteBlocking: "bypassReplicaSetWriteBlocking"
             changeCustomData: "changeCustomData"
             changePassword: "changePassword"
             changeOwnPassword: "changeOwnPassword"
@@ -113,6 +114,7 @@ enums:
             getCmdLineOpts: "getCmdLineOpts"
             getDatabaseVersion: "getDatabaseVersion"
             getDefaultRWConcern: "getDefaultRWConcern"
+            getESECMKIdentifierListStatus: "getESECMKIdentifierListStatus"
             getESERotateActiveKEKStatus: "getESERotateActiveKEKStatus"
             getLog: "getLog"
             getParameter: "getParameter"
@@ -215,6 +217,7 @@ enums:
             useTenant: "useTenant"
             useUUID: "useUUID"
             update: "update"
+            updateESECMKIdentifierList: "updateESECMKIdentifierList"
             updateRole: "updateRole" # ID only
             updateUser: "updateUser" # ID only
             validate: "validate"

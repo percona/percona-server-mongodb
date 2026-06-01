@@ -722,6 +722,14 @@ typedef struct MongoExtensionLogicalAggStage {
 struct MongoExtensionPipelineRewriteContext;
 
 /**
+ * Identifies which stream a multi-stream extension source document belongs to.
+ */
+typedef enum MongoExtensionStreamType : uint8_t {
+    kMongoExtensionStreamTypeDocResult = 0,
+    kMongoExtensionStreamTypeMetaResult = 1,
+} MongoExtensionStreamType;
+
+/**
  * Virtual function table for MongoExtensionLogicalAggStage.
  */
 typedef struct MongoExtensionLogicalAggStageVTable {
@@ -782,15 +790,6 @@ typedef struct MongoExtensionLogicalAggStageVTable {
      */
     MongoExtensionStatus* (*clone)(const MongoExtensionLogicalAggStage* logicalStage,
                                    MongoExtensionLogicalAggStage** output);
-
-    /**
-     * Populates outIsSortedByVectorSearchScore with true if the extension stage sorts by vector
-     * search score, false otherwise. Intended to be used by the extension $vectorSearch stage.
-     *
-     * This method is deprecated and will be removed in a future API version.
-     */
-    MongoExtensionStatus* (*is_stage_sorted_by_vector_search_score_deprecated)(
-        const MongoExtensionLogicalAggStage* logicalStage, bool* outIsSortedByVectorSearchScore);
 
     /**
      * Populates extractedLimitVal with the extracted limit value for the $vectorSearch extension
@@ -864,9 +863,27 @@ typedef struct MongoExtensionLogicalAggStageVTable {
      *
      * Ownership of the output buffer is transferred to the caller.
      */
-    MongoExtensionStatus* (*get_sort_pattern)(MongoExtensionLogicalAggStage* logicalStage,
+    MongoExtensionStatus* (*get_sort_pattern)(const MongoExtensionLogicalAggStage* logicalStage,
                                               MongoExtensionByteBuf** sortPattern);
 
+    /**
+     * Notifies the logical stage that the stream identified by `streamType` will not produce any
+     * more documents. Extensions may override this to update internal state or release resources
+     * associated with that stream when it is skipped.
+     */
+    MongoExtensionStatus* (*skip_stream)(MongoExtensionLogicalAggStage* logicalStage,
+                                         MongoExtensionStreamType streamType);
+
+    /**
+     * Returns the DocsNeededBounds effect for this stage. The output buffer contains a BSON-
+     * serialized MongoExtensionDocsNeededBoundsInfo struct. If the output buffer is left as
+     * nullptr, the host treats this stage as having Unknown bounds (both min and max are
+     * reset to Unknown).
+     *
+     * Ownership of the output buffer is transferred to the caller.
+     */
+    MongoExtensionStatus* (*get_docs_needed_bounds)(
+        const MongoExtensionLogicalAggStage* logicalStage, MongoExtensionByteBuf** output);
 } MongoExtensionLogicalAggStageVTable;
 
 /**
@@ -889,14 +906,6 @@ typedef enum MongoExtensionGetNextResultCode : uint8_t {
      */
     kPauseExecution = 2,
 } MongoExtensionGetNextResultCode;
-
-/**
- * Identifies which stream a multi-stream extension source document belongs to.
- */
-typedef enum MongoExtensionStreamType : uint8_t {
-    kMongoExtensionStreamTypeDocResult = 0,
-    kMongoExtensionStreamTypeMetaResult = 1,
-} MongoExtensionStreamType;
 
 /**
  * MongoExtensionGetNextResult is a container used to fetch results (with or without metadata) from

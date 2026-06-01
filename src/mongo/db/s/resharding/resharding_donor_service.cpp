@@ -56,7 +56,9 @@
 #include "mongo/db/router_role/routing_cache/catalog_cache.h"
 #include "mongo/db/s/resharding/coordinator_document_gen.h"
 #include "mongo/db/s/resharding/resharding_data_copy_util.h"
+#include "mongo/db/s/resharding/resharding_donor_recipient_common.h"
 #include "mongo/db/s/resharding/resharding_future_util.h"
+#include "mongo/db/s/resharding/resharding_promise_util.h"
 #include "mongo/db/s/resharding/resharding_server_parameters_gen.h"
 #include "mongo/db/s/resharding/resharding_util.h"
 #include "mongo/db/server_options.h"
@@ -76,7 +78,7 @@
 #include "mongo/db/storage/recovery_unit.h"
 #include "mongo/db/storage/write_unit_of_work.h"
 #include "mongo/db/topology/sharding_state.h"
-#include "mongo/db/topology/user_write_block/write_block_bypass.h"
+#include "mongo/db/topology/user_write_block/user_write_block_bypass.h"
 #include "mongo/db/versioning_protocol/database_version.h"
 #include "mongo/db/versioning_protocol/shard_version.h"
 #include "mongo/db/write_concern_options.h"
@@ -132,6 +134,8 @@ namespace {
 
 const WriteConcernOptions kNoWaitWriteConcern{1, WriteConcernOptions::SyncMode::UNSET, Seconds(0)};
 
+using resharding::ensureFulfilledPromise;
+
 Timestamp generateMinFetchTimestamp(OperationContext* opCtx, const NamespaceString& sourceNss) {
     // Do a no-op write and use the OpTime as the minFetchTimestamp
     writeConflictRetry(
@@ -160,29 +164,6 @@ Timestamp generateMinFetchTimestamp(OperationContext* opCtx, const NamespaceStri
 
     auto generatedOpTime = repl::ReplClientInfo::forClient(opCtx->getClient()).getLastOp();
     return generatedOpTime.getTimestamp();
-}
-
-/**
- * Fulfills the promise if it is not already. Otherwise, does nothing.
- */
-void ensureFulfilledPromise(WithLock lk, SharedPromise<void>& sp) {
-    if (!sp.getFuture().isReady()) {
-        sp.emplaceValue();
-    }
-}
-
-template <typename Type>
-void ensureFulfilledPromise(WithLock lk, SharedPromise<Type>& sp, Type value) {
-    if (!sp.getFuture().isReady()) {
-        sp.emplaceValue(value);
-    }
-}
-
-template <typename Type>
-void ensureFulfilledPromise(WithLock lk, SharedPromise<Type>& sp, Status error) {
-    if (!sp.getFuture().isReady()) {
-        sp.setError(error);
-    }
 }
 
 /**
@@ -315,21 +296,11 @@ ReshardingDonorService::DonorStateMachine::DonorStateMachine(
       }()) {
     invariant(_externalState);
 
-    _fulfillPromisesOnStepup();
-
     if (_changeStreamsMonitorCtx) {
         invariant(_metadata.getPerformVerification());
-
-        std::lock_guard<std::mutex> lk(_mutex);
-        ensureFulfilledPromise(lk,
-                               _changeStreamMonitorStartTimeSelected,
-                               _changeStreamsMonitorCtx->getStartAtOperationTime());
-        if (_changeStreamsMonitorCtx->getCompleted()) {
-            ensureFulfilledPromise(lk, _changeStreamsMonitorStarted);
-            ensureFulfilledPromise(
-                lk, _changeStreamsMonitorCompleted, _changeStreamsMonitorCtx->getDocumentsDelta());
-        }
     }
+
+    _fulfillPromisesOnStepup(donorDoc);
 
     _metrics->onStateTransition(boost::none, _donorCtx.getState());
 }
@@ -387,11 +358,11 @@ ExecutorFuture<void> ReshardingDonorService::DonorStateMachine::_runUntilBlockin
                                    "writeTransactionOplogEntryThenTransitionToBlockingWrites");
                     _writeTransactionOplogEntryThenTransitionToBlockingWrites(factory);
                 })
-                .then([this, executor, telemetryCtx = telemetryCtx->clone()]() mutable {
+                .then([this, executor, factory, telemetryCtx = telemetryCtx->clone()]() mutable {
                     auto span =
                         _startSpan(telemetryCtx,
                                    "ReshardingDonorService::_awaitChangeStreamsMonitorCompleted");
-                    return _awaitChangeStreamsMonitorCompleted(executor);
+                    return _awaitChangeStreamsMonitorCompleted(executor, factory);
                 });
         })
         .onTransientError([](const Status& status) {
@@ -418,11 +389,8 @@ ExecutorFuture<void> ReshardingDonorService::DonorStateMachine::_runUntilBlockin
 
             {
                 std::lock_guard<std::mutex> lk(_mutex);
-                ensureFulfilledPromise(lk, _inDonatingOplogEntries, status);
                 ensureFulfilledPromise(lk, _changeStreamsMonitorStarted, status);
                 ensureFulfilledPromise(lk, _changeStreamsMonitorCompleted, status);
-                ensureFulfilledPromise(lk, _critSecWasAcquired, status);
-                ensureFulfilledPromise(lk, _critSecWasPromoted, status);
             }
 
             return _retryingCancelableOpCtxFactory
@@ -450,29 +418,20 @@ ExecutorFuture<void> ReshardingDonorService::DonorStateMachine::_runUntilBlockin
                 })
                 .runOn(**executor, _cancelState->getAbortOrStepdownToken());
         })
-        .onCompletion([this, executor](Status status) {
-            if (_cancelState->isAbortedOrSteppingDown()) {
-                return ExecutorFuture<void>(**executor, status);
-            }
-
-            {
-                // The donor is done with all local transitions until the coordinator makes its
-                // decision.
-                std::lock_guard<std::mutex> lk(_mutex);
-                invariant(_donorCtx.getState() >= DonorStateEnum::kError);
-                ensureFulfilledPromise(lk, _inBlockingWritesOrError);
-            }
-            return ExecutorFuture<void>(**executor, status);
+        .then([this] {
+            // The donor is done with all local transitions until the coordinator makes its
+            // decision.
+            std::lock_guard<std::mutex> lk(_mutex);
+            tassert(12559801,
+                    "Donor state must be at least kError upon completion of "
+                    "_runUntilBlockingWritesOrErrored",
+                    _donorCtx.getState() >= DonorStateEnum::kError);
         });
 }
 
 ExecutorFuture<void> ReshardingDonorService::DonorStateMachine::_notifyCoordinatorAndAwaitDecision(
     const std::shared_ptr<executor::ScopedTaskExecutor>& executor) {
     if (_donorCtx.getState() == DonorStateEnum::kDone) {
-        {
-            std::lock_guard<std::mutex> lk(_mutex);
-            ensureFulfilledPromise(lk, _critSecWasPromoted);
-        }
         return ExecutorFuture(**executor);
     }
 
@@ -515,10 +474,8 @@ ExecutorFuture<void> ReshardingDonorService::DonorStateMachine::_finishReshardin
                 {
                     // Unblock the RecoverRefreshThread as quickly as possible when aborting.
                     std::lock_guard<std::mutex> lk(_mutex);
-                    ensureFulfilledPromise(
-                        lk, _critSecWasAcquired, {ErrorCodes::ReshardCollectionAborted, "aborted"});
-                    ensureFulfilledPromise(
-                        lk, _critSecWasPromoted, {ErrorCodes::ReshardCollectionAborted, "aborted"});
+                    Status abortedStatus{ErrorCodes::ReshardCollectionAborted, "aborted"};
+                    _promises.setError(lk, abortedStatus);
                 }
 
                 // If aborted, the donor must be allowed to transition to done from any
@@ -613,12 +570,11 @@ ExecutorFuture<void> ReshardingDonorService::DonorStateMachine::_runMandatoryCle
                     : status;
 
                 std::lock_guard<std::mutex> lk(_mutex);
-
-                ensureFulfilledPromise(lk, _inDonatingOplogEntries, statusForPromise);
+                _promises.setError(lk, statusForPromise);
+                ensureFulfilledPromise(lk, _coordinatorHasDecisionPersisted, statusForPromise);
+                ensureFulfilledPromise(lk, _changeStreamMonitorStartTimeSelected, statusForPromise);
                 ensureFulfilledPromise(lk, _changeStreamsMonitorStarted, statusForPromise);
                 ensureFulfilledPromise(lk, _changeStreamsMonitorCompleted, statusForPromise);
-                ensureFulfilledPromise(lk, _critSecWasAcquired, statusForPromise);
-                ensureFulfilledPromise(lk, _critSecWasPromoted, statusForPromise);
                 ensureFulfilledPromise(lk, _completionPromise, statusForPromise);
             }
 
@@ -695,7 +651,13 @@ SemiFuture<void> ReshardingDonorService::DonorStateMachine::run(
         .semi();
 }
 
-void ReshardingDonorService::DonorStateMachine::interrupt(Status status) {}
+void ReshardingDonorService::DonorStateMachine::interrupt(Status status) {
+    // TODO: SERVER-125961
+    // Guard against PrimaryOnlyService invoking interrupt() before run() (e.g. interrupted
+    // mid-stepup), in which case _runMandatoryCleanup never runs to fulfill _completionPromise.
+    std::lock_guard<std::mutex> lk(_mutex);
+    ensureFulfilledPromise(lk, _completionPromise, status);
+}
 
 boost::optional<BSONObj> ReshardingDonorService::DonorStateMachine::reportForCurrentOp(
     MongoProcessInterface::CurrentOpConnectionsMode connMode,
@@ -714,21 +676,30 @@ void ReshardingDonorService::DonorStateMachine::onReshardingFieldsChanges(
     _onCoordinatorStateAdvanced(lk, reshardingFields.getState());
 }
 
-void ReshardingDonorService::DonorStateMachine::_fulfillPromisesOnStepup() {
+void ReshardingDonorService::DonorStateMachine::_fulfillPromisesOnStepup(
+    const ReshardingDonorDocument& donorDoc) {
     std::lock_guard<std::mutex> lk(_mutex);
 
-    if (_donorCtx.getState() >= DonorStateEnum::kDonatingOplogEntries) {
-        ensureFulfilledPromise(lk, _inDonatingOplogEntries);
-        // Fulfill coordinator-state-driven promises based on the inferred coordinator state.
-        // The coordinator must have reached at least kApplying before the donor could enter
-        // kDonatingOplogEntries, kBlockingWrites before kPreparingToBlockWrites, and kCommitting
-        // before kDone.
-        if (_donorCtx.getState() == DonorStateEnum::kDone) {
-            _onCoordinatorStateAdvanced(lk, CoordinatorStateEnum::kCommitting);
-        } else if (_donorCtx.getState() >= DonorStateEnum::kPreparingToBlockWrites) {
-            _onCoordinatorStateAdvanced(lk, CoordinatorStateEnum::kBlockingWrites);
+    _promises.recover(lk, donorDoc);
+
+    auto donorState = donorDoc.getMutableState();
+    if (donorState.getState() == DonorStateEnum::kDone) {
+        if (donorState.getAbortReason()) {
+            ensureFulfilledPromise(lk,
+                                   _coordinatorHasDecisionPersisted,
+                                   resharding::getStatusFromAbortReason(donorState));
         } else {
-            _onCoordinatorStateAdvanced(lk, CoordinatorStateEnum::kApplying);
+            ensureFulfilledPromise(lk, _coordinatorHasDecisionPersisted);
+        }
+    }
+
+    if (auto monitor = donorDoc.getChangeStreamsMonitor()) {
+        ensureFulfilledPromise(
+            lk, _changeStreamMonitorStartTimeSelected, monitor->getStartAtOperationTime());
+        if (monitor->getCompleted()) {
+            ensureFulfilledPromise(lk, _changeStreamsMonitorStarted);
+            ensureFulfilledPromise(
+                lk, _changeStreamsMonitorCompleted, monitor->getDocumentsDelta());
         }
     }
 }
@@ -741,13 +712,7 @@ void ReshardingDonorService::DonorStateMachine::onCoordinatorStateAdvanced(
 
 void ReshardingDonorService::DonorStateMachine::_onCoordinatorStateAdvanced(
     WithLock lk, CoordinatorStateEnum newState) {
-    if (newState >= CoordinatorStateEnum::kApplying) {
-        ensureFulfilledPromise(lk, _allRecipientsDoneCloning);
-    }
-
-    if (newState >= CoordinatorStateEnum::kBlockingWrites) {
-        ensureFulfilledPromise(lk, _allRecipientsDoneApplying);
-    }
+    _promises.onCoordinatorStateAdvanced(lk, newState);
 
     if (newState >= CoordinatorStateEnum::kCommitting) {
         ensureFulfilledPromise(lk, _coordinatorHasDecisionPersisted);
@@ -763,11 +728,11 @@ void ReshardingDonorService::DonorStateMachine::onReadDuringCriticalSection() {
 }
 
 SharedSemiFuture<void> ReshardingDonorService::DonorStateMachine::awaitCriticalSectionAcquired() {
-    return _critSecWasAcquired.getFuture();
+    return _promises.getCritSecWasAcquiredFuture();
 }
 
 SharedSemiFuture<void> ReshardingDonorService::DonorStateMachine::awaitCriticalSectionPromoted() {
-    return _critSecWasPromoted.getFuture();
+    return _promises.getCritSecWasPromotedFuture();
 }
 
 void ReshardingDonorService::DonorStateMachine::
@@ -872,15 +837,12 @@ ExecutorFuture<void> ReshardingDonorService::DonorStateMachine::
             return _createAndStartChangeStreamsMonitor(executor, factory);
         })
         .then([this] {
-            return future_util::withCancellation(_allRecipientsDoneCloning.getFuture(),
+            return future_util::withCancellation(_promises.getAllRecipientsDoneCloningFuture(),
                                                  _cancelState->getAbortOrStepdownToken());
         })
         .thenRunOn(**executor)
-        .then([this, factory]() {
-            _transitionState(DonorStateEnum::kDonatingOplogEntries, factory);
-            std::lock_guard<std::mutex> lk(_mutex);
-            ensureFulfilledPromise(lk, _inDonatingOplogEntries);
-        })
+        .then(
+            [this, factory]() { _transitionState(DonorStateEnum::kDonatingOplogEntries, factory); })
         .onCompletion([=, this](Status status) {
             if (!status.isOK()) {
                 LOGV2_ERROR(8639700,
@@ -912,7 +874,7 @@ ExecutorFuture<void> ReshardingDonorService::DonorStateMachine::
     SharedSemiFuture<void> allRecipientsDoneApplyingFuture;
     {
         std::lock_guard<std::mutex> lk(_mutex);
-        allRecipientsDoneApplyingFuture = _allRecipientsDoneApplying.getFuture();
+        allRecipientsDoneApplyingFuture = _promises.getAllRecipientsDoneApplyingFuture();
     }
 
     return future_util::withCancellation(std::move(allRecipientsDoneApplyingFuture),
@@ -928,7 +890,7 @@ void ReshardingDonorService::DonorStateMachine::
         std::shared_ptr<HierarchicalCancelableOperationContextFactory> factory) {
     if (_donorCtx.getState() > DonorStateEnum::kPreparingToBlockWrites) {
         std::lock_guard<std::mutex> lk(_mutex);
-        ensureFulfilledPromise(lk, _critSecWasAcquired);
+        _promises.emplaceCritSecWasAcquired(lk);
         return;
     }
 
@@ -949,7 +911,7 @@ void ReshardingDonorService::DonorStateMachine::
 
     {
         std::lock_guard<std::mutex> lk(_mutex);
-        ensureFulfilledPromise(lk, _critSecWasAcquired);
+        _promises.emplaceCritSecWasAcquired(lk);
     }
 
     {
@@ -987,10 +949,8 @@ void ReshardingDonorService::DonorStateMachine::
 void ReshardingDonorService::DonorStateMachine::_dropOriginalCollectionThenTransitionToDone(
     std::shared_ptr<HierarchicalCancelableOperationContextFactory> factory) {
     if (_donorCtx.getState() > DonorStateEnum::kBlockingWrites) {
-        {
-            std::lock_guard<std::mutex> lk(_mutex);
-            ensureFulfilledPromise(lk, _critSecWasPromoted);
-        }
+        std::lock_guard<std::mutex> lk(_mutex);
+        _promises.emplaceCritSecWasPromoted(lk);
         return;
     }
     {
@@ -1006,7 +966,7 @@ void ReshardingDonorService::DonorStateMachine::_dropOriginalCollectionThenTrans
 
     {
         std::lock_guard<std::mutex> lk(_mutex);
-        ensureFulfilledPromise(lk, _critSecWasPromoted);
+        _promises.emplaceCritSecWasPromoted(lk);
     }
 
     if (_isAlsoRecipient) {
@@ -1108,71 +1068,77 @@ ExecutorFuture<void> ReshardingDonorService::DonorStateMachine::_createAndStartC
             return ExecutorFuture<void>(**executor, Status::OK());
         })
         .then([this, executor, factory] {
-            auto batchCallback = [this, factory = factory, anchor = shared_from_this()](
-                                     const auto& batch) {
-                boost::optional<long long> lagSecs;
-                if (auto clusterTimeSecs = batch.getResumeTokenClusterTimeSecs()) {
-                    auto replCoord = repl::ReplicationCoordinator::get(_serviceContext);
-                    auto lastCommittedSecs =
-                        replCoord->getLastCommittedOpTime().getTimestamp().getSecs();
-                    auto lagMs =
-                        Milliseconds(std::max<int64_t>(0,
-                                                       static_cast<int64_t>(lastCommittedSecs) -
-                                                           static_cast<int64_t>(*clusterTimeSecs)) *
-                                     1000);
-                    _metrics->setChangeStreamMonitorLag(lagMs);
-                    lagSecs = durationCount<Seconds>(lagMs);
-                }
-
-                LOGV2(9858404,
-                      "Persisting change streams monitor's progress",
-                      "reshardingUUID"_attr = _metadata.getReshardingUUID(),
-                      "documentsDelta"_attr = batch.getDocumentsDelta(),
-                      "completed"_attr = batch.containsFinalEvent(),
-                      "changeStreamMonitorLagSecs"_attr = lagSecs);
-
-                auto changeStreamsMonitorCtx = _changeStreamsMonitorCtx.get();
-                changeStreamsMonitorCtx.setResumeToken(batch.getResumeToken().getOwned());
-                changeStreamsMonitorCtx.setDocumentsDelta(
-                    changeStreamsMonitorCtx.getDocumentsDelta() + batch.getDocumentsDelta());
-                changeStreamsMonitorCtx.setCompleted(batch.containsFinalEvent());
-
-                if (MONGO_unlikely(
-                        reshardingDonorFailsUpdatingChangeStreamsMonitorProgress.shouldFail())) {
-                    uasserted(ErrorCodes::InternalError,
-                              "Simulating an unrecoverable error for testing inside the donor's "
-                              "changeStreamsMonitor callback");
-                }
-
-                auto opCtx = _makeOperationContext(factory);
-                _updateDonorDocument(opCtx.get(), std::move(changeStreamsMonitorCtx));
-            };
-
-            _changeStreamsMonitor = std::make_shared<ReshardingChangeStreamsMonitor>(
-                _metadata.getReshardingUUID(),
-                _metadata.getSourceNss(),
-                _changeStreamsMonitorCtx->getStartAtOperationTime(),
-                _changeStreamsMonitorCtx->getResumeToken(),
-                batchCallback);
-
-            LOGV2(9858401,
-                  "Starting the change streams monitor",
-                  "reshardingUUID"_attr = _metadata.getReshardingUUID());
-            _changeStreamsMonitorQuiesced =
-                _changeStreamsMonitor
-                    ->startMonitoring(**executor,
-                                      _donorService->getInstanceCleanupExecutor(),
-                                      _cancelState->getAbortOrStepdownToken(),
-                                      factory)
-                    .share();
-            _metrics->setStartFor(ReshardingMetrics::TimedPhase::kChangeStreamMonitor,
-                                  resharding::getCurrentTime());
-            _changeStreamsMonitorStarted.emplaceValue();
+            _createChangeStreamsMonitor(executor, factory);
+            std::lock_guard<std::mutex> lk(_mutex);
+            ensureFulfilledPromise(lk, _changeStreamsMonitorStarted);
         });
 }
 
+void ReshardingDonorService::DonorStateMachine::_createChangeStreamsMonitor(
+    const std::shared_ptr<executor::ScopedTaskExecutor>& executor,
+    std::shared_ptr<HierarchicalCancelableOperationContextFactory> factory) {
+    auto batchCallback = [this, factory = factory, anchor = shared_from_this()](const auto& batch) {
+        boost::optional<long long> lagSecs;
+        if (auto clusterTimeSecs = batch.getResumeTokenClusterTimeSecs()) {
+            auto replCoord = repl::ReplicationCoordinator::get(_serviceContext);
+            auto lastCommittedSecs = replCoord->getLastCommittedOpTime().getTimestamp().getSecs();
+            auto lagMs =
+                Milliseconds(std::max<int64_t>(0,
+                                               static_cast<int64_t>(lastCommittedSecs) -
+                                                   static_cast<int64_t>(*clusterTimeSecs)) *
+                             1000);
+            _metrics->setChangeStreamMonitorLag(lagMs);
+            lagSecs = durationCount<Seconds>(lagMs);
+        }
+
+        LOGV2(9858404,
+              "Persisting change streams monitor's progress",
+              "reshardingUUID"_attr = _metadata.getReshardingUUID(),
+              "documentsDelta"_attr = batch.getDocumentsDelta(),
+              "completed"_attr = batch.containsFinalEvent(),
+              "changeStreamMonitorLagSecs"_attr = lagSecs);
+
+        auto changeStreamsMonitorCtx = _changeStreamsMonitorCtx.get();
+        changeStreamsMonitorCtx.setResumeToken(batch.getResumeToken().getOwned());
+        changeStreamsMonitorCtx.setDocumentsDelta(changeStreamsMonitorCtx.getDocumentsDelta() +
+                                                  batch.getDocumentsDelta());
+        changeStreamsMonitorCtx.setCompleted(batch.containsFinalEvent());
+
+        reshardingDonorFailsUpdatingChangeStreamsMonitorProgress.execute([&](const BSONObj& data) {
+            const auto& errorCode = data.getIntField("errorCode");
+            uasserted(ErrorCodes::Error(errorCode),
+                      "Simulating an error in donor's changeStreamsMonitor callback "
+                      "via failpoint");
+        });
+
+        auto opCtx = _makeOperationContext(factory);
+        _updateDonorDocument(opCtx.get(), std::move(changeStreamsMonitorCtx));
+    };
+
+    _changeStreamsMonitor = std::make_shared<ReshardingChangeStreamsMonitor>(
+        _metadata.getReshardingUUID(),
+        _metadata.getSourceNss(),
+        _changeStreamsMonitorCtx->getStartAtOperationTime(),
+        _changeStreamsMonitorCtx->getResumeToken(),
+        batchCallback);
+
+    LOGV2(9858401,
+          "Starting the change streams monitor",
+          "reshardingUUID"_attr = _metadata.getReshardingUUID());
+    _changeStreamsMonitorQuiesced =
+        _changeStreamsMonitor
+            ->startMonitoring(**executor,
+                              _donorService->getInstanceCleanupExecutor(),
+                              _cancelState->getAbortOrStepdownToken(),
+                              factory)
+            .share();
+    _metrics->setStartFor(ReshardingMetrics::TimedPhase::kChangeStreamMonitor,
+                          resharding::getCurrentTime());
+}
+
 ExecutorFuture<void> ReshardingDonorService::DonorStateMachine::_awaitChangeStreamsMonitorCompleted(
-    const std::shared_ptr<executor::ScopedTaskExecutor>& executor) {
+    const std::shared_ptr<executor::ScopedTaskExecutor>& executor,
+    std::shared_ptr<HierarchicalCancelableOperationContextFactory> factory) {
     if (!_metadata.getPerformVerification() ||
         _changeStreamsMonitorCompleted.getFuture().isReady()) {
         return ExecutorFuture<void>(**executor, Status::OK());
@@ -1182,31 +1148,62 @@ ExecutorFuture<void> ReshardingDonorService::DonorStateMachine::_awaitChangeStre
     return future_util::withCancellation(_changeStreamsMonitor->awaitFinalChangeEvent(),
                                          _cancelState->getAbortOrStepdownToken())
         .thenRunOn(**executor)
-        .onCompletion([this](Status status) {
+        .onCompletion([this, executor, factory](Status status) {
             std::lock_guard<std::mutex> lk(_mutex);
             if (status.isOK()) {
                 _metrics->setEndFor(ReshardingMetrics::TimedPhase::kChangeStreamMonitor,
                                     resharding::getCurrentTime());
-            }
 
-            LOGV2(9858402,
-                  "The change streams monitor completed",
-                  "reshardingUUID"_attr = _metadata.getReshardingUUID(),
-                  "status"_attr = status,
-                  "changeStreamMonitorTotalTimeSecs"_attr = _metrics->getElapsed<Seconds>(
-                      ReshardingMetrics::TimedPhase::kChangeStreamMonitor,
-                      _serviceContext->getFastClockSource()),
-                  "blockingWritesToMonitorCompletionSecs"_attr =
-                      _metrics->getCrossPhaseElapsed<Seconds>(
-                          ReshardingMetrics::TimedPhase::kCriticalSection,
-                          ReshardingMetrics::TimedPhase::kChangeStreamMonitor));
+                LOGV2(9858402,
+                      "The change streams monitor completed",
+                      "reshardingUUID"_attr = _metadata.getReshardingUUID(),
+                      "status"_attr = status,
+                      "changeStreamMonitorTotalTimeSecs"_attr = _metrics->getElapsed<Seconds>(
+                          ReshardingMetrics::TimedPhase::kChangeStreamMonitor,
+                          _serviceContext->getFastClockSource()),
+                      "blockingWritesToMonitorCompletionSecs"_attr =
+                          _metrics->getCrossPhaseElapsed<Seconds>(
+                              ReshardingMetrics::TimedPhase::kCriticalSection,
+                              ReshardingMetrics::TimedPhase::kChangeStreamMonitor));
 
-            if (status.isOK()) {
                 ensureFulfilledPromise(lk,
                                        _changeStreamsMonitorCompleted,
                                        _changeStreamsMonitorCtx->getDocumentsDelta());
+                return ExecutorFuture<void>(**executor, Status::OK());
             } else {
-                ensureFulfilledPromise(lk, _changeStreamsMonitorCompleted, status);
+                if (_cancelState->isAbortedOrSteppingDown() ||
+                    status.isA<ErrorCategory::NotPrimaryError>()) {
+                    ensureFulfilledPromise(lk, _changeStreamsMonitorCompleted, status);
+                    return ExecutorFuture<void>(**executor, Status::OK());
+                }
+
+                if (resharding::isRetryableChangeStreamsMonitorError(status)) {
+                    LOGV2_WARNING(10903203,
+                                  "Change streams monitor failed with retryable error, will "
+                                  "recreate",
+                                  "reshardingUUID"_attr = _metadata.getReshardingUUID(),
+                                  "error"_attr = status);
+                    return _changeStreamsMonitor->awaitCleanup()
+                        .thenRunOn(**executor)
+                        .then([this, executor, factory]() {
+                            _createChangeStreamsMonitor(executor, factory);
+                            return _awaitChangeStreamsMonitorCompleted(executor, factory);
+                        });
+                } else {
+                    if (_donorCtx.getState() >= DonorStateEnum::kBlockingWrites) {
+                        LOGV2_FATAL(
+                            10903204,
+                            "Change streams monitor failed with unrecoverable error past the "
+                            "point donor was prepared to complete the resharding operation",
+                            "error"_attr = status);
+                    }
+                    LOGV2_WARNING(10903205,
+                                  "Change streams monitor failed with unrecoverable error",
+                                  "reshardingUUID"_attr = _metadata.getReshardingUUID(),
+                                  "error"_attr = status);
+                    ensureFulfilledPromise(lk, _changeStreamsMonitorCompleted, status);
+                    return ExecutorFuture<void>(**executor, status);
+                }
             }
         });
 }
@@ -1236,6 +1233,11 @@ void ReshardingDonorService::DonorStateMachine::_transitionState(
     _updateDonorDocument(std::move(newDonorCtx), factory);
 
     _metrics->onStateTransition(oldState, newState);
+
+    {
+        std::lock_guard<std::mutex> lk(_mutex);
+        _promises.onDonorStateAdvanced(lk, newState);
+    }
 
     LOGV2_INFO(5279505,
                "Transitioned resharding donor state",
@@ -1392,9 +1394,7 @@ void ReshardingDonorService::DonorStateMachine::commit() {
                     idl::serialize(_donorCtx.getState())),
         _donorCtx.getState() >= DonorStateEnum::kBlockingWrites);
 
-    if (!_coordinatorHasDecisionPersisted.getFuture().isReady()) {
-        _coordinatorHasDecisionPersisted.emplaceValue();
-    }
+    ensureFulfilledPromise(lk, _coordinatorHasDecisionPersisted);
 }
 
 void ReshardingDonorService::DonorStateMachine::_updateDonorDocument(OperationContext* opCtx,
@@ -1467,7 +1467,7 @@ void ReshardingDonorService::DonorStateMachine::_removeDonorDocument(
         shard_role_details::getRecoveryUnit(opCtx.get())
             ->onCommit([this](OperationContext*, boost::optional<Timestamp>) {
                 std::lock_guard<std::mutex> lk(_mutex);
-                _completionPromise.emplaceValue();
+                ensureFulfilledPromise(lk, _completionPromise);
             });
 
         deleteObjects(opCtx.get(),
@@ -1485,7 +1485,7 @@ void ReshardingDonorService::DonorStateMachine::_initCancelState(
     reshardingPauseDonorBeforeInitCancelState.pauseWhileSet();
     {
         std::lock_guard<std::mutex> lk(_mutex);
-        _cancelState = std::make_unique<ReshardingParticipantCancelState>(stepdownToken);
+        _cancelState = std::make_unique<primary_only_service_helpers::CancelState>(stepdownToken);
     }
 
     if (_donorCtx.getState() == DonorStateEnum::kDone && _donorCtx.getAbortReason()) {

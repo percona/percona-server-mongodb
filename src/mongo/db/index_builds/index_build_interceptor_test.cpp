@@ -49,12 +49,15 @@
 #include "mongo/db/storage/key_string/key_string.h"
 #include "mongo/db/storage/kv/kv_engine.h"
 #include "mongo/db/storage/lazy_record_store.h"
+#include "mongo/db/storage/record_store_test_harness.h"
 #include "mongo/db/storage/write_unit_of_work.h"
+#include "mongo/idl/server_parameter_test_controller.h"
 #include "mongo/otel/metrics/metric_names.h"
 #include "mongo/otel/metrics/metrics_test_util.h"
 #include "mongo/unittest/death_test.h"
 #include "mongo/unittest/unittest.h"
 #include "mongo/util/assert_util.h"
+#include "mongo/util/fail_point.h"
 
 #include <span>
 
@@ -95,7 +98,7 @@ class IndexBuilderInterceptorTest : public CatalogTestFixture {
 protected:
     const IndexCatalogEntry* createIndex(BSONObj spec) {
         WriteUnitOfWork wuow(operationContext());
-        CollectionWriter writer{operationContext(), _coll.get()};
+        CollectionWriter writer{operationContext(), &_coll.value()};
 
         auto* indexCatalog = writer.getWritableCollection(operationContext())->getIndexCatalog();
         uassertStatusOK(indexCatalog->createIndexOnEmptyCollection(
@@ -170,13 +173,17 @@ protected:
     }
 
     const IndexCatalogEntry* getIndexEntry(const std::string& indexName) {
-        return _coll.get()->getIndexCatalog()->findIndexByName(operationContext(), indexName);
+        return _coll->getCollectionPtr()->getIndexCatalog()->findIndexByName(operationContext(),
+                                                                             indexName);
     }
 
     void setUp() override {
         CatalogTestFixture::setUp();
         ASSERT_OK(storageInterface()->createCollection(operationContext(), _nss, {}));
-        _coll.emplace(operationContext(), _nss, MODE_X);
+        _coll = acquireCollection(operationContext(),
+                                  CollectionAcquisitionRequest::fromOpCtx(
+                                      operationContext(), _nss, AcquisitionPrerequisites::kWrite),
+                                  MODE_X);
     }
 
     void tearDown() override {
@@ -189,7 +196,7 @@ protected:
     void testSingleOpIsSavedToSideWritesTable(IndexBuildInterceptor::Op op,
                                               LazyRecordStore::CreateMode createMode);
 
-    boost::optional<AutoGetCollection> _coll;
+    boost::optional<CollectionAcquisition> _coll;
 
 private:
     NamespaceString _nss = NamespaceString::createNamespaceString_forTest("testDB.interceptor");
@@ -219,7 +226,7 @@ void IndexBuilderInterceptorTest::testSingleOpIsSavedToSideWritesTable(
     WriteUnitOfWork wuow(operationContext());
     int64_t numKeys = 0;
     ASSERT_OK(interceptor->sideWrite(
-        operationContext(), *_coll.get(), entry, {keyString}, {}, {}, op, &numKeys));
+        operationContext(), _coll->getCollectionPtr(), entry, {keyString}, {}, {}, op, &numKeys));
     EXPECT_EQ(1, numKeys);
     wuow.commit();
 
@@ -278,7 +285,8 @@ TEST_F(IndexBuilderInterceptorTest, SingleInsertIsSavedToSkippedRecordsIntRidTra
     recordId.serializeToken("recordId", &builder);
 
     WriteUnitOfWork wuow(operationContext());
-    interceptor->getSkippedRecordTracker().record(operationContext(), *_coll.get(), recordId);
+    interceptor->getSkippedRecordTracker().record(
+        operationContext(), _coll->getCollectionPtr(), recordId);
     wuow.commit();
 
     auto skippedRecordsTable = getSkippedRecordsTableContents(indexBuildInfo);
@@ -300,7 +308,8 @@ TEST_F(IndexBuilderInterceptorTest, SingleInsertIsSavedToSkippedRecordsTableIntR
     recordId.serializeToken("recordId", &builder);
 
     WriteUnitOfWork wuow(operationContext());
-    interceptor->getSkippedRecordTracker().record(operationContext(), *_coll.get(), recordId);
+    interceptor->getSkippedRecordTracker().record(
+        operationContext(), _coll->getCollectionPtr(), recordId);
     wuow.commit();
 
     auto skippedRecordsTable = getSkippedRecordsTableContents(indexBuildInfo);
@@ -317,7 +326,8 @@ TEST_F(IndexBuilderInterceptorTest, SingleInsertIsSavedToskippedRecordsTableStri
     recordId.serializeToken("recordId", &builder);
 
     WriteUnitOfWork wuow(operationContext());
-    interceptor->getSkippedRecordTracker().record(operationContext(), *_coll.get(), recordId);
+    interceptor->getSkippedRecordTracker().record(
+        operationContext(), _coll->getCollectionPtr(), recordId);
     wuow.commit();
 
     auto skippedRecordsTable = getSkippedRecordsTableContents(indexBuildInfo);
@@ -340,7 +350,8 @@ TEST_F(IndexBuilderInterceptorTest,
     recordId.serializeToken("recordId", &builder);
 
     WriteUnitOfWork wuow(operationContext());
-    interceptor->getSkippedRecordTracker().record(operationContext(), *_coll.get(), recordId);
+    interceptor->getSkippedRecordTracker().record(
+        operationContext(), _coll->getCollectionPtr(), recordId);
     wuow.commit();
 
     auto skippedRecordsTable = getSkippedRecordsTableContents(indexBuildInfo);
@@ -359,7 +370,8 @@ TEST_F(IndexBuilderInterceptorTest, SingleInsertIsSavedToDuplicateKeyTable) {
     key_string::Value keyString(ksBuilder.release());
 
     WriteUnitOfWork wuow(operationContext());
-    ASSERT_OK(interceptor->recordDuplicateKey(operationContext(), *_coll.get(), entry, keyString));
+    ASSERT_OK(interceptor->recordDuplicateKey(
+        operationContext(), _coll->getCollectionPtr(), entry, keyString));
     wuow.commit();
 
     key_string::View keyStringView(keyString);
@@ -385,7 +397,8 @@ TEST_F(IndexBuilderInterceptorTest, SingleInsertIsSavedToDuplicateKeyTablePrimar
     key_string::Value keyString(ksBuilder.release());
 
     WriteUnitOfWork wuow(operationContext());
-    ASSERT_OK(interceptor->recordDuplicateKey(operationContext(), *_coll.get(), entry, keyString));
+    ASSERT_OK(interceptor->recordDuplicateKey(
+        operationContext(), _coll->getCollectionPtr(), entry, keyString));
     wuow.commit();
 
     key_string::View keyStringView(keyString);
@@ -429,7 +442,7 @@ TEST_F(IndexBuilderInterceptorTest, SingleInsertIsDrainedIntoIndexPrimaryDriven)
         WriteUnitOfWork wuow(operationContext());
         int64_t numKeys = 0;
         ASSERT_OK(interceptor->sideWrite(operationContext(),
-                                         *_coll.get(),
+                                         _coll->getCollectionPtr(),
                                          entry,
                                          {keyString},
                                          {},
@@ -441,7 +454,7 @@ TEST_F(IndexBuilderInterceptorTest, SingleInsertIsDrainedIntoIndexPrimaryDriven)
     }
 
     ASSERT_OK(interceptor->drainWritesIntoIndex(operationContext(),
-                                                *_coll.get(),
+                                                _coll->getCollectionPtr(),
                                                 entry,
                                                 InsertDeleteOptions{.dupsAllowed = true},
                                                 IndexBuildInterceptor::TrackDuplicates::kNoTrack,
@@ -511,7 +524,7 @@ TEST_F(IndexBuilderInterceptorTest, SingleDeleteIsDrainedIntoIndexPrimaryDriven)
         int64_t numInserted = 0;
         ASSERT_OK(indexAccessMethod->insertKeys(operationContext(),
                                                 ru,
-                                                *_coll.get(),
+                                                _coll->getCollectionPtr(),
                                                 entry,
                                                 keySet,
                                                 InsertDeleteOptions{.dupsAllowed = true},
@@ -526,7 +539,7 @@ TEST_F(IndexBuilderInterceptorTest, SingleDeleteIsDrainedIntoIndexPrimaryDriven)
         WriteUnitOfWork wuow(operationContext());
         int64_t numKeys = 0;
         ASSERT_OK(interceptor->sideWrite(operationContext(),
-                                         *_coll.get(),
+                                         _coll->getCollectionPtr(),
                                          entry,
                                          {keyString},
                                          {},
@@ -538,7 +551,7 @@ TEST_F(IndexBuilderInterceptorTest, SingleDeleteIsDrainedIntoIndexPrimaryDriven)
     }
 
     ASSERT_OK(interceptor->drainWritesIntoIndex(operationContext(),
-                                                *_coll.get(),
+                                                _coll->getCollectionPtr(),
                                                 entry,
                                                 InsertDeleteOptions{.dupsAllowed = true},
                                                 IndexBuildInterceptor::TrackDuplicates::kNoTrack,
@@ -567,6 +580,178 @@ TEST_F(IndexBuilderInterceptorTest, SingleDeleteIsDrainedIntoIndexPrimaryDriven)
     }
 }
 
+// Verifies that the writeConflictRetry block wrapping applySingleBatch in
+// SideWritesTracker::drainWritesIntoIndex tolerates a write conflict during the drain.
+TEST_F(IndexBuilderInterceptorTest, DrainWritesIntoIndexSurvivesWriteConflict) {
+    // TODO (SERVER-116165): Remove.
+    RAIIServerParameterControllerForTest ffContainerWrites("featureFlagContainerWrites", true);
+    RAIIServerParameterControllerForTest ffPDIB("featureFlagPrimaryDrivenIndexBuilds", true);
+
+    auto indexBuildInfo = buildIndexBuildInfo(fromjson("{v: 2, name: 'a_1', key: {a: 1}}"));
+    auto interceptor =
+        createIndexBuildInterceptor(indexBuildInfo, LazyRecordStore::CreateMode::immediate);
+    const auto entry = getIndexEntry("a_1");
+
+    // Buffer N >= 2 side writes so applySingleBatch processes a real batch, with kBatchMaxSize
+    // pinned > N so the whole drain is a single batch.
+    constexpr int kNumKeys = 4;
+    RAIIServerParameterControllerForTest batchSize("maxIndexBuildDrainBatchSize", kNumKeys + 1);
+    std::vector<key_string::Value> keyStrings;
+    keyStrings.reserve(kNumKeys);
+    for (int i = 0; i < kNumKeys; ++i) {
+        keyStrings.push_back(makeKeyString(i, RecordId{i + 1}));
+    }
+
+    {
+        WriteUnitOfWork wuow(operationContext());
+        for (const auto& keyString : keyStrings) {
+            int64_t numKeys = 0;
+            ASSERT_OK(interceptor->sideWrite(operationContext(),
+                                             _coll->getCollectionPtr(),
+                                             entry,
+                                             {keyString},
+                                             {},
+                                             {},
+                                             IndexBuildInterceptor::Op::kInsert,
+                                             &numKeys));
+            EXPECT_EQ(1, numKeys);
+        }
+        wuow.commit();
+    }
+
+    otel::metrics::OtelMetricsCapturer capturer;
+    int64_t drainedBefore = 0;
+    if (capturer.canReadMetrics()) {
+        drainedBefore =
+            capturer.readInt64Counter(otel::metrics::MetricNames::kIndexBuildSideWritesDrained);
+    }
+
+    {
+        auto failPoint = enableWriteConflictForWrites(
+            FailPoint::ModeOptions{.mode = FailPoint::Mode::nTimes, .val = 1});
+        const auto initialTimesEntered = failPoint->initialTimesEntered();
+        // The drain must succeed via writeConflictRetry, even though one WCE fires during
+        // applySingleBatch.
+        ASSERT_OK(
+            interceptor->drainWritesIntoIndex(operationContext(),
+                                              _coll->getCollectionPtr(),
+                                              entry,
+                                              InsertDeleteOptions{.dupsAllowed = true},
+                                              IndexBuildInterceptor::TrackDuplicates::kNoTrack,
+                                              IndexBuildInterceptor::DrainYieldPolicy::kNoYield));
+        // Exactly one WCE fired during the drain.
+        EXPECT_EQ(initialTimesEntered + 1,
+                  (*failPoint)->waitForTimesEntered(initialTimesEntered + 1));
+    }
+
+    // The index has exactly kNumKeys keys — no duplicates from a double-applied batch, no losses
+    // from a half-rolled-back batch.
+    auto& ru = *shard_role_details::getRecoveryUnit(operationContext());
+    auto indexCursor = entry->accessMethod()->asSortedData()->newCursor(operationContext(), ru);
+    int numIndexedKeys = 0;
+    for (auto kv = indexCursor->nextKeyString(ru); kv; kv = indexCursor->nextKeyString(ru)) {
+        ++numIndexedKeys;
+    }
+    EXPECT_EQ(kNumKeys, numIndexedKeys);
+
+    // The side-writes table is empty after a successful drain.
+    EXPECT_EQ(0u, getSideWritesTableContents(indexBuildInfo).size());
+
+    // The OTel drained counter advanced by exactly kNumKeys. The counter is incremented only after
+    // applySingleBatch's WUOW commits, so a WCE-rolled-back batch contributes nothing; a
+    // double-applied batch would push this to kNumKeys * 2.
+    if (capturer.canReadMetrics()) {
+        EXPECT_EQ(
+            capturer.readInt64Counter(otel::metrics::MetricNames::kIndexBuildSideWritesDrained),
+            drainedBefore + kNumKeys);
+    }
+}
+
+// Multi-batch variant of the above: with maxIndexBuildDrainBatchSize=2 and N=4 records, the drain
+// loop runs writeConflictRetry across multiple batches.
+TEST_F(IndexBuilderInterceptorTest, DrainWritesIntoIndexSurvivesWriteConflictMultiBatch) {
+    // TODO (SERVER-116165): Remove.
+    RAIIServerParameterControllerForTest ffContainerWrites("featureFlagContainerWrites", true);
+    RAIIServerParameterControllerForTest ffPDIB("featureFlagPrimaryDrivenIndexBuilds", true);
+    RAIIServerParameterControllerForTest batchSize("maxIndexBuildDrainBatchSize", 2);
+
+    auto indexBuildInfo = buildIndexBuildInfo(fromjson("{v: 2, name: 'a_1', key: {a: 1}}"));
+    auto interceptor =
+        createIndexBuildInterceptor(indexBuildInfo, LazyRecordStore::CreateMode::immediate);
+    const auto entry = getIndexEntry("a_1");
+
+    // N = 2 * batch size, so the drain loop runs at least two non-empty applySingleBatch
+    // invocations.
+    constexpr int kNumKeys = 4;
+    std::vector<key_string::Value> keyStrings;
+    keyStrings.reserve(kNumKeys);
+    for (int i = 0; i < kNumKeys; ++i) {
+        keyStrings.push_back(makeKeyString(i, RecordId{i + 1}));
+    }
+
+    {
+        WriteUnitOfWork wuow(operationContext());
+        for (const auto& keyString : keyStrings) {
+            int64_t numKeys = 0;
+            ASSERT_OK(interceptor->sideWrite(operationContext(),
+                                             _coll->getCollectionPtr(),
+                                             entry,
+                                             {keyString},
+                                             {},
+                                             {},
+                                             IndexBuildInterceptor::Op::kInsert,
+                                             &numKeys));
+            EXPECT_EQ(1, numKeys);
+        }
+        wuow.commit();
+    }
+
+    otel::metrics::OtelMetricsCapturer capturer;
+    int64_t drainedBefore = 0;
+    if (capturer.canReadMetrics()) {
+        drainedBefore =
+            capturer.readInt64Counter(otel::metrics::MetricNames::kIndexBuildSideWritesDrained);
+    }
+
+    {
+        auto failPoint = enableWriteConflictForWrites(
+            FailPoint::ModeOptions{.mode = FailPoint::Mode::nTimes, .val = 1});
+        const auto initialTimesEntered = failPoint->initialTimesEntered();
+        // The first qualifying WUOW commit during the drain (the first batch's apply) hits the
+        // WCE. writeConflictRetry must roll it back, re-run the batch, then the loop must proceed
+        // to the second batch cleanly.
+        ASSERT_OK(
+            interceptor->drainWritesIntoIndex(operationContext(),
+                                              _coll->getCollectionPtr(),
+                                              entry,
+                                              InsertDeleteOptions{.dupsAllowed = true},
+                                              IndexBuildInterceptor::TrackDuplicates::kNoTrack,
+                                              IndexBuildInterceptor::DrainYieldPolicy::kNoYield));
+        EXPECT_EQ(initialTimesEntered + 1,
+                  (*failPoint)->waitForTimesEntered(initialTimesEntered + 1));
+    }
+
+    // Both batches landed exactly once: no records lost from the rolled-back batch and no records
+    // double-applied across the surviving batch.
+    auto& ru = *shard_role_details::getRecoveryUnit(operationContext());
+    auto indexCursor = entry->accessMethod()->asSortedData()->newCursor(operationContext(), ru);
+    int numIndexedKeys = 0;
+    for (auto kv = indexCursor->nextKeyString(ru); kv; kv = indexCursor->nextKeyString(ru)) {
+        ++numIndexedKeys;
+    }
+    EXPECT_EQ(kNumKeys, numIndexedKeys);
+
+    EXPECT_EQ(0u, getSideWritesTableContents(indexBuildInfo).size());
+
+    // The OTel drained counter accumulates across both batches to kNumKeys, not kNumKeys + the
+    // first batch's size (which would indicate the retried first batch was counted twice).
+    if (capturer.canReadMetrics()) {
+        EXPECT_EQ(
+            capturer.readInt64Counter(otel::metrics::MetricNames::kIndexBuildSideWritesDrained),
+            drainedBefore + kNumKeys);
+    }
+}
+
 TEST_F(IndexBuilderInterceptorTest, DeferredTableCreation) {
     auto indexBuildInfo =
         buildIndexBuildInfo(fromjson("{v: 2, name: 'a_1', key: {a: 1}, unique: true}"));
@@ -582,7 +767,7 @@ TEST_F(IndexBuilderInterceptorTest, DeferredTableCreation) {
     {
         WriteUnitOfWork wuow(operationContext());
         interceptor->getSkippedRecordTracker().record(
-            operationContext(), *_coll.get(), RecordId(1));
+            operationContext(), _coll->getCollectionPtr(), RecordId(1));
         wuow.commit();
     }
 
@@ -597,7 +782,7 @@ TEST_F(IndexBuilderInterceptorTest, DeferredTableCreation) {
 
         WriteUnitOfWork wuow(operationContext());
         ASSERT_OK(interceptor->recordDuplicateKey(
-            operationContext(), *_coll.get(), entry, ksBuilder.release()));
+            operationContext(), _coll->getCollectionPtr(), entry, ksBuilder.release()));
         wuow.commit();
     }
 
@@ -651,16 +836,17 @@ TEST_F(IndexBuilderInterceptorTest, OpenExistingPreservesExistingData) {
         WriteUnitOfWork wuow(operationContext());
         int64_t numKeys = 0;
         ASSERT_OK(interceptor->sideWrite(operationContext(),
-                                         *_coll.get(),
+                                         _coll->getCollectionPtr(),
                                          entry,
                                          {keyString},
                                          {},
                                          {},
                                          IndexBuildInterceptor::Op::kInsert,
                                          &numKeys));
-        interceptor->getSkippedRecordTracker().record(operationContext(), *_coll.get(), recordId);
-        ASSERT_OK(
-            interceptor->recordDuplicateKey(operationContext(), *_coll.get(), entry, keyString));
+        interceptor->getSkippedRecordTracker().record(
+            operationContext(), _coll->getCollectionPtr(), recordId);
+        ASSERT_OK(interceptor->recordDuplicateKey(
+            operationContext(), _coll->getCollectionPtr(), entry, keyString));
         wuow.commit();
     }
 
@@ -794,7 +980,7 @@ TEST_F(IndexBuilderInterceptorTest, DrainSideWriteGeneratesNoContainerOpsWithout
         WriteUnitOfWork wuow(operationContext());
         int64_t numKeys = 0;
         ASSERT_OK(interceptor->sideWrite(operationContext(),
-                                         *_coll.get(),
+                                         _coll->getCollectionPtr(),
                                          entry,
                                          {keyString},
                                          {},
@@ -810,7 +996,7 @@ TEST_F(IndexBuilderInterceptorTest, DrainSideWriteGeneratesNoContainerOpsWithout
 
     // Drain without PDIB — should use regular record store ops, not container writes.
     ASSERT_OK(interceptor->drainWritesIntoIndex(operationContext(),
-                                                *_coll.get(),
+                                                _coll->getCollectionPtr(),
                                                 entry,
                                                 InsertDeleteOptions{.dupsAllowed = true},
                                                 IndexBuildInterceptor::TrackDuplicates::kNoTrack,
@@ -848,7 +1034,7 @@ TEST_F(IndexBuilderInterceptorTest, DrainInsertSideWriteGeneratesContainerOpsPri
         WriteUnitOfWork wuow(operationContext());
         int64_t numKeys = 0;
         ASSERT_OK(interceptor->sideWrite(operationContext(),
-                                         *_coll.get(),
+                                         _coll->getCollectionPtr(),
                                          entry,
                                          {keyString},
                                          {},
@@ -864,7 +1050,7 @@ TEST_F(IndexBuilderInterceptorTest, DrainInsertSideWriteGeneratesContainerOpsPri
 
     // Drain the side writes into the index.
     ASSERT_OK(interceptor->drainWritesIntoIndex(operationContext(),
-                                                *_coll.get(),
+                                                _coll->getCollectionPtr(),
                                                 entry,
                                                 InsertDeleteOptions{.dupsAllowed = true},
                                                 IndexBuildInterceptor::TrackDuplicates::kNoTrack,
@@ -904,7 +1090,7 @@ TEST_F(IndexBuilderInterceptorTest, DrainDeleteSideWriteGeneratesContainerOpsPri
         int64_t numInserted = 0;
         ASSERT_OK(indexAccessMethod->insertKeys(operationContext(),
                                                 ru,
-                                                *_coll.get(),
+                                                _coll->getCollectionPtr(),
                                                 entry,
                                                 keySet,
                                                 InsertDeleteOptions{.dupsAllowed = true},
@@ -919,7 +1105,7 @@ TEST_F(IndexBuilderInterceptorTest, DrainDeleteSideWriteGeneratesContainerOpsPri
         WriteUnitOfWork wuow(operationContext());
         int64_t numKeys = 0;
         ASSERT_OK(interceptor->sideWrite(operationContext(),
-                                         *_coll.get(),
+                                         _coll->getCollectionPtr(),
                                          entry,
                                          {keyString},
                                          {},
@@ -935,7 +1121,7 @@ TEST_F(IndexBuilderInterceptorTest, DrainDeleteSideWriteGeneratesContainerOpsPri
 
     // Drain the side writes into the index.
     ASSERT_OK(interceptor->drainWritesIntoIndex(operationContext(),
-                                                *_coll.get(),
+                                                _coll->getCollectionPtr(),
                                                 entry,
                                                 InsertDeleteOptions{.dupsAllowed = true},
                                                 IndexBuildInterceptor::TrackDuplicates::kNoTrack,
@@ -970,7 +1156,7 @@ TEST_F(IndexBuilderInterceptorTest, DrainEmptySideWritesTableGeneratesNoContaine
 
     // Drain with no side writes buffered.
     ASSERT_OK(interceptor->drainWritesIntoIndex(operationContext(),
-                                                *_coll.get(),
+                                                _coll->getCollectionPtr(),
                                                 entry,
                                                 InsertDeleteOptions{.dupsAllowed = true},
                                                 IndexBuildInterceptor::TrackDuplicates::kNoTrack,
@@ -1000,7 +1186,7 @@ TEST_F(IndexBuilderInterceptorTest, DrainMultipleSideWritesGeneratesContainerOps
         WriteUnitOfWork wuow(operationContext());
         int64_t numKeys = 0;
         ASSERT_OK(interceptor->sideWrite(operationContext(),
-                                         *_coll.get(),
+                                         _coll->getCollectionPtr(),
                                          entry,
                                          {keyString},
                                          {},
@@ -1016,7 +1202,7 @@ TEST_F(IndexBuilderInterceptorTest, DrainMultipleSideWritesGeneratesContainerOps
 
     // Drain all side writes.
     ASSERT_OK(interceptor->drainWritesIntoIndex(operationContext(),
-                                                *_coll.get(),
+                                                _coll->getCollectionPtr(),
                                                 entry,
                                                 InsertDeleteOptions{.dupsAllowed = true},
                                                 IndexBuildInterceptor::TrackDuplicates::kNoTrack,
@@ -1065,7 +1251,7 @@ TEST_F(IndexBuilderInterceptorTest,
         int64_t numInserted = 0;
         ASSERT_OK(indexAccessMethod->insertKeys(operationContext(),
                                                 ru,
-                                                *_coll.get(),
+                                                _coll->getCollectionPtr(),
                                                 entry,
                                                 keySet,
                                                 InsertDeleteOptions{.dupsAllowed = true},
@@ -1080,7 +1266,7 @@ TEST_F(IndexBuilderInterceptorTest,
         WriteUnitOfWork wuow(operationContext());
         int64_t numKeys = 0;
         ASSERT_OK(interceptor->sideWrite(operationContext(),
-                                         *_coll.get(),
+                                         _coll->getCollectionPtr(),
                                          entry,
                                          {insertKeyString},
                                          {},
@@ -1096,7 +1282,7 @@ TEST_F(IndexBuilderInterceptorTest,
         WriteUnitOfWork wuow(operationContext());
         int64_t numKeys = 0;
         ASSERT_OK(interceptor->sideWrite(operationContext(),
-                                         *_coll.get(),
+                                         _coll->getCollectionPtr(),
                                          entry,
                                          {deleteKeyString},
                                          {},
@@ -1112,7 +1298,7 @@ TEST_F(IndexBuilderInterceptorTest,
 
     // Drain all side writes.
     ASSERT_OK(interceptor->drainWritesIntoIndex(operationContext(),
-                                                *_coll.get(),
+                                                _coll->getCollectionPtr(),
                                                 entry,
                                                 InsertDeleteOptions{.dupsAllowed = true},
                                                 IndexBuildInterceptor::TrackDuplicates::kNoTrack,
@@ -1155,7 +1341,7 @@ TEST_F(IndexBuilderInterceptorTest, DrainMultipleBatchesGeneratesCorrectContaine
         WriteUnitOfWork wuow(operationContext());
         int64_t numKeys = 0;
         ASSERT_OK(interceptor->sideWrite(operationContext(),
-                                         *_coll.get(),
+                                         _coll->getCollectionPtr(),
                                          entry,
                                          {keyStrings.back()},
                                          {},
@@ -1171,7 +1357,7 @@ TEST_F(IndexBuilderInterceptorTest, DrainMultipleBatchesGeneratesCorrectContaine
 
     // Drain all side writes — with batch size 1 this should produce multiple WUOWs.
     ASSERT_OK(interceptor->drainWritesIntoIndex(operationContext(),
-                                                *_coll.get(),
+                                                _coll->getCollectionPtr(),
                                                 entry,
                                                 InsertDeleteOptions{.dupsAllowed = true},
                                                 IndexBuildInterceptor::TrackDuplicates::kNoTrack,
@@ -1220,7 +1406,7 @@ TEST_F(IndexBuilderInterceptorTest,
         int64_t numInserted = 0;
         ASSERT_OK(indexAccessMethod->insertKeys(operationContext(),
                                                 ru,
-                                                *_coll.get(),
+                                                _coll->getCollectionPtr(),
                                                 entry,
                                                 keySet,
                                                 InsertDeleteOptions{.dupsAllowed = true},
@@ -1235,7 +1421,7 @@ TEST_F(IndexBuilderInterceptorTest,
         WriteUnitOfWork wuow(operationContext());
         int64_t numKeys = 0;
         ASSERT_OK(interceptor->sideWrite(operationContext(),
-                                         *_coll.get(),
+                                         _coll->getCollectionPtr(),
                                          entry,
                                          {dupKeyString},
                                          {},
@@ -1253,7 +1439,7 @@ TEST_F(IndexBuilderInterceptorTest,
     // Drain with TrackDuplicates::kTrack — duplicates should be recorded to the constraint
     // violations table rather than causing a failure.
     ASSERT_OK(interceptor->drainWritesIntoIndex(operationContext(),
-                                                *_coll.get(),
+                                                _coll->getCollectionPtr(),
                                                 entry,
                                                 InsertDeleteOptions{.dupsAllowed = true},
                                                 IndexBuildInterceptor::TrackDuplicates::kTrack,
@@ -1299,7 +1485,7 @@ TEST_F(IndexBuilderInterceptorTest,
         WriteUnitOfWork wuow(operationContext());
         int64_t numKeys = 0;
         ASSERT_OK(interceptor->sideWrite(operationContext(),
-                                         *_coll.get(),
+                                         _coll->getCollectionPtr(),
                                          entry,
                                          {keyString},
                                          {},
@@ -1316,7 +1502,7 @@ TEST_F(IndexBuilderInterceptorTest,
     // Drain with kTrack on a unique index — but since there's no duplicate, the constraint
     // violations table should not be written to.
     ASSERT_OK(interceptor->drainWritesIntoIndex(operationContext(),
-                                                *_coll.get(),
+                                                _coll->getCollectionPtr(),
                                                 entry,
                                                 InsertDeleteOptions{.dupsAllowed = true},
                                                 IndexBuildInterceptor::TrackDuplicates::kTrack,
@@ -1358,7 +1544,7 @@ TEST_F(IndexBuilderInterceptorTest, DrainDeleteOnUniqueIndexGeneratesContainerOp
         int64_t numInserted = 0;
         ASSERT_OK(indexAccessMethod->insertKeys(operationContext(),
                                                 ru,
-                                                *_coll.get(),
+                                                _coll->getCollectionPtr(),
                                                 entry,
                                                 keySet,
                                                 InsertDeleteOptions{.dupsAllowed = true},
@@ -1373,7 +1559,7 @@ TEST_F(IndexBuilderInterceptorTest, DrainDeleteOnUniqueIndexGeneratesContainerOp
         WriteUnitOfWork wuow(operationContext());
         int64_t numKeys = 0;
         ASSERT_OK(interceptor->sideWrite(operationContext(),
-                                         *_coll.get(),
+                                         _coll->getCollectionPtr(),
                                          entry,
                                          {keyString},
                                          {},
@@ -1388,7 +1574,7 @@ TEST_F(IndexBuilderInterceptorTest, DrainDeleteOnUniqueIndexGeneratesContainerOp
 
     // Drain with kTrack on a unique index — delete path is unaffected by uniqueness.
     ASSERT_OK(interceptor->drainWritesIntoIndex(operationContext(),
-                                                *_coll.get(),
+                                                _coll->getCollectionPtr(),
                                                 entry,
                                                 InsertDeleteOptions{.dupsAllowed = true},
                                                 IndexBuildInterceptor::TrackDuplicates::kTrack,
@@ -1428,7 +1614,7 @@ TEST_F(IndexBuilderInterceptorTest,
         int64_t numInserted = 0;
         ASSERT_OK(indexAccessMethod->insertKeys(operationContext(),
                                                 ru,
-                                                *_coll.get(),
+                                                _coll->getCollectionPtr(),
                                                 entry,
                                                 keySet,
                                                 InsertDeleteOptions{.dupsAllowed = true},
@@ -1443,7 +1629,7 @@ TEST_F(IndexBuilderInterceptorTest,
         WriteUnitOfWork wuow(operationContext());
         int64_t numKeys = 0;
         ASSERT_OK(interceptor->sideWrite(operationContext(),
-                                         *_coll.get(),
+                                         _coll->getCollectionPtr(),
                                          entry,
                                          {dupKeyString},
                                          {},
@@ -1460,7 +1646,7 @@ TEST_F(IndexBuilderInterceptorTest,
     // Drain with kNoTrack — duplicate is silently swallowed, not recorded to constraint
     // violations table.
     ASSERT_OK(interceptor->drainWritesIntoIndex(operationContext(),
-                                                *_coll.get(),
+                                                _coll->getCollectionPtr(),
                                                 entry,
                                                 InsertDeleteOptions{.dupsAllowed = true},
                                                 IndexBuildInterceptor::TrackDuplicates::kNoTrack,
@@ -1505,7 +1691,7 @@ TEST_F(IndexBuilderInterceptorTest,
         int64_t numInserted = 0;
         ASSERT_OK(indexAccessMethod->insertKeys(operationContext(),
                                                 ru,
-                                                *_coll.get(),
+                                                _coll->getCollectionPtr(),
                                                 entry,
                                                 keySet,
                                                 InsertDeleteOptions{.dupsAllowed = true},
@@ -1520,7 +1706,7 @@ TEST_F(IndexBuilderInterceptorTest,
         WriteUnitOfWork wuow(operationContext());
         int64_t numKeys = 0;
         ASSERT_OK(interceptor->sideWrite(operationContext(),
-                                         *_coll.get(),
+                                         _coll->getCollectionPtr(),
                                          entry,
                                          {dupKeyString},
                                          {},
@@ -1539,7 +1725,7 @@ TEST_F(IndexBuilderInterceptorTest,
     // forces the error path even when options.dupsAllowed is true.
     auto status =
         interceptor->drainWritesIntoIndex(operationContext(),
-                                          *_coll.get(),
+                                          _coll->getCollectionPtr(),
                                           entry,
                                           InsertDeleteOptions{.dupsAllowed = true},
                                           IndexBuildInterceptor::TrackDuplicates::kTrack,
@@ -1580,7 +1766,7 @@ TEST_F(IndexBuilderInterceptorTest,
         int64_t numInserted = 0;
         ASSERT_OK(indexAccessMethod->insertKeys(operationContext(),
                                                 ru,
-                                                *_coll.get(),
+                                                _coll->getCollectionPtr(),
                                                 entry,
                                                 keySet,
                                                 InsertDeleteOptions{.dupsAllowed = true},
@@ -1595,7 +1781,7 @@ TEST_F(IndexBuilderInterceptorTest,
         WriteUnitOfWork wuow(operationContext());
         int64_t numKeys = 0;
         ASSERT_OK(interceptor->sideWrite(operationContext(),
-                                         *_coll.get(),
+                                         _coll->getCollectionPtr(),
                                          entry,
                                          {keyString},
                                          {},
@@ -1614,7 +1800,7 @@ TEST_F(IndexBuilderInterceptorTest,
     // is NOT invoked, so no constraint violation is recorded. This is an idempotent re-insert,
     // not a true duplicate.
     ASSERT_OK(interceptor->drainWritesIntoIndex(operationContext(),
-                                                *_coll.get(),
+                                                _coll->getCollectionPtr(),
                                                 entry,
                                                 InsertDeleteOptions{.dupsAllowed = true},
                                                 IndexBuildInterceptor::TrackDuplicates::kTrack,
@@ -1660,7 +1846,7 @@ TEST_F(IndexBuilderInterceptorTest,
         int64_t numInserted = 0;
         ASSERT_OK(indexAccessMethod->insertKeys(operationContext(),
                                                 ru,
-                                                *_coll.get(),
+                                                _coll->getCollectionPtr(),
                                                 entry,
                                                 keySet,
                                                 InsertDeleteOptions{.dupsAllowed = true},
@@ -1675,7 +1861,7 @@ TEST_F(IndexBuilderInterceptorTest,
         WriteUnitOfWork wuow(operationContext());
         int64_t numKeys = 0;
         ASSERT_OK(interceptor->sideWrite(operationContext(),
-                                         *_coll.get(),
+                                         _coll->getCollectionPtr(),
                                          entry,
                                          {dupKeyString},
                                          {},
@@ -1693,7 +1879,7 @@ TEST_F(IndexBuilderInterceptorTest,
     // path regardless of the TrackDuplicates mode.
     auto status =
         interceptor->drainWritesIntoIndex(operationContext(),
-                                          *_coll.get(),
+                                          _coll->getCollectionPtr(),
                                           entry,
                                           InsertDeleteOptions{.dupsAllowed = true},
                                           IndexBuildInterceptor::TrackDuplicates::kNoTrack,

@@ -255,11 +255,28 @@ mongo_cc_library(
 )
 
 mongo_cc_library(
+    name = "checkpoint_schedule_policy",
+    srcs = [
+        "checkpoint_schedule_policy.cpp",
+    ],
+    hdrs = [
+        "checkpoint_schedule_policy.h",
+    ],
+    deps = [
+        ":storage_options",
+        "//src/mongo:base",
+        "//src/mongo/util:clock_sources",
+        "//src/mongo/util/concurrency:spin_lock",
+    ],
+)
+
+mongo_cc_library(
     name = "checkpointer",
     srcs = [
         "checkpointer.cpp",
     ],
     deps = [
+        ":checkpoint_schedule_policy",
         ":storage_options",
         "//src/mongo/db:server_base",
         "//src/mongo/db:service_context",
@@ -276,6 +293,7 @@ mongo_cc_library(
         "//src/mongo/db/storage/control:storage_control.cpp",
     ],
     deps = [
+        ":checkpoint_schedule_policy",
         ":checkpointer",
         ":journal_flusher",
         ":storage_options",
@@ -614,6 +632,7 @@ mongo_cc_library(
 mongo_cc_unit_test(
     name = "db_storage_test",
     srcs = [
+        "checkpoint_schedule_policy_test.cpp",
         "collection_truncate_markers_test.cpp",
         "disk_space_monitor_test.cpp",
         "index_entry_comparison_test.cpp",
@@ -634,6 +653,7 @@ mongo_cc_unit_test(
         "server-storage-engine-integration",
     ],
     deps = [
+        ":checkpoint_schedule_policy",
         ":disk_space_monitor",
         ":record_store_base",
         ":spill_table",
@@ -648,6 +668,7 @@ mongo_cc_unit_test(
         "//src/mongo/db:service_context_d_test_fixture",
         "//src/mongo/db:startup_recovery",
         "//src/mongo/db/index_builds:resumable_index_builds_idl",
+        "//src/mongo/db/repl:intent_registry",
         "//src/mongo/db/rss:persistence_provider_impl",
         "//src/mongo/db/rss:service_lifecycle_impl",
         "//src/mongo/db/shard_role",
@@ -668,6 +689,7 @@ mongo_cc_unit_test(
         "//src/mongo/db/timeseries:timeseries_options",
         "//src/mongo/executor:network_interface_factory",
         "//src/mongo/executor:network_interface_mock",
+        "//src/mongo/util:clock_source_mock",
         "//src/mongo/util:periodic_runner_factory",
     ],
 )

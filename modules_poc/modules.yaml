@@ -697,6 +697,7 @@ networking.core:
     - src/mongo/transport/
     - src/mongo/util/net/
     - src/mongo/s/load_balancer_support*
+    - src/mongo/db/modules/enterprise/src/mfp
 
 networking.commands:
   meta:
@@ -759,6 +760,7 @@ timeseries: # authoritative: @10gen/server-collection-write-path
     fully_marked: true
   files:
     - src/mongo/db/timeseries # excluding ./bucket_catalog
+    - src/mongo/db/op_observer/should_set_is_timeseries_field_test*
 
 timeseries.bucket_catalog: # authoritative: @10gen/server-timeseries-bucket-catalog
   meta:

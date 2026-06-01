@@ -65,6 +65,9 @@ filters:
   - "generic_argument_util.*":
     approvers:
       - 10gen/server-programmability
+  - "ifr_flag_registry.yml":
+    approvers:
+      - 10gen/rollout-flag-managers
   - "ifr_flag_retry_info*":
     approvers:
       - 10gen/server-programmability
@@ -169,6 +172,9 @@ filters:
     approvers:
       - 10gen/server-security
       - 10gen/query-integration-features
+  - "fle_compact_cleanup_mutex*":
+    approvers:
+      - 10gen/server-security
   - "/keyfile_option*":
     approvers:
       - 10gen/server-security

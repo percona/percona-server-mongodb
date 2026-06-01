@@ -75,9 +75,22 @@ ActiveMigrationsRegistry& ActiveMigrationsRegistry::get(OperationContext* opCtx)
     return get(opCtx->getServiceContext());
 }
 
-void ActiveMigrationsRegistry::lock(OperationContext* opCtx, StringData reason) {
-    // The method requires the requesting operation to be interruptible
+void ActiveMigrationsRegistry::setRecoverable(Recoverable* recoverable) {
+    _recoverable = recoverable;
+}
+
+void ActiveMigrationsRegistry::lock(OperationContext* opCtx,
+                                    StringData reason,
+                                    boost::optional<BypassRecoveryWait> bypass) {
+    // The method requires the requesting operation to be interruptible. Asserted before
+    // waitForRecovery() so a misused non-interruptible opCtx fails fast instead of hanging on the
+    // recovery condvar.
     invariant(opCtx->shouldAlwaysInterruptAtStepDownOrUp());
+
+    if (!bypass && _recoverable) {
+        _recoverable->waitForRecovery(opCtx);
+    }
+
     std::unique_lock<std::mutex> lock(_mutex);
 
     // This wait is to hold back additional lock requests while there is already one in progress
@@ -119,11 +132,17 @@ void ActiveMigrationsRegistry::unlock(StringData reason) {
 }
 
 StatusWith<ScopedDonateChunk> ActiveMigrationsRegistry::registerDonateChunk(
-    OperationContext* opCtx, const ShardsvrMoveRange& args) {
+    OperationContext* opCtx,
+    const NamespaceString& nss,
+    const ShardsvrMoveRangeRequest& request,
+    boost::optional<BypassRecoveryWait> bypass) {
+    if (!bypass && _recoverable) {
+        _recoverable->waitForRecovery(opCtx);
+    }
     std::unique_lock<std::mutex> ul(_mutex);
 
     opCtx->waitForConditionOrInterrupt(_chunkOperationsStateChangedCV, ul, [&] {
-        return !_activeSplitMergeChunkStates.count(args.getCommandParameter());
+        return !_activeSplitMergeChunkStates.count(nss);
     });
 
     if (_activeReceiveChunkState) {
@@ -131,31 +150,25 @@ StatusWith<ScopedDonateChunk> ActiveMigrationsRegistry::registerDonateChunk(
     }
 
     if (_activeMoveChunkState) {
-        auto moveChunkStateToBSON = [](ShardsvrMoveRange mr) {
-            // Reset the generic args so that the comparison below only considers
-            // shardSvrModeRange-specific fields.
-            mr.setGenericArguments({});
-            return mr.toBSON();
-        };
+        auto activeRequestBSON = _activeMoveChunkState->request.toBSON();
+        auto requestBSON = request.toBSON();
 
-        auto activeMoveChunkStateBSON = moveChunkStateToBSON(_activeMoveChunkState->args);
-        auto argsBSON = moveChunkStateToBSON(args);
-
-        if (activeMoveChunkStateBSON.woCompare(argsBSON) == 0) {
+        if (_activeMoveChunkState->nss == nss && activeRequestBSON.woCompare(requestBSON) == 0) {
             LOGV2(6386800,
                   "Registering new chunk donation",
-                  logAttrs(args.getCommandParameter()),
-                  "min"_attr = args.getMin(),
-                  "max"_attr = args.getMax(),
-                  "toShardId"_attr = args.getToShard());
+                  logAttrs(nss),
+                  "min"_attr = request.getMin(),
+                  "max"_attr = request.getMax(),
+                  "toShardId"_attr = request.getToShard());
             return {ScopedDonateChunk(nullptr, false, _activeMoveChunkState->notification)};
         }
 
         LOGV2(6386801,
               "Rejecting donate chunk due to conflicting migration in progress",
-              logAttrs(args.getCommandParameter()),
-              "runningMigration"_attr = activeMoveChunkStateBSON,
-              "requestedMigration"_attr = argsBSON);
+              logAttrs(nss),
+              "runningMigrationNamespace"_attr = _activeMoveChunkState->nss,
+              "runningMigration"_attr = activeRequestBSON,
+              "requestedMigration"_attr = requestBSON);
 
         return _activeMoveChunkState->constructErrorStatus();
     }
@@ -166,7 +179,7 @@ StatusWith<ScopedDonateChunk> ActiveMigrationsRegistry::registerDonateChunk(
                 "this shard is temporarily locked"};
     }
 
-    _activeMoveChunkState.emplace(args);
+    _activeMoveChunkState.emplace(nss, request);
 
     return {ScopedDonateChunk(this, true, _activeMoveChunkState->notification)};
 }
@@ -176,7 +189,11 @@ StatusWith<ScopedReceiveChunk> ActiveMigrationsRegistry::registerReceiveChunk(
     const NamespaceString& nss,
     const ChunkRange& chunkRange,
     const ShardId& fromShardId,
-    bool waitForCompletionOfConflictingOps) {
+    bool waitForCompletionOfConflictingOps,
+    boost::optional<BypassRecoveryWait> bypass) {
+    if (!bypass && _recoverable) {
+        _recoverable->waitForRecovery(opCtx);
+    }
     std::unique_lock<std::mutex> ul(_mutex);
 
     if (waitForCompletionOfConflictingOps) {
@@ -191,8 +208,8 @@ StatusWith<ScopedReceiveChunk> ActiveMigrationsRegistry::registerReceiveChunk(
         if (_activeMoveChunkState) {
             LOGV2(6386802,
                   "Rejecting receive chunk due to conflicting donate chunk in progress",
-                  logAttrs(_activeMoveChunkState->args.getCommandParameter()),
-                  "runningMigration"_attr = _activeMoveChunkState->args.toBSON());
+                  logAttrs(_activeMoveChunkState->nss),
+                  "runningMigration"_attr = _activeMoveChunkState->request.toBSON());
             return _activeMoveChunkState->constructErrorStatus();
         }
 
@@ -209,12 +226,17 @@ StatusWith<ScopedReceiveChunk> ActiveMigrationsRegistry::registerReceiveChunk(
 }
 
 StatusWith<ScopedSplitMergeChunk> ActiveMigrationsRegistry::registerSplitOrMergeChunk(
-    OperationContext* opCtx, const NamespaceString& nss, const ChunkRange& chunkRange) {
+    OperationContext* opCtx,
+    const NamespaceString& nss,
+    const ChunkRange& chunkRange,
+    boost::optional<BypassRecoveryWait> bypass) {
+    if (!bypass && _recoverable) {
+        _recoverable->waitForRecovery(opCtx);
+    }
     std::unique_lock<std::mutex> ul(_mutex);
 
     opCtx->waitForConditionOrInterrupt(_chunkOperationsStateChangedCV, ul, [&] {
-        return !(_activeMoveChunkState &&
-                 _activeMoveChunkState->args.getCommandParameter() == nss) &&
+        return !(_activeMoveChunkState && _activeMoveChunkState->nss == nss) &&
             !_activeSplitMergeChunkStates.count(nss);
     });
 
@@ -228,7 +250,7 @@ StatusWith<ScopedSplitMergeChunk> ActiveMigrationsRegistry::registerSplitOrMerge
 boost::optional<NamespaceString> ActiveMigrationsRegistry::getActiveDonateChunkNss() {
     std::lock_guard<std::mutex> lk(_mutex);
     if (_activeMoveChunkState) {
-        return _activeMoveChunkState->args.getCommandParameter();
+        return _activeMoveChunkState->nss;
     }
 
     return boost::none;
@@ -240,7 +262,7 @@ BSONObj ActiveMigrationsRegistry::getActiveMigrationStatusReport(OperationContex
         std::lock_guard<std::mutex> lk(_mutex);
 
         if (_activeMoveChunkState) {
-            nss = _activeMoveChunkState->args.getCommandParameter();
+            nss = _activeMoveChunkState->nss;
         } else if (_activeReceiveChunkState) {
             nss = _activeReceiveChunkState->nss;
         }
@@ -269,10 +291,10 @@ void ActiveMigrationsRegistry::_clearDonateChunk() {
     invariant(_activeMoveChunkState);
     LOGV2(6386803,
           "Unregistering donate chunk",
-          logAttrs(_activeMoveChunkState->args.getCommandParameter()),
-          "min"_attr = _activeMoveChunkState->args.getMin().get_value_or(BSONObj()),
-          "max"_attr = _activeMoveChunkState->args.getMax().get_value_or(BSONObj()),
-          "toShardId"_attr = _activeMoveChunkState->args.getToShard());
+          logAttrs(_activeMoveChunkState->nss),
+          "min"_attr = _activeMoveChunkState->request.getMin().get_value_or(BSONObj()),
+          "max"_attr = _activeMoveChunkState->request.getMax().get_value_or(BSONObj()),
+          "toShardId"_attr = _activeMoveChunkState->request.getToShard());
     _activeMoveChunkState.reset();
     _chunkOperationsStateChangedCV.notify_all();
 }
@@ -299,10 +321,10 @@ Status ActiveMigrationsRegistry::ActiveMoveChunkState::constructErrorStatus() co
     std::string errMsg = fmt::format(
         "Unable to start new balancer operation because this shard is currently donating range "
         "'{}{}' for namespace {} to shard {}",
-        (args.getMin() ? "min: " + args.getMin()->toString() + " - " : ""),
-        (args.getMax() ? "max: " + args.getMax()->toString() : ""),
-        args.getCommandParameter().toStringForErrorMsg(),
-        args.getToShard().toString());
+        (request.getMin() ? "min: " + request.getMin()->toString() + " - " : ""),
+        (request.getMax() ? "max: " + request.getMax()->toString() : ""),
+        nss.toStringForErrorMsg(),
+        request.getToShard().toString());
     return {ErrorCodes::ConflictingOperationInProgress, std::move(errMsg)};
 }
 

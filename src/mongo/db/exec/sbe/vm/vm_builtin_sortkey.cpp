@@ -62,8 +62,8 @@ value::TagValueMaybeOwned ByteCode::builtinGenerateCheapSortKey(ArityType arity)
     }
 
     // We "move" the object argument into the sort spec.
-    auto sortKeyComponentVector =
-        sortSpec->generateSortKeyComponentVector(moveFromStack(1), collator);
+    auto sortKeyComponentVector = sortSpec->generateSortKeyComponentVector(
+        value::TagValueMaybeOwned::fromRaw(moveFromStack(1)), collator);
 
     return {false,
             value::TypeTags::sortKeyComponentVector,
@@ -135,7 +135,7 @@ value::TagValueMaybeOwned ByteCode::builtinSortKeyComponentVectorToArray(ArityTy
         for (size_t i = 0; i < sortVec->elts.size(); ++i) {
             auto [tag, val] = sortVec->elts[i];
             auto [copyTag, copyVal] = value::copyValue(tag, val);
-            array->push_back(copyTag, copyVal);
+            array->push_back_raw(copyTag, copyVal);
         }
         arrayGuard.reset();
         return {true, arrayTag, arrayVal};

@@ -44,8 +44,8 @@
 #include "mongo/db/replicated_fast_count/replicated_fast_count_test_helpers.h"
 #include "mongo/db/session/session_catalog_mongod.h"
 #include "mongo/db/session/session_txn_record_gen.h"
-#include "mongo/db/shard_role/shard_catalog/catalog_raii.h"
 #include "mongo/db/shard_role/shard_catalog/create_collection.h"
+#include "mongo/db/shard_role/shard_role.h"
 #include "mongo/db/transaction/session_catalog_mongod_transaction_interface_impl.h"
 #include "mongo/db/transaction/transaction_participant.h"
 #include "mongo/idl/idl_parser.h"
@@ -54,6 +54,8 @@
 
 namespace mongo::replicated_fast_count {
 namespace {
+
+using test_helpers::checkCommittedSizeCount;
 
 /**
  * Tests replicated fast count across multidocument transactions.
@@ -97,10 +99,16 @@ protected:
 
         ASSERT_OK(createCollection(_opCtx, _nss1.dbName(), BSON("create" << _nss1.coll())));
         ASSERT_OK(createCollection(_opCtx, _nss2.dbName(), BSON("create" << _nss2.coll())));
-        AutoGetCollection coll1(_opCtx, _nss1, LockMode::MODE_IS);
-        AutoGetCollection coll2(_opCtx, _nss2, LockMode::MODE_IS);
-        _uuid1 = coll1->uuid();
-        _uuid2 = coll2->uuid();
+        auto coll1 = acquireCollection(
+            _opCtx,
+            CollectionAcquisitionRequest::fromOpCtx(_opCtx, _nss1, AcquisitionPrerequisites::kRead),
+            LockMode::MODE_IS);
+        auto coll2 = acquireCollection(
+            _opCtx,
+            CollectionAcquisitionRequest::fromOpCtx(_opCtx, _nss2, AcquisitionPrerequisites::kRead),
+            LockMode::MODE_IS);
+        _uuid1 = coll1.uuid();
+        _uuid2 = coll2.uuid();
     }
 
     void tearDown() override {
@@ -213,8 +221,7 @@ class ReplicatedFastCountTxnTest : public ReplicatedFastCountTxnFixture {
 public:
     ReplicatedFastCountTxnTest()
         : ReplicatedFastCountTxnFixture(Options().setPersistenceProvider(
-              std::make_unique<replicated_fast_count_test_helpers::
-                                   ReplicatedFastCountTestPersistenceProvider>())) {}
+              std::make_unique<test_helpers::ReplicatedFastCountTestPersistenceProvider>())) {}
 };
 
 TEST_F(ReplicatedFastCountTxnTest,
@@ -232,51 +239,51 @@ TEST_F(ReplicatedFastCountTxnTest,
 
     // Start the transaction and perform the insert on a fresh OperationContext.
     beginTxn(sessionId, txnNumber, [&](OperationContext* opCtx1) {
-        AutoGetCollection coll(opCtx1, _nss1, LockMode::MODE_IX);
-        uuid = coll->uuid();
+        auto coll = acquireCollection(opCtx1,
+                                      CollectionAcquisitionRequest::fromOpCtx(
+                                          opCtx1, _nss1, AcquisitionPrerequisites::kWrite),
+                                      LockMode::MODE_IX);
+        uuid = coll.uuid();
 
         {
             WriteUnitOfWork wuow{opCtx1};
-            ASSERT_OK(Helpers::insert(opCtx1, *coll, doc1));
+            ASSERT_OK(Helpers::insert(opCtx1, coll.getCollectionPtr(), doc1));
             wuow.commit();
         }
 
         // Since the transaction as a whole hasn't been committed, expect doc1 to only count toward
         // uncommitted changes.
-        replicated_fast_count_test_helpers::checkCommittedFastCountChanges(
-            *uuid, _fastCountManager, 0, 0);
-        replicated_fast_count_test_helpers::checkUncommittedFastCountChanges(
-            opCtx1, *uuid, 1, doc1.objsize());
+        checkCommittedSizeCount(opCtx1, *uuid, {.size = 0, .count = 0});
+        test_helpers::checkUncommittedFastCountChanges(opCtx1, *uuid, 1, doc1.objsize());
     });
 
     // The insert shouldn't be visible outside the transaction.
     ASSERT(uuid.has_value());
-    replicated_fast_count_test_helpers::checkCommittedFastCountChanges(
-        *uuid, _fastCountManager, 0, 0);
-    replicated_fast_count_test_helpers::checkUncommittedFastCountChanges(_opCtx, *uuid, 0, 0);
+    checkCommittedSizeCount(_opCtx, *uuid, {.size = 0, .count = 0});
+    test_helpers::checkUncommittedFastCountChanges(_opCtx, *uuid, 0, 0);
 
     // Continue and commit the transaction.
     continueAndCommitTxn(sessionId, txnNumber, [&](OperationContext* opCtx2) {
-        AutoGetCollection coll(opCtx2, _nss1, LockMode::MODE_IX);
-        EXPECT_EQ(coll->uuid(), *uuid);
+        auto coll = acquireCollection(opCtx2,
+                                      CollectionAcquisitionRequest::fromOpCtx(
+                                          opCtx2, _nss1, AcquisitionPrerequisites::kWrite),
+                                      LockMode::MODE_IX);
+        ASSERT_EQ(coll.uuid(), *uuid);
 
         {
             WriteUnitOfWork wuow{opCtx2};
-            ASSERT_OK(Helpers::insert(opCtx2, *coll, doc2));
+            ASSERT_OK(Helpers::insert(opCtx2, coll.getCollectionPtr(), doc2));
             wuow.commit();
         }
 
         // Uncommitted fast count changes should include both inserts, even though they were
         // executed on different OperationContexts.
-        replicated_fast_count_test_helpers::checkCommittedFastCountChanges(
-            *uuid, _fastCountManager, 0, 0);
-        replicated_fast_count_test_helpers::checkUncommittedFastCountChanges(
-            opCtx2, *uuid, expectedCount, expectedSize);
+        checkCommittedSizeCount(opCtx2, *uuid, {.size = 0, .count = 0});
+        test_helpers::checkUncommittedFastCountChanges(opCtx2, *uuid, expectedCount, expectedSize);
     });
 
-    replicated_fast_count_test_helpers::checkCommittedFastCountChanges(
-        *uuid, _fastCountManager, expectedCount, expectedSize);
-    replicated_fast_count_test_helpers::checkUncommittedFastCountChanges(_opCtx, *uuid, 0, 0);
+    checkCommittedSizeCount(_opCtx, *uuid, {.size = expectedSize, .count = expectedCount});
+    test_helpers::checkUncommittedFastCountChanges(_opCtx, *uuid, 0, 0);
 }
 
 TEST_F(ReplicatedFastCountTxnTest, UncommittedChangesDiscardedAfterMultiDocumentTxnAbort) {
@@ -290,35 +297,34 @@ TEST_F(ReplicatedFastCountTxnTest, UncommittedChangesDiscardedAfterMultiDocument
 
     // Start the transaction and perform the insert on a fresh OperationContext.
     beginTxn(sessionId, txnNumber, [&](OperationContext* opCtx1) {
-        AutoGetCollection coll(opCtx1, _nss1, LockMode::MODE_IX);
-        uuid = coll->uuid();
+        auto coll = acquireCollection(opCtx1,
+                                      CollectionAcquisitionRequest::fromOpCtx(
+                                          opCtx1, _nss1, AcquisitionPrerequisites::kWrite),
+                                      LockMode::MODE_IX);
+        uuid = coll.uuid();
 
         {
             WriteUnitOfWork wuow{opCtx1};
-            ASSERT_OK(Helpers::insert(opCtx1, *coll, doc1));
+            ASSERT_OK(Helpers::insert(opCtx1, coll.getCollectionPtr(), doc1));
             wuow.commit();
         }
 
         // Since the transaction as a whole hasn't been committed, expect doc1 to only count toward
         // uncommitted changes.
-        replicated_fast_count_test_helpers::checkCommittedFastCountChanges(
-            *uuid, _fastCountManager, 0, 0);
-        replicated_fast_count_test_helpers::checkUncommittedFastCountChanges(
-            opCtx1, *uuid, 1, doc1.objsize());
+        checkCommittedSizeCount(opCtx1, *uuid, {.size = 0, .count = 0});
+        test_helpers::checkUncommittedFastCountChanges(opCtx1, *uuid, 1, doc1.objsize());
     });
 
     // The insert shouldn't be visible outside the transaction.
     ASSERT(uuid.has_value());
-    replicated_fast_count_test_helpers::checkCommittedFastCountChanges(
-        *uuid, _fastCountManager, 0, 0);
-    replicated_fast_count_test_helpers::checkUncommittedFastCountChanges(_opCtx, *uuid, 0, 0);
+    checkCommittedSizeCount(_opCtx, *uuid, {.size = 0, .count = 0});
+    test_helpers::checkUncommittedFastCountChanges(_opCtx, *uuid, 0, 0);
 
     abortTxn(sessionId, txnNumber);
 
     // Confirm the uncommitted changes were discarded.
-    replicated_fast_count_test_helpers::checkCommittedFastCountChanges(
-        *uuid, _fastCountManager, 0, 0);
-    replicated_fast_count_test_helpers::checkUncommittedFastCountChanges(_opCtx, *uuid, 0, 0);
+    checkCommittedSizeCount(_opCtx, *uuid, {.size = 0, .count = 0});
+    test_helpers::checkUncommittedFastCountChanges(_opCtx, *uuid, 0, 0);
 }
 
 TEST_F(ReplicatedFastCountTxnTest, FastCountResetForSessionBetweenTransactions) {
@@ -333,28 +339,28 @@ TEST_F(ReplicatedFastCountTxnTest, FastCountResetForSessionBetweenTransactions) 
     TxnNumber txnNumber(0);
 
     beginTxn(_opCtx, sessionId, txnNumber, [&](OperationContext* opCtx) {
-        AutoGetCollection coll(opCtx, _nss1, LockMode::MODE_IX);
-        uuid = coll->uuid();
+        auto coll = acquireCollection(
+            opCtx,
+            CollectionAcquisitionRequest::fromOpCtx(opCtx, _nss1, AcquisitionPrerequisites::kWrite),
+            LockMode::MODE_IX);
+        uuid = coll.uuid();
 
         {
             WriteUnitOfWork wuow{opCtx};
-            ASSERT_OK(Helpers::insert(opCtx, *coll, doc1));
+            ASSERT_OK(Helpers::insert(opCtx, coll.getCollectionPtr(), doc1));
             wuow.commit();
         }
 
-        replicated_fast_count_test_helpers::checkCommittedFastCountChanges(
-            *uuid, _fastCountManager, 0, 0);
-        replicated_fast_count_test_helpers::checkUncommittedFastCountChanges(
-            opCtx, *uuid, 1, doc1.objsize());
+        checkCommittedSizeCount(opCtx, *uuid, {.size = 0, .count = 0});
+        test_helpers::checkUncommittedFastCountChanges(opCtx, *uuid, 1, doc1.objsize());
     });
     abortTxn(_opCtx, sessionId, txnNumber);
 
     txnNumber = TxnNumber(2);
     beginTxn(_opCtx, sessionId, txnNumber, [&](OperationContext* opCtx) {
         // Nothing leaked over from the previous transaction on the session.
-        replicated_fast_count_test_helpers::checkCommittedFastCountChanges(
-            *uuid, _fastCountManager, 0, 0);
-        replicated_fast_count_test_helpers::checkUncommittedFastCountChanges(opCtx, *uuid, 0, 0);
+        checkCommittedSizeCount(opCtx, *uuid, {.size = 0, .count = 0});
+        test_helpers::checkUncommittedFastCountChanges(opCtx, *uuid, 0, 0);
     });
     abortTxn(_opCtx, sessionId, txnNumber);
 }
@@ -367,18 +373,20 @@ TEST_F(ReplicatedFastCountTxnTest, ApplyOpsOplogEntryContainsSizeDeltaMetadataSi
     TxnNumber txnNumber(0);
     UUID uuid = UUID::gen();
     beginTxn(sessionId, txnNumber, [&](OperationContext* opCtx1) {
-        AutoGetCollection coll(opCtx1, _nss1, LockMode::MODE_IX);
+        auto coll = acquireCollection(opCtx1,
+                                      CollectionAcquisitionRequest::fromOpCtx(
+                                          opCtx1, _nss1, AcquisitionPrerequisites::kWrite),
+                                      LockMode::MODE_IX);
         {
             WriteUnitOfWork wuow{opCtx1};
-            ASSERT_OK(Helpers::insert(opCtx1, *coll, doc));
+            ASSERT_OK(Helpers::insert(opCtx1, coll.getCollectionPtr(), doc));
             wuow.commit();
         }
-        uuid = coll->uuid();
+        uuid = coll.uuid();
     });
     continueAndCommitTxn(sessionId, txnNumber, [&](OperationContext*) {});
 
-    const auto applyOpsOplogEntry =
-        replicated_fast_count_test_helpers::getLatestApplyOpsForNss(_opCtx, _nss1);
+    const auto applyOpsOplogEntry = test_helpers::getLatestApplyOpsForNss(_opCtx, _nss1);
     std::vector<repl::OplogEntry> innerEntries;
     repl::ApplyOps::extractOperationsTo(
         applyOpsOplogEntry, applyOpsOplogEntry.getEntry().toBSON(), &innerEntries);
@@ -387,7 +395,7 @@ TEST_F(ReplicatedFastCountTxnTest, ApplyOpsOplogEntryContainsSizeDeltaMetadataSi
     // insert oplog entry.
     ASSERT_EQ(1, innerEntries.size());
     const auto insertOp = innerEntries[0];
-    replicated_fast_count_test_helpers::assertOpMatchesSpec(
+    test_helpers::assertOpMatchesSpec(
         insertOp,
         {.uuid = uuid, .opType = repl::OpTypeEnum::kInsert, .expectedSizeDelta = doc.objsize()});
 }
@@ -396,12 +404,10 @@ TEST_F(ReplicatedFastCountTxnTest, ApplyOpsOplogEntryContainsSizeDeltaMetadata) 
     RAIIServerParameterControllerForTest featureFlag("featureFlagReplicatedFastCount", true);
 
     // Both collections begin empty.
-    EXPECT_EQ(CollectionSizeCount{},
-              replicated_fast_count_test_helpers::scanForAccurateSizeCount(_opCtx, _nss1));
-    EXPECT_EQ(CollectionSizeCount{},
-              replicated_fast_count_test_helpers::scanForAccurateSizeCount(_opCtx, _nss2));
+    EXPECT_EQ(CollectionSizeCount{}, test_helpers::scanForAccurateSizeCount(_opCtx, _nss1));
+    EXPECT_EQ(CollectionSizeCount{}, test_helpers::scanForAccurateSizeCount(_opCtx, _nss2));
 
-    std::vector<replicated_fast_count_test_helpers::OpValidationSpec> expectedOps{};
+    std::vector<test_helpers::OpValidationSpec> expectedOps{};
     const auto doc = BSON("_id" << 0 << "x" << 1);
     const auto sessionId = makeLogicalSessionIdForTest();
     const TxnNumber txnNumber(0);
@@ -414,7 +420,7 @@ TEST_F(ReplicatedFastCountTxnTest, ApplyOpsOplogEntryContainsSizeDeltaMetadata) 
                                           CollectionAcquisitionRequest::fromOpCtx(
                                               opCtx1, _nss1, AcquisitionPrerequisites::kWrite),
                                           MODE_IX);
-            const auto uuid = coll.getCollectionPtr()->uuid();
+            const auto uuid = coll.uuid();
             {
                 WriteUnitOfWork wuow{opCtx1};
                 ASSERT_OK(Helpers::insert(opCtx1, coll.getCollectionPtr(), doc));
@@ -446,7 +452,7 @@ TEST_F(ReplicatedFastCountTxnTest, ApplyOpsOplogEntryContainsSizeDeltaMetadata) 
                                           CollectionAcquisitionRequest::fromOpCtx(
                                               opCtx1, _nss2, AcquisitionPrerequisites::kWrite),
                                           MODE_IX);
-            const auto uuid = coll.getCollectionPtr()->uuid();
+            const auto uuid = coll.uuid();
             {
                 WriteUnitOfWork wuow{opCtx1};
                 ASSERT_OK(Helpers::insert(opCtx1, coll.getCollectionPtr(), doc));
@@ -471,31 +477,27 @@ TEST_F(ReplicatedFastCountTxnTest, ApplyOpsOplogEntryContainsSizeDeltaMetadata) 
     continueAndCommitTxn(sessionId, txnNumber, [&](OperationContext*) {});
 
     // The applyOps should cover both namespaces, so searching by _nss1 should be sufficient.
-    const auto applyOpsOplogEntry =
-        replicated_fast_count_test_helpers::getLatestApplyOpsForNss(_opCtx, _nss1);
+    const auto applyOpsOplogEntry = test_helpers::getLatestApplyOpsForNss(_opCtx, _nss1);
 
     // Validate the logging of the sizeMetadata.
     std::vector<repl::OplogEntry> innerEntries;
     repl::ApplyOps::extractOperationsTo(
         applyOpsOplogEntry, applyOpsOplogEntry.getEntry().toBSON(), &innerEntries);
-    replicated_fast_count_test_helpers::assertOpsMatchSpecs(innerEntries, expectedOps);
+    test_helpers::assertOpsMatchSpecs(innerEntries, expectedOps);
 
     // Validate the logged sizeMetadata can be parsed back into to accurate size and count.
     //
     // The total count and size for each collection should be equal to aggregated deltas given the
     // collection began empty before the transaction.
-    const auto deltas =
-        replicated_fast_count_test_helpers::extractSizeCountDeltasForApplyOps(applyOpsOplogEntry);
+    const auto deltas = test_helpers::extractSizeCountDeltasForApplyOps(applyOpsOplogEntry);
     // 2 UUIDs had replicated size count information updated from the transaction.
     EXPECT_EQ(2u, deltas.size());
 
-    const auto expectedDeltasColl1 =
-        replicated_fast_count_test_helpers::scanForAccurateSizeCount(_opCtx, _nss1);
+    const auto expectedDeltasColl1 = test_helpers::scanForAccurateSizeCount(_opCtx, _nss1);
     ASSERT_TRUE(deltas.contains(_uuid1));
     EXPECT_EQ(expectedDeltasColl1, deltas.at(_uuid1));
 
-    const auto expectedDeltasColl2 =
-        replicated_fast_count_test_helpers::scanForAccurateSizeCount(_opCtx, _nss2);
+    const auto expectedDeltasColl2 = test_helpers::scanForAccurateSizeCount(_opCtx, _nss2);
     ASSERT_TRUE(deltas.contains(_uuid2));
     EXPECT_EQ(expectedDeltasColl2, deltas.at(_uuid2));
 }
@@ -538,11 +540,14 @@ protected:
     void addTransactionInsertOps(OperationContext* opCtx,
                                  const NamespaceString& nss,
                                  const std::vector<BSONObj>& docs) {
-        AutoGetCollection coll(opCtx, nss, MODE_IX);
+        auto coll = acquireCollection(
+            opCtx,
+            CollectionAcquisitionRequest::fromOpCtx(opCtx, nss, AcquisitionPrerequisites::kWrite),
+            MODE_IX);
         auto txnParticipant = TransactionParticipant::get(opCtx);
         for (const auto& doc : docs) {
             auto operation = repl::DurableOplogEntry::makeInsertOperation(
-                nss, coll->uuid(), doc, doc["_id"].wrap());
+                nss, coll.uuid(), doc, doc["_id"].wrap());
             operation.setSizeMetadata(repl::OplogEntrySizeMetadata{
                 SingleOpSizeMetadata(static_cast<int32_t>(doc.objsize()))});
             txnParticipant.addTransactionOperation(opCtx, operation);

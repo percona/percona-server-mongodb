@@ -115,7 +115,7 @@ feature_flags:
             "Feature flag to enable one catalog cache for the shard role and another one for
             the router role."
         cpp_varname: feature_flags::gDualCatalogCache
-        default: false
+        default: true
         fcv_gated: false
     featureFlagUseTopologyChangeCoordinators:
         description: "Feature flag for enabling the coordinator based topology changes."
@@ -146,22 +146,6 @@ feature_flags:
         default: false
         fcv_gated: true
         enable_on_transitional_fcv_UNSAFE: true
-    # TODO (SERVER-89169): remove once 9.0 becomes last LTS.
-    featureFlagShardAuthoritativeCollMetadata:
-        description:
-            "Feature flag to enable the authoritative model for storing shard-local information
-            for collections and chunks metadata."
-        cpp_varname: feature_flags::gShardAuthoritativeCollMetadata
-        default: false
-        fcv_gated: true
-    # TODO (SERVER-100309): remove once 9.0 becomes last LTS.
-    featureFlagSessionsCollectionCoordinatorOnConfigServer:
-        description:
-            Feature flag for running the shard collection coordinator on the config server for
-            config.system.sessions.
-        cpp_varname: feature_flags::gSessionsCollectionCoordinatorOnConfigServer
-        default: false
-        fcv_gated: true
     featureFlagTerminateSecondaryReadsUponRangeDeletion:
         description: "Feature flag to enable the termination of secondary reads due to range deletions."
         cpp_varname: feature_flags::gTerminateSecondaryReadsUponRangeDeletion
@@ -262,6 +246,9 @@ feature_flags:
         default: false
         fcv_gated: true
     # TODO (SERVER-126212): remove feature flag once 9.0 becomes last LTS.
+    # TODO (SERVER-127411): keep default: false until all types and APIs have been migrated to ShardRef.
+    # Enabling earlier would allow UUID primaries to be written
+    # into config.databases while not-yet-migrated types still expect ShardIds.
     featureFlagUniqueShardIdentifiers:
         description:
             "Feature flag to enable the use of unique shard identifiers in a sharded cluster. When
@@ -269,4 +256,15 @@ feature_flags:
             that shard across shard additions and removals."
         cpp_varname: feature_flags::gFeatureFlagUniqueShardIdentifiers
         default: false
+        fcv_gated: true
+    # TODO (SERVER-126991): Remove this flag once 9.0 becomes last LTS.
+    featureFlagStrictExpireAfterSecondsTypeChecking:
+        description: >-
+            When enabled, checkMetadataConsistency compares 'expireAfterSeconds' across shards
+            using strict BSON type semantics. When disabled, the cross-shard comparison casts
+            numeric values to long first to tolerate legacy values that pre-7.3 nodes persisted
+            using the BSON type of the user-supplied value (int, long, double, or decimal).
+        cpp_varname: feature_flags::gStrictExpireAfterSecondsTypeChecking
+        default: true
+        version: 9.0
         fcv_gated: true

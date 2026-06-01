@@ -53,6 +53,7 @@
 #include "mongo/db/repl/topology_coordinator.h"
 #include "mongo/db/repl/update_position_args.h"
 #include "mongo/db/replication_state_transition_lock_guard.h"
+#include "mongo/db/server_feature_flags_gen.h"
 #include "mongo/db/server_options.h"
 #include "mongo/db/service_context.h"
 #include "mongo/db/shard_role/lock_manager/d_concurrency.h"
@@ -1998,7 +1999,14 @@ TEST_F(StepDownTest, StepDownFailureRestoresDrainState) {
 }
 
 using StepDownTestDeathTest = StepDownTest;
-DEATH_TEST_REGEX_F(StepDownTestDeathTest, StepDownHangsCantGetRSTL, "5675600.*lockRep") {
+DEATH_TEST_REGEX_F(StepDownTestDeathTest, StepDownHangsCantGetRSTL, "5675600.*lockRep|10147500") {
+    if (gFeatureFlagIntentRegistration.isEnabled()) {
+        // With the intent registry RSTL is not used for step-down, so this crash no longer
+        // occurs. Satisfy the death-test harness with a matching fatal log until this test is
+        // removed along with featureFlagIntentRegistration.
+        // TODO SERVER-106669: Delete when featureFlagIntentRegistration is removed.
+        LOGV2_FATAL(10147500, "lockRep: scenario N/A with featureFlagIntentRegistration");
+    }
     startSignalProcessingThread();
 
     const auto repl = getReplCoord();
@@ -2168,6 +2176,11 @@ TEST_F(StepDownTest, NodeReturnsNotWritablePrimaryWhenAskedToStepDownAsANonPrima
 
 TEST_F(StepDownTest,
        NodeReturnsExceededTimeLimitWhenStepDownFailsToObtainTheGlobalLockWithinTheAllottedTime) {
+    // Disable this test because it relies on grabbing the RSTL in MODE_X, which is a no-op when
+    // Intent Registry is active.
+    if (gFeatureFlagIntentRegistration.isEnabled()) {
+        return;
+    }
     OpTimeWithTermOne optime1(100, 1);
 
     // Set up this test so that all nodes are caught up. This is necessary to exclude the false
@@ -6217,6 +6230,104 @@ TEST_F(StableOpTimeTest, AdvanceCommitPointSetsStableOpTimeForStorage) {
                   Date_t() + Seconds(3));
     stableTimestamp = getStorageInterface()->getStableTimestamp();
     ASSERT_EQUALS(Timestamp(3, 2), stableTimestamp);
+}
+
+class LastStableRecoveryTimestampTest : public ReplCoordTest {
+public:
+    void setUp() override {
+        ReplCoordTest::setUp();
+        init("mySet/test1:1234,test2:1234,test3:1234");
+        assertStartSuccess(BSON("_id" << "mySet"
+                                      << "protocolVersion" << 1 << "version" << 1 << "members"
+                                      << BSON_ARRAY(BSON("_id" << 0 << "host"
+                                                               << "test1:1234")
+                                                    << BSON("_id" << 1 << "host"
+                                                                  << "test2:1234")
+                                                    << BSON("_id" << 2 << "host"
+                                                                  << "test3:1234"))),
+                           HostAndPort("test2", 1234));
+        ASSERT_OK(getReplCoord()->setFollowerMode(MemberState::RS_SECONDARY));
+        replCoordSetMyLastWrittenAndAppliedAndDurableOpTime(OpTimeWithTermOne(1, 1),
+                                                            Date_t() + Seconds(100));
+        simulateSuccessfulV1Election();
+        getStorageInterface()->allDurableTimestamp = Timestamp(10, 1);
+        replCoordSetMyLastWrittenOpTime(OpTimeWithTermOne(2, 1), Date_t() + Seconds(100));
+        replCoordSetMyLastAppliedOpTime(OpTimeWithTermOne(2, 1), Date_t() + Seconds(100));
+    }
+};
+
+TEST_F(LastStableRecoveryTimestampTest, CachesRealTimestamp) {
+    getStorageInterface()->lastStableRecoveryTimestamp = Timestamp(100, 1);
+
+    replCoordAdvanceCommitPoint(OpTimeWithTermOne(2, 1), Date_t() + Seconds(100), false);
+
+    ASSERT_TRUE(getTopoCoord().hasCachedLastStableRecoveryTimestamp());
+    ASSERT_EQUALS(Timestamp(100, 1), *getTopoCoord().getCachedLastStableRecoveryTimestamp());
+}
+
+TEST_F(LastStableRecoveryTimestampTest, DoesNotCacheMinTimestamp) {
+    getStorageInterface()->lastStableRecoveryTimestamp = Timestamp::min();
+
+    replCoordAdvanceCommitPoint(OpTimeWithTermOne(2, 1), Date_t() + Seconds(100), false);
+
+    ASSERT_FALSE(getTopoCoord().hasCachedLastStableRecoveryTimestamp());
+}
+
+TEST_F(LastStableRecoveryTimestampTest, DoesNotCacheAbsentTimestamp) {
+    getStorageInterface()->lastStableRecoveryTimestamp = boost::none;
+
+    replCoordAdvanceCommitPoint(OpTimeWithTermOne(2, 1), Date_t() + Seconds(100), false);
+
+    ASSERT_FALSE(getTopoCoord().hasCachedLastStableRecoveryTimestamp());
+}
+
+TEST_F(LastStableRecoveryTimestampTest, ThrottlesCacheRefreshAfterValueEstablished) {
+    const double origSyncDelay = storageGlobalParams.syncdelay.load();
+    // --syncdelay=1 second means the throttle window is 2 seconds.
+    storageGlobalParams.syncdelay.store(1.0);
+    ON_BLOCK_EXIT([origSyncDelay] { storageGlobalParams.syncdelay.store(origSyncDelay); });
+
+    getStorageInterface()->lastStableRecoveryTimestamp = Timestamp(100, 1);
+    replCoordAdvanceCommitPoint(OpTimeWithTermOne(2, 1), Date_t() + Seconds(100), false);
+    ASSERT_EQUALS(Timestamp(100, 1), *getTopoCoord().getCachedLastStableRecoveryTimestamp());
+
+    // A second call within the throttle window should not update the cached value.
+    getStorageInterface()->lastStableRecoveryTimestamp = Timestamp(100, 2);
+    replCoordSetMyLastWrittenOpTime(OpTimeWithTermOne(3, 1), Date_t() + Seconds(100));
+    replCoordSetMyLastAppliedOpTime(OpTimeWithTermOne(3, 1), Date_t() + Seconds(100));
+    replCoordAdvanceCommitPoint(OpTimeWithTermOne(3, 1), Date_t() + Seconds(100), false);
+    ASSERT_EQUALS(Timestamp(100, 1), *getTopoCoord().getCachedLastStableRecoveryTimestamp());
+
+    // After the throttle window expires, the next call should update the cached value.
+    enterNetwork();
+    getNet()->runUntil(getNet()->now() + Seconds(3));
+    exitNetwork();
+    replCoordSetMyLastWrittenOpTime(OpTimeWithTermOne(4, 1), Date_t() + Seconds(100));
+    replCoordSetMyLastAppliedOpTime(OpTimeWithTermOne(4, 1), Date_t() + Seconds(100));
+    replCoordAdvanceCommitPoint(OpTimeWithTermOne(4, 1), Date_t() + Seconds(100), false);
+    ASSERT_EQUALS(Timestamp(100, 2), *getTopoCoord().getCachedLastStableRecoveryTimestamp());
+}
+
+TEST_F(LastStableRecoveryTimestampTest, AggressivelyRefreshesUntilValueEstablished) {
+    // Use a throttle window long enough that it cannot expire during the test. Any refreshing of
+    // the cached value will be driven by the cached value being unset, not by the timer.
+    const double origSyncDelay = storageGlobalParams.syncdelay.load();
+    storageGlobalParams.syncdelay.store(3600.0);
+    ON_BLOCK_EXIT([origSyncDelay] { storageGlobalParams.syncdelay.store(origSyncDelay); });
+
+    // The first call returns Timestamp::min() and means no value should be cached.
+    getStorageInterface()->lastStableRecoveryTimestamp = Timestamp::min();
+    replCoordAdvanceCommitPoint(OpTimeWithTermOne(2, 1), Date_t() + Seconds(100), false);
+    ASSERT_FALSE(getTopoCoord().hasCachedLastStableRecoveryTimestamp());
+
+    // Even within the throttle window, the next call should still update the cached value because
+    // it was unset.
+    getStorageInterface()->lastStableRecoveryTimestamp = Timestamp(100, 1);
+    replCoordSetMyLastWrittenOpTime(OpTimeWithTermOne(3, 1), Date_t() + Seconds(100));
+    replCoordSetMyLastAppliedOpTime(OpTimeWithTermOne(3, 1), Date_t() + Seconds(100));
+    replCoordAdvanceCommitPoint(OpTimeWithTermOne(3, 1), Date_t() + Seconds(100), false);
+    ASSERT_TRUE(getTopoCoord().hasCachedLastStableRecoveryTimestamp());
+    ASSERT_EQUALS(Timestamp(100, 1), *getTopoCoord().getCachedLastStableRecoveryTimestamp());
 }
 
 TEST_F(ReplCoordTest, NodeReturnsShutdownInProgressWhenWaitingUntilAnOpTimeDuringShutdown) {

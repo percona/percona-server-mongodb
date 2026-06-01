@@ -115,6 +115,7 @@ let testCases = {
     _configsvrResetPlacementHistory: {skip: "internal command"},
     _configsvrReshardCollection: {skip: "internal command"},
     _configsvrRunRestore: {skip: "internal command"},
+    _configsvrSetAllowChunkOperations: {skip: "internal command"},
     _configsvrSetAllowMigrations: {skip: "internal command"},
     _configsvrSetClusterParameter: {skip: "internal command"},
     _configsvrSetUserWriteBlockMode: {skip: "internal command"},
@@ -191,12 +192,16 @@ let testCases = {
     _shardsvrCommitCollModCollectionMetadata: {skip: "internal command"},
     _shardsvrCommitDropCollectionMetadata: {skip: "internal command"},
     _shardsvrCommitCreateCollectionMetadata: {skip: "internal command"},
+    _shardsvrCommitCreateCollectionChunklessMetadata: {skip: "internal command"},
+    _shardsvrControlShardCatalogCleanupTask: {skip: "internal command"},
+    _shardsvrCommitRenameCollectionMetadata: {skip: "internal command"},
     _shardsvrRenameCollection: {skip: "internal command"},
     _shardsvrRenameCollectionParticipant: {skip: "internal command"},
     _shardsvrRenameCollectionParticipantUnblock: {skip: "internal command"},
     _shardsvrRenameIndexMetadata: {skip: "internal command"},
     _shardsvrReshardCollection: {skip: "internal command"},
     _shardsvrReshardingDonorFetchFinalCollectionStats: {skip: "internal command"},
+    _shardsvrReshardingRecipientFetchFinalCollectionStats: {skip: "internal command"},
     _shardsvrReshardingDonorStartChangeStreamsMonitor: {skip: "internal command"},
     _shardsvrReshardingOperationTime: {skip: "internal command"},
     _shardsvrReshardDonorInitialize: {skip: "internal command"},
@@ -207,6 +212,7 @@ let testCases = {
     _shardsvrReshardRecipientCriticalSectionStarted: {skip: "internal command"},
     _shardsvrResolveView: {skip: "internal command"},
     _shardsvrRunSearchIndexCommand: {skip: "internal command"},
+    _shardsvrSetAllowChunkOperations: {skip: "internal command"},
     _shardsvrSetAllowMigrations: {skip: "internal command"},
     _shardsvrSetClusterParameter: {skip: "internal command"},
     _shardsvrSetUserWriteBlockMode: {skip: "internal command"},
@@ -570,6 +576,7 @@ let testCases = {
     getDatabaseVersion: {skip: "does not accept read or write concern"},
     getDefaultRWConcern: {skip: "does not accept read or write concern"},
     getDiagnosticData: {skip: "does not accept read or write concern"},
+    getESECMKIdentifierListStatus: {skip: "does not accept read or write concern"},
     getESERotateActiveKEKStatus: {skip: "does not accept read or write concern"},
     getLog: {skip: "does not accept read or write concern"},
     getMore: {skip: "does not accept read or write concern"},
@@ -860,6 +867,7 @@ let testCases = {
         // use profiling.  In the meantime, use logs.
         useLogs: true,
     },
+    updateESECMKIdentifierList: {skip: "does not accept read or write concern"},
     updateRole: {
         setUp: function (conn) {
             assert.commandWorked(

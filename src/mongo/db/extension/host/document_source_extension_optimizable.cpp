@@ -47,6 +47,7 @@
 #include "mongo/db/pipeline/search/vector_search_helper.h"
 #include "mongo/db/pipeline/visitors/document_source_visitor_docs_needed_bounds.h"
 #include "mongo/db/pipeline/visitors/document_source_visitor_registry.h"
+#include "mongo/db/query/query_feature_flags_gen.h"
 #include "mongo/util/assert_util.h"
 
 namespace mongo::extension::host {
@@ -260,7 +261,7 @@ void DocumentSourceExtensionOptimizable::LiteParsedExpanded::bindViewInfo(
 
 bool DocumentSourceExtensionOptimizable::LiteParsedExpanded::isRankedStage() const {
     const auto& provided = _properties.getProvidedMetadataFields();
-    if (!provided.has_value() || provided->empty()) {
+    if (!provided || provided->empty()) {
         return false;
     }
     return std::find(provided->begin(),
@@ -271,7 +272,7 @@ bool DocumentSourceExtensionOptimizable::LiteParsedExpanded::isRankedStage() con
 
 bool DocumentSourceExtensionOptimizable::LiteParsedExpanded::isScoredStage() const {
     const auto& provided = _properties.getProvidedMetadataFields();
-    if (!provided.has_value() || provided->empty()) {
+    if (!provided || provided->empty()) {
         return false;
     }
     return std::any_of(
@@ -568,19 +569,8 @@ boost::intrusive_ptr<DocumentSource> DocumentSourceExtensionOptimizable::clone(
 
 DocumentSourceContainer::iterator DocumentSourceExtensionOptimizable::optimizeAt(
     DocumentSourceContainer::iterator itr, DocumentSourceContainer* container) {
-    // TODO SERVER-123972: Only apply the sort optimization when featureFlagExtensionsOptimizations
-    // is disabled.
-
-    // Attempt to remove a $sort on metadata if the extension stage is sorted by vector
-    // search score.
-    if (_logicalStage->isSortedByVectorSearchScore_deprecated()) {
-        if (auto result = search_helpers::applyVectorSearchSortOptimization(itr, container)) {
-            return *result;
-        }
-    }
-
-    // Only apply the special-case limit optimization when extension rewrite rules are not enabled.
-    // If rewrite rules are enabled, the extension can implement this optimization on its own.
+    // The REDUDNANT_SORT_REMOVAL rule takes care of $extensionVectorSearch's desired $sort
+    // optimization.
     if (!feature_flags::gFeatureFlagExtensionsOptimizations.isEnabled()) {
         _limit = search_helpers::setVectorSearchLimitForOptimization(itr, container, _limit);
         _logicalStage->setExtractedLimitVal_deprecated(_limit);
@@ -701,22 +691,22 @@ REGISTER_RULES_WITH_FEATURE_FLAG(
         .name = "EXTENSION_APPLY_PIPELINE_SUFFIX_DEPENDENCIES",
         .precondition = mongo::extension::host::extensionApplyDependenciesPrecondition,
         .transform = mongo::extension::host::extensionApplyDependenciesTransform,
-        .priority = kDefaultOptimizeInPlacePriority,
+        .priority = kDefaultOptimizeInPlacePriority + 1,
         .tags = PipelineRewriteContext::Tags::InPlace,
     });
 REGISTER_RULES(DocumentSourceExtensionOptimizable,
                OPTIMIZE_AT_RULE(DocumentSourceExtensionOptimizable));
 }  // namespace mongo::rule_based_rewrites::pipeline
 
-// Register DocsNeededBounds visitor functions for extension DocumentSource types here rather than
+// The DocsNeededBounds visitor function definitions and their registration live here rather than
 // in docs_needed_bounds_visitor, to avoid a circular BUILD dependency:
 //   docs_needed_bounds_visitor → extension_host → host_adapters → docs_needed_bounds_visitor
-// By registering from extension_host, only binaries that link extension_host (e.g. mongod) pay
-// the typeinfo cost; binaries like dbtest that link docs_needed_bounds_visitor but not
+// Defining and registering from extension_host means only binaries that link extension_host (e.g.
+// mongod) pay the typeinfo cost; binaries like dbtest that link docs_needed_bounds_visitor but not
 // extension_host compile and link cleanly.
-const mongo::ServiceContext::ConstructorActionRegisterer extensionDocsNeededBoundsVisitorRegisterer{
-    "ExtensionDocsNeededBoundsVisitorRegisterer", [](mongo::ServiceContext* service) {
-        using namespace mongo;
+namespace mongo {
+const ServiceContext::ConstructorActionRegisterer extensionDocsNeededBoundsVisitorRegisterer{
+    "ExtensionDocsNeededBoundsVisitorRegisterer", [](ServiceContext* service) {
         auto& registry = getDocumentSourceVisitorRegistry(service);
         registry.registerVisitorFunc<DocsNeededBoundsContext,
                                      extension::host::DocumentSourceExtensionOptimizable>(
@@ -726,3 +716,49 @@ const mongo::ServiceContext::ConstructorActionRegisterer extensionDocsNeededBoun
             &visit<DocsNeededBoundsContext, extension::host::DocumentSourceExtensionForQueryShape>);
     }};
 
+namespace {
+void applyDocsNeededBoundsEffect(DocsNeededBoundsContext* ctx,
+                                 extension::MongoExtensionDocsNeededBoundsEffectEnum effect,
+                                 boost::optional<std::int64_t> value) {
+    using namespace mongo;
+    // The IDL validator validateDocsNeededBoundsInfo guarantees that 'value' is set iff 'effect' is
+    // kLimit or kSkip, so the dereferences below are safe.
+    using Effect = extension::MongoExtensionDocsNeededBoundsEffectEnum;
+    switch (effect) {
+        case Effect::kUnknown:
+            ctx->applyUnknownStage();
+            return;
+        case Effect::kBlocking:
+            ctx->applyBlockingStage();
+            return;
+        case Effect::kPossibleDecrease:
+            ctx->applyPossibleDecreaseStage();
+            return;
+        case Effect::kPossibleIncrease:
+            ctx->applyPossibleIncreaseStage();
+            return;
+        case Effect::kNoEffect:
+            return;
+        case Effect::kLimit:
+            ctx->applyLimit(*value);
+            return;
+        case Effect::kSkip:
+            ctx->applySkip(*value);
+            return;
+    }
+    MONGO_UNREACHABLE;
+}
+}  // namespace
+
+void visitExtensionStage(DocsNeededBoundsContext* ctx,
+                         const extension::host::DocumentSourceExtensionOptimizable& source) {
+    auto boundsInfo = source.getDocsNeededBounds();
+    if (!boundsInfo) {
+        // Default to unknown bounds.
+        ctx->applyUnknownStage();
+        return;
+    }
+
+    applyDocsNeededBoundsEffect(ctx, boundsInfo->getEffect(), boundsInfo->getValue());
+}
+}  // namespace mongo

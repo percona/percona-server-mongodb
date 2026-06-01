@@ -454,7 +454,7 @@ void BlockHashAggStage::runAccumulatorsTokenized(const TokenizedKeys& tokenizedK
         executeBlockLevelAccumulatorCode(tokenizedKeys.keys[partition]);
     }
     // Avoid leaving a pointer to inaccessible memory in the accessor.
-    _accumulatorBitsetAccessor.reset(value::TagValueView{value::TypeTags::Nothing, 0});
+    _accumulatorBitsetAccessor.reset(value::TagValueView::nothing());
 }
 
 void BlockHashAggStage::runAccumulatorsElementWise(const value::DeblockedTagVals& extractedBitmap) {
@@ -478,7 +478,7 @@ void BlockHashAggStage::runAccumulatorsElementWise(const value::DeblockedTagVals
     // Call executeRowLevelAccumulatorCode() to run the row accumulators.
     executeRowLevelAccumulatorCode(extractedBitmap, extractedGbs, extractedData);
 
-    _accumulatorBitsetAccessor.reset(value::TagValueView{value::TypeTags::Nothing, 0});
+    _accumulatorBitsetAccessor.reset(value::TagValueView::nothing());
 }
 
 boost::optional<std::vector<size_t>> BlockHashAggStage::tokenizeTokenInfos(
@@ -649,7 +649,6 @@ boost::optional<BlockHashAggStage::TokenizedKeys> BlockHashAggStage::tryTokenize
 void BlockHashAggStage::open(bool reOpen) {
     auto optTimer(getOptTimer(_opCtx));
     _children[0]->open(reOpen);
-    _childOpened = true;
     _commonStats.opens++;
 
     _ht.emplace();
@@ -758,7 +757,7 @@ void BlockHashAggStage::open(bool reOpen) {
         switchToDisk();
     }
 
-    _accumulatorBitsetAccessor.reset(value::TagValueView{value::TypeTags::Nothing, 0});
+    _accumulatorBitsetAccessor.reset(value::TagValueView::nothing());
     _htIt = _ht->end();
 }
 
@@ -1002,10 +1001,7 @@ void BlockHashAggStage::close() {
     auto optTimer(getOptTimer(_opCtx));
 
     trackClose();
-    if (_childOpened) {
-        _children[0]->close();
-        _childOpened = false;
-    }
+    _children[0]->close();
 
     _ht = boost::none;
     if (_recordStore && _opCtx) {

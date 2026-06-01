@@ -47,6 +47,7 @@
 #include "mongo/db/global_catalog/chunk_manager.h"
 #include "mongo/db/global_catalog/ddl/notify_sharding_event_gen.h"
 #include "mongo/db/global_catalog/ddl/set_allow_migrations_gen.h"
+#include "mongo/db/global_catalog/ddl/sharded_rename_collection_gen.h"
 #include "mongo/db/global_catalog/shard_key_pattern.h"
 #include "mongo/db/global_catalog/type_chunk.h"
 #include "mongo/db/global_catalog/type_collection.h"
@@ -77,7 +78,6 @@
 #include "mongo/db/sharding_environment/sharding_feature_flags_gen.h"
 #include "mongo/db/sharding_environment/sharding_logging.h"
 #include "mongo/db/topology/cluster_parameters/sharding_cluster_parameters_gen.h"
-#include "mongo/db/topology/cluster_role.h"
 #include "mongo/db/topology/shard_registry.h"
 #include "mongo/db/topology/sharding_state.h"
 #include "mongo/db/topology/vector_clock/vector_clock.h"
@@ -214,17 +214,15 @@ void deleteCollection(OperationContext* opCtx,
         opCtx, std::move(transactionChain), writeConcern, osi, executor);
 }
 
-void setAllowMigrations(OperationContext* opCtx,
-                        const NamespaceString& nss,
-                        const boost::optional<UUID>& expectedCollectionUUID,
-                        const boost::optional<OperationSessionInfo>& osi,
-                        bool allowMigrations) {
+void setAllowMigrationsOnConfigServer(OperationContext* opCtx,
+                                      const NamespaceString& nss,
+                                      const boost::optional<UUID>& expectedCollectionUUID,
+                                      const OperationSessionInfo& osi,
+                                      bool allowMigrations) {
     ConfigsvrSetAllowMigrations configsvrSetAllowMigrationsCmd(nss, allowMigrations);
     configsvrSetAllowMigrationsCmd.setCollectionUUID(expectedCollectionUUID);
     generic_argument_util::setMajorityWriteConcern(configsvrSetAllowMigrationsCmd);
-    if (osi) {
-        generic_argument_util::setOperationSessionInfo(configsvrSetAllowMigrationsCmd, *osi);
-    }
+    generic_argument_util::setOperationSessionInfo(configsvrSetAllowMigrationsCmd, osi);
 
     const auto swSetAllowMigrationsResult =
         Grid::get(opCtx)->shardRegistry()->getConfigShard()->runCommand(
@@ -248,6 +246,79 @@ void setAllowMigrations(OperationContext* opCtx,
     } catch (const ExceptionFor<ErrorCodes::ChunkMetadataInconsistency>&) {
         // Collection metadata has inconsistencies
     }
+}
+
+void setAllowChunkOperations(OperationContext* opCtx,
+                             const NamespaceString& nss,
+                             const boost::optional<UUID>& expectedCollectionUUID,
+                             std::function<OperationSessionInfo()> osiGenerator,
+                             bool allowChunkOperations) {
+    {
+        ConfigsvrSetAllowChunkOperations configsvrSetAllowChunkOperationsCmd(nss);
+        configsvrSetAllowChunkOperationsCmd.setDbName(nss.dbName());
+        configsvrSetAllowChunkOperationsCmd.setAllowChunkOperations(allowChunkOperations);
+        configsvrSetAllowChunkOperationsCmd.setCollectionUUID(expectedCollectionUUID);
+        generic_argument_util::setMajorityWriteConcern(configsvrSetAllowChunkOperationsCmd);
+        generic_argument_util::setOperationSessionInfo(configsvrSetAllowChunkOperationsCmd,
+                                                       osiGenerator());
+
+        const auto swSetAllowChunkOperationsResult =
+            Grid::get(opCtx)->shardRegistry()->getConfigShard()->runCommand(
+                opCtx,
+                ReadPreferenceSetting{ReadPreference::PrimaryOnly},
+                DatabaseName::kAdmin,
+                configsvrSetAllowChunkOperationsCmd.toBSON(),
+                Shard::RetryPolicy::kIdempotent);
+
+        // TODO (SERVER-127531) Review these catch clauses.
+        try {
+            uassertStatusOKWithContext(
+                Shard::CommandResponse::getEffectiveStatus(swSetAllowChunkOperationsResult),
+                str::stream() << "Error setting allowChunkOperations to " << allowChunkOperations
+                              << " in the config server for collection "
+                              << nss.toStringForErrorMsg());
+        } catch (const ExceptionFor<ErrorCodes::NamespaceNotSharded>&) {
+            // Collection no longer exists
+            return;
+        } catch (const ExceptionFor<ErrorCodes::ConflictingOperationInProgress>&) {
+            // Collection metadata was concurrently dropped
+            return;
+        } catch (const ExceptionFor<ErrorCodes::ChunkMetadataInconsistency>&) {
+            // Collection metadata has inconsistencies
+            return;
+        }
+    }
+
+    // Use the router loop to target data-bearing shards. Shards containing no chunks of a
+    // collection don't maintain any metadata for that collection, so we should not target them. By
+    // using the shard protocol, we guarantee we are not missing any shard.
+    sharding::router::CollectionRouter router(opCtx, nss);
+    router.routeWithRoutingContext(
+        "setAllowChunkOperations", [&](OperationContext* opCtx, RoutingContext& routingCtx) {
+            const auto osi = osiGenerator();
+            ShardsvrSetAllowChunkOperations shardsvrSetAllowChunkOperationsCmd(nss);
+            shardsvrSetAllowChunkOperationsCmd.setDbName(nss.dbName());
+            shardsvrSetAllowChunkOperationsCmd.setAllowChunkOperations(allowChunkOperations);
+            shardsvrSetAllowChunkOperationsCmd.setCollectionUUID(expectedCollectionUUID);
+            generic_argument_util::setMajorityWriteConcern(shardsvrSetAllowChunkOperationsCmd);
+            generic_argument_util::setOperationSessionInfo(shardsvrSetAllowChunkOperationsCmd, osi);
+
+            const auto shardResponses = scatterGatherVersionedTargetByRoutingTable(
+                opCtx,
+                routingCtx,
+                nss,
+                shardsvrSetAllowChunkOperationsCmd.toBSON(),
+                ReadPreferenceSetting{ReadPreference::PrimaryOnly},
+                Shard::RetryPolicy::kIdempotent,
+                /*query=*/{},
+                /*collation=*/{},
+                /*letParameters=*/boost::none,
+                /*runtimeConstants=*/boost::none);
+
+            for (const auto& response : shardResponses) {
+                uassertStatusOK(AsyncRequestsSender::Response::getEffectiveStatus(response));
+            }
+        });
 }
 
 }  // namespace
@@ -497,18 +568,28 @@ boost::optional<CreateCollectionResponse> checkIfCollectionAlreadyTrackedWithOpt
 void stopMigrations(OperationContext* opCtx,
                     const NamespaceString& nss,
                     const boost::optional<UUID>& expectedCollectionUUID,
-                    const boost::optional<OperationSessionInfo>& osi) {
-    setAllowMigrations(opCtx, nss, expectedCollectionUUID, osi, false);
+                    std::function<OperationSessionInfo()> osiGenerator,
+                    AuthoritativeMetadataAccessLevelEnum authoritativeState) {
+    if (authoritativeState != AuthoritativeMetadataAccessLevelEnum::kNone) {
+        setAllowChunkOperations(opCtx, nss, expectedCollectionUUID, osiGenerator, false);
+    } else {
+        setAllowMigrationsOnConfigServer(opCtx, nss, expectedCollectionUUID, osiGenerator(), false);
+    }
 }
 
 void resumeMigrations(OperationContext* opCtx,
                       const NamespaceString& nss,
                       const boost::optional<UUID>& expectedCollectionUUID,
-                      const boost::optional<OperationSessionInfo>& osi) {
-    setAllowMigrations(opCtx, nss, expectedCollectionUUID, osi, true);
+                      std::function<OperationSessionInfo()> osiGenerator,
+                      AuthoritativeMetadataAccessLevelEnum authoritativeState) {
+    if (authoritativeState != AuthoritativeMetadataAccessLevelEnum::kNone) {
+        setAllowChunkOperations(opCtx, nss, expectedCollectionUUID, osiGenerator, true);
+    } else {
+        setAllowMigrationsOnConfigServer(opCtx, nss, expectedCollectionUUID, osiGenerator(), true);
+    }
 }
 
-bool checkAllowMigrations(OperationContext* opCtx, const NamespaceString& nss) {
+bool checkAllowMigrationsOnConfigServer(OperationContext* opCtx, const NamespaceString& nss) {
     auto collDoc =
         uassertStatusOK(Grid::get(opCtx)->shardRegistry()->getConfigShard()->exhaustiveFindOnConfig(
                             opCtx,
@@ -526,7 +607,7 @@ bool checkAllowMigrations(OperationContext* opCtx, const NamespaceString& nss) {
             !collDoc.empty());
 
     auto coll = CollectionType(collDoc[0]);
-    return coll.getAllowMigrations();
+    return coll.getAllowMigrations() && coll.getAllowChunkOperations();
 }
 
 boost::optional<UUID> getCollectionUUID(OperationContext* opCtx,
@@ -892,7 +973,7 @@ void commitRefineCollectionShardKeyToShardCatalog(
     const OperationSessionInfo& osi,
     const std::shared_ptr<executor::ScopedTaskExecutor>& executor,
     const CancellationToken& token) {
-    ShardsvrCommitRefineCollectionShardKey request(nss);
+    ShardsvrCommitRefineCollectionShardKey request(nss, ShardingState::get(opCtx)->shardId());
     request.setDbName(DatabaseName::kAdmin);
 
     generic_argument_util::setMajorityWriteConcern(request);
@@ -912,7 +993,7 @@ void commitCollModCollectionMetadataToShardCatalog(
     const OperationSessionInfo& osi,
     const std::shared_ptr<executor::ScopedTaskExecutor>& executor,
     const CancellationToken& token) {
-    ShardsvrCommitCollModCollectionMetadata request(nss);
+    ShardsvrCommitCollModCollectionMetadata request(nss, ShardingState::get(opCtx)->shardId());
     request.setDbName(DatabaseName::kAdmin);
 
     generic_argument_util::setMajorityWriteConcern(request);
@@ -953,7 +1034,7 @@ void commitCreateCollectionMetadataToShardCatalog(
     const OperationSessionInfo& osi,
     const std::shared_ptr<executor::ScopedTaskExecutor>& executor,
     const CancellationToken& token) {
-    ShardsvrCommitCreateCollectionMetadata request(nss);
+    ShardsvrCommitCreateCollectionMetadata request(nss, ShardingState::get(opCtx)->shardId());
     request.setDbName(DatabaseName::kAdmin);
 
     generic_argument_util::setMajorityWriteConcern(request);
@@ -963,6 +1044,81 @@ void commitCreateCollectionMetadataToShardCatalog(
         std::make_shared<async_rpc::AsyncRPCOptions<ShardsvrCommitCreateCollectionMetadata>>(
             **executor, token, std::move(request));
 
+    sendAuthenticatedCommandToShards(opCtx, opts, shardIds);
+}
+
+void commitRenameCollectionMetadataToShardCatalog(
+    OperationContext* opCtx,
+    const NamespaceString& fromNss,
+    const NamespaceString& toNss,
+    const boost::optional<UUID>& sourceUuid,
+    const boost::optional<UUID>& targetUuid,
+    const boost::optional<UUID>& newTargetUuid,
+    const std::vector<ShardId>& shardIds,
+    const OperationSessionInfo& osi,
+    const std::shared_ptr<executor::ScopedTaskExecutor>& executor,
+    const CancellationToken& token) {
+    ShardsvrCommitRenameCollectionMetadata request{
+        fromNss, toNss, ShardingState::get(opCtx)->shardId()};
+    request.setDbName(DatabaseName::kAdmin);
+    request.setSourceUUID(sourceUuid);
+    request.setTargetUUID(targetUuid);
+    request.setNewTargetUUID(newTargetUuid);
+
+    // TODO SERVER-127216: Replace with the CRUD feature flag to check if we're upgrading or not.
+    //
+    // In the event the cluster is undergoing an FCV upgrade then metadata cannot be
+    // assumed to be present on the shard since it may or may not yet contain the
+    // authoritative catalog. As such the commit has to fetch the data. This is an
+    // idempotent operation so it poses no issues with the concurrent
+    // AuthoritativeCloningCoordinator.
+    const bool isUpgrading = true;
+    request.setShouldCloneEverything(isUpgrading);
+
+    generic_argument_util::setMajorityWriteConcern(request);
+    generic_argument_util::setOperationSessionInfo(request, osi);
+
+    auto opts =
+        std::make_shared<async_rpc::AsyncRPCOptions<ShardsvrCommitRenameCollectionMetadata>>(
+            **executor, token, request);
+    sendAuthenticatedCommandToShards(opCtx, std::move(opts), shardIds);
+}
+
+void commitCreateCollectionChunklessMetadataToShardCatalog(
+    OperationContext* opCtx,
+    const NamespaceString& nss,
+    const std::vector<ShardId>& shardIds,
+    const OperationSessionInfo& osi,
+    const std::shared_ptr<executor::ScopedTaskExecutor>& executor,
+    const CancellationToken& token) {
+    ShardsvrCommitCreateCollectionChunklessMetadata request(nss);
+    request.setDbName(DatabaseName::kAdmin);
+
+    generic_argument_util::setMajorityWriteConcern(request);
+    generic_argument_util::setOperationSessionInfo(request, osi);
+
+    auto opts = std::make_shared<
+        async_rpc::AsyncRPCOptions<ShardsvrCommitCreateCollectionChunklessMetadata>>(
+        **executor, token, std::move(request));
+    sendAuthenticatedCommandToShards(opCtx, opts, shardIds);
+}
+
+void controlShardCatalogCleanupTask(OperationContext* opCtx,
+                                    const std::vector<ShardId>& shardIds,
+                                    const OperationSessionInfo& osi,
+                                    bool pause,
+                                    const std::shared_ptr<executor::ScopedTaskExecutor>& executor,
+                                    const CancellationToken& token) {
+    ShardsvrControlShardCatalogCleanupTask request;
+    request.setDbName(DatabaseName::kAdmin);
+    request.setPause(pause);
+
+    generic_argument_util::setMajorityWriteConcern(request);
+    generic_argument_util::setOperationSessionInfo(request, osi);
+
+    auto opts =
+        std::make_shared<async_rpc::AsyncRPCOptions<ShardsvrControlShardCatalogCleanupTask>>(
+            **executor, token, std::move(request));
     sendAuthenticatedCommandToShards(opCtx, opts, shardIds);
 }
 

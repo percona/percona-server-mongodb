@@ -432,6 +432,7 @@ mongo_cc_library(
         "//src/mongo/db:common",
         "//src/mongo/db:server_base",
         "//src/mongo/db/auth:address_restriction",
+        "//src/mongo/db/auth:auth_mechanism",
         "//src/mongo/db/auth:authprivilege",
         "//src/mongo/db/auth:role_name_or_string",
     ],
@@ -543,6 +544,7 @@ mongo_cc_library(
         "//src/mongo/db/repl:repl_server_parameters",
         "//src/mongo/db/repl:repl_settings",
         "//src/mongo/db/shard_role",
+        "//src/mongo/db/shard_role/lock_manager:exception_util",
         "//src/mongo/db/shard_role/shard_catalog:collection_options",
         "//src/mongo/db/storage:storage_options",
     ],
@@ -616,6 +618,7 @@ mongo_cc_library(
         "//src/mongo/db:commands",
         "//src/mongo/db:common",
         "//src/mongo/db:dbdirectclient",
+        "//src/mongo/db:fle_compact_cleanup_mutex",
         "//src/mongo/db:fle_crud",
         "//src/mongo/db:mongohasher",
         "//src/mongo/db:server_base",
@@ -840,7 +843,6 @@ mongo_cc_library(
         "//src/mongo/db/commands/query_cmd:run_aggregate.cpp",
         "//src/mongo/db/commands/query_cmd:write_commands.cpp",
         "//src/mongo/db/global_catalog/ddl:shuffle_list_command_results.cpp",
-        "//src/mongo/db/shard_role/ddl:collmod_cmd.cpp",
         "//src/mongo/db/shard_role/ddl:create_command.cpp",
         "//src/mongo/db/shard_role/ddl:create_indexes_cmd.cpp",
         "//src/mongo/db/shard_role/ddl:drop_collection_cmd.cpp",
@@ -887,7 +889,6 @@ mongo_cc_library(
         "//src/mongo/db/commands/query_cmd:plan_cache_commands",
         "//src/mongo/db/commands/query_cmd:release_memory_cmd",
         "//src/mongo/db/commands/query_cmd:search_index_commands",
-        "//src/mongo/db/index_builds:index_build_knobs_idl",
         "//src/mongo/db/index_builds:index_builds_coordinator",
         "//src/mongo/db/index_builds:multi_index_block",
         "//src/mongo/db/memory_tracking",
@@ -913,7 +914,6 @@ mongo_cc_library(
         "//src/mongo/db/query/write_ops",
         "//src/mongo/db/query/write_ops:write_ops_exec",
         "//src/mongo/db/repl:replica_set_messages",
-        "//src/mongo/db/repl:storage_interface",
         "//src/mongo/db/s:query_analysis_writer",
         "//src/mongo/db/session:session_catalog_mongod",
         "//src/mongo/db/shard_role:resource_yielders",
@@ -948,6 +948,17 @@ mongo_cc_library(
         "//src/mongo/s:sharding_router_api",
         "//src/mongo/util:log_and_backoff",
         "//src/mongo/util/net:http_client",
+    ],
+)
+
+mongo_cc_library(
+    name = "collmod_command",
+    srcs = [
+        "//src/mongo/db/shard_role/ddl:collmod_cmd.cpp",
+    ],
+    deps = [
+        ":standalone",
+        "//src/mongo/db/matcher/doc_validation:constraint_validation_level_upgrade",
     ],
 )
 
@@ -994,6 +1005,7 @@ mongo_cc_library(
     ],
     deps = [
         "cluster_server_parameter_commands_invocation",
+        "collmod_command",
         "core",
         "create_command",
         "dbcheck_command",
@@ -1059,6 +1071,7 @@ mongo_cc_library(
         "//src/mongo/db/shard_role/shard_catalog:catalog_helpers",
         "//src/mongo/db/shard_role/shard_catalog:catalog_impl",
         "//src/mongo/db/shard_role/shard_catalog:database_holder",
+        "//src/mongo/db/sharding_environment:sharding_feature_flags",
         "//src/mongo/db/stats:top",
         "//src/mongo/db/timeseries:timeseries_conversion_util",
         "//src/mongo/db/timeseries:upgrade_downgrade_viewless_timeseries",

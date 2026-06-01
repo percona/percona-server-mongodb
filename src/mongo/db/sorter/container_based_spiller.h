@@ -44,8 +44,10 @@
 #include "mongo/util/assert_util.h"
 #include "mongo/util/bufreader.h"
 #include "mongo/util/modules.h"
+#include "mongo/util/scopeguard.h"
 
 #include <algorithm>
+#include <functional>
 #include <iterator>
 #include <memory>
 #include <span>
@@ -126,7 +128,9 @@ public:
         _compareChecksums();
 
         auto key = Key::deserializeForSorter(reader, _settings.first);
-        _deferredValue.emplace(result.data() + reader.offset(), result.size() - reader.offset());
+        // Eagerly deserialize the value so it owns its own memory. Otherwise, it could become
+        // invalidated by a cursor reset.
+        _deferredValue = Value::deserializeForSorter(reader, _settings.second);
 
         return std::move(key);
     }
@@ -135,11 +139,10 @@ public:
         uassert(
             10896303, "Must precede getDeferredValue with nextWithDeferredValue", _deferredValue);
 
-        BufReader reader{_deferredValue->data(), static_cast<unsigned>(_deferredValue->size())};
-        _deferredValue = boost::none;
         _consume();
-
-        return Value::deserializeForSorter(reader, _settings.second);
+        auto value = std::move(*_deferredValue);
+        _deferredValue = boost::none;
+        return value;
     }
 
     const Key& peek() override {
@@ -212,7 +215,7 @@ private:
     int64_t _end;
     bool _positioned = false;
     Iterator<Key, Value>::Settings _settings;
-    boost::optional<std::span<const char>> _deferredValue;
+    boost::optional<Value> _deferredValue;
 
     // Checksum value that is updated with each read of a data object from a container. We can
     // compare this value with _originalChecksum to check for data corruption if and only if the
@@ -270,13 +273,28 @@ public:
 
         WriteUnitOfWork wuow(&_opCtx);
         _ru.onRollback([this](OperationContext*) { --_nextKey; });
-        uassertStatusOK(container_write::insert(
-            &_opCtx, _ru, _container, _nextKey++, value, container::ExistingKeyPolicy::overwrite));
+        uassertStatusOK(container_write::insert(&_opCtx,
+                                                _ru,
+                                                _container,
+                                                _nextKey++,
+                                                value,
+                                                container_write::NonexistentKeyGuarantee{}));
+        if (size > 0) {
+            this->_checksumCalculator.addUncommittedData(buffer.buf(), size);
+        }
+        if (!_uncommittedChecksum) {
+            _uncommittedChecksum = true;
+            _ru.onCommit([this](OperationContext*, boost::optional<Timestamp>) {
+                this->_checksumCalculator.commit();
+                _uncommittedChecksum = false;
+            });
+            _ru.onRollback([this](OperationContext*) {
+                this->_checksumCalculator.abort();
+                _uncommittedChecksum = false;
+            });
+        }
         wuow.commit();
 
-        if (size > 0) {
-            this->_checksumCalculator.addData(buffer.buf(), size);
-        }
         // The container-based sorter does not compress in the sorter layer, so report the
         // same value for compressed and uncompressed bytes.
         _containerStats.addSpilledDataSize(size);
@@ -316,6 +334,7 @@ private:
     int64_t _nextKey;
     int64_t _rangeStartKey;
     int64_t _lastAddedSize = 0;
+    bool _uncommittedChecksum = false;
 };
 
 template <typename Key, typename Value>
@@ -410,9 +429,19 @@ private:
 template <typename Key, typename Value, typename Comparator>
 class ContainerBasedSpiller : public SpillerBase<Key, Value, Comparator> {
 public:
-    // Callback to be run upon spilling, including merging spills (after writing the merged ranges
-    // but before deleting the old ranges).
-    using OnSpillFn = std::function<void()>;
+    using SpillCallback = std::function<void()>;
+
+    /**
+     * Callbacks to be run upon spilling, including merging spills.
+     */
+    struct SpillCallbacks {
+        // Run before spilling or merging spills.
+        SpillCallback preSpill;
+        // Run after spilling. Run while merging spills before deleting the merged-from ranges.
+        SpillCallback onSpill;
+        // Run after spilling or merging spills.
+        SpillCallback postSpill;
+    };
 
     ContainerBasedSpiller(OperationContext& opCtx,
                           RecoveryUnit& ru,
@@ -421,7 +450,7 @@ public:
                           SorterContainerStats& stats,
                           boost::optional<DatabaseName> dbName,
                           SorterChecksumVersion checksumVersion,
-                          OnSpillFn onSpill,
+                          SpillCallbacks callbacks,
                           int64_t batchSize,
                           int64_t batchBytes,
                           int64_t minAvailableDiskBytesToSpill)
@@ -431,7 +460,7 @@ public:
               minAvailableDiskBytesToSpill),
           _opCtx(opCtx),
           _ru(ru),
-          _onSpill(std::move(onSpill)),
+          _callbacks(std::move(callbacks)),
           _batchSize(batchSize),
           _batchBytes(batchBytes),
           _current(startingKey) {}
@@ -442,7 +471,7 @@ public:
                           SorterContainerStats& stats,
                           boost::optional<DatabaseName> dbName,
                           SorterChecksumVersion checksumVersion,
-                          OnSpillFn onSpill,
+                          SpillCallbacks callbacks,
                           int64_t batchSize,
                           int64_t batchBytes,
                           int64_t minAvailableDiskBytesToSpill)
@@ -453,7 +482,7 @@ public:
                                 stats,
                                 std::move(dbName),
                                 checksumVersion,
-                                std::move(onSpill),
+                                std::move(callbacks),
                                 batchSize,
                                 batchBytes,
                                 minAvailableDiskBytesToSpill) {}
@@ -461,8 +490,10 @@ public:
     void spill(const SortOptions& opts,
                const SpillerBase<Key, Value, Comparator>::Settings& settings,
                std::span<std::pair<Key, Value>> data) override {
-        SpillerBase<Key, Value, Comparator>::spill(opts, settings, data);
-        _onSpill();
+        _runWithSpillCallbacks([&] {
+            SpillerBase<Key, Value, Comparator>::spill(opts, settings, data);
+            _runOnSpill();
+        });
     }
 
     void mergeSpills(const SortOptions& opts,
@@ -471,6 +502,73 @@ public:
                      Comparator comp,
                      std::size_t numTargetedSpills,
                      std::size_t maxSpillsPerMerge) override {
+        _runWithSpillCallbacks([&] {
+            _mergeSpills(opts, settings, stats, comp, numTargetedSpills, maxSpillsPerMerge);
+        });
+    }
+
+    boost::filesystem::path getSpillDir() override {
+        std::string storageIdentifier = this->getStorage().getStorageIdentifier();
+        auto dir = ident::getDirectory(storageIdentifier);
+        boost::filesystem::path path{storageGlobalParams.dbpath};
+        if (!dir.empty()) {
+            path /= std::string{dir};
+        }
+        return path;
+    };
+
+    // TODO SERVER-125808: Tighten the memory consumption bounds of container-based spillWithHeap().
+    std::shared_ptr<sorter::Iterator<Key, Value>> spillWithHeap(
+        const SortOptions& opts,
+        const SpillerBase<Key, Value, Comparator>::Settings& settings,
+        std::priority_queue<std::pair<Key, Value>,
+                            std::vector<std::pair<Key, Value>>,
+                            Greater<Key, Value, Comparator>>& heap) override {
+        std::vector<std::pair<Key, Value>> data;
+        data.reserve(heap.size());
+        while (!heap.empty()) {
+            data.push_back(heap.top());
+            heap.pop();
+        }
+        std::shared_ptr<sorter::Iterator<Key, Value>> result;
+        // Using _spill() allows us to re-use the _current bookkeeping required by the
+        // container-based spiller.
+        _runWithSpillCallbacks([&] { result = _spill(opts, settings, data)->done(); });
+        return result;
+    }
+
+private:
+    void _runPreSpill() {
+        if (_callbacks.preSpill) {
+            _callbacks.preSpill();
+        }
+    }
+
+    void _runOnSpill() {
+        if (_callbacks.onSpill) {
+            _callbacks.onSpill();
+        }
+    }
+
+    void _runPostSpill() {
+        if (_callbacks.postSpill) {
+            _callbacks.postSpill();
+        }
+    }
+
+    template <typename Fn>
+    void _runWithSpillCallbacks(Fn&& fn) {
+        _runPreSpill();
+        ScopeGuard postGuard([this] { _runPostSpill(); });
+        fn();
+    }
+
+    void _mergeSpills(const SortOptions& opts,
+                      const SpillerBase<Key, Value, Comparator>::Settings& settings,
+                      SorterStats& stats,
+                      Comparator comp,
+                      std::size_t numTargetedSpills,
+                      std::size_t maxSpillsPerMerge) {
         while (this->_iterators.size() > numTargetedSpills) {
             // Copy the current iterators so the merged-from iterators stay alive for the entire
             // outer pass even after we erase them from _iterators below.
@@ -538,7 +636,7 @@ public:
                                        std::next(this->_iterators.begin(), count));
                 this->_iterators.push_back(writer->done());
 
-                _onSpill();
+                _runOnSpill();
 
                 // TODO(SERVER-117546): Use a truncate rather than individual deletes.
                 for (int64_t batchStart = deleteRangeStart; batchStart < deleteRangeEnd;
@@ -567,35 +665,6 @@ public:
         }
     }
 
-    boost::filesystem::path getSpillDir() override {
-        std::string storageIdentifier = this->getStorage().getStorageIdentifier();
-        auto dir = ident::getDirectory(storageIdentifier);
-        boost::filesystem::path path{storageGlobalParams.dbpath};
-        if (!dir.empty()) {
-            path /= std::string{dir};
-        }
-        return path;
-    };
-
-    // TODO SERVER-125808: Tighten the memory consumption bounds of container-based spillWithHeap().
-    std::shared_ptr<sorter::Iterator<Key, Value>> spillWithHeap(
-        const SortOptions& opts,
-        const SpillerBase<Key, Value, Comparator>::Settings& settings,
-        std::priority_queue<std::pair<Key, Value>,
-                            std::vector<std::pair<Key, Value>>,
-                            Greater<Key, Value, Comparator>>& heap) override {
-        std::vector<std::pair<Key, Value>> data;
-        data.reserve(heap.size());
-        while (!heap.empty()) {
-            data.push_back(heap.top());
-            heap.pop();
-        }
-        // Using _spill() allows us to re-use the _current bookkeeping required by the
-        // container-based spiller.
-        return _spill(opts, settings, data)->done();
-    }
-
-private:
     ContainerBasedStorage<Key, Value>& _containerBasedStorage() {
         return *static_cast<ContainerBasedStorage<Key, Value>*>(this->_storage.get());
     }
@@ -640,7 +709,7 @@ private:
 
     OperationContext& _opCtx;
     RecoveryUnit& _ru;
-    OnSpillFn _onSpill;
+    SpillCallbacks _callbacks;
     int64_t _batchSize;
     int64_t _batchBytes;
     int64_t _current;

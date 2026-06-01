@@ -25,6 +25,15 @@
       "group": "percona",
       "name": "percona-server-mongodb",
       "version": "master",
+      "description": "Percona Server for MongoDB",
+      "licenses": [
+        {
+          "license": {
+            "id": "SSPL-1.0",
+            "url": "https://www.mongodb.com/legal/licensing/community-edition"
+          }
+        }
+      ],
       "cpe": "cpe:2.3:a:percona:percona-server-mongodb:master:*:*:*:*:*:*:*",
       "purl": "pkg:github/percona/percona-server-mongodb@master",
       "externalReferences": [
@@ -58,7 +67,7 @@
   "components": [
     {
       "type": "library",
-      "bom-ref": "pkg:deb/debian/firefox-esr@140.9.0esr-1?arch=source",
+      "bom-ref": "pkg:deb/debian/firefox-esr@140.11.0esr-1?arch=source",
       "supplier": {
         "name": "Mozilla Corporation",
         "url": [
@@ -68,7 +77,7 @@
       "author": "Mozilla Corporation",
       "group": "mozilla",
       "name": "Mozilla Firefox ESR",
-      "version": "140.9.0esr",
+      "version": "140.11.0esr",
       "description": "The C++-only SpiderMonkey component of FireFox ESR used by MongoDB.",
       "scope": "required",
       "licenses": [
@@ -79,8 +88,8 @@
         }
       ],
       "copyright": "Mozilla Corporation",
-      "cpe": "cpe:2.3:a:mozilla:firefox:140.9.0:*:*:*:esr:*:*:*",
-      "purl": "pkg:deb/debian/firefox-esr@140.9.0esr-1?arch=source",
+      "cpe": "cpe:2.3:a:mozilla:firefox:140.11.0:*:*:*:esr:*:*:*",
+      "purl": "pkg:deb/debian/firefox-esr@140.11.0esr-1?arch=source",
       "externalReferences": [
         {
           "url": "https://github.com/mozilla-firefox/firefox.git",
@@ -2705,7 +2714,7 @@
     {
       "ref": "pkg:github/mongodb/mongo@master",
       "dependsOn": [
-        "pkg:deb/debian/firefox-esr@140.9.0esr-1?arch=source",
+        "pkg:deb/debian/firefox-esr@140.11.0esr-1?arch=source",
         "pkg:generic/intel/IntelRDFPMathLib@2.0.1",
         "pkg:generic/unicode-org/unicode@8.0.0",
         "pkg:generic/valgrind/valgrind@093bef43d69236287ccc748591c9560a71181b0a",
@@ -2767,7 +2776,7 @@
       ]
     },
     {
-      "ref": "pkg:deb/debian/firefox-esr@140.9.0esr-1?arch=source",
+      "ref": "pkg:deb/debian/firefox-esr@140.11.0esr-1?arch=source",
       "dependsOn": []
     },
     {

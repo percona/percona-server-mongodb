@@ -49,7 +49,6 @@
 #include "mongo/db/shard_role/shard_catalog/participant_block_gen.h"
 #include "mongo/db/shard_role/shard_catalog/shard_filtering_metadata_refresh.h"
 #include "mongo/db/sharding_environment/grid.h"
-#include "mongo/db/sharding_environment/sharding_feature_flags_gen.h"
 #include "mongo/db/sharding_environment/sharding_logging.h"
 #include "mongo/db/topology/sharding_state.h"
 #include "mongo/db/topology/vector_clock/vector_clock_mutable.h"
@@ -274,8 +273,12 @@ void DropCollectionCoordinator::_freezeMigrations(
 
     if (_doc.getCollInfo()) {
         const auto collUUID = _doc.getCollInfo()->getUuid();
-        const auto session = getNewSession(opCtx);
-        sharding_ddl_util::stopMigrations(opCtx, nss(), collUUID, session);
+        sharding_ddl_util::stopMigrations(
+            opCtx,
+            nss(),
+            collUUID,
+            [&] { return getNewSession(opCtx); },
+            _doc.getAuthoritativeMetadataAccessLevel());
     }
 }
 
@@ -297,9 +300,8 @@ void DropCollectionCoordinator::_enterCriticalSection(
     // catalog with current information. This flag is evaluated at insertion time because on
     // secondaries, metadata is cleared during the onDelete of the critical section document.
     if (collIsTracked &&
-        feature_flags::gShardAuthoritativeCollMetadata.isEnabled(
-            VersionContext::getDecoration(opCtx),
-            serverGlobalParams.featureCompatibility.acquireFCVSnapshot())) {
+        _doc.getAuthoritativeMetadataAccessLevel() >=
+            AuthoritativeMetadataAccessLevelEnum::kWritesAllowed) {
         blockCRUDOperationsRequest.setClearCollMetadata(false);
     }
 
@@ -372,9 +374,8 @@ void DropCollectionCoordinator::_commitDropCollection(
         sharding_ddl_util::removeQueryAnalyzerMetadata(opCtx, nss(), session);
     }
 
-    bool isAuthoritative = feature_flags::gShardAuthoritativeCollMetadata.isEnabled(
-        VersionContext::getDecoration(opCtx),
-        serverGlobalParams.featureCompatibility.acquireFCVSnapshot());
+    bool isAuthoritative = _doc.getAuthoritativeMetadataAccessLevel() >=
+        AuthoritativeMetadataAccessLevelEnum::kWritesAllowed;
 
     if (collIsTracked) {
         tassert(10644514,
@@ -450,8 +451,11 @@ void DropCollectionCoordinator::_commitDropCollection(
     if (collIsTracked) {
         // 3. Insert the effects of the commit into config.placementHistory, if not already present.
         const auto commitTime = [&]() {
-            const auto currentTime = VectorClock::get(opCtx)->getTime();
-            return currentTime.clusterTime().asTimestamp();
+            // Bump the cluster time value before picking it; this ensures that the commitTime is
+            // always strictly greater than the timestamp assigned to the dropCollection op entry of
+            // the notifier shard (a condition necessary for the correct resumability of change
+            // streams during the execution of this DDL).
+            return VectorClockMutable::get(opCtx)->tickClusterTime(1).asTimestamp();
         }();
 
 
@@ -494,9 +498,8 @@ void DropCollectionCoordinator::_exitCriticalSection(
     // catalog (both durable and in-memory) with current information on both primary and secondary
     // nodes.
     if (collIsTracked &&
-        feature_flags::gShardAuthoritativeCollMetadata.isEnabled(
-            VersionContext::getDecoration(opCtx),
-            serverGlobalParams.featureCompatibility.acquireFCVSnapshot())) {
+        _doc.getAuthoritativeMetadataAccessLevel() >=
+            AuthoritativeMetadataAccessLevelEnum::kWritesAllowed) {
         unblockCRUDOperationsRequest.setClearCollMetadata(false);
     }
 

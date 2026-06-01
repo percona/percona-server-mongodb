@@ -94,16 +94,6 @@ LogicalAggStageHandle LogicalAggStageAPI::clone() const {
     return LogicalAggStageHandle(logicalAggStage);
 }
 
-bool LogicalAggStageAPI::isSortedByVectorSearchScore_deprecated() const {
-    bool outIsSortedByVectorSearchScore{false};
-    invokeCAndConvertStatusToException([&]() {
-        return _vtable().is_stage_sorted_by_vector_search_score_deprecated(
-            get(), &outIsSortedByVectorSearchScore);
-    });
-
-    return outIsSortedByVectorSearchScore;
-}
-
 void LogicalAggStageAPI::setExtractedLimitVal_deprecated(
     boost::optional<long long> extractedLimitVal) {
     invokeCAndConvertStatusToException([&]() {
@@ -161,15 +151,17 @@ void LogicalAggStageAPI::applyPipelineSuffixDependencies(
 }
 
 
+void LogicalAggStageAPI::skipStream(::MongoExtensionStreamType streamType) {
+    invokeCAndConvertStatusToException([&]() { return _vtable().skip_stream(get(), streamType); });
+}
+
 /**
  * Returns the sort pattern applied by this stage. Returns an empty BSONObj if the stage does
  * not apply a sort pattern.
  */
 BSONObj LogicalAggStageAPI::getSortPattern() const {
     ::MongoExtensionByteBuf* buf{nullptr};
-    invokeCAndConvertStatusToException([&]() {
-        return _vtable().get_sort_pattern(const_cast<LogicalAggStageAPI*>(this)->get(), &buf);
-    });
+    invokeCAndConvertStatusToException([&]() { return _vtable().get_sort_pattern(get(), &buf); });
 
     if (!buf) {
         return BSONObj();
@@ -178,4 +170,20 @@ BSONObj LogicalAggStageAPI::getSortPattern() const {
     ExtensionByteBufHandle ownedBuf{buf};
     return bsonObjFromByteView(ownedBuf->getByteView()).getOwned();
 }
+
+boost::optional<MongoExtensionDocsNeededBoundsInfo> LogicalAggStageAPI::getDocsNeededBounds()
+    const {
+    ::MongoExtensionByteBuf* buf{nullptr};
+    invokeCAndConvertStatusToException(
+        [&]() { return _vtable().get_docs_needed_bounds(get(), &buf); });
+
+    if (!buf) {
+        return boost::none;
+    }
+
+    ExtensionByteBufHandle ownedBuf{buf};
+    auto bson = bsonObjFromByteView(ownedBuf->getByteView()).getOwned();
+    return MongoExtensionDocsNeededBoundsInfo::parse(bson);
+}
+
 }  // namespace mongo::extension

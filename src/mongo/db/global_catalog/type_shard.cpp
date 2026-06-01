@@ -38,8 +38,8 @@
 #include "mongo/bson/util/bson_extract.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/str.h"
+#include "mongo/util/uuid.h"
 
-#include <type_traits>
 #include <utility>
 
 #include <boost/move/utility_core.hpp>
@@ -48,6 +48,7 @@
 namespace mongo {
 
 const BSONField<std::string> ShardType::name("_id");
+const BSONField<UUID> ShardType::uuid("uuid");
 const BSONField<std::string> ShardType::host("host");
 const BSONField<bool> ShardType::draining("draining");
 const BSONField<BSONArray> ShardType::tags("tags");
@@ -57,7 +58,15 @@ const BSONField<Timestamp> ShardType::topologyTime("topologyTime");
 const BSONField<long long> ShardType::replSetConfigVersion("replSetConfigVersion");
 
 ShardType::ShardType(std::string name, std::string host, std::vector<std::string> tags)
-    : _name(std::move(name)), _host(std::move(host)), _tags(std::move(tags)) {}
+    : ShardType(std::move(name), boost::none, std::move(host), std::move(tags)) {}
+
+ShardType::ShardType(std::string name,
+                     boost::optional<UUID> uuid,
+                     std::string host,
+                     std::vector<std::string> tags)
+    : _handle(ShardHandle(std::move(name), std::move(uuid))),
+      _host(std::move(host)),
+      _tags(std::move(tags)) {}
 
 StatusWith<ShardType> ShardType::fromBSON(const BSONObj& source) {
     ShardType shard;
@@ -67,7 +76,27 @@ StatusWith<ShardType> ShardType::fromBSON(const BSONObj& source) {
         Status status = bsonExtractStringField(source, name.name(), &shardName);
         if (!status.isOK())
             return status;
-        shard._name = shardName;
+
+        auto swUuid = [&]() -> StatusWith<boost::optional<UUID>> {
+            BSONElement uuidElem = source[uuid.name()];
+            if (uuidElem.eoo()) {
+                return boost::none;
+            }
+
+            if (uuidElem.type() != BSONType::binData ||
+                uuidElem.binDataType() != BinDataType::newUUID) {
+                return Status(ErrorCodes::TypeMismatch,
+                              str::stream() << "\"" << uuid.name() << "\" must be a UUID");
+            }
+
+            return UUID::parse(uuidElem);
+        }();
+
+        if (!swUuid.isOK()) {
+            return swUuid.getStatus();
+        }
+
+        shard._handle.emplace(std::move(shardName), swUuid.getValue());
     }
 
     {
@@ -84,7 +113,7 @@ StatusWith<ShardType> ShardType::fromBSON(const BSONObj& source) {
         if (status.isOK()) {
             shard._draining = isShardDraining;
         } else if (status == ErrorCodes::NoSuchKey) {
-            // draining field can be mssing in which case it is presumed false
+            // draining field can be missing in which case it is presumed false
         } else {
             return status;
         }
@@ -116,8 +145,8 @@ StatusWith<ShardType> ShardType::fromBSON(const BSONObj& source) {
         if (status.isOK()) {
             shard._topologyTime = shardTopologyTime;
         } else if (status == ErrorCodes::NoSuchKey) {
-            // topologyTime field can be mssing in which case it is presumed to be an uninitialized
-            // timestamp
+            // topologyTime field can be missing in which case it is presumed to be an
+            // uninitialized timestamp
         } else {
             return status;
         }
@@ -141,7 +170,7 @@ StatusWith<ShardType> ShardType::fromBSON(const BSONObj& source) {
 }
 
 Status ShardType::validate() const {
-    if (!_name.has_value() || _name->empty()) {
+    if (!_handle.has_value() || !_handle->name().isValid()) {
         return Status(ErrorCodes::NoSuchKey,
                       str::stream() << "missing " << name.name() << " field");
     }
@@ -163,8 +192,12 @@ Status ShardType::validate() const {
 BSONObj ShardType::toBSON() const {
     BSONObjBuilder builder;
 
-    if (_name)
+    if (_handle) {
         builder.append(name(), getName());
+        if (_handle->uuid()) {
+            _handle->uuid()->appendToBuilder(&builder, uuid.name());
+        }
+    }
     if (_host)
         builder.append(host(), getHost());
     if (_draining)
@@ -183,8 +216,23 @@ std::string ShardType::toString() const {
     return toBSON().toString();
 }
 
-void ShardType::setName(const std::string& name) {
-    _name = name;
+const std::string& ShardType::getName() const {
+    invariant(_handle);
+    return _handle->name().toString();
+}
+
+const boost::optional<UUID>& ShardType::getUuid() const {
+    invariant(_handle);
+    return _handle->uuid();
+}
+
+const ShardHandle& ShardType::getHandle() const {
+    invariant(_handle);
+    return *_handle;
+}
+
+void ShardType::setHandle(ShardHandle handle) {
+    _handle = std::move(handle);
 }
 
 void ShardType::setHost(const std::string& host) {

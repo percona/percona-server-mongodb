@@ -33,13 +33,14 @@
 #include "mongo/base/error_codes.h"
 #include "mongo/bson/bsonmisc.h"
 #include "mongo/bson/bsonobjbuilder.h"
-#include "mongo/bson/oid.h"
 #include "mongo/db/baton.h"
 #include "mongo/db/client.h"
 #include "mongo/db/sharding_environment/shard_server_test_fixture.h"
+#include "mongo/stdx/condition_variable.h"
 #include "mongo/unittest/unittest.h"
 
 #include <future>
+#include <mutex>
 #include <system_error>
 
 #include <boost/move/utility_core.hpp>
@@ -67,12 +68,13 @@ protected:
     OperationContext* _opCtx;
 };
 
-ShardsvrMoveRange createMoveRangeRequest(const NamespaceString& nss,
-                                         const OID& epoch = OID::gen()) {
-    const ShardId fromShard = ShardId("shard0001");
-    const long long maxChunkSizeBytes = 1024;
-    ShardsvrMoveRange req(nss, Timestamp(10), fromShard, maxChunkSizeBytes);
+// The registry now takes the chained ShardsvrMoveRangeRequest plus a NamespaceString — the OpMsg
+// envelope on ShardsvrMoveRange is not part of the migration intent and is not needed here.
+ShardsvrMoveRangeRequest createMoveRangeRequestFields() {
+    ShardsvrMoveRangeRequest req;
     req.getMoveRangeRequestBase().setToShard(ShardId("shard0002"));
+    req.setCollectionTimestamp(Timestamp(10));
+    req.setFromShard(ShardId("shard0001"));
     req.setMaxChunkSizeBytes(1024);
     req.getMoveRangeRequestBase().setMin(BSON("Key" << -100));
     req.getMoveRangeRequestBase().setMax(BSON("Key" << 100));
@@ -82,8 +84,8 @@ ShardsvrMoveRange createMoveRangeRequest(const NamespaceString& nss,
 TEST_F(MoveChunkRegistration, ScopedDonateChunkMoveConstructorAndAssignment) {
     auto originalScopedDonateChunk = assertGet(_registry.registerDonateChunk(
         _opCtx,
-        createMoveRangeRequest(
-            NamespaceString::createNamespaceString_forTest("TestDB", "TestColl"))));
+        NamespaceString::createNamespaceString_forTest("TestDB", "TestColl"),
+        createMoveRangeRequestFields()));
     ASSERT(originalScopedDonateChunk.mustExecute());
 
     ScopedDonateChunk movedScopedDonateChunk(std::move(originalScopedDonateChunk));
@@ -102,8 +104,8 @@ TEST_F(MoveChunkRegistration, GetActiveMigrationNamespace) {
     const NamespaceString nss =
         NamespaceString::createNamespaceString_forTest("TestDB", "TestColl");
 
-    auto originalScopedDonateChunk =
-        assertGet(_registry.registerDonateChunk(operationContext(), createMoveRangeRequest(nss)));
+    auto originalScopedDonateChunk = assertGet(
+        _registry.registerDonateChunk(operationContext(), nss, createMoveRangeRequestFields()));
 
     ASSERT_EQ(nss, _registry.getActiveDonateChunkNss());
 
@@ -114,13 +116,13 @@ TEST_F(MoveChunkRegistration, GetActiveMigrationNamespace) {
 TEST_F(MoveChunkRegistration, SecondMigrationReturnsConflictingOperationInProgress) {
     auto originalScopedDonateChunk = assertGet(_registry.registerDonateChunk(
         operationContext(),
-        createMoveRangeRequest(
-            NamespaceString::createNamespaceString_forTest("TestDB", "TestColl1"))));
+        NamespaceString::createNamespaceString_forTest("TestDB", "TestColl1"),
+        createMoveRangeRequestFields()));
 
     auto secondScopedDonateChunkStatus = _registry.registerDonateChunk(
         operationContext(),
-        createMoveRangeRequest(
-            NamespaceString::createNamespaceString_forTest("TestDB", "TestColl2")));
+        NamespaceString::createNamespaceString_forTest("TestDB", "TestColl2"),
+        createMoveRangeRequestFields());
     ASSERT_EQ(ErrorCodes::ConflictingOperationInProgress,
               secondScopedDonateChunkStatus.getStatus());
 
@@ -128,22 +130,17 @@ TEST_F(MoveChunkRegistration, SecondMigrationReturnsConflictingOperationInProgre
 }
 
 TEST_F(MoveChunkRegistration, SecondMigrationWithSameArgumentsJoinsFirst) {
-    const auto epoch = OID::gen();
+    const auto nss = NamespaceString::createNamespaceString_forTest("TestDB", "TestColl");
 
-    auto swOriginalScopedDonateChunkPtr =
-        std::make_unique<StatusWith<ScopedDonateChunk>>(_registry.registerDonateChunk(
-            operationContext(),
-            createMoveRangeRequest(
-                NamespaceString::createNamespaceString_forTest("TestDB", "TestColl"), epoch)));
+    auto swOriginalScopedDonateChunkPtr = std::make_unique<StatusWith<ScopedDonateChunk>>(
+        _registry.registerDonateChunk(operationContext(), nss, createMoveRangeRequestFields()));
 
     ASSERT_OK(swOriginalScopedDonateChunkPtr->getStatus());
     auto& originalScopedDonateChunk = swOriginalScopedDonateChunkPtr->getValue();
     ASSERT(originalScopedDonateChunk.mustExecute());
 
-    auto secondScopedDonateChunk = assertGet(_registry.registerDonateChunk(
-        operationContext(),
-        createMoveRangeRequest(NamespaceString::createNamespaceString_forTest("TestDB", "TestColl"),
-                               epoch)));
+    auto secondScopedDonateChunk = assertGet(
+        _registry.registerDonateChunk(operationContext(), nss, createMoveRangeRequestFields()));
     ASSERT(!secondScopedDonateChunk.mustExecute());
 
     originalScopedDonateChunk.signalComplete({ErrorCodes::InternalError, "Test error"});
@@ -159,8 +156,8 @@ TEST_F(MoveChunkRegistration, TestDonateChunkIsRejectedWhenRegistryIsLocked) {
     ASSERT_EQ(ErrorCodes::ConflictingOperationInProgress,
               _registry.registerDonateChunk(
                   _opCtx,
-                  createMoveRangeRequest(
-                      NamespaceString::createNamespaceString_forTest("TestDB", "TestColl"))));
+                  NamespaceString::createNamespaceString_forTest("TestDB", "TestColl"),
+                  createMoveRangeRequestFields()));
     _registry.unlock("dummy");
 }
 
@@ -256,8 +253,8 @@ TEST_F(MoveChunkRegistration, TestBlockingWhileDonateInProgress) {
         // 2. Start a migration so that the registry lock will block when acquired.
         auto scopedDonateChunk = _registry.registerDonateChunk(
             operationContext(),
-            createMoveRangeRequest(
-                NamespaceString::createNamespaceString_forTest("TestDB", "TestColl")));
+            NamespaceString::createNamespaceString_forTest("TestDB", "TestColl"),
+            createMoveRangeRequestFields());
         ASSERT_OK(scopedDonateChunk.getStatus());
 
         // 3. Signal the registry locking thread that the registry is ready to be locked.
@@ -369,6 +366,168 @@ TEST_F(MoveChunkRegistration, TestBlockingWhileReceiveInProgress) {
 
     // 11. The registy locking thread has returned and this future is set.
     lockReleased.wait();
+}
+
+// Fake Recoverable that gates waitForRecovery() on an externally-settable flag. Used to verify
+// that ActiveMigrationsRegistry lock-acquisition methods block on recovery before touching state,
+// per SERVER-125057.
+//
+// waitForRecovery() fulfils _enteredWait as its first action, before going into the condvar wait.
+// Tests retrieve that future via whenEnteredWait() and block on it before calling markRecovered()
+// (or markKilled() on the worker's opCtx). That guarantees the worker is actually inside
+// waitForRecovery() at the point the test signals, eliminating the race the older
+// baton-scheduled "waiting" promise had — which fired before the registry call even started, so
+// the test could unblock and signal the recoverable while the worker was still ramping up.
+class FakeRecoverable : public ActiveMigrationsRegistry::Recoverable {
+public:
+    void waitForRecovery(OperationContext* opCtx) const override {
+        _enteredWait.set_value();
+        std::unique_lock<std::mutex> lk(_mutex);
+        opCtx->waitForConditionOrInterrupt(_cv, lk, [this] { return _recovered; });
+    }
+
+    // Resolves once a worker thread has entered waitForRecovery(). Must be called at most once
+    // per FakeRecoverable instance, since it consumes the underlying promise's future.
+    std::future<void> whenEnteredWait() {
+        return _enteredWait.get_future();
+    }
+
+    void markRecovered() {
+        {
+            std::lock_guard<std::mutex> lk(_mutex);
+            _recovered = true;
+        }
+        _cv.notify_all();
+    }
+
+private:
+    mutable nolint_promise<void> _enteredWait;
+    mutable std::mutex _mutex;
+    mutable stdx::condition_variable _cv;
+    bool _recovered{false};
+};
+
+// Verifies that registerDonateChunk blocks on waitForRecovery and only proceeds once the
+// recoverable signals completion.
+TEST_F(MoveChunkRegistration, RegisterDonateChunkBlocksOnRecovery) {
+    FakeRecoverable recoverable;
+    _registry.setRecoverable(&recoverable);
+    auto enteredWait = recoverable.whenEnteredWait();
+
+    auto result = std::async(std::launch::async, [&] {
+        ThreadClient tc("ActiveMigrationsRegistryTest", getGlobalServiceContext()->getService());
+        auto opCtxHolder = tc->makeOperationContext();
+        opCtxHolder->setAlwaysInterruptAtStepDownOrUp_UNSAFE();
+
+        auto scoped = _registry.registerDonateChunk(
+            opCtxHolder.get(),
+            NamespaceString::createNamespaceString_forTest("TestDB", "TestColl"),
+            createMoveRangeRequestFields());
+        ASSERT_OK(scoped.getStatus());
+        scoped.getValue().signalComplete(Status::OK());
+    });
+
+    // Confirm the worker thread is actually inside waitForRecovery before we unblock it.
+    enteredWait.wait();
+    recoverable.markRecovered();
+    result.get();
+}
+
+// Verifies that registerReceiveChunk blocks on waitForRecovery.
+TEST_F(MoveChunkRegistration, RegisterReceiveChunkBlocksOnRecovery) {
+    FakeRecoverable recoverable;
+    _registry.setRecoverable(&recoverable);
+    auto enteredWait = recoverable.whenEnteredWait();
+
+    auto result = std::async(std::launch::async, [&] {
+        ThreadClient tc("ActiveMigrationsRegistryTest", getGlobalServiceContext()->getService());
+        auto opCtxHolder = tc->makeOperationContext();
+        opCtxHolder->setAlwaysInterruptAtStepDownOrUp_UNSAFE();
+
+        auto scoped = _registry.registerReceiveChunk(
+            opCtxHolder.get(),
+            NamespaceString::createNamespaceString_forTest("TestDB", "TestColl"),
+            ChunkRange(BSON("Key" << -100), BSON("Key" << 100)),
+            ShardId("shard0001"),
+            false);
+        ASSERT_OK(scoped.getStatus());
+    });
+
+    enteredWait.wait();
+    recoverable.markRecovered();
+    result.get();
+}
+
+// Verifies that registerSplitOrMergeChunk blocks on waitForRecovery.
+TEST_F(MoveChunkRegistration, RegisterSplitOrMergeChunkBlocksOnRecovery) {
+    FakeRecoverable recoverable;
+    _registry.setRecoverable(&recoverable);
+    auto enteredWait = recoverable.whenEnteredWait();
+
+    auto result = std::async(std::launch::async, [&] {
+        ThreadClient tc("ActiveMigrationsRegistryTest", getGlobalServiceContext()->getService());
+        auto opCtxHolder = tc->makeOperationContext();
+        opCtxHolder->setAlwaysInterruptAtStepDownOrUp_UNSAFE();
+
+        auto scoped = _registry.registerSplitOrMergeChunk(
+            opCtxHolder.get(),
+            NamespaceString::createNamespaceString_forTest("TestDB", "TestColl"),
+            ChunkRange(BSON("Key" << -100), BSON("Key" << 100)));
+        ASSERT_OK(scoped.getStatus());
+    });
+
+    enteredWait.wait();
+    recoverable.markRecovered();
+    result.get();
+}
+
+// Verifies that lock() blocks on waitForRecovery.
+TEST_F(MoveChunkRegistration, LockBlocksOnRecovery) {
+    FakeRecoverable recoverable;
+    _registry.setRecoverable(&recoverable);
+    auto enteredWait = recoverable.whenEnteredWait();
+
+    auto result = std::async(std::launch::async, [&] {
+        ThreadClient tc("ActiveMigrationsRegistryTest", getGlobalServiceContext()->getService());
+        auto opCtxHolder = tc->makeOperationContext();
+        opCtxHolder->setAlwaysInterruptAtStepDownOrUp_UNSAFE();
+
+        _registry.lock(opCtxHolder.get(), "dummy");
+        _registry.unlock("dummy");
+    });
+
+    enteredWait.wait();
+    recoverable.markRecovered();
+    result.get();
+}
+
+// Verifies that interrupting the opCtx while it is waiting on recovery propagates out of the
+// registry call.
+TEST_F(MoveChunkRegistration, RegisterDonateChunkInterruptedWhileWaitingOnRecovery) {
+    FakeRecoverable recoverable;  // Never marked recovered.
+    _registry.setRecoverable(&recoverable);
+    auto enteredWait = recoverable.whenEnteredWait();
+
+    nolint_promise<OperationContext*> workerOpCtxPromise;
+
+    auto result = std::async(std::launch::async, [&] {
+        ThreadClient tc("ActiveMigrationsRegistryTest", getGlobalServiceContext()->getService());
+        auto opCtxHolder = tc->makeOperationContext();
+        opCtxHolder->setAlwaysInterruptAtStepDownOrUp_UNSAFE();
+        workerOpCtxPromise.set_value(opCtxHolder.get());
+
+        ASSERT_THROWS_CODE(_registry.registerDonateChunk(
+                               opCtxHolder.get(),
+                               NamespaceString::createNamespaceString_forTest("TestDB", "TestColl"),
+                               createMoveRangeRequestFields()),
+                           DBException,
+                           ErrorCodes::Interrupted);
+    });
+
+    auto* workerOpCtx = workerOpCtxPromise.get_future().get();
+    enteredWait.wait();
+    workerOpCtx->markKilled(ErrorCodes::Interrupted);
+    result.get();
 }
 
 }  // namespace

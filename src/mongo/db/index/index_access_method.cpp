@@ -344,7 +344,7 @@ Status SortedDataIndexAccessMethod::update(OperationContext* opCtx,
     UpdateTicket updateTicket;
     prepareUpdate(opCtx, coll, entry, oldDoc, newDoc, loc, options, &updateTicket);
 
-    if (entry->sideWritesAllowed() || !entry->isReady()) {
+    if (entry->indexBuildInterceptor() || !entry->isReady()) {
         bool logIfError = false;
         _unindexKeysOrWriteToSideTable(opCtx,
                                        coll,
@@ -470,8 +470,7 @@ Status SortedDataIndexAccessMethod::insertKeys(OperationContext* opCtx,
                                              ru,
                                              _newInterface->getContainer(),
                                              keyString.getView(),
-                                             keyString.getTypeBitsView(),
-                                             container::ExistingKeyPolicy::reject);
+                                             keyString.getTypeBitsView());
             if (auto& status = std::get<Status>(result); status == ErrorCodes::KeyExists) {
                 // It's okay if the entire key (including record id) matches a key already inserted.
                 status = Status::OK();
@@ -715,7 +714,7 @@ void SortedDataIndexAccessMethod::prepareUpdate(OperationContext* opCtx,
     if (!indexFilter || exec::matcher::matchesBSON(indexFilter, from)) {
         // Override key constraints when generating keys for removal. This only applies to keys
         // that do not apply to a partial filter expression.
-        const auto getKeysMode = entry->sideWritesAllowed()
+        const auto getKeysMode = entry->indexBuildInterceptor()
             ? InsertDeleteOptions::ConstraintEnforcementMode::kRelaxConstraintsUnfiltered
             : options.getKeysMode;
 
@@ -764,7 +763,7 @@ Status SortedDataIndexAccessMethod::doUpdate(OperationContext* opCtx,
                                              const UpdateTicket& ticket,
                                              int64_t* numInserted,
                                              int64_t* numDeleted) {
-    invariant(!entry->sideWritesAllowed());
+    invariant(!entry->indexBuildInterceptor());
     invariant(ticket.newKeys.size() ==
               ticket.oldKeys.size() + ticket.added.size() - ticket.removed.size());
     invariant(numInserted);
@@ -964,6 +963,8 @@ public:
                   const OnSuppressedErrorFn& onSuppressedError = nullptr,
                   const ShouldRelaxConstraintsFn& shouldRelaxConstraints = nullptr) final;
 
+    void done() final;
+
     Status commit(OperationContext* opCtx,
                   RecoveryUnit& ru,
                   const CollectionPtr* collection,
@@ -1036,13 +1037,14 @@ private:
     MultikeyPaths _indexMultikeyPaths;
 
     std::unique_ptr<Sorter> _sorter;
+    std::unique_ptr<Iterator> _sortedIterator;
     ContainerWriteBehavior _containerWriteBehavior;
-    // We start out with container::ExistingKeyPolicy::reject because it's not safe to write blindly
-    // unless we know for certain that we're inserting something that is definitely not already in
-    // the table; secondaries make their own decisions of whether to apply their writes blindly or
-    // not. Once we're past any keys that already exist in the table, we can switch to
-    // container::ExistingKeyPolicy::overwrite as a performance optimization.
-    container::ExistingKeyPolicy _containerExistingKeyPolicy = container::ExistingKeyPolicy::reject;
+    // We start out without a NonexistentKeyGuarantee because it's not safe to write blindly unless
+    // we know for certain that we're inserting something that is definitely not already in the
+    // table; secondaries make their own decisions of whether to apply their writes blindly or not.
+    // Once we're past any keys that already exist in the table, we can set this as a performance
+    // optimization.
+    boost::optional<container_write::NonexistentKeyGuarantee> _nonexistentKeyGuarantee;
 };
 
 BulkBuilderImpl::BulkBuilderImpl(const IndexCatalogEntry* entry,
@@ -1073,6 +1075,8 @@ BulkBuilderImpl::BulkBuilderImpl(const IndexCatalogEntry* entry,
       _progressMessage("Index Build: inserting keys from external sorter into index"),
       _indexName(entry->descriptor()->indexName()),
       _isMultiKey(stateInfo.getIsMultikey()),
+      _hasMultiKeyMetadataKeys(_isMultiKey &&
+                               entry->descriptor()->getAccessMethodName() == IndexNames::WILDCARD),
       _indexMultikeyPaths(createMultikeyPaths(stateInfo.getMultikeyPaths())),
       _sorter(_makeSorter(std::move(spiller), opts, stateInfo.getRanges())),
       _containerWriteBehavior(containerWriteBehavior) {
@@ -1217,6 +1221,12 @@ Status BulkBuilderImpl::insert(OperationContext* opCtx,
     return Status::OK();
 }
 
+void BulkBuilderImpl::done() {
+    invariant(_sorter);
+    tassert(12723200, "BulkBuilder::done called more than once", !_sortedIterator);
+    _sortedIterator = _sorter->done();
+}
+
 Status BulkBuilderImpl::commit(OperationContext* opCtx,
                                RecoveryUnit& ru,
                                const CollectionPtr* collection,
@@ -1232,10 +1242,11 @@ Status BulkBuilderImpl::commit(OperationContext* opCtx,
                                const size_t keyBatchBytes) {
     uassert(
         ErrorCodes::BadValue, "onNKeysLoadedFnInterval must be >= 1", onNKeysLoadedFnInterval >= 1);
+    tassert(12723201, "BulkBuilder::done must be called before commit", _sortedIterator);
     Timer timer;
 
     _ns = entry->getNSSFromCatalog(opCtx);
-    auto it = _sorter->done();
+    auto it = std::move(_sortedIterator);
 
     ProgressMeterHolder pm;
     {
@@ -1275,7 +1286,6 @@ Status BulkBuilderImpl::commit(OperationContext* opCtx,
             nKeys = 0;
         }
     };
-    ON_BLOCK_EXIT([&] { commitBatch(); });
 
     while (it && it->more()) {
         opCtx->checkForInterrupt();
@@ -1372,6 +1382,9 @@ Status BulkBuilderImpl::commit(OperationContext* opCtx,
         }
     }
 
+    // Final flush of any remaining batched keys.
+    commitBatch();
+
     {
         std::unique_lock<Client> lk(*opCtx->getClient());
         pm.get(lk)->finished();
@@ -1416,15 +1429,14 @@ void BulkBuilderImpl::_addKeyForCommit(OperationContext* opCtx,
                                               _iam->getSortedDataInterface()->getContainer(),
                                               key.getKeyAndRecordIdView(),
                                               key.getTypeBitsView(),
-                                              _containerExistingKeyPolicy);
+                                              _nonexistentKeyGuarantee);
         if (status == ErrorCodes::KeyExists) {
             // The key was already inserted by a previous bulk builder on this same container.
             return;
-        } else if (_containerExistingKeyPolicy == container::ExistingKeyPolicy::reject &&
-                   status.isOK()) {
+        } else if (!_nonexistentKeyGuarantee && status.isOK()) {
             // We've reached the end of any keys previously inserted. From this point forward, we
             // can assume that the keys we're inserting do not already exist in the container.
-            _containerExistingKeyPolicy = container::ExistingKeyPolicy::overwrite;
+            _nonexistentKeyGuarantee.emplace();
         }
         uassertStatusOK(status);
         keysInsertedCounter.add(1);
@@ -1602,7 +1614,7 @@ Status SortedDataIndexAccessMethod::_indexKeysOrWriteToSideTable(
     int64_t* keysInsertedOut) {
     Status status = Status::OK();
 
-    if (entry->sideWritesAllowed()) {
+    if (auto interceptor = entry->indexBuildInterceptor()) {
         // The side table interface accepts only records that meet the criteria for this partial
         // index.
         // See SERVER-28975 and SERVER-39705 for details.
@@ -1613,14 +1625,14 @@ Status SortedDataIndexAccessMethod::_indexKeysOrWriteToSideTable(
         }
 
         int64_t inserted = 0;
-        status = entry->indexBuildInterceptor()->sideWrite(opCtx,
-                                                           coll,
-                                                           entry,
-                                                           keys,
-                                                           multikeyMetadataKeys,
-                                                           multikeyPaths,
-                                                           IndexBuildInterceptor::Op::kInsert,
-                                                           &inserted);
+        status = interceptor->sideWrite(opCtx,
+                                        coll,
+                                        entry,
+                                        keys,
+                                        multikeyMetadataKeys,
+                                        multikeyPaths,
+                                        IndexBuildInterceptor::Op::kInsert,
+                                        &inserted);
         if (keysInsertedOut) {
             *keysInsertedOut += inserted;
         }
@@ -1655,7 +1667,7 @@ void SortedDataIndexAccessMethod::_unindexKeysOrWriteToSideTable(
     int64_t* const keysDeletedOut,
     InsertDeleteOptions options,  // copy!
     CheckRecordId checkRecordId) {
-    if (entry->sideWritesAllowed()) {
+    if (auto interceptor = entry->indexBuildInterceptor()) {
         // The side table interface accepts only records that meet the criteria for this partial
         // index.
         // See SERVER-28975 and SERVER-39705 for details.
@@ -1668,7 +1680,7 @@ void SortedDataIndexAccessMethod::_unindexKeysOrWriteToSideTable(
         int64_t removed = 0;
         fassert(
             31155,
-            entry->indexBuildInterceptor()->sideWrite(
+            interceptor->sideWrite(
                 opCtx, coll, entry, keys, {}, {}, IndexBuildInterceptor::Op::kDelete, &removed));
         if (keysDeletedOut) {
             *keysDeletedOut += removed;

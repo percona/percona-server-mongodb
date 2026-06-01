@@ -53,11 +53,15 @@
 #include "mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_util.h"
 #include "mongo/util/assert_util.h"
+#include "mongo/util/fail_point.h"
 
 #include <algorithm>
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kQuery
 
 namespace mongo::join_ordering {
+
+MONGO_FAIL_POINT_DEFINE(sleepWhileJoinOptimizing);
+
 namespace {
 PlanTreeShape getPlanTreeShape(JoinPlanTreeShapeEnum shape) {
     switch (shape) {
@@ -188,9 +192,8 @@ bool isAggEligibleForJoinReordering(const MultipleCollectionAccessor& mca,
 
 bool indexIsValidForINLJ(const std::shared_ptr<const IndexCatalogEntry>& ice) {
     auto desc = ice->descriptor();
-    return !desc->isHashedIdIndex() && !desc->hidden() && !desc->isPartial() &&
-        !desc->isSetSparseByUser() && desc->collation().isEmpty() &&
-        !dynamic_cast<WildcardAccessMethod*>(ice->accessMethod());
+    return desc->getIndexType() == IndexType::INDEX_BTREE && !desc->hidden() &&
+        !desc->isPartial() && !desc->behavesAsSparse() && desc->collation().isEmpty();
 }
 
 /**
@@ -323,8 +326,7 @@ StatusWith<JoinReorderedExecutorResult> getJoinReorderedExecutor(
     // Select access plans for each table in the join.
     auto yieldPolicy = PlanYieldPolicy::YieldPolicy::YIELD_AUTO;
     SamplingEstimatorMap samplingEstimators = makeSamplingEstimators(mca, model.graph, yieldPolicy);
-    auto swAccessPlans = singleTableAccessPlans(
-        opCtx, mca, model.graph, samplingEstimators, expCtx->getExplain().has_value());
+    auto swAccessPlans = singleTableAccessPlans(opCtx, mca, model.graph, samplingEstimators);
     if (!swAccessPlans.isOK()) {
         return swAccessPlans.getStatus();
     }
@@ -357,6 +359,13 @@ StatusWith<JoinReorderedExecutorResult> getJoinReorderedExecutor(
 
     JoinCardinalityEstimator cardEstimator(JoinCardinalityEstimator::make(ctx, samplingEstimators));
     JoinCostEstimatorImpl costEstimator(ctx, cardEstimator);
+
+    // Inject delay for testing purposes (allows tests to verify optimizationTimeMillis is
+    // measured).
+    if (MONGO_unlikely(sleepWhileJoinOptimizing.shouldFail())) {
+        sleepWhileJoinOptimizing.execute(
+            [](const BSONObj& data) { sleepmillis(data["ms"].numberInt()); });
+    }
 
     StatusWith<ReorderedJoinSolution> swReordered = [&]() {
         if (hintedStrat || qkc.getJoinReorderMode() == JoinReorderModeEnum::kBottomUp) {

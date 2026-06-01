@@ -149,6 +149,7 @@
 #include "mongo/db/router_role/routing_cache/catalog_cache.h"
 #include "mongo/db/router_role/routing_cache/routing_information_cache.h"
 #include "mongo/db/rss/replicated_storage_service.h"
+#include "mongo/db/s/active_migrations_registry.h"
 #include "mongo/db/s/migration_blocking_operation/multi_update_coordinator.h"
 #include "mongo/db/s/migration_chunk_cloner_source_op_observer.h"
 #include "mongo/db/s/query_analysis_op_observer_configsvr.h"
@@ -173,6 +174,7 @@
 #include "mongo/db/shard_role/ddl/direct_connection_ddl_hook.h"
 #include "mongo/db/shard_role/ddl/replica_set_ddl_tracker.h"
 #include "mongo/db/shard_role/lock_manager/d_concurrency.h"
+#include "mongo/db/shard_role/lock_manager/exception_util.h"
 #include "mongo/db/shard_role/lock_manager/lock_manager_defs.h"
 #include "mongo/db/shard_role/resource_yielders.h"
 #include "mongo/db/shard_role/shard_catalog/catalog_helper.h"
@@ -222,6 +224,7 @@
 #include "mongo/db/topology/periodic_replica_set_configshard_maintenance_mode_checker.h"
 #include "mongo/db/topology/shard_registry.h"
 #include "mongo/db/topology/sharding_state.h"
+#include "mongo/db/topology/user_write_block/replica_set_write_block_op_observer.h"
 #include "mongo/db/topology/user_write_block/user_write_block_mode_op_observer.h"
 #include "mongo/db/topology/vector_clock/vector_clock_metadata_hook.h"
 #include "mongo/db/transaction/session_catalog_mongod_transaction_interface_impl.h"
@@ -235,6 +238,7 @@
 #include "mongo/executor/task_executor_pool.h"
 #include "mongo/executor/thread_pool_task_executor.h"
 #include "mongo/logv2/log.h"
+#include "mongo/otel/metrics/instrumentation/metrics_installer.h"
 #include "mongo/otel/metrics/metrics_initialization.h"
 #include "mongo/otel/traces/trace_initialization.h"
 #include "mongo/platform/atomic_word.h"
@@ -250,6 +254,7 @@
 #include "mongo/scripting/dbdirectclient_factory.h"
 #include "mongo/scripting/engine.h"
 #include "mongo/transport/ingress_handshake_metrics.h"
+#include "mongo/transport/message_filter_hooks.h"
 #include "mongo/transport/session_manager_common.h"
 #include "mongo/transport/transport_layer.h"
 #include "mongo/transport/transport_layer_manager_impl.h"
@@ -380,38 +385,43 @@ void logStartup(OperationContext* opCtx) {
     BSONObj o = toLog.obj();
 
     Lock::GlobalWrite lk(opCtx);
-    AutoGetDb autoDb(opCtx, NamespaceString::kStartupLogNamespace.dbName(), mongo::MODE_X);
-    auto db = autoDb.ensureDbExists(opCtx);
-    // kStartupLogNamespace is always local and doesn't require a placement version check.
-    auto collection =
-        acquireCollection(opCtx,
-                          CollectionAcquisitionRequest{NamespaceString::kStartupLogNamespace,
-                                                       PlacementConcern::kPretendUnsharded,
-                                                       repl::ReadConcernArgs::get(opCtx),
-                                                       AcquisitionPrerequisites::kWrite},
-                          MODE_X);
-    WriteUnitOfWork wunit(opCtx);
-    if (!collection.exists()) {
-        BSONObj options = BSON("capped" << true << "size" << 10 * 1024 * 1024);
-        repl::UnreplicatedWritesBlock uwb(opCtx);
-        CollectionOptions collectionOptions = uassertStatusOK(
-            CollectionOptions::parse(options, CollectionOptions::ParseKind::parseForCommand));
-        auto newColl =
-            db->createCollection(opCtx, NamespaceString::kStartupLogNamespace, collectionOptions);
-        invariant(newColl);
-        // Re-acquire after creation
-        collection =
+    writeConflictRetry(opCtx, "logStartup", NamespaceString::kStartupLogNamespace, [&] {
+        AutoGetDb autoDb(opCtx, NamespaceString::kStartupLogNamespace.dbName(), mongo::MODE_X);
+        auto db = autoDb.ensureDbExists(opCtx);
+        // kStartupLogNamespace is always local and doesn't require a placement version check.
+        auto collection =
             acquireCollection(opCtx,
                               CollectionAcquisitionRequest{NamespaceString::kStartupLogNamespace,
                                                            PlacementConcern::kPretendUnsharded,
                                                            repl::ReadConcernArgs::get(opCtx),
                                                            AcquisitionPrerequisites::kWrite},
                               MODE_X);
-    }
+        WriteUnitOfWork wunit(opCtx);
+        if (!collection.exists()) {
+            BSONObj options = BSON("capped" << true << "size" << 10 * 1024 * 1024);
+            repl::UnreplicatedWritesBlock uwb(opCtx);
+            CollectionOptions collectionOptions = uassertStatusOK(
+                CollectionOptions::parse(options, CollectionOptions::ParseKind::parseForCommand));
+            auto newColl = db->createCollection(
+                opCtx, NamespaceString::kStartupLogNamespace, collectionOptions);
+            invariant(newColl);
+            // Re-acquire after creation
+            collection = acquireCollection(
+                opCtx,
+                CollectionAcquisitionRequest{NamespaceString::kStartupLogNamespace,
+                                             PlacementConcern::kPretendUnsharded,
+                                             repl::ReadConcernArgs::get(opCtx),
+                                             AcquisitionPrerequisites::kWrite},
+                MODE_X);
+        }
 
-    uassertStatusOK(collection_internal::insertDocument(
-        opCtx, collection.getCollectionPtr(), InsertStatement(o), nullptr /* OpDebug */, false));
-    wunit.commit();
+        uassertStatusOK(collection_internal::insertDocument(opCtx,
+                                                            collection.getCollectionPtr(),
+                                                            InsertStatement(o),
+                                                            nullptr /* OpDebug */,
+                                                            false));
+        wunit.commit();
+    });
 }
 
 void initializeCommandHooks(ServiceContext* serviceContext) {
@@ -457,6 +467,8 @@ void registerPrimaryOnlyServices(ServiceContext* serviceContext) {
         auto shardingCoordinatorService =
             std::make_unique<ShardingCoordinatorService>(serviceContext);
         DDLLockManager::get(serviceContext)->setRecoverable(shardingCoordinatorService.get());
+        ActiveMigrationsRegistry::get(serviceContext)
+            .setRecoverable(shardingCoordinatorService.get());
 
         services.emplace_back(std::move(shardingCoordinatorService));
         services.push_back(std::make_unique<RenameCollectionParticipantService>(serviceContext));
@@ -537,6 +549,8 @@ ExitCode _initAndListen(ServiceContext* serviceContext) {
     serviceContext->getService()->setServiceEntryPoint(
         std::make_unique<ServiceEntryPointShardRole>());
 
+    transport::initMessageFilterPluginLoader("mongod");
+
     {
         // Set up the periodic runner for background job execution. This is required to be running
         // before both the storage engine or the transport layer are initialized.
@@ -611,7 +625,8 @@ ExitCode _initAndListen(ServiceContext* serviceContext) {
         throw;  // suppress the `control reaches end of non-void function` warning
     }();
 
-    StorageControl::startStorageControls(serviceContext);
+    StorageControl::startStorageControls(
+        serviceContext, false, rss.getPersistenceProvider().makeCheckpointSchedulePolicy());
 
     auto logStartupStats = std::make_unique<ScopeGuard<std::function<void()>>>([&] {
         initAndListenTotalTimer = {};
@@ -1039,6 +1054,7 @@ ExitCode _initAndListen(ServiceContext* serviceContext) {
         startFLECrud(serviceContext);
 
         DiskSpaceMonitor::start(serviceContext);
+        installOtelMetrics(serviceContext);
         if (!storageEngine->storesFilesInDbPath()) {
             LOGV2(7333400,
                   "The index builds DiskSpaceMonitor action which periodically checks if we "
@@ -1496,6 +1512,7 @@ void setUpObservers(ServiceContext* serviceContext) {
         opObserverRegistry->addObserver(std::make_unique<ShardServerOpObserver>());
         opObserverRegistry->addObserver(std::make_unique<ReshardingOpObserver>());
         opObserverRegistry->addObserver(std::make_unique<UserWriteBlockModeOpObserver>());
+        opObserverRegistry->addObserver(std::make_unique<ReplicaSetWriteBlockOpObserver>());
 
         if (!gMultitenancySupport) {
             opObserverRegistry->addObserver(
@@ -1518,6 +1535,7 @@ void setUpObservers(ServiceContext* serviceContext) {
         opObserverRegistry->addObserver(std::make_unique<FindAndModifyImagesOpObserver>());
         opObserverRegistry->addObserver(std::make_unique<ChangeStreamPreImagesOpObserver>());
         opObserverRegistry->addObserver(std::make_unique<UserWriteBlockModeOpObserver>());
+        opObserverRegistry->addObserver(std::make_unique<ReplicaSetWriteBlockOpObserver>());
 
         auto replCoord = repl::ReplicationCoordinator::get(serviceContext);
         if (!gMultitenancySupport && replCoord && replCoord->getSettings().isReplSet()) {
@@ -2035,6 +2053,17 @@ void shutdownTask(const ShutdownTaskArgs& shutdownArgs) {
                                                                         true /* memLeakAllowed */);
     }
 
+    // Stop FTDC before tearing down FlowControl. The FTDC background thread runs serverStatus
+    // collection (including FlowControl::get()) concurrently. Joining the FTDC thread here
+    // ensures it is fully quiesced before FlowControl::shutdown() resets the unique_ptr
+    // decoration, preventing a TSAN data race between the two threads.
+    {
+        SectionScopedTimer scopedTimer(serviceContext->getFastClockSource(),
+                                       TimedSectionId::shutDownFTDC,
+                                       &shutdownTimeElapsedBuilder);
+        stopMongoDFTDC();
+    }
+
     // Stop flow control before service lifecycle storage-access shutdown so the periodic job does
     // not overlap it.
     {
@@ -2072,14 +2101,6 @@ void shutdownTask(const ShutdownTaskArgs& shutdownArgs) {
                                        TimedSectionId::shutDownOtelTraces,
                                        &shutdownTimeElapsedBuilder);
         otel::traces::shutdown(serviceContext);
-    }
-
-    // Shutdown Full-Time Data Capture
-    {
-        SectionScopedTimer scopedTimer(serviceContext->getFastClockSource(),
-                                       TimedSectionId::shutDownFTDC,
-                                       &shutdownTimeElapsedBuilder);
-        stopMongoDFTDC();
     }
 
     {

@@ -250,6 +250,16 @@ public:
         return docsDelta;
     }
 
+    std::map<ShardId, int64_t> getDocumentsDeltaFromRecipients(
+        OperationContext*,
+        const std::shared_ptr<executor::TaskExecutor>&,
+        CancellationToken,
+        const UUID&,
+        const NamespaceString&,
+        const std::vector<ShardId>&) override {
+        MONGO_UNREACHABLE;
+    }
+
     void verifyClonedCollection(OperationContext*,
                                 const std::shared_ptr<executor::TaskExecutor>&,
                                 CancellationToken,
@@ -265,12 +275,10 @@ public:
         }
     }
 
-    // TODO (SERVER-121209) Update this function according to the changes applied under
-    // SERVER-121209
     void stopMigrations(OperationContext* opCtx,
                         const NamespaceString& nss,
                         const UUID&,
-                        const OperationSessionInfo&) override {
+                        std::function<OperationSessionInfo()>) override {
         DBDirectClient client(opCtx);
         client.update(NamespaceString::kConfigsvrCollectionsNamespace,
                       BSON(CollectionType::kNssFieldName << NamespaceStringUtil::serialize(
@@ -279,12 +287,10 @@ public:
         _bumpOneChunk(opCtx, nss);
     }
 
-    // TODO (SERVER-121209) Update this function according to the changes applied under
-    // SERVER-121209
     void resumeMigrations(OperationContext* opCtx,
                           const NamespaceString& nss,
                           const UUID&,
-                          const OperationSessionInfo&) override {
+                          std::function<OperationSessionInfo()>) override {
         DBDirectClient client(opCtx);
         client.update(NamespaceString::kConfigsvrCollectionsNamespace,
                       BSON(CollectionType::kNssFieldName << NamespaceStringUtil::serialize(
@@ -485,7 +491,7 @@ public:
         std::vector<ShardType> shards;
         for (const auto& id : getShardIds()) {
             ShardType s;
-            s.setName(id.toString());
+            s.setHandle(ShardHandle{ShardId(id.toString()), boost::none});
             s.setHost(id.toString() + ":1234");
             shards.push_back(std::move(s));
         }

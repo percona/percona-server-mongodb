@@ -30,295 +30,29 @@
 #include "mongo/db/s/resharding/resharding_donor_post_cloning_delta_collector.h"
 
 #include "mongo/base/error_codes.h"
-#include "mongo/db/client.h"
 #include "mongo/db/hierarchical_cancelable_operation_context_factory.h"
 #include "mongo/db/s/resharding/coordinator_document_gen.h"
 #include "mongo/db/s/resharding/resharding_coordinator_service_external_state.h"
-#include "mongo/db/service_context_test_fixture.h"
-#include "mongo/executor/network_interface_factory.h"
-#include "mongo/executor/scoped_task_executor.h"
-#include "mongo/executor/thread_pool_task_executor.h"
-#include "mongo/otel/traces/span/span.h"
+#include "mongo/db/s/resharding/resharding_delta_collector_test_util.h"
 #include "mongo/s/resharding/common_types_gen.h"
-#include "mongo/stdx/condition_variable.h"
 #include "mongo/unittest/unittest.h"
 #include "mongo/util/cancellation.h"
-#include "mongo/util/concurrency/thread_pool.h"
-#include "mongo/util/scopeguard.h"
 #include "mongo/util/uuid.h"
-
-#include <mutex>
 
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kTest
 
 namespace mongo {
 namespace {
 
-/**
- * Minimal stub for most external state methods - only getDocumentsDeltaFromDonors is exercised
- * by the delta collector.
- */
-class StubExternalState : public ReshardingCoordinatorExternalState {
-public:
-    ParticipantShardsAndChunks calculateParticipantShardsAndChunks(
-        OperationContext*,
-        const ReshardingCoordinatorDocument&,
-        std::vector<ReshardingZoneType>) override {
-        MONGO_UNREACHABLE;
-    }
-    bool searchIndexExistsForCollection(OperationContext* opCtx,
-                                        const NamespaceString& nss) override {
-        MONGO_UNREACHABLE;
-    }
-    void tellAllDonorsToRefresh(OperationContext*,
-                                const NamespaceString&,
-                                const UUID&,
-                                const std::vector<DonorShardEntry>&,
-                                const std::shared_ptr<executor::TaskExecutor>&,
-                                CancellationToken) override {
-        MONGO_UNREACHABLE;
-    }
-    void tellAllRecipientsToRefresh(OperationContext*,
-                                    const NamespaceString&,
-                                    const UUID&,
-                                    const std::vector<RecipientShardEntry>&,
-                                    const std::shared_ptr<executor::TaskExecutor>&,
-                                    CancellationToken) override {
-        MONGO_UNREACHABLE;
-    }
-    void establishAllDonorsAsParticipants(OperationContext*,
-                                          const NamespaceString&,
-                                          const std::vector<DonorShardEntry>&,
-                                          const std::shared_ptr<executor::TaskExecutor>&,
-                                          CancellationToken) override {
-        MONGO_UNREACHABLE;
-    }
-    void establishAllRecipientsAsParticipants(OperationContext*,
-                                              const NamespaceString&,
-                                              const std::vector<RecipientShardEntry>&,
-                                              const std::shared_ptr<executor::TaskExecutor>&,
-                                              CancellationToken) override {
-        MONGO_UNREACHABLE;
-    }
-    std::map<ShardId, int64_t> getDocumentsToCopyFromDonors(
-        OperationContext*,
-        const std::shared_ptr<executor::TaskExecutor>&,
-        CancellationToken,
-        const UUID&,
-        const NamespaceString&,
-        const Timestamp&,
-        const std::map<ShardId, ShardVersion>&) override {
-        MONGO_UNREACHABLE;
-    }
-    void verifyClonedCollection(OperationContext*,
-                                const std::shared_ptr<executor::TaskExecutor>&,
-                                CancellationToken,
-                                const ReshardingCoordinatorDocument&) override {
-        MONGO_UNREACHABLE;
-    }
-    void verifyFinalCollection(OperationContext*, const ReshardingCoordinatorDocument&) override {
-        MONGO_UNREACHABLE;
-    }
-    void stopMigrations(OperationContext*,
-                        const NamespaceString&,
-                        const UUID&,
-                        const OperationSessionInfo&) override {
-        MONGO_UNREACHABLE;
-    }
-    void resumeMigrations(OperationContext*,
-                          const NamespaceString&,
-                          const UUID&,
-                          const OperationSessionInfo&) override {
-        MONGO_UNREACHABLE;
-    }
-    std::unique_ptr<CausalityBarrier> buildCausalityBarrier(
-        std::vector<ShardId> participants,
-        std::shared_ptr<executor::TaskExecutor> executor,
-        CancellationToken token) override {
-        MONGO_UNREACHABLE;
-    }
-};
+using resharding_delta_collector_test_util::BlockingMockExternalState;
+using resharding_delta_collector_test_util::FailOnceThenSucceedMockExternalState;
+using resharding_delta_collector_test_util::SuccessMockExternalState;
+using resharding_delta_collector_test_util::UnrecoverableMockExternalState;
 
-/**
- * Returns a fixed delta map immediately, used for the success test cases.
- */
-class SuccessMockExternalState : public StubExternalState {
-public:
-    explicit SuccessMockExternalState(std::map<ShardId, int64_t> delta)
-        : _delta(std::move(delta)) {}
-
-    std::map<ShardId, int64_t> getDocumentsDeltaFromDonors(
-        OperationContext*,
-        const std::shared_ptr<executor::TaskExecutor>&,
-        CancellationToken,
-        const UUID&,
-        const NamespaceString&,
-        const std::vector<ShardId>&) override {
-        return _delta;
-    }
-
-private:
-    std::map<ShardId, int64_t> _delta;
-};
-
-/**
- * Fails with a retryable network error on the first call to getDocumentsDeltaFromDonors, then
- * returns a fixed delta on the second call. Used to verify the automatic-retry path.
- */
-class FailOnceThenSucceedMockExternalState : public StubExternalState {
-public:
-    explicit FailOnceThenSucceedMockExternalState(std::map<ShardId, int64_t> delta)
-        : _delta(std::move(delta)) {}
-
-    std::map<ShardId, int64_t> getDocumentsDeltaFromDonors(
-        OperationContext*,
-        const std::shared_ptr<executor::TaskExecutor>&,
-        CancellationToken,
-        const UUID&,
-        const NamespaceString&,
-        const std::vector<ShardId>&) override {
-        if (_callCount++ == 0) {
-            uasserted(ErrorCodes::HostUnreachable, "simulated retryable network error");
-        }
-        return _delta;
-    }
-
-    int callCount() const {
-        return _callCount.load();
-    }
-
-private:
-    std::map<ShardId, int64_t> _delta;
-    std::atomic<int> _callCount{0};  // NOLINT
-};
-
-/**
- * Always fails with a non-retryable error. Used to verify that unrecoverable errors propagate
- * immediately without retrying.
- */
-class UnrecoverableMockExternalState : public StubExternalState {
-public:
-    std::map<ShardId, int64_t> getDocumentsDeltaFromDonors(
-        OperationContext*,
-        const std::shared_ptr<executor::TaskExecutor>&,
-        CancellationToken,
-        const UUID&,
-        const NamespaceString&,
-        const std::vector<ShardId>&) override {
-        ++_callCount;
-        uasserted(ErrorCodes::InternalError, "simulated unrecoverable error");
-    }
-
-    int callCount() const {
-        return _callCount.load();
-    }
-
-private:
-    std::atomic<int> _callCount{0};  // NOLINT
-};
-
-/**
- * Blocks in getDocumentsDeltaFromDonors until the opCtx is killed or the object is destroyed,
- * simulating the scenario where the operation is waiting (e.g. for the critical section) and
- * resharding is aborted.
- */
-class BlockingMockExternalState : public StubExternalState {
-public:
-    ~BlockingMockExternalState() {
-        {
-            std::lock_guard lk(_mutex);
-            _destroyed = true;
-        }
-        _cv.notify_all();
-
-        // Wait for any in-progress getDocumentsDeltaFromDonors call to release the mutex and
-        // exit, so we don't free _mutex/_cv while they are still in use.
-        std::unique_lock lk(_mutex);
-        _cv.wait(lk, [this] { return !_inCall; });
-    }
-
-    std::map<ShardId, int64_t> getDocumentsDeltaFromDonors(
-        OperationContext* opCtx,
-        const std::shared_ptr<executor::TaskExecutor>&,
-        CancellationToken,
-        const UUID&,
-        const NamespaceString&,
-        const std::vector<ShardId>&) override {
-        {
-            std::lock_guard lk(_mutex);
-            _entered = true;
-            _inCall = true;
-        }
-        _cv.notify_all();
-
-        // Clear _inCall on exit (normal return or exception) so the destructor can proceed.
-        // Must be declared before `lk` so that on unwind, `lk` is destroyed first (releasing
-        // the mutex), allowing this guard to re-acquire it.
-        ScopeGuard inCallGuard([&] {
-            std::lock_guard lk(_mutex);
-            _inCall = false;
-            _cv.notify_all();
-        });
-
-        std::unique_lock<std::mutex> lk(_mutex);
-        opCtx->waitForConditionOrInterrupt(_cv, lk, [this] { return _destroyed; });
-
-        return {};
-    }
-
-    void waitUntilEntered() {
-        std::unique_lock lk(_mutex);
-        _cv.wait(lk, [this] { return _entered; });
-    }
-
-private:
-    std::mutex _mutex;
-    stdx::condition_variable _cv;
-    bool _entered = false;
-    bool _inCall = false;
-    bool _destroyed = false;
-};
 
 class ReshardingDonorPostCloningDeltaCollectorTest
-    : public service_context_test::WithSetupTransportLayer,
-      public ServiceContextTest {
+    : public resharding_delta_collector_test_util::PostCloningDeltaCollectorTestBase {
 public:
-    void setUp() override {
-        ServiceContextTest::setUp();
-
-        // A small thread pool used by CancelableOperationContext to asynchronously call
-        // markKilled() on opCtxs when the cancellation token fires.
-        ThreadPool::Options cancellationOpts;
-        cancellationOpts.poolName = "DeltaCollectorTestCancellation";
-        cancellationOpts.minThreads = 1;
-        cancellationOpts.maxThreads = 1;
-        _executorForCancellation = std::make_shared<ThreadPool>(cancellationOpts);
-        _executorForCancellation->startup();
-
-        // A task executor for running the async fetch chain.
-        ThreadPool::Options threadPoolOpts;
-        threadPoolOpts.poolName = "DeltaCollectorTest";
-        threadPoolOpts.onCreateThread = [](const std::string& threadName) {
-            Client::initThread(threadName, getGlobalServiceContext()->getService());
-        };
-
-        _taskExecutor = executor::ThreadPoolTaskExecutor::create(
-            std::make_unique<ThreadPool>(std::move(threadPoolOpts)),
-            executor::makeNetworkInterface("DeltaCollectorTestNetwork"));
-        _taskExecutor->startup();
-        _scopedExecutor = std::make_shared<executor::ScopedTaskExecutor>(_taskExecutor);
-    }
-
-    void tearDown() override {
-        (*_scopedExecutor)->shutdown();
-        _scopedExecutor.reset();
-        _taskExecutor->shutdown();
-        _taskExecutor->join();
-        _executorForCancellation->shutdown();
-        _executorForCancellation->join();
-        ServiceContextTest::tearDown();
-    }
-
     /**
      * Builds a ReshardingCoordinatorDocument in the given state.
      * If documentsFinalAlreadySet is true, sets documentsFinal on the first donor, simulating a
@@ -356,22 +90,8 @@ public:
             std::move(externalState),
             abortToken,
             std::make_unique<HierarchicalCancelableOperationContextFactory>(
-                abortToken, _executorForCancellation));
+                abortToken, executorForCancellation()));
     }
-
-    otel::traces::Span makeSpanForCollector() {
-        auto telemetryCtx = otel::traces::Span::createTelemetryContext();
-        return otel::traces::Span::start(telemetryCtx, "donorCountCollector");
-    }
-
-    const std::shared_ptr<executor::ScopedTaskExecutor>& scopedExecutor() const {
-        return _scopedExecutor;
-    }
-
-private:
-    std::shared_ptr<ThreadPool> _executorForCancellation;
-    std::shared_ptr<executor::ThreadPoolTaskExecutor> _taskExecutor;
-    std::shared_ptr<executor::ScopedTaskExecutor> _scopedExecutor;
 };
 
 TEST_F(ReshardingDonorPostCloningDeltaCollectorTest, SkipsFetchWhenNotInBlockingWritesState) {

@@ -94,7 +94,7 @@ ExecutorFuture<void> MergeChunksCoordinator::_acquireLocksAsync(
                auto chunkRange = ChunkRange(bounds[0], bounds[1]);
                _scopedSplitMergeChunk.emplace(
                    uassertStatusOK(ActiveMigrationsRegistry::get(opCtx).registerSplitOrMergeChunk(
-                       opCtx, nss(), chunkRange)));
+                       opCtx, nss(), chunkRange, makeRegistryRecoveryBypass())));
            })
         .until([this, anchor = shared_from_this()](Status status) {
             if (!status.isOK()) {
@@ -142,6 +142,19 @@ ExecutorFuture<void> MergeChunksCoordinator::_runImpl(
             checkRangeOwnership(opCtx, nss(), metadata, chunkRange);
             return metadata;
         }();
+
+        // Because this is a non-authoritative update, we must mark the CSR metadata as
+        // kNonAuthoritative so that the following refresh will fetch the metadata from the config
+        // server. Leaving it kAuthoritative would short-circuit the refresh against the durable
+        // shard catalog and keep the CSR pinned to the pre-merge version. This must be done before
+        // starting the operation to ensure the CSR is left as kNonAuthoritative in case of an
+        // unexpected failure.
+        // TODO (SERVER-125784) The clearFilteringMetadata_nonAuthoritative should go away once
+        // merge becomes authoritative.
+        {
+            auto scopedCsr = CollectionShardingRuntime::acquireExclusive(opCtx, nss());
+            scopedCsr->clearFilteringMetadata_nonAuthoritative(opCtx);
+        }
 
         auto const shardingState = ShardingState::get(opCtx);
 

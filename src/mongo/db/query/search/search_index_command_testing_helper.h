@@ -209,11 +209,11 @@ inline void blockUntilIndexQueryable(OperationContext* opCtx,
     // TODO SERVER-101359 dynamically set maxTimeout depending on if we're running on evergreen or
     // locally.
     auto maxTimeout = Milliseconds(10 * 60 * 1000);
-    auto runElapsed = Milliseconds(0);
     auto executor = Grid::get(opCtx)->getExecutorPool()->getArbitraryExecutor();
 
     for (auto& host : allClusterHosts) {
         auto runStart = clock.now();
+        auto runElapsed = Milliseconds(0);
         do {
             executor::RemoteCommandRequest request(host,
                                                    dbName,
@@ -254,16 +254,42 @@ inline void blockUntilIndexQueryable(OperationContext* opCtx,
 
             if (!response.isOK()) {
                 if (!Shard::shouldErrorBePropagated(response.status.code())) {
-                    uasserted(ErrorCodes::OperationFailed,
-                              str::stream() << "failed to run command " << listSearchIndexesCmdObj
-                                            << causedBy(response.status));
+                    // Covers NetworkInterfaceExceededTimeLimit and mongos-retriable network
+                    // errors. On slow sanitizer builds (e.g. aubsan), shards can take longer
+                    // than kRemoteCommandTimeout to respond. Retry rather than throw so
+                    // transient slowness doesn't cause a spurious BF.
+                    LOGV2_DEBUG(9638407,
+                                1,
+                                "blockUntilIndexQueryable: retriable error, retrying",
+                                "host"_attr = host,
+                                "error"_attr = response.status);
+                    opCtx->sleepFor(kRetryPeriodMs);
+                    runElapsed = clock.now() - runStart;
+                    continue;
                 }
                 uassertStatusOK(response.status);
             }
 
             BSONObj result = response.data.getOwned();
-            uassertStatusOKWithContext(getStatusFromCommandResult(result),
-                                       "blockUntilIndexQueryable failed");
+            auto cmdStatus = getStatusFromCommandResult(result);
+            if (!cmdStatus.isOK()) {
+                // SearchIndexManagementHostUnreachable means the mongod could not reach its
+                // mongot-localdev (see getSearchIndexManagerResponse). This is transient on slow
+                // builds (e.g. aubsan) where mongot may still be starting up. Retry instead of
+                // immediately failing so we don't produce a spurious BF.
+                if (cmdStatus.code() == ErrorCodes::SearchIndexManagementHostUnreachable) {
+                    LOGV2_DEBUG(
+                        12706500,
+                        1,
+                        "blockUntilIndexQueryable: mongot temporarily unreachable, retrying",
+                        "host"_attr = host,
+                        "error"_attr = cmdStatus);
+                    opCtx->sleepFor(kRetryPeriodMs);
+                    runElapsed = clock.now() - runStart;
+                    continue;
+                }
+                uassertStatusOKWithContext(cmdStatus, "blockUntilIndexQueryable failed");
+            }
 
             LOGV2_DEBUG(
                 9638403, 0, "One response", "result"_attr = result, "hostAndPort"_attr = host);
@@ -273,13 +299,14 @@ inline void blockUntilIndexQueryable(OperationContext* opCtx,
             }
 
             LOGV2_DEBUG(9638404, 1, "Index not yet queryable, retrying", "response"_attr = result);
+            opCtx->sleepFor(kRetryPeriodMs);
 
             runElapsed = clock.now() - runStart;
         } while (runElapsed < maxTimeout);
-    }
 
-    if (runElapsed > maxTimeout) {
-        uasserted(9638406, "Index is not replicated and queryable within the max timeout");
+        if (runElapsed > maxTimeout) {
+            uasserted(9638406, "Index is not replicated and queryable within the max timeout");
+        }
     }
 }
 

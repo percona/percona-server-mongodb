@@ -71,8 +71,6 @@
 #include "mongo/db/repl/storage_interface.h"
 #include "mongo/db/repl/storage_interface_impl.h"
 #include "mongo/db/repl/wait_for_majority_service.h"
-#include "mongo/db/router_role/routing_cache/catalog_cache_loader.h"
-#include "mongo/db/router_role/routing_cache/catalog_cache_loader_mock.h"
 #include "mongo/db/s/resharding/resharding_txn_cloner_progress_gen.h"
 #include "mongo/db/server_options.h"
 #include "mongo/db/service_context.h"
@@ -145,11 +143,11 @@ class ReshardingTxnClonerTest : service_context_test::WithSetupTransportLayer,
         ShardServerTestFixtureWithCatalogCacheLoaderMock::setUp();
 
         // The config database's primary shard is always config, and it is always sharded.
-        getCatalogCacheLoaderMock()->setDatabaseRefreshReturnValue(DatabaseType{
+        getConfigServerCatalogCacheLoaderMock()->setDatabaseRefreshReturnValue(DatabaseType{
             DatabaseName::kConfig, ShardId::kConfigServerId, DatabaseVersion::makeFixed()});
 
         // The config.transactions collection is always unsharded.
-        getCatalogCacheLoaderMock()->setCollectionRefreshReturnValue(
+        getConfigServerCatalogCacheLoaderMock()->setCollectionRefreshReturnValue(
             {ErrorCodes::NamespaceNotFound, "collection not found"});
 
         for (const auto& shardId : kTwoShardIdList) {
@@ -213,7 +211,7 @@ class ReshardingTxnClonerTest : service_context_test::WithSetupTransportLayer,
                     const ConnectionString cs = ConnectionString::forReplicaSet(
                         shardId.toString(), {makeHostAndPort(shardId)});
                     ShardType sType;
-                    sType.setName(cs.getSetName());
+                    sType.setHandle(ShardHandle{ShardId(cs.getSetName()), boost::none});
                     sType.setHost(cs.toString());
                     shardTypes.push_back(std::move(sType));
                 };

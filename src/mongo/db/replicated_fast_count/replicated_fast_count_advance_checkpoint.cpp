@@ -30,6 +30,7 @@
 #include "mongo/db/replicated_fast_count/replicated_fast_count_advance_checkpoint.h"
 
 #include "mongo/db/replicated_fast_count/replicated_fast_count_delta_utils.h"
+#include "mongo/db/replicated_fast_count/replicated_fast_count_streaming_oplog_delta_accumulator.h"
 #include "mongo/db/shard_role/shard_catalog/catalog_raii.h"
 
 namespace mongo::replicated_fast_count {
@@ -41,7 +42,9 @@ struct SizeCountCheckpoint {
     Timestamp validAsOf;
 };
 
-SizeCountCheckpoint computeNextCheckpoint(OperationContext* opCtx, Timestamp seekAfterTimestamp) {
+SizeCountCheckpoint computeNextCheckpoint(OperationContext* opCtx,
+                                          const SizeCountStore& sizeCountStore,
+                                          Timestamp seekAfterTimestamp) {
     // Scan the oplog from `seekAfterTimestamp` and accumulate size and count deltas for every UUID
     // that has written since the last checkpoint.
     auto scanResult = [&]() -> OplogScanResult {
@@ -62,7 +65,7 @@ SizeCountCheckpoint computeNextCheckpoint(OperationContext* opCtx, Timestamp see
 
     // Combine the oplog deltas with the currently persisted totals to produce the absolute values
     // ready to persist.
-    readAndIncrementSizeCounts(opCtx, scanResult.deltas);
+    sizeCountStore.readAndIncrementSizeCounts(opCtx, scanResult.deltas);
 
     return {std::move(scanResult.deltas), scanResult.lastTimestamp.value_or(seekAfterTimestamp)};
 }
@@ -109,8 +112,12 @@ void persistCheckpoint(OperationContext* opCtx,
 void advanceCheckpoint(OperationContext* opCtx,
                        SizeCountStore& sizeCountStore,
                        SizeCountTimestampStore& timestampStore) {
-    const auto currentValidAsOf = timestampStore.read(opCtx).value_or(Timestamp::min());
-    const auto checkpoint = computeNextCheckpoint(opCtx, currentValidAsOf);
+    // A global IS lock cannot be upgraded to an IX lock, so we take the IX lock up front to avoid
+    // releasing locks during execution of this function.
+    Lock::GlobalLock writeLock(opCtx, MODE_IX);
+
+    const Timestamp currentValidAsOf = timestampStore.read(opCtx).value_or(Timestamp::min());
+    const auto checkpoint = computeNextCheckpoint(opCtx, sizeCountStore, currentValidAsOf);
     if (currentValidAsOf == checkpoint.validAsOf) {
         // No new oplog entries in this checkpoint; so there's no work to be done.
         massert(12088201,

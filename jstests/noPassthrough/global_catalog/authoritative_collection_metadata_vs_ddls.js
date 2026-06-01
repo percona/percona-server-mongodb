@@ -91,7 +91,7 @@ describe("Authoritative collection metadata vs DDLs", function () {
             getShardCatalogCollMetadata(node, ns),
             `${label}: unexpected collection metadata in shard catalog`,
         );
-        assert.eq(0, getShardCatalogChunks(node, uuid).length, `${label}: unexpected chunks in shard catalog`);
+        assert.eq([], getShardCatalogChunks(node, uuid), `${label}: unexpected chunks in shard catalog`);
     }
 
     // We assert the in-memory metadata is not sharded rather than completely absent because a
@@ -114,6 +114,7 @@ describe("Authoritative collection metadata vs DDLs", function () {
         const label = node.host;
         const res = getInMemoryCollectionMetadata(node, ns);
         assert(res.metadata, `${label}: expected in-memory metadata to be present`);
+        assert.neq(res.metadata, {}, `${label}: expected in-memory metadata to be present`);
         assert.eq(tojson(expectedKey), tojson(res.metadata.keyPattern), `${label}: in-memory shard key mismatch`);
     }
 
@@ -287,6 +288,58 @@ describe("Authoritative collection metadata vs DDLs", function () {
         });
     });
 
+    describe("movePrimary", function () {
+        function assertCollectionExistsWithoutChunksOnNode(node, ns, expectedUuid) {
+            const label = node.host;
+            const meta = getShardCatalogCollMetadata(node, ns);
+            assert.neq(null, meta);
+            assert.eq(expectedUuid.toString(), meta.uuid.toString());
+
+            const shardChunks = getShardCatalogChunks(node, expectedUuid);
+            assert.eq(0, shardChunks.length);
+        }
+
+        it("commits collection metadata on new primary for tracked collection with no chunks there", function () {
+            const db = setupDb("moveprimary_chunkless");
+            const dbName = db.getName();
+            const ns = `${dbName}.coll`;
+
+            assert.commandWorked(db.adminCommand({shardCollection: ns, key: {x: 1}}));
+            assert.commandWorked(db.coll.insert([{x: 1}]));
+
+            const globalMeta = getGlobalCatalogCollMetadata(ns);
+
+            st.awaitReplicationOnShards();
+            st.rs1.nodes.forEach((node) => assertShardCatalogAbsentOnNode(node, ns, globalMeta.uuid));
+
+            assert.commandWorked(db.adminCommand({movePrimary: dbName, to: st.shard1.shardName}));
+            st.awaitReplicationOnShards();
+
+            st.rs1.nodes.forEach((node) => assertCollectionExistsWithoutChunksOnNode(node, ns, globalMeta.uuid));
+        });
+
+        it("does not commit collection metadata when new primary already owns chunks", function () {
+            const db = setupDb("moveprimary_has_chunks");
+            const dbName = db.getName();
+            const ns = `${dbName}.coll`;
+
+            assert.commandWorked(db.adminCommand({shardCollection: ns, key: {x: 1}}));
+            assert.commandWorked(db.adminCommand({split: ns, middle: {x: 0}}));
+            assert.commandWorked(
+                db.adminCommand({moveChunk: ns, find: {x: 0}, to: st.shard1.shardName, _waitForDelete: true}),
+            );
+            assert.commandWorked(db.coll.insert([{x: -1}, {x: 1}]));
+
+            const globalMeta = getGlobalCatalogCollMetadata(ns);
+
+            assert.commandWorked(db.adminCommand({movePrimary: dbName, to: st.shard1.shardName}));
+            st.awaitReplicationOnShards();
+
+            const shard1GlobalChunks = getGlobalCatalogChunks(globalMeta.uuid, st.shard1.shardName);
+            assert.gt(shard1GlobalChunks.length, 0);
+        });
+    });
+
     describe("collMod", function () {
         it("updates shard catalog time-series fields and chunk versions", function () {
             const db = setupDb("collmod_ts");
@@ -392,6 +445,34 @@ describe("Authoritative collection metadata vs DDLs", function () {
         });
     });
 
+    describe("untrackUnshardedCollection", function () {
+        it("cleans up shard catalog and preserves data for a tracked unsplittable collection", function () {
+            const db = setupDb("untrack");
+            const ns = `${db.getName()}.coll`;
+
+            assert.commandWorked(db.createCollection("coll"));
+            assert.commandWorked(db.adminCommand({moveCollection: ns, toShard: st.shard1.shardName}));
+            assert.commandWorked(db.adminCommand({moveCollection: ns, toShard: st.shard0.shardName}));
+            assert.commandWorked(db.coll.insert([{x: 1}, {x: 2}]));
+
+            const globalMeta = getGlobalCatalogCollMetadata(ns);
+            assert.neq(null, globalMeta, `${ns}: expected in global catalog before untrack`);
+            const uuid = globalMeta.uuid;
+
+            assert.commandWorked(db.adminCommand({untrackUnshardedCollection: ns}));
+
+            assert.eq(null, getGlobalCatalogCollMetadata(ns), `${ns}: still in global catalog after untrack`);
+            assert.eq(0, getAllGlobalCatalogChunks(uuid).length, `${ns}: chunks still in global catalog after untrack`);
+            assert.eq(2, db.coll.countDocuments({}), `${ns}: user data should remain after untrack`);
+
+            st.awaitReplicationOnShards();
+            forEachNodeOnAllShards((node) => {
+                assertShardCatalogAbsentOnNode(node, ns, uuid);
+                assertInMemoryMetadataNotSharded(node, ns);
+            });
+        });
+    });
+
     describe("dropDatabase", function () {
         it("cleans up shard catalog for all tracked collections in the database", function () {
             const db = setupDb("dropdb");
@@ -423,8 +504,7 @@ describe("Authoritative collection metadata vs DDLs", function () {
     describe("convertToCapped", function () {
         // For a convertToCapped on a tracked unsplittable collection: no node must retain chunks
         // for the original UUID, the data shard must hold the new UUID's entry with real chunks,
-        // the DB primary must hold the new UUID's entry (chunkless if it is not the data shard),
-        // and any other shard must have no entry for the collection.
+        // the DB primary must hold the new UUID's entry, and any other shard must have no entry for the collection.
         function assertShardCatalogAfterConvertToCapped(
             ns,
             {dataShardRs, primaryRs, newUuid, originalUuid, unsplittableKey},
@@ -451,8 +531,7 @@ describe("Authoritative collection metadata vs DDLs", function () {
             });
 
             if (primaryRs !== dataShardRs) {
-                // Primary is not the data shard: it owns no real chunks but must carry a chunkless
-                // placeholder so disk recovery recognize the collection as tracked.
+                // Primary is not the data shard: it owns no real chunks but must carry the collection entry so disk recovery recognize the collection as tracked.
                 primaryRs.nodes.forEach((node) => {
                     const meta = getShardCatalogCollMetadata(node, ns);
                     assert.neq(null, meta, `${node.host}: chunkless primary is missing collection metadata`);
@@ -463,11 +542,7 @@ describe("Authoritative collection metadata vs DDLs", function () {
                     );
 
                     const shardChunks = getShardCatalogChunks(node, newUuid);
-                    assert.eq(
-                        1,
-                        shardChunks.length,
-                        `${node.host}: chunkless primary must carry exactly one placeholder chunk`,
-                    );
+                    assert.eq(0, shardChunks.length, `${node.host}: chunkless primary must not have any chunks`);
                 });
             }
 
@@ -554,6 +629,301 @@ describe("Authoritative collection metadata vs DDLs", function () {
             assert.commandWorked(db.runCommand({convertToCapped: "coll", size: 1024}));
 
             dropCollectionAndAssertCleanup(db, "coll");
+        });
+    });
+
+    describe("renameCollection", () => {
+        it("unsharded collection renamed to sharded collection namespace, replacing it", function () {
+            const db = setupDb("rename_to_sharded");
+            const srcNs = `${db.getName()}.src`;
+            const dstNs = `${db.getName()}.dst`;
+
+            assert.commandWorked(db.adminCommand({shardCollection: dstNs, key: {x: 1}}));
+            assert.commandWorked(db.adminCommand({split: dstNs, middle: {x: 0}}));
+            assert.commandWorked(
+                db.adminCommand({moveChunk: dstNs, find: {x: 0}, to: st.shard1.shardName, _waitForDelete: true}),
+            );
+            assert.commandWorked(db.dst.insert([{x: -1}, {x: 1}]));
+            assert.commandWorked(db.src.insert([{x: 10}, {x: 20}]));
+
+            const originalDstUuid = getGlobalCatalogCollMetadata(dstNs).uuid;
+
+            assert.commandWorked(db.adminCommand({renameCollection: srcNs, to: dstNs, dropTarget: true}));
+
+            st.awaitReplicationOnShards();
+
+            // No entries for the original sharded collection and no chunks for the final namespace.
+            forEachNodeOnAllShards((node) => {
+                assertShardCatalogAbsentOnNode(node, dstNs, originalDstUuid);
+                assertInMemoryMetadataNotSharded(node, dstNs);
+            });
+        });
+
+        it("unsharded collection renamed to unsharded collection without replacing it", function () {
+            const db = setupDb("rename_unsharded_no_replace");
+            const srcNs = `${db.getName()}.src`;
+            const dstNs = `${db.getName()}.dst`;
+
+            assert.commandWorked(db.src.insert([{x: 1}]));
+
+            assert.commandWorked(db.adminCommand({renameCollection: srcNs, to: dstNs}));
+
+            st.awaitReplicationOnShards();
+
+            forEachNodeOnAllShards((node) => {
+                assert.eq(
+                    null,
+                    getShardCatalogCollMetadata(node, srcNs),
+                    `${node.host}: unexpected shard catalog entry for source namespace`,
+                );
+                assert.eq(
+                    null,
+                    getShardCatalogCollMetadata(node, dstNs),
+                    `${node.host}: unexpected shard catalog entry for final namespace`,
+                );
+                assertInMemoryMetadataNotSharded(node, srcNs);
+                assertInMemoryMetadataNotSharded(node, dstNs);
+            });
+        });
+
+        it("unsharded collection renamed to unsharded collection, replacing it", function () {
+            const db = setupDb("rename_unsharded_replace");
+            const srcNs = `${db.getName()}.src`;
+            const dstNs = `${db.getName()}.dst`;
+
+            assert.commandWorked(db.src.insert([{x: 1}]));
+            assert.commandWorked(db.dst.insert([{y: 2}]));
+
+            assert.commandWorked(db.adminCommand({renameCollection: srcNs, to: dstNs, dropTarget: true}));
+
+            st.awaitReplicationOnShards();
+
+            forEachNodeOnAllShards((node) => {
+                assert.eq(
+                    null,
+                    getShardCatalogCollMetadata(node, srcNs),
+                    `${node.host}: unexpected shard catalog entry for source namespace`,
+                );
+                assert.eq(
+                    null,
+                    getShardCatalogCollMetadata(node, dstNs),
+                    `${node.host}: unexpected shard catalog entry for final namespace`,
+                );
+                assertInMemoryMetadataNotSharded(node, srcNs);
+                assertInMemoryMetadataNotSharded(node, dstNs);
+            });
+        });
+
+        it("sharded collection renamed to unsharded collection namespace, replacing it", function () {
+            const db = setupDb("rename_sharded_to_unsharded");
+            const srcNs = `${db.getName()}.src`;
+            const dstNs = `${db.getName()}.dst`;
+
+            assert.commandWorked(db.adminCommand({shardCollection: srcNs, key: {x: 1}}));
+            assert.commandWorked(db.adminCommand({split: srcNs, middle: {x: 0}}));
+            assert.commandWorked(
+                db.adminCommand({moveChunk: srcNs, find: {x: 0}, to: st.shard1.shardName, _waitForDelete: true}),
+            );
+            assert.commandWorked(db.src.insert([{x: -1}, {x: 1}]));
+            assert.commandWorked(db.dst.insert([{y: 1}]));
+
+            const srcMeta = getGlobalCatalogCollMetadata(srcNs);
+            const srcUuid = srcMeta.uuid;
+            const srcKey = srcMeta.key;
+
+            assert.commandWorked(db.adminCommand({renameCollection: srcNs, to: dstNs, dropTarget: true}));
+
+            st.awaitReplicationOnShards();
+
+            [
+                {rs: st.rs0, shardName: st.shard0.shardName},
+                {rs: st.rs1, shardName: st.shard1.shardName},
+            ].forEach(({rs, shardName}) => {
+                const shardGlobalChunks = getGlobalCatalogChunks(srcUuid, shardName);
+                assert.gt(shardGlobalChunks.length, 0, `Expected at least one chunk on ${shardName}`);
+
+                rs.nodes.forEach((node) => {
+                    // Shard catalog has entries for the final namespace.
+                    assertShardCatalogOnNode(node, dstNs, {
+                        expectedUuid: srcUuid,
+                        expectedKey: srcKey,
+                        expectedChunks: shardGlobalChunks,
+                    });
+                    // No entries for the old source namespace.
+                    assert.eq(
+                        null,
+                        getShardCatalogCollMetadata(node, srcNs),
+                        `${node.host}: unexpected shard catalog entry for old source namespace`,
+                    );
+                });
+
+                assertInMemoryMetadataSharded(rs.getPrimary(), dstNs, srcKey);
+                assertInMemoryMetadataNotSharded(rs.getPrimary(), srcNs);
+            });
+        });
+
+        it("sharded collection renamed to new namespace without replacing", function () {
+            const db = setupDb("rename_sharded_no_replace");
+            const srcNs = `${db.getName()}.src`;
+            const dstNs = `${db.getName()}.dst`;
+
+            assert.commandWorked(db.adminCommand({shardCollection: srcNs, key: {x: 1}}));
+            assert.commandWorked(db.adminCommand({split: srcNs, middle: {x: 0}}));
+            assert.commandWorked(
+                db.adminCommand({moveChunk: srcNs, find: {x: 0}, to: st.shard1.shardName, _waitForDelete: true}),
+            );
+            assert.commandWorked(db.src.insert([{x: -1}, {x: 1}]));
+
+            const srcMeta = getGlobalCatalogCollMetadata(srcNs);
+            const srcUuid = srcMeta.uuid;
+            const srcKey = srcMeta.key;
+
+            assert.commandWorked(db.adminCommand({renameCollection: srcNs, to: dstNs}));
+
+            st.awaitReplicationOnShards();
+
+            [
+                {rs: st.rs0, shardName: st.shard0.shardName},
+                {rs: st.rs1, shardName: st.shard1.shardName},
+            ].forEach(({rs, shardName}) => {
+                const shardGlobalChunks = getGlobalCatalogChunks(srcUuid, shardName);
+                assert.gt(shardGlobalChunks.length, 0, `Expected at least one chunk on ${shardName}`);
+
+                rs.nodes.forEach((node) => {
+                    // Shard catalog has entries for the final namespace.
+                    assertShardCatalogOnNode(node, dstNs, {
+                        expectedUuid: srcUuid,
+                        expectedKey: srcKey,
+                        expectedChunks: shardGlobalChunks,
+                    });
+                    // No entries for the old source namespace.
+                    assert.eq(
+                        null,
+                        getShardCatalogCollMetadata(node, srcNs),
+                        `${node.host}: unexpected shard catalog entry for old source namespace`,
+                    );
+                });
+
+                assertInMemoryMetadataSharded(rs.getPrimary(), dstNs, srcKey);
+                assertInMemoryMetadataNotSharded(rs.getPrimary(), srcNs);
+            });
+        });
+
+        it("tracked unsplittable collection renamed across databases", function () {
+            const srcDb = setupDb("rename_unsplittable_cross_src");
+            const srcNs = `${srcDb.getName()}.coll`;
+            const dstDbName = uniqueDbName("rename_unsplittable_cross_dst");
+            const dstDb = st.s.getDB(dstDbName);
+            const dstNs = `${dstDbName}.coll`;
+            assert.commandWorked(dstDb.adminCommand({enableSharding: dstDbName, primaryShard: st.shard0.shardName}));
+            assert.commandWorked(
+                dstDb.adminCommand({enableSharding: srcDb.getName(), primaryShard: st.shard0.shardName}),
+            );
+
+            // Make the collection tracked-but-unsplittable
+            assert.commandWorked(srcDb.coll.insert([{x: 1}, {x: 2}]));
+            assert.commandWorked(srcDb.adminCommand({moveCollection: srcNs, toShard: st.shard0.shardName}));
+
+            const originalUuid = getGlobalCatalogCollMetadata(srcNs).uuid;
+
+            assert.commandWorked(srcDb.adminCommand({renameCollection: srcNs, to: dstNs}));
+
+            // Cross-DB rename must reissue the collection UUID.
+            const newMeta = getGlobalCatalogCollMetadata(dstNs);
+            assert.neq(null, newMeta, `${dstNs}: missing in global catalog after rename`);
+            assert.neq(
+                originalUuid.toString(),
+                newMeta.uuid.toString(),
+                "cross-DB rename must reissue the collection UUID",
+            );
+            assert.eq(null, getGlobalCatalogCollMetadata(srcNs), `${srcNs}: still in global catalog after rename`);
+
+            st.awaitReplicationOnShards();
+
+            // Old UUID has no chunks anywhere and no node retains an entry for the source namespace.
+            forEachNodeOnAllShards((node) => {
+                assert.eq(
+                    0,
+                    getShardCatalogChunks(node, originalUuid).length,
+                    `${node.host}: stale chunks for original uuid still present`,
+                );
+                assert.eq(
+                    null,
+                    getShardCatalogCollMetadata(node, srcNs),
+                    `${node.host}: unexpected shard catalog entry for old source namespace`,
+                );
+                assertInMemoryMetadataNotSharded(node, srcNs);
+            });
+
+            // Locate the data shard from the new chunk's placement.
+            const newGlobalChunks = getAllGlobalCatalogChunks(newMeta.uuid);
+            assert.eq(1, newGlobalChunks.length, `Expected 1 chunk for ${dstNs} after rename`);
+
+            // Verify the shard now carries the new UUID with the authoritative chunks under the new namespace.
+            st.rs0.nodes.forEach((node) => {
+                assertShardCatalogOnNode(node, dstNs, {
+                    expectedUuid: newMeta.uuid,
+                    expectedKey: {_id: 1},
+                    expectedChunks: newGlobalChunks,
+                });
+            });
+        });
+
+        it("sharded collection renamed to another sharded collection namespace, replacing it", function () {
+            const db = setupDb("rename_sharded_to_sharded");
+            const srcNs = `${db.getName()}.src`;
+            const dstNs = `${db.getName()}.dst`;
+
+            assert.commandWorked(db.adminCommand({shardCollection: srcNs, key: {x: 1}}));
+            assert.commandWorked(db.adminCommand({split: srcNs, middle: {x: 0}}));
+            assert.commandWorked(
+                db.adminCommand({moveChunk: srcNs, find: {x: 0}, to: st.shard1.shardName, _waitForDelete: true}),
+            );
+            assert.commandWorked(db.src.insert([{x: -1}, {x: 1}]));
+
+            assert.commandWorked(db.adminCommand({shardCollection: dstNs, key: {y: 1}}));
+            assert.commandWorked(db.dst.insert([{y: 1}]));
+
+            const srcMeta = getGlobalCatalogCollMetadata(srcNs);
+            const srcUuid = srcMeta.uuid;
+            const srcKey = srcMeta.key;
+            const originalDstUuid = getGlobalCatalogCollMetadata(dstNs).uuid;
+
+            assert.commandWorked(db.adminCommand({renameCollection: srcNs, to: dstNs, dropTarget: true}));
+
+            st.awaitReplicationOnShards();
+
+            [
+                {rs: st.rs0, shardName: st.shard0.shardName},
+                {rs: st.rs1, shardName: st.shard1.shardName},
+            ].forEach(({rs, shardName}) => {
+                const shardGlobalChunks = getGlobalCatalogChunks(srcUuid, shardName);
+                assert.gt(shardGlobalChunks.length, 0, `Expected at least one chunk on ${shardName}`);
+
+                rs.nodes.forEach((node) => {
+                    // Shard catalog has entries for the final namespace with the source's metadata.
+                    assertShardCatalogOnNode(node, dstNs, {
+                        expectedUuid: srcUuid,
+                        expectedKey: srcKey,
+                        expectedChunks: shardGlobalChunks,
+                    });
+                    // No entries for the old source namespace.
+                    assert.eq(
+                        null,
+                        getShardCatalogCollMetadata(node, srcNs),
+                        `${node.host}: unexpected shard catalog entry for old source namespace`,
+                    );
+                    // No chunks for the replaced collection's UUID.
+                    assert.eq(
+                        0,
+                        getShardCatalogChunks(node, originalDstUuid).length,
+                        `${node.host}: unexpected chunks for replaced collection UUID`,
+                    );
+                });
+
+                assertInMemoryMetadataSharded(rs.getPrimary(), dstNs, srcKey);
+                assertInMemoryMetadataNotSharded(rs.getPrimary(), srcNs);
+            });
         });
     });
 });

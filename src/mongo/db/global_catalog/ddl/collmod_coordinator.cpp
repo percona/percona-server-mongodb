@@ -43,6 +43,8 @@
 #include "mongo/db/global_catalog/sharding_catalog_client.h"
 #include "mongo/db/global_catalog/type_collection.h"
 #include "mongo/db/global_catalog/type_database_gen.h"
+#include "mongo/db/matcher/doc_validation/constraint_validation_level_upgrade.h"
+#include "mongo/db/repl/read_concern_args.h"
 #include "mongo/db/router_role/cluster_commands_helpers.h"
 #include "mongo/db/router_role/routing_cache/catalog_cache.h"
 #include "mongo/db/s/forwardable_operation_metadata.h"
@@ -55,9 +57,9 @@
 #include "mongo/db/shard_role/shard_catalog/coll_mod.h"
 #include "mongo/db/shard_role/shard_catalog/commit_collection_metadata_locally.h"
 #include "mongo/db/shard_role/shard_catalog/participant_block_gen.h"
+#include "mongo/db/shard_role/shard_role.h"
 #include "mongo/db/sharding_environment/client/shard.h"
 #include "mongo/db/sharding_environment/grid.h"
-#include "mongo/db/sharding_environment/sharding_feature_flags_gen.h"
 #include "mongo/db/timeseries/catalog_helper.h"
 #include "mongo/db/timeseries/timeseries_collmod.h"
 #include "mongo/db/timeseries/timeseries_options.h"
@@ -142,33 +144,25 @@ void commitToGlobalCatalog(OperationContext* opCtx,
 
 template <typename GetSessionFn>
 void commitToShardCatalog(OperationContext* opCtx,
+                          AuthoritativeMetadataAccessLevelEnum metadataAccessLevel,
                           const NamespaceString& nss,
                           const std::vector<ShardId>& participantsOwningChunks,
                           const ShardId& primaryShard,
-                          bool isPrimaryOwningChunks,
                           GetSessionFn&& getSession,
                           const std::shared_ptr<executor::ScopedTaskExecutor>& executor,
                           const CancellationToken& token) {
-    if (!feature_flags::gShardAuthoritativeCollMetadata.isEnabled(
-            VersionContext::getDecoration(opCtx),
-            serverGlobalParams.featureCompatibility.acquireFCVSnapshot())) {
+    if (metadataAccessLevel == AuthoritativeMetadataAccessLevelEnum::kNone) {
         return;
     }
 
-    std::vector<ShardId> involvedShards = participantsOwningChunks;
-    if (isPrimaryOwningChunks) {
-        involvedShards.push_back(primaryShard);
+    auto shardIds = participantsOwningChunks;
+    if (std::find(shardIds.begin(), shardIds.end(), primaryShard) == shardIds.end()) {
+        shardIds.emplace_back(primaryShard);
     }
 
     const auto session = getSession();
     sharding_ddl_util::commitCollModCollectionMetadataToShardCatalog(
-        opCtx, nss, involvedShards, session, executor, token);
-
-    // The DB primary shard must always know that a collection is tracked, even when it does not own
-    // any chunks.
-    if (!isPrimaryOwningChunks) {
-        shard_catalog_commit::commitChunklessCollectionLocally(opCtx, nss);
-    }
+        opCtx, nss, shardIds, session, executor, token);
 }
 
 }  // namespace
@@ -352,6 +346,16 @@ ExecutorFuture<void> CollModCoordinator::_runImpl(
 
             _saveCollectionInfoOnCoordinatorIfNecessary(opCtx);
 
+            if (_doc.getPhase() == Phase::kUnset &&
+                _request.getValidationLevel() == ValidationLevelEnum::constraint) {
+                // Only scan on the first execution.
+                // TODO SERVER-125951: skip scan if collection is already at constraint level.
+                uassertStatusOK(noDocumentsViolatingValidator(opCtx,
+                                                              _collInfo->nsForTargeting,
+                                                              PlacementConcern::kPretendUnsharded,
+                                                              makeClusterValidatorScanFn(opCtx)));
+            }
+
             auto isGranularityUpdate = (_request.getTimeseries().has_value() &&
                                         !_request.getTimeseries()->toBSON().isEmpty());
             uassert(6201808,
@@ -373,7 +377,11 @@ ExecutorFuture<void> CollModCoordinator::_runImpl(
                             sharding_ddl_util::getCollectionUUID(opCtx, _collInfo->nsForTargeting);
                         _doc.setCollUUID(collUUID);
                         sharding_ddl_util::stopMigrations(
-                            opCtx, _collInfo->nsForTargeting, collUUID, getNewSession(opCtx));
+                            opCtx,
+                            _collInfo->nsForTargeting,
+                            collUUID,
+                            [&] { return getNewSession(opCtx); },
+                            _doc.getAuthoritativeMetadataAccessLevel());
                     }
                 })();
         })
@@ -394,9 +402,8 @@ ExecutorFuture<void> CollModCoordinator::_runImpl(
                     // for updating the shard catalog with current information. This flag is
                     // evaluated at insertion time because on secondaries, metadata is cleared
                     // during the onDelete of the critical section document.
-                    if (feature_flags::gShardAuthoritativeCollMetadata.isEnabled(
-                            VersionContext::getDecoration(opCtx),
-                            serverGlobalParams.featureCompatibility.acquireFCVSnapshot())) {
+                    if (_doc.getAuthoritativeMetadataAccessLevel() >=
+                        AuthoritativeMetadataAccessLevelEnum::kWritesAllowed) {
                         blockCRUDOperationsRequest.setClearCollMetadata(false);
                     }
 
@@ -426,10 +433,10 @@ ExecutorFuture<void> CollModCoordinator::_runImpl(
 
                     commitToShardCatalog(
                         opCtx,
+                        _doc.getAuthoritativeMetadataAccessLevel(),
                         _collInfo->nsForTargeting,
                         _shardingInfo->participantsOwningChunks,
                         _shardingInfo->primaryShard,
-                        _shardingInfo->isPrimaryOwningChunks,
                         [&] { return getNewSession(opCtx); },
                         executor,
                         token);
@@ -446,8 +453,9 @@ ExecutorFuture<void> CollModCoordinator::_runImpl(
                 if (_collInfo->isTracked) {
                     try {
                         if (!_firstExecution && _collInfo->isSharded) {
-                            bool allowMigrations = sharding_ddl_util::checkAllowMigrations(
-                                opCtx, _collInfo->nsForTargeting);
+                            bool allowMigrations =
+                                sharding_ddl_util::checkAllowMigrationsOnConfigServer(
+                                    opCtx, _collInfo->nsForTargeting);
                             if (_result.is_initialized() && allowMigrations) {
                                 // The command finished and we have the response. Return it.
                                 return;
@@ -491,9 +499,8 @@ ExecutorFuture<void> CollModCoordinator::_runImpl(
                         request.setNeedsUnblock(needsUnblock);
                         if (needsUnblock) {
                             const bool isDDLAuthoritative =
-                                feature_flags::gShardAuthoritativeCollMetadata.isEnabled(
-                                    VersionContext::getDecoration(opCtx),
-                                    serverGlobalParams.featureCompatibility.acquireFCVSnapshot());
+                                _doc.getAuthoritativeMetadataAccessLevel() >=
+                                AuthoritativeMetadataAccessLevelEnum::kWritesAllowed;
                             request.setClearCollMetadata(!isDDLAuthoritative);
                         }
 
@@ -540,12 +547,20 @@ ExecutorFuture<void> CollModCoordinator::_runImpl(
 
                         const auto collUUID = _doc.getCollUUID();
                         sharding_ddl_util::resumeMigrations(
-                            opCtx, _collInfo->nsForTargeting, collUUID, getNewSession(opCtx));
+                            opCtx,
+                            _collInfo->nsForTargeting,
+                            collUUID,
+                            [&] { return getNewSession(opCtx); },
+                            _doc.getAuthoritativeMetadataAccessLevel());
                     } catch (DBException& ex) {
                         if (!_isRetriableErrorForDDLCoordinator(ex.toStatus())) {
                             const auto collUUID = _doc.getCollUUID();
                             sharding_ddl_util::resumeMigrations(
-                                opCtx, _collInfo->nsForTargeting, collUUID, getNewSession(opCtx));
+                                opCtx,
+                                _collInfo->nsForTargeting,
+                                collUUID,
+                                [&] { return getNewSession(opCtx); },
+                                _doc.getAuthoritativeMetadataAccessLevel());
                         }
                         throw;
                     }

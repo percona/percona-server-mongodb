@@ -46,6 +46,9 @@ namespace {
 
 const NamespaceString kTestNss =
     NamespaceString::createNamespaceString_forTest("TestDB", "TestColl");
+const NamespaceString kFromNss =
+    NamespaceString::createNamespaceString_forTest("TestDB", "FromColl");
+const NamespaceString kToNss = NamespaceString::createNamespaceString_forTest("TestDB", "ToColl");
 const std::string kShardKey = "_id";
 const BSONObj kShardKeyPattern = BSON(kShardKey << 1);
 
@@ -54,13 +57,19 @@ public:
     using ShardingCatalogClientMock::getCollection;
 
     void setCollectionMetadata(CollectionType coll, std::vector<ChunkType> chunks) {
+        _notFound = false;
         _coll = std::move(coll);
         _chunks = std::move(chunks);
+    }
+
+    void setCollectionNotFound() {
+        _notFound = true;
     }
 
     CollectionType getCollection(OperationContext* opCtx,
                                  const NamespaceString& nss,
                                  repl::ReadConcernLevel readConcernLevel) override {
+        uassert(ErrorCodes::NamespaceNotFound, "Collection not found in mock", !_notFound);
         return _coll;
     }
 
@@ -86,6 +95,7 @@ public:
 private:
     CollectionType _coll;
     std::vector<ChunkType> _chunks;
+    bool _notFound = false;
 };
 
 struct CollectionAndChunksMetadata {
@@ -93,12 +103,12 @@ struct CollectionAndChunksMetadata {
     std::vector<ChunkType> chunks;
 };
 
-CollectionAndChunksMetadata makeCollectionMetadata(int nChunks) {
+CollectionAndChunksMetadata makeCollectionMetadata(const NamespaceString& nss, int nChunks) {
     const UUID uuid = UUID::gen();
     const OID epoch = OID::gen();
     const Timestamp timestamp(Date_t::now());
 
-    CollectionType collType{kTestNss, epoch, timestamp, Date_t::now(), uuid, kShardKeyPattern};
+    CollectionType collType{nss, epoch, timestamp, Date_t::now(), uuid, kShardKeyPattern};
 
     std::vector<ChunkType> chunks;
     auto chunkVersion = ChunkVersion({epoch, timestamp}, {1, 0});
@@ -113,6 +123,10 @@ CollectionAndChunksMetadata makeCollectionMetadata(int nChunks) {
     }
 
     return {std::move(collType), std::move(chunks)};
+}
+
+CollectionAndChunksMetadata makeCollectionMetadata(int nChunks) {
+    return makeCollectionMetadata(kTestNss, nChunks);
 }
 
 class CommitCollectionMetadataLocallyTest : public ShardServerTestFixture {
@@ -152,6 +166,16 @@ protected:
         return results;
     }
 
+    void seedShardCatalog(const CollectionType& coll, const std::vector<ChunkType>& chunks) {
+        DBDirectClient client(operationContext());
+        client.insert(NamespaceString::kConfigShardCatalogCollectionsNamespace,
+                      coll.asShardCatalogType().toBSON());
+        for (const auto& chunk : chunks) {
+            client.insert(NamespaceString::kConfigShardCatalogChunksNamespace,
+                          chunk.toConfigBSON());
+        }
+    }
+
 private:
     MockCatalogClient* _mockCatalogClient = nullptr;
 };
@@ -160,7 +184,7 @@ TEST_F(CommitCollectionMetadataLocallyTest, RefineShardKeyPersistsCollectionAndC
     auto [collType, chunks] = makeCollectionMetadata(3);
     mockCatalogClient()->setCollectionMetadata(collType, chunks);
 
-    shard_catalog_commit::commitRefineShardKeyLocally(operationContext(), kTestNss);
+    shard_catalog_commit::commitCollectionMetadataLocally(operationContext(), kTestNss, true);
 
     ASSERT_EQ(countLocalDocs(NamespaceString::kConfigShardCatalogCollectionsNamespace), 1);
     ASSERT_EQ(countLocalDocs(NamespaceString::kConfigShardCatalogChunksNamespace), 3);
@@ -177,7 +201,7 @@ TEST_F(CommitCollectionMetadataLocallyTest, RefineShardKeyUpdatesCSR) {
     auto [collType, chunks] = makeCollectionMetadata(2);
     mockCatalogClient()->setCollectionMetadata(collType, chunks);
 
-    shard_catalog_commit::commitRefineShardKeyLocally(operationContext(), kTestNss);
+    shard_catalog_commit::commitCollectionMetadataLocally(operationContext(), kTestNss, true);
 
     auto scopedCsr = CollectionShardingRuntime::acquireShared(operationContext(), kTestNss);
     auto metadata = scopedCsr->getCurrentMetadataIfKnown();
@@ -190,8 +214,8 @@ TEST_F(CommitCollectionMetadataLocallyTest, RefineShardKeyIsIdempotent) {
     auto [collType, chunks] = makeCollectionMetadata(2);
     mockCatalogClient()->setCollectionMetadata(collType, chunks);
 
-    shard_catalog_commit::commitRefineShardKeyLocally(operationContext(), kTestNss);
-    shard_catalog_commit::commitRefineShardKeyLocally(operationContext(), kTestNss);
+    shard_catalog_commit::commitCollectionMetadataLocally(operationContext(), kTestNss, true);
+    shard_catalog_commit::commitCollectionMetadataLocally(operationContext(), kTestNss, true);
 
     ASSERT_EQ(countLocalDocs(NamespaceString::kConfigShardCatalogCollectionsNamespace), 1);
     ASSERT_EQ(countLocalDocs(NamespaceString::kConfigShardCatalogChunksNamespace), 2);
@@ -277,7 +301,7 @@ TEST_F(CommitCollectionMetadataLocallyTest, ChunklessCollectionPersistsTokenToDi
     auto [collType, chunks] = makeCollectionMetadata(0);
     mockCatalogClient()->setCollectionMetadata(collType, {});
 
-    shard_catalog_commit::commitChunklessCollectionLocally(operationContext(), kTestNss);
+    shard_catalog_commit::commitCollectionMetadataLocally(operationContext(), kTestNss, true);
 
     ASSERT_EQ(countLocalDocs(NamespaceString::kConfigShardCatalogCollectionsNamespace), 1);
 
@@ -285,18 +309,15 @@ TEST_F(CommitCollectionMetadataLocallyTest, ChunklessCollectionPersistsTokenToDi
     ASSERT_EQ(collDocs.size(), 1u);
     ASSERT_EQ(UUID::fromCDR(collDocs[0].getField("uuid").uuid()), collType.getUuid());
 
-    // The placeholder chunk is persisted so the token survives restarts.
-    ASSERT_EQ(countLocalDocs(NamespaceString::kConfigShardCatalogChunksNamespace), 1);
-    auto chunkDocs = findLocalDocs(NamespaceString::kConfigShardCatalogChunksNamespace);
-    ASSERT_EQ(UUID::fromCDR(chunkDocs[0].getField(ChunkType::collectionUUID.name()).uuid()),
-              collType.getUuid());
+    // No chunk should be stored in the local chunks for a chunkless collection on the dbPrimary.
+    ASSERT_EQ(countLocalDocs(NamespaceString::kConfigShardCatalogChunksNamespace), 0);
 }
 
 TEST_F(CommitCollectionMetadataLocallyTest, ChunklessCollectionUpdatesCSR) {
     auto [collType, chunks] = makeCollectionMetadata(0);
     mockCatalogClient()->setCollectionMetadata(collType, {});
 
-    shard_catalog_commit::commitChunklessCollectionLocally(operationContext(), kTestNss);
+    shard_catalog_commit::commitCollectionMetadataLocally(operationContext(), kTestNss, true);
 
     auto scopedCsr = CollectionShardingRuntime::acquireShared(operationContext(), kTestNss);
     auto metadata = scopedCsr->getCurrentMetadataIfKnown();
@@ -311,23 +332,21 @@ TEST_F(CommitCollectionMetadataLocallyTest, ChunklessCollectionIsIdempotent) {
     auto [collType, _] = makeCollectionMetadata(0);
     mockCatalogClient()->setCollectionMetadata(collType, {});
 
-    shard_catalog_commit::commitChunklessCollectionLocally(operationContext(), kTestNss);
-    shard_catalog_commit::commitChunklessCollectionLocally(operationContext(), kTestNss);
+    shard_catalog_commit::commitCollectionMetadataLocally(operationContext(), kTestNss, true);
+    shard_catalog_commit::commitCollectionMetadataLocally(operationContext(), kTestNss, true);
 
-    // Repeated calls must not accumulate placeholder rows; each call generates a fresh OID, so
-    // this only holds if the helper deletes the prior placeholder before inserting.
     ASSERT_EQ(countLocalDocs(NamespaceString::kConfigShardCatalogCollectionsNamespace), 1);
-    ASSERT_EQ(countLocalDocs(NamespaceString::kConfigShardCatalogChunksNamespace), 1);
+    ASSERT_EQ(countLocalDocs(NamespaceString::kConfigShardCatalogChunksNamespace), 0);
 }
 
 TEST_F(CommitCollectionMetadataLocallyTest, RefineShardKeyChunklessPersistsCollectionWithNewEpoch) {
     // Seed a chunkless tracked collection at (epoch1, ts1).
     auto [collType1, _] = makeCollectionMetadata(0);
     mockCatalogClient()->setCollectionMetadata(collType1, {});
-    shard_catalog_commit::commitChunklessCollectionLocally(operationContext(), kTestNss);
+    shard_catalog_commit::commitCollectionMetadataLocally(operationContext(), kTestNss, true);
 
     ASSERT_EQ(countLocalDocs(NamespaceString::kConfigShardCatalogCollectionsNamespace), 1);
-    ASSERT_EQ(countLocalDocs(NamespaceString::kConfigShardCatalogChunksNamespace), 1);
+    ASSERT_EQ(countLocalDocs(NamespaceString::kConfigShardCatalogChunksNamespace), 0);
 
     // Simulate a refine to (epoch2, ts2) on the same UUID with an extended key pattern.
     const OID epoch2 = OID::gen();
@@ -337,18 +356,13 @@ TEST_F(CommitCollectionMetadataLocallyTest, RefineShardKeyChunklessPersistsColle
         kTestNss, epoch2, ts2, Date_t::now(), collType1.getUuid(), newKeyPattern};
     mockCatalogClient()->setCollectionMetadata(collType2, {});
 
-    shard_catalog_commit::commitChunklessCollectionLocally(operationContext(), kTestNss);
+    shard_catalog_commit::commitCollectionMetadataLocally(operationContext(), kTestNss, true);
 
-    // The collection doc reflects the new triple and exactly one placeholder chunk persists.
     ASSERT_EQ(countLocalDocs(NamespaceString::kConfigShardCatalogCollectionsNamespace), 1);
-    ASSERT_EQ(countLocalDocs(NamespaceString::kConfigShardCatalogChunksNamespace), 1);
+    ASSERT_EQ(countLocalDocs(NamespaceString::kConfigShardCatalogChunksNamespace), 0);
 
     auto collDocs = findLocalDocs(NamespaceString::kConfigShardCatalogCollectionsNamespace);
     ASSERT_BSONOBJ_EQ(collDocs[0].getObjectField("key"), newKeyPattern);
-
-    auto chunkDocs = findLocalDocs(NamespaceString::kConfigShardCatalogChunksNamespace);
-    ASSERT_EQ(UUID::fromCDR(chunkDocs[0].getField(ChunkType::collectionUUID.name()).uuid()),
-              collType1.getUuid());
 }
 
 TEST_F(CommitCollectionMetadataLocallyTest, RefineShardKeyRemovesStaleChunks) {
@@ -376,7 +390,7 @@ TEST_F(CommitCollectionMetadataLocallyTest, RefineShardKeyRemovesStaleChunks) {
     }
 
     mockCatalogClient()->setCollectionMetadata(collType, chunks);
-    shard_catalog_commit::commitRefineShardKeyLocally(operationContext(), kTestNss);
+    shard_catalog_commit::commitCollectionMetadataLocally(operationContext(), kTestNss, true);
 
     // The stale chunks should have been removed and replaced with the correct ones.
     auto chunkDocs = findLocalDocs(NamespaceString::kConfigShardCatalogChunksNamespace);
@@ -391,7 +405,7 @@ TEST_F(CommitCollectionMetadataLocallyTest, DropCollectionDeletesMetadata) {
     mockCatalogClient()->setCollectionMetadata(collType, chunks);
 
     // First commit the metadata so there's something to drop.
-    shard_catalog_commit::commitRefineShardKeyLocally(operationContext(), kTestNss);
+    shard_catalog_commit::commitCollectionMetadataLocally(operationContext(), kTestNss);
     ASSERT_EQ(countLocalDocs(NamespaceString::kConfigShardCatalogCollectionsNamespace), 1);
     ASSERT_EQ(countLocalDocs(NamespaceString::kConfigShardCatalogChunksNamespace), 3);
 
@@ -406,7 +420,7 @@ TEST_F(CommitCollectionMetadataLocallyTest, DropCollectionClearsCSR) {
     auto [collType, chunks] = makeCollectionMetadata(2);
     mockCatalogClient()->setCollectionMetadata(collType, chunks);
 
-    shard_catalog_commit::commitRefineShardKeyLocally(operationContext(), kTestNss);
+    shard_catalog_commit::commitCollectionMetadataLocally(operationContext(), kTestNss);
 
     {
         auto scopedCsr = CollectionShardingRuntime::acquireShared(operationContext(), kTestNss);
@@ -432,7 +446,7 @@ TEST_F(CommitCollectionMetadataLocallyTest, DropCollectionIsNoOpOnEmptyCatalog) 
 TEST_F(CommitCollectionMetadataLocallyTest, DropCollectionOnlyDeletesTargetCollection) {
     auto [collType1, chunks1] = makeCollectionMetadata(2);
     mockCatalogClient()->setCollectionMetadata(collType1, chunks1);
-    shard_catalog_commit::commitRefineShardKeyLocally(operationContext(), kTestNss);
+    shard_catalog_commit::commitCollectionMetadataLocally(operationContext(), kTestNss);
 
     // Insert a second collection's data directly.
     auto otherNss = NamespaceString::createNamespaceString_forTest("TestDB", "OtherColl");
@@ -468,6 +482,155 @@ TEST_F(CommitCollectionMetadataLocallyTest, DropCollectionOnlyDeletesTargetColle
 
     auto remainingColls = findLocalDocs(NamespaceString::kConfigShardCatalogCollectionsNamespace);
     ASSERT_EQ(UUID::fromCDR(remainingColls[0].getField("uuid").uuid()), collType2.getUuid());
+}
+
+// ---------------------------------------------------------------------------
+// Rename tests
+// ---------------------------------------------------------------------------
+
+TEST_F(CommitCollectionMetadataLocallyTest, RenameUnshardedToShardedReplacingIt) {
+    // toNss holds a sharded collection; fromNss is unsharded (no shard catalog entry).
+    auto [toCollType, toChunks] = makeCollectionMetadata(kToNss, 3);
+    seedShardCatalog(toCollType, toChunks);
+
+    ASSERT_EQ(countLocalDocs(NamespaceString::kConfigShardCatalogCollectionsNamespace), 1);
+    ASSERT_EQ(countLocalDocs(NamespaceString::kConfigShardCatalogChunksNamespace), 3);
+
+    // After rename, toNss holds the unsharded collection — CSRS has no entry for it.
+    mockCatalogClient()->setCollectionNotFound();
+
+    shard_catalog_commit::commitRenameOfCollectionMetadata(operationContext(),
+                                                           kFromNss,
+                                                           boost::none,
+                                                           kToNss,
+                                                           toCollType.getUuid(),
+                                                           boost::none,
+                                                           false /* isUpgrading */,
+                                                           false /* isDbPrimary */);
+
+    shard_catalog_commit::commitDropOfStaleChunksForRename(operationContext(),
+                                                           toCollType.getUuid());
+
+    // The renamed collection is unsharded so it has no catalog representation; the replaced
+    // sharded collection is fully removed.
+    ASSERT_EQ(countLocalDocs(NamespaceString::kConfigShardCatalogCollectionsNamespace), 0);
+    ASSERT_EQ(countLocalDocs(NamespaceString::kConfigShardCatalogChunksNamespace), 0);
+}
+
+TEST_F(CommitCollectionMetadataLocallyTest, RenameUnshardedToUnsharded) {
+    // Both fromNss and toNss are unsharded — nothing to track in the shard catalog.
+    mockCatalogClient()->setCollectionNotFound();
+
+    shard_catalog_commit::commitRenameOfCollectionMetadata(operationContext(),
+                                                           kFromNss,
+                                                           boost::none,
+                                                           kToNss,
+                                                           boost::none,
+                                                           boost::none,
+                                                           false /* isUpgrading */,
+                                                           false /* isDbPrimaryShard */);
+
+    ASSERT_EQ(countLocalDocs(NamespaceString::kConfigShardCatalogCollectionsNamespace), 0);
+    ASSERT_EQ(countLocalDocs(NamespaceString::kConfigShardCatalogChunksNamespace), 0);
+}
+
+TEST_F(CommitCollectionMetadataLocallyTest, RenameShardedToUnshardedReplacingIt) {
+    // fromNss is sharded; toNss is unsharded (gets replaced). After the rename the sharded
+    // collection lives at toNss.
+    auto [fromCollType, fromChunks] = makeCollectionMetadata(kFromNss, 3);
+    seedShardCatalog(fromCollType, fromChunks);
+
+    // The CSRS now shows the renamed collection under toNss with the same UUID.
+    CollectionType renamedColl{kToNss,
+                               fromCollType.getEpoch(),
+                               fromCollType.getTimestamp(),
+                               Date_t::now(),
+                               fromCollType.getUuid(),
+                               kShardKeyPattern};
+    mockCatalogClient()->setCollectionMetadata(renamedColl, fromChunks);
+
+    shard_catalog_commit::commitRenameOfCollectionMetadata(operationContext(),
+                                                           kFromNss,
+                                                           fromCollType.getUuid(),
+                                                           kToNss,
+                                                           boost::none,
+                                                           boost::none,
+                                                           false /* isUpgrading */,
+                                                           false /* isDbPrimary */);
+
+    // Metadata now lives at toNss; fromNss entry is gone; chunks are unchanged.
+    ASSERT_EQ(countLocalDocs(NamespaceString::kConfigShardCatalogCollectionsNamespace), 1);
+    ASSERT_EQ(countLocalDocs(NamespaceString::kConfigShardCatalogChunksNamespace), 3);
+
+    auto collDocs = findLocalDocs(NamespaceString::kConfigShardCatalogCollectionsNamespace);
+    ASSERT_EQ(UUID::fromCDR(collDocs[0].getField("uuid").uuid()), fromCollType.getUuid());
+}
+
+TEST_F(CommitCollectionMetadataLocallyTest, RenameShardedToShardedReplacingIt) {
+    // fromNss is sharded; toNss is also sharded and gets replaced by the rename.
+    auto [fromCollType, fromChunks] = makeCollectionMetadata(kFromNss, 2);
+    auto [toCollType, toChunks] = makeCollectionMetadata(kToNss, 3);
+    seedShardCatalog(fromCollType, fromChunks);
+    seedShardCatalog(toCollType, toChunks);
+
+    // The CSRS now shows the renamed collection under toNss with fromNss's UUID.
+    CollectionType renamedColl{kToNss,
+                               fromCollType.getEpoch(),
+                               fromCollType.getTimestamp(),
+                               Date_t::now(),
+                               fromCollType.getUuid(),
+                               kShardKeyPattern};
+    mockCatalogClient()->setCollectionMetadata(renamedColl, fromChunks);
+
+    shard_catalog_commit::commitRenameOfCollectionMetadata(operationContext(),
+                                                           kFromNss,
+                                                           fromCollType.getUuid(),
+                                                           kToNss,
+                                                           toCollType.getUuid(),
+                                                           boost::none,
+                                                           false /* isUpgrading */,
+                                                           false /* isDbPrimary */);
+
+    shard_catalog_commit::commitDropOfStaleChunksForRename(operationContext(),
+                                                           toCollType.getUuid());
+
+    // toNss entry reflects fromNss metadata; fromNss entry is gone; replaced toNss chunks removed.
+    ASSERT_EQ(countLocalDocs(NamespaceString::kConfigShardCatalogCollectionsNamespace), 1);
+    ASSERT_EQ(countLocalDocs(NamespaceString::kConfigShardCatalogChunksNamespace), 2);
+
+    auto collDocs = findLocalDocs(NamespaceString::kConfigShardCatalogCollectionsNamespace);
+    ASSERT_EQ(UUID::fromCDR(collDocs[0].getField("uuid").uuid()), fromCollType.getUuid());
+}
+
+TEST_F(CommitCollectionMetadataLocallyTest, RenameShardedToShardedNoReplacement) {
+    // fromNss is sharded; toNss did not exist before the rename.
+    auto [fromCollType, fromChunks] = makeCollectionMetadata(kFromNss, 2);
+    seedShardCatalog(fromCollType, fromChunks);
+
+    // The CSRS now shows the renamed collection under toNss with fromNss's UUID.
+    CollectionType renamedColl{kToNss,
+                               fromCollType.getEpoch(),
+                               fromCollType.getTimestamp(),
+                               Date_t::now(),
+                               fromCollType.getUuid(),
+                               kShardKeyPattern};
+    mockCatalogClient()->setCollectionMetadata(renamedColl, fromChunks);
+
+    shard_catalog_commit::commitRenameOfCollectionMetadata(operationContext(),
+                                                           kFromNss,
+                                                           fromCollType.getUuid(),
+                                                           kToNss,
+                                                           boost::none,
+                                                           boost::none,
+                                                           false /* isUpgrading */,
+                                                           false /* isDbPrimary */);
+
+    // toNss entry reflects fromNss metadata; fromNss entry is gone.
+    ASSERT_EQ(countLocalDocs(NamespaceString::kConfigShardCatalogCollectionsNamespace), 1);
+    ASSERT_EQ(countLocalDocs(NamespaceString::kConfigShardCatalogChunksNamespace), 2);
+
+    auto collDocs = findLocalDocs(NamespaceString::kConfigShardCatalogCollectionsNamespace);
+    ASSERT_EQ(UUID::fromCDR(collDocs[0].getField("uuid").uuid()), fromCollType.getUuid());
 }
 
 }  // namespace

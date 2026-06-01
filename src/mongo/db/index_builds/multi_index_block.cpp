@@ -116,6 +116,7 @@ MONGO_FAIL_POINT_DEFINE(hangIndexBuildDuringCollectionScanPhaseBeforeInsertion);
 MONGO_FAIL_POINT_DEFINE(hangIndexBuildDuringCollectionScanPhaseAfterInsertion);
 MONGO_FAIL_POINT_DEFINE(hangDuringIndexBuildBulkLoadYield);
 MONGO_FAIL_POINT_DEFINE(hangDuringIndexBuildBulkLoadYieldSecond);
+MONGO_FAIL_POINT_DEFINE(hangAfterIndexBuildSpillBeforeStatePersisted);
 
 namespace {
 
@@ -195,9 +196,9 @@ bool shouldRelaxConstraints(OperationContext* opCtx, const CollectionPtr& collec
     return !isPrimary;
 }
 
-using OnSpillFn = sorter::ContainerBasedSpiller<key_string::Value,
-                                                mongo::NullValue,
-                                                BtreeExternalSortComparison>::OnSpillFn;
+using SpillCallbacks = sorter::ContainerBasedSpiller<key_string::Value,
+                                                     mongo::NullValue,
+                                                     BtreeExternalSortComparison>::SpillCallbacks;
 
 std::shared_ptr<sorter::Spiller<key_string::Value, mongo::NullValue, BtreeExternalSortComparison>>
 makeSpiller(OperationContext* opCtx,
@@ -207,7 +208,7 @@ makeSpiller(OperationContext* opCtx,
             SorterContainerStats& containerStats,
             const DatabaseName& dbName,
             ContainerWriteBehavior containerWriteBehavior,
-            OnSpillFn onSpill = nullptr) {
+            SpillCallbacks callbacks) {
     if (containerWriteBehavior == ContainerWriteBehavior::kReplicate) {
         return stateInfo && stateInfo->getRanges() && !stateInfo->getRanges()->empty()
             ? std::make_shared<sorter::ContainerBasedSpiller<key_string::Value,
@@ -221,7 +222,7 @@ makeSpiller(OperationContext* opCtx,
                   containerStats,
                   dbName,
                   sorter::kLatestChecksumVersion,
-                  std::move(onSpill),
+                  std::move(callbacks),
                   primaryDrivenIndexBuildSorterInsertionBatchSize.load(),
                   primaryDrivenIndexBuildSorterInsertionBatchBytes.load(),
                   static_cast<int64_t>(indexBuildSpillingMinAvailableDiskSpaceBytes.load()))
@@ -234,12 +235,12 @@ makeSpiller(OperationContext* opCtx,
                   containerStats,
                   dbName,
                   sorter::kLatestChecksumVersion,
-                  std::move(onSpill),
+                  std::move(callbacks),
                   primaryDrivenIndexBuildSorterInsertionBatchSize.load(),
                   primaryDrivenIndexBuildSorterInsertionBatchBytes.load(),
                   static_cast<int64_t>(indexBuildSpillingMinAvailableDiskSpaceBytes.load()));
     }
-    invariant(!onSpill);
+    invariant(!callbacks.preSpill && !callbacks.onSpill && !callbacks.postSpill);
 
     using FileBasedSpiller =
         sorter::FileBasedSpiller<key_string::Value, mongo::NullValue, BtreeExternalSortComparison>;
@@ -277,7 +278,7 @@ size_t MultiIndexBlock::getTotalIndexBuildMaxMemoryUsageBytes() {
     if (memUsageLimit < 1) {
         ProcessInfo pi;
         double memSizeMB = pi.getMemSizeMB();
-        size_t computedLimitBytes = static_cast<size_t>(memUsageLimit * memSizeMB * 1024 * 1024);
+        computedLimitBytes = static_cast<size_t>(memUsageLimit * memSizeMB * 1024 * 1024);
         if (computedLimitBytes < kMinIndexBuildMemSizeLimitBytes) {
             LOGV2_WARNING(
                 10448902,
@@ -392,7 +393,10 @@ StatusWith<std::vector<BSONObj>> MultiIndexBlock::init(
     _buildIsCleanedUp = false;
 
     invariant(_indexes.empty());
+    // Reserve the indexes upfront so that any references to them remain valid.
+    _indexes.reserve(indexes.size());
 
+    _wasResumed = resumeInfo.has_value();
     if (resumeInfo) {
         _phase = resumeInfo->getPhase();
     }
@@ -542,6 +546,7 @@ StatusWith<std::vector<BSONObj>> MultiIndexBlock::init(
                 }();
 
                 stateInfo = *stateInfoIt;
+                index.lastSpilledRecordId = stateInfo->getLastSpilledRecordId();
                 auto status = index.block->initForResume(opCtx,
                                                          collection.getWritableCollection(opCtx),
                                                          indexes[i],
@@ -562,12 +567,32 @@ StatusWith<std::vector<BSONObj>> MultiIndexBlock::init(
             if (auto status = index.real->initializeAsEmpty(); !status.isOK())
                 return status;
 
-            OnSpillFn onSpill;
+            SpillCallbacks spillCallbacks;
             if (_containerWriteBehavior == ContainerWriteBehavior::kReplicate) {
-                onSpill = [this, opCtx] {
-                    if (_isResumable) {
-                        _writeStateToContainer(opCtx);
-                    }
+                spillCallbacks = {
+                    .preSpill =
+                        [this] {
+                            if (!_exec) {
+                                return;
+                            }
+                            _objToIndex = _objToIndex.getOwned();
+                            _exec->saveState();
+                        },
+                    .onSpill =
+                        [this, opCtx, &lastSpilledRecordId = index.lastSpilledRecordId] {
+                            hangAfterIndexBuildSpillBeforeStatePersisted.pauseWhileSet();
+                            lastSpilledRecordId = _lastRecordIdInserted;
+                            if (_isResumable) {
+                                _writeStateToContainer(opCtx);
+                            }
+                        },
+                    .postSpill =
+                        [this] {
+                            if (!_exec) {
+                                return;
+                            }
+                            _exec->restoreState(nullptr);
+                        },
                 };
             }
             index.bulk = index.real->initiateBulk(opCtx,
@@ -580,7 +605,7 @@ StatusWith<std::vector<BSONObj>> MultiIndexBlock::init(
                                                               index.real->getSorterContainerStats(),
                                                               collection->ns().dbName(),
                                                               _containerWriteBehavior,
-                                                              std::move(onSpill)),
+                                                              std::move(spillCallbacks)),
                                                   eachIndexBuildMaxMemoryUsageBytes,
                                                   stateInfo,
                                                   collection->ns().dbName(),
@@ -787,6 +812,8 @@ Status MultiIndexBlock::insertAllDocumentsInCollection(
         _lastRecordIdInserted = boost::none;
         for (auto& index : _indexes) {
             auto indexCatalogEntry = index.block->getEntry(opCtx, collection->getCollectionPtr());
+            // TODO SERVER-119512 PDIB doesn't restart the collection scan, so SpillCallbacks would
+            // be unreachable here even if populated.
             index.bulk = index.real->initiateBulk(
                 opCtx,
                 collection->getCollectionPtr(),
@@ -797,7 +824,8 @@ Status MultiIndexBlock::insertAllDocumentsInCollection(
                             index.real->getSorterFileStats(),
                             index.real->getSorterContainerStats(),
                             collection->nss().dbName(),
-                            _containerWriteBehavior),
+                            _containerWriteBehavior,
+                            SpillCallbacks{}),
                 getEachIndexBuildMaxMemoryUsageBytes(boost::none, _indexes.size()),
                 /*stateInfo=*/boost::none,
                 collection->nss().dbName(),
@@ -907,8 +935,12 @@ void MultiIndexBlock::_doCollectionScan(OperationContext* opCtx,
         yieldPolicy = PlanYieldPolicy::YieldPolicy::WRITE_CONFLICT_RETRY_ONLY;
     }
 
-    auto exec = getCollectionScanExecutor(
+    _exec = getCollectionScanExecutor(
         opCtx, collection, yieldPolicy, CollectionScanDirection::kForward, resumeAfterRecordId);
+    ON_BLOCK_EXIT([this] {
+        _exec.reset();
+        _objToIndex = BSONObj{};
+    });
 
     // The phase will be kCollectionScan when resuming an index build from the collection
     // scan phase.
@@ -917,31 +949,27 @@ void MultiIndexBlock::_doCollectionScan(OperationContext* opCtx,
               idl::serialize(_phase));
     _phase = IndexBuildPhaseEnum::kCollectionScan;
 
-    BSONObj objToIndex;
     // If a key constraint violation is found, it may be suppressed and written to the constraint
     // violations side table. The plan executor must be passed down to save and restore the
     // cursor around the side table write in case any write conflict exception occurs that would
-    // otherwise reposition the cursor unexpectedly.
-    std::function<void()> saveCursorBeforeWrite = [&exec, &objToIndex] {
-        // Update objToIndex so that it continues to point to valid data when the
-        // cursor is closed. A WCE may occur during a write to index A, and
-        // objToIndex must still be used when the write is retried or for a write to
-        // another index (if creating multiple indexes at once)
-        objToIndex = objToIndex.getOwned();
-        exec->saveState();
+    // otherwise reposition the cursor unexpectedly. The spiller's writeConflictRetry path is
+    // handled separately by the SpillCallbacks installed at spiller construction in init().
+    std::function<void()> saveCursorBeforeWrite = [this] {
+        // Own _objToIndex so it stays valid when the cursor is closed; a WCE may occur during a
+        // write to one index and _objToIndex must still be usable for the retry or for writes to
+        // other indexes.
+        _objToIndex = _objToIndex.getOwned();
+        _exec->saveState();
     };
-    std::function<void()> restoreCursorAfterWrite = [&] {
-        exec->restoreState(nullptr);
+    std::function<void()> restoreCursorAfterWrite = [this] {
+        _exec->restoreState(nullptr);
     };
-    // Callback to handle writing to the side table in case an error is suppressed, it is
-    // constructed using the above callbacks to ensure the cursor is well positioned after the
-    // write.
     const auto onSuppressedError = makeOnSuppressedErrorFn(
         collection.getCollectionPtr(), saveCursorBeforeWrite, restoreCursorAfterWrite);
 
     RecordId loc;
     PlanExecutor::ExecState state;
-    while (PlanExecutor::ADVANCED == (state = exec->getNext(&objToIndex, &loc)) ||
+    while (PlanExecutor::ADVANCED == (state = _exec->getNext(&_objToIndex, &loc)) ||
            MONGO_unlikely(hangAfterStartingIndexBuild.shouldFail())) {
         opCtx->checkForInterrupt();
 
@@ -967,7 +995,7 @@ void MultiIndexBlock::_doCollectionScan(OperationContext* opCtx,
             _failPointHangDuringBuild(opCtx,
                                       &hangIndexBuildDuringCollectionScanPhaseBeforeInsertion,
                                       "before",
-                                      objToIndex,
+                                      _objToIndex,
                                       progress->get(WithLock::withoutLock())->hits()));
 
         // In case there are constraint violations being suppressed, resulting in a write to the
@@ -979,7 +1007,7 @@ void MultiIndexBlock::_doCollectionScan(OperationContext* opCtx,
         // whether the error is suppressed or an exception is thrown.
         uassertStatusOK(_insert(opCtx,
                                 collection.getCollectionPtr(),
-                                objToIndex,
+                                _objToIndex,
                                 loc,
                                 onSuppressedError,
                                 shouldRelaxConstraints));
@@ -987,7 +1015,7 @@ void MultiIndexBlock::_doCollectionScan(OperationContext* opCtx,
         _failPointHangDuringBuild(opCtx,
                                   &hangIndexBuildDuringCollectionScanPhaseAfterInsertion,
                                   "after",
-                                  objToIndex,
+                                  _objToIndex,
                                   progress->get(WithLock::withoutLock())->hits())
             .ignore();
 
@@ -1058,6 +1086,10 @@ Status MultiIndexBlock::_insert(
     _lastRecordIdInserted = loc;
 
     for (size_t i = 0; i < _indexes.size(); i++) {
+        if (_indexes[i].lastSpilledRecordId && loc <= *_indexes[i].lastSpilledRecordId) {
+            // This record was already inserted for this index.
+            continue;
+        }
         if (_indexes[i].filterExpression &&
             !exec::matcher::matchesBSON(_indexes[i].filterExpression, doc)) {
             continue;
@@ -1096,7 +1128,7 @@ Status MultiIndexBlock::dumpInsertsFromBulk(OperationContext* opCtx,
 Status MultiIndexBlock::dumpInsertsFromBulk(
     OperationContext* opCtx,
     const CollectionAcquisition& collection,
-    const IndexAccessMethod::RecordIdHandlerFn& onDuplicateRecord) {
+    const IndexAccessMethod::RecordIdHandlerFn& onDuplicateRecord) try {
     opCtx->checkForInterrupt();
     invariant(!_buildIsCleanedUp);
     invariant(!shard_role_details::getLocker(opCtx)->inAWriteUnitOfWork());
@@ -1111,6 +1143,13 @@ Status MultiIndexBlock::dumpInsertsFromBulk(
                   _phase == IndexBuildPhaseEnum::kCollectionScan ||
                   _phase == IndexBuildPhaseEnum::kBulkLoad,
               idl::serialize(_phase));
+
+    // Finalize all builders (which may perform a final spill) before transitioning to the load
+    // phase.
+    for (auto&& index : _indexes) {
+        index.bulk->done();
+    }
+
     _phase = IndexBuildPhaseEnum::kBulkLoad;
 
     // Doesn't allow yielding when in a foreground index build.
@@ -1134,105 +1173,95 @@ Status MultiIndexBlock::dumpInsertsFromBulk(
                     "index"_attr = entry->descriptor()->indexName(),
                     "buildUUID"_attr = _buildUUID);
 
-        // SERVER-41918 This call to bulk->commit() results in file I/O that may result in an
-        // exception.
-        try {
-            const IndexCatalogEntry* entry =
-                _indexes[i].block->getEntry(opCtx, collection.getCollectionPtr());
+        /**
+         * Abandon the current snapshot and release then reacquire locks. Tests that target the
+         * behavior of bulk index builds that yield can use failpoints to stall this yield.
+         */
+        const auto yieldFn = [&collection, indexIdent = entry->getIdent()](OperationContext* opCtx)
+            -> std::pair<const CollectionPtr*, const IndexCatalogEntry*> {
+            // Releasing locks means a new snapshot should be acquired when restored.
+            auto yieldedTransactionResources = yieldTransactionResourcesFromOperationContext(opCtx);
+            shard_role_details::getRecoveryUnit(opCtx)->abandonSnapshot();
 
-            /**
-             * Abandon the current snapshot and release then reacquire locks. Tests that target the
-             * behavior of bulk index builds that yield can use failpoints to stall this yield.
-             */
-            const auto yieldFn = [&collection,
-                                  indexIdent = entry->getIdent()](OperationContext* opCtx)
-                -> std::pair<const CollectionPtr*, const IndexCatalogEntry*> {
-                // Releasing locks means a new snapshot should be acquired when restored.
-                auto yieldedTransactionResources =
-                    yieldTransactionResourcesFromOperationContext(opCtx);
-                shard_role_details::getRecoveryUnit(opCtx)->abandonSnapshot();
+            // Track the number of yields in CurOp.
+            CurOp::get(opCtx)->yielded();
 
-                // Track the number of yields in CurOp.
-                CurOp::get(opCtx)->yielded();
-
-                auto failPointHang = [opCtx, ns = collection.nss()](FailPoint* fp) {
-                    fp->executeIf(
-                        [fp](auto&&) {
-                            LOGV2(5180600, "Hanging index build during bulk load yield");
-                            fp->pauseWhileSet();
-                        },
-                        [opCtx, &ns](auto&& config) {
-                            return NamespaceStringUtil::parseFailPointData(config, "namespace") ==
-                                ns;
-                        });
-                };
-                failPointHang(&hangDuringIndexBuildBulkLoadYield);
-                failPointHang(&hangDuringIndexBuildBulkLoadYieldSecond);
-
-                restoreTransactionResourcesToOperationContext(
-                    opCtx, std::move(yieldedTransactionResources));
-
-                // After yielding, the latest instance of the collection is fetched and can be
-                // different from the collection instance prior to yielding. For this reason we need
-                // to refresh the index entry pointer.
-                if (!collection.exists()) {
-                    return {&collection.getCollectionPtr(), nullptr};
-                }
-
-                return {&collection.getCollectionPtr(),
-                        collection.getCollectionPtr()->getIndexCatalog()->findIndexByIdent(
-                            opCtx, indexIdent, IndexCatalog::InclusionPolicy::kUnfinished)};
+            auto failPointHang = [opCtx, ns = collection.nss()](FailPoint* fp) {
+                fp->executeIf(
+                    [fp](auto&&) {
+                        LOGV2(5180600, "Hanging index build during bulk load yield");
+                        fp->pauseWhileSet();
+                    },
+                    [opCtx, &ns](auto&& config) {
+                        return NamespaceStringUtil::parseFailPointData(config, "namespace") == ns;
+                    });
             };
+            failPointHang(&hangDuringIndexBuildBulkLoadYield);
+            failPointHang(&hangDuringIndexBuildBulkLoadYieldSecond);
 
-            const bool periodicResumeStateWrites =
-                _isResumable && _containerWriteBehavior == ContainerWriteBehavior::kReplicate;
-            Status status = _indexes[i].bulk->commit(
-                opCtx,
-                *shard_role_details::getRecoveryUnit(opCtx),
-                &collection.getCollectionPtr(),
-                entry,
-                dupsAllowed,
-                kYieldIterations,
-                [&](const CollectionPtr& coll, const key_string::View& duplicateKey) {
-                    // Do not record duplicates when explicitly ignored. This may be the case on
-                    // secondaries.
-                    if (!dupsAllowed || onDuplicateRecord || _ignoreUnique ||
-                        !entry->indexBuildInterceptor()) {
-                        return Status::OK();
-                    }
-                    return writeConflictRetry(
-                        opCtx, "recordingDuplicateKey", entry->getNSSFromCatalog(opCtx), [&] {
-                            WriteUnitOfWork wuow(opCtx);
-                            Status status = entry->indexBuildInterceptor()->recordDuplicateKey(
-                                opCtx, coll, entry, duplicateKey);
-                            if (status.isOK()) {
-                                wuow.commit();
-                            }
-                            return status;
-                        });
-                },
-                onDuplicateRecord,
-                yieldFn,
-                periodicResumeStateWrites ? IndexAccessMethod::OnNKeysLoadedFn(
-                                                [this, opCtx] { _writeStateToContainer(opCtx); })
-                                          : IndexAccessMethod::OnNKeysLoadedFn([]() {}),
-                primaryDrivenIndexBuildLoadResumeStateWriteIntervalKeys.load(),
-                (this->_containerWriteBehavior == ContainerWriteBehavior::kReplicate)
-                    ? primaryDrivenIndexBuildIndexInsertionBatchSize.load()
-                    : 1,
-                (this->_containerWriteBehavior == ContainerWriteBehavior::kReplicate)
-                    ? primaryDrivenIndexBuildIndexInsertionBatchBytes.load()
-                    : std::numeric_limits<size_t>::max());
+            restoreTransactionResourcesToOperationContext(opCtx,
+                                                          std::move(yieldedTransactionResources));
 
-            if (!status.isOK()) {
-                return status;
+            // After yielding, the latest instance of the collection is fetched and can be
+            // different from the collection instance prior to yielding. For this reason we need
+            // to refresh the index entry pointer.
+            if (!collection.exists()) {
+                return {&collection.getCollectionPtr(), nullptr};
             }
-        } catch (...) {
-            return exceptionToStatus();
+
+            return {&collection.getCollectionPtr(),
+                    collection.getCollectionPtr()->getIndexCatalog()->findIndexByIdent(
+                        opCtx, indexIdent, IndexCatalog::InclusionPolicy::kUnfinished)};
+        };
+
+        const bool periodicResumeStateWrites =
+            _isResumable && _containerWriteBehavior == ContainerWriteBehavior::kReplicate;
+        Status status = _indexes[i].bulk->commit(
+            opCtx,
+            *shard_role_details::getRecoveryUnit(opCtx),
+            &collection.getCollectionPtr(),
+            entry,
+            dupsAllowed,
+            kYieldIterations,
+            [&](const CollectionPtr& coll, const key_string::View& duplicateKey) {
+                // Do not record duplicates when explicitly ignored. This may be the case on
+                // secondaries.
+                if (!dupsAllowed || onDuplicateRecord || _ignoreUnique ||
+                    !entry->indexBuildInterceptor()) {
+                    return Status::OK();
+                }
+                return writeConflictRetry(
+                    opCtx, "recordingDuplicateKey", entry->getNSSFromCatalog(opCtx), [&] {
+                        WriteUnitOfWork wuow(opCtx);
+                        Status status = entry->indexBuildInterceptor()->recordDuplicateKey(
+                            opCtx, coll, entry, duplicateKey);
+                        if (status.isOK()) {
+                            wuow.commit();
+                        }
+                        return status;
+                    });
+            },
+            onDuplicateRecord,
+            yieldFn,
+            periodicResumeStateWrites ? IndexAccessMethod::OnNKeysLoadedFn(
+                                            [this, opCtx] { _writeStateToContainer(opCtx); })
+                                      : IndexAccessMethod::OnNKeysLoadedFn([]() {}),
+            primaryDrivenIndexBuildLoadResumeStateWriteIntervalKeys.load(),
+            (this->_containerWriteBehavior == ContainerWriteBehavior::kReplicate)
+                ? primaryDrivenIndexBuildIndexInsertionBatchSize.load()
+                : 1,
+            (this->_containerWriteBehavior == ContainerWriteBehavior::kReplicate)
+                ? primaryDrivenIndexBuildIndexInsertionBatchBytes.load()
+                : std::numeric_limits<size_t>::max());
+
+        if (!status.isOK()) {
+            return status;
         }
     }
 
     return Status::OK();
+} catch (...) {
+    return exceptionToStatus();
 }
 
 Status MultiIndexBlock::drainBackgroundWrites(
@@ -1258,8 +1287,11 @@ Status MultiIndexBlock::drainBackgroundWrites(
         CollectionCatalog::get(opCtx)->lookupCollectionByUUID(opCtx, _collectionUUID.value()));
     coll.makeYieldable(opCtx, LockedCollectionYieldRestore(opCtx, coll));
 
+    // Write to the container if the collection is non-empty or if the index build was
+    // resumed from a prior generation (e.g. kCollectionScan or kBulkLoad phase) and this
+    // generation's scan inserted no new records.
     if (firstDrain && _containerWriteBehavior == ContainerWriteBehavior::kReplicate &&
-        _isResumable && _lastRecordIdInserted.has_value()) {
+        _isResumable && (_lastRecordIdInserted.has_value() || _wasResumed)) {
         _writeStateToContainer(opCtx);
     }
 
@@ -1330,8 +1362,9 @@ Status MultiIndexBlock::checkConstraints(OperationContext* opCtx, const Collecti
 MultiIndexBlock::OnCreateEachFn MultiIndexBlock::kNoopOnCreateEachFn =
     +[](const BSONObj&, IndexCatalogEntry&, boost::optional<MultikeyPaths>&&) {
     };
-MultiIndexBlock::OnCommitFn MultiIndexBlock::kNoopOnCommitFn = +[]() {
-};
+MultiIndexBlock::OnCommitFn MultiIndexBlock::kNoopOnCommitFn =
+    +[](const std::vector<boost::optional<MultikeyPaths>>&) {
+    };
 
 Status MultiIndexBlock::commit(OperationContext* opCtx,
                                Collection* collection,
@@ -1378,6 +1411,9 @@ Status MultiIndexBlock::commit(OperationContext* opCtx,
     }
     MultikeyPathTracker::get(opCtx).stopTrackingMultikeyPathInfo();
 
+    std::vector<boost::optional<MultikeyPaths>> multikeys;
+    multikeys.reserve(_indexes.size());
+
     for (auto& index : _indexes) {
         boost::optional<MultikeyPaths> paths;
 
@@ -1419,10 +1455,11 @@ Status MultiIndexBlock::commit(OperationContext* opCtx,
             }
         }
 
+        multikeys.push_back(paths);
         onCreateEach(index.block->getSpec(), *indexCatalogEntry, std::move(paths));
     }
 
-    onCommit();
+    onCommit(multikeys);
 
     // We can't update the 'timeseriesBucketsMayHaveMixedSchemaData' catalog entry flag here as it
     // requires the change to be driven by the router role. It means that subsequent index builds
@@ -1597,12 +1634,7 @@ void MultiIndexBlock::_writeStateToContainer(OperationContext* opCtx) const {
         const bool keyExists = container.getCursor(ru)->find(kResumeStateKey).has_value();
         auto status = keyExists
             ? container_write::update(opCtx, ru, container, kResumeStateKey, value)
-            : container_write::insert(opCtx,
-                                      ru,
-                                      container,
-                                      kResumeStateKey,
-                                      value,
-                                      container::ExistingKeyPolicy::reject);
+            : container_write::insert(opCtx, ru, container, kResumeStateKey, value);
         massertStatusOK(status.withContext(
             str::stream() << "Index build: failed to write resumable state via container write. "
                           << "buildUUID: " << _buildUUID << ", collectionUUID: " << _collectionUUID
@@ -1619,7 +1651,7 @@ void MultiIndexBlock::_writeStateToContainer(OperationContext* opCtx) const {
                 "details"_attr = obj);
 }
 
-BSONObj MultiIndexBlock::_constructStateObject() const {
+ResumeIndexInfo MultiIndexBlock::_buildResumeIndexInfo() const {
     ResumeIndexInfo resumeIndexInfo;
     resumeIndexInfo.setBuildUUID(*_buildUUID);
     resumeIndexInfo.setPhase(_phase);
@@ -1634,55 +1666,71 @@ BSONObj MultiIndexBlock::_constructStateObject() const {
         resumeIndexInfo.setCollectionScanPosition(_lastRecordIdInserted);
     }
 
+    return resumeIndexInfo;
+}
+
+IndexStateInfo MultiIndexBlock::_buildIndexStateInfo(const IndexToBuild& index) const {
+    IndexStateInfo indexStateInfo;
+
+    if (_phase != IndexBuildPhaseEnum::kDrainWrites) {
+        switch (_containerWriteBehavior) {
+            case ContainerWriteBehavior::kDoNotReplicate: {
+                // Persist the data to disk so that we see all of the data that has been inserted
+                // into the Sorter.
+                indexStateInfo = index.bulk->persistDataForShutdown();
+                break;
+            }
+            case ContainerWriteBehavior::kReplicate: {
+                // When replicating container writes, the persisted state is written via a callback
+                // that is run when a spill occurs. So, we can simply get persisted state without
+                // forcing another spill.
+                indexStateInfo = index.bulk->getPersistedState();
+                break;
+            }
+        }
+    }
+
+    if (_phase == IndexBuildPhaseEnum::kCollectionScan) {
+        indexStateInfo.setLastSpilledRecordId(index.lastSpilledRecordId);
+    }
+
+    auto& indexBuildInfo = index.block->getIndexBuildInfo();
+    indexStateInfo.setSideWritesTable(*indexBuildInfo.sideWritesIdent);
+    indexStateInfo.setSkippedRecordTrackerTable(*indexBuildInfo.skippedRecordsIdent);
+    // For compatibility with v8.0, the constraintViolationsIdent is not persisted in the resume
+    // state if the index is not unique given that version used to check explicitly for this case
+    // and fail otherwise.
+    if (index.block->getSpec()["unique"].trueValue()) {
+        if (auto& duplicateKeyTrackerIdent = indexBuildInfo.constraintViolationsIdent) {
+            indexStateInfo.setDuplicateKeyTrackerTable(*duplicateKeyTrackerIdent);
+        }
+    }
+
+    indexStateInfo.setSpec(index.block->getSpec());
+    indexStateInfo.setIsMultikey(index.bulk->isMultikey());
+
+    std::vector<MultikeyPath> multikeyPaths;
+    for (const auto& multikeyPath : index.bulk->getMultikeyPaths()) {
+        MultikeyPath multikeyPathObj;
+        std::vector<int32_t> multikeyComponents;
+        for (const auto& multikeyComponent : multikeyPath) {
+            multikeyComponents.emplace_back(multikeyComponent);
+        }
+        multikeyPathObj.setMultikeyComponents(std::move(multikeyComponents));
+        multikeyPaths.emplace_back(std::move(multikeyPathObj));
+    }
+    indexStateInfo.setMultikeyPaths(std::move(multikeyPaths));
+
+    return indexStateInfo;
+}
+
+BSONObj MultiIndexBlock::_constructStateObject() const {
+    auto resumeIndexInfo = _buildResumeIndexInfo();
+
     std::vector<IndexStateInfo> indexInfos;
+    indexInfos.reserve(_indexes.size());
     for (const auto& index : _indexes) {
-        IndexStateInfo indexStateInfo;
-
-        if (_phase != IndexBuildPhaseEnum::kDrainWrites) {
-            switch (_containerWriteBehavior) {
-                case ContainerWriteBehavior::kDoNotReplicate: {
-                    // Persist the data to disk so that we see all of the data that has been
-                    // inserted into the Sorter.
-                    indexStateInfo = index.bulk->persistDataForShutdown();
-                    break;
-                }
-                case ContainerWriteBehavior::kReplicate: {
-                    // When replicating container writes, the persisted state is written via a
-                    // callback that is run when a spill occurs. So, we can simply get persisted
-                    // state without forcing another spill.
-                    indexStateInfo = index.bulk->getPersistedState();
-                    break;
-                }
-            }
-        }
-
-        auto& indexBuildInfo = index.block->getIndexBuildInfo();
-        indexStateInfo.setSideWritesTable(*indexBuildInfo.sideWritesIdent);
-        indexStateInfo.setSkippedRecordTrackerTable(*indexBuildInfo.skippedRecordsIdent);
-        // For compatibility with v8.0, the constraintViolationsIdent is not persisted in the
-        // resume state if the index is not unique given that version used to check explicitly for
-        // this case and fail otherwise.
-        if (index.block->getSpec()["unique"].trueValue()) {
-            if (auto& duplicateKeyTrackerIdent = indexBuildInfo.constraintViolationsIdent) {
-                indexStateInfo.setDuplicateKeyTrackerTable(*duplicateKeyTrackerIdent);
-            }
-        }
-
-        indexStateInfo.setSpec(index.block->getSpec());
-        indexStateInfo.setIsMultikey(index.bulk->isMultikey());
-
-        std::vector<MultikeyPath> multikeyPaths;
-        for (const auto& multikeyPath : index.bulk->getMultikeyPaths()) {
-            MultikeyPath multikeyPathObj;
-            std::vector<int32_t> multikeyComponents;
-            for (const auto& multikeyComponent : multikeyPath) {
-                multikeyComponents.emplace_back(multikeyComponent);
-            }
-            multikeyPathObj.setMultikeyComponents(std::move(multikeyComponents));
-            multikeyPaths.emplace_back(std::move(multikeyPathObj));
-        }
-        indexStateInfo.setMultikeyPaths(std::move(multikeyPaths));
-        indexInfos.emplace_back(std::move(indexStateInfo));
+        indexInfos.emplace_back(_buildIndexStateInfo(index));
     }
     resumeIndexInfo.setIndexes(std::move(indexInfos));
 

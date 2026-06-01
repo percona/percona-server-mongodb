@@ -302,6 +302,18 @@ private:
         _expressionIsFullyAbsorbed &= (visitor.numVisitedNodes() == expr->getChildren().size());
     }
 
+    // Returns the field path to pass to PathResolver::resolve(), or boost::none if 'expr' is not a
+    // plain document-field reference. System-variable references ($$NOW, $$NOW.x,
+    // $$CLUSTER_TIME.foo, …) have a non-ROOT variable ID and must be excluded; bare
+    // single-component paths ($$ROOT, $$CURRENT) have no sub-field and would crash
+    // FieldPath::tail().
+    static boost::optional<FieldPath> toResolvablePath(const ExpressionFieldPath* expr) {
+        if (expr->isVariableReference() || expr->getFieldPath().getPathLength() <= 1) {
+            return boost::none;
+        }
+        return expr->getFieldPathWithoutCurrentPrefix();
+    }
+
     void extractExpressionCompare(const ExpressionCompare* expr) {
         const auto& children = expr->getChildren();
         if (expr->getOp() != ExpressionCompare::EQ || children.size() != 2) {
@@ -319,16 +331,27 @@ private:
             return;
         }
 
-        auto leftPathId = _pathResolver.resolve(left->getFieldPathWithoutCurrentPrefix());
-        auto rightPathId = _pathResolver.resolve(right->getFieldPathWithoutCurrentPrefix());
+        auto leftPath = toResolvablePath(left);
+        auto rightPath = toResolvablePath(right);
+        if (!leftPath || !rightPath) {
+            // 3. Both field paths must be plain document-field references (i.e. rooted at
+            // $$CURRENT/$$ROOT). A system-variable reference such as '$$NOW.x' or a bare
+            // single-component path ('$$NOW', '$$ROOT', '$$CURRENT') cannot name a field of a
+            // collection and so cannot be a join predicate.
+            _expressionIsFullyAbsorbed = false;
+            return;
+        }
+
+        auto leftPathId = _pathResolver.resolve(*leftPath);
+        auto rightPathId = _pathResolver.resolve(*rightPath);
         if (!leftPathId.has_value() || !rightPathId.has_value()) {
-            // 3. Both field paths must be attributable to a single node in the graph.
+            // 4. Both field paths must be attributable to a single node in the graph.
             _expressionIsFullyAbsorbed = false;
             return;
         }
 
         if (_pathResolver[*leftPathId].nodeId == _pathResolver[*rightPathId].nodeId) {
-            // 4. To be a proper join predicate the field paths must be from different collections.
+            // 5. To be a proper join predicate the field paths must be from different collections.
             _expressionIsFullyAbsorbed = false;
             return;
         }
@@ -352,18 +375,29 @@ U tassert_cast(V* v) {
     return ret;
 }
 
-// Compute the field path which the given variable ID refers to in the local collection of a
-// $lookup. We assume that the given a set of let variables from $lookup all are defined to be
-// simple FieldPaths (i.e.are of the form {foo: '$foo'}). This allows us resolve a variable to
-// underlying FieldPath.
-FieldPath localCollectionFieldPath(const std::vector<LetVariable>& letVars, Variables::Id id) {
+
+/**
+ * Compute the field path which the given variable reference resolves to in the local collection of
+ * a $lookup. We assume that the given set of let variables from $lookup are all defined to be
+ * simple FieldPaths (i.e. are of the form {foo: '$foo'}). The let variable's RHS provides the base
+ * path (e.g. 'x' for {l: '$x'}); any trailing components on the variable reference itself (e.g. the
+ * '.y' in '$$l.y') are appended, since '$$l.y' semantically means "the .y subfield of whatever 'l'
+ * evaluates to".
+ */
+FieldPath localCollectionFieldPath(const std::vector<LetVariable>& letVars,
+                                   const ExpressionFieldPath* varRef) {
+    auto id = varRef->getVariableId();
     auto varIt =
         std::find_if(letVars.cbegin(), letVars.cend(), [&id](auto&& var) { return var.id == id; });
     tassert(
         11317201, "variable ID not found in given set of let variables", varIt != letVars.cend());
     auto& var = *varIt;
     auto localFieldPath = tassert_cast<const ExpressionFieldPath*>(var.expression.get());
-    return localFieldPath->getFieldPathWithoutCurrentPrefix();
+    auto baseLocalFieldPath = localFieldPath->getFieldPathWithoutCurrentPrefix();
+    if (varRef->getFieldPath().getPathLength() > 1) {
+        return baseLocalFieldPath.concat(varRef->getFieldPathWithoutCurrentPrefix());
+    }
+    return baseLocalFieldPath;
 }
 
 }  // namespace
@@ -374,7 +408,7 @@ JoinPredicateExpr JoinPredicateExpr::make(const ExpressionCompare* eqNode,
     auto right = tassert_cast<const ExpressionFieldPath*>(eqNode->getChildren()[1].get());
 
     if (left->isVariableReference()) {
-        return {localCollectionFieldPath(letVars, left->getVariableId()),
+        return {localCollectionFieldPath(letVars, left),
                 right->getFieldPathWithoutCurrentPrefix(),
                 eqNode};
     }
@@ -382,9 +416,8 @@ JoinPredicateExpr JoinPredicateExpr::make(const ExpressionCompare* eqNode,
     tassert(11317203,
             "Expected a variable & a field path in a join predicate",
             right->isVariableReference());
-    return {localCollectionFieldPath(letVars, right->getVariableId()),
-            left->getFieldPathWithoutCurrentPrefix(),
-            eqNode};
+    return {
+        localCollectionFieldPath(letVars, right), left->getFieldPathWithoutCurrentPrefix(), eqNode};
 }
 
 boost::optional<SplitPredicatesResult> splitJoinAndSingleCollectionPredicates(

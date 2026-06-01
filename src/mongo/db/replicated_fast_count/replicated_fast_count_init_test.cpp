@@ -32,8 +32,8 @@
 #include "mongo/db/namespace_string.h"
 #include "mongo/db/replicated_fast_count/replicated_fast_count_manager.h"
 #include "mongo/db/rss/replicated_storage_service.h"
-#include "mongo/db/shard_role/shard_catalog/catalog_raii.h"
 #include "mongo/db/shard_role/shard_catalog/catalog_test_fixture.h"
+#include "mongo/db/shard_role/shard_role.h"
 #include "mongo/db/shard_role/transaction_resources.h"
 #include "mongo/db/storage/ident.h"
 #include "mongo/db/storage/kv/kv_engine.h"
@@ -75,12 +75,19 @@ const NamespaceString replicatedFastCountStoreTimestampsNss =
 TEST_F(ReplicatedFastCountInitTest,
        setUpReplicatedFastCountCreatesInternalCollectionsAndStartsUpThread) {
     {
-        AutoGetCollection coll(_opCtx, replicatedFastCountStoreNss, LockMode::MODE_IS);
-        ASSERT(!coll);
+        auto coll = acquireCollection(
+            _opCtx,
+            CollectionAcquisitionRequest::fromOpCtx(
+                _opCtx, replicatedFastCountStoreNss, AcquisitionPrerequisites::kRead),
+            LockMode::MODE_IS);
+        ASSERT(!coll.exists());
 
-        AutoGetCollection collTimestamps(
-            _opCtx, replicatedFastCountStoreTimestampsNss, LockMode::MODE_IS);
-        ASSERT(!collTimestamps);
+        auto collTimestamps = acquireCollection(
+            _opCtx,
+            CollectionAcquisitionRequest::fromOpCtx(
+                _opCtx, replicatedFastCountStoreTimestampsNss, AcquisitionPrerequisites::kRead),
+            LockMode::MODE_IS);
+        ASSERT(!collTimestamps.exists());
     }
 
     EXPECT_EQ(_fastCountManager->isRunning_ForTest(), false);
@@ -88,20 +95,28 @@ TEST_F(ReplicatedFastCountInitTest,
     setUpReplicatedFastCount(_opCtx);
 
     {
-        AutoGetCollection coll(_opCtx, replicatedFastCountStoreNss, LockMode::MODE_IS);
-        ASSERT(coll);
+        auto coll = acquireCollection(
+            _opCtx,
+            CollectionAcquisitionRequest::fromOpCtx(
+                _opCtx, replicatedFastCountStoreNss, AcquisitionPrerequisites::kRead),
+            LockMode::MODE_IS);
+        ASSERT(coll.exists());
 
-        AutoGetCollection collTimestamps(
-            _opCtx, replicatedFastCountStoreTimestampsNss, LockMode::MODE_IS);
-        ASSERT(collTimestamps);
+        auto collTimestamps = acquireCollection(
+            _opCtx,
+            CollectionAcquisitionRequest::fromOpCtx(
+                _opCtx, replicatedFastCountStoreTimestampsNss, AcquisitionPrerequisites::kRead),
+            LockMode::MODE_IS);
+        ASSERT(collTimestamps.exists());
     }
 
     EXPECT_EQ(_fastCountManager->isRunning_ForTest(), true);
 }
 
 TEST_F(ReplicatedFastCountInitTest, setUpReplicatedFastCountCreatesRecordStoreIdents) {
-    RAIIServerParameterControllerForTest featureFlagController(
-        "featureFlagReplicatedFastCountDurability", true);
+    RAIIServerParameterControllerForTest ffDurability("featureFlagReplicatedFastCountDurability",
+                                                      true);
+    RAIIServerParameterControllerForTest ffContainerWrites("featureFlagContainerWrites", true);
 
     auto* storageEngine = _opCtx->getServiceContext()->getStorageEngine();
     auto* ru = shard_role_details::getRecoveryUnit(_opCtx);
@@ -124,8 +139,9 @@ TEST_F(ReplicatedFastCountInitTest, setUpReplicatedFastCountCreatesRecordStoreId
 }
 
 TEST_F(ReplicatedFastCountInitTest, setUpReplicatedFastCountIdempotentIdents) {
-    RAIIServerParameterControllerForTest featureFlagController(
-        "featureFlagReplicatedFastCountDurability", true);
+    RAIIServerParameterControllerForTest ffDurability("featureFlagReplicatedFastCountDurability",
+                                                      true);
+    RAIIServerParameterControllerForTest ffContainerWrites("featureFlagContainerWrites", true);
 
     auto* storageEngine = _opCtx->getServiceContext()->getStorageEngine();
     auto* ru = shard_role_details::getRecoveryUnit(_opCtx);
@@ -163,8 +179,9 @@ TEST_F(ReplicatedFastCountInitTest, setUpReplicatedFastCountIdempotentIdents) {
 }
 
 TEST_F(ReplicatedFastCountInitTest, setUpReplicatedFastCountSkipsContainersWhenFlagDisabled) {
-    RAIIServerParameterControllerForTest featureFlagController(
-        "featureFlagReplicatedFastCountDurability", false);
+    RAIIServerParameterControllerForTest ffDurability("featureFlagReplicatedFastCountDurability",
+                                                      false);
+    RAIIServerParameterControllerForTest ffContainerWrites("featureFlagContainerWrites", false);
 
     auto* storageEngine = _opCtx->getServiceContext()->getStorageEngine();
     auto* ru = shard_role_details::getRecoveryUnit(_opCtx);
@@ -182,8 +199,9 @@ TEST_F(ReplicatedFastCountInitTest, setUpReplicatedFastCountSkipsContainersWhenF
 }
 
 TEST_F(ReplicatedFastCountInitTest, StartingUpThenShuttingDownDoesNotHang) {
-    RAIIServerParameterControllerForTest featureFlagController(
-        "featureFlagReplicatedFastCountDurability", true);
+    RAIIServerParameterControllerForTest ffDurability("featureFlagReplicatedFastCountDurability",
+                                                      true);
+    RAIIServerParameterControllerForTest ffContainerWrites("featureFlagContainerWrites", true);
 
     const int numIterations = 100;
     for (int i = 0; i < numIterations; ++i) {
@@ -195,8 +213,9 @@ TEST_F(ReplicatedFastCountInitTest, StartingUpThenShuttingDownDoesNotHang) {
 // TODO SERVER-122317 Add a similar test case where metadata is non-empty. Creation should then
 // fail.
 TEST_F(ReplicatedFastCountInitTest, setUpReplicatedFastCountCreatesBothWhenOnlyMetadataExists) {
-    RAIIServerParameterControllerForTest featureFlagController(
-        "featureFlagReplicatedFastCountDurability", true);
+    RAIIServerParameterControllerForTest ffDurability("featureFlagReplicatedFastCountDurability",
+                                                      true);
+    RAIIServerParameterControllerForTest ffContainerWrites("featureFlagContainerWrites", true);
 
     auto* storageEngine = _opCtx->getServiceContext()->getStorageEngine();
     auto* engine = storageEngine->getEngine();
@@ -227,8 +246,9 @@ TEST_F(ReplicatedFastCountInitTest, setUpReplicatedFastCountCreatesBothWhenOnlyM
 // TODO SERVER-122317 Add a similar test case where timestamps is non-empty. Creation should then
 // fail.
 TEST_F(ReplicatedFastCountInitTest, setUpReplicatedFastCountCreatesBothWhenOnlyTimestampsExists) {
-    RAIIServerParameterControllerForTest featureFlagController(
-        "featureFlagReplicatedFastCountDurability", true);
+    RAIIServerParameterControllerForTest ffDurability("featureFlagReplicatedFastCountDurability",
+                                                      true);
+    RAIIServerParameterControllerForTest ffContainerWrites("featureFlagContainerWrites", true);
 
     auto* storageEngine = _opCtx->getServiceContext()->getStorageEngine();
     auto* engine = storageEngine->getEngine();

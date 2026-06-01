@@ -840,7 +840,7 @@ __evict_child_check(WT_SESSION_IMPL *session, WT_REF *parent)
              *     4. Otherwise, check if the operation is globally visible.
              *
              * Even though we specifically can't evict prepared truncations, we don't need to deploy
-             * the special-case logic for prepared transactions in __wt_page_del_visible; prepared
+             * the special-case logic for prepared transactions; prepared
              * transactions aren't committed so they'll fail the first check.
              */
             if (!__wt_page_del_committed_set(child->page_del))
@@ -1170,7 +1170,7 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
          */
         if (!WT_SESSION_BTREE_SYNC(session)) {
             bool can_scrub = (F_ISSET(evict, WT_EVICT_CACHE_SCRUB) ||
-              (FLD_ISSET(conn->debug_flags, WT_CONN_DEBUG_EVICT_AGGRESSIVE_MODE) &&
+              (FLD_ISSET(conn->debug.flags, WT_CONN_DEBUG_EVICT_AGGRESSIVE_MODE) &&
                 __wt_random(&session->rnd_random) % 3 == 0));
 
             /*

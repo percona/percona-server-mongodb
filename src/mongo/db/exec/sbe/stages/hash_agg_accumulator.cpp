@@ -200,10 +200,12 @@ void ArithmeticAverageHashAggAccumulatorBase::initialize(vm::ByteCode& bytecode,
     // per tassert 5755312.
     auto [tagSum, valSum] = value::makeNewArray();
     value::Array* arraySum = reinterpret_cast<value::Array*>(valSum);
-    arraySum->push_back(value::TypeTags::NumberInt32, 0);   // AggSumValueElems::kNonDecimalTotalTag
-    arraySum->push_back(value::TypeTags::NumberDouble, 0);  // AggSumValueElems::kNonDecimalTotalSum
-    arraySum->push_back(value::TypeTags::NumberDouble,
-                        0);  // AggSumValueElems::kNonDecimalTotalAddend
+    arraySum->push_back_raw(value::TypeTags::NumberInt32,
+                            0);  // AggSumValueElems::kNonDecimalTotalTag
+    arraySum->push_back_raw(value::TypeTags::NumberDouble,
+                            0);  // AggSumValueElems::kNonDecimalTotalSum
+    arraySum->push_back_raw(value::TypeTags::NumberDouble,
+                            0);  // AggSumValueElems::kNonDecimalTotalAddend
     // AggSumValueElems::kDecimalTotal is added at runtime only if a decimal value is encountered.
 
     // Create the value for the count of inputs, which is just a scalar NumberInt64.
@@ -213,8 +215,8 @@ void ArithmeticAverageHashAggAccumulatorBase::initialize(vm::ByteCode& bytecode,
     // Create an array of [sum, count] states as the complete state value for new-style $avg.
     auto [tagState, valState] = value::makeNewArray();
     value::Array* arrayState = reinterpret_cast<value::Array*>(valState);
-    arrayState->push_back(tagSum, valSum);
-    arrayState->push_back(tagCount, valCount);
+    arrayState->push_back_raw(tagSum, valSum);
+    arrayState->push_back_raw(tagCount, valCount);
 
     // Set 'accState' to the initial state we just constructed.
     accumulatorState.reset(value::TagValueOwned{tagState, valState});
@@ -307,7 +309,7 @@ void ArithmeticAverageHashAggAccumulatorTerminal::finalizePartialAggregate(
             "Expected partial aggregate count to have 64-bit integer type",
             tagCount == value::TypeTags::NumberInt64);
     if (value::bitcastTo<int64_t>(valCount) == 0) {
-        result.reset(value::TagValueView{value::TypeTags::Null, 0});
+        result.reset(value::TagValueView::null());
         return;
     }
 
@@ -352,7 +354,7 @@ void AddToSetHashAggAccumulator::singlePurposePrepare(CompileCtx& ctx) {
 
 void AddToSetHashAggAccumulator::initialize(vm::ByteCode& bytecode,
                                             HashAggAccessor& accumulatorState) const {
-    accumulatorState.reset(value::TagValueView{value::TypeTags::Nothing, 0});
+    accumulatorState.reset(value::TagValueView::nothing());
 }
 
 void AddToSetHashAggAccumulator::accumulateTransformedValue(value::TagValueMaybeOwned field,
@@ -408,7 +410,7 @@ void AddToSetHashAggAccumulator::mergeRecoveredState(
 void AddToSetHashAggAccumulator::finalizePartialAggregate(
     value::TagValueOwned partialAggregate, value::AssignableSlotAccessor& result) const {
     if (partialAggregate.tag() == value::TypeTags::Nothing) {
-        result.reset(value::TagValueView{value::TypeTags::Nothing, 0});
+        result.reset(value::TagValueView::nothing());
         return;
     }
 
@@ -426,7 +428,7 @@ void AddToSetHashAggAccumulator::finalizePartialAggregate(
 
 void PushHashAggAccumulator::initialize(vm::ByteCode& bytecode,
                                         HashAggAccessor& accumulatorState) const {
-    accumulatorState.reset(value::TagValueView{value::TypeTags::Nothing, 0});
+    accumulatorState.reset(value::TagValueView::nothing());
 }
 
 void PushHashAggAccumulator::accumulateTransformedValue(value::TagValueMaybeOwned field,
@@ -477,7 +479,7 @@ void PushHashAggAccumulator::mergeRecoveredState(
 void PushHashAggAccumulator::finalizePartialAggregate(value::TagValueOwned partialAggregate,
                                                       value::AssignableSlotAccessor& result) const {
     if (partialAggregate.tag() == value::TypeTags::Nothing) {
-        result.reset(value::TagValueView{value::TypeTags::Nothing, 0});
+        result.reset(value::TagValueView::nothing());
         return;
     }
 
@@ -495,7 +497,7 @@ void PushHashAggAccumulator::finalizePartialAggregate(value::TagValueOwned parti
 
 void FirstHashAggAccumulator::initialize(vm::ByteCode& bytecode,
                                          HashAggAccessor& accumulatorState) const {
-    accumulatorState.reset(value::TagValueView{value::TypeTags::Nothing, 0});
+    accumulatorState.reset(value::TagValueView::nothing());
 }
 
 void FirstHashAggAccumulator::accumulateTransformedValue(value::TagValueMaybeOwned field,
@@ -509,7 +511,7 @@ void FirstHashAggAccumulator::accumulateTransformedValue(value::TagValueMaybeOwn
     if (field.tag() == value::TypeTags::Nothing) {
         // Following MQL semantics, accumulating "nothing" (e.g., reading from a field that does not
         // exist) has the effect of accumulating NULL.
-        accState.reset(value::TagValueView{value::TypeTags::Null, 0});
+        accState.reset(value::TagValueView::null());
         return;
     }
 
@@ -538,8 +540,7 @@ void FirstHashAggAccumulator::finalizePartialAggregate(
 
 void CountHashAggAccumulatorBase::initialize(vm::ByteCode& bytecode,
                                              HashAggAccessor& accumulatorState) const {
-    accumulatorState.reset(
-        value::TagValueView{value::TypeTags::NumberInt64, value::bitcastFrom<int64_t>(0)});
+    accumulatorState.reset(value::TagValueView::numberInt64(0));
 }
 
 void CountHashAggAccumulatorBase::accumulateTransformedValue(value::TagValueMaybeOwned field,
@@ -566,8 +567,7 @@ void CountHashAggAccumulatorBase::mergeRecoveredState(
             tagAccumulatedState == value::TypeTags::NumberInt64);
     auto mergedCount = value::bitcastTo<int64_t>(valAccumulatedState) +
         value::bitcastTo<int64_t>(recoveredState.value());
-    accumulatorState.reset(value::TagValueView{value::TypeTags::NumberInt64,
-                                               value::bitcastFrom<int64_t>(mergedCount)});
+    accumulatorState.reset(value::TagValueView::numberInt64(mergedCount));
 }
 
 void CountHashAggAccumulatorTerminal::finalizePartialAggregate(
@@ -582,8 +582,7 @@ void CountHashAggAccumulatorTerminal::finalizePartialAggregate(
         // $count acts as if it is syntactic sugar for {$sum: 1}, which returns its result in the
         // narrowest type possible.
         auto count32 = static_cast<int32_t>(value::bitcastTo<int64_t>(partialAggregate.value()));
-        result.reset(value::TagValueView{value::TypeTags::NumberInt32,
-                                         value::bitcastFrom<int32_t>(count32)});
+        result.reset(value::TagValueView::numberInt32(count32));
         return;
     }
 

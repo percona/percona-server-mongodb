@@ -266,9 +266,14 @@ void prepareSlotBasedExecutableTree(OperationContext* opCtx,
     env.ctx.mca = &collections;
     if (expCtx->getQueryKnobConfiguration().getEnablePathArrayness() &&
         !expCtx->getNonArrayPathsForNss().empty()) {
-        yieldPolicy->setPathArraynessInfo(
+        stdx::unordered_map<NamespaceString, PathArraynessChecker> perNss;
+        for (auto& [nss, paths] : expCtx->getNonArrayPathsForNss()) {
+            perNss.emplace(nss,
+                           PathArraynessChecker{.nonArrayPaths = paths, .prevEpoch = boost::none});
+        }
+        yieldPolicy->setMultipleCollectionPathArraynessChecker(
             {MultipleCollectionAccessor{collections},
-             expCtx->getNonArrayPathsForNss(),
+             std::move(perNss),
              [](const CollectionPtr& coll) {
                  return CollectionQueryInfo::get(coll).getPathArrayness();
              }});
@@ -1009,6 +1014,21 @@ SlotBasedStageBuilder::PlanType SlotBasedStageBuilder::build(const QuerySolution
     _data->resultSlot = resultSlot ? boost::make_optional(resultSlot->getId()) : boost::none;
     _data->recordIdSlot = recordIdSlot ? boost::make_optional(recordIdSlot->getId()) : boost::none;
 
+    // Register the slots used in the dynamic index bounds in the global environment.
+    for (auto& indexInfo : _data->indexBoundsEvaluationInfos) {
+        if (auto singlePlan = std::get_if<ParameterizedIndexScanSlots::SingleIntervalPlan>(
+                &indexInfo.slots.slots)) {
+            _env->registerSlot(sbe::value::TypeTags::Nothing, 0, true, singlePlan->lowKey);
+            _env->registerSlot(sbe::value::TypeTags::Nothing, 0, true, singlePlan->highKey);
+        }
+        if (auto genericPlan =
+                std::get_if<ParameterizedIndexScanSlots::GenericPlan>(&indexInfo.slots.slots)) {
+            _env->registerSlot(sbe::value::TypeTags::Nothing, 0, true, genericPlan->isGenericScan);
+            _env->registerSlot(sbe::value::TypeTags::Nothing, 0, true, genericPlan->indexBounds);
+            _env->registerSlot(
+                sbe::value::TypeTags::Nothing, 0, true, genericPlan->lowHighKeyIntervals);
+        }
+    }
     return {std::move(stage), PlanStageData(std::move(_env), std::move(_data))};
 }
 
@@ -1052,7 +1072,7 @@ std::pair<SbStage, PlanStageSlots> SlotBasedStageBuilder::buildVirtualScan(
         inputView->reserve(vsn->docs.size());
         for (auto& doc : vsn->docs) {
             auto [tag, val] = makeValue(doc);
-            inputView->push_back(tag, val);
+            inputView->push_back_raw(tag, val);
         }
     }
 

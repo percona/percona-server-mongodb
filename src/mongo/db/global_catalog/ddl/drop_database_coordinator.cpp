@@ -62,7 +62,6 @@
 #include "mongo/db/shard_role/shard_catalog/participant_block_gen.h"
 #include "mongo/db/sharding_environment/grid.h"
 #include "mongo/db/sharding_environment/shard_id.h"
-#include "mongo/db/sharding_environment/sharding_feature_flags_gen.h"
 #include "mongo/db/sharding_environment/sharding_logging.h"
 #include "mongo/db/tenant_id.h"
 #include "mongo/db/topology/shard_registry.h"
@@ -192,8 +191,11 @@ Timestamp commitDropDatabaseOnGlobalCatalog(
     IgnoreAPIParametersBlock ignoreApiParametersBlock(opCtx);
 
     const auto commitTime = [&] {
-        const auto currentTime = VectorClock::get(opCtx)->getTime();
-        return currentTime.clusterTime().asTimestamp();
+        // Bump the cluster time value before picking it; this ensures that the commitTime is always
+        // strictly greater than the timestamp assigned to the dropDatabase op entry of the primary
+        // shard (a condition necessary for the correct resumability of change streams during the
+        // execution of this DDL).
+        return VectorClockMutable::get(opCtx)->tickClusterTime(1).asTimestamp();
     }();
 
     const auto transactionChain = [&](const txn_api::TransactionClient& txnClient,
@@ -308,9 +310,8 @@ void DropDatabaseCoordinator::_dropTrackedCollection(
         // releasing the critical section; the commit phase is responsible for updating the shard
         // catalog with current information. This flag is evaluated at insertion time because on
         // secondaries, metadata is cleared during the onDelete of the critical section document.
-        if (feature_flags::gShardAuthoritativeCollMetadata.isEnabled(
-                VersionContext::getDecoration(opCtx),
-                serverGlobalParams.featureCompatibility.acquireFCVSnapshot())) {
+        if (_doc.getAuthoritativeMetadataAccessLevel() >=
+            AuthoritativeMetadataAccessLevelEnum::kWritesAllowed) {
             blockCRUDOperationsRequest.setClearCollMetadata(false);
         }
 
@@ -338,9 +339,8 @@ void DropDatabaseCoordinator::_dropTrackedCollection(
         sharding_ddl_util::removeTagsMetadataFromConfig(opCtx, nss, session);
     }
 
-    bool isAuthoritative = feature_flags::gShardAuthoritativeCollMetadata.isEnabled(
-        VersionContext::getDecoration(opCtx),
-        serverGlobalParams.featureCompatibility.acquireFCVSnapshot());
+    bool isAuthoritative = _doc.getAuthoritativeMetadataAccessLevel() >=
+        AuthoritativeMetadataAccessLevelEnum::kWritesAllowed;
 
     if (isAuthoritative) {
         const auto session = getNewSession(opCtx);
@@ -426,9 +426,8 @@ void DropDatabaseCoordinator::_dropTrackedCollection(
         // releasing the critical section; the commit phase is responsible for updating the shard
         // catalog (both durable and in-memory) with current information on both primary and
         // secondary nodes.
-        if (feature_flags::gShardAuthoritativeCollMetadata.isEnabled(
-                VersionContext::getDecoration(opCtx),
-                serverGlobalParams.featureCompatibility.acquireFCVSnapshot())) {
+        if (_doc.getAuthoritativeMetadataAccessLevel() >=
+            AuthoritativeMetadataAccessLevelEnum::kWritesAllowed) {
             unblockCRUDOperationsRequest.setClearCollMetadata(false);
         }
 
@@ -503,7 +502,11 @@ ExecutorFuture<void> DropDatabaseCoordinator::_runImpl(
                     // before persisting its identity on the recovery doc (This condition won't be
                     // reinforced in case of a stepdown)
                     sharding_ddl_util::stopMigrations(
-                        opCtx, nss, coll.getUuid(), getNewSession(opCtx));
+                        opCtx,
+                        nss,
+                        coll.getUuid(),
+                        [&] { return getNewSession(opCtx); },
+                        _doc.getAuthoritativeMetadataAccessLevel());
 
                     auto newStateDoc = _doc;
                     newStateDoc.setCollInfo(coll);

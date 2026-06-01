@@ -107,7 +107,7 @@
 #include "mongo/db/storage/write_unit_of_work.h"
 #include "mongo/db/topology/shard_registry.h"
 #include "mongo/db/topology/sharding_state.h"
-#include "mongo/db/topology/user_write_block/write_block_bypass.h"
+#include "mongo/db/topology/user_write_block/user_write_block_bypass.h"
 #include "mongo/db/topology/vector_clock/vector_clock.h"
 #include "mongo/db/transaction/transaction_participant.h"
 #include "mongo/db/write_concern.h"
@@ -437,6 +437,11 @@ void MigrationDestinationManager::_setStateFailWarn(StringData msg) {
 bool MigrationDestinationManager::isActive() const {
     std::lock_guard<std::mutex> lk(_mutex);
     return _isActive(lk);
+}
+
+bool MigrationDestinationManager::isActiveOn(const NamespaceString& nss) const {
+    std::lock_guard<std::mutex> lk(_mutex);
+    return _isActive(lk) && _nss == nss;
 }
 
 bool MigrationDestinationManager::_isActive(WithLock) const {

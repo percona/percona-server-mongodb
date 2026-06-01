@@ -141,16 +141,6 @@ private:
         });
     }
 
-    static ::MongoExtensionStatus* _hostIsStageSortedByVectorSearchScore(
-        const ::MongoExtensionLogicalAggStage* logicalStage,
-        bool* outIsSortedByVectorSearchScore) noexcept {
-        return wrapCXXAndConvertExceptionToStatus([]() {
-            tasserted(12303705,
-                      "_hostIsStageSortedByVectorSearchScore should not be called on a "
-                      "host-allocated logical stage.");
-        });
-    }
-
     static ::MongoExtensionStatus* _hostSetVectorSearchLimitForOptimization(
         ::MongoExtensionLogicalAggStage* logicalStage, long long* extractedLimitVal) noexcept {
         return wrapCXXAndConvertExceptionToStatus([]() {
@@ -199,11 +189,30 @@ private:
     }
 
     static ::MongoExtensionStatus* _hostGetSortPattern(
-        ::MongoExtensionLogicalAggStage* logicalStage, ::MongoExtensionByteBuf** output) noexcept {
+        const ::MongoExtensionLogicalAggStage* logicalStage,
+        ::MongoExtensionByteBuf** output) noexcept {
         return wrapCXXAndConvertExceptionToStatus([&]() {
             tasserted(
                 12327101,
                 "_hostGetSortPattern should not be called on a host-allocated logical stage.");
+        });
+    }
+
+    static ::MongoExtensionStatus* _hostSkipStream(::MongoExtensionLogicalAggStage* logicalStage,
+                                                   ::MongoExtensionStreamType streamType) noexcept {
+        return wrapCXXAndConvertExceptionToStatus([]() {
+            tasserted(12601401,
+                      "_hostSkipStream should not be called on a host-allocated logical stage.");
+        });
+    }
+
+    static ::MongoExtensionStatus* _hostGetDocsNeededBounds(
+        const ::MongoExtensionLogicalAggStage* logicalStage,
+        ::MongoExtensionByteBuf** output) noexcept {
+        return wrapCXXAndConvertExceptionToStatus([]() {
+            tasserted(
+                11842301,
+                "_hostGetDocsNeededBounds should not be called on a host-allocated logical stage.");
         });
     }
 
@@ -215,7 +224,6 @@ private:
         .compile = &_hostCompile,
         .get_distributed_plan_logic = &_hostGetDistributedPlanLogic,
         .clone = &_hostClone,
-        .is_stage_sorted_by_vector_search_score_deprecated = &_hostIsStageSortedByVectorSearchScore,
         .set_vector_search_limit_for_optimization_deprecated =
             &_hostSetVectorSearchLimitForOptimization,
         .evaluate_rule_precondition = &_hostEvaluateRulePrecondition,
@@ -223,9 +231,10 @@ private:
         .get_filter = &_hostGetFilter,
         .apply_pipeline_suffix_dependencies = &_hostApplyPipelineSuffixDependencies,
         .get_sort_pattern = &_hostGetSortPattern,
+        .skip_stream = &_hostSkipStream,
+        .get_docs_needed_bounds = &_hostGetDocsNeededBounds,
     };
 
     std::unique_ptr<host::LogicalAggStage> _logicalAggStage;
 };
-
 };  // namespace mongo::extension::host_connector

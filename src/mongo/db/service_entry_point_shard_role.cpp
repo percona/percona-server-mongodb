@@ -40,6 +40,7 @@
 #include "mongo/db/admission/ingress_admission_control_gen.h"
 #include "mongo/db/admission/ingress_admission_controller.h"
 #include "mongo/db/admission/ingress_request_rate_limiter.h"
+#include "mongo/db/admission/ingress_request_rate_limiter_gen.h"
 #include "mongo/db/admission/ticketing/admission_context.h"
 #include "mongo/db/admission/ticketing/ticketholder.h"
 #include "mongo/db/api_parameters.h"
@@ -109,6 +110,7 @@
 #include "mongo/db/sharding_environment/sharding_statistics.h"
 #include "mongo/db/stats/api_version_metrics.h"
 #include "mongo/db/stats/counters.h"
+#include "mongo/db/stats/external_client_on_router.h"
 #include "mongo/db/stats/read_preference_metrics.h"
 #include "mongo/db/stats/server_read_concern_metrics.h"
 #include "mongo/db/stats/top.h"
@@ -1189,8 +1191,11 @@ void RunCommandImpl::_prologue() {
         // Skip incrementing metrics when the command is not a read operation, as we expect to all
         // commands sent via the driver to inherit the read preference, even if we don't use it.
         if (command->shouldAffectReadOptionCounters()) {
+            // Commands forwarded from a router (mongos) on behalf of an external user should
+            // be counted as "external", even though the mongos connection is an internal client.
+            auto isInternal = _isInternalClient() && !isExternalClientOnRouter(opCtx);
             ReadPreferenceMetrics::get(opCtx)->recordReadPreference(
-                ReadPreferenceSetting::get(opCtx), _isInternalClient(), isPrimary);
+                ReadPreferenceSetting::get(opCtx), isInternal, isPrimary);
         }
     }
 }
@@ -1315,6 +1320,12 @@ void RunCommandAndWaitForWriteConcern::_waitForWriteConcern(BSONObjBuilder& bb) 
     }
 
     CurOp::get(opCtx)->debug().writeConcern.emplace(opCtx->getWriteConcern());
+    LOGV2_DEBUG(12091302,
+                2,
+                "Waiting for write concern",
+                "command"_attr = invocation->definition()->getName(),
+                "opTime"_attr = _ecd->getLastOpBeforeRun(),
+                "writeConcern"_attr = opCtx->getWriteConcern().toBSON());
     service_entry_point_shard_role_helpers::waitForWriteConcern(
         opCtx, invocation, _ecd->getLastOpBeforeRun(), bb);
 }
@@ -1388,13 +1399,12 @@ void RunCommandAndWaitForWriteConcern::_setup() {
                   fmt::format("unexpected unset provenance on writeConcern: {}",
                               _extractedWriteConcern->toBSON().jsonString()));
 
-        uassert(ErrorCodes::UnsatisfiableWriteConcern,
-                "Unsupported WriteConcernOptions",
-                rss::ReplicatedStorageService::get(opCtx->getServiceContext())
-                    .getPersistenceProvider()
-                    .supportsWriteConcernOptions(_extractedWriteConcern.get()));
-
         opCtx->setWriteConcern(*_extractedWriteConcern);
+        LOGV2_DEBUG(12091301,
+                    2,
+                    "Extracted write concern for command",
+                    "command"_attr = command->getName(),
+                    "writeConcern"_attr = _extractedWriteConcern->toBSON());
     }
 }
 
@@ -1875,12 +1885,19 @@ void ExecCommandDatabase::_initiateCommand() {
 
             // Respect the ingressRequestRateLimiterApplicationExemptions list so that internal
             // clients are exempt from the failpoint.
-            if (IngressRequestRateLimiter::isAppNameExempted(opCtx->getClient())) {
+            if (admission::IngressRequestRateLimiter::isAppNameExempted(opCtx->getClient())) {
                 return false;
             }
 
             return true;
         });
+
+    if (gFeatureFlagIngressRateLimiting.isEnabled()) {
+        const bool exemptFromIngressRateLimit =
+            isExemptFromAdmissionControl || !admission::gIngressRequestRateLimiterEnabled.load();
+        uassertStatusOK(admission::IngressRequestRateLimiter::waitForAdmission(
+            opCtx, exemptFromIngressRateLimit));
+    }
 
     if (gIngressAdmissionControlEnabled.load()) {
         // The way ingress admission works, one ticket should cover all the work for the operation.

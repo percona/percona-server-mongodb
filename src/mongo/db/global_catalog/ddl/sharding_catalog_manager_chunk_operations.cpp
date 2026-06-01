@@ -839,6 +839,11 @@ ShardingCatalogManager::_splitChunkInTransaction(OperationContext* opCtx,
     return splitChunkResult;
 }
 
+// Invariant: this method only performs config-server-local work (reads and writes against
+// config.collections, config.chunks and config.changelog, plus client bookkeeping). It must not
+// add any shard-side interaction. Authoritative chunk-op coordinators rely on this property: the
+// shard-side install (oplog invalidation + CSR refresh) is driven by the coordinator on the
+// originating shard, not from here.
 StatusWith<ShardingCatalogManager::ShardAndCollectionPlacementVersions>
 ShardingCatalogManager::commitChunkSplit(OperationContext* opCtx,
                                          const NamespaceString& nss,
@@ -847,11 +852,6 @@ ShardingCatalogManager::commitChunkSplit(OperationContext* opCtx,
                                          const ChunkRange& range,
                                          const std::vector<BSONObj>& splitPoints,
                                          const std::string& shardName) {
-
-    // Mark opCtx as interruptible to ensure that all reads and writes to the metadata collections
-    // under the exclusive _kChunkOpLock happen on the same term.
-    opCtx->setAlwaysInterruptAtStepDownOrUp_UNSAFE();
-
     // Take _kChunkOpLock in exclusive mode to prevent concurrent chunk modifications and generate
     // strictly monotonously increasing collection placement versions
     Lock::ExclusiveLock lk(opCtx, _kChunkOpLock);
@@ -1074,6 +1074,11 @@ void ShardingCatalogManager::_mergeChunksInTransaction(
     txn.run(opCtx, updateChunksFn);
 }
 
+// Invariant: this method only performs config-server-local work (reads and writes against
+// config.collections, config.chunks and config.changelog, plus client bookkeeping). It must not
+// add any shard-side interaction. Authoritative chunk-op coordinators rely on this property: the
+// shard-side install (oplog invalidation + CSR refresh) is driven by the coordinator on the
+// originating shard, not from here.
 StatusWith<ShardingCatalogManager::ShardAndCollectionPlacementVersions>
 ShardingCatalogManager::commitChunksMerge(OperationContext* opCtx,
                                           const NamespaceString& nss,
@@ -1082,11 +1087,6 @@ ShardingCatalogManager::commitChunksMerge(OperationContext* opCtx,
                                           const UUID& requestCollectionUUID,
                                           const ChunkRange& chunkRange,
                                           const ShardId& shardId) {
-
-    // Mark opCtx as interruptible to ensure that all reads and writes to the metadata collections
-    // under the exclusive _kChunkOpLock happen on the same term.
-    opCtx->setAlwaysInterruptAtStepDownOrUp_UNSAFE();
-
     // Take _kChunkOpLock in exclusive mode to prevent concurrent chunk modifications and generate
     // strictly monotonously increasing collection placement versions
     Lock::ExclusiveLock lk(opCtx, _kChunkOpLock);
@@ -1228,16 +1228,17 @@ ShardingCatalogManager::commitChunksMerge(OperationContext* opCtx,
                                                mergeVersion /*collectionPlacementVersion*/};
 }
 
+// Invariant: this method only performs config-server-local work (reads and writes against
+// config.collections, config.chunks, config.tags and config.changelog, plus client bookkeeping).
+// It must not add any shard-side interaction. Authoritative chunk-op coordinators rely on this
+// property: the shard-side install (oplog invalidation + CSR refresh) is driven by the
+// coordinator on the originating shard, not from here.
 StatusWith<std::pair<ShardingCatalogManager::ShardAndCollectionPlacementVersions, int>>
 ShardingCatalogManager::commitMergeAllChunksOnShard(OperationContext* opCtx,
                                                     const NamespaceString& nss,
                                                     const ShardId& shardId,
                                                     int maxNumberOfChunksToMerge,
                                                     int maxTimeProcessingChunksMS) {
-    // Mark opCtx as interruptible to ensure that all reads and writes to the metadata collections
-    // under the exclusive _kChunkOpLock happen on the same term.
-    opCtx->setAlwaysInterruptAtStepDownOrUp_UNSAFE();
-
     // Retry the commit a fixed number of  times before failing: the discovery of chunks to merge
     // happens before acquiring the `_kChunkOpLock` in order not to block  for too long concurrent
     // chunk operations. This implies that other chunk operations for the same collection could
@@ -1821,8 +1822,6 @@ void ShardingCatalogManager::clearJumboFlag(OperationContext* opCtx,
     // under the exclusive _kChunkOpLock happen on the same term.
     opCtx->setAlwaysInterruptAtStepDownOrUp_UNSAFE();
 
-    auto cm = uassertStatusOK(
-        RoutingInformationCache::get(opCtx)->getCollectionPlacementInfoWithRefresh(opCtx, nss));
 
     // Take _kChunkOpLock in exclusive mode to serialise with concurrent chunk modifications.
     Lock::ExclusiveLock lk(opCtx, _kChunkOpLock);
@@ -1879,24 +1878,7 @@ void ShardingCatalogManager::clearJumboFlag(OperationContext* opCtx,
         return;
     }
 
-    // Best-effort update of the in-memory routing cache so the balancer's next iteration observes
-    // the cleared flag without waiting for a refresh. This mirrors the asymmetric pattern used by
-    // splitOrMarkJumbo when it sets the flag: the persisted write below intentionally does not
-    // bump the chunk version, so an incremental routing-cache refresh would not pick up the
-    // change. The balancer is the only consumer of the jumbo flag, so updating the configsvr's
-    // own routing entry in place is sufficient. Stale jumbo:true entries on mongos and shard
-    // routing caches are benign because no router or shard reads the field for routing or
-    // filtering decisions. If the cache cannot be obtained or doesn't contain the chunk, the
-    // persisted write below is still correct; the balancer will observe the change on its next
-    // refresh.
-    if (cm.isSharded()) {
-        auto inMemoryChunk = cm.findIntersectingChunkWithSimpleCollation(chunk.getMin());
-        if (inMemoryChunk.getMin().woCompare(chunk.getMin()) == 0 &&
-            inMemoryChunk.getMax().woCompare(chunk.getMax()) == 0) {
-            inMemoryChunk.setJumbo(false);
-        }
-    }
-
+    // Persist the cleared flag.
     BSONObj chunkQuery(BSON(ChunkType::min(chunk.getMin())
                             << ChunkType::max(chunk.getMax()) << ChunkType::collectionUUID
                             << coll.getUuid()));
@@ -1913,6 +1895,32 @@ void ShardingCatalogManager::clearJumboFlag(OperationContext* opCtx,
             str::stream() << "failed to clear jumbo flag due to " << chunkQuery
                           << " not matching any existing chunks",
             didUpdate);
+
+    // Patch the in-memory routing cache so the balancer's next iteration observes the cleared
+    // flag without having to wait for an unrelated placement-version bump. The persisted write
+    // above intentionally does not bump the chunk version, so an incremental routing-cache
+    // refresh would otherwise reuse the existing RoutingTableHistory (and the existing
+    // ChunkInfo) and keep observing jumbo=true. The balancer is the only consumer of this
+    // flag, so updating the configsvr's own routing entry in place is sufficient. Stale
+    // jumbo:true entries on mongos and shard routing caches are benign because no router or
+    // shard reads the field for routing or filtering decisions. If the cache cannot be
+    // obtained or doesn't contain the chunk, the persisted write above is still correct; the
+    // balancer will observe the change on its next refresh.
+    //
+    // Held under _kChunkOpLock so that no concurrent chunk modification can bump the placement
+    // version between the persist above and this patch — otherwise the routing cache would be
+    // rebuilt and `inMemoryChunk` would refer to a now-orphaned ChunkInfo, losing the in-memory
+    // update.
+    auto cm = uassertStatusOK(
+        RoutingInformationCache::get(opCtx)->getCollectionPlacementInfoWithRefresh(opCtx, nss));
+
+    if (cm.isSharded()) {
+        auto inMemoryChunk = cm.findIntersectingChunkWithSimpleCollation(chunk.getMin());
+        if (inMemoryChunk.getMin().woCompare(chunk.getMin()) == 0 &&
+            inMemoryChunk.getMax().woCompare(chunk.getMax()) == 0) {
+            inMemoryChunk.setJumbo(false);
+        }
+    }
 }
 
 void ShardingCatalogManager::ensureChunkVersionIsGreaterThan(OperationContext* opCtx,
@@ -2158,11 +2166,7 @@ void ShardingCatalogManager::splitOrMarkJumbo(OperationContext* opCtx,
         if (splitPoints.empty()) {
             LOGV2(21873, "Marking chunk as jumbo", "chunk"_attr = redact(chunk.toString()));
 
-            // Take _kChunkOpLock in exclusive mode to prevent concurrent chunk modifications. Note
-            // that the operation below doesn't increment the chunk marked as jumbo's version, which
-            // means that a subsequent incremental refresh will not see it. However, it is being
-            // marked in memory through the call to 'markAsJumbo' above so subsequent balancer
-            // iterations will not consider it for migration.
+            // Serialize with concurrent chunk modifications.
             Lock::ExclusiveLock lk(opCtx, _kChunkOpLock);
 
             const auto findCollResponse = uassertStatusOK(_localConfigShard->exhaustiveFindOnConfig(
@@ -2179,16 +2183,7 @@ void ShardingCatalogManager::splitOrMarkJumbo(OperationContext* opCtx,
                     !findCollResponse.docs.empty());
             const CollectionType coll(findCollResponse.docs[0]);
 
-            // Best-effort update of the in-memory routing cache so the balancer's next iteration
-            // observes the flag update without waiting for a refresh.
-            // The persisted write below intentionally does not bump the chunk version, so an
-            // incremental routing-cache refresh would not pick up the change. The balancer is the
-            // only consumer of the jumbo flag, so updating the configsvr's own routing entry in
-            // place is sufficient.
-            // If the cache cannot be obtained or doesn't contain the chunk, the persisted write
-            // below is still correct; the balancer will observe the change on its next refresh.
-            chunk.setJumbo(true);
-
+            // Persist the jumbo flag.
             const auto chunkQuery = BSON(ChunkType::collectionUUID()
                                          << coll.getUuid() << ChunkType::min(chunk.getMin()));
 
@@ -2205,6 +2200,30 @@ void ShardingCatalogManager::splitOrMarkJumbo(OperationContext* opCtx,
                       "namespace"_attr = redact(toStringForLogging(nss)),
                       "minKey"_attr = redact(chunk.getMin()),
                       "error"_attr = redact(status.getStatus()));
+                return;
+            }
+
+            // Patch the in-memory routing cache so the balancer's next iteration observes the
+            // flag update without having to wait for an unrelated placement-version bump. The
+            // persisted write above intentionally does not bump the chunk version, so an
+            // incremental routing-cache refresh would otherwise reuse the existing
+            // RoutingTableHistory (and the existing ChunkInfo) and keep observing jumbo=false.
+            // The balancer is the only consumer of this flag, so updating the configsvr's own
+            // routing entry in place is sufficient.
+            //
+            // Re-fetch the chunk manager and the chunk under _kChunkOpLock: the `cm` / `chunk`
+            // captured at the top of the function were obtained without the lock, so a concurrent
+            // chunk modification may have already bumped the placement version and replaced the
+            // RoutingTableHistory. Looking the chunk up again here guarantees that we patch the
+            // ChunkInfo currently installed in the routing cache, and the lock prevents any
+            // further version bump from racing with us between the persist above and this patch.
+            auto refreshedCm = uassertStatusOK(
+                RoutingInformationCache::get(opCtx)->getCollectionPlacementInfoWithRefresh(opCtx,
+                                                                                           nss));
+            if (refreshedCm.isSharded()) {
+                auto inMemoryChunk =
+                    refreshedCm.findIntersectingChunkWithSimpleCollation(chunk.getMin());
+                inMemoryChunk.setJumbo(true);
             }
 
             return;
@@ -2345,6 +2364,56 @@ void ShardingCatalogManager::setAllowMigrationsAndBumpOneChunk(
     txn.run(opCtx, updateCollectionAndChunkFn);
     // From now on migrations are not allowed anymore, so it is not possible that new shards
     // will own chunks for this collection.
+}
+
+void ShardingCatalogManager::setAllowChunkOperations(OperationContext* opCtx,
+                                                     const NamespaceString& nss,
+                                                     const boost::optional<UUID>& collectionUUID,
+                                                     bool allowChunkOperations) {
+    // Mark opCtx as interruptible to ensure that all reads and writes to the metadata
+    // collections under the exclusive _kChunkOpLock happen on the same term.
+    opCtx->setAlwaysInterruptAtStepDownOrUp_UNSAFE();
+
+    // Take _kChunkOpLock in exclusive mode to prevent concurrent chunk operations.
+    Lock::ExclusiveLock lk(opCtx, _kChunkOpLock);
+
+    const auto cm = uassertStatusOK(
+        RoutingInformationCache::get(opCtx)->getCollectionPlacementInfoWithRefresh(opCtx, nss));
+    uassert(ErrorCodes::NamespaceNotSharded,
+            str::stream() << "Collection '" << nss.toStringForErrorMsg() << "' is not sharded",
+            cm.isSharded());
+
+    uassert(ErrorCodes::InvalidUUID,
+            str::stream() << "Collection uuid " << collectionUUID
+                          << " in the request does not match the current uuid " << cm.getUUID()
+                          << " for ns " << nss.toStringForErrorMsg(),
+            !collectionUUID || collectionUUID == cm.getUUID());
+
+    write_ops::UpdateCommandRequest updateCollOp(NamespaceString::kConfigsvrCollectionsNamespace);
+    updateCollOp.setUpdates([&] {
+        write_ops::UpdateOpEntry entry;
+        const auto update = allowChunkOperations
+            ? BSON("$unset" << BSON(CollectionType::kAllowChunkOperationsFieldName << ""))
+            : BSON("$set" << BSON(CollectionType::kAllowChunkOperationsFieldName << false));
+
+        BSONObj query = BSON(CollectionType::kNssFieldName << NamespaceStringUtil::serialize(
+                                 nss, SerializationContext::stateDefault()));
+        if (collectionUUID) {
+            query = query.addFields(BSON(CollectionType::kUuidFieldName << *collectionUUID));
+        }
+        entry.setQ(query);
+        entry.setU(update);
+        entry.setMulti(false);
+        return std::vector<write_ops::UpdateOpEntry>{entry};
+    }());
+
+    DBDirectClient client(opCtx);
+    const auto result = client.update(updateCollOp);
+    write_ops::checkWriteErrors(result);
+
+    uassert(ErrorCodes::ConflictingOperationInProgress,
+            str::stream() << "Expected to match one doc but matched " << result.getN(),
+            result.getN() == 1);
 }
 
 void ShardingCatalogManager::bumpCollectionMinorVersionInTxn(OperationContext* opCtx,

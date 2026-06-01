@@ -52,7 +52,7 @@ protected:
 
     ShardType shardIdToShardType(ShardId id) {
         ShardType shardType;
-        shardType.setName(id.toString());
+        shardType.setHandle(ShardHandle{id, boost::none});
         const auto connString = ConnectionString::forReplicaSet(
             id.toString() + "-replset", {HostAndPort(id.toString(), kDummyPort)});
         shardType.setHost(connString.toString());
@@ -183,7 +183,7 @@ protected:
 
     auto makeTimeWithLookup(std::function<Timestamp(void)>&& lookupFn) {
         auto [_, time] = ShardRegistry::Time::makeWithLookup([fn = std::move(lookupFn)]() {
-            return std::pair{ShardRegistryData::ShardIdToConnectionStringMap{}, fn()};
+            return std::pair{ShardRegistryData::ShardHandleToConnectionStringMap{}, fn()};
         });
         return time;
     }

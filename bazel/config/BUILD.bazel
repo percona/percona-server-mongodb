@@ -2543,8 +2543,13 @@ bool_flag(
 
 config_setting(
     name = "bolt_profile_use_enabled",
+    constraint_values = [
+        "@platforms//os:linux",
+        "@platforms//cpu:aarch64",
+    ],
     flag_values = {
         "//bazel/config:bolt_profile_use": "True",
+        "//bazel/config:compiler_type": "clang",
     },
 )
 
@@ -2712,6 +2717,7 @@ selects.config_setting_group(
         "//bazel/platforms:amazon_linux_2",
         "//bazel/platforms:debian10",
         "//bazel/platforms:debian12",
+        "//bazel/platforms:debian13",
         "//bazel/platforms:rhel8",
         "//bazel/platforms:rhel9",
         "//bazel/platforms:suse12",
@@ -2748,7 +2754,7 @@ sdkroot(
 
 js_engine(
     name = "js_engine",
-    build_setting_default = "mozjs",
+    build_setting_default = "wasm",
 )
 
 config_setting(

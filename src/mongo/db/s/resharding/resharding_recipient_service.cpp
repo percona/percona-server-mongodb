@@ -66,11 +66,13 @@
 #include "mongo/db/s/migration_destination_manager.h"
 #include "mongo/db/s/resharding/coordinator_document_gen.h"
 #include "mongo/db/s/resharding/resharding_data_copy_util.h"
+#include "mongo/db/s/resharding/resharding_donor_recipient_common.h"
 #include "mongo/db/s/resharding/resharding_future_util.h"
 #include "mongo/db/s/resharding/resharding_metrics_helpers.h"
 #include "mongo/db/s/resharding/resharding_oplog_applier_metrics.h"
 #include "mongo/db/s/resharding/resharding_oplog_applier_progress_gen.h"
 #include "mongo/db/s/resharding/resharding_oplog_fetcher_progress_gen.h"
+#include "mongo/db/s/resharding/resharding_promise_util.h"
 #include "mongo/db/s/resharding/resharding_recipient_service_external_state.h"
 #include "mongo/db/s/resharding/resharding_server_parameters_gen.h"
 #include "mongo/db/s/resharding/resharding_util.h"
@@ -87,7 +89,7 @@
 #include "mongo/db/storage/storage_parameters_gen.h"
 #include "mongo/db/storage/write_unit_of_work.h"
 #include "mongo/db/topology/sharding_state.h"
-#include "mongo/db/topology/user_write_block/write_block_bypass.h"
+#include "mongo/db/topology/user_write_block/user_write_block_bypass.h"
 #include "mongo/db/versioning_protocol/database_version.h"
 #include "mongo/db/versioning_protocol/shard_version.h"
 #include "mongo/db/write_concern_options.h"
@@ -141,43 +143,13 @@ MONGO_FAIL_POINT_DEFINE(reshardingRecipientFailInPhase);
 MONGO_FAIL_POINT_DEFINE(reshardingPauseRecipientBeforeCleanup);
 MONGO_FAIL_POINT_DEFINE(reshardingPauseRecipientInAbortBeforePromiseSet);
 MONGO_FAIL_POINT_DEFINE(reshardingSkipWriteStrictConsistencyOplog);
+MONGO_FAIL_POINT_DEFINE(reshardingRecipientFailsUpdatingChangeStreamsMonitorProgress);
 
 namespace {
 
 const WriteConcernOptions kNoWaitWriteConcern{1, WriteConcernOptions::SyncMode::UNSET, Seconds(0)};
 
-/**
- * Fulfills the promise if it is not already. Otherwise, does nothing.
- */
-void ensureFulfilledPromise(WithLock lk, SharedPromise<void>& sp) {
-    if (!sp.getFuture().isReady()) {
-        sp.emplaceValue();
-    }
-}
-
-void ensureFulfilledPromise(WithLock lk, SharedPromise<void>& sp, Status error) {
-    if (!sp.getFuture().isReady()) {
-        sp.setError(error);
-    }
-}
-
-template <typename T>
-void ensureFulfilledPromise(WithLock lk, SharedPromise<T>& sp, Status error) {
-    if (!sp.getFuture().isReady()) {
-        sp.setError(error);
-    }
-}
-
-template <class T>
-void ensureFulfilledPromise(WithLock lk, SharedPromise<T>& sp, T value) {
-    auto future = sp.getFuture();
-    if (!future.isReady()) {
-        sp.emplaceValue(std::move(value));
-    } else {
-        // Ensure that we would only attempt to fulfill the promise with the same value.
-        invariant(future.get() == value);
-    }
-}
+using resharding::ensureFulfilledPromise;
 
 /**
  * Returns whether it is possible for the recipient to be in 'state' when resharding will
@@ -191,7 +163,7 @@ bool inPotentialAbortScenario(const RecipientStateEnum& state) {
 }
 
 auto makeCancelState(const RecipientShardContext& recipientCtx) {
-    ReshardingParticipantCancelState cancelState;
+    primary_only_service_helpers::CancelState cancelState;
     if (recipientCtx.getState() == RecipientStateEnum::kDone && recipientCtx.getAbortReason()) {
         cancelState.abort();
     }
@@ -364,7 +336,7 @@ ReshardingRecipientService::RecipientStateMachine::RecipientStateMachine(
       }()) {
     invariant(_externalState);
     _metrics->onStateTransition(boost::none, _recipientCtx.getState());
-    _fulfillPromisesOnStepup(recipientDoc.getMetrics());
+    _fulfillPromisesOnStepup(recipientDoc);
 
     if (_changeStreamsMonitorCtx) {
         invariant(_metadata.getPerformVerification());
@@ -469,7 +441,6 @@ ReshardingRecipientService::RecipientStateMachine::_runUntilStrictConsistencyOrE
                 std::lock_guard<std::mutex> lk(_mutex);
                 ensureFulfilledPromise(lk, _changeStreamsMonitorStarted, status);
                 ensureFulfilledPromise(lk, _changeStreamsMonitorCompleted, status);
-                ensureFulfilledPromise(lk, _transitionedToCreateCollection, status);
             }
 
             return _retryingCancelableOpCtxFactory
@@ -497,19 +468,14 @@ ReshardingRecipientService::RecipientStateMachine::_runUntilStrictConsistencyOrE
                 })
                 .runOn(**executor, _cancelState.getAbortOrStepdownToken());
         })
-        .onCompletion([this, executor](Status status) {
-            if (_cancelState.isAbortedOrSteppingDown()) {
-                return ExecutorFuture<void>(**executor, status);
-            }
-
-            {
-                // The recipient is done with all local transitions until the coordinator makes its
-                // decision.
-                std::lock_guard<std::mutex> lk(_mutex);
-                invariant(_recipientCtx.getState() >= RecipientStateEnum::kError);
-                ensureFulfilledPromise(lk, _inStrictConsistencyOrError);
-            }
-            return ExecutorFuture<void>(**executor, status);
+        .then([this] {
+            // The recipient is done with all local transitions until the coordinator makes its
+            // decision.
+            std::lock_guard<std::mutex> lk(_mutex);
+            tassert(12727500,
+                    "Recipient state must be at least kError upon completion of "
+                    "_runUntilStrictConsistencyOrErrored",
+                    _recipientCtx.getState() >= RecipientStateEnum::kError);
         });
 }
 
@@ -542,7 +508,7 @@ ReshardingRecipientService::RecipientStateMachine::_notifyCoordinatorAndAwaitDec
         })
         .runOn(**executor, _cancelState.getAbortOrStepdownToken())
         .then([this] {
-            return future_util::withCancellation(_coordinatorHasDecisionPersisted.getFuture(),
+            return future_util::withCancellation(_promises.getCoordinatorCommittedFuture(),
                                                  _cancelState.getAbortOrStepdownToken());
         });
 }
@@ -755,6 +721,7 @@ void ReshardingRecipientService::RecipientStateMachine::interrupt(Status status)
     if (_dataReplication) {
         _dataReplication->shutdown();
     }
+    _promises.setRunnerError(lk, status);
     ensureFulfilledPromise(lk, _completionPromise, status);
 }
 
@@ -849,30 +816,13 @@ void ReshardingRecipientService::RecipientStateMachine::onCoordinatorStateAdvanc
 
 void ReshardingRecipientService::RecipientStateMachine::_onCoordinatorStateAdvanced(
     WithLock lk, CoordinatorStateEnum newState, boost::optional<CloneDetails> cloneDetails) {
-    if (cloneDetails && newState >= CoordinatorStateEnum::kCloning) {
-        ensureFulfilledPromise(lk, _allDonorsPreparedToDonate, std::move(*cloneDetails));
-    }
+    _promises.onCoordinatorStateAdvanced(lk, newState, std::move(cloneDetails));
 
     if (newState == CoordinatorStateEnum::kBlockingWrites) {
         if (_dataReplication) {
             _dataReplication->prepareForCriticalSection();
         }
     }
-
-    if (newState >= CoordinatorStateEnum::kBlockingWrites) {
-        ensureFulfilledPromise(lk, _coordinatorHasEngagedCriticalSection);
-    }
-
-    if (newState >= CoordinatorStateEnum::kCommitting) {
-        ensureFulfilledPromise(lk, _coordinatorHasDecisionPersisted);
-    }
-}
-
-SemiFuture<void>
-ReshardingRecipientService::RecipientStateMachine::awaitTransitionedToCreateCollection() {
-    std::lock_guard<std::mutex> lk(_mutex);
-    return future_util::withCancellation(_transitionedToCreateCollection.getFuture(),
-                                         _cancelState.getAbortOrStepdownToken());
 }
 
 ExecutorFuture<void> ReshardingRecipientService::RecipientStateMachine::
@@ -889,7 +839,7 @@ ExecutorFuture<void> ReshardingRecipientService::RecipientStateMachine::
         return ExecutorFuture(**executor);
     }
 
-    return future_util::withCancellation(_allDonorsPreparedToDonate.getFuture(),
+    return future_util::withCancellation(_promises.getAllDonorsPreparedToDonateFuture(),
                                          _cancelState.getAbortOrStepdownToken())
         .thenRunOn(**executor)
         .then([this, executor, factory](
@@ -905,16 +855,6 @@ ExecutorFuture<void> ReshardingRecipientService::RecipientStateMachine::
 
             _metrics->setDocumentsToProcessCounts(cloneDetails.approxDocumentsToCopy,
                                                   cloneDetails.approxBytesToCopy);
-        })
-        .then([this, factory] {
-            return resharding::waitForMajority(_cancelState.getAbortOrStepdownToken(), *factory);
-        })
-        .thenRunOn(**executor)
-        .then([this] {
-            {
-                std::lock_guard<std::mutex> lk(_mutex);
-                ensureFulfilledPromise(lk, _transitionedToCreateCollection);
-            }
         });
 }
 
@@ -1075,6 +1015,13 @@ void ReshardingRecipientService::RecipientStateMachine::_createAndStartChangeStr
         return;
     }
 
+    _createChangeStreamsMonitor(executor, factory);
+    _changeStreamsMonitorStarted.emplaceValue();
+}
+
+void ReshardingRecipientService::RecipientStateMachine::_createChangeStreamsMonitor(
+    const std::shared_ptr<executor::ScopedTaskExecutor>& executor,
+    std::shared_ptr<HierarchicalCancelableOperationContextFactory> factory) {
     auto batchCallback = [this, factory](const auto& batch) {
         boost::optional<long long> lagSecs;
         if (auto clusterTimeSecs = batch.getResumeTokenClusterTimeSecs()) {
@@ -1102,6 +1049,14 @@ void ReshardingRecipientService::RecipientStateMachine::_createAndStartChangeStr
         newChangeStreamsCtx.setDocumentsDelta(newChangeStreamsCtx.getDocumentsDelta() +
                                               batch.getDocumentsDelta());
         newChangeStreamsCtx.setCompleted(batch.containsFinalEvent());
+
+        reshardingRecipientFailsUpdatingChangeStreamsMonitorProgress.execute(
+            [&](const BSONObj& data) {
+                const auto& errorCode = data.getIntField("errorCode");
+                uasserted(ErrorCodes::Error(errorCode),
+                          "Simulating an error in recipient's changeStreamsMonitor via failpoint");
+            });
+
         _updateRecipientDocument(newChangeStreamsCtx, factory);
     };
 
@@ -1125,7 +1080,6 @@ void ReshardingRecipientService::RecipientStateMachine::_createAndStartChangeStr
             .share();
     _metrics->setStartFor(ReshardingMetrics::TimedPhase::kChangeStreamMonitor,
                           resharding::getCurrentTime());
-    _changeStreamsMonitorStarted.emplaceValue();
 }
 
 ExecutorFuture<void>
@@ -1142,31 +1096,62 @@ ReshardingRecipientService::RecipientStateMachine::_awaitChangeStreamsMonitorCom
     return future_util::withCancellation(_changeStreamsMonitor->awaitFinalChangeEvent(),
                                          _cancelState.getAbortOrStepdownToken())
         .thenRunOn(**executor)
-        .onCompletion([this](Status status) {
+        .onCompletion([this, executor, factory](Status status) {
             std::lock_guard<std::mutex> lk(_mutex);
             if (status.isOK()) {
                 _metrics->setEndFor(ReshardingMetrics::TimedPhase::kChangeStreamMonitor,
                                     resharding::getCurrentTime());
-            }
 
-            LOGV2(9858302,
-                  "The change streams monitor completed",
-                  "reshardingUUID"_attr = _metadata.getReshardingUUID(),
-                  "status"_attr = status,
-                  "changeStreamMonitorTotalTimeSecs"_attr = _metrics->getElapsed<Seconds>(
-                      ReshardingMetrics::TimedPhase::kChangeStreamMonitor,
-                      _serviceContext->getFastClockSource()),
-                  "strictConsistencyToMonitorCompletionSecs"_attr =
-                      _metrics->getCrossPhaseElapsed<Seconds>(
-                          ReshardingMetrics::TimedPhase::kStrictConsistency,
-                          ReshardingMetrics::TimedPhase::kChangeStreamMonitor));
+                LOGV2(9858302,
+                      "The change streams monitor completed",
+                      "reshardingUUID"_attr = _metadata.getReshardingUUID(),
+                      "status"_attr = status,
+                      "changeStreamMonitorTotalTimeSecs"_attr = _metrics->getElapsed<Seconds>(
+                          ReshardingMetrics::TimedPhase::kChangeStreamMonitor,
+                          _serviceContext->getFastClockSource()),
+                      "strictConsistencyToMonitorCompletionSecs"_attr =
+                          _metrics->getCrossPhaseElapsed<Seconds>(
+                              ReshardingMetrics::TimedPhase::kStrictConsistency,
+                              ReshardingMetrics::TimedPhase::kChangeStreamMonitor));
 
-            if (status.isOK()) {
                 ensureFulfilledPromise(lk,
                                        _changeStreamsMonitorCompleted,
                                        _changeStreamsMonitorCtx->getDocumentsDelta());
+                return ExecutorFuture<void>(**executor, Status::OK());
             } else {
-                ensureFulfilledPromise(lk, _changeStreamsMonitorCompleted, status);
+                if (_cancelState.isAbortedOrSteppingDown() ||
+                    status.isA<ErrorCategory::NotPrimaryError>()) {
+                    ensureFulfilledPromise(lk, _changeStreamsMonitorCompleted, status);
+                    return ExecutorFuture<void>(**executor, Status::OK());
+                }
+
+                if (resharding::isRetryableChangeStreamsMonitorError(status)) {
+                    LOGV2_WARNING(10903200,
+                                  "Change streams monitor failed with retryable error, will "
+                                  "recreate",
+                                  "reshardingUUID"_attr = _metadata.getReshardingUUID(),
+                                  "error"_attr = status);
+                    return _changeStreamsMonitor->awaitCleanup()
+                        .thenRunOn(**executor)
+                        .then([this, executor, factory]() {
+                            _createChangeStreamsMonitor(executor, factory);
+                            return _awaitChangeStreamsMonitorCompleted(executor, factory);
+                        });
+                } else {
+                    if (_recipientCtx.getState() >= RecipientStateEnum::kStrictConsistency) {
+                        LOGV2_FATAL(
+                            10903201,
+                            "Change streams monitor failed with unrecoverable error past the "
+                            "point recipient was prepared to complete the resharding operation",
+                            "error"_attr = status);
+                    }
+                    LOGV2_WARNING(10903202,
+                                  "Change streams monitor failed with unrecoverable error",
+                                  "reshardingUUID"_attr = _metadata.getReshardingUUID(),
+                                  "error"_attr = status);
+                    ensureFulfilledPromise(lk, _changeStreamsMonitorCompleted, status);
+                    return ExecutorFuture<void>(**executor, status);
+                }
             }
         });
 }
@@ -1420,17 +1405,6 @@ ReshardingRecipientService::RecipientStateMachine::_buildIndexThenTransitionToAp
                     }
                     _transitionToApplying(factory);
                 });
-        })
-        .onCompletion([this, executor](Status status) {
-            if (_cancelState.isAbortedOrSteppingDown()) {
-                return ExecutorFuture<void>(**executor, status);
-            }
-
-            {
-                std::lock_guard<std::mutex> lk(_mutex);
-                ensureFulfilledPromise(lk, _inApplyingOrError);
-            }
-            return ExecutorFuture<void>(**executor, status);
         });
 }
 
@@ -1471,9 +1445,8 @@ ExecutorFuture<void> ReshardingRecipientService::RecipientStateMachine::
                       "going to own any chunks for the collection after resharding");
 
                 reshardingPauseRecipientBeforeWaitingForCriticalSection.pauseWhileSet();
-                return future_util::withCancellation(
-                    _coordinatorHasEngagedCriticalSection.getFuture(),
-                    _cancelState.getAbortOrStepdownToken());
+                return future_util::withCancellation(_promises.getCoordinatorBlockingWritesFuture(),
+                                                     _cancelState.getAbortOrStepdownToken());
             }
 
             {
@@ -1657,6 +1630,19 @@ void ReshardingRecipientService::RecipientStateMachine::_transitionState(
                logAttrs(_metadata.getSourceNss()),
                "collectionUUID"_attr = _metadata.getSourceUUID(),
                "reshardingUUID"_attr = _metadata.getReshardingUUID());
+
+    // Wait for majority before fulfilling any promises, so that external callers waiting on a
+    // specific event will not observe state that may be rolled back.
+    auto opCtx = _makeOperationContext(factory);
+    resharding::waitForMajority(opCtx.get(), _cancelState.getAbortOrStepdownToken())
+        .get(opCtx.get());
+    {
+        std::lock_guard<std::mutex> lk(_mutex);
+        _promises.onRecipientStateAdvanced(lk, newState);
+        if (newState == RecipientStateEnum::kError) {
+            _promises.setRecipientError(lk, resharding::getStatusFromAbortReason(_recipientCtx));
+        }
+    }
 }
 
 void ReshardingRecipientService::RecipientStateMachine::_transitionToCreatingCollection(
@@ -1808,18 +1794,6 @@ void ReshardingRecipientService::RecipientStateMachine::insertStateDocument(
     store.add(opCtx, recipientDoc, kNoWaitWriteConcern);
 }
 
-void ReshardingRecipientService::RecipientStateMachine::onCriticalSectionStarted() {
-    std::lock_guard<std::mutex> lk(_mutex);
-    tassert(ErrorCodes::ReshardCollectionInProgress,
-            "Critical section was engaged before this recipient enters the applying state",
-            _recipientCtx.getState() >= RecipientStateEnum::kApplying);
-
-    ensureFulfilledPromise(lk, _coordinatorHasEngagedCriticalSection);
-    if (_dataReplication) {
-        _dataReplication->prepareForCriticalSection();
-    }
-}
-
 void ReshardingRecipientService::RecipientStateMachine::commit() {
     std::lock_guard<std::mutex> lk(_mutex);
     tassert(ErrorCodes::ReshardCollectionInProgress,
@@ -1828,10 +1802,7 @@ void ReshardingRecipientService::RecipientStateMachine::commit() {
                 idl::serialize(_recipientCtx.getState())),
             _recipientCtx.getState() >= RecipientStateEnum::kStrictConsistency);
 
-    ensureFulfilledPromise(lk, _coordinatorHasEngagedCriticalSection);
-    if (!_coordinatorHasDecisionPersisted.getFuture().isReady()) {
-        _coordinatorHasDecisionPersisted.emplaceValue();
-    }
+    _promises.fulfillCoordinatorCommit(lk);
 }
 
 void ReshardingRecipientService::RecipientStateMachine::_updateRecipientDocument(
@@ -2297,48 +2268,14 @@ void ReshardingRecipientService::RecipientStateMachine::abort(bool isUserCancell
 
     {
         std::lock_guard<std::mutex> lk(_mutex);
-        ensureFulfilledPromise(
-            lk, _coordinatorHasEngagedCriticalSection, resharding::kCoordinatorAbortedError);
-        ensureFulfilledPromise(
-            lk, _coordinatorHasDecisionPersisted, resharding::kCoordinatorAbortedError);
+        _promises.setCoordinatorError(lk, resharding::kCoordinatorAbortedError);
     }
 }
 
 void ReshardingRecipientService::RecipientStateMachine::_fulfillPromisesOnStepup(
-    boost::optional<mongo::ReshardingRecipientMetrics> metrics) {
+    const ReshardingRecipientDocument& document) {
     std::lock_guard<std::mutex> lk(_mutex);
-
-    if (_recipientCtx.getState() >= RecipientStateEnum::kApplying) {
-        ensureFulfilledPromise(lk, _inApplyingOrError);
-    }
-    if (_recipientCtx.getState() >= RecipientStateEnum::kStrictConsistency) {
-        ensureFulfilledPromise(lk, _inStrictConsistencyOrError);
-        // Fulfill coordinator-state-driven promises based on the inferred coordinator state.
-        // The coordinator must have reached at least kBlockingWrites before the recipient could
-        // enter kStrictConsistency, and at least kCommitting before kDone.
-        if (_recipientCtx.getState() == RecipientStateEnum::kDone) {
-            _onCoordinatorStateAdvanced(lk, CoordinatorStateEnum::kCommitting, boost::none);
-        } else {
-            _onCoordinatorStateAdvanced(lk, CoordinatorStateEnum::kBlockingWrites, boost::none);
-        }
-    }
-
-    if (!resharding::gFeatureFlagReshardingCloneNoRefresh.isEnabled(
-            resharding::getVersionContextOrDefault(_forwardableOpMetadata),
-            serverGlobalParams.featureCompatibility.acquireFCVSnapshot()) ||
-        _recipientCtx.getState() <= RecipientStateEnum::kAwaitingFetchTimestamp) {
-        return;
-    }
-
-    if (metrics && _cloneTimestamp) {
-        ensureFulfilledPromise(lk,
-                               _allDonorsPreparedToDonate,
-                               {*_cloneTimestamp,
-                                *metrics->getApproxDocumentsToCopy(),
-                                *metrics->getApproxBytesToCopy(),
-                                _donorShards});
-    }
-    ensureFulfilledPromise(lk, _transitionedToCreateCollection);
+    _promises.recover(lk, document);
 }
 
 otel::traces::Span ReshardingRecipientService::RecipientStateMachine::_startSpan(

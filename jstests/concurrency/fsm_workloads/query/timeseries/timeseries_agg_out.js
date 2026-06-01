@@ -25,7 +25,9 @@ import {$config as $baseConfig} from "jstests/concurrency/fsm_workloads/query/ag
 import {
     areViewlessTimeseriesEnabled,
     getTimeseriesBucketsColl,
+    isTrackedTimeseries,
 } from "jstests/core/timeseries/libs/viewless_timeseries_util.js";
+import {FixtureHelpers} from "jstests/libs/fixture_helpers.js";
 
 export const $config = extendWorkload($baseConfig, function ($config, $super) {
     const timeFieldName = "time";
@@ -39,6 +41,8 @@ export const $config = extendWorkload($baseConfig, function ($config, $super) {
      */
     $config.states.query = function query(db, collName) {
         jsTestLog(`Running query: coll=${collName} out=${this.outputCollName}`);
+        const sourceCollectionWasUntrackedBeforeQuery =
+            FixtureHelpers.maySkipImplicitSharding() && !isTrackedTimeseries(db.getCollection(collName));
         const res = db[collName].runCommand({
             aggregate: collName,
             pipeline: [
@@ -72,18 +76,27 @@ export const $config = extendWorkload($baseConfig, function ($config, $super) {
             // collection options, but then created by another thread before $out finished
             // timeseries options validation.
             7268700,
+            // $out's temporary collection can be dropped by a concurrent thread mid-execution.
+            ErrorCodes.NamespaceNotFound,
         ];
 
         // TODO (SERVER-88275) a moveCollection can cause the original collection to be dropped and
         // re-created with a different uuid, causing the aggregation to fail with QueryPlannedKilled
         // when the mongos is fetching data from the shard using getMore(). Remove
-        // the interruptedQueryErrors from allowedErrorCodes once this bug is being addressed
+        // the interruptedQueryErrors from allowedErrorCodes once this bug is being addressed.
         if (TestData.runningWithBalancer) {
             allowedErrorCodes = allowedErrorCodes.concat(interruptedQueryErrors);
             // On slow builds with the balancer enabled, it is possible for the router to exhaust
             // all refresh attempts without converging, causing the StaleConfig error to be returned
             // to the client.
             allowedErrorCodes.push(ErrorCodes.StaleConfig);
+        }
+        // When the source collection is untracked, we might encounter a concurrent movePrimary
+        // which drops and recreates the collection on the donor shard, triggering the same class of
+        // interruption (QueryPlanKilled / NamespaceNotFound).
+        if (sourceCollectionWasUntrackedBeforeQuery) {
+            allowedErrorCodes.push(ErrorCodes.NamespaceNotFound);
+            allowedErrorCodes.push(ErrorCodes.QueryPlanKilled);
         }
 
         assert.commandWorkedOrFailedWithCode(res, allowedErrorCodes);
@@ -157,11 +170,24 @@ export const $config = extendWorkload($baseConfig, function ($config, $super) {
     $config.states.createIndexes = function createIndexes(db, unusedCollName) {
         // Create timeseries_agg_out as timeseries before running createIndex to prevent the case
         // the collection is created for the first time by the createIndex itself.
+        const allowedErrorCodes = [ErrorCodes.NamespaceExists];
+        // TODO (SERVER-88275) On slow builds with the balancer enabled, the router can exhaust
+        // all refresh attempts without converging, causing StaleConfig to be returned.
+        if (TestData.runningWithBalancer) {
+            allowedErrorCodes.push(ErrorCodes.StaleConfig);
+        }
+        if (FixtureHelpers.maySkipImplicitSharding()) {
+            // In suites that only sometimes implicitly track the timeseries collection, the router
+            // could exhaust the retry attempts on StaleConfig because we repeatedly drop and
+            // re-create the collection, causing its shard version to change continuously.
+            allowedErrorCodes.push(ErrorCodes.StaleConfig);
+        }
+
         assert.commandWorkedOrFailedWithCode(
             db.createCollection(this.outputCollName, {
                 timeseries: {timeField: timeFieldName, metaField: metaFieldName},
             }),
-            [ErrorCodes.NamespaceExists],
+            allowedErrorCodes,
         );
 
         for (let i = 0; i < this.indexSpecs; ++i) {

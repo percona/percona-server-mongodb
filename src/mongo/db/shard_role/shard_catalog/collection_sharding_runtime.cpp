@@ -447,6 +447,10 @@ void CollectionShardingRuntime::_clearFilteringMetadata(OperationContext* opCtx,
         _placementVersionInRecoverOrRefresh->cancellationSource.cancel();
     }
 
+    _shardVersionWaiters.cancelWaiters(Status{ErrorCodes::CallbackCanceled,
+                                              "Filtering metadata got cleared, cancelling callback "
+                                              "to re-evaluate if it's still necessary"});
+
     if (_nss.isNamespaceAlwaysUntracked()) {
         // The namespace is always marked as untracked thus there is no need to clear anything.
         return;
@@ -485,31 +489,16 @@ void CollectionShardingRuntime::clearFilteringMetadata_authoritative(OperationCo
 
 void CollectionShardingRuntime::clearFilteringMetadata_authoritative(OperationContext* opCtx,
                                                                      const UUID& collectionUuid) {
-    if (_metadataType == MetadataType::kTracked) {
-        tassert(11995200,
-                "Expected to find matching uuid if collection is tracked and metadata is known",
-                _metadataManager && _metadataManager->getCollectionUuid().has_value() &&
-                    collectionUuid == _metadataManager->getCollectionUuid().get());
-    }
-
     _clearFilteringMetadata(opCtx, /* collIsDropped */ false);
     _authoritativeState = AuthoritativeState::kAuthoritative;
 }
 
 void CollectionShardingRuntime::clearFilteringMetadataForDroppedCollection_authoritative(
     OperationContext* opCtx, const UUID& collectionUuid) {
-    // TODO (SERVER-123346): Re-enable this assertion once unshardCollection does not leave stale
-    // UUID metadata on shards.
-    //
-    // if (_metadataType == MetadataType::kTracked) {
-    //    tassert(12220902,
-    //        "Expected to find matching uuid if collection is tracked and metadata is known",
-    //        _metadataManager && _metadataManager->getCollectionUuid().has_value() &&
-    //            collectionUuid == _metadataManager->getCollectionUuid().get());
-    //}
-
     _clearFilteringMetadata(opCtx, /* collIsDropped */ true);
     _authoritativeState = AuthoritativeState::kAuthoritative;
+    // Since we are dropping the collection, allowChunkOperations should be reset to `true`.
+    _allowChunkOperations = true;
 }
 
 Status CollectionShardingRuntime::waitForClean(OperationContext* opCtx,
@@ -835,6 +824,14 @@ void CollectionShardingRuntime::setNonAuthoritative() {
     _authoritativeState = AuthoritativeState::kNonAuthoritative;
 }
 
+bool CollectionShardingRuntime::allowChunkOperations() const {
+    return _allowChunkOperations;
+}
+
+void CollectionShardingRuntime::setAllowChunkOperations(bool allowChunkOperations) {
+    _allowChunkOperations = allowChunkOperations;
+}
+
 CollectionCriticalSection::CollectionCriticalSection(OperationContext* opCtx,
                                                      NamespaceString nss,
                                                      BSONObj reason)
@@ -848,9 +845,6 @@ CollectionCriticalSection::CollectionCriticalSection(OperationContext* opCtx,
                                    _opCtx->getServiceContext()->getPreciseClockSource()->now() +
                                    Milliseconds(migrationLockAcquisitionMaxWaitMS.load())));
     auto scopedCsr = CollectionShardingRuntime::acquireExclusive(_opCtx, _nss);
-    tassert(7032305,
-            "Collection metadata unknown when entering critical section",
-            scopedCsr->getCurrentMetadataIfKnown());
     scopedCsr->enterCriticalSectionCatchUpPhase(_opCtx, _reason);
 }
 
@@ -867,9 +861,6 @@ void CollectionCriticalSection::enterCommitPhase() {
                                    _opCtx->getServiceContext()->getPreciseClockSource()->now() +
                                    Milliseconds(migrationLockAcquisitionMaxWaitMS.load())));
     auto scopedCsr = CollectionShardingRuntime::acquireExclusive(_opCtx, _nss);
-    tassert(7032304,
-            "Collection metadata unknown when entering critical section commit phase",
-            scopedCsr->getCurrentMetadataIfKnown());
     scopedCsr->enterCriticalSectionCommitPhase(_opCtx, _reason);
 }
 

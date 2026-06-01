@@ -167,7 +167,6 @@ void MakeObjStageBase<O>::open(bool reOpen) {
 
     _commonStats.opens++;
     _children[0]->open(reOpen);
-    _childOpened = true;
 }
 
 template <>
@@ -327,7 +326,7 @@ void MakeObjStageBase<MakeObjOutputType::Object>::produceObject() {
             }
             // Now we have to make a decision - return Nothing or the original _root.
             if (!_returnOldObject) {
-                _obj.reset(value::TagValueView{value::TypeTags::Nothing, 0});
+                _obj.reset(value::TagValueView::nothing());
             } else {
                 // _root is not an object return it unmodified.
                 _obj.reset(value::TagValueView{tag, val});
@@ -478,7 +477,7 @@ void MakeObjStageBase<MakeObjOutputType::BsonObject>::produceObject() {
             }
             // Now we have to make a decision - return Nothing or the original _root.
             if (!_returnOldObject) {
-                _obj.reset(value::TagValueView{value::TypeTags::Nothing, 0});
+                _obj.reset(value::TagValueView::nothing());
             } else {
                 // _root is not an object return it unmodified.
                 _obj.reset(value::TagValueView{tag, val});
@@ -515,10 +514,7 @@ void MakeObjStageBase<O>::close() {
     auto optTimer(getOptTimer(_opCtx));
 
     trackClose();
-    if (_childOpened) {
-        _children[0]->close();
-        _childOpened = false;
-    }
+    _children[0]->close();
 }
 
 template <typename O>

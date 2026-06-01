@@ -31,6 +31,12 @@
 
 #include "mongo/base/status_with.h"
 #include "mongo/bson/bsonobjbuilder.h"
+#include "mongo/db/exec/classic/subplan.h"
+#include "mongo/db/field_ref.h"
+#include "mongo/db/matcher/expression.h"
+#include "mongo/db/matcher/expression_leaf.h"
+#include "mongo/db/matcher/expression_tree.h"
+#include "mongo/db/matcher/extensions_callback_noop.h"
 #include "mongo/db/pipeline/document_source_geo_near.h"
 #include "mongo/db/pipeline/document_source_internal_join_hint.h"
 #include "mongo/db/pipeline/document_source_lookup.h"
@@ -40,7 +46,9 @@
 #include "mongo/db/query/compiler/dependency_analysis/pipeline_dependency_graph.h"
 #include "mongo/db/query/compiler/optimizer/join/path_resolver.h"
 #include "mongo/db/query/compiler/optimizer/join/predicate_extractor.h"
+#include "mongo/db/query/compiler/parsers/matcher/expression_parser.h"
 #include "mongo/db/query/util/disjoint_set.h"
+#include "mongo/util/assert_util.h"
 
 #include <memory>
 #include <utility>
@@ -77,6 +85,10 @@ StatusWith<std::unique_ptr<CanonicalQuery>> createCanonicalQueryFromSingleMatchE
     CanonicalQueryParams params{.expCtx = expCtx, .parsedFind = std::move(pfc.getValue())};
     auto cq = CanonicalQuery::make(std::move(params));
     expCtx->setPlanCache(oldPlanCache);
+    if (cq.isOK() && SubplanStage::canUseSubplanning(*cq.getValue())) {
+        return Status(ErrorCodes::QueryFeatureNotAllowed,
+                      "Encountered rooted $or, can't use subplanning together with join opt");
+    }
     return cq;
 }
 
@@ -87,7 +99,11 @@ struct Predicates {
 
 StatusWith<Predicates> extractPredicatesFromLookup(DocumentSourceLookUp& stage) {
     auto expCtx = stage.getSubpipelineExpCtx();
-    if (stage.hasPipeline() && !stage.getResolvedIntrospectionPipeline().empty()) {
+
+    std::vector<JoinPredicateExpr> joinPredicates;
+    std::unique_ptr<MatchExpression> singleTablePredicates;
+
+    if (!stage.getResolvedIntrospectionPipeline().empty()) {
         auto ds = stage.getResolvedIntrospectionPipeline().peekFront();
         auto match = dynamic_cast<DocumentSourceMatch*>(ds);
         tassert(11317205, "expected $match stage as leading stage in subpipeline", match);
@@ -99,25 +115,53 @@ StatusWith<Predicates> extractPredicatesFromLookup(DocumentSourceLookUp& stage) 
                           "Encountered subpipeline with $match containing non-equijoin correlated "
                           "predicates");
         }
-
-        std::unique_ptr<CanonicalQuery> cq;
-        if (splitRes->singleTablePredicates) {
-            auto swCq = createCanonicalQueryFromSingleMatchExpression(
-                expCtx, stage.getFromNs(), std::move(splitRes->singleTablePredicates));
-            if (!swCq.isOK()) {
-                return swCq.getStatus();
-            }
-            cq = std::move(swCq.getValue());
-        } else {
-            cq = makeFullScanCQ(expCtx);
-        }
-
-        return {{
-            .canonicalQuery = std::move(cq),
-            .joinPredicates = std::move(splitRes->joinPredicates),
-        }};
+        joinPredicates = std::move(splitRes->joinPredicates);
+        singleTablePredicates = std::move(splitRes->singleTablePredicates);
     }
-    return {{.canonicalQuery = makeFullScanCQ(expCtx)}};
+
+    // Absorbed filter, reachable via getAbsorbedFilter() for both pipeline-form and non-pipeline
+    // $lookups. For pipeline-form $lookups the introspection pipeline above may have produced a
+    // singleTablePredicates from the user's sub-pipeline $match; combine the two with $and.
+    if (stage.hasAdditionalFilter()) {
+        auto swExpr = MatchExpressionParser::parse(stage.getAbsorbedFilter(),
+                                                   stage.getSubpipelineExpCtx(),
+                                                   ExtensionsCallbackNoop(),
+                                                   Pipeline::kAllowedMatcherFeatures);
+        if (!swExpr.isOK()) {
+            return swExpr.getStatus();
+        }
+        if (singleTablePredicates) {
+            // We construct the AND by first adding the sub-pipeline $match (singleTablePredicates),
+            // followed by the absorbed filter's $match. Note that downstream CanonicalQuery
+            // construction stable-sorts the children of $and by MatchExpression type (with field
+            // path as a secondary tiebreak within the same type), so the order here may not be
+            // maintained.
+            singleTablePredicates =
+                makeAnd(std::move(singleTablePredicates), std::move(swExpr.getValue()));
+        } else {
+            singleTablePredicates = std::move(swExpr.getValue());
+        }
+    }
+    // If neither branch is hit, then this a non-pipeline or empty subpipeline (pipeline: []) lookup
+    // with no absorbed filters. In this case, 'joinPredicates' and 'singleTablePredicates' stay
+    // empty and the foreign CQ is the full scan.
+
+    std::unique_ptr<CanonicalQuery> cq;
+    if (singleTablePredicates) {
+        auto swCq = createCanonicalQueryFromSingleMatchExpression(
+            expCtx, stage.getFromNs(), std::move(singleTablePredicates));
+        if (!swCq.isOK()) {
+            return swCq.getStatus();
+        }
+        cq = std::move(swCq.getValue());
+    } else {
+        cq = makeFullScanCQ(expCtx);
+    }
+
+    return {{
+        .canonicalQuery = std::move(cq),
+        .joinPredicates = std::move(joinPredicates),
+    }};
 }
 
 BSONObj resolvedPathToBSON(const ResolvedPath& rp) {
@@ -139,7 +183,6 @@ bool isUnwindEligible(const DocumentSourceUnwind& unwind) {
 }
 
 bool isLookupEligible(const DocumentSourceLookUp& lookup) {
-
     if (lookup.getExpCtx()->getSubPipelineDepth() != 0) {
         // We've descended into a subpipelined, fallback.
         return false;
@@ -149,17 +192,21 @@ bool isLookupEligible(const DocumentSourceLookUp& lookup) {
         return false;
     }
 
-    // TODO SERVER-116033: Support absorbed single-table additional filter predicates.
-    if (lookup.hasAdditionalFilter()) {
-        return false;
-    }
-
-    if (!lookup.hasPipeline() || lookup.getResolvedIntrospectionPipeline().empty()) {
-        // A $lookup with no sub-pipeline is eligible.
+    // $lookup specified with localField/foreignField only (no pipeline spec). An absorbed filter,
+    // if any, is reachable via getAbsorbedFilter() and handled in extractPredicatesFromLookup().
+    if (!lookup.hasPipeline()) {
         return true;
     }
 
-    // If the $lookup has a sub-pipeline, then it may only contain a $match stage.
+    // pipeline:[] passes this check — the absorbed filter, if any, is read via
+    // getAbsorbedFilter() in extractPredicatesFromLookup(). Disconnected graphs (no join
+    // predicate from any source) are rejected later by constructJoinModel.
+    if (lookup.getResolvedIntrospectionPipeline().empty()) {
+        return true;
+    }
+
+    // Otherwise the sub-pipeline must contain a single $match stage. The absorbed filter (if any)
+    // is combined with that $match in extractPredicatesFromLookup().
     return lookup.getResolvedIntrospectionPipeline().size() == 1 &&
         dynamic_cast<DocumentSourceMatch*>(lookup.getResolvedIntrospectionPipeline().peekFront());
 }
@@ -222,18 +269,41 @@ Status addExprJoinPredicates(MutableJoinGraph& graph,
     return Status::OK();
 }
 
+bool canJoinPredicateFieldIncludeArrays(
+    const pipeline::dependency_graph::DependencyGraph& baseCollDeps,
+    ExpressionContext* expCtx,
+    const DocumentSource* ds,
+    const NamespaceString& ns,
+    const FieldPath& field) {
+    if (ns == expCtx->getNamespaceString()) {
+        return baseCollDeps.canPathBeArray(ds, field.fullPath());
+    }
+    // TODO SERVER-126992: Use a dependency graph instead of directly accessing foreign path
+    // arrayness.
+    return expCtx->canPathBeArrayForNss(field, ns);
+}
+
 /**
  * Validates that neither field in the join predicate can include arrays.
- * TODO SERVER-123953: Use a dependency graph instead of directly accessing foreign path arrayness.
  */
 bool canJoinPredicateIncludeArrays(const pipeline::dependency_graph::DependencyGraph& baseCollDeps,
                                    ExpressionContext* expCtx,
-                                   DocumentSource* ds,
-                                   const FieldPath& localField,
-                                   const NamespaceString& foreignNs,
-                                   const FieldPath& foreignField) {
-    return baseCollDeps.canPathBeArray(ds, localField.fullPath()) ||
-        expCtx->canPathBeArrayForNss(foreignField, foreignNs);
+                                   const DocumentSource* ds,
+                                   const NamespaceString& leftNs,
+                                   const FieldPath& leftField,
+                                   const NamespaceString& rightNs,
+                                   const FieldPath& rightField) {
+    return canJoinPredicateFieldIncludeArrays(baseCollDeps, expCtx, ds, leftNs, leftField) ||
+        canJoinPredicateFieldIncludeArrays(baseCollDeps, expCtx, ds, rightNs, rightField);
+}
+
+bool hasNumericPathComponent(const FieldPath& fp) {
+    for (size_t i = 0; i < fp.getPathLength(); ++i) {
+        if (FieldRef::isNumericPathComponentLenient(fp.getFieldName(i))) {
+            return true;
+        }
+    }
+    return false;
 }
 
 }  // namespace
@@ -298,6 +368,11 @@ StatusWith<AggJoinModel> AggJoinModel::constructJoinModel(const Pipeline& pipeli
         return swCQ.getStatus();
     }
 
+    if (SubplanStage::canUseSubplanning(*swCQ.getValue())) {
+        return Status(ErrorCodes::QueryFeatureNotAllowed,
+                      "Encountered rooted $or, can't use subplanning together with join opt");
+    }
+
     if (swCQ.getValue()->getSortPattern()) {
         return Status(ErrorCodes::BadValue, "Sort stage found in pipeline");
     }
@@ -318,6 +393,18 @@ StatusWith<AggJoinModel> AggJoinModel::constructJoinModel(const Pipeline& pipeli
     std::vector<ResolvedPath> resolvedPaths;
     PathResolver pathResolver{*baseNodeId, resolvedPaths};
 
+    const auto isJoinPredicateIneligible = [&](const NamespaceString& leftNs,
+                                               const FieldPath& leftField,
+                                               const NamespaceString& rightNs,
+                                               const FieldPath& rightField,
+                                               const DocumentSource* src) {
+        // Ensures join predicate fields don't include numeric path components and can't include
+        // arrays.
+        return hasNumericPathComponent(leftField) || hasNumericPathComponent(rightField) ||
+            canJoinPredicateIncludeArrays(
+                   mainCollDeps, clonedExpCtx.get(), src, leftNs, leftField, rightNs, rightField);
+    };
+
     // Go through the pipeline trying to find the maximal chain of join optimization eligible
     // $lookup+$unwinds pairs and turning them into CanonicalQueries. At the end only ineligible for
     // join optimization stages are left in the suffix.
@@ -336,15 +423,13 @@ StatusWith<AggJoinModel> AggJoinModel::constructJoinModel(const Pipeline& pipeli
                 break;
             }
 
-            // Ensure that neither local nor foreign field can include arrays (if present).
             if (lookup->hasLocalFieldForeignFieldJoin() &&
-                canJoinPredicateIncludeArrays(mainCollDeps,
-                                              clonedExpCtx.get(),
-                                              lookup,
-                                              *lookup->getLocalField(),
-                                              lookup->getFromNs(),
-                                              *lookup->getForeignField())) {
-                // End prefix here, this join predicate might include arrays.
+                isJoinPredicateIneligible(expCtx->getNamespaceString(),
+                                          *lookup->getLocalField(),
+                                          lookup->getFromNs(),
+                                          *lookup->getForeignField(),
+                                          lookup)) {
+                // End prefix here, this join predicate is invalid.
                 break;
             }
 
@@ -361,15 +446,14 @@ StatusWith<AggJoinModel> AggJoinModel::constructJoinModel(const Pipeline& pipeli
             // Similar check as above, but now for predicates extracted from the sub-pipeline.
             if (std::any_of(
                     preds.joinPredicates.begin(), preds.joinPredicates.end(), [&](auto&& jp) {
-                        return canJoinPredicateIncludeArrays(mainCollDeps,
-                                                             clonedExpCtx.get(),
-                                                             lookup,
-                                                             jp.localField(),
-                                                             lookup->getFromNs(),
-                                                             jp.foreignField());
+                        return isJoinPredicateIneligible(expCtx->getNamespaceString(),
+                                                         jp.localField(),
+                                                         lookup->getFromNs(),
+                                                         jp.foreignField(),
+                                                         lookup);
                     })) {
                 // Some field in a join predicate introduced by a $expr $match in a sub-pipeline
-                // might have array values. End prefix here.
+                // might be ineligible. End prefix here.
                 break;
             }
 
@@ -428,21 +512,38 @@ StatusWith<AggJoinModel> AggJoinModel::constructJoinModel(const Pipeline& pipeli
             tassert(11116400, "unexpected $match", !prefix->getSources().empty());
 
             auto result = extractExprPredicates(pathResolver, match->getMatchExpression());
+            bool canMatchBeEliminated = result.expressionIsFullyAbsorbed;
             for (const auto& predicate : result.predicates) {
                 auto leftNodeId = pathResolver[predicate.left].nodeId;
                 auto rightNodeId = pathResolver[predicate.right].nodeId;
                 tassert(11116401,
                         "Join predicate fields must be from different nodes",
                         leftNodeId != rightNodeId);
+
+                if (isJoinPredicateIneligible(graph.getNode(leftNodeId).collectionName,
+                                              pathResolver[predicate.left].fieldName,
+                                              graph.getNode(rightNodeId).collectionName,
+                                              pathResolver[predicate.right].fieldName,
+                                              match)) {
+                    // Some field in a join predicate introduced by this trailing $match is
+                    // ineligible. Don't absorb it.
+                    canMatchBeEliminated = false;
+                    continue;
+                }
+
                 graph.addEdge(leftNodeId, rightNodeId, {predicate});
             }
 
-            if (result.expressionIsFullyAbsorbed) {
-                auto next = suffix->popFront();
-                prefix->pushBack(std::move(next));
-            } else {
+            if (!canMatchBeEliminated) {
+                // End prefix here- this $match includes something we can't push into the join
+                // model.
                 break;
             }
+
+            // This $match encodes a valid join-predicate & can be fully absorbed into our
+            // join-graph.
+            prefix->pushBack(suffix->popFront());
+
         } else {
             // Unrecognized stage, give up on building a prefix.
             break;

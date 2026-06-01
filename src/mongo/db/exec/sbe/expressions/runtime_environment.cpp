@@ -43,15 +43,12 @@ RuntimeEnvironment::RuntimeEnvironment(const RuntimeEnvironment& other)
     }
 }
 
-RuntimeEnvironment::~RuntimeEnvironment() {
-    if (_state.use_count() == 1) {
-        for (size_t idx = 0; idx < _state->values.size(); ++idx) {
-            auto [owned, tag, val] = _state->values[idx];
-            if (owned) {
-                releaseValue(tag, val);
-            }
-        }
-    }
+void RuntimeEnvironment::registerSlot(value::TypeTags tag,
+                                      value::Value val,
+                                      bool owned,
+                                      value::SlotId slotId) {
+    emplaceAccessor(slotId, _state->pushSlot(slotId));
+    _accessors.at(slotId).reset(value::TagValueMaybeOwned::fromRaw(owned, tag, val));
 }
 
 value::SlotId RuntimeEnvironment::registerSlot(StringData name,
@@ -70,8 +67,7 @@ value::SlotId RuntimeEnvironment::registerSlot(value::TypeTags tag,
                                                value::SlotIdGenerator* slotIdGenerator) {
     tassert(5645903, "Slot Id generator is null", slotIdGenerator);
     auto slot = slotIdGenerator->generate();
-    emplaceAccessor(slot, _state->pushSlot(slot));
-    _accessors.at(slot).reset(value::TagValueMaybeOwned::fromRaw(owned, tag, val));
+    registerSlot(tag, val, owned, slot);
     return slot;
 }
 

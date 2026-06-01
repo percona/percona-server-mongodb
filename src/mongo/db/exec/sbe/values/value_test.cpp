@@ -38,6 +38,7 @@
 #include "mongo/unittest/unittest.h"
 
 #include <functional>
+#include <limits>
 #include <tuple>
 
 
@@ -316,7 +317,7 @@ TEST_F(SbeValueTest, ArrayMoveIsDestructive) {
     value::Array arr1;
     auto pushStr = [](value::Array* arr, StringData str) {
         auto [t, v] = value::makeBigString(str);
-        arr->push_back(t, v);
+        arr->push_back_raw(t, v);
     };
 
     pushStr(&arr1, "foo");
@@ -336,7 +337,7 @@ TEST_F(SbeValueTest, ArrayForEachMoveIsDestructive) {
 
     auto pushStr = [](value::Array* arr, StringData str) {
         auto [t, v] = value::makeBigString(str);
-        arr->push_back(t, v);
+        arr->push_back_raw(t, v);
     };
 
     pushStr(&arr1, "foo");
@@ -353,8 +354,9 @@ TEST_F(SbeValueTest, ArrayForEachMoveIsDestructive) {
 
     value::Array arr2;
     // Move elements from arr1 into arr2.
-    value::arrayForEach<true>(
-        tag, val, [&](value::TypeTags elTag, value::Value elVal) { arr2.push_back(elTag, elVal); });
+    value::arrayForEach<true>(tag, val, [&](value::TypeTags elTag, value::Value elVal) {
+        arr2.push_back_raw(elTag, elVal);
+    });
 
     ASSERT_EQ(arr1.size(), 0);
     {
@@ -397,7 +399,7 @@ std::pair<value::TypeTags, value::Value> createArray(Args... args) {
     auto [arrayTag, arrayVal] = value::makeNewArray();
     auto array = value::getArrayView(arrayVal);
     for (const auto& [tag, val] : {args...}) {
-        array->push_back(tag, val);
+        array->push_back_raw(tag, val);
     }
     return {arrayTag, arrayVal};
 }
@@ -529,5 +531,68 @@ TEST_F(SbeValueTest, SortSpecCompareInvalid) {
     std::tie(cmpTag, cmpVal) = sortSpec.compare(tag2, val2, tag1, val1);
     ASSERT_EQ(cmpTag, value::TypeTags::Nothing);
     ASSERT_EQ(cmpVal, 0);
+}
+
+TEST_F(SbeValueTest, TagValueViewFactories) {
+    {
+        auto v = value::TagValueView::nothing();
+        ASSERT_EQ(v.tag, value::TypeTags::Nothing);
+        ASSERT_EQ(v.value, 0u);
+    }
+    {
+        auto v = value::TagValueView::null();
+        ASSERT_EQ(v.tag, value::TypeTags::Null);
+        ASSERT_EQ(v.value, 0u);
+    }
+    {
+        auto vt = value::TagValueView::boolean(true);
+        ASSERT_EQ(vt.tag, value::TypeTags::Boolean);
+        ASSERT_EQ(vt.value, value::bitcastFrom<bool>(true));
+
+        auto vf = value::TagValueView::boolean(false);
+        ASSERT_EQ(vf.tag, value::TypeTags::Boolean);
+        ASSERT_EQ(vf.value, value::bitcastFrom<bool>(false));
+    }
+    {
+        auto v = value::TagValueView::numberInt32(42);
+        ASSERT_EQ(v.tag, value::TypeTags::NumberInt32);
+        ASSERT_EQ(v.value, value::bitcastFrom<int32_t>(42));
+
+        auto neg = value::TagValueView::numberInt32(-1);
+        ASSERT_EQ(neg.tag, value::TypeTags::NumberInt32);
+        ASSERT_EQ(neg.value, value::bitcastFrom<int32_t>(-1));
+    }
+    {
+        auto v = value::TagValueView::numberInt64(std::numeric_limits<int64_t>::max());
+        ASSERT_EQ(v.tag, value::TypeTags::NumberInt64);
+        ASSERT_EQ(v.value, value::bitcastFrom<int64_t>(std::numeric_limits<int64_t>::max()));
+    }
+    {
+        auto v = value::TagValueView::numberDouble(3.14);
+        ASSERT_EQ(v.tag, value::TypeTags::NumberDouble);
+        ASSERT_EQ(v.value, value::bitcastFrom<double>(3.14));
+    }
+}
+
+TEST(SbeNumericCastTest, TagValueViewOverload) {
+    using namespace value;
+
+    TagValueView v32{TypeTags::NumberInt32, bitcastFrom<int32_t>(7)};
+    ASSERT_EQ(numericCast<int32_t>(v32), 7);
+    ASSERT_EQ(numericCast<int64_t>(v32), int64_t{7});
+    ASSERT_EQ(numericCast<double>(v32), 7.0);
+    ASSERT_EQ(numericCast<Decimal128>(v32), Decimal128(7));
+
+    TagValueView v64{TypeTags::NumberInt64, bitcastFrom<int64_t>(100LL)};
+    ASSERT_EQ(numericCast<int64_t>(v64), 100LL);
+    ASSERT_EQ(numericCast<double>(v64), 100.0);
+
+    TagValueView vd{TypeTags::NumberDouble, bitcastFrom<double>(2.5)};
+    ASSERT_EQ(numericCast<double>(vd), 2.5);
+
+    auto [decTag, decVal] = makeCopyDecimal(Decimal128("3.14"));
+    ValueGuard guard{decTag, decVal};
+    TagValueView vDec{decTag, decVal};
+    ASSERT_EQ(numericCast<Decimal128>(vDec), Decimal128("3.14"));
 }
 }  // namespace mongo::sbe

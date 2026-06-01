@@ -29,12 +29,16 @@
 
 #include "mongo/db/global_catalog/ddl/chunk_operation_sharding_coordinator.h"
 
+#include "mongo/db/global_catalog/ddl/merge_all_chunks_coordinator.h"
 #include "mongo/db/global_catalog/ddl/merge_chunks_coordinator.h"
 #include "mongo/db/global_catalog/ddl/sharding_coordinator_external_state_for_test.h"
 #include "mongo/db/global_catalog/ddl/split_chunk_coordinator.h"
 #include "mongo/db/global_catalog/ddl/test_chunk_operation_sharding_coordinator_document_gen.h"
 #include "mongo/db/repl/primary_only_service_test_fixture.h"
+#include "mongo/db/s/move_range_coordinator.h"
 #include "mongo/db/shard_role/lock_manager/locker.h"
+#include "mongo/db/shard_role/shard_catalog/collection_sharding_runtime.h"
+#include "mongo/db/topology/sharding_state.h"
 #include "mongo/executor/thread_pool_task_executor_test_fixture.h"
 
 #include <memory>
@@ -56,6 +60,10 @@ public:
 
 class ChunkOperationShardingCoordinatorTest : public repl::PrimaryOnlyServiceMongoDTest {
 public:
+    static inline const auto kTestNs = NamespaceString::createNamespaceString_forTest("test.test");
+    static inline const ShardId kTestShardId{"test-shard"};
+    static inline const KeyPattern kTestKeyPattern{BSON("x" << 1)};
+
     ChunkOperationShardingCoordinatorTest()
         : repl::PrimaryOnlyServiceMongoDTest(
               Options{}.addClientObserver(std::make_unique<ClientObserver>())),
@@ -70,11 +78,20 @@ public:
 
     void setUp() override {
         repl::PrimaryOnlyServiceMongoDTest::setUp();
+
+        ShardingState::get(getServiceContext())
+            ->setRecoveryCompleted({OID::gen(),
+                                    ClusterRole::ShardServer,
+                                    ConnectionString(HostAndPort("localhost", 27017)),
+                                    kTestShardId});
+
         _opCtx = cc().getOperationContext();
         if (!_opCtx) {
             _opCtxHolder = cc().makeOperationContext();
             _opCtx = _opCtxHolder.get();
         }
+
+        setupCollectionMetadata();
 
         auto network = std::make_unique<executor::NetworkInterfaceMock>();
         _network = network.get();
@@ -106,19 +123,74 @@ protected:
     ServiceContext::UniqueOperationContext _opCtxHolder;
     OperationContext* _opCtx;
 
+    ChunkType generateChunk(const UUID& collUuid) {
+        ChunkType chunk;
+        chunk.setName(OID::gen());
+        chunk.setCollectionUUID(collUuid);
+        chunk.setVersion(ChunkVersion({OID::gen(), Timestamp(1, 1)}, {1, 0}));
+        chunk.setShard(kTestShardId);
+        chunk.setRange({kTestKeyPattern.globalMin(), kTestKeyPattern.globalMax()});
+        chunk.setOnCurrentShardSince(Timestamp(1, 0));
+        chunk.setHistory({});
+        return chunk;
+    }
+
+    void setupCollectionMetadata() {
+        const auto uuid = UUID::gen();
+        const std::vector chunks{generateChunk(uuid)};
+        auto rt = RoutingTableHistory::makeNewAllowingGaps(kTestNs,
+                                                           uuid,
+                                                           kTestKeyPattern,
+                                                           false,
+                                                           nullptr,
+                                                           false,
+                                                           chunks[0].getVersion().epoch(),
+                                                           chunks[0].getVersion().getTimestamp(),
+                                                           boost::none,
+                                                           boost::none,
+                                                           true,
+                                                           chunks);
+        const auto version = rt.getVersion();
+        const auto rtHandle = RoutingTableHistoryValueHandle(
+            std::make_shared<RoutingTableHistory>(std::move(rt)),
+            ComparableChunkVersion::makeComparableChunkVersion(version));
+        const auto collectionMetadata =
+            CollectionMetadata(CurrentChunkManager(rtHandle), kTestShardId);
+        auto scopedCSR = CollectionShardingRuntime::acquireExclusive(_opCtx, kTestNs);
+        scopedCSR->setFilteringMetadata_authoritative(
+            _opCtx, collectionMetadata, CollectionShardingRuntime::NoRoutingTableAs::kUntracked);
+    }
+
     MergeChunksCoordinatorDocument makeMergeChunksCoordinatorDoc(std::vector<BSONObj> bounds,
                                                                  OID epoch) {
         MergeChunksCoordinatorDocument doc;
         ShardsvrMergeChunksRequest req;
         req.setBounds(bounds);
         req.setEpoch(epoch);
-        ShardingCoordinatorMetadata metadata{
-            {NamespaceString::createNamespaceString_forTest("test.coll"),
-             CoordinatorTypeEnum::kMergeChunks}};
+        ShardingCoordinatorMetadata metadata{{kTestNs, CoordinatorTypeEnum::kMergeChunks}};
         ForwardableOperationMetadata forwardableOpMetadata(_opCtx);
         metadata.setForwardableOpMetadata(forwardableOpMetadata);
         doc.setShardingCoordinatorMetadata(std::move(metadata));
         doc.setShardsvrMergeChunksRequest(req);
+        return doc;
+    }
+
+    MergeAllChunksCoordinatorDocument makeMergeAllChunksCoordinatorDoc(
+        const ShardId& shard,
+        int maxNumberOfChunksToMerge = std::numeric_limits<int>::max(),
+        int maxTimeProcessingChunksMS = std::numeric_limits<int>::max()) {
+        MergeAllChunksCoordinatorDocument doc;
+        ShardsvrMergeAllChunksOnShardRequest req;
+        req.setShard(shard);
+        req.setMaxNumberOfChunksToMerge(maxNumberOfChunksToMerge);
+        req.setMaxTimeProcessingChunksMS(maxTimeProcessingChunksMS);
+        ShardingCoordinatorMetadata metadata{
+            {NamespaceString::createNamespaceString_forTest("test.coll"),
+             CoordinatorTypeEnum::kMergeAllChunks}};
+        ForwardableOperationMetadata forwardableOpMetadata(_opCtx);
+        metadata.setForwardableOpMetadata(forwardableOpMetadata);
+        doc.setShardingCoordinatorMetadata(std::move(metadata));
+        doc.setShardsvrMergeAllChunksOnShardRequest(req);
         return doc;
     }
 
@@ -132,13 +204,33 @@ protected:
         req.setSplitKeys(std::move(splitKeys));
         req.setFrom("shard0000");
         req.setEpoch(epoch);
-        ShardingCoordinatorMetadata metadata{
-            {NamespaceString::createNamespaceString_forTest("test.split"),
-             CoordinatorTypeEnum::kSplitChunk}};
+        ShardingCoordinatorMetadata metadata{{kTestNs, CoordinatorTypeEnum::kSplitChunk}};
         ForwardableOperationMetadata forwardableOpMetadata(_opCtx);
         metadata.setForwardableOpMetadata(forwardableOpMetadata);
         doc.setShardingCoordinatorMetadata(std::move(metadata));
         doc.setShardsvrSplitChunkRequest(req);
+        return doc;
+    }
+
+    MoveRangeCoordinatorDocument makeMoveRangeCoordinatorDoc(BSONObj min,
+                                                             BSONObj max,
+                                                             ShardId fromShard,
+                                                             ShardId toShard) {
+        MoveRangeCoordinatorDocument doc;
+        ShardsvrMoveRangeRequest req;
+        req.setToShard(toShard);
+        req.setMin(min);
+        req.setMax(max);
+        req.setFromShard(fromShard);
+        req.setCollectionTimestamp(Timestamp(1, 1));
+        req.setMaxChunkSizeBytes(64 * 1024 * 1024);
+        ShardingCoordinatorMetadata metadata{
+            {NamespaceString::createNamespaceString_forTest("test.move"),
+             CoordinatorTypeEnum::kMoveRange}};
+        ForwardableOperationMetadata forwardableOpMetadata(_opCtx);
+        metadata.setForwardableOpMetadata(forwardableOpMetadata);
+        doc.setShardingCoordinatorMetadata(std::move(metadata));
+        doc.setShardsvrMoveRangeRequest(req);
         return doc;
     }
 
@@ -181,9 +273,7 @@ TEST_F(ChunkOperationShardingCoordinatorTest, SmokeTest) {
     CancellationSource cancellationSource;
 
     TestChunkOperationShardingCoordinatorDocument doc;
-    ShardingCoordinatorMetadata coorMetadata{
-        {NamespaceString::createNamespaceString_forTest("test"),
-         CoordinatorTypeEnum::kTestCoordinator}};
+    ShardingCoordinatorMetadata coorMetadata{{kTestNs, CoordinatorTypeEnum::kTestCoordinator}};
 
     ForwardableOperationMetadata forwardableOpMetadata(_opCtx);
     coorMetadata.setForwardableOpMetadata(forwardableOpMetadata);
@@ -203,6 +293,21 @@ TEST_F(ChunkOperationShardingCoordinatorTest, MergeChunksCheckIfOptionsConflictS
     auto coordinatorDoc = makeMergeChunksCoordinatorDoc(bounds, epoch);
 
     auto coordinator = std::make_shared<MergeChunksCoordinator>(
+        static_cast<ShardingCoordinatorService*>(_service), coordinatorDoc.toBSON());
+
+    // Same parameters — should not throw.
+    ASSERT_DOES_NOT_THROW(coordinator->checkIfOptionsConflict(coordinatorDoc.toBSON()));
+
+    // Satisfy destructor invariants by resolving internal promises.
+    static_cast<repl::PrimaryOnlyService::Instance*>(coordinator.get())
+        ->interrupt({ErrorCodes::Interrupted, "Test cleanup"});
+}
+
+TEST_F(ChunkOperationShardingCoordinatorTest, MergeAllChunksCheckIfOptionsConflictSameParams) {
+    const ShardId shard{"shard0"};
+    auto coordinatorDoc = makeMergeAllChunksCoordinatorDoc(shard);
+
+    auto coordinator = std::make_shared<MergeAllChunksCoordinator>(
         static_cast<ShardingCoordinatorService*>(_service), coordinatorDoc.toBSON());
 
     // Same parameters — should not throw.
@@ -240,6 +345,25 @@ TEST_F(ChunkOperationShardingCoordinatorTest, MergeChunksCheckIfOptionsConflictD
     // Different bounds — should throw.
     std::vector<BSONObj> differentBounds = {BSON("a" << 5), BSON("a" << 20)};
     auto otherDoc = makeMergeChunksCoordinatorDoc(differentBounds, epoch);
+
+    ASSERT_THROWS_CODE(coordinator->checkIfOptionsConflict(otherDoc.toBSON()),
+                       DBException,
+                       ErrorCodes::ConflictingOperationInProgress);
+
+    static_cast<repl::PrimaryOnlyService::Instance*>(coordinator.get())
+        ->interrupt({ErrorCodes::Interrupted, "Test cleanup"});
+}
+
+TEST_F(ChunkOperationShardingCoordinatorTest, MergeAllChunksCheckIfOptionsConflictDifferentShard) {
+    const ShardId shard{"shard0"};
+    auto coordinatorDoc = makeMergeAllChunksCoordinatorDoc(shard);
+
+    auto coordinator = std::make_shared<MergeAllChunksCoordinator>(
+        static_cast<ShardingCoordinatorService*>(_service), coordinatorDoc.toBSON());
+
+    // Different shard — should throw.
+    const ShardId differentShard{"shard1"};
+    auto otherDoc = makeMergeAllChunksCoordinatorDoc(differentShard);
 
     ASSERT_THROWS_CODE(coordinator->checkIfOptionsConflict(otherDoc.toBSON()),
                        DBException,
@@ -289,6 +413,25 @@ TEST_F(ChunkOperationShardingCoordinatorTest, MergeChunksCheckIfOptionsConflictD
         ->interrupt({ErrorCodes::Interrupted, "Test cleanup"});
 }
 
+TEST_F(ChunkOperationShardingCoordinatorTest,
+       MergeAllChunksCheckIfOptionsConflictDifferentMaxNumberOfChunks) {
+    const ShardId shard{"shard0"};
+    auto coordinatorDoc = makeMergeAllChunksCoordinatorDoc(shard, /*maxNumberOfChunksToMerge=*/100);
+
+    auto coordinator = std::make_shared<MergeAllChunksCoordinator>(
+        static_cast<ShardingCoordinatorService*>(_service), coordinatorDoc.toBSON());
+
+    // Different maxNumberOfChunksToMerge — should throw.
+    auto otherDoc = makeMergeAllChunksCoordinatorDoc(shard, /*maxNumberOfChunksToMerge=*/50);
+
+    ASSERT_THROWS_CODE(coordinator->checkIfOptionsConflict(otherDoc.toBSON()),
+                       DBException,
+                       ErrorCodes::ConflictingOperationInProgress);
+
+    static_cast<repl::PrimaryOnlyService::Instance*>(coordinator.get())
+        ->interrupt({ErrorCodes::Interrupted, "Test cleanup"});
+}
+
 TEST_F(ChunkOperationShardingCoordinatorTest, SplitChunkAppendCommandInfoIncludesRequestFields) {
     auto epoch = OID::gen();
     std::vector<BSONObj> splitKeys = {BSON("x" << 50), BSON("x" << 75)};
@@ -304,6 +447,117 @@ TEST_F(ChunkOperationShardingCoordinatorTest, SplitChunkAppendCommandInfoInclude
     ASSERT_BSONOBJ_EQ(cmdInfo.getObjectField("max"), BSON("x" << 100));
     ASSERT_EQ(cmdInfo.getStringField("from"), "shard0000");
     ASSERT_EQ(cmdInfo.getField("splitKeys").Array().size(), 2u);
+
+    static_cast<repl::PrimaryOnlyService::Instance*>(coordinator.get())
+        ->interrupt({ErrorCodes::Interrupted, "Test cleanup"});
+}
+
+TEST_F(ChunkOperationShardingCoordinatorTest, MoveRangeCheckIfOptionsConflictSameParams) {
+    auto coordinatorDoc = makeMoveRangeCoordinatorDoc(
+        BSON("a" << 0), BSON("a" << 100), ShardId{"shard0000"}, ShardId{"shard0001"});
+
+    auto coordinator = std::make_shared<MoveRangeCoordinator>(
+        static_cast<ShardingCoordinatorService*>(_service), coordinatorDoc.toBSON());
+
+    // Same parameters — should not throw.
+    ASSERT_DOES_NOT_THROW(coordinator->checkIfOptionsConflict(coordinatorDoc.toBSON()));
+
+    // Satisfy destructor invariants by resolving internal promises.
+    static_cast<repl::PrimaryOnlyService::Instance*>(coordinator.get())
+        ->interrupt({ErrorCodes::Interrupted, "Test cleanup"});
+}
+
+TEST_F(ChunkOperationShardingCoordinatorTest, MoveRangeCheckIfOptionsConflictDifferentBounds) {
+    auto coordinatorDoc = makeMoveRangeCoordinatorDoc(
+        BSON("a" << 0), BSON("a" << 100), ShardId{"shard0000"}, ShardId{"shard0001"});
+
+    auto coordinator = std::make_shared<MoveRangeCoordinator>(
+        static_cast<ShardingCoordinatorService*>(_service), coordinatorDoc.toBSON());
+
+    // Different bounds — should throw.
+    auto otherDoc = makeMoveRangeCoordinatorDoc(
+        BSON("a" << 50), BSON("a" << 150), ShardId{"shard0000"}, ShardId{"shard0001"});
+
+    ASSERT_THROWS_CODE(coordinator->checkIfOptionsConflict(otherDoc.toBSON()),
+                       DBException,
+                       ErrorCodes::ConflictingOperationInProgress);
+
+    static_cast<repl::PrimaryOnlyService::Instance*>(coordinator.get())
+        ->interrupt({ErrorCodes::Interrupted, "Test cleanup"});
+}
+
+TEST_F(ChunkOperationShardingCoordinatorTest, MoveRangeCheckIfOptionsConflictDifferentToShard) {
+    auto coordinatorDoc = makeMoveRangeCoordinatorDoc(
+        BSON("a" << 0), BSON("a" << 100), ShardId{"shard0000"}, ShardId{"shard0001"});
+
+    auto coordinator = std::make_shared<MoveRangeCoordinator>(
+        static_cast<ShardingCoordinatorService*>(_service), coordinatorDoc.toBSON());
+
+    // Different recipient shard — should throw.
+    auto otherDoc = makeMoveRangeCoordinatorDoc(
+        BSON("a" << 0), BSON("a" << 100), ShardId{"shard0000"}, ShardId{"shard0002"});
+
+    ASSERT_THROWS_CODE(coordinator->checkIfOptionsConflict(otherDoc.toBSON()),
+                       DBException,
+                       ErrorCodes::ConflictingOperationInProgress);
+
+    static_cast<repl::PrimaryOnlyService::Instance*>(coordinator.get())
+        ->interrupt({ErrorCodes::Interrupted, "Test cleanup"});
+}
+
+TEST_F(ChunkOperationShardingCoordinatorTest, MoveRangeCheckIfOptionsConflictDifferentFromShard) {
+    auto coordinatorDoc = makeMoveRangeCoordinatorDoc(
+        BSON("a" << 0), BSON("a" << 100), ShardId{"shard0000"}, ShardId{"shard0001"});
+
+    auto coordinator = std::make_shared<MoveRangeCoordinator>(
+        static_cast<ShardingCoordinatorService*>(_service), coordinatorDoc.toBSON());
+
+    // Different donor shard — should throw.
+    auto otherDoc = makeMoveRangeCoordinatorDoc(
+        BSON("a" << 0), BSON("a" << 100), ShardId{"shard0003"}, ShardId{"shard0001"});
+
+    ASSERT_THROWS_CODE(coordinator->checkIfOptionsConflict(otherDoc.toBSON()),
+                       DBException,
+                       ErrorCodes::ConflictingOperationInProgress);
+
+    static_cast<repl::PrimaryOnlyService::Instance*>(coordinator.get())
+        ->interrupt({ErrorCodes::Interrupted, "Test cleanup"});
+}
+
+TEST_F(ChunkOperationShardingCoordinatorTest, MoveRangeAppendCommandInfoIncludesRequestFields) {
+    auto coordinatorDoc = makeMoveRangeCoordinatorDoc(
+        BSON("a" << 0), BSON("a" << 100), ShardId{"shard0000"}, ShardId{"shard0001"});
+
+    auto coordinator = std::make_shared<MoveRangeCoordinator>(
+        static_cast<ShardingCoordinatorService*>(_service), coordinatorDoc.toBSON());
+
+    BSONObjBuilder cmdInfoBuilder;
+    coordinator->appendCommandInfo(&cmdInfoBuilder);
+    auto cmdInfo = cmdInfoBuilder.obj();
+    ASSERT_BSONOBJ_EQ(cmdInfo.getObjectField("min"), BSON("a" << 0));
+    ASSERT_BSONOBJ_EQ(cmdInfo.getObjectField("max"), BSON("a" << 100));
+    ASSERT_EQ(cmdInfo.getStringField("toShard"), "shard0001");
+    ASSERT_EQ(cmdInfo.getStringField("fromShard"), "shard0000");
+
+    static_cast<repl::PrimaryOnlyService::Instance*>(coordinator.get())
+        ->interrupt({ErrorCodes::Interrupted, "Test cleanup"});
+}
+
+TEST_F(ChunkOperationShardingCoordinatorTest,
+       MoveRangeCheckIfOptionsConflictIgnoresWriteConcernDifference) {
+    auto coordinatorDoc = makeMoveRangeCoordinatorDoc(
+        BSON("a" << 0), BSON("a" << 100), ShardId{"shard0000"}, ShardId{"shard0001"});
+
+    auto coordinator = std::make_shared<MoveRangeCoordinator>(
+        static_cast<ShardingCoordinatorService*>(_service), coordinatorDoc.toBSON());
+
+    // Same logical request, different writeConcern — should NOT throw, since WC is intentionally
+    // not part of ShardsvrMoveRangeRequest (and therefore not part of the conflict-compare).
+    auto otherDoc = coordinatorDoc;
+    otherDoc.setWriteConcern(WriteConcernOptions{
+        "majority", WriteConcernOptions::SyncMode::UNSET, WriteConcernOptions::kNoTimeout});
+
+    ASSERT_DOES_NOT_THROW(coordinator->checkIfOptionsConflict(otherDoc.toBSON()));
 
     static_cast<repl::PrimaryOnlyService::Instance*>(coordinator.get())
         ->interrupt({ErrorCodes::Interrupted, "Test cleanup"});

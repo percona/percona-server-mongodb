@@ -44,8 +44,10 @@
 #include "mongo/db/query/util/deferred.h"
 #include "mongo/db/shard_role/shard_catalog/raw_data_operation.h"
 #include "mongo/db/stats/direct_system_buckets_access.h"
+#include "mongo/db/stats/external_client_on_router.h"
 #include "mongo/db/tenant_id.h"
-#include "mongo/db/topology/user_write_block/write_block_bypass.h"
+#include "mongo/db/topology/user_write_block/replica_set_write_block_bypass.h"
+#include "mongo/db/topology/user_write_block/user_write_block_bypass.h"
 #include "mongo/db/topology/vector_clock/vector_clock.h"
 #include "mongo/rpc/metadata/audit_metadata.h"
 #include "mongo/rpc/metadata/audit_user_attrs.h"
@@ -114,6 +116,13 @@ void readPrivilegedRequestMetadata(OperationContext* opCtx, const GenericArgumen
     // setFromMetadata must still be called to set the default value if it's not set in the request
     WriteBlockBypass::get(opCtx).setFromMetadata(opCtx, requestArgs.getMayBypassWriteBlocking());
 
+    uassert(12097002,
+            "Client is not properly authorized to propagate mayBypassReplicaSetWriteBlocking",
+            !requestArgs.getMayBypassReplicaSetWriteBlocking() || hasInternalAuthorization());
+    // setFromMetadata must still be called to set the default value if it's not set in the request
+    ReplicaSetWriteBlockBypass::get(opCtx).setFromMetadata(
+        opCtx, requestArgs.getMayBypassReplicaSetWriteBlocking());
+
     uassert(9955800,
             "Client is not properly authorized to propagate versionContext",
             !requestArgs.getVersionContext() || hasInternalAuthorization());
@@ -173,6 +182,10 @@ void readRequestMetadata(OperationContext* opCtx,
 
     if (requestArgs.getIsDirectSystemBucketsAccess()) {
         isDirectSystemBucketsAccess(opCtx) = true;
+    }
+
+    if (requestArgs.getIsExternalClientOnRouter()) {
+        isExternalClientOnRouter(opCtx) = true;
     }
 }
 

@@ -58,6 +58,7 @@
 #include "mongo/db/record_id.h"
 #include "mongo/db/router_role/router_role.h"
 #include "mongo/db/rss/replicated_storage_service.h"
+#include "mongo/db/s/migration_destination_manager.h"
 #include "mongo/db/s/range_deletion_util.h"
 #include "mongo/db/scoped_read_concern.h"
 #include "mongo/db/server_feature_flags_gen.h"
@@ -443,19 +444,18 @@ boost::optional<BSONObj> validateChunksDomainCoverage(
  *    all ranges covered in the global catalog must appear in the shard catalog, and
  *    the shard catalog must not store any additional chunks
  *
- * For durable catalog validation, which is enabled only when the catalog is authoritative,
- * we compare all chunks for the collection in the shard catalog against all chunks in the
- * global catalog that are currently or were previously owned by the shard. This ensures
- * that an authoritative shard catalog does not store chunks the shard does not own.
+ * The "all shard chunks ever owned" check accepts any chunk in the shard catalog whose
+ * current owner is this shard or whose history records past ownership by this shard. For
+ * the durable catalog this guards against an authoritative shard catalog retaining chunks
+ * the shard never owned; for the in-memory catalog it tolerates chunks that the shard owned
+ * in the past in non-authoritative scenarios.
  *
- * For in-memory catalog validation, we compare all chunks currently or previously owned
- * by the shard in both the in-memory shard catalog and the global catalog, since in-memory
- * is allowed to store information about unowned chunks in non-authoritative scenarios.
- * For chunk range coverage checks in the in-memory shard catalog, we restrict comparison
- * to chunks currently owned in both catalogs because the global catalog may already contain
- * chunks newly assigned to the shard that have not yet appeared in the shard catalog, or may
- * still contain chunks that have already disappeared from the in-memory shard catalog
- * after migration but have not yet propagated to the global catalog.
+ * The chunk range coverage check is restricted to chunks currently owned by the shard in
+ * both catalogs, regardless of which catalog (durable or in-memory) is being validated.
+ * This avoids false positives during chunk operations: the global catalog may already
+ * reflect chunks newly assigned to the shard that have not yet appeared in the shard
+ * catalog, or may still hold chunks that have already left the shard catalog but whose
+ * removal has not yet propagated to the global catalog.
  */
 void validateShardCatalogEntries(const ShardCatalogCollectionTypeBase& shardCatalogCollection,
                                  const std::vector<ChunkType>& shardCatalogChunks,
@@ -464,8 +464,6 @@ void validateShardCatalogEntries(const ShardCatalogCollectionTypeBase& shardCata
                                  const ShardId& shardId,
                                  StringData sourceName,
                                  std::vector<MetadataInconsistencyItem>& inconsistencies) {
-
-    auto inMemoryValidationCheck = sourceName == kInMemoryShardCatalogSourceScope;
 
     if (shardCatalogCollection.getComparableFields() !=
         globalCatalogCollection.getComparableFields()) {
@@ -491,13 +489,11 @@ void validateShardCatalogEntries(const ShardCatalogCollectionTypeBase& shardCata
 
     // TODO (SERVER-121930): Extend the following checks to strictly validate all chunks' ranges.
 
-    // For in-memory catalog, the domain coverage should be enforced only on currently owned
-    // chunks, allowing for slight de-sync of chunks owned in the past during chunk migrations
+    // The domain coverage should be enforced only on currently owned chunks, allowing for slight
+    // de-sync of chunks owned in the past during chunk operations.
     if (auto mismatchDetail = validateChunksDomainCoverage(
-            inMemoryValidationCheck ? filterCurrentlyOwnedChunks(shardCatalogChunks, shardId)
-                                    : shardCatalogChunks,
-            inMemoryValidationCheck ? filterCurrentlyOwnedChunks(globalCatalogChunks, shardId)
-                                    : globalCatalogChunks)) {
+            filterCurrentlyOwnedChunks(shardCatalogChunks, shardId),
+            filterCurrentlyOwnedChunks(globalCatalogChunks, shardId))) {
         inconsistencies.emplace_back(makeInconsistency(
             MetadataInconsistencyTypeEnum::kInconsistentShardCatalogCollectionMetadata,
             InconsistentShardCatalogCollectionMetadataDetails{
@@ -557,6 +553,20 @@ void checkCollectionMetadataInShardCatalog(
         }
 
         if (scopedCsr->getCriticalSectionSignal(ShardingMigrationCriticalSection::kWrite)) {
+            return;
+        }
+
+        // TODO SERVER-127550: This should not be needed once migrations are adapted to be
+        // authoritative.
+        if (auto mdm = MigrationDestinationManager::get(opCtx); mdm && mdm->isActiveOn(nss) &&
+            feature_flags::gAuthoritativeShardsDDL.isEnabled(
+                VersionContext::getDecoration(opCtx),
+                serverGlobalParams.featureCompatibility.acquireFCVSnapshot())) {
+            // A migration is being received, this might race with the recovery that happens at the
+            // beginning and is potentially wrong if the shard is authoritative for the collection
+            // and its commit, which is when it becomes valid due to the forced legacy refresh. As
+            // such we temporarily accept this inconsistency since routers shouldn't be targeting
+            // this shard.
             return;
         }
 
@@ -905,9 +915,8 @@ bool _collectionMustExistLocallyButDoesnt(OperationContext* opCtx,
                                           const ShardId& currentShard,
                                           const ShardId& primaryShard) {
     // The DBPrimary shard must always have the collection created locally regardless if it owns
-    // chunks or not.
-    //
-    // TODO (SERVER-100309): Remove exclusion for configDB once 9.0 becomes lastLTS.
+    // chunks or not. The config database is excluded because config.system.sessions is created on
+    // the first shard instead of the database primary.
     if (currentShard == primaryShard && !nss.isConfigDB()) {
         return true;
     }
@@ -1428,8 +1437,24 @@ std::vector<MetadataInconsistencyItem> checkIndexesConsistencyAcrossShards(
          *          index across all shards.
          *      6. Filter out indexes that are consistent across all shards.
          *      7. Project the final result.
+         *
+         * Note: step 4 contains a workaround for a spurious InconsistentIndex that can arise in
+         * mixed-version clusters. Pre-7.3 nodes persisted 'expireAfterSeconds' using the BSON
+         * type of the user-supplied value (e.g. 3600 -> int, 3600.5 -> double), while 7.3+ nodes
+         * always truncate to integer. When FCV is updated to 9.0, all the 'expireAfterSeconds'
+         * values on disk are normalized to integer. However, for previous FCV values, the
+         * inconsistency can still happen. As part of the workaround, we pass
+         * '$$tolerateExpireAfterSecondsTypeMismatch' from the caller: when true, all numeric
+         * 'expireAfterSeconds' values are cast to long before comparison so that semantically-
+         * equivalent values stored with different types compare equal; when false, CMC flags type
+         * mismatches as usual. The caller derives the boolean from
+         * 'featureFlagStrictExpireAfterSecondsTypeChecking' (FCV-gated at 9.0), so by default the
+         * workaround is on below FCV 9.0 and off at FCV >= 9.0.
+         *
+         * TODO (SERVER-126991): Remove the workaround in step 4 once 9.0 becomes last LTS.
          */
-        auto rawPipelineBSON = fromjson(R"({pipeline: [
+        auto rawPipelineBSON = fromjson(
+            R"({pipeline: [
 			{$indexStats: {}},
 			{$group: {
 					_id: null,
@@ -1439,8 +1464,28 @@ std::vector<MetadataInconsistencyItem> checkIndexesConsistencyAcrossShards(
 			{$unwind: '$indexDoc'},
 			{$group: {
 					'_id': '$indexDoc.name',
-					'shards': {$push: '$indexDoc.shard'},
-					'specs': {$push: {$objectToArray: {$ifNull: ['$indexDoc.spec', {}]}}},
+					'shards': {$push: '$indexDoc.shard'},)"
+            // TODO (SERVER-126991): Remove this $map block and replace it with the original
+            //   'specs': {$push: {$objectToArray: {$ifNull: ['$indexDoc.spec', {}]}}},
+            // once 9.0 becomes last LTS. See the function-level note for more info.
+            R"(
+					'specs': {$push: {$map: {
+						input: {$objectToArray: {$ifNull: ['$indexDoc.spec', {}]}},
+						as: 'kv',
+						in: {$cond: {
+							if: {$and: [
+								{$eq: ['$$kv.k', 'expireAfterSeconds']},
+								{$isNumber: '$$kv.v'},
+								'$$tolerateExpireAfterSecondsTypeMismatch'
+							]},
+							then: {k: '$$kv.k',
+								v: {$convert: {
+									input: '$$kv.v', to: 'long',
+									onError: '$$kv.v'}}},
+							else: '$$kv'
+						}}
+					}}},)"
+            R"(
 					'allShards': {$first: '$allShards'}
 			}},
 			{$project: {
@@ -1478,11 +1523,20 @@ std::vector<MetadataInconsistencyItem> checkIndexesConsistencyAcrossShards(
         return parsePipelineFromBSON(rawPipelineBSON.firstElement());
     }();
 
+    // TODO (SERVER-126991): Remove tolerateExpireAfterSecondsTypeMismatch and related handling
+    // once 9.0 becomes last LTS.
+    const bool tolerateExpireAfterSecondsTypeMismatch =
+        !feature_flags::gStrictExpireAfterSecondsTypeChecking.isEnabled(
+            VersionContext::getDecoration(opCtx),
+            serverGlobalParams.featureCompatibility.acquireFCVSnapshot());
+
     std::vector<MetadataInconsistencyItem> indexIncons;
     for (const auto& coll : collections) {
         const auto& nss = coll.getNss();
 
         AggregateCommandRequest aggRequest{nss, rawPipelineStages};
+        aggRequest.setLet(BSON("tolerateExpireAfterSecondsTypeMismatch"
+                               << tolerateExpireAfterSecondsTypeMismatch));
 
         std::vector<BSONObj> results = _runExhaustiveAggregation(
             opCtx, nss, aggRequest, "Check sharded indexes consistency across shards"_sd);

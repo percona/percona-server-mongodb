@@ -108,12 +108,6 @@ MONGO_FAIL_POINT_DEFINE(failRecordStoreTraversal);
 const long long kMaxErrorSizeBytes = 1 * 1024 * 1024;
 const long long kInterruptIntervalNumBytes = 50 * 1024 * 1024;  // 50MB.
 
-static constexpr const char* kSchemaValidationFailedReason =
-    "Detected one or more documents not compliant with the collection's schema. Check logs for log "
-    "id 5363500.";
-static constexpr const char* kTimeseriesSchemaValidationFailedReason =
-    "Detected one or more time-series bucket documents not compliant with time-series "
-    "specifications. Check logs for log id 11634800.";
 static constexpr const char* kBSONValidationNonConformantReason =
     "Detected one or more documents in this collection not conformant to BSON specifications. For "
     "more info, see logs with log id 6825900";
@@ -227,6 +221,58 @@ const char* _describeTimeseriesValidationResult(TimeseriesValidationResult resul
                    "support. For more info, see logs with log id 6698300.";
     }
 
+    MONGO_UNREACHABLE;
+}
+
+const char* _describeDocumentValidationResult(Collection::DocumentValidationResult cvr) {
+    using NCR = Collection::DocumentValidationResult::NonComplianceReason;
+    using SVR = Collection::SchemaValidationResult;
+    // The log ID embedded in each message must match the LOGV2 call site that actually emits
+    // the per-document entry: 11634800 for timeseries collections, 5363500 for all others.
+    // Timeseries collections do not support user-defined validators, validationLevel, or
+    // validationAction, so the only reachable timeseries reasons are kBypassProhibitedForTimeseries
+    // and kTimeseriesSchemaViolation.
+    switch (cvr.reason) {
+        case NCR::kNone:
+            return "Valid";
+        case NCR::kValidatorError:
+            return "Detected one or more documents not compliant with the collection's schema "
+                   "because the collection's validator expression is invalid. Check logs for "
+                   "log id 5363500.";
+        case NCR::kBypassProhibitedWithConstraintLevel:
+            return "Detected one or more documents where bypassDocumentValidation was attempted "
+                   "but is not permitted with 'constraint' validationLevel. Check logs for "
+                   "log id 5363500.";
+        case NCR::kBypassProhibitedForTimeseries:
+            return "Detected one or more time-series bucket documents where "
+                   "bypassDocumentValidation was attempted but is not permitted on timeseries "
+                   "collections. Check logs for log id 11634800.";
+        case NCR::kApiVersionIncompatible:
+            return "Detected one or more documents not compliant with the collection's schema "
+                   "because the validator uses expressions incompatible with the current API "
+                   "version. Check logs for log id 5363500.";
+        case NCR::kSchemaViolationWarnConstraintLevel:
+            return "Detected one or more documents not compliant with the collection's schema "
+                   "with 'warn' validation action, escalated to error because validationLevel is "
+                   "'constraint'. Check logs for log id 5363500.";
+        case NCR::kSchemaViolation:
+            if (cvr.result == SVR::kWarn)
+                return "Detected one or more documents not compliant with the collection's schema "
+                       "with 'warn' validation action. Check logs for log id 5363500.";
+            if (cvr.result == SVR::kErrorAndLog)
+                return "Detected one or more documents not compliant with the collection's schema "
+                       "with 'errorAndLog' validation action. Check logs for log id 5363500.";
+            return "Detected one or more documents not compliant with the collection's schema "
+                   "with 'error' validation action. Check logs for log id 5363500.";
+        case NCR::kTimeseriesSchemaViolation:
+            if (cvr.result == SVR::kErrorAndLog)
+                return "Detected one or more time-series bucket documents not compliant with "
+                       "time-series specifications with 'errorAndLog' validation action. Check "
+                       "logs for log id 11634800.";
+            return "Detected one or more time-series bucket documents not compliant with "
+                   "time-series specifications with 'error' validation action. Check logs for "
+                   "log id 11634800.";
+    }
     MONGO_UNREACHABLE;
 }
 
@@ -432,7 +478,8 @@ TimeseriesValidationStatus _validateTimeSeriesMinMax(const TimeseriesOptions& ti
                                                      const BSONElement& controlMin,
                                                      const BSONElement& controlMax,
                                                      StringData fieldName,
-                                                     int version) {
+                                                     int version,
+                                                     const CollatorInterface* collator) {
     const auto min = minmax.min();
     const auto max = minmax.max();
     auto checkMinAndMaxMatch = [&]() {
@@ -458,15 +505,18 @@ TimeseriesValidationStatus _validateTimeSeriesMinMax(const TimeseriesOptions& ti
             return minTimestampsMatch && maxTimestampsMatch;
         } else {
             // We cannot guarantee that the field order of the BSON objects will be the same.
+            // The collation must match what the bucket catalog used when computing the
+            // original min/max to avoid false mismatches.
             return controlMin.wrap().woCompare(min,
                                                /*ordering=*/BSONObj(),
                                                BSONObj::ComparisonRules::kConsiderFieldName |
-                                                   BSONObj::ComparisonRules::kIgnoreFieldOrder) ==
-                0 &&
+                                                   BSONObj::ComparisonRules::kIgnoreFieldOrder,
+                                               collator) == 0 &&
                 controlMax.wrap().woCompare(max,
                                             /*ordering=*/BSONObj(),
                                             BSONObj::ComparisonRules::kConsiderFieldName |
-                                                BSONObj::ComparisonRules::kIgnoreFieldOrder) == 0;
+                                                BSONObj::ComparisonRules::kIgnoreFieldOrder,
+                                            collator) == 0;
         }
     };
 
@@ -527,7 +577,8 @@ TimeseriesValidationStatus _validateTimeSeriesDataTimeField(const CollectionPtr&
                                 *bucketCount,
                                 idx)};
             }
-            minmax.update(metric.wrap(fieldName), boost::none, coll->getDefaultCollator());
+            // Time fields are not compared as strings so skip passing comparator.
+            minmax.update(metric.wrap(fieldName), boost::none, /*stringComparator=*/nullptr);
             ++(*bucketCount);
         }
     } else {
@@ -558,7 +609,9 @@ TimeseriesValidationStatus _validateTimeSeriesDataTimeField(const CollectionPtr&
                         }
                     }
                     prevTimestamp = curTimestamp;
-                    minmax.update(metric.wrap(fieldName), boost::none, coll->getDefaultCollator());
+                    // Time fields are not compared as strings so skip passing comparator.
+                    minmax.update(
+                        metric.wrap(fieldName), boost::none, /*stringComparator=*/nullptr);
                     ++(*bucketCount);
                 } else {
                     return {TimeseriesValidationResult::kMissingTime,
@@ -576,12 +629,14 @@ TimeseriesValidationStatus _validateTimeSeriesDataTimeField(const CollectionPtr&
                                   << e.toString()};
         }
     }
+    // Time fields are not compared as strings so skip passing comparator.
     if (auto status = _validateTimeSeriesMinMax(coll->getTimeseriesOptions().value(),
                                                 minmax,
                                                 controlMin,
                                                 controlMax,
                                                 fieldName,
-                                                version);
+                                                version,
+                                                /*collator=*/nullptr);
         status.result != TimeseriesValidationResult::kValid) {
         return status;
     }
@@ -657,7 +712,8 @@ TimeseriesValidationStatus _validateTimeSeriesDataField(const CollectionPtr& col
                                                 controlMin,
                                                 controlMax,
                                                 fieldName,
-                                                version);
+                                                version,
+                                                coll->getDefaultCollator());
         status.result != TimeseriesValidationResult::kValid) {
         return status;
     }
@@ -847,6 +903,7 @@ auto ValidateAdaptor::validateRecord(OperationContext* opCtx,
             record.data(), record.size(), _validateState->getBSONValidateMode(), validationVersion);
 
         if (!bsonValidationStatus.isOK()) {
+            bool includeReason{false};
             switch (bsonValidationStatus.code()) {
                 case ErrorCodes::NonConformantBSON:
                     LOGV2_WARNING_OPTIONS(6825900,
@@ -857,6 +914,12 @@ auto ValidateAdaptor::validateRecord(OperationContext* opCtx,
                     ++nNonCompliantDocuments;
                     results->addWarning(kBSONValidationNonConformantReason);
                     break;
+                case ErrorCodes::InvalidBSONColumn:
+                    // For these cases, include the reason with the validation results, the
+                    // cardinality of reasons is bounded.  For other error messages, keep these
+                    // separate.
+                    includeReason = true;
+                    [[fallthrough]];
                 default:
                     LOGV2_ERROR_OPTIONS(12395400,
                                         {logv2::LogTruncation::Disabled},
@@ -865,9 +928,12 @@ auto ValidateAdaptor::validateRecord(OperationContext* opCtx,
                                         "reason"_attr = bsonValidationStatus);
                     return {.status = bsonValidationStatus,
                             .errorMessage = fmt::format(
-                                "BSON validation failed with error '{}'. For more info, see logs "
+                                "BSON validation failed with error '{}'{}. For more info, "
+                                "see logs "
                                 "with log id 12395400",
-                                ErrorCodes::errorString(bsonValidationStatus.code()))};
+                                ErrorCodes::errorString(bsonValidationStatus.code()),
+                                includeReason ? fmt::format(": {}", bsonValidationStatus.reason())
+                                              : std::string(""))};
             }
         } else if (!_validateState->nss().isOplog()) {
             // Additionally check size if the BSON object is compliant. Do not run this check on the
@@ -1250,40 +1316,14 @@ void ValidateAdaptor::traverseRecordStore(OperationContext* opCtx,
             // If the document is not corrupted, validate the document against this collection's
             // schema validator. Don't treat invalid documents as errors since documents can bypass
             // document validation when being inserted or updated.
-            const auto [schemaValidationResult, schemaValidationStatus] =
+            const auto [checkValidationResult, schemaValidationStatus] =
                 coll->checkValidation(opCtx, record->data.toBson());
 
             // Timeseries collections are a special case. The schema is required and all violations
             // will be logged as errors instead.
             const bool isTimeseries = coll->getTimeseriesOptions().has_value();
 
-            switch (schemaValidationResult) {
-                case Collection::SchemaValidationResult::kError:
-                case Collection::SchemaValidationResult::kErrorAndLog:
-                case Collection::SchemaValidationResult::kWarn:
-                    ++nNonCompliantDocuments;
-                    if (isTimeseries) {
-                        LOGV2_WARNING_OPTIONS(11634800,
-                                              {logv2::LogTruncation::Disabled},
-                                              "Time-series bucket document is not compliant with "
-                                              "time-series specifications",
-                                              logAttrs(coll->ns()),
-                                              "recordId"_attr = record->id,
-                                              "collectionUuid"_attr = coll->uuid(),
-                                              "record"_attr = record->data.toBson(),
-                                              "reason"_attr = schemaValidationResult);
-                        results->addError(kTimeseriesSchemaValidationFailedReason);
-                    } else {
-                        LOGV2_WARNING_OPTIONS(
-                            5363500,
-                            {logv2::LogTruncation::Disabled},
-                            "Document is not compliant with the collection's schema",
-                            logAttrs(coll->ns()),
-                            "recordId"_attr = record->id,
-                            "reason"_attr = schemaValidationResult);
-                        results->addWarning(kSchemaValidationFailedReason);
-                    }
-                    break;
+            switch (checkValidationResult.result) {
                 case Collection::SchemaValidationResult::kPass:
                     if (isTimeseries) {
                         // Timeseries documents checks cannot be run if schema validation fails.
@@ -1373,6 +1413,40 @@ void ValidateAdaptor::traverseRecordStore(OperationContext* opCtx,
                             }
                         }
                     }
+                    break;
+                case Collection::SchemaValidationResult::kWarn:
+                case Collection::SchemaValidationResult::kError:
+                case Collection::SchemaValidationResult::kErrorAndLog: {
+                    // Non-kPass results indicate a schema validation failure. Do not add
+                    // data-annotated strings to the set, since per-document data can greatly
+                    // increase the number of unique strings stored; this set is not intended
+                    // to scale with the number of documents. Document-specific data is logged.
+                    ++nNonCompliantDocuments;
+                    const char* description =
+                        _describeDocumentValidationResult(checkValidationResult);
+                    if (isTimeseries) {
+                        LOGV2_WARNING_OPTIONS(11634800,
+                                              {logv2::LogTruncation::Disabled},
+                                              "Time-series bucket document is not compliant with "
+                                              "time-series specifications",
+                                              logAttrs(coll->ns()),
+                                              "recordId"_attr = record->id,
+                                              "collectionUUID"_attr = coll->uuid(),
+                                              "record"_attr = record->data.toBson(),
+                                              "reason"_attr = description);
+                        results->addError(description);
+                    } else {
+                        LOGV2_WARNING_OPTIONS(
+                            5363500,
+                            {logv2::LogTruncation::Disabled},
+                            "Document is not compliant with the collection's schema",
+                            logAttrs(coll->ns()),
+                            "recordId"_attr = record->id,
+                            "reason"_attr = description);
+                        results->addWarning(description);
+                    }
+                    break;
+                }
             }
         }
 

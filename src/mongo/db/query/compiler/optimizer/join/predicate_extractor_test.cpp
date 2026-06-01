@@ -427,6 +427,69 @@ TEST_F(PredicateExtractorTest, JoinPredicatesOverDottedFields) {
     });
 }
 
+// Verifies that the JoinPredicateExpr's localField() captures any trailing path suffix on the let
+// variable reference. The 'expectedJoinPredicates' check above only inspects the serialized
+// expression, which is unchanged from the input and so cannot distinguish '$$a' from '$$a.foo' in
+// the local field path.
+TEST_F(PredicateExtractorTest, LocalFieldIncludesPathSuffixOnLetVariable) {
+    std::vector<LetVariable> letVars;
+    auto idA = expCtx()->variablesParseState.defineVariable("a");
+    {
+        auto bson = fromjson("{'': '$x'}");
+        auto def = Expression::parseOperand(
+            expCtx().get(), bson.firstElement(), expCtx()->variablesParseState);
+        letVars.emplace_back("a", def, idA);
+    }
+
+    auto parseMatch = [&](StringData json) {
+        auto bson = fromjson(json);
+        return uassertStatusOK(
+            MatchExpressionParser::parse(bson,
+                                         expCtx(),
+                                         ExtensionsCallbackNoop(),
+                                         MatchExpressionParser::kAllowAllSpecialFeatures));
+    };
+
+    // Variable reference on the right with a path suffix: '$$a.y' must resolve to local path
+    // 'x.y' (the let variable's RHS 'x', concatenated with the trailing 'y').
+    {
+        auto me = parseMatch("{$expr: {$eq: ['$z', '$$a.y']}}");
+        auto split = splitJoinAndSingleCollectionPredicates(me.get(), letVars);
+        ASSERT(split.has_value());
+        ASSERT_EQ(1, split->joinPredicates.size());
+        ASSERT_EQ("x.y", split->joinPredicates[0].localField().fullPath());
+        ASSERT_EQ("z", split->joinPredicates[0].foreignField().fullPath());
+    }
+
+    // Variable reference on the left side; same semantics.
+    {
+        auto me = parseMatch("{$expr: {$eq: ['$$a.y', '$z']}}");
+        auto split = splitJoinAndSingleCollectionPredicates(me.get(), letVars);
+        ASSERT(split.has_value());
+        ASSERT_EQ(1, split->joinPredicates.size());
+        ASSERT_EQ("x.y", split->joinPredicates[0].localField().fullPath());
+        ASSERT_EQ("z", split->joinPredicates[0].foreignField().fullPath());
+    }
+
+    // Multi-component suffix on the variable reference.
+    {
+        auto me = parseMatch("{$expr: {$eq: ['$z', '$$a.y.w']}}");
+        auto split = splitJoinAndSingleCollectionPredicates(me.get(), letVars);
+        ASSERT(split.has_value());
+        ASSERT_EQ(1, split->joinPredicates.size());
+        ASSERT_EQ("x.y.w", split->joinPredicates[0].localField().fullPath());
+    }
+
+    // No suffix.
+    {
+        auto me = parseMatch("{$expr: {$eq: ['$z', '$$a']}}");
+        auto split = splitJoinAndSingleCollectionPredicates(me.get(), letVars);
+        ASSERT(split.has_value());
+        ASSERT_EQ(1, split->joinPredicates.size());
+        ASSERT_EQ("x", split->joinPredicates[0].localField().fullPath());
+    }
+}
+
 /**
  * Test suite for extractExprPredicates.
  */
@@ -580,6 +643,42 @@ TEST_F(ExtractExprPredicatesTest, ExpressionAndWithGt) {
     auto result = extract(json);
     ASSERT_FALSE(result.expressionIsFullyAbsorbed);
     ASSERT_EQ(2, result.predicates.size());
+}
+
+/**
+ * An equality against a bare single-component system variable reference (e.g. '$$NOW', '$$ROOT',
+ * '$$CURRENT') cannot be a join predicate and must not crash while extracting predicates. These
+ * paths have a single component, so attempting to strip the variable prefix would tassert 16409.
+ */
+TEST_F(ExtractExprPredicatesTest, EqualityAgainstBareSystemVariable) {
+    for (StringData json : {"{$expr: {$eq: ['$$NOW', '$first.a']}}"_sd,
+                            "{$expr: {$eq: ['$first.a', '$$NOW']}}"_sd,
+                            "{$expr: {$eq: ['$$ROOT', '$first.a']}}"_sd,
+                            "{$expr: {$eq: ['$first.a', '$$ROOT']}}"_sd,
+                            "{$expr: {$eq: ['$$CURRENT', '$first.a']}}"_sd,
+                            "{$expr: {$eq: ['$first.a', '$$CURRENT']}}"_sd,
+                            "{$expr: {$eq: ['$$NOW', '$$ROOT']}}"_sd}) {
+        auto result = extract(json);
+        ASSERT_FALSE(result.expressionIsFullyAbsorbed) << json;
+        ASSERT_EQ(0, result.predicates.size()) << json;
+    }
+}
+
+/**
+ * An equality against a system variable with a subfield (e.g. '$$NOW.x', '$$CLUSTER_TIME.foo')
+ * also cannot be a join predicate. The path length > 1 so it passes the bare-variable check, but
+ * isVariableReference() is true and stripping the variable name would yield a spurious field path.
+ */
+TEST_F(ExtractExprPredicatesTest, EqualityAgainstSystemVariableWithSubfield) {
+    for (StringData json : {"{$expr: {$eq: ['$$NOW.x', '$first.a']}}"_sd,
+                            "{$expr: {$eq: ['$first.a', '$$NOW.x']}}"_sd,
+                            "{$expr: {$eq: ['$$CLUSTER_TIME.foo', '$first.a']}}"_sd,
+                            "{$expr: {$eq: ['$first.a', '$$CLUSTER_TIME.foo']}}"_sd,
+                            "{$expr: {$eq: ['$$NOW.x', '$$CLUSTER_TIME.foo']}}"_sd}) {
+        auto result = extract(json);
+        ASSERT_FALSE(result.expressionIsFullyAbsorbed) << json;
+        ASSERT_EQ(0, result.predicates.size()) << json;
+    }
 }
 
 /**

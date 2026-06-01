@@ -44,6 +44,7 @@
 #include "mongo/db/shard_role/shard_catalog/collection_sharding_runtime.h"
 #include "mongo/db/shard_role/shard_catalog/create_collection.h"
 #include "mongo/db/shard_role/shard_catalog/database_sharding_state_mock.h"
+#include "mongo/db/sharding_environment/shard_ref.h"
 #include "mongo/db/sharding_environment/shard_server_test_fixture.h"
 #include "mongo/db/timeseries/timeseries_options.h"
 #include "mongo/db/timeseries/timeseries_test_util.h"
@@ -716,7 +717,7 @@ TEST_F(MetadataConsistencyTest, FindMatchingDurableDatabaseMetadataInWrongShard)
 
     // Introduce an inconsistency in the shard catalog
     DBDirectClient client(operationContext());
-    DatabaseType shardDb{_dbName, ShardId{"otherShard"}, {_dbUuid, dbTimestamp}};
+    DatabaseType shardDb{_dbName, ShardRef{std::string{"otherShard"}}, {_dbUuid, dbTimestamp}};
     client.insert(NamespaceString::kConfigShardCatalogDatabasesNamespace, shardDb.toBSON());
 
     // Validate that we can find the inconsistency.
@@ -1920,6 +1921,46 @@ TEST_F(MetadataConsistencyShardCatalogTest, DurablePath_ChunksDomainMismatch) {
     ASSERT_EQ(1,
               countInconsistenciesWithDetailFieldAndSource(
                   inconsistencies, "chunksDomain"_sd, "durableShardCatalog"_sd));
+}
+
+TEST_F(MetadataConsistencyShardCatalogTest, DurablePath_PreviouslyOwnedChunkIgnoredInDomainCheck) {
+    RAIIServerParameterControllerForTest featureFlagController("featureFlagAuthoritativeShardsCRUD",
+                                                               true);
+
+    const auto localUuid = setUpLocalCollection();
+    auto globalCatalogColl = generateCollectionType(_nss, localUuid, _keyPattern);
+
+    // This shard currently owns chunk1 only. The in-memory authoritative routing table tracks
+    // only that chunk.
+    const OID epoch = OID::gen();
+    auto chunk1 = generateChunk(
+        localUuid, _shardId, _keyPattern.globalMin(), BSON("x" << 0), kShard0History, epoch);
+    setAuthoritativeShardCatalogMetadata(localUuid, _keyPattern, {chunk1});
+    _catalogClient->setChunksToReturn({chunk1});
+
+    // The durable shard catalog still retains a chunk that was previously owned by this shard
+    // and has since migrated to another shard. The chunk is allowed to remain because this shard
+    // appears in its history, but the global catalog no longer associates it with this shard.
+    // The first history entry's timestamp must match `onCurrentShardSince` (which `generateChunk`
+    // sets to Timestamp(1, 0)); the earlier history record uses an older timestamp.
+    const std::vector<ChunkHistory> previouslyOwnedHistory{ChunkHistory(Timestamp(1, 0), kShard1),
+                                                           ChunkHistory(Timestamp(0, 1), _shardId)};
+    auto previouslyOwnedChunk = generateChunk(
+        localUuid, kShard1, BSON("x" << 0), _keyPattern.globalMax(), previouslyOwnedHistory, epoch);
+    insertDurableShardCatalogCollection(globalCatalogColl);
+    insertDurableShardCatalogChunks({chunk1, previouslyOwnedChunk});
+
+    const auto inconsistencies = checkConsistency(globalCatalogColl);
+
+    // Filtering both sides of the domain coverage check to currently-owned chunks must drop the
+    // previously-owned chunk from the durable list; otherwise the durable catalog would falsely
+    // appear to cover more of the key space than the global catalog returns for this shard.
+    ASSERT_EQ(0,
+              countInconsistenciesWithDetailFieldAndSource(
+                  inconsistencies, "chunksDomain"_sd, "durableShardCatalog"_sd));
+    ASSERT_EQ(0,
+              countInconsistenciesWithDetailFieldAndSource(
+                  inconsistencies, "chunkHistory"_sd, "durableShardCatalog"_sd));
 }
 
 TEST_F(MetadataConsistencyShardCatalogTest, DurablePath_MissingCollectionInDurableCatalog) {

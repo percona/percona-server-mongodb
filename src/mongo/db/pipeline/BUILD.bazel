@@ -104,6 +104,14 @@ idl_generator(
     ],
 )
 
+idl_generator(
+    name = "document_source_internal_document_results_and_metadata_gen",
+    src = "document_source_internal_document_results_and_metadata.idl",
+    deps = [
+        "//src/mongo/db:basic_types_gen",
+    ],
+)
+
 mongo_cc_library(
     name = "document_sources_idl",
     srcs = [
@@ -114,6 +122,7 @@ mongo_cc_library(
         "document_source_graph_lookup_gen",
         "document_source_hybrid_scoring_input_util.cpp",
         "document_source_internal_apply_oplog_update_gen",
+        "document_source_internal_document_results_and_metadata_gen",
         "document_source_internal_projection_gen",
         "document_source_list_mql_entities_gen",
         "document_source_list_sampled_queries_gen",
@@ -391,6 +400,7 @@ mongo_cc_library(
         "document_source_index_stats.cpp",
         "document_source_internal_compute_geo_near_distance.cpp",
         "document_source_internal_convert_bucket_index_stats.cpp",
+        "document_source_internal_document_results_and_metadata.cpp",
         "document_source_internal_inhibit_optimization.cpp",
         "document_source_internal_join_hint.cpp",
         "document_source_internal_projection.cpp",
@@ -438,10 +448,15 @@ mongo_cc_library(
         "group_processor_base.cpp",
         "hybrid_search_pipeline_builder.cpp",
         "lite_parsed_graph_lookup.cpp",
+        "lite_parsed_hybrid_search_desugarer.cpp",
+        "lite_parsed_hybrid_search_desugarer_utils.cpp",
+        "lite_parsed_internal_document_results_and_metadata.cpp",
         "lite_parsed_lookup.cpp",
         "lite_parsed_pipeline_metadata_validation.cpp",
         "lite_parsed_rank_fusion.cpp",
+        "lite_parsed_rank_fusion_desugarer_utils.cpp",
         "lite_parsed_score_fusion.cpp",
+        "lite_parsed_score_fusion_desugarer_utils.cpp",
         "lite_parsed_union_with.cpp",
         "match_processor.cpp",
         "merge_processor.cpp",
@@ -1226,6 +1241,8 @@ mongo_cc_unit_test(
             "expression_javascript_test.cpp",
         ],
         "//bazel/config:js_engine_wasm_supported": [
+            "accumulator_js_test.cpp",
+            "expression_javascript_test.cpp",
         ],
         "//bazel/config:js_engine_none": [
         ],
@@ -1384,6 +1401,7 @@ mongo_cc_unit_test(
         "//src/mongo/db/pipeline/window_function:window_function_min_max_scaler_util_test.cpp",
         "//src/mongo/db/pipeline/window_function:window_function_min_max_test.cpp",
         "//src/mongo/db/pipeline/window_function:window_function_n_test.cpp",
+        "//src/mongo/db/pipeline/window_function:window_function_percentile_test.cpp",
         "//src/mongo/db/pipeline/window_function:window_function_push_test.cpp",
         "//src/mongo/db/pipeline/window_function:window_function_set_union_test.cpp",
         "//src/mongo/db/pipeline/window_function:window_function_std_dev_test.cpp",
@@ -1427,6 +1445,7 @@ mongo_cc_unit_test(
         "document_source_internal_apply_oplog_update_test.cpp",
         "document_source_internal_compute_geo_near_distance_test.cpp",
         "document_source_internal_convert_bucket_index_stats_test.cpp",
+        "document_source_internal_document_results_and_metadata_test.cpp",
         "document_source_internal_split_pipeline_test.cpp",
         "document_source_limit_test.cpp",
         "document_source_list_extensions_test.cpp",
@@ -1456,10 +1475,14 @@ mongo_cc_unit_test(
         "document_source_test.cpp",
         "document_source_union_with_test.cpp",
         "document_source_unwind_test.cpp",
+        "lite_parsed_internal_document_results_and_metadata_test.cpp",
         "lite_parsed_lookup_test.cpp",
+        "lite_parsed_rank_fusion_desugarer_test.cpp",
         "lite_parsed_rank_fusion_test.cpp",
+        "lite_parsed_score_fusion_desugarer_test.cpp",
         "lite_parsed_score_fusion_test.cpp",
         "serverless_aggregation_context_fixture.cpp",
+        "sort_rules_test.cpp",
         "//src/mongo/db/pipeline:document_source_coll_stats_test.cpp",
         "//src/mongo/db/pipeline:document_source_internal_all_collection_stats_test.cpp",
         "//src/mongo/db/pipeline/search:document_source_internal_search_id_lookup_test.cpp",
@@ -1489,6 +1512,7 @@ mongo_cc_unit_test(
         "//src/mongo/db/exec/document_value",
         "//src/mongo/db/exec/document_value:document_value_test_util",
         "//src/mongo/db/extension/host:extension_loader",
+        "//src/mongo/db/pipeline/optimization:pipeline_optimization",
         "//src/mongo/db/shard_role/shard_catalog:catalog_test_fixture",
         "//src/mongo/db/sharding_environment:shard_server_test_fixture",
         "//src/mongo/db/sharding_environment:sharding_mongos_test_fixture",

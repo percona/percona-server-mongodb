@@ -147,7 +147,7 @@ Status validateClusteredIndexSpec(OperationContext* opCtx,
     }
 
     const auto arbitraryClusterKeyField = clustered_util::getClusterKeyFieldName(spec);
-    if (arbitraryClusterKeyField.find(".", 0) != std::string::npos) {
+    if (arbitraryClusterKeyField.find('.', 0) != std::string::npos) {
         return Status(
             ErrorCodes::Error(6053701),
             "The clusteredIndex option does not support a cluster key with nested fields");
@@ -416,6 +416,20 @@ Status _performCollectionCreationChecks(OperationContext* opCtx,
             "the 'validator' option cannot be set when creating viewless time-series collection",
             !createViewlessTimeseriesColl || !options.timeseries.has_value() ||
                 options.validator.isEmpty());
+
+    // The 'fixedBucketing' option requires viewless time-series collections and the
+    // featureFlagFixedBucketingCatalog flag.
+    if (options.timeseries.has_value() && options.timeseries->getFixedBucketing().has_value()) {
+        uassert(ErrorCodes::InvalidOptions,
+                "the 'fixedBucketing' option requires featureFlagFixedBucketingCatalog to be "
+                "enabled",
+                gFeatureFlagFixedBucketingCatalog.isEnabledUseLatestFCVWhenUninitialized(
+                    VersionContext::getDecoration(opCtx)));
+
+        uassert(ErrorCodes::InvalidOptions,
+                "the 'fixedBucketing' option can only be set on viewless time-series collections",
+                createViewlessTimeseriesColl);
+    }
 
     // TODO SERVER-109289: Investigate whether this is safe on viewless time-series collections.
     uassert(

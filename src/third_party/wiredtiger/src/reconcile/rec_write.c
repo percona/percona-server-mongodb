@@ -126,14 +126,17 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage
      */
     ret = __reconcile(session, ref, salvage, flags, &page_locked);
 
-    /* If writing a page in service of compaction, we're done, clear the flag. */
-    F_CLR_ATOMIC_16(ref->page, WT_PAGE_COMPACTION_WRITE);
-
     if (ret != 0)
         F_SET_ATOMIC_16(ref->page, WT_PAGE_REC_FAIL);
-    else
-        F_CLR_ATOMIC_16(
-          ref->page, WT_PAGE_REC_FAIL | WT_PAGE_INMEM_SPLIT | WT_PAGE_INTL_PINDEX_UPDATE);
+    else {
+        if (F_ISSET_ATOMIC_16(ref->page, WT_PAGE_COMPACTION_WRITE))
+            WT_STAT_CONN_INCRV(
+              session, session_table_compact_bytes_rewrite_inmem, ref->page->memory_footprint);
+        /* If writing a page in service of compaction, we're done, clear the flag. */
+        F_CLR_ATOMIC_16(ref->page,
+          WT_PAGE_REC_FAIL | WT_PAGE_INMEM_SPLIT | WT_PAGE_INTL_PINDEX_UPDATE |
+            WT_PAGE_COMPACTION_WRITE);
+    }
 
 err:
     if (page_locked)
@@ -2108,7 +2111,7 @@ __rec_set_updates_durable(WT_SESSION_IMPL *session, WT_MULTI *multi)
          * delta.
          */
         if (supd->onpage_upd == NULL)
-            F_SET(supd->onpage_tombstone, WT_UPDATE_DELETE_DURABLE);
+            F_SET(supd->onpage_tombstone, WT_UPDATE_DURABLE);
         else {
             if (supd->onpage_tombstone != NULL) {
                 if (WT_TIME_WINDOW_HAS_STOP_PREPARE(&supd->tw)) {

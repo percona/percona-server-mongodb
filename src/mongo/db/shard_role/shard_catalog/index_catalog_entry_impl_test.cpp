@@ -67,15 +67,11 @@ public:
         MONGO_UNIMPLEMENTED;
     }
 
-    bool sideWritesAllowed() const override {
+    std::shared_ptr<IndexBuildInterceptor> indexBuildInterceptor() const override {
         MONGO_UNIMPLEMENTED;
     }
 
-    IndexBuildInterceptor* indexBuildInterceptor() const override {
-        MONGO_UNIMPLEMENTED;
-    }
-
-    void setIndexBuildInterceptor(IndexBuildInterceptor* interceptor) override {
+    void setIndexBuildInterceptor(std::shared_ptr<IndexBuildInterceptor> interceptor) override {
         MONGO_UNIMPLEMENTED;
     }
 
@@ -120,6 +116,7 @@ public:
 
     void setMultikeyForApplyOps(OperationContext* opCtx,
                                 const CollectionPtr& coll,
+                                const KeyStringSet& multikeyMetadataKeys,
                                 const MultikeyPaths& multikeyPaths) const override {
         MONGO_UNREACHABLE;
     }

@@ -41,6 +41,7 @@
 #include <limits>
 
 #include <boost/functional/hash.hpp>
+#include <boost/optional/optional.hpp>
 
 namespace mongo::cost_based_ranker {
 
@@ -576,12 +577,36 @@ CardinalityEstimate operator*(const SelectivityEstimate& s, const CardinalityEst
 CardinalityEstimate operator*(const CardinalityEstimate& ce, const SelectivityEstimate& s);
 
 /**
+ * The actual strategy used to generate the sample.
+ */
+enum class SamplingTechnique {
+    kRandom,
+    kChunk,
+    kFullCollScan,
+    kSeqScan,
+};
+
+/**
+ * Metadata about the sample used when 'ceSource == Sampling'.
+ */
+struct SamplingMetadata {
+    bool isPersisted;
+    size_t docCount;           // number of documents in the sample
+    size_t requestedDocCount;  // number of documents originally requested
+    size_t memorySizeBytes;
+    SamplingTechnique technique;
+    boost::optional<int> numChunks;
+    boost::optional<Date_t> createdAt;
+};
+
+/**
  * The optimizer's estimate of a single QSN in the physical plan.
  */
 struct QSNEstimate {
     // A QSN may have three estimates:
     // - the number of processed data items (docs or keys): 'inCE'
     // - the number of produced data items: 'outCE'
+    // - the number of index seeks: 'indexSeekCE'
     // Only leaf QSN nodes have both 'inCE' and 'outCE' estimates. All other nodes have an
     // 'out' CE since their input size is equal to the number of produced items by their child.
     // For instance:
@@ -589,8 +614,10 @@ struct QSNEstimate {
     //   and 'outCE' is the number of documents after applying the filter.
     // - For an IndexScan node 'inCE' is the number of scanned keys, 'outCE' is the number of
     //   keys after applying a possible filter expression to the matching keys.
+    // Only IndexScanNodes will have a corresponding indexSeekCE
     boost::optional<CardinalityEstimate> inCE;
     CardinalityEstimate outCE{CardinalityType{0}, EstimationSource::Code};
+    boost::optional<CardinalityEstimate> indexSeekCE;
     CostEstimate cost{CostType::maxValue(), EstimationSource::Code};
 
     QSNEstimate() = default;

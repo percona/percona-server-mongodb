@@ -74,6 +74,7 @@ public:
     struct Options {
         uint32_t jsHeapLimitMB = 0;
         uint32_t linearMemoryLimitMB = 0;
+        bool javascriptProtection = false;
     };
 
     explicit MozJSWasmBridge(std::shared_ptr<WasmEngineContext> ctx, Options opts);
@@ -87,18 +88,16 @@ public:
     bool isKillPending() const;
 
     uint64_t createFunction(std::string_view source);
-    StatusWith<BSONObj> invokeFunction(uint64_t handle,
-                                       const BSONObj& args,
-                                       bool ignoreReturn = false);
+
+    // Invoke variants that accept a wc::Val arg produced by wasm_helpers::convertBsonToWcVal.
+    StatusWith<BSONObj> invokeFunction(uint64_t handle, wc::Val bsonVal, bool ignoreReturn = false);
+    bool invokePredicate(uint64_t handle, wc::Val bsonVal);
+    void invokeMap(uint64_t handle, wc::Val bsonVal);
 
     void setGlobal(std::string_view name, const BSONObj& value);
     BSONObj getGlobal(std::string_view name, bool implicitNull = false);
 
     void setGlobalValue(std::string_view name, const BSONObj& value);
-
-    bool invokePredicate(uint64_t handle, const BSONObj& value);
-
-    void invokeMap(uint64_t handle, const BSONObj& value);
     BSONObj drainEmitBuffer();
     void setupEmit(boost::optional<int64_t> byteLimit);
 
@@ -178,6 +177,7 @@ private:
     Atomic<State> _state{State::Uninitialized};
     Atomic<bool> _killPending{false};
     uint32_t _jsHeapLimitMB{0};
+    bool _javascriptProtection{false};
 
     // The engine and compiled component are shared across bridge instances.
     // Each bridge owns its own _store and _instance for execution isolation.

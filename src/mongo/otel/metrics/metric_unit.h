@@ -40,6 +40,10 @@ namespace mongo::otel::metrics {
 enum class MetricUnit {
     // Generic
     kEvents,
+    kCount,
+    kId,
+    kState,
+    kBoolean,
 
     // Time
     kMicroseconds,

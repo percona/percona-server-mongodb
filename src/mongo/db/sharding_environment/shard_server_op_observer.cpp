@@ -743,13 +743,33 @@ void ShardServerOpObserver::onInvalidateCollectionMetadata(OperationContext* opC
         recoverer->onOplogEntry(opCtx, op.getTimestamp(), entry);
     } else {
         const auto collectionUuid = *op.getUuid();
-        if (entry.getForDroppedCollection()) {
+        if (entry.getForDroppedCollection() && entry.getNonAuth()) {
+            scopedCsr->clearFilteringMetadataForDroppedCollection_nonAuthoritative(opCtx);
+        } else if (entry.getForDroppedCollection()) {
             scopedCsr->clearFilteringMetadataForDroppedCollection_authoritative(opCtx,
                                                                                 collectionUuid);
+        } else if (entry.getNonAuth()) {
+            scopedCsr->clearFilteringMetadata_nonAuthoritative(opCtx);
         } else {
             scopedCsr->clearFilteringMetadata_authoritative(opCtx, collectionUuid);
         }
     }
+}
+
+void ShardServerOpObserver::onSetAllowChunkOperations(OperationContext* opCtx,
+                                                      const repl::OplogEntry& op) {
+    tassert(12120912,
+            "setAllowChunkOperations oplog entry is missing the collection UUID",
+            op.getUuid());
+
+    const auto nss =
+        CommandHelpers::parseNsCollectionRequired(op.getNss().dbName(), op.getObject());
+
+    const auto entry = SetAllowChunkOperationsOplogEntry::parse(
+        op.getObject(), IDLParserContext("SetAllowChunkOperationsOplogEntryContext"));
+
+    auto scopedCsr = CollectionShardingRuntime::acquireExclusive(opCtx, nss);
+    scopedCsr->setAllowChunkOperations(entry.getAllowChunkOperations());
 }
 
 }  // namespace mongo

@@ -146,6 +146,14 @@ TEST_F(WriteOpsExecTest, TestDeleteSizeEstimationLogic) {
     // Add a sampleId.
     deleteOpEntry.setSampleId(UUID::gen());
     ASSERT(write_ops::verifySizeEstimate(deleteOpEntry));
+
+    // Add includeQueryStatsMetricsForOpIndex.
+    deleteOpEntry.setIncludeQueryStatsMetricsForOpIndex(42);
+    ASSERT(write_ops::verifySizeEstimate(deleteOpEntry));
+
+    // Remove includeQueryStatsMetricsForOpIndex.
+    deleteOpEntry.setIncludeQueryStatsMetricsForOpIndex(boost::none);
+    ASSERT(write_ops::verifySizeEstimate(deleteOpEntry));
 }
 
 TEST_F(WriteOpsExecTest, TestInsertRequestSizeEstimationLogic) {
@@ -193,6 +201,10 @@ TEST_F(WriteOpsExecTest, TestInsertRequestSizeEstimationLogic) {
     // originalCollation
     wcb.setOriginalCollation(fromjson("{locale: 'fr'}"));
     insert.setWriteCommandRequestBase(wcb);
+    ASSERT(write_ops::verifySizeEstimate(insert));
+
+    // includeQueryStatsMetrics
+    insert.setIncludeQueryStatsMetrics(true);
     ASSERT(write_ops::verifySizeEstimate(insert));
 }
 
@@ -327,6 +339,16 @@ TEST_F(WriteOpsExecTest, TestDeleteRequestSizeEstimationLogic) {
     // originalCollation
     wcb.setOriginalCollation(fromjson("{locale: 'fr'}"));
     deleteReq.setWriteCommandRequestBase(wcb);
+    ASSERT(write_ops::verifySizeEstimate(deleteReq));
+
+    // includeQueryStatsMetricsForOpIndex
+    deleteOpEntry.setIncludeQueryStatsMetricsForOpIndex(0);
+    deleteReq.setDeletes({deleteOpEntry});
+    ASSERT(write_ops::verifySizeEstimate(deleteReq));
+
+    // Remove includeQueryStatsMetricsForOpIndex.
+    deleteOpEntry.setIncludeQueryStatsMetricsForOpIndex(boost::none);
+    deleteReq.setDeletes({deleteOpEntry});
     ASSERT(write_ops::verifySizeEstimate(deleteReq));
 }
 
@@ -484,7 +506,6 @@ protected:
 
     OpObserverMock* _opObserverMock;
 };
-
 
 TEST_F(WriteOpsExecOplogTest, VerifySingleInsertOplogDoesntBatch) {
     NamespaceString ns =

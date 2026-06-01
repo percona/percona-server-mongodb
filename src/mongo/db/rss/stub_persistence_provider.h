@@ -270,6 +270,20 @@ public:
         uasserted(mongo::ErrorCodes::NotImplemented,
                   "StubPersistenceProvider::supportsColdCollections() method not implemented");
     }
+
+    bool supportsLegacyReplSetCommands() const override {
+        uasserted(
+            mongo::ErrorCodes::NotImplemented,
+            "StubPersistenceProvider::supportsLegacyReplSetCommands() method not implemented");
+    }
+
+    /**
+     * Unlike the rest of this stub, this method returns a FixedIntervalPolicy rather than
+     * uasserting, so that existing Stub-based test providers work without each needing an override.
+     */
+    std::unique_ptr<CheckpointSchedulePolicy> makeCheckpointSchedulePolicy() const override {
+        return createFixedIntervalPolicy();
+    }
 };
 
 }  // namespace mongo::rss

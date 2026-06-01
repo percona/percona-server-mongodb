@@ -61,6 +61,7 @@
 #include "mongo/db/shard_role/shard_catalog/durable_catalog.h"
 #include "mongo/db/shard_role/shard_catalog/index_catalog_entry_helpers.h"
 #include "mongo/db/shard_role/shard_catalog/index_descriptor.h"
+#include "mongo/db/shard_role/shard_catalog/set_multikey_metadata_oplog_helpers.h"
 #include "mongo/db/shard_role/transaction_resources.h"
 #include "mongo/db/storage/mdb_catalog.h"
 #include "mongo/db/storage/recovery_unit.h"
@@ -74,6 +75,7 @@
 #include "mongo/util/assert_util.h"
 #include "mongo/util/decorable.h"
 #include "mongo/util/fail_point.h"
+#include "mongo/util/str.h"
 
 #include <algorithm>
 #include <cstddef>
@@ -168,10 +170,6 @@ void IndexCatalogEntryImpl::setAccessMethod(std::unique_ptr<IndexAccessMethod> a
     _shared->_accessMethod = std::move(accessMethod);
     index_catalog_helpers::computeUpdateIndexData(
         this, _shared->_accessMethod.get(), &_shared->_indexedPaths);
-}
-
-bool IndexCatalogEntryImpl::sideWritesAllowed() const {
-    return _indexBuildInterceptor != nullptr;
 }
 
 bool IndexCatalogEntryImpl::isFrozen() const {
@@ -281,38 +279,101 @@ void IndexCatalogEntryImpl::setMultikey(OperationContext* opCtx,
         return;
     }
 
-    // If multikeyMetadataKeys is non-empty, we must insert these keys into the index itself. We do
-    // not have to account for potential dupes, since all metadata keys are indexed against a single
-    // RecordId. An attempt to write a duplicate key will therefore be ignored.
-    if (!multikeyMetadataKeys.empty()) {
-        uassertStatusOK(
-            accessMethod()->asSortedData()->insertKeys(opCtx,
-                                                       *shard_role_details::getRecoveryUnit(opCtx),
-                                                       collection,
-                                                       this,
-                                                       multikeyMetadataKeys,
-                                                       {},
-                                                       {},
-                                                       nullptr));
+    // `multikeyMetadataKeys` is wildcard-only by construction: only wildcard indexes store
+    // multikey-path information as keys inside the index itself. Other index types track multikey
+    // paths exclusively in the catalog and always pass an empty set here. Violating this would
+    // attempt to insert metadata keys into a non-wildcard index, which has no reserved RecordId for
+    // them and risks index corruption.
+    invariant(multikeyMetadataKeys.empty() ||
+                  _descriptor.getIndexType() == IndexType::INDEX_WILDCARD,
+              "Non-empty multikeyMetadataKeys must come from a wildcard index");
+
+    const auto insertWildcardMultikeyMetadataKeysIfNotEmpty = [&]() {
+        if (!multikeyMetadataKeys.empty()) {
+            // If multikeyMetadataKeys is non-empty, we must insert these keys into the index
+            // itself. We do not have to account for potential dupes, since all metadata keys are
+            // indexed against a single RecordId. An attempt to write a duplicate key will therefore
+            // be ignored.
+            uassertStatusOK(accessMethod()->asSortedData()->insertKeys(
+                opCtx,
+                *shard_role_details::getRecoveryUnit(opCtx),
+                collection,
+                this,
+                multikeyMetadataKeys,
+                {},
+                {},
+                nullptr));
+        }
+    };
+
+    if (!opCtx->inMultiDocumentTransaction()) {
+        insertWildcardMultikeyMetadataKeysIfNotEmpty();
+        _catalogSetMultikey(opCtx, collection, paths);
+        return;
     }
 
-    // Mark the catalog as multikey, and record the multikey paths if applicable.
-    if (opCtx->inMultiDocumentTransaction()) {
-        auto status = _setMultikeyInMultiDocumentTransaction(opCtx, collection, paths);
-        // Retry without side transaction.
-        if (!status.isOK()) {
-            _catalogSetMultikey(opCtx, collection, paths);
+    VersionContext::FixedOperationFCVRegion fixedOfcvRegion(opCtx);
+    const bool replicateMultikeyness = gFeatureFlagReplicateMultikeynessInTransactions.isEnabled(
+        VersionContext::getDecoration(opCtx));
+
+    // Feature off, insert metadata keys in transaction itself. Otherwise the keys are written in
+    // the side txn.
+    if (!replicateMultikeyness) {
+        insertWildcardMultikeyMetadataKeysIfNotEmpty();
+    }
+
+    // replicateMultikeyness==false: writes catalog changes in a side txn, uses no-op entry.
+    // replicateMultikeyness==true: writes catalog changes + wildcard metadata keys in a side txn,
+    // uses setMultikeyMetadata entry.
+    auto status = _setMultikeyInMultiDocumentTransaction(
+        opCtx, collection, multikeyMetadataKeys, paths, replicateMultikeyness);
+
+    if (!status.isOK()) {
+        // The only expected failure is IndexNotFound — the index was created in the same
+        // parent transaction and is not yet visible to the side transaction's snapshot.
+        // Any other error is unexpected and should not be silently swallowed.
+        tassert(11609105,
+                str::stream() << "Unexpected error from side transaction for multikey update: "
+                              << status.toString(),
+                status.code() == ErrorCodes::IndexNotFound);
+
+        // Fallback: the side transaction could not see the index because it was created (but not
+        // yet committed) in the parent transaction. This happens when a user creates a collection
+        // with a wildcard index and inserts data in the same multi-document transaction. Since the
+        // side transaction was abandoned, we insert the metadata keys directly in the parent
+        // transaction instead.
+        //
+        // No setMultikeyMetadata oplog entry is emitted. On the secondary, the MultikeyPathTracker
+        // collects multikey info during oplog application and flushes it at the batch timestamp
+        // (firstTimeInBatch). This is still timestamp-consistent because transactions containing
+        // DDL commands (create, createIndexes) are always processed in their own oplog applier
+        // batch, so firstTimeInBatch == T_commit for these transactions.
+        if (replicateMultikeyness) {
+            insertWildcardMultikeyMetadataKeysIfNotEmpty();
         }
-    } else {
         _catalogSetMultikey(opCtx, collection, paths);
     }
 }
 
 void IndexCatalogEntryImpl::setMultikeyForApplyOps(OperationContext* opCtx,
                                                    const CollectionPtr& coll,
+                                                   const KeyStringSet& multikeyMetadataKeys,
                                                    const MultikeyPaths& multikeyPaths) const {
     invariant(shard_role_details::getLocker(opCtx)->isCollectionLockedForMode(coll->ns(), MODE_IX));
     invariant(shard_role_details::getLocker(opCtx)->inAWriteUnitOfWork());
+
+    // Insert wildcard metadata keys into the index if provided.
+    if (!multikeyMetadataKeys.empty()) {
+        uassertStatusOK(
+            accessMethod()->asSortedData()->insertKeys(opCtx,
+                                                       *shard_role_details::getRecoveryUnit(opCtx),
+                                                       coll,
+                                                       this,
+                                                       multikeyMetadataKeys,
+                                                       {},
+                                                       {},
+                                                       nullptr));
+    }
 
     opCtx->getClient()->getServiceContext()->getOpObserver()->onSetMultikeyMetadata(
         opCtx,
@@ -348,7 +409,9 @@ void IndexCatalogEntryImpl::forceSetMultikey(OperationContext* const opCtx,
 Status IndexCatalogEntryImpl::_setMultikeyInMultiDocumentTransaction(
     OperationContext* opCtx,
     const CollectionPtr& collection,
-    const MultikeyPaths& multikeyPaths) const {
+    const KeyStringSet& multikeyMetadataKeys,
+    const MultikeyPaths& multikeyPaths,
+    bool replicateMultikeyness) const {
     // If we are inside a multi-document transaction, we write the on-disk multikey update in a
     // separate transaction so that it will not generate prepare conflicts with other operations
     // that try to set the multikey flag. In general, it should always be safe to update the
@@ -359,16 +422,15 @@ Status IndexCatalogEntryImpl::_setMultikeyInMultiDocumentTransaction(
 
     TransactionParticipant::SideTransactionBlock sideTxn(opCtx);
 
-    VersionContext::FixedOperationFCVRegion fixedOfcvRegion(opCtx);
-    const bool replicateMultikeyness = gFeatureFlagReplicateMultikeynessInTransactions.isEnabled(
-        VersionContext::getDecoration(opCtx));
-
     // If the index is not visible within the side transaction, the index may have been created,
     // but not committed, in the parent transaction. Therefore, we abandon the side transaction
     // and set the multikey flag in the parent transaction.
     if (!durable_catalog::isIndexPresent(
             opCtx, _shared->_catalogId, _descriptor.indexName(), MDBCatalog::get(opCtx))) {
-        return {ErrorCodes::SnapshotUnavailable, "index not visible in side transaction"};
+        return {ErrorCodes::IndexNotFound,
+                str::stream() << "index '" << _descriptor.indexName()
+                              << "' not visible in side transaction — likely created in the "
+                                 "same multi-document transaction"};
     }
 
     writeConflictRetry(opCtx, "set index multikey", collection->ns(), [&] {
@@ -406,7 +468,7 @@ Status IndexCatalogEntryImpl::_setMultikeyInMultiDocumentTransaction(
             // During initial sync, we may not have a stable timestamp. Therefore, we need to round
             // up the multi-key write timestamp to the max of the three so that we don't write
             // behind the oldest/stable timestamp. This code path is only hit during initial
-            // sync (and recovery if FeatureFlagReplicateMultikeynessInTransactions is enabled)
+            // sync (and recovery if FeatureFlagReplicateMultikeynessInTransactions is disabled)
             // when reconstructing prepared transactions, and so we don't expect the oldest/stable
             // timestamp to advance concurrently.
             //
@@ -431,11 +493,29 @@ Status IndexCatalogEntryImpl::_setMultikeyInMultiDocumentTransaction(
             invariant(opCtx->writesAreReplicated());
 
             if (replicateMultikeyness) {
+                BSONObj pathsObj;
+                if (!multikeyMetadataKeys.empty()) {
+                    // Wildcard index: serialize field path names extracted from metadata keys.
+                    auto fieldPaths =
+                        set_multikey_metadata_oplog_helpers::extractFieldPathsFromMetadataKeys(
+                            multikeyMetadataKeys, descriptor()->ordering());
+                    pathsObj = set_multikey_metadata_oplog_helpers::fieldPathsToBSON(fieldPaths);
+                    uassertStatusOK(accessMethod()->asSortedData()->insertKeys(
+                        opCtx,
+                        *shard_role_details::getRecoveryUnit(opCtx),
+                        collection,
+                        this,
+                        multikeyMetadataKeys,
+                        {},
+                        {},
+                        nullptr));
+                } else {
+                    // Regular index: existing multikey paths format.
+                    pathsObj = multikeyPathsToBSON(descriptor()->keyPattern(), multikeyPaths);
+                }
+
                 opCtx->getClient()->getServiceContext()->getOpObserver()->onSetMultikeyMetadata(
-                    opCtx,
-                    collection->ns(),
-                    descriptor()->indexName(),
-                    multikeyPathsToBSON(descriptor()->keyPattern(), multikeyPaths));
+                    opCtx, collection->ns(), descriptor()->indexName(), pathsObj);
             } else {
                 // Write a noop oplog entry to get a properly ordered timestamp.
                 auto msg = BSON("msg" << "Setting index to multikey"
@@ -449,6 +529,11 @@ Status IndexCatalogEntryImpl::_setMultikeyInMultiDocumentTransaction(
         _catalogSetMultikey(opCtx, collection, multikeyPaths);
 
         wuow.commit();
+
+        if (replicateMultikeyness && !multikeyMetadataKeys.empty()) {
+            txnParticipant.setHasSideCommittedWildcardKeys();
+            opCtx->setHasSideCommittedWildcardKeys();
+        }
     });
 
     return Status::OK();
@@ -531,15 +616,11 @@ public:
         MONGO_UNIMPLEMENTED_TASSERT(10083545);
     }
 
-    bool sideWritesAllowed() const final {
-        return _original->sideWritesAllowed();
-    }
-
-    IndexBuildInterceptor* indexBuildInterceptor() const final {
+    std::shared_ptr<IndexBuildInterceptor> indexBuildInterceptor() const final {
         return _original->indexBuildInterceptor();
     }
 
-    void setIndexBuildInterceptor(IndexBuildInterceptor* interceptor) final {
+    void setIndexBuildInterceptor(std::shared_ptr<IndexBuildInterceptor> interceptor) final {
         MONGO_UNIMPLEMENTED_TASSERT(10083546);
     }
 
@@ -585,8 +666,9 @@ public:
 
     void setMultikeyForApplyOps(OperationContext* opCtx,
                                 const CollectionPtr& coll,
+                                const KeyStringSet& multikeyMetadataKeys,
                                 const MultikeyPaths& multikeyPaths) const final {
-        return _original->setMultikeyForApplyOps(opCtx, coll, multikeyPaths);
+        return _original->setMultikeyForApplyOps(opCtx, coll, multikeyMetadataKeys, multikeyPaths);
     }
 
     void forceSetMultikey(OperationContext* opCtx,
@@ -661,15 +743,11 @@ public:
         MONGO_UNIMPLEMENTED_TASSERT(10083552);
     }
 
-    bool sideWritesAllowed() const final {
-        return _original->sideWritesAllowed();
-    }
-
-    IndexBuildInterceptor* indexBuildInterceptor() const final {
+    std::shared_ptr<IndexBuildInterceptor> indexBuildInterceptor() const final {
         return _original->indexBuildInterceptor();
     }
 
-    void setIndexBuildInterceptor(IndexBuildInterceptor* interceptor) final {
+    void setIndexBuildInterceptor(std::shared_ptr<IndexBuildInterceptor> interceptor) final {
         MONGO_UNIMPLEMENTED_TASSERT(10083553);
     }
 
@@ -715,8 +793,9 @@ public:
 
     void setMultikeyForApplyOps(OperationContext* opCtx,
                                 const CollectionPtr& coll,
+                                const KeyStringSet& multikeyMetadataKeys,
                                 const MultikeyPaths& multikeyPaths) const final {
-        return _original->setMultikeyForApplyOps(opCtx, coll, multikeyPaths);
+        return _original->setMultikeyForApplyOps(opCtx, coll, multikeyMetadataKeys, multikeyPaths);
     }
 
     void forceSetMultikey(OperationContext* opCtx,

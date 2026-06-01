@@ -74,6 +74,7 @@
 #include "mongo/db/sharding_environment/client/shard.h"
 #include "mongo/db/sharding_environment/grid.h"
 #include "mongo/db/sharding_environment/shard_id.h"
+#include "mongo/db/sharding_environment/sharding_feature_flags_gen.h"
 #include "mongo/db/sharding_environment/sharding_logging.h"
 #include "mongo/db/topology/shard_registry.h"
 #include "mongo/db/topology/sharding_state.h"
@@ -778,17 +779,26 @@ ExecutorFuture<void> RenameCollectionCoordinator::_runImpl(
 
                 // Block migrations on involved collections.
                 try {
-                    const auto session = getNewSession(opCtx);
                     sharding_ddl_util::stopMigrations(
-                        opCtx, fromNss, _doc.getSourceUUID(), session);
+                        // TODO (SERVER-127441): take AuthoritativeMetadataAccessLevelEnum from _doc
+                        opCtx,
+                        fromNss,
+                        _doc.getSourceUUID(),
+                        [&] { return getNewSession(opCtx); },
+                        AuthoritativeMetadataAccessLevelEnum::kNone);
                 } catch (ExceptionFor<ErrorCodes::NamespaceNotFound>&) {
                     // stopMigrations is allowed to fail when the source collection is not tracked
                     // by the sharding catalog.
                 }
 
                 try {
-                    const auto session = getNewSession(opCtx);
-                    sharding_ddl_util::stopMigrations(opCtx, toNss, _doc.getTargetUUID(), session);
+                    // TODO (SERVER-127441): take AuthoritativeMetadataAccessLevelEnum from _doc.
+                    sharding_ddl_util::stopMigrations(
+                        opCtx,
+                        toNss,
+                        _doc.getTargetUUID(),
+                        [&] { return getNewSession(opCtx); },
+                        AuthoritativeMetadataAccessLevelEnum::kNone);
                 } catch (ExceptionFor<ErrorCodes::NamespaceNotFound>&) {
                     // stopMigrations is allowed to fail when the target collection doesn't exist or
                     // is not tracked by the sharding catalog.
@@ -810,6 +820,17 @@ ExecutorFuture<void> RenameCollectionCoordinator::_runImpl(
                     blockCRUDOperationsRequest.setBlockType(
                         mongo::CriticalSectionBlockTypeEnum::kReadsAndWrites);
                     blockCRUDOperationsRequest.setReason(reason);
+
+                    // When shards are authoritative, there is no need to clear the filtering
+                    // metadata upon releasing the critical section; the commit phase is responsible
+                    // for updating the shard catalog with current information. This flag is
+                    // evaluated at insertion time because on secondaries, metadata is cleared
+                    // during the onDelete of the critical section document.
+                    bool isDDLAuthoritative = _doc.getAuthoritativeMetadataAccessLevel() >=
+                        AuthoritativeMetadataAccessLevelEnum::kWritesAllowed;
+                    if (isDDLAuthoritative) {
+                        blockCRUDOperationsRequest.setClearCollMetadata(false);
+                    }
 
                     generic_argument_util::setMajorityWriteConcern(blockCRUDOperationsRequest);
                     generic_argument_util::setOperationSessionInfo(blockCRUDOperationsRequest,
@@ -928,6 +949,17 @@ ExecutorFuture<void> RenameCollectionCoordinator::_runImpl(
                     _doc.getNewTargetCollectionUuid());
                 renameCollParticipantRequest.setRenameCollectionRequest(_request);
 
+                // When shards are authoritative, there is no need to clear the filtering
+                // metadata upon releasing the critical section; the commit phase is responsible
+                // for updating the shard catalog with current information. This flag is
+                // evaluated at insertion time because on secondaries, metadata is cleared
+                // during the onDelete of the critical section document.
+                bool isDDLAuthoritative = _doc.getAuthoritativeMetadataAccessLevel() >=
+                    AuthoritativeMetadataAccessLevelEnum::kWritesAllowed;
+                if (isDDLAuthoritative) {
+                    renameCollParticipantRequest.setClearCollMetadata(false);
+                }
+
                 const auto opSessionInfo = getNewSession(opCtx);
                 generic_argument_util::setMajorityWriteConcern(renameCollParticipantRequest);
                 generic_argument_util::setOperationSessionInfo(renameCollParticipantRequest,
@@ -1012,17 +1044,37 @@ ExecutorFuture<void> RenameCollectionCoordinator::_runImpl(
 
                 const auto renamedCollectionEpoch = OID::gen();
 
-                const auto session = getNewSession(opCtx);
-                renameCollectionMetadataInTransaction(opCtx,
-                                                      _doc.getOptTrackedCollInfo(),
-                                                      fromNss,
-                                                      toNss,
-                                                      _doc.getTargetUUID(),
-                                                      _doc.getNewTargetCollectionUuid(),
-                                                      commitTime,
-                                                      renamedCollectionEpoch,
-                                                      **executor,
-                                                      session);
+                {
+                    const auto session = getNewSession(opCtx);
+                    renameCollectionMetadataInTransaction(opCtx,
+                                                          _doc.getOptTrackedCollInfo(),
+                                                          fromNss,
+                                                          toNss,
+                                                          _doc.getTargetUUID(),
+                                                          _doc.getNewTargetCollectionUuid(),
+                                                          commitTime,
+                                                          renamedCollectionEpoch,
+                                                          **executor,
+                                                          session);
+                }
+
+                bool isDDLAuthoritative = _doc.getAuthoritativeMetadataAccessLevel() >=
+                    AuthoritativeMetadataAccessLevelEnum::kWritesAllowed;
+                if (isDDLAuthoritative) {
+                    const auto session = getNewSession(opCtx);
+                    sharding_ddl_util::commitRenameCollectionMetadataToShardCatalog(
+                        opCtx,
+                        fromNss,
+                        toNss,
+                        _doc.getSourceUUID(),
+                        _doc.getTargetUUID(),
+                        _doc.getNewTargetCollectionUuid(),
+                        Grid::get(opCtx)->shardRegistry()->getAllShardIds(opCtx),
+                        session,
+                        executor,
+                        token);
+                }
+
 
                 // Generate post-commit placement change event for FROM.
                 if (preciseChangeStreamTargeterEnabled) {

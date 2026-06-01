@@ -71,7 +71,7 @@ std::shared_ptr<WasmEngineContext> WasmEngineContext::createFromPrecompiled(cons
 }
 
 MozJSWasmBridge::MozJSWasmBridge(std::shared_ptr<WasmEngineContext> ctx, Options opts)
-    : _ctx(std::move(ctx)) {
+    : _javascriptProtection(opts.javascriptProtection), _ctx(std::move(ctx)) {
     _store = wt::Store(_ctx->_engine);
 
     invariant(opts.linearMemoryLimitMB > 0);
@@ -79,9 +79,13 @@ MozJSWasmBridge::MozJSWasmBridge(std::shared_ptr<WasmEngineContext> ctx, Options
     // The JS heap lives inside WASM linear memory alongside SpiderMonkey's
     // runtime overhead (stack, GC metadata, self-hosted code, malloc arena).
     // The store limit must exceed the heap limit to leave room for that overhead.
-    // Use the configured heap limit, or the in-WASM default (100 MB) when not set.
+    //
+    // Resolve the effective limit: if a per-query override is set, take the
+    // minimum of it and the global limit (matching MozJSImplScope::MozRuntime
+    // semantics in the shell scripting engine). Otherwise use the global limit.
+    const uint32_t globalLimitMB = static_cast<uint32_t>(gJSHeapLimitMB.load());
     _jsHeapLimitMB =
-        opts.jsHeapLimitMB > 0 ? opts.jsHeapLimitMB : static_cast<uint32_t>(gJSHeapLimitMB.load());
+        opts.jsHeapLimitMB > 0 ? std::min(opts.jsHeapLimitMB, globalLimitMB) : globalLimitMB;
     uint32_t minOverheadMB = std::max(64u, _jsHeapLimitMB / 10);
     uint32_t minStoreMB = _jsHeapLimitMB + minOverheadMB;
 
@@ -182,7 +186,8 @@ bool MozJSWasmBridge::_callFuncNoArgs(wc::Func& func, wc::Val* results, size_t n
 bool MozJSWasmBridge::initialize() {
     wc::Val result(wc::WitResult::ok(std::nullopt));
     LOGV2_DEBUG(11542332, 2, "Wasm Bridge Initializing", "ok"_attr = isInitialized());
-    wc::Val optionsArg(wc::Record({{"heap-size-mb", wc::Val(_jsHeapLimitMB)}}));
+    wc::Val optionsArg(wc::Record({{"heap-size-mb", wc::Val(_jsHeapLimitMB)},
+                                   {"javascript-protection", wc::Val(_javascriptProtection)}}));
     _callFunc(*_initEngineFunc, &result, 1, std::move(optionsArg));
     if (_assertWitResult(result)) {
         _state.store(State::Initialized);
@@ -228,13 +233,12 @@ uint64_t MozJSWasmBridge::createFunction(std::string_view source) {
 }
 
 StatusWith<BSONObj> MozJSWasmBridge::invokeFunction(uint64_t handle,
-                                                    const BSONObj& args,
+                                                    wc::Val bsonVal,
                                                     bool ignoreReturn) {
     _assertUsable();
     wc::Val arg0(handle);
-    wc::Val arg1(wasm_helpers::makeListU8(args));
     wc::Val result(wc::WitResult::ok(std::nullopt));
-    if (!_callFunc(*_invokeFunctionFunc, &result, 1, std::move(arg0), std::move(arg1))) {
+    if (!_callFunc(*_invokeFunctionFunc, &result, 1, std::move(arg0), std::move(bsonVal))) {
         return Status{ErrorCodes::Error{11542313},
                       str::stream() << "Failed to call to invoke JS function number " << handle};
     }
@@ -248,7 +252,7 @@ StatusWith<BSONObj> MozJSWasmBridge::invokeFunction(uint64_t handle,
 void MozJSWasmBridge::setGlobal(std::string_view name, const BSONObj& value) {
     _assertUsable();
     wc::Val nameArg = wasm_helpers::makeString(name);
-    wc::Val valueArg(wasm_helpers::makeListU8(value));
+    wc::Val valueArg = wasm_helpers::convertBsonToWcVal(value);
     wc::Val result(wc::WitResult::ok(std::nullopt));
     uassert(11542312,
             str::stream() << "Failed to call to set global JS variable " << std::string(name),
@@ -263,7 +267,7 @@ void MozJSWasmBridge::setGlobalValue(std::string_view name, const BSONObj& value
     _assertUsable();
     invariant(value.nFields() == 1);
     wc::Val nameArg = wasm_helpers::makeString(name);
-    wc::Val valueArg(wasm_helpers::makeListU8(value));
+    wc::Val valueArg = wasm_helpers::convertBsonToWcVal(value);
     wc::Val result(wc::WitResult::ok(std::nullopt));
     uassert(11542316,
             str::stream() << "Failed to call to set global JS value variable " << std::string(name),
@@ -287,26 +291,24 @@ void MozJSWasmBridge::setupEmit(boost::optional<int64_t> byteLimit) {
     _assertWitResult(result, "Wasm Bridge failed to setup-emit");
 }
 
-void MozJSWasmBridge::invokeMap(uint64_t handle, const BSONObj& args) {
+void MozJSWasmBridge::invokeMap(uint64_t handle, wc::Val bsonVal) {
     _assertUsable();
     wc::Val arg0(handle);
-    wc::Val arg1(wasm_helpers::makeListU8(args));
     wc::Val result(wc::WitResult::ok(std::nullopt));
     uassert(11542319,
             str::stream() << "Failed to call to invoke JS function number " << handle,
-            _callFunc(*_invokeMapFunc, &result, 1, std::move(arg0), std::move(arg1)));
+            _callFunc(*_invokeMapFunc, &result, 1, std::move(arg0), std::move(bsonVal)));
     _assertWitResult(result,
                      str::stream() << "Failed to invoke JS function :: function id = " << handle);
 }
 
-bool MozJSWasmBridge::invokePredicate(uint64_t handle, const BSONObj& args) {
+bool MozJSWasmBridge::invokePredicate(uint64_t handle, wc::Val bsonVal) {
     _assertUsable();
     wc::Val arg0(handle);
-    wc::Val arg1(wasm_helpers::makeListU8(args));
     wc::Val result(wc::WitResult::ok(std::nullopt));
     uassert(11542339,
             str::stream() << "Failed to call to invoke JS function number " << handle,
-            _callFunc(*_invokePredicateFunc, &result, 1, std::move(arg0), std::move(arg1)));
+            _callFunc(*_invokePredicateFunc, &result, 1, std::move(arg0), std::move(bsonVal)));
     _assertWitResult(result,
                      str::stream() << "Failed to invoke JS predicate :: function id = " << handle);
     const wc::Val* payload = result.get_result().payload();

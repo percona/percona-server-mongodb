@@ -36,7 +36,6 @@
 #include "mongo/db/op_observer/op_observer_noop.h"
 #include "mongo/db/query/collection_index_usage_tracker_decoration.h"
 #include "mongo/db/repl/replication_coordinator_mock.h"
-#include "mongo/db/repl/timestamp_block.h"
 #include "mongo/db/shard_role/shard_catalog/catalog_test_fixture.h"
 #include "mongo/db/shard_role/shard_catalog/collection.h"
 #include "mongo/db/shard_role/shard_catalog/index_catalog.h"
@@ -48,6 +47,7 @@
 #include "mongo/db/storage/ident.h"
 #include "mongo/db/storage/kv/kv_engine.h"
 #include "mongo/db/storage/lazy_record_store.h"
+#include "mongo/db/storage/record_store_test_harness.h"
 #include "mongo/db/storage/sorted_data_interface.h"
 #include "mongo/db/storage/storage_engine.h"
 #include "mongo/idl/server_parameter_test_controller.h"
@@ -110,6 +110,9 @@ public:
                             const std::vector<boost::optional<BSONObj>>& multikey,
                             bool fromMigrate,
                             bool isTimeseries) override {
+        if (throwOnCommit) {
+            uasserted(ErrorCodes::InterruptedDueToReplStateChange, "simulated stepdown");
+        }
         lastCommitArgs = CommitArgs{.ns = ns,
                                     .collUUID = collUUID,
                                     .buildUUID = buildUUID,
@@ -127,6 +130,9 @@ public:
                            const Status& cause,
                            bool fromMigrate,
                            bool isTimeseries) override {
+        if (throwOnAbort) {
+            uasserted(ErrorCodes::InterruptedDueToReplStateChange, "simulated stepdown");
+        }
         lastAbortArgs = AbortArgs{.ns = ns,
                                   .collUUID = collUUID,
                                   .buildUUID = buildUUID,
@@ -135,6 +141,9 @@ public:
                                   .fromMigrate = fromMigrate,
                                   .isTimeseries = isTimeseries};
     }
+
+    bool throwOnAbort = false;
+    bool throwOnCommit = false;
 
     boost::optional<StartArgs> lastStartArgs;
     boost::optional<CommitArgs> lastCommitArgs;
@@ -260,23 +269,21 @@ TEST_F(UtilTest, Commit) {
     const auto indexBuildIdent = ident::generateNewIndexBuildIdent(buildUUID);
     ASSERT_OK(
         start(operationContext(), ns.dbName(), collUUID, buildUUID, indexes, indexBuildIdent));
+    const Timestamp commitTs(1, 0);
+    shard_role_details::getRecoveryUnit(operationContext())->setCommitTimestamp(commitTs);
     ASSERT_OK(commit(
         operationContext(), ns.dbName(), collUUID, buildUUID, indexes, multikey, indexBuildIdent));
 
+    const Timestamp dropTs(commitTs.getSecs() + 1, 0);
     for (auto&& index : indexes) {
         auto& engine = *operationContext()->getServiceContext()->getStorageEngine();
-        ASSERT_OK(engine.immediatelyCompletePendingDrop(operationContext(), index.indexIdent));
-        ASSERT_OK(engine.immediatelyCompletePendingDrop(operationContext(), *index.sorterIdent));
-        ASSERT_OK(
-            engine.immediatelyCompletePendingDrop(operationContext(), *index.sideWritesIdent));
-        ASSERT_OK(
-            engine.immediatelyCompletePendingDrop(operationContext(), *index.skippedRecordsIdent));
-        ASSERT_OK(engine.immediatelyCompletePendingDrop(operationContext(),
-                                                        *index.constraintViolationsIdent));
+        engine.dropIdentTimestamped(operationContext(), *index.sorterIdent, dropTs);
+        engine.dropIdentTimestamped(operationContext(), *index.sideWritesIdent, dropTs);
+        engine.dropIdentTimestamped(operationContext(), *index.skippedRecordsIdent, dropTs);
+        engine.dropIdentTimestamped(operationContext(), *index.constraintViolationsIdent, dropTs);
     }
-    ASSERT_OK(
-        operationContext()->getServiceContext()->getStorageEngine()->immediatelyCompletePendingDrop(
-            operationContext(), indexBuildIdent));
+    operationContext()->getServiceContext()->getStorageEngine()->dropIdentTimestamped(
+        operationContext(), indexBuildIdent, dropTs);
 
     auto coll = acquireCollectionMaybeLockFree(
         operationContext(),
@@ -339,23 +346,22 @@ TEST_F(UtilTest, Abort) {
     const auto indexBuildIdent = ident::generateNewIndexBuildIdent(buildUUID);
     ASSERT_OK(
         start(operationContext(), ns.dbName(), collUUID, buildUUID, indexes, indexBuildIdent));
+    const Timestamp commitTs(1, 0);
+    shard_role_details::getRecoveryUnit(operationContext())->setCommitTimestamp(commitTs);
     ASSERT_OK(abort(
         operationContext(), ns.dbName(), collUUID, buildUUID, indexes, indexBuildIdent, cause));
 
+    const Timestamp dropTs(commitTs.getSecs() + 1, 0);
     for (auto&& index : indexes) {
         auto& engine = *operationContext()->getServiceContext()->getStorageEngine();
-        ASSERT_OK(engine.immediatelyCompletePendingDrop(operationContext(), index.indexIdent));
-        ASSERT_OK(engine.immediatelyCompletePendingDrop(operationContext(), *index.sorterIdent));
-        ASSERT_OK(
-            engine.immediatelyCompletePendingDrop(operationContext(), *index.sideWritesIdent));
-        ASSERT_OK(
-            engine.immediatelyCompletePendingDrop(operationContext(), *index.skippedRecordsIdent));
-        ASSERT_OK(engine.immediatelyCompletePendingDrop(operationContext(),
-                                                        *index.constraintViolationsIdent));
+        engine.dropIdentTimestamped(operationContext(), index.indexIdent, dropTs);
+        engine.dropIdentTimestamped(operationContext(), *index.sorterIdent, dropTs);
+        engine.dropIdentTimestamped(operationContext(), *index.sideWritesIdent, dropTs);
+        engine.dropIdentTimestamped(operationContext(), *index.skippedRecordsIdent, dropTs);
+        engine.dropIdentTimestamped(operationContext(), *index.constraintViolationsIdent, dropTs);
     }
-    ASSERT_OK(
-        operationContext()->getServiceContext()->getStorageEngine()->immediatelyCompletePendingDrop(
-            operationContext(), indexBuildIdent));
+    operationContext()->getServiceContext()->getStorageEngine()->dropIdentTimestamped(
+        operationContext(), indexBuildIdent, dropTs);
 
     auto coll = acquireCollectionMaybeLockFree(
         operationContext(),
@@ -400,16 +406,9 @@ TEST_F(UtilTest, CommitUsesCommitTimestampForTemporaryTableDrops) {
         start(operationContext(), ns.dbName(), collUUID, buildUUID, indexes, indexBuildIdent));
 
     const Timestamp commitTs(200, 0);
-    {
-        TimestampBlock tsBlock(operationContext(), commitTs);
-        ASSERT_OK(commit(operationContext(),
-                         ns.dbName(),
-                         collUUID,
-                         buildUUID,
-                         indexes,
-                         multikey,
-                         indexBuildIdent));
-    }
+    shard_role_details::getRecoveryUnit(operationContext())->setCommitTimestamp(commitTs);
+    ASSERT_OK(commit(
+        operationContext(), ns.dbName(), collUUID, buildUUID, indexes, multikey, indexBuildIdent));
 
     auto storageEngine = operationContext()->getServiceContext()->getStorageEngine();
     for (auto&& index : indexes) {
@@ -435,11 +434,9 @@ TEST_F(UtilTest, AbortUsesCommitTimestampForTemporaryTableDrops) {
         start(operationContext(), ns.dbName(), collUUID, buildUUID, indexes, indexBuildIdent));
 
     const Timestamp commitTs(300, 0);
-    {
-        TimestampBlock tsBlock(operationContext(), commitTs);
-        ASSERT_OK(abort(
-            operationContext(), ns.dbName(), collUUID, buildUUID, indexes, indexBuildIdent, cause));
-    }
+    shard_role_details::getRecoveryUnit(operationContext())->setCommitTimestamp(commitTs);
+    ASSERT_OK(abort(
+        operationContext(), ns.dbName(), collUUID, buildUUID, indexes, indexBuildIdent, cause));
 
     auto storageEngine = operationContext()->getServiceContext()->getStorageEngine();
     for (auto&& index : indexes) {
@@ -453,23 +450,63 @@ TEST_F(UtilTest, AbortUsesCommitTimestampForTemporaryTableDrops) {
     }
 }
 
-TEST_F(UtilTest, AbortWithNoCommitTimestampDropsImmediately) {
+
+TEST_F(UtilTest, AbortWUOWRollbackAllowsRetry) {
     auto buildUUID = UUID::gen();
     auto indexes = makeIndexes({"a"});
     auto indexBuildIdent = ident::generateNewIndexBuildIdent(buildUUID);
-    Status cause{ErrorCodes::Error{11130403}, "abort"};
+    const Status cause{ErrorCodes::Error{11130404}, "abort"};
 
     ASSERT_OK(
         start(operationContext(), ns.dbName(), collUUID, buildUUID, indexes, indexBuildIdent));
+
+    // Throw from the OpObserver to roll back the WUoW after dropIdentsAndDeregisterOnCommit
+    // has registered its onCommit handler but before wuow.commit().
+    opObserver().throwOnAbort = true;
+    ASSERT_THROWS_CODE(
+        abort(
+            operationContext(), ns.dbName(), collUUID, buildUUID, indexes, indexBuildIdent, cause),
+        DBException,
+        ErrorCodes::InterruptedDueToReplStateChange);
+    opObserver().throwOnAbort = false;
+
+    ASSERT_FALSE(registry(getServiceContext()).all().empty());
+    EXPECT_EQ(getServiceContext()->getStorageEngine()->getNumDropPendingIdents(), 0U);
+    // No mangled state.
+    shard_role_details::getRecoveryUnit(operationContext())->setCommitTimestamp(Timestamp(1, 0));
     ASSERT_OK(abort(
         operationContext(), ns.dbName(), collUUID, buildUUID, indexes, indexBuildIdent, cause));
+}
 
-    auto& engine = *operationContext()->getServiceContext()->getStorageEngine();
-    for (auto&& index : indexes) {
-        // Without a commit timestamp, the drop is registered as Immediate.
-        ASSERT_OK(
-            engine.immediatelyCompletePendingDrop(operationContext(), *index.sideWritesIdent));
-    }
+TEST_F(UtilTest, CommitWUOWRollbackAllowsRetry) {
+    auto buildUUID = UUID::gen();
+    auto indexes = makeIndexes({"a"});
+    auto indexBuildIdent = ident::generateNewIndexBuildIdent(buildUUID);
+    std::vector<boost::optional<MultikeyPaths>> multikey(indexes.size());
+
+    ASSERT_OK(
+        start(operationContext(), ns.dbName(), collUUID, buildUUID, indexes, indexBuildIdent));
+
+    // Throw from the OpObserver to roll back the WUoW after dropIdentsAndDeregisterOnCommit
+    // has registered its onCommit handler but before wuow.commit().
+    opObserver().throwOnCommit = true;
+    ASSERT_THROWS_CODE(commit(operationContext(),
+                              ns.dbName(),
+                              collUUID,
+                              buildUUID,
+                              indexes,
+                              multikey,
+                              indexBuildIdent),
+                       DBException,
+                       ErrorCodes::InterruptedDueToReplStateChange);
+    opObserver().throwOnCommit = false;
+
+    ASSERT_FALSE(registry(getServiceContext()).all().empty());
+    EXPECT_EQ(getServiceContext()->getStorageEngine()->getNumDropPendingIdents(), 0U);
+    // No mangled state.
+    shard_role_details::getRecoveryUnit(operationContext())->setCommitTimestamp(Timestamp(1, 0));
+    ASSERT_OK(commit(
+        operationContext(), ns.dbName(), collUUID, buildUUID, indexes, multikey, indexBuildIdent));
 }
 
 TEST_F(UtilTest, ResumeInfoRequiresValidIdent) {
@@ -571,7 +608,7 @@ void insertSorterEntries(OperationContext* opCtx,
                                           container,
                                           key,
                                           std::span<const char>(dummyValue, sizeof(dummyValue)),
-                                          mongo::container::ExistingKeyPolicy::overwrite));
+                                          container_write::NonexistentKeyGuarantee{}));
     }
     wuow.commit();
 }
@@ -614,14 +651,14 @@ TEST_F(UtilTest, DeleteSorterEntriesOutsideRangesDeletesOutOfRangeKeys) {
     }
 }
 
-TEST_F(UtilTest, DeleteSorterEntriesOutsideRangesNoOpWhenNoRanges) {
+TEST_F(UtilTest, DeleteSorterEntriesOutsideRangesDeletesAllWhenRangesUnset) {
     RAIIServerParameterControllerForTest containerWritesEnabled{"featureFlagContainerWrites", true};
     static_cast<repl::ReplicationCoordinatorMock*>(
         repl::ReplicationCoordinator::get(getServiceContext()))
         ->alwaysAllowWrites(true);
 
     auto opCtx = operationContext();
-    std::string sorterIdent = "internal-sorter-noop-test";
+    std::string sorterIdent = "internal-sorter-unset-ranges-test";
     LazyRecordStore sorterTable(opCtx, sorterIdent, LazyRecordStore::CreateMode::immediate);
     auto& container = std::get<std::reference_wrapper<IntegerKeyedContainer>>(
                           sorterTable.getTableOrThrow().getContainer())
@@ -636,11 +673,43 @@ TEST_F(UtilTest, DeleteSorterEntriesOutsideRangesNoOpWhenNoRanges) {
     indexInfo.setIsMultikey(false);
     indexInfo.setMultikeyPaths({});
     indexInfo.setStorageIdentifier(sorterIdent);
+    // Ranges are left unset, so all entries are orphaned.
 
     deleteSorterEntriesOutsideRanges(opCtx, {indexInfo});
 
     auto remainingKeys = getSorterKeys(opCtx, container);
-    EXPECT_EQ(remainingKeys.size(), 5u);
+    EXPECT_TRUE(remainingKeys.empty());
+}
+
+TEST_F(UtilTest, DeleteSorterEntriesOutsideRangesDeletesAllWhenRangesEmpty) {
+    RAIIServerParameterControllerForTest containerWritesEnabled{"featureFlagContainerWrites", true};
+    static_cast<repl::ReplicationCoordinatorMock*>(
+        repl::ReplicationCoordinator::get(getServiceContext()))
+        ->alwaysAllowWrites(true);
+
+    auto opCtx = operationContext();
+    std::string sorterIdent = "internal-sorter-empty-ranges-test";
+    LazyRecordStore sorterTable(opCtx, sorterIdent, LazyRecordStore::CreateMode::immediate);
+    auto& container = std::get<std::reference_wrapper<IntegerKeyedContainer>>(
+                          sorterTable.getTableOrThrow().getContainer())
+                          .get();
+
+    insertSorterEntries(opCtx, container, 1, 6);
+
+    IndexStateInfo indexInfo;
+    indexInfo.setSpec(BSON("key" << BSON("a" << 1) << "name"
+                                 << "a_1"
+                                 << "v" << IndexConfig::kLatestIndexVersion));
+    indexInfo.setIsMultikey(false);
+    indexInfo.setMultikeyPaths({});
+    indexInfo.setStorageIdentifier(sorterIdent);
+    // Ranges are present but empty, so all entries are orphaned.
+    indexInfo.setRanges(std::vector<SorterRange>{});
+
+    deleteSorterEntriesOutsideRanges(opCtx, {indexInfo});
+
+    auto remainingKeys = getSorterKeys(opCtx, container);
+    EXPECT_TRUE(remainingKeys.empty());
 }
 
 TEST_F(UtilTest, DeleteSorterEntriesOutsideRangesNoOpWhenAllWithinRange) {
@@ -713,6 +782,108 @@ TEST_F(UtilTest, DeleteSorterEntriesOutsideRangesDeletesAcrossBatches) {
     auto remainingKeys = getSorterKeys(opCtx, container);
     EXPECT_EQ(remainingKeys.size(), 5u);
     for (int64_t expected = 1; expected < 6; ++expected) {
+        EXPECT_TRUE(std::find(remainingKeys.begin(), remainingKeys.end(), expected) !=
+                    remainingKeys.end());
+    }
+}
+
+// Fires a deterministic WCE while removing keys < firstStart.
+TEST_F(UtilTest, DeleteSorterEntriesOutsideRangesSurvivesWCEWhenDeletingKeysLessThanFirstStart) {
+    RAIIServerParameterControllerForTest containerWritesEnabled{"featureFlagContainerWrites", true};
+    RAIIServerParameterControllerForTest batchSize{
+        "primaryDrivenIndexBuildSorterInsertionBatchSize", 5};
+    static_cast<repl::ReplicationCoordinatorMock*>(
+        repl::ReplicationCoordinator::get(getServiceContext()))
+        ->alwaysAllowWrites(true);
+
+    auto opCtx = operationContext();
+    std::string sorterIdent = "internal-sorter-wce-pre-test";
+    LazyRecordStore sorterTable(opCtx, sorterIdent, LazyRecordStore::CreateMode::immediate);
+    auto& container = std::get<std::reference_wrapper<IntegerKeyedContainer>>(
+                          sorterTable.getTableOrThrow().getContainer())
+                          .get();
+
+    // We will be deleting keys < 6 and >= 11.
+    insertSorterEntries(opCtx, container, 1, 6);
+    insertSorterEntries(opCtx, container, 6, 11);
+    insertSorterEntries(opCtx, container, 11, 16);
+
+    IndexStateInfo indexInfo;
+    indexInfo.setSpec(BSON("key" << BSON("a" << 1) << "name"
+                                 << "a_1"
+                                 << "v" << IndexConfig::kLatestIndexVersion));
+    indexInfo.setIsMultikey(false);
+    indexInfo.setMultikeyPaths({});
+    indexInfo.setStorageIdentifier(sorterIdent);
+    SorterRange range;
+    range.setStart(6);
+    range.setEnd(11);
+    range.setChecksum(0);
+    indexInfo.setRanges(std::vector<SorterRange>{range});
+
+    auto failPoint = enableWriteConflictForWrites(
+        FailPoint::ModeOptions{.mode = FailPoint::Mode::nTimes, .val = 1});
+    const auto initialTimesEntered = failPoint->initialTimesEntered();
+
+    deleteSorterEntriesOutsideRanges(opCtx, {indexInfo});
+
+    // Exactly one WCE must have fired when removing keys < 6.
+    EXPECT_EQ(initialTimesEntered + 1, (*failPoint)->waitForTimesEntered(initialTimesEntered + 1));
+
+    auto remainingKeys = getSorterKeys(opCtx, container);
+    EXPECT_EQ(remainingKeys.size(), 5u);
+    for (int64_t expected = 6; expected < 11; ++expected) {
+        EXPECT_TRUE(std::find(remainingKeys.begin(), remainingKeys.end(), expected) !=
+                    remainingKeys.end());
+    }
+}
+
+// Fires a deterministic WCE while removing keys >= LastEnd.
+TEST_F(UtilTest,
+       DeleteSorterEntriesOutsideRangesSurvivesWCEWhenDeletingKeysGreaterThanOrEqualToLastEnd) {
+    RAIIServerParameterControllerForTest containerWritesEnabled{"featureFlagContainerWrites", true};
+    RAIIServerParameterControllerForTest batchSize{
+        "primaryDrivenIndexBuildSorterInsertionBatchSize", 4};
+    static_cast<repl::ReplicationCoordinatorMock*>(
+        repl::ReplicationCoordinator::get(getServiceContext()))
+        ->alwaysAllowWrites(true);
+
+    auto opCtx = operationContext();
+    std::string sorterIdent = "internal-sorter-wce-post-test";
+    LazyRecordStore sorterTable(opCtx, sorterIdent, LazyRecordStore::CreateMode::immediate);
+    auto& container = std::get<std::reference_wrapper<IntegerKeyedContainer>>(
+                          sorterTable.getTableOrThrow().getContainer())
+                          .get();
+
+    // We will be deleting keys >= 11.
+    insertSorterEntries(opCtx, container, 6, 11);
+    insertSorterEntries(opCtx, container, 11, 17);
+
+    IndexStateInfo indexInfo;
+    indexInfo.setSpec(BSON("key" << BSON("a" << 1) << "name"
+                                 << "a_1"
+                                 << "v" << IndexConfig::kLatestIndexVersion));
+    indexInfo.setIsMultikey(false);
+    indexInfo.setMultikeyPaths({});
+    indexInfo.setStorageIdentifier(sorterIdent);
+    SorterRange range;
+    range.setStart(6);
+    range.setEnd(11);
+    range.setChecksum(0);
+    indexInfo.setRanges(std::vector<SorterRange>{range});
+
+    auto failPoint = enableWriteConflictForWrites(
+        FailPoint::ModeOptions{.mode = FailPoint::Mode::nTimes, .val = 1});
+    const auto initialTimesEntered = failPoint->initialTimesEntered();
+
+    deleteSorterEntriesOutsideRanges(opCtx, {indexInfo});
+
+    // Exactly one WCE must have fired when removing keys >= 11.
+    EXPECT_EQ(initialTimesEntered + 1, (*failPoint)->waitForTimesEntered(initialTimesEntered + 1));
+
+    auto remainingKeys = getSorterKeys(opCtx, container);
+    EXPECT_EQ(remainingKeys.size(), 5u);
+    for (int64_t expected = 6; expected < 11; ++expected) {
         EXPECT_TRUE(std::find(remainingKeys.begin(), remainingKeys.end(), expected) !=
                     remainingKeys.end());
     }

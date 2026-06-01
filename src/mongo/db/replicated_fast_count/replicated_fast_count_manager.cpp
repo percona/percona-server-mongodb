@@ -34,11 +34,18 @@
 #include "mongo/db/replicated_fast_count/replicated_fast_count_delta_utils.h"
 #include "mongo/db/replicated_fast_count/replicated_fast_count_enabled.h"
 #include "mongo/db/replicated_fast_count/replicated_fast_count_read.h"
+#include "mongo/db/replicated_fast_count/replicated_fast_count_streaming_oplog_delta_accumulator.h"
+#include "mongo/db/shard_role/lock_manager/d_concurrency.h"
 #include "mongo/db/shard_role/shard_catalog/catalog_raii.h"
 #include "mongo/db/shard_role/shard_catalog/clustered_collection_util.h"
 #include "mongo/db/shard_role/shard_catalog/collection_catalog.h"
+#include "mongo/db/shard_role/transaction_resources.h"
+#include "mongo/db/storage/ident.h"
+#include "mongo/db/storage/kv/kv_engine.h"
+#include "mongo/db/storage/storage_engine.h"
 #include "mongo/db/update/document_diff_calculator.h"
 #include "mongo/db/update/update_oplog_entry_serialization.h"
+#include "mongo/db/version_context.h"
 #include "mongo/logv2/log.h"
 
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kStorage
@@ -72,10 +79,23 @@ void ReplicatedFastCountManager::initializeFastCountCommitFn() {
     });
 }
 
+void ReplicatedFastCountManager::initializeContainerStores(
+    std::unique_ptr<RecordStore> metadataRS, std::unique_ptr<RecordStore> timestampsRS) {
+    LOGV2(12231710, "Initializing container stores");
+    invariant(metadataRS, "metadata RecordStore must not be null");
+    invariant(timestampsRS, "timestamps RecordStore must not be null");
+    _sizeCountStore =
+        std::make_unique<replicated_fast_count::ContainerSizeCountStore>(std::move(metadataRS));
+    _timestampStore = std::make_unique<replicated_fast_count::ContainerSizeCountTimestampStore>(
+        std::move(timestampsRS));
+}
+
 void ReplicatedFastCountManager::startup(OperationContext* opCtx) {
-    massert(11718600,
-            "Expected fastcount collection to exist on startup",
-            acquireFastCountCollectionForRead(opCtx).has_value());
+    if (!_sizeCountStore->usesContainers()) {
+        massert(11718600,
+                "Expected fastcount collection to exist on startup",
+                acquireFastCountCollectionForRead(opCtx).has_value());
+    }
 
     // FCV upgrade sometimes calls startup() while the background thread is already running. For
     // example, if FCV downgrade fails and shutdown() is not called, any subsequent FCV upgrade that
@@ -131,47 +151,143 @@ void ReplicatedFastCountManager::shutdown(OperationContext* opCtx) {
     _metrics.setIsRunning(false);
 }
 
+int ReplicatedFastCountManager::_hydrateMetadataFromContainer(
+    OperationContext* opCtx,
+    SizeCountAccumulator& accumulator,
+    const RecordStore::RecordStoreContainer& containerVariant) {
+    int numRecordsScanned = 0;
+
+    auto& ru = *shard_role_details::getRecoveryUnit(opCtx);
+    massert(12231702,
+            "Expected replicated fast count metadata record store to hold a StringKeyedContainer",
+            std::holds_alternative<std::reference_wrapper<StringKeyedContainer>>(containerVariant));
+    auto& container =
+        std::get<std::reference_wrapper<StringKeyedContainer>>(containerVariant).get();
+    auto cursor = container.getCursor(ru);
+
+    while (auto record = cursor->next()) {
+        const auto& [keySpan, valueSpan] = *record;
+        const auto uuid = UUID::fromCDR(ConstDataRange(keySpan.data(), keySpan.size()));
+        const BSONObj data(valueSpan.data());
+
+        BSONObj metadataField = data.getField(replicated_fast_count::kMetadataKey).Obj();
+        accumulator[uuid].size += metadataField.getField(kSizeKey).Long();
+        accumulator[uuid].count += metadataField.getField(kCountKey).Long();
+
+        ++numRecordsScanned;
+    }
+
+    return numRecordsScanned;
+}
+
+int ReplicatedFastCountManager::_hydrateMetadataFromCollection(
+    OperationContext* opCtx,
+    SizeCountAccumulator& accumulator,
+    const CollectionOrViewAcquisition& acquisition) {
+    int numRecordsScanned = 0;
+    auto cursor = acquisition.getCollectionPtr()->getCursor(opCtx);
+    while (auto record = cursor->next()) {
+        const UUID uuid = _UUIDForKey(record->id);
+        const BSONObj data = record->data.releaseToBson();
+
+        accumulator[uuid].size += data.getField(kMetadataKey).Obj().getField(kSizeKey).Long();
+        accumulator[uuid].count += data.getField(kMetadataKey).Obj().getField(kCountKey).Long();
+
+        ++numRecordsScanned;
+    }
+    return numRecordsScanned;
+}
+
 void ReplicatedFastCountManager::initializeMetadata(OperationContext* opCtx) {
     // Accumulates size/count values per collection UUID. Entries may be inserted by the fast count
     // collection scan and/or the oplog scan.
-    absl::flat_hash_map<UUID, CollectionSizeCount> accumulator;
+    SizeCountAccumulator accumulator;
 
+    Lock::GlobalLock readLock(opCtx, MODE_IS, {.skipRSTLLock = opCtx->isLockFreeReadsOp()});
+    bool useContainers = shouldUseReplicatedFastCountContainers(opCtx);
     {
-        const auto acquisition = acquireFastCountCollectionForRead(opCtx);
-        if (!acquisition.has_value()) {
-            // This should only be the case on cold boot.
-            LOGV2(11999600, "Internal fastcount collection not present during initialization.");
-            return;
-        }
-
-        const Date_t loadStartTime = Date_t::now();
+        // Initialize the in-memory map by loading all persisted collection size/count information.
+        // The block scope is required to avoid a lock cycle fassert in the collection path when
+        // reading the oplog below.
+        const auto startTime = Date_t::now();
         int numRecordsScanned = 0;
 
-        auto cursor = acquisition->getCollectionPtr()->getCursor(opCtx);
-        while (auto record = cursor->next()) {
-            const UUID uuid = _UUIDForKey(record->id);
-            const BSONObj data = record->data.releaseToBson();
-
-            accumulator[uuid].size += data.getField(kMetadataKey).Obj().getField(kSizeKey).Long();
-            accumulator[uuid].count += data.getField(kMetadataKey).Obj().getField(kCountKey).Long();
-
-            ++numRecordsScanned;
+        if (useContainers) {
+            // TODO SERVER-126250: We should only need the nullptr check since we won't have a
+            // non-null CollectionSizeCountStore pointer.
+            massert(12231701,
+                    "_sizeCountStore should be uninitialized when initializeMetadata is called",
+                    !_sizeCountStore || !_sizeCountStore->usesContainers());
+            auto* storageEngine = opCtx->getServiceContext()->getStorageEngine();
+            auto& ru = *shard_role_details::getRecoveryUnit(opCtx);
+            if (!storageEngine->getEngine()->hasIdent(ru, ident::kFastCountMetadataStore)) {
+                // This should only be the case on cold boot.
+                LOGV2(12231703, "Internal fastcount container not present during initialization.");
+                return;
+            }
+            // This RecordStore will be destroyed after hydrating the metadata since only one
+            // RecordStore object can exist per ident.
+            auto recordStore = storageEngine->getEngine()->getRecordStore(
+                opCtx,
+                NamespaceString::kAdminCommandNamespace,
+                ident::kFastCountMetadataStore,
+                RecordStore::Options{.keyFormat = KeyFormat::String},
+                /*uuid=*/boost::none);
+            massert(12231700, "Storage engine returned a null RecordStore", recordStore);
+            numRecordsScanned =
+                _hydrateMetadataFromContainer(opCtx, accumulator, recordStore->getContainer());
+        } else {
+            auto acquisition = replicated_fast_count::acquireFastCountCollectionForRead(opCtx);
+            if (!acquisition.has_value()) {
+                // This should only be the case on cold boot.
+                LOGV2(11999600, "Internal fastcount collection not present during initialization.");
+                return;
+            }
+            numRecordsScanned = _hydrateMetadataFromCollection(opCtx, accumulator, *acquisition);
         }
 
-        LOGV2(
-            11648801,
-            "ReplicatedFastCountManager persisted collection size/count information read complete",
-            "numRecordsScanned"_attr = numRecordsScanned,
-            "duration"_attr = Date_t::now() - loadStartTime);
+        LOGV2(11648801,
+              "ReplicatedFastCountManager persisted size/count information read complete",
+              "storeType"_attr = useContainers ? "container"_sd : "collection"_sd,
+              "numRecordsScanned"_attr = numRecordsScanned,
+              "duration"_attr = Date_t::now() - startTime);
     }
+
+    // In container mode, _timestampStore is still the collection-backed implementation because
+    // initializeContainerStores() is called after initializeMetadata(). Read directly from the
+    // storage engine like the metadata hydration above does.
+    const boost::optional<Timestamp> persistedTimestamp = [&]() -> boost::optional<Timestamp> {
+        if (useContainers) {
+            auto* storageEngine = opCtx->getServiceContext()->getStorageEngine();
+            auto& ru = *shard_role_details::getRecoveryUnit(opCtx);
+            if (!storageEngine->getEngine()->hasIdent(ru,
+                                                      ident::kFastCountMetadataStoreTimestamps)) {
+                LOGV2_WARNING(12743500,
+                              "Internal fastcount Timestamps container did not exist during "
+                              "initialization even though the Metadata container did");
+                return boost::none;
+            }
+            auto timestampRS = storageEngine->getEngine()->getRecordStore(
+                opCtx,
+                NamespaceString::kAdminCommandNamespace,
+                ident::kFastCountMetadataStoreTimestamps,
+                RecordStore::Options{.keyFormat = KeyFormat::Long},
+                /*uuid=*/boost::none);
+            massert(
+                12580002, "Storage engine returned a null RecordStore for timestamps", timestampRS);
+            ContainerSizeCountTimestampStore tempStore(std::move(timestampRS));
+            return tempStore.read(opCtx);
+        }
+        return _timestampStore->read(opCtx);
+    }();
 
     // TODO (SERVER-126366): Remove the feature flag guarding.
     if (gFeatureFlagReplicatedFastCountDurability.isEnabledUseLatestFCVWhenUninitialized(
             VersionContext::getDecoration(opCtx),
             serverGlobalParams.featureCompatibility.acquireFCVSnapshot())) {
         const Date_t oplogScanStartTime = Date_t::now();
-        const Timestamp seekAfterTimestamp =
-            _timestampStore->read(opCtx).value_or(Timestamp::min());
+
+        const Timestamp seekAfterTimestamp = persistedTimestamp.value_or(Timestamp::min());
 
         // Scan the oplog from seekAfterTimestamp and accumulate size and count deltas for every
         // UUID that has been updated since the last checkpoint.
@@ -238,8 +354,8 @@ void ReplicatedFastCountManager::initializeMetadata(OperationContext* opCtx) {
     // baseline on warm restart. Without this, the gauge would stay at 0 until the first post-boot
     // checkpoint flush (primary) or the first oplog-applied write to the timestamp store
     // (secondary).
-    if (const auto persistedCheckpoint = _timestampStore->read(opCtx)) {
-        recordCheckpointAdvanced(*persistedCheckpoint);
+    if (persistedTimestamp) {
+        recordCheckpointAdvanced(*persistedTimestamp);
     }
 }
 
@@ -298,38 +414,6 @@ CollectionSizeCount ReplicatedFastCountManager::find(const UUID& uuid) const {
     return {};
 }
 
-CollectionSizeCount ReplicatedFastCountManager::findLatest(OperationContext* opCtx,
-                                                           UUID uuid) const {
-    // Callers sometimes acquire a collection lock before reading findLatest(). When we try to
-    // acquire an additional oplog collection lock here, an assertion can be triggered when multiple
-    // lock acquisitions are disallowed, for example, during capped collection deletes. These
-    // operations should be thread safe, though, since we only acquire IS locks here, but this RAII
-    // wrapper suppresses the assertion for now.
-    AllowLockAcquisitionOnTimestampedUnitOfWork allowLockAcquisition(
-        shard_role_details::getLocker(opCtx));
-
-    // The oplog visible timestamp managed by the WiredTigerOplogManager is at most the WiredTiger
-    // all_durable timestamp which never includes oplog holes. However, some callers of findLatest()
-    // expect to see all committed changes, including those beyond one or more oplog holes. We
-    // override the RecoveryUnit's oplog visible timestamp here to allow reading all oplog entries
-    // for the duration of this function.
-    ScopedOplogVisibleTimestamp scopedOplogVisibleTimestamp(
-        shard_role_details::getRecoveryUnit(opCtx), boost::none);
-
-    const AutoGetOplogFastPath oplogRead(
-        opCtx, OplogAccessMode::kRead, Date_t::max(), {.skipRSTLLock = opCtx->isLockFreeReadsOp()});
-    const auto& oplogColl = oplogRead.getCollection();
-    massert(123334, "oplog collection not found", oplogColl);
-
-    auto oplogCursor = oplogColl->getRecordStore()->getCursor(
-        opCtx, *shard_role_details::getRecoveryUnit(opCtx), /*forward=*/true);
-
-    boost::optional<UUID> oplogUuid =
-        (uuid == oplogColl->uuid()) ? boost::make_optional(uuid) : boost::none;
-
-    return readLatest(opCtx, *_sizeCountStore, *_timestampStore, *oplogCursor, uuid, oplogUuid);
-}
-
 CollectionSizeCount ReplicatedFastCountManager::findPersisted(OperationContext* opCtx,
                                                               UUID uuid) const {
     if (MONGO_unlikely(useInMemoryReplicatedSizeCount.shouldFail())) {
@@ -367,6 +451,10 @@ void ReplicatedFastCountManager::disablePeriodicWrites_ForTest() {
 
 bool ReplicatedFastCountManager::isRunning_ForTest() {
     return _backgroundThread.joinable();
+}
+
+bool ReplicatedFastCountManager::usesContainers_ForTest() const {
+    return _sizeCountStore->usesContainers();
 }
 
 void ReplicatedFastCountManager::_doFlush(OperationContext* opCtx,

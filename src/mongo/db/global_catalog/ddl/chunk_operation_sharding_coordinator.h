@@ -33,10 +33,17 @@
 
 namespace mongo {
 
+class MONGO_MOD_PRIVATE ChunkOperationShardingCoordinatorMixin {
+protected:
+    virtual ~ChunkOperationShardingCoordinatorMixin() = default;
+    void _checkSetAllowChunkOperations(OperationContext* opCtx, const NamespaceString& nss);
+};
+
 template <typename StateDoc>
 class MONGO_MOD_UNFORTUNATELY_OPEN ChunkOperationShardingCoordinator
     : public RecoverableShardingCoordinator,
-      protected RecoverableTypedDocMixin<ChunkOperationShardingCoordinator<StateDoc>, StateDoc> {
+      protected RecoverableTypedDocMixin<ChunkOperationShardingCoordinator<StateDoc>, StateDoc>,
+      protected ChunkOperationShardingCoordinatorMixin {
 
     friend RecoverableTypedDocMixin<ChunkOperationShardingCoordinator<StateDoc>, StateDoc>;
 
@@ -56,10 +63,30 @@ protected:
         return this->_docWrapper;
     }
 
+    /**
+     * Returns a token that lets a chunk-operation coordinator acquire ActiveMigrationsRegistry
+     * locks without waiting for the sharding coordinator service's own recovery. Required when the
+     * acquisition happens inside the coordinator recovery path — waiting on recovery from that
+     * context would deadlock, since the caller is itself part of what's holding recovery open.
+     *
+     * The helper is intentionally `protected` (not public): only the template — which is the sole
+     * `BypassRecoveryWait` friend within the coordinator hierarchy — and its derived classes can
+     * call it. Unrelated code in the codebase cannot reach a constructed token. Subclasses must
+     * still only invoke it from their recovery / lock-acquisition phase; calling it from a
+     * steady-state code path (e.g. `_runImpl` after locks are held) re-opens the very window the
+     * bypass exists to close, since the bypassed wait is the guard that orders newly-submitted
+     * chunk commands behind recovered coordinators across failover.
+     */
+    static ActiveMigrationsRegistry::BypassRecoveryWait makeRegistryRecoveryBypass() {
+        return {};
+    }
+
 private:
     void _initialize(OperationContext* opCtx) override {}
 
-    void _checkCoordinatorPreconditions(OperationContext* opCtx, bool afterAcquiringLocks) final {}
+    void _checkCoordinatorPreconditions(OperationContext* opCtx, bool afterAcquiringLocks) final {
+        this->_checkSetAllowChunkOperations(opCtx, nss());
+    }
 
     ExecutorFuture<void> _acquireLocksAsync(OperationContext* opCtx,
                                             std::shared_ptr<executor::ScopedTaskExecutor> executor,

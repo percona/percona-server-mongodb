@@ -455,8 +455,8 @@ public:
     // This method is invoked by extensions to register descriptor.
     static void registerStage(AggStageDescriptorHandle descriptor);
 
-    const char* getSourceName() const override {
-        return _stageName.c_str();
+    StringData getSourceName() const override {
+        return _stageName;
     }
 
     void addVariableRefs(std::set<Variables::Id>* refs) const override {}
@@ -469,16 +469,23 @@ public:
 
     Id getId() const override;
 
-    SortPattern getSortPattern() const override {
-        auto bson = _logicalStage->getSortPattern();
-        if (bson.isEmpty()) {
-            return SortPattern({});
+    bool providesSortKeyMetadata() const override {
+        const auto& provided = _properties.getProvidedMetadataFields();
+        if (!provided || provided->empty()) {
+            return false;
         }
-        return SortPattern(bson, getExpCtx());
+        return std::find(provided->begin(),
+                         provided->end(),
+                         DocumentMetadataFields::serializeMetaType(
+                             DocumentMetadataFields::MetaType::kSortKey)) != provided->end();
     }
 
     const MongoExtensionStaticProperties& getStaticProperties() const {
         return _properties;
+    }
+
+    boost::optional<MongoExtensionDocsNeededBoundsInfo> getDocsNeededBounds() const {
+        return _logicalStage->getDocsNeededBounds();
     }
 
     DepsTracker::State getDependencies(DepsTracker* deps) const override;
@@ -541,23 +548,29 @@ protected:
 
     DocumentSourceExtensionOptimizable(const boost::intrusive_ptr<ExpressionContext>& expCtx,
                                        AggStageAstNodeHandle astNode)
-        : DocumentSource(astNode->getName(), expCtx),
-          _stageName(std::string(astNode->getName())),
-          _properties(astNode->getProperties()),
-          _logicalStage([&]() {
-              tassert(11647800,
-                      "DocumentSourceExtensionOptimizable received invalid expression context",
-                      expCtx.get() != nullptr);
-              auto catalogContext = CatalogContext(*expCtx);
-              return astNode->promote(catalogContext.getAsBoundaryType());
-          }()),
-          _ownedRewriteRules(_buildOwnedRewriteRules(
-              _stageName, UnownedLogicalAggStageHandle(_logicalStage.get()))) {}
+        : DocumentSourceExtensionOptimizable(
+              expCtx,
+              [&]() -> LogicalAggStageHandle {
+                  tassert(11647800,
+                          "DocumentSourceExtensionOptimizable "
+                          "received invalid expression context",
+                          expCtx.get() != nullptr);
+                  auto catalogContext = CatalogContext(*expCtx);
+                  return astNode->promote(catalogContext.getAsBoundaryType());
+              }(),
+              astNode->getProperties()) {}
 
     DocumentSourceExtensionOptimizable(const boost::intrusive_ptr<ExpressionContext>& expCtx,
                                        LogicalAggStageHandle logicalStage,
                                        const MongoExtensionStaticProperties& properties)
-        : DocumentSource(logicalStage->getName(), expCtx),
+        : DocumentSource(logicalStage->getName(),
+                         expCtx,
+                         [&]() -> SortPattern {
+                             auto bson = logicalStage->getSortPattern();
+                             return bson.isEmpty()
+                                 ? SortPattern(std::vector<SortPattern::SortPatternPart>{})
+                                 : SortPattern(bson, expCtx);
+                         }()),
           _stageName(std::string(logicalStage->getName())),
           _properties(properties),
           _logicalStage(std::move(logicalStage)),

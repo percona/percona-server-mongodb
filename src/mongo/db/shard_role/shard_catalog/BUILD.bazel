@@ -215,17 +215,12 @@ mongo_cc_library(
 )
 
 mongo_cc_library(
-    name = "shard_catalog_history_cleanup",
+    name = "shard_catalog_history_cleanup_control",
     srcs = [
-        "//src/mongo/db/shard_role/shard_catalog:shard_catalog_history_cleanup.cpp",
+        "//src/mongo/db/shard_role/shard_catalog:shard_catalog_history_cleanup_control.cpp",
     ],
     deps = [
-        "//src/mongo/db:dbdirectclient",
-        "//src/mongo/db:rw_concern_d",
-        "//src/mongo/db:server_feature_flags",
-        "//src/mongo/db:shard_role_api",
-        "//src/mongo/db/repl:replica_set_aware_service",
-        "//src/mongo/db/s:sharding_commands_d",
+        "//src/mongo/db:service_context",
     ],
 )
 
@@ -328,6 +323,18 @@ mongo_cc_library(
 )
 
 mongo_cc_library(
+    name = "set_multikey_metadata_oplog_helpers",
+    srcs = [
+        "set_multikey_metadata_oplog_helpers.cpp",
+    ],
+    deps = [
+        "//src/mongo:base",
+        "//src/mongo/db/index:index_access_method",
+        "//src/mongo/db/storage/key_string",
+    ],
+)
+
+mongo_cc_library(
     name = "catalog_impl",
     srcs = [
         "collection_impl.cpp",
@@ -345,6 +352,7 @@ mongo_cc_library(
         "document_validation",
         "durable_catalog",
         "index_catalog",
+        "set_multikey_metadata_oplog_helpers",
         "//src/mongo/db:audit",
         "//src/mongo/db:collection_index_usage_tracker",
         "//src/mongo/db:dbcommands_idl",
@@ -474,7 +482,7 @@ mongo_cc_unit_test(
         "index_catalog_impl_test.cpp",
         "index_signature_test.cpp",
         "rename_collection_test.cpp",
-        "shard_catalog_history_cleanup_test.cpp",
+        "set_multikey_metadata_oplog_helpers_test.cpp",
     ],
     tags = ["mongo_unittest_eighth_group"],
     deps = [
@@ -486,7 +494,6 @@ mongo_cc_unit_test(
         ":collection_mock",
         ":collection_options",
         ":database_holder",
-        ":shard_catalog_history_cleanup",
         "//src/mongo/db:dbhelpers",
         "//src/mongo/db:index_key_validate",
         "//src/mongo/db:multitenancy",

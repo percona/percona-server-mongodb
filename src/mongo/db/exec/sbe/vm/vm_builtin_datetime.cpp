@@ -80,13 +80,13 @@ value::TagValueMaybeOwned builtinDateHelper(DateFn computeDateFn,
     const auto tz = tzString == "" ? timeZoneDB->utcZone() : timeZoneDB->getTimeZone(tzString);
 
     auto date = computeDateFn(tz,
-                              value::numericCast<int64_t>(yearOrWeekYear.tag, yearOrWeekYear.value),
-                              value::numericCast<int64_t>(monthOrWeek.tag, monthOrWeek.value),
-                              value::numericCast<int64_t>(day.tag, day.value),
-                              value::numericCast<int64_t>(hour.tag, hour.value),
-                              value::numericCast<int64_t>(minute.tag, minute.value),
-                              value::numericCast<int64_t>(second.tag, second.value),
-                              value::numericCast<int64_t>(millisecond.tag, millisecond.value));
+                              value::numericCast<int64_t>(yearOrWeekYear),
+                              value::numericCast<int64_t>(monthOrWeek),
+                              value::numericCast<int64_t>(day),
+                              value::numericCast<int64_t>(hour),
+                              value::numericCast<int64_t>(minute),
+                              value::numericCast<int64_t>(second),
+                              value::numericCast<int64_t>(millisecond));
     return {false, value::TypeTags::Date, value::bitcastFrom<int64_t>(date.asInt64())};
 }
 
@@ -127,7 +127,7 @@ value::TagValueMaybeOwned ByteCode::builtinDateToString(ArityType arity) {
     if (!coercibleToDate(dateView.tag)) {
         return {false, value::TypeTags::Nothing, 0};
     }
-    auto date = getDate(dateView.tag, dateView.value);
+    auto date = getDate(dateView);
 
     // Get format.
     auto formatView = viewFromStack(2);
@@ -212,7 +212,7 @@ value::TagValueMaybeOwned ByteCode::dateTrunc(value::TypeTags dateTag,
     if (!coercibleToDate(dateTag)) {
         return {false, value::TypeTags::Nothing, 0};
     }
-    auto date = getDate(dateTag, dateValue);
+    auto date = getDate({dateTag, dateValue});
 
     auto truncatedDate = truncateDate(date, unit, binSize, timezone, startOfWeek);
     return {false,
@@ -266,7 +266,7 @@ value::TagValueMaybeOwned ByteCode::builtinDateToParts(ArityType arity) {
                       value::TypeTags::bsonObjectId)) {
         return {false, value::TypeTags::Nothing, 0};
     }
-    Date_t date = getDate(dateView.tag, dateView.value);
+    Date_t date = getDate(dateView);
 
     // Get date parts.
     auto dateParts = timezone.dateParts(date);
@@ -308,7 +308,7 @@ value::TagValueMaybeOwned ByteCode::builtinIsoDateToParts(ArityType arity) {
                       value::TypeTags::bsonObjectId)) {
         return {false, value::TypeTags::Nothing, 0};
     }
-    Date_t date = getDate(dateView.tag, dateView.value);
+    Date_t date = getDate(dateView);
 
     // Get date parts.
     auto dateParts = timezone.dateIso8601Parts(date);
@@ -712,7 +712,7 @@ bool ByteCode::validateDateDiffParameters(Date_t* endDate,
     if (!coercibleToDate(endDateView.tag)) {
         return false;
     }
-    *endDate = getDate(endDateView.tag, endDateView.value);
+    *endDate = getDate(endDateView);
 
     auto unitView = viewFromStack(3 + stackPosOffset);
     if (!value::isString(unitView.tag)) {
@@ -769,7 +769,7 @@ value::TagValueMaybeOwned ByteCode::builtinDateDiff(ArityType arity) {
     if (!coercibleToDate(startDateView.tag)) {
         return {false, value::TypeTags::Nothing, 0};
     }
-    auto startDate = getDate(startDateView.tag, startDateView.value);
+    auto startDate = getDate(startDateView);
 
     auto result = dateDiff(startDate, endDate, unit, timezone, startOfWeek);
     return {false, value::TypeTags::NumberInt64, value::bitcastFrom<int64_t>(result)};
@@ -842,7 +842,7 @@ value::TagValueMaybeOwned ByteCode::builtinDateAdd(ArityType arity) {
     if (!coercibleToDate(startDateView.tag)) {
         return {false, value::TypeTags::Nothing, 0};
     }
-    auto startDate = getDate(startDateView.tag, startDateView.value);
+    auto startDate = getDate(startDateView);
 
     auto resDate = dateAdd(startDate, unit, amount, timezone);
     return {
@@ -862,7 +862,7 @@ struct DateTruncFunctor {
         if (!coercibleToDate(tag)) {
             return std::pair(value::TypeTags::Nothing, value::Value{0u});
         }
-        auto date = getDate(tag, val);
+        auto date = getDate({tag, val});
 
         auto truncatedDate =
             truncateDate(date, _unit, _binSize, _dateReferencePoint, _timeZone, _startOfWeek);
@@ -894,7 +894,7 @@ struct DateTruncMillisFunctor {
         if (!coercibleToDate(tag)) {
             return std::pair(value::TypeTags::Nothing, value::Value{0u});
         }
-        auto date = getDate(tag, val);
+        auto date = getDate({tag, val});
 
         auto truncatedDate = truncateDateMillis(date, _referencePointInMillis, _binSize);
 
@@ -921,7 +921,7 @@ struct DateDiffFunctor {
         if (!coercibleToDate(tag)) {
             return std::pair(value::TypeTags::Nothing, value::Value{0u});
         }
-        auto date = _timeZone.getTimelibTime(getDate(tag, val));
+        auto date = _timeZone.getTimelibTime(getDate({tag, val}));
 
         auto result = dateDiff(date.get(), _endDate.get(), _unit, _startOfWeek);
 
@@ -945,7 +945,7 @@ struct DateDiffMillisecondFunctor {
         if (!coercibleToDate(tag)) {
             return std::pair(value::TypeTags::Nothing, value::Value{0u});
         }
-        auto date = getDate(tag, val);
+        auto date = getDate({tag, val});
 
         auto result = dateDiffMillisecond(date, _endDate);
 
@@ -967,7 +967,7 @@ struct DateAddFunctor {
         if (!coercibleToDate(tag)) {
             return std::pair(value::TypeTags::Nothing, value::Value{0u});
         }
-        auto date = getDate(tag, val);
+        auto date = getDate({tag, val});
 
         auto res = dateAdd(date, _unit, _amount, _timeZone);
 

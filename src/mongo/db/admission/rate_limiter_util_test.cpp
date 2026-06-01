@@ -60,6 +60,73 @@ auto constexpr convertBurstSizeToBurstCapacitySecs(double refreshRate, double bu
     return burstSize / refreshRate;
 }
 
+// Spy clock source used to detect whether sleepUntil is called inside DeferredToken::get().
+// Intercepts setAlarm (the hook used by waitForConditionUntil on non-system clocks) to:
+//   - record the attempt, and
+//   - immediately fire the callback so the wait resolves without real-time blocking.
+class PreciseClockSourceSpy : public ClockSourceMock {
+public:
+    bool sleepWasAttempted() const {
+        return _sleepAttempted;
+    }
+
+    void setAlarm(Date_t when, unique_function<void()> action) override {
+        _sleepAttempted = true;
+        // Fire the callback immediately so the caller unblocks without any real-time wait.
+        // waitForConditionUntil detects the inline execution and returns timeout right away.
+        action();
+    }
+
+private:
+    bool _sleepAttempted = false;
+};
+
+// Test fixture that injects PreciseClockSourceSpy as the ServiceContext's precise clock.
+class RateLimiterWithPreciseClockSpyTest : public ServiceContextTest {
+public:
+    RateLimiterWithPreciseClockSpyTest()
+        : ServiceContextTest(_initContext(&_clockSpy, &_tickSource)) {}
+
+    void setUp() override {
+        static_cast<ClockSourceMock*>(getServiceContext()->getFastClockSource())->reset();
+        _tickSource->reset(0);
+    }
+
+    RateLimiter makeRateLimiter(std::string name,
+                                double refreshRate = 1.0,
+                                double burstCapacitySecs = 1.0,
+                                int64_t maxQueueDepth = INT_MAX) {
+        return RateLimiter(refreshRate, burstCapacitySecs, maxQueueDepth, name, _tickSource);
+    }
+
+    void advanceTime(Milliseconds d) {
+        static_cast<ClockSourceMock*>(getServiceContext()->getFastClockSource())->advance(d);
+        _tickSource->advance(d);
+    }
+
+    PreciseClockSourceSpy* clockSpy() {
+        return _clockSpy;
+    }
+
+private:
+    // Written by _initContext before ServiceContextTest base is constructed (safe for raw ptrs).
+    PreciseClockSourceSpy* _clockSpy;
+    TickSourceMock<Milliseconds>* _tickSource;
+
+    static std::unique_ptr<ScopedGlobalServiceContextForTest> _initContext(
+        PreciseClockSourceSpy** spyOut, TickSourceMock<Milliseconds>** tickOut) {
+        auto spy = std::make_unique<PreciseClockSourceSpy>();
+        *spyOut = spy.get();
+        auto tick = std::make_unique<TickSourceMock<Milliseconds>>();
+        *tickOut = tick.get();
+        return std::make_unique<ScopedGlobalServiceContextForTest>(ServiceContext::make(
+            std::make_unique<ClockSourceMock>(), std::move(spy), std::move(tick)));
+    }
+
+    unittest::MinimumLoggedSeverityGuard logSeverityGuard{logv2::LogComponent::kDefault,
+                                                          logv2::LogSeverity::Debug(4)};
+};
+
 class RateLimiterWithMockClockTest : public ClockSourceMockServiceContextTest {
 public:
     void setUp() override {
@@ -220,6 +287,25 @@ TEST_F(RateLimiterWithMockClockTest, QueueingDisabled) {
     });
 }
 
+// Verify that a negative max queue depth takes the try-acquire path: requests that would queue are
+// rejected immediately.
+TEST_F(RateLimiterWithMockClockTest, NegativeMaxQueueDepthDisablesQueueing) {
+    RateLimiter rateLimiter = makeRateLimiter("NegativeMaxQueueDepthDisablesQueueing",
+                                              /*refreshRate=*/1.0,
+                                              /*burstCapacitySecs=*/1.0,
+                                              /*maxQueueDepth=*/-1);
+    auto opCtx = makeOperationContext();
+
+    // Consume the initial burst token so the next request must queue.
+    ASSERT_OK(rateLimiter.acquireToken(opCtx.get()));
+
+    auto tokenResult = rateLimiter.acquireToken();
+    ASSERT_EQ(tokenResult.getStatus(), Status(RateLimiter::kRejectedErrorCode, ""));
+    ASSERT_EQ(rateLimiter.stats().addedToQueue.get(), 0);
+    ASSERT_EQ(rateLimiter.stats().rejectedAdmissions.get(), 1);
+    ASSERT_EQ(rateLimiter.queued(), 0);
+}
+
 // Verify that if a client disconnects while their session thread is asleep in the rate limiter,
 // the rate limiter wakes up the thread and returns the appropriate error status.
 TEST_F(RateLimiterWithMockClockTest, InterruptedDueToOperationKilled) {
@@ -325,6 +411,44 @@ TEST_F(RateLimiterWithMockClockTest, InterruptedDueToKillAllOperations) {
     });
 }
 
+// Verify that DeferredToken::get() skips sleepUntil when the clock is advanced past the token's
+// ready time before get() is called.
+TEST_F(RateLimiterWithPreciseClockSpyTest,
+       DeferredTokenGetCompletesAfterClockAdvancedPastReadyTime) {
+    const int refreshRate = 4;
+    const Milliseconds tokenInterval = Milliseconds(1000) / refreshRate;
+    const double burstCapacitySecs = convertBurstSizeToBurstCapacitySecs(refreshRate, 1);
+
+    RateLimiter rateLimiter =
+        makeRateLimiter("DeferredTokenGetCompletesAfterClockAdvancedPastReadyTime",
+                        refreshRate,
+                        burstCapacitySecs,
+                        INT_MAX);
+    auto clientsWithOps = makeClientsWithOpCtxs(getServiceContext(), 1);
+
+    // Consume the burst token so the next request must queue (napTime > 0).
+    ASSERT_OK(rateLimiter.acquireToken(clientsWithOps[0].second.get()));
+
+    // Acquire a deferred token: non-ready, positive napTime.
+    auto deferredResult = rateLimiter.acquireToken();
+    ASSERT_OK(deferredResult);
+    auto& deferred = deferredResult.getValue();
+    ASSERT_FALSE(deferred.isReady());
+
+    // Advance both tick source and clock past the token's ready time. This simulates the race
+    // where time elapsed between enqueue() in acquireToken() and the caller invoking get().
+    advanceTime(tokenInterval * 3);
+
+    // get() should return synchronously without calling sleepUntil because adjustedNapTime == 0.
+    ASSERT_OK(std::move(deferred).get(clientsWithOps[0].second.get()));
+
+    ASSERT_FALSE(clockSpy()->sleepWasAttempted())
+        << "get() should not call sleepUntil when the token ready time has already passed";
+    ASSERT_EQ(rateLimiter.stats().successfulAdmissions.get(), 2);
+    ASSERT_EQ(rateLimiter.stats().addedToQueue.get(), 1);
+    ASSERT_EQ(rateLimiter.stats().removedFromQueue.get(), 1);
+}
+
 // Verify that `RateLimiter::recordExemption()` increments the exemption metric but no others.
 TEST_F(RateLimiterWithMockClockTest, RecordExemption) {
     RateLimiter rateLimiter = makeRateLimiter("RecordExemption");
@@ -398,13 +522,14 @@ TEST_F(RateLimiterWithMockClockTest, ConcurrentTokenAcquisitionWithQueueing) {
         ASSERT_APPROX_EQUAL(*rateLimiter.stats().averageTimeQueuedMicros.get(), 0.0, .1);
 
         // Make sure we've enqueued all the remaining waiters so that we don't race with advancing
-        // the mock clock.
-        int64_t numRetries = 0;
-        const int64_t maxRetries = 5;
-        int64_t backoffTimeMillis{5};
-        while (rateLimiter.queued() != numThreads - maxTokens && numRetries++ < maxRetries) {
-            sleepmillis(backoffTimeMillis);
-            backoffTimeMillis *= 5;
+        // the mock clock. Use a real-time deadline instead of a bounded retry loop so the wait
+        // scales correctly under slow sanitizer builds (e.g. AUBSAN ~10x slower).
+        const auto enqueueDeadline = Date_t::now() + Seconds(60);
+        while (rateLimiter.queued() != numThreads - maxTokens) {
+            if (Date_t::now() >= enqueueDeadline) {
+                break;
+            }
+            sleepmillis(5);
         }
 
         // Until we start moving the mock clock forward, no other requests will be fulfilled and all
@@ -425,14 +550,11 @@ TEST_F(RateLimiterWithMockClockTest, ConcurrentTokenAcquisitionWithQueueing) {
         advanceTime(smallAdvance);
         ASSERT_EQ((int)tokenAcquisitionTimes.size(), maxTokens);
 
-        // Advance time enough for all remaining tokens and wait for them all to complete.
-        // Time out overall after 20 seconds, though, so the test doesn't hang on failure.
-        const auto deadline = (Date_t::now() + Seconds(20)).toSystemTimePoint();
-        const int64_t remainingTokens = numThreads - maxTokens;
-
         // Advance time by enough for all remaining tokens, with some extra buffer to ensure all
         // remaining threads can acquire tokens after this time advance. Each token needs
         // tokenInterval, so advance by (remainingTokens + buffer) * tokenInterval.
+        const auto deadline = (Date_t::now() + Seconds(30)).toSystemTimePoint();
+        const int64_t remainingTokens = numThreads - maxTokens;
         Milliseconds totalAdvance = tokenInterval * (remainingTokens + 2);
         advanceTime(totalAdvance);
 
@@ -558,6 +680,123 @@ TEST_F(RateLimiterWithMockClockTest, InterruptedDueToOperationDeadline) {
         firstTokenAcquired.get();
         advanceTime(Milliseconds(5));
     });
+}
+
+// Verify that calling recordExemption() on a non-ready DeferredToken records the exemption stat,
+// and that DeferredToken destruction then returns the borrowed token and releases the queue slot.
+TEST_F(RateLimiterWithMockClockTest, DeferredTokenRecordExemptionAndReleaseQueueSlot) {
+    RateLimiter rateLimiter = makeRateLimiter("DeferredTokenRecordExemptionAndReleaseQueueSlot");
+    auto opCtx = makeOperationContext();
+
+    // Exhaust the burst so the next token must queue.
+    ASSERT_OK(rateLimiter.acquireToken(opCtx.get()));
+    ASSERT_EQ(rateLimiter.tokenBalance(), 0);
+
+    {
+        auto tokenResult = rateLimiter.acquireToken();
+        ASSERT(tokenResult.isOK());
+        auto deferredToken = std::move(tokenResult.getValue());
+        ASSERT_FALSE(deferredToken.isReady());
+        // Token is borrowed (bucket goes negative).
+        ASSERT_EQ(rateLimiter.tokenBalance(), -1);
+        ASSERT_EQ(rateLimiter.queued(), 1);
+        ASSERT_EQ(rateLimiter.stats().addedToQueue.get(), 1);
+
+        // Mark as exempt: records the stat, queued-token cleanup runs in the DeferredToken
+        // destructor.
+        std::move(deferredToken).recordExemption();
+        ASSERT_EQ(rateLimiter.stats().exemptedAdmissions.get(), 1);
+    }
+
+    ASSERT_EQ(rateLimiter.tokenBalance(), 0);
+    ASSERT_EQ(rateLimiter.queued(), 0);
+    ASSERT_EQ(rateLimiter.stats().removedFromQueue.get(), 1);
+    // The exempted DeferredToken was never admitted successfully.
+    ASSERT_EQ(rateLimiter.stats().successfulAdmissions.get(), 1);
+}
+
+// Verify that dropping a non-ready DeferredToken without consuming it causes the destructor
+// to return the borrowed token and release the queue slot, preventing resource leaks.
+TEST_F(RateLimiterWithMockClockTest, DeferredTokenDestructorCleansUpDroppedNonReadyToken) {
+    RateLimiter rateLimiter =
+        makeRateLimiter("DeferredTokenDestructorCleansUpDroppedNonReadyToken");
+    auto opCtx = makeOperationContext();
+
+    ASSERT_OK(rateLimiter.acquireToken(opCtx.get()));
+    ASSERT_EQ(rateLimiter.tokenBalance(), 0);
+
+    {
+        auto tokenResult = rateLimiter.acquireToken();
+        ASSERT(tokenResult.isOK());
+        auto deferredToken = std::move(tokenResult.getValue());
+        ASSERT_FALSE(deferredToken.isReady());
+        ASSERT_EQ(rateLimiter.tokenBalance(), -1);
+        ASSERT_EQ(rateLimiter.queued(), 1);
+        // Drop DeferredToken without calling get() or recordExemption().
+    }
+
+    ASSERT_EQ(rateLimiter.tokenBalance(), 0);
+    ASSERT_EQ(rateLimiter.queued(), 0);
+    ASSERT_EQ(rateLimiter.stats().addedToQueue.get(), 1);
+    ASSERT_EQ(rateLimiter.stats().removedFromQueue.get(), 1);
+    ASSERT_EQ(rateLimiter.stats().successfulAdmissions.get(), 1);
+}
+
+// Verify that dropping a ready DeferredToken without calling get() is a no-op: the token was
+// already
+// permanently consumed by acquireToken() and successfulAdmissions was already recorded.
+TEST_F(RateLimiterWithMockClockTest, DeferredTokenReadyDestructorIsNoOp) {
+    RateLimiter rateLimiter = makeRateLimiter("DeferredTokenReadyDestructorIsNoOp");
+    const double initialBalance = rateLimiter.tokenBalance();
+
+    {
+        auto tokenResult = rateLimiter.acquireToken();
+        ASSERT(tokenResult.isOK());
+        auto deferredToken = std::move(tokenResult.getValue());
+        ASSERT_TRUE(deferredToken.isReady());
+        // For ready DeferredTokens, acquireToken() already incremented successfulAdmissions.
+        ASSERT_EQ(rateLimiter.stats().successfulAdmissions.get(), 1);
+        ASSERT_EQ(rateLimiter.tokenBalance(), initialBalance - 1);
+        // Destructor runs here — should be a no-op for ready DeferredTokens.
+    }
+
+    // Token remains consumed; no return to bucket.
+    ASSERT_EQ(rateLimiter.tokenBalance(), initialBalance - 1);
+    ASSERT_EQ(rateLimiter.stats().addedToQueue.get(), 0);
+    ASSERT_EQ(rateLimiter.stats().removedFromQueue.get(), 0);
+}
+
+// Verify that moving a DeferredToken nulls the source (making its destructor a no-op) and
+// that exactly one cleanup occurs when the destination goes out of scope.
+TEST_F(RateLimiterWithMockClockTest, DeferredTokenMoveSemantics) {
+    RateLimiter rateLimiter = makeRateLimiter("DeferredTokenMoveSemantics");
+    auto opCtx = makeOperationContext();
+
+    // Exhaust burst so the next token queues.
+    ASSERT_OK(rateLimiter.acquireToken(opCtx.get()));
+
+    auto tokenResult = rateLimiter.acquireToken();
+    ASSERT(tokenResult.isOK());
+
+    {
+        auto deferredToken1 = std::move(tokenResult.getValue());
+        ASSERT_FALSE(deferredToken1.isReady());
+        ASSERT_EQ(rateLimiter.queued(), 1);
+
+        // Move-construct into deferredToken2.
+        auto deferredToken2 = std::move(deferredToken1);
+        ASSERT_FALSE(deferredToken2.isReady());
+        // Queue count is unchanged; the move transferred ownership, not the slot.
+        ASSERT_EQ(rateLimiter.queued(), 1);
+
+        // deferredToken1 destructs (moved-from, _impl is null — no-op).
+        // deferredToken2 destructs (active — returns token and releases queue slot).
+    }
+
+    ASSERT_EQ(rateLimiter.queued(), 0);
+    ASSERT_EQ(rateLimiter.tokenBalance(), 0);
+    ASSERT_EQ(rateLimiter.stats().addedToQueue.get(), 1);
+    ASSERT_EQ(rateLimiter.stats().removedFromQueue.get(), 1);
 }
 
 TEST_F(RateLimiterWithMockClockTest, ReturnTokens) {

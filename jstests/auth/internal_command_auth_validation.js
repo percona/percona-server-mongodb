@@ -257,6 +257,11 @@ const internalCommandsMap = {
         testname: "_configsvrRunRestore",
         command: {_configsvrRunRestore: 1},
     },
+    _configsvrSetAllowChunkOperations: {
+        testname: "_configsvrSetAllowChunkOperations",
+        command: {_configsvrSetAllowChunkOperations: ns, allowChunkOperations: true},
+        writeConcern: {w: "majority"},
+    },
     _configsvrSetAllowMigrations: {
         testname: "_configsvrSetAllowMigrations",
         command: {
@@ -702,6 +707,13 @@ const internalCommandsMap = {
             reshardingUUID: UUID(),
         },
     },
+    _shardsvrReshardingRecipientFetchFinalCollectionStats: {
+        testname: "_shardsvrReshardingRecipientFetchFinalCollectionStats",
+        command: {
+            _shardsvrReshardingRecipientFetchFinalCollectionStats: "test.x",
+            reshardingUUID: UUID(),
+        },
+    },
     _shardsvrReshardingDonorStartChangeStreamsMonitor: {
         testname: "_shardsvrReshardingDonorStartChangeStreamsMonitor",
         command: {
@@ -788,12 +800,14 @@ const internalCommandsMap = {
         testname: "_shardsvrCommitRefineCollectionShardKey",
         command: {
             _shardsvrCommitRefineCollectionShardKey: "test.x",
+            primaryShardId: "",
         },
     },
     _shardsvrCommitCollModCollectionMetadata: {
         testname: "_shardsvrCommitCollModCollectionMetadata",
         command: {
             _shardsvrCommitCollModCollectionMetadata: "test.x",
+            primaryShardId: "",
         },
     },
     _shardsvrCommitDropCollectionMetadata: {
@@ -804,7 +818,34 @@ const internalCommandsMap = {
         testname: "_shardsvrCommitCreateCollectionMetadata",
         command: {
             _shardsvrCommitCreateCollectionMetadata: "test.x",
+            primaryShardId: "",
         },
+    },
+    _shardsvrCommitCreateCollectionChunklessMetadata: {
+        testname: "_shardsvrCommitCreateCollectionChunklessMetadata",
+        command: {
+            _shardsvrCommitCreateCollectionChunklessMetadata: "test.x",
+        },
+    },
+    _shardsvrControlShardCatalogCleanupTask: {
+        testname: "_shardsvrControlShardCatalogCleanupTask",
+        command: {
+            _shardsvrControlShardCatalogCleanupTask: 1,
+            pause: true,
+        },
+    },
+    _shardsvrCommitRenameCollectionMetadata: {
+        testname: "_shardsvrCommitRenameCollectionMetadata",
+        command: {
+            _shardsvrCommitRenameCollectionMetadata: "",
+            fromNss: "test.x",
+            toNss: "test.y",
+            primaryShardId: "",
+        },
+    },
+    _shardsvrSetAllowChunkOperations: {
+        testname: "_shardsvrSetAllowChunkOperations",
+        command: {_shardsvrSetAllowChunkOperations: "db.collection", allowChunkOperations: true},
     },
     _shardsvrSetAllowMigrations: {
         testname: "_shardsvrSetAllowMigrations",

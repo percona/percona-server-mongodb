@@ -1466,18 +1466,21 @@ config_disagg_storage(void)
     if (strcmp(mode, "leader") != 0 && strcmp(mode, "follower") != 0 && strcmp(mode, "switch") != 0)
         testutil_die(EINVAL, "illegal disagg.mode configuration: %s", mode);
 
-    if (strcmp(mode, "switch") == 0)
+    if (strcmp(mode, "switch") == 0) {
         /* Randomly assign "leader" or "follower". */
         g.disagg_leader = mmrand(&g.data_rnd, 0, 1);
-    else
+        /*
+         * FIXME-WT-17564: Switch mode forces follower-side slow truncate until proper write
+         * conflict detection is implemented on fast truncate.
+         */
+        if (!config_explicit(NULL, "debug.disagg_slow_truncate_follower"))
+            config_single(NULL, "debug.disagg_slow_truncate_follower=on", false);
+    } else {
         g.disagg_leader = strcmp(mode, "leader") == 0;
-
-    /* FIXME WT-15189 For disagg, random cursors are problematic. */
-    if (config_explicit(NULL, "ops.random_cursor"))
-        WARN("%s",
-          "turning off ops.random_cursor with disagg as they are currently problematic and can "
-          "cause stalls");
-    config_off(NULL, "ops.random_cursor");
+        /* Leader and follower modes always exercise fast truncate. */
+        if (!config_explicit(NULL, "debug.disagg_slow_truncate_follower"))
+            config_single(NULL, "debug.disagg_slow_truncate_follower=off", false);
+    }
 
     /* Disaggregated storage requires timestamps. */
     config_off(NULL, "transaction.implicit");

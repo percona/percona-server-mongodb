@@ -67,7 +67,7 @@ public:
     BSONObj generateSection(OperationContext* opCtx,
                             const BSONElement& configElement) const override {
         BSONObjBuilder b;
-        networkCounter.append(b);
+        globalNetworkCounter().append(b);
         appendMessageCompressionStats(&b);
 
 
@@ -91,7 +91,7 @@ public:
     void appendIngressRequestRateLimiterStats(BSONObjBuilder* b, ServiceContext* service) const {
         auto ingressRequestRateLimiterBuilder =
             BSONObjBuilder{b->subobjStart("ingressRequestRateLimiter")};
-        const auto& ingressRequestRateLimiter = IngressRequestRateLimiter::get(service);
+        const auto& ingressRequestRateLimiter = admission::IngressRequestRateLimiter::get(service);
         ingressRequestRateLimiter.appendStats(&ingressRequestRateLimiterBuilder);
         ingressRequestRateLimiterBuilder.done();
     }
