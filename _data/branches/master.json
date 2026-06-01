@@ -5,14 +5,14 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 361,
-    "days_behind": 10,
-    "files_affected": 2149,
-    "total_additions": 86682,
-    "total_deletions": 26053,
+    "commits_behind": 412,
+    "days_behind": 13,
+    "files_affected": 2321,
+    "total_additions": 103417,
+    "total_deletions": 29678,
     "date_range": {
       "first": "2026-05-18T19:46:08+00:00",
-      "last": "2026-05-29T08:57:24+00:00"
+      "last": "2026-06-01T09:57:08+00:00"
     }
   },
   "last_merged_commit": {
@@ -36,6 +36,516 @@
     "summary": "SERVER-126230: move uds socket path from tmp (#53424)"
   },
   "unmerged_commits": [
+    {
+      "sha": "07b326bc09870c00f01d8c2a772ea2a96e2f43ea",
+      "short_sha": "07b326bc098",
+      "date": "2026-06-01T11:57:08+02:00",
+      "author": {
+        "name": "ppolato",
+        "email": "82828243+ppolato@users.noreply.github.com"
+      },
+      "summary": "SERVER-126964 Populate shard UUID fields during FCV upgrade (#54620)"
+    },
+    {
+      "sha": "2fd77d1e4fc0cb3a2efc051b947e630aff8f9039",
+      "short_sha": "2fd77d1e4fc",
+      "date": "2026-06-01T11:53:17+02:00",
+      "author": {
+        "name": "Silvia Surroca",
+        "email": "silvia.surroca@mongodb.com"
+      },
+      "summary": "SERVER-127797 Increase the timeout of list_cluster_catalog_max_time_ms.js (#54666)"
+    },
+    {
+      "sha": "930ae0a1fe891689a40994a75990285d8b6c301e",
+      "short_sha": "930ae0a1fe8",
+      "date": "2026-06-01T11:50:56+02:00",
+      "author": {
+        "name": "mivanova3",
+        "email": "68105381+mivanova3@users.noreply.github.com"
+      },
+      "summary": "SERVER-127109 Emit multiPlanner stats once per planning invocation in… (#54630)"
+    },
+    {
+      "sha": "8c6d8410135c23e968170348104561bc100717fc",
+      "short_sha": "8c6d8410135",
+      "date": "2026-06-01T11:08:22+02:00",
+      "author": {
+        "name": "Aitor Esteve Alvarado",
+        "email": "aitor.esteve@mongodb.com"
+      },
+      "summary": "SERVER-127948 Update config.shard.catalog.collections after config.shard.catalog.chunks (#54815)"
+    },
+    {
+      "sha": "7112a2242118a274c194b6433712f9a897d5b1bb",
+      "short_sha": "7112a224211",
+      "date": "2026-06-01T10:00:41+01:00",
+      "author": {
+        "name": "Alexander Ignatyev",
+        "email": "alexander.ignatyev@mongodb.com"
+      },
+      "summary": "SERVER-126487 Fallback from join reordering when a $lookup \"as\" field shadows an earlier localField (#54738)"
+    },
+    {
+      "sha": "29f76adf686cc21bc3c4860af9e7a1b4dc001715",
+      "short_sha": "29f76adf686",
+      "date": "2026-06-01T10:49:59+02:00",
+      "author": {
+        "name": "mongo-pr-bot[bot]",
+        "email": "230616009+mongo-pr-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "SERVER-110427 Update profiling data (#54799)"
+    },
+    {
+      "sha": "5eea4c6af9fe88e112b08668cbf7da2589749c48",
+      "short_sha": "5eea4c6af9f",
+      "date": "2026-06-01T09:19:08+02:00",
+      "author": {
+        "name": "Pol Piñol Castuera",
+        "email": "pol.pinol@mongodb.com"
+      },
+      "summary": "SERVER-127564 Don't count placement-version waits toward recovery retry cap (#54530)"
+    },
+    {
+      "sha": "1cc3e215f1746d23a614435b452a229affa3c2bd",
+      "short_sha": "1cc3e215f17",
+      "date": "2026-06-01T09:10:50+02:00",
+      "author": {
+        "name": "wolfee",
+        "email": "adam.farkas@mongodb.com"
+      },
+      "summary": "SERVER-123912 Retry catalog list consistency check steps on network errors (#54724)"
+    },
+    {
+      "sha": "01d6f43099d2dc76b52de49bd5c3b23080200e73",
+      "short_sha": "01d6f43099d",
+      "date": "2026-06-01T14:47:24+10:00",
+      "author": {
+        "name": "Alex Pullen",
+        "email": "93811034+LX6T@users.noreply.github.com"
+      },
+      "summary": "Import wiredtiger: f0565a2f936e37bcd72b68cffc40ce86bb1ff7ed from branch mongodb-master (#54810)"
+    },
+    {
+      "sha": "e9d0b000fb07e524089640daffa863ad9b41b1b0",
+      "short_sha": "e9d0b000fb0",
+      "date": "2026-05-29T19:46:16-04:00",
+      "author": {
+        "name": "Alex Sarkesian",
+        "email": "alex.sarkesian@mongodb.com"
+      },
+      "summary": "SERVER-127930: Add OTel metrics names for index builds (#54781)"
+    },
+    {
+      "sha": "4ac599b2fea5c026a4885dbcd6ff5c38165a79b9",
+      "short_sha": "4ac599b2fea",
+      "date": "2026-05-30T00:27:16+02:00",
+      "author": {
+        "name": "Jordi Olivares Provencio",
+        "email": "jordi.olivares-provencio@mongodb.com"
+      },
+      "summary": "SERVER-127900 Remove stale comment (#54770)"
+    },
+    {
+      "sha": "bfaffe4c774da30f267c2f843a092f65a9bb8ef7",
+      "short_sha": "bfaffe4c774",
+      "date": "2026-05-29T23:04:17+02:00",
+      "author": {
+        "name": "Mathias Stearn",
+        "email": "mathias@mongodb.com"
+      },
+      "summary": "SERVER-127912: add initial message filter plugin skeleton (#54464)"
+    },
+    {
+      "sha": "79b99ef8d92af031007b464ecc260937c155818b",
+      "short_sha": "79b99ef8d92",
+      "date": "2026-05-29T16:30:37-04:00",
+      "author": {
+        "name": "Naafiyan Ahmed",
+        "email": "naafiyan.ahmed@mongodb.com"
+      },
+      "summary": "SERVER-123546: Track optimization time for JOO (#54641)"
+    },
+    {
+      "sha": "61565218d8bea941679983427664a645485bb503",
+      "short_sha": "61565218d8b",
+      "date": "2026-05-29T16:22:09-04:00",
+      "author": {
+        "name": "Sean Lyons",
+        "email": "sean.lyons@mongodb.com"
+      },
+      "summary": "SERVER-127926: Fix OTEL metrics write failure in Bazel resmoke shim (#54774)"
+    },
+    {
+      "sha": "13a96ab401242281d06e5432918235432239e8b5",
+      "short_sha": "13a96ab4012",
+      "date": "2026-05-29T16:18:07-04:00",
+      "author": {
+        "name": "erinzhu001",
+        "email": "erin.zhu@mongodb.com"
+      },
+      "summary": "SERVER-116998 Enable internode_validation for DSC suites (#54156)"
+    },
+    {
+      "sha": "14049c00733c6415c0690c58f3d6035bc5495fcc",
+      "short_sha": "14049c00733",
+      "date": "2026-05-29T13:11:17-07:00",
+      "author": {
+        "name": "Denis Trailin",
+        "email": "denis.trailin@gmail.com"
+      },
+      "summary": "SERVER-108215: Impose limits on the number of active multi-document transactions (#53093)"
+    },
+    {
+      "sha": "5d5c2bb2d768f8a4c469f206eb93de1245ce0722",
+      "short_sha": "5d5c2bb2d76",
+      "date": "2026-05-29T12:43:43-07:00",
+      "author": {
+        "name": "Aditya Deshpande",
+        "email": "aditya.deshpande@mongodb.com"
+      },
+      "summary": "SERVER-126150 Add $_internalDocumentResultsAndMetadata source stage (#53378)"
+    },
+    {
+      "sha": "f17ff7bb5973e5b93f992f1902a342d976fd5142",
+      "short_sha": "f17ff7bb597",
+      "date": "2026-05-29T14:43:15-05:00",
+      "author": {
+        "name": "Shin Yee Tan",
+        "email": "shinyee.tan@mongodb.com"
+      },
+      "summary": "SERVER-127913 Check that container writes are enabled in primary driven index build tests (#54766)"
+    },
+    {
+      "sha": "e7e04af2c45e26e1f81b732994b229808a7d650e",
+      "short_sha": "e7e04af2c45",
+      "date": "2026-05-29T15:42:21-04:00",
+      "author": {
+        "name": "Stephanie",
+        "email": "53684987+seristof@users.noreply.github.com"
+      },
+      "summary": "SERVER-126326 Add PDIB test suites that artificially inject write conflicts (#54684)"
+    },
+    {
+      "sha": "d6f48e5df8316ba2efa8c56aa49edc5ccd2e623e",
+      "short_sha": "d6f48e5df83",
+      "date": "2026-05-29T15:19:10-04:00",
+      "author": {
+        "name": "Gregory Noma",
+        "email": "gregory.noma@gmail.com"
+      },
+      "summary": "SERVER-127031 Test restarting primary with resumable PDIB (#54654)"
+    },
+    {
+      "sha": "45a00647b9dc88e25832407b6300108363300c19",
+      "short_sha": "45a00647b9d",
+      "date": "2026-05-29T21:10:07+02:00",
+      "author": {
+        "name": "Jordi Olivares Provencio",
+        "email": "jordi.olivares-provencio@mongodb.com"
+      },
+      "summary": "SERVER-127900 Make shard filtering recovery test more deterministic (#54737)"
+    },
+    {
+      "sha": "dbaac7c6b82c2a86e1eb48771ac5667961378125",
+      "short_sha": "dbaac7c6b82",
+      "date": "2026-05-29T15:05:27-04:00",
+      "author": {
+        "name": "Kruti Shah",
+        "email": "70412403+krutishah139@users.noreply.github.com"
+      },
+      "summary": "SERVER-127526 Create server parameter to gate resharding document validation (#54736)"
+    },
+    {
+      "sha": "24b059efa05d46201b5e56935e43f1ad6f6797bd",
+      "short_sha": "24b059efa05",
+      "date": "2026-05-29T15:02:11-04:00",
+      "author": {
+        "name": "Malik Endsley",
+        "email": "malik.endsley@mongodb.com"
+      },
+      "summary": "SERVER-127835: Remove `restart_primary_driven_index_build_if_interrupted_by_shutdown` (#54763)"
+    },
+    {
+      "sha": "e1e050b6ccd136bc842098574476f25b8a89ea21",
+      "short_sha": "e1e050b6ccd",
+      "date": "2026-05-29T14:57:20-04:00",
+      "author": {
+        "name": "Anja Kalaba",
+        "email": "anja.kalaba@mongodb.com"
+      },
+      "summary": "SERVER-127909 Add reshard_timeseries failover tests to backports_required_for_multiversion_tests.yml (#54754)"
+    },
+    {
+      "sha": "3bd156bc74fa2ed063822cbef99fa52c7501c59a",
+      "short_sha": "3bd156bc74f",
+      "date": "2026-05-29T14:30:05-04:00",
+      "author": {
+        "name": "Mike Nugent",
+        "email": "mike.nugent@mongodb.com"
+      },
+      "summary": "SERVER-127586: Add otel counters for slow dns metrics (#54342)"
+    },
+    {
+      "sha": "2503cad66acbde06d1896ca0e6e3e6eca6f9e9f0",
+      "short_sha": "2503cad66ac",
+      "date": "2026-05-29T14:07:06-04:00",
+      "author": {
+        "name": "Alex Li",
+        "email": "98560274+lia394126@users.noreply.github.com"
+      },
+      "summary": "SERVER-127274 VSCode unit testing integration (#54491)"
+    },
+    {
+      "sha": "f073141be81249466aa127fc5ba6f3d914f90b8f",
+      "short_sha": "f073141be81",
+      "date": "2026-05-29T19:47:37+02:00",
+      "author": {
+        "name": "Mathias Stearn",
+        "email": "mathias@mongodb.com"
+      },
+      "summary": "SERVER-127848: Wire up the message filter plugin hooks (#54439)"
+    },
+    {
+      "sha": "b87301057bbf13c9dca93a2151a09285b1d3daad",
+      "short_sha": "b87301057bb",
+      "date": "2026-05-29T13:37:08-04:00",
+      "author": {
+        "name": "Naafiyan Ahmed",
+        "email": "naafiyan.ahmed@mongodb.com"
+      },
+      "summary": "SERVER-125613: Add index eligibility tests to PathArrayness library (#54077)"
+    },
+    {
+      "sha": "7a0a66c5733f79cc1f7e5795691b9428c5bcefe2",
+      "short_sha": "7a0a66c5733",
+      "date": "2026-05-29T13:36:49-04:00",
+      "author": {
+        "name": "Cedric Sirianni",
+        "email": "cedric.sirianni@mongodb.com"
+      },
+      "summary": "SERVER-127674: Remove featureFlag prefix from feature flag checks (#54548)"
+    },
+    {
+      "sha": "f362c2e36202a76f1b735a4ddd9a1eeab9981b20",
+      "short_sha": "f362c2e3620",
+      "date": "2026-05-29T13:35:33-04:00",
+      "author": {
+        "name": "Gregory Noma",
+        "email": "gregory.noma@gmail.com"
+      },
+      "summary": "SERVER-127854 Clean up all sorter entries if ranges are unset or empty (#54695)"
+    },
+    {
+      "sha": "3aa59bc24bba4aaae21ddde93a2db35148f8c722",
+      "short_sha": "3aa59bc24bb",
+      "date": "2026-05-29T12:47:13-04:00",
+      "author": {
+        "name": "Binh Vo",
+        "email": "146007384+binhvomongodb@users.noreply.github.com"
+      },
+      "summary": "SERVER-125851 Extend validation with more detailed disambiguation for schema validation checks (#54158)"
+    },
+    {
+      "sha": "1336be16f347123a779598cb636a49a9aaa6f10f",
+      "short_sha": "1336be16f34",
+      "date": "2026-05-29T12:25:39-04:00",
+      "author": {
+        "name": "Cedric Sirianni",
+        "email": "cedric.sirianni@mongodb.com"
+      },
+      "summary": "SERVER-127679 Check RecordStore in checkCommittedFastCountChanges() (#54671)"
+    },
+    {
+      "sha": "c52a1c4b32b86a5106538a8baebb6ea866472e37",
+      "short_sha": "c52a1c4b32b",
+      "date": "2026-05-29T12:23:17-04:00",
+      "author": {
+        "name": "Cedric Sirianni",
+        "email": "cedric.sirianni@mongodb.com"
+      },
+      "summary": "SERVER-127667 Rename msgasserted to masserted (#54544)"
+    },
+    {
+      "sha": "603fc3e0de8c386ba03b25289bc56e674d002147",
+      "short_sha": "603fc3e0de8",
+      "date": "2026-05-29T18:18:33+02:00",
+      "author": {
+        "name": "Igor Praznik",
+        "email": "95708172+igpraznik@users.noreply.github.com"
+      },
+      "summary": "SERVER-127410 Update TypeDatabase using ShardRef instead of ShardId (#54457)"
+    },
+    {
+      "sha": "b2ab7c38602ffb0e25860d84f715168f78babe07",
+      "short_sha": "b2ab7c38602",
+      "date": "2026-05-29T12:01:27-04:00",
+      "author": {
+        "name": "Stephanie",
+        "email": "53684987+seristof@users.noreply.github.com"
+      },
+      "summary": "SERVER-127613 Wrap logStartup in a writeConflictRetry (#54503)"
+    },
+    {
+      "sha": "28fb31e2c2d4a2206e4367d7e00a69d5cbfdf198",
+      "short_sha": "28fb31e2c2d",
+      "date": "2026-05-29T17:28:23+02:00",
+      "author": {
+        "name": "Jordi Olivares Provencio",
+        "email": "jordi.olivares-provencio@mongodb.com"
+      },
+      "summary": "SERVER-127888 Ensure lock ordering is respected for shard catalog cleanup (#54726)"
+    },
+    {
+      "sha": "1e90ba4c3472e9bcae4eb0baca74a5400da9cbbd",
+      "short_sha": "1e90ba4c347",
+      "date": "2026-05-29T11:23:00-04:00",
+      "author": {
+        "name": "Evan Bergeron",
+        "email": "evanbergeron@users.noreply.github.com"
+      },
+      "summary": "SERVER-126783 Verify multikeyness change causes plan cache invalidation for path arrayness assumptions (#54228)"
+    },
+    {
+      "sha": "02c7a35d4a0118676440af580308cc34a3ecc4db",
+      "short_sha": "02c7a35d4a0",
+      "date": "2026-05-29T17:55:22+03:00",
+      "author": {
+        "name": "Philip Stoev",
+        "email": "philip.stoev@mongodb.com"
+      },
+      "summary": "SERVER-127480 Re-enable join_opt/plan_stability_subjoin_cardinality_md.js (#54518)"
+    },
+    {
+      "sha": "b00339a2773cad9a740c6e6a9d0dc26bf6d8549c",
+      "short_sha": "b00339a2773",
+      "date": "2026-05-29T15:39:15+01:00",
+      "author": {
+        "name": "Alexander Ignatyev",
+        "email": "alexander.ignatyev@mongodb.com"
+      },
+      "summary": "SERVER-126397 Preserve path suffix on let variable when extracting join predicates (#54714)"
+    },
+    {
+      "sha": "ddcea499f9f9054721538f515ae71433bffba5b7",
+      "short_sha": "ddcea499f9f",
+      "date": "2026-05-29T14:34:09+00:00",
+      "author": {
+        "name": "auto-revert-app[bot]",
+        "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
+      },
+      "summary": "Revert \"SERVER-127522 Add test coverage for targeted replicated size and count tests (#54472)\" (#54729)"
+    },
+    {
+      "sha": "a5f545e1765000d491be637a3a0f30149899a08a",
+      "short_sha": "a5f545e1765",
+      "date": "2026-05-29T07:27:36-07:00",
+      "author": {
+        "name": "Surya Dhoolam",
+        "email": "surya.dhoolam@mongodb.com"
+      },
+      "summary": "SERVER-120876 Introduce pluggable CheckpointSchedulePolicy interface (#53625)"
+    },
+    {
+      "sha": "41fc90a87d1fa9e94eaa5175d4cc740295391e61",
+      "short_sha": "41fc90a87d1",
+      "date": "2026-05-29T10:09:18-04:00",
+      "author": {
+        "name": "Adithi Raghavan",
+        "email": "adithi.raghavan@mongodb.com"
+      },
+      "summary": "SERVER-123972 Add generic $sort optimization to erase redundant $sorts (#52650)"
+    },
+    {
+      "sha": "1fa671ca384b9eba307aaca7f57249e857395194",
+      "short_sha": "1fa671ca384",
+      "date": "2026-05-29T10:08:52-04:00",
+      "author": {
+        "name": "Gregory Noma",
+        "email": "gregory.noma@gmail.com"
+      },
+      "summary": "SERVER-127855 Clean up orphaned sorter entries only in or before scan (#54696)"
+    },
+    {
+      "sha": "c8c18266df1955df0e61305af8bfdd81192e686f",
+      "short_sha": "c8c18266df1",
+      "date": "2026-05-29T09:57:15-04:00",
+      "author": {
+        "name": "Jawwad Asghar",
+        "email": "112432173+jawwadasghar@users.noreply.github.com"
+      },
+      "summary": "SERVER-126262 Bypass VectorClock mutex on the per-request hot path via atomic shadow (#53465)"
+    },
+    {
+      "sha": "b13bbf95e5daa68ba4b1c5967c413b19a0bcc43c",
+      "short_sha": "b13bbf95e5d",
+      "date": "2026-05-29T09:53:41-04:00",
+      "author": {
+        "name": "Sean Lyons",
+        "email": "sean.lyons@mongodb.com"
+      },
+      "summary": "SERVER-127780: Upgrade db-contrib-tool to 2.2.11 (#54642)"
+    },
+    {
+      "sha": "7c4c4fc8f0abd4d3716fa2b561649371f5c0ed9b",
+      "short_sha": "7c4c4fc8f0a",
+      "date": "2026-05-29T09:39:01-04:00",
+      "author": {
+        "name": "Daniel Gil",
+        "email": "137804741+mdb-dgil@users.noreply.github.com"
+      },
+      "summary": "SERVER-127606: Iceberg benchmark with 100% updates across many partitions (#54565)"
+    },
+    {
+      "sha": "c9991be6dbf2c0e2d0271a91fe5a5d9ebe87c42e",
+      "short_sha": "c9991be6dbf",
+      "date": "2026-05-29T09:30:59-04:00",
+      "author": {
+        "name": "Wenqin",
+        "email": "wenqinYe@users.noreply.github.com"
+      },
+      "summary": "SERVER-127353 Add ReshardingRecipientPostCloningDeltaCollector support (#54218)"
+    },
+    {
+      "sha": "da3960333200f4c622a38c94e53e8ce714d922f5",
+      "short_sha": "da396033320",
+      "date": "2026-05-29T16:26:57+03:00",
+      "author": {
+        "name": "Philip Stoev",
+        "email": "philip.stoev@mongodb.com"
+      },
+      "summary": "SERVER-127202 Extend the product_limits test to cover various $lookup+$unwind scenarios (#54189)"
+    },
+    {
+      "sha": "0c8c334aa96aa93720134022374bea087301e4cf",
+      "short_sha": "0c8c334aa96",
+      "date": "2026-05-29T15:26:54+02:00",
+      "author": {
+        "name": "Ivan Fefer",
+        "email": "ivan.fefer@mongodb.com"
+      },
+      "summary": "SERVER-127785: Improve logs and tags bucket_unpacking_with_limit.js (#54647)"
+    },
+    {
+      "sha": "977b7e9e8aae2d0b1af421816013fa1a1355f75b",
+      "short_sha": "977b7e9e8aa",
+      "date": "2026-05-29T14:21:40+02:00",
+      "author": {
+        "name": "Silvia Surroca",
+        "email": "silvia.surroca@mongodb.com"
+      },
+      "summary": "SERVER-127874 Make change_stream_enforce_max_time_ms_on_mongos.js to use the config time as start point instead of the cluster time (#54707)"
+    },
+    {
+      "sha": "ca7298b75edc6a1d76974430ccb802273dd97583",
+      "short_sha": "ca7298b75ed",
+      "date": "2026-05-29T13:21:23+02:00",
+      "author": {
+        "name": "Allison Easton",
+        "email": "allison.easton@mongodb.com"
+      },
+      "summary": "SERVER-127655 Remove makeUnsplittableCollectionsDataShardAggregation (#54709)"
+    },
     {
       "sha": "5230090c975c04940abd10d964a70114ad43b2d0",
       "short_sha": "5230090c975",
@@ -4226,10 +4736,120 @@
           "num_of_dirs": 26
         }
       }
+    },
+    {
+      "commit": {
+        "sha": "41fc90a87d1fa9e94eaa5175d4cc740295391e61",
+        "short_sha": "41fc90a87d1",
+        "date": "2026-05-29T10:09:18-04:00",
+        "author": {
+          "name": "Adithi Raghavan",
+          "email": "adithi.raghavan@mongodb.com"
+        },
+        "summary": "SERVER-123972 Add generic $sort optimization to erase redundant $sorts (#52650)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 33,
+          "num_of_lines": 1055,
+          "lines_added": 816,
+          "lines_deleted": 239,
+          "num_of_dirs": 14
+        }
+      }
+    },
+    {
+      "commit": {
+        "sha": "a5f545e1765000d491be637a3a0f30149899a08a",
+        "short_sha": "a5f545e1765",
+        "date": "2026-05-29T07:27:36-07:00",
+        "author": {
+          "name": "Surya Dhoolam",
+          "email": "surya.dhoolam@mongodb.com"
+        },
+        "summary": "SERVER-120876 Introduce pluggable CheckpointSchedulePolicy interface (#53625)"
+      },
+      "strategy_name": "important_files",
+      "result": {
+        "matched_files": [
+          "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine_test.cpp"
+        ]
+      }
+    },
+    {
+      "commit": {
+        "sha": "02c7a35d4a0118676440af580308cc34a3ecc4db",
+        "short_sha": "02c7a35d4a0",
+        "date": "2026-05-29T17:55:22+03:00",
+        "author": {
+          "name": "Philip Stoev",
+          "email": "philip.stoev@mongodb.com"
+        },
+        "summary": "SERVER-127480 Re-enable join_opt/plan_stability_subjoin_cardinality_md.js (#54518)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 3,
+          "num_of_lines": 13153,
+          "lines_added": 10200,
+          "lines_deleted": 2953,
+          "num_of_dirs": 3
+        }
+      }
+    },
+    {
+      "commit": {
+        "sha": "603fc3e0de8c386ba03b25289bc56e674d002147",
+        "short_sha": "603fc3e0de8",
+        "date": "2026-05-29T18:18:33+02:00",
+        "author": {
+          "name": "Igor Praznik",
+          "email": "95708172+igpraznik@users.noreply.github.com"
+        },
+        "summary": "SERVER-127410 Update TypeDatabase using ShardRef instead of ShardId (#54457)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 25,
+          "num_of_lines": 414,
+          "lines_added": 366,
+          "lines_deleted": 48,
+          "num_of_dirs": 12
+        }
+      }
+    },
+    {
+      "commit": {
+        "sha": "01d6f43099d2dc76b52de49bd5c3b23080200e73",
+        "short_sha": "01d6f43099d",
+        "date": "2026-06-01T14:47:24+10:00",
+        "author": {
+          "name": "Alex Pullen",
+          "email": "93811034+LX6T@users.noreply.github.com"
+        },
+        "summary": "Import wiredtiger: f0565a2f936e37bcd72b68cffc40ce86bb1ff7ed from branch mongodb-master (#54810)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 24,
+          "num_of_lines": 1204,
+          "lines_added": 968,
+          "lines_deleted": 236,
+          "num_of_dirs": 12
+        }
+      }
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-05-29 10:32:33",
+  "generated_at": "2026-06-01 11:14:49",
   "branch_name": "master",
   "display_name": "master"
 }
