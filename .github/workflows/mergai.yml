@@ -102,6 +102,11 @@ jobs:
             RESOLVE_CMD="$RESOLVE_CMD --agent \"$MERGAI_AGENT\""
           fi
 
+          # --skip-commit-list-on-failure: `mergai pr create` retries once
+          # without the merged-commit table if the body exceeds GitHub's
+          # 65,536 character limit (typical for merges with hundreds of
+          # commits). See `mergai pr create --help`.
+
           # Attempt merge; exit code 0 = success, 1 = conflicts
           if eval $MERGE_CMD; then
             echo "Merge successful. Committing merge."
@@ -109,7 +114,7 @@ jobs:
             mergai branch create main        # Create and checkout main working branch
             mergai branch push main          # Push main branch to origin
             mergai notes push                # Push mergai notes to remote
-            mergai pr --repo $GITHUB_REPOSITORY create main
+            mergai pr --repo "$GITHUB_REPOSITORY" create main --skip-commit-list-on-failure
           else
             echo "Merge conflict detected. Processing with resolution."
             mergai commit conflict           # Commit conflict state with markers
@@ -120,7 +125,7 @@ jobs:
             mergai branch push solution      # Push solution branch
             mergai branch push conflict      # Push conflict branch
             mergai notes push                # Push mergai notes to remote
-            mergai pr --repo $GITHUB_REPOSITORY create solution
+            mergai pr --repo "$GITHUB_REPOSITORY" create solution --skip-commit-list-on-failure
           fi
 
   solution-merged:
@@ -162,4 +167,6 @@ jobs:
           mergai finalize                  # Finalize into final merge commit
           mergai branch push main          # Push main branch to origin
           mergai notes push                # Push mergai notes to remote
-          mergai pr --repo $GITHUB_REPOSITORY create main
+          # --skip-commit-list-on-failure retries without the merged-commit
+          # table if the body exceeds GitHub's 65,536 character limit.
+          mergai pr --repo "$GITHUB_REPOSITORY" create main --skip-commit-list-on-failure
