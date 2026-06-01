@@ -35,7 +35,36 @@ Token sources, in priority order (first hit wins):
       result. Helper returns it verbatim and lets Bazel cache up to
       its `exp - skew`.
 
-  (2) PSMDB_RBE_JENKINS_TOKEN_FILE OR PSMDB_RBE_JENKINS_TOKEN, plus
+  (2) GitHub Actions OIDC on-demand mint + exchange.
+      Activates when ACTIONS_ID_TOKEN_REQUEST_URL and
+      ACTIONS_ID_TOKEN_REQUEST_TOKEN are present (GHA runtime
+      injects them when the workflow declares `permissions.id-token:
+      write`), plus PSMDB_RBE_OIDC_ISSUER and PSMDB_RBE_GHA_AUDIENCE.
+
+      On every cache miss, the helper calls GHA's runtime token-
+      request endpoint to mint a fresh short-lived (~15 min) id_token
+      with the operator-controlled audience claim (the value of
+      PSMDB_RBE_GHA_AUDIENCE — a coordination string that MUST match
+      the Dex github-actions connector's configured `audiences:` list).
+      The minted GHA id_token is then exchanged at Dex /token (RFC
+      8693) for a buildfarm-scoped Dex JWT with aud=`bazel-github-
+      actions`. The Dex JWT is cached under
+      ~/.cache/rbe/gha_token.json with the usual exp-skew window.
+
+      No sidecar refresh loop is needed: when Bazel re-invokes the
+      helper at cache expiry, the helper re-mints the GHA id_token
+      directly from the still-fresh runtime credential — this is the
+      operational advantage of GHA's runtime token-request endpoint
+      over Jenkins's `withCredentials` Pipeline step.
+
+      Log hygiene: the audience string and the GHA mint URL are
+      treated as soft secrets — never echoed to stderr/stdout (use
+      `${{ secrets.PSMDB_RBE_GHA_AUDIENCE }}` so GH auto-masks the
+      value in workflow logs), and Dex `error_description` strings
+      (which can echo the expected aud back to the caller) are
+      dropped before surfacing the error code to the user.
+
+  (3) PSMDB_RBE_JENKINS_TOKEN_FILE OR PSMDB_RBE_JENKINS_TOKEN, plus
       PSMDB_RBE_OIDC_ISSUER + …
       Jenkins-issued OIDC subject token (RFC 8693 token-exchange).
       Two source variants share the rest of the path:
@@ -72,7 +101,7 @@ Token sources, in priority order (first hit wins):
       sidecar's atomic rename, which is by far the most likely
       reason an in-flight subject_token went stale.
 
-  (3) User flow
+  (4) User flow
       Falls through to bazel.wrapper_hook.rbe_auth.get_cached_or_silent_refresh()
       which reads ~/.cache/rbe/token.json (seeded by `rbe_login.py`
       or by wrapper_hook.py during pre-flight) and refreshes via
@@ -166,6 +195,41 @@ JENKINS_CLIENT_ID = "bazel-jenkins"
 # is not set. Matches the OIDC connector created for the Jenkins OIDC
 # Provider plugin issuer in IaC/buildbarn/ondemand/compose/dex/dex.yaml.
 DEFAULT_CONNECTOR_ID = "jenkins-psmdb-rbe"
+
+# -- GitHub Actions OIDC tier -----------------------------------------
+# Static identifiers — these names are PUBLIC contracts pinned in
+# IaC/buildbarn/ondemand/compose/dex/dex.yaml, mirrored to envoy's
+# jwt_authn audience allowlist in IaC/buildbarn/reapi-proxy/envoy.yaml,
+# and matched by the deployment environment name configured under
+# `percona/percona-server-mongodb` → Settings → Environments. Changing
+# any of them requires a coordinated Dex + Envoy + GitHub-env update.
+GHA_CLIENT_ID = "bazel-github-actions"
+GHA_DEX_AUDIENCE = "bazel-github-actions"
+GHA_CONNECTOR_ID = "github-actions"
+
+# Operator-controlled coordination string injected via workflow
+# `env:` block from `${{ secrets.PSMDB_RBE_GHA_AUDIENCE }}`. NOT
+# hardcoded here — the value is treated as a soft secret (a fork
+# checking out this file gets only the env-var NAME, not the value),
+# and lives only in the operator's .env on the central VM plus the
+# GitHub repo Secrets store. See log-hygiene block above.
+GHA_AUDIENCE_ENV = "PSMDB_RBE_GHA_AUDIENCE"
+
+# GitHub Actions runtime endpoint that mints OIDC id_tokens scoped to
+# the running job. Both env vars are injected automatically by the
+# Actions runtime IFF the job declares `permissions.id-token: write`;
+# anything less and they will not appear in the process environment.
+# https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/about-security-hardening-with-openid-connect
+GHA_REQUEST_URL_ENV = "ACTIONS_ID_TOKEN_REQUEST_URL"
+GHA_REQUEST_TOKEN_ENV = "ACTIONS_ID_TOKEN_REQUEST_TOKEN"
+
+# Separate cache file from CI_CACHE_PATH so the two CI tiers stay
+# isolated — a Jenkins-cached Dex JWT (aud=bazel-jenkins) is NOT
+# routable past Envoy's RBAC policy for the GHA-cached one
+# (aud=bazel-github-actions), and vice versa. Sharing the file would
+# leak the wrong audience into the wrong context on a runner that
+# happens to see both flows historically (e.g. self-hosted hybrid).
+GHA_CACHE_PATH = pathlib.Path.home() / ".cache" / "rbe" / "gha_token.json"
 
 
 def _debug(msg: str) -> None:
@@ -306,6 +370,141 @@ def _exchange_jenkins_token(
 
 
 # --------------------------------------------------------------------
+# GHA cache I/O. Mirrors CI cache shape — separate file, see
+# GHA_CACHE_PATH rationale.
+# --------------------------------------------------------------------
+def _load_gha_cache() -> dict:
+    try:
+        with GHA_CACHE_PATH.open("r", encoding="utf-8") as f:
+            return json.load(f)
+    except FileNotFoundError:
+        return {}
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+
+def _save_gha_cache(data: dict) -> None:
+    GHA_CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp_path = tempfile.mkstemp(
+        prefix=GHA_CACHE_PATH.name + ".",
+        suffix=".tmp",
+        dir=str(GHA_CACHE_PATH.parent),
+    )
+    try:
+        os.chmod(tmp_path, 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2, sort_keys=True)
+    except Exception:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+        raise
+    os.replace(tmp_path, str(GHA_CACHE_PATH))
+
+
+# --------------------------------------------------------------------
+# GHA OIDC mint + exchange.
+# --------------------------------------------------------------------
+def _mint_gha_id_token(url: str, runtime_token: str, audience: str) -> str:
+    """Mint a GitHub Actions OIDC id_token with the given audience claim.
+
+    Issues a GET against the runtime token-request endpoint exposed
+    in `ACTIONS_ID_TOKEN_REQUEST_URL` (a single-use URL per job-step
+    that includes a server-side nonce — see GHA's actions/core source
+    `getIDToken`). The audience is appended as a query parameter; we
+    deliberately never echo the constructed URL to stderr/stdout
+    (covered by --silent semantics here; the helper uses urllib so
+    there is no curl -v leak path), and we strip the audience value
+    out of any error path that might quote response bodies.
+    """
+    full_url = (
+        url
+        + ("&" if "?" in url else "?")
+        + urllib.parse.urlencode({"audience": audience})
+    )
+    req = urllib.request.Request(
+        full_url,
+        headers={
+            "Authorization": f"bearer {runtime_token}",
+            "Accept": "application/json",
+        },
+        method="GET",
+    )
+    ctx = ssl.create_default_context()
+    try:
+        with urllib.request.urlopen(
+            req, context=ctx, timeout=HTTP_TIMEOUT_SECONDS
+        ) as resp:
+            body = resp.read().decode("utf-8")
+    except urllib.error.HTTPError as e:
+        # Do NOT include e.read() — the body can echo the audience back
+        # to the caller on some misconfigurations.
+        raise rbe_auth.RbeAuthError(f"GH OIDC mint failed: HTTP {e.code} ({e.reason})")
+    except (urllib.error.URLError, socket.timeout, ssl.SSLError, OSError) as e:
+        raise rbe_auth.RbeAuthError(f"GH OIDC mint network error: {e}")
+    try:
+        data = json.loads(body)
+    except json.JSONDecodeError:
+        # Truncate body before quoting to avoid accidentally surfacing
+        # an audience-shaped string from a misbehaving proxy/captive
+        # portal.
+        raise rbe_auth.RbeAuthError("GH OIDC mint: non-JSON response")
+    tok = data.get("value", "")
+    if not tok:
+        raise rbe_auth.RbeAuthError("GH OIDC mint: missing 'value' field")
+    return tok
+
+
+def _exchange_gha_token(gha_jwt: str, issuer: str) -> str:
+    """Exchange a GHA OIDC id_token for a Dex-issued buildfarm JWT.
+
+    The Dex github-actions connector validates:
+      * subject_token signature against GitHub's JWKS (issuer-pinned)
+      * subject_token `aud` claim against connector's configured
+        `audiences:` list (i.e. PSMDB_RBE_GHA_AUDIENCE on the central)
+    On success Dex mints a fresh JWT with aud=`bazel-github-actions`
+    and preserves the GH OIDC `sub` claim (e.g.
+    `repo:percona/percona-server-mongodb:environment:psmdb-rbe`).
+    Envoy's RBAC filter on :8981 / :1985 enforces the sub-prefix
+    allowlist downstream of this exchange.
+    """
+    resp = _post_form(
+        f"{issuer.rstrip('/')}/token",
+        {
+            "grant_type": TOKEN_EXCHANGE_GRANT,
+            "client_id": GHA_CLIENT_ID,
+            "subject_token": gha_jwt,
+            "subject_token_type": TOKEN_EXCHANGE_TOKEN_TYPE,
+            "audience": GHA_DEX_AUDIENCE,
+            "scope": "openid",
+            "connector_id": GHA_CONNECTOR_ID,
+        },
+    )
+    err = resp.get("error")
+    if err:
+        # Drop error_description: Dex echoes the connector-configured
+        # expected aud value back to the caller in that field on
+        # audience mismatches (e.g. "subject_token aud '...' does not
+        # match expected '...'"). The expected value is the operator's
+        # PSMDB_RBE_GHA_AUDIENCE — a soft secret we keep out of logs.
+        # Structured `error` code is enough to diagnose typical
+        # failures: invalid_grant = aud / sub-prefix mismatch;
+        # access_denied = connector refused subject_token;
+        # invalid_request = missing form field. Operators chasing a
+        # specific reason can correlate with Dex stdout logs on the
+        # central VM (root-only, not public).
+        raise rbe_auth.RbeAuthError(
+            f"Dex GHA token-exchange refused: {err}",
+            error_code=err,
+        )
+    new_token = resp.get("access_token") or resp.get("id_token")
+    if not new_token:
+        raise rbe_auth.RbeAuthError("Dex GHA token-exchange: response missing token")
+    return new_token
+
+
+# --------------------------------------------------------------------
 # Token sources.
 # --------------------------------------------------------------------
 def _from_dex_env() -> str | None:
@@ -322,6 +521,51 @@ def _from_dex_env() -> str | None:
         )
     _debug("using PSMDB_RBE_DEX_TOKEN (pre-exchanged Dex JWT)")
     return tok
+
+
+def _from_gha_oidc_env() -> str | None:
+    """GitHub Actions OIDC tier — see module docstring §(2).
+
+    Detected by the presence of GHA-injected runtime env vars. On
+    cache miss, mints a GH OIDC id_token via the runtime endpoint
+    and exchanges it at Dex for a buildfarm-scoped JWT. The exchanged
+    JWT is file-cached under GHA_CACHE_PATH to amortise the 2
+    round-trips across many helper invocations in one Bazel build.
+    """
+    url = os.environ.get(GHA_REQUEST_URL_ENV, "").strip()
+    runtime_token = os.environ.get(GHA_REQUEST_TOKEN_ENV, "").strip()
+    if not (url and runtime_token):
+        return None
+
+    audience = os.environ.get(GHA_AUDIENCE_ENV, "").strip()
+    issuer = os.environ.get(OIDC_ISSUER_ENV, "").strip()
+    if not audience:
+        raise rbe_auth.RbeAuthError(
+            f"{GHA_REQUEST_URL_ENV} is set (running under GitHub Actions) but "
+            f"{GHA_AUDIENCE_ENV} is not. Set it from the workflow's `env:` "
+            f"block referencing the repository secret."
+        )
+    if not issuer:
+        raise rbe_auth.RbeAuthError(
+            f"{GHA_REQUEST_URL_ENV} is set but {OIDC_ISSUER_ENV} is not. "
+            f"Set it from the workflow's `env:` block."
+        )
+
+    # Cache hit short-circuits the GH-mint + Dex-exchange round trips.
+    # Within one Bazel build the helper is invoked many times (once per
+    # gRPC channel × refresh); without this the runner would burn 2
+    # network round-trips per helper call.
+    cached = _load_gha_cache().get("id_token", "")
+    if cached and _is_fresh(cached):
+        _debug("CI cache hit (GHA Dex token still fresh)")
+        return cached
+
+    _debug("minting GH OIDC id_token (audience hidden)")
+    gha_jwt = _mint_gha_id_token(url, runtime_token, audience)
+    _debug(f"exchanging GHA token at {issuer}/token (connector_id={GHA_CONNECTOR_ID})")
+    new_token = _exchange_gha_token(gha_jwt, issuer)
+    _save_gha_cache({"id_token": new_token, "fetched_at": int(time.time())})
+    return new_token
 
 
 def _read_token_file(path: str) -> str | None:
@@ -494,12 +738,20 @@ def main() -> int:
         req = _read_request()
         _debug(f"request: {req!r}")
 
-        token = _from_dex_env() or _from_jenkins_env() or _from_human_cache()
+        token = (
+            _from_dex_env()
+            or _from_gha_oidc_env()
+            or _from_jenkins_env()
+            or _from_human_cache()
+        )
         if not token:
             print(
                 "[rbe-helper] no usable PSMDB RBE credential.\n"
                 "  Tried (in order):\n"
                 f"    * env {DEX_TOKEN_ENV}   (not set or expired)\n"
+                f"    * env {GHA_REQUEST_URL_ENV} + {GHA_REQUEST_TOKEN_ENV} "
+                f"(not set — workflow needs `permissions.id-token: write`),\n"
+                f"      plus {GHA_AUDIENCE_ENV} + {OIDC_ISSUER_ENV}\n"
                 f"    * file {JENKINS_TOKEN_FILE_ENV} or env {JENKINS_TOKEN_ENV}, "
                 f"plus {OIDC_ISSUER_ENV} (not set)\n"
                 "    * ~/.cache/rbe/token.json (missing or refresh failed)\n"
