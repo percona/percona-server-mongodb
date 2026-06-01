@@ -205,6 +205,15 @@ commit:
   # Default: "Note: commit created by mergai"
   footer: "Note: commit created by mergai"
 
+  # Title format for CI-fix commits, using %(token) syntax. Tokens:
+  #   %(workflow)                - The failing workflow/check name
+  #   %(target_branch)           - The target branch name
+  #   %(merge_commit_sha)        - Full SHA of the merge commit (40 chars)
+  #   %(merge_commit_short_sha)  - Short SHA of the merge commit (11 chars)
+  # Quoted to match the main/solution/semantic PR title style.
+  # Default: "Fix %(workflow) failure for merge commit %(merge_commit_short_sha) into %(target_branch)"
+  ci_fix_title_format: "Fix '%(workflow)' failure for merge commit '%(merge_commit_short_sha)' into '%(target_branch)'"
+
 # -----------------------------------------------------------------------------
 # PULL REQUEST CONFIGURATION
 # -----------------------------------------------------------------------------
@@ -222,14 +231,14 @@ pr:
     # Default: "Merge %(merge_commit_short_sha) into %(target_branch)"
     title_format: "Merge '%(merge_commit_short_sha)' into '%(target_branch)'"
 
-    # Labels to apply to main PRs when created.
-    # These labels are applied automatically via the GitHub API.
+    # Labels always applied to main PRs when created.
     # Can be overridden at runtime with --labels or disabled with --no-labels.
     #
+    # Main PRs never contain unresolved conflicts, so `labels_on_unresolved`
+    # is not used here.
+    #
     # Default: [] (no labels)
-    labels:
-      - "ci-skip-format"
-      - "ci-skip-clang-tidy"
+    labels: []
 
   # Configuration for solution PRs (from solution branch to conflict branch).
   solution:
@@ -239,14 +248,37 @@ pr:
     # Default: "Resolve conflicts for merge %(merge_commit_short_sha) into %(target_branch)"
     title_format: "Resolve conflicts for merge '%(merge_commit_short_sha)' into '%(target_branch)'"
 
-    # Labels to apply to solution PRs when created.
-    # These labels are applied automatically via the GitHub API.
+    # Labels always applied to solution PRs.
     # Can be overridden at runtime with --labels or disabled with --no-labels.
     #
     # Default: [] (no labels)
-    labels:
+    labels: []
+
+    # Labels applied only when the solution still contains unresolved conflicts
+    # (the AI agent left files with conflict markers for a human to finish).
+    # Keeps CI (format, clang-tidy) off while markers remain, but lets it run
+    # on fully-resolved solution PRs so mergai's CI auto-fix loop can engage.
+    #
+    # Default: [] (no conditional labels)
+    labels_on_unresolved:
       - "ci-skip-format"
       - "ci-skip-clang-tidy"
+
+  # Configuration for semantic PRs (from semantic branch to main branch).
+  # Semantic PRs carry fixes for semantic conflicts: a clean (textual) merge
+  # whose result fails to build/test.
+  semantic:
+    # Format string for semantic PR titles using %(token) syntax.
+    # Same tokens available as main.title_format.
+    #
+    # Default: "Resolve semantic conflicts for merge %(merge_commit_short_sha) into %(target_branch)"
+    title_format: "Resolve semantic conflicts for merge '%(merge_commit_short_sha)' into '%(target_branch)'"
+
+    # Labels always applied to semantic PRs.
+    # Can be overridden at runtime with --labels or disabled with --no-labels.
+    #
+    # Default: [] (no labels)
+    labels: []
 
 # -----------------------------------------------------------------------------
 # PROMPT CONFIGURATION
@@ -382,3 +414,84 @@ config:
       #
       # Default: "mergai note available"
       marker_text: "mergai note available, use `mergai show <commit>` to view it."
+
+# -----------------------------------------------------------------------------
+# CI WORKFLOW HANDLING
+# -----------------------------------------------------------------------------
+# Per-workflow configuration consumed by `mergai ci fix` (and the `mergai ci
+# status` gate), invoked from the `ci-handle` job in
+# `.github/workflows/mergai.yml` whenever a watched CI workflow finishes with
+# failure on a `mergai/*` branch.
+#
+# For each workflow:
+#   enabled       - Whether mergai will attempt fixes (false = handler exits
+#                   immediately with a message).
+#   max_attempts  - Cap on automated fix attempts. After the cap is reached,
+#                   mergai posts a PR comment and stops re-triggering.
+#   action_type   - "command" (run a shell command) or "resolve" (run the AI
+#                   agent over the failure context). The "command" action
+#                   requires a non-empty `command` field.
+#   command       - Shell command for action_type=command. Receives
+#                   ${TARGET_BRANCH}, ${PR_NUMBER}, ${WORKFLOW_NAME} as env
+#                   vars.
+#   context.type    - How to extract failure data: "diff" (format) or "sarif"
+#                     (clang-tidy).
+#   context.source  - "artifact" (download workflow artifact, currently the
+#                     only supported source).
+#   context.artifact_name - Name of the workflow artifact to download. Must
+#                     match the artifact name uploaded by the failing
+#                     workflow (see format.yml / clang-tidy.yml).
+workflows:
+  # `format` is auto-fixable: format CI computes the exact patch and uploads
+  # it as the `format-results` artifact, so we just apply that patch directly.
+  format:
+    enabled: true
+    max_attempts: 3
+    action_type: command
+    command: "git apply --whitespace=nowarn ${MERGAI_ARTIFACTS_DIR}/format-results/diff.patch"
+    context:
+      type: diff
+      source: artifact
+      artifact_name: format-results
+
+  # `clang-tidy` cannot be auto-fixed mechanically; the AI agent reads the
+  # SARIF findings and edits the affected files. Capped at 2 attempts because
+  # tidy fixes often need human judgement.
+  #
+  # `code_scanning_check: true` makes mergai also act on a *passing* run
+  # when GitHub Code Scanning has findings for the run's commit (clang-tidy
+  # itself returns 0 even with warnings - without this flag we'd only
+  # react to outright build failures).
+  clang-tidy:
+    enabled: true
+    max_attempts: 2
+    action_type: resolve
+    context:
+      type: sarif
+      source: artifact
+      artifact_name: clang-tidy-results
+      code_scanning_check: true
+
+  # `build-and-test` covers the two jobs in `.github/workflows/build-and-test.yml`:
+  # the `build` and the `unittests` jobs.
+  # Mergai's workflow_run trigger fires once for the whole workflow, so a single
+  # entry covers both jobs; the BEP context builder decides what to feed the agent
+  # based on which artifact is present in the failing run.
+  #
+  # Capped at 2 attempts: like clang-tidy, build/test fixes need human-grade
+  # judgement and shouldn't loop indefinitely on flakes or environmental
+  # failures.
+  build-and-test:
+    enabled: true
+    max_attempts: 2
+    action_type: resolve
+    context:
+      type: bazel
+      source: artifact
+      # The build job uploads `build-failure-artifacts` (bazel-bep.json);
+      # the unittests job uploads `unittest-failure-artifacts` (bazel-bep.json
+      # plus bazel-testlogs/ with per-target test.log and JUnit test.xml).
+      # Only one is present per failing run (unittests is gated on build).
+      artifact_name:
+        - build-failure-artifacts
+        - unittest-failure-artifacts
