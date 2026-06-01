@@ -249,8 +249,6 @@ def resmoke_suite_test(
         "//jstests/libs:key1",
         "//jstests/libs:key2",
         "//jstests/with_mongot:keyfile_for_testing",
-        "//src/mongo/db/modules/enterprise/jstests/encryptdb/libs:ekf2",
-        "//src/mongo/db/modules/enterprise/jstests/encryptdb/libs:ekf",
         "//src/third_party/schemastore.org:schemas",
         "//x509:generate_main_certificates",
     ]
