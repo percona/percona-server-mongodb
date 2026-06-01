@@ -101,7 +101,7 @@ public:
 
     ~DocumentSourceBackupCursorExtend() override;
 
-    const char* getSourceName() const override;
+    StringData getSourceName() const override;
 
     static const Id& id;
 

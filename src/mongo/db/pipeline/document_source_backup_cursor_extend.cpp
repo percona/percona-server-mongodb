@@ -66,8 +66,8 @@ DocumentSourceBackupCursorExtend::LiteParsed::parse(const NamespaceString& nss,
     return std::make_unique<DocumentSourceBackupCursorExtend::LiteParsed>(spec);
 }
 
-const char* DocumentSourceBackupCursorExtend::getSourceName() const {
-    return kStageName.data();
+StringData DocumentSourceBackupCursorExtend::getSourceName() const {
+    return kStageName;
 }
 
 Value DocumentSourceBackupCursorExtend::serialize(const SerializationOptions& opts) const {
