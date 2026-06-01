@@ -6,8 +6,17 @@ description: "Setting up the mergai tool"
 
 inputs:
   token:
-    description: "GitHub token to checkout mergai repository"
-    required: true # Required because Percona-Lab/mergai is a private repository
+    # Percona-Lab/mergai is public, so no caller-supplied token is needed -
+    # the job's GITHUB_TOKEN can read any public repo. This is an optional
+    # override to pin a different identity. The `default: ""` below is just an
+    # empty placeholder; the real `github.token` fallback lives at the usage
+    # site (`inputs.token || github.token`), NOT in this default. It must work
+    # that way because callers forward an empty string (e.g. an unset
+    # github-app-token), and an explicitly-passed empty value overrides an
+    # input default - so a `default: github.token` here would never apply.
+    description: "GitHub token for the mergai checkout (default: job GITHUB_TOKEN)."
+    required: false
+    default: ""
   ref:
     description: "Git reference (branch, tag, commit SHA) to checkout mergai from"
     required: false
@@ -24,7 +33,10 @@ runs:
       with:
         repository: Percona-Lab/mergai
         ref: ${{ inputs.ref }}
-        token: ${{ inputs.token }}
+        # Fall back to the job's GITHUB_TOKEN when no override is supplied.
+        # Must be `|| github.token` here rather than an input default: a caller
+        # forwarding an empty string overrides the default, but `'' || x` → x.
+        token: ${{ inputs.token || github.token }}
         path: mergai # Checkout to 'mergai' subdirectory, not the workspace root
 
     # Install mergai using pipx for isolated Python environment.
