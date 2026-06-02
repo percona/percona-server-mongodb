@@ -260,8 +260,7 @@ InitialSyncerFCB::InitialSyncerFCB(
     StorageInterface* storage,
     ReplicationProcess* replicationProcess,
     const OnCompletionFn& onCompletion)
-    : _fetchCount(0),
-      _opts(opts),
+    : _opts(opts),
       _dataReplicatorExternalState(std::move(dataReplicatorExternalState)),
       _exec(_dataReplicatorExternalState->getSharedTaskExecutor()),
       _clonerExec(_exec),
@@ -270,9 +269,7 @@ InitialSyncerFCB::InitialSyncerFCB(
       _replicationProcess(replicationProcess),
       _backupId(UUID::fromCDR(std::array<unsigned char, 16>{})),
       _cfgDBPath(storageGlobalParams.dbpath),
-      _onCompletion(onCompletion),
-      _createClientFn(
-          [] { return std::make_unique<DBClientConnection>(true /* autoReconnect */); }) {
+      _onCompletion(onCompletion) {
     uassert(ErrorCodes::BadValue, "task executor cannot be null", _exec);
     uassert(ErrorCodes::BadValue, "invalid storage interface", _storage);
     uassert(ErrorCodes::BadValue, "invalid replication process", _replicationProcess);
@@ -425,22 +422,13 @@ void InitialSyncerFCB::_cancelRemainingWork(WithLock lk) {
     }
 
     if (_sharedData) {
-        // We actually hold the required lock, but the lock object itself is not passed through.
-        _clearRetriableError(WithLock::withoutLock());
         std::lock_guard<InitialSyncSharedData> lock(*_sharedData);
         _sharedData->setStatusIfOK(
             lock, Status{ErrorCodes::CallbackCanceled, "Initial sync attempt canceled"});
     }
-    if (_client) {
-        _client->shutdownAndDisallowReconnect();
-    }
-    _shutdownComponent(lk, _applier);
     _shutdownComponent(lk, _backupCursorFetcher);
-    _shutdownComponent(lk, _fCVFetcher);
-    _shutdownComponent(lk, _beginFetchingOpTimeFetcher);
     (*_attemptExec)->shutdown();
     (*_clonerAttemptExec)->shutdown();
-    _attemptCanceled = true;
 }
 
 void InitialSyncerFCB::join() {
@@ -876,8 +864,6 @@ void InitialSyncerFCB::_rollbackCheckerResetCallback(
         std::make_unique<InitialSyncSharedData>(_rollbackChecker->getBaseRBID(),
                                                 _allowedOutageDuration,
                                                 getGlobalServiceContext()->getFastClockSource());
-    _client = _createClientFn();
-
     // schedule $backupCursor on the sync source
     status = _scheduleWorkAndSaveHandle(
         lock,
@@ -1006,7 +992,6 @@ void InitialSyncerFCB::_finishInitialSyncAttempt(const StatusWith<OpTimeAndWallT
         _exec, Status(ErrorCodes::CallbackCanceled, "Initial Sync Attempt Canceled"));
     _clonerAttemptExec = std::make_unique<executor::ScopedTaskExecutor>(
         _clonerExec, Status(ErrorCodes::CallbackCanceled, "Initial Sync Attempt Canceled"));
-    _attemptCanceled = false;
     auto when = (*_attemptExec)->now() + _opts.initialSyncRetryWait;
     auto status = _scheduleWorkAtAndSaveHandle(
         lock,
@@ -1055,10 +1040,6 @@ void InitialSyncerFCB::_finishCallback(StatusWith<OpTimeAndWallTime> lastApplied
         }
     }
 
-    // Any _retryingOperation is no longer active.  This must be done before signalling state
-    // Complete.
-    _retryingOperation = boost::none;
-
     // Completion callback must be invoked outside mutex.
     try {
         onCompletion(lastApplied);
@@ -1100,10 +1081,6 @@ void InitialSyncerFCB::_finishCallback(StatusWith<OpTimeAndWallTime> lastApplied
             mongo::sleepsecs(1);
         }
     }
-}
-
-void InitialSyncerFCB::_clearRetriableError(WithLock lk) {
-    _retryingOperation = boost::none;
 }
 
 Status InitialSyncerFCB::_checkForShutdownAndConvertStatus(

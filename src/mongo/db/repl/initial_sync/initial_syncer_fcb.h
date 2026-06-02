@@ -424,11 +424,6 @@ private:
     BSONObj _getInitialSyncProgress(WithLock lk) const;
 
     /**
-     * Indicates we are no longer handling a retriable error.
-     */
-    void _clearRetriableError(WithLock lk);
-
-    /**
      * Checks the given status (or embedded status inside the callback args) and current data
      * replicator shutdown state. If the given status is not OK or if we are shutting down, returns
      * a new error status that should be passed to _finishCallback. The reason in the new error
@@ -498,9 +493,6 @@ private:
     void _restoreStorageLocation(std::unique_lock<std::mutex>& lock, OperationContext* opCtx);
 
     Status _killBackupCursor(WithLock lk);
-
-    // Counts how many documents have been refetched from the source in the current batch.
-    AtomicWord<unsigned> _fetchCount;
 
     //
     // All member variables are labeled with one of the following codes indicating the
@@ -583,16 +575,9 @@ private:
     // Handle returned from RollbackChecker::reset().
     RollbackChecker::CallbackHandle _getBaseRollbackIdHandle;  // (M)
 
-    // The operation, if any, currently being retried because of a network error.
-    InitialSyncSharedData::RetryableOperation _retryingOperation;  // (M)
-
     std::unique_ptr<InitialSyncState> _initialSyncState;   // (M)
-    std::unique_ptr<Fetcher> _beginFetchingOpTimeFetcher;  // (S)
-    std::unique_ptr<Fetcher> _fCVFetcher;                  // (S)
     std::unique_ptr<Fetcher> _backupCursorFetcher;         // (S)
-    std::unique_ptr<MultiApplier> _applier;                // (M)
     HostAndPort _syncSource;                               // (M)
-    std::unique_ptr<DBClientConnection> _client;           // (M)
     OpTime _lastFetched;                                   // (MX)
 
     // The last applied optime and wall clock time.
@@ -608,9 +593,6 @@ private:
     // Current initial syncer state. See comments for State enum class for details.
     State _state = State::kPreStart;  // (M)
 
-    // Used to create the DBClientConnection for the cloners
-    CreateClientFn _createClientFn;
-
     // Contains stats on the current initial sync request (includes all attempts).
     // To access these stats in a user-readable format, use getInitialSyncProgress().
     Stats _stats;  // (M)
@@ -621,9 +603,6 @@ private:
     // Amount of time an outage is allowed to continue before the initial sync attempt is marked
     // as failed.
     Milliseconds _allowedOutageDuration;  // (M)
-
-    // The initial sync attempt has been canceled
-    bool _attemptCanceled = false;  // (X)
 
     // Conditional variable to wait for end of storage change
     stdx::condition_variable _inStorageChangeCondition;  // (M)
