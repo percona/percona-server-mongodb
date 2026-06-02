@@ -393,15 +393,6 @@ private:
                                        std::shared_ptr<OnCompletionGuard> onCompletionGuard);
 
     /**
-     * Callback for the '_fCVFetcher'. A successful response lets us check if the remote node
-     * is in a currently acceptable fCV and if it has a 'targetVersion' set.
-     */
-    void _fcvFetcherCallback(const StatusWith<Fetcher::QueryResponse>& result,
-                             std::shared_ptr<OnCompletionGuard> onCompletionGuard,
-                             const OpTime& lastOpTime,
-                             OpTime& beginFetchingOpTime);
-
-    /**
      * Reports result of current initial sync attempt. May schedule another initial sync attempt
      * depending on shutdown state and whether we've exhausted all initial sync retries.
      */
@@ -431,14 +422,6 @@ private:
 
     void _appendInitialSyncProgressMinimal(WithLock lk, BSONObjBuilder* bob) const;
     BSONObj _getInitialSyncProgress(WithLock lk) const;
-
-    /**
-     * Check if a status is one which means there's a retriable error and we should retry the
-     * current operation, and records whether an operation is currently being retried.  Note this
-     * can only handle one operation at a time (i.e. it should not be used in both parts of the
-     * "split" section of Initial Sync)
-     */
-    bool _shouldRetryError(WithLock lk, Status status);
 
     /**
      * Indicates we are no longer handling a retriable error.
@@ -479,14 +462,6 @@ private:
      * Cancels task executor callback handle if not null.
      */
     void _cancelHandle(WithLock lk, executor::TaskExecutor::CallbackHandle handle);
-
-    /**
-     * Starts up component and checks initial syncer's shutdown state at the same time.
-     * If component's startup() fails, resets 'component' (which is assumed to be a unique_ptr
-     * to the component type).
-     */
-    template <typename Component>
-    Status _startupComponent(WithLock lk, Component& component);
 
     /**
      * Shuts down component if not null.
@@ -657,10 +632,6 @@ private:
     // Keep alive interval is set to half of "cursorTimeoutMillis" parameter received from the sync
     // source.
     Milliseconds _keepAliveInterval;  // (M)
-
-    // Lock-free summary stats. Written under _mutex, read without any lock. (S)
-    std::shared_ptr<InitialSyncSummaryStats> _summaryStats{
-        std::make_shared<InitialSyncSummaryStats>()};
 };
 
 }  // namespace repl

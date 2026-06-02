@@ -900,132 +900,6 @@ void InitialSyncerFCB::_rollbackCheckerResetCallback(
     }
 }
 
-void InitialSyncerFCB::_fcvFetcherCallback(const StatusWith<Fetcher::QueryResponse>& result,
-                                           std::shared_ptr<OnCompletionGuard> onCompletionGuard,
-                                           const OpTime& lastOpTime,
-                                           OpTime& beginFetchingOpTime) {
-    std::unique_lock<std::mutex> lock(_mutex);
-    auto status = _checkForShutdownAndConvertStatus(
-        lock, result.getStatus(), "error while getting the remote feature compatibility version");
-    if (!status.isOK()) {
-        onCompletionGuard->setResultAndCancelRemainingWork(lock, status);
-        return;
-    }
-
-    const auto docs = result.getValue().documents;
-    if (docs.size() > 1) {
-        onCompletionGuard->setResultAndCancelRemainingWork(
-            lock,
-            Status(ErrorCodes::TooManyMatchingDocuments,
-                   str::stream() << "Expected to receive one feature compatibility version "
-                                    "document, but received: "
-                                 << docs.size() << ". First: " << redact(docs.front())
-                                 << ". Last: " << redact(docs.back())));
-        return;
-    }
-    const auto hasDoc = docs.begin() != docs.end();
-    if (!hasDoc) {
-        onCompletionGuard->setResultAndCancelRemainingWork(
-            lock,
-            Status(ErrorCodes::IncompatibleServerVersion,
-                   "Sync source had no feature compatibility version document"));
-        return;
-    }
-
-    auto fCVParseSW = FeatureCompatibilityVersionParser::parse(docs.front());
-    if (!fCVParseSW.isOK()) {
-        onCompletionGuard->setResultAndCancelRemainingWork(lock, fCVParseSW.getStatus());
-        return;
-    }
-
-    auto version = fCVParseSW.getValue();
-
-    // Changing the featureCompatibilityVersion during initial sync is unsafe.
-    // (Generic FCV reference): This FCV check should exist across LTS binary versions.
-    if (serverGlobalParams.featureCompatibility.acquireFCVSnapshot().isUpgradingOrDowngrading(
-            version)) {
-        onCompletionGuard->setResultAndCancelRemainingWork(
-            lock,
-            Status(ErrorCodes::IncompatibleServerVersion,
-                   str::stream() << "Sync source had unsafe feature compatibility version: "
-                                 << multiversion::toString(version)));
-        return;
-    } else {
-        // Since we don't guarantee that we always clone the "admin.system.version" collection first
-        // and collection/index creation can depend on FCV, we set the in-memory FCV value to match
-        // the version on the sync source. We won't persist the FCV on disk nor will we update our
-        // minWireVersion until we clone the actual document.
-        serverGlobalParams.mutableFCV.setVersion(version);
-    }
-
-    if (MONGO_unlikely(initialSyncHangBeforeSplittingControlFlow.shouldFail())) {
-        lock.unlock();
-        LOGV2(128436,
-              "initial sync - initialSyncHangBeforeSplittingControlFlow fail point "
-              "enabled. Blocking until fail point is disabled.");
-        while (MONGO_unlikely(initialSyncHangBeforeSplittingControlFlow.shouldFail()) &&
-               !_isShuttingDown()) {
-            mongo::sleepsecs(1);
-        }
-        lock.lock();
-    }
-
-    // This is where the flow of control starts to split into two parallel tracks:
-    // - oplog fetcher
-    // - data cloning and applier
-    _sharedData =
-        std::make_unique<InitialSyncSharedData>(_rollbackChecker->getBaseRBID(),
-                                                _allowedOutageDuration,
-                                                getGlobalServiceContext()->getFastClockSource());
-    _client = _createClientFn();
-    _initialSyncState = std::make_unique<InitialSyncState>(std::make_unique<AllDatabaseCloner>(
-        _sharedData.get(), _syncSource, _client.get(), _storage, _workerPool, _summaryStats));
-
-    _initialSyncState->beginApplyingTimestamp = lastOpTime.getTimestamp();
-    _initialSyncState->beginFetchingTimestamp = beginFetchingOpTime.getTimestamp();
-
-    invariant(_initialSyncState->beginApplyingTimestamp >=
-                  _initialSyncState->beginFetchingTimestamp,
-              str::stream() << "beginApplyingTimestamp was less than beginFetchingTimestamp. "
-                               "beginApplyingTimestamp: "
-                            << _initialSyncState->beginApplyingTimestamp.toBSON()
-                            << " beginFetchingTimestamp: "
-                            << _initialSyncState->beginFetchingTimestamp.toBSON());
-
-    invariant(!result.getValue().documents.empty());
-    LOGV2_DEBUG(128437,
-                2,
-                "Setting begin applying timestamp and begin fetching timestamp",
-                "beginApplyingTimestamp"_attr = _initialSyncState->beginApplyingTimestamp,
-                logAttrs(NamespaceString::kRsOplogNamespace),
-                "beginFetchingTimestamp"_attr = _initialSyncState->beginFetchingTimestamp);
-
-    const auto configResult = _dataReplicatorExternalState->getCurrentConfig();
-    status = configResult.getStatus();
-    if (!status.isOK()) {
-        onCompletionGuard->setResultAndCancelRemainingWork(lock, status);
-        _initialSyncState.reset();
-        return;
-    }
-
-    if (MONGO_unlikely(initialSyncHangBeforeCopyingDatabases.shouldFail())) {
-        lock.unlock();
-        // This could have been done with a scheduleWorkAt but this is used only by JS tests where
-        // we run with multiple threads so it's fine to spin on this thread.
-        // This log output is used in js tests so please leave it.
-        LOGV2(128438,
-              "initial sync - initialSyncHangBeforeCopyingDatabases fail point "
-              "enabled. Blocking until fail point is disabled.");
-        while (MONGO_unlikely(initialSyncHangBeforeCopyingDatabases.shouldFail()) &&
-               !_isShuttingDown()) {
-            mongo::sleepsecs(1);
-        }
-        lock.lock();
-    }
-
-    lock.unlock();
-}
-
 void InitialSyncerFCB::_finishInitialSyncAttempt(const StatusWith<OpTimeAndWallTime>& lastApplied) {
     // Since _finishInitialSyncAttempt can be called from any component's callback function or
     // scheduled task, it is possible that we may not be in a TaskExecutor-managed thread when this
@@ -1228,17 +1102,6 @@ void InitialSyncerFCB::_finishCallback(StatusWith<OpTimeAndWallTime> lastApplied
     }
 }
 
-bool InitialSyncerFCB::_shouldRetryError(WithLock lk, Status status) {
-    if (ErrorCodes::isRetriableError(status)) {
-        std::lock_guard<InitialSyncSharedData> sharedDataLock(*_sharedData);
-        return _sharedData->shouldRetryOperation(sharedDataLock, &_retryingOperation);
-    }
-    // The status was OK or some error other than a retriable error, so clear the retriable error
-    // state and indicate that we should not retry.
-    _clearRetriableError(lk);
-    return false;
-}
-
 void InitialSyncerFCB::_clearRetriableError(WithLock lk) {
     _retryingOperation = boost::none;
 }
@@ -1305,28 +1168,6 @@ void InitialSyncerFCB::_cancelHandle(WithLock lk, executor::TaskExecutor::Callba
         return;
     }
     (*_attemptExec)->cancel(handle);
-}
-
-template <typename Component>
-Status InitialSyncerFCB::_startupComponent(WithLock lk, Component& component) {
-    // It is necessary to check if shutdown or attempt cancelling happens before starting a
-    // component; otherwise the component may call a callback function in line which will
-    // cause a deadlock when the callback attempts to obtain the initial syncer mutex.
-    if (_isShuttingDown(lk) || _attemptCanceled) {
-        component.reset();
-        if (_isShuttingDown(lk)) {
-            return {ErrorCodes::CallbackCanceled,
-                    "initial syncer shutdown while trying to call startup() on component"};
-        } else {
-            return {ErrorCodes::CallbackCanceled,
-                    "initial sync attempt canceled while trying to call startup() on component"};
-        }
-    }
-    auto status = component->startup();
-    if (!status.isOK()) {
-        component.reset();
-    }
-    return status;
 }
 
 template <typename Component>
@@ -1626,12 +1467,6 @@ namespace {
 
 using namespace fmt::literals;
 constexpr int kBackupCursorFileFetcherRetryAttempts = 10;
-
-BSONObj makeBackupCursorCmd() {
-    BSONArrayBuilder pipelineBuilder;
-    pipelineBuilder << BSON("$backupCursor" << BSONObj());
-    return BSON("aggregate" << 1 << "pipeline" << pipelineBuilder.arr() << "cursor" << BSONObj());
-}
 
 AggregateCommandRequest makeBackupCursorRequest() {
     return {NamespaceString::makeCollectionlessAggregateNSS(DatabaseName::kAdmin),
