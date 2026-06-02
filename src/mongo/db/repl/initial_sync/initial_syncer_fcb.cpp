@@ -127,13 +127,6 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 namespace mongo {
 namespace repl {
 
-// Failpoint which causes the initial sync function to hang before creating shared data and
-// splitting control flow between the oplog fetcher and the cloners.
-extern FailPoint initialSyncHangBeforeSplittingControlFlow;
-
-// Failpoint which causes the initial sync function to hang before copying databases.
-extern FailPoint initialSyncHangBeforeCopyingDatabases;
-
 // Failpoint which causes the initial sync function to hang before finishing.
 extern FailPoint initialSyncHangBeforeFinish;
 
