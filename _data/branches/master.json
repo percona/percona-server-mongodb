@@ -5,14 +5,14 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 3,
+    "commits_behind": 18,
     "days_behind": 0,
-    "files_affected": 6,
-    "total_additions": 59,
-    "total_deletions": 7,
+    "files_affected": 176,
+    "total_additions": 5783,
+    "total_deletions": 2662,
     "date_range": {
       "first": "2026-06-01T20:04:09+00:00",
-      "last": "2026-06-01T20:07:37+00:00"
+      "last": "2026-06-02T09:08:49+00:00"
     }
   },
   "last_merged_commit": {
@@ -36,6 +36,156 @@
     "summary": "SERVER-124330 Enable analyze command 'sample' mode without testOnly registration (#54142)"
   },
   "unmerged_commits": [
+    {
+      "sha": "35e82d122282908ec4afa6f48511f4eba5639b67",
+      "short_sha": "35e82d12228",
+      "date": "2026-06-02T11:08:49+02:00",
+      "author": {
+        "name": "Pol Piñol Castuera",
+        "email": "pol.pinol@mongodb.com"
+      },
+      "summary": "SERVER-126811 Make timeseriesUpgradeDowngrade DDL commit to the shard catalog (#53864)"
+    },
+    {
+      "sha": "c0c2d5b1802b70133ea2c88cd0e37dc164352bde",
+      "short_sha": "c0c2d5b1802",
+      "date": "2026-06-02T12:18:22+04:00",
+      "author": {
+        "name": "madelinezec",
+        "email": "15312869+madelinezec@users.noreply.github.com"
+      },
+      "summary": "SERVER-117816 infer single table predicates from equi-join predicates (#51615)"
+    },
+    {
+      "sha": "f5bb057f4d18aa339b13b6bbf5a874b5d6a42ab6",
+      "short_sha": "f5bb057f4d1",
+      "date": "2026-06-02T07:54:07+00:00",
+      "author": {
+        "name": "auto-revert-app[bot]",
+        "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
+      },
+      "summary": "Revert \"SERVER-116054 Add support for $where (#53331)\" (#54886)"
+    },
+    {
+      "sha": "d48cf0da5ee918c90de85a6b5b4768acc4fbf0ba",
+      "short_sha": "d48cf0da5ee",
+      "date": "2026-06-02T08:53:02+01:00",
+      "author": {
+        "name": "Daniele Alessandrelli",
+        "email": "daniele.alessandrelli@mongodb.com"
+      },
+      "summary": "SERVER-126821 Set fixedBucketing to false on bucketing parameter change (#54421)"
+    },
+    {
+      "sha": "e63f9964f00e940bf89cb009f658373616d78d36",
+      "short_sha": "e63f9964f00",
+      "date": "2026-06-02T09:17:43+02:00",
+      "author": {
+        "name": "Allison Easton",
+        "email": "allison.easton@mongodb.com"
+      },
+      "summary": "SERVER-127407 Generate config server UUID when creating the shard identity (#54734)"
+    },
+    {
+      "sha": "07399bbc35a388d2fde347ecf7f54bac44f6cdb8",
+      "short_sha": "07399bbc35a",
+      "date": "2026-06-02T17:03:44+10:00",
+      "author": {
+        "name": "Alex Pullen",
+        "email": "93811034+LX6T@users.noreply.github.com"
+      },
+      "summary": "Import wiredtiger: 028bf42c40ffc28498525ae87882b6c9308822c7 from branch mongodb-master (#54878)"
+    },
+    {
+      "sha": "74f7a66bed2238e8770439c0d267b10c1ac669ea",
+      "short_sha": "74f7a66bed2",
+      "date": "2026-06-01T23:43:59-04:00",
+      "author": {
+        "name": "Alex Sarkesian",
+        "email": "alex.sarkesian@mongodb.com"
+      },
+      "summary": "SERVER-127933: Add OTel metrics for `indexBuilds` (#54786)"
+    },
+    {
+      "sha": "50f3d0b656c87556feeafbbc418636ea16570a4d",
+      "short_sha": "50f3d0b656c",
+      "date": "2026-06-01T20:03:47-04:00",
+      "author": {
+        "name": "Alex Sarkesian",
+        "email": "alex.sarkesian@mongodb.com"
+      },
+      "summary": "SERVER-127932: Add OTel metric for `indexStats.count` (#54785)"
+    },
+    {
+      "sha": "27f83d0a133864eca496d91e4f7daf34f0ec246c",
+      "short_sha": "27f83d0a133",
+      "date": "2026-06-01T18:28:21-05:00",
+      "author": {
+        "name": "Anna Veselova",
+        "email": "47113149+aveselova@users.noreply.github.com"
+      },
+      "summary": "SERVER-122055 Collect query stats for deletes on standalone mongod (#54837)"
+    },
+    {
+      "sha": "66230eb1cf27c79920c805e5e613b9f08ace5b45",
+      "short_sha": "66230eb1cf2",
+      "date": "2026-06-01T16:19:57-07:00",
+      "author": {
+        "name": "Chye Lin Chee",
+        "email": "chyelin.chee@mongodb.com"
+      },
+      "summary": "SERVER-119013 Populate enabled mechanisms for UserNotFound (#54765)"
+    },
+    {
+      "sha": "17008793935273c670121ce4468365f17b55251e",
+      "short_sha": "17008793935",
+      "date": "2026-06-01T18:26:06-04:00",
+      "author": {
+        "name": "Gregory Noma",
+        "email": "gregory.noma@gmail.com"
+      },
+      "summary": "SERVER-126907 Split up contents of index build table for PDIB (#54492)"
+    },
+    {
+      "sha": "bbde85f2ecf9173a96824a07b9f0f759eb7b4daf",
+      "short_sha": "bbde85f2ecf",
+      "date": "2026-06-01T17:30:11-04:00",
+      "author": {
+        "name": "Nick Jefferies",
+        "email": "nick.jefferies@mongodb.com"
+      },
+      "summary": "SERVER-128004: Skip bazel resmoke test on s390x/ppc64le; mark resmoke … (#54847)"
+    },
+    {
+      "sha": "666abfe83f571985ab42a804856962c9e97eba1a",
+      "short_sha": "666abfe83f5",
+      "date": "2026-06-01T17:15:08-04:00",
+      "author": {
+        "name": "Erwin Pe",
+        "email": "erwin.pe@mongodb.com"
+      },
+      "summary": "SERVER-127856 Check for 84k tag limit earlier in FLE2 insert or update processing (#54800)"
+    },
+    {
+      "sha": "f6c41929001a202e9f6f1d58c2212d9e91a747fb",
+      "short_sha": "f6c41929001",
+      "date": "2026-06-01T16:56:57-04:00",
+      "author": {
+        "name": "Matt Broadstone",
+        "email": "mbroadst@mongodb.com"
+      },
+      "summary": "SERVER-127777: Support hinting retry delay on retryable overload errors (#54678)"
+    },
+    {
+      "sha": "0e5c9b08c3a9aac2ebee0978317422f74d7122ee",
+      "short_sha": "0e5c9b08c3a",
+      "date": "2026-06-01T16:24:44-04:00",
+      "author": {
+        "name": "Wenqin",
+        "email": "wenqinYe@users.noreply.github.com"
+      },
+      "summary": "SERVER-121788 Integrate recipient CSM fetch   command in coordinator (#54219)"
+    },
     {
       "sha": "0352d73ca01ce8f44a8f1e0a262fce4682662eba",
       "short_sha": "0352d73ca01",
@@ -70,23 +220,53 @@
   "merge_picks": [
     {
       "commit": {
-        "sha": "0352d73ca01ce8f44a8f1e0a262fce4682662eba",
-        "short_sha": "0352d73ca01",
-        "date": "2026-06-01T15:07:37-05:00",
+        "sha": "f5bb057f4d18aa339b13b6bbf5a874b5d6a42ab6",
+        "short_sha": "f5bb057f4d1",
+        "date": "2026-06-02T07:54:07+00:00",
         "author": {
-          "name": "Nathan Frank",
-          "email": "nathantfrank@users.noreply.github.com"
+          "name": "auto-revert-app[bot]",
+          "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
         },
-        "summary": "SERVER-127896: prevent kafka getting stuck when stopping and broker is unreachable (#54839)"
+        "summary": "Revert \"SERVER-116054 Add support for $where (#53331)\" (#54886)"
       },
-      "strategy_name": "most_recent",
+      "strategy_name": "huge_commit",
       "result": {
-        "fallback": true
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 62,
+          "num_of_lines": 966,
+          "lines_added": 121,
+          "lines_deleted": 845,
+          "num_of_dirs": 38
+        }
+      }
+    },
+    {
+      "commit": {
+        "sha": "c0c2d5b1802b70133ea2c88cd0e37dc164352bde",
+        "short_sha": "c0c2d5b1802",
+        "date": "2026-06-02T12:18:22+04:00",
+        "author": {
+          "name": "madelinezec",
+          "email": "15312869+madelinezec@users.noreply.github.com"
+        },
+        "summary": "SERVER-117816 infer single table predicates from equi-join predicates (#51615)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 24,
+          "num_of_lines": 2274,
+          "lines_added": 2026,
+          "lines_deleted": 248,
+          "num_of_dirs": 11
+        }
       }
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-06-01 20:58:48",
+  "generated_at": "2026-06-02 10:10:20",
   "branch_name": "master",
   "display_name": "master"
 }
