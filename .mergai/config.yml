@@ -3,6 +3,26 @@
 # =============================================================================
 
 # -----------------------------------------------------------------------------
+# PROJECT CONFIGURATION
+# -----------------------------------------------------------------------------
+# Identity and wording for this fork. These values are substituted into the
+# AI CI-fix prompts so the prompt text shipped in mergai stays project-agnostic
+# and each downstream fork supplies its own terms.
+project:
+  # Full display name of this project/product. Optional.
+  # Default: "" (unset)
+  name: "Percona Server for MongoDB"
+
+  # Adjectival name of the fork (downstream) side. Rendered in prompts as
+  # "<fork_term> fork", "the <fork_term> branch", "<fork_term>-specific", etc.
+  # Default: "downstream"
+  fork_term: "Percona"
+
+  # Adjectival name of the upstream side (e.g. "upstream", "MongoDB upstream").
+  # Default: "upstream"
+  upstream_term: "upstream"
+
+# -----------------------------------------------------------------------------
 # FORK CONFIGURATION
 # -----------------------------------------------------------------------------
 # Configuration for the 'fork' subcommand which handles syncing with upstream.
@@ -194,6 +214,11 @@ branch:
   #
   # Default: "mergai/%(target_branch)-%(merge_commit_short_sha)/%(type)"
   name_format: "mergai/%(target_branch)-%(merge_commit_short_sha)/%(type)"
+
+  # Branch-namespace prefix mergai treats as its own when deciding whether to
+  # act on a workflow run. Should match the prefix that name_format produces.
+  # Default: "mergai/"
+  # working_prefix: "mergai/"
 
 # -----------------------------------------------------------------------------
 # COMMIT CONFIGURATION
@@ -466,11 +491,20 @@ workflows:
     enabled: true
     max_attempts: 2
     action_type: resolve
+    # Retry budget for the AI agent within a single `ci fix` invocation.
+    # Distinct from max_attempts, which caps how many fix attempts mergai makes
+    # across successive workflow runs.
+    # Default: falls back to max_attempts
+    # agent_retries: 3
     context:
       type: sarif
       source: artifact
       artifact_name: clang-tidy-results
       code_scanning_check: true
+      # Code Scanning tool/driver name to query for findings. Set only if it
+      # differs from the workflow name.
+      # Default: <workflow name> (here: clang-tidy)
+      # code_scanning_tool_name: clang-tidy
 
   # `build-and-test` covers the two jobs in `.github/workflows/build-and-test.yml`:
   # the `build` and the `unittests` jobs.
@@ -485,6 +519,10 @@ workflows:
     enabled: true
     max_attempts: 2
     action_type: resolve
+    # Retry budget for the AI agent within a single `ci fix` invocation; see
+    # clang-tidy above.
+    # Default: falls back to max_attempts
+    # agent_retries: 3
     context:
       type: bazel
       source: artifact
