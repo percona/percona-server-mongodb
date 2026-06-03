@@ -1,0 +1,33 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "b358719a7f93b9d313131c1b80993d33b51300e1",
+    "merge_commit": "a391837ffa9847b41cd0feaedea9803fbc0cbf53"
+  },
+  "mergai_version": "0.1.dev1+ge2efcc926",
+  "solutions": [
+    {
+      "type": "conflict_resolution",
+      "response": {
+        "summary": "Merge pull request #248 from plebioda/mergai/master-a391837ffa9/semantic",
+        "resolved": {},
+        "unresolved": {},
+        "modified": {
+          "src/mongo/db/pipeline/document_source_backup_cursor.cpp": "Modified by human",
+          "src/mongo/db/pipeline/document_source_backup_cursor.h": "Modified by human",
+          "src/mongo/db/pipeline/document_source_backup_cursor_extend.cpp": "Modified by human",
+          "src/mongo/db/pipeline/document_source_backup_cursor_extend.h": "Modified by human",
+          "src/mongo/db/pipeline/document_source_backup_file.cpp": "Modified by human",
+          "src/mongo/db/pipeline/document_source_backup_file.h": "Modified by human"
+        },
+        "review_notes": "Resolve semantic conflicts for merge 'a391837ffa9' into 'master'"
+      },
+      "author": {
+        "name": "Pawel Lebioda",
+        "email": "pawel.lebioda89@gmail.com",
+        "type": "human"
+      },
+      "commit_sha": "3133914ec71f0ffddf7f9fcbd5aaabab0ac0e7a8"
+    }
+  ]
+}
