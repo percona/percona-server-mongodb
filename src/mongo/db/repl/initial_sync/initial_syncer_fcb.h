@@ -575,10 +575,10 @@ private:
     // Handle returned from RollbackChecker::reset().
     RollbackChecker::CallbackHandle _getBaseRollbackIdHandle;  // (M)
 
-    std::unique_ptr<InitialSyncState> _initialSyncState;   // (M)
-    std::unique_ptr<Fetcher> _backupCursorFetcher;         // (S)
-    HostAndPort _syncSource;                               // (M)
-    OpTime _lastFetched;                                   // (MX)
+    std::unique_ptr<InitialSyncState> _initialSyncState;  // (M)
+    std::unique_ptr<Fetcher> _backupCursorFetcher;        // (S)
+    HostAndPort _syncSource;                              // (M)
+    OpTime _lastFetched;                                  // (MX)
 
     // The last applied optime and wall clock time.
     // Updated with the value from the _oplogEnd when we finish cloning batch of files returned by
