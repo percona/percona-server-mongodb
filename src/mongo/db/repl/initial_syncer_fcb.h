@@ -397,15 +397,6 @@ private:
                                        std::shared_ptr<OnCompletionGuard> onCompletionGuard);
 
     /**
-     * Callback for the '_fCVFetcher'. A successful response lets us check if the remote node
-     * is in a currently acceptable fCV and if it has a 'targetVersion' set.
-     */
-    void _fcvFetcherCallback(const StatusWith<Fetcher::QueryResponse>& result,
-                             std::shared_ptr<OnCompletionGuard> onCompletionGuard,
-                             const OpTime& lastOpTime,
-                             OpTime& beginFetchingOpTime);
-
-    /**
      * Reports result of current initial sync attempt. May schedule another initial sync attempt
      * depending on shutdown state and whether we've exhausted all initial sync retries.
      */
@@ -436,19 +427,6 @@ private:
     BSONObj _getInitialSyncProgress_inlock() const;
 
     /**
-     * Check if a status is one which means there's a retriable error and we should retry the
-     * current operation, and records whether an operation is currently being retried.  Note this
-     * can only handle one operation at a time (i.e. it should not be used in both parts of the
-     * "split" section of Initial Sync)
-     */
-    bool _shouldRetryError(WithLock lk, Status status);
-
-    /**
-     * Indicates we are no longer handling a retriable error.
-     */
-    void _clearRetriableError(WithLock lk);
-
-    /**
      * Checks the given status (or embedded status inside the callback args) and current data
      * replicator shutdown state. If the given status is not OK or if we are shutting down, returns
      * a new error status that should be passed to _finishCallback. The reason in the new error
@@ -477,14 +455,6 @@ private:
      * Cancels task executor callback handle if not null.
      */
     void _cancelHandle_inlock(executor::TaskExecutor::CallbackHandle handle);
-
-    /**
-     * Starts up component and checks initial syncer's shutdown state at the same time.
-     * If component's startup() fails, resets 'component' (which is assumed to be a unique_ptr
-     * to the component type).
-     */
-    template <typename Component>
-    Status _startupComponent_inlock(Component& component);
 
     /**
      * Shuts down component if not null.
@@ -522,9 +492,6 @@ private:
     void _restoreStorageLocation(stdx::unique_lock<Latch>& lock, OperationContext* opCtx);
 
     Status _killBackupCursor_inlock();
-
-    // Counts how many documents have been refetched from the source in the current batch.
-    AtomicWord<unsigned> _fetchCount;
 
     //
     // All member variables are labeled with one of the following codes indicating the
@@ -595,17 +562,10 @@ private:
     // Handle returned from RollbackChecker::reset().
     RollbackChecker::CallbackHandle _getBaseRollbackIdHandle;  // (M)
 
-    // The operation, if any, currently being retried because of a network error.
-    InitialSyncSharedData::RetryableOperation _retryingOperation;  // (M)
-
-    std::unique_ptr<InitialSyncState> _initialSyncState;   // (M)
-    std::unique_ptr<Fetcher> _beginFetchingOpTimeFetcher;  // (S)
-    std::unique_ptr<Fetcher> _fCVFetcher;                  // (S)
-    std::unique_ptr<Fetcher> _backupCursorFetcher;         // (S)
-    std::unique_ptr<MultiApplier> _applier;                // (M)
-    HostAndPort _syncSource;                               // (M)
-    std::unique_ptr<DBClientConnection> _client;           // (M)
-    OpTime _lastFetched;                                   // (MX)
+    std::unique_ptr<InitialSyncState> _initialSyncState;  // (M)
+    std::unique_ptr<Fetcher> _backupCursorFetcher;        // (S)
+    HostAndPort _syncSource;                              // (M)
+    OpTime _lastFetched;                                  // (MX)
 
     // The last applied optime and wall clock time.
     // Updated with the value from the _oplogEnd when we finish cloning batch of files returned by
@@ -620,9 +580,6 @@ private:
     // Current initial syncer state. See comments for State enum class for details.
     State _state = State::kPreStart;  // (M)
 
-    // Used to create the DBClientConnection for the cloners
-    CreateClientFn _createClientFn;
-
     // Contains stats on the current initial sync request (includes all attempts).
     // To access these stats in a user-readable format, use getInitialSyncProgress().
     Stats _stats;  // (M)
@@ -633,9 +590,6 @@ private:
     // Amount of time an outage is allowed to continue before the initial sync attempt is marked
     // as failed.
     Milliseconds _allowedOutageDuration;  // (M)
-
-    // The initial sync attempt has been canceled
-    bool _attemptCanceled = false;  // (X)
 
     // Conditional variable to wait for end of storage change
     stdx::condition_variable _inStorageChangeCondition;  // (M)
