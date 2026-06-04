@@ -5,14 +5,14 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 111,
+    "commits_behind": 119,
     "days_behind": 2,
-    "files_affected": 624,
-    "total_additions": 15348,
-    "total_deletions": 6000,
+    "files_affected": 629,
+    "total_additions": 15879,
+    "total_deletions": 6057,
     "date_range": {
       "first": "2026-06-01T20:04:09+00:00",
-      "last": "2026-06-04T06:35:45+00:00"
+      "last": "2026-06-04T12:27:21+00:00"
     }
   },
   "last_merged_commit": {
@@ -36,6 +36,86 @@
     "summary": "SERVER-124330 Enable analyze command 'sample' mode without testOnly registration (#54142)"
   },
   "unmerged_commits": [
+    {
+      "sha": "100845815ad0b62c0c0724038ff9dbe665c35075",
+      "short_sha": "100845815ad",
+      "date": "2026-06-04T08:27:21-04:00",
+      "author": {
+        "name": "Steve McClure",
+        "email": "steve.mcclure@mongodb.com"
+      },
+      "summary": "SERVER-128026: Capture child process cores on unit test timeout (#54873)"
+    },
+    {
+      "sha": "f9ad1e83d676a3be41353440b47723e441c1ca4b",
+      "short_sha": "f9ad1e83d67",
+      "date": "2026-06-04T14:12:30+02:00",
+      "author": {
+        "name": "Aitor Esteve Alvarado",
+        "email": "aitor.esteve@mongodb.com"
+      },
+      "summary": "SERVER-127658 Make chunk operations idempotent under allowChunkOperations = false (#54552)"
+    },
+    {
+      "sha": "22a27d3392ce3c6945b2a7dd6cd4221fe1168f60",
+      "short_sha": "22a27d3392c",
+      "date": "2026-06-04T11:51:06+00:00",
+      "author": {
+        "name": "auto-revert-app[bot]",
+        "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
+      },
+      "summary": "Revert \"SERVER-127768 Make resharding drop operations authoritative (#54650)\" (#55101)"
+    },
+    {
+      "sha": "4a72cd33b3fb0638b34aa501e186b9bfb5eba80c",
+      "short_sha": "4a72cd33b3f",
+      "date": "2026-06-04T13:04:20+02:00",
+      "author": {
+        "name": "Yujin Kang Park",
+        "email": "36410031+ykangpark@users.noreply.github.com"
+      },
+      "summary": "SERVER-128160 Lazy-allocate TxnWildcardMultikeyPaths cache on Snapshot decoration (#55014)"
+    },
+    {
+      "sha": "6f5047bf73db92939737c1521fe129989b905af2",
+      "short_sha": "6f5047bf73d",
+      "date": "2026-06-04T11:24:04+02:00",
+      "author": {
+        "name": "Pol Piñol Castuera",
+        "email": "pol.pinol@mongodb.com"
+      },
+      "summary": "SERVER-128086 Make movePrimary not clear unconditionally the filtering metadata for all tracked collections (#54923)"
+    },
+    {
+      "sha": "bc4afb57fdbecb325bd812e6c56cc23444887629",
+      "short_sha": "bc4afb57fdb",
+      "date": "2026-06-04T10:13:04+01:00",
+      "author": {
+        "name": "Vishesh Ruparelia",
+        "email": "vishesh.ruparelia@mongodb.com"
+      },
+      "summary": "SERVER-113002 rephrase error message for invalid shard key (#54933)"
+    },
+    {
+      "sha": "024f692e7980164c91ec8fb755326ad69883c28a",
+      "short_sha": "024f692e798",
+      "date": "2026-06-04T10:06:33+01:00",
+      "author": {
+        "name": "Marco Bizzarri",
+        "email": "marco.bizzarri@mongodb.com"
+      },
+      "summary": "SERVER-128205 Remove FeatureFlagUtils import from mongo shell (#55094)"
+    },
+    {
+      "sha": "3b1347285b1e7e2fdf02eba6408c6b32ab8aee26",
+      "short_sha": "3b1347285b1",
+      "date": "2026-06-04T09:45:33+02:00",
+      "author": {
+        "name": "Jordi Olivares Provencio",
+        "email": "jordi.olivares-provencio@mongodb.com"
+      },
+      "summary": "SERVER-127768 Make resharding drop operations authoritative (#54650)"
+    },
     {
       "sha": "1c5489d3273b3e4e7858ae1985ab3e3048d78472",
       "short_sha": "1c5489d3273",
@@ -1376,7 +1456,7 @@
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-06-04 07:37:05",
+  "generated_at": "2026-06-04 13:06:55",
   "branch_name": "master",
   "display_name": "master"
 }
