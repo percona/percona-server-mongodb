@@ -478,7 +478,7 @@ private:
     /**
      * Switches the storage location to 'newLocation'.
      * - Callers must ensure that _mutex is NOT held.
-     * - Caller must hold a GlobalLock (MODE_X) while calling this method.
+     * - Caller must hold a GlobalLock (MODE_X) with LocalWrite intent while calling this method.
      */
     Status _switchStorageLocation(OperationContext* opCtx,
                                   const std::string& newLocation,
@@ -487,7 +487,7 @@ private:
     /**
      * Restores the original storage location. Must be called with _mutex held.
      * - Temporarily unlocks and relocks the provided lock.
-     * - Caller must hold a GlobalLock (MODE_X) while calling this method.
+     * - Caller must hold a GlobalLock (MODE_X) with LocalWrite intent while calling this method.
      * - Logs fatal on failure.
      */
     void _restoreStorageLocation(std::unique_lock<std::mutex>& lock, OperationContext* opCtx);
