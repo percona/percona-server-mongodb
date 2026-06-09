@@ -2156,7 +2156,10 @@ void InitialSyncerFCB::_switchToDownloadedCallback(
         128406, 2, "Retrieved names of local files", "number"_attr = bfiles.getValue().size());
     _localFiles = bfiles.getValue();
 
-    Lock::GlobalLock lk(opCtx.get(), MODE_X);
+    Lock::GlobalLock lk(opCtx.get(),
+                        MODE_X,
+                        Lock::GlobalLockOptions{
+                            .explicitIntent = rss::consensus::IntentRegistry::Intent::LocalWrite});
     // retrieve the current on-disk replica set configuration
     auto* rs = repl::ReplicationCoordinator::get(opCtx->getServiceContext());
     invariant(rs);
@@ -2261,7 +2264,11 @@ void InitialSyncerFCB::_executeRecovery(
 
     auto opCtx = makeOpCtx();
     ScopeGuard storageGuard([this, &lock, opCtx = opCtx.get()] {
-        Lock::GlobalLock lk(opCtx, MODE_X);
+        Lock::GlobalLock lk(
+            opCtx,
+            MODE_X,
+            Lock::GlobalLockOptions{.explicitIntent =
+                                        rss::consensus::IntentRegistry::Intent::LocalWrite});
         // Restore storage location back to original dbpath in case of any failure
         _restoreStorageLocation(lock, opCtx);
     });
@@ -2323,7 +2330,11 @@ void InitialSyncerFCB::_switchToDummyToDBPathCallback(
 
     {
         auto opCtx = makeOpCtx();
-        Lock::GlobalLock lk(opCtx.get(), MODE_X);
+        Lock::GlobalLock lk(
+            opCtx.get(),
+            MODE_X,
+            Lock::GlobalLockOptions{.explicitIntent =
+                                        rss::consensus::IntentRegistry::Intent::LocalWrite});
         ScopeGuard storageGuard([this, &lock, opCtx = opCtx.get()] {
             // Restore storage location back to original dbpath in case of any failure
             _restoreStorageLocation(lock, opCtx);
