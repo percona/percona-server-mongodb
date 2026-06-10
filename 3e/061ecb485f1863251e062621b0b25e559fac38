@@ -1,0 +1,27 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "3d02afa7e1c0d00a4a4c848a61ffa7fa24cad903",
+    "merge_commit": "e7742be8f804dad1aba73ce6a516e732e6050174"
+  },
+  "mergai_version": "0.1.dev1+gd2e48c27c",
+  "solutions": [
+    {
+      "response": {
+        "summary": "PSMDB-2109: remove tool section from sbom.json",
+        "resolved": {
+          "sbom.json": "Resolved by human"
+        },
+        "unresolved": {},
+        "modified": {},
+        "review_notes": "Drop the metadata.tools section referencing Endor Labs tooling. The\nPercona SBOM is produced manually, so the upstream tool attribution is\nnot applicable."
+      },
+      "author": {
+        "name": "Pawel Lebioda",
+        "email": "pawel.lebioda@percona.com",
+        "type": "human"
+      },
+      "commit_sha": "3e061ecb485f1863251e062621b0b25e559fac38"
+    }
+  ]
+}
