@@ -26,13 +26,30 @@
  *    exception statement from all source files in the program, then also delete
  *    it in the license file.
  */
+#include "mongo/db/exec/classic/subplanning_utils.h"
 
-#pragma once
-
-#include "mongo/bson/bsonobj.h"
+#include "mongo/db/matcher/expression.h"
+#include "mongo/db/query/canonical_query.h"
+#include "mongo/db/query/find_command.h"
 
 namespace mongo {
 
-BSONObj native_hex_md5(const BSONObj& args, void* data);
+bool SubPlanningUtils::canUseSubplanning(const CanonicalQuery& query) {
+    const FindCommandRequest& findCommand = query.getFindCommandRequest();
+    const MatchExpression* expr = query.getPrimaryMatchExpression();
+
+    if (!findCommand.getHint().isEmpty())
+        return false;
+    if (!findCommand.getMin().isEmpty())
+        return false;
+    if (!findCommand.getMax().isEmpty())
+        return false;
+    if (findCommand.getTailable())
+        return false;
+    if (query.getDistinct())
+        return false;
+
+    return expr->matchType() == MatchExpression::OR && expr->numChildren() > 0;
+}
 
 }  // namespace mongo

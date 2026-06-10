@@ -27,27 +27,31 @@
  *    it in the license file.
  */
 
-#include "mongo/scripting/mozjs/common/hex_md5.h"
+#pragma once
 
-#include "mongo/bson/bsonobjbuilder.h"
-#include "mongo/bson/bsontypes.h"
-#include "mongo/util/md5.h"
+#include "mongo/bson/bsonobj.h"
+#include "mongo/bson/ordering.h"
+#include "mongo/db/field_ref.h"
+#include "mongo/db/storage/key_string/key_string.h"
+#include "mongo/util/modules.h"
+
+#include <set>
 
 namespace mongo {
 
-BSONObj native_hex_md5(const BSONObj& args, void* data) {
-    uassert(10261,
-            "hex_md5 takes a single string argument -- hex_md5(string)",
-            args.nFields() == 1 && args.firstElement().type() == BSONType::string);
-    StringData sd = args.firstElement().valueStringDataSafe();
+/**
+ * Decodes the single multikey path from one already-BSON-materialized wildcard metadata key.
+ * Skips leading MinKey placeholders, expects the sentinel integer 1, then reads the path string.
+ * Tasserts on any deviation from the documented metadata key format defined by
+ * `WildcardKeyGenerator::makeMultikeyMetadataKey`.
+ */
+FieldRef decodeWildcardMultikeyMetadataPath(const BSONObj& keyBson);
 
-    md5digest d;
-    md5_state_t st;
-    md5_init_state_deprecated(&st);
-    md5_append_deprecated(&st, reinterpret_cast<const md5_byte_t*>(sd.data()), sd.size());
-    md5_finish_deprecated(&st, d);
-
-    return BSON("" << digestToString(d));
-}
+/**
+ * Decodes the set of multikey path FieldRefs from a `KeyStringSet` of wildcard index metadata
+ * keys. Each key follows the format documented for `makeMultikeyMetadataKey`.
+ */
+MONGO_MOD_PUBLIC std::set<FieldRef> extractWildcardMultikeyPathsFromMetadataKeys(
+    const KeyStringSet& metadataKeys, const Ordering& ordering);
 
 }  // namespace mongo

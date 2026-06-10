@@ -1019,6 +1019,7 @@ mongo_cc_library(
         "server_base",
         "shard_filterer",
         "shared_request_handling",
+        "subplanning_utils",
         "working_set_common",
         "write_stage_common",
         ":curop_failpoint_helpers",
@@ -1165,6 +1166,16 @@ mongo_cc_library(
         "//src/mongo/db/index:index_access_method",
         "//src/mongo/db/index:preallocated_container_pool",
         "//src/mongo/db/storage/key_string",
+    ],
+)
+
+mongo_cc_library(
+    name = "subplanning_utils",
+    srcs = ["//src/mongo/db/exec/classic:subplanning_utils.cpp"],
+    hdrs = ["//src/mongo/db/exec/classic:subplanning_utils.h"],
+    deps = [
+        "//src/mongo/db:server_base",
+        "//src/mongo/db/query:canonical_query_base",
     ],
 )
 
@@ -1523,10 +1534,19 @@ mongo_cc_library(
     ],
 )
 
+idl_generator(
+    name = "error_labels_gen",
+    src = "error_labels.idl",
+    deps = [
+        ":basic_types_gen",
+    ],
+)
+
 mongo_cc_library(
     name = "error_labels",
     srcs = [
         "error_labels.cpp",
+        ":error_labels_gen",
     ],
     deps = [
         ":commands",
@@ -1572,6 +1592,7 @@ mongo_cc_library(
         ":server_base",
         "//src/mongo/db/commands/server_status:server_status_core",
         "//src/mongo/db/exec/document_value",
+        "//src/mongo/otel/metrics:otel_metrics_service",
     ],
 )
 
@@ -3223,6 +3244,7 @@ mongo_cc_unit_test(
         "//src/mongo/db/pipeline:aggregation_request_helper",
         "//src/mongo/db/pipeline:change_stream_pipeline",
         "//src/mongo/db/storage/wiredtiger:storage_wiredtiger",
+        "//src/mongo/idl:server_parameter_test_util",
         "//src/third_party/asio",
     ],
 )
