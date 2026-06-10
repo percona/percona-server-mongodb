@@ -26,14 +26,15 @@
  *    exception statement from all source files in the program, then also delete
  *    it in the license file.
  */
-
 #pragma once
 
 namespace mongo {
 
-struct MONGO_MOD_NEEDS_REPLACEMENT JSFile {
-    const char* name;
-    const StringData source;
+class CanonicalQuery;
+
+class SubPlanningUtils {
+public:
+    static bool canUseSubplanning(const CanonicalQuery& query);
 };
 
 }  // namespace mongo

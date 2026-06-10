@@ -335,13 +335,19 @@ feature_flags:
     featureFlagDSCLinearizableReadConcern:
         description: "Enable linearizable read concern for dsc."
         cpp_varname: gFeatureFlagDSCLinearizableReadConcern
-        default: false
+        default: true
         fcv_gated: false
     featureFlagKEKPushMode:
         description: "Enable push mode for KEKs."
         cpp_varname: gFeatureFlagKEKPushMode
         default: false
         fcv_gated: false
+    featureFlagCMKRotation:
+        description: "Enable rotation of the customer master key (CMK)."
+        cpp_varname: gFeatureFlagCMKRotation
+        default: true
+        version: 9.0
+        fcv_gated: true
 
 server_parameters:
     allowDirectSystemBucketsAccess:

@@ -245,7 +245,7 @@ void invalidateCollectionMetadataOnSecondaries(OperationContext* opCtx,
     repl::MutableOplogEntry oplogEntry;
     oplogEntry.setOpType(repl::OpTypeEnum::kCommand);
     oplogEntry.setVersionContextIfHasOperationFCV(VersionContext::getDecoration(opCtx));
-    oplogEntry.setNss(nss);
+    oplogEntry.setNss(nss.getCommandNS());
     oplogEntry.setUuid(uuid);
     auto entry = InvalidateCollectionMetadataOplogEntry{std::string(nss.coll())};
     entry.setForDroppedCollection(forDroppedCollection);
@@ -276,7 +276,7 @@ void setAllowChunkOperationsOnSecondaries(OperationContext* opCtx,
     repl::MutableOplogEntry oplogEntry;
     oplogEntry.setOpType(repl::OpTypeEnum::kCommand);
     oplogEntry.setVersionContextIfHasOperationFCV(VersionContext::getDecoration(opCtx));
-    oplogEntry.setNss(nss);
+    oplogEntry.setNss(nss.getCommandNS());
     oplogEntry.setUuid(uuid);
     auto entry = SetAllowChunkOperationsOplogEntry{std::string(nss.coll()), allowChunkOperations};
     oplogEntry.setObject(entry.toBSON());
@@ -613,4 +613,14 @@ void commitSetAllowChunkOperationsLocally(OperationContext* opCtx,
 }
 
 }  // namespace shard_catalog_commit
+
+namespace shard_catalog_commit_for_resharding {
+void commitCreateCollection(OperationContext* opCtx,
+                            const NamespaceString& tempReshardingNss,
+                            bool isDbPrimaryShard) {
+    return shard_catalog_commit::commitCollectionMetadataLocally(
+        opCtx, tempReshardingNss, isDbPrimaryShard);
+}
+}  // namespace shard_catalog_commit_for_resharding
+
 }  // namespace mongo

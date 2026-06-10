@@ -57,6 +57,7 @@ std::vector<Interval> getMultikeyPathIndexIntervalsForField(FieldRef field);
  * wildcard index. Statistics reporting index seeks and keys examined are written to 'stats'.
  */
 std::set<FieldRef> getWildcardMultikeyPathSet(OperationContext* opCtx,
+                                              const UUID& collectionUuid,
                                               const IndexCatalogEntry* entry,
                                               const stdx::unordered_set<std::string>& fieldSet,
                                               MultikeyMetadataAccessStats* stats);
