@@ -2,16 +2,8 @@
   "$schema": "http://cyclonedx.org/schema/bom-1.5.schema.json",
   "bomFormat": "CycloneDX",
   "specVersion": "1.5",
-<<<<<<< HEAD
   "serialNumber": "urn:uuid:95a559f1-b091-4a92-b80d-e6d37c5e477c",
-  "version": 5,
-||||||| 19f73da3c88
-  "serialNumber": "urn:uuid:2d7fbf85-c8b6-4f90-9966-70da88224a36",
-  "version": 5,
-=======
-  "serialNumber": "urn:uuid:2d7fbf85-c8b6-4f90-9966-70da88224a36",
   "version": 6,
->>>>>>> e7742be8f804dad1aba73ce6a516e732e6050174
   "metadata": {
     "timestamp": "2026-06-02T08:05:49Z",
     "lifecycles": [
@@ -68,20 +60,7 @@
     "supplier": {
       "name": "Percona LLC",
       "url": [
-<<<<<<< HEAD
         "https://percona.com"
-||||||| 19f73da3c88
-        "https://mongodb.com"
-      ]
-    },
-    "tools": {
-      "services": [
-        {
-          "name": "Endor Labs Inc",
-          "version": "v1.7.973"
-        }
-=======
-        "https://mongodb.com"
       ]
     },
     "tools": {
@@ -90,7 +69,6 @@
           "name": "Endor Labs Inc",
           "version": "v1.7.988"
         }
->>>>>>> e7742be8f804dad1aba73ce6a516e732e6050174
       ]
     }
   },
