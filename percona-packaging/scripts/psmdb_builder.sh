@@ -289,10 +289,8 @@ install_gcc_deb(){
 }
 
 set_compiler(){
-    if [ x"$RHEL" != x2023 ]; then
-        export CC=/opt/mongodbtoolchain/v4/bin/gcc
-        export CXX=/opt/mongodbtoolchain/v4/bin/g++
-    fi
+    export CC=/opt/mongodbtoolchain/v4/bin/gcc
+    export CXX=/opt/mongodbtoolchain/v4/bin/g++
     return
 }
 
@@ -321,11 +319,9 @@ install_deps() {
        sed -i 's|#\s*baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|g' /etc/yum.repos.d/CentOS-*
       fi
       yum -y update
-      yum -y install wget sudo
+      yum -y install wget sudo tar
       yum -y install perl
-      if [ x"$RHEL" != x2023 ]; then
-          install_mongodbtoolchain
-      fi
+      install_mongodbtoolchain
       if [ x"$ARCH" = "xx86_64" ]; then
         yum install -y https://repo.percona.com/yum/percona-release-latest.noarch.rpm
         percona-release enable tools testing
@@ -621,17 +617,8 @@ build_rpm(){
         source /opt/rh/gcc-toolset-9/enable
         source /opt/rh/gcc-toolset-11/enable
       fi
-    elif [ x"$RHEL" = x9 ]; then
+    elif [ x"$RHEL" = x9 -o x"$RHEL" = x2023 ]; then
       mv /usr/bin/python3 /usr/bin/python3_old
-    fi
-    if [ "x${RHEL}" == "x2023" ]; then
-        pip install --upgrade pip
-        pip install --user  requirements_parser
-        pip install --user -r etc/pip/dev-requirements.txt
-        pip install --user -r etc/pip/evgtest-requirements.txt
-        pip install --user -r etc/pip/compile-requirements.txt
-#        export CC=/usr/bin/gcc
-#        export CXX=/usr/bin/g++
     fi
         PATH=/opt/mongodbtoolchain/v4/bin/:$PATH
         pip install --upgrade pip
@@ -644,11 +631,8 @@ build_rpm(){
     pip install --user -r etc/pip/dev-requirements.txt
     pip install --user -r etc/pip/evgtest-requirements.txt
 
-    if [ "x${RHEL}" != "x2023" ]; then
-        echo "CC and CXX should be modified once correct compiller would be installed on Centos"
-        export CC=/opt/mongodbtoolchain/v4/bin/gcc
-        export CXX=/opt/mongodbtoolchain/v4/bin/g++
-    fi
+    export CC=/opt/mongodbtoolchain/v4/bin/gcc
+    export CXX=/opt/mongodbtoolchain/v4/bin/g++
     cd $WORKDIR
     echo "RHEL=${RHEL}" >> percona-server-mongodb-70.properties
     echo "ARCH=${ARCH}" >> percona-server-mongodb-70.properties
@@ -662,11 +646,7 @@ build_rpm(){
     export GOBINPATH="/usr/local/go/bin"
 
     export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
-    if [ "x${RHEL}" == "x2023" ]; then
-        export OPT_LINKFLAGS="${LINKFLAGS} -Wl,--build-id=sha1 "
-    else
-        export OPT_LINKFLAGS="${LINKFLAGS} -Wl,--build-id=sha1 -B/opt/mongodbtoolchain/v4/bin"
-    fi
+    export OPT_LINKFLAGS="${LINKFLAGS} -Wl,--build-id=sha1 -B/opt/mongodbtoolchain/v4/bin"
     rpmbuild --define "_topdir ${WORKDIR}/rpmbuild" --define "dist .$OS_NAME" --rebuild rpmbuild/SRPMS/$SRC_RPM
 
     return_code=$?
@@ -888,14 +868,8 @@ build_tarball(){
               source /opt/rh/gcc-toolset-11/enable
             fi
         fi
-        if [ "x${RHEL}" != "x2023" ]; then
-            echo "CC and CXX should be modified once correct compiller would be installed on Centos"
-            export CC=/opt/mongodbtoolchain/v4/bin/gcc
-            export CXX=/opt/mongodbtoolchain/v4/bin/g++
-        else
-            export CC=/usr/bin/gcc
-            export CXX=/usr/bin/g++
-        fi
+        export CC=/opt/mongodbtoolchain/v4/bin/gcc
+        export CXX=/opt/mongodbtoolchain/v4/bin/g++
     fi
     #
     ARCH=$(uname -m 2>/dev/null||true)
@@ -925,10 +899,8 @@ build_tarball(){
 
     # Finally build Percona Server for MongoDB with SCons
     cd ${PSMDIR_ABS}
-    if [ "x${RHEL}" != "x2023" ]; then
-        export PATH=/opt/mongodbtoolchain/v4/bin/:$PATH
-        pip install --upgrade pip
-    fi
+    export PATH=/opt/mongodbtoolchain/v4/bin/:$PATH
+    pip install --upgrade pip
     # PyYAML pkg installation fix, more info: https://github.com/yaml/pyyaml/issues/724
     pip install pyyaml==5.4.1 --no-build-isolation
     pip install 'referencing<=0.35.1' --no-build-isolation
@@ -937,11 +909,7 @@ build_tarball(){
     pip install --user -r etc/pip/dev-requirements.txt
     pip install --user -r etc/pip/evgtest-requirements.txt
     export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
-    if [ "x${RHEL}" == "x2023" ]; then
-        export OPT_LINKFLAGS="${LINKFLAGS} -Wl,--build-id=sha1 "
-    else
-        export OPT_LINKFLAGS="${LINKFLAGS} -Wl,--build-id=sha1 -B/opt/mongodbtoolchain/v4/bin"
-    fi
+    export OPT_LINKFLAGS="${LINKFLAGS} -Wl,--build-id=sha1 -B/opt/mongodbtoolchain/v4/bin"
     if [ x"${DEBIAN}" = "xstretch" ]; then
       CURL_LINKFLAGS=$(pkg-config libcurl --static --libs)
       export OPT_LINKFLAGS="${OPT_LINKFLAGS} ${CURL_LINKFLAGS}"

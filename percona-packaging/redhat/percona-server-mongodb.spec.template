@@ -144,11 +144,7 @@ export TOOLS_TAGS="ssl sasl"
 export PORTABLE=1
 export USE_SSE=1
 export PATH=/usr/local/go/bin:$PATH
-%if  0%{?amzn} == 2023
-export OPT_LINKFLAGS="${LINKFLAGS} -Wl,--build-id=sha1"
-%else
 export OPT_LINKFLAGS="${LINKFLAGS} -Wl,--build-id=sha1 -B/opt/mongodbtoolchain/v4/bin"
-%endif
 
 export PATH=/usr/local/go/bin:${PATH}
 export GOROOT="/usr/local/go/"
