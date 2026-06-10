@@ -62,14 +62,6 @@
       "url": [
         "https://percona.com"
       ]
-    },
-    "tools": {
-      "services": [
-        {
-          "name": "Endor Labs Inc",
-          "version": "v1.7.988"
-        }
-      ]
     }
   },
   "components": [
