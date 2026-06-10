@@ -129,6 +129,7 @@
 #include "mongo/db/sharding_environment/sharding_feature_flags_gen.h"
 #include "mongo/db/stats/counters.h"
 #include "mongo/db/stats/server_write_concern_metrics.h"
+#include "mongo/db/storage/checkpointer.h"
 #include "mongo/db/storage/ident.h"
 #include "mongo/db/storage/key_string/key_string.h"
 #include "mongo/db/storage/kv/kv_engine.h"
@@ -292,6 +293,10 @@ Status insertDocumentsForOplog(OperationContext* opCtx,
     if (isReplicatedFastCountEnabled(opCtx)) {
         UncommittedFastCountChange::getForWrite(opCtx).record(
             oplogCollection->ns(), oplogCollection->uuid(), nRecords, totalLength);
+    }
+
+    if (auto* checkpointer = Checkpointer::get(opCtx)) {
+        checkpointer->notifyOplogWrite(totalLength);
     }
 
     if (auto truncateMarkers = LocalOplogInfo::get(opCtx)->getTruncateMarkers()) {
@@ -1588,8 +1593,8 @@ const StringMap<ApplyOpMetadata> kOpsMap = {
               }
 
               LOGV2(12309401,
-                    "Both replicated fast count idents stille exist on disk after drop attempts. "
-                    "They can be both be re-used");
+                    "Both replicated fast count idents still exist on disk after drop attempts. "
+                    "They can both be re-used");
               return Status::OK();
           }
 

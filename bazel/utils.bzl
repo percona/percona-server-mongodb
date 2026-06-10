@@ -215,6 +215,7 @@ def get_host_distro_major_version(repository_ctx):
         "Oracle Linux Server 9*": "rhel9",
         "Fedora*": "rhel10",
         "SLES 15*": "suse15",
+        "SLES 16*": "suse16",
     }
 
     if repository_ctx.os.name != "linux":
