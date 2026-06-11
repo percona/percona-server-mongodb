@@ -1,0 +1,27 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "7e31f77ed89d081157dc38abfc0e5837301c0378",
+    "merge_commit": "b839c2e133dc7ecee26c7486e5d0a55277df129b"
+  },
+  "mergai_version": "0.1.dev1+g2c757647b",
+  "solutions": [
+    {
+      "response": {
+        "summary": "Resolve conflicts for merge commit 'b839c2e133d' into master",
+        "resolved": {
+          "sbom.json": "Resolved by human"
+        },
+        "unresolved": {},
+        "modified": {},
+        "review_notes": "Resolved merge conflict in sbom.json by keeping Percona's UUID and URL\nwhile adopting the incremented version number and updated tools section\nfrom upstream\n\nResolved:\n\tsbom.json\n\nNote: commit created by mergai"
+      },
+      "author": {
+        "name": "psmdb-bot[bot]",
+        "email": "2942401+psmdb-bot[bot]@users.noreply.github.com",
+        "type": "human"
+      },
+      "commit_sha": "f5e1a8ff58af5cff2b62fb8950786c2886b0f98e"
+    }
+  ]
+}

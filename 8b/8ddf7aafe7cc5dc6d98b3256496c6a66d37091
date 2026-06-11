@@ -1,0 +1,299 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "b2d52221ac8ce99b3547f8ee0266959fbf135755",
+    "merge_commit": "c800519da99fff88441975d513d1987954c7e4da"
+  },
+  "mergai_version": "0.1.dev1+g2c757647b",
+  "merge_context": {
+    "merge_commit": "c800519da99fff88441975d513d1987954c7e4da",
+    "merged_commits": [
+      "c800519da99fff88441975d513d1987954c7e4da",
+      "69ae50c65571ca52db068495cc0eed88caf759aa",
+      "e1ee4720ee2e383b4598d68359cd92f698929256",
+      "8cbee2f38e005a4fba564a099be068e6cd6097be",
+      "c9d6397b35a659bd1b10af4272ed8460a8604eab",
+      "1672184fec18ad2549d883376b6b4d6cda2f409c",
+      "391b97958d15c6e5fc432696f67dfa7e5da25e95",
+      "9bc630f91e77d0f50dc6f271c498a6f73bd662c9"
+    ],
+    "important_files_modified": [
+      "buildscripts/resmokeconfig/suites/core_ese.yml"
+    ],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        "src/mongo/base/error_codes.yml",
+        "src/mongo/db/BUILD.bazel",
+        "src/mongo/db/auth/action_type.idl",
+        "src/mongo/db/auth/builtin_roles.yml",
+        "src/mongo/db/commands/BUILD.bazel",
+        "src/mongo/db/commands/profile_common.cpp",
+        "src/mongo/db/mongod_main.cpp",
+        "src/mongo/db/namespace_string_reserved.h",
+        "src/mongo/rpc/BUILD.bazel",
+        "src/mongo/s/BUILD.bazel",
+        "src/third_party/wiredtiger/src/conn/conn_api.c",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in"
+      ]
+    }
+  },
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 87475,
+    "num_turns": 20,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.37522124999999995,
+    "modelUsage": {
+      "claude-haiku-4-5-20251001": {
+        "inputTokens": 425,
+        "outputTokens": 17,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0,
+        "webSearchRequests": 0,
+        "costUSD": 0.00051,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000
+      },
+      "claude-opus-4-5": {
+        "inputTokens": 74,
+        "outputTokens": 4569,
+        "cacheReadInputTokens": 234945,
+        "cacheCreationInputTokens": 22823,
+        "webSearchRequests": 0,
+        "costUSD": 0.37471124999999994,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-haiku-4-5-20251001": {
+          "tokens": {
+            "input": 425,
+            "output": 17,
+            "cache_read": 0,
+            "cache_creation": 0
+          },
+          "cost_usd": 0.00051
+        },
+        "claude-opus-4-5": {
+          "tokens": {
+            "input": 74,
+            "output": 4569,
+            "cache_read": 234945,
+            "cache_creation": 22823
+          },
+          "cost_usd": 0.37471124999999994
+        }
+      }
+    },
+    "text_result": "JSON response written to `/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/response_20260512_191423_125862.json`. The response documents 8 merged commits including the replica set write blocking feature (SERVER-120970), WiredTiger import, IXSCAN revert, and profiling fixes. It details changes in 12 auto-merged files and flags several Percona-specific features that were removed (audit, LDAP, PBM, ratelimit, WiredTiger sessioncreate callback) for review.",
+    "response": {
+      "summary": "This merge brings 8 commits from MongoDB master including SERVER-120970 (replica set write blocking feature with new in-memory state and opObserver), SERVER-126032 (pipeline stage name fix), WiredTiger import with layered table improvements, revert of SERVER-100611 (IXSCAN seek estimation), SERVER-119744 (profiling on secondary fix for DatabaseDifferCase), SERVER-126012 (test tag), SERVER-126013 (MongoExtensionStreamType enum), and SERVER-125412 (LSM loop error codes).",
+      "auto_merged": {
+        "src/mongo/base/error_codes.yml": "Added new InterruptedDueToLogServerDisconnect error code (505) in the Interruption category for LSM loop kill paths. Percona's LDAPLibraryError code 9390 was removed from this location (likely relocated elsewhere in Percona-specific code).",
+        "src/mongo/db/BUILD.bazel": "Build dependencies updated for the replica set write blocking feature, adding new targets for replica_set_write_block_op_observer and related components.",
+        "src/mongo/db/auth/action_type.idl": "Added bypassReplicaSetWriteBlocking action type for the new replica set write blocking feature. Removed Percona-specific logApplicationMessage and startBackup action types.",
+        "src/mongo/db/auth/builtin_roles.yml": "Added blockReplicaSetWrites and bypassReplicaSetWriteBlocking permissions to clusterManager role. Removed Percona-specific startBackup action from dbAdminRole and queryableBackup roles.",
+        "src/mongo/db/commands/BUILD.bazel": "Added dependency for the profile command changes related to SERVER-119744.",
+        "src/mongo/db/commands/profile_common.cpp": "Removed Percona-specific ratelimit functionality from the profile command. The isReadOnly function and argument validation no longer check for ratelimit parameter. The ratelimit field is no longer included in command responses.",
+        "src/mongo/db/mongod_main.cpp": "Removed several Percona-specific includes: audit_flusher.h, audit_options.h, oidc_identity_providers_registry.h, encryption/error.h, ldap_manager.h, and master_key_rotation_completed.h. These features are likely handled elsewhere in Percona-specific initialization code.",
+        "src/mongo/db/namespace_string_reserved.h": "Removed Percona-specific kAdminPBMAgents namespace definition. Updated comment for kReplicaSetWritesCriticalSectionsNamespace (plural 'writes' to singular 'write').",
+        "src/mongo/rpc/BUILD.bazel": "Updated RPC build dependencies for forwarding replica set write block state in operation metadata.",
+        "src/mongo/s/BUILD.bazel": "Updated mongos build dependencies for client metadata propagation changes related to replica set write blocking.",
+        "src/third_party/wiredtiger/src/conn/conn_api.c": "WiredTiger connection API updated: removed Percona's sessioncreate encryptor callback invocation in __wt_encryptor_config. Added chunk_cache_cleanup_session handling with proper internal session management for cleanup operations.",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in": "Removed Percona's sessioncreate callback from WT_ENCRYPTOR struct. Added new layered truncate list statistics (LAYERED_TRUNCATE_LIST_SEARCH_CALLS and LAYERED_TRUNCATE_LIST_SEARCH_ENTRIES_WALKED). Renumbered subsequent stat constants to accommodate new entries."
+      },
+      "review_notes": "IMPORTANT: Several Percona-specific features were removed from auto-merged files - audit flusher/options, LDAP manager, OIDC identity providers, PBM agents namespace, startBackup action, logApplicationMessage action, profile ratelimit, and WiredTiger sessioncreate encryptor callback. Verify these features are preserved elsewhere in Percona-specific code or intentionally deprecated. The replica set write blocking feature (SERVER-120970) is a significant addition that introduces new authorization actions, opObserver hooks, and in-memory state management - ensure it integrates correctly with any Percona write blocking customizations."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [
+            "I'll analyze the merge commit and auto-merged files to create the JSON response."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [
+            "Now I have all the information needed to create the JSON response describing this merge."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [
+            "JSON response written to `/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/response_20260512_191423_125862.json`. The response documents 8 merged commits including the replica set write blocking feature (SERVER-120970), WiredTiger import, IXSCAN revert, and profiling fixes. It details changes in 12 auto-merged files and flags several Percona-specific features that were removed (audit, LDAP, PBM, ratelimit, WiredTiger sessioncreate callback) for review."
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20260512_191423_125663.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.139 (Claude Code)"
+    }
+  }
+}

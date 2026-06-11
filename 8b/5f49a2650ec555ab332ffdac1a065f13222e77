@@ -1,0 +1,28 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "397e4dd4d524ddb1f76be79b90782954d47bb7a5",
+    "merge_commit": "60951b621539842f01f060bc4a35a1d0e690ae32"
+  },
+  "mergai_version": "0.1.dev1+g2c757647b",
+  "solutions": [
+    {
+      "response": {
+        "summary": "Resolve conflicts for merge commit '60951b62153' into master",
+        "resolved": {
+          "MODULE.bazel.lock": "Resolved by human",
+          "src/mongo/db/audit.cpp": "Resolved by human"
+        },
+        "unresolved": {},
+        "modified": {},
+        "review_notes": "Resolved merge conflicts in 2 files. For src/mongo/db/audit.cpp, kept\nPercona's implementation which uses a comment pointing to their\nAuditInterface implementation in src/mongo/audit/audit.cpp instead of\nMongoDB's inline implementation. For MODULE.bazel.lock, removed conflict\nmarkers by accepting ours version and regenerated via bazel query.\n\nResolved:\n\tsrc/mongo/db/audit.cpp\n\tMODULE.bazel.lock\n\nNote: commit created by mergai"
+      },
+      "author": {
+        "name": "psmdb-bot[bot]",
+        "email": "2942401+psmdb-bot[bot]@users.noreply.github.com",
+        "type": "human"
+      },
+      "commit_sha": "8b5f49a2650ec555ab332ffdac1a065f13222e77"
+    }
+  ]
+}

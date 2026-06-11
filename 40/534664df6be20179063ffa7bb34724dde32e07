@@ -1,0 +1,27 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "c75aae52fb1344336250a83c06288bd472264a86",
+    "merge_commit": "0115b2026dac3a22cb24e28e1eebf988f5c2f5b5"
+  },
+  "mergai_version": "0.1.dev1+gb9fd60fbc",
+  "solutions": [
+    {
+      "response": {
+        "summary": "Resolve conflicts for merge commit '0115b2026da' into master",
+        "resolved": {
+          "MODULE.bazel.lock": "Resolved by human"
+        },
+        "unresolved": {},
+        "modified": {},
+        "review_notes": "Resolved conflict in MODULE.bazel.lock by accepting our version and\nregenerating the file.\n\nResolved:\n\tMODULE.bazel.lock\n\nNote: commit created by mergai"
+      },
+      "author": {
+        "name": "psmdb-bot[bot]",
+        "email": "2942401+psmdb-bot[bot]@users.noreply.github.com",
+        "type": "human"
+      },
+      "commit_sha": "40534664df6be20179063ffa7bb34724dde32e07"
+    }
+  ]
+}

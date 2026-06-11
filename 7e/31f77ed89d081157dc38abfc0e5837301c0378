@@ -1,0 +1,200 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "c5dbd62c90820b50f65575d0b2cb7d979fe02be6",
+    "merge_commit": "f5292a05f23966118782e1c1ddeea1818b04b02a"
+  },
+  "mergai_version": "0.1.dev1+g2c757647b",
+  "conflict_context": {
+    "ours_commit": "c5dbd62c90820b50f65575d0b2cb7d979fe02be6",
+    "theirs_commit": "f5292a05f23966118782e1c1ddeea1818b04b02a",
+    "base_commit": "c800519da99fff88441975d513d1987954c7e4da",
+    "files": [
+      "src/mongo/db/commands/profile_common.cpp"
+    ],
+    "conflict_types": {
+      "src/mongo/db/commands/profile_common.cpp": "both modified"
+    },
+    "diffs": {
+      "src/mongo/db/commands/profile_common.cpp": "diff --cc src/mongo/db/commands/profile_common.cpp\nindex 606a5fb2c27,bf2d36841c2..00000000000\n--- a/src/mongo/db/commands/profile_common.cpp\n+++ b/src/mongo/db/commands/profile_common.cpp\n@@@ -62,1 -62,1 +62,7 @@@ namespace \n++<<<<<<< HEAD\n +MONGO_STATIC_ASSERT(ProfileCmdRequest::fieldMetadata.size() == 50 + 1);\n++||||||| c800519da99\n++MONGO_STATIC_ASSERT(ProfileCmdRequest::fieldMetadata.size() == 50);\n++=======\n+ MONGO_STATIC_ASSERT(ProfileCmdRequest::fieldMetadata.size() == 49);\n++>>>>>>> f5292a05f23966118782e1c1ddeea1818b04b02a"
+    },
+    "their_commits": {
+      "src/mongo/db/commands/profile_common.cpp": [
+        "f5292a05f23966118782e1c1ddeea1818b04b02a"
+      ]
+    }
+  },
+  "merge_context": {
+    "merge_commit": "f5292a05f23966118782e1c1ddeea1818b04b02a",
+    "merged_commits": [
+      "f5292a05f23966118782e1c1ddeea1818b04b02a",
+      "674c81ce6088a07fa9e591efcd643728251fcfe9",
+      "80fff20ab7e061075b91cc8a818b44cc27c09592",
+      "62828dbe6523fccb7a19ce5b202fcd33cb5c91b4",
+      "1ba393b8df83799cd313135497b5ee468b3e3fc4",
+      "c3357069f2f3894793e29e4550f76ca5f18942b4",
+      "1523ca5a52cb66007b7af3699fc78ebedc926658"
+    ],
+    "important_files_modified": [
+      "buildscripts/resmokeconfig/suites/core_ese.yml"
+    ],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        "jstests/libs/write_concern_all_commands.js",
+        "jstests/replsets/all_commands_downgrading_to_upgraded.js",
+        "jstests/replsets/db_reads_while_recovering_all_commands.js",
+        "jstests/sharding/all_commands_direct_shard_connection_auth.js",
+        "jstests/sharding/database_versioning_all_commands.js",
+        "jstests/sharding/read_write_concern_defaults_application.js",
+        "src/mongo/db/BUILD.bazel",
+        "src/mongo/db/auth/action_type.idl",
+        "src/mongo/db/auth/builtin_roles.yml",
+        "src/mongo/db/commands/BUILD.bazel",
+        "src/mongo/db/commands/profile_common.cpp",
+        "src/mongo/db/mongod_main.cpp",
+        "src/mongo/db/namespace_string_reserved.h",
+        "src/mongo/rpc/BUILD.bazel",
+        "src/mongo/s/BUILD.bazel"
+      ]
+    }
+  },
+  "solutions": [
+    {
+      "response": {
+        "summary": "Resolve conflicts for merge commit 'f5292a05f23' into master",
+        "resolved": {
+          "src/mongo/db/commands/profile_common.cpp": "Resolved by human"
+        },
+        "unresolved": {},
+        "modified": {},
+        "review_notes": "Resolved merge conflict in profile_common.cpp by combining MongoDB's\nupdated field count (49) with Percona's +1 addition for the ratelimit\nfield\n\nResolved:\n\tsrc/mongo/db/commands/profile_common.cpp\n\nNote: commit created by mergai"
+      },
+      "author": {
+        "name": "psmdb-bot[bot]",
+        "email": "2942401+psmdb-bot[bot]@users.noreply.github.com",
+        "type": "human"
+      },
+      "commit_sha": "7e336aacec4a71655a8e69e90c8b237e6654d80a"
+    }
+  ],
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 24116,
+    "num_turns": 2,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.11824775,
+    "modelUsage": {
+      "claude-haiku-4-5-20251001": {
+        "inputTokens": 425,
+        "outputTokens": 14,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0,
+        "webSearchRequests": 0,
+        "costUSD": 0.000495,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000
+      },
+      "claude-opus-4-5": {
+        "inputTokens": 18,
+        "outputTokens": 1556,
+        "cacheReadInputTokens": 34788,
+        "cacheCreationInputTokens": 9819,
+        "webSearchRequests": 0,
+        "costUSD": 0.11775275,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-haiku-4-5-20251001": {
+          "tokens": {
+            "input": 425,
+            "output": 14,
+            "cache_read": 0,
+            "cache_creation": 0
+          },
+          "cost_usd": 0.000495
+        },
+        "claude-opus-4-5": {
+          "tokens": {
+            "input": 18,
+            "output": 1556,
+            "cache_read": 34788,
+            "cache_creation": 9819
+          },
+          "cost_usd": 0.11775275
+        }
+      }
+    },
+    "text_result": "Written the JSON response describing the merge. The key conflict is in `profile_common.cpp` where:\n- Upstream MongoDB changed `fieldMetadata.size()` from 50 to 49\n- Percona had added `+1` for a Percona-specific field (50 + 1)\n- Resolution should be `49 + 1` to maintain Percona's offset with the new upstream base value",
+    "response": {
+      "summary": "Merge from upstream MongoDB that modifies field metadata size in ProfileCmdRequest. The upstream reduced fieldMetadata.size() from 50 to 49, while Percona had previously added +1 to account for a Percona-specific field (making it 50 + 1 = 51). The conflict requires adjusting the Percona assertion to use the new upstream base value of 49 + 1.",
+      "auto_merged": {
+        "jstests/libs/write_concern_all_commands.js": "Test file updates for write concern commands, auto-merged without conflicts",
+        "jstests/replsets/all_commands_downgrading_to_upgraded.js": "Replica set command test updates, auto-merged without conflicts",
+        "jstests/replsets/db_reads_while_recovering_all_commands.js": "Database reads recovery test updates, auto-merged without conflicts",
+        "jstests/sharding/all_commands_direct_shard_connection_auth.js": "Sharding auth test updates, auto-merged without conflicts",
+        "jstests/sharding/database_versioning_all_commands.js": "Database versioning test updates, auto-merged without conflicts",
+        "jstests/sharding/read_write_concern_defaults_application.js": "Read/write concern defaults test updates, auto-merged without conflicts",
+        "src/mongo/db/BUILD.bazel": "Build configuration updates, auto-merged without conflicts",
+        "src/mongo/db/auth/action_type.idl": "Auth action type IDL updates, auto-merged without conflicts",
+        "src/mongo/db/auth/builtin_roles.yml": "Built-in roles configuration updates, auto-merged without conflicts",
+        "src/mongo/db/commands/BUILD.bazel": "Commands build configuration updates, auto-merged without conflicts",
+        "src/mongo/db/mongod_main.cpp": "Main mongod entry point updates, auto-merged without conflicts",
+        "src/mongo/db/namespace_string_reserved.h": "Reserved namespace string updates, auto-merged without conflicts",
+        "src/mongo/rpc/BUILD.bazel": "RPC build configuration updates, auto-merged without conflicts",
+        "src/mongo/s/BUILD.bazel": "Sharding build configuration updates, auto-merged without conflicts"
+      },
+      "review_notes": "The conflict in src/mongo/db/commands/profile_common.cpp involves a MONGO_STATIC_ASSERT that validates the size of ProfileCmdRequest::fieldMetadata. Percona maintains a +1 offset to account for a Percona-specific field. The upstream changed from 50 to 49, so the correct resolution should be 49 + 1 (keeping Percona's +1 pattern with the new upstream base value). Verify that the resolved assertion correctly reflects both the upstream change and Percona's additional field."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [
+            "I'll analyze the merge conflict and write a JSON response describing the merge."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [
+            "Written the JSON response describing the merge. The key conflict is in `profile_common.cpp` where:\n- Upstream MongoDB changed `fieldMetadata.size()` from 50 to 49\n- Percona had added `+1` for a Percona-specific field (50 + 1)\n- Resolution should be `49 + 1` to maintain Percona's offset with the new upstream base value"
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20260512_212211_587166.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.140 (Claude Code)"
+    }
+  },
+  "note_index": [
+    {
+      "sha": "7e31f77ed89d081157dc38abfc0e5837301c0378",
+      "fields": [
+        "conflict_context",
+        "merge_context",
+        "solutions[0]",
+        "merge_description"
+      ]
+    }
+  ]
+}

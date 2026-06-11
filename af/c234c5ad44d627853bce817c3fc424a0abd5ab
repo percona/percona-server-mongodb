@@ -1,0 +1,27 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "4021f8ae70d5175d37bd22e50158a6108f790c6c",
+    "merge_commit": "b061e598b7e2b4229263b7f962c616e86727fc3e"
+  },
+  "mergai_version": "0.1.dev1+g0e3aa582b",
+  "solutions": [
+    {
+      "response": {
+        "summary": "Resolve conflicts for merge commit 'b061e598b7e' into master",
+        "resolved": {
+          "src/mongo/db/index_builds/BUILD.bazel": "Resolved by human"
+        },
+        "unresolved": {},
+        "modified": {},
+        "review_notes": "Resolved BUILD.bazel conflict by keeping Percona's audit:audit_impl\ndependency while accepting upstream's removal of the redundant\ntwo_phase_index_build_knobs_idl dependency\n\nResolved:\n\tsrc/mongo/db/index_builds/BUILD.bazel\n\nNote: commit created by mergai"
+      },
+      "author": {
+        "name": "psmdb-bot[bot]",
+        "email": "2942401+psmdb-bot[bot]@users.noreply.github.com",
+        "type": "human"
+      },
+      "commit_sha": "afc234c5ad44d627853bce817c3fc424a0abd5ab"
+    }
+  ]
+}

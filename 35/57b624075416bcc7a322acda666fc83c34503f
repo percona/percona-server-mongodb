@@ -1,0 +1,28 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "a8e2faf282b6075699183fa4e8261f57932fc116",
+    "merge_commit": "ac6584f4061d8209fde5bd4ce7a6597f42d2196c"
+  },
+  "mergai_version": "0.1.dev1+gb9fd60fbc",
+  "solutions": [
+    {
+      "response": {
+        "summary": "Resolve conflicts for merge commit 'ac6584f4061' into master",
+        "resolved": {
+          "jstests/libs/python.js": "Resolved by human",
+          "sbom.json": "Resolved by human"
+        },
+        "unresolved": {},
+        "modified": {},
+        "review_notes": "Resolved merge conflicts in jstests/libs/python.js and sbom.json\n\nResolved:\n        jstests/libs/python.js\n        sbom.json\n\nAdditinal changes in jstests/libs/python.js:\n- removed redundant comment line which was removed by the upstream\n- minor python version in the condition upgraded from 10 to 13"
+      },
+      "author": {
+        "name": "Igor Solodovnikov",
+        "email": "igor.solodovnikov@percona.com",
+        "type": "human"
+      },
+      "commit_sha": "3557b624075416bcc7a322acda666fc83c34503f"
+    }
+  ]
+}

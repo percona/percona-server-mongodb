@@ -1,0 +1,27 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "7e31f77ed89d081157dc38abfc0e5837301c0378",
+    "merge_commit": "b839c2e133dc7ecee26c7486e5d0a55277df129b"
+  },
+  "mergai_version": "0.1.dev1+g2c757647b",
+  "solutions": [
+    {
+      "response": {
+        "summary": "PSMDB-1967 sbom.json: remove Endor Labs reference appeared after AI-based conflict resolution",
+        "resolved": {
+          "sbom.json": "Resolved by human"
+        },
+        "unresolved": {},
+        "modified": {},
+        "review_notes": null
+      },
+      "author": {
+        "name": "Igor Solodovnikov",
+        "email": "igor.solodovnikov@percona.com",
+        "type": "human"
+      },
+      "commit_sha": "944c5d5abfc32aa84f5c4722f394c5eb8fa21082"
+    }
+  ]
+}

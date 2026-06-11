@@ -1,0 +1,27 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "c5dbd62c90820b50f65575d0b2cb7d979fe02be6",
+    "merge_commit": "f5292a05f23966118782e1c1ddeea1818b04b02a"
+  },
+  "mergai_version": "0.1.dev1+g2c757647b",
+  "solutions": [
+    {
+      "response": {
+        "summary": "Resolve conflicts for merge commit 'f5292a05f23' into master",
+        "resolved": {
+          "src/mongo/db/commands/profile_common.cpp": "Resolved by human"
+        },
+        "unresolved": {},
+        "modified": {},
+        "review_notes": "Resolved merge conflict in profile_common.cpp by combining MongoDB's\nupdated field count (49) with Percona's +1 addition for the ratelimit\nfield\n\nResolved:\n\tsrc/mongo/db/commands/profile_common.cpp\n\nNote: commit created by mergai"
+      },
+      "author": {
+        "name": "psmdb-bot[bot]",
+        "email": "2942401+psmdb-bot[bot]@users.noreply.github.com",
+        "type": "human"
+      },
+      "commit_sha": "7e336aacec4a71655a8e69e90c8b237e6654d80a"
+    }
+  ]
+}
