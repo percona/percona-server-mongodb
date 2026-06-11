@@ -690,6 +690,14 @@ public:
     Status createIndexesForConfigPlacementHistory(OperationContext* opCtx);
 
     /**
+     * Creates a secondary index on config.shards.
+     * When checkPreconditions is true, the methods verifies whether the persisted state of the
+     * config server is compatible with the request - and skips the operation if not. Returns OK
+     * when the operation succeeds or is skipped, and an error status otherwise.
+     */
+    Status createIndexForConfigShards(OperationContext* opCtx, bool checkPreconditions = true);
+
+    /**
      * (Re)builds the content config.placementHistory based on a snapshot read of the global catalog
      * at the requested initializationTime, including:
      *  - One document per each database;
@@ -853,7 +861,8 @@ private:
                                                            const std::string& shardName,
                                                            const ChunkType& origChunk,
                                                            const ChunkVersion& collPlacementVersion,
-                                                           const std::vector<BSONObj>& splitPoints);
+                                                           const std::vector<BSONObj>& splitPoints,
+                                                           const CollectionType& coll);
 
     /**
      * Updates the "hasTwoOrMoreShard" cluster cardinality parameter after an add or remove shard

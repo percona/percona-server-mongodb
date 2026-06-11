@@ -103,6 +103,19 @@ bool ReplicaSetWriteBlockState::isReplicaSetWriteBlockingEnabled() const {
     return _writeBlockInfo.load().blocked;
 }
 
+Status ReplicaSetWriteBlockState::checkIfCompactAllowedToStart(OperationContext* opCtx) const {
+    // Compact is gated by the allowDeletions flag: it is blocked only when replica set deletions
+    // are blocked, and is permitted when deletions are allowed.
+    if (_deletionsBlocked.load() && !ReplicaSetWriteBlockBypass::get(opCtx).isEnabled()) {
+        const auto info = _writeBlockInfo.load();
+        return Status(ErrorCodes::ReplicaSetWritesBlocked,
+                      fmt::format("Compact blocked because replica set deletions are blocked, "
+                                  "reason: {}",
+                                  idl::serialize(info.reason)));
+    }
+    return Status::OK();
+}
+
 void ReplicaSetWriteBlockState::enableReplicaSetDeletionsBlocking() {
     _deletionsBlocked.store(true);
 }
@@ -148,6 +161,24 @@ void ReplicaSetWriteBlockState::appendReplicaSetWriteBlockRejectionMetrics(
                      static_cast<long long>(_replicaSetWriteBlockRejectedUpdates.load()));
     sub.appendNumber("deletes",
                      static_cast<long long>(_replicaSetWriteBlockRejectedDeletes.load()));
+}
+
+
+void ReplicaSetWriteBlockState::enableUserIndexBuildBlocking() {
+    _userIndexBuildsBlocked.store(true);
+}
+
+void ReplicaSetWriteBlockState::disableUserIndexBuildBlocking() {
+    _userIndexBuildsBlocked.store(false);
+}
+
+Status ReplicaSetWriteBlockState::checkIfIndexBuildAllowedToStart(
+    OperationContext* opCtx, const NamespaceString& nss) const {
+    if (_userIndexBuildsBlocked.load() && !ReplicaSetWriteBlockBypass::get(opCtx).isEnabled() &&
+        !nss.isOnInternalDb()) {
+        return Status(ErrorCodes::ReplicaSetWritesBlocked, "Replica set writes blocked");
+    }
+    return Status::OK();
 }
 
 }  // namespace mongo

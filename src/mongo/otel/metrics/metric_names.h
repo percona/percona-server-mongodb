@@ -82,8 +82,6 @@ class MONGO_MOD_FILE_PRIVATE MetricNameMaker{public : static constexpr MetricNam
  * Helper to create MetricName instances with runtime-constructed names (e.g. names that embed
  * device names or mount paths discovered at startup). Requires N&O review since dynamic names
  * cannot be audited at compile time.
- *
- * TODO(SERVER-127521): Ensure ServerStatusOptions is boost::none for any runtime metric.
  */
 class MONGO_MOD_PUBLIC DynamicMetricNameMaker{
     public : static MetricName make(StringData name){return MetricNameMaker::make(name);
@@ -247,6 +245,24 @@ public:
 
     // Replication Team Metrics
     static constexpr MetricName kOplogApplyBytes = MetricNameMaker::make("oplog.apply.bytes");
+    static constexpr MetricName kOplogApplyBufferCount =
+        MetricNameMaker::make("serverStatus.metrics.repl.buffer.apply.count");
+    static constexpr MetricName kOplogApplyBufferSize =
+        MetricNameMaker::make("serverStatus.metrics.repl.buffer.apply.size");
+    static constexpr MetricName kOplogWriteBufferCount =
+        MetricNameMaker::make("serverStatus.metrics.repl.buffer.write.count");
+    static constexpr MetricName kOplogWriteBufferSize =
+        MetricNameMaker::make("serverStatus.metrics.repl.buffer.write.size");
+    static constexpr MetricName kApplyBatchesNum =
+        MetricNameMaker::make("serverStatus.metrics.repl.apply.batches.num");
+    static constexpr MetricName kApplyBatchesTotalMillis =
+        MetricNameMaker::make("serverStatus.metrics.repl.apply.batches.totalMillis");
+    static constexpr MetricName kInitialSyncFailedAttempts =
+        MetricNameMaker::make("serverStatus.metrics.repl.initialSync.failedAttempts");
+    static constexpr MetricName kInitialSyncFailures =
+        MetricNameMaker::make("serverStatus.metrics.repl.initialSync.failures");
+    static constexpr MetricName kInitialSyncCompleted =
+        MetricNameMaker::make("serverStatus.metrics.repl.initialSync.completed");
 
     // Query Integration Team Metrics
 

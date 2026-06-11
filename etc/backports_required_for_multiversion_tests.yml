@@ -35,6 +35,10 @@ last-continuous:
       ticket: SERVER-121132
     - test_file: jstests/core/index/not_index_tagging.js
       ticket: SERVER-125555
+    - test_file: jstests/core/index/wildcard/compound_wildcard_index_residual.js
+      ticket: SERVER-83322
+    - test_file: jstests/core/index/wildcard/wildcard_index_basic_index_bounds.js
+      ticket: SERVER-83322
     - test_file: jstests/core/query/group_sbe_accumulator_limit.js
       ticket: SERVER-118700
     - test_file: jstests/core/query/sparse_index_supports_ne_null.js
@@ -244,6 +248,10 @@ last-lts:
       ticket: SERVER-110906
     - test_file: jstests/core/index/not_index_tagging.js
       ticket: SERVER-125555
+    - test_file: jstests/core/index/wildcard/compound_wildcard_index_residual.js
+      ticket: SERVER-83322
+    - test_file: jstests/core/index/wildcard/wildcard_index_basic_index_bounds.js
+      ticket: SERVER-83322
     - test_file: jstests/core/query/and/and3.js
       ticket: SERVER-91616
     - test_file: jstests/core/query/boolean_simplifier_stress.js
@@ -694,6 +702,14 @@ last-lts:
       ticket: SERVER-93149
     - test_file: jstests/sharding/resharding_timeseries/reshard_timeseries.js
       ticket: SERVER-93149
+    - test_file: jstests/sharding/resharding_timeseries/reshard_timeseries_abort_command.js
+      ticket: SERVER-111411
+    - test_file: jstests/sharding/resharding_timeseries/reshard_timeseries_abort_during_building_index.js
+      ticket: SERVER-111411
+    - test_file: jstests/sharding/resharding_timeseries/reshard_timeseries_abort_in_preparing_to_donate.js
+      ticket: SERVER-111411
+    - test_file: jstests/sharding/resharding_timeseries/reshard_timeseries_abort_while_monitoring_to_commit.js
+      ticket: SERVER-111411
     - test_file: jstests/sharding/resharding_timeseries/reshard_timeseries_building_index_failover.js
       ticket: SERVER-126218
     - test_file: jstests/sharding/resharding_timeseries/reshard_timeseries_disallow_writes.js
