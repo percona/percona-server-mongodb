@@ -1,0 +1,425 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "ec4ca12e2eea6e346bb9e0001dc31ae6c1b09260",
+    "merge_commit": "364d4bc98687596adea5b9ec902cef53f6b83790"
+  },
+  "mergai_version": "0.1.dev1+g6264ec08d",
+  "merge_context": {
+    "merge_commit": "364d4bc98687596adea5b9ec902cef53f6b83790",
+    "merged_commits": [
+      "364d4bc98687596adea5b9ec902cef53f6b83790",
+      "1c91fa361e6652d040b0b7b86873217e913e4dab",
+      "3ad1d14971f49c626007b08fae252d7ff55a850e",
+      "6eb8a633d139b9673ddd1c798d64dfd9c5575798",
+      "65dc09a12e5d6120afd1d154e4f0a8b31036674d",
+      "4bb3a7268e57fc49e7ce4b4b9e2f5a6a4771edce",
+      "813e3ab36ece6d5682f649bc2c7138c51dfadd16",
+      "d29d771f346cacc723adbbaa216d45a563807c88",
+      "47366675c8829bca6974ff114a7526c612ef6fe9",
+      "47f54025717ab64c9101cef2a9038f6e030b6cab",
+      "afadb3e450f7b463958e96d08af1acbc5e6c70a2",
+      "8b29da0a3ee360e60eef5bd3603fee61a6838629",
+      "757980f85cdce7eb245acbac25ff508e7e683eff",
+      "e706decef7b9079884553c097f84a64f656eb445",
+      "473976d1db63c5e095cd0aa9ade838ffe2fc7293",
+      "4174ab497923df887cea0d9144524b38d158b302",
+      "ae6503f2a8004268c2f42218dc0194a314d660de",
+      "c24673b8ed41ad8e67ea437fb606872739a544fb",
+      "fd2b89c11290e30c57a73480c065437312d85091",
+      "275386c5ad6c4e83782889a3e16da2e7899e84aa",
+      "5d9ee48e4e6086c1f60b3dfa3807694d030583a9",
+      "6973d9db6788405269ec9910f068fe4f9efd69d5",
+      "177dbd61a5a37e613f22e353b5ca75ce17e7991a",
+      "60e8e697c4abdf27e502f74d54659cb3b50e2c92",
+      "67074e0ea7d8ede22a18acaff5ce6d890ec58078",
+      "9eaa926c797dc6e9350ce0ab35b495d0ef860edc",
+      "633ba3732236329e4b141d43f1df4a0db3b6977a",
+      "dd47ee2907f839ebb6839464ef9a67df5907f198",
+      "352614b3c2961b4df199be807567cff0620e6cff",
+      "e0e813e724265d23ccd3586abd19362c080ef8c1",
+      "e6144532325d968a893e29c1f9501bf0eee86d08",
+      "1fc052b0d5b9eb034f27f60c3085ee48472a0bb8",
+      "deed4620f27390f7ddfa83bc06d50949fe1e40e6",
+      "62716cc829178f125f47003a4e7fcac434c58516",
+      "172dbcd5cf950fa2a3281669d1db73f8eff1d7ba",
+      "da88ee361e68fa406d80b9e0396a687185b7e03b",
+      "8a13e35f304a7ca91ed8c21528fc196a41c227ba",
+      "d7da042aab566cbf8f3f1c5b2c84157ac5ae93f4",
+      "78f0401fa07168c58b807892b8dc761e1a22b49d",
+      "df9e018e05cd9042464a2b98eecf860470bf7bdd",
+      "c1a971467a6388340ac68dbd0171329541520553",
+      "4b67f6a4ca9c383581dc5de7198807a8d4cb399d",
+      "38815eecc186b069528c28969b6738b5a5360ba6",
+      "37dc144bb419fa01fe9bf35d49120ef42b8da97a",
+      "be8c7d8fdfaf7b9656a8783282a185cd5a0ab4fe",
+      "2ab8e9cd025fb2af0493e3e85d1277b0ee0c9869",
+      "e900b0c804c41f0934bb83b163b29fb99084df65",
+      "2cfb0381fa47a7bd9b2f168c15abad44c740392b",
+      "613a6cf327ae8ce3dbab7dda9a908343d492e457",
+      "07761f2a99cce39bc36d0c044af57431ebb3067e",
+      "6520746d74968d6119909870f9ec7a732146019f",
+      "2326aaa9ded5dfe8065a67480a0b32e85849f488",
+      "37780c99b45160666280cf7d3245c0566511034e",
+      "6f6c02a5ff61cbcc1c7beed0bf8b3dda5389c785",
+      "a67ed5df7728aeaaad8a95fd6858d6b6ed3ffeeb",
+      "c32eef37f30e3847fe2652838d7b340e4d5296f7",
+      "2b1b4e6afd635ecbfc4e541e62335a2b4767a2fb",
+      "b73b999d3e62b944d8bb83c33ea7e2097e2e2159",
+      "df6f2eb79e8b1f6f07109ef16e027fb6910f8b3d",
+      "6d6778bd57831b802b228632cec6e9b7934ab4a0",
+      "d24a9ff39e9b3e04456234d66271983725fe9de0"
+    ],
+    "important_files_modified": [
+      "src/mongo/db/auth/sasl_scram_server_conversation.cpp",
+      "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp"
+    ],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        ".bazelrc",
+        "bazel/config/BUILD.bazel",
+        "buildscripts/idl/idl/generator.py",
+        "eslint.config.mjs",
+        "jstests/auth/lib/commands_lib.js",
+        "src/mongo/base/error_codes.yml",
+        "src/mongo/db/BUILD.bazel",
+        "src/mongo/db/curop.cpp",
+        "src/mongo/db/fts/fts_matcher.cpp",
+        "src/mongo/db/fts/fts_query_impl.cpp",
+        "src/mongo/db/fts/fts_query_impl.h",
+        "src/mongo/db/mongod_main.cpp",
+        "src/mongo/db/mongod_options.cpp",
+        "src/mongo/db/namespace_string_reserved.h",
+        "src/mongo/db/pipeline/process_interface/common_mongod_process_interface.cpp",
+        "src/mongo/db/server_options_server_helpers.cpp",
+        "src/mongo/db/startup_recovery.cpp",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_util.cpp",
+        "src/mongo/shell/BUILD.bazel",
+        "src/mongo/shell/mongo_main.cpp",
+        "src/mongo/shell/servers.js",
+        "src/mongo/shell/shell_utils_extended.cpp",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in"
+      ]
+    }
+  },
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 98434,
+    "num_turns": 26,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.6553414999999999,
+    "modelUsage": {
+      "claude-haiku-4-5-20251001": {
+        "inputTokens": 523,
+        "outputTokens": 15,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0,
+        "webSearchRequests": 0,
+        "costUSD": 0.000598,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000
+      },
+      "claude-opus-4-5": {
+        "inputTokens": 15,
+        "outputTokens": 5691,
+        "cacheReadInputTokens": 185637,
+        "cacheCreationInputTokens": 67132,
+        "webSearchRequests": 0,
+        "costUSD": 0.6547435,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-haiku-4-5-20251001": {
+          "tokens": {
+            "input": 523,
+            "output": 15,
+            "cache_read": 0,
+            "cache_creation": 0
+          },
+          "cost_usd": 0.000598
+        },
+        "claude-opus-4-5": {
+          "tokens": {
+            "input": 15,
+            "output": 5691,
+            "cache_read": 185637,
+            "cache_creation": 67132
+          },
+          "cost_usd": 0.6547435
+        }
+      }
+    },
+    "text_result": "Done. I've written the JSON response to the specified file with:\n- A comprehensive **summary** covering all major changes including the new parallel validation mode, geo key extraction error codes, FTS heterogeneous lookup optimization, CurOp safety checks, and other improvements\n- Detailed **auto_merged** descriptions for all 24 files based on the actual diffs\n- **review_notes** highlighting key areas for verification including thread safety in parallel validation, FTS performance optimizations, and test harness changes",
+    "response": {
+      "summary": "This merge introduces several significant features and improvements: (1) A new parallel offline validation mode (--validateParallel) that validates collections concurrently using multiple threads; (2) New error codes for geo key extraction failures (GeoKeyExtractionFailed, GeoKeyExtractionFailedTimeseries) with a new IndexKeyExtractionError category; (3) Full-text search (FTS) optimization using heterogeneous lookup with std::less<> in string sets to avoid unnecessary string conversions; (4) CurOp safety improvements to check operationContextIsPendingDestruction() before accessing operation context; (5) Bazel configuration to treat Rust warnings as errors; (6) A new ESLint rule (no-non-shell-imports) to prevent shell files from importing non-packaged modules; (7) MongoRunner.awaitConnection now verifies the connected process PID matches the expected PID to detect stale processes; (8) WiredTiger statistics additions for rollback-to-stable prepared fast truncation tracking; (9) New reserved namespaces for max-key orphan/zone detection scan state; (10) ThreadPool configuration refactored to use designated initializers.",
+      "auto_merged": {
+        ".bazelrc": "Adds a new Rust compiler flag (-Dwarnings) via rules_rust to treat all warnings as errors for first-party Rust crates.",
+        "bazel/config/BUILD.bazel": "Adds a new config_setting_group 'linux_aarch64_or_x86_64' that matches either linux_aarch64 or linux_x86_64 platforms.",
+        "buildscripts/idl/idl/generator.py": "Changes template setter generation to use a lambda (returning storage_type from value) instead of direct brace initialization, eliminating explicit conversions.",
+        "eslint.config.mjs": "Adds a new ESLint configuration block for src/mongo/shell/** files (excluding vscode debugger) that enforces the 'mongodb/no-non-shell-imports' rule to prevent imports that aren't packaged into the shell binary.",
+        "jstests/auth/lib/commands_lib.js": "Adds a new 'expectFailWithErrorCodes' test option that accepts specific error codes rather than any non-auth error. Updates several ESE (encryption) test cases to always skip (with SERVER-128385 TODO). Changes streams test cases to use expectFailWithErrorCodes: [40228] instead of generic expectFail.",
+        "src/mongo/base/error_codes.yml": "Adds new error category 'IndexKeyExtractionError' and two new error codes: GeoKeyExtractionFailed (510) with GeoKeyExtractionFailureInfo extra, and GeoKeyExtractionFailedTimeseries (511) with GeoKeyExtractionFailureTimeseriesInfo extra.",
+        "src/mongo/db/BUILD.bazel": "Adds '//src/mongo/util:processinfo' as a new dependency to the target.",
+        "src/mongo/db/curop.cpp": "Adds safety checks for operationContextIsPendingDestruction() before accessing client operation context in reportCurrentOpForClient() and currentOpBelongsToTenant() functions to prevent use-after-free scenarios.",
+        "src/mongo/db/fts/fts_matcher.cpp": "Refactors FTSIteratorValue access from direct member access (_language, _text) to accessor methods (language(), text()). Changes _hasPositiveTerm_string and _hasNegativeTerm_string to take StringData instead of const string&. Removes unnecessary string construction in _hasNegativeTerm_string.",
+        "src/mongo/db/fts/fts_query_impl.cpp": "Removes 'using std::' declarations in favor of explicit std:: prefixes. Refactors toBSON() to use a lambda helper for appending ranges. Changes computeSetSize lambda to use auto&& parameter for broader compatibility with the new StringSet type.",
+        "src/mongo/db/fts/fts_query_impl.h": "Introduces StringSet type alias as std::set<std::string, std::less<>> to enable heterogeneous lookup (avoiding string construction for lookups). Changes _positiveTerms, _negatedTerms, and _termsForBounds to use this new type.",
+        "src/mongo/db/mongod_main.cpp": "Adds support for storageGlobalParams.validateParallel in exit condition check. Refactors makeReplicaSetNodeExecutor to use ThreadPool::make with designated initializers instead of manually setting ThreadPool::Options fields.",
+        "src/mongo/db/mongod_options.cpp": "Adds handling for the new 'validateParallel' option: validates mutual exclusivity with --validate, disallows combination with --validateCollectionName, allows --validateDbName, and stores the thread count value.",
+        "src/mongo/db/namespace_string_reserved.h": "Adds two new reserved namespaces: kConfigMaxKeyOrphanScanStateNamespace (config.maxKeyOrphanScanState) for max-key orphan detection scan state, and kConfigMaxKeyZoneScanStateNamespace (config.maxKeyZoneScanState) for max-key zone detection scan state.",
+        "src/mongo/db/pipeline/process_interface/common_mongod_process_interface.cpp": "Adds operationContextIsPendingDestruction() check before accessing the operation context in _reportCurrentOpForClient() to prevent accessing a context that is being destroyed.",
+        "src/mongo/db/server_options_server_helpers.cpp": "Simplifies proxy socket config key lookups by removing unnecessary .data() calls - params.count() and params[key].as<>() now accept StringData directly.",
+        "src/mongo/db/startup_recovery.cpp": "Adds new offlineValidateParallel() function that validates collections in parallel using a thread pool and producer-consumer queue. The function uses ProcessInfo::getNumAvailableCores() to determine thread count, validates no active network sessions exist, and coordinates results via synchronized_value. Updates repairAndRecoverDatabases() to call this when validateParallel option is set, with the global lock converted to boost::optional to allow release before parallel validation.",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp": "Refactors _rebuildIdent() to use StringData with starts_with() and remove_prefix() instead of std::string::find() and pointer arithmetic for URI parsing.",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_util.cpp": "Changes kLogKeyName and kLogEnabledKeyName from StringData to constexpr const char*. Refactors checkTableCreationOptions() to use std::string with find('\\0') for null character check instead of strlen comparison, and uses .str() / .c_str() appropriately.",
+        "src/mongo/shell/BUILD.bazel": "Adds '//src/mongo/scripting/mozjs/shell:mozjs_shell' as a new dependency.",
+        "src/mongo/shell/mongo_main.cpp": "Removes StringData usage for inline JavaScript code strings passed to invokeSafe(), passing string literals directly. Removes the intermediate 'code' variable and calls invokeSafe() inline with the literal strings.",
+        "src/mongo/shell/servers.js": "Adds PID verification in MongoRunner.awaitConnection(): after connecting, verifies serverStatus.pid matches the expected pid to detect connections to stale processes. If mismatched, logs a message and throws MongoRunner.StopError with EXIT_NET_ERROR. Adds catch block to re-throw StopError.",
+        "src/mongo/shell/shell_utils_extended.cpp": "Removes 'using std::' declarations and uses explicit std:: prefixes throughout. Changes file path handling in cat(), md5sumFile(), and getFileMode() to use .str() method instead of .valueStringDataSafe().data() for safer null-terminated string handling.",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in": "Adds two new WiredTiger statistics for rollback-to-stable prepared fast truncation tracking: WT_STAT_CONN_TXN_RTS_PREPARED_FAST_TRUNCATE_DRYRUN (1965) and WT_STAT_CONN_TXN_RTS_PREPARED_FAST_TRUNCATE (1968), plus corresponding DSRC stats (2392, 2395). All subsequent stat macros are renumbered accordingly."
+      },
+      "review_notes": "Key areas to verify: (1) The new parallel validation feature (offlineValidateParallel) adds significant new functionality with threading - ensure the thread safety guarantees and lock ordering are correct; (2) The FTS StringSet change to heterogeneous lookup is a performance optimization that should be tested with text search workloads; (3) The CurOp operationContextIsPendingDestruction() checks address a potential use-after-free issue and should be verified against the scenarios that motivated the change; (4) The MongoRunner PID verification change could affect test harness behavior when processes fail to bind ports; (5) WiredTiger header stat renumbering is mechanical but ensure no code depends on specific numeric values."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [
+            "I'll analyze the merge by reading the diffs for each auto-merged file. Let me get the actual changes."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [
+            "Now I have all the diff information needed. Let me write the JSON response."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [
+            "Done. I've written the JSON response to the specified file with:\n- A comprehensive **summary** covering all major changes including the new parallel validation mode, geo key extraction error codes, FTS heterogeneous lookup optimization, CurOp safety checks, and other improvements\n- Detailed **auto_merged** descriptions for all 24 files based on the actual diffs\n- **review_notes** highlighting key areas for verification including thread safety in parallel validation, FTS performance optimizations, and test harness changes"
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20260611_122629_665172.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.173 (Claude Code)"
+    }
+  }
+}
