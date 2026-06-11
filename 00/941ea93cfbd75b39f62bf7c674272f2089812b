@@ -1,0 +1,28 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "ec4ca12e2eea6e346bb9e0001dc31ae6c1b09260",
+    "merge_commit": "364d4bc98687596adea5b9ec902cef53f6b83790"
+  },
+  "mergai_version": "0.1.dev1+g6264ec08d",
+  "solutions": [
+    {
+      "type": "conflict_resolution",
+      "response": {
+        "summary": "PSMDB-2109: Apply format fix in `servers.js`",
+        "resolved": {},
+        "unresolved": {},
+        "modified": {
+          "src/mongo/shell/servers.js": "Modified by human"
+        },
+        "review_notes": null
+      },
+      "author": {
+        "name": "psmdb-bot[bot]",
+        "email": "2792876+psmdb-bot[bot]@users.noreply.github.com",
+        "type": "human"
+      },
+      "commit_sha": "00941ea93cfbd75b39f62bf7c674272f2089812b"
+    }
+  ]
+}
