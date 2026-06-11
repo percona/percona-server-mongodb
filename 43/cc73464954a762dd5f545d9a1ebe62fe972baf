@@ -1,0 +1,27 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "c3e90954ab45762e43481f32a91dcc90001b59d2",
+    "merge_commit": "85e3904f2d72b7538998de5be0a32613e04582cc"
+  },
+  "mergai_version": "0.1.dev1+gd2e48c27c",
+  "solutions": [
+    {
+      "response": {
+        "summary": "PSMDB-2109: Fix 'clang-tidy' failure for merge commit '85e3904f2d7'",
+        "resolved": {},
+        "unresolved": {},
+        "modified": {
+          ".github/workflows/clang-tidy.yml": "Modified by human"
+        },
+        "review_notes": "The clang-tidy workflow produced an invalid Bazel target pattern\n'///...' when the changed files spanned multiple top-level directories.\nos.path.commonpath() returns an empty string for files in disjoint\ndirectories (e.g. buildscripts/ and src/); fall back to '//src/...' in\nthat case."
+      },
+      "author": {
+        "name": "Pawel Lebioda",
+        "email": "pawel.lebioda@percona.com",
+        "type": "human"
+      },
+      "commit_sha": "43cc73464954a762dd5f545d9a1ebe62fe972baf"
+    }
+  ]
+}
