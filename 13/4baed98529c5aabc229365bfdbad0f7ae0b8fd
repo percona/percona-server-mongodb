@@ -1,0 +1,28 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "ec4ca12e2eea6e346bb9e0001dc31ae6c1b09260",
+    "merge_commit": "364d4bc98687596adea5b9ec902cef53f6b83790"
+  },
+  "mergai_version": "0.1.dev1+g6264ec08d",
+  "solutions": [
+    {
+      "type": "conflict_resolution",
+      "response": {
+        "summary": "PSMDB-2109: Qualify bare `string` as `std::string` in `_addTermsForNgram`",
+        "resolved": {},
+        "unresolved": {},
+        "modified": {
+          "src/mongo/db/fts/fts_query_impl.cpp": "Modified by human"
+        },
+        "review_notes": "Upstream commit 07761f2a99c (SERVER-32422) removed `using std::string;`\nfrom fts_query_impl.cpp, breaking the Percona-specific\n`_addTermsForNgram` function which used bare `string` type instead of\n`std::string`."
+      },
+      "author": {
+        "name": "psmdb-bot[bot]",
+        "email": "2792876+psmdb-bot[bot]@users.noreply.github.com",
+        "type": "human"
+      },
+      "commit_sha": "134baed98529c5aabc229365bfdbad0f7ae0b8fd"
+    }
+  ]
+}
