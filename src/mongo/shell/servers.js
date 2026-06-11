@@ -1288,7 +1288,7 @@ function appendSetParameterArgs(argArray) {
                 let randomStrLen = 20;
                 const chars = "qwertyuiopasdfghjklzxcvbnm1234567890";
                 for (let i = 0; i <= randomStrLen; i++) {
-                    randomName += chars[((Math.random() * 1000) % chars.length) ^ 0];
+                    randomName += chars[(Math.random() * 1000) % chars.length ^ 0];
                 }
                 const backtraceLogFilePath = MongoRunner.dataDir + "/" + randomName + Date.now() + ".stacktrace";
                 argArray.push(...["--setParameter", "backtraceLogFile=" + backtraceLogFilePath]);
