@@ -1,0 +1,28 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "546d1e28bf44401f6e3561d636f2ce185416d40b",
+    "merge_commit": "85e3904f2d72b7538998de5be0a32613e04582cc"
+  },
+  "mergai_version": "0.1.dev1+gd2e48c27c",
+  "solutions": [
+    {
+      "response": {
+        "summary": "PSMDB-2109: Fix build failure for merge commit '85e3904f2d7'",
+        "resolved": {},
+        "unresolved": {},
+        "modified": {
+          "src/mongo/db/repl/initial_sync/initial_syncer_common_stats.cpp": "Modified by human",
+          "src/mongo/db/repl/initial_sync/initial_syncer_fcb.cpp": "Modified by human"
+        },
+        "review_notes": "Upstream commit 85e3904f2d7 (SERVER-125881b) refactored the\notel::metrics::Counter API. Update the Percona-specific initial sync\nfiles to match:\n\n- initial_syncer_fcb.cpp: replace the removed .increment() and .get()\n  methods with the new .add(1) and .valueForLegacyUse() API.\n- initial_syncer_common_stats.cpp: use explicit\n  otel::metrics::Counter<int64_t>& definitions instead of auto&, which\n  deduced a type conflicting with the header's extern declarations."
+      },
+      "author": {
+        "name": "Pawel Lebioda",
+        "email": "pawel.lebioda@percona.com",
+        "type": "human"
+      },
+      "commit_sha": "5c6218121a0ed128ba12681a1d53c87fe03a7f70"
+    }
+  ]
+}
