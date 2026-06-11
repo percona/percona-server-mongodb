@@ -3005,10 +3005,12 @@
         },
         "summary": "SERVER-125881b: Export (more) Replication metrics in ServerStatus to OTEL (#54676)"
       },
-      "strategy_name": "important_files",
+      "strategy_name": "branching_point",
       "result": {
-        "matched_files": [
-          "src/mongo/db/repl/initial_sync/initial_syncer.cpp"
+        "branches": [
+          "master",
+          "mergai/master-85e3904f2d7/main",
+          "mongodb"
         ]
       }
     },
@@ -3631,7 +3633,7 @@
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-06-11 06:10:02",
+  "generated_at": "2026-06-11 07:39:24",
   "branch_name": "master",
   "display_name": "master"
 }
