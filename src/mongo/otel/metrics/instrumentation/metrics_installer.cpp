@@ -31,6 +31,7 @@
 
 #include "mongo/otel/metrics/instrumentation/disk_metrics.h"
 #include "mongo/otel/metrics/instrumentation/global_lock_metrics.h"
+#include "mongo/otel/metrics/instrumentation/index_build_metrics.h"
 #include "mongo/otel/metrics/instrumentation/system_mount_metrics.h"
 
 namespace mongo {
@@ -39,6 +40,7 @@ void installOtelMetrics(ServiceContext* svcCtx) {
     installSystemMountOtelMetrics(svcCtx);
     installDiskOtelMetrics(svcCtx);
     installGlobalLockOtelMetrics(svcCtx);
+    installIndexBuildOtelMetrics(svcCtx);
 }
 
 }  // namespace mongo

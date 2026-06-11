@@ -1,5 +1,5 @@
 /**
- *    Copyright (C) 2018-present MongoDB, Inc.
+ *    Copyright (C) 2026-present MongoDB, Inc.
  *
  *    This program is free software: you can redistribute it and/or modify
  *    it under the terms of the Server Side Public License, version 1,
@@ -29,8 +29,34 @@
 
 #pragma once
 
+#include "mongo/util/modules.h"
+
+#include <memory>
+
 namespace mongo {
 
-enum { kMaxTimeCursorTimeLimitExpired = -1, kMaxTimeCursorNoTimeLimit = 0 };
+class ServiceContext;
+struct IndexBulkBuilderMetricsSnapshot;
+
+/**
+ * Owns the OpenTelemetry instruments that track index build metrics.
+ */
+class IndexBuildOtelMetrics {
+public:
+    IndexBuildOtelMetrics();
+    ~IndexBuildOtelMetrics();
+
+    void update(const IndexBulkBuilderMetricsSnapshot& snapshot);
+
+private:
+    class Impl;
+    std::unique_ptr<Impl> _impl;
+};
+
+/**
+ * Starts a periodic job (1 Hz) that samples the snapshots and updates OpenTelemetry metrics for
+ * index build operations. Intended to be called once at startup from mongod_main.
+ */
+MONGO_MOD_PUBLIC void installIndexBuildOtelMetrics(ServiceContext* svcCtx);
 
 }  // namespace mongo
