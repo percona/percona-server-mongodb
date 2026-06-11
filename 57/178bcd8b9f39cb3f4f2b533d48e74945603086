@@ -1,0 +1,318 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "3d02afa7e1c0d00a4a4c848a61ffa7fa24cad903",
+    "merge_commit": "e7742be8f804dad1aba73ce6a516e732e6050174"
+  },
+  "mergai_version": "0.1.dev111+gc2eff4572.d20260220",
+  "conflict_context": {
+    "ours_commit": "3d02afa7e1c0d00a4a4c848a61ffa7fa24cad903",
+    "theirs_commit": "e7742be8f804dad1aba73ce6a516e732e6050174",
+    "base_commit": "19f73da3c887a5505a83659789c7cfb03d5e9094",
+    "files": [
+      "buildscripts/sbom_linter.py",
+      "sbom.json"
+    ],
+    "conflict_types": {
+      "buildscripts/sbom_linter.py": "both modified",
+      "sbom.json": "both modified"
+    },
+    "diffs": {
+      "buildscripts/sbom_linter.py": "diff --cc buildscripts/sbom_linter.py\nindex 14ee507f8c8,9f71d69dbde..00000000000\n--- a/buildscripts/sbom_linter.py\n+++ b/buildscripts/sbom_linter.py\n@@@ -304,1 -304,3 +304,11 @@@ def main() -> int\n++<<<<<<< HEAD\n +    third_party_libs.remove(\"wasmtime\")\n++||||||| 19f73da3c88\n++    third_party_libs.remove(\"wasmtime\")\n++    # Nothing in this directory is included in Community/EA\n++    third_party_libs.remove(\"private\")\n++=======\n+     third_party_libs.discard(\"wasmtime\")\n+     # Nothing in this directory is included in Community/EA\n+     third_party_libs.discard(\"private\")\n++>>>>>>> e7742be8f804dad1aba73ce6a516e732e6050174",
+      "sbom.json": "diff --cc sbom.json\nindex e9be79c8413,eaaf8f4e8dc..00000000000\n--- a/sbom.json\n+++ b/sbom.json\n@@@ -5,2 -5,2 +5,10 @@@\n++<<<<<<< HEAD\n +  \"serialNumber\": \"urn:uuid:95a559f1-b091-4a92-b80d-e6d37c5e477c\",\n +  \"version\": 5,\n++||||||| 19f73da3c88\n++  \"serialNumber\": \"urn:uuid:2d7fbf85-c8b6-4f90-9966-70da88224a36\",\n++  \"version\": 5,\n++=======\n+   \"serialNumber\": \"urn:uuid:2d7fbf85-c8b6-4f90-9966-70da88224a36\",\n+   \"version\": 6,\n++>>>>>>> e7742be8f804dad1aba73ce6a516e732e6050174\n@@@ -63,1 -74,9 +71,23 @@@\n++<<<<<<< HEAD\n +        \"https://percona.com\"\n++||||||| 19f73da3c88\n++        \"https://mongodb.com\"\n++      ]\n++    },\n++    \"tools\": {\n++      \"services\": [\n++        {\n++          \"name\": \"Endor Labs Inc\",\n++          \"version\": \"v1.7.973\"\n++        }\n++=======\n+         \"https://mongodb.com\"\n+       ]\n+     },\n+     \"tools\": {\n+       \"services\": [\n+         {\n+           \"name\": \"Endor Labs Inc\",\n+           \"version\": \"v1.7.988\"\n+         }\n++>>>>>>> e7742be8f804dad1aba73ce6a516e732e6050174"
+    },
+    "their_commits": {
+      "buildscripts/sbom_linter.py": [
+        "e7742be8f804dad1aba73ce6a516e732e6050174"
+      ],
+      "sbom.json": [
+        "e7742be8f804dad1aba73ce6a516e732e6050174"
+      ]
+    }
+  },
+  "merge_context": {
+    "merge_commit": "e7742be8f804dad1aba73ce6a516e732e6050174",
+    "merged_commits": [
+      "e7742be8f804dad1aba73ce6a516e732e6050174",
+      "ba14edd81e33ea16728229382a6cbb7b5995e170",
+      "cd83b5dda1d91f6bc4ec69869bdbca873f2d710e",
+      "a280fa65bfcd8dfce66d33de48577be9d1a884df",
+      "f2c61a7552216a6e0218832acc6c7e2dd82dd3c6",
+      "526a8e21d2b8e0054ad58661c76a9bf6ce2035be",
+      "32eb259e52a43a933ba9b0521249717fab8bf9fb",
+      "fc3a3ee67de202a78b54df45afe484a9e64ea2af",
+      "9497e66a4cb5e0f95921902e97d881ee8dd86730",
+      "ad1789e6ef770f565e5e240037bf1e428eafd0e7",
+      "fb571bb7aa91e73d6faaf15116de513cc0232cde",
+      "98b2c3cb9eb74946aaa009d6b15225b456c0f62a",
+      "c319a3c8d9d6b26d4dfb4f67da36d5f736087594",
+      "a67fc9da67c965b141e16facbead66f21f091441",
+      "2b4b4a809c6b11f1b0129f116fe207c6ad239ce6",
+      "c267576b64a1c005cb4975ebc8a26a5aefa05629",
+      "c3cf1ae62420a6f9de4ae3cbb5de9e5ff705faaf",
+      "efb50105cc3e6251bb3b881ab77d1cfcdd17e98c",
+      "890c7192111d73106ee3fc971d4b493cf28bb0e2",
+      "12c0fe15dbad92051c6d91fc075511e1e4362983",
+      "1a20e0fc8f457678fef61ab184ad37c2f00ac5a1",
+      "69af9535d6ca4e45a5953caf6ea107d011e53010",
+      "2975199f2259b56a2ce19dc0518aaede72037ceb",
+      "6b0de5eca0b5abbe51d6a6c412b51334040c65f1",
+      "215c984fc01496f8dde55f8f333fc3fa2e5b2ab9",
+      "06216ac2995c870634344e2a093b5a5638a0542c",
+      "cf3d63f3b7364a4bb88d19fcdb33268b3c99f7fc",
+      "f4789c512c821953a0813ff532a381b3612b6645",
+      "de829942be0e99a5ce126331733296705e36ba5d",
+      "ca8e0f72899c281fce9c6542ffbc15dbfe1d27c7",
+      "289a02c6e892fe3861ce0840a54322b8a3e51a3f",
+      "b9db9d2181de2431986ea10ccfffc6960fbf5e8b",
+      "f958a32362a0751e7b4291d07a64bbcb3251c05d",
+      "de2523be273b41e4af3eb9e24b16c203e38897bb",
+      "35e82d122282908ec4afa6f48511f4eba5639b67",
+      "c0c2d5b1802b70133ea2c88cd0e37dc164352bde",
+      "f5bb057f4d18aa339b13b6bbf5a874b5d6a42ab6",
+      "d48cf0da5ee918c90de85a6b5b4768acc4fbf0ba",
+      "e63f9964f00e940bf89cb009f658373616d78d36",
+      "07399bbc35a388d2fde347ecf7f54bac44f6cdb8",
+      "74f7a66bed2238e8770439c0d267b10c1ac669ea",
+      "50f3d0b656c87556feeafbbc418636ea16570a4d",
+      "27f83d0a133864eca496d91e4f7daf34f0ec246c",
+      "66230eb1cf27c79920c805e5e613b9f08ace5b45",
+      "17008793935273c670121ce4468365f17b55251e",
+      "bbde85f2ecf9173a96824a07b9f0f759eb7b4daf",
+      "666abfe83f571985ab42a804856962c9e97eba1a",
+      "f6c41929001a202e9f6f1d58c2212d9e91a747fb",
+      "0e5c9b08c3a9aac2ebee0978317422f74d7122ee",
+      "0352d73ca01ce8f44a8f1e0a262fce4682662eba",
+      "0519be8a1a1b9ddff37ef032c25b23d4d33a2690",
+      "a85c85cf9da994fbfb007e1fdd7d6d701d8fa3c4"
+    ],
+    "important_files_modified": [],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        ".bazelrc",
+        "buildscripts/resmokelib/configure_resmoke.py",
+        "buildscripts/sbom_linter.py",
+        "jstests/auth/sasl_mechanism_discovery.js",
+        "sbom.json",
+        "src/mongo/db/BUILD.bazel",
+        "src/mongo/db/index_builds/BUILD.bazel",
+        "src/mongo/db/server_options_helpers.cpp",
+        "src/mongo/shell/BUILD.bazel",
+        "src/mongo/shell/servers.js",
+        "src/third_party/wiredtiger/src/conn/conn_api.c",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in"
+      ]
+    }
+  },
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 55891,
+    "num_turns": 14,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.361382,
+    "modelUsage": {
+      "claude-haiku-4-5-20251001": {
+        "inputTokens": 503,
+        "outputTokens": 14,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0,
+        "webSearchRequests": 0,
+        "costUSD": 0.0005729999999999999,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000
+      },
+      "claude-opus-4-5": {
+        "inputTokens": 13,
+        "outputTokens": 3345,
+        "cacheReadInputTokens": 110088,
+        "cacheCreationInputTokens": 35532,
+        "webSearchRequests": 0,
+        "costUSD": 0.36080900000000005,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-haiku-4-5-20251001": {
+          "tokens": {
+            "input": 503,
+            "output": 14,
+            "cache_read": 0,
+            "cache_creation": 0
+          },
+          "cost_usd": 0.0005729999999999999
+        },
+        "claude-opus-4-5": {
+          "tokens": {
+            "input": 13,
+            "output": 3345,
+            "cache_read": 110088,
+            "cache_creation": 35532
+          },
+          "cost_usd": 0.36080900000000005
+        }
+      }
+    },
+    "text_result": "JSON response written to `/home/plebioda/psmdb/.cache/mergai/response_20260611_111305_387882.json`. The response describes 52 merged upstream commits including SASL mechanism discovery changes, sbom_linter safety improvements (remove\u2192discard), WiredTiger encryption key provider enhancements, and Bazel build updates.",
+    "response": {
+      "summary": "This merge brings upstream changes including: (1) SASL mechanism discovery behavior change where unknown users now receive the server's enabled mechanisms instead of undefined; (2) sbom_linter.py switches from set.remove() to set.discard() to avoid KeyError when items are missing; (3) sbom.json updates version to 6 and fixes googletest purl format; (4) Bazel build improvements including host feature flags for PGO/LTO and new subplanning_utils and error_labels_gen targets; (5) resmoke configure_resmoke.py adds $where pattern detection for mozjs-wasm exclusion; (6) shell servers.js adds PID verification to detect stale process connections; (7) WiredTiger key provider gains set_key callback and timestamp field for checkpoint encryption keys; (8) Solaris syslog facilitynames workaround removed from server_options_helpers.cpp.",
+      "auto_merged": {
+        ".bazelrc": "Adds host feature flags to disable PGO profile generation/use, CSPGO profile generation/use, and thin LTO for built tools on Linux, avoiding unnecessary profiling/optimization overhead for host tools.",
+        "buildscripts/resmokelib/configure_resmoke.py": "Adds '$where' pattern to _MOZJS_PATTERNS for mozjs-wasm unsupported feature detection (SERVER-116054). Updates TODO comment to reference both SERVER-116054 and SERVER-116052. Removes the else branch that was adding 'requires_mozjs_wasm' tag exclusion when not using mozjs-wasm.",
+        "buildscripts/sbom_linter.py": "Changes all set.remove() calls to set.discard() for removing 'scripts', 'sasl', 'boringssl_replacement', 'wasmtime', and 'private' from third_party_libs. This prevents KeyError exceptions if items are not present in the set.",
+        "jstests/auth/sasl_mechanism_discovery.js": "Changes expected behavior for unknown users: previously saslSupportedMechs was expected to be undefined for unknown users, now it should be an array containing the server's enabled mechanisms. Updates test assertion accordingly.",
+        "sbom.json": "Increments version from 5 to 6, updates timestamp, updates Endor Labs version from v1.7.973 to v1.7.988, and fixes googletest purl/bom-ref format by removing 'v' prefix from version (v1.17.0 -> 1.17.0).",
+        "src/mongo/db/BUILD.bazel": "Adds new subplanning_utils library target with sources from exec/classic. Adds error_labels_gen IDL generator. Adds otel_metrics_service dependency to server_status library. Adds server_parameter_test_util dependency to unit test target.",
+        "src/mongo/db/index_builds/BUILD.bazel": "Adds otel_metrics_service dependency to the index builds library.",
+        "src/mongo/db/server_options_helpers.cpp": "Removes Solaris compatibility code for syslog facilitynames. The removed code defined a CODE struct and facilitynames array when SYSLOG_NAMES was defined but INTERNAL_NOPRI was not (Solaris-specific workaround from SERVER-11160).",
+        "src/mongo/shell/BUILD.bazel": "Changes types.js path from '//src/mongo/scripting/mozjs/common/jsfiles:types.js' to local 'types.js' in MONGOJS_CPP_JSFILES list.",
+        "src/mongo/shell/servers.js": "Adds PID verification in MongoRunner.awaitConnection to detect connections to stale processes. After connecting, it checks serverStatus.pid matches the expected pid; if not, logs a warning about connecting to a stale process and throws MongoRunner.StopError with EXIT_NET_ERROR.",
+        "src/third_party/wiredtiger/src/conn/conn_api.c": "When key provider version is 1, now also installs __wti_disagg_set_crypt_key as the set_key callback for the module to call.",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in": "Adds 'timestamp' field to WT_CRYPT_KEYS struct. Adds new set_key callback to WT_KEY_PROVIDER struct with documentation explaining it allows modules to provide encryption keys with associated timestamps for checkpoint writes."
+      },
+      "review_notes": "Two files have conflicts requiring resolution: (1) buildscripts/sbom_linter.py - upstream changed remove() to discard(); fork previously removed the 'private' line; resolve by using discard() for all entries including wasmtime. (2) sbom.json - upstream incremented version and updated tool versions; fork has different serialNumber and percona.com URL; preserve fork's serialNumber and percona.com URL while taking upstream's version increment and tool updates."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [
+            "I'll analyze the merge by examining the actual diffs for each auto-merged file."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [
+            "Now I have all the diffs. Let me write the JSON response file."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [
+            "JSON response written to `/home/plebioda/psmdb/.cache/mergai/response_20260611_111305_387882.json`. The response describes 52 merged upstream commits including SASL mechanism discovery changes, sbom_linter safety improvements (remove\u2192discard), WiredTiger encryption key provider enhancements, and Bazel build updates."
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/plebioda/psmdb/.cache/mergai/prompt_20260611_111305_386905.md and write your JSON response to @/home/plebioda/psmdb/.cache/mergai/response_20260611_111305_387882.json"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.168 (Claude Code)"
+    }
+  }
+}
