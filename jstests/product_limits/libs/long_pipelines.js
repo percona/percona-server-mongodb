@@ -42,6 +42,9 @@ export class WorkloadManyCollectionsInLookupBushy extends LongPipelineWorkload {
         // Too many $lookups result in "errmsg" : "BSONObj size: 53097740 (0x32A350C) is invalid.
         // Size must be between 0 and 16793600(16MB) First element: slots: \"$$RESULT=s7202 env: {
         // }\"",
+        //
+        // TODO: revert the value back to 500 after the stack overflow has been
+        // fixed. For more details, please see the commit message.
         return Math.min(250, super.scale());
     }
 
