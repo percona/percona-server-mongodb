@@ -1,0 +1,34 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "7860b323fc04f2c482b7879cfa06a894bebfc5ff",
+    "merge_commit": "364d4bc98687596adea5b9ec902cef53f6b83790"
+  },
+  "mergai_version": "0.1.dev1+g6453cbf89",
+  "solutions": [
+    {
+      "type": "ci_fix",
+      "request": {
+        "workflow": "format",
+        "run_id": "27347663717",
+        "pr_number": 260,
+        "attempt_number": 1,
+        "context_summary": "format failed: 1 file need changes",
+        "timestamp": "2026-06-11T13:23:01.655450+00:00"
+      },
+      "author": {
+        "name": "format auto-fix",
+        "type": "command"
+      },
+      "response": {
+        "summary": "format auto-fix: 1 file changed",
+        "resolved": {
+          "src/mongo/shell/servers.js": "changed by 'format' auto-fix"
+        },
+        "unresolved": {},
+        "modified": {},
+        "review_notes": ""
+      }
+    }
+  ]
+}
