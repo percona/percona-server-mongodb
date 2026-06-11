@@ -210,7 +210,7 @@ void FTSQueryImpl::_addTerms(FTSTokenizer* tokenizer, const std::string& sentenc
  *   if(not NGRAM), token will be added to term list
  */
 void FTSQueryImpl::_addTermsForNgram(FTSTokenizer* tokenizer,
-                                     const string& sentence,
+                                     const std::string& sentence,
                                      bool negated) {
     tokenizer->reset(sentence.c_str(), FTSTokenizer::kFilterStopWords);
     // First, get all the terms for indexing, ie, lower cased words
