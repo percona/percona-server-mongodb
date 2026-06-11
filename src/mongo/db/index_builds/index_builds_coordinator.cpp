@@ -130,6 +130,7 @@ MONGO_FAIL_POINT_DEFINE(failIndexBuildOnCommit);
 MONGO_FAIL_POINT_DEFINE(hangIndexBuildBeforeAbortCleanUp);
 MONGO_FAIL_POINT_DEFINE(hangIndexBuildOnStepUp);
 MONGO_FAIL_POINT_DEFINE(hangIndexBuildBeforeCommit);
+MONGO_FAIL_POINT_DEFINE(hangIndexBuildAfterPrimaryCheckBeforeCommit);
 MONGO_FAIL_POINT_DEFINE(hangIndexBuildBeforeTransitioningReplStateTokAwaitPrimaryAbort);
 MONGO_FAIL_POINT_DEFINE(hangBeforeBuildingIndex);
 MONGO_FAIL_POINT_DEFINE(hangBeforeBuildingIndexSecond);
@@ -1964,8 +1965,12 @@ void IndexBuildsCoordinator::_completeAbortForShutdown(
                 opCtx, collection, replState->buildUUID);
 
             replState->abortForShutdown(opCtx);
-            activeIndexBuilds.unregisterIndexBuild(
-                &_indexBuildsManager, replState, IndexBuildOutcome::kFailure);
+            activeIndexBuilds.unregisterIndexBuild(&_indexBuildsManager,
+                                                   replState,
+                                                   replState->protocol ==
+                                                           IndexBuildProtocol::kPrimaryDriven
+                                                       ? IndexBuildOutcome::kToBeResumed
+                                                       : IndexBuildOutcome::kFailure);
             return;
         } catch (const ExceptionFor<ErrorCodes::InterruptedAtShutdown>&) {
             ++retryAttempts;
@@ -3220,7 +3225,7 @@ void IndexBuildsCoordinator::_cleanUpAfterFailure(OperationContext* opCtx,
               "collectionUUID"_attr = replState->collectionUUID,
               "error"_attr = status);
         activeIndexBuilds.unregisterIndexBuild(
-            &_indexBuildsManager, replState, IndexBuildOutcome::kFailure);
+            &_indexBuildsManager, replState, IndexBuildOutcome::kToBeResumed);
         return;
     }
 
@@ -3331,7 +3336,7 @@ void IndexBuildsCoordinator::_cleanUpTwoPhaseAfterNonShutdownFailure(
                                   "collectionUUID"_attr = replState->collectionUUID,
                                   "error"_attr = status);
                             activeIndexBuilds.unregisterIndexBuild(
-                                &_indexBuildsManager, replState, IndexBuildOutcome::kFailure);
+                                &_indexBuildsManager, replState, IndexBuildOutcome::kToBeResumed);
                             return;
                         }
 
@@ -3359,7 +3364,7 @@ void IndexBuildsCoordinator::_cleanUpTwoPhaseAfterNonShutdownFailure(
                               "collectionUUID"_attr = replState->collectionUUID,
                               "error"_attr = status);
                         activeIndexBuilds.unregisterIndexBuild(
-                            &_indexBuildsManager, replState, IndexBuildOutcome::kFailure);
+                            &_indexBuildsManager, replState, IndexBuildOutcome::kToBeResumed);
                     } else {
                         throw;
                     }
@@ -3981,6 +3986,12 @@ IndexBuildsCoordinator::CommitResult IndexBuildsCoordinator::_insertKeysFromSide
                                           fromMigrate,
                                           collection->isTimeseriesCollection());
             };
+
+        if (MONGO_unlikely(hangIndexBuildAfterPrimaryCheckBeforeCommit.shouldFail())) {
+            LOGV2(12774401,
+                  "Hanging after the primary check and before committing the index build");
+            hangIndexBuildAfterPrimaryCheckBeforeCommit.pauseWhileSet(opCtx);
+        }
 
         // Commit index build.
         TimestampBlock tsBlock(opCtx, commitIndexBuildTimestamp);

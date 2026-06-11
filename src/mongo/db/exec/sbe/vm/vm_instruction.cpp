@@ -97,7 +97,7 @@ int Instruction::stackOffset[Instruction::Tags::lastInstruction] = {
     1,   // pushOneArgLambda
     1,   // pushTwoArgLambda
     -1,  // pop
-    0,   // swap
+    0,   // swapAndPop does a variable number of pop operations
     0,   // makeOwn
 
     -1,  // add
@@ -138,7 +138,6 @@ int Instruction::stackOffset[Instruction::Tags::lastInstruction] = {
     0,   // traversePImm
     -2,  // traverseF
     0,   // traverseFImm
-    -2,  // setField
     0,   // getArraySize
 
     -1,  // aggSum
@@ -153,6 +152,7 @@ int Instruction::stackOffset[Instruction::Tags::lastInstruction] = {
 
     0,  // exists
     0,  // isNull
+    0,  // isNullish
     0,  // isObject
     0,  // isArray
     0,  // isInList
@@ -285,7 +285,7 @@ void ByteCode::runInternal(const CodeFragment* code, int64_t position) {
                                         &&do_pushOneArgLambda,
                                         &&do_pushTwoArgLambda,
                                         &&do_pop,
-                                        &&do_swap,
+                                        &&do_swapAndPop,
                                         &&do_makeOwn,
 
                                         &&do_add,
@@ -327,7 +327,6 @@ void ByteCode::runInternal(const CodeFragment* code, int64_t position) {
                                         &&do_traversePImm,
                                         &&do_traverseF,
                                         &&do_traverseFImm,
-                                        &&do_setField,
                                         &&do_getArraySize,
 
                                         &&do_aggSum,
@@ -342,6 +341,7 @@ void ByteCode::runInternal(const CodeFragment* code, int64_t position) {
 
                                         &&do_exists,
                                         &&do_isNull,
+                                        &&do_isNullish,
                                         &&do_isObject,
                                         &&do_isArray,
                                         &&do_isInList,
@@ -499,8 +499,14 @@ void ByteCode::runInternal(const CodeFragment* code, int64_t position) {
         popAndReleaseStack();
     }
     DISPATCH();
-    INSTRUCTION(swap) {
-        swapStack();
+    INSTRUCTION(swapAndPop) {
+        auto numPops = readFromMemory<unsigned char>(pcPointer);
+        pcPointer += sizeof(numPops);
+
+        for (unsigned char i = 0; i < numPops; i++) {
+            swapStack();
+            popAndReleaseStack();
+        }
     }
     DISPATCH();
     INSTRUCTION(makeOwn) {
@@ -1100,15 +1106,6 @@ void ByteCode::runInternal(const CodeFragment* code, int64_t position) {
                   k == Instruction::True ? true : false);
     }
     DISPATCH();
-    INSTRUCTION(setField) {
-        auto [owned, tag, val] = setField();
-        popAndReleaseStack();
-        popAndReleaseStack();
-        popAndReleaseStack();
-
-        pushStack(owned, tag, val);
-    }
-    DISPATCH();
     INSTRUCTION(aggSum) {
         auto [fieldOwned, fieldTag, fieldVal] = getFromStack(0);
         value::ValueGuard fieldGuard(fieldOwned, fieldTag, fieldVal);
@@ -1259,6 +1256,18 @@ void ByteCode::runInternal(const CodeFragment* code, int64_t position) {
     DISPATCH();
     INSTRUCTION(isNull) {
         runTagCheck(pcPointer, value::TypeTags::Null);
+    }
+    DISPATCH();
+    INSTRUCTION(isNullish) {
+        auto [popParam, moveFromParam, offsetParam] =
+            Instruction::Parameter::decodeParam(pcPointer);
+        auto [owned, tag, val] = getFromStack(offsetParam, popParam);
+
+        pushStack(false, value::TypeTags::Boolean, value::bitcastFrom<bool>(value::isNullish(tag)));
+
+        if (owned && popParam) {
+            value::releaseValue(tag, val);
+        }
     }
     DISPATCH();
     INSTRUCTION(isObject) {
@@ -1576,8 +1585,8 @@ const char* Instruction::toString() const {
             return "pushTwoArgLambda";
         case pop:
             return "pop";
-        case swap:
-            return "swap";
+        case swapAndPop:
+            return "swapAndPop";
         case makeOwn:
             return "makeOwn";
         case add:
@@ -1648,8 +1657,6 @@ const char* Instruction::toString() const {
             return "traverseF";
         case traverseFImm:
             return "traverseFImm";
-        case setField:
-            return "setField";
         case getArraySize:
             return "getArraySize";
         case aggSum:
@@ -1672,6 +1679,8 @@ const char* Instruction::toString() const {
             return "exists";
         case isNull:
             return "isNull";
+        case isNullish:
+            return "isNullish";
         case isObject:
             return "isObject";
         case isArray:

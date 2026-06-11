@@ -30,10 +30,17 @@
 #include "mongo/db/pipeline/document_source_internal_document_results_and_metadata.h"
 
 #include "mongo/base/error_codes.h"
+#include "mongo/bson/bsonmisc.h"
 #include "mongo/db/exec/agg/document_source_to_stage_registry.h"
 #include "mongo/db/exec/document_value/document.h"
+#include "mongo/db/pipeline/document_source_exchange.h"
 #include "mongo/db/pipeline/document_source_internal_document_results_and_metadata_gen.h"
+#include "mongo/db/pipeline/document_source_replace_root.h"
+#include "mongo/db/pipeline/document_source_set_variable_from_subpipeline.h"
+#include "mongo/db/pipeline/expression.h"
+#include "mongo/db/pipeline/expression_context_builder.h"
 #include "mongo/db/pipeline/search/search_helper.h"
+#include "mongo/db/pipeline/stage_params_to_document_source_registry.h"
 #include "mongo/logv2/log.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/str.h"
@@ -47,18 +54,91 @@ namespace mongo {
 using boost::intrusive_ptr;
 
 namespace {
-exec::agg::StagePtr documentSourceInternalDocumentResultsAndMetadataToStageFn(
-    const boost::intrusive_ptr<DocumentSource>& ds) {
-    // TODO: SERVER-126343
-    uasserted(ErrorCodes::NotImplemented,
-              str::stream() << DocumentSourceInternalDocumentResultsAndMetadata::kStageName
-                            << " execution is not yet implemented.");
+
+constexpr int kMetaResultStreamType = 1;
+
+ExchangeSpec buildStreamRoutingSpec(bool hasMetadata) {
+    std::vector<BSONObj> boundaries{BSON("" << MINKEY)};
+    std::vector<int> consumerIds{0};
+    if (hasMetadata) {
+        boundaries.push_back(BSON("" << kMetaResultStreamType));
+        consumerIds.push_back(1);
+    }
+    boundaries.push_back(BSON("" << MAXKEY));
+
+    ExchangeSpec spec;
+    spec.setPolicy(ExchangePolicyEnum::kKeyRange);
+    spec.setKey(BSON("_streamType" << 1));
+    spec.setConsumers(static_cast<int>(consumerIds.size()));
+    spec.setBoundaries(std::move(boundaries));
+    spec.setConsumerIds(std::move(consumerIds));
+    return spec;
 }
+
+exec::agg::StageExpansion documentSourceInternalDocumentResultsAndMetadataToStagesFn(
+    const boost::intrusive_ptr<DocumentSource>& ds) {
+    auto& docResultsAndMeta = checked_cast<DocumentSourceInternalDocumentResultsAndMetadata&>(*ds);
+    auto expCtx = docResultsAndMeta.getExpCtx();
+    const bool hasMeta = docResultsAndMeta.getMetadata().has_value();
+
+    // Following the pattern from createExchangePipelinesIfNeeded: each consumer gets a fresh
+    // ExpressionContext. Create the copy before Exchange construction, Exchange ctor calls
+    // detachFromOperationContext() on its inner pipelines, which nulls expCtx->_operationContext,
+    // and Pipeline::create for the meta pipeline needs a live opCtx.
+    const auto metaExpCtx = hasMeta
+        ? makeCopyFromExpressionContext(expCtx, expCtx->getNamespaceString(), expCtx->getUUID())
+        : boost::intrusive_ptr<ExpressionContext>{};
+
+    // Exchange ctor detaches expCtx->opCtx (nulls it) as part of detaching its inner pipeline.
+    // Restore it on scope exit so the outer consumer stages sharing this expCtx have a live opCtx.
+    auto* const opCtx = expCtx->getOperationContext();
+    ON_BLOCK_EXIT([&] { expCtx->setOperationContext(opCtx); });
+    auto exchange = make_intrusive<exec::agg::Exchange>(
+        opCtx,
+        buildStreamRoutingSpec(hasMeta),
+        Pipeline::create({docResultsAndMeta.getSourceStage()}, expCtx));
+
+    auto makeReplaceRootDs = [](const boost::intrusive_ptr<ExpressionContext>& ctx)
+        -> boost::intrusive_ptr<DocumentSource> {
+        return DocumentSourceReplaceRoot::create(
+            ctx,
+            ExpressionFieldPath::parse(ctx.get(), "$payload", ctx->variablesParseState),
+            "'payload' expression",
+            SbeCompatibility::notCompatible);
+    };
+
+    exec::agg::StageExpansion stages;
+    stages.push_back(exec::agg::buildStage(
+        make_intrusive<DocumentSourceExchange>(expCtx, exchange, 0, nullptr)));
+    stages.push_back(exec::agg::buildStage(makeReplaceRootDs(expCtx)));
+
+    if (!hasMeta)
+        return stages;
+
+    auto metaConsumer = make_intrusive<DocumentSourceExchange>(metaExpCtx, exchange, 1, nullptr);
+    auto metaPipeline = Pipeline::create({metaConsumer, makeReplaceRootDs(metaExpCtx)}, metaExpCtx);
+    metaPipeline->pipelineType = CursorTypeEnum::SearchMetaResult;
+
+    // Sharded path: stash the meta pipeline on the DS so run_aggregate.cpp can retrieve it and
+    // register it as a secondary cursor (the router uses pipelineType to identify it). We stash
+    // rather than split early (like createExchangePipelinesIfNeeded) to keep all Exchange setup
+    // in this translation function.
+    // Standalone path: consume metadata in-process by binding it to $$SEARCH_META.
+    if (docResultsAndMeta.getReturnCursor()) {
+        docResultsAndMeta.stashAdditionalCursorPipeline(std::move(metaPipeline));
+    } else {
+        stages.push_back(exec::agg::buildStage(DocumentSourceSetVariableFromSubPipeline::create(
+            expCtx, std::move(metaPipeline), Variables::kSearchMetaId)));
+    }
+
+    return stages;
+}
+
 }  // namespace
 
-REGISTER_AGG_STAGE_MAPPING(_internalDocumentResultsAndMetadata,
-                           DocumentSourceInternalDocumentResultsAndMetadata::id,
-                           documentSourceInternalDocumentResultsAndMetadataToStageFn);
+REGISTER_AGG_STAGES_MAPPING(_internalDocumentResultsAndMetadata,
+                            DocumentSourceInternalDocumentResultsAndMetadata::id,
+                            documentSourceInternalDocumentResultsAndMetadataToStagesFn);
 
 REGISTER_LITE_PARSED_DOCUMENT_SOURCE(_internalDocumentResultsAndMetadata,
                                      InternalDocumentResultsAndMetadataLiteParsed::parse,
@@ -108,11 +188,14 @@ DocumentSourceInternalDocumentResultsAndMetadata::create(
 DocumentSourceContainer DocumentSourceInternalDocumentResultsAndMetadata::createFromStageParams(
     const InternalDocumentResultsAndMetadataStageParams& params,
     const intrusive_ptr<ExpressionContext>& expCtx) {
-    const auto& spec = params.getSpec();
-
-    auto sourceList = DocumentSource::parse(expCtx, spec.getSource());
+    // Build the inner source DocumentSource from its lite-parsed representation.
+    const auto& innerStages = params.getSourcePipeline()->getStages();
     tassert(12615003,
-            str::stream() << kStageName << " 'source' must parse to exactly one stage",
+            str::stream() << kStageName << " 'source' must lite-parse to exactly one stage",
+            innerStages.size() == 1);
+    auto sourceList = buildDocumentSource(*innerStages.front(), expCtx);
+    tassert(12615010,
+            str::stream() << kStageName << " 'source' must build exactly one DocumentSource",
             sourceList.size() == 1);
     auto sourceStage = std::move(sourceList.front());
     auto sourceConstraints = sourceStage->constraints();
@@ -125,17 +208,16 @@ DocumentSourceContainer DocumentSourceInternalDocumentResultsAndMetadata::create
                 !sourceConstraints.requiresInputDocSource);
 
     boost::optional<MetadataBindSpec> metadata;
-    if (auto metaSpec = spec.getMetadata()) {
+    if (const auto& metaSpec = params.getMetadata()) {
         tassert(12615005,
-                str::stream() << kStageName << " 'metadata.as' must be '"
-                              << Variables::kSearchMetaName << "', got '" << metaSpec->getAs()
-                              << "'",
+                str::stream() << kStageName << " 'metadata.as' must be '$$SEARCH_META', got '"
+                              << metaSpec->getAs() << "'",
                 metaSpec->getAs() == Variables::kSearchMetaName);
-        metadata = std::move(metaSpec);
+        metadata = metaSpec;
     }
 
     return {make_intrusive<DocumentSourceInternalDocumentResultsAndMetadata>(
-        expCtx, std::move(sourceStage), std::move(metadata), spec.getReturnCursor())};
+        expCtx, std::move(sourceStage), std::move(metadata), params.getReturnCursor())};
 }
 
 StageConstraints DocumentSourceInternalDocumentResultsAndMetadata::constraints(

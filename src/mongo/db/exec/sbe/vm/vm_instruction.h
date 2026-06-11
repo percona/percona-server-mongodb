@@ -61,7 +61,7 @@ struct Instruction {
         pushOneArgLambda,
         pushTwoArgLambda,
         pop,
-        swap,
+        swapAndPop,
         makeOwn,
         // If the only argument is a stack-owned value, it is propagated unchanged;
         // if it is not owned by the stack, it returns a copy of it.
@@ -107,7 +107,6 @@ struct Instruction {
         traversePImm,
         traverseF,  // traverse filter paths
         traverseFImm,
-        setField,      // add or overwrite a field in a document
         getArraySize,  // number of elements
 
         aggSum,
@@ -122,6 +121,7 @@ struct Instruction {
 
         exists,
         isNull,
+        isNullish,
         isObject,
         isArray,
         isInList,

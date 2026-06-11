@@ -223,13 +223,10 @@ describe("Test blockReplicaSetWrites command on replica set level", function () 
 
         // Disable write block and and re-enable with allowDeletions: true to check that user deletes are allowed.
         disableReplicaSetWriteBlock(this.replicaSetPrimaryAdminDB, "InsufficientDiskSpace" /* reason */);
-        assert.commandWorked(
-            this.replicaSetPrimaryAdminDB.runCommand({
-                blockReplicaSetWrites: 1,
-                enabled: true,
-                allowDeletions: true,
-                reason: "InsufficientDiskSpace",
-            }),
+        enableReplicaSetWriteBlock(
+            this.replicaSetPrimaryAdminDB,
+            true /* allowDeletions */,
+            "InsufficientDiskSpace" /* reason */,
         );
         assert.commandWorked(testColl.remove({_id: 1}));
         assert.eq(1, testColl.count(), "Document should have been deleted when allowDeletions is true");
@@ -530,13 +527,7 @@ describe("Test blockReplicaSetWrites command on replica set level", function () 
         assert.commandFailedWithCode(testDB.createCollection("testColl1"), ErrorCodes.UserWritesBlocked);
 
         // Disable replica set write block. Global block remains, so CUD and DDL stay blocked.
-        assert.commandWorked(
-            this.replicaSetPrimaryAdminDB.runCommand({
-                blockReplicaSetWrites: 1,
-                enabled: false,
-                reason: "InsufficientDiskSpace",
-            }),
-        );
+        disableReplicaSetWriteBlock(this.replicaSetPrimaryAdminDB, "InsufficientDiskSpace" /* reason */);
         assert.commandFailedWithCode(testColl0.insert({_id: 2}), ErrorCodes.UserWritesBlocked);
         assert.commandFailedWithCode(testDB.createCollection("testColl1"), ErrorCodes.UserWritesBlocked);
 
@@ -560,15 +551,7 @@ describe("Test blockReplicaSetWrites command on replica set level", function () 
         const nonEmptyColl = testDB.getCollection("nonEmptyColl");
         assert.commandWorked(nonEmptyColl.insert({_id: 1, a: 1}));
 
-        // Enable the replica set write block.
-        assert.commandWorked(
-            this.replicaSetPrimaryAdminDB.runCommand({
-                blockReplicaSetWrites: 1,
-                enabled: true,
-                allowDeletions: false,
-                reason: "InsufficientDiskSpace",
-            }),
-        );
+        enableReplicaSetWriteBlock(this.replicaSetPrimaryAdminDB, false, "InsufficientDiskSpace");
 
         // Index build on an empty collection should bypass the write block.
         assert.commandWorked(emptyColl.createIndex({a: 1}));
@@ -587,15 +570,7 @@ describe("Test blockReplicaSetWrites command on replica set level", function () 
         const testColl = testDB.getCollection("testColl");
         assert.commandWorked(testColl.insert({_id: 1, a: 1}));
 
-        // Enable the replica set write block.
-        assert.commandWorked(
-            this.replicaSetPrimaryAdminDB.runCommand({
-                blockReplicaSetWrites: 1,
-                enabled: true,
-                allowDeletions: false,
-                reason: "InsufficientDiskSpace",
-            }),
-        );
+        enableReplicaSetWriteBlock(this.replicaSetPrimaryAdminDB, false, "InsufficientDiskSpace");
 
         // A new index build on a non-empty user collection should be rejected with ReplicaSetWritesBlocked.
         assert.commandFailedWithCode(testColl.createIndex({a: 1}), ErrorCodes.ReplicaSetWritesBlocked);
@@ -606,7 +581,7 @@ describe("Test blockReplicaSetWrites command on replica set level", function () 
         );
 
         // After disabling the write block, new index builds should succeed again.
-        disableReplicaSetWriteBlock(this.replicaSetPrimaryAdminDB);
+        disableReplicaSetWriteBlock(this.replicaSetPrimaryAdminDB, "InsufficientDiskSpace");
         assert.commandWorked(testColl.createIndex({a: 1}));
         assert.neq(
             null,

@@ -73,14 +73,15 @@ namespace {
 template <typename AccumulatorState>
 Value evaluateAccumulatorN(const ExpressionFromAccumulatorN<AccumulatorState>& expr,
                            const Document& root,
-                           Variables* variables) {
+                           Variables* variables,
+                           const EvaluationContext& ctx) {
     AccumulatorState accum(expr.getExpressionContext());
 
     // Evaluate and initialize 'n'.
-    accum.startNewGroup(expr.getN()->evaluate(root, variables));
+    accum.startNewGroup(expr.getN()->evaluate(root, variables, ctx));
 
     // Verify that '_output' produces an array and pass each element to 'process'.
-    auto output = expr.getOutput()->evaluate(root, variables);
+    auto output = expr.getOutput()->evaluate(root, variables, ctx);
     uassert(5788200, "Input must be an array", output.isArray());
     for (const auto& item : output.getArray()) {
         accum.process(item, false);
@@ -92,26 +93,30 @@ Value evaluateAccumulatorN(const ExpressionFromAccumulatorN<AccumulatorState>& e
 
 template <>
 Value ExpressionFromAccumulatorN<AccumulatorMinN>::evaluate(const Document& root,
-                                                            Variables* variables) const {
-    return evaluateAccumulatorN(*this, root, variables);
+                                                            Variables* variables,
+                                                            const EvaluationContext& ctx) const {
+    return evaluateAccumulatorN(*this, root, variables, ctx);
 }
 
 template <>
 Value ExpressionFromAccumulatorN<AccumulatorMaxN>::evaluate(const Document& root,
-                                                            Variables* variables) const {
-    return evaluateAccumulatorN(*this, root, variables);
+                                                            Variables* variables,
+                                                            const EvaluationContext& ctx) const {
+    return evaluateAccumulatorN(*this, root, variables, ctx);
 }
 
 template <>
 Value ExpressionFromAccumulatorN<AccumulatorFirstN>::evaluate(const Document& root,
-                                                              Variables* variables) const {
-    return evaluateAccumulatorN(*this, root, variables);
+                                                              Variables* variables,
+                                                              const EvaluationContext& ctx) const {
+    return evaluateAccumulatorN(*this, root, variables, ctx);
 }
 
 template <>
 Value ExpressionFromAccumulatorN<AccumulatorLastN>::evaluate(const Document& root,
-                                                             Variables* variables) const {
-    return evaluateAccumulatorN(*this, root, variables);
+                                                             Variables* variables,
+                                                             const EvaluationContext& ctx) const {
+    return evaluateAccumulatorN(*this, root, variables, ctx);
 }
 
 AccumulatorN::AccumulatorN(ExpressionContext* const expCtx)
@@ -402,7 +407,7 @@ template <bool single>
 std::tuple<boost::intrusive_ptr<Expression>, BSONElement, boost::optional<BSONObj>>
 accumulatorNParseArgs(ExpressionContext* expCtx,
                       const BSONElement& elem,
-                      const char* name,
+                      StringData name,
                       bool needSortBy,
                       const VariablesParseState& vps) {
     uassert(5788001,
@@ -578,8 +583,7 @@ template <TopBottomSense sense, bool single>
 AccumulationExpression AccumulatorTopBottomN<sense, single>::parseTopBottomN(
     ExpressionContext* const expCtx, BSONElement elem, VariablesParseState vps) {
     auto name = AccumulatorTopBottomN<sense, single>::getName();
-    const auto [n, output, sortBy] =
-        accumulatorNParseArgs<single>(expCtx, elem, name.data(), true, vps);
+    const auto [n, output, sortBy] = accumulatorNParseArgs<single>(expCtx, elem, name, true, vps);
     auto [sortPattern, sortFieldsExp, hasMeta] =
         parseAccumulatorTopBottomNSortBy<sense>(expCtx, *sortBy);
 

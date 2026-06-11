@@ -544,7 +544,6 @@ private:
     bool runLambdaPredicate(const CodeFragment* code, int64_t position);
     void valueBlockApplyLambda(const CodeFragment* code);
 
-    FastTuple<bool, value::TypeTags, value::Value> setField();
 
     int32_t convertNumericToInt32(value::TagValueView v);
 
@@ -1029,6 +1028,7 @@ private:
     // Block builtins
 
     value::TagValueOwned builtinValueBlockExists(ArityType arity);
+    value::TagValueOwned builtinValueBlockIsNullish(ArityType arity);
     value::TagValueOwned builtinValueBlockTypeMatch(ArityType arity);
     value::TagValueOwned builtinValueBlockIsTimezone(ArityType arity);
     value::TagValueMaybeOwned builtinValueBlockFillEmpty(ArityType arity);

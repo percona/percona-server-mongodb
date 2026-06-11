@@ -30,6 +30,7 @@
 
 #include "mongo/transport/session_workflow.h"
 
+#include "mongo/base/data_view.h"
 #include "mongo/base/error_codes.h"
 #include "mongo/base/status.h"
 #include "mongo/base/string_data.h"
@@ -73,6 +74,7 @@
 #include "mongo/transport/session.h"
 #include "mongo/transport/session_establishment_rate_limiter.h"
 #include "mongo/transport/session_manager.h"
+#include "mongo/transport/session_workflow_p.h"
 #include "mongo/transport/transport_layer_manager.h"
 #include "mongo/transport/transport_options_gen.h"
 #include "mongo/util/assert_util.h"
@@ -359,39 +361,6 @@ boost::optional<Message> makeExhaustMessage(Message requestMsg, DbResponse& resp
     return exhaustMessage;
 }
 
-/**
- * If `in` encodes a "getMore" command, make a best-effort attempt to kill its
- * cursor. Returns true if such an attempt was successful. If the killCursors request
- * fails here for any reasons, it will still be cleaned up once the cursor times
- * out.
- */
-bool killExhaust(const Message& in, ServiceEntryPoint* sep, Client* client) {
-    try {
-        auto inRequest = OpMsgRequest::parse(in, client);
-        const BSONObj& body = inRequest.body;
-        const auto& [cmd, firstElement] = body.firstElement();
-        if (cmd != "getMore"_sd)
-            return false;
-        auto opCtx = client->makeOperationContext();
-        auto dbName = inRequest.parseDbName();
-        sep->handleRequest(opCtx.get(),
-                           OpMsgRequestBuilder::create(
-                               auth::ValidatedTenancyScope::get(opCtx.get()),
-                               dbName,
-                               KillCursorsCommandRequest(NamespaceStringUtil::deserialize(
-                                                             dbName, body["collection"].String()),
-                                                         {CursorId{firstElement.Long()}})
-                                   .toBSON())
-                               .serialize(),
-                           client->getServiceContext()->getFastClockSource()->now())
-            .get();
-        return true;
-    } catch (const DBException& e) {
-        LOGV2(22992, "Error cleaning up resources for exhaust request", "error"_attr = e);
-    }
-    return false;
-}
-
 bool isPreAuth(Client* client) {
     if (MONGO_unlikely(serverGlobalParams.isMongoBridge)) {
         // Do not perform pre-auth check for mongo bridge connections.
@@ -617,6 +586,10 @@ public:
         _opCtx = std::move(newOpCtx);
     }
 
+    void clearOperation() {
+        _opCtx.reset();
+    }
+
     OperationContext* opCtx() const {
         return _opCtx.get();
     }
@@ -679,6 +652,28 @@ public:
         synth->_isExhaust = true;
         synth->_compressorId = _compressorId;
         return synth;
+    }
+
+    /**
+     * If this work item is a "getMore" command on an exhaust cursor, return the parsed request.
+     */
+    boost::optional<OpMsgRequest> getRequestIfGetMoreOnExhaustCursor(Client* client) {
+        if (!_isExhaust) {
+            return boost::none;
+        }
+        try {
+            auto inRequest = OpMsgRequest::parse(in(), client);
+            const BSONObj& body = inRequest.body;
+            const auto& [cmd, firstElement] = body.firstElement();
+            if (cmd != "getMore"_sd)
+                return boost::none;
+            return inRequest;
+        } catch (const DBException& e) {
+            LOGV2(12615100,
+                  "Failed to parse request for cleanup of exhaust cursor",
+                  "error"_attr = e);
+        }
+        return boost::none;
     }
 
 private:
@@ -771,20 +766,14 @@ Status SessionWorkflow::Impl::_rateLimit() const {
     return admissionRateLimiter.admitRequest(client());
 }
 
-DbResponse makeDbResponseErrorForRateLimiting(const Message& message, const Status& status) {
-    invariant(!status.isOK());
-
-    // When the MoreToCome flag is set, return an empty response as this is a fire and forget
-    // request.
-    if (OpMsg::isFlagSet(message, OpMsg::kMoreToCome)) {
-        return DbResponse{};
-    }
-
-    const auto replyBuilder = rpc::makeReplyBuilder(rpc::protocolForMessage(message));
+Message makeRateLimitErrorMessage(rpc::Protocol protocol,
+                                  const Status& status,
+                                  long long retryAfterMs) {
+    const auto replyBuilder = rpc::makeReplyBuilder(protocol);
     replyBuilder->setCommandReply(status, {});
 
-    // We need to add error labels manually as ErrorLabelBuilder requires an operation context and
-    // we are still before the creation of the operation context at this point.
+    // We need to mirror the getErrorLabels logic because we lack an operation context at this
+    // point. See error_labels.cpp for more details.
     if (MONGO_likely(status == ErrorCodes::IngressRequestRateLimitExceeded)) {
         auto commandBodyBob = replyBuilder->getBodyBuilder();
         {
@@ -795,9 +784,105 @@ DbResponse makeDbResponseErrorForRateLimiting(const Message& message, const Stat
             // deserializing it, so we just always append the NoWritesPerformed label.
             arrayBuilder.append(ErrorLabel::kNoWritesPerformed);
         }
+
+        if (retryAfterMs > 0) {
+            commandBodyBob.append(kRetryAfterMSFieldName, retryAfterMs);
+        }
     }
 
-    return DbResponse{.response = replyBuilder->done()};
+    return replyBuilder->done();
+}
+
+namespace {
+
+// A process-wide, immutable, pre-built OP_MSG rejection response for
+// IngressRequestRateLimitExceeded errors. The body is identical across all such rejections except
+// for two per-rejection fields: the wire-header responseTo, and (when present) the retryAfterMS
+// value. Callers obtain an owned copy via the static makeResponse() entry point, which
+// selects the appropriate cached variant and stamps the per-rejection fields.
+class RejectionResponseTemplate {
+public:
+    static Message makeResponse(int32_t requestId, long long retryAfterMs) {
+        return templateFor(retryAfterMs > 0).stamp(requestId, retryAfterMs);
+    }
+
+private:
+    explicit RejectionResponseTemplate(bool withRetryAfter) {
+        // The rejection fast path only ever serves OP_MSG requests, so assume kOpMsg.
+        Message responseMsg =
+            makeRateLimitErrorMessage(rpc::Protocol::kOpMsg,
+                                      admission::IngressRequestRateLimiter::rejectionStatus(),
+                                      withRetryAfter ? 1 : 0);
+
+        // Zero out responseTo; it is stamped per-rejection at send time.
+        responseMsg.header().setResponseToMsgId(0);
+
+        if (withRetryAfter) {
+            // retryAfterMS is the last field appended to the body (see makeRateLimitErrorMessage)
+            // and the template has no trailing bytes after the BSON document, so its 8-byte value
+            // occupies the bytes immediately before the document terminator.
+            _retryAfterValueOffset = static_cast<int>(responseMsg.size() - sizeof(long long) - 1);
+        }
+
+        _template = std::move(responseMsg);
+    }
+
+    // Returns the cached variant, built once on first use.
+    static const RejectionResponseTemplate& templateFor(bool withRetryAfter) {
+        static const RejectionResponseTemplate kNoRetry{/*withRetryAfter*/ false};
+        static const RejectionResponseTemplate kWithRetry{/*withRetryAfter*/ true};
+        return withRetryAfter ? kWithRetry : kNoRetry;
+    }
+
+    // Copies the template into a fresh owned buffer and stamps the per-rejection fields.
+    Message stamp(int32_t requestId, long long retryAfterMs) const {
+        // Pre-reserve the checksum's worth of slack so appendChecksum's realloc check finds enough
+        // room downstream and doesn't have to grow the buffer at all.
+        const size_t templateSize = _template.size();
+        auto buf = SharedBuffer::allocate(templateSize + OpMsg::kCrc32Size);
+        memcpy(buf.get(), _template.buf(), templateSize);
+
+        Message msg(std::move(buf));
+        msg.header().setResponseToMsgId(requestId);
+        if (_retryAfterValueOffset >= 0) {
+            DataView(msg.buf()).write<LittleEndian<long long>>(retryAfterMs,
+                                                               _retryAfterValueOffset);
+        }
+        return msg;
+    }
+
+    // The pre-built OP_MSG rejection response, used as an immutable template
+    Message _template;
+    // Byte offset within the template of the 8-byte little-endian retryAfterMS value, or -1 if this
+    // template has no retryAfterMS field.
+    int _retryAfterValueOffset = -1;
+};
+
+}  // namespace
+
+DbResponse makeDbResponseErrorForRateLimiting(const Message& message, const Status& status) {
+    invariant(!message.empty());
+    invariant(!status.isOK());
+
+    // When the MoreToCome flag is set, return an empty response as this is a fire and forget
+    // request.
+    if (OpMsg::isFlagSet(message, OpMsg::kMoreToCome)) {
+        return DbResponse{};
+    }
+
+    const long long retryAfterMs = getOverloadRetryAfterMS();
+
+    // Fast path for OP_MSG IngressRequestRateLimitExceeded rejections, which are the overwhelmingly
+    // common case when the ingress rate limiter is enabled.
+    if (MONGO_likely(status == ErrorCodes::IngressRequestRateLimitExceeded &&
+                     rpc::protocolForMessage(message) == rpc::Protocol::kOpMsg)) {
+        const int32_t requestId = MSGHEADER::ConstView(message.buf()).getRequestMsgId();
+        return DbResponse{.response =
+                              RejectionResponseTemplate::makeResponse(requestId, retryAfterMs)};
+    }
+
+    return DbResponse{.response = makeRateLimitErrorMessage(
+                          rpc::protocolForMessage(message), status, retryAfterMs)};
 }
 
 Future<DbResponse> SessionWorkflow::Impl::_dispatchWork() {
@@ -841,11 +926,12 @@ Future<DbResponse> SessionWorkflow::Impl::_dispatchWork() {
 
 void SessionWorkflow::Impl::_acceptResponse(DbResponse response) {
     auto&& work = *_work;
-    // opCtx must be delisted here so that the operation cannot show up in currentOp results after
-    // the response reaches the client. We are assuming that the operation has already been killed
-    // once we are accepting the response here, so delisting is sufficient. Destruction of the
-    // already killed opCtx is postponed for later (i.e., after completion of the future-chain) to
-    // mitigate its performance impact on the critical path of execution.
+    // The opCtx must be marked as pending destruction here so that the operation cannot show up in
+    // currentOp results after the response reaches the client. We are assuming that the operation
+    // has already been killed once we are accepting the response here, so marking it as pending
+    // destruction is sufficient. Actual destruction of the already killed opCtx is postponed for
+    // later (i.e., after completion of the future-chain) to mitigate its performance impact on the
+    // critical path of execution.
     // Note that destroying futures after execution, rather that postponing the destruction
     // until completion of the future-chain, would expose the cost of destroying opCtx to
     // the critical path and result in serious performance implications.
@@ -853,7 +939,7 @@ void SessionWorkflow::Impl::_acceptResponse(DbResponse response) {
     // starting the actual operation. Request rate limiting will do that in order to return a
     // passable error response without paying the cost of starting the operation.
     if (const auto opCtx = work.opCtx()) {
-        _serviceContext->delistOperation(opCtx);
+        _serviceContext->markOperationAsPendingDestruction(opCtx);
     }
     // Format our response, if we have one
     Message& toSink = response.response;
@@ -1011,20 +1097,55 @@ void SessionWorkflow::Impl::terminateIfTagsDontMatch(Client::TagMask tags) {
 }
 
 void SessionWorkflow::Impl::_cleanupExhaustResources() {
-    auto clean = [&](auto& w) {
-        return w && w->isExhaust() && killExhaust(w->in(), _sep, client());
-    };
-    clean(_nextWork) || clean(_work);
+    // Make a best-effort attempt to kill any exhaust cursors for this request. If the killCursors
+    // request fails here for any reason, it will still be cleaned up once the cursor times out.
+    // Check if we have an exhaust cursor to kill in either the current or next work items
+    boost::optional<OpMsgRequest> inRequest;
+    if (_nextWork)
+        inRequest = _nextWork->getRequestIfGetMoreOnExhaustCursor(client());
+    if (!inRequest && _work)
+        inRequest = _work->getRequestIfGetMoreOnExhaustCursor(client());
+    if (!inRequest)
+        return;
+
+    // Normally we want to defer destroying operation contexts until after we've sent the response
+    // to the user, but the work item's opctx has been killed and can't be used to kill the cursor.
+    // A client can only have one opctx at a time, so we need to destroy the existing one and make a
+    // new one.
+    if (_work)
+        _work->clearOperation();
+    if (_nextWork)
+        _nextWork->clearOperation();
+    auto opCtx = client()->makeOperationContext();
+
+    try {
+        const BSONObj& body = inRequest->body;
+        auto dbName = inRequest->parseDbName();
+        _sep->handleRequest(opCtx.get(),
+                            OpMsgRequestBuilder::create(
+                                auth::ValidatedTenancyScope::get(opCtx.get()),
+                                dbName,
+                                KillCursorsCommandRequest(NamespaceStringUtil::deserialize(
+                                                              dbName, body["collection"].String()),
+                                                          {CursorId{body.firstElement().Long()}})
+                                    .toBSON())
+                                .serialize(),
+                            client()->getServiceContext()->getFastClockSource()->now())
+            .get();
+    } catch (const DBException& e) {
+        LOGV2(22992, "Error cleaning up resources for exhaust request", "error"_attr = e);
+    }
 }
 
 void SessionWorkflow::Impl::_cleanupSession(const Status& status) {
     LOGV2_DEBUG(5127900, 2, "Ending session", "error"_attr = status);
     if (_work && _work->opCtx()) {
-        // Make sure we clean up and delist the operation in the case we error between creating
-        // the opCtx and getting a response back for the work item. This is required in the case
-        // that we need to create a new opCtx to kill existing exhaust resources.
-        _serviceContext->killAndDelistOperation(_work->opCtx(),
-                                                ErrorCodes::OperationIsKilledAndDelisted);
+        // Make sure we clean up and mark the operation as pending destruction in the case we error
+        // between creating the opCtx and getting a response back for the work item. This is
+        // required in the case that we need to create a new opCtx to kill existing exhaust
+        // resources.
+        _serviceContext->killAndMarkOperationAsPendingDestruction(
+            _work->opCtx(), ErrorCodes::OperationIsKilledAndDelisted);
     }
     _cleanupExhaustResources();
     _taskRunner = {};

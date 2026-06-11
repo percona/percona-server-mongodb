@@ -1,5 +1,5 @@
 /**
- *    Copyright (C) 2018-present MongoDB, Inc.
+ *    Copyright (C) 2026-present MongoDB, Inc.
  *
  *    This program is free software: you can redistribute it and/or modify
  *    it under the terms of the Server Side Public License, version 1,
@@ -29,21 +29,19 @@
 
 #pragma once
 
-#if defined(_WIN32)
+#include "mongo/base/status.h"
+#include "mongo/db/dbmessage.h"
+#include "mongo/rpc/message.h"
+#include "mongo/rpc/protocol.h"
 
-namespace mongo {
-namespace pal {
-const char* strcasestr(const char* haystack, const char* needle);
-}
-using mongo::pal::strcasestr;
-}  // namespace mongo
+namespace mongo::transport {
 
-#else
+/** Build a `DbResponse` carrying a rate-limit-rejection error for `message`. */
+DbResponse makeDbResponseErrorForRateLimiting(const Message& message, const Status& status);
 
-#include <cstring>
+/** Build a rate limiter error message we can use to build an error DbResponse or template. */
+Message makeRateLimitErrorMessage(rpc::Protocol protocol,
+                                  const Status& status,
+                                  long long retryAfterMs);
 
-namespace mongo {
-using ::strcasestr;
-}
-
-#endif
+}  // namespace mongo::transport
