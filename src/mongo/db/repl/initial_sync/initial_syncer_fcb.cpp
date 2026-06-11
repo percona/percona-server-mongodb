@@ -466,7 +466,8 @@ BSONObj InitialSyncerFCB::getInitialSyncProgress() const {
     // cleared because an initial sync attempt can fail even after initialSyncCompletes is
     // incremented, and we also check that initialSyncCompletes is positive because an initial sync
     // attempt can also fail before _initialSyncState is initialized.
-    if (!_initialSyncState && initial_sync_common_stats::initialSyncCompletes.get() > 0) {
+    if (!_initialSyncState &&
+        initial_sync_common_stats::initialSyncCompletes.valueForLegacyUse() > 0L) {
         return {};
     }
     return _getInitialSyncProgress(lk);
@@ -605,7 +606,7 @@ void InitialSyncerFCB::_tearDown(WithLock lk,
           "Initial sync done",
           "duration"_attr =
               duration_cast<Seconds>(_stats.initialSyncEnd - _stats.initialSyncStart));
-    initial_sync_common_stats::initialSyncCompletes.increment();
+    initial_sync_common_stats::initialSyncCompletes.add(1);
 }
 
 void InitialSyncerFCB::_startInitialSyncAttemptCallback(
@@ -951,7 +952,7 @@ void InitialSyncerFCB::_finishInitialSyncAttempt(const StatusWith<OpTimeAndWallT
         ++_stats.failedInitialSyncAttempts;
         // This increments the number of failed attempts across all initial sync attempts since
         // process startup.
-        initial_sync_common_stats::initialSyncFailedAttempts.increment();
+        initial_sync_common_stats::initialSyncFailedAttempts.add(1);
     }
 
     bool hasRetries = _stats.failedInitialSyncAttempts < _stats.maxFailedInitialSyncAttempts;
@@ -975,7 +976,7 @@ void InitialSyncerFCB::_finishInitialSyncAttempt(const StatusWith<OpTimeAndWallT
         LOGV2_FATAL_CONTINUE(128443,
                              "The maximum number of retries have been exhausted for initial sync");
 
-        initial_sync_common_stats::initialSyncFailures.increment();
+        initial_sync_common_stats::initialSyncFailures.add(1);
 
         // Scope guard will invoke _finishCallback().
         return;

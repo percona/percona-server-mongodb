@@ -46,27 +46,30 @@ using otel::metrics::MetricsService;
 using otel::metrics::MetricUnit;
 using otel::metrics::ServerStatusOptions;
 
-auto& initialSyncFailedAttempts = MetricsService::instance().createInt64Counter(
-    MetricNames::kInitialSyncFailedAttempts,
-    "Number of initial sync attempts that have failed sync server startup. An initial syncer "
-    "may run multiple attempts to fulfill one request.",
-    MetricUnit::kEvents,
-    {.serverStatusOptions =
-         ServerStatusOptions({.dottedPath = "repl.initialSync.failedAttempts"})});
+otel::metrics::Counter<int64_t>& initialSyncFailedAttempts =
+    MetricsService::instance().createInt64Counter(
+        MetricNames::kInitialSyncFailedAttempts,
+        "Number of initial sync attempts that have failed sync server startup. An initial syncer "
+        "may run multiple attempts to fulfill one request.",
+        MetricUnit::kEvents,
+        {.serverStatusOptions =
+             ServerStatusOptions({.dottedPath = "repl.initialSync.failedAttempts"})});
 
-auto& initialSyncFailures = MetricsService::instance().createInt64Counter(
-    MetricNames::kInitialSyncFailures,
-    "Number of initial sync requests that have been requested and failed. This does not "
-    "include "
-    "times where an initial syncer is created successfully but failed in startup.",
-    MetricUnit::kEvents,
-    {.serverStatusOptions = ServerStatusOptions({.dottedPath = "repl.initialSync.failures"})});
+otel::metrics::Counter<int64_t>& initialSyncFailures =
+    MetricsService::instance().createInt64Counter(
+        MetricNames::kInitialSyncFailures,
+        "Number of initial sync requests that have been requested and failed. This does not "
+        "include "
+        "times where an initial syncer is created successfully but failed in startup.",
+        MetricUnit::kEvents,
+        {.serverStatusOptions = ServerStatusOptions({.dottedPath = "repl.initialSync.failures"})});
 
-auto& initialSyncCompletes = MetricsService::instance().createInt64Counter(
-    MetricNames::kInitialSyncCompleted,
-    "Number of initial sync requests that have been completed successfully.",
-    MetricUnit::kEvents,
-    {.serverStatusOptions = ServerStatusOptions({.dottedPath = "repl.initialSync.completed"})});
+otel::metrics::Counter<int64_t>& initialSyncCompletes =
+    MetricsService::instance().createInt64Counter(
+        MetricNames::kInitialSyncCompleted,
+        "Number of initial sync requests that have been completed successfully.",
+        MetricUnit::kEvents,
+        {.serverStatusOptions = ServerStatusOptions({.dottedPath = "repl.initialSync.completed"})});
 
 void LogInitialSyncAttemptStats(const StatusWith<OpTimeAndWallTime>& attemptResult,
                                 bool hasRetries,
