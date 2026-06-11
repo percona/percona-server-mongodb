@@ -5,14 +5,14 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 291,
+    "commits_behind": 297,
     "days_behind": 7,
-    "files_affected": 1561,
-    "total_additions": 58229,
-    "total_deletions": 37350,
+    "files_affected": 1578,
+    "total_additions": 58814,
+    "total_deletions": 37462,
     "date_range": {
       "first": "2026-06-04T05:48:28+00:00",
-      "last": "2026-06-11T03:19:28+00:00"
+      "last": "2026-06-11T08:26:04+00:00"
     }
   },
   "last_merged_commit": {
@@ -36,6 +36,66 @@
     "summary": "SERVER-127765 Create a secondary index on the UUID field of config.shards to ensure uniqueness (#54900)"
   },
   "unmerged_commits": [
+    {
+      "sha": "c3c3cf3bdd5bdc3f511a703ea715c2aff3bc3be5",
+      "short_sha": "c3c3cf3bdd5",
+      "date": "2026-06-11T10:26:04+02:00",
+      "author": {
+        "name": "mongo-pr-bot[bot]",
+        "email": "230616009+mongo-pr-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "SERVER-110427 Update profiling data (#55690)"
+    },
+    {
+      "sha": "b030afa7923b0ca4eed87fcee438fa6cd49d55d9",
+      "short_sha": "b030afa7923",
+      "date": "2026-06-11T10:21:07+02:00",
+      "author": {
+        "name": "Aitor Esteve Alvarado",
+        "email": "aitor.esteve@mongodb.com"
+      },
+      "summary": "SERVER-128700 movePrimary: invalidate kUnowned entries on the CSR of the new primary (#55603)"
+    },
+    {
+      "sha": "f772ad644fd597874456aab6bf1ebd5b53f771b3",
+      "short_sha": "f772ad644fd",
+      "date": "2026-06-11T11:16:30+03:00",
+      "author": {
+        "name": "Timour Katchaounov",
+        "email": "34627040+timourk@users.noreply.github.com"
+      },
+      "summary": "SERVER-127822 Clear dependency graph when postTransform iterator is at container end (#55591)"
+    },
+    {
+      "sha": "807227f678b197bf3bcb0e3e733a07d846df71ff",
+      "short_sha": "807227f678b",
+      "date": "2026-06-11T03:11:56-05:00",
+      "author": {
+        "name": "Finley Lau",
+        "email": "finley.lau@mongodb.com"
+      },
+      "summary": "SERVER-122559 Translate hint properly for single-doc delete explain command on timeseries collections (#50419)"
+    },
+    {
+      "sha": "7bdb0410c211df681f462a89337d69f0455df47e",
+      "short_sha": "7bdb0410c21",
+      "date": "2026-06-11T10:04:25+02:00",
+      "author": {
+        "name": "Aitor Esteve Alvarado",
+        "email": "aitor.esteve@mongodb.com"
+      },
+      "summary": "SERVER-128344 Add _configSvrCommitMergeAllPrecomputedChunksOnShard (#55456)"
+    },
+    {
+      "sha": "b7e7f629d108ca2f39c3fb1ed1c7b8a8431468b0",
+      "short_sha": "b7e7f629d10",
+      "date": "2026-06-11T10:01:24+02:00",
+      "author": {
+        "name": "Anna Maria Nestorov",
+        "email": "annamaria.nestorov@gmail.com"
+      },
+      "summary": "SERVER-128181 Block new convertToCapped when replica set write block is enabled (#55429)"
+    },
     {
       "sha": "35a245712aed38b886a85e1850bf8a439e8b2141",
       "short_sha": "35a245712ae",
@@ -3633,7 +3693,7 @@
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-06-11 07:39:24",
+  "generated_at": "2026-06-11 09:24:40",
   "branch_name": "master",
   "display_name": "master"
 }
