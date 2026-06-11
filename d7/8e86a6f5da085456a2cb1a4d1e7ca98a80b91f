@@ -1,0 +1,341 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "00941ea93cfbd75b39f62bf7c674272f2089812b",
+    "merge_commit": "a1d84817936d03bcb5d37e5a13c31ba77299e87f"
+  },
+  "mergai_version": "0.1.dev1+g6264ec08d",
+  "conflict_context": {
+    "ours_commit": "00941ea93cfbd75b39f62bf7c674272f2089812b",
+    "theirs_commit": "a1d84817936d03bcb5d37e5a13c31ba77299e87f",
+    "base_commit": "364d4bc98687596adea5b9ec902cef53f6b83790",
+    "files": [
+      "src/mongo/db/repl/initial_sync/initial_syncer_common_stats.cpp"
+    ],
+    "conflict_types": {
+      "src/mongo/db/repl/initial_sync/initial_syncer_common_stats.cpp": "both modified"
+    },
+    "diffs": {
+      "src/mongo/db/repl/initial_sync/initial_syncer_common_stats.cpp": "diff --cc src/mongo/db/repl/initial_sync/initial_syncer_common_stats.cpp\nindex 3563c9fce03,640f1191a35..00000000000\n--- a/src/mongo/db/repl/initial_sync/initial_syncer_common_stats.cpp\n+++ b/src/mongo/db/repl/initial_sync/initial_syncer_common_stats.cpp\n@@@ -44,29 -42,3 +42,62 @@@ namespace initial_sync_common_stats \n++<<<<<<< HEAD\n +using otel::metrics::MetricNames;\n +using otel::metrics::MetricsService;\n +using otel::metrics::MetricUnit;\n +using otel::metrics::ServerStatusOptions;\n +\n +otel::metrics::Counter<int64_t>& initialSyncFailedAttempts =\n +    MetricsService::instance().createInt64Counter(\n +        MetricNames::kInitialSyncFailedAttempts,\n +        \"Number of initial sync attempts that have failed sync server startup. An initial syncer \"\n +        \"may run multiple attempts to fulfill one request.\",\n +        MetricUnit::kEvents,\n +        {.serverStatusOptions =\n +             ServerStatusOptions({.dottedPath = \"repl.initialSync.failedAttempts\"})});\n +\n +otel::metrics::Counter<int64_t>& initialSyncFailures =\n +    MetricsService::instance().createInt64Counter(\n +        MetricNames::kInitialSyncFailures,\n +        \"Number of initial sync requests that have been requested and failed. This does not \"\n +        \"include \"\n +        \"times where an initial syncer is created successfully but failed in startup.\",\n +        MetricUnit::kEvents,\n +        {.serverStatusOptions = ServerStatusOptions({.dottedPath = \"repl.initialSync.failures\"})});\n +\n +otel::metrics::Counter<int64_t>& initialSyncCompletes =\n +    MetricsService::instance().createInt64Counter(\n +        MetricNames::kInitialSyncCompleted,\n +        \"Number of initial sync requests that have been completed successfully.\",\n +        MetricUnit::kEvents,\n +        {.serverStatusOptions = ServerStatusOptions({.dottedPath = \"repl.initialSync.completed\"})});\n++||||||| 364d4bc9868\n++using otel::metrics::MetricNames;\n++using otel::metrics::MetricsService;\n++using otel::metrics::MetricUnit;\n++using otel::metrics::ServerStatusOptions;\n+ (... 22 more added lines...)\n++=======\n+ Counter64& initialSyncFailedAttempts = *MetricBuilder<Counter64>{\"repl.initialSync.failedAttempts\"};\n+ Counter64& initialSyncFailures = *MetricBuilder<Counter64>{\"repl.initialSync.failures\"};\n+ Counter64& initialSyncCompletes = *MetricBuilder<Counter64>{\"repl.initialSync.completed\"};\n++>>>>>>> a1d84817936d03bcb5d37e5a13c31ba77299e87f"
+    },
+    "their_commits": {
+      "src/mongo/db/repl/initial_sync/initial_syncer_common_stats.cpp": [
+        "a1d84817936d03bcb5d37e5a13c31ba77299e87f"
+      ]
+    }
+  },
+  "merge_context": {
+    "merge_commit": "a1d84817936d03bcb5d37e5a13c31ba77299e87f",
+    "merged_commits": [
+      "a1d84817936d03bcb5d37e5a13c31ba77299e87f",
+      "7fa2258f498bcdd5a02009d7c3c8364a182e348b",
+      "af367ce33c62093c70a004f37c2a961e391603c8",
+      "b005ef92a53caa230b03e1b5b27e091b517adbff",
+      "0c0ed439cf6a42589ff3ae9efda660c7d40a104c",
+      "6352a54374f35fd5915fabda8669d21c60aacdca",
+      "fee34e054f0cab90870452155fd40f862d089e82",
+      "ba0c8e20e8fc1de25374648075098d7882b89c5d",
+      "39b8e0d7aa527a33138addd9f2a24b06a3f21a54",
+      "bf28e0192c316133390f82abfdd9fffb8c5c6a8b",
+      "15988485c97dbbe3304b13252f6b5a3602fca37d",
+      "a4c25777e49e98a5dcaba74ef0a0ba0a96710f9f",
+      "d090b0b8bd5c05e05424348b36095642807ba6ae",
+      "3e057d6fa910ee28b2eda8d66a2b60520c8f7ffb",
+      "9f715e6b012b2543d9867ba7003c5d85256c4e6a",
+      "ba9c2d84719e92e6f174b0f209bd78026af5b4a8",
+      "026cfd4551566903151c504c7a1743bef24c47f4",
+      "1487715b4b19a1fb8a29f98b9b86fb3689d667fa",
+      "bcc637cac8ba03ef5fc8d333a45ea76013b6a6bb",
+      "b14a8835eaff32d73c46a6488ab7a4ecef4d6b45",
+      "10c1e3769d4a2745f246a46675cc9071d8ae30a3",
+      "9936f758ec56bc94dee4276dcd050f67b1c85ae2",
+      "34efefc95397f83151a618a2641859a2f25443be",
+      "14b5ca7bb7dd8068ac296a0aa5d414cb4d627df3",
+      "93162fc2d241d076fb30538c60fec8a14076cd02",
+      "586c9b86d022f90d4684e3f7532856cb0b9f7ad5",
+      "d3c509045eb83129e6fd8647d6a242388ee4f1fe",
+      "3072b3b78870b9e05fdce711b012cf3ba70d260d",
+      "285602762c80a092742d10834c1992f4f91b35bb",
+      "3669f36d0df9528e4fc5a96eaca698a718cba6d0",
+      "593a5a9bac1c64384b4fead31f3b05d595353845",
+      "d41cac3fa9a2e75917afc894ba327867148e35de",
+      "629f407b43236072bf32e5d205ec2f6e605c9dc6",
+      "6110bfbd6e4e87dadec077600243ec359e054387",
+      "b438e1547a31536ca955ac88a8b272e484867462",
+      "848d4c276aa2a19321ecf0c0691aacb8fa481948",
+      "3e7935fc2b7951792f80d8fc387b6c492ad8da3a",
+      "9ba88a809aa53651c2c885eaac4b983cd3a1b159",
+      "2b8766229afd02df7e8e7bb9899ba94fc74d26d9"
+    ],
+    "important_files_modified": [
+      "src/mongo/db/repl/initial_sync/initial_syncer.cpp"
+    ],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        "buildscripts/resmokelib/configure_resmoke.py",
+        "jstests/core/catalog/views/views_all_commands.js",
+        "jstests/libs/write_concern_all_commands.js",
+        "jstests/replsets/all_commands_downgrading_to_upgraded.js",
+        "jstests/replsets/db_reads_while_recovering_all_commands.js",
+        "jstests/sharding/all_commands_direct_shard_connection_auth.js",
+        "jstests/sharding/database_versioning_all_commands.js",
+        "jstests/sharding/read_write_concern_defaults_application.js",
+        "src/mongo/base/error_codes.yml",
+        "src/mongo/db/commands/BUILD.bazel",
+        "src/mongo/db/curop.cpp",
+        "src/mongo/db/pipeline/BUILD.bazel",
+        "src/mongo/db/pipeline/process_interface/common_mongod_process_interface.cpp",
+        "src/mongo/db/repl/initial_sync/BUILD.bazel",
+        "src/mongo/db/repl/initial_sync/initial_syncer_common_stats.cpp",
+        "src/mongo/shell/BUILD.bazel"
+      ]
+    }
+  },
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 65394,
+    "num_turns": 18,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.38382150000000004,
+    "modelUsage": {
+      "claude-haiku-4-5-20251001": {
+        "inputTokens": 523,
+        "outputTokens": 17,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0,
+        "webSearchRequests": 0,
+        "costUSD": 0.000608,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000
+      },
+      "claude-opus-4-5": {
+        "inputTokens": 14,
+        "outputTokens": 3961,
+        "cacheReadInputTokens": 143137,
+        "cacheCreationInputTokens": 34008,
+        "webSearchRequests": 0,
+        "costUSD": 0.3832135,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-haiku-4-5-20251001": {
+          "tokens": {
+            "input": 523,
+            "output": 17,
+            "cache_read": 0,
+            "cache_creation": 0
+          },
+          "cost_usd": 0.000608
+        },
+        "claude-opus-4-5": {
+          "tokens": {
+            "input": 14,
+            "output": 3961,
+            "cache_read": 143137,
+            "cache_creation": 34008
+          },
+          "cost_usd": 0.3832135
+        }
+      }
+    },
+    "text_result": "JSON response written to the specified file. The merge brings upstream MongoDB changes including a new internal sharding command `_shardsvrReshardingDonorGetCloneCount`, simplification of initial sync stats from OpenTelemetry to Counter64 metrics, removal of `operationContextIsPendingDestruction()` checks in CurOp, error code renaming, new aggregation stage for data assumptions, and improved mozjs-wasm test tagging.",
+    "response": {
+      "summary": "This merge brings upstream MongoDB changes including: (1) addition of a new internal sharding command `_shardsvrReshardingDonorGetCloneCount` registered in multiple test files, (2) simplification of initial sync stats from OpenTelemetry metrics back to basic Counter64 metrics, (3) removal of `operationContextIsPendingDestruction()` checks in CurOp client reporting, (4) renaming of error code 445 from `DatabaseMetadataRefreshCanceledDueToFCVTransition` to `MetadataRefreshCanceledDueToFCVTransition`, (5) addition of `$_internalAssertDataAssumptions` aggregation stage and graph validation rules, (6) improved mozjs-wasm test tagging with `requires_mozjs_wasm` exclusion and removal of `$where` from mozjs exclusion patterns (SERVER-116054 completed), (7) addition of query settings command tests, and (8) shell BUILD.bazel update to reference types.js from common scripting location.",
+      "auto_merged": {
+        "buildscripts/resmokelib/configure_resmoke.py": "Removes TODO comment for SERVER-116054 ($where support now complete). Adds exclusion tag `requires_mozjs_wasm` for non-wasm JS engine. Removes `\"$where\"` from the `_MOZJS_PATTERNS` tuple used to identify jstestfuzz files requiring mozjs.",
+        "jstests/core/catalog/views/views_all_commands.js": "Adds `_shardsvrReshardingDonorGetCloneCount` to the list of internal commands to skip.",
+        "jstests/libs/write_concern_all_commands.js": "Adds `_shardsvrReshardingDonorGetCloneCount` to the internal command skip list in both `wcCommandsTests` and `wcTimeseriesCommandsTests` objects.",
+        "jstests/replsets/all_commands_downgrading_to_upgraded.js": "Adds `_shardsvrReshardingDonorGetCloneCount` to the internal command skip list.",
+        "jstests/replsets/db_reads_while_recovering_all_commands.js": "Adds `_shardsvrReshardingDonorGetCloneCount` to the internal command skip list.",
+        "jstests/sharding/all_commands_direct_shard_connection_auth.js": "Adds `_shardsvrReshardingDonorGetCloneCount` to the internal command skip list.",
+        "jstests/sharding/database_versioning_all_commands.js": "Adds `_shardsvrReshardingDonorGetCloneCount` with skip TODO to the test cases.",
+        "jstests/sharding/read_write_concern_defaults_application.js": "Adds `_shardsvrReshardingDonorGetCloneCount` to the internal command skip list.",
+        "src/mongo/base/error_codes.yml": "Renames error code 445 from `DatabaseMetadataRefreshCanceledDueToFCVTransition` to `MetadataRefreshCanceledDueToFCVTransition`.",
+        "src/mongo/db/commands/BUILD.bazel": "Adds `query_settings_cmds_test.cpp` to test sources and adds `query_knob_test_knobs` dependency.",
+        "src/mongo/db/curop.cpp": "Simplifies `reportCurrentOpForClient` by removing the `operationContextIsPendingDestruction()` check and directly calling `client->getOperationContext()`. Simplifies `currentOpBelongsToTenant` similarly by removing the pending destruction check and consolidating the null/tenant check into a single condition.",
+        "src/mongo/db/pipeline/BUILD.bazel": "Adds `document_source_internal_assert_data_assumptions.cpp`, `internal_assert_data_assumptions_stage.cpp`, `graph_validation_rules.cpp`, and related test file to the build.",
+        "src/mongo/db/pipeline/process_interface/common_mongod_process_interface.cpp": "Removes the `operationContextIsPendingDestruction()` check from `_reportCurrentOpForClient`, simplifying the condition to just check if `clientOpCtx` is non-null.",
+        "src/mongo/db/repl/initial_sync/BUILD.bazel": "Removes `metrics_test_util` dependency from the unit test.",
+        "src/mongo/db/repl/initial_sync/initial_syncer_common_stats.cpp": "Replaces OpenTelemetry-based metrics (using MetricsService, MetricNames, MetricUnit, ServerStatusOptions) with simpler Counter64 metrics using MetricBuilder. The three counters (initialSyncFailedAttempts, initialSyncFailures, initialSyncCompletes) are now declared as simple Counter64 references.",
+        "src/mongo/shell/BUILD.bazel": "Changes `types.js` reference from local path to `//src/mongo/scripting/mozjs/common/jsfiles:types.js`."
+      },
+      "review_notes": "The conflict in `initial_syncer_common_stats.cpp` shows the fork (HEAD) using OpenTelemetry metrics while upstream reverted to the simpler Counter64/MetricBuilder approach. The incoming upstream change simplifies the metrics infrastructure. The fork's OTEL-based implementation should be preserved if Percona requires OpenTelemetry support for these metrics; otherwise accepting upstream's simpler Counter64 approach would align with upstream. Review the new `_shardsvrReshardingDonorGetCloneCount` internal command additions across test files for consistency with any Percona-specific sharding customizations."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [
+            "I'll analyze this merge by examining the diffs between the base commit and merge commit for the auto-merged files."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [
+            "Now I have all the information needed to write the response JSON."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [
+            "JSON response written to the specified file. The merge brings upstream MongoDB changes including a new internal sharding command `_shardsvrReshardingDonorGetCloneCount`, simplification of initial sync stats from OpenTelemetry to Counter64 metrics, removal of `operationContextIsPendingDestruction()` checks in CurOp, error code renaming, new aggregation stage for data assumptions, and improved mozjs-wasm test tagging."
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20260611_181307_695170.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.173 (Claude Code)"
+    }
+  }
+}
