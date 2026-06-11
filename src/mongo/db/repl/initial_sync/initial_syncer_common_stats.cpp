@@ -39,68 +39,9 @@ namespace mongo {
 namespace repl {
 namespace initial_sync_common_stats {
 
-<<<<<<< HEAD
-using otel::metrics::MetricNames;
-using otel::metrics::MetricsService;
-using otel::metrics::MetricUnit;
-using otel::metrics::ServerStatusOptions;
-
-otel::metrics::Counter<int64_t>& initialSyncFailedAttempts =
-    MetricsService::instance().createInt64Counter(
-        MetricNames::kInitialSyncFailedAttempts,
-        "Number of initial sync attempts that have failed sync server startup. An initial syncer "
-        "may run multiple attempts to fulfill one request.",
-        MetricUnit::kEvents,
-        {.serverStatusOptions =
-             ServerStatusOptions({.dottedPath = "repl.initialSync.failedAttempts"})});
-
-otel::metrics::Counter<int64_t>& initialSyncFailures =
-    MetricsService::instance().createInt64Counter(
-        MetricNames::kInitialSyncFailures,
-        "Number of initial sync requests that have been requested and failed. This does not "
-        "include "
-        "times where an initial syncer is created successfully but failed in startup.",
-        MetricUnit::kEvents,
-        {.serverStatusOptions = ServerStatusOptions({.dottedPath = "repl.initialSync.failures"})});
-
-otel::metrics::Counter<int64_t>& initialSyncCompletes =
-    MetricsService::instance().createInt64Counter(
-        MetricNames::kInitialSyncCompleted,
-        "Number of initial sync requests that have been completed successfully.",
-        MetricUnit::kEvents,
-        {.serverStatusOptions = ServerStatusOptions({.dottedPath = "repl.initialSync.completed"})});
-||||||| 364d4bc9868
-using otel::metrics::MetricNames;
-using otel::metrics::MetricsService;
-using otel::metrics::MetricUnit;
-using otel::metrics::ServerStatusOptions;
-
-auto& initialSyncFailedAttempts = MetricsService::instance().createInt64Counter(
-    MetricNames::kInitialSyncFailedAttempts,
-    "Number of initial sync attempts that have failed sync server startup. An initial syncer "
-    "may run multiple attempts to fulfill one request.",
-    MetricUnit::kEvents,
-    {.serverStatusOptions =
-         ServerStatusOptions({.dottedPath = "repl.initialSync.failedAttempts"})});
-
-auto& initialSyncFailures = MetricsService::instance().createInt64Counter(
-    MetricNames::kInitialSyncFailures,
-    "Number of initial sync requests that have been requested and failed. This does not "
-    "include "
-    "times where an initial syncer is created successfully but failed in startup.",
-    MetricUnit::kEvents,
-    {.serverStatusOptions = ServerStatusOptions({.dottedPath = "repl.initialSync.failures"})});
-
-auto& initialSyncCompletes = MetricsService::instance().createInt64Counter(
-    MetricNames::kInitialSyncCompleted,
-    "Number of initial sync requests that have been completed successfully.",
-    MetricUnit::kEvents,
-    {.serverStatusOptions = ServerStatusOptions({.dottedPath = "repl.initialSync.completed"})});
-=======
 Counter64& initialSyncFailedAttempts = *MetricBuilder<Counter64>{"repl.initialSync.failedAttempts"};
 Counter64& initialSyncFailures = *MetricBuilder<Counter64>{"repl.initialSync.failures"};
 Counter64& initialSyncCompletes = *MetricBuilder<Counter64>{"repl.initialSync.completed"};
->>>>>>> a1d84817936d03bcb5d37e5a13c31ba77299e87f
 
 void LogInitialSyncAttemptStats(const StatusWith<OpTimeAndWallTime>& attemptResult,
                                 bool hasRetries,
