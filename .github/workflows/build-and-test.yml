@@ -1,0 +1,310 @@
+name: build-and-test
+
+# pull_request_target runs the workflow file from the BASE branch (master) and
+# exposes secrets, while pull_request would withhold secrets for fork PRs and
+# break RBE. Because we still need to build the PR's source, the checkout step
+# below overrides the default base ref to the PR head SHA. That re-introduces
+# the "pwn-request" risk (running untrusted code with a secret), which is
+# mitigated by routing untrusted authors through the rbe-external environment
+# whose required reviewers must approve every push.
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+    branches:
+      - master
+      - "mergai/**"
+
+# Cancel in-flight jobs of this workflow when a new commit lands on the same PR.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  # Required for the credential helper's GitHub Actions OIDC tier:
+  # GHA injects ACTIONS_ID_TOKEN_REQUEST_URL/TOKEN into the runner only
+  # when this permission is granted, and without them the helper cannot
+  # mint a GH OIDC id_token to exchange for a Dex JWT.
+  id-token: write
+
+# RBE endpoints are shared between jobs. Pinned here so additions like
+# integration-tests/jsttests can reuse the same values without drift.
+env:
+  RBE_REMOTE_EXECUTOR: grpcs://bb-psmdb.ddns.net:8981
+  RBE_REMOTE_CACHE: grpcs://bb-psmdb.ddns.net:8981
+  RBE_BES_BACKEND: grpcs://bb-psmdb.ddns.net:1985
+  RBE_BES_RESULTS_URL: https://bb-psmdb.ddns.net:7986/bazel-invocations/
+  # Full credential-helper flag value: <host>=<workspace-relative path>.
+  # %workspace% is a Bazel substitution (not a shell expansion), so the
+  # variable carries the literal string through to Bazel.
+  #
+  # Resolved against the TRUSTED base checkout under _trusted/ (the same
+  # base-branch copy used for composite actions), NOT %workspace% root
+  # (the untrusted PR head). The credential helper mints/exchanges the
+  # OIDC token, so running the PR-head copy would let a malicious PR
+  # rewrite it to exfiltrate ACTIONS_ID_TOKEN_REQUEST_TOKEN / the minted
+  # Dex JWT once the gate is approved. The helper computes REPO_ROOT from
+  # its own __file__ and imports its sibling rbe_auth.py, so pinning the
+  # path to _trusted/ keeps the entire import chain on the trusted copy.
+  RBE_CREDENTIAL_HELPER: bb-psmdb.ddns.net=%workspace%/_trusted/bazel/wrapper_hook/credential_helper.py
+
+# Three jobs: gate, build, unittests. `gate` is a no-op whose only purpose
+# is to host the protected `rbe-external` environment so a single
+# maintainer approval authorizes the entire workflow run. `build` and
+# `unittests` depend on `gate` (transitively) and use the unattended `rbe`
+# environment — same secrets, no approval prompt — so the maintainer
+# isn't re-prompted between jobs.
+#
+# Build and unittests deliberately run on separate runners with separate
+# Bazel servers, so neither shares local state — both pay the action-graph
+# analysis cost and re-fetch toplevel install outputs. The tradeoff is
+# intentional: distinct GH UI checks make build-vs-test failures obvious
+# in PR status, and a flaky test rerun doesn't re-do the build (and
+# doesn't need a fresh approval, because `rbe` is ungated). RBE absorbs
+# the duplicated work as cache hits; if cache pressure ever makes that
+# uneconomical, collapse build and unittests into one job rather than
+# trying to ship build artifacts between runners.
+#
+# One-time environment setup (GH repo settings UI):
+#   - `rbe-external`: required reviewers = dev-psmdb team. Carries
+#     PSMDB_RBE_GHA_AUDIENCE + PSMDB_RBE_OIDC_ISSUER secrets.
+#   - `rbe`: NO required reviewers. Same two secrets, same values.
+#     "Deployment branches and tags" restricted to `master` and
+#     `mergai/**` so a feature-branch workflow can't target `rbe`
+#     and bypass the gate.
+#
+# First-version trust model: every run goes through `gate` and pays the
+# approval cost, internal and external alike. Planned next step (NOT YET
+# IMPLEMENTED — needs security review + CODEOWNERS on .github/** first):
+# make `gate.environment` conditional on author_association so internal
+# PRs skip the approval. The ternary below sketches that; do NOT enable
+# it without first (1) auditing how a malicious .github/actions/**
+# change could exfiltrate the OIDC credential in the unattended path,
+# and (2) wiring CODEOWNERS on .github/** to dev-psmdb so the code-
+# review half of the gate actually fires.
+#
+#   environment: ${{ (github.event.pull_request.head.repo.full_name == github.repository || contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.pull_request.author_association)) && 'rbe' || 'rbe-external' }}
+jobs:
+  # No-op gatekeeper. The approval click on this job's `rbe-external`
+  # environment authorizes the entire workflow run's downstream RBE
+  # access, including the `unittests` job that doesn't run until ~30
+  # minutes later. The maintainer reviewing the PR is implicitly
+  # approving every job that transitively depends on `gate`.
+  gate:
+    name: gate
+    runs-on: ubuntu-24.04
+    environment: rbe-external
+    steps:
+      # Block scalar (|) so the literal '#' in "PR #N" is not interpreted
+      # as a YAML comment marker — that's what truncated the string and
+      # produced the "unexpected EOF" bash error on the first run.
+      - run: |
+          echo "RBE access approved for PR #${{ github.event.pull_request.number }} by ${{ github.actor }}"
+
+  build:
+    name: build
+    needs: gate
+    # Pinned to ubuntu-24.04 (not ubuntu-latest) because this workflow
+    # depends on runner specifics that change silently when GH rolls the
+    # alias forward: the /mnt ephemeral-disk layout assumed by
+    # free-disk-space, the preinstalled toolchain paths it reclaims, and
+    # the 16 GB RAM budget the -Xmx12g JVM heap targets. Bump deliberately
+    # after retesting those assumptions.
+    runs-on: ubuntu-24.04
+    # Unattended environment (no required reviewers). Carries the same
+    # secrets as `rbe-external` so the credential helper resolves the
+    # same OIDC audience/issuer values without a fresh approval prompt.
+    # The `gate` job above is what authorizes us to be in `rbe` here.
+    environment: rbe
+    # Job-level env (not workflow-level) so environment-scoped secrets on
+    # `rbe` / `rbe-external` resolve correctly — workflow-level env can
+    # only read repo/org secrets, never environment ones.
+    env:
+      PSMDB_RBE_GHA_AUDIENCE: ${{ secrets.PSMDB_RBE_GHA_AUDIENCE }}
+      PSMDB_RBE_OIDC_ISSUER: ${{ secrets.PSMDB_RBE_OIDC_ISSUER }}
+    steps:
+      # PR head is the source we're going to build/test. Loaded into the
+      # default workspace ($GITHUB_WORKSPACE) so bazel sees it as the
+      # checkout root. Done FIRST so the subsequent base checkout into
+      # `_trusted/` lands alongside without `git clean` ever traversing it.
+      - name: Checkout PR head
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      # Trusted base-branch copy of the repo, used ONLY to resolve composite
+      # actions referenced below via `./_trusted/.github/actions/<name>`.
+      # Without this, `uses: ./.github/actions/<name>` would resolve against
+      # the PR head checkout above, letting a malicious PR replace the
+      # action's contents and run arbitrary code with the `rbe` environment
+      # secrets and `id-token: write` capability that this job carries.
+      # `github.base_ref` is a branch name (master or mergai/*), both of
+      # which are protected against force-push, so the resolved tip is
+      # trusted by the same branch-protection rules that gate normal merges.
+      - name: Checkout base (trusted) for composite actions
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.base_ref }}
+          path: _trusted
+          fetch-depth: 1
+
+      - name: Fetch tags
+        uses: ./_trusted/.github/actions/fetch-tags
+
+      - name: Free disk space and redirect Bazel to /mnt
+        uses: ./_trusted/.github/actions/free-disk-space
+
+      - name: Setup environment
+        uses: ./_trusted/.github/actions/setup-env
+
+      - name: Build //:install-devcore //:install-dbtest via RBE
+        run: |
+          # --host_jvm_args raises the Bazel server's max heap. The default
+          # is too small for PSMDB's action graph on a 16 GB GH-hosted
+          # runner; NestedSet expansion in RemoteSpawnRunner can OOM the
+          # JVM during param-file materialization. 12 GB leaves headroom
+          # for the runner and the remote-cache uploader.
+          #
+          # --output_user_root puts Bazel's cache on /mnt (see the disk step
+          # above). --remote_download_outputs=toplevel overrides .bazelrc's
+          # 'common --remote_download_outputs=all' so only the requested
+          # install outputs (plus what local link actions pull on demand) are
+          # fetched, instead of every intermediate.
+          bazel \
+            --output_user_root=/mnt/bazel \
+            --host_jvm_args=-Xmx12g \
+            build \
+            --config=psmdb_buildfarm \
+            --remote_executor=$RBE_REMOTE_EXECUTOR \
+            --remote_cache=$RBE_REMOTE_CACHE \
+            --bes_backend=$RBE_BES_BACKEND \
+            --bes_results_url=$RBE_BES_RESULTS_URL \
+            --credential_helper=$RBE_CREDENTIAL_HELPER \
+            --define=GIT_COMMIT_HASH=$(git rev-parse HEAD) \
+            --jobs=300 \
+            --keep_going \
+            --remote_download_outputs=toplevel \
+            --build_event_json_file=bazel-bep.json \
+            //:install-devcore //:install-dbtest
+
+      # Upload BEP on failure so consumers can fetch it via the
+      # GH artifacts API and parse the failure deterministically (BEP is
+      # machine-readable). if-no-files-found=ignore covers the case where the
+      # prune step above removed the only file.
+      - name: Upload build failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-failure-artifacts
+          path: bazel-bep.json
+          retention-days: 14
+          if-no-files-found: ignore
+
+  unittests:
+    name: unittests
+    needs: build
+    # See `build.runs-on` above for why this is pinned, not `ubuntu-latest`.
+    runs-on: ubuntu-24.04
+    # Same unattended `rbe` environment as `build` — see `build.environment`
+    # above. `needs: build` transitively pulls in `needs: gate`, so this job
+    # only runs after the maintainer approved `rbe-external` on the gate.
+    environment: rbe
+    # See `build.env` above for why this is at job level, not workflow level.
+    env:
+      PSMDB_RBE_GHA_AUDIENCE: ${{ secrets.PSMDB_RBE_GHA_AUDIENCE }}
+      PSMDB_RBE_OIDC_ISSUER: ${{ secrets.PSMDB_RBE_OIDC_ISSUER }}
+    steps:
+      - name: Checkout PR head
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      # See the matching step in `build` for the rationale behind loading
+      # composite actions from a trusted base checkout under `_trusted/`.
+      - name: Checkout base (trusted) for composite actions
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.base_ref }}
+          path: _trusted
+          fetch-depth: 1
+
+      - name: Fetch tags
+        uses: ./_trusted/.github/actions/fetch-tags
+
+      - name: Free disk space and redirect Bazel to /mnt
+        uses: ./_trusted/.github/actions/free-disk-space
+
+      - name: Setup environment
+        uses: ./_trusted/.github/actions/setup-env
+
+      # psmdb_remote_unittest (defined in .bazelrc.psmdb) extends upstream's
+      # remote_unittest with the -cpu:2 tag exclusion that the bb-psmdb
+      # scheduler currently can't satisfy. See the rationale block above
+      # the config definition there. Keeping the filter in .bazelrc.psmdb
+      # rather than on the CLI lets a local
+      # `bazel test --config=psmdb_buildfarm --config=psmdb_remote_unittest //src/...`
+      # reproduce the CI filter byte-for-byte.
+      #
+      # The --gtest_filter below excludes a single death test that provokes
+      # a fatal assertion via boost::filesystem::permissions(dir(), no_perms)
+      # on the FTDC output directory. The BB RBE worker container runs as
+      # root, so CAP_DAC_OVERRIDE makes the kernel ignore the file-mode
+      # bits, the FTDC write succeeds, the expected fatal assertion never
+      # fires, and the death test fails. The other three sibling death
+      # tests (which use mock collectors throwing C++ exceptions) pass.
+      #
+      # TODO(PSMDB-2102): drop this --gtest_filter once the underlying
+      # test is patched to GTEST_SKIP() under euid 0 (or the worker is
+      # run as non-root).
+      - name: Test //src/... (mongo_unittest) via RBE
+        run: |
+          # See the build step for why --host_jvm_args is needed. The test
+          # action graph is much larger than build's, which is what tripped
+          # the OOM in the first place.
+          #
+          # Deliberately NOT passing --define=GIT_COMMIT_HASH here, unlike
+          # the build job. remote_unittest (pulled in by psmdb_remote_unittest)
+          # pins GIT_COMMIT_HASH=nogitversion precisely to keep the action
+          # key stable across PR pushes — under remote_test, CppLink runs
+          # on RBE workers, so injecting the real SHA would invalidate the
+          # remote-link cache for every test binary that transitively
+          # depends on the version object, on every push. Tests don't care
+          # what version string they advertise; the build job (where link
+          # is local and the binaries are real artifacts) is the right
+          # place to exercise the SHA-injection path.
+          bazel \
+            --output_user_root=/mnt/bazel \
+            --host_jvm_args=-Xmx12g \
+            test \
+            --config=psmdb_buildfarm \
+            --config=psmdb_remote_unittest \
+            --remote_executor=$RBE_REMOTE_EXECUTOR \
+            --remote_cache=$RBE_REMOTE_CACHE \
+            --bes_backend=$RBE_BES_BACKEND \
+            --bes_results_url=$RBE_BES_RESULTS_URL \
+            --credential_helper=$RBE_CREDENTIAL_HELPER \
+            --jobs=300 \
+            --keep_going \
+            --test_output=errors \
+            --test_arg=--gtest_filter=-FTDCControllerTestDeathTest.LogAndTerminateWhenCollectionFails \
+            --build_event_json_file=bazel-bep.json \
+            //src/...
+
+      # Upload bazel-testlogs (per-target test.log + test.xml JUnit) plus the
+      # BEP stream on failure. bazel-testlogs is a symlink into the bazel
+      # output base; upload-artifact@v4 follows symlinks. Consumers
+      # can locate the specific failing test under
+      # bazel-testlogs/<package>/<target>/test.log and parse the JUnit XML
+      # for a structured failure list.
+      - name: Upload unittest failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unittest-failure-artifacts
+          path: |
+            bazel-testlogs/
+            bazel-bep.json
+          retention-days: 14
+          if-no-files-found: ignore

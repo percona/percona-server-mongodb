@@ -1,0 +1,18 @@
+name: "Free disk space and redirect Bazel to /mnt"
+description: "Reclaim space on / and stage Bazel's output base on the /mnt ephemeral disk"
+
+runs:
+  using: "composite"
+  steps:
+    # Reclaim preinstalled toolchains we never use and stage the larger /mnt
+    # ephemeral disk for Bazel, so the build has more room for its output data.
+    - name: Free disk space and redirect Bazel to /mnt
+      shell: bash
+      run: |
+        sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc \
+                    /usr/local/.ghcup /opt/hostedtoolcache/CodeQL \
+                    /usr/local/share/boost || true
+        sudo docker image prune --all --force || true
+        sudo mkdir -p /mnt/bazel
+        sudo chown "$(id -u):$(id -g)" /mnt/bazel
+        df -h /
