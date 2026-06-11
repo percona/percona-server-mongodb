@@ -140,7 +140,11 @@ jobs:
           if not dirs:
               print('//src/...')
           else:
-              print(f'//{os.path.commonpath(dirs)}/...')
+              common = os.path.commonpath(dirs)
+              if common:
+                  print(f'//{common}/...')
+              else:
+                  print('//src/...')
           PY
           )
           export MONGO_COMPILEDB_TARGET_SCOPE="$SCOPE"
