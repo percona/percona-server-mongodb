@@ -28,12 +28,14 @@ function baseMongodOpts(extraSetParams) {
     // Use a short user cache invalidation interval so that each auth attempt after
     // a setParameter change re-resolves the DN via mapUserToDN() instead of being
     // served from the $external authorization user cache.
-    var setParameter = Object.assign({
-        authenticationMechanisms: "PLAIN,SCRAM-SHA-256,SCRAM-SHA-1",
-        ldapUserCacheInvalidationInterval: 1,
-        ldapShouldRefreshUserCacheEntries: false,
-    },
-                                     extraSetParams || {});
+    var setParameter = Object.assign(
+        {
+            authenticationMechanisms: "PLAIN,SCRAM-SHA-256,SCRAM-SHA-1",
+            ldapUserCacheInvalidationInterval: 1,
+            ldapShouldRefreshUserCacheEntries: false,
+        },
+        extraSetParams || {},
+    );
     return {
         auth: "",
         ldapServers: TestData.ldapServers,
@@ -47,14 +49,23 @@ function baseMongodOpts(extraSetParams) {
     };
 }
 
-function authLDAPUser(conn) {
+function authLDAPUser(conn, check = true) {
     var db = conn.getDB("$external");
     var ok = db.auth({user: username, pwd: userpwd, mechanism: "PLAIN"});
     if (ok) {
-        checkConnectionStatus(username, db.runCommand({connectionStatus: 1}), nameToDn);
+        if (check) {
+            checkConnectionStatus(username, db.runCommand({connectionStatus: 1}), nameToDn);
+        }
         db.logout();
     }
     return ok;
+}
+
+// The authLDAPUserNoCheck was introduced because authLDAPUser can generate unpredictable number
+// of cache hits. We use authLDAPUserNoCheck in those places where we have asserts on the number
+// of cache hits.
+function authLDAPUserNoCheck(conn) {
+    return authLDAPUser(conn, false);
 }
 
 function setParam(conn, paramObj) {
@@ -78,6 +89,23 @@ function getParam(conn, paramName) {
     return res[paramName];
 }
 
+function getServerStatus(conn) {
+    var adminDb = conn.getDB("admin");
+    assert(adminDb.auth({user: "admin", pwd: "password"}));
+    var res = assert.commandWorked(adminDb.adminCommand({serverStatus: 1}));
+    adminDb.logout();
+    return res;
+}
+
+function assertCacheStats(stats, expected, msg) {
+    assert(stats.hasOwnProperty("ldap"), "serverStatus.ldap missing");
+    assert(stats.ldap.hasOwnProperty("userToDNCache"), "serverStatus.ldap.userToDNCache missing");
+    var cache = stats.ldap.userToDNCache;
+    for (var [key, val] of Object.entries(expected)) {
+        assert.eq(cache[key], val, msg + ": field " + key, {cache});
+    }
+}
+
 // ------------------------------------------------------------------
 // Instance 1: Cache enabled with default params, ldapQuery mapping
 // ------------------------------------------------------------------
@@ -90,10 +118,52 @@ function getParam(conn, paramName) {
     createAdminUser(conn);
 
     jsTestLog("Test: Auth with cache enabled (first call)");
-    assert(authLDAPUser(conn), "First auth should succeed");
+    assert(authLDAPUserNoCheck(conn), "First auth should succeed");
+
+    // Each successful auth calls mapUserToDN twice: once for the LDAP bind (sasl session)
+    // and once inside queryUserRoles.
+
+    // Ensure first auth = 1 miss + 1 hit
+    assertCacheStats(
+        getServerStatus(conn),
+        {
+            enabled: true,
+            maxSize: 10000,
+            ttlSeconds: 30,
+            currentSize: 1,
+            misses: 1,
+            hits: 1,
+            invalidations: 0,
+        },
+        "after first auth (miss+hit)",
+    );
+
+    // Wait for the $external user cache to expire so the second auth re-resolves
+    // the DN via mapUserToDN() and exercises the cache hit path.
+    sleep(2000);
 
     jsTestLog("Test: Auth with cache enabled (second call, cache hit)");
-    assert(authLDAPUser(conn), "Second auth should succeed (cache hit)");
+    assert(authLDAPUserNoCheck(conn), "Second auth should succeed (cache hit)");
+
+    jsTestLog(
+        "Test: serverStatus.ldap.userToDNCache fields are present and correct after first auth (miss+hit) and second auth (two hits)",
+    );
+
+    // Second auth = 2 hits (no additional misses because the user is cached after the first
+    // auth)
+    assertCacheStats(
+        getServerStatus(conn),
+        {
+            enabled: true,
+            maxSize: 10000,
+            ttlSeconds: 30,
+            currentSize: 1,
+            misses: 1,
+            hits: 3,
+            invalidations: 0,
+        },
+        "after first auth (miss+hit) and second auth (two hits)",
+    );
 
     jsTestLog("Test: getParameter returns default cache values");
     assert.eq(getParam(conn, "ldapUserToDNCacheTTLSeconds"), 30);
@@ -101,44 +171,109 @@ function getParam(conn, paramName) {
 
     jsTestLog("Test: Invalidation on ldapUserToDNMapping change to substitution mode");
     setParam(conn, {ldapUserToDNMapping: substMapping});
+
+    jsTestLog(
+        "Test: hit/miss counters reset to zero immediately after invalidation (before any new auth)");
+    assertCacheStats(
+        getServerStatus(conn),
+        {
+            enabled: true,
+            invalidations: 1,
+            hits: 0,
+            misses: 0,
+        },
+        "counters reset right after invalidation",
+    );
+
     assert(authLDAPUser(conn), "Auth should succeed with substitution mapping");
+
+    jsTestLog("Test: invalidations counter incremented, one miss + one hit from single auth");
+    assertCacheStats(
+        getServerStatus(conn),
+        {
+            enabled: true,
+            invalidations: 1,
+            hits: 1,
+            misses: 1,
+        },
+        "after first auth post-invalidation (1 miss + 1 hit from two mapUserToDN calls)",
+    );
 
     jsTestLog("Test: Invalidation on ldapUserToDNMapping change to broken mapping");
     setParam(conn, {ldapUserToDNMapping: brokenMapping});
     assert(!authLDAPUser(conn),
            "Auth should fail with broken mapping (proves cache was invalidated)");
+    assertCacheStats(
+        getServerStatus(conn),
+        {enabled: true, invalidations: 2, hits: 0, misses: 1},
+        "invalidation should happen on ldapUserToDNMapping change",
+    );
 
     jsTestLog("Test: Restore original ldapQuery mapping");
     setParam(conn, {ldapUserToDNMapping: ldapQueryMapping});
-    assert(authLDAPUser(conn), "Auth should succeed after restoring ldapQuery mapping");
-
-    // To prove TTL/size changes actually invalidate the DN cache, we populate the
-    // cache with the correct mapping, then change the cache parameter AND switch to
-    // the broken mapping in the same batch. If the cache were NOT invalidated by the
-    // parameter change, the old cached DN would still be used and auth would succeed.
-    // Auth failing proves the parameter change cleared the cache.
+    assert(authLDAPUser(conn), "Auth should succeed");
 
     jsTestLog("Test: ldapUserToDNCacheTTLSeconds change invalidates the DN cache");
-    setParam(conn, {ldapUserToDNMapping: ldapQueryMapping});
-    assert(authLDAPUser(conn), "Auth should succeed to populate cache");
-    setParam(conn, {ldapUserToDNCacheTTLSeconds: 60, ldapUserToDNMapping: brokenMapping});
-    assert(!authLDAPUser(conn), "Auth should fail — proves TTL change invalidated the DN cache");
+    setParam(conn, {ldapUserToDNCacheTTLSeconds: 60});
+    assertCacheStats(
+        getServerStatus(conn),
+        {
+            enabled: true,
+            invalidations: 4,
+            hits: 0,
+            misses: 0,
+        },
+        "invalidation should happen on ldapUserToDNCacheTTLSeconds change",
+    );
 
     jsTestLog("Test: ldapUserToDNCacheTTLSeconds=0 disables the DN cache");
-    setParam(conn, {ldapUserToDNCacheTTLSeconds: 0, ldapUserToDNMapping: ldapQueryMapping});
+    setParam(conn, {ldapUserToDNCacheTTLSeconds: 0});
     assert(authLDAPUser(conn), "Auth should succeed with cache disabled (TTL=0)");
+    assertCacheStats(
+        getServerStatus(conn),
+        {
+            enabled: false,
+            invalidations: 5,
+            ttlSeconds: 0,
+            hits: 0,
+            misses: 0,
+        },
+        "ldapUserToDNCacheTTLSeconds=0 disables the DN cache",
+    );
 
+    // Restore original value
     setParam(conn, {ldapUserToDNCacheTTLSeconds: 30});
 
     jsTestLog("Test: ldapUserToDNCacheSize change invalidates the DN cache");
     assert(authLDAPUser(conn), "Auth should succeed to populate cache");
-    setParam(conn, {ldapUserToDNCacheSize: 1, ldapUserToDNMapping: brokenMapping});
-    assert(!authLDAPUser(conn), "Auth should fail — proves size change invalidated the DN cache");
+    setParam(conn, {ldapUserToDNCacheSize: 1});
+    assertCacheStats(
+        getServerStatus(conn),
+        {
+            enabled: true,
+            invalidations: 7,
+            hits: 0,
+            misses: 0,
+        },
+        "invalidation should happen on ldapUserToDNCacheTTLSeconds change",
+    );
 
     jsTestLog("Test: ldapUserToDNCacheSize=0 disables the DN cache");
-    setParam(conn, {ldapUserToDNCacheSize: 0, ldapUserToDNMapping: ldapQueryMapping});
+    setParam(conn, {ldapUserToDNCacheSize: 0});
     assert(authLDAPUser(conn), "Auth should succeed with cache disabled (size=0)");
+    assertCacheStats(
+        getServerStatus(conn),
+        {
+            enabled: false,
+            invalidations: 8,
+            maxSize: 0,
+            hits: 0,
+            misses: 0,
+        },
+        "ldapUserToDNCacheSize=0 disables the DN cache",
+    );
 
+    // Restore original value
     setParam(conn, {ldapUserToDNCacheSize: 10000});
 
     MongoRunner.stopMongod(conn);
@@ -153,7 +288,22 @@ function getParam(conn, paramName) {
     var conn = MongoRunner.runMongod(baseMongodOpts({ldapUserToDNCacheTTLSeconds: 0}));
     assert(conn, "Cannot start mongod instance");
 
+    createAdminUser(conn);
     assert(authLDAPUser(conn), "Auth should succeed with cache disabled (TTL=0)");
+
+    jsTestLog(
+        "Test: serverStatus.ldap.userToDNCache reports enabled=false and zero counters when TTL=0");
+    assertCacheStats(
+        getServerStatus(conn),
+        {
+            enabled: false,
+            ttlSeconds: 0,
+            hits: 0,
+            misses: 0,
+            invalidations: 0,
+        },
+        "cache disabled via TTL=0",
+    );
 
     MongoRunner.stopMongod(conn);
 }
@@ -167,7 +317,22 @@ function getParam(conn, paramName) {
     var conn = MongoRunner.runMongod(baseMongodOpts({ldapUserToDNCacheSize: 0}));
     assert(conn, "Cannot start mongod instance");
 
+    createAdminUser(conn);
     assert(authLDAPUser(conn), "Auth should succeed with cache disabled (size=0)");
+
+    jsTestLog(
+        "Test: serverStatus.ldap.userToDNCache reports enabled=false and zero counters when size=0");
+    assertCacheStats(
+        getServerStatus(conn),
+        {
+            enabled: false,
+            maxSize: 0,
+            hits: 0,
+            misses: 0,
+            invalidations: 0,
+        },
+        "cache disabled via size=0",
+    );
 
     MongoRunner.stopMongod(conn);
 }
