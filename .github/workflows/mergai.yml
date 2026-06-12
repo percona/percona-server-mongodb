@@ -30,6 +30,13 @@ on:
     types: [completed]
     branches:
       - "mergai/**"
+  # Comment entry point: a `/mergai review fix` comment on a mergai PR
+  # (-> review-handle, address review threads).
+  issue_comment:
+    types: [created]
+  # Review-handling entry point: a review submitted as "Changes requested".
+  pull_request_review:
+    types: [submitted]
 
 jobs:
   trigger-merge:
@@ -604,6 +611,159 @@ jobs:
       # may have changed even when no commit was produced.
       - name: Push mergai notes
         if: needs.ci-gate.outputs.state == 'failure'
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          GH_REPO: ${{ github.repository }}
+        run: mergai notes push
+
+  # Handle code-review feedback on a mergai PR. Triggered by:
+  #   * a `/mergai review fix` comment on the PR (issue_comment), or
+  #   * a review submitted as "Changes requested" (pull_request_review).
+  # Runs the agent over the PR's unresolved review threads, commits + pushes
+  # the fixes inline on the PR branch, and posts a reply per thread. Mirrors
+  # the ci-handle routing for a review branch: the fix rides as another commit
+  # in the existing PR; nothing is folded here (that is finalize-only).
+  review-handle:
+    # The issue_comment trigger fires on every PR/issue comment in the repo, so
+    # the command filter lives here; the head-branch (mergai-only) check can't
+    # be expressed for issue_comment in `if:` (no head ref in the payload) and
+    # is enforced in the "Resolve PR" step below. pull_request_review carries
+    # the head ref, so we scope it to mergai/* and "Changes requested" up front.
+    if: >-
+      (github.event_name == 'pull_request_review'
+        && github.event.review.state == 'changes_requested'
+        && startsWith(github.event.pull_request.head.ref, 'mergai/'))
+      || (github.event_name == 'issue_comment'
+        && github.event.issue.pull_request != null
+        && contains(github.event.comment.body, '/mergai review fix'))
+    environment: privileged-ops
+    runs-on: ubuntu-latest
+    # Serialize review runs for the same PR so two near-simultaneous triggers
+    # (e.g. a review plus a `/mergai review fix` comment) don't race on the branch.
+    concurrency:
+      group: mergai-review-${{ github.event.issue.number || github.event.pull_request.number }}
+      cancel-in-progress: false
+    env:
+      GOOGLE_CLOUD_PROJECT: ${{ secrets.GOOGLE_CLOUD_PROJECT }}
+      GOOGLE_CLOUD_LOCATION: ${{ secrets.GOOGLE_CLOUD_LOCATION }}
+      GOOGLE_GENAI_USE_VERTEXAI: "true"
+    steps:
+      - name: Create GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ secrets.PSMDB_BOT_GH_APP_ID }}
+          private-key: ${{ secrets.PSMDB_BOT_GH_APP_PRIVATE_KEY }}
+
+      # Resolve the PR number and head branch from whichever event fired, and
+      # confirm it is a mergai PR (head branch under mergai/). The issue_comment
+      # payload has no head ref, so we look it up; a non-mergai PR sets
+      # is_mergai=false and every later step is skipped (the job ends green).
+      - name: Resolve PR
+        id: pr
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          # CUTOFF pins the run to the comment set as it stood when it was
+          # triggered: the review's submission time, or the comment's creation
+          # time. `mergai review fix --since` ignores anything posted (or
+          # edited) after it, so a comment added while this run waits for the
+          # privileged-ops approval cannot be pulled into the set.
+          if [ "${{ github.event_name }}" = "pull_request_review" ]; then
+            PR_NUMBER='${{ github.event.pull_request.number }}'
+            HEAD_REF='${{ github.event.pull_request.head.ref }}'
+            CUTOFF='${{ github.event.review.submitted_at }}'
+          else
+            PR_NUMBER='${{ github.event.issue.number }}'
+            HEAD_REF=$(gh pr view "$PR_NUMBER" --json headRefName --jq .headRefName)
+            CUTOFF='${{ github.event.comment.created_at }}'
+          fi
+          echo "number=$PR_NUMBER" >> "$GITHUB_OUTPUT"
+          echo "head_ref=$HEAD_REF" >> "$GITHUB_OUTPUT"
+          echo "cutoff=$CUTOFF" >> "$GITHUB_OUTPUT"
+          echo "Resolved PR #$PR_NUMBER (head: $HEAD_REF, cutoff: $CUTOFF)"
+          case "$HEAD_REF" in
+            mergai/*) echo "is_mergai=true" >> "$GITHUB_OUTPUT" ;;
+            *)
+              echo "is_mergai=false" >> "$GITHUB_OUTPUT"
+              echo "PR #$PR_NUMBER is not a mergai PR; skipping." ;;
+          esac
+
+      - name: Checkout PR branch
+        if: steps.pr.outputs.is_mergai == 'true'
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ steps.pr.outputs.head_ref }}
+          fetch-depth: 0
+          token: ${{ steps.app-token.outputs.token }}
+
+      - name: Setup workflow environment
+        if: steps.pr.outputs.is_mergai == 'true'
+        uses: ./.github/actions/setup-mergai-workflow
+        with:
+          setup-gcp: "true"
+          setup-gemini: "true"
+          setup-claude: "true"
+          setup-mergai: "true"
+          gcp-credentials: ${{ secrets.GCP_CREDENTIALS }}
+          claude-api-key: ${{ secrets.CLAUDE_API_KEY }}
+          github-app-token: ${{ steps.app-token.outputs.token }}
+          github-app-id: ${{ secrets.PSMDB_BOT_GH_APP_ID }}
+          mergai-ref: master
+
+      - name: Fetch and load mergai notes
+        if: steps.pr.outputs.is_mergai == 'true'
+        run: |
+          mergai notes update
+          mergai context init
+
+      # Generate fixes for the PR's unresolved review threads. `review fix`
+      # commits the fix on HEAD (the PR branch) and records a reply per thread
+      # on the note; it does not post replies. We detect whether a commit
+      # landed so the push step is conditional.
+      - name: Generate review fixes
+        id: review
+        if: steps.pr.outputs.is_mergai == 'true'
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          GH_REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ steps.pr.outputs.number }}
+          CUTOFF: ${{ steps.pr.outputs.cutoff }}
+        run: |
+          before=$(git rev-parse HEAD)
+          # --ack posts a short acknowledgement comment on the PR (how many
+          # comments were found / addressed / ignored, even if none) for quick
+          # feedback. --since pins the comment set to the trigger time (CUTOFF).
+          mergai review fix --pr-number "$PR_NUMBER" --since "$CUTOFF" --ack
+          after=$(git rev-parse HEAD)
+          if [ "$before" != "$after" ]; then
+            echo "Review fix commit produced ($after)."
+            echo "fix_produced=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "No review fix commit produced."
+            echo "fix_produced=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Push the inline fix to the PR branch before posting replies, so the
+      # "Addressed in <sha>" reply points at a commit that exists on the PR.
+      - name: Push review-fix commit
+        if: steps.pr.outputs.is_mergai == 'true' && steps.review.outputs.fix_produced == 'true'
+        env:
+          HEAD_REF: ${{ steps.pr.outputs.head_ref }}
+        run: git push origin "HEAD:$HEAD_REF"
+
+      # Publish the recorded replies (fixed / unfixable) to their threads.
+      - name: Post review replies
+        if: steps.pr.outputs.is_mergai == 'true'
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          GH_REPO: ${{ github.repository }}
+        run: mergai review post
+
+      # Persist the review_fix solution's git note (attached to the new commit).
+      - name: Push mergai notes
+        if: steps.pr.outputs.is_mergai == 'true'
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
           GH_REPO: ${{ github.repository }}
