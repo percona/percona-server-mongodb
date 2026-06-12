@@ -28,25 +28,10 @@
       "description": "Percona Server for MongoDB",
       "licenses": [
         {
-<<<<<<< HEAD
           "license": {
             "id": "SSPL-1.0",
             "url": "https://www.mongodb.com/legal/licensing/community-edition"
           }
-||||||| a1d84817936
-          "license": {
-            "id": "SSPL-1.0",
-            "url": "https://www.mongodb.com/legal/licensing/community-edition"
-          }
-        },
-        {
-          "license": {
-            "name": "MongoDB Enterprise Advanced License",
-            "url": "https://www.mongodb.com/products/self-managed/enterprise-advanced"
-          }
-=======
-          "expression": "SSPL-1.0 OR LicenseRef-MongoDB-Enterprise-Advanced-License"
->>>>>>> e4cbb5dc4a8998f36e75bffb4dca4a79374e83a3
         }
       ],
       "cpe": "cpe:2.3:a:percona:percona-server-mongodb:master:*:*:*:*:*:*:*",
@@ -75,20 +60,7 @@
     "supplier": {
       "name": "Percona LLC",
       "url": [
-<<<<<<< HEAD
         "https://percona.com"
-||||||| a1d84817936
-        "https://mongodb.com"
-      ]
-    },
-    "tools": {
-      "services": [
-        {
-          "name": "Endor Labs Inc",
-          "version": "v1.7.988"
-        }
-=======
-        "https://mongodb.com"
       ]
     },
     "tools": {
@@ -97,7 +69,6 @@
           "name": "Endor Labs Inc",
           "version": "v1.7.994"
         }
->>>>>>> e4cbb5dc4a8998f36e75bffb4dca4a79374e83a3
       ]
     }
   },
