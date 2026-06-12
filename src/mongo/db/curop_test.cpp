@@ -1328,7 +1328,6 @@ TEST(CurOpTest, OpDebugAllowsMultipleQueryStatsInfos) {
                                        {
                                            .key = std::move(key),
                                            .keyHash = 42,
-                                           .willNeverExhaust = true,
                                            .metricsRequested = true,
                                        });
 
@@ -1338,7 +1337,6 @@ TEST(CurOpTest, OpDebugAllowsMultipleQueryStatsInfos) {
     ASSERT_TRUE(qsi.keyHash.has_value());
     ASSERT_EQ(qsi.keyHash.value(), 42);
     ASSERT_EQ(qsi.metricsRequested, true);
-    ASSERT_EQ(qsi.willNeverExhaust, true);
 
     // The new set of metrics should be distinct from the one for the main operation.
     OpDebug::QueryStatsInfo& mainQsi = opDebug.getQueryStatsInfo();

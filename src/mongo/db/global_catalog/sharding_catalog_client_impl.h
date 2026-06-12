@@ -54,7 +54,7 @@
 #include "mongo/db/repl/read_concern_args.h"
 #include "mongo/db/repl/read_concern_level.h"
 #include "mongo/db/sharding_environment/client/shard.h"
-#include "mongo/db/sharding_environment/shard_id.h"
+#include "mongo/db/sharding_environment/shard_ref.h"
 #include "mongo/db/topology/shard_registry.h"
 #include "mongo/db/versioning_protocol/chunk_version.h"
 #include "mongo/db/write_concern_options.h"
@@ -79,6 +79,21 @@ class VersionType;
 namespace executor {
 class TaskExecutor;
 }  // namespace executor
+
+/**
+ * Builds the aggregation that joins a "collections" namespace with its "chunks" namespace in order
+ * to retrieve the routing table of 'nss'.
+ *
+ * When 'sinceVersion' shares the collection's epoch the aggregation only returns the chunks that
+ * changed since that version (incremental refresh). Otherwise it returns all of the collection's
+ * chunks (full refresh); pass ChunkVersion::UNTRACKED() to always force a full refresh.
+ */
+MONGO_MOD_PARENT_PRIVATE AggregateCommandRequest
+makeCollectionAndChunksAggregation(OperationContext* opCtx,
+                                   const NamespaceString& collectionsNss,
+                                   const NamespaceString& chunksNss,
+                                   const NamespaceString& nss,
+                                   const ChunkVersion& sinceVersion);
 
 /**
  * Implements the catalog client for reading from replica set config servers.
@@ -151,7 +166,7 @@ public:
         const BSONObj& sort = BSONObj()) override;
 
     StatusWith<std::vector<DatabaseName>> getDatabasesForShard(OperationContext* opCtx,
-                                                               const ShardId& shardName) override;
+                                                               const ShardRef& shardRef) override;
 
     StatusWith<std::vector<ChunkType>> getChunks(
         OperationContext* opCtx,

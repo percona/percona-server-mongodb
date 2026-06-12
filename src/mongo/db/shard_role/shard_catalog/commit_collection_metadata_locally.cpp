@@ -336,7 +336,13 @@ void updateShardCatalogCache(OperationContext* opCtx,
 
     scopedCsr->setFilteringMetadata_authoritative(
         opCtx, std::move(ownedMetadata), CollectionShardingRuntime::NoRoutingTableAs::kUntracked);
+
+    // Update allowChunkOperations and write an oplog 'c' entry to send the new allowChunkOperations
+    // value to secondaries, since its value could have potentially changed.
+    // TODO (SERVER-127444): remove these lines.
     scopedCsr->setAllowChunkOperations(coll.getAllowChunkOperations());
+    setAllowChunkOperationsOnSecondaries(
+        opCtx, nss, coll.getUuid(), coll.getAllowChunkOperations());
 }
 
 void clearShardCatalogCacheForDroppedCollection(OperationContext* opCtx,
@@ -517,12 +523,6 @@ void commitCollectionMetadataLocally(OperationContext* opCtx,
     // Write an oplog 'c' entry to invalidate collection metadata on secondaries.
     invalidateCollectionMetadataOnSecondaries(
         opCtx, nss, coll.getUuid(), false /* forDroppedCollection */);
-
-    if (expectedAllowChunkOperations) {
-        // Write an oplog 'c' entry to send the new allowChunkOperations value to secondaries.
-        setAllowChunkOperationsOnSecondaries(
-            opCtx, nss, coll.getUuid(), *expectedAllowChunkOperations);
-    }
 }
 
 void commitChunklessCollectionMetadataLocally(OperationContext* opCtx, const NamespaceString& nss) {
@@ -532,19 +532,14 @@ void commitChunklessCollectionMetadataLocally(OperationContext* opCtx, const Nam
     // upsert, but because it writes an identical document the two operations do not conflict.
     upsertCollectionEntryLocally(opCtx, nss, coll);
 
-    // Replicate an invalidation so that secondaries drop their cached filtering metadata for this
-    // collection, regardless of what they currently hold in memory.
-    invalidateCollectionMetadataOnSecondaries(
-        opCtx, nss, coll.getUuid(), false /* forDroppedCollection */, false /* authoritative */);
-
-    // On the primary, only evict a stale leftover, for example an UNTRACKED entry left behind from
-    // before the collection became tracked. If the shard already holds tracked filtering metadata
-    // (e.g. because it is concurrently receiving a chunk migration for this collection), clearing
-    // it would abort that migration, so leave it untouched.
-    auto scopedCsr = CollectionShardingRuntime::acquireExclusive(opCtx, nss);
-    const auto currentMetadata = scopedCsr->getCurrentMetadataIfKnown();
-    if (currentMetadata && !currentMetadata->hasRoutingTable())
-        scopedCsr->clearFilteringMetadata_nonAuthoritative(opCtx);
+    // There is no need to invalidate or clear the in-memory filtering metadata here, neither on the
+    // primary nor on the secondaries: the current CSS state is always either unknown or already
+    // correct, and never a stale "untracked" entry that would have to be evicted.
+    //   - If this shard owns chunks, its CSS is tracked (or unknown if it has not been refreshed
+    //     yet).
+    //   - If this shard owns no chunks, its CSS is still tracked or unknown, but never untracked,
+    //     because movePrimary is responsible for handling untracked collections when cloning and
+    //     for cleaning them up on the old primary shard.
 }
 
 void commitSetAllowChunkOperationsLocally(OperationContext* opCtx,
@@ -622,6 +617,50 @@ void commitCreateCollection(OperationContext* opCtx,
 void commitDropCollection(OperationContext* opCtx, const NamespaceString& nss, const UUID& uuid) {
     return shard_catalog_commit::commitDropCollectionLocally(opCtx, nss, uuid);
 }
+
+void commitRenameOfTemporaryCollection(OperationContext* opCtx,
+                                       const NamespaceString& tempReshardingNss,
+                                       const UUID& tempReshardingUUID,
+                                       const NamespaceString& sourceNss,
+                                       const UUID& sourceUUID,
+                                       bool isUpgrading,
+                                       bool isDbPrimaryShard) {
+    return shard_catalog_commit::commitRenameOfCollectionMetadata(opCtx,
+                                                                  tempReshardingNss,
+                                                                  tempReshardingUUID,
+                                                                  sourceNss,
+                                                                  sourceUUID,
+                                                                  boost::none,
+                                                                  isUpgrading,
+                                                                  isDbPrimaryShard);
+}
+
+namespace {
+void ensureCollectionDoesNotExist(OperationContext* opCtx, const UUID& uuid) {
+    try {
+        auto catalogClient = Grid::get(opCtx)->catalogClient();
+        const auto _ = catalogClient->getCollection(opCtx, uuid);
+        tasserted(ErrorCodes::IllegalOperation,
+                  "Collection entry must not exist in the global catalog to drop stale chunks");
+    } catch (const ExceptionFor<ErrorCodes::NamespaceNotFound>&) {
+        // This is actually the expected path.
+    }
+    // TODO SERVER-128550: Uncomment the following code once chunk migrations are authoritative.
+    // Otherwise the migration off of the shard today leaves the collection entry intact.
+    // DBDirectClient client{opCtx};
+    // const auto collCount = client.count(NamespaceString::kConfigShardCatalogCollectionsNamespace,
+    //                                     BSON(CollectionType::kUuidFieldName << uuid));
+    // tassert(ErrorCodes::IllegalOperation,
+    //         "Collection entry must not exist in the shard catalog to drop stale chunks",
+    //         collCount == 0);
+}
+}  // namespace
+
+void commitDropOfStaleChunksForRename(OperationContext* opCtx, const UUID& uuid) {
+    ensureCollectionDoesNotExist(opCtx, uuid);
+    return shard_catalog_commit::commitDropOfStaleChunksForRename(opCtx, uuid);
+}
+
 }  // namespace shard_catalog_commit_for_resharding
 
 }  // namespace mongo

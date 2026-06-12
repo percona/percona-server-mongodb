@@ -97,6 +97,7 @@
 #include "mongo/executor/task_executor.h"
 #include "mongo/idl/idl_parser.h"
 #include "mongo/logv2/log.h"
+#include "mongo/otel/traces/span/span_names.h"
 #include "mongo/otel/traces/telemetry_context_serialization.h"
 #include "mongo/s/resharding/common_types_gen.h"
 #include "mongo/s/resharding/resharding_feature_flag_gen.h"
@@ -150,6 +151,7 @@ namespace {
 
 const WriteConcernOptions kNoWaitWriteConcern{1, WriteConcernOptions::SyncMode::UNSET, Seconds(0)};
 
+using otel::traces::SpanNames;
 using resharding::ensureFulfilledPromise;
 
 /**
@@ -370,41 +372,41 @@ ReshardingRecipientService::RecipientStateMachine::_runUntilStrictConsistencyOrE
                 .then([this, executor, factory, telemetryCtx = telemetryCtx->clone()]() mutable {
                     auto span = _startSpan(
                         telemetryCtx,
-                        "ReshardingRecipientService::_"
-                        "awaitAllDonorsPreparedToDonateThenTransitionToCreatingCollection");
+                        SpanNames::
+                            kReshardingRecipientAwaitAllDonorsPreparedToDonateThenTransitionToCreatingCollection);
                     return _awaitAllDonorsPreparedToDonateThenTransitionToCreatingCollection(
                         executor, factory);
                 })
                 .then([this, factory, telemetryCtx = telemetryCtx->clone()]() mutable {
-                    auto span =
-                        _startSpan(telemetryCtx,
-                                   "ReshardingRecipientService::_"
-                                   "createTemporaryReshardingCollectionThenTransitionToCloning");
+                    auto span = _startSpan(
+                        telemetryCtx,
+                        SpanNames::
+                            kReshardingRecipientCreateTemporaryReshardingCollectionThenTransitionToCloning);
                     _createTemporaryReshardingCollectionThenTransitionToCloning(factory);
                 })
                 .then([this, executor, factory, telemetryCtx = telemetryCtx->clone()]() mutable {
                     auto span = _startSpan(
                         telemetryCtx,
-                        "ReshardingRecipientService::_cloneThenTransitionToBuildingIndex");
+                        SpanNames::kReshardingRecipientCloneThenTransitionToBuildingIndex);
                     return _cloneThenTransitionToBuildingIndex(executor, factory);
                 })
                 .then([this, executor, factory, telemetryCtx = telemetryCtx->clone()]() mutable {
                     auto span = _startSpan(
                         telemetryCtx,
-                        "ReshardingRecipientService::_buildIndexThenTransitionToApplying");
+                        SpanNames::kReshardingRecipientBuildIndexThenTransitionToApplying);
                     return _buildIndexThenTransitionToApplying(executor, factory);
                 })
                 .then([this, executor, factory, telemetryCtx = telemetryCtx->clone()]() mutable {
                     auto span = _startSpan(
                         telemetryCtx,
-                        "ReshardingRecipientService::_createAndStartChangeStreamsMonitor");
+                        SpanNames::kReshardingRecipientCreateAndStartChangeStreamsMonitor);
                     return _createAndStartChangeStreamsMonitor(executor, factory);
                 })
                 .then([this, executor, factory, telemetryCtx = telemetryCtx->clone()]() mutable {
-                    auto span =
-                        _startSpan(telemetryCtx,
-                                   "ReshardingRecipientService::_"
-                                   "awaitAllDonorsBlockingWritesThenTransitionToStrictConsistency");
+                    auto span = _startSpan(
+                        telemetryCtx,
+                        SpanNames::
+                            kReshardingRecipientAwaitAllDonorsBlockingWritesThenTransitionToStrictConsistency);
                     return _awaitAllDonorsBlockingWritesThenTransitionToStrictConsistency(executor,
                                                                                           factory);
                 });
@@ -550,8 +552,27 @@ ExecutorFuture<void> ReshardingRecipientService::RecipientStateMachine::_finishR
                     if (!_isAlsoDonor) {
                         auto opCtx = _makeOperationContext(factory);
 
-                        _externalState->clearFilteringMetadataOnTempReshardingCollection(
-                            opCtx.get(), _metadata.getTempReshardingNss());
+                        bool mustClearFilteringMetadata =
+                            !feature_flags::gAuthoritativeShardsDDL.isEnabled(
+                                resharding::getVersionContextOrDefault(
+                                    _metadata.getForwardableOpMetadata()),
+                                serverGlobalParams.featureCompatibility.acquireFCVSnapshot());
+
+                        if (mustClearFilteringMetadata) {
+                            _externalState->clearFilteringMetadataOnTempReshardingCollection(
+                                opCtx.get(), _metadata.getTempReshardingNss());
+                        }
+
+                        auto customAction =
+                            [&]() -> std::unique_ptr<
+                                      ShardingRecoveryService::BeforeReleasingCustomAction> {
+                            if (mustClearFilteringMetadata) {
+                                return std::make_unique<
+                                    ShardingRecoveryService::FilteringMetadataClearer>();
+                            } else {
+                                return std::make_unique<ShardingRecoveryService::NoCustomAction>();
+                            }
+                        }();
 
                         ShardingRecoveryService::get(opCtx.get())
                             ->releaseRecoverableCriticalSection(
@@ -559,7 +580,7 @@ ExecutorFuture<void> ReshardingRecipientService::RecipientStateMachine::_finishR
                                 _metadata.getSourceNss(),
                                 _critSecReason,
                                 ShardingCatalogClient::writeConcernLocalHavingUpstreamWaiter(),
-                                ShardingRecoveryService::FilteringMetadataClearer());
+                                *customAction);
                     }
                 })
                 .then([this, executor, factory] {
@@ -640,7 +661,7 @@ SemiFuture<void> ReshardingRecipientService::RecipientStateMachine::run(
     auto telemetryCtx = _metadata.getTelemetryContext()
         ? otel::traces::TelemetryContextSerializer::fromBSON(*_metadata.getTelemetryContext())
         : otel::traces::Span::createTelemetryContext();
-    auto span = _startSpan(telemetryCtx, "ReshardingRecipientService::run");
+    auto span = _startSpan(telemetryCtx, SpanNames::kReshardingRecipientRun);
 
     _cancelState.attachStepdownToken(stepdownToken);
     _markKilledExecutor->startup();
@@ -658,12 +679,12 @@ SemiFuture<void> ReshardingRecipientService::RecipientStateMachine::run(
         .then([this, executor] { return _startMetrics(executor); })
         .then([this, executor, telemetryCtx = telemetryCtx->clone()]() mutable {
             auto span = _startSpan(
-                telemetryCtx, "ReshardingRecipientService::_runUntilStrictConsistencyOrErrored");
+                telemetryCtx, SpanNames::kReshardingRecipientRunUntilStrictConsistencyOrErrored);
             return _runUntilStrictConsistencyOrErrored(executor, telemetryCtx);
         })
         .then([this, executor, telemetryCtx = telemetryCtx->clone()]() mutable {
             auto span = _startSpan(
-                telemetryCtx, "ReshardingRecipientService::_notifyCoordinatorAndAwaitDecision");
+                telemetryCtx, SpanNames::kReshardingRecipientNotifyCoordinatorAndAwaitDecision);
             return _notifyCoordinatorAndAwaitDecision(executor);
         })
         .onCompletion(
@@ -735,6 +756,7 @@ ReshardingRecipientService::RecipientStateMachine::awaitChangeStreamsMonitorStar
             "the recipient does not need to clone any documents or fetch/apply any oplog entries."};
     }
 
+    // coverity[missing_lock]
     return _changeStreamsMonitorStarted.getFuture();
 }
 
@@ -751,6 +773,7 @@ ReshardingRecipientService::RecipientStateMachine::awaitChangeStreamsMonitorComp
         return SemiFuture<int64_t>::makeReady(int64_t{0}).share();
     }
 
+    // coverity[missing_lock]
     return _changeStreamsMonitorCompleted.getFuture();
 }
 
@@ -1006,6 +1029,7 @@ void ReshardingRecipientService::RecipientStateMachine::_ensureDataReplicationSt
 void ReshardingRecipientService::RecipientStateMachine::_createAndStartChangeStreamsMonitor(
     const std::shared_ptr<executor::ScopedTaskExecutor>& executor,
     std::shared_ptr<HierarchicalCancelableOperationContextFactory> factory) {
+    // coverity[missing_lock]
     if (!_metadata.getPerformVerification() || _skipCloningAndApplying ||
         inPotentialAbortScenario(_recipientCtx.getState()) ||
         _changeStreamsMonitorStarted.getFuture().isReady() ||
@@ -1093,6 +1117,7 @@ ExecutorFuture<void>
 ReshardingRecipientService::RecipientStateMachine::_awaitChangeStreamsMonitorCompleted(
     const std::shared_ptr<executor::ScopedTaskExecutor>& executor,
     std::shared_ptr<HierarchicalCancelableOperationContextFactory> factory) {
+    // coverity[missing_lock]
     if (!_metadata.getPerformVerification() || _skipCloningAndApplying ||
         inPotentialAbortScenario(_recipientCtx.getState()) ||
         _changeStreamsMonitorCompleted.getFuture().isReady()) {
@@ -1540,6 +1565,29 @@ void ReshardingRecipientService::RecipientStateMachine::_renameTemporaryReshardi
                 ShardingCatalogClient::writeConcernLocalHavingUpstreamWaiter());
 
         resharding::data_copy::ensureTemporaryReshardingCollectionRenamed(opCtx.get(), _metadata);
+
+        if (feature_flags::gAuthoritativeShardsDDL.isEnabled(
+                resharding::getVersionContextOrDefault(_metadata.getForwardableOpMetadata()),
+                serverGlobalParams.featureCompatibility.acquireFCVSnapshot())) {
+            // TODO SERVER-127215: Mark this as not upgrading once rename recovers from disk once it
+            // finishes.
+            //
+            // Force the rename to act as if it is upgrading in order to force a recovery at the
+            // end. Ideally this should be false since:
+            // 1. Resharding cannot commit during an FCV upgrade
+            // 2. The shard already contains the metadata for both "from" and "to" collections and
+            //    thus can assume it's living in a fully authoritative world.
+            bool isUpgrading = true;
+
+            shard_catalog_commit_for_resharding::commitRenameOfTemporaryCollection(
+                opCtx.get(),
+                _metadata.getTempReshardingNss(),
+                _metadata.getReshardingUUID(),
+                _metadata.getSourceNss(),
+                _metadata.getSourceUUID(),
+                isUpgrading,
+                _metadata.getPrimaryShardId() == ShardingState::get(opCtx.get())->shardId());
+        }
     }
 }
 
@@ -2289,10 +2337,8 @@ void ReshardingRecipientService::RecipientStateMachine::_fulfillPromisesOnStepup
 }
 
 otel::traces::Span ReshardingRecipientService::RecipientStateMachine::_startSpan(
-    std::shared_ptr<otel::TelemetryContext> telemetryCtx,
-    const std::string& spanName,
-    bool keepSpan) {
-    auto span = otel::traces::Span::start(telemetryCtx, spanName, keepSpan);
+    std::shared_ptr<otel::TelemetryContext> telemetryCtx, otel::traces::SpanName spanName) {
+    auto span = otel::traces::Span::start(telemetryCtx, spanName);
     TRACING_SPAN_ATTR(span, "reshardingUUID", _metadata.getReshardingUUID().toString());
     return span;
 }
