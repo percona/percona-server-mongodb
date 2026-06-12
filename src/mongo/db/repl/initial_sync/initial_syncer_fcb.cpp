@@ -560,8 +560,6 @@ void InitialSyncerFCB::_setUp(WithLock lk,
     _stats.maxFailedInitialSyncAttempts = initialSyncMaxAttempts;
     _stats.failedInitialSyncAttempts = 0;
     _stats.exec = std::weak_ptr<executor::TaskExecutor>(_exec);
-
-    _allowedOutageDuration = Seconds(initialSyncTransientErrorRetryPeriodSeconds.load());
 }
 
 void InitialSyncerFCB::_tearDown(WithLock lk,
@@ -644,6 +642,10 @@ void InitialSyncerFCB::_startInitialSyncAttemptCallback(
     // Lock guard must be declared after completion guard because completion guard destructor
     // has to run outside lock.
     std::lock_guard<std::mutex> lock(_mutex);
+
+    // Reload the transient error retry period from the server parameter so that runtime changes
+    // are picked up on each new initial sync attempt.
+    _allowedOutageDuration = Seconds(initialSyncTransientErrorRetryPeriodSeconds.load());
 
     LOGV2_DEBUG(128424,
                 2,
