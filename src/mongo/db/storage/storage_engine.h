@@ -36,12 +36,8 @@
 #include "mongo/db/index_builds/index_builds.h"
 #include "mongo/db/index_builds/resumable_index_builds_gen.h"
 #include "mongo/db/storage/compact_options.h"
-<<<<<<< HEAD
 #include "mongo/db/storage/engine_extension.h"
-||||||| e4cbb5dc4a8
-=======
 #include "mongo/db/storage/flush_all_files_observer.h"
->>>>>>> 0be72e167428b6d7cb9b7045df72ee6392e92df0
 #include "mongo/db/storage/ident.h"
 #include "mongo/db/storage/record_store.h"
 #include "mongo/db/storage/storage_tier_gen.h"
