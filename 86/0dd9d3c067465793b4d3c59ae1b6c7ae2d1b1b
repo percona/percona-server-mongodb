@@ -1,0 +1,28 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "d732c0705eb10c4cfed8ce922e51df99d44c5073",
+    "merge_commit": "e4cbb5dc4a8998f36e75bffb4dca4a79374e83a3"
+  },
+  "mergai_version": "0.1.dev1+g6264ec08d",
+  "solutions": [
+    {
+      "type": "conflict_resolution",
+      "response": {
+        "summary": "PSMDB-2109: Remove tools section from SBOM",
+        "resolved": {
+          "sbom.json": "Resolved by human"
+        },
+        "unresolved": {},
+        "modified": {},
+        "review_notes": "We produce the SBOM manually and don't need the tools section."
+      },
+      "author": {
+        "name": "Pawel Lebioda",
+        "email": "pawel.lebioda@percona.com",
+        "type": "human"
+      },
+      "commit_sha": "860dd9d3c067465793b4d3c59ae1b6c7ae2d1b1b"
+    }
+  ]
+}
