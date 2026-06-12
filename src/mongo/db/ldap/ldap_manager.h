@@ -32,6 +32,7 @@ Copyright (C) 2019-present Percona and/or its affiliates. All rights reserved.
 #pragma once
 
 #include "mongo/base/status.h"
+#include "mongo/bson/bsonobjbuilder.h"
 #include "mongo/db/auth/role_name.h"
 #include "mongo/db/auth/user_name.h"
 #include "mongo/db/service_context.h"
@@ -64,6 +65,9 @@ public:
 
     // Invalidate all cached userToDN mapping results.
     virtual void invalidateUserToDNCache() = 0;
+
+    // Append userToDN cache metrics to a BSONObjBuilder under the "userToDNCache" key.
+    virtual void appendUserToDNCacheStats(BSONObjBuilder& bob) const = 0;
 };
 
 }  // namespace mongo
