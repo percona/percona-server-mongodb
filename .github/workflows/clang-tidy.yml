@@ -205,3 +205,13 @@ jobs:
         with:
           sarif_file: clang-tidy-results.sarif
           category: clang-tidy
+
+      # Also publish the SARIF file as a workflow artifact so downstream
+      # consumers can fetch it without needing Code Scanning API access.
+      - name: Upload SARIF artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: clang-tidy-results
+          path: clang-tidy-results.sarif
+          retention-days: 1

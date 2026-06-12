@@ -86,3 +86,22 @@ jobs:
             git diff | head -n 1000
             exit 1
           fi
+
+      # The following steps run only when "Verify formatting" fails. They
+      # capture the unified diff and the list of affected files into a
+      # workflow artifact so downstream consumers can fetch them.
+      - name: Prepare format results
+        if: failure()
+        run: |
+          mkdir -p /tmp/format-results
+          git diff > /tmp/format-results/diff.patch
+          git diff --name-only > /tmp/format-results/files.txt
+          echo "${{ github.base_ref }}" > /tmp/format-results/target_branch.txt
+
+      - name: Upload format results
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: format-results
+          path: /tmp/format-results/
+          retention-days: 1

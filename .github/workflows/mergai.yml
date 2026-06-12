@@ -1,6 +1,7 @@
 name: mergai bot
 
 on:
+  # Manual entry point: start a new merge of an upstream commit.
   workflow_dispatch:
     inputs:
       merge-pick:
@@ -16,10 +17,19 @@ on:
         description: "AI agent to use for merge/describe/resolve (e.g., claude-cli:claude-opus-4-5)"
         required: false
         type: string
+  # Finalize entry point: when a mergai review PR is merged.
   pull_request:
     types: [closed]
     branches:
       - "mergai/*/conflict"
+      - "mergai/*/main"
+  # CI auto-fix entry point: fires when a watched workflow completes on a
+  # mergai/* branch.
+  workflow_run:
+    workflows: ["format", "clang-tidy", "build-and-test"]
+    types: [completed]
+    branches:
+      - "mergai/**"
 
 jobs:
   trigger-merge:
@@ -109,7 +119,7 @@ jobs:
             mergai branch create main        # Create and checkout main working branch
             mergai branch push main          # Push main branch to origin
             mergai notes push                # Push mergai notes to remote
-            mergai pr --repo $GITHUB_REPOSITORY create main
+            mergai pr --repo "$GITHUB_REPOSITORY" create main --skip-commit-list-on-failure
           else
             echo "Merge conflict detected. Processing with resolution."
             mergai commit conflict           # Commit conflict state with markers
@@ -120,15 +130,18 @@ jobs:
             mergai branch push solution      # Push solution branch
             mergai branch push conflict      # Push conflict branch
             mergai notes push                # Push mergai notes to remote
-            mergai pr --repo $GITHUB_REPOSITORY create solution
+            mergai pr --repo "$GITHUB_REPOSITORY" create solution --skip-commit-list-on-failure
           fi
 
   solution-merged:
-    # 'privileged-ops' environment controls access to merge operations
     environment: privileged-ops
-    if: github.event_name == 'pull_request' && github.event.pull_request.merged == true
+    # Solution PRs (textual conflict resolution) merge into the conflict
+    # branch. Semantic PRs merge into main and are handled by `semantic-merged`.
+    if: >-
+      github.event_name == 'pull_request'
+      && github.event.pull_request.merged == true
+      && endsWith(github.event.pull_request.base.ref, '/conflict')
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -162,4 +175,363 @@ jobs:
           mergai finalize                  # Finalize into final merge commit
           mergai branch push main          # Push main branch to origin
           mergai notes push                # Push mergai notes to remote
-          mergai pr --repo $GITHUB_REPOSITORY create main
+          # --skip-commit-list-on-failure retries without the merged-commit
+          # table if the body exceeds GitHub's 65,536 character limit.
+          mergai pr --repo "$GITHUB_REPOSITORY" create main --skip-commit-list-on-failure
+
+  semantic-merged:
+    environment: privileged-ops
+    # Semantic PRs merge into the main branch.
+    # Once merged, run finalize and then force-push main.
+    # The main PR (main -> target) already exists and updates itself,
+    # so nothing is created here.
+    if: >-
+      github.event_name == 'pull_request'
+      && github.event.pull_request.merged == true
+      && endsWith(github.event.pull_request.base.ref, '/main')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.PSMDB_BOT_GH_APP_ID }}
+          private-key: ${{ secrets.PSMDB_BOT_GH_APP_PRIVATE_KEY }}
+
+      - name: Checkout main branch
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.base.ref }}
+          fetch-depth: 0
+          token: ${{ steps.app-token.outputs.token }}
+
+      - name: Setup workflow environment
+        uses: ./.github/actions/setup-mergai-workflow
+        with:
+          setup-gcp: "false"
+          setup-gemini: "false"
+          setup-mergai: "true"
+          github-app-token: ${{ steps.app-token.outputs.token }}
+          github-app-id: ${{ secrets.PSMDB_BOT_GH_APP_ID }}
+          mergai-ref: master
+
+      # Run finalize and force-push main branch.
+      - name: Finalize semantic fixes into the merge commit
+        run: |
+          mergai notes update              # Fetch and merge notes from remote
+          mergai context init              # Rebuild context from commit notes
+          mergai commit sync               # Record any manual commits in notes
+          mergai finalize                  # Fold semantic fixes into the merge commit
+          mergai branch push main --force  # main was rewritten by finalize
+          mergai notes push                # Push mergai notes to remote
+          # Refresh the main PR description so it now includes the merged-in
+          # solutions (the semantic fixes), which the merge notice points to.
+          mergai pr --repo "$GITHUB_REPOSITORY" update main \
+            || echo "::warning::'mergai pr update main' failed"
+
+      # Close the loop on the main PR: the semantic (solution) PR has been
+      # merged and finalized into the merge commit. Mirrors the one-time
+      # pointer the ci-handle job posts when the semantic PR opens.
+      - name: Comment on the main PR that the solution PR was merged
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          GH_REPO: ${{ github.repository }}
+          SEMANTIC_PR: ${{ github.event.pull_request.number }}
+        run: |
+          # Resolves the main PR from the note context loaded by Finalize above;
+          # --allow-missing makes a missing main PR a warning, not a failure.
+          mergai pr --repo "$GITHUB_REPOSITORY" comment main --allow-missing \
+            --body "PR #${SEMANTIC_PR} merged. See the PR comment for details."
+
+  # Drive the CI auto-fix / finalize loop as a gated state
+  # machine. On every watched workflow completion for a mergai/* branch we ask
+  # `mergai ci status --state` whether the *whole* watched set for the current
+  # HEAD is done, then:
+  #   * in-progress / none -> no-op (a later completion finalizes the set);
+  #   * failure            -> `mergai ci fix all` (+ post explanation comment),
+  #                           push notes. Where the fix lands is branch-aware:
+  #                             - solution/semantic branches: commit inline and
+  #                               push (the open PR is the review surface);
+  #                             - main branch: the failure is a *semantic
+  #                               conflict* (clean merge that doesn't build), so
+  #                               the fix is relocated onto a `semantic` branch
+  #                               + PR (base main) for review.
+  #   * success            -> no-op. Nothing is folded on green: folding the
+  #                           review commits into the merge commit is a
+  #                           finalize-only step that runs after a human merges
+  #                           the review PR, so an open PR's commits (e.g. the
+  #                           resolve commit) survive for review.
+  # Reacting to each completion individually would either fire before the set
+  # is green or fire once per workflow; gating on the aggregate state makes
+  # the loop converge.
+  #
+  # The state machine is split into two jobs so the privileged half only runs
+  # when there is privileged work to do:
+  #   * ci-gate   - read-only. Computes the aggregate state with the default
+  #                 GITHUB_TOKEN; needs no AI tokens, no GitHub App token, and
+  #                 no `privileged-ops` environment. Runs on every completion.
+  #   * ci-handle - privileged. Gated on ci-gate's state == failure, so
+  #                 in-progress/none/success completions never spin it up (and
+  #                 never trip the privileged-ops approval/secrets path).
+  #                 success is a no-op now that folding into the merge commit
+  #                 is finalize-only.
+  ci-gate:
+    # Only react to watched-workflow completions. The workflow also fires on
+    # workflow_dispatch and pull_request (for other jobs); without this guard
+    # ci-gate would run on those too, since the mergai/* branch filter on the
+    # workflow_run trigger only constrains workflow_run events. The branch
+    # filter itself stays on the trigger.
+    if: github.event_name == 'workflow_run'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read # mergai ci status -> get_workflow_runs
+      contents: read # checkout
+      pull-requests: read # read PR labels (mergai-skip-ci-fix)
+    # Serialize completions for the same branch so two near-simultaneous
+    # workflow_run events can't each observe the other as in-progress and both
+    # no-op (a deadlock). The last-queued gate sees the full set done. This
+    # serialization belongs on the gate - it is what observes the aggregate
+    # state; the downstream handle just acts on the gate's verdict.
+    concurrency:
+      group: ci-handle-${{ github.event.workflow_run.head_branch }}
+      cancel-in-progress: false
+    outputs:
+      state: ${{ steps.gate.outputs.state }}
+      skip_ci_fix: ${{ steps.skip-label.outputs.skip_ci_fix }}
+    steps:
+      # Checkout with the default token: the gate only reads workflow-run
+      # status and the watched set from .mergai/config.yml - no writes, so no
+      # GitHub App token needed.
+      - name: Checkout PR branch
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.workflow_run.head_branch }}
+          fetch-depth: 0
+
+      - name: Setup workflow environment
+        uses: ./.github/actions/setup-mergai-workflow
+        with:
+          setup-gcp: "false"
+          setup-gemini: "false"
+          setup-claude: "false"
+          setup-mergai: "true"
+          mergai-ref: master
+
+      # Gate: reduce the latest run of each watched workflow for the current
+      # HEAD to a single token (in-progress|success|failure|none). Exit code is
+      # always 0; the decision is on stdout and exposed as a job output.
+      - name: Gate on watched workflow completion
+        id: gate
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          STATE=$(mergai ci status --state)
+          echo "Watched-workflow gate state for HEAD: $STATE"
+          echo "state=$STATE" >> "$GITHUB_OUTPUT"
+
+      # Opt-out switch: a human can attach the `mergai-skip-ci-fix` label to the
+      # PR for the head branch to suppress the AI auto-fixer. We resolve the PR
+      # from head_branch and read its labels live (the label is typically added
+      # after the PR opens, so the workflow_run payload can't be trusted for it).
+      # When set, ci-handle is gated off below, so the privileged-ops job never
+      # spins up. Removing the label lets the next watched-workflow completion
+      # resume auto-fixing. Failures here fall through to skip_ci_fix=false so a
+      # transient API error never silently disables fixing.
+      - name: Check for mergai-skip-ci-fix label
+        id: skip-label
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+        run: |
+          LABELS=$(gh pr list --head "$HEAD_BRANCH" --state open \
+            --json labels --jq '.[0].labels[].name' 2>/dev/null || echo "")
+          if echo "$LABELS" | grep -qx "mergai-skip-ci-fix"; then
+            echo "mergai-skip-ci-fix present on PR for $HEAD_BRANCH; CI auto-fix suppressed"
+            echo "skip_ci_fix=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "No mergai-skip-ci-fix label; CI auto-fix may proceed"
+            echo "skip_ci_fix=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  ci-handle:
+    needs: ci-gate
+    # Only failure reaches the privileged job; in-progress/none/success simply
+    # fall through here. success no longer folds anything into the merge commit
+    # (that is finalize-only, after a human merges the review PR), so it is a
+    # no-op.
+    # The `mergai-skip-ci-fix` label on the PR suppresses the auto-fixer
+    # entirely: with it set, even a failure is a no-op and this privileged-ops
+    # job never starts.
+    if: needs.ci-gate.outputs.state == 'failure' && needs.ci-gate.outputs.skip_ci_fix != 'true'
+    environment: privileged-ops
+    runs-on: ubuntu-latest
+    env:
+      GOOGLE_CLOUD_PROJECT: ${{ secrets.GOOGLE_CLOUD_PROJECT }}
+      GOOGLE_CLOUD_LOCATION: ${{ secrets.GOOGLE_CLOUD_LOCATION }}
+      GOOGLE_GENAI_USE_VERTEXAI: "true"
+    steps:
+      - name: Create GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.PSMDB_BOT_GH_APP_ID }}
+          private-key: ${{ secrets.PSMDB_BOT_GH_APP_PRIVATE_KEY }}
+
+      # -----------------------------------------------------------------------
+      # Why we trust github.event.workflow_run.head_branch / head_sha here
+      # -----------------------------------------------------------------------
+      # A workflow_run event carries head_branch/head_sha describing what the
+      # completed workflow ran against. How those are populated depends on the
+      # triggering event:
+      #
+      #   * format, clang-tidy  -> triggered by `pull_request`. The run executes
+      #     in the PR head context, so head_branch = the PR source branch
+      #     (mergai/.../solution or mergai/.../main) and head_sha = the PR head.
+      #
+      #   * build-and-test      -> triggered by `pull_request_target`. By design
+      #     this event runs in the BASE branch context (that is how it exposes
+      #     secrets safely). The documented behavior is that head_branch/head_sha
+      #     point at the PR BASE for *fork* PRs.
+      #
+      # Classic failure mode (fork PRs): on a build-and-test completion you would
+      # check out the base (conflict) branch and commit a "fix" on the wrong
+      # branch, and the gate could never reconcile the solution-branch SHA with
+      # the base SHA.
+      #
+      # That failure mode does NOT apply to mergai PRs: mergai's head branches
+      # (mergai/.../solution, mergai/.../main) live in the SAME repo as the base,
+      # and for same-repo PRs GitHub reports the real PR head ref for
+      # pull_request_target too. Verified on live PRs -- format, clang-tidy and
+      # build-and-test all report the identical head_branch and head_sha for a
+      # given PR commit. So gating on "latest run per watched workflow whose
+      # head_sha == HEAD" is correct, and checking out head_branch lands on the
+      # right (head) branch.
+      #
+      # We gate via `get_workflow_runs(branch=...)` (what `mergai ci status`
+      # uses), NOT the commit Checks API: the Checks API on the PR head SHA
+      # surfaces only mergai-bot's own jobs, not the watched workflows.
+      #
+      # If mergai ever opens solution/main PRs from a FORK, revisit this: resolve
+      # the PR from the run and gate on the PR head SHA instead of the event
+      # fields.
+      # -----------------------------------------------------------------------
+      - name: Checkout PR branch
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.workflow_run.head_branch }}
+          fetch-depth: 0
+          token: ${{ steps.app-token.outputs.token }}
+
+      - name: Setup workflow environment
+        uses: ./.github/actions/setup-mergai-workflow
+        with:
+          setup-gcp: "true"
+          setup-gemini: "true"
+          setup-claude: "true"
+          setup-mergai: "true"
+          gcp-credentials: ${{ secrets.GCP_CREDENTIALS }}
+          claude-api-key: ${{ secrets.CLAUDE_API_KEY }}
+          github-app-token: ${{ steps.app-token.outputs.token }}
+          github-app-id: ${{ secrets.PSMDB_BOT_GH_APP_ID }}
+          mergai-ref: master
+
+      - name: Fetch and load mergai notes
+        run: |
+          mergai notes update
+          mergai context init
+
+      # Any watched run for HEAD failed/cancelled. Run the fixer once here; the
+      # steps below route the result based on whether a fix commit landed and
+      # which branch CI ran on. `mergai ci fix all` resolves the failing runs
+      # from the *current* branch and commits the fix on HEAD, so we always run
+      # it on the branch CI ran on. `fix_produced`/`before` are exposed as step
+      # outputs for the routing steps.
+      - name: Apply CI fixes (state=failure)
+        id: fix
+        if: needs.ci-gate.outputs.state == 'failure'
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          before=$(git rev-parse HEAD)
+          mergai ci fix all
+          after=$(git rev-parse HEAD)
+          echo "before=$before" >> "$GITHUB_OUTPUT"
+          if [ "$before" = "$after" ]; then
+            echo "No fix commit produced."
+            echo "fix_produced=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Fix commit produced ($after)."
+            echo "fix_produced=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      # No fix commit (e.g. an unfixable failure): `ci comment post` still
+      # publishes the recorded explanation on the run's own PR.
+      - name: Post explanation comment (no fix produced)
+        if: needs.ci-gate.outputs.state == 'failure' && steps.fix.outputs.fix_produced == 'false'
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          GH_REPO: ${{ github.repository }}
+        run: mergai ci comment post
+
+      # The main branch carries the bare merge commit and is NOT a review
+      # branch. A failure here is a *semantic conflict* (a clean merge that
+      # doesn't build/pass). We must not advance main with an un-reviewed fix,
+      # so the fix commit is relocated onto a dedicated `semantic` branch and
+      # reviewed via a `semantic` PR (base = main). origin/main is never pushed here.
+      - name: Relocate fix to semantic branch (semantic conflict on */main)
+        if: needs.ci-gate.outputs.state == 'failure' && steps.fix.outputs.fix_produced == 'true' && endsWith(github.event.workflow_run.head_branch, '/main')
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          GH_REPO: ${{ github.repository }}
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+        run: |
+          echo "Semantic conflict on $HEAD_BRANCH; relocating the fix to a semantic branch"
+          # Move the just-produced fix commit(s) onto a fresh semantic branch.
+          # `mergai branch create semantic` derives the branch name and fails if
+          # it already exists (locally or on origin). The semantic branch must
+          # not exist at this point, so a pre-existing one is a hard error -- we
+          # let the step fail rather than replaying the fix onto a stale branch.
+          mergai branch create semantic
+          mergai branch push semantic
+          # The branch is always fresh, so this is the first (and only) PR for
+          # it. Open it, then post a one-time pointer on the main PR.
+          mergai pr --repo "$GITHUB_REPOSITORY" create semantic --skip-commit-list-on-failure
+          SEMANTIC_PR=$(mergai pr --repo "$GITHUB_REPOSITORY" number semantic)
+          mergai pr --repo "$GITHUB_REPOSITORY" comment main --allow-missing \
+            --body "One or more checks failed. PR #${SEMANTIC_PR} opened with fixes for review."
+          # Refresh the semantic PR body (the rolling fixes summary, rebuilt
+          # from the note's solutions) and post the CI-fix notice on it.
+          mergai pr --repo "$GITHUB_REPOSITORY" update semantic \
+            || echo "::warning::'mergai pr update semantic' failed"
+          mergai ci comment post --review-pr "$SEMANTIC_PR"
+
+      # solution / semantic branches are review branches: the fix rides inline
+      # as another commit and is reviewed in the existing PR. Nothing is folded
+      # here -- folding into the merge commit happens only at finalize, after
+      # the PR is merged, so the resolve commit survives.
+      - name: Push inline fix (review branch)
+        if: needs.ci-gate.outputs.state == 'failure' && steps.fix.outputs.fix_produced == 'true' && !endsWith(github.event.workflow_run.head_branch, '/main')
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          GH_REPO: ${{ github.repository }}
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+        run: |
+          echo "Pushing inline fix to $HEAD_BRANCH"
+          git push origin "HEAD:$HEAD_BRANCH"
+          # Refresh the PR body from the note's solutions, then post a short
+          # notification.
+          mergai pr --repo "$GITHUB_REPOSITORY" update \
+            || echo "::warning::'mergai pr update' failed"
+          mergai ci comment post
+
+      # Always push notes when a fix was attempted: ci_comments / posted markers
+      # may have changed even when no commit was produced.
+      - name: Push mergai notes
+        if: needs.ci-gate.outputs.state == 'failure'
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          GH_REPO: ${{ github.repository }}
+        run: mergai notes push
