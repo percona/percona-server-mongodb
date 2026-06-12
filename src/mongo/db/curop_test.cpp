@@ -659,15 +659,9 @@ TEST(CurOpTest, OptionalAdditiveMetricsNotDisplayedIfUninitialized) {
                                          "numYield",
                                          "locks",
                                          "millis",
-<<<<<<< HEAD
+                                         "micros",
                                          "flowControl",
                                          "rateLimit"};
-||||||| 0be72e16742
-                                         "flowControl"};
-=======
-                                         "micros",
-                                         "flowControl"};
->>>>>>> 2c33f78574a96f599c037179034dfafb05192be7
 
     QueryTestServiceContext serviceContext;
     auto opCtx = serviceContext.makeOperationContext();
