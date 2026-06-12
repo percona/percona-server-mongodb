@@ -5,14 +5,14 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 212,
+    "commits_behind": 214,
     "days_behind": 3,
-    "files_affected": 1990,
-    "total_additions": 110716,
-    "total_deletions": 36505,
+    "files_affected": 1998,
+    "total_additions": 111571,
+    "total_deletions": 36737,
     "date_range": {
       "first": "2026-06-08T19:20:18+00:00",
-      "last": "2026-06-12T02:15:37+00:00"
+      "last": "2026-06-12T06:22:59+00:00"
     }
   },
   "last_merged_commit": {
@@ -36,6 +36,26 @@
     "summary": "SERVER-125431 Remove unused internalQueryStatsRateLimit setParameter from query stats jstests for updates (#55174)"
   },
   "unmerged_commits": [
+    {
+      "sha": "88b19ab688745b8300de61a773c3a3d985681b3f",
+      "short_sha": "88b19ab6887",
+      "date": "2026-06-12T08:22:59+02:00",
+      "author": {
+        "name": "Aitor Esteve Alvarado",
+        "email": "aitor.esteve@mongodb.com"
+      },
+      "summary": "SERVER-128344 MergeAllChunksOnShard: precompute chunk list outside the critical section (#55441)"
+    },
+    {
+      "sha": "120459e060415183a240c907937e93abcc084b71",
+      "short_sha": "120459e0604",
+      "date": "2026-06-12T06:21:07+00:00",
+      "author": {
+        "name": "mongodb-sage-bot[bot]",
+        "email": "247496174+mongodb-sage-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "SERVER-117595: Add subpipeline test cases for unique index join CE (#54294)"
+    },
     {
       "sha": "8a61be7fae0c1ad61079e253e0ac9f15d4c51a46",
       "short_sha": "8a61be7fae0",
@@ -2575,7 +2595,7 @@
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-06-12 06:45:09",
+  "generated_at": "2026-06-12 07:36:15",
   "branch_name": "master",
   "display_name": "master"
 }
