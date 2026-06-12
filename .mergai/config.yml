@@ -194,6 +194,30 @@ resolve:
   max_attempts: 3
 
 # -----------------------------------------------------------------------------
+# REVIEW CONFIGURATION
+# -----------------------------------------------------------------------------
+# Configuration for the 'review' command which addresses PR review comments.
+review:
+  # Security gate: when false (default), only review comments from trusted
+  # authors are acted on; comments from anyone else are ignored entirely and
+  # reported (count) in the --ack summary. Untrusted replies on an otherwise
+  # trusted thread are also stripped from the agent context. Set true to act on
+  # every author's comments.
+  process_external: false
+
+  # GitHub authorAssociation values trusted to instruct the agent. OWNER/MEMBER
+  # cover repo owners and Percona org members (the team). COLLABORATOR is an
+  # *outside* collaborator and is deliberately not trusted; add it here, or list
+  # specific logins under trusted_logins, to trust particular outsiders.
+  trusted_associations:
+    - OWNER
+    - MEMBER
+
+  # Optional explicit allowlist of trusted author logins (in addition to
+  # trusted_associations).
+  trusted_logins: []
+
+# -----------------------------------------------------------------------------
 # BRANCH CONFIGURATION
 # -----------------------------------------------------------------------------
 # Configuration for branch naming conventions.
