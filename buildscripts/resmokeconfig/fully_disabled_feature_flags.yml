@@ -14,7 +14,6 @@
 # if featureFlagAllMongodsAreSharded is re-enabled.
 - featureFlagAllMongodsAreSharded
 - featureFlagGRPC
-- featureFlagCreateCollectionInPreparedTransactions
 - featureFlagSearchInSbe
 - featureFlagTSBucketingParametersUnchanged
 - featureFlagGaplessFTDC
@@ -36,3 +35,4 @@
 - featureFlagStreams
 # TODO SERVER-127411: Enable in all-feature-flags after shard UUID migration is complete.
 - featureFlagUniqueShardIdentifiers
+- featureFlagUniqueShardIdentifiersDDL

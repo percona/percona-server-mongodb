@@ -87,9 +87,14 @@ mongo_cc_library(
         "//src/mongo/db:server_base",
         "//src/mongo/db:server_feature_flags",
         "//src/mongo/db:service_context",
+<<<<<<< HEAD
         "//src/mongo/db/audit:audit_impl",
         "//src/mongo/db/encryption:key_management",
         "//src/mongo/db/replicated_fast_count:replicated_fast_count_manager",
+||||||| e4cbb5dc4a8
+        "//src/mongo/db/replicated_fast_count:replicated_fast_count_manager",
+=======
+>>>>>>> 0be72e167428b6d7cb9b7045df72ee6392e92df0
         "//src/mongo/db/rss:replicated_storage_service",
         "//src/mongo/db/storage:backup_cursor_hooks",
         "//src/mongo/db/storage:container",

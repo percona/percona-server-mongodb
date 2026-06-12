@@ -56,31 +56,6 @@ feature_flags:
         version: 8.0
         fcv_gated: true
         check_against_fcv: legacy_fcv_snapshot_only
-    # TODO (SERVER-81037): enable this feature flag once it's possible to detect prepare conflicts on the catalog
-    featureFlagCreateCollectionInPreparedTransactions:
-        description: "Feature flag protecting the codepath allowing to create collections in prepared transactions "
-        cpp_varname: feature_flags::gCreateCollectionInPreparedTransactions
-        default: false
-        fcv_gated: true
-    # TODO (SERVER-77915): Remove once 8.0 becomes last LTS.
-    featureFlagTrackUnshardedCollectionsUponMoveCollection:
-        description: "Feature flag for enabling the tracking of user unsharded collection upon moveCollection"
-        cpp_varname: feature_flags::gTrackUnshardedCollectionsUponMoveCollection
-        default: true
-        version: 8.0
-        fcv_gated: true
-        check_against_fcv: legacy_fcv_snapshot_only
-    # TODO (SERVER-77915): Remove once 8.0 becomes last LTS.
-    featureFlag80CollectionCreationPath:
-        description:
-            "Feature flag protecting all codepaths that rely on the 8.0 way of collection creation in a
-            sharded cluster. Namely, no implicit creations by the shards and no usage of the
-            storage-level create command."
-        cpp_varname: feature_flags::g80CollectionCreationPath
-        default: true
-        version: 8.0
-        fcv_gated: true
-        check_against_fcv: legacy_fcv_snapshot_only
     featureFlagCreateDatabaseDDLCoordinator:
         description: >
             Feature flag for enabling the sharding DDL coordinator for database creation.
@@ -251,12 +226,23 @@ feature_flags:
     # into config.databases while not-yet-migrated types still expect ShardIds.
     featureFlagUniqueShardIdentifiers:
         description:
-            "Feature flag to enable the use of unique shard identifiers in a sharded cluster. When
-            enabled, new shards added to a cluster will be assigned a UUID to uniquely identify
-            that shard across shard additions and removals."
+            "Feature flag to refer to shards by their UUID, to uniquely identify each shard across
+            additions and removals."
         cpp_varname: feature_flags::gFeatureFlagUniqueShardIdentifiers
         default: false
         fcv_gated: true
+    featureFlagUniqueShardIdentifiersDDL:
+        description: >
+            Feature flag to support the transition to/from unique shard identifiers.
+
+            (Enable on transitional FCV): Allows the server to handle a transitional state where
+            existing shards are in the midst of being updated to include a UUID (or remove UUIDs in
+            the case of a downgrade), and DDL coordinators that may have originated from a previous
+            FCV need to preserve the original FCV semantics.
+        cpp_varname: feature_flags::gFeatureFlagUniqueShardIdentifiersDDL
+        default: false
+        fcv_gated: true
+        enable_on_transitional_fcv_UNSAFE: true
     # TODO (SERVER-126991): Remove this flag once 9.0 becomes last LTS.
     featureFlagStrictExpireAfterSecondsTypeChecking:
         description: >-

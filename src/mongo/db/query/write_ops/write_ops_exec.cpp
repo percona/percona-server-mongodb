@@ -300,15 +300,11 @@ void makeCollection(OperationContext* opCtx, const NamespaceString& ns) {
 
         if (!collection.exists()) {  // someone else may have beat us to it.
             uassertStatusOK(userAllowedCreateNS(opCtx, ns));
-            // TODO (SERVER-77915): Remove once 8.0 becomes last LTS.
             // TODO (SERVER-82066): Update handling for direct connections.
             // TODO (SERVER-86254): Update handling for transactions and retryable writes.
             boost::optional<OperationShardingState::ScopedAllowImplicitCollectionCreate_UNSAFE>
                 allowCollectionCreation;
-            const auto fcvSnapshot = serverGlobalParams.featureCompatibility.acquireFCVSnapshot();
-            if (!fcvSnapshot.isVersionInitialized() ||
-                !feature_flags::g80CollectionCreationPath.isEnabled(fcvSnapshot) ||
-                !OperationShardingState::get(opCtx).isShardingAware(opCtx) ||
+            if (!OperationShardingState::get(opCtx).isShardingAware(opCtx) ||
                 (opCtx->inMultiDocumentTransaction() || opCtx->isRetryableWrite())) {
                 allowCollectionCreation.emplace(opCtx, ns);
             }
@@ -712,6 +708,14 @@ bool handleError(OperationContext* opCtx,
         throw;  // These have always failed the whole batch.
     }
 
+    if (ex.code() == ErrorCodes::WriteConflictRetryLimitExceeded) {
+        // Surface as command-level ok:0 so drivers' RetryableWriteError /
+        // TransientTransactionError label attachment fires. Per-doc framing in writeErrors does
+        // not trigger driver retry. For ordered:false batches this aborts the whole batch;
+        // drivers re-send with stmtId idempotency.
+        throw;
+    }
+
     if (ErrorCodes::WouldChangeOwningShard == ex.code()) {
         if (analyze_shard_key::supportsPersistingSampledQueries(opCtx) && sampleId) {
             // Sample the diff before rethrowing the error since mongos will handle this update by
@@ -1053,15 +1057,11 @@ UpdateResult performUpdate(OperationContext* opCtx,
     if (!collection.exists() && upsert) {
         CollectionWriter collectionWriter(opCtx, &collection);
         uassertStatusOK(userAllowedCreateNS(opCtx, nsString));
-        // TODO (SERVER-77915): Remove once 8.0 becomes last LTS.
         // TODO (SERVER-82066): Update handling for direct connections.
         // TODO (SERVER-86254): Update handling for transactions and retryable writes.
         boost::optional<OperationShardingState::ScopedAllowImplicitCollectionCreate_UNSAFE>
             allowCollectionCreation;
-        const auto fcvSnapshot = serverGlobalParams.featureCompatibility.acquireFCVSnapshot();
-        if (!fcvSnapshot.isVersionInitialized() ||
-            !feature_flags::g80CollectionCreationPath.isEnabled(fcvSnapshot) ||
-            !OperationShardingState::get(opCtx).isShardingAware(opCtx) ||
+        if (!OperationShardingState::get(opCtx).isShardingAware(opCtx) ||
             (opCtx->inMultiDocumentTransaction() || opCtx->isRetryableWrite())) {
             allowCollectionCreation.emplace(opCtx, nsString);
         }

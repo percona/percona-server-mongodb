@@ -34,7 +34,12 @@
 #include "mongo/bson/timestamp.h"
 #include "mongo/db/rss/persistence_provider.h"
 #include "mongo/db/storage/compact_options.h"
+<<<<<<< HEAD
 #include "mongo/db/storage/engine_extension.h"
+||||||| e4cbb5dc4a8
+=======
+#include "mongo/db/storage/flush_all_files_observer.h"
+>>>>>>> 0be72e167428b6d7cb9b7045df72ee6392e92df0
 #include "mongo/db/storage/prepared_transactions_iterator.h"
 #include "mongo/db/storage/record_store.h"
 #include "mongo/db/storage/sorted_data_interface.h"
@@ -406,6 +411,19 @@ public:
      * system about journaled write progress.
      */
     virtual void setJournalListener(JournalListener* jl) = 0;
+
+    /**
+     * Sets the FlushAllFilesObserver that the engine notifies while it flushes all files.
+     * Engines that do not support this leave it unset.
+     */
+    virtual void setFlushAllFilesObserver(FlushAllFilesObserver* observer) {}
+
+    /**
+     * Returns the registered FlushAllFilesObserver, or nullptr if none has been set.
+     */
+    virtual FlushAllFilesObserver* getFlushAllFilesObserver() const {
+        return nullptr;
+    }
 
     /**
      * See `StorageEngine::setLastMaterializedLsn`

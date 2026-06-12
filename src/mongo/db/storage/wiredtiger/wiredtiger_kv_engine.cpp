@@ -47,8 +47,6 @@
 #include "mongo/db/encryption/key_id.h"
 #include "mongo/db/encryption/master_key_provider.h"
 #include "mongo/db/index_names.h"
-#include "mongo/db/replicated_fast_count/replicated_fast_count_enabled.h"
-#include "mongo/db/replicated_fast_count/replicated_fast_count_manager.h"
 #include "mongo/db/rss/persistence_provider.h"
 #include "mongo/db/rss/replicated_storage_service.h"
 #include "mongo/db/server_feature_flags_gen.h"
@@ -57,6 +55,7 @@
 #include "mongo/db/server_recovery.h"
 #include "mongo/db/service_context.h"
 #include "mongo/db/shard_role/transaction_resources.h"
+#include "mongo/db/storage/flush_all_files_observer.h"
 #include "mongo/db/storage/ident.h"
 #include "mongo/db/storage/journal_listener.h"
 #include "mongo/db/storage/key_format.h"
@@ -1677,9 +1676,8 @@ void WiredTigerKVEngine::flushAllFiles(OperationContext* opCtx, bool callerHolds
 
     // Immediately flush the size storer information to disk. When the node is fsync locked for
     // operations such as backup, it's imperative that we copy the most up-to-date data files.
-    if (isReplicatedFastCountEnabled(opCtx)) {
-        replicated_fast_count::ReplicatedFastCountManager::get(opCtx->getServiceContext())
-            .flushAsync();
+    if (auto* observer = getFlushAllFilesObserver()) {
+        observer->onFlushAllFiles();
     }
     syncSizeInfo(true);
 
@@ -3291,8 +3289,6 @@ std::unique_ptr<RecordStore> WiredTigerKVEngine::getRecordStore(OperationContext
                                                                 boost::optional<UUID> uuid) {
     std::unique_ptr<WiredTigerRecordStore> ret;
     auto& provider = rss::ReplicatedStorageService::get(opCtx).getPersistenceProvider();
-    bool forceUpdateWithFullDocument =
-        options.forceUpdateWithFullDocument || provider.shouldForceUpdateWithFullDocument();
     if (options.isOplog) {
         const bool isLogged = WiredTigerUtil::useTableLogging(
             provider, nss, _isReplSet, _shouldRecoverFromOplogAsStandalone);
@@ -3308,7 +3304,7 @@ std::unique_ptr<RecordStore> WiredTigerKVEngine::getRecordStore(OperationContext
                                                  .tracksSizeAdjustments = true,
                                                  .isLogged = isLogged,
                                                  .forceUpdateWithFullDocument =
-                                                     forceUpdateWithFullDocument});
+                                                     options.forceUpdateWithFullDocument});
         getOplogManager()->stop(nullptr);
         getOplogManager()->start(opCtx, *this, *ret, _isReplSet);
     } else {
@@ -3333,7 +3329,7 @@ std::unique_ptr<RecordStore> WiredTigerKVEngine::getRecordStore(OperationContext
             // preventing overwrites.
             .overwrite = options.allowOverwrite,
             .isLogged = isLogged,
-            .forceUpdateWithFullDocument = forceUpdateWithFullDocument,
+            .forceUpdateWithFullDocument = options.forceUpdateWithFullDocument,
             .inMemory = _wtConfig.inMemory,
             .sizeStorer = _sizeStorer.get(),
             .tracksSizeAdjustments = true,
@@ -3487,9 +3483,7 @@ std::unique_ptr<RecordStore> WiredTigerKVEngine::getInternalRecordStore(Recovery
     params.keyFormat = keyFormat;
     params.overwrite = true;
     params.isLogged = isLogged;
-    auto& provider =
-        rss::ReplicatedStorageService::get(getGlobalServiceContext()).getPersistenceProvider();
-    params.forceUpdateWithFullDocument = provider.shouldForceUpdateWithFullDocument();
+    params.forceUpdateWithFullDocument = false;
     params.inMemory = _wtConfig.inMemory;
     // Temporary collections do not need to persist size information to the size storer.
     params.sizeStorer = nullptr;
@@ -3982,6 +3976,14 @@ void WiredTigerKVEngine::setJournalListener(JournalListener* jl) {
     invariant(!_journalListener);
 
     _journalListener = jl;
+}
+
+void WiredTigerKVEngine::setFlushAllFilesObserver(FlushAllFilesObserver* observer) {
+    _flushAllFilesObserver = observer;
+}
+
+FlushAllFilesObserver* WiredTigerKVEngine::getFlushAllFilesObserver() const {
+    return _flushAllFilesObserver.get();
 }
 
 void WiredTigerKVEngine::setLastMaterializedLsn(uint64_t lsn) {
