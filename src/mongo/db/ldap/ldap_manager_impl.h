@@ -34,6 +34,7 @@ Copyright (C) 2019-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/bson/bsonobj.h"
 #include "mongo/db/ldap/ldap_manager.h"
 #include "mongo/logv2/log_severity.h"
+#include "mongo/platform/atomic_word.h"
 #include "mongo/util/lru_cache.h"
 #include "mongo/util/synchronized_value.h"
 #include "mongo/util/time_support.h"
@@ -64,6 +65,8 @@ public:
 
     void invalidateUserToDNCache() override;
 
+    void appendUserToDNCacheStats(BSONObjBuilder& bob) const override;
+
 private:
     struct UserToDNCacheEntry {
         std::string dn;
@@ -71,7 +74,7 @@ private:
     };
 
     struct UserToDNCacheHolder {
-        UserToDNCacheHolder();
+        explicit UserToDNCacheHolder(long long invalidations = 0);
 
         using UserToDNCache = LRUCache<std::string, UserToDNCacheEntry>;
 
@@ -79,8 +82,11 @@ private:
         const int ttl;
         const bool enabled;
         const BSONArray mapping;
+        const long long invalidations;
         std::mutex mutex;
         UserToDNCache cache;
+        AtomicWord<long long> hits{0};
+        AtomicWord<long long> misses{0};
     };
 
     // UserToDNCacheHolder will be atomically replaced on any configuration changes

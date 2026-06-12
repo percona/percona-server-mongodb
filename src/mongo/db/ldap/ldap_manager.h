@@ -41,6 +41,8 @@ Copyright (C) 2019-present Percona and/or its affiliates. All rights reserved.
 
 namespace mongo {
 
+class BSONObjBuilder;
+
 class LDAPManager {
 public:
     static LDAPManager* get(ServiceContext* service);
@@ -64,6 +66,9 @@ public:
 
     // Invalidate all cached userToDN mapping results.
     virtual void invalidateUserToDNCache() = 0;
+
+    // Append userToDN cache metrics to a BSONObjBuilder under the "userToDNCache" key.
+    virtual void appendUserToDNCacheStats(BSONObjBuilder& bob) const = 0;
 };
 
 }  // namespace mongo

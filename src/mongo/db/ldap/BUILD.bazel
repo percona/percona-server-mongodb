@@ -33,6 +33,7 @@ mongo_cc_library(
         "//src/mongo:base",
         "//src/mongo/db:ldap_options",
         "//src/mongo/db:service_context",
+        "//src/mongo/db/commands/server_status:server_status_core",
         "//src/mongo/db/ldap:ldap_manager_base",
         "//src/mongo/util:background_job",
     ],
