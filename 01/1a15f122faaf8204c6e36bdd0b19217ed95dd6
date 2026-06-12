@@ -1,0 +1,125 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "05fdafdc70d19d4c7ff9a2698c5f1d32317c9f79",
+    "merge_commit": "e4cbb5dc4a8998f36e75bffb4dca4a79374e83a3"
+  },
+  "mergai_version": "0.1.dev1+g28453f571",
+  "conflict_context": {
+    "ours_commit": "05fdafdc70d19d4c7ff9a2698c5f1d32317c9f79",
+    "theirs_commit": "e4cbb5dc4a8998f36e75bffb4dca4a79374e83a3",
+    "base_commit": "a1d84817936d03bcb5d37e5a13c31ba77299e87f",
+    "files": [
+      "sbom.json"
+    ],
+    "conflict_types": {
+      "sbom.json": "both modified"
+    },
+    "diffs": {
+      "sbom.json": "diff --cc sbom.json\nindex 668e87d71e1,ce009c0e283..00000000000\n--- a/sbom.json\n+++ b/sbom.json\n@@@ -31,4 -31,1 +31,19 @@@\n++<<<<<<< HEAD\n +          \"license\": {\n +            \"id\": \"SSPL-1.0\",\n +            \"url\": \"https://www.mongodb.com/legal/licensing/community-edition\"\n +          }\n++||||||| a1d84817936\n++          \"license\": {\n++            \"id\": \"SSPL-1.0\",\n++            \"url\": \"https://www.mongodb.com/legal/licensing/community-edition\"\n++          }\n++        },\n++        {\n++          \"license\": {\n++            \"name\": \"MongoDB Enterprise Advanced License\",\n++            \"url\": \"https://www.mongodb.com/products/self-managed/enterprise-advanced\"\n++          }\n++=======\n+           \"expression\": \"SSPL-1.0 OR LicenseRef-MongoDB-Enterprise-Advanced-License\"\n++>>>>>>> e4cbb5dc4a8998f36e75bffb4dca4a79374e83a3\n@@@ -63,1 -65,9 +78,23 @@@\n++<<<<<<< HEAD\n +        \"https://percona.com\"\n++||||||| a1d84817936\n++        \"https://mongodb.com\"\n++      ]\n++    },\n++    \"tools\": {\n++      \"services\": [\n++        {\n++          \"name\": \"Endor Labs Inc\",\n++          \"version\": \"v1.7.988\"\n++        }\n++=======\n+         \"https://mongodb.com\"\n+       ]\n+     },\n+     \"tools\": {\n+       \"services\": [\n+         {\n+           \"name\": \"Endor Labs Inc\",\n+           \"version\": \"v1.7.994\"\n+         }\n++>>>>>>> e4cbb5dc4a8998f36e75bffb4dca4a79374e83a3"
+    },
+    "their_commits": {
+      "sbom.json": [
+        "82c681567663ed455a618479e88b76dcdf64931a",
+        "cd671dc2b847d0cafd9fd0e5b42b35245cc3387e"
+      ]
+    }
+  },
+  "merge_context": {
+    "merge_commit": "e4cbb5dc4a8998f36e75bffb4dca4a79374e83a3",
+    "merged_commits": [
+      "e4cbb5dc4a8998f36e75bffb4dca4a79374e83a3",
+      "ff89e15b91d7cd19e4a6a8a3a9e17fe186b64840",
+      "14e622dc74cb39be6e6c3f9ee0de999b37419333",
+      "e638f753d4c45d3f7eb4144b577de4629b327b8f",
+      "4c916169fd3417903dfacdfbcf56af35f8d2812e",
+      "20324faca005e514a9fddbc3b3022567de1d04dd",
+      "00ee04a8216429397c86258e1a6eda500e556df6",
+      "6eba00be0f12eb9c2732e4fa2d9206d406568340",
+      "80e52f92d777dbab178246fde09b94ffd4dceaf9",
+      "df46149188a736da7885d3a59361ee3b4559d57d",
+      "874877a1ced692275a131f0e9f3ed638aedee5fd",
+      "f128836bc492af12fe1407cdd20359493614a183",
+      "40e0bf298f4af0ce5117575db54ae2ab048e7aa0",
+      "0aeded8b8a175b8f329f5cfe4b793ee0a7b37c08",
+      "82c681567663ed455a618479e88b76dcdf64931a",
+      "86668390ad5a76c9bfa570398a4d61567956e30c",
+      "3bdad5f8a240a4c2097089a15795508ba1f0f7ea",
+      "e981505cd3bbe3a8bb3b4ea35b63021ffa8691da",
+      "53544687a3a9d2b4455d594730b72817a556dcd6",
+      "55ab0e82435afeadf890d7e6b3feebe4021fe5ac",
+      "cc6d125274a73fd7cd50888d554e54daadae0809",
+      "c049580adc194925bc6db16f262ce9d95e89bee7",
+      "6e62819a58cc63ecf4502eaec66224aa4c049ff3",
+      "342ce33c173d73f388a70598f989da5ecb5ac804",
+      "18da7c0b75ead8ef4f52af02fa8d2b9d090e8f36",
+      "73ba528232280b4d293136994b229ef5de36e633",
+      "83bf8553d52b512505cbce9b2e5059f308bb0bd1",
+      "849d5232da2e1d3c9e396cbd5601d451f853532f",
+      "31f28347cd2121c8418c93b0bc5803123aef5f67",
+      "cce992bbb2cf589fdbac3b729c77bbbd1e363c5a",
+      "ad0a79a0763235a0390560421786ef621a70994e",
+      "ee3dfedf46ceb4cfeaff8550a1951908fbb86ef2",
+      "19f1ea39e63028a02d24b760d3b55065b93fe786",
+      "9b1aa9d98462dda30b9e43b1f1f8ac513def25b5",
+      "035e2fd969ff7556fa6d8bfbdd5529c9301f9970",
+      "5c33534a0cc2b56b084314251abcffd35d097ddb",
+      "dbefc7bca7af2c564897294a14b40168e1bd579e",
+      "623e4ea188035fba4c5616d63e1c7a29616a4469",
+      "c8b6d7d523a3265bacbc4a0f1cef77bd16017941",
+      "4e7b141d39e1932cdfa45f6039c824437065aeb4",
+      "0d1e1059306e7faf46a7ac1593ff51c32ee2efad",
+      "e9fd753e295892625ecf2605a31359eef5258193",
+      "167039addf9079fe9d429c461022b5f4bd39e731",
+      "289d724e7a183a947691ecd59825de66fd9e4bdd",
+      "70f8830c217fbf37dfdf2ced87ef2503352431ef",
+      "8e59b36968d27500c0e701db4bf8c0f741593c60",
+      "2fcbaa21e1cc8d94472e811c6ff0a2e9516518f3",
+      "4c031cae0a80cc7d2182cef8b5d454fbabc7c1de",
+      "1a2e9902d49bc61a706c93ef35c1a078af4b5de3",
+      "f3bd1a65683907ee5732d43c7997052042f2a561",
+      "f45c09432393f9c9d58af5c8a2139e526838b8d4",
+      "cd671dc2b847d0cafd9fd0e5b42b35245cc3387e",
+      "2fed3d35be8574bbf2387d130b0a3d5c0521773c",
+      "b12693ffd7dec0e40fa6b1353d22e62e46b72033",
+      "8ad4f5b6a9896943c8280d7692f69d104d92a6a4",
+      "807554e5cf6b32d54917b99b1ce0b0a454b9ea8f",
+      "3a813982f2cc00d2fd3658680c7aae06181264d4",
+      "7a59ee576d66b9111c996aad104ac8deeb6777ef",
+      "7cc8947bd14e02fee749dbf8f7f98b3decf0660e",
+      "4296149791bc6092ed4369dad81a411698222f03",
+      "9f79b28bb0af4f16c0ff99828cc5e6658d37cd75",
+      "8bb0c6104da9fafe47eff9f6499d7b78a77e4a13",
+      "e639334215db98eb3ae618432ada6c96ba9f7ae1"
+    ],
+    "important_files_modified": [
+      "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp",
+      "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine_test.cpp"
+    ],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        "README.third_party.md",
+        "bazel/config/BUILD.bazel",
+        "buildscripts/resmokelib/configure_resmoke.py",
+        "buildscripts/sbom_linter.py",
+        "jstests/core/catalog/views/views_all_commands.js",
+        "jstests/libs/write_concern_all_commands.js",
+        "jstests/replsets/all_commands_downgrading_to_upgraded.js",
+        "jstests/replsets/db_reads_while_recovering_all_commands.js",
+        "jstests/sharding/all_commands_direct_shard_connection_auth.js",
+        "jstests/sharding/database_versioning_all_commands.js",
+        "jstests/sharding/read_write_concern_defaults_application.js",
+        "sbom.json",
+        "src/mongo/db/curop_test.cpp",
+        "src/mongo/db/pipeline/BUILD.bazel",
+        "src/mongo/db/shard_role/shard_catalog/collection_catalog_helper.cpp",
+        "src/mongo/db/startup_recovery.cpp",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp",
+        "src/mongo/shell/BUILD.bazel",
+        "src/mongo/shell/servers.js",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in"
+      ]
+    }
+  }
+}
