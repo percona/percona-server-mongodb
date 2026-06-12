@@ -1,0 +1,27 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "ec4ca12e2eea6e346bb9e0001dc31ae6c1b09260",
+    "merge_commit": "364d4bc98687596adea5b9ec902cef53f6b83790"
+  },
+  "mergai_version": "0.1.dev1+g6264ec08d",
+  "solutions": [
+    {
+      "response": {
+        "summary": "Revert PSMDB-2109: Fix build failure for merge commit '85e3904f2d7'",
+        "resolved": {},
+        "unresolved": {},
+        "modified": {
+          "src/mongo/db/repl/initial_sync/initial_syncer_fcb.cpp": "Modified by human"
+        },
+        "review_notes": "This reverts commit cc8b32dc9e5d5e4fd34638de9bbf0e7e5e1a2bc1.\n\nConflicts:\n\tsrc/mongo/db/repl/initial_sync/initial_syncer_common_stats.cpp"
+      },
+      "author": {
+        "name": "Pawel Lebioda",
+        "email": "pawel.lebioda@percona.com",
+        "type": "human"
+      },
+      "commit_sha": "df5596de85b1832a82e16c241c8f141855b7cee1"
+    }
+  ]
+}
