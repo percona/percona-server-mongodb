@@ -89,7 +89,6 @@ mongo_cc_library(
         "//src/mongo/db:service_context",
         "//src/mongo/db/audit:audit_impl",
         "//src/mongo/db/encryption:key_management",
-        "//src/mongo/db/replicated_fast_count:replicated_fast_count_manager",
         "//src/mongo/db/rss:replicated_storage_service",
         "//src/mongo/db/storage:backup_cursor_hooks",
         "//src/mongo/db/storage:container",

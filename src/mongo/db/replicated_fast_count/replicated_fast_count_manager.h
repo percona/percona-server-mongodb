@@ -41,6 +41,7 @@
 #include "mongo/db/replicated_fast_count/size_count_timestamp_store.h"
 #include "mongo/db/shard_role/shard_catalog/collection.h"
 #include "mongo/db/shard_role/shard_role.h"
+#include "mongo/db/storage/flush_all_files_observer.h"
 #include "mongo/db/storage/snapshot.h"
 #include "mongo/platform/atomic.h"
 #include "mongo/stdx/thread.h"
@@ -85,7 +86,7 @@ namespace mongo::replicated_fast_count {
  * the collection write path to persist fast SizeCounts. Instead, operations should
  * interact with this class through UncommittedFastCountChange.
  */
-class MONGO_MOD_PUBLIC ReplicatedFastCountManager {
+class MONGO_MOD_PUBLIC ReplicatedFastCountManager : public FlushAllFilesObserver {
     struct StoredSizeCount {
         CollectionSizeCount sizeCount;
         bool dirty{false};  // Indicates if flush is needed.
@@ -178,9 +179,23 @@ public:
     CollectionSizeCount find(const UUID& uuid) const;
 
     /**
-     * Returns the persisted number of records (count) and data size for the collection with `uuid`.
+     * Returns the persisted singleton timestamp from the timestamp store, or boost::none if the
+     * store has no entry. Used by initial sync to read the donor's checkpoint timestamp.
+     *
+     * This returns an optional because it is possible that we try find the timestamp before the
+     * first flush persists one to disk.
      */
-    CollectionSizeCount findPersisted(OperationContext* opCtx, UUID uuid) const;
+    boost::optional<Timestamp> findPersistedTimestampStoreTs(OperationContext* opCtx) const;
+
+    /**
+     * Returns the persisted size/count and its `validAsOf` timestamp for the collection with
+     * `uuid`, or boost::none if no entry exists for that UUID.
+     *
+     * This returns an optional because it is possible that we try to find a uuid that is present in
+     * the catalog but doesn't have a persisted fast count entry because it hasn't been flushed yet.
+     */
+    boost::optional<std::pair<CollectionSizeCount, Timestamp>> findPersisted(
+        OperationContext* opCtx, UUID uuid) const;
 
     /**
      * Signals the background thread to perform a flush.
@@ -189,6 +204,13 @@ public:
      * fastcount collection on disk.
      */
     void flushAsync();
+
+    /**
+     * FlushAllFilesObserver hook. Triggers an asynchronous flush when invoked.
+     */
+    void onFlushAllFiles() override {
+        flushAsync();
+    }
 
     /**
      * Flushes data synchronously on the caller's thread. The calling thread must be able to take a

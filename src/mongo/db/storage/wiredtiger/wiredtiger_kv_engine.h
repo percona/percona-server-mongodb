@@ -38,6 +38,7 @@
 #include "mongo/db/namespace_string.h"
 #include "mongo/db/operation_context.h"
 #include "mongo/db/rss/persistence_provider.h"
+#include "mongo/db/storage/flush_all_files_observer.h"
 #include "mongo/db/storage/journal_listener.h"
 #include "mongo/db/storage/key_format.h"
 #include "mongo/db/storage/kv/kv_engine.h"
@@ -66,6 +67,7 @@
 #include "mongo/util/elapsed_tracker.h"
 #include "mongo/util/modules.h"
 #include "mongo/util/string_map.h"
+#include "mongo/util/synchronized_value.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -612,6 +614,10 @@ public:
 
     void setJournalListener(JournalListener* jl) final;
 
+    void setFlushAllFilesObserver(FlushAllFilesObserver* observer) final;
+
+    FlushAllFilesObserver* getFlushAllFilesObserver() const final;
+
     void setLastMaterializedLsn(uint64_t lsn) final;
 
     void setRecoveryCheckpointMetadata(StringData checkpointMetadata) final;
@@ -1045,6 +1051,9 @@ private:
     // only allowed to be set once, in order to ensure the memory to which a copy of the pointer
     // points is always valid.
     JournalListener* _journalListener = nullptr;
+
+    // Observer notified while flushing all files.
+    synchronized_value<FlushAllFilesObserver*> _flushAllFilesObserver{nullptr};
 
     // Counter and critical section mutex for waitUntilDurable
     AtomicWord<unsigned> _lastSyncTime;
