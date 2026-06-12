@@ -1192,6 +1192,7 @@ const allTestCases = {
                 expectedFailureCode: ErrorCodes.NotWritablePrimary,
             },
         },
+        _shardsvrReshardingDonorGetCloneCount: {skip: "TODO"},
         _shardsvrReshardingDonorFetchFinalCollectionStats: {skip: "TODO"},
         _shardsvrReshardingRecipientFetchFinalCollectionStats: {skip: "TODO"},
         _shardsvrReshardingDonorStartChangeStreamsMonitor: {skip: "TODO"},

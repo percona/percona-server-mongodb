@@ -45,10 +45,10 @@
 #include "mongo/db/feature_flag.h"
 #include "mongo/db/fts/fts_spec.h"
 #include "mongo/db/global_settings.h"
+#include "mongo/db/index/geo/s2_access_method.h"
+#include "mongo/db/index/geo/s2_bucket_access_method.h"
 #include "mongo/db/index/index_access_method.h"
 #include "mongo/db/index/index_constants.h"
-#include "mongo/db/index/s2_access_method.h"
-#include "mongo/db/index/s2_bucket_access_method.h"
 #include "mongo/db/index/wildcard_validation.h"
 #include "mongo/db/index_builds/index_build_block.h"
 #include "mongo/db/index_builds/index_builds_common.h"
@@ -1974,13 +1974,16 @@ Status IndexCatalogImpl::indexRecords(OperationContext* opCtx,
         return Status::OK();
     }
 
-    if (Status status = shard_role_details::getRecoveryUnit(opCtx)->setTimestamp(bsonRecords[0].ts);
-        !status.isOK()) {
-        return status;
-    }
+    const WorkerMultikeyPathInfo multikeyHistory = tracker.sortByTimestamp();
 
-    for (const MultikeyPathInfo& newPath : newPaths) {
+    for (const MultikeyPathInfo& newPath : multikeyHistory) {
         invariant(newPath.nss == coll->ns());
+        invariant(!newPath.earliestTimestamp.isNull());
+        if (Status status =
+                shard_role_details::getRecoveryUnit(opCtx)->setTimestamp(newPath.earliestTimestamp);
+            !status.isOK()) {
+            return status;
+        }
         auto idx = findIndexByName(
             opCtx, newPath.indexName, InclusionPolicy::kReady | InclusionPolicy::kUnfinished);
         if (!idx) {

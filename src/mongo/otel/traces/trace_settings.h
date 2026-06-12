@@ -1,5 +1,5 @@
 /**
- *    Copyright (C) 2024-present MongoDB, Inc.
+ *    Copyright (C) 2026-present MongoDB, Inc.
  *
  *    This program is free software: you can redistribute it and/or modify
  *    it under the terms of the Server Side Public License, version 1,
@@ -29,27 +29,23 @@
 
 #pragma once
 
-#include "mongo/bson/bsonobj.h"
-#include "mongo/db/index/index_access_method.h"
-#include "mongo/db/index/multikey_paths.h"
-#include "mongo/db/index/s2_common.h"
-#include "mongo/db/storage/key_string/key_string.h"
-#include "mongo/util/modules.h"
-#include "mongo/util/shared_buffer_fragment.h"
+#include "mongo/stdx/unordered_map.h"
 
-MONGO_MOD_PUBLIC;
-namespace mongo::index2dsphere {
+#include <string>
+#include <vector>
+
+namespace mongo::otel::traces {
+
 /**
- * Generates keys for S2 access method, used for 2dsphere index type.
+ * Returns the HTTP export headers parsed from openTelemetryTracingHttpExportHeaders.
+ * Each key maps to a list of values to support duplicate header names.
  */
-void getS2Keys(SharedBufferFragmentBuilder& pooledBufferBuilder,
-               const BSONObj& obj,
-               const BSONObj& keyPattern,
-               const S2IndexingParams& params,
-               KeyStringSet* keys,
-               MultikeyPaths* multikeyPaths,
-               key_string::Version keyStringVersion,
-               SortedDataIndexAccessMethod::GetKeysContext context,
-               Ordering ordering,
-               const boost::optional<RecordId>& id = boost::none);
-}  // namespace mongo::index2dsphere
+[[nodiscard]] const stdx::unordered_map<std::string, std::vector<std::string>>&
+getTracingHttpExportHeaders();
+
+/**
+ * Returns the OTel resource attributes applied to all exported spans.
+ */
+[[nodiscard]] const stdx::unordered_map<std::string, std::string>& getTracingResourceAttributes();
+
+}  // namespace mongo::otel::traces

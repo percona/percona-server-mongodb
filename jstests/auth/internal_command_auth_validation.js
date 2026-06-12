@@ -700,6 +700,14 @@ const internalCommandsMap = {
             key: {},
         },
     },
+    _shardsvrReshardingDonorGetCloneCount: {
+        testname: "_shardsvrReshardingDonorGetCloneCount",
+        command: {
+            _shardsvrReshardingDonorGetCloneCount: "test.x",
+            reshardingUUID: UUID(),
+            cloneTimestamp: Timestamp(1, 1),
+        },
+    },
     _shardsvrReshardingDonorFetchFinalCollectionStats: {
         testname: "_shardsvrReshardingDonorFetchFinalCollectionStats",
         command: {
@@ -845,7 +853,7 @@ const internalCommandsMap = {
     },
     _shardsvrSetAllowChunkOperations: {
         testname: "_shardsvrSetAllowChunkOperations",
-        command: {_shardsvrSetAllowChunkOperations: "db.collection", allowChunkOperations: true},
+        command: {_shardsvrSetAllowChunkOperations: "db.collection", allowChunkOperations: true, primaryShardId: ""},
     },
     _shardsvrSetAllowMigrations: {
         testname: "_shardsvrSetAllowMigrations",
