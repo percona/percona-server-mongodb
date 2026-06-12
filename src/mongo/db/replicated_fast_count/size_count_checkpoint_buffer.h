@@ -27,23 +27,44 @@
  *    it in the license file.
  */
 
-#include "mongo/db/query/query_knobs/query_knob.h"
+#pragma once
 
-#include "mongo/util/static_immortal.h"
+#include "mongo/bson/timestamp.h"
+#include "mongo/db/replicated_fast_count/replicated_fast_count_streaming_oplog_delta_accumulator.h"
 
-namespace mongo {
+#include <mutex>
 
-QueryKnobDescriptorSet& QueryKnobDescriptorSet::get() {
-    static StaticImmortal<QueryKnobDescriptorSet> instance{};
-    return *instance;
-}
+#include <boost/optional/optional.hpp>
 
-void QueryKnobDescriptorSet::add(QueryKnobBase& knob) {
-    _knobs.push_back(&knob);
-}
+namespace mongo::replicated_fast_count {
 
-const std::vector<QueryKnobBase*>& QueryKnobDescriptorSet::knobs() const {
-    return _knobs;
-}
+/**
+ * Holds pending and in-flight checkpoint flush work produced by the oplog tailer and
+ * consumed by the flusher. Thread-safe.
+ */
+class SizeCountCheckpointBuffer {
+public:
+    SizeCountCheckpointBuffer() = default;
 
-}  // namespace mongo
+    boost::optional<OplogScanResult> checkoutForFlush();
+
+    /**
+     * Acknowledges that the _inFlight result has been persisted and is safe to clear.
+     */
+    void acknowledgeFlushSuccess();
+
+    /**
+     * There is an outstanding result that hasn't been flushed yet.
+     */
+    bool hasInFlightWork() const;
+    bool hasPendingWork() const;
+
+    void mergeVisibleScan(OplogScanResult scanResult);
+
+private:
+    mutable std::mutex _mutex;
+    OplogScanResult _pending;
+    boost::optional<OplogScanResult> _inFlight;
+};
+
+}  // namespace mongo::replicated_fast_count

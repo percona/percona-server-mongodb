@@ -795,10 +795,13 @@ void OpDebug::append(OperationContext* opCtx,
         b.appendNumber("cpuNanos", durationCount<Nanoseconds>(cpuTime));
     }
 
-    // millis should always be present for any operation
+    // millis/micros should always be present for any operation
     b.appendNumber(
         "millis",
         durationCount<Milliseconds>(additiveMetrics.executionTime.value_or(Microseconds{0})));
+    b.appendNumber(
+        "micros",
+        durationCount<Microseconds>(additiveMetrics.executionTime.value_or(Microseconds{0})));
 
     b.append("rateLimit",
              durationCount<Milliseconds>(additiveMetrics.executionTime.value_or(Milliseconds{0})) >=
@@ -1222,12 +1225,18 @@ std::function<BSONObj(OpDebug::AppendArgs)> OpDebug::appendStaged(OperationConte
 
     // millis and durationMillis are the same thing. This is one of the few inconsistencies between
     // the profiler (OpDebug::append) and the log file (OpDebug::report), so for the profile filter
-    // we support both names.
+    // we support both names. Similarly, micros and durationMicros are both supported.
     addIfNeeded("millis", [](auto field, auto args, auto& b) {
         b.appendNumber(field, durationCount<Milliseconds>(args.curop.elapsedTimeTotal()));
     });
     addIfNeeded("durationMillis", [](auto field, auto args, auto& b) {
         b.appendNumber(field, durationCount<Milliseconds>(args.curop.elapsedTimeTotal()));
+    });
+    addIfNeeded("micros", [](auto field, auto args, auto& b) {
+        b.appendNumber(field, durationCount<Microseconds>(args.curop.elapsedTimeTotal()));
+    });
+    addIfNeeded("durationMicros", [](auto field, auto args, auto& b) {
+        b.appendNumber(field, durationCount<Microseconds>(args.curop.elapsedTimeTotal()));
     });
 
     addIfNeeded("workingMillis", [](auto field, auto args, auto& b) {
@@ -1602,6 +1611,7 @@ void OpDebug::AdditiveMetrics::add(const AdditiveMetrics& otherMetrics) {
     ndeleted = addOptionals(ndeleted, otherMetrics.ndeleted);
     nUpserted = addOptionals(nUpserted, otherMetrics.nUpserted);
     nUpdateOps = nUpdateOps.has_value() ? nUpdateOps : otherMetrics.nUpdateOps;
+    nDeleteOps = nDeleteOps.has_value() ? nDeleteOps : otherMetrics.nDeleteOps;
     keysInserted = addOptionals(keysInserted, otherMetrics.keysInserted);
     keysDeleted = addOptionals(keysDeleted, otherMetrics.keysDeleted);
     readingTime = addOptionals(readingTime, otherMetrics.readingTime);
@@ -1804,6 +1814,7 @@ void OpDebug::AdditiveMetrics::reset() {
     keysDeleted = boost::none;
     executionTime = boost::none;
     nUpdateOps = boost::none;
+    nDeleteOps = boost::none;
     peakTrackedMemBytes = boost::none;
     clusterPeakTrackedMemBytes = boost::none;
 }
@@ -1815,7 +1826,7 @@ bool OpDebug::AdditiveMetrics::equals(const AdditiveMetrics& otherMetrics) const
         ninserted == otherMetrics.ninserted && ndeleted == otherMetrics.ndeleted &&
         nUpserted == otherMetrics.nUpserted && keysInserted == otherMetrics.keysInserted &&
         keysDeleted == otherMetrics.keysDeleted && executionTime == otherMetrics.executionTime &&
-        nUpdateOps == otherMetrics.nUpdateOps;
+        nUpdateOps == otherMetrics.nUpdateOps && nDeleteOps == otherMetrics.nDeleteOps;
 }
 
 void OpDebug::AdditiveMetrics::incrementKeysInserted(long long n) {
@@ -1883,6 +1894,7 @@ std::string OpDebug::AdditiveMetrics::report() const {
     OPDEBUG_TOSTRING_HELP_OPTIONAL("keysDeleted", keysDeleted);
     if (executionTime) {
         s << " durationMillis:" << durationCount<Milliseconds>(*executionTime);
+        s << " durationMicros:" << durationCount<Microseconds>(*executionTime);
     }
 
     return s.str();
@@ -1902,6 +1914,7 @@ void OpDebug::AdditiveMetrics::report(logv2::DynamicAttributes* pAttrs) const {
     OPDEBUG_TOATTR_HELP_OPTIONAL("keysDeleted", keysDeleted);
     if (executionTime) {
         pAttrs->add("durationMillis", durationCount<Milliseconds>(*executionTime));
+        pAttrs->add("durationMicros", durationCount<Microseconds>(*executionTime));
     }
 }
 
@@ -1920,6 +1933,7 @@ BSONObj OpDebug::AdditiveMetrics::reportBSON() const {
     OPDEBUG_APPEND_OPTIONAL(b, "keysDeleted", keysDeleted);
     if (executionTime) {
         b.appendNumber("durationMillis", durationCount<Milliseconds>(*executionTime));
+        b.appendNumber("durationMicros", durationCount<Microseconds>(*executionTime));
     }
     return b.obj();
 }

@@ -950,10 +950,11 @@ void ByteCode::runInternal(const CodeFragment* code, int64_t position) {
         auto [lhsOwned, lhsTag, lhsVal] = getFromStack(offsetLhs, popLhs);
         value::ValueGuard lhsGuard(lhsOwned && popLhs, lhsTag, lhsVal);
 
-        auto [owned, tag, val] = getField(lhsTag, lhsVal, rhsTag, rhsVal);
+        auto [tag, val] = getField({lhsTag, lhsVal}, {rhsTag, rhsVal});
 
         // Copy value only if needed
-        if (lhsOwned && !owned) {
+        bool owned = false;
+        if (lhsOwned) {
             owned = true;
             std::tie(tag, val) = value::copyValue(tag, val);
         }
@@ -971,10 +972,11 @@ void ByteCode::runInternal(const CodeFragment* code, int64_t position) {
         auto [lhsOwned, lhsTag, lhsVal] = getFromStack(offsetLhs, popLhs);
         value::ValueGuard lhsGuard(lhsOwned && popLhs, lhsTag, lhsVal);
 
-        auto [owned, tag, val] = getField(lhsTag, lhsVal, fieldName);
+        auto [tag, val] = getField({lhsTag, lhsVal}, fieldName);
 
         // Copy value only if needed
-        if (lhsOwned && !owned) {
+        bool owned = false;
+        if (lhsOwned) {
             owned = true;
             std::tie(tag, val) = value::copyValue(tag, val);
         }
@@ -991,10 +993,11 @@ void ByteCode::runInternal(const CodeFragment* code, int64_t position) {
         auto [lhsOwned, lhsTag, lhsVal] = getFromStack(offsetLhs, popLhs);
         value::ValueGuard lhsGuard(lhsOwned && popLhs, lhsTag, lhsVal);
 
-        auto [owned, tag, val] = getElement(lhsTag, lhsVal, rhsTag, rhsVal);
+        auto [tag, val] = getElement({lhsTag, lhsVal}, {rhsTag, rhsVal});
 
         // Copy value only if needed
-        if (lhsOwned && !owned) {
+        bool owned = false;
+        if (lhsOwned) {
             owned = true;
             std::tie(tag, val) = value::copyValue(tag, val);
         }
@@ -1008,8 +1011,8 @@ void ByteCode::runInternal(const CodeFragment* code, int64_t position) {
         auto [owned, tag, val] = getFromStack(offsetParam, popParam);
         value::ValueGuard paramGuard(owned && popParam, tag, val);
 
-        auto [resultOwned, resultTag, resultVal] = getArraySize(tag, val);
-        pushStack(resultOwned, resultTag, resultVal);
+        auto result = getArraySize({tag, val});
+        pushStack(false, result.tag, result.value);
     }
     DISPATCH();
     INSTRUCTION(collComparisonKey) {
@@ -1055,10 +1058,11 @@ void ByteCode::runInternal(const CodeFragment* code, int64_t position) {
         auto [lhsOwned, lhsTag, lhsVal] = getFromStack(offsetLhs, popLhs);
         value::ValueGuard lhsGuard(lhsOwned && popLhs, lhsTag, lhsVal);
 
-        auto [owned, tag, val] = getFieldOrElement(lhsTag, lhsVal, rhsTag, rhsVal);
+        auto [tag, val] = getFieldOrElement({lhsTag, lhsVal}, {rhsTag, rhsVal});
 
         // Copy value only if needed
-        if (lhsOwned && !owned) {
+        bool owned = false;
+        if (lhsOwned) {
             owned = true;
             std::tie(tag, val) = value::copyValue(tag, val);
         }
