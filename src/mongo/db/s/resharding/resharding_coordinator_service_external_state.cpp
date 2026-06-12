@@ -685,17 +685,33 @@ void ReshardingCoordinatorExternalStateImpl::verifyFinalCollection(
         "recipientDocumentsFinal"_attr = numDocsTemporary);
 }
 
+namespace {
+AuthoritativeMetadataAccessLevelEnum convert(
+    ReshardingAuthoritativeMetadataAccessLevelEnum reshardingVersion) {
+    switch (reshardingVersion) {
+        case ReshardingAuthoritativeMetadataAccessLevelEnum::kNone:
+            return AuthoritativeMetadataAccessLevelEnum::kNone;
+        case ReshardingAuthoritativeMetadataAccessLevelEnum::kWritesAllowed:
+            return AuthoritativeMetadataAccessLevelEnum::kWritesAllowed;
+        case ReshardingAuthoritativeMetadataAccessLevelEnum::kWritesAndReadsAllowed:
+            return AuthoritativeMetadataAccessLevelEnum::kWritesAndReadsAllowed;
+        default:
+            MONGO_UNREACHABLE;
+    }
+}
+}  // namespace
+
 void ReshardingCoordinatorExternalStateImpl::stopMigrations(
     OperationContext* opCtx,
     const NamespaceString& nss,
     const UUID& expectedCollectionUUID,
+    ReshardingAuthoritativeMetadataAccessLevelEnum authoritativeMetadataLevel,
     std::function<OperationSessionInfo()> osiGenerator) {
     const auto dbPrimaryShard =
         Grid::get(opCtx)
             ->catalogClient()
             ->getDatabase(opCtx, nss.dbName(), repl::ReadConcernLevel::kMajorityReadConcern)
             .getPrimary();
-    // TODO (SERVER-127443): take AuthoritativeMetadataAccessLevelEnum from coordinator document.
     sharding_ddl_util::stopMigrations(opCtx,
                                       nss,
                                       expectedCollectionUUID,
@@ -708,13 +724,13 @@ void ReshardingCoordinatorExternalStateImpl::resumeMigrations(
     OperationContext* opCtx,
     const NamespaceString& nss,
     const UUID& expectedCollectionUUID,
+    ReshardingAuthoritativeMetadataAccessLevelEnum authoritativeMetadataLevel,
     std::function<OperationSessionInfo()> osiGenerator) {
     const auto dbPrimaryShard =
         Grid::get(opCtx)
             ->catalogClient()
             ->getDatabase(opCtx, nss.dbName(), repl::ReadConcernLevel::kMajorityReadConcern)
             .getPrimary();
-    // TODO (SERVER-127443): take AuthoritativeMetadataAccessLevelEnum from coordinator document.
     sharding_ddl_util::resumeMigrations(opCtx,
                                         nss,
                                         expectedCollectionUUID,

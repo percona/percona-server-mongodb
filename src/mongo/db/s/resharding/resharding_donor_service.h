@@ -131,6 +131,7 @@ public:
      * completed running.
      */
     SharedSemiFuture<void> getCompletionFuture() const {
+        // coverity[missing_lock]
         return _completionPromise.getFuture();
     }
 
@@ -355,17 +356,11 @@ private:
     void _removeDonorDocument(
         std::shared_ptr<HierarchicalCancelableOperationContextFactory> factory);
 
-    // Initializes the _cancelState and generates an abort token. If an
-    // abort was reported prior to the initialization, automatically cancels the _cancelState before
-    // returning. Note: Should only be called once per lifetime.
-    void _initCancelState(const CancellationToken& stepdownToken);
-
     /**
      * Creates a new span with the resharding UUID set as an attribute.
      */
     otel::traces::Span _startSpan(std::shared_ptr<otel::TelemetryContext> telemetryCtx,
-                                  const std::string& spanName,
-                                  bool keepSpan = false);
+                                  otel::traces::SpanName spanName);
 
     // The primary-only service instance corresponding to the donor instance. Not owned.
     const ReshardingDonorService* const _donorService;
@@ -403,9 +398,8 @@ private:
     // Protects the state below
     mutable std::mutex _mutex;
 
-    // Manages abort state and provides cancellation tokens for async operations. Initialized in
-    // _initCancelState().
-    std::unique_ptr<primary_only_service_helpers::CancelState> _cancelState;
+    // Manages abort state and provides cancellation tokens for async operations.
+    primary_only_service_helpers::CancelState _cancelState;
 
     // The identifier associated to the recoverable critical section.
     const BSONObj _critSecReason;
@@ -465,7 +459,7 @@ public:
                                            const BSONObj& update) = 0;
 
     virtual std::unique_ptr<ShardingRecoveryService::BeforeReleasingCustomAction>
-    getOnReleaseCriticalSectionCustomAction() = 0;
+    getOnReleaseCriticalSectionCustomAction(bool mustClearFilteringMetadata) = 0;
 
     virtual void refreshCollectionPlacementInfo(OperationContext* opCtx,
                                                 const NamespaceString& sourceNss) = 0;

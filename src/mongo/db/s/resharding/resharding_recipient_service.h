@@ -200,6 +200,7 @@ public:
      * making forward progress.
      */
     SharedSemiFuture<void> getCompletionFuture() const {
+        // coverity[missing_lock]
         return _completionPromise.getFuture();
     }
 
@@ -434,8 +435,7 @@ private:
      * Creates a new span with the resharding UUID set as an attribute.
      */
     otel::traces::Span _startSpan(std::shared_ptr<otel::TelemetryContext> telemetryCtx,
-                                  const std::string& spanName,
-                                  bool keepSpan = false);
+                                  otel::traces::SpanName spanName);
 
     // The primary-only service instance corresponding to the recipient instance. Not owned.
     const ReshardingRecipientService* const _recipientService;

@@ -128,6 +128,10 @@ const char* _describeDocumentValidationResult(Collection::DocumentValidationResu
             return "Detected one or more documents where bypassDocumentValidation was attempted "
                    "but is not permitted with 'constraint' validationLevel. Check logs for "
                    "log id 5363500.";
+        case NCR::kBypassProhibitedWithPrepareConstraintLevel:
+            return "Detected one or more documents where bypassDocumentValidation was attempted "
+                   "but is not permitted while prepareConstraintValidationLevel is set. Check "
+                   "logs for log id 5363500.";
         case NCR::kBypassProhibitedForTimeseries:
             return "Detected one or more time-series bucket documents where "
                    "bypassDocumentValidation was attempted but is not permitted on timeseries "
@@ -299,7 +303,7 @@ auto ValidateAdaptor::validateRecord(OperationContext* opCtx,
     return {.status = Status::OK(), .dataSize = recordBson.objsize()};
 }
 
-size_t CollectionValidation::getNumberOfAdditionalCharactersForHashDrillDown(
+size_t collection_validation::getNumberOfAdditionalCharactersForHashDrillDown(
     size_t numHashPrefixes, size_t hashPrefixLength) {
     // The maximum number of output buckets we can produce is determined by
     // the maximum BSON object size (16 MB) minus some buffer (50 KB) divided
@@ -399,7 +403,7 @@ void ValidateAdaptor::hashDrillDown(OperationContext* opCtx, ValidateResults* re
     const stdx::unordered_set<std::string> hashPrefixes(_validateState->getHashPrefixes()->begin(),
                                                         _validateState->getHashPrefixes()->end());
     auto prefixLength = _validateState->getHashPrefixes().get()[0].size();
-    const size_t N = CollectionValidation::getNumberOfAdditionalCharactersForHashDrillDown(
+    const size_t N = collection_validation::getNumberOfAdditionalCharactersForHashDrillDown(
         _validateState->getHashPrefixes()->size(), prefixLength);
     uassert(ErrorCodes::BadValue, "Too many hash prefixes provided.", N);
     // Searches through the list of hash prefixes for a prefix of the provided 'hash', which
@@ -634,12 +638,12 @@ void ValidateAdaptor::traverseRecordStore(OperationContext* opCtx,
 
                         // Checks for time-series collection consistency.
                         const auto timeseriesValidationResult =
-                            CollectionValidation::validateTimeSeriesBucketRecord(
+                            collection_validation::validateTimeSeriesBucketRecord(
                                 opCtx, *_validateState, coll, recordBson, *results);
                         // This log id should be kept in sync with the associated warning messages
                         // that are returned to the client.
                         switch (timeseriesValidationResult.result) {
-                            case CollectionValidation::TimeseriesValidationResult::kValid:
+                            case collection_validation::TimeseriesValidationResult::kValid:
                                 break;
                             // We should not add data-annotated error strings to the set, since
                             // bucket-specific data can greatly increase the number of unique
@@ -648,7 +652,7 @@ void ValidateAdaptor::traverseRecordStore(OperationContext* opCtx,
                             // logged above.
 
                             // The following result cases are logged as warnings
-                            case CollectionValidation::TimeseriesValidationResult::
+                            case collection_validation::TimeseriesValidationResult::
                                 kV3WithOrderedTime:
                                 LOGV2_WARNING_OPTIONS(
                                     12351700,
@@ -660,7 +664,7 @@ void ValidateAdaptor::traverseRecordStore(OperationContext* opCtx,
                                     "reason"_attr = timeseriesValidationResult.reason);
                                 ++nNonCompliantDocuments;
                                 results->addWarning(
-                                    CollectionValidation::describeTimeseriesValidationResult(
+                                    collection_validation::describeTimeseriesValidationResult(
                                         timeseriesValidationResult.result));
                                 break;
 
@@ -676,18 +680,18 @@ void ValidateAdaptor::traverseRecordStore(OperationContext* opCtx,
                                     "reason"_attr = timeseriesValidationResult.reason);
                                 ++nNonCompliantDocuments;
                                 results->addError(
-                                    CollectionValidation::describeTimeseriesValidationResult(
+                                    collection_validation::describeTimeseriesValidationResult(
                                         timeseriesValidationResult.result));
                         }
                         const auto containsMixedSchemaDataResponse =
                             coll->doesTimeseriesBucketsDocContainMixedSchemaData(recordBson);
                         if (!containsMixedSchemaDataResponse.isOK() &&
                             results->addError(
-                                CollectionValidation::kMalformedMinMaxTimeseriesBucket)) {
+                                collection_validation::kMalformedMinMaxTimeseriesBucket)) {
                             LOGV2_WARNING_OPTIONS(
                                 8469900,
                                 {logv2::LogTruncation::Disabled},
-                                CollectionValidation::kMalformedMinMaxTimeseriesBucket,
+                                collection_validation::kMalformedMinMaxTimeseriesBucket,
                                 logAttrs(coll->ns()),
                                 "recordId"_attr = record->id,
                                 "record"_attr = record->data.toBson(),
@@ -699,16 +703,16 @@ void ValidateAdaptor::traverseRecordStore(OperationContext* opCtx,
                                     .canStoreMixedSchemaBucketsSafely();
                             if (mixedSchemaAllowed &&
                                 results->addWarning(
-                                    CollectionValidation::kExpectedMixedSchemaTimeseriesWarning)) {
+                                    collection_validation::kExpectedMixedSchemaTimeseriesWarning)) {
                                 LOGV2_WARNING_OPTIONS(
                                     8469901,
                                     {logv2::LogTruncation::Disabled},
-                                    CollectionValidation::kExpectedMixedSchemaTimeseriesWarning,
+                                    collection_validation::kExpectedMixedSchemaTimeseriesWarning,
                                     logAttrs(coll->ns()),
                                     "recordId"_attr = record->id);
                             } else if (!mixedSchemaAllowed &&
                                        results->addError(
-                                           CollectionValidation::
+                                           collection_validation::
                                                kUnexpectedMixedSchemaTimeseriesError)) {
                                 const auto& controlField =
                                     recordBson.getField(timeseries::kBucketControlFieldName).Obj();
@@ -717,7 +721,7 @@ void ValidateAdaptor::traverseRecordStore(OperationContext* opCtx,
                                 LOGV2_WARNING_OPTIONS(
                                     8469902,
                                     {logv2::LogTruncation::Disabled},
-                                    CollectionValidation::kUnexpectedMixedSchemaTimeseriesError,
+                                    collection_validation::kUnexpectedMixedSchemaTimeseriesError,
                                     logAttrs(coll->ns()),
                                     "recordId"_attr = record->id,
                                     "record"_attr = record->data.toBson(),
@@ -789,63 +793,29 @@ void ValidateAdaptor::traverseRecordStore(OperationContext* opCtx,
                                           << " invalid documents.");
     }
 
-    if (_validateState->shouldEnforceFastCount(opCtx)) {
-        const auto fastCountType = _validateState->getDetectedFastCountType(opCtx);
-        const bool enforceCount = _validateState->enforceFastCountRequested();
-        const bool enforceSize = _validateState->enforceFastSizeRequested();
-        switch (fastCountType) {
-            case CollectionValidation::FastCountType::legacySizeStorer:
-                if (enforceCount) {
-                    if (const auto fastCount = coll->latestSizeCount(opCtx).count;
-                        fastCount != _numRecords) {
-                        results->addError(
-                            fmt::format("fast count ({}) does not match number of "
-                                        "records ({}) for collection '{}'",
-                                        fastCount,
-                                        _numRecords,
-                                        coll->ns().toStringForErrorMsg()));
-                    }
-                }
-                if (enforceSize) {
-                    if (const auto fastSize = coll->latestSizeCount(opCtx).size;
-                        fastSize != dataSizeTotal) {
-                        results->addError(
-                            fmt::format("fast size ({}) does not match data size ({}) for "
-                                        "collection '{}'",
-                                        fastSize,
-                                        dataSizeTotal,
-                                        coll->ns().toStringForErrorMsg()));
-                    }
-                }
-                break;
-            case CollectionValidation::FastCountType::replicated:
-                if (enforceCount) {
-                    if (const auto fastCount = coll->latestSizeCount(opCtx).count;
-                        fastCount != _numRecords) {
-                        results->addError(
-                            fmt::format("replicated fast count ({}) does not match number of "
-                                        "records ({}) for collection '{}'",
-                                        fastCount,
-                                        _numRecords,
-                                        coll->ns().toStringForErrorMsg()));
-                    }
-                }
-                if (enforceSize) {
-                    if (const auto fastSize = coll->latestSizeCount(opCtx).size;
-                        fastSize != dataSizeTotal) {
-                        results->addError(
-                            fmt::format("replicated fast size ({}) does not match data size ({}) "
-                                        "for collection '{}'",
-                                        fastSize,
-                                        dataSizeTotal,
-                                        coll->ns().toStringForErrorMsg()));
-                    }
-                }
-                break;
-            case CollectionValidation::FastCountType::both:
-                break;
-            case CollectionValidation::FastCountType::neither:
-                break;
+    const collection_validation::FastCountType fastCountType =
+        _validateState->getDetectedFastCountType(opCtx);
+    if (_validateState->shouldEnforceFastCount(opCtx, fastCountType)) {
+        if (const auto fastCount = coll->latestSizeCount(opCtx).count; fastCount != _numRecords) {
+            results->addError(
+                fmt::format("fast count ({}) does not match number of "
+                            "records ({}) for collection '{}' with fast count store type '{}'",
+                            fastCount,
+                            _numRecords,
+                            coll->ns().toStringForErrorMsg(),
+                            toString(fastCountType)));
+        }
+    }
+
+    if (_validateState->shouldEnforceFastSize(opCtx, fastCountType)) {
+        if (const auto fastSize = coll->latestSizeCount(opCtx).size; fastSize != dataSizeTotal) {
+            results->addError(
+                fmt::format("fast size ({}) does not match data size ({}) "
+                            "for collection '{}' with fast count store type '{}'",
+                            fastSize,
+                            dataSizeTotal,
+                            coll->ns().toStringForErrorMsg(),
+                            toString(fastCountType)));
         }
     }
 

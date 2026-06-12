@@ -82,6 +82,7 @@
 #include "mongo/db/sharding_environment/client/shard.h"
 #include "mongo/db/sharding_environment/grid.h"
 #include "mongo/db/sharding_environment/shard_id.h"
+#include "mongo/db/sharding_environment/shard_ref.h"
 #include "mongo/db/sharding_environment/sharding_config_server_parameters_gen.h"
 #include "mongo/db/sharding_environment/sharding_logging.h"
 #include "mongo/db/topology/shard_registry.h"
@@ -1468,17 +1469,6 @@ ShardingCatalogManager::commitMergeAllChunksOnShard(OperationContext* opCtx,
                 continue;
             }
 
-            // The allowMigrations flag is updated without bumping the placement version, so it
-            // must be re-read under the chunk-op lock to be sure no concurrent setAllowMigrations
-            // has just disallowed migrations.
-            uassert(ErrorCodes::ConflictingOperationInProgress,
-                    str::stream()
-                        << "Can't execute mergeAllChunksOnShard because chunk operations for this "
-                           "collection are disallowed. 'allowMigrations' flag is "
-                        << collUnderLock.getAllowMigrations() << "; 'allowChunkOperations' flag is "
-                        << collUnderLock.getAllowChunkOperations(),
-                    collUnderLock.getAllowMigrations() && collUnderLock.getAllowChunkOperations());
-
             // 4. Commit the new routing table changes to the sharding catalog.
             mergeAllChunksOnShardInTransaction(opCtx, collUuid, shardId, newChunks);
         }
@@ -2389,8 +2379,8 @@ void ShardingCatalogManager::setAllowChunkOperations(OperationContext* opCtx,
     const auto cm = uassertStatusOK(
         RoutingInformationCache::get(opCtx)->getCollectionPlacementInfoWithRefresh(opCtx, nss));
     uassert(ErrorCodes::NamespaceNotSharded,
-            str::stream() << "Collection '" << nss.toStringForErrorMsg() << "' is not sharded",
-            cm.isSharded());
+            str::stream() << "Collection '" << nss.toStringForErrorMsg() << "' is not tracked",
+            cm.hasRoutingTable());
 
     uassert(ErrorCodes::InvalidUUID,
             str::stream() << "Collection uuid " << collectionUUID
@@ -2570,12 +2560,12 @@ void ShardingCatalogManager::_commitChunkMigrationInTransaction(
         uassertStatusOK(getStatusFromWriteCommandReply(distinctCommandResponse));
 
         // 4. Persist new data to the config.placementHistory collection.
-        std::vector<ShardId> shardIds;
+        std::vector<ShardRef> shardRefs;
         for (const auto& valueElement : distinctCommandResponse.getField("values").Array()) {
-            shardIds.emplace_back(valueElement.String());
+            shardRefs.emplace_back(ShardRef::parse(valueElement));
         }
         NamespacePlacementType placementInfo(
-            nss, migratedChunk.getHistory().front().getValidAfter(), std::move(shardIds));
+            nss, migratedChunk.getHistory().front().getValidAfter(), std::move(shardRefs));
         placementInfo.setUuid(migratedChunk.getCollectionUUID());
         write_ops::InsertCommandRequest insertPlacementEntry(
             NamespaceString::kConfigsvrPlacementHistoryNamespace, {placementInfo.toBSON()});

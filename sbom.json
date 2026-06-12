@@ -28,10 +28,25 @@
       "description": "Percona Server for MongoDB",
       "licenses": [
         {
+<<<<<<< HEAD
           "license": {
             "id": "SSPL-1.0",
             "url": "https://www.mongodb.com/legal/licensing/community-edition"
           }
+||||||| a1d84817936
+          "license": {
+            "id": "SSPL-1.0",
+            "url": "https://www.mongodb.com/legal/licensing/community-edition"
+          }
+        },
+        {
+          "license": {
+            "name": "MongoDB Enterprise Advanced License",
+            "url": "https://www.mongodb.com/products/self-managed/enterprise-advanced"
+          }
+=======
+          "expression": "SSPL-1.0 OR LicenseRef-MongoDB-Enterprise-Advanced-License"
+>>>>>>> e4cbb5dc4a8998f36e75bffb4dca4a79374e83a3
         }
       ],
       "cpe": "cpe:2.3:a:percona:percona-server-mongodb:master:*:*:*:*:*:*:*",
@@ -60,7 +75,29 @@
     "supplier": {
       "name": "Percona LLC",
       "url": [
+<<<<<<< HEAD
         "https://percona.com"
+||||||| a1d84817936
+        "https://mongodb.com"
+      ]
+    },
+    "tools": {
+      "services": [
+        {
+          "name": "Endor Labs Inc",
+          "version": "v1.7.988"
+        }
+=======
+        "https://mongodb.com"
+      ]
+    },
+    "tools": {
+      "services": [
+        {
+          "name": "Endor Labs Inc",
+          "version": "v1.7.994"
+        }
+>>>>>>> e4cbb5dc4a8998f36e75bffb4dca4a79374e83a3
       ]
     }
   },
@@ -410,6 +447,55 @@
         {
           "name": "emits_persisted_data",
           "value": "false"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:github/aws/s2n-tls@1.7.3",
+      "supplier": {
+        "name": "Amazon Web Services",
+        "url": [
+          "https://amazon.com/aws"
+        ]
+      },
+      "author": "Amazon Web Services",
+      "group": "aws",
+      "name": "s2n-tls TLS library",
+      "version": "1.7.3",
+      "description": "s2n-tls is a C99 implementation of the TLS/SSL protocols that is designed to be simple, small, fast, and with security as a priority.",
+      "scope": "required",
+      "licenses": [
+        {
+          "license": {
+            "id": "Apache-2.0"
+          }
+        }
+      ],
+      "copyright": "Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.",
+      "cpe": "cpe:2.3:a:amazon:s2n-tls:1.7.3:*:*:*:*:*:*:*",
+      "purl": "pkg:github/aws/s2n-tls@1.7.3",
+      "externalReferences": [
+        {
+          "url": "https://github.com/aws/s2n-tls.git",
+          "type": "distribution"
+        }
+      ],
+      "evidence": {
+        "occurrences": [
+          {
+            "location": "src/third_party/s2n"
+          }
+        ]
+      },
+      "properties": [
+        {
+          "name": "emits_persisted_data",
+          "value": "false"
+        },
+        {
+          "name": "import_script_path",
+          "value": "src/third_party/s2n/scripts/import.sh"
         }
       ]
     },
@@ -2722,6 +2808,7 @@
         "pkg:github/abseil/abseil-cpp@20250512.1",
         "pkg:github/antirez/linenoise@6cdc775807e57b2c3fd64bd207814f8ee1fe35f3",
         "pkg:github/arximboldi/immer@v0.9.1",
+        "pkg:github/aws/s2n-tls@1.7.3",
         "pkg:github/boostorg/boost@boost-1.88.0",
         "pkg:github/c-ares/c-ares@cares-1_27_0",
         "pkg:github/chriskohlhoff/asio@asio-1-34-2",
@@ -2805,6 +2892,10 @@
     },
     {
       "ref": "pkg:github/arximboldi/immer@v0.9.1",
+      "dependsOn": []
+    },
+    {
+      "ref": "pkg:github/aws/s2n-tls@1.7.3",
       "dependsOn": []
     },
     {
