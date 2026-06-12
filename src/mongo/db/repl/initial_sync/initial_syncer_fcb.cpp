@@ -645,6 +645,10 @@ void InitialSyncerFCB::_startInitialSyncAttemptCallback(
     // has to run outside lock.
     std::lock_guard<std::mutex> lock(_mutex);
 
+    // Reload the transient error retry period from the server parameter so that runtime changes
+    // are picked up on each new initial sync attempt.
+    _allowedOutageDuration = Seconds(initialSyncTransientErrorRetryPeriodSeconds.load());
+
     LOGV2_DEBUG(128424,
                 2,
                 "Resetting sync source so a new one can be chosen for this initial sync attempt");
