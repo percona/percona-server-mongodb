@@ -32,8 +32,10 @@ Copyright (C) 2019-present Percona and/or its affiliates. All rights reserved.
 
 #include "mongo/db/ldap/ldap_manager_impl.h"
 
+#include "mongo/bson/bsonobjbuilder.h"
 #include "mongo/bson/json.h"
 #include "mongo/db/client.h"
+#include "mongo/db/commands/server_status/server_status.h"
 #include "mongo/db/ldap_options.h"
 #include "mongo/logv2/log.h"
 #include "mongo/util/background.h"
@@ -659,8 +661,8 @@ Status LDAPManagerImpl::initialize() {
         ber_set_option(nullptr, LBER_OPT_LOG_PRINT_FN, reinterpret_cast<const void*>(cb_log));
     }
 
-    // Initialize _userToDNCache and friends on startup
-    invalidateUserToDNCache();
+    // Initialize _userToDNCache and friends on startup.
+    _userToDNCacheHolder = std::make_shared<UserToDNCacheHolder>();
 
     return Status::OK();
 }
@@ -907,17 +909,19 @@ std::string substituteFromMatch(const std::string& stempl,
 
 }  // namespace
 
-LDAPManagerImpl::UserToDNCacheHolder::UserToDNCacheHolder()
+LDAPManagerImpl::UserToDNCacheHolder::UserToDNCacheHolder(long long invalidations)
     : size(ldapGlobalParams.ldapUserToDNCacheSize.load()),
       ttl(ldapGlobalParams.ldapUserToDNCacheTTLSeconds.load()),
       enabled(ttl > 0 && size > 0),
       mapping(fromjson(ldapGlobalParams.ldapUserToDNMapping.get())),
+      invalidations(invalidations),
       cache(static_cast<std::size_t>(std::max(size, 0))) {}
 
 void LDAPManagerImpl::invalidateUserToDNCache() {
-    // Atomically replace instance of UserToDNCacheHolder
-    // the new instance is current snapshot of the ldapGlobalParams
-    _userToDNCacheHolder = std::make_shared<UserToDNCacheHolder>();
+    // Atomically replace the holder and bump invalidations under one lock so
+    // serverStatus readers observe a coherent cache-generation snapshot.
+    auto guard = _userToDNCacheHolder.synchronize();
+    *guard = std::make_shared<UserToDNCacheHolder>((*guard)->invalidations + 1);
 }
 
 Status LDAPManagerImpl::mapUserToDN(const std::string& user, std::string& out) {
@@ -935,9 +939,11 @@ Status LDAPManagerImpl::mapUserToDN(const std::string& user, std::string& out) {
             if (Date_t::now() - it->second.insertedAt < Seconds(cache->ttl)) {
                 cache->cache.promote(it);
                 out = it->second.dn;
+                cache->hits.fetchAndAdd(1);
                 return Status::OK();
             }
         }
+        cache->misses.fetchAndAdd(1);
     }
 
     // Perform the actual mapping (inner mutex NOT held during potential LDAP queries
@@ -1111,7 +1117,46 @@ Status LDAPbind(LDAP* ld, const std::string& usr, const std::string& psw) {
     return LDAPbind(ld, usr.c_str(), psw.c_str());
 }
 
+void LDAPManagerImpl::appendUserToDNCacheStats(BSONObjBuilder& bob) const {
+    std::shared_ptr<UserToDNCacheHolder> holder = *_userToDNCacheHolder;
+
+    BSONObjBuilder sub(bob.subobjStart("userToDNCache"));
+    sub.append("enabled", holder->enabled);
+    sub.append("maxSize", holder->size);
+    {
+        std::lock_guard lock(holder->mutex);
+        sub.append("currentSize", static_cast<long long>(holder->cache.size()));
+    }
+    sub.append("ttlSeconds", holder->ttl);
+    sub.append("hits", holder->hits.load());
+    sub.append("misses", holder->misses.load());
+    sub.append("invalidations", holder->invalidations);
+}
+
 namespace {
+
+class LDAPServerStatusSection : public ServerStatusSection {
+public:
+    using ServerStatusSection::ServerStatusSection;
+
+    bool includeByDefault() const override {
+        return true;
+    }
+
+    BSONObj generateSection(OperationContext* opCtx,
+                            const BSONElement& configElement) const override {
+        auto* manager = LDAPManager::get(opCtx->getServiceContext());
+        if (!manager) {
+            return BSONObj{};
+        }
+        BSONObjBuilder bob;
+        manager->appendUserToDNCacheStats(bob);
+        return bob.obj();
+    }
+};
+
+auto& ldapServerStatusSection =
+    *ServerStatusSectionBuilder<LDAPServerStatusSection>("ldap").forShard().forRouter();
 
 ServiceContext::ConstructorActionRegisterer createLDAPManager(
     "CreateLDAPManager", {"EndStartupOptionStorage"}, [](ServiceContext* service) {
