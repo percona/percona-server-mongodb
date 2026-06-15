@@ -1,0 +1,261 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "2b6bff060711d1e22ec47e4eb1aae81acda3ae76",
+    "merge_commit": "2c33f78574a96f599c037179034dfafb05192be7"
+  },
+  "mergai_version": "0.1.dev1+g95d1b543b",
+  "conflict_context": {
+    "ours_commit": "2b6bff060711d1e22ec47e4eb1aae81acda3ae76",
+    "theirs_commit": "2c33f78574a96f599c037179034dfafb05192be7",
+    "base_commit": "0be72e167428b6d7cb9b7045df72ee6392e92df0",
+    "files": [
+      "src/mongo/db/curop_test.cpp"
+    ],
+    "conflict_types": {
+      "src/mongo/db/curop_test.cpp": "both modified"
+    },
+    "diffs": {
+      "src/mongo/db/curop_test.cpp": "diff --cc src/mongo/db/curop_test.cpp\nindex 6b889f57f11,81f0688ff42..00000000000\n--- a/src/mongo/db/curop_test.cpp\n+++ b/src/mongo/db/curop_test.cpp\n@@@ -653,2 -662,2 +662,9 @@@ TEST(CurOpTest, OptionalAdditiveMetrics\n++<<<<<<< HEAD\n +                                         \"flowControl\",\n +                                         \"rateLimit\"};\n++||||||| 0be72e16742\n++                                         \"flowControl\"};\n++=======\n+                                          \"micros\",\n+                                          \"flowControl\"};\n++>>>>>>> 2c33f78574a96f599c037179034dfafb05192be7"
+    },
+    "their_commits": {
+      "src/mongo/db/curop_test.cpp": [
+        "38dd12df4eb165a42aadb7953f98dc81e46c4f57",
+        "9752a52e210cf1dea011b89d482de6746d18099b"
+      ]
+    }
+  },
+  "merge_context": {
+    "merge_commit": "2c33f78574a96f599c037179034dfafb05192be7",
+    "merged_commits": [
+      "2c33f78574a96f599c037179034dfafb05192be7",
+      "70899f6ed415399d9f892a878b051abc4fd48c17",
+      "80365dc6e324f66495a291e0723c27e1fbf74f39",
+      "bb6e8a5f0a287ad491b48849250dc91f8d4a863e",
+      "e1c79ae2910029a8bb0ce62a66aa70ead68e6331",
+      "ee585fcaf656e42cfceb0a788d069d34151f3b2e",
+      "c4ecb9f3aa1fc6a652e744740e9f65519147ea23",
+      "2b7a0768a6de07bd858a1ddc9f2e74392219458a",
+      "c8db6bc39167690aa095e6da68188603d39a45eb",
+      "2ffed3a9467eb66c04a15ad817690ddd09851bb0",
+      "adc3ce0e4556a69610b205393321242915211438",
+      "5679351e24a0a1ccdc2c7cbad13aa977f4ee5516",
+      "ce5d374f0d22dc3d9c9586e58741b941505cbd96",
+      "30233b10c866dc962ef59ed2c76fd4990865b22b",
+      "b9ff5c1dcf41b7265d4c33de9ff4085dc980262f",
+      "9b635aa7a96c042377014e41586fde112d3edd1e",
+      "c3c3cf3bdd5bdc3f511a703ea715c2aff3bc3be5",
+      "b030afa7923b0ca4eed87fcee438fa6cd49d55d9",
+      "f772ad644fd597874456aab6bf1ebd5b53f771b3",
+      "807227f678b197bf3bcb0e3e733a07d846df71ff",
+      "7bdb0410c211df681f462a89337d69f0455df47e",
+      "b7e7f629d108ca2f39c3fb1ed1c7b8a8431468b0",
+      "35a245712aed38b886a85e1850bf8a439e8b2141",
+      "729aaf36d3324b02c0a12c8a444bbd3abde2f9f1",
+      "57195aad978efec7b3eebbd0280f6c7227ee67c8",
+      "6a2c1d6afd23811f2fdb85682ecd0423fd0b600d",
+      "b0f593714af9cc0d19a511f3e4d0508262465880",
+      "a160c231860f44fc0f3ae95e0c2dff4246b2a107",
+      "7e1debfc50505dc819e9fb82da60485cf3adac5c",
+      "e64fab97a3619e3f1628a4913607753194526965",
+      "98d7c8ea7da45aabb22143bcc4623c8194956625",
+      "9727ad05f8ccde5dc37832ed6235d442caba4353",
+      "feb0a40b556b9df6de24185af2a06f235fcf78c2",
+      "92fb172871e1f52ee954f031abba5871d48e1edc",
+      "805f1db6c767282bc38407f6ff2d87724bdd54b9",
+      "4d35be4392f8024e32e892ecbe397a5eeae12992",
+      "38dd12df4eb165a42aadb7953f98dc81e46c4f57",
+      "6c7636be0befcbab9049632ee905695b153e48b0",
+      "f688850fc9fd97201c0b6daadc75c8be2580c5a5",
+      "0d9ae67f92867bd89cd78666e817c7258b7a5d30",
+      "cfad5482edd6d538a3249cd872bb10fa7fbc0436",
+      "1be3cb4c43681430dd52f22f4c3fd540c5349e28",
+      "1e80cbf1edb8a859b25efc80b8dc4d4a3316f990",
+      "9752a52e210cf1dea011b89d482de6746d18099b",
+      "8788bcff129393846458e534204f301f1d3f3f6e",
+      "1c679fed1dddded960a4f7f144f195ecd3e6077b",
+      "c1fa4f0e00ad422c6112ef8b162e0c7fbe2cf776",
+      "a7640541475c5f41ff0cc08f7eca6b623036714c"
+    ],
+    "important_files_modified": [
+      "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine_test.cpp"
+    ],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        "jstests/core/catalog/views/views_all_commands.js",
+        "jstests/libs/write_concern_all_commands.js",
+        "jstests/replsets/all_commands_downgrading_to_upgraded.js",
+        "jstests/replsets/db_reads_while_recovering_all_commands.js",
+        "jstests/sharding/all_commands_direct_shard_connection_auth.js",
+        "jstests/sharding/database_versioning_all_commands.js",
+        "jstests/sharding/read_write_concern_defaults_application.js",
+        "jstests/sharding/safe_secondary_reads_drop_recreate.js",
+        "jstests/sharding/safe_secondary_reads_single_migration_suspend_range_deletion.js",
+        "jstests/sharding/safe_secondary_reads_single_migration_waitForDelete.js",
+        "src/mongo/db/curop_test.cpp",
+        "src/mongo/db/index_builds/BUILD.bazel",
+        "src/mongo/db/op_debug.cpp",
+        "src/mongo/db/repl/replication_coordinator_impl.cpp",
+        "src/mongo/util/processinfo_linux.cpp"
+      ]
+    }
+  },
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 42733,
+    "num_turns": 7,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.4341725,
+    "modelUsage": {
+      "claude-haiku-4-5-20251001": {
+        "inputTokens": 587,
+        "outputTokens": 15,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0,
+        "webSearchRequests": 0,
+        "costUSD": 0.0006619999999999999,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000
+      },
+      "claude-opus-4-5": {
+        "inputTokens": 12,
+        "outputTokens": 3239,
+        "cacheReadInputTokens": 56376,
+        "cacheCreationInputTokens": 51886,
+        "webSearchRequests": 0,
+        "costUSD": 0.43351049999999997,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-haiku-4-5-20251001": {
+          "tokens": {
+            "input": 587,
+            "output": 15,
+            "cache_read": 0,
+            "cache_creation": 0
+          },
+          "cost_usd": 0.0006619999999999999
+        },
+        "claude-opus-4-5": {
+          "tokens": {
+            "input": 12,
+            "output": 3239,
+            "cache_read": 56376,
+            "cache_creation": 51886
+          },
+          "cost_usd": 0.43351049999999997
+        }
+      }
+    },
+    "text_result": "Done. I've written the JSON response describing this merge:\n\n- **New internal command**: `_configsvrCommitMergeAllPrecomputedChunksOnShard` added across 10 test files\n- **Microsecond precision timing**: New `micros`/`durationMicros` fields added to OpDebug alongside milliseconds\n- **New `nDeleteOps` metric**: Added parallel to the existing `nUpdateOps` in AdditiveMetrics\n- **Safer config access**: Replication coordinator switched from `unsafePeek()` to `makeSnapshot()` \n- **Type change**: CPU core count changed from `unsigned long` to `uint64_t` in processinfo_linux.cpp\n- **New Bazel dependency**: Added `tearable_side_write_redo_state` for index builds\n\nThe review notes explain how to resolve the conflict in `curop_test.cpp` - the expected fields list needs both the upstream's `micros` addition and the fork's `rateLimit` field.",
+    "response": {
+      "summary": "This merge introduces several upstream MongoDB changes: (1) a new internal sharding command `_configsvrCommitMergeAllPrecomputedChunksOnShard` added across all command test files; (2) microsecond-precision timing support in OpDebug, adding `micros`/`durationMicros` fields alongside existing millisecond fields; (3) a new `nDeleteOps` metric in AdditiveMetrics alongside the existing `nUpdateOps`; (4) replication coordinator changes replacing `unsafePeek()` with `makeSnapshot()` for safer config access; (5) a type change in processinfo_linux.cpp from `unsigned long` to `uint64_t` for CPU core count; and (6) a new Bazel dependency on `tearable_side_write_redo_state` for index builds.",
+      "auto_merged": {
+        "jstests/core/catalog/views/views_all_commands.js": "Adds `_configsvrCommitMergeAllPrecomputedChunksOnShard` to the command skip list as an internal command.",
+        "jstests/libs/write_concern_all_commands.js": "Adds `_configsvrCommitMergeAllPrecomputedChunksOnShard` to both `wcCommandsTests` and `wcTimeseriesCommandsTests` skip lists as an internal command.",
+        "jstests/replsets/all_commands_downgrading_to_upgraded.js": "Adds `_configsvrCommitMergeAllPrecomputedChunksOnShard` to the command skip list as an internal command.",
+        "jstests/replsets/db_reads_while_recovering_all_commands.js": "Adds `_configsvrCommitMergeAllPrecomputedChunksOnShard` to the command skip list as primary-only.",
+        "jstests/sharding/all_commands_direct_shard_connection_auth.js": "Adds `_configsvrCommitMergeAllPrecomputedChunksOnShard` to the command skip list as an internal command.",
+        "jstests/sharding/database_versioning_all_commands.js": "Adds `_configsvrCommitMergeAllPrecomputedChunksOnShard` to the command skip list as an internal command.",
+        "jstests/sharding/read_write_concern_defaults_application.js": "Adds `_configsvrCommitMergeAllPrecomputedChunksOnShard` to the command skip list as an internal command.",
+        "jstests/sharding/safe_secondary_reads_drop_recreate.js": "Adds `_configsvrCommitMergeAllPrecomputedChunksOnShard` to the command skip list as primary-only.",
+        "jstests/sharding/safe_secondary_reads_single_migration_suspend_range_deletion.js": "Adds `_configsvrCommitMergeAllPrecomputedChunksOnShard` to the command skip list as primary-only.",
+        "jstests/sharding/safe_secondary_reads_single_migration_waitForDelete.js": "Adds `_configsvrCommitMergeAllPrecomputedChunksOnShard` to the command skip list as primary-only.",
+        "src/mongo/db/curop_test.cpp": "Adds tests for `nDeleteOps` metric (parallel to `nUpdateOps`), adds `micros` to the expected fields list in OptionalAdditiveMetricsNotDisplayedIfUninitialized test, and adds a new test `ExecutionTimeMicrosPreservesSubMillisecondPrecision` verifying microsecond precision is preserved through BSON serialization.",
+        "src/mongo/db/index_builds/BUILD.bazel": "Adds dependency on `//src/mongo/db/index_builds/primary_driven:tearable_side_write_redo_state`.",
+        "src/mongo/db/op_debug.cpp": "Adds microsecond-precision timing: (1) appends `micros` field alongside `millis` in OpDebug::append(); (2) adds staged callbacks for `micros` and `durationMicros` fields; (3) adds `nDeleteOps` to AdditiveMetrics::add(), reset(), and equals(); (4) outputs `durationMicros` in report(), report(DynamicAttributes), and reportBSON() methods alongside existing millisecond values.",
+        "src/mongo/db/repl/replication_coordinator_impl.cpp": "Replaces seven `_rsConfig.unsafePeek()` calls with `*_rsConfig.makeSnapshot()` for safer configuration access in getReplicaSetConfig_forTest(), _doReplSetReconfig(), _finishReplSetReconfig(), awaitConfigCommitment(), _setCurrentRSConfig(), and processHeartbeatV1().",
+        "src/mongo/util/processinfo_linux.cpp": "Changes return type of `getNumCoresForProcess()` from `boost::optional<unsigned long>` to `boost::optional<uint64_t>` and updates the internal count variable type accordingly."
+      },
+      "review_notes": "The conflict in src/mongo/db/curop_test.cpp involves the expected fields list in OptionalAdditiveMetricsNotDisplayedIfUninitialized test. The base had `flowControl` as the last entry. Upstream adds `micros` before `flowControl`. The fork (PSMDB) previously added `rateLimit` after `flowControl`. The resolution should include all three: the upstream's `micros` addition and the fork's `rateLimit` addition, resulting in the list ending with `micros`, `flowControl`, `rateLimit`."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [
+            "I'll read the diffs for the auto-merged files to understand what this merge introduces."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [
+            "Now I have all the diffs. Let me write the JSON response file."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [
+            "Done. I've written the JSON response describing this merge:\n\n- **New internal command**: `_configsvrCommitMergeAllPrecomputedChunksOnShard` added across 10 test files\n- **Microsecond precision timing**: New `micros`/`durationMicros` fields added to OpDebug alongside milliseconds\n- **New `nDeleteOps` metric**: Added parallel to the existing `nUpdateOps` in AdditiveMetrics\n- **Safer config access**: Replication coordinator switched from `unsafePeek()` to `makeSnapshot()` \n- **Type change**: CPU core count changed from `unsigned long` to `uint64_t` in processinfo_linux.cpp\n- **New Bazel dependency**: Added `tearable_side_write_redo_state` for index builds\n\nThe review notes explain how to resolve the conflict in `curop_test.cpp` - the expected fields list needs both the upstream's `micros` addition and the fork's `rateLimit` field."
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20260615_072535_278369.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.177 (Claude Code)"
+    }
+  }
+}
