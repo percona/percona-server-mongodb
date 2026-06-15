@@ -140,7 +140,19 @@ MongoRunner.VersionSub = function (pattern, version) {
         // shell
         // See hang-analyzer argument options here:
         // https://github.com/10gen/mongo/blob/8636ede10bd70b32ff4b6cd115132ab0f22b89c7/buildscripts/resmokelib/hang_analyzer/hang_analyzer.py#L245
-        const args = ["python", scriptPath, "hang-analyzer", "-c", "-k", "-o", "file", "-o", "stdout", "-d", pids];
+        const args = [
+            "python",
+            scriptPath,
+            "hang-analyzer",
+            "-c",
+            "-k",
+            "-o",
+            "file",
+            "-o",
+            "stdout",
+            "-d",
+            pids,
+        ];
 
         if (jsTest.options().evergreenTaskId) {
             args.push("-t", jsTest.options().evergreenTaskId);
@@ -281,7 +293,10 @@ MongoRunner.compareBinVersions = function (versionA, versionB) {
         let numA = parseInt(elementA);
         let numB = parseInt(elementB);
 
-        assert(!isNaN(numA) && !isNaN(numB), `Cannot compare non-equal non-numeric versions. ${elementA}, ${elementB}`);
+        assert(
+            !isNaN(numA) && !isNaN(numB),
+            `Cannot compare non-equal non-numeric versions. ${elementA}, ${elementB}`,
+        );
 
         if (numA > numB) {
             return 1;
@@ -444,7 +459,12 @@ MongoRunner.arrOptions = function (binaryName, args) {
 
         for (let k in o) {
             // Make sure our logical option should be added to the array of options
-            if (!o.hasOwnProperty(k) || k in MongoRunner.logicalOptions || !isValidOptionForBinary(k, o[k])) continue;
+            if (
+                !o.hasOwnProperty(k) ||
+                k in MongoRunner.logicalOptions ||
+                !isValidOptionForBinary(k, o[k])
+            )
+                continue;
 
             if ((k == "v" || k == "verbose") && isNumber(o[k])) {
                 let n = o[k];
@@ -562,7 +582,8 @@ MongoRunner.mongoOptions = function (opts) {
     }
 
     // Default for waitForConnect is true
-    opts.waitForConnect = waitForConnect == undefined || waitForConnect == null ? true : waitForConnect;
+    opts.waitForConnect =
+        waitForConnect == undefined || waitForConnect == null ? true : waitForConnect;
 
     opts.port ||= allocatePort();
 
@@ -580,15 +601,21 @@ MongoRunner.mongoOptions = function (opts) {
     }
 
     const setParameters = jsTestOptions().setParameters || {};
-    const tlsEnabled = (opts.tlsMode && opts.tlsMode != "disabled") || (opts.sslMode && opts.sslMode != "disabled");
+    const tlsEnabled =
+        (opts.tlsMode && opts.tlsMode != "disabled") ||
+        (opts.sslMode && opts.sslMode != "disabled");
     if (setParameters.featureFlagGRPC && tlsEnabled) {
         opts.grpcPort ||= allocatePort();
         grpcToMongoRpcPortMap[opts.grpcPort] = opts.port;
     }
 
-    opts.pathOpts = Object.merge(opts.pathOpts || {}, {port: "" + opts.port, runId: "" + opts.runId});
+    opts.pathOpts = Object.merge(opts.pathOpts || {}, {
+        port: "" + opts.port,
+        runId: "" + opts.runId,
+    });
 
-    let shouldRemember = (!opts.restart && !opts.noRemember) || (opts.restart && opts.appendOptions);
+    let shouldRemember =
+        (!opts.restart && !opts.noRemember) || (opts.restart && opts.appendOptions);
     if (shouldRemember) {
         MongoRunner.savedOptions[opts.runId] = Object.merge(opts, {});
         // We don't want to persist 'waitForConnect' across node restarts.
@@ -641,7 +668,12 @@ let _isMongodVersionEqualOrAfter = function (version1, version2) {
 
 // Removes a setParameter parameter from mongods or mongoses running a version that won't recognize
 // them.
-let _removeSetParameterIfBeforeVersion = function (opts, parameterName, requiredVersion, isMongos = false) {
+let _removeSetParameterIfBeforeVersion = function (
+    opts,
+    parameterName,
+    requiredVersion,
+    isMongos = false,
+) {
     let processString = isMongos ? "mongos" : "mongod";
     let versionCompatible =
         opts.binVersion === "" ||
@@ -679,7 +711,12 @@ MongoRunner.mongodOptions = function (opts = {}) {
     opts = MongoRunner.mongoOptions(opts);
 
     if (jsTestOptions().alwaysUseLogFiles) {
-        if (opts.cleanData || opts.startClean || opts.noCleanData === false || opts.useLogFiles === false) {
+        if (
+            opts.cleanData ||
+            opts.startClean ||
+            opts.noCleanData === false ||
+            opts.useLogFiles === false
+        ) {
             throw new Error("Always using log files, but received conflicting option.");
         }
 
@@ -703,11 +740,23 @@ MongoRunner.mongodOptions = function (opts = {}) {
     _removeSetParameterIfBeforeVersion(opts, "numInitialSyncConnectAttempts", "3.3.12");
     _removeSetParameterIfBeforeVersion(opts, "migrationLockAcquisitionMaxWaitMS", "4.1.7");
     _removeSetParameterIfBeforeVersion(opts, "shutdownTimeoutMillisForSignaledShutdown", "4.5.0");
-    _removeSetParameterIfBeforeVersion(opts, "failpoint.PrimaryOnlyServiceSkipRebuildingInstances", "4.8.0");
-    _removeSetParameterIfBeforeVersion(opts, "enableDefaultWriteConcernUpdatesForInitiate", "5.0.0");
+    _removeSetParameterIfBeforeVersion(
+        opts,
+        "failpoint.PrimaryOnlyServiceSkipRebuildingInstances",
+        "4.8.0",
+    );
+    _removeSetParameterIfBeforeVersion(
+        opts,
+        "enableDefaultWriteConcernUpdatesForInitiate",
+        "5.0.0",
+    );
     _removeSetParameterIfBeforeVersion(opts, "enableReconfigRollbackCommittedWritesCheck", "5.0.0");
     _removeSetParameterIfBeforeVersion(opts, "allowMultipleArbiters", "5.3.0");
-    _removeSetParameterIfBeforeVersion(opts, "internalQueryDisableExclusionProjectionFastPath", "6.2.0");
+    _removeSetParameterIfBeforeVersion(
+        opts,
+        "internalQueryDisableExclusionProjectionFastPath",
+        "6.2.0",
+    );
     _removeSetParameterIfBeforeVersion(opts, "defaultConfigCommandTimeoutMS", "7.3.0");
     _removeSetParameterIfBeforeVersion(opts, "enableAutoCompaction", "7.3.0");
     _removeSetParameterIfBeforeVersion(opts, "opentelemetryTraceDirectory", "8.3.0");
@@ -731,6 +780,7 @@ MongoRunner.mongodOptions = function (opts = {}) {
         opts.keyFile = jsTestOptions().keyFile;
     }
 
+<<<<<<< HEAD
     /// Merges values of the specified options from `opts` and `jsTestOptions()`
     /// objects into the former, verifying the option values along the way.
     function mergeOptions(optNames, optVerifier, expected) {
@@ -743,7 +793,108 @@ MongoRunner.mongodOptions = function (opts = {}) {
                 throw new Error("The " + optName + " option must be " + expected + " if it is specified");
             }
             opts[optName] = optValue;
+||||||| 93ffbc04538
+    if (opts.hasOwnProperty("enableEncryption")) {
+        // opts.enableEncryption, if set, must be an empty string
+        if (opts.enableEncryption !== "") {
+            throw new Error("The enableEncryption option must be an empty string if it is " + "specified");
+=======
+    if (opts.hasOwnProperty("enableEncryption")) {
+        // opts.enableEncryption, if set, must be an empty string
+        if (opts.enableEncryption !== "") {
+            throw new Error(
+                "The enableEncryption option must be an empty string if it is " + "specified",
+            );
+>>>>>>> e613c37f89b2041ec05a3c8a3d687a14cebb35b5
         }
+<<<<<<< HEAD
+||||||| 93ffbc04538
+    } else if (jsTestOptions().enableEncryption !== undefined) {
+        if (jsTestOptions().enableEncryption !== "") {
+            throw new Error("The enableEncryption option must be an empty string if it is " + "specified");
+        }
+        opts.enableEncryption = "";
+    }
+
+    if (opts.hasOwnProperty("encryptionCipherMode")) {
+        if (typeof opts.encryptionCipherMode !== "string") {
+            // opts.encryptionCipherMode, if set, must be a string
+            throw new Error("The encryptionCipherMode option must be a string if it is specified");
+        }
+    } else if (jsTestOptions().encryptionCipherMode !== undefined) {
+        if (typeof jsTestOptions().encryptionCipherMode !== "string") {
+            throw new Error("The encryptionCipherMode option must be a string if it is specified");
+        }
+        opts.encryptionCipherMode = jsTestOptions().encryptionCipherMode;
+    }
+
+    if (opts.hasOwnProperty("encryptionKeyFile")) {
+        // opts.encryptionKeyFile, if set, must be a string
+        if (typeof opts.encryptionKeyFile !== "string") {
+            throw new Error("The encryptionKeyFile option must be a string if it is specified");
+        }
+    } else if (jsTestOptions().encryptionKeyFile !== undefined) {
+        if (typeof jsTestOptions().encryptionKeyFile !== "string") {
+            throw new Error("The encryptionKeyFile option must be a string if it is specified");
+        }
+        opts.encryptionKeyFile = jsTestOptions().encryptionKeyFile;
+    }
+
+    if (opts.hasOwnProperty("auditDestination")) {
+        // opts.auditDestination, if set, must be a string
+        if (typeof opts.auditDestination !== "string") {
+            throw new Error("The auditDestination option must be a string if it is specified");
+        }
+    } else if (jsTestOptions().auditDestination !== undefined) {
+        if (typeof jsTestOptions().auditDestination !== "string") {
+            throw new Error("The auditDestination option must be a string if it is specified");
+        }
+        opts.auditDestination = jsTestOptions().auditDestination;
+=======
+    } else if (jsTestOptions().enableEncryption !== undefined) {
+        if (jsTestOptions().enableEncryption !== "") {
+            throw new Error(
+                "The enableEncryption option must be an empty string if it is " + "specified",
+            );
+        }
+        opts.enableEncryption = "";
+    }
+
+    if (opts.hasOwnProperty("encryptionCipherMode")) {
+        if (typeof opts.encryptionCipherMode !== "string") {
+            // opts.encryptionCipherMode, if set, must be a string
+            throw new Error("The encryptionCipherMode option must be a string if it is specified");
+        }
+    } else if (jsTestOptions().encryptionCipherMode !== undefined) {
+        if (typeof jsTestOptions().encryptionCipherMode !== "string") {
+            throw new Error("The encryptionCipherMode option must be a string if it is specified");
+        }
+        opts.encryptionCipherMode = jsTestOptions().encryptionCipherMode;
+    }
+
+    if (opts.hasOwnProperty("encryptionKeyFile")) {
+        // opts.encryptionKeyFile, if set, must be a string
+        if (typeof opts.encryptionKeyFile !== "string") {
+            throw new Error("The encryptionKeyFile option must be a string if it is specified");
+        }
+    } else if (jsTestOptions().encryptionKeyFile !== undefined) {
+        if (typeof jsTestOptions().encryptionKeyFile !== "string") {
+            throw new Error("The encryptionKeyFile option must be a string if it is specified");
+        }
+        opts.encryptionKeyFile = jsTestOptions().encryptionKeyFile;
+    }
+
+    if (opts.hasOwnProperty("auditDestination")) {
+        // opts.auditDestination, if set, must be a string
+        if (typeof opts.auditDestination !== "string") {
+            throw new Error("The auditDestination option must be a string if it is specified");
+        }
+    } else if (jsTestOptions().auditDestination !== undefined) {
+        if (typeof jsTestOptions().auditDestination !== "string") {
+            throw new Error("The auditDestination option must be a string if it is specified");
+        }
+        opts.auditDestination = jsTestOptions().auditDestination;
+>>>>>>> e613c37f89b2041ec05a3c8a3d687a14cebb35b5
     }
     const switchOptNames = [
         "enableEncryption",
@@ -850,8 +1001,18 @@ MongoRunner.mongosOptions = function (opts) {
         opts.auditPath = MongoRunner.toRealPath(opts.auditPath, opts);
     }
 
-    _removeSetParameterIfBeforeVersion(opts, "mongosShutdownTimeoutMillisForSignaledShutdown", "4.5.0", true);
-    _removeSetParameterIfBeforeVersion(opts, "failpoint.skipClusterParameterRefresh", "7.1.0", true);
+    _removeSetParameterIfBeforeVersion(
+        opts,
+        "mongosShutdownTimeoutMillisForSignaledShutdown",
+        "4.5.0",
+        true,
+    );
+    _removeSetParameterIfBeforeVersion(
+        opts,
+        "failpoint.skipClusterParameterRefresh",
+        "7.1.0",
+        true,
+    );
     _removeSetParameterIfBeforeVersion(opts, "defaultConfigCommandTimeoutMS", "7.3.0", true);
     _removeSetParameterIfBeforeVersion(opts, "opentelemetryTraceDirectory", "8.3.0", true);
 
@@ -914,7 +1075,12 @@ MongoRunner.runMongod = function (opts) {
         let backupOnRestartDir = jsTest.options()["backupOnRestartDir"] || false;
 
         if (opts.forceLock) removeFile(opts.dbpath + "/mongod.lock");
-        if (opts.cleanData || opts.startClean || (!opts.restart && !opts.noCleanData) || !pathExists(opts.dbpath)) {
+        if (
+            opts.cleanData ||
+            opts.startClean ||
+            (!opts.restart && !opts.noCleanData) ||
+            !pathExists(opts.dbpath)
+        ) {
             print("Resetting db path '" + opts.dbpath + "'");
             resetDbpath(opts.dbpath);
         } else {
@@ -925,7 +1091,12 @@ MongoRunner.runMongod = function (opts) {
                 // `MongoRunner.dataPath`. In this case, preserve the user input as is.
                 backupDir = backupDir.substring(MongoRunner.dataPath.length);
 
-                print("Backing up data files. DBPath: " + opts.dbpath + " Backing up under: " + backupDir);
+                print(
+                    "Backing up data files. DBPath: " +
+                        opts.dbpath +
+                        " Backing up under: " +
+                        backupDir,
+                );
                 copyDbpath(opts.dbpath, backupDir);
             }
         }
@@ -939,7 +1110,9 @@ MongoRunner.runMongod = function (opts) {
     }
 
     mongod.commandLine = MongoRunner.arrToOpts(opts);
-    let connectPort = jsTestOptions().shellGRPC ? mongod.commandLine.grpcPort : mongod.commandLine.port;
+    let connectPort = jsTestOptions().shellGRPC
+        ? mongod.commandLine.grpcPort
+        : mongod.commandLine.port;
     mongod.hostNoPort = useHostName ? getHostName() : "localhost";
     mongod.name = mongod.hostNoPort + ":" + mongod.commandLine.port;
     mongod.host = mongod.hostNoPort + ":" + connectPort;
@@ -988,7 +1161,9 @@ MongoRunner.runMongos = function (opts) {
     }
 
     mongos.commandLine = MongoRunner.arrToOpts(opts);
-    let connectPort = jsTestOptions().shellGRPC ? mongos.commandLine.grpcPort : mongos.commandLine.port;
+    let connectPort = jsTestOptions().shellGRPC
+        ? mongos.commandLine.grpcPort
+        : mongos.commandLine.port;
     mongos.name = MongoRunner.getMongosName(mongos.commandLine.port, useHostName);
     mongos.host = MongoRunner.getMongosName(connectPort, useHostName);
     mongos.port = parseInt(connectPort);
@@ -1075,7 +1250,8 @@ MongoRunner.validateCollectionsCallback = function (port, options) {};
 let stopMongoProgram = function (conn, signal, opts, waitpid) {
     if (!conn.pid) {
         throw new Error(
-            "first arg must have a `pid` property; " + "it is usually the object returned from MongoRunner.runMongod/s",
+            "first arg must have a `pid` property; " +
+                "it is usually the object returned from MongoRunner.runMongod/s",
         );
     }
 
@@ -1137,7 +1313,10 @@ let stopMongoProgram = function (conn, signal, opts, waitpid) {
     if (allowedExitCode !== returnCode && !opts.skipValidatingExitCode) {
         throw new MongoRunner.StopError(returnCode);
     } else if (returnCode !== MongoRunner.EXIT_CLEAN) {
-        print("MongoDB process on port " + port + " intentionally exited with error code ", returnCode);
+        print(
+            "MongoDB process on port " + port + " intentionally exited with error code ",
+            returnCode,
+        );
     }
 
     return returnCode;
@@ -1187,7 +1366,9 @@ function appendSetParameterArgs(argArray) {
     // Setting programMajorMinorVersion to the maximum value for the latest binary version
     // simplifies version checks below.
     const lastestMajorMinorVersion = Number.MAX_SAFE_INTEGER;
-    const lastContinuousVersion = convertVersionStringToInteger(MongoRunner.getBinVersionFor("last-continuous"));
+    const lastContinuousVersion = convertVersionStringToInteger(
+        MongoRunner.getBinVersionFor("last-continuous"),
+    );
     const lastLTSVersion = convertVersionStringToInteger(MongoRunner.getBinVersionFor("last-lts"));
     let programMajorMinorVersion = lastestMajorMinorVersion;
 
@@ -1208,7 +1389,12 @@ function appendSetParameterArgs(argArray) {
 
         if (jsTest.options().authMechanism && jsTest.options().authMechanism != "SCRAM-SHA-256") {
             if (!argArrayContainsSetParameterValue("authenticationMechanisms=")) {
-                argArray.push(...["--setParameter", "authenticationMechanisms=" + jsTest.options().authMechanism]);
+                argArray.push(
+                    ...[
+                        "--setParameter",
+                        "authenticationMechanisms=" + jsTest.options().authMechanism,
+                    ],
+                );
             }
         }
         if (jsTest.options().auth) {
@@ -1272,7 +1458,8 @@ function appendSetParameterArgs(argArray) {
             // The 'logComponentVerbosity' parameter must be passed in on the last continuous
             // version and last LTS version as well.
             if (
-                (programMajorMinorVersion === lastContinuousVersion || programMajorMinorVersion === lastLTSVersion) &&
+                (programMajorMinorVersion === lastContinuousVersion ||
+                    programMajorMinorVersion === lastLTSVersion) &&
                 isSetParameterMentioned(jsTest.options().setParameters, "logComponentVerbosity") &&
                 !argArrayContainsSetParameterValue("logComponentVerbosity=")
             ) {
@@ -1283,14 +1470,18 @@ function appendSetParameterArgs(argArray) {
                 argArray.push(...["--setParameter", "logComponentVerbosity=" + logVerbosityParam]);
             }
 
-            if (programMajorMinorVersion >= 530 && !argArrayContainsSetParameterValue("backtraceLogFile=")) {
+            if (
+                programMajorMinorVersion >= 530 &&
+                !argArrayContainsSetParameterValue("backtraceLogFile=")
+            ) {
                 let randomName = "";
                 let randomStrLen = 20;
                 const chars = "qwertyuiopasdfghjklzxcvbnm1234567890";
                 for (let i = 0; i <= randomStrLen; i++) {
                     randomName += chars[(Math.random() * 1000) % chars.length ^ 0];
                 }
-                const backtraceLogFilePath = MongoRunner.dataDir + "/" + randomName + Date.now() + ".stacktrace";
+                const backtraceLogFilePath =
+                    MongoRunner.dataDir + "/" + randomName + Date.now() + ".stacktrace";
                 argArray.push(...["--setParameter", "backtraceLogFile=" + backtraceLogFilePath]);
             }
 
@@ -1309,7 +1500,8 @@ function appendSetParameterArgs(argArray) {
                 };
 
                 Object.entries(reshardingDefaults).forEach(([key, value]) => {
-                    const keyIsNotParameter = parameters === undefined || parameters[key] === undefined;
+                    const keyIsNotParameter =
+                        parameters === undefined || parameters[key] === undefined;
                     const keyIsNotArgument = !argArrayContainsSetParameterValue(`${key}=`);
 
                     if (keyIsNotParameter && keyIsNotArgument) {
@@ -1327,7 +1519,8 @@ function appendSetParameterArgs(argArray) {
                 };
 
                 Object.entries(reshardingDefaults).forEach(([key, value]) => {
-                    const keyIsNotParameter = parameters === undefined || parameters[key] === undefined;
+                    const keyIsNotParameter =
+                        parameters === undefined || parameters[key] === undefined;
                     const keyIsNotArgument = !argArrayContainsSetParameterValue(`${key}=`);
 
                     if (keyIsNotParameter && keyIsNotArgument) {
@@ -1343,11 +1536,17 @@ function appendSetParameterArgs(argArray) {
 
                 if (
                     (parameters === undefined ||
-                        parameters["coordinateCommitReturnImmediatelyAfterPersistingDecision"] === undefined) &&
-                    !argArrayContainsSetParameterValue("coordinateCommitReturnImmediatelyAfterPersistingDecision=")
+                        parameters["coordinateCommitReturnImmediatelyAfterPersistingDecision"] ===
+                            undefined) &&
+                    !argArrayContainsSetParameterValue(
+                        "coordinateCommitReturnImmediatelyAfterPersistingDecision=",
+                    )
                 ) {
                     argArray.push(
-                        ...["--setParameter", "coordinateCommitReturnImmediatelyAfterPersistingDecision=false"],
+                        ...[
+                            "--setParameter",
+                            "coordinateCommitReturnImmediatelyAfterPersistingDecision=false",
+                        ],
                     );
                 }
             }
@@ -1375,11 +1574,19 @@ function appendSetParameterArgs(argArray) {
                 // Allow the parameter to be overridden if set explicitly via TestData.
                 if (
                     (jsTest.options().setParameters === undefined ||
-                        jsTest.options().setParameters["oplogApplicationEnforcesSteadyStateConstraints"] ===
-                            undefined) &&
-                    !argArrayContainsSetParameterValue("oplogApplicationEnforcesSteadyStateConstraints=")
+                        jsTest.options().setParameters[
+                            "oplogApplicationEnforcesSteadyStateConstraints"
+                        ] === undefined) &&
+                    !argArrayContainsSetParameterValue(
+                        "oplogApplicationEnforcesSteadyStateConstraints=",
+                    )
                 ) {
-                    argArray.push(...["--setParameter", "oplogApplicationEnforcesSteadyStateConstraints=true"]);
+                    argArray.push(
+                        ...[
+                            "--setParameter",
+                            "oplogApplicationEnforcesSteadyStateConstraints=true",
+                        ],
+                    );
                 }
             }
 
@@ -1390,7 +1597,8 @@ function appendSetParameterArgs(argArray) {
                         argArray.push(
                             ...[
                                 "--setParameter",
-                                "transactionLifetimeLimitSeconds=" + jsTest.options().transactionLifetimeLimitSeconds,
+                                "transactionLifetimeLimitSeconds=" +
+                                    jsTest.options().transactionLifetimeLimitSeconds,
                             ],
                         );
                     }
@@ -1407,27 +1615,56 @@ function appendSetParameterArgs(argArray) {
             // Increase the default value for `receiveChunkWaitForRangeDeleterTimeoutMS` to 90
             // seconds to prevent failures due to occasional slow range deletions
             if (programMajorMinorVersion >= 440) {
-                if (!argArrayContainsSetParameterValue("receiveChunkWaitForRangeDeleterTimeoutMS=")) {
-                    argArray.push(...["--setParameter", "receiveChunkWaitForRangeDeleterTimeoutMS=90000"]);
+                if (
+                    !argArrayContainsSetParameterValue("receiveChunkWaitForRangeDeleterTimeoutMS=")
+                ) {
+                    argArray.push(
+                        ...["--setParameter", "receiveChunkWaitForRangeDeleterTimeoutMS=90000"],
+                    );
                 }
             }
 
             // Since options may not be backward compatible, mongod options are not
             // set on older versions, e.g., mongod-3.0.
-            if (baseProgramName === "mongod" && programMajorMinorVersion == lastestMajorMinorVersion) {
-                if (jsTest.options().storageEngine === "wiredTiger" || !jsTest.options().storageEngine) {
-                    if (jsTest.options().storageEngineCacheSizeGB && !argArrayContains("--wiredTigerCacheSizeGB")) {
-                        argArray.push(...["--wiredTigerCacheSizeGB", jsTest.options().storageEngineCacheSizeGB]);
+            if (
+                baseProgramName === "mongod" &&
+                programMajorMinorVersion == lastestMajorMinorVersion
+            ) {
+                if (
+                    jsTest.options().storageEngine === "wiredTiger" ||
+                    !jsTest.options().storageEngine
+                ) {
+                    if (
+                        jsTest.options().storageEngineCacheSizeGB &&
+                        !argArrayContains("--wiredTigerCacheSizeGB")
+                    ) {
+                        argArray.push(
+                            ...[
+                                "--wiredTigerCacheSizeGB",
+                                jsTest.options().storageEngineCacheSizeGB,
+                            ],
+                        );
                     }
-                    if (jsTest.options().storageEngineCacheSizePct && !argArrayContains("--wiredTigerCacheSizePct")) {
-                        argArray.push(...["--wiredTigerCacheSizePct", jsTest.options().storageEngineCacheSizePct]);
+                    if (
+                        jsTest.options().storageEngineCacheSizePct &&
+                        !argArrayContains("--wiredTigerCacheSizePct")
+                    ) {
+                        argArray.push(
+                            ...[
+                                "--wiredTigerCacheSizePct",
+                                jsTest.options().storageEngineCacheSizePct,
+                            ],
+                        );
                     }
                     if (
                         jsTest.options().wiredTigerEngineConfigString &&
                         !argArrayContains("--wiredTigerEngineConfigString")
                     ) {
                         argArray.push(
-                            ...["--wiredTigerEngineConfigString", jsTest.options().wiredTigerEngineConfigString],
+                            ...[
+                                "--wiredTigerEngineConfigString",
+                                jsTest.options().wiredTigerEngineConfigString,
+                            ],
                         );
                     }
                     if (
@@ -1446,12 +1683,20 @@ function appendSetParameterArgs(argArray) {
                         !argArrayContains("--wiredTigerIndexConfigString")
                     ) {
                         argArray.push(
-                            ...["--wiredTigerIndexConfigString", jsTest.options().wiredTigerIndexConfigString],
+                            ...[
+                                "--wiredTigerIndexConfigString",
+                                jsTest.options().wiredTigerIndexConfigString,
+                            ],
                         );
                     }
                 } else if (jsTest.options().storageEngine === "inMemory") {
-                    if (jsTest.options().storageEngineCacheSizeGB && !argArrayContains("--inMemorySizeGB")) {
-                        argArray.push(...["--inMemorySizeGB", jsTest.options().storageEngineCacheSizeGB]);
+                    if (
+                        jsTest.options().storageEngineCacheSizeGB &&
+                        !argArrayContains("--inMemorySizeGB")
+                    ) {
+                        argArray.push(
+                            ...["--inMemorySizeGB", jsTest.options().storageEngineCacheSizeGB],
+                        );
                     }
                 }
                 // apply setParameters for mongod. The 'setParameters' field should be given as
@@ -1541,7 +1786,10 @@ MongoRunner.awaitConnection = function (
                 let res = checkProgram(pid);
                 if (!res.alive) {
                     print(
-                        "mongo program was not running at " + port + ", process ended with exit code: " + res.exitCode,
+                        "mongo program was not running at " +
+                            port +
+                            ", process ended with exit code: " +
+                            res.exitCode,
                     );
                     serverExitCodeMap[port] = res.exitCode;
                     if (res.exitCode !== MongoRunner.EXIT_CLEAN) {
@@ -1633,7 +1881,10 @@ function startMongoProgram(...args) {
                 let res = checkProgram(pid);
                 if (!res.alive) {
                     print(
-                        "Could not start mongo program at " + port + ", process ended with exit code: " + res.exitCode,
+                        "Could not start mongo program at " +
+                            port +
+                            ", process ended with exit code: " +
+                            res.exitCode,
                     );
                     // Break out
                     m = null;
@@ -1675,7 +1926,10 @@ function _getMongoProgramArguments(args) {
             newArgs.push("--tls");
             newArgs.push("--tlsAllowInvalidHostnames");
         }
-        if (jsTestOptions().shellTlsCertificateKeyFile && !args.includes("--tlsCertificateKeyFile")) {
+        if (
+            jsTestOptions().shellTlsCertificateKeyFile &&
+            !args.includes("--tlsCertificateKeyFile")
+        ) {
             newArgs.push("--tlsCertificateKeyFile", jsTestOptions().shellTlsCertificateKeyFile);
         }
         if (jsTestOptions().shellGRPC && !args.includes("--gRPC")) {
@@ -1692,9 +1946,15 @@ function _getMongoProgramArguments(args) {
 
         if (!args.includes("--tlsCertificateKeyFile")) {
             if (baseProgramName == "mongod" && jsTestOptions().mongodTlsCertificateKeyFile) {
-                newArgs.push("--tlsCertificateKeyFile", jsTestOptions().mongodTlsCertificateKeyFile);
+                newArgs.push(
+                    "--tlsCertificateKeyFile",
+                    jsTestOptions().mongodTlsCertificateKeyFile,
+                );
             } else if (baseProgramName == "mongos" && jsTestOptions().mongosTlsCertificateKeyFile) {
-                newArgs.push("--tlsCertificateKeyFile", jsTestOptions().mongosTlsCertificateKeyFile);
+                newArgs.push(
+                    "--tlsCertificateKeyFile",
+                    jsTestOptions().mongosTlsCertificateKeyFile,
+                );
             }
         }
     }

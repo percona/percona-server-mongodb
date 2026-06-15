@@ -1126,6 +1126,7 @@ mongo_cc_library(
         "//src/mongo/db/query/query_stats",
         "//src/mongo/db/stats:counters",
         "//src/mongo/db/stats:counters_sort",
+        "//src/mongo/otel/metrics:otel_metrics_service",
     ],
 )
 
@@ -3825,6 +3826,19 @@ mongo_cc_unit_test(
     ],
     tags = ["mongo_unittest_fourth_group"],
     deps = [
+        "//src/mongo/unittest",
+    ],
+)
+
+mongo_cc_unit_test(
+    name = "change_stream_error_metrics_test",
+    srcs = [
+        "change_stream_error_metrics_test.cpp",
+    ],
+    tags = ["mongo_unittest_second_group"],
+    deps = [
+        "//src/mongo:base",
+        "//src/mongo/otel/metrics:metrics_test_util",
         "//src/mongo/unittest",
     ],
 )

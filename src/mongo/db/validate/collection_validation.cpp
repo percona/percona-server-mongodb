@@ -45,7 +45,6 @@
 #include "mongo/db/query/collation/collator_interface.h"
 #include "mongo/db/record_id.h"
 #include "mongo/db/repl/replication_coordinator.h"
-#include "mongo/db/server_feature_flags_gen.h"
 #include "mongo/db/shard_role/lock_manager/lock_manager_defs.h"
 #include "mongo/db/shard_role/shard_catalog/catalog_raii.h"
 #include "mongo/db/shard_role/shard_catalog/collection.h"
@@ -61,6 +60,7 @@
 #include "mongo/db/timeseries/timeseries_constants.h"
 #include "mongo/db/timeseries/viewless_timeseries_collection_creation_helpers.h"
 #include "mongo/db/validate/validate_adaptor.h"
+#include "mongo/db/validate/validate_gen.h"
 #include "mongo/db/validate/validate_state.h"
 #include "mongo/logv2/log.h"
 #include "mongo/platform/atomic_word.h"
@@ -537,6 +537,25 @@ boost::optional<std::string> getConfigOverrideOrThrow(const BSONElement& raw) {
     return {raw.str()};
 }
 
+void _validateFastCountState(OperationContext* opCtx,
+                             ValidateState* validateState,
+                             FastCountType detectedType,
+                             ValidateResults* results) {
+    const FastCountType expectedType = validateState->getExpectedFastCountType(opCtx);
+    if (detectedType != expectedType) {
+        LOGV2_ERROR(ErrorCodes::InvalidOptions,
+                    "Detected fast count store type does not match expected type",
+                    "detectedType"_attr = toString(detectedType),
+                    "expected"_attr = toString(expectedType));
+        results->addError(
+            fmt::format("Detected fast count store type '{}' does not match expected type "
+                        "'{}'",
+                        toString(detectedType),
+                        toString(expectedType)),
+            /*stopValidation=*/false);
+    }
+}
+
 }  // namespace
 
 void validateHashes(const std::vector<std::string>& hashPrefixes, bool equalLength) {
@@ -961,14 +980,9 @@ Status validate(OperationContext* opCtx,
         const FastCountType fastCountType = validateState.getDetectedFastCountType(opCtx);
         results->setFastCountType({fastCountType});
 
-        const bool shouldEnforceFastCountOrSize =
-            validateState.shouldEnforceFastCount(opCtx, fastCountType) ||
-            validateState.shouldEnforceFastSize(opCtx, fastCountType);
-        // TODO SERVER-128375: Add more thorough checks around the state of the fast count store
-        // type.
-        if (shouldEnforceFastCountOrSize && fastCountType == FastCountType::neither) {
-            LOGV2_ERROR(ErrorCodes::InvalidOptions, "Neither FastCount table found");
-            results->addError("Neither FastCount table found", false);
+        if (validateState.shouldEnforceFastCount(opCtx, fastCountType) ||
+            validateState.shouldEnforceFastSize(opCtx, fastCountType)) {
+            _validateFastCountState(opCtx, &validateState, fastCountType, results);
         }
 
         _validateCatalogEntry(opCtx, &validateState, results);
@@ -1004,6 +1018,12 @@ Status validate(OperationContext* opCtx,
         // the collection. For clustered collections, the validator also verifies that the
         // record key (RecordId) matches the cluster key field in the record value (document's
         // cluster key).
+
+        // TODO (SERVER-76345): Remove feature flag branch
+        if (gFeatureFlagParallelCollectionValidation.isEnabled()) {
+            LOGV2_INFO(7634500, "Parallel record store traversal is not yet implemented");
+        }
+
         indexValidator.traverseRecordStore(opCtx, results, validateState.validationVersion());
 
         if (validateState.isCollHashValidation()) {

@@ -32,10 +32,22 @@ const st = new ShardingTest({
     },
 });
 
-// Override the history window on the config RS with the failpoint. This bypasses
+// Override the history window on the config RS and shards with the failpoint. This bypasses
 // getHistoryWindowInSeconds() entirely and works regardless of the storage backend.
 configureFailPointForRS(
     st.configRS.nodes,
+    "overrideHistoryWindowInSecs",
+    {seconds: snapshotHistoryWindowSecs},
+    "alwaysOn",
+);
+configureFailPointForRS(
+    st.rs0.nodes,
+    "overrideHistoryWindowInSecs",
+    {seconds: snapshotHistoryWindowSecs},
+    "alwaysOn",
+);
+configureFailPointForRS(
+    st.rs1.nodes,
     "overrideHistoryWindowInSecs",
     {seconds: snapshotHistoryWindowSecs},
     "alwaysOn",
@@ -45,7 +57,9 @@ const mongosDB = st.s.getDB(jsTestName());
 const mongosColl = mongosDB.test;
 const ns = `${jsTestName()}.test`;
 
-assert.commandWorked(mongosDB.adminCommand({enableSharding: mongosDB.getName(), primaryShard: st.rs0.getURL()}));
+assert.commandWorked(
+    mongosDB.adminCommand({enableSharding: mongosDB.getName(), primaryShard: st.rs0.getURL()}),
+);
 st.shardColl(mongosColl, {_id: 1}, false);
 
 const getChunkHistory = (query) => {
@@ -85,7 +99,10 @@ const testWindowMS = snapshotHistoryWindowSecs * 1000 - testMarginMS;
 while (Date.now() - 1000 * insertTS.getTime() < testWindowMS) {
     // Test that reading from a snapshot at insertTS is still valid.
     assert.commandWorked(
-        mongosDB.runCommand({find: "test", readConcern: {level: "snapshot", atClusterTime: insertTS}}),
+        mongosDB.runCommand({
+            find: "test",
+            readConcern: {level: "snapshot", atClusterTime: insertTS},
+        }),
     );
 
     chunk = getChunkHistory({_id: origChunk._id});
@@ -116,7 +133,9 @@ assert.commandFailedWithCode(
 
 // One second before the newest history entry is valid (check we don't delete *all* old entries).
 let recentTS = Timestamp(chunk.history[0].validAfter.getTime() - 1, 0);
-assert.commandWorked(mongosDB.runCommand({find: "test", readConcern: {level: "snapshot", atClusterTime: recentTS}}));
+assert.commandWorked(
+    mongosDB.runCommand({find: "test", readConcern: {level: "snapshot", atClusterTime: recentTS}}),
+);
 
 configureFailPointForRS(st.configRS.nodes, "overrideHistoryWindowInSecs", {}, "off");
 

@@ -201,11 +201,11 @@ public:
             return _parseNode->toBsonForLog();
         }
 
-        // TODO SERVER-116021 Remove this override when extensions can handle views through
+        // TODO SERVER-121094 Remove this override when extensions can handle views through
         // bindViewInfo().
         bool hasExtensionVectorSearchStage() const override;
 
-        // TODO SERVER-116021 Remove this override when extensions can handle views through
+        // TODO SERVER-121094 Remove this override when extensions can handle views through
         // bindViewInfo().
         bool hasExtensionSearchStage() const override;
 
@@ -466,7 +466,7 @@ public:
 
     void addVariableRefs(std::set<Variables::Id>* refs) const override {}
 
-    Value serialize(const SerializationOptions& opts) const override;
+    Value serialize(const query_shape::SerializationOptions& opts) const override;
 
     StageConstraints constraints(PipelineSplitState pipeState) const override;
 
