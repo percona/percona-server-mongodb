@@ -1,0 +1,28 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "f76f3c65a51c8012882a29b67583f16848543564",
+    "merge_commit": "93ffbc045383d98430264f17b712b9b19c79c2bb"
+  },
+  "mergai_version": "0.1.dev1+g95d1b543b",
+  "solutions": [
+    {
+      "type": "conflict_resolution",
+      "response": {
+        "summary": "PSMDB-2109: remove non-existent references",
+        "resolved": {
+          "bazel/resmoke/resmoke.bzl": "Resolved by human"
+        },
+        "unresolved": {},
+        "modified": {},
+        "review_notes": "Removed non-existent enterprise module directory references from\nbazel/resmoke/resmoke.bzl. PSMDB does not have the\nsrc/mongo/db/modules/enterprise directory, so all 8 enterprise module\nBazel targets (encryptdb, external_auth, hot_backups, live_restore) were\nremoved from the default_data list."
+      },
+      "author": {
+        "name": "Pawel Lebioda",
+        "email": "pawel.lebioda@percona.com",
+        "type": "human"
+      },
+      "commit_sha": "7d1316a74865d6186462573445a404ebdf5ff40e"
+    }
+  ]
+}
