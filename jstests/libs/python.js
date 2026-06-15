@@ -13,23 +13,12 @@ export function getPython3Binary() {
     clearRawMongoProgramOutput();
     assert.eq(runNonMongoProgram("python", "--version"), 0);
     const pythonVersion = rawMongoProgramOutput("Python"); // Will look like "Python 3.13.4\n"
-<<<<<<< HEAD
     const match = pythonVersion.match(/Python 3\.(\d+)\./);
     if (match && match[1] >= 13) {
         jsTest.log.info(
-            "Found python 3." + match[1] + " by default. Likely this is because we are using a virtual environment.",
+            "Found python 3." + match[1] +
+                " by default. Likely this is because we are using a virtual environment.",
         );
-||||||| 93ffbc04538
-    const usingPython313 = /Python 3\.13/.exec(pythonVersion);
-    if (usingPython313) {
-        jsTest.log.info("Found python 3.13 by default. Likely this is because we are using a virtual environment.");
-=======
-    const usingPython313 = /Python 3\.13/.exec(pythonVersion);
-    if (usingPython313) {
-        jsTest.log.info(
-            "Found python 3.13 by default. Likely this is because we are using a virtual environment.",
-        );
->>>>>>> e613c37f89b2041ec05a3c8a3d687a14cebb35b5
         return "python";
     }
 

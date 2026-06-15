@@ -780,7 +780,6 @@ MongoRunner.mongodOptions = function (opts = {}) {
         opts.keyFile = jsTestOptions().keyFile;
     }
 
-<<<<<<< HEAD
     /// Merges values of the specified options from `opts` and `jsTestOptions()`
     /// objects into the former, verifying the option values along the way.
     function mergeOptions(optNames, optVerifier, expected) {
@@ -790,111 +789,12 @@ MongoRunner.mongodOptions = function (opts = {}) {
                 continue;
             }
             if (!optVerifier(optValue)) {
-                throw new Error("The " + optName + " option must be " + expected + " if it is specified");
+                throw new Error(
+                    "The " + optName + " option must be " + expected + " if it is specified",
+                );
             }
             opts[optName] = optValue;
-||||||| 93ffbc04538
-    if (opts.hasOwnProperty("enableEncryption")) {
-        // opts.enableEncryption, if set, must be an empty string
-        if (opts.enableEncryption !== "") {
-            throw new Error("The enableEncryption option must be an empty string if it is " + "specified");
-=======
-    if (opts.hasOwnProperty("enableEncryption")) {
-        // opts.enableEncryption, if set, must be an empty string
-        if (opts.enableEncryption !== "") {
-            throw new Error(
-                "The enableEncryption option must be an empty string if it is " + "specified",
-            );
->>>>>>> e613c37f89b2041ec05a3c8a3d687a14cebb35b5
         }
-<<<<<<< HEAD
-||||||| 93ffbc04538
-    } else if (jsTestOptions().enableEncryption !== undefined) {
-        if (jsTestOptions().enableEncryption !== "") {
-            throw new Error("The enableEncryption option must be an empty string if it is " + "specified");
-        }
-        opts.enableEncryption = "";
-    }
-
-    if (opts.hasOwnProperty("encryptionCipherMode")) {
-        if (typeof opts.encryptionCipherMode !== "string") {
-            // opts.encryptionCipherMode, if set, must be a string
-            throw new Error("The encryptionCipherMode option must be a string if it is specified");
-        }
-    } else if (jsTestOptions().encryptionCipherMode !== undefined) {
-        if (typeof jsTestOptions().encryptionCipherMode !== "string") {
-            throw new Error("The encryptionCipherMode option must be a string if it is specified");
-        }
-        opts.encryptionCipherMode = jsTestOptions().encryptionCipherMode;
-    }
-
-    if (opts.hasOwnProperty("encryptionKeyFile")) {
-        // opts.encryptionKeyFile, if set, must be a string
-        if (typeof opts.encryptionKeyFile !== "string") {
-            throw new Error("The encryptionKeyFile option must be a string if it is specified");
-        }
-    } else if (jsTestOptions().encryptionKeyFile !== undefined) {
-        if (typeof jsTestOptions().encryptionKeyFile !== "string") {
-            throw new Error("The encryptionKeyFile option must be a string if it is specified");
-        }
-        opts.encryptionKeyFile = jsTestOptions().encryptionKeyFile;
-    }
-
-    if (opts.hasOwnProperty("auditDestination")) {
-        // opts.auditDestination, if set, must be a string
-        if (typeof opts.auditDestination !== "string") {
-            throw new Error("The auditDestination option must be a string if it is specified");
-        }
-    } else if (jsTestOptions().auditDestination !== undefined) {
-        if (typeof jsTestOptions().auditDestination !== "string") {
-            throw new Error("The auditDestination option must be a string if it is specified");
-        }
-        opts.auditDestination = jsTestOptions().auditDestination;
-=======
-    } else if (jsTestOptions().enableEncryption !== undefined) {
-        if (jsTestOptions().enableEncryption !== "") {
-            throw new Error(
-                "The enableEncryption option must be an empty string if it is " + "specified",
-            );
-        }
-        opts.enableEncryption = "";
-    }
-
-    if (opts.hasOwnProperty("encryptionCipherMode")) {
-        if (typeof opts.encryptionCipherMode !== "string") {
-            // opts.encryptionCipherMode, if set, must be a string
-            throw new Error("The encryptionCipherMode option must be a string if it is specified");
-        }
-    } else if (jsTestOptions().encryptionCipherMode !== undefined) {
-        if (typeof jsTestOptions().encryptionCipherMode !== "string") {
-            throw new Error("The encryptionCipherMode option must be a string if it is specified");
-        }
-        opts.encryptionCipherMode = jsTestOptions().encryptionCipherMode;
-    }
-
-    if (opts.hasOwnProperty("encryptionKeyFile")) {
-        // opts.encryptionKeyFile, if set, must be a string
-        if (typeof opts.encryptionKeyFile !== "string") {
-            throw new Error("The encryptionKeyFile option must be a string if it is specified");
-        }
-    } else if (jsTestOptions().encryptionKeyFile !== undefined) {
-        if (typeof jsTestOptions().encryptionKeyFile !== "string") {
-            throw new Error("The encryptionKeyFile option must be a string if it is specified");
-        }
-        opts.encryptionKeyFile = jsTestOptions().encryptionKeyFile;
-    }
-
-    if (opts.hasOwnProperty("auditDestination")) {
-        // opts.auditDestination, if set, must be a string
-        if (typeof opts.auditDestination !== "string") {
-            throw new Error("The auditDestination option must be a string if it is specified");
-        }
-    } else if (jsTestOptions().auditDestination !== undefined) {
-        if (typeof jsTestOptions().auditDestination !== "string") {
-            throw new Error("The auditDestination option must be a string if it is specified");
-        }
-        opts.auditDestination = jsTestOptions().auditDestination;
->>>>>>> e613c37f89b2041ec05a3c8a3d687a14cebb35b5
     }
     const switchOptNames = [
         "enableEncryption",
