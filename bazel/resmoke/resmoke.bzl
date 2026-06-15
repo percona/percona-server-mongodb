@@ -293,11 +293,6 @@ def resmoke_suite_test(
         "//jstests/ssl:tls_enumerator",
         "//jstests/ssl/libs:all_javascript_files",
         "//jstests/with_mongot:keyfile_for_testing",
-<<<<<<< HEAD
-||||||| 2c33f78574a
-        "//src/mongo/db/modules/enterprise/jstests/encryptdb/libs:ekf2",
-        "//src/mongo/db/modules/enterprise/jstests/encryptdb/libs:ekf",
-=======
         "//jstests/with_mongot/search_mocked/lib:all_javascript_files",
         "//jstests/with_mongot/search_mocked/ssl/lib:all_javascript_files",
         "//src/mongo/db/modules/enterprise/jstests/encryptdb/libs:all_javascript_files",
@@ -308,7 +303,6 @@ def resmoke_suite_test(
         "//src/mongo/db/modules/enterprise/jstests/external_auth/lib:ldapmockserver",
         "//src/mongo/db/modules/enterprise/jstests/hot_backups/libs:all_javascript_files",
         "//src/mongo/db/modules/enterprise/jstests/live_restore/libs:all_javascript_files",
->>>>>>> 93ffbc045383d98430264f17b712b9b19c79c2bb
         "//src/third_party/schemastore.org:schemas",
         "//x509:generate_main_certificates",
     ]
