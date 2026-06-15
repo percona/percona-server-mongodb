@@ -1,0 +1,34 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "14bec35a7c177b9ee494fdb7d92d3c353833af46",
+    "merge_commit": "0be72e167428b6d7cb9b7045df72ee6392e92df0"
+  },
+  "mergai_version": "0.1.dev1+g0e4df79ea",
+  "solutions": [
+    {
+      "type": "ci_fix",
+      "request": {
+        "workflow": "format",
+        "run_id": "27543987549",
+        "pr_number": 275,
+        "attempt_number": 1,
+        "context_summary": "format failed: 1 file need changes",
+        "timestamp": "2026-06-15T11:57:57.560954+00:00"
+      },
+      "author": {
+        "name": "format auto-fix",
+        "type": "command"
+      },
+      "response": {
+        "summary": "format auto-fix: 1 file changed",
+        "resolved": {
+          "src/mongo/db/storage/kv/kv_engine.h": "changed by 'format' auto-fix"
+        },
+        "unresolved": {},
+        "modified": {},
+        "review_notes": ""
+      }
+    }
+  ]
+}
