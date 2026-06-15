@@ -1,0 +1,114 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "21fde7ba5025fc1e6ac608f46f5739faeb7cf767",
+    "merge_commit": "e613c37f89b2041ec05a3c8a3d687a14cebb35b5"
+  },
+  "mergai_version": "0.1.dev1+g0e4df79ea",
+  "conflict_context": {
+    "ours_commit": "21fde7ba5025fc1e6ac608f46f5739faeb7cf767",
+    "theirs_commit": "e613c37f89b2041ec05a3c8a3d687a14cebb35b5",
+    "base_commit": "93ffbc045383d98430264f17b712b9b19c79c2bb",
+    "files": [
+      "jstests/libs/python.js",
+      "src/mongo/shell/servers.js"
+    ],
+    "conflict_types": {
+      "jstests/libs/python.js": "both modified",
+      "src/mongo/shell/servers.js": "both modified"
+    },
+    "diffs": {
+      "jstests/libs/python.js": "diff --cc jstests/libs/python.js\nindex 72930951cba,aea2a768dfa..00000000000\n--- a/jstests/libs/python.js\n+++ b/jstests/libs/python.js\n@@@ -16,5 -16,5 +16,17 @@@ export function getPython3Binary() \n++<<<<<<< HEAD\n +    const match = pythonVersion.match(/Python 3\\.(\\d+)\\./);\n +    if (match && match[1] >= 13) {\n +        jsTest.log.info(\n +            \"Found python 3.\" + match[1] + \" by default. Likely this is because we are using a virtual environment.\",\n +        );\n++||||||| 93ffbc04538\n++    const usingPython313 = /Python 3\\.13/.exec(pythonVersion);\n++    if (usingPython313) {\n++        jsTest.log.info(\"Found python 3.13 by default. Likely this is because we are using a virtual environment.\");\n++=======\n+     const usingPython313 = /Python 3\\.13/.exec(pythonVersion);\n+     if (usingPython313) {\n+         jsTest.log.info(\n+             \"Found python 3.13 by default. Likely this is because we are using a virtual environment.\",\n+         );\n++>>>>>>> e613c37f89b2041ec05a3c8a3d687a14cebb35b5",
+      "src/mongo/shell/servers.js": "diff --cc src/mongo/shell/servers.js\nindex d65cf486b59,e552b1f6fd0..00000000000\n--- a/src/mongo/shell/servers.js\n+++ b/src/mongo/shell/servers.js\n@@@ -734,12 -783,44 +783,108 @@@ MongoRunner.mongodOptions = function (o\n++<<<<<<< HEAD\n +    /// Merges values of the specified options from `opts` and `jsTestOptions()`\n +    /// objects into the former, verifying the option values along the way.\n +    function mergeOptions(optNames, optVerifier, expected) {\n +        for (let optName of optNames) {\n +            let optValue = opts.hasOwnProperty(optName) ? opts[optName] : jsTestOptions()[optName];\n +            if (optValue == undefined) {\n +                continue;\n +            }\n +            if (!optVerifier(optValue)) {\n +                throw new Error(\"The \" + optName + \" option must be \" + expected + \" if it is specified\");\n +            }\n +            opts[optName] = optValue;\n++||||||| 93ffbc04538\n++    if (opts.hasOwnProperty(\"enableEncryption\")) {\n++        // opts.enableEncryption, if set, must be an empty string\n++        if (opts.enableEncryption !== \"\") {\n++            throw new Error(\"The enableEncryption option must be an empty string if it is \" + \"specified\");\n+ (... 85 more added lines...)\n+ \n+     if (opts.hasOwnProperty(\"auditDestination\")) {\n+         // opts.auditDestination, if set, must be a string\n+         if (typeof opts.auditDestination !== \"string\") {\n+             throw new Error(\"The auditDestination option must be a string if it is specified\");\n@@@ -747,25 -828,6 +892,31 @@@\n+     } else if (jsTestOptions().auditDestination !== undefined) {\n+         if (typeof jsTestOptions().auditDestination !== \"string\") {\n+             throw new Error(\"The auditDestination option must be a string if it is specified\");\n+         }\n+         opts.auditDestination = jsTestOptions().auditDestination;\n -    }\n++>>>>>>> e613c37f89b2041ec05a3c8a3d687a14cebb35b5\n +    }\n +    const switchOptNames = [\n +        \"enableEncryption\",\n +        \"vaultDisableTLSForTesting\",\n +        \"vaultRotateMasterKey\",\n +        \"kmipRotateMasterKey\",\n +    ];\n +    const stringOptNames = [\n +        \"encryptionCipherMode\",\n +        \"encryptionKeyFile\",\n +        \"vaultServerName\",\n +        \"vaultServerCAFile\",\n +        \"vaultTokenFile\",\n +        \"vaultSecret\",\n +        \"kmipServerName\",\n +        \"kmipServerCAFile\",\n +        \"kmipClientCertificateFile\",\n +        \"kmipClientCertificatePassword\",\n +        \"kmipKeyIdentifier\",\n +        \"auditDestination\",\n +    ];\n +    const numberOptNames = [\"vaultPort\", \"vaultSecretVersion\", \"kmipPort\"];\n +    mergeOptions(switchOptNames, (opt) => opt == \"\", \"an empty string\");\n +    mergeOptions(stringOptNames, (opt) => typeof opt == \"string\", \"a string\");\n +    mergeOptions(numberOptNames, (opt) => typeof opt == \"number\", \"a number\");"
+    },
+    "their_commits": {
+      "jstests/libs/python.js": [
+        "b73d967ba7133618ce8aa9bc6f613ab02ec1e087"
+      ],
+      "src/mongo/shell/servers.js": [
+        "b73d967ba7133618ce8aa9bc6f613ab02ec1e087"
+      ]
+    }
+  },
+  "merge_context": {
+    "merge_commit": "e613c37f89b2041ec05a3c8a3d687a14cebb35b5",
+    "merged_commits": [
+      "e613c37f89b2041ec05a3c8a3d687a14cebb35b5",
+      "526ff0ed6325b842ebd4fae1a5c980b0a2e475e1",
+      "9586860ba23e3e1b3b3a4764284a7e2cb3a056da",
+      "8b8429568b0f7614d334f50e4082e7b42b89c0af",
+      "d29c253b71e14eb2fde07f47c8ece2d33dab3a99",
+      "a8533a9a8ebbabe458d9fd1a622584ff0e26478f",
+      "d3c95a738e718c359d0ab009d6fb7482cc60cc64",
+      "7632c461dfa9bf0d1bfbf6e3a3f780067d769a7b",
+      "36892e810fa8281afa6a2b328879dfcac2b5dd28",
+      "6e8f3e2165f3a5358b0785e066d9f9ad421151b9",
+      "0add65f9f9dbf4de77b44fd47a1470b134ef1e37",
+      "59098722137c417d9fca925d3ec48b5f6559f77e",
+      "7fd37a4e21be2a4c8566104c9f2943b1691b556e",
+      "a87664be56c0e23450022bd8a17402ea2ce6a575",
+      "4d6205388396b929a8edcaa648ff909232bd1499",
+      "817e1f28e4dae0099c121e5e395f200620b09bfe",
+      "ad7395dc68f100a28e99e0a8113445dd71e650c1",
+      "3d75177ae5fce126e66a0d462fef2faa0834f5d2",
+      "0940dbefecf46fceabac06c0c114735c94076f71",
+      "b73d967ba7133618ce8aa9bc6f613ab02ec1e087",
+      "dba3eabe5bb073df9291c6dd01a9d2978ee95228",
+      "a4f500e773c8e529f49e17f288b14174203a9b5c",
+      "50260153380596ec002a0d3bd53de5a6aae2d033",
+      "1d5119f3edb9ca2311b020ee7a1eacc0c77c080b",
+      "30246fc2e7ea1aa92e4ac969930fd3569fcfeb2e",
+      "f26350a3ff782261922ac216eedfd0a09e41e9d2",
+      "a382bcd25c8d6ff07e1ce1ef7072a684b945fa96",
+      "831a146d652c2e3d795ee4362951aea394dda28a",
+      "84e79d6c482c55b266af1d7764cb8fb41f2b552c",
+      "9ecc0616eca4270d614a01d5d8cd55a93809ca22",
+      "88b19ab688745b8300de61a773c3a3d985681b3f",
+      "120459e060415183a240c907937e93abcc084b71",
+      "8a61be7fae0c1ad61079e253e0ac9f15d4c51a46",
+      "ca9be73c9ccbfb1bb30a0460e3754f0d62ba2ff4",
+      "e8d79274ad0e5e96c3233f797388aedd030786d9",
+      "7e6f67e25cc98fdd5ca85fbd968d3cb40d4e5844",
+      "431da389bba667d65413eaa9ec313597d3947392",
+      "89c18913ea8056d944b8e6c51bd5de3db5dd4216",
+      "d3d5fdd2feb57aae9c9eab8da0757be3a7af7377",
+      "1cfaa7c0fe5d655ca16198a5bb671dd15c6a519b",
+      "42828a1c46870871ee2fc4a5666d29886984e094",
+      "0a54899c2c29259fd52dee9ece3308e372a48897",
+      "c45802c88fa5ae12deb060a5d8bc1eb6cee17018",
+      "5ab0edbc4b25b10bb2513798bfb48f996a62b726",
+      "fbbc7a56db7da39013420f0151e3cda5aaeb7738",
+      "eb093321d78927651b7cd8bef12078c6cd9a5c56"
+    ],
+    "important_files_modified": [],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        "eslint.config.mjs",
+        "jstests/auth/buildinfo_auth_cmd.js",
+        "jstests/auth/lib/commands_lib.js",
+        "jstests/auth/sasl_mechanism_discovery.js",
+        "jstests/core/catalog/views/views_all_commands.js",
+        "jstests/libs/python.js",
+        "jstests/libs/write_concern_all_commands.js",
+        "jstests/noPassthrough/query/profile/profile_filter.js",
+        "jstests/replsets/all_commands_downgrading_to_upgraded.js",
+        "jstests/replsets/db_reads_while_recovering_all_commands.js",
+        "jstests/replsets/rollback_writes_oplogs_to_file.js",
+        "jstests/sharding/all_commands_direct_shard_connection_auth.js",
+        "jstests/sharding/database_versioning_all_commands.js",
+        "jstests/sharding/libs/mongos_api_params_util.js",
+        "jstests/sharding/read_write_concern_defaults_application.js",
+        "jstests/sharding/safe_secondary_reads_drop_recreate.js",
+        "jstests/sharding/safe_secondary_reads_single_migration_waitForDelete.js",
+        "src/mongo/db/BUILD.bazel",
+        "src/mongo/db/pipeline/BUILD.bazel",
+        "src/mongo/db/pipeline/process_interface/common_mongod_process_interface.cpp",
+        "src/mongo/db/repl/replication_coordinator_impl.cpp",
+        "src/mongo/shell/mongo.js",
+        "src/mongo/shell/servers.js",
+        "src/mongo/shell/utils.js"
+      ]
+    }
+  }
+}
