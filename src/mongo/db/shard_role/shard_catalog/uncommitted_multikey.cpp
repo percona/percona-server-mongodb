@@ -30,21 +30,12 @@
 #include "mongo/db/shard_role/shard_catalog/uncommitted_multikey.h"
 
 #include "mongo/db/operation_context.h"
-#include "mongo/db/shard_role/transaction_resources.h"
-#include "mongo/db/storage/recovery_unit.h"
-#include "mongo/util/decorable.h"
-
-#include <utility>
+#include "mongo/db/shard_role/shard_catalog/multikey_state.h"
 
 namespace mongo {
-namespace {
-
-const auto getUncommittedMultikey =
-    RecoveryUnit::Snapshot::declareDecoration<UncommittedMultikey>();
-}  // namespace
 
 UncommittedMultikey& UncommittedMultikey::get(OperationContext* opCtx) {
-    return getUncommittedMultikey(shard_role_details::getRecoveryUnit(opCtx)->getSnapshot());
+    return getMultikeyState(opCtx).uncommittedMultikey;
 }
 
 }  // namespace mongo

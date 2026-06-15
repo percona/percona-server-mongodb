@@ -125,6 +125,12 @@ def _resolve_suite_srcs(config):
 
     return None
 
+def _dep_target_name(dep):
+    """Extract the target name from a label string, e.g. '//pkg:name' → 'name'."""
+    if ":" in dep:
+        return dep.rsplit(":", 1)[1]
+    return dep.rsplit("/", 1)[-1]
+
 def resmoke_suite_test(
         name,
         config,
@@ -134,6 +140,7 @@ def resmoke_suite_test(
         size = "small",
         srcs = [],
         tags = [],
+        target_compatible_with = [],
         timeout = "eternal",
         exec_properties = {},
         multiversion_deps = [],
@@ -155,6 +162,11 @@ def resmoke_suite_test(
         size: Bazel test size.
         srcs: Override for test source files. If empty, auto-derived from config.
         tags: Bazel tags.
+        target_compatible_with: Compatibility constraints forwarded to py_test.
+            Suites whose multiversion_deps consist solely of last-continuous
+            automatically gain an additional incompatibility with
+            @platforms//:incompatible when
+            //bazel/resmoke/multiversion:last_continuous_redundant is True.
         timeout: Bazel test timeout.
         exec_properties: Execution properties for remote execution.
         multiversion_deps: List of multiversion_setup targets whose output
@@ -245,10 +257,58 @@ def resmoke_suite_test(
         # The below dependencies are used by many suites. To ease authoring new suites, they
         # are included in all suites for now.
         # TODO(SERVER-122756), prune this, ideally removing it entirely.
+        "//jstests/aggregation/extras:merge_helpers.js",
+        "//jstests/auth/lib:all_subpackage_javascript_files",
+        "//jstests/concurrency/fsm_libs:all_javascript_files",
+        "//jstests/concurrency/fsm_libs:shard_fixture.js",
+        "//jstests/concurrency/fsm_utils:all_javascript_files",
+        "//jstests/concurrency/reshard_collection_util:all_javascript_files",
+        "//jstests/core/libs:raw_operation_utils.js",
+        "//jstests/disk/libs:all_javascript_files",
+        "//jstests/libs:8k-prime.dhparam",
         "//jstests/libs:authTestsKey",
         "//jstests/libs:key1",
         "//jstests/libs:key2",
+        "//jstests/libs:keyForRollover",
+        "//jstests/libs:test_pem_files",
+        "//jstests/libs/config_files:disable_auth.ini",
+        "//jstests/libs/config_files:disable_noauth.ini",
+        "//jstests/libs/config_files:enable_auth.json",
+        "//jstests/libs/config_files:set_replsetname.json",
+        "//jstests/libs/config_files:set_shardingrole_configsvr.json",
+        "//jstests/libs/config_files:set_shardingrole_shardsvr.json",
+        "//jstests/libs/config_files:timezone_info",
+        "//jstests/multiVersion/libs:all_javascript_files",
+        "//jstests/noPassthrough/libs:server_parameter_helpers.js",
+        "//jstests/noPassthrough/libs/index_builds:index_build.js",
+        "//jstests/noPassthrough/rs_endpoint/lib:all_subpackage_javascript_files",
+        "//jstests/ocsp/lib:all_javascript_files",
+        "//jstests/ocsp/lib:ocsp_mock",
+        "//jstests/readonly/lib:all_javascript_files",
+        "//jstests/sharding/analyze_shard_key/libs:all_javascript_files",
+        "//jstests/sharding/libs:all_javascript_files",
+        "//jstests/sharding/libs:last_lts_mongod_commands.js",
+        "//jstests/sharding/libs:last_lts_mongos_commands.js",
+        "//jstests/sharding/libs:proxy_protocol_server",
+        "//jstests/ssl:tls_enumerator",
+        "//jstests/ssl/libs:all_javascript_files",
         "//jstests/with_mongot:keyfile_for_testing",
+<<<<<<< HEAD
+||||||| 2c33f78574a
+        "//src/mongo/db/modules/enterprise/jstests/encryptdb/libs:ekf2",
+        "//src/mongo/db/modules/enterprise/jstests/encryptdb/libs:ekf",
+=======
+        "//jstests/with_mongot/search_mocked/lib:all_javascript_files",
+        "//jstests/with_mongot/search_mocked/ssl/lib:all_javascript_files",
+        "//src/mongo/db/modules/enterprise/jstests/encryptdb/libs:all_javascript_files",
+        "//src/mongo/db/modules/enterprise/jstests/encryptdb/libs:ekf",
+        "//src/mongo/db/modules/enterprise/jstests/encryptdb/libs:ekf2",
+        "//src/mongo/db/modules/enterprise/jstests/external_auth/lib:all_files",
+        "//src/mongo/db/modules/enterprise/jstests/external_auth/lib:all_subpackage_javascript_files",
+        "//src/mongo/db/modules/enterprise/jstests/external_auth/lib:ldapmockserver",
+        "//src/mongo/db/modules/enterprise/jstests/hot_backups/libs:all_javascript_files",
+        "//src/mongo/db/modules/enterprise/jstests/live_restore/libs:all_javascript_files",
+>>>>>>> 93ffbc045383d98430264f17b712b9b19c79c2bb
         "//src/third_party/schemastore.org:schemas",
         "//x509:generate_main_certificates",
     ]
@@ -263,6 +323,17 @@ def resmoke_suite_test(
     # Data that is always safe for cquery (no C++ toolchain needed): auto-derived srcs,
     # default resmoke infrastructure, and multiversion artifacts.
     cquery_safe_data = [d for d in srcs if d not in data] + [d for d in default_data if d not in data and d not in srcs] + multiversion_deps + multiversion_config + multiversion_exclude_tags
+
+    # If this suite's only multiversion dep is last-continuous, it is a
+    # dedicated last-continuous suite.  Mark it incompatible when
+    # last-continuous resolves to the same version as last-lts so that
+    # `bazel test //...` skips it rather than running redundant tests.
+    dep_names = [_dep_target_name(d) for d in multiversion_deps]
+    if dep_names == ["last-continuous"]:
+        target_compatible_with = target_compatible_with + select({
+            "//bazel/resmoke/multiversion:last_continuous_redundant": ["@platforms//:incompatible"],
+            "//conditions:default": [],
+        })
 
     py_test(
         name = name,
@@ -302,6 +373,7 @@ def resmoke_suite_test(
             for tag in multiversion_exclude_tags
         ] + extra_args + resmoke_args,
         tags = tags + ["no-cache", "resources:port_block:1", "resmoke_suite_test"],
+        target_compatible_with = target_compatible_with,
         timeout = timeout,
         size = size,
         env = {
