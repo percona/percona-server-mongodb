@@ -1,0 +1,84 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "22f79f39db4b229faa65e21accdbae87320325e9",
+    "merge_commit": "93ffbc045383d98430264f17b712b9b19c79c2bb"
+  },
+  "mergai_version": "0.1.dev1+g0e4df79ea",
+  "conflict_context": {
+    "ours_commit": "22f79f39db4b229faa65e21accdbae87320325e9",
+    "theirs_commit": "93ffbc045383d98430264f17b712b9b19c79c2bb",
+    "base_commit": "2c33f78574a96f599c037179034dfafb05192be7",
+    "files": [
+      "bazel/resmoke/resmoke.bzl"
+    ],
+    "conflict_types": {
+      "bazel/resmoke/resmoke.bzl": "both modified"
+    },
+    "diffs": {
+      "bazel/resmoke/resmoke.bzl": "diff --cc bazel/resmoke/resmoke.bzl\nindex f2b5d4097d3,6f14761ba81..00000000000\n--- a/bazel/resmoke/resmoke.bzl\n+++ b/bazel/resmoke/resmoke.bzl\n@@@ -252,0 -296,10 +296,16 @@@ def resmoke_suite_test\n++<<<<<<< HEAD\n++||||||| 2c33f78574a\n++        \"//src/mongo/db/modules/enterprise/jstests/encryptdb/libs:ekf2\",\n++        \"//src/mongo/db/modules/enterprise/jstests/encryptdb/libs:ekf\",\n++=======\n+         \"//jstests/with_mongot/search_mocked/lib:all_javascript_files\",\n+         \"//jstests/with_mongot/search_mocked/ssl/lib:all_javascript_files\",\n+         \"//src/mongo/db/modules/enterprise/jstests/encryptdb/libs:all_javascript_files\",\n+         \"//src/mongo/db/modules/enterprise/jstests/encryptdb/libs:ekf\",\n+         \"//src/mongo/db/modules/enterprise/jstests/encryptdb/libs:ekf2\",\n+         \"//src/mongo/db/modules/enterprise/jstests/external_auth/lib:all_files\",\n+         \"//src/mongo/db/modules/enterprise/jstests/external_auth/lib:all_subpackage_javascript_files\",\n+         \"//src/mongo/db/modules/enterprise/jstests/external_auth/lib:ldapmockserver\",\n+         \"//src/mongo/db/modules/enterprise/jstests/hot_backups/libs:all_javascript_files\",\n+         \"//src/mongo/db/modules/enterprise/jstests/live_restore/libs:all_javascript_files\",\n++>>>>>>> 93ffbc045383d98430264f17b712b9b19c79c2bb"
+    },
+    "their_commits": {
+      "bazel/resmoke/resmoke.bzl": [
+        "64b6ba788b41b834d6df7cff00a2f03e4c8d461d",
+        "b67644b9d87ff0ddea6dad66fbc1682fc2e8af75"
+      ]
+    }
+  },
+  "merge_context": {
+    "merge_commit": "93ffbc045383d98430264f17b712b9b19c79c2bb",
+    "merged_commits": [
+      "93ffbc045383d98430264f17b712b9b19c79c2bb",
+      "c43f9d69c980f364b3cb947af476692fd5732147",
+      "35db27231b666e51b05dbee6d2536650fa4d10a2",
+      "6845d3112c09518e9bca37cac866513e5d9a468f",
+      "823a61601be17b07cdd0afd6459940664b07995d",
+      "a731b0c301a233a668f82d37a542df27ed7f3b0e",
+      "f63ae4fbd9b71f67754bd042af67509dd3981dae",
+      "5f95b70d89cf9c3ecd7242806ceafeb779e067ce",
+      "5cf4e3396f73f6e7227f7f2c0d37b4bd12ad609c",
+      "84519c027ab3645e407ccee8152d8543e87b5d89",
+      "9ac12015ddf9717abe1d66c23c328cdf6dc9de89",
+      "014ad403133be15816fc9080793b2918f506736d",
+      "f378b293183965064f0c0cba982f44288eab085e",
+      "1d4b86e1065bd47ee152d8511eb4df313cbbd997",
+      "1e243924628884ff6349a6c077cf55ad3d4a7d93",
+      "00b4b696b9e4d9f742333e69a54e0370fd3303c9",
+      "ff65a107607abcaa9a496de7e42717c843623bdf",
+      "a510ef476afdbe326f47d7867c74e5d256227269",
+      "fed1b1c1bc267754e46a330144f1c82b955a02ca",
+      "bb2c3c3db4daa43ba3e3dc58fd4074def58b7b52",
+      "d586f2e447a9bcfc89fc5a1d3d850b78ca390a08",
+      "e201f0390e9471901bf5d40191f7353d1cd5e10c",
+      "64b6ba788b41b834d6df7cff00a2f03e4c8d461d",
+      "5118b0a99deedbbb59df800254a0f1987281d00f",
+      "a1533d641aa54894ccb92d8f6dfa6e72103c182d",
+      "5886be15fe4d4d50567e9b8d46a6f5014a3c3616",
+      "b67644b9d87ff0ddea6dad66fbc1682fc2e8af75",
+      "e68558beb0dc5dbae866fa6ed982b2bbb7184007",
+      "3cfc657630d77f4603dada8c3181fd3952375f29",
+      "24ac0369ffc33362d734a412c7fdf0f524fcbcbf",
+      "a60b903740c0d11c4f4af89194d37894e27f395d",
+      "54ceb2ceb84b35b9d030a3fe683d57a9b4528bac",
+      "eeee000931a0a97f1d39b19d0a5b03acb33b0c28",
+      "44119e67c4e2d7257e676e1493805b7c4f1ea048",
+      "da458e5dd17faa17c1b150fa05309a9555e27cba"
+    ],
+    "important_files_modified": [],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        "BUILD.bazel",
+        "MODULE.bazel.lock",
+        "bazel/resmoke/resmoke.bzl",
+        "buildscripts/idl/idl/binder.py",
+        "buildscripts/idl/idl/errors.py",
+        "buildscripts/idl/idl/generator.py",
+        "buildscripts/resmokeconfig/BUILD.bazel",
+        "jstests/auth/lib/commands_lib.js",
+        "sbom.json",
+        "src/mongo/db/repl/replication_coordinator_impl.cpp"
+      ]
+    }
+  }
+}
