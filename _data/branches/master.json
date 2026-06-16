@@ -5,14 +5,14 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 96,
-    "days_behind": 3,
-    "files_affected": 969,
-    "total_additions": 24997,
-    "total_deletions": 13688,
+    "commits_behind": 111,
+    "days_behind": 4,
+    "files_affected": 1049,
+    "total_additions": 28874,
+    "total_deletions": 14448,
     "date_range": {
       "first": "2026-06-12T17:17:51+00:00",
-      "last": "2026-06-16T13:20:20+00:00"
+      "last": "2026-06-16T17:03:22+00:00"
     }
   },
   "last_merged_commit": {
@@ -36,6 +36,156 @@
     "summary": "SERVER-128291: Implement stub sampler and sampling feature flag (#55647)"
   },
   "unmerged_commits": [
+    {
+      "sha": "25c670915409e91926496fd5ad16ec07d22639a7",
+      "short_sha": "25c67091540",
+      "date": "2026-06-16T13:03:22-04:00",
+      "author": {
+        "name": "Yuhong Zhang",
+        "email": "yuhong.zhang@mongodb.com"
+      },
+      "summary": "SERVER-129054 Update the condition of enabling replicated size and count prepared transaction support (#56042)"
+    },
+    {
+      "sha": "ce26383845e9ae7000499521cc7f5c94d2d22360",
+      "short_sha": "ce26383845e",
+      "date": "2026-06-16T11:58:46-05:00",
+      "author": {
+        "name": "Anna Veselova",
+        "email": "47113149+aveselova@users.noreply.github.com"
+      },
+      "summary": "SERVER-128081 Add IDL validation for includeQueryStatsMetricsForOpIndex (#55791)"
+    },
+    {
+      "sha": "1c1eed15d3ca83d7bee3ed1de6a03d8d807ee463",
+      "short_sha": "1c1eed15d3c",
+      "date": "2026-06-16T12:11:11-04:00",
+      "author": {
+        "name": "Sarah Kelley",
+        "email": "sarah.kelley@mongodb.com"
+      },
+      "summary": "Revert \"SERVER-128028: Fix stale-process misconnection in MongoRunner (#55004)\" (#56013)"
+    },
+    {
+      "sha": "6aa634bf86cd97065014cd7886bf7d6bfc201226",
+      "short_sha": "6aa634bf86c",
+      "date": "2026-06-16T11:53:25-04:00",
+      "author": {
+        "name": "Patrick Freed",
+        "email": "patrick.freed@mongodb.com"
+      },
+      "summary": "SERVER-126027 Introduce server parameter for toggling whether IngressRequestRateLimiter rejections are retryable (#55896)"
+    },
+    {
+      "sha": "9c6cb31044e907b122b4a80b42f7e9166f7ad75a",
+      "short_sha": "9c6cb31044e",
+      "date": "2026-06-16T10:38:37-05:00",
+      "author": {
+        "name": "Anna Veselova",
+        "email": "47113149+aveselova@users.noreply.github.com"
+      },
+      "summary": "SERVER-127132 Add tests for commands where delete query stats are unsupported (#55781)"
+    },
+    {
+      "sha": "c76f5f8f26792028e76d6e9acc9e315730365043",
+      "short_sha": "c76f5f8f267",
+      "date": "2026-06-16T11:35:07-04:00",
+      "author": {
+        "name": "Daniel Segel",
+        "email": "71151509+dhsegel@users.noreply.github.com"
+      },
+      "summary": "SERVER-128454 Add testing for DRM sharded execution and pipeline split (#55634)"
+    },
+    {
+      "sha": "86a33813821e4780e5fc6f8ec841fdf5e79363fe",
+      "short_sha": "86a33813821",
+      "date": "2026-06-16T11:27:35-04:00",
+      "author": {
+        "name": "sdgoodrick",
+        "email": "sam.goodrick@mongodb.com"
+      },
+      "summary": "SERVER-115661: Enable hexdumps for OP_MSG parsing failures in DEBUG logs by giving log ID:22632 a unique log component (#55248)"
+    },
+    {
+      "sha": "dc9be74685a4dd2c8dd76658dc375668363df2df",
+      "short_sha": "dc9be74685a",
+      "date": "2026-06-16T11:06:10-04:00",
+      "author": {
+        "name": "alina 颖思",
+        "email": "106563068+charcoalyy@users.noreply.github.com"
+      },
+      "summary": "SERVER-127402 Expose OpenTelemetry metric tracking server build and state (#55884)"
+    },
+    {
+      "sha": "5720f1c9ea9551ed5190da8bfc07e11f48291039",
+      "short_sha": "5720f1c9ea9",
+      "date": "2026-06-16T10:01:21-05:00",
+      "author": {
+        "name": "Finley Lau",
+        "email": "finley.lau@mongodb.com"
+      },
+      "summary": "SERVER-129064: Re-point TODO comments from SERVER-116021 to SERVER-121094 (#56015)"
+    },
+    {
+      "sha": "490c9fbfb67f53638e71dd010c14b777fd1a71e9",
+      "short_sha": "490c9fbfb67",
+      "date": "2026-06-16T15:59:10+01:00",
+      "author": {
+        "name": "Projjal Chanda",
+        "email": "projjal.chanda@mongodb.com"
+      },
+      "summary": "SERVER-127782 Thread SimpleMemoryUsageTracker through TransformerInterface (#54617)"
+    },
+    {
+      "sha": "7475c037d2175bbc2a0915bc4e6cb1689547feea",
+      "short_sha": "7475c037d21",
+      "date": "2026-06-16T09:48:33-05:00",
+      "author": {
+        "name": "Finley Lau",
+        "email": "finley.lau@mongodb.com"
+      },
+      "summary": "SERVER-88602 Support lookup with legacy vector search and against views (#55767)"
+    },
+    {
+      "sha": "c0598c17c57225f9c5d24d5412ae31c773741b0d",
+      "short_sha": "c0598c17c57",
+      "date": "2026-06-16T15:42:31+01:00",
+      "author": {
+        "name": "fotiniAlvanaki",
+        "email": "78495594+fotiniAlvanaki@users.noreply.github.com"
+      },
+      "summary": "SERVER-129048 Add assertWithinMemoryLimit method in SimpleMemoryUsageTracker (#55999)"
+    },
+    {
+      "sha": "6501d5abaf297974129a8ed0c888d01d1c8dc6bd",
+      "short_sha": "6501d5abaf2",
+      "date": "2026-06-16T16:39:10+02:00",
+      "author": {
+        "name": "Tommaso Tocci",
+        "email": "58224719+toto-dev@users.noreply.github.com"
+      },
+      "summary": "SERVER-129083 Fix test_previous_release_tag suite failure on git less than 2.28 (#56049)"
+    },
+    {
+      "sha": "de5e401903ead0b09cbbd42df2f99570fc5e596b",
+      "short_sha": "de5e401903e",
+      "date": "2026-06-16T09:52:31-04:00",
+      "author": {
+        "name": "Steve McClure",
+        "email": "steve.mcclure@mongodb.com"
+      },
+      "summary": "SERVER-128892: Make prettier formatting idempotent (#55830)"
+    },
+    {
+      "sha": "f22b5095e82390d0741bf584c6d2ee15e3557f06",
+      "short_sha": "f22b5095e82",
+      "date": "2026-06-16T15:49:29+02:00",
+      "author": {
+        "name": "karlbozdogan",
+        "email": "karl.bozdogan@mongodb.com"
+      },
+      "summary": "SERVER-128260 Restore construction of covered plans for $ne:null predicates on non-wildcard field of compound wildcard index (#55315)"
+    },
     {
       "sha": "28c3dcfeb8e844d62b569f06e16137f26a1ad46d",
       "short_sha": "28c3dcfeb8e",
@@ -1179,7 +1329,7 @@
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-06-16 14:16:35",
+  "generated_at": "2026-06-16 18:30:59",
   "branch_name": "master",
   "display_name": "master"
 }
