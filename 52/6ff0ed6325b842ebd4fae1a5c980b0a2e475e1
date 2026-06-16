@@ -1,0 +1,30 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "0872b9da1106aa5b5ff8d034c866900bc3e5351e",
+    "merge_commit": "e613c37f89b2041ec05a3c8a3d687a14cebb35b5"
+  },
+  "mergai_version": "0.1.dev1+g95d1b543b",
+  "solutions": [
+    {
+      "type": "conflict_resolution",
+      "response": {
+        "summary": "SERVER-127928 Strengthen resharding index verification with exact count (#55558)",
+        "resolved": {},
+        "unresolved": {},
+        "modified": {
+          "src/mongo/db/s/resharding/resharding_recipient_service.cpp": "Modified by human",
+          "src/mongo/db/s/resharding/resharding_recipient_service.h": "Modified by human",
+          "src/mongo/db/s/resharding/resharding_util_test.cpp": "Modified by human"
+        },
+        "review_notes": "GitOrigin-RevId: f17f6d72a6f6fe660086e25153e19b710576846b"
+      },
+      "author": {
+        "name": "Kruti Shah",
+        "email": "70412403+krutishah139@users.noreply.github.com",
+        "type": "human"
+      },
+      "commit_sha": "526ff0ed6325b842ebd4fae1a5c980b0a2e475e1"
+    }
+  ]
+}
