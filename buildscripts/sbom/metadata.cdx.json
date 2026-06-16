@@ -104,7 +104,7 @@
           "value": "src/third_party/abseil-cpp/scripts/import.sh"
         },
         {
-          "name": "generate_sbom:priority_version_source",
+          "name": "internal:generate_sbom:priority_version_source",
           "value": "import_script"
         }
       ],
@@ -403,6 +403,13 @@
           "value": "site_scons/mongo/download_windows_sasl.py"
         }
       ],
+      "evidence": {
+        "occurrences": [
+          {
+            "location": "src/mongo/db/modules/enterprise/src/sasl"
+          }
+        ]
+      },
       "scope": "optional"
     },
     {
@@ -484,7 +491,7 @@
           "value": "src/third_party/timelib/scripts/import.sh"
         },
         {
-          "name": "generate_sbom:priority_version_source",
+          "name": "internal:generate_sbom:priority_version_source",
           "value": "import_script"
         }
       ],
@@ -795,6 +802,10 @@
         {
           "name": "import_script_path",
           "value": "src/third_party/gperftools/scripts/import.sh"
+        },
+        {
+          "name": "internal:generate_sbom:priority_version_source",
+          "value": "import_script"
         }
       ],
       "evidence": {
@@ -848,6 +859,10 @@
         {
           "name": "import_script_path",
           "value": "src/third_party/grpc/scripts/import.sh"
+        },
+        {
+          "name": "internal:generate_sbom:priority_version_source",
+          "value": "import_script"
         }
       ],
       "evidence": {
@@ -1105,8 +1120,12 @@
           "value": "src/third_party/libmongocrypt/import.sh"
         },
         {
-          "name": "generate_sbom:priority_version_source",
+          "name": "internal:generate_sbom:priority_version_source",
           "value": "import_script"
+        },
+        {
+          "name": "mdb_first_party",
+          "value": "true"
         }
       ],
       "evidence": {
@@ -1159,7 +1178,7 @@
           "value": "src/third_party/librdkafka/scripts/librdkafka_get_sources.sh"
         },
         {
-          "name": "generate_sbom:priority_version_source",
+          "name": "internal:generate_sbom:priority_version_source",
           "value": "import_script"
         }
       ],
@@ -1267,6 +1286,10 @@
         {
           "name": "import_script_path",
           "value": "src/third_party/unwind/scripts/import.sh"
+        },
+        {
+          "name": "internal:generate_sbom:priority_version_source",
+          "value": "import_script"
         }
       ],
       "evidence": {
@@ -1365,6 +1388,10 @@
         {
           "name": "import_script_path",
           "value": "src/third_party/libbson/import.sh"
+        },
+        {
+          "name": "mdb_first_party",
+          "value": "true"
         }
       ],
       "evidence": {
@@ -1417,7 +1444,7 @@
         },
         {
           "name": "import_script_path",
-          "value": "src/third_party/mozjs/get-sources.sh"
+          "value": "src/third_party/mozjs/scripts/import.sh"
         }
       ],
       "evidence": {
@@ -1634,7 +1661,7 @@
         }
       ],
       "copyright": "Copyright 2008 Google Inc. Copyright 2023 Google LLC. All rights reserved.",
-      "cpe": "cpe:2.3:a:google:protobuf:{{VERSION}}:*:*:*:*:*:*:*",
+      "cpe": "cpe:2.3:a:google:protobuf-cpp:{{VERSION}}:*:*:*:*:*:*:*",
       "purl": "pkg:github/protocolbuffers/protobuf@{{VERSION}}",
       "externalReferences": [
         {
@@ -1983,6 +2010,10 @@
         {
           "name": "import_script_path",
           "value": "src/third_party/scripts/zlib_get_sources.sh"
+        },
+        {
+          "name": "internal:generate_sbom:priority_version_source",
+          "value": "import_script"
         }
       ],
       "evidence": {
@@ -2079,6 +2110,10 @@
         },
         {
           "name": "emits_persisted_data",
+          "value": "true"
+        },
+        {
+          "name": "mdb_first_party",
           "value": "true"
         }
       ],

@@ -145,7 +145,7 @@ def validate_license(component: dict, error_manager: ErrorManager) -> None:
             # )
             valid_license = not licensing_validate.errors or not licensing_validate.invalid_symbols
             if not valid_license:
-                error_manager.append_full_error_message(licensing_validate)
+                error_manager.append_full_error_message(licensing_validate.errors[0])
                 return
 
 
@@ -271,11 +271,11 @@ def main() -> int:
         default=False,
         help="Whether to apply formatting to the output file.",
     )
-    parser.add_argument("--input-file", default="sbom.json",
+    parser.add_argument("--input-file", default="sbom.private.json",
                         help="The input CycloneDX file to format and lint.")
     parser.add_argument(
         "--output-file",
-        default="sbom.json",
+        default="sbom.private.json",
         help="The file to output to when formatting is specified.",
     )
     args = parser.parse_args()
@@ -289,6 +289,8 @@ def main() -> int:
     }
     # the only files in this dir that are not third party libs
     third_party_libs.remove("scripts")
+    # Nothing in this directory is included in Community/EA
+    third_party_libs.remove("private")
     error_manager = lint_sbom(input_file, output_file, third_party_libs, should_format)
     error_manager.print_errors()
 

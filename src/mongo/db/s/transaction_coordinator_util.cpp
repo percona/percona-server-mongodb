@@ -231,7 +231,10 @@ void PrepareVoteConsensus::registerVote(const PrepareResponse& vote) {
 }
 
 CoordinatorCommitDecision PrepareVoteConsensus::decision() const {
-    invariant(_numShards == _numCommitVotes + _numAbortVotes + _numNoVotes);
+    invariant(_numShards == _numCommitVotes + _numAbortVotes + _numNoVotes,
+              str::stream() << "numShards: " << _numShards << ", numCommitVotes: "
+                            << _numCommitVotes << ", numAbortVotes: " << _numAbortVotes
+                            << ", numNoVotes: " << _numNoVotes);
 
     CoordinatorCommitDecision decision;
     if (_numCommitVotes == _numShards) {
@@ -645,6 +648,10 @@ Future<void> deleteCoordinatorDoc(txn::AsyncWorkScheduler& scheduler,
         [&scheduler, lsid, txnNumberAndRetryCounter] {
             return scheduler.scheduleWork(
                 [lsid, txnNumberAndRetryCounter](OperationContext* opCtx) {
+                    // Skip ticket acquisition to avoid a bottleneck on deleting the coordinator doc
+                    // in cases of high transaction concurrency.
+                    ScopedAdmissionPriorityForLock skipTicketAcquisition(
+                        opCtx->lockState(), AdmissionContext::Priority::kImmediate);
                     getTransactionCoordinatorWorkerCurOpRepository()->set(
                         opCtx,
                         lsid,

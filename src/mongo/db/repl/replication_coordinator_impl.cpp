@@ -679,7 +679,7 @@ void ReplicationCoordinatorImpl::_finishLoadLocalConfig(
     }
 
     const auto lastOpTime = lastOpTimeAndWallTime.opTime;
-    // Restore the current term according to the terms of last oplog entry and last vote.
+    // Restore the current term according to the terms of last oplog entry, last vote, and config.
     // The initial term of OpTime() is 0.
     long long term = lastOpTime.getTerm();
     if (lastVoteStatus.isOK()) {
@@ -687,6 +687,10 @@ void ReplicationCoordinatorImpl::_finishLoadLocalConfig(
         if (term < lastVoteTerm) {
             term = lastVoteTerm;
         }
+    }
+    auto configTerm = localConfig.getConfigTerm();
+    if (term < configTerm) {
+        term = configTerm;
     }
 
     auto opCtx = cc().makeOperationContext();
@@ -3099,7 +3103,9 @@ bool ReplicationCoordinatorImpl::isWritablePrimaryForReportingPurposes() {
 bool ReplicationCoordinatorImpl::canAcceptWritesForDatabase(OperationContext* opCtx,
                                                             StringData dbName) {
     // The answer isn't meaningful unless we hold the ReplicationStateTransitionLock.
-    invariant(opCtx->lockState()->isRSTLLocked() || opCtx->isLockFreeReadsOp());
+    invariant(opCtx->lockState()->isRSTLLocked() || opCtx->isLockFreeReadsOp(),
+              str::stream() << "isLockFreeRead: " << opCtx->isLockFreeReadsOp()
+                            << ", isRSTLLocked: " << opCtx->lockState()->isRSTLLocked());
     return canAcceptWritesForDatabase_UNSAFE(opCtx, dbName);
 }
 
@@ -3192,7 +3198,9 @@ bool ReplicationCoordinatorImpl::canAcceptWritesFor_UNSAFE(OperationContext* opC
 Status ReplicationCoordinatorImpl::checkCanServeReadsFor(OperationContext* opCtx,
                                                          const NamespaceString& ns,
                                                          bool secondaryOk) {
-    invariant(opCtx->lockState()->isRSTLLocked() || opCtx->isLockFreeReadsOp());
+    invariant(opCtx->lockState()->isRSTLLocked() || opCtx->isLockFreeReadsOp(),
+              str::stream() << "isLockFreeRead: " << opCtx->isLockFreeReadsOp()
+                            << ", isRSTLLocked: " << opCtx->lockState()->isRSTLLocked());
     return checkCanServeReadsFor_UNSAFE(opCtx, ns, secondaryOk);
 }
 
@@ -3811,7 +3819,9 @@ Status ReplicationCoordinatorImpl::_doReplSetReconfig(OperationContext* opCtx,
         // reconfig, so we should never have a config in an older term. If the current config was
         // installed via a force reconfig, we aren't concerned about this safety guarantee.
         invariant(_rsConfig.getConfigTerm() == OpTime::kUninitializedTerm ||
-                  _rsConfig.getConfigTerm() == topCoordTerm);
+                      _rsConfig.getConfigTerm() == topCoordTerm,
+                  str::stream() << "config term: " << _rsConfig.getConfigTerm()
+                                << ", topology coordinator term: " << topCoordTerm);
     }
 
     auto configWriteConcern = _getConfigReplicationWriteConcern();
@@ -6446,7 +6456,9 @@ bool ReplicationCoordinatorImpl::ReadWriteAbility::canServeNonLocalReads(
     OperationContext* opCtx) const {
     // We must be holding the RSTL.
     invariant(opCtx);
-    invariant(opCtx->lockState()->isRSTLLocked() || opCtx->isLockFreeReadsOp());
+    invariant(opCtx->lockState()->isRSTLLocked() || opCtx->isLockFreeReadsOp(),
+              str::stream() << "isLockFreeRead: " << opCtx->isLockFreeReadsOp()
+                            << ", isRSTLLocked: " << opCtx->lockState()->isRSTLLocked());
     return _canServeNonLocalReads.loadRelaxed();
 }
 

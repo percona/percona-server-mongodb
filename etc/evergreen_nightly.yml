@@ -142,6 +142,7 @@ buildvariants:
   - name: .sharding .jscore !.wo_snapshot
   - name: sharding_gen
   - name: sharding_max_mirroring_opportunistic_secondary_targeting_gen
+  - name: resmoke_end2end_tests
 
 - &enterprise-windows-template
   <<: *windows_compile_variant_dependency
@@ -155,7 +156,7 @@ buildvariants:
     burn_in_tests_build_variant: enterprise-windows-all-feature-flags-required
     exe: ".exe"
     content_type: application/zip
-    python: '/cygdrive/c/python/python37/python.exe'
+    python: '/cygdrive/c/python/python310/python.exe'
     ext: zip
     multiversion_platform: windows
     multiversion_edition: enterprise

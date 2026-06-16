@@ -3,8 +3,8 @@
  * executed using the SBE engine when in trySbeEngine or featureFlagSbeFull mode, and use the
  * classic engine otherwise (forceClassicEngine or trySbeRestricted).
  */
-import {getEngine} from "jstests/libs/analyze_plan.js";
-import {checkSbeFullyEnabled} from "jstests/libs/sbe_util.js";
+load("jstests/libs/analyze_plan.js");  // For getEngine.
+load("jstests/libs/sbe_util.js");      // For checkSbeFullyEnabled.
 
 const conn = MongoRunner.runMongod();
 assert.neq(conn, null, "mongod failed to start up");

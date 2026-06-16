@@ -873,6 +873,33 @@ TEST(DocumentTest, ToBsonSizeTraits) {
 
 namespace MetaFields {
 using mongo::Document;
+
+TEST(IsMetadataFieldName, AllMetadataFieldsRecognised) {
+    for (auto&& field : Document::kAllMetadataFields) {
+        ASSERT_TRUE(Document::isMetadataFieldName(field)) << field;
+    }
+}
+
+TEST(IsMetadataFieldName, UserFieldsRejected) {
+    // Non-'$' fields must never be considered metadata.
+    for (StringData field : {"a"_sd, "foo"_sd, "sortKey"_sd, ""_sd}) {
+        ASSERT_FALSE(Document::isMetadataFieldName(field)) << field;
+    }
+}
+
+TEST(IsMetadataFieldName, DollarMissesRejected) {
+    // '$'-prefixed fields that are not in the set must return false.
+    ASSERT_FALSE(Document::isMetadataFieldName("$notAMetadataField"_sd));
+    ASSERT_FALSE(Document::isMetadataFieldName("$sortkey"_sd));  // wrong case, same length
+    ASSERT_FALSE(Document::isMetadataFieldName("$"_sd));         // just a dollar sign
+}
+
+TEST(IsMetadataFieldName, LongerThanLongestMetadataField) {
+    // A '$'-prefixed field longer than any metadata field must be rejected quickly.
+    ASSERT_FALSE(
+        Document::isMetadataFieldName("$thisFieldNameIsDefinitelyLongerThanAnyMetadataField"_sd));
+}
+
 TEST(MetaFields, TextScoreBasics) {
     // Documents should not have a text score until it is set.
     ASSERT_FALSE(Document().metadata().hasTextScore());
@@ -972,6 +999,35 @@ TEST(MetaFields, SearchScoreDetailsBasic) {
     Document doc2 = docBuilder2.freeze();
     ASSERT_TRUE(doc2.metadata().hasSearchScoreDetails());
     ASSERT_BSONOBJ_EQ(doc2.metadata().getSearchScoreDetails(), otherDetails);
+}
+
+TEST(MetaFields, GetFieldHidesUserMetadataNamedFieldFromBsonWithMetadata) {
+    // When a BSON-backed document has metadata, user fields whose names collide with
+    // internal metadata names are not reachable via getField() — they are only accessible
+    // through the metadata API.
+    Document doc = Document::fromBsonWithMetaData(BSON("regular" << 1 << "$textScore" << 4.2));
+    ASSERT_TRUE(doc.metadata().hasTextScore());
+    ASSERT_EQ(doc.metadata().getTextScore(), 4.2);
+    ASSERT_EQ(doc.getField("regular").getInt(), 1);
+    ASSERT_TRUE(doc.getField("$textScore").missing());
+}
+
+TEST(MetaFields, ToBsonWithMetaDataStripsUserMetadataNamedField) {
+    // A user field named "$textScore" (string) should be stripped by toBsonWithMetaData(),
+    // while real textScore metadata (double) should be preserved.
+    MutableDocument md;
+    md.addField("_id", Value(1));
+    md.addField("$textScore", Value("user_value"_sd));
+    md.addField("regular", Value("kept"_sd));
+    md.metadata().setTextScore(42.0);
+
+    Document doc = md.freeze();
+    BSONObj bsonWithMeta = doc.toBsonWithMetaData();
+
+    ASSERT_EQ(bsonWithMeta["$textScore"].type(), BSONType::NumberDouble);
+    ASSERT_EQ(bsonWithMeta["$textScore"].Double(), 42.0);
+    ASSERT_EQ(bsonWithMeta["_id"].Int(), 1);
+    ASSERT_EQ(bsonWithMeta["regular"].String(), "kept");
 }
 
 TEST(MetaFields, IndexKeyMetadataSerializesCorrectly) {

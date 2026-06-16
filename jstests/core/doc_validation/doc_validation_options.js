@@ -67,7 +67,7 @@ if (hasEnterpriseModule) {
     FixtureHelpers.runCommandOnEachPrimary(
         {db: adminDb, cmdObj: {setParameter: 1, redactClientLogData: true}});
     try {
-        t.update({_id: 2}, {$set: {a: 99}});
+        assert.commandWorked(t.update({_id: 2}, {$set: {a: 99}}));
     } finally {
         FixtureHelpers.runCommandOnEachPrimary(
             {db: adminDb, cmdObj: {setParameter: 1, redactClientLogData: false}});
