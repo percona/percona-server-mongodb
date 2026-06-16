@@ -1,7 +1,7 @@
 {
   "merge_info": {
     "target_branch": "master",
-    "target_branch_sha": "0872b9da1106aa5b5ff8d034c866900bc3e5351e",
+    "target_branch_sha": "b4ec82b0e25053adb00e1674ec8a511a3f26b50d",
     "merge_commit": "e613c37f89b2041ec05a3c8a3d687a14cebb35b5"
   },
   "mergai_version": "0.1.dev1+g95d1b543b",
