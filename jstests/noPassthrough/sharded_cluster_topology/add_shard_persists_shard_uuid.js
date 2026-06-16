@@ -1,5 +1,5 @@
 /**
- * Tests that when featureFlagUniqueShardIdentifiers is enabled, the addShard and
+ * Tests that when featureFlagUniqueShardIdentifiers* is enabled, the addShard and
  * transitionFromDedicatedConfigServer operations persist a unique uuid in config.shards and
  * propagate it into the shard's identity document on the newly added shard. Also verifies that the
  * shardingState command reports the same shard UUID.
@@ -7,6 +7,7 @@
  * @tags: [
  *   requires_fcv_90,
  *   featureFlagUniqueShardIdentifiers,
+ *   featureFlagUniqueShardIdentifiersDDL,
  *   config_shard_incompatible,
  *   # This test calls addShard manually and checks sharding metadata.
  *   assumes_stable_shard_list,
@@ -18,13 +19,20 @@ import {ShardingTest} from "jstests/libs/shardingtest.js";
 
 /** Return whether the value is a UUID string (36-char canonical form). */
 function isUUIDString(val) {
-    return typeof val === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(val);
+    return (
+        typeof val === "string" &&
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(val)
+    );
 }
 
 function getUuidValueFromBsonField(bsonField) {
-    assert(bsonField instanceof BinData && bsonField.subtype() === 4, "expected uuid to be a UUID BinData", {
-        bsonField,
-    });
+    assert(
+        bsonField instanceof BinData && bsonField.subtype() === 4,
+        "expected uuid to be a UUID BinData",
+        {
+            bsonField,
+        },
+    );
 
     // BinData.toString() returns "UUID(\"<canonical string>\")" in the shell.
     const uuidStr = bsonField.toString().replace(/^UUID\("(.+)"\)$/, "$1");
@@ -80,7 +88,10 @@ jsTest.log.info("addShard persists a UUID in config.shards and the shardIdentity
 
     // Verify the shard identity document on the added shard also carries the uuid and that
     // both values agree.
-    const identityDoc = rs.getPrimary().getDB("admin").system.version.findOne({_id: "shardIdentity"});
+    const identityDoc = rs
+        .getPrimary()
+        .getDB("admin")
+        .system.version.findOne({_id: "shardIdentity"});
     assert(identityDoc, "expected shardIdentity document on the added shard");
     assertUUIDMatches(
         configUuidStr,
@@ -94,7 +105,11 @@ jsTest.log.info("addShard persists a UUID in config.shards and the shardIdentity
     assert(shardingState.shardUuid !== undefined, "expected shardUuid in shardingState response", {
         shardingState,
     });
-    assertUUIDMatches(configUuidStr, shardingState.shardUuid, "shardUuid from shardingState must match config.shards");
+    assertUUIDMatches(
+        configUuidStr,
+        shardingState.shardUuid,
+        "shardUuid from shardingState must match config.shards",
+    );
 
     rs.stopSet();
     st.stop();
@@ -119,7 +134,9 @@ jsTest.log.info("Promoting a replica set with data to a sharded cluster persists
 
     // Write user data to the replica set prior to adding.
     const userDbName = jsTestName() + "_promotion";
-    assert.commandWorked(rs.getPrimary().getDB(userDbName).coll.insert({_id: 1, value: "pre-existing"}));
+    assert.commandWorked(
+        rs.getPrimary().getDB(userDbName).coll.insert({_id: 1, value: "pre-existing"}),
+    );
     rs.awaitReplication();
 
     const shardName = "promotedShardWithUUID";
@@ -131,7 +148,10 @@ jsTest.log.info("Promoting a replica set with data to a sharded cluster persists
 
     // Verify the shard identity document on the promoted shard also carries the uuid and that both
     // values agree.
-    const identityDoc = rs.getPrimary().getDB("admin").system.version.findOne({_id: "shardIdentity"});
+    const identityDoc = rs
+        .getPrimary()
+        .getDB("admin")
+        .system.version.findOne({_id: "shardIdentity"});
     assert(identityDoc, "expected shardIdentity document on the promoted shard");
     assertUUIDMatches(
         configUuidStr,
@@ -168,8 +188,12 @@ jsTest.log.info("Promoting a replica set with data to a sharded cluster persists
         .sort({timestamp: -1})
         .limit(1)
         .toArray()[0];
-    assert(placementEntry, "expected config.placementHistory entry for the pre-existing database", {userDbName});
-    assert.eq(1, placementEntry.shards.length, "expected a single shard in the placement entry", {placementEntry});
+    assert(placementEntry, "expected config.placementHistory entry for the pre-existing database", {
+        userDbName,
+    });
+    assert.eq(1, placementEntry.shards.length, "expected a single shard in the placement entry", {
+        placementEntry,
+    });
     assertUUIDMatches(
         configUuidStr,
         placementEntry.shards[0],
@@ -194,7 +218,10 @@ jsTest.log.info("Transition from dedicated persists a UUID in config.shards");
     const configDb = st.s.getDB("config");
 
     // Verify that the shard identity already contains a UUID.
-    const identityDoc = st.configRS.getPrimary().getDB("admin").system.version.findOne({_id: "shardIdentity"});
+    const identityDoc = st.configRS
+        .getPrimary()
+        .getDB("admin")
+        .system.version.findOne({_id: "shardIdentity"});
     assert(identityDoc, "expected shardIdentity document on the config server");
     assert(identityDoc.uuid !== undefined, "expected uuid field to be set in shardIdentity", {
         identityDoc,
@@ -204,10 +231,16 @@ jsTest.log.info("Transition from dedicated persists a UUID in config.shards");
 
     // Verify config.shards carries a UUID and it matches the one in the shard identity.
     const configUuidStr = assertAndGetShardUuid(configDb, "config");
-    assertUUIDMatches(configUuidStr, identityDoc.uuid, "uuid in shardIdentity and config.shards must match");
+    assertUUIDMatches(
+        configUuidStr,
+        identityDoc.uuid,
+        "uuid in shardIdentity and config.shards must match",
+    );
 
     // Verify the shardingState command reports the same shard UUID.
-    const shardingState = assert.commandWorked(st.configRS.getPrimary().adminCommand({shardingState: 1}));
+    const shardingState = assert.commandWorked(
+        st.configRS.getPrimary().adminCommand({shardingState: 1}),
+    );
     assert(shardingState.enabled, "shardingState should report enabled on the config server");
     assert.eq("config", shardingState.shardName);
     assert(shardingState.shardUuid !== undefined, "expected shardUuid in shardingState response", {

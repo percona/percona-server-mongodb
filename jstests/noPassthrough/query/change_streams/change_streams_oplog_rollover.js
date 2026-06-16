@@ -4,7 +4,10 @@
 //   requires_majority_read_concern,
 //   uses_change_streams,
 // ]
-import {ChangeStreamTest, validateChangeStreamHistoryLostException} from "jstests/libs/query/change_stream_util.js";
+import {
+    ChangeStreamTest,
+    validateChangeStreamHistoryLostException,
+} from "jstests/libs/query/change_stream_util.js";
 import {ReplSetTest} from "jstests/libs/replsettest.js";
 import {getFirstOplogEntry, getLatestOp} from "jstests/replsets/rslib.js";
 
@@ -68,7 +71,8 @@ for (let nextExpectedId of [4, 5]) {
 // the first entry in the oplog is the replica set initialization message.
 const firstOplogEntry = getFirstOplogEntry(rst.getPrimary());
 assert(
-    firstOplogEntry.o.msg === "initiating set" || (firstOplogEntry.o.msg === "new primary" && firstOplogEntry.t == 1),
+    firstOplogEntry.o.msg === "initiating set" ||
+        (firstOplogEntry.o.msg === "new primary" && firstOplogEntry.t == 1),
 );
 assert.eq(firstOplogEntry.op, "n");
 
@@ -95,7 +99,12 @@ function oplogIsRolledOver() {
     // The oplog has rolled over if the op that used to be newest is now older than the
     // oplog's current oldest entry. Said another way, the oplog is rolled over when
     // everything in the oplog is newer than what used to be the newest entry.
-    return bsonWoCompare(mostRecentOplogEntry.ts, getFirstOplogEntry(primaryNode, {readConcern: "majority"}).ts) < 0;
+    return (
+        bsonWoCompare(
+            mostRecentOplogEntry.ts,
+            getFirstOplogEntry(primaryNode, {readConcern: "majority"}).ts,
+        ) < 0
+    );
 }
 
 while (!oplogIsRolledOver()) {
@@ -103,9 +112,20 @@ while (!oplogIsRolledOver()) {
 }
 
 // Confirm that attempting to continue reading an existing change stream throws CappedPositionLost.
-assert.throwsWithCode(() => cst.getNextBatch(startAtDawnOfTimeStream), ErrorCodes.CappedPositionLost);
+assert.throwsWithCode(
+    () => cst.getNextBatch(startAtDawnOfTimeStream),
+    ErrorCodes.CappedPositionLost,
+);
 
-// Now confirm that attempting to resumeAfter or startAtOperationTime fails.
+function getHistoryLostCounter() {
+    return rst.getPrimary().getDB("admin").adminCommand({serverStatus: 1}).metrics.changeStreams
+        .error.nonRetriable.changeStreamHistoryLost;
+}
+
+// Now confirm that attempting to resumeAfter or startAtOperationTime fails, and that each failure
+// increments the nonRetriable.changeStreamHistoryLost serverStatus counter.
+const counterBefore = getHistoryLostCounter();
+
 ChangeStreamTest.assertChangeStreamThrowsCode({
     db: testDB,
     collName: testColl.getName(),
@@ -133,6 +153,12 @@ ChangeStreamTest.assertChangeStreamThrowsCode({
     expectedCode: ErrorCodes.ChangeStreamHistoryLost,
     validateExceptionDetails: validateChangeStreamHistoryLostException(Timestamp(1, 1)),
 });
+
+assert.gte(
+    getHistoryLostCounter(),
+    counterBefore + 3,
+    "expected nonRetriable.changeStreamHistoryLost to increment for each failed resume",
+);
 
 cst.cleanUp();
 rst.stopSet();

@@ -471,7 +471,10 @@ assert.commandWorked(res);
 let commands = Object.keys(res.commands);
 for (let command of commands) {
     let test = testCases[command];
-    assert(test !== undefined, "coverage failure: must define a safe secondary reads test for " + command);
+    assert(
+        test !== undefined,
+        "coverage failure: must define a safe secondary reads test for " + command,
+    );
 
     if (test.skip !== undefined) {
         print("skipping " + command + ": " + test.skip);
@@ -481,7 +484,9 @@ for (let command of commands) {
 
     jsTest.log("testing command " + tojson(test.command));
 
-    assert.commandWorked(staleMongos.adminCommand({enableSharding: db, primaryShard: st.shard0.shardName}));
+    assert.commandWorked(
+        staleMongos.adminCommand({enableSharding: db, primaryShard: st.shard0.shardName}),
+    );
     assert.commandWorked(staleMongos.adminCommand({shardCollection: nss, key: {x: 1}}));
 
     // We do this because we expect freshMongos to see that the collection is sharded, which it
@@ -497,9 +502,11 @@ for (let command of commands) {
     // which will then be used against the secondary to ensure the secondary is fresh.
     assert.commandWorked(staleMongos.getDB(db).runCommand({find: coll}));
     assert.commandWorked(
-        freshMongos
-            .getDB(db)
-            .runCommand({find: coll, $readPreference: {mode: "secondary"}, readConcern: {"level": "local"}}),
+        freshMongos.getDB(db).runCommand({
+            find: coll,
+            $readPreference: {mode: "secondary"},
+            readConcern: {"level": "local"},
+        }),
     );
 
     // Do any test-specific setup.
@@ -528,11 +535,12 @@ for (let command of commands) {
         }),
     );
 
-    let res = staleMongos
-        .getDB(test.runsAgainstAdminDb ? "admin" : db)
-        .runCommand(
-            Object.extend(test.command, {$readPreference: {mode: "secondary"}, readConcern: {"level": "local"}}),
-        );
+    let res = staleMongos.getDB(test.runsAgainstAdminDb ? "admin" : db).runCommand(
+        Object.extend(test.command, {
+            $readPreference: {mode: "secondary"},
+            readConcern: {"level": "local"},
+        }),
+    );
     test.checkResults(res);
 
     // Build the query to identify the operation in the system profiler.
@@ -541,8 +549,14 @@ for (let command of commands) {
     if (test.behavior === "unshardedOnly") {
         // Check that neither the donor shard secondary nor recipient shard secondary
         // received the request.
-        profilerHasZeroMatchingEntriesOrThrow({profileDB: donorShardSecondary.getDB(db), filter: commandProfile});
-        profilerHasZeroMatchingEntriesOrThrow({profileDB: recipientShardSecondary.getDB(db), filter: commandProfile});
+        profilerHasZeroMatchingEntriesOrThrow({
+            profileDB: donorShardSecondary.getDB(db),
+            filter: commandProfile,
+        });
+        profilerHasZeroMatchingEntriesOrThrow({
+            profileDB: recipientShardSecondary.getDB(db),
+            filter: commandProfile,
+        });
     } else if (test.behavior === "targetsPrimaryUsesConnectionVersioning") {
         // Check that the recipient shard primary received the request without a shardVersion
         // field and returned success.
@@ -602,7 +616,9 @@ for (let command of commands) {
                                     "$and": [
                                         {"command.shardVersion.0": {"$exists": true}},
                                         {
-                                            "command.shardVersion.0": {$ne: ShardVersioningUtil.kIgnoredShardVersion.v},
+                                            "command.shardVersion.0": {
+                                                $ne: ShardVersioningUtil.kIgnoredShardVersion.v,
+                                            },
                                         },
                                     ],
                                 },
@@ -610,7 +626,9 @@ for (let command of commands) {
                                     "$and": [
                                         {"command.shardVersion.v": {"$exists": true}},
                                         {
-                                            "command.shardVersion.v": {$ne: ShardVersioningUtil.kIgnoredShardVersion.v},
+                                            "command.shardVersion.v": {
+                                                $ne: ShardVersioningUtil.kIgnoredShardVersion.v,
+                                            },
                                         },
                                     ],
                                 },
@@ -622,7 +640,9 @@ for (let command of commands) {
                                     "$and": [
                                         {"command.shardVersion.1": {"$exists": true}},
                                         {
-                                            "command.shardVersion.1": {$ne: ShardVersioningUtil.kIgnoredShardVersion.e},
+                                            "command.shardVersion.1": {
+                                                $ne: ShardVersioningUtil.kIgnoredShardVersion.e,
+                                            },
                                         },
                                     ],
                                 },
@@ -630,7 +650,9 @@ for (let command of commands) {
                                     "$and": [
                                         {"command.shardVersion.e": {"$exists": true}},
                                         {
-                                            "command.shardVersion.e": {$ne: ShardVersioningUtil.kIgnoredShardVersion.e},
+                                            "command.shardVersion.e": {
+                                                $ne: ShardVersioningUtil.kIgnoredShardVersion.e,
+                                            },
                                         },
                                     ],
                                 },

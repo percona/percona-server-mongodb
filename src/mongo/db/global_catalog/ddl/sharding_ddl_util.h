@@ -497,13 +497,22 @@ MONGO_MOD_PRIVATE void commitRenameCollectionMetadataToShardCatalog(
     const CancellationToken& token);
 
 /**
- * Based on the FCV, get the where the DDL needs to act accordingly to the database
+ * Based on the FCV, get whether the DDL needs to act according to the database
  * or collection metadata authoritativeness.
  */
 MONGO_MOD_NEEDS_REPLACEMENT AuthoritativeMetadataAccessLevelEnum
 getGrantedAuthoritativeMetadataAccessLevel(const VersionContext& vCtx,
                                            const ServerGlobalParams::FCVSnapshot& snapshot);
 
+
+/**
+ * Based on the FCV, get whether the DDL needs to operate with shards referred to by:
+ * - Pre-upgrade: their ShardId exclusively (pre-upgrade);
+ * - setFCV in progress: their UUID (preferably) or ShardId (fallback);
+ * - Post-upgrade: their UUID.
+ */
+MONGO_MOD_NEEDS_REPLACEMENT ShardIdentificationTypeEnum getGrantedShardIdentificationType(
+    const VersionContext& vCtx, const ServerGlobalParams::FCVSnapshot& snapshot);
 /*
  * Provided a collection UUID, returns the ID of one of the shards that are currently owning its
  * chunks (or boost:node when the collection is untracked or non-existing).
@@ -569,6 +578,30 @@ MONGO_MOD_NEEDS_REPLACEMENT void generatePlacementChangeNotificationOnShard(
     std::function<OperationSessionInfo(OperationContext*)> buildNewSessionFn,
     const std::shared_ptr<executor::ScopedTaskExecutor>& executor,
     const CancellationToken& token);
+
+/*
+ * Returns true if the given error would be retried by a ShardingCoordinator.
+ */
+MONGO_MOD_PRIVATE bool isRetriableErrorForDDLCoordinator(const Status& status);
+
+struct MONGO_MOD_PRIVATE ComputeAllMergeableChunksOnShardResult {
+    std::vector<ChunkType> newChunks;
+    ChunkVersion newVersion;
+    BSONObj firstMergeableChunkMin;
+    int numMergedChunks;
+};
+
+MONGO_MOD_PRIVATE ComputeAllMergeableChunksOnShardResult
+computeAllMergeableChunksOnShard(OperationContext* opCtx,
+                                 const NamespaceString& nss,
+                                 const ShardId& shardId,
+                                 BSONObj firstMergeableChunkMin,
+                                 std::shared_ptr<Shard> configShard,
+                                 const NamespaceString& chunksNamespace,
+                                 CollectionType coll,
+                                 boost::optional<ChunkVersion> originalVersion = boost::none,
+                                 int maxNumberOfChunksToMerge = INT_MAX,
+                                 int maxTimeProcessingChunksMS = INT_MAX);
 
 }  // namespace sharding_ddl_util
 }  // namespace mongo

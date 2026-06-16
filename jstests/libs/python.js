@@ -16,7 +16,8 @@ export function getPython3Binary() {
     const match = pythonVersion.match(/Python 3\.(\d+)\./);
     if (match && match[1] >= 13) {
         jsTest.log.info(
-            "Found python 3." + match[1] + " by default. Likely this is because we are using a virtual environment.",
+            "Found python 3." + match[1] +
+                " by default. Likely this is because we are using a virtual environment.",
         );
         return "python";
     }

@@ -122,7 +122,14 @@ export const commandNotSupportedCode = 115;
 let shard0name = "shard0000";
 
 // useful shorthand when defining the tests below
-let roles_write = {readWrite: 1, readWriteAnyDatabase: 1, dbOwner: 1, restore: 1, root: 1, __system: 1};
+let roles_write = {
+    readWrite: 1,
+    readWriteAnyDatabase: 1,
+    dbOwner: 1,
+    restore: 1,
+    root: 1,
+    __system: 1,
+};
 let roles_read = {
     read: 1,
     readAnyDatabase: 1,
@@ -188,7 +195,13 @@ let roles_readDbAdminAny = {
     searchCoordinator: 1,
     __system: 1,
 };
-let roles_monitoring = {clusterMonitor: 1, clusterAdmin: 1, root: 1, searchCoordinator: 1, __system: 1};
+let roles_monitoring = {
+    clusterMonitor: 1,
+    clusterAdmin: 1,
+    root: 1,
+    searchCoordinator: 1,
+    __system: 1,
+};
 let roles_hostManager = {hostManager: 1, clusterAdmin: 1, root: 1, __system: 1};
 let roles_clusterManager = {clusterManager: 1, clusterAdmin: 1, root: 1, __system: 1};
 let roles_all = {
@@ -365,7 +378,9 @@ export const authCommandsLib = {
         {
             testname: "applyOps_container_insert",
             skipSharded: true,
-            skipTest: (conn) => !isFeatureEnabled(conn, "featureFlagContainerWrites") || !storageEngineIsWiredTiger(),
+            skipTest: (conn) =>
+                !isFeatureEnabled(conn, "featureFlagContainerWrites") ||
+                !storageEngineIsWiredTiger(),
             setup: function (db) {
                 const coll = "containerOpsColl";
                 db[coll].drop();
@@ -406,7 +421,9 @@ export const authCommandsLib = {
         {
             testname: "applyOps_container_delete",
             skipSharded: true,
-            skipTest: (conn) => !isFeatureEnabled(conn, "featureFlagContainerWrites") || !storageEngineIsWiredTiger(),
+            skipTest: (conn) =>
+                !isFeatureEnabled(conn, "featureFlagContainerWrites") ||
+                !storageEngineIsWiredTiger(),
             setup: function (db) {
                 const coll = "containerOpsColl";
                 db[coll].drop();
@@ -449,7 +466,9 @@ export const authCommandsLib = {
         {
             testname: "applyOps_container_update",
             skipSharded: true,
-            skipTest: (conn) => !isFeatureEnabled(conn, "featureFlagContainerWrites") || !storageEngineIsWiredTiger(),
+            skipTest: (conn) =>
+                !isFeatureEnabled(conn, "featureFlagContainerWrites") ||
+                !storageEngineIsWiredTiger(),
             setup: function (db) {
                 const coll = "containerOpsColl";
                 db[coll].drop();
@@ -498,7 +517,9 @@ export const authCommandsLib = {
                 {
                     runOnDb: adminDbName,
                     roles: Object.extend({enableSharding: 1}, roles_clusterManager),
-                    privileges: [{resource: {db: "test", collection: "x"}, actions: ["moveCollection"]}],
+                    privileges: [
+                        {resource: {db: "test", collection: "x"}, actions: ["moveCollection"]},
+                    ],
                     expectFail: true,
                 },
             ],
@@ -511,7 +532,9 @@ export const authCommandsLib = {
                 {
                     runOnDb: adminDbName,
                     roles: Object.extend({enableSharding: 1}, roles_clusterManager),
-                    privileges: [{resource: {db: "test", collection: "x"}, actions: ["reshardCollection"]}],
+                    privileges: [
+                        {resource: {db: "test", collection: "x"}, actions: ["reshardCollection"]},
+                    ],
                     expectFail: true,
                 },
             ],
@@ -524,7 +547,9 @@ export const authCommandsLib = {
                 {
                     runOnDb: adminDbName,
                     roles: Object.extend({enableSharding: 1}, roles_clusterManager),
-                    privileges: [{resource: {db: "test", collection: "x"}, actions: ["rewriteCollection"]}],
+                    privileges: [
+                        {resource: {db: "test", collection: "x"}, actions: ["rewriteCollection"]},
+                    ],
                     expectFail: true,
                 },
             ],
@@ -538,7 +563,9 @@ export const authCommandsLib = {
                 {
                     runOnDb: adminDbName,
                     roles: Object.extend({enableSharding: 1}, roles_clusterManager),
-                    privileges: [{resource: {db: "test", collection: "x"}, actions: ["unshardCollection"]}],
+                    privileges: [
+                        {resource: {db: "test", collection: "x"}, actions: ["unshardCollection"]},
+                    ],
                     expectFail: true,
                 },
             ],
@@ -778,7 +805,12 @@ export const authCommandsLib = {
                 {
                     runOnDb: adminDbName,
                     roles: roles_clusterManager,
-                    privileges: [{resource: {cluster: true}, actions: ["transitionFromDedicatedConfigServer"]}],
+                    privileges: [
+                        {
+                            resource: {cluster: true},
+                            actions: ["transitionFromDedicatedConfigServer"],
+                        },
+                    ],
                 },
                 {runOnDb: firstDbName, roles: {}},
                 {runOnDb: secondDbName, roles: {}},
@@ -808,7 +840,9 @@ export const authCommandsLib = {
                     runOnDb: adminDbName,
                     roles: roles_clusterManager,
                     expectFail: true,
-                    privileges: [{resource: {cluster: true}, actions: ["transitionToDedicatedConfigServer"]}],
+                    privileges: [
+                        {resource: {cluster: true}, actions: ["transitionToDedicatedConfigServer"]},
+                    ],
                 },
                 {runOnDb: firstDbName, roles: {}},
                 {runOnDb: secondDbName, roles: {}},
@@ -892,7 +926,10 @@ export const authCommandsLib = {
                         restore: 1,
                     },
                     privileges: [
-                        {resource: {db: firstDbName, collection: "x"}, actions: ["createCollection"]},
+                        {
+                            resource: {db: firstDbName, collection: "x"},
+                            actions: ["createCollection"],
+                        },
                         {resource: {cluster: true}, actions: ["applyOps"]},
                     ],
                 },
@@ -922,7 +959,10 @@ export const authCommandsLib = {
                     runOnDb: adminDbName,
                     roles: {__system: 1, root: 1, restore: 1},
                     privileges: [
-                        {resource: {db: firstDbName, collection: "x"}, actions: ["createCollection"]},
+                        {
+                            resource: {db: firstDbName, collection: "x"},
+                            actions: ["createCollection"],
+                        },
                         {resource: {cluster: true}, actions: ["useUUID", "forceUUID", "applyOps"]},
                     ],
                 },
@@ -951,7 +991,10 @@ export const authCommandsLib = {
                     expectAuthzFailure: true,
                     runOnDb: adminDbName,
                     privileges: [
-                        {resource: {db: firstDbName, collection: "x"}, actions: ["createCollection"]},
+                        {
+                            resource: {db: firstDbName, collection: "x"},
+                            actions: ["createCollection"],
+                        },
                         // Do not have forceUUID.
                         {resource: {cluster: true}, actions: ["useUUID", "applyOps"]},
                     ],
@@ -1082,11 +1125,15 @@ export const authCommandsLib = {
             testcases: [
                 {
                     runOnDb: adminDbName,
-                    privileges: [{resource: {cluster: true}, actions: ["appendOplogNote", "applyOps"]}],
+                    privileges: [
+                        {resource: {cluster: true}, actions: ["appendOplogNote", "applyOps"]},
+                    ],
                 },
                 {
                     runOnDb: firstDbName,
-                    privileges: [{resource: {cluster: true}, actions: ["appendOplogNote", "applyOps"]}],
+                    privileges: [
+                        {resource: {cluster: true}, actions: ["appendOplogNote", "applyOps"]},
+                    ],
                     expectFailure: true,
                 },
             ],
@@ -1347,7 +1394,10 @@ export const authCommandsLib = {
                     runOnDb: adminDbName,
                     roles: {__system: 1, root: 1},
                     privileges: [
-                        {resource: {db: firstDbName, collection: "x"}, actions: ["update", "insert"]},
+                        {
+                            resource: {db: firstDbName, collection: "x"},
+                            actions: ["update", "insert"],
+                        },
                         {resource: {cluster: true}, actions: ["applyOps"]},
                     ],
                 },
@@ -1502,12 +1552,16 @@ export const authCommandsLib = {
                 {
                     runOnDb: firstDbName,
                     roles: roles_read,
-                    privileges: [{resource: {db: firstDbName, collection: "foo"}, actions: ["find"]}],
+                    privileges: [
+                        {resource: {db: firstDbName, collection: "foo"}, actions: ["find"]},
+                    ],
                 },
                 {
                     runOnDb: secondDbName,
                     roles: roles_readAny,
-                    privileges: [{resource: {db: secondDbName, collection: "foo"}, actions: ["find"]}],
+                    privileges: [
+                        {resource: {db: secondDbName, collection: "foo"}, actions: ["find"]},
+                    ],
                 },
             ],
         },
@@ -1534,12 +1588,16 @@ export const authCommandsLib = {
                 {
                     runOnDb: firstDbName,
                     roles: roles_read,
-                    privileges: [{resource: {db: firstDbName, collection: "view"}, actions: ["find"]}],
+                    privileges: [
+                        {resource: {db: firstDbName, collection: "view"}, actions: ["find"]},
+                    ],
                 },
                 {
                     runOnDb: secondDbName,
                     roles: roles_readAny,
-                    privileges: [{resource: {db: secondDbName, collection: "view"}, actions: ["find"]}],
+                    privileges: [
+                        {resource: {db: secondDbName, collection: "view"}, actions: ["find"]},
+                    ],
                 },
             ],
         },
@@ -1550,12 +1608,16 @@ export const authCommandsLib = {
                 {
                     runOnDb: firstDbName,
                     roles: roles_read,
-                    privileges: [{resource: {db: firstDbName, collection: "foo"}, actions: ["find"]}],
+                    privileges: [
+                        {resource: {db: firstDbName, collection: "foo"}, actions: ["find"]},
+                    ],
                 },
                 {
                     runOnDb: secondDbName,
                     roles: roles_readAny,
-                    privileges: [{resource: {db: secondDbName, collection: "foo"}, actions: ["find"]}],
+                    privileges: [
+                        {resource: {db: secondDbName, collection: "foo"}, actions: ["find"]},
+                    ],
                 },
             ],
         },
@@ -1574,12 +1636,16 @@ export const authCommandsLib = {
                 {
                     runOnDb: firstDbName,
                     roles: roles_read,
-                    privileges: [{resource: {db: firstDbName, collection: "view"}, actions: ["find"]}],
+                    privileges: [
+                        {resource: {db: firstDbName, collection: "view"}, actions: ["find"]},
+                    ],
                 },
                 {
                     runOnDb: secondDbName,
                     roles: roles_readAny,
-                    privileges: [{resource: {db: secondDbName, collection: "view"}, actions: ["find"]}],
+                    privileges: [
+                        {resource: {db: secondDbName, collection: "view"}, actions: ["find"]},
+                    ],
                 },
             ],
         },
@@ -1605,7 +1671,13 @@ export const authCommandsLib = {
                 {
                     runOnDb: firstDbName,
                     commandArgs: {bypassDocumentValidation: false},
-                    roles: {readWrite: 1, readWriteAnyDatabase: 1, dbOwner: 1, root: 1, __system: 1},
+                    roles: {
+                        readWrite: 1,
+                        readWriteAnyDatabase: 1,
+                        dbOwner: 1,
+                        root: 1,
+                        __system: 1,
+                    },
                     privileges: [
                         {resource: {db: firstDbName, collection: "foo"}, actions: ["find"]},
                         {resource: {db: firstDbName, collection: "foo_out"}, actions: ["insert"]},
@@ -1659,7 +1731,13 @@ export const authCommandsLib = {
                 {
                     runOnDb: firstDbName,
                     commandArgs: {targetDB: firstDbName, bypassDocumentValidation: false},
-                    roles: {readWrite: 1, readWriteAnyDatabase: 1, dbOwner: 1, root: 1, __system: 1},
+                    roles: {
+                        readWrite: 1,
+                        readWriteAnyDatabase: 1,
+                        dbOwner: 1,
+                        root: 1,
+                        __system: 1,
+                    },
                     privileges: [
                         {resource: {db: firstDbName, collection: "foo"}, actions: ["find"]},
                         {
@@ -1752,7 +1830,13 @@ export const authCommandsLib = {
                 {
                     runOnDb: firstDbName,
                     commandArgs: {targetDB: firstDbName, bypassDocumentValidation: false},
-                    roles: {readWrite: 1, readWriteAnyDatabase: 1, dbOwner: 1, root: 1, __system: 1},
+                    roles: {
+                        readWrite: 1,
+                        readWriteAnyDatabase: 1,
+                        dbOwner: 1,
+                        root: 1,
+                        __system: 1,
+                    },
                     privileges: [
                         {resource: {db: firstDbName, collection: "foo"}, actions: ["find"]},
                         {resource: {db: firstDbName, collection: "foo_out"}, actions: ["insert"]},
@@ -1836,7 +1920,13 @@ export const authCommandsLib = {
                 {
                     runOnDb: firstDbName,
                     commandArgs: {targetDB: firstDbName, bypassDocumentValidation: false},
-                    roles: {readWrite: 1, readWriteAnyDatabase: 1, dbOwner: 1, root: 1, __system: 1},
+                    roles: {
+                        readWrite: 1,
+                        readWriteAnyDatabase: 1,
+                        dbOwner: 1,
+                        root: 1,
+                        __system: 1,
+                    },
                     privileges: [
                         {resource: {db: firstDbName, collection: "foo"}, actions: ["find"]},
                         {resource: {db: firstDbName, collection: "foo_out"}, actions: ["insert"]},
@@ -1905,7 +1995,13 @@ export const authCommandsLib = {
             testcases: [
                 {
                     runOnDb: firstDbName,
-                    roles: {readWrite: 1, readWriteAnyDatabase: 1, dbOwner: 1, root: 1, __system: 1},
+                    roles: {
+                        readWrite: 1,
+                        readWriteAnyDatabase: 1,
+                        dbOwner: 1,
+                        root: 1,
+                        __system: 1,
+                    },
                     privileges: [
                         {resource: {db: firstDbName, collection: "view"}, actions: ["find"]},
                         {resource: {db: firstDbName, collection: "view_out"}, actions: ["insert"]},
@@ -1935,7 +2031,13 @@ export const authCommandsLib = {
             testcases: [
                 {
                     runOnDb: firstDbName,
-                    roles: {readWrite: 1, readWriteAnyDatabase: 1, dbOwner: 1, root: 1, __system: 1},
+                    roles: {
+                        readWrite: 1,
+                        readWriteAnyDatabase: 1,
+                        dbOwner: 1,
+                        root: 1,
+                        __system: 1,
+                    },
                     privileges: [
                         {resource: {db: firstDbName, collection: "foo"}, actions: ["find"]},
                         {resource: {db: firstDbName, collection: "view"}, actions: ["insert"]},
@@ -1968,12 +2070,16 @@ export const authCommandsLib = {
                 {
                     runOnDb: firstDbName,
                     roles: roles_monitoring,
-                    privileges: [{resource: {db: firstDbName, collection: "foo"}, actions: ["indexStats"]}],
+                    privileges: [
+                        {resource: {db: firstDbName, collection: "foo"}, actions: ["indexStats"]},
+                    ],
                 },
                 {
                     runOnDb: secondDbName,
                     roles: roles_monitoring,
-                    privileges: [{resource: {db: secondDbName, collection: "foo"}, actions: ["indexStats"]}],
+                    privileges: [
+                        {resource: {db: secondDbName, collection: "foo"}, actions: ["indexStats"]},
+                    ],
                 },
             ],
         },
@@ -1991,12 +2097,22 @@ export const authCommandsLib = {
                 {
                     runOnDb: firstDbName,
                     roles: roles_readDbAdmin,
-                    privileges: [{resource: {db: firstDbName, collection: "foo"}, actions: ["planCacheRead"]}],
+                    privileges: [
+                        {
+                            resource: {db: firstDbName, collection: "foo"},
+                            actions: ["planCacheRead"],
+                        },
+                    ],
                 },
                 {
                     runOnDb: secondDbName,
                     roles: roles_readDbAdminAny,
-                    privileges: [{resource: {db: secondDbName, collection: "foo"}, actions: ["planCacheRead"]}],
+                    privileges: [
+                        {
+                            resource: {db: secondDbName, collection: "foo"},
+                            actions: ["planCacheRead"],
+                        },
+                    ],
                 },
             ],
         },
@@ -2056,7 +2172,11 @@ export const authCommandsLib = {
         },
         {
             testname: "aggregate_listLocalSessions_allUsers_false",
-            command: {aggregate: 1, pipeline: [{$listLocalSessions: {allUsers: false}}], cursor: {}},
+            command: {
+                aggregate: 1,
+                pipeline: [{$listLocalSessions: {allUsers: false}}],
+                cursor: {},
+            },
             testcases: [{runOnDb: adminDbName, roles: roles_all}],
             skipSharded: true,
         },
@@ -2094,7 +2214,9 @@ export const authCommandsLib = {
             testname: "aggregate_lookup",
             command: {
                 aggregate: "foo",
-                pipeline: [{$lookup: {from: "bar", localField: "_id", foreignField: "_id", as: "results"}}],
+                pipeline: [
+                    {$lookup: {from: "bar", localField: "_id", foreignField: "_id", as: "results"}},
+                ],
                 cursor: {},
             },
             setup: function (db) {
@@ -2141,12 +2263,16 @@ export const authCommandsLib = {
                 {
                     runOnDb: firstDbName,
                     roles: roles_read,
-                    privileges: [{resource: {db: firstDbName, collection: "foo"}, actions: ["find"]}],
+                    privileges: [
+                        {resource: {db: firstDbName, collection: "foo"}, actions: ["find"]},
+                    ],
                 },
                 {
                     runOnDb: secondDbName,
                     roles: roles_readAny,
-                    privileges: [{resource: {db: secondDbName, collection: "foo"}, actions: ["find"]}],
+                    privileges: [
+                        {resource: {db: secondDbName, collection: "foo"}, actions: ["find"]},
+                    ],
                 },
             ],
         },
@@ -2172,12 +2298,16 @@ export const authCommandsLib = {
                 {
                     runOnDb: firstDbName,
                     roles: roles_read,
-                    privileges: [{resource: {db: firstDbName, collection: "bar"}, actions: ["find"]}],
+                    privileges: [
+                        {resource: {db: firstDbName, collection: "bar"}, actions: ["find"]},
+                    ],
                 },
                 {
                     runOnDb: secondDbName,
                     roles: roles_readAny,
-                    privileges: [{resource: {db: secondDbName, collection: "bar"}, actions: ["find"]}],
+                    privileges: [
+                        {resource: {db: secondDbName, collection: "bar"}, actions: ["find"]},
+                    ],
                 },
             ],
         },
@@ -2239,7 +2369,16 @@ export const authCommandsLib = {
             },
             command: {
                 aggregate: "foo",
-                pipeline: [{$lookup: {from: "view", localField: "_id", foreignField: "_id", as: "results"}}],
+                pipeline: [
+                    {
+                        $lookup: {
+                            from: "view",
+                            localField: "_id",
+                            foreignField: "_id",
+                            as: "results",
+                        },
+                    },
+                ],
                 cursor: {},
             },
             testcases: [
@@ -2378,7 +2517,9 @@ export const authCommandsLib = {
                         searchCoordinator: 1,
                         __system: 1,
                     },
-                    privileges: [{resource: {db: firstDbName, collection: "foo"}, actions: ["collStats"]}],
+                    privileges: [
+                        {resource: {db: firstDbName, collection: "foo"}, actions: ["collStats"]},
+                    ],
                 },
                 {
                     runOnDb: secondDbName,
@@ -2393,7 +2534,9 @@ export const authCommandsLib = {
                         searchCoordinator: 1,
                         __system: 1,
                     },
-                    privileges: [{resource: {db: secondDbName, collection: "foo"}, actions: ["collStats"]}],
+                    privileges: [
+                        {resource: {db: secondDbName, collection: "foo"}, actions: ["collStats"]},
+                    ],
                 },
             ],
         },
@@ -2401,7 +2544,10 @@ export const authCommandsLib = {
             testname: "aggregate_collStats_facet",
             command: {
                 aggregate: "foo",
-                pipeline: [{$collStats: {latencyStats: {}}}, {$facet: {matched: [{$match: {a: 1}}]}}],
+                pipeline: [
+                    {$collStats: {latencyStats: {}}},
+                    {$facet: {matched: [{$match: {a: 1}}]}},
+                ],
                 cursor: {},
             },
             setup: function (db) {
@@ -2428,7 +2574,9 @@ export const authCommandsLib = {
                         searchCoordinator: 1,
                         __system: 1,
                     },
-                    privileges: [{resource: {db: firstDbName, collection: "foo"}, actions: ["collStats"]}],
+                    privileges: [
+                        {resource: {db: firstDbName, collection: "foo"}, actions: ["collStats"]},
+                    ],
                 },
             ],
         },
@@ -2464,7 +2612,10 @@ export const authCommandsLib = {
                     runOnDb: firstDbName,
                     roles: roles_read,
                     privileges: [
-                        {resource: {db: firstDbName, collection: "lookupColl"}, actions: ["collStats"]},
+                        {
+                            resource: {db: firstDbName, collection: "lookupColl"},
+                            actions: ["collStats"],
+                        },
                         {resource: {db: firstDbName, collection: "foo"}, actions: ["find"]},
                     ],
                 },
@@ -2474,7 +2625,9 @@ export const authCommandsLib = {
             testname: "aggregate_collStats_within_union",
             command: {
                 aggregate: "foo",
-                pipeline: [{$unionWith: {coll: "unionColl", pipeline: [{$collStats: {latencyStats: {}}}]}}],
+                pipeline: [
+                    {$unionWith: {coll: "unionColl", pipeline: [{$collStats: {latencyStats: {}}}]}},
+                ],
                 cursor: {},
             },
             setup: function (db) {
@@ -2490,7 +2643,10 @@ export const authCommandsLib = {
                     runOnDb: firstDbName,
                     roles: roles_read,
                     privileges: [
-                        {resource: {db: firstDbName, collection: "unionColl"}, actions: ["collStats"]},
+                        {
+                            resource: {db: firstDbName, collection: "unionColl"},
+                            actions: ["collStats"],
+                        },
                         {resource: {db: firstDbName, collection: "foo"}, actions: ["find"]},
                     ],
                 },
@@ -2598,7 +2754,14 @@ export const authCommandsLib = {
                 assert.commandWorked(db.createCollection("foo"));
                 assert.commandWorked(
                     db.createView("view1", "bar", [
-                        {$lookup: {from: "qux", localField: "_id", foreignField: "_id", as: "results"}},
+                        {
+                            $lookup: {
+                                from: "qux",
+                                localField: "_id",
+                                foreignField: "_id",
+                                as: "results",
+                            },
+                        },
                     ]),
                 );
                 assert.commandWorked(
@@ -2675,7 +2838,13 @@ export const authCommandsLib = {
                 },
                 {
                     runOnDb: secondDbName,
-                    roles: {readAnyDatabase: 1, readWriteAnyDatabase: 1, root: 1, searchCoordinator: 1, __system: 1},
+                    roles: {
+                        readAnyDatabase: 1,
+                        readWriteAnyDatabase: 1,
+                        root: 1,
+                        searchCoordinator: 1,
+                        __system: 1,
+                    },
                     privileges: [
                         {
                             resource: {db: secondDbName, collection: "foo"},
@@ -2712,7 +2881,13 @@ export const authCommandsLib = {
                 },
                 {
                     runOnDb: secondDbName,
-                    roles: {readAnyDatabase: 1, readWriteAnyDatabase: 1, root: 1, searchCoordinator: 1, __system: 1},
+                    roles: {
+                        readAnyDatabase: 1,
+                        readWriteAnyDatabase: 1,
+                        root: 1,
+                        searchCoordinator: 1,
+                        __system: 1,
+                    },
                     privileges: [
                         {
                             resource: {db: secondDbName, collection: ""},
@@ -2725,12 +2900,24 @@ export const authCommandsLib = {
         },
         {
             testname: "aggregate_changeStream_whole_cluster",
-            command: {aggregate: 1, pipeline: [{$changeStream: {allChangesForCluster: true}}], cursor: {}},
+            command: {
+                aggregate: 1,
+                pipeline: [{$changeStream: {allChangesForCluster: true}}],
+                cursor: {},
+            },
             testcases: [
                 {
                     runOnDb: adminDbName,
-                    roles: {readAnyDatabase: 1, readWriteAnyDatabase: 1, root: 1, searchCoordinator: 1, __system: 1},
-                    privileges: [{resource: {db: "", collection: ""}, actions: ["changeStream", "find"]}],
+                    roles: {
+                        readAnyDatabase: 1,
+                        readWriteAnyDatabase: 1,
+                        root: 1,
+                        searchCoordinator: 1,
+                        __system: 1,
+                    },
+                    privileges: [
+                        {resource: {db: "", collection: ""}, actions: ["changeStream", "find"]},
+                    ],
                     expectFail: true, // because no replication enabled
                 },
             ],
@@ -2771,7 +2958,13 @@ export const authCommandsLib = {
                 },
                 {
                     runOnDb: secondDbName,
-                    roles: {readAnyDatabase: 1, readWriteAnyDatabase: 1, root: 1, searchCoordinator: 1, __system: 1},
+                    roles: {
+                        readAnyDatabase: 1,
+                        readWriteAnyDatabase: 1,
+                        root: 1,
+                        searchCoordinator: 1,
+                        __system: 1,
+                    },
                     privileges: [
                         {
                             resource: {db: secondDbName, collection: "foo"},
@@ -2784,7 +2977,11 @@ export const authCommandsLib = {
         },
         {
             testname: "aggregate_changeStreamSplitLargeEvent_whole_db",
-            command: {aggregate: 1, pipeline: [{$changeStream: {}}, {$changeStreamSplitLargeEvent: {}}], cursor: {}},
+            command: {
+                aggregate: 1,
+                pipeline: [{$changeStream: {}}, {$changeStreamSplitLargeEvent: {}}],
+                cursor: {},
+            },
             testcases: [
                 {
                     runOnDb: firstDbName,
@@ -2808,7 +3005,13 @@ export const authCommandsLib = {
                 },
                 {
                     runOnDb: secondDbName,
-                    roles: {readAnyDatabase: 1, readWriteAnyDatabase: 1, root: 1, searchCoordinator: 1, __system: 1},
+                    roles: {
+                        readAnyDatabase: 1,
+                        readWriteAnyDatabase: 1,
+                        root: 1,
+                        searchCoordinator: 1,
+                        __system: 1,
+                    },
                     privileges: [
                         {
                             resource: {db: secondDbName, collection: ""},
@@ -2823,14 +3026,25 @@ export const authCommandsLib = {
             testname: "aggregate_changeStreamSplitLargeEvent_whole_cluster",
             command: {
                 aggregate: 1,
-                pipeline: [{$changeStream: {allChangesForCluster: true}}, {$changeStreamSplitLargeEvent: {}}],
+                pipeline: [
+                    {$changeStream: {allChangesForCluster: true}},
+                    {$changeStreamSplitLargeEvent: {}},
+                ],
                 cursor: {},
             },
             testcases: [
                 {
                     runOnDb: adminDbName,
-                    roles: {readAnyDatabase: 1, readWriteAnyDatabase: 1, root: 1, searchCoordinator: 1, __system: 1},
-                    privileges: [{resource: {db: "", collection: ""}, actions: ["changeStream", "find"]}],
+                    roles: {
+                        readAnyDatabase: 1,
+                        readWriteAnyDatabase: 1,
+                        root: 1,
+                        searchCoordinator: 1,
+                        __system: 1,
+                    },
+                    privileges: [
+                        {resource: {db: "", collection: ""}, actions: ["changeStream", "find"]},
+                    ],
                     expectFail: true, // because no replication enabled
                 },
             ],
@@ -2869,12 +3083,16 @@ export const authCommandsLib = {
                 {
                     runOnDb: firstDbName,
                     roles: roles_read,
-                    privileges: [{resource: {db: firstDbName, collection: "coll"}, actions: ["find"]}],
+                    privileges: [
+                        {resource: {db: firstDbName, collection: "coll"}, actions: ["find"]},
+                    ],
                 },
                 {
                     runOnDb: secondDbName,
                     roles: roles_readAny,
-                    privileges: [{resource: {db: secondDbName, collection: "coll"}, actions: ["find"]}],
+                    privileges: [
+                        {resource: {db: secondDbName, collection: "coll"}, actions: ["find"]},
+                    ],
                 },
             ],
         },
@@ -3075,8 +3293,14 @@ export const authCommandsLib = {
                 {
                     runOnDb: adminDbName,
                     privileges: [
-                        {resource: {db: firstDbName, collection: "coll"}, actions: ["insert", "update", "remove"]},
-                        {resource: {db: secondDbName, collection: "coll1"}, actions: ["insert", "update", "remove"]},
+                        {
+                            resource: {db: firstDbName, collection: "coll"},
+                            actions: ["insert", "update", "remove"],
+                        },
+                        {
+                            resource: {db: secondDbName, collection: "coll1"},
+                            actions: ["insert", "update", "remove"],
+                        },
                     ],
                 },
             ],
@@ -3101,7 +3325,9 @@ export const authCommandsLib = {
                 {
                     runOnDb: secondDbName,
                     roles: roles_readAny,
-                    privileges: [{resource: {db: secondDbName, collection: "x"}, actions: ["find"]}],
+                    privileges: [
+                        {resource: {db: secondDbName, collection: "x"}, actions: ["find"]},
+                    ],
                 },
             ],
         },
@@ -3135,7 +3361,13 @@ export const authCommandsLib = {
             testcases: [
                 {
                     runOnDb: firstDbName,
-                    roles: {readWrite: 1, readWriteAnyDatabase: 1, dbOwner: 1, root: 1, __system: 1},
+                    roles: {
+                        readWrite: 1,
+                        readWriteAnyDatabase: 1,
+                        dbOwner: 1,
+                        root: 1,
+                        __system: 1,
+                    },
                     privileges: [
                         {
                             resource: {db: firstDbName, collection: "y"},
@@ -3170,12 +3402,16 @@ export const authCommandsLib = {
                 {
                     runOnDb: firstDbName,
                     roles: Object.extend({restore: 1}, roles_dbAdmin),
-                    privileges: [{resource: {db: firstDbName, collection: "foo"}, actions: ["collMod"]}],
+                    privileges: [
+                        {resource: {db: firstDbName, collection: "foo"}, actions: ["collMod"]},
+                    ],
                 },
                 {
                     runOnDb: secondDbName,
                     roles: Object.extend({restore: 1}, roles_dbAdminAny),
-                    privileges: [{resource: {db: secondDbName, collection: "foo"}, actions: ["collMod"]}],
+                    privileges: [
+                        {resource: {db: secondDbName, collection: "foo"}, actions: ["collMod"]},
+                    ],
                 },
             ],
         },
@@ -3194,12 +3430,16 @@ export const authCommandsLib = {
                 {
                     runOnDb: firstDbName,
                     roles: Object.extend({restore: 1}, roles_dbAdmin),
-                    privileges: [{resource: {db: firstDbName, collection: "view"}, actions: ["collMod"]}],
+                    privileges: [
+                        {resource: {db: firstDbName, collection: "view"}, actions: ["collMod"]},
+                    ],
                 },
                 {
                     runOnDb: secondDbName,
                     roles: Object.extend({restore: 1}, roles_dbAdminAny),
-                    privileges: [{resource: {db: secondDbName, collection: "view"}, actions: ["collMod"]}],
+                    privileges: [
+                        {resource: {db: secondDbName, collection: "view"}, actions: ["collMod"]},
+                    ],
                 },
                 // Tests that a user who can both read and modify a view has read privileges on the
                 // view's underlying namespace.
@@ -3240,7 +3480,9 @@ export const authCommandsLib = {
             command: {
                 collMod: "view",
                 viewOn: "bar",
-                pipeline: [{$lookup: {from: "baz", localField: "_id", foreignField: "_id", as: "results"}}],
+                pipeline: [
+                    {$lookup: {from: "baz", localField: "_id", foreignField: "_id", as: "results"}},
+                ],
             },
             testcases: [
                 // Tests that a user who can modify a view (but not read it) may modify it to depend
@@ -3248,12 +3490,16 @@ export const authCommandsLib = {
                 {
                     runOnDb: firstDbName,
                     roles: Object.extend({restore: 1}, roles_dbAdmin),
-                    privileges: [{resource: {db: firstDbName, collection: "view"}, actions: ["collMod"]}],
+                    privileges: [
+                        {resource: {db: firstDbName, collection: "view"}, actions: ["collMod"]},
+                    ],
                 },
                 {
                     runOnDb: secondDbName,
                     roles: Object.extend({restore: 1}, roles_dbAdminAny),
-                    privileges: [{resource: {db: secondDbName, collection: "view"}, actions: ["collMod"]}],
+                    privileges: [
+                        {resource: {db: secondDbName, collection: "view"}, actions: ["collMod"]},
+                    ],
                 },
                 // Tests that a user who can both read and modify a view has read privileges on all
                 // the view's dependent namespaces, including namespaces accessed via $lookup.
@@ -3315,12 +3561,16 @@ export const authCommandsLib = {
                 {
                     runOnDb: firstDbName,
                     roles: Object.extend({restore: 1}, roles_dbAdmin),
-                    privileges: [{resource: {db: firstDbName, collection: "view"}, actions: ["collMod"]}],
+                    privileges: [
+                        {resource: {db: firstDbName, collection: "view"}, actions: ["collMod"]},
+                    ],
                 },
                 {
                     runOnDb: secondDbName,
                     roles: Object.extend({restore: 1}, roles_dbAdminAny),
-                    privileges: [{resource: {db: secondDbName, collection: "view"}, actions: ["collMod"]}],
+                    privileges: [
+                        {resource: {db: secondDbName, collection: "view"}, actions: ["collMod"]},
+                    ],
                 },
                 // Tests that a user who can both read and modify a view has read privileges on all
                 // the view's dependent namespaces, including namespaces accessed via $graphLookup.
@@ -3398,12 +3648,16 @@ export const authCommandsLib = {
                 {
                     runOnDb: firstDbName,
                     roles: Object.extend({restore: 1}, roles_dbAdmin),
-                    privileges: [{resource: {db: firstDbName, collection: "view"}, actions: ["collMod"]}],
+                    privileges: [
+                        {resource: {db: firstDbName, collection: "view"}, actions: ["collMod"]},
+                    ],
                 },
                 {
                     runOnDb: secondDbName,
                     roles: Object.extend({restore: 1}, roles_dbAdminAny),
-                    privileges: [{resource: {db: secondDbName, collection: "view"}, actions: ["collMod"]}],
+                    privileges: [
+                        {resource: {db: secondDbName, collection: "view"}, actions: ["collMod"]},
+                    ],
                 },
                 // Tests that a user who can both read and modify a view has read privileges on all
                 // the view's dependent namespaces, including namespaces accessed via $lookup and
@@ -3465,7 +3719,9 @@ export const authCommandsLib = {
                         searchCoordinator: 1,
                         __system: 1,
                     },
-                    privileges: [{resource: {db: firstDbName, collection: "bar"}, actions: ["collStats"]}],
+                    privileges: [
+                        {resource: {db: firstDbName, collection: "bar"}, actions: ["collStats"]},
+                    ],
                 },
                 {
                     runOnDb: secondDbName,
@@ -3480,7 +3736,9 @@ export const authCommandsLib = {
                         searchCoordinator: 1,
                         __system: 1,
                     },
-                    privileges: [{resource: {db: secondDbName, collection: "bar"}, actions: ["collStats"]}],
+                    privileges: [
+                        {resource: {db: secondDbName, collection: "bar"}, actions: ["collStats"]},
+                    ],
                 },
             ],
         },
@@ -3492,7 +3750,9 @@ export const authCommandsLib = {
                 {
                     runOnDb: adminDbName,
                     roles: Object.extend({enableSharding: 1}, roles_clusterManager),
-                    privileges: [{resource: {db: "test", collection: "x"}, actions: ["reshardCollection"]}],
+                    privileges: [
+                        {resource: {db: "test", collection: "x"}, actions: ["reshardCollection"]},
+                    ],
                     expectFail: true,
                 },
             ],
@@ -3694,12 +3954,16 @@ export const authCommandsLib = {
                 {
                     runOnDb: firstDbName,
                     roles: roles_dbAdmin,
-                    privileges: [{resource: {db: firstDbName, collection: "foo"}, actions: ["compact"]}],
+                    privileges: [
+                        {resource: {db: firstDbName, collection: "foo"}, actions: ["compact"]},
+                    ],
                 },
                 {
                     runOnDb: secondDbName,
                     roles: roles_dbAdminAny,
-                    privileges: [{resource: {db: secondDbName, collection: "foo"}, actions: ["compact"]}],
+                    privileges: [
+                        {resource: {db: secondDbName, collection: "foo"}, actions: ["compact"]},
+                    ],
                 },
             ],
         },
@@ -3730,9 +3994,18 @@ export const authCommandsLib = {
             testcases: [
                 {
                     runOnDb: firstDbName,
-                    roles: {readWrite: 1, readWriteAnyDatabase: 1, dbOwner: 1, root: 1, __system: 1},
+                    roles: {
+                        readWrite: 1,
+                        readWriteAnyDatabase: 1,
+                        dbOwner: 1,
+                        root: 1,
+                        __system: 1,
+                    },
                     privileges: [
-                        {resource: {db: firstDbName, collection: "foo"}, actions: ["compactStructuredEncryptionData"]},
+                        {
+                            resource: {db: firstDbName, collection: "foo"},
+                            actions: ["compactStructuredEncryptionData"],
+                        },
                     ],
                     expectFail: true, // Missing compaction token.
                 },
@@ -3740,7 +4013,10 @@ export const authCommandsLib = {
                     runOnDb: secondDbName,
                     roles: {readWriteAnyDatabase: 1, root: 1, __system: 1},
                     privileges: [
-                        {resource: {db: secondDbName, collection: "foo"}, actions: ["compactStructuredEncryptionData"]},
+                        {
+                            resource: {db: secondDbName, collection: "foo"},
+                            actions: ["compactStructuredEncryptionData"],
+                        },
                     ],
                     expectFail: true, // Missing compaction token.
                 },
@@ -3773,9 +4049,18 @@ export const authCommandsLib = {
             testcases: [
                 {
                     runOnDb: firstDbName,
-                    roles: {readWrite: 1, readWriteAnyDatabase: 1, dbOwner: 1, root: 1, __system: 1},
+                    roles: {
+                        readWrite: 1,
+                        readWriteAnyDatabase: 1,
+                        dbOwner: 1,
+                        root: 1,
+                        __system: 1,
+                    },
                     privileges: [
-                        {resource: {db: firstDbName, collection: "foo"}, actions: ["cleanupStructuredEncryptionData"]},
+                        {
+                            resource: {db: firstDbName, collection: "foo"},
+                            actions: ["cleanupStructuredEncryptionData"],
+                        },
                     ],
                     expectFail: true, // Missing compaction token.
                 },
@@ -3783,7 +4068,10 @@ export const authCommandsLib = {
                     runOnDb: secondDbName,
                     roles: {readWriteAnyDatabase: 1, root: 1, __system: 1},
                     privileges: [
-                        {resource: {db: secondDbName, collection: "foo"}, actions: ["cleanupStructuredEncryptionData"]},
+                        {
+                            resource: {db: secondDbName, collection: "foo"},
+                            actions: ["cleanupStructuredEncryptionData"],
+                        },
                     ],
                     expectFail: true, // Missing compaction token.
                 },
@@ -3936,7 +4224,9 @@ export const authCommandsLib = {
             testcases: [
                 {
                     runOnDb: adminDbName,
-                    privileges: [{resource: {db: "config", collection: "settings"}, actions: ["update"]}],
+                    privileges: [
+                        {resource: {db: "config", collection: "settings"}, actions: ["update"]},
+                    ],
                     expectFail: true, // Command cannot be run on non-config server
                 },
             ],
@@ -3954,7 +4244,9 @@ export const authCommandsLib = {
             testcases: [
                 {
                     runOnDb: adminDbName,
-                    privileges: [{resource: {db: "config", collection: "settings"}, actions: ["update"]}],
+                    privileges: [
+                        {resource: {db: "config", collection: "settings"}, actions: ["update"]},
+                    ],
                     expectFail: true, // Command cannot be run on non-config server
                 },
             ],
@@ -3972,7 +4264,9 @@ export const authCommandsLib = {
             testcases: [
                 {
                     runOnDb: adminDbName,
-                    privileges: [{resource: {db: "config", collection: "settings"}, actions: ["find"]}],
+                    privileges: [
+                        {resource: {db: "config", collection: "settings"}, actions: ["find"]},
+                    ],
                 },
             ],
         },
@@ -3999,11 +4293,15 @@ export const authCommandsLib = {
                 },
                 {
                     runOnDb: adminDbName,
-                    privileges: [{resource: {cluster: true}, actions: ["checkMetadataConsistency"]}],
+                    privileges: [
+                        {resource: {cluster: true}, actions: ["checkMetadataConsistency"]},
+                    ],
                 },
                 {
                     runOnDb: adminDbName,
-                    privileges: [{resource: {db: "", collection: ""}, actions: ["checkMetadataConsistency"]}],
+                    privileges: [
+                        {resource: {db: "", collection: ""}, actions: ["checkMetadataConsistency"]},
+                    ],
                     expectAuthzFailure: true,
                 },
                 {
@@ -4050,11 +4348,15 @@ export const authCommandsLib = {
                 },
                 {
                     runOnDb: "test",
-                    privileges: [{resource: {cluster: true}, actions: ["checkMetadataConsistency"]}],
+                    privileges: [
+                        {resource: {cluster: true}, actions: ["checkMetadataConsistency"]},
+                    ],
                 },
                 {
                     runOnDb: "test",
-                    privileges: [{resource: {db: "", collection: ""}, actions: ["checkMetadataConsistency"]}],
+                    privileges: [
+                        {resource: {db: "", collection: ""}, actions: ["checkMetadataConsistency"]},
+                    ],
                 },
                 {
                     runOnDb: "test",
@@ -4099,11 +4401,15 @@ export const authCommandsLib = {
                 },
                 {
                     runOnDb: "test",
-                    privileges: [{resource: {cluster: true}, actions: ["checkMetadataConsistency"]}],
+                    privileges: [
+                        {resource: {cluster: true}, actions: ["checkMetadataConsistency"]},
+                    ],
                 },
                 {
                     runOnDb: "test",
-                    privileges: [{resource: {db: "", collection: ""}, actions: ["checkMetadataConsistency"]}],
+                    privileges: [
+                        {resource: {db: "", collection: ""}, actions: ["checkMetadataConsistency"]},
+                    ],
                 },
                 {
                     runOnDb: "test",
@@ -4160,7 +4466,9 @@ export const authCommandsLib = {
                 {
                     runOnDb: secondDbName,
                     roles: roles_readAny,
-                    privileges: [{resource: {db: secondDbName, collection: "x"}, actions: ["find"]}],
+                    privileges: [
+                        {resource: {db: secondDbName, collection: "x"}, actions: ["find"]},
+                    ],
                 },
             ],
         },
@@ -4265,12 +4573,19 @@ export const authCommandsLib = {
                 {
                     runOnDb: firstDbName,
                     roles: Object.extend({restore: 1}, roles_writeDbAdmin),
-                    privileges: [{resource: {db: firstDbName, collection: "x"}, actions: ["createCollection"]}],
+                    privileges: [
+                        {
+                            resource: {db: firstDbName, collection: "x"},
+                            actions: ["createCollection"],
+                        },
+                    ],
                 },
                 {
                     runOnDb: firstDbName,
                     roles: Object.extend({restore: 1}, roles_writeDbAdmin),
-                    privileges: [{resource: {db: firstDbName, collection: "x"}, actions: ["insert"]}],
+                    privileges: [
+                        {resource: {db: firstDbName, collection: "x"}, actions: ["insert"]},
+                    ],
                 },
                 {
                     runOnDb: secondDbName,
@@ -4285,7 +4600,9 @@ export const authCommandsLib = {
                 {
                     runOnDb: secondDbName,
                     roles: Object.extend({restore: 1}, roles_writeDbAdminAny),
-                    privileges: [{resource: {db: secondDbName, collection: "x"}, actions: ["insert"]}],
+                    privileges: [
+                        {resource: {db: secondDbName, collection: "x"}, actions: ["insert"]},
+                    ],
                 },
             ],
         },
@@ -4351,7 +4668,9 @@ export const authCommandsLib = {
             command: {
                 create: "view",
                 viewOn: "foo",
-                pipeline: [{$lookup: {from: "bar", localField: "_id", foreignField: "_id", as: "results"}}],
+                pipeline: [
+                    {$lookup: {from: "bar", localField: "_id", foreignField: "_id", as: "results"}},
+                ],
             },
             teardown: function (db) {
                 db.view.drop();
@@ -4645,7 +4964,9 @@ export const authCommandsLib = {
                         root: 1,
                         __system: 1,
                     }),
-                    privileges: [{resource: {db: firstDbName, collection: "x"}, actions: ["createIndex"]}],
+                    privileges: [
+                        {resource: {db: firstDbName, collection: "x"}, actions: ["createIndex"]},
+                    ],
                 },
             ],
         },
@@ -4668,7 +4989,12 @@ export const authCommandsLib = {
                         root: 1,
                         __system: 1,
                     }),
-                    privileges: [{resource: {db: firstDbName, collection: "x"}, actions: ["createSearchIndexes"]}],
+                    privileges: [
+                        {
+                            resource: {db: firstDbName, collection: "x"},
+                            actions: ["createSearchIndexes"],
+                        },
+                    ],
                     expectFail: true,
                 },
             ],
@@ -4729,7 +5055,9 @@ export const authCommandsLib = {
                 {
                     runOnDb: secondDbName,
                     roles: roles_readAny,
-                    privileges: [{resource: {db: secondDbName, collection: "x"}, actions: ["find"]}],
+                    privileges: [
+                        {resource: {db: secondDbName, collection: "x"}, actions: ["find"]},
+                    ],
                 },
             ],
         },
@@ -4750,12 +5078,22 @@ export const authCommandsLib = {
                         searchCoordinator: 1,
                         __system: 1,
                     },
-                    privileges: [{resource: {db: firstDbName, collection: ""}, actions: ["dbHash"]}],
+                    privileges: [
+                        {resource: {db: firstDbName, collection: ""}, actions: ["dbHash"]},
+                    ],
                 },
                 {
                     runOnDb: secondDbName,
-                    roles: {readAnyDatabase: 1, readWriteAnyDatabase: 1, root: 1, searchCoordinator: 1, __system: 1},
-                    privileges: [{resource: {db: secondDbName, collection: ""}, actions: ["dbHash"]}],
+                    roles: {
+                        readAnyDatabase: 1,
+                        readWriteAnyDatabase: 1,
+                        root: 1,
+                        searchCoordinator: 1,
+                        __system: 1,
+                    },
+                    privileges: [
+                        {resource: {db: secondDbName, collection: ""}, actions: ["dbHash"]},
+                    ],
                 },
             ],
         },
@@ -4779,7 +5117,9 @@ export const authCommandsLib = {
                         searchCoordinator: 1,
                         __system: 1,
                     },
-                    privileges: [{resource: {db: firstDbName, collection: ""}, actions: ["dbStats"]}],
+                    privileges: [
+                        {resource: {db: firstDbName, collection: ""}, actions: ["dbStats"]},
+                    ],
                 },
                 {
                     runOnDb: secondDbName,
@@ -4793,7 +5133,9 @@ export const authCommandsLib = {
                         searchCoordinator: 1,
                         __system: 1,
                     },
-                    privileges: [{resource: {db: secondDbName, collection: ""}, actions: ["dbStats"]}],
+                    privileges: [
+                        {resource: {db: secondDbName, collection: ""}, actions: ["dbStats"]},
+                    ],
                 },
             ],
         },
@@ -4804,12 +5146,16 @@ export const authCommandsLib = {
                 {
                     runOnDb: firstDbName,
                     roles: roles_read,
-                    privileges: [{resource: {db: firstDbName, collection: "coll"}, actions: ["find"]}],
+                    privileges: [
+                        {resource: {db: firstDbName, collection: "coll"}, actions: ["find"]},
+                    ],
                 },
                 {
                     runOnDb: secondDbName,
                     roles: roles_readAny,
-                    privileges: [{resource: {db: secondDbName, collection: "coll"}, actions: ["find"]}],
+                    privileges: [
+                        {resource: {db: secondDbName, collection: "coll"}, actions: ["find"]},
+                    ],
                 },
             ],
         },
@@ -4823,7 +5169,9 @@ export const authCommandsLib = {
                 {
                     runOnDb: firstDbName,
                     roles: Object.extend({restore: 1}, roles_writeDbAdmin),
-                    privileges: [{resource: {db: firstDbName, collection: "x"}, actions: ["dropCollection"]}],
+                    privileges: [
+                        {resource: {db: firstDbName, collection: "x"}, actions: ["dropCollection"]},
+                    ],
                 },
                 {
                     runOnDb: secondDbName,
@@ -4890,12 +5238,16 @@ export const authCommandsLib = {
                         root: 1,
                         __system: 1,
                     },
-                    privileges: [{resource: {db: firstDbName, collection: ""}, actions: ["dropDatabase"]}],
+                    privileges: [
+                        {resource: {db: firstDbName, collection: ""}, actions: ["dropDatabase"]},
+                    ],
                 },
                 {
                     runOnDb: secondDbName,
                     roles: {dbAdminAnyDatabase: 1, clusterAdmin: 1, root: 1, __system: 1},
-                    privileges: [{resource: {db: secondDbName, collection: ""}, actions: ["dropDatabase"]}],
+                    privileges: [
+                        {resource: {db: secondDbName, collection: ""}, actions: ["dropDatabase"]},
+                    ],
                 },
             ],
         },
@@ -4906,12 +5258,16 @@ export const authCommandsLib = {
                 {
                     runOnDb: firstDbName,
                     roles: roles_writeDbAdmin,
-                    privileges: [{resource: {db: firstDbName, collection: "x"}, actions: ["dropIndex"]}],
+                    privileges: [
+                        {resource: {db: firstDbName, collection: "x"}, actions: ["dropIndex"]},
+                    ],
                 },
                 {
                     runOnDb: secondDbName,
                     roles: roles_writeDbAdminAny,
-                    privileges: [{resource: {db: secondDbName, collection: "x"}, actions: ["dropIndex"]}],
+                    privileges: [
+                        {resource: {db: secondDbName, collection: "x"}, actions: ["dropIndex"]},
+                    ],
                 },
             ],
         },
@@ -4925,13 +5281,23 @@ export const authCommandsLib = {
                 {
                     runOnDb: firstDbName,
                     roles: roles_writeDbAdmin,
-                    privileges: [{resource: {db: firstDbName, collection: "x"}, actions: ["dropSearchIndex"]}],
+                    privileges: [
+                        {
+                            resource: {db: firstDbName, collection: "x"},
+                            actions: ["dropSearchIndex"],
+                        },
+                    ],
                     expectFail: true,
                 },
                 {
                     runOnDb: secondDbName,
                     roles: roles_writeDbAdminAny,
-                    privileges: [{resource: {db: secondDbName, collection: "x"}, actions: ["dropSearchIndex"]}],
+                    privileges: [
+                        {
+                            resource: {db: secondDbName, collection: "x"},
+                            actions: ["dropSearchIndex"],
+                        },
+                    ],
                     expectFail: true,
                 },
             ],
@@ -4944,7 +5310,9 @@ export const authCommandsLib = {
                 {
                     runOnDb: adminDbName,
                     roles: Object.extend({enableSharding: 1}, roles_clusterManager),
-                    privileges: [{resource: {db: "x", collection: ""}, actions: ["enableSharding"]}],
+                    privileges: [
+                        {resource: {db: "x", collection: ""}, actions: ["enableSharding"]},
+                    ],
                     expectFail: true,
                 },
                 {runOnDb: firstDbName, roles: {}},
@@ -4980,7 +5348,9 @@ export const authCommandsLib = {
             command: {filemd5: 1, root: "fs"},
             setup: function (db) {
                 db.fs.chunks.drop();
-                assert.writeOK(db.fs.chunks.insert({files_id: 1, n: 0, data: new BinData(0, "test")}));
+                assert.writeOK(
+                    db.fs.chunks.insert({files_id: 1, n: 0, data: new BinData(0, "test")}),
+                );
                 assert.commandWorked(db.fs.chunks.createIndex({files_id: 1, n: 1}));
             },
             teardown: function (db) {
@@ -5019,12 +5389,16 @@ export const authCommandsLib = {
                 {
                     runOnDb: firstDbName,
                     roles: roles_read,
-                    privileges: [{resource: {db: firstDbName, collection: "foo"}, actions: ["find"]}],
+                    privileges: [
+                        {resource: {db: firstDbName, collection: "foo"}, actions: ["find"]},
+                    ],
                 },
                 {
                     runOnDb: secondDbName,
                     roles: roles_readAny,
-                    privileges: [{resource: {db: secondDbName, collection: "foo"}, actions: ["find"]}],
+                    privileges: [
+                        {resource: {db: secondDbName, collection: "foo"}, actions: ["find"]},
+                    ],
                 },
             ],
         },
@@ -5062,7 +5436,9 @@ export const authCommandsLib = {
                         "__system": 1,
                         "searchCoordinator": 1,
                     },
-                    privileges: [{resource: {db: "config", collection: "changelog"}, actions: ["find"]}],
+                    privileges: [
+                        {resource: {db: "config", collection: "changelog"}, actions: ["find"]},
+                    ],
                 },
             ],
         },
@@ -5104,7 +5480,9 @@ export const authCommandsLib = {
                         "__system": 1,
                         searchCoordinator: 1,
                     },
-                    privileges: [{resource: {db: "local", collection: "oplog.$main"}, actions: ["find"]}],
+                    privileges: [
+                        {resource: {db: "local", collection: "oplog.$main"}, actions: ["find"]},
+                    ],
                 },
             ],
         },
@@ -5125,7 +5503,9 @@ export const authCommandsLib = {
                         "__system": 1,
                         searchCoordinator: 1,
                     },
-                    privileges: [{resource: {db: "local", collection: "oplog.rs"}, actions: ["find"]}],
+                    privileges: [
+                        {resource: {db: "local", collection: "oplog.rs"}, actions: ["find"]},
+                    ],
                 },
             ],
         },
@@ -5144,7 +5524,12 @@ export const authCommandsLib = {
                         "__system": 1,
                         searchCoordinator: 1,
                     },
-                    privileges: [{resource: {db: "local", collection: "replset.election"}, actions: ["find"]}],
+                    privileges: [
+                        {
+                            resource: {db: "local", collection: "replset.election"},
+                            actions: ["find"],
+                        },
+                    ],
                 },
             ],
         },
@@ -5163,7 +5548,12 @@ export const authCommandsLib = {
                         "__system": 1,
                         searchCoordinator: 1,
                     },
-                    privileges: [{resource: {db: "local", collection: "replset.minvalid"}, actions: ["find"]}],
+                    privileges: [
+                        {
+                            resource: {db: "local", collection: "replset.minvalid"},
+                            actions: ["find"],
+                        },
+                    ],
                 },
             ],
         },
@@ -5184,7 +5574,9 @@ export const authCommandsLib = {
                         "__system": 1,
                         searchCoordinator: 1,
                     },
-                    privileges: [{resource: {db: "local", collection: "sources"}, actions: ["find"]}],
+                    privileges: [
+                        {resource: {db: "local", collection: "sources"}, actions: ["find"]},
+                    ],
                 },
             ],
         },
@@ -5205,7 +5597,9 @@ export const authCommandsLib = {
                         "__system": 1,
                         searchCoordinator: 1,
                     },
-                    privileges: [{resource: {db: "local", collection: "startup_log"}, actions: ["find"]}],
+                    privileges: [
+                        {resource: {db: "local", collection: "startup_log"}, actions: ["find"]},
+                    ],
                 },
             ],
         },
@@ -5224,12 +5618,16 @@ export const authCommandsLib = {
                 {
                     runOnDb: firstDbName,
                     roles: roles_read,
-                    privileges: [{resource: {db: firstDbName, collection: "view"}, actions: ["find"]}],
+                    privileges: [
+                        {resource: {db: firstDbName, collection: "view"}, actions: ["find"]},
+                    ],
                 },
                 {
                     runOnDb: secondDbName,
                     roles: roles_readAny,
-                    privileges: [{resource: {db: secondDbName, collection: "view"}, actions: ["find"]}],
+                    privileges: [
+                        {resource: {db: secondDbName, collection: "view"}, actions: ["find"]},
+                    ],
                 },
             ],
         },
@@ -5286,8 +5684,16 @@ export const authCommandsLib = {
             testcases: [
                 {
                     runOnDb: firstDbName,
-                    roles: {readWrite: 1, readWriteAnyDatabase: 1, dbOwner: 1, root: 1, __system: 1},
-                    privileges: [{resource: {db: firstDbName, collection: "x"}, actions: ["find", "update"]}],
+                    roles: {
+                        readWrite: 1,
+                        readWriteAnyDatabase: 1,
+                        dbOwner: 1,
+                        root: 1,
+                        __system: 1,
+                    },
+                    privileges: [
+                        {resource: {db: firstDbName, collection: "x"}, actions: ["find", "update"]},
+                    ],
                 },
                 {
                     runOnDb: secondDbName,
@@ -5377,7 +5783,9 @@ export const authCommandsLib = {
                 {
                     runOnDb: adminDbName,
                     roles: roles_monitoring,
-                    privileges: [{resource: {db: "test", collection: ""}, actions: ["getDatabaseVersion"]}],
+                    privileges: [
+                        {resource: {db: "test", collection: ""}, actions: ["getDatabaseVersion"]},
+                    ],
                     expectFail: true, // only allowed on shard servers
                 },
                 {runOnDb: firstDbName, roles: {}},
@@ -5482,7 +5890,9 @@ export const authCommandsLib = {
             testname: "getQueryableEncryptionCountInfo",
             command: {
                 getQueryableEncryptionCountInfo: "foo",
-                tokens: [{tokens: [{"s": BinData(0, "lUBO7Mov5Sb+c/D4cJ9whhhw/+PZFLCk/AQU2+BpumQ=")}]}],
+                tokens: [
+                    {tokens: [{"s": BinData(0, "lUBO7Mov5Sb+c/D4cJ9whhhw/+PZFLCk/AQU2+BpumQ=")}]},
+                ],
                 "queryType": "insert",
             },
             testcases: [
@@ -5514,7 +5924,9 @@ export const authCommandsLib = {
                 {
                     runOnDb: adminDbName,
                     roles: roles_monitoring,
-                    privileges: [{resource: {db: "test", collection: "foo"}, actions: ["getShardVersion"]}],
+                    privileges: [
+                        {resource: {db: "test", collection: "foo"}, actions: ["getShardVersion"]},
+                    ],
                     expectFail: true,
                 },
                 {runOnDb: firstDbName, roles: {}},
@@ -5529,7 +5941,12 @@ export const authCommandsLib = {
                 {
                     runOnDb: adminDbName,
                     roles: Object.merge(roles_monitoring, roles_clusterManager),
-                    privileges: [{resource: {cluster: true}, actions: ["getTransitionToDedicatedConfigServerStatus"]}],
+                    privileges: [
+                        {
+                            resource: {cluster: true},
+                            actions: ["getTransitionToDedicatedConfigServerStatus"],
+                        },
+                    ],
                     expectFail: true,
                 },
             ],
@@ -5637,12 +6054,16 @@ export const authCommandsLib = {
                 {
                     runOnDb: firstDbName,
                     roles: roles_write,
-                    privileges: [{resource: {db: firstDbName, collection: "foo"}, actions: ["insert"]}],
+                    privileges: [
+                        {resource: {db: firstDbName, collection: "foo"}, actions: ["insert"]},
+                    ],
                 },
                 {
                     runOnDb: secondDbName,
                     roles: {"readWriteAnyDatabase": 1, "root": 1, "__system": 1, "restore": 1},
-                    privileges: [{resource: {db: secondDbName, collection: "foo"}, actions: ["insert"]}],
+                    privileges: [
+                        {resource: {db: secondDbName, collection: "foo"}, actions: ["insert"]},
+                    ],
                 },
             ],
         },
@@ -5652,8 +6073,16 @@ export const authCommandsLib = {
             testcases: [
                 {
                     runOnDb: "config",
-                    roles: {"clusterAdmin": 1, "clusterManager": 1, "root": 1, "__system": 1, "restore": 1},
-                    privileges: [{resource: {db: "config", collection: "changelog"}, actions: ["insert"]}],
+                    roles: {
+                        "clusterAdmin": 1,
+                        "clusterManager": 1,
+                        "root": 1,
+                        "__system": 1,
+                        "restore": 1,
+                    },
+                    privileges: [
+                        {resource: {db: "config", collection: "changelog"}, actions: ["insert"]},
+                    ],
                 },
             ],
         },
@@ -5705,13 +6134,17 @@ export const authCommandsLib = {
             skipReplicaSet: true, // Write operations to oplog on clusters running as replica sets are unavailable since 5.0.
             setup: function (db) {
                 if (!db.getCollectionNames().includes("oplog.rs")) {
-                    assert.commandWorked(db.runCommand({create: "oplog.rs", capped: true, size: 10000}));
+                    assert.commandWorked(
+                        db.runCommand({create: "oplog.rs", capped: true, size: 10000}),
+                    );
                 } else {
                     if (storageEngineIsWiredTigerOrInMemory()) {
                         assert.commandWorked(db.adminCommand({replSetResizeOplog: 1, size: 10000}));
                     } else {
                         assert.commandWorked(db.runCommand({drop: "oplog.rs"}));
-                        assert.commandWorked(db.runCommand({create: "oplog.rs", capped: true, size: 10000}));
+                        assert.commandWorked(
+                            db.runCommand({create: "oplog.rs", capped: true, size: 10000}),
+                        );
                     }
                 }
             },
@@ -5729,7 +6162,9 @@ export const authCommandsLib = {
                         "root": 1,
                         "__system": 1,
                     },
-                    privileges: [{resource: {db: "local", collection: "oplog.rs"}, actions: ["insert"]}],
+                    privileges: [
+                        {resource: {db: "local", collection: "oplog.rs"}, actions: ["insert"]},
+                    ],
                 },
             ],
         },
@@ -5741,8 +6176,19 @@ export const authCommandsLib = {
             testcases: [
                 {
                     runOnDb: "local",
-                    roles: {"clusterAdmin": 1, "clusterManager": 1, "root": 1, "__system": 1, "restore": 1},
-                    privileges: [{resource: {db: "local", collection: "replset.election"}, actions: ["insert"]}],
+                    roles: {
+                        "clusterAdmin": 1,
+                        "clusterManager": 1,
+                        "root": 1,
+                        "__system": 1,
+                        "restore": 1,
+                    },
+                    privileges: [
+                        {
+                            resource: {db: "local", collection: "replset.election"},
+                            actions: ["insert"],
+                        },
+                    ],
                 },
             ],
         },
@@ -5753,8 +6199,19 @@ export const authCommandsLib = {
             testcases: [
                 {
                     runOnDb: "local",
-                    roles: {"clusterAdmin": 1, "clusterManager": 1, "root": 1, "__system": 1, "restore": 1},
-                    privileges: [{resource: {db: "local", collection: "replset.minvalid"}, actions: ["insert"]}],
+                    roles: {
+                        "clusterAdmin": 1,
+                        "clusterManager": 1,
+                        "root": 1,
+                        "__system": 1,
+                        "restore": 1,
+                    },
+                    privileges: [
+                        {
+                            resource: {db: "local", collection: "replset.minvalid"},
+                            actions: ["insert"],
+                        },
+                    ],
                 },
             ],
         },
@@ -5773,7 +6230,9 @@ export const authCommandsLib = {
                 {
                     runOnDb: "admin",
                     roles: {"root": 1, "__system": 1, "restore": 1},
-                    privileges: [{resource: {db: "admin", collection: "system.users"}, actions: ["insert"]}],
+                    privileges: [
+                        {resource: {db: "admin", collection: "system.users"}, actions: ["insert"]},
+                    ],
                     expectFail: true,
                 },
             ],
@@ -5793,7 +6252,9 @@ export const authCommandsLib = {
                         "__system": 1,
                         "restore": 1,
                     },
-                    privileges: [{resource: {db: "local", collection: "sources"}, actions: ["insert"]}],
+                    privileges: [
+                        {resource: {db: "local", collection: "sources"}, actions: ["insert"]},
+                    ],
                 },
             ],
         },
@@ -5812,7 +6273,9 @@ export const authCommandsLib = {
                         "__system": 1,
                         "restore": 1,
                     },
-                    privileges: [{resource: {db: "local", collection: "startup_log"}, actions: ["insert"]}],
+                    privileges: [
+                        {resource: {db: "local", collection: "startup_log"}, actions: ["insert"]},
+                    ],
                 },
             ],
         },
@@ -5856,7 +6319,9 @@ export const authCommandsLib = {
                         searchCoordinator: 1,
                         __system: 1,
                     },
-                    privileges: [{resource: {db: firstDbName, collection: "foo"}, actions: ["find"]}],
+                    privileges: [
+                        {resource: {db: firstDbName, collection: "foo"}, actions: ["find"]},
+                    ],
                     expectFail: true,
                 },
                 {
@@ -5869,7 +6334,9 @@ export const authCommandsLib = {
                         searchCoordinator: 1,
                         __system: 1,
                     },
-                    privileges: [{resource: {db: secondDbName, collection: "foo"}, actions: ["find"]}],
+                    privileges: [
+                        {resource: {db: secondDbName, collection: "foo"}, actions: ["find"]},
+                    ],
                     expectFail: true,
                 },
             ],
@@ -6018,7 +6485,9 @@ export const authCommandsLib = {
                         searchCoordinator: 1,
                         __system: 1,
                     },
-                    privileges: [{resource: {db: firstDbName, collection: ""}, actions: ["listCollections"]}],
+                    privileges: [
+                        {resource: {db: firstDbName, collection: ""}, actions: ["listCollections"]},
+                    ],
                 },
             ],
         },
@@ -6081,7 +6550,9 @@ export const authCommandsLib = {
                 },
                 {
                     runOnDb: firstDbName,
-                    privileges: [{resource: {db: secondDbName, collection: "x"}, actions: ["find"]}],
+                    privileges: [
+                        {resource: {db: secondDbName, collection: "x"}, actions: ["find"]},
+                    ],
                     expectAuthzFailure: true,
                 },
                 {runOnDb: firstDbName, privileges: [], expectAuthzFailure: true},
@@ -6119,7 +6590,9 @@ export const authCommandsLib = {
                         searchCoordinator: 1,
                         __system: 1,
                     },
-                    privileges: [{resource: {db: firstDbName, collection: ""}, actions: ["listIndexes"]}],
+                    privileges: [
+                        {resource: {db: firstDbName, collection: ""}, actions: ["listIndexes"]},
+                    ],
                 },
             ],
         },
@@ -6169,7 +6642,12 @@ export const authCommandsLib = {
                         searchCoordinator: 1,
                         __system: 1,
                     },
-                    privileges: [{resource: {db: firstDbName, collection: ""}, actions: ["listSearchIndexes"]}],
+                    privileges: [
+                        {
+                            resource: {db: firstDbName, collection: ""},
+                            actions: ["listSearchIndexes"],
+                        },
+                    ],
                     expectFail: true,
                 },
             ],
@@ -6229,7 +6707,9 @@ export const authCommandsLib = {
                 {
                     runOnDb: secondDbName,
                     roles: roles_readAny,
-                    privileges: [{resource: {db: secondDbName, collection: "x"}, actions: ["find"]}],
+                    privileges: [
+                        {resource: {db: secondDbName, collection: "x"}, actions: ["find"]},
+                    ],
                 },
             ],
         },
@@ -6255,7 +6735,13 @@ export const authCommandsLib = {
             testcases: [
                 {
                     runOnDb: firstDbName,
-                    roles: {readWrite: 1, readWriteAnyDatabase: 1, dbOwner: 1, root: 1, __system: 1},
+                    roles: {
+                        readWrite: 1,
+                        readWriteAnyDatabase: 1,
+                        dbOwner: 1,
+                        root: 1,
+                        __system: 1,
+                    },
                     privileges: [
                         {resource: {db: firstDbName, collection: "x"}, actions: ["find"]},
                         {
@@ -6285,7 +6771,9 @@ export const authCommandsLib = {
                 {
                     runOnDb: adminDbName,
                     roles: roles_clusterManager,
-                    privileges: [{resource: {db: "test", collection: "x"}, actions: ["splitChunk"]}],
+                    privileges: [
+                        {resource: {db: "test", collection: "x"}, actions: ["splitChunk"]},
+                    ],
                     expectFail: true,
                 },
                 {runOnDb: firstDbName, roles: {}},
@@ -6294,7 +6782,11 @@ export const authCommandsLib = {
         },
         {
             testname: "d_mergeChunks",
-            command: {mergeChunks: "test.x", bounds: [{i: 0}, {i: 5}], epoch: ObjectId("57dc3d7da4fce4358afa85b8")},
+            command: {
+                mergeChunks: "test.x",
+                bounds: [{i: 0}, {i: 5}],
+                epoch: ObjectId("57dc3d7da4fce4358afa85b8"),
+            },
             skipSharded: true,
             testcases: [
                 {
@@ -6318,13 +6810,23 @@ export const authCommandsLib = {
                 {
                     runOnDb: firstDbName,
                     roles: Object.extend({restore: 1}, roles_writeDbAdmin),
-                    privileges: [{resource: {db: firstDbName, collection: "foo"}, actions: ["updateSearchIndex"]}],
+                    privileges: [
+                        {
+                            resource: {db: firstDbName, collection: "foo"},
+                            actions: ["updateSearchIndex"],
+                        },
+                    ],
                     expectFail: true,
                 },
                 {
                     runOnDb: secondDbName,
                     roles: Object.extend({restore: 1}, roles_writeDbAdminAny),
-                    privileges: [{resource: {db: secondDbName, collection: "foo"}, actions: ["updateSearchIndex"]}],
+                    privileges: [
+                        {
+                            resource: {db: secondDbName, collection: "foo"},
+                            actions: ["updateSearchIndex"],
+                        },
+                    ],
                     expectFail: true,
                 },
             ],
@@ -6346,7 +6848,14 @@ export const authCommandsLib = {
         },
         {
             testname: "d_moveChunk",
-            command: {moveChunk: "test.x", fromShard: "a", toShard: "b", min: {}, max: {}, maxChunkSizeBytes: 1024},
+            command: {
+                moveChunk: "test.x",
+                fromShard: "a",
+                toShard: "b",
+                min: {},
+                max: {},
+                maxChunkSizeBytes: 1024,
+            },
             skipSharded: true,
             testcases: [
                 {
@@ -6368,7 +6877,9 @@ export const authCommandsLib = {
                 {
                     runOnDb: adminDbName,
                     roles: Object.extend({enableSharding: 1}, roles_clusterManager),
-                    privileges: [{resource: {db: "test", collection: "x"}, actions: ["moveCollection"]}],
+                    privileges: [
+                        {resource: {db: "test", collection: "x"}, actions: ["moveCollection"]},
+                    ],
                     expectFail: true,
                 },
                 {runOnDb: firstDbName, roles: {}},
@@ -6472,7 +6983,9 @@ export const authCommandsLib = {
                 {
                     runOnDb: adminDbName,
                     roles: roles_hostManager,
-                    privileges: [{resource: {cluster: true}, actions: ["getESERotateActiveKEKStatus"]}],
+                    privileges: [
+                        {resource: {cluster: true}, actions: ["getESERotateActiveKEKStatus"]},
+                    ],
                     expectFail: true,
                 },
             ],
@@ -6489,7 +7002,9 @@ export const authCommandsLib = {
                 {
                     runOnDb: adminDbName,
                     roles: roles_hostManager,
-                    privileges: [{resource: {cluster: true}, actions: ["updateESECMKIdentifierList"]}],
+                    privileges: [
+                        {resource: {cluster: true}, actions: ["updateESECMKIdentifierList"]},
+                    ],
                     expectFail: true,
                 },
             ],
@@ -6506,7 +7021,9 @@ export const authCommandsLib = {
                 {
                     runOnDb: adminDbName,
                     roles: roles_hostManager,
-                    privileges: [{resource: {cluster: true}, actions: ["getESECMKIdentifierListStatus"]}],
+                    privileges: [
+                        {resource: {cluster: true}, actions: ["getESECMKIdentifierListStatus"]},
+                    ],
                     expectFail: true,
                 },
             ],
@@ -6590,12 +7107,19 @@ export const authCommandsLib = {
                 {
                     runOnDb: firstDbName,
                     roles: roles_dbAdmin,
-                    privileges: [{resource: {db: firstDbName, collection: "x"}, actions: ["planCacheWrite"]}],
+                    privileges: [
+                        {resource: {db: firstDbName, collection: "x"}, actions: ["planCacheWrite"]},
+                    ],
                 },
                 {
                     runOnDb: secondDbName,
                     roles: roles_dbAdminAny,
-                    privileges: [{resource: {db: secondDbName, collection: "x"}, actions: ["planCacheWrite"]}],
+                    privileges: [
+                        {
+                            resource: {db: secondDbName, collection: "x"},
+                            actions: ["planCacheWrite"],
+                        },
+                    ],
                 },
             ],
         },
@@ -6616,12 +7140,16 @@ export const authCommandsLib = {
                 {
                     runOnDb: firstDbName,
                     roles: roles_dbAdmin,
-                    privileges: [{resource: {db: firstDbName, collection: ""}, actions: ["enableProfiler"]}],
+                    privileges: [
+                        {resource: {db: firstDbName, collection: ""}, actions: ["enableProfiler"]},
+                    ],
                 },
                 {
                     runOnDb: secondDbName,
                     roles: roles_dbAdminAny,
-                    privileges: [{resource: {db: secondDbName, collection: ""}, actions: ["enableProfiler"]}],
+                    privileges: [
+                        {resource: {db: secondDbName, collection: ""}, actions: ["enableProfiler"]},
+                    ],
                 },
             ],
         },
@@ -6699,12 +7227,16 @@ export const authCommandsLib = {
                 {
                     runOnDb: firstDbName,
                     roles: roles_dbAdmin,
-                    privileges: [{resource: {db: firstDbName, collection: ""}, actions: ["enableProfiler"]}],
+                    privileges: [
+                        {resource: {db: firstDbName, collection: ""}, actions: ["enableProfiler"]},
+                    ],
                 },
                 {
                     runOnDb: secondDbName,
                     roles: roles_dbAdminAny,
-                    privileges: [{resource: {db: secondDbName, collection: ""}, actions: ["enableProfiler"]}],
+                    privileges: [
+                        {resource: {db: secondDbName, collection: ""}, actions: ["enableProfiler"]},
+                    ],
                 },
             ],
         },
@@ -6715,12 +7247,16 @@ export const authCommandsLib = {
                 {
                     runOnDb: firstDbName,
                     roles: roles_dbAdmin,
-                    privileges: [{resource: {db: firstDbName, collection: ""}, actions: ["enableProfiler"]}],
+                    privileges: [
+                        {resource: {db: firstDbName, collection: ""}, actions: ["enableProfiler"]},
+                    ],
                 },
                 {
                     runOnDb: secondDbName,
                     roles: roles_dbAdminAny,
-                    privileges: [{resource: {db: secondDbName, collection: ""}, actions: ["enableProfiler"]}],
+                    privileges: [
+                        {resource: {db: secondDbName, collection: ""}, actions: ["enableProfiler"]},
+                    ],
                 },
             ],
         },
@@ -6732,7 +7268,9 @@ export const authCommandsLib = {
                 {
                     runOnDb: adminDbName,
                     roles: roles_dbAdminAny,
-                    privileges: [{resource: {db: adminDbName, collection: ""}, actions: ["enableProfiler"]}],
+                    privileges: [
+                        {resource: {db: adminDbName, collection: ""}, actions: ["enableProfiler"]},
+                    ],
                 },
                 {
                     runOnDb: firstDbName,
@@ -6828,7 +7366,11 @@ export const authCommandsLib = {
         },
         {
             testname: "renameCollection_sameDb",
-            command: {renameCollection: firstDbName + ".x", to: firstDbName + ".y", dropTarget: true},
+            command: {
+                renameCollection: firstDbName + ".x",
+                to: firstDbName + ".y",
+                dropTarget: true,
+            },
             setup: function (db) {
                 assert.writeOK(db.getSiblingDB(firstDbName).x.save({}));
             },
@@ -6889,13 +7431,18 @@ export const authCommandsLib = {
                 // Running movePrimary is necessary on mongos, but doesn't exist on non-sharded
                 // systems.
                 if (db.getMongo().isMongos()) {
-                    const shardId = assert.commandWorked(db.getSiblingDB(adminDbName).runCommand({listShards: 1}))
-                        .shards[0]["_id"];
+                    const shardId = assert.commandWorked(
+                        db.getSiblingDB(adminDbName).runCommand({listShards: 1}),
+                    ).shards[0]["_id"];
                     assert.commandWorked(
-                        db.getSiblingDB(adminDbName).runCommand({movePrimary: firstDbName, to: shardId}),
+                        db
+                            .getSiblingDB(adminDbName)
+                            .runCommand({movePrimary: firstDbName, to: shardId}),
                     );
                     assert.commandWorked(
-                        db.getSiblingDB(adminDbName).runCommand({movePrimary: secondDbName, to: shardId}),
+                        db
+                            .getSiblingDB(adminDbName)
+                            .runCommand({movePrimary: secondDbName, to: shardId}),
                     );
                 }
             },
@@ -6937,12 +7484,16 @@ export const authCommandsLib = {
                 {
                     runOnDb: firstDbName,
                     roles: roles_dbAdmin,
-                    privileges: [{resource: {db: firstDbName, collection: "x"}, actions: ["reIndex"]}],
+                    privileges: [
+                        {resource: {db: firstDbName, collection: "x"}, actions: ["reIndex"]},
+                    ],
                 },
                 {
                     runOnDb: secondDbName,
                     roles: roles_dbAdminAny,
-                    privileges: [{resource: {db: secondDbName, collection: "x"}, actions: ["reIndex"]}],
+                    privileges: [
+                        {resource: {db: secondDbName, collection: "x"}, actions: ["reIndex"]},
+                    ],
                 },
             ],
         },
@@ -7148,7 +7699,9 @@ export const authCommandsLib = {
                 {
                     runOnDb: adminDbName,
                     roles: Object.extend({enableSharding: 1}, roles_clusterManager),
-                    privileges: [{resource: {db: "test", collection: "x"}, actions: ["reshardCollection"]}],
+                    privileges: [
+                        {resource: {db: "test", collection: "x"}, actions: ["reshardCollection"]},
+                    ],
                     expectFail: true,
                 },
                 {runOnDb: firstDbName, roles: {}},
@@ -7163,7 +7716,9 @@ export const authCommandsLib = {
                 {
                     runOnDb: adminDbName,
                     roles: Object.extend({enableSharding: 1}, roles_clusterManager),
-                    privileges: [{resource: {db: "test", collection: "x"}, actions: ["rewriteCollection"]}],
+                    privileges: [
+                        {resource: {db: "test", collection: "x"}, actions: ["rewriteCollection"]},
+                    ],
                     expectFail: true,
                 },
                 {runOnDb: firstDbName, roles: {}},
@@ -7279,7 +7834,9 @@ export const authCommandsLib = {
                 {
                     runOnDb: adminDbName,
                     roles: roles_clusterManager,
-                    privileges: [{resource: {cluster: true}, actions: ["setFeatureCompatibilityVersion"]}],
+                    privileges: [
+                        {resource: {cluster: true}, actions: ["setFeatureCompatibilityVersion"]},
+                    ],
                     expectFail: true,
                 },
                 {runOnDb: firstDbName, roles: {}},
@@ -7298,7 +7855,9 @@ export const authCommandsLib = {
                 },
                 {
                     runOnDb: firstDbName,
-                    privileges: [{resource: {db: firstDbName, collection: ""}, actions: ["enableProfiler"]}],
+                    privileges: [
+                        {resource: {db: firstDbName, collection: ""}, actions: ["enableProfiler"]},
+                    ],
                     expectAuthzFailure: true,
                 },
             ],
@@ -7353,7 +7912,9 @@ export const authCommandsLib = {
                 {
                     runOnDb: adminDbName,
                     roles: Object.extend({enableSharding: 1}, roles_clusterManager),
-                    privileges: [{resource: {db: "test", collection: "x"}, actions: ["enableSharding"]}],
+                    privileges: [
+                        {resource: {db: "test", collection: "x"}, actions: ["enableSharding"]},
+                    ],
                     expectFail: true,
                 },
                 {runOnDb: firstDbName, roles: {}},
@@ -7403,7 +7964,9 @@ export const authCommandsLib = {
                 {
                     runOnDb: adminDbName,
                     roles: roles_clusterManager,
-                    privileges: [{resource: {db: "test", collection: "x"}, actions: ["splitChunk"]}],
+                    privileges: [
+                        {resource: {db: "test", collection: "x"}, actions: ["splitChunk"]},
+                    ],
                     expectFail: true,
                 },
                 {runOnDb: firstDbName, roles: {}},
@@ -7440,19 +8003,25 @@ export const authCommandsLib = {
                 {
                     runOnDb: adminDbName,
                     roles: roles_clusterManager,
-                    privileges: [{resource: {db: "test", collection: "x"}, actions: ["splitVector"]}],
+                    privileges: [
+                        {resource: {db: "test", collection: "x"}, actions: ["splitVector"]},
+                    ],
                     expectFail: true,
                 },
                 {
                     runOnDb: firstDbName,
                     roles: roles_clusterManager,
-                    privileges: [{resource: {db: "test", collection: "x"}, actions: ["splitVector"]}],
+                    privileges: [
+                        {resource: {db: "test", collection: "x"}, actions: ["splitVector"]},
+                    ],
                     expectFail: true,
                 },
                 {
                     runOnDb: secondDbName,
                     roles: roles_clusterManager,
-                    privileges: [{resource: {db: "test", collection: "x"}, actions: ["splitVector"]}],
+                    privileges: [
+                        {resource: {db: "test", collection: "x"}, actions: ["splitVector"]},
+                    ],
                     expectFail: true,
                 },
             ],
@@ -7522,7 +8091,9 @@ export const authCommandsLib = {
                 {
                     runOnDb: adminDbName,
                     roles: Object.extend({enableSharding: 1}, roles_clusterManager),
-                    privileges: [{resource: {db: "test", collection: "x"}, actions: ["unshardCollection"]}],
+                    privileges: [
+                        {resource: {db: "test", collection: "x"}, actions: ["unshardCollection"]},
+                    ],
                     expectFail: true,
                 },
                 {runOnDb: firstDbName, roles: {}},
@@ -7637,12 +8208,16 @@ export const authCommandsLib = {
                 {
                     runOnDb: firstDbName,
                     roles: roles_dbAdmin,
-                    privileges: [{resource: {db: firstDbName, collection: "x"}, actions: ["validate"]}],
+                    privileges: [
+                        {resource: {db: firstDbName, collection: "x"}, actions: ["validate"]},
+                    ],
                 },
                 {
                     runOnDb: secondDbName,
                     roles: roles_dbAdminAny,
-                    privileges: [{resource: {db: secondDbName, collection: "x"}, actions: ["validate"]}],
+                    privileges: [
+                        {resource: {db: secondDbName, collection: "x"}, actions: ["validate"]},
+                    ],
                 },
             ],
         },
@@ -7674,7 +8249,9 @@ export const authCommandsLib = {
             testcases: [
                 {
                     runOnDb: adminDbName,
-                    privileges: [{resource: {db: "config", collection: "shards"}, actions: ["update"]}],
+                    privileges: [
+                        {resource: {db: "config", collection: "shards"}, actions: ["update"]},
+                    ],
                     expectFail: true, // shard0name doesn't exist
                 },
                 {
@@ -7756,7 +8333,12 @@ export const authCommandsLib = {
         },
         {
             testname: "_configsvrUpdateZoneKeyRange",
-            command: {_configsvrUpdateZoneKeyRange: "test.foo", min: {x: 1}, max: {x: 5}, zone: "z"},
+            command: {
+                _configsvrUpdateZoneKeyRange: "test.foo",
+                min: {x: 1},
+                max: {x: 5},
+                zone: "z",
+            },
             skipSharded: true,
             testcases: [{runOnDb: adminDbName, roles: {__system: 1}, expectFail: true}],
         },
@@ -7806,7 +8388,12 @@ export const authCommandsLib = {
             ],
             teardown: (db, response) => {
                 if (response.ok) {
-                    assert.commandWorked(db.runCommand({killCursors: "$cmd.aggregate", cursors: [response.cursor.id]}));
+                    assert.commandWorked(
+                        db.runCommand({
+                            killCursors: "$cmd.aggregate",
+                            cursors: [response.cursor.id],
+                        }),
+                    );
                 }
             },
         },
@@ -7838,7 +8425,12 @@ export const authCommandsLib = {
             ],
             teardown: (db, response) => {
                 if (response.ok) {
-                    assert.commandWorked(db.runCommand({killCursors: "$cmd.aggregate", cursors: [response.cursor.id]}));
+                    assert.commandWorked(
+                        db.runCommand({
+                            killCursors: "$cmd.aggregate",
+                            cursors: [response.cursor.id],
+                        }),
+                    );
                 }
             },
         },
@@ -7877,12 +8469,16 @@ export const authCommandsLib = {
                 {
                     runOnDb: firstDbName,
                     roles: roles_read,
-                    privileges: [{resource: {db: firstDbName, collection: "foo"}, actions: ["find"]}],
+                    privileges: [
+                        {resource: {db: firstDbName, collection: "foo"}, actions: ["find"]},
+                    ],
                 },
                 {
                     runOnDb: secondDbName,
                     roles: roles_readAny,
-                    privileges: [{resource: {db: secondDbName, collection: "foo"}, actions: ["find"]}],
+                    privileges: [
+                        {resource: {db: secondDbName, collection: "foo"}, actions: ["find"]},
+                    ],
                 },
             ],
         },
@@ -7913,7 +8509,9 @@ export const authCommandsLib = {
             testcases: [{runOnDb: adminDbName, roles: roles_hostManager}],
             setup: function (db) {
                 db.runCommand({stopTrafficRecording: 1});
-                assert.commandWorked(db.runCommand({startTrafficRecording: 1, destination: "notARealPath"}));
+                assert.commandWorked(
+                    db.runCommand({startTrafficRecording: 1, destination: "notARealPath"}),
+                );
             },
             teardown: function (db) {
                 db.runCommand({stopTrafficRecording: 1});
@@ -7936,7 +8534,9 @@ export const authCommandsLib = {
             testcases: [{runOnDb: adminDbName, roles: roles_hostManager}],
             setup: function (db) {
                 db.runCommand({stopTrafficRecording: 1});
-                assert.commandWorked(db.runCommand({startTrafficRecording: 1, destination: "notARealPath"}));
+                assert.commandWorked(
+                    db.runCommand({startTrafficRecording: 1, destination: "notARealPath"}),
+                );
             },
             teardown: function (db) {
                 db.runCommand({stopTrafficRecording: 1});
@@ -7965,7 +8565,9 @@ export const authCommandsLib = {
                 {
                     runOnDb: adminDbName,
                     roles: roles_clusterManager,
-                    privileges: [{resource: {db: "test", collection: "x"}, actions: ["clearJumboFlag"]}],
+                    privileges: [
+                        {resource: {db: "test", collection: "x"}, actions: ["clearJumboFlag"]},
+                    ],
                     expectFail: true,
                 },
                 {runOnDb: firstDbName, roles: {}},
@@ -7974,7 +8576,12 @@ export const authCommandsLib = {
         },
         {
             testname: "_configsvrClearJumboFlag",
-            command: {_configsvrClearJumboFlag: "x.y", epoch: ObjectId(), minKey: {x: 0}, maxKey: {x: 10}},
+            command: {
+                _configsvrClearJumboFlag: "x.y",
+                epoch: ObjectId(),
+                minKey: {x: 0},
+                maxKey: {x: 10},
+            },
             skipSharded: true,
             expectFail: true,
             testcases: [
@@ -7994,7 +8601,9 @@ export const authCommandsLib = {
                 {
                     runOnDb: adminDbName,
                     roles: Object.extend({enableSharding: 1}, roles_clusterManager),
-                    privileges: [{resource: {db: "test", collection: "x"}, actions: ["enableSharding"]}],
+                    privileges: [
+                        {resource: {db: "test", collection: "x"}, actions: ["enableSharding"]},
+                    ],
                     expectFail: true,
                 },
                 {runOnDb: firstDbName, roles: {}},
@@ -8021,14 +8630,18 @@ export const authCommandsLib = {
                 {
                     runOnDb: firstDbName,
                     roles: roles_read,
-                    privileges: [{resource: {db: firstDbName, collection: "unionColl"}, actions: ["find"]}],
+                    privileges: [
+                        {resource: {db: firstDbName, collection: "unionColl"}, actions: ["find"]},
+                    ],
                     expectAuthzFailure: true,
                 },
                 // Missing required privileges on nested collection.
                 {
                     runOnDb: firstDbName,
                     roles: roles_read,
-                    privileges: [{resource: {db: firstDbName, collection: "baseColl"}, actions: ["find"]}],
+                    privileges: [
+                        {resource: {db: firstDbName, collection: "baseColl"}, actions: ["find"]},
+                    ],
                     expectAuthzFailure: true,
                 },
                 // All required privileges.
@@ -8051,7 +8664,14 @@ export const authCommandsLib = {
                         $unionWith: {
                             coll: "unionColl",
                             pipeline: [
-                                {$lookup: {from: "lookupColl", localField: "_id", foreignField: "_id", as: "results"}},
+                                {
+                                    $lookup: {
+                                        from: "lookupColl",
+                                        localField: "_id",
+                                        foreignField: "_id",
+                                        as: "results",
+                                    },
+                                },
                             ],
                         },
                     },
@@ -8073,7 +8693,9 @@ export const authCommandsLib = {
                 {
                     runOnDb: firstDbName,
                     roles: roles_read,
-                    privileges: [{resource: {db: firstDbName, collection: "baseColl"}, actions: ["find"]}],
+                    privileges: [
+                        {resource: {db: firstDbName, collection: "baseColl"}, actions: ["find"]},
+                    ],
                     expectAuthzFailure: true,
                 },
                 {
@@ -8182,7 +8804,12 @@ export const authCommandsLib = {
                         searchCoordinator: 1,
                         __system: 1,
                     },
-                    privileges: [{resource: {db: firstDbName, collection: ""}, actions: ["listSearchIndexes"]}],
+                    privileges: [
+                        {
+                            resource: {db: firstDbName, collection: ""},
+                            actions: ["listSearchIndexes"],
+                        },
+                    ],
                     expectFail: true, // Expect to fail with SearchNotEnabled.
                 },
             ],
@@ -8424,12 +9051,16 @@ export const authCommandsLib = {
                 {
                     runOnDb: adminDbName,
                     roles: {userAdminAnyDatabase: 1, root: 1, __system: 1},
-                    privileges: [{resource: {anyResource: true}, actions: ["listCachedAndActiveUsers"]}],
+                    privileges: [
+                        {resource: {anyResource: true}, actions: ["listCachedAndActiveUsers"]},
+                    ],
                 },
                 {
                     runOnDb: firstDbName,
                     roles: {userAdminAnyDatabase: 1, root: 1, __system: 1},
-                    privileges: [{resource: {anyResource: true}, actions: ["listCachedAndActiveUsers"]}],
+                    privileges: [
+                        {resource: {anyResource: true}, actions: ["listCachedAndActiveUsers"]},
+                    ],
                 },
             ],
         },
@@ -8453,9 +9084,18 @@ export const authCommandsLib = {
                     },
                     privileges: [
                         {resource: {cluster: true}, actions: ["listDatabases"]},
-                        {resource: {db: "", collection: ""}, actions: ["listCollections", "listIndexes"]},
-                        {resource: {db: "", collection: "system.js"}, actions: ["listCollections", "listIndexes"]},
-                        {resource: {db: "", system_buckets: ""}, actions: ["listCollections", "listIndexes"]},
+                        {
+                            resource: {db: "", collection: ""},
+                            actions: ["listCollections", "listIndexes"],
+                        },
+                        {
+                            resource: {db: "", collection: "system.js"},
+                            actions: ["listCollections", "listIndexes"],
+                        },
+                        {
+                            resource: {db: "", system_buckets: ""},
+                            actions: ["listCollections", "listIndexes"],
+                        },
                     ],
                 },
                 {
@@ -8470,9 +9110,18 @@ export const authCommandsLib = {
                     },
                     privileges: [
                         {resource: {cluster: true}, actions: ["listDatabases"]},
-                        {resource: {db: "", collection: ""}, actions: ["listCollections", "listIndexes"]},
-                        {resource: {db: "", collection: "system.js"}, actions: ["listCollections", "listIndexes"]},
-                        {resource: {db: "", system_buckets: ""}, actions: ["listCollections", "listIndexes"]},
+                        {
+                            resource: {db: "", collection: ""},
+                            actions: ["listCollections", "listIndexes"],
+                        },
+                        {
+                            resource: {db: "", collection: "system.js"},
+                            actions: ["listCollections", "listIndexes"],
+                        },
+                        {
+                            resource: {db: "", system_buckets: ""},
+                            actions: ["listCollections", "listIndexes"],
+                        },
                     ],
                     expectFail: true,
                 },
@@ -8502,7 +9151,10 @@ export const authCommandsLib = {
                         __system: 1,
                     },
                     privileges: [
-                        {resource: {db: firstDbName, collection: "foo"}, actions: ["listCollections", "listIndexes"]},
+                        {
+                            resource: {db: firstDbName, collection: "foo"},
+                            actions: ["listCollections", "listIndexes"],
+                        },
                     ],
                 },
             ],
@@ -8549,7 +9201,13 @@ export const authCommandsLib = {
             testname: "aggregate_$_internalApplyOplogUpdate",
             command: {
                 aggregate: "foo",
-                pipeline: [{$_internalApplyOplogUpdate: {oplogUpdate: {$v: 2, diff: {i: {a: Timestamp(0, 0)}}}}}],
+                pipeline: [
+                    {
+                        $_internalApplyOplogUpdate: {
+                            oplogUpdate: {$v: 2, diff: {i: {a: Timestamp(0, 0)}}},
+                        },
+                    },
+                ],
                 cursor: {},
             },
             testcases: testcases_transformationOnly,
@@ -8591,7 +9249,9 @@ export const authCommandsLib = {
             testname: "aggregate_$_internalConvertBucketIndexStats",
             command: {
                 aggregate: "foo",
-                pipeline: [{$_internalConvertBucketIndexStats: {timeField: "bar", metaField: "baz"}}],
+                pipeline: [
+                    {$_internalConvertBucketIndexStats: {timeField: "bar", metaField: "baz"}},
+                ],
                 cursor: {},
             },
             testcases: testcases_transformationOnly,
@@ -8680,7 +9340,13 @@ export const authCommandsLib = {
                 // $collStats is used as the source stage because it requires an extra privilege
                 // (collStats action), verifying that the auth check propagates through the
                 // $_internalDocumentResultsAndMetadata container to its input stage.
-                pipeline: [{$_internalDocumentResultsAndMetadata: {source: {$collStats: {latencyStats: {}}}}}],
+                pipeline: [
+                    {
+                        $_internalDocumentResultsAndMetadata: {
+                            source: {$collStats: {latencyStats: {}}},
+                        },
+                    },
+                ],
                 cursor: {},
             },
             testcases: [
@@ -8701,7 +9367,9 @@ export const authCommandsLib = {
                         searchCoordinator: 1,
                         __system: 1,
                     },
-                    privileges: [{resource: {db: firstDbName, collection: "foo"}, actions: ["collStats"]}],
+                    privileges: [
+                        {resource: {db: firstDbName, collection: "foo"}, actions: ["collStats"]},
+                    ],
                     // $collStats does not produce the {_streamType, payload} transport format
                     // that the translation function's $replaceRoot expects.
                     expectFailWithErrorCodes: [40228],
@@ -8719,7 +9387,9 @@ export const authCommandsLib = {
                         searchCoordinator: 1,
                         __system: 1,
                     },
-                    privileges: [{resource: {db: secondDbName, collection: "foo"}, actions: ["collStats"]}],
+                    privileges: [
+                        {resource: {db: secondDbName, collection: "foo"}, actions: ["collStats"]},
+                    ],
                     // $collStats does not produce the {_streamType, payload} transport format
                     // that the translation function's $replaceRoot expects.
                     expectFailWithErrorCodes: [40228],
@@ -8767,7 +9437,13 @@ export const authCommandsLib = {
             command: {
                 aggregate: "foo",
                 pipeline: [
-                    {$_internalStreamingGroup: {_id: "$_id", value: {$last: "$bar"}, $monotonicIdFields: ["_id"]}},
+                    {
+                        $_internalStreamingGroup: {
+                            _id: "$_id",
+                            value: {$last: "$bar"},
+                            $monotonicIdFields: ["_id"],
+                        },
+                    },
                 ],
                 cursor: {},
             },
@@ -8778,7 +9454,11 @@ export const authCommandsLib = {
             command: {
                 aggregate: "foo",
                 pipeline: [
-                    {$_internalJoinHint: {perSubsetLevelMode: [{level: NumberInt(0), mode: "ALL"}]}},
+                    {
+                        $_internalJoinHint: {
+                            perSubsetLevelMode: [{level: NumberInt(0), mode: "ALL"}],
+                        },
+                    },
                     {$lookup: {from: "foo", localField: "i", foreignField: "i", as: "z"}},
                     {$unwind: "$z"},
                 ],
@@ -8860,7 +9540,13 @@ export const authCommandsLib = {
             command: {
                 aggregate: "foo",
                 pipeline: [
-                    {$densify: {field: "val", range: {step: 1, bounds: "partition"}, partitionByFields: ["part"]}},
+                    {
+                        $densify: {
+                            field: "val",
+                            range: {step: 1, bounds: "partition"},
+                            partitionByFields: ["part"],
+                        },
+                    },
                 ],
                 cursor: {},
             },
@@ -8875,7 +9561,9 @@ export const authCommandsLib = {
             },
             // TODO SERVER-74961: Windows is not yet supported in stream processing.
             skipTest: (conn) =>
-                !isFeatureEnabled(conn, "featureFlagStreams") || _isWindows() || getBuildInfo().version < "8.1",
+                !isFeatureEnabled(conn, "featureFlagStreams") ||
+                _isWindows() ||
+                getBuildInfo().version < "8.1",
             skipSharded: true,
             testcases: testcases_transformationOnlyExpectFail, // Not allowed in user requests.
         },
@@ -8888,7 +9576,9 @@ export const authCommandsLib = {
             },
             // TODO SERVER-74961: Windows is not yet supported in stream processing.
             skipTest: (conn) =>
-                !isFeatureEnabled(conn, "featureFlagStreams") || _isWindows() || getBuildInfo().version < "8.1",
+                !isFeatureEnabled(conn, "featureFlagStreams") ||
+                _isWindows() ||
+                getBuildInfo().version < "8.1",
             skipSharded: true,
             testcases: testcases_transformationOnlyExpectFail, // Not allowed in user requests.
         },
@@ -8901,7 +9591,9 @@ export const authCommandsLib = {
             },
             // TODO SERVER-74961: Windows is not yet supported in stream processing.
             skipTest: (conn) =>
-                !isFeatureEnabled(conn, "featureFlagStreams") || _isWindows() || getBuildInfo().version < "8.1",
+                !isFeatureEnabled(conn, "featureFlagStreams") ||
+                _isWindows() ||
+                getBuildInfo().version < "8.1",
             skipSharded: true,
             testcases: testcases_transformationOnlyExpectFail, // Not allowed in user requests.
         },
@@ -8914,7 +9606,9 @@ export const authCommandsLib = {
             },
             // TODO SERVER-74961: Windows is not yet supported in stream processing.
             skipTest: (conn) =>
-                !isFeatureEnabled(conn, "featureFlagStreams") || _isWindows() || getBuildInfo().version < "8.1",
+                !isFeatureEnabled(conn, "featureFlagStreams") ||
+                _isWindows() ||
+                getBuildInfo().version < "8.1",
             skipSharded: true,
             testcases: testcases_transformationOnlyExpectFail, // Not allowed in user requests.
         },
@@ -8927,7 +9621,9 @@ export const authCommandsLib = {
             },
             // TODO SERVER-74961: Windows is not yet supported in stream processing.
             skipTest: (conn) =>
-                !isFeatureEnabled(conn, "featureFlagStreams") || _isWindows() || getBuildInfo().version < "8.1",
+                !isFeatureEnabled(conn, "featureFlagStreams") ||
+                _isWindows() ||
+                getBuildInfo().version < "8.1",
             skipSharded: true,
             testcases: testcases_transformationOnlyExpectFail, // Not allowed in user requests.
         },
@@ -8940,7 +9636,9 @@ export const authCommandsLib = {
             },
             // TODO SERVER-74961: Windows is not yet supported in stream processing.
             skipTest: (conn) =>
-                !isFeatureEnabled(conn, "featureFlagStreams") || _isWindows() || getBuildInfo().version < "8.1",
+                !isFeatureEnabled(conn, "featureFlagStreams") ||
+                _isWindows() ||
+                getBuildInfo().version < "8.1",
             skipSharded: true,
             testcases: testcases_transformationOnlyExpectFail, // Not allowed in user requests.
         },
@@ -8953,7 +9651,9 @@ export const authCommandsLib = {
             },
             // TODO SERVER-74961: Windows is not yet supported in stream processing.
             skipTest: (conn) =>
-                !isFeatureEnabled(conn, "featureFlagStreams") || _isWindows() || getBuildInfo().version < "8.1",
+                !isFeatureEnabled(conn, "featureFlagStreams") ||
+                _isWindows() ||
+                getBuildInfo().version < "8.1",
             skipSharded: true,
             testcases: testcases_transformationOnlyExpectFail, // Not allowed in user requests.
         },
@@ -8966,7 +9666,9 @@ export const authCommandsLib = {
             },
             // TODO SERVER-74961: Windows is not yet supported in stream processing.
             skipTest: (conn) =>
-                !isFeatureEnabled(conn, "featureFlagStreams") || _isWindows() || getBuildInfo().version < "8.1",
+                !isFeatureEnabled(conn, "featureFlagStreams") ||
+                _isWindows() ||
+                getBuildInfo().version < "8.1",
             skipSharded: true,
             testcases: testcases_transformationOnlyExpectFail, // Not allowed in user requests.
         },
@@ -8998,7 +9700,9 @@ export const authCommandsLib = {
             testcases: [
                 {
                     runOnDb: firstDbName,
-                    privileges: [{resource: {db: firstDbName, collection: "foo"}, actions: ["find"]}],
+                    privileges: [
+                        {resource: {db: firstDbName, collection: "foo"}, actions: ["find"]},
+                    ],
                     expectAuthzFailure: true,
                 },
                 {
@@ -9049,7 +9753,9 @@ export const authCommandsLib = {
                     runOnDb: firstDbName,
                     // Find action type as a privilege alone is not sufficient for $mergeCursors.
                     expectAuthzFailure: true,
-                    privileges: [{resource: {db: firstDbName, collection: "foo"}, actions: ["find"]}],
+                    privileges: [
+                        {resource: {db: firstDbName, collection: "foo"}, actions: ["find"]},
+                    ],
                 },
             ],
         },
@@ -9069,7 +9775,13 @@ export const authCommandsLib = {
             testname: "aggregate_$redact",
             command: {
                 aggregate: "foo",
-                pipeline: [{$redact: {$cond: {if: {$gt: ["$_id", {}]}, then: "$$DESCEND", else: "$$PRUNE"}}}],
+                pipeline: [
+                    {
+                        $redact: {
+                            $cond: {if: {$gt: ["$_id", {}]}, then: "$$DESCEND", else: "$$PRUNE"},
+                        },
+                    },
+                ],
                 cursor: {},
             },
             testcases: testcases_transformationOnly,
@@ -9251,17 +9963,23 @@ export const authCommandsLib = {
             testcases: [
                 {
                     runOnDb: secondDbName,
-                    privileges: [{resource: {db: secondDbName, collection: ""}, actions: ["validate"]}],
+                    privileges: [
+                        {resource: {db: secondDbName, collection: ""}, actions: ["validate"]},
+                    ],
                 },
                 {
                     // Need to only have permission on secondDbName to be able to the command against
                     // the db.
                     runOnDb: firstDbName,
-                    privileges: [{resource: {db: secondDbName, collection: ""}, actions: ["validate"]}],
+                    privileges: [
+                        {resource: {db: secondDbName, collection: ""}, actions: ["validate"]},
+                    ],
                 },
                 {
                     runOnDb: firstDbName,
-                    privileges: [{resource: {db: firstDbName, collection: ""}, actions: ["validate"]}],
+                    privileges: [
+                        {resource: {db: firstDbName, collection: ""}, actions: ["validate"]},
+                    ],
                     expectAuthzFailure: true,
                 },
             ],
@@ -9386,9 +10104,17 @@ export const authCommandsLib = {
             testcases: [
                 {
                     runOnDb: configDbName,
-                    roles: {...roles_clusterManager, clusterMonitor: 1, searchCoordinator: 1, backup: 1},
+                    roles: {
+                        ...roles_clusterManager,
+                        clusterMonitor: 1,
+                        searchCoordinator: 1,
+                        backup: 1,
+                    },
                     privileges: [
-                        {resource: {db: "config", collection: "queryShapeRepresentativeQueries"}, actions: ["find"]},
+                        {
+                            resource: {db: "config", collection: "queryShapeRepresentativeQueries"},
+                            actions: ["find"],
+                        },
                     ],
                     expectAuthzFailure: false,
                 },
@@ -9408,13 +10134,18 @@ export const authCommandsLib = {
                     runOnDb: configDbName,
                     roles: {...roles_clusterManager, restore: 1},
                     privileges: [
-                        {resource: {db: "config", collection: "queryShapeRepresentativeQueries"}, actions: ["insert"]},
+                        {
+                            resource: {db: "config", collection: "queryShapeRepresentativeQueries"},
+                            actions: ["insert"],
+                        },
                     ],
                     expectAuthzFailure: false,
                 },
             ],
             teardown: function (db) {
-                assert.commandWorked(db.getSiblingDB(configDbName).queryShapeRepresentativeQueries.remove({}));
+                assert.commandWorked(
+                    db.getSiblingDB(configDbName).queryShapeRepresentativeQueries.remove({}),
+                );
             },
         },
         {
@@ -9436,16 +10167,23 @@ export const authCommandsLib = {
                     runOnDb: configDbName,
                     roles: {...roles_clusterManager},
                     privileges: [
-                        {resource: {db: "config", collection: "queryShapeRepresentativeQueries"}, actions: ["update"]},
+                        {
+                            resource: {db: "config", collection: "queryShapeRepresentativeQueries"},
+                            actions: ["update"],
+                        },
                     ],
                     expectAuthzFailure: false,
                 },
             ],
             setup: function (db) {
-                assert.commandWorked(db.getSiblingDB(configDbName).queryShapeRepresentativeQueries.insert({a: 1}));
+                assert.commandWorked(
+                    db.getSiblingDB(configDbName).queryShapeRepresentativeQueries.insert({a: 1}),
+                );
             },
             teardown: function (db) {
-                assert.commandWorked(db.getSiblingDB(configDbName).queryShapeRepresentativeQueries.remove({}));
+                assert.commandWorked(
+                    db.getSiblingDB(configDbName).queryShapeRepresentativeQueries.remove({}),
+                );
             },
         },
         {
@@ -9467,16 +10205,23 @@ export const authCommandsLib = {
                     runOnDb: configDbName,
                     roles: {...roles_clusterManager},
                     privileges: [
-                        {resource: {db: "config", collection: "queryShapeRepresentativeQueries"}, actions: ["remove"]},
+                        {
+                            resource: {db: "config", collection: "queryShapeRepresentativeQueries"},
+                            actions: ["remove"],
+                        },
                     ],
                     expectAuthzFailure: false,
                 },
             ],
             setup: function (db) {
-                assert.commandWorked(db.getSiblingDB(configDbName).queryShapeRepresentativeQueries.insert({a: 1}));
+                assert.commandWorked(
+                    db.getSiblingDB(configDbName).queryShapeRepresentativeQueries.insert({a: 1}),
+                );
             },
             teardown: function (db) {
-                assert.commandWorked(db.getSiblingDB(configDbName).queryShapeRepresentativeQueries.remove({}));
+                assert.commandWorked(
+                    db.getSiblingDB(configDbName).queryShapeRepresentativeQueries.remove({}),
+                );
             },
         },
         {
@@ -9576,7 +10321,9 @@ export const authCommandsLib = {
                     runOnDb: firstDbName,
                     // Find action type as a privilege alone is not sufficient for $setMetadata.
                     expectAuthzFailure: true,
-                    privileges: [{resource: {db: firstDbName, collection: "foo"}, actions: ["find"]}],
+                    privileges: [
+                        {resource: {db: firstDbName, collection: "foo"}, actions: ["find"]},
+                    ],
                 },
             ],
         },
@@ -9670,7 +10417,9 @@ export const authCommandsLib = {
                         searchCoordinator: 1,
                         __system: 1,
                     },
-                    privileges: [{resource: {db: firstDbName, collection: ""}, actions: ["listCollections"]}],
+                    privileges: [
+                        {resource: {db: firstDbName, collection: ""}, actions: ["listCollections"]},
+                    ],
                 },
                 {runOnDb: firstDbName, privileges: [], expectAuthzFailure: true},
             ],
@@ -9741,7 +10490,9 @@ export const authCommandsLib = {
                 const time = new Date("2024-01-01T00:00:00Z");
 
                 assert.commandWorked(
-                    db.createCollection(coll.getName(), {timeseries: {timeField: timeField, metaField: metaField}}),
+                    db.createCollection(coll.getName(), {
+                        timeseries: {timeField: timeField, metaField: metaField},
+                    }),
                 );
 
                 assert.commandWorked(
@@ -9760,14 +10511,20 @@ export const authCommandsLib = {
                 {
                     runOnDb: firstDbName,
                     privileges: [
-                        {resource: {db: firstDbName, collection: "raw_data"}, actions: ["performRawDataOperations"]},
+                        {
+                            resource: {db: firstDbName, collection: "raw_data"},
+                            actions: ["performRawDataOperations"],
+                        },
                         {resource: {db: firstDbName, collection: "raw_data"}, actions: ["find"]},
                     ],
                 },
                 {
                     runOnDb: firstDbName,
                     privileges: [
-                        {resource: {db: firstDbName, collection: "raw_data"}, actions: ["internal"]},
+                        {
+                            resource: {db: firstDbName, collection: "raw_data"},
+                            actions: ["internal"],
+                        },
                         {resource: {db: firstDbName, collection: "raw_data"}, actions: ["find"]},
                     ],
                 },
@@ -10021,7 +10778,11 @@ function checkCommandCoverage(conn) {
 
     const unvisited = {};
     for (let cmd of allCommands) {
-        if (!testOnlyCommands.includes(cmd) && !skippedAuthTestingCommands.includes(cmd) && !cmd.startsWith("_")) {
+        if (
+            !testOnlyCommands.includes(cmd) &&
+            !skippedAuthTestingCommands.includes(cmd) &&
+            !cmd.startsWith("_")
+        ) {
             unvisited[cmd] = 1;
         }
     }
@@ -10041,6 +10802,7 @@ function checkCommandCoverage(conn) {
         0,
         `'authCommandsLib.tests' misses auth testing for ${unvisitedList.length} commands: ${unvisitedList.join(
             ", ",
-        )}. ` + `Add tests for these commands or add them to 'skippedAuthTestingCommands' with justification.`,
+        )}. ` +
+            `Add tests for these commands or add them to 'skippedAuthTestingCommands' with justification.`,
     );
 }
