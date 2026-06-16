@@ -1,0 +1,29 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "0872b9da1106aa5b5ff8d034c866900bc3e5351e",
+    "merge_commit": "e613c37f89b2041ec05a3c8a3d687a14cebb35b5"
+  },
+  "mergai_version": "0.1.dev1+g95d1b543b",
+  "solutions": [
+    {
+      "type": "conflict_resolution",
+      "response": {
+        "summary": "SERVER-127372 add test to ensure shardKey updates do not hide invalid documents during validation scan (#55555)",
+        "resolved": {},
+        "unresolved": {},
+        "modified": {
+          "jstests/noPassthrough/query/OWNERS.yml": "Modified by human",
+          "jstests/noPassthrough/query/prepare_constraint_blocks_invalid_wcos_updates.js": "Modified by human"
+        },
+        "review_notes": "GitOrigin-RevId: 295d80a1284ab623d80a37f31ff72f5b1e89ac65"
+      },
+      "author": {
+        "name": "kmznam",
+        "email": "97981975+kmznam@users.noreply.github.com",
+        "type": "human"
+      },
+      "commit_sha": "8b8429568b0f7614d334f50e4082e7b42b89c0af"
+    }
+  ]
+}
