@@ -1,0 +1,35 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "0872b9da1106aa5b5ff8d034c866900bc3e5351e",
+    "merge_commit": "e613c37f89b2041ec05a3c8a3d687a14cebb35b5"
+  },
+  "mergai_version": "0.1.dev1+g95d1b543b",
+  "solutions": [
+    {
+      "type": "conflict_resolution",
+      "response": {
+        "summary": "SERVER-96874: Handle shutdown during startup recovery (#55527)",
+        "resolved": {},
+        "unresolved": {},
+        "modified": {
+          "src/mongo/db/repl/BUILD.bazel": "Modified by human",
+          "src/mongo/db/repl/replication_consistency_markers_mock.cpp": "Modified by human",
+          "src/mongo/db/repl/replication_consistency_markers_mock.h": "Modified by human",
+          "src/mongo/db/repl/replication_coordinator_impl.cpp": "Modified by human",
+          "src/mongo/db/repl/replication_coordinator_impl_test.cpp": "Modified by human",
+          "src/mongo/db/repl/replication_recovery.cpp": "Modified by human",
+          "src/mongo/db/repl/replication_recovery_mock.h": "Modified by human",
+          "src/mongo/db/repl/replication_recovery_test.cpp": "Modified by human"
+        },
+        "review_notes": "GitOrigin-RevId: dc0dea179ec4d7a3ed357033f9e90825c0b97463"
+      },
+      "author": {
+        "name": "Indy Prentice",
+        "email": "iprentic@users.noreply.github.com",
+        "type": "human"
+      },
+      "commit_sha": "d29c253b71e14eb2fde07f47c8ece2d33dab3a99"
+    }
+  ]
+}
