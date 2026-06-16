@@ -1,0 +1,32 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "0872b9da1106aa5b5ff8d034c866900bc3e5351e",
+    "merge_commit": "e613c37f89b2041ec05a3c8a3d687a14cebb35b5"
+  },
+  "mergai_version": "0.1.dev1+g95d1b543b",
+  "solutions": [
+    {
+      "type": "conflict_resolution",
+      "response": {
+        "summary": "SERVER-128544 Re-point TODO comments from SERVER-116021 to SERVER-121094 (#55838)",
+        "resolved": {},
+        "unresolved": {},
+        "modified": {
+          "src/mongo/db/extension/host/document_source_extension_optimizable.cpp": "Modified by human",
+          "src/mongo/db/extension/host/document_source_extension_optimizable.h": "Modified by human",
+          "src/mongo/db/pipeline/lite_parsed_document_source.h": "Modified by human",
+          "src/mongo/db/pipeline/search/search_helper.cpp": "Modified by human",
+          "src/mongo/db/pipeline/search/search_helper.h": "Modified by human"
+        },
+        "review_notes": "GitOrigin-RevId: 3d1e443441a159e351502cbfce7606bf0435edc5"
+      },
+      "author": {
+        "name": "Daniel Segel",
+        "email": "71151509+dhsegel@users.noreply.github.com",
+        "type": "human"
+      },
+      "commit_sha": "e613c37f89b2041ec05a3c8a3d687a14cebb35b5"
+    }
+  ]
+}
