@@ -20,8 +20,8 @@ idl_generator(
 )
 
 idl_generator(
-    name = "tracing_feature_flag_gen",
-    src = "tracing_feature_flag.idl",
+    name = "tracing_feature_flags_gen",
+    src = "tracing_feature_flags.idl",
     deps = [
         "//src/mongo/db:basic_types_gen",
     ],
@@ -50,6 +50,7 @@ mongo_cc_unit_test(
     deps = [
         ":trace_settings",
         "//src/mongo/db:server_parameter",
+        "//src/mongo/unittest:server_parameter_guard",
     ],
 )
 
@@ -71,15 +72,25 @@ mongo_cc_library(
 )
 
 mongo_cc_library(
+    name = "tracing_feature_flags",
+    srcs = [
+        ":tracing_feature_flags_gen",
+    ],
+    deps = [
+        "//src/mongo/db:server_base",
+    ],
+)
+
+mongo_cc_library(
     name = "tracing_enablement",
     srcs = [
         "tracing_enablement.cpp",
-        ":tracing_feature_flag_gen",
     ],
     hdrs = [
         "tracing_enablement.h",
     ],
     deps = [
+        ":tracing_feature_flags",
         "//src/mongo/db:server_base",
         "//src/mongo/db:service_context",
     ],
@@ -175,8 +186,8 @@ mongo_cc_library(
     ],
     target_compatible_with = OTEL_TARGET_COMPATIBLE_WITH,
     deps = [
-        ":telemetry_context_serialization_header",
         "//src/mongo/db:server_base",
+        "//src/mongo/otel/traces:telemetry_context_serialization_header",
         "//src/mongo/otel/traces/span:span_telemetry_context",
         "//src/third_party/opentelemetry-cpp/api",
     ],
@@ -228,7 +239,7 @@ mongo_cc_unit_test(
         ":trace_settings",
         ":tracing_initialization_impl",
         "//src/mongo/db:server_base",
-        "//src/mongo/idl:server_parameter_test_util",
+        "//src/mongo/unittest:server_parameter_guard",
         "//src/third_party/opentelemetry-cpp/api",
         "//src/third_party/opentelemetry-cpp/sdk/src/trace",
     ],
@@ -251,8 +262,8 @@ mongo_cc_unit_test(
         ":tracing_initialization",
         ":tracing_test_util",
         "//src/mongo/db:service_context_test_fixture",
-        "//src/mongo/idl:server_parameter_test_util",
         "//src/mongo/otel",
+        "//src/mongo/unittest:server_parameter_guard",
         "//src/third_party/opentelemetry-cpp/api",
     ],
 )

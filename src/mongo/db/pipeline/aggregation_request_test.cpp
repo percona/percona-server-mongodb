@@ -54,7 +54,7 @@
 #include "mongo/db/server_options.h"
 #include "mongo/db/tenant_id.h"
 #include "mongo/idl/idl_parser.h"
-#include "mongo/idl/server_parameter_test_controller.h"
+#include "mongo/unittest/server_parameter_guard.h"
 #include "mongo/unittest/unittest.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/str.h"
@@ -175,6 +175,16 @@ TEST(AggregationRequestTest, ShouldParseWithSeparateQueryPlannerExplainModeArgAn
     ASSERT_EQ(
         request.getCursor().getBatchSize().value_or(aggregation_request_helper::kDefaultBatchSize),
         10);
+}
+
+TEST(AggregationRequestTest, ShouldParseWithSeparateExplainArgAndNoCursor) {
+    // The 'cursor' option is not required when explain verbosity is provided - parseFromBSON sets
+    // explain=true on the request before calling validate(), so validate() sees hasExplain=true.
+    const BSONObj inputBson = fromjson("{aggregate: 'collection', pipeline: [], $db: 'a'}");
+    auto request = unittest::assertGet(aggregation_request_helper::parseFromBSONForTests(
+        inputBson, boost::none, ExplainOptions::Verbosity::kQueryPlanner));
+    ASSERT(request.getExplain());
+    ASSERT(request.getExplain().value());
 }
 
 TEST(AggregationRequestTest, ShouldParseExplainFlagWithReadConcern) {
@@ -583,6 +593,42 @@ TEST(AggregationRequestTest, ShouldRejectNoCursorNoExplain) {
     ASSERT_OK(aggregation_request_helper::parseFromBSONForTests(cursorRequest.done()).getStatus());
 }
 
+TEST(AggregationRequestTest, ValidateDirectlyAllowsNoCursorWhenExplainSet) {
+    // validate() no longer takes an explainVerbosity parameter. Callers set explain=true on the
+    // request before calling validate(), so validate() sees hasExplain=true and allows cursor to
+    // be absent.
+    NamespaceString nss = NamespaceString::createNamespaceString_forTest("a.collection");
+    AggregateCommandRequest request(nss, std::vector<mongo::BSONObj>());
+    request.setExplain(true);
+
+    const BSONObj cmdObj = fromjson("{aggregate: 'collection', pipeline: [], $db: 'a'}");
+    ASSERT_DOES_NOT_THROW(aggregation_request_helper::validate(request, cmdObj, nss));
+}
+
+TEST(AggregationRequestTest, ValidateDirectlyRequiresCursorWhenExplainNotSet) {
+    NamespaceString nss = NamespaceString::createNamespaceString_forTest("a.collection");
+    AggregateCommandRequest request(nss, std::vector<mongo::BSONObj>());
+
+    const BSONObj cmdObj = fromjson("{aggregate: 'collection', pipeline: [], $db: 'a'}");
+    ASSERT_THROWS_CODE(aggregation_request_helper::validate(request, cmdObj, nss),
+                       AssertionException,
+                       ErrorCodes::FailedToParse);
+}
+
+TEST(AggregationRequestTest, ValidateDirectlyRejectsWriteConcernWithExplain) {
+    NamespaceString nss = NamespaceString::createNamespaceString_forTest("a.collection");
+    AggregateCommandRequest request(nss, std::vector<mongo::BSONObj>());
+    request.setExplain(true);
+    request.setWriteConcern(
+        WriteConcernOptions{1, WriteConcernOptions::SyncMode::NONE, Milliseconds{0}});
+
+    const BSONObj cmdObj = fromjson(
+        "{aggregate: 'collection', pipeline: [], explain: true, writeConcern: {w: 1}, $db: 'a'}");
+    ASSERT_THROWS_CODE(aggregation_request_helper::validate(request, cmdObj, nss),
+                       AssertionException,
+                       ErrorCodes::FailedToParse);
+}
+
 TEST(AggregationRequestTest, ShouldRejectNonObjectCursor) {
     NamespaceString nss = NamespaceString::createNamespaceString_forTest("a.collection");
     const BSONObj validRequest = fromjson(
@@ -821,9 +867,8 @@ private:
 TEST(AggregationRequestTest, AddIfrFlagsSerializesOutgoingIfrFlagsAtLatestFCV) {
     // (Generic FCV reference): test usage
     ScopedFCV fcv(multiversion::GenericFCV::kLatest);
-    RAIIServerParameterControllerForTest hybridFlag("featureFlagExtensionsInsideHybridSearch",
-                                                    true);
-    RAIIServerParameterControllerForTest vectorFlag("featureFlagVectorSearchExtension", true);
+    unittest::ServerParameterGuard hybridFlag("featureFlagExtensionsInsideHybridSearch", true);
+    unittest::ServerParameterGuard vectorFlag("featureFlagVectorSearchExtension", true);
 
     const auto flagsForWire = IncrementalRolloutFeatureFlag::getFlagsForOutgoingRequests();
     ASSERT_FALSE(flagsForWire.empty());
@@ -850,9 +895,8 @@ TEST(AggregationRequestTest, AddIfrFlagsSerializesOutgoingIfrFlagsAtLatestFCV) {
 TEST(AggregationRequestTest, AddIfrFlagsOmitsIfrFlagsAtLastLTSFCV) {
     // (Generic FCV reference): test usage
     ScopedFCV fcv(multiversion::GenericFCV::kLastLTS);
-    RAIIServerParameterControllerForTest hybridFlag("featureFlagExtensionsInsideHybridSearch",
-                                                    true);
-    RAIIServerParameterControllerForTest vectorFlag("featureFlagVectorSearchExtension", true);
+    unittest::ServerParameterGuard hybridFlag("featureFlagExtensionsInsideHybridSearch", true);
+    unittest::ServerParameterGuard vectorFlag("featureFlagVectorSearchExtension", true);
 
     ASSERT_TRUE(IncrementalRolloutFeatureFlag::getFlagsForOutgoingRequests().empty());
 

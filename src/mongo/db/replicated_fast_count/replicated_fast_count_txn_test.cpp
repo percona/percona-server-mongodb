@@ -42,6 +42,7 @@
 #include "mongo/db/replicated_fast_count/replicated_fast_count_init.h"
 #include "mongo/db/replicated_fast_count/replicated_fast_count_manager.h"
 #include "mongo/db/replicated_fast_count/replicated_fast_count_test_helpers.h"
+#include "mongo/db/replicated_fast_count/replicated_fast_count_uncommitted_changes.h"
 #include "mongo/db/session/session_catalog_mongod.h"
 #include "mongo/db/session/session_txn_record_gen.h"
 #include "mongo/db/shard_role/shard_catalog/create_collection.h"
@@ -49,6 +50,7 @@
 #include "mongo/db/transaction/session_catalog_mongod_transaction_interface_impl.h"
 #include "mongo/db/transaction/transaction_participant.h"
 #include "mongo/idl/idl_parser.h"
+#include "mongo/unittest/server_parameter_guard.h"
 #include "mongo/unittest/unittest.h"
 #include "mongo/util/fail_point.h"
 
@@ -226,7 +228,7 @@ public:
 
 TEST_F(ReplicatedFastCountTxnTest,
        UncommittedChangesPreservedAcrossResumedMultiDocumentTransactionCommit) {
-    RAIIServerParameterControllerForTest featureFlag("featureFlagReplicatedFastCount", true);
+    unittest::ServerParameterGuard featureFlag("featureFlagReplicatedFastCount", true);
 
     auto doc1 = BSON("_id" << 0 << "x" << 1);
     auto doc2 = BSON("_id" << 1 << "x" << 2);
@@ -287,7 +289,7 @@ TEST_F(ReplicatedFastCountTxnTest,
 }
 
 TEST_F(ReplicatedFastCountTxnTest, UncommittedChangesDiscardedAfterMultiDocumentTxnAbort) {
-    RAIIServerParameterControllerForTest featureFlag("featureFlagReplicatedFastCount", true);
+    unittest::ServerParameterGuard featureFlag("featureFlagReplicatedFastCount", true);
 
     auto doc1 = BSON("_id" << 0 << "x" << 1);
 
@@ -330,7 +332,7 @@ TEST_F(ReplicatedFastCountTxnTest, UncommittedChangesDiscardedAfterMultiDocument
 TEST_F(ReplicatedFastCountTxnTest, FastCountResetForSessionBetweenTransactions) {
     // Tests that the 'UncommittedFastCountChange' is reset when there is a new
     // 'RecoveryUnit::Snapshot', even across a single OperationContext.
-    RAIIServerParameterControllerForTest featureFlag("featureFlagReplicatedFastCount", true);
+    unittest::ServerParameterGuard featureFlag("featureFlagReplicatedFastCount", true);
 
     const auto doc1 = BSON("_id" << 0 << "x" << 1);
 
@@ -366,7 +368,7 @@ TEST_F(ReplicatedFastCountTxnTest, FastCountResetForSessionBetweenTransactions) 
 }
 
 TEST_F(ReplicatedFastCountTxnTest, ApplyOpsOplogEntryContainsSizeDeltaMetadataSingleInsert) {
-    RAIIServerParameterControllerForTest featureFlag("featureFlagReplicatedFastCount", true);
+    unittest::ServerParameterGuard featureFlag("featureFlagReplicatedFastCount", true);
 
     auto doc = BSON("_id" << 0 << "x" << 1);
     auto sessionId = makeLogicalSessionIdForTest();
@@ -401,7 +403,7 @@ TEST_F(ReplicatedFastCountTxnTest, ApplyOpsOplogEntryContainsSizeDeltaMetadataSi
 }
 
 TEST_F(ReplicatedFastCountTxnTest, ApplyOpsOplogEntryContainsSizeDeltaMetadata) {
-    RAIIServerParameterControllerForTest featureFlag("featureFlagReplicatedFastCount", true);
+    unittest::ServerParameterGuard featureFlag("featureFlagReplicatedFastCount", true);
 
     // Both collections begin empty.
     EXPECT_EQ(CollectionSizeCount{}, test_helpers::scanForAccurateSizeCount(_opCtx, _nss1));
@@ -679,24 +681,20 @@ protected:
     }
 
     /**
-     * Restores a prepared transaction from a precise checkpoint record on a fresh client and
-     * returns the participant's preparedSizeMetadata.
+     * Restores a prepared transaction from a precise checkpoint record on the given `opCtx`,
+     * leaving its session checked out so that the prepared transaction state can be verified.
      */
-    boost::optional<std::vector<MultiOpSizeMetadata>> restoreFromCheckpointAndGetSizeMetadata(
+    std::unique_ptr<MongoDSessionCatalog::Session> restoreFromCheckpointAndGetSession(
+        OperationContext* opCtx,
         LogicalSessionId sessionId,
         TxnNumber txnNumber,
         SessionTxnRecordForPrepareRecovery recoveryRecord) {
-        auto newClientOwned = getServiceContext()->getService()->makeClient("recoverClient");
-        AlternativeClientRegion acr(newClientOwned);
-        auto opCtxHolder = cc().makeOperationContext();
-        auto opCtx = opCtxHolder.get();
-
         opCtx->setLogicalSessionId(sessionId);
         opCtx->setTxnNumber(txnNumber);
         opCtx->setInMultiDocumentTransaction();
 
         auto mongoDSessionCatalog = MongoDSessionCatalog::get(opCtx);
-        auto ocs = mongoDSessionCatalog->checkOutSessionWithoutRefresh(opCtx);
+        auto session = mongoDSessionCatalog->checkOutSessionWithoutRefresh(opCtx);
         auto txnParticipant = TransactionParticipant::get(opCtx);
 
         txnParticipant.unstashTransactionResources(opCtx, "prepareTransaction");
@@ -708,15 +706,13 @@ protected:
         }
 
         txnParticipant.restorePreparedTxnFromPreciseCheckpoint(opCtx, std::move(recoveryRecord));
-        return txnParticipant.getPreparedSizeMetadata();
+        return session;
     }
 };
 
 TEST_F(PreparedSizeMetadataTest, PrepareTransactionWritesSizeMetadataToSessionTxnRecord) {
-    RAIIServerParameterControllerForTest flagReplicatedFastCount("featureFlagReplicatedFastCount",
-                                                                 true);
-    RAIIServerParameterControllerForTest flagDurability("featureFlagReplicatedFastCountDurability",
-                                                        true);
+    unittest::ServerParameterGuard flagReplicatedFastCount("featureFlagReplicatedFastCount", true);
+    unittest::ServerParameterGuard flagDurability("featureFlagReplicatedFastCountDurability", true);
 
     auto sessionId = makeLogicalSessionIdForTest();
     TxnNumber txnNumber(0);
@@ -736,12 +732,10 @@ TEST_F(PreparedSizeMetadataTest, PrepareTransactionWritesSizeMetadataToSessionTx
 }
 
 TEST_F(PreparedSizeMetadataTest, PrepareTransactionWritesSizeMetadataForSplitLinkedApplyOps) {
-    RAIIServerParameterControllerForTest flagBase("featureFlagReplicatedFastCount", true);
-    RAIIServerParameterControllerForTest flagDurability("featureFlagReplicatedFastCountDurability",
-                                                        true);
+    unittest::ServerParameterGuard flagBase("featureFlagReplicatedFastCount", true);
+    unittest::ServerParameterGuard flagDurability("featureFlagReplicatedFastCountDurability", true);
     // Force a split after every 2 ops, so 3 total ops yields 2 linked applyOps entries.
-    RAIIServerParameterControllerForTest maxOps(
-        "maxNumberOfTransactionOperationsInSingleOplogEntry", 2);
+    unittest::ServerParameterGuard maxOps("maxNumberOfTransactionOperationsInSingleOplogEntry", 2);
 
     auto sessionId = makeLogicalSessionIdForTest();
     TxnNumber txnNumber(0);
@@ -761,10 +755,8 @@ TEST_F(PreparedSizeMetadataTest, PrepareTransactionWritesSizeMetadataForSplitLin
 }
 
 TEST_F(PreparedSizeMetadataTest, CommitTransactionWritesSizeMetadataToOplogEntry) {
-    RAIIServerParameterControllerForTest flagReplicatedFastCount("featureFlagReplicatedFastCount",
-                                                                 true);
-    RAIIServerParameterControllerForTest flagDurability("featureFlagReplicatedFastCountDurability",
-                                                        true);
+    unittest::ServerParameterGuard flagReplicatedFastCount("featureFlagReplicatedFastCount", true);
+    unittest::ServerParameterGuard flagDurability("featureFlagReplicatedFastCountDurability", true);
 
     auto sessionId = makeLogicalSessionIdForTest();
     TxnNumber txnNumber(0);
@@ -791,10 +783,8 @@ TEST_F(PreparedSizeMetadataTest, CommitTransactionWritesSizeMetadataToOplogEntry
 
 TEST_F(PreparedSizeMetadataTest,
        RestorePreciseCheckpointPopulatesPreparedSizeMetadataOnParticipant) {
-    RAIIServerParameterControllerForTest flagReplicatedFastCount("featureFlagReplicatedFastCount",
-                                                                 true);
-    RAIIServerParameterControllerForTest flagDurability("featureFlagReplicatedFastCountDurability",
-                                                        true);
+    unittest::ServerParameterGuard flagReplicatedFastCount("featureFlagReplicatedFastCount", true);
+    unittest::ServerParameterGuard flagDurability("featureFlagReplicatedFastCountDurability", true);
 
     auto sessionId = makeLogicalSessionIdForTest();
     TxnNumber txnNumber(0);
@@ -813,13 +803,76 @@ TEST_F(PreparedSizeMetadataTest,
 
     // After restoring from the checkpoint record, the participant's sizeMetadata should be
     // identical to what was present before the restart.
-    const auto restoredSizeMetadata =
-        restoreFromCheckpointAndGetSizeMetadata(sessionId, txnNumber, std::move(recoveryRecord));
+    [[maybe_unused]] const auto session =
+        restoreFromCheckpointAndGetSession(_opCtx, sessionId, txnNumber, std::move(recoveryRecord));
+    const auto restoredSizeMetadata = TransactionParticipant::get(_opCtx).getPreparedSizeMetadata();
 
     ASSERT_TRUE(restoredSizeMetadata.has_value());
     assertSizeMetadataEqual(*restoredSizeMetadata, sizeMetadataBeforeRestart);
 }
 
+TEST_F(PreparedSizeMetadataTest, RestorePreciseCheckpointSeedsUncommittedFastCountChanges) {
+    unittest::ServerParameterGuard flagReplicatedFastCount("featureFlagReplicatedFastCount", true);
+    unittest::ServerParameterGuard flagDurability("featureFlagReplicatedFastCountDurability", true);
+
+    const LogicalSessionId sessionId = makeLogicalSessionIdForTest();
+    const TxnNumber txnNumber(0);
+
+    beginTxn(sessionId, txnNumber, [&](OperationContext* opCtx) {
+        addTransactionInsertOps(opCtx, _nss1, {docA, docB});
+        addTransactionInsertOps(opCtx, _nss2, {docC});
+    });
+    auto recoveryRecord = prepareTxnAndCaptureRecoveryRecord(sessionId, txnNumber);
+
+    // Before restoring, no uncommitted fast count changes have been seeded.
+    {
+        const auto& uncommitted = UncommittedFastCountChange::getForRead(_opCtx);
+        EXPECT_EQ(uncommitted.find(_uuid1), (CollectionSizeCount{.size = 0, .count = 0}));
+        EXPECT_EQ(uncommitted.find(_uuid2), (CollectionSizeCount{.size = 0, .count = 0}));
+    }
+
+    // Restoring from the checkpoint record re-seeds the uncommitted fast count changes from the
+    // persisted size metadata.
+    SessionCatalog::get(getServiceContext())->reset_forTest();
+    [[maybe_unused]] const auto session =
+        restoreFromCheckpointAndGetSession(_opCtx, sessionId, txnNumber, std::move(recoveryRecord));
+
+    {
+        const auto& uncommitted = UncommittedFastCountChange::getForRead(_opCtx);
+        EXPECT_EQ(uncommitted.find(_uuid1),
+                  (CollectionSizeCount{.size = docA.objsize() + docB.objsize(), .count = 2}));
+        EXPECT_EQ(uncommitted.find(_uuid2),
+                  (CollectionSizeCount{.size = docC.objsize(), .count = 1}));
+    }
+}
+
+TEST_F(PreparedSizeMetadataTest, RestorePreciseCheckpointThrowsWhenCollectionMissingFromCatalog) {
+    unittest::ServerParameterGuard flagReplicatedFastCount("featureFlagReplicatedFastCount", true);
+    unittest::ServerParameterGuard flagDurability("featureFlagReplicatedFastCountDurability", true);
+
+    const LogicalSessionId sessionId = makeLogicalSessionIdForTest();
+    const TxnNumber txnNumber(0);
+
+    beginTxn(sessionId, txnNumber, [&](OperationContext* opCtx) {
+        addTransactionInsertOps(opCtx, _nss1, {docA});
+    });
+    auto recoveryRecord = prepareTxnAndCaptureRecoveryRecord(sessionId, txnNumber);
+    ASSERT_TRUE(recoveryRecord.getSizeMetadata().has_value());
+
+    SessionCatalog::get(getServiceContext())->reset_forTest();
+
+    // Drop the collection so its UUID can no longer be resolved in the catalog, simulating a
+    // recovery record whose persisted size metadata references a now-missing collection.
+    {
+        DBDirectClient client(_opCtx);
+        ASSERT_TRUE(client.dropCollection(_nss1));
+    }
+
+    ASSERT_THROWS_CODE(
+        restoreFromCheckpointAndGetSession(_opCtx, sessionId, txnNumber, std::move(recoveryRecord)),
+        AssertionException,
+        12615200);
+}
 
 struct PreparedSizeMetadataFlagParams {
     // Whether `featureFlagReplicatedFastCount` is enabled.
@@ -836,10 +889,9 @@ TEST_P(PreparedSizeMetadataFlagTest,
        OmitsSizeMetadataFromConfigTransactionsUnlessBothFlagsEnabled) {
     const auto [baseFlagEnabled, durabilityFlagEnabled] = GetParam();
 
-    RAIIServerParameterControllerForTest flagBase("featureFlagReplicatedFastCount",
-                                                  baseFlagEnabled);
-    RAIIServerParameterControllerForTest flagDurability("featureFlagReplicatedFastCountDurability",
-                                                        durabilityFlagEnabled);
+    unittest::ServerParameterGuard flagBase("featureFlagReplicatedFastCount", baseFlagEnabled);
+    unittest::ServerParameterGuard flagDurability("featureFlagReplicatedFastCountDurability",
+                                                  durabilityFlagEnabled);
     auto sessionId = makeLogicalSessionIdForTest();
     TxnNumber txnNumber(0);
 

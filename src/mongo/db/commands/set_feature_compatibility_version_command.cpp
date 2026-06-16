@@ -93,6 +93,7 @@
 #include "mongo/db/topology/vector_clock/vector_clock.h"
 #include "mongo/db/topology/vector_clock/vector_clock_mutable.h"
 #include "mongo/db/transaction/transaction_api.h"
+#include "mongo/db/version_context.h"
 #include "mongo/db/write_concern.h"
 #include "mongo/idl/idl_parser.h"
 #include "mongo/logv2/log.h"
@@ -1076,6 +1077,10 @@ private:
 
         _userCollectionsUassertsForUpgrade(opCtx, requestedVersion, originalVersion);
 
+        uassert(ErrorCodes::Error(549180),
+                "Failing upgrade due to 'failUpgrading' failpoint set",
+                !failUpgrading.shouldFail());
+
         auto role = ShardingState::get(opCtx)->pollClusterRole();
 
         // This helper function is for any user collections creations, changes or deletions that
@@ -1099,10 +1104,6 @@ private:
                 cloneAuthoritativeDatabaseMetadataOnShards(opCtx);
             }
         }
-
-        uassert(ErrorCodes::Error(549180),
-                "Failing upgrade due to 'failUpgrading' failpoint set",
-                !failUpgrading.shouldFail());
     }
 
     // _runUpgrade performs all the metadata-changing actions of an FCV upgrade. Any new feature

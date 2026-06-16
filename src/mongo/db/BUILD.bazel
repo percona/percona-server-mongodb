@@ -833,6 +833,7 @@ mongo_cc_library(
         "//src/mongo/db/storage:execution_context",
         "//src/mongo/db/storage:prepare_conflict_tracker",
         "//src/mongo/db/timeseries:timeseries_options",
+        "//src/mongo/otel/traces/span:span_names",
         "//src/mongo/rpc",
         "//src/mongo/rpc:command_status",
         "//src/mongo/rpc:rewrite_state_change_errors",
@@ -1153,6 +1154,7 @@ mongo_cc_library(
         "//src/mongo/db/shard_role",
         "//src/mongo/db/stats:timer_stats",
         "//src/mongo/db/storage:storage_control",
+        "//src/mongo/otel/metrics:otel_metrics_service",
     ],
 )
 
@@ -3247,7 +3249,7 @@ mongo_cc_unit_test(
         "//src/mongo/db/pipeline:aggregation_request_helper",
         "//src/mongo/db/pipeline:change_stream_pipeline",
         "//src/mongo/db/storage/wiredtiger:storage_wiredtiger",
-        "//src/mongo/idl:server_parameter_test_util",
+        "//src/mongo/unittest:server_parameter_guard",
         "//src/third_party/asio",
     ],
 )
@@ -3460,6 +3462,7 @@ mongo_cc_unit_test(
         ":service_context_d_test_fixture",
         ":service_context_test_fixture",
         "//src/mongo/db/repl:replmocks",
+        "//src/mongo/db/s:forwardable_operation_metadata",
         "//src/mongo/db/shard_role",
         "//src/mongo/db/shard_role/shard_catalog:catalog_test_fixture",
         "//src/mongo/db/stats:counters",
@@ -3506,6 +3509,7 @@ mongo_cc_unit_test(
     srcs = [
         "read_concern_test.cpp",
         "read_write_concern_provenance_test.cpp",
+        "write_concern_metrics_test.cpp",
         "write_concern_options_test.cpp",
         "write_concern_test.cpp",
     ],
@@ -3517,6 +3521,7 @@ mongo_cc_unit_test(
         "//src/mongo/db/repl:repl_coordinator_test_fixture",
         "//src/mongo/db/repl:repl_settings",
         "//src/mongo/db/repl:replmocks",
+        "//src/mongo/otel/metrics:metrics_test_util",
     ],
 )
 

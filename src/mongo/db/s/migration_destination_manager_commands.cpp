@@ -161,12 +161,12 @@ public:
                 nss,
                 chunkRange,
                 cloneRequest.getFromShardId(),
-                false /* waitForCompletionOfConflictingOps*/)));
+                false /* waitForCompletionOfMigrationOps*/)));
 
         // We force a refresh immediately after registering this migration to guarantee that this
         // shard will not receive a chunk after refreshing.
-        uassertStatusOK(FilteringMetadataCache::get(opCtx)->onCollectionPlacementVersionMismatch(
-            opCtx, nss, boost::none));
+        uassertStatusOK(
+            FilteringMetadataCache::get(opCtx)->onShardVersionMismatch(opCtx, nss, boost::none));
 
         // Wait for the ShardServerCatalogCacheLoader to finish flushing the metadata to the
         // storage. This is not required for correctness, but helps mitigate stalls on secondaries

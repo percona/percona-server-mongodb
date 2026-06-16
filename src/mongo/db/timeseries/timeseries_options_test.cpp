@@ -31,7 +31,7 @@
 
 #include "mongo/base/string_data.h"
 #include "mongo/db/timeseries/timeseries_gen.h"
-#include "mongo/idl/server_parameter_test_controller.h"
+#include "mongo/unittest/server_parameter_guard.h"
 #include "mongo/unittest/unittest.h"
 #include "mongo/util/time_support.h"
 
@@ -277,8 +277,7 @@ TEST(TimeseriesOptionsTest, CanUseFixedBucketOptimizations) {
         EXPECT_FALSE(timeseries::canUseFixedBucketOptimizations(opts));
     }
 
-    RAIIServerParameterControllerForTest flagController("featureFlagFixedBucketingOptimizations",
-                                                        true);
+    unittest::ServerParameterGuard flagController("featureFlagFixedBucketingOptimizations", true);
 
     // Flag on: result depends on fixedBucketing field and maxSpan == rounding.
     EXPECT_TRUE(timeseries::canUseFixedBucketOptimizations(withFixedBucketing(optionsEqualAndNone)))
@@ -435,6 +434,73 @@ TEST(TimeseriesOptionsTest, FixedBucketingHandling) {
         ASSERT_FALSE(newOpts.getFixedBucketing());
     }
 }
+
+// Verify `setFixedBucketingDefaultForNewCollection`: only flagEnabled=true with an unset field
+// sets fixedBucketing to true; all other combinations leave the field unchanged.
+// Parameters: (flagEnabled, initialValue, expectedValue).
+using SetFixedBucketingTestParams = std::tuple<bool, boost::optional<bool>, boost::optional<bool>>;
+class SetFixedBucketingDefaultTest : public testing::TestWithParam<SetFixedBucketingTestParams> {};
+
+TEST_P(SetFixedBucketingDefaultTest, SetFixedBucketingDefaultForNewCollection) {
+    auto [flagEnabled, initial, expected] = GetParam();
+    TimeseriesOptions opts{"time"};
+    if (initial.has_value())
+        opts.setFixedBucketing(*initial);
+    timeseries::setFixedBucketingDefaultForNewCollection(opts, flagEnabled);
+    ASSERT_EQ(opts.getFixedBucketing().has_value(), expected.has_value());
+    if (expected.has_value()) {
+        ASSERT_EQ(static_cast<bool>(opts.getFixedBucketing()), *expected);
+    }
+}
+
+INSTANTIATE_TEST_SUITE_P(TimeseriesOptions,
+                         SetFixedBucketingDefaultTest,
+                         testing::Values(
+                             // flag on: unset => true, explicit values preserved
+                             SetFixedBucketingTestParams{true, boost::none, true},
+                             SetFixedBucketingTestParams{true, false, false},
+                             SetFixedBucketingTestParams{true, true, true},
+                             // flag off: no-op regardless of initial value
+                             SetFixedBucketingTestParams{false, boost::none, boost::none},
+                             SetFixedBucketingTestParams{false, false, false},
+                             SetFixedBucketingTestParams{false, true, true}));
+
+// Verify `inheritFixedBucketingIfOmitted`: if requested has no fixedBucketing, inherit from
+// existing; if requested has it set (true or false), leave it unchanged.
+// Parameters: (requestedValue, existingValue, expectedValue).
+using InheritFixedBucketingTestParams =
+    std::tuple<boost::optional<bool>, boost::optional<bool>, boost::optional<bool>>;
+class InheritFixedBucketingTest : public testing::TestWithParam<InheritFixedBucketingTestParams> {};
+
+TEST_P(InheritFixedBucketingTest, InheritFixedBucketingIfOmitted) {
+    auto [requestedVal, existingVal, expectedVal] = GetParam();
+    TimeseriesOptions requested{"time"};
+    if (requestedVal.has_value())
+        requested.setFixedBucketing(*requestedVal);
+    TimeseriesOptions existing{"time"};
+    if (existingVal.has_value())
+        existing.setFixedBucketing(*existingVal);
+    timeseries::inheritFixedBucketingIfOmitted(requested, existing);
+    ASSERT_EQ(requested.getFixedBucketing().has_value(), expectedVal.has_value());
+    if (expectedVal.has_value()) {
+        ASSERT_EQ(static_cast<bool>(requested.getFixedBucketing()), *expectedVal);
+    }
+}
+
+INSTANTIATE_TEST_SUITE_P(TimeseriesOptions,
+                         InheritFixedBucketingTest,
+                         testing::Values(
+                             // requested unset: inherits from existing
+                             InheritFixedBucketingTestParams{boost::none, true, true},
+                             InheritFixedBucketingTestParams{boost::none, false, false},
+                             InheritFixedBucketingTestParams{boost::none, boost::none, boost::none},
+                             // requested set: unchanged regardless of existing
+                             InheritFixedBucketingTestParams{true, true, true},
+                             InheritFixedBucketingTestParams{true, false, true},
+                             InheritFixedBucketingTestParams{true, boost::none, true},
+                             InheritFixedBucketingTestParams{false, true, false},
+                             InheritFixedBucketingTestParams{false, false, false},
+                             InheritFixedBucketingTestParams{false, boost::none, false}));
 
 TEST(TimeseriesOptionsTest, BSONColumnMemEstimationCalculations) {
     // The calculations for BSONColumn memory estimation in bson_validate.cpp rely on the defaults

@@ -29,7 +29,6 @@
 
 #pragma once
 
-#include "mongo/idl/server_parameter_test_controller.h"
 #include "mongo/otel/metrics/metrics_service.h"
 #include "mongo/util/modules.h"
 
@@ -254,6 +253,13 @@ private:
     // this DS, and the get() function will read from it.
     opentelemetry::exporter::memory::SimpleAggregateInMemoryMetricData* _metrics;
 #endif  // MONGO_CONFIG_OTEL
+};
+
+class DynamicMetricNameTestPasskeyMaker {
+public:
+    static DynamicMetricNameMaker::Passkey make() {
+        return DynamicMetricNameMaker::Passkey{};
+    }
 };
 
 ////////////////////////////////////////////////////////////

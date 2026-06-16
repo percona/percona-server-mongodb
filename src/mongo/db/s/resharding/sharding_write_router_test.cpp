@@ -71,7 +71,6 @@
 #include "mongo/db/versioning_protocol/shard_version_factory.h"
 #include "mongo/executor/network_interface_mock.h"
 #include "mongo/executor/task_executor_pool.h"
-#include "mongo/idl/server_parameter_test_controller.h"
 #include "mongo/s/balancer_configuration.h"
 #include "mongo/s/query/exec/cluster_cursor_manager.h"
 #include "mongo/s/resharding/common_types_gen.h"
@@ -138,8 +137,8 @@ public:
                 opCtx.get(), kNss, _shardVersion, boost::none /* databaseVersion */);
 
             CollectionShardingRuntime::acquireExclusive(opCtx.get(), kNss)
-                ->setFilteringMetadata_nonAuthoritative(
-                    opCtx.get(), CollectionMetadata(chunkManager, kDonorShardHandle.name()));
+                ->setCollectionMetadata(opCtx.get(),
+                                        CollectionMetadata(chunkManager, kDonorShardHandle.name()));
         }
 
         {
@@ -335,7 +334,7 @@ TEST_F(ShardingWriteRouterRegistryTest, CollDescHasNoRoutingTableReturnsNone) {
         const auto client = _serviceContext->getService()->makeClient("test-setup-unsharded");
         const auto opCtx = client->makeOperationContext();
         CollectionShardingRuntime::acquireExclusive(opCtx.get(), untrackedNss)
-            ->setFilteringMetadata_nonAuthoritative(opCtx.get(), CollectionMetadata());
+            ->setCollectionMetadata(opCtx.get(), CollectionMetadata());
     }
 
     const auto client = _serviceContext->getService()->makeClient("test-unsharded-router");

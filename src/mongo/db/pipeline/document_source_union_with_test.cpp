@@ -56,8 +56,8 @@
 #include "mongo/db/query/query_optimization_knobs_gen.h"
 #include "mongo/db/stats/counters.h"
 #include "mongo/db/tenant_id.h"
-#include "mongo/idl/server_parameter_test_controller.h"
 #include "mongo/platform/atomic_word.h"
+#include "mongo/unittest/server_parameter_guard.h"
 #include "mongo/unittest/unittest.h"
 #include "mongo/util/intrusive_counter.h"
 
@@ -922,7 +922,7 @@ using DocumentSourceUnionWithServerlessTest = ServerlessAggregationContextFixtur
 
 TEST_F(DocumentSourceUnionWithServerlessTest,
        LiteParsedDocumentSourceLookupContainsExpectedNamespacesInServerless) {
-    RAIIServerParameterControllerForTest multitenancyController("multitenancySupport", true);
+    unittest::ServerParameterGuard multitenancyController("multitenancySupport", true);
 
     auto tenantId = TenantId(OID::gen());
     NamespaceString nss =
@@ -951,7 +951,7 @@ TEST_F(DocumentSourceUnionWithServerlessTest,
 
 TEST_F(DocumentSourceUnionWithServerlessTest,
        CreateFromBSONContainsExpectedNamespacesInServerless) {
-    RAIIServerParameterControllerForTest multitenancyController("multitenancySupport", true);
+    unittest::ServerParameterGuard multitenancyController("multitenancySupport", true);
 
     auto expCtx = getExpCtx();
     ASSERT(expCtx->getNamespaceString().tenantId());
@@ -999,11 +999,11 @@ TEST_F(DocumentSourceUnionWithTest, StageParamsCarriesParsedData) {
         ASSERT_EQ(params->unionNss.dbName(), nss.dbName());
         ASSERT_EQ(params->pipeline.size(), 1U);
         ASSERT_FALSE(params->hasForeignDB);
-        ASSERT_TRUE(params->liteParsedPipeline.has_value());
-        ASSERT_EQ(params->liteParsedPipeline->getStages().size(), 1U);
+        ASSERT_TRUE(params->subpipelineStageParams.has_value());
+        ASSERT_EQ(params->subpipelineStageParams->size(), 1U);
     }
 
-    // String spec (collection name only): no LPP since there's no subpipeline.
+    // String spec (collection name only): no subpipelineStageParams since there's no subpipeline.
     {
         auto bson = BSON("$unionWith" << "target_coll");
         auto liteParsed = LiteParsedUnionWith::parse(nss, bson.firstElement(), LiteParserOptions{});
@@ -1013,7 +1013,7 @@ TEST_F(DocumentSourceUnionWithTest, StageParamsCarriesParsedData) {
         ASSERT_EQ(params->unionNss.coll(), "target_coll");
         ASSERT_TRUE(params->pipeline.empty());
         ASSERT_FALSE(params->hasForeignDB);
-        ASSERT_FALSE(params->liteParsedPipeline.has_value());
+        ASSERT_FALSE(params->subpipelineStageParams.has_value());
     }
 
     // Foreign DB sets hasForeignDB, even if it matches the current DB.
@@ -1047,11 +1047,11 @@ TEST_F(DocumentSourceUnionWithTest, StageParamsCarriesParsedData) {
         auto stageParams = liteParsed->getStageParams();
         auto* params = dynamic_cast<UnionWithStageParams*>(stageParams.get());
         ASSERT(params);
-        ASSERT_TRUE(params->liteParsedPipeline.has_value());
-        ASSERT_EQ(params->liteParsedPipeline->getStages().size(), 0U);
+        ASSERT_TRUE(params->subpipelineStageParams.has_value());
+        ASSERT_TRUE(params->subpipelineStageParams->empty());
     }
 
-    // Multi-stage pipeline: LPP carries all stages.
+    // Multi-stage pipeline: subpipelineStageParams carries all stages.
     {
         auto bson = BSON("$unionWith"
                          << BSON("coll" << "target_coll"
@@ -1062,8 +1062,8 @@ TEST_F(DocumentSourceUnionWithTest, StageParamsCarriesParsedData) {
         auto stageParams = liteParsed->getStageParams();
         auto* params = dynamic_cast<UnionWithStageParams*>(stageParams.get());
         ASSERT(params);
-        ASSERT_TRUE(params->liteParsedPipeline.has_value());
-        ASSERT_EQ(params->liteParsedPipeline->getStages().size(), 2U);
+        ASSERT_TRUE(params->subpipelineStageParams.has_value());
+        ASSERT_EQ(params->subpipelineStageParams->size(), 2U);
     }
 }
 

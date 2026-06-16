@@ -64,8 +64,8 @@
 #include "mongo/db/storage/write_unit_of_work.h"
 #include "mongo/db/timeseries/timeseries_gen.h"
 #include "mongo/db/timeseries/timeseries_test_util.h"
-#include "mongo/idl/server_parameter_test_controller.h"
 #include "mongo/stdx/utility.h"
+#include "mongo/unittest/server_parameter_guard.h"
 #include "mongo/unittest/unittest.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/duration.h"
@@ -345,7 +345,7 @@ TEST_F(CreateCollectionTest,
 TEST_F(CreateCollectionTest, CreateCollectionForApplyOpsRespectsTimeseriesBucketsCollectionPrefix) {
     // This test validates system.buckets.* prefix handling during applyOps rename,
     // which only applies to legacy timeseries collections.
-    RAIIServerParameterControllerForTest viewlessController(
+    unittest::ServerParameterGuard viewlessController(
         "featureFlagCreateViewlessTimeseriesCollections", false);
     NamespaceString curNss = NamespaceString::createNamespaceString_forTest("test.curColl");
     auto bucketsColl =
@@ -408,7 +408,7 @@ TEST_F(CreateCollectionTest, CreateCollectionForApplyOpsRespectsTimeseriesBucket
 }
 
 TEST_F(CreateCollectionTest, TimeseriesBucketingParametersChangedFlagNotSetIfFeatureDisabled) {
-    RAIIServerParameterControllerForTest featureFlagController(
+    unittest::ServerParameterGuard featureFlagController(
         "featureFlagTSBucketingParametersUnchanged", false);
     NamespaceString curNss = NamespaceString::createNamespaceString_forTest("test.curColl");
 
@@ -426,7 +426,7 @@ TEST_F(CreateCollectionTest, TimeseriesBucketingParametersChangedFlagNotSetIfFea
 
 TEST_F(CreateCollectionTest,
        TimeseriesBucketingParametersChangedFlagNotSetIfCollectionNotTimeseries) {
-    RAIIServerParameterControllerForTest featureFlagController(
+    unittest::ServerParameterGuard featureFlagController(
         "featureFlagTSBucketingParametersUnchanged", false);
     NamespaceString curNss = NamespaceString::createNamespaceString_forTest("test.curColl");
 
@@ -439,7 +439,7 @@ TEST_F(CreateCollectionTest,
 }
 
 TEST_F(CreateCollectionTest, TimeseriesBucketingParametersChangedFlagTrue) {
-    RAIIServerParameterControllerForTest featureFlagController(
+    unittest::ServerParameterGuard featureFlagController(
         "featureFlagTSBucketingParametersUnchanged", true);
 
     NamespaceString curNss = NamespaceString::createNamespaceString_forTest("test.curColl");
@@ -458,7 +458,7 @@ TEST_F(CreateCollectionTest, TimeseriesBucketingParametersChangedFlagTrue) {
 }
 
 TEST_F(CreateCollectionTest, TimeseriesBucketingParametersChangedFlagFalse) {
-    RAIIServerParameterControllerForTest featureFlagController(
+    unittest::ServerParameterGuard featureFlagController(
         "featureFlagTSBucketingParametersUnchanged", true);
 
     NamespaceString curNss = NamespaceString::createNamespaceString_forTest("test.curColl");
@@ -641,8 +641,8 @@ TEST_F(CreateCollectionTest, CreateCollectionForApplyOpsUsesIdIndexIdentIfSuppli
 
 TEST_F(CreateCollectionTest,
        CreateCollectionForApplyOpsUsesRecordIdsReplicatedIfSuppliedWhenItIsFalse) {
-    RAIIServerParameterControllerForTest featureFlagController =
-        RAIIServerParameterControllerForTest("featureFlagRecordIdsReplicated", true);
+    unittest::ServerParameterGuard featureFlagController =
+        unittest::ServerParameterGuard("featureFlagRecordIdsReplicated", true);
 
     auto opCtx = makeOpCtx();
     auto nss = NamespaceString::createNamespaceString_forTest("test.recordIdsReplicated");
@@ -669,8 +669,8 @@ TEST_F(CreateCollectionTest,
 
 TEST_F(CreateCollectionTest,
        CreateCollectionForApplyOpsUsesRecordIdsReplicatedIfSuppliedWhenItIsTrue) {
-    RAIIServerParameterControllerForTest featureFlagController =
-        RAIIServerParameterControllerForTest("featureFlagRecordIdsReplicated", true);
+    unittest::ServerParameterGuard featureFlagController =
+        unittest::ServerParameterGuard("featureFlagRecordIdsReplicated", true);
 
     auto opCtx = makeOpCtx();
     auto nss = NamespaceString::createNamespaceString_forTest("test.recordIdsReplicated");
@@ -697,8 +697,8 @@ TEST_F(CreateCollectionTest,
 
 TEST_F(CreateCollectionTest,
        CreateCollectionForApplyOpsUsesRecordIdsReplicatedWhenNotSuppliedAndFeatureFlagIsOn) {
-    RAIIServerParameterControllerForTest featureFlagController =
-        RAIIServerParameterControllerForTest("featureFlagRecordIdsReplicated", true);
+    unittest::ServerParameterGuard featureFlagController =
+        unittest::ServerParameterGuard("featureFlagRecordIdsReplicated", true);
 
     auto opCtx = makeOpCtx();
     auto nss = NamespaceString::createNamespaceString_forTest("test.recordIdsReplicated");
@@ -864,19 +864,25 @@ TEST_F(CreateCollectionTest, TestCollectionCreationChecks) {
     auto createCollectionTestCase = [&](OperationContext* opCtx,
                                         const NamespaceString& nss,
                                         const CollectionOptions& options,
-                                        const int expectedErrorCode) {
+                                        ErrorCodes::Error expectedErrorCode) {
         ASSERT(!collectionExists(opCtx, nss));
-        Lock::DBLock lock(opCtx, nss.dbName(), MODE_IX);
-        ASSERT_THROWS_CODE(createCollection(opCtx, nss, options, /*idIndex=*/boost::none),
-                           DBException,
-                           expectedErrorCode);
+        // createCollection reports failures inconsistently (thrown DBException vs returned Status),
+        // so normalize both into a Status before checking the error code.
+        const Status status = [&] {
+            try {
+                return createCollection(opCtx, nss, options, /*idIndex=*/boost::none);
+            } catch (const DBException& ex) {
+                return ex.toStatus();
+            }
+        }();
+        ASSERT_EQ(status.code(), expectedErrorCode) << status;
     };
 
     NamespaceString nss = NamespaceString::createNamespaceString_forTest("test.coll");
 
     // CollectionOptions cannot have validator set when creating a viewless timeseries collection.
     {
-        RAIIServerParameterControllerForTest featureFlagController(
+        unittest::ServerParameterGuard featureFlagController(
             "featureFlagCreateViewlessTimeseriesCollections", true);
         auto opCtx = makeOpCtx();
         CollectionOptions options;
@@ -932,9 +938,8 @@ TEST_F(CreateCollectionTest, TestCollectionCreationChecks) {
 
     // Cannot set fixedBucketing when featureFlagFixedBucketingCatalog is disabled.
     {
-        RAIIServerParameterControllerForTest flagController("featureFlagFixedBucketingCatalog",
-                                                            false);
-        RAIIServerParameterControllerForTest viewlessController(
+        unittest::ServerParameterGuard flagController("featureFlagFixedBucketingCatalog", false);
+        unittest::ServerParameterGuard viewlessController(
             "featureFlagCreateViewlessTimeseriesCollections", true);
         auto opCtx = makeOpCtx();
         CollectionOptions options;
@@ -945,9 +950,8 @@ TEST_F(CreateCollectionTest, TestCollectionCreationChecks) {
 
     // Cannot set fixedBucketing on a non-viewless (legacy) timeseries collection.
     {
-        RAIIServerParameterControllerForTest flagController("featureFlagFixedBucketingCatalog",
-                                                            true);
-        RAIIServerParameterControllerForTest viewlessController(
+        unittest::ServerParameterGuard flagController("featureFlagFixedBucketingCatalog", true);
+        unittest::ServerParameterGuard viewlessController(
             "featureFlagCreateViewlessTimeseriesCollections", false);
         auto opCtx = makeOpCtx();
         CollectionOptions options;
@@ -957,38 +961,113 @@ TEST_F(CreateCollectionTest, TestCollectionCreationChecks) {
     }
 }
 
-// Verifies that the fixedBucketing value provided at creation is stored correctly in the
-// catalog and read back unchanged. Covers true, false, and unset to ensure all three states
-// are distinguishable on read-back.
+// Verifies that fixedBucketing is stored correctly at creation time: explicit values are persisted
+// unchanged, an omitted value defaults to true when the flag is enabled, and stays unset when
+// the flag is disabled.
 TEST_F(CreateCollectionTest, FixedBucketingValuePersisted) {
-    RAIIServerParameterControllerForTest flagController("featureFlagFixedBucketingCatalog", true);
-    RAIIServerParameterControllerForTest viewlessController(
+    unittest::ServerParameterGuard viewlessController(
         "featureFlagCreateViewlessTimeseriesCollections", true);
 
-    auto checkPersisted = [&](StringData collName, boost::optional<bool> fixedBucketing) {
+    auto checkPersisted = [&](StringData collName,
+                              boost::optional<bool> createValue,
+                              boost::optional<bool> expectedStored) {
         NamespaceString nss = NamespaceString::createNamespaceString_forTest("test", collName);
         auto opCtx = makeOpCtx();
         CollectionOptions options;
         options.timeseries = TimeseriesOptions("ts");
-        if (fixedBucketing.has_value()) {
-            options.timeseries->setFixedBucketing(*fixedBucketing);
+        if (createValue.has_value()) {
+            options.timeseries->setFixedBucketing(*createValue);
         }
 
-        Lock::DBLock lock(opCtx.get(), nss.dbName(), MODE_IX);
         ASSERT_OK(createCollection(opCtx.get(), nss, options, /*idIndex=*/boost::none));
 
         const auto storedOptions = getCollectionOptions(opCtx.get(), nss);
         ASSERT_TRUE(storedOptions.timeseries.has_value());
         const auto storedFixedBucketing = storedOptions.timeseries->getFixedBucketing();
-        ASSERT_EQ(storedFixedBucketing.has_value(), fixedBucketing.has_value());
-        if (fixedBucketing.has_value()) {
-            ASSERT_EQ(bool(storedFixedBucketing), *fixedBucketing);
+        ASSERT_EQ(storedFixedBucketing.has_value(), expectedStored.has_value());
+        if (expectedStored.has_value()) {
+            ASSERT_EQ(static_cast<bool>(storedFixedBucketing), *expectedStored);
         }
     };
 
-    checkPersisted("fixedBucketingTrue", true);
-    checkPersisted("fixedBucketingFalse", false);
-    checkPersisted("fixedBucketingUnset", boost::none);
+    {
+        unittest::ServerParameterGuard flagController("featureFlagFixedBucketingCatalog", true);
+        checkPersisted("fixedBucketingTrue", true, true);
+        checkPersisted("fixedBucketingFalse", false, false);
+        checkPersisted("fixedBucketingOmitted", boost::none, true);
+    }
+    {
+        unittest::ServerParameterGuard flagController("featureFlagFixedBucketingCatalog", false);
+        checkPersisted("fixedBucketingOmittedFlagOff", boost::none, boost::none);
+    }
+}
+
+// Verifies that an idempotent re-create that omits fixedBucketing inherits the stored value and
+// succeeds regardless of what was originally stored (true or false).
+TEST_F(CreateCollectionTest, FixedBucketingIdempotentRecreateOmittedInheritsStored) {
+    unittest::ServerParameterGuard flagController("featureFlagFixedBucketingCatalog", true);
+    unittest::ServerParameterGuard viewlessController(
+        "featureFlagCreateViewlessTimeseriesCollections", true);
+
+    // firstCreateValue: value passed on first create (boost::none = omit, defaults to true).
+    // expectedStored: value expected after both creates.
+    auto checkIdempotentRecreate =
+        [&](StringData collName, boost::optional<bool> firstCreateValue, bool expectedStored) {
+            NamespaceString nss = NamespaceString::createNamespaceString_forTest("test", collName);
+            auto opCtx = makeOpCtx();
+
+            CollectionOptions options;
+            options.timeseries = TimeseriesOptions("ts");
+            if (firstCreateValue.has_value()) {
+                options.timeseries->setFixedBucketing(*firstCreateValue);
+            }
+            ASSERT_OK(createCollection(opCtx.get(), nss, options, /*idIndex=*/boost::none));
+
+            // Re-create omitting fixedBucketing: must succeed and leave stored value unchanged.
+            CollectionOptions optionsAgain;
+            optionsAgain.timeseries = TimeseriesOptions("ts");
+            ASSERT_OK(createCollection(opCtx.get(), nss, optionsAgain, /*idIndex=*/boost::none));
+
+            const auto storedOptions = getCollectionOptions(opCtx.get(), nss);
+            ASSERT_TRUE(storedOptions.timeseries.has_value());
+            const auto storedFixedBucketing = storedOptions.timeseries->getFixedBucketing();
+            ASSERT_TRUE(storedFixedBucketing.has_value());
+            ASSERT_EQ(static_cast<bool>(storedFixedBucketing), expectedStored);
+        };
+
+    // omit first create (defaults to true), omit re-create => stays true
+    checkIdempotentRecreate("fixedBucketingRecreateOmitOmit", boost::none, true);
+    // explicit true, omit re-create => stays true
+    checkIdempotentRecreate("fixedBucketingRecreateTrueOmit", true, true);
+    // explicit false, omit re-create => stays false
+    checkIdempotentRecreate("fixedBucketingRecreateFalseOmit", false, false);
+}
+
+// Verifies that a re-create with an explicit fixedBucketing value that differs from the stored
+// value fails with NamespaceExists.
+TEST_F(CreateCollectionTest, FixedBucketingExplicitMismatchOnRecreateFails) {
+    unittest::ServerParameterGuard flagController("featureFlagFixedBucketingCatalog", true);
+    unittest::ServerParameterGuard viewlessController(
+        "featureFlagCreateViewlessTimeseriesCollections", true);
+
+    NamespaceString nss =
+        NamespaceString::createNamespaceString_forTest("test", "fixedBucketingMismatch");
+    auto opCtx = makeOpCtx();
+
+    // First create: explicit false.
+    CollectionOptions options;
+    options.timeseries = TimeseriesOptions("ts");
+    options.timeseries->setFixedBucketing(false);
+    ASSERT_OK(createCollection(opCtx.get(), nss, options, /*idIndex=*/boost::none));
+
+    // Re-create with explicit true: must fail because it conflicts with the stored false.
+    // createCollection returns the incompatibility as a non-OK Status rather than throwing.
+    CollectionOptions conflictingOptions;
+    conflictingOptions.timeseries = TimeseriesOptions("ts");
+    conflictingOptions.timeseries->setFixedBucketing(true);
+    const auto status =
+        createCollection(opCtx.get(), nss, conflictingOptions, /*idIndex=*/boost::none);
+    ASSERT_EQ(status.code(), ErrorCodes::NamespaceExists);
 }
 
 TEST_F(CreateCollectionTest, CreateCollectionForApplyOpsTimeseries) {

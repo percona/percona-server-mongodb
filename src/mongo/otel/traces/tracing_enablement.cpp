@@ -27,7 +27,7 @@
  *    it in the license file.
  */
 
-#include "mongo/otel/traces/tracing_feature_flag_gen.h"
+#include "mongo/otel/traces/tracing_feature_flags_gen.h"
 
 namespace mongo::otel::traces {
 
@@ -43,7 +43,8 @@ bool isTracingEnabled(OperationContext* opCtx) {
         return false;
     }
     const auto& context = VersionContext::getDecoration(opCtx);
-    return feature_flags::gFeatureFlagTracing.isEnabled(context, fcv);
+    return feature_flags::gFeatureFlagTracing.isEnabled(context, fcv) &&
+        feature_flags::gFeatureFlagOtelTraceSampling.isEnabled(context, fcv);
 #endif
 }
 

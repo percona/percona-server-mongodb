@@ -86,10 +86,10 @@
 #include "mongo/db/versioning_protocol/shard_version.h"
 #include "mongo/db/versioning_protocol/shard_version_factory.h"
 #include "mongo/idl/idl_parser.h"
-#include "mongo/idl/server_parameter_test_controller.h"
 #include "mongo/s/resharding/common_types_gen.h"
 #include "mongo/s/resharding/type_collection_fields_gen.h"
 #include "mongo/s/would_change_owning_shard_exception.h"
+#include "mongo/unittest/server_parameter_guard.h"
 #include "mongo/unittest/unittest.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/fail_point.h"
@@ -330,7 +330,7 @@ protected:
         // Refresh the filtering metadata for the nss.
         ASSERT_OK(FilteringMetadataCache::get(opCtx)->forceDatabaseMetadataRefresh_DEPRECATED(
             opCtx, kNss.dbName()));
-        FilteringMetadataCache::get(opCtx)->forceCollectionPlacementRefresh(opCtx, kNss);
+        FilteringMetadataCache::get(opCtx)->forceCollectionMetadataRefresh_DEPRECATED(opCtx, kNss);
 
         // Also refresh the routing information.
         const auto catalogCache = Grid::get(opCtx)->catalogCache();
@@ -338,7 +338,8 @@ protected:
         (void)catalogCache->getCollectionRoutingInfo(opCtx, kNss);
 
         if (refreshTempNss) {
-            FilteringMetadataCache::get(opCtx)->forceCollectionPlacementRefresh(opCtx, env.tempNss);
+            FilteringMetadataCache::get(opCtx)->forceCollectionMetadataRefresh_DEPRECATED(
+                opCtx, env.tempNss);
             catalogCache->onStaleCollectionVersion(env.tempNss, boost::none);
             (void)catalogCache->getCollectionRoutingInfo(opCtx, env.tempNss);
         }
@@ -396,7 +397,7 @@ protected:
     }
 
     boost::optional<CommonReshardingMetadata> _registeredMetadata;
-    boost::optional<RAIIServerParameterControllerForTest> _featureFlagScope;
+    boost::optional<unittest::ServerParameterGuard> _featureFlagScope;
 };
 
 INSTANTIATE_TEST_SUITE_P(DestinedRecipient,

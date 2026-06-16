@@ -1057,7 +1057,7 @@ ExitCode _initAndListen(ServiceContext* serviceContext) {
         startFLECrud(serviceContext);
 
         DiskSpaceMonitor::start(serviceContext);
-        installOtelMetrics(serviceContext);
+        installMongodOtelMetrics(serviceContext);
         if (!storageEngine->storesFilesInDbPath()) {
             LOGV2(7333400,
                   "The index builds DiskSpaceMonitor action which periodically checks if we "
