@@ -150,7 +150,7 @@ server_parameters:
         description: "Enable the capture of 'disks' subsection of system metrics in FTDC."
         default: true
         set_at: [startup, runtime]
-        cpp_vartype: 'AtomicWord<bool>'
+        cpp_vartype: "AtomicWord<bool>"
         cpp_varname: gDiagnosticDataCollectionEnableSystemMetricsDisks
         redact: false
 
@@ -158,7 +158,7 @@ server_parameters:
         description: "Enable the capture of 'mounts' subsection of system metrics in FTDC."
         default: true
         set_at: [startup, runtime]
-        cpp_vartype: 'AtomicWord<bool>'
+        cpp_vartype: "AtomicWord<bool>"
         cpp_varname: gDiagnosticDataCollectionEnableSystemMetricsMounts
         redact: false
 
