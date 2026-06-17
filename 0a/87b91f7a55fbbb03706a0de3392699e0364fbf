@@ -1,0 +1,260 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "e30a0f559f746d8662c03d5307b7bdb8bab80f2a",
+    "merge_commit": "6dc692389ffbfecb97279ae739c367ca597e2cb1"
+  },
+  "mergai_version": "0.1.dev1+g95d1b543b",
+  "merge_context": {
+    "merge_commit": "6dc692389ffbfecb97279ae739c367ca597e2cb1",
+    "merged_commits": [
+      "6dc692389ffbfecb97279ae739c367ca597e2cb1",
+      "ee6288330a98de1a66849edea21630bdcaafbfb6",
+      "68e0d91eddfa0cf8db13aad0ec7e9a87f62fdbcf",
+      "9633a4fcf654cd68ad37474bfce8c440f6d2b88f",
+      "b7109640af95717765a32f984b2e70a19f477272",
+      "a9efbfc5b8f338a1a2f31b3b139624c44ebcf4b0",
+      "3cbf2f932828d904ee40a542f4840c6bd6ca2611",
+      "c5bb46db438979fdb073400377a703198ddc2232",
+      "49c2ddd83325ba06d0a67308b390b5dcbf2f0ba7",
+      "2fd2e2a667dd493b062a01cfdf7b8523b9580d47",
+      "63ad9478d1772b971b94bf2e628e0737a3fd4b5f",
+      "7a59383269d64d7cd62ac14111ee3245b94f127e",
+      "33a6b425e26dc94261147d9c7659775c552d6ab6",
+      "e8f86dd9968a6bf82fde4d3866d10d44ea7d0093",
+      "2e4f465f0af6feaf925510aa033bca09c08fec06",
+      "c02599711b3c94dc5aeac2683a640a87d5639a16",
+      "600e5333998a661117ea1954b8479f15e2adba3d",
+      "8d5e88278071335b82b551c41e9722f52d1643ec",
+      "fbe85b86916a1cb96a446cfba713d94a728dfcb2",
+      "04b68211497b4ab695e2c2bf910ffb938d5b4609",
+      "da8d72283c0c6172ea6e626d19e2675721c9450f",
+      "035cc8877012b2b119048845ee181f570cf9d4c1",
+      "f557e614fade7b4259f70270224f1ed46cc507e9",
+      "2f90151ade55fce7a2ddc49dba1d4fc3ede299c0",
+      "4d767b68e028bf106d037d052769bf102961f4bb",
+      "875dcfb5ae89cd70639ef4b3f51144ac2ef39cc9",
+      "acdccffdc08a516399d5d584fbab91c2afdf28b8",
+      "094c85fbf829fddf82e62919bbfd5fc0815ef52d",
+      "163d6b932f65ddf2c2a21767862a064e31273a55",
+      "2fc5c20f53a7cffd4a7f4d16564013271a498c44",
+      "6201e4d3c7f4011ee21b7316b8c763776e0c34ba",
+      "0eb1e26af1dc9fa81ca9006813a8afd4d93bfcb0",
+      "0ebba0c7b1949ae2009fbcf952255b026c2a0dba",
+      "30165a2f2207fd49c7292ce2a769277c2b170f3f",
+      "a3a5f833c42697644f9ce9bf631d6f04978fb802",
+      "1bd15c688fe862bad4fad3d9b219348d955f1dff",
+      "bb9380a6eba9efb47487341728dceb3c142e8cf9",
+      "4c459b49ae300b542c8022facbbefec776a34339",
+      "3f19f7a9aa63ec3a30e725f0fe89d8f6356085d5",
+      "efa7907add8b4eca63646ec570df069eced6d90f",
+      "b099c4c234a9603b03f028a5fcd13118e3982eec",
+      "b222be1add889e84d5ca4b6623817722d13318e2",
+      "2652bd14f34c8b8d866a3ded12067ffd28bd0a39",
+      "81fd0087a184a3854f8328c402574d3f2eefa2b4",
+      "8942e56563459cdf86f9522c71e4786c4fe63133",
+      "fcb94b32788a78fd727170ebec3afce26d54b24d",
+      "92e2992617ae3f1213b014bbc72b0f545d0c83ba",
+      "48198427bf29cbca9659cc4bc79d1601dbd142bc",
+      "594d5cf145dd3d01d1c61f2bbbecc6dfc3522c24",
+      "c185340e61c3f992f6d0f2e850e93d3f72fa3134",
+      "25c670915409e91926496fd5ad16ec07d22639a7",
+      "ce26383845e9ae7000499521cc7f5c94d2d22360",
+      "1c1eed15d3ca83d7bee3ed1de6a03d8d807ee463",
+      "6aa634bf86cd97065014cd7886bf7d6bfc201226",
+      "9c6cb31044e907b122b4a80b42f7e9166f7ad75a",
+      "c76f5f8f26792028e76d6e9acc9e315730365043",
+      "86a33813821e4780e5fc6f8ec841fdf5e79363fe",
+      "dc9be74685a4dd2c8dd76658dc375668363df2df",
+      "5720f1c9ea9551ed5190da8bfc07e11f48291039",
+      "490c9fbfb67f53638e71dd010c14b777fd1a71e9",
+      "7475c037d2175bbc2a0915bc4e6cb1689547feea",
+      "c0598c17c57225f9c5d24d5412ae31c773741b0d",
+      "6501d5abaf297974129a8ed0c888d01d1c8dc6bd",
+      "de5e401903ead0b09cbbd42df2f99570fc5e596b",
+      "f22b5095e82390d0741bf584c6d2ee15e3557f06",
+      "28c3dcfeb8e844d62b569f06e16137f26a1ad46d",
+      "ab73c9e41ca1fa40026e7c85d423a35fde3e7f94",
+      "9b9858b1ee652aa8ee4477bdfb3cd66218274971",
+      "0e4e7d1bbad614da4f5fdd312179aadc792d8a58"
+    ],
+    "important_files_modified": [],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        "buildscripts/resmokelib/configure_resmoke.py",
+        "jstests/replsets/all_commands_downgrading_to_upgraded.js",
+        "src/mongo/db/curop.cpp",
+        "src/mongo/db/pipeline/BUILD.bazel",
+        "src/mongo/db/pipeline/process_interface/common_mongod_process_interface.cpp",
+        "src/mongo/shell/servers.js",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in"
+      ]
+    }
+  },
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 52296,
+    "num_turns": 9,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.30025250000000003,
+    "modelUsage": {
+      "claude-haiku-4-5-20251001": {
+        "inputTokens": 587,
+        "outputTokens": 15,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0,
+        "webSearchRequests": 0,
+        "costUSD": 0.0006619999999999999,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000
+      },
+      "claude-opus-4-5": {
+        "inputTokens": 12,
+        "outputTokens": 2688,
+        "cacheReadInputTokens": 70861,
+        "cacheCreationInputTokens": 31504,
+        "webSearchRequests": 0,
+        "costUSD": 0.2995905,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-haiku-4-5-20251001": {
+          "tokens": {
+            "input": 587,
+            "output": 15,
+            "cache_read": 0,
+            "cache_creation": 0
+          },
+          "cost_usd": 0.0006619999999999999
+        },
+        "claude-opus-4-5": {
+          "tokens": {
+            "input": 12,
+            "output": 2688,
+            "cache_read": 70861,
+            "cache_creation": 31504
+          },
+          "cost_usd": 0.2995905
+        }
+      }
+    },
+    "text_result": "JSON response written to `/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/response_20260617_125547_178454.json`. The response describes 68 upstream commits covering resmoke module loading changes, chunk operation handling during FCV transitions, CurOp safety fixes for pending-destruction contexts, Bazel BUILD updates for change streams, ShardId\u2192ShardRef API changes, MongoRunner simplification, and WiredTiger statistics additions.",
+    "response": {
+      "summary": "This merge brings in 68 upstream commits covering several areas: (1) resmoke module loading now strictly requires all configured directories to exist, removing the previous relaxed check that only required fixture/hook dirs; (2) a test fix for sharded clusters to skip chunk operations during authoritative shard metadata transitions; (3) CurOp fixes to check operationContextIsPendingDestruction before accessing the operation context, preventing potential use-after-free scenarios; (4) Bazel BUILD updates for change stream stages adding new source files and dependencies; (5) ShardingState API changes from getShardId() to getShardRef() using a shardHandle().name() pattern; (6) MongoRunner.awaitConnection simplification removing a stale-process PID verification check; (7) WiredTiger statistics additions for disaggregated storage checkpoint pick-up metadata tracking.",
+      "auto_merged": {
+        "buildscripts/resmokelib/configure_resmoke.py": "Changes module loading logic: previously only 'fixture_dirs' and 'hook_dirs' needed to exist for a module to load; now all four directory types (fixture_dirs, hook_dirs, suite_dirs, jstest_dirs) must exist. Adds explicit type assertion that each directory config is a list. Removes existence checks when appending suite_dirs and matrix_suite_dirs since the outer check now covers all paths. Includes a minor typo change ('fixtures' \u2192 'fixures' in comment).",
+        "jstests/replsets/all_commands_downgrading_to_upgraded.js": "Adds handling for chunk operation commands during authoritative shard metadata transitions. Defines a new Set 'chunkOperationCommands' containing split, mergeChunks, mergeAllChunksOnShard, moveChunk, moveRange, and clearJumboFlag. Adds function chunkOperationsBlockedByAuthShardTransition() that checks if AuthoritativeShardsDDL feature flag is enabled but AuthoritativeShardsCRUD is not. In the test loop, skips these chunk commands when on a sharded cluster in this transitional state, with appropriate logging. References SERVER-98118 for future removal.",
+        "src/mongo/db/curop.cpp": "Fixes potential access to destroyed operation context in two functions. In reportCurrentOpForClient(), now checks client->operationContextIsPendingDestruction() before calling getOperationContext(), setting clientOpCtx to nullptr if pending destruction. In currentOpBelongsToTenant(), adds an early return of false if operationContextIsPendingDestruction(), and refactors the condition checking into separate if statements for clarity.",
+        "src/mongo/db/pipeline/BUILD.bazel": "Adds new source files to change_stream_libraries target: change_stream_add_post_image_stage_fn.cpp and change_stream_update_lookup_stage.cpp. Adds two new dependencies: aggregation_single_document_lookup_executor and single_document_lookup_executor from the exec/single_doc_lookup directory.",
+        "src/mongo/db/pipeline/process_interface/common_mongod_process_interface.cpp": "Changes getShardName() implementation from using getShardId()->toString() to using shardHandle().name().toString() directly. Renames getShardId() to getShardRef() and changes return type from boost::optional<ShardId> to boost::optional<ShardRef>, now calling asShardRef(opCtx) instead of shardId(). In _reportCurrentOpForClient(), adds check for operationContextIsPendingDestruction() alongside the existing clientOpCtx null check before accessing CurOp.",
+        "src/mongo/shell/servers.js": "Simplifies MongoRunner.awaitConnection by removing the stale-process PID verification logic. Previously, after connecting it would run serverStatus to verify the connected process PID matched the expected PID, throwing a StopError if mismatched (indicating connection to a stale process). This entire verification block and the corresponding catch clause for MongoRunner.StopError have been removed.",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in": "Adds two new disaggregated storage statistics for checkpoint pick-up: WT_STAT_CONN_DISAGG_PICK_UP_FILE_META_UPDATED (1567) for existing file metadata entries updated, and WT_STAT_CONN_DISAGG_PICK_UP_FILE_META_INSERTED (1568) for new file metadata entries inserted. All subsequent statistic constants are renumbered (+2) to accommodate these insertions."
+      },
+      "review_notes": "Key changes to verify: (1) The resmoke module loading change is more strict - modules now fail to load if any configured directory (including suite_dirs/jstest_dirs) is missing, which could affect Bazel sandbox behavior differently than before; (2) The CurOp changes add safety checks for pending destruction but reviewers should verify this doesn't change observable behavior for valid operation contexts; (3) The ShardId \u2192 ShardRef API change in process_interface may require corresponding header changes; (4) The removal of stale-process PID verification in servers.js could mask issues where tests connect to leftover processes from previous runs."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [
+            "I'll analyze the auto-merged files by reading the diffs from the diff base to the merge commit."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [
+            "Now I have all the diffs. Let me write the JSON response."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [
+            "JSON response written to `/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/response_20260617_125547_178454.json`. The response describes 68 upstream commits covering resmoke module loading changes, chunk operation handling during FCV transitions, CurOp safety fixes for pending-destruction contexts, Bazel BUILD updates for change streams, ShardId\u2192ShardRef API changes, MongoRunner simplification, and WiredTiger statistics additions."
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20260617_125547_178262.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.179 (Claude Code)"
+    }
+  }
+}
