@@ -96,7 +96,6 @@ for (const op of ["$trim", "$ltrim", "$rtrim"]) {
     assertErrorCode(
         coll, [{$project: {x: {[op]: {input: "$str", chars: " ".repeat(4097)}}}}], 12066800);
 }
-}());
 
 assert(coll.drop());
 assert.commandWorked(coll.insert([{_id: 0, str: " x "}]));
@@ -106,3 +105,4 @@ for (const op of ["$trim", "$ltrim", "$rtrim"]) {
     assertErrorCode(
         coll, [{$project: {x: {[op]: {input: "$str", chars: " ".repeat(4097)}}}}], 12066800);
 }
+}());
