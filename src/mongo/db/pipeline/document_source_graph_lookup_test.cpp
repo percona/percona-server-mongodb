@@ -443,7 +443,8 @@ TEST_F(DocumentSourceGraphLookUpTest, CreateFromBsonRejectsDuplicateFields) {
                        12735700);
 }
 
-TEST_F(DocumentSourceGraphLookUpTest, LiteParsedGraphLookupBindViewInfoPopulatesPipelines) {
+TEST_F(DocumentSourceGraphLookUpTest,
+       LiteParsedGraphLookupBindResolvedNamespacePopulatesPipelines) {
     auto liteParsed = parseLiteGraphLookup(getExpCtx());
 
     const NamespaceString backingNss =
@@ -459,12 +460,12 @@ TEST_F(DocumentSourceGraphLookUpTest, LiteParsedGraphLookupBindViewInfoPopulates
                                   BSONObj{},
                                   opts));
 
-    liteParsed->bindViewInfo(ViewInfo{}, map);
+    liteParsed->bindResolvedNamespace(ResolvedNamespace{}, map);
 
     ASSERT_EQ(1ul, liteParsed->getMutableSubPipelines()->size());
 }
 
-TEST_F(DocumentSourceGraphLookUpTest, LiteParsedGraphLookupBindViewInfoNoOpForNonView) {
+TEST_F(DocumentSourceGraphLookUpTest, LiteParsedGraphLookupBindResolvedNamespaceNoOpForNonView) {
     auto liteParsed = parseLiteGraphLookup(getExpCtx());
 
     // Map exists but marks the namespace as NOT a view.
@@ -475,9 +476,56 @@ TEST_F(DocumentSourceGraphLookUpTest, LiteParsedGraphLookupBindViewInfoNoOpForNo
                                   boost::none,
                                   false /*involvedNamespaceIsAView*/));
 
-    liteParsed->bindViewInfo(ViewInfo{}, map);
+    liteParsed->bindResolvedNamespace(ResolvedNamespace{}, map);
 
     ASSERT_TRUE(liteParsed->getMutableSubPipelines()->empty());
+}
+
+TEST_F(DocumentSourceGraphLookUpTest,
+       LiteParsedGraphLookupPopulatesSubPipelineFromInternalFromPipeline) {
+    auto spec =
+        BSON("$graphLookup" << BSON("from" << "foreign"
+                                           << "startWith" << "$a"
+                                           << "connectFromField" << "b"
+                                           << "connectToField" << "c"
+                                           << "as" << "d"
+                                           << "$_internalFromPipeline"
+                                           << BSON_ARRAY(BSON("$match" << BSON("x" << 1)))));
+    auto liteParsed = LiteParsedGraphLookUp::parse(
+        getExpCtx()->getNamespaceString(), spec.firstElement(), LiteParserOptions{});
+    ASSERT_EQ(1ul, liteParsed->getMutableSubPipelines()->size());
+}
+
+TEST_F(DocumentSourceGraphLookUpTest, LiteParsedGraphLookupRejectsNonArrayInternalFromPipeline) {
+    auto spec = BSON("$graphLookup" << BSON("from" << "foreign"
+                                                   << "startWith" << "$a"
+                                                   << "connectFromField" << "b"
+                                                   << "connectToField" << "c"
+                                                   << "as" << "d"
+                                                   << "$_internalFromPipeline" << "notAnArray"));
+    ASSERT_THROWS_CODE(LiteParsedGraphLookUp::parse(getExpCtx()->getNamespaceString(),
+                                                    spec.firstElement(),
+                                                    LiteParserOptions{}),
+                       AssertionException,
+                       ErrorCodes::TypeMismatch);
+}
+
+TEST_F(DocumentSourceGraphLookUpTest, LiteParsedGraphLookupRejectsDuplicateInternalFromPipeline) {
+    auto spec =
+        BSON("$graphLookup" << BSON("from" << "foreign"
+                                           << "startWith" << "$a"
+                                           << "connectFromField" << "b"
+                                           << "connectToField" << "c"
+                                           << "as" << "d"
+                                           << "$_internalFromPipeline"
+                                           << BSON_ARRAY(BSON("$match" << BSON("x" << 1)))
+                                           << "$_internalFromPipeline"
+                                           << BSON_ARRAY(BSON("$match" << BSON("y" << 2)))));
+    ASSERT_THROWS_CODE(LiteParsedGraphLookUp::parse(getExpCtx()->getNamespaceString(),
+                                                    spec.firstElement(),
+                                                    LiteParserOptions{}),
+                       AssertionException,
+                       ErrorCodes::IDLDuplicateField);
 }
 
 TEST_F(DocumentSourceGraphLookUpTest, GraphLookUpStageParamsCarriesPipelineFromSubpipeline) {
@@ -496,7 +544,7 @@ TEST_F(DocumentSourceGraphLookUpTest, GraphLookUpStageParamsCarriesPipelineFromS
                                   BSONObj{},
                                   opts));
 
-    liteParsed->bindViewInfo(ViewInfo{}, map);
+    liteParsed->bindResolvedNamespace(ResolvedNamespace{}, map);
     ASSERT_EQ(1ul, liteParsed->getMutableSubPipelines()->size());
 
     auto stageParams = liteParsed->getStageParams();
@@ -532,7 +580,7 @@ TEST_F(DocumentSourceGraphLookUpTest, CreateFromStageParamsUsesLiteParsedPipelin
                                       std::vector<BSONObj>{BSON("$match" << BSON("x" << 1))},
                                       BSONObj{},
                                       viewOpts));
-    liteParsed->bindViewInfo(ViewInfo{}, bindMap);
+    liteParsed->bindResolvedNamespace(ResolvedNamespace{}, bindMap);
     ASSERT_EQ(1ul, liteParsed->getMutableSubPipelines()->size());
 
     auto stageParams = liteParsed->getStageParams();

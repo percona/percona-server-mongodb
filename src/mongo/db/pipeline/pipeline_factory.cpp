@@ -79,6 +79,16 @@ std::unique_ptr<Pipeline> parseAndDesugarPipeline(
 
     desugarIfNecessary(liteParsedPipeline, opts, expCtx);
 
+    if (expCtx->getView()) {
+        // TODO SERVER-121094 When featureFlagExtensionsInsideHybridSearch is removed, all
+        // pipelines will use resolveInvolvedNamespacesFn and this legacy branch can be deleted.
+        // Handle legacy mongot pipelines separately.
+        liteParsedPipeline.bindResolvedNamespaceToStages(*expCtx->getView(),
+                                                         expCtx->getResolvedNamespaces());
+    } else if (opts.resolveInvolvedNamespacesFn) {
+        opts.resolveInvolvedNamespacesFn(liteParsedPipeline);
+    }
+
     return Pipeline::parseFromLiteParsed(liteParsedPipeline, expCtx, opts.validator);
 }
 
@@ -198,9 +208,11 @@ std::unique_ptr<Pipeline> viewPipelineHelperForSearch(
     // storedSource is disabled, idLookup will retrieve full/unmodified documents during
     // (from the _id values returned by mongot), apply the view's data transforms, and pass
     // said transformed documents through the rest of the user pipeline.
-    const ResolvedView resolvedView{resolvedNs.ns, std::move(resolvedNs.pipeline), BSONObj()};
-    subPipelineExpCtx->setView(resolvedView.toViewInfo(
-        originalNs, LiteParserOptions{.ifrContext = subPipelineExpCtx->getIfrContext()}));
+    subPipelineExpCtx->setView(ResolvedNamespace::makeForView(
+        originalNs,
+        resolvedNs.ns,
+        std::move(resolvedNs.pipeline),
+        LiteParserOptions{.ifrContext = subPipelineExpCtx->getIfrContext()}));
 
     // return the user pipeline without appending the view stages.
     return makePipeline(currentPipeline, subPipelineExpCtx, opts);
@@ -235,7 +247,8 @@ std::unique_ptr<Pipeline> makePipelineFromViewDefinition(
     // the helper keeps its transient LiteParsedPipeline local so it cannot outlive that move.
     addViewInvolvedNamespaces(subPipelineExpCtx, resolvedNs.pipeline);
 
-    // Create a LiteParsedPipeline for the user pipeline and apply view handling via bindViewInfo().
+    // Create a LiteParsedPipeline for the user pipeline and apply view handling via
+    // bindResolvedNamespace().
     LiteParsedPipeline userLiteParsedPipeline(
         makeLiteParsedPipeline(subPipelineExpCtx, currentPipeline));
     desugarIfNecessary(userLiteParsedPipeline, opts, subPipelineExpCtx);

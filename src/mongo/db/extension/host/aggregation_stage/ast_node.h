@@ -36,6 +36,7 @@
 #include "mongo/util/assert_util.h"
 #include "mongo/util/modules.h"
 
+#include <functional>
 #include <list>
 #include <memory>
 #include <string>
@@ -127,20 +128,23 @@ private:
  * Shared, single-use RAII owner for an extension-provided distributedPlanLogic() callback, carried
  * by the DRM AST node.
  *
- * Ownership: holds the opaque extension callback and its cleanup hook in a shared control block, so
- * the destroy hook runs exactly once no matter how many times the owner is copied (e.g. when the
- * AST node is cloned).
+ * Ownership: holds an invoker (wrapping the extension callback) and an optional deleter (wrapping
+ * the extension's cleanup hook) in a shared control block. The deleter runs exactly once when the
+ * last shared copy is destroyed, no matter how many times the owner is copied (e.g. when the AST
+ * node is cloned).
  *
- * Invocation: getOrInvoke() calls the extension callback at most once and caches the parsed result,
- * so the planner's repeated distributedPlanLogic() queries reuse a single invocation of the
- * single-use C output buffers.
+ * Invocation: getOrInvoke() calls the invoker at most once and caches the parsed result, so the
+ * planner's repeated distributedPlanLogic() queries reuse a single invocation.
  */
 class DPLCallbackOwner {
 public:
+    using CallbackInvoker =
+        std::function<::MongoExtensionStatus*(ExpressionContext* expCtx,
+                                              ::MongoExtensionByteBuf** rawSort,
+                                              ::MongoExtensionByteBuf** rawMerge)>;
+
     DPLCallbackOwner() = default;
-    DPLCallbackOwner(::MongoExtensionDocResultsDPLCallback callback,
-                     void* userData,
-                     void (*destroyFn)(void*));
+    DPLCallbackOwner(CallbackInvoker invoker, std::function<void()> deleter = {});
 
     /**
      * True if an extension DPL callback is present.
@@ -313,12 +317,12 @@ private:
         });
     }
 
-    static ::MongoExtensionStatus* _hostBindViewInfo(
+    static ::MongoExtensionStatus* _hostBindResolvedNamespace(
         ::MongoExtensionAggStageAstNode* astNode,
-        const ::MongoExtensionViewInfo* viewInfo) noexcept {
+        const ::MongoExtensionResolvedNamespace* resolvedNamespace) noexcept {
         return wrapCXXAndConvertExceptionToStatus([&]() {
             tasserted(11507501,
-                      "_hostBindViewInfo should not be called. Ensure that astNode is "
+                      "_hostBindResolvedNamespace should not be called. Ensure that astNode is "
                       "extension-allocated, not host-allocated.");
         });
     }
@@ -330,7 +334,7 @@ private:
         .promote = &_hostPromote,
         .clone = &_hostClone,
         .get_first_stage_view_application_policy = &_hostGetFirstStageViewApplicationPolicy,
-        .bind_view_info = &_hostBindViewInfo};
+        .bind_resolved_namespace = &_hostBindResolvedNamespace};
 
     std::unique_ptr<AggStageAstNode> _astNode;
 };

@@ -223,6 +223,9 @@ BSONObj createMatchStageJoinObj(const Document& input,
 }  // namespace
 
 void lookupPipeValidator(const Pipeline& pipeline) {
+    // TODO SERVER-128961: Teach the LiteParsed layer the lookup constraints of built-in stages (as
+    // is already done for extension stages) so lite-parse can own this check uniformly and this
+    // full-parse validation can be removed.
     for (const auto& src : pipeline.getSources()) {
         uassert(51047,
                 str::stream() << src->getSourceName()
@@ -331,8 +334,8 @@ void DocumentSourceLookUp::resolvedPipelineHelper(
         // The user pipeline is a mongot pipeline so we assume the view is a mongot-indexed view. As
         // such, we overwrite the view pipeline. This is because in the case of mongot queries on
         // mongot-indexed views, idLookup applies the view transforms as part of its subpipeline.
-        _fromExpCtx->setView(
-            boost::make_optional(ViewInfo{fromNs, _resolvedNs, _sharedState->resolvedPipeline}));
+        _fromExpCtx->setView(boost::make_optional(
+            ResolvedNamespace::makeForView(fromNs, _resolvedNs, _sharedState->resolvedPipeline)));
         _sharedState->resolvedPipeline = pipeline;
         _fieldMatchPipelineIdx = 1;
         if (localForeignFields != boost::none) {
@@ -491,7 +494,22 @@ DocumentSourceContainer DocumentSourceLookUp::createFromStageParams(
             std::pair(std::move(*params.localField), std::move(*params.foreignField));
     }
 
+    // Without a subpipeline there is no desugared LPP to forward.
     if (!params.subpipelineStageParams.has_value()) {
+        // When a $lookup has no user pipeline, bypass createFromBson and instead just use the
+        // provided view LPP directly.
+        if (auto view =
+                tryGetPreResolvedNamespace(params.fromNss, expCtx->getResolvedNamespaces())) {
+            auto stageParams = view->getViewPipeline().getStageParams();
+            return {make_intrusive<DocumentSourceLookUp>(std::move(params.fromNss),
+                                                         std::move(params.as),
+                                                         std::vector<BSONObj>{},
+                                                         std::move(stageParams),
+                                                         std::move(params.letVariables),
+                                                         std::move(localForeignFields),
+                                                         std::move(params.unwindSpec),
+                                                         expCtx)};
+        }
         return {DocumentSourceLookUp::createFromBson(params.getOriginalBson(), expCtx)};
     }
 
