@@ -48,6 +48,8 @@
 #include "mongo/stdx/unordered_set.h"
 #include "mongo/util/modules.h"
 
+#include <algorithm>
+
 namespace mongo::extension::host_connector {
 class PipelineDependenciesAdapter;
 }  // namespace mongo::extension::host_connector
@@ -201,12 +203,12 @@ public:
             return _parseNode->toBsonForLog();
         }
 
-        // TODO SERVER-121094 Remove this override when extensions can handle views through
-        // bindViewInfo().
+        // TODO SERVER-116021 Remove this override when extensions can handle views through
+        // bindResolvedNamespace().
         bool hasExtensionVectorSearchStage() const override;
 
-        // TODO SERVER-121094 Remove this override when extensions can handle views through
-        // bindViewInfo().
+        // TODO SERVER-116021 Remove this override when extensions can handle views through
+        // bindResolvedNamespace().
         bool hasExtensionSearchStage() const override;
 
         // Extension stages are unsupported on timeseries collections.
@@ -227,6 +229,12 @@ public:
 
         void assertSupportsMultiDocumentTransaction() const override {
             this->transactionNotSupported(this->getParseTimeName());
+        }
+
+        bool isAllowedInLookupPipeline() const override {
+            return std::all_of(_expanded.begin(), _expanded.end(), [](const auto& s) {
+                return s->isAllowedInLookupPipeline();
+            });
         }
 
         // Define how to desugar a LiteParsedExpandable.
@@ -348,8 +356,8 @@ public:
 
         FirstStageViewApplicationPolicy getFirstStageViewApplicationPolicy() const override;
 
-        void bindViewInfo(const ViewInfo& viewInfo,
-                          const ResolvedNamespaceMap& resolvedNamespaces) override;
+        void bindResolvedNamespace(const ResolvedNamespace& view,
+                                   const ResolvedNamespaceMap& resolvedNamespaces) override;
 
         ReadConcernSupportResult supportsReadConcern(repl::ReadConcernLevel level,
                                                      bool isImplicitDefault) const override {
@@ -359,6 +367,10 @@ public:
 
         void assertSupportsMultiDocumentTransaction() const override {
             this->transactionNotSupported(this->getParseTimeName());
+        }
+
+        bool isAllowedInLookupPipeline() const override {
+            return _properties.getAllowedInLookup();
         }
 
         bool isRankedStage() const override;
@@ -402,16 +414,9 @@ public:
 
         if (expCtx->getInLookup() && !hybridSearchFlagEnabled) {
             const auto stageName = std::string(astNode->getName());
-            // Throw the IFR retry error for extension $search/$searchMeta in $lookup if the
-            // feature flag is not enabled. Note: $vectorSearch is independently disallowed in
-            // $lookup (see LookupRequirement::kNotAllowed) and is not handled here.
-            //
-            // TODO SERVER-117259: today this kickback is unreachable because the pre-desugar
-            // LookupRequirement::kNotAllowed constraint on DocumentSourceExtensionForQueryShape
-            // (and on DocumentSourceExtensionOptimizable post-desugar) rejects the stage before
-            // create() is called. Once that ticket lifts the constraint to kAllowed, this
-            // kickback becomes the runtime gate for extension $search/$searchMeta in $lookup
-            // when featureFlagExtensionsInsideHybridSearch is disabled.
+            // Throw the IFR retry error for extension $search/$searchMeta in $lookup when
+            // featureFlagExtensionsInsideHybridSearch is disabled. $vectorSearch is handled
+            // separately via LookupRequirement::kNotAllowed and is not covered here.
             search_helpers::throwIfrKickbackIfNecessary(
                 search_helpers::isExtensionSearchStage(stageName),
                 feature_flags::gFeatureFlagSearchExtension,

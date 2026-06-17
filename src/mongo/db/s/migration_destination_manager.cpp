@@ -107,6 +107,7 @@
 #include "mongo/db/storage/write_unit_of_work.h"
 #include "mongo/db/topology/shard_registry.h"
 #include "mongo/db/topology/sharding_state.h"
+#include "mongo/db/topology/user_write_block/replica_set_write_block_state.h"
 #include "mongo/db/topology/user_write_block/user_write_block_bypass.h"
 #include "mongo/db/topology/vector_clock/vector_clock.h"
 #include "mongo/db/transaction/transaction_participant.h"
@@ -516,6 +517,9 @@ Status MigrationDestinationManager::start(OperationContext* opCtx,
                                           ScopedReceiveChunk scopedReceiveChunk,
                                           const StartChunkCloneRequest& cloneRequest,
                                           const WriteConcernOptions& writeConcern) {
+    // Reject the operation if the replica set write block is enabled.
+    ReplicaSetWriteBlockState::get(opCtx)->checkIfIncomingMigrationAllowedToStart(opCtx);
+
     boost::optional<UUID> migrationId;
     stdx::thread migrateThreadHandle;
     std::unique_ptr<SessionCatalogMigrationDestination> sessionMigration;
@@ -1911,13 +1915,14 @@ void MigrationDestinationManager::_migrateDriver(OperationContext* outerOpCtx,
                 // Enter critical section. Ensure it has been majority commited before
                 // _recvChunkCommit returns success to the donor, so that if the recipient steps
                 // down, the critical section is kept taken while the donor commits the migration.
+                // TODO (SERVER-128466): Remove the clearShardCatalogCache flag once
+                // migrations are authoritative.
                 ShardingRecoveryService::get(opCtx)->acquireRecoverableCriticalSectionBlockWrites(
                     opCtx,
                     _nss,
                     critSecReason,
                     defaultMajorityWriteConcernDoNotUse(),
-                    true, /* (default) clearDbMetadata */
-                    true, /* (default) clearCollMetadata */
+                    true /* clearShardCatalogCache */,
                     Milliseconds(migrationLockAcquisitionMaxWaitMS.load()));
 
                 LOGV2(5899114,
@@ -1980,8 +1985,14 @@ void MigrationDestinationManager::_migrateDriver(OperationContext* outerOpCtx,
 
         // Note: Not honoring 'migrationLockAcquisitionMaxWaitMS' because this is a recovery path
         // where the critical section had (potentially) already been granted previously.
+        // TODO (SERVER-128466): Remove the clearShardCatalogCache flag once migrations are
+        // authoritative.
         ShardingRecoveryService::get(opCtx)->acquireRecoverableCriticalSectionBlockWrites(
-            opCtx, _nss, criticalSectionReason(*_sessionId), defaultMajorityWriteConcernDoNotUse());
+            opCtx,
+            _nss,
+            criticalSectionReason(*_sessionId),
+            defaultMajorityWriteConcernDoNotUse(),
+            true /* clearShardCatalogCache */);
 
         LOGV2_DEBUG(6064501,
                     2,

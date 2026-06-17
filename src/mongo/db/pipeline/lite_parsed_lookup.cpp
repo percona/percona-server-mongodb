@@ -130,7 +130,7 @@ std::unique_ptr<LiteParsedLookUp> LiteParsedLookUp::parse(const NamespaceString&
                options.ifrContext->getSavedFlagValue(
                    feature_flags::gFeatureFlagExtensionsInsideHybridSearch)) {
         // The user did not provide a pipeline object, but the foreign namespace might still be a
-        // view - we inject a placeholder here so that bindViewInfo binds a subpipeline.
+        // view - we inject a placeholder here so that bindResolvedNamespace binds a subpipeline.
         ownedPipeline = OwnedLiteParsedPipeline(fromNss, std::vector<BSONObj>{}, options);
         isPlaceholderInjected = true;
     }
@@ -245,9 +245,9 @@ std::unique_ptr<StageParams> LiteParsedLookUp::getStageParams() const {
                                                _isPlaceholderInjected);
 }
 
-void LiteParsedLookUp::bindViewInfo(const ViewInfo& viewInfo,
-                                    const ResolvedNamespaceMap& resolvedNamespaces) {
-    LiteParsedDocumentSourceNestedPipelines::bindViewInfo(viewInfo, resolvedNamespaces);
+void LiteParsedLookUp::bindResolvedNamespace(const ResolvedNamespace& view,
+                                             const ResolvedNamespaceMap& resolvedNamespaces) {
+    LiteParsedDocumentSourceNestedPipelines::bindResolvedNamespace(view, resolvedNamespaces);
     if (!_foreignNss || !_isPlaceholderInjected) {
         return;
     }
@@ -255,7 +255,6 @@ void LiteParsedLookUp::bindViewInfo(const ViewInfo& viewInfo,
     if (it == resolvedNamespaces.end() || !it->second.involvedNamespaceIsAView) {
         return;
     }
-    // TODO SERVER-122116 Clean this up when ViewInfo is fully replaced by ResolvedNamespace.
     ResolvedNamespace viewEntry = it->second;
     viewEntry.liteParseViewPipeline();
     viewEntry.desugarViewPipeline();
@@ -263,6 +262,18 @@ void LiteParsedLookUp::bindViewInfo(const ViewInfo& viewInfo,
         _pipelines.push_back(std::move(*viewEntry.getMutableParsedPipeline()));
     } else {
         _pipelines[0] = std::move(*viewEntry.getMutableParsedPipeline());
+    }
+}
+
+void LiteParsedLookUp::validate() const {
+    if (_pipelines.empty()) {
+        return;
+    }
+    for (const auto& stage : _pipelines[0]->getStages()) {
+        uassert(11725900,
+                str::stream() << stage->getParseTimeName()
+                              << " is not allowed to be used within a $lookup pipeline",
+                stage->isAllowedInLookupPipeline());
     }
 }
 

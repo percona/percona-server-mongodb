@@ -65,7 +65,6 @@
 #include "mongo/db/shard_role/shard_catalog/database_sharding_runtime.h"
 #include "mongo/db/shard_role/shard_catalog/drop_collection.h"
 #include "mongo/db/shard_role/shard_catalog/participant_block_gen.h"
-#include "mongo/db/shard_role/shard_catalog/shard_catalog_history_cleanup_control.h"
 #include "mongo/db/sharding_environment/client/shard.h"
 #include "mongo/db/sharding_environment/grid.h"
 #include "mongo/db/sharding_environment/shard_id.h"
@@ -326,18 +325,6 @@ ExecutorFuture<void> MovePrimaryCoordinator::runMovePrimaryWorkflow(
                 // which would leave a reference into _doc dangling.
                 const auto preCommitDbVersion = *_doc.getDatabaseVersion();
                 const auto thisShardId = ShardingState::get(opCtx)->shardId();
-                const auto toShardId = _doc.getToShardId();
-
-                // We need to stop the shard catalog cleanup task to ensure
-                // that the new primary's collection metadata doesn't get
-                // cleaned up in the middle of a movePrimary operation if the new
-                // primary doesn't own any chunks.
-                if (_doc.getAuthoritativeMetadataAccessLevel() >=
-                    AuthoritativeMetadataAccessLevelEnum::kWritesAllowed) {
-                    const auto session = getNewSession(opCtx);
-                    sharding_ddl_util::controlShardCatalogCleanupTask(
-                        opCtx, {thisShardId, toShardId}, session, true, executor, token);
-                }
 
                 if (_doc.getAuthoritativeMetadataAccessLevel() >=
                     AuthoritativeMetadataAccessLevelEnum::kWritesAllowed) {
@@ -356,13 +343,6 @@ ExecutorFuture<void> MovePrimaryCoordinator::runMovePrimaryWorkflow(
 
                 notifyChangeStreamsOnMovePrimary(
                     opCtx, _dbName, ShardingState::get(opCtx)->shardId(), _doc.getToShardId());
-
-                if (_doc.getAuthoritativeMetadataAccessLevel() >=
-                    AuthoritativeMetadataAccessLevelEnum::kWritesAllowed) {
-                    const auto session = getNewSession(opCtx);
-                    sharding_ddl_util::controlShardCatalogCleanupTask(
-                        opCtx, {thisShardId, toShardId}, session, false, executor, token);
-                }
 
                 // Checkpoint the vector clock to ensure causality in the event of a crash or
                 // shutdown.
@@ -468,23 +448,6 @@ ExecutorFuture<void> MovePrimaryCoordinator::_cleanupOnAbort(
                 } catch (const ExceptionFor<ErrorCodes::ShardNotFound>&) {
                     LOGV2_INFO(7392901,
                                "Failed to remove orphaned data on recipient as it has been removed",
-                               logAttrs(_dbName),
-                               "to"_attr = toShardId);
-                }
-            }
-
-            if (_doc.getAuthoritativeMetadataAccessLevel() >=
-                AuthoritativeMetadataAccessLevelEnum::kWritesAllowed) {
-                // TODO (SERVER-127533): Investigate if the remove shards completes before the end
-                // of the command execution
-                try {
-                    const auto session = getNewSession(opCtx);
-                    sharding_ddl_util::controlShardCatalogCleanupTask(
-                        opCtx, {thisShardId, toShardId}, session, false, executor, token);
-                } catch (const ExceptionFor<ErrorCodes::ShardNotFound>&) {
-                    LOGV2_INFO(7392904,
-                               "Failed to resume the shard catalog cleanup task on recipient as it "
-                               "has been removed",
                                logAttrs(_dbName),
                                "to"_attr = toShardId);
                 }
@@ -865,7 +828,7 @@ void MovePrimaryCoordinator::cloneAuthoritativeDatabaseMetadata(OperationContext
         NamespaceString(_dbName),
         _csReason,
         ShardingCatalogClient::writeConcernLocalHavingUpstreamWaiter(),
-        false /* clearDbMetadata */);
+        false /* clearShardCatalogCache */);
     recoveryService->promoteRecoverableCriticalSectionToBlockAlsoReads(
         opCtx,
         NamespaceString(_dbName),
@@ -986,17 +949,17 @@ void MovePrimaryCoordinator::enterCriticalSectionOnRecipient(
     const std::shared_ptr<executor::ScopedTaskExecutor>& executor,
     const CancellationToken& token) {
     if (_doc.getAuthoritativeMetadataAccessLevel() > AuthoritativeMetadataAccessLevelEnum::kNone) {
-        ShardsvrParticipantBlock request(
-            NamespaceString::makeCollectionlessShardsvrParticipantBlockNSS(_dbName));
-        request.setBlockType(CriticalSectionBlockTypeEnum::kReadsAndWrites);
-        request.setReason(_csReason);
-        request.setClearDbInfo(false);
-
-        generic_argument_util::setMajorityWriteConcern(request);
-        generic_argument_util::setOperationSessionInfo(request, getNewSession(opCtx));
-        auto opts = std::make_shared<async_rpc::AsyncRPCOptions<ShardsvrParticipantBlock>>(
-            **executor, token, request);
-        sharding_ddl_util::sendAuthenticatedCommandToShards(opCtx, opts, {_doc.getToShardId()});
+        const auto session = getNewSession(opCtx);
+        sharding_ddl_util::sendShardsvrParticipantBlockCommandToShards(
+            opCtx,
+            NamespaceString::makeCollectionlessShardsvrParticipantBlockNSS(_dbName),
+            {_doc.getToShardId()},
+            CriticalSectionBlockTypeEnum::kReadsAndWrites,
+            _csReason,
+            _doc.getAuthoritativeMetadataAccessLevel(),
+            session,
+            executor,
+            token);
     } else {
         const auto enterCriticalSectionCommand = [&] {
             ShardsvrMovePrimaryEnterCriticalSection request(_dbName);
@@ -1036,19 +999,18 @@ void MovePrimaryCoordinator::exitCriticalSectionOnRecipient(
     const std::shared_ptr<executor::ScopedTaskExecutor>& executor,
     const CancellationToken& token) {
     if (_doc.getAuthoritativeMetadataAccessLevel() > AuthoritativeMetadataAccessLevelEnum::kNone) {
-        ShardsvrParticipantBlock request(
-            NamespaceString::makeCollectionlessShardsvrParticipantBlockNSS(_dbName));
-        request.setBlockType(CriticalSectionBlockTypeEnum::kUnblock);
-        request.setReason(_csReason);
-        request.setThrowIfReasonDiffers(false);
-        request.setClearDbInfo(false);
-
-        generic_argument_util::setMajorityWriteConcern(request);
-        generic_argument_util::setOperationSessionInfo(request, getNewSession(opCtx));
-
-        auto opts = std::make_shared<async_rpc::AsyncRPCOptions<ShardsvrParticipantBlock>>(
-            **executor, token, request);
-        sharding_ddl_util::sendAuthenticatedCommandToShards(opCtx, opts, {_doc.getToShardId()});
+        const auto session = getNewSession(opCtx);
+        sharding_ddl_util::sendShardsvrParticipantBlockCommandToShards(
+            opCtx,
+            NamespaceString::makeCollectionlessShardsvrParticipantBlockNSS(_dbName),
+            {_doc.getToShardId()},
+            CriticalSectionBlockTypeEnum::kUnblock,
+            _csReason,
+            _doc.getAuthoritativeMetadataAccessLevel(),
+            session,
+            executor,
+            token,
+            false /* throwIfReasonDiffers */);
     } else {
         const auto exitCriticalSectionCommand = [&] {
             ShardsvrMovePrimaryExitCriticalSection request(_dbName);
