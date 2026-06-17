@@ -43,7 +43,7 @@ jobs:
       # App tokens allow pushing to protected branches and bypass branch protection rules.
       - name: Create GitHub App token
         id: app-token
-        uses: actions/create-github-app-token@v1
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
         with:
           app-id: ${{ secrets.PSMDB_BOT_GH_APP_ID }}
           private-key: ${{ secrets.PSMDB_BOT_GH_APP_PRIVATE_KEY }}
@@ -53,7 +53,7 @@ jobs:
       # We need: head SHA (for merge), head/base refs (branch names), and state.
       - name: Get PR details
         id: pr
-        uses: actions/github-script@v7
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           github-token: ${{ steps.app-token.outputs.token }}
           script: |
@@ -93,7 +93,7 @@ jobs:
       # Only users with write, maintain, or admin access can trigger merges.
       - name: Check merge permission
         id: check-permission
-        uses: actions/github-script@v7
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           github-token: ${{ steps.app-token.outputs.token }}
           script: |
@@ -113,7 +113,7 @@ jobs:
       # Set commit status to 'pending' to indicate merge is in progress.
       # This provides visual feedback in the PR UI.
       - name: Set status pending
-        uses: actions/github-script@v7
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           github-token: ${{ steps.app-token.outputs.token }}
           script: |
@@ -130,7 +130,7 @@ jobs:
       # --- Repository Setup ---
       # Checkout with full history (fetch-depth: 0) required for merge-base checks
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: 0 # Full history needed for ancestry checks
           token: ${{ steps.app-token.outputs.token }} # App token for push access
@@ -186,7 +186,7 @@ jobs:
       # Post a comment confirming the successful merge with details
       - name: Post success comment
         if: success()
-        uses: actions/github-script@v7
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           github-token: ${{ steps.app-token.outputs.token }}
           script: |
@@ -200,7 +200,7 @@ jobs:
       # Update commit status to 'success'
       - name: Set status success
         if: success()
-        uses: actions/github-script@v7
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           github-token: ${{ steps.app-token.outputs.token }}
           script: |
@@ -218,7 +218,7 @@ jobs:
       # Post a comment explaining why the merge failed
       - name: Post failure comment
         if: failure()
-        uses: actions/github-script@v7
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           github-token: ${{ steps.app-token.outputs.token }}
           script: |
@@ -233,7 +233,7 @@ jobs:
       # Update commit status to 'failure'
       - name: Set status failure
         if: failure()
-        uses: actions/github-script@v7
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           github-token: ${{ steps.app-token.outputs.token }}
           script: |
