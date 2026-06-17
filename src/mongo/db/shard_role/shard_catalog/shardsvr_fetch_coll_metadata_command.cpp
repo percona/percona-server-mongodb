@@ -93,14 +93,6 @@ public:
 
             const auto nss = ns();
 
-            // Assert that migrations are disabled.
-            // TODO (SERVER-127654): Update this check once migrations are blocked during setFCV.
-            const auto coll = Grid::get(opCtx)->catalogClient()->getCollection(opCtx, nss);
-            uassert(10140200,
-                    "_shardsvrFetchCollMetadata can only run when migrations are disabled",
-                    coll.getUnsplittable().value_or(false) ||
-                        !sharding_ddl_util::checkAllowMigrationsOnConfigServer(opCtx, nss));
-
             // Use an AlternativeClientRegion to perform the shard catalog writes outside the
             // retryable write session. The shard catalog commit contains its own idempotency
             // logic, and running inside the parent session would conflict with the dummy write
@@ -117,7 +109,12 @@ public:
 
                 const bool isPrimaryDbShard =
                     ShardingState::get(newOpCtx.get())->shardId() == request().getPrimaryShardId();
-                shard_catalog_commit::commitCollectionMetadataLocally(
+
+                // The clone does not change placement, so every node's CSR is either already up to
+                // date or kUnknown and recovers from the durable catalog once the cluster is fully
+                // upgraded. Installing the metadata in-memory or emitting an invalidate would only
+                // trigger a redundant and expensive refresh.
+                shard_catalog_commit::cloneCollectionMetadataLocally(
                     newOpCtx.get(), nss, isPrimaryDbShard);
             }
 

@@ -86,6 +86,16 @@ struct LiteParserOptions {
     // Optional tracker to note when extensions are used in a given aggregate, and track whether
     // that command succeeds. Should be owned by the command invocation, not here.
     ExtensionMetrics* extensionMetrics = nullptr;
+
+    // True when the query is executing on or was forwarded from a router (mongos).
+    // TODO SERVER-129127 This should be removed in favor of storing this attribute on a
+    // ParseContext struct.
+    bool usingMongos = false;
+
+    // True when the pipeline is being parsed as part of a view definition.
+    // TODO SERVER-129127 This should be removed in favor of storing this attribute on a
+    // ParseContext struct.
+    bool isParsingViewDefinition = false;
 };
 
 namespace exec::agg {
@@ -359,13 +369,11 @@ public:
     }
 
     /**
-     * Returns the resolved subpipeline view bound to this stage by bindResolvedNamespace(), if any
-     * (see LiteParsedDocumentSourceNestedPipelines for the override that populates this). Returns
-     * null when no view has been bound. Held via shared_ptr so binding and consumption share one
-     * copy while keeping this class trivially copyable through clone().
+     * Returns the resolved backing namespace this stage currently knows about: the most-resolved
+     * form of the namespace its subpipeline targets.
      */
-    virtual std::shared_ptr<const ResolvedNamespace> getResolvedSubPipelineView() const {
-        return nullptr;
+    virtual ResolvedNamespace getResolvedBackingNss() const {
+        return {};
     }
 
     /**
@@ -443,6 +451,13 @@ public:
     }
 
     /**
+     * Returns true if this is a $currentOp stage.
+     */
+    virtual bool isCurrentOpStage() const {
+        return false;
+    }
+
+    /**
      * Simple constraints for LiteParsed-level validation, mirroring a subset of
      * DocumentSource::StageConstraints.
      */
@@ -481,7 +496,7 @@ public:
 
     /**
      * Returns true if this is a vector search stage ($vectorSearch) or has a nested $vectorSearch.
-     * TODO SERVER-116021 Remove this override when extensions can handle views through
+     * TODO SERVER-121094 Remove this override when extensions can handle views through
      * bindResolvedNamespace().
      */
     virtual bool hasExtensionVectorSearchStage() const {
@@ -490,7 +505,7 @@ public:
 
     /**
      * Returns true if this is a $search or $searchMeta extension stage, or has a nested one.
-     * TODO SERVER-116021 Remove this override when extensions can handle views through
+     * TODO SERVER-121094 Remove this override when extensions can handle views through
      * bindResolvedNamespace().
      */
     virtual bool hasExtensionSearchStage() const {

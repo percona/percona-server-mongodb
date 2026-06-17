@@ -127,11 +127,16 @@ public:
               }()),
               _extensionMetrics(
                   static_cast<const AggregateCommand*>(cmd)->getExtensionMetricsAllocation()),
-              _liteParsedPipeline(request(),
-                                  false /* isRunningAgainstView_ForHybridSearch */,
-                                  {.ifrContext = _ifrContext,
-                                   .opCtx = opCtx,
-                                   .extensionMetrics = &_extensionMetrics}),
+              _liteParsedPipeline(
+                  request(),
+                  false /* isRunningAgainstView_ForHybridSearch */,
+                  {.ifrContext = _ifrContext,
+                   .opCtx = opCtx,
+                   .extensionMetrics = &_extensionMetrics,
+                   // TODO SERVER-129127 the `usingMongos` field should be populated via a
+                   // ParseContext struct instead of LiteParserOptions.
+                   .usingMongos =
+                       aggregation_request_helper::getFromRouter(request()).value_or(false)}),
               _privileges(uassertStatusOK(
                   auth::getPrivilegesForAggregate(opCtx,
                                                   AuthorizationSession::get(opCtx->getClient()),
@@ -267,12 +272,18 @@ public:
             // TODO (SERVER-122847): Remove this code.
             const bool isOplogNss = (ns() == NamespaceString::kRsOplogNamespace);
             boost::optional<admission::execution_control::ScopedTaskTypeNonDeprioritizable>
-                reshardingApplyPhaseAggregateTaskType;
+                nonDeprioMarker;
             if (!gExecutionControlRemoteSpecification.isEnabledUseLastLTSFCVWhenUninitialized(
                     VersionContext::getDecoration(opCtx),
                     serverGlobalParams.featureCompatibility.acquireFCVSnapshot()) &&
                 isOplogNss && opCtx->getClient()->isInternalClient()) {
-                reshardingApplyPhaseAggregateTaskType.emplace(opCtx);
+                nonDeprioMarker.emplace(opCtx);
+            }
+
+            // TODO(CLOUDP-319941): Remove this when atlas uses the priority port for monitoring
+            // operations
+            if (_liteParsedPipeline.startsWithCurrentOpStage() && !nonDeprioMarker) {
+                nonDeprioMarker.emplace(opCtx);
             }
 
             uassertStatusOK(runAggregate(opCtx,

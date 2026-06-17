@@ -1,0 +1,145 @@
+load("//bazel:mongo_src_rules.bzl", "mongo_cc_library", "mongo_cc_unit_test")
+
+package(default_visibility = ["//visibility:public"])
+
+exports_files(
+    glob([
+        "*.h",
+        "*.cpp",
+    ]),
+)
+
+# Header-only strategy interface for single-document lookups, plus the PrimaryWithFallback
+# combinator.
+mongo_cc_library(
+    name = "single_document_lookup_executor",
+    hdrs = [
+        "single_document_lookup_executor.h",
+    ],
+    deps = [
+        "//src/mongo/db:query_expressions",
+    ],
+)
+
+mongo_cc_unit_test(
+    name = "single_document_lookup_executor_test",
+    srcs = [
+        "single_document_lookup_executor_test.cpp",
+    ],
+    tags = ["mongo_unittest_sixth_group"],
+    deps = [
+        ":single_document_lookup_executor",
+    ],
+)
+
+# Header-only collection-acquisition seam for single-document lookups: the OnDemand / PreAcquired
+# acquirers plus the assertLocalLookupReadAtOrAfter snapshot guard.
+mongo_cc_library(
+    name = "collection_acquirer",
+    hdrs = [
+        "collection_acquirer.h",
+    ],
+    deps = [
+        "//src/mongo/db:shard_role_api",
+    ],
+)
+
+mongo_cc_unit_test(
+    name = "collection_acquirer_test",
+    srcs = [
+        "collection_acquirer_test.cpp",
+    ],
+    tags = ["mongo_unittest_seventh_group"],
+    deps = [
+        ":collection_acquirer",
+        "//src/mongo/db/shard_role/shard_catalog:catalog_test_fixture",
+    ],
+)
+
+# LocalLookupEligibility interface + the two trivial implementations (AlwaysLocal /
+# AlwaysUnknown) and the createScopedShardRole helper.
+mongo_cc_library(
+    name = "local_lookup_eligibility",
+    srcs = [
+        "local_lookup_eligibility.cpp",
+    ],
+    hdrs = [
+        "local_lookup_eligibility.h",
+    ],
+    deps = [
+        # run() returns SingleDocumentLookupExecutor::LookupResult.
+        ":single_document_lookup_executor",
+        # shard_role_api transitively provides ScopedSetShardRole, ShardVersion / DatabaseVersion.
+        "//src/mongo/db:query_expressions",
+        "//src/mongo/db:shard_role_api",
+    ],
+)
+
+# Production factory producing LocalLookupEligibility instances based on ShardingState.
+mongo_cc_library(
+    name = "local_lookup_eligibility_factory",
+    srcs = [
+        "local_lookup_eligibility_factory_impl.cpp",
+    ],
+    hdrs = [
+        "local_lookup_eligibility_factory_impl.h",
+        "local_lookup_eligibility_factory_interface.h",
+    ],
+    deps = [
+        ":local_lookup_eligibility",
+        "//src/mongo/db:shard_role_api",
+    ],
+)
+
+# Test-only library carrying the eligibility mocks. Linked only into test binaries.
+mongo_cc_library(
+    name = "local_lookup_eligibility_test_util",
+    hdrs = [
+        "local_lookup_eligibility_factory_mock.h",
+        "mock_local_lookup_eligibility.h",
+    ],
+    deps = [
+        ":local_lookup_eligibility",
+        ":local_lookup_eligibility_factory",
+    ],
+)
+
+mongo_cc_unit_test(
+    name = "local_lookup_eligibility_test",
+    srcs = [
+        "local_lookup_eligibility_test.cpp",
+    ],
+    tags = ["mongo_unittest_fourth_group"],
+    deps = [
+        ":local_lookup_eligibility",
+        ":local_lookup_eligibility_factory",
+        ":local_lookup_eligibility_test_util",
+        "//src/mongo/db/pipeline:expression_context_for_test",
+        "//src/mongo/db/query:query_test_service_context",
+    ],
+)
+
+# Universal routed fallback strategy: wraps MongoProcessInterface::lookupSingleDocument.
+mongo_cc_library(
+    name = "aggregation_single_document_lookup_executor",
+    srcs = [
+        "aggregation_single_document_lookup_executor.cpp",
+    ],
+    deps = [
+        ":single_document_lookup_executor",
+        "//src/mongo/db/pipeline/process_interface:mongo_process_interface",
+    ],
+)
+
+mongo_cc_unit_test(
+    name = "aggregation_single_document_lookup_executor_test",
+    srcs = [
+        "aggregation_single_document_lookup_executor_test.cpp",
+    ],
+    tags = ["mongo_unittest_eighth_group"],
+    deps = [
+        ":aggregation_single_document_lookup_executor",
+        "//src/mongo/db/pipeline:aggregation_context_fixture",
+        "//src/mongo/db/pipeline/process_interface:stub_mongo_process_interface",
+    ],
+)

@@ -321,8 +321,8 @@ void DocumentSourceLookUp::resolvedPipelineHelper(
     const boost::intrusive_ptr<ExpressionContext>& expCtx) {
     // When fromNs represents a view, we have to decipher if the view is mongot-indexed or not.
     // Currently, if the pipeline to be run on the joined collection is a
-    // mongot pipeline (it starts with $search, $searchMeta), $lookup assumes the view is
-    // mongot-indexed.
+    // mongot pipeline (it starts with $search, $searchMeta, or $vectorSearch), $lookup assumes
+    // the view is mongot-indexed.
     //
     // Skip validation/view application when we know that the router already processed the view.
     const bool pipelineIsAlreadyDesugared = !pipeline.empty() &&
@@ -463,19 +463,6 @@ void DocumentSourceLookUp::relocateFieldMatchPlaceholder(
 
 DocumentSourceContainer DocumentSourceLookUp::createFromStageParams(
     LookUpStageParams& params, const boost::intrusive_ptr<ExpressionContext>& expCtx) {
-    if (params.hasForeignDB) {
-        // TODO SERVER-125518 Remove this validation when we can bind to an involved namespace in
-        // LiteParsedLookup. It should be moved to the validate() override.
-        // Re-run the resolver now that expCtx is available. It encodes the
-        // allow-list for cross-db $lookup (config.collections, config.chunks, oplog,
-        // cache.chunks.*) and the mongos/view gating, matching the legacy createFromBson path.
-        parseLookupFromAndResolveNamespace(params.getOriginalBson().Obj().getField("from"),
-                                           expCtx->getNamespaceString().dbName(),
-                                           expCtx->getAllowGenericForeignDbLookup(),
-                                           expCtx->getInRouter() || expCtx->getFromRouter(),
-                                           expCtx->getIsParsingViewDefinition());
-    }
-
     // TODO SERVER-121091 This can be removed once hybrid search desugars into the internal hybrid
     // search stage.
     if (params.isHybridSearch || hybrid_scoring_util::isHybridSearchPipeline(params.pipeline)) {
@@ -522,7 +509,7 @@ DocumentSourceContainer DocumentSourceLookUp::createFromStageParams(
                                              std::move(localForeignFields),
                                              std::move(params.unwindSpec),
                                              expCtx,
-                                             !params.isPlaceholderInjected);
+                                             !params.noUserPipeline);
 
     if (const auto& idx = params.internalFieldMatchPipelineIdx)
         relocateFieldMatchPlaceholder(lookupStage, static_cast<size_t>(*idx));
@@ -957,13 +944,8 @@ void DocumentSourceLookUp::initializeResolvedIntrospectionPipeline() {
     _fromExpCtx->startExpressionCounters();
     pipeline_factory::MakePipelineOptions pipelineOpts = pipeline_factory::kOptionsMinimal;
     pipelineOpts.validator = lookupPipeValidator;
-    // When '_sharedState->resolvedPipeline' carries a foreign view's stages (e.g.
-    // [$lookup: {from: qux}] from a view-of-bar), those stages reference namespaces that the outer
-    // expCtx never saw — they came from the view definition, not the user's pipeline. Lite-parse
-    // the resolved pipeline and add its involved namespaces so the inner stages' ctors (which call
-    // getResolvedNamespace()) don't tassert. The LPP-based ctor's
-    // parsePipelineFromLPPWithMaybeViewDefinition does this explicitly; mirror it here for the
-    // BSON-based path (which fires when the user did not supply 'pipeline:').
+    // Lite parse the resolved view pipeline and add its involved namespaces - the expCtx currently
+    // does not contain entries for them.
     if (_fromNsIsAView) {
         LiteParsedPipeline viewLpp(_resolvedNs, _sharedState->resolvedPipeline);
         _fromExpCtx->addResolvedNamespaces(viewLpp.getInvolvedNamespaces());

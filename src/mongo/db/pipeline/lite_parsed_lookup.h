@@ -67,7 +67,7 @@ public:
                       boost::optional<StageParamsPipeline> subpipelineStageParams = boost::none,
                       boost::optional<int64_t> internalFieldMatchPipelineIdx = boost::none,
                       bool internalFromIsAView = false,
-                      bool isPlaceholderInjected = false)
+                      bool noUserPipeline = false)
         : DefaultStageParams(ownedBsonObj.firstElement()),
           fromNss(std::move(fromNss)),
           as(std::move(as)),
@@ -81,7 +81,7 @@ public:
           subpipelineStageParams(std::move(subpipelineStageParams)),
           internalFieldMatchPipelineIdx(std::move(internalFieldMatchPipelineIdx)),
           internalFromIsAView(internalFromIsAView),
-          isPlaceholderInjected(isPlaceholderInjected),
+          noUserPipeline(noUserPipeline),
           _ownedOriginalBson(std::move(ownedBsonObj)) {}
 
     static const Id& id;
@@ -116,10 +116,9 @@ public:
     // against a view is never SBE-lowered after the 'from' rewrite has erased the view name.
     bool internalFromIsAView = false;
 
-    // True when parse() injected an empty placeholder LPP for a $lookup with no `pipeline:` field
-    // under featureFlagExtensionsInsideHybridSearch. Lets createFromStageParams keep
-    // _userPipeline = boost::none instead of [].
-    bool isPlaceholderInjected = false;
+    // True when the $lookup had no `pipeline:` field. Lets createFromStageParams keep _userPipeline
+    // = boost::none instead of [], even after a view subpipeline is materialized.
+    bool noUserPipeline = false;
 
 private:
     // Owns the BSON buffer that DefaultStageParams::_originalSpec points into.
@@ -147,7 +146,10 @@ public:
                      bool isHybridSearch,
                      boost::optional<int64_t> internalFieldMatchPipelineIdx = boost::none,
                      bool internalFromIsAView = false,
-                     bool isPlaceholderInjected = false);
+                     bool noUserPipeline = false,
+                     bool allowGenericForeignDbLookup = false,
+                     bool usingMongos = false,
+                     bool isParsingViewDefinition = false);
 
     Status checkShardedForeignCollAllowed(const NamespaceString& nss,
                                           bool inMultiDocumentTransaction) const final;
@@ -164,14 +166,17 @@ public:
 
     std::unique_ptr<StageParams> getStageParams() const override;
 
-    void bindResolvedNamespace(const ResolvedNamespace& view,
-                               const ResolvedNamespaceMap& resolvedNamespaces) override;
-
     void validate() const override;
 
     // Moved from document_source_lookup.cpp so createFromBson can still call it.
     static void validateLookupCollectionlessPipeline(const std::vector<BSONObj>& pipeline);
     static void validateLookupCollectionlessPipeline(const BSONElement& pipelineElem);
+
+protected:
+    // $lookup materializes a view subpipeline only when it had no user `pipeline:` field.
+    bool needsViewSubpipelineMaterialized() const override {
+        return _noUserPipeline;
+    }
 
 private:
     std::vector<BSONObj> _rawPipeline;
@@ -182,16 +187,22 @@ private:
     boost::optional<BSONObj> _unwindSpec;
     bool _hasForeignDB;
     bool _isHybridSearch;
+
+    // TODO SERVER-129127 The fields in this code block can be removed when they live on a
+    // ParseContext and are passed at parse/validation time to the LiteParsedLookup.
+    bool _allowGenericForeignDbLookup;
+    bool _usingMongos;
+    bool _isParsingViewDefinition;
+
     // Parsed from $_internalFieldMatchPipelineIdx at construction so getStageParams() can forward
     // it.
     boost::optional<int64_t> _internalFieldMatchPipelineIdx;
     // Parsed from $_internalFromIsAView; forwarded by getStageParams() to restore _fromNsIsAView
     // on the shard.
     bool _internalFromIsAView = false;
-    // True when an empty placeholder LPP was injected at parse time because there was no
-    // `pipeline:` field and featureFlagExtensionsInsideHybridSearch is on. Distinguishes that case
-    // from an explicit `pipeline: []` so _userPipeline stays boost::none.
-    bool _isPlaceholderInjected = false;
+    // True when there was no `pipeline:` field. Distinguishes this case from an explicit
+    // `pipeline: []` so _userPipeline stays boost::none.
+    bool _noUserPipeline = false;
 };
 
 }  // namespace MONGO_MOD_NEEDS_REPLACEMENT mongo

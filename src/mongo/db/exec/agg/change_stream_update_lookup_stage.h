@@ -1,0 +1,100 @@
+/**
+ *    Copyright (C) 2026-present MongoDB, Inc.
+ *
+ *    This program is free software: you can redistribute it and/or modify
+ *    it under the terms of the Server Side Public License, version 1,
+ *    as published by MongoDB, Inc.
+ *
+ *    This program is distributed in the hope that it will be useful,
+ *    but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *    Server Side Public License for more details.
+ *
+ *    You should have received a copy of the Server Side Public License
+ *    along with this program. If not, see
+ *    <http://www.mongodb.com/licensing/server-side-public-license>.
+ *
+ *    As a special exception, the copyright holders give permission to link the
+ *    code of portions of this program with the OpenSSL library under certain
+ *    conditions as described in each individual source file and distribute
+ *    linked combinations including the program with the OpenSSL library. You
+ *    must comply with the Server Side Public License in all respects for
+ *    all of the code used other than as permitted herein. If you modify file(s)
+ *    with this exception, you may extend this exception to your version of the
+ *    file(s), but you are not obligated to do so. If you do not wish to do so,
+ *    delete this exception statement from your version. If you delete this
+ *    exception statement from all source files in the program, then also delete
+ *    it in the license file.
+ */
+
+#pragma once
+
+#include "mongo/base/string_data.h"
+#include "mongo/db/exec/agg/stage.h"
+#include "mongo/db/exec/document_value/document.h"
+#include "mongo/db/exec/single_doc_lookup/single_document_lookup_executor.h"
+#include "mongo/db/pipeline/change_stream.h"
+#include "mongo/db/pipeline/expression_context.h"
+#include "mongo/util/modules.h"
+
+#include <memory>
+
+#include <boost/optional/optional.hpp>
+#include <boost/smart_ptr/intrusive_ptr.hpp>
+
+namespace mongo::exec::agg {
+/**
+ * Execution stage for the change stream 'fullDocument: "updateLookup"' enrichment. For each update
+ * event it looks up the current majority-committed version of the document (read at or after the
+ * event's clusterTime) and attaches it as the 'fullDocument' field. Its construction is based on
+ * DocumentSourceChangeStreamAddPostImage (in updateLookup mode), which handles the optimization
+ * part.
+ */
+class ChangeStreamUpdateLookupStage final : public Stage {
+public:
+    ChangeStreamUpdateLookupStage(StringData stageName,
+                                  const boost::intrusive_ptr<ExpressionContext>& pExpCtx,
+                                  std::unique_ptr<SingleDocumentLookupExecutor> lookupExecutor);
+
+    void detachFromOperationContext() override {
+        Stage::detachFromOperationContext();
+        _lookupExecutor->detachFromOperationContext();
+    }
+
+    void reattachToOperationContext(OperationContext* opCtx) override {
+        Stage::reattachToOperationContext(opCtx);
+        _lookupExecutor->reattachToOperationContext(opCtx);
+    }
+
+    /**
+     * Test-only: returns the injected SingleDocumentLookupExecutor so wiring tests can assert the
+     * concrete strategy type via dynamic_cast.
+     */
+    const SingleDocumentLookupExecutor* getLookupExecutor_forTest() const {
+        return _lookupExecutor.get();
+    }
+
+private:
+    /**
+     * Performs the lookup to retrieve the full document.
+     */
+    GetNextResult doGetNext() final;
+
+    /**
+     * Extracts the lookup parameters from the update event and invokes the injected executor.
+     * Returns the post-image document or boost::none.
+     */
+    boost::optional<Document> performPostImageLookup(const Document& updateOp);
+
+    /**
+     * Executor responsible for fetching the latest majority-committed version of the document.
+     */
+    std::unique_ptr<SingleDocumentLookupExecutor> _lookupExecutor;
+
+    /**
+     * The change stream this lookup is part of. Used to resolve the lookup namespace cheaply for
+     * collection-level streams (fixed namespace, no per-event parse).
+     */
+    ChangeStream _changeStream;
+};
+}  // namespace mongo::exec::agg

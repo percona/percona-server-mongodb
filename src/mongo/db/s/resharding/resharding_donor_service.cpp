@@ -134,7 +134,7 @@ namespace {
 
 const WriteConcernOptions kNoWaitWriteConcern{1, WriteConcernOptions::SyncMode::UNSET, Seconds(0)};
 
-using otel::traces::SpanNames;
+namespace span_names = otel::traces::span_names;
 using resharding::ensureFulfilledPromise;
 
 primary_only_service_helpers::CancelState makeCancelState(const DonorShardContext& donorCtx) {
@@ -339,7 +339,7 @@ ExecutorFuture<void> ReshardingDonorService::DonorStateMachine::_runUntilBlockin
                 .then([this, factory, telemetryCtx = telemetryCtx->clone()]() mutable {
                     auto span = _startSpan(
                         telemetryCtx,
-                        SpanNames::
+                        span_names::
                             kReshardingDonorOnPreparingToDonateCalculateTimestampThenTransitionToDonatingInitialData);
                     _onPreparingToDonateCalculateTimestampThenTransitionToDonatingInitialData(
                         factory);
@@ -347,7 +347,7 @@ ExecutorFuture<void> ReshardingDonorService::DonorStateMachine::_runUntilBlockin
                 .then([this, executor, factory, telemetryCtx = telemetryCtx->clone()]() mutable {
                     auto span = _startSpan(
                         telemetryCtx,
-                        SpanNames::
+                        span_names::
                             kReshardingDonorAwaitAllRecipientsDoneCloningThenTransitionToDonatingOplogEntries);
                     return _awaitAllRecipientsDoneCloningThenTransitionToDonatingOplogEntries(
                         executor, factory);
@@ -355,13 +355,13 @@ ExecutorFuture<void> ReshardingDonorService::DonorStateMachine::_runUntilBlockin
                 .then([this, executor, factory, telemetryCtx = telemetryCtx->clone()]() mutable {
                     auto span =
                         _startSpan(telemetryCtx,
-                                   SpanNames::kReshardingDonorCreateAndStartChangeStreamsMonitor);
+                                   span_names::kReshardingDonorCreateAndStartChangeStreamsMonitor);
                     return _createAndStartChangeStreamsMonitor(executor, factory);
                 })
                 .then([this, executor, factory, telemetryCtx = telemetryCtx->clone()]() mutable {
                     auto span = _startSpan(
                         telemetryCtx,
-                        SpanNames::
+                        span_names::
                             kReshardingDonorAwaitAllRecipientsDoneApplyingThenTransitionToPreparingToBlockWrites);
                     return _awaitAllRecipientsDoneApplyingThenTransitionToPreparingToBlockWrites(
                         executor, factory);
@@ -369,7 +369,7 @@ ExecutorFuture<void> ReshardingDonorService::DonorStateMachine::_runUntilBlockin
                 .then([this, factory, telemetryCtx = telemetryCtx->clone()]() mutable {
                     auto span = _startSpan(
                         telemetryCtx,
-                        SpanNames::
+                        span_names::
                             kReshardingDonorWriteTransactionOplogEntryThenTransitionToBlockingWrites);
                     _writeTransactionOplogEntryThenTransitionToBlockingWrites(factory);
                 });
@@ -505,11 +505,10 @@ ExecutorFuture<void> ReshardingDonorService::DonorStateMachine::_finishReshardin
                     auto scopedCsr = CollectionShardingRuntime::acquireExclusive(
                         opCtx.get(), _metadata.getTempReshardingNss());
                     scopedCsr->clearCollectionMetadata(opCtx.get());
-                    // TODO (SERVER-128449): Remove this once resharding is made authoritative.
+                    // TODO (SERVER-127444): Remove once all DDLs are made authoritative.
                     scopedCsr->setNonAuthoritative();
                 }
 
-                // TODO (SERVER-128449): Use NoCustomAction once resharding is authoritative.
                 const auto onReleaseCriticalSectionAction =
                     _externalState->getOnReleaseCriticalSectionCustomAction(mustClearMetadata);
 
@@ -606,7 +605,7 @@ SemiFuture<void> ReshardingDonorService::DonorStateMachine::run(
     auto telemetryCtx = _metadata.getTelemetryContext()
         ? otel::traces::TelemetryContextSerializer::fromBSON(*_metadata.getTelemetryContext())
         : otel::traces::Span::createTelemetryContext();
-    auto span = _startSpan(telemetryCtx, otel::traces::SpanNames::kReshardingDonorStateMachineRun);
+    auto span = _startSpan(telemetryCtx, otel::traces::span_names::kReshardingDonorStateMachineRun);
 
     _cancelState.attachStepdownToken(stepdownToken);
     _markKilledExecutor->startup();
@@ -618,12 +617,12 @@ SemiFuture<void> ReshardingDonorService::DonorStateMachine::run(
     return ExecutorFuture(**executor)
         .then([this, executor, telemetryCtx = telemetryCtx->clone()]() mutable {
             auto span = _startSpan(telemetryCtx,
-                                   SpanNames::kReshardingDonorRunUntilBlockingWritesOrErrored);
+                                   span_names::kReshardingDonorRunUntilBlockingWritesOrErrored);
             return _runUntilBlockingWritesOrErrored(executor, telemetryCtx);
         })
         .then([this, executor, telemetryCtx = telemetryCtx->clone()]() mutable {
             auto span = _startSpan(telemetryCtx,
-                                   SpanNames::kReshardingDonorNotifyCoordinatorAndAwaitDecision);
+                                   span_names::kReshardingDonorNotifyCoordinatorAndAwaitDecision);
             return _notifyCoordinatorAndAwaitDecision(executor);
         })
         .onCompletion([this, executor](Status status) {
@@ -909,15 +908,15 @@ void ReshardingDonorService::DonorStateMachine::
         auto opCtx = _makeOperationContext(factory);
         _externalState->abortUnpreparedTransactionIfNecessary(opCtx.get());
 
-        // TODO (SERVER-128449): Remove the clearShardCatalogCache flag once resharding is
-        // authoritative.
+        const bool mustClearMetadata = _metadata.getAuthoritativeMetadataAccessLevel() ==
+            ReshardingAuthoritativeMetadataAccessLevelEnum::kNone;
         ShardingRecoveryService::get(opCtx.get())
             ->acquireRecoverableCriticalSectionBlockWrites(
                 opCtx.get(),
                 _metadata.getSourceNss(),
                 _critSecReason,
                 ShardingCatalogClient::writeConcernLocalHavingUpstreamWaiter(),
-                true /* clearShardCatalogCache */);
+                mustClearMetadata);
 
         _metrics->setStartFor(ReshardingMetrics::TimedPhase::kCriticalSection,
                               resharding::getCurrentTime());

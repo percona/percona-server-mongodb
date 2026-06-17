@@ -43,8 +43,10 @@
 namespace mongo::exec::agg {
 /**
  * This class handles the execution part of the change stream add post image aggregation stage and
- * is part of the execution pipeline. Its construction is based on
- * DocumentSourceChangeStreamAddPostImage, which handles the optimization part.
+ * is part of the execution pipeline. It computes the post-image from the pre-image plus the oplog
+ * update modification for the 'fullDocument: "required"' / '"whenAvailable"' modes. The
+ * 'fullDocument: "updateLookup"' path lives in ChangeStreamUpdateLookupStage. Its construction is
+ * based on DocumentSourceChangeStreamAddPostImage, which handles the optimization part.
  */
 class ChangeStreamAddPostImageStage final : public Stage {
 public:
@@ -57,16 +59,6 @@ private:
      * Performs the lookup to retrieve the full document.
      */
     GetNextResult doGetNext() final;
-
-    // Retrieves the current version of the document for the update event.
-    boost::optional<Document> lookupLatestPostImage(const Document& updateOp) const;
-
-    /**
-     * Throws a AssertionException if the namespace found in 'inputDoc' doesn't match the one on the
-     * ExpressionContext. If the namespace on the ExpressionContext is 'collectionless', then this
-     * function verifies that the only the database names match.
-     */
-    NamespaceString assertValidNamespace(const Document& inputDoc) const;
 
     /**
      * Computes a post-image by taking a pre-image and applying an update modification that is

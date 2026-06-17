@@ -67,7 +67,10 @@ LiteParsedLookUp::LiteParsedLookUp(const BSONElement& spec,
                                    bool isHybridSearch,
                                    boost::optional<int64_t> internalFieldMatchPipelineIdx,
                                    bool internalFromIsAView,
-                                   bool isPlaceholderInjected)
+                                   bool noUserPipeline,
+                                   bool allowGenericForeignDbLookup,
+                                   bool usingMongos,
+                                   bool isParsingViewDefinition)
     : LiteParsedDocumentSourceNestedPipelines(spec, std::move(foreignNss), std::move(pipeline)),
       _rawPipeline(std::move(rawPipeline)),
       _as(std::move(as)),
@@ -77,9 +80,12 @@ LiteParsedLookUp::LiteParsedLookUp(const BSONElement& spec,
       _unwindSpec(std::move(unwindSpec)),
       _hasForeignDB(hasForeignDB),
       _isHybridSearch(isHybridSearch),
+      _allowGenericForeignDbLookup(allowGenericForeignDbLookup),
+      _usingMongos(usingMongos),
+      _isParsingViewDefinition(isParsingViewDefinition),
       _internalFieldMatchPipelineIdx(internalFieldMatchPipelineIdx),
       _internalFromIsAView(internalFromIsAView),
-      _isPlaceholderInjected(isPlaceholderInjected) {}
+      _noUserPipeline(noUserPipeline) {}
 
 std::unique_ptr<LiteParsedLookUp> LiteParsedLookUp::parse(const NamespaceString& nss,
                                                           const BSONElement& spec,
@@ -96,8 +102,11 @@ std::unique_ptr<LiteParsedLookUp> LiteParsedLookUp::parse(const NamespaceString&
     bool hasForeignDB = false;
     if (lookupSpec.getFrom().has_value()) {
         auto fromElem = lookupSpec.getFrom().value().getElement();
-        fromNss = parseLookupFromAndResolveNamespace(
-            fromElem, nss.dbName(), options.allowGenericForeignDbLookup);
+        fromNss = parseLookupFromAndResolveNamespace(fromElem,
+                                                     nss.dbName(),
+                                                     options.allowGenericForeignDbLookup,
+                                                     options.usingMongos,
+                                                     options.isParsingViewDefinition);
         if (fromElem.type() == BSONType::object) {
             auto specAsNs = NamespaceSpec::parse(fromElem.embeddedObject(),
                                                  IDLParserContext{fromElem.fieldNameStringData()});
@@ -122,7 +131,7 @@ std::unique_ptr<LiteParsedLookUp> LiteParsedLookUp::parse(const NamespaceString&
 
     boost::optional<OwnedLiteParsedPipeline> ownedPipeline;
     std::vector<BSONObj> rawPipeline;
-    bool isPlaceholderInjected = false;
+    bool noUserPipeline = false;
     if (lookupSpec.getPipeline().has_value()) {
         rawPipeline = lookupSpec.getPipeline().value();
         ownedPipeline = OwnedLiteParsedPipeline(fromNss, rawPipeline, options);
@@ -130,9 +139,9 @@ std::unique_ptr<LiteParsedLookUp> LiteParsedLookUp::parse(const NamespaceString&
                options.ifrContext->getSavedFlagValue(
                    feature_flags::gFeatureFlagExtensionsInsideHybridSearch)) {
         // The user did not provide a pipeline object, but the foreign namespace might still be a
-        // view - we inject a placeholder here so that bindResolvedNamespace binds a subpipeline.
-        ownedPipeline = OwnedLiteParsedPipeline(fromNss, std::vector<BSONObj>{}, options);
-        isPlaceholderInjected = true;
+        // view. Defer to the bindResolvedNamespace() call to potentially materialize the view
+        // pipeline.
+        noUserPipeline = true;
     }
 
     std::string as = std::string{lookupSpec.getAs()};
@@ -173,7 +182,10 @@ std::unique_ptr<LiteParsedLookUp> LiteParsedLookUp::parse(const NamespaceString&
                                               isHybridSearch,
                                               internalFieldMatchPipelineIdx,
                                               internalFromIsAView,
-                                              isPlaceholderInjected);
+                                              noUserPipeline,
+                                              options.allowGenericForeignDbLookup,
+                                              options.usingMongos,
+                                              options.isParsingViewDefinition);
 }
 
 PrivilegeVector LiteParsedLookUp::requiredPrivileges(bool isMongos,
@@ -242,30 +254,20 @@ std::unique_ptr<StageParams> LiteParsedLookUp::getStageParams() const {
                                                std::move(subParams),
                                                _internalFieldMatchPipelineIdx,
                                                _internalFromIsAView,
-                                               _isPlaceholderInjected);
-}
-
-void LiteParsedLookUp::bindResolvedNamespace(const ResolvedNamespace& view,
-                                             const ResolvedNamespaceMap& resolvedNamespaces) {
-    LiteParsedDocumentSourceNestedPipelines::bindResolvedNamespace(view, resolvedNamespaces);
-    if (!_foreignNss || !_isPlaceholderInjected) {
-        return;
-    }
-    auto it = resolvedNamespaces.find(*_foreignNss);
-    if (it == resolvedNamespaces.end() || !it->second.involvedNamespaceIsAView) {
-        return;
-    }
-    ResolvedNamespace viewEntry = it->second;
-    viewEntry.liteParseViewPipeline();
-    viewEntry.desugarViewPipeline();
-    if (_pipelines.empty()) {
-        _pipelines.push_back(std::move(*viewEntry.getMutableParsedPipeline()));
-    } else {
-        _pipelines[0] = std::move(*viewEntry.getMutableParsedPipeline());
-    }
+                                               _noUserPipeline);
 }
 
 void LiteParsedLookUp::validate() const {
+    if (_hasForeignDB) {
+        // Enforce the cross-db $lookup restriction using the routing/view-definition context
+        // stored from parse time. This mirrors the check on the legacy createFromBson path via
+        // expCtx and ensures validation fires before the stage is constructed from stage params.
+        parseLookupFromAndResolveNamespace(getOriginalBson().Obj().getField("from"),
+                                           _foreignNss->dbName(),
+                                           _allowGenericForeignDbLookup,
+                                           _usingMongos,
+                                           _isParsingViewDefinition);
+    }
     if (_pipelines.empty()) {
         return;
     }

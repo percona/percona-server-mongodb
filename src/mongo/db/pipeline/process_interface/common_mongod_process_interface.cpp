@@ -906,16 +906,16 @@ std::unique_ptr<Pipeline> CommonMongodProcessInterface::attachCursorSourceToPipe
 }
 
 std::string CommonMongodProcessInterface::getShardName(OperationContext* opCtx) const {
-    if (auto shardId = getShardId(opCtx)) {
-        return shardId->toString();
+    if (ShardingState::get(opCtx)->enabled()) {
+        return ShardingState::get(opCtx)->shardHandle().name().toString();
     }
 
     return std::string();
 }
 
-boost::optional<ShardId> CommonMongodProcessInterface::getShardId(OperationContext* opCtx) const {
+boost::optional<ShardRef> CommonMongodProcessInterface::getShardRef(OperationContext* opCtx) const {
     if (ShardingState::get(opCtx)->enabled()) {
-        return ShardingState::get(opCtx)->shardId();
+        return ShardingState::get(opCtx)->asShardRef(opCtx);
     }
 
     return {};
@@ -1137,7 +1137,7 @@ BSONObj CommonMongodProcessInterface::_reportCurrentOpForClient(
 
     OperationContext* clientOpCtx = client->getOperationContext();
 
-    if (clientOpCtx) {
+    if (clientOpCtx && !client->operationContextIsPendingDestruction()) {
         if (CurOp::get(clientOpCtx)->getShouldOmitDiagnosticInformation()) {
             return builder.obj();
         }
