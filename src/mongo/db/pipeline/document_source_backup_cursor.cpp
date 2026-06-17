@@ -73,7 +73,7 @@ StringData DocumentSourceBackupCursor::getSourceName() const {
     return kStageName;
 }
 
-Value DocumentSourceBackupCursor::serialize(const SerializationOptions& opts) const {
+Value DocumentSourceBackupCursor::serialize(const query_shape::SerializationOptions& opts) const {
     return Value(Document{
         {getSourceName(),
          Document{

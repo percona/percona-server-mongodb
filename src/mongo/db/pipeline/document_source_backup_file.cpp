@@ -82,7 +82,7 @@ StringData DocumentSourceBackupFile::getSourceName() const {
     return kStageName;
 }
 
-Value DocumentSourceBackupFile::serialize(const SerializationOptions& opts) const {
+Value DocumentSourceBackupFile::serialize(const query_shape::SerializationOptions& opts) const {
     return Value{Document{{getSourceName(),
                            Document{{kBackupId, Value(_backupId)},
                                     {kFile, Value(_filePath)},

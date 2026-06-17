@@ -70,7 +70,8 @@ StringData DocumentSourceBackupCursorExtend::getSourceName() const {
     return kStageName;
 }
 
-Value DocumentSourceBackupCursorExtend::serialize(const SerializationOptions& opts) const {
+Value DocumentSourceBackupCursorExtend::serialize(
+    const query_shape::SerializationOptions& opts) const {
     return Value(
         Document{{getSourceName(),
                   Document{{kBackupId, Value(_backupId)}, {kTimestamp, Value(_extendTo)}}}});
