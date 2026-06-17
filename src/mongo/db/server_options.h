@@ -97,6 +97,7 @@ struct MONGO_MOD_PUB ServerGlobalParams {
     ClusterRole clusterRole = ClusterRole::None;       // --configsvr/--shardsvr
     MaintenanceMode maintenanceMode;                   // --maintenanceMode
     bool replicaSetConfigShardMaintenanceMode{false};  // --replicaSetConfigShardMaintenanceMode
+    bool configOnly{false};                            // --configOnly (mongos only)
 
     boost::optional<int> proxyPort;       // --proxyPort
     boost::optional<int> priorityPort;    // --priorityPort
@@ -127,8 +128,11 @@ struct MONGO_MOD_PUB ServerGlobalParams {
     bool doFork = false;        // --fork
     bool isMongoBridge = false;
 
-    std::string proxySocketPrefix;  // Proxy UNIX domain socket directory
-    std::string socket = "/tmp";    // UNIX domain socket directory
+#ifndef _WIN32
+    std::string proxySocketPrefix;          // Proxy UNIX domain socket directory
+    boost::optional<gid_t> proxySocketGid;  // Proxy UNIX domain socket gid
+#endif
+    std::string socket = "/tmp";  // UNIX domain socket directory
 
     size_t maxConns = DEFAULT_MAX_CONN;  // Maximum number of simultaneous open connections.
     VersionedValue<CIDRList> maxIncomingConnsOverride;

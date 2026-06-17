@@ -262,9 +262,7 @@ TEST_F(OrderedTicketSemaphoreTest, HighPriorityJumpsQueue) {
     for (int i = 0; i < 3; ++i) {
         sem->resize(1);
         expectedWaiters--;
-        waitWhile([&]() {
-            return sem->waiters() != expectedWaiters || acquireOrder != 3 - expectedWaiters;
-        });
+        waitWhile([&]() { return acquireOrder != 3 - expectedWaiters; });
     }
 
     lowPriorityFuture.get();
@@ -303,9 +301,11 @@ TEST_F(OrderedTicketSemaphoreTest, PriorityOrderingStillWorksAfterResize) {
     waitForQueuedThreads(sem, 3);
 
     // Release one at a time to verify priority ordering.
+    auto expectedWaiters = sem->waiters();
     for (int i = 0; i < 3; ++i) {
         sem->resize(1);
-        sleepFor(Milliseconds{10});
+        expectedWaiters--;
+        waitWhile([&]() { return acquireOrder != 3 - expectedWaiters; });
     }
 
     for (auto& future : finalFutures) {
@@ -407,5 +407,108 @@ TEST_F(OrderedTicketSemaphoreTest, LowAdmissionsCanBypassMaxWaitersLimit) {
     sem->resize(2);
     future1.get();
     future2.get();
+}
+
+/**
+ * Test that operations marked as load-shed-exempt bypass the max waiters limit.
+ */
+TEST_F(OrderedTicketSemaphoreTest, LoadShedExemptOperationsBypassesMaxWaitersLimit) {
+    auto sem = makeSemaphore(0, 1);  // 0 tickets, max 1 waiter.
+
+    // Create a custom AdmissionContext that overrides isLoadShedExempt().
+    class ExemptAdmissionContext : public MockAdmissionContext {
+    public:
+        bool isLoadShedExempt() const override {
+            return true;
+        }
+    };
+
+    MockAdmissionContext admCtx1, admCtx2NoExemption;
+    ExemptAdmissionContext admCtx3Exempt;
+
+    // First operation fills the queue.
+    auto future1 = launchAsync([&]() {
+        auto [client, opCtx] = makeOpCtx();
+        ASSERT_TRUE(sem->acquire(opCtx.get(), &admCtx1, Date_t::max(), true));
+    });
+
+    waitForQueuedThreads(sem, 1);
+    ASSERT_EQ(sem->waiters(), 1);
+
+    // Non-exempt operation should be load-shed.
+    ASSERT_THROWS_CODE(sem->acquire(opCtx(), &admCtx2NoExemption, getDeadline(), true),
+                       DBException,
+                       ErrorCodes::AdmissionQueueOverflow);
+    ASSERT_EQ(sem->waiters(), 1);
+
+    // Exempt operation should bypass the limit.
+    auto future3 = launchAsync([&]() {
+        auto [client, opCtx] = makeOpCtx();
+        ASSERT_TRUE(sem->acquire(opCtx.get(), &admCtx3Exempt, Date_t::max(), true));
+    });
+
+    waitForQueuedThreads(sem, 2);
+    ASSERT_EQ(sem->waiters(), 2);
+
+    sem->resize(2);
+    future1.get();
+    future3.get();
+}
+
+TEST_F(OrderedTicketSemaphoreTest, AcquireReleaseTryAcquireResizeMockMultipleIterations) {
+    auto sem = makeSemaphore(2, 10);
+    size_t kNumThreads = 3;
+    int kNumIterations = 20000;
+
+    unittest::Barrier barrier{kNumThreads + 3};
+    std::vector<Future<void>> futures;
+    MockAdmissionContext admCtx, resizeAdmCtx;
+    admCtx.setAdmission_forTest(1);
+    // Today kGradual resize is done with 0 admissions, putting the resize at the top of the queue.
+    resizeAdmCtx.setAdmission_forTest(0);
+    for (size_t i = 0; i < kNumThreads; ++i) {
+        futures.push_back(launchAsync([&, i]() {
+            auto [client, opCtx] = makeOpCtx();
+            barrier.countDownAndWait();
+            for (int j = kNumIterations; j > 0; j--) {
+                ASSERT_TRUE(sem->acquire(opCtx.get(), &admCtx, Date_t::max(), true));
+                ASSERT_GTE(sem->available(), 0);
+                sem->release();
+            }
+        }));
+    }
+
+    futures.push_back(launchAsync([&]() {
+        auto [client, opCtx] = makeOpCtx();
+        barrier.countDownAndWait();
+        for (int j = kNumIterations; j > 0; j--) {
+            bool acquired = sem->tryAcquire();
+            ASSERT_GTE(sem->available(), 0);
+            if (acquired) {
+                sem->release();
+            }
+            sleepFor(Microseconds(10));
+        }
+    }));
+
+    // This emulates the current kGradual ticketholder resize implementation, which executes several
+    // acquires and releases consecutively.
+    futures.push_back(launchAsync([&]() {
+        auto [client, opCtx] = makeOpCtx();
+        barrier.countDownAndWait();
+        for (int j = kNumIterations; j > 0; j--) {
+            ASSERT_TRUE(sem->acquire(opCtx.get(), &resizeAdmCtx, Date_t::max(), true));
+            ASSERT_GTE(sem->available(), 0);
+            ASSERT_TRUE(sem->acquire(opCtx.get(), &resizeAdmCtx, Date_t::max(), true));
+            ASSERT_GTE(sem->available(), 0);
+            sem->release();
+            sem->release();
+        }
+    }));
+
+    barrier.countDownAndWait();
+    for (auto& f : futures)
+        f.get();
+    ASSERT_EQ(sem->waiters(), 0);
 }
 }  // namespace mongo

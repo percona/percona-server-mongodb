@@ -694,7 +694,7 @@ public:
             ? "replica set/maintenance mode"
             : (role->has(ClusterRole::ConfigServer) ? "config server" : "shard server");
 
-        if (!request.getPhase() || request.getPhase() == SetFCVPhaseEnum::kStart) {
+        if ((!request.getPhase() || request.getPhase() == SetFCVPhaseEnum::kStart) && !isDryRun) {
             LOGV2(6744300,
                   "setFeatureCompatibilityVersion command called",
                   "upgradeOrDowngrade"_attr = upgradeOrDowngrade,
@@ -1459,10 +1459,10 @@ private:
         bool errorAndLogValidationDisabled =
             (gFeatureFlagErrorAndLogValidationAction.isDisabledOnTargetFCVButEnabledOnOriginalFCV(
                 requestedVersion, originalVersion));
-        bool validatedValidationLevelDisabled =
-            (gFeatureFlagValidatedValidationLevel.isDisabledOnTargetFCVButEnabledOnOriginalFCV(
+        bool constraintValidationLevelDisabled =
+            (gFeatureFlagConstraintValidationLevel.isDisabledOnTargetFCVButEnabledOnOriginalFCV(
                 requestedVersion, originalVersion));
-        if (errorAndLogValidationDisabled || validatedValidationLevelDisabled) {
+        if (errorAndLogValidationDisabled || constraintValidationLevelDisabled) {
             for (const auto& dbName : DatabaseHolder::get(opCtx)->getNames()) {
                 Lock::DBLock dbLock(opCtx, dbName, MODE_IS);
                 catalog::forEachCollectionFromDb(
@@ -1481,12 +1481,13 @@ private:
                         uassert(ErrorCodes::CannotDowngrade,
                                 fmt::format(
                                     "Cannot downgrade the cluster when there are collections with "
-                                    "'validated' validation level. Please unset the option or "
+                                    "'constraint' validation level. Please unset the option or "
                                     "drop the collection(s) before downgrading. First detected "
-                                    "collection with 'validated' enabled: {} (UUID: {}).",
+                                    "collection with 'constraint' enabled: {} (UUID: {}).",
                                     collection->ns().toStringForErrorMsg(),
                                     collection->uuid().toString()),
-                                collection->getValidationLevel() != ValidationLevelEnum::validated);
+                                collection->getValidationLevel() !=
+                                    ValidationLevelEnum::constraint);
 
                         return true;
                     });

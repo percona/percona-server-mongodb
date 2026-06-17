@@ -101,6 +101,14 @@ enums:
             kMalformedTimeseriesBucketsCollection: "Found malformed timeseries collection"
             kIncompatibleUniqueIndexOnShardedCollection: "Found incompatible index options with uniqueness in a sharded collection"
 
+    MetadataInconsistencySeverity:
+        description: "Severity level of a metadata inconsistency."
+        type: string
+        values:
+            kHigh: "high"
+            kMedium: "medium"
+            kLow: "low"
+
     MetadataConsistencyCommandLevel:
         description: "Level mode of the metadata consistency command."
         type: string
@@ -569,6 +577,10 @@ structs:
             details:
                 type: object
                 description: "Details about the inconsistency."
+            severity:
+                type: MetadataInconsistencySeverity
+                description: "Severity level of the inconsistency."
+                optional: true
 
     CommonCheckMetadataRequestFields:
         description: "Common fields for all checkMetdataConsistency commands"
@@ -590,3 +602,21 @@ structs:
                 description: "Check that in the presence of outstanding range deletion tasks a shard key index must exists"
                 type: safeBool
                 default: false
+
+    UniqueIndexInconsistencyInfo:
+        description: "Details about unique index misconfiguration."
+        strict: false
+        fields:
+            index:
+                type: object
+                description: "Index with the issue."
+            shard:
+                type: shard_id
+                description: "Shard id where the issue was found."
+            issue:
+                type: string
+                description: "Uniqueness issue found."
+            shardKey:
+                type: object
+                description: "Collection shard key."
+                optional: true

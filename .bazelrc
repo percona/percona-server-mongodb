@@ -4,6 +4,9 @@
 # enabled.
 info --config=local
 
+# Used if we need to reset the cache for some reason, just change the value
+common --action_env=RESET_CACHE=A
+
 # Don't use legacy toolchain resolution.
 common --incompatible_enable_cc_toolchain_resolution
 # https://github.com/bazelbuild/bazel/issues/8766
@@ -93,6 +96,10 @@ common:macos --repo_env=LLVM_VERSION=19
 common:windows --repo_env=BAZEL_VS="C:/Program Files/Microsoft Visual Studio/2022.14/Professional"
 common:windows --repo_env=BAZEL_VC="C:/Program Files/Microsoft Visual Studio/2022.14/Professional/VC"
 common:windows --repo_env=BAZEL_VC_FULL_VERSION=14.44.35207
+
+# Pin the Windows SDK used by the Bazel MSVC toolchain. Override with
+# --repo_env=BAZEL_WINSDK_FULL_VERSION=<sdk-version> on the command line.
+common:windows --repo_env=BAZEL_WINSDK_FULL_VERSION=10.0.20348.0
 
 # Default the Visual C Redistribution to v14.3 for Windows installer.
 common:windows --repo_env=MONGO_VC_REDIST_FULL_VERSION=v143
@@ -551,6 +558,15 @@ common:mod-scanner --output_groups=report
 common:mod-scanner --aspects //modules_poc:mod_scanner.bzl%mod_scanner_aspect
 common:mod-scanner --remote_download_regex=.*\.mod_scanner_decls.json$
 
+--config=compiledb
+common:compiledb --aspects //bazel/compiledb:compiledb_aspect.bzl%compiledb_aspect
+common:compiledb --output_groups=compiledb_report
+common:compiledb --keep_going
+common:compiledb --remote_download_regex=.*\.compile_command\.json$
+
+--config=compiledb-aspect
+common:compiledb-aspect --config=compiledb
+
 --config=symbol-checker
 common:symbol-checker --aspects //bazel/symbol_checker:symbol_checker.bzl%symbol_checker_aspect
 common:symbol-checker --output_groups=symbol_checker
@@ -602,9 +618,6 @@ common:public-release-local --legacy_important_outputs
 common:public-release-rbe --config=public-release
 common:public-release-rbe --remote_instance_name=release
 common:public-release-rbe --bes_instance_name=release
-
-common --@rules_rust//rust/toolchain/channel=nightly
-common --@rules_rust//rust/settings:experimental_use_allocator_libraries_with_mangled_symbols=true
 
 common --@rules_python//python/config_settings:bootstrap_impl=script
 # https://github.com/bazel-contrib/rules_python/issues/2864

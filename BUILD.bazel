@@ -93,6 +93,11 @@ alias(
     actual = "//src/mongo/tools/mongo_tidy_checks/tests:MongoTidyCheck_unittest",
 )
 
+alias(
+    name = "setup_clang_tidy",
+    actual = "//buildscripts:setup_clang_tidy",
+)
+
 setup_mongo_toolchain_aliases()
 
 setup_gdb_toolchain_aliases()
@@ -125,10 +130,28 @@ render_template(
 )
 
 genrule(
-    name = "compiledb",
+    name = "compiledb_only",
     srcs = ["compile_commands.json"],
     outs = ["compile_commands_done"],
     cmd = "echo noop > $(location :compile_commands_done)",
+    tags = [
+        "no-cache",
+        "no-remote-exec",
+    ],
+)
+
+genrule(
+    name = "compiledb",
+    srcs = ["compile_commands.json"] + select({
+        "@platforms//os:windows": [],
+        "//conditions:default": [
+            ":setup_clang_tidy",
+            ":clang_tidy_config",
+            "//src/mongo/tools/mongo_tidy_checks",
+        ],
+    }),
+    outs = ["compiledb_setup_done"],
+    cmd = "echo noop > $(location :compiledb_setup_done)",
     tags = [
         "no-cache",
         "no-remote-exec",
@@ -317,6 +340,7 @@ mongo_install(
         "//src/mongo/shell:mongo",
         "//src/mongo/tools:perconadecrypt",
         "//src/mongo/tools/mongobridge_tool:mongobridge",
+        "//src/mongo/tools/mongosentry_tool:mongosentry",
         "//src/mongo/util:pretty_printer_test_program",
         "//src/third_party/wiredtiger:wt",
     ] + select({

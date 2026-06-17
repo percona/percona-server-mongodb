@@ -199,8 +199,20 @@ void validateRequestWithClient(const OperationContext* opCtx,
     //     - Does not have any transport session
     //     - The transport session tag is internal
     bool isInternalThreadOrClient = !client->session() || client->isInternalClient();
+
+    // Forbid fromRouter for non-internal clients. They can't actually be mongos.
+    uassert(ErrorCodes::BadValue,
+            "BSON field 'fromRouter' is an unknown field",
+            !getFromRouter(request) || isInternalThreadOrClient || client->isInDirectClient());
+
     // Checks that the 'exchange' or 'fromRouter' option can only be specified by the internal
     // client.
+    if (request.getExchange()) {
+        // Forbid exchange from external clients
+        uassert(ErrorCodes::BadValue,
+                "BSON field 'exchange' is an unknown field",
+                isInternalThreadOrClient || client->isInDirectClient());
+    }
     if ((request.getExchange() || getFromRouter(request)) && apiStrict && apiVersion == "1") {
         uassert(ErrorCodes::APIStrictError,
                 str::stream() << "'exchange' and 'fromRouter' option cannot be specified with "

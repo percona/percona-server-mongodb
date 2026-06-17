@@ -39,11 +39,17 @@ JS_PUBLIC_API void reset(size_t max_bytes, bool track_mmap);
 JS_PUBLIC_API size_t get_total_bytes();
 JS_PUBLIC_API size_t get_max_bytes();
 
-JS_PUBLIC_API void check_oom_on_mmap_allocation(size_t bytes);
+JS_PUBLIC_API void record_mmap_alloc(size_t bytes);
+JS_PUBLIC_API void record_mmap_free(size_t bytes);
 
 size_t get_malloc_bytes();
 size_t get_mmap_bytes();
 void signal_oom();
+
+// Force the N-th and all subsequent allocations through the MozJS custom
+// allocator to return nullptr. Pass -1 to disable. Test-only; no-op in
+// release builds.
+void set_fail_on_allocation(int64_t n);
 }  // namespace sm
 }  // namespace mongo
 
