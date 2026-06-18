@@ -1,0 +1,50 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "0a87b91f7a55fbbb03706a0de3392699e0364fbf",
+    "merge_commit": "2eff3754f8e28b55b58b93ea2dbd601598e677d8"
+  },
+  "mergai_version": "0.1.dev1+g95d1b543b",
+  "solutions": [
+    {
+      "type": "conflict_resolution",
+      "response": {
+        "summary": "SERVER-126886 Split get_mongodb_extension into two step process (#53878)",
+        "resolved": {},
+        "unresolved": {},
+        "modified": {
+          "evergreen/verify_all_extensions_visibility.sh": "Modified by human",
+          "evergreen/verify_extension_visibility_test.sh": "Modified by human",
+          "src/mongo/db/extension/host/load_extension.cpp": "Modified by human",
+          "src/mongo/db/extension/host/load_extension.h": "Modified by human",
+          "src/mongo/db/extension/host/load_extension_test.cpp": "Modified by human",
+          "src/mongo/db/extension/public/api.h": "Modified by human",
+          "src/mongo/db/extension/sdk/BUILD.bazel": "Modified by human",
+          "src/mongo/db/extension/sdk/extension.h": "Modified by human",
+          "src/mongo/db/extension/sdk/extension_factory.h": "Modified by human",
+          "src/mongo/db/extension/sdk/extension_helper.cpp": "Modified by human",
+          "src/mongo/db/extension/sdk/tests/versioned_extension_test.cpp": "Modified by human",
+          "src/mongo/db/extension/sdk/versioned_extension.h": "Modified by human",
+          "src/mongo/db/extension/test_examples/BUILD.bazel": "Modified by human",
+          "src/mongo/db/extension/test_examples/fail_to_load/host_version_fails.cpp": "Modified by human",
+          "src/mongo/db/extension/test_examples/fail_to_load/major_version_max_int.cpp": "Modified by human",
+          "src/mongo/db/extension/test_examples/fail_to_load/major_version_too_high.cpp": "Modified by human",
+          "src/mongo/db/extension/test_examples/fail_to_load/major_version_too_low.cpp": "Modified by human",
+          "src/mongo/db/extension/test_examples/fail_to_load/minor_version_too_high.cpp": "Modified by human",
+          "src/mongo/db/extension/test_examples/fail_to_load/no_compatible_version.cpp": "Modified by human",
+          "src/mongo/db/extension/test_examples/fail_to_load/no_get_extension_symbol.cpp": "Modified by human",
+          "src/mongo/db/extension/test_examples/fail_to_load/no_symbol.cpp": "Modified by human",
+          "src/mongo/db/extension/test_examples/fail_to_load/null_initialize_function.cpp": "Modified by human",
+          "src/mongo/db/extension/test_examples/fail_to_load/null_mongo_extension.cpp": "Modified by human"
+        },
+        "review_notes": "GitOrigin-RevId: 47f9221f02f423e4f078fe860b81e3b674ee7b43"
+      },
+      "author": {
+        "name": "Santiago Roche",
+        "email": "69868136+sroches@users.noreply.github.com",
+        "type": "human"
+      },
+      "commit_sha": "eaddb4d4dffb6b56eb7b0fc28764cc36bcb7364a"
+    }
+  ]
+}
