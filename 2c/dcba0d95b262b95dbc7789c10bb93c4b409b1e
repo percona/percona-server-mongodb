@@ -1,0 +1,31 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "0a87b91f7a55fbbb03706a0de3392699e0364fbf",
+    "merge_commit": "2eff3754f8e28b55b58b93ea2dbd601598e677d8"
+  },
+  "mergai_version": "0.1.dev1+g95d1b543b",
+  "solutions": [
+    {
+      "type": "conflict_resolution",
+      "response": {
+        "summary": "SERVER-128776 Add deleteOne microbenchmark (#55764)",
+        "resolved": {},
+        "unresolved": {},
+        "modified": {
+          "buildscripts/resmokelib/testing/hooks/generate_and_check_perf_results.py": "Modified by human",
+          "buildscripts/tests/resmokelib/testing/hooks/OWNERS.yml": "Modified by human",
+          "buildscripts/tests/resmokelib/testing/hooks/test_generate_and_check_perf_results.py": "Modified by human",
+          "src/mongo/db/crud_bm.cpp": "Modified by human"
+        },
+        "review_notes": "GitOrigin-RevId: c6f123c8bb3e0de7d8a3f5ce215afbe269fc78b0"
+      },
+      "author": {
+        "name": "Alice Doherty",
+        "email": "66687032+alicedoherty@users.noreply.github.com",
+        "type": "human"
+      },
+      "commit_sha": "2cdcba0d95b262b95dbc7789c10bb93c4b409b1e"
+    }
+  ]
+}
