@@ -1,0 +1,37 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "0a87b91f7a55fbbb03706a0de3392699e0364fbf",
+    "merge_commit": "2eff3754f8e28b55b58b93ea2dbd601598e677d8"
+  },
+  "mergai_version": "0.1.dev1+g95d1b543b",
+  "solutions": [
+    {
+      "type": "conflict_resolution",
+      "response": {
+        "summary": "SERVER-114092 Refactor extension unit tests to use default test implementations (#55897)",
+        "resolved": {},
+        "unresolved": {},
+        "modified": {
+          "src/mongo/db/extension/sdk/test_extension_factory.h": "Modified by human",
+          "src/mongo/db/extension/sdk/tests/aggregation_stage_test.cpp": "Modified by human",
+          "src/mongo/db/extension/sdk/tests/shared_test_stages.h": "Modified by human",
+          "src/mongo/db/extension/test_examples/desugar/add_fields_match.cpp": "Modified by human",
+          "src/mongo/db/extension/test_examples/desugar/match_topN.cpp": "Modified by human",
+          "src/mongo/db/extension/test_examples/desugar/native_vector_search.cpp": "Modified by human",
+          "src/mongo/db/extension/test_examples/host_services/debug_logging.cpp": "Modified by human",
+          "src/mongo/db/extension/test_examples/host_services/extension_errors.cpp": "Modified by human",
+          "src/mongo/db/extension/test_examples/host_services/logging.cpp": "Modified by human",
+          "src/mongo/db/extension/test_examples/observability/sharded_execution_serialization.cpp": "Modified by human"
+        },
+        "review_notes": "GitOrigin-RevId: 8a0a08288c7d69dc93cd4265b77e10c95dd4d59d"
+      },
+      "author": {
+        "name": "Will Buerger",
+        "email": "59492746+wbuerger46@users.noreply.github.com",
+        "type": "human"
+      },
+      "commit_sha": "a65c239fa57ef083426aaf366b7c0c386f1907cc"
+    }
+  ]
+}
