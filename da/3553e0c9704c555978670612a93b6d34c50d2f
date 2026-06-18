@@ -1,0 +1,30 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "0a87b91f7a55fbbb03706a0de3392699e0364fbf",
+    "merge_commit": "2eff3754f8e28b55b58b93ea2dbd601598e677d8"
+  },
+  "mergai_version": "0.1.dev1+g95d1b543b",
+  "solutions": [
+    {
+      "type": "conflict_resolution",
+      "response": {
+        "summary": "SERVER-128455 Add DRM tests with $unionWith, $lookup, and terminal stages (#55831)",
+        "resolved": {},
+        "unresolved": {},
+        "modified": {
+          "jstests/extensions/document_results_and_metadata_lookup.js": "Modified by human",
+          "jstests/extensions/document_results_and_metadata_terminal_stages.js": "Modified by human",
+          "jstests/extensions/document_results_and_metadata_union_with.js": "Modified by human"
+        },
+        "review_notes": "GitOrigin-RevId: b6b96c930d995d661381759d0ddc108d6c182652"
+      },
+      "author": {
+        "name": "Daniel Segel",
+        "email": "71151509+dhsegel@users.noreply.github.com",
+        "type": "human"
+      },
+      "commit_sha": "da3553e0c9704c555978670612a93b6d34c50d2f"
+    }
+  ]
+}
