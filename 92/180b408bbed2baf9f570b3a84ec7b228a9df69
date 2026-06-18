@@ -1,0 +1,63 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "0a87b91f7a55fbbb03706a0de3392699e0364fbf",
+    "merge_commit": "2eff3754f8e28b55b58b93ea2dbd601598e677d8"
+  },
+  "mergai_version": "0.1.dev1+g95d1b543b",
+  "solutions": [
+    {
+      "type": "conflict_resolution",
+      "response": {
+        "summary": "SERVER-114130 Move failIngressRequestRateLimiting fail point to the ingress request rate limiter (#55381)",
+        "resolved": {},
+        "unresolved": {},
+        "modified": {
+          "buildscripts/resmokeconfig/matrix_suites/generated_suites/multi_shard_multi_stmt_txn_jscore_passthrough_rate_limited.yml": "Modified by human",
+          "buildscripts/resmokeconfig/matrix_suites/generated_suites/replica_sets_jscore_passthrough_rate_limited.yml": "Modified by human",
+          "buildscripts/resmokeconfig/matrix_suites/generated_suites/sharded_collections_jscore_passthrough_rate_limited.yml": "Modified by human",
+          "buildscripts/resmokeconfig/matrix_suites/generated_suites/sharding_jscore_passthrough_with_balancer_rate_limited.yml": "Modified by human",
+          "buildscripts/resmokeconfig/matrix_suites/mappings/multi_shard_multi_stmt_txn_jscore_passthrough_rate_limited.yml": "Modified by human",
+          "buildscripts/resmokeconfig/matrix_suites/mappings/replica_sets_jscore_passthrough_rate_limited.yml": "Modified by human",
+          "buildscripts/resmokeconfig/matrix_suites/mappings/sharded_collections_jscore_passthrough_rate_limited.yml": "Modified by human",
+          "buildscripts/resmokeconfig/matrix_suites/mappings/sharding_jscore_passthrough_with_balancer_rate_limited.yml": "Modified by human",
+          "buildscripts/resmokeconfig/matrix_suites/overrides/rate_limiter_with_auth.yml": "Modified by human",
+          "buildscripts/resmokeconfig/matrix_suites/overrides/replica_set_rate_limiter.yml": "Modified by human",
+          "buildscripts/resmokeconfig/matrix_suites/overrides/sharded_rate_limiter_with_auth.yml": "Modified by human",
+          "buildscripts/resmokelib/testing/fixtures/interface.py": "Modified by human",
+          "buildscripts/resmokelib/testing/fixtures/multi_replica_set.py": "Modified by human",
+          "buildscripts/resmokelib/testing/fixtures/replicaset.py": "Modified by human",
+          "buildscripts/resmokelib/testing/fixtures/shardedcluster.py": "Modified by human",
+          "buildscripts/resmokelib/testing/fixtures/standalone.py": "Modified by human",
+          "buildscripts/resmokelib/testing/hooks/check_system_buckets_metrics.py": "Modified by human",
+          "buildscripts/resmokelib/testing/hooks/cleanup.py": "Modified by human",
+          "buildscripts/resmokelib/testing/hooks/dbhash_background.py": "Modified by human",
+          "buildscripts/resmokelib/testing/hooks/fuzz_runtime_parameters.py": "Modified by human",
+          "buildscripts/resmokelib/testing/hooks/maintenance.py": "Modified by human",
+          "buildscripts/resmokelib/testing/hooks/rotate_execution_control_params.py": "Modified by human",
+          "buildscripts/resmokelib/testing/hooks/run_query_stats.py": "Modified by human",
+          "buildscripts/resmokelib/testing/hooks/stepdown.py": "Modified by human",
+          "buildscripts/resmokelib/testing/hooks/validate.py": "Modified by human",
+          "buildscripts/resmokelib/testing/testcases/jstest.py": "Modified by human",
+          "etc/evergreen_timeouts.yml": "Modified by human",
+          "jstests/core_sharding/ddl/shard_collection_basic.js": "Modified by human",
+          "jstests/libs/OWNERS.yml": "Modified by human",
+          "jstests/libs/discover_topology.js": "Modified by human",
+          "jstests/libs/hook_appname.js": "Modified by human",
+          "jstests/libs/replsettest.js": "Modified by human",
+          "jstests/libs/retryable_mongo.js": "Modified by human",
+          "src/mongo/db/admission/ingress_request_rate_limiter.cpp": "Modified by human",
+          "src/mongo/db/admission/ingress_request_rate_limiter.h": "Modified by human",
+          "src/mongo/db/service_entry_point_shard_role.cpp": "Modified by human"
+        },
+        "review_notes": "Co-authored-by: Blake Oler <blake.oler@mongodb.com>\nGitOrigin-RevId: 554f2e24479aaf6d021ab16d6dc02c66d17467f4"
+      },
+      "author": {
+        "name": "Jack Mulrow",
+        "email": "jack.mulrow@mongodb.com",
+        "type": "human"
+      },
+      "commit_sha": "92180b408bbed2baf9f570b3a84ec7b228a9df69"
+    }
+  ]
+}
