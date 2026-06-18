@@ -1,0 +1,350 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "a842502645f5c8d5a645d9c1b6c4f5bb34d07b48",
+    "merge_commit": "8752933b6cb374f9d4572d718947d99763b63e23"
+  },
+  "mergai_version": "0.1.dev1+ga4404a79e",
+  "merge_context": {
+    "merge_commit": "8752933b6cb374f9d4572d718947d99763b63e23",
+    "merged_commits": [
+      "8752933b6cb374f9d4572d718947d99763b63e23",
+      "0580c8a3399e15b4980ab4cd26a743c3d9b37e7a",
+      "eab662b54a2bdc025397dd98466fc9c64a621d73",
+      "03ff2dc6dc40f1163013f00bc548e88ccb0a2ebd",
+      "91bbc0d8865952affcf4aaf32842d0496440ff30",
+      "f2287830ff0a6ac4dea9c630cd836b7d558625bc",
+      "294173e4ab00c3a32f4686d5fe087a307568465b",
+      "46080d561b5a0e1ae08e2691d0527b43afcf5a7a",
+      "2d0c81645497ed0df4cd6e9fb28beb3c97ed288d",
+      "01575596b3ce00c9bcefdd71ebe22ab121abf661",
+      "ace6c58f340d349ff05ff06c8d089a1644bc144a",
+      "633f5a08813531627ab2a55e3c354a7975f322c2",
+      "58ac2522f9d12f85110b73c23a604248069d496a",
+      "3f7036adfc527c54ee91ad91fc4a6251891c71f1",
+      "0edc14b69649c13383f853184a1109c6a356b1e7",
+      "fdb170c3c75626d1174bd3f0d3edcfb61d71ca4e",
+      "da811d42daf0a58fa172cc88c249b30c51449cb4",
+      "9da758800860ad71e3ed683ef2f1216c73189a05",
+      "fba1cf995f5460d87bdc2825f46198d76cca5ad4",
+      "81acb69a5d4a821e12e467eb2a5b4b7b950f2aa0",
+      "9cdf79aba181cce9cb6c80948b9e4f0e656a7f97",
+      "3fe01e4d3fee58aa5602f38ca5fb22147e67a9f7",
+      "0763da754fc50f8bf4c0771f9cd800257658abb4",
+      "b23a0c5303f5907d5d2852b9f2381e2bbce6f5c8",
+      "d6ab78c11a9521288c20c675c4f3b18cab6bfa39",
+      "571399d46ee2cf813e2a8f89001ae29a226cfb69",
+      "988d64fea5b2821923006cef0c33bc9632a9424e",
+      "224a0c83559fc5c710060536a11086cf088daa0b",
+      "c738b8282bc9d97618a9150a125fd231bd3c7b73",
+      "e021d4ccdb087d9a3cc18e32f3c4831e3a8e086a",
+      "e8f0f1de4e8e2761ebddf50bb5ac63e7353d85a2",
+      "b02b6f9e627818c5eb8da7782aa9bb761ce84d74",
+      "c054eb74da1be053d649185a23ed972a59eb5f17",
+      "c18a73442109a5daae9ce30dd09ba045ae183983",
+      "509986f6733a94b4a1e3c81c8f3209270ecb24c4",
+      "2cdcb0682cdfa5f974971c6f6c02202132813d2a",
+      "aee178f9fe76144e9c50e6875b24679e577c5a05",
+      "7a162dc3fd6d2d37d3ae9fbd9eb67f80a8ba13f9",
+      "3af1a3c2347cc76520a31e3a049f27fcd1ea2c28",
+      "4e7cc8ca20332c5b97924bede2ca8e6a05887682",
+      "a742e5a9b6cbdec945c2e3aa82e6e86dfe157962",
+      "7437d96e56d32e9c29fc0929d3982e6d9a22306d",
+      "c2dbe8e9dabed5f1031ba4179f58261653cecc85",
+      "b6dee7d78dbe065748099e20dd5e216ac4c735c2",
+      "f9514cc7c107b00b9a818830c843881f0fe26b63",
+      "e9a4df92758143b0f44751a168b05f148b708f4a",
+      "983a39d81c969cdc3284127631a9e84dbd26d24b"
+    ],
+    "important_files_modified": [
+      "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine_test.cpp"
+    ],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        "bazel/resmoke/resmoke.bzl",
+        "buildscripts/resmokelib/configure_resmoke.py",
+        "jstests/auth/lib/commands_lib.js",
+        "src/mongo/db/BUILD.bazel",
+        "src/mongo/db/commands/BUILD.bazel",
+        "src/mongo/db/curop_test.cpp",
+        "src/mongo/db/mongod_main.cpp",
+        "src/mongo/db/namespace_string_util_test.cpp",
+        "src/mongo/db/storage/wiredtiger/BUILD.bazel",
+        "src/mongo/s/BUILD.bazel",
+        "src/mongo/s/mongos_main.cpp"
+      ]
+    }
+  },
+  "solutions": [
+    {
+      "type": "conflict_resolution",
+      "response": {
+        "summary": "Merge pull request #287 from plebioda/mergai/master-8752933b6cb/semantic",
+        "resolved": {},
+        "unresolved": {},
+        "modified": {
+          "src/mongo/db/pipeline/document_source_backup_cursor.cpp": "Modified by human",
+          "src/mongo/db/pipeline/document_source_backup_cursor.h": "Modified by human",
+          "src/mongo/db/pipeline/document_source_backup_cursor_extend.cpp": "Modified by human",
+          "src/mongo/db/pipeline/document_source_backup_cursor_extend.h": "Modified by human",
+          "src/mongo/db/pipeline/document_source_backup_file.cpp": "Modified by human",
+          "src/mongo/db/pipeline/document_source_backup_file.h": "Modified by human"
+        },
+        "review_notes": "Resolve semantic conflicts for merge '8752933b6cb' into 'master'"
+      },
+      "author": {
+        "name": "Pawel Lebioda",
+        "email": "pawel.lebioda89@gmail.com",
+        "type": "human"
+      },
+      "commit_sha": "af3dfea1adc6c8d831b2da9fa2d0485cc0cddfb1"
+    }
+  ],
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 57267,
+    "num_turns": 14,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.40294,
+    "modelUsage": {
+      "claude-haiku-4-5-20251001": {
+        "inputTokens": 587,
+        "outputTokens": 15,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0,
+        "webSearchRequests": 0,
+        "costUSD": 0.0006619999999999999,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000
+      },
+      "claude-opus-4-5": {
+        "inputTokens": 13,
+        "outputTokens": 3638,
+        "cacheReadInputTokens": 122476,
+        "cacheCreationInputTokens": 40004,
+        "webSearchRequests": 0,
+        "costUSD": 0.40227799999999997,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-haiku-4-5-20251001": {
+          "tokens": {
+            "input": 587,
+            "output": 15,
+            "cache_read": 0,
+            "cache_creation": 0
+          },
+          "cost_usd": 0.0006619999999999999
+        },
+        "claude-opus-4-5": {
+          "tokens": {
+            "input": 13,
+            "output": 3638,
+            "cache_read": 122476,
+            "cache_creation": 40004
+          },
+          "cost_usd": 0.40227799999999997
+        }
+      }
+    },
+    "text_result": "JSON response written to `/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/response_20260618_194430_307853.json`. The response describes 47 merged upstream commits covering config fuzzer seed infrastructure, MFP plugin integration, ServerParameterGuard refactoring, OTEL metrics installation changes, and BUILD.bazel dependency updates.",
+    "response": {
+      "summary": "This merge brings 47 upstream commits covering: config fuzzer infrastructure for Bazel resmoke tests (deterministic per-suite seeds), Message Filter Plugin (MFP) integration in resmoke, refactoring of RAIIServerParameterControllerForTest to unittest::ServerParameterGuard, OpenTelemetry metrics installation changes (renamed functions and new mongos metrics installer), new $_streamsVectorSearch aggregation stage authorization tests, and various BUILD.bazel dependency updates for OTEL metrics and test utilities.",
+      "auto_merged": {
+        "bazel/resmoke/resmoke.bzl": "Adds config fuzzer seed infrastructure: new `_config_fuzz_seed_file` rule that generates a deterministic seed file per suite (derived from BUILD_TIMESTAMP + suite name, or a fixed seed via --//bazel/resmoke:config_fuzz_seed). The `resmoke_suite_test` macro now detects config fuzzer suites (those with --fuzzMongodConfigs or --fuzzMongosConfigs args) and auto-generates a seed target, passing it via CONFIG_FUZZ_SEED_FILE environment variable so all shards share the same fuzz configuration.",
+        "buildscripts/resmokelib/configure_resmoke.py": "Adds Message Filter Plugin (MFP) support: new `_config.MESSAGE_FILTER_PLUGIN` configuration option. When enabled, creates a temp directory, copies the MFP plugin .so to it with read-only permissions (0o444), and adds `messageFilterPluginPath` to both mongod and mongos set parameters. New `_find_mfp_plugin_source()` function searches for libmessage_filter_plugin.so in dist-test, bazel-bin install paths, or the enterprise module build path.",
+        "jstests/auth/lib/commands_lib.js": "Adds authorization test case for the new `$_streamsVectorSearch` aggregation stage. The test is skipped when featureFlagStreams is disabled, on Windows (not yet supported for stream processing), or on versions before 8.1. Uses `testcases_transformationOnlyExpectFail` indicating the stage is not allowed in user requests.",
+        "src/mongo/db/BUILD.bazel": "Updates dependencies: adds `//src/mongo/otel/traces/span:span_names` to service_context target, adds `//src/mongo/otel/metrics:otel_metrics_service` to another library. Test targets updated: curop_test now depends on `//src/mongo/unittest:server_parameter_guard` instead of `//src/mongo/idl:server_parameter_test_util`. New dependencies added to shard_role_test (`//src/mongo/db/s:forwardable_operation_metadata`) and write_concern_test (`write_concern_metrics_test.cpp` source file and `//src/mongo/otel/metrics:metrics_test_util`).",
+        "src/mongo/db/commands/BUILD.bazel": "Adds `//src/mongo/unittest:server_parameter_guard` dependency to the commands unit test target, part of the migration from RAIIServerParameterControllerForTest.",
+        "src/mongo/db/curop_test.cpp": "Refactors all uses of `RAIIServerParameterControllerForTest` to `unittest::ServerParameterGuard`. Updates include from `mongo/idl/server_parameter_test_controller.h` to `mongo/unittest/server_parameter_guard.h`. Affects 12 test cases that control feature flags like featureFlagQueryMemoryTracking, featureFlagRecordDelinquentMetrics, overdueInterruptCheckSamplingRate, and multitenancySupport.",
+        "src/mongo/db/mongod_main.cpp": "Renames function call from `installOtelMetrics(serviceContext)` to `installMongodOtelMetrics(serviceContext)` to distinguish mongod-specific OTEL metrics installation from the new mongos-specific variant.",
+        "src/mongo/db/namespace_string_util_test.cpp": "Refactors all uses of `RAIIServerParameterControllerForTest` to `unittest::ServerParameterGuard` throughout the file. Updates include from `mongo/idl/server_parameter_test_controller.h` to `mongo/unittest/server_parameter_guard.h`. Affects approximately 25 test cases controlling multitenancySupport and featureFlagRequireTenantID parameters.",
+        "src/mongo/db/storage/wiredtiger/BUILD.bazel": "Updates wiredtiger_kv_engine_test dependency from `//src/mongo/idl:server_parameter_test_util` to `//src/mongo/unittest:server_parameter_guard`, consistent with the server parameter test utility refactoring.",
+        "src/mongo/s/BUILD.bazel": "Adds new dependency `//src/mongo/otel/metrics/instrumentation:metrics_installer` to the mongos sharding library for OTEL metrics installation support.",
+        "src/mongo/s/mongos_main.cpp": "Adds OpenTelemetry metrics installation to mongos: includes new header `mongo/otel/metrics/instrumentation/metrics_installer.h` and calls `installMongosOtelMetrics(serviceContext)` during mongos startup, after FTDC initialization and before scripting engine setup."
+      },
+      "review_notes": "Key changes to verify: (1) The config fuzzer seed generation logic uses volatile-status BUILD_TIMESTAMP for determinism - ensure this integrates correctly with existing resmoke infrastructure. (2) The MFP plugin setup creates temp files with 0o444 permissions as a tamper-resistance check - verify the loader accepts this. (3) The RAIIServerParameterControllerForTest \u2192 unittest::ServerParameterGuard migration is a straightforward rename but affects many test files - ensure no behavioral changes. (4) The OTEL metrics changes split mongod/mongos installation paths - verify both binaries get their appropriate metrics."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [
+            "I'll examine the actual diffs for each auto-merged file to describe the changes accurately."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [
+            "Now I have all the diff information. Let me also check the merged commit summaries to better understand the context."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [
+            "Now I have all the information needed to write the JSON response."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [
+            "JSON response written to `/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/response_20260618_194430_307853.json`. The response describes 47 merged upstream commits covering config fuzzer seed infrastructure, MFP plugin integration, ServerParameterGuard refactoring, OTEL metrics installation changes, and BUILD.bazel dependency updates."
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20260618_194430_307703.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.181 (Claude Code)"
+    }
+  },
+  "note_index": [
+    {
+      "sha": "07caad1fb262a819f2ffbd5a6aaf88571339d4df",
+      "fields": [
+        "merge_context",
+        "solutions[0]",
+        "merge_description",
+        "squashed_commits"
+      ]
+    }
+  ],
+  "squashed_commits": [
+    {
+      "sha": "2ed9e1aa664b8a9a4d95079fd0758a2dcd7aacf7",
+      "message": "Merge commit '8752933b6cb'"
+    },
+    {
+      "sha": "71bbc97ca96582ba23b3dbc026158559d66c6f14",
+      "message": "Fix 'build-and-test' failure for merge commit '8752933b6cb' into 'master'"
+    },
+    {
+      "sha": "0560e0fd6f07b3ce062a24f98eaecd512c2b431c",
+      "message": "Address review comments on PR #287 for merge commit 8752933b6cb into master"
+    },
+    {
+      "sha": "5daec96dae2695b4f1bfc96d0d52e3b254666ab4",
+      "message": "Fix 'format' failure for merge commit '8752933b6cb' into 'master'"
+    }
+  ]
+}
