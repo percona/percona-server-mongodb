@@ -363,10 +363,7 @@ public:
         value::TypeTags simpleSumTag, value::Value simpleSumVal);
     static value::TagValueMaybeOwned builtinDoubleDoublePartialSumFinalizeImpl(
         value::TypeTags fieldTag, value::Value fieldValue);
-    static value::TagValueMaybeOwned genericDiv(value::TypeTags lhsTag,
-                                                value::Value lhsValue,
-                                                value::TypeTags rhsTag,
-                                                value::Value rhsValue);
+    static value::TagValueMaybeOwned genericDiv(value::TagValueView lhs, value::TagValueView rhs);
 
     static value::TagValueMaybeOwned builtinAddToArrayCappedImpl(
         value::TagValueOwned accumulatorState, value::TagValueMaybeOwned newElem, int32_t sizeCap);
@@ -469,14 +466,8 @@ private:
     void runTagCheck(const uint8_t*& pcPointer, T&& predicate);
     void runTagCheck(const uint8_t*& pcPointer, value::TypeTags tagRhs);
 
-    value::TagValueMaybeOwned genericIDiv(value::TypeTags lhsTag,
-                                          value::Value lhsValue,
-                                          value::TypeTags rhsTag,
-                                          value::Value rhsValue);
-    value::TagValueMaybeOwned genericMod(value::TypeTags lhsTag,
-                                         value::Value lhsValue,
-                                         value::TypeTags rhsTag,
-                                         value::Value rhsValue);
+    value::TagValueMaybeOwned genericIDiv(value::TagValueView lhs, value::TagValueView rhs);
+    value::TagValueMaybeOwned genericMod(value::TagValueView lhs, value::TagValueView rhs);
     value::TagValueMaybeOwned genericAbs(value::TagValueView operand);
     value::TagValueMaybeOwned genericCeil(value::TagValueView operand);
     value::TagValueMaybeOwned genericFloor(value::TagValueView operand);
@@ -992,7 +983,6 @@ private:
     value::TagValueMaybeOwned builtinAggRemovableMinMaxNRemove(ArityType arity);
     template <AccumulatorMinMaxN::MinMaxSense S>
     value::TagValueMaybeOwned builtinAggRemovableMinMaxNFinalize(ArityType arity);
-    FastTuple<bool, value::TypeTags, value::Value> builtin(ArityType arity);
     value::TagValueMaybeOwned linearFillInterpolate(value::TagValueView x1,
                                                     value::TagValueView y1,
                                                     value::TagValueView x2,
@@ -1116,10 +1106,6 @@ private:
     value::TagValueMaybeOwned builtinValueBlockGetSortKey(ArityType arity);
     value::TagValueMaybeOwned builtinValueBlockGetSortKeyAsc(ArityType arity);
     value::TagValueMaybeOwned builtinValueBlockGetSortKeyDesc(ArityType arity);
-    FastTuple<bool, value::TypeTags, value::Value> builtinValueBlockGetNonLeafSortKeyAsc(
-        ArityType arity);
-    FastTuple<bool, value::TypeTags, value::Value> builtinValueBlockGetNonLeafSortKeyDesc(
-        ArityType arity);
     value::TagValueMaybeOwned builtinCellFoldValues_F(ArityType arity);
     value::TagValueMaybeOwned builtinCellFoldValues_P(ArityType arity);
     value::TagValueMaybeOwned builtinCellBlockGetFlatValuesBlock(ArityType arity);

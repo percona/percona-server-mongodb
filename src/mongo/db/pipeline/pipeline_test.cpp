@@ -39,6 +39,8 @@
 #include "mongo/db/exec/document_value/document_value_test_util.h"
 #include "mongo/db/pipeline/aggregate_command_gen.h"
 #include "mongo/db/pipeline/aggregation_context_fixture.h"
+#include "mongo/db/pipeline/change_stream_reader_builder_mock.h"
+#include "mongo/db/pipeline/data_to_shards_allocation_query_service_mock.h"
 #include "mongo/db/pipeline/document_source.h"
 #include "mongo/db/pipeline/document_source_change_stream.h"
 #include "mongo/db/pipeline/document_source_change_stream_add_post_image.h"
@@ -3731,6 +3733,17 @@ public:
         _expCtx->setUUID(UUID::gen());
         _expCtx->setInRouter(options.inRouter);
         setMockReplicationCoordinatorOnOpCtx(_expCtx->getOperationContext());
+
+        // Register v2 reader prerequisites on the test's service context. The query service mock
+        // returns 'kNotAvailable' for every call, which drives
+        // '_determineChangeStreamReaderVersion' back to v1 — mirroring production behavior when
+        // shard placement info is unavailable.
+        ChangeStreamReaderBuilder::set(_testServiceContext.getServiceContext(),
+                                       std::make_unique<ChangeStreamReaderBuilderMock>());
+        auto queryService = std::make_unique<DataToShardsAllocationQueryServiceMock>();
+        queryService->setDefaultStatus(AllocationToShardsStatus::kNotAvailable);
+        DataToShardsAllocationQueryService::set(_testServiceContext.getServiceContext(),
+                                                std::move(queryService));
     }
 
     BSONObj changestreamStage(const std::string& stageStr) {
@@ -4386,18 +4399,11 @@ TEST_F(PipelineOptimizationTest, MatchNotPushedBeforeMultipleReplaceWithsSamePre
     assertPipelineOptimizesAndSerializesTo(inputPipe, outputPipe, serializedPipe);
 }
 
-auto enablePipelineOptimizationAdditionalTestingRules() {
-    bool previousQueryKnobValue =
-        internalEnablePipelineOptimizationAdditionalTestingRules.swap(true);
-    return mongo::ScopeGuard([=] {
-        internalEnablePipelineOptimizationAdditionalTestingRules.store(previousQueryKnobValue);
-    });
-}
-
 // 'a' is unset, therefore it cannot have type array.
 TEST_F(PipelineOptimizationTest, MatchTypeArrayWhenNonArray) {
     unittest::ServerParameterGuard featureFlag{"featureFlagImprovedDepsAnalysis", true};
-    auto cleanup = enablePipelineOptimizationAdditionalTestingRules();
+    unittest::ServerParameterGuard enableAdditionalTestingRules{
+        "internalEnablePipelineOptimizationAdditionalTestingRules", true};
     std::string inputPipe =
         "["
         " {$unset: 'a'},"
@@ -4419,7 +4425,8 @@ TEST_F(PipelineOptimizationTest, MatchTypeArrayWhenNonArray) {
 // 'a' is computed and could be array or null (if $b is null).
 TEST_F(PipelineOptimizationTest, MatchTypeArrayWhenCanBeArray) {
     unittest::ServerParameterGuard featureFlag{"featureFlagImprovedDepsAnalysis", true};
-    auto cleanup = enablePipelineOptimizationAdditionalTestingRules();
+    unittest::ServerParameterGuard enableAdditionalTestingRules{
+        "internalEnablePipelineOptimizationAdditionalTestingRules", true};
     std::string inputPipe =
         "["
         " {$set: {a: {$objectToArray: ['$b']}}},"
@@ -4440,7 +4447,8 @@ TEST_F(PipelineOptimizationTest, MatchTypeArrayWhenCanBeArray) {
 
 TEST_F(PipelineOptimizationTest, MatchTypeArrayWhenNonArrayMultiple) {
     unittest::ServerParameterGuard featureFlag{"featureFlagImprovedDepsAnalysis", true};
-    auto cleanup = enablePipelineOptimizationAdditionalTestingRules();
+    unittest::ServerParameterGuard enableAdditionalTestingRules{
+        "internalEnablePipelineOptimizationAdditionalTestingRules", true};
     std::string inputPipe =
         "["
         " {$unset: 'a'},"
@@ -4465,7 +4473,8 @@ TEST_F(PipelineOptimizationTest, MatchTypeArrayWhenNonArrayMultiple) {
 
 TEST_F(PipelineOptimizationTest, MatchTypeArrayWhenMixedArray) {
     unittest::ServerParameterGuard featureFlag{"featureFlagImprovedDepsAnalysis", true};
-    auto cleanup = enablePipelineOptimizationAdditionalTestingRules();
+    unittest::ServerParameterGuard enableAdditionalTestingRules{
+        "internalEnablePipelineOptimizationAdditionalTestingRules", true};
     std::string inputPipe =
         "["
         " {$set: {a: {$objectToArray: ['$d']}}},"

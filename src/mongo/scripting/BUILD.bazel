@@ -30,11 +30,6 @@ idl_generator(
 )
 
 idl_generator(
-    name = "config_engine_wasm_gen",
-    src = "config_engine_wasm.idl",
-)
-
-idl_generator(
     name = "deadline_monitor_gen",
     src = "deadline_monitor.idl",
 )
@@ -48,10 +43,13 @@ mongo_cc_library(
         "jsexception.cpp",
         "mongo_path_util.cpp",
         "utils.cpp",
+        ":config_engine_gen",
         ":config_gen",
         ":deadline_monitor_gen",
+        "//src/mongo/scripting/mozjs/common:hex_md5.cpp",
     ],
     hdrs = [
+        ":config_engine_gen",
         ":config_gen",
     ],
     deps = [
@@ -59,7 +57,6 @@ mongo_cc_library(
         "//src/mongo/client:clientdriver_minimal",
         "//src/mongo/db:server_base",
         "//src/mongo/shell:mongojs",
-        "//src/mongo/util:md5",
     ],
 )
 

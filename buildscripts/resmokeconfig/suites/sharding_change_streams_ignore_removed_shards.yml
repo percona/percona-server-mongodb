@@ -1,0 +1,36 @@
+test_kind: js_test
+
+selector:
+  roots:
+    - jstests/sharding/query/change_streams/*.js
+  exclude_files:
+    # Test removes primary shard after some documents were inserted, thus (expectedly) produces
+    # different result with missing documents in ignoreRemovedShards mode.
+    - jstests/sharding/query/change_streams/change_streams_with_config_transitions.js
+    # Test assumes strict mode.
+    - jstests/sharding/query/change_streams/change_stream_all_databases_v2_white_box.js
+
+    # Test assumes strict mode.
+    - jstests/sharding/query/change_streams/change_stream_collection_v2_strict_whitebox.js
+    - jstests/sharding/query/change_streams/change_stream_database_v2_strict_whitebox.js
+
+    # These tests need to be excluded because they enable ignoreRemovedShards mode, which enables
+    # unexpected state transitions in the ChangeStreamHandleTopologyChangeV2Stage.
+    - jstests/sharding/query/change_streams/change_stream_v2_topology_stage_state_transitions_collection.js
+    - jstests/sharding/query/change_streams/change_stream_v2_topology_stage_state_transitions_cluster.js
+    - jstests/sharding/query/change_streams/change_stream_v2_topology_stage_state_transitions_database.js
+  exclude_with_any_tags:
+    # This suite runs change streams as v2; v1-pinned tests use scaffolding (e.g.
+    # 'shardedAggregateHangBeforeEstablishingShardCursors') that v2 doesn't trigger.
+    - assumes_change_streams_v1
+
+executor:
+  archive:
+    tests:
+      - jstests/sharding/*reshard*.js
+  config:
+    shell_options:
+      nodb: ""
+      # Ensure we always start change streams in ignoreRemovedShards mode (a v2-only feature).
+      eval: >-
+        await import('jstests/libs/override_methods/implicit_change_stream_v2_ignore_removed_shards.js');

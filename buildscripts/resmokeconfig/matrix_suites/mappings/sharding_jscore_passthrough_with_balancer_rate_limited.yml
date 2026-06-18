@@ -1,0 +1,16 @@
+# Based on sharding_jscore_passthrough_with_balancer. This suite tests the js core with a balancer
+# and with a simulated rate limiter enabled to reject random requests. The purpose of this
+# passthrough is to add coverage on the retryability support in various process internal clients.
+# With a high amount of maximum retries, no errors should bubble up to the driver.
+base_suite: sharding_jscore_passthrough_with_balancer
+overrides:
+  - "rate_limiter_with_auth.auth_shell_options"
+  - "rate_limiter_with_auth.auth_hooks_sharded"
+  - "rate_limiter_with_auth.fixture_with_auth_sharded"
+eval:
+  - "rate_limiter_with_auth.auth_eval"
+excludes:
+  - "rate_limiter_with_auth.auth_exclude_files"
+  - "rate_limiter_with_auth.auth_exclude_files_core_sharding"
+  - "rate_limiter_with_auth.auth_exclude_files_fle2"
+  - "rate_limiter_with_auth.auth_exclude_tags"

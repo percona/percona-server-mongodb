@@ -350,12 +350,13 @@ class MultiversionOptions(object):
 
     LAST_LTS = "last_lts"
     LAST_CONTINUOUS = "last_continuous"
+    LAST_PATCH = "last_patch"
 
     @classmethod
     def all_options(cls):
         """Return available version options for multiversion."""
 
-        return [cls.LAST_LTS, cls.LAST_CONTINUOUS]
+        return [cls.LAST_LTS, cls.LAST_CONTINUOUS, cls.LAST_PATCH]
 
 
 ##
@@ -430,11 +431,6 @@ ENABLE_EVERGREEN_API_TEST_SELECTION = False
 
 # If set, requests Evergreen to use the specified test selection strategies.
 EVERGREEN_TEST_SELECTION_STRATEGY = None
-
-# Boolean indicating if test selection service is enabled for this variant.
-# Read from the variant's 'tss_enabled' expansion in Evergreen YAML.
-# If None, test selection is disabled (default for local runs or variants without the expansion).
-TSS_ENABLED = None
 
 # Path to the YAML file containing the current `mongo_version`
 # Use RESMOKE_ROOT so it works when running from external directories
@@ -909,7 +905,8 @@ CONFIG_FUZZER_ENCRYPTION_OPTS = None
 
 # Indicates which JavaScript engine the tested binary was built with. Corresponds to the
 # "javascriptEngine" field returned by the buildInfo command (or --version). When set to
-# "mozjs-wasm", tests tagged with "mozjs_wasm_unsupported" will be excluded.
+# "mozjs-wasm", tests tagged with "mozjs_wasm_unsupported" will be excluded. When NOT set to
+# "mozjs-wasm", tests tagged with "requires_mozjs_wasm" will be excluded.
 JS_ENGINE = None
 
 # If resmoke is running on a build variant that specifies a mongo_mozjs_opts,

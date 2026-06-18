@@ -91,20 +91,20 @@ def _set_up_modules():
     # loop through all modules, we need to act on both enabled and disabled modules
     for module in module_configs.keys():
         module_config = module_configs[module]
-        all_paths_present = True
-        for key in ("fixture_dirs", "hook_dirs", "suite_dirs", "jstest_dirs"):
-            if key not in module_config:
-                continue
-            assert (
-                type(module_config[key]) == list
-            ), f"{key} in {module} did not have the expected type of list"
-            for module_dir in module_config[key]:
-                if not os.path.exists(module_dir):
-                    all_paths_present = False
-                    break
 
-        if module in _config.MODULES and all_paths_present:
-            # both the fixures and the hooks just need to be loaded once for resmoke to recognize them
+        # A module is considered "present" when the dirs that are actually imported
+        # (fixture_dirs and hook_dirs) all exist.  suite_dirs and jstest_dirs are
+        # optional path hints: if they exist they are surfaced; if they don't (e.g.
+        # in a Bazel sandbox where only declared data deps are present) the module
+        # still loads its Python code correctly.
+        loading_dirs_present = all(
+            os.path.exists(d)
+            for key in ("fixture_dirs", "hook_dirs")
+            for d in module_config.get(key, [])
+        )
+
+        if module in _config.MODULES and loading_dirs_present:
+            # both the fixtures and the hooks just need to be loaded once for resmoke to recognize them
             for resource_dir in module_config.get("fixture_dirs", []) + module_config.get(
                 "hook_dirs", []
             ):
@@ -113,10 +113,11 @@ def _set_up_modules():
                 autoloader.load_all_modules(package, [norm_path])
 
             for suite_dir in module_config.get("suite_dirs", []):
-                _config.MODULE_SUITE_DIRS.append(suite_dir)
+                if os.path.exists(suite_dir):
+                    _config.MODULE_SUITE_DIRS.append(suite_dir)
 
             for suite_dir in module_config.get("matrix_suite_dirs", []):
-                if suite_dir not in _config.MODULE_MATRIX_SUITE_DIRS:
+                if suite_dir not in _config.MODULE_MATRIX_SUITE_DIRS and os.path.exists(suite_dir):
                     _config.MODULE_MATRIX_SUITE_DIRS.append(suite_dir)
         else:
             for jstest_dir in module_config.get("jstest_dirs", []):
@@ -708,22 +709,6 @@ flags in common: {common_set}
     _config.ENABLE_EVERGREEN_API_TEST_SELECTION = config.pop("enable_evergreen_api_test_selection")
     _config.EVERGREEN_TEST_SELECTION_STRATEGY = config.pop("test_selection_strategies_array")
 
-    # Read TSS_ENABLED from Evergreen expansions if available
-    _config.TSS_ENABLED = None
-    if os.path.exists(EVERGREEN_EXPANSIONS_FILE):
-        try:
-            expansions = read_config_file(EVERGREEN_EXPANSIONS_FILE)
-            tss_enabled_value = expansions.get("tss_enabled", None)
-            if tss_enabled_value is not None:
-                # Handle various boolean representations from YAML
-                if isinstance(tss_enabled_value, bool):
-                    _config.TSS_ENABLED = tss_enabled_value
-                elif isinstance(tss_enabled_value, str):
-                    _config.TSS_ENABLED = tss_enabled_value.lower() in ("true", "1", "yes")
-        except Exception:
-            # If we can't read expansions, default to None (TSS disabled)
-            pass
-
     shard_index = config.pop("shard_index")
     shard_count = config.pop("shard_count")
     _config.SHARD_INDEX = int(shard_index) if shard_index is not None else None
@@ -782,7 +767,6 @@ flags in common: {common_set}
 
     _config.MONGOD_EXECUTABLE = _expand_user(config.pop("mongod_executable"))
 
-    # TODO SERVER-116054: Add support for $where
     # TODO SERVER-127482: Re-enable $function in version tests once mozjs regex handling is fixed.
     # Remove this js_engine handling section and _detect_js_engine once mozjs-wasm supports all WASM functionality,
     # eliminating the need for this startup-time binary invocation.
@@ -790,6 +774,8 @@ flags in common: {common_set}
     if _config.JS_ENGINE == "mozjs-wasm":
         _config.EXCLUDE_WITH_ANY_TAGS.append("mozjs_wasm_unsupported")
         _config.EXCLUDE_FILES = _find_mozjs_jstestfuzz_files()
+    else:
+        _config.EXCLUDE_WITH_ANY_TAGS.append("requires_mozjs_wasm")
 
     mongod_set_parameters = config.pop("mongod_set_parameters")
 
@@ -865,10 +851,10 @@ flags in common: {common_set}
                             patch += mongot_patch_version
 
                     # Ensure we don't append the current version.
-                    if (
-                        major == mongot_major_version
-                        and minor == mongot_minor_version
-                        and patch == mongot_patch_version
+                    if (major, minor, patch) == (
+                        mongot_major_version,
+                        mongot_minor_version,
+                        mongot_patch_version,
                     ):
                         continue
                     mongot_excluded_versions.append(f"requires_mongot_{major}_{minor}_{patch}")
@@ -1213,8 +1199,6 @@ def _set_logging_config():
 _MOZJS_PATTERNS = (
     # TODO SERVER-127482: Re-enable $function in version tests once mozjs regex handling is fixed.
     '"$function"',
-    # TODO SERVER-116054: Add support for $where.
-    '"$where"',
 )
 
 
