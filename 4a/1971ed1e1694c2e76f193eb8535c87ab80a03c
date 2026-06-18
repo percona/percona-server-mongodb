@@ -1,0 +1,28 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "0a87b91f7a55fbbb03706a0de3392699e0364fbf",
+    "merge_commit": "2eff3754f8e28b55b58b93ea2dbd601598e677d8"
+  },
+  "mergai_version": "0.1.dev1+g95d1b543b",
+  "solutions": [
+    {
+      "type": "conflict_resolution",
+      "response": {
+        "summary": "SERVER-129212: Clone change stream watch options in shell (#56174)",
+        "resolved": {},
+        "unresolved": {},
+        "modified": {
+          "src/mongo/shell/mongo.js": "Modified by human"
+        },
+        "review_notes": "Co-authored-by: Copilot Autofix powered by AI <175728472+Copilot@users.noreply.github.com>\nGitOrigin-RevId: c1cb06f3257d1c9b74d6513225d66b766756347f"
+      },
+      "author": {
+        "name": "Jan",
+        "email": "jsteemann@users.noreply.github.com",
+        "type": "human"
+      },
+      "commit_sha": "4a1971ed1e1694c2e76f193eb8535c87ab80a03c"
+    }
+  ]
+}
