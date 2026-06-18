@@ -1,0 +1,33 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "0a87b91f7a55fbbb03706a0de3392699e0364fbf",
+    "merge_commit": "2eff3754f8e28b55b58b93ea2dbd601598e677d8"
+  },
+  "mergai_version": "0.1.dev1+g95d1b543b",
+  "solutions": [
+    {
+      "type": "conflict_resolution",
+      "response": {
+        "summary": "SERVER-127704 Refactor more VM arithmetic builtins to use accept TagValueView instead of raw (TypeTags, Value) pairs (#55665)",
+        "resolved": {},
+        "unresolved": {},
+        "modified": {
+          "src/mongo/db/exec/sbe/stages/hash_agg_accumulator.cpp": "Modified by human",
+          "src/mongo/db/exec/sbe/vm/vm.h": "Modified by human",
+          "src/mongo/db/exec/sbe/vm/vm_arith.cpp": "Modified by human",
+          "src/mongo/db/exec/sbe/vm/vm_block.cpp": "Modified by human",
+          "src/mongo/db/exec/sbe/vm/vm_builtin_agg.cpp": "Modified by human",
+          "src/mongo/db/exec/sbe/vm/vm_instruction.cpp": "Modified by human"
+        },
+        "review_notes": "GitOrigin-RevId: 09d1dad1d6c9a208a6a25312b08dd9dd95415dbb"
+      },
+      "author": {
+        "name": "Evan Bergeron",
+        "email": "evanbergeron@users.noreply.github.com",
+        "type": "human"
+      },
+      "commit_sha": "8ca383033f7a120a95e0fcb1581d0d06bf9bd2c4"
+    }
+  ]
+}
