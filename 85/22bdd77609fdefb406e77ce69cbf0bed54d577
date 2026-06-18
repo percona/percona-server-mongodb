@@ -1,0 +1,77 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "d55c2a518832df5e9567729c7db9a89eb232653c",
+    "merge_commit": "2eff3754f8e28b55b58b93ea2dbd601598e677d8"
+  },
+  "mergai_version": "0.1.dev1+g8b098911f",
+  "merge_context": {
+    "merge_commit": "2eff3754f8e28b55b58b93ea2dbd601598e677d8",
+    "merged_commits": [
+      "2eff3754f8e28b55b58b93ea2dbd601598e677d8",
+      "f21b3837e1e8c216300c5d5fccd4f08da222012b",
+      "0785196c129f875b8ba3dbb3a44ea78b3b41cce0",
+      "bf8e71737689f9dc419c3c2a1fa7da1e7b7f9ca3",
+      "628757275038181c07c1b709f18469bb65752189",
+      "462c234f9a65cd3b109bac19fe83191859578ee3",
+      "8b20c76098e15263e6e550c4dd2b6677b583a725",
+      "bbabd8392b737d0bdf58aad3366c970441717bc2",
+      "5187dc7afaebe4194c67742a5aa480e5db468046",
+      "b766719fc2c5a63cadb0b4368ebf38d22e89c5d5",
+      "0e891d70058ab0dc728da0fa3b524ed979163e06",
+      "05f1f66e97025eb9e7abb707020f562e1eb2687d",
+      "d72c5f80ec31a1f2877a836628ae34e944cbb783",
+      "d731307ac0b6891b7ae5d1378d10b426534fab5e",
+      "8584e22c4c309e9317f49fa5e3611099a4239066",
+      "9f1312384f6e50823df50ae63dbf5850a04637c0",
+      "73ea28996dede9f73bf13d762bc25834b7d43150",
+      "0a4a767dc43771db8e934a287c2937971facc8e7",
+      "92180b408bbed2baf9f570b3a84ec7b228a9df69",
+      "041c099c86e4ed2bfe9a0432a5dab0627af3fda1",
+      "a3bd0d564fee0495558c8fd8234e92fb927c1405",
+      "889bb5d3bc8126b0f15d24034bd9a36158e2e67d",
+      "de8c5c8ee82a0ae46251383b43377cedca67d6c6",
+      "0b5b072f16fed88ac1360057dfb80aa606abf33c",
+      "da3553e0c9704c555978670612a93b6d34c50d2f",
+      "72b3c30c2bb46cbe482b7cd679a8bda7a90bc269",
+      "c90c3ba5cfb7353c3d8dc45439b2f1bbacb89abc",
+      "07b896bd02df23ab7298701527887c49b9e7f779",
+      "8c74bd1030ab299232d54986126a1cb2fc221fb9",
+      "27749e80328b9a528395f4df07919029a2776fef",
+      "e174c2792b5858fa94f73c3d9966422481ef72df",
+      "803770cf70f2916c0ba9180589122c689b3d27d9",
+      "a4b22b0990538babf3550994797cad737301840a",
+      "66f3786f03cae1d0fe1060cb1e191096b3e6c731",
+      "54cc6922d8ef5d6f0ab3f357ae3ddce0f1579b87",
+      "a65c239fa57ef083426aaf366b7c0c386f1907cc",
+      "e3a07428ec35b6fa7e6d0cba39874c4ad934604e",
+      "eaddb4d4dffb6b56eb7b0fc28764cc36bcb7364a",
+      "495a7f0f36b77af4fa66be7877947b54926cecd4",
+      "25728534a2ed4441f5061bc827b84d416873b463",
+      "4a1971ed1e1694c2e76f193eb8535c87ab80a03c",
+      "8ca383033f7a120a95e0fcb1581d0d06bf9bd2c4",
+      "53c219bd0a3f48e64156a43f3d7bddc2c52d2ef2",
+      "058abf23143b292d301f8f239a280225c4c26c92",
+      "b4bf1d615adc0df94895869fc481b122b466402d",
+      "2bcde0f61ff40fefa11024724564fddeaa80b0ea",
+      "e097cb3dbbb6bb4037d55e1f19ec51fdf3dadcd3",
+      "e069948d17f56aa44ce4c069332578577f6e2581",
+      "2cdcba0d95b262b95dbc7789c10bb93c4b409b1e",
+      "801d5179127f72b6bd2284445bd7036c074ca4a2",
+      "c3d234f1b4d56c02d6b152debdf33af4eae7082b"
+    ],
+    "important_files_modified": [
+      "src/mongo/db/repl/initial_sync/initial_syncer.cpp"
+    ],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        "buildscripts/resmokelib/configure_resmoke.py",
+        "src/mongo/db/repl/initial_sync/BUILD.bazel",
+        "src/mongo/shell/BUILD.bazel",
+        "src/mongo/shell/mongo.js",
+        "src/mongo/shell/servers.js"
+      ]
+    }
+  }
+}
