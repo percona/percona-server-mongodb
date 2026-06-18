@@ -1,0 +1,31 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "0a87b91f7a55fbbb03706a0de3392699e0364fbf",
+    "merge_commit": "2eff3754f8e28b55b58b93ea2dbd601598e677d8"
+  },
+  "mergai_version": "0.1.dev1+g95d1b543b",
+  "solutions": [
+    {
+      "type": "conflict_resolution",
+      "response": {
+        "summary": "SERVER-127621 Drain filtering metadata refreshes after interrupting them on FCV transition (#56064)",
+        "resolved": {},
+        "unresolved": {},
+        "modified": {
+          "src/mongo/db/op_observer/fcv_op_observer.cpp": "Modified by human",
+          "src/mongo/db/shard_role/shard_catalog/shard_filtering_metadata_refresh.cpp": "Modified by human",
+          "src/mongo/db/shard_role/shard_catalog/shard_filtering_metadata_refresh.h": "Modified by human",
+          "src/mongo/db/shard_role/shard_catalog/shard_filtering_metadata_refresh_test.cpp": "Modified by human"
+        },
+        "review_notes": "GitOrigin-RevId: 72fd3b0581e69016e438b62c5844acd8c309aecb"
+      },
+      "author": {
+        "name": "Joan Bruguera Mic\u00f3 (at MongoDB)",
+        "email": "joan.bruguera-mico@mongodb.com",
+        "type": "human"
+      },
+      "commit_sha": "e3a07428ec35b6fa7e6d0cba39874c4ad934604e"
+    }
+  ]
+}
