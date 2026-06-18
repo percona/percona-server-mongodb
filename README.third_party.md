@@ -58,7 +58,7 @@ a notice will be included in
 | [Unicode Character Database]                         | Unicode-DFS-2016                  | 8.0.0                                    | ✗                    | ✗                               |
 | [valgrind.h]                                         | BSD-4-Clause                      | 093bef43d69236287ccc748591c9560a71181b0a |                      | ✗                               |
 | [yaml-cpp]                                           | MIT                               | 0.6.3                                    |                      | ✗                               |
-| [zlib]                                               | Zlib                              | 1.3.1                                    | ✗                    | ✗                               |
+| [zlib]                                               | Zlib                              | 1.3.2                                    | ✗                    | ✗                               |
 | [Zstandard (zstd)]                                   | BSD-3-Clause OR GPL-2.0-only      | 1.5.5                                    | ✗                    | ✗                               |
 
 [AWS SDK for C++]: https://aws.amazon.com/sdk-for-cpp/
