@@ -5,6 +5,7 @@ import {
     cleanupTelmDir,
     getTelmDataByConn,
     getTelmDataForMongos,
+    waitForTelmData,
 } from "jstests/telemetry/_telemetry_helpers.js";
 
 // check for LDAP test configuration
@@ -21,7 +22,9 @@ const ldapOptions = {
 };
 
 // options for enabling LDAP with authorization
-const ldapAuthzOptions = Object.merge(ldapOptions, {ldapAuthzQueryTemplate: "{USER}?memberOf?base"});
+const ldapAuthzOptions = Object.merge(ldapOptions, {
+    ldapAuthzQueryTemplate: "{USER}?memberOf?base",
+});
 
 // options for enabling OIDC authentication
 const oidcOptions = {
@@ -72,10 +75,13 @@ function getMongodTelemetry(options) {
     var conn = MongoRunner.runMongod(options);
 
     assert(setParameterOpts.perconaTelemetryGracePeriod, "perconaTelemetryGracePeriod is not set");
-    sleep(setParameterOpts.perconaTelemetryGracePeriod * 1000);
-
-    const data = getTelmDataByConn(conn);
-    assert(data.length > 0, "No telemetry data found");
+    // Poll until the telemetry is present instead of sleeping exactly the grace period,
+    // which raced with slow startup. Capture it from the poll so we don't re-read and race
+    // a .tmp -> .json rename.
+    const data = waitForTelmData(
+        () => getTelmDataByConn(conn),
+        "No telemetry data found for mongod",
+    );
     print("Telemetry data collected: " + tojson(data));
 
     MongoRunner.stopMongod(conn);
@@ -97,11 +103,13 @@ function getMongosTelemetry(options) {
     });
 
     assert(setParameterOpts.perconaTelemetryGracePeriod, "perconaTelemetryGracePeriod is not set");
-    sleep(setParameterOpts.perconaTelemetryGracePeriod * 1000);
-
-    getTelmDataByConn(st.shard0);
-    const data = getTelmDataForMongos();
-    assert(data.length > 0, "No telemetry data found");
+    // Poll until the mongos telemetry is present instead of sleeping exactly the grace
+    // period, which raced with slow startup. Capture it from the poll so we don't re-read
+    // and race a .tmp -> .json rename.
+    const data = waitForTelmData(
+        () => getTelmDataForMongos(),
+        "No telemetry data found for mongos",
+    );
     print("Telemetry data collected: " + tojson(data));
 
     st.stop();
@@ -166,7 +174,11 @@ for (const getTelemetryFunc of [getMongodTelemetry, getMongosTelemetry]) {
 
         // LDAP authorization is not supported by mongos
         if (getTelemetryFunc !== getMongosTelemetry) {
-            testFields(getTelemetryFunc, ["ldap_enabled", "ldap_authorization_enabled"], ldapAuthzOptions);
+            testFields(
+                getTelemetryFunc,
+                ["ldap_enabled", "ldap_authorization_enabled"],
+                ldapAuthzOptions,
+            );
         }
     } else {
         print(
