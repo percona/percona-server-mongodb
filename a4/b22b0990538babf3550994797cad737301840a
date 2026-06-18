@@ -1,0 +1,31 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "0a87b91f7a55fbbb03706a0de3392699e0364fbf",
+    "merge_commit": "2eff3754f8e28b55b58b93ea2dbd601598e677d8"
+  },
+  "mergai_version": "0.1.dev1+g95d1b543b",
+  "solutions": [
+    {
+      "type": "conflict_resolution",
+      "response": {
+        "summary": "SERVER-129156: Remove the requirement for TSS Enabled (#56126)",
+        "resolved": {},
+        "unresolved": {},
+        "modified": {
+          "buildscripts/resmokelib/config.py": "Modified by human",
+          "buildscripts/resmokelib/configure_resmoke.py": "Modified by human",
+          "buildscripts/resmokelib/testing/suite.py": "Modified by human",
+          "buildscripts/tests/resmokelib/testing/test_suite.py": "Modified by human"
+        },
+        "review_notes": "GitOrigin-RevId: 51431e521790bfff2970a3d973d740b9ca2c9412"
+      },
+      "author": {
+        "name": "Ron Neuman",
+        "email": "31408835+rongodb@users.noreply.github.com",
+        "type": "human"
+      },
+      "commit_sha": "a4b22b0990538babf3550994797cad737301840a"
+    }
+  ]
+}
