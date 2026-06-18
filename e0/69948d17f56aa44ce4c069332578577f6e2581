@@ -1,0 +1,30 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "0a87b91f7a55fbbb03706a0de3392699e0364fbf",
+    "merge_commit": "2eff3754f8e28b55b58b93ea2dbd601598e677d8"
+  },
+  "mergai_version": "0.1.dev1+g95d1b543b",
+  "solutions": [
+    {
+      "type": "conflict_resolution",
+      "response": {
+        "summary": "SERVER-122079 Support query stats for inserts on mongos for legacy batch write exec (#55825)",
+        "resolved": {},
+        "unresolved": {},
+        "modified": {
+          "src/mongo/db/query/write_ops/write_ops_parsers_test_helpers.cpp": "Modified by human",
+          "src/mongo/db/query/write_ops/write_ops_parsers_test_helpers.h": "Modified by human",
+          "src/mongo/s/write_ops/batch_write_exec_test.cpp": "Modified by human"
+        },
+        "review_notes": "Co-authored-by: Kritika Singh <kritika.s@mongodb.com>\nGitOrigin-RevId: 0d4d5115c17f41b5fc45597463fbdb3cf743add2"
+      },
+      "author": {
+        "name": "Kritika",
+        "email": "skritika@umich.edu",
+        "type": "human"
+      },
+      "commit_sha": "e069948d17f56aa44ce4c069332578577f6e2581"
+    }
+  ]
+}
