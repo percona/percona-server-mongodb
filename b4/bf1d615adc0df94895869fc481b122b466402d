@@ -1,0 +1,38 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "0a87b91f7a55fbbb03706a0de3392699e0364fbf",
+    "merge_commit": "2eff3754f8e28b55b58b93ea2dbd601598e677d8"
+  },
+  "mergai_version": "0.1.dev1+g95d1b543b",
+  "solutions": [
+    {
+      "type": "conflict_resolution",
+      "response": {
+        "summary": "SERVER-127462: Remove creating spans from strings, keepSpan, and baggage (#56061)",
+        "resolved": {},
+        "unresolved": {},
+        "modified": {
+          "src/mongo/otel/traces/BUILD.bazel": "Modified by human",
+          "src/mongo/otel/traces/otel_test_fixture.h": "Modified by human",
+          "src/mongo/otel/traces/span/BUILD.bazel": "Modified by human",
+          "src/mongo/otel/traces/span/span.cpp": "Modified by human",
+          "src/mongo/otel/traces/span/span.h": "Modified by human",
+          "src/mongo/otel/traces/span/span_telemetry_context_impl.cpp": "Modified by human",
+          "src/mongo/otel/traces/span/span_telemetry_context_impl.h": "Modified by human",
+          "src/mongo/otel/traces/span/span_telemetry_context_impl_test.cpp": "Modified by human",
+          "src/mongo/otel/traces/span/span_test.cpp": "Modified by human",
+          "src/mongo/otel/traces/telemetry_context_serialization.cpp": "Modified by human",
+          "src/mongo/otel/traces/telemetry_context_serialization_test.cpp": "Modified by human"
+        },
+        "review_notes": "GitOrigin-RevId: 87b198861ce6c6e112a294e5cf8b910cc03839ac"
+      },
+      "author": {
+        "name": "Mike Nugent",
+        "email": "mike.nugent@mongodb.com",
+        "type": "human"
+      },
+      "commit_sha": "b4bf1d615adc0df94895869fc481b122b466402d"
+    }
+  ]
+}
