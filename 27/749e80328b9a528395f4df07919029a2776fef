@@ -1,0 +1,28 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "0a87b91f7a55fbbb03706a0de3392699e0364fbf",
+    "merge_commit": "2eff3754f8e28b55b58b93ea2dbd601598e677d8"
+  },
+  "mergai_version": "0.1.dev1+g95d1b543b",
+  "solutions": [
+    {
+      "type": "conflict_resolution",
+      "response": {
+        "summary": "SERVER-129131 Fix unfinishedMigrationFromPreviousPrimary (#56141)",
+        "resolved": {},
+        "unresolved": {},
+        "modified": {
+          "src/mongo/db/s/move_range_coordinator.cpp": "Modified by human"
+        },
+        "review_notes": "GitOrigin-RevId: 1ea286553f8149ec8e140defc1eb28ecc7c13269"
+      },
+      "author": {
+        "name": "Brett Nawrocki",
+        "email": "90278537+brettnawrocki@users.noreply.github.com",
+        "type": "human"
+      },
+      "commit_sha": "27749e80328b9a528395f4df07919029a2776fef"
+    }
+  ]
+}
