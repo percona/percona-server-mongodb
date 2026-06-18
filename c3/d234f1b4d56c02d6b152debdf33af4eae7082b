@@ -1,0 +1,31 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "0a87b91f7a55fbbb03706a0de3392699e0364fbf",
+    "merge_commit": "2eff3754f8e28b55b58b93ea2dbd601598e677d8"
+  },
+  "mergai_version": "0.1.dev1+g95d1b543b",
+  "solutions": [
+    {
+      "type": "conflict_resolution",
+      "response": {
+        "summary": "SERVER-128783: Suppress redundant setMultikeyMetadata for already-multikey wildcard paths (#55815)",
+        "resolved": {},
+        "unresolved": {},
+        "modified": {
+          "jstests/noPassthrough/local_catalog/redundant_setmultikeymetadata.js": "Modified by human",
+          "src/mongo/db/index/index_access_method.cpp": "Modified by human",
+          "src/mongo/db/index/index_access_method.h": "Modified by human",
+          "src/mongo/db/shard_role/shard_catalog/index_catalog_entry_impl.cpp": "Modified by human"
+        },
+        "review_notes": "GitOrigin-RevId: 5ba28d9a571ed2325928ca1ce3fee494cc8b7091"
+      },
+      "author": {
+        "name": "Yujin Kang Park",
+        "email": "36410031+ykangpark@users.noreply.github.com",
+        "type": "human"
+      },
+      "commit_sha": "c3d234f1b4d56c02d6b152debdf33af4eae7082b"
+    }
+  ]
+}
