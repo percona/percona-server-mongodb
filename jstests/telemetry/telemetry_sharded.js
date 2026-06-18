@@ -5,6 +5,9 @@ import {
     cleanupTelmDir,
     getTelmRawData,
     getTelmDataByConn,
+    getTelmDataForMongos,
+    countTelmInstances,
+    waitForTelm,
     cleanupDir,
 } from "jstests/telemetry/_telemetry_helpers.js";
 
@@ -24,21 +27,36 @@ import {
             configOptions: {setParameter: setParameterOpts},
         });
 
-        sleep(3000);
-
-        //test mongos + config_svr + shard_svr
-        var telmFileList = listFiles(telmPath);
-        assert.eq(3, telmFileList.length, telmFileList);
+        // Wait until all three roles (mongos + config server + shard) have written
+        // telemetry. Counting distinct instances tolerates extra files from repeated
+        // scrapes, which made the old "exactly 3 files after a 3s sleep" check flaky
+        // (e.g. 5 files observed when startup was slow).
+        waitForTelm(
+            () => countTelmInstances() >= 3,
+            () =>
+                "telemetry from 3 instances did not appear; files: " + tojson(listFiles(telmPath)),
+        );
 
         cleanupTelmDir();
-        //wait for sh init
-        sleep(5000);
+        // Wait until every role has reported again after the cleanup, capturing the config
+        // and shard telemetry from the poll so we don't re-read and race a .tmp -> .json
+        // rename.
+        var configTelmData, shardTelmData;
+        waitForTelm(() => {
+            const mongos = getTelmDataForMongos();
+            const config = getTelmDataByConn(st.config0);
+            const shard = getTelmDataByConn(st.shard0);
+            if (mongos.length > 0 && config.length > 0 && shard.length > 0) {
+                configTelmData = config[0];
+                shardTelmData = shard[0];
+                return true;
+            }
+            return false;
+        }, "telemetry from mongos, config server and shard did not all reappear after cleanup");
         var telmData = getTelmRawData();
         jsTest.log("Get sharded cluster telemetry");
         jsTest.log(telmData);
         assert.includes(telmData, "mongos");
-        var configTelmData = getTelmDataByConn(st.config0)[0];
-        var shardTelmData = getTelmDataByConn(st.shard0)[0];
         assert(configTelmData["db_cluster_id"]);
         assert(shardTelmData["db_cluster_id"]);
         assert.eq(configTelmData["db_cluster_id"], shardTelmData["db_cluster_id"]);
@@ -70,11 +88,21 @@ import {
             configOptions: {setParameter: setParameterOpt},
         });
 
-        sleep(3000);
-        var mongodTelmFileList = listFiles(mongodTelmPath);
-        assert.eq(2, mongodTelmFileList.length, mongodTelmFileList);
-        var mongosTelmFileList = listFiles(mongosTelmPath);
-        assert.eq(1, mongosTelmFileList.length, mongosTelmFileList);
+        // Two mongods (config server + shard) and one mongos should report at their
+        // respective default telemetry paths; poll on distinct instances rather than an
+        // exact file count so repeated scrapes do not break the check.
+        waitForTelm(
+            () => countTelmInstances(mongodTelmPath) >= 2,
+            () =>
+                "expected telemetry from 2 mongods at default path; files: " +
+                tojson(listFiles(mongodTelmPath)),
+        );
+        waitForTelm(
+            () => countTelmInstances(mongosTelmPath) >= 1,
+            () =>
+                "expected telemetry from mongos at default path; files: " +
+                tojson(listFiles(mongosTelmPath)),
+        );
         st.stop();
     };
 
