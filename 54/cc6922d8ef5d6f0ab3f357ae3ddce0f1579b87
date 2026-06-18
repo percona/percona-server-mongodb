@@ -1,0 +1,32 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "0a87b91f7a55fbbb03706a0de3392699e0364fbf",
+    "merge_commit": "2eff3754f8e28b55b58b93ea2dbd601598e677d8"
+  },
+  "mergai_version": "0.1.dev1+g95d1b543b",
+  "solutions": [
+    {
+      "type": "conflict_resolution",
+      "response": {
+        "summary": "SERVER-128367: Add pr-approval-recency GitHub Action (#55451)",
+        "resolved": {},
+        "unresolved": {},
+        "modified": {
+          ".github/actions/pr-approval-recency/OWNERS.yml": "Modified by human",
+          ".github/actions/pr-approval-recency/action.yml": "Modified by human",
+          ".github/actions/pr-approval-recency/tests/integration/test_integration.py": "Modified by human",
+          ".github/actions/pr-approval-recency/tests/unit/test_metrics.py": "Modified by human",
+          ".github/actions/pr-approval-recency/validate_pr_approval_recency.py": "Modified by human"
+        },
+        "review_notes": "GitOrigin-RevId: 4fbcc579b6ea5e762fd0e1c250e656dfba81d824"
+      },
+      "author": {
+        "name": "Teo Voinea",
+        "email": "teo.voinea@mongodb.com",
+        "type": "human"
+      },
+      "commit_sha": "54cc6922d8ef5d6f0ab3f357ae3ddce0f1579b87"
+    }
+  ]
+}
