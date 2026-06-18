@@ -1,0 +1,224 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "0a87b91f7a55fbbb03706a0de3392699e0364fbf",
+    "merge_commit": "2eff3754f8e28b55b58b93ea2dbd601598e677d8"
+  },
+  "mergai_version": "0.1.dev1+g95d1b543b",
+  "merge_context": {
+    "merge_commit": "2eff3754f8e28b55b58b93ea2dbd601598e677d8",
+    "merged_commits": [
+      "2eff3754f8e28b55b58b93ea2dbd601598e677d8",
+      "f21b3837e1e8c216300c5d5fccd4f08da222012b",
+      "0785196c129f875b8ba3dbb3a44ea78b3b41cce0",
+      "bf8e71737689f9dc419c3c2a1fa7da1e7b7f9ca3",
+      "628757275038181c07c1b709f18469bb65752189",
+      "462c234f9a65cd3b109bac19fe83191859578ee3",
+      "8b20c76098e15263e6e550c4dd2b6677b583a725",
+      "bbabd8392b737d0bdf58aad3366c970441717bc2",
+      "5187dc7afaebe4194c67742a5aa480e5db468046",
+      "b766719fc2c5a63cadb0b4368ebf38d22e89c5d5",
+      "0e891d70058ab0dc728da0fa3b524ed979163e06",
+      "05f1f66e97025eb9e7abb707020f562e1eb2687d",
+      "d72c5f80ec31a1f2877a836628ae34e944cbb783",
+      "d731307ac0b6891b7ae5d1378d10b426534fab5e",
+      "8584e22c4c309e9317f49fa5e3611099a4239066",
+      "9f1312384f6e50823df50ae63dbf5850a04637c0",
+      "73ea28996dede9f73bf13d762bc25834b7d43150",
+      "0a4a767dc43771db8e934a287c2937971facc8e7",
+      "92180b408bbed2baf9f570b3a84ec7b228a9df69",
+      "041c099c86e4ed2bfe9a0432a5dab0627af3fda1",
+      "a3bd0d564fee0495558c8fd8234e92fb927c1405",
+      "889bb5d3bc8126b0f15d24034bd9a36158e2e67d",
+      "de8c5c8ee82a0ae46251383b43377cedca67d6c6",
+      "0b5b072f16fed88ac1360057dfb80aa606abf33c",
+      "da3553e0c9704c555978670612a93b6d34c50d2f",
+      "72b3c30c2bb46cbe482b7cd679a8bda7a90bc269",
+      "c90c3ba5cfb7353c3d8dc45439b2f1bbacb89abc",
+      "07b896bd02df23ab7298701527887c49b9e7f779",
+      "8c74bd1030ab299232d54986126a1cb2fc221fb9",
+      "27749e80328b9a528395f4df07919029a2776fef",
+      "e174c2792b5858fa94f73c3d9966422481ef72df",
+      "803770cf70f2916c0ba9180589122c689b3d27d9",
+      "a4b22b0990538babf3550994797cad737301840a",
+      "66f3786f03cae1d0fe1060cb1e191096b3e6c731",
+      "54cc6922d8ef5d6f0ab3f357ae3ddce0f1579b87",
+      "a65c239fa57ef083426aaf366b7c0c386f1907cc",
+      "e3a07428ec35b6fa7e6d0cba39874c4ad934604e",
+      "eaddb4d4dffb6b56eb7b0fc28764cc36bcb7364a",
+      "495a7f0f36b77af4fa66be7877947b54926cecd4",
+      "25728534a2ed4441f5061bc827b84d416873b463",
+      "4a1971ed1e1694c2e76f193eb8535c87ab80a03c",
+      "8ca383033f7a120a95e0fcb1581d0d06bf9bd2c4",
+      "53c219bd0a3f48e64156a43f3d7bddc2c52d2ef2",
+      "058abf23143b292d301f8f239a280225c4c26c92",
+      "b4bf1d615adc0df94895869fc481b122b466402d",
+      "2bcde0f61ff40fefa11024724564fddeaa80b0ea",
+      "e097cb3dbbb6bb4037d55e1f19ec51fdf3dadcd3",
+      "e069948d17f56aa44ce4c069332578577f6e2581",
+      "2cdcba0d95b262b95dbc7789c10bb93c4b409b1e",
+      "801d5179127f72b6bd2284445bd7036c074ca4a2",
+      "c3d234f1b4d56c02d6b152debdf33af4eae7082b"
+    ],
+    "important_files_modified": [
+      "src/mongo/db/repl/initial_sync/initial_syncer.cpp"
+    ],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        "buildscripts/resmokelib/configure_resmoke.py",
+        "src/mongo/db/repl/initial_sync/BUILD.bazel",
+        "src/mongo/shell/BUILD.bazel",
+        "src/mongo/shell/mongo.js",
+        "src/mongo/shell/servers.js"
+      ]
+    }
+  },
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 29800,
+    "num_turns": 7,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.2566445,
+    "modelUsage": {
+      "claude-haiku-4-5-20251001": {
+        "inputTokens": 587,
+        "outputTokens": 17,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0,
+        "webSearchRequests": 0,
+        "costUSD": 0.000672,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000
+      },
+      "claude-opus-4-5": {
+        "inputTokens": 12,
+        "outputTokens": 1845,
+        "cacheReadInputTokens": 68550,
+        "cacheCreationInputTokens": 28082,
+        "webSearchRequests": 0,
+        "costUSD": 0.2559725,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-haiku-4-5-20251001": {
+          "tokens": {
+            "input": 587,
+            "output": 17,
+            "cache_read": 0,
+            "cache_creation": 0
+          },
+          "cost_usd": 0.000672
+        },
+        "claude-opus-4-5": {
+          "tokens": {
+            "input": 12,
+            "output": 1845,
+            "cache_read": 68550,
+            "cache_creation": 28082
+          },
+          "cost_usd": 0.2559725
+        }
+      }
+    },
+    "text_result": "JSON response written to `/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/response_20260618_074335_681363.json` with descriptions of all 5 auto-merged files based on the actual diffs.",
+    "response": {
+      "summary": "This merge brings in changes related to resmoke module loading behavior in Bazel sandboxes, mozjs-wasm test tagging improvements, change stream option handling fixes, and shell version comparison enhancements. Key changes include relaxing module directory existence checks to only require fixture_dirs and hook_dirs (allowing suite_dirs/jstest_dirs to be optional), adding a 'requires_mozjs_wasm' exclusion tag for non-wasm engines, removing the $where pattern from MOZJS_PATTERNS (indicating $where support is now available), fixing _extractChangeStreamOptions to clone options before modifying, and adding a 'last-patch' version substitution with improved version comparison documentation.",
+      "auto_merged": {
+        "buildscripts/resmokelib/configure_resmoke.py": "Refactors module loading logic: (1) Only fixture_dirs and hook_dirs are now required to exist for a module to load - suite_dirs and jstest_dirs are optional path hints that are checked individually before being added. This supports Bazel sandboxes where only declared data deps are present. (2) Removes the TSS_ENABLED configuration reading from Evergreen expansions (lines removed entirely). (3) Adds 'requires_mozjs_wasm' to EXCLUDE_WITH_ANY_TAGS when JS_ENGINE is not mozjs-wasm. (4) Removes '$where' from _MOZJS_PATTERNS and the associated TODO comment, indicating $where support is now available. (5) Minor refactor of mongot version comparison to use tuple comparison. (6) Typo fix: 'fixures' -> 'fixtures' in comment.",
+        "src/mongo/db/repl/initial_sync/BUILD.bazel": "Adds '//src/mongo/otel/metrics:metrics_test_util' as a new dependency to the initial_sync unit test target.",
+        "src/mongo/shell/BUILD.bazel": "Changes the types.js reference from a local 'types.js' to '//src/mongo/scripting/mozjs/common/jsfiles:types.js', moving to a shared location in the scripting subsystem.",
+        "src/mongo/shell/mongo.js": "Fixes _extractChangeStreamOptions to clone the input options object before modifying it. The parameter is renamed from 'options' to 'opts', and a shallow copy is made with 'let options = {...opts}' to prevent mutation of the caller's original options object.",
+        "src/mongo/shell/servers.js": "Adds a new 'last-patch' version substitution that maps to shellVersion(). Also improves documentation for areBinVersionsTheSame and compareBinVersions functions: clarifies that versions are compared component-by-component (major, minor, patch) up to the shorter version's length, and explicitly documents that differing pre-release tags or git hashes cause inequality/throws rather than ordering."
+      },
+      "review_notes": "The resmoke module loading change is significant for Bazel sandbox compatibility - it allows modules to load even when suite_dirs/jstest_dirs don't exist, as long as the Python import directories (fixture_dirs/hook_dirs) are present. The removal of $where from MOZJS_PATTERNS indicates that SERVER-116054 ($where support) has been completed. The change stream options fix prevents unintended side effects from modifying the caller's options object. The initial_sync BUILD.bazel change adds a metrics test utility dependency."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [
+            "I'll read the diffs for each auto-merged file to accurately describe the changes."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [
+            "Now I have all the diffs. Let me write the JSON response file."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [
+            "JSON response written to `/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/response_20260618_074335_681363.json` with descriptions of all 5 auto-merged files based on the actual diffs."
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20260618_074335_681143.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.181 (Claude Code)"
+    }
+  }
+}
