@@ -1,0 +1,29 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "0a87b91f7a55fbbb03706a0de3392699e0364fbf",
+    "merge_commit": "2eff3754f8e28b55b58b93ea2dbd601598e677d8"
+  },
+  "mergai_version": "0.1.dev1+g95d1b543b",
+  "solutions": [
+    {
+      "type": "conflict_resolution",
+      "response": {
+        "summary": "SERVER-129173: Optimize classic FirstN/LastN accumulators (#56155)",
+        "resolved": {},
+        "unresolved": {},
+        "modified": {
+          "src/mongo/db/pipeline/accumulator_multi.cpp": "Modified by human",
+          "src/mongo/db/pipeline/accumulator_multi.h": "Modified by human"
+        },
+        "review_notes": "GitOrigin-RevId: 7ad3e469128965e55b7b91a4867f26d6caba3fa2"
+      },
+      "author": {
+        "name": "Colin Stolley",
+        "email": "3535347+ccstolley@users.noreply.github.com",
+        "type": "human"
+      },
+      "commit_sha": "e174c2792b5858fa94f73c3d9966422481ef72df"
+    }
+  ]
+}
