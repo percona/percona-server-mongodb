@@ -5,14 +5,14 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 30,
+    "commits_behind": 51,
     "days_behind": 0,
-    "files_affected": 184,
-    "total_additions": 5907,
-    "total_deletions": 3022,
+    "files_affected": 532,
+    "total_additions": 11813,
+    "total_deletions": 8116,
     "date_range": {
       "first": "2026-06-17T12:54:46+00:00",
-      "last": "2026-06-17T17:04:21+00:00"
+      "last": "2026-06-17T23:45:11+00:00"
     }
   },
   "last_merged_commit": {
@@ -36,6 +36,216 @@
     "summary": "SERVER-128783: Suppress redundant setMultikeyMetadata for already-multikey wildcard paths (#55815)"
   },
   "unmerged_commits": [
+    {
+      "sha": "2eff3754f8e28b55b58b93ea2dbd601598e677d8",
+      "short_sha": "2eff3754f8e",
+      "date": "2026-06-18T09:45:11+10:00",
+      "author": {
+        "name": "shoufudu",
+        "email": "51816204+ShoufuDu@users.noreply.github.com"
+      },
+      "summary": "SERVER-128891 Add abandonSnapshot to oplog truncation wait predicate (#55931)"
+    },
+    {
+      "sha": "f21b3837e1e8c216300c5d5fccd4f08da222012b",
+      "short_sha": "f21b3837e1e",
+      "date": "2026-06-17T18:42:37-04:00",
+      "author": {
+        "name": "mongodb-sage-bot[bot]",
+        "email": "247496174+mongodb-sage-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "SERVER-129073: Add orphanCleanupDelaySecs to resharding setfcv test (#56068)"
+    },
+    {
+      "sha": "0785196c129f875b8ba3dbb3a44ea78b3b41cce0",
+      "short_sha": "0785196c129",
+      "date": "2026-06-18T00:33:07+02:00",
+      "author": {
+        "name": "karlbozdogan",
+        "email": "karl.bozdogan@mongodb.com"
+      },
+      "summary": "SERVER-125010 Inspect and improve BSON memory ownership for MatchExpression nodes constructed from $expr rewrites (#55502)"
+    },
+    {
+      "sha": "bf8e71737689f9dc419c3c2a1fa7da1e7b7f9ca3",
+      "short_sha": "bf8e7173768",
+      "date": "2026-06-18T00:17:28+02:00",
+      "author": {
+        "name": "Denis Grebennicov",
+        "email": "denis.grebennicov@mongodb.com"
+      },
+      "summary": "SERVER-52253 Enable feature flag for Improved change stream handling of cluster topology changes (#53140)"
+    },
+    {
+      "sha": "628757275038181c07c1b709f18469bb65752189",
+      "short_sha": "62875727503",
+      "date": "2026-06-17T16:54:43-05:00",
+      "author": {
+        "name": "Samuel Mercier",
+        "email": "samontea@users.noreply.github.com"
+      },
+      "summary": "SERVER-116054 Add support for $where (#55565)"
+    },
+    {
+      "sha": "462c234f9a65cd3b109bac19fe83191859578ee3",
+      "short_sha": "462c234f9a6",
+      "date": "2026-06-17T17:43:10-04:00",
+      "author": {
+        "name": "Lynne Wang",
+        "email": "lynne.wang@mongodb.com"
+      },
+      "summary": "SERVER-128744 Remove requires_fcv_83 tag from affected QI multiversion tests (#56012)"
+    },
+    {
+      "sha": "8b20c76098e15263e6e550c4dd2b6677b583a725",
+      "short_sha": "8b20c76098e",
+      "date": "2026-06-17T17:33:10-04:00",
+      "author": {
+        "name": "Evan Bergeron",
+        "email": "evanbergeron@users.noreply.github.com"
+      },
+      "summary": "SERVER-128937 Replace ValueGuard in SBE stage builders with TagValue{… (#55909)"
+    },
+    {
+      "sha": "bbabd8392b737d0bdf58aad3366c970441717bc2",
+      "short_sha": "bbabd8392b7",
+      "date": "2026-06-17T15:17:26-05:00",
+      "author": {
+        "name": "Shin Yee Tan",
+        "email": "shinyee.tan@mongodb.com"
+      },
+      "summary": "SERVER-128137 Commit container ops at the commit optime when applied as part of an atomic applyOps chain (#55185)"
+    },
+    {
+      "sha": "5187dc7afaebe4194c67742a5aa480e5db468046",
+      "short_sha": "5187dc7afae",
+      "date": "2026-06-17T16:04:36-04:00",
+      "author": {
+        "name": "Benjamin Pearce",
+        "email": "benjamin.pearce@mongodb.com"
+      },
+      "summary": "SERVER-129162: Reorder blockShutdown and WT session cleanup (#56137)"
+    },
+    {
+      "sha": "b766719fc2c5a63cadb0b4368ebf38d22e89c5d5",
+      "short_sha": "b766719fc2c",
+      "date": "2026-06-17T15:38:32-04:00",
+      "author": {
+        "name": "Evan Bergeron",
+        "email": "evanbergeron@users.noreply.github.com"
+      },
+      "summary": "SERVER-129244 Rm unused SBE builtinValueBlockGetNonLeafSortKeyAsc/Desc and builtin(ArityType) (#56208)"
+    },
+    {
+      "sha": "0e891d70058ab0dc728da0fa3b524ed979163e06",
+      "short_sha": "0e891d70058",
+      "date": "2026-06-17T15:22:25-04:00",
+      "author": {
+        "name": "Ernesto Rodriguez Reina",
+        "email": "erreina@users.noreply.github.com"
+      },
+      "summary": "SERVER-125658 BSON-view fast path for replicated fast-count oplog scan (#52885)"
+    },
+    {
+      "sha": "05f1f66e97025eb9e7abb707020f562e1eb2687d",
+      "short_sha": "05f1f66e970",
+      "date": "2026-06-17T14:02:09-05:00",
+      "author": {
+        "name": "Colin Stolley",
+        "email": "3535347+ccstolley@users.noreply.github.com"
+      },
+      "summary": "SERVER-128639: Avoid virtual dispatch in OpCounters (#55562)"
+    },
+    {
+      "sha": "d72c5f80ec31a1f2877a836628ae34e944cbb783",
+      "short_sha": "d72c5f80ec3",
+      "date": "2026-06-17T20:52:12+02:00",
+      "author": {
+        "name": "Silvia Surroca",
+        "email": "silvia.surroca@mongodb.com"
+      },
+      "summary": "SERVER-126987 Implement the new delta c oplog entry for authoritative commits (#55695)"
+    },
+    {
+      "sha": "d731307ac0b6891b7ae5d1378d10b426534fab5e",
+      "short_sha": "d731307ac0b",
+      "date": "2026-06-17T14:46:45-04:00",
+      "author": {
+        "name": "joseph obaraye",
+        "email": "joseph.obaraye@mongodb.com"
+      },
+      "summary": "SERVER-125881b Export Replication metrics in ServerStatus to OTEL (#55961)"
+    },
+    {
+      "sha": "8584e22c4c309e9317f49fa5e3611099a4239066",
+      "short_sha": "8584e22c4c3",
+      "date": "2026-06-17T20:07:31+02:00",
+      "author": {
+        "name": "Tommaso Tocci",
+        "email": "58224719+toto-dev@users.noreply.github.com"
+      },
+      "summary": "SERVER-127663 Introduce `multiversion_last_patch` resmoke suite for DSC Mongod upgrade/downgrade testing (#55952)"
+    },
+    {
+      "sha": "9f1312384f6e50823df50ae63dbf5850a04637c0",
+      "short_sha": "9f1312384f6",
+      "date": "2026-06-17T17:49:08+00:00",
+      "author": {
+        "name": "auto-revert-app[bot]",
+        "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
+      },
+      "summary": "Revert \"SERVER-127318 WASM scripting engine performance improvements (#55710)\" (#56212)"
+    },
+    {
+      "sha": "73ea28996dede9f73bf13d762bc25834b7d43150",
+      "short_sha": "73ea28996de",
+      "date": "2026-06-17T13:49:06-04:00",
+      "author": {
+        "name": "Brett Nawrocki",
+        "email": "90278537+brettnawrocki@users.noreply.github.com"
+      },
+      "summary": "SERVER-128942 Linearize MoveRangeCoordinator (#56037)"
+    },
+    {
+      "sha": "0a4a767dc43771db8e934a287c2937971facc8e7",
+      "short_sha": "0a4a767dc43",
+      "date": "2026-06-17T13:42:29-04:00",
+      "author": {
+        "name": "Kruti Shah",
+        "email": "70412403+krutishah139@users.noreply.github.com"
+      },
+      "summary": "SERVER-129033 Move documentsToCopy write-back out of background fetch future (#56028)"
+    },
+    {
+      "sha": "92180b408bbed2baf9f570b3a84ec7b228a9df69",
+      "short_sha": "92180b408bb",
+      "date": "2026-06-17T13:40:00-04:00",
+      "author": {
+        "name": "Jack Mulrow",
+        "email": "jack.mulrow@mongodb.com"
+      },
+      "summary": "SERVER-114130 Move failIngressRequestRateLimiting fail point to the ingress request rate limiter (#55381)"
+    },
+    {
+      "sha": "041c099c86e4ed2bfe9a0432a5dab0627af3fda1",
+      "short_sha": "041c099c86e",
+      "date": "2026-06-17T13:29:36-04:00",
+      "author": {
+        "name": "Steve McClure",
+        "email": "steve.mcclure@mongodb.com"
+      },
+      "summary": "SERVER-129144: Use Python tuple comparisons (#56115)"
+    },
+    {
+      "sha": "a3bd0d564fee0495558c8fd8234e92fb927c1405",
+      "short_sha": "a3bd0d564fe",
+      "date": "2026-06-17T13:22:11-04:00",
+      "author": {
+        "name": "Sean Lyons",
+        "email": "sean.lyons@mongodb.com"
+      },
+      "summary": "SERVER-128970: Add resmoke_suite_test targets for query-integration-search suites (#55903)"
+    },
     {
       "sha": "889bb5d3bc8126b0f15d24034bd9a36158e2e67d",
       "short_sha": "889bb5d3bc8",
@@ -360,10 +570,143 @@
           "num_of_dirs": 13
         }
       }
+    },
+    {
+      "commit": {
+        "sha": "92180b408bbed2baf9f570b3a84ec7b228a9df69",
+        "short_sha": "92180b408bb",
+        "date": "2026-06-17T13:40:00-04:00",
+        "author": {
+          "name": "Jack Mulrow",
+          "email": "jack.mulrow@mongodb.com"
+        },
+        "summary": "SERVER-114130 Move failIngressRequestRateLimiting fail point to the ingress request rate limiter (#55381)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 36,
+          "num_of_lines": 1162,
+          "lines_added": 764,
+          "lines_deleted": 398,
+          "num_of_dirs": 11
+        }
+      }
+    },
+    {
+      "commit": {
+        "sha": "9f1312384f6e50823df50ae63dbf5850a04637c0",
+        "short_sha": "9f1312384f6",
+        "date": "2026-06-17T17:49:08+00:00",
+        "author": {
+          "name": "auto-revert-app[bot]",
+          "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
+        },
+        "summary": "Revert \"SERVER-127318 WASM scripting engine performance improvements (#55710)\" (#56212)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 27,
+          "num_of_lines": 4035,
+          "lines_added": 440,
+          "lines_deleted": 3595,
+          "num_of_dirs": 11
+        }
+      }
+    },
+    {
+      "commit": {
+        "sha": "8584e22c4c309e9317f49fa5e3611099a4239066",
+        "short_sha": "8584e22c4c3",
+        "date": "2026-06-17T20:07:31+02:00",
+        "author": {
+          "name": "Tommaso Tocci",
+          "email": "58224719+toto-dev@users.noreply.github.com"
+        },
+        "summary": "SERVER-127663 Introduce `multiversion_last_patch` resmoke suite for DSC Mongod upgrade/downgrade testing (#55952)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 18,
+          "num_of_lines": 301,
+          "lines_added": 239,
+          "lines_deleted": 62,
+          "num_of_dirs": 14
+        }
+      }
+    },
+    {
+      "commit": {
+        "sha": "d731307ac0b6891b7ae5d1378d10b426534fab5e",
+        "short_sha": "d731307ac0b",
+        "date": "2026-06-17T14:46:45-04:00",
+        "author": {
+          "name": "joseph obaraye",
+          "email": "joseph.obaraye@mongodb.com"
+        },
+        "summary": "SERVER-125881b Export Replication metrics in ServerStatus to OTEL (#55961)"
+      },
+      "strategy_name": "important_files",
+      "result": {
+        "matched_files": [
+          "src/mongo/db/repl/initial_sync/initial_syncer.cpp"
+        ]
+      }
+    },
+    {
+      "commit": {
+        "sha": "628757275038181c07c1b709f18469bb65752189",
+        "short_sha": "62875727503",
+        "date": "2026-06-17T16:54:43-05:00",
+        "author": {
+          "name": "Samuel Mercier",
+          "email": "samontea@users.noreply.github.com"
+        },
+        "summary": "SERVER-116054 Add support for $where (#55565)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 65,
+          "num_of_lines": 1137,
+          "lines_added": 1008,
+          "lines_deleted": 129,
+          "num_of_dirs": 39
+        }
+      }
+    },
+    {
+      "commit": {
+        "sha": "bf8e71737689f9dc419c3c2a1fa7da1e7b7f9ca3",
+        "short_sha": "bf8e7173768",
+        "date": "2026-06-18T00:17:28+02:00",
+        "author": {
+          "name": "Denis Grebennicov",
+          "email": "denis.grebennicov@mongodb.com"
+        },
+        "summary": "SERVER-52253 Enable feature flag for Improved change stream handling of cluster topology changes (#53140)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 158,
+          "num_of_lines": 1033,
+          "lines_added": 603,
+          "lines_deleted": 430,
+          "num_of_dirs": 24
+        }
+      }
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-06-17 18:10:33",
+  "generated_at": "2026-06-18 07:39:17",
   "branch_name": "master",
   "display_name": "master"
 }
