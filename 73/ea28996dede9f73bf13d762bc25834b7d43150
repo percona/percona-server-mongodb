@@ -1,0 +1,34 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "0a87b91f7a55fbbb03706a0de3392699e0364fbf",
+    "merge_commit": "2eff3754f8e28b55b58b93ea2dbd601598e677d8"
+  },
+  "mergai_version": "0.1.dev1+g95d1b543b",
+  "solutions": [
+    {
+      "type": "conflict_resolution",
+      "response": {
+        "summary": "SERVER-128942 Linearize MoveRangeCoordinator (#56037)",
+        "resolved": {},
+        "unresolved": {},
+        "modified": {
+          "jstests/libs/chunk_manipulation_util.js": "Modified by human",
+          "src/mongo/db/s/migration_source_manager.cpp": "Modified by human",
+          "src/mongo/db/s/migration_source_manager.h": "Modified by human",
+          "src/mongo/db/s/move_range_coordinator.cpp": "Modified by human",
+          "src/mongo/db/s/move_range_coordinator.h": "Modified by human",
+          "src/mongo/db/s/move_range_coordinator_document.idl": "Modified by human",
+          "src/mongo/db/s/shardsvr_move_range_command.cpp": "Modified by human"
+        },
+        "review_notes": "GitOrigin-RevId: d40c17d3295170aa0bc6f354ad8d97e265d66699"
+      },
+      "author": {
+        "name": "Brett Nawrocki",
+        "email": "90278537+brettnawrocki@users.noreply.github.com",
+        "type": "human"
+      },
+      "commit_sha": "73ea28996dede9f73bf13d762bc25834b7d43150"
+    }
+  ]
+}
