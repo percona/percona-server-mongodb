@@ -1,0 +1,28 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "0a87b91f7a55fbbb03706a0de3392699e0364fbf",
+    "merge_commit": "2eff3754f8e28b55b58b93ea2dbd601598e677d8"
+  },
+  "mergai_version": "0.1.dev1+g95d1b543b",
+  "solutions": [
+    {
+      "type": "conflict_resolution",
+      "response": {
+        "summary": "SERVER-129095 setAllowChunkOperations: yield session before waiting for operations (#56175)",
+        "resolved": {},
+        "unresolved": {},
+        "modified": {
+          "src/mongo/db/global_catalog/ddl/shardsvr_set_allow_chunk_operations_command.cpp": "Modified by human"
+        },
+        "review_notes": "GitOrigin-RevId: ea75aa2452726866e691897b17e797f8d368a89f"
+      },
+      "author": {
+        "name": "Aitor Esteve Alvarado",
+        "email": "aitor.esteve@mongodb.com",
+        "type": "human"
+      },
+      "commit_sha": "25728534a2ed4441f5061bc827b84d416873b463"
+    }
+  ]
+}
