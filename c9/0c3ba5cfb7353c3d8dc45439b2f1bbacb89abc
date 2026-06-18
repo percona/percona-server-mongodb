@@ -1,0 +1,28 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "0a87b91f7a55fbbb03706a0de3392699e0364fbf",
+    "merge_commit": "2eff3754f8e28b55b58b93ea2dbd601598e677d8"
+  },
+  "mergai_version": "0.1.dev1+g95d1b543b",
+  "solutions": [
+    {
+      "type": "conflict_resolution",
+      "response": {
+        "summary": "SERVER-128127 Finish the push-mode implementation for KEK rotation. (#55766)",
+        "resolved": {},
+        "unresolved": {},
+        "modified": {
+          "buildscripts/resmokeconfig/fully_disabled_feature_flags.yml": "Modified by human"
+        },
+        "review_notes": "GitOrigin-RevId: 2664ca314a334d8b1e83194733ede67600e04d17"
+      },
+      "author": {
+        "name": "Ken Martin",
+        "email": "ken.martin@mongodb.com",
+        "type": "human"
+      },
+      "commit_sha": "c90c3ba5cfb7353c3d8dc45439b2f1bbacb89abc"
+    }
+  ]
+}
