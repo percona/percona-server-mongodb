@@ -540,8 +540,7 @@ void MigrationDestinationManager::_setState(State newState) {
     _stateChangedCV.notify_all();
 }
 
-void MigrationDestinationManager::_setStateFail(StringData msg) {
-    LOGV2(21998, "Error during migration", "error"_attr = redact(msg));
+void MigrationDestinationManager::_setStateFailNoLog(StringData msg) {
     {
         stdx::lock_guard<Latch> sl(_mutex);
         _errmsg = msg.toString();
@@ -554,18 +553,14 @@ void MigrationDestinationManager::_setStateFail(StringData msg) {
     }
 }
 
+void MigrationDestinationManager::_setStateFail(StringData msg) {
+    LOGV2(21998, "Error during migration", "error"_attr = redact(msg));
+    _setStateFailNoLog(msg);
+}
+
 void MigrationDestinationManager::_setStateFailWarn(StringData msg) {
     LOGV2_WARNING(22010, "Error during migration", "error"_attr = redact(msg));
-    {
-        stdx::lock_guard<Latch> sl(_mutex);
-        _errmsg = msg.toString();
-        _state = kFail;
-        _stateChangedCV.notify_all();
-    }
-
-    if (_sessionMigration) {
-        _sessionMigration->forceFail(msg);
-    }
+    _setStateFailNoLog(msg);
 }
 
 bool MigrationDestinationManager::isActive() const {
@@ -1607,13 +1602,16 @@ void MigrationDestinationManager::_migrateDriver(OperationContext* outerOpCtx,
                                                  range.getMax());
 
             if (existingDocShardKey) {
-                _setStateFail(
-                    str::stream()
+                std::string msg = str::stream()
                     << "Migration aborted: found existing document in range being migrated. "
                     << "Document with shard key " << *existingDocShardKey
                     << " already exists in range [" << range.getMin() << ", " << range.getMax()
                     << ") on recipient shard. Please investigate and remove "
-                    << "spurious documents before retrying migration.");
+                    << "spurious documents before retrying migration.";
+                LOGV2(11365900,
+                      "Migration aborted: found existing document",
+                      "error"_attr = redact(msg));
+                _setStateFailNoLog(msg);
                 return;
             }
 
@@ -1898,32 +1896,64 @@ void MigrationDestinationManager::_migrateDriver(OperationContext* outerOpCtx,
 
         const auto critSecReason = criticalSectionReason(*_sessionId);
 
-        runWithoutSession(outerOpCtx, [&] {
-            // Persist the migration recipient recovery document so that in case of failover, the
-            // new primary will resume the MigrationDestinationManager and retake the critical
-            // section.
-            migrationutil::persistMigrationRecipientRecoveryDocument(
-                opCtx, {*_migrationId, _nss, *_sessionId, range, _fromShard, _lsid, _txnNumber});
+        try {
+            runWithoutSession(outerOpCtx, [&] {
+                // Persist the migration recipient recovery document so that in case of failover,
+                // the new primary will resume the MigrationDestinationManager and retake the
+                // critical section.
+                migrationutil::persistMigrationRecipientRecoveryDocument(
+                    opCtx,
+                    {*_migrationId, _nss, *_sessionId, range, _fromShard, _lsid, _txnNumber});
 
-            LOGV2_DEBUG(5899113,
-                        2,
-                        "Persisted migration recipient recovery document",
-                        "sessionId"_attr = _sessionId);
+                LOGV2_DEBUG(5899113,
+                            2,
+                            "Persisted migration recipient recovery document",
+                            "sessionId"_attr = _sessionId);
 
-            // Enter critical section. Ensure it has been majority commited before _recvChunkCommit
-            // returns success to the donor, so that if the recipient steps down, the critical
-            // section is kept taken while the donor commits the migration.
-            ShardingRecoveryService::get(opCtx)->acquireRecoverableCriticalSectionBlockWrites(
-                opCtx, _nss, critSecReason, ShardingCatalogClient::kMajorityWriteConcern);
+                // Enter critical section. Ensure it has been majority commited before
+                // _recvChunkCommit returns success to the donor, so that if the recipient steps
+                // down, the critical section is kept taken while the donor commits the migration.
+                ShardingRecoveryService::get(opCtx)->acquireRecoverableCriticalSectionBlockWrites(
+                    opCtx,
+                    _nss,
+                    critSecReason,
+                    ShardingCatalogClient::kMajorityWriteConcern,
+                    Milliseconds(migrationLockAcquisitionMaxWaitMS.load()));
 
-            LOGV2(5899114, "Entered migration recipient critical section", logAttrs(_nss));
-            timeInCriticalSection.emplace();
-        });
+                LOGV2(5899114, "Entered migration recipient critical section", logAttrs(_nss));
+                timeInCriticalSection.emplace();
+            });
+        } catch (const DBException& ex) {
+            // Something failed when acquiring the critical section. Clean up and fail the
+            // migration.
+            LOGV2(11608900,
+                  "Failed to acquire the migration recipient critical section",
+                  "ex"_attr = ex);
 
-        if (getState() == kFail || getState() == kAbort) {
-            _setStateFail("timed out waiting for critical section acquisition");
+            // Make sure the critical section is completely released.
+            ShardingRecoveryService::get(opCtx)->releaseRecoverableCriticalSection(
+                opCtx,
+                _nss,
+                critSecReason,
+                ShardingCatalogClient::kMajorityWriteConcern,
+                ShardingRecoveryService::NoCustomAction());
+
+            // Delete the recovery document, since the critical section is definitely not
+            // active.
+            migrationutil::deleteMigrationRecipientRecoveryDocument(opCtx, *_migrationId);
+            LOGV2_DEBUG(
+                11608901,
+                1,
+                "Deleted migration recipient recovery document after critical acquisition failure");
+
+            // Fail the migration and end the recipient state machine here.
+            _setStateFail(str::stream()
+                          << "Failed when acquiring the migration recipient critical section: "
+                          << redact(ex.toString()));
+            return;
         }
 
+        // At this point, the critical section has been engaged.
         {
             // Make sure we don't overwrite a FAIL or ABORT state.
             stdx::lock_guard<Latch> sl(_mutex);
@@ -1944,6 +1974,8 @@ void MigrationDestinationManager::_migrateDriver(OperationContext* outerOpCtx,
             cc().makeOperationContext(), outerOpCtx->getCancellationToken(), executor);
         auto opCtx = newOpCtxPtr.get();
 
+        // Note: Not honoring 'migrationLockAcquisitionMaxWaitMS' because this is a recovery path
+        // where the critical section had (potentially) already been granted previously.
         ShardingRecoveryService::get(opCtx)->acquireRecoverableCriticalSectionBlockWrites(
             opCtx,
             _nss,

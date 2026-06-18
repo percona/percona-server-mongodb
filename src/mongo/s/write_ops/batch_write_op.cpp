@@ -81,41 +81,59 @@ struct WriteErrorComp {
     }
 };
 
+using ShardVersionMap = absl::flat_hash_map<ShardId, boost::optional<ShardVersion>>;
+using DbVersionMap = absl::flat_hash_map<ShardId, boost::optional<DatabaseVersion>>;
+
 /**
- * Helper to determine whether a shard is already targeted with a different shardVersion, which
- * necessitates a new batch. This happens when a batch write includes a multi target write and
- * a single target write.
+ * Helper to determine whether a shard is already targeted with a different shardVersion or a
+ * different dbVersion, which necessitates a new batch.
  */
-bool wasShardAlreadyTargetedWithDifferentShardVersion(
+bool wasShardAlreadyTargetedWithDifferentShardOrDbVersion(
     const NamespaceString& nss,
     const std::vector<std::unique_ptr<TargetedWrite>>& writes,
-    const std::map<NamespaceString, std::set<ShardId>>& nsShardIdMap,
-    const std::map<NamespaceString, std::set<const ShardEndpoint*, EndpointComp>>& nsEndpointMap) {
-    auto endpointSetIt = nsEndpointMap.find(nss);
-    if (endpointSetIt == nsEndpointMap.end()) {
-        // We haven't targeted this namespace yet.
-        return false;
-    }
+    const absl::flat_hash_map<NamespaceString, ShardVersionMap>& shardVersionMaps,
+    const absl::flat_hash_map<DatabaseName, DbVersionMap>& dbVersionMaps) {
+    // Check if 'writes' contains any conflicting ShardVersions or DatabaseVersions. Note that
+    // 'dvVersionMaps' is keyed on the _database_ name rather than the collection name.
+    auto svMapIt = shardVersionMaps.find(nss);
+    auto dvMapIt = dbVersionMaps.find(nss.dbName());
+    auto* svMap = svMapIt != shardVersionMaps.end() ? &svMapIt->second : nullptr;
+    auto* dvMap = dvMapIt != dbVersionMaps.end() ? &dvMapIt->second : nullptr;
 
-    for (auto&& write : writes) {
-        if (endpointSetIt->second.find(&write->endpoint) == endpointSetIt->second.end()) {
-            // This is a new endpoint for this namespace.
-            auto shardIdSetIt = nsShardIdMap.find(nss);
-            invariant(shardIdSetIt != nsShardIdMap.end());
-            if (shardIdSetIt->second.find(write->endpoint.shardName) !=
-                shardIdSetIt->second.end()) {
-                // And because we have targeted this shardId for this namespace before, this implies
-                // a shard is already targeted under a different endpoint/shardVersion, necessitates
-                // a new batch.
+    for (const auto& write : writes) {
+        const auto& endpoint = write->endpoint;
+        const bool isTracked =
+            endpoint.shardVersion && *endpoint.shardVersion != ShardVersion::UNSHARDED();
+
+        if (svMap) {
+            auto it = svMap->find(endpoint.shardName);
+            if (it != svMap->end() && it->second != endpoint.shardVersion) {
+                // If a conflicting ShardVersion is found, return true.
                 LOGV2_DEBUG(9986802,
                             4,
                             "New batch required as this shard was already targeted with a "
                             "different shard version",
-                            "shard"_attr = write->endpoint.shardName);
+                            "shard"_attr = endpoint.shardName);
+                return true;
+            }
+        }
+
+        // If 'endpoint' targets an unsharded collection, check if we already have a dbVersion
+        // for 'nss.dbName()', and if so check if it matches 'endpoint.databaseVersion'.
+        if (!isTracked && dvMap) {
+            auto it = dvMap->find(endpoint.shardName);
+            if (it != dvMap->end() && it->second != endpoint.databaseVersion) {
+                // If a conflicting DatabaseVersion is found, return true.
+                LOGV2_DEBUG(11841900,
+                            4,
+                            "New batch required as this shard was already targeted with a "
+                            "different database version",
+                            "shard"_attr = endpoint.shardName);
                 return true;
             }
         }
     }
+
     return false;
 }
 
@@ -126,8 +144,8 @@ bool isNewBatchRequiredOrdered(
     const NamespaceString& nss,
     const std::vector<std::unique_ptr<TargetedWrite>>& writes,
     const TargetedBatchMap& batchMap,
-    const std::map<NamespaceString, std::set<ShardId>>& nsShardIdMap,
-    const std::map<NamespaceString, std::set<const ShardEndpoint*, EndpointComp>>& nsEndpointMap) {
+    const absl::flat_hash_map<NamespaceString, ShardVersionMap>& shardVersionMaps,
+    const absl::flat_hash_map<DatabaseName, DbVersionMap>& dbVersionMaps) {
     // If this write targets a different shard, it needs to go in a different batch.
     for (auto&& write : writes) {
         if (batchMap.find(write->endpoint.shardName) == batchMap.end()) {
@@ -141,17 +159,17 @@ bool isNewBatchRequiredOrdered(
 
     // If we already targeted this shard with a different shard version, then we also need a new
     // batch.
-    return wasShardAlreadyTargetedWithDifferentShardVersion(
-        nss, writes, nsShardIdMap, nsEndpointMap);
+    return wasShardAlreadyTargetedWithDifferentShardOrDbVersion(
+        nss, writes, shardVersionMaps, dbVersionMaps);
 }
 
 bool isNewBatchRequiredUnordered(
     const NamespaceString& nss,
     const std::vector<std::unique_ptr<TargetedWrite>>& writes,
-    const std::map<NamespaceString, std::set<ShardId>>& nsShardIdMap,
-    const std::map<NamespaceString, std::set<const ShardEndpoint*, EndpointComp>>& nsEndpointMap) {
-    return wasShardAlreadyTargetedWithDifferentShardVersion(
-        nss, writes, nsShardIdMap, nsEndpointMap);
+    const absl::flat_hash_map<NamespaceString, ShardVersionMap>& shardVersionMaps,
+    const absl::flat_hash_map<DatabaseName, DbVersionMap>& dbVersionMaps) {
+    return wasShardAlreadyTargetedWithDifferentShardOrDbVersion(
+        nss, writes, shardVersionMaps, dbVersionMaps);
 }
 
 /**
@@ -364,8 +382,8 @@ StatusWith<WriteType> targetWriteOps(OperationContext* opCtx,
 
     WriteType writeType = WriteType::Ordinary;
 
-    std::map<NamespaceString, std::set<const ShardEndpoint*, EndpointComp>> nsEndpointMap;
-    std::map<NamespaceString, std::set<ShardId>> nsShardIdMap;
+    absl::flat_hash_map<NamespaceString, ShardVersionMap> shardVersionMaps;
+    absl::flat_hash_map<DatabaseName, DbVersionMap> dbVersionMaps;
 
     for (auto& writeOp : writeOps) {
         bool useTwoPhaseWriteProtocol = false;
@@ -456,7 +474,7 @@ StatusWith<WriteType> targetWriteOps(OperationContext* opCtx,
         if (ordered && !batchMap.empty()) {
             dassert(batchMap.size() == 1u);
             if (isNewBatchRequiredOrdered(
-                    targeter.getNS(), writes, batchMap, nsShardIdMap, nsEndpointMap)) {
+                    targeter.getNS(), writes, batchMap, shardVersionMaps, dbVersionMaps)) {
                 writeOp.resetWriteToReady();
                 break;
             }
@@ -476,7 +494,8 @@ StatusWith<WriteType> targetWriteOps(OperationContext* opCtx,
         // If writes are unordered and we already have targeted endpoints, make sure we don't target
         // the same shard with a different shardVersion.
         if (!ordered &&
-            isNewBatchRequiredUnordered(targeter.getNS(), writes, nsShardIdMap, nsEndpointMap)) {
+            isNewBatchRequiredUnordered(
+                targeter.getNS(), writes, shardVersionMaps, dbVersionMaps)) {
             writeOp.resetWriteToReady();
             break;
         }
@@ -566,8 +585,18 @@ StatusWith<WriteType> targetWriteOps(OperationContext* opCtx,
                 batchIt = batchMap.emplace(shardId, std::move(newBatch)).first;
             }
 
-            nsEndpointMap[targeter.getNS()].insert(&write->endpoint);
-            nsShardIdMap[targeter.getNS()].insert(shardId);
+            // Record shardVersion in the appropriate SV map.
+            const auto& shardVersion = write->endpoint.shardVersion;
+            auto& svMap = shardVersionMaps[targeter.getNS()];
+            svMap.emplace(shardId, shardVersion);
+
+            // If 'write->endpoint' targets an unsharded collection, record dbVersion in the
+            // appropriate DV map.
+            const bool isTracked = shardVersion && *shardVersion != ShardVersion::UNSHARDED();
+            if (!isTracked) {
+                auto& dvMap = dbVersionMaps[targeter.getNS().dbName()];
+                dvMap.emplace(shardId, write->endpoint.databaseVersion);
+            }
 
             auto estWriteSizeBytes = write->estimatedSizeBytes;
 
@@ -940,13 +969,19 @@ void BatchWriteOp::noteBatchError(const TargetedWriteBatch& targetedBatch,
                                   const write_ops::WriteError& error,
                                   const WriteConcernErrorDetail* wce,
                                   TrackedErrors* trackedErrors) {
-    // Treat errors to get a batch response as failures of the contained writes
-    BatchedCommandResponse emulatedResponse;
-    emulatedResponse.setStatus(Status::OK());
-    emulatedResponse.setN(0);
+    // Treat errors to get a batch response as failures of the contained writes.
+
+    // Create a new response object on the heap. This is necessary because 'noteBatchResponse()' may
+    // store the response pointer for later processing inside '_deferredResponses'. The response
+    // object must be kept alive until the deferred responses are processed, which it at some
+    // pointer after this function completes.
+    auto emulatedResponse = std::make_unique<BatchedCommandResponse>();
+
+    emulatedResponse->setStatus(Status::OK());
+    emulatedResponse->setN(0);
     if (wce) {
         auto wceCopy = std::make_unique<WriteConcernErrorDetail>(*wce);
-        emulatedResponse.setWriteConcernError(wceCopy.release());
+        emulatedResponse->setWriteConcernError(wceCopy.release());
     }
 
     const int numErrors = _clientRequest.getWriteCommandRequestBase().getOrdered()
@@ -956,10 +991,14 @@ void BatchWriteOp::noteBatchError(const TargetedWriteBatch& targetedBatch,
     for (int i = 0; i < numErrors; i++) {
         write_ops::WriteError errorClone = error;
         errorClone.setIndex(i);
-        emulatedResponse.addToErrDetails(std::move(errorClone));
+        emulatedResponse->addToErrDetails(std::move(errorClone));
     }
 
-    noteBatchResponse(targetedBatch, emulatedResponse, trackedErrors);
+    // Ensure the emulated response has a long-enough lifetime, by pushing it into a vector of
+    // emulated responses. This vector is cleared after the deferred responses are processed.
+    _emulatedErrorResponses.push_back(std::move(emulatedResponse));
+
+    noteBatchResponse(targetedBatch, *_emulatedErrorResponses.back(), trackedErrors);
 }
 
 void BatchWriteOp::abortBatch(const write_ops::WriteError& error) {
@@ -1119,7 +1158,7 @@ void BatchWriteOp::_incBatchStats(const BatchedCommandResponse& response) {
         _numDeleted += response.getN();
     }
 
-    if (auto retriedStmtIds = response.getRetriedStmtIds(); !retriedStmtIds.empty()) {
+    if (const auto& retriedStmtIds = response.getRetriedStmtIds(); !retriedStmtIds.empty()) {
         _retriedStmtIds.insert(retriedStmtIds.begin(), retriedStmtIds.end());
     }
 }
@@ -1147,6 +1186,7 @@ void BatchWriteOp::handleDeferredResponses(bool hasAnyStaleShardResponse) {
     }
 
     for (unsigned long idx = 0; idx < _deferredResponses->size(); idx++) {
+        bool isReady = false;
         auto [targetedWriteBatch, response] = _deferredResponses->at(idx);
         for (auto& write : targetedWriteBatch->getWrites()) {
             WriteOp& writeOp = _writeOps[write->writeOpRef.first];
@@ -1154,16 +1194,19 @@ void BatchWriteOp::handleDeferredResponses(bool hasAnyStaleShardResponse) {
                 if (writeOp.getWriteState() != WriteOpState_Ready) {
                     writeOp.resetWriteToReady();
                 }
-            } else if (writeOp.getWriteState() != WriteOpState_Error) {
+            } else if (writeOp.getWriteState() != WriteOpState_Error &&
+                       writeOp.getWriteState() != WriteOpState_Ready) {
                 writeOp.noteWriteWithoutShardKeyWithIdResponse(
                     *write, response->getN(), targetedWriteBatch->getNumOps(), boost::none);
             }
+            isReady |= writeOp.getWriteState() == WriteOpState_Ready;
         }
-        if (!hasAnyStaleShardResponse) {
+        if (!hasAnyStaleShardResponse && !isReady) {
             _incBatchStats(*response);
         }
     }
     _deferredResponses = boost::none;
+    _emulatedErrorResponses.clear();
 }
 
 

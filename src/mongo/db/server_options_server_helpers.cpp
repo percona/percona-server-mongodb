@@ -354,6 +354,10 @@ Status storeServerOptions(const moe::Environment& params) {
         serverGlobalParams.port = params["net.port"].as<int>();
     }
 
+    if (params.count("net.secondaryPort")) {
+        serverGlobalParams.secondaryPort = params["net.secondaryPort"].as<int>();
+    }
+
     if (params.count("net.ipv6") && params["net.ipv6"].as<bool>() == true) {
         serverGlobalParams.enableIPv6 = true;
         enableIPv6();
@@ -428,6 +432,8 @@ Status storeServerOptions(const moe::Environment& params) {
     }
 
 #ifndef _WIN32
+    if (auto key = "net.proxyUnixDomainSocket.pathPrefix"_sd; params.count(key.data()))
+        serverGlobalParams.proxySocketPrefix = params[key.data()].as<string>();
     if (params.count("net.unixDomainSocket.pathPrefix")) {
         serverGlobalParams.socket = params["net.unixDomainSocket.pathPrefix"].as<string>();
     }

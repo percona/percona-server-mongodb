@@ -67,7 +67,8 @@ struct ServerGlobalParams {
     std::string binaryName;  // mongod or mongos
     std::string cwd;         // cwd of when process started
 
-    int port = DefaultDBPort;  // --port
+    int port = DefaultDBPort;            // --port
+    boost::optional<int> secondaryPort;  // --secondaryPort
     enum {
         RouterPort = 27016,
         DefaultDBPort = 27017,
@@ -94,6 +95,7 @@ struct ServerGlobalParams {
 
     bool upgradeBackCompat{false};    // --upgradeBackCompat
     bool downgradeBackCompat{false};  // --downgradeBackCompat
+    bool configOnly{false};           // --configOnly (mongos only)
 
     boost::optional<int> routerPort;      // --routerPort
     boost::optional<int> proxyPort;       // --proxyPort
@@ -117,7 +119,8 @@ struct ServerGlobalParams {
     bool doFork = false;        // --fork
     bool isMongoBridge = false;
 
-    std::string socket = "/tmp";  // UNIX domain socket directory
+    std::string proxySocketPrefix;  // Proxy UNIX domain socket directory
+    std::string socket = "/tmp";    // UNIX domain socket directory
 
     size_t maxConns = DEFAULT_MAX_CONN;  // Maximum number of simultaneous open connections.
     VersionedValue<CIDRList> maxIncomingConnsOverride;

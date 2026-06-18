@@ -32,6 +32,7 @@
 #include <functional>
 #include <memory>
 #include <string>
+#include <unordered_set>
 
 #include "mongo/base/status_with.h"
 #include "mongo/config.h"
@@ -116,9 +117,11 @@ public:
         int port = ServerGlobalParams::DefaultDBPort;  // port to bind to
         boost::optional<int> loadBalancerPort;         // accepts load balancer connections
         boost::optional<int> routerPort;               // an optional port for accepting connections
+        boost::optional<int> secondaryPort;            // accepts secondary connections
         std::vector<std::string> ipList;               // addresses to bind to
 #ifndef _WIN32
-        bool useUnixSockets = true;  // whether to allow UNIX sockets in ipList
+        bool useUnixSockets = true;         // whether to allow UNIX sockets in ipList
+        std::string unixProxySocketPrefix;  // empty means disabled
 #endif
         bool enableIPv6 = false;             // whether to allow IPv6 sockets in ipList
         size_t maxConns = DEFAULT_MAX_CONN;  // maximum number of active connections
@@ -227,6 +230,10 @@ public:
     boost::optional<int> loadBalancerPort() const {
         return _listenerOptions.loadBalancerPort;
     }
+
+#ifndef _WIN32
+    bool isProxyUnixDomainSocket(const std::string& path) const;
+#endif
 
     SessionManager* getSessionManager() const override {
         return _sessionManager.get();
@@ -352,6 +359,8 @@ private:
         State state{State::kNew};
     };
     Listener _listener;
+
+    stdx::unordered_set<std::string> _proxyUnixSocketAddrs;
 
     std::shared_ptr<SessionManager> _sessionManager;
 

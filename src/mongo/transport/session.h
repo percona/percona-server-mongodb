@@ -186,6 +186,16 @@ public:
     virtual void setisLoadBalancerPeer(bool helloHasLoadBalancedOption) = 0;
 
     /**
+     * Returns true if the connection is on the proxy unix socket.
+     */
+    virtual bool isConnectedToProxyUnixSocket() const = 0;
+
+    /**
+     * Returns the status of unix socket peer permission validation
+     */
+    virtual Status validateProxyUnixSocketPeerPermissions() = 0;
+
+    /**
      * Returns true if this session binds to the operation state, which implies open cursors and
      * in-progress transactions should be killed upon client disconnection.
      */

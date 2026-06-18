@@ -26,7 +26,10 @@ def main():
         test_runner_interface,
     )
     from bazel.wrapper_hook.rbe_auth import RbeAuthError, RbeAuthRequired, get_id_token
+    from bazel.wrapper_hook.remove_auto_header_dirs import clean_up_auto_header_dirs
     from bazel.wrapper_hook.set_mongo_variables import write_mongo_variables_bazelrc
+
+    clean_up_auto_header_dirs(REPO_ROOT)
 
     write_mongo_variables_bazelrc(sys.argv)
 

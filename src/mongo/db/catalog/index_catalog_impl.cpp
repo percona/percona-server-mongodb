@@ -356,6 +356,19 @@ void IndexCatalogImpl::init(OperationContext* opCtx,
     info.init(opCtx, collection);
 }
 
+void IndexCatalogImpl::onDeregisterFromCatalog(ServiceContext* svcCtx, Collection* collection) {
+    auto& indexUsageTracker = CollectionIndexUsageTrackerDecoration::write(collection);
+    for (const auto& entry : _readyIndexes) {
+        indexUsageTracker.unregisterIndex(entry->descriptor()->indexName());
+    }
+    for (const auto& entry : _buildingIndexes) {
+        indexUsageTracker.unregisterIndex(entry->descriptor()->indexName());
+    }
+    for (const auto& entry : _frozenIndexes) {
+        indexUsageTracker.unregisterIndex(entry->descriptor()->indexName());
+    }
+}
+
 std::unique_ptr<IndexCatalog::IndexIterator> IndexCatalogImpl::getIndexIterator(
     OperationContext* const opCtx, InclusionPolicy inclusionPolicy) const {
     if (inclusionPolicy == InclusionPolicy::kReady) {
@@ -662,8 +675,24 @@ IndexCatalogEntry* IndexCatalogImpl::createIndexEntry(OperationContext* opCtx,
     }
 
     if (!frozen) {
-        entry->setAccessMethod(IndexAccessMethod::make(
-            opCtx, collection->ns(), collection->getCollectionOptions(), entry.get(), ident));
+        try {
+            entry->setAccessMethod(IndexAccessMethod::make(
+                opCtx, collection->ns(), collection->getCollectionOptions(), entry.get(), ident));
+        } catch (const ExceptionFor<ErrorCodes::NoSuchKey>& ex) {
+            // Ready indexes should always exist in the storage engine, and if they're missing
+            // something has gone significantly wrong.
+            if (isReadyIndex)
+                throw;
+
+            // Non-ready indexes being missing isn't normal, but isn't an error. We may have crashed
+            // while creating the index and added it to the catalog but not the storage engine, or
+            // while restarting an index build and have dropped the old ident but not recreated it
+            // yet. If the ident was present we'd just drop and recreate it anyway.
+            LOGV2(10398601,
+                  "Non-frozen, non-ready index was missing entirely when loading the index "
+                  "catalog. The index will be recreated by the index build process.",
+                  "error"_attr = ex);
+        }
     }
 
     IndexCatalogEntry* save = entry.get();

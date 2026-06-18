@@ -646,12 +646,12 @@ connection_runtime_config = [
                 maximum number of threads WiredTiger will start to help evict pages from cache. The
                 number of threads started will vary depending on the current eviction load. Each
                 eviction worker thread uses a session from the configured session_max''',
-                min=1, max=20),
+                min=1, max=64),
             Config('threads_min', '1', r'''
                 minimum number of threads WiredTiger will start to help evict pages from
                 cache. The number of threads currently running will vary depending on the
                 current eviction load''',
-                min=1, max=20),
+                min=1, max=64),
             Config('evict_sample_inmem', 'true', r'''
                 If no in-memory ref is found on the root page, attempt to locate a random 
                 in-memory page by examining all entries on the root page.''',
@@ -888,11 +888,11 @@ connection_runtime_config = [
         'checkpoint_handle', 'checkpoint_slow', 'checkpoint_stop', 'commit_transaction_slow',
         'compact_slow', 'conn_close_stress_log_printf', 'evict_reposition',
         'failpoint_eviction_split', 'failpoint_history_store_delete_key_from_ts',
-        'history_store_checkpoint_delay', 'history_store_search', 'history_store_sweep_race',
-        'prefetch_1', 'prefetch_2',  'prefetch_3', 'prefix_compare', 'prepare_checkpoint_delay',
-        'prepare_resolution_1', 'prepare_resolution_2', 'sleep_before_read_overflow_onpage',
-        'split_1', 'split_2', 'split_3', 'split_4', 'split_5', 'split_6', 'split_7', 'split_8',
-        'tiered_flush_finish']),
+        'failpoint_rec_split_write', 'history_store_checkpoint_delay', 'history_store_search',
+        'history_store_sweep_race', 'prefetch_1', 'prefetch_2', 'prefetch_3', 'prefix_compare',
+        'prepare_checkpoint_delay', 'prepare_resolution_1', 'prepare_resolution_2',
+        'sleep_before_read_overflow_onpage', 'split_1', 'split_2', 'split_3', 'split_4', 'split_5',
+        'split_6', 'split_7', 'split_8', 'tiered_flush_finish']),
     Config('verbose', '[]', r'''
         enable messages for various subsystems and operations. Options are given as a list,
         where each message type can optionally define an associated verbosity level, such as

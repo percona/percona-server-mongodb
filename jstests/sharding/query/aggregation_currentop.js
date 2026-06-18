@@ -16,7 +16,6 @@
  * @tags: [
  *   requires_fcv_70,
  *   requires_persistence,
- *   temp_disabled_embedded_router_metrics,
  *   uses_prepare_transaction,
  *   uses_transactions,
  * ]
@@ -914,10 +913,11 @@ assert.eq(shardAdminDB
           ]);
 
 // Test that attempting to 'spoof' a sharded request on non-shardsvr mongoD fails.
+// External clients get BadValue from validateRequestForAPIVersion before $currentOp (40465) fires.
 assert.commandFailedWithCode(
     shardAdminDB.runCommand(
         {aggregate: 1, pipeline: [{$currentOp: {}}], fromMongos: true, cursor: {}}),
-    40465);
+    [40465, ErrorCodes.BadValue]);
 
 // Test that an operation which is at the BSON user size limit does not throw an error when the
 // currentOp metadata is added to the output document.

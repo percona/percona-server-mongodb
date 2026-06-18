@@ -486,7 +486,8 @@ int32_t computeDamageOnArray(const BSONObj& preImageRoot,
         }
     }
 
-    invariant(!resizeVal || *resizeVal == idx);
+    uassert(
+        12495900, "array diff update index exceeds resize value", !resizeVal || *resizeVal == idx);
 
     // Updates the bytes of total size.
     DataView(bufBuilder->buf() + sizeBytesPos)
@@ -551,13 +552,15 @@ public:
                     },
 
                     [this, &path, &builder, &elt, &fieldsToSkipInserting](const Binary& binary) {
-                        // Applies the binary diff to the BSONColumn.
-                        invariant(elt.binDataType() == BinDataType::Column);
-                        invariant(binary.newElt.isABSONObj());
-
                         const BSONObj diffObj = binary.newElt.Obj();
                         const int diffOffset = diffObj.getIntField("o");
+                        uassert(
+                            12262901, "Binary diff offset must be non-negative", diffOffset >= 0);
 
+                        const BSONElement dField = diffObj.getField("d");
+                        uassert(12262900,
+                                "Expected binary diff 'd' field to be of binData type",
+                                dField.type() == BinData);
                         int diffLen = 0;
                         const char* diffData = diffObj.getField("d").binData(diffLen);
 
@@ -572,7 +575,7 @@ public:
                             std::copy(currData, currData + diffOffset, std::back_inserter(newData));
                             std::copy(diffData, diffData + diffLen, std::back_inserter(newData));
 
-                            BSONBinData postBinData(&newData[0], newLen, BinDataType::Column);
+                            BSONBinData postBinData(&newData[0], newLen, elt.binDataType());
                             builder->append(binary.newElt.fieldName(), postBinData);
                         } else {
                             // Offset is larger than the length of the preimage. This means that we
@@ -732,7 +735,9 @@ private:
             }
         }
 
-        invariant(!resizeVal || *resizeVal == idx);
+        uassert(12495901,
+                "array diff update index exceeds resize value",
+                !resizeVal || *resizeVal == idx);
     }
 
     bool _mustCheckExistenceForInsertOperations = true;

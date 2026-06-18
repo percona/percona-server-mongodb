@@ -41,6 +41,7 @@
 #include "mongo/transport/asio/asio_session_manager.h"
 #include "mongo/transport/asio/asio_utils.h"
 #include "mongo/transport/proxy_protocol_header_parser.h"
+#include "mongo/transport/proxy_protocol_tlv_extraction.h"
 #include "mongo/transport/session_util.h"
 #include "mongo/transport/transport_options_gen.h"
 #include "mongo/util/assert_util.h"
@@ -58,6 +59,7 @@ MONGO_FAIL_POINT_DEFINE(asioTransportLayerBlockBeforeOpportunisticRead);
 MONGO_FAIL_POINT_DEFINE(asioTransportLayerBlockBeforeAddSession);
 MONGO_FAIL_POINT_DEFINE(clientIsConnectedToLoadBalancerPort);
 MONGO_FAIL_POINT_DEFINE(clientIsLoadBalancedPeer);
+MONGO_FAIL_POINT_DEFINE(proxyUnixDomainSocketPeerCredentialValidationOverride);
 
 namespace {
 
@@ -163,6 +165,20 @@ int getMessageSizeErrorLogSeverityLevel() {
     return logSeverity().toInt();
 }
 
+std::string makeTLVString(const std::vector<ProxiedSupplementaryDataEntry>& tlvData) {
+    std::ostringstream tlvStringStream;
+    for (const auto& tlv : tlvData) {
+        tlvStringStream << fmt::format("{:#04x}", tlv.type) << ":" << tlv.data << ",";
+    }
+
+    auto tlvString = tlvStringStream.str();
+    if (!tlvString.empty()) {
+        // Pop off the last comma if we had any TLVs.
+        tlvString.pop_back();
+    }
+    return tlvString;
+};
+
 auto& totalIngressTLSConnections =  //
     *MetricBuilder<Counter64>("network.totalIngressTLSConnections");
 auto& totalIngressTLSHandshakeTimeMillis =  //
@@ -212,10 +228,15 @@ CommonAsioSession::CommonAsioSession(
     }
 
     try {
-        _local = HostAndPort(_localAddr.toString(true));
+        const std::string localAddrWithPort = _localAddr.toString(true);
+        _local = HostAndPort(localAddrWithPort);
         if (tl->loadBalancerPort()) {
             _isConnectedToLoadBalancerPort = _local.port() == *tl->loadBalancerPort();
         }
+#ifndef _WIN32
+        _isConnectedToProxyUnixSocket =
+            (!_localAddr.isIP() && tl->isProxyUnixDomainSocket(localAddrWithPort));
+#endif
     } catch (...) {
         LOGV2_DEBUG(9079002,
                     1,
@@ -256,6 +277,60 @@ bool CommonAsioSession::isConnectedToLoadBalancerPort() const {
 
 bool CommonAsioSession::isLoadBalancerPeer() const {
     return MONGO_unlikely(clientIsLoadBalancedPeer.shouldFail()) || _isLoadBalancerPeer;
+}
+
+bool CommonAsioSession::isConnectedToProxyUnixSocket() const {
+    return _isConnectedToProxyUnixSocket;
+}
+
+#ifdef __APPLE__
+StatusWith<gid_t> getPeerGid(AsioSession::GenericSocket::native_handle_type handle) {
+    [[maybe_unused]] uid_t remoteUid;
+    gid_t remoteGid;
+    if (::getpeereid(handle, &remoteUid, &remoteGid) != 0)
+        return Status(ErrorCodes::InternalError, errorMessage(lastSocketError()));
+    return remoteGid;
+}
+#endif
+
+#ifdef __linux__
+StatusWith<gid_t> getPeerGid(AsioSession::GenericSocket::native_handle_type handle) {
+    struct ucred credentials;
+    socklen_t optLen = sizeof(credentials);
+    if (::getsockopt(handle, SOL_SOCKET, SO_PEERCRED, &credentials, &optLen) != 0)
+        return Status(ErrorCodes::InternalError, errorMessage(lastSocketError()));
+    return credentials.gid;
+}
+#endif  // __linux__
+
+Status CommonAsioSession::validateProxyUnixSocketPeerPermissions() {
+#ifndef _WIN32
+    auto peerCreds = getPeerGid(getSocket().native_handle());
+    if (!peerCreds.isOK())
+        return peerCreds.getStatus();
+    gid_t remoteGid = peerCreds.getValue();
+    gid_t expectedGid = ::getegid();
+
+    if (auto fp = proxyUnixDomainSocketPeerCredentialValidationOverride.scoped();
+        MONGO_unlikely(fp.isActive()))
+        if (auto data = fp.getData()["data"]; data.ok()) {
+            if (auto code = data["code"]; code.ok())
+                return Status(static_cast<ErrorCodes::Error>(code.numberInt()), "Failpoint result");
+            if (auto gid = data["remoteGid"]; gid.ok())
+                remoteGid = gid.Int();
+            if (auto gid = data["expectedGid"]; gid.ok())
+                expectedGid = gid.Int();
+        }
+
+    if (expectedGid != remoteGid)
+        return Status(ErrorCodes::Unauthorized,
+                      fmt::format("Proxy unix domain socket peer GID mismatch: expected {}, got {}",
+                                  expectedGid,
+                                  remoteGid));
+
+    return Status::OK();
+#endif
+    MONGO_UNREACHABLE;
 }
 
 void CommonAsioSession::setisLoadBalancerPeer(bool helloHasLoadBalancedOption) {
@@ -510,11 +585,16 @@ ExecutorFuture<void> CommonAsioSession::parseProxyProtocolHeader(const ReactorHa
     const Seconds proxyHeaderTimeout{Seconds(gProxyProtocolTimeoutSecs.load())};
     const Date_t deadline = reactor->now() + proxyHeaderTimeout;
 
-    auto buffer = std::make_shared<std::array<char, kProxyProtocolHeaderSizeUpperBound>>();
+    const size_t headerReadSize = isConnectedToProxyUnixSocket()
+        ? static_cast<size_t>(proxyUnixSocketMaximumHeaderSize.loadRelaxed())
+        : kDefaultProxyProtocolHeaderReadSize;
+
+    auto buffer = std::make_shared<std::vector<char>>(headerReadSize);
     return AsyncTry([this, buffer] {
-               const auto bytesRead = peekASIOStream(
-                   _socket, asio::buffer(buffer->data(), kProxyProtocolHeaderSizeUpperBound));
-               return transport::parseProxyProtocolHeader(StringData(buffer->data(), bytesRead));
+               const auto bytesRead =
+                   peekASIOStream(_socket, asio::buffer(buffer->data(), buffer->size()));
+               return transport::parseProxyProtocolHeader(StringData(buffer->data(), bytesRead),
+                                                          isConnectedToProxyUnixSocket());
            })
         .until([deadline, proxyHeaderTimeout, reactor](
                    StatusWith<boost::optional<ParserResults>> sw) {
@@ -540,11 +620,30 @@ ExecutorFuture<void> CommonAsioSession::parseProxyProtocolHeader(const ReactorHa
                 const auto& dstEndpointAddr = results->endpoints->destinationAddress;
                 _proxiedDstEndpoint =
                     HostAndPort(dstEndpointAddr.getAddr(), dstEndpointAddr.getPort());
+
+                // Log ParserResults for testing.
+                LOGV2_DEBUG(
+                    11978400,
+                    4,
+                    "Proxy protocol header parsed",
+                    "sourceAddress"_attr = results->endpoints->sourceAddress.toString(),
+                    "sourcePort"_attr = results->endpoints->sourceAddress.getPort(),
+                    "destinationAddress"_attr = results->endpoints->destinationAddress.toString(),
+                    "destinationPort"_attr = results->endpoints->destinationAddress.getPort(),
+                    "tlvs"_attr = makeTLVString(results->tlvs),
+                    "sslTlvs"_attr =
+                        results->sslTlvs ? makeTLVString(results->sslTlvs->subTLVs) : "",
+                    "bytesParsed"_attr = results->bytesParsed);
             } else {
                 _proxiedSrcRemoteAddr = {};
                 _proxiedSrcEndpoint = {};
                 _proxiedDstEndpoint = {};
             }
+
+            // Extract the SNI, DN and optional roles from the proxy protocol header TLVs if present
+            // and apply them to the session's tags. This is used to populate the SSLPeerInfo for
+            // the session.
+            applyProxyProtocolTlvs(*results, shared_from_this());
 
             // `opportunisticRead` expects to run as part of an asynchronous operation. We start the
             // operation below and make sure to mark it as completed, regardless of the completion
@@ -553,7 +652,7 @@ ExecutorFuture<void> CommonAsioSession::parseProxyProtocolHeader(const ReactorHa
             ScopeGuard guard([&] { _asyncOpState.complete(); });
 
             // Drain the read buffer.
-            opportunisticRead(_socket, asio::buffer(buffer.get(), results->bytesParsed)).get();
+            opportunisticRead(_socket, asio::buffer(buffer->data(), results->bytesParsed)).get();
         })
         .onError([this](Status s) {
             LOGV2_DEBUG(6067900,
@@ -812,6 +911,21 @@ Future<void> CommonAsioSession::opportunisticWrite(Stream& stream,
 template <typename MutableBufferSequence>
 Future<bool> CommonAsioSession::maybeHandshakeSSLForIngress(const MutableBufferSequence& buffer) {
     invariant(asio::buffer_size(buffer) >= sizeof(MSGHEADER::Value));
+
+    // Skip TLS handshake for connections over the unix proxy socket. The proxy protocol
+    // connection is local and trusted, so TLS is unnecessary. This also avoids hitting
+    // the requireSSL assertion below for non-TLS connections on the proxy socket.
+    if (isConnectedToProxyUnixSocket()) {
+        MSGHEADER::ConstView proxyHeaderView(static_cast<const char*>(buffer.data()));
+        auto proxyResponseTo = proxyHeaderView.getResponseToMsgId();
+        if (proxyResponseTo != 0 && proxyResponseTo != -1) {
+            return Future<bool>::makeReady(
+                Status(ErrorCodes::SSLHandshakeFailed,
+                       "TLS hello received on proxy protocol unix socket"));
+        }
+        return Future<bool>::makeReady(false);
+    }
+
     MSGHEADER::ConstView headerView(asio::buffer_cast<char*>(buffer));
     auto responseTo = headerView.getResponseToMsgId();
 

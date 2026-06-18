@@ -87,7 +87,15 @@ public:
         return false;
     };
 
-    void setisLoadBalancerPeer(bool helloHasLoadBalancedOption) override{};
+    bool isConnectedToProxyUnixSocket() const override {
+        return false;
+    }
+
+    Status validateProxyUnixSocketPeerPermissions() override {
+        return Status::OK();
+    }
+
+    void setisLoadBalancerPeer(bool helloHasLoadBalancedOption) override {}
 
     bool bindsToOperationState() const override {
         return false;

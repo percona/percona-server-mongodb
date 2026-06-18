@@ -894,7 +894,10 @@ bool MarkPagesUnusedSoft(void* region, size_t length) {
   int status;
   do {
 #  if defined(XP_DARWIN)
-    status = madvise(region, length, MADV_FREE_REUSABLE);
+    // Note: we use MADV_FREE instead of MADV_FREE_REUSABLE + MADV_FREE_REUSE to
+    // work around a kernel bug on macOS Tahoe. We should change this back once
+    // that bug is fixed. See bug 2015359.
+    status = madvise(region, length, MADV_FREE);
 #  elif defined(XP_SOLARIS)
     status = posix_madvise(region, length, POSIX_MADV_DONTNEED);
 #  else
@@ -924,11 +927,6 @@ bool MarkPagesUnusedHard(void* region, size_t length) {
 void MarkPagesInUseSoft(void* region, size_t length) {
   MOZ_ASSERT(DecommitEnabled());
   CheckDecommit(region, length);
-
-#if defined(XP_DARWIN)
-  while (madvise(region, length, MADV_FREE_REUSE) == -1 && errno == EAGAIN) {
-  }
-#endif
 
   MOZ_MAKE_MEM_UNDEFINED(region, length);
 }
@@ -1145,13 +1143,13 @@ void RecordMemoryAlloc(size_t bytes) {
   MOZ_ASSERT(bytes);
   MOZ_ASSERT((bytes % pageSize) == 0);
 
-  // MONGODB MODIFICATION: Check whether this allocation took us over a
-  // configured memory limit. This may trigger OOM in the background, but we
-  // allow the mozjs logic to proceed normally for now
-  mongo::sm::check_oom_on_mmap_allocation(bytes);
-
   gMappedMemorySizeBytes += bytes;
   gMappedMemoryOperations++;
+
+  // MONGODB MODIFICATION: Update memory bookkeeping. This may check whether the
+  // allocation took us over a configured memory limit and trigger OOM in the
+  // background. Either way, we allow the allocation to proceed normally for now
+  mongo::sm::record_mmap_alloc(bytes);
 }
 
 void RecordMemoryFree(size_t bytes) {
@@ -1161,6 +1159,9 @@ void RecordMemoryFree(size_t bytes) {
 
   gMappedMemorySizeBytes -= bytes;
   gMappedMemoryOperations++;
+
+  // MONGODB MODIFICATION: Update memory bookkeeping
+  mongo::sm::record_mmap_free(bytes);
 }
 
 JS_PUBLIC_API ProfilerMemoryCounts GetProfilerMemoryCounts() {

@@ -102,6 +102,9 @@ using TcpInfoOption = SocketOption<IPPROTO_TCP, TCP_INFO, tcp_info>;
 #endif  // __linux__
 
 const Seconds kSessionShutdownTimeout{10};
+#ifndef _WIN32
+constexpr int kProxyUnixDomainSocketPerms = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP;
+#endif
 
 bool shouldDiscardSocketDueToLostConnectivity(AsioSession::GenericSocket& peerSocket) {
 #ifdef __linux__
@@ -327,6 +330,7 @@ AsioTransportLayer::Options::Options(const ServerGlobalParams* params)
       ipList(params->bind_ips),
 #ifndef _WIN32
       useUnixSockets(!params->noUnixSocket),
+      unixProxySocketPrefix{params->proxySocketPrefix},
 #endif
       enableIPv6(params->enableIPv6),
       maxConns(params->maxConns) {
@@ -999,6 +1003,12 @@ Status AsioTransportLayer::setup() {
             listenAddrs.push_back(makeUnixSockPath(*port));
         }
     }
+    if (!_listenerOptions.unixProxySocketPrefix.empty() && _listenerOptions.isIngress()) {
+        auto path =
+            makeProxyUnixSockPath(_listenerOptions.port, _listenerOptions.unixProxySocketPrefix);
+        listenAddrs.emplace_back(path);
+        _proxyUnixSocketAddrs.insert(path);
+    }
 #endif
 
     if (auto foStatus = tfo::ensureInitialized(); !foStatus.isOK()) {
@@ -1019,6 +1029,9 @@ Status AsioTransportLayer::setup() {
     }
     if (auto port = _listenerOptions.routerPort) {
         ports.push_back(*port);
+    }
+    if (_listenerOptions.secondaryPort) {
+        ports.push_back(*_listenerOptions.secondaryPort);
     }
 
     // Self-deduplicating list of unique endpoint addresses.
@@ -1113,8 +1126,13 @@ Status AsioTransportLayer::setup() {
 
 #ifndef _WIN32
         if (addr.family() == AF_UNIX) {
-            setUnixDomainSocketPermissions(addr.toString(),
-                                           serverGlobalParams.unixSocketPermissions);
+            auto addrStr = addr.toString();
+            if (auto lastSlashIndex = addrStr.rfind('/'); lastSlashIndex != StringData::npos &&
+                addrStr.substr(lastSlashIndex + 1).starts_with("proxy")) {
+                setUnixDomainSocketPermissions(addrStr, kProxyUnixDomainSocketPerms);
+            } else {
+                setUnixDomainSocketPermissions(addrStr, serverGlobalParams.unixSocketPermissions);
+            }
         }
 #endif
         auto endpoint = acceptor.local_endpoint(ec);
@@ -1399,10 +1417,16 @@ void AsioTransportLayer::_acceptConnection(GenericAcceptor& acceptor) {
         }
 #endif
 
+        ScopeGuard nextAcceptGuarantee([&]() {
+            _listenerProcessingTime.store(_listenerProcessingTime.load() + timer.elapsed());
+            _acceptConnection(acceptor);
+        });
+
         try {
             std::shared_ptr<AsioSession> session(
                 new SyncAsioSession(this, std::move(peerSocket), true));
-            if (session->isConnectedToLoadBalancerPort()) {
+            if (session->isConnectedToLoadBalancerPort() ||
+                session->isConnectedToProxyUnixSocket()) {
                 // This session is not counted towards the number of accepted connections until the
                 // server receives the proxy header and moves the session to `SessionManager`.
                 // Therefore, the server may go above the ingress connection limits if it is waiting
@@ -1422,8 +1446,30 @@ void AsioTransportLayer::_acceptConnection(GenericAcceptor& acceptor) {
                         "remote"_attr = session->remote(),
                         "limit"_attr = gProxyProtocolMaximumPendingConnections.loadRelaxed(),
                         "rejected"_attr = _discardedDueToMaximumPendingOnProxyHeader.get());
-                    _acceptConnection(acceptor);
                     return;
+                }
+                if (session->isConnectedToProxyUnixSocket() &&
+                    gProxyUnixSocketCheckPermissions.loadRelaxed()) {
+                    Status status = session->validateProxyUnixSocketPeerPermissions();
+                    if (status.code() == ErrorCodes::Unauthorized) {
+                        static logv2::SeveritySuppressor suppressor{Seconds(10),
+                                                                    logv2::LogSeverity::Warning(),
+                                                                    logv2::LogSeverity::Debug(2)};
+                        LOGV2_DEBUG(11793400,
+                                    suppressor().toInt(),
+                                    "Unauthorized proxy unix domain socket peer credential",
+                                    "error"_attr = status);
+                        return;
+                    }
+                    if (!status.isOK()) {
+                        static logv2::SeveritySuppressor suppressor{
+                            Seconds(10), logv2::LogSeverity::Error(), logv2::LogSeverity::Debug(2)};
+                        LOGV2_DEBUG(11793401,
+                                    suppressor().toInt(),
+                                    "Proxy unix domain socket peer credential check failure",
+                                    "error"_attr = status);
+                        return;
+                    }
                 }
                 session->parseProxyProtocolHeader(_acceptorReactor)
                     .getAsync([this, session = std::move(session), t = std::move(token)](Status s) {
@@ -1445,11 +1491,6 @@ void AsioTransportLayer::_acceptConnection(GenericAcceptor& acceptor) {
         } catch (const DBException& e) {
             LOGV2_WARNING(23023, "Error accepting new connection", "error"_attr = e);
         }
-
-        // _acceptConnection() is accessed by only one thread (i.e. the listener thread), so an
-        // atomic increment is not required here
-        _listenerProcessingTime.store(_listenerProcessingTime.load() + timer.elapsed());
-        _acceptConnection(acceptor);
     };
 
     asioTransportLayerHangBeforeAcceptCallback.pauseWhileSet();
@@ -1583,6 +1624,12 @@ AsioTransportLayer::createTransientSSLContext(const TransientSSLParams& transien
 #ifdef __linux__
 BatonHandle AsioTransportLayer::makeBaton(OperationContext* opCtx) const {
     return std::make_shared<AsioNetworkingBaton>(this, opCtx);
+}
+#endif
+
+#ifndef _WIN32
+bool AsioTransportLayer::isProxyUnixDomainSocket(const std::string& path) const {
+    return _proxyUnixSocketAddrs.contains(path);
 }
 #endif
 

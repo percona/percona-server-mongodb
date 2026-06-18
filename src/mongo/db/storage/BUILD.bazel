@@ -309,6 +309,7 @@ mongo_cc_library(
         "//src/mongo/db:service_context",
         "//src/mongo/db:shard_role_api",
         "//src/mongo/db/storage:record_store_base",
+        "//src/mongo/transport:transport_layer_mock",
         "//src/mongo/unittest",
     ],
 )
@@ -490,6 +491,7 @@ mongo_cc_unit_test(
         "//src/mongo/db:server_base",
         "//src/mongo/db:service_context_d_test_fixture",
         "//src/mongo/db:shard_role",
+        "//src/mongo/db:startup_recovery",
         "//src/mongo/db/auth:authmocks",
         "//src/mongo/db/catalog:catalog_impl",
         "//src/mongo/db/catalog:catalog_test_fixture",
