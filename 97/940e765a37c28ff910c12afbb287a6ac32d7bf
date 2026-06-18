@@ -1,0 +1,28 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "0a87b91f7a55fbbb03706a0de3392699e0364fbf",
+    "merge_commit": "2eff3754f8e28b55b58b93ea2dbd601598e677d8"
+  },
+  "mergai_version": "0.1.dev1+g95d1b543b",
+  "solutions": [
+    {
+      "type": "conflict_resolution",
+      "response": {
+        "summary": "PSMDB-2109: fix using otel::metrics::Counter API",
+        "resolved": {},
+        "unresolved": {},
+        "modified": {
+          "src/mongo/db/repl/initial_sync/initial_syncer_fcb.cpp": "Modified by human"
+        },
+        "review_notes": "Upstream changed the otel::metrics::Counter<T> API: .get() became\n.valueForLegacyUse() and .increment() became .add(1). The Percona-\nspecific initial_syncer_fcb.cpp was using the old API. Fixed all 4 call\nsites to match the pattern in initial_syncer.cpp."
+      },
+      "author": {
+        "name": "Pawel Lebioda",
+        "email": "pawel.lebioda@percona.com",
+        "type": "human"
+      },
+      "commit_sha": "97940e765a37c28ff910c12afbb287a6ac32d7bf"
+    }
+  ]
+}
