@@ -1,0 +1,32 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "0a87b91f7a55fbbb03706a0de3392699e0364fbf",
+    "merge_commit": "2eff3754f8e28b55b58b93ea2dbd601598e677d8"
+  },
+  "mergai_version": "0.1.dev1+g95d1b543b",
+  "solutions": [
+    {
+      "type": "conflict_resolution",
+      "response": {
+        "summary": "Revert \"SERVER-128760 Avoid aggregation deprioritization if it has a currentOp stage (#55701)\" (#56200)",
+        "resolved": {},
+        "unresolved": {},
+        "modified": {
+          "jstests/noPassthrough/admission/execution_control/current_op_non_deprioritizable.js": "Modified by human",
+          "src/mongo/db/commands/query_cmd/aggregate_command.cpp": "Modified by human",
+          "src/mongo/db/pipeline/document_source_current_op.h": "Modified by human",
+          "src/mongo/db/pipeline/lite_parsed_document_source.h": "Modified by human",
+          "src/mongo/db/pipeline/lite_parsed_pipeline.h": "Modified by human"
+        },
+        "review_notes": "Co-authored-by: auto-revert-processor <devprod-si-team@mongodb.com>\nGitOrigin-RevId: 492a28b59ae6bc6c54b5c64d08376d187d2fa23a"
+      },
+      "author": {
+        "name": "auto-revert-app[bot]",
+        "email": "166078896+auto-revert-app[bot]@users.noreply.github.com",
+        "type": "human"
+      },
+      "commit_sha": "72b3c30c2bb46cbe482b7cd679a8bda7a90bc269"
+    }
+  ]
+}
