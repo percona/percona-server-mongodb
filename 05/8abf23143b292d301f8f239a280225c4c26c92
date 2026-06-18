@@ -1,0 +1,28 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "0a87b91f7a55fbbb03706a0de3392699e0364fbf",
+    "merge_commit": "2eff3754f8e28b55b58b93ea2dbd601598e677d8"
+  },
+  "mergai_version": "0.1.dev1+g95d1b543b",
+  "solutions": [
+    {
+      "type": "conflict_resolution",
+      "response": {
+        "summary": "SERVER-107437 Add regression test for SERVER-105903 (#56090)",
+        "resolved": {},
+        "unresolved": {},
+        "modified": {
+          "jstests/core/query/server105903.js": "Modified by human"
+        },
+        "review_notes": "GitOrigin-RevId: 6a3bbe49e018d7f39ca9adb45f3cebcedb70b522"
+      },
+      "author": {
+        "name": "Henri Nikku",
+        "email": "henri.nikku@mongodb.com",
+        "type": "human"
+      },
+      "commit_sha": "058abf23143b292d301f8f239a280225c4c26c92"
+    }
+  ]
+}
