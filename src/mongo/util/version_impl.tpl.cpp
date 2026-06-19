@@ -129,7 +129,8 @@ private:
         "Auditing",
         "ProfilingRateLimit",
         "LogRedaction",
-        "ngram"
+        "ngram",
+        "RecycleBin"
     };
     // clang-format on
 };
