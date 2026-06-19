@@ -87,6 +87,19 @@ jobs:
           echo "MERGE_PICK=$MERGE_PICK" >> $GITHUB_ENV
           mergai context init $MERGE_PICK
 
+      # Early-fail if a merge for this commit is already underway: any mergai
+      # branch (main/conflict/solution/semantic) for $MERGE_PICK means another
+      # trigger-merge run already started it. Abort rather than race it. This
+      # also covers the window the periodic-merge workflow can't see (a run
+      # dispatched but still awaiting privileged-ops approval, with no PR yet).
+      - name: Fail if a merge for this commit is already in progress
+        run: |
+          if [ -n "$(mergai branch list --sha "$MERGE_PICK" -q)" ]; then
+            echo "::error::mergai branches already exist for $MERGE_PICK - merge already in progress"
+            mergai branch list --sha "$MERGE_PICK"
+            exit 1
+          fi
+
       - name: merge
         env:
           MERGAI_AGENT: ${{ inputs['mergai-agent'] }}
