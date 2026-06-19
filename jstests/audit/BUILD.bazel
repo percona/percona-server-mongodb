@@ -1,4 +1,5 @@
 load("//bazel:mongo_js_rules.bzl", "all_subpackage_javascript_files", "mongo_js_library")
+load("//bazel/resmoke:resmoke.bzl", "resmoke_suite_test")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -10,3 +11,35 @@ mongo_js_library(
 )
 
 all_subpackage_javascript_files()
+
+# audit tests start their own fixtures via _audit_helpers.js: standalone mongod,
+# ReplSetTest, and ShardingTest (so the suite needs mongos). Audit log sinks are file and
+# console (no syslog daemon), so the suite is hermetic. audit_config.js loads these config
+# files by relative path at runtime; keyfiles for the auth tests are already in the
+# resmoke_suite_test default data.
+#
+# The 4 ShardingTest tests (auditTestShard) are self-clustering and want resources:cpu:2,
+# but a suite-level cpu:2 tag would route the WHOLE suite to a 2-core pool and make it
+# unschedulable on a 1-CPU-only farm. So the suite is left untagged to run on the default
+# pool.
+resmoke_suite_test(
+    name = "audit",
+    config = "//buildscripts/resmokeconfig:suites/audit.yml",
+    data = [
+        "//jstests/libs/config_files:audit_config.yaml",
+        "//jstests/libs/config_files:audit_config_basic.yaml",
+        "//jstests/libs/config_files:audit_config_deprecated.yaml",
+        "//jstests/libs/config_files:audit_config_destination_empty.yaml",
+        "//jstests/libs/config_files:audit_config_empty.yaml",
+    ],
+    shard_count = 10,
+    tags = [
+        "audit",
+        "percona",
+    ],
+    deps = [
+        "//src/mongo/db:mongod",
+        "//src/mongo/s:mongos",
+        "//src/mongo/shell:mongo",
+    ],
+)
