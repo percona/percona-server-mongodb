@@ -10,3 +10,12 @@ mongo_js_library(
 )
 
 all_subpackage_javascript_files()
+
+# The mock OIDC identity provider (a Python HTTP/HTTPS server) and its TLS material,
+# launched by oidc_idp_mock.js. Exported so the oidc suite can ship them as data; they are
+# referenced by relative path at runtime (jstests/oidc/lib/...).
+exports_files([
+    "oidc_idp_mock.py",
+    "ca_oidc_idp.pem",
+    "ca_oidc_idp.crt",
+])
