@@ -109,14 +109,21 @@ function runTestRename(fileName, format) {
         secondFileContent,
         "Expected different content in audit log files after second mongod start",
     );
-    assert.eq(rotatedFileContent, firstFileContent, "Expected rotated log file to match the first log file content");
+    assert.eq(
+        rotatedFileContent,
+        firstFileContent,
+        "Expected rotated log file to match the first log file content",
+    );
 
     // 3rd run: expect 3 files.
     runAndStopMongod(config);
     assert.eq(countFiles(fileName), 3, "Expected 3 audit log files after starting 3rd mongod");
 
     for (const rotated of getRotatedFiles(fileName)) {
-        assert(isValidDateSuffix(rotated, auditPath), "Expected rotated file to have a valid date suffix: " + rotated);
+        assert(
+            isValidDateSuffix(rotated, auditPath),
+            "Expected rotated file to have a valid date suffix: " + rotated,
+        );
     }
 }
 
@@ -162,10 +169,16 @@ function runTestReopen(fileName, format) {
 function runTestRenameFileExist(fileName, format) {
     const auditPath = auditLogDir + "/" + fileName;
 
-    // Maximum number of seconds to create rotated files ahead of the current time.
-    // This should be big enough to make sure that the second instance of mongod will
-    // attempt to rename the audit log file to a file that already exists.
-    const maxSeconds = 30;
+    // Number of per-second rotated files to pre-create ahead of `now`. The 2nd mongod run
+    // below rotates the current file to a name stamped with the wall-clock time AT rotation;
+    // for the test to exercise the "rotated file already exists -> reopen in append mode"
+    // path, that timestamp must fall within this pre-created window. So the window must
+    // exceed the wall-clock elapsed from here to the 2nd rotation (pre-creating the files +
+    // two mongod start/stops). At 30s this raced slow runs: when the run took >30s the
+    // rotation timestamp fell outside the window, a brand-new file was created, and the
+    // count assertion failed (e.g. "expected 32 to equal 31"). Sized generously so the
+    // window dominates the runtime rather than racing it.
+    const maxSeconds = 120;
 
     const config = {
         auditDestination: "file",
@@ -223,7 +236,11 @@ function runTestRenameFileExist(fileName, format) {
     // Make sure the created rotated files contain their own names and mongod did not overwrite them.
     for (const rotated of existingRotatedFiles) {
         const content = cat(rotated);
-        assert.eq(content, rotated + "\n", "Expected rotated file to contain its own name: " + rotated);
+        assert.eq(
+            content,
+            rotated + "\n",
+            "Expected rotated file to contain its own name: " + rotated,
+        );
     }
 }
 
