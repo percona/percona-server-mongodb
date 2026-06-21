@@ -1,0 +1,412 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "d185ce6d9272479889cdef8e469f6a7286ccf6e1",
+    "merge_commit": "c9fa3ccc6dc4e6c15ca26d58bc03951df288eb36"
+  },
+  "mergai_version": "0.1.dev1+g91476209b",
+  "conflict_context": {
+    "ours_commit": "d185ce6d9272479889cdef8e469f6a7286ccf6e1",
+    "theirs_commit": "c9fa3ccc6dc4e6c15ca26d58bc03951df288eb36",
+    "base_commit": "2eff3754f8e28b55b58b93ea2dbd601598e677d8",
+    "files": [
+      "src/mongo/client/sasl_oidc_client_conversation.cpp",
+      "src/mongo/crypto/jwks_fetcher_factory.h",
+      "src/mongo/crypto/jwks_fetcher_impl.cpp",
+      "src/mongo/crypto/jwks_fetcher_impl.h",
+      "src/mongo/db/commands/profile_common.cpp",
+      "src/mongo/db/ftdc/ftdc_system_stats_linux.cpp",
+      "src/mongo/db/fts/fts_language.cpp",
+      "src/mongo/db/storage/wiredtiger/wiredtiger_customization_hooks.cpp",
+      "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h",
+      "src/mongo/util/version.cpp",
+      "src/mongo/util/version_impl.tpl.cpp"
+    ],
+    "conflict_types": {
+      "src/mongo/client/sasl_oidc_client_conversation.cpp": "both modified",
+      "src/mongo/crypto/jwks_fetcher_factory.h": "both modified",
+      "src/mongo/crypto/jwks_fetcher_impl.cpp": "both modified",
+      "src/mongo/crypto/jwks_fetcher_impl.h": "both modified",
+      "src/mongo/db/commands/profile_common.cpp": "both modified",
+      "src/mongo/db/ftdc/ftdc_system_stats_linux.cpp": "both modified",
+      "src/mongo/db/fts/fts_language.cpp": "both modified",
+      "src/mongo/db/storage/wiredtiger/wiredtiger_customization_hooks.cpp": "both modified",
+      "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h": "both modified",
+      "src/mongo/util/version.cpp": "both modified",
+      "src/mongo/util/version_impl.tpl.cpp": "both modified"
+    },
+    "diffs": {
+      "src/mongo/client/sasl_oidc_client_conversation.cpp": "diff --cc src/mongo/client/sasl_oidc_client_conversation.cpp\nindex e784e8e5488,515c37c2444..00000000000\n--- a/src/mongo/client/sasl_oidc_client_conversation.cpp\n+++ b/src/mongo/client/sasl_oidc_client_conversation.cpp\n@@@ -79,10 -81,1 +81,16 @@@ constexpr auto kRefreshTokenParameterNa\n++<<<<<<< HEAD\n +std::unique_ptr<HttpClient> createHttpClient(bool withConnectionPool = false) {\n +    std::unique_ptr<HttpClient> httpClient =\n +        withConnectionPool ? HttpClient::create() : HttpClient::createWithoutConnectionPool();\n +    // If we consider plain HTTP localhost endpoints secure, then don't prevent the HTTP client\n +    // from sending requests there.\n +    httpClient->allowInsecureHTTP(HttpClient::localhostExceptionEnabled());\n +    return httpClient;\n +}\n +\n +inline void appendPostBodyRequiredParams(StringBuilder* sb, StringData clientId) {\n++||||||| 2eff3754f8e\n++inline void appendPostBodyRequiredParams(StringBuilder* sb, StringData clientId) {\n++=======\n+ inline void appendPostBodyRequiredParams(StringBuilder* sb, std::string_view clientId) {\n++>>>>>>> c9fa3ccc6dc4e6c15ca26d58bc03951df288eb36\n@@@ -129,6 -124,2 +139,14 @@@ std::pair<std::string, std::string> doD\n++<<<<<<< HEAD\n +    StringData principalName) {\n +    boost::optional<StringData> deviceAuthorizationEndpoint =\n +        discoveryReply.getDeviceAuthorizationEndpoint().get();\n +    // If exists, the device authorization endpoint has been already validated during parsing of\n +    // `OAuthAuthorizationServerMetadata` class.\n +    // (@see `src/mongo/db/auth/oauth_authorization_server_metadata.idl`).\n++||||||| 2eff3754f8e\n++    StringData principalName) {\n++    auto deviceAuthorizationEndpoint = discoveryReply.getDeviceAuthorizationEndpoint().get();\n++=======\n+     std::string_view principalName) {\n+     auto deviceAuthorizationEndpoint = discoveryReply.getDeviceAuthorizationEndpoint().get();\n++>>>>>>> c9fa3ccc6dc4e6c15ca26d58bc03951df288eb36\n@@@ -136,2 -127,3 +154,12 @@@\n++<<<<<<< HEAD\n +            \"Missing or invalid device authorization endpoint in server reply\",\n +            deviceAuthorizationEndpoint && !deviceAuthorizationEndpoint->empty());\n++||||||| 2eff3754f8e\n++            \"Device authorization endpoint in server reply must be an https endpoint or localhost\",\n++            deviceAuthorizationEndpoint.starts_with(\"https://\"_sd) ||\n++                deviceAuthorizationEndpoint.starts_with(\"http://localhost\"_sd));\n++=======\n+             \"Device authorization endpoint in server reply must be an https endpoint or localhost\",\n+             deviceAuthorizationEndpoint.starts_with(\"https://\"sv) ||\n+                 deviceAuthorizationEndpoint.starts_with(\"http://localhost\"sv));\n++>>>>>>> c9fa3ccc6dc4e6c15ca26d58bc03951df288eb36\n@@@ -332,1 -322,3 +361,11 @@@ StatusWith<bool> SaslOIDCClientConversa\n++<<<<<<< HEAD\n +                tokenEndpoint && !tokenEndpoint->empty());\n++||||||| 2eff3754f8e\n++                tokenEndpoint && !tokenEndpoint->empty() &&\n++                    (tokenEndpoint->starts_with(\"https://\"_sd) ||\n++                     tokenEndpoint->starts_with(\"http://localhost\"_sd)));\n++=======\n+                 tokenEndpoint && !tokenEndpoint->empty() &&\n+                     (tokenEndpoint->starts_with(\"https://\"sv) ||\n+                      tokenEndpoint->starts_with(\"http://localhost\"sv)));\n++>>>>>>> c9fa3ccc6dc4e6c15ca26d58bc03951df288eb36",
+      "src/mongo/crypto/jwks_fetcher_factory.h": "diff --cc src/mongo/crypto/jwks_fetcher_factory.h\nindex 10ffa32ae21,c7cf405e661..00000000000\n--- a/src/mongo/crypto/jwks_fetcher_factory.h\n+++ b/src/mongo/crypto/jwks_fetcher_factory.h\n@@@ -44,2 -45,1 +45,8 @@@ public\n++<<<<<<< HEAD\n +    virtual std::unique_ptr<crypto::JWKSFetcher> makeJWKSFetcher(StringData issuer,\n +                                                                 StringData caFilePath) const = 0;\n++||||||| 2eff3754f8e\n++    virtual std::unique_ptr<crypto::JWKSFetcher> makeJWKSFetcher(StringData issuer) const = 0;\n++=======\n+     virtual std::unique_ptr<crypto::JWKSFetcher> makeJWKSFetcher(std::string_view issuer) const = 0;\n++>>>>>>> c9fa3ccc6dc4e6c15ca26d58bc03951df288eb36",
+      "src/mongo/crypto/jwks_fetcher_impl.cpp": "diff --cc src/mongo/crypto/jwks_fetcher_impl.cpp\nindex 5f8177d81a7,7a8087a44a1..00000000000\n--- a/src/mongo/crypto/jwks_fetcher_impl.cpp\n+++ b/src/mongo/crypto/jwks_fetcher_impl.cpp\n@@@ -54,5 -55,2 +55,13 @@@ namespace mongo::crypto \n++<<<<<<< HEAD\n +JWKSFetcherImpl::JWKSFetcherImpl(ClockSource* clock, StringData issuer, StringData caFilePath)\n +    : _issuer(issuer),\n +      _clock(clock),\n +      _lastAttemptedFetchTime(Date_t::min()),\n +      _caFilePath(caFilePath) {}\n++||||||| 2eff3754f8e\n++JWKSFetcherImpl::JWKSFetcherImpl(ClockSource* clock, StringData issuer)\n++    : _issuer(issuer), _clock(clock), _lastAttemptedFetchTime(Date_t::min()) {}\n++=======\n+ JWKSFetcherImpl::JWKSFetcherImpl(ClockSource* clock, std::string_view issuer)\n+     : _issuer(issuer), _clock(clock), _lastAttemptedFetchTime(Date_t::min()) {}\n++>>>>>>> c9fa3ccc6dc4e6c15ca26d58bc03951df288eb36",
+      "src/mongo/crypto/jwks_fetcher_impl.h": "diff --cc src/mongo/crypto/jwks_fetcher_impl.h\nindex b2cd4ee61e7,be80946be9c..00000000000\n--- a/src/mongo/crypto/jwks_fetcher_impl.h\n+++ b/src/mongo/crypto/jwks_fetcher_impl.h\n@@@ -48,1 -48,1 +48,7 @@@ public\n++<<<<<<< HEAD\n +    JWKSFetcherImpl(ClockSource* clock, StringData issuer, StringData caFilePath = {});\n++||||||| 2eff3754f8e\n++    JWKSFetcherImpl(ClockSource* clock, StringData issuer);\n++=======\n+     JWKSFetcherImpl(ClockSource* clock, std::string_view issuer);\n++>>>>>>> c9fa3ccc6dc4e6c15ca26d58bc03951df288eb36",
+      "src/mongo/db/commands/profile_common.cpp": "diff --cc src/mongo/db/commands/profile_common.cpp\nindex be3c78b987e,ea319503567..00000000000\n--- a/src/mongo/db/commands/profile_common.cpp\n+++ b/src/mongo/db/commands/profile_common.cpp\n@@@ -175,5 -156,4 +177,17 @@@ bool ProfileCmdBase::run(OperationConte\n++<<<<<<< HEAD\n +        oldState.append(\"level\"_sd, oldSettings.level);\n +        oldState.append(\"slowms\"_sd, oldSlowMS);\n +        oldState.append(\"slowinprogms\"_sd, oldSettings.slowOpInProgressThreshold.count());\n +        oldState.append(\"ratelimit\"_sd, oldRateLimit);\n +        oldState.append(\"sampleRate\"_sd, oldSampleRate);\n++||||||| 2eff3754f8e\n++        oldState.append(\"level\"_sd, oldSettings.level);\n++        oldState.append(\"slowms\"_sd, oldSlowMS);\n++        oldState.append(\"slowinprogms\"_sd, oldSettings.slowOpInProgressThreshold.count());\n++        oldState.append(\"sampleRate\"_sd, oldSampleRate);\n++=======\n+         oldState.append(\"level\"sv, oldSettings.level);\n+         oldState.append(\"slowms\"sv, oldSlowMS);\n+         oldState.append(\"slowinprogms\"sv, oldSettings.slowOpInProgressThreshold.count());\n+         oldState.append(\"sampleRate\"sv, oldSampleRate);\n++>>>>>>> c9fa3ccc6dc4e6c15ca26d58bc03951df288eb36\n@@@ -190,5 -170,4 +204,17 @@@\n++<<<<<<< HEAD\n +        newState.append(\"level\"_sd, newSettings.level);\n +        newState.append(\"slowms\"_sd, serverGlobalParams.slowMS.load());\n +        newState.append(\"slowinprogms\"_sd, newSettings.slowOpInProgressThreshold.count());\n +        newState.append(\"ratelimit\"_sd, serverGlobalParams.rateLimit.load());\n +        newState.append(\"sampleRate\"_sd, serverGlobalParams.sampleRate.load());\n++||||||| 2eff3754f8e\n++        newState.append(\"level\"_sd, newSettings.level);\n++        newState.append(\"slowms\"_sd, serverGlobalParams.slowMS.load());\n++        newState.append(\"slowinprogms\"_sd, newSettings.slowOpInProgressThreshold.count());\n++        newState.append(\"sampleRate\"_sd, serverGlobalParams.sampleRate.load());\n++=======\n+         newState.append(\"level\"sv, newSettings.level);\n+         newState.append(\"slowms\"sv, serverGlobalParams.slowMS.load());\n+         newState.append(\"slowinprogms\"sv, newSettings.slowOpInProgressThreshold.count());\n+         newState.append(\"sampleRate\"sv, serverGlobalParams.sampleRate.load());\n++>>>>>>> c9fa3ccc6dc4e6c15ca26d58bc03951df288eb36",
+      "src/mongo/db/ftdc/ftdc_system_stats_linux.cpp": "diff --cc src/mongo/db/ftdc/ftdc_system_stats_linux.cpp\nindex 1bb6403d80a,22709e42d2e..00000000000\n--- a/src/mongo/db/ftdc/ftdc_system_stats_linux.cpp\n+++ b/src/mongo/db/ftdc/ftdc_system_stats_linux.cpp\n@@@ -377,2 -378,2 +379,10 @@@ public\n++<<<<<<< HEAD\n +        if (gDiagnosticDataCollectionEnableSystemMetricsDisks.load() && !_disksStringData.empty()) {\n +            BSONObjBuilder subObjBuilder(builder.subobjStart(\"disks\"_sd));\n++||||||| 2eff3754f8e\n++        if (!_disksStringData.empty()) {\n++            BSONObjBuilder subObjBuilder(builder.subobjStart(\"disks\"_sd));\n++=======\n+         if (!_disksStringData.empty()) {\n+             BSONObjBuilder subObjBuilder(builder.subobjStart(\"disks\"sv));\n++>>>>>>> c9fa3ccc6dc4e6c15ca26d58bc03951df288eb36\n@@@ -385,2 -386,2 +395,10 @@@\n++<<<<<<< HEAD\n +        if (gDiagnosticDataCollectionEnableSystemMetricsMounts.load()) {\n +            BSONObjBuilder subObjBuilder(builder.subobjStart(\"mounts\"_sd));\n++||||||| 2eff3754f8e\n++        {\n++            BSONObjBuilder subObjBuilder(builder.subobjStart(\"mounts\"_sd));\n++=======\n+         {\n+             BSONObjBuilder subObjBuilder(builder.subobjStart(\"mounts\"sv));\n++>>>>>>> c9fa3ccc6dc4e6c15ca26d58bc03951df288eb36",
+      "src/mongo/db/fts/fts_language.cpp": "diff --cc src/mongo/db/fts/fts_language.cpp\nindex 7af9e5b758d,7d6019962bf..00000000000\n--- a/src/mongo/db/fts/fts_language.cpp\n+++ b/src/mongo/db/fts/fts_language.cpp\n@@@ -78,17 -78,16 +79,53 @@@ struct \n++<<<<<<< HEAD\n +    {\"none\"_sd, {}},\n +    {\"ngram\"_sd, {}},\n +    {\"danish\"_sd, \"da\"_sd},\n +    {\"dutch\"_sd, \"nl\"_sd},\n +    {\"english\"_sd, \"en\"_sd},\n +    {\"finnish\"_sd, \"fi\"_sd},\n +    {\"french\"_sd, \"fr\"_sd},\n +    {\"german\"_sd, \"de\"_sd},\n +    {\"hungarian\"_sd, \"hu\"_sd},\n +    {\"italian\"_sd, \"it\"_sd},\n +    {\"norwegian\"_sd, \"nb\"_sd},\n +    {\"portuguese\"_sd, \"pt\"_sd},\n +    {\"romanian\"_sd, \"ro\"_sd},\n +    {\"russian\"_sd, \"ru\"_sd},\n +    {\"spanish\"_sd, \"es\"_sd},\n +    {\"swedish\"_sd, \"sv\"_sd},\n +    {\"turkish\"_sd, \"tr\"_sd},\n++||||||| 2eff3754f8e\n++    {\"none\"_sd, {}},\n++    {\"danish\"_sd, \"da\"_sd},\n++    {\"dutch\"_sd, \"nl\"_sd},\n++    {\"english\"_sd, \"en\"_sd},\n+ (... 25 more added lines...)\n+     {\"russian\"sv, \"ru\"sv},\n+     {\"spanish\"sv, \"es\"sv},\n+     {\"swedish\"sv, \"sv\"sv},\n+     {\"turkish\"sv, \"tr\"sv},\n++>>>>>>> c9fa3ccc6dc4e6c15ca26d58bc03951df288eb36",
+      "src/mongo/db/storage/wiredtiger/wiredtiger_customization_hooks.cpp": "diff --cc src/mongo/db/storage/wiredtiger/wiredtiger_customization_hooks.cpp\nindex fb26fba22b4,3a1aafcacd6..00000000000\n--- a/src/mongo/db/storage/wiredtiger/wiredtiger_customization_hooks.cpp\n+++ b/src/mongo/db/storage/wiredtiger/wiredtiger_customization_hooks.cpp\n@@@ -33,4 -33,0 +33,9 @@@\n++<<<<<<< HEAD\n +#include \"mongo/base/string_data.h\"\n +#include \"mongo/db/database_name_util.h\"\n +#include \"mongo/db/encryption/encryption_options.h\"\n +#include \"mongo/db/namespace_string_util.h\"\n++||||||| 2eff3754f8e\n++#include \"mongo/base/string_data.h\"\n++=======\n++>>>>>>> c9fa3ccc6dc4e6c15ca26d58bc03951df288eb36",
+      "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h": "diff --cc src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h\nindex 9d0e8c37aad,60372d62b3d..00000000000\n--- a/src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h\n+++ b/src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h\n@@@ -591,5 -573,1 +591,11 @@@ public\n++<<<<<<< HEAD\n +    Status hotBackup(OperationContext* opCtx, const std::string& path) override;\n +    Status hotBackupTar(OperationContext* opCtx, const std::string& path) override;\n +    Status hotBackup(OperationContext* opCtx, const percona::S3BackupParameters& s3params) override;\n +\n +    int64_t getIdentSize(RecoveryUnit&, StringData ident) override;\n++||||||| 2eff3754f8e\n++    int64_t getIdentSize(RecoveryUnit&, StringData ident) override;\n++=======\n+     int64_t getIdentSize(RecoveryUnit&, std::string_view ident) override;\n++>>>>>>> c9fa3ccc6dc4e6c15ca26d58bc03951df288eb36",
+      "src/mongo/util/version.cpp": "diff --cc src/mongo/util/version.cpp\nindex 60847dde9cf,99612e31f5d..00000000000\n--- a/src/mongo/util/version.cpp\n+++ b/src/mongo/util/version.cpp\n@@@ -92,5 -92,1 +92,11 @@@ public\n++<<<<<<< HEAD\n +    std::vector<StringData> perconaFeatures() const final {\n +        return {\"unknown\"};\n +    }\n +\n +    StringData allocator() const noexcept final {\n++||||||| 2eff3754f8e\n++    StringData allocator() const noexcept final {\n++=======\n+     std::string_view allocator() const noexcept final {\n++>>>>>>> c9fa3ccc6dc4e6c15ca26d58bc03951df288eb36",
+      "src/mongo/util/version_impl.tpl.cpp": "diff --cc src/mongo/util/version_impl.tpl.cpp\nindex 7195d498efe,5c1a68068da..00000000000\n--- a/src/mongo/util/version_impl.tpl.cpp\n+++ b/src/mongo/util/version_impl.tpl.cpp\n@@@ -76,5 -77,1 +77,11 @@@ public\n++<<<<<<< HEAD\n +    std::vector<StringData> perconaFeatures() const final {\n +        return perconaFeatureList;\n +    }\n +\n +    StringData allocator() const final {\n++||||||| 2eff3754f8e\n++    StringData allocator() const final {\n++=======\n+     std::string_view allocator() const final {\n++>>>>>>> c9fa3ccc6dc4e6c15ca26d58bc03951df288eb36"
+    },
+    "their_commits": {
+      "src/mongo/client/sasl_oidc_client_conversation.cpp": [
+        "c9fa3ccc6dc4e6c15ca26d58bc03951df288eb36"
+      ],
+      "src/mongo/crypto/jwks_fetcher_factory.h": [
+        "c9fa3ccc6dc4e6c15ca26d58bc03951df288eb36"
+      ],
+      "src/mongo/crypto/jwks_fetcher_impl.cpp": [
+        "c9fa3ccc6dc4e6c15ca26d58bc03951df288eb36"
+      ],
+      "src/mongo/crypto/jwks_fetcher_impl.h": [
+        "c9fa3ccc6dc4e6c15ca26d58bc03951df288eb36"
+      ],
+      "src/mongo/db/commands/profile_common.cpp": [
+        "c9fa3ccc6dc4e6c15ca26d58bc03951df288eb36"
+      ],
+      "src/mongo/db/ftdc/ftdc_system_stats_linux.cpp": [
+        "c9fa3ccc6dc4e6c15ca26d58bc03951df288eb36"
+      ],
+      "src/mongo/db/fts/fts_language.cpp": [
+        "c9fa3ccc6dc4e6c15ca26d58bc03951df288eb36"
+      ],
+      "src/mongo/db/storage/wiredtiger/wiredtiger_customization_hooks.cpp": [
+        "c9fa3ccc6dc4e6c15ca26d58bc03951df288eb36"
+      ],
+      "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h": [
+        "c9fa3ccc6dc4e6c15ca26d58bc03951df288eb36"
+      ],
+      "src/mongo/util/version.cpp": [
+        "c9fa3ccc6dc4e6c15ca26d58bc03951df288eb36"
+      ],
+      "src/mongo/util/version_impl.tpl.cpp": [
+        "c9fa3ccc6dc4e6c15ca26d58bc03951df288eb36"
+      ]
+    }
+  },
+  "merge_context": {
+    "merge_commit": "c9fa3ccc6dc4e6c15ca26d58bc03951df288eb36",
+    "merged_commits": [
+      "c9fa3ccc6dc4e6c15ca26d58bc03951df288eb36",
+      "8706f7d2c50b7f25091a407ffc9cf546b3dd51c8",
+      "e0339bc1ca2ccf7939b6849df85497f8322de7dd",
+      "c5613c8c973eac1e310f836265786682f13c2d8f",
+      "23281a7739a0cbaed41f25a9dc0d93df2d4d7fe0",
+      "df8948f261484ee80311e55cf9f394dcde2fc690",
+      "94654530d0876d90aff5f74d1913ad6f334b9e65",
+      "ffc08bda98f039419319c8a8822f77ad0cbded9d",
+      "dc28d6389ae966bddb28e94f15435314458ff2b9",
+      "06608380fcc064e0da24c1c9ec16a86f89a17039",
+      "59cac8884ec60ddd5f2be58503ac3eb9062d5101",
+      "f2da74b03ae94675f2cc2826cabdf0e6f9c389ae",
+      "a6823e95802aafd66cb54b03f5bdf6ba542d1ae7",
+      "430421bdc0b96d102f19c3cbbe99a3fe392b41d2",
+      "e63b21e1a12a1a3cf315cc4a19cf017fb65a0777",
+      "2801a6899df58dc3601707c7d8b7c927bfd66426",
+      "e29f2871f1252681f9584a350eba0176cd310428",
+      "3ac9681d18cf44254701bb8b13720c98c12350ef",
+      "bbe7e72ed937c99ac1c91ffb5ac8d44b26670229",
+      "f00cd1a8c1c7b3da3fa6ea7427c3ea3ca643d43d",
+      "f425bc38d6f5f9767bb2a2e59365cff4f032c256",
+      "ef6361c487d6f136cc095e5c8442852b5c45e760",
+      "f6e87ca237c519fc134fca7c6c539ac5f8645a5a",
+      "0c231743c0c7d05f26fe5d3ae2187f48a13a3858",
+      "04bd171799dc7b4082f2c550feb69f4026ff417a",
+      "ef9e6f71f0775ed11d63927da3ee3704cc72ac60",
+      "0e37ef13236b21ef606310cdbcb560add3db00a0",
+      "fde9d2312b973bfec22d2432a7f5bb99ebfc027b",
+      "f75b3d150c3163198a656ee82cc1098ca964fb38",
+      "7da5308045cf5d7d6d8de0153cf4f05059537703",
+      "0bf82e94c5c4d7954dd42b54b94bafd3162e76b7",
+      "821fe103e6122d33a6672fd4391fb9d30f856cb5",
+      "8853b97053fc1b57b7b5624e043aef06e6162c77",
+      "9ffc7b7f03a6daf9950b1d093e3b5429e15b0932",
+      "77abf323035e97e22fc96cbb9b9d92992301091b",
+      "66d67ec58e704e4440de20c5b54c45e3864dcd07",
+      "86c8c9f87a7295c515548225b47891f1ee61ded4",
+      "bf8477f1a3bec557408a977ba431f93875bdcbc1",
+      "26dac4665f2fb081b0cb5c8def3fa3df2aa63622",
+      "29485a708a30c831272ecb11e778464ff9c923aa",
+      "f32b4944d233fc52b1ac87a8c9c118ac56c66b5b",
+      "c6f1114b0cd67141b9b60e4b5a74ea0efb6961f4"
+    ],
+    "important_files_modified": [
+      "src/mongo/db/audit.cpp",
+      "src/mongo/db/audit.h",
+      "src/mongo/db/auth/sasl_plain_server_conversation.cpp",
+      "src/mongo/db/auth/sasl_scram_server_conversation.cpp",
+      "src/mongo/db/repl/initial_sync/initial_syncer.cpp",
+      "src/mongo/db/repl/initial_sync/initial_syncer.h",
+      "src/mongo/db/storage/storage_engine.h",
+      "src/mongo/db/storage/wiredtiger/wiredtiger_init.cpp",
+      "src/mongo/db/storage/wiredtiger/wiredtiger_init_test.cpp",
+      "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp",
+      "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine_test.cpp"
+    ],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        ".bazelrc",
+        ".gitignore",
+        "bazel/config/BUILD.bazel",
+        "jstests/auth/lib/commands_lib.js",
+        "jstests/core/catalog/views/views_all_commands.js",
+        "jstests/libs/write_concern_all_commands.js",
+        "jstests/replsets/all_commands_downgrading_to_upgraded.js",
+        "jstests/replsets/db_reads_while_recovering_all_commands.js",
+        "jstests/sharding/all_commands_direct_shard_connection_auth.js",
+        "jstests/sharding/database_versioning_all_commands.js",
+        "jstests/sharding/read_write_concern_defaults_application.js",
+        "src/mongo/client/sasl_oidc_client_conversation.cpp",
+        "src/mongo/crypto/jwks_fetcher_factory.h",
+        "src/mongo/crypto/jwks_fetcher_impl.cpp",
+        "src/mongo/crypto/jwks_fetcher_impl.h",
+        "src/mongo/db/BUILD.bazel",
+        "src/mongo/db/audit.cpp",
+        "src/mongo/db/auth/authorization_backend_local.cpp",
+        "src/mongo/db/auth/authorization_manager_global.cpp",
+        "src/mongo/db/auth/authorization_manager_impl.cpp",
+        "src/mongo/db/auth/authorization_manager_impl.h",
+        "src/mongo/db/auth/authorization_manager_test.cpp",
+        "src/mongo/db/auth/sasl_mechanism_policies.h",
+        "src/mongo/db/commands/BUILD.bazel",
+        "src/mongo/db/commands/profile_common.cpp",
+        "src/mongo/db/curop.cpp",
+        "src/mongo/db/curop.h",
+        "src/mongo/db/exec/document_value/value.cpp",
+        "src/mongo/db/exec/mutable_bson/algorithm.h",
+        "src/mongo/db/ftdc/ftdc_system_stats_linux.cpp",
+        "src/mongo/db/fts/fts_language.cpp",
+        "src/mongo/db/fts/fts_matcher.cpp",
+        "src/mongo/db/fts/fts_query_impl.cpp",
+        "src/mongo/db/fts/fts_query_parser.cpp",
+        "src/mongo/db/fts/fts_query_parser.h",
+        "src/mongo/db/fts/fts_tokenizer.h",
+        "src/mongo/db/initialize_server_global_state.cpp",
+        "src/mongo/db/mongod_main.cpp",
+        "src/mongo/db/mongod_options.cpp",
+        "src/mongo/db/namespace_string_reserved.h",
+        "src/mongo/db/namespace_string_util_test.cpp",
+        "src/mongo/db/op_debug.cpp",
+        "src/mongo/db/pipeline/BUILD.bazel",
+        "src/mongo/db/pipeline/process_interface/common_mongod_process_interface.cpp",
+        "src/mongo/db/query/query_tester/mock_version_info.h",
+        "src/mongo/db/repl/replication_coordinator_impl.cpp",
+        "src/mongo/db/server_options.h",
+        "src/mongo/db/server_options_server_helpers.cpp",
+        "src/mongo/db/shard_role/shard_catalog/collection_catalog_helper.cpp",
+        "src/mongo/db/startup_recovery.cpp",
+        "src/mongo/db/storage/kv/kv_engine.h",
+        "src/mongo/db/storage/kv/kv_engine_test_harness.cpp",
+        "src/mongo/db/storage/storage_engine.h",
+        "src/mongo/db/storage/storage_engine_impl.cpp",
+        "src/mongo/db/storage/storage_engine_impl.h",
+        "src/mongo/db/storage/storage_engine_init.cpp",
+        "src/mongo/db/storage/storage_engine_metadata.cpp",
+        "src/mongo/db/storage/storage_engine_metadata.h",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_customization_hooks.cpp",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_global_options.h",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_init.cpp",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_util.cpp",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_util.h",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_util_test.cpp",
+        "src/mongo/db/topology/cluster_add_shard_cmd.cpp",
+        "src/mongo/s/BUILD.bazel",
+        "src/mongo/s/mongos_main.cpp",
+        "src/mongo/s/write_ops/write_op.cpp",
+        "src/mongo/s/write_ops/write_op.h",
+        "src/mongo/shell/mongo_main.cpp",
+        "src/mongo/shell/shell_options.cpp",
+        "src/mongo/shell/shell_options.h",
+        "src/mongo/shell/shell_utils_extended.cpp",
+        "src/mongo/util/buildinfo.cpp",
+        "src/mongo/util/net/http_client.cpp",
+        "src/mongo/util/net/http_client.h",
+        "src/mongo/util/net/http_client_curl.cpp",
+        "src/mongo/util/net/ssl_options.cpp",
+        "src/mongo/util/net/ssl_types.h",
+        "src/mongo/util/processinfo_linux.cpp",
+        "src/mongo/util/stacktrace_test.cpp",
+        "src/mongo/util/version.cpp",
+        "src/mongo/util/version.h",
+        "src/mongo/util/version_impl.tpl.cpp"
+      ]
+    }
+  },
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 70441,
+    "num_turns": 8,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.4921525,
+    "modelUsage": {
+      "claude-haiku-4-5-20251001": {
+        "inputTokens": 587,
+        "outputTokens": 15,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0,
+        "webSearchRequests": 0,
+        "costUSD": 0.0006619999999999999,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000
+      },
+      "claude-opus-4-5": {
+        "inputTokens": 13,
+        "outputTokens": 3549,
+        "cacheReadInputTokens": 131951,
+        "cacheCreationInputTokens": 53876,
+        "webSearchRequests": 0,
+        "costUSD": 0.49149050000000005,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-haiku-4-5-20251001": {
+          "tokens": {
+            "input": 587,
+            "output": 15,
+            "cache_read": 0,
+            "cache_creation": 0
+          },
+          "cost_usd": 0.0006619999999999999
+        },
+        "claude-opus-4-5": {
+          "tokens": {
+            "input": 13,
+            "output": 3549,
+            "cache_read": 131951,
+            "cache_creation": 53876
+          },
+          "cost_usd": 0.49149050000000005
+        }
+      }
+    },
+    "text_result": "JSON response written to `/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/response_20260621_214250_627485.json`. \n\nThe merge brings in MongoDB's SERVER-32422 bulk StringData\u2192std::string_view migration affecting ~4,300 files. The 11 conflicting files all follow the same pattern: Percona-specific additions (encryption caFilePath, ngram language, ratelimit profiling, hot backup, FTDC metrics flags, perconaFeatures) sit alongside code where upstream changed StringData to std::string_view. Resolution requires keeping Percona's functionality while adopting the new types.",
+    "response": {
+      "summary": "This merge brings in a large-scale codebase modernization from MongoDB upstream (SERVER-32422), converting StringData parameters to std::string_view across ~4,300 files. The primary change is a systematic replacement of StringData with std::string_view in function signatures, member variables, and string literals (changing '_sd' suffixes to 'sv'). Additional commits introduce new features including stable checkpoints during startup recovery (SERVER-87919), a CheckMultikeyConsistencyInBackground hook (SERVER-128070), featureFlagLogicalSizeTracking (SERVER-128939), internal-only extension stages support (SERVER-114364), and various query/sharding improvements.",
+      "auto_merged": {
+        "src/mongo/client/sasl_oidc_client_conversation.cpp": "Upstream changes StringData to std::string_view in appendPostBodyRequiredParams and doDeviceAuthorizationRequest function parameters, and updates string literal comparisons from '_sd' suffix to 'sv' suffix. Conflicts with Percona's createHttpClient helper and relaxed endpoint validation (which removes https-only checks).",
+        "src/mongo/crypto/jwks_fetcher_factory.h": "Upstream changes makeJWKSFetcher parameter from StringData to std::string_view. Conflicts with Percona's additional caFilePath parameter.",
+        "src/mongo/crypto/jwks_fetcher_impl.cpp": "Upstream changes JWKSFetcherImpl constructor parameter from StringData to std::string_view. Conflicts with Percona's additional caFilePath parameter in the constructor.",
+        "src/mongo/crypto/jwks_fetcher_impl.h": "Upstream changes JWKSFetcherImpl constructor parameter from StringData to std::string_view. Conflicts with Percona's additional caFilePath parameter with default value.",
+        "src/mongo/db/commands/profile_common.cpp": "Upstream changes BSONObjBuilder append calls from '_sd' string literals to 'sv' suffix. Conflicts with Percona's additional 'ratelimit' field in profile command output.",
+        "src/mongo/db/ftdc/ftdc_system_stats_linux.cpp": "Upstream changes BSONObjBuilder subobjStart calls from '_sd' literals to 'sv' suffix. Conflicts with Percona's gDiagnosticDataCollectionEnableSystemMetricsDisks/Mounts feature flags that conditionally enable disk/mount metrics collection.",
+        "src/mongo/db/fts/fts_language.cpp": "Upstream changes language map entries from '_sd' string literals to 'sv' suffix. Conflicts with Percona's additional 'ngram' language support in the language list.",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_customization_hooks.cpp": "Upstream removes the '#include \"mongo/base/string_data.h\"' include as part of the string_view migration. Conflicts with Percona's additional includes for encryption_options.h, database_name_util.h, and namespace_string_util.h.",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h": "Upstream changes getIdentSize parameter from StringData to std::string_view. Conflicts with Percona's additional hotBackup methods declared above getIdentSize.",
+        "src/mongo/util/version.cpp": "Upstream changes allocator() return type from StringData to std::string_view. Conflicts with Percona's additional perconaFeatures() method returning vector of unknown features.",
+        "src/mongo/util/version_impl.tpl.cpp": "Upstream changes allocator() return type from StringData to std::string_view. Conflicts with Percona's perconaFeatures() method returning the perconaFeatureList.",
+        "src/mongo/db/audit.cpp": "Upstream changes StringData parameters to std::string_view in logApplicationMessage, logLogout, logCreateIndex, logDropIndex, logEnableSharding, logAddShard, and logRemoveShard functions. Auto-merged successfully.",
+        "src/mongo/db/storage/storage_engine.h": "Upstream changes numerous virtual method parameters from StringData to std::string_view including dropSpillTable, makeInternalRecordStore, immediatelyCompletePendingDrop, dropIdent, dropIdentTimestamped, dropUnknownIdent, markIdentInUse, setRecoveryCheckpointMetadata, generateNewCollectionIdent, generateNewIndexIdent, getCollectionIdentUniqueTag, getIndexIdentUniqueTag, generateNewInternalIndexBuildIdent, getIdentSize, setFlagToStorageOptions, and getFlagFromStorageOptions. Auto-merged successfully.",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp": "Extensive StringData to std::string_view changes throughout: generateWTOpenConfigString parameters, _getTableIdForIdent, insertIntoIdent, updateInIdent, getFromIdent, deleteFromIdent, _wtGetAllIdents internal variables, getIdentSize, repairIdent, _rebuildIdent, _createRecordStore, importRecordStore, recoverOrphanedIdent, getRecordStore, createSortedDataInterface, importSortedDataInterface, dropSortedDataInterface, getSortedDataInterface, getInternalRecordStore, makeInternalRecordStore, alterIdentMetadata, alterMetadata, dropIdent, dropIdentForImport, hasIdent, getDataFilePathForIdent, _ensureIdentPath, _removeIdentDirectoryIfEmpty, and setRecoveryCheckpointMetadata. Auto-merged successfully.",
+        "src/mongo/db/mongod_main.cpp": "Upstream changes setKillAllOperations lambda parameter from StringData to std::string_view and updates include from string_data.h to <string_view>. Auto-merged successfully.",
+        "src/mongo/util/version.h": "Upstream changes BuildInfoField struct members from StringData to std::string_view, and version(), gitVersion(), modules() return types from StringData/vector<StringData> to std::string_view/vector<std::string_view>. Auto-merged successfully."
+      },
+      "review_notes": "The conflicts follow a consistent pattern: Percona has added functionality (encryption support via caFilePath, ngram language, ratelimit profiling, hot backup, percona features list, configurable FTDC metrics) that sits alongside code where upstream changed StringData to std::string_view. Resolution requires keeping Percona's additions while adopting the new std::string_view types. For the conflicting files, ensure Percona's StringData parameters are also updated to std::string_view where they interface with the changed upstream signatures."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [
+            "I'll analyze the merge by reading the actual diffs for the auto-merged files to understand what upstream changed."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [
+            "Now let me get more diffs to understand the full picture of the auto-merged files."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [
+            "Now I have a comprehensive understanding. Let me write the JSON response."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [
+            "JSON response written to `/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/response_20260621_214250_627485.json`. \n\nThe merge brings in MongoDB's SERVER-32422 bulk StringData\u2192std::string_view migration affecting ~4,300 files. The 11 conflicting files all follow the same pattern: Percona-specific additions (encryption caFilePath, ngram language, ratelimit profiling, hot backup, FTDC metrics flags, perconaFeatures) sit alongside code where upstream changed StringData to std::string_view. Resolution requires keeping Percona's functionality while adopting the new types."
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20260621_214250_627273.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.185 (Claude Code)"
+    }
+  }
+}
