@@ -8,10 +8,10 @@ on:
         required: false
         type: string
       mergai-ref:
-        description: "MergAI git ref to use (branch/tag/commit)"
+        description: "MergAI git ref (branch/tag/commit). Empty -> MERGAI_REF repo variable, else master."
         required: false
         type: string
-        default: "master"
+        default: ""
       mergai-agent:
         description: "AI agent to use for merge/describe/resolve (e.g., claude-cli:claude-opus-4-5)"
         required: false
@@ -68,7 +68,7 @@ jobs:
           claude-api-key: ${{ secrets.CLAUDE_API_KEY }}
           github-app-token: ${{ steps.app-token.outputs.token }}
           github-app-id: ${{ secrets.PSMDB_BOT_GH_APP_ID }}
-          mergai-ref: ${{ inputs['mergai-ref'] }}
+          mergai-ref: ${{ inputs['mergai-ref'] || vars.MERGAI_REF || 'master' }}
 
       # Get next prioritized commit to merge from upstream based on configured strategies
       - name: mergai merge-pick
@@ -163,7 +163,7 @@ jobs:
           setup-mergai: "true"
           github-app-token: ${{ steps.app-token.outputs.token }}
           github-app-id: ${{ secrets.PSMDB_BOT_GH_APP_ID }}
-          mergai-ref: master
+          mergai-ref: ${{ vars.MERGAI_REF || 'master' }}
 
       # Finalize after solution PR is merged into conflict branch
       - name: Finalize
