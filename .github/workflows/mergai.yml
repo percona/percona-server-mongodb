@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       merge-pick:
-        description: "Commit hash to merge (leave empty to use merge-pick --next)"
+        description: "Commit hash to merge (bypasses the gate). Empty -> pick per MERGAI_MERGE_PICK_MODE (gate/ai/next; default gate)."
         required: false
         type: string
       mergai-ref:
@@ -70,22 +70,80 @@ jobs:
           github-app-id: ${{ secrets.PSMDB_BOT_GH_APP_ID }}
           mergai-ref: ${{ inputs['mergai-ref'] || vars.MERGAI_REF || 'master' }}
 
-      # Get next prioritized commit to merge from upstream based on configured strategies
-      - name: mergai merge-pick
-        if: ${{ !inputs['merge-pick'] }}
-        run: |
-          MERGE_PICK=$(mergai fork merge-pick --next)
-          echo "MERGE_PICK=$MERGE_PICK" >> $GITHUB_ENV
-          echo "Next merge pick is: $MERGE_PICK"
-          git show --stat $MERGE_PICK
-
-      # Initialize merge context with commit SHA and target branch info
-      - name: mergai context init
+      # Determine the commit to merge to. Precedence:
+      #   1. an explicit merge-pick input -> use it, bypassing the gate (the
+      #      manual "force this merge" path);
+      #   2. else the MERGAI_MERGE_PICK_MODE repository variable (not a secret),
+      #      one of three values:
+      #        * "ai"   -> the agent chooses the boundary within the gate's
+      #                    candidate window (uses AI tokens, hence in this
+      #                    privileged-ops job); honors the gate.
+      #        * "next" -> raw `merge-pick --next`: the first prioritized strategy
+      #                    match, with NO gate and NO window cap.
+      #        * "gate" -> gate-respecting deterministic pick (windowed). This is
+      #                    the default for an unset/any-other value.
+      # "ai" and "gate" honor the merge gate: when it is closed (or nothing to
+      # merge) they print nothing, so MERGE_PICK is empty and the merge steps
+      # below are skipped. "next" ignores the gate. To merge regardless of the
+      # gate, dispatch with an explicit merge-pick input.
+      - name: Determine merge pick
+        id: pick
         env:
-          MERGE_PICK: ${{ inputs['merge-pick'] || env.MERGE_PICK }}
+          MERGE_PICK_MODE: ${{ vars.MERGAI_MERGE_PICK_MODE }}
+          INPUT_PICK: ${{ inputs['merge-pick'] }}
         run: |
-          echo "MERGE_PICK=$MERGE_PICK" >> $GITHUB_ENV
-          mergai context init $MERGE_PICK
+          MERGE_PICK=""
+          if [ -n "$INPUT_PICK" ]; then
+            echo "Using explicit merge-pick input (gate bypassed): $INPUT_PICK"
+            MERGE_PICK="$INPUT_PICK"
+          else
+            case "$MERGE_PICK_MODE" in
+              ai)
+                echo "Merge-pick mode: ai (gate-respecting)"
+                # --json carries the agent's reasoning alongside the sha; --next
+                # would print only the bare sha and the reasoning would be lost.
+                PICK_JSON=$(mergai fork merge-pick --ai --json)
+                if [ -n "$PICK_JSON" ]; then
+                  MERGE_PICK=$(printf '%s' "$PICK_JSON" | jq -r '.sha // empty')
+                  AI_SOURCE=$(printf '%s' "$PICK_JSON" | jq -r '.source // empty')
+                  AI_REASONING=$(printf '%s' "$PICK_JSON" | jq -r '.reasoning // empty')
+                  echo "AI pick source: ${AI_SOURCE:-unknown}"
+                  if [ -n "$AI_REASONING" ]; then
+                    echo "AI pick reasoning: $AI_REASONING"
+                    {
+                      echo "### AI merge-pick"
+                      echo ""
+                      echo "- commit: \`${MERGE_PICK}\`"
+                      echo "- source: ${AI_SOURCE:-unknown}"
+                      echo ""
+                      echo "${AI_REASONING}"
+                    } >> "$GITHUB_STEP_SUMMARY"
+                  fi
+                fi
+                ;;
+              next)
+                echo "Merge-pick mode: next (raw strategy pick; ignores the gate)"
+                MERGE_PICK=$(mergai fork merge-pick --next)
+                ;;
+              *)
+                echo "Merge-pick mode: gate (gate-respecting deterministic)"
+                MERGE_PICK=$(mergai fork merge-pick --gate)
+                ;;
+            esac
+          fi
+          echo "MERGE_PICK=$MERGE_PICK" >> "$GITHUB_ENV"
+          echo "pick=$MERGE_PICK" >> "$GITHUB_OUTPUT"
+          if [ -z "$MERGE_PICK" ]; then
+            echo "No merge pick (merge gate closed or nothing to merge); skipping merge."
+          else
+            echo "Merge pick: $MERGE_PICK"
+            git show --stat "$MERGE_PICK"
+          fi
+
+      # Initialize merge context with commit SHA and target branch info.
+      - name: mergai context init
+        if: steps.pick.outputs.pick != ''
+        run: mergai context init "$MERGE_PICK"
 
       # Early-fail if a merge for this commit is already underway: any mergai
       # branch (main/conflict/solution/semantic) for $MERGE_PICK means another
@@ -93,6 +151,7 @@ jobs:
       # also covers the window the periodic-merge workflow can't see (a run
       # dispatched but still awaiting privileged-ops approval, with no PR yet).
       - name: Fail if a merge for this commit is already in progress
+        if: steps.pick.outputs.pick != ''
         run: |
           if [ -n "$(mergai branch list --sha "$MERGE_PICK" -q)" ]; then
             echo "::error::mergai branches already exist for $MERGE_PICK - merge already in progress"
@@ -101,6 +160,7 @@ jobs:
           fi
 
       - name: merge
+        if: steps.pick.outputs.pick != ''
         env:
           MERGAI_AGENT: ${{ inputs['mergai-agent'] }}
         run: |
