@@ -593,15 +593,20 @@ workflows:
       # Default: <workflow name> (here: clang-tidy)
       # code_scanning_tool_name: clang-tidy
 
-  # `build-and-test` covers the two jobs in `.github/workflows/build-and-test.yml`:
-  # the `build` and the `unittests` jobs.
+  # `build-and-test` covers the three jobs in `.github/workflows/build-and-test.yml`:
+  # the `build`, `unittests`, and `jstests` jobs.
   # Mergai's workflow_run trigger fires once for the whole workflow, so a single
-  # entry covers both jobs; the BEP context builder decides what to feed the agent
-  # based on which artifact is present in the failing run.
+  # entry covers all three jobs; the BEP context builder decides what to feed the
+  # agent based on which artifact is present in the failing run.
+  #
+  # The jobs run sequentially (build -> unittests -> jstests), so at most one
+  # failure artifact is present per run: a failing job blocks the ones after it.
   #
   # Capped at 2 attempts: like clang-tidy, build/test fixes need human-grade
   # judgement and shouldn't loop indefinitely on flakes or environmental
-  # failures.
+  # failures. This matters most for jstests, whose load-sensitive suites can
+  # flake; the agent is instructed to return `unfixable` for likely flakes
+  # rather than editing source, and the cap bounds the rest.
   build-and-test:
     enabled: true
     max_attempts: 2
@@ -615,8 +620,13 @@ workflows:
       source: artifact
       # The build job uploads `build-failure-artifacts` (bazel-bep.json);
       # the unittests job uploads `unittest-failure-artifacts` (bazel-bep.json
-      # plus bazel-testlogs/ with per-target test.log and JUnit test.xml).
-      # Only one is present per failing run (unittests is gated on build).
+      # plus bazel-testlogs/ with per-target test.log and JUnit test.xml);
+      # the jstests job uploads `jstest-failure-logs` (one bazel-bep*.json per
+      # resmoke invocation -- bazel-bep.json for the reliable batch plus
+      # bazel-bep-<suite>.json per load-sensitive suite -- the teed console
+      # logs, and a testlogs/ tree of per-target test.log/test.xml). Only one
+      # is present per failing run (each job is gated on the previous one).
       artifact_name:
         - build-failure-artifacts
         - unittest-failure-artifacts
+        - jstest-failure-logs
