@@ -1,4 +1,5 @@
 load("//bazel:mongo_js_rules.bzl", "all_subpackage_javascript_files", "mongo_js_library")
+load("//bazel/resmoke:resmoke.bzl", "resmoke_suite_test")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -10,3 +11,203 @@ mongo_js_library(
 )
 
 all_subpackage_javascript_files()
+
+# Encryption key files referenced by the TDE suites via encryptionKeyFile /
+# config_variables. `ekf` is a valid key; `ekfw` is a deliberately wrong key used by the
+# tde_cbc/tde_gcm negative tests.
+exports_files([
+    "ekf",
+    "ekfw",
+])
+
+# TDE matrix. These run upstream test directories under an encrypted mongod, so the
+# targets live in this Percona-owned package rather than in the upstream dirs (avoids
+# upstream-merge conflicts); srcs auto-derive from the suite YAML's selector regardless.
+# core/replica_sets/sharding suites contain tests that stand up their own ShardingTest, so
+# they also need mongos.
+
+resmoke_suite_test(
+    name = "core_tde_cbc",
+    config = "//buildscripts/resmokeconfig:suites/core_tde_cbc.yml",
+    data = ["//jstests/percona/tde:ekf"],
+    shard_count = 48,  # split much finer than upstream `core` (24); encrypted run is slower
+    tags = [
+        "core_tde_cbc",
+        "percona",
+        "tde",
+    ],
+    deps = [
+        "//src/mongo/db:mongod",
+        "//src/mongo/s:mongos",
+        "//src/mongo/shell:mongo",
+    ],
+)
+
+resmoke_suite_test(
+    name = "core_tde_gcm",
+    config = "//buildscripts/resmokeconfig:suites/core_tde_gcm.yml",
+    data = ["//jstests/percona/tde:ekf"],
+    shard_count = 48,  # split much finer than upstream `core` (24); encrypted run is slower
+    tags = [
+        "core_tde_gcm",
+        "percona",
+        "tde",
+    ],
+    deps = [
+        "//src/mongo/db:mongod",
+        "//src/mongo/s:mongos",
+        "//src/mongo/shell:mongo",
+    ],
+)
+
+resmoke_suite_test(
+    name = "aggregation_tde_cbc",
+    config = "//buildscripts/resmokeconfig:suites/aggregation_tde_cbc.yml",
+    data = ["//jstests/percona/tde:ekf"],
+    shard_count = 4,  # mirrors upstream `aggregation`
+    tags = [
+        "aggregation_tde_cbc",
+        "percona",
+        "tde",
+    ],
+    deps = [
+        "//src/mongo/db:mongod",
+        "//src/mongo/shell:mongo",
+    ],
+)
+
+resmoke_suite_test(
+    name = "aggregation_tde_gcm",
+    config = "//buildscripts/resmokeconfig:suites/aggregation_tde_gcm.yml",
+    data = ["//jstests/percona/tde:ekf"],
+    shard_count = 4,  # mirrors upstream `aggregation`
+    tags = [
+        "aggregation_tde_gcm",
+        "percona",
+        "tde",
+    ],
+    deps = [
+        "//src/mongo/db:mongod",
+        "//src/mongo/shell:mongo",
+    ],
+)
+
+resmoke_suite_test(
+    name = "replica_sets_tde_cbc",
+    config = "//buildscripts/resmokeconfig:suites/replica_sets_tde_cbc.yml",
+    data = ["//jstests/percona/tde:ekf"],
+    shard_count = 40,  # mirrors upstream `replica_sets`
+    # Each test stands up its own ReplSetTest; route to the multi-CPU pool (ticket §2).
+    tags = [
+        "percona",
+        "replica_sets_tde_cbc",
+        "resources:cpu:2",
+        "tde",
+    ],
+    deps = [
+        "//src/mongo/db:mongod",
+        "//src/mongo/s:mongos",
+        "//src/mongo/shell:mongo",
+        "//src/mongo/tools/mongobridge_tool:mongobridge",  # replsets use ReplSetTest({useBridge: true})
+    ],
+)
+
+resmoke_suite_test(
+    name = "replica_sets_tde_gcm",
+    config = "//buildscripts/resmokeconfig:suites/replica_sets_tde_gcm.yml",
+    data = ["//jstests/percona/tde:ekf"],
+    shard_count = 40,  # mirrors upstream `replica_sets`
+    # Each test stands up its own ReplSetTest; route to the multi-CPU pool (ticket §2).
+    tags = [
+        "percona",
+        "replica_sets_tde_gcm",
+        "resources:cpu:2",
+        "tde",
+    ],
+    deps = [
+        "//src/mongo/db:mongod",
+        "//src/mongo/s:mongos",
+        "//src/mongo/shell:mongo",
+        "//src/mongo/tools/mongobridge_tool:mongobridge",  # replsets use ReplSetTest({useBridge: true})
+    ],
+)
+
+resmoke_suite_test(
+    name = "sharding_tde_cbc",
+    config = "//buildscripts/resmokeconfig:suites/sharding_tde_cbc.yml",
+    data = ["//jstests/percona/tde:ekf"],
+    shard_count = 50,  # mirrors upstream `sharding`
+    # Each test stands up its own ShardingTest; route to the multi-CPU pool (ticket §2).
+    tags = [
+        "percona",
+        "resources:cpu:2",
+        "sharding_tde_cbc",
+        "tde",
+    ],
+    deps = [
+        "//src/mongo/db:mongod",
+        "//src/mongo/s:mongos",
+        "//src/mongo/shell:mongo",
+        "//src/mongo/tools/mongobridge_tool:mongobridge",  # some ShardingTest variants use useBridge
+    ],
+)
+
+resmoke_suite_test(
+    name = "sharding_tde_gcm",
+    config = "//buildscripts/resmokeconfig:suites/sharding_tde_gcm.yml",
+    data = ["//jstests/percona/tde:ekf"],
+    shard_count = 50,  # mirrors upstream `sharding`
+    # Each test stands up its own ShardingTest; route to the multi-CPU pool (ticket §2).
+    tags = [
+        "percona",
+        "resources:cpu:2",
+        "sharding_tde_gcm",
+        "tde",
+    ],
+    deps = [
+        "//src/mongo/db:mongod",
+        "//src/mongo/s:mongos",
+        "//src/mongo/shell:mongo",
+        "//src/mongo/tools/mongobridge_tool:mongobridge",  # some ShardingTest variants use useBridge
+    ],
+)
+
+resmoke_suite_test(
+    name = "tde_cbc",
+    config = "//buildscripts/resmokeconfig:suites/tde_cbc.yml",
+    # tde_cbc/tde_gcm use both a valid (ekf) and a deliberately wrong (ekfw) key, and the
+    # wrongkey tests load()/share the backup helper.
+    data = [
+        "//jstests/backup:_backup_helpers.js",
+        "//jstests/percona/tde:ekf",
+        "//jstests/percona/tde:ekfw",
+    ],
+    tags = [
+        "percona",
+        "tde",
+        "tde_cbc",
+    ],
+    deps = [
+        "//src/mongo/db:mongod",
+        "//src/mongo/shell:mongo",
+    ],
+)
+
+resmoke_suite_test(
+    name = "tde_gcm",
+    config = "//buildscripts/resmokeconfig:suites/tde_gcm.yml",
+    data = [
+        "//jstests/backup:_backup_helpers.js",
+        "//jstests/percona/tde:ekf",
+        "//jstests/percona/tde:ekfw",
+    ],
+    tags = [
+        "percona",
+        "tde",
+        "tde_gcm",
+    ],
+    deps = [
+        "//src/mongo/db:mongod",
+        "//src/mongo/shell:mongo",
+    ],
+)
