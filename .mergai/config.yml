@@ -159,6 +159,67 @@ fork:
           - src/mongo/db/repl/initial_sync/initial_syncer.h #since SERVER-103460
           - src/mongo/db/repl/initial_sync/initial_syncer.cpp # since SERVER-103460
 
+  # ---------------------------------------------------------------------------
+  # MERGE GATE CONFIGURATION
+  # ---------------------------------------------------------------------------
+  # Deterministic gate that decides *when* to merge (the pick decides *which*
+  # commit to merge to). It is a pure go/no-go decision over already-computed
+  # fork status and needs no AI tokens (`mergai fork merge-pick --plan`).
+  #
+  # The gate opens when ANY of these hold (evaluated in this order):
+  #   - a prioritized commit matches a strategy in `force_strategies`
+  #     (reason: force:<name>), or
+  #   - `commits_behind >= min_commits`, or
+  #   - the oldest unmerged commit is at least `max_age_days` old.
+  #
+  merge_gate:
+    # Merge once at least this many unmerged commits have accumulated.
+    # Default: 50
+    min_commits: 50
+
+    # ...or sooner if the oldest unmerged commit is older than this many days.
+    # Default: 2
+    max_age_days: 2
+
+    # Batch ceiling: a single merge never advances more than this many upstream
+    # commits. This also defines the candidate window (the oldest `max_commits`
+    # unmerged commits) - which bounds both the merge batch size and the AI
+    # prompt size. Commits newer than the window are omitted and drained by
+    # later merges.
+    # Default: 150
+    max_commits: 150
+
+    # Strategy names that open the gate immediately when any prioritized commit
+    # matches one, regardless of count or age. These are signals that a merge
+    # should not be deferred. Must be strategy names configured under
+    # merge_picks.strategies above. Default: [conflict, important_files]
+    force_strategies:
+      - conflict
+      - important_files
+
+  # ---------------------------------------------------------------------------
+  # AI PICK CONFIGURATION
+  # ---------------------------------------------------------------------------
+  # Settings for the AI-assisted merge pick (`mergai fork merge-pick --ai`),
+  # where an agent chooses the best merge boundary within the gate's candidate
+  # window, guided by the built-in system prompt plus the project rules file
+  # below. The AI pick is always selected explicitly via `--ai`; these settings
+  # only tune how it behaves.
+  ai_pick:
+    # Agent descriptor (same format as resolve.agent). Empty falls back to
+    # resolve.agent. Default: "" (-> resolve.agent)
+    agent: claude-cli:claude-opus-4-5
+
+    # Project-specific merge-pick rules (markdown), appended to the built-in
+    # system prompt. Holds PSMDB batch-size targets and boundary heuristics.
+    # Default: "" (no project rules)
+    rules_file: .mergai/merge_pick_rules.md
+
+    # What to do on agent error / invalid sha: "deterministic" (resilient -
+    # fall back to the deterministic pick) or "error" (fail).
+    # Default: deterministic
+    fallback: deterministic
+
 # -----------------------------------------------------------------------------
 # RESOLVE CONFIGURATION
 # -----------------------------------------------------------------------------
