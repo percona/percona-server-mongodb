@@ -1,0 +1,38 @@
+name: "Test report (job summary)"
+description: "Render a pass/fail/flaky table from the Bazel build event log (BEP) into the GitHub job summary"
+
+inputs:
+  bep-glob:
+    description: "Glob for the BEP JSON file(s) written by --build_event_json_file"
+    required: false
+    default: "bazel-bep*.json"
+  title:
+    description: "Heading shown above the results table in the job summary"
+    required: false
+    default: "🧪 Test results"
+  detailed:
+    description: "When 'true', add executed/cached counts and a collapsible per-target table"
+    required: false
+    default: "false"
+
+runs:
+  using: "composite"
+  steps:
+    # Invoked from the trusted base checkout (./_trusted/.github/actions/test-report)
+    # so the script body is the base-branch copy, never the untrusted PR head -- the
+    # same trust model as the other composite actions in this workflow. The script is
+    # pure stdlib and always exits 0, so a report bug can never fail the test job.
+    #
+    # Reads the BEP (always written locally) rather than globbing test.xml, which
+    # under --remote_download_outputs=minimal stays in the remote cache.
+    - name: Write test summary
+      shell: bash
+      env:
+        TEST_REPORT_TITLE: ${{ inputs.title }}
+        TEST_REPORT_BEP_GLOB: ${{ inputs.bep-glob }}
+        TEST_REPORT_DETAILED: ${{ inputs.detailed == 'true' && '--detailed' || '' }}
+      run: |
+        python3 "${GITHUB_ACTION_PATH}/../../../buildscripts/github_test_summary.py" \
+          "${TEST_REPORT_BEP_GLOB}" \
+          --title "${TEST_REPORT_TITLE}" \
+          ${TEST_REPORT_DETAILED}
