@@ -26,6 +26,9 @@ permissions:
   # when this permission is granted, and without them the helper cannot
   # mint a GH OIDC id_token to exchange for a Dex JWT.
   id-token: write
+  # Lets the jstests_gate job read fresh PR labels via
+  # `gh api repos/.../pulls/<N>` to decide whether the jstests job runs.
+  pull-requests: read
 
 # RBE endpoints are shared between jobs. Pinned here so additions like
 # integration-tests/jsttests can reuse the same values without drift.
@@ -308,3 +311,232 @@ jobs:
             bazel-bep.json
           retention-days: 14
           if-no-files-found: ignore
+
+  # Decides whether the jstests job runs, from PR labels and a repo/org
+  # variable. Runs on a plain runner with no `environment:` and does NOT depend
+  # on `gate`, so it resolves immediately and never triggers an RBE approval
+  # prompt. Labels are read fresh via `gh api` (not github.event.*.labels) so
+  # the decision reflects the current label set even on a re-run -- same
+  # freshness trick as format.yml / clang-tidy.yml.
+  #
+  # Precedence: ci-skip-jstests > ci-run-jstests > vars.RUN_JSTESTS (default run).
+  #   - ci-skip-jstests label : force skip.
+  #   - ci-run-jstests label  : force run (overrides a default-off variable).
+  #   - vars.RUN_JSTESTS      : project default. Unset or 'true' => run;
+  #                             'false' => skip unless ci-run-jstests is set.
+  jstests_gate:
+    name: jstests gate
+    runs-on: ubuntu-24.04
+    outputs:
+      should_run: ${{ steps.decide.outputs.should_run }}
+    steps:
+      - name: Decide whether to run jstests
+        id: decide
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_JSTESTS: ${{ vars.RUN_JSTESTS }}
+        run: |
+          # Fetch the PR's current labels (fresh, not from the trigger payload).
+          LABELS=$(gh api repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }} --jq '.labels[].name' 2>/dev/null || echo "")
+          if echo "$LABELS" | grep -qx "ci-skip-jstests"; then
+            echo "ci-skip-jstests label present -> skipping jstests"
+            echo "should_run=false" >> "$GITHUB_OUTPUT"
+          elif echo "$LABELS" | grep -qx "ci-run-jstests"; then
+            echo "ci-run-jstests label present -> running jstests"
+            echo "should_run=true" >> "$GITHUB_OUTPUT"
+          elif [ "$RUN_JSTESTS" = "false" ]; then
+            echo "vars.RUN_JSTESTS=false and no run label -> skipping jstests"
+            echo "should_run=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "default -> running jstests"
+            echo "should_run=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  # Runs the Percona resmoke jstest suites on RBE. Separate runner / GH check
+  # from build+unittests (see the build-vs-unittests rationale block at the top
+  # for why distinct runners are intentional). `needs: unittests` so it runs
+  # AFTER unittests (which needs: build) rather than alongside it -- the jstest
+  # suites are heavy and load-sensitive, so serializing them after unittests
+  # avoids competing for the same RBE workers. It does not consume the upstream
+  # jobs' artifacts -- mongod/mongos/mongo are rebuilt here as RBE cache hits.
+  #
+  # Gated on jstests_gate: skipped when ci-skip-jstests is set, or when
+  # vars.RUN_JSTESTS=false and ci-run-jstests is absent.
+  #
+  # All jstest-running config lives in `--config=psmdb_remote_jstest`
+  # (.bazelrc.psmdb): the remote test-execution strategies inherited from
+  # remote_test (which brings its core/mdmp/gz force-download regex with it), the
+  # test_timeout, and the -incompatible_with_bazel_remote_test / -cpu:2 tag
+  # filter. Keeping it there lets a local
+  # `bazel test --config=psmdb_buildfarm --config=psmdb_remote_jstest ...`
+  # reproduce CI byte-for-byte.
+  #
+  # Suites are grouped the same way as the run_percona_jstests.sh helper:
+  #   - reliable      : pass consistently -> one parallel invocation.
+  #   - load-sensitive: flake under full-farm contention -> one at a time.
+  #   - skipped       : aggregation_tde_* (EMFILE / RLIMIT_NOFILE) and
+  #                     replica_sets_tde_*/sharding_tde_* (resources:cpu:2, no
+  #                     2-core pool) -- re-enable once PSMDB-2100 §1 lands.
+  jstests:
+    name: jstests
+    needs: [unittests, jstests_gate]
+    if: ${{ needs.jstests_gate.outputs.should_run == 'true' }}
+    # See `build.runs-on` above for why this is pinned, not `ubuntu-latest`.
+    runs-on: ubuntu-24.04
+    # Same unattended `rbe` environment as `build` / `unittests`.
+    environment: rbe
+    # See `build.env` above for why this is at job level, not workflow level.
+    env:
+      PSMDB_RBE_GHA_AUDIENCE: ${{ secrets.PSMDB_RBE_GHA_AUDIENCE }}
+      PSMDB_RBE_OIDC_ISSUER: ${{ secrets.PSMDB_RBE_OIDC_ISSUER }}
+    steps:
+      - name: Checkout PR head
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      # See the matching step in `build` for the rationale behind loading
+      # composite actions from a trusted base checkout under `_trusted/`.
+      - name: Checkout base (trusted) for composite actions
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.base_ref }}
+          path: _trusted
+          fetch-depth: 1
+
+      - name: Fetch tags
+        uses: ./_trusted/.github/actions/fetch-tags
+
+      - name: Free disk space and redirect Bazel to /mnt
+        uses: ./_trusted/.github/actions/free-disk-space
+
+      - name: Setup environment
+        uses: ./_trusted/.github/actions/setup-env
+
+      # Reliable suites: run together in one parallel invocation. See the build
+      # step for why --host_jvm_args / --output_user_root are set; GIT_COMMIT_HASH
+      # is deliberately omitted (as in unittests) to keep the remote CppLink cache
+      # key stable across pushes.
+      - name: Run reliable jstest suites via RBE
+        run: |
+          mkdir -p jstest-logs
+          # Tee the console to a file as a fallback. The primary diagnostic source
+          # is the per-test test.log collected from bazel-testlogs below: under
+          # --remote_download_outputs=minimal those stay in the remote cache, so
+          # --remote_download_regex force-downloads just test.log/test.xml to the
+          # runner (the global .bazelrc regex only covers test.xml). The tee still
+          # helps when a failure log exceeds --experimental_ui_max_stdouterr_bytes
+          # and bazel skips printing it.
+          # pipefail so bazel's exit status (not tee's) decides the step result.
+          set -o pipefail
+          bazel \
+            --output_user_root=/mnt/bazel \
+            --host_jvm_args=-Xmx12g \
+            test \
+            --config=psmdb_buildfarm \
+            --config=psmdb_remote_jstest \
+            --remote_executor=$RBE_REMOTE_EXECUTOR \
+            --remote_cache=$RBE_REMOTE_CACHE \
+            --bes_backend=$RBE_BES_BACKEND \
+            --bes_results_url=$RBE_BES_RESULTS_URL \
+            --credential_helper=$RBE_CREDENTIAL_HELPER \
+            --jobs=300 \
+            --keep_going \
+            --test_output=errors \
+            --remote_download_regex='.*/test\.(log|xml)$' \
+            --build_event_json_file=bazel-bep.json \
+            //jstests/knobs:knobs \
+            //jstests/percona/noPassthroughWithMongod:percona_no_passthrough_with_mongod \
+            //jstests/redaction:redaction \
+            //jstests/telemetry:telemetry \
+            //jstests/audit:audit \
+            //jstests/oidc:oidc \
+            //jstests/ldapauthz:ldapauthz_mock 2>&1 | tee jstest-logs/reliable.log
+
+      # Load-sensitive suites: each on its own invocation so it gets the workers
+      # uncontended (they flake when run alongside the full fan-out). Keep going
+      # across all of them and fail the step if any failed. The Bazel server (one
+      # --output_user_root) persists across iterations, so bazel-testlogs/
+      # accumulates every suite's logs for the failure-artifact upload.
+      - name: Run load-sensitive jstest suites via RBE (one at a time)
+        run: |
+          mkdir -p jstest-logs
+          # pipefail so the teed pipeline reports bazel's exit, not tee's.
+          set -o pipefail
+          rc=0
+          for t in \
+            //jstests/ratelimit:ratelimit \
+            //jstests/backup:backup \
+            //jstests/backup:backup_tde_cbc \
+            //jstests/backup:backup_tde_gcm \
+            //jstests/percona/tde:tde_cbc \
+            //jstests/percona/tde:tde_gcm \
+            //jstests/percona/tde:core_tde_cbc \
+            //jstests/percona/tde:core_tde_gcm; do
+            echo "::group::$t"
+            name=$(echo "$t" | sed 's#[/:]#_#g')
+            # Tee each suite's console (incl. failed-test logs via
+            # --test_output=errors) so the failure artifact has its diagnostics.
+            bazel \
+              --output_user_root=/mnt/bazel \
+              --host_jvm_args=-Xmx12g \
+              test \
+              --config=psmdb_buildfarm \
+              --config=psmdb_remote_jstest \
+              --remote_executor=$RBE_REMOTE_EXECUTOR \
+              --remote_cache=$RBE_REMOTE_CACHE \
+              --bes_backend=$RBE_BES_BACKEND \
+              --bes_results_url=$RBE_BES_RESULTS_URL \
+              --credential_helper=$RBE_CREDENTIAL_HELPER \
+              --jobs=300 \
+              --keep_going \
+              --test_output=errors \
+              --remote_download_regex='.*/test\.(log|xml)$' \
+              --build_event_json_file="bazel-bep-${name}.json" \
+              "$t" 2>&1 | tee "jstest-logs/${name}.log" || rc=1
+            echo "::endgroup::"
+          done
+          exit $rc
+
+      # Always upload the machine-readable test report: one bazel-bep*.json per
+      # invocation (reliable + each load-sensitive suite) carries every target's
+      # status. Uploaded on success too so results are downloadable from any run.
+      - name: Upload jstest reports
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: jstest-reports
+          path: bazel-bep*.json
+          retention-days: 14
+          if-no-files-found: warn
+
+      # On failure, gather the diagnostics. The primary source is the per-test
+      # test.log/test.xml under bazel-testlogs: the jstest test steps add
+      # --remote_download_regex='.*/test\.(log|xml)$' so those two files are
+      # downloaded to the runner even under --remote_download_outputs=minimal
+      # (without it they would stay in the remote cache and this copy would be
+      # empty). The teed console logs (jstest-logs/) are kept as a fallback for
+      # logs bazel skips printing when they exceed the UI byte cap. mongod core
+      # dumps are intentionally never downloaded.
+      - name: Collect jstest failure logs
+        if: failure()
+        run: |
+          mkdir -p jstest-failure-logs
+          cp -f jstest-logs/*.log jstest-failure-logs/ 2>/dev/null || true
+          cp -f bazel-bep*.json jstest-failure-logs/ 2>/dev/null || true
+          if [ -e bazel-testlogs ]; then
+            mkdir -p jstest-failure-logs/testlogs
+            cp -RL "$(readlink -f bazel-testlogs)"/. jstest-failure-logs/testlogs/ 2>/dev/null || true
+          fi
+          echo "Collected:"
+          find jstest-failure-logs -type f 2>/dev/null | sort
+
+      - name: Upload jstest failure logs
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: jstest-failure-logs
+          path: jstest-failure-logs/
+          retention-days: 14
+          if-no-files-found: warn
