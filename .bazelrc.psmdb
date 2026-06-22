@@ -309,5 +309,60 @@ common:psmdb_remote_unittest --config=remote_unittest
 test:psmdb_remote_unittest --test_tag_filters=mongo_unittest,-intermediate_debug,-incompatible_with_bazel_remote_test,-cpu:2
 
 ################################################################################
+# PSMDB remote jstest profile (psmdb_remote_jstest)
+################################################################################
+# Runs the resmoke jstest suites on the bb-psmdb RBE farm by inheriting upstream
+# --config=remote_test and layering the PSMDB-specific overrides below.
+#
+# WARNING: remote_test sets
+#     --remote_download_regex=.*\.(core|mdmp|gz)$
+# which force-downloads crash artifacts irrespective of --remote_download_outputs=minimal.
+# A resmoke test.outputs is a TreeArtifact that can contain a .gz data archive,
+# and Bazel materializes a TreeArtifact as a unit, so a single match drags the
+# whole tree -- including multi-GB mongod cores -- back to the runner. That regex
+# is allowMultiple in Bazel 7.x (note .bazelrc already sets a global one), so it
+# can ONLY be appended to, never cleared or narrowed from the CLI or a later
+# config -- inheriting remote_test always brings the core|mdmp|gz pattern with it.
+# If those per-failure gigabyte downloads become a problem and cannot be solved at
+# another layer (e.g. disabling core dumps on the workers), STOP inheriting
+# remote_test and instead COPY its flags here verbatim minus the
+# --remote_download_regex line (re-syncing that copy whenever upstream changes
+# remote_test). Inheriting is preferred while it is tolerable because it stays in
+# sync with upstream automatically.
+#
+# The test-tag filter drops what the bb-psmdb scheduler can't run:
+#   -incompatible_with_bazel_remote_test : suites upstream marks RBE-incompatible.
+#   -resources:cpu:2,-cpu:2              : self-clustering suites routed by
+#       bazel/test_exec_properties.bzl to Pool=large_mem_2core_x86_64, for which
+#       bb-psmdb has no workers (dispatch fails FAILED_PRECONDITION). Drop once
+#       that pool is provisioned, same as psmdb_remote_unittest's -cpu:2.
+#   -mozjs_wasm_unsupported              : tests upstream marks unsupported on the
+#       mozjs-wasm JS engine (e.g. mr_bigobject_replace.js, whose server-side JS
+#       uses assert.* which the WASM server scope doesn't provide). resmoke would
+#       normally auto-exclude these after detecting the engine via `mongod
+#       --version`, but that detection does not fire in the Bazel test runner
+#       (mongod isn't runnable at configure time), so the build IS mozjs-wasm yet
+#       the exclusion is skipped. We apply it explicitly here. Drop this once the
+#       shim makes resmoke's engine detection work (then it is handled per-build).
+#
+# --test_tag_filters is last-wins, so the full filter is stated here in one line.
+--config=psmdb_remote_jstest
+common:psmdb_remote_jstest --config=remote_test
+common:psmdb_remote_jstest --test_timeout=5400
+# With --remote_download_outputs=minimal the per-test test.log stays in the
+# remote cache (Bazel's BwoB does not re-fetch the test-runner log to disk even
+# with --remote_download_regex; only test.xml is auto-fetched for the summary).
+# So on a failure the ONLY copy of the log we get on the runner is what
+# --test_output=errors prints to the console (which the CI step tees to a file
+# and uploads). Bazel skips printing any test output larger than
+# --experimental_ui_max_stdouterr_bytes (default 1 MiB) -- a resmoke suite log
+# routinely exceeds that (e.g. ratelimit's ~1.04 MiB log was dropped with
+# "exceeds maximum size ...; skipping"), leaving no diagnosable artifact. Raise
+# the cap to 16 MiB so failing-suite logs print in full and survive in the
+# uploaded console log.
+common:psmdb_remote_jstest --experimental_ui_max_stdouterr_bytes=16777216
+test:psmdb_remote_jstest --test_tag_filters=-incompatible_with_bazel_remote_test,-resources:cpu:2,-cpu:2,-mozjs_wasm_unsupported
+
+################################################################################
 # End of Percona-specific build profiles
 ################################################################################
