@@ -295,6 +295,20 @@ jobs:
             --build_event_json_file=bazel-bep.json \
             //src/...
 
+      # Render a pass/fail/skip table into the GitHub job summary by parsing
+      # Bazel's Build Event Protocol JSON (--build_event_json_file above), which
+      # is always written to the runner and carries a testSummary per target --
+      # unlike test.xml, which under minimal output download stays in the remote
+      # cache. if: always() so the summary appears on failure too -- that's when
+      # it's most useful. Loaded from _trusted/ (base branch) like every other
+      # composite action.
+      - name: Report unittest results
+        if: always()
+        uses: ./_trusted/.github/actions/test-report
+        with:
+          title: "🧪 Unit test results"
+          detailed: "true"
+
       # Upload bazel-testlogs (per-target test.log + test.xml JUnit) plus the
       # BEP stream on failure. bazel-testlogs is a symlink into the bazel
       # output base; upload-artifact@v4 follows symlinks. Consumers
@@ -509,6 +523,17 @@ jobs:
             echo "::endgroup::"
           done
           exit $rc
+
+      # Render the jstest results table into the job summary. One Bazel server
+      # (--output_user_root) served every suite above, so bazel-testlogs holds
+      # the reliable batch plus each load-sensitive suite. if: always() so the
+      # summary is present on failure. See the unittests job for the rationale.
+      - name: Report jstest results
+        if: always()
+        uses: ./_trusted/.github/actions/test-report
+        with:
+          title: "🧪 jstest results"
+          detailed: "true"
 
       # Always upload the machine-readable test report: one bazel-bep*.json per
       # invocation (reliable + each load-sensitive suite) carries every target's
