@@ -5,14 +5,14 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 54,
-    "days_behind": 1,
-    "files_affected": 5212,
-    "total_additions": 38984,
-    "total_deletions": 29048,
+    "commits_behind": 68,
+    "days_behind": 4,
+    "files_affected": 5239,
+    "total_additions": 41986,
+    "total_deletions": 30439,
     "date_range": {
       "first": "2026-06-18T07:27:21+00:00",
-      "last": "2026-06-19T05:10:09+00:00"
+      "last": "2026-06-22T05:51:53+00:00"
     }
   },
   "last_merged_commit": {
@@ -36,6 +36,146 @@
     "summary": "SERVER-119485 Add a persisted phase to setFCV after enabling target FCV features (#54422)"
   },
   "unmerged_commits": [
+    {
+      "sha": "4982002c2791a94be20d667f6c563a4c9450d4a2",
+      "short_sha": "4982002c279",
+      "date": "2026-06-22T07:51:53+02:00",
+      "author": {
+        "name": "Silvia Surroca",
+        "email": "silvia.surroca@mongodb.com"
+      },
+      "summary": "SERVER-129499 setAllowChunkOperations non-auth path and legacy migration recovery race on updating CSR metadata (#56426)"
+    },
+    {
+      "sha": "72796315c3b00565b01516bbdc063848bc2c0faa",
+      "short_sha": "72796315c3b",
+      "date": "2026-06-21T12:22:09+00:00",
+      "author": {
+        "name": "auto-revert-app[bot]",
+        "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
+      },
+      "summary": "Revert \"SERVER-128312 Ensure oplog truncation does not pass the latest persisted valid-as-of timestamp (#56255)\" (#56439)"
+    },
+    {
+      "sha": "bd2016f961c66296c4ebd7b4a0c88a5a8342dbbe",
+      "short_sha": "bd2016f961c",
+      "date": "2026-06-21T05:26:13+00:00",
+      "author": {
+        "name": "auto-revert-app[bot]",
+        "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
+      },
+      "summary": "Revert \"SERVER-119888 Enable feature flag for featureFlagSbeTransformStages (#55421)\" (#56438)"
+    },
+    {
+      "sha": "0e8cfea90a07365c5e3b52610472165d0f758eba",
+      "short_sha": "0e8cfea90a0",
+      "date": "2026-06-21T12:53:12+10:00",
+      "author": {
+        "name": "wt-vendoring-bot[bot]",
+        "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "Import wiredtiger: 1040762253106688ab89c440603acbef12173fbb from branch mongodb-master (#56408)"
+    },
+    {
+      "sha": "1a906fab820c7679e9b42f958097b14d0512a33e",
+      "short_sha": "1a906fab820",
+      "date": "2026-06-20T08:23:51-04:00",
+      "author": {
+        "name": "Damian Wasilewicz",
+        "email": "33820523+DamianWasilewicz@users.noreply.github.com"
+      },
+      "summary": "SERVER-128312 Ensure oplog truncation does not pass the latest persisted valid-as-of timestamp (#56255)"
+    },
+    {
+      "sha": "8232a6c2f94dbd685cf6d700465da1b42510abdb",
+      "short_sha": "8232a6c2f94",
+      "date": "2026-06-19T21:31:40+02:00",
+      "author": {
+        "name": "Rui Liu",
+        "email": "33423526+lriuui0x0@users.noreply.github.com"
+      },
+      "summary": "SERVER-119888 Enable feature flag for featureFlagSbeTransformStages (#55421)"
+    },
+    {
+      "sha": "727bed92a54306062d641ad10407fd158ba00c90",
+      "short_sha": "727bed92a54",
+      "date": "2026-06-19T11:37:21-05:00",
+      "author": {
+        "name": "Haley Connelly",
+        "email": "haley.connelly@mongodb.com"
+      },
+      "summary": "SERVER-128940 Total logical size across hot and cold collections (#56199)"
+    },
+    {
+      "sha": "60c12ad8ecf45edba1b19cbb45f5d59be0538ca7",
+      "short_sha": "60c12ad8ecf",
+      "date": "2026-06-19T16:35:08+00:00",
+      "author": {
+        "name": "auto-revert-app[bot]",
+        "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
+      },
+      "summary": "Revert \"SERVER-126317 Mark fuzztests that crash as failing (#55977)\" (#56430)"
+    },
+    {
+      "sha": "bfc52979605814b93e54a1a72859c4b6e3acae85",
+      "short_sha": "bfc52979605",
+      "date": "2026-06-19T15:53:57+01:00",
+      "author": {
+        "name": "Projjal Chanda",
+        "email": "projjal.chanda@mongodb.com"
+      },
+      "summary": "SERVER-127352 Pass SimpleMemoryUsageTracker to Expression::evaluate() during let variable evaluation in LookupStage (#56293)"
+    },
+    {
+      "sha": "66788ab8029a8ec0685f76f6a5bec742ba9c7a91",
+      "short_sha": "66788ab8029",
+      "date": "2026-06-19T14:53:16+02:00",
+      "author": {
+        "name": "Denis Grebennicov",
+        "email": "denis.grebennicov@mongodb.com"
+      },
+      "summary": "SERVER-128414 Wire Express live behind featureFlagChangeStreamOptimizedUpdateLookup (#55283)"
+    },
+    {
+      "sha": "3f77bb2ecf77a3b2a0bf84ecfd79040d1fc831d8",
+      "short_sha": "3f77bb2ecf7",
+      "date": "2026-06-19T13:00:45+02:00",
+      "author": {
+        "name": "Silvia Surroca",
+        "email": "silvia.surroca@mongodb.com"
+      },
+      "summary": "SERVER-129484 Fix move_primary_remove_destination_shard.js (#56417)"
+    },
+    {
+      "sha": "57a176be5c56618194d9ee0006c6d84f0dc17620",
+      "short_sha": "57a176be5c5",
+      "date": "2026-06-19T12:51:37+02:00",
+      "author": {
+        "name": "mongodb-sage-bot[bot]",
+        "email": "247496174+mongodb-sage-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "SERVER-129326: Add implicit_ecoc_creation.js to last-patch backports section (#56273)"
+    },
+    {
+      "sha": "32be575a6331c1d6e99035071179d5b9aff7e2e6",
+      "short_sha": "32be575a633",
+      "date": "2026-06-19T12:25:37+02:00",
+      "author": {
+        "name": "Denis Grebennicov",
+        "email": "denis.grebennicov@mongodb.com"
+      },
+      "summary": "SERVER-128413 Implement ExpressSingleDocumentLookupExecutor (#55282)"
+    },
+    {
+      "sha": "c3d5ce45323e6d98401da614ada4ddc7b08ce8cd",
+      "short_sha": "c3d5ce45323",
+      "date": "2026-06-19T11:41:30+02:00",
+      "author": {
+        "name": "karlbozdogan",
+        "email": "karl.bozdogan@mongodb.com"
+      },
+      "summary": "SERVER-129350 Restrict the new $expr pushdown tests to FCV 8.3 (#56286)"
+    },
     {
       "sha": "186b646fff11714dec4c57c809177937bd46dfcb",
       "short_sha": "186b646fff1",
@@ -743,10 +883,79 @@
           "num_of_dirs": 16
         }
       }
+    },
+    {
+      "commit": {
+        "sha": "8232a6c2f94dbd685cf6d700465da1b42510abdb",
+        "short_sha": "8232a6c2f94",
+        "date": "2026-06-19T21:31:40+02:00",
+        "author": {
+          "name": "Rui Liu",
+          "email": "33423526+lriuui0x0@users.noreply.github.com"
+        },
+        "summary": "SERVER-119888 Enable feature flag for featureFlagSbeTransformStages (#55421)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 9,
+          "num_of_lines": 5532,
+          "lines_added": 204,
+          "lines_deleted": 5328,
+          "num_of_dirs": 8
+        }
+      }
+    },
+    {
+      "commit": {
+        "sha": "0e8cfea90a07365c5e3b52610472165d0f758eba",
+        "short_sha": "0e8cfea90a0",
+        "date": "2026-06-21T12:53:12+10:00",
+        "author": {
+          "name": "wt-vendoring-bot[bot]",
+          "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
+        },
+        "summary": "Import wiredtiger: 1040762253106688ab89c440603acbef12173fbb from branch mongodb-master (#56408)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 24,
+          "num_of_lines": 3112,
+          "lines_added": 1760,
+          "lines_deleted": 1352,
+          "num_of_dirs": 13
+        }
+      }
+    },
+    {
+      "commit": {
+        "sha": "bd2016f961c66296c4ebd7b4a0c88a5a8342dbbe",
+        "short_sha": "bd2016f961c",
+        "date": "2026-06-21T05:26:13+00:00",
+        "author": {
+          "name": "auto-revert-app[bot]",
+          "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
+        },
+        "summary": "Revert \"SERVER-119888 Enable feature flag for featureFlagSbeTransformStages (#55421)\" (#56438)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 9,
+          "num_of_lines": 5532,
+          "lines_added": 5328,
+          "lines_deleted": 204,
+          "num_of_dirs": 8
+        }
+      }
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-06-19 07:51:15",
+  "generated_at": "2026-06-22 07:57:34",
   "branch_name": "master",
   "display_name": "master"
 }
