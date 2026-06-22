@@ -1,0 +1,177 @@
+name: mergai periodic merge
+
+# Drive the merge-from-upstream loop: pick the next upstream commit to merge and,
+# unless a merge is already in progress, dispatch the `mergai bot` `trigger-merge`
+# job for it. This replaces a human watching the Fork Status page and dispatching
+# mergai.yml by hand.
+#
+# This workflow only *decides and triggers* - all merge/conflict/PR behavior lives
+# in mergai.yml's trigger-merge job, which is reused unchanged.
+#
+# Toggles (GitHub Actions repository *variables*, not secrets; both off by default):
+#   * MERGAI_PERIODIC_MERGE_ENABLED == 'true'  -> scheduled (cron) runs do work.
+#   * MERGAI_FOLLOWUP_MERGE_ENABLED  == 'true'   -> chain the next merge when a
+#                                                 mergai main PR is merged.
+# Manual workflow_dispatch always runs (for testing) regardless of the toggles.
+#
+# NOTE: the cron *cadence* cannot come from a variable - GitHub requires a literal
+# schedule expression here. To change the cadence, edit the cron below. The toggle
+# only turns scheduled runs on/off; it does not change their frequency.
+on:
+  schedule:
+    # Daily at 05:00 UTC (morning), ahead of the 06:00 update-fork-status run.
+    # Gated by MERGAI_PERIODIC_MERGE_ENABLED (see the job `if` below).
+    - cron: "0 5 * * *"
+  # Manual entry point for testing. Runs the identical logic - no special-casing,
+  # and is NOT gated by the enable toggles. (To force a merge regardless of state,
+  # dispatch mergai.yml directly instead.)
+  workflow_dispatch: {}
+  # Chain the next merge: when a mergai main PR (mergai/*/main -> master) is merged,
+  # the cycle is complete, so kick off the next pick immediately instead of waiting
+  # for the next cron tick. Gated by MERGAI_FOLLOWUP_MERGE_ENABLED; the job's `if`
+  # also restricts this to merged main PRs; the in-progress guard still applies
+  # (it just finds no open mergai PR by then).
+  pull_request:
+    types: [closed]
+    branches: [master]
+
+# Never let two ticks decide to dispatch at the same time.
+concurrency:
+  group: mergai-periodic-merge
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  pull-requests: read # mergai pr list -> read PRs
+  actions: write # gh workflow run mergai.yml
+
+jobs:
+  periodic-merge:
+    runs-on: ubuntu-latest
+    # Gate per trigger:
+    #   * workflow_dispatch -> always (manual test).
+    #   * schedule          -> only when MERGAI_PERIODIC_MERGE_ENABLED == 'true'.
+    #   * pull_request      -> only when MERGAI_FOLLOWUP_MERGE_ENABLED == 'true' AND
+    #                          a mergai main PR (mergai/*/main -> master) was merged
+    #                          (other closed PRs to master fire but are skipped).
+    # Unset variables are empty strings, so both toggles default to disabled.
+    if: >-
+      github.event_name == 'workflow_dispatch'
+      || (github.event_name == 'schedule'
+          && vars.MERGAI_PERIODIC_MERGE_ENABLED == 'true')
+      || (github.event_name == 'pull_request'
+          && vars.MERGAI_FOLLOWUP_MERGE_ENABLED == 'true'
+          && github.event.pull_request.merged == true
+          && startsWith(github.event.pull_request.head.ref, 'mergai/')
+          && endsWith(github.event.pull_request.head.ref, '/main'))
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          # Scheduled and follow-up (pull_request) runs always operate on the
+          # target branch tip, not the triggering ref (e.g. a just-merged
+          # mergai/*/main head), so merge-pick sees the latest master including
+          # the merge that just landed. A manual workflow_dispatch instead uses
+          # the dispatched ref, so config / rules changes on a feature branch
+          # can be exercised before they reach master. (For schedule, github.ref
+          # is already the default branch.)
+          ref: ${{ github.event_name == 'pull_request' && 'master' || github.ref }}
+          fetch-depth: 0
+
+      - name: Create GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@d72941d797fd3113feb6b93fd0dec494b13a2547 # v1.12.0
+        with:
+          app-id: ${{ secrets.PSMDB_BOT_GH_APP_ID }}
+          private-key: ${{ secrets.PSMDB_BOT_GH_APP_PRIVATE_KEY }}
+
+      - name: Setup mergai
+        uses: ./.github/actions/setup-mergai
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+          ref: ${{ vars.MERGAI_REF || 'master' }}
+
+      # In-progress guard, run as early as possible: an open mergai PR means a
+      # merge cycle is already underway, so stop and let it finish before doing
+      # any expensive work (the upstream fetch in 'fork init', status, pick).
+      # This only needs the mergai CLI, the checked-out .mergai/config.yml, and a
+      # token - no upstream remote - so it precedes 'fork init'. The pre-PR window
+      # (a trigger-merge run dispatched but still awaiting privileged-ops approval)
+      # is covered by the early-fail guard in mergai.yml's trigger-merge job.
+      - name: Stop if a merge is already in progress
+        id: guard
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          set -euo pipefail
+          if [ -n "$(mergai pr --repo "$GITHUB_REPOSITORY" list -q)" ]; then
+            echo "A merge is already in progress. Open mergai PR(s):"
+            mergai pr --repo "$GITHUB_REPOSITORY" list
+            echo "proceed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "No mergai PR open; clear to proceed."
+          echo "proceed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Initialize fork
+        if: steps.guard.outputs.proceed == 'true'
+        run: |
+          set -euo pipefail
+          mergai fork init
+
+      # Informational: show divergence from upstream, the unmerged commits, and
+      # the prioritized merge picks (same view as the Fork Status page).
+      - name: Show fork status
+        if: steps.guard.outputs.proceed == 'true'
+        run: |
+          set -euo pipefail
+          mergai fork status -lp
+
+      # Phase 1 (token-free): evaluate the merge gate. `--plan` decides *when* to
+      # merge (go/no-go over fork status) and needs no AI tokens, so it's safe in
+      # this unprivileged job. The *which-commit* pick (deterministic or AI) is
+      # phase 2, done in mergai.yml's privileged trigger-merge job - so we only
+      # read `.action` here and dispatch without a sha.
+      - name: Evaluate merge gate
+        id: gate
+        if: steps.guard.outputs.proceed == 'true'
+        run: |
+          set -euo pipefail
+          PLAN=$(mergai fork merge-pick --plan)
+          echo "Gate plan: $PLAN"
+          ACTION=$(echo "$PLAN" | jq -r '.action')
+          REASON=$(echo "$PLAN" | jq -r '.reason // ""')
+          if [ "$ACTION" != "merge" ]; then
+            echo "Merge gate closed ($ACTION): $REASON"
+            echo "merge=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "Merge gate open: $REASON"
+          echo "merge=true" >> "$GITHUB_OUTPUT"
+
+      # Phase 2: dispatch trigger-merge to do the actual pick + merge. No sha is
+      # passed - trigger-merge picks the commit itself (deterministic or AI per
+      # the MERGAI_MERGE_PICK_MODE variable), keeping any AI-token use inside the
+      # privileged-ops job.
+      - name: Trigger merge
+        if: steps.guard.outputs.proceed == 'true' && steps.gate.outputs.merge == 'true'
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          # `gh workflow run` dispatches the workflow file from the default
+          # branch unless --ref is given. On a manual workflow_dispatch, target
+          # the dispatched branch so a feature-branch mergai.yml is what runs
+          # (matching the branch this job checked out and evaluated the gate on).
+          # schedule/follow-up runs leave it empty and dispatch from the default
+          # branch. github.ref_name is the branch on workflow_dispatch, but a
+          # non-branch ref (e.g. <N>/merge) on pull_request, so it is only used
+          # for the dispatch event.
+          DISPATCH_REF: ${{ github.event_name == 'workflow_dispatch' && github.ref_name || '' }}
+        run: |
+          set -euo pipefail
+          echo "Merge gate open; dispatching mergai.yml trigger-merge."
+          if [ -n "$DISPATCH_REF" ]; then
+            echo "Dispatching mergai.yml on ref: $DISPATCH_REF"
+            gh workflow run mergai.yml --ref "$DISPATCH_REF"
+          else
+            gh workflow run mergai.yml
+          fi
