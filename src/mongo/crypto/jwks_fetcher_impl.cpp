@@ -52,19 +52,11 @@
 
 namespace mongo::crypto {
 
-<<<<<<< HEAD
-JWKSFetcherImpl::JWKSFetcherImpl(ClockSource* clock, StringData issuer, StringData caFilePath)
+JWKSFetcherImpl::JWKSFetcherImpl(ClockSource* clock, std::string_view issuer, std::string_view caFilePath)
     : _issuer(issuer),
       _clock(clock),
       _lastAttemptedFetchTime(Date_t::min()),
       _caFilePath(caFilePath) {}
-||||||| 2eff3754f8e
-JWKSFetcherImpl::JWKSFetcherImpl(ClockSource* clock, StringData issuer)
-    : _issuer(issuer), _clock(clock), _lastAttemptedFetchTime(Date_t::min()) {}
-=======
-JWKSFetcherImpl::JWKSFetcherImpl(ClockSource* clock, std::string_view issuer)
-    : _issuer(issuer), _clock(clock), _lastAttemptedFetchTime(Date_t::min()) {}
->>>>>>> c9fa3ccc6dc4e6c15ca26d58bc03951df288eb36
 
 JWKSet JWKSFetcherImpl::fetch() {
     try {

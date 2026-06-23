@@ -588,17 +588,11 @@ public:
 
     StatusWith<std::deque<std::string>> extendBackupCursor() override;
 
-<<<<<<< HEAD
     Status hotBackup(OperationContext* opCtx, const std::string& path) override;
     Status hotBackupTar(OperationContext* opCtx, const std::string& path) override;
     Status hotBackup(OperationContext* opCtx, const percona::S3BackupParameters& s3params) override;
 
-    int64_t getIdentSize(RecoveryUnit&, StringData ident) override;
-||||||| 2eff3754f8e
-    int64_t getIdentSize(RecoveryUnit&, StringData ident) override;
-=======
     int64_t getIdentSize(RecoveryUnit&, std::string_view ident) override;
->>>>>>> c9fa3ccc6dc4e6c15ca26d58bc03951df288eb36
 
     Status repairIdent(RecoveryUnit& ru, std::string_view ident) override;
 
