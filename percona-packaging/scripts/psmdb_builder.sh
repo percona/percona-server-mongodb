@@ -862,6 +862,10 @@ build_tarball(){
             strip --strip-debug ${PSMDIR}/bin/${target#"bazel-bin/install-dist-test/bin/"}
         fi
     done
+
+    mkdir -p ${PSMDIR}/doc
+    cp sbom.json ${PSMDIR}/doc
+
     #
     cd ${WORKDIR}
     #
