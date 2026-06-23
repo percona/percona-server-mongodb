@@ -31,7 +31,6 @@
 
 #include "mongo/base/error_codes.h"
 #include "mongo/base/status.h"
-#include "mongo/base/string_data.h"
 #include "mongo/bson/bsonelement.h"
 #include "mongo/bson/bsonobj.h"
 #include "mongo/db/api_parameters.h"
@@ -53,6 +52,7 @@
 #include <functional>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -305,20 +305,20 @@ public:
     /**
      * Returns true if the given stage name is registered as an extension stage.
      */
-    static bool isRegisteredExtensionStage(StringData stageName);
+    static bool isRegisteredExtensionStage(std::string_view stageName);
 
-    void setApiStrict(AllowedWithApiStrict& apiStrict) {
+    void setApiStrict(AllowedWithApiStrict apiStrict) {
         _apiStrict = apiStrict;
     }
 
-    void setClientType(AllowedWithClientType& clientType) {
+    void setClientType(AllowedWithClientType clientType) {
         _clientType = clientType;
     }
 
-    const AllowedWithApiStrict& getApiStrict() {
+    const AllowedWithApiStrict& getApiStrict() const {
         return _apiStrict;
     };
-    const AllowedWithClientType& getClientType() {
+    const AllowedWithClientType& getClientType() const {
         return _clientType;
     };
 
@@ -385,7 +385,7 @@ public:
      * are wrapped in $unionWith) should override to return false: their subpipeline view resolution
      * will happen once the desugar has produced concrete $unionWith stages, on the per-stage path
      * or on a subsequent recursive resolver pass after LP-level desugaring lands.
-     * TODO SERVER-125594 / SERVER-121091 Remove this override once $rankFusion / $scoreFusion
+     * TODO SERVER-121094 Remove this override once $rankFusion / $scoreFusion
      * desugar at LiteParsed time.
      */
     virtual bool shouldResolveSubpipelineViews() const {
@@ -461,7 +461,7 @@ public:
         // Override for the stage name in timeseries error messages. If not set,
         // getParseTimeName() is used. Useful when a stage is conditionally disallowed
         // (e.g. $match is only disallowed when it contains $text).
-        boost::optional<StringData> timeseriesUnsupportedStageName;
+        boost::optional<std::string_view> timeseriesUnsupportedStageName;
     };
 
     virtual Constraints constraints() const {
@@ -515,7 +515,7 @@ public:
     /**
      * Returns true if this stage produces output sort key metadata ($sortKey) or is an explicit
      * $sort stage.
-     * TODO SERVER-121091 This can be removed once hybrid search desugars into the internal hybrid
+     * TODO SERVER-121094 This can be removed once hybrid search desugars into the internal hybrid
      * search stage.
      */
     virtual bool isRankedStage() const {
@@ -524,7 +524,7 @@ public:
 
     /**
      * Returns true if this stage produces score metadata.
-     * TODO SERVER-121091 This can be removed once hybrid search desugars into the internal hybrid
+     * TODO SERVER-121094 This can be removed once hybrid search desugars into the internal hybrid
      * search stage.
      */
     virtual bool isScoredStage() const {
@@ -533,7 +533,7 @@ public:
 
     /**
      * Returns true if this stage produces scoreDetails metadata.
-     * TODO SERVER-121091 This can be removed once hybrid search desugars into the internal hybrid
+     * TODO SERVER-121094 This can be removed once hybrid search desugars into the internal hybrid
      * search stage.
      */
     virtual bool isScoreDetailsStage() const {
@@ -543,7 +543,7 @@ public:
     /**
      * Returns true if this stage is a selection stage. A selection stage does not modify or
      * transform documents.
-     * TODO SERVER-121091 This can be removed once hybrid search desugars into the internal hybrid
+     * TODO SERVER-121094 This can be removed once hybrid search desugars into the internal hybrid
      * search stage.
      */
     virtual bool isSelectionStage() const {
@@ -645,8 +645,17 @@ public:
      * is destroyed.
      *
      * Call makeOwned() on an unowned clone if the external BSON lifetime cannot be guaranteed.
+     *
+     * Subclasses customize the copy by implementing _doClone(); this wrapper then carries over the
+     * parse-time validation metadata (apiStrict, clientType) that parse() stamps on every instance,
+     * so a subclass that reconstructs rather than copy-constructs cannot silently drop it.
      */
-    virtual std::unique_ptr<LiteParsedDocumentSource> clone() const = 0;
+    std::unique_ptr<LiteParsedDocumentSource> clone() const {
+        auto cloned = _doClone();
+        cloned->setApiStrict(getApiStrict());
+        cloned->setClientType(getClientType());
+        return cloned;
+    }
 
     /**
      * Converts the LiteParsedDocumentSource to own the BSON it holds, similar to
@@ -680,14 +689,14 @@ protected:
 
     std::shared_ptr<IncrementalFeatureRolloutContext> _ifrContext;
 
-    void transactionNotSupported(StringData stageName) const {
+    void transactionNotSupported(std::string_view stageName) const {
         uasserted(ErrorCodes::OperationNotSupportedInTransaction,
                   str::stream() << "Operation not permitted in transaction :: caused by :: "
                                 << "Aggregation stage " << stageName << " cannot run within a "
                                 << "multi-document transaction.");
     }
 
-    ReadConcernSupportResult onlySingleReadConcernSupported(StringData stageName,
+    ReadConcernSupportResult onlySingleReadConcernSupported(std::string_view stageName,
                                                             repl::ReadConcernLevel supportedLevel,
                                                             repl::ReadConcernLevel candidateLevel,
                                                             bool isImplicitDefault) const {
@@ -703,7 +712,7 @@ protected:
                                 << " does not permit default readConcern to be applied."}}};
     }
 
-    ReadConcernSupportResult onlyReadConcernLocalSupported(StringData stageName,
+    ReadConcernSupportResult onlyReadConcernLocalSupported(std::string_view stageName,
                                                            repl::ReadConcernLevel level,
                                                            bool isImplicitDefault) const {
         return onlySingleReadConcernSupported(
@@ -711,6 +720,13 @@ protected:
     }
 
 private:
+    /**
+     * Subclass hook for clone(): returns a copy carrying all subclass state. The base-class
+     * validation metadata is applied by clone() and need not be copied here. Private so that only
+     * clone() can invoke it (NVI); overrides may be private too.
+     */
+    virtual std::unique_ptr<LiteParsedDocumentSource> _doClone() const = 0;
+
     /**
      * Give access to 'parserMap' so we can remove a registered parser with
      * 'unregisterParser_forTest'.
@@ -794,7 +810,8 @@ public:
         return false;
     }
 
-    std::unique_ptr<LiteParsedDocumentSource> clone() const override {
+private:
+    std::unique_ptr<LiteParsedDocumentSource> _doClone() const override {
         return std::make_unique<Derived>(static_cast<const Derived&>(*this));
     }
 };

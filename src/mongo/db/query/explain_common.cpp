@@ -32,15 +32,19 @@
 #include "mongo/bson/util/builder.h"
 #include "mongo/db/curop.h"
 #include "mongo/db/query/query_execution_knobs_gen.h"
+#include "mongo/db/query/query_feature_flags_gen.h"
 #include "mongo/db/query/query_integration_knobs_gen.h"
 #include "mongo/db/query/query_knobs/query_knob_configuration.h"
 #include "mongo/db/query/query_optimization_knobs_gen.h"
 #include "mongo/db/query/stage_memory_limit_knobs/knobs.h"
 #include "mongo/db/server_options.h"
 #include "mongo/db/server_parameter.h"
+#include "mongo/db/version_context.h"
 #include "mongo/util/net/socket_utils.h"
 #include "mongo/util/str.h"
 #include "mongo/util/version.h"
+
+#include <string_view>
 
 namespace mongo::explain_common {
 namespace append_if_room {
@@ -53,7 +57,7 @@ namespace append_if_room {
  */
 constexpr int OutputObjectMaxSize = BSONObjMaxUserSize - 10 * 1024;
 
-void appendWarningMessage(StringData fieldName, BSONObjBuilder* out) {
+void appendWarningMessage(std::string_view fieldName, BSONObjBuilder* out) {
     constexpr int kWarningMsgOverhead = 60;
     // The reserved buffer size for the warning message if 'out' exceeds the max BSON user size.
     const int warningMsgSize = fieldName.size() + kWarningMsgOverhead;
@@ -96,6 +100,20 @@ void generateServerParameters(const boost::intrusive_ptr<ExpressionContext>& exp
     serverBob.doneFast();
 }
 
+void generateQueryKnobs(const boost::intrusive_ptr<ExpressionContext>& expCtx,
+                        BSONObjBuilder* out) {
+    auto* opCtx = expCtx->getOperationContext();
+    if (!feature_flags::gFeatureFlagPqsQueryKnobs.isEnabledUseLatestFCVWhenUninitialized(
+            VersionContext::getDecoration(opCtx),
+            serverGlobalParams.featureCompatibility.acquireFCVSnapshot())) {
+        return;
+    }
+    auto serializedKnobs = expCtx->getQueryKnobConfiguration().serializeForExplain();
+    if (!serializedKnobs.isEmpty()) {
+        appendIfRoom(serializedKnobs, "queryKnobs", out);
+    }
+}
+
 void generateQueryShapeHash(OperationContext* opCtx, BSONObjBuilder* out) {
     if (auto&& queryShapeHash = mongo::CurOp::get(opCtx)->debug().getQueryShapeHash()) {
         out->append("queryShapeHash", queryShapeHash->toHexString());
@@ -108,7 +126,7 @@ void generatePeakTrackedMemBytes(const OperationContext* opCtx, BSONObjBuilder* 
     }
 }
 
-bool appendIfRoom(const BSONObj& toAppend, StringData fieldName, BSONObjBuilder* out) {
+bool appendIfRoom(const BSONObj& toAppend, std::string_view fieldName, BSONObjBuilder* out) {
     if ((out->len() + toAppend.objsize()) < append_if_room::OutputObjectMaxSize) {
         out->append(fieldName, toAppend);
         return true;
@@ -119,7 +137,7 @@ bool appendIfRoom(const BSONObj& toAppend, StringData fieldName, BSONObjBuilder*
     return false;
 }
 
-bool appendIfRoom(const BSONArray& toAppend, StringData fieldName, BSONObjBuilder* out) {
+bool appendIfRoom(const BSONArray& toAppend, std::string_view fieldName, BSONObjBuilder* out) {
     if ((out->len() + toAppend.objsize()) < append_if_room::OutputObjectMaxSize) {
         out->appendArray(fieldName, toAppend);
         return true;

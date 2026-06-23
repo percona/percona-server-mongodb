@@ -28,7 +28,6 @@
  */
 #pragma once
 
-#include "mongo/base/string_data.h"
 #include "mongo/db/extension/host/aggregation_stage/ast_node.h"
 #include "mongo/db/extension/host/aggregation_stage/parse_node.h"
 #include "mongo/db/extension/host/catalog_context.h"
@@ -49,6 +48,7 @@
 #include "mongo/util/modules.h"
 
 #include <algorithm>
+#include <string_view>
 
 namespace mongo::extension::host_connector {
 class PipelineDependenciesAdapter;
@@ -190,11 +190,6 @@ public:
             return false;
         }
 
-        std::unique_ptr<LiteParsedDocumentSource> clone() const override {
-            return std::make_unique<LiteParsedExpandable>(
-                getOriginalBson(), _parseNode->clone(), _nss, _options);
-        }
-
         bool hasCustomBsonForLog() const override {
             return true;
         }
@@ -210,6 +205,30 @@ public:
         // TODO SERVER-121094 Remove this override when extensions can handle views through
         // bindResolvedNamespace().
         bool hasExtensionSearchStage() const override;
+
+        // These checks must consider every expanded stage, as if inlined into the pipeline:
+        // ranked/scored if ANY expanded stage is (matching isRankedPipeline()/isScoredPipeline()),
+        // selection only if ALL are. isInitialSource() above intentionally stays front-only.
+        // TODO SERVER-129047: replace this host-side reduction with the extension-declared
+        // ParseNode properties once get_properties is exposed on the ParseNode vtable, and delete
+        // these overrides.
+        bool isRankedStage() const override {
+            return std::any_of(_expanded.begin(), _expanded.end(), [](const auto& stage) {
+                return stage->isRankedStage();
+            });
+        }
+
+        bool isScoredStage() const override {
+            return std::any_of(_expanded.begin(), _expanded.end(), [](const auto& stage) {
+                return stage->isScoredStage();
+            });
+        }
+
+        bool isSelectionStage() const override {
+            return std::all_of(_expanded.begin(), _expanded.end(), [](const auto& stage) {
+                return stage->isSelectionStage();
+            });
+        }
 
         // Extension stages are unsupported on timeseries collections.
         Constraints constraints() const override {
@@ -241,6 +260,11 @@ public:
         static LiteParsedDesugarer::StageExpander stageExpander;
 
     private:
+        std::unique_ptr<LiteParsedDocumentSource> _doClone() const override {
+            return std::make_unique<LiteParsedExpandable>(
+                getOriginalBson(), _parseNode->clone(), _nss, _options);
+        }
+
         /**
          * Carries per-invocation validation state for recursive expansion performed by
          * LiteParsedExpandable. The state is instantiated at the top-level expand() and passed by
@@ -345,11 +369,6 @@ public:
             return properties.has_value() && !properties->empty();
         }
 
-        std::unique_ptr<LiteParsedDocumentSource> clone() const override {
-            return std::make_unique<LiteParsedExpanded>(
-                getParseTimeName(), _astNode->clone(), _nss, _ifrContext);
-        }
-
         bool hasExtensionVectorSearchStage() const override;
 
         bool hasExtensionSearchStage() const override;
@@ -380,6 +399,11 @@ public:
         bool isSelectionStage() const override;
 
     private:
+        std::unique_ptr<LiteParsedDocumentSource> _doClone() const override {
+            return std::make_unique<LiteParsedExpanded>(
+                getParseTimeName(), _astNode->clone(), _nss, _ifrContext);
+        }
+
         AggStageAstNodeHandle _astNode;
         const MongoExtensionStaticProperties _properties;
         const NamespaceString _nss;
@@ -465,7 +489,7 @@ public:
     // This method is invoked by extensions to register descriptor.
     static void registerStage(AggStageDescriptorHandle descriptor);
 
-    StringData getSourceName() const override {
+    std::string_view getSourceName() const override {
         return _stageName;
     }
 
@@ -537,11 +561,12 @@ public:
      * given extension stage name in a static extension rule registry that is populated once at
      * startup and accessible by all DocumentSourceExtensionOptimizable instances.
      */
-    static void registerStageRules(StringData stageName,
+    static void registerStageRules(std::string_view stageName,
                                    const std::vector<PipelineRewriteRule>& rules);
 
-    static void unregisterStageRules_forTest(StringData stageName);
-    static const std::vector<PipelineRewriteRule>* getStageRules_forTest(StringData stageName);
+    static void unregisterStageRules_forTest(std::string_view stageName);
+    static const std::vector<PipelineRewriteRule>* getStageRules_forTest(
+        std::string_view stageName);
 
     /**
      * Pushes the pipeline dependencies to the underlying extension logical stage.

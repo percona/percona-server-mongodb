@@ -31,7 +31,6 @@
 #include "mongo/db/validate/validate_timeseries.h"
 
 #include "mongo/base/status.h"
-#include "mongo/base/string_data.h"
 #include "mongo/bson/bsonelement.h"
 #include "mongo/bson/bsonobj.h"
 #include "mongo/bson/bsontypes.h"
@@ -57,6 +56,7 @@
 
 #include <climits>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include <boost/none.hpp>
@@ -74,7 +74,7 @@ namespace {
 /**
  * Attempts to parse the field name to integer.
  */
-int idxInt(StringData idx) {
+int idxInt(std::string_view idx) {
     int value = INT_MIN;
     auto [ptr, ec] = std::from_chars(idx.data(), idx.data() + idx.size(), value);
     // Ensure that the parsing consumes the entire buffer.
@@ -175,7 +175,7 @@ TimeseriesValidationStatus validateTimeSeriesIdTimestamp(OperationContext* opCtx
                                                          const TimeseriesOptions& timeseriesOptions,
                                                          const BSONObj& recordBson) {
     // Ensure the time field exists
-    const StringData timeField = timeseriesOptions.getTimeField();
+    const std::string_view timeField = timeseriesOptions.getTimeField();
 
     // Compares both timestamps as Dates.
     const auto minTimestamp = recordBson[timeseries::kBucketControlFieldName]
@@ -262,20 +262,18 @@ TimeseriesValidationStatus validateTimeseriesDataFieldTypes(const BSONElement& d
     return {TimeseriesValidationResult::kValid, ""};
 }
 
-
 /*
- * Checks that only buckets that have timeSeriesBucketingParameters flag set have changed
- * bucket parameters.
+ * Checks that the bucket's timestamps are consistent with the current bucketing parameters when
+ * the collection has fixedBucketing=true (i.e., no bucketing parameter change has ever occurred).
  */
-TimeseriesValidationStatus validateTimeseriesBucketingParametersChanged(
+TimeseriesValidationStatus validateTimeseriesFixedBucketingConsistency(
     const CollectionPtr& coll,
     timeseries::bucket_catalog::MinMax& minmax,
     const BSONElement& controlMin,
-    StringData fieldName,
-    ValidateResults& results,
-    int version) {
-    const bool timeseriesBucketingParametersHaveChanged =
-        coll->timeseriesBucketingParametersHaveChanged().value_or(true);
+    std::string_view fieldName,
+    ValidateResults& results) {
+    const bool fixedBucketing =
+        coll->getTimeseriesOptions().value().getFixedBucketing().value_or(false);
 
     const auto min = minmax.min();
 
@@ -286,8 +284,8 @@ TimeseriesValidationStatus validateTimeseriesBucketingParametersChanged(
         return roundedDownTimeStamp < controlMin.Date();
     };
 
-    if (checkTimeSeriesBucketingParametersChanged() && !timeseriesBucketingParametersHaveChanged &&
-        results.addError(kTimeseriesBucketingParametersChangedInconsistencyReason)) {
+    if (fixedBucketing && checkTimeSeriesBucketingParametersChanged() &&
+        results.addError(kTimeseriesFixedBucketingInconsistencyReason)) {
         // Get the original timeseries bucketing parameters.
         auto originalTimeseriesOptions = coll->getTimeseriesOptions();
         invariant(originalTimeseriesOptions != boost::none);
@@ -316,7 +314,7 @@ TimeseriesValidationStatus validateTimeSeriesMinMax(const TimeseriesOptions& tim
                                                     timeseries::bucket_catalog::MinMax& minmax,
                                                     const BSONElement& controlMin,
                                                     const BSONElement& controlMax,
-                                                    StringData fieldName,
+                                                    std::string_view fieldName,
                                                     int version,
                                                     const CollatorInterface* collator) {
     const auto min = minmax.min();
@@ -382,7 +380,7 @@ TimeseriesValidationStatus validateTimeSeriesDataTimeField(const CollectionPtr& 
                                                            const BSONElement& timeField,
                                                            const BSONElement& controlMin,
                                                            const BSONElement& controlMax,
-                                                           StringData fieldName,
+                                                           std::string_view fieldName,
                                                            ValidateResults& results,
                                                            int version,
                                                            int* bucketCount) {
@@ -467,8 +465,8 @@ TimeseriesValidationStatus validateTimeSeriesDataTimeField(const CollectionPtr& 
         status.result != TimeseriesValidationResult::kValid) {
         return status;
     }
-    if (auto status = validateTimeseriesBucketingParametersChanged(
-            coll, minmax, controlMin, fieldName, results, version);
+    if (auto status = validateTimeseriesFixedBucketingConsistency(
+            coll, minmax, controlMin, fieldName, results);
         status.result != TimeseriesValidationResult::kValid) {
         return status;
     }
@@ -484,7 +482,7 @@ TimeseriesValidationStatus validateTimeSeriesDataField(const CollectionPtr& coll
                                                        const BSONElement& dataField,
                                                        const BSONElement& controlMin,
                                                        const BSONElement& controlMax,
-                                                       StringData fieldName,
+                                                       std::string_view fieldName,
                                                        ValidateResults& results,
                                                        int version,
                                                        int bucketCount) {
@@ -643,7 +641,7 @@ TimeseriesValidationStatus validateTimeSeriesDataFields(const CollectionPtr& col
  * expected field.
  */
 TimeseriesValidationStatus validateTimeseriesExtendedRangeTimestamps(
-    bool requiresExtendedRangeSupport, StringData timeFieldName, const BSONObj& recordBson) {
+    bool requiresExtendedRangeSupport, std::string_view timeFieldName, const BSONObj& recordBson) {
     if (!requiresExtendedRangeSupport) {
         // Check the control block and _id fields for an extended timestamp and flag an error if
         // one exists while the collection metadata is not correctly set.

@@ -38,12 +38,14 @@
 #include "mongo/db/query/query_settings/query_settings_gen.h"
 #include "mongo/unittest/unittest.h"
 
+#include <string_view>
+
 #include <boost/container_hash/hash.hpp>
 #include <fmt/format.h>
 
 namespace mongo::query_settings {
 namespace {
-QuerySettingsKnobOverrides makeKnobOverrides(StringData jsonString) {
+QuerySettingsKnobOverrides makeKnobOverrides(std::string_view jsonString) {
     return QuerySettingsKnobOverrides::fromBSON(fromjson(jsonString));
 }
 };  // namespace
@@ -103,7 +105,7 @@ TEST(QuerySettingsHashTest, QuerySettingsHashStability) {
     NamespaceSpec ns;
     ns.setDb(
         DatabaseNameUtil::deserialize(boost::none, "testDB", SerializationContext::stateDefault()));
-    ns.setColl(StringData("testColl"));
+    ns.setColl(std::string_view("testColl"));
     settings.setIndexHints({{IndexHintSpec(ns, {IndexHint("a_1")})}});
     settings.setReject(true);
     auto observedHash = mongo::query_settings::hash(settings);
@@ -153,6 +155,26 @@ TEST(QuerySettingsKnobOverridesHashTest, HashStableForDuplicatedKnobDifferentOrd
     auto b = makeKnobOverrides("{testIntKnobWire: 2, testIntKnobWire: 4}");
     boost::hash<QuerySettingsKnobOverrides> hasher;
     ASSERT_EQ(hasher(a), hasher(b));
+}
+
+TEST(QuerySettingsKnobOverridesHashTest, HashReflectsKnobRemoval) {
+    auto withKnob = makeKnobOverrides("{testIntKnobWire: 42}");
+    auto nullOverride = makeKnobOverrides("{testIntKnobWire: null}");
+    auto afterRemoval = QuerySettingsKnobOverrides::merge(withKnob, nullOverride);
+    // merge() leaves the removal sentinel in place; simplify() strips it, as on the write path.
+    afterRemoval.simplify();
+    auto empty = QuerySettingsKnobOverrides::fromBSON(BSONObj{});
+    boost::hash<QuerySettingsKnobOverrides> hasher;
+    ASSERT_NE(hasher(withKnob), hasher(afterRemoval));
+    ASSERT_EQ(hasher(afterRemoval), hasher(empty));
+}
+
+TEST(QuerySettingsKnobOverridesHashTest, HashStableForDifferentMergeInputOrder) {
+    auto a = makeKnobOverrides("{testIntKnobWire: 3}");
+    auto b = makeKnobOverrides("{testBoolKnobWire: false}");
+    boost::hash<QuerySettingsKnobOverrides> hasher;
+    ASSERT_EQ(hasher(QuerySettingsKnobOverrides::merge(a, b)),
+              hasher(QuerySettingsKnobOverrides::merge(b, a)));
 }
 
 }  // namespace mongo::query_settings

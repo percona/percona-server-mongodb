@@ -29,17 +29,20 @@
 
 #include "mongo/bson/column/interleaved_schema.h"
 
+#include <string_view>
+
 namespace mongo {
+using namespace std::literals::string_view_literals;
 
 InterleavedSchema::InterleavedSchema(const BSONObj& referenceObj, BSONType rootType, bool arrays)
     : _arrays(arrays) {
-    uint16_t scalarIdx = 0;
+    index_t scalarIdx = 0;
     _discover(referenceObj, ""_sd, rootType, referenceObj.isEmpty(), scalarIdx);
     _scalarCount = scalarIdx;
 }
 
 void InterleavedSchema::_discover(
-    const BSONObj& obj, StringData fieldName, BSONType type, bool allowEmpty, uint16_t& scalarIdx) {
+    const BSONObj& obj, StringData fieldName, BSONType type, bool allowEmpty, index_t& scalarIdx) {
     _entries.push_back({Op::kEnterSubObj, fieldName, 0, type, allowEmpty});
 
     for (auto&& elem : obj) {

@@ -29,7 +29,6 @@
 
 #include "mongo/base/error_codes.h"
 #include "mongo/base/status_with.h"
-#include "mongo/base/string_data.h"
 #include "mongo/bson/bsonobj.h"
 #include "mongo/bson/bsonobjbuilder.h"
 #include "mongo/client/read_preference.h"
@@ -207,7 +206,7 @@ TargetedWriteRequest makeTargetWriteRequest(OperationContext* opCtx,
     uassert(ErrorCodes::NamespaceNotSharded,
             "_clusterWriteWithoutShardKey can only be run against sharded collections.",
             cri.isSharded());
-    const auto shardVersion = cri.getShardVersion(shardId);
+    const auto shardVersion = cri.getShardVersion(opCtx, shardId);
     // For time-series collections, the 'targetDocId' corresponds to a measurement document's '_id'
     // field which is not guaranteed to exist and does not uniquely identify a measurement so we
     // cannot use this ID to reliably target a document in this write phase. Instead, we will

@@ -29,7 +29,6 @@
 
 #include "mongo/db/pipeline/spilling/spillable_deque.h"
 
-#include "mongo/base/string_data.h"
 #include "mongo/bson/bsonobjbuilder.h"
 #include "mongo/db/exec/document_value/document_value_test_util.h"
 #include "mongo/db/exec/document_value/value.h"
@@ -99,7 +98,9 @@ TEST_F(SpillableDequeTest, CanReadAndWriteDocumentsInMem) {
 TEST_F(SpillableDequeTest, LoadingFailsIfCantSpillToDisk) {
     _expCtx->setAllowDiskUse(false);
     auto cache = createSpillableDeque(1);
-    ASSERT_THROWS_CODE(buildAndLoadDocumentSet(1, cache.get()), AssertionException, 5643011);
+    ASSERT_THROWS_CODE(buildAndLoadDocumentSet(1, cache.get()),
+                       AssertionException,
+                       ErrorCodes::QueryExceededMemoryLimitNoDiskUseAllowed);
 }
 
 TEST_F(SpillableDequeTest, CanReadAndWriteDocumentsToDisk) {

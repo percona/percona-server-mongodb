@@ -33,6 +33,7 @@
 #include "mongo/db/exec/agg/document_source_to_stage_registry.h"
 #include "mongo/db/exec/agg/mock_stage.h"
 #include "mongo/db/exec/document_value/document.h"
+#include "mongo/db/namespace_string.h"
 #include "mongo/db/pipeline/aggregation_context_fixture.h"
 #include "mongo/db/pipeline/expression.h"
 #include "mongo/db/pipeline/expression_context_for_test.h"
@@ -43,6 +44,8 @@
 
 #include <boost/smart_ptr.hpp>
 #include <boost/smart_ptr/intrusive_ptr.hpp>
+
+using namespace std::literals::string_view_literals;
 
 namespace mongo {
 namespace {
@@ -212,7 +215,7 @@ TEST_F(DocumentSourceScoreTest, CheckLengthyDocScoreMetadataUpdated) {
           }
       })");
     Document inputDoc =
-        Document{{"field1", "hello"_sd}, {"field2", 10}, {"myScore", 5.3}, {"field3", true}};
+        Document{{"field1", "hello"sv}, {"field2", 10}, {"myScore", 5.3}, {"field3", true}};
 
     const auto desugaredList =
         DocumentSourceScore::createFromBson(spec.firstElement(), getExpCtx());
@@ -236,7 +239,7 @@ TEST_F(DocumentSourceScoreTest, ErrorsIfScoreNotDouble) {
           }
       })");
     Document inputDoc =
-        Document{{"field1", "hello"_sd}, {"field2", 10}, {"myScore", "5.3"_sd}, {"field3", true}};
+        Document{{"field1", "hello"sv}, {"field2", 10}, {"myScore", "5.3"sv}, {"field3", true}};
 
     const auto desugaredList =
         DocumentSourceScore::createFromBson(spec.firstElement(), getExpCtx());
@@ -256,7 +259,7 @@ TEST_F(DocumentSourceScoreTest, ErrorsIfExpressionFieldPathDoesNotExist) {
               normalization: "none"
           }
       })");
-    Document inputDoc = Document{{"field1", "hello"_sd}, {"field2", 10}, {"field3", true}};
+    Document inputDoc = Document{{"field1", "hello"sv}, {"field2", 10}, {"field3", true}};
 
     const auto desugaredList =
         DocumentSourceScore::createFromBson(spec.firstElement(), getExpCtx());
@@ -277,7 +280,7 @@ TEST_F(DocumentSourceScoreTest, ErrorsIfScoreInvalidExpression) {
           }
       })");
     Document inputDoc =
-        Document{{"field1", "hello"_sd}, {"otherScore", 10}, {"myScore", 5.3}, {"field3", true}};
+        Document{{"field1", "hello"sv}, {"otherScore", 10}, {"myScore", 5.3}, {"field3", true}};
 
     // Assert cannot parse expression
     ASSERT_THROWS_CODE(DocumentSourceScore::createFromBson(spec.firstElement(), getExpCtx()),
@@ -293,7 +296,7 @@ TEST_F(DocumentSourceScoreTest, ChecksScoreMetadatUpdatedValidExpression) {
           }
       })");
     Document inputDoc =
-        Document{{"field1", "hello"_sd}, {"otherScore", 10}, {"myScore", 5.3}, {"field3", true}};
+        Document{{"field1", "hello"sv}, {"otherScore", 10}, {"myScore", 5.3}, {"field3", true}};
 
     const auto desugaredList =
         DocumentSourceScore::createFromBson(spec.firstElement(), getExpCtx());
@@ -1395,6 +1398,22 @@ TEST_F(DocumentSourceScoreTest, ScoreDetailsDesugaring) {
         })",
             asOneObj);
     }
+}
+
+TEST_F(DocumentSourceScoreTest, LiteParsedReportsScoreDetailsFromSpec) {
+    const auto nss = NamespaceString::createNamespaceString_forTest("test.coll");
+    auto liteParse = [&](BSONObj spec) {
+        return ScoreLiteParsed::parse(nss, spec.firstElement(), LiteParserOptions{});
+    };
+
+    // scoreDetails present and true.
+    ASSERT_TRUE(liteParse(fromjson(R"({$score: {score: "$x", scoreDetails: true}})"))
+                    ->isScoreDetailsStage());
+    // scoreDetails present and false.
+    ASSERT_FALSE(liteParse(fromjson(R"({$score: {score: "$x", scoreDetails: false}})"))
+                     ->isScoreDetailsStage());
+    // scoreDetails absent defaults to false.
+    ASSERT_FALSE(liteParse(fromjson(R"({$score: {score: "$x"}})"))->isScoreDetailsStage());
 }
 
 }  // namespace

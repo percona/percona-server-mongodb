@@ -142,6 +142,11 @@ ExecutorFuture<void> MoveRangeCoordinator::_acquireLocksAsync(
 }
 
 void MoveRangeCoordinator::_releaseLocks(OperationContext*) {
+    // Destroy the MigrationSourceManager before releasing the ActiveMigrationsRegistry gate.
+    // Otherwise a subsequent migration on the same namespace could acquire the gate and construct a
+    // second MigrationSourceManager while this one is still registered, tripping the invariant in
+    // MigrationSourceManager::ScopedRegisterer.
+    _migrationAttempt.reset();
     _scopedDonateChunk.reset();
 }
 
@@ -207,6 +212,14 @@ ExecutorFuture<void> MoveRangeCoordinator::_runImpl(
         .onCompletion([this, anchor = shared_from_this()](Status migrateStatus) {
             auto opCtx = makeOperationContext(/*deprioritizable=*/false);
             if (!migrateStatus.isOK()) {
+                // If the state document was never persisted (e.g. the coordinator was
+                // interrupted before the first phase write committed), there is nothing on disk to
+                // record the result into. Propagate the (retryable) failure directly; attempting to
+                // update a non-existent document would hit the tripwire 10644540.
+                if (_doc.getPhase() == Phase::kUnset) {
+                    uassertStatusOK(migrateStatus);
+                }
+
                 // OrphanedRangeCleanUpFailed is only thrown if the migration succeeded, but
                 // _waitForDelete was requested and we failed to delete all orphans (e.g. because we
                 // were interrupted before the range deletion could complete). Arguably, we should

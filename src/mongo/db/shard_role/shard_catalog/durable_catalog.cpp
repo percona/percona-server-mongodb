@@ -54,6 +54,7 @@
 
 #include <cstddef>
 #include <memory>
+#include <string_view>
 
 #include <boost/none.hpp>
 #include <boost/optional.hpp>
@@ -218,7 +219,7 @@ namespace {
  * it is empty on disk. Otherwise, ObjectAlreadyExists is propagated to the caller.
  */
 Status createStorage(OperationContext* opCtx,
-                     StringData ident,
+                     std::string_view ident,
                      function_ref<Status()> create,
                      function_ref<bool()> identExists,
                      function_ref<bool()> identEmpty) {
@@ -357,7 +358,7 @@ Status createIndex(OperationContext* opCtx,
                    const NamespaceString& nss,
                    const CollectionOptions& collectionOptions,
                    const IndexConfig& indexConfig,
-                   StringData ident) {
+                   std::string_view ident) {
     invariant(collectionOptions.uuid);
 
     auto mdbCatalog = MDBCatalog::get(opCtx);
@@ -476,7 +477,7 @@ Status dropAndRecreateIndexIdentForResume(OperationContext* opCtx,
                                           const NamespaceString& nss,
                                           const CollectionOptions& collectionOptions,
                                           const IndexConfig& indexConfig,
-                                          StringData ident) {
+                                          std::string_view ident) {
     auto engine = opCtx->getServiceContext()->getStorageEngine()->getEngine();
     auto status =
         engine->dropSortedDataInterface(*shard_role_details::getRecoveryUnit(opCtx), ident);
@@ -514,7 +515,7 @@ void getReadyIndexes(OperationContext* opCtx,
 
 bool isIndexPresent(OperationContext* opCtx,
                     const RecordId& catalogId,
-                    StringData indexName,
+                    std::string_view indexName,
                     const MDBCatalog* mdbCatalog) {
     auto catalogEntry = getParsedCatalogEntry(opCtx, catalogId, mdbCatalog);
     if (!catalogEntry)
@@ -558,12 +559,6 @@ void sanitizeTimeseriesOptions(OperationContext* opCtx,
         metadata.timeseriesBucketsMayHaveMixedSchemaData =
             metadata._durableTimeseriesBucketsMayHaveMixedSchemaData;
     }
-
-    // If present, reuse storageEngine options to work around the issue described in SERVER-91193.
-    metadata._durableTimeseriesBucketingParametersHaveChanged =
-        storageEngine->getFlagFromStorageOptions(
-            metadata.options.storageEngine,
-            backwards_compatible_collection_options::kTimeseriesBucketingParametersHaveChanged);
 }
 
 }  // namespace mongo::durable_catalog

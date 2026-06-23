@@ -52,6 +52,7 @@
 #include <cstdint>
 #include <mutex>
 #include <string>
+#include <string_view>
 #include <utility>
 
 #include <absl/container/node_hash_map.h>
@@ -221,7 +222,7 @@ public:
     }
 
     ShardVersion getCollectionVersion() const;
-    ShardVersion getShardVersion(const ShardId& shardId) const;
+    ShardVersion getShardVersion(OperationContext* opCtx, const ShardId& shardId) const;
 
     const CachedDatabaseInfo& getDatabaseInfo() const {
         return _dbInfo;
@@ -354,7 +355,7 @@ public:
                  std::shared_ptr<CatalogCacheLoader> collectionCacheLoader,
                  bool cascadeDatabaseCacheLoaderShutdown = true,
                  bool cascadeCollectionCacheLoaderShutdown = true,
-                 StringData kind = ""_sd);
+                 std::string_view kind = ""_sd);
 
     /**
      * Constructs a CatalogCache using a single cache loader for both database and collection
@@ -362,7 +363,7 @@ public:
      */
     CatalogCache(ServiceContext* service,
                  std::shared_ptr<CatalogCacheLoader> cacheLoader,
-                 StringData kind = ""_sd);
+                 std::string_view kind = ""_sd);
 
     virtual ~CatalogCache();
 

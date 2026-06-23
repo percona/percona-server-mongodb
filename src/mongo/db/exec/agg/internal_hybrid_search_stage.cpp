@@ -1,5 +1,5 @@
 /**
- *    Copyright (C) 2024-present MongoDB, Inc.
+ *    Copyright (C) 2026-present MongoDB, Inc.
  *
  *    This program is free software: you can redistribute it and/or modify
  *    it under the terms of the Server Side Public License, version 1,
@@ -27,32 +27,33 @@
  *    it in the license file.
  */
 
-#include "MongoStringDataConstRefCheck.h"
+#include "mongo/db/exec/agg/internal_hybrid_search_stage.h"
 
-namespace mongo::tidy {
+#include "mongo/db/exec/agg/document_source_to_stage_registry.h"
+#include "mongo/db/pipeline/document_source_internal_hybrid_search.h"
 
-using namespace clang;
-using namespace clang::ast_matchers;
+namespace mongo::exec::agg {
 
-void MongoStringDataConstRefCheck::registerMatchers(ast_matchers::MatchFinder* Finder) {
-    Finder->addMatcher(
-        traverse(
-            TK_IgnoreUnlessSpelledInSource,
-            parmVarDecl(hasType(qualType(references(cxxRecordDecl(hasName("mongo::StringData"))))),
-                        hasType(references(isConstQualified())))
-                .bind("constSDRef")),
-        this);
+boost::intrusive_ptr<exec::agg::Stage> documentSourceInternalHybridSearchToStageFn(
+    const boost::intrusive_ptr<DocumentSource>& documentSource) {
+    auto* hybridSearchDS = dynamic_cast<DocumentSourceInternalHybridSearch*>(documentSource.get());
+
+    tassert(12109101, "expected 'DocumentSourceInternalHybridSearch' type", hybridSearchDS);
+
+    return make_intrusive<exec::agg::InternalHybridSearchStage>(hybridSearchDS->kStageName,
+                                                                hybridSearchDS->getExpCtx());
 }
 
-void MongoStringDataConstRefCheck::check(const ast_matchers::MatchFinder::MatchResult& Result) {
-    auto decl = Result.Nodes.getNodeAs<ParmVarDecl>("constSDRef");
-    if (!decl) {
-        return;
-    }
-    if (decl->getASTContext().getSourceManager().isMacroBodyExpansion(decl->getLocation())) {
-        return;
-    }
-    diag(decl->getBeginLoc(), "Prefer passing StringData by value.");
+REGISTER_AGG_STAGE_MAPPING(_internalHybridSearch,
+                           DocumentSourceInternalHybridSearch::id,
+                           documentSourceInternalHybridSearchToStageFn);
+
+InternalHybridSearchStage::InternalHybridSearchStage(
+    StringData stageName, const boost::intrusive_ptr<ExpressionContext>& expCtx)
+    : Stage(stageName, expCtx) {}
+
+GetNextResult InternalHybridSearchStage::doGetNext() {
+    return pSource->getNext();
 }
 
-}  // namespace mongo::tidy
+}  // namespace mongo::exec::agg

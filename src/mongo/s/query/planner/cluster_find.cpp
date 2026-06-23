@@ -32,7 +32,6 @@
 #include "mongo/base/error_codes.h"
 #include "mongo/base/status.h"
 #include "mongo/base/status_with.h"
-#include "mongo/base/string_data.h"
 #include "mongo/bson/bsonelement.h"
 #include "mongo/bson/bsonmisc.h"
 #include "mongo/bson/bsonobjbuilder.h"
@@ -134,6 +133,7 @@
 #include <mutex>
 #include <set>
 #include <string>
+#include <string_view>
 #include <thread>
 #include <utility>
 #include <vector>
@@ -255,7 +255,7 @@ void updateNumHostsTargetedMetrics(OperationContext* opCtx,
     // Note: It is fine to use 'getAproxNShardsOwningChunks' here because the result is only used to
     // update stats.
     int nShardsOwningChunks =
-        cri.hasRoutingTable() ? cri.getChunkManager().getAproxNShardsOwningChunks() : 0;
+        cri.hasRoutingTable() ? cri.getChunkManager().getAproxNShardsOwningChunks(opCtx) : 0;
     auto targetType = NumHostsTargetedMetrics::get(opCtx).parseTargetType(
         opCtx, nTargetedShards, nShardsOwningChunks, cri.isSharded());
     NumHostsTargetedMetrics::get(opCtx).addNumHostsTargeted(
@@ -635,7 +635,7 @@ StatusWith<ClusterCursorManager::PinnedCursor> checkOutCursorWithRetries(
     OperationContext* opCtx,
     CursorId cursorId,
     AuthorizationSession* authzSession,
-    StringData commandName) {
+    std::string_view commandName) {
     auto cursorManager = Grid::get(opCtx)->getCursorManager();
     AuthzCheckFn authChecker = [&authzSession](AuthzCheckFnInputType userName) -> Status {
         return authzSession->isCoauthorizedWith(userName)

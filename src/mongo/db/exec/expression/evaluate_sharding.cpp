@@ -58,6 +58,7 @@
 namespace mongo {
 
 namespace exec::expression {
+using namespace std::literals::string_view_literals;
 
 Value evaluate(const ExpressionInternalOwningShard& expr,
                const Document& root,
@@ -80,9 +81,9 @@ Value evaluate(const ExpressionInternalOwningShard& expr,
             input.getType() == BSONType::object);
 
     // Retrieve the values from the incoming document.
-    Value nsUnchecked = input["ns"_sd];
-    Value shardVersionUnchecked = input["shardVersion"_sd];
-    Value shardKeyValUnchecked = input["shardKeyVal"_sd];
+    Value nsUnchecked = input["ns"sv];
+    Value shardVersionUnchecked = input["shardVersion"sv];
+    Value shardKeyValUnchecked = input["shardKeyVal"sv];
 
     uassert(9567001,
             str::stream() << opName << " requires 'ns' argument to be an string",
@@ -133,7 +134,7 @@ Value evaluate(const ExpressionInternalOwningShard& expr,
 
     // Retrieve the shard id for the given shard key value.
     std::set<ShardId> shardIds;
-    cri.getChunkManager().getShardIdsForRange(shardKeyVal, shardKeyVal, &shardIds);
+    cri.getChunkManager().getShardIdsForRange(opCtx, shardKeyVal, shardKeyVal, &shardIds);
     uassert(6868601, "The value should belong to exactly one ShardId", shardIds.size() == 1);
     const auto shardId = *(shardIds.begin());
     return Value(shardId.toString());

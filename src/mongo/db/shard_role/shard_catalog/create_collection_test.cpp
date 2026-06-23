@@ -30,7 +30,6 @@
 #include "mongo/db/shard_role/shard_catalog/create_collection.h"
 
 #include "mongo/base/error_codes.h"
-#include "mongo/base/string_data.h"
 #include "mongo/bson/bsonobjbuilder.h"
 #include "mongo/bson/json.h"
 #include "mongo/bson/timestamp.h"
@@ -74,6 +73,7 @@
 #include <memory>
 #include <ostream>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -82,6 +82,7 @@
 
 namespace mongo {
 namespace {
+using namespace std::literals::string_view_literals;
 using namespace std::string_literals;
 
 class CreateCollectionTest : public ServiceContextMongoDTest {
@@ -407,71 +408,6 @@ TEST_F(CreateCollectionTest, CreateCollectionForApplyOpsRespectsTimeseriesBucket
     ASSERT_EQUALS(uuid1, getCollectionUuid(opCtx.get(), bucketsColl));
 }
 
-TEST_F(CreateCollectionTest, TimeseriesBucketingParametersChangedFlagNotSetIfFeatureDisabled) {
-    unittest::ServerParameterGuard featureFlagController(
-        "featureFlagTSBucketingParametersUnchanged", false);
-    NamespaceString curNss = NamespaceString::createNamespaceString_forTest("test.curColl");
-
-    auto opCtx = makeOpCtx();
-    auto tsOptions = TimeseriesOptions("t");
-    CreateCommand cmd = CreateCommand(curNss);
-    cmd.getCreateCollectionRequest().setTimeseries(std::move(tsOptions));
-    uassertStatusOK(createCollection(opCtx.get(), cmd));
-    auto tsNss = timeseries::test_util::resolveTimeseriesNss(curNss);
-
-    ASSERT_TRUE(collectionExists(opCtx.get(), tsNss));
-    const auto collForRead = acquireCollForRead(opCtx.get(), tsNss);
-    ASSERT_FALSE(collForRead.getCollectionPtr()->timeseriesBucketingParametersHaveChanged());
-}
-
-TEST_F(CreateCollectionTest,
-       TimeseriesBucketingParametersChangedFlagNotSetIfCollectionNotTimeseries) {
-    unittest::ServerParameterGuard featureFlagController(
-        "featureFlagTSBucketingParametersUnchanged", false);
-    NamespaceString curNss = NamespaceString::createNamespaceString_forTest("test.curColl");
-
-    auto opCtx = makeOpCtx();
-    uassertStatusOK(createCollection(opCtx.get(), CreateCommand(curNss)));
-
-    ASSERT_TRUE(collectionExists(opCtx.get(), curNss));
-    const auto collForRead = acquireCollForRead(opCtx.get(), curNss);
-    ASSERT_FALSE(collForRead.getCollectionPtr()->timeseriesBucketingParametersHaveChanged());
-}
-
-TEST_F(CreateCollectionTest, TimeseriesBucketingParametersChangedFlagTrue) {
-    unittest::ServerParameterGuard featureFlagController(
-        "featureFlagTSBucketingParametersUnchanged", true);
-
-    NamespaceString curNss = NamespaceString::createNamespaceString_forTest("test.curColl");
-
-    auto opCtx = makeOpCtx();
-    auto tsOptions = TimeseriesOptions("t");
-    CreateCommand cmd = CreateCommand(curNss);
-    cmd.getCreateCollectionRequest().setTimeseries(std::move(tsOptions));
-    uassertStatusOK(createCollection(opCtx.get(), cmd));
-    auto tsNss = timeseries::test_util::resolveTimeseriesNss(curNss);
-
-    ASSERT_TRUE(collectionExists(opCtx.get(), tsNss));
-    const auto tsCollForRead = acquireCollForRead(opCtx.get(), tsNss);
-    // TODO(SERVER-101611): Set *timeseriesBucketingParametersHaveChanged to false on create
-    ASSERT_FALSE(tsCollForRead.getCollectionPtr()->timeseriesBucketingParametersHaveChanged());
-}
-
-TEST_F(CreateCollectionTest, TimeseriesBucketingParametersChangedFlagFalse) {
-    unittest::ServerParameterGuard featureFlagController(
-        "featureFlagTSBucketingParametersUnchanged", true);
-
-    NamespaceString curNss = NamespaceString::createNamespaceString_forTest("test.curColl");
-
-    auto opCtx = makeOpCtx();
-    uassertStatusOK(createCollection(opCtx.get(), CreateCommand(curNss)));
-
-    ASSERT_TRUE(collectionExists(opCtx.get(), curNss));
-    const auto collForRead = acquireCollForRead(opCtx.get(), curNss);
-    ASSERT_FALSE(collForRead.getCollectionPtr()->timeseriesBucketingParametersHaveChanged());
-}
-
-
 TEST_F(CreateCollectionTest, ValidationOptions) {
     // Try a valid validator before trying invalid validators.
     validateValidator("", static_cast<int>(ErrorCodes::Error::OK));
@@ -626,7 +562,7 @@ TEST_F(CreateCollectionTest, CreateCollectionForApplyOpsUsesIdIndexIdentIfSuppli
     // index.
     auto newIdents = opCtx->getServiceContext()->getStorageEngine()->getEngine()->getAllIdents(
         *shard_role_details::getRecoveryUnit(opCtx.get()));
-    std::set<StringData> indexIdents;
+    std::set<std::string_view> indexIdents;
     for (auto& ident : newIdents) {
         if (ident.starts_with("index-"))
             indexIdents.insert(ident);
@@ -796,7 +732,7 @@ TEST_F(CreateVirtualCollectionTest, InvalidVirtualCollectionOptions) {
     {
         bool exceptionOccurred = false;
         VirtualCollectionOptions reqVcollOpts;
-        constexpr auto kInvalidUrl = "fff://abc/named_pipe"_sd;
+        constexpr auto kInvalidUrl = "fff://abc/named_pipe"sv;
         try {
             reqVcollOpts.dataSources.emplace_back(
                 kInvalidUrl, StorageTypeEnum::pipe, FileTypeEnum::bson);
@@ -924,7 +860,7 @@ TEST_F(CreateCollectionTest, TestCollectionCreationChecks) {
         auto opCtx = makeOpCtx();
         CollectionOptions options;
         options.timeseries = TimeseriesOptions("ts");
-        options.timeseries->setMetaField("$meta"_sd);
+        options.timeseries->setMetaField("$meta"sv);
         createCollectionTestCase(opCtx.get(), nss, options, ErrorCodes::BadValue);
     }
 
@@ -968,7 +904,7 @@ TEST_F(CreateCollectionTest, FixedBucketingValuePersisted) {
     unittest::ServerParameterGuard viewlessController(
         "featureFlagCreateViewlessTimeseriesCollections", true);
 
-    auto checkPersisted = [&](StringData collName,
+    auto checkPersisted = [&](std::string_view collName,
                               boost::optional<bool> createValue,
                               boost::optional<bool> expectedStored) {
         NamespaceString nss = NamespaceString::createNamespaceString_forTest("test", collName);
@@ -1105,7 +1041,7 @@ TEST_F(CreateCollectionTest, CreateCollectionForApplyOpsTimeseriesDollarPrefix) 
     Lock::DBLock lock(opCtx.get(), newNss.dbName(), MODE_IX);
 
     auto tsOptions = TimeseriesOptions("$ts");
-    tsOptions.setMetaField("$meta"_sd);
+    tsOptions.setMetaField("$meta"sv);
     CreateCommand cmd = CreateCommand(newNss);
     cmd.getCreateCollectionRequest().setTimeseries(tsOptions);
 

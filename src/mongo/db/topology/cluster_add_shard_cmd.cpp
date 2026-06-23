@@ -29,7 +29,6 @@
 
 
 #include "mongo/base/error_codes.h"
-#include "mongo/base/string_data.h"
 #include "mongo/client/read_preference.h"
 #include "mongo/db/audit.h"
 #include "mongo/db/auth/action_type.h"

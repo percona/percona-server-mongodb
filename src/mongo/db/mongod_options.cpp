@@ -81,6 +81,7 @@
 #include <map>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -479,7 +480,7 @@ Status storeMongodOptions(const moe::Environment& params) {
     removeTrailingPathSeparator(storageGlobalParams.dbpath, getPathSeparator());
 
 #ifdef _WIN32
-    StringData dbpath(storageGlobalParams.dbpath);
+    std::string_view dbpath(storageGlobalParams.dbpath);
     if (dbpath.size() >= 2 && dbpath.starts_with("\\\\")) {
         // Check if the dbpath is on a Windows network share (eg. \\myserver\myshare)
         LOGV2_WARNING_OPTIONS(5808500,

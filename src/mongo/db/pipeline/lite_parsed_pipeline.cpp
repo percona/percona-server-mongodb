@@ -30,7 +30,6 @@
 #include "mongo/db/pipeline/lite_parsed_pipeline.h"
 
 #include "mongo/base/error_codes.h"
-#include "mongo/base/string_data.h"
 #include "mongo/bson/bsonobjbuilder.h"
 #include "mongo/db/api_parameters.h"
 #include "mongo/db/commands/server_status/server_status_metric.h"
@@ -43,6 +42,8 @@
 #include "mongo/util/assert_util.h"
 #include "mongo/util/str.h"
 #include "mongo/util/string_map.h"
+
+#include <string_view>
 
 
 namespace mongo {
@@ -158,7 +159,7 @@ void LiteParsedPipeline::validate(const OperationContext* opCtx,
                                   bool performApiVersionChecks) const {
     for (auto stage_it = _stageSpecs.begin(); stage_it != _stageSpecs.end(); stage_it++) {
         const auto& stage = *stage_it;
-        // TODO SERVER-121974 This can be removed once hybrid search views are validated in
+        // TODO SERVER-121094 This can be removed once hybrid search views are validated in
         // LiteParsed using the LiteParsedConstraints.
         uassert(10170100,
                 "$rankFusion/$scoreFusion can only be the first stage of an aggregation pipeline.",
@@ -197,7 +198,7 @@ void LiteParsedPipeline::validateTimeseries() const {
     for (const auto& stage : _stageSpecs) {
         auto stageConstraints = stage->constraints();
         auto unsupportedStage = stageConstraints.timeseriesUnsupportedStageName.value_or(
-            StringData(stage->getParseTimeName()));
+            std::string_view(stage->getParseTimeName()));
         uassert(12093200,
                 str::stream() << unsupportedStage << " is unsupported for timeseries collections",
                 stageConstraints.canRunOnTimeseries);
@@ -230,6 +231,12 @@ size_t LiteParsedPipeline::replaceStageWith(
             str::stream() << "replaceStageWith index " << index << " out of range "
                           << _stageSpecs.size(),
             index < _stageSpecs.size());
+
+    // Own each new stage's BSON before erasing the old stage: the old stage may own the backing
+    // of cloned subpipeline stages in newSources (e.g. a desugared $rankFusion/$scoreFusion).
+    for (auto& src : newSources) {
+        src->makeOwned();
+    }
 
     auto& stages = _stageSpecs;
     const auto numInserted = newSources.size();
