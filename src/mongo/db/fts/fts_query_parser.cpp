@@ -102,7 +102,7 @@ QueryToken FTSQueryParser::nextForNgram() {
         }
     }
 
-    StringData ret = _raw.substr(start, _pos - start);
+    std::string_view ret = _raw.substr(start, _pos - start);
     bool old = _previousWhiteSpace;
     _previousWhiteSpace = skipWhitespace();
 
