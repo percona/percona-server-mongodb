@@ -74,7 +74,7 @@ public:
         return modulesList;
     }
 
-    std::vector<StringData> perconaFeatures() const final {
+    std::vector<std::string_view> perconaFeatures() const final {
         return perconaFeatureList;
     }
 
@@ -115,7 +115,7 @@ private:
     std::string_view kJsEngine = "@buildinfo_js_engine@"sv;
     std::vector<std::string_view> modulesList{@buildinfo_modules@};
     std::vector<VersionInfoInterface::BuildInfoField> buildEnvironment{@buildinfo_environment_data@};
-    std::vector<StringData> perconaFeatureList{
+    std::vector<std::string_view> perconaFeatureList{
         "MemoryEngine",
         "HotBackup",
         "BackupCursorAggregationStage",

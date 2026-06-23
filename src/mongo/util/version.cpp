@@ -89,7 +89,7 @@ public:
         return {"unknown"};
     }
 
-    std::vector<StringData> perconaFeatures() const final {
+    std::vector<std::string_view> perconaFeatures() const final {
         return {"unknown"};
     }
 
