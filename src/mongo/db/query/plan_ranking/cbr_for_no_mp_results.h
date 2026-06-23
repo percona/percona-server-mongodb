@@ -57,7 +57,9 @@ private:
      * @param isExplain If true extract explain data from the multiplanner.
      */
     StatusWith<PlanRankingResult> resumeMultiPlannerAndPickBestPlan(
-        const trial_period::TrialPhaseConfig& trialsConfig, bool isExplain);
+        OperationContext* opCtx,
+        const trial_period::TrialPhaseConfig& trialsConfig,
+        bool isExplain);
 };
 }  // namespace plan_ranking
 }  // namespace mongo

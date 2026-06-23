@@ -29,26 +29,15 @@
 
 #pragma once
 
-#include "mongo/db/exec/agg/stage.h"
-#include "mongo/util/modules.h"
-
-namespace mongo::exec::agg {
+namespace mongo {
 
 /**
- * Pure-passthrough execution stage for $_internalHybridSearch (every DocumentSource reaching the
- * exec layer needs a registered stage mapping).
+ * Initializes the s2n-tls library via `s2n_init()`, but only if `s2n_init()` has not been called
+ * previously.
+ * Returns `nullptr` on success, or on failure returns a pointer to a C-string with static storage
+ * duration containing an error message.
+ * `s2nInitOnce` must be called from the process's main thread.
  */
-class InternalHybridSearchStage final : public Stage {
-public:
-    InternalHybridSearchStage(StringData stageName,
-                              const boost::intrusive_ptr<ExpressionContext>& expCtx);
+const char* s2nInitOnce();
 
-    bool isEOF() const final {
-        return pSource && pSource->isEOF();
-    }
-
-private:
-    GetNextResult doGetNext() final;
-};
-
-}  // namespace mongo::exec::agg
+}  // namespace mongo
