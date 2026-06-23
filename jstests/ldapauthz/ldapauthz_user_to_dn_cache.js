@@ -106,7 +106,29 @@ import {createAdminUser} from "jstests/ldapauthz/_setup.js";
         );
         var cache = stats.ldap.userToDNCache;
         for (var [key, val] of Object.entries(expected)) {
-            assert.eq(cache[key], val, msg + ": field " + key, {cache});
+            if (key === "hits") {
+                // The "hits" counter is a LOWER BOUND, not an exact value. A successful
+                // $external auth resolves the DN via mapUserToDN() at two call sites -- the
+                // SASL bind (external_sasl_authentication_session.cpp) and queryUserRoles()
+                // (ldap_manager_impl.cpp) -- which is the "miss + hit" the checkpoints below
+                // model. But the AuthorizationManager can also re-acquire an $external user's
+                // roles opportunistically (the short ldapUserCacheInvalidationInterval, session
+                // teardown around logout), and each extra acquisition runs queryUserRoles() ->
+                // mapUserToDN() again, adding another cache hit. That re-acquisition races the
+                // serverStatus read on the checkpoints taken right after an auth, so the exact
+                // hit count is timing-dependent and flakes under load (observed on the bb-psmdb
+                // farm: "expected NumberLong(2) to equal 1"). Assert hits >= expected so a
+                // legitimate extra hit does not fail the test.
+                //
+                // "misses" is intentionally NOT relaxed (asserted exactly below): a miss means
+                // an actual LDAP round-trip, so it is the metric that proves caching works and
+                // it is stable here -- on the post-auth checkpoints the DN is cached (a
+                // re-acquisition is a hit, not a miss), and the invalidation checkpoints settle
+                // via setParam()'s sleep before the read.
+                assert.gte(cache[key], val, msg + ": field " + key, {cache});
+            } else {
+                assert.eq(cache[key], val, msg + ": field " + key, {cache});
+            }
         }
     }
 
