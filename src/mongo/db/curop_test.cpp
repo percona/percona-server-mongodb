@@ -660,8 +660,15 @@ TEST(CurOpTest, OptionalAdditiveMetricsNotDisplayedIfUninitialized) {
                                          "locks",
                                          "millis",
                                          "micros",
+<<<<<<< HEAD
                                          "flowControl",
                                          "rateLimit"};
+||||||| c9fa3ccc6dc
+                                         "flowControl"};
+=======
+                                         "flowControl",
+                                         "planRanker"};
+>>>>>>> 8b98a84d73558be5b22048060c00f685474e12b2
 
     QueryTestServiceContext serviceContext;
     auto opCtx = serviceContext.makeOperationContext();
@@ -699,6 +706,123 @@ TEST(CurOpTest, OptionalAdditiveMetricsNotDisplayedIfUninitialized) {
                basicFields.end())
             << "Unexpected extra field in output: " << elem.fieldName();
     }
+}
+
+TEST(CurOpTest, PlanRankerMethodAppendedToProfilerOutput) {
+    QueryTestServiceContext serviceContext;
+    auto opCtx = serviceContext.makeOperationContext();
+    SingleThreadedLockStats ls;
+
+    auto curop = CurOp::get(*opCtx);
+
+    BSONObj command = BSON("a" << 3);
+    {
+        std::lock_guard<Client> clientLock(*opCtx->getClient());
+        curop->setGenericOpRequestDetails(
+            clientLock,
+            NamespaceString::createNamespaceString_forTest("myDb.coll"),
+            nullptr,
+            command,
+            NetworkOp::dbQuery);
+    }
+
+    auto appendAndGetPlanRanker = [&]() -> boost::optional<std::string> {
+        BSONObjBuilder builder;
+        curop->debug().append(opCtx.get(), ls, {}, {}, 0, false /*omitCommand*/, builder);
+        auto bs = builder.done();
+        if (auto elem = bs["planRanker"]) {
+            return elem.String();
+        }
+        return boost::none;
+    };
+
+    // 'kNone' (the default) should always emit "none" so readers can distinguish "no ranking
+    // occurred" from "field missing / old server".
+    ASSERT_EQ(appendAndGetPlanRanker().value_or(""), "none");
+
+    curop->debug().planRankerMethod = PlanRankerMethod::kMultiPlanner;
+    ASSERT_EQ(appendAndGetPlanRanker().value_or(""), "mp");
+
+    curop->debug().planRankerMethod = PlanRankerMethod::kCostBasedRanker;
+    ASSERT_EQ(appendAndGetPlanRanker().value_or(""), "cbr");
+}
+
+TEST(CurOpTest, PlanRankerMethodInSlowQueryLogReport) {
+    QueryTestServiceContext serviceContext;
+    auto opCtx = serviceContext.makeOperationContext();
+    SingleThreadedLockStats ls;
+
+    auto curop = CurOp::get(*opCtx);
+    BSONObj command = BSON("a" << 3);
+    {
+        std::lock_guard<Client> clientLock(*opCtx->getClient());
+        curop->setGenericOpRequestDetails(
+            clientLock,
+            NamespaceString::createNamespaceString_forTest("myDb.coll"),
+            nullptr,
+            command,
+            NetworkOp::dbQuery);
+    }
+    curop->ensureStarted();
+    curop->done();
+
+    auto getPlanRankerAttr = [&]() -> boost::optional<std::string> {
+        logv2::DynamicAttributes pAttrs;
+        Date_t deadline = opCtx->getDeadline();
+        curop->debug().report(opCtx.get(), &ls, {}, 0, &deadline, &pAttrs);
+        logv2::TypeErasedAttributeStorage attrs{pAttrs};
+        for (auto it = attrs.begin(); it != attrs.end(); ++it) {
+            if (it->name == "planRanker"_sd) {
+                return std::string(std::get<std::string_view>(it->value));
+            }
+        }
+        return boost::none;
+    };
+
+    // report() should always emit planRanker for all three values.
+    ASSERT_EQ(getPlanRankerAttr().value_or(""), "none");
+
+    curop->debug().planRankerMethod = PlanRankerMethod::kMultiPlanner;
+    ASSERT_EQ(getPlanRankerAttr().value_or(""), "mp");
+
+    curop->debug().planRankerMethod = PlanRankerMethod::kCostBasedRanker;
+    ASSERT_EQ(getPlanRankerAttr().value_or(""), "cbr");
+}
+
+TEST(CurOpTest, PlanRankerMethodInProfileFilterAppendStaged) {
+    QueryTestServiceContext serviceContext;
+    auto opCtx = serviceContext.makeOperationContext();
+
+    auto curop = CurOp::get(*opCtx);
+    BSONObj command = BSON("a" << 3);
+    {
+        std::lock_guard<Client> clientLock(*opCtx->getClient());
+        curop->setGenericOpRequestDetails(
+            clientLock,
+            NamespaceString::createNamespaceString_forTest("myDb.coll"),
+            nullptr,
+            command,
+            NetworkOp::dbQuery);
+    }
+
+    auto stagedAndGetPlanRanker = [&]() -> boost::optional<std::string> {
+        auto fn = OpDebug::appendStaged(opCtx.get(), {"planRanker"}, false /*needWholeDocument*/);
+        OpDebug::AppendArgs args{opCtx.get(), curop->debug(), *curop};
+        BSONObj result = fn(args);
+        if (auto elem = result["planRanker"]) {
+            return elem.String();
+        }
+        return boost::none;
+    };
+
+    // appendStaged() is used for profile filter evaluation; planRanker must be accessible there.
+    ASSERT_EQ(stagedAndGetPlanRanker().value_or(""), "none");
+
+    curop->debug().planRankerMethod = PlanRankerMethod::kMultiPlanner;
+    ASSERT_EQ(stagedAndGetPlanRanker().value_or(""), "mp");
+
+    curop->debug().planRankerMethod = PlanRankerMethod::kCostBasedRanker;
+    ASSERT_EQ(stagedAndGetPlanRanker().value_or(""), "cbr");
 }
 
 TEST(CurOpTest, ShouldUpdateMemoryStats) {

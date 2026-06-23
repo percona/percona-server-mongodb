@@ -93,7 +93,17 @@ void ReplicatedFastCountManager::startup(OperationContext* opCtx) {
     }
 
     // Only applies to the new write path, but done outside the lifecycle mutex since it incurs I/O.
-    const auto lastPersistedCheckpointTS = _timestampStore->read(opCtx).value_or(Timestamp{});
+    const auto lastPersistedCheckpointTS = [&] {
+        Lock::GlobalLock readLock(opCtx, MODE_IS, {.skipRSTLLock = opCtx->isLockFreeReadsOp()});
+        return _timestampStore->read(opCtx).value_or(Timestamp{});
+    }();
+
+    const UUID oplogUuid = [&] {
+        AutoGetOplogFastPath oplogRead(opCtx, OplogAccessMode::kRead);
+        const auto& oplogColl = oplogRead.getCollection();
+        massert(12912600, "oplog collection not found", oplogColl);
+        return oplogColl->uuid();
+    }();
 
     std::lock_guard lock(_lifecycleMutex);
 
@@ -108,7 +118,7 @@ void ReplicatedFastCountManager::startup(OperationContext* opCtx) {
     ObservableMutexRegistry::get().add("ReplicatedFastCountManager::_lifecycleMutex",
                                        _lifecycleMutex);
     _checkpointer = std::make_unique<SizeCountCheckpointCoordinator>(
-        *_sizeCountStore, *_timestampStore, _metrics);
+        *_sizeCountStore, *_timestampStore, _metrics, oplogUuid);
     if (!_isUnderTest) {
         _checkpointer->startup(opCtx->getServiceContext(), lastPersistedCheckpointTS);
     }

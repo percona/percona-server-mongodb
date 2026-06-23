@@ -27,33 +27,49 @@
  *    it in the license file.
  */
 
-#include "mongo/db/exec/agg/internal_hybrid_search_stage.h"
+#pragma once
 
-#include "mongo/db/exec/agg/document_source_to_stage_registry.h"
-#include "mongo/db/pipeline/document_source_internal_hybrid_search.h"
+#include "mongo/db/operation_context.h"
 
-namespace mongo::exec::agg {
+namespace mongo {
 
-boost::intrusive_ptr<exec::agg::Stage> documentSourceInternalHybridSearchToStageFn(
-    const boost::intrusive_ptr<DocumentSource>& documentSource) {
-    auto* hybridSearchDS = dynamic_cast<DocumentSourceInternalHybridSearch*>(documentSource.get());
+/**
+ * Enables tracking of the total logical size (bytes) across all collections.
+ */
+class LogicalSizeTracker {
+public:
+    /**
+     * A snapshot of the current total bytes across hot and cold collections.
+     */
+    struct Snapshot {
+        long long logicalBytesHot{0};
+        long long logicalBytesCold{0};
+    };
 
-    tassert(12109101, "expected 'DocumentSourceInternalHybridSearch' type", hybridSearchDS);
+    /**
+     * Returns a snapshot of the total logical bytes for hot and cold collections across the
+     * node.
+     *
+     * Avoids excessive locking beyond taking the GlobalLock. Results are subject to staleness.
+     */
+    Snapshot getLatestSnapshot() const;
 
-    return make_intrusive<exec::agg::InternalHybridSearchStage>(hybridSearchDS->kStageName,
-                                                                hybridSearchDS->getExpCtx());
-}
+    void refreshLatestSnapshot_ForTest(OperationContext* opCtx) {
+        _refreshLatestSnapshot(opCtx);
+    }
 
-REGISTER_AGG_STAGE_MAPPING(_internalHybridSearch,
-                           DocumentSourceInternalHybridSearch::id,
-                           documentSourceInternalHybridSearchToStageFn);
+private:
+    /**
+     * Computes a new `latesetSnapshot` according to the cached data sizes across collections.
+     */
+    void _refreshLatestSnapshot(OperationContext* opCtx);
 
-InternalHybridSearchStage::InternalHybridSearchStage(
-    StringData stageName, const boost::intrusive_ptr<ExpressionContext>& expCtx)
-    : Stage(stageName, expCtx) {}
 
-GetNextResult InternalHybridSearchStage::doGetNext() {
-    return pSource->getNext();
-}
+    /**
+     * TODO SERVER-128941: Introduced concurrency control and background job semantics.
+     */
+    Snapshot _latestSnapshot;
+};
 
-}  // namespace mongo::exec::agg
+}  // namespace mongo
+
