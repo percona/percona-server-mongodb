@@ -29,11 +29,11 @@
 
 #pragma once
 
-#include "mongo/base/string_data.h"
 #include "mongo/bson/bsonobj.h"
 #include "mongo/bson/bsontypes.h"
 
 #include <cstdint>
+#include <string_view>
 #include <vector>
 
 namespace mongo {
@@ -48,6 +48,8 @@ namespace mongo {
  */
 class InterleavedSchema {
 public:
+    using index_t = uint32_t;
+
     enum class Op : uint8_t {
         kEnterSubObj,  // Write subobj header (type + fieldName + null + 4-byte size)
         kScalar,       // Decode next scalar via DecodingState
@@ -57,7 +59,7 @@ public:
     struct Entry {
         Op op;
         StringData fieldName;  // Points into referenceObj
-        uint16_t stateIdx;     // kScalar: index into decoder states
+        index_t stateIdx;      // kScalar: index into decoder states
         BSONType type;         // kEnterSubObj/kExitSubObj: sub-object type
         bool allowEmpty;       // kEnterSubObj/kExitSubObj: whether empty subobj is valid
     };
@@ -72,19 +74,19 @@ public:
         return _entries;
     }
 
-    uint16_t scalarCount() const {
+    index_t scalarCount() const {
         return _scalarCount;
     }
 
 private:
     void _discover(const BSONObj& obj,
-                   StringData fieldName,
+                   std::string_view fieldName,
                    BSONType type,
                    bool allowEmpty,
-                   uint16_t& scalarIdx);
+                   index_t& scalarIdx);
 
     std::vector<Entry> _entries;
-    uint16_t _scalarCount = 0;
+    index_t _scalarCount = 0;
     bool _arrays;
 };
 

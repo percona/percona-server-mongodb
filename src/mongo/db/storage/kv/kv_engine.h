@@ -30,7 +30,6 @@
 #pragma once
 
 #include "mongo/base/status.h"
-#include "mongo/base/string_data.h"
 #include "mongo/bson/timestamp.h"
 #include "mongo/db/rss/persistence_provider.h"
 #include "mongo/db/storage/compact_options.h"
@@ -44,6 +43,7 @@
 
 #include <memory>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace mongo {
@@ -118,7 +118,7 @@ public:
      */
     virtual std::unique_ptr<RecordStore> getRecordStore(OperationContext* opCtx,
                                                         const NamespaceString& nss,
-                                                        StringData ident,
+                                                        std::string_view ident,
                                                         const RecordStore::Options& options,
                                                         boost::optional<UUID> uuid) = 0;
     /**
@@ -128,14 +128,14 @@ public:
      * originally created with `makeInternalRecordStore`.
      */
     virtual std::unique_ptr<RecordStore> getInternalRecordStore(RecoveryUnit& ru,
-                                                                StringData ident,
+                                                                std::string_view ident,
                                                                 KeyFormat keyFormat) = 0;
 
     virtual std::unique_ptr<SortedDataInterface> getSortedDataInterface(OperationContext* opCtx,
                                                                         RecoveryUnit& ru,
                                                                         const NamespaceString& nss,
                                                                         const UUID& uuid,
-                                                                        StringData ident,
+                                                                        std::string_view ident,
                                                                         const IndexConfig& config,
                                                                         KeyFormat keyFormat) = 0;
 
@@ -151,7 +151,7 @@ public:
     virtual Status createRecordStore(const rss::PersistenceProvider&,
                                      RecoveryUnit& ru,
                                      const NamespaceString& nss,
-                                     StringData ident,
+                                     std::string_view ident,
                                      const RecordStore::Options& options) = 0;
 
     /**
@@ -159,7 +159,7 @@ public:
      * `getInternalRecordStore`.
      */
     virtual std::unique_ptr<RecordStore> makeInternalRecordStore(RecoveryUnit& ru,
-                                                                 StringData ident,
+                                                                 std::string_view ident,
                                                                  KeyFormat keyFormat) = 0;
 
     /**
@@ -167,7 +167,7 @@ public:
      * instead of creating a new one.
      */
     virtual Status importRecordStore(RecoveryUnit& ru,
-                                     StringData ident,
+                                     std::string_view ident,
                                      const BSONObj& storageMetadata,
                                      bool panicOnCorruptWtMetadata,
                                      bool repair) {
@@ -230,7 +230,7 @@ public:
         RecoveryUnit&,
         const NamespaceString& nss,
         const UUID& uuid,
-        StringData ident,
+        std::string_view ident,
         const IndexConfig& indexConfig,
         const boost::optional<mongo::BSONObj>& storageEngineIndexOptions) = 0;
 
@@ -239,22 +239,22 @@ public:
      * provided ident instead of creating a new one.
      */
     virtual Status importSortedDataInterface(RecoveryUnit&,
-                                             StringData ident,
+                                             std::string_view ident,
                                              const BSONObj& storageMetadata,
                                              bool panicOnCorruptWtMetadata,
                                              bool repair) {
         MONGO_UNREACHABLE;
     }
 
-    virtual Status dropSortedDataInterface(RecoveryUnit&, StringData ident) = 0;
+    virtual Status dropSortedDataInterface(RecoveryUnit&, std::string_view ident) = 0;
 
-    virtual int64_t getIdentSize(RecoveryUnit&, StringData ident) = 0;
+    virtual int64_t getIdentSize(RecoveryUnit&, std::string_view ident) = 0;
 
     /**
      * Repair an ident. Returns Status::OK if repair did not modify data. Returns a non-fatal status
      * of DataModifiedByRepair if a repair operation succeeded, but may have modified data.
      */
-    virtual Status repairIdent(RecoveryUnit& ru, StringData ident) = 0;
+    virtual Status repairIdent(RecoveryUnit& ru, std::string_view ident) = 0;
 
     /**
      * Removes any knowledge of the ident from the storage engines metadata which includes removing
@@ -265,7 +265,7 @@ public:
      * checkpoints.
      */
     virtual Status dropIdent(RecoveryUnit& ru,
-                             StringData ident,
+                             std::string_view ident,
                              bool identHasSizeInfo,
                              const StorageEngine::DropIdentCallback& onDrop = nullptr,
                              boost::optional<uint64_t> schemaEpoch = boost::none) = 0;
@@ -274,7 +274,7 @@ public:
      * Removes any knowledge of the ident from the storage engines metadata without removing the
      * underlying files belonging to the ident.
      */
-    virtual void dropIdentForImport(Interruptible&, RecoveryUnit&, StringData ident) = 0;
+    virtual void dropIdentForImport(Interruptible&, RecoveryUnit&, std::string_view ident) = 0;
 
     /**
      * Attempts to locate and recover a file that is "orphaned" from the storage engine's metadata,
@@ -291,7 +291,7 @@ public:
     virtual Status recoverOrphanedIdent(const rss::PersistenceProvider& provider,
                                         RecoveryUnit& ru,
                                         const NamespaceString& nss,
-                                        StringData ident,
+                                        std::string_view ident,
                                         const RecordStore::Options& recordStoreOptions) {
         auto status = createRecordStore(provider, ru, nss, ident, recordStoreOptions);
         if (status.isOK()) {
@@ -301,7 +301,7 @@ public:
     }
 
     virtual void alterIdentMetadata(RecoveryUnit&,
-                                    StringData ident,
+                                    std::string_view ident,
                                     const IndexConfig& config,
                                     bool isForceUpdateMetadata) {}
 
@@ -377,7 +377,7 @@ public:
         return true;
     }
 
-    virtual bool hasIdent(RecoveryUnit&, StringData ident) const = 0;
+    virtual bool hasIdent(RecoveryUnit&, std::string_view ident) const = 0;
 
     virtual std::vector<std::string> getAllIdents(RecoveryUnit&) const = 0;
 
@@ -429,7 +429,7 @@ public:
     /**
      * Configures the specified checkpoint as the starting point for recovery.
      */
-    virtual void setRecoveryCheckpointMetadata(StringData checkpointMetadata) {}
+    virtual void setRecoveryCheckpointMetadata(std::string_view checkpointMetadata) {}
 
     /**
      * Configures the storage engine as the leader, allowing it to flush checkpoints to remote
@@ -570,7 +570,7 @@ public:
      * error returned by the underlying storage engine on other failures.
      */
     virtual Status insertIntoIdent(RecoveryUnit& ru,
-                                   StringData ident,
+                                   std::string_view ident,
                                    IdentKey key,
                                    std::span<const char> value,
                                    BlindWritePolicy policy = BlindWritePolicy::nonBlind) = 0;
@@ -586,7 +586,7 @@ public:
      * returned by the underlying storage engine on other failures.
      */
     virtual Status updateInIdent(RecoveryUnit& ru,
-                                 StringData ident,
+                                 std::string_view ident,
                                  IdentKey key,
                                  std::span<const char> value,
                                  BlindWritePolicy policy = BlindWritePolicy::nonBlind) = 0;
@@ -598,7 +598,7 @@ public:
      * exist, or the error returned by the underlying storage engine on other failures.
      */
     virtual StatusWith<UniqueBuffer> getFromIdent(RecoveryUnit& ru,
-                                                  StringData ident,
+                                                  std::string_view ident,
                                                   IdentKey key) = 0;
 
     /**
@@ -609,7 +609,7 @@ public:
      * transaction.
      */
     virtual Status deleteFromIdent(RecoveryUnit& ru,
-                                   StringData ident,
+                                   std::string_view ident,
                                    IdentKey key,
                                    BlindWritePolicy policy = BlindWritePolicy::nonBlind) = 0;
 
@@ -627,14 +627,14 @@ public:
         return Status::OK();
     }
 
-    virtual StatusWith<BSONObj> getStorageMetadata(StringData ident) const {
+    virtual StatusWith<BSONObj> getStorageMetadata(std::string_view ident) const {
         return BSONObj{};
     };
 
     /**
      * Returns the 'KeyFormat' tied to 'ident'.
      */
-    virtual KeyFormat getKeyFormat(RecoveryUnit&, StringData ident) const {
+    virtual KeyFormat getKeyFormat(RecoveryUnit&, std::string_view ident) const {
         MONGO_UNREACHABLE;
     }
 
@@ -656,7 +656,7 @@ public:
      * TODO SERVER-92265 evaluate getting rid of this method.
      */
     virtual BSONObj setFlagToStorageOptions(const BSONObj& storageEngineOptions,
-                                            StringData flagName,
+                                            std::string_view flagName,
                                             boost::optional<bool> flagValue) const = 0;
 
     /**
@@ -668,7 +668,7 @@ public:
      * TODO SERVER-92265 evaluate getting rid of this method.
      */
     virtual boost::optional<bool> getFlagFromStorageOptions(const BSONObj& storageEngineOptions,
-                                                            StringData flagName) const = 0;
+                                                            std::string_view flagName) const = 0;
 
     /**
      * Append `disaggregated.storage_tier` in the storage engine BSON object of a collection /

@@ -32,7 +32,6 @@
 #include "mongo/base/clonable_ptr.h"
 #include "mongo/base/status.h"
 #include "mongo/base/status_with.h"
-#include "mongo/base/string_data.h"
 #include "mongo/bson/bsonobj.h"
 #include "mongo/bson/bsonobjbuilder.h"
 #include "mongo/bson/timestamp.h"
@@ -66,6 +65,7 @@
 #include <cstdint>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -235,11 +235,6 @@ public:
     void setTimeseriesBucketsMayHaveMixedSchemaData(OperationContext* opCtx,
                                                     boost::optional<bool> setting) final;
 
-    boost::optional<bool> timeseriesBucketingParametersHaveChanged() const final;
-
-    void setTimeseriesBucketingParametersChanged(OperationContext* opCtx,
-                                                 boost::optional<bool> value) final;
-
     bool shouldRemoveLegacyTimeseriesBucketingParametersHaveChanged() const final;
     void removeLegacyTimeseriesBucketingParametersHaveChanged(OperationContext* opCtx) final;
 
@@ -342,15 +337,15 @@ public:
                                           const BSONObj& spec) const final;
 
     void updateTTLSetting(OperationContext* opCtx,
-                          StringData idxName,
+                          std::string_view idxName,
                           long long newExpireSeconds) final;
 
-    void updateHiddenSetting(OperationContext* opCtx, StringData idxName, bool hidden) final;
+    void updateHiddenSetting(OperationContext* opCtx, std::string_view idxName, bool hidden) final;
 
-    void updateUniqueSetting(OperationContext* opCtx, StringData idxName, bool unique) final;
+    void updateUniqueSetting(OperationContext* opCtx, std::string_view idxName, bool unique) final;
 
     void updatePrepareUniqueSetting(OperationContext* opCtx,
-                                    StringData idxName,
+                                    std::string_view idxName,
                                     bool prepareUnique) final;
 
     std::vector<std::string> repairInvalidIndexOptions(OperationContext* opCtx,
@@ -358,24 +353,24 @@ public:
 
     void setIsTemp(OperationContext* opCtx, bool isTemp) final;
 
-    void removeIndex(OperationContext* opCtx, StringData indexName) final;
+    void removeIndex(OperationContext* opCtx, std::string_view indexName) final;
 
     Status prepareForIndexBuild(OperationContext* opCtx,
                                 const IndexDescriptor* spec,
-                                StringData indexIdent,
+                                std::string_view indexIdent,
                                 boost::optional<UUID> buildUUID) final;
 
-    boost::optional<UUID> getIndexBuildUUID(StringData indexName) const final;
+    boost::optional<UUID> getIndexBuildUUID(std::string_view indexName) const final;
 
     bool isIndexMultikey(OperationContext* opCtx,
-                         StringData indexName,
+                         std::string_view indexName,
                          MultikeyPaths* multikeyPaths,
                          int indexOffset) const final;
 
-    bool setIndexIsMultikey(OperationContext* opCtx,
-                            StringData indexName,
-                            const MultikeyPaths& multikeyPaths,
-                            int indexOffset) const final;
+    int64_t setIndexIsMultikey(OperationContext* opCtx,
+                               StringData indexName,
+                               const MultikeyPaths& multikeyPaths,
+                               int indexOffset) const final;
 
     void forceSetIndexIsMultikey(OperationContext* opCtx,
                                  const IndexDescriptor* desc,
@@ -386,15 +381,15 @@ public:
 
     int getCompletedIndexCount() const final;
 
-    BSONObj getIndexSpec(StringData indexName, bool expandSimpleCollation) const final;
+    BSONObj getIndexSpec(std::string_view indexName, bool expandSimpleCollation) const final;
 
     void getAllIndexes(std::vector<std::string>* names) const final;
 
     void getReadyIndexes(std::vector<std::string>* names) const final;
 
-    bool isIndexPresent(StringData indexName) const final;
+    bool isIndexPresent(std::string_view indexName) const final;
 
-    bool isIndexReady(StringData indexName) const final;
+    bool isIndexReady(std::string_view indexName) const final;
 
     void replaceMetadata(OperationContext* opCtx,
                          std::shared_ptr<durable_catalog::CatalogEntryMetaData> md) final;
@@ -415,11 +410,19 @@ private:
     template <typename Func>
     void _writeMetadata(OperationContext* opCtx, Func func);
 
-    int _getIndexOffsetForMultikeyUpdate(StringData indexName, int indexOffset) const;
+    int _getIndexOffsetForMultikeyUpdate(std::string_view indexName, int indexOffset) const;
 
-    bool _setIndexIsMultikeyInMetadata(const durable_catalog::CatalogEntryMetaData& metadata,
-                                       int offset,
-                                       const MultikeyPaths& multikeyPaths) const;
+    /**
+     * Updates multikey metadata for the index at 'offset' in 'metadata'.
+     *
+     * Returns the number of new multikey path components recorded. For indexes that do not track
+     * path-level multikey information, returns 1 if the index is becoming multikey for the first
+     * time and 0 if it was already multikey. That return value counts the metadata change even
+     * though no path components are tracked in the catalog for the index.
+     */
+    int64_t _setIndexIsMultikeyInMetadata(const durable_catalog::CatalogEntryMetaData& metadata,
+                                          int offset,
+                                          const MultikeyPaths& multikeyPaths) const;
 
     /**
      * Sets the index identified by 'indexName' to be multikey when the caller holds shared access
@@ -427,10 +430,10 @@ private:
      * through the usual copy-on-write path for metadata updates, using a dedicated concurrency
      * control mechanism for multikey metadata updates.
      */
-    bool _setIndexIsMultikeyWithSharedAccess(OperationContext* opCtx,
-                                             StringData indexName,
-                                             const MultikeyPaths& multikeyPaths,
-                                             int indexOffset) const;
+    int64_t _setIndexIsMultikeyWithSharedAccess(OperationContext* opCtx,
+                                                StringData indexName,
+                                                const MultikeyPaths& multikeyPaths,
+                                                int indexOffset) const;
 
     /**
      * Sets the index identified by 'indexName' to be multikey when the caller exclusively owns
@@ -438,10 +441,10 @@ private:
      * This bypasses the UncommittedMultikey decoration / onCommit deferral and persists the
      * metadata atomically as part of the transaction.
      */
-    bool _setIndexIsMultikeyWithExclusiveAccess(OperationContext* opCtx,
-                                                StringData indexName,
-                                                const MultikeyPaths& multikeyPaths,
-                                                int indexOffset);
+    int64_t _setIndexIsMultikeyWithExclusiveAccess(OperationContext* opCtx,
+                                                   StringData indexName,
+                                                   const MultikeyPaths& multikeyPaths,
+                                                   int indexOffset);
 
     /**
      * Creates a mutable copy of the current metadata, including uncommitted multikey changes if

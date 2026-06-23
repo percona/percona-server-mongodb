@@ -29,7 +29,6 @@
 
 #include "mongo/db/s/resharding/sharding_write_router.h"
 
-#include "mongo/base/string_data.h"
 #include "mongo/bson/bsonmisc.h"
 #include "mongo/bson/bsonobjbuilder.h"
 #include "mongo/bson/oid.h"
@@ -161,7 +160,8 @@ protected:
                                         originatorShardId},
                                        originatorShardHandle.uuid().value());
 
-            _shardVersion.emplace(ShardVersionFactory::make(chunkManager, originatorShardId));
+            _shardVersion.emplace(
+                ShardVersionFactory::make(opCtx, chunkManager, originatorShardId));
 
             OperationShardingState::setShardRole(
                 opCtx, kNss, _shardVersion, boost::none /* databaseVersion */);

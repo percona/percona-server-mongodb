@@ -35,6 +35,8 @@
 #include "mongo/db/extension/sdk/test_extension_util.h"
 #include "mongo/util/modules.h"
 
+#include <string_view>
+
 namespace mongo::extension::sdk {
 
 /**
@@ -206,6 +208,11 @@ public:
     }
 
     virtual void validate(const mongo::BSONObj& arguments) const {}
+
+    // Test stages are user-facing by default; internal-only test stages override this.
+    ::MongoExtensionClientType getClientType() const override {
+        return ::kMongoExtensionClientTypeAny;
+    }
 };
 }  // namespace mongo::extension::sdk
 

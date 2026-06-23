@@ -52,6 +52,7 @@
 
 namespace mongo {
 namespace {
+using namespace std::literals::string_view_literals;
 
 // Convert a desugared StageSpecs vector into a single BSONObj of the form
 // {expectedStages: [<stage>, <stage>, ...]} so it can be compared via ASSERT_BSONOBJ_EQ_AUTO.
@@ -85,7 +86,7 @@ protected:
         const NamespaceString& nss = getExpCtx()->getNamespaceString();
         auto lpsf = parseScoreFusion(nss, scoreFusionSpecObj);
         auto desugared =
-            lite_parsed_hybrid_search_desugarer::desugarScoreFusion(*lpsf, nss, "pipeline_test"_sd);
+            lite_parsed_hybrid_search_desugarer::desugarScoreFusion(*lpsf, nss, "pipeline_test"sv);
         return toExpectedStagesBson(desugared);
     }
 
@@ -185,6 +186,9 @@ TEST_F(LiteParsedScoreFusionDesugarerTest, SinglePipelineDefault) {
                     "$project": {
                         "_internal_scoreFusion_internal_fields": 0
                     }
+                },
+                {
+                    "$_internalHybridSearch": {}
                 }
             ]
         })",
@@ -284,6 +288,9 @@ TEST_F(LiteParsedScoreFusionDesugarerTest, SinglePipelineSigmoid) {
                     "$project": {
                         "_internal_scoreFusion_internal_fields": 0
                     }
+                },
+                {
+                    "$_internalHybridSearch": {}
                 }
             ]
         })",
@@ -395,6 +402,9 @@ TEST_F(LiteParsedScoreFusionDesugarerTest, SinglePipelineMinMaxScaler) {
                     "$project": {
                         "_internal_scoreFusion_internal_fields": 0
                     }
+                },
+                {
+                    "$_internalHybridSearch": {}
                 }
             ]
         })",
@@ -489,6 +499,9 @@ TEST_F(LiteParsedScoreFusionDesugarerTest, MultiplePipelinesMixedNone) {
                                         ]
                                     }
                                 }
+                            },
+                            {
+                                "$_internalHybridSearch": {}
                             }
                         ]
                     }
@@ -524,6 +537,9 @@ TEST_F(LiteParsedScoreFusionDesugarerTest, MultiplePipelinesMixedNone) {
                                         ]
                                     }
                                 }
+                            },
+                            {
+                                "$_internalHybridSearch": {}
                             }
                         ]
                     }
@@ -599,6 +615,9 @@ TEST_F(LiteParsedScoreFusionDesugarerTest, MultiplePipelinesMixedNone) {
                     "$project": {
                         "_internal_scoreFusion_internal_fields": 0
                     }
+                },
+                {
+                    "$_internalHybridSearch": {}
                 }
             ]
         })",
@@ -678,6 +697,9 @@ TEST_F(LiteParsedScoreFusionDesugarerTest, MultiplePipelinesSigmoid) {
                                         ]
                                     }
                                 }
+                            },
+                            {
+                                "$_internalHybridSearch": {}
                             }
                         ]
                     }
@@ -743,6 +765,9 @@ TEST_F(LiteParsedScoreFusionDesugarerTest, MultiplePipelinesSigmoid) {
                     "$project": {
                         "_internal_scoreFusion_internal_fields": 0
                     }
+                },
+                {
+                    "$_internalHybridSearch": {}
                 }
             ]
         })",
@@ -846,6 +871,9 @@ TEST_F(LiteParsedScoreFusionDesugarerTest, MultiplePipelinesMinMaxScaler) {
                                         }
                                     }
                                 }
+                            },
+                            {
+                                "$_internalHybridSearch": {}
                             }
                         ]
                     }
@@ -911,6 +939,9 @@ TEST_F(LiteParsedScoreFusionDesugarerTest, MultiplePipelinesMinMaxScaler) {
                     "$project": {
                         "_internal_scoreFusion_internal_fields": 0
                     }
+                },
+                {
+                    "$_internalHybridSearch": {}
                 }
             ]
         })",
@@ -987,6 +1018,9 @@ TEST_F(LiteParsedScoreFusionDesugarerTest, CombinationMethodAvgExplicit) {
                                         ]
                                     }
                                 }
+                            },
+                            {
+                                "$_internalHybridSearch": {}
                             }
                         ]
                     }
@@ -1052,6 +1086,9 @@ TEST_F(LiteParsedScoreFusionDesugarerTest, CombinationMethodAvgExplicit) {
                     "$project": {
                         "_internal_scoreFusion_internal_fields": 0
                     }
+                },
+                {
+                    "$_internalHybridSearch": {}
                 }
             ]
         })",
@@ -1131,6 +1168,9 @@ TEST_F(LiteParsedScoreFusionDesugarerTest, CombinationMethodExpression) {
                                         ]
                                     }
                                 }
+                            },
+                            {
+                                "$_internalHybridSearch": {}
                             }
                         ]
                     }
@@ -1205,6 +1245,9 @@ TEST_F(LiteParsedScoreFusionDesugarerTest, CombinationMethodExpression) {
                     "$project": {
                         "_internal_scoreFusion_internal_fields": 0
                     }
+                },
+                {
+                    "$_internalHybridSearch": {}
                 }
             ]
         })",
@@ -1283,6 +1326,9 @@ TEST_F(LiteParsedScoreFusionDesugarerTest, CustomWeights) {
                                         ]
                                     }
                                 }
+                            },
+                            {
+                                "$_internalHybridSearch": {}
                             }
                         ]
                     }
@@ -1348,6 +1394,9 @@ TEST_F(LiteParsedScoreFusionDesugarerTest, CustomWeights) {
                     "$project": {
                         "_internal_scoreFusion_internal_fields": 0
                     }
+                },
+                {
+                    "$_internalHybridSearch": {}
                 }
             ]
         })",
@@ -1508,6 +1557,9 @@ TEST_F(LiteParsedScoreFusionDesugarerTest, ScoreDetailsScoreInputGeneratesScoreO
                     "$project": {
                         "_internal_scoreFusion_internal_fields": 0
                     }
+                },
+                {
+                    "$_internalHybridSearch": {}
                 }
             ]
         })",
@@ -1675,6 +1727,9 @@ TEST_F(LiteParsedScoreFusionDesugarerTest, ScoreDetailsSearchGeneratesScoreDetai
                     "$project": {
                         "_internal_scoreFusion_internal_fields": 0
                     }
+                },
+                {
+                    "$_internalHybridSearch": {}
                 }
             ]
         })",
@@ -1811,6 +1866,9 @@ TEST_F(LiteParsedScoreFusionDesugarerTest, ScoreDetailsExpressionCombination) {
                                         }
                                     }
                                 }
+                            },
+                            {
+                                "$_internalHybridSearch": {}
                             }
                         ]
                     }
@@ -1957,6 +2015,9 @@ TEST_F(LiteParsedScoreFusionDesugarerTest, ScoreDetailsExpressionCombination) {
                     "$project": {
                         "_internal_scoreFusion_internal_fields": 0
                     }
+                },
+                {
+                    "$_internalHybridSearch": {}
                 }
             ]
         })",
@@ -2005,7 +2066,7 @@ TEST_F(LiteParsedScoreFusionDesugarerTest, RejectsUnknownPipelineNameInWeights) 
             combination: { weights: { typo: 1.0 } }
         }
     })");
-    ASSERT_THROWS_CODE(desugarScore(spec), AssertionException, 12559400);
+    ASSERT_THROWS_CODE(desugarScore(spec), AssertionException, 9967500);
 }
 
 TEST_F(LiteParsedScoreFusionDesugarerTest, RejectsMoreWeightsThanPipelines) {
@@ -2070,6 +2131,25 @@ TEST_F(LiteParsedScoreFusionDesugarerTest, RejectsBothExpressionAndWeights) {
         }
     })");
     ASSERT_THROWS_CODE(desugarScore(spec), AssertionException, 12559407);
+}
+
+TEST_F(LiteParsedScoreFusionDesugarerTest, DesugarContainsInternalHybridSearchLast) {
+    BSONObj spec = fromjson(R"({
+        $scoreFusion: {
+            input: {
+                pipelines: {
+                    p: [ { $score: { score: "$x", normalization: "none" } } ]
+                },
+                normalization: "none"
+            }
+        }
+    })");
+    const NamespaceString& nss = getExpCtx()->getNamespaceString();
+    auto lpsf = parseScoreFusion(nss, spec);
+    auto desugared =
+        lite_parsed_hybrid_search_desugarer::desugarScoreFusion(*lpsf, nss, "pipeline_test"_sd);
+    ASSERT_FALSE(desugared.empty());
+    ASSERT_EQ(desugared.back()->getParseTimeName(), "$_internalHybridSearch");
 }
 
 }  // namespace

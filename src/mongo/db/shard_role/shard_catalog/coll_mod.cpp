@@ -31,7 +31,6 @@
 
 #include "mongo/base/error_codes.h"
 #include "mongo/base/status_with.h"
-#include "mongo/base/string_data.h"
 #include "mongo/bson/bsonelement.h"
 #include "mongo/bson/bsonobj.h"
 #include "mongo/bson/timestamp.h"
@@ -100,6 +99,7 @@
 #include <list>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -138,22 +138,22 @@ struct ParsedCollModRequest {
     boost::optional<bool> prepareConstraintValidationLevel;
 };
 
-Status getNotSupportedOnViewError(StringData fieldName) {
+Status getNotSupportedOnViewError(std::string_view fieldName) {
     return {ErrorCodes::InvalidOptions,
             str::stream() << "option not supported on a view: " << fieldName};
 }
 
-Status getOnlySupportedOnViewError(StringData fieldName) {
+Status getOnlySupportedOnViewError(std::string_view fieldName) {
     return {ErrorCodes::InvalidOptions,
             str::stream() << "option only supported on a view: " << fieldName};
 }
 
-Status getNotSupportedOnTimeseriesError(StringData fieldName) {
+Status getNotSupportedOnTimeseriesError(std::string_view fieldName) {
     return {ErrorCodes::InvalidOptions,
             str::stream() << "option not supported on a time-series collection: " << fieldName};
 }
 
-Status getOnlySupportedOnTimeseriesError(StringData fieldName) {
+Status getOnlySupportedOnTimeseriesError(std::string_view fieldName) {
     return {ErrorCodes::InvalidOptions,
             str::stream() << "option only supported on a time-series collection: " << fieldName};
 }
@@ -244,7 +244,7 @@ StatusWith<std::pair<ParsedCollModRequest, BSONObj>> parseCollModRequest(
             return getNotSupportedOnViewError(CollMod::kIndexFieldName);
         }
         const auto& cmdIndex = *index;
-        StringData indexName;
+        std::string_view indexName;
         BSONObj keyPattern;
 
         if (cmdIndex.getName() && cmdIndex.getKeyPattern()) {
@@ -304,7 +304,8 @@ StatusWith<std::pair<ParsedCollModRequest, BSONObj>> parseCollModRequest(
                     "for the collection's clusteredIndex",
                     indexSpec.getName());
 
-            if ((!indexName.empty() && indexName == StringData(indexSpec.getName().value())) ||
+            if ((!indexName.empty() &&
+                 indexName == std::string_view(indexSpec.getName().value())) ||
                 keyPattern.woCompare(indexSpec.getKey()) == 0) {
                 // The indexName or keyPattern match the collection's clusteredIndex.
                 return {ErrorCodes::Error(6011800),
@@ -981,11 +982,6 @@ Status _collModInternal(OperationContext* opCtx,
 
         const CollectionOptions& oldCollOptions = coll->getCollectionOptions();
 
-        // Writing invalidates the collection pointer until commit. Snapshot the relevant old
-        // collections settings needed before committing.
-        const auto timeseriesBucketingParametersHaveChanged =
-            coll->timeseriesBucketingParametersHaveChanged();
-
         auto collWriter = [&] {
             if (acquisition) {
                 return CollectionWriter{opCtx, acquisition};
@@ -1059,25 +1055,10 @@ Status _collModInternal(OperationContext* opCtx,
             auto [newOptions, changed] = res.getValue();
             if (changed) {
                 writableColl->setTimeseriesOptions(opCtx, newOptions);
-                if (feature_flags::gTSBucketingParametersUnchanged.isEnabled(
-                        VersionContext::getDecoration(opCtx), fcvSnapshot)) {
-                    writableColl->setTimeseriesBucketingParametersChanged(opCtx, true);
-                };
             }
         }
 
         const auto version = fcvSnapshot.getVersion();
-        // We involve an empty collMod command during a setFCV downgrade to clean timeseries
-        // bucketing parameters in the catalog. So if the FCV is in downgrading or downgraded stage,
-        // remove time-series bucketing parameters flag, as nodes older than 7.1 cannot understand
-        // this flag.
-        // (Generic FCV reference): This FCV check should exist across LTS binary versions.
-        // TODO SERVER-80003 remove special version handling when LTS becomes 8.0.
-        if (cmrNew.numModifications == 0 && timeseriesBucketingParametersHaveChanged &&
-            version == multiversion::GenericFCV::kDowngradingFromLatestToLastLTS) {
-            writableColl->setTimeseriesBucketingParametersChanged(opCtx, boost::none);
-        }
-
         const auto isUpgrading = [&]() {
             if (!ServerGlobalParams::FCVSnapshot::isUpgradingOrDowngrading(version)) {
                 return false;

@@ -1,5 +1,5 @@
 /**
- *    Copyright (C) 2024-present MongoDB, Inc.
+ *    Copyright (C) 2026-present MongoDB, Inc.
  *
  *    This program is free software: you can redistribute it and/or modify
  *    it under the terms of the Server Side Public License, version 1,
@@ -26,27 +26,18 @@
  *    exception statement from all source files in the program, then also delete
  *    it in the license file.
  */
-#pragma once
 
-#include <clang-tidy/ClangTidy.h>
-#include <clang-tidy/ClangTidyCheck.h>
+#include "mongo/db/global_catalog/chunk_manager.h"
+#include "mongo/db/sharding_environment/grid.h"
+#include "mongo/db/topology/shard_registry.h"
 
-namespace mongo::tidy {
+// TODO (SERVER-126212): Remove this file once the chunk manager cannot contain a mix of shardId
+// and shard UUIDs.
 
-/**
- * MongoStringDataConstRefCheck is a custom clang-tidy check for detecting
- * the usage of 'const StringData&' in the parameter list of functions in the source code.
- *
- * It extends ClangTidyCheck and overrides the registerMatchers
- * and check functions. The registerMatchers function adds matchers
- * to identify the usage of 'const StringData&',
- * while the check function flags the matched occurrences.
- */
-class MongoStringDataConstRefCheck : public clang::tidy::ClangTidyCheck {
-public:
-    using clang::tidy::ClangTidyCheck::ClangTidyCheck;
-    void registerMatchers(clang::ast_matchers::MatchFinder* Finder) override;
-    void check(const clang::ast_matchers::MatchFinder::MatchResult& Result) override;
-};
+namespace mongo {
 
-}  // namespace mongo::tidy
+ShardHandleMap resolveShardHandlesForChunkManager(OperationContext*) {
+    return {};
+}
+
+}  // namespace mongo

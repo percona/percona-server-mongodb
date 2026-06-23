@@ -1534,7 +1534,6 @@ const allTestCases = {
         testReshardCloneCollection: {skip: "TODO", conditional: true},
         testVersion2: {skip: "TODO", conditional: true},
         testVersions1And2: {skip: "TODO", conditional: true},
-        timeseriesCatalogBucketParamsChanged: {skip: "TODO", conditional: true},
         top: {skip: "TODO"},
         transitionToShardedCluster: {skip: "TODO"},
         update: {skip: "TODO"},

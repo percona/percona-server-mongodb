@@ -38,9 +38,12 @@
 #include "mongo/db/pipeline/search/search_helper_bson_obj.h"
 #include "mongo/db/pipeline/skip_and_limit.h"
 
+#include <string_view>
+
 #include <boost/smart_ptr/intrusive_ptr.hpp>
 
 namespace mongo {
+using namespace std::literals::string_view_literals;
 
 using boost::intrusive_ptr;
 
@@ -102,13 +105,19 @@ Value DocumentSourceInternalSearchIdLookUp::serialize(
         // _id value is unknown as it is only returned by mongot during execution.
         // TODO SERVER-93637 add comment explaining why subPipeline is only needed for explain.
         std::vector<BSONObj> pipeline = {
-            BSON("$match" << Document({{"_id", Value("_id placeholder"_sd)}}))};
+            BSON("$match" << Document({{"_id", Value("_id placeholder"sv)}}))};
 
         if (_spec.getViewPipeline()) {
-            // Append the view pipeline to subPipeline so it shows what transforms will be applied
-            // after the _id lookup.
+            // Append the view pipeline so explain shows the post-lookup transforms. For a
+            // search-defined view, skip just the leading mongot stage: it is already represented
+            // by the stage this idLookup follows, and '[$match, $search]' would not parse (40602).
             auto bsonViewPipeline = _spec.getViewPipeline().get();
-            pipeline.insert(pipeline.end(), bsonViewPipeline.begin(), bsonViewPipeline.end());
+            auto viewBegin = bsonViewPipeline.begin();
+            if (search_helper_bson_obj::isMongotPipeline(getExpCtx()->getIfrContext(),
+                                                         bsonViewPipeline)) {
+                ++viewBegin;
+            }
+            pipeline.insert(pipeline.end(), viewBegin, bsonViewPipeline.end());
         }
 
         outputSpec["subPipeline"] = Value(
@@ -124,7 +133,7 @@ Value DocumentSourceInternalSearchIdLookUp::serialize(
     return Value(DOC(getSourceName() << outputSpec.freezeToValue()));
 }
 
-StringData DocumentSourceInternalSearchIdLookUp::getSourceName() const {
+std::string_view DocumentSourceInternalSearchIdLookUp::getSourceName() const {
     return kStageName;
 }
 

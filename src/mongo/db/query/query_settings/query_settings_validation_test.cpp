@@ -36,8 +36,11 @@
 #include "mongo/unittest/unittest.h"
 #include "mongo/util/serialization_context.h"
 
+#include <string_view>
+
 namespace mongo::query_settings {
 namespace {
+using namespace std::literals::string_view_literals;
 
 class QuerySettingsValidationTestFixture : public ServiceContextTest {
 protected:
@@ -80,7 +83,7 @@ void assertInvalidQueryAndQuerySettingsCombination(OperationContext* opCtx,
                        errorCode);
 }
 
-NamespaceSpec makeNamespace(StringData dbName, StringData collName) {
+NamespaceSpec makeNamespace(std::string_view dbName, std::string_view collName) {
     NamespaceSpec ns;
     ns.setDb(
         DatabaseNameUtil::deserialize(boost::none, dbName, SerializationContext::stateDefault()));
@@ -129,15 +132,15 @@ TEST_F(QuerySettingsValidationTestFixture,
     rejectionSettings.setReject(true);
 
     auto collectionlessNss = NamespaceString::makeCollectionlessAggregateNSS(DatabaseName::kAdmin);
-    const stdx::unordered_set<StringData, StringMapHasher>
+    const stdx::unordered_set<std::string_view, StringMapHasher>
         collectionLessRejectionIncompatibleStages = {
-            "$querySettings"_sd,
-            "$listSessions"_sd,
-            "$listSampledQueries"_sd,
-            "$queryStats"_sd,
-            "$currentOp"_sd,
-            "$listCatalog"_sd,
-            "$listLocalSessions"_sd,
+            "$querySettings"sv,
+            "$listSessions"sv,
+            "$listSampledQueries"sv,
+            "$queryStats"sv,
+            "$currentOp"sv,
+            "$listCatalog"sv,
+            "$listLocalSessions"sv,
         };
 
     for (auto&& stage : QuerySettingsService::getRejectionIncompatibleStages()) {
@@ -208,7 +211,7 @@ TEST_F(QuerySettingsValidationTestFixture, QuerySettingsCannotHaveDefaultValues)
 TEST_F(QuerySettingsValidationTestFixture, QuerySettingsIndexHintsWithNoDbSpecified) {
     QuerySettings querySettings;
     NamespaceSpec ns;
-    ns.setColl("collName"_sd);
+    ns.setColl("collName"sv);
     querySettings.setIndexHints({{IndexHintSpec(ns, {IndexHint("a")})}});
     service().simplifyQuerySettings(querySettings);
     ASSERT_THROWS_CODE(service().validateQuerySettings(querySettings), DBException, 8727500);
@@ -218,7 +221,7 @@ TEST_F(QuerySettingsValidationTestFixture, QuerySettingsIndexHintsWithNoCollSpec
     QuerySettings querySettings;
     NamespaceSpec ns;
     ns.setDb(DatabaseNameUtil::deserialize(
-        boost::none /* tenantId */, "dbName"_sd, SerializationContext::stateDefault()));
+        boost::none /* tenantId */, "dbName"sv, SerializationContext::stateDefault()));
     querySettings.setIndexHints({{IndexHintSpec(ns, {IndexHint("a")})}});
     service().simplifyQuerySettings(querySettings);
     ASSERT_THROWS_CODE(service().validateQuerySettings(querySettings), DBException, 8727501);
@@ -329,6 +332,31 @@ TEST_F(QuerySettingsValidationTestFixture, SimplifyQuerySettingsClearsEmptyKnobs
     ASSERT_TRUE(settings.getQueryKnobs()->empty());
     service().simplifyQuerySettings(settings);
     ASSERT_FALSE(settings.getQueryKnobs().has_value());
+}
+
+TEST_F(QuerySettingsValidationTestFixture, SimplifyQuerySettingsStripsKnobDeletions) {
+    QuerySettings settings;
+    settings.setQueryKnobs(QuerySettingsKnobOverrides::fromBSON(
+        BSON("testIntKnobWire" << 7 << "testBoolKnobWire" << BSONNULL)));
+    service().simplifyQuerySettings(settings);
+    // The removal sentinel is stripped; the real knob survives.
+    ASSERT_TRUE(settings.getQueryKnobs().has_value());
+    ASSERT_BSONOBJ_EQ(settings.getQueryKnobs()->toBSON(), BSON("testIntKnobWire" << 7));
+}
+
+TEST_F(QuerySettingsValidationTestFixture, SimplifyQuerySettingsClearsKnobsThatAreAllDeletions) {
+    QuerySettings settings;
+    settings.setQueryKnobs(
+        QuerySettingsKnobOverrides::fromBSON(BSON("testIntKnobWire" << BSONNULL)));
+    service().simplifyQuerySettings(settings);
+    ASSERT_FALSE(settings.getQueryKnobs().has_value());
+}
+
+TEST_F(QuerySettingsValidationTestFixture, ValidateRejectsDuplicateKnobs) {
+    QuerySettings settings;
+    settings.setQueryKnobs(QuerySettingsKnobOverrides::fromBSON(
+        BSON("testIntKnobWire" << 5 << "testIntKnobWire" << 10)));
+    ASSERT_THROWS_CODE(service().validateQuerySettings(settings), DBException, 12366201);
 }
 
 }  // namespace

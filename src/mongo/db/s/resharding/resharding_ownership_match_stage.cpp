@@ -36,6 +36,7 @@
 #include "mongo/util/assert_util.h"
 #include "mongo/util/intrusive_counter.h"
 
+#include <string_view>
 #include <utility>
 
 namespace mongo {
@@ -64,7 +65,7 @@ REGISTER_AGG_STAGE_MAPPING(reshardingOwnershipMatchStage,
                            documentSourceReshardingOwnershipMatchToStageFn);
 
 ReshardingOwnershipMatchStage::ReshardingOwnershipMatchStage(
-    StringData stageName,
+    std::string_view stageName,
     const boost::intrusive_ptr<ExpressionContext>& pExpCtx,
     ShardId recipientShardId,
     const std::shared_ptr<ShardKeyPattern>& reshardingKey,
@@ -91,7 +92,8 @@ GetNextResult ReshardingOwnershipMatchStage::doGetNext() {
         auto shardKey =
             _reshardingKey->extractShardKeyFromDocThrows(nextInput.getDocument().toBson());
 
-        if (_tempReshardingChunkMgr->keyBelongsToShard(shardKey, _recipientShardId)) {
+        if (_tempReshardingChunkMgr->keyBelongsToShard(
+                pExpCtx->getOperationContext(), shardKey, _recipientShardId)) {
             return nextInput;
         }
 

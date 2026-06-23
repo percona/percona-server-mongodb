@@ -29,7 +29,6 @@
 
 #pragma once
 
-#include "mongo/base/string_data.h"
 #include "mongo/bson/bsonelement.h"
 #include "mongo/bson/bsonobj.h"
 #include "mongo/db/index/multikey_paths.h"
@@ -41,6 +40,7 @@
 
 #include <cstdint>
 #include <mutex>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -110,7 +110,7 @@ struct MONGO_MOD_NEEDS_REPLACEMENT CatalogEntryMetaData {
 
         void updatePrepareUniqueSetting(bool prepareUnique);
 
-        StringData nameStringData() const {
+        std::string_view nameStringData() const {
             return spec["name"].valueStringDataSafe();
         }
 
@@ -145,7 +145,7 @@ struct MONGO_MOD_NEEDS_REPLACEMENT CatalogEntryMetaData {
      */
     int getTotalIndexCount() const;
 
-    int findIndexOffset(StringData name) const;
+    int findIndexOffset(std::string_view name) const;
 
     /**
      * Inserts information about an index into the MetaData.
@@ -156,7 +156,7 @@ struct MONGO_MOD_NEEDS_REPLACEMENT CatalogEntryMetaData {
      * Removes information about an index from the MetaData. Returns true if an index
      * called name existed and was deleted, and false otherwise.
      */
-    bool eraseIndex(StringData name);
+    bool eraseIndex(std::string_view name);
 
     NamespaceString nss;
     CollectionOptions options;
@@ -193,15 +193,6 @@ struct MONGO_MOD_NEEDS_REPLACEMENT CatalogEntryMetaData {
     // Parsed value of the time-series mixed-schema flag stored in the backwards-compatible
     // field in the collection options (md.options.storageEngine.wiredTiger.configString).
     boost::optional<bool> _durableTimeseriesBucketsMayHaveMixedSchemaData;
-
-    // Value of the time-series bucketing parameters changed flag in the backwards-compatible
-    // field in the collection options (md.options.storageEngine.wiredTiger.configString).
-    // The flag will be set to false at the time of time-series collection creation if
-    // TSBucketingParametersUnchanged is enabled. For any other collection type and earlier
-    // versions the flag will be boost::none. Thus, if the field is absent, we assume the
-    // time-series bucketing parameters have changed. If a subsequent collMod operation changes
-    // either 'bucketRoundingSeconds' or 'bucketMaxSpanSeconds', we set the flag to true.
-    boost::optional<bool> _durableTimeseriesBucketingParametersHaveChanged;
 };
 
 }  // namespace durable_catalog

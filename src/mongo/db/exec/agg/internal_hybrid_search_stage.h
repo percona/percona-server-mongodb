@@ -1,5 +1,5 @@
 /**
- *    Copyright (C) 2025-present MongoDB, Inc.
+ *    Copyright (C) 2026-present MongoDB, Inc.
  *
  *    This program is free software: you can redistribute it and/or modify
  *    it under the terms of the Server Side Public License, version 1,
@@ -26,23 +26,29 @@
  *    exception statement from all source files in the program, then also delete
  *    it in the license file.
  */
+
 #pragma once
 
-#include <clang-tidy/ClangTidy.h>
-#include <clang-tidy/ClangTidyCheck.h>
+#include "mongo/db/exec/agg/stage.h"
+#include "mongo/util/modules.h"
 
-namespace mongo::tidy {
+namespace mongo::exec::agg {
 
 /**
- * Find uses of `StringData` features that are not in the
- * union of `StringData` and `std::string_view` features.
- * E.g. suggest `sd.rawData()` be changed to `sd.data()`.
+ * Pure-passthrough execution stage for $_internalHybridSearch (every DocumentSource reaching the
+ * exec layer needs a registered stage mapping).
  */
-class MongoStringDataStringViewApi : public clang::tidy::ClangTidyCheck {
+class InternalHybridSearchStage final : public Stage {
 public:
-    using clang::tidy::ClangTidyCheck::ClangTidyCheck;
-    void registerMatchers(clang::ast_matchers::MatchFinder* Finder) override;
-    void check(const clang::ast_matchers::MatchFinder::MatchResult& Result) override;
+    InternalHybridSearchStage(StringData stageName,
+                              const boost::intrusive_ptr<ExpressionContext>& expCtx);
+
+    bool isEOF() const final {
+        return pSource && pSource->isEOF();
+    }
+
+private:
+    GetNextResult doGetNext() final;
 };
 
-}  // namespace mongo::tidy
+}  // namespace mongo::exec::agg

@@ -40,6 +40,7 @@
 #include "mongo/util/str.h"
 
 #include <memory>
+#include <string_view>
 #include <utility>
 
 #include <boost/none.hpp>
@@ -106,7 +107,8 @@ void WiredTigerCustomizationHooksRegistry::addHook(
     _hooks.push_back(std::move(custHook));
 }
 
-std::string WiredTigerCustomizationHooksRegistry::getTableCreateConfig(StringData tableName) const {
+std::string WiredTigerCustomizationHooksRegistry::getTableCreateConfig(
+    std::string_view tableName) const {
     str::stream config;
     for (const auto& h : _hooks) {
         config << h->getTableCreateConfig(tableName);
@@ -131,7 +133,7 @@ bool WiredTigerCustomizationHooks::enabled() const {
     return false;
 }
 
-std::string WiredTigerCustomizationHooks::getTableCreateConfig(StringData tableName) {
+std::string WiredTigerCustomizationHooks::getTableCreateConfig(std::string_view tableName) {
     return "";
 }
 

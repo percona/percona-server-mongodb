@@ -31,7 +31,6 @@
 
 #include "mongo/base/error_codes.h"
 #include "mongo/base/status.h"
-#include "mongo/base/string_data.h"
 #include "mongo/bson/bsonelement.h"
 #include "mongo/bson/bsonobjbuilder.h"
 #include "mongo/bson/bsontypes.h"
@@ -68,6 +67,7 @@
 #include <cstddef>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -167,7 +167,7 @@ boost::optional<IndexBounds> collapseQuerySolution(const QuerySolutionNode* node
     return bounds;
 }
 
-BSONElement extractKeyElementFromDoc(const BSONObj& obj, StringData pathStr) {
+BSONElement extractKeyElementFromDoc(const BSONObj& obj, std::string_view pathStr) {
     // Any arrays found get immediately returned. We are equipped up the call stack to
     // specifically deal with array values.
     size_t idxPath;
@@ -185,7 +185,7 @@ BSONElement findEqualityElement(const EqualityMatches& equalities, const FieldRe
     if (parentEl.type() != BSONType::object)
         return BSONElement();
 
-    StringData suffixStr = path.dottedSubstring(parentPathPart, path.numParts());
+    std::string_view suffixStr = path.dottedSubstring(parentPathPart, path.numParts());
     return extractKeyElementFromDoc(parentEl.Obj(), suffixStr);
 }
 
@@ -317,7 +317,7 @@ boost::optional<BoundList> flattenBounds(const ShardKeyPattern& shardKeyPattern,
     for (size_t i = 0; i < indexBounds.fields.size(); ++i) {
         BSONElement e = keyIter.next();
 
-        StringData fieldName = e.fieldNameStringData();
+        std::string_view fieldName = e.fieldNameStringData();
 
         // Get the relevant intervals for this field, but we may have to transform the list of
         // what's relevant according to the expression for this field
@@ -512,18 +512,21 @@ void getShardIdsAndChunksForQuery(boost::intrusive_ptr<ExpressionContext> expCtx
             .findCommand = std::move(findCommand),
             .allowedFeatures = MatchExpressionParser::kAllowAllSpecialFeatures}});
 
-    getShardIdsAndChunksForCanonicalQuery(*cq, cm, shardIds, info, bypassIsFieldHashedCheck);
+    getShardIdsAndChunksForCanonicalQuery(
+        expCtx->getOperationContext(), *cq, cm, shardIds, info, bypassIsFieldHashedCheck);
 }
 
-void getShardIdsForCanonicalQuery(const CanonicalQuery& query,
+void getShardIdsForCanonicalQuery(OperationContext* opCtx,
+                                  const CanonicalQuery& query,
                                   const ChunkManager& cm,
                                   std::set<ShardId>* shardIds,
                                   bool bypassIsFieldHashedCheck) {
     return getShardIdsAndChunksForCanonicalQuery(
-        query, cm, shardIds, nullptr, bypassIsFieldHashedCheck);
+        opCtx, query, cm, shardIds, nullptr, bypassIsFieldHashedCheck);
 }
 
-void getShardIdsAndChunksForCanonicalQuery(const CanonicalQuery& query,
+void getShardIdsAndChunksForCanonicalQuery(OperationContext* opCtx,
+                                           const CanonicalQuery& query,
                                            const ChunkManager& cm,
                                            std::set<ShardId>* shardIds,
                                            QueryTargetingInfo* info,
@@ -576,7 +579,7 @@ void getShardIdsAndChunksForCanonicalQuery(const CanonicalQuery& query,
             tassert(9607300,
                     "Shard targeting index bounds are not in the expected order",
                     SimpleBSONObjComparator::kInstance.evaluate(min <= max));
-            cm.getShardIdsForRange(min, max, shardIds, info ? &info->chunkRanges : nullptr);
+            cm.getShardIdsForRange(opCtx, min, max, shardIds, info ? &info->chunkRanges : nullptr);
 
             // Once we know we need to visit all shards no need to keep looping.
             // However, this optimization does not apply when we are reading from a snapshot
@@ -589,8 +592,8 @@ void getShardIdsAndChunksForCanonicalQuery(const CanonicalQuery& query,
             // Uses getAproxNShardsOwningChunks() as getNShardsOwningChunks() is only available on
             // CurrentChunkManager, but both currently share the same implementation.
             // TODO SERVER-114823 Review the usage of getAproxNShardsOwningChunks here.
-            if (!cm.isAtPointInTime() && shardIds->size() == cm.getAproxNShardsOwningChunks() &&
-                !info) {
+            if (!cm.isAtPointInTime() &&
+                shardIds->size() == cm.getAproxNShardsOwningChunks(opCtx) && !info) {
                 break;
             }
         }

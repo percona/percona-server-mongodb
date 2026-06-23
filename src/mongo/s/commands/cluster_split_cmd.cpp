@@ -29,7 +29,6 @@
 
 #include "mongo/base/error_codes.h"
 #include "mongo/base/status.h"
-#include "mongo/base/string_data.h"
 #include "mongo/bson/bson_field.h"
 #include "mongo/bson/bsonelement.h"
 #include "mongo/bson/bsonobj.h"
@@ -94,7 +93,7 @@ BSONObj selectMedianKey(OperationContext* opCtx,
     cmd.append("keyPattern", shardKeyPattern.toBSON());
     chunkRange.serialize(&cmd);
     cmd.appendBool("force", true);
-    appendShardVersion(cmd, cri.getShardVersion(shardId));
+    appendShardVersion(cmd, cri.getShardVersion(opCtx, shardId));
 
     auto shard = uassertStatusOK(Grid::get(opCtx)->shardRegistry()->getShard(opCtx, shardId));
 

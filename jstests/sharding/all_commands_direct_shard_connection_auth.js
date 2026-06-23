@@ -1280,7 +1280,6 @@ const allCommands = {
     testReshardCloneCollection: {skip: isAnInternalCommand},
     testVersions1And2: {skip: isAnInternalCommand},
     testVersion2: {skip: isAnInternalCommand},
-    timeseriesCatalogBucketParamsChanged: {skip: isAnInternalCommand},
     upgradeDowngradeViewlessTimeseries: {skip: isAnInternalCommand},
     top: {
         command: {top: 1},

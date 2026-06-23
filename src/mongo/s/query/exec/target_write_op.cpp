@@ -30,7 +30,6 @@
 #include "mongo/s/query/exec/target_write_op.h"
 
 #include "mongo/base/error_codes.h"
-#include "mongo/base/string_data.h"
 #include "mongo/bson/bsonelement.h"
 #include "mongo/bson/bsonobjbuilder.h"
 #include "mongo/bson/bsontypes.h"
@@ -59,6 +58,7 @@
 #include "mongo/util/str.h"
 
 #include <memory>
+#include <string_view>
 #include <utility>
 
 #include <boost/none.hpp>
@@ -70,7 +70,8 @@
 namespace mongo {
 
 namespace {
-constexpr auto kIdFieldName = "_id"_sd;
+using namespace std::literals::string_view_literals;
+constexpr auto kIdFieldName = "_id"sv;
 
 const ShardKeyPattern kVirtualIdShardKey(BSON(kIdFieldName << 1));
 
@@ -122,14 +123,15 @@ void validateUpdateDoc(const UpdateOpRef& updateRef) {
             updateType == UpdateType::kModifier || !updateRef.getMulti());
 }
 
-ShardEndpoint targetUnshardedCollection(const NamespaceString& nss,
+ShardEndpoint targetUnshardedCollection(OperationContext* opCtx,
+                                        const NamespaceString& nss,
                                         const CollectionRoutingInfo& cri) {
     tassert(11428701, "Expected collection to be unsharded", !cri.isSharded());
 
     if (cri.hasRoutingTable()) {
         // Target the only shard that owns this collection.
-        const auto shardId = cri.getChunkManager().getMinKeyShardIdWithSimpleCollation();
-        return ShardEndpoint(shardId, cri.getShardVersion(shardId), boost::none);
+        const auto shardId = cri.getChunkManager().getMinKeyShardIdWithSimpleCollation(opCtx);
+        return ShardEndpoint(shardId, cri.getShardVersion(opCtx, shardId), boost::none);
     } else {
         // Target the db-primary shard. Attach 'dbVersion: X, shardVersion: UNTRACKED'.
         // TODO (SERVER-51070): Remove the boost::none when the config server can support
@@ -190,21 +192,22 @@ StatusWith<std::unique_ptr<CanonicalQuery>> canonicalizeFindQuery(
  *
  * Returns !OK with message if query could not be targeted.
  */
-StatusWith<std::vector<ShardEndpoint>> targetQuery(const CollectionRoutingInfo& cri,
+StatusWith<std::vector<ShardEndpoint>> targetQuery(OperationContext* opCtx,
+                                                   const CollectionRoutingInfo& cri,
                                                    const CanonicalQuery& query,
                                                    bool bypassIsFieldHashedCheck) {
 
     std::set<ShardId> shardIds;
     try {
         getShardIdsForCanonicalQuery(
-            query, cri.getChunkManager(), &shardIds, bypassIsFieldHashedCheck);
+            opCtx, query, cri.getChunkManager(), &shardIds, bypassIsFieldHashedCheck);
     } catch (const DBException& ex) {
         return ex.toStatus();
     }
 
     std::vector<ShardEndpoint> endpoints;
     for (auto&& shardId : shardIds) {
-        ShardVersion shardVersion = cri.getShardVersion(shardId);
+        ShardVersion shardVersion = cri.getShardVersion(opCtx, shardId);
         endpoints.emplace_back(std::move(shardId), std::move(shardVersion), boost::none);
     }
 
@@ -223,7 +226,8 @@ StatusWith<std::vector<ShardEndpoint>> targetQuery(const CollectionRoutingInfo& 
  * Returns !OK with message if a shard key could not be extracted or a single shard could not
  * be targeted due to collation.
  */
-StatusWith<std::vector<ShardEndpoint>> targetQueryForMultiUpsert(const CollectionRoutingInfo& cri,
+StatusWith<std::vector<ShardEndpoint>> targetQueryForMultiUpsert(OperationContext* opCtx,
+                                                                 const CollectionRoutingInfo& cri,
                                                                  const CanonicalQuery& query) {
     // Attempt to extract the shard key from the query.
     const auto& shardKeyPattern = cri.getChunkManager().getShardKeyPattern();
@@ -242,7 +246,7 @@ StatusWith<std::vector<ShardEndpoint>> targetQueryForMultiUpsert(const Collectio
         const BSONObj& collation = query.getFindCommandRequest().getCollation();
         auto chunk = cri.getChunkManager().findIntersectingChunk(shardKey, collation);
         endpoints.emplace_back(ShardEndpoint(
-            chunk.getShardId(), cri.getShardVersion(chunk.getShardId()), boost::none));
+            chunk.getShardId(), cri.getShardVersion(opCtx, chunk.getShardId()), boost::none));
     } catch (const DBException& ex) {
         // If there was an error, return the error with added context.
         return ex.toStatus().withContext("Failed to target upsert by query");
@@ -398,7 +402,7 @@ ShardEndpoint targetInsert(OperationContext* opCtx,
                            bool isViewfulTimeseries,
                            const BSONObj& doc) {
     if (!cri.isSharded()) {
-        return targetUnshardedCollection(nss, cri);
+        return targetUnshardedCollection(opCtx, nss, cri);
     }
 
     // Collection is sharded
@@ -434,7 +438,8 @@ ShardEndpoint targetInsert(OperationContext* opCtx,
     // Target the shard key
     auto chunk = cri.getChunkManager().findIntersectingChunk(shardKey, CollationSpec::kSimpleSpec);
 
-    return ShardEndpoint(chunk.getShardId(), cri.getShardVersion(chunk.getShardId()), boost::none);
+    return ShardEndpoint(
+        chunk.getShardId(), cri.getShardVersion(opCtx, chunk.getShardId()), boost::none);
 }
 
 TargetOpResult targetUpdate(OperationContext* opCtx,
@@ -464,7 +469,7 @@ TargetOpResult targetUpdate(OperationContext* opCtx,
             updateOneUnshardedCount.increment(1);
         }
 
-        result.endpoints.emplace_back(targetUnshardedCollection(nss, cri));
+        result.endpoints.emplace_back(targetUnshardedCollection(opCtx, nss, cri));
         return result;
     }
 
@@ -537,8 +542,8 @@ TargetOpResult targetUpdate(OperationContext* opCtx,
     // single shard.
     const bool bypassIsFieldHashedCheck = isFindAndModify;
     result.endpoints = isMulti && isUpsert
-        ? uassertStatusOK(targetQueryForMultiUpsert(cri, *cq))
-        : uassertStatusOK(targetQuery(cri, *cq, bypassIsFieldHashedCheck));
+        ? uassertStatusOK(targetQueryForMultiUpsert(opCtx, cri, *cq))
+        : uassertStatusOK(targetQuery(opCtx, cri, *cq, bypassIsFieldHashedCheck));
 
     // For multi:true updates/upserts, there are no other checks to perform. Increment query
     // counters as appropriate and return 'result'.
@@ -617,7 +622,7 @@ TargetOpResult targetDelete(OperationContext* opCtx,
             deleteOneUnshardedCount.increment(1);
         }
 
-        result.endpoints.emplace_back(targetUnshardedCollection(nss, cri));
+        result.endpoints.emplace_back(targetUnshardedCollection(opCtx, nss, cri));
         return result;
     }
 
@@ -678,7 +683,7 @@ TargetOpResult targetDelete(OperationContext* opCtx,
     // This means that we always assume that a findAndModify request using _id is targetable to a
     // single shard.
     const bool bypassIsFieldHashedCheck = isFindAndModify;
-    auto endpoints = uassertStatusOK(targetQuery(cri, *cq, bypassIsFieldHashedCheck));
+    auto endpoints = uassertStatusOK(targetQuery(opCtx, cri, *cq, bypassIsFieldHashedCheck));
     const bool multipleEndpoints = endpoints.size() > 1u;
 
     result.endpoints = std::move(endpoints);
@@ -724,7 +729,7 @@ std::vector<ShardEndpoint> targetAllShards(OperationContext* opCtx,
 
     std::vector<ShardEndpoint> endpoints;
     for (auto&& shardId : shardIds) {
-        ShardVersion shardVersion = cri.getShardVersion(shardId);
+        ShardVersion shardVersion = cri.getShardVersion(opCtx, shardId);
         endpoints.emplace_back(std::move(shardId), std::move(shardVersion), boost::none);
     }
 

@@ -77,6 +77,7 @@
 #include <mutex>
 #include <set>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -158,7 +159,7 @@ bool isAuthzNamespace(const NamespaceString& nss) {
             nss == NamespaceString::kServerConfigurationNamespace);
 }
 
-bool isAuthzCollection(StringData coll) {
+bool isAuthzCollection(std::string_view coll) {
     return (coll == NamespaceString::kAdminRolesNamespace.coll() ||
             coll == NamespaceString::kAdminUsersNamespace.coll() ||
             coll == NamespaceString::kServerConfigurationNamespace.coll());
@@ -168,7 +169,7 @@ bool loggedCommandOperatesOnAuthzData(const NamespaceString& nss, const BSONObj&
     if (nss != NamespaceString::kAdminCommandNamespace)
         return false;
 
-    const StringData cmdName(cmdObj.firstElement().fieldNameStringData());
+    const std::string_view cmdName(cmdObj.firstElement().fieldNameStringData());
 
     if (cmdName == "drop") {
         return isAuthzCollection(cmdObj.firstElement().valueStringData());
@@ -196,7 +197,7 @@ bool loggedCommandOperatesOnAuthzData(const NamespaceString& nss, const BSONObj&
     }
 }
 
-bool appliesToAuthzData(StringData op, const NamespaceString& nss, const BSONObj& o) {
+bool appliesToAuthzData(std::string_view op, const NamespaceString& nss, const BSONObj& o) {
     if (op.empty()) {
         return true;
     }
@@ -371,7 +372,7 @@ bool AuthorizationManagerImpl::hasAnyPrivilegeDocuments(OperationContext* opCtx)
 }
 
 void AuthorizationManagerImpl::notifyDDLOperation(OperationContext* opCtx,
-                                                  StringData op,
+                                                  std::string_view op,
                                                   const NamespaceString& nss,
                                                   const BSONObj& o,
                                                   const BSONObj* o2) {

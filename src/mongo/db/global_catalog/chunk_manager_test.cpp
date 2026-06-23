@@ -27,9 +27,6 @@
  *    it in the license file.
  */
 
-#include "mongo/db/global_catalog/chunk_manager.h"
-
-#include "mongo/base/string_data.h"
 #include "mongo/bson/bsonmisc.h"
 #include "mongo/bson/bsonobj.h"
 #include "mongo/bson/bsonobjbuilder.h"
@@ -239,8 +236,10 @@ TEST_F(CurrentChunkManagerUpdateTest, MakeUpdatedForwardsDeltaAndCarriesAttribut
 
     // Delta was forwarded and applied.
     ASSERT_EQ(updated.numChunks(), 2);  // [5, 15) and the surviving [20, 30)
-    ASSERT_TRUE(updated.keyBelongsToShard(key(7), kThisShard));
-    ASSERT_FALSE(updated.keyBelongsToShard(key(2), kThisShard));
+    // TODO (SERVER-128349): Replace with operation context once keyBelongsToShard performs shard
+    // handle resolution.
+    ASSERT_TRUE(updated.keyBelongsToShard(nullptr /* opCtx */, key(7), kThisShard));
+    ASSERT_FALSE(updated.keyBelongsToShard(nullptr /* opCtx */, key(2), kThisShard));
 
     // Result is rewrapped at the delta's version.
     ASSERT_EQ(updated.getVersion(), chunkVersion(2, 0));
