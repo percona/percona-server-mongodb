@@ -176,6 +176,10 @@ get_sources(){
     #if [ x"$ARCH" = "xaarch64" ]; then
         sed -i '/GetLinuxDistroAndVersion()/ s/os, version, err = GetLinuxDistroAndVersion()/os, version, err = "rhel", "9.3", nil/' release/platform/platform.go || exit 1
     #fi
+    go mod edit -dropreplace golang.org/x/crypto@v0.45.0 -dropreplace golang.org/x/net@v0.47.0 || exit 1
+    go get golang.org/x/crypto@v0.52.0 golang.org/x/net@v0.55.0 || exit 1
+    go mod tidy || exit 1
+    go mod vendor || exit 1
 
     cd ${WORKDIR}
     source percona-server-mongodb-70.properties
