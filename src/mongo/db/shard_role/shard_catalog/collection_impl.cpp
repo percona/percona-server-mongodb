@@ -30,6 +30,7 @@
 #include "mongo/db/shard_role/shard_catalog/collection_impl.h"
 
 #include <mutex>
+#include <string_view>
 
 #include <absl/container/flat_hash_map.h>
 #include <boost/container/flat_set.hpp>
@@ -119,19 +120,19 @@
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kStorage
 
 namespace mongo {
+using namespace std::literals::string_view_literals;
 namespace {
 
 // This fail point allows collections to be given malformed validator. A malformed validator
 // will not (and cannot) be enforced but it will be persisted.
 MONGO_FAIL_POINT_DEFINE(allowSettingMalformedCollectionValidators);
-MONGO_FAIL_POINT_DEFINE(timeseriesBucketingParametersChangedInputValue);
 MONGO_FAIL_POINT_DEFINE(skipCappedDeletes);
 // Simulate the behavior of mixed-schema flag of MongoDB versions without SERVER-91195:
 // Only set the legacy time-series mixed-schema flag at the top level of the catalog,
 // and clear the new durable flag which is stored inside the collection options.
 MONGO_FAIL_POINT_DEFINE(simulateLegacyTimeseriesMixedSchemaFlag);
 
-bool indexTypeSupportsPathLevelMultikeyTracking(StringData accessMethod) {
+bool indexTypeSupportsPathLevelMultikeyTracking(std::string_view accessMethod) {
     return accessMethod == IndexNames::BTREE || accessMethod == IndexNames::GEO_2DSPHERE;
 }
 
@@ -178,7 +179,7 @@ StatusWith<bool> doesMinMaxHaveMixedSchemaData(const BSONObj& min, const BSONObj
 StatusWith<std::shared_ptr<Ident>> findSharedIdentForIndex(OperationContext* opCtx,
                                                            StorageEngine* storageEngine,
                                                            const Collection* collection,
-                                                           StringData ident) {
+                                                           std::string_view ident) {
     // First check the index catalog of the existing collection for the index entry.
     auto latestEntry = [&]() -> std::shared_ptr<Ident> {
         if (!collection)
@@ -488,7 +489,7 @@ bool CollectionImpl::requiresIdIndex() const {
     }
 
     if (_ns.isSystem()) {
-        StringData shortName = _ns.coll().substr(_ns.coll().find('.') + 1);
+        std::string_view shortName = _ns.coll().substr(_ns.coll().find('.') + 1);
         if (shortName == "indexes" || shortName == "namespaces" || shortName == "profile") {
             return false;
         }
@@ -606,7 +607,7 @@ std::pair<Collection::DocumentValidationResult, Status> CollectionImpl::checkVal
 
         BSONObj generatedError = doc_validation_error::generateError(*validatorMatchExpr, document);
 
-        static constexpr auto kValidationFailureErrorStr = "Document failed validation"_sd;
+        static constexpr auto kValidationFailureErrorStr = "Document failed validation"sv;
         status = Status(doc_validation_error::DocumentValidationFailureInfo(generatedError),
                         kValidationFailureErrorStr);
 
@@ -851,43 +852,6 @@ timeseries::MixedSchemaBucketsState CollectionImpl::getTimeseriesMixedSchemaBuck
     invariant(!_metadata->_durableTimeseriesBucketsMayHaveMixedSchemaData.value_or(true) ||
               !_metadata->timeseriesBucketsMayHaveMixedSchemaData.value_or(true));
     return timeseries::MixedSchemaBucketsState::NoMixedSchemaBuckets;
-}
-
-boost::optional<bool> CollectionImpl::timeseriesBucketingParametersHaveChanged() const {
-    if (!getTimeseriesOptions()) {
-        return boost::none;
-    }
-
-    if (auto sfp = timeseriesBucketingParametersChangedInputValue.scoped();
-        MONGO_unlikely(sfp.isActive())) {
-        const auto& data = sfp.getData();
-        return data["value"].Bool();
-    }
-
-    // Offline validation doesn't initialize FCV in order to validate older MongoDB instances
-    // TODO(SERVER-96993) Re-evaluate if true makes sense as default for older versions
-    if (storageGlobalParams.validate) {
-        return true;
-    }
-
-    return _metadata->_durableTimeseriesBucketingParametersHaveChanged;
-}
-
-void CollectionImpl::setTimeseriesBucketingParametersChanged(OperationContext* opCtx,
-                                                             boost::optional<bool> value) {
-    tassert(7625800, "This is not a time-series collection", _metadata->options.timeseries);
-
-    // TODO SERVER-92265 properly set this catalog option
-    _writeMetadata(opCtx, [&](durable_catalog::CatalogEntryMetaData& md) {
-        auto storageEngine = opCtx->getServiceContext()->getStorageEngine();
-
-        // Reuse storageEngine options to work around the issue described in SERVER-91193
-        md._durableTimeseriesBucketingParametersHaveChanged = value;
-        md.options.storageEngine = storageEngine->setFlagToStorageOptions(
-            md.options.storageEngine,
-            backwards_compatible_collection_options::kTimeseriesBucketingParametersHaveChanged,
-            value);
-    });
 }
 
 bool CollectionImpl::shouldRemoveLegacyTimeseriesBucketingParametersHaveChanged() const {
@@ -1483,7 +1447,7 @@ StatusWith<int> CollectionImpl::checkMetaDataForIndex(const std::string& indexNa
 }
 
 void CollectionImpl::updateTTLSetting(OperationContext* opCtx,
-                                      StringData idxName,
+                                      std::string_view idxName,
                                       long long newExpireSeconds) {
     int offset = _metadata->findIndexOffset(idxName);
     invariant(offset >= 0,
@@ -1494,7 +1458,9 @@ void CollectionImpl::updateTTLSetting(OperationContext* opCtx,
     });
 }
 
-void CollectionImpl::updateHiddenSetting(OperationContext* opCtx, StringData idxName, bool hidden) {
+void CollectionImpl::updateHiddenSetting(OperationContext* opCtx,
+                                         std::string_view idxName,
+                                         bool hidden) {
     int offset = _metadata->findIndexOffset(idxName);
     invariant(offset >= 0);
 
@@ -1503,7 +1469,9 @@ void CollectionImpl::updateHiddenSetting(OperationContext* opCtx, StringData idx
     });
 }
 
-void CollectionImpl::updateUniqueSetting(OperationContext* opCtx, StringData idxName, bool unique) {
+void CollectionImpl::updateUniqueSetting(OperationContext* opCtx,
+                                         std::string_view idxName,
+                                         bool unique) {
     int offset = _metadata->findIndexOffset(idxName);
     invariant(offset >= 0);
 
@@ -1513,7 +1481,7 @@ void CollectionImpl::updateUniqueSetting(OperationContext* opCtx, StringData idx
 }
 
 void CollectionImpl::updatePrepareUniqueSetting(OperationContext* opCtx,
-                                                StringData idxName,
+                                                std::string_view idxName,
                                                 bool prepareUnique) {
     int offset = _metadata->findIndexOffset(idxName);
     invariant(offset >= 0);
@@ -1560,7 +1528,7 @@ void CollectionImpl::setIsTemp(OperationContext* opCtx, bool isTemp) {
                    [&](durable_catalog::CatalogEntryMetaData& md) { md.options.temp = isTemp; });
 }
 
-void CollectionImpl::removeIndex(OperationContext* opCtx, StringData indexName) {
+void CollectionImpl::removeIndex(OperationContext* opCtx, std::string_view indexName) {
     if (_metadata->findIndexOffset(indexName) < 0)
         return;  // never had the index so nothing to do.
 
@@ -1570,7 +1538,7 @@ void CollectionImpl::removeIndex(OperationContext* opCtx, StringData indexName) 
 
 Status CollectionImpl::prepareForIndexBuild(OperationContext* opCtx,
                                             const IndexDescriptor* spec,
-                                            StringData ident,
+                                            std::string_view ident,
                                             boost::optional<UUID> buildUUID) {
     durable_catalog::CatalogEntryMetaData::IndexMetaData imd;
     imd.spec = spec->infoObj();
@@ -1629,7 +1597,7 @@ Status CollectionImpl::prepareForIndexBuild(OperationContext* opCtx,
     return status;
 }
 
-boost::optional<UUID> CollectionImpl::getIndexBuildUUID(StringData indexName) const {
+boost::optional<UUID> CollectionImpl::getIndexBuildUUID(std::string_view indexName) const {
     int offset = _metadata->findIndexOffset(indexName);
     invariant(offset >= 0,
               str::stream() << "cannot get build UUID for index " << indexName << " @ "
@@ -1638,7 +1606,7 @@ boost::optional<UUID> CollectionImpl::getIndexBuildUUID(StringData indexName) co
 }
 
 bool CollectionImpl::isIndexMultikey(OperationContext* opCtx,
-                                     StringData indexName,
+                                     std::string_view indexName,
                                      MultikeyPaths* multikeyPaths,
                                      int indexOffset) const {
     int offset = indexOffset;
@@ -1704,7 +1672,8 @@ bool CollectionImpl::isIndexMultikey(OperationContext* opCtx,
     return index.multikey;
 }
 
-int CollectionImpl::_getIndexOffsetForMultikeyUpdate(StringData indexName, int indexOffset) const {
+int CollectionImpl::_getIndexOffsetForMultikeyUpdate(std::string_view indexName,
+                                                     int indexOffset) const {
     int offset = indexOffset;
     if (offset < 0) {
         offset = _metadata->findIndexOffset(indexName);
@@ -1727,7 +1696,7 @@ int CollectionImpl::_getIndexOffsetForMultikeyUpdate(StringData indexName, int i
     return offset;
 }
 
-bool CollectionImpl::_setIndexIsMultikeyInMetadata(
+int64_t CollectionImpl::_setIndexIsMultikeyInMetadata(
     const durable_catalog::CatalogEntryMetaData& metadata,
     int offset,
     const MultikeyPaths& multikeyPaths) const {
@@ -1740,11 +1709,13 @@ bool CollectionImpl::_setIndexIsMultikeyInMetadata(
 
         if (index.multikey) {
             // The index is already set as multikey and we aren't tracking path-level multikey
-            // information for it. We return false to indicate that the index metadata is unchanged.
-            return false;
+            // information for it. We return 0 to indicate that the index metadata is unchanged.
+            return 0;
         }
+        // The index is becoming multikey for the first time. We return 1 to count this metadata
+        // change even though no path components are tracked in the catalog for this index.
         index.multikey = true;
-        return true;
+        return 1;
     }
 
     // We are tracking path-level multikey information for this index.
@@ -1753,7 +1724,7 @@ bool CollectionImpl::_setIndexIsMultikeyInMetadata(
 
     index.multikey = true;
 
-    bool newPathIsMultikey = false;
+    int64_t newPathComponents = 0;
     bool somePathIsMultikey = false;
 
     // Store new path components that cause this index to be multikey in catalog's index metadata.
@@ -1761,7 +1732,7 @@ bool CollectionImpl::_setIndexIsMultikeyInMetadata(
         auto& indexMultikeyComponents = index.multikeyPaths[i];
         for (const auto multikeyComponent : multikeyPaths[i]) {
             auto result = indexMultikeyComponents.insert(multikeyComponent);
-            newPathIsMultikey = newPathIsMultikey || result.second;
+            newPathComponents += result.second;
             somePathIsMultikey = true;
         }
     }
@@ -1771,17 +1742,13 @@ bool CollectionImpl::_setIndexIsMultikeyInMetadata(
     // called.
     invariant(somePathIsMultikey);
 
-    if (!newPathIsMultikey) {
-        // We return false to indicate that the index metadata is unchanged.
-        return false;
-    }
-    return true;
+    return newPathComponents;
 }
 
-bool CollectionImpl::setIndexIsMultikey(OperationContext* opCtx,
-                                        StringData indexName,
-                                        const MultikeyPaths& multikeyPaths,
-                                        int indexOffset) const {
+int64_t CollectionImpl::setIndexIsMultikey(OperationContext* opCtx,
+                                           StringData indexName,
+                                           const MultikeyPaths& multikeyPaths,
+                                           int indexOffset) const {
     if (CollectionCatalog::isWritableCollection(opCtx, this)) {
         // Scenarios this covers:
         // 1. Multi-document transaction that exclusively owns this collection (created in this WUOW
@@ -1809,10 +1776,10 @@ bool CollectionImpl::setIndexIsMultikey(OperationContext* opCtx,
     return _setIndexIsMultikeyWithSharedAccess(opCtx, indexName, multikeyPaths, indexOffset);
 }
 
-bool CollectionImpl::_setIndexIsMultikeyWithSharedAccess(OperationContext* opCtx,
-                                                         StringData indexName,
-                                                         const MultikeyPaths& multikeyPaths,
-                                                         int indexOffset) const {
+int64_t CollectionImpl::_setIndexIsMultikeyWithSharedAccess(OperationContext* opCtx,
+                                                            StringData indexName,
+                                                            const MultikeyPaths& multikeyPaths,
+                                                            int indexOffset) const {
     const auto offset = _getIndexOffsetForMultikeyUpdate(indexName, indexOffset);
     auto setMultikey =
         [this, offset, multikeyPaths](const durable_catalog::CatalogEntryMetaData& metadata) {
@@ -1828,11 +1795,13 @@ bool CollectionImpl::_setIndexIsMultikeyWithSharedAccess(OperationContext* opCtx
     }
     durable_catalog::CatalogEntryMetaData* metadata = nullptr;
     bool hasSetMultikey = false;
+    int64_t newPathComponents = 0;
 
     auto mdbCatalog = MDBCatalog::get(opCtx);
     if (auto it = uncommittedMultikeys->find(this); it != uncommittedMultikeys->end()) {
         metadata = &it->second;
-        hasSetMultikey = setMultikey(*metadata);
+        newPathComponents = setMultikey(*metadata);
+        hasSetMultikey = newPathComponents > 0;
     } else {
         // First time this OperationContext needs to change multikey information for this
         // collection. We cannot use the cached metadata in this collection as we may have just
@@ -1856,14 +1825,15 @@ bool CollectionImpl::_setIndexIsMultikeyWithSharedAccess(OperationContext* opCtx
             }
         }
 
-        hasSetMultikey = setMultikey(metadataLocal);
+        newPathComponents = setMultikey(metadataLocal);
+        hasSetMultikey = newPathComponents > 0;
         if (hasSetMultikey) {
             metadata = &uncommittedMultikeys->emplace(this, std::move(metadataLocal)).first->second;
         }
     }
 
     if (!hasSetMultikey)
-        return false;
+        return 0;
 
     shard_role_details::getRecoveryUnit(opCtx)->onRollback(
         [this, uncommittedMultikeys](OperationContext*) { uncommittedMultikeys->erase(this); });
@@ -1917,22 +1887,22 @@ bool CollectionImpl::_setIndexIsMultikeyWithSharedAccess(OperationContext* opCtx
             uncommittedMultikeys->erase(this);
         });
 
-    return true;
+    return newPathComponents;
 }
 
-bool CollectionImpl::_setIndexIsMultikeyWithExclusiveAccess(OperationContext* opCtx,
-                                                            StringData indexName,
-                                                            const MultikeyPaths& multikeyPaths,
-                                                            int indexOffset) {
+int64_t CollectionImpl::_setIndexIsMultikeyWithExclusiveAccess(OperationContext* opCtx,
+                                                               StringData indexName,
+                                                               const MultikeyPaths& multikeyPaths,
+                                                               int indexOffset) {
     const auto offset = _getIndexOffsetForMultikeyUpdate(indexName, indexOffset);
     auto metadata = _copyMetadataForWrite(opCtx);
-    if (!_setIndexIsMultikeyInMetadata(*metadata, offset, multikeyPaths)) {
-        return false;
-    }
+    const auto newPathComponents = _setIndexIsMultikeyInMetadata(*metadata, offset, multikeyPaths);
+    if (!newPathComponents)
+        return 0;
 
     durable_catalog::putMetaData(opCtx, getCatalogId(), *metadata, MDBCatalog::get(opCtx));
     _metadata = std::move(metadata);
-    return true;
+    return newPathComponents;
 }
 
 void CollectionImpl::forceSetIndexIsMultikey(OperationContext* opCtx,
@@ -2005,7 +1975,7 @@ int CollectionImpl::getCompletedIndexCount() const {
     return num;
 }
 
-BSONObj CollectionImpl::getIndexSpec(StringData indexName, bool expandSimpleCollation) const {
+BSONObj CollectionImpl::getIndexSpec(std::string_view indexName, bool expandSimpleCollation) const {
     int offset = _metadata->findIndexOffset(indexName);
     invariant(offset >= 0,
               str::stream() << "cannot get index spec for " << indexName << " @ " << getCatalogId()
@@ -2061,12 +2031,12 @@ void CollectionImpl::getReadyIndexes(std::vector<std::string>* names) const {
     }
 }
 
-bool CollectionImpl::isIndexPresent(StringData indexName) const {
+bool CollectionImpl::isIndexPresent(std::string_view indexName) const {
     int offset = _metadata->findIndexOffset(indexName);
     return offset >= 0;
 }
 
-bool CollectionImpl::isIndexReady(StringData indexName) const {
+bool CollectionImpl::isIndexReady(std::string_view indexName) const {
     int offset = _metadata->findIndexOffset(indexName);
     invariant(offset >= 0,
               str::stream() << "cannot get ready status for index " << indexName << " @ "

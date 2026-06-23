@@ -45,6 +45,7 @@
 #include <memory>
 #include <set>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -82,7 +83,7 @@ public:
     std::vector<BSONObj> pipeline;
     bool hasForeignDB;
 
-    // TODO SERVER-121091 This can be removed once hybrid search desugars into the internal hybrid
+    // TODO SERVER-121094 This can be removed once hybrid search desugars into the internal hybrid
     // search stage.
     bool isHybridSearch;
 
@@ -103,7 +104,7 @@ private:
 class LiteParsedUnionWith final
     : public LiteParsedDocumentSourceNestedPipelines<LiteParsedUnionWith> {
 public:
-    static constexpr StringData kStageName = "$unionWith"_sd;
+    static constexpr std::string_view kStageName = "$unionWith"_sd;
 
     static std::unique_ptr<LiteParsedUnionWith> parse(const NamespaceString& nss,
                                                       const BSONElement& spec,

@@ -70,6 +70,7 @@
 
 #include <algorithm>
 #include <memory>
+#include <string_view>
 
 #ifdef _WIN32
 #define NVALGRIND
@@ -100,7 +101,7 @@ namespace {
 const auto kCatalogLogLevel = logv2::LogSeverity::Debug(2);
 
 // Returns true if the ident refers to a resumable index build table.
-bool isResumableIndexBuildIdent(StringData ident) {
+bool isResumableIndexBuildIdent(std::string_view ident) {
     return ident::isInternalIdent(ident, kResumableIndexIdentStem);
 }
 
@@ -450,7 +451,7 @@ void StorageEngineImpl::closeMDBCatalog(OperationContext* opCtx) {
 Status StorageEngineImpl::_recoverOrphanedCollection(OperationContext* opCtx,
                                                      RecordId catalogId,
                                                      const NamespaceString& collectionName,
-                                                     StringData collectionIdent) {
+                                                     std::string_view collectionIdent) {
     if (!_options.forRepair) {
         return {ErrorCodes::IllegalOperation, "Orphan recovery only supported in repair"};
     }
@@ -514,25 +515,25 @@ std::string StorageEngineImpl::getFilesystemPathForDb(const DatabaseName& dbName
 }
 
 std::string StorageEngineImpl::generateNewCollectionIdent(
-    const DatabaseName& dbName, const boost::optional<StringData>& optIdentUniqueTag) const {
+    const DatabaseName& dbName, const boost::optional<std::string_view>& optIdentUniqueTag) const {
     return ident::generateNewCollectionIdent(
         dbName, _options.directoryPerDB, _options.directoryForIndexes, optIdentUniqueTag);
 }
 
 std::string StorageEngineImpl::generateNewIndexIdent(
-    const DatabaseName& dbName, const boost::optional<StringData>& optIdentUniqueTag) const {
+    const DatabaseName& dbName, const boost::optional<std::string_view>& optIdentUniqueTag) const {
     return ident::generateNewIndexIdent(
         dbName, _options.directoryPerDB, _options.directoryForIndexes, optIdentUniqueTag);
 }
 
-StringData StorageEngineImpl::getCollectionIdentUniqueTag(StringData ident,
-                                                          const DatabaseName& dbName) const {
+std::string_view StorageEngineImpl::getCollectionIdentUniqueTag(std::string_view ident,
+                                                                const DatabaseName& dbName) const {
     return ident::getCollectionIdentUniqueTag(
         ident, dbName, _options.directoryPerDB, _options.directoryForIndexes);
 }
 
-StringData StorageEngineImpl::getIndexIdentUniqueTag(StringData ident,
-                                                     const DatabaseName& dbName) const {
+std::string_view StorageEngineImpl::getIndexIdentUniqueTag(std::string_view ident,
+                                                           const DatabaseName& dbName) const {
     return ident::getIndexIdentUniqueTag(
         ident, dbName, _options.directoryPerDB, _options.directoryForIndexes);
 }
@@ -725,7 +726,7 @@ std::unique_ptr<SpillTable> StorageEngineImpl::makeSpillTable(OperationContext* 
                                         thresholdBytes);
 }
 
-void StorageEngineImpl::dropSpillTable(RecoveryUnit& ru, StringData ident) {
+void StorageEngineImpl::dropSpillTable(RecoveryUnit& ru, std::string_view ident) {
     // Dropping the spill table may transiently return ObjectIsBusy if another spill engine user has
     // a storage snapshot from before an earlier write to this table. Retry until the drop succeeds.
     for (size_t retries = 0;; ++retries) {
@@ -751,7 +752,7 @@ void StorageEngineImpl::dropSpillTable(RecoveryUnit& ru, StringData ident) {
 }
 
 std::unique_ptr<RecordStore> StorageEngineImpl::makeInternalRecordStore(OperationContext* opCtx,
-                                                                        StringData ident,
+                                                                        std::string_view ident,
                                                                         KeyFormat keyFormat) {
     tassert(10709200,
             "Cannot use a non-internal ident to create an internal RecordStore instance",
@@ -816,7 +817,7 @@ void StorageEngineImpl::setLastMaterializedLsn(uint64_t lsn) {
     _engine->setLastMaterializedLsn(lsn);
 }
 
-void StorageEngineImpl::setRecoveryCheckpointMetadata(StringData checkpointMetadata) {
+void StorageEngineImpl::setRecoveryCheckpointMetadata(std::string_view checkpointMetadata) {
     _engine->setRecoveryCheckpointMetadata(checkpointMetadata);
 }
 
@@ -901,7 +902,7 @@ bool StorageEngineImpl::supportsReadConcernSnapshot() const {
 }
 
 Status StorageEngineImpl::immediatelyCompletePendingDrop(OperationContext* opCtx,
-                                                         StringData ident) {
+                                                         std::string_view ident) {
     return _dropPendingIdentReaper.immediatelyCompletePendingDrop(opCtx, ident);
 }
 
@@ -941,7 +942,7 @@ void StorageEngineImpl::_dumpCatalog(OperationContext* opCtx) {
     shard_role_details::getRecoveryUnit(opCtx)->abandonSnapshot();
 }
 
-void StorageEngineImpl::dropIdent(RecoveryUnit& ru, StringData ident) {
+void StorageEngineImpl::dropIdent(RecoveryUnit& ru, std::string_view ident) {
     Status status = _engine->dropIdent(ru, ident, ident::isCollectionIdent(ident));
     if (!status.isOK()) {
         // A concurrent operation, such as a checkpoint could be holding an open data
@@ -959,7 +960,7 @@ void StorageEngineImpl::addDropPendingIdent(const DropTime& dropTime,
 
 void StorageEngineImpl::dropUnknownIdent(RecoveryUnit& ru,
                                          const Timestamp& stableTimestamp,
-                                         StringData ident) {
+                                         std::string_view ident) {
     if (stableTimestamp.isNull()) {
         if (_engine->dropIdent(ru, ident, ident::isCollectionIdent(ident)).isOK())
             return;
@@ -968,13 +969,13 @@ void StorageEngineImpl::dropUnknownIdent(RecoveryUnit& ru,
 }
 
 void StorageEngineImpl::dropIdentTimestamped(OperationContext* opCtx,
-                                             StringData ident,
+                                             std::string_view ident,
                                              Timestamp timestamp) {
     uassertStatusOK(
         _dropPendingIdentReaper.immediatelyCompletePendingDropAtTimestamp(opCtx, ident, timestamp));
 }
 
-std::shared_ptr<Ident> StorageEngineImpl::markIdentInUse(StringData ident) {
+std::shared_ptr<Ident> StorageEngineImpl::markIdentInUse(std::string_view ident) {
     return _dropPendingIdentReaper.markIdentInUse(ident);
 }
 
@@ -1278,12 +1279,12 @@ const MDBCatalog* StorageEngineImpl::getMDBCatalog() const {
 }
 
 boost::optional<bool> StorageEngineImpl::getFlagFromStorageOptions(
-    const BSONObj& storageEngineOptions, StringData flagName) const {
+    const BSONObj& storageEngineOptions, std::string_view flagName) const {
     return _engine->getFlagFromStorageOptions(storageEngineOptions, flagName);
 }
 
 BSONObj StorageEngineImpl::setFlagToStorageOptions(const BSONObj& storageEngineOptions,
-                                                   StringData flagName,
+                                                   std::string_view flagName,
                                                    boost::optional<bool> flagValue) const {
     return _engine->setFlagToStorageOptions(storageEngineOptions, flagName, flagValue);
 }

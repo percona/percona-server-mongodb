@@ -29,13 +29,13 @@
 
 #pragma once
 
-#include "mongo/base/string_data.h"
 #include "mongo/bson/bsonelement.h"
 #include "mongo/bson/bsonobj.h"
 #include "mongo/bson/bsonobjbuilder.h"
 #include "mongo/db/query/query_knobs/query_knob.h"
 
 #include <span>
+#include <string_view>
 #include <vector>
 
 namespace mongo::query_settings {
@@ -47,8 +47,8 @@ namespace mongo::query_settings {
  * An empty entries vector means no overrides are active.
  *
  * DeleteQueryKnobOverride is a write-path-only removal sentinel used to signal that a knob should
- * be removed during merge. It must not survive past merge simplification; toBSON() tasserts its
- * absence.
+ * be removed during merge. It must not survive into stored settings; validateQuerySettings()
+ * tasserts its absence after simplification.
  */
 class QuerySettingsKnobOverrides {
 public:
@@ -65,8 +65,23 @@ public:
         return fromBSON(element.Obj());
     }
 
+    /**
+     * Applies 'rhs' as a per-knob patch onto 'lhs' (a sorted union where 'rhs' wins on equal ids).
+     * 'lhs' is expected to be sentinel-free (it is always already-stored or already-simplified
+     * settings); sentinels legitimately originate only in the 'rhs' wire patch. Callers must run
+     * simplify() on the result before passing it to validateQuerySettings().
+     */
+    static QuerySettingsKnobOverrides merge(const QuerySettingsKnobOverrides& lhs,
+                                            const QuerySettingsKnobOverrides& rhs);
+
+    /**
+     * Removes DeleteQueryKnobOverride removal sentinels from the entries. Run on merged settings
+     * before calling validateQuerySettings() to ensure no sentinel survives into stored settings.
+     */
+    void simplify();
+
     BSONObj toBSON() const;
-    void toBSON(StringData fieldName, BSONObjBuilder* builder) const {
+    void toBSON(std::string_view fieldName, BSONObjBuilder* builder) const {
         builder->append(fieldName, toBSON());
     }
 

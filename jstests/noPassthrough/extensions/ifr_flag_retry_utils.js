@@ -119,6 +119,9 @@ export function createTestView(conn, shardingTest = null) {
  * @param {number} options.expectedRetryDelta - Expected retry count delta.
  * @param {number} options.expectedLegacyDelta - Expected legacy usage delta.
  * @param {number} [options.expectedExtensionDelta=0] - Expected extension usage delta.
+ * @param {boolean} [options.extensionDeltaIsLowerBound=false] - Assert extension usage rose by at
+ *        least expectedExtensionDelta (for sharded $unionWith, where the per-node build count is
+ *        non-deterministic).
  * @param {Array<function>} options.queries - Functions to run (e.g. explain and/or aggregate).
  */
 export function runQueriesAndVerifyMetrics({
@@ -131,6 +134,7 @@ export function runQueriesAndVerifyMetrics({
     expectedRetryDelta,
     expectedLegacyDelta,
     expectedExtensionDelta = 0,
+    extensionDeltaIsLowerBound = false,
     queries,
 }) {
     const initialRetryCount = getRetryCountFn(conn);
@@ -161,12 +165,15 @@ export function runQueriesAndVerifyMetrics({
             `${initialLegacyCount + expectedLegacyDelta} when feature flag is ${featureFlagValue}`,
     );
 
-    assert.eq(
-        finalExtensionCount,
-        initialExtensionCount + expectedExtensionDelta,
-        `extensionUsed should have changed from ${initialExtensionCount} to ` +
-            `${initialExtensionCount + expectedExtensionDelta} when feature flag is ${featureFlagValue}`,
-    );
+    const expectedExtensionCount = initialExtensionCount + expectedExtensionDelta;
+    const extensionMsg =
+        `extensionUsed should have ${extensionDeltaIsLowerBound ? "increased to at least" : "changed to"} ` +
+        `${expectedExtensionCount} (from ${initialExtensionCount}) when feature flag is ${featureFlagValue}`;
+    if (extensionDeltaIsLowerBound) {
+        assert.gte(finalExtensionCount, expectedExtensionCount, extensionMsg);
+    } else {
+        assert.eq(finalExtensionCount, expectedExtensionCount, extensionMsg);
+    }
 }
 
 // ============================================================================
@@ -441,6 +448,78 @@ export function runHybridSearchTests(conn, mongotMock, featureFlagValue, shardin
             },
         ],
     });
+}
+
+/**
+ * Runs $rankFusion/$scoreFusion with $vectorSearch subpipelines when
+ * featureFlagExtensionsInsideHybridSearch is ON and verifies zero hybrid-search kickback retries
+ * (the LP desugarer runs before validate(), bypassing the kickback). With
+ * featureFlagVectorSearchExtension ON, the toy extension's expansion produces no sort-key
+ * metadata, so execution fails later (31282) — distinct from the kickback under test. With it
+ * OFF, $vectorSearch runs via mongot.
+ */
+export function runHybridSearchTestsWithExtensionsEnabled(
+    conn,
+    mongotMock,
+    featureFlagValue,
+    shardingTest = null,
+) {
+    setParameterOnAllNonConfigNodes(conn, "featureFlagVectorSearchExtension", featureFlagValue);
+    createTestCollectionAndIndex(conn, mongotMock, shardingTest);
+    const {vectorSearchStage: vsQuery, testDb} = setupMockVectorSearchResponsesForHybridSearch(
+        conn,
+        mongotMock,
+        shardingTest,
+    );
+
+    const expectExtension = getParameter(conn, "featureFlagVectorSearchExtension").value;
+
+    const rankFusionPipeline = [{$rankFusion: {input: {pipelines: {vectorPipeline: [vsQuery]}}}}];
+    const scoreFusionPipeline = [
+        {$scoreFusion: {input: {pipelines: {vectorPipeline: [vsQuery]}, normalization: "none"}}},
+    ];
+
+    const initialKickbackCount = getInHybridSearchKickbackRetryCount(conn);
+
+    if (expectExtension) {
+        if (shardingTest) {
+            // Sharded: the toy extension trips a mongos sort-key tripwire (9973200) during
+            // cleanup. Kickback behavior is LP-level, so standalone coverage suffices.
+            return;
+        }
+        // Standalone: toy extension fails gracefully (no tripwire) with missing metadata.
+        // The kickback was NOT triggered — validate() was correctly suppressed.
+        assert.commandFailed(
+            testDb.runCommand({aggregate: kTestCollName, pipeline: rankFusionPipeline, cursor: {}}),
+        );
+        assert.commandFailed(
+            testDb.runCommand({
+                aggregate: kTestCollName,
+                pipeline: scoreFusionPipeline,
+                cursor: {},
+            }),
+        );
+    } else {
+        // Legacy $vectorSearch contacts mongot normally; both commands should succeed.
+        assert.commandWorked(
+            testDb.runCommand({aggregate: kTestCollName, pipeline: rankFusionPipeline, cursor: {}}),
+        );
+        assert.commandWorked(
+            testDb.runCommand({
+                aggregate: kTestCollName,
+                pipeline: scoreFusionPipeline,
+                cursor: {},
+            }),
+        );
+    }
+
+    // The key assertion: no hybrid-search kickback retry should have fired regardless of
+    // featureFlagVectorSearchExtension, because featureFlagExtensionsInsideHybridSearch is ON.
+    assert.eq(
+        getInHybridSearchKickbackRetryCount(conn),
+        initialKickbackCount,
+        "No hybrid-search kickback retries should occur when featureFlagExtensionsInsideHybridSearch is ON",
+    );
 }
 
 // ============================================================================

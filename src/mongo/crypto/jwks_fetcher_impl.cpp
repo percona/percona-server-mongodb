@@ -46,16 +46,25 @@
 #include "mongo/util/str.h"
 
 #include <memory>
+#include <string_view>
 
 #include <boost/optional/optional.hpp>
 
 namespace mongo::crypto {
 
+<<<<<<< HEAD
 JWKSFetcherImpl::JWKSFetcherImpl(ClockSource* clock, StringData issuer, StringData caFilePath)
     : _issuer(issuer),
       _clock(clock),
       _lastAttemptedFetchTime(Date_t::min()),
       _caFilePath(caFilePath) {}
+||||||| 2eff3754f8e
+JWKSFetcherImpl::JWKSFetcherImpl(ClockSource* clock, StringData issuer)
+    : _issuer(issuer), _clock(clock), _lastAttemptedFetchTime(Date_t::min()) {}
+=======
+JWKSFetcherImpl::JWKSFetcherImpl(ClockSource* clock, std::string_view issuer)
+    : _issuer(issuer), _clock(clock), _lastAttemptedFetchTime(Date_t::min()) {}
+>>>>>>> c9fa3ccc6dc4e6c15ca26d58bc03951df288eb36
 
 JWKSet JWKSFetcherImpl::fetch() {
     try {
@@ -77,8 +86,8 @@ JWKSet JWKSFetcherImpl::fetch() {
         auto getJWKs = makeHTTPClient()->get(jwksUri);
 
         ConstDataRange cdr = getJWKs.getCursor();
-        StringData str;
-        cdr.readInto<StringData>(&str);
+        std::string_view str;
+        cdr.readInto<std::string_view>(&str);
 
         return JWKSet::parseOwned(fromjson(str), IDLParserContext("JWKSet"));
     } catch (DBException& ex) {

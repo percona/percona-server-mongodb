@@ -63,6 +63,7 @@
 #include <cstdint>
 #include <memory>
 #include <set>
+#include <string_view>
 #include <vector>
 
 #include <absl/container/node_hash_map.h>
@@ -76,6 +77,7 @@
 
 
 namespace mongo {
+using namespace std::literals::string_view_literals;
 using CollectionAndChangedChunks = CatalogCacheLoader::CollectionAndChangedChunks;
 namespace {
 
@@ -198,8 +200,9 @@ ShardVersion CollectionRoutingInfo::getCollectionVersion() const {
     return sv;
 }
 
-ShardVersion CollectionRoutingInfo::getShardVersion(const ShardId& shardId) const {
-    auto sv = ShardVersionFactory::make(getChunkManager(), shardId);
+ShardVersion CollectionRoutingInfo::getShardVersion(OperationContext* opCtx,
+                                                    const ShardId& shardId) const {
+    auto sv = ShardVersionFactory::make(opCtx, getChunkManager(), shardId);
     if (MONGO_unlikely(shouldIgnoreUuidMismatch)) {
         sv.setIgnoreShardingCatalogUuidMismatch();
     }
@@ -230,14 +233,13 @@ void ComparableDatabaseVersion::setDatabaseVersion(const DatabaseVersion& versio
 std::string ComparableDatabaseVersion::toString() const {
     BSONObjBuilder builder;
     if (_dbVersion)
-        builder.append("dbVersion"_sd, _dbVersion->toBSON());
+        builder.append("dbVersion"sv, _dbVersion->toBSON());
     else
-        builder.append("dbVersion"_sd, "None");
+        builder.append("dbVersion"sv, "None");
 
-    builder.append("disambiguatingSequenceNum"_sd,
-                   static_cast<int64_t>(_disambiguatingSequenceNum));
+    builder.append("disambiguatingSequenceNum"sv, static_cast<int64_t>(_disambiguatingSequenceNum));
 
-    builder.append("forcedRefreshSequenceNum"_sd, static_cast<int64_t>(_forcedRefreshSequenceNum));
+    builder.append("forcedRefreshSequenceNum"sv, static_cast<int64_t>(_forcedRefreshSequenceNum));
 
     return builder.obj().toString();
 }
@@ -278,7 +280,7 @@ CatalogCache::CatalogCache(ServiceContext* const service,
                            std::shared_ptr<CatalogCacheLoader> collectionCacheLoader,
                            bool cascadeDatabaseCacheLoaderShutdown,
                            bool cascadeCollectionCacheLoaderShutdown,
-                           StringData kind)
+                           std::string_view kind)
     : _kind(kind),
       _executor([this] {
           ThreadPool::Options options;
@@ -296,7 +298,7 @@ CatalogCache::CatalogCache(ServiceContext* const service,
 
 CatalogCache::CatalogCache(ServiceContext* const service,
                            std::shared_ptr<CatalogCacheLoader> cacheLoader,
-                           StringData kind)
+                           std::string_view kind)
     : _kind(kind),
       _executor([this] {
           ThreadPool::Options options;

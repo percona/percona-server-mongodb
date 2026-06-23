@@ -35,6 +35,7 @@
 
 namespace mongo {
 namespace {
+using namespace std::literals::string_view_literals;
 
 using Op = InterleavedSchema::Op;
 
@@ -48,15 +49,15 @@ TEST(InterleavedSchemaTest, FlatObject) {
     ASSERT_EQ(e.size(), 4);  // Enter, Scalar(a), Scalar(b), Exit
 
     EXPECT_EQ(e[0].op, Op::kEnterSubObj);
-    EXPECT_EQ(e[0].fieldName, ""_sd);
+    EXPECT_EQ(e[0].fieldName, ""sv);
     EXPECT_EQ(e[0].type, BSONType::object);
 
     EXPECT_EQ(e[1].op, Op::kScalar);
-    EXPECT_EQ(e[1].fieldName, "a"_sd);
+    EXPECT_EQ(e[1].fieldName, "a"sv);
     EXPECT_EQ(e[1].stateIdx, 0);
 
     EXPECT_EQ(e[2].op, Op::kScalar);
-    EXPECT_EQ(e[2].fieldName, "b"_sd);
+    EXPECT_EQ(e[2].fieldName, "b"sv);
     EXPECT_EQ(e[2].stateIdx, 1);
 
     EXPECT_EQ(e[3].op, Op::kExitSubObj);
@@ -74,11 +75,11 @@ TEST(InterleavedSchemaTest, NestedObject) {
 
     EXPECT_EQ(e[0].op, Op::kEnterSubObj);
     EXPECT_EQ(e[1].op, Op::kScalar);
-    EXPECT_EQ(e[1].fieldName, "a"_sd);
+    EXPECT_EQ(e[1].fieldName, "a"sv);
     EXPECT_EQ(e[1].stateIdx, 0);
 
     EXPECT_EQ(e[2].op, Op::kEnterSubObj);
-    EXPECT_EQ(e[2].fieldName, "obj"_sd);
+    EXPECT_EQ(e[2].fieldName, "obj"sv);
     EXPECT_EQ(e[2].type, BSONType::object);
 
     EXPECT_EQ(e[3].op, Op::kScalar);
@@ -87,9 +88,9 @@ TEST(InterleavedSchemaTest, NestedObject) {
     EXPECT_EQ(e[4].stateIdx, 2);
 
     EXPECT_EQ(e[5].op, Op::kExitSubObj);
-    EXPECT_EQ(e[5].fieldName, "obj"_sd);
+    EXPECT_EQ(e[5].fieldName, "obj"sv);
     EXPECT_EQ(e[6].op, Op::kExitSubObj);
-    EXPECT_EQ(e[6].fieldName, ""_sd);
+    EXPECT_EQ(e[6].fieldName, ""sv);
 }
 
 TEST(InterleavedSchemaTest, DeepNesting) {
@@ -121,7 +122,7 @@ TEST(InterleavedSchemaTest, EmptySubObject) {
     ASSERT_EQ(e.size(), 4);
 
     EXPECT_EQ(e[1].op, Op::kEnterSubObj);
-    EXPECT_EQ(e[1].fieldName, "obj"_sd);
+    EXPECT_EQ(e[1].fieldName, "obj"sv);
     EXPECT_TRUE(e[1].allowEmpty);
 
     EXPECT_EQ(e[2].op, Op::kExitSubObj);
@@ -148,7 +149,7 @@ TEST(InterleavedSchemaTest, ArraysFlagTrue) {
     auto& e = schema.entries();
     bool foundArrayEnter = false;
     for (auto& entry : e) {
-        if (entry.fieldName == "arr"_sd && entry.op == Op::kEnterSubObj) {
+        if (entry.fieldName == "arr"sv && entry.op == Op::kEnterSubObj) {
             foundArrayEnter = true;
             EXPECT_EQ(entry.type, BSONType::array);
         }
@@ -164,7 +165,7 @@ TEST(InterleavedSchemaTest, ArraysFlagFalse) {
     auto& e = schema.entries();
     bool foundArrayScalar = false;
     for (auto& entry : e) {
-        if (entry.fieldName == "arr"_sd) {
+        if (entry.fieldName == "arr"sv) {
             EXPECT_EQ(entry.op, Op::kScalar);
             foundArrayScalar = true;
         }
@@ -179,6 +180,28 @@ TEST(InterleavedSchemaTest, RootTypeArray) {
     auto& e = schema.entries();
     EXPECT_EQ(e[0].op, Op::kEnterSubObj);
     EXPECT_EQ(e[0].type, BSONType::array);
+}
+
+TEST(InterleavedSchemaTest, ScalarCountAtBsonMaxElements) {
+    // 1 (type) + key digits + 1 (null) + 4 (int32)
+    auto estimateSize = [](int i) -> int {
+        return 6 + static_cast<int>(std::to_string(i).size());
+    };
+
+    // 4 (outer size) + 1 (type) + 5 ("data\0") + 4 (array size) + 1 (array null) + 1 (outer null)
+    constexpr int kOuterOverhead = 16;
+    size_t totalSize = kOuterOverhead;
+    BSONArrayBuilder bab;
+    for (int i = 0, size; totalSize + (size = estimateSize(i)) < BSONObjMaxUserSize; ++i) {
+        totalSize += size;
+        bab.append(i);
+    }
+    auto arr = bab.arr();
+    auto ref = BSON("data" << arr);
+    ASSERT_EQ(ref.objsize(), totalSize);
+
+    InterleavedSchema schema(ref, BSONType::object, true);
+    EXPECT_EQ(schema.scalarCount(), arr.nFields());
 }
 
 }  // namespace

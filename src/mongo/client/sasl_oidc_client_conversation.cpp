@@ -55,6 +55,7 @@
 
 #include <cstddef>
 #include <memory>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -65,17 +66,19 @@
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kAccessControl
 
 namespace mongo {
+using namespace std::literals::string_view_literals;
 namespace {
-constexpr auto kClientIdParameterName = "client_id"_sd;
-constexpr auto kRequestScopesParameterName = "scope"_sd;
-constexpr auto kGrantTypeParameterName = "grant_type"_sd;
+constexpr auto kClientIdParameterName = "client_id"sv;
+constexpr auto kRequestScopesParameterName = "scope"sv;
+constexpr auto kGrantTypeParameterName = "grant_type"sv;
 constexpr auto kGrantTypeParameterDeviceCodeValue =
-    "urn:ietf:params:oauth:grant-type:device_code"_sd;
-constexpr auto kGrantTypeParameterRefreshTokenValue = "refresh_token"_sd;
-constexpr auto kDeviceCodeParameterName = "device_code"_sd;
-constexpr auto kCodeParameterName = "code"_sd;
+    "urn:ietf:params:oauth:grant-type:device_code"sv;
+constexpr auto kGrantTypeParameterRefreshTokenValue = "refresh_token"sv;
+constexpr auto kDeviceCodeParameterName = "device_code"sv;
+constexpr auto kCodeParameterName = "code"sv;
 constexpr auto kRefreshTokenParameterName = kGrantTypeParameterRefreshTokenValue;
 
+<<<<<<< HEAD
 std::unique_ptr<HttpClient> createHttpClient(bool withConnectionPool = false) {
     std::unique_ptr<HttpClient> httpClient =
         withConnectionPool ? HttpClient::create() : HttpClient::createWithoutConnectionPool();
@@ -86,11 +89,16 @@ std::unique_ptr<HttpClient> createHttpClient(bool withConnectionPool = false) {
 }
 
 inline void appendPostBodyRequiredParams(StringBuilder* sb, StringData clientId) {
+||||||| 2eff3754f8e
+inline void appendPostBodyRequiredParams(StringBuilder* sb, StringData clientId) {
+=======
+inline void appendPostBodyRequiredParams(StringBuilder* sb, std::string_view clientId) {
+>>>>>>> c9fa3ccc6dc4e6c15ca26d58bc03951df288eb36
     *sb << kClientIdParameterName << "=" << uriEncode(clientId);
 }
 
 inline void appendPostBodyDeviceCodeRequestParams(
-    StringBuilder* sb, const boost::optional<std::vector<StringData>>& requestScopes) {
+    StringBuilder* sb, const boost::optional<std::vector<std::string_view>>& requestScopes) {
     if (requestScopes) {
         *sb << "&" << kRequestScopesParameterName << "=";
         for (std::size_t i = 0; i < requestScopes->size(); i++) {
@@ -102,23 +110,25 @@ inline void appendPostBodyDeviceCodeRequestParams(
     }
 }
 
-inline void appendPostBodyTokenRequestParams(StringBuilder* sb, StringData deviceCode) {
+inline void appendPostBodyTokenRequestParams(StringBuilder* sb, std::string_view deviceCode) {
     // kDeviceCodeParameterName and kCodeParameterName are the same, IDP's use different names.
     *sb << "&" << kGrantTypeParameterName << "=" << kGrantTypeParameterDeviceCodeValue << "&"
         << kDeviceCodeParameterName << "=" << uriEncode(deviceCode) << "&" << kCodeParameterName
         << "=" << uriEncode(deviceCode);
 }
 
-inline void appendPostBodyRefreshFlowParams(StringBuilder* sb, StringData refreshToken) {
+inline void appendPostBodyRefreshFlowParams(StringBuilder* sb, std::string_view refreshToken) {
     *sb << "&" << kGrantTypeParameterName << "=" << kGrantTypeParameterRefreshTokenValue << "&"
         << kRefreshTokenParameterName << "=" << uriEncode(refreshToken);
 }
 
-BSONObj doPostRequest(HttpClient* httpClient, StringData endPoint, const std::string& requestBody) {
+BSONObj doPostRequest(HttpClient* httpClient,
+                      std::string_view endPoint,
+                      const std::string& requestBody) {
     auto response = httpClient->post(endPoint, requestBody);
     ConstDataRange responseCdr = response.getCursor();
-    StringData responseStr;
-    responseCdr.readInto<StringData>(&responseStr);
+    std::string_view responseStr;
+    responseCdr.readInto<std::string_view>(&responseStr);
     return fromjson(responseStr);
 }
 
@@ -126,15 +136,33 @@ BSONObj doPostRequest(HttpClient* httpClient, StringData endPoint, const std::st
 std::pair<std::string, std::string> doDeviceAuthorizationGrantFlow(
     const OAuthAuthorizationServerMetadata& discoveryReply,
     const auth::OIDCMechanismServerStep1& serverReply,
+<<<<<<< HEAD
     StringData principalName) {
     boost::optional<StringData> deviceAuthorizationEndpoint =
         discoveryReply.getDeviceAuthorizationEndpoint().get();
     // If exists, the device authorization endpoint has been already validated during parsing of
     // `OAuthAuthorizationServerMetadata` class.
     // (@see `src/mongo/db/auth/oauth_authorization_server_metadata.idl`).
+||||||| 2eff3754f8e
+    StringData principalName) {
+    auto deviceAuthorizationEndpoint = discoveryReply.getDeviceAuthorizationEndpoint().get();
+=======
+    std::string_view principalName) {
+    auto deviceAuthorizationEndpoint = discoveryReply.getDeviceAuthorizationEndpoint().get();
+>>>>>>> c9fa3ccc6dc4e6c15ca26d58bc03951df288eb36
     uassert(ErrorCodes::BadValue,
+<<<<<<< HEAD
             "Missing or invalid device authorization endpoint in server reply",
             deviceAuthorizationEndpoint && !deviceAuthorizationEndpoint->empty());
+||||||| 2eff3754f8e
+            "Device authorization endpoint in server reply must be an https endpoint or localhost",
+            deviceAuthorizationEndpoint.starts_with("https://"_sd) ||
+                deviceAuthorizationEndpoint.starts_with("http://localhost"_sd));
+=======
+            "Device authorization endpoint in server reply must be an https endpoint or localhost",
+            deviceAuthorizationEndpoint.starts_with("https://"sv) ||
+                deviceAuthorizationEndpoint.starts_with("http://localhost"sv));
+>>>>>>> c9fa3ccc6dc4e6c15ca26d58bc03951df288eb36
 
     auto clientId = serverReply.getClientId();
     uassert(ErrorCodes::BadValue,
@@ -230,7 +258,8 @@ std::pair<std::string, std::string> doAuthorizationCodeFlow(
 }  // namespace
 OIDCClientGlobalParams oidcClientGlobalParams;
 
-StatusWith<bool> SaslOIDCClientConversation::step(StringData inputData, std::string* outputData) {
+StatusWith<bool> SaslOIDCClientConversation::step(std::string_view inputData,
+                                                  std::string* outputData) {
     switch (++_step) {
         case 1:
             return _firstStep(outputData);
@@ -306,7 +335,7 @@ StatusWith<bool> SaslOIDCClientConversation::_firstStep(std::string* outputData)
     return false;
 }
 
-StatusWith<bool> SaslOIDCClientConversation::_secondStep(StringData input,
+StatusWith<bool> SaslOIDCClientConversation::_secondStep(std::string_view input,
                                                          std::string* outputData) try {
     // If the client already has a non-empty access token, then token acquisition can be skipped.
     if (_accessToken.empty()) {
@@ -329,7 +358,17 @@ StatusWith<bool> SaslOIDCClientConversation::_secondStep(StringData input,
         boost::optional<StringData> tokenEndpoint = discoveryReply.getTokenEndpoint();
         uassert(ErrorCodes::BadValue,
                 "Missing or invalid token endpoint in server reply",
+<<<<<<< HEAD
                 tokenEndpoint && !tokenEndpoint->empty());
+||||||| 2eff3754f8e
+                tokenEndpoint && !tokenEndpoint->empty() &&
+                    (tokenEndpoint->starts_with("https://"_sd) ||
+                     tokenEndpoint->starts_with("http://localhost"_sd)));
+=======
+                tokenEndpoint && !tokenEndpoint->empty() &&
+                    (tokenEndpoint->starts_with("https://"sv) ||
+                     tokenEndpoint->starts_with("http://localhost"sv)));
+>>>>>>> c9fa3ccc6dc4e6c15ca26d58bc03951df288eb36
 
         // Cache the token endpoint for potential reuse during the refresh flow.
         oidcClientGlobalParams.oidcTokenEndpoint = std::string{*tokenEndpoint};

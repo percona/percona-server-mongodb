@@ -31,7 +31,8 @@
 
 namespace mongo {
 
-bool ScopedCollectionFilter::isRangeEntirelyOwned(const BSONObj& min,
+bool ScopedCollectionFilter::isRangeEntirelyOwned(OperationContext* opCtx,
+                                                  const BSONObj& min,
                                                   const BSONObj& max,
                                                   bool includeMaxBound) const {
     const auto cm = _impl->get().getChunkManager();
@@ -39,7 +40,7 @@ bool ScopedCollectionFilter::isRangeEntirelyOwned(const BSONObj& min,
         // Unsharded collection are always placed in only one shard
         return true;
     std::set<ShardId> shardIds;
-    cm->getShardIdsForRange(min, max, &shardIds, nullptr, includeMaxBound);
+    cm->getShardIdsForRange(opCtx, min, max, &shardIds, nullptr, includeMaxBound);
     return shardIds.size() == 1;
 }
 }  // namespace mongo

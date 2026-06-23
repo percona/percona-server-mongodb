@@ -30,16 +30,22 @@
 #include "mongo/db/storage/wiredtiger/wiredtiger_customization_hooks.h"
 
 #include "mongo/base/init.h"  // IWYU pragma: keep
+<<<<<<< HEAD
 #include "mongo/base/string_data.h"
 #include "mongo/db/database_name_util.h"
 #include "mongo/db/encryption/encryption_options.h"
 #include "mongo/db/namespace_string_util.h"
+||||||| 2eff3754f8e
+#include "mongo/base/string_data.h"
+=======
+>>>>>>> c9fa3ccc6dc4e6c15ca26d58bc03951df288eb36
 #include "mongo/db/service_context.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/decorable.h"
 #include "mongo/util/str.h"
 
 #include <memory>
+#include <string_view>
 #include <utility>
 
 #include <boost/none.hpp>
@@ -106,7 +112,8 @@ void WiredTigerCustomizationHooksRegistry::addHook(
     _hooks.push_back(std::move(custHook));
 }
 
-std::string WiredTigerCustomizationHooksRegistry::getTableCreateConfig(StringData tableName) const {
+std::string WiredTigerCustomizationHooksRegistry::getTableCreateConfig(
+    std::string_view tableName) const {
     str::stream config;
     for (const auto& h : _hooks) {
         config << h->getTableCreateConfig(tableName);
@@ -131,7 +138,7 @@ bool WiredTigerCustomizationHooks::enabled() const {
     return false;
 }
 
-std::string WiredTigerCustomizationHooks::getTableCreateConfig(StringData tableName) {
+std::string WiredTigerCustomizationHooks::getTableCreateConfig(std::string_view tableName) {
     return "";
 }
 

@@ -29,7 +29,6 @@
 
 #include "mongo/db/pipeline/hybrid_search_pipeline_builder.h"
 
-#include "mongo/base/string_data.h"
 #include "mongo/bson/bsonobj.h"
 #include "mongo/bson/bsontypes.h"
 #include "mongo/db/pipeline/document_source.h"
@@ -43,11 +42,14 @@
 #include "mongo/logv2/log.h"
 #include "mongo/util/string_map.h"
 
+#include <string_view>
+
 #include <boost/smart_ptr/intrusive_ptr.hpp>
 #include <fmt/format.h>
 #include <fmt/ranges.h>
 
 namespace mongo {
+using namespace std::literals::string_view_literals;
 
 boost::intrusive_ptr<DocumentSource> HybridSearchPipelineBuilder::buildReplaceRootStage(
     const boost::intrusive_ptr<ExpressionContext>& expCtx) {
@@ -58,7 +60,7 @@ boost::intrusive_ptr<DocumentSource> HybridSearchPipelineBuilder::buildReplaceRo
 BSONObj HybridSearchPipelineBuilder::projectRemoveInternalFieldsObject() {
     BSONObjBuilder bob;
     {
-        BSONObjBuilder projectBob(bob.subobjStart("$project"_sd));
+        BSONObjBuilder projectBob(bob.subobjStart("$project"sv));
         projectBob.append(getInternalFieldsName(), 0);
         projectBob.done();
     }
@@ -73,7 +75,7 @@ HybridSearchPipelineBuilder::constructCalculatedFinalScoreDetails(
     const boost::intrusive_ptr<ExpressionContext>& expCtx) {
     BSONObjBuilder bob;
     {
-        BSONObjBuilder addFieldsBob(bob.subobjStart("$addFields"_sd));
+        BSONObjBuilder addFieldsBob(bob.subobjStart("$addFields"sv));
         {
             BSONObjBuilder internalFieldsBob(addFieldsBob.subobjStart(getInternalFieldsName()));
             {
@@ -86,7 +88,7 @@ HybridSearchPipelineBuilder::constructCalculatedFinalScoreDetails(
                         fmt::format("${}_scoreDetails", pipelineName);
                     double weight = hybrid_scoring_util::getPipelineWeight(weights, pipelineName);
                     BSONObjBuilder mergeObjectsArrSubObj;
-                    mergeObjectsArrSubObj.append("inputPipelineName"_sd, pipelineName);
+                    mergeObjectsArrSubObj.append("inputPipelineName"sv, pipelineName);
                     constructCalculatedFinalScoreDetailsStageSpecificScoreDetails(
                         mergeObjectsArrSubObj, internalFieldsPipelineName, weight);
                     mergeObjectsArrSubObj.done();
@@ -95,7 +97,7 @@ HybridSearchPipelineBuilder::constructCalculatedFinalScoreDetails(
                     mergeObjectsArr.append(
                         fmt::format("${}.{}_scoreDetails", getInternalFieldsName(), pipelineName));
                     mergeObjectsArr.done();
-                    BSONObj mergeObjectsObj = BSON("$mergeObjects"_sd << mergeObjectsArr.arr());
+                    BSONObj mergeObjectsObj = BSON("$mergeObjects"sv << mergeObjectsArr.arr());
                     calculatedScoreDetailsArr.append(mergeObjectsObj);
                 }
                 calculatedScoreDetailsArr.done();
@@ -113,14 +115,10 @@ std::list<boost::intrusive_ptr<DocumentSource>>
 HybridSearchPipelineBuilder::constructDesugaredOutput(
     const std::map<std::string, std::unique_ptr<Pipeline>>& inputPipelines,
     const boost::intrusive_ptr<ExpressionContext>& pExpCtx) {
-    // It is currently necessary to annotate on the ExpressionContext that this is a
-    // hybrid search ($rankFusion or $scoreFusion) query. Once desugaring happens, there's no
-    // way to identity from the (desugared) pipeline alone that it came from hybrid search. We
-    // need to know if it came from hybrid search so we can reject the query if it is run over a
-    // view.
-
-    // This flag's value is also used to gate an internal client error. See
-    // search_helper::validateViewNotSetByUser(...) for more details.
+    // Annotate on the ExpressionContext that this is a hybrid search ($rankFusion/$scoreFusion)
+    // query: once desugared, the pipeline alone no longer reveals its hybrid-search origin, which
+    // downstream view handling needs to know. The flag also gates an internal-client error; see
+    // search_helper::validateViewNotSetByUser(...).
     pExpCtx->setIsHybridSearch();
 
     std::list<boost::intrusive_ptr<DocumentSource>> outputStages;
@@ -160,7 +158,7 @@ HybridSearchPipelineBuilder::constructDesugaredOutput(
             auto unionWithPipeline = Pipeline::create(initialStagesInInputPipeline, pExpCtx);
             std::vector<BSONObj> bsonPipeline = unionWithPipeline->serializeToBson();
 
-            // TODO SERVER-121091 This should have been moved into the LiteParsedDesugarer so the
+            // TODO SERVER-121094 This should have been moved into the LiteParsedDesugarer so the
             // check should be redundant.
             auto ifrCtx = pExpCtx->getIfrContext();
             auto hybridSearchFlagEnabled = ifrCtx &&
@@ -168,22 +166,12 @@ HybridSearchPipelineBuilder::constructDesugaredOutput(
             if (hybridSearchFlagEnabled) {
                 auto unionNss = pExpCtx->getUserNss();
 
-                // Build a pre-stitched StageParams vector for the internal $unionWith.
-                // This $unionWith is created at execution time from $rankFusion/$scoreFusion
-                // desugaring — the LP drain loop never ran on it — so we must stitch the view
-                // stages in here before collecting StageParams.
-                const auto& resolvedNamespaces = pExpCtx->getResolvedNamespaces();
-                auto viewIt = resolvedNamespaces.find(unionNss);
-                std::vector<BSONObj> stitchedPipeline;
-                if (viewIt != resolvedNamespaces.end() && viewIt->second.involvedNamespaceIsAView) {
-                    const auto& viewStages = viewIt->second.pipeline;
-                    stitchedPipeline.insert(
-                        stitchedPipeline.end(), viewStages.begin(), viewStages.end());
-                }
-                stitchedPipeline.insert(
-                    stitchedPipeline.end(), bsonPipeline.begin(), bsonPipeline.end());
+                // Build the internal $unionWith's LPP from the raw input pipeline, WITHOUT view
+                // stages: parsePipelineFromLPPWithMaybeViewDefinition applies the view exactly
+                // once, and pre-stitching here applied it twice, breaking position-sensitive
+                // first stages ($text, $search).
                 LiteParsedPipeline lpp(
-                    unionNss, stitchedPipeline, false, LiteParserOptions{.ifrContext = ifrCtx});
+                    unionNss, bsonPipeline, false, LiteParserOptions{.ifrContext = ifrCtx});
                 lpp.makeOwned();
                 auto subParams = lpp.getStageParams();
 
@@ -250,11 +238,11 @@ HybridSearchPipelineBuilder::buildGroupAndReplaceRootStages(
     // }}
     BSONObjBuilder groupSpecBob;
     {
-        BSONObjBuilder gBob(groupSpecBob.subobjStart("$group"_sd));
+        BSONObjBuilder gBob(groupSpecBob.subobjStart("$group"sv));
         gBob.append("_id", fmt::format("${}._id", internalDocsName));
         gBob.append(internalDocsName, BSON("$first" << fmt::format("${}", internalDocsName)));
 
-        auto accumulateScalarField = [&](StringData field, const std::string& internalPath) {
+        auto accumulateScalarField = [&](std::string_view field, const std::string& internalPath) {
             gBob.append(fmt::format("{}{}", kHsFlatFieldPrefix, field),
                         BSON("$max" << BSON("$ifNull"
                                             << BSON_ARRAY(fmt::format("${}", internalPath) << 0))));
@@ -304,17 +292,17 @@ HybridSearchPipelineBuilder::buildGroupAndReplaceRootStages(
 
     BSONObjBuilder rrSpecBob;
     {
-        BSONObjBuilder rrBob(rrSpecBob.subobjStart("$replaceRoot"_sd));
-        BSONObjBuilder newRootBob(rrBob.subobjStart("newRoot"_sd));
+        BSONObjBuilder rrBob(rrSpecBob.subobjStart("$replaceRoot"sv));
+        BSONObjBuilder newRootBob(rrBob.subobjStart("newRoot"sv));
         {
-            BSONArrayBuilder mergeArr(newRootBob.subarrayStart("$mergeObjects"_sd));
+            BSONArrayBuilder mergeArr(newRootBob.subarrayStart("$mergeObjects"sv));
             // Add 'internalDocsName' to promote user doc.
             mergeArr.append(fmt::format("${}", internalDocsName));
             BSONObjBuilder wrapperBob;
             {
                 BSONObjBuilder internalFieldsBob(wrapperBob.subobjStart(internalFieldsName));
 
-                auto appendFlatRef = [&](StringData field) {
+                auto appendFlatRef = [&](std::string_view field) {
                     internalFieldsBob.append(field,
                                              fmt::format("${}{}", kHsFlatFieldPrefix, field));
                 };

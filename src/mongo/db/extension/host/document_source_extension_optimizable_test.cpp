@@ -61,9 +61,49 @@
 #include "mongo/util/serialization_context.h"
 #include "mongo/util/time_support.h"
 
-namespace mongo::extension {
+#include <string_view>
 
-auto nss = NamespaceString::createNamespaceString_forTest("document_source_extension_test"_sd);
+namespace mongo::extension {
+using namespace std::literals::string_view_literals;
+
+auto nss = NamespaceString::createNamespaceString_forTest("document_source_extension_test"sv);
+
+/**
+ * A parse node that expands into one CustomProperties AST node per BSON in `propertiesList`,
+ * giving tests precise control over the static properties of each individual expanded stage.
+ */
+class MultiCustomPropertiesParseNode : public sdk::AggStageParseNode {
+public:
+    static inline const std::string kStageName = "$multiCustomProperties";
+
+    explicit MultiCustomPropertiesParseNode(std::vector<BSONObj> propertiesList)
+        : sdk::AggStageParseNode(kStageName), _propertiesList(std::move(propertiesList)) {}
+
+    size_t getExpandedSize() const override {
+        return _propertiesList.size();
+    }
+
+    std::vector<VariantNodeHandle> expand() const override {
+        std::vector<VariantNodeHandle> out;
+        out.reserve(_propertiesList.size());
+        for (const auto& properties : _propertiesList) {
+            out.emplace_back(new sdk::ExtensionAggStageAstNodeAdapter(
+                std::make_unique<sdk::shared_test_stages::CustomPropertiesAstNode>(properties)));
+        }
+        return out;
+    }
+
+    BSONObj getQueryShape(const sdk::QueryShapeOptsHandle&) const override {
+        return BSONObj();
+    }
+
+    std::unique_ptr<sdk::AggStageParseNode> clone() const override {
+        return std::make_unique<MultiCustomPropertiesParseNode>(_propertiesList);
+    }
+
+private:
+    std::vector<BSONObj> _propertiesList;
+};
 
 class DocumentSourceExtensionOptimizableTest : public AggregationContextFixture {
 public:
@@ -102,12 +142,33 @@ public:
             std::move(stageName), std::move(handle), _nss);
     }
 
+    /**
+     * Builds a LiteParsedExpandable whose expansion is a list of CustomProperties AST nodes, one
+     * per entry in `propertiesList`. This lets a test control the per-stage static properties
+     * (providedMetadataFields, isSelectionStage) of every expanded stage independently, so the
+     * pipeline-level reductions in LiteParsedExpandable (isRankedStage/isScoredStage/
+     * isSelectionStage) can be exercised over multi-stage expansions.
+     */
+    host::DocumentSourceExtensionOptimizable::LiteParsedExpandable
+    makeLiteParsedExpandableFromPropertiesList(std::vector<BSONObj> propertiesList) {
+        auto parseNode = new sdk::ExtensionAggStageParseNodeAdapter(
+            std::make_unique<MultiCustomPropertiesParseNode>(std::move(propertiesList)));
+        AggStageParseNodeHandle handle{parseNode};
+        BSONObj stageBson =
+            createDummySpecFromStageName(MultiCustomPropertiesParseNode::kStageName);
+        return host::DocumentSourceExtensionOptimizable::LiteParsedExpandable(
+            stageBson.firstElement(), std::move(handle), _nss, LiteParserOptions{});
+    }
+
 protected:
     NamespaceString _nss = NamespaceString::createNamespaceString_forTest(
         boost::none, "document_source_extension_test");
 
     sdk::ExtensionAggStageDescriptorAdapter _transformStaticDescriptor{
         sdk::shared_test_stages::TransformAggStageDescriptor::make()};
+
+    sdk::ExtensionAggStageDescriptorAdapter _internalTransformStaticDescriptor{
+        sdk::shared_test_stages::InternalTransformAggStageDescriptor::make()};
 
     static inline BSONObj kValidSpec = BSON(
         sdk::shared_test_stages::TransformAggStageDescriptor::kStageName << BSON("foo" << true));
@@ -142,6 +203,24 @@ TEST_F(DocumentSourceExtensionOptimizableTest, ParseTransformSuccess) {
     // serializes to its query shape. The transform extension's query shape is just its stage
     // definition.
     ASSERT_BSONOBJ_EQ(serializedPipeline[0], kValidSpec);
+}
+
+TEST_F(DocumentSourceExtensionOptimizableTest, RegisterInternalStageRestrictsClientType) {
+    std::unique_ptr<host::HostPortal> hostPortal = std::make_unique<host::HostPortal>();
+    host_connector::HostPortalAdapter portal{
+        MONGODB_EXTENSION_API_VERSION, 1, "", std::move(hostPortal)};
+    portal.getImpl().registerStageDescriptor(&_internalTransformStaticDescriptor);
+
+    BSONObj internalSpec =
+        BSON(sdk::shared_test_stages::InternalTransformAggStageDescriptor::kStageName << BSONObj());
+    auto lpds = LiteParsedDocumentSource::parse(_nss, internalSpec, LiteParserOptions{});
+    ASSERT_EQUALS(lpds->getClientType(), AllowedWithClientType::kInternal);
+
+    // clone() must preserve the metadata: the router copies the LiteParsedPipeline (cloning every
+    // stage spec) before validating, so a clone that dropped kInternal would escape client-type
+    // validation on mongos.
+    auto cloned = lpds->clone();
+    ASSERT_EQUALS(cloned->getClientType(), AllowedWithClientType::kInternal);
 }
 
 TEST_F(DocumentSourceExtensionOptimizableTest, ExpandToExtAst) {
@@ -1102,6 +1181,51 @@ TEST_F(DocumentSourceExtensionOptimizableTest,
     auto lp = makeLiteParsedExpandedFromProperties(BSON("isSelectionStage" << false),
                                                    "$nonSelectionStage");
     ASSERT_FALSE(lp.isSelectionStage());
+}
+
+// LiteParsedExpandable's pipeline-level checks must reflect every expanded stage, not just the
+// first; that is what classifies $search/$vectorSearch ([<producer>, idLookup]) correctly.
+
+TEST_F(DocumentSourceExtensionOptimizableTest,
+       LiteParsedExpandableIsSelectionStageOnlyWhenAllExpandedStagesAreSelection) {
+    const BSONObj selection = BSON("isSelectionStage" << true);
+    const BSONObj nonSelection = BSON("isSelectionStage" << false);
+
+    // All expanded stages are selection -> the expandable is a selection stage.
+    ASSERT_TRUE(
+        makeLiteParsedExpandableFromPropertiesList({selection, selection}).isSelectionStage());
+
+    // A non-selection stage anywhere in the expansion disqualifies it, even when the first
+    // expanded stage is selection.
+    ASSERT_FALSE(
+        makeLiteParsedExpandableFromPropertiesList({selection, nonSelection}).isSelectionStage());
+    ASSERT_FALSE(
+        makeLiteParsedExpandableFromPropertiesList({nonSelection, selection}).isSelectionStage());
+}
+
+TEST_F(DocumentSourceExtensionOptimizableTest,
+       LiteParsedExpandableIsRankedStageWhenAnyExpandedStageIsRanked) {
+    const BSONObj ranked = BSON("providedMetadataFields" << BSON_ARRAY("sortKey"));
+    const BSONObj nonRanked = BSON("providedMetadataFields" << BSON_ARRAY("searchScore"));
+
+    ASSERT_FALSE(
+        makeLiteParsedExpandableFromPropertiesList({nonRanked, nonRanked}).isRankedStage());
+    // Ranked even when only a non-front expanded stage produces the sort key -- mirrors an
+    // extension that desugars to [<transform>, <$sort-like producer>].
+    ASSERT_TRUE(makeLiteParsedExpandableFromPropertiesList({nonRanked, ranked}).isRankedStage());
+    ASSERT_TRUE(makeLiteParsedExpandableFromPropertiesList({ranked, nonRanked}).isRankedStage());
+}
+
+TEST_F(DocumentSourceExtensionOptimizableTest,
+       LiteParsedExpandableIsScoredStageWhenAnyExpandedStageIsScored) {
+    const BSONObj scored = BSON("providedMetadataFields" << BSON_ARRAY("searchScore"));
+    const BSONObj nonScored = BSON("providedMetadataFields" << BSON_ARRAY("sortKey"));
+
+    ASSERT_FALSE(
+        makeLiteParsedExpandableFromPropertiesList({nonScored, nonScored}).isScoredStage());
+    // Scored even when only a non-front expanded stage produces the score metadata.
+    ASSERT_TRUE(makeLiteParsedExpandableFromPropertiesList({nonScored, scored}).isScoredStage());
+    ASSERT_TRUE(makeLiteParsedExpandableFromPropertiesList({scored, nonScored}).isScoredStage());
 }
 
 TEST_F(DocumentSourceExtensionOptimizableTest,
@@ -2543,8 +2667,8 @@ void testViewPolicyHelper(const NamespaceString& nss,
     host::DocumentSourceExtensionOptimizable::LiteParsedExpanded liteParsed(
         ConfigurableViewPolicyTestAstNode::kStageName, std::move(handle), nss, ifrContext);
 
-    const auto viewNss = NamespaceString::createNamespaceString_forTest("test.view"_sd);
-    const auto resolvedNss = NamespaceString::createNamespaceString_forTest("test.collection"_sd);
+    const auto viewNss = NamespaceString::createNamespaceString_forTest("test.view"sv);
+    const auto resolvedNss = NamespaceString::createNamespaceString_forTest("test.collection"sv);
     std::vector<BSONObj> viewPipeline = {BSON("$match" << BSON("x" << 1))};
     auto view = ResolvedNamespace::makeForView(viewNss, resolvedNss, std::move(viewPipeline));
 
@@ -2575,7 +2699,7 @@ public:
             if (stage.isEmpty()) {
                 continue;
             }
-            StringData stageName = stage.firstElement().fieldNameStringData();
+            std::string_view stageName = stage.firstElement().fieldNameStringData();
             if (stageName != "$match" && stageName != "$addFields" && stageName != "$set") {
                 uasserted(
                     ErrorCodes::BadValue,
@@ -2596,8 +2720,8 @@ void runViewPipelineValidatorCallback(const std::vector<BSONObj>& viewPipeline) 
     host::DocumentSourceExtensionOptimizable::LiteParsedExpanded liteParsed(
         ViewPipelineValidatorTestAstNode::kStageName, std::move(handle), nss, ifrContext);
 
-    const auto viewNss = NamespaceString::createNamespaceString_forTest("test.view"_sd);
-    const auto resolvedNss = NamespaceString::createNamespaceString_forTest("test.coll"_sd);
+    const auto viewNss = NamespaceString::createNamespaceString_forTest("test.view"sv);
+    const auto resolvedNss = NamespaceString::createNamespaceString_forTest("test.coll"sv);
     std::vector<BSONObj> pipelineCopy = viewPipeline;
     auto view = ResolvedNamespace::makeForView(viewNss, resolvedNss, std::move(pipelineCopy));
 
@@ -2608,7 +2732,7 @@ TEST_F(DocumentSourceExtensionOptimizableTest,
        LiteParsedExpandedGetViewPolicyWithDefaultPrependAndCallback) {
     unittest::ServerParameterGuard featureFlag{"featureFlagExtensionsInsideHybridSearch", true};
 
-    const auto viewNss = NamespaceString::createNamespaceString_forTest("test.view"_sd);
+    const auto viewNss = NamespaceString::createNamespaceString_forTest("test.view"sv);
     testViewPolicyHelper(_nss,
                          MongoExtensionFirstStageViewApplicationPolicy::kDefaultPrepend,
                          FirstStageViewApplicationPolicy::kDefaultPrepend,
@@ -2619,7 +2743,7 @@ TEST_F(DocumentSourceExtensionOptimizableTest,
        LiteParsedExpandedGetViewPolicyWithDoNothingAndCallback) {
     unittest::ServerParameterGuard featureFlag{"featureFlagExtensionsInsideHybridSearch", true};
 
-    const auto viewNss = NamespaceString::createNamespaceString_forTest("test.view"_sd);
+    const auto viewNss = NamespaceString::createNamespaceString_forTest("test.view"sv);
     testViewPolicyHelper(_nss,
                          MongoExtensionFirstStageViewApplicationPolicy::kDoNothing,
                          FirstStageViewApplicationPolicy::kDoNothing,
@@ -3019,7 +3143,7 @@ TEST_F(DocumentSourceExtensionOptimizableTest, ExtensionStageDocsNeededBoundsUnk
 
 class StageRulesTest : public DocumentSourceExtensionOptimizableTest {
 public:
-    static constexpr StringData kStageName = "$testRulesStage"_sd;
+    static constexpr std::string_view kStageName = "$testRulesStage"sv;
 
     inline static const PipelineRewriteRule kReorderRule{"reorderRule",
                                                          kPipelineRewriteRuleTagReordering};

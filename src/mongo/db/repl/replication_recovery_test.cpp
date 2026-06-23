@@ -33,7 +33,6 @@
 #include "mongo/base/checked_cast.h"
 #include "mongo/base/error_codes.h"
 #include "mongo/base/status.h"
-#include "mongo/base/string_data.h"
 #include "mongo/bson/bsonmisc.h"
 #include "mongo/bson/bsonobj.h"
 #include "mongo/bson/bsonobjbuilder.h"
@@ -158,6 +157,7 @@ public:
     void setInitialDataTimestamp(ServiceContext* serviceCtx, Timestamp snapshotName) override {
         std::lock_guard<std::mutex> lock(_mutex);
         _initialDataTimestamp = snapshotName;
+        _initialDataTimestampHistory.push_back(snapshotName);
     }
 
     Timestamp getInitialDataTimestamp(ServiceContext* serviceCtx) const override {
@@ -165,10 +165,16 @@ public:
         return _initialDataTimestamp;
     };
 
+    std::vector<Timestamp> getInitialDataTimestampHistory() const {
+        std::lock_guard<std::mutex> lock(_mutex);
+        return _initialDataTimestampHistory;
+    }
+
 
 private:
     mutable std::mutex _mutex;
     Timestamp _initialDataTimestamp = Timestamp::min();
+    std::vector<Timestamp> _initialDataTimestampHistory;
     boost::optional<Timestamp> _recoveryTimestamp = boost::none;
     Timestamp _pointInTimeReadTimestamp = {};
     bool _supportsRecoverToStableTimestamp = true;
@@ -279,6 +285,7 @@ private:
 
         ServiceContextMongoDTest::tearDown();
         gTakeUnstableCheckpointOnShutdown = false;
+        startupRecoveryForRestore = false;
     }
 
     void _createOpCtx() {
@@ -1598,6 +1605,46 @@ TEST_F(ReplicationRecoveryTest, RecoverFromOplogAsStandaloneRecoversOplog) {
 
     recovery.recoverFromOplogAsStandalone(opCtx);
     _assertDocsInTestCollection(opCtx, {5});
+}
+
+TEST_F(ReplicationRecoveryTest, RecoverFromOplogAsStandaloneForRestorePinsStable) {
+    startupRecoveryForRestore = true;
+    ReplicationRecoveryImpl recovery(getStorageInterface(), getConsistencyMarkers());
+    auto opCtx = getOperationContext();
+
+    _setUpOplog(opCtx, getStorageInterface(), {2, 5});
+    getStorageInterfaceRecovery()->setRecoveryTimestamp(Timestamp(2, 2));
+    getConsistencyMarkers()->setAppliedThrough(opCtx, OpTime(Timestamp(2, 2), 1));
+
+    recovery.recoverFromOplogAsStandalone(opCtx);
+    _assertDocsInTestCollection(opCtx, {5});
+
+    const auto history = getStorageInterfaceRecovery()->getInitialDataTimestampHistory();
+    // Assert on order, not membership. The pin to the recovery timestamp must be established before
+    // oplog application so the checkpoints taken during recovery are stable.
+    ASSERT_FALSE(history.empty());
+    ASSERT_EQ(history.front(), Timestamp(2, 2));
+    ASSERT_EQ(history.back(), Timestamp(5, 5));
+    ASSERT(std::find(history.begin(),
+                     history.end(),
+                     Timestamp::kAllowUnstableCheckpointsSentinel) == history.end());
+}
+
+TEST_F(ReplicationRecoveryTest, RecoverFromOplogAsStandaloneForInitialSyncKeepsUnstableSentinel) {
+    ReplicationRecoveryImpl recovery(getStorageInterface(), getConsistencyMarkers());
+    auto opCtx = getOperationContext();
+
+    _setUpOplog(opCtx, getStorageInterface(), {2, 5});
+    getStorageInterfaceRecovery()->setRecoveryTimestamp(Timestamp(2, 2));
+    getConsistencyMarkers()->setAppliedThrough(opCtx, OpTime(Timestamp(2, 2), 1));
+
+    recovery.recoverFromOplogAsStandalone(opCtx, /*duringInitialSync=*/true);
+
+    const auto history = getStorageInterfaceRecovery()->getInitialDataTimestampHistory();
+    ASSERT(std::find(history.begin(),
+                     history.end(),
+                     Timestamp::kAllowUnstableCheckpointsSentinel) != history.end());
+    ASSERT(std::find(history.begin(), history.end(), Timestamp(2, 2)) == history.end());
 }
 
 TEST_F(ReplicationRecoveryTest,

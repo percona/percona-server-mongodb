@@ -29,6 +29,7 @@
 
 #include "mongo/db/pipeline/lite_parsed_desugarer.h"
 
+#include "mongo/bson/json.h"
 #include "mongo/db/extension/host/document_source_extension_optimizable.h"
 #include "mongo/db/extension/host_connector/adapter/host_services_adapter.h"
 #include "mongo/db/extension/sdk/tests/shared_test_stages.h"
@@ -45,13 +46,16 @@
 #include "mongo/unittest/server_parameter_guard.h"
 #include "mongo/unittest/unittest.h"
 
+#include <string_view>
+
 namespace mongo {
 namespace {
+using namespace std::literals::string_view_literals;
 
 // Test-only stage that lifts its subpipeline to the top level when desugared. Used to verify
 // desugaring order: if subpipelines are desugared before the stage expands (innermost-first),
 // the lifted content will already be desugared (e.g. [$match] not [$expandToHostParse]).
-static constexpr StringData kLiftSubpipelineStageName = "$liftSubpipeline"_sd;
+static constexpr std::string_view kLiftSubpipelineStageName = "$liftSubpipeline"sv;
 
 DECLARE_STAGE_PARAMS_DERIVED_DEFAULT(LiftSubpipeline);
 ALLOCATE_STAGE_PARAMS_ID(liftSubpipeline, LiftSubpipelineStageParams::id);
@@ -701,4 +705,50 @@ TEST_F(LiteParsedDesugarerTest, DesugaringOrderInnermostFirst) {
     unregisterParser(extStageName);
     unregisterParser(std::string(kLiftSubpipelineStageName));
 }
+
+TEST_F(LiteParsedDesugarerTest, RankFusionExpandsWithFlagOn) {
+    unittest::ServerParameterGuard featureFlag{"featureFlagExtensionsInsideHybridSearch", true};
+    BSONObj rankFusionSpec = fromjson(R"({
+        $rankFusion: {
+            input: {
+                pipelines: {
+                    p: [ { $sort: { a: 1 } } ]
+                }
+            }
+        }
+    })");
+    LiteParsedPipeline lpp(
+        _nss, {rankFusionSpec}, false, LiteParserOptions{.ifrContext = _ifrContext});
+    ASSERT_EQ(lpp.getStages().size(), 1);
+
+    ASSERT_TRUE(LiteParsedDesugarer::desugar(&lpp, _ifrContext));
+
+    for (const auto& stage : lpp.getStages()) {
+        ASSERT_NE(stage->getParseTimeName(), "$rankFusion");
+    }
+}
+
+TEST_F(LiteParsedDesugarerTest, ScoreFusionExpandsWithFlagOn) {
+    unittest::ServerParameterGuard featureFlag{"featureFlagExtensionsInsideHybridSearch", true};
+    BSONObj scoreFusionSpec = fromjson(R"({
+        $scoreFusion: {
+            input: {
+                pipelines: {
+                    p: [ { $score: { score: "$x", normalization: "none" } } ]
+                },
+                normalization: "none"
+            }
+        }
+    })");
+    LiteParsedPipeline lpp(
+        _nss, {scoreFusionSpec}, false, LiteParserOptions{.ifrContext = _ifrContext});
+    ASSERT_EQ(lpp.getStages().size(), 1);
+
+    ASSERT_TRUE(LiteParsedDesugarer::desugar(&lpp, _ifrContext));
+
+    for (const auto& stage : lpp.getStages()) {
+        ASSERT_NE(stage->getParseTimeName(), "$scoreFusion");
+    }
+}
+
 }  // namespace mongo

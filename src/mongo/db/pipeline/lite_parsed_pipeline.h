@@ -49,6 +49,7 @@
 #include <algorithm>
 #include <functional>
 #include <memory>
+#include <string_view>
 #include <vector>
 
 namespace mongo {
@@ -326,7 +327,7 @@ public:
      * offending stage and `parentStageName` (e.g. "$rankFusion"). Used by hybrid search stages
      * to validate input pipelines.
      */
-    void validateAllStagesAreSelection(int errorCode, StringData parentStageName) const {
+    void validateAllStagesAreSelection(int errorCode, std::string_view parentStageName) const {
         for (const auto& stage : _stageSpecs) {
             uassert(errorCode,
                     str::stream()
@@ -447,7 +448,7 @@ public:
      */
     void checkStagesAllowedInViewDefinition() const;
 
-    // TODO SERVER-121091 This can be removed once hybrid search desugars into the internal hybrid
+    // TODO SERVER-121094 This can be removed once hybrid search desugars into the internal hybrid
     // search stage.
     bool isRunningAgainstView_ForHybridSearch() const {
         return _isRunningAgainstView_ForHybridSearch;
@@ -543,7 +544,7 @@ private:
 
     // This variable specifies whether the pipeline is running on a view's namespace. This is
     // currently needed for $rankFusion/$scoreFusion positional validation.
-    // TODO SERVER-121974 This can be removed once hybrid search views are validated in
+    // TODO SERVER-121094 This can be removed once hybrid search views are validated in
     // LiteParsed using the LiteParsedConstraints.
     bool _isRunningAgainstView_ForHybridSearch = false;
 

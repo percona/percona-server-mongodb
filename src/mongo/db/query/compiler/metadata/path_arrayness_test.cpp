@@ -42,6 +42,7 @@
 #include "mongo/unittest/unittest.h"
 
 #include <limits>
+#include <string_view>
 
 namespace mongo {
 
@@ -484,6 +485,42 @@ TEST(ArraynessTrie, LookupTrieWithQueryKnobEnabled) {
     ASSERT_EQ(pathArrayness.canPathBeArray(FieldRef(fieldPathString_A), &expCtx), false);
 }
 
+// An index on "e.0" uses positional access and is not marked multikey at "e", but "e" itself can
+// still be an array. PathArrayness should not conclude otherwise.
+TEST(PathArraynessTest, PositionalIndexPathShouldNotMarkParentAsNonArray) {
+    ExpressionContextForTest expCtx = ExpressionContextForTest();
+
+    FieldPath field_E0("e.0");
+    MultikeyComponents multikeyPaths_E0{};
+
+    PathArrayness pathArrayness;
+    pathArrayness.addPath(field_E0, multikeyPaths_E0, true);
+
+    // TODO 127304: Re-enable once PathArrayness handles positional paths correctly.
+    // FieldPath field_E("e");
+    // ASSERT_EQ(pathArrayness.canPathBeArray(field_E, &expCtx),true);
+    GTEST_SKIP();
+}
+
+// Compound index {a: 1, "c.d": 1, "e.0": 1}: only "e.0" has the positional issue.
+TEST(PathArraynessTest, CompoundIndexWithPositionalPathDoesNotAffectParentArrayness) {
+    ExpressionContextForTest expCtx = ExpressionContextForTest();
+
+    PathArrayness pathArrayness;
+    pathArrayness.addPath(FieldPath("a"), MultikeyComponents{}, true);
+    pathArrayness.addPath(FieldPath("c.d"), MultikeyComponents{}, true);
+    pathArrayness.addPath(FieldPath("e.0"), MultikeyComponents{}, true);
+
+    ASSERT_EQ(pathArrayness.canPathBeArray(FieldPath("a"), &expCtx), false);
+    ASSERT_EQ(pathArrayness.canPathBeArray(FieldPath("c"), &expCtx), false);
+    ASSERT_EQ(pathArrayness.canPathBeArray(FieldPath("c.d"), &expCtx), false);
+
+    // TODO 127304: Re-enable once PathArrayness handles positional paths correctly.
+    // ASSERT_EQ(pathArrayness.canPathBeArray(FieldPath("e"), &expCtx), true);
+
+    ASSERT_EQ(pathArrayness.canPathBeArray(FieldPath("e.0"), &expCtx), false);
+}
+
 
 class PathArraynessInvalidationTest : public unittest::Test {
 protected:
@@ -491,15 +528,15 @@ protected:
         _expCtx.setPathArraynessForNss(_expCtx.getNamespaceString(), _oldPathArrayness);
     }
 
-    void addOldPath(StringData path, MultikeyComponents mk = {}) {
+    void addOldPath(std::string_view path, MultikeyComponents mk = {}) {
         _oldPathArrayness->addPath(FieldPath(path), mk, true);
     }
 
-    bool canPathBeArray(StringData path) {
+    bool canPathBeArray(std::string_view path) {
         return _expCtx.canPathBeArrayForNss(FieldPath(path), _expCtx.getNamespaceString());
     }
 
-    void addCurrentPath(StringData path, MultikeyComponents mk = {}) {
+    void addCurrentPath(std::string_view path, MultikeyComponents mk = {}) {
         _current.addPath(FieldPath(path), mk, true);
     }
 

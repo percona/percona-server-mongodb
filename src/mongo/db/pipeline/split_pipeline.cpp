@@ -30,6 +30,7 @@
 #include "mongo/db/pipeline/split_pipeline.h"
 
 #include "mongo/db/pipeline/document_source_group.h"
+#include "mongo/db/pipeline/document_source_internal_hybrid_search.h"
 #include "mongo/db/pipeline/document_source_project.h"
 #include "mongo/db/pipeline/document_source_sequential_document_cache.h"
 #include "mongo/db/pipeline/document_source_skip.h"
@@ -39,6 +40,8 @@
 #include "mongo/db/pipeline/search/document_source_internal_search_id_lookup.h"
 #include "mongo/db/pipeline/semantic_analysis.h"
 #include "mongo/db/query/compiler/dependency_analysis/dependencies.h"
+
+#include <string_view>
 
 #include <boost/smart_ptr/intrusive_ptr.hpp>
 
@@ -138,6 +141,7 @@ public:
         _limitFieldsSentFromShardsToMerger();
 
         _abandonCacheIfSentToShards();
+        _moveHybridSearchMarkerToShards();
         _splitPipeline.shardsPipeline->setSplitState(PipelineSplitState::kSplitForShards);
         _splitPipeline.mergePipeline->setSplitState(PipelineSplitState::kSplitForMerge);
 
@@ -301,6 +305,27 @@ private:
         }
 
         _splitPipeline.shardCursorsSortSpec = boost::none;
+    }
+
+    /**
+     * The $_internalHybridSearch marker sits at the tail of a desugared hybrid-search pipeline,
+     * so the split always leaves it on the merge half. Move it onto the shards half instead: the
+     * marker's canRunOnTimeseries=false constraint fires at collection acquisitions, which only
+     * happen in the shard role (the mongos/mongod pipeline shape checks that also reject this
+     * are slated for removal), so it buys nothing on the merger.
+     */
+    void _moveHybridSearchMarkerToShards() {
+        auto& mergeSources = _splitPipeline.mergePipeline->getSources();
+        const auto it =
+            std::find_if(mergeSources.begin(), mergeSources.end(), [](const auto& stage) {
+                return stage->template isInstanceOf<DocumentSourceInternalHybridSearch>();
+            });
+        if (it != mergeSources.end()) {
+            mergeSources.erase(it);
+            _splitPipeline.shardsPipeline->addFinalSource(
+                make_intrusive<DocumentSourceInternalHybridSearch>(
+                    _splitPipeline.shardsPipeline->getContext()));
+        }
     }
 
     /**
@@ -524,7 +549,7 @@ private:
      */
     void _abandonCacheIfSentToShards() {
         for (auto&& stage : _splitPipeline.shardsPipeline->getSources()) {
-            if (StringData(stage->getSourceName()) ==
+            if (std::string_view(stage->getSourceName()) ==
                 DocumentSourceSequentialDocumentCache::kStageName) {
                 static_cast<DocumentSourceSequentialDocumentCache*>(stage.get())->abandonCache();
             }

@@ -254,9 +254,14 @@ const skippedAuthTestingAggStages = [
     "$_analyzeShardKeyReadWriteDistribution", // Already covered. And it cannot not be tested in
     // commands_lib framework due to its requirement on
     // non-mongos node on a sharded cluster.
+    "$_internalAssertDataAssumptions", // Automatically inserted by pipeline rewrite pass for
+    // dependency graph validation. Not intended for direct use by users.
     "$merge", // Already covered in 'aggregate_merge_insert_documents' and
     // 'aggregate_merge_replace_documents'.
     "$set", // Alias for "$addFields" and already covered.
+    "$_internalHybridSearch", // Internal bookkeeping stage produced only by the $rankFusion/
+    // $scoreFusion desugarer; the lite parser rejects it in user requests,
+    // so it has no user-reachable auth surface.
 ];
 
 // The following commands are skipped in 'authCommandsLib' because they are unable to be
@@ -357,7 +362,6 @@ const skippedAuthTestingCommands = [
     "testReshardCloneCollection",
     "testVersion2",
     "testVersions1And2",
-    "timeseriesCatalogBucketParamsChanged",
     "upgradeDowngradeViewlessTimeseries",
     "transitionToShardedCluster",
     "usersInfo",

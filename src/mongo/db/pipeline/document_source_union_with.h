@@ -58,6 +58,7 @@
 #include <memory>
 #include <set>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -110,7 +111,7 @@ struct UnionWithSharedState {
 
 class MONGO_MOD_NEEDS_REPLACEMENT DocumentSourceUnionWith final : public DocumentSource {
 public:
-    static constexpr StringData kStageName = "$unionWith"_sd;
+    static constexpr std::string_view kStageName = "$unionWith"_sd;
 
     static boost::intrusive_ptr<DocumentSource> createFromBson(
         BSONElement elem, const boost::intrusive_ptr<ExpressionContext>& expCtx);
@@ -148,7 +149,7 @@ public:
 
     ~DocumentSourceUnionWith() override;
 
-    StringData getSourceName() const final {
+    std::string_view getSourceName() const final {
         return kStageName;
     }
 
@@ -249,11 +250,14 @@ public:
         return _sharedState;
     }
 
+    // 'isHybridSearch' forces the sub-pipeline expCtx to be marked hybrid when 'currentPipeline'
+    // is already desugared (explain-serialize reparse) and shape detection cannot tell.
     static std::unique_ptr<Pipeline> parsePipelineWithMaybeViewDefinition(
         const boost::intrusive_ptr<ExpressionContext>& expCtx,
         const ResolvedNamespace& resolvedNs,
         std::vector<BSONObj> currentPipeline,
-        const NamespaceString& userNss);
+        const NamespaceString& userNss,
+        bool isHybridSearch = false);
 
     static std::unique_ptr<Pipeline> parsePipelineFromStageParamsWithMaybeViewDefinition(
         const boost::intrusive_ptr<ExpressionContext>& expCtx,
@@ -295,6 +299,9 @@ private:
     // The aggregation pipeline defined with the user request, prior to optimization and view
     // resolution.
     std::vector<BSONObj> _userPipeline;
+    // Cached hybrid_scoring_util::isHybridSearchPipeline(_userPipeline); kept in sync with
+    // '_userPipeline' assignments.
+    bool _userPipelineIsHybridSearch = false;
 
     // Match and/or project stages after a $unionWith can be pushed down into the $unionWith (and
     // the head of the pipeline). If we're doing an explain with execution stats, we will need

@@ -52,6 +52,7 @@
 
 namespace mongo {
 namespace {
+using namespace std::literals::string_view_literals;
 
 // Convert a desugared StageSpecs vector into a single BSONObj of the form
 // {expectedStages: [<stage>, <stage>, ...]} so it can be compared via ASSERT_BSONOBJ_EQ_AUTO.
@@ -86,7 +87,7 @@ protected:
         const NamespaceString& nss = getExpCtx()->getNamespaceString();
         auto lprf = parseRankFusion(nss, rankFusionSpecObj);
         auto desugared =
-            lite_parsed_hybrid_search_desugarer::desugarRankFusion(*lprf, nss, "pipeline_test"_sd);
+            lite_parsed_hybrid_search_desugarer::desugarRankFusion(*lprf, nss, "pipeline_test"sv);
         return toExpectedStagesBson(desugared);
     }
 
@@ -226,6 +227,9 @@ TEST_F(LiteParsedRankFusionDesugarerTest, SinglePipelineBasic) {
                     "$project": {
                         "_internal_rankFusion_internal_fields": 0
                     }
+                },
+                {
+                    "$_internalHybridSearch": {}
                 }
             ]
         })",
@@ -364,6 +368,9 @@ TEST_F(LiteParsedRankFusionDesugarerTest, SinglePipelineFull) {
                     "$project": {
                         "_internal_rankFusion_internal_fields": 0
                     }
+                },
+                {
+                    "$_internalHybridSearch": {}
                 }
             ]
         })",
@@ -496,6 +503,9 @@ TEST_F(LiteParsedRankFusionDesugarerTest, MultiplePipelinesMixedBasic) {
                                         ]
                                     }
                                 }
+                            },
+                            {
+                                "$_internalHybridSearch": {}
                             }
                         ]
                     }
@@ -553,6 +563,9 @@ TEST_F(LiteParsedRankFusionDesugarerTest, MultiplePipelinesMixedBasic) {
                                         ]
                                     }
                                 }
+                            },
+                            {
+                                "$_internalHybridSearch": {}
                             }
                         ]
                     }
@@ -666,6 +679,9 @@ TEST_F(LiteParsedRankFusionDesugarerTest, MultiplePipelinesMixedBasic) {
                     "$project": {
                         "_internal_rankFusion_internal_fields": 0
                     }
+                },
+                {
+                    "$_internalHybridSearch": {}
                 }
             ]
         })",
@@ -796,6 +812,9 @@ TEST_F(LiteParsedRankFusionDesugarerTest, CustomWeightsBasic) {
                                         ]
                                     }
                                 }
+                            },
+                            {
+                                "$_internalHybridSearch": {}
                             }
                         ]
                     }
@@ -887,6 +906,9 @@ TEST_F(LiteParsedRankFusionDesugarerTest, CustomWeightsBasic) {
                     "$project": {
                         "_internal_rankFusion_internal_fields": 0
                     }
+                },
+                {
+                    "$_internalHybridSearch": {}
                 }
             ]
         })",
@@ -1087,6 +1109,9 @@ TEST_F(LiteParsedRankFusionDesugarerTest, ScoreDetailsSortOnlyInput) {
                     "$project": {
                         "_internal_rankFusion_internal_fields": 0
                     }
+                },
+                {
+                    "$_internalHybridSearch": {}
                 }
             ]
         })",
@@ -1286,6 +1311,9 @@ TEST_F(LiteParsedRankFusionDesugarerTest, ScoreDetailsSearchInputGeneratesScoreD
                     "$project": {
                         "_internal_rankFusion_internal_fields": 0
                     }
+                },
+                {
+                    "$_internalHybridSearch": {}
                 }
             ]
         })",
@@ -1431,6 +1459,9 @@ TEST_F(LiteParsedRankFusionDesugarerTest, MultipleSortStagesRightmostMutated) {
                     "$project": {
                         "_internal_rankFusion_internal_fields": 0
                     }
+                },
+                {
+                    "$_internalHybridSearch": {}
                 }
             ]
         })",
@@ -1642,6 +1673,9 @@ TEST_F(LiteParsedRankFusionDesugarerTest, ScoreDetails_InputGeneratesScoreOnly) 
                     "$project": {
                         "_internal_rankFusion_internal_fields": 0
                     }
+                },
+                {
+                    "$_internalHybridSearch": {}
                 }
             ]
         })",
@@ -1687,7 +1721,7 @@ TEST_F(LiteParsedRankFusionDesugarerTest, RejectsUnknownPipelineNameInWeights) {
             combination: { weights: { typo: 1.0 } }
         }
     })");
-    ASSERT_THROWS_CODE(desugar(spec), AssertionException, 12559400);
+    ASSERT_THROWS_CODE(desugar(spec), AssertionException, 9967500);
 }
 
 TEST_F(LiteParsedRankFusionDesugarerTest, RejectsMoreWeightsThanPipelines) {
@@ -1702,6 +1736,24 @@ TEST_F(LiteParsedRankFusionDesugarerTest, RejectsMoreWeightsThanPipelines) {
         }
     })");
     ASSERT_THROWS_CODE(desugar(spec), AssertionException, 12559403);
+}
+
+TEST_F(LiteParsedRankFusionDesugarerTest, DesugarContainsInternalHybridSearchLast) {
+    BSONObj spec = fromjson(R"({
+        $rankFusion: {
+            input: {
+                pipelines: {
+                    p: [ { $sort: { a: 1 } } ]
+                }
+            }
+        }
+    })");
+    const NamespaceString& nss = getExpCtx()->getNamespaceString();
+    auto lprf = parseRankFusion(nss, spec);
+    auto desugared =
+        lite_parsed_hybrid_search_desugarer::desugarRankFusion(*lprf, nss, "pipeline_test"_sd);
+    ASSERT_FALSE(desugared.empty());
+    ASSERT_EQ(desugared.back()->getParseTimeName(), "$_internalHybridSearch");
 }
 
 }  // namespace
