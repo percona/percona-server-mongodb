@@ -169,6 +169,11 @@ get_sources(){
         sed -i '/GetLinuxDistroAndVersion()/ s/os, version, err = GetLinuxDistroAndVersion()/os, version, err = "rhel", "9.3", nil/' release/platform/platform.go || exit 1
     #fi
 
+    go mod edit -dropreplace golang.org/x/crypto@v0.45.0 -dropreplace golang.org/x/net@v0.47.0 || exit 1
+    go get golang.org/x/crypto@v0.52.0 golang.org/x/net@v0.55.0 || exit 1
+    go mod tidy || exit 1
+    go mod vendor || exit 1
+
     cd ${WORKDIR}
     source percona-server-mongodb-83.properties
     #
@@ -244,7 +249,7 @@ install_golang() {
         return 1
     fi
 
-    GO_VERSION="1.25.7"
+    GO_VERSION="1.25.11"
     GO_TAR="go${GO_VERSION}.linux-${GO_ARCH}.tar.gz"
     GO_SHA="${GO_TAR}.sha256"
     GO_URL="https://downloads.percona.com/downloads/packaging/go/${GO_TAR}"
@@ -592,6 +597,10 @@ build_rpm(){
     TARF=$(find . -name 'percona-server-mongodb*.tar.gz' | sort | tail -n1)
     tar vxzf ${TARF} --wildcards '*/etc' --strip=1
     tar vxzf ${TARF} --wildcards '*/buildscripts' --strip=1
+    python3 buildscripts/install_bazel.py
+    export PATH=\/root/.local/bin:$PATH >> ~/.bashrc
+    source ~/.bashrc
+    rm -rf install_bazel.py
     if [ x"$RHEL" = x7 ]; then
       if [ -f /opt/rh/devtoolset-9/enable ]; then
         source /opt/rh/devtoolset-9/enable
@@ -880,7 +889,7 @@ build_tarball(){
     cd mongo-tools
     . ./set_tools_revision.sh
     sed -i '14d' buildscript/build.go
-    sed -i '226,234d' buildscript/build.go
+    sed -i '246,254d' buildscript/build.go
     sed -i "s:versionStr,:\"$PSMDB_TOOLS_REVISION\",:" buildscript/build.go
     sed -i "s:gitCommit):\"$PSMDB_TOOLS_COMMIT_HASH\"):" buildscript/build.go
     ./make build
