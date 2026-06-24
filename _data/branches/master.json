@@ -5,14 +5,14 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 78,
+    "commits_behind": 98,
     "days_behind": 1,
-    "files_affected": 517,
-    "total_additions": 24215,
-    "total_deletions": 5570,
+    "files_affected": 580,
+    "total_additions": 22571,
+    "total_deletions": 5833,
     "date_range": {
       "first": "2026-06-22T17:57:20+00:00",
-      "last": "2026-06-24T06:30:11+00:00"
+      "last": "2026-06-24T15:29:14+00:00"
     }
   },
   "last_merged_commit": {
@@ -36,6 +36,206 @@
     "summary": "SERVER-128506: Create a new optional top-level oplog entry field h (document hash) (#55874)"
   },
   "unmerged_commits": [
+    {
+      "sha": "0e6d3ceaa2ed3df4a0efc75212b48942f0c0cb81",
+      "short_sha": "0e6d3ceaa2e",
+      "date": "2026-06-24T11:29:14-04:00",
+      "author": {
+        "name": "natalie-hill",
+        "email": "natalie.hill@mongodb.com"
+      },
+      "summary": "SERVER-128713 Fetch persistent sample on test-only sequential/strides sampling paths (#55840)"
+    },
+    {
+      "sha": "1343bf6b0c7ba1baff36818c4f8cf1d7be6bb362",
+      "short_sha": "1343bf6b0c7",
+      "date": "2026-06-24T07:37:44-07:00",
+      "author": {
+        "name": "Zack Winter",
+        "email": "3457246+zackwintermdb@users.noreply.github.com"
+      },
+      "summary": "SERVER-129727: Actually apply the hardened HTTP retry policy when activating result task groups (#56630)"
+    },
+    {
+      "sha": "72ae0f6690f12e4a37f60b09c43e2f656d7c6a8d",
+      "short_sha": "72ae0f6690f",
+      "date": "2026-06-24T15:35:33+01:00",
+      "author": {
+        "name": "Marco Bizzarri",
+        "email": "marco.bizzarri@mongodb.com"
+      },
+      "summary": "SERVER-129591 Filter out FCV document updates (#56581)"
+    },
+    {
+      "sha": "a6a7448f26619ffc9e7141b779609a4640b71a06",
+      "short_sha": "a6a7448f266",
+      "date": "2026-06-24T10:29:12-04:00",
+      "author": {
+        "name": "Nick Zolnierz",
+        "email": "nicholas.zolnierz@mongodb.com"
+      },
+      "summary": "SERVER-119513 consolidate checks for internal querySettings and originalQueryShapeHash fields in aggregation command (#56306)"
+    },
+    {
+      "sha": "a696747d5a4a0baaebe12b31337e0bd60bac06e3",
+      "short_sha": "a696747d5a4",
+      "date": "2026-06-24T10:28:38-04:00",
+      "author": {
+        "name": "Yuhong Zhang",
+        "email": "yuhong.zhang@mongodb.com"
+      },
+      "summary": "SERVER-129652 Remove read-path options from size/count oplog parsing (#56603)"
+    },
+    {
+      "sha": "b372737adc78bae7238d61a57d9b0f686a643050",
+      "short_sha": "b372737adc7",
+      "date": "2026-06-24T10:17:16-04:00",
+      "author": {
+        "name": "natalie-hill",
+        "email": "natalie.hill@mongodb.com"
+      },
+      "summary": "SERVER-128713 Update persistent sample schema to use more inclusive sampling method enum (#56372)"
+    },
+    {
+      "sha": "cbef8f5a5f15e15d71b4381a12de05db448d447b",
+      "short_sha": "cbef8f5a5f1",
+      "date": "2026-06-24T10:14:27-04:00",
+      "author": {
+        "name": "Benjamin Pearce",
+        "email": "benjamin.pearce@mongodb.com"
+      },
+      "summary": "SERVER-129356: Open all databases upfront for Offline Validate and ensure snapshot time is restored (#56128)"
+    },
+    {
+      "sha": "f366dda64e158c09134019cb41a6ee2557eb1ef4",
+      "short_sha": "f366dda64e1",
+      "date": "2026-06-24T10:09:10-04:00",
+      "author": {
+        "name": "Ron Neuman",
+        "email": "31408835+rongodb@users.noreply.github.com"
+      },
+      "summary": "SERVER-129651: Have TSS read the enabled/disabled status from the config (#56562)"
+    },
+    {
+      "sha": "057674782a896e3ecb0dfe8b2c37b165a0b67161",
+      "short_sha": "057674782a8",
+      "date": "2026-06-24T10:06:56-04:00",
+      "author": {
+        "name": "Mike Nugent",
+        "email": "mike.nugent@mongodb.com"
+      },
+      "summary": "SERVER-129383: Remove reliance on ServiceContext from TracerServiceProvider (#56340)"
+    },
+    {
+      "sha": "5d491b8d1b016c7874ee4ef65edff56db15dfe4a",
+      "short_sha": "5d491b8d1b0",
+      "date": "2026-06-24T10:01:21-04:00",
+      "author": {
+        "name": "Cedric Sirianni",
+        "email": "cedric.sirianni@mongodb.com"
+      },
+      "summary": "SERVER-127833 Remove ReplicatedFastCountMetrics class (#56242)"
+    },
+    {
+      "sha": "35b3a9b71063e8d04f793562de9432438ce59cb2",
+      "short_sha": "35b3a9b7106",
+      "date": "2026-06-24T14:55:17+01:00",
+      "author": {
+        "name": "Aaron Schüttpelz",
+        "email": "aaron.schuettpelz@gmail.com"
+      },
+      "summary": "SERVER-129345 Fix typos in join optimizer comments (#56680)"
+    },
+    {
+      "sha": "c05cda775e4df938d79fab83e9ad3ef23e20a0c0",
+      "short_sha": "c05cda775e4",
+      "date": "2026-06-24T09:46:19-04:00",
+      "author": {
+        "name": "Ernesto Rodriguez Reina",
+        "email": "erreina@users.noreply.github.com"
+      },
+      "summary": "SERVER-127852 Apply oplog updates and deletes by RecordId for clustered-on-_id collections (#56136)"
+    },
+    {
+      "sha": "5b5c5ad7cd8320907be1acf412bf983bb75e5b43",
+      "short_sha": "5b5c5ad7cd8",
+      "date": "2026-06-24T08:54:42-04:00",
+      "author": {
+        "name": "Daniel Segel",
+        "email": "71151509+dhsegel@users.noreply.github.com"
+      },
+      "summary": "SERVER-129226 Serialize DRM lowered exec stages for executionStats (#56341)"
+    },
+    {
+      "sha": "1a1f3448133c0fb1998295c808aa98099b72ca79",
+      "short_sha": "1a1f3448133",
+      "date": "2026-06-24T14:51:07+02:00",
+      "author": {
+        "name": "Igor Praznik",
+        "email": "95708172+igpraznik@users.noreply.github.com"
+      },
+      "summary": "SERVER-129565 reduce job count factor for sharded_collections_causall_consistent_jscore_txns_passthrough suite {AUB,T}SAN variants (#56481)"
+    },
+    {
+      "sha": "9e77624a147ff4a6107eb2779a732e16dc646ed7",
+      "short_sha": "9e77624a147",
+      "date": "2026-06-24T15:43:46+03:00",
+      "author": {
+        "name": "Daniel Tabacaru",
+        "email": "96778637+danieltabacaru@users.noreply.github.com"
+      },
+      "summary": "SERVER-129660 Add deduplication guard in _buildWorkItems (#56577)"
+    },
+    {
+      "sha": "24a617aa8ea334aed9c1cf3d0c491cddd9ec8a59",
+      "short_sha": "24a617aa8ea",
+      "date": "2026-06-24T13:18:07+01:00",
+      "author": {
+        "name": "Projjal Chanda",
+        "email": "projjal.chanda@mongodb.com"
+      },
+      "summary": "SERVER-128077 Thread SimpleMemoryUsageTracker through RedactStage (#56597)"
+    },
+    {
+      "sha": "993b2e4a9ec7e8ffa2b6c5f7b768839d967f7346",
+      "short_sha": "993b2e4a9ec",
+      "date": "2026-06-24T13:03:43+01:00",
+      "author": {
+        "name": "ag-mongodb",
+        "email": "andrey.gorelov@mongodb.com"
+      },
+      "summary": "SERVER-113837 Fix description for internalQueryPlanEvaluationWorks (#56473)"
+    },
+    {
+      "sha": "e2c55d009ed23118f0e3e1e0d0ed8cf3097a97de",
+      "short_sha": "e2c55d009ed",
+      "date": "2026-06-24T11:47:08+00:00",
+      "author": {
+        "name": "auto-revert-app[bot]",
+        "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
+      },
+      "summary": "Revert \"SERVER-127318: WASM scripting engine performance improvements (#56263)\" (#56685)"
+    },
+    {
+      "sha": "44c3e47f848373c7c1de1f9518a82fd7f0ded659",
+      "short_sha": "44c3e47f848",
+      "date": "2026-06-24T11:16:20+02:00",
+      "author": {
+        "name": "mongo-pr-bot[bot]",
+        "email": "230616009+mongo-pr-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "SERVER-110427 Update profiling data (#56669)"
+    },
+    {
+      "sha": "9ab8d42864217b0dd8a7ddb5e18226d6b5ed9e7e",
+      "short_sha": "9ab8d428642",
+      "date": "2026-06-24T09:42:03+01:00",
+      "author": {
+        "name": "fotiniAlvanaki",
+        "email": "78495594+fotiniAlvanaki@users.noreply.github.com"
+      },
+      "summary": "SERVER-128057 Save probe project slots atomically in InMemoryJoinCursor::saveState() (#56601)"
+    },
     {
       "sha": "d3d3d2b3deeb7d0676158b29b801533aedf58b47",
       "short_sha": "d3d3d2b3dee",
@@ -950,10 +1150,33 @@
           "num_of_dirs": 14
         }
       }
+    },
+    {
+      "commit": {
+        "sha": "e2c55d009ed23118f0e3e1e0d0ed8cf3097a97de",
+        "short_sha": "e2c55d009ed",
+        "date": "2026-06-24T11:47:08+00:00",
+        "author": {
+          "name": "auto-revert-app[bot]",
+          "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
+        },
+        "summary": "Revert \"SERVER-127318: WASM scripting engine performance improvements (#56263)\" (#56685)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 30,
+          "num_of_lines": 4280,
+          "lines_added": 499,
+          "lines_deleted": 3781,
+          "num_of_dirs": 12
+        }
+      }
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-06-24 07:10:53",
+  "generated_at": "2026-06-24 16:13:33",
   "branch_name": "master",
   "display_name": "master"
 }
