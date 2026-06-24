@@ -5,14 +5,14 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 60,
+    "commits_behind": 78,
     "days_behind": 1,
-    "files_affected": 308,
-    "total_additions": 8618,
-    "total_deletions": 2723,
+    "files_affected": 517,
+    "total_additions": 24215,
+    "total_deletions": 5570,
     "date_range": {
       "first": "2026-06-22T17:57:20+00:00",
-      "last": "2026-06-23T19:18:15+00:00"
+      "last": "2026-06-24T06:30:11+00:00"
     }
   },
   "last_merged_commit": {
@@ -36,6 +36,186 @@
     "summary": "SERVER-128506: Create a new optional top-level oplog entry field h (document hash) (#55874)"
   },
   "unmerged_commits": [
+    {
+      "sha": "d3d3d2b3deeb7d0676158b29b801533aedf58b47",
+      "short_sha": "d3d3d2b3dee",
+      "date": "2026-06-24T16:30:11+10:00",
+      "author": {
+        "name": "wt-vendoring-bot[bot]",
+        "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "Import wiredtiger: 62d5cfd25836e1204a7ce2dfbf31b4b36c0ebc76 from branch mongodb-master (#56668)"
+    },
+    {
+      "sha": "3cee9dfcb53e8348be48d31f8502d210386c86c1",
+      "short_sha": "3cee9dfcb53",
+      "date": "2026-06-23T23:30:49-04:00",
+      "author": {
+        "name": "David Goffredo",
+        "email": "david.goffredo@mongodb.com"
+      },
+      "summary": "SERVER-128486: Combine HandoffTransportLayer, HandoffSessionManager, and HandoffSession (#55940)"
+    },
+    {
+      "sha": "a88d9fa42d2cd2e33bf2a7b6525a4acd0d28304d",
+      "short_sha": "a88d9fa42d2",
+      "date": "2026-06-23T23:23:45-04:00",
+      "author": {
+        "name": "Timothy Banks",
+        "email": "timothy.banks@mongodb.com"
+      },
+      "summary": "SERVER-127422 Update RateLimiter to allow composers to specify a metrics recorder. (#55939)"
+    },
+    {
+      "sha": "3140353f2b9618fedbc4d1fbbada8de061919ecc",
+      "short_sha": "3140353f2b9",
+      "date": "2026-06-23T17:11:40-07:00",
+      "author": {
+        "name": "mongodb-sage-bot[bot]",
+        "email": "247496174+mongodb-sage-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "SERVER-75159: Add regression test reusing opCtx for $_internalJsEmit (#56063)"
+    },
+    {
+      "sha": "0a89d0d206937cdb4fe075df1f3e35b06cbcf719",
+      "short_sha": "0a89d0d2069",
+      "date": "2026-06-23T15:54:37-07:00",
+      "author": {
+        "name": "Jordan Glassley",
+        "email": "jordan.glassley@mongodb.com"
+      },
+      "summary": "SERVER-127628 Add jstest for simple mongos rate limit scenarios (#55031)"
+    },
+    {
+      "sha": "6f6bd95cbb97e7aabc2adec6431f76a945baf36f",
+      "short_sha": "6f6bd95cbb9",
+      "date": "2026-06-23T18:05:25-04:00",
+      "author": {
+        "name": "Evan Bergeron",
+        "email": "evanbergeron@users.noreply.github.com"
+      },
+      "summary": "SERVER-129720 Replace ValueGuard with RAII types in small vm_builtin_* files (#56615)"
+    },
+    {
+      "sha": "d69342178d08a4446e5268c30f69b7430f5d6559",
+      "short_sha": "d69342178d0",
+      "date": "2026-06-23T18:03:14-04:00",
+      "author": {
+        "name": "Evan Bergeron",
+        "email": "evanbergeron@users.noreply.github.com"
+      },
+      "summary": "SERVER-129723 Replace ValueGuard with TagValueMaybeOwned in vm_instruction.cpp: arithmetic and comparison ops (#56621)"
+    },
+    {
+      "sha": "115be6e1151e26827b3253adeacc5a1e87573331",
+      "short_sha": "115be6e1151",
+      "date": "2026-06-23T18:02:32-04:00",
+      "author": {
+        "name": "Evan Bergeron",
+        "email": "evanbergeron@users.noreply.github.com"
+      },
+      "summary": "SERVER-129724 Replace ValueGuard with TagValueMaybeOwned in vm_instruction.cpp: field access and agg ops (#56625)"
+    },
+    {
+      "sha": "61933b81045de0f0dffdc86eaafd83df4ad0dc4c",
+      "short_sha": "61933b81045",
+      "date": "2026-06-23T18:01:42-04:00",
+      "author": {
+        "name": "Evan Bergeron",
+        "email": "evanbergeron@users.noreply.github.com"
+      },
+      "summary": "SERVER-129725 Rename misleading Guard-suffixed variables in stage_builder/sbe (#56626)"
+    },
+    {
+      "sha": "d6f9fe0d790e2cf021cb8a4f22bd6bb35657ea03",
+      "short_sha": "d6f9fe0d790",
+      "date": "2026-06-23T17:00:36-05:00",
+      "author": {
+        "name": "Haley Connelly",
+        "email": "haley.connelly@mongodb.com"
+      },
+      "summary": "SERVER-129471 Formalize LogicalSizeSnapshot with IDL and version (#56549)"
+    },
+    {
+      "sha": "d9cc429194c8dda846fd6724d5649ede46d5d65c",
+      "short_sha": "d9cc429194c",
+      "date": "2026-06-23T17:35:25-04:00",
+      "author": {
+        "name": "Naafiyan Ahmed",
+        "email": "naafiyan.ahmed@mongodb.com"
+      },
+      "summary": "SERVER-128899: Remove optimizationTimeNanos from explain (#56533)"
+    },
+    {
+      "sha": "f0dc4dd5d57319660cb91b492628702c426aa730",
+      "short_sha": "f0dc4dd5d57",
+      "date": "2026-06-23T17:20:40-04:00",
+      "author": {
+        "name": "Mariano Shaar",
+        "email": "47160550+shaargtz@users.noreply.github.com"
+      },
+      "summary": "SERVER-128285 Make hybrid search stages desugar and resolve views during lite-parse-time (#56528)"
+    },
+    {
+      "sha": "10ed36bf83a387c71396f3e706a0ff63e68af30f",
+      "short_sha": "10ed36bf83a",
+      "date": "2026-06-23T17:11:51-04:00",
+      "author": {
+        "name": "Elise Zhu",
+        "email": "89541745+elise-yz@users.noreply.github.com"
+      },
+      "summary": "SERVER-128507: Compute and set the document hash (h) on the primary for insert oplog entries (#55970)"
+    },
+    {
+      "sha": "ecd8d539c0ae89232ef2590e538faf246c48f6c0",
+      "short_sha": "ecd8d539c0a",
+      "date": "2026-06-23T17:06:15-04:00",
+      "author": {
+        "name": "Billy Donahue",
+        "email": "BillyDonahue@users.noreply.github.com"
+      },
+      "summary": "SERVER-32422 allow using std string(_view)_literals in namespace mongo (#56586)"
+    },
+    {
+      "sha": "2d7bcc4a091463eccd96bfeb97b8610636230feb",
+      "short_sha": "2d7bcc4a091",
+      "date": "2026-06-23T16:59:16-04:00",
+      "author": {
+        "name": "Naafiyan Ahmed",
+        "email": "naafiyan.ahmed@mongodb.com"
+      },
+      "summary": "SERVER-128714: Expose ceSamplingMetadata field in explain for join (#55776)"
+    },
+    {
+      "sha": "1e389c5933a48d6b3a383aee2e14672ade171a76",
+      "short_sha": "1e389c5933a",
+      "date": "2026-06-23T16:57:46-04:00",
+      "author": {
+        "name": "Lee Maguire",
+        "email": "lee.maguire@mongodb.com"
+      },
+      "summary": "SERVER-127318: WASM scripting engine performance improvements (#56263)"
+    },
+    {
+      "sha": "6d92622f3c7ff98c254133a6b3723c578217e78d",
+      "short_sha": "6d92622f3c7",
+      "date": "2026-06-23T13:27:31-07:00",
+      "author": {
+        "name": "Abdul Qadeer",
+        "email": "abdul.qadeer@mongodb.com"
+      },
+      "summary": "SERVER-128295 Add one-shot inventory scan in Balancer for MaxKey zone (#55269)"
+    },
+    {
+      "sha": "4c812821adb004d0df6934bdf25c7d2cbc043027",
+      "short_sha": "4c812821adb",
+      "date": "2026-06-23T16:03:15-04:00",
+      "author": {
+        "name": "Matthew Boros",
+        "email": "mattBoros@users.noreply.github.com"
+      },
+      "summary": "SERVER-119076 Add query stats counters for common plan shapes (#55873)"
+    },
     {
       "sha": "581f048d502d43639ccb8c274131cf61a90b2f28",
       "short_sha": "581f048d502",
@@ -701,10 +881,79 @@
           "src/mongo/client/sasl_oidc_client_conversation.cpp"
         ]
       }
+    },
+    {
+      "commit": {
+        "sha": "1e389c5933a48d6b3a383aee2e14672ade171a76",
+        "short_sha": "1e389c5933a",
+        "date": "2026-06-23T16:57:46-04:00",
+        "author": {
+          "name": "Lee Maguire",
+          "email": "lee.maguire@mongodb.com"
+        },
+        "summary": "SERVER-127318: WASM scripting engine performance improvements (#56263)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 30,
+          "num_of_lines": 4280,
+          "lines_added": 3781,
+          "lines_deleted": 499,
+          "num_of_dirs": 12
+        }
+      }
+    },
+    {
+      "commit": {
+        "sha": "f0dc4dd5d57319660cb91b492628702c426aa730",
+        "short_sha": "f0dc4dd5d57",
+        "date": "2026-06-23T17:20:40-04:00",
+        "author": {
+          "name": "Mariano Shaar",
+          "email": "47160550+shaargtz@users.noreply.github.com"
+        },
+        "summary": "SERVER-128285 Make hybrid search stages desugar and resolve views during lite-parse-time (#56528)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 59,
+          "num_of_lines": 1992,
+          "lines_added": 1783,
+          "lines_deleted": 209,
+          "num_of_dirs": 17
+        }
+      }
+    },
+    {
+      "commit": {
+        "sha": "d3d3d2b3deeb7d0676158b29b801533aedf58b47",
+        "short_sha": "d3d3d2b3dee",
+        "date": "2026-06-24T16:30:11+10:00",
+        "author": {
+          "name": "wt-vendoring-bot[bot]",
+          "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
+        },
+        "summary": "Import wiredtiger: 62d5cfd25836e1204a7ce2dfbf31b4b36c0ebc76 from branch mongodb-master (#56668)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 34,
+          "num_of_lines": 4589,
+          "lines_added": 2967,
+          "lines_deleted": 1622,
+          "num_of_dirs": 14
+        }
+      }
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-06-23 20:10:39",
+  "generated_at": "2026-06-24 07:10:53",
   "branch_name": "master",
   "display_name": "master"
 }
