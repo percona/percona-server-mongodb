@@ -131,7 +131,6 @@ std::pair<std::string, std::string> doDeviceAuthorizationGrantFlow(
     const OAuthAuthorizationServerMetadata& discoveryReply,
     const auth::OIDCMechanismServerStep1& serverReply,
     std::string_view principalName) {
-<<<<<<< HEAD
     boost::optional<StringData> deviceAuthorizationEndpoint =
         discoveryReply.getDeviceAuthorizationEndpoint().get();
     // If exists, the device authorization endpoint has been already validated during parsing of
@@ -140,15 +139,6 @@ std::pair<std::string, std::string> doDeviceAuthorizationGrantFlow(
     uassert(ErrorCodes::BadValue,
             "Missing or invalid device authorization endpoint in server reply",
             deviceAuthorizationEndpoint && !deviceAuthorizationEndpoint->empty());
-||||||| 8b98a84d735
-    auto deviceAuthorizationEndpoint = discoveryReply.getDeviceAuthorizationEndpoint().get();
-    uassert(ErrorCodes::BadValue,
-            "Device authorization endpoint in server reply must be an https endpoint or localhost",
-            deviceAuthorizationEndpoint.starts_with("https://"sv) ||
-                deviceAuthorizationEndpoint.starts_with("http://localhost"sv));
-=======
-    auto deviceAuthorizationEndpoint = discoveryReply.getDeviceAuthorizationEndpoint().get();
->>>>>>> b355475f02c284dc85707f088a66c26d89328dcf
 
     auto clientId = serverReply.getClientId();
     uassert(ErrorCodes::BadValue,
@@ -343,18 +333,8 @@ StatusWith<bool> SaslOIDCClientConversation::_secondStep(std::string_view input,
         // (@see `src/mongo/db/auth/oauth_authorization_server_metadata.idl`).
         boost::optional<StringData> tokenEndpoint = discoveryReply.getTokenEndpoint();
         uassert(ErrorCodes::BadValue,
-<<<<<<< HEAD
                 "Missing or invalid token endpoint in server reply",
                 tokenEndpoint && !tokenEndpoint->empty());
-||||||| 8b98a84d735
-                "Missing or invalid token endpoint in server reply",
-                tokenEndpoint && !tokenEndpoint->empty() &&
-                    (tokenEndpoint->starts_with("https://"sv) ||
-                     tokenEndpoint->starts_with("http://localhost"sv)));
-=======
-                "Missing token endpoint in server reply",
-                tokenEndpoint && !tokenEndpoint->empty());
->>>>>>> b355475f02c284dc85707f088a66c26d89328dcf
 
         // Cache the token endpoint for potential reuse during the refresh flow.
         oidcClientGlobalParams.oidcTokenEndpoint = std::string{*tokenEndpoint};
