@@ -27,18 +27,32 @@
  *    it in the license file.
  */
 
-#include "mongo/db/replicated_fast_count/replicated_fast_count_read.h"
+#include "mongo/db/commands/query_cmd/explain_cmd_helpers.h"
 
-namespace mongo::replicated_fast_count {
+#include "mongo/unittest/unittest.h"
 
-[[nodiscard]] CollectionSizeCount readPersisted(OperationContext* opCtx,
-                                                const SizeCountStore& sizeCountStore,
-                                                UUID uuid) {
-    const auto entry = sizeCountStore.read(opCtx, uuid);
-    massert(12282000,
-            fmt::format("Expected the size/count store to contain an entry for UUID={}",
-                        uuid.toString()),
-            entry.has_value());
-    return CollectionSizeCount{.size = entry->size, .count = entry->count};
+#include <boost/optional/optional.hpp>
+
+namespace mongo {
+namespace {
+
+TEST(ResolveMaxTimeMSTest, ZeroOrUnsetMeansNoLimit) {
+    using explain_cmd_helpers::resolveMaxTimeMS;
+    ASSERT_EQ(*resolveMaxTimeMS(100, 0), 100);
+    ASSERT_EQ(*resolveMaxTimeMS(100, boost::none), 100);
+    ASSERT_EQ(*resolveMaxTimeMS(0, 5), 5);
+    ASSERT_EQ(*resolveMaxTimeMS(boost::none, 5), 5);
+    ASSERT_EQ(*resolveMaxTimeMS(0, 0), 0);
+    ASSERT_FALSE(resolveMaxTimeMS(boost::none, boost::none).has_value());
 }
-}  // namespace mongo::replicated_fast_count
+
+TEST(ResolveMaxTimeMSTest, ExplicitZeroIsPreservedOverUnset) {
+    using explain_cmd_helpers::resolveMaxTimeMS;
+    // An explicit 0 ("no limit") must survive even when the other placement is unset, so the
+    // explain command keeps an explicit maxTimeMS and does not inherit defaultMaxTimeMS.
+    ASSERT_EQ(*resolveMaxTimeMS(boost::none, 0), 0);
+    ASSERT_EQ(*resolveMaxTimeMS(0, boost::none), 0);
+}
+
+}  // namespace
+}  // namespace mongo
