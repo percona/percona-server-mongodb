@@ -1,3 +1,4 @@
+import {directorySpec} from "jstests/ldapauthz/lib/ldap_directory.js";
 import {getPython3Binary} from "jstests/libs/python.js";
 
 const LDAP_MOCK_PATH = "jstests/ldapauthz/lib/ldap_mock.py";
@@ -28,6 +29,12 @@ export class LDAPMock {
      */
     start() {
         let args = [this.python, LDAP_MOCK_PATH, "--port", String(this.port), "--host", this.host];
+        // Feed the directory contents (users, groups, DNs, passwords) to the mock as a
+        // single JSON document so it shares a single source of truth with the test-side
+        // checks (jstests/ldapauthz/lib/ldap_directory.js). _startMongoProgram execs
+        // directly (no shell), so the JSON -- which contains backslashes and other
+        // special characters -- is passed through as one argv element untouched.
+        args.push("--directory-json", JSON.stringify(directorySpec()));
         if (this.verbose) {
             args.push("--verbose");
         }

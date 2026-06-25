@@ -1,3 +1,5 @@
+import {checkConnectionStatus, shortusernames} from "jstests/ldapauthz/_check.js";
+
 (function () {
     "use strict";
 
@@ -14,9 +16,6 @@
     });
 
     assert(conn, "Cannot start mongod instance");
-
-    // load check roles routine
-    load("jstests/ldapauthz/_check.js");
 
     var db = conn.getDB("$external");
 

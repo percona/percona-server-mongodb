@@ -2,12 +2,11 @@
  * Tests that LDAP connection pool is invalidated when bind credentials
  * are changed at runtime via setParameter.
  */
+import {checkConnectionStatus} from "jstests/ldapauthz/_check.js";
 import {createAdminUser} from "jstests/ldapauthz/_setup.js";
 
 (function () {
     "use strict";
-
-    load("jstests/ldapauthz/_check.js");
 
     const username = "cn=exttestro,dc=percona,dc=com";
     const userpwd = "exttestro9a5S";
@@ -55,7 +54,9 @@ import {createAdminUser} from "jstests/ldapauthz/_setup.js";
     // Change ldapQueryPassword to an invalid value — pool should be invalidated
     var adminDb = conn.getDB("admin");
     assert(adminDb.auth({user: "admin", pwd: "password"}));
-    assert.commandWorked(adminDb.adminCommand({setParameter: 1, ldapQueryPassword: "wrong_password"}));
+    assert.commandWorked(
+        adminDb.adminCommand({setParameter: 1, ldapQueryPassword: "wrong_password"}),
+    );
     adminDb.logout();
 
     // Wait for user cache to be invalidated
@@ -71,7 +72,9 @@ import {createAdminUser} from "jstests/ldapauthz/_setup.js";
 
     // Restore correct ldapQueryPassword — pool invalidated again
     assert(adminDb.auth({user: "admin", pwd: "password"}));
-    assert.commandWorked(adminDb.adminCommand({setParameter: 1, ldapQueryPassword: TestData.ldapQueryPassword}));
+    assert.commandWorked(
+        adminDb.adminCommand({setParameter: 1, ldapQueryPassword: TestData.ldapQueryPassword}),
+    );
     adminDb.logout();
 
     // Auth should succeed again with restored credentials
