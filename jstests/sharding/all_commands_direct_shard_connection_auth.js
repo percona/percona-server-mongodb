@@ -52,6 +52,7 @@ const allCommands = {
     _configsvrCommitReshardCollection: {skip: isAnInternalCommand},
     _configsvrCommitShardRemoval: {skip: isAnInternalCommand},
     _configsvrConfigureCollectionBalancing: {skip: isAnInternalCommand},
+    _configsvrConvertShardRefsInNamespaceMetadata: {skip: isAnInternalCommand},
     _configsvrCreateDatabase: {skip: isAnInternalCommand},
     _configsvrEnsureChunkVersionIsGreaterThan: {skip: isAnInternalCommand},
     _configsvrGetHistoricalPlacement: {skip: isAnInternalCommand}, // TODO SERVER-73029 remove
@@ -172,6 +173,7 @@ const allCommands = {
     _shardsvrUntrackUnsplittableCollection: {skip: isAnInternalCommand},
     _shardsvrCheckMetadataConsistency: {skip: isAnInternalCommand},
     _shardsvrCheckMetadataConsistencyParticipant: {skip: isAnInternalCommand},
+    _shardsvrCheckMetadataConsistencySecondaryParticipant: {skip: isAnInternalCommand},
     _shardsvrFetchCollMetadata: {skip: isAnInternalCommand},
     streams_startStreamProcessor: {skip: isAnInternalCommand},
     streams_startStreamSample: {skip: isAnInternalCommand},

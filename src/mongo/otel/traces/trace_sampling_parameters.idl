@@ -33,6 +33,23 @@ imports:
     - "mongo/db/basic_types.idl"
 
 structs:
+    OpenTelemetryTracingTokenBucketRateLimit:
+        description: "Parameters for a rate limit for OpenTelemetry tracing."
+        strict: false
+        fields:
+            refillRate:
+                description: "The number tokens to refill per second."
+                type: double
+                default: 1.0
+                validator:
+                    gt: 0.0
+            maxTokens:
+                description: "The maximum number of tokens that can be held in the bucket."
+                type: int
+                default: 10
+                validator:
+                    gt: 0
+
     OpenTelemetryTracingSamplingStrategy:
         description: "Describes how a set of spans should be sampled, e.g., the sampling rate."
         strict: false
@@ -46,6 +63,33 @@ structs:
                 validator:
                     gte: 0.0
                     lte: 1.0
+            tokenBucketRateLimit:
+                description: >-
+                    The rate limit to apply to these samples.
+                type: OpenTelemetryTracingTokenBucketRateLimit
+                default: true
+
+    OpenTelemetryTracingSpanSelection:
+        description: "Identifies a span."
+        strict: false
+        fields:
+            name:
+                description: "The span name to match."
+                type: string
+
+    OpenTelemetryTracingSample:
+        description: "Associates a span selection with a sampling strategy."
+        strict: false
+        fields:
+            spanSelection:
+                description: "Identifies which span this entry applies to."
+                type: OpenTelemetryTracingSpanSelection
+            samplingStrategy:
+                description: >-
+                    The sampling strategy to apply to the selected span. Uses the default if not
+                    provided.
+                type: OpenTelemetryTracingSamplingStrategy
+                optional: true
 
     OpenTelemetryTracingSamplingConfig:
         description: "Configuration for head-based sampling of spans to initiate traces."
@@ -53,12 +97,20 @@ structs:
         fields:
             defaultSampling:
                 description: >-
-                    The sampling strategy applied to spans that are sampled by default.
+                    The sampling strategy applied to spans that are sampled by default and to
+                    sampled spans that don't specify a samplingStrategy.
                     TODO(SERVER-127466): Add relevant span names.
                     TODO(SERVER-127467): Add relevant span names.
                     TODO(SERVER-127468): Add relevant span names.
                 type: OpenTelemetryTracingSamplingStrategy
                 default: true
+            samples:
+                description: >-
+                    Overrides to sample specific spans, which override the default sampling in cases
+                    where both would apply. If no samplingStrategy is provided for an entry, uses
+                    defaultSampling.
+                type: array<OpenTelemetryTracingSample>
+                optional: true
 
 server_parameters:
     openTelemetryTracingSampling:

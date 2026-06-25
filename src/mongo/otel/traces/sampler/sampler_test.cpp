@@ -32,6 +32,7 @@
 #include "mongo/otel/traces/sampler/sampling_config.h"
 #include "mongo/otel/traces/span/span_names.h"
 #include "mongo/unittest/unittest.h"
+#include "mongo/util/tick_source_mock.h"
 
 namespace mongo::otel::traces {
 namespace {
@@ -129,6 +130,101 @@ TEST(SamplerTest, MultipleSpansAreIndependentlySampled) {
     EXPECT_TRUE(sampler.shouldSample(span_names::kTest2.getName(), 0.3));
     EXPECT_FALSE(sampler.shouldSample(span_names::kTest1.getName(), 0.7));
     EXPECT_FALSE(sampler.shouldSample(span_names::kTest2.getName(), 0.7));
+}
+
+TEST(SamplerTest, RateLimiterBlocksAfterTokensExhausted) {
+    TickSourceMock<Milliseconds> clock;
+    TracingSamplerImpl sampler(&clock);
+    sampler.updateConfig(SamplingConfig{.defaultFactor = 1.0, .defaultMaxTokens = 1});
+    sampler.sampleByDefault(span_names::kTest1);
+    // First call consumes the single default token.
+    EXPECT_TRUE(sampler.shouldSample(span_names::kTest1.getName(), 0.0));
+    // Second call at the same frozen time finds the bucket empty.
+    EXPECT_FALSE(sampler.shouldSample(span_names::kTest1.getName(), 0.0));
+}
+
+TEST(SamplerTest, RateLimitersAreIndependentPerSpan) {
+    TickSourceMock<Milliseconds> clock;
+    TracingSamplerImpl sampler(&clock);
+    sampler.updateConfig(SamplingConfig{.defaultFactor = 1.0, .defaultMaxTokens = 1});
+    sampler.sampleByDefault(span_names::kTest1);
+    sampler.sampleByDefault(span_names::kTest2);
+    // Each span gets its own token bucket; consuming kTest1's token does not drain kTest2's.
+    EXPECT_TRUE(sampler.shouldSample(span_names::kTest1.getName(), 0.0));
+    EXPECT_TRUE(sampler.shouldSample(span_names::kTest2.getName(), 0.0));
+    EXPECT_FALSE(sampler.shouldSample(span_names::kTest1.getName(), 0.0));
+    EXPECT_FALSE(sampler.shouldSample(span_names::kTest2.getName(), 0.0));
+}
+
+TEST(SamplerTest, ApplyRateLimitParamsClampsBurstOnExistingLimiter) {
+    TickSourceMock<Milliseconds> clock;
+    TracingSamplerImpl sampler(&clock);
+    // Create limiter with 1000-token bucket.
+    sampler.updateConfig(SamplingConfig{
+        .defaultFactor = 1.0, .defaultRefillRate = 1000.0, .defaultMaxTokens = 1000});
+    sampler.sampleByDefault(span_names::kTest1);
+    EXPECT_TRUE(sampler.shouldSample(span_names::kTest1.getName(), 0.0));
+    // Reduce the existing limiter to a 1-token burst. BasicTokenBucket::reset preserves available
+    // tokens but clamps them to the new burstSize (1), so exactly 1 more token can be consumed.
+    sampler.updateConfig(
+        SamplingConfig{.defaultFactor = 1.0, .defaultRefillRate = 1.0, .defaultMaxTokens = 1});
+    EXPECT_TRUE(sampler.shouldSample(span_names::kTest1.getName(), 0.0));
+    EXPECT_FALSE(sampler.shouldSample(span_names::kTest1.getName(), 0.0));
+}
+
+TEST(SamplerTest, RateLimiterWithLargerBurstSize) {
+    TickSourceMock<Milliseconds> clock;
+    TracingSamplerImpl sampler(&clock);
+    sampler.updateConfig(SamplingConfig{
+        .defaultFactor = 1.0, .defaultRefillRate = 1000.0, .defaultMaxTokens = 1000});
+    sampler.sampleByDefault(span_names::kTest3);
+    for (int i = 0; i < 1000; ++i) {
+        EXPECT_TRUE(sampler.shouldSample(span_names::kTest3.getName(), 0.0));
+    }
+}
+
+TEST(SamplerTest, PerSpanOverrideBeatsDefault) {
+    TracingSamplerImpl sampler;
+    sampler.sampleByDefault(span_names::kTest1);
+    // Default is 0.0 (would never sample), but override for kTest1 is 1.0.
+    sampler.updateConfig(
+        SamplingConfig{.defaultFactor = 0.0,
+                       .perSpanFactors = {{std::string(span_names::kTest1.getName()), 1.0}}});
+    EXPECT_TRUE(sampler.shouldSample(span_names::kTest1.getName(), 0.5));
+}
+
+TEST(SamplerTest, PerSpanOverrideOnlyAffectsNamedSpan) {
+    TracingSamplerImpl sampler;
+    sampler.sampleByDefault(span_names::kTest1);
+    sampler.sampleByDefault(span_names::kTest2);
+    // Override only kTest1; kTest2 stays at default=0.0.
+    sampler.updateConfig(
+        SamplingConfig{.defaultFactor = 0.0,
+                       .perSpanFactors = {{std::string(span_names::kTest1.getName()), 1.0}}});
+    EXPECT_TRUE(sampler.shouldSample(span_names::kTest1.getName(), 0.5));
+    EXPECT_FALSE(sampler.shouldSample(span_names::kTest2.getName(), 0.5));
+}
+
+TEST(SamplerTest, UpdateConfigWithNewOverrideTakesEffectImmediately) {
+    TracingSamplerImpl sampler;
+    sampler.sampleByDefault(span_names::kTest1);
+    sampler.updateConfig(SamplingConfig{.defaultFactor = 1.0});
+    EXPECT_TRUE(sampler.shouldSample(span_names::kTest1.getName(), 0.5));
+
+    // Add a per-span override that suppresses kTest1.
+    sampler.updateConfig(
+        SamplingConfig{.defaultFactor = 1.0,
+                       .perSpanFactors = {{std::string(span_names::kTest1.getName()), 0.0}}});
+    EXPECT_FALSE(sampler.shouldSample(span_names::kTest1.getName(), 0.0));
+}
+
+TEST(SamplerTest, OverrideOnUnregisteredSpanIsApplied) {
+    TracingSamplerImpl sampler;
+    // kTest1 is never registered via sampleByDefault.
+    sampler.updateConfig(
+        SamplingConfig{.defaultFactor = 0.0,
+                       .perSpanFactors = {{std::string(span_names::kTest1.getName()), 1.0}}});
+    EXPECT_TRUE(sampler.shouldSample(span_names::kTest1.getName(), 0.5));
 }
 
 }  // namespace

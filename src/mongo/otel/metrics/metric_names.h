@@ -336,9 +336,8 @@ public:
     // Query Integration Team Metrics
 
     // System Health
-    static constexpr MetricName kCpuUserMs = MetricNameMaker::make("mongodb.cpu.user");
-    static constexpr MetricName kCpuSystemMs = MetricNameMaker::make("mongodb.cpu.system");
-    static constexpr MetricName kCpuIowaitMs = MetricNameMaker::make("mongodb.cpu.iowait");
+    static constexpr MetricName kCpuTime = MetricNameMaker::make("mongodb.cpu.time");
+    static constexpr MetricName kCpuUtilization = MetricNameMaker::make("mongodb.cpu.utilization");
     static constexpr MetricName kThreadActive = MetricNameMaker::make("mongodb.thread.active");
     static constexpr MetricName kThreadQueued = MetricNameMaker::make("mongodb.thread.queued");
     static constexpr MetricName kFdOpen = MetricNameMaker::make("mongodb.fd.open");
@@ -380,6 +379,14 @@ public:
     // New in SERVER-123987 - Counts every top-level 'aggregate' command.
     static constexpr MetricName kAggregateOpCount =
         MetricNameMaker::make("serverStatus.opcounters.aggregates");
+
+    // Asserts - Counts every assertion failure broken down by `kind` attribute (one
+    // of: "regular", "msg", "user", "tripwire"). Mirrors the per-type counters under
+    // `serverStatus.asserts.*`; `warning` is omitted because nothing increments it, and
+    // `rollovers` is omitted because the OTel counter is int64 and never wraps.
+    // TODO (follow-up SERVER ticket): add a `command` attribute so failures can be sliced by
+    // command name (the "(c)" approach from the design discussion).
+    static constexpr MetricName kAsserts = MetricNameMaker::make("serverStatus.asserts");
 
     // Query Performance Counters
     static constexpr MetricName kQueryExecutorScanned =

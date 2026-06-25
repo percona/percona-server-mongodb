@@ -178,6 +178,10 @@ const internalCommandsMap = {
         testname: "_configsvrConfigureCollectionBalancing",
         command: {_configsvrConfigureCollectionBalancing: "test.x"},
     },
+    _configsvrConvertShardRefsInNamespaceMetadata: {
+        testname: "_configsvrConvertShardRefsInNamespaceMetadata",
+        command: {_configsvrConvertShardRefsInNamespaceMetadata: "test.x"},
+    },
     _configsvrCreateDatabase: {
         testname: "_configsvrCreateDatabase",
         command: {_configsvrCreateDatabase: "test.x", primaryShardId: ""},
@@ -972,6 +976,14 @@ const internalCommandsMap = {
         testname: "_shardsvrCheckMetadataConsistencyParticipant",
         command: {
             _shardsvrCheckMetadataConsistencyParticipant: 1,
+            primaryShardId: shard0name,
+        },
+    },
+    _shardsvrCheckMetadataConsistencySecondaryParticipant: {
+        skip: true, // This command doesn't accept to be run in the 'admin' database.
+        testname: "_shardsvrCheckMetadataConsistencySecondaryParticipant",
+        command: {
+            _shardsvrCheckMetadataConsistencySecondaryParticipant: 1,
             primaryShardId: shard0name,
         },
     },

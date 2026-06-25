@@ -61,6 +61,7 @@
 #include "mongo/db/pipeline/optimization/optimize.h"
 #include "mongo/db/pipeline/pipeline.h"
 #include "mongo/db/pipeline/pipeline_factory.h"
+#include "mongo/db/pipeline/resolved_namespace.h"
 #include "mongo/db/pipeline/search/search_helper.h"
 #include "mongo/db/pipeline/search/search_helper_bson_obj.h"
 #include "mongo/db/pipeline/sort_reorder_helpers.h"
@@ -71,7 +72,6 @@
 #include "mongo/db/stats/counters.h"
 #include "mongo/db/topology/sharding_state.h"
 #include "mongo/db/views/pipeline_resolver.h"
-#include "mongo/db/views/resolved_view.h"
 #include "mongo/idl/idl_parser.h"
 #include "mongo/util/str.h"
 
@@ -1366,9 +1366,9 @@ boost::intrusive_ptr<DocumentSource> DocumentSourceLookUp::createFromBson(
                                          pExpCtx);
         }
     } else {
-        // $lookup specified with only local/foreignField syntax.
+        // No pipeline specified, both localField and foreignField must be specified.
         uassert(ErrorCodes::FailedToParse,
-                "$lookup requires both or neither of 'localField' and 'foreignField' to be "
+                "$lookup requires either 'pipeline' or both 'localField' and 'foreignField' to be "
                 "specified",
                 !localField.empty() && !foreignField.empty());
         uassert(ErrorCodes::FailedToParse,
