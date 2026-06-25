@@ -22,6 +22,7 @@
  * Deliberately-invalid addresses such as "localhost:39999" are passed through untouched,
  * since only the sentinel value is rewritten.
  */
+import {ADMIN_DN, ADMIN_PASSWORD} from "jstests/ldapauthz/lib/ldap_directory.js";
 import {LDAPMock} from "jstests/ldapauthz/lib/ldap_mock.js";
 
 export const LDAP_MOCK_SENTINEL = "__ldap_mock__";
@@ -29,6 +30,12 @@ export const LDAP_MOCK_SENTINEL = "__ldap_mock__";
 // Tests read TestData.ldapServers when building their runMongod options; hand them the
 // sentinel so the wrapper below can recognise and rewrite it.
 TestData.ldapServers = LDAP_MOCK_SENTINEL;
+
+// Derive the bind/query credentials from the same source of truth as the mock directory
+// (ldap_directory.js) so they cannot drift from the credentials the mock accepts. The
+// suite YAML therefore does not need to hardcode them.
+TestData.ldapQueryUser = ADMIN_DN;
+TestData.ldapQueryPassword = ADMIN_PASSWORD;
 
 let mock = null;
 
@@ -53,15 +60,17 @@ function teardownMock() {
 
 const originalRunMongod = MongoRunner.runMongod;
 MongoRunner.runMongod = function (opts) {
-    ensureMock();
-    if (opts && opts.ldapServers === LDAP_MOCK_SENTINEL) {
-        opts = Object.assign({}, opts, {ldapServers: TestData.ldapServers});
-    }
     try {
+        // ensureMock() is inside the try so that if mock.start() throws (e.g. the readiness
+        // wait times out), the catch below still reaps the half-started mock: otherwise the
+        // module-level `mock` stays non-null with a live Python process, leaking it past the
+        // shell's end-of-file "child process still running" check and masking the real error.
+        ensureMock();
+        if (opts && opts.ldapServers === LDAP_MOCK_SENTINEL) {
+            opts = Object.assign({}, opts, {ldapServers: TestData.ldapServers});
+        }
         return originalRunMongod.call(this, opts);
     } catch (e) {
-        // If mongod fails to start, tear the mock down so it doesn't linger and trip the
-        // shell's end-of-file "child process still running" check, masking the real error.
         teardownMock();
         throw e;
     }

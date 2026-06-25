@@ -6,12 +6,11 @@
  * - Cache is invalidated when ldapUserToDNCacheSize is changed at runtime
  * - New server parameters can be read and set at runtime
  */
+import {checkConnectionStatus} from "jstests/ldapauthz/_check.js";
 import {createAdminUser} from "jstests/ldapauthz/_setup.js";
 
 (function () {
     "use strict";
-
-    load("jstests/ldapauthz/_check.js");
 
     const username = "exttestro";
     const userpwd = "exttestro9a5S";

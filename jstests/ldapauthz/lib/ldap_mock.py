@@ -18,11 +18,12 @@ tests exercise:
       - user-to-DN mapping
             dc=percona,dc=com??sub?(&(objectClass=organizationalPerson)(sn={0}))
 
-The directory contents mirror support-files/ldap-sasl/ldap/{users,groups}.ldif
-and the expectations hard-coded in jstests/ldapauthz/_check.js. The single
-source of truth here is the (short username -> groups) mapping below; everything
-else (DNs, passwords, member / memberOf attributes) is derived from it so it
-cannot drift.
+The directory contents are not defined here: they are supplied by the JS test
+harness as a single JSON document on the command line (--directory-json), built
+from jstests/ldapauthz/lib/ldap_directory.js. That module is the single source
+of truth shared with the test-side authorization checks (_check.js), so the two
+cannot drift. Everything (DNs, passwords, member / memberOf attributes) is
+derived here from the (short username -> groups) mapping in that document.
 
 The protocol parsing/encoding is handled by ldaptor; bind and search are
 implemented by hand so the server has full control over how DNs are returned on
@@ -33,7 +34,7 @@ generic DN library.
 """
 
 import argparse
-import sys
+import json
 
 from ldaptor.protocols import pureldap
 from ldaptor.protocols.ldap import ldaperrors
@@ -41,78 +42,12 @@ from ldaptor.protocols.ldap.ldapserver import LDAPServer
 from twisted.internet import reactor
 from twisted.internet.protocol import ServerFactory
 
-BASE_DN = "dc=percona,dc=com"
-
-# The bind/query user used by mongod (ldapQueryUser / ldapQueryPassword).
-ADMIN_DN = "cn=admin,dc=percona,dc=com"
-ADMIN_PASSWORD = "password"
-
-# Password suffix appended to the short user name, mirroring settings.conf
-# (LDAP_PASS_SUFFIX) and support-files/ldap-sasl/ldap/users.ldif.
-PASSWORD_SUFFIX = "9a5S"
-
-# Short user names exactly as listed in jstests/ldapauthz/_check.js
-# (shortusernames). The last two exercise DN special-character handling.
-USERS = [
-    "exttestro",
-    "exttestrw",
-    "extotherro",
-    "extotherrw",
-    "extbothro",
-    "extbothrw",
-    "exttestrwotherro",
-    "exttestrootherrw",
-    "Surname\\, Name",
-    'Question? Mark! *{[(\\<\\>)]} #\\"\\+\\\\',
-]
-
-# group cn -> member short user names. Mirrors
-# support-files/ldap-sasl/ldap/groups.ldif. The special-character group is keyed
-# by its hex-escaped wire DN (see SPECCHAR_GROUP_DN) because that is the exact
-# string _check.js expects to see returned as a role.
-GROUPS = {
-    "testreaders": ["exttestro", "extbothro", "exttestrootherrw"],
-    "testwriters": ["exttestrw", "extbothrw", "exttestrwotherro"],
-    "otherreaders": ["extotherro", "extbothro", "exttestrwotherro"],
-    "otherwriters": ["extotherrw", "extbothrw", "exttestrootherrw"],
-    "testusers": [
-        "exttestro",
-        "exttestrwotherro",
-        "exttestrw",
-        "exttestrootherrw",
-        "extbothro",
-        "extbothrw",
-    ],
-    "otherusers": [
-        "extotherro",
-        "exttestrwotherro",
-        "extotherrw",
-        "exttestrootherrw",
-        "extbothro",
-        "extbothrw",
-    ],
-}
-
-# The special-character group. groups.ldif stores its DN with character escaping
-# (cn=specchar\,\+\=\\,...) but slapd returns it -- and _check.js expects it --
-# in hex-escaped form. We emit this exact string on the wire.
-SPECCHAR_GROUP_DN = "cn=specchar\\2C\\2B\\3D\\5C,dc=percona,dc=com"
-SPECCHAR_MEMBERS = ["Surname\\, Name", 'Question? Mark! *{[(\\<\\>)]} #\\"\\+\\\\']
-
 VERBOSE = False
 
 
 def log(*args):
     if VERBOSE:
         print("[ldap_mock]", *args, flush=True)
-
-
-def user_dn(short_name):
-    return "cn=" + short_name + "," + BASE_DN
-
-
-def group_dn(cn):
-    return "cn=" + cn + "," + BASE_DN
 
 
 def to_str(value):
@@ -138,31 +73,51 @@ class Entry:
         self.password = password
 
 
-def build_directory():
-    """Build the directory from the (user -> groups) source of truth."""
+def build_directory(spec):
+    """Build the directory from the (user -> groups) source of truth.
+
+    spec is the JSON document produced by jstests/ldapauthz/lib/ldap_directory.js
+    (directorySpec()) and passed in via --directory-json.
+    """
+    base_dn = spec["base_dn"]
+    admin_dn = spec["admin_dn"]
+    admin_password = spec["admin_password"]
+    password_suffix = spec["password_suffix"]
+    users = spec["users"]
+    groups = spec["groups"]
+    specchar_group_dn = spec["specchar_group_dn"]
+    specchar_group_cn = spec["specchar_group_cn"]
+    specchar_members = spec["specchar_members"]
+
+    def user_dn(short_name):
+        return "cn=" + short_name + "," + base_dn
+
+    def group_dn(cn):
+        return "cn=" + cn + "," + base_dn
+
     entries = []
 
     # Base entry and the bind/query user.
-    entries.append(Entry(BASE_DN, {"objectclass": ["dcObject", "organization"], "dc": ["percona"]}))
+    entries.append(Entry(base_dn, {"objectclass": ["dcObject", "organization"], "dc": ["percona"]}))
     entries.append(
         Entry(
-            ADMIN_DN,
+            admin_dn,
             {"objectclass": ["organizationalRole"], "cn": ["admin"]},
-            password=ADMIN_PASSWORD,
+            password=admin_password,
         )
     )
 
     # Compute group membership keyed by short user name.
-    member_of = {u: [] for u in USERS}
-    for cn, members in GROUPS.items():
+    member_of = {u: [] for u in users}
+    for cn, members in groups.items():
         gdn = group_dn(cn)
         for m in members:
             member_of[m].append(gdn)
-    for m in SPECCHAR_MEMBERS:
-        member_of[m].append(SPECCHAR_GROUP_DN)
+    for m in specchar_members:
+        member_of[m].append(specchar_group_dn)
 
     # User entries.
-    for short in USERS:
+    for short in users:
         dn = user_dn(short)
         entries.append(
             Entry(
@@ -173,12 +128,12 @@ def build_directory():
                     "sn": [short],
                     "memberof": member_of[short],
                 },
-                password=short + PASSWORD_SUFFIX,
+                password=short + password_suffix,
             )
         )
 
     # Group entries.
-    for cn, members in GROUPS.items():
+    for cn, members in groups.items():
         entries.append(
             Entry(
                 group_dn(cn),
@@ -191,11 +146,11 @@ def build_directory():
         )
     entries.append(
         Entry(
-            SPECCHAR_GROUP_DN,
+            specchar_group_dn,
             {
                 "objectclass": ["groupOfNames"],
-                "cn": ["specchar,+=\\"],
-                "member": [user_dn(m) for m in SPECCHAR_MEMBERS],
+                "cn": [specchar_group_cn],
+                "member": [user_dn(m) for m in specchar_members],
             },
         )
     )
@@ -388,11 +343,16 @@ def main():
     parser = argparse.ArgumentParser(description="Mock LDAP server for ldapauthz tests")
     parser.add_argument("--port", type=int, required=True, help="TCP port to listen on")
     parser.add_argument("--host", default="127.0.0.1", help="interface to bind to")
+    parser.add_argument(
+        "--directory-json",
+        required=True,
+        help="directory contents as JSON (see jstests/ldapauthz/lib/ldap_directory.js)",
+    )
     parser.add_argument("--verbose", action="store_true", help="log binds and searches")
     args = parser.parse_args()
     VERBOSE = args.verbose
 
-    entries = build_directory()
+    entries = build_directory(json.loads(args.directory_json))
     factory = MockLDAPServerFactory(entries)
 
     reactor.listenTCP(args.port, factory, interface=args.host)

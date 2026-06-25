@@ -16,7 +16,7 @@ executor:
       eval: await import("jstests/ldapauthz/lib/use_mock_ldap.js");
       global_vars:
         TestData:
-          ldapQueryUser: "cn=admin,dc=percona,dc=com"
-          ldapQueryPassword: "password"
+          # ldapQueryUser / ldapQueryPassword are set by use_mock_ldap.js (imported via the
+          # eval above) from ldap_directory.js, so they stay in sync with the mock directory.
           ldapAuthzQueryTemplate: "dc=percona,dc=com??sub?(&(objectClass=groupOfNames)(member={USER}))"
       nodb: ""

@@ -16,9 +16,6 @@
 
     assert(conn, "Cannot start mongod instance");
 
-    // load check roles routine
-    load("jstests/ldapauthz/_check.js");
-
     var db = conn.getDB("$external");
 
     const username = "cn=" + "exttestro" + ",dc=percona,dc=com";

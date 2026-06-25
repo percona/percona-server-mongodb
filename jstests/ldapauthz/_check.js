@@ -1,50 +1,12 @@
-// Check authorization result
+// Check authorization result.
+//
+// The expected (user DN -> role DNs) mapping is derived from the shared directory
+// source of truth (jstests/ldapauthz/lib/ldap_directory.js), the same data fed to the
+// mock LDAP server, so the two cannot drift.
 
-const shortusernames = [
-    "exttestro",
-    "exttestrw",
-    "extotherro",
-    "extotherrw",
-    "extbothro",
-    "extbothrw",
-    "exttestrwotherro",
-    "exttestrootherrw",
-    "Surname\\, Name",
-    'Question? Mark! *{[(\\<\\>)]} #\\"\\+\\\\',
-];
+import {rolesmap, shortusernames} from "jstests/ldapauthz/lib/ldap_directory.js";
 
-const rolesmap = {
-    "cn=exttestro,dc=percona,dc=com": ["cn=testreaders,dc=percona,dc=com", "cn=testusers,dc=percona,dc=com"],
-    "cn=exttestrw,dc=percona,dc=com": ["cn=testwriters,dc=percona,dc=com", "cn=testusers,dc=percona,dc=com"],
-    "cn=extotherro,dc=percona,dc=com": ["cn=otherreaders,dc=percona,dc=com", "cn=otherusers,dc=percona,dc=com"],
-    "cn=extotherrw,dc=percona,dc=com": ["cn=otherwriters,dc=percona,dc=com", "cn=otherusers,dc=percona,dc=com"],
-    "cn=extbothro,dc=percona,dc=com": [
-        "cn=testreaders,dc=percona,dc=com",
-        "cn=otherreaders,dc=percona,dc=com",
-        "cn=testusers,dc=percona,dc=com",
-        "cn=otherusers,dc=percona,dc=com",
-    ],
-    "cn=extbothrw,dc=percona,dc=com": [
-        "cn=testwriters,dc=percona,dc=com",
-        "cn=otherwriters,dc=percona,dc=com",
-        "cn=testusers,dc=percona,dc=com",
-        "cn=otherusers,dc=percona,dc=com",
-    ],
-    "cn=exttestrwotherro,dc=percona,dc=com": [
-        "cn=testwriters,dc=percona,dc=com",
-        "cn=otherreaders,dc=percona,dc=com",
-        "cn=testusers,dc=percona,dc=com",
-        "cn=otherusers,dc=percona,dc=com",
-    ],
-    "cn=exttestrootherrw,dc=percona,dc=com": [
-        "cn=testreaders,dc=percona,dc=com",
-        "cn=otherwriters,dc=percona,dc=com",
-        "cn=testusers,dc=percona,dc=com",
-        "cn=otherusers,dc=percona,dc=com",
-    ],
-    "cn=Surname\\, Name,dc=percona,dc=com": ["cn=specchar\\2C\\2B\\3D\\5C,dc=percona,dc=com"],
-    'cn=Question? Mark! *{[(\\<\\>)]} #\\"\\+\\\\,dc=percona,dc=com': ["cn=specchar\\2C\\2B\\3D\\5C,dc=percona,dc=com"],
-};
+export {rolesmap, shortusernames};
 
 //{
 //	"authInfo" : {
@@ -67,7 +29,7 @@ const rolesmap = {
 //	},
 //	"ok" : 1
 //}
-function checkConnectionStatus(username, cs, name_to_dn) {
+export function checkConnectionStatus(username, cs, name_to_dn) {
     "use strict";
 
     assert.eq(cs.authInfo.authenticatedUsers[0].db, "$external");
@@ -83,11 +45,17 @@ function checkConnectionStatus(username, cs, name_to_dn) {
     let authorizedroles = [];
     // all authorized roles must be in our rolesmap
     cs.authInfo.authenticatedUserRoles.forEach(function (entry) {
-        assert(userroles.includes(entry.role), `User '${user}' was authorized to unexpected role '${entry.role}'`);
+        assert(
+            userroles.includes(entry.role),
+            `User '${user}' was authorized to unexpected role '${entry.role}'`,
+        );
         authorizedroles.push(entry.role);
     });
     // all roles from our rolesmap must be authorized
     userroles.forEach(function (entry) {
-        assert(authorizedroles.includes(entry), `User '${user}' was not authorized '${entry}' role`);
+        assert(
+            authorizedroles.includes(entry),
+            `User '${user}' was not authorized '${entry}' role`,
+        );
     });
 }
