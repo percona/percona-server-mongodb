@@ -1,0 +1,22 @@
+test_kind: js_test
+
+# Same tests as the ldapauthz suite, but run against the Python mock LDAP server
+# (jstests/ldapauthz/lib/ldap_mock.py) instead of a real slapd deployment.
+# Each test starts its own mock on a freshly allocated port via the `eval` import below.
+selector:
+  roots:
+    - jstests/ldapauthz/*.js
+  exclude_files:
+    - jstests/ldapauthz/_*.js
+
+# ldapauthz tests start their own mongod's.
+executor:
+  config:
+    shell_options:
+      eval: await import("jstests/ldapauthz/lib/use_mock_ldap.js");
+      global_vars:
+        TestData:
+          ldapQueryUser: "cn=admin,dc=percona,dc=com"
+          ldapQueryPassword: "password"
+          ldapAuthzQueryTemplate: "dc=percona,dc=com??sub?(&(objectClass=groupOfNames)(member={USER}))"
+      nodb: ""

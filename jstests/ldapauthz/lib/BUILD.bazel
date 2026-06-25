@@ -1,0 +1,19 @@
+load("//bazel:mongo_js_rules.bzl", "all_subpackage_javascript_files", "mongo_js_library")
+
+package(default_visibility = ["//visibility:public"])
+
+mongo_js_library(
+    name = "all_javascript_files",
+    srcs = glob([
+        "*.js",
+    ]),
+)
+
+all_subpackage_javascript_files()
+
+# The mock LDAP server (a Python server built on ldaptor), launched by use_mock_ldap.js.
+# Exported so the ldapauthz_mock suite can ship it as data; it is referenced by relative
+# path at runtime (jstests/ldapauthz/lib/ldap_mock.py).
+exports_files([
+    "ldap_mock.py",
+])

@@ -4,12 +4,13 @@
     // test command line parameters related to LDAP authorization
     var conn = MongoRunner.runMongod({
         auth: "",
-        ldapServers: "localhost:389",
+        ldapServers: TestData.ldapServers,
         ldapTransportSecurity: "none",
         ldapBindMethod: "simple",
-        ldapQueryUser: "cn=admin,dc=percona,dc=com",
-        ldapQueryPassword: "password",
-        ldapAuthzQueryTemplate: "dc=percona,dc=com?dn?sub?(&(objectClass=groupOfNames)(member={USER}))",
+        ldapQueryUser: TestData.ldapQueryUser,
+        ldapQueryPassword: TestData.ldapQueryPassword,
+        ldapAuthzQueryTemplate:
+            "dc=percona,dc=com?dn?sub?(&(objectClass=groupOfNames)(member={USER}))",
         setParameter: {authenticationMechanisms: "PLAIN,SCRAM-SHA-256,SCRAM-SHA-1"},
     });
 

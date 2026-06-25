@@ -1,4 +1,6 @@
+load("@poetry//:dependencies.bzl", "dependency")
 load("//bazel:mongo_js_rules.bzl", "all_subpackage_javascript_files", "mongo_js_library")
+load("//bazel/resmoke:resmoke.bzl", "resmoke_suite_test")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -10,3 +12,34 @@ mongo_js_library(
 )
 
 all_subpackage_javascript_files()
+
+# ldapauthz tests run against a mock LDAP server (jstests/ldapauthz/lib/ldap_mock.py, a
+# Python server built on ldaptor and launched by use_mock_ldap.js), so this suite is
+# self-contained rather than needing a real slapd deployment.
+# The non-mock ldapauthz suite (buildscripts/resmokeconfig/suites/ldapauthz.yml)
+# is intentionally NOT wired into Bazel because it needs an external LDAP server.
+# The tests start their own standalone mongod's (nodb), so the lib/ override + mock
+# must be shipped explicitly as data.
+resmoke_suite_test(
+    name = "ldapauthz_mock",
+    config = "//buildscripts/resmokeconfig:suites/ldapauthz_mock.yml",
+    data = [
+        "//jstests/ldapauthz/lib:all_javascript_files",
+        "//jstests/ldapauthz/lib:ldap_mock.py",
+        # ldap_mock.py is launched (via use_mock_ldap.js) by the test's RESMOKE_PYTHON,
+        # which imports modules from the resmoke runtime's PYTHONPATH. ldaptor is not a
+        # resmoke dependency, so ship it.
+        dependency(
+            "ldaptor",
+            group = "external-auth",
+        ),
+    ],
+    tags = [
+        "ldap",
+        "percona",
+    ],
+    deps = [
+        "//src/mongo/db:mongod",
+        "//src/mongo/shell:mongo",
+    ],
+)
