@@ -208,7 +208,7 @@ fork:
   ai_pick:
     # Agent descriptor (same format as resolve.agent). Empty falls back to
     # resolve.agent. Default: "" (-> resolve.agent)
-    agent: claude-cli:claude-opus-4-5
+    agent: claude-cli:claude-opus-4-8
 
     # Project-specific merge-pick rules (markdown), appended to the built-in
     # system prompt. Holds PSMDB batch-size targets and boundary heuristics.
@@ -228,7 +228,7 @@ resolve:
   # Agent type/model to use for conflict resolution.
   # Supported values: "gemini-cli" or "gemini-cli:<model>", "claude-cli" or "claude-cli:<model>"
   # Default: "claude-cli:claude-opus-4-5"
-  agent: claude-cli:claude-opus-4-5
+  agent: claude-cli:claude-opus-4-8
 
   # Maximum number of retry attempts when resolution validation fails.
   # Default: 3
