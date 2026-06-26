@@ -1,0 +1,457 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "342f808bf6bfc6fed6af7bdf7a01287ee374df91",
+    "merge_commit": "8b98a84d73558be5b22048060c00f685474e12b2"
+  },
+  "mergai_version": "0.1.dev1+g96d7692d2",
+  "conflict_context": {
+    "ours_commit": "342f808bf6bfc6fed6af7bdf7a01287ee374df91",
+    "theirs_commit": "8b98a84d73558be5b22048060c00f685474e12b2",
+    "base_commit": "c9fa3ccc6dc4e6c15ca26d58bc03951df288eb36",
+    "files": [
+      "sbom.json",
+      "src/mongo/db/curop_test.cpp"
+    ],
+    "conflict_types": {
+      "sbom.json": "both modified",
+      "src/mongo/db/curop_test.cpp": "both modified"
+    },
+    "diffs": {
+      "sbom.json": "diff --cc sbom.json\nindex c4e369ab851,a86188043c1..00000000000\n--- a/sbom.json\n+++ b/sbom.json\n@@@ -5,2 -5,2 +5,10 @@@\n++<<<<<<< HEAD\n +  \"serialNumber\": \"urn:uuid:95a559f1-b091-4a92-b80d-e6d37c5e477c\",\n +  \"version\": 6,\n++||||||| c9fa3ccc6dc\n++  \"serialNumber\": \"urn:uuid:2d7fbf85-c8b6-4f90-9966-70da88224a36\",\n++  \"version\": 7,\n++=======\n+   \"serialNumber\": \"urn:uuid:2d7fbf85-c8b6-4f90-9966-70da88224a36\",\n+   \"version\": 8,\n++>>>>>>> 8b98a84d73558be5b22048060c00f685474e12b2",
+      "src/mongo/db/curop_test.cpp": "diff --cc src/mongo/db/curop_test.cpp\nindex ee216e7abc6,7f2b591ca0e..00000000000\n--- a/src/mongo/db/curop_test.cpp\n+++ b/src/mongo/db/curop_test.cpp\n@@@ -663,2 -663,2 +663,9 @@@ TEST(CurOpTest, OptionalAdditiveMetrics\n++<<<<<<< HEAD\n +                                         \"flowControl\",\n +                                         \"rateLimit\"};\n++||||||| c9fa3ccc6dc\n++                                         \"flowControl\"};\n++=======\n+                                          \"flowControl\",\n+                                          \"planRanker\"};\n++>>>>>>> 8b98a84d73558be5b22048060c00f685474e12b2"
+    },
+    "their_commits": {
+      "sbom.json": [
+        "8094f2a2095cef1b1c33a628657e2ceaf7799d4c"
+      ],
+      "src/mongo/db/curop_test.cpp": [
+        "1f66841122d570fbdc02789d89ff15286a2819cb"
+      ]
+    }
+  },
+  "merge_context": {
+    "merge_commit": "8b98a84d73558be5b22048060c00f685474e12b2",
+    "merged_commits": [
+      "8b98a84d73558be5b22048060c00f685474e12b2",
+      "34cd319c8b75ab922361a68a459cff155d34f506",
+      "fab22b97dce6b4890b7f41b77c4c664269c7f214",
+      "6a4b895d50a402fa513a12bb8f98d44d32b5af02",
+      "a385933fa736356d9f008df86dd68e59b2b2fe2e",
+      "2adcd7ea8e51dd4291cf5890d705b9bfafd62c58",
+      "a8fb42ab3a4589761a4b09b4f284bd7f58ab574d",
+      "af95e49842e65a7595bdb3fd37ee1b1c02fcc227",
+      "939f0ae3942d785d168f8d54f5a66002ba48121b",
+      "b1d44238a3d62440304ef15fd5f7984f7b685379",
+      "91385cef52b58fe50e6915b6d8c5473efedfed30",
+      "1f66841122d570fbdc02789d89ff15286a2819cb",
+      "a9db73c34730b18e9751cab165dc54666717ca05",
+      "1d79848cb890909996ba6added6c954ba353f754",
+      "3c4322419259a26a2ca0224e220d8bdc9939a70f",
+      "47892066fc6a71f7f8b97152c8af697e42313f3e",
+      "9a9232450d9e5f58c77fe69bb8adc7389df3e950",
+      "9a9aff8a69390987d6b901315d32154a359619c8",
+      "1405431c12406dbbc2bb0941a19b6de81f03019c",
+      "d70c40d42541e75fb3519a300cfcdf7da3325585",
+      "53cf75e623afbe43a17b04b5aa4b4938747fb41f",
+      "4147bf5f6fee05349c06014379d9febf98a399f8",
+      "284c7187dc0c2b1c0cafe25116b350049e569a5d",
+      "bace4412031495cb16d6360390ff7b2f22f9f848",
+      "4982002c2791a94be20d667f6c563a4c9450d4a2",
+      "72796315c3b00565b01516bbdc063848bc2c0faa",
+      "bd2016f961c66296c4ebd7b4a0c88a5a8342dbbe",
+      "0e8cfea90a07365c5e3b52610472165d0f758eba",
+      "1a906fab820c7679e9b42f958097b14d0512a33e",
+      "8232a6c2f94dbd685cf6d700465da1b42510abdb",
+      "727bed92a54306062d641ad10407fd158ba00c90",
+      "60c12ad8ecf45edba1b19cbb45f5d59be0538ca7",
+      "bfc52979605814b93e54a1a72859c4b6e3acae85",
+      "66788ab8029a8ec0685f76f6a5bec742ba9c7a91",
+      "3f77bb2ecf77a3b2a0bf84ecfd79040d1fc831d8",
+      "57a176be5c56618194d9ee0006c6d84f0dc17620",
+      "32be575a6331c1d6e99035071179d5b9aff7e2e6",
+      "c3d5ce45323e6d98401da614ada4ddc7b08ce8cd",
+      "186b646fff11714dec4c57c809177937bd46dfcb",
+      "6680dd95ae4201e5b6e3c01c578783bed424171a",
+      "7b98b26b78603b2782af3724d8e2f3df12593abc",
+      "9f760338b3fafa2cbc3e44fc78c97cbedb4a94e8",
+      "ce73bac7fdbe82e1f463e9b0659a6319d7141f7b",
+      "03b0a9bc31f230f15e3dfa738ecea75c298f2952",
+      "273f042b62c8998cf6bac21b501ab52fce7ce31c",
+      "37b7b99cd92331fde74c5d2cf4cd3df62e150e4c",
+      "9cdc28f95101bc478f1cff2efcdabc1dcf5ca472",
+      "89b4a88cd8dded7216c18e473d06e795ee9fe375",
+      "8094f2a2095cef1b1c33a628657e2ceaf7799d4c",
+      "beaccc3dcc23afe5f2ea7cf6e19bc757b5639de7"
+    ],
+    "important_files_modified": [],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        "jstests/auth/lib/commands_lib.js",
+        "sbom.json",
+        "src/mongo/db/BUILD.bazel",
+        "src/mongo/db/curop_test.cpp",
+        "src/mongo/db/op_debug.cpp",
+        "src/mongo/db/pipeline/BUILD.bazel",
+        "src/mongo/db/storage/BUILD.bazel",
+        "src/third_party/wiredtiger/src/conn/conn_api.c",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in"
+      ]
+    }
+  },
+  "solutions": [
+    {
+      "status": "success",
+      "is_error": false,
+      "duration_ms": 26558,
+      "num_turns": 6,
+      "stop_reason": "end_turn",
+      "total_cost_usd": 0.2573195,
+      "modelUsage": {
+        "claude-haiku-4-5-20251001": {
+          "inputTokens": 587,
+          "outputTokens": 18,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 0,
+          "webSearchRequests": 0,
+          "costUSD": 0.000677,
+          "contextWindow": 200000,
+          "maxOutputTokens": 32000
+        },
+        "claude-opus-4-5": {
+          "inputTokens": 13,
+          "outputTokens": 1727,
+          "cacheReadInputTokens": 98130,
+          "cacheCreationInputTokens": 26294,
+          "webSearchRequests": 0,
+          "costUSD": 0.2566425,
+          "contextWindow": 200000,
+          "maxOutputTokens": 32000
+        }
+      },
+      "stats": {
+        "models": {
+          "claude-haiku-4-5-20251001": {
+            "tokens": {
+              "input": 587,
+              "output": 18,
+              "cache_read": 0,
+              "cache_creation": 0
+            },
+            "cost_usd": 0.000677
+          },
+          "claude-opus-4-5": {
+            "tokens": {
+              "input": 13,
+              "output": 1727,
+              "cache_read": 98130,
+              "cache_creation": 26294
+            },
+            "cost_usd": 0.2566425
+          }
+        }
+      },
+      "text_result": "Resolved both merge conflicts:\n- **sbom.json**: Kept Percona's serialNumber and version values\n- **curop_test.cpp**: Merged both additions - kept Percona's `rateLimit` and added MongoDB's `planRanker` to the expectedFields array",
+      "response": {
+        "summary": "Resolved merge conflicts in sbom.json and curop_test.cpp. For sbom.json, kept Percona's serialNumber and version values (they are reset before release anyway). For curop_test.cpp, merged both additions: kept Percona's 'rateLimit' field and added MongoDB's new 'planRanker' field.",
+        "resolved": {
+          "sbom.json": "Kept Percona's serialNumber (urn:uuid:95a559f1-b091-4a92-b80d-e6d37c5e477c) and version (6) as per project invariants - these values are reset before each release.",
+          "src/mongo/db/curop_test.cpp": "Merged both additions to the expectedFields array: kept Percona-specific 'rateLimit' field and added MongoDB's new 'planRanker' field, resulting in: \"flowControl\", \"rateLimit\", \"planRanker\""
+        },
+        "unresolved": {},
+        "modified": {},
+        "review_notes": "The curop_test.cpp resolution combines both upstream changes. Verify that both 'rateLimit' (Percona addition) and 'planRanker' (MongoDB addition from SERVER-128328) are expected in the test's expectedFields list for OptionalAdditiveMetrics."
+      },
+      "session": {
+        "messages": [
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-5-20251101",
+            "thoughts": [
+              "I'll resolve these merge conflicts. Let me read both conflicted files to understand the full context."
+            ],
+            "tools_used": []
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-5-20251101",
+            "thoughts": [],
+            "tools_used": [
+              "Read"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-5-20251101",
+            "thoughts": [],
+            "tools_used": [
+              "Read"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-5-20251101",
+            "thoughts": [
+              "Now I understand both conflicts:\n\n1. **sbom.json**: Conflict in serialNumber and version fields. Per the hints, I should keep Percona's values (they don't matter as they're reset before release).\n\n2. **src/mongo/db/curop_test.cpp**: \n   - HEAD (ours) has `\"flowControl\", \"rateLimit\"` - the `rateLimit` is a Percona-specific addition\n   - Theirs adds `\"planRanker\"` to the base\n   - Both should be merged to include both additions: `\"flowControl\", \"rateLimit\", \"planRanker\"`\n\nLet me fix both files."
+            ],
+            "tools_used": []
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-5-20251101",
+            "thoughts": [],
+            "tools_used": [
+              "Edit"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-5-20251101",
+            "thoughts": [],
+            "tools_used": [
+              "Edit"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-5-20251101",
+            "thoughts": [
+              "Both conflicts have been resolved. Now I'll write the JSON response."
+            ],
+            "tools_used": []
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-5-20251101",
+            "thoughts": [],
+            "tools_used": [
+              "Write"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-5-20251101",
+            "thoughts": [
+              "Resolved both merge conflicts:\n- **sbom.json**: Kept Percona's serialNumber and version values\n- **curop_test.cpp**: Merged both additions - kept Percona's `rateLimit` and added MongoDB's `planRanker` to the expectedFields array"
+            ],
+            "tools_used": []
+          }
+        ],
+        "metadata": {
+          "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20260623_125232_528914.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+        }
+      },
+      "agent_info": {
+        "agent_type": "claude_cli",
+        "version": "2.1.186 (Claude Code)"
+      },
+      "type": "conflict_resolution"
+    }
+  ],
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 50925,
+    "num_turns": 11,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.34110825,
+    "modelUsage": {
+      "claude-haiku-4-5-20251001": {
+        "inputTokens": 587,
+        "outputTokens": 17,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0,
+        "webSearchRequests": 0,
+        "costUSD": 0.000672,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000
+      },
+      "claude-opus-4-5": {
+        "inputTokens": 12,
+        "outputTokens": 2886,
+        "cacheReadInputTokens": 75990,
+        "cacheCreationInputTokens": 36837,
+        "webSearchRequests": 0,
+        "costUSD": 0.34043625,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-haiku-4-5-20251001": {
+          "tokens": {
+            "input": 587,
+            "output": 17,
+            "cache_read": 0,
+            "cache_creation": 0
+          },
+          "cost_usd": 0.000672
+        },
+        "claude-opus-4-5": {
+          "tokens": {
+            "input": 12,
+            "output": 2886,
+            "cache_read": 75990,
+            "cache_creation": 36837
+          },
+          "cost_usd": 0.34043625
+        }
+      }
+    },
+    "text_result": "Done. I've written the JSON response describing the merge to the specified file. The response includes:\n\n- **Summary**: Overview of ~50 upstream commits covering planRanker tracking, hybrid search refactoring, WiredTiger extensions_strict option, BUILD.bazel dependency changes, and SBOM cleanup\n- **Auto-merged files**: Detailed descriptions of changes to all 9 auto-merged files based on actual diff output\n- **Review notes**: Guidance on the two conflicting files (sbom.json and curop_test.cpp) that need manual resolution",
+    "response": {
+      "summary": "This merge brings in ~50 upstream commits that primarily: (1) add planRanker method tracking to operation logging (profiler/slow query logs), (2) refactor hybrid search stages by removing internal hybrid search infrastructure in favor of view resolution at lite-parse time, (3) add WiredTiger extensions_strict configuration option and early-load extension validation, (4) update various BUILD.bazel dependencies related to express executors and single-document lookup, and (5) remove the s2n-tls@1.7.3 duplicate component from SBOM (keeping s2n-tls@v1.7.3).",
+      "auto_merged": {
+        "jstests/auth/lib/commands_lib.js": "Removes $_internalHybridSearch from the skippedAuthTestingAggStages list. This stage is no longer skipped for auth testing, reflecting the removal of the internal hybrid search infrastructure.",
+        "sbom.json": "Updates SBOM version from 7 to 8 and timestamp. Removes the duplicate s2n-tls@1.7.3 component entry (the v1.7.3 variant remains). Also removes s2n-tls@1.7.3 from the dependencies list and its dependency entry.",
+        "src/mongo/db/BUILD.bazel": "Refactors query execution dependencies: adds plan_ranker_method to curop deps; moves recordid_deduplicator.cpp, express_plan.cpp, plan_executor_express.cpp, plan_explainer_express.cpp, and update_util.cpp from srcs to deps (as separate libraries: recordid_deduplicator, express_executor, update_util).",
+        "src/mongo/db/curop_test.cpp": "Adds 'planRanker' to the list of expected optional metrics fields. Adds three new tests: PlanRankerMethodAppendedToProfilerOutput (verifies planRanker appears in profiler with values 'none', 'mp', 'cbr'), PlanRankerMethodInSlowQueryLogReport (same for slow query log), and PlanRankerMethodInProfileFilterAppendStaged (same for appendStaged used in profile filtering).",
+        "src/mongo/db/op_debug.cpp": "Adds getPlanRankerMethodName() helper that converts PlanRankerMethod enum to string ('none', 'mp', 'cbr'). Adds planRanker field to report() output (slow query log) and append() output (profiler). Adds planRanker to appendStaged() for profile filter evaluation.",
+        "src/mongo/db/pipeline/BUILD.bazel": "Removes document_source_internal_hybrid_search.cpp, lite_parsed_internal_hybrid_search.cpp, internal_hybrid_search_stage.cpp, and document_source_internal_hybrid_search_test.cpp. Adds dependencies for single-document lookup executors (collection_acquirer, express_single_document_lookup_executor, local_lookup_eligibility_factory), query_knobs, resolved_view, server_parameter_guard, and additional test dependencies.",
+        "src/mongo/db/storage/BUILD.bazel": "Adds replicated_fast_count_manager to storage_init deps. Adds new unit test target compute_oplog_truncation_bound_test with associated dependencies.",
+        "src/third_party/wiredtiger/src/conn/conn_api.c": "Adds __conn_check_early_load_extensions() function that validates early_load=true extensions recorded in base config were also passed to the open call. If extensions_strict is true, fails with EINVAL; otherwise logs a warning. Adds extensions_strict to the excluded config list in __conn_write_base_config(). Calls the new validation function during wiredtiger_open().",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in": "Adds documentation for new extensions_strict configuration option. Adds new statistic WT_STAT_CONN_BLOCK_CACHE_PUT_TIME_MAX (maximum time adding a page to disaggregated victim cache). Renumbers subsequent statistics (all stats from 1033 onward shift by +1)."
+      },
+      "review_notes": "Two files have conflicts requiring manual resolution: sbom.json (version number conflict - resolve per conflict hints by keeping Percona's serialNumber/version, removing metadata.tools if present, keeping Percona's supplier URL) and src/mongo/db/curop_test.cpp (the expected metrics list needs both Percona's 'rateLimit' and upstream's 'planRanker' entries). The wiredtiger.h.in diff is very large due to statistic renumbering - all connection statistics from 1033 onward were shifted by +1 to accommodate the new BLOCK_CACHE_PUT_TIME_MAX stat."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [
+            "I'll analyze the merge by examining the diffs for each auto-merged file using the provided diff base and merge commit."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [
+            "Now I have all the diff information needed. Let me write the JSON response file."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [
+            "Done. I've written the JSON response describing the merge to the specified file. The response includes:\n\n- **Summary**: Overview of ~50 upstream commits covering planRanker tracking, hybrid search refactoring, WiredTiger extensions_strict option, BUILD.bazel dependency changes, and SBOM cleanup\n- **Auto-merged files**: Detailed descriptions of changes to all 9 auto-merged files based on actual diff output\n- **Review notes**: Guidance on the two conflicting files (sbom.json and curop_test.cpp) that need manual resolution"
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20260623_125138_204078.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.186 (Claude Code)"
+    }
+  },
+  "note_index": [
+    {
+      "sha": "a5479397570e8f0b90800564def850deae5859d2",
+      "fields": [
+        "conflict_context",
+        "merge_context",
+        "solutions[0]",
+        "merge_description",
+        "squashed_commits"
+      ]
+    }
+  ],
+  "squashed_commits": [
+    {
+      "sha": "36ee0eca6487a856db34cd4c2398861265d611f4",
+      "message": "Merge commit '8b98a84d735' into master"
+    },
+    {
+      "sha": "914233e816d8dcfdb1d071a30f4f03fe0135a23a",
+      "message": "Resolve conflicts for merge commit '8b98a84d735' into master"
+    }
+  ]
+}
