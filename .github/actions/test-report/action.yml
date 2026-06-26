@@ -1,11 +1,15 @@
 name: "Test report (job summary)"
-description: "Render a pass/fail/flaky table from the Bazel build event log (BEP) into the GitHub job summary"
+description: "Render a pass/fail/flaky table from the Bazel build event log (BEP) and/or a resmoke report.json into the GitHub job summary"
 
 inputs:
   bep-glob:
-    description: "Glob for the BEP JSON file(s) written by --build_event_json_file"
+    description: "Glob for the BEP JSON file(s) written by --build_event_json_file. Set to '' to skip BEP (e.g. a resmoke-only report)."
     required: false
     default: "bazel-bep*.json"
+  resmoke-report:
+    description: "Glob for resmoke report.json file(s) from a LOCAL resmoke run (e.g. the dbtests job, which has no BEP). Merged with the BEP targets."
+    required: false
+    default: ""
   title:
     description: "Heading shown above the results table in the job summary"
     required: false
@@ -24,15 +28,22 @@ runs:
     # pure stdlib and always exits 0, so a report bug can never fail the test job.
     #
     # Reads the BEP (always written locally) rather than globbing test.xml, which
-    # under --remote_download_outputs=minimal stays in the remote cache.
+    # under --remote_download_outputs=minimal stays in the remote cache. The
+    # dbtests job runs resmoke locally (no BEP) and passes resmoke-report instead.
     - name: Write test summary
       shell: bash
       env:
         TEST_REPORT_TITLE: ${{ inputs.title }}
         TEST_REPORT_BEP_GLOB: ${{ inputs.bep-glob }}
+        TEST_REPORT_RESMOKE: ${{ inputs.resmoke-report }}
         TEST_REPORT_DETAILED: ${{ inputs.detailed == 'true' && '--detailed' || '' }}
       run: |
+        resmoke_arg=()
+        if [ -n "${TEST_REPORT_RESMOKE}" ]; then
+          resmoke_arg=(--resmoke-report "${TEST_REPORT_RESMOKE}")
+        fi
         python3 "${GITHUB_ACTION_PATH}/../../../buildscripts/github_test_summary.py" \
           "${TEST_REPORT_BEP_GLOB}" \
           --title "${TEST_REPORT_TITLE}" \
+          "${resmoke_arg[@]}" \
           ${TEST_REPORT_DETAILED}
