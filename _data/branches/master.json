@@ -5,14 +5,14 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 121,
+    "commits_behind": 134,
     "days_behind": 2,
-    "files_affected": 692,
-    "total_additions": 28577,
-    "total_deletions": 6648,
+    "files_affected": 1269,
+    "total_additions": 32251,
+    "total_deletions": 9892,
     "date_range": {
       "first": "2026-06-23T18:56:25+00:00",
-      "last": "2026-06-25T20:13:07+00:00"
+      "last": "2026-06-26T06:10:31+00:00"
     }
   },
   "last_merged_commit": {
@@ -36,6 +36,136 @@
     "summary": "SERVER-128112: Add timeseries collection test coverage for $_internalAssertDataAssumptions in agg_stage_coverage.js (#56355)"
   },
   "unmerged_commits": [
+    {
+      "sha": "44e67edc86dc9bc16e1802d7de8887d8d529e078",
+      "short_sha": "44e67edc86d",
+      "date": "2026-06-26T08:10:31+02:00",
+      "author": {
+        "name": "Allison Easton",
+        "email": "allison.easton@mongodb.com"
+      },
+      "summary": "SERVER-129481 Create shard handle resolver for use in the chunk manager (#56411)"
+    },
+    {
+      "sha": "b3746e454c5792c6b054e2ebfca44cae39339868",
+      "short_sha": "b3746e454c5",
+      "date": "2026-06-26T07:44:49+02:00",
+      "author": {
+        "name": "Allison Easton",
+        "email": "allison.easton@mongodb.com"
+      },
+      "summary": "SERVER-129486 Remove opCtx from invalidateRangePreserversOlderThanShardVersion (#56416)"
+    },
+    {
+      "sha": "fda4c303320ce20801295f52228136699640caf5",
+      "short_sha": "fda4c303320",
+      "date": "2026-06-25T21:26:51-07:00",
+      "author": {
+        "name": "Thomas Goyne",
+        "email": "thomas.goyne@mongodb.com"
+      },
+      "summary": "SERVER-129839: Create the index build resume table inside the correct WUOW (#56714)"
+    },
+    {
+      "sha": "322e4854ecfcf38a8007e2575dda0ee806568d63",
+      "short_sha": "322e4854ecf",
+      "date": "2026-06-26T10:11:56+10:00",
+      "author": {
+        "name": "wt-vendoring-bot[bot]",
+        "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "Import wiredtiger: 4d76b33b0455a0f844340b7ffdff9c37a519de25 from branch mongodb-master (#56770)"
+    },
+    {
+      "sha": "addb5d4fa93d9c7013d0a4b5c5d68e6a655ef42c",
+      "short_sha": "addb5d4fa93",
+      "date": "2026-06-25T16:08:10-07:00",
+      "author": {
+        "name": "Joseph Prince",
+        "email": "57415450+josephdprince@users.noreply.github.com"
+      },
+      "summary": "SERVER-129287 Add external rate limiting for otel tracing (#56659)"
+    },
+    {
+      "sha": "af6771b7033242695f6c8d37f9fb824d6a79d3d0",
+      "short_sha": "af6771b7033",
+      "date": "2026-06-25T19:06:07-04:00",
+      "author": {
+        "name": "Evan Bergeron",
+        "email": "evanbergeron@users.noreply.github.com"
+      },
+      "summary": "SERVER-129893 Migrate std::pair to RAII in vm_builtin_agg (#56750)"
+    },
+    {
+      "sha": "ca6539be815cf80be9239b8e11335bbbb6f44d2e",
+      "short_sha": "ca6539be815",
+      "date": "2026-06-25T15:53:27-07:00",
+      "author": {
+        "name": "Varun Ravichandran",
+        "email": "varun.ravichandran@mongodb.com"
+      },
+      "summary": "SERVER-129690 Disable FIPS tests on SUSE 16 (#56654)"
+    },
+    {
+      "sha": "03d534ef2d6f64e7f350c44ffab2ca636c612e32",
+      "short_sha": "03d534ef2d6",
+      "date": "2026-06-25T14:49:13-07:00",
+      "author": {
+        "name": "CALVIN NGUYEN",
+        "email": "calvin.nguyen@mongodb.com"
+      },
+      "summary": "SERVER-121610 Make emit() function error when cached and called outside of map stage and $_internalJsEmit  (#54476)"
+    },
+    {
+      "sha": "88a95b0edcaa4705c5a212a4210717f58731d067",
+      "short_sha": "88a95b0edca",
+      "date": "2026-06-25T17:35:08-04:00",
+      "author": {
+        "name": "Billy Donahue",
+        "email": "BillyDonahue@users.noreply.github.com"
+      },
+      "summary": "SERVER-32422 replace literals _sd -> sv and remove string_data.h (#56767)"
+    },
+    {
+      "sha": "415155face91da5ba27d5592acb6b91135e9801f",
+      "short_sha": "415155face9",
+      "date": "2026-06-25T17:31:59-04:00",
+      "author": {
+        "name": "Evan Bergeron",
+        "email": "evanbergeron@users.noreply.github.com"
+      },
+      "summary": "SERVER-129722 Replace ValueGuard with RAII types in vm_builtin_set.cpp; add ArraySet::push_back_clone(TagValueOwned) (#56620)"
+    },
+    {
+      "sha": "2d8b1e9dfe1f20785f82f1e09a3ad08066f7c473",
+      "short_sha": "2d8b1e9dfe1",
+      "date": "2026-06-25T17:00:10-04:00",
+      "author": {
+        "name": "Evan Bergeron",
+        "email": "evanbergeron@users.noreply.github.com"
+      },
+      "summary": "SERVER-129721 Replace ValueGuard with RAII types in vm_builtin_object.cpp; add Object::push_back_raw(pair) (#56619)"
+    },
+    {
+      "sha": "aae99a6225a79a44dd09cc0d033466ed82f112c5",
+      "short_sha": "aae99a6225a",
+      "date": "2026-06-25T16:50:02-04:00",
+      "author": {
+        "name": "Evan Bergeron",
+        "email": "evanbergeron@users.noreply.github.com"
+      },
+      "summary": "SERVER-129944 Missing ValueGuard for negDecVal in aggRemovableSumImpl (#56846)"
+    },
+    {
+      "sha": "5092c7207ee7899a1e65b274956ab4a1cf739bba",
+      "short_sha": "5092c7207ee",
+      "date": "2026-06-25T16:45:50-04:00",
+      "author": {
+        "name": "Evan Bergeron",
+        "email": "evanbergeron@users.noreply.github.com"
+      },
+      "summary": "SERVER-129894 Migrate std::pair to TagValueOwned in makeNewPcreRegex (#56745)"
+    },
     {
       "sha": "98bd68746af8da77fd08a8ff6737da809f43a534",
       "short_sha": "98bd68746af",
@@ -1444,10 +1574,56 @@
           "MODULE.bazel.lock"
         ]
       }
+    },
+    {
+      "commit": {
+        "sha": "88a95b0edcaa4705c5a212a4210717f58731d067",
+        "short_sha": "88a95b0edca",
+        "date": "2026-06-25T17:35:08-04:00",
+        "author": {
+          "name": "Billy Donahue",
+          "email": "BillyDonahue@users.noreply.github.com"
+        },
+        "summary": "SERVER-32422 replace literals _sd -> sv and remove string_data.h (#56767)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 449,
+          "num_of_lines": 3372,
+          "lines_added": 1702,
+          "lines_deleted": 1670,
+          "num_of_dirs": 111
+        }
+      }
+    },
+    {
+      "commit": {
+        "sha": "322e4854ecfcf38a8007e2575dda0ee806568d63",
+        "short_sha": "322e4854ecf",
+        "date": "2026-06-26T10:11:56+10:00",
+        "author": {
+          "name": "wt-vendoring-bot[bot]",
+          "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
+        },
+        "summary": "Import wiredtiger: 4d76b33b0455a0f844340b7ffdff9c37a519de25 from branch mongodb-master (#56770)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 162,
+          "num_of_lines": 2044,
+          "lines_added": 788,
+          "lines_deleted": 1256,
+          "num_of_dirs": 13
+        }
+      }
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-06-25 21:19:18",
+  "generated_at": "2026-06-26 07:17:16",
   "branch_name": "master",
   "display_name": "master"
 }
