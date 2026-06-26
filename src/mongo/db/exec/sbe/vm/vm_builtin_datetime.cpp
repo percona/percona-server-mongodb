@@ -268,9 +268,8 @@ value::TagValueMaybeOwned ByteCode::builtinDateToParts(ArityType arity) {
 
     // Get date parts.
     auto dateParts = timezone.dateParts(date);
-    auto [dateObjTag, dateObjVal] = value::makeNewObject();
-    value::ValueGuard guard{dateObjTag, dateObjVal};
-    auto dateObj = value::getObjectView(dateObjVal);
+    value::TagValueOwned result{value::makeNewObject()};
+    auto dateObj = value::getObjectView(result.value());
     dateObj->reserve(7);
     dateObj->push_back_raw("year", value::TypeTags::NumberInt32, dateParts.year);
     dateObj->push_back_raw("month", value::TypeTags::NumberInt32, dateParts.month);
@@ -279,8 +278,7 @@ value::TagValueMaybeOwned ByteCode::builtinDateToParts(ArityType arity) {
     dateObj->push_back_raw("minute", value::TypeTags::NumberInt32, dateParts.minute);
     dateObj->push_back_raw("second", value::TypeTags::NumberInt32, dateParts.second);
     dateObj->push_back_raw("millisecond", value::TypeTags::NumberInt32, dateParts.millisecond);
-    guard.reset();
-    return {true, dateObjTag, dateObjVal};
+    return std::move(result);
 }
 
 value::TagValueMaybeOwned ByteCode::builtinIsoDateToParts(ArityType arity) {
@@ -310,9 +308,8 @@ value::TagValueMaybeOwned ByteCode::builtinIsoDateToParts(ArityType arity) {
 
     // Get date parts.
     auto dateParts = timezone.dateIso8601Parts(date);
-    auto [dateObjTag, dateObjVal] = value::makeNewObject();
-    value::ValueGuard guard{dateObjTag, dateObjVal};
-    auto dateObj = value::getObjectView(dateObjVal);
+    value::TagValueOwned result{value::makeNewObject()};
+    auto dateObj = value::getObjectView(result.value());
     dateObj->reserve(7);
     dateObj->push_back_raw("isoWeekYear", value::TypeTags::NumberInt32, dateParts.year);
     dateObj->push_back_raw("isoWeek", value::TypeTags::NumberInt32, dateParts.weekOfYear);
@@ -321,8 +318,7 @@ value::TagValueMaybeOwned ByteCode::builtinIsoDateToParts(ArityType arity) {
     dateObj->push_back_raw("minute", value::TypeTags::NumberInt32, dateParts.minute);
     dateObj->push_back_raw("second", value::TypeTags::NumberInt32, dateParts.second);
     dateObj->push_back_raw("millisecond", value::TypeTags::NumberInt32, dateParts.millisecond);
-    guard.reset();
-    return {true, dateObjTag, dateObjVal};
+    return std::move(result);
 }
 
 value::TagValueMaybeOwned ByteCode::builtinDayOfYear(ArityType arity) {
@@ -850,18 +846,16 @@ struct DateTruncFunctor {
         _dateReferencePoint = defaultReferencePointForDateTrunc(timeZone, unit, startOfWeek);
     }
 
-    std::pair<value::TypeTags, value::Value> operator()(value::TypeTags tag,
-                                                        value::Value val) const {
+    value::TagValueOwned operator()(value::TypeTags tag, value::Value val) const {
         if (!coercibleToDate(tag)) {
-            return std::pair(value::TypeTags::Nothing, value::Value{0u});
+            return value::TagValueOwned::nothing();
         }
         auto date = getDate({tag, val});
 
         auto truncatedDate =
             truncateDate(date, _unit, _binSize, _dateReferencePoint, _timeZone, _startOfWeek);
 
-        return std::pair(value::TypeTags::Date,
-                         value::bitcastFrom<int64_t>(truncatedDate.toMillisSinceEpoch()));
+        return value::TagValueOwned::date(truncatedDate.toMillisSinceEpoch());
     }
 
     TimeUnit _unit;
@@ -882,17 +876,15 @@ struct DateTruncMillisFunctor {
             defaultReferencePointForDateTrunc(timeZone, unit, startOfWeek).dateMillis;
     }
 
-    std::pair<value::TypeTags, value::Value> operator()(value::TypeTags tag,
-                                                        value::Value val) const {
+    value::TagValueOwned operator()(value::TypeTags tag, value::Value val) const {
         if (!coercibleToDate(tag)) {
-            return std::pair(value::TypeTags::Nothing, value::Value{0u});
+            return value::TagValueOwned::nothing();
         }
         auto date = getDate({tag, val});
 
         auto truncatedDate = truncateDateMillis(date, _referencePointInMillis, _binSize);
 
-        return std::pair(value::TypeTags::Date,
-                         value::bitcastFrom<int64_t>(truncatedDate.toMillisSinceEpoch()));
+        return value::TagValueOwned::date(truncatedDate.toMillisSinceEpoch());
     }
 
     int64_t _binSize;
@@ -909,16 +901,15 @@ struct DateDiffFunctor {
           _timeZone(timeZone),
           _startOfWeek(startOfWeek) {}
 
-    std::pair<value::TypeTags, value::Value> operator()(value::TypeTags tag,
-                                                        value::Value val) const {
+    value::TagValueOwned operator()(value::TypeTags tag, value::Value val) const {
         if (!coercibleToDate(tag)) {
-            return std::pair(value::TypeTags::Nothing, value::Value{0u});
+            return value::TagValueOwned::nothing();
         }
         auto date = _timeZone.getTimelibTime(getDate({tag, val}));
 
         auto result = dateDiff(date.get(), _endDate.get(), _unit, _startOfWeek);
 
-        return std::pair(value::TypeTags::NumberInt64, value::bitcastFrom<int64_t>(result));
+        return value::TagValueOwned::numberInt64(result);
     }
 
     std::unique_ptr<_timelib_time, TimeZone::TimelibTimeDeleter> _endDate;
@@ -933,16 +924,15 @@ static const auto dateDiffOp =
 struct DateDiffMillisecondFunctor {
     DateDiffMillisecondFunctor(Date_t endDate) : _endDate(endDate) {}
 
-    std::pair<value::TypeTags, value::Value> operator()(value::TypeTags tag,
-                                                        value::Value val) const {
+    value::TagValueOwned operator()(value::TypeTags tag, value::Value val) const {
         if (!coercibleToDate(tag)) {
-            return std::pair(value::TypeTags::Nothing, value::Value{0u});
+            return value::TagValueOwned::nothing();
         }
         auto date = getDate({tag, val});
 
         auto result = dateDiffMillisecond(date, _endDate);
 
-        return std::pair(value::TypeTags::NumberInt64, value::bitcastFrom<int64_t>(result));
+        return value::TagValueOwned::numberInt64(result);
     }
 
     Date_t _endDate;
@@ -955,17 +945,15 @@ struct DateAddFunctor {
     DateAddFunctor(TimeUnit unit, int64_t amount, TimeZone timeZone)
         : _unit(unit), _amount(amount), _timeZone(timeZone) {}
 
-    std::pair<value::TypeTags, value::Value> operator()(value::TypeTags tag,
-                                                        value::Value val) const {
+    value::TagValueOwned operator()(value::TypeTags tag, value::Value val) const {
         if (!coercibleToDate(tag)) {
-            return std::pair(value::TypeTags::Nothing, value::Value{0u});
+            return value::TagValueOwned::nothing();
         }
         auto date = getDate({tag, val});
 
         auto res = dateAdd(date, _unit, _amount, _timeZone);
 
-        return std::pair(value::TypeTags::Date,
-                         value::bitcastFrom<int64_t>(res.toMillisSinceEpoch()));
+        return value::TagValueOwned::date(res.toMillisSinceEpoch());
     }
 
     TimeUnit _unit;
@@ -1125,7 +1113,8 @@ value::TagValueMaybeOwned ByteCode::builtinValueBlockDateAdd(ArityType arity) {
                 continue;
             }
 
-            auto [resTag, resVal] = dateAddFunc(extractedValues[i].tag, extractedValues[i].value);
+            auto res = dateAddFunc(extractedValues[i].tag, extractedValues[i].value);
+            auto [resTag, resVal] = res.releaseToRaw();
             tagsOut[i] = resTag;
             valuesOut[i] = resVal;
         }

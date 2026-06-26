@@ -537,7 +537,7 @@ void cleanupTask(const ShutdownTaskArgs& shutdownArgs) {
             SectionScopedTimer scopedTimer(serviceContext->getFastClockSource(),
                                            TimedSectionId::shutDownOtelTraces,
                                            &shutdownTimeElapsedBuilder);
-            otel::traces::shutdown(serviceContext);
+            otel::traces::shutdown();
         }
 
         // Shutdown Full-Time Data Capture
@@ -1161,7 +1161,7 @@ ExitCode mongos_main(int argc, char* argv[]) {
         quickExit(ExitCode::auditRotateError);
     }
 
-    uassertStatusOK(otel::traces::initialize(service, "mongos"));
+    uassertStatusOK(otel::traces::initialize("mongos"));
 
     registerShutdownTask(cleanupTask);
 
