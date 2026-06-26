@@ -468,6 +468,20 @@ jobs:
             --reportFile=dbtest-report.json \
             2>&1 | tee dbtest-logs/dbtest.log
 
+      # Render a pass/fail table into the job summary from resmoke's report.json.
+      # Same composite action as build/unittests/jstests, but a local resmoke run
+      # emits no Bazel BEP, so bep-glob is cleared and the resmoke report is fed
+      # via resmoke-report instead. if: always() so the summary is present on
+      # failure (the report.json is written even when suites fail).
+      - name: Report dbtest results
+        if: always()
+        uses: ./_trusted/.github/actions/test-report
+        with:
+          title: "🧪 dbtest results"
+          bep-glob: ""
+          resmoke-report: dbtest-report.json
+          detailed: "true"
+
       # On failure, upload the teed resmoke console log (rich per-test failure
       # output), the machine-readable resmoke report.json, and the build BEP.
       # This is the artifact `mergai ci fix` downloads for the build-and-test
