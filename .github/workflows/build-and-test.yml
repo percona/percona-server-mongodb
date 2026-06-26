@@ -9,12 +9,26 @@ name: build-and-test
 # whose required reviewers must approve every push.
 on:
   pull_request_target:
-    types: [opened, synchronize, reopened]
+    # Deliberately NOT triggered on labeled/unlabeled. The workflow is a single
+    # gated pipeline (gate -> build -> dbtests -> unittests -> jstests); whether
+    # jstests runs is decided from the PR's labels at run time by jstests_gate,
+    # so it does not need a label trigger. Listening to label events would also
+    # make every label a producer like mergai stamps on a PR (ci-skip-clang-tidy
+    # / ci-skip-format, meant for other workflows) spawn an extra run that skips
+    # the heavy jobs and shadows the real code run -- the regression that made
+    # build/unittests/dbtests show "skipped" on mergai PRs.
+    #
+    # ready_for_review runs the heavy jobs for a PR opened as a draft: they are
+    # gated on `draft == false` (see their `if:` below) so they skip while the
+    # PR is a draft and run once it is marked ready. Code events
+    # (opened/synchronize/reopened) run them directly on a non-draft PR.
+    types: [opened, synchronize, reopened, ready_for_review]
     branches:
       - master
       - "mergai/**"
 
-# Cancel in-flight jobs of this workflow when a new commit lands on the same PR.
+# One concurrency group per PR: a newer code event (push, reopen, ready) for the
+# same PR supersedes an older in-flight run (cancel-in-progress).
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
   cancel-in-progress: true
@@ -92,7 +106,8 @@ jobs:
   # environment authorizes the entire workflow run's downstream RBE
   # access, including the `unittests` job that doesn't run until ~30
   # minutes later. The maintainer reviewing the PR is implicitly
-  # approving every job that transitively depends on `gate`.
+  # approving every job that transitively depends on `gate`. Runs on every
+  # trigger; once approved the rest of the pipeline proceeds.
   gate:
     name: gate
     runs-on: ubuntu-24.04
@@ -107,6 +122,12 @@ jobs:
   build:
     name: build
     needs: gate
+    # Runs after gate approval on every non-draft trigger. Skipped while the PR
+    # is a DRAFT (draft == false guard) so a draft gets no heavy CI; marking it
+    # ready fires `ready_for_review` (draft == false) and build runs then.
+    # unittests and dbtests chain off `needs.build.result == 'success'`, so they
+    # inherit the draft skip automatically; jstests carries its own draft guard.
+    if: ${{ github.event.pull_request.draft == false }}
     # Pinned to ubuntu-24.04 (not ubuntu-latest) because this workflow
     # depends on runner specifics that change silently when GH rolls the
     # alias forward: the /mnt ephemeral-disk layout assumed by
@@ -215,7 +236,7 @@ jobs:
     # !cancelled() so unittests still runs when dbtests FAILED (a failed need
     # would otherwise skip it). Gated on build success: build runs only after
     # the gate approval, so build.result == 'success' implies rbe-external was
-    # approved.
+    # approved (and the PR was not a draft).
     if: >-
       ${{ !cancelled()
       && needs.build.result == 'success' }}
@@ -353,11 +374,9 @@ jobs:
   # unittests/jstests order AFTER dbtests (via needs) so the RBE-heavy jobs run
   # one at a time -- build -> dbtests -> unittests -> jstests -- but each gates
   # on BUILD success, not on the previous test job, so a failure in one does not
-  # block the others: all three test jobs run whenever build passed. Unlike
-  # jstests it is NOT gated on labels/a variable: dbtest is a deterministic C++
-  # suite, so it always runs. `needs.gate.result == 'success'` preserves the
-  # rbe-external approval gate (it carries the same secrets via the `rbe`
-  # environment).
+  # block the others: all three test jobs run whenever build passed.
+  # `needs.gate.result == 'success'` preserves the rbe-external approval gate
+  # (it carries the same secrets via the `rbe` environment).
   dbtests:
     name: dbtests
     needs: [gate, build]
@@ -500,15 +519,16 @@ jobs:
           if-no-files-found: warn
 
   # Decides whether the jstests job runs, from PR labels and a repo/org
-  # variable. Runs on a plain runner with no `environment:` so it never triggers
-  # an RBE approval prompt. Labels are read fresh via `gh api` (not
-  # github.event.*.labels) so the decision reflects the current label set even
-  # on a re-run -- same freshness trick as format.yml / clang-tidy.yml.
+  # variable. Labels are read fresh via `gh api` (not github.event.*.labels) so
+  # the decision reflects the current label set -- same freshness trick as
+  # format.yml / clang-tidy.yml.
   #
   # `needs: unittests` (with `if: !cancelled()` so it still runs when unittests
-  # is skipped or failed) makes this resolve LATE -- after the build -- so a
-  # ci-skip-jstests / ci-run-jstests label applied while the build was running
-  # takes effect on the same run instead of only the next push.
+  # is skipped or failed) makes this resolve LATE -- after build/unittests --
+  # so it reads a ci-skip-jstests / ci-run-jstests label applied *while the
+  # build was running* and that label takes effect on the same run. (The
+  # workflow is not triggered by label changes, so toggling a label after the
+  # run finishes only takes effect on the next push.)
   #
   # Precedence: ci-skip-jstests > ci-run-jstests > vars.RUN_JSTESTS (default run).
   #   - ci-skip-jstests label : force skip.
@@ -558,13 +578,13 @@ jobs:
   # Gated on jstests_gate: skipped when ci-skip-jstests is set, or when
   # vars.RUN_JSTESTS=false and ci-run-jstests is absent.
   #
-  # The `if` uses !cancelled() + explicit result checks (not a bare `needs`)
-  # because jstests must still run after a unittest failure. `needs.gate.result
-  # == 'success'` keeps the security gate: jstests only runs after the
-  # rbe-external approval. `needs.build.result == 'success'` means a failed
-  # build (-> all test jobs skipped) still blocks jstests rather than slipping
-  # through on a 'skipped' result, while a unittest failure (build still
-  # 'success') does not.
+  # The `if` uses !cancelled() + explicit result checks (not a bare `needs`) so
+  # jstests still runs after a unittest failure. `needs.gate.result ==
+  # 'success'` keeps the security gate (jstests only runs after the rbe-external
+  # approval), and `needs.build.result == 'success'` means a failed build
+  # (-> all test jobs skipped) still blocks jstests rather than slipping through
+  # on a 'skipped' result, while a unittest failure (build still 'success')
+  # does not.
   #
   # All jstest-running config lives in `--config=psmdb_remote_jstest`
   # (.bazelrc.psmdb): the remote test-execution strategies inherited from
@@ -587,11 +607,14 @@ jobs:
     # success, so a unittest failure does not block jstests -- both run whenever
     # build passed. `build` is in needs so the `if` can read needs.build.result.
     needs: [gate, build, unittests, jstests_gate]
+    # `draft == false` so jstests never runs on a draft (it runs once the PR is
+    # marked ready). `build` is in needs so the `if` can read needs.build.result.
     if: >-
       ${{ !cancelled()
       && needs.gate.result == 'success'
       && needs.jstests_gate.result == 'success'
       && needs.jstests_gate.outputs.should_run == 'true'
+      && github.event.pull_request.draft == false
       && needs.build.result == 'success' }}
     # See `build.runs-on` above for why this is pinned, not `ubuntu-latest`.
     runs-on: ubuntu-24.04
