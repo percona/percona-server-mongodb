@@ -593,14 +593,23 @@ workflows:
       # Default: <workflow name> (here: clang-tidy)
       # code_scanning_tool_name: clang-tidy
 
-  # `build-and-test` covers the three jobs in `.github/workflows/build-and-test.yml`:
-  # the `build`, `unittests`, and `jstests` jobs.
+  # `build-and-test` covers the jobs in `.github/workflows/build-and-test.yml`:
+  # `build`, `unittests`, `dbtests`, and `jstests`.
   # Mergai's workflow_run trigger fires once for the whole workflow, so a single
-  # entry covers all three jobs; the BEP context builder decides what to feed the
+  # entry covers all the jobs; the BEP context builder decides what to feed the
   # agent based on which artifact is present in the failing run.
   #
-  # The jobs run sequentially (build -> unittests -> jstests), so at most one
-  # failure artifact is present per run: a failing job blocks the ones after it.
+  # build -> dbtests -> unittests -> jstests run sequentially on RBE, but each
+  # test job is gated only on build success (not on the preceding test job), so
+  # one test failure doesn't block the later test jobs. More than one failure
+  # artifact can therefore be present in a run; the context builder picks up
+  # whichever artifact(s) are present.
+  #
+  # NOTE: dbtests runs resmoke LOCALLY (the dbtest binary has no Bazel test
+  # target), so its `dbtest-failure-logs` artifact carries the teed resmoke
+  # console log + report.json rather than a Bazel BEP. The other artifacts carry
+  # bazel-bep*.json. If the bazel context builder needs a BEP to extract the
+  # failure, the dbtest console log is the fallback the agent reads.
   #
   # Capped at 2 attempts: like clang-tidy, build/test fixes need human-grade
   # judgement and shouldn't loop indefinitely on flakes or environmental
@@ -621,12 +630,14 @@ workflows:
       # The build job uploads `build-failure-artifacts` (bazel-bep.json);
       # the unittests job uploads `unittest-failure-artifacts` (bazel-bep.json
       # plus bazel-testlogs/ with per-target test.log and JUnit test.xml);
+      # the dbtests job uploads `dbtest-failure-logs` (the teed resmoke console
+      # log, resmoke's report.json, and the build bazel-bep.json);
       # the jstests job uploads `jstest-failure-logs` (one bazel-bep*.json per
       # resmoke invocation -- bazel-bep.json for the reliable batch plus
       # bazel-bep-<suite>.json per load-sensitive suite -- the teed console
-      # logs, and a testlogs/ tree of per-target test.log/test.xml). Only one
-      # is present per failing run (each job is gated on the previous one).
+      # logs, and a testlogs/ tree of per-target test.log/test.xml).
       artifact_name:
         - build-failure-artifacts
         - unittest-failure-artifacts
+        - dbtest-failure-logs
         - jstest-failure-logs
