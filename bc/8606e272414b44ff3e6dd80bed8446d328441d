@@ -1,0 +1,215 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "8e45c589aeb39514662ae3135b8087b9d16b17c1",
+    "merge_commit": "dba3c8d92c4767b3f630600ee7644013deb17390"
+  },
+  "mergai_version": "0.1.dev1+gd55e62a14",
+  "merge_context": {
+    "merge_commit": "dba3c8d92c4767b3f630600ee7644013deb17390",
+    "merged_commits": [
+      "dba3c8d92c4767b3f630600ee7644013deb17390",
+      "13330a740b3a529eebedb6368e0e42646ae5ffcf",
+      "ff427ad14f8b40a71e7869f60df96252124c1e05",
+      "54597b0e6486e336071515c656bf8222697d9e03",
+      "ff65cb12ae534c5cd4dd158ece600e6a4c48116e",
+      "3bb819d348f22591cec6bfb38a6e61467150c598",
+      "aa74f951890ec0214bd13a968f1251b747847869",
+      "11c4e4460ac4c6c3b5ef41a68f5c4d45eff656bc",
+      "087114400cc050c1c29877f0df2693c594ba2695",
+      "0e6d3ceaa2ed3df4a0efc75212b48942f0c0cb81",
+      "1343bf6b0c7ba1baff36818c4f8cf1d7be6bb362",
+      "72ae0f6690f12e4a37f60b09c43e2f656d7c6a8d",
+      "a6a7448f26619ffc9e7141b779609a4640b71a06",
+      "a696747d5a4a0baaebe12b31337e0bd60bac06e3",
+      "b372737adc78bae7238d61a57d9b0f686a643050",
+      "cbef8f5a5f15e15d71b4381a12de05db448d447b",
+      "f366dda64e158c09134019cb41a6ee2557eb1ef4",
+      "057674782a896e3ecb0dfe8b2c37b165a0b67161",
+      "5d491b8d1b016c7874ee4ef65edff56db15dfe4a",
+      "35b3a9b71063e8d04f793562de9432438ce59cb2",
+      "c05cda775e4df938d79fab83e9ad3ef23e20a0c0",
+      "5b5c5ad7cd8320907be1acf412bf983bb75e5b43",
+      "1a1f3448133c0fb1998295c808aa98099b72ca79",
+      "9e77624a147ff4a6107eb2779a732e16dc646ed7",
+      "24a617aa8ea334aed9c1cf3d0c491cddd9ec8a59",
+      "993b2e4a9ec7e8ffa2b6c5f7b768839d967f7346",
+      "e2c55d009ed23118f0e3e1e0d0ed8cf3097a97de",
+      "44c3e47f848373c7c1de1f9518a82fd7f0ded659",
+      "9ab8d42864217b0dd8a7ddb5e18226d6b5ed9e7e",
+      "d3d3d2b3deeb7d0676158b29b801533aedf58b47",
+      "3cee9dfcb53e8348be48d31f8502d210386c86c1",
+      "a88d9fa42d2cd2e33bf2a7b6525a4acd0d28304d",
+      "3140353f2b9618fedbc4d1fbbada8de061919ecc",
+      "0a89d0d206937cdb4fe075df1f3e35b06cbcf719",
+      "6f6bd95cbb97e7aabc2adec6431f76a945baf36f",
+      "d69342178d08a4446e5268c30f69b7430f5d6559",
+      "115be6e1151e26827b3253adeacc5a1e87573331",
+      "61933b81045de0f0dffdc86eaafd83df4ad0dc4c",
+      "d6f9fe0d790e2cf021cb8a4f22bd6bb35657ea03",
+      "d9cc429194c8dda846fd6724d5649ede46d5d65c",
+      "f0dc4dd5d57319660cb91b492628702c426aa730",
+      "10ed36bf83a387c71396f3e706a0ff63e68af30f",
+      "ecd8d539c0ae89232ef2590e538faf246c48f6c0",
+      "2d7bcc4a091463eccd96bfeb97b8610636230feb",
+      "1e389c5933a48d6b3a383aee2e14672ade171a76",
+      "6d92622f3c7ff98c254133a6b3723c578217e78d",
+      "4c812821adb004d0df6934bdf25c7d2cbc043027",
+      "581f048d502d43639ccb8c274131cf61a90b2f28",
+      "c9beee38b7d6f4c9712fdf9feea865b10f14e119",
+      "888aca8c1e58999cf7d94ba0c680977600d77515",
+      "ba9522bbafc7c1c7250ca6f4c6a8f1b611b3ccb7",
+      "c1c9fee53db9b5208f4c58464aa543eebdd679ca"
+    ],
+    "important_files_modified": [],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        "bazel/config/BUILD.bazel",
+        "buildscripts/resmokelib/configure_resmoke.py",
+        "jstests/auth/lib/commands_lib.js",
+        "src/mongo/config.h.in",
+        "src/mongo/db/curop_test.cpp",
+        "src/mongo/db/mongod_main.cpp",
+        "src/mongo/db/op_debug.cpp",
+        "src/mongo/db/pipeline/BUILD.bazel",
+        "src/mongo/db/startup_recovery.cpp",
+        "src/mongo/mongo_config_header.py",
+        "src/mongo/s/mongos_main.cpp",
+        "src/mongo/transport/BUILD.bazel",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in"
+      ]
+    }
+  },
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 56307,
+    "num_turns": 5,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.36856525,
+    "modelUsage": {
+      "claude-haiku-4-5-20251001": {
+        "inputTokens": 587,
+        "outputTokens": 14,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0,
+        "webSearchRequests": 0,
+        "costUSD": 0.0006569999999999999,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000
+      },
+      "claude-opus-4-8": {
+        "inputTokens": 7835,
+        "outputTokens": 3871,
+        "cacheReadInputTokens": 131679,
+        "cacheCreationInputTokens": 26579,
+        "webSearchRequests": 0,
+        "costUSD": 0.36790825,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-haiku-4-5-20251001": {
+          "tokens": {
+            "input": 587,
+            "output": 14,
+            "cache_read": 0,
+            "cache_creation": 0
+          },
+          "cost_usd": 0.0006569999999999999
+        },
+        "claude-opus-4-8": {
+          "tokens": {
+            "input": 7835,
+            "output": 3871,
+            "cache_read": 131679,
+            "cache_creation": 26579
+          },
+          "cost_usd": 0.36790825
+        }
+      }
+    },
+    "text_result": "I've read the merge prompt, inspected the actual `diff base \u2192 merge commit` diffs for every file in the changeset, and written the JSON response.\n\nSummary of what this merge pulls in from upstream:\n\n- **Query-stats metrics** (`op_debug.cpp`, `curop_test.cpp`): adds `keysInserted`/`keysDeleted` to cursor-metric aggregation; `aggregateCursorMetrics` rewritten to use designated initializers.\n- **$_internalHybridSearch** (`pipeline/BUILD.bazel`, `commands_lib.js`): new aggregation stage sources/tests added; stage skipped in auth testing.\n- **TLS connection handoff** (`bazel/config/BUILD.bazel`, `config.h.in`, `mongo_config_header.py`, `transport/BUILD.bazel`): new `build_connection_handoff_enabled` config group, `MONGO_CONFIG_CONNECTION_HANDOFF`, and conditional handoff deps.\n- **otel::traces API** (`mongod_main.cpp`, `mongos_main.cpp`): `initialize`/`shutdown` drop the serviceContext argument.\n- **Offline validation** (`startup_recovery.cpp`): opens all DBs before validating; uses `std::invoke` to build the DB list.\n- **resmoke TSS** (`configure_resmoke.py`): pulls test-selection enablement from Evergreen project config on patch builds.\n- **WiredTiger header**: regenerated after a new `DISAGG_BLOCK_PLH_PUT_FAILED` stat shifted all subsequent stat IDs by +1.\n\nAll files merged cleanly with no conflict markers. The response is written to the specified path.",
+    "response": {
+      "summary": "Merges an upstream MongoDB batch that (1) adds keysInserted/keysDeleted to query-stats cursor metrics aggregation, (2) introduces the new $_internalHybridSearch aggregation stage to the pipeline build, (3) adds build/config plumbing for an optional TLS connection-handoff feature, (4) drops the serviceContext argument from the otel::traces initialize/shutdown API, (5) reworks the offline validation startup path to open all databases before validating, (6) lets resmoke pull its test-selection (TSS) enablement from the Evergreen project config, and (7) regenerates the bundled WiredTiger header after a new disaggregated-storage statistic was inserted. All files merged cleanly without conflicts.",
+      "auto_merged": {
+        "bazel/config/BUILD.bazel": "Adds a new config_setting_group named 'build_connection_handoff_enabled' that matches linux_aarch64 or linux_x86_64, used to gate the TLS connection-handoff implementation in the transport layer.",
+        "buildscripts/resmokelib/configure_resmoke.py": "Adds a new _apply_evergreen_tss_project_config() step (called from validate_and_update_config) that, on Evergreen patch builds and only when ENABLE_EVERGREEN_API_TEST_SELECTION was not explicitly set, queries the Evergreen API for the project's 'test_selection' config and sets ENABLE_EVERGREEN_API_TEST_SELECTION from its 'allowed' field, logging a warning on failure. Adds imports for logging and evergreen_conn.",
+        "jstests/auth/lib/commands_lib.js": "Adds '$_internalHybridSearch' to the skippedAuthTestingAggStages list, with a comment pointing to internal_hybrid_search_rejected_in_user_request.js for coverage.",
+        "src/mongo/config.h.in": "Adds a new @mongo_config_connection_handoff@ substitution placeholder (MONGO_CONFIG_CONNECTION_HANDOFF) documented as enabling TLS connection handoff support.",
+        "src/mongo/db/curop_test.cpp": "Extends the AdditiveMetricsShouldAggregateCursorMetrics test to set keysInserted/keysDeleted on both AdditiveMetrics and CursorMetrics inputs and assert their aggregated sums (keysInserted=7, keysDeleted=3).",
+        "src/mongo/db/mongod_main.cpp": "Updates calls to the otel::traces API to its new signature: otel::traces::shutdown() and otel::traces::initialize(\"mongod\") no longer take the serviceContext/service argument.",
+        "src/mongo/db/op_debug.cpp": "In getCursorMetrics, sets keysInserted/keysDeleted on the returned CursorMetrics; in aggregateDataBearingNodeMetrics, accumulates keysInserted/keysDeleted; and rewrites aggregateCursorMetrics to construct DataBearingNodeMetrics using designated initializers, now including the new keysInserted and keysDeleted fields.",
+        "src/mongo/db/pipeline/BUILD.bazel": "Adds the new $_internalHybridSearch stage sources to the pipeline build: document_source_internal_hybrid_search.cpp, lite_parsed_internal_hybrid_search.cpp, the exec stage internal_hybrid_search_stage.cpp, and the unit test document_source_internal_hybrid_search_test.cpp, plus a new test dependency on //src/mongo/db/memory_tracking.",
+        "src/mongo/db/startup_recovery.cpp": "Refactors offline validation: offlineValidateDb no longer opens the database itself. offlineValidate now computes the list of database names (all DBs, or the single gValidateDbName) via std::invoke, opens each via DatabaseHolder, then validates each, aggregating completeness/validity. Adds <functional> include.",
+        "src/mongo/mongo_config_header.py": "Registers the new (@mongo_config_connection_handoff@, MONGO_CONFIG_CONNECTION_HANDOFF) substitution in get_config_header_substs().",
+        "src/mongo/s/mongos_main.cpp": "Updates the otel::traces calls to the new signature: otel::traces::shutdown() and otel::traces::initialize(\"mongos\") drop the serviceContext/service argument.",
+        "src/mongo/transport/BUILD.bazel": "Wires up the optional TLS connection-handoff feature in transport_layer_manager and the service-entry-point libraries: unconditionally adds the generated handoff_feature_flag_gen target to srcs (so Windows can accept/ignore featureFlagTLSConnectionHandoff) and conditionally adds handoff_session_manager/handoff_transport_layer deps via select on build_connection_handoff_enabled.",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in": "Regenerated WiredTiger header. A new connection statistic WT_STAT_CONN_DISAGG_BLOCK_PLH_PUT_FAILED is added (id 1060), which renumbers all subsequent WT_STAT_CONN_* / WT_STAT_* constant IDs by +1."
+      },
+      "review_notes": "All listed files were verified against the diff base -> merge commit diff; none contained conflict markers. The op_debug.cpp / curop_test.cpp / config.h.in / mongo_config_header.py changes are cohesive feature additions and consistent. The wiredtiger.h.in change is a mechanical regeneration (one new stat shifting numeric IDs); confirm any code referencing raw WT stat numeric values is also regenerated, but the header itself is consistent. The otel::traces signature change touches both mongod_main.cpp and mongos_main.cpp consistently; ensure the otel traces library header was correspondingly updated upstream so these call sites compile."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I have enough to describe all files. Let me write the response."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I've read the merge prompt, inspected the actual `diff base \u2192 merge commit` diffs for every file in the changeset, and written the JSON response.\n\nSummary of what this merge pulls in from upstream:\n\n- **Query-stats metrics** (`op_debug.cpp`, `curop_test.cpp`): adds `keysInserted`/`keysDeleted` to cursor-metric aggregation; `aggregateCursorMetrics` rewritten to use designated initializers.\n- **$_internalHybridSearch** (`pipeline/BUILD.bazel`, `commands_lib.js`): new aggregation stage sources/tests added; stage skipped in auth testing.\n- **TLS connection handoff** (`bazel/config/BUILD.bazel`, `config.h.in`, `mongo_config_header.py`, `transport/BUILD.bazel`): new `build_connection_handoff_enabled` config group, `MONGO_CONFIG_CONNECTION_HANDOFF`, and conditional handoff deps.\n- **otel::traces API** (`mongod_main.cpp`, `mongos_main.cpp`): `initialize`/`shutdown` drop the serviceContext argument.\n- **Offline validation** (`startup_recovery.cpp`): opens all DBs before validating; uses `std::invoke` to build the DB list.\n- **resmoke TSS** (`configure_resmoke.py`): pulls test-selection enablement from Evergreen project config on patch builds.\n- **WiredTiger header**: regenerated after a new `DISAGG_BLOCK_PLH_PUT_FAILED` stat shifted all subsequent stat IDs by +1.\n\nAll files merged cleanly with no conflict markers. The response is written to the specified path."
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20260626_185255_001276.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.193 (Claude Code)"
+    }
+  }
+}
