@@ -51,12 +51,12 @@ env:
   # path to _trusted/ keeps the entire import chain on the trusted copy.
   RBE_CREDENTIAL_HELPER: bb-psmdb.ddns.net=%workspace%/_trusted/bazel/wrapper_hook/credential_helper.py
 
-# Three jobs: gate, build, unittests. `gate` is a no-op whose only purpose
-# is to host the protected `rbe-external` environment so a single
-# maintainer approval authorizes the entire workflow run. `build` and
-# `unittests` depend on `gate` (transitively) and use the unattended `rbe`
-# environment — same secrets, no approval prompt — so the maintainer
-# isn't re-prompted between jobs.
+# Jobs: gate, build, unittests, dbtests, jstests (plus the jstests_gate
+# decider). `gate` is a no-op whose only purpose is to host the protected
+# `rbe-external` environment so a single maintainer approval authorizes the
+# entire workflow run. The test jobs depend on `gate` (transitively) and use
+# the unattended `rbe` environment — same secrets, no approval prompt — so the
+# maintainer isn't re-prompted between jobs.
 #
 # Build and unittests deliberately run on separate runners with separate
 # Bazel servers, so neither shares local state — both pay the action-graph
@@ -161,7 +161,7 @@ jobs:
       - name: Setup environment
         uses: ./_trusted/.github/actions/setup-env
 
-      - name: Build //:install-devcore //:install-dbtest via RBE
+      - name: Build //:install-devcore via RBE
         run: |
           # --host_jvm_args raises the Bazel server's max heap. The default
           # is too small for PSMDB's action graph on a 16 GB GH-hosted
@@ -189,7 +189,7 @@ jobs:
             --keep_going \
             --remote_download_outputs=toplevel \
             --build_event_json_file=bazel-bep.json \
-            //:install-devcore //:install-dbtest
+            //:install-devcore
 
       # Upload BEP on failure so consumers can fetch it via the
       # GH artifacts API and parse the failure deterministically (BEP is
@@ -206,7 +206,19 @@ jobs:
 
   unittests:
     name: unittests
-    needs: build
+    # `needs: [build, dbtests]` -- dbtests is for ORDERING only (unittests waits
+    # for it so the RBE-heavy jobs run one at a time: build -> dbtests ->
+    # unittests -> jstests). The `if` below gates on build success, NOT dbtests
+    # success, so a dbtest failure does not block unittests; the two are
+    # independent test jobs that both run whenever build passed.
+    needs: [build, dbtests]
+    # !cancelled() so unittests still runs when dbtests FAILED (a failed need
+    # would otherwise skip it). Gated on build success: build runs only after
+    # the gate approval, so build.result == 'success' implies rbe-external was
+    # approved.
+    if: >-
+      ${{ !cancelled()
+      && needs.build.result == 'success' }}
     # See `build.runs-on` above for why this is pinned, not `ubuntu-latest`.
     runs-on: ubuntu-24.04
     # Same unattended `rbe` environment as `build` — see `build.environment`
@@ -326,6 +338,153 @@ jobs:
           retention-days: 14
           if-no-files-found: ignore
 
+  # Builds the dbtest binary on RBE and runs the resmoke `dbtest` suite LOCALLY
+  # on the runner. dbtest is a single monolithic mongo_cc_binary
+  # (//src/mongo/dbtests:dbtest, tagged "dbtest") with NO Bazel test target, so
+  # -- unlike the jstests job, which runs each suite ON the remote executors --
+  # the binary is built remotely (a cache hit for most objects, since the build
+  # job compiled the same tree) and then driven by resmoke here. resmoke's
+  # db_test kind enumerates the sub-suites from `dbtest --list` and runs the
+  # binary per suite. The local `run_dbtest.sh` helper performs the same two
+  # steps. dbtest is built HERE (not in the build job) so build only fetches
+  # install-devcore.
+  #
+  # `needs: [gate, build]` so it runs after build and BEFORE unittests:
+  # unittests/jstests order AFTER dbtests (via needs) so the RBE-heavy jobs run
+  # one at a time -- build -> dbtests -> unittests -> jstests -- but each gates
+  # on BUILD success, not on the previous test job, so a failure in one does not
+  # block the others: all three test jobs run whenever build passed. Unlike
+  # jstests it is NOT gated on labels/a variable: dbtest is a deterministic C++
+  # suite, so it always runs. `needs.gate.result == 'success'` preserves the
+  # rbe-external approval gate (it carries the same secrets via the `rbe`
+  # environment).
+  dbtests:
+    name: dbtests
+    needs: [gate, build]
+    if: >-
+      ${{ !cancelled()
+      && needs.gate.result == 'success'
+      && needs.build.result == 'success' }}
+    # See `build.runs-on` above for why this is pinned, not `ubuntu-latest`.
+    runs-on: ubuntu-24.04
+    # Same unattended `rbe` environment as `build` / `unittests`.
+    environment: rbe
+    # See `build.env` above for why this is at job level, not workflow level.
+    env:
+      PSMDB_RBE_GHA_AUDIENCE: ${{ secrets.PSMDB_RBE_GHA_AUDIENCE }}
+      PSMDB_RBE_OIDC_ISSUER: ${{ secrets.PSMDB_RBE_OIDC_ISSUER }}
+    steps:
+      - name: Checkout PR head
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      # See the matching step in `build` for the rationale behind loading
+      # composite actions from a trusted base checkout under `_trusted/`.
+      - name: Checkout base (trusted) for composite actions
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.base_ref }}
+          path: _trusted
+          fetch-depth: 1
+
+      - name: Fetch tags
+        uses: ./_trusted/.github/actions/fetch-tags
+
+      - name: Free disk space and redirect Bazel to /mnt
+        uses: ./_trusted/.github/actions/free-disk-space
+
+      - name: Setup environment
+        uses: ./_trusted/.github/actions/setup-env
+
+      # Build just the dbtest install target on RBE. Mirrors the build job's
+      # invocation (same --host_jvm_args / --output_user_root rationale;
+      # GIT_COMMIT_HASH injected so the binary advertises the real version, as
+      # in build).
+      #
+      # Unlike the build job, dbtests does NOT pass
+      # --remote_download_outputs=toplevel: it must RUN the binary locally, so
+      # the whole install tree -- bazel-bin/install-dbtest/{bin/dbtest,lib/*.so}
+      # -- and everything those entries resolve to has to be materialized on the
+      # runner. The build job overrides the .bazelrc default to `toplevel` purely
+      # for download efficiency because it never executes what it builds; here we
+      # fall back to that .bazelrc default (--remote_download_outputs=all) so the
+      # install tree and the binary/.so outputs it points at are all present.
+      # (toplevel left the install symlinks' targets unmaterialized, so resmoke
+      # failed with "File not found: bazel-bin/install-dbtest/bin/dbtest".)
+      - name: Build //:install-dbtest via RBE
+        run: |
+          bazel \
+            --output_user_root=/mnt/bazel \
+            --host_jvm_args=-Xmx12g \
+            build \
+            --config=psmdb_buildfarm \
+            --remote_executor=$RBE_REMOTE_EXECUTOR \
+            --remote_cache=$RBE_REMOTE_CACHE \
+            --bes_backend=$RBE_BES_BACKEND \
+            --bes_results_url=$RBE_BES_RESULTS_URL \
+            --credential_helper=$RBE_CREDENTIAL_HELPER \
+            --define=GIT_COMMIT_HASH=$(git rev-parse HEAD) \
+            --jobs=300 \
+            --keep_going \
+            --build_event_json_file=bazel-bep.json \
+            //:install-dbtest
+
+      # Run the resmoke dbtest suite locally against the freshly built binary.
+      # resmoke runs via the poetry venv set up by setup-env. The suite selector
+      # is empty; resmoke enumerates sub-suites from `dbtest --list`. One resmoke
+      # job per CPU. Tee the console to a file (pipefail so resmoke's exit, not
+      # tee's, decides the step result) for the failure-artifact upload.
+      - name: Run dbtest suite (local)
+        run: |
+          mkdir -p dbtest-logs
+          set -o pipefail
+          # Locate the built dbtest binary. The `bazel-bin/...` convenience-symlink
+          # path is unreliable here (the build ran with --output_user_root=/mnt/
+          # bazel and the symlink/config dir did not resolve to the install tree),
+          # so find the real install output under the Bazel output base and hand
+          # resmoke its absolute path. The binary links its libs via rpath
+          # $ORIGIN/../lib, and the install tree keeps lib/ a sibling of bin/, so
+          # an absolute bin/dbtest path still resolves the .so files.
+          echo "::group::locate dbtest binary"
+          echo "workspace=$(pwd)"
+          echo "bazel-bin -> $(readlink bazel-bin 2>/dev/null || echo MISSING)"
+          DBTEST="$(find -L /mnt/bazel -maxdepth 14 -type f -path '*/install-dbtest/bin/dbtest' 2>/dev/null | head -1)"
+          if [ -z "$DBTEST" ]; then
+            DBTEST="$(find -L "$PWD" -maxdepth 8 -type f -path '*/install-dbtest/bin/dbtest' 2>/dev/null | head -1)"
+          fi
+          echo "resolved dbtest=${DBTEST:-NOT FOUND}"
+          [ -n "$DBTEST" ] && ls -la "$(dirname "$DBTEST")" || true
+          echo "::endgroup::"
+          if [ -z "$DBTEST" ]; then
+            echo "ERROR: dbtest binary not found under the Bazel output base after build" >&2
+            exit 1
+          fi
+          poetry run python buildscripts/resmoke.py run \
+            --suites=dbtest \
+            --dbtest="$DBTEST" \
+            --jobs="$(nproc)" \
+            --reportFile=dbtest-report.json \
+            2>&1 | tee dbtest-logs/dbtest.log
+
+      # On failure, upload the teed resmoke console log (rich per-test failure
+      # output), the machine-readable resmoke report.json, and the build BEP.
+      # This is the artifact `mergai ci fix` downloads for the build-and-test
+      # workflow (see .mergai/config.yml). mongod/dbtest core dumps are not
+      # collected.
+      - name: Upload dbtest failure logs
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: dbtest-failure-logs
+          path: |
+            dbtest-logs/
+            dbtest-report.json
+            bazel-bep.json
+          retention-days: 14
+          if-no-files-found: warn
+
   # Decides whether the jstests job runs, from PR labels and a repo/org
   # variable. Runs on a plain runner with no `environment:` so it never triggers
   # an RBE approval prompt. Labels are read fresh via `gh api` (not
@@ -375,13 +534,23 @@ jobs:
   # Runs the Percona resmoke jstest suites on RBE. Separate runner / GH check
   # from build+unittests (see the build-vs-unittests rationale block at the top
   # for why distinct runners are intentional). `needs: unittests` so it runs
-  # AFTER unittests (which needs: build) rather than alongside it -- the jstest
-  # suites are heavy and load-sensitive, so serializing them after unittests
-  # avoids competing for the same RBE workers. It does not consume the upstream
+  # AFTER unittests (which orders after dbtests -> build) rather than alongside
+  # it -- the heavy RBE jobs stay serialized (build -> dbtests -> unittests ->
+  # jstests) and avoid competing for the same RBE workers. Ordering only: the
+  # `if` gates on build success, not unittests success, so a unittest (or
+  # dbtest) failure does not block jstests. It does not consume the upstream
   # jobs' artifacts -- mongod/mongos/mongo are rebuilt here as RBE cache hits.
   #
   # Gated on jstests_gate: skipped when ci-skip-jstests is set, or when
   # vars.RUN_JSTESTS=false and ci-run-jstests is absent.
+  #
+  # The `if` uses !cancelled() + explicit result checks (not a bare `needs`)
+  # because jstests must still run after a unittest failure. `needs.gate.result
+  # == 'success'` keeps the security gate: jstests only runs after the
+  # rbe-external approval. `needs.build.result == 'success'` means a failed
+  # build (-> all test jobs skipped) still blocks jstests rather than slipping
+  # through on a 'skipped' result, while a unittest failure (build still
+  # 'success') does not.
   #
   # All jstest-running config lives in `--config=psmdb_remote_jstest`
   # (.bazelrc.psmdb): the remote test-execution strategies inherited from
@@ -399,13 +568,17 @@ jobs:
   #                     2-core pool) -- re-enable once PSMDB-2100 §1 lands.
   jstests:
     name: jstests
-    needs: [gate, unittests, jstests_gate]
+    # `unittests` is in needs for ORDERING (jstests runs after it, so the heavy
+    # jobs stay serialized), but the `if` gates on BUILD success, not unittests
+    # success, so a unittest failure does not block jstests -- both run whenever
+    # build passed. `build` is in needs so the `if` can read needs.build.result.
+    needs: [gate, build, unittests, jstests_gate]
     if: >-
       ${{ !cancelled()
       && needs.gate.result == 'success'
       && needs.jstests_gate.result == 'success'
       && needs.jstests_gate.outputs.should_run == 'true'
-      && needs.unittests.result == 'success' }}
+      && needs.build.result == 'success' }}
     # See `build.runs-on` above for why this is pinned, not `ubuntu-latest`.
     runs-on: ubuntu-24.04
     # Same unattended `rbe` environment as `build` / `unittests`.
