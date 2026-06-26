@@ -1,0 +1,180 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "0ad84e9fb2f1cc239de127f3d45fd2b64182f7c2",
+    "merge_commit": "04bd171799dc7b4082f2c550feb69f4026ff417a"
+  },
+  "mergai_version": "0.1.dev1+ga4404a79e",
+  "merge_context": {
+    "merge_commit": "04bd171799dc7b4082f2c550feb69f4026ff417a",
+    "merged_commits": [
+      "04bd171799dc7b4082f2c550feb69f4026ff417a",
+      "ef9e6f71f0775ed11d63927da3ee3704cc72ac60",
+      "0e37ef13236b21ef606310cdbcb560add3db00a0",
+      "fde9d2312b973bfec22d2432a7f5bb99ebfc027b",
+      "f75b3d150c3163198a656ee82cc1098ca964fb38",
+      "7da5308045cf5d7d6d8de0153cf4f05059537703",
+      "0bf82e94c5c4d7954dd42b54b94bafd3162e76b7",
+      "821fe103e6122d33a6672fd4391fb9d30f856cb5",
+      "8853b97053fc1b57b7b5624e043aef06e6162c77",
+      "9ffc7b7f03a6daf9950b1d093e3b5429e15b0932",
+      "77abf323035e97e22fc96cbb9b9d92992301091b",
+      "66d67ec58e704e4440de20c5b54c45e3864dcd07",
+      "86c8c9f87a7295c515548225b47891f1ee61ded4"
+    ],
+    "important_files_modified": [],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        "jstests/auth/lib/commands_lib.js",
+        "src/mongo/db/BUILD.bazel",
+        "src/mongo/db/pipeline/BUILD.bazel"
+      ]
+    }
+  },
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 22107,
+    "num_turns": 6,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.229069,
+    "modelUsage": {
+      "claude-haiku-4-5-20251001": {
+        "inputTokens": 587,
+        "outputTokens": 18,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0,
+        "webSearchRequests": 0,
+        "costUSD": 0.000677,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000
+      },
+      "claude-opus-4-5": {
+        "inputTokens": 13,
+        "outputTokens": 1344,
+        "cacheReadInputTokens": 95179,
+        "cacheCreationInputTokens": 23542,
+        "webSearchRequests": 0,
+        "costUSD": 0.228392,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-haiku-4-5-20251001": {
+          "tokens": {
+            "input": 587,
+            "output": 18,
+            "cache_read": 0,
+            "cache_creation": 0
+          },
+          "cost_usd": 0.000677
+        },
+        "claude-opus-4-5": {
+          "tokens": {
+            "input": 13,
+            "output": 1344,
+            "cache_read": 95179,
+            "cache_creation": 23542
+          },
+          "cost_usd": 0.228392
+        }
+      }
+    },
+    "text_result": "Done. I've written the JSON response describing the merge. The merge brings in:\n- A new `$_internalAssertDataAssumptions` aggregation stage for dependency graph validation\n- Multikey path observability metrics\n- Related BUILD.bazel and test infrastructure changes",
+    "response": {
+      "summary": "This merge introduces several features and fixes from upstream: a new dependency graph validation jstest suite with `$_internalAssertDataAssumptions` aggregation stage (SERVER-125083), observability metrics for non-wildcard multikey path changes (SERVER-128887), CheckMultikeyConsistencyInBackground hook (SERVER-128070), query knobs in explain output (SERVER-123182), various sharding fixes, and enabling `featureFlagFixedBucketingCatalog` by default (SERVER-126826).",
+      "auto_merged": {
+        "jstests/auth/lib/commands_lib.js": "Adds `$_internalAssertDataAssumptions` to the `skippedAuthTestingAggStages` array. This new internal aggregation stage is automatically inserted by the pipeline rewrite pass for dependency graph validation and is not intended for direct user use.",
+        "src/mongo/db/BUILD.bazel": "Adds a new dependency `//src/mongo/db/shard_role/shard_catalog:multikey_path_metrics` to the `server_status_metrics` library, enabling observability for multikey path changes.",
+        "src/mongo/db/pipeline/BUILD.bazel": "Adds support for the new `$_internalAssertDataAssumptions` aggregation stage: includes `document_source_internal_assert_data_assumptions.cpp`, `internal_assert_data_assumptions_stage.cpp`, and `graph_validation_rules.cpp` in the pipeline sources. Also adds corresponding unit test file and the `server_parameter_guard` test dependency."
+      },
+      "review_notes": "The auto-merged changes are straightforward additions. The new `$_internalAssertDataAssumptions` stage and multikey path metrics are new upstream features that should integrate cleanly with the fork. No Percona-specific code appears to be affected by these changes."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [
+            "I'll read the diffs for the three auto-merged files to understand the incoming changes."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [
+            "Now I'll check the commit messages to understand the context better."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [
+            "Now I have all the information needed to write the JSON response."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [
+            "Done. I've written the JSON response describing the merge. The merge brings in:\n- A new `$_internalAssertDataAssumptions` aggregation stage for dependency graph validation\n- Multikey path observability metrics\n- Related BUILD.bazel and test infrastructure changes"
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20260619_082421_074615.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.183 (Claude Code)"
+    }
+  }
+}

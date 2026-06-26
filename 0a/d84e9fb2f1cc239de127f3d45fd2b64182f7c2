@@ -1,0 +1,232 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "aaefeb123c3544c5133d770e2ca613f9dd7f70a1",
+    "merge_commit": "bf8477f1a3bec557408a977ba431f93875bdcbc1"
+  },
+  "mergai_version": "0.1.dev1+ga4404a79e",
+  "merge_context": {
+    "merge_commit": "bf8477f1a3bec557408a977ba431f93875bdcbc1",
+    "merged_commits": [
+      "bf8477f1a3bec557408a977ba431f93875bdcbc1",
+      "26dac4665f2fb081b0cb5c8def3fa3df2aa63622",
+      "29485a708a30c831272ecb11e778464ff9c923aa",
+      "f32b4944d233fc52b1ac87a8c9c118ac56c66b5b",
+      "c6f1114b0cd67141b9b60e4b5a74ea0efb6961f4"
+    ],
+    "important_files_modified": [],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        "jstests/auth/lib/commands_lib.js",
+        "jstests/core/catalog/views/views_all_commands.js",
+        "jstests/libs/write_concern_all_commands.js",
+        "jstests/replsets/all_commands_downgrading_to_upgraded.js",
+        "jstests/replsets/db_reads_while_recovering_all_commands.js",
+        "jstests/sharding/all_commands_direct_shard_connection_auth.js",
+        "jstests/sharding/database_versioning_all_commands.js",
+        "jstests/sharding/read_write_concern_defaults_application.js",
+        "src/mongo/db/commands/BUILD.bazel"
+      ]
+    }
+  },
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 32102,
+    "num_turns": 12,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.27407675,
+    "modelUsage": {
+      "claude-haiku-4-5-20251001": {
+        "inputTokens": 587,
+        "outputTokens": 15,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0,
+        "webSearchRequests": 0,
+        "costUSD": 0.0006619999999999999,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000
+      },
+      "claude-opus-4-5": {
+        "inputTokens": 13,
+        "outputTokens": 2601,
+        "cacheReadInputTokens": 98912,
+        "cacheCreationInputTokens": 25419,
+        "webSearchRequests": 0,
+        "costUSD": 0.27341475,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-haiku-4-5-20251001": {
+          "tokens": {
+            "input": 587,
+            "output": 15,
+            "cache_read": 0,
+            "cache_creation": 0
+          },
+          "cost_usd": 0.0006619999999999999
+        },
+        "claude-opus-4-5": {
+          "tokens": {
+            "input": 13,
+            "output": 2601,
+            "cache_read": 98912,
+            "cache_creation": 25419
+          },
+          "cost_usd": 0.27341475
+        }
+      }
+    },
+    "text_result": "Done. I've written the JSON response describing the merge:\n\n- **Main change**: Removal of the `timeseriesCatalogBucketParamsChanged` internal command from test skip lists across 8 JavaScript test files (SERVER-126825)\n- **Secondary change**: Addition of `feature_compatibility_version_parser_test.cpp` to the BUILD.bazel unit test target",
+    "response": {
+      "summary": "This merge removes the `timeseriesCatalogBucketParamsChanged` internal command from various test skip lists across the codebase, as part of SERVER-126825 which removes `timeseriesBucketingParametersHaveChanged` from the shard catalog. It also adds `feature_compatibility_version_parser_test.cpp` to the mongod_fcv_test unit test target in the BUILD.bazel file.",
+      "auto_merged": {
+        "jstests/auth/lib/commands_lib.js": "Removes `timeseriesCatalogBucketParamsChanged` from the `skippedAuthTestingCommands` array.",
+        "jstests/core/catalog/views/views_all_commands.js": "Removes the `timeseriesCatalogBucketParamsChanged` entry (which was marked as skip internal command) from `viewsCommandTests`.",
+        "jstests/libs/write_concern_all_commands.js": "Removes `timeseriesCatalogBucketParamsChanged` skip entries from both `wcCommandsTests` and `wcTimeseriesCommandsTests` objects.",
+        "jstests/replsets/all_commands_downgrading_to_upgraded.js": "Removes `timeseriesCatalogBucketParamsChanged` skip entry from the `allCommands` object.",
+        "jstests/replsets/db_reads_while_recovering_all_commands.js": "Removes `timeseriesCatalogBucketParamsChanged` skip entry from the `allCommands` object.",
+        "jstests/sharding/all_commands_direct_shard_connection_auth.js": "Removes `timeseriesCatalogBucketParamsChanged` skip entry from the `allCommands` object.",
+        "jstests/sharding/database_versioning_all_commands.js": "Removes `timeseriesCatalogBucketParamsChanged` skip entry from `allTestCases`.",
+        "jstests/sharding/read_write_concern_defaults_application.js": "Removes `timeseriesCatalogBucketParamsChanged` skip entry from `testCases`.",
+        "src/mongo/db/commands/BUILD.bazel": "Adds `feature_compatibility_version_parser_test.cpp` to the `srcs` list of the `mongod_fcv_test` unit test target."
+      },
+      "review_notes": "All changes are straightforward removals of the `timeseriesCatalogBucketParamsChanged` command from test skip lists (the command was removed upstream), plus one addition of a test file to a Bazel build target. No conflicts expected with Percona-specific code."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [
+            "I'll analyze the merge by reading the diffs for each auto-merged file using the specified diff base and merge commit."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [
+            "Now let me get the commit messages to provide context for the summary."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [
+            "Now I have all the information needed to write the response JSON."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [
+            "Done. I've written the JSON response describing the merge:\n\n- **Main change**: Removal of the `timeseriesCatalogBucketParamsChanged` internal command from test skip lists across 8 JavaScript test files (SERVER-126825)\n- **Secondary change**: Addition of `feature_compatibility_version_parser_test.cpp` to the BUILD.bazel unit test target"
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20260619_080452_876453.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.183 (Claude Code)"
+    }
+  }
+}

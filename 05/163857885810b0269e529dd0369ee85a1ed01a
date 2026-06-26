@@ -1,0 +1,315 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "69ae616536a62af859181a075780be2e3992d638",
+    "merge_commit": "29407162b5d4d92b37cdbf08db65e300939f4a78"
+  },
+  "mergai_version": "0.1.dev1+gc9b4bfe6f",
+  "merge_context": {
+    "merge_commit": "29407162b5d4d92b37cdbf08db65e300939f4a78",
+    "merged_commits": [
+      "29407162b5d4d92b37cdbf08db65e300939f4a78",
+      "8ef8b43fd5d2fa7276799d75bf12ec31b75f7725",
+      "72f69608b9b5151fe4751ca2f41f4cb0bd151d1d",
+      "1517d834b74654f12f9cfeb6e45709a58d78c76b",
+      "e501a161371a7d7c73af1b1357bef351a73cb608",
+      "22bcefc81f786edfe543ec095c4865471d05d5c6",
+      "18530d64479b8910192f268c54abc692fa32d880",
+      "e48d8553beeaa45c3514c95e111b6f2af7737cf3",
+      "f4e22da8ab77682b6a7b1010a44885b953901f0b",
+      "29a72610cc769a5f2a9a4ccdf6e142262e8a9446",
+      "99fe03732dcd67bb4f5faa591f2638723b78ef45",
+      "57d028dd92e54e157f47174f38800ce254c93463",
+      "6dacc04835b962cda19e71a1f1ccfa5a9be04d54",
+      "296ab0bf9710d96714c9c29d51b2a527df29f3e9",
+      "1e45556fb2146f440114f75a85b3c95242d47d53",
+      "8918f5798c52009aa944ab4bf02a74af231f81f6",
+      "a9a199fc0dd3833d1d4ebf1455a64e7d7f163668",
+      "91c9cb488223b75b176a69befec6abc4b61c880c",
+      "7af3f0470703798da682cd785f2c430a64aa8655",
+      "9d7a4817741772ed737eb63e8ee44bb962b06337",
+      "ddf24bca7c7ddfce5f9d055cc352d0053a1ee041",
+      "a73e0f407451d3de5225d6bd09cc5926c89e3f20",
+      "93c5e3f7a4b92e40751eab422f364e543cff6ea2",
+      "6fbb94f428eef5c867a024816d66834cbd171279",
+      "0174768bc925d669a2ff741f452e7ff0f612f5e8",
+      "d6f6984d2da5295c654e374d63e0fd931bb7dc19",
+      "1929d464eb2612df9a8bff28352b49008a27fcfc",
+      "58804c91f5e111344ae42b9681115b816913e244"
+    ],
+    "important_files_modified": [],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        "jstests/core/catalog/views/views_all_commands.js",
+        "jstests/libs/write_concern_all_commands.js",
+        "jstests/replsets/all_commands_downgrading_to_upgraded.js",
+        "jstests/replsets/db_reads_while_recovering_all_commands.js",
+        "jstests/sharding/all_commands_direct_shard_connection_auth.js",
+        "jstests/sharding/database_versioning_all_commands.js",
+        "jstests/sharding/read_write_concern_defaults_application.js",
+        "jstests/sharding/safe_secondary_reads_drop_recreate.js",
+        "jstests/sharding/safe_secondary_reads_single_migration_suspend_range_deletion.js",
+        "jstests/sharding/safe_secondary_reads_single_migration_waitForDelete.js",
+        "src/mongo/db/BUILD.bazel",
+        "src/mongo/db/mongod_options.cpp",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_util.cpp",
+        "src/mongo/shell/servers.js",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in"
+      ]
+    }
+  },
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 53695,
+    "num_turns": 18,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.36588149999999997,
+    "modelUsage": {
+      "claude-haiku-4-5-20251001": {
+        "inputTokens": 587,
+        "outputTokens": 15,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0,
+        "webSearchRequests": 0,
+        "costUSD": 0.0006619999999999999,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000
+      },
+      "claude-opus-4-5": {
+        "inputTokens": 13,
+        "outputTokens": 4360,
+        "cacheReadInputTokens": 104884,
+        "cacheCreationInputTokens": 32594,
+        "webSearchRequests": 0,
+        "costUSD": 0.3652195,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-haiku-4-5-20251001": {
+          "tokens": {
+            "input": 587,
+            "output": 15,
+            "cache_read": 0,
+            "cache_creation": 0
+          },
+          "cost_usd": 0.0006619999999999999
+        },
+        "claude-opus-4-5": {
+          "tokens": {
+            "input": 13,
+            "output": 4360,
+            "cache_read": 104884,
+            "cache_creation": 32594
+          },
+          "cost_usd": 0.3652195
+        }
+      }
+    },
+    "text_result": "Done. I've written the JSON response describing the 28 merged upstream commits. Key changes include:\n\n- New `_shardsvrCheckMetadataConsistencySecondaryParticipant` internal command added to 10 test files\n- WiredTiger header update with new leaf page statistics\n- MongoRunner stale process detection fix for port reuse scenarios\n- Removal of unsupported security config file option checks\n- Feature flag check updated to use last-LTS FCV fallback when uninitialized\n- BUILD.bazel dependency addition for benchmarks",
+    "response": {
+      "summary": "This merge brings in 28 upstream commits including: a new internal command _shardsvrCheckMetadataConsistencySecondaryParticipant added across test files; WiredTiger update with new row-store leaf page statistics (btree_row_leaf_avg_entries, btree_row_leaf_pages); a fix in MongoRunner.awaitConnection to detect stale processes occupying a port; removal of unsupported security config file options (authSchemaVersion, enableLocalhostAuthBypass) from mongod_options.cpp; a feature flag check change in wiredtiger_util.cpp to use isEnabledUseLastLTSFCVWhenUninitialized for encryption options; and a new dependency added to a benchmark target in BUILD.bazel.",
+      "auto_merged": {
+        "jstests/core/catalog/views/views_all_commands.js": "Adds _shardsvrCheckMetadataConsistencySecondaryParticipant to the list of internal commands to skip.",
+        "jstests/libs/write_concern_all_commands.js": "Adds _shardsvrCheckMetadataConsistencySecondaryParticipant to two command test lists (wcCommandsTests and wcTimeseriesCommandsTests) as an internal command to skip.",
+        "jstests/replsets/all_commands_downgrading_to_upgraded.js": "Adds _shardsvrCheckMetadataConsistencySecondaryParticipant to the list of internal commands to skip.",
+        "jstests/replsets/db_reads_while_recovering_all_commands.js": "Adds _shardsvrCheckMetadataConsistencySecondaryParticipant to the list of internal commands to skip.",
+        "jstests/sharding/all_commands_direct_shard_connection_auth.js": "Adds _shardsvrCheckMetadataConsistencySecondaryParticipant to the list of internal commands to skip.",
+        "jstests/sharding/database_versioning_all_commands.js": "Adds _shardsvrCheckMetadataConsistencySecondaryParticipant with skip: 'TODO' to the test cases.",
+        "jstests/sharding/read_write_concern_defaults_application.js": "Adds _shardsvrCheckMetadataConsistencySecondaryParticipant to the list of internal commands to skip.",
+        "jstests/sharding/safe_secondary_reads_drop_recreate.js": "Adds _shardsvrCheckMetadataConsistencySecondaryParticipant to the list of internal commands to skip.",
+        "jstests/sharding/safe_secondary_reads_single_migration_suspend_range_deletion.js": "Adds _shardsvrCheckMetadataConsistencySecondaryParticipant to the list of internal commands to skip.",
+        "jstests/sharding/safe_secondary_reads_single_migration_waitForDelete.js": "Adds _shardsvrCheckMetadataConsistencySecondaryParticipant to the list of internal commands to skip.",
+        "src/mongo/db/BUILD.bazel": "Adds mongod_process_interface_factory dependency to the mongo_cc_benchmark target.",
+        "src/mongo/db/mongod_options.cpp": "Removes the error-returning code blocks for security.authSchemaVersion and security.enableLocalhostAuthBypass config file options (previously returned BadValue errors saying they were not supported). These options are now presumably handled elsewhere.",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_util.cpp": "Changes the feature flag check for gFeatureFlagBanEncryptionOptionsInCollectionCreation from isEnabled() to isEnabledUseLastLTSFCVWhenUninitialized(), which allows the check to work when FCV is not yet initialized by using the last-LTS FCV as fallback.",
+        "src/mongo/shell/servers.js": "Adds stale process detection in MongoRunner.awaitConnection. After connecting, it now verifies the connected process PID matches the expected PID by calling serverStatus. If mismatched (connecting to a stale process that occupied the port), it prints a diagnostic message and throws MongoRunner.StopError with EXIT_NET_ERROR. Also adds a catch clause to re-throw StopError so it propagates correctly.",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in": "WiredTiger header update: adds two new statistics constants (WT_STAT_DSRC_BTREE_ROW_LEAF_AVG_ENTRIES at 2048 for row-store leaf page average entries EWMA, and WT_STAT_DSRC_BTREE_ROW_LEAF_PAGES at 2050 for approximate incremental leaf page count). All subsequent statistic constant IDs are renumbered accordingly (shifted by 2)."
+      },
+      "review_notes": "The main themes are: (1) test infrastructure updates to recognize the new _shardsvrCheckMetadataConsistencySecondaryParticipant internal command across 10 test files, (2) WiredTiger statistics expansion with new leaf page metrics, (3) shell reliability improvement to detect stale processes on reused ports, (4) security config cleanup removing unsupported config file options, and (5) a feature flag check fix for encryption options when FCV is uninitialized. All changes are additive or fix existing behavior; no Percona-specific code appears to be affected."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [
+            "I need to examine the actual diffs for each auto-merged file before writing the response. Let me run the git diff commands."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [
+            "Let me get a quick summary of the commit messages to understand the overall context."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [
+            "Now I have all the information I need to write the response. Let me create the JSON response file."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [
+            "Done. I've written the JSON response describing the 28 merged upstream commits. Key changes include:\n\n- New `_shardsvrCheckMetadataConsistencySecondaryParticipant` internal command added to 10 test files\n- WiredTiger header update with new leaf page statistics\n- MongoRunner stale process detection fix for port reuse scenarios\n- Removal of unsupported security config file option checks\n- Feature flag check updated to use last-LTS FCV fallback when uninitialized\n- BUILD.bazel dependency addition for benchmarks"
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20260624_190302_950983.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.190 (Claude Code)"
+    }
+  }
+}

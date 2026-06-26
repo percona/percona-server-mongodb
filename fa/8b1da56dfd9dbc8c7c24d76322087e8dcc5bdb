@@ -1,0 +1,397 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "818ec3e1ef0ed968e5ee8ed67ce1b0f5333f3c07",
+    "merge_commit": "ba9522bbafc7c1c7250ca6f4c6a8f1b611b3ccb7"
+  },
+  "mergai_version": "0.1.dev1+g90d55fc8a",
+  "conflict_context": {
+    "ours_commit": "818ec3e1ef0ed968e5ee8ed67ce1b0f5333f3c07",
+    "theirs_commit": "ba9522bbafc7c1c7250ca6f4c6a8f1b611b3ccb7",
+    "base_commit": "8b98a84d73558be5b22048060c00f685474e12b2",
+    "files": [
+      "src/mongo/client/sasl_oidc_client_conversation.cpp"
+    ],
+    "conflict_types": {
+      "src/mongo/client/sasl_oidc_client_conversation.cpp": "both modified"
+    },
+    "diffs": {
+      "src/mongo/client/sasl_oidc_client_conversation.cpp": "diff --cc src/mongo/client/sasl_oidc_client_conversation.cpp\nindex c944db78d54,d3eed9d1061..00000000000\n--- a/src/mongo/client/sasl_oidc_client_conversation.cpp\n+++ b/src/mongo/client/sasl_oidc_client_conversation.cpp\n@@@ -134,8 -125,1 +134,18 @@@ std::pair<std::string, std::string> doD\n++<<<<<<< HEAD\n +    boost::optional<StringData> deviceAuthorizationEndpoint =\n +        discoveryReply.getDeviceAuthorizationEndpoint().get();\n +    // If exists, the device authorization endpoint has been already validated during parsing of\n +    // `OAuthAuthorizationServerMetadata` class.\n +    // (@see `src/mongo/db/auth/oauth_authorization_server_metadata.idl`).\n +    uassert(ErrorCodes::BadValue,\n +            \"Missing or invalid device authorization endpoint in server reply\",\n +            deviceAuthorizationEndpoint && !deviceAuthorizationEndpoint->empty());\n++||||||| 8b98a84d735\n+     auto deviceAuthorizationEndpoint = discoveryReply.getDeviceAuthorizationEndpoint().get();\n++    uassert(ErrorCodes::BadValue,\n++            \"Device authorization endpoint in server reply must be an https endpoint or localhost\",\n++            deviceAuthorizationEndpoint.starts_with(\"https://\"sv) ||\n++                deviceAuthorizationEndpoint.starts_with(\"http://localhost\"sv));\n++=======\n++    auto deviceAuthorizationEndpoint = discoveryReply.getDeviceAuthorizationEndpoint().get();\n++>>>>>>> ba9522bbafc7c1c7250ca6f4c6a8f1b611b3ccb7\n@@@ -336,1 -317,1 +346,10 @@@ StatusWith<bool> SaslOIDCClientConversa\n++<<<<<<< HEAD\n++                \"Missing or invalid token endpoint in server reply\",\n++                tokenEndpoint && !tokenEndpoint->empty());\n++||||||| 8b98a84d735\n +                \"Missing or invalid token endpoint in server reply\",\n++                tokenEndpoint && !tokenEndpoint->empty() &&\n++                    (tokenEndpoint->starts_with(\"https://\"sv) ||\n++                     tokenEndpoint->starts_with(\"http://localhost\"sv)));\n++=======\n+                 \"Missing token endpoint in server reply\",\n@@@ -338,0 -319,0 +357,1 @@@\n++>>>>>>> ba9522bbafc7c1c7250ca6f4c6a8f1b611b3ccb7"
+    },
+    "their_commits": {
+      "src/mongo/client/sasl_oidc_client_conversation.cpp": [
+        "b355475f02c284dc85707f088a66c26d89328dcf"
+      ]
+    }
+  },
+  "merge_context": {
+    "merge_commit": "ba9522bbafc7c1c7250ca6f4c6a8f1b611b3ccb7",
+    "merged_commits": [
+      "ba9522bbafc7c1c7250ca6f4c6a8f1b611b3ccb7",
+      "c1c9fee53db9b5208f4c58464aa543eebdd679ca",
+      "b355475f02c284dc85707f088a66c26d89328dcf",
+      "9a733ec460cbc93a3865508c515f067f72567b88",
+      "71b1dded3fbbb9876c50f123dc6375c43f7529d4",
+      "6b5bd92c8af08547ec3752de24e70c16a70b934a",
+      "c1721348a06abdf98352a678823f3876a7e6c42d",
+      "687b11417013153a3e1f6c76102e299f91e3d7c5",
+      "311921bc74f836122333a23e2933045b3de52f85",
+      "8475d67d8c630162120323d88d314fc054be7af4",
+      "8079f3c2c8d220607d1bbc2c80cf3bf651c25274",
+      "9cbc53a7d1055d9aa02b846f51ce3ae8129a19cd",
+      "a9200b2ba45fbffa8d878e2e0940110196eefa73",
+      "1f90c2a97feef2b159bd263e54aa486f4a70240b",
+      "18a2f37176569891bfbce8b3a22035f67b0a0ecf",
+      "22381d140ffd0086209af133a490992377d4f1f0",
+      "441e11b9e89eb81685593df21bdf03c152c02031",
+      "d00393457f9b1fcbbcef44e21424e3fef0e21c56",
+      "1294ef44e987ee42540dcb9f936fe6d9377fd25a",
+      "6b1078917dc7f113cf9f4f9bb0103dd6556d59a7",
+      "c53261168c6723dbca2c86d4c34adb07c8ff62ae",
+      "eb8d15f1b0e08db931f5c84a08718995b3f77084",
+      "4a4f4590696efb519f59046b77b519d3c2ee87fb",
+      "7c41db4342ac593ae6a8c95852e5d5c92199a611",
+      "d89aed891f615193214b877609dcf73c24b94e53",
+      "ded3e24b91122d58afc34ee9ee0bdbf8aaf20de4",
+      "83de54ef0baac54fa2bc74493a20df6efc9004fe",
+      "59b40c9e148b11097e81da9e5feee5202ed8bfb0",
+      "fb93591b695fc913a3168716248f4e0afc9c74ce",
+      "29407162b5d4d92b37cdbf08db65e300939f4a78",
+      "8ef8b43fd5d2fa7276799d75bf12ec31b75f7725",
+      "72f69608b9b5151fe4751ca2f41f4cb0bd151d1d",
+      "1517d834b74654f12f9cfeb6e45709a58d78c76b",
+      "e501a161371a7d7c73af1b1357bef351a73cb608",
+      "22bcefc81f786edfe543ec095c4865471d05d5c6",
+      "18530d64479b8910192f268c54abc692fa32d880",
+      "e48d8553beeaa45c3514c95e111b6f2af7737cf3",
+      "f4e22da8ab77682b6a7b1010a44885b953901f0b",
+      "29a72610cc769a5f2a9a4ccdf6e142262e8a9446",
+      "99fe03732dcd67bb4f5faa591f2638723b78ef45",
+      "57d028dd92e54e157f47174f38800ce254c93463",
+      "6dacc04835b962cda19e71a1f1ccfa5a9be04d54",
+      "296ab0bf9710d96714c9c29d51b2a527df29f3e9",
+      "1e45556fb2146f440114f75a85b3c95242d47d53",
+      "8918f5798c52009aa944ab4bf02a74af231f81f6",
+      "a9a199fc0dd3833d1d4ebf1455a64e7d7f163668",
+      "91c9cb488223b75b176a69befec6abc4b61c880c",
+      "7af3f0470703798da682cd785f2c430a64aa8655",
+      "9d7a4817741772ed737eb63e8ee44bb962b06337",
+      "ddf24bca7c7ddfce5f9d055cc352d0053a1ee041",
+      "a73e0f407451d3de5225d6bd09cc5926c89e3f20",
+      "93c5e3f7a4b92e40751eab422f364e543cff6ea2",
+      "6fbb94f428eef5c867a024816d66834cbd171279",
+      "0174768bc925d669a2ff741f452e7ff0f612f5e8",
+      "d6f6984d2da5295c654e374d63e0fd931bb7dc19",
+      "1929d464eb2612df9a8bff28352b49008a27fcfc",
+      "58804c91f5e111344ae42b9681115b816913e244"
+    ],
+    "important_files_modified": [],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        "jstests/core/catalog/views/views_all_commands.js",
+        "jstests/libs/write_concern_all_commands.js",
+        "jstests/replsets/all_commands_downgrading_to_upgraded.js",
+        "jstests/replsets/db_reads_while_recovering_all_commands.js",
+        "jstests/sharding/all_commands_direct_shard_connection_auth.js",
+        "jstests/sharding/database_versioning_all_commands.js",
+        "jstests/sharding/read_write_concern_defaults_application.js",
+        "jstests/sharding/safe_secondary_reads_drop_recreate.js",
+        "jstests/sharding/safe_secondary_reads_single_migration_suspend_range_deletion.js",
+        "jstests/sharding/safe_secondary_reads_single_migration_waitForDelete.js",
+        "src/mongo/base/error_codes.yml",
+        "src/mongo/client/sasl_oidc_client_conversation.cpp",
+        "src/mongo/db/BUILD.bazel",
+        "src/mongo/db/commands/BUILD.bazel",
+        "src/mongo/db/mongod_options.cpp",
+        "src/mongo/db/pipeline/BUILD.bazel",
+        "src/mongo/db/storage/BUILD.bazel",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_util.cpp",
+        "src/mongo/shell/servers.js",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in"
+      ]
+    }
+  },
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 77378,
+    "num_turns": 22,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.48529799999999995,
+    "modelUsage": {
+      "claude-haiku-4-5-20251001": {
+        "inputTokens": 587,
+        "outputTokens": 14,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0,
+        "webSearchRequests": 0,
+        "costUSD": 0.0006569999999999999,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000
+      },
+      "claude-opus-4-5": {
+        "inputTokens": 15,
+        "outputTokens": 5466,
+        "cacheReadInputTokens": 186532,
+        "cacheCreationInputTokens": 40744,
+        "webSearchRequests": 0,
+        "costUSD": 0.48464100000000004,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-haiku-4-5-20251001": {
+          "tokens": {
+            "input": 587,
+            "output": 14,
+            "cache_read": 0,
+            "cache_creation": 0
+          },
+          "cost_usd": 0.0006569999999999999
+        },
+        "claude-opus-4-5": {
+          "tokens": {
+            "input": 15,
+            "output": 5466,
+            "cache_read": 186532,
+            "cache_creation": 40744
+          },
+          "cost_usd": 0.48464100000000004
+        }
+      }
+    },
+    "text_result": "Done. I've written the JSON response to `/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/response_20260624_114827_829561.json` with:\n\n- **Summary**: Describes the 57 upstream commits introducing new sharding commands, OIDC validation relaxation, error code changes, Bazel dependency updates, and WiredTiger improvements\n- **Auto-merged files**: Detailed descriptions for all 20 files based on actual diff analysis\n- **Review notes**: Highlights security-relevant changes (OIDC endpoint validation relaxation) and other notable changes that warrant reviewer attention",
+    "response": {
+      "summary": "This merge introduces 57 upstream commits that add two new internal sharding commands (_configsvrConvertShardRefsInNamespaceMetadata and _shardsvrCheckMetadataConsistencySecondaryParticipant), relax OIDC endpoint URL validation (removing https:// requirement), update error_codes.yml to use ResolvedNamespace instead of ResolvedView, add new Bazel dependencies, remove deprecated security config option validation, improve WiredTiger feature flag behavior during FCV initialization, enhance shell connection verification to detect stale processes, and update WiredTiger statistics definitions with new row-store leaf page metrics.",
+      "auto_merged": {
+        "jstests/core/catalog/views/views_all_commands.js": "Adds skip entries for two new internal commands: _configsvrConvertShardRefsInNamespaceMetadata and _shardsvrCheckMetadataConsistencySecondaryParticipant.",
+        "jstests/libs/write_concern_all_commands.js": "Adds skip entries for _configsvrConvertShardRefsInNamespaceMetadata and _shardsvrCheckMetadataConsistencySecondaryParticipant in both wcCommandsTests and wcTimeseriesCommandsTests objects.",
+        "jstests/replsets/all_commands_downgrading_to_upgraded.js": "Adds skip entries for _configsvrConvertShardRefsInNamespaceMetadata and _shardsvrCheckMetadataConsistencySecondaryParticipant as internal commands.",
+        "jstests/replsets/db_reads_while_recovering_all_commands.js": "Adds skip entries for _configsvrConvertShardRefsInNamespaceMetadata (primary only) and _shardsvrCheckMetadataConsistencySecondaryParticipant (internal command).",
+        "jstests/sharding/all_commands_direct_shard_connection_auth.js": "Adds skip entries for _configsvrConvertShardRefsInNamespaceMetadata and _shardsvrCheckMetadataConsistencySecondaryParticipant as internal commands.",
+        "jstests/sharding/database_versioning_all_commands.js": "Adds skip entries for _configsvrConvertShardRefsInNamespaceMetadata (internal command) and _shardsvrCheckMetadataConsistencySecondaryParticipant (TODO).",
+        "jstests/sharding/read_write_concern_defaults_application.js": "Adds skip entries for _configsvrConvertShardRefsInNamespaceMetadata and _shardsvrCheckMetadataConsistencySecondaryParticipant as internal commands.",
+        "jstests/sharding/safe_secondary_reads_drop_recreate.js": "Adds skip entries for _configsvrConvertShardRefsInNamespaceMetadata (primary only) and _shardsvrCheckMetadataConsistencySecondaryParticipant (internal command).",
+        "jstests/sharding/safe_secondary_reads_single_migration_suspend_range_deletion.js": "Adds skip entries for _configsvrConvertShardRefsInNamespaceMetadata (primary only) and _shardsvrCheckMetadataConsistencySecondaryParticipant (internal command).",
+        "jstests/sharding/safe_secondary_reads_single_migration_waitForDelete.js": "Adds skip entries for _configsvrConvertShardRefsInNamespaceMetadata (primary only) and _shardsvrCheckMetadataConsistencySecondaryParticipant (internal command).",
+        "src/mongo/base/error_codes.yml": "Changes the extra field for error code 169 (CommandOnShardedViewNotSupportedOnMongod) from ResolvedView to ResolvedNamespace.",
+        "src/mongo/client/sasl_oidc_client_conversation.cpp": "Relaxes OIDC endpoint validation: removes the uassert requiring device authorization endpoint to be https:// or http://localhost, and simplifies token endpoint validation from requiring https:// or localhost to just checking it is non-empty. Error message changed from 'Missing or invalid token endpoint' to 'Missing token endpoint'.",
+        "src/mongo/db/BUILD.bazel": "Adds three new dependencies: write_conflict_storm to coll_mod_command_bm, memory_tracking to update_index_data, and mongod_process_interface_factory to collection_write_path_bm.",
+        "src/mongo/db/commands/BUILD.bazel": "Adds asserts_otel_metric.cpp to core_mongod_commands library and adds otel_metrics_service dependency.",
+        "src/mongo/db/mongod_options.cpp": "Removes validation that rejected security.authSchemaVersion and security.enableLocalhostAuthBypass config file options with BadValue errors.",
+        "src/mongo/db/pipeline/BUILD.bazel": "In sharded_agg_helpers_test_fixture library, replaces resolved_view dependency with lite_parsed_document_source.",
+        "src/mongo/db/storage/BUILD.bazel": "Adds exception_util dependency to change_collection_expired_documents_remover library.",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_util.cpp": "Changes feature flag check for BanEncryptionOptionsInCollectionCreation from isEnabled() to isEnabledUseLastLTSFCVWhenUninitialized(), which allows the check to work correctly before FCV is initialized.",
+        "src/mongo/shell/servers.js": "Adds stale process detection in MongoRunner.awaitConnection: after connecting, verifies the server's reported PID matches the expected PID. If a mismatch is found, prints a warning about connecting to a stale process from a previous test and throws MongoRunner.StopError with EXIT_NET_ERROR.",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in": "Adds two new WiredTiger statistics: WT_STAT_DSRC_BTREE_ROW_LEAF_AVG_ENTRIES (row-store leaf page recent average entries EWMA) and WT_STAT_DSRC_BTREE_ROW_LEAF_PAGES (row-store leaf pages approximate, incremental). Renumbers subsequent statistic definitions to accommodate the new entries."
+      },
+      "review_notes": "The OIDC endpoint validation changes are security-relevant: the removal of https:// enforcement for device authorization and token endpoints could allow connections to non-secure endpoints. This appears intentional based on the upstream commit but reviewers should verify this relaxation is acceptable for Percona's security posture. The mongod_options.cpp change removes error handling for security config options that were previously unsupported, suggesting these options may now be functional. The wiredtiger_util.cpp change ensures encryption option validation works correctly before FCV initialization."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [
+            "I'll analyze the merge by reading the actual diffs for each auto-merged file. Let me start by examining the changes."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [
+            "Now I have all the information needed. Let me write the JSON response file."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [
+            "Done. I've written the JSON response to `/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/response_20260624_114827_829561.json` with:\n\n- **Summary**: Describes the 57 upstream commits introducing new sharding commands, OIDC validation relaxation, error code changes, Bazel dependency updates, and WiredTiger improvements\n- **Auto-merged files**: Detailed descriptions for all 20 files based on actual diff analysis\n- **Review notes**: Highlights security-relevant changes (OIDC endpoint validation relaxation) and other notable changes that warrant reviewer attention"
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20260624_114827_829396.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.187 (Claude Code)"
+    }
+  }
+}
