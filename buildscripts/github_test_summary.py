@@ -154,10 +154,70 @@ def parse_bep(paths):
     return targets
 
 
+def parse_resmoke(paths):
+    """Return {test_file: {outcome, cached, failed_runs, total_runs, duration_ms}}
+    from resmoke report.json file(s).
+
+    Used by the dbtests job, which runs resmoke LOCALLY (the dbtest binary has no
+    Bazel test target, so there is no BEP). The report schema is
+    {"results": [{"test_file", "status", "exit_code", "start", "end", ...}]}
+    where status is an Evergreen status string. Outcomes are mapped to match
+    parse_bep so render() is shared:
+      * pass                  -> passed;
+      * skip / silentfail     -> skipped (silentfail is a silenced/known failure);
+      * anything else         -> failed (fail, timeout, error, ...).
+    """
+    targets = {}
+    for path in paths:
+        try:
+            with open(path, "rt", encoding="utf-8", errors="replace") as fh:
+                results = json.load(fh).get("results", [])
+        except (OSError, ValueError):
+            continue
+        for r in results:
+            label = r.get("test_file") or r.get("display_test_name") or "?"
+            status = (r.get("status") or "").lower()
+            if status == "pass":
+                outcome = "passed"
+            elif status in ("skip", "silentfail"):
+                outcome = "skipped"
+            else:
+                outcome = "failed"
+            duration_ms = None
+            start, end = r.get("start"), r.get("end")
+            try:
+                if start is not None and end is not None:
+                    duration_ms = max(0, int((float(end) - float(start)) * 1000))
+            except (TypeError, ValueError):
+                duration_ms = None
+            failed_run = 1 if outcome == "failed" else 0
+            prev = targets.get(label)
+            if prev is None:
+                targets[label] = {
+                    "outcome": outcome,
+                    "cached": False,
+                    "failed_runs": failed_run,
+                    "total_runs": 1,
+                    "duration_ms": duration_ms,
+                }
+            else:
+                # A test can recur in one report (e.g. --repeatTests). Accumulate
+                # the run counts/duration across the repeats and keep the worst
+                # outcome, so the summary reflects every run rather than just the
+                # last one.
+                prev["total_runs"] += 1
+                prev["failed_runs"] += failed_run
+                if duration_ms is not None:
+                    prev["duration_ms"] = (prev["duration_ms"] or 0) + duration_ms
+                if outcome == "failed":
+                    prev["outcome"] = "failed"
+    return targets
+
+
 def render(targets, title, detailed):
     out = [f"## {title}", ""]
     if not targets:
-        out.append("⚠️ No test results found in the build event log.")
+        out.append("⚠️ No test results found.")
         return "\n".join(out) + "\n"
 
     failed = sorted(l for l, t in targets.items() if t["outcome"] == "failed")
@@ -226,10 +286,22 @@ def main():
         action="store_true",
         help="add executed/cached counts and a per-target table",
     )
+    parser.add_argument(
+        "--resmoke-report",
+        default="",
+        help=(
+            "glob for resmoke report.json file(s) from a LOCAL resmoke run (e.g. the "
+            "dbtests job). Merged into the BEP targets so render() is shared."
+        ),
+    )
     args = parser.parse_args()
 
-    paths = sorted(glob.glob(args.bep_glob))
-    targets = parse_bep(paths)
+    bep_paths = sorted(glob.glob(args.bep_glob)) if args.bep_glob else []
+    targets = parse_bep(bep_paths)
+
+    resmoke_paths = sorted(glob.glob(args.resmoke_report)) if args.resmoke_report else []
+    if resmoke_paths:
+        targets.update(parse_resmoke(resmoke_paths))
 
     text = render(targets, args.title, args.detailed)
     summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
@@ -239,7 +311,9 @@ def main():
     else:
         sys.stdout.write(text)
     print(
-        f"github_test_summary: {len(paths)} BEP file(s), {len(targets)} target(s)", file=sys.stderr
+        f"github_test_summary: {len(bep_paths)} BEP file(s), "
+        f"{len(resmoke_paths)} resmoke report(s), {len(targets)} target(s)",
+        file=sys.stderr,
     )
 
 
