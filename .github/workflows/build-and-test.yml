@@ -313,11 +313,15 @@ jobs:
           if-no-files-found: ignore
 
   # Decides whether the jstests job runs, from PR labels and a repo/org
-  # variable. Runs on a plain runner with no `environment:` and does NOT depend
-  # on `gate`, so it resolves immediately and never triggers an RBE approval
-  # prompt. Labels are read fresh via `gh api` (not github.event.*.labels) so
-  # the decision reflects the current label set even on a re-run -- same
-  # freshness trick as format.yml / clang-tidy.yml.
+  # variable. Runs on a plain runner with no `environment:` so it never triggers
+  # an RBE approval prompt. Labels are read fresh via `gh api` (not
+  # github.event.*.labels) so the decision reflects the current label set even
+  # on a re-run -- same freshness trick as format.yml / clang-tidy.yml.
+  #
+  # `needs: unittests` (with `if: !cancelled()` so it still runs when unittests
+  # is skipped or failed) makes this resolve LATE -- after the build -- so a
+  # ci-skip-jstests / ci-run-jstests label applied while the build was running
+  # takes effect on the same run instead of only the next push.
   #
   # Precedence: ci-skip-jstests > ci-run-jstests > vars.RUN_JSTESTS (default run).
   #   - ci-skip-jstests label : force skip.
@@ -326,6 +330,8 @@ jobs:
   #                             'false' => skip unless ci-run-jstests is set.
   jstests_gate:
     name: jstests gate
+    needs: unittests
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-24.04
     outputs:
       should_run: ${{ steps.decide.outputs.should_run }}
@@ -379,8 +385,13 @@ jobs:
   #                     2-core pool) -- re-enable once PSMDB-2100 §1 lands.
   jstests:
     name: jstests
-    needs: [unittests, jstests_gate]
-    if: ${{ needs.jstests_gate.outputs.should_run == 'true' }}
+    needs: [gate, unittests, jstests_gate]
+    if: >-
+      ${{ !cancelled()
+      && needs.gate.result == 'success'
+      && needs.jstests_gate.result == 'success'
+      && needs.jstests_gate.outputs.should_run == 'true'
+      && needs.unittests.result == 'success' }}
     # See `build.runs-on` above for why this is pinned, not `ubuntu-latest`.
     runs-on: ubuntu-24.04
     # Same unattended `rbe` environment as `build` / `unittests`.
