@@ -1,0 +1,319 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "d86da87b14986b8c79a4d3f7b5464e1110e8e26c",
+    "merge_commit": "dba3c8d92c4767b3f630600ee7644013deb17390"
+  },
+  "mergai_version": "0.1.dev1+gc9b4bfe6f",
+  "merge_context": {
+    "merge_commit": "dba3c8d92c4767b3f630600ee7644013deb17390",
+    "merged_commits": [
+      "dba3c8d92c4767b3f630600ee7644013deb17390",
+      "13330a740b3a529eebedb6368e0e42646ae5ffcf",
+      "ff427ad14f8b40a71e7869f60df96252124c1e05",
+      "54597b0e6486e336071515c656bf8222697d9e03",
+      "ff65cb12ae534c5cd4dd158ece600e6a4c48116e",
+      "3bb819d348f22591cec6bfb38a6e61467150c598",
+      "aa74f951890ec0214bd13a968f1251b747847869",
+      "11c4e4460ac4c6c3b5ef41a68f5c4d45eff656bc",
+      "087114400cc050c1c29877f0df2693c594ba2695",
+      "0e6d3ceaa2ed3df4a0efc75212b48942f0c0cb81",
+      "1343bf6b0c7ba1baff36818c4f8cf1d7be6bb362",
+      "72ae0f6690f12e4a37f60b09c43e2f656d7c6a8d",
+      "a6a7448f26619ffc9e7141b779609a4640b71a06",
+      "a696747d5a4a0baaebe12b31337e0bd60bac06e3",
+      "b372737adc78bae7238d61a57d9b0f686a643050",
+      "cbef8f5a5f15e15d71b4381a12de05db448d447b",
+      "f366dda64e158c09134019cb41a6ee2557eb1ef4",
+      "057674782a896e3ecb0dfe8b2c37b165a0b67161",
+      "5d491b8d1b016c7874ee4ef65edff56db15dfe4a",
+      "35b3a9b71063e8d04f793562de9432438ce59cb2",
+      "c05cda775e4df938d79fab83e9ad3ef23e20a0c0",
+      "5b5c5ad7cd8320907be1acf412bf983bb75e5b43",
+      "1a1f3448133c0fb1998295c808aa98099b72ca79",
+      "9e77624a147ff4a6107eb2779a732e16dc646ed7",
+      "24a617aa8ea334aed9c1cf3d0c491cddd9ec8a59",
+      "993b2e4a9ec7e8ffa2b6c5f7b768839d967f7346",
+      "e2c55d009ed23118f0e3e1e0d0ed8cf3097a97de",
+      "44c3e47f848373c7c1de1f9518a82fd7f0ded659",
+      "9ab8d42864217b0dd8a7ddb5e18226d6b5ed9e7e",
+      "d3d3d2b3deeb7d0676158b29b801533aedf58b47",
+      "3cee9dfcb53e8348be48d31f8502d210386c86c1",
+      "a88d9fa42d2cd2e33bf2a7b6525a4acd0d28304d",
+      "3140353f2b9618fedbc4d1fbbada8de061919ecc",
+      "0a89d0d206937cdb4fe075df1f3e35b06cbcf719",
+      "6f6bd95cbb97e7aabc2adec6431f76a945baf36f",
+      "d69342178d08a4446e5268c30f69b7430f5d6559",
+      "115be6e1151e26827b3253adeacc5a1e87573331",
+      "61933b81045de0f0dffdc86eaafd83df4ad0dc4c",
+      "d6f9fe0d790e2cf021cb8a4f22bd6bb35657ea03",
+      "d9cc429194c8dda846fd6724d5649ede46d5d65c",
+      "f0dc4dd5d57319660cb91b492628702c426aa730",
+      "10ed36bf83a387c71396f3e706a0ff63e68af30f",
+      "ecd8d539c0ae89232ef2590e538faf246c48f6c0",
+      "2d7bcc4a091463eccd96bfeb97b8610636230feb",
+      "1e389c5933a48d6b3a383aee2e14672ade171a76",
+      "6d92622f3c7ff98c254133a6b3723c578217e78d",
+      "4c812821adb004d0df6934bdf25c7d2cbc043027",
+      "581f048d502d43639ccb8c274131cf61a90b2f28",
+      "c9beee38b7d6f4c9712fdf9feea865b10f14e119",
+      "888aca8c1e58999cf7d94ba0c680977600d77515",
+      "ba9522bbafc7c1c7250ca6f4c6a8f1b611b3ccb7",
+      "c1c9fee53db9b5208f4c58464aa543eebdd679ca"
+    ],
+    "important_files_modified": [],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        "bazel/config/BUILD.bazel",
+        "buildscripts/resmokelib/configure_resmoke.py",
+        "jstests/auth/lib/commands_lib.js",
+        "src/mongo/config.h.in",
+        "src/mongo/db/curop_test.cpp",
+        "src/mongo/db/mongod_main.cpp",
+        "src/mongo/db/op_debug.cpp",
+        "src/mongo/db/pipeline/BUILD.bazel",
+        "src/mongo/db/startup_recovery.cpp",
+        "src/mongo/mongo_config_header.py",
+        "src/mongo/s/mongos_main.cpp",
+        "src/mongo/transport/BUILD.bazel",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in"
+      ]
+    }
+  },
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 54315,
+    "num_turns": 16,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.37299400000000005,
+    "modelUsage": {
+      "claude-haiku-4-5-20251001": {
+        "inputTokens": 587,
+        "outputTokens": 14,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0,
+        "webSearchRequests": 0,
+        "costUSD": 0.0006569999999999999,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000
+      },
+      "claude-opus-4-5": {
+        "inputTokens": 13,
+        "outputTokens": 3444,
+        "cacheReadInputTokens": 111469,
+        "cacheCreationInputTokens": 36870,
+        "webSearchRequests": 0,
+        "costUSD": 0.37233700000000003,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-haiku-4-5-20251001": {
+          "tokens": {
+            "input": 587,
+            "output": 14,
+            "cache_read": 0,
+            "cache_creation": 0
+          },
+          "cost_usd": 0.0006569999999999999
+        },
+        "claude-opus-4-5": {
+          "tokens": {
+            "input": 13,
+            "output": 3444,
+            "cache_read": 111469,
+            "cache_creation": 36870
+          },
+          "cost_usd": 0.37233700000000003
+        }
+      }
+    },
+    "text_result": "JSON response written to the specified response file. The analysis covers 51 upstream commits with key changes including:\n\n- TLS connection handoff support for Linux platforms\n- keysInserted/keysDeleted metrics in query stats\n- TSS (Test Selection Service) configuration from Evergreen\n- Offline validation improvements (open all DBs upfront)\n- OTEL traces API simplification\n- WiredTiger load control config updates\n- Internal hybrid search stage additions",
+    "response": {
+      "summary": "This merge brings 51 upstream commits including: TLS connection handoff support for Linux platforms (new build config and transport layer integration), keysInserted/keysDeleted metrics in write query stats, Test Selection Service (TSS) configuration from Evergreen project settings, offline validation improvements to open all databases upfront, OTEL traces API simplification (removing ServiceContext parameter), WiredTiger load control configuration updates, internal hybrid search stage additions to the pipeline, and various SBE/RAII refactoring and performance improvements.",
+      "auto_merged": {
+        "bazel/config/BUILD.bazel": "Adds a new 'build_connection_handoff_enabled' config setting group that matches linux_aarch64 or linux_x86_64 platforms, enabling conditional compilation of TLS connection handoff support.",
+        "buildscripts/resmokelib/configure_resmoke.py": "Adds _apply_evergreen_tss_project_config() function that fetches Test Selection Service (TSS) enablement from Evergreen project config via the API. Only applies to patch builds when ENABLE_EVERGREEN_API_TEST_SELECTION is not explicitly set. Also adds logging import and evergreen_conn utility import.",
+        "jstests/auth/lib/commands_lib.js": "Adds '$_internalHybridSearch' to the skippedAuthTestingAggStages array, noting it's already covered by a separate test file (internal_hybrid_search_rejected_in_user_request.js).",
+        "src/mongo/config.h.in": "Adds new config macro placeholder @mongo_config_connection_handoff@ for TLS connection handoff support.",
+        "src/mongo/db/curop_test.cpp": "Extends AdditiveMetricsShouldAggregateCursorMetrics test to verify keysInserted and keysDeleted metrics aggregation. Sets initial values (3/1), cursor metrics values (4/2), and verifies aggregated results (7/3).",
+        "src/mongo/db/mongod_main.cpp": "Simplifies otel::traces API calls by removing ServiceContext parameter from both initialize() and shutdown() functions.",
+        "src/mongo/db/op_debug.cpp": "Adds keysInserted and keysDeleted to getCursorMetrics() and aggregateDataBearingNodeMetrics(). Refactors aggregateCursorMetrics() to use designated initializers for DataBearingNodeMetrics struct construction instead of positional arguments, improving readability.",
+        "src/mongo/db/pipeline/BUILD.bazel": "Adds internal hybrid search stage support: document_source_internal_hybrid_search.cpp, lite_parsed_internal_hybrid_search.cpp, internal_hybrid_search_stage.cpp, document_source_internal_hybrid_search_test.cpp, and adds //src/mongo/db/memory_tracking dependency to the test target.",
+        "src/mongo/db/startup_recovery.cpp": "Refactors offlineValidate() to open all databases upfront before validation. Previously openDb was called per-database inside offlineValidateDb(); now databases are collected first (either single database from gValidateDbName or all from catalog), opened in a first loop, then validated in a second loop. Removes openDb call from offlineValidateDb(). Adds <functional> include for std::invoke.",
+        "src/mongo/mongo_config_header.py": "Adds the mapping for @mongo_config_connection_handoff@ to MONGO_CONFIG_CONNECTION_HANDOFF in the config header substitutions.",
+        "src/mongo/s/mongos_main.cpp": "Simplifies otel::traces API calls by removing ServiceContext parameter from both initialize() and shutdown() functions (same change as mongod_main.cpp).",
+        "src/mongo/transport/BUILD.bazel": "Adds conditional dependencies for connection handoff support. When build_connection_handoff_enabled is set (Linux only), adds handoff_session_manager and handoff_transport_layer dependencies to both transport_layer_manager and transport_layer_manager_grpc targets. Also includes handoff_feature_flag_gen unconditionally in srcs to allow Windows builds to handle the featureFlagTLSConnectionHandoff parameter.",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in": "WiredTiger load_control configuration update: changes control_threshold description from 'threshold at which load control will actively start rejecting work' (range 10-200, default 100) to a clearer percentage-based description relative to cache eviction trigger (range 0-1000, default 200). Also includes numerous updates to other WiredTiger configuration documentation and API comments."
+      },
+      "review_notes": "Key areas to verify: (1) The OTEL traces API change removes ServiceContext from initialize/shutdown - ensure the OTEL module no longer needs it. (2) The offline validation refactoring changes the order of database opening, which may affect behavior if databases have dependencies. (3) The TSS configuration fetch adds an API call during resmoke configuration - verify error handling is sufficient. (4) Connection handoff is now conditionally built for Linux only - verify this doesn't break other platforms."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [
+            "I'll analyze the merge by reading the diffs for each auto-merged file."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [
+            "Now I have all the diff information. Let me also get the commit messages for context."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [
+            "Now I have all the information needed to write the response. Let me write the JSON response file."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [
+            "JSON response written to the specified response file. The analysis covers 51 upstream commits with key changes including:\n\n- TLS connection handoff support for Linux platforms\n- keysInserted/keysDeleted metrics in query stats\n- TSS (Test Selection Service) configuration from Evergreen\n- Offline validation improvements (open all DBs upfront)\n- OTEL traces API simplification\n- WiredTiger load control config updates\n- Internal hybrid search stage additions"
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20260626_094742_884621.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.193 (Claude Code)"
+    }
+  }
+}
