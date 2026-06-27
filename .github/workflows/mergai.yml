@@ -674,11 +674,19 @@ jobs:
 
       # Push the inline fix to the PR branch before posting replies, so the
       # "Addressed in <sha>" reply points at a commit that exists on the PR.
+      # Then refresh the PR body from the note's solutions (mirrors ci-handle's
+      # review-branch step) so the review_fix solution shows up as a new
+      # Solution entry in the description, not just in the thread reply.
       - name: Push review-fix commit
         if: steps.pr.outputs.is_mergai == 'true' && steps.review.outputs.fix_produced == 'true'
         env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          GH_REPO: ${{ github.repository }}
           HEAD_REF: ${{ steps.pr.outputs.head_ref }}
-        run: git push origin "HEAD:$HEAD_REF"
+        run: |
+          git push origin "HEAD:$HEAD_REF"
+          mergai pr --repo "$GITHUB_REPOSITORY" update \
+            || echo "::warning::'mergai pr update' failed"
 
       # Publish the recorded replies (fixed / unfixable) to their threads.
       - name: Post review replies
