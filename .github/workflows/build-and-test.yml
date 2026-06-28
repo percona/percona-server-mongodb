@@ -10,8 +10,9 @@ name: build-and-test
 on:
   pull_request_target:
     # Deliberately NOT triggered on labeled/unlabeled. The workflow is a single
-    # gated pipeline (gate -> build -> dbtests -> unittests -> jstests); whether
-    # jstests runs is decided from the PR's labels at run time by jstests_gate,
+    # gated pipeline (gate -> format_gate -> build -> dbtests -> unittests ->
+    # jstests); whether jstests runs is decided from the PR's labels at run time
+    # by jstests_gate,
     # so it does not need a label trigger. Listening to label events would also
     # make every label a producer like mergai stamps on a PR (ci-skip-clang-tidy
     # / ci-skip-format, meant for other workflows) spawn an extra run that skips
@@ -43,6 +44,10 @@ permissions:
   # Lets the jstests_gate job read fresh PR labels via
   # `gh api repos/.../pulls/<N>` to decide whether the jstests job runs.
   pull-requests: read
+  # Lets the format_gate job read the `format` workflow runs for this PR head SHA
+  # via `gh api repos/.../actions/workflows/format.yml/runs` and hold build until
+  # format has passed.
+  actions: read
 
 # RBE endpoints are shared between jobs. Pinned here so additions like
 # integration-tests/jsttests can reuse the same values without drift.
@@ -65,10 +70,12 @@ env:
   # path to _trusted/ keeps the entire import chain on the trusted copy.
   RBE_CREDENTIAL_HELPER: bb-psmdb.ddns.net=%workspace%/_trusted/bazel/wrapper_hook/credential_helper.py
 
-# Jobs: gate, build, unittests, dbtests, jstests (plus the jstests_gate
-# decider). `gate` is a no-op whose only purpose is to host the protected
-# `rbe-external` environment so a single maintainer approval authorizes the
-# entire workflow run. The test jobs depend on `gate` (transitively) and use
+# Jobs: gate, format_gate, build, unittests, dbtests, jstests (plus the
+# jstests_gate decider). `gate` is a no-op whose only purpose is to host the
+# protected `rbe-external` environment so a single maintainer approval authorizes
+# the entire workflow run. `format_gate` waits for the `format` workflow and
+# gates `build`; the test jobs inherit the format requirement transitively via
+# build. See those jobs. The test jobs depend on `gate` (transitively) and use
 # the unattended `rbe` environment — same secrets, no approval prompt — so the
 # maintainer isn't re-prompted between jobs.
 #
@@ -119,15 +126,92 @@ jobs:
       - run: |
           echo "RBE access approved for PR #${{ github.event.pull_request.number }} by ${{ github.actor }}"
 
+  # Format gate. `build` waits for it, so build never starts until the `format`
+  # workflow has passed (format is ~6 min, so the happy-path delay is small). The
+  # test jobs inherit this transitively: they gate on build success, and build
+  # only succeeds after format passed. A format FAILURE skips build (and the test
+  # jobs that chain off it), so we don't burn RBE on a SHA that a format fix will
+  # supersede (this run is then cancelled by concurrency.cancel-in-progress when
+  # the fix lands).
+  #
+  # clang-tidy is deliberately NOT gated here: its workflow concludes `success`
+  # even when clang-tidy reports findings (those surface as Code Scanning alerts,
+  # not a failing run, because the non-strict .clang-tidy has no WarningsAsErrors),
+  # so a gate on its run conclusion would only catch infra failures, not lint
+  # findings -- not worth holding the pipeline on.
+  #
+  # `format` runs on `pull_request` against the SAME head SHA as this
+  # `pull_request_target` run, so the gate locates the format run for that SHA
+  # and waits for it to conclude. The workflow ALWAYS produces a run: on the
+  # ci-skip-format label the analyze job is skipped but the run still concludes
+  # `success`, so requiring conclusion == 'success' treats that skip case as a
+  # pass and only a genuine FAILURE (or cancellation) blocks build.
+  #
+  # The poll loop is unbounded on purpose: a slow-but-passing format run must not
+  # wrongly skip build. The hard backstop is the job-level timeout
+  # (`timeout-minutes`, GitHub's 6h default); if the run never concludes the job
+  # times out -> `passed` stays empty -> build skips (fail-safe). In practice
+  # format is superseded by its own concurrency.cancel-in-progress on a new push,
+  # which makes the run conclude `cancelled` and the loop exit promptly.
+  #
+  # Job ID uses an underscore (so expressions can use dot access, consistent with
+  # jstests_gate); the display `name` uses a hyphen for the PR check label.
+  format_gate:
+    name: format-gate
+    needs: gate
+    # Skipped on a draft, exactly like build. build additionally requires
+    # passed == 'true', which is empty (falsey) when this job is skipped, so a
+    # draft stays fully skipped and consistent.
+    if: ${{ github.event.pull_request.draft == false }}
+    runs-on: ubuntu-24.04
+    outputs:
+      passed: ${{ steps.wait.outputs.passed }}
+    steps:
+      - name: Wait for format to pass
+        id: wait
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          WORKFLOW: format.yml
+        run: |
+          set -euo pipefail
+          # Poll the workflow's latest run for this PR head SHA until it
+          # completes, then read its conclusion. status/conclusion stay empty
+          # while the run hasn't appeared or is still running. Unbounded; the
+          # job-level timeout is the backstop (see the comment above the job).
+          status=""; conclusion=""
+          while :; do
+            read -r status conclusion < <(gh api \
+              "repos/$REPO/actions/workflows/$WORKFLOW/runs?head_sha=$HEAD_SHA&per_page=1" \
+              --jq '.workflow_runs[0] | "\(.status) \(.conclusion)"' 2>/dev/null || echo " ")
+            echo "[$WORKFLOW] status=${status:-none} conclusion=${conclusion:-none}" >&2
+            [ "$status" = "completed" ] && break
+            sleep 30
+          done
+          if [ "$conclusion" = "success" ]; then
+            echo "passed=true" >> "$GITHUB_OUTPUT"
+            echo "format passed -> build will run."
+          else
+            echo "passed=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Skipping build/tests (format conclusion=${conclusion:-none})."
+          fi
+
   build:
     name: build
-    needs: gate
-    # Runs after gate approval on every non-draft trigger. Skipped while the PR
-    # is a DRAFT (draft == false guard) so a draft gets no heavy CI; marking it
-    # ready fires `ready_for_review` (draft == false) and build runs then.
-    # unittests and dbtests chain off `needs.build.result == 'success'`, so they
-    # inherit the draft skip automatically; jstests carries its own draft guard.
-    if: ${{ github.event.pull_request.draft == false }}
+    needs: [gate, format_gate]
+    # Runs after gate approval AND format passing, on every non-draft trigger.
+    # Skipped while the PR is a DRAFT (draft == false guard) so a draft gets no
+    # heavy CI; marking it ready fires `ready_for_review` (draft == false) and
+    # build runs then. needs.format_gate.outputs.passed holds build until format
+    # has passed (~6 min); it is empty (falsey) when format failed or was
+    # skipped, so a format failure skips build (and the test jobs that chain off
+    # it). unittests and dbtests chain off `needs.build.result == 'success'`, so
+    # they inherit the draft + format skip automatically; jstests carries its own
+    # draft guard.
+    if: >-
+      ${{ github.event.pull_request.draft == false
+      && needs.format_gate.outputs.passed == 'true' }}
     # Pinned to ubuntu-24.04 (not ubuntu-latest) because this workflow
     # depends on runner specifics that change silently when GH rolls the
     # alias forward: the /mnt ephemeral-disk layout assumed by
@@ -235,8 +319,8 @@ jobs:
     needs: [build, dbtests]
     # !cancelled() so unittests still runs when dbtests FAILED (a failed need
     # would otherwise skip it). Gated on build success: build runs only after
-    # the gate approval, so build.result == 'success' implies rbe-external was
-    # approved (and the PR was not a draft).
+    # the gate approval AND format passing, so build.result == 'success' implies
+    # rbe-external was approved, the PR was not a draft, and format passed.
     if: >-
       ${{ !cancelled()
       && needs.build.result == 'success' }}
@@ -380,6 +464,8 @@ jobs:
   dbtests:
     name: dbtests
     needs: [gate, build]
+    # Gated on build success, which implies the gate approval AND format passing
+    # (build gates on format_gate). No separate lint gate here.
     if: >-
       ${{ !cancelled()
       && needs.gate.result == 'success'
@@ -608,7 +694,8 @@ jobs:
     # build passed. `build` is in needs so the `if` can read needs.build.result.
     needs: [gate, build, unittests, jstests_gate]
     # `draft == false` so jstests never runs on a draft (it runs once the PR is
-    # marked ready). `build` is in needs so the `if` can read needs.build.result.
+    # marked ready). `build` is in needs so the `if` can read needs.build.result
+    # (which implies format passed via format_gate).
     if: >-
       ${{ !cancelled()
       && needs.gate.result == 'success'
