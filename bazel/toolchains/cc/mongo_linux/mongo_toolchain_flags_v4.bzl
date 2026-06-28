@@ -8,6 +8,7 @@ COMMON_BUILTIN_INCLUDE_DIRECTORIES = [
     "/usr/include/openssl",
     "/usr/include/{arch}-mongodb-linux",
     "/usr/include",
+    "/usr/lib/linux",
 ]
 
 COMMON_INCLUDE_DIRECTORIES = [
