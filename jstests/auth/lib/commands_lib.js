@@ -6961,9 +6961,7 @@ export const authCommandsLib = {
             testname: "eseRotateActiveKEK",
             command: {eseRotateActiveKEK: 1},
             skipTest: () => {
-                // TODO(SERVER-128385): Re-enable these tests when they are fixed
-                // return !getBuildInfo().modules.includes("atlas");
-                return true;
+                return !getBuildInfo().modules.includes("atlas");
             },
             testcases: [
                 {
@@ -6976,11 +6974,9 @@ export const authCommandsLib = {
         },
         {
             testname: "getESERotateActiveKEKStatus",
-            command: {getESERotateActiveKEKStatus: 1},
+            command: {getESERotateActiveKEKStatus: 1, kekID: 1},
             skipTest: () => {
-                // TODO(SERVER-128385): Re-enable these tests when they are fixed
-                // return !getBuildInfo().modules.includes("atlas");
-                return true;
+                return !getBuildInfo().modules.includes("atlas");
             },
             testcases: [
                 {
@@ -6995,11 +6991,18 @@ export const authCommandsLib = {
         },
         {
             testname: "updateESECMKIdentifierList",
-            command: {updateESECMKIdentifierList: 1},
+            command: {
+                updateESECMKIdentifierList: 1,
+                cmkIdentifierList: [
+                    {
+                        cloudProvider: "aws",
+                        region: "us-east-1",
+                        cmkId: "arn:aws:kms:us-east-1:000000000000:key/test-key",
+                    },
+                ],
+            },
             skipTest: () => {
-                // TODO(SERVER-128385): Re-enable these tests when they are fixed
-                // return !getBuildInfo().modules.includes("atlas");
-                return true;
+                return !getBuildInfo().modules.includes("atlas");
             },
             testcases: [
                 {
@@ -7016,9 +7019,7 @@ export const authCommandsLib = {
             testname: "getESECMKIdentifierListStatus",
             command: {getESECMKIdentifierListStatus: 1},
             skipTest: () => {
-                // TODO(SERVER-128385): Re-enable these tests when they are fixed
-                // return !getBuildInfo().modules.includes("atlas");
-                return true;
+                return !getBuildInfo().modules.includes("atlas");
             },
             testcases: [
                 {
