@@ -160,11 +160,11 @@ using QueryResponseStatus = StatusWith<Fetcher::QueryResponse>;
 using UniqueLock = std::unique_lock<std::mutex>;
 using LockGuard = std::lock_guard<std::mutex>;
 
-constexpr StringData kMetadataFieldName = "metadata"_sd;
-constexpr StringData kBackupIdFieldName = "backupId"_sd;
-constexpr StringData kDBPathFieldName = "dbpath"_sd;
-constexpr StringData kFileNameFieldName = "filename"_sd;
-constexpr StringData kFileSizeFieldName = "fileSize"_sd;
+constexpr std::string_view kMetadataFieldName = "metadata"_sd;
+constexpr std::string_view kBackupIdFieldName = "backupId"_sd;
+constexpr std::string_view kDBPathFieldName = "dbpath"_sd;
+constexpr std::string_view kFileNameFieldName = "filename"_sd;
+constexpr std::string_view kFileSizeFieldName = "fileSize"_sd;
 
 // denylist duration for temporary issues
 constexpr Seconds kDenylistTemporary{5};

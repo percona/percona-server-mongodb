@@ -127,7 +127,7 @@ public:
         }
     }
     Status rotate(bool rename,
-                  StringData renameSuffix,
+                  std::string_view renameSuffix,
                   std::function<void(Status)> onMinorError) override {
         // No need to override this method if there is nothing to rotate
         // like it is for 'console' and 'syslog' destinations
@@ -207,7 +207,7 @@ protected:
     }
 
     Status rotate(bool rename,
-                  StringData renameSuffix,
+                  std::string_view renameSuffix,
                   std::function<void(Status)> onMinorError) override {
         std::lock_guard<std::mutex> lck(_mutex);
 
@@ -555,7 +555,7 @@ MONGO_INITIALIZER_WITH_PREREQUISITES(AuditInit,
     // will rotate() the audit log when the server log rotates.
     logv2::addLogRotator(
         logv2::kAuditLogTag,
-        [](bool renameFiles, StringData suffix, std::function<void(Status)> onMinorError) {
+        [](bool renameFiles, std::string_view suffix, std::function<void(Status)> onMinorError) {
             if (_auditLog) {
                 return _auditLog->rotate(renameFiles, suffix, onMinorError);
             }
@@ -568,7 +568,7 @@ MONGO_INITIALIZER_WITH_PREREQUISITES(AuditInit,
 
 namespace AuditFields {
 // Common fields
-BSONField<StringData> type("atype");
+BSONField<std::string_view> type("atype");
 BSONField<Date_t> timestamp("ts");
 BSONField<BSONObj> local("local");
 BSONField<BSONObj> remote("remote");
@@ -620,7 +620,7 @@ std::string getIpByHost(const std::string& host) {
     return ip;
 }
 
-void appendCommonInfo(BSONObjBuilder& builder, StringData atype, Client* client) {
+void appendCommonInfo(BSONObjBuilder& builder, std::string_view atype, Client* client) {
     builder << AuditFields::type(atype);
     builder << AuditFields::timestamp(Date_t::now());
     builder << AuditFields::local(
@@ -660,7 +660,7 @@ void appendPrivileges(BSONObjBuilder& builder, const PrivilegeVector& privileges
 
 
 void _auditEvent(Client* client,
-                 StringData atype,
+                 std::string_view atype,
                  const BSONObj& params,
                  ErrorCodes::Error result = ErrorCodes::OK,
                  const bool affects_durable_state = true) {
@@ -673,7 +673,7 @@ void _auditEvent(Client* client,
 
 void _auditAuthz(Client* client,
                  const NamespaceString& nss,
-                 StringData command,
+                 std::string_view command,
                  const BSONObj& args,
                  ErrorCodes::Error result) {
     if ((result != ErrorCodes::OK) || auditAuthorizationSuccess.load()) {
@@ -687,7 +687,7 @@ void _auditAuthz(Client* client,
 
 void _auditSystemUsers(Client* client,
                        const NamespaceString& ns,
-                       StringData atype,
+                       std::string_view atype,
                        const BSONObj& params,
                        ErrorCodes::Error result) {
     if ((result == ErrorCodes::OK) && (ns.coll() == "system.users")) {
@@ -752,7 +752,7 @@ public:
         _auditEvent(client, "replSetReconfig", params);
     }
 
-    void logApplicationMessage(Client* client, StringData msg) const override {
+    void logApplicationMessage(Client* client, std::string_view msg) const override {
         if (!_auditLog) {
             return;
         }
@@ -783,7 +783,7 @@ public:
     }
 
     void logLogout(Client* client,
-                   StringData reason,
+                   std::string_view reason,
                    const BSONArray& initialUsers,
                    const BSONArray& updatedUsers,
                    const boost::optional<Date_t>& loginTime) const override {
@@ -801,9 +801,9 @@ public:
 
     void logCreateIndex(Client* client,
                         const BSONObj* indexSpec,
-                        StringData indexname,
+                        std::string_view indexname,
                         const NamespaceString& nsname,
-                        StringData indexBuildState,
+                        std::string_view indexBuildState,
                         ErrorCodes::Error result) const override {
         if (!_auditLog) {
             return;
@@ -858,7 +858,7 @@ public:
     }
 
     void logDropIndex(Client* client,
-                      StringData indexname,
+                      std::string_view indexname,
                       const NamespaceString& nsname) const override {
         if (!_auditLog) {
             return;
@@ -911,7 +911,7 @@ public:
         _auditEvent(client, "renameCollection", params);
     }
 
-    void logEnableSharding(Client* client, StringData nsname) const override {
+    void logEnableSharding(Client* client, std::string_view nsname) const override {
         if (!_auditLog) {
             return;
         }
@@ -919,7 +919,9 @@ public:
         _auditEvent(client, "enableSharding", BSON("ns" << nsname));
     }
 
-    void logAddShard(Client* client, StringData name, const std::string& servers) const override {
+    void logAddShard(Client* client,
+                     std::string_view name,
+                     const std::string& servers) const override {
         if (!_auditLog) {
             return;
         }
@@ -928,7 +930,7 @@ public:
         _auditEvent(client, "addShard", params);
     }
 
-    void logRemoveShard(Client* client, StringData shardname) const override {
+    void logRemoveShard(Client* client, std::string_view shardname) const override {
         if (!_auditLog) {
             return;
         }

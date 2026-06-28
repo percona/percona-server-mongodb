@@ -57,8 +57,8 @@ private:
     CyrusSASLServerSession _sess;
 
     StatusWith<std::tuple<bool, std::string>> stepImpl(OperationContext* opCtx,
-                                                       StringData input) final;
-    StringData getPrincipalName() const final;
+                                                       std::string_view input) final;
+    std::string_view getPrincipalName() const final;
 };
 
 class GSSAPIServerFactory : public MakeServerFactory<GSSAPIServerMechanism> {

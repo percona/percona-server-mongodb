@@ -53,9 +53,10 @@ using FactoryFn = std::unique_ptr<KeyId> (*)(const BSONObj&);
 }  // namespace
 
 std::unique_ptr<KeyId> KeyId::fromStorageEngineEncryptionOptions(const BSONObj& options) {
-    static const std::array<std::pair<StringData, FactoryFn>, 2u> factories = {
-        {{StringData(VaultSecretId::_kSeeoFieldName), KeyIdFactoryWrapper<VaultSecretId>::create},
-         {StringData(KmipKeyId::_kSeeoFieldName), KeyIdFactoryWrapper<KmipKeyId>::create}}};
+    static const std::array<std::pair<std::string_view, FactoryFn>, 2u> factories = {
+        {{std::string_view(VaultSecretId::_kSeeoFieldName),
+          KeyIdFactoryWrapper<VaultSecretId>::create},
+         {std::string_view(KmipKeyId::_kSeeoFieldName), KeyIdFactoryWrapper<KmipKeyId>::create}}};
 
     std::unique_ptr<KeyId> result;
     for (const auto& elem : options) {
@@ -161,7 +162,7 @@ void KeyFilePath::serialize(BSONObjBuilder* b) const {
     b->append("encryptionKeyFilePath", _path);
 }
 
-void KeyFilePath::serializeToServerStatus(BSONObjBuilder* b, StringData fieldName) const {
+void KeyFilePath::serializeToServerStatus(BSONObjBuilder* b, std::string_view fieldName) const {
     // NOTE: not adding '_path' due to security concerns
     b->append(fieldName, "local");
 }
@@ -172,7 +173,7 @@ void VaultSecretId::serialize(BSONObjBuilder* b) const {
     sb.done();
 }
 
-void VaultSecretId::serializeToServerStatus(BSONObjBuilder* b, StringData fieldName) const {
+void VaultSecretId::serializeToServerStatus(BSONObjBuilder* b, std::string_view fieldName) const {
     BSONObjBuilder sb = b->subobjStart(fieldName);
     BSONObjBuilder ssb = sb.subobjStart("vault");
     _serializeImpl(&ssb);
@@ -192,8 +193,8 @@ void KmipKeyId::serialize(BSONObjBuilder* b) const {
     b->append("kmipKeyIdentifier", _keyId);
 }
 
-void KmipKeyId::serializeToServerStatus(BSONObjBuilder* b, StringData fieldName) const {
-    BSONObjBuilder sb = b->subobjStart(StringData{fieldName});
+void KmipKeyId::serializeToServerStatus(BSONObjBuilder* b, std::string_view fieldName) const {
+    BSONObjBuilder sb = b->subobjStart(std::string_view{fieldName});
     BSONObjBuilder ssb = sb.subobjStart("kmip");
     ssb.append("keyId", _keyId);
     ssb.done();

@@ -44,7 +44,7 @@ DECLARE_STAGE_PARAMS_DERIVED_DEFAULT(BackupCursor);
 
 class DocumentSourceBackupCursor : public DocumentSource {
 public:
-    static constexpr StringData kStageName = "$backupCursor"_sd;
+    static constexpr std::string_view kStageName = "$backupCursor"_sd;
 
     class LiteParsed final : public LiteParsedDocumentSourceDefault<LiteParsed> {
     public:
@@ -103,7 +103,7 @@ public:
 
     ~DocumentSourceBackupCursor() override;
 
-    StringData getSourceName() const override;
+    std::string_view getSourceName() const override;
 
     static const Id& id;
 

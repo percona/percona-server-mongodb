@@ -79,7 +79,7 @@ public:
 
 private:
     StatusWith<std::tuple<bool, std::string>> stepImpl(OperationContext* opCtx,
-                                                       StringData input) final;
+                                                       std::string_view input) final;
     StatusWith<std::tuple<bool, std::string>> step1(ServiceContext* serviceContext,
                                                     const auth::OIDCMechanismClientStep1& request);
     StatusWith<std::tuple<bool, std::string>> step2(ServiceContext* serviceContext,

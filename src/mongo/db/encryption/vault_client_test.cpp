@@ -90,7 +90,7 @@ protected:
     static constexpr auto kTestPort = 8200;
     static constexpr auto kOpenAPISpecEndpoint = "sys/internal/specs/openapi"_sd;
 
-    static std::string getOpenAPISpecUrl(StringData host, int port, bool useTLS = false) {
+    static std::string getOpenAPISpecUrl(std::string_view host, int port, bool useTLS = false) {
         return fmt::format(
             "{}://{}:{}/v1/{}", useTLS ? "https" : "http", host, port, kOpenAPISpecEndpoint);
     }

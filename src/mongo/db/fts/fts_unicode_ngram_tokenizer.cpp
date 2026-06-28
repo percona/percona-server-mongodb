@@ -48,7 +48,7 @@ UnicodeNgramFTSTokenizer::UnicodeNgramFTSTokenizer(const FTSLanguage* language)
       _caseFoldMode(_language->str() == "turkish" ? unicode::CaseFoldMode::kTurkish
                                                   : unicode::CaseFoldMode::kNormal) {}
 
-void UnicodeNgramFTSTokenizer::reset(StringData document, Options options) {
+void UnicodeNgramFTSTokenizer::reset(std::string_view document, Options options) {
     _options = options;
     _pos = 0;
     _document.resetData(document);  // Validates that document is valid UTF8.
@@ -162,7 +162,7 @@ bool UnicodeNgramFTSTokenizer::moveNextForDelimiter() {
     }
 }
 
-StringData UnicodeNgramFTSTokenizer::get() const {
+std::string_view UnicodeNgramFTSTokenizer::get() const {
     return _word;
 }
 

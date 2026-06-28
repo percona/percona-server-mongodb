@@ -52,7 +52,7 @@ constexpr const char* kIatFieldName = "iat";
 constexpr const char* kAuthTimeFieldName = "auth_time";
 
 boost::optional<Date_t> tokenGetPastDate(const crypto::JWSValidatedToken& token,
-                                         StringData fieldName) {
+                                         std::string_view fieldName) {
     if (auto elem{token.getBodyBSON().getField(fieldName)}; elem.ok()) {
         Date_t d{crypto::parseUnixEpoch(elem)};
         // The value is copied from the `JWSValidatedToken::validate` method
@@ -67,8 +67,8 @@ boost::optional<Date_t> tokenGetPastDate(const crypto::JWSValidatedToken& token,
 }
 }  // namespace
 
-StatusWith<std::tuple<bool, std::string>> SaslOidcServerMechanism::stepImpl(OperationContext* opCtx,
-                                                                            StringData input) {
+StatusWith<std::tuple<bool, std::string>> SaslOidcServerMechanism::stepImpl(
+    OperationContext* opCtx, std::string_view input) {
     if (Status s{validateBSON(input.data(), input.size())}; !s.isOK()) {
         return s;
     }
@@ -307,7 +307,7 @@ void SaslOidcServerMechanism::processLogClaims(const OidcIdentityProviderConfig&
                                                const crypto::JWSValidatedToken& token) {
     BSONObjBuilder builder;
 
-    for (const auto& claimName : idp.getLogClaims().value_or(std::vector<StringData>{})) {
+    for (const auto& claimName : idp.getLogClaims().value_or(std::vector<std::string_view>{})) {
         const auto claimField = token.getBodyBSON().getField(claimName);
         if (claimField.ok()) {
             builder.appendAs(claimField, claimName);

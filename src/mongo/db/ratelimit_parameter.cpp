@@ -40,7 +40,7 @@ namespace mongo {
 
 void RateLimitParameter::append(OperationContext* txn,
                                 BSONObjBuilder* b,
-                                StringData name,
+                                std::string_view name,
                                 const boost::optional<TenantId>&) {
     b->append(name, serverGlobalParams.rateLimit.load());
 }
@@ -74,7 +74,7 @@ Status RateLimitParameter::set(const BSONElement& newValueElement,
     return _set(newValueElement.numberInt());
 }
 
-Status RateLimitParameter::setFromString(StringData newValueString,
+Status RateLimitParameter::setFromString(std::string_view newValueString,
                                          const boost::optional<TenantId>&) {
     int num = 0;
     Status status = NumberParser{}(newValueString, &num);

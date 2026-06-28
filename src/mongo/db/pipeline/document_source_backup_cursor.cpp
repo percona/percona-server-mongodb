@@ -42,11 +42,11 @@ Copyright (C) 2021-present Percona and/or its affiliates. All rights reserved.
 namespace mongo {
 
 namespace {
-constexpr StringData kDisableIncrementalBackup = "disableIncrementalBackup"_sd;
-constexpr StringData kIncrementalBackup = "incrementalBackup"_sd;
-constexpr StringData kBlockSize = "blockSize"_sd;
-constexpr StringData kThisBackupName = "thisBackupName"_sd;
-constexpr StringData kSrcBackupName = "srcBackupName"_sd;
+constexpr std::string_view kDisableIncrementalBackup = "disableIncrementalBackup"_sd;
+constexpr std::string_view kIncrementalBackup = "incrementalBackup"_sd;
+constexpr std::string_view kBlockSize = "blockSize"_sd;
+constexpr std::string_view kThisBackupName = "thisBackupName"_sd;
+constexpr std::string_view kSrcBackupName = "srcBackupName"_sd;
 }  // namespace
 
 REGISTER_LITE_PARSED_DOCUMENT_SOURCE(backupCursor,
@@ -69,7 +69,7 @@ DocumentSourceBackupCursor::LiteParsed::parse(const NamespaceString& nss,
     return std::make_unique<DocumentSourceBackupCursor::LiteParsed>(spec);
 }
 
-StringData DocumentSourceBackupCursor::getSourceName() const {
+std::string_view DocumentSourceBackupCursor::getSourceName() const {
     return kStageName;
 }
 

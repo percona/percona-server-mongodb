@@ -80,10 +80,10 @@ private:
 
     void appendExtraInfo(BSONObjBuilder* bob) const final;
     StatusWith<std::tuple<bool, std::string>> stepImpl(OperationContext* opCtx,
-                                                       StringData input) final;
-    StatusWith<std::tuple<bool, std::string>> _firstStep(StringData inputData);
-    StatusWith<std::tuple<bool, std::string>> _secondStep(StringData inputData);
-    void _parseStsResponse(StringData body);
+                                                       std::string_view input) final;
+    StatusWith<std::tuple<bool, std::string>> _firstStep(std::string_view inputData);
+    StatusWith<std::tuple<bool, std::string>> _secondStep(std::string_view inputData);
+    void _parseStsResponse(std::string_view body);
 };
 
 class ServerFactory final : public MakeServerFactory<ServerMechanism> {

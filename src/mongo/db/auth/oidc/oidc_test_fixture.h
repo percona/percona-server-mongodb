@@ -107,7 +107,7 @@ struct SetClientId : public SetFieldWithValue<std::string> {
     using SetFieldWithValue::SetFieldWithValue;
 
     void set(OidcIdentityProviderConfig& config) override {
-        config.setClientId(StringData{getValue()});
+        config.setClientId(std::string_view{getValue()});
     }
 };
 
@@ -116,7 +116,7 @@ struct SetRequestScopes : public SetFieldWithValue<std::vector<std::string>> {
     using SetFieldWithValue::SetFieldWithValue;
 
     void set(OidcIdentityProviderConfig& config) override {
-        std::vector<StringData> scopes;
+        std::vector<std::string_view> scopes;
         for (const auto& scope : getValue()) {
             scopes.emplace_back(scope);
         }
@@ -261,13 +261,13 @@ struct JWKSFetcherFactoryMock : public JWKSFetcherFactory {
     };
 
 public:
-    std::unique_ptr<crypto::JWKSFetcher> makeJWKSFetcher(StringData issuer,
-                                                         StringData caFilePath) const override {
+    std::unique_ptr<crypto::JWKSFetcher> makeJWKSFetcher(
+        std::string_view issuer, std::string_view caFilePath) const override {
         (void)caFilePath;
         _issuers.emplace_back(issuer);
         return std::make_unique<JWKSFetcherMock>(*this, std::string{issuer});
     }
-    std::unique_ptr<crypto::JWKSFetcher> makeJWKSFetcher(StringData issuer) const {
+    std::unique_ptr<crypto::JWKSFetcher> makeJWKSFetcher(std::string_view issuer) const {
         return makeJWKSFetcher(issuer, {});
     }
 

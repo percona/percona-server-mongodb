@@ -1699,7 +1699,7 @@ protected:
         return _engine->getEncryptionKeyDB();
     }
 
-    void insertKey(StringData id) {
+    void insertKey(std::string_view id) {
         unsigned char buf[encryption::Key::kLength];
         // get_key_by_id with pe=nullptr creates the entry if missing and
         // does NOT poison _encryptors (this is the post-fix behavior).
@@ -1766,7 +1766,7 @@ TEST_F(WiredTigerKVEngineKeyLifecycleTest, KeydbDropKeyIdDeletesNonDatabaseNameK
     // a valid serialized DatabaseName (e.g. "table:foo" - the colon makes
     // DatabaseName validation reject it). The startup cleanup path drops
     // such entries by raw keyId; without this they would leak indefinitely.
-    const StringData weirdKey = "table:foo";
+    const std::string_view weirdKey = "table:foo";
     insertKey(weirdKey);
 
     auto before = keyDb()->getAllKeyIds();

@@ -109,7 +109,7 @@ private:
         BSONObjBuilder resultKeySets{result.subobjStart("keySets")};
         registry.visitJWKManagers([&resultKeySets](const auto& issuer, auto manager) {
             BSONObjBuilder resultKeySet{
-                resultKeySets.subobjStart(StringData{issuer.data(), issuer.size()})};
+                resultKeySets.subobjStart(std::string_view{issuer.data(), issuer.size()})};
 
             BSONArrayBuilder resultKeys{resultKeySet.subarrayStart("keys")};
 

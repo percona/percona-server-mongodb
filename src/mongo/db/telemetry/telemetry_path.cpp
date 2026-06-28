@@ -48,14 +48,14 @@ namespace mongo {
 
 namespace {
 
-constexpr StringData kTelemetryPath = "/usr/local/percona/telemetry/psmdb"_sd;
-constexpr StringData kTelemetryPathS = "/usr/local/percona/telemetry/psmdbs"_sd;
+constexpr std::string_view kTelemetryPath = "/usr/local/percona/telemetry/psmdb"_sd;
+constexpr std::string_view kTelemetryPathS = "/usr/local/percona/telemetry/psmdbs"_sd;
 
 std::string telemetryPath;  // NOLINT(*-avoid-non-const-global-variables)
 
 }  // namespace
 
-StringData getTelemetryPath() {
+std::string_view getTelemetryPath() {
     if (!telemetryPath.empty()) {
         return telemetryPath;
     }
@@ -66,12 +66,12 @@ StringData getTelemetryPath() {
 
 void TelemetryPath::append(OperationContext*,
                            BSONObjBuilder* bob,
-                           StringData name,
+                           std::string_view name,
                            const boost::optional<TenantId>&) {
     bob->append(name, getTelemetryPath());
 }
 
-Status TelemetryPath::setFromString(StringData str, const boost::optional<TenantId>&) {
+Status TelemetryPath::setFromString(std::string_view str, const boost::optional<TenantId>&) {
     telemetryPath = std::string{str};
     return Status::OK();
 }

@@ -82,12 +82,12 @@ private:
     } _results;
 
     StatusWith<std::tuple<bool, std::string>> stepImpl(OperationContext* opCtx,
-                                                       StringData input) final;
-    StringData getPrincipalName() const final;
+                                                       std::string_view input) final;
+    std::string_view getPrincipalName() const final;
 
     Status initializeConnection();
-    StatusWith<std::tuple<bool, std::string>> processInitialClientPayload(StringData payload);
-    StatusWith<std::tuple<bool, std::string>> processNextClientPayload(StringData payload);
+    StatusWith<std::tuple<bool, std::string>> processInitialClientPayload(std::string_view payload);
+    StatusWith<std::tuple<bool, std::string>> processNextClientPayload(std::string_view payload);
     StatusWith<std::tuple<bool, std::string>> getStepResult() const;
 };
 
@@ -111,9 +111,9 @@ private:
     std::string _principal;
 
     StatusWith<std::tuple<bool, std::string>> stepImpl(OperationContext* opCtx,
-                                                       StringData input) final;
+                                                       std::string_view input) final;
 
-    StringData getPrincipalName() const final;
+    std::string_view getPrincipalName() const final;
 };
 
 }  // namespace mongo

@@ -141,7 +141,7 @@ public:
             opCtx, std::move(kv), std::move(spillWiredTigerKVEngine), options);
     }
 
-    StringData getCanonicalName() const override {
+    std::string_view getCanonicalName() const override {
         return kInMemoryEngineName;
     }
 

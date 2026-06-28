@@ -80,25 +80,25 @@ namespace mongo {
 
 namespace {
 
-constexpr StringData kSourceName = "mongod"_sd;
-constexpr StringData kTelemetryFileName = "psmdb_telemetry.data"_sd;
-constexpr StringData kTelemetryCollection = "percona.telemetry"_sd;
-constexpr StringData kId = "_id"_sd;
-constexpr StringData kScheduledAt = "scheduledAt"_sd;
+constexpr std::string_view kSourceName = "mongod"_sd;
+constexpr std::string_view kTelemetryFileName = "psmdb_telemetry.data"_sd;
+constexpr std::string_view kTelemetryCollection = "percona.telemetry"_sd;
+constexpr std::string_view kId = "_id"_sd;
+constexpr std::string_view kScheduledAt = "scheduledAt"_sd;
 
-constexpr StringData kEncryptionKeyStorage = "tde_key_storage"_sd;
-constexpr StringData kEncryptionVaultSpec = "tde_vault_info"_sd;
-constexpr StringData kVaultKeyFile = "keyfile"_sd;
-constexpr StringData kVaultVault = "vault"_sd;
-constexpr StringData kVaultKmip = "kmip"_sd;
+constexpr std::string_view kEncryptionKeyStorage = "tde_key_storage"_sd;
+constexpr std::string_view kEncryptionVaultSpec = "tde_vault_info"_sd;
+constexpr std::string_view kVaultKeyFile = "keyfile"_sd;
+constexpr std::string_view kVaultVault = "vault"_sd;
+constexpr std::string_view kVaultKmip = "kmip"_sd;
 
-constexpr StringData kPBMVersionField = "v"_sd;
-constexpr StringData kPBMActive = "pbm_active"_sd;
+constexpr std::string_view kPBMVersionField = "v"_sd;
+constexpr std::string_view kPBMActive = "pbm_active"_sd;
 
-constexpr StringData kInitialSyncMethod = "initial_sync_method"_sd;
+constexpr std::string_view kInitialSyncMethod = "initial_sync_method"_sd;
 
-constexpr StringData kOpenApiSpecFieldInfo = "info"_sd;
-constexpr StringData kOpenApiSpecInfoFields[] = {
+constexpr std::string_view kOpenApiSpecFieldInfo = "info"_sd;
+constexpr std::string_view kOpenApiSpecInfoFields[] = {
     "title"_sd,
     "version"_sd,
 };
@@ -116,7 +116,7 @@ encryption::VaultClient createVaultClient() {
                                    encryptionGlobalParams.vaultTimeout);
 }
 
-bool isKeyStorageVault(StringData keyStorage) {
+bool isKeyStorageVault(std::string_view keyStorage) {
     return keyStorage == kVaultVault;
 }
 
@@ -137,7 +137,7 @@ BSONObj getVaultInfo(const BSONObj& obj) {
 }
 }  // namespace
 
-StringData keyStorageType() {
+std::string_view keyStorageType() {
     if (!encryptionGlobalParams.encryptionKeyFile.empty()) {
         return kVaultKeyFile;
     }
@@ -157,7 +157,7 @@ public:
     }
 
 private:
-    StringData _sourceName() override {
+    std::string_view _sourceName() override {
         return kSourceName;
     }
 

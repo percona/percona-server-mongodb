@@ -73,7 +73,7 @@ struct LDAPGlobalParams {
     bool ldapValidateLDAPServerConfig = true;
 
     std::string getServersStr() const;
-    void setServersStr(StringData);
+    void setServersStr(std::string_view);
     std::string logString() const;
     std::string ldapURIList() const;
 };

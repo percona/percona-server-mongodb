@@ -60,7 +60,7 @@ std::string LDAPGlobalParams::getServersStr() const {
     return ldap_servers;
 }
 
-void LDAPGlobalParams::setServersStr(StringData ldap_servers) {
+void LDAPGlobalParams::setServersStr(std::string_view ldap_servers) {
     auto guard = *ldapServers;
     boost::split(*guard, ldap_servers, [](char c) { return c == ','; }, boost::token_compress_on);
 }
@@ -108,12 +108,12 @@ void invalidateLDAPConnections() {
 
 void LDAPServersParameter::append(OperationContext*,
                                   BSONObjBuilder* b,
-                                  StringData name,
+                                  std::string_view name,
                                   const boost::optional<TenantId>&) {
     b->append(name, ldapGlobalParams.getServersStr());
 }
 
-Status LDAPServersParameter::setFromString(StringData newValueString,
+Status LDAPServersParameter::setFromString(std::string_view newValueString,
                                            const boost::optional<TenantId>&) {
     ldapGlobalParams.setServersStr(newValueString);
     invalidateLDAPConnections();
@@ -122,12 +122,12 @@ Status LDAPServersParameter::setFromString(StringData newValueString,
 
 void LDAPQueryUserParameter::append(OperationContext*,
                                     BSONObjBuilder* b,
-                                    StringData name,
+                                    std::string_view name,
                                     const boost::optional<TenantId>&) {
     b->append(name, ldapGlobalParams.ldapQueryUser.get());
 }
 
-Status LDAPQueryUserParameter::setFromString(StringData newValueString,
+Status LDAPQueryUserParameter::setFromString(std::string_view newValueString,
                                              const boost::optional<TenantId>&) {
     ldapGlobalParams.ldapQueryUser = std::string(newValueString);
     invalidateLDAPConnections();
@@ -137,7 +137,7 @@ Status LDAPQueryUserParameter::setFromString(StringData newValueString,
 // We do not implement LDAPQueryPasswordParameter:append here because this parameter has redact=true
 // so this method is implemented by idl generator
 
-Status LDAPQueryPasswordParameter::setFromString(StringData newValueString,
+Status LDAPQueryPasswordParameter::setFromString(std::string_view newValueString,
                                                  const boost::optional<TenantId>&) {
     ldapGlobalParams.ldapQueryPassword = std::string(newValueString);
     invalidateLDAPConnections();

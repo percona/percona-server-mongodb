@@ -53,7 +53,7 @@ REGISTER_AGG_STAGE_MAPPING(backupCursorExtendStage,
                            documentSourceBackupCursorExtendToStageFn);
 
 BackupCursorExtendStage::BackupCursorExtendStage(
-    StringData stageName,
+    std::string_view stageName,
     const boost::intrusive_ptr<ExpressionContext>& pExpCtx,
     const UUID& backupId,
     const Timestamp& extendTo)

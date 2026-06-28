@@ -3653,7 +3653,7 @@ void WiredTigerKVEngine::dropIdentForImport(Interruptible& interruptible,
     invariant(dropStatus);
 }
 
-bool WiredTigerKVEngine::keydbDropKeyId(StringData keyId) {
+bool WiredTigerKVEngine::keydbDropKeyId(std::string_view keyId) {
     if (!_restEncr) {
         return true;
     }

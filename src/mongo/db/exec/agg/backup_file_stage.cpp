@@ -55,7 +55,7 @@ REGISTER_AGG_STAGE_MAPPING(backupFileStage,
                            DocumentSourceBackupFile::id,
                            documentSourceBackupFileToStageFn);
 
-BackupFileStage::BackupFileStage(StringData stageName,
+BackupFileStage::BackupFileStage(std::string_view stageName,
                                  const boost::intrusive_ptr<ExpressionContext>& pExpCtx,
                                  UUID backupId,
                                  std::string filePath,

@@ -162,9 +162,9 @@ const BSONObj EncryptionStatusTest::expectedKeyIdField_KeyFile =
 // }
 const BSONObj EncryptionStatusTest::expectedKeyIdField_Vault =
     BSON(kEncryptionKeyIdField << BSON(
-             "vault" << BSON(
-                 "path" << kTestVaultSecretPath << "version"
-                        << static_cast<StringData>(str::stream() << kTestVaultSecretVersion))));
+             "vault" << BSON("path" << kTestVaultSecretPath << "version"
+                                    << static_cast<std::string_view>(str::stream()
+                                                                     << kTestVaultSecretVersion))));
 
 // {
 //      encryptionKeyId : {

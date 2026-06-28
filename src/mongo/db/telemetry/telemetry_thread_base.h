@@ -70,11 +70,11 @@ public:
     void shutdown();
 
 protected:
-    static boost::filesystem::path sdPath(StringData sd);
-    static StringData boolName(bool v);
+    static boost::filesystem::path sdPath(std::string_view sd);
+    static std::string_view boolName(bool v);
 
     // methods called from _initParameters
-    virtual StringData _sourceName() = 0;
+    virtual std::string_view _sourceName() = 0;
     virtual Status _initInstanceId(const OID& initialId) = 0;
     virtual Status _initDbId(ServiceContext* serviceContext,
                              OperationContext* opCtx,
@@ -87,25 +87,25 @@ protected:
     virtual void _appendMetrics(ServiceContext* serviceContext, BSONObjBuilder* builder) = 0;
 
     // names of the fields in the metric file
-    static constexpr StringData kDbInstanceId = "db_instance_id"_sd;
-    static constexpr StringData kDbInternalId = "db_internal_id"_sd;
-    static constexpr StringData kPillarVersion = "pillar_version"_sd;
-    static constexpr StringData kPerconaFeatures = "percona_features"_sd;
-    static constexpr StringData kStorageEngine = "storage_engine"_sd;
-    static constexpr StringData kReplicaSetId = "db_replication_id"_sd;
-    static constexpr StringData kReplMemberState = "replication_state"_sd;
-    static constexpr StringData kClusterId = "db_cluster_id"_sd;
-    static constexpr StringData kShardSvr = "shard_svr"_sd;
-    static constexpr StringData kConfigSvr = "config_svr"_sd;
-    static constexpr StringData kUptime = "uptime"_sd;
-    static constexpr StringData kSource = "source"_sd;
-    static constexpr StringData kOIDCEnabled = "oidc_enabled"_sd;
-    static constexpr StringData kLDAPEnabled = "ldap_enabled"_sd;
-    static constexpr StringData kLDAPAuthorizationEnabled = "ldap_authorization_enabled"_sd;
-    static constexpr StringData kLDAPSaslAuthenticationEnabled =
+    static constexpr std::string_view kDbInstanceId = "db_instance_id"_sd;
+    static constexpr std::string_view kDbInternalId = "db_internal_id"_sd;
+    static constexpr std::string_view kPillarVersion = "pillar_version"_sd;
+    static constexpr std::string_view kPerconaFeatures = "percona_features"_sd;
+    static constexpr std::string_view kStorageEngine = "storage_engine"_sd;
+    static constexpr std::string_view kReplicaSetId = "db_replication_id"_sd;
+    static constexpr std::string_view kReplMemberState = "replication_state"_sd;
+    static constexpr std::string_view kClusterId = "db_cluster_id"_sd;
+    static constexpr std::string_view kShardSvr = "shard_svr"_sd;
+    static constexpr std::string_view kConfigSvr = "config_svr"_sd;
+    static constexpr std::string_view kUptime = "uptime"_sd;
+    static constexpr std::string_view kSource = "source"_sd;
+    static constexpr std::string_view kOIDCEnabled = "oidc_enabled"_sd;
+    static constexpr std::string_view kLDAPEnabled = "ldap_enabled"_sd;
+    static constexpr std::string_view kLDAPAuthorizationEnabled = "ldap_authorization_enabled"_sd;
+    static constexpr std::string_view kLDAPSaslAuthenticationEnabled =
         "ldap_sasl_authentication_enabled"_sd;
-    static constexpr StringData kKerberosAuthenticationEnabled = "kerberos_enabled"_sd;
-    static constexpr StringData kX509AuthenticationEnabled = "x509_enabled"_sd;
+    static constexpr std::string_view kKerberosAuthenticationEnabled = "kerberos_enabled"_sd;
+    static constexpr std::string_view kX509AuthenticationEnabled = "x509_enabled"_sd;
 
     // instance id stored in kTelemetryFileName
     OID _instid;

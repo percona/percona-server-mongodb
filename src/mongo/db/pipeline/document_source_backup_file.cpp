@@ -55,9 +55,9 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 namespace mongo {
 
 namespace {
-constexpr StringData kBackupId = "backupId"_sd;
-constexpr StringData kFile = "file"_sd;
-constexpr StringData kByteOffset = "byteOffset"_sd;
+constexpr std::string_view kBackupId = "backupId"_sd;
+constexpr std::string_view kFile = "file"_sd;
+constexpr std::string_view kByteOffset = "byteOffset"_sd;
 }  // namespace
 
 REGISTER_LITE_PARSED_DOCUMENT_SOURCE(_backupFile,
@@ -78,7 +78,7 @@ std::unique_ptr<DocumentSourceBackupFile::LiteParsed> DocumentSourceBackupFile::
     return std::make_unique<DocumentSourceBackupFile::LiteParsed>(spec);
 }
 
-StringData DocumentSourceBackupFile::getSourceName() const {
+std::string_view DocumentSourceBackupFile::getSourceName() const {
     return kStageName;
 }
 

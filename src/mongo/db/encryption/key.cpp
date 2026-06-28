@@ -55,7 +55,7 @@ Key::Key() {
 }
 
 Key::Key(const std::byte* keyData, std::size_t keyDataSize) {
-    StringData s(reinterpret_cast<const char*>(keyData), keyDataSize);
+    std::string_view s(reinterpret_cast<const char*>(keyData), keyDataSize);
     if (keyDataSize == base64::encodedLength(kLength) && base64::validate(s)) {
         std::string decodedKey = base64::decode(s);
         std::memcpy(data(), decodedKey.c_str(), kLength);

@@ -567,7 +567,7 @@ public:
 
     Status alterMetadata(std::string_view uri, std::string_view config) override;
 
-    bool keydbDropKeyId(StringData keyId) override;
+    bool keydbDropKeyId(std::string_view keyId) override;
 
     std::vector<std::string> findOrphanedEncryptionKeyIds() override;
 

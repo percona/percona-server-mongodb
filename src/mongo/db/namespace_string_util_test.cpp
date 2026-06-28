@@ -274,9 +274,9 @@ TEST(NamespaceStringUtilTest, SerializeExpectPrefixTrue_CommandReply) {
 
 TEST(NamespaceStringUtilTest, SerializeEmptyCollectionName) {
     const auto& ctx = SerializationContext::stateDefault();
-    StringData dbName = "admin";
-    StringData ns = dbName;
-    StringData collName = "";
+    std::string_view dbName = "admin";
+    std::string_view ns = dbName;
+    std::string_view collName = "";
 
     auto dbNameDeserialize = [dbName, &ctx]() {
         return DatabaseNameUtil::deserialize(boost::none, dbName, ctx);

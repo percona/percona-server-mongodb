@@ -69,16 +69,16 @@ namespace {
 std::mutex saslAWSServerMutex;
 SecureRandom saslAWSServerGen;
 
-StringData toString(const DataBuilder& builder) {
+std::string_view toString(const DataBuilder& builder) {
     ConstDataRange cdr = builder.getCursor();
-    StringData str;
-    cdr.readInto<StringData>(&str);
+    std::string_view str;
+    cdr.readInto<std::string_view>(&str);
     return str;
 }
 
-StringData awsStsHost() {
+std::string_view awsStsHost() {
     return saslGlobalParams.awsStsHost.empty() ? kAwsDefaultStsHost
-                                               : StringData(saslGlobalParams.awsStsHost);
+                                               : std::string_view(saslGlobalParams.awsStsHost);
 }
 }  // namespace
 
@@ -90,7 +90,7 @@ void ServerMechanism::appendExtraInfo(BSONObjBuilder* bob) const {
 }
 
 StatusWith<std::tuple<bool, std::string>> ServerMechanism::stepImpl(
-    [[maybe_unused]] OperationContext* opCtx, StringData inputData) try {
+    [[maybe_unused]] OperationContext* opCtx, std::string_view inputData) try {
     switch (++_step) {
         case 1:
             return _firstStep(inputData);
@@ -104,7 +104,7 @@ StatusWith<std::tuple<bool, std::string>> ServerMechanism::stepImpl(
     return exceptionToStatus();
 }
 
-StatusWith<std::tuple<bool, std::string>> ServerMechanism::_firstStep(StringData inputData) {
+StatusWith<std::tuple<bool, std::string>> ServerMechanism::_firstStep(std::string_view inputData) {
     auto clientFirst = awsIam::convertFromByteString<awsIam::AwsClientFirst>(inputData);
     auto clientNonce = clientFirst.getNonce();
     _gs2_cb_flag = clientFirst.getGs2_cb_flag();
@@ -121,7 +121,7 @@ StatusWith<std::tuple<bool, std::string>> ServerMechanism::_firstStep(StringData
     return std::make_tuple(false, convertToByteString(first));
 }
 
-StatusWith<std::tuple<bool, std::string>> ServerMechanism::_secondStep(StringData inputData) {
+StatusWith<std::tuple<bool, std::string>> ServerMechanism::_secondStep(std::string_view inputData) {
     auto clientSecond = awsIam::convertFromByteString<awsIam::AwsClientSecond>(inputData);
     static constexpr auto kSTSGetCallerIdentityBody =
         "Action=GetCallerIdentity&Version=2011-06-15"_sd;
@@ -132,8 +132,10 @@ StatusWith<std::tuple<bool, std::string>> ServerMechanism::_secondStep(StringDat
     headers.emplace_back("Content-Type: application/x-www-form-urlencoded");
     headers.emplace_back("Authorization: " + std::string(clientSecond.getAuthHeader()));
     headers.emplace_back("X-Amz-Date: " + std::string(clientSecond.getXAmzDate()));
-    headers.emplace_back(fmt::format(
-        "{}: {}", kMongoGS2CBHeader, StringData{reinterpret_cast<const char*>(&_gs2_cb_flag), 1}));
+    headers.emplace_back(
+        fmt::format("{}: {}",
+                    kMongoGS2CBHeader,
+                    std::string_view{reinterpret_cast<const char*>(&_gs2_cb_flag), 1}));
     headers.emplace_back(fmt::format("{}: {}",
                                      kMongoServerNonceHeader,
                                      base64::encode(_serverNonce.data(), _serverNonce.size())));
@@ -156,7 +158,7 @@ StatusWith<std::tuple<bool, std::string>> ServerMechanism::_secondStep(StringDat
     return std::make_tuple(true, std::string());
 }
 
-void ServerMechanism::_parseStsResponse(StringData body) {
+void ServerMechanism::_parseStsResponse(std::string_view body) {
     // Parse the XML string into a Boost Property Tree
     std::istringstream ss(std::string{body});
     boost::property_tree::ptree pt;

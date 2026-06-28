@@ -75,7 +75,7 @@ private:
 
 class BadHttpReponse : public std::runtime_error {
 public:
-    BadHttpReponse(const char* operation, std::uint16_t code, StringData body)
+    BadHttpReponse(const char* operation, std::uint16_t code, std::string_view body)
         : std::runtime_error(str::stream()
                              << "Bad HTTP response from the Vault server while " << operation
                              << "; statusCode: " << code << "; body: `" << body << "`") {}
@@ -86,7 +86,7 @@ public:
     explicit InvalidVaultResponse(const std::string& reason)
         : std::runtime_error(str::stream() << "Invalid Vault response: " << reason) {}
 
-    InvalidVaultResponse(StringData fieldName, StringData reason)
+    InvalidVaultResponse(std::string_view fieldName, std::string_view reason)
         : std::runtime_error(str::stream() << "Invalid Vault response: `" << fieldName << "` "
                                            << reason << ".") {}
 };
@@ -127,7 +127,7 @@ struct SecretMetadata {
 };
 
 template <typename T>
-T bsonObjectGetNestedValue(const BSONObj& object, StringData path) {
+T bsonObjectGetNestedValue(const BSONObj& object, std::string_view path) {
     invariant(!path.empty());
 
     static constexpr const char* kNotObject = "is missing or not an object";
@@ -161,14 +161,16 @@ T bsonObjectGetNestedValue(const BSONObj& object, StringData path) {
 }
 
 template <>
-std::uint64_t bsonObjectGetNestedValue<std::uint64_t>(const BSONObj& object, StringData path) {
+std::uint64_t bsonObjectGetNestedValue<std::uint64_t>(const BSONObj& object,
+                                                      std::string_view path) {
     long long value = bsonObjectGetNestedValue<long long>(object, path);
     return value < 0 ? throw InvalidVaultResponse(path, "is negative")
                      : static_cast<std::uint64_t>(value);
 }
 
 template <>
-PositiveUint64 bsonObjectGetNestedValue<PositiveUint64>(const BSONObj& object, StringData path) {
+PositiveUint64 bsonObjectGetNestedValue<PositiveUint64>(const BSONObj& object,
+                                                        std::string_view path) {
     long long value = bsonObjectGetNestedValue<long long>(object, path);
     return value <= 0 ? throw InvalidVaultResponse(path, "is not positive") : PositiveUint64(value);
 }
@@ -187,7 +189,7 @@ std::string genPutKeyReqBody(const std::string& key,
 // Replaces '$ref' with '_ref'
 // The OpenAPI references can cause a parsing failure because they
 // will be treated as DBRefs.
-std::string removeRef(StringData json) {
+std::string removeRef(std::string_view json) {
     return std::regex_replace(std::string{json}, std::regex{"\"\\$ref\""}, "\"_ref\"");
 }
 
@@ -217,8 +219,8 @@ public:
     StatusWith<BSONObj> getOpenAPISpec() const;
 
 private:
-    std::uint64_t requestEngineMaxVersions(StringData url) const;
-    boost::optional<SecretMetadata> requestSecretMetadata(StringData url) const;
+    std::uint64_t requestEngineMaxVersions(std::string_view url) const;
+    boost::optional<SecretMetadata> requestSecretMetadata(std::string_view url) const;
     SecretMetadata getSecretMetadata(const std::string& secretPath) const;
 
     static constexpr std::uint16_t kHttpStatusCodeOk = 200;
@@ -267,11 +269,11 @@ VaultClient::Impl::Impl(const std::string& host,
 }
 
 
-std::uint64_t VaultClient::Impl::requestEngineMaxVersions(StringData url) const {
+std::uint64_t VaultClient::Impl::requestEngineMaxVersions(std::string_view url) const {
     HttpClient::HttpReply reply = _httpClient->request(HttpClient::HttpMethod::kGET, url);
 
     ConstDataRangeCursor cur = reply.body.getCursor();
-    StringData replyBody(cur.data(), cur.length());
+    std::string_view replyBody(cur.data(), cur.length());
     LOGV2_DEBUG(29124,
                 4,
                 "Vault: get a secrets engine config",
@@ -286,11 +288,12 @@ std::uint64_t VaultClient::Impl::requestEngineMaxVersions(StringData url) const 
     return bsonObjectGetNestedValue<std::uint64_t>(fromjson(replyBody), "data.max_versions");
 }
 
-boost::optional<SecretMetadata> VaultClient::Impl::requestSecretMetadata(StringData url) const {
+boost::optional<SecretMetadata> VaultClient::Impl::requestSecretMetadata(
+    std::string_view url) const {
     HttpClient::HttpReply reply = _httpClient->request(HttpClient::HttpMethod::kGET, url);
 
     ConstDataRangeCursor cur = reply.body.getCursor();
-    StringData replyBody(cur.data(), cur.length());
+    std::string_view replyBody(cur.data(), cur.length());
     LOGV2_DEBUG(29125,
                 4,
                 "Vault: get secret metadata",
@@ -347,7 +350,7 @@ std::pair<std::string, std::uint64_t> VaultClient::Impl::getKey(const std::strin
     HttpClient::HttpReply reply = _httpClient->request(HttpClient::HttpMethod::kGET, url);
 
     ConstDataRangeCursor cur = reply.body.getCursor();
-    StringData replyBody(cur.data(), cur.length());
+    std::string_view replyBody(cur.data(), cur.length());
     LOGV2_DEBUG(29126,
                 4,
                 "Vault: get a secret",
@@ -395,7 +398,7 @@ std::uint64_t VaultClient::Impl::putKey(const std::string& secretPath,
             _httpClient->request(HttpClient::HttpMethod::kPOST, url, reqBody);
 
         ConstDataRangeCursor cur = reply.body.getCursor();
-        StringData replyBody(cur.data(), cur.length());
+        std::string_view replyBody(cur.data(), cur.length());
         LOGV2_DEBUG(29127,
                     4,
                     "Vault: put a secret",
@@ -436,7 +439,7 @@ StatusWith<BSONObj> VaultClient::Impl::getOpenAPISpec() const try {
     }
 
     ConstDataRangeCursor cur = reply.body.getCursor();
-    StringData replyBody(cur.data(), cur.length());
+    std::string_view replyBody(cur.data(), cur.length());
 
     LOGV2_DEBUG(29143,
                 1,

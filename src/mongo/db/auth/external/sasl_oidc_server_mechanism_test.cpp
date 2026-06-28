@@ -43,7 +43,7 @@ class SaslOidcServerMechanismTest : public OidcTestFixture {
 protected:
     // Runs the step and transforms the result to BSONObj.
     StatusWith<BSONObj> runStep(const BSONObj& input) {
-        StringData bsonData(input.objdata(), input.objsize());
+        std::string_view bsonData(input.objdata(), input.objsize());
         auto result = _mech.step(operationContext(), bsonData);
         if (!result.isOK()) {
             return result.getStatus();

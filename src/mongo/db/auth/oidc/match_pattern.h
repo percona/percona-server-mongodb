@@ -47,7 +47,7 @@ public:
         uasserted(77701, fmt::format("Invalid `matchPattern` value `{}`: {}", source, e.what()));
     }
 
-    static MatchPattern fromString(const StringData source) {
+    static MatchPattern fromString(const std::string_view source) {
         return MatchPattern{std::string_view{source}};
     }
 

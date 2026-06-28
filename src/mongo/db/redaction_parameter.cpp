@@ -39,7 +39,7 @@ namespace mongo {
 
 void RedactClientLogDataParameter::append(OperationContext* txn,
                                           BSONObjBuilder* b,
-                                          StringData name,
+                                          std::string_view name,
                                           const boost::optional<TenantId>&) {
     b->append(name, logv2::shouldRedactLogs());
 }
@@ -61,7 +61,7 @@ Status RedactClientLogDataParameter::set(const BSONElement& newValueElement,
     return _set(newValueElement.boolean());
 }
 
-Status RedactClientLogDataParameter::setFromString(StringData newValueString,
+Status RedactClientLogDataParameter::setFromString(std::string_view newValueString,
                                                    const boost::optional<TenantId>&) {
     if (newValueString == "true"_sd || newValueString == "1"_sd)
         return _set(true);

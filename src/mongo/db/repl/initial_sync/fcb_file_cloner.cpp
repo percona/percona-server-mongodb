@@ -124,7 +124,7 @@ void FCBFileCloner::preStage() {
     uassert(6113301,
             str::stream() << "Path " << _relativePathString
                           << " must not escape its parent directory.",
-            StringData(_localFilePath.generic_string())
+            std::string_view(_localFilePath.generic_string())
                 .starts_with(syncTargetTempDBPath.generic_string()));
 
     // Create and open files and any parent directories.

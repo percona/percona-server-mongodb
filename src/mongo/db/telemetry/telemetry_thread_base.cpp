@@ -69,10 +69,10 @@ namespace mongo {
 
 namespace {
 
-constexpr StringData kParamName = "perconaTelemetry"_sd;
+constexpr std::string_view kParamName = "perconaTelemetry"_sd;
 
-constexpr StringData kFalse = "false"_sd;
-constexpr StringData kTrue = "true"_sd;
+constexpr std::string_view kFalse = "false"_sd;
+constexpr std::string_view kTrue = "true"_sd;
 
 
 // We need this flag to filter out updates from server parameter which can arrive before global
@@ -223,12 +223,12 @@ void TelemetryThreadBase::shutdown() {
 }
 
 // auxiliary function
-boost::filesystem::path TelemetryThreadBase::sdPath(StringData sd) {
+boost::filesystem::path TelemetryThreadBase::sdPath(std::string_view sd) {
     return {sd.data(), sd.data() + sd.size()};  // NOLINT(*-pointer-arithmetic)
 }
 
 // auxiliary function
-StringData TelemetryThreadBase::boolName(bool v) {
+std::string_view TelemetryThreadBase::boolName(bool v) {
     return v ? kTrue : kFalse;
 }
 

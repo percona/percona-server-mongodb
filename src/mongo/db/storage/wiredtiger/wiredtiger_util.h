@@ -222,7 +222,7 @@ public:
      * @param config The WiredTiger configuration string (from getMetadata or getMetadataCreate)
      * @return The keyid if found, boost::none otherwise. Empty string indicates master key.
      */
-    static boost::optional<std::string> getEncryptionKeyId(StringData config);
+    static boost::optional<std::string> getEncryptionKeyId(std::string_view config);
 
     /**
      * Gets the source metadata string for collection or index at URI.

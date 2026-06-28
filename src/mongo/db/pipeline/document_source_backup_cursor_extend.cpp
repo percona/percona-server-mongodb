@@ -42,8 +42,8 @@ Copyright (C) 2021-present Percona and/or its affiliates. All rights reserved.
 namespace mongo {
 
 namespace {
-constexpr StringData kBackupId = "backupId"_sd;
-constexpr StringData kTimestamp = "timestamp"_sd;
+constexpr std::string_view kBackupId = "backupId"_sd;
+constexpr std::string_view kTimestamp = "timestamp"_sd;
 }  // namespace
 
 REGISTER_LITE_PARSED_DOCUMENT_SOURCE(backupCursorExtend,
@@ -66,7 +66,7 @@ DocumentSourceBackupCursorExtend::LiteParsed::parse(const NamespaceString& nss,
     return std::make_unique<DocumentSourceBackupCursorExtend::LiteParsed>(spec);
 }
 
-StringData DocumentSourceBackupCursorExtend::getSourceName() const {
+std::string_view DocumentSourceBackupCursorExtend::getSourceName() const {
     return kStageName;
 }
 

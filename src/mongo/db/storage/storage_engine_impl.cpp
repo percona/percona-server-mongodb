@@ -128,7 +128,7 @@ Status StorageEngineImpl::hotBackup(OperationContext* opCtx,
     return _engine->hotBackup(opCtx, s3params);
 }
 
-bool StorageEngineImpl::keydbDropKeyId(StringData keyId) {
+bool StorageEngineImpl::keydbDropKeyId(std::string_view keyId) {
     return _engine->keydbDropKeyId(keyId);
 }
 
@@ -992,7 +992,8 @@ bool StorageEngineImpl::hasDataBeenCheckpointed(
     return _engine->hasDataBeenCheckpointed(checkpointIteration);
 }
 
-void StorageEngineImpl::cleanupOrphanedEncryptionKeys(OperationContext* opCtx, StringData trigger) {
+void StorageEngineImpl::cleanupOrphanedEncryptionKeys(OperationContext* opCtx,
+                                                      std::string_view trigger) {
     Timer timer;
 
     // Skip cleanup during backup. Deleting a key while a backup cursor is

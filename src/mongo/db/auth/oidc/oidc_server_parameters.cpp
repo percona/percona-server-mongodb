@@ -57,8 +57,8 @@ namespace {
 constexpr const char* kParameterName = "oidcIdentityProviders";
 
 struct IssuerAudiencePair {
-    StringData issuer;
-    StringData audience;
+    std::string_view issuer;
+    std::string_view audience;
 };
 
 struct JWKSPollSecsIndexes {
@@ -88,14 +88,14 @@ template <typename ValueType>
 requires std::equality_comparable<ValueType> && std::copyable<ValueType>
 class ConfigCommonValueVerifier {
 public:
-    ConfigCommonValueVerifier(const StringData fieldName) : _fieldName(fieldName) {}
+    ConfigCommonValueVerifier(const std::string_view fieldName) : _fieldName(fieldName) {}
 
     /// @brief Adds a value to the internal storage for further verification.
     ///
     /// @param issuer issuer for which the value is added
     /// @param index index of the issuer in the OIDC identity providers' array
     /// @param value value
-    void addValue(StringData issuer, std::size_t index, const ValueType& value) {
+    void addValue(std::string_view issuer, std::size_t index, const ValueType& value) {
         auto& info = _infos[issuer];
         info.indexes.push_back(index);
         info.isValueCommon = info.isValueCommon && (!info.value || *info.value == value);
@@ -124,8 +124,8 @@ private:
         bool isValueCommon{true};
     };
 
-    StringData _fieldName;
-    std::map<StringData, ValueInfo> _infos;
+    std::string_view _fieldName;
+    std::map<std::string_view, ValueInfo> _infos;
 };
 
 void validate(const OidcIdentityProviderConfig& conf, std::size_t index) {
@@ -166,7 +166,7 @@ void validate(const OidcIdentityProvidersServerParameter& param) {
 
     ConfigCommonValueVerifier<std::int32_t> pollSecsVerifier{
         OidcIdentityProviderConfig::kJWKSPollSecsFieldName};
-    ConfigCommonValueVerifier<StringData> caFileVerifier{
+    ConfigCommonValueVerifier<std::string_view> caFileVerifier{
         OidcIdentityProviderConfig::kServerCAFileFieldName};
 
     for (std::size_t i{0u}; i < param._data.size(); ++i) {
@@ -225,7 +225,7 @@ void paramDeserialize(OidcIdentityProvidersServerParameter& param, const BSONArr
         // The default value for array fields is not supported by IDL,
         // so the default value is set here manually.
         if (!config.getLogClaims().has_value()) {
-            config.setLogClaims(std::vector<StringData>{"iss", "sub"});
+            config.setLogClaims(std::vector<std::string_view>{"iss", "sub"});
         }
         param._data.push_back(std::move(config));
     }
@@ -235,7 +235,7 @@ void paramDeserialize(OidcIdentityProvidersServerParameter& param, const BSONArr
 
 void OidcIdentityProvidersServerParameter::append(OperationContext*,
                                                   BSONObjBuilder* b,
-                                                  StringData name,
+                                                  std::string_view name,
                                                   const boost::optional<TenantId>&) {
     BSONArrayBuilder configArrayBuilder{b->subarrayStart(name)};
     for (const auto& config : _data) {
@@ -256,7 +256,7 @@ Status OidcIdentityProvidersServerParameter::set(const BSONElement& elem,
     return e.toStatus();
 }
 
-Status OidcIdentityProvidersServerParameter::setFromString(StringData str,
+Status OidcIdentityProvidersServerParameter::setFromString(std::string_view str,
                                                            const boost::optional<TenantId>&) try {
     uassert(ErrorCodes::TypeMismatch,
             str::stream() << "`" << kParameterName << "` is not an array serialized to a string",

@@ -84,9 +84,9 @@ class StorageEngineImpl final : public StorageEngine {
     Status hotBackup(OperationContext* opCtx, const std::string& path) override;
     Status hotBackupTar(OperationContext* opCtx, const std::string& path) override;
     Status hotBackup(OperationContext* opCtx, const percona::S3BackupParameters& s3params) override;
-    bool keydbDropKeyId(StringData keyId) override;
+    bool keydbDropKeyId(std::string_view keyId) override;
 
-    void cleanupOrphanedEncryptionKeys(OperationContext* opCtx, StringData trigger) override;
+    void cleanupOrphanedEncryptionKeys(OperationContext* opCtx, std::string_view trigger) override;
 
 public:
     StorageEngineImpl(OperationContext* opCtx,

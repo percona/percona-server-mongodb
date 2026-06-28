@@ -82,7 +82,7 @@ public:
 
     /// @brief Serializes the key identifier for the server status command with the given field
     /// name.
-    virtual void serializeToServerStatus(BSONObjBuilder* b, StringData fieldName) const = 0;
+    virtual void serializeToServerStatus(BSONObjBuilder* b, std::string_view fieldName) const = 0;
 
     virtual void accept(KeyIdConstVisitor& v) const = 0;
 
@@ -128,7 +128,7 @@ public:
     }
 
     void serialize(BSONObjBuilder* b) const override;
-    void serializeToServerStatus(BSONObjBuilder* b, StringData fieldName) const override;
+    void serializeToServerStatus(BSONObjBuilder* b, std::string_view fieldName) const override;
     void accept(KeyIdConstVisitor& v) const override;
 
     static constexpr const char* kFacilityType = "encryption key file";
@@ -175,7 +175,7 @@ public:
     }
 
     void serialize(BSONObjBuilder* b) const override;
-    void serializeToServerStatus(BSONObjBuilder* b, StringData fieldName) const override;
+    void serializeToServerStatus(BSONObjBuilder* b, std::string_view fieldName) const override;
     void accept(KeyIdConstVisitor& v) const override;
 
     static constexpr const char* kFacilityType = "Vault server";
@@ -224,7 +224,7 @@ public:
     }
 
     void serialize(BSONObjBuilder* b) const override;
-    void serializeToServerStatus(BSONObjBuilder* b, StringData fieldName) const override;
+    void serializeToServerStatus(BSONObjBuilder* b, std::string_view fieldName) const override;
     void accept(KeyIdConstVisitor& v) const override;
 
     static constexpr const char* kFacilityType = "KMIP server";

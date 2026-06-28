@@ -35,6 +35,6 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 
 namespace mongo {
 
-StringData getTelemetryPath();
+std::string_view getTelemetryPath();
 
 }  // namespace mongo

@@ -96,7 +96,7 @@ Status SaslExternalLDAPServerMechanism::initializeConnection() {
 }
 
 StatusWith<std::tuple<bool, std::string>>
-SaslExternalLDAPServerMechanism::processInitialClientPayload(StringData payload) {
+SaslExternalLDAPServerMechanism::processInitialClientPayload(std::string_view payload) {
     _results.initialize_results();
     _results.result = sasl_server_start(_saslConnection,
                                         mechanismName().data(),
@@ -108,7 +108,7 @@ SaslExternalLDAPServerMechanism::processInitialClientPayload(StringData payload)
 }
 
 StatusWith<std::tuple<bool, std::string>> SaslExternalLDAPServerMechanism::processNextClientPayload(
-    StringData payload) {
+    std::string_view payload) {
     _results.initialize_results();
     _results.result = sasl_server_step(_saslConnection,
                                        payload.data(),
@@ -125,7 +125,7 @@ SaslExternalLDAPServerMechanism::~SaslExternalLDAPServerMechanism() {
 }
 
 StatusWith<std::tuple<bool, std::string>> SaslExternalLDAPServerMechanism::stepImpl(
-    OperationContext* opCtx, StringData inputData) {
+    OperationContext* opCtx, std::string_view inputData) {
     if (_step++ == 0) {
         Status status = initializeConnection();
         if (!status.isOK()) {
@@ -136,7 +136,7 @@ StatusWith<std::tuple<bool, std::string>> SaslExternalLDAPServerMechanism::stepI
     return processNextClientPayload(inputData);
 }
 
-StringData SaslExternalLDAPServerMechanism::getPrincipalName() const {
+std::string_view SaslExternalLDAPServerMechanism::getPrincipalName() const {
     const char* username;
     int result = sasl_getprop(_saslConnection, SASL_USERNAME, (const void**)&username);
     if (result == SASL_OK) {
@@ -146,8 +146,8 @@ StringData SaslExternalLDAPServerMechanism::getPrincipalName() const {
     return "";
 }
 
-StatusWith<std::tuple<bool, std::string>> OpenLDAPServerMechanism::stepImpl(OperationContext* opCtx,
-                                                                            StringData inputData) {
+StatusWith<std::tuple<bool, std::string>> OpenLDAPServerMechanism::stepImpl(
+    OperationContext* opCtx, std::string_view inputData) {
     if (_step++ == 0) {
         // [authz-id]\0authn-id\0pwd
         const char* authz_id = inputData.data();
@@ -197,7 +197,7 @@ StatusWith<std::tuple<bool, std::string>> OpenLDAPServerMechanism::stepImpl(Oper
                   "An invalid second step was called against the OpenLDAP authentication session");
 }
 
-StringData OpenLDAPServerMechanism::getPrincipalName() const {
+std::string_view OpenLDAPServerMechanism::getPrincipalName() const {
     return _principal;
 }
 
@@ -242,7 +242,7 @@ public:
         return new SaslExternalLDAPServerMechanism(std::move(authenticationDatabase));
     }
 
-    StringData mechanismName() const final {
+    std::string_view mechanismName() const final {
         return policy_type::getName();
     }
 

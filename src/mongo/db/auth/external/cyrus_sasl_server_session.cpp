@@ -52,7 +52,7 @@ static Status getInitializationError(int result) {
                               sasl_errstring(result, nullptr, nullptr)));
 }
 
-CyrusSASLServerSession::CyrusSASLServerSession(const StringData mechanismName)
+CyrusSASLServerSession::CyrusSASLServerSession(const std::string_view mechanismName)
     : _mechanismName(mechanismName) {}
 
 CyrusSASLServerSession::~CyrusSASLServerSession() {
@@ -133,7 +133,7 @@ public:
     }
 };
 
-std::string canonicalizeGSSAPIUser(const StringData v) {
+std::string canonicalizeGSSAPIUser(const std::string_view v) {
     // It is possible to get OID using gss_str_to_oid("1.2.840.113554.1.2.2")
     // But result will be the same
     // https://docs.oracle.com/cd/E19683-01/816-1331/6m7oo9sno/index.html
@@ -231,7 +231,7 @@ Status CyrusSASLServerSession::initializeConnection() {
 }
 
 StatusWith<std::tuple<bool, std::string>> CyrusSASLServerSession::processInitialClientPayload(
-    StringData payload) {
+    std::string_view payload) {
     _results.initialize_results();
     _results.result = sasl_server_start(_saslConnection,
                                         _mechanismName.c_str(),
@@ -243,7 +243,7 @@ StatusWith<std::tuple<bool, std::string>> CyrusSASLServerSession::processInitial
 }
 
 StatusWith<std::tuple<bool, std::string>> CyrusSASLServerSession::processNextClientPayload(
-    StringData payload) {
+    std::string_view payload) {
     _results.initialize_results();
     _results.result = sasl_server_step(_saslConnection,
                                        payload.data(),
@@ -253,7 +253,7 @@ StatusWith<std::tuple<bool, std::string>> CyrusSASLServerSession::processNextCli
     return getStepResult();
 }
 
-StatusWith<std::tuple<bool, std::string>> CyrusSASLServerSession::step(StringData inputData) {
+StatusWith<std::tuple<bool, std::string>> CyrusSASLServerSession::step(std::string_view inputData) {
     if (_step++ == 0) {
         Status status = initializeConnection();
         if (!status.isOK()) {
@@ -264,7 +264,7 @@ StatusWith<std::tuple<bool, std::string>> CyrusSASLServerSession::step(StringDat
     return processNextClientPayload(inputData);
 }
 
-StringData CyrusSASLServerSession::getPrincipalName() const {
+std::string_view CyrusSASLServerSession::getPrincipalName() const {
     const char* username = nullptr;
     int result =
         sasl_getprop(_saslConnection, SASL_USERNAME, reinterpret_cast<const void**>(&username));

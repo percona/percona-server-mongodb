@@ -36,11 +36,11 @@ class UnicodeNgramFTSTokenizer final : public FTSTokenizer {
 public:
     UnicodeNgramFTSTokenizer(const FTSLanguage* language);
 
-    void reset(StringData document, Options options) override;
+    void reset(std::string_view document, Options options) override;
 
     bool moveNext() override;
 
-    StringData get() const override;
+    std::string_view get() const override;
 
 private:
     /**
@@ -56,7 +56,7 @@ private:
 
     unicode::String _document;
     size_t _pos;
-    StringData _word;
+    std::string_view _word;
     Options _options;
 
     StackBufBuilder _wordBuf;

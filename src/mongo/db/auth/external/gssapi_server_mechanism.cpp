@@ -39,12 +39,12 @@ namespace mongo {
 
 GSSAPIServerMechanism::~GSSAPIServerMechanism() {}
 
-StatusWith<std::tuple<bool, std::string>> GSSAPIServerMechanism::stepImpl(OperationContext* opCtx,
-                                                                          StringData inputData) {
+StatusWith<std::tuple<bool, std::string>> GSSAPIServerMechanism::stepImpl(
+    OperationContext* opCtx, std::string_view inputData) {
     return _sess.step(inputData);
 }
 
-StringData GSSAPIServerMechanism::getPrincipalName() const {
+std::string_view GSSAPIServerMechanism::getPrincipalName() const {
     return _sess.getPrincipalName();
 }
 

@@ -136,7 +136,7 @@ struct X509Policy {
 };
 
 struct OidcPolicy {
-    static constexpr StringData getName() {
+    static constexpr std::string_view getName() {
         return "MONGODB-OIDC"_sd;
     }
     static SecurityPropertySet getProperties() {

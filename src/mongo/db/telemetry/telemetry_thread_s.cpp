@@ -52,7 +52,7 @@ namespace mongo {
 
 namespace {
 
-constexpr StringData kSourceName = "mongos"_sd;
+constexpr std::string_view kSourceName = "mongos"_sd;
 
 
 class TelemetryThreadS final : public TelemetryThreadBase {
@@ -62,7 +62,7 @@ public:
     }
 
 private:
-    StringData _sourceName() override {
+    std::string_view _sourceName() override {
         return kSourceName;
     }
 

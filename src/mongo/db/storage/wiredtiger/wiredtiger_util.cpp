@@ -157,7 +157,7 @@ StatusWith<std::string> WiredTigerUtil::getMetadata(WiredTigerSession& session,
     return _getMetadata(cursor, uri);
 }
 
-boost::optional<std::string> WiredTigerUtil::getEncryptionKeyId(StringData config) {
+boost::optional<std::string> WiredTigerUtil::getEncryptionKeyId(std::string_view config) {
     WiredTigerConfigParser parser(config);
 
     // Get the "encryption" key which contains a nested struct.

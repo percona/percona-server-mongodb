@@ -61,12 +61,12 @@ public:
      *  Gets an additional configuration string for the provided table name on a
      *  `WT_SESSION::create` call.
      */
-    std::string getTableCreateConfig(StringData tableName) override {
+    std::string getTableCreateConfig(std::string_view tableName) override {
         NamespaceString ns = NamespaceStringUtil::deserialize(
             boost::none, tableName, SerializationContext::stateDefault());
         std::string keyIdStr =
             DatabaseNameUtil::serialize(ns.dbName(), SerializationContext::stateDefault());
-        StringData keyid(keyIdStr);
+        std::string_view keyid(keyIdStr);
         // Keep compatibility with v3.6 after SERVER-34617
         const size_t minsize = 6;  // Minimum size which allows following condition to be true
         if (keyid.size() >= minsize && (keyid == "system"_sd || keyid.starts_with("table:"_sd)))

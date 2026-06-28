@@ -131,7 +131,7 @@ std::pair<std::string, std::string> doDeviceAuthorizationGrantFlow(
     const OAuthAuthorizationServerMetadata& discoveryReply,
     const auth::OIDCMechanismServerStep1& serverReply,
     std::string_view principalName) {
-    boost::optional<StringData> deviceAuthorizationEndpoint =
+    boost::optional<std::string_view> deviceAuthorizationEndpoint =
         discoveryReply.getDeviceAuthorizationEndpoint().get();
     // If exists, the device authorization endpoint has been already validated during parsing of
     // `OAuthAuthorizationServerMetadata` class.
@@ -331,7 +331,7 @@ StatusWith<bool> SaslOIDCClientConversation::_secondStep(std::string_view input,
         // If exists, the token endpoint has been already validated during parsing of
         // `OAuthAuthorizationServerMetadata` class.
         // (@see `src/mongo/db/auth/oauth_authorization_server_metadata.idl`).
-        boost::optional<StringData> tokenEndpoint = discoveryReply.getTokenEndpoint();
+        boost::optional<std::string_view> tokenEndpoint = discoveryReply.getTokenEndpoint();
         uassert(ErrorCodes::BadValue,
                 "Missing or invalid token endpoint in server reply",
                 tokenEndpoint && !tokenEndpoint->empty());

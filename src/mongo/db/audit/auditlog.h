@@ -42,7 +42,7 @@ namespace mongo::logv2 {
 class AuditLog {
 public:
     virtual Status rotate(bool rename,
-                          StringData renameSuffix,
+                          std::string_view renameSuffix,
                           std::function<void(Status)> onMinorError) {
         return Status::OK();
     };

@@ -184,7 +184,7 @@ void test_encryption_hooks(WiredTigerEncryptionHooks* hooks) {
         ConstDataRange{protectorText.get(), protectorTextLen},
         &protectorOut,
         DatabaseNameUtil::deserialize(
-            boost::none, StringData(""), SerializationContext::stateDefault())));
+            boost::none, std::string_view(""), SerializationContext::stateDefault())));
     ASSERT_EQ(protectorOut.length(), datalen);
     ASSERT_EQ(0, memcmp(plainText.get(), data, datalen));
 }

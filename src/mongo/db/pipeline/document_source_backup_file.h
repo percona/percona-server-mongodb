@@ -51,7 +51,7 @@ DECLARE_STAGE_PARAMS_DERIVED_DEFAULT(BackupFile);
 
 class DocumentSourceBackupFile final : public DocumentSource {
 public:
-    static constexpr StringData kStageName = "$_backupFile"_sd;
+    static constexpr std::string_view kStageName = "$_backupFile"_sd;
 
     class LiteParsed final : public LiteParsedDocumentSourceDefault<LiteParsed> {
     public:
@@ -103,7 +103,7 @@ public:
 
     ~DocumentSourceBackupFile() override;
 
-    StringData getSourceName() const override;
+    std::string_view getSourceName() const override;
 
     static const Id& id;
 

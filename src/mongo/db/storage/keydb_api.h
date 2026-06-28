@@ -67,7 +67,7 @@ struct KeyDBAPI {
      * the key for checkpoint cleanup. Use the deferred cleanup mechanism
      * instead.
      */
-    virtual bool keydbDropKeyId(mongo::StringData keyId) {
+    virtual bool keydbDropKeyId(std::string_view keyId) {
         // do nothing for engines which do not support KeyDB
         return true;
     }
@@ -93,7 +93,7 @@ struct KeyDBAPI {
      * filtered/audited.
      */
     virtual void cleanupOrphanedEncryptionKeys(mongo::OperationContext* opCtx,
-                                               mongo::StringData trigger) {
+                                               std::string_view trigger) {
         // do nothing for engines which do not support KeyDB
     }
 };

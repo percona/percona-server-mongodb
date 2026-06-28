@@ -113,7 +113,7 @@ std::variant<KeyEntry, NotFound, BadKeyState> ReadKeyFile::operator()() const tr
 } catch (const std::runtime_error& e) {
     std::ostringstream msg;
     msg << "reading the master key from the encryption key file failed: " << e.what();
-    throw KeyErrorBuilder(KeyOperationType::kRead, StringData(msg.str())).error();
+    throw KeyErrorBuilder(KeyOperationType::kRead, std::string_view(msg.str())).error();
 }
 
 std::pair<std::string, std::uint64_t> ReadVaultSecret::_read(const VaultSecretId& id) const {
@@ -128,7 +128,7 @@ std::variant<KeyEntry, NotFound, BadKeyState> ReadVaultSecret::operator()() cons
 } catch (const std::runtime_error& e) {
     std::ostringstream msg;
     msg << "reading the master key from the Vault server failed: " << e.what();
-    throw KeyErrorBuilder(KeyOperationType::kRead, StringData(msg.str())).error();
+    throw KeyErrorBuilder(KeyOperationType::kRead, std::string_view(msg.str())).error();
 }
 
 std::unique_ptr<KeyId> SaveVaultSecret::operator()(const Key& k) const try {
@@ -137,7 +137,7 @@ std::unique_ptr<KeyId> SaveVaultSecret::operator()(const Key& k) const try {
 } catch (const std::runtime_error& e) {
     std::ostringstream msg;
     msg << "saving the master key to the Vault server failed: " << e.what();
-    throw KeyErrorBuilder(KeyOperationType::kSave, StringData(msg.str())).error();
+    throw KeyErrorBuilder(KeyOperationType::kSave, std::string_view(msg.str())).error();
 }
 
 std::variant<KeyEntry, NotFound, BadKeyState> ReadKmipKey::operator()() const try {
@@ -155,7 +155,7 @@ std::variant<KeyEntry, NotFound, BadKeyState> ReadKmipKey::operator()() const tr
 } catch (const std::runtime_error& e) {
     std::ostringstream msg;
     msg << "reading the master key from the KMIP server failed: " << e.what();
-    throw KeyErrorBuilder(KeyOperationType::kRead, StringData(msg.str())).error();
+    throw KeyErrorBuilder(KeyOperationType::kRead, std::string_view(msg.str())).error();
 }
 
 std::unique_ptr<KeyId> SaveKmipKey::operator()(const Key& k) const try {
@@ -166,7 +166,7 @@ std::unique_ptr<KeyId> SaveKmipKey::operator()(const Key& k) const try {
 } catch (const std::runtime_error& e) {
     std::ostringstream msg;
     msg << "saving the master key to the KMIP server failed: " << e.what();
-    throw KeyErrorBuilder(KeyOperationType::kSave, StringData(msg.str())).error();
+    throw KeyErrorBuilder(KeyOperationType::kSave, std::string_view(msg.str())).error();
 }
 
 boost::optional<KeyState> GetKmipKeyState::operator()() const try {
@@ -177,7 +177,7 @@ boost::optional<KeyState> GetKmipKeyState::operator()() const try {
 } catch (const std::runtime_error& e) {
     std::ostringstream msg;
     msg << "retrieving the state of the master key on the KMIP server failed: " << e.what();
-    throw KeyErrorBuilder(KeyOperationType::kGetState, StringData(msg.str())).error();
+    throw KeyErrorBuilder(KeyOperationType::kGetState, std::string_view(msg.str())).error();
 }
 
 std::unique_ptr<KeyOperationFactory> KeyOperationFactory::create(

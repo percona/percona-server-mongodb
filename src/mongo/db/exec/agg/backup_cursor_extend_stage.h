@@ -44,7 +44,7 @@ namespace mongo::exec::agg {
  */
 class BackupCursorExtendStage final : public Stage {
 public:
-    BackupCursorExtendStage(StringData stageName,
+    BackupCursorExtendStage(std::string_view stageName,
                             const boost::intrusive_ptr<ExpressionContext>& pExpCtx,
                             const UUID& backupId,
                             const Timestamp& extendTo);

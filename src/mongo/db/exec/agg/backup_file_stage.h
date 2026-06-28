@@ -45,7 +45,7 @@ namespace mongo::exec::agg {
  */
 class BackupFileStage final : public Stage {
 public:
-    BackupFileStage(StringData stageName,
+    BackupFileStage(std::string_view stageName,
                     const boost::intrusive_ptr<ExpressionContext>& pExpCtx,
                     UUID backupId,
                     std::string filePath,
