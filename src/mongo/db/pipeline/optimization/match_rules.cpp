@@ -28,7 +28,8 @@
  */
 
 #include "mongo/bson/bsonobj.h"
-#include "mongo/db/field_ref.h"
+#include "mongo/db/matcher/expression_expr.h"
+#include "mongo/db/matcher/match_expression_walker.h"
 #include "mongo/db/pipeline/change_stream_constants.h"
 #include "mongo/db/pipeline/document_source.h"
 #include "mongo/db/pipeline/document_source_group.h"
@@ -36,6 +37,7 @@
 #include "mongo/db/pipeline/document_source_list_sessions.h"
 #include "mongo/db/pipeline/document_source_match.h"
 #include "mongo/db/pipeline/document_source_single_document_transformation.h"
+#include "mongo/db/pipeline/expression.h"
 #include "mongo/db/pipeline/optimization/rule_based_rewriter.h"
 #include "mongo/db/pipeline/pipeline.h"
 #include "mongo/db/query/compiler/dependency_analysis/document_transformation_helpers.h"
@@ -49,16 +51,169 @@
 namespace mongo::rule_based_rewrites::pipeline {
 namespace {
 /**
- * Verifies whether or not a $group is able to swap with a succeeding $match stage. While ordinarily
- * $group can swap with a $match, it cannot if the following $match has exactly one field as the
- * $group key and either:
- *     (1) an $exists predicate on _id
- *     (2) a $type predicate on _id
+ * Verifies that an Expression will not change its result if the containing $match is swapped with
+ * $group, accounting for $group semantics.
  *
- * For $exists, every document will have an _id field following such a $group stage, including those
- * whose group key was missing before the $group. As an example, the following optimization would be
- * incorrect as the post-optimization pipeline would handle documents that had nullish _id fields
- * differently. Thus, given such a $group and $match, this function would return false.
+ * Requires the caller to have established that the expression depends on a $group _id field.
+ */
+class ExpressionGroupSwapValidator
+    : public SelectiveConstExpressionVisitorBase<ExpressionGroupSwapValidator> {
+public:
+    using SelectiveConstExpressionVisitorBase<ExpressionGroupSwapValidator>::visit;
+
+    void visit(const ExpressionCompare* expr) override {
+        // We only allow field paths and constants.
+        const auto& operands = expr->getOperandList();
+        if (!validateCompareOperands(operands)) {
+            isValid = false;
+        }
+    }
+
+    void visit(const ExpressionIn* expr) override {
+        const auto& operands = expr->getOperandList();
+        if (!validateInOperands(operands)) {
+            isValid = false;
+        }
+    }
+
+    void visit(const ExpressionAnd* expr) override {
+        visitLogicOperands(expr->getOperandList());
+    }
+
+    void visit(const ExpressionOr* expr) override {
+        visitLogicOperands(expr->getOperandList());
+    }
+
+    void visit(const ExpressionNot* expr) override {
+        visitLogicOperands(expr->getOperandList());
+    }
+
+    template <typename T>
+    void visitDefault(const T* expr) {
+        // Everything else is disallowed by default.
+        isValid = false;
+    }
+
+    bool isValid{true};
+
+private:
+    static bool validateCompareOperands(const Expression::ExpressionVector& operands) {
+        tassert(11277200, "ExpressionCompare should have two operands", operands.size() == 2);
+
+        // Optimize operands so that constant sub-expressions (e.g. arithmetic on literals)
+        // are folded into ExpressionConstant before we inspect them.
+        auto firstArg = operands[0]->optimize();
+        auto secondArg = operands[1]->optimize();
+
+        const ExpressionConstant* constantExpr =
+            dynamic_cast<const ExpressionConstant*>(firstArg.get());
+        const Expression* otherExpr = secondArg.get();
+        if (!constantExpr) {
+            constantExpr = dynamic_cast<const ExpressionConstant*>(secondArg.get());
+            otherExpr = firstArg.get();
+        }
+        if (!constantExpr) {
+            return false;
+        }
+
+        // Do not allow null since $group buckets null and missing together.
+        if (constantExpr->getValue().nullish()) {
+            return false;
+        }
+
+        // We only allow ExpressionFieldPath for the non-constant operand.
+        return dynamic_cast<const ExpressionFieldPath*>(otherExpr) != nullptr;
+    }
+
+    static bool validateInOperands(const Expression::ExpressionVector& operands) {
+        // $in has exactly two operands: the element to test and the array to test against.
+        tassert(11277203, "ExpressionIn should have two operands", operands.size() == 2);
+
+        // The element being tested must be a field path. Nothing optimizes to ExpressionFieldPath,
+        // so there is no need to call optimize() here.
+        if (!dynamic_cast<const ExpressionFieldPath*>(operands[0].get())) {
+            return false;
+        }
+
+        // Optimize the array operand so that an ExpressionArray of constant children
+        // (e.g. [3, 4]) folds into a single ExpressionConstant.
+        auto candidateArray = operands[1]->optimize();
+
+        // The array must have optimized down to a single ExpressionConstant.
+        const auto* constArray = dynamic_cast<const ExpressionConstant*>(candidateArray.get());
+        if (!constArray || constArray->getValue().getType() != BSONType::array) {
+            return false;
+        }
+
+        // Do not allow null elements since $group buckets null and missing together.
+        const auto constArrayValue = constArray->getValue();
+        for (const auto& elem : constArrayValue.getArray()) {
+            if (elem.nullish()) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    void visitLogicOperands(const Expression::ExpressionVector& operands) {
+        for (auto&& op : operands) {
+            if (!isValid) {
+                return;
+            }
+            op->acceptVisitor(this);
+        }
+    }
+};
+
+/**
+ * Validates the $expr predicates within a MatchExpression can be swapped with $group safely. If
+ * there's an incompatible $expr predicate that depends on the _id field we cannot swap: $group
+ * places null and missing in the same bucket, and numerics that compare equal (e.g. Int(1) and
+ * Long(1)) share a bucket, so the _id value may differ from the source field.
+ */
+bool validateExprMatchExpressionsForSwapWithGroup(const MatchExpression& expr) {
+    struct ExprValidator : SelectiveMatchExpressionVisitorBase<true> {
+        using SelectiveMatchExpressionVisitorBase<true>::visit;
+
+        void visit(const ExprMatchExpression* expr) override {
+            if (!isValid || expression::isIndependentOfConst(*expr, idFields)) {
+                return;
+            }
+            ExpressionGroupSwapValidator validator;
+            expr->getExpression()->acceptVisitor(&validator);
+            if (!validator.isValid) {
+                isValid = false;
+            }
+        }
+
+        const OrderedPathSet idFields{"_id"};
+        bool isValid{true};
+    };
+
+    ExprValidator visitor;
+    MatchExpressionWalker walker{&visitor, nullptr, nullptr};
+    tree_walker::walk<true, MatchExpression>(&expr, &walker);
+    return visitor.isValid;
+}
+
+/**
+ * Verifies whether or not a $group is able to swap with a succeeding $match stage.
+ * The swap is allowable because $group reports the _id fields as renames.
+ * Example:
+ *   {$group: {_id: "$x"}}
+ * Reports that $group simply renames x -> _id.
+ *
+ * Most $match predicates on the _id field can therefore be pushed down. This function guards
+ * against pushdown of $match which contains predicates sensitive to the $group bucketing behaviour.
+ * $group places null and missing in the same bucket, and numerics that compare equal (e.g. Int(1)
+ * and Long(1)) share a bucket, so the _id value may differ from the source field.
+ *
+ * This affects $exists checks (since after $group we always have null), $type checks, $expr which
+ * distinguishes null/missing and can contain other unsafe expressions.
+ *
+ * As an example, the following optimization would be incorrect as the post-optimization pipeline
+ * would handle documents that had nullish _id fields differently. Thus, given such a $group and
+ * $match, this function would return false.
  *   {$group: {_id: "$x"}}
  *   {$match: {_id: {$exists: true}}
  * ---->
@@ -72,6 +227,10 @@ namespace {
  * stage, meaning documents that are regarded unequally in the $match stage are equated in the
  * $group stage. This leads to varied results depending on the order of the $match and $group.
  * Type predicates are incorrect to push ahead regardless of _id spec.
+ *
+ * For $expr, we allow only certain $expr shapes. Any $expr that is not explicitly allowed is
+ * disallowed (so we don't have to prove that arbitrary complex expressions depending on `_id` are
+ * safe to swap before $group).
  */
 bool groupMatchSwapVerified(const DocumentSourceMatch& nextMatch,
                             const DocumentSourceGroup& thisGroup) {
@@ -90,6 +249,10 @@ bool groupMatchSwapVerified(const DocumentSourceMatch& nextMatch,
     if (expression::hasPredicateOnPaths(*(nextMatch.getMatchExpression()),
                                         MatchExpression::MatchType::TYPE_OPERATOR,
                                         idFields)) {
+        return false;
+    }
+
+    if (!validateExprMatchExpressionsForSwapWithGroup(*nextMatch.getMatchExpression())) {
         return false;
     }
 

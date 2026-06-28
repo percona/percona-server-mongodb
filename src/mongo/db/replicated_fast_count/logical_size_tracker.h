@@ -39,20 +39,14 @@ namespace mongo {
  */
 class LogicalSizeTracker {
 public:
-    /**
-     * Returns a snapshot of the total logical bytes for hot and cold collections across the
-     * node.
-     *
-     * Avoids excessive locking beyond taking the GlobalLock. Results are subject to staleness.
-     */
-    LogicalSizeSnapshot getLatestSnapshot() const;
-
     void refreshLatestSnapshot_ForTest(OperationContext* opCtx) {
         _refreshLatestSnapshot(opCtx);
     }
 
 private:
     /**
+     * TODO SERVER-128941 - call this method as a part of the periodic job.
+     *
      * Computes a new `latesetSnapshot` according to the cached data sizes across collections.
      */
     void _refreshLatestSnapshot(OperationContext* opCtx);
@@ -60,6 +54,7 @@ private:
 
     /**
      * TODO SERVER-128941: Introduced concurrency control and background job semantics.
+     * A snapshot of the total logical bytes for hot and cold collections across the node.
      */
     LogicalSizeSnapshot _latestSnapshot;
 };

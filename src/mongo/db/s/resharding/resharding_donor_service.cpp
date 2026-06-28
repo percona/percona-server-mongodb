@@ -278,6 +278,16 @@ std::shared_ptr<repl::PrimaryOnlyService::Instance> ReshardingDonorService::cons
         _serviceContext);
 }
 
+void ReshardingDonorService::stepDown_forTest() {
+    LOGV2(12755406, "Performing resharding donor service stepdown for test");
+    onStepDown();
+}
+
+void ReshardingDonorService::stepUp_forTest() {
+    LOGV2(12755407, "Performing resharding donor service stepup for test");
+    onStepUp_forTest();
+}
+
 ReshardingDonorService::DonorStateMachine::DonorStateMachine(
     const ReshardingDonorService* donorService,
     const ReshardingDonorDocument& donorDoc,
@@ -1284,6 +1294,13 @@ void ReshardingDonorService::DonorStateMachine::_transitionState(
 
     _metrics->onStateTransition(oldState, newState);
 
+    // Wait for majority before fulfilling any promises, so that external callers waiting on a
+    // specific event will not observe state that may be rolled back. Otherwise a newly stepped-up
+    // donor could be missing the persisted state and get stuck waiting for a coordinator command
+    // that has already advanced.
+    auto opCtx = _makeOperationContext(factory);
+    resharding::waitForMajority(opCtx.get(), _cancelState.getAbortOrStepdownToken())
+        .get(opCtx.get());
     {
         std::lock_guard<std::mutex> lk(_mutex);
         _promises.onDonorStateAdvanced(lk, newState);

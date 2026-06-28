@@ -4,6 +4,9 @@
 # enabled.
 info --config=local
 
+# Used if we need to reset the cache for some reason, just change the value
+common --action_env=RESET_CACHE=A
+
 # Don't use legacy toolchain resolution.
 common --incompatible_enable_cc_toolchain_resolution
 # https://github.com/bazelbuild/bazel/issues/8766
@@ -731,3 +734,6 @@ build:macos-cross-arm64 --@rules_rust//rust/settings:experimental_use_allocator_
 # Cross-compile for macOS x86_64
 build:macos-cross-x86_64 --platforms=//bazel/platforms:macos_x86_64_cross
 build:macos-cross-x86_64 --@rules_rust//rust/settings:experimental_use_allocator_libraries_with_mangled_symbols=false
+
+# This should always be at the bottom because any platform specific configs should always be applied if possible
+common --enable_platform_specific_config=true
