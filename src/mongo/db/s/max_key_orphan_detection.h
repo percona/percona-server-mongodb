@@ -27,30 +27,38 @@
  *    it in the license file.
  */
 
-#include "mongo/transport/handoff/handoff_session_manager.h"
+#pragma once
 
-#include "mongo/transport/service_executor.h"
-#include "mongo/transport/session.h"
+#include "mongo/bson/bsonobj.h"
 
-#include <fmt/format.h>
+namespace mongo {
 
-namespace mongo::transport {
+class OperationContext;
+class ServiceContext;
 
-std::string HandoffSessionManager::getClientThreadName(const Session& session) const {
-    return fmt::format("conn{}", session.id());
-}
+/**
+ * Returns true iff 'shardKeyValue' is non-empty and its first field is MaxKey. Such a document
+ * falls in the collection's global-max chunk, so this covers the partial-MaxKey shapes (e.g. {a:
+ * MaxKey, b: 10}), not only the all-MaxKey case.
+ */
+bool isMaxKeyPrefixedShardKey(const BSONObj& shardKeyValue);
 
-void HandoffSessionManager::configureServiceExecutorContext(Client& client,
-                                                            bool isPrivilegedSession) const {
-    auto seCtx = std::make_unique<ServiceExecutorContext>();
-    seCtx->setThreadModel(ServiceExecutorContext::kSynchronous);
-    seCtx->setCanUseReserved(isPrivilegedSession);
-    std::lock_guard lk(client);
-    ServiceExecutorContext::set(&client, std::move(seCtx));
-}
+/**
+ * Runs a single synchronous MaxKey orphan sweep on this shard primary and persists the outcome to
+ * config.maxKeyOrphanScanState. Short-circuits if a completed sweep is already recorded. Invoked by
+ * the step-up launcher and by unit tests.
+ */
+void runMaxKeyOrphanDetection(OperationContext* opCtx, long long term);
 
-bool HandoffSessionManager::isPrivileged(const Session& session) const {
-    return session.isConnectedToPriorityPort();
-}
+/**
+ * Spawns the asynchronous MaxKey orphan detector for 'term', cancelling any detector from a prior
+ * term. Gated on featureFlagMaxKeyDetection.
+ */
+void launchMaxKeyOrphanDetectionOnStepUp(OperationContext* opCtx, long long term);
 
-}  // namespace mongo::transport
+/**
+ * Interrupts and joins any in-flight MaxKey orphan detector.
+ */
+void cancelMaxKeyOrphanDetection(ServiceContext* serviceContext);
+
+}  // namespace mongo

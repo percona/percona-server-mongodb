@@ -55,6 +55,7 @@ namespace mongo::replicated_fast_count {
 namespace {
 
 using test_helpers::checkCommittedSizeCount;
+using test_helpers::checkUncommittedSizeCount;
 
 // Selects whether the fast count metadata is persisted through the collection-backed path or the
 // container-backed path. Used to parameterize tests so the same bodies exercise both paths.
@@ -79,8 +80,6 @@ protected:
         _opCtx = operationContext();
 
         if (getMode() == FastCountStoreMode::kContainer) {
-            _ffDurability = std::make_unique<unittest::ServerParameterGuard>(
-                "featureFlagReplicatedFastCountDurability", true);
             _ffContainerWrites = std::make_unique<unittest::ServerParameterGuard>(
                 "featureFlagContainerWrites", true);
         }
@@ -151,7 +150,6 @@ protected:
     BSONObj sampleDocForInsert = BSON("_id" << 0 << "x" << 0);
     BSONObj sampleDocForUpdate = BSON("_id" << 0 << "x" << 0 << "y" << 0);
 
-    std::unique_ptr<unittest::ServerParameterGuard> _ffDurability;
     std::unique_ptr<unittest::ServerParameterGuard> _ffContainerWrites;
 };
 
@@ -706,8 +704,8 @@ TEST_P(ReplicatedFastCountTest, ApplyOpsInsertsAreCorrectlyAccountedFor) {
     checkCommittedSizeCount(_opCtx, _uuid1, {.size = expectedSizeColl1, .count = numDocsColl1});
     checkCommittedSizeCount(_opCtx, _uuid2, {.size = expectedSizeColl2, .count = numDocsColl2});
 
-    test_helpers::checkUncommittedFastCountChanges(_opCtx, _uuid1, 0, 0);
-    test_helpers::checkUncommittedFastCountChanges(_opCtx, _uuid2, 0, 0);
+    checkUncommittedSizeCount(_opCtx, _uuid1, {.size = 0, .count = 0});
+    checkUncommittedSizeCount(_opCtx, _uuid2, {.size = 0, .count = 0});
 }
 
 TEST_P(ReplicatedFastCountTest, ApplyOpsUpdatesAreCorrectlyAccountedFor) {
@@ -746,7 +744,7 @@ TEST_P(ReplicatedFastCountTest, ApplyOpsUpdatesAreCorrectlyAccountedFor) {
 
 
     checkCommittedSizeCount(_opCtx, _uuid1, {.size = expectedNewSize, .count = numDocs});
-    test_helpers::checkUncommittedFastCountChanges(_opCtx, _uuid1, 0, 0);
+    checkUncommittedSizeCount(_opCtx, _uuid1, {.size = 0, .count = 0});
 }
 
 TEST_P(ReplicatedFastCountTest, ApplyOpsDeletesAreCorrectlyAccountedFor) {
@@ -784,7 +782,7 @@ TEST_P(ReplicatedFastCountTest, ApplyOpsDeletesAreCorrectlyAccountedFor) {
     const int64_t expectedSize = startingSize - deletedSize;
 
     checkCommittedSizeCount(_opCtx, _uuid1, {.size = expectedSize, .count = expectedCount});
-    test_helpers::checkUncommittedFastCountChanges(_opCtx, _uuid1, 0, 0);
+    checkUncommittedSizeCount(_opCtx, _uuid1, {.size = 0, .count = 0});
 }
 
 enum class CapType { kCount, kSize };
@@ -892,14 +890,14 @@ TEST_P(ReplicatedFastCountTest, ReplicatedFastCountDoesNotTrackLocalCollections)
 
     checkCommittedSizeCount(
         operationContext(), internalUuid, CollectionSizeCount{.size = 0, .count = 0});
-    test_helpers::checkUncommittedFastCountChanges(_opCtx, internalUuid, 0, 0);
+    checkUncommittedSizeCount(_opCtx, internalUuid, {.size = 0, .count = 0});
 
     wuow.commit();
 
     // Replicated fast count collection has no record of the writes to `internalColl`.
     checkCommittedSizeCount(
         operationContext(), internalUuid, CollectionSizeCount{.size = 0, .count = 0});
-    test_helpers::checkUncommittedFastCountChanges(_opCtx, internalUuid, 0, 0);
+    checkUncommittedSizeCount(_opCtx, internalUuid, {.size = 0, .count = 0});
 
     // Size and count data for `internalColl` are still tracked through the record store.
     EXPECT_EQ(internalColl.getCollectionPtr()->numRecords(_opCtx), docsToInsertCount);
@@ -931,15 +929,15 @@ TEST_P(ReplicatedFastCountTest, ReplicatedFastCountTracksNonLocalInternalCollect
 
         checkCommittedSizeCount(
             operationContext(), internalUuid, CollectionSizeCount{.size = 0, .count = 0});
-        test_helpers::checkUncommittedFastCountChanges(
-            _opCtx, internalUuid, docsToInsertCount, expectedSize);
+        checkUncommittedSizeCount(
+            _opCtx, internalUuid, {.size = expectedSize, .count = docsToInsertCount});
 
         wuow.commit();
 
         // Replicated fast count collection has record of the writes to `internalColl`.
         checkCommittedSizeCount(
             _opCtx, internalUuid, {.size = expectedSize, .count = docsToInsertCount});
-        test_helpers::checkUncommittedFastCountChanges(_opCtx, internalUuid, 0, 0);
+        checkUncommittedSizeCount(_opCtx, internalUuid, {.size = 0, .count = 0});
     }
 }
 

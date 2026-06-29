@@ -27,31 +27,50 @@
  *    it in the license file.
  */
 
-#include "mongo/db/replicated_fast_count/logical_size_snapshot_receiver.h"
+#pragma once
 
-#include "mongo/db/operation_context.h"
-#include "mongo/db/service_context.h"
-#include "mongo/util/decorable.h"
+#include "mongo/db/exec/single_doc_lookup/single_document_lookup_executor.h"
 
-namespace mongo {
-namespace {
+#include <utility>
 
-const auto getLogicalSizeSnapshotReceiverDecoration =
-    ServiceContext::declareDecoration<std::unique_ptr<LogicalSizeSnapshotReceiver>>();
+namespace mongo::exec::agg {
 
-}  // namespace
+/**
+ * RAII batch scope over a SingleDocumentLookupExecutor. Construction only captures the executor and
+ * on destruction it releases the resources.
+ * Exception-safe by construction: the release runs even when the enrich body throws.
+ */
+class [[nodiscard]] ScopedBatchedLookup final {
+public:
+    explicit ScopedBatchedLookup(SingleDocumentLookupExecutor& executor) : _executor(&executor) {}
 
-LogicalSizeSnapshotReceiver* LogicalSizeSnapshotReceiver::get(ServiceContext* service) {
-    return getLogicalSizeSnapshotReceiverDecoration(service).get();
-}
+    ~ScopedBatchedLookup() {
+        release();
+    }
 
-LogicalSizeSnapshotReceiver* LogicalSizeSnapshotReceiver::get(OperationContext* opCtx) {
-    return get(opCtx->getServiceContext());
-}
+    ScopedBatchedLookup(ScopedBatchedLookup&& other) noexcept
+        : _executor(std::exchange(other._executor, nullptr)) {}
 
-void LogicalSizeSnapshotReceiver::set(ServiceContext* service,
-                                      std::unique_ptr<LogicalSizeSnapshotReceiver> receiver) {
-    getLogicalSizeSnapshotReceiverDecoration(service) = std::move(receiver);
-}
+    ScopedBatchedLookup& operator=(ScopedBatchedLookup&& other) noexcept {
+        if (this != &other) {
+            release();
+            _executor = std::exchange(other._executor, nullptr);
+        }
+        return *this;
+    }
 
-}  // namespace mongo
+    ScopedBatchedLookup(const ScopedBatchedLookup&) = delete;
+    ScopedBatchedLookup& operator=(const ScopedBatchedLookup&) = delete;
+
+private:
+    void release() noexcept {
+        if (_executor) {
+            _executor->releaseResources();
+            _executor = nullptr;
+        }
+    }
+
+    SingleDocumentLookupExecutor* _executor;
+};
+
+}  // namespace mongo::exec::agg
