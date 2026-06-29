@@ -27,38 +27,46 @@
  *    it in the license file.
  */
 
-#pragma once
+#include "mongo/db/repl/repl_network_traffic_stats.h"
 
-#include "mongo/db/operation_context.h"
-#include "mongo/db/replicated_fast_count/logical_size_snapshot_gen.h"
-#include "mongo/db/service_context.h"
-#include "mongo/util/modules.h"
+#include "mongo/base/error_codes.h"
+#include "mongo/otel/metrics/metric_names.h"
+#include "mongo/otel/metrics/metrics_service.h"
+#include "mongo/otel/metrics/server_status_options.h"
+#include "mongo/util/assert_util.h"
 
-#include <memory>
+#include <cstdint>
 
-namespace mongo {
+namespace mongo::repl {
+namespace {
 
-/**
- * Receiving end for publications of the latest logical size snapshot across uncompressed
- * collections and index tables.
- */
-class MONGO_MOD_OPEN LogicalSizeSnapshotReceiver {
-public:
-    virtual ~LogicalSizeSnapshotReceiver() = default;
+using otel::metrics::MetricNames;
+using otel::metrics::MetricsService;
+using otel::metrics::MetricUnit;
+using otel::metrics::ServerStatusOptions;
 
-    /**
-     * Implementation specific logic for handling the latest logical size snapshot. Logic must be
-     * non-blocking to ensure the publisher can continue making forward progress.
-     */
-    virtual void onLogicalSizeSnapshotPublished(const LogicalSizeSnapshot& snapshot) = 0;
+auto& oplogBytesReceivedMetric = MetricsService::instance().createInt64Counter(
+    MetricNames::kReplNetworkBytes,
+    "Total number of oplog bytes received over the network from a sync source.",
+    MetricUnit::kBytes,
+    {.serverStatusOptions = ServerStatusOptions({.dottedPath = "repl.network.bytes"})});
 
-    /**
-     * Returns the installed receiver for this process, or nullptr if none is installed.
-     */
-    static LogicalSizeSnapshotReceiver* get(ServiceContext* service);
-    static LogicalSizeSnapshotReceiver* get(OperationContext* opCtx);
+auto& oplogBytesSentMetric = MetricsService::instance().createInt64Counter(
+    MetricNames::kReplNetworkBytesSent,
+    "Total number of oplog bytes sent over the network to syncing nodes.",
+    MetricUnit::kBytes,
+    {.serverStatusOptions = ServerStatusOptions({.dottedPath = "repl.network.bytesSent"})});
 
-    static void set(ServiceContext* service, std::unique_ptr<LogicalSizeSnapshotReceiver> receiver);
-};
+}  // namespace
 
-}  // namespace mongo
+void recordOplogBytesReceived(int64_t bytes) {
+    iassert(ErrorCodes::BadValue, "oplog bytes received must be non-negative", bytes >= 0);
+    oplogBytesReceivedMetric.add(bytes);
+}
+
+void recordOplogBytesSent(int64_t bytes) {
+    iassert(ErrorCodes::BadValue, "oplog bytes sent must be non-negative", bytes >= 0);
+    oplogBytesSentMetric.add(bytes);
+}
+
+}  // namespace mongo::repl
