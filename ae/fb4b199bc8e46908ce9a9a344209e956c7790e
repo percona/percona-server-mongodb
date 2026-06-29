@@ -1,0 +1,81 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "89dd3a4c9d2ed77bb2257dc86ac35cde95560442",
+    "merge_commit": "6a32634488c9e0fabc21acf10b2532585db6b810"
+  },
+  "mergai_version": "0.1.dev1+g0fc19328c",
+  "solutions": [
+    {
+      "type": "conflict_resolution",
+      "response": {
+        "summary": "PSMDB-2110: migrate StringData literals to std::string_view",
+        "resolved": {},
+        "unresolved": {},
+        "modified": {
+          "src/mongo/db/audit/auditlog.h": "Modified by human",
+          "src/mongo/db/auth/authorization_backend_local.cpp": "Modified by human",
+          "src/mongo/db/auth/external/awsiam_server_mechanism.cpp": "Modified by human",
+          "src/mongo/db/auth/external/awsiam_server_mechanism.h": "Modified by human",
+          "src/mongo/db/auth/external/cyrus_sasl_server_session.h": "Modified by human",
+          "src/mongo/db/auth/external/external_sasl_authentication_session.cpp": "Modified by human",
+          "src/mongo/db/auth/external/external_sasl_authentication_session.h": "Modified by human",
+          "src/mongo/db/auth/external/gssapi_server_mechanism.cpp": "Modified by human",
+          "src/mongo/db/auth/external/sasl_oidc_server_mechanism.h": "Modified by human",
+          "src/mongo/db/auth/oidc/match_pattern.h": "Modified by human",
+          "src/mongo/db/auth/oidc/oidc_commands.cpp": "Modified by human",
+          "src/mongo/db/auth/oidc/oidc_server_parameters.cpp": "Modified by human",
+          "src/mongo/db/auth/sasl_mechanism_policies.h": "Modified by human",
+          "src/mongo/db/backup/backup_commands.cpp": "Modified by human",
+          "src/mongo/db/encryption/encryption_status.cpp": "Modified by human",
+          "src/mongo/db/encryption/error_builder.h": "Modified by human",
+          "src/mongo/db/encryption/key_id.cpp": "Modified by human",
+          "src/mongo/db/encryption/key_id.h": "Modified by human",
+          "src/mongo/db/encryption/vault_client.cpp": "Modified by human",
+          "src/mongo/db/encryption/vault_client_test.cpp": "Modified by human",
+          "src/mongo/db/exec/agg/backup_cursor_extend_stage.cpp": "Modified by human",
+          "src/mongo/db/exec/agg/backup_cursor_stage.cpp": "Modified by human",
+          "src/mongo/db/exec/agg/backup_file_stage.cpp": "Modified by human",
+          "src/mongo/db/fts/fts_unicode_ngram_tokenizer.h": "Modified by human",
+          "src/mongo/db/ldap/ldap_manager_impl.cpp": "Modified by human",
+          "src/mongo/db/ldap_options.cpp": "Modified by human",
+          "src/mongo/db/ldap_options.h": "Modified by human",
+          "src/mongo/db/mongod_options_encryption.h": "Modified by human",
+          "src/mongo/db/namespace_string_reserved.h": "Modified by human",
+          "src/mongo/db/pipeline/document_source_backup_cursor.cpp": "Modified by human",
+          "src/mongo/db/pipeline/document_source_backup_cursor.h": "Modified by human",
+          "src/mongo/db/pipeline/document_source_backup_cursor_extend.cpp": "Modified by human",
+          "src/mongo/db/pipeline/document_source_backup_cursor_extend.h": "Modified by human",
+          "src/mongo/db/pipeline/document_source_backup_file.cpp": "Modified by human",
+          "src/mongo/db/pipeline/document_source_backup_file.h": "Modified by human",
+          "src/mongo/db/redaction_parameter.cpp": "Modified by human",
+          "src/mongo/db/repl/initial_sync/fcb_file_cloner.cpp": "Modified by human",
+          "src/mongo/db/repl/initial_sync/initial_syncer_fcb.cpp": "Modified by human",
+          "src/mongo/db/startup_recovery.cpp": "Modified by human",
+          "src/mongo/db/storage/keydb_api.h": "Modified by human",
+          "src/mongo/db/storage/storage_engine_impl.cpp": "Modified by human",
+          "src/mongo/db/storage/wiredtiger/encryption_keydb.h": "Modified by human",
+          "src/mongo/db/storage/wiredtiger/wiredtiger_backup_cursor_hooks.cpp": "Modified by human",
+          "src/mongo/db/storage/wiredtiger/wiredtiger_customization_hooks.cpp": "Modified by human",
+          "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp": "Modified by human",
+          "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine_encryption_key_test.cpp": "Modified by human",
+          "src/mongo/db/telemetry/telemetry_parameter.cpp": "Modified by human",
+          "src/mongo/db/telemetry/telemetry_path.cpp": "Modified by human",
+          "src/mongo/db/telemetry/telemetry_path.h": "Modified by human",
+          "src/mongo/db/telemetry/telemetry_thread_base.cpp": "Modified by human",
+          "src/mongo/db/telemetry/telemetry_thread_base.h": "Modified by human",
+          "src/mongo/db/telemetry/telemetry_thread_d.cpp": "Modified by human",
+          "src/mongo/db/telemetry/telemetry_thread_s.cpp": "Modified by human",
+          "src/mongo/tools/perconadecrypt_options.h": "Modified by human"
+        },
+        "review_notes": "Replace \"_sd\" string literals with \"sv\" std::string_view literals and drop\nthe mongo/base/string_data.h includes in favor of <string_view> across the\nPercona-specific modules (telemetry, encryption, backup, auth OIDC/LDAP/SASL,\nand replication FCB)."
+      },
+      "author": {
+        "name": "Pawel Lebioda",
+        "email": "pawel.lebioda@percona.com",
+        "type": "human"
+      },
+      "commit_sha": "aefb4b199bc8e46908ce9a9a344209e956c7790e"
+    }
+  ]
+}
