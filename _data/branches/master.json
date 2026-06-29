@@ -5,14 +5,14 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 90,
-    "days_behind": 2,
-    "files_affected": 1159,
-    "total_additions": 22535,
-    "total_deletions": 12131,
+    "commits_behind": 94,
+    "days_behind": 3,
+    "files_affected": 1226,
+    "total_additions": 29057,
+    "total_deletions": 13511,
     "date_range": {
       "first": "2026-06-25T20:13:07+00:00",
-      "last": "2026-06-28T16:09:28+00:00"
+      "last": "2026-06-29T04:09:35+00:00"
     }
   },
   "last_merged_commit": {
@@ -36,6 +36,46 @@
     "summary": "SERVER-128955 Update dangling TODO to point at the correct ticket (#56850)"
   },
   "unmerged_commits": [
+    {
+      "sha": "c9d508f0277e4dadf46289de4d2ab1bc4a11e37a",
+      "short_sha": "c9d508f0277",
+      "date": "2026-06-29T14:09:35+10:00",
+      "author": {
+        "name": "wt-vendoring-bot[bot]",
+        "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "Import wiredtiger: d3f9de8545fce578e740205e18b09b4797c4b7bd from branch mongodb-master (#56975)"
+    },
+    {
+      "sha": "4029705dccfedb0e1bbb502465ca6ae2e3ac433d",
+      "short_sha": "4029705dccf",
+      "date": "2026-06-28T19:08:20-05:00",
+      "author": {
+        "name": "Haley Connelly",
+        "email": "haley.connelly@mongodb.com"
+      },
+      "summary": "SERVER-129953 port logical size logic to (#56875)"
+    },
+    {
+      "sha": "b98971d5771d71ff6fdc6f1ac2c899e7d4771922",
+      "short_sha": "b98971d5771",
+      "date": "2026-06-29T08:19:46+10:00",
+      "author": {
+        "name": "Gregory Wlodarek",
+        "email": "gregory.wlodarek@mongodb.com"
+      },
+      "summary": "SERVER-129759 Fetch cached earliest oplog timestamp to avoid blocking FTDC on page reads (#56673)"
+    },
+    {
+      "sha": "119dcda1a8c23e6d93518d55dd75215c9e5accb3",
+      "short_sha": "119dcda1a8c",
+      "date": "2026-06-28T15:35:10-04:00",
+      "author": {
+        "name": "Finley Lau",
+        "email": "finley.lau@mongodb.com"
+      },
+      "summary": "SERVER-115791 Implement thorough tests for rankFusion and extensions (#56658)"
+    },
     {
       "sha": "07e259ee3228628ff5dc6e4aae6c33aeb47e6d9d",
       "short_sha": "07e259ee322",
@@ -1101,6 +1141,26 @@
     },
     {
       "commit": {
+        "sha": "6a32634488c9e0fabc21acf10b2532585db6b810",
+        "short_sha": "6a32634488c",
+        "date": "2026-06-26T15:46:00+00:00",
+        "author": {
+          "name": "Joan Bruguera Micó (at MongoDB)",
+          "email": "joan.bruguera-mico@mongodb.com"
+        },
+        "summary": "SERVER-129374 Remove jstests usages of _flushRoutingTableCacheUpdates with Authoritative Shards (#56802)"
+      },
+      "strategy_name": "branching_point",
+      "result": {
+        "branches": [
+          "master",
+          "mergai/master-6a32634488c/main",
+          "mongodb"
+        ]
+      }
+    },
+    {
+      "commit": {
         "sha": "96a2f84e2c1414075671dd7280c753928758fcfe",
         "short_sha": "96a2f84e2c1",
         "date": "2026-06-26T11:58:32-04:00",
@@ -1185,10 +1245,33 @@
           "num_of_dirs": 12
         }
       }
+    },
+    {
+      "commit": {
+        "sha": "c9d508f0277e4dadf46289de4d2ab1bc4a11e37a",
+        "short_sha": "c9d508f0277",
+        "date": "2026-06-29T14:09:35+10:00",
+        "author": {
+          "name": "wt-vendoring-bot[bot]",
+          "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
+        },
+        "summary": "Import wiredtiger: d3f9de8545fce578e740205e18b09b4797c4b7bd from branch mongodb-master (#56975)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 63,
+          "num_of_lines": 6880,
+          "lines_added": 6123,
+          "lines_deleted": 757,
+          "num_of_dirs": 20
+        }
+      }
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-06-28 19:14:31",
+  "generated_at": "2026-06-29 07:40:07",
   "branch_name": "master",
   "display_name": "master"
 }
