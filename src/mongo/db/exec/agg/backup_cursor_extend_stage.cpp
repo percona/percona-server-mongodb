@@ -34,7 +34,11 @@ Copyright (C) 2026-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/exec/agg/document_source_to_stage_registry.h"
 #include "mongo/db/pipeline/document_source_backup_cursor_extend.h"
 
+#include <string_view>
+
 namespace mongo {
+
+using namespace std::literals::string_view_literals;
 
 boost::intrusive_ptr<exec::agg::Stage> documentSourceBackupCursorExtendToStageFn(
     const boost::intrusive_ptr<DocumentSource>& source) {
@@ -65,7 +69,7 @@ BackupCursorExtendStage::BackupCursorExtendStage(
 
 GetNextResult BackupCursorExtendStage::doGetNext() {
     if (_fileIt != _filenames.end()) {
-        Document doc = {{"filename"_sd, *_fileIt}};
+        Document doc = {{"filename"sv, *_fileIt}};
         ++_fileIt;
         return doc;
     }

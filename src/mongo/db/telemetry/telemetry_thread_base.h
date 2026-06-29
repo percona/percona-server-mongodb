@@ -32,7 +32,6 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #pragma once
 
 #include "mongo/base/status.h"
-#include "mongo/base/string_data.h"
 #include "mongo/bson/bsonobj.h"
 #include "mongo/bson/bsonobjbuilder.h"
 #include "mongo/bson/oid.h"
@@ -46,10 +45,12 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include <memory>
 #include <mutex>
 #include <string>
+#include <string_view>
 
 #include <boost/filesystem.hpp>  // IWYU pragma: keep
 
 namespace mongo {
+using namespace std::literals::string_view_literals;
 
 class TelemetryThreadBase : public BackgroundJob {
 public:
@@ -87,25 +88,25 @@ protected:
     virtual void _appendMetrics(ServiceContext* serviceContext, BSONObjBuilder* builder) = 0;
 
     // names of the fields in the metric file
-    static constexpr std::string_view kDbInstanceId = "db_instance_id"_sd;
-    static constexpr std::string_view kDbInternalId = "db_internal_id"_sd;
-    static constexpr std::string_view kPillarVersion = "pillar_version"_sd;
-    static constexpr std::string_view kPerconaFeatures = "percona_features"_sd;
-    static constexpr std::string_view kStorageEngine = "storage_engine"_sd;
-    static constexpr std::string_view kReplicaSetId = "db_replication_id"_sd;
-    static constexpr std::string_view kReplMemberState = "replication_state"_sd;
-    static constexpr std::string_view kClusterId = "db_cluster_id"_sd;
-    static constexpr std::string_view kShardSvr = "shard_svr"_sd;
-    static constexpr std::string_view kConfigSvr = "config_svr"_sd;
-    static constexpr std::string_view kUptime = "uptime"_sd;
-    static constexpr std::string_view kSource = "source"_sd;
-    static constexpr std::string_view kOIDCEnabled = "oidc_enabled"_sd;
-    static constexpr std::string_view kLDAPEnabled = "ldap_enabled"_sd;
-    static constexpr std::string_view kLDAPAuthorizationEnabled = "ldap_authorization_enabled"_sd;
+    static constexpr std::string_view kDbInstanceId = "db_instance_id"sv;
+    static constexpr std::string_view kDbInternalId = "db_internal_id"sv;
+    static constexpr std::string_view kPillarVersion = "pillar_version"sv;
+    static constexpr std::string_view kPerconaFeatures = "percona_features"sv;
+    static constexpr std::string_view kStorageEngine = "storage_engine"sv;
+    static constexpr std::string_view kReplicaSetId = "db_replication_id"sv;
+    static constexpr std::string_view kReplMemberState = "replication_state"sv;
+    static constexpr std::string_view kClusterId = "db_cluster_id"sv;
+    static constexpr std::string_view kShardSvr = "shard_svr"sv;
+    static constexpr std::string_view kConfigSvr = "config_svr"sv;
+    static constexpr std::string_view kUptime = "uptime"sv;
+    static constexpr std::string_view kSource = "source"sv;
+    static constexpr std::string_view kOIDCEnabled = "oidc_enabled"sv;
+    static constexpr std::string_view kLDAPEnabled = "ldap_enabled"sv;
+    static constexpr std::string_view kLDAPAuthorizationEnabled = "ldap_authorization_enabled"sv;
     static constexpr std::string_view kLDAPSaslAuthenticationEnabled =
-        "ldap_sasl_authentication_enabled"_sd;
-    static constexpr std::string_view kKerberosAuthenticationEnabled = "kerberos_enabled"_sd;
-    static constexpr std::string_view kX509AuthenticationEnabled = "x509_enabled"_sd;
+        "ldap_sasl_authentication_enabled"sv;
+    static constexpr std::string_view kKerberosAuthenticationEnabled = "kerberos_enabled"sv;
+    static constexpr std::string_view kX509AuthenticationEnabled = "x509_enabled"sv;
 
     // instance id stored in kTelemetryFileName
     OID _instid;

@@ -31,13 +31,13 @@ Copyright (C) 2023-present Percona and/or its affiliates. All rights reserved.
 
 #pragma once
 
-#include "mongo/base/string_data.h"
 #include "mongo/bson/bsonobjbuilder.h"
 #include "mongo/db/encryption/error.h"
 #include "mongo/util/str.h"
 
 #include <cstdint>
 #include <string>
+#include <string_view>
 #include <type_traits>
 
 namespace mongo::encryption {

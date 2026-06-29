@@ -36,15 +36,19 @@ Copyright (C) 2021-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/repl/read_concern_level.h"
 #include "mongo/db/storage/storage_engine.h"
 
+#include <string_view>
+
 #include <boost/none.hpp>
 
 namespace mongo {
+
+using namespace std::literals::string_view_literals;
 
 DECLARE_STAGE_PARAMS_DERIVED_DEFAULT(BackupCursor);
 
 class DocumentSourceBackupCursor : public DocumentSource {
 public:
-    static constexpr std::string_view kStageName = "$backupCursor"_sd;
+    static constexpr std::string_view kStageName = "$backupCursor"sv;
 
     class LiteParsed final : public LiteParsedDocumentSourceDefault<LiteParsed> {
     public:

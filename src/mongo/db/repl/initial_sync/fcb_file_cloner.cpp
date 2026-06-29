@@ -31,7 +31,6 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 
 #include "mongo/db/repl/initial_sync/fcb_file_cloner.h"
 
-#include "mongo/base/string_data.h"
 #include "mongo/bson/bsonelement.h"
 #include "mongo/bson/bsonmisc.h"
 #include "mongo/bson/bsontypes.h"
@@ -52,6 +51,7 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 
 #include <memory>
 #include <mutex>
+#include <string_view>
 #include <utility>
 
 #include <boost/optional.hpp>
@@ -61,6 +61,7 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 
 
 namespace mongo::repl {
+using namespace std::literals::string_view_literals;
 
 FCBFileCloner::FCBFileCloner(const UUID& backupId,
                              const std::string& remoteFileName,
@@ -71,7 +72,7 @@ FCBFileCloner::FCBFileCloner(const UUID& backupId,
                              DBClientConnection* client,
                              StorageInterface* storageInterface,
                              ThreadPool* dbPool)
-    : BaseCloner("FCBFileCloner"_sd, sharedData, source, client, storageInterface, dbPool),
+    : BaseCloner("FCBFileCloner"sv, sharedData, source, client, storageInterface, dbPool),
       _backupId(backupId),
       _remoteFileName(remoteFileName),
       _remoteFileSize(remoteFileSize),

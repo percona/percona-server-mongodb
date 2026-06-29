@@ -34,15 +34,19 @@ Copyright (C) 2021-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/auth/resource_pattern.h"
 #include "mongo/db/pipeline/document_source.h"
 
+#include <string_view>
+
 #include <boost/none.hpp>
 
 namespace mongo {
+
+using namespace std::literals::string_view_literals;
 
 DECLARE_STAGE_PARAMS_DERIVED_DEFAULT(BackupCursorExtend);
 
 class DocumentSourceBackupCursorExtend : public DocumentSource {
 public:
-    static constexpr std::string_view kStageName = "$backupCursorExtend"_sd;
+    static constexpr std::string_view kStageName = "$backupCursorExtend"sv;
 
     class LiteParsed final : public LiteParsedDocumentSourceDefault<LiteParsed> {
     public:

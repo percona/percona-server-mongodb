@@ -35,7 +35,6 @@ Copyright (C) 2023-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/base/error_codes.h"
 #include "mongo/base/status.h"
 #include "mongo/base/status_with.h"
-#include "mongo/base/string_data.h"
 #include "mongo/bson/bsonobjbuilder.h"
 #include "mongo/client/sasl_aws_protocol_common.h"
 #include "mongo/client/sasl_aws_protocol_common_gen.h"
@@ -52,6 +51,7 @@ Copyright (C) 2023-present Percona and/or its affiliates. All rights reserved.
 #include <regex>
 #include <sstream>
 #include <string>
+#include <string_view>
 #include <tuple>
 #include <vector>
 
@@ -63,6 +63,7 @@ Copyright (C) 2023-present Percona and/or its affiliates. All rights reserved.
 
 
 namespace mongo {
+using namespace std::literals::string_view_literals;
 namespace awsIam {
 namespace {
 // Secure Random for AWS SASL Nonce generation
@@ -83,8 +84,8 @@ std::string_view awsStsHost() {
 }  // namespace
 
 void ServerMechanism::appendExtraInfo(BSONObjBuilder* bob) const {
-    static constexpr auto kAwsId = "awsId"_sd;
-    static constexpr auto kAwsArn = "awsArn"_sd;
+    static constexpr auto kAwsId = "awsId"sv;
+    static constexpr auto kAwsArn = "awsArn"sv;
     bob->append(kAwsId, _userId);
     bob->append(kAwsArn, ServerMechanismBase::_principalName);
 }
@@ -124,7 +125,7 @@ StatusWith<std::tuple<bool, std::string>> ServerMechanism::_firstStep(std::strin
 StatusWith<std::tuple<bool, std::string>> ServerMechanism::_secondStep(std::string_view inputData) {
     auto clientSecond = awsIam::convertFromByteString<awsIam::AwsClientSecond>(inputData);
     static constexpr auto kSTSGetCallerIdentityBody =
-        "Action=GetCallerIdentity&Version=2011-06-15"_sd;
+        "Action=GetCallerIdentity&Version=2011-06-15"sv;
 
     auto http = HttpClient::create();
     std::vector<std::string> headers;
@@ -170,8 +171,8 @@ void ServerMechanism::_parseStsResponse(std::string_view body) {
 
     // Convert assumed-role to role
     static const std::regex assumedRoleRegex(R"(^arn:aws:sts::(\d+):assumed-role/([^/]+)/)");
-    if (std::smatch matches;
-        std::regex_search(ServerMechanismBase::_principalName, matches, assumedRoleRegex)) {
+    if (std::smatch matches; std::regex_search(
+            ServerMechanismBase::_principalName, matches, assumedRoleRegex)) {  //  NOLINT
         ServerMechanismBase::_principalName =
             fmt::format("arn:aws:iam::{}:role/{}", matches[1].str(), matches[2].str());
         LOGV2_DEBUG(29115,

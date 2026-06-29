@@ -32,7 +32,6 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/telemetry/telemetry_path.h"
 
 #include "mongo/base/status.h"
-#include "mongo/base/string_data.h"
 #include "mongo/bson/bsonobjbuilder.h"
 #include "mongo/db/server_options.h"
 #include "mongo/db/server_parameter.h"
@@ -41,15 +40,17 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/topology/cluster_role.h"
 
 #include <string>
+#include <string_view>
 
 #include <boost/optional.hpp>
 
 namespace mongo {
+using namespace std::literals::string_view_literals;
 
 namespace {
 
-constexpr std::string_view kTelemetryPath = "/usr/local/percona/telemetry/psmdb"_sd;
-constexpr std::string_view kTelemetryPathS = "/usr/local/percona/telemetry/psmdbs"_sd;
+constexpr std::string_view kTelemetryPath = "/usr/local/percona/telemetry/psmdb"sv;
+constexpr std::string_view kTelemetryPathS = "/usr/local/percona/telemetry/psmdbs"sv;
 
 std::string telemetryPath;  // NOLINT(*-avoid-non-const-global-variables)
 

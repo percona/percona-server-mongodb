@@ -35,9 +35,13 @@ Copyright (C) 2026-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/pipeline/document_source_backup_cursor.h"
 #include "mongo/logv2/log.h"
 
+#include <string_view>
+
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kQuery
 
 namespace mongo {
+
+using namespace std::literals::string_view_literals;
 
 boost::intrusive_ptr<exec::agg::Stage> documentSourceBackupCursorToStageFn(
     const boost::intrusive_ptr<DocumentSource>& source) {
@@ -102,13 +106,13 @@ GetNextResult BackupCursorStage::doGetNext() {
     // otherwise output filename, fileSize only
     Document doc;
     if (_docIt->length() != 0 || _docIt->offset() != 0) {
-        doc = Document{{"filename"_sd, _docIt->filePath()},
-                       {"offset"_sd, static_cast<long long>(_docIt->offset())},
-                       {"length"_sd, static_cast<long long>(_docIt->length())},
-                       {"fileSize"_sd, static_cast<long long>(_docIt->fileSize())}};
+        doc = Document{{"filename"sv, _docIt->filePath()},
+                       {"offset"sv, static_cast<long long>(_docIt->offset())},
+                       {"length"sv, static_cast<long long>(_docIt->length())},
+                       {"fileSize"sv, static_cast<long long>(_docIt->fileSize())}};
     } else {
-        doc = Document{{"filename"_sd, _docIt->filePath()},
-                       {"fileSize"_sd, static_cast<long long>(_docIt->fileSize())}};
+        doc = Document{{"filename"sv, _docIt->filePath()},
+                       {"fileSize"sv, static_cast<long long>(_docIt->fileSize())}};
     }
     ++_docIt;
 

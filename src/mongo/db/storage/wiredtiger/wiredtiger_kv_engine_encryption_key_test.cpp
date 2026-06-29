@@ -29,7 +29,6 @@ Copyright (C) 2022-present Percona and/or its affiliates. All rights reserved.
     it in the license file.
 ======= */
 
-#include "mongo/base/string_data.h"
 #include "mongo/bson/bsonmisc.h"
 #include "mongo/db/database_name.h"
 #include "mongo/db/encryption/encryption_options.h"
@@ -61,6 +60,7 @@ Copyright (C) 2022-present Percona and/or its affiliates. All rights reserved.
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <utility>
 
 #include <sys/stat.h>  // for `::chmod`

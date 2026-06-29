@@ -31,7 +31,6 @@ Copyright (C) 2025-present Percona and/or its affiliates. All rights reserved.
 
 #include "mongo/base/error_codes.h"
 #include "mongo/base/status.h"
-#include "mongo/base/string_data.h"
 #include "mongo/bson/bsonelement.h"
 #include "mongo/bson/bsonobj.h"
 #include "mongo/bson/bsonobjbuilder.h"
@@ -46,6 +45,7 @@ Copyright (C) 2025-present Percona and/or its affiliates. All rights reserved.
 
 #include <map>
 #include <ranges>  // NOLINT(mongo-cxx20-banned-includes-check)
+#include <string_view>
 #include <tuple>
 #include <vector>
 

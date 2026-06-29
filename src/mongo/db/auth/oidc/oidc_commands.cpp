@@ -36,6 +36,7 @@ Copyright (C) 2025-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/logv2/log.h"
 
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -44,6 +45,8 @@ Copyright (C) 2025-present Percona and/or its affiliates. All rights reserved.
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kCommand
 
 namespace mongo {
+
+using namespace std::literals::string_view_literals;
 
 template <ActionType RequiredAction>
 class OidcKeysCommand : public BasicCommand {
@@ -144,9 +147,9 @@ public:
 private:
     std::vector<std::pair<std::string, Status>> _failures;
 
-    static constexpr auto kErrorFieldName = "error"_sd;
-    static constexpr auto kFailuresFieldName = "failures"_sd;
-    static constexpr auto kIssuerFieldName = "issuer"_sd;
+    static constexpr auto kErrorFieldName = "error"sv;
+    static constexpr auto kFailuresFieldName = "failures"sv;
+    static constexpr auto kIssuerFieldName = "issuer"sv;
 };
 
 void JWKSRefreshingFailureContainer::serialize(BSONObjBuilder* bob) const {

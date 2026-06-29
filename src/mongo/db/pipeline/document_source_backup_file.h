@@ -31,7 +31,6 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 
 #pragma once
 
-#include "mongo/base/string_data.h"
 #include "mongo/bson/bsonelement.h"
 #include "mongo/db/namespace_string.h"
 #include "mongo/db/pipeline/document_source.h"
@@ -42,16 +41,18 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include <memory>
 #include <set>
 #include <string>
+#include <string_view>
 
 #include <boost/optional/optional.hpp>
 
 namespace mongo {
+using namespace std::literals::string_view_literals;
 
 DECLARE_STAGE_PARAMS_DERIVED_DEFAULT(BackupFile);
 
 class DocumentSourceBackupFile final : public DocumentSource {
 public:
-    static constexpr std::string_view kStageName = "$_backupFile"_sd;
+    static constexpr std::string_view kStageName = "$_backupFile"sv;
 
     class LiteParsed final : public LiteParsedDocumentSourceDefault<LiteParsed> {
     public:

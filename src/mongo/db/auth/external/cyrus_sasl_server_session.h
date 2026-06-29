@@ -33,9 +33,9 @@ Copyright (C) 2020-present Percona and/or its affiliates. All rights reserved.
 
 #include "mongo/base/status.h"
 #include "mongo/base/status_with.h"
-#include "mongo/base/string_data.h"
 
 #include <string>
+#include <string_view>
 
 #include <sasl/sasl.h>
 

@@ -32,12 +32,12 @@ Copyright (C) 2019-present Percona and/or its affiliates. All rights reserved.
 #pragma once
 
 #include "mongo/base/status.h"
-#include "mongo/base/string_data.h"
 #include "mongo/db/tenant_id.h"
 #include "mongo/util/synchronized_value.h"
 
 #include <atomic>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace mongo {

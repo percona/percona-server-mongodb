@@ -32,7 +32,6 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/telemetry/telemetry_thread_base.h"
 
 #include "mongo/base/error_codes.h"
-#include "mongo/base/string_data.h"
 #include "mongo/bson/bsonobjbuilder.h"
 #include "mongo/db/auth/oidc/oidc_server_parameters_gen.h"
 #include "mongo/db/auth/sasl_options.h"
@@ -58,6 +57,7 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include <mutex>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <utility>
 
 #include <boost/filesystem.hpp>  // IWYU pragma: keep
@@ -66,13 +66,14 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kDefault
 
 namespace mongo {
+using namespace std::literals::string_view_literals;
 
 namespace {
 
-constexpr std::string_view kParamName = "perconaTelemetry"_sd;
+constexpr std::string_view kParamName = "perconaTelemetry"sv;
 
-constexpr std::string_view kFalse = "false"_sd;
-constexpr std::string_view kTrue = "true"_sd;
+constexpr std::string_view kFalse = "false"sv;
+constexpr std::string_view kTrue = "true"sv;
 
 
 // We need this flag to filter out updates from server parameter which can arrive before global

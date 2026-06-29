@@ -31,7 +31,7 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 
 #pragma once
 
-#include "mongo/base/string_data.h"
+#include <string_view>
 
 namespace mongo {
 

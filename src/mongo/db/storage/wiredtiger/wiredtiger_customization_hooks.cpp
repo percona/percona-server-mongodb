@@ -30,7 +30,6 @@
 #include "mongo/db/storage/wiredtiger/wiredtiger_customization_hooks.h"
 
 #include "mongo/base/init.h"  // IWYU pragma: keep
-#include "mongo/base/string_data.h"
 #include "mongo/db/database_name_util.h"
 #include "mongo/db/encryption/encryption_options.h"
 #include "mongo/db/namespace_string_util.h"
@@ -46,6 +45,7 @@
 #include <boost/none.hpp>
 
 namespace mongo {
+using namespace std::literals::string_view_literals;
 namespace {
 
 class WiredTigerCustomizationHooksEncryption : public WiredTigerCustomizationHooks {
@@ -69,8 +69,8 @@ public:
         std::string_view keyid(keyIdStr);
         // Keep compatibility with v3.6 after SERVER-34617
         const size_t minsize = 6;  // Minimum size which allows following condition to be true
-        if (keyid.size() >= minsize && (keyid == "system"_sd || keyid.starts_with("table:"_sd)))
-            keyid = "/default"_sd;
+        if (keyid.size() >= minsize && (keyid == "system"sv || keyid.starts_with("table:"sv)))
+            keyid = "/default"sv;
         return str::stream() << "encryption=(name=percona,keyid=\"" << keyid << "\"),";
     }
 };

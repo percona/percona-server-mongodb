@@ -44,10 +44,14 @@ Copyright (C) 2021-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/logv2/log_options.h"
 #include "mongo/util/fail_point.h"
 
+#include <string_view>
+
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kStorage
 
 
 namespace mongo {
+
+using namespace std::literals::string_view_literals;
 
 namespace {
 
@@ -209,7 +213,7 @@ BackupCursorState WiredTigerBackupCursorHooks::openBackupCursor(
         builder << "srcBackupName" << *options.srcBackupName;
     }
 
-    Document preamble{{"metadata"_sd, builder.obj()}};
+    Document preamble{{"metadata"sv, builder.obj()}};
 
     closeCursorGuard.dismiss();
     return {_openCursor.get(),

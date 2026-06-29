@@ -48,6 +48,7 @@ Copyright (C) 2019-present Percona and/or its affiliates. All rights reserved.
 #include <memory>
 #include <mutex>
 #include <regex>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -148,6 +149,8 @@ static int interactProc(LDAP* ld, unsigned flags, void* defaults, void* in) {
 }  // extern "C"
 
 namespace mongo {
+
+using namespace std::literals::string_view_literals;
 
 struct LDAPConnInfo {
     LDAP* conn = nullptr;
@@ -1015,7 +1018,7 @@ Status LDAPManagerImpl::mapUserToDN(const std::string& user, std::string& out) {
 
 Status LDAPManagerImpl::queryUserRoles(const UserName& userName,
                                        stdx::unordered_set<RoleName>& roles) {
-    constexpr auto kAdmin = "admin"_sd;
+    constexpr auto kAdmin = "admin"sv;
 
     const std::string providedUser{userName.getUser()};
     std::string mappedUser;

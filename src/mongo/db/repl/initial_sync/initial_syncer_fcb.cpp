@@ -33,7 +33,6 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 
 #include "mongo/base/error_codes.h"
 #include "mongo/base/status.h"
-#include "mongo/base/string_data.h"
 #include "mongo/bson/bsonelement.h"
 #include "mongo/bson/bsonmisc.h"
 #include "mongo/bson/bsonobj.h"
@@ -114,6 +113,7 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include <functional>
 #include <memory>
 #include <mutex>
+#include <string_view>
 #include <type_traits>
 #include <utility>
 
@@ -125,6 +125,7 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 
 
 namespace mongo {
+using namespace std::literals::string_view_literals;
 namespace repl {
 
 // Failpoint which causes the initial sync function to hang before finishing.
@@ -160,11 +161,11 @@ using QueryResponseStatus = StatusWith<Fetcher::QueryResponse>;
 using UniqueLock = std::unique_lock<std::mutex>;
 using LockGuard = std::lock_guard<std::mutex>;
 
-constexpr std::string_view kMetadataFieldName = "metadata"_sd;
-constexpr std::string_view kBackupIdFieldName = "backupId"_sd;
-constexpr std::string_view kDBPathFieldName = "dbpath"_sd;
-constexpr std::string_view kFileNameFieldName = "filename"_sd;
-constexpr std::string_view kFileSizeFieldName = "fileSize"_sd;
+constexpr std::string_view kMetadataFieldName = "metadata"sv;
+constexpr std::string_view kBackupIdFieldName = "backupId"sv;
+constexpr std::string_view kDBPathFieldName = "dbpath"sv;
+constexpr std::string_view kFileNameFieldName = "filename"sv;
+constexpr std::string_view kFileSizeFieldName = "fileSize"sv;
 
 // denylist duration for temporary issues
 constexpr Seconds kDenylistTemporary{5};
@@ -211,7 +212,7 @@ bool buildSupportsFcbis(const BSONObj& buildInfo) {
     if (!buildInfo.hasField("psmdbVersion")) {
         return false;
     }
-    for (auto featureListName : {"proFeatures"_sd, "perconaFeatures"_sd}) {
+    for (auto featureListName : {"proFeatures"sv, "perconaFeatures"sv}) {
         if (auto featureList = buildInfo.getField(featureListName);
             !featureList.eoo() && featureList.type() == BSONType::array) {
             for (const auto& feature : featureList.Obj()) {

@@ -149,6 +149,8 @@
 
 namespace mongo {
 
+using namespace std::literals::string_view_literals;
+
 namespace {
 
 MONGO_FAIL_POINT_DEFINE(WTDropEBUSY);
@@ -410,7 +412,7 @@ static void copy_keydb_files(const boost::filesystem::path& from,
         } else {
             static std::regex rex{"/(collection|index)[-/][^/]+\\.wt$"};
             std::smatch sm;
-            if (std::regex_search(p.path().string(), sm, rex)) {
+            if (std::regex_search(p.path().string(), sm, rex)) {  //  NOLINT
                 empty = false;
                 if (parent_empty)
                     *parent_empty = false;
@@ -2387,7 +2389,7 @@ Status WiredTigerKVEngine::_hotBackupPopulateLists(OperationContext* opCtx,
 static void setupHotBackupProgressMeter(OperationContext* opCtx,
                                         ProgressMeterHolder& progressMeter,
                                         boost::uintmax_t totalfsize) {
-    constexpr auto curopMessage = "Hot Backup: copying data bytes"_sd;
+    constexpr auto curopMessage = "Hot Backup: copying data bytes"sv;
     std::unique_lock<Client> lk(*opCtx->getClient());
     progressMeter.set(lk, CurOp::get(opCtx)->setProgress(lk, curopMessage), opCtx);
     progressMeter.get(lk)->reset(totalfsize, 10, 512);

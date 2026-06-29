@@ -61,6 +61,7 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kNetwork
 
 namespace mongo::encryption {
+using namespace std::literals::string_view_literals;
 namespace {
 class PositiveUint64 {
 public:
@@ -229,7 +230,7 @@ private:
 
     static constexpr std::uint64_t kDefaultMaxVersions = 10;
 
-    static constexpr auto kOpenAPISpecEndpoint = "sys/internal/specs/openapi"_sd;
+    static constexpr auto kOpenAPISpecEndpoint = "sys/internal/specs/openapi"sv;
 
     std::unique_ptr<HttpClient> _httpClient;
     // concatenation of the URL's scheme, authority and the constant part of the path;

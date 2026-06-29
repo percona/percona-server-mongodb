@@ -40,6 +40,8 @@ Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/storage/engine_extension.h"
 #include "mongo/db/storage/storage_options.h"
 
+#include <string_view>
+
 #include <boost/filesystem.hpp>
 
 namespace mongo {
@@ -48,6 +50,8 @@ extern StorageGlobalParams storageGlobalParams;
 using namespace mongo;
 
 namespace percona {
+
+using namespace std::literals::string_view_literals;
 
 class CreateBackupCommand : public ErrmsgCommandDeprecated {
 public:
@@ -147,25 +151,25 @@ bool CreateBackupCommand::errmsgRun(mongo::OperationContext* opCtx,
 
         percona::S3BackupParameters s3params;
         for (auto&& elem : s3Elem.embeddedObject()) {
-            if (elem.fieldNameStringData() == "profile"_sd)
+            if (elem.fieldNameStringData() == "profile"sv)
                 s3params.profile = elem.String();
-            else if (elem.fieldNameStringData() == "region"_sd)
+            else if (elem.fieldNameStringData() == "region"sv)
                 s3params.region = elem.String();
-            else if (elem.fieldNameStringData() == "endpoint"_sd)
+            else if (elem.fieldNameStringData() == "endpoint"sv)
                 s3params.endpoint = elem.String();
-            else if (elem.fieldNameStringData() == "scheme"_sd)
+            else if (elem.fieldNameStringData() == "scheme"sv)
                 s3params.scheme = elem.String();
-            else if (elem.fieldNameStringData() == "useVirtualAddressing"_sd)
+            else if (elem.fieldNameStringData() == "useVirtualAddressing"sv)
                 s3params.useVirtualAddressing = elem.Bool();
-            else if (elem.fieldNameStringData() == "bucket"_sd)
+            else if (elem.fieldNameStringData() == "bucket"sv)
                 s3params.bucket = elem.String();
-            else if (elem.fieldNameStringData() == "path"_sd)
+            else if (elem.fieldNameStringData() == "path"sv)
                 s3params.path = elem.String();
-            else if (elem.fieldNameStringData() == "accessKeyId"_sd)
+            else if (elem.fieldNameStringData() == "accessKeyId"sv)
                 s3params.accessKeyId = elem.String();
-            else if (elem.fieldNameStringData() == "secretAccessKey"_sd)
+            else if (elem.fieldNameStringData() == "secretAccessKey"sv)
                 s3params.secretAccessKey = elem.String();
-            else if (elem.fieldNameStringData() == "threadPoolSize"_sd) {
+            else if (elem.fieldNameStringData() == "threadPoolSize"sv) {
                 int i = elem.Double();
                 if (i < 1 || i > 256) {
                     errmsg = "threadPoolSize must be an integer in range [1..256] (default is 4)";
@@ -206,11 +210,11 @@ bool CreateBackupCommand::errmsgRun(mongo::OperationContext* opCtx,
 
 void CreateBackupCommand::snipForLogging(mutablebson::Document* cmdObj) const {
     namespace mmb = mutablebson;
-    const auto s3FieldName = "s3"_sd;
+    const auto s3FieldName = "s3"sv;
     mmb::Element s3Element = mmb::findFirstChildNamed(cmdObj->root(), s3FieldName);
     if (s3Element.ok()) {
-        const auto f1 = "accessKeyId"_sd;
-        const auto f2 = "secretAccessKey"_sd;
+        const auto f1 = "accessKeyId"sv;
+        const auto f2 = "secretAccessKey"sv;
         auto predicate = [&](const mmb::ConstElement& element) {
             return f1 == element.getFieldName() || f2 == element.getFieldName();
         };

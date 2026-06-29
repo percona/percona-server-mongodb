@@ -34,7 +34,6 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 
 #include "mongo/base/data_range.h"
 #include "mongo/base/error_codes.h"
-#include "mongo/base/string_data.h"
 #include "mongo/bson/bsontypes.h"
 #include "mongo/db/exec/document_value/document.h"
 #include "mongo/db/namespace_string.h"
@@ -46,6 +45,7 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include <array>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <utility>
 
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kQuery
@@ -53,11 +53,12 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 
 // We only link this file into mongod so this stage doesn't exist in mongos
 namespace mongo {
+using namespace std::literals::string_view_literals;
 
 namespace {
-constexpr std::string_view kBackupId = "backupId"_sd;
-constexpr std::string_view kFile = "file"_sd;
-constexpr std::string_view kByteOffset = "byteOffset"_sd;
+constexpr std::string_view kBackupId = "backupId"sv;
+constexpr std::string_view kFile = "file"sv;
+constexpr std::string_view kByteOffset = "byteOffset"sv;
 }  // namespace
 
 REGISTER_LITE_PARSED_DOCUMENT_SOURCE(_backupFile,

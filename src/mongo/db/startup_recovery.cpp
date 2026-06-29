@@ -118,6 +118,9 @@
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kStorage
 
 namespace mongo {
+
+using namespace std::literals::string_view_literals;
+
 namespace {
 
 // Exit after repair has started, but before data is repaired.
@@ -1037,7 +1040,7 @@ void startupRecovery(OperationContext* opCtx,
     // set. If we ran it before reconcile, the about-to-be-dropped idents
     // would still be visible in WT and their keys would be misclassified as
     // in-use, deferring their cleanup to the *next* startup.
-    storageEngine->cleanupOrphanedEncryptionKeys(opCtx, "startup"_sd);
+    storageEngine->cleanupOrphanedEncryptionKeys(opCtx, "startup"sv);
 
     const bool usingReplication =
         repl::ReplicationCoordinator::get(opCtx)->getSettings().isReplSet();

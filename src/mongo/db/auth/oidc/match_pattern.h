@@ -31,11 +31,11 @@ Copyright (C) 2025-present Percona and/or its affiliates. All rights reserved.
 
 #pragma once
 
-#include "mongo/base/string_data.h"
 #include "mongo/util/assert_util.h"
 
 #include <regex>
 #include <string>
+#include <string_view>
 
 #include <fmt/format.h>
 

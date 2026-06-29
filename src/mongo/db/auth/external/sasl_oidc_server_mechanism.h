@@ -32,7 +32,6 @@ Copyright (C) 2025-present Percona and/or its affiliates. All rights reserved.
 #pragma once
 
 #include "mongo/base/status_with.h"
-#include "mongo/base/string_data.h"
 #include "mongo/db/auth/oidc/oidc_server_parameters_gen.h"
 #include "mongo/db/auth/oidc_protocol_gen.h"
 #include "mongo/db/auth/role_name.h"
@@ -44,6 +43,7 @@ Copyright (C) 2025-present Percona and/or its affiliates. All rights reserved.
 
 #include <set>
 #include <string>
+#include <string_view>
 #include <tuple>
 #include <utility>
 

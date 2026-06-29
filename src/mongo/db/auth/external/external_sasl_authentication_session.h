@@ -34,10 +34,10 @@ Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
 #pragma once
 
 #include "mongo/base/status.h"
-#include "mongo/base/string_data.h"
 #include "mongo/db/auth/sasl_mechanism_policies.h"
 
 #include <string>
+#include <string_view>
 
 #include <ldap.h>
 

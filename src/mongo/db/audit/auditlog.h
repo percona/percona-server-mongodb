@@ -35,7 +35,8 @@ Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
 #pragma once
 
 #include "mongo/base/status.h"
-#include "mongo/base/string_data.h"
+
+#include <string_view>
 
 namespace mongo::logv2 {
 

@@ -31,7 +31,6 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 
 #include "mongo/base/status.h"
 #include "mongo/base/status_with.h"
-#include "mongo/base/string_data.h"
 #include "mongo/bson/bsonobjbuilder.h"
 #include "mongo/bson/oid.h"
 #include "mongo/db/global_catalog/sharding_catalog_client.h"
@@ -45,14 +44,16 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/logv2/log.h"
 
 #include <memory>
+#include <string_view>
 
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kDefault
 
 namespace mongo {
+using namespace std::literals::string_view_literals;
 
 namespace {
 
-constexpr std::string_view kSourceName = "mongos"_sd;
+constexpr std::string_view kSourceName = "mongos"sv;
 
 
 class TelemetryThreadS final : public TelemetryThreadBase {

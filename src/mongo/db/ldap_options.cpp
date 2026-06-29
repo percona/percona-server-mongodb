@@ -38,12 +38,14 @@ Copyright (C) 2019-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/util/str.h"
 
 #include <regex>
+#include <string_view>
 
 #include <boost/algorithm/string/split.hpp>
 #include <fmt/format.h>
 
 namespace mongo {
 
+using namespace std::literals::string_view_literals;
 using namespace fmt::literals;
 
 LDAPGlobalParams ldapGlobalParams;
@@ -167,8 +169,8 @@ Status onUpdateLDAPUserToDNMapping(const std::string&) {
 
 
 Status validateLDAPBindMethod(const std::string& value) {
-    constexpr auto kSimple = "simple"_sd;
-    constexpr auto kSasl = "sasl"_sd;
+    constexpr auto kSimple = "simple"sv;
+    constexpr auto kSasl = "sasl"sv;
 
     if (!str::equalCaseInsensitive(kSimple, value) && !str::equalCaseInsensitive(kSasl, value)) {
         return {ErrorCodes::BadValue,
@@ -179,8 +181,8 @@ Status validateLDAPBindMethod(const std::string& value) {
 }
 
 Status validateLDAPTransportSecurity(const std::string& value) {
-    constexpr auto kNone = "none"_sd;
-    constexpr auto kTls = "tls"_sd;
+    constexpr auto kNone = "none"sv;
+    constexpr auto kTls = "tls"sv;
 
     if (!str::equalCaseInsensitive(kNone, value) && !str::equalCaseInsensitive(kTls, value)) {
         return {ErrorCodes::BadValue,

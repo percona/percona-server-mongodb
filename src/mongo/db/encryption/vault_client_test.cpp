@@ -36,7 +36,10 @@ Copyright (C) 2025-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/util/net/http_client.h"
 #include "mongo/util/net/http_client_mock.h"
 
+#include <string_view>
+
 namespace mongo::encryption {
+using namespace std::literals::string_view_literals;
 namespace {
 
 class MockHttpClientProviderImpl : public HttpClientProvider {
@@ -86,9 +89,9 @@ protected:
         mockHttpClientProvider.setMock(std::move(mock));
     }
 
-    static constexpr auto kTestHost = "vault.example"_sd;
+    static constexpr auto kTestHost = "vault.example"sv;
     static constexpr auto kTestPort = 8200;
-    static constexpr auto kOpenAPISpecEndpoint = "sys/internal/specs/openapi"_sd;
+    static constexpr auto kOpenAPISpecEndpoint = "sys/internal/specs/openapi"sv;
 
     static std::string getOpenAPISpecUrl(std::string_view host, int port, bool useTLS = false) {
         return fmt::format(

@@ -4,11 +4,12 @@
 
 #pragma once
 
-#include "mongo/base/string_data.h"
 #include "mongo/db/fts/fts_tokenizer.h"
 #include "mongo/db/fts/stemmer.h"
 #include "mongo/db/fts/tokenizer.h"
 #include "mongo/db/fts/unicode/string.h"
+
+#include <string_view>
 
 namespace mongo {
 namespace fts {

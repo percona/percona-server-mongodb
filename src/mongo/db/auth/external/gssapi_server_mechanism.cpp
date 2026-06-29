@@ -32,8 +32,9 @@ Copyright (C) 2020-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/auth/external/gssapi_server_mechanism.h"
 
 #include "mongo/base/status.h"
-#include "mongo/base/string_data.h"
 #include "mongo/db/auth/sasl_mechanism_registry.h"
+
+#include <string_view>
 
 namespace mongo {
 

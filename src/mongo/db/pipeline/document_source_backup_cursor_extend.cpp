@@ -35,15 +35,19 @@ Copyright (C) 2021-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/logv2/log.h"
 #include "mongo/platform/basic.h"
 
+#include <string_view>
+
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kQuery
 
 
 // We only link this file into mongod so this stage doesn't exist in mongos
 namespace mongo {
 
+using namespace std::literals::string_view_literals;
+
 namespace {
-constexpr std::string_view kBackupId = "backupId"_sd;
-constexpr std::string_view kTimestamp = "timestamp"_sd;
+constexpr std::string_view kBackupId = "backupId"sv;
+constexpr std::string_view kTimestamp = "timestamp"sv;
 }  // namespace
 
 REGISTER_LITE_PARSED_DOCUMENT_SOURCE(backupCursorExtend,

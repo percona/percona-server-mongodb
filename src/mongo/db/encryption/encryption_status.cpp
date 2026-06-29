@@ -33,14 +33,17 @@ Copyright (C) 2025-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/encryption/encryption_options.h"
 #include "mongo/db/encryption/key_id.h"
 
+#include <string_view>
+
 namespace mongo::encryption {
+using namespace std::literals::string_view_literals;
 namespace {
 
-static constexpr auto kEncryptionSSSName = "encryptionAtRest"_sd;
-static constexpr auto kEncryptionEnabledName = "encryptionEnabled"_sd;
-static constexpr auto kEncryptionKeyIdName = "encryptionKeyId"_sd;
-static constexpr auto kEncryptionCipherModeName = "encryptionCipherMode"_sd;
-static constexpr auto kEncryptionKeyIdLocal = "local"_sd;
+static constexpr auto kEncryptionSSSName = "encryptionAtRest"sv;
+static constexpr auto kEncryptionEnabledName = "encryptionEnabled"sv;
+static constexpr auto kEncryptionKeyIdName = "encryptionKeyId"sv;
+static constexpr auto kEncryptionCipherModeName = "encryptionCipherMode"sv;
+static constexpr auto kEncryptionKeyIdLocal = "local"sv;
 
 // Thread safety guaranteed because the global params are initialized at startup.
 bool isEncryptionEnabled() {

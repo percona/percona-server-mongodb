@@ -92,6 +92,8 @@
 
 namespace mongo {
 
+using namespace std::literals::string_view_literals;
+
 using std::string;
 using std::vector;
 
@@ -1005,7 +1007,7 @@ void StorageEngineImpl::cleanupOrphanedEncryptionKeys(OperationContext* opCtx,
                     1,
                     "Orphaned encryption key cleanup deferred due to backup in progress",
                     "trigger"_attr = trigger,
-                    "reason"_attr = _inBackupMode ? "inBackupMode"_sd : "backupCursorOpen"_sd);
+                    "reason"_attr = _inBackupMode ? "inBackupMode"sv : "backupCursorOpen"sv);
         return;
     }
 
@@ -1074,7 +1076,7 @@ void StorageEngineImpl::cleanupOrphanedEncryptionKeys(OperationContext* opCtx,
                             1,
                             "Skipped orphaned encryption key deletion",
                             "keyId"_attr = keyId,
-                            "reason"_attr = dbExists ? "dbExists"_sd : "dropPending"_sd);
+                            "reason"_attr = dbExists ? "dbExists"sv : "dropPending"sv);
             }
         } catch (const DBException& e) {
             // Log and continue with other keys - don't let one failure stop cleanup

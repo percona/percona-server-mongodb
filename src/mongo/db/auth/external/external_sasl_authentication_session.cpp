@@ -36,7 +36,6 @@ Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
 
 #include "mongo/base/init.h"
 #include "mongo/base/status.h"
-#include "mongo/base/string_data.h"
 #include "mongo/client/sasl_client_authenticate.h"
 #include "mongo/db/auth/sasl_command_constants.h"
 #include "mongo/db/auth/sasl_mechanism_registry.h"
@@ -48,6 +47,8 @@ Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/util/net/socket_utils.h"
 #include "mongo/util/scopeguard.h"
 #include "mongo/util/str.h"
+
+#include <string_view>
 
 #include <ldap.h>
 
@@ -98,12 +99,13 @@ Status SaslExternalLDAPServerMechanism::initializeConnection() {
 StatusWith<std::tuple<bool, std::string>>
 SaslExternalLDAPServerMechanism::processInitialClientPayload(std::string_view payload) {
     _results.initialize_results();
-    _results.result = sasl_server_start(_saslConnection,
-                                        mechanismName().data(),
-                                        payload.data(),
-                                        static_cast<unsigned>(payload.size()),
-                                        &_results.output,
-                                        &_results.length);
+    _results.result = sasl_server_start(
+        _saslConnection,
+        mechanismName().data(),  // NOLINT(bugprone-suspicious-stringview-data-usage)
+        payload.data(),
+        static_cast<unsigned>(payload.size()),
+        &_results.output,
+        &_results.length);
     return getStepResult();
 }
 

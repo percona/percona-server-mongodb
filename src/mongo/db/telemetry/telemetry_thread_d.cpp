@@ -34,7 +34,6 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/base/error_codes.h"
 #include "mongo/base/status.h"
 #include "mongo/base/status_with.h"
-#include "mongo/base/string_data.h"
 #include "mongo/bson/bsonelement.h"
 #include "mongo/bson/bsonmisc.h"
 #include "mongo/bson/bsonobj.h"
@@ -68,6 +67,7 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 
 #include <fstream>
 #include <memory>
+#include <string_view>
 #include <vector>
 
 #include <boost/filesystem.hpp>  // IWYU pragma: keep
@@ -77,30 +77,31 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kDefault
 
 namespace mongo {
+using namespace std::literals::string_view_literals;
 
 namespace {
 
-constexpr std::string_view kSourceName = "mongod"_sd;
-constexpr std::string_view kTelemetryFileName = "psmdb_telemetry.data"_sd;
-constexpr std::string_view kTelemetryCollection = "percona.telemetry"_sd;
-constexpr std::string_view kId = "_id"_sd;
-constexpr std::string_view kScheduledAt = "scheduledAt"_sd;
+constexpr std::string_view kSourceName = "mongod"sv;
+constexpr std::string_view kTelemetryFileName = "psmdb_telemetry.data"sv;
+constexpr std::string_view kTelemetryCollection = "percona.telemetry"sv;
+constexpr std::string_view kId = "_id"sv;
+constexpr std::string_view kScheduledAt = "scheduledAt"sv;
 
-constexpr std::string_view kEncryptionKeyStorage = "tde_key_storage"_sd;
-constexpr std::string_view kEncryptionVaultSpec = "tde_vault_info"_sd;
-constexpr std::string_view kVaultKeyFile = "keyfile"_sd;
-constexpr std::string_view kVaultVault = "vault"_sd;
-constexpr std::string_view kVaultKmip = "kmip"_sd;
+constexpr std::string_view kEncryptionKeyStorage = "tde_key_storage"sv;
+constexpr std::string_view kEncryptionVaultSpec = "tde_vault_info"sv;
+constexpr std::string_view kVaultKeyFile = "keyfile"sv;
+constexpr std::string_view kVaultVault = "vault"sv;
+constexpr std::string_view kVaultKmip = "kmip"sv;
 
-constexpr std::string_view kPBMVersionField = "v"_sd;
-constexpr std::string_view kPBMActive = "pbm_active"_sd;
+constexpr std::string_view kPBMVersionField = "v"sv;
+constexpr std::string_view kPBMActive = "pbm_active"sv;
 
-constexpr std::string_view kInitialSyncMethod = "initial_sync_method"_sd;
+constexpr std::string_view kInitialSyncMethod = "initial_sync_method"sv;
 
-constexpr std::string_view kOpenApiSpecFieldInfo = "info"_sd;
+constexpr std::string_view kOpenApiSpecFieldInfo = "info"sv;
 constexpr std::string_view kOpenApiSpecInfoFields[] = {
-    "title"_sd,
-    "version"_sd,
+    "title"sv,
+    "version"sv,
 };
 
 namespace {

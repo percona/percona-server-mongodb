@@ -31,7 +31,6 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 
 #include "mongo/base/error_codes.h"
 #include "mongo/base/status.h"
-#include "mongo/base/string_data.h"
 #include "mongo/bson/bsonelement.h"
 #include "mongo/bson/bsonobjbuilder.h"
 #include "mongo/db/telemetry/telemetry_parameter_gen.h"
@@ -39,9 +38,12 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/platform/atomic_word.h"
 #include "mongo/util/str.h"
 
+#include <string_view>
+
 #include <boost/optional/optional.hpp>
 
 namespace mongo {
+using namespace std::literals::string_view_literals;
 
 class OperationContext;
 class TenantId;
@@ -73,10 +75,10 @@ Status TelemetryParameter::set(const BSONElement& newValueElement,
 
 Status TelemetryParameter::setFromString(std::string_view newValueString,
                                          const boost::optional<TenantId>&) {
-    if (newValueString == "true"_sd || newValueString == "1"_sd) {
+    if (newValueString == "true"sv || newValueString == "1"sv) {
         return _set(&_data, true);
     }
-    if (newValueString == "false"_sd || newValueString == "0"_sd) {
+    if (newValueString == "false"sv || newValueString == "0"sv) {
         return _set(&_data, false);
     }
     return {ErrorCodes::BadValue, "can't convert string to bool"};

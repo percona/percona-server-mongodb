@@ -35,18 +35,22 @@ Copyright (C) 2021-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/logv2/log.h"
 #include "mongo/platform/basic.h"
 
+#include <string_view>
+
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kQuery
 
 
 // We only link this file into mongod so this stage doesn't exist in mongos
 namespace mongo {
 
+using namespace std::literals::string_view_literals;
+
 namespace {
-constexpr std::string_view kDisableIncrementalBackup = "disableIncrementalBackup"_sd;
-constexpr std::string_view kIncrementalBackup = "incrementalBackup"_sd;
-constexpr std::string_view kBlockSize = "blockSize"_sd;
-constexpr std::string_view kThisBackupName = "thisBackupName"_sd;
-constexpr std::string_view kSrcBackupName = "srcBackupName"_sd;
+constexpr std::string_view kDisableIncrementalBackup = "disableIncrementalBackup"sv;
+constexpr std::string_view kIncrementalBackup = "incrementalBackup"sv;
+constexpr std::string_view kBlockSize = "blockSize"sv;
+constexpr std::string_view kThisBackupName = "thisBackupName"sv;
+constexpr std::string_view kSrcBackupName = "srcBackupName"sv;
 }  // namespace
 
 REGISTER_LITE_PARSED_DOCUMENT_SOURCE(backupCursor,

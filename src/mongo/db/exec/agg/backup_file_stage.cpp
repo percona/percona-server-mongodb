@@ -37,7 +37,11 @@ Copyright (C) 2026-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/util/assert_util.h"
 #include "mongo/util/str.h"
 
+#include <string_view>
+
 namespace mongo {
+
+using namespace std::literals::string_view_literals;
 
 boost::intrusive_ptr<exec::agg::Stage> documentSourceBackupFileToStageFn(
     const boost::intrusive_ptr<DocumentSource>& source) {
@@ -95,9 +99,9 @@ GetNextResult BackupFileStage::doGetNext() {
     auto bytesRead = _file.gcount();
     auto eof = _file.eof();
 
-    Document doc = Document{{"byteOffset"_sd, static_cast<long long>(byteOffset)},
-                            {"data"_sd, BSONBinData(_dataBuf.data(), bytesRead, BinDataGeneral)},
-                            {"endOfFile"_sd, eof}};
+    Document doc = Document{{"byteOffset"sv, static_cast<long long>(byteOffset)},
+                            {"data"sv, BSONBinData(_dataBuf.data(), bytesRead, BinDataGeneral)},
+                            {"endOfFile"sv, eof}};
 
     return doc;
 }

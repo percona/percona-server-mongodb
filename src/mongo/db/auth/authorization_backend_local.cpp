@@ -70,6 +70,7 @@
 
 #include <set>
 #include <string>
+#include <string_view>
 #include <type_traits>
 #include <utility>
 
@@ -85,6 +86,8 @@
 
 
 namespace mongo::auth {
+
+using namespace std::literals::string_view_literals;
 
 using ResolvedRoleData = AuthorizationBackendInterface::ResolvedRoleData;
 using ResolveRoleOption = AuthorizationBackendInterface::ResolveRoleOption;
@@ -473,7 +476,7 @@ StatusWith<boost::optional<const std::set<RoleName>&>> _userRoles(OperationConte
     }
     // no roles in userReq but probably roles can be fetched from LDAP
     auto* ldapManager = LDAPManager::get(opCtx->getServiceContext());
-    if (ldapManager && userName.getDB() == "$external"_sd &&
+    if (ldapManager && userName.getDB() == "$external"sv &&
         !ldapGlobalParams.ldapQueryTemplate->empty()) {
 
         stdx::unordered_set<RoleName> uroles;

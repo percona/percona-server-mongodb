@@ -165,7 +165,7 @@ private:
     std::string _wtOpenConfig;
     std::unique_ptr<ClockSource> _fastClockSource;
     std::unique_ptr<WiredTigerConnection> _connection;
-    std::recursive_mutex _lock;  // _prng, _gcm_iv, _gcm_iv_reserved
+    std::recursive_mutex _lock;  // _prng, _gcm_iv, _gcm_iv_reserved  //  NOLINT
     std::mutex _lock_sess;       // _sess
     std::mutex _lock_key;  // serialize access to the encryption keys table, also protects _srng
     WT_SESSION* _sess = nullptr;

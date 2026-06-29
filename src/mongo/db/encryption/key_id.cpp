@@ -31,13 +31,13 @@ Copyright (C) 2022-present Percona and/or its affiliates. All rights reserved.
 
 #include "mongo/db/encryption/key_id.h"
 
-#include "mongo/base/string_data.h"
 #include "mongo/bson/bsonobj.h"
 #include "mongo/bson/bsonobjbuilder.h"
 #include "mongo/util/assert_util_core.h"
 #include "mongo/util/str.h"
 
 #include <array>
+#include <string_view>
 #include <utility>
 
 namespace mongo::encryption {

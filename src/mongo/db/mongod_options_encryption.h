@@ -34,11 +34,14 @@ Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/base/status.h"
 #include "mongo/util/str.h"
 
+#include <string_view>
+
 namespace mongo {
+using namespace std::literals::string_view_literals;
 
 inline Status validateEncryptionCipherModeSetting(const std::string& value) {
-    constexpr auto kCBC = "AES256-CBC"_sd;
-    constexpr auto kGCM = "AES256-GCM"_sd;
+    constexpr auto kCBC = "AES256-CBC"sv;
+    constexpr auto kGCM = "AES256-GCM"sv;
 
     if (!str::equalCaseInsensitive(kCBC, value) && !str::equalCaseInsensitive(kGCM, value)) {
         return {ErrorCodes::BadValue,

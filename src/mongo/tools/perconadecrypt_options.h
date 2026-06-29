@@ -34,9 +34,12 @@ Copyright (C) 2019-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/base/status.h"
 #include "mongo/util/str.h"
 
+#include <string_view>
 #include <vector>
 
 namespace mongo {
+
+using namespace std::literals::string_view_literals;
 
 namespace optionenvironment {
 class OptionSection;
@@ -69,8 +72,8 @@ Status storePerconaDecryptOptions(const moe::Environment& params,
                                   const std::vector<std::string>& args);
 
 inline Status validateEncryptionCipherModeSetting(const std::string& value) {
-    constexpr auto kCBC = "AES256-CBC"_sd;
-    constexpr auto kGCM = "AES256-GCM"_sd;
+    constexpr auto kCBC = "AES256-CBC"sv;
+    constexpr auto kGCM = "AES256-GCM"sv;
 
     if (!str::equalCaseInsensitive(kCBC, value) && !str::equalCaseInsensitive(kGCM, value)) {
         return {ErrorCodes::BadValue,

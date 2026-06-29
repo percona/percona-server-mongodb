@@ -257,7 +257,7 @@
     X(kAdminUsersNamespace, DatabaseName::kAdmin, "system.users")                                  \
                                                                                                    \
     /* Namespace used to store PBM agents. */                                                      \
-    X(kAdminPBMAgents, DatabaseName::kAdmin, "PBMAgents"_sd)                                       \
+    X(kAdminPBMAgents, DatabaseName::kAdmin, "PBMAgents")                                          \
                                                                                                    \
     /*  Namespace used by mms-automation. */                                                       \
     X(kLocalClusterManagerNamespace, DatabaseName::kLocal, "clustermanager")                       \
