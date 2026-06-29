@@ -1,0 +1,312 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "aefb4b199bc8e46908ce9a9a344209e956c7790e",
+    "merge_commit": "c9d508f0277e4dadf46289de4d2ab1bc4a11e37a"
+  },
+  "mergai_version": "0.1.dev1+g0fc19328c",
+  "conflict_context": {
+    "ours_commit": "aefb4b199bc8e46908ce9a9a344209e956c7790e",
+    "theirs_commit": "c9d508f0277e4dadf46289de4d2ab1bc4a11e37a",
+    "base_commit": "6a32634488c9e0fabc21acf10b2532585db6b810",
+    "files": [
+      "MODULE.bazel.lock",
+      "sbom.json"
+    ],
+    "conflict_types": {
+      "MODULE.bazel.lock": "both modified",
+      "sbom.json": "both modified"
+    },
+    "diffs": {
+      "MODULE.bazel.lock": "diff --cc MODULE.bazel.lock\nindex 106e5ac161a,3a7380c3247..00000000000\n--- a/MODULE.bazel.lock\n+++ b/MODULE.bazel.lock\n@@@ -365,1 -365,1 +365,7 @@@\n++<<<<<<< HEAD\n +        \"bzlTransitiveDigest\": \"t+dh3Q10+RypkJppoNAJmCdOJSBqT/9LAzleezq62KQ=\",\n++||||||| 6a32634488c\n++        \"bzlTransitiveDigest\": \"CyK0K99UxTH9pTNkYfEqNp+IBcgCsIIxlCTO0LU5YFk=\",\n++=======\n+         \"bzlTransitiveDigest\": \"LOjvJfvvj5aj/SmkM1NIJB10HSKEl4gYhlVqy9APw3M=\",\n++>>>>>>> c9d508f0277e4dadf46289de4d2ab1bc4a11e37a",
+      "sbom.json": "diff --cc sbom.json\nindex 07966fed210,a91e345226c..00000000000\n--- a/sbom.json\n+++ b/sbom.json\n@@@ -5,2 -5,2 +5,10 @@@\n++<<<<<<< HEAD\n +  \"serialNumber\": \"urn:uuid:95a559f1-b091-4a92-b80d-e6d37c5e477c\",\n +  \"version\": 6,\n++||||||| 6a32634488c\n++  \"serialNumber\": \"urn:uuid:2d7fbf85-c8b6-4f90-9966-70da88224a36\",\n++  \"version\": 8,\n++=======\n+   \"serialNumber\": \"urn:uuid:2d7fbf85-c8b6-4f90-9966-70da88224a36\",\n+   \"version\": 9,\n++>>>>>>> c9d508f0277e4dadf46289de4d2ab1bc4a11e37a\n@@@ -63,1 -65,9 +71,23 @@@\n++<<<<<<< HEAD\n +        \"https://percona.com\"\n++||||||| 6a32634488c\n++        \"https://mongodb.com\"\n++      ]\n++    },\n++    \"tools\": {\n++      \"services\": [\n++        {\n++          \"name\": \"Endor Labs Inc\",\n++          \"version\": \"v1.7.1001\"\n++        }\n++=======\n+         \"https://mongodb.com\"\n+       ]\n+     },\n+     \"tools\": {\n+       \"services\": [\n+         {\n+           \"name\": \"Endor Labs Inc\",\n+           \"version\": \"v1.7.1024\"\n+         }\n++>>>>>>> c9d508f0277e4dadf46289de4d2ab1bc4a11e37a"
+    },
+    "their_commits": {
+      "MODULE.bazel.lock": [
+        "c61f02457d19852e27d6743a1760716d82d41deb"
+      ],
+      "sbom.json": [
+        "f76694d3a4d9ad4ec135926577378a00ce775342"
+      ]
+    }
+  },
+  "merge_context": {
+    "merge_commit": "c9d508f0277e4dadf46289de4d2ab1bc4a11e37a",
+    "merged_commits": [
+      "c9d508f0277e4dadf46289de4d2ab1bc4a11e37a",
+      "4029705dccfedb0e1bbb502465ca6ae2e3ac433d",
+      "b98971d5771d71ff6fdc6f1ac2c899e7d4771922",
+      "119dcda1a8c23e6d93518d55dd75215c9e5accb3",
+      "07e259ee3228628ff5dc6e4aae6c33aeb47e6d9d",
+      "a8c7dbb81cafe20a85a341c8f6598026ac9d2996",
+      "2c906e39822e0bf3e1140da719bf3e3e43e04644",
+      "4a5f3de1824152b02f60a6f3e1a5eaf2aa46165b",
+      "f3d78426802fa15c3c8fd9d1b82085acd7e96d90",
+      "b0730fbda8de8a39ecb39c756c6babcaad9ed013",
+      "4f42bad291a46cb754dd9f0d04ab473030615620",
+      "cf67bfdb8b6e76dfc7d5329633ce033006e4b9a0",
+      "b9de2d02c10552ef7b4655ab6047719c90e0fd4f",
+      "ba8299276790688720c4fcd55bd2512b90ec727a",
+      "c61f02457d19852e27d6743a1760716d82d41deb",
+      "d5ab78d3bf864dc5f5da9251756b2059ada85cc2",
+      "42415a6371e9abd19442a2910ed4d397b0bddec7",
+      "db08d2f845583c4c72ba0d87acc103888c326118",
+      "2a612d7c5405f097a061df71bdf7a8f06a23ccb1",
+      "2254fd6a35d43b46f5b2f2c7e2dd4a388e8509a6",
+      "1b3eb82e472ca9d207eed80d5e080326b19d85e3",
+      "9b676657b8f501cfb27cba2daf24698697a341ed",
+      "f76694d3a4d9ad4ec135926577378a00ce775342",
+      "6dc03d2d9c9c54f703c8fa8d1d9643c8804ce19b",
+      "bae07aa5891e4cc963a0841aa4823e2c94d85435",
+      "fce1259964d44c3cc091c06ed10c669152101a6c",
+      "cc95e4a3040bb8e1dc676b801c302680cefd2385",
+      "386c0402ab23247a2efac11cd657249163f94dfe",
+      "c4c41958302329e66661fcf40bce5c809d516ea9",
+      "5aba2726938a4d97424c3adf0ec479fdb6e791ec",
+      "231e4b72197e8c3f293ce6353ed7a4bd3400bf74",
+      "fa53cd61577c683400b250883c0b820f605b35c9",
+      "3a82b8a217caaa97441aff6089661662f5c25a87",
+      "ef9acb5edd33bceb6861a238d98760982673814c",
+      "f2db2f8a55663881edc0f3839b71500b30f7baf9",
+      "998e54c4119af63d7951f7c95855d0117542c7ee",
+      "f312e902b04d83e16cb0af81e45c1fbdac7bce15",
+      "f764f8fde20fec21b2aa5594c668d3211945ae7b",
+      "96a2f84e2c1414075671dd7280c753928758fcfe",
+      "2efe04f62e0809a8132276157dd9f3b2d5060f65"
+    ],
+    "important_files_modified": [],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        "MODULE.bazel.lock",
+        "bazel/config/BUILD.bazel",
+        "sbom.json",
+        "src/mongo/config.h.in",
+        "src/mongo/db/commands/BUILD.bazel",
+        "src/mongo/db/index_builds/BUILD.bazel",
+        "src/mongo/db/namespace_string_reserved.h",
+        "src/mongo/db/pipeline/BUILD.bazel",
+        "src/mongo/mongo_config_header.py",
+        "src/mongo/transport/BUILD.bazel",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in"
+      ]
+    }
+  },
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 53421,
+    "num_turns": 14,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.37445124999999996,
+    "modelUsage": {
+      "claude-haiku-4-5-20251001": {
+        "inputTokens": 587,
+        "outputTokens": 18,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0,
+        "webSearchRequests": 0,
+        "costUSD": 0.000677,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000
+      },
+      "claude-opus-4-5": {
+        "inputTokens": 14,
+        "outputTokens": 3266,
+        "cacheReadInputTokens": 140496,
+        "cacheCreationInputTokens": 35489,
+        "webSearchRequests": 0,
+        "costUSD": 0.37377425,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-haiku-4-5-20251001": {
+          "tokens": {
+            "input": 587,
+            "output": 18,
+            "cache_read": 0,
+            "cache_creation": 0
+          },
+          "cost_usd": 0.000677
+        },
+        "claude-opus-4-5": {
+          "tokens": {
+            "input": 14,
+            "output": 3266,
+            "cache_read": 140496,
+            "cache_creation": 35489
+          },
+          "cost_usd": 0.37377425
+        }
+      }
+    },
+    "text_result": "Done. I've written the JSON response describing the merge changes to the specified file. The summary covers the main upstream changes: TLS connection handoff removal, WiredTiger step_down_ts addition, libmongocrypt version bump, new batched enrichment stage, and replication network stats. Each auto-merged file has been described based on the actual diff output.",
+    "response": {
+      "summary": "This merge brings in ~40 upstream MongoDB commits covering several areas: removal of TLS connection handoff feature (HandoffSessionManager/HandoffTransportLayer reverted), WiredTiger updates adding step_down_ts for disaggregated storage failover, SBOM update (libmongocrypt 1.17.0 \u2192 1.19.0), new batched enrichment stage for aggregation pipelines, replication network traffic stats tracking, index build ticket-admission metrics, and various test/infrastructure improvements. Notable reverts include the generic cross-db $lookup/$unionWith and ReplicatedFastCountDurability feature flag.",
+      "auto_merged": {
+        "MODULE.bazel.lock": "Updated bzlTransitiveDigest hashes for bazel_features_deps and setup_mongo_python_toolchains module extensions, reflecting upstream bazel configuration changes.",
+        "bazel/config/BUILD.bazel": "Removed the build_connection_handoff_enabled config_setting_group (linux_aarch64/linux_x86_64 selector) as part of the TLS connection handoff feature revert.",
+        "sbom.json": "Updated libmongocrypt version from 1.17.0 to 1.19.0 across all references (bom-ref, version, cpe, purl, dependencies). Also updated SBOM metadata version (8\u21929), timestamp, and Endor Labs tools version (v1.7.1001\u2192v1.7.1024).",
+        "src/mongo/config.h.in": "Removed the @mongo_config_connection_handoff@ placeholder for MONGO_CONFIG_CONNECTION_HANDOFF as part of the connection handoff feature removal.",
+        "src/mongo/db/commands/BUILD.bazel": "Added dependency on //src/mongo/db/repl:repl_network_traffic_stats to the commands library, supporting new replication-specific network utilization tracking.",
+        "src/mongo/db/index_builds/BUILD.bazel": "Added dependency on //src/mongo/db/admission/execution_control:in_progress_time_accumulator for ticket-admission recording and index build metrics.",
+        "src/mongo/db/namespace_string_reserved.h": "Minor comment fixes: changed 'max-key' to 'MaxKey' in comments for kConfigMaxKeyOrphanScanStateNamespace and kConfigMaxKeyZoneScanStateNamespace.",
+        "src/mongo/db/pipeline/BUILD.bazel": "Added //src/mongo/db/exec/agg:batched_enrichment_stage.cpp to the pipeline library sources, introducing a generic buffering enrichment stage primitive.",
+        "src/mongo/mongo_config_header.py": "Removed the @mongo_config_connection_handoff@ \u2192 MONGO_CONFIG_CONNECTION_HANDOFF substitution mapping from config header generation as part of the connection handoff feature removal.",
+        "src/mongo/transport/BUILD.bazel": "Removed all connection handoff related code: deleted the handoff_feature_flag_gen source include and removed conditional dependencies on handoff_session_manager and handoff_transport_layer for both transport_layer_manager and session_manager_common targets.",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in": "Added new step_down_ts configuration option for planned step-down of disaggregated storage (directs writes after cutover timestamp to ingest constituent). Added new statistic WT_STAT_CONN_TXN_SET_TS_STEP_DOWN_UPD (2002) and renumbered subsequent transaction statistics (2003-2025)."
+      },
+      "review_notes": "Key changes to verify: (1) The TLS connection handoff feature has been completely reverted - ensure no orphaned references remain. (2) The WiredTiger step_down_ts addition changes stat numbering which could affect monitoring/telemetry code relying on specific stat IDs. (3) The sbom.json conflict should keep Percona's supplier URL (https://percona.com) and remove the tools section per conflict hints."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [
+            "I'll read the diffs for the auto-merged files to accurately describe the changes. Let me run the git diff commands for each file."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [
+            "Now I have all the diffs. Let me also check the merged commits to understand the context better."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [
+            "Now I have all the information I need. Let me write the JSON response file."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-5-20251101",
+          "thoughts": [
+            "Done. I've written the JSON response describing the merge changes to the specified file. The summary covers the main upstream changes: TLS connection handoff removal, WiredTiger step_down_ts addition, libmongocrypt version bump, new batched enrichment stage, and replication network stats. Each auto-merged file has been described based on the actual diff output."
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20260629_152142_400924.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.195 (Claude Code)"
+    }
+  }
+}
