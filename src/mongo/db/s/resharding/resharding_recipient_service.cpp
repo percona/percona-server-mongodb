@@ -1015,7 +1015,10 @@ void ReshardingRecipientService::RecipientStateMachine::_createAndStartChangeStr
     }
 
     _createChangeStreamsMonitor(executor, factory);
-    _changeStreamsMonitorStarted.emplaceValue();
+    {
+        std::lock_guard<std::mutex> lk(_mutex);
+        ensureFulfilledPromise(lk, _changeStreamsMonitorStarted);
+    }
 
     // Kick off the change-streams monitor await as a fire-and-forget task. It runs in the
     // background through the remainder of the resharding operation. The monitor's final change
@@ -1594,7 +1597,7 @@ void ReshardingRecipientService::RecipientStateMachine::_verifyCollectionOptions
         _metadata.getSourceNss(),
         _metadata.getSourceUUID(),
         *_cloneTimestamp,
-        "loading collection options of source collection to verify collection options equality"_sd);
+        "loading collection options of source collection to verify collection options equality"sv);
 
     CollectionOptions sourceCollectionOptions = uassertStatusOK(
         CollectionOptions::parse(sourceCollOptions, CollectionOptions::parseForStorage));
@@ -1606,7 +1609,7 @@ void ReshardingRecipientService::RecipientStateMachine::_verifyCollectionOptions
         _metadata.getTempReshardingNss(),
         _metadata.getReshardingUUID(),
         boost::none,
-        "loading collection options of the temporary resharding collection to verify collection options equality"_sd,
+        "loading collection options of the temporary resharding collection to verify collection options equality"sv,
         myShardId);
 
     CollectionOptions tempReshardingCollectionOptions = uassertStatusOK(
@@ -1635,7 +1638,7 @@ void ReshardingRecipientService::RecipientStateMachine::_verifyIndexesBuilt(
         _metadata.getSourceNss(),
         _metadata.getSourceUUID(),
         *_cloneTimestamp,
-        "loading indexes to validate indexes on temporary resharding collection"_sd,
+        "loading indexes to validate indexes on temporary resharding collection"sv,
         /*expandSimpleCollation*/ false);
 
     const auto& tempCollIdxSpecs = listIndexesEmptyListIfMissing(opCtx,

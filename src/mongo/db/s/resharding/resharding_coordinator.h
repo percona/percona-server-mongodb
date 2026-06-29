@@ -664,10 +664,16 @@ private:
     void _logStatsOnCompletion(bool success);
 
     /**
-     * Returns the identity of the shard ID in charge of generating the pre-post commit control
+     * Builds a BSON sub-object summarising the cloning and final-collection validation outcomes,
+     * derived from persisted shard-entry fields.
+     */
+    BSONObj _buildValidationStats() const;
+
+    /**
+     * Returns the identity of the shard in charge of generating the pre-post commit control
      * events for change stream readers.
      */
-    const ShardId& _getChangeStreamNotifierShardId() const;
+    const ShardRef& _getChangeStreamNotifierShardRef() const;
 
     /**
      * If the resharding operation has been aborted, override the given status with the abort

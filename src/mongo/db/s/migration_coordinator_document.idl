@@ -52,6 +52,7 @@ enums:
             kAborted: "aborted"
 
     ManagementMode:
+        mod_visibility: public
         description:
             "Whether the migration is driven by the legacy moveChunk command path or is
             subordinate to a MoveRangeCoordinator whose coordinator service handles recovery."
@@ -100,10 +101,10 @@ structs:
                 type: uuid
                 description: "The UUID of the collection that the chunk belongs to."
             donorShardId:
-                type: shard_id
+                type: shard_ref
                 description: "The shard from which the chunk is being migrated."
             recipientShardId:
-                type: shard_id
+                type: shard_ref
                 description: "The shard to which the chunk is being migrated."
             range:
                 type: chunk_range

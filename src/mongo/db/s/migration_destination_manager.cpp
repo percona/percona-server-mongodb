@@ -107,6 +107,7 @@
 #include "mongo/db/storage/write_unit_of_work.h"
 #include "mongo/db/topology/shard_registry.h"
 #include "mongo/db/topology/sharding_state.h"
+#include "mongo/db/topology/user_write_block/replica_set_write_block_bypass.h"
 #include "mongo/db/topology/user_write_block/replica_set_write_block_state.h"
 #include "mongo/db/topology/user_write_block/user_write_block_bypass.h"
 #include "mongo/db/topology/vector_clock/vector_clock.h"
@@ -618,7 +619,7 @@ Status MigrationDestinationManager::start(OperationContext* opCtx,
     _scopedReceiveChunk = std::move(scopedReceiveChunk);
 
     invariant(!_canReleaseCriticalSectionPromise);
-    _canReleaseCriticalSectionPromise = std::make_unique<SharedPromise<void>>();
+    _canReleaseCriticalSectionPromise = std::make_unique<SharedPromise<bool>>();
 
     invariant(!_migrateThreadFinishedPromise);
     _migrateThreadFinishedPromise = std::make_unique<SharedPromise<State>>();
@@ -682,10 +683,11 @@ Status MigrationDestinationManager::restoreRecoveredMigrationState(
     _max = recoveryDoc.getRange().getMax();
     _lsid = recoveryDoc.getLsid();
     _txnNumber = recoveryDoc.getTxnNumber();
+    _clearShardCatalogCache = recoveryDoc.getClearShardCatalogCache();
     _state = kCommitStart;
 
     invariant(!_canReleaseCriticalSectionPromise);
-    _canReleaseCriticalSectionPromise = std::make_unique<SharedPromise<void>>();
+    _canReleaseCriticalSectionPromise = std::make_unique<SharedPromise<bool>>();
 
     invariant(!_migrateThreadFinishedPromise);
     _migrateThreadFinishedPromise = std::make_unique<SharedPromise<State>>();
@@ -810,7 +812,8 @@ void MigrationDestinationManager::abortWithoutSessionIdCheck() {
     _errmsg = "aborted without session id check";
 }
 
-Status MigrationDestinationManager::startCommit(const MigrationSessionId& sessionId) {
+Status MigrationDestinationManager::startCommit(const MigrationSessionId& sessionId,
+                                                bool clearShardCatalogCache) {
     std::unique_lock<std::mutex> lock(_mutex);
 
     const auto convergenceTimeout = Milliseconds(defaultConfigCommandTimeoutMS.load()) +
@@ -852,6 +855,10 @@ Status MigrationDestinationManager::startCommit(const MigrationSessionId& sessio
                               << _sessionId->toString()};
     }
 
+    // Record the donor's instruction so the migrate thread uses it when entering the critical
+    // section and persists it into the recipient recovery document.
+    _clearShardCatalogCache = clearShardCatalogCache;
+
     _sessionMigration->finish();
     _state = kCommitStart;
     _stateChangedCV.notify_all();
@@ -879,7 +886,8 @@ Status MigrationDestinationManager::startCommit(const MigrationSessionId& sessio
 }
 
 Status MigrationDestinationManager::exitCriticalSection(OperationContext* opCtx,
-                                                        const MigrationSessionId& sessionId) {
+                                                        const MigrationSessionId& sessionId,
+                                                        bool clearShardCatalogCache) {
     SharedSemiFuture<State> threadFinishedFuture;
     {
         std::unique_lock<std::mutex> lock(_mutex);
@@ -918,7 +926,7 @@ Status MigrationDestinationManager::exitCriticalSection(OperationContext* opCtx,
         // Fulfill the promise to let the migrateThread release the critical section.
         invariant(_canReleaseCriticalSectionPromise);
         if (!_canReleaseCriticalSectionPromise->getFuture().isReady()) {
-            _canReleaseCriticalSectionPromise->emplaceValue();
+            _canReleaseCriticalSectionPromise->emplaceValue(clearShardCatalogCache);
         }
 
         threadFinishedFuture = _migrateThreadFinishedPromise->getFuture();
@@ -1564,6 +1572,7 @@ void MigrationDestinationManager::_migrateDriver(OperationContext* outerOpCtx,
             // Enable write blocking bypass to allow migrations to create the collection and indexes
             // even when user writes are blocked.
             WriteBlockBypass::get(altOpCtx.get()).set(true);
+            ReplicaSetWriteBlockBypass::get(altOpCtx.get()).set(true);
 
             // The first migration must ensure that indexes match the provided specs exactly,
             // including dropping stale indexes remaining from previous versions of the collection.
@@ -1654,6 +1663,11 @@ void MigrationDestinationManager::_migrateDriver(OperationContext* outerOpCtx,
         auto newOpCtxPtr = CancelableOperationContext(
             cc().makeOperationContext(), outerOpCtx->getCancellationToken(), executor);
         auto opCtx = newOpCtxPtr.get();
+
+        // The operation must proceed even while replica set writes are blocked on
+        // the recipient.
+        ReplicaSetWriteBlockBypass::get(opCtx).set(true);
+
         repl::OpTime lastOpApplied;
         {
             // 4. Initial bulk clone
@@ -1907,11 +1921,16 @@ void MigrationDestinationManager::_migrateDriver(OperationContext* outerOpCtx,
         try {
             runWithoutSession(outerOpCtx, [&] {
                 MigrationRecipientRecoveryDocument recoveryDoc;
+                bool clearShardCatalogCache;
                 {
                     std::lock_guard<std::mutex> lg(_mutex);
                     recoveryDoc = {
                         *_migrationId, _nss, *_sessionId, range, _fromShard, _lsid, _txnNumber};
+                    clearShardCatalogCache = _clearShardCatalogCache;
                 }
+                // Persist the donor's instruction so the value survives failover and the recovery
+                // path re-acquires the critical section with the same behavior.
+                recoveryDoc.setClearShardCatalogCache(clearShardCatalogCache);
                 // Persist the migration recipient recovery document so that in case of failover,
                 // the new primary will resume the MigrationDestinationManager and retake the
                 // critical section.
@@ -1928,6 +1947,8 @@ void MigrationDestinationManager::_migrateDriver(OperationContext* outerOpCtx,
                 // Enter critical section. Ensure it has been majority commited before
                 // _recvChunkCommit returns success to the donor, so that if the recipient steps
                 // down, the critical section is kept taken while the donor commits the migration.
+                // The donor decides whether the metadata must be cleared: the legacy path clears
+                // it, the authoritative path installs the post-migration metadata directly.
                 // TODO (SERVER-128466): Remove the clearShardCatalogCache flag once
                 // migrations are authoritative.
                 ShardingRecoveryService::get(opCtx)->acquireRecoverableCriticalSectionBlockWrites(
@@ -1935,7 +1956,7 @@ void MigrationDestinationManager::_migrateDriver(OperationContext* outerOpCtx,
                     _nss,
                     critSecReason,
                     defaultMajorityWriteConcernDoNotUse(),
-                    true /* clearShardCatalogCache */,
+                    clearShardCatalogCache,
                     Milliseconds(migrationLockAcquisitionMaxWaitMS.load()));
 
                 LOGV2(5899114,
@@ -1998,6 +2019,8 @@ void MigrationDestinationManager::_migrateDriver(OperationContext* outerOpCtx,
 
         // Note: Not honoring 'migrationLockAcquisitionMaxWaitMS' because this is a recovery path
         // where the critical section had (potentially) already been granted previously.
+        // The behavior persisted in the recovery document is honored so that the value chosen by
+        // the donor before failover is preserved.
         // TODO (SERVER-128466): Remove the clearShardCatalogCache flag once migrations are
         // authoritative.
         ShardingRecoveryService::get(opCtx)->acquireRecoverableCriticalSectionBlockWrites(
@@ -2005,7 +2028,7 @@ void MigrationDestinationManager::_migrateDriver(OperationContext* outerOpCtx,
             _nss,
             criticalSectionReason(*_sessionId),
             defaultMajorityWriteConcernDoNotUse(),
-            true /* clearShardCatalogCache */);
+            _clearShardCatalogCache);
 
         LOGV2_DEBUG(6064501,
                     2,
@@ -2203,42 +2226,54 @@ void MigrationDestinationManager::awaitCriticalSectionReleaseSignalAndCompleteMi
                 "Waiting for release critical section signal",
                 "migrationId"_attr = _migrationId);
     invariant(_canReleaseCriticalSectionPromise);
-    _canReleaseCriticalSectionPromise->getFuture().get(opCtx);
+    const bool clearShardCatalogCache = _canReleaseCriticalSectionPromise->getFuture().get(opCtx);
 
     _setState(kExitCritSec);
 
-    // Refresh the filtering metadata
-    LOGV2_DEBUG(5899112,
-                3,
-                "Refreshing filtering metadata before exiting critical section",
-                "migrationId"_attr = _migrationId);
+    // On the authoritative path the post-migration metadata is already installed into the shard
+    // catalog while the critical section was held, so the refresh is skipped. Only the legacy path
+    // refreshes the filtering metadata before exiting the critical section.
+    if (clearShardCatalogCache) {
+        LOGV2_DEBUG(5899112,
+                    3,
+                    "Refreshing filtering metadata before exiting critical section",
+                    "migrationId"_attr = _migrationId);
 
-    bool refreshFailed = false;
-    try {
-        if (MONGO_unlikely(migrationRecipientFailPostCommitRefresh.shouldFail())) {
-            uasserted(ErrorCodes::InternalError, "skipShardFilteringMetadataRefresh failpoint");
+        bool refreshFailed = false;
+        try {
+            if (MONGO_unlikely(migrationRecipientFailPostCommitRefresh.shouldFail())) {
+                uasserted(ErrorCodes::InternalError, "skipShardFilteringMetadataRefresh failpoint");
+            }
+
+            FilteringMetadataCache::get(opCtx)->forceCollectionMetadataRefresh_DEPRECATED(opCtx,
+                                                                                          _nss);
+            FilteringMetadataCache::get(opCtx)->waitForCollectionFlush(opCtx, _nss);
+        } catch (const DBException& ex) {
+            LOGV2_DEBUG(5899103,
+                        2,
+                        "Post-migration commit refresh failed on recipient",
+                        logAttrs(_nss),
+                        "migrationId"_attr = _migrationId,
+                        "error"_attr = redact(ex));
+            refreshFailed = true;
         }
 
-        FilteringMetadataCache::get(opCtx)->forceCollectionMetadataRefresh_DEPRECATED(opCtx, _nss);
-        FilteringMetadataCache::get(opCtx)->waitForCollectionFlush(opCtx, _nss);
-    } catch (const DBException& ex) {
-        LOGV2_DEBUG(5899103,
-                    2,
-                    "Post-migration commit refresh failed on recipient",
-                    logAttrs(_nss),
-                    "migrationId"_attr = _migrationId,
-                    "error"_attr = redact(ex));
-        refreshFailed = true;
+        if (refreshFailed) {
+            auto scopedCsr = CollectionShardingRuntime::acquireExclusive(opCtx, _nss);
+            scopedCsr->clearCollectionMetadata(opCtx);
+            // TODO (SERVER-127444): Remove this `setNonAuthoritative` to assert with the feature
+            // flag. Migrations are a non-authoritative path, so the CSR must be reset to
+            // non-authoritative to avoid a stale authoritative state forcing the recovery refresh
+            // onto the authoritative path.
+            scopedCsr->setNonAuthoritative();
+        }
     }
 
-    if (refreshFailed) {
+    // If the failpoint is set, clear the filtering metadata to force a refresh for the next
+    // operation that consults the shard catalog.
+    if (MONGO_unlikely(migrationRecipientFailPostCommitRefresh.shouldFail())) {
         auto scopedCsr = CollectionShardingRuntime::acquireExclusive(opCtx, _nss);
         scopedCsr->clearCollectionMetadata(opCtx);
-        // TODO (SERVER-127444): Remove this `setNonAuthoritative` to assert with the feature flag.
-        // Migrations are a non-authoritative path, so the CSR must be reset to non-authoritative to
-        // avoid a stale authoritative state forcing the recovery refresh onto the authoritative
-        // path.
-        scopedCsr->setNonAuthoritative();
     }
 
     // Release the critical section

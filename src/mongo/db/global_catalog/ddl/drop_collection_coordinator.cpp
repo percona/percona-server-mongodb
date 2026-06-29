@@ -288,7 +288,7 @@ void DropCollectionCoordinator::_enterCriticalSection(
     const CancellationToken& token) {
     LOGV2_DEBUG(7038100, 2, "Acquiring critical section", logAttrs(nss()));
 
-    const auto shardRefs = Grid::get(opCtx)->shardRegistry()->getAllShardRefs_UNSAFE(opCtx);
+    const auto shardRefs = Grid::get(opCtx)->shardRegistry()->getAllShardRefs(opCtx);
     const auto session = getNewSession(opCtx);
     sharding_ddl_util::sendShardsvrParticipantBlockCommandToShards(
         opCtx,
@@ -315,14 +315,14 @@ void DropCollectionCoordinator::_commitDropCollection(
     // shard (prior to the DDL commit) as the notifier and this information may no longer be
     // available in the routing table in case of stepdown and retry of this coordinator.
     const auto changeStreamsNotifierShardId = [&]() {
-        auto primaryShardId = ShardingState::get(opCtx)->shardId();
+        auto primaryShardRef = ShardingState::get(opCtx)->asShardRef(opCtx);
 
         // TODO SERVER-73741 remove the feature flag once 9.0 becomes last LTS.
         if (!feature_flags::gFeatureFlagChangeStreamPreciseShardTargeting.isEnabled(
                 VersionContext::getDecoration(opCtx),
                 serverGlobalParams.featureCompatibility.acquireFCVSnapshot()) ||
             !collIsTracked) {
-            return primaryShardId;
+            return primaryShardRef;
         }
 
         if (_doc.getChangeStreamsNotifier()) {
@@ -336,7 +336,7 @@ void DropCollectionCoordinator::_commitDropCollection(
                           "Unable to retrieve the identity of a data bearing shard for the "
                           "collection being dropped (possibly due to a metadata inconsistency)",
                           "nss"_attr = nss());
-            dataBearingShard = primaryShardId;
+            dataBearingShard = primaryShardRef;
         }
 
         auto newDoc = _doc;
@@ -387,7 +387,7 @@ void DropCollectionCoordinator::_commitDropCollection(
                 opCtx,
                 nss(),
                 _doc.getCollInfo()->getUuid(),
-                Grid::get(opCtx)->shardRegistry()->getAllShardRefs_UNSAFE(opCtx),
+                Grid::get(opCtx)->shardRegistry()->getAllShardRefs(opCtx),
                 session,
                 executor,
                 token);
@@ -427,7 +427,9 @@ void DropCollectionCoordinator::_commitDropCollection(
             false /* requireCollectionEmpty */);
     };
 
-    auto otherParticipants = Grid::get(opCtx)->shardRegistry()->getAllShardRefs_UNSAFE(opCtx);
+    auto otherParticipants = Grid::get(opCtx)->shardRegistry()->getAllShardRefs(opCtx);
+    // TODO SERVER-129691 convert changeStreamsNotifierShardId to support ShardRef,
+    // otherParticipants to ShardHandles, and handle the mixed-variant case correctly.
     otherParticipants.erase(std::remove(otherParticipants.begin(),
                                         otherParticipants.end(),
                                         changeStreamsNotifierShardId),
@@ -474,7 +476,7 @@ void DropCollectionCoordinator::_exitCriticalSection(
     const CancellationToken& token) {
     LOGV2_DEBUG(7038102, 2, "Releasing critical section", logAttrs(nss()));
 
-    const auto shardRefs = Grid::get(opCtx)->shardRegistry()->getAllShardRefs_UNSAFE(opCtx);
+    const auto shardRefs = Grid::get(opCtx)->shardRegistry()->getAllShardRefs(opCtx);
     const auto session = getNewSession(opCtx);
     sharding_ddl_util::sendShardsvrParticipantBlockCommandToShards(
         opCtx,

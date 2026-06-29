@@ -274,7 +274,8 @@ void ShardRoleTest::installShardedCollectionMetadata(
         RoutingTableHistoryValueHandle(std::make_shared<RoutingTableHistory>(std::move(rt)),
                                        ComparableChunkVersion::makeComparableChunkVersion(version));
 
-    const auto collectionMetadata = CollectionMetadata(CurrentChunkManager(rtHandle), kMyShardName);
+    const auto collectionMetadata =
+        CollectionMetadata(CurrentChunkManager(rtHandle), kMyShardHandle);
 
     CollectionShardingRuntime::acquireExclusive(opCtx, nss)
         ->setCollectionMetadata(opCtx, collectionMetadata);
@@ -3451,7 +3452,6 @@ void ShardRoleTest::testRestoreFailsWhenMetadataInvalidated(
     {
         const auto& csr = CollectionShardingRuntime::acquireExclusive(operationContext(), nss);
         csr->invalidateRangePreserversOlderThanShardVersion(
-            operationContext(),
             shardVersionShardedCollection1.placementVersion(),
             getCollectionUUID(operationContext(), nss));
     }

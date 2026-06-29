@@ -49,6 +49,7 @@
 #include <boost/optional/optional.hpp>
 
 namespace MONGO_MOD_NEEDS_REPLACEMENT mongo {
+using namespace std::literals::string_view_literals;
 
 /**
  * Parameters produced by LiteParsedGraphLookUp::getStageParams() and consumed by
@@ -95,7 +96,7 @@ public:
     boost::optional<BSONObj> additionalFilter;
     boost::optional<FieldPath> depthField;
     boost::optional<long long> maxDepth;
-    // TODO SERVER-127884 Remove the LPP from StageParams once the LP->DS->exec pipeline translation
+    // TODO SERVER-127906 Remove the LPP from StageParams once the LP->DS->exec pipeline translation
     // bridges the subpipeline across phase boundaries properly.
     // Set at lite-parse time; carries the view pipeline (nullopt for regular collections)
     // to DocumentSourceGraphLookUp::createFromStageParams.
@@ -108,7 +109,7 @@ public:
 class LiteParsedGraphLookUp final
     : public LiteParsedDocumentSourceNestedPipelines<LiteParsedGraphLookUp> {
 public:
-    static constexpr std::string_view kStageName = "$graphLookup"_sd;
+    static constexpr std::string_view kStageName = "$graphLookup"sv;
 
     static std::unique_ptr<LiteParsedGraphLookUp> parse(const NamespaceString& nss,
                                                         const BSONElement& spec,

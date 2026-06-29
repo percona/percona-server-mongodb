@@ -41,6 +41,8 @@
 #include "mongo/crypto/encryption_fields_gen.h"
 #include "mongo/db/auth/authorization_session.h"
 #include "mongo/db/client.h"
+#include "mongo/db/dbhelpers.h"
+#include "mongo/db/index_builds/index_builds_common.h"
 #include "mongo/db/op_observer/op_observer_util.h"
 #include "mongo/db/repl/member_state.h"
 #include "mongo/db/repl/repl_settings.h"
@@ -56,6 +58,8 @@
 #include "mongo/db/shard_role/shard_catalog/clustered_collection_options_gen.h"
 #include "mongo/db/shard_role/shard_catalog/collection_operation_source.h"
 #include "mongo/db/shard_role/shard_catalog/create_collection.h"
+#include "mongo/db/shard_role/shard_role.h"
+#include "mongo/db/storage/write_unit_of_work.h"
 #include "mongo/db/timeseries/timeseries_gen.h"
 #include "mongo/db/topology/user_write_block/replica_set_write_block_bypass.h"
 #include "mongo/db/topology/user_write_block/replica_set_write_block_state.h"
@@ -200,6 +204,61 @@ protected:
         }
     }
 
+    void insertDocument(OperationContext* opCtx, const NamespaceString& nss, const BSONObj& doc) {
+        auto coll = acquireCollection(
+            opCtx,
+            CollectionAcquisitionRequest(nss,
+                                         PlacementConcern{boost::none, ShardVersion::UNTRACKED()},
+                                         repl::ReadConcernArgs::get(opCtx),
+                                         AcquisitionPrerequisites::kWrite),
+            MODE_IX);
+        WriteUnitOfWork wuow(opCtx);
+        ASSERT_OK(Helpers::insert(opCtx, coll.getCollectionPtr(), doc));
+        wuow.commit();
+    }
+
+    void runStartIndexBuild(OperationContext* opCtx,
+                            const NamespaceString& nss,
+                            bool shouldSucceed) {
+        AutoGetCollection autoColl(opCtx, nss, MODE_IS);
+        ASSERT(autoColl) << "Collection " << nss.toStringForErrorMsg() << " doesn't exist";
+        const UUID collUUID = (*autoColl)->uuid();
+
+        ReplicaSetWriteBlockOpObserver opObserver;
+        if (shouldSucceed) {
+            ASSERT_DOES_NOT_THROW(opObserver.onStartIndexBuild(opCtx,
+                                                               nss,
+                                                               collUUID,
+                                                               UUID::gen(),
+                                                               {},
+                                                               false /* fromMigrate */,
+                                                               false /* isTimeseries */));
+        } else {
+            ASSERT_THROWS_CODE(opObserver.onStartIndexBuild(opCtx,
+                                                            nss,
+                                                            collUUID,
+                                                            UUID::gen(),
+                                                            {},
+                                                            false /* fromMigrate */,
+                                                            false /* isTimeseries */),
+                               AssertionException,
+                               ErrorCodes::ReplicaSetWritesBlocked);
+        }
+    }
+
+    void runStartIndexBuildSinglePhase(OperationContext* opCtx,
+                                       const NamespaceString& nss,
+                                       bool shouldSucceed) {
+        ReplicaSetWriteBlockOpObserver opObserver;
+        if (shouldSucceed) {
+            ASSERT_DOES_NOT_THROW(opObserver.onStartIndexBuildSinglePhase(opCtx, nss));
+        } else {
+            ASSERT_THROWS_CODE(opObserver.onStartIndexBuildSinglePhase(opCtx, nss),
+                               AssertionException,
+                               ErrorCodes::ReplicaSetWritesBlocked);
+        }
+    }
+
 private:
     repl::ReplSettings createReplSettings() {
         repl::ReplSettings settings;
@@ -306,8 +365,10 @@ TEST_F(ReplicaSetWriteBlockOpObserverTest, ReplicaSetWriteAndDeletionBlockingEna
               false /* fromMigrate */,
               true /* shouldSucceed */);
 
-    // Migration-sourced inserts/updates, e.g., chunk migration, bypass write blocking.
-    runInsertAndUpdate(opCtx.get(), userColl, true /* fromMigrate */, true /* shouldSucceed */);
+    // fromMigrate writes that do not enable the bypass (e.g. movePrimary catalog cloning) are also
+    // blocked. Operations that must run during a block, such as chunk migration, instead enable
+    // ReplicaSetWriteBlockBypass.
+    runInsertAndUpdate(opCtx.get(), userColl, true /* fromMigrate */, false /* shouldSucceed */);
 
     // admin/local/config: exempt from replica set write blocking; insert/update/delete allowed.
     runInsertAndUpdate(opCtx.get(),
@@ -407,6 +468,13 @@ TEST_F(ReplicaSetWriteBlockOpObserverTest, ReplicaSetWriteAndDeletionBlockingEna
     runWrites(NamespaceString::createNamespaceString_forTest("local.coll"));
     runWrites(NamespaceString::createNamespaceString_forTest("config.coll"));
 
+    // fromMigrate writes that enable the bypass (e.g. chunk migration cloning) are allowed even
+    // while writes are blocked.
+    runInsertAndUpdate(opCtx.get(),
+                       NamespaceString::createNamespaceString_forTest("userDB.coll"),
+                       true /* fromMigrate */,
+                       true /* shouldSucceed */);
+
     // Ensure range deletions and TTL deletions succeed.
     const auto userColl = NamespaceString::createNamespaceString_forTest("userDB.coll");
     runDelete(opCtx.get(),
@@ -497,6 +565,134 @@ TEST_F(ReplicaSetWriteBlockOpObserverTest,
               false /* useDirectClient */,
               true /* fromMigrate */,
               true /* shouldSucceed */);
+}
+
+// Index build observer tests: onStartIndexBuild
+
+TEST_F(ReplicaSetWriteBlockOpObserverTest, OnStartIndexBuildAllowedOnEmptyCollectionWhenBlocked) {
+    auto opCtx = cc().makeOperationContext();
+    Lock::GlobalLock lock(opCtx.get(), MODE_IX);
+
+    auto* rsBlock = ReplicaSetWriteBlockState::get(opCtx.get());
+    rsBlock->enableReplicaSetWriteBlocking(ReplicaSetWritesBlockReasonEnum::kInsufficientDiskSpace);
+    ReplicaSetWriteBlockBypass::get(opCtx.get()).set(false);
+
+    // "userDB.coll" is empty (no documents inserted); the observer should bypass the block.
+    const auto emptyNss = NamespaceString::createNamespaceString_forTest("userDB.coll");
+    runStartIndexBuild(opCtx.get(), emptyNss, true /* shouldSucceed */);
+}
+
+TEST_F(ReplicaSetWriteBlockOpObserverTest,
+       OnStartIndexBuildBlockedOnNonEmptyCollectionWhenBlocked) {
+    auto opCtx = cc().makeOperationContext();
+    Lock::GlobalLock lock(opCtx.get(), MODE_IX);
+
+    const auto nss = NamespaceString::createNamespaceString_forTest("userDB.coll");
+    insertDocument(opCtx.get(), nss, BSON("_id" << 1));
+
+    auto* rsBlock = ReplicaSetWriteBlockState::get(opCtx.get());
+    rsBlock->enableReplicaSetWriteBlocking(ReplicaSetWritesBlockReasonEnum::kInsufficientDiskSpace);
+    ReplicaSetWriteBlockBypass::get(opCtx.get()).set(false);
+
+    runStartIndexBuild(opCtx.get(), nss, false /* shouldSucceed */);
+}
+
+TEST_F(ReplicaSetWriteBlockOpObserverTest,
+       OnStartIndexBuildAllowedOnNonEmptyCollectionWhenNotBlocked) {
+    auto opCtx = cc().makeOperationContext();
+    Lock::GlobalLock lock(opCtx.get(), MODE_IX);
+
+    const auto nss = NamespaceString::createNamespaceString_forTest("userDB.coll");
+    insertDocument(opCtx.get(), nss, BSON("_id" << 1));
+
+    auto* rsBlock = ReplicaSetWriteBlockState::get(opCtx.get());
+    rsBlock->disableReplicaSetWriteBlocking();
+    ReplicaSetWriteBlockBypass::get(opCtx.get()).set(false);
+
+    runStartIndexBuild(opCtx.get(), nss, true /* shouldSucceed */);
+}
+
+TEST_F(ReplicaSetWriteBlockOpObserverTest,
+       OnStartIndexBuildAllowedOnNonEmptyCollectionWhenBypassEnabled) {
+    auto opCtx = cc().makeOperationContext();
+    Lock::GlobalLock lock(opCtx.get(), MODE_IX);
+
+    const auto nss = NamespaceString::createNamespaceString_forTest("userDB.coll");
+    insertDocument(opCtx.get(), nss, BSON("_id" << 1));
+
+    auto* rsBlock = ReplicaSetWriteBlockState::get(opCtx.get());
+    rsBlock->enableReplicaSetWriteBlocking(ReplicaSetWritesBlockReasonEnum::kInsufficientDiskSpace);
+
+    auto authSession = AuthorizationSession::get(opCtx->getClient());
+    authSession->grantInternalAuthorization();
+    ReplicaSetWriteBlockBypass::get(opCtx.get()).setFromMetadata(opCtx.get(), {});
+    ASSERT(ReplicaSetWriteBlockBypass::get(opCtx.get()).isEnabled());
+
+    runStartIndexBuild(opCtx.get(), nss, true /* shouldSucceed */);
+}
+
+// Index build observer tests: onStartIndexBuildSinglePhase
+
+TEST_F(ReplicaSetWriteBlockOpObserverTest,
+       OnStartIndexBuildSinglePhaseAllowedOnEmptyCollectionWhenBlocked) {
+    auto opCtx = cc().makeOperationContext();
+    Lock::GlobalLock lock(opCtx.get(), MODE_IX);
+
+    auto* rsBlock = ReplicaSetWriteBlockState::get(opCtx.get());
+    rsBlock->enableReplicaSetWriteBlocking(ReplicaSetWritesBlockReasonEnum::kInsufficientDiskSpace);
+    ReplicaSetWriteBlockBypass::get(opCtx.get()).set(false);
+
+    const auto emptyNss = NamespaceString::createNamespaceString_forTest("userDB.coll");
+    runStartIndexBuildSinglePhase(opCtx.get(), emptyNss, true /* shouldSucceed */);
+}
+
+TEST_F(ReplicaSetWriteBlockOpObserverTest,
+       OnStartIndexBuildSinglePhaseBlockedOnNonEmptyCollectionWhenBlocked) {
+    auto opCtx = cc().makeOperationContext();
+    Lock::GlobalLock lock(opCtx.get(), MODE_IX);
+
+    const auto nss = NamespaceString::createNamespaceString_forTest("userDB.coll");
+    insertDocument(opCtx.get(), nss, BSON("_id" << 1));
+
+    auto* rsBlock = ReplicaSetWriteBlockState::get(opCtx.get());
+    rsBlock->enableReplicaSetWriteBlocking(ReplicaSetWritesBlockReasonEnum::kInsufficientDiskSpace);
+    ReplicaSetWriteBlockBypass::get(opCtx.get()).set(false);
+
+    runStartIndexBuildSinglePhase(opCtx.get(), nss, false /* shouldSucceed */);
+}
+
+TEST_F(ReplicaSetWriteBlockOpObserverTest,
+       OnStartIndexBuildSinglePhaseAllowedOnNonEmptyCollectionWhenNotBlocked) {
+    auto opCtx = cc().makeOperationContext();
+    Lock::GlobalLock lock(opCtx.get(), MODE_IX);
+
+    const auto nss = NamespaceString::createNamespaceString_forTest("userDB.coll");
+    insertDocument(opCtx.get(), nss, BSON("_id" << 1));
+
+    auto* rsBlock = ReplicaSetWriteBlockState::get(opCtx.get());
+    rsBlock->disableReplicaSetWriteBlocking();
+    ReplicaSetWriteBlockBypass::get(opCtx.get()).set(false);
+
+    runStartIndexBuildSinglePhase(opCtx.get(), nss, true /* shouldSucceed */);
+}
+
+TEST_F(ReplicaSetWriteBlockOpObserverTest,
+       OnStartIndexBuildSinglePhaseAllowedOnNonEmptyCollectionWhenBypassEnabled) {
+    auto opCtx = cc().makeOperationContext();
+    Lock::GlobalLock lock(opCtx.get(), MODE_IX);
+
+    const auto nss = NamespaceString::createNamespaceString_forTest("userDB.coll");
+    insertDocument(opCtx.get(), nss, BSON("_id" << 1));
+
+    auto* rsBlock = ReplicaSetWriteBlockState::get(opCtx.get());
+    rsBlock->enableReplicaSetWriteBlocking(ReplicaSetWritesBlockReasonEnum::kInsufficientDiskSpace);
+
+    auto authSession = AuthorizationSession::get(opCtx->getClient());
+    authSession->grantInternalAuthorization();
+    ReplicaSetWriteBlockBypass::get(opCtx.get()).setFromMetadata(opCtx.get(), {});
+    ASSERT(ReplicaSetWriteBlockBypass::get(opCtx.get()).isEnabled());
+
+    runStartIndexBuildSinglePhase(opCtx.get(), nss, true /* shouldSucceed */);
 }
 
 }  // namespace

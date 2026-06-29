@@ -538,7 +538,7 @@ void FilteringMetadataCache::forceCollectionMetadataRefresh_DEPRECATED(Operation
         return;
     }
 
-    CollectionMetadata metadata(cm, ShardingState::get(opCtx)->shardId());
+    CollectionMetadata metadata(cm, ShardingState::get(opCtx)->shardHandle());
     scopedCsr->setCollectionMetadata(opCtx, std::move(metadata));
 }
 
@@ -630,7 +630,7 @@ CollectionMetadata FilteringMetadataCache::_forceGetCurrentCollectionMetadata(
             return CollectionMetadata::UNTRACKED();
         }
 
-        return CollectionMetadata(cm, ShardingState::get(opCtx)->shardId());
+        return CollectionMetadata(cm, ShardingState::get(opCtx)->shardHandle());
     } catch (const ExceptionFor<ErrorCodes::NamespaceNotFound>& ex) {
         LOGV2(505070,
               "Namespace not found, collection may have been dropped",
@@ -660,6 +660,16 @@ void FilteringMetadataCache::_recoverMigrationCoordinations(OperationContext* op
         BSON(MigrationCoordinatorDocument::kNssFieldName
              << NamespaceStringUtil::serialize(nss, SerializationContext::stateDefault())),
         [&](const MigrationCoordinatorDocument& doc) {
+            // A MoveRangeCoordinator recovers its own migrations. Skip them here so an unrelated
+            // filtering-metadata refresh does not complete the migration prematurely.
+            if (doc.getManagementMode() == ManagementModeEnum::kMoveRangeCoordinator) {
+                LOGV2_DEBUG(12795322,
+                            2,
+                            "Skipping legacy migration recovery for coordinator-owned migration",
+                            "migrationCoordinatorDocument"_attr = redact(doc.toBSON()));
+                return true;
+            }
+
             LOGV2_DEBUG(4798502,
                         2,
                         "Recovering migration",
@@ -678,7 +688,7 @@ void FilteringMetadataCache::_recoverMigrationCoordinations(OperationContext* op
                 // The decision is already known.
                 coordinator.setShardKeyPattern(
                     rangedeletionutil::getShardKeyPatternFromRangeDeletionTask(opCtx, doc.getId()));
-                coordinator.completeMigration(opCtx);
+                coordinator.completeMigration(opCtx, true /* clearShardCatalogCache */);
                 return true;
             }
 
@@ -782,7 +792,7 @@ void FilteringMetadataCache::_recoverMigrationCoordinations(OperationContext* op
             }
 
             coordinator.setShardKeyPattern(KeyPattern(currentMetadata.getKeyPattern()));
-            coordinator.completeMigration(opCtx);
+            coordinator.completeMigration(opCtx, true /* clearShardCatalogCache */);
             setCollectionMetadata();
             return true;
         });

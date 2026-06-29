@@ -154,7 +154,7 @@ std::shared_ptr<ScopedCollectionDescription::Impl> MetadataManager::getActiveMet
     return std::make_shared<MetadataAtTimestamp>(
         CollectionMetadata(PointInTimeChunkManager::make(*activeMetadata->getChunkManager(),
                                                          atClusterTime->asTimestamp()),
-                           activeMetadata->shardId()));
+                           activeMetadata->shardHandle()));
 }
 
 boost::optional<UUID> MetadataManager::getCollectionUuid() const {
@@ -271,7 +271,7 @@ SharedSemiFuture<void> MetadataManager::getOngoingQueriesCompletionFuture(ChunkR
 }
 
 void MetadataManager::invalidateRangePreserversOlderThanShardVersion(
-    OperationContext* opCtx, const ChunkVersion& shardVersion) {
+    const ChunkVersion& shardVersion) {
     if (shardVersion == ChunkVersion::IGNORED()) {
         return;
     }

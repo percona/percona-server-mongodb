@@ -1,5 +1,5 @@
 /**
- *    Copyright (C) 2018-present MongoDB, Inc.
+ *    Copyright (C) 2026-present MongoDB, Inc.
  *
  *    This program is free software: you can redistribute it and/or modify
  *    it under the terms of the Server Side Public License, version 1,
@@ -27,20 +27,16 @@
  *    it in the license file.
  */
 
-#pragma once
+#include "mongo/db/sharding_environment/shard_handle.h"
 
-#include "mongo/util/modules.h"
-
-#include <string_view>
-
-MONGO_MOD_PUBLIC;
+#include "mongo/util/uuid.h"
 
 namespace mongo {
 
-inline namespace literals {
-constexpr std::string_view operator""_sd(const char* ptr, std::size_t len) noexcept {
-    return std::literals::string_view_literals::operator""sv(ptr, len);
-}
+// The ShardId is equivalent to ShardId::kConfigServerId which is not used here to avoid
+// initialization order problems. The UUID is the word "config" in hex (636f6e66-6967) plus the v4
+// required bits.
+const ShardHandle ShardHandle::kConfigServerHandle{
+    ShardId("config"), UUID::parse("636f6e66-6967-4000-8000-000000000000").getValue()};
 
-}  // namespace literals
 }  // namespace mongo

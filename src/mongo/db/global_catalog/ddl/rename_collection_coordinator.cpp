@@ -272,7 +272,7 @@ void checkCatalogConsistencyAcrossShards(OperationContext* opCtx,
                                          std::shared_ptr<executor::ScopedTaskExecutor> executor,
                                          const CancellationToken& token) {
 
-    auto participants = Grid::get(opCtx)->shardRegistry()->getAllShardRefs_UNSAFE(opCtx);
+    auto participants = Grid::get(opCtx)->shardRegistry()->getAllShardRefs(opCtx);
 
     auto sourceCollUuid = *getCollectionUUID(opCtx, fromNss, fromCollType);
     checkCollectionUUIDConsistencyAcrossShards(
@@ -830,7 +830,7 @@ ExecutorFuture<void> RenameCollectionCoordinator::_runImpl(
                     sharding_ddl_util::sendShardsvrParticipantBlockCommandToShards(
                         opCtx,
                         nss,
-                        Grid::get(opCtx)->shardRegistry()->getAllShardRefs_UNSAFE(opCtx),
+                        Grid::get(opCtx)->shardRegistry()->getAllShardRefs(opCtx),
                         mongo::CriticalSectionBlockTypeEnum::kReadsAndWrites,
                         reason,
                         _doc.getAuthoritativeMetadataAccessLevel(),
@@ -841,7 +841,7 @@ ExecutorFuture<void> RenameCollectionCoordinator::_runImpl(
                     LOGV2_DEBUG(10488801, 2, "Acquired critical section", "nss"_attr = nss);
                 };
 
-                auto getChangeStreamNotifierShardIdFor =
+                auto getChangeStreamNotifierShardRefFor =
                     [&](const boost::optional<UUID>& collUUID) {
                         // In case of tracked collection, a data bearing shard needs to generate
                         // events about the upcoming placement change.
@@ -856,7 +856,7 @@ ExecutorFuture<void> RenameCollectionCoordinator::_runImpl(
 
                         // In case the collection is untracked or does not currently exist, change
                         // stream readers are expected to tail the primary shard of the parent DB.
-                        return ShardingState::get(opCtx)->shardId();
+                        return ShardingState::get(opCtx)->asShardRef(opCtx);
                     };
 
                 // 1. Block CRUD operations on any node for both namespaces before emitting any
@@ -870,12 +870,14 @@ ExecutorFuture<void> RenameCollectionCoordinator::_runImpl(
                     auto newDoc = _doc;
 
                     auto changeStreamsNotifierForSource =
-                        getChangeStreamNotifierShardIdFor(_doc.getSourceUUID().value());
+                        getChangeStreamNotifierShardRefFor(_doc.getSourceUUID().value());
                     LOGV2(10488802,
                           "Defined notifier shard Id for change streams tracking the source nss",
                           "sourceNss"_attr = fromNss,
                           "notifierId"_attr = changeStreamsNotifierForSource);
-                    newDoc.setChangeStreamsNotifier(std::move(changeStreamsNotifierForSource));
+
+                    newDoc.setChangeStreamsNotifier(
+                        boost::optional<ShardId>(std::move(changeStreamsNotifierForSource)));
 
                     _updateStateDocument(opCtx, std::move(newDoc));
                 }
@@ -902,7 +904,7 @@ ExecutorFuture<void> RenameCollectionCoordinator::_runImpl(
 
 
                 const auto changeStreamNotifierForTarget =
-                    getChangeStreamNotifierShardIdFor(_doc.getTargetUUID());
+                    getChangeStreamNotifierShardRefFor(_doc.getTargetUUID());
 
                 NamespacePlacementChanged notification(toNss,
                                                        timeAtNewPlacementForTargetCollection);
@@ -962,9 +964,10 @@ ExecutorFuture<void> RenameCollectionCoordinator::_runImpl(
                 generic_argument_util::setOperationSessionInfo(renameCollParticipantRequest,
                                                                opSessionInfo);
 
+                // TODO SERVER-129691 getOtherParticipants to handle the mixed-variant case
+                // (ShardRef mainParticipant and ShardHandle set) correctly.
                 auto getOtherParticipants = [&](const ShardId& mainParticipant) {
-                    auto participants =
-                        Grid::get(opCtx)->shardRegistry()->getAllShardRefs_UNSAFE(opCtx);
+                    auto participants = Grid::get(opCtx)->shardRegistry()->getAllShardRefs(opCtx);
                     participants.erase(
                         std::remove(participants.begin(), participants.end(), mainParticipant),
                         participants.end());
@@ -984,6 +987,7 @@ ExecutorFuture<void> RenameCollectionCoordinator::_runImpl(
                 if (supportsPreciseChangeStreamTargeter(opCtx)) {
                     // Instruct the notifier shard ID to generate user-visible commit events for
                     // change streams...
+                    // TODO SERVER-129691 convert notifierShardId to ShardRef.
                     const auto& notifierShardId = _doc.getChangeStreamsNotifier().value();
                     renameCollParticipantRequest.setFromMigrate(false);
                     sendRequestTo(renameCollParticipantRequest, {notifierShardId});
@@ -998,6 +1002,7 @@ ExecutorFuture<void> RenameCollectionCoordinator::_runImpl(
                     // ensure that the op entries generated by the collections being renamed/dropped
                     // will be generated at points in time where all shards have a consistent view
                     // of the metadata and no concurrent writes are being performed.
+                    // TODO SERVER-129691 convert primaryShardId to ShardRef.
                     const auto primaryShardId = ShardingState::get(opCtx)->shardId();
                     const auto otherParticipants = getOtherParticipants(primaryShardId);
 
@@ -1067,7 +1072,7 @@ ExecutorFuture<void> RenameCollectionCoordinator::_runImpl(
                         _doc.getSourceUUID(),
                         _doc.getTargetUUID(),
                         _doc.getNewTargetCollectionUuid(),
-                        Grid::get(opCtx)->shardRegistry()->getAllShardRefs_UNSAFE(opCtx),
+                        Grid::get(opCtx)->shardRegistry()->getAllShardRefs(opCtx),
                         session,
                         executor,
                         token);
@@ -1109,8 +1114,7 @@ ExecutorFuture<void> RenameCollectionCoordinator::_runImpl(
                     fromNss, _doc.getSourceUUID().value());
                 unblockParticipantRequest.setDbName(fromNss.dbName());
                 unblockParticipantRequest.setRenameCollectionRequest(_request);
-                auto participants =
-                    Grid::get(opCtx)->shardRegistry()->getAllShardRefs_UNSAFE(opCtx);
+                auto participants = Grid::get(opCtx)->shardRegistry()->getAllShardRefs(opCtx);
 
                 generic_argument_util::setMajorityWriteConcern(unblockParticipantRequest);
                 generic_argument_util::setOperationSessionInfo(unblockParticipantRequest,

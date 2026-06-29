@@ -9,6 +9,8 @@
 //   assumes_against_mongod_not_mongos,
 //   featureFlagBlockReplicaSetWrites,
 //   does_not_support_config_fuzzer,
+//   cannot_run_during_upgrade_downgrade,
+//   wildcard_indexes_incompatible,
 // ]
 
 import {configureFailPoint} from "jstests/libs/fail_point_util.js";
@@ -17,6 +19,7 @@ import {
     enableReplicaSetWriteBlock,
 } from "jstests/libs/block_replica_set_writes_utils.js";
 import {afterEach, before, describe, it} from "jstests/libs/mochalite.js";
+import {funWithArgs} from "jstests/libs/parallel_shell_helpers.js";
 import {PersistenceProviderUtil} from "jstests/libs/server-rss/persistence_provider_util.js";
 import {isEnterpriseShell, runEncryptedTest} from "jstests/fle2/libs/encrypted_client_util.js";
 
@@ -54,44 +57,85 @@ describe("Test blockReplicaSetWrites command on replica set level", function () 
         assert.commandWorked(this.replicaSetPrimary.getDB(this.testDbName).dropDatabase());
     });
 
-    it("Test that concurrent blockReplicaSetWrites commands serialize", function () {
-        const hangFailPoint = configureFailPoint(
-            this.replicaSetPrimary,
-            "hangInBlockReplicaSetWritesCommand",
-        );
+    it("Test that concurrent blockReplicaSetWrites invocations are serialized", function () {
+        const primary = this.replicaSetPrimary;
+        const failPointName = "hangInBlockReplicaSetWritesCommand";
 
-        jsTest.log.info("Starting parallel shell to run parallel blockReplicaSetWrites command");
-        const awaitShell = startParallelShell(() => {
-            assert.commandWorked(
-                db.getSiblingDB("admin").runCommand({
-                    blockReplicaSetWrites: 1,
-                    enabled: true,
-                    allowDeletions: false,
-                    reason: "InsufficientDiskSpace",
-                }),
+        // Pause the first invocation inside the critical section, while it holds the global
+        // serialization mutex.
+        const fp = configureFailPoint(primary, failPointName);
+
+        let enableShell;
+        let disableShell;
+        try {
+            // First invocation: enable the block. It acquires the global mutex and hangs at the
+            // failpoint.
+            enableShell = startParallelShell(
+                funWithArgs(function (reason) {
+                    assert.commandWorked(
+                        db.getSiblingDB("admin").runCommand({
+                            blockReplicaSetWrites: 1,
+                            enabled: true,
+                            allowDeletions: false,
+                            reason: reason,
+                        }),
+                    );
+                }, "InsufficientDiskSpace"),
+                this.replicaSetPrimaryPort,
             );
-        }, this.replicaSetPrimaryPort);
 
-        jsTest.log.info("Wait for fail point to be hit");
-        hangFailPoint.wait();
+            // Wait until the first invocation is parked at the failpoint. The command evaluates
+            // the failpoint via shouldFail() and then parks in pauseWhileSet(), which enters it a
+            // second time, so the parked invocation accounts for exactly two hits.
+            const hitsPerInvocation = 2;
+            const parkedHits = fp.timesEntered + hitsPerInvocation;
+            fp.wait({timesEntered: hitsPerInvocation});
 
-        jsTest.log.info(
-            "Try to run a second blockReplicaSetWrites command, which should timeout since the first command is still running",
+            // Second invocation: disable the block. Because the mutex is process-wide, this
+            // invocation must block on mutex acquisition and therefore cannot reach the
+            // failpoint-guarded critical section while the first invocation holds the lock.
+            disableShell = startParallelShell(
+                funWithArgs(function (reason) {
+                    assert.commandWorked(
+                        db.getSiblingDB("admin").runCommand({
+                            blockReplicaSetWrites: 1,
+                            enabled: false,
+                            reason: reason,
+                        }),
+                    );
+                }, "InsufficientDiskSpace"),
+                this.replicaSetPrimaryPort,
+            );
+
+            // The second invocation must not enter the failpoint while the first holds the mutex,
+            // so the hit count must not advance past the parked snapshot.
+            assert.commandFailedWithCode(
+                primary.adminCommand({
+                    waitForFailPoint: failPointName,
+                    timesEntered: parkedHits + 1,
+                    maxTimeMS: 5 * 1000,
+                }),
+                ErrorCodes.MaxTimeMSExpired,
+                "Second blockReplicaSetWrites invocation should be serialized behind the first and not enter the critical section",
+            );
+        } finally {
+            // Always release the first invocation so it drops the mutex, even if an assertion above
+            // threw. Otherwise the parked invocation would hold the mutex and deadlock cleanup.
+            fp.off();
+        }
+
+        // Release the parallel shells. The first finishes enabling the block and drops the mutex,
+        // after which the second acquires it and disables the block.
+        enableShell();
+        disableShell();
+
+        // After both invocations complete, the block should be disabled (the second invocation ran last).
+        const replStatus = assert.commandWorked(this.replicaSetPrimaryAdminDB.serverStatus()).repl;
+        assert.eq(
+            replStatus.replicaSetWriteBlock,
+            1,
+            "replicaSetWriteBlock metric should be 1 (Disabled) after the serialized disable completes",
         );
-        assert.commandFailedWithCode(
-            this.replicaSetPrimaryAdminDB.runCommand({
-                blockReplicaSetWrites: 1,
-                enabled: true,
-                allowDeletions: false,
-                reason: "InsufficientDiskSpace",
-                maxTimeMS: 5000,
-            }),
-            ErrorCodes.MaxTimeMSExpired,
-        );
-
-        jsTest.log.info("Turn off fail point to allow first command to complete");
-        hangFailPoint.off();
-        awaitShell();
     });
 
     it("Test that allowDeletions is required when enabling the block", function () {
@@ -699,6 +743,135 @@ describe("Test blockReplicaSetWrites command on replica set level", function () 
             null,
             testColl.getIndexes().find((idx) => idx.name === "a_1"),
             "Expected index to exist after write block is disabled",
+        );
+    });
+
+    it("Test that in-progress index builds before the commit phase are aborted when blockReplicaSetWrites is enabled", function () {
+        const testDB = this.replicaSetPrimary.getDB(this.testDbName);
+        const testColl = testDB.getCollection("inProgressIndexBuildColl");
+        assert.commandWorked(testColl.insert({_id: 1, a: 1}));
+
+        // Verify that index builds succeed normally before write blocking is enabled.
+        assert.commandWorked(testColl.createIndex({a: 1}));
+        assert.neq(
+            null,
+            testColl.getIndexes().find((idx) => idx.name === "a_1"),
+            "Expected index to exist before write blocking is enabled",
+        );
+        assert.commandWorked(testColl.dropIndex("a_1"));
+
+        // Pause the index build after initialization so we can enable the write block while it is in progress.
+        const hangFp = configureFailPoint(
+            this.replicaSetPrimary,
+            "hangAfterInitializingIndexBuild",
+        );
+
+        // Start the index build in a parallel shell.
+        const awaitIndexBuild = startParallelShell(() => {
+            const res = assert.commandFailedWithCode(
+                db
+                    .getSiblingDB("testDB")
+                    .getCollection("inProgressIndexBuildColl")
+                    .createIndex({a: 1}),
+                [ErrorCodes.IndexBuildAborted, ErrorCodes.ReplicaSetWritesBlocked],
+            );
+            // The build must fail because of write blocking. This surfaces in one of two ways: the
+            // in-progress build is aborted with a "Write blocking" reason (IndexBuildAborted), or the
+            // build's setup write is rejected outright with "Replica set write blocked"
+            // (ReplicaSetWritesBlocked) when the build restarts after the block is already enabled
+            // (e.g. when a concurrent FCV change interrupts the paused build).
+            assert(
+                res.errmsg.includes("Write blocking") ||
+                    res.errmsg.includes("Replica set write blocked"),
+                "Unexpected index build failure reason",
+                {res},
+            );
+        }, this.replicaSetPrimaryPort);
+
+        hangFp.wait();
+
+        // Enable replica set write blocking while the index build is paused.
+        enableReplicaSetWriteBlock(this.replicaSetPrimaryAdminDB, false, "InsufficientDiskSpace");
+
+        hangFp.off();
+        awaitIndexBuild();
+
+        // Verify the index was not created.
+        assert.eq(
+            null,
+            testColl.getIndexes().find((idx) => idx.name === "a_1"),
+            "Expected index to not exist after in-progress build was aborted",
+        );
+
+        // Disable write blocking and verify that index builds succeed again.
+        disableReplicaSetWriteBlock(this.replicaSetPrimaryAdminDB, "InsufficientDiskSpace");
+        assert.commandWorked(testColl.createIndex({a: 1}));
+        assert.neq(
+            null,
+            testColl.getIndexes().find((idx) => idx.name === "a_1"),
+            "Expected index to exist after write blocking is disabled",
+        );
+    });
+
+    it("Test that an index build already in the commit phase is not aborted but waited on when blockReplicaSetWrites is enabled", function () {
+        const testDB = this.replicaSetPrimary.getDB(this.testDbName);
+        const testColl = testDB.getCollection("commitPhaseIndexBuildColl");
+        assert.commandWorked(testColl.insert({_id: 1, a: 1}));
+
+        // Pause the index build once it has reached the commit phase. At this point the build is
+        // past the point where it can be aborted, so enabling write blocking must wait for it to
+        // finish rather than abort it.
+        const hangFp = configureFailPoint(this.replicaSetPrimary, "hangIndexBuildBeforeCommit");
+
+        // Start the index build; it should succeed (not be aborted).
+        const awaitIndexBuild = startParallelShell(() => {
+            assert.commandWorked(
+                db
+                    .getSiblingDB("testDB")
+                    .getCollection("commitPhaseIndexBuildColl")
+                    .createIndex({a: 1}),
+            );
+        }, this.replicaSetPrimaryPort);
+
+        hangFp.wait();
+
+        // Enable replica set write blocking in a parallel shell. Because the index build is already
+        // committing and cannot be aborted, the command must wait for the build to finish before
+        // it completes.
+        const awaitWriteBlock = startParallelShell(() => {
+            assert.commandWorked(
+                db.getSiblingDB("admin").runCommand({
+                    blockReplicaSetWrites: 1,
+                    enabled: true,
+                    allowDeletions: false,
+                    reason: "InsufficientDiskSpace",
+                }),
+            );
+        }, this.replicaSetPrimaryPort);
+
+        // While the index build is still paused in commit, the write-blocking command must not have
+        // finished: it is blocked waiting on the build that it could not abort.
+        assert.soon(
+            () =>
+                this.replicaSetPrimaryAdminDB
+                    .aggregate([
+                        {$currentOp: {}},
+                        {$match: {"command.blockReplicaSetWrites": {$exists: true}}},
+                    ])
+                    .toArray().length > 0,
+            "Expected blockReplicaSetWrites to still be waiting on the committing index build",
+        );
+
+        // Let the index build commit; both the build and the write-blocking command should finish.
+        hangFp.off();
+        awaitIndexBuild();
+        awaitWriteBlock();
+
+        // Verify the index was created: a commit-phase build must not be aborted.
+        assert.neq(
+            null,
+            testColl.getIndexes().find((idx) => idx.name === "a_1"),
+            "Expected index to exist.",
         );
     });
 

@@ -2123,7 +2123,7 @@ void ReshardingCoordinator::_generateCommitNotificationForChangeStreams(
     ShardsvrNotifyShardingEventRequest request(notify_sharding_event::kCollectionResharded,
                                                eventNotification.toBSON());
 
-    const auto& notifierShard = _getChangeStreamNotifierShardId();
+    const auto& notifierShard = _getChangeStreamNotifierShardRef();
 
     // In case the recipient is running a legacy binary, swallow the error.
     try {
@@ -2154,7 +2154,7 @@ void ReshardingCoordinator::_generatePlacementChangeNotificationForChangeStreams
     ShardsvrNotifyShardingEventRequest request(notify_sharding_event::kNamespacePlacementChanged,
                                                eventNotification.toBSON());
 
-    const auto& notifierShard = _getChangeStreamNotifierShardId();
+    const auto& notifierShard = _getChangeStreamNotifierShardRef();
 
     // In case the recipient is running a legacy binary, swallow the error.
     try {
@@ -2624,7 +2624,8 @@ void ReshardingCoordinator::_logStatsOnCompletion(bool success) {
     for (auto donor : _coordinatorDoc.getDonorShards()) {
         BSONObjBuilder shardBuilder;
         auto& state = donor.getMutableState();
-        shardBuilder.append("shardName", donor.getId());
+        // TODO SERVER-129198: getString() will break once we start using UUIDs
+        shardBuilder.append("shardName", donor.getId().getString());
         auto bytes = state.getBytesToClone().value_or(0);
         auto docs = state.getDocumentsToClone().value_or(0);
         shardBuilder.append("bytesToClone", bytes);
@@ -2660,9 +2661,9 @@ void ReshardingCoordinator::_logStatsOnCompletion(bool success) {
     for (auto recipient : _coordinatorDoc.getRecipientShards()) {
         BSONObjBuilder shardBuilder;
         auto& state = recipient.getMutableState();
-        shardBuilder.append("shardName", recipient.getId());
+        // TODO SERVER-129198: getString() will break once we start using UUIDs
+        shardBuilder.append("shardName", recipient.getId().getString());
         auto bytes = state.getBytesCopied().value_or(0);
-        auto docsCloned = state.getNumDocumentsCloned().value_or(0);
         // Prefer documentsFinal (cloned + delta, written after verification) and fall back to
         // totalNumDocuments fast count.
         auto docsFinal = recipient.getDocumentsFinal() ? *recipient.getDocumentsFinal()
@@ -2670,12 +2671,14 @@ void ReshardingCoordinator::_logStatsOnCompletion(bool success) {
         auto fetched = state.getOplogFetched().value_or(0);
         auto applied = state.getOplogApplied().value_or(0);
         shardBuilder.append("bytesCloned", bytes);
-        shardBuilder.append("documentsCloned", docsCloned);
+        if (auto docsCloned = state.getNumDocumentsCloned()) {
+            shardBuilder.append("documentsCloned", *docsCloned);
+            totalDocumentsCloned += *docsCloned;
+        }
         shardBuilder.append("documentsFinal", docsFinal);
         shardBuilder.append("oplogsFetched", fetched);
         shardBuilder.append("oplogsApplied", applied);
         totalBytesCloned += bytes;
-        totalDocumentsCloned += docsCloned;
         totalDocumentsFinal += docsFinal;
         totalOplogsFetched += fetched;
         totalOplogsApplied += applied;
@@ -2689,7 +2692,9 @@ void ReshardingCoordinator::_logStatsOnCompletion(bool success) {
     }
     statsBuilder.append("recipients", recipients.obj());
     totalsBuilder.append("totalBytesCloned", totalBytesCloned);
-    totalsBuilder.append("totalDocumentsCloned", totalDocumentsCloned);
+    if (_metadata.getPerformVerification()) {
+        totalsBuilder.append("totalDocumentsCloned", totalDocumentsCloned);
+    }
     totalsBuilder.append("totalDocumentsFinal", totalDocumentsFinal);
     totalsBuilder.append("totalOplogsFetched", totalOplogsFetched);
     totalsBuilder.append("totalOplogsApplied", totalOplogsApplied);
@@ -2714,6 +2719,10 @@ void ReshardingCoordinator::_logStatsOnCompletion(bool success) {
         statsBuilder.append("criticalSection", criticalSectionBuilder.obj());
     }
 
+    if (_metadata.getPerformVerification()) {
+        statsBuilder.append("validation", _buildValidationStats());
+    }
+
     builder.append("statistics", statsBuilder.obj());
     if ((_coordinatorDoc.getState() == CoordinatorStateEnum::kDone ||
          _coordinatorDoc.getState() == CoordinatorStateEnum::kQuiesced) &&
@@ -2725,7 +2734,55 @@ void ReshardingCoordinator::_logStatsOnCompletion(bool success) {
     LOGV2(10764500, "Resharding coordinator terminated", "info"_attr = builder.obj());
 }
 
-const ShardId& ReshardingCoordinator::_getChangeStreamNotifierShardId() const {
+BSONObj ReshardingCoordinator::_buildValidationStats() const {
+    auto buildPhase = [&](std::string_view donorKey,
+                          std::string_view recipientKey,
+                          auto getDonorCount,
+                          auto getRecipientCount) {
+        BSONObjBuilder b;
+        int64_t donorTotal = 0;
+        for (const auto& donor : _coordinatorDoc.getDonorShards()) {
+            auto val = getDonorCount(donor);
+            if (!val) {
+                b.append("outcome", "incomplete");
+                return b.obj();
+            }
+            donorTotal += *val;
+        }
+
+        int64_t recipientTotal = 0;
+        for (const auto& recipient : _coordinatorDoc.getRecipientShards()) {
+            auto val = getRecipientCount(recipient);
+            if (!val) {
+                b.append("outcome", "incomplete");
+                return b.obj();
+            }
+            recipientTotal += *val;
+        }
+
+        b.append(donorKey, donorTotal);
+        b.append(recipientKey, recipientTotal);
+        b.append("outcome", donorTotal == recipientTotal ? "success" : "mismatch");
+        return b.obj();
+    };
+
+    BSONObjBuilder b;
+    b.append("clonedDocumentCount",
+             buildPhase(
+                 "documentsToCopy",
+                 "documentsCloned",
+                 [](const auto& d) { return d.getDocumentsToCopy(); },
+                 [](const auto& r) { return r.getMutableState().getNumDocumentsCloned(); }));
+    b.append("finalDocumentCount",
+             buildPhase(
+                 "sourceDocumentCount",
+                 "reshardedDocumentCount",
+                 [](const auto& d) { return d.getDocumentsFinal(); },
+                 [](const auto& r) { return r.getDocumentsFinal(); }));
+    return b.obj();
+}
+
+const ShardRef& ReshardingCoordinator::_getChangeStreamNotifierShardRef() const {
     // Change stream readers expect to receive pre & post commit event notifications
     // from one of the shards holding data before the beginning of the resharding.
     return _coordinatorDoc.getDonorShards().front().getId();

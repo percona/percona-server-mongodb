@@ -59,8 +59,8 @@ class MONGO_MOD_NEEDS_REPLACEMENT MigrationCoordinator {
 public:
     MigrationCoordinator(UUID migrationId,
                          MigrationSessionId sessionId,
-                         ShardId donorShard,
-                         ShardId recipientShard,
+                         ShardRef donorShard,
+                         ShardRef recipientShard,
                          NamespaceString collectionNamespace,
                          UUID collectionUuid,
                          ChunkRange range,
@@ -121,8 +121,11 @@ public:
      *
      * If the decision was to commit, returns a future that is set when range deletion for
      * the donated range completes.
+     *
+     * TODO (SERVER-98118) Remove clearShardCatalogCache when v9.0 branches out.
      */
-    boost::optional<SharedSemiFuture<void>> completeMigration(OperationContext* opCtx);
+    boost::optional<SharedSemiFuture<void>> completeMigration(OperationContext* opCtx,
+                                                              bool clearShardCatalogCache);
 
     /**
      * Deletes the persistent state for this migration from config.migrationCoordinators.
@@ -133,8 +136,11 @@ public:
      * Asynchronously releases the recipient critical section without waiting for it to finish. Sets
      * the _releaseRecipientCriticalSectionFuture future that will be readied once the recipient
      * critical section has been released.
+     *
+     * TODO (SERVER-98118) Remove clearShardCatalogCache when v9.0 branches out.
      */
-    void launchReleaseRecipientCriticalSection(OperationContext* opCtx);
+    void launchReleaseRecipientCriticalSection(OperationContext* opCtx,
+                                               bool clearShardCatalogCache);
 
 private:
     /**
