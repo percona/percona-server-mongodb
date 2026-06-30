@@ -62,9 +62,13 @@ def _generate_mongot_community_config(mongot_community_options):
 class MongoTCommunityFixture(interface.Fixture, interface._DockerComposeInterface):
     """Fixture which provides JSTests with a mongot-community process."""
 
-    def __init__(self, logger, job_num, fixturelib, dbpath_prefix=None, mongot_community_options=None):
+    def __init__(
+        self, logger, job_num, fixturelib, dbpath_prefix=None, mongot_community_options=None
+    ):
         interface.Fixture.__init__(self, logger, job_num, fixturelib, dbpath_prefix=dbpath_prefix)
-        self.mongot_community_options = self.fixturelib.default_if_none(mongot_community_options, {})
+        self.mongot_community_options = self.fixturelib.default_if_none(
+            mongot_community_options, {}
+        )
         self.mongot_executable = self.fixturelib.default_if_none(
             self.config.MONGOT_COMMUNITY_EXECUTABLE, self.config.DEFAULT_MONGOT_COMMUNITY_EXECUTABLE
         )
@@ -103,10 +107,8 @@ class MongoTCommunityFixture(interface.Fixture, interface._DockerComposeInterfac
         )
 
         try:
-            msg = (
-                "Starting mongot-community on grpc port {} ...\n{}".format(
-                    self.grpc_port, mongot.as_command()
-                )
+            msg = "Starting mongot-community on grpc port {} ...\n{}".format(
+                self.grpc_port, mongot.as_command()
             )
             self.logger.info(msg)
             mongot.start()
