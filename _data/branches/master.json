@@ -5,14 +5,14 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 58,
+    "commits_behind": 59,
     "days_behind": 1,
-    "files_affected": 271,
-    "total_additions": 10846,
-    "total_deletions": 4857,
+    "files_affected": 269,
+    "total_additions": 10702,
+    "total_deletions": 4839,
     "date_range": {
       "first": "2026-06-29T07:47:38+00:00",
-      "last": "2026-06-30T02:14:51+00:00"
+      "last": "2026-06-30T06:58:09+00:00"
     }
   },
   "last_merged_commit": {
@@ -36,6 +36,16 @@
     "summary": "SERVER-129391 Add TTL ticket metrics  (#56321)"
   },
   "unmerged_commits": [
+    {
+      "sha": "d6ae129a6922f634e3c8db7921cc5b55da652a0a",
+      "short_sha": "d6ae129a692",
+      "date": "2026-06-30T06:58:09+00:00",
+      "author": {
+        "name": "auto-revert-app[bot]",
+        "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
+      },
+      "summary": "Revert \"SERVER-123925 Prefer non-metadata edges when breaking join graph cycles (#55472)\" (#57134)"
+    },
     {
       "sha": "b7b4cccb785291b422052eb2ffd771ce2fada7cf",
       "short_sha": "b7b4cccb785",
@@ -638,7 +648,7 @@
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-06-30 07:17:11",
+  "generated_at": "2026-06-30 07:43:03",
   "branch_name": "master",
   "display_name": "master"
 }
