@@ -54,7 +54,6 @@
 #include "mongo/db/repl/read_concern_level.h"
 #include "mongo/db/repl/repl_client_info.h"
 #include "mongo/db/s/forwardable_operation_metadata.h"
-#include "mongo/db/s/primary_only_service_helpers/all_shards_and_config_causality_barrier.h"
 #include "mongo/db/session/logical_session_id.h"
 #include "mongo/db/session/logical_session_id_gen.h"
 #include "mongo/db/shard_role/ddl/list_collections_filter.h"
@@ -130,22 +129,7 @@ void removeDatabaseMetadataFromShard(OperationContext* opCtx,
  *
  * TODO (SERVER-98118): Remove this method once v9.0 become last-lts.
  */
-void cloneAuthoritativeDatabaseMetadata(OperationContext* opCtx,
-                                        const DatabaseName& dbName,
-                                        const BSONObj& critSecReason) {
-    auto recoveryService = ShardingRecoveryService::get(opCtx);
-    recoveryService->acquireRecoverableCriticalSectionBlockWrites(
-        opCtx,
-        NamespaceString(dbName),
-        critSecReason,
-        ShardingCatalogClient::writeConcernLocalHavingUpstreamWaiter(),
-        false /* clearShardCatalogCache */);
-    recoveryService->promoteRecoverableCriticalSectionToBlockAlsoReads(
-        opCtx,
-        NamespaceString(dbName),
-        critSecReason,
-        ShardingCatalogClient::writeConcernLocalHavingUpstreamWaiter());
-
+void cloneAuthoritativeDatabaseMetadata(OperationContext* opCtx, const DatabaseName& dbName) {
     auto catalogClient = Grid::get(opCtx)->catalogClient();
     auto dbMetadata =
         catalogClient->getDatabase(opCtx, dbName, repl::ReadConcernLevel::kMajorityReadConcern);
@@ -161,15 +145,7 @@ void cloneAuthoritativeDatabaseMetadata(OperationContext* opCtx,
                         thisShardId.toString()),
             thisShardId == dbMetadata.getPrimary());
 
-    commitCreateDatabaseMetadataLocally(opCtx, dbMetadata);
-
-    recoveryService->releaseRecoverableCriticalSection(
-        opCtx,
-        NamespaceString(dbName),
-        critSecReason,
-        ShardingCatalogClient::writeConcernLocalHavingUpstreamWaiter(),
-        ShardingRecoveryService::NoCustomAction(),
-        false /* throwIfReasonDiffers */);
+    commitCreateDatabaseMetadataLocally(opCtx, dbMetadata, true /* fromClone */);
 }
 
 /**
@@ -432,11 +408,6 @@ ExecutorFuture<void> DropDatabaseCoordinator::_runImpl(
         .then(_buildPhaseHandler(
             Phase::kDrop,
             [this, token, dbNss, executor = executor, anchor = shared_from_this()](auto* opCtx) {
-                if (!_firstExecution) {
-                    AllShardsAndConfigCausalityBarrier barrier{**executor, token};
-                    performCausalityBarrier(opCtx, barrier);
-                }
-
                 ShardingLogging::get(opCtx)->logChange(opCtx, "dropDatabase.start", dbNss);
                 const auto primaryShardRef = ShardingState::get(opCtx)->asShardRef(opCtx);
 
@@ -455,7 +426,7 @@ ExecutorFuture<void> DropDatabaseCoordinator::_runImpl(
 
                 if (_doc.getAuthoritativeMetadataAccessLevel() ==
                     AuthoritativeMetadataAccessLevelEnum::kWritesAllowed) {
-                    cloneAuthoritativeDatabaseMetadata(opCtx, _dbName, _critSecReason);
+                    cloneAuthoritativeDatabaseMetadata(opCtx, _dbName);
                 }
 
                 // Drop all collections under this DB

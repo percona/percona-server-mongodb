@@ -61,6 +61,8 @@ public:
         using FromBSONFn = QueryKnobValue (*)(const BSONElement&);
         using ToBSONFn = void (*)(BSONObjBuilder&, std::string_view, const QueryKnobValue&);
         using AttachOnUpdateFn = std::function<void(const QueryKnobChangeNotifier*)>;
+        using AppendTypeFn = void (*)(BSONObjBuilder*);
+        using AppendConstraintsFn = std::function<void(BSONObjBuilder*)>;
 
         template <auto& global, typename T>
         requires AtomicLoadable<decltype(global)>
@@ -77,6 +79,8 @@ public:
                 dynamic_cast<SPT*>(ServerParameterSet::getNodeParameterSet()->getIfExists(name));
             FromBSONFn fromBSON = detail::ConverterTraits<T>::fromBSON;
             ToBSONFn toBSON = detail::ConverterTraits<T>::toBSON;
+            AppendTypeFn appendType = detail::ConverterTraits<T>::appendType;
+            AppendConstraintsFn appendConstraints = nullptr;
             ReadGlobalFn readGlobal = nullptr;
             AttachOnUpdateFn attachOnUpdate =
                 [param, id = knob.id](const QueryKnobChangeNotifier* notifier) {
@@ -86,18 +90,33 @@ public:
                 readGlobal = [param]() -> QueryKnobValue {
                     return static_cast<int>(param->_data.get());
                 };
+                appendConstraints = [](BSONObjBuilder* bob) {
+                    // cpp_type parameters do not have standardised validators.
+                };
             } else {
                 readGlobal = [param]() -> QueryKnobValue {
                     return param->getValue(boost::none /* tenantId */);
                 };
+                appendConstraints = [param](BSONObjBuilder* bob) {
+                    param->appendConstraints(bob);
+                };
             }
-            return Entry(knob.id, param, fromBSON, toBSON, readGlobal, attachOnUpdate);
+            return Entry(knob.id,
+                         param,
+                         fromBSON,
+                         toBSON,
+                         appendType,
+                         appendConstraints,
+                         readGlobal,
+                         attachOnUpdate);
         }
 
         explicit Entry(QueryKnobId id,
                        ServerParameter* param,
                        FromBSONFn fromBSONFn,
                        ToBSONFn toBSONFn,
+                       AppendTypeFn appendTypeFn,
+                       AppendConstraintsFn appendConstraintsFn,
                        ReadGlobalFn readGlobalFn,
                        AttachOnUpdateFn attachOnUpdateFn);
 
@@ -107,6 +126,8 @@ public:
         // Global-value reader and serializers, baked from ConverterTraits<T> at registration.
         FromBSONFn fromBSON = nullptr;
         ToBSONFn toBSON = nullptr;
+        AppendTypeFn appendType = nullptr;
+        AppendConstraintsFn appendConstraints = nullptr;
         ReadGlobalFn readGlobal = nullptr;
         AttachOnUpdateFn attachOnUpdate = nullptr;
 

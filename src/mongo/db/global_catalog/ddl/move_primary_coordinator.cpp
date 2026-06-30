@@ -294,12 +294,6 @@ ExecutorFuture<void> MovePrimaryCoordinator::runMovePrimaryWorkflow(
         .then(_buildPhaseHandler(
             Phase::kEnterCriticalSection,
             [this, token, executor, anchor = shared_from_this()](auto* opCtx) {
-                if (!_firstExecution) {
-                    AllShardsAndConfigCausalityBarrier barrier{**executor, token};
-                    performCausalityBarrier(opCtx, barrier);
-                }
-
-
                 if (MONGO_unlikely(hangBeforeMovePrimaryCriticalSection.shouldFail())) {
                     LOGV2(9031700, "Hit hangBeforeMovePrimaryCriticalSection");
                     hangBeforeMovePrimaryCriticalSection.pauseWhileSet(opCtx);
@@ -316,11 +310,6 @@ ExecutorFuture<void> MovePrimaryCoordinator::runMovePrimaryWorkflow(
         .then(_buildPhaseHandler(
             Phase::kCommit,
             [this, token, executor = executor, anchor = shared_from_this()](auto* opCtx) {
-                if (!_firstExecution) {
-                    AllShardsAndConfigCausalityBarrier barrier{**executor, token};
-                    performCausalityBarrier(opCtx, barrier);
-                }
-
                 tassert(10644515,
                         "Expected databaseVersion to be set on the coordinator document",
                         _doc.getDatabaseVersion());
@@ -363,12 +352,6 @@ ExecutorFuture<void> MovePrimaryCoordinator::runMovePrimaryWorkflow(
             [this, anchor = shared_from_this()](auto* opCtx) { dropStaleDataOnDonor(opCtx); }))
         .then(_buildPhaseHandler(Phase::kExitCriticalSection,
                                  [this, token, executor, anchor = shared_from_this()](auto* opCtx) {
-                                     if (!_firstExecution) {
-                                         AllShardsAndConfigCausalityBarrier barrier{**executor,
-                                                                                    token};
-                                         performCausalityBarrier(opCtx, barrier);
-                                     }
-
                                      unblockReadsAndWrites(opCtx);
                                      exitCriticalSectionOnRecipient(opCtx, executor, token);
 
@@ -831,19 +814,6 @@ void MovePrimaryCoordinator::dropOrphanedDataOnRecipient(
 }
 
 void MovePrimaryCoordinator::cloneAuthoritativeDatabaseMetadata(OperationContext* opCtx) const {
-    auto recoveryService = ShardingRecoveryService::get(opCtx);
-    recoveryService->acquireRecoverableCriticalSectionBlockWrites(
-        opCtx,
-        NamespaceString(_dbName),
-        _csReason,
-        ShardingCatalogClient::writeConcernLocalHavingUpstreamWaiter(),
-        false /* clearShardCatalogCache */);
-    recoveryService->promoteRecoverableCriticalSectionToBlockAlsoReads(
-        opCtx,
-        NamespaceString(_dbName),
-        _csReason,
-        ShardingCatalogClient::writeConcernLocalHavingUpstreamWaiter());
-
     auto catalogClient = Grid::get(opCtx)->catalogClient();
     auto dbMetadata =
         catalogClient->getDatabase(opCtx, _dbName, repl::ReadConcernLevel::kMajorityReadConcern);
@@ -859,15 +829,7 @@ void MovePrimaryCoordinator::cloneAuthoritativeDatabaseMetadata(OperationContext
                         thisShardId.toString()),
             thisShardId == dbMetadata.getPrimary());
 
-    commitCreateDatabaseMetadataLocally(opCtx, dbMetadata);
-
-    recoveryService->releaseRecoverableCriticalSection(
-        opCtx,
-        NamespaceString(_dbName),
-        _csReason,
-        ShardingCatalogClient::writeConcernLocalHavingUpstreamWaiter(),
-        ShardingRecoveryService::NoCustomAction(),
-        false /* throwIfReasonDiffers */);
+    commitCreateDatabaseMetadataLocally(opCtx, dbMetadata, true /* fromClone */);
 }
 
 void MovePrimaryCoordinator::cloneAuthoritativeCollectionsMetadata(
