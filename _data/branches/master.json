@@ -5,14 +5,14 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 59,
+    "commits_behind": 65,
     "days_behind": 1,
-    "files_affected": 269,
-    "total_additions": 10702,
-    "total_deletions": 4839,
+    "files_affected": 320,
+    "total_additions": 12298,
+    "total_deletions": 5688,
     "date_range": {
       "first": "2026-06-29T07:47:38+00:00",
-      "last": "2026-06-30T06:58:09+00:00"
+      "last": "2026-06-30T09:07:38+00:00"
     }
   },
   "last_merged_commit": {
@@ -36,6 +36,66 @@
     "summary": "SERVER-129391 Add TTL ticket metrics  (#56321)"
   },
   "unmerged_commits": [
+    {
+      "sha": "b32fdab547e02064e3803f04cf59e0b45ace25a5",
+      "short_sha": "b32fdab547e",
+      "date": "2026-06-30T11:07:38+02:00",
+      "author": {
+        "name": "Enrico Golfieri",
+        "email": "enrico.golfieri@mongodb.com"
+      },
+      "summary": "SERVER-127550 Restore checkMetadataConsistency during migration  (#57024)"
+    },
+    {
+      "sha": "b8d064d759ed5837db7fea92054e0eabd182e223",
+      "short_sha": "b8d064d759e",
+      "date": "2026-06-30T09:59:33+01:00",
+      "author": {
+        "name": "Daniele Alessandrelli",
+        "email": "daniele.alessandrelli@mongodb.com"
+      },
+      "summary": "SERVER-128739 Add tests for `fixedBucketing` DDL during FCV transitions (#56638)"
+    },
+    {
+      "sha": "a3eceab6a0ba907825e72c4af749c456df3bdbd6",
+      "short_sha": "a3eceab6a0b",
+      "date": "2026-06-30T10:41:00+02:00",
+      "author": {
+        "name": "Pol Piñol Castuera",
+        "email": "pol.pinol@mongodb.com"
+      },
+      "summary": "SERVER-127444 Remove _authoritativeState flag from CSR (#56780)"
+    },
+    {
+      "sha": "09cde6a614422b8bf19ce2459a16ea305d225510",
+      "short_sha": "09cde6a6144",
+      "date": "2026-06-30T09:33:22+01:00",
+      "author": {
+        "name": "cian-mdb",
+        "email": "cian.nugentmcgealy@mongodb.com"
+      },
+      "summary": "SERVER-126371 Add per-process change stream error counters to mongoS (#56193)"
+    },
+    {
+      "sha": "b0d33a6afd7eeb00383b775fe81710a81a8dd6e8",
+      "short_sha": "b0d33a6afd7",
+      "date": "2026-06-30T03:26:00-04:00",
+      "author": {
+        "name": "Andrew Wang",
+        "email": "andrew.wang@mongodb.com"
+      },
+      "summary": "SERVER-128578 Exempt markMaterialized from admission control (#56931)"
+    },
+    {
+      "sha": "5b477f0cf18a09d4e02bf2abc01ddcf9bdb40c20",
+      "short_sha": "5b477f0cf18",
+      "date": "2026-06-30T09:11:32+02:00",
+      "author": {
+        "name": "Jan",
+        "email": "jsteemann@users.noreply.github.com"
+      },
+      "summary": "SERVER-130127 Remove an unused member from ExpressionContext (#57037)"
+    },
     {
       "sha": "d6ae129a6922f634e3c8db7921cc5b55da652a0a",
       "short_sha": "d6ae129a692",
@@ -645,10 +705,33 @@
           "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp"
         ]
       }
+    },
+    {
+      "commit": {
+        "sha": "a3eceab6a0ba907825e72c4af749c456df3bdbd6",
+        "short_sha": "a3eceab6a0b",
+        "date": "2026-06-30T10:41:00+02:00",
+        "author": {
+          "name": "Pol Piñol Castuera",
+          "email": "pol.pinol@mongodb.com"
+        },
+        "summary": "SERVER-127444 Remove _authoritativeState flag from CSR (#56780)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 48,
+          "num_of_lines": 1296,
+          "lines_added": 479,
+          "lines_deleted": 817,
+          "num_of_dirs": 11
+        }
+      }
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-06-30 07:43:03",
+  "generated_at": "2026-06-30 10:24:53",
   "branch_name": "master",
   "display_name": "master"
 }
