@@ -10,7 +10,7 @@ name: build-and-test
 on:
   pull_request_target:
     # Deliberately NOT triggered on labeled/unlabeled. The workflow is a single
-    # gated pipeline (gate -> format_gate -> build -> dbtests -> unittests ->
+    # gated pipeline (gate -> format_gate -> build -> {dbtests, unittests} ->
     # jstests); whether jstests runs is decided from the PR's labels at run time
     # by jstests_gate,
     # so it does not need a label trigger. Listening to label events would also
@@ -324,18 +324,21 @@ jobs:
 
   unittests:
     name: unittests
-    # `needs: [build, dbtests]` -- dbtests is for ORDERING only (unittests waits
-    # for it so the RBE-heavy jobs run one at a time: build -> dbtests ->
-    # unittests -> jstests). The `if` below gates on build success, NOT dbtests
-    # success, so a dbtest failure does not block unittests; the two are
-    # independent test jobs that both run whenever build passed.
-    needs: [build, dbtests]
-    # !cancelled() so unittests still runs when dbtests FAILED (a failed need
-    # would otherwise skip it). Gated on build success: build runs only after
-    # the gate approval AND format passing, so build.result == 'success' implies
-    # rbe-external was approved, the PR was not a draft, and format passed.
+    # Runs in PARALLEL with dbtests: both depend only on `build`, so once build
+    # succeeds the two test jobs start together (pipeline is build -> {dbtests,
+    # unittests} -> jstests). This trades the old strict serialization (build ->
+    # dbtests -> unittests) for wall-clock: on a cached PR unittests is all
+    # remote cache hits (0 local actions) and dbtests' RBE use is only its build
+    # phase, so the two barely contend for RBE workers; on a real code change
+    # they may compete, which the bb-psmdb farm (300-way jobs) absorbs.
+    needs: [gate, build]
+    # Gated on build success: build runs only after the gate approval AND format
+    # passing, so build.result == 'success' implies rbe-external was approved,
+    # the PR was not a draft, and format passed. !cancelled() keeps the explicit
+    # result check authoritative rather than the bare-needs short-circuit.
     if: >-
       ${{ !cancelled()
+      && needs.gate.result == 'success'
       && needs.build.result == 'success' }}
     # See `build.runs-on` above for why this is pinned, not `ubuntu-latest`.
     runs-on: ubuntu-24.04
@@ -467,11 +470,11 @@ jobs:
   # steps. dbtest is built HERE (not in the build job) so build only fetches
   # install-devcore.
   #
-  # `needs: [gate, build]` so it runs after build and BEFORE unittests:
-  # unittests/jstests order AFTER dbtests (via needs) so the RBE-heavy jobs run
-  # one at a time -- build -> dbtests -> unittests -> jstests -- but each gates
-  # on BUILD success, not on the previous test job, so a failure in one does not
-  # block the others: all three test jobs run whenever build passed.
+  # `needs: [gate, build]` so it runs right after build, in PARALLEL with
+  # unittests (which also depends only on build). jstests orders AFTER both via
+  # its own needs, so the pipeline is build -> {dbtests, unittests} -> jstests.
+  # Each job gates on BUILD success, not on a sibling test job, so a failure in
+  # one does not block the others: both test jobs run whenever build passed.
   # `needs.gate.result == 'success'` preserves the rbe-external approval gate
   # (it carries the same secrets via the `rbe` environment).
   dbtests:
@@ -623,12 +626,13 @@ jobs:
   # the decision reflects the current label set -- same freshness trick as
   # format.yml / clang-tidy.yml.
   #
-  # `needs: unittests` (with `if: !cancelled()` so it still runs when unittests
-  # is skipped or failed) makes this resolve LATE -- after build/unittests --
-  # so it reads a ci-skip-jstests / ci-run-jstests label applied *while the
-  # build was running* and that label takes effect on the same run. (The
-  # workflow is not triggered by label changes, so toggling a label after the
-  # run finishes only takes effect on the next push.)
+  # `needs: [dbtests, unittests]` (with `if: !cancelled()` so it still runs when
+  # those are skipped or failed) makes this resolve LATE -- after both parallel
+  # test jobs -- so it reads a ci-skip-jstests / ci-run-jstests label applied
+  # *while the build/tests were running* and that label takes effect on the same
+  # run. (The workflow is not triggered by label changes, so toggling a label
+  # after the run finishes only takes effect on the next push.) Depending on
+  # both keeps jstests serialized after the parallel dbtests+unittests pair.
   #
   # Precedence: ci-skip-jstests > ci-run-jstests > vars.RUN_JSTESTS (default run).
   #   - ci-skip-jstests label : force skip.
@@ -637,7 +641,7 @@ jobs:
   #                             'false' => skip unless ci-run-jstests is set.
   jstests_gate:
     name: jstests gate
-    needs: unittests
+    needs: [dbtests, unittests]
     if: ${{ !cancelled() }}
     runs-on: ubuntu-24.04
     outputs:
@@ -667,13 +671,13 @@ jobs:
 
   # Runs the Percona resmoke jstest suites on RBE. Separate runner / GH check
   # from build+unittests (see the build-vs-unittests rationale block at the top
-  # for why distinct runners are intentional). `needs: unittests` so it runs
-  # AFTER unittests (which orders after dbtests -> build) rather than alongside
-  # it -- the heavy RBE jobs stay serialized (build -> dbtests -> unittests ->
-  # jstests) and avoid competing for the same RBE workers. Ordering only: the
-  # `if` gates on build success, not unittests success, so a unittest (or
-  # dbtest) failure does not block jstests. It does not consume the upstream
-  # jobs' artifacts -- mongod/mongos/mongo are rebuilt here as RBE cache hits.
+  # for why distinct runners are intentional). `needs: [dbtests, unittests]` so
+  # it runs AFTER both parallel test jobs rather than alongside them -- jstests
+  # stays serialized at the tail (build -> {dbtests, unittests} -> jstests) and
+  # avoids competing for the same RBE workers. Ordering only: the `if` gates on
+  # build success, not dbtests/unittests success, so a unittest (or dbtest)
+  # failure does not block jstests. It does not consume the upstream jobs'
+  # artifacts -- mongod/mongos/mongo are rebuilt here as RBE cache hits.
   #
   # Gated on jstests_gate: skipped when ci-skip-jstests is set, or when
   # vars.RUN_JSTESTS=false and ci-run-jstests is absent.
@@ -702,11 +706,12 @@ jobs:
   #                     2-core pool) -- re-enable once PSMDB-2100 §1 lands.
   jstests:
     name: jstests
-    # `unittests` is in needs for ORDERING (jstests runs after it, so the heavy
-    # jobs stay serialized), but the `if` gates on BUILD success, not unittests
-    # success, so a unittest failure does not block jstests -- both run whenever
-    # build passed. `build` is in needs so the `if` can read needs.build.result.
-    needs: [gate, build, unittests, jstests_gate]
+    # `dbtests` and `unittests` are in needs for ORDERING (jstests runs after
+    # both, so the heavy jobs stay serialized), but the `if` gates on BUILD
+    # success, not their success, so a dbtest/unittest failure does not block
+    # jstests -- all run whenever build passed. `build` is in needs so the `if`
+    # can read needs.build.result.
+    needs: [gate, build, dbtests, unittests, jstests_gate]
     # `draft == false` so jstests never runs on a draft (it runs once the PR is
     # marked ready). `build` is in needs so the `if` can read needs.build.result
     # (which implies format passed via format_gate).
