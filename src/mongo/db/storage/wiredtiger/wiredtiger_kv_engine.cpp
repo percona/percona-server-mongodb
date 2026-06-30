@@ -1157,18 +1157,12 @@ WiredTigerKVEngine::WiredTigerKVEngine(
     PeriodicRunner* periodicRunner,
     const encryption::MasterKeyProviderFactory& keyProviderFactory)
     : WiredTigerKVEngineBase(canonicalName, path, clockSource, std::move(wtConfig)),
-<<<<<<< HEAD
       _restEncr(DataAtRestEncryption::create(encryptionGlobalParams,
                                              boost::filesystem::path(path),
                                              keyProviderFactory,
                                              storageGlobalParams.directoryperdb,
                                              periodicRunner)),
-      _oplogManager(std::make_unique<WiredTigerOplogManager>()),
-||||||| c9d508f0277
-      _oplogManager(std::make_unique<WiredTigerOplogManager>()),
-=======
       _oplogManager(std::make_unique<StorageOplogManager>()),
->>>>>>> d6ae129a6922f634e3c8db7921cc5b55da652a0a
       _sizeStorerSyncTracker(clockSource,
                              gWiredTigerSizeStorerPeriodicSyncHits,
                              Milliseconds{gWiredTigerSizeStorerPeriodicSyncPeriodMillis}),
