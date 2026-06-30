@@ -25,7 +25,7 @@ selector:
     - jstests/with_mongot/e2e_lib/*_test.js
   exclude_files:
     - jstests/with_mongot/e2e/sharding_no_passthrough/**/*.js
-    # TODO: investigate failures with mongot-community fixture.
+    # TODO: PSMDB-2166
     - jstests/with_mongot/e2e/hybridSearch/score_fusion_on_view.js
     - jstests/with_mongot/e2e_infrastructure_tests/updateSearchIndex.js
     - jstests/with_mongot/e2e/hybridSearch/ranked_fusion_on_view.js
