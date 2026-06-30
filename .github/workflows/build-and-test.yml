@@ -279,6 +279,19 @@ jobs:
           # 'common --remote_download_outputs=all' so only the requested
           # install outputs (plus what local link actions pull on demand) are
           # fetched, instead of every intermediate.
+          #
+          # GIT_COMMIT_HASH is pinned to the constant 'nogitversion' (the same
+          # value remote_unittest pins in .bazelrc) INSTEAD of $(git rev-parse
+          # HEAD). psmdb_buildfarm links locally (CppLink=local), so injecting
+          # the real per-commit SHA changed the version object every push and
+          # invalidated the local link of every binary depending on it -- the
+          # ~1,900 'local' link actions that re-ran on every no-op re-trigger
+          # while compiles were 100% remote cache hits. A constant value keeps
+          # those link-action keys stable across pushes so the uploaded local
+          # link results become remote cache hits on re-runs. The tradeoff is
+          # that the CI-built binaries advertise 'nogitversion' rather than the
+          # real SHA; these are test binaries, not release artifacts, and the
+          # unittests/jstests jobs already accept exactly this tradeoff.
           bazel \
             --output_user_root=/mnt/bazel \
             --host_jvm_args=-Xmx12g \
@@ -289,7 +302,7 @@ jobs:
             --bes_backend=$RBE_BES_BACKEND \
             --bes_results_url=$RBE_BES_RESULTS_URL \
             --credential_helper=$RBE_CREDENTIAL_HELPER \
-            --define=GIT_COMMIT_HASH=$(git rev-parse HEAD) \
+            --define=GIT_COMMIT_HASH=nogitversion \
             --jobs=300 \
             --keep_going \
             --remote_download_outputs=toplevel \
@@ -504,9 +517,10 @@ jobs:
         uses: ./_trusted/.github/actions/setup-env
 
       # Build just the dbtest install target on RBE. Mirrors the build job's
-      # invocation (same --host_jvm_args / --output_user_root rationale;
-      # GIT_COMMIT_HASH injected so the binary advertises the real version, as
-      # in build).
+      # invocation (same --host_jvm_args / --output_user_root rationale, and the
+      # same GIT_COMMIT_HASH=nogitversion pin -- see the build step for why a
+      # constant keeps the local link-action keys stable across pushes so they
+      # cache-hit on re-runs instead of re-linking every no-op trigger).
       #
       # Unlike the build job, dbtests does NOT pass
       # --remote_download_outputs=toplevel: it must RUN the binary locally, so
@@ -530,7 +544,7 @@ jobs:
             --bes_backend=$RBE_BES_BACKEND \
             --bes_results_url=$RBE_BES_RESULTS_URL \
             --credential_helper=$RBE_CREDENTIAL_HELPER \
-            --define=GIT_COMMIT_HASH=$(git rev-parse HEAD) \
+            --define=GIT_COMMIT_HASH=nogitversion \
             --jobs=300 \
             --keep_going \
             --build_event_json_file=bazel-bep.json \
