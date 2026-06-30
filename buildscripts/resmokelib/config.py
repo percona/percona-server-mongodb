@@ -42,6 +42,7 @@ DEFAULT_MONGO_EXECUTABLE = "mongo"
 DEFAULT_MONGOD_EXECUTABLE = "mongod"
 DEFAULT_MONGOS_EXECUTABLE = "mongos"
 DEFAULT_MONGOT_EXECUTABLE = "mongot-localdev/mongot"
+DEFAULT_MONGOT_COMMUNITY_EXECUTABLE = "mongot-community/mongot"
 DEFAULT_MONGOTEST_EXECUTABLE = "mongotest"
 
 DEFAULT_BENCHMARK_REPETITIONS = 3
@@ -103,6 +104,7 @@ DEFAULTS = {
     "mongos_executable": None,
     "mongos_set_parameters": [],
     "mongot-localdev/mongot_executable": None,
+    "mongot-community/mongot_executable": None,
     "mongot_set_parameters": [],
     "mongocryptd_set_parameters": [],
     "mongo_set_parameters": [],
@@ -602,6 +604,9 @@ MONGOS_SET_PARAMETERS = []
 
 # The path to the mongot executable used by resmoke.py.
 MONGOT_EXECUTABLE = None
+
+# The path to the mongot-community executable used by resmoke.py.
+MONGOT_COMMUNITY_EXECUTABLE = None
 
 # The --setParameter options passed to mongot.
 MONGOT_SET_PARAMETERS = []

@@ -190,6 +190,7 @@ class ReplSetBuilder(FixtureBuilder):
         """
 
         launch_mongot = kwargs.get("launch_mongot")
+        launch_mongot_community = kwargs.get("launch_mongot_community")
         use_priority_ports = kwargs.get("use_priority_ports")
         self._mutate_kwargs(kwargs)
         mixed_bin_versions, old_bin_version = _extract_multiversion_options(kwargs)
@@ -221,6 +222,7 @@ class ReplSetBuilder(FixtureBuilder):
                 mongod_binary_versions[node_index],
                 is_multiversion,
                 launch_mongot,
+                launch_mongot_community,
                 use_priority_ports,
             )
             replset.install_mongod(node)
@@ -236,10 +238,14 @@ class ReplSetBuilder(FixtureBuilder):
                     BinVersionEnum.NEW,
                     is_multiversion,
                     launch_mongot,
+                    launch_mongot_community,
                     use_priority_ports,
                 )
 
-        if launch_mongot:
+        if launch_mongot_community:
+            for mongod in replset.nodes:
+                mongod.setup_mongot_community_params()
+        elif launch_mongot:
             for mongod in replset.nodes:
                 mongod.setup_mongot_params()
 
@@ -347,6 +353,7 @@ class ReplSetBuilder(FixtureBuilder):
         cur_version: str,
         is_multiversion: bool,
         launch_mongot: bool,
+        launch_mongot_community: bool,
         use_priority_port: bool,
     ) -> FixtureContainer:
         """Make a fixture container with configured mongod fixture(s) in it.
@@ -404,6 +411,7 @@ class ReplSetBuilder(FixtureBuilder):
             preserve_dbpath=replset.preserve_dbpath,
             port=new_fixture_port,
             launch_mongot=launch_mongot,
+            launch_mongot_community=launch_mongot_community,
             load_extensions=[],
             use_priority_port=use_priority_port,
             uds_path_prefix=replset.uds_path_prefix,
@@ -467,6 +475,7 @@ class ShardedClusterBuilder(FixtureBuilder):
                 config_shard,
                 kwargs["num_rs_nodes_per_shard"],
                 launch_mongot=False,
+                launch_mongot_community=False,
                 use_priority_ports=use_priority_ports,
             )
         sharded_cluster.install_configsvr(config_svr)
@@ -476,6 +485,7 @@ class ShardedClusterBuilder(FixtureBuilder):
         nodes = [(node, True) for node in config_svr._all_mongo_d_s_t()]
 
         launch_mongot = kwargs.get("launch_mongot")
+        launch_mongot_community = kwargs.get("launch_mongot_community")
         for rs_shard_index in range(kwargs["num_shards"]):
             if rs_shard_index != config_shard:
                 rs_shard = self._new_rs_shard(
@@ -485,6 +495,7 @@ class ShardedClusterBuilder(FixtureBuilder):
                     rs_shard_index,
                     kwargs["num_rs_nodes_per_shard"],
                     launch_mongot,
+                    launch_mongot_community,
                     use_priority_ports=use_priority_ports,
                 )
                 sharded_cluster.install_rs_shard(rs_shard)
@@ -518,7 +529,12 @@ class ShardedClusterBuilder(FixtureBuilder):
         # each MongoTFixture needs to know the port of the MongoSFixture.
         router_endpoint_for_mongot = sharded_cluster.mongos[-1].port
 
-        if launch_mongot:
+        if launch_mongot_community:
+            for shard in sharded_cluster.shards:
+                for node in shard.nodes:
+                    node.setup_mongot_community_params(router_endpoint_for_mongot)
+                shard.mongot_grpc_port = shard.nodes[-1].mongot_grpc_port
+        elif launch_mongot:
             for shard in sharded_cluster.shards:
                 for node in shard.nodes:
                     node.setup_mongot_params(router_endpoint_for_mongot)
@@ -663,6 +679,7 @@ class ShardedClusterBuilder(FixtureBuilder):
         rs_shard_index: int,
         num_rs_nodes_per_shard: int,
         launch_mongot: bool,
+        launch_mongot_community: bool,
         use_priority_ports: bool = False,
     ) -> ReplicaSetFixture:
         """Return a replica set fixture configured as a shard in a sharded cluster.
@@ -673,6 +690,7 @@ class ShardedClusterBuilder(FixtureBuilder):
         :param rs_shard_index: replica set shard index
         :param num_rs_nodes_per_shard: the number of nodes in a replica set per shard
         :param launch_mongot: bool indicating if each shard needs to startup a mongot
+        :param launch_mongot_community: bool indicating if each shard needs mongot-community
         :param use_priority_ports: whether to use priority ports for replica set nodes
         :return: replica set fixture configured as a shard in a sharded cluster
         """
@@ -680,6 +698,7 @@ class ShardedClusterBuilder(FixtureBuilder):
         rs_shard_logger = sharded_cluster.get_rs_shard_logger(rs_shard_index)
         rs_shard_kwargs = sharded_cluster.get_rs_shard_kwargs(rs_shard_index)
         rs_shard_kwargs["launch_mongot"] = launch_mongot
+        rs_shard_kwargs["launch_mongot_community"] = launch_mongot_community
         rs_shard_kwargs["use_priority_ports"] = use_priority_ports
         # Parent ShardedClusterFixture already loaded extensions; see comment above in _new_mongod().
         rs_shard_kwargs["load_extensions"] = []

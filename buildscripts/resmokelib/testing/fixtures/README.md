@@ -11,6 +11,7 @@ Specify any of the following as the `fixture` in your [Suite](../../../../builds
 - [`ExternalShardedClusterFixture`](./shardedcluster.py) - Fixture to interact with external sharded cluster fixture.
 - [`MongoDFixture`](./standalone.py) - Fixture which provides JSTests with a standalone mongod to run against.
 - [`MongoTFixture`](./mongot.py) - Fixture which provides JSTests with a mongot to run alongside a mongod.
+- [`MongoTCommunityFixture`](./mongot_community.py) - Fixture which provides JSTests with a mongot-community process configured via YAML and exposing only gRPC.
 - [`MultiReplicaSetFixture`](./multi_replica_set.py) - Fixture which provides JSTests with a set of replica sets to run against.
 - [`MultiShardedClusterFixture`](./multi_sharded_cluster.py) - Fixture which provides JSTests with a set of sharded clusters to run against.
 - [`ReplicaSetFixture`](./replicaset.py) - Fixture which provides JSTests with a replica set to run against.
