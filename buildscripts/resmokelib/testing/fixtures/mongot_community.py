@@ -210,6 +210,7 @@ class MongoTCommunityFixture(interface.Fixture, interface._DockerComposeInterfac
     def get_dbpath_prefix(self):
         """Return the data directory used by mongot-community."""
         return self.data_dir
+
     def get_node_info(self):
         """Return a list of NodeInfo objects."""
         if self.mongot is None:
