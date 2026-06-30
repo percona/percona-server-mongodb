@@ -5,14 +5,14 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 31,
-    "days_behind": 0,
-    "files_affected": 118,
-    "total_additions": 5639,
-    "total_deletions": 1829,
+    "commits_behind": 58,
+    "days_behind": 1,
+    "files_affected": 271,
+    "total_additions": 10846,
+    "total_deletions": 4857,
     "date_range": {
       "first": "2026-06-29T07:47:38+00:00",
-      "last": "2026-06-29T17:53:15+00:00"
+      "last": "2026-06-30T02:14:51+00:00"
     }
   },
   "last_merged_commit": {
@@ -36,6 +36,276 @@
     "summary": "SERVER-129391 Add TTL ticket metrics  (#56321)"
   },
   "unmerged_commits": [
+    {
+      "sha": "b7b4cccb785291b422052eb2ffd771ce2fada7cf",
+      "short_sha": "b7b4cccb785",
+      "date": "2026-06-29T22:14:51-04:00",
+      "author": {
+        "name": "Cedric Sirianni",
+        "email": "cedric.sirianni@mongodb.com"
+      },
+      "summary": "SERVER-129398 Simplify SizeCountCheckpointOplogTailer (#56845)"
+    },
+    {
+      "sha": "039f7ebd8b265b07e3fe18a69e2ddca59c17debd",
+      "short_sha": "039f7ebd8b2",
+      "date": "2026-06-29T22:04:53-04:00",
+      "author": {
+        "name": "Erin Liang",
+        "email": "59406045+erl-ang@users.noreply.github.com"
+      },
+      "summary": "SERVER-130056 Remove TODO for SERVER-87492 (#57104)"
+    },
+    {
+      "sha": "610a55f48214a69154781dd947da68cc29fdc530",
+      "short_sha": "610a55f4821",
+      "date": "2026-06-29T19:43:27-04:00",
+      "author": {
+        "name": "mongodb-sage-bot[bot]",
+        "email": "247496174+mongodb-sage-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "SERVER-123101: Migrate host adapter death tests to host test file (#57015)"
+    },
+    {
+      "sha": "77c7cf6dcc090b8a13a71fa5e4bac4b89ada6b35",
+      "short_sha": "77c7cf6dcc0",
+      "date": "2026-06-29T18:11:32-04:00",
+      "author": {
+        "name": "Patrick Freed",
+        "email": "patrick.freed@mongodb.com"
+      },
+      "summary": "SERVER-128710 Do not apply RetryableError to IngressRequestRateLimitExceeded errors forwarded from shards (#56831)"
+    },
+    {
+      "sha": "233d9ae1a1a3d26589380e5d197f2f9a344e3924",
+      "short_sha": "233d9ae1a1a",
+      "date": "2026-06-29T18:05:18-04:00",
+      "author": {
+        "name": "Kruti Shah",
+        "email": "70412403+krutishah139@users.noreply.github.com"
+      },
+      "summary": "SERVER-130143 Use replSetTest stepup helper in range_deletions_has_index.js to avoid election race (#57106)"
+    },
+    {
+      "sha": "cf8112608116b7b9b44d9a21e18839071aafd7a3",
+      "short_sha": "cf811260811",
+      "date": "2026-06-29T14:40:13-07:00",
+      "author": {
+        "name": "Adithi Raghavan",
+        "email": "adithi.raghavan@mongodb.com"
+      },
+      "summary": "SERVER-128111 Test error propagation in extension optimization paths (#56817)"
+    },
+    {
+      "sha": "2eb4442449d792dd3858464868c07d74f11bda76",
+      "short_sha": "2eb4442449d",
+      "date": "2026-06-29T17:39:17-04:00",
+      "author": {
+        "name": "Lee Maguire",
+        "email": "lee.maguire@mongodb.com"
+      },
+      "summary": "SERVER-129964: Split wasm scope unit tests into per-category files (#56791)"
+    },
+    {
+      "sha": "70d9b1ecf803c3f425891ba51e4343f45ba1dcf7",
+      "short_sha": "70d9b1ecf80",
+      "date": "2026-06-29T16:43:53-04:00",
+      "author": {
+        "name": "Mariano Shaar",
+        "email": "47160550+shaargtz@users.noreply.github.com"
+      },
+      "summary": "SERVER-117662 Test extension stages in nested hybrid search stages (#56010)"
+    },
+    {
+      "sha": "b05214b3e77cfd67d06f8f36670608d6d5ad2446",
+      "short_sha": "b05214b3e77",
+      "date": "2026-06-29T16:33:59-04:00",
+      "author": {
+        "name": "Matt Olma",
+        "email": "67564577+mattsimply@users.noreply.github.com"
+      },
+      "summary": "SERVER-129841: agg_stage_coverage.js fails \"$planCacheStats expected to return documents\" when balancer migrates the collection (#56740)"
+    },
+    {
+      "sha": "546dfca2d2f993fdb5306997dcdedea599c7fd8c",
+      "short_sha": "546dfca2d2f",
+      "date": "2026-06-29T20:28:05+00:00",
+      "author": {
+        "name": "Joan Bruguera Micó (at MongoDB)",
+        "email": "joan.bruguera-mico@mongodb.com"
+      },
+      "summary": "SERVER-129527 SERVER-125984 Clean up legacy migration state during a setFCV upgrade (#56938)"
+    },
+    {
+      "sha": "c50b5af3d4c581cd17bd4ec11af01c48d7e6e19f",
+      "short_sha": "c50b5af3d4c",
+      "date": "2026-06-29T15:05:06-05:00",
+      "author": {
+        "name": "Zac Codiamat",
+        "email": "zac.codiamat@mongodb.com"
+      },
+      "summary": "SERVER-126500 Create tooling for building s390x/ppc cryptography wheels (#57018)"
+    },
+    {
+      "sha": "c67a0cfee3de70b6a2e9be4f7ed4449c03232af7",
+      "short_sha": "c67a0cfee3d",
+      "date": "2026-06-29T15:47:21-04:00",
+      "author": {
+        "name": "Daniel Segel",
+        "email": "71151509+dhsegel@users.noreply.github.com"
+      },
+      "summary": "SERVER-118801 Rename HostTypeRequirement values for clarity in extensions (#56928)"
+    },
+    {
+      "sha": "9fb79ce79e8ca7b132fb93cc716ddb7a0671a1ab",
+      "short_sha": "9fb79ce79e8",
+      "date": "2026-06-29T21:42:36+02:00",
+      "author": {
+        "name": "karlbozdogan",
+        "email": "karl.bozdogan@mongodb.com"
+      },
+      "summary": "Revert \"SERVER-112232  Push down eligible suffixes to SBE (join re-ordering pipelines) (#56862)\" (#56998)"
+    },
+    {
+      "sha": "fc36cf18147154067430a8f1dd3aaa6e15ad4d45",
+      "short_sha": "fc36cf18147",
+      "date": "2026-06-29T15:38:38-04:00",
+      "author": {
+        "name": "Teo Voinea",
+        "email": "teo.voinea@mongodb.com"
+      },
+      "summary": "SERVER-130150: Emit post-merge-review JSON blob from approval-recency action (#57066)"
+    },
+    {
+      "sha": "8f6446d9e0ed610bb1b90bc70c77b56fdff37a54",
+      "short_sha": "8f6446d9e0e",
+      "date": "2026-06-29T15:27:55-04:00",
+      "author": {
+        "name": "Kruti Shah",
+        "email": "70412403+krutishah139@users.noreply.github.com"
+      },
+      "summary": "SERVER-130042 Fix race condition in changeStreamsMonitor recreation unit test (#56987)"
+    },
+    {
+      "sha": "65dcd29087cbb0eb9ae891b3160988dba0669a9e",
+      "short_sha": "65dcd29087c",
+      "date": "2026-06-29T14:17:11-05:00",
+      "author": {
+        "name": "Zac Codiamat",
+        "email": "zac.codiamat@mongodb.com"
+      },
+      "summary": "SERVER-130138: Consume custom cryptography wheels for s390x/ppc64le (#57071)"
+    },
+    {
+      "sha": "7aa7fd54a6eb50129e678d1432d00bd5a68612cd",
+      "short_sha": "7aa7fd54a6e",
+      "date": "2026-06-29T14:58:17-04:00",
+      "author": {
+        "name": "Evan Bergeron",
+        "email": "evanbergeron@users.noreply.github.com"
+      },
+      "summary": "SERVER-129931 Make ValueGuard an alias for TagValueOwned (#56952)"
+    },
+    {
+      "sha": "c5905f985f65467911de4965d5d8d0021fcfbd0a",
+      "short_sha": "c5905f985f6",
+      "date": "2026-06-29T14:53:08-04:00",
+      "author": {
+        "name": "Wenqin",
+        "email": "wenqinYe@users.noreply.github.com"
+      },
+      "summary": "SERVER-130013 Coordinator and participants can act on mismatching FCVs when upgrading from 8.3 to 9.0 (#56969)"
+    },
+    {
+      "sha": "0bda087c1b728d5bb81c6a333510533231c14c0b",
+      "short_sha": "0bda087c1b7",
+      "date": "2026-06-29T13:51:50-05:00",
+      "author": {
+        "name": "Steve Tarzia",
+        "email": "steve.tarzia@mongodb.com"
+      },
+      "summary": "SERVER-127796 Non-ticketed aggregation server status metrics (#56504)"
+    },
+    {
+      "sha": "d357ba7069e03694d21bc974965ebdb764be6b3b",
+      "short_sha": "d357ba7069e",
+      "date": "2026-06-29T13:27:10-05:00",
+      "author": {
+        "name": "Trevor Guidry",
+        "email": "trevor.guidry@mongodb.com"
+      },
+      "summary": "SERVER-130135: improve owners docs (#57067)"
+    },
+    {
+      "sha": "12e0020a410d034619157e06e45fccb35bcd6fa0",
+      "short_sha": "12e0020a410",
+      "date": "2026-06-29T11:10:03-07:00",
+      "author": {
+        "name": "Thomas Goyne",
+        "email": "thomas.goyne@mongodb.com"
+      },
+      "summary": "SERVER-130014: Rename WiredTigerOplogManager to StorageOplogManager (#56130)"
+    },
+    {
+      "sha": "6552b9149f3856e5503e0e6d5f52efc9de8008f3",
+      "short_sha": "6552b9149f3",
+      "date": "2026-06-29T18:07:08+00:00",
+      "author": {
+        "name": "auto-revert-app[bot]",
+        "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
+      },
+      "summary": "Revert \"SERVER-129849: Fix mongod shutdown hang waiting for search task executor (#56328)\" (#57068)"
+    },
+    {
+      "sha": "875db51ff377fac49164d84ace9de05b99380871",
+      "short_sha": "875db51ff37",
+      "date": "2026-06-29T14:03:12-04:00",
+      "author": {
+        "name": "Kritika",
+        "email": "skritika@umich.edu"
+      },
+      "summary": "SERVER-129025 Add test to check query stats when a subset of inserts/updates/deletes fail (#56642)"
+    },
+    {
+      "sha": "3a51a8ad0ebc299343ece28c521ac378db36b010",
+      "short_sha": "3a51a8ad0eb",
+      "date": "2026-06-29T13:03:09-05:00",
+      "author": {
+        "name": "Jaroslaw Kawa",
+        "email": "105752198+Jarek0302@users.noreply.github.com"
+      },
+      "summary": "SERVER-130133: Revert \"SERVER-128721 Isolate SLS pin-bump to master waterfall and refine DSC release build variants\" (#57065)"
+    },
+    {
+      "sha": "817cdfd8b7e5b6fa49a9052a76c568d33562d53b",
+      "short_sha": "817cdfd8b7e",
+      "date": "2026-06-29T19:01:05+01:00",
+      "author": {
+        "name": "Marco Bizzarri",
+        "email": "marco.bizzarri@mongodb.com"
+      },
+      "summary": "SERVER-130104 Fix job count for AUBSAN variants (#57048)"
+    },
+    {
+      "sha": "7553792e308f0e1e443e3898e2aa6239ea1301e5",
+      "short_sha": "7553792e308",
+      "date": "2026-06-29T13:57:34-04:00",
+      "author": {
+        "name": "Gil Alon",
+        "email": "47804748+galon1@users.noreply.github.com"
+      },
+      "summary": "SERVER-130055 Remove TODOs in query stats for deletes tests (#57020)"
+    },
+    {
+      "sha": "c531e9ed158cf556516a27174050d25b64dc1aff",
+      "short_sha": "c531e9ed158",
+      "date": "2026-06-29T12:54:57-05:00",
+      "author": {
+        "name": "Indy Prentice",
+        "email": "iprentic@users.noreply.github.com"
+      },
+      "summary": "SERVER-129688: re-write service startup/shutdown race mitigation using state machine (#56743)"
+    },
     {
       "sha": "0c13b51837beb547b067a644585f7a49ad08fcd2",
       "short_sha": "0c13b51837b",
@@ -350,23 +620,25 @@
   "merge_picks": [
     {
       "commit": {
-        "sha": "0c13b51837beb547b067a644585f7a49ad08fcd2",
-        "short_sha": "0c13b51837b",
-        "date": "2026-06-29T10:53:15-07:00",
+        "sha": "12e0020a410d034619157e06e45fccb35bcd6fa0",
+        "short_sha": "12e0020a410",
+        "date": "2026-06-29T11:10:03-07:00",
         "author": {
-          "name": "CALVIN NGUYEN",
-          "email": "calvin.nguyen@mongodb.com"
+          "name": "Thomas Goyne",
+          "email": "thomas.goyne@mongodb.com"
         },
-        "summary": "SERVER-127482 Fix MozJS regex handling to not leave trailing slashes  (#56564)"
+        "summary": "SERVER-130014: Rename WiredTigerOplogManager to StorageOplogManager (#56130)"
       },
-      "strategy_name": "most_recent",
+      "strategy_name": "conflict",
       "result": {
-        "fallback": true
+        "conflicting_files": [
+          "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp"
+        ]
       }
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-06-29 18:31:00",
+  "generated_at": "2026-06-30 07:02:23",
   "branch_name": "master",
   "display_name": "master"
 }
