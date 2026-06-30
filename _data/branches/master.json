@@ -5,14 +5,14 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 65,
+    "commits_behind": 66,
     "days_behind": 1,
     "files_affected": 320,
     "total_additions": 12298,
     "total_deletions": 5688,
     "date_range": {
       "first": "2026-06-29T07:47:38+00:00",
-      "last": "2026-06-30T09:07:38+00:00"
+      "last": "2026-06-30T09:55:39+00:00"
     }
   },
   "last_merged_commit": {
@@ -36,6 +36,16 @@
     "summary": "SERVER-129391 Add TTL ticket metrics  (#56321)"
   },
   "unmerged_commits": [
+    {
+      "sha": "338480049eeca91322004d9cf7f605b50eedde1f",
+      "short_sha": "338480049ee",
+      "date": "2026-06-30T05:55:39-04:00",
+      "author": {
+        "name": "mongo-pr-bot[bot]",
+        "email": "230616009+mongo-pr-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "SERVER-110427 Update profiling data (#57132)"
+    },
     {
       "sha": "b32fdab547e02064e3803f04cf59e0b45ace25a5",
       "short_sha": "b32fdab547e",
@@ -731,7 +741,7 @@
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-06-30 10:24:53",
+  "generated_at": "2026-06-30 10:40:50",
   "branch_name": "master",
   "display_name": "master"
 }
