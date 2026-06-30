@@ -208,9 +208,8 @@ class MongoTCommunityFixture(interface.Fixture, interface._DockerComposeInterfac
         return self.mongot is not None and self.mongot.poll() is None
 
     def get_dbpath_prefix(self):
-        """Return the _dbpath, as this is the root of the data directory."""
-        return self._dbpath
-
+        """Return the data directory used by mongot-community."""
+        return self.data_dir
     def get_node_info(self):
         """Return a list of NodeInfo objects."""
         if self.mongot is None:
