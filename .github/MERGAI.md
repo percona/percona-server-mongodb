@@ -155,6 +155,19 @@ mergai pr update main    # Update PR description
 Ensure the PR branch is rebased onto (and fast-forwardable to) the base branch, then post a comment
 with `/fast-forward` to merge without creating extra merge commits.
 
+### Rebasing a stale mergai PR (`/mergai rebase`)
+
+When the base branch (e.g. `master`) advances after a mergai PR is opened, the head branch is no
+longer fast-forwardable and `/fast-forward` fails. Post a `/mergai rebase` comment on the PR and the
+`rebase-handle` job in `mergai.yml` rebases the mergai branch onto the current base tip and
+force-pushes it. The rebase preserves merge commits and mergai notes and reuses previously recorded
+conflict solutions, so the PR becomes fast-forwardable again (then post `/fast-forward`).
+
+Like the other comment-driven commands, it runs under the `privileged-ops` environment, so a
+required reviewer must approve the run before it acts. If the rebase hits conflicts it cannot
+auto-resolve, the bot comments on the PR and you must rebase locally
+(`mergai notes update && mergai context init && mergai rebase origin/<base>`).
+
 ## Canceling a Merge
 
 To cancel an in-progress merge:
@@ -176,6 +189,7 @@ mergai context init     # Create local context from commit notes
 If you need to rebase an existing merge:
 
 ```bash
+mergai notes update     # Sync notes so recorded conflict solutions can be reused
 mergai context init
 mergai rebase
 ```

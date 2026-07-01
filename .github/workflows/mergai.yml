@@ -30,8 +30,9 @@ on:
     types: [completed]
     branches:
       - "mergai/**"
-  # Comment entry point: a `/mergai review fix` comment on a mergai PR
-  # (-> review-handle, address review threads).
+  # Comment entry points on a mergai PR:
+  #   * `/mergai review fix` -> review-handle, address review threads.
+  #   * `/mergai rebase`     -> rebase-handle, rebase the branch onto its base.
   issue_comment:
     types: [created]
   # Review-handling entry point: a review submitted as "Changes requested".
@@ -638,10 +639,14 @@ jobs:
         && contains(github.event.comment.body, '/mergai review fix'))
     environment: privileged-ops
     runs-on: ubuntu-latest
-    # Serialize review runs for the same PR so two near-simultaneous triggers
-    # (e.g. a review plus a `/mergai review fix` comment) don't race on the branch.
+    # Serialize per-PR branch-mutation runs so two near-simultaneous triggers
+    # don't race on the head branch. The group key (mergai-pr-<number>) is
+    # shared with rebase-handle so a `/mergai review fix` and a `/mergai rebase`
+    # on the same PR can't run at once and clobber each other's push.
+    # (Fast-Forward Merge is intentionally not in this group; a maintainer must
+    # avoid running `/fast-forward` while a rebase is in flight.)
     concurrency:
-      group: mergai-review-${{ github.event.issue.number || github.event.pull_request.number }}
+      group: mergai-pr-${{ github.event.issue.number || github.event.pull_request.number }}
       cancel-in-progress: false
     env:
       GOOGLE_CLOUD_PROJECT: ${{ secrets.GOOGLE_CLOUD_PROJECT }}
@@ -768,3 +773,138 @@ jobs:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
           GH_REPO: ${{ github.repository }}
         run: mergai notes push
+
+  # Rebase a mergai PR branch onto its base branch. Triggered by a
+  # `/mergai rebase` comment on the PR. When the base branch (e.g. `master`)
+  # advances after the PR opened, the head branch is no longer fast-forwardable
+  # and `/fast-forward` fails; rebasing the mergai branch onto the current base
+  # tip restores it. The rebase preserves merge commits and mergai notes and
+  # reuses previously recorded conflict solutions, then force-pushes the branch.
+  # As with review-handle, who may actually run this is gated by the
+  # privileged-ops environment (a required reviewer approves the deployment);
+  # the command filter and the mergai-branch check below scope *what* it acts on.
+  rebase-handle:
+    if: >-
+      github.event_name == 'issue_comment'
+      && github.event.issue.pull_request != null
+      && contains(github.event.comment.body, '/mergai rebase')
+    environment: privileged-ops
+    runs-on: ubuntu-latest
+    # Serialize per-PR branch-mutation runs. Uses the shared group key
+    # (mergai-pr-<number>, see review-handle) so a `/mergai rebase` and a review
+    # fix on the same PR can't run concurrently: both check out and push the
+    # head branch, and a rebase force-push racing a review-fix push would
+    # clobber one or the other. issue.number is always set here (issue_comment
+    # only); the pull_request.number fallback just keeps the key identical to
+    # review-handle. (Fast-Forward Merge is deliberately excluded -- a
+    # maintainer must not run `/fast-forward` while a rebase is in flight.)
+    concurrency:
+      group: mergai-pr-${{ github.event.issue.number || github.event.pull_request.number }}
+      cancel-in-progress: false
+    steps:
+      - name: Create GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ secrets.PSMDB_BOT_GH_APP_ID }}
+          private-key: ${{ secrets.PSMDB_BOT_GH_APP_PRIVATE_KEY }}
+
+      # Resolve the PR number, head branch and base branch (the issue_comment
+      # payload carries none of them), and confirm this is a same-repo mergai
+      # PR. Anything else sets is_mergai=false and every later step is skipped
+      # (the job ends green).
+      - name: Resolve PR
+        id: pr
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          PR_NUMBER='${{ github.event.issue.number }}'
+          read -r HEAD_REF BASE_REF CROSS_REPO < <(gh pr view "$PR_NUMBER" \
+            --json headRefName,baseRefName,isCrossRepository \
+            --jq '"\(.headRefName) \(.baseRefName) \(.isCrossRepository)"')
+          echo "number=$PR_NUMBER" >> "$GITHUB_OUTPUT"
+          echo "head_ref=$HEAD_REF" >> "$GITHUB_OUTPUT"
+          echo "base_ref=$BASE_REF" >> "$GITHUB_OUTPUT"
+          echo "Resolved PR #$PR_NUMBER (head: $HEAD_REF, base: $BASE_REF, cross_repo: $CROSS_REPO)"
+          # Fork PRs: the head branch does not exist in this repo, so the
+          # checkout below would fail and there is nothing we could push back.
+          # Bail out early with a clear comment rather than a cryptic checkout
+          # error. mergai's own branches are always same-repo.
+          if [ "$CROSS_REPO" = "true" ]; then
+            echo "is_mergai=false" >> "$GITHUB_OUTPUT"
+            echo "PR #$PR_NUMBER is a fork (cross-repository) PR; /mergai rebase is not supported."
+            gh pr comment "$PR_NUMBER" --body \
+              "\`/mergai rebase\` is not supported for pull requests from forks: the head branch must live in this repository."
+            exit 0
+          fi
+          case "$HEAD_REF" in
+            mergai/*) echo "is_mergai=true" >> "$GITHUB_OUTPUT" ;;
+            *)
+              echo "is_mergai=false" >> "$GITHUB_OUTPUT"
+              echo "PR #$PR_NUMBER is not a mergai PR; skipping." ;;
+          esac
+
+      - name: Checkout PR branch
+        if: steps.pr.outputs.is_mergai == 'true'
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ steps.pr.outputs.head_ref }}
+          fetch-depth: 0
+          token: ${{ steps.app-token.outputs.token }}
+
+      # No AI tokens needed: `mergai rebase` auto-resolves only from previously
+      # recorded solutions (deterministic), so this sets up the mergai CLI alone,
+      # like solution-merged / semantic-merged.
+      - name: Setup workflow environment
+        if: steps.pr.outputs.is_mergai == 'true'
+        uses: ./.github/actions/setup-mergai-workflow
+        with:
+          setup-gcp: "false"
+          setup-gemini: "false"
+          setup-claude: "false"
+          setup-mergai: "true"
+          github-app-token: ${{ steps.app-token.outputs.token }}
+          github-app-id: ${{ secrets.PSMDB_BOT_GH_APP_ID }}
+          mergai-ref: master
+
+      # Rebase the branch onto the current base tip and force-push it.
+      #   1. fetch the latest base branch tip;
+      #   2. sync notes so recorded solutions can be reused during the rebase;
+      #   3. rebuild the merge context (note.json) from the branch name / notes;
+      #   4. rebase onto origin/<base> (preserves merge commits + notes);
+      #   5. push notes (--context avoids pushing rebase-orphaned notes) and
+      #      force-push the branch (type is the last path segment of the mergai
+      #      branch name: mergai/<target>-<sha>/<type>).
+      - name: Rebase onto base branch
+        id: rebase
+        if: steps.pr.outputs.is_mergai == 'true'
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          GH_REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ steps.pr.outputs.number }}
+          HEAD_REF: ${{ steps.pr.outputs.head_ref }}
+          BASE_REF: ${{ steps.pr.outputs.base_ref }}
+        run: |
+          set -e
+          echo "Rebasing $HEAD_REF onto $BASE_REF"
+          git fetch origin "$BASE_REF"
+          mergai notes update
+          mergai context init
+          if ! mergai rebase "origin/$BASE_REF"; then
+            mergai rebase --abort || true
+            gh pr comment "$PR_NUMBER" --body \
+              "\`/mergai rebase\` onto \`$BASE_REF\` could not complete automatically. Rebase locally with \`mergai notes update && mergai context init && mergai rebase origin/$BASE_REF\`, then push the branch and notes."
+            echo "::error::mergai rebase onto '$BASE_REF' could not complete automatically (unresolved conflicts)."
+            exit 1
+          fi
+          TYPE="${HEAD_REF##*/}"
+          mergai notes push --context
+          mergai branch push -f "$TYPE"
+          # The rebase advanced merge_info.target_branch_sha, so refresh the PR
+          # body (rebuilt from the current note data) to reflect the new base.
+          mergai pr --repo "$GITHUB_REPOSITORY" update \
+            || echo "::warning::'mergai pr update' failed"
+          gh pr comment "$PR_NUMBER" --body \
+            "Rebased \`$HEAD_REF\` onto \`$BASE_REF\` and force-pushed the branch."
+          echo "Rebase of $HEAD_REF onto $BASE_REF completed successfully"
