@@ -168,7 +168,7 @@ get_sources(){
 
     cd ${PRODUCT}-${PSM_VER}-${PSM_RELEASE}
     python3 buildscripts/install_bazel.py
-    export PATH=\/root/.local/bin:$PATH >> ~/.bashrc
+    export PATH="$HOME/.local/bin:$PATH" >> ~/.bashrc
     source ~/.bashrc
 
     KEEP_DOTFILES='\.bazelrc|\.bazelrc\.psmdb|\.bazelrc\.fuzztest|\.bazelrc\.sync|\.bazelversion|\.bazeliskrc|\.bazelignore|\.npmrc|\.prettierrc|\.prettierignore|\.clang-format|\.clang-tidy\.in'
@@ -552,7 +552,7 @@ build_rpm(){
     fi
 
     python3 buildscripts/install_bazel.py
-    export PATH=\/root/.local/bin:$PATH >> ~/.bashrc
+    export PATH="$HOME/.local/bin:$PATH" >> ~/.bashrc
     source ~/.bashrc
     rm -rf install_bazel.py
 
@@ -662,7 +662,7 @@ build_deb(){
     cd ${PRODUCT}-${VERSION}
 
     python3 buildscripts/install_bazel.py
-    export PATH=\/root/.local/bin:$PATH >> ~/.bashrc
+    export PATH="$HOME/.local/bin:$PATH" >> ~/.bashrc
     source ~/.bashrc
     cp -av percona-packaging/debian/rules debian/
 
@@ -791,7 +791,7 @@ build_tarball(){
     export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
     export OPT_LINKFLAGS="${LINKFLAGS} -Wl,--build-id=sha1"
     python3 buildscripts/install_bazel.py
-    export PATH=\/root/.local/bin:$PATH >> ~/.bashrc
+    export PATH="$HOME/.local/bin:$PATH" >> ~/.bashrc
     source ~/.bashrc
 
     bazel clean --expunge || true
