@@ -201,7 +201,28 @@ get_sources(){
     cd ${PRODUCT}-${PSM_VER}-${PSM_RELEASE}
     python3 buildscripts/install_bazel.py
 
-    KEEP_DOTFILES='\.bazelrc|\.bazelrc\.psmdb|\.bazelrc\.fuzztest|\.bazelrc\.sync|\.bazelversion|\.bazeliskrc|\.bazelignore|\.npmrc|\.prettierrc|\.prettierignore|\.clang-format|\.clang-tidy\.in'
+    # Force generating the `.bazelrc.bazelisk` file.
+    #
+    # The `bazel` command is actually a symlink to `bazelisk`. When run, the
+    # latter executes the `tools/bazel` shell script from the source code
+    # repository, which in turn runs the real `bazel`. At the first invocation,
+    # the script produces the `.bazelrc.bazelisk` file.
+    #
+    # We run the `bazel info` command at this point for the sole purpose of
+    # generating that file early. Otherwise, if this script is run with only
+    # the `--get_sources` and `--build_src_deb` options, the file would be
+    # created by the `bazel clean` command (part of `override_dh_auto_clean`,
+    # see the `rules` file), which causes `dpkg-buildpackage -S` (see the
+    # `build_source_deb` function) to fail with the following error:
+    # ```
+    # dpkg-source: info: local changes detected, the modified files are:
+    #  percona-server-mongodb-<PSM_VER>-<PSM_RELEASE>/.bazelrc.bazelisk
+    # dpkg-source: error: aborting due to unexpected upstream changes, <...>
+    # dpkg-buildpackage: error: dpkg-source -b . subprocess returned exit status 2
+    # ```
+    bazel info || abort '`bazel info` failed'
+
+    KEEP_DOTFILES='\.bazelrc|\.bazelrc\.bazelisk|\.bazelrc\.psmdb|\.bazelrc\.fuzztest|\.bazelrc\.sync|\.bazelversion|\.bazeliskrc|\.bazelignore|\.npmrc|\.prettierrc|\.prettierignore|\.clang-format|\.clang-tidy\.in'
     DROP_DOTFILES=$(ls -A | grep -E '^\.' | grep -vE "^(${KEEP_DOTFILES})$" || true)
     if [ -n "$DROP_DOTFILES" ]; then
         echo "Source-tarball dotfile cleanup — stripping:" >&2
