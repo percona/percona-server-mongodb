@@ -281,25 +281,6 @@ install_golang() {
     ln -s /usr/local/go${GO_VERSION} /usr/local/go
 }
 
-install_gcc_centos(){
-    if [ "${RHEL}" -lt 8 ]; then
-        yum -y install  gcc-c++ devtoolset-8-gcc-c++ devtoolset-8-binutils cmake3 python38
-        source /opt/rh/devtoolset-8/enable
-    else
-        yum -y install binutils gcc gcc-c++
-    fi
-
-}
-
-install_gcc_deb(){
-    if [ x"${DEBIAN}" = xfocal -o x"${DEBIAN}" = xbionic -o x"${DEBIAN}" = xbuster ]; then
-        apt-get -y install gcc-8 g++-8
-    fi
-    if [ x"${DEBIAN}" = xbullseye -o x"${DEBIAN}" = xjammy ]; then
-        apt-get -y install gcc-10 g++-10
-    fi
-}
-
 install_deps() {
     if [ $INSTALL = 0 ]
     then
