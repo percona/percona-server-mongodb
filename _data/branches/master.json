@@ -5,15 +5,15 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 35,
-    "days_behind": 0,
-    "unmerged_oldest_age_days": 0.5006481143981482,
-    "files_affected": 202,
-    "total_additions": 4576,
-    "total_deletions": 2046,
+    "commits_behind": 52,
+    "days_behind": 1,
+    "unmerged_oldest_age_days": 1.0125357723958335,
+    "files_affected": 273,
+    "total_additions": 10177,
+    "total_deletions": 2912,
     "date_range": {
       "first": "2026-06-30T07:11:32+00:00",
-      "last": "2026-06-30T18:26:29+00:00"
+      "last": "2026-07-01T05:30:06+00:00"
     }
   },
   "last_merged_commit": {
@@ -37,10 +37,180 @@
     "summary": "SERVER-130127 Remove an unused member from ExpressionContext (#57037)"
   },
   "gate": {
-    "open": false,
-    "reason": "wait (35 < 50 commits; oldest 0.5d < 2d)"
+    "open": true,
+    "reason": "min_commits (52 >= 50)"
   },
   "unmerged_commits": [
+    {
+      "sha": "6b0a7c8de3379e91b2aaca32ee4ed8d375298a65",
+      "short_sha": "6b0a7c8de33",
+      "date": "2026-07-01T07:30:06+02:00",
+      "author": {
+        "name": "Silvia Surroca",
+        "email": "silvia.surroca@mongodb.com"
+      },
+      "summary": "SERVER-130195 Fix livelock on drainMigrationsPendingRecovery (#57188)"
+    },
+    {
+      "sha": "75c66a58b0fcc92be8c80b4f5461c0c7ab25633f",
+      "short_sha": "75c66a58b0f",
+      "date": "2026-06-30T23:47:59-04:00",
+      "author": {
+        "name": "Billy Donahue",
+        "email": "BillyDonahue@users.noreply.github.com"
+      },
+      "summary": "SERVER-125407 update leaf.svg (#57243)"
+    },
+    {
+      "sha": "b655d2fbd09caf0842d20c979003f6241c892776",
+      "short_sha": "b655d2fbd09",
+      "date": "2026-06-30T22:58:45-04:00",
+      "author": {
+        "name": "Yuhong Zhang",
+        "email": "yuhong.zhang@mongodb.com"
+      },
+      "summary": "SERVER-129945 Remove mutex for resetting the flushed deltas for replicated size and count metadata checkpoint (#56880)"
+    },
+    {
+      "sha": "b76aec07ba468d219d4a6b250048eddde70185e3",
+      "short_sha": "b76aec07ba4",
+      "date": "2026-06-30T22:52:56-04:00",
+      "author": {
+        "name": "Lee Maguire",
+        "email": "lee.maguire@mongodb.com"
+      },
+      "summary": "SERVER-129745 MozJS WASM: fix copyProps() in child realm setup to include Array/Set/Map/RegExp extensions (#56813)"
+    },
+    {
+      "sha": "81d91f614cd4199d4bd4b3b5364d041653aa299a",
+      "short_sha": "81d91f614cd",
+      "date": "2026-07-01T10:56:07+10:00",
+      "author": {
+        "name": "clarissecheah",
+        "email": "65272339+clarissecheah@users.noreply.github.com"
+      },
+      "summary": "SERVER-128879 paliCompleteCheckpoint can race before an encryptor is ready (#56886)"
+    },
+    {
+      "sha": "414f08ee3e8156ffbc57218f601bdc9bb72809b4",
+      "short_sha": "414f08ee3e8",
+      "date": "2026-06-30T17:07:31-07:00",
+      "author": {
+        "name": "Aditya Deshpande",
+        "email": "aditya.deshpande@mongodb.com"
+      },
+      "summary": "SERVER-130137 Propagate router metadata elision decision to shards (#57107)"
+    },
+    {
+      "sha": "dbeb63549f486de03bcc4a060bf24dd49bb06f01",
+      "short_sha": "dbeb63549f4",
+      "date": "2026-06-30T18:03:37-04:00",
+      "author": {
+        "name": "David Goffredo",
+        "email": "david.goffredo@mongodb.com"
+      },
+      "summary": "SERVER-130112: Combine HandoffTransportLayer, HandoffSessionManager, and HandoffSession (#57042)"
+    },
+    {
+      "sha": "42233fe22e05e9b39e7de1e5560f969b814812c0",
+      "short_sha": "42233fe22e0",
+      "date": "2026-06-30T17:27:08-04:00",
+      "author": {
+        "name": "Alex Ambrose",
+        "email": "alex.ambrose@mongodb.com"
+      },
+      "summary": "SERVER-129916 Explicitly ignore setsockopt() return value (#57221)"
+    },
+    {
+      "sha": "3a405bc37bfc8d5627ac746fd13a7436614b5aec",
+      "short_sha": "3a405bc37bf",
+      "date": "2026-06-30T13:54:35-07:00",
+      "author": {
+        "name": "Abdul Qadeer",
+        "email": "abdul.qadeer@mongodb.com"
+      },
+      "summary": "SERVER-129377 Wait for resharding participant state doc to be majority committed during initialization (#56876)"
+    },
+    {
+      "sha": "b3b5153bfeca41aab1ccbb31bb3162dcecc65a46",
+      "short_sha": "b3b5153bfec",
+      "date": "2026-06-30T16:49:35-04:00",
+      "author": {
+        "name": "Cheahuychou Mao",
+        "email": "cheahuychou.mao@mongodb.com"
+      },
+      "summary": "SERVER-128402 Remove irrelevant TODO for SERVER-123241 (#57205)"
+    },
+    {
+      "sha": "cff6943fbb42c80db4e6714d64bac985ce4c3731",
+      "short_sha": "cff6943fbb4",
+      "date": "2026-06-30T16:37:29-04:00",
+      "author": {
+        "name": "Daniel Gil",
+        "email": "137804741+mdb-dgil@users.noreply.github.com"
+      },
+      "summary": "SERVER-129153: Mark UserWritesBlocked as streams user error (#57113)"
+    },
+    {
+      "sha": "62c734cb1207e1d9f6ad2c5cc95b213ddd198cc4",
+      "short_sha": "62c734cb120",
+      "date": "2026-06-30T15:27:48-05:00",
+      "author": {
+        "name": "mongodb-sage-bot[bot]",
+        "email": "247496174+mongodb-sage-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "SERVER-129147: Move emergency release alias into top-level directory (#56366)"
+    },
+    {
+      "sha": "f8fbe73173d30166243a279b9e0d8c89b2592b09",
+      "short_sha": "f8fbe73173d",
+      "date": "2026-06-30T16:13:54-04:00",
+      "author": {
+        "name": "shrey-mongo",
+        "email": "shrey.varma@mongodb.com"
+      },
+      "summary": "SERVER-128325 SessionWorkflow ignores logical bytes in when rate limiting requests (#55539)"
+    },
+    {
+      "sha": "7b0b534125b51672ebada066c63606b131c56b99",
+      "short_sha": "7b0b534125b",
+      "date": "2026-06-30T15:54:33-04:00",
+      "author": {
+        "name": "Sam Frank",
+        "email": "sam.frank@mongodb.com"
+      },
+      "summary": "SERVER-129158: Deprecate QE \"substringPreview\" query type in favor of \"substring\" (#56955)"
+    },
+    {
+      "sha": "2afb8c84b7c81e6b11113dcddfd0ac749416d17e",
+      "short_sha": "2afb8c84b7c",
+      "date": "2026-06-30T12:29:27-07:00",
+      "author": {
+        "name": "Adithi Raghavan",
+        "email": "adithi.raghavan@mongodb.com"
+      },
+      "summary": "SERVER-122013 Test extension optimizations in hybrid search (#56849)"
+    },
+    {
+      "sha": "8867cb255512b4a3a8c7ef8ad5566ad9069279d0",
+      "short_sha": "8867cb25551",
+      "date": "2026-06-30T15:03:08-04:00",
+      "author": {
+        "name": "Evan Bergeron",
+        "email": "evanbergeron@users.noreply.github.com"
+      },
+      "summary": "SERVER-121889 Remove manual calls to value::releaseValue() in SBE (#55674)"
+    },
+    {
+      "sha": "1eea6124fd953e1d7ed1a1bfc6da0e61f88cfdcd",
+      "short_sha": "1eea6124fd9",
+      "date": "2026-06-30T14:58:31-04:00",
+      "author": {
+        "name": "Mariano Shaar",
+        "email": "47160550+shaargtz@users.noreply.github.com"
+      },
+      "summary": "SERVER-129853: Fix graphLookup infinite recursion in LiteParsed (#56705)"
+    },
     {
       "sha": "515c9124800ef671d6c097450706de60f4ef232d",
       "short_sha": "515c9124800",
@@ -418,7 +588,7 @@
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-06-30 19:12:25",
+  "generated_at": "2026-07-01 07:29:32",
   "branch_name": "master",
   "display_name": "master"
 }
