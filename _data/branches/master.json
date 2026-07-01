@@ -5,15 +5,15 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 52,
+    "commits_behind": 67,
     "days_behind": 1,
-    "unmerged_oldest_age_days": 1.0125357723958335,
-    "files_affected": 273,
-    "total_additions": 10177,
-    "total_deletions": 2912,
+    "unmerged_oldest_age_days": 1.257258896400463,
+    "files_affected": 399,
+    "total_additions": 14533,
+    "total_deletions": 3818,
     "date_range": {
       "first": "2026-06-30T07:11:32+00:00",
-      "last": "2026-07-01T05:30:06+00:00"
+      "last": "2026-07-01T12:12:29+00:00"
     }
   },
   "last_merged_commit": {
@@ -38,9 +38,159 @@
   },
   "gate": {
     "open": true,
-    "reason": "min_commits (52 >= 50)"
+    "reason": "min_commits (67 >= 50)"
   },
   "unmerged_commits": [
+    {
+      "sha": "eb31e4fb15ca2cc8e84efab99c1b4bf2d488b321",
+      "short_sha": "eb31e4fb15c",
+      "date": "2026-07-01T14:12:29+02:00",
+      "author": {
+        "name": "Silvia Surroca",
+        "email": "silvia.surroca@mongodb.com"
+      },
+      "summary": "SERVER-127213 New command for committing a moveRange in the global catalog (#57004)"
+    },
+    {
+      "sha": "1a599bd3dc6b1a4b422676be63cc3509d3442780",
+      "short_sha": "1a599bd3dc6",
+      "date": "2026-07-01T13:28:25+02:00",
+      "author": {
+        "name": "wolfee",
+        "email": "adam.farkas@mongodb.com"
+      },
+      "summary": "SERVER-129192 - Add percentile wait-time metrics for Execution Control queues (#56785)"
+    },
+    {
+      "sha": "12d6146a2bf4893baa9c3814300dfa9f747f9fbc",
+      "short_sha": "12d6146a2bf",
+      "date": "2026-07-01T12:24:00+01:00",
+      "author": {
+        "name": "Daniele Alessandrelli",
+        "email": "daniele.alessandrelli@mongodb.com"
+      },
+      "summary": "SERVER-128739 Add tests for `fixedBucketing` during failed FCV transitions (#57143)"
+    },
+    {
+      "sha": "2898316bb2cd27c91dbd19cead902c49a7817284",
+      "short_sha": "2898316bb2c",
+      "date": "2026-07-01T12:12:08+01:00",
+      "author": {
+        "name": "Projjal Chanda",
+        "email": "projjal.chanda@mongodb.com"
+      },
+      "summary": "SERVER-129017 Limit memory usage of ExpressionArray in classic engine (#57041)"
+    },
+    {
+      "sha": "e7cd3d4346c1604ac7ee4ee6a5f6c127448dc560",
+      "short_sha": "e7cd3d4346c",
+      "date": "2026-07-01T12:46:00+02:00",
+      "author": {
+        "name": "karlbozdogan",
+        "email": "karl.bozdogan@mongodb.com"
+      },
+      "summary": "SERVER-125911 Classic collscan: support non-contiguous RecordId ranges (#50948)"
+    },
+    {
+      "sha": "d410daf8dca57e28fe473ef87d8d990227adc9b4",
+      "short_sha": "d410daf8dca",
+      "date": "2026-07-01T12:25:59+02:00",
+      "author": {
+        "name": "Jan",
+        "email": "jsteemann@users.noreply.github.com"
+      },
+      "summary": "SERVER-126100 Test user-Triggerable tassert for endOfTransaction (#57003)"
+    },
+    {
+      "sha": "cad190314aca67502c8ab44b367ac0fa16f5e8a6",
+      "short_sha": "cad190314ac",
+      "date": "2026-07-01T11:24:07+01:00",
+      "author": {
+        "name": "Projjal Chanda",
+        "email": "projjal.chanda@mongodb.com"
+      },
+      "summary": "SERVER-129007 Limit memory usage of $concat in classic engine (#57012)"
+    },
+    {
+      "sha": "218a15ae71ef0fd1d8734d825be43fb08cd1a097",
+      "short_sha": "218a15ae71e",
+      "date": "2026-07-01T11:42:42+02:00",
+      "author": {
+        "name": "Pol Piñol Castuera",
+        "email": "pol.pinol@mongodb.com"
+      },
+      "summary": "SERVER-129322 SERVER-123313 CreateCollectionCoordinator should not run legacy refresh under authoritative path (#56287)"
+    },
+    {
+      "sha": "fbd91ebc93a3d203eddf39cc33d0c9299f65c4d7",
+      "short_sha": "fbd91ebc93a",
+      "date": "2026-07-01T10:22:05+01:00",
+      "author": {
+        "name": "mongo-pr-bot[bot]",
+        "email": "230616009+mongo-pr-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "SERVER-110427 Update profiling data (#57245)"
+    },
+    {
+      "sha": "d8f1cee41898004efb3d41898824047f29c7b1a5",
+      "short_sha": "d8f1cee4189",
+      "date": "2026-07-01T09:59:36+01:00",
+      "author": {
+        "name": "fotiniAlvanaki",
+        "email": "78495594+fotiniAlvanaki@users.noreply.github.com"
+      },
+      "summary": "SERVER-129825 Wire memory tracker into ExpressionNary::optimize() constant folding (#57061)"
+    },
+    {
+      "sha": "b4f4a80a0198ddbdaaf70576769806a22e6d8c2a",
+      "short_sha": "b4f4a80a019",
+      "date": "2026-07-01T08:56:07+00:00",
+      "author": {
+        "name": "Joan Bruguera Micó (at MongoDB)",
+        "email": "joan.bruguera-mico@mongodb.com"
+      },
+      "summary": "SERVER-130089 Re-enable transaction_crud_ddl_isolation.js with Authoritative Shards (#57148)"
+    },
+    {
+      "sha": "60605261ef08044dd18fc4d9df8d5a0ee2e272a2",
+      "short_sha": "60605261ef0",
+      "date": "2026-07-01T10:33:55+02:00",
+      "author": {
+        "name": "Pol Piñol Castuera",
+        "email": "pol.pinol@mongodb.com"
+      },
+      "summary": "SERVER-124366 Delete _internalClearCollectionShardingMetadata command (#57147)"
+    },
+    {
+      "sha": "8a0f4f44bfb1c2a70dff5e5f2e115c7d8c8371fe",
+      "short_sha": "8a0f4f44bfb",
+      "date": "2026-07-01T10:16:08+02:00",
+      "author": {
+        "name": "Alya Carina Berciu",
+        "email": "alya.berciu@mongodb.com"
+      },
+      "summary": "SERVER-128361 Refactor agg_join_model to extract all join predicates then apply them (#55590)"
+    },
+    {
+      "sha": "690a0c792639753094708b32a4d68827527baaef",
+      "short_sha": "690a0c79263",
+      "date": "2026-07-01T09:59:58+02:00",
+      "author": {
+        "name": "Pol Piñol Castuera",
+        "email": "pol.pinol@mongodb.com"
+      },
+      "summary": "SERVER-97985 Enable authoritative shards feature flag (#56993)"
+    },
+    {
+      "sha": "5cd47701b4d44cd2348b30144a05a84d0235476f",
+      "short_sha": "5cd47701b4d",
+      "date": "2026-07-01T09:56:16+02:00",
+      "author": {
+        "name": "Anna Maria Nestorov",
+        "email": "annamaria.nestorov@gmail.com"
+      },
+      "summary": "SERVER-129313 Add FSM testing for aborting index builds when replica set write block is enabled (#56910)"
+    },
     {
       "sha": "6b0a7c8de3379e91b2aaca32ee4ed8d375298a65",
       "short_sha": "6b0a7c8de33",
@@ -585,10 +735,33 @@
           "num_of_dirs": 11
         }
       }
+    },
+    {
+      "commit": {
+        "sha": "690a0c792639753094708b32a4d68827527baaef",
+        "short_sha": "690a0c79263",
+        "date": "2026-07-01T09:59:58+02:00",
+        "author": {
+          "name": "Pol Piñol Castuera",
+          "email": "pol.pinol@mongodb.com"
+        },
+        "summary": "SERVER-97985 Enable authoritative shards feature flag (#56993)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 56,
+          "num_of_lines": 440,
+          "lines_added": 187,
+          "lines_deleted": 253,
+          "num_of_dirs": 21
+        }
+      }
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-07-01 07:29:32",
+  "generated_at": "2026-07-01 13:21:54",
   "branch_name": "master",
   "display_name": "master"
 }
