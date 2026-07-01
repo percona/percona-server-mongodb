@@ -78,6 +78,59 @@ parse_arguments() {
     done
 }
 
+# Add a directory to PATH if it isn't added yet.
+#
+# The directory doesn't need to exist at the moment of the function call.
+#
+# Examples:
+# 1. add  the "/foo/bar" directory at the beginning of the PATH
+# ```
+# path_affix "/foo/bar"
+# ```
+#
+# 2. add the "/foo/bar" directory at the end of the PATH
+# ```
+# path_affix "/foo/bar" "at_the_end"
+# ```
+path_affix() {
+    local dir="$1"
+    local at_the_end="$2"
+
+    [ -n "$dir" ] || abort '`path_affix`: empty directory or too few arguments'
+    # Normalize non-root directory paths by removing trailing slashes, if any
+    [ "$dir" = "/" ] || dir="${dir%/}"
+
+    case "$at_the_end" in
+        "at_the_end") at_the_end="true" ;;
+        "") at_the_end="false" ;;
+        *) abort "\`path_affix\`: invalid second argument value \`$at_the_end\`" ;;
+    esac
+
+    # Introduce a local variable with the default empty value rather than using
+    # "$PATH" directly in order to reliably handle the unset `PATH` even if we
+    # add `set -u` to the script in the future.
+    local path="${PATH:-}"
+    # Place colons on either side of $PATH to simplify matching
+    case ":${path}:" in
+        *:"$dir":*)
+            ;;
+        *)
+            if $at_the_end; then
+                export PATH="${path:+$path:}$dir"
+            else
+                export PATH="$dir${path:+:$path}"
+            fi
+            ;;
+    esac
+}
+
+set_gopath() {
+    local dir="$1"
+    [ -n "$dir" ] || abort '`set_gopath`: empty directory or too few arguments'
+    export GOPATH="$dir"
+    path_affix "$GOPATH/bin" "at_the_end"
+}
+
 check_workdir(){
     [ -n "$WORKDIR" ] || abort "WORKDIR is empty"
     [ "x$WORKDIR" = "x$CURDIR" ] && abort "Current directory cannot be used for building!"
@@ -150,10 +203,7 @@ get_sources(){
     echo "export PSMDB_TOOLS_COMMIT_HASH=\"$(git rev-parse HEAD)\"" > set_tools_revision.sh
     echo "export PSMDB_TOOLS_REVISION=\"${PSM_VER}-${PSM_RELEASE}\"" >> set_tools_revision.sh
     chmod +x set_tools_revision.sh
-    export GOROOT="/usr/local/go/"
-    export GOPATH=$PWD/../
-    export PATH="/usr/local/go/bin:$PATH:$GOPATH"
-    export GOBINPATH="/usr/local/go/bin"
+    set_gopath "$PWD/../"
 
     # Dirty hack for mongo-tools 100.7.3 and aarch64 builds. Should fail once Mongo fixes OS detection https://jira.mongodb.org/browse/TOOLS-3318
     #if [ x"$ARCH" = "xaarch64" ]; then
@@ -168,8 +218,6 @@ get_sources(){
 
     cd ${PRODUCT}-${PSM_VER}-${PSM_RELEASE}
     python3 buildscripts/install_bazel.py
-    export PATH="$HOME/.local/bin:$PATH" >> ~/.bashrc
-    source ~/.bashrc
 
     KEEP_DOTFILES='\.bazelrc|\.bazelrc\.psmdb|\.bazelrc\.fuzztest|\.bazelrc\.sync|\.bazelversion|\.bazeliskrc|\.bazelignore|\.npmrc|\.prettierrc|\.prettierignore|\.clang-format|\.clang-tidy\.in'
     DROP_DOTFILES=$(ls -A | grep -E '^\.' | grep -vE "^(${KEEP_DOTFILES})$" || true)
@@ -552,8 +600,6 @@ build_rpm(){
     fi
 
     python3 buildscripts/install_bazel.py
-    export PATH="$HOME/.local/bin:$PATH" >> ~/.bashrc
-    source ~/.bashrc
     rm -rf install_bazel.py
 
     cd $WORKDIR
@@ -562,11 +608,7 @@ build_rpm(){
     echo "ARCH=${ARCH}" >> percona-server-mongodb-90.properties
     #
     #
-    [[ ${PATH} == *"/usr/local/go/bin"* && -x /usr/local/go/bin/go ]] || export PATH=/usr/local/go/bin:${PATH}
-    export GOROOT="/usr/local/go/"
-    export GOPATH=$(pwd)/
-    export PATH="/usr/bin:/usr/local/go/bin:$PATH:$GOPATH"
-    export GOBINPATH="/usr/local/go/bin"
+    set_gopath "$(pwd)/"
 
     export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
     export OPT_LINKFLAGS="${LINKFLAGS} -Wl,--build-id=sha1"
@@ -662,8 +704,6 @@ build_deb(){
     cd ${PRODUCT}-${VERSION}
 
     python3 buildscripts/install_bazel.py
-    export PATH="$HOME/.local/bin:$PATH" >> ~/.bashrc
-    source ~/.bashrc
     cp -av percona-packaging/debian/rules debian/
 
     if [ x"${DEBIAN}" = "xbullseye" -o x"${DEBIAN}" = "xbookworm" -o x"${DEBIAN}" = "xjammy" -o x"${DEBIAN}" = "xnoble" ]; then
@@ -701,11 +741,10 @@ build_deb(){
         rm -f call-home.sh
     cd ../
 
-    export GOROOT="/usr/local/go/"
-    export GOPATH=$PWD/../
-    export PATH="/usr/local/go/bin:$PATH:$GOPATH"
-    export GOBINPATH="/usr/local/go/bin"
+    set_gopath "$PWD/../"
+
     dpkg-buildpackage -rfakeroot -us -uc -b
+
     mkdir -p $CURDIR/deb
     mkdir -p $WORKDIR/deb
     cp $WORKDIR/*.deb $WORKDIR/deb
@@ -726,7 +765,6 @@ build_tarball(){
     #
     export DEBIAN_VERSION="$(lsb_release -sc)"
     export DEBIAN="$(lsb_release -sc)"
-    export PATH=/usr/local/go/bin:$PATH
     #
     #
     PSM_TARGETS="mongod mongos perconadecrypt mongobridge $SPECIAL_TAR"
@@ -791,8 +829,6 @@ build_tarball(){
     export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
     export OPT_LINKFLAGS="${LINKFLAGS} -Wl,--build-id=sha1"
     python3 buildscripts/install_bazel.py
-    export PATH="$HOME/.local/bin:$PATH" >> ~/.bashrc
-    source ~/.bashrc
 
     bazel clean --expunge || true
     bazel build --config=psmdb_opt_release ${PSMDB_RBE_BAZEL_FLAGS:-} --define=MONGO_VERSION=${VERSION}-${RELEASE} --define=GIT_COMMIT_HASH=${REVISION_LONG} install-dist-test
@@ -809,10 +845,7 @@ build_tarball(){
     #
     # Build mongo tools
     mkdir -p build_tools/src/github.com/mongodb/mongo-tools
-    export GOROOT="/usr/local/go/"
-    export GOPATH=$PWD/
-    export PATH="/usr/local/go/bin:$PATH:$GOPATH"
-    export GOBINPATH="/usr/local/go/bin"
+    set_gopath "$PWD/"
     mkdir -p $GOPATH/src/github.com/mongodb
     cd $GOPATH/src/github.com/mongodb
     cp -r ${WORKDIR}/${TOOLSDIR} ./
@@ -1052,6 +1085,18 @@ then
 else
     NCPU=4
 fi
+
+# Previous script versions added `/usr/bin` to PATH in one of the functions.
+# Since `path_affix` prevents duplicates in PATH, the call won't do any harm,
+# but can fix the things should any (weird) platform miss that directory.
+path_affix "/usr/bin"
+
+# The `python3 buildscripts/install_bazel.py` command installs `bazel` and
+# `bazelisk` into "$HOME/.local/bin"
+path_affix "$HOME/.local/bin"
+
+export GOROOT="/usr/local/go"
+path_affix "$GOROOT/bin"
 
 check_workdir
 get_system
