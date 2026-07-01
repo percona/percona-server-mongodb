@@ -164,6 +164,10 @@ get_sources(){
     go get golang.org/x/crypto@v0.52.0 golang.org/x/net@v0.55.0 || abort '`go get` failed'
     go mod tidy || abort '`go mod tidy` failed'
     go mod vendor || abort '`go mod vendor` failed'
+    # Make downloaded Go packages writable to be able to remove them later
+    if [ -d "$GOPATH/pkg" ]; then
+        chmod -R u+w "$GOPATH/pkg" || abort '`chmod` failed'
+    fi
 
     cd ${WORKDIR}
     source percona-server-mongodb-80.properties
@@ -173,7 +177,7 @@ get_sources(){
 
     cd ${PRODUCT}-${PSM_VER}-${PSM_RELEASE}
     python3 buildscripts/install_bazel.py
-    export PATH=\/root/.local/bin:$PATH >> ~/.bashrc
+    export PATH="$HOME/.local/bin:$PATH" >> ~/.bashrc
     source ~/.bashrc
 
     KEEP_DOTFILES='\.bazelrc|\.bazelrc\.psmdb|\.bazelrc\.fuzztest|\.bazelrc\.sync|\.bazelversion|\.bazeliskrc|\.bazelignore|\.npmrc|\.prettierrc|\.prettierignore|\.clang-format|\.clang-tidy\.in'
@@ -527,7 +531,7 @@ build_rpm(){
     tar vxzf ${TARF} --wildcards '*/etc' --strip=1
     tar vxzf ${TARF} --wildcards '*/buildscripts' --strip=1
     python3 buildscripts/install_bazel.py
-    export PATH=\/root/.local/bin:$PATH >> ~/.bashrc
+    export PATH="$HOME/.local/bin:$PATH" >> ~/.bashrc
     source ~/.bashrc
     rm -rf install_bazel.py
     if [ x"$RHEL" = x7 ]; then
@@ -648,7 +652,7 @@ build_deb(){
     cd ${PRODUCT}-${VERSION}
 
     python3 buildscripts/install_bazel.py
-    export PATH=\/root/.local/bin:$PATH >> ~/.bashrc
+    export PATH="$HOME/.local/bin:$PATH" >> ~/.bashrc
     source ~/.bashrc
     cp -av percona-packaging/debian/rules debian/
 
@@ -776,7 +780,7 @@ build_tarball(){
     export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
     export OPT_LINKFLAGS="${LINKFLAGS} -Wl,--build-id=sha1"
     python3 buildscripts/install_bazel.py
-    export PATH=\/root/.local/bin:$PATH >> ~/.bashrc
+    export PATH="$HOME/.local/bin:$PATH" >> ~/.bashrc
     source ~/.bashrc
 
     bazel clean --expunge || true
