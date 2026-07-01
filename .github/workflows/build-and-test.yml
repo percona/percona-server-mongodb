@@ -49,16 +49,31 @@ permissions:
   # format has passed.
   actions: read
 
-# RBE endpoints are shared between jobs. Pinned here so additions like
-# integration-tests/jsttests can reuse the same values without drift.
+# RBE connection parameters, shared between jobs, sourced from repo variables
+# under the PSMDB_RBE_ prefix (matching the PSMDB_RBE_GHA_AUDIENCE /
+# PSMDB_RBE_OIDC_ISSUER secrets) so a repo or fork points CI at its own RBE
+# cluster by setting variables — no endpoint is baked into the workflow. The
+# four service endpoints are full URLs, one variable per Bazel flag; the
+# credential helper takes only its host from vars.PSMDB_RBE_HOST (its path is a
+# fixed security invariant, see below). Values are surfaced here under short
+# RBE_* names purely so the job steps below stay readable and byte-identical.
+#
+# The whole RBE pipeline is gated on `vars.PSMDB_RBE_ENABLED == 'true'` (see the
+# `if:` on every job). When it is unset or any other value, every RBE job is
+# skipped, so these values are only ever read on the remote path — an empty
+# variable never reaches a running bazel invocation. If you set
+# PSMDB_RBE_ENABLED=true you MUST also set the PSMDB_RBE_* variables below.
 env:
-  RBE_REMOTE_EXECUTOR: grpcs://bb-psmdb.ddns.net:8981
-  RBE_REMOTE_CACHE: grpcs://bb-psmdb.ddns.net:8981
-  RBE_BES_BACKEND: grpcs://bb-psmdb.ddns.net:1985
-  RBE_BES_RESULTS_URL: https://bb-psmdb.ddns.net:7986/bazel-invocations/
-  # Full credential-helper flag value: <host>=<workspace-relative path>.
-  # %workspace% is a Bazel substitution (not a shell expansion), so the
-  # variable carries the literal string through to Bazel.
+  RBE_REMOTE_EXECUTOR: ${{ vars.PSMDB_RBE_REMOTE_EXECUTOR }}
+  RBE_REMOTE_CACHE: ${{ vars.PSMDB_RBE_REMOTE_CACHE }}
+  RBE_BES_BACKEND: ${{ vars.PSMDB_RBE_BES_BACKEND }}
+  RBE_BES_RESULTS_URL: ${{ vars.PSMDB_RBE_BES_RESULTS_URL }}
+  # Credential-helper flag value: <host>=<workspace-relative path>. Only the
+  # host varies per cluster, so it is taken from vars.PSMDB_RBE_HOST; the path is
+  # a fixed security invariant (see below) and is kept literal here rather than
+  # exposed as a variable that a misconfiguration could point outside _trusted/.
+  # %workspace% is a Bazel substitution (not a shell expansion), so the value is
+  # carried literally through to Bazel.
   #
   # Resolved against the TRUSTED base checkout under _trusted/ (the same
   # base-branch copy used for composite actions), NOT %workspace% root
@@ -68,7 +83,7 @@ env:
   # Dex JWT once the gate is approved. The helper computes REPO_ROOT from
   # its own __file__ and imports its sibling rbe_auth.py, so pinning the
   # path to _trusted/ keeps the entire import chain on the trusted copy.
-  RBE_CREDENTIAL_HELPER: bb-psmdb.ddns.net=%workspace%/_trusted/bazel/wrapper_hook/credential_helper.py
+  RBE_CREDENTIAL_HELPER: ${{ vars.PSMDB_RBE_HOST }}=%workspace%/_trusted/bazel/wrapper_hook/credential_helper.py
 
 # Jobs: gate, format_gate, build, unittests, dbtests, jstests (plus the
 # jstests_gate decider). `gate` is a no-op whose only purpose is to host the
@@ -97,6 +112,15 @@ env:
 #     `mergai/**` so a feature-branch workflow can't target `rbe`
 #     and bypass the gate.
 #
+# One-time repo/org Variables (GH repo settings UI -> Variables):
+#   - PSMDB_RBE_ENABLED = 'true' to run the RBE pipeline (see the env block
+#     above and the `if:` on every job). Unset/other value => whole pipeline
+#     skips.
+#   - PSMDB_RBE_REMOTE_EXECUTOR / PSMDB_RBE_REMOTE_CACHE / PSMDB_RBE_BES_BACKEND
+#     / PSMDB_RBE_BES_RESULTS_URL: full RBE endpoint URLs.
+#   - PSMDB_RBE_HOST: the RBE host (no scheme/port); used to build the
+#     credential-helper flag (see the env block above).
+#
 # First-version trust model: every run goes through `gate` and pays the
 # approval cost, internal and external alike. Planned next step (NOT YET
 # IMPLEMENTED — needs security review + CODEOWNERS on .github/** first):
@@ -117,9 +141,44 @@ jobs:
   # trigger; once approved the rest of the pipeline proceeds.
   gate:
     name: gate
+    # Master switch for the entire RBE pipeline: `vars.PSMDB_RBE_ENABLED` must
+    # be exactly the string 'true' for any RBE job to run. Unset or any other
+    # value skips this gate; because every downstream RBE job also repeats this
+    # guard (so each independently honors the switch), the whole pipeline goes
+    # dark on a repo/fork that has not opted into remote Bazel.
+    if: ${{ vars.PSMDB_RBE_ENABLED == 'true' }}
     runs-on: ubuntu-24.04
     environment: rbe-external
     steps:
+      # Fail fast on RBE misconfiguration. This job runs only when
+      # PSMDB_RBE_ENABLED == 'true', and in that case every RBE endpoint variable
+      # must be set — otherwise Bazel would receive empty --remote_* /
+      # --credential_helper values and fail deep inside build/unittests/dbtests/
+      # jstests with an opaque error (or silently fall back to local execution).
+      # Checking here, in the root job every RBE job transitively depends on,
+      # turns that into one clear message before any heavy job starts. Values are
+      # read via env (not inline ${{ }}) so an empty variable can't break the
+      # shell, and the check only asserts presence — Bazel validates the URLs.
+      - name: Validate RBE configuration
+        env:
+          PSMDB_RBE_HOST: ${{ vars.PSMDB_RBE_HOST }}
+          PSMDB_RBE_REMOTE_EXECUTOR: ${{ vars.PSMDB_RBE_REMOTE_EXECUTOR }}
+          PSMDB_RBE_REMOTE_CACHE: ${{ vars.PSMDB_RBE_REMOTE_CACHE }}
+          PSMDB_RBE_BES_BACKEND: ${{ vars.PSMDB_RBE_BES_BACKEND }}
+          PSMDB_RBE_BES_RESULTS_URL: ${{ vars.PSMDB_RBE_BES_RESULTS_URL }}
+        run: |
+          set -euo pipefail
+          missing=()
+          for v in PSMDB_RBE_HOST PSMDB_RBE_REMOTE_EXECUTOR PSMDB_RBE_REMOTE_CACHE \
+                   PSMDB_RBE_BES_BACKEND PSMDB_RBE_BES_RESULTS_URL; do
+            [ -n "${!v}" ] || missing+=("$v")
+          done
+          if [ ${#missing[@]} -ne 0 ]; then
+            echo "::error::PSMDB_RBE_ENABLED is 'true' but these repo variables are unset/empty: ${missing[*]}. Set them under Settings -> Secrets and variables -> Actions -> Variables, or set PSMDB_RBE_ENABLED to 'false' to disable the RBE pipeline."
+            exit 1
+          fi
+          echo "RBE configuration present (host=$PSMDB_RBE_HOST)."
+
       # Block scalar (|) so the literal '#' in "PR #N" is not interpreted
       # as a YAML comment marker — that's what truncated the string and
       # produced the "unexpected EOF" bash error on the first run.
@@ -162,7 +221,9 @@ jobs:
     # Skipped on a draft, exactly like build. build additionally requires
     # passed == 'true', which is empty (falsey) when this job is skipped, so a
     # draft stays fully skipped and consistent.
-    if: ${{ github.event.pull_request.draft == false }}
+    if: >-
+      ${{ vars.PSMDB_RBE_ENABLED == 'true'
+      && github.event.pull_request.draft == false }}
     runs-on: ubuntu-24.04
     outputs:
       passed: ${{ steps.wait.outputs.passed }}
@@ -210,7 +271,8 @@ jobs:
     # they inherit the draft + format skip automatically; jstests carries its own
     # draft guard.
     if: >-
-      ${{ github.event.pull_request.draft == false
+      ${{ vars.PSMDB_RBE_ENABLED == 'true'
+      && github.event.pull_request.draft == false
       && needs.format_gate.outputs.passed == 'true' }}
     # Pinned to ubuntu-24.04 (not ubuntu-latest) because this workflow
     # depends on runner specifics that change silently when GH rolls the
@@ -338,6 +400,7 @@ jobs:
     # result check authoritative rather than the bare-needs short-circuit.
     if: >-
       ${{ !cancelled()
+      && vars.PSMDB_RBE_ENABLED == 'true'
       && needs.gate.result == 'success'
       && needs.build.result == 'success' }}
     # See `build.runs-on` above for why this is pinned, not `ubuntu-latest`.
@@ -484,6 +547,7 @@ jobs:
     # (build gates on format_gate). No separate lint gate here.
     if: >-
       ${{ !cancelled()
+      && vars.PSMDB_RBE_ENABLED == 'true'
       && needs.gate.result == 'success'
       && needs.build.result == 'success' }}
     # See `build.runs-on` above for why this is pinned, not `ubuntu-latest`.
@@ -642,7 +706,7 @@ jobs:
   jstests_gate:
     name: jstests gate
     needs: [dbtests, unittests]
-    if: ${{ !cancelled() }}
+    if: ${{ !cancelled() && vars.PSMDB_RBE_ENABLED == 'true' }}
     runs-on: ubuntu-24.04
     outputs:
       should_run: ${{ steps.decide.outputs.should_run }}
@@ -717,6 +781,7 @@ jobs:
     # (which implies format passed via format_gate).
     if: >-
       ${{ !cancelled()
+      && vars.PSMDB_RBE_ENABLED == 'true'
       && needs.gate.result == 'success'
       && needs.jstests_gate.result == 'success'
       && needs.jstests_gate.outputs.should_run == 'true'
