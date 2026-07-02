@@ -5,15 +5,15 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 121,
+    "commits_behind": 126,
     "days_behind": 2,
-    "unmerged_oldest_age_days": 1.9973475876620372,
-    "files_affected": 612,
-    "total_additions": 27125,
-    "total_deletions": 6829,
+    "unmerged_oldest_age_days": 2.106341934872685,
+    "files_affected": 620,
+    "total_additions": 27644,
+    "total_deletions": 6905,
     "date_range": {
       "first": "2026-06-30T07:11:32+00:00",
-      "last": "2026-07-02T04:14:15+00:00"
+      "last": "2026-07-02T08:47:34+00:00"
     }
   },
   "last_merged_commit": {
@@ -38,9 +38,59 @@
   },
   "gate": {
     "open": true,
-    "reason": "min_commits (121 >= 50)"
+    "reason": "force:conflict"
   },
   "unmerged_commits": [
+    {
+      "sha": "285e07d58703bbc5f9aa02889d4a7712b44c0650",
+      "short_sha": "285e07d5870",
+      "date": "2026-07-02T10:47:34+02:00",
+      "author": {
+        "name": "Alberto Massari",
+        "email": "alberto.massari@mongodb.com"
+      },
+      "summary": "SERVER-130302 Don't use anti-materialization when joining secondary collections (#57303)"
+    },
+    {
+      "sha": "9e5aaaf1dc3d0746e4f6450eb436885ffce4166f",
+      "short_sha": "9e5aaaf1dc3",
+      "date": "2026-07-02T10:40:09+02:00",
+      "author": {
+        "name": "Jordi Olivares Provencio",
+        "email": "jordi.olivares-provencio@mongodb.com"
+      },
+      "summary": "SERVER-128658 Re-link TODO in AddRemoveShards hook (#57178)"
+    },
+    {
+      "sha": "6cab8d7430a0ebc5c4dad1b131f72ecf761e454f",
+      "short_sha": "6cab8d7430a",
+      "date": "2026-07-02T10:08:53+02:00",
+      "author": {
+        "name": "Enrico Golfieri",
+        "email": "enrico.golfieri@mongodb.com"
+      },
+      "summary": "SERVER-121927 Always run global catalog vs durable local catalog validation if shard version hasn't changed (#57164)"
+    },
+    {
+      "sha": "097ffb27b0d82cac8044679c5cf5d0b07760e9d9",
+      "short_sha": "097ffb27b0d",
+      "date": "2026-07-02T09:27:09+02:00",
+      "author": {
+        "name": "Silvia Surroca",
+        "email": "silvia.surroca@mongodb.com"
+      },
+      "summary": "SERVER-130176 Consider kUnowned as a valid metadata state on waitForClean() (#57307)"
+    },
+    {
+      "sha": "368ee5f5fd1205d840d401ff850fe04d88ef8d77",
+      "short_sha": "368ee5f5fd1",
+      "date": "2026-07-02T09:46:35+03:00",
+      "author": {
+        "name": "Daniel Tabacaru",
+        "email": "96778637+danieltabacaru@users.noreply.github.com"
+      },
+      "summary": "SERVER-129315 Promote notablescan to query settings (#56698)"
+    },
     {
       "sha": "8cdea01f18f9971d1f63db3e5286ef225acdf1d7",
       "short_sha": "8cdea01f18f",
@@ -1367,10 +1417,28 @@
           "num_of_dirs": 16
         }
       }
+    },
+    {
+      "commit": {
+        "sha": "368ee5f5fd1205d840d401ff850fe04d88ef8d77",
+        "short_sha": "368ee5f5fd1",
+        "date": "2026-07-02T09:46:35+03:00",
+        "author": {
+          "name": "Daniel Tabacaru",
+          "email": "96778637+danieltabacaru@users.noreply.github.com"
+        },
+        "summary": "SERVER-129315 Promote notablescan to query settings (#56698)"
+      },
+      "strategy_name": "conflict",
+      "result": {
+        "conflicting_files": [
+          "src/mongo/db/BUILD.bazel"
+        ]
+      }
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-07-02 07:07:33",
+  "generated_at": "2026-07-02 09:44:30",
   "branch_name": "master",
   "display_name": "master"
 }
