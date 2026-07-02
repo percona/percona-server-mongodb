@@ -93,6 +93,10 @@ jobs:
           github-app-token: ${{ steps.app-token.outputs.token }}
           github-app-id: ${{ secrets.PSMDB_BOT_GH_APP_ID }}
           mergai-ref: ${{ inputs['mergai-ref'] || vars.MERGAI_REF || 'master' }}
+          # Do not put the write token in the job environment: this job runs the
+          # AI agent (describe/resolve). The token is scoped to the "publish"
+          # step instead, so it is never reachable while the agent runs.
+          export-github-token: "false"
 
       # Determine the commit to merge to. Precedence:
       #   1. an explicit merge-pick input -> use it, bypassing the gate (the
@@ -183,12 +187,20 @@ jobs:
             exit 1
           fi
 
+      # Agent phase: runs the AI agent (describe via `mergai merge`, and
+      # `mergai resolve` on conflicts) and prepares branches locally. This step
+      # has NO GitHub write token in its environment (setup was called with
+      # export-github-token: false), so a misbehaving or prompt-injected agent
+      # has no reachable credential to push with. All remote writes happen in
+      # the separate "publish" step below. The merge outcome is recorded as an
+      # output so publish knows which branches to push.
       - name: merge
+        id: merge
         if: steps.pick.outputs.pick != ''
         env:
           MERGAI_AGENT: ${{ inputs['mergai-agent'] }}
         run: |
-          # Fetch and merge notes from remote
+          # Fetch and merge notes from remote (read-only; public repo)
           mergai notes update
 
           # Build merge command with optional agent
@@ -199,21 +211,37 @@ jobs:
             RESOLVE_CMD="$RESOLVE_CMD --agent \"$MERGAI_AGENT\""
           fi
 
-          # Attempt merge; exit code 0 = success, 1 = conflicts
+          # Attempt merge; exit code 0 = success, 1 = conflicts. Only local
+          # commits/branch-creates happen here -- pushing is deferred to publish.
           if eval $MERGE_CMD; then
             echo "Merge successful. Committing merge."
             mergai commit merge              # Create merge commit with note attached
             mergai branch create main        # Create and checkout main working branch
-            mergai branch push main          # Push main branch to origin
-            mergai notes push                # Push mergai notes to remote
-            mergai pr --repo "$GITHUB_REPOSITORY" create main --skip-commit-list-on-failure
+            echo "result=success" >> "$GITHUB_OUTPUT"
           else
             echo "Merge conflict detected. Processing with resolution."
             mergai commit conflict           # Commit conflict state with markers
             mergai branch create conflict    # Create branch with conflict markers
             mergai branch create solution    # Create branch for AI solution
-            eval $RESOLVE_CMD                # Run AI conflict resolution (yolo mode)
+            eval $RESOLVE_CMD                # Run AI conflict resolution
             mergai commit solution           # Commit resolved files with note
+            echo "result=conflict" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Publish phase: the ONLY step given the write token. The agent has run
+      # and exited in the previous step, so the token is never reachable by it.
+      # Pushes authenticate via the setup credential helper (GH_TOKEN in this
+      # step's environment); PR creation uses gh (also GH_TOKEN).
+      - name: publish
+        if: steps.merge.outputs.result != ''
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          if [ "${{ steps.merge.outputs.result }}" = "success" ]; then
+            mergai branch push main          # Push main branch to origin
+            mergai notes push                # Push mergai notes to remote
+            mergai pr --repo "$GITHUB_REPOSITORY" create main --skip-commit-list-on-failure
+          else
             mergai branch push solution      # Push solution branch
             mergai branch push conflict      # Push conflict branch
             mergai notes push                # Push mergai notes to remote
@@ -475,6 +503,24 @@ jobs:
           app-id: ${{ secrets.PSMDB_BOT_GH_APP_ID }}
           private-key: ${{ secrets.PSMDB_BOT_GH_APP_PRIVATE_KEY }}
 
+      # Read-only token for the steps that run the AI agent (`mergai ci fix`
+      # reads CI logs/artifacts). Even if the agent recovers this token from the
+      # environment, it cannot write. The write token (app-token) is scoped to
+      # the push/comment steps only.
+      - name: Create read-only GitHub App token
+        id: app-token-ro
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ secrets.PSMDB_BOT_GH_APP_ID }}
+          private-key: ${{ secrets.PSMDB_BOT_GH_APP_PRIVATE_KEY }}
+          permission-contents: read
+          permission-pull-requests: read
+          permission-issues: read
+          permission-actions: read
+          # `mergai ci fix` reads clang-tidy SARIF via the code-scanning API,
+          # which requires security_events read.
+          permission-security-events: read
+
       # -----------------------------------------------------------------------
       # Why we trust github.event.workflow_run.head_branch / head_sha here
       # -----------------------------------------------------------------------
@@ -536,8 +582,14 @@ jobs:
           github-app-token: ${{ steps.app-token.outputs.token }}
           github-app-id: ${{ secrets.PSMDB_BOT_GH_APP_ID }}
           mergai-ref: master
+          # This job runs the AI agent (`mergai ci fix`). Keep the write token
+          # out of the job environment; the agent/read steps use the read-only
+          # token and the write token is scoped to the push/comment steps.
+          export-github-token: "false"
 
       - name: Fetch and load mergai notes
+        env:
+          GH_TOKEN: ${{ steps.app-token-ro.outputs.token }}
         run: |
           mergai notes update
           mergai context init
@@ -554,7 +606,7 @@ jobs:
       - name: Re-check gate
         id: recheck
         env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          GH_TOKEN: ${{ steps.app-token-ro.outputs.token }}
           GH_REPO: ${{ github.repository }}
           HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
         run: |
@@ -582,7 +634,9 @@ jobs:
         id: fix
         if: steps.recheck.outputs.state == 'failure'
         env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          # Read-only: the agent runs here. `mergai ci fix all` only downloads
+          # CI artifacts/logs and commits locally; the write steps below push.
+          GH_TOKEN: ${{ steps.app-token-ro.outputs.token }}
           GH_REPO: ${{ github.repository }}
         run: |
           before=$(git rev-parse HEAD)
@@ -709,6 +763,20 @@ jobs:
           app-id: ${{ secrets.PSMDB_BOT_GH_APP_ID }}
           private-key: ${{ secrets.PSMDB_BOT_GH_APP_PRIVATE_KEY }}
 
+      # Read-only token for the read/agent steps (`mergai review fix` reads the
+      # PR's review threads and, after deferring --ack, no longer writes). Even
+      # if the agent recovers this token, it cannot write. The write token
+      # (app-token) is scoped to the push / review-post steps only.
+      - name: Create read-only GitHub App token
+        id: app-token-ro
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ secrets.PSMDB_BOT_GH_APP_ID }}
+          private-key: ${{ secrets.PSMDB_BOT_GH_APP_PRIVATE_KEY }}
+          permission-contents: read
+          permission-pull-requests: read
+          permission-issues: read
+
       # Resolve the PR number and head branch from whichever event fired, and
       # confirm it is a mergai PR (head branch under mergai/). The issue_comment
       # payload has no head ref, so we look it up; a non-mergai PR sets
@@ -716,7 +784,7 @@ jobs:
       - name: Resolve PR
         id: pr
         env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          GH_TOKEN: ${{ steps.app-token-ro.outputs.token }}
           GH_REPO: ${{ github.repository }}
         run: |
           # CUTOFF pins the run to the comment set as it stood when it was
@@ -769,9 +837,16 @@ jobs:
           github-app-token: ${{ steps.app-token.outputs.token }}
           github-app-id: ${{ secrets.PSMDB_BOT_GH_APP_ID }}
           mergai-ref: master
+          # This job runs the AI agent (`mergai review fix`). Keep the write
+          # token out of the job environment; the agent/read steps use the
+          # read-only token and the write token is scoped to the push /
+          # review-post steps.
+          export-github-token: "false"
 
       - name: Fetch and load mergai notes
         if: steps.pr.outputs.is_mergai == 'true'
+        env:
+          GH_TOKEN: ${{ steps.app-token-ro.outputs.token }}
         run: |
           mergai notes update
           mergai context init
@@ -784,15 +859,18 @@ jobs:
         id: review
         if: steps.pr.outputs.is_mergai == 'true'
         env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          # Read-only: the agent runs here. `mergai review fix` reads the PR's
+          # review threads and commits the fix locally; --ack only *records* the
+          # acknowledgement on the note (posted later by `mergai review post`).
+          GH_TOKEN: ${{ steps.app-token-ro.outputs.token }}
           GH_REPO: ${{ github.repository }}
           PR_NUMBER: ${{ steps.pr.outputs.number }}
           CUTOFF: ${{ steps.pr.outputs.cutoff }}
         run: |
           before=$(git rev-parse HEAD)
-          # --ack posts a short acknowledgement comment on the PR (how many
-          # comments were found / addressed / ignored, even if none) for quick
-          # feedback. --since pins the comment set to the trigger time (CUTOFF).
+          # --ack records a short acknowledgement (how many comments were found /
+          # addressed / ignored, even if none) on the note; `mergai review post`
+          # publishes it. --since pins the comment set to the trigger time (CUTOFF).
           mergai review fix --pr-number "$PR_NUMBER" --since "$CUTOFF" --ack
           after=$(git rev-parse HEAD)
           if [ "$before" != "$after" ]; then
@@ -808,6 +886,9 @@ jobs:
       - name: Push review-fix commit
         if: steps.pr.outputs.is_mergai == 'true' && steps.review.outputs.fix_produced == 'true'
         env:
+          # Write token (scoped to this push): the setup credential helper reads
+          # GH_TOKEN, and the job environment no longer carries a token.
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
           HEAD_REF: ${{ steps.pr.outputs.head_ref }}
         run: git push origin "HEAD:$HEAD_REF"
 

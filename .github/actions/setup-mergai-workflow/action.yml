@@ -34,6 +34,14 @@ inputs:
   github-app-id:
     description: "GitHub App ID for constructing bot email"
     required: true
+  export-github-token:
+    description: >-
+      Export GH_TOKEN/GITHUB_TOKEN to the job environment (GITHUB_ENV). Set to
+      "false" for jobs that run the AI agent so no write token is reachable (via
+      the environment) during agent execution; those jobs scope the token to
+      their push steps instead.
+    required: false
+    default: "true"
   mergai-ref:
     description: "MergAI git ref to checkout"
     required: false
@@ -83,15 +91,21 @@ runs:
         echo "ANTHROPIC_API_KEY=${{ inputs.claude-api-key }}" >> $GITHUB_ENV
 
     # Configure git for automated commits by the psmdb-bot.
-    # - Sets both GITHUB_TOKEN and GH_TOKEN for compatibility with different tools
+    # - Exports GITHUB_TOKEN/GH_TOKEN job-wide only when export-github-token is
+    #   true (agent jobs disable it and scope the token to their push steps)
     # - Uses GitHub App identity format for the bot email
     # - Enables diff3 conflict style for better merge conflict resolution
     # - Configures git notes display for mergai markers (used for tracking)
     - name: Setup git credentials
       shell: bash
       run: |
-        echo "GITHUB_TOKEN=${{ inputs.github-app-token }}" >> $GITHUB_ENV
-        echo "GH_TOKEN=${{ inputs.github-app-token }}" >> $GITHUB_ENV
+        # Export the token job-wide unless the caller opts out (agent jobs do,
+        # so the write token is not reachable while the agent runs; they scope
+        # it to their push steps instead).
+        if [ "${{ inputs.export-github-token }}" = "true" ]; then
+          echo "GITHUB_TOKEN=${{ inputs.github-app-token }}" >> $GITHUB_ENV
+          echo "GH_TOKEN=${{ inputs.github-app-token }}" >> $GITHUB_ENV
+        fi
         git config user.name "psmdb-bot[bot]"
         git config user.email "${{ inputs.github-app-id }}+psmdb-bot[bot]@users.noreply.github.com"
         git config merge.conflictstyle diff3
