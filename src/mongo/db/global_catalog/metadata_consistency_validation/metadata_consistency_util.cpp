@@ -54,7 +54,6 @@
 #include "mongo/db/query/plan_yield_policy.h"
 #include "mongo/db/record_id.h"
 #include "mongo/db/rss/replicated_storage_service.h"
-#include "mongo/db/s/migration_destination_manager.h"
 #include "mongo/db/s/range_deletion_util.h"
 #include "mongo/db/scoped_read_concern.h"
 #include "mongo/db/shard_role/lock_manager/lock_manager_defs.h"
@@ -722,7 +721,6 @@ void checkCollectionMetadataInShardCatalog(
     boost::optional<CollectionMetadata> inMemoryShardCatalogMetadata;
     ChunkVersion collectionPlacementVersion;
     bool csrIsUnowned = false;
-    bool csrIsAuthoritative = false;
 
     const bool authoritativeShardsCRUDEnabled = feature_flags::gAuthoritativeShardsCRUD.isEnabled(
         VersionContext::getDecoration(opCtx),
@@ -742,31 +740,14 @@ void checkCollectionMetadataInShardCatalog(
                 return;
             }
 
-            // TODO SERVER-127550: This should not be needed once migrations are adapted to be
-            // authoritative.
-            if (auto mdm = MigrationDestinationManager::get(opCtx); mdm && mdm->isActiveOn(nss) &&
-                feature_flags::gAuthoritativeShardsDDL.isEnabled(
-                    VersionContext::getDecoration(opCtx),
-                    serverGlobalParams.featureCompatibility.acquireFCVSnapshot())) {
-                // A migration is being received, this might race with the recovery that happens at
-                // the beginning and is potentially wrong if the shard is authoritative for the
-                // collection and its commit, which is when it becomes valid due to the forced
-                // legacy refresh. As such we temporarily accept this inconsistency since routers
-                // shouldn't be targeting this shard.
-                return;
-            }
-
             collectionPlacementVersion = inMemoryShardCatalogMetadata->getCollPlacementVersion();
         }
-
-        csrIsAuthoritative = scopedCsr->getAuthoritativeState() ==
-            CollectionShardingRuntime::AuthoritativeState::kAuthoritative;
     }
 
     if (!inMemoryShardCatalogMetadata) {
         // Even when in-memory metadata is unknown, authoritative shards must not have orphan
         // durable entries (for untracked collections)
-        if (authoritativeShardsCRUDEnabled && csrIsAuthoritative) {
+        if (authoritativeShardsCRUDEnabled) {
             if (!collectionInGlobalCatalog) {
                 validateNoDurableShardCatalogEntries(
                     opCtx, nss, localCollectionPtr->uuid(), inconsistencies);
@@ -785,8 +766,8 @@ void checkCollectionMetadataInShardCatalog(
 
     // The corner-case when for tracked collection CSR is authoritative has no routing table.
     // This condition will be checked later.
-    const bool isPrimaryWithNoRoutingTable = expectTracked && !csrHasRoutingTable && isPrimary &&
-        csrIsAuthoritative && authoritativeShardsCRUDEnabled;
+    const bool isPrimaryWithNoRoutingTable =
+        expectTracked && !csrHasRoutingTable && isPrimary && authoritativeShardsCRUDEnabled;
     if (!csrIsUnowned && !isPrimaryWithNoRoutingTable &&
         ((!expectTracked && csrHasRoutingTable) || (expectTracked && !csrHasRoutingTable))) {
         inconsistencies.emplace_back(makeInconsistency(
@@ -800,7 +781,10 @@ void checkCollectionMetadataInShardCatalog(
         return;
     }
 
-    if (csrIsUnowned && isPrimary) {
+    // Unowned is a token only of the authoritative shards. Without authoritative shards, a shard
+    // can keep a leftover unowned state from a previous state, but it is harmless even if used. If
+    // the cluster upgrades again, the clone DDL will clean it up.
+    if (authoritativeShardsCRUDEnabled && csrIsUnowned && isPrimary) {
         inconsistencies.emplace_back(makeInconsistency(
             MetadataInconsistencyTypeEnum::kInconsistentShardCatalogCollectionMetadata,
             InconsistentShardCatalogCollectionMetadataDetails{
@@ -815,7 +799,7 @@ void checkCollectionMetadataInShardCatalog(
 
     // If the collection is not tracked in the global catalog, we can stop the checks.
     if (!expectTracked) {
-        if (authoritativeShardsCRUDEnabled && csrIsAuthoritative) {
+        if (authoritativeShardsCRUDEnabled) {
             validateNoDurableShardCatalogEntries(
                 opCtx, nss, localCollectionPtr->uuid(), inconsistencies);
         }
@@ -881,11 +865,6 @@ void checkCollectionMetadataInShardCatalog(
     }
 
     if (!authoritativeShardsCRUDEnabled) {
-        return;
-    }
-
-    if (scopedCsr->getAuthoritativeState() ==
-        CollectionShardingRuntime::AuthoritativeState::kNonAuthoritative) {
         return;
     }
 
@@ -1246,6 +1225,12 @@ std::vector<BSONObj> _runExhaustiveAggregation(OperationContext* opCtx,
         // routing information cache may fail.
         // When this happens, ignore the error: the problem will still be reported to the user
         // thanks  to the consistency checks performed on the config server.
+        logMetadataInconsistency(nss, e);
+    } catch (const ExceptionFor<ErrorCodes::StaleConfig>& e) {
+        // ClusterAggregate has already retried stale routing errors through CollectionRouter. If
+        // StaleConfig reaches this helper, the routing refresh failed to make progress.
+        // Authoritative shard metadata can cause this when the shard rejects the router's
+        // global-catalog view because it cannot recover matching shard-local metadata.
         logMetadataInconsistency(nss, e);
     } catch (const ExceptionFor<ErrorCodes::ConflictingOperationInProgress>& e) {
         // This is for backward compatibility reasons.

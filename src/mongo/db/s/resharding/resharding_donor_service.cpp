@@ -240,10 +240,13 @@ public:
         }
     }
 
-    void abortUnpreparedTransactionIfNecessary(OperationContext* opCtx) override {
-        if (resharding::gFeatureFlagReshardingAbortUnpreparedTransactionsUponPreparingToBlockWrites
-                .isEnabled(VersionContext::getDecoration(opCtx),
-                           serverGlobalParams.featureCompatibility.acquireFCVSnapshot()) &&
+    void abortUnpreparedTransactionIfNecessary(
+        OperationContext* opCtx,
+        const boost::optional<ForwardableOperationMetadata>& forwardableMetadata) override {
+        if (resharding::isEnabledWithPinnedVersion(
+                forwardableMetadata,
+                resharding::
+                    gFeatureFlagReshardingAbortUnpreparedTransactionsUponPreparingToBlockWrites) &&
             resharding::gReshardingAbortUnpreparedTransactionsUponPreparingToBlockWrites.load()) {
             // Unless explicitly opted out, abort any unprepared transactions that may be running on
             // the donor shard. This helps prevent the donor from not being to acquire the critical
@@ -510,15 +513,12 @@ ExecutorFuture<void> ReshardingDonorService::DonorStateMachine::_finishReshardin
                 const bool mustClearMetadata = _metadata.getAuthoritativeMetadataAccessLevel() ==
                     ReshardingAuthoritativeMetadataAccessLevelEnum::kNone;
 
-                // Clear filtering metadata for the temp resharding namespace;
-                // We force a refresh to make sure that the placement information is updated
-                // in cache after abort decision before the donor state document is deleted.
-                if (mustClearMetadata) {
+                // Clear filtering metadata for the temp resharding namespace, since the collection
+                // will no longer exist.
+                {
                     auto scopedCsr = CollectionShardingRuntime::acquireExclusive(
                         opCtx.get(), _metadata.getTempReshardingNss());
                     scopedCsr->clearCollectionMetadata(opCtx.get());
-                    // TODO (SERVER-127444): Remove once all DDLs are made authoritative.
-                    scopedCsr->setNonAuthoritative();
                 }
 
                 const auto onReleaseCriticalSectionAction =
@@ -932,7 +932,7 @@ void ReshardingDonorService::DonorStateMachine::
 
     {
         auto opCtx = _makeOperationContext(factory);
-        _externalState->abortUnpreparedTransactionIfNecessary(opCtx.get());
+        _externalState->abortUnpreparedTransactionIfNecessary(opCtx.get(), _forwardableOpMetadata);
 
         const bool mustClearMetadata = _metadata.getAuthoritativeMetadataAccessLevel() ==
             ReshardingAuthoritativeMetadataAccessLevelEnum::kNone;

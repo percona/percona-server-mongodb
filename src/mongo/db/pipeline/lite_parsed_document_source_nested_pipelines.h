@@ -145,7 +145,7 @@ public:
         // Handle explicit user pipelines running against a view.
         for (const auto& subpipeline : _pipelines) {
             auto it = resolvedNamespaces.find(subpipeline->getOriginalParseNss());
-            if (it != resolvedNamespaces.end() && it->second.involvedNamespaceIsAView) {
+            if (it != resolvedNamespaces.end() && it->second.isInvolvedNamespaceAView()) {
                 _resolvedBackingNss = it->second;
             }
         }
@@ -153,7 +153,7 @@ public:
         // pipeline.
         if (_foreignNss && needsViewSubpipelineMaterialized()) {
             auto it = resolvedNamespaces.find(*_foreignNss);
-            if (it != resolvedNamespaces.end() && it->second.involvedNamespaceIsAView) {
+            if (it != resolvedNamespaces.end() && it->second.isInvolvedNamespaceAView()) {
                 _resolvedBackingNss = it->second;
                 materializeViewSubpipeline(it->second);
             }
@@ -184,6 +184,11 @@ protected:
         copy.liteParseViewPipeline();
         copy.desugarViewPipeline();
         _pipelines.push_back(std::move(*copy.getMutableParsedPipeline()));
+        // Tag the materialized pipeline with the VIEW's NSS so that resolveInvolvedNamespacesImpl
+        // can use it for cycle detection. The pipeline itself is stored with the backing-collection
+        // NSS (ResolvedNamespace::ns), which is not a view and would bypass the inProgress guard
+        // without this tag.
+        _pipelines.back().setViewNss(viewEntry.getNamespace());
     }
 
     /**

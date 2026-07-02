@@ -291,7 +291,31 @@ TEST_F(DocumentSourceInternalDocumentResultsAndMetadataTest,
 }
 
 TEST_F(DocumentSourceInternalDocumentResultsAndMetadataTest,
-       OptimizeSerializesWithoutMetadataAfterElision) {
+       OptimizeSkipsMetadataStreamWhenMetadataAlreadyAbsent) {
+    auto sourceStage = DocumentSourceMockSkipMetadataStream::create(getExpCtx());
+    auto* sourcePtr = sourceStage.get();
+    auto stage = DocumentSourceInternalDocumentResultsAndMetadata::create(
+        getExpCtx(), std::move(sourceStage), /*metadata=*/boost::none);
+    auto* ds = dynamic_cast<DocumentSourceInternalDocumentResultsAndMetadata*>(stage.get());
+    ASSERT(ds);
+    ASSERT_FALSE(ds->getMetadata().has_value());
+
+    auto downstreamStage =
+        DocumentSource::parse(getExpCtx(), BSON("$project" << BSON("x" << 1))).front();
+    DocumentSourceContainer pipeline;
+    pipeline.push_back(stage);
+    pipeline.push_back(downstreamStage);
+    ds->optimizeAt(pipeline.begin(), &pipeline);
+
+    ASSERT_FALSE(ds->getMetadata().has_value());
+    ASSERT_TRUE(sourcePtr->isMetadataStreamSkipped());
+}
+
+TEST_F(DocumentSourceInternalDocumentResultsAndMetadataTest,
+       SerializedElidedStageRoundTripsWithoutMetadata) {
+    // Build the stage with metadata, then elide it via
+    // optimizeAt because no downstream stage references $$SEARCH_META. The serialized result
+    // is exactly the BSON a router ships to its shards.
     auto sourceStage = DocumentSource::parse(getExpCtx(), BSON("$collStats" << BSONObj())).front();
     auto stage = DocumentSourceInternalDocumentResultsAndMetadata::create(
         getExpCtx(), std::move(sourceStage), MetadataBindSpec("SEARCH_META"));
@@ -305,27 +329,15 @@ TEST_F(DocumentSourceInternalDocumentResultsAndMetadataTest,
     pipeline.push_back(stage);
     pipeline.push_back(downstreamStage);
     ds->optimizeAt(pipeline.begin(), &pipeline);
-
-    auto serialized = ds->serialize(query_shape::SerializationOptions{});
-    auto bson = serialized.getDocument().toBson();
-    auto inner = bson.getObjectField(kStageName);
-    ASSERT_FALSE(inner.hasField("metadata"));
-}
-
-TEST_F(DocumentSourceInternalDocumentResultsAndMetadataTest,
-       OptimizeNoOpWhenMetadataAlreadyAbsent) {
-    auto* ds = parse(BSON(kStageName << kSourceOnly));
     ASSERT_FALSE(ds->getMetadata().has_value());
 
-    auto downstreamStage =
-        DocumentSource::parse(getExpCtx(), BSON("$project" << BSON("x" << 1))).front();
-    DocumentSourceContainer pipeline;
-    pipeline.push_back(ds);
-    pipeline.push_back(downstreamStage);
-    ds->optimizeAt(pipeline.begin(), &pipeline);
+    auto serialized = ds->serialize().getDocument().toBson();
+    ASSERT_FALSE(serialized.getObjectField(kStageName).hasField("metadata"));
 
-    ASSERT_FALSE(ds->getMetadata().has_value());
-    ASSERT_EQ(pipeline.size(), 2u);
+    // Shard side - rebuilt stage must come back with metadata absent,
+    // proving the elision survives serialize -> parse.
+    auto* roundTripped = parse(serialized);
+    ASSERT_FALSE(roundTripped->getMetadata().has_value());
 }
 
 TEST_F(DocumentSourceInternalDocumentResultsAndMetadataTest,
@@ -436,6 +448,17 @@ TEST_F(DocumentSourceInternalDocumentResultsAndMetadataTest,
     ASSERT_FALSE(dsRef->hasAdditionalCursorPipeline());
 }
 
+// Builds a shared ShardedPlanSpec with the given sort pattern and optional merge pipeline,
+// ready for passing to setShardedPlan().
+auto makeSharedPlanSpec(BSONObj sortPattern, std::vector<BSONObj> mergePipeline = {}) {
+    ShardedPlanSpec ps;
+    ps.setResultsSortPattern(std::move(sortPattern));
+    if (!mergePipeline.empty()) {
+        ps.setMetaMergePipeline(std::move(mergePipeline));
+    }
+    return std::make_shared<ShardedPlanSpec>(std::move(ps));
+}
+
 // DPL tests
 TEST_F(DocumentSourceInternalDocumentResultsAndMetadataTest,
        DistributedPlanLogicWithoutCallbackReturnsNone) {
@@ -482,9 +505,8 @@ TEST_F(DocumentSourceInternalDocumentResultsAndMetadataTest,
     auto ds = DocumentSourceInternalDocumentResultsAndMetadata::create(
         expCtx, queueStage, /*metadata=*/boost::none, /*returnCursor=*/false);
 
-    auto spec = std::make_shared<DocumentSourceInternalDocumentResultsAndMetadata::ShardedPlanSpec>(
-        BSON("score" << 1), std::vector<BSONObj>{});
-    ds->setShardedPlanProvider([spec](ExpressionContext*) -> const auto& { return *spec; });
+    auto spec = makeSharedPlanSpec(BSON("score" << 1));
+    ds->setShardedPlan([spec](ExpressionContext*) -> const auto& { return *spec; });
 
     auto dpl = ds->distributedPlanLogic(nullptr);
     ASSERT_TRUE(dpl.has_value());
@@ -502,9 +524,10 @@ DEATH_TEST_F(DocumentSourceInternalDocumentResultsAndMetadataDeathTest,
     auto ds = DocumentSourceInternalDocumentResultsAndMetadata::create(
         expCtx, queueStage, meta, /*returnCursor=*/false);
 
-    auto spec = std::make_shared<DocumentSourceInternalDocumentResultsAndMetadata::ShardedPlanSpec>(
-        BSONObj{}, std::vector<BSONObj>{});
-    ds->setShardedPlanProvider([spec](ExpressionContext*) -> const auto& { return *spec; });
+    // Empty sort pattern, resultsSortPattern left unset.
+    auto spec =
+        std::make_shared<DocumentSourceInternalDocumentResultsAndMetadata::ShardedPlanSpec>();
+    ds->setShardedPlan([spec](ExpressionContext*) -> const auto& { return *spec; });
 
     ds->distributedPlanLogic(nullptr);
 }
@@ -518,9 +541,9 @@ DEATH_TEST_F(DocumentSourceInternalDocumentResultsAndMetadataDeathTest,
     auto ds = DocumentSourceInternalDocumentResultsAndMetadata::create(
         expCtx, queueStage, meta, /*returnCursor=*/false);
 
-    auto spec = std::make_shared<DocumentSourceInternalDocumentResultsAndMetadata::ShardedPlanSpec>(
-        BSON("score" << 1), std::vector<BSONObj>{});
-    ds->setShardedPlanProvider([spec](ExpressionContext*) -> const auto& { return *spec; });
+    // metaMergePipeline intentionally absent — should tassert when metadata is configured.
+    auto spec = makeSharedPlanSpec(BSON("score" << 1));
+    ds->setShardedPlan([spec](ExpressionContext*) -> const auto& { return *spec; });
 
     ds->distributedPlanLogic(nullptr);
 }
@@ -533,16 +556,44 @@ TEST_F(DocumentSourceInternalDocumentResultsAndMetadataTest,
     auto ds = DocumentSourceInternalDocumentResultsAndMetadata::create(
         expCtx, queueStage, meta, /*returnCursor=*/false);
 
-    auto spec = std::make_shared<DocumentSourceInternalDocumentResultsAndMetadata::ShardedPlanSpec>(
-        BSON("score" << 1),
-        std::vector<BSONObj>{BSON(
-            "$group" << BSON("_id" << BSONNULL << "meta" << BSON("$mergeObjects" << "$payload")))});
-    ds->setShardedPlanProvider([spec](ExpressionContext*) -> const auto& { return *spec; });
+    auto spec =
+        makeSharedPlanSpec(BSON("score" << 1),
+                           {BSON("$group" << BSON("_id" << BSONNULL << "meta"
+                                                        << BSON("$mergeObjects" << "$payload")))});
+    ds->setShardedPlan([spec](ExpressionContext*) -> const auto& { return *spec; });
 
     auto dpl = ds->distributedPlanLogic(nullptr);
     ASSERT_TRUE(dpl.has_value());
     ASSERT_TRUE(dpl->mergeSortPattern.has_value());
     ASSERT_BSONOBJ_EQ(*dpl->mergeSortPattern, BSON("score" << 1));
+    ASSERT_EQ(dpl->mergingStages.size(), 1u);
+    ASSERT_EQ(std::string_view(dpl->mergingStages.front()->getSourceName()),
+              "$setVariableFromSubPipeline"sv);
+}
+
+TEST_F(DocumentSourceInternalDocumentResultsAndMetadataTest,
+       ShardedPlanSurvivesBsonRoundTripAndDrivesDistributedPlanLogic) {
+    // Router side: stage carries a live provider supplied by the extension AST node.
+    auto* original = parse(BSON(kStageName << kSourceWithMeta));
+    auto spec =
+        makeSharedPlanSpec(BSON("score" << -1),
+                           {BSON("$group" << BSON("_id" << BSONNULL << "meta"
+                                                        << BSON("$mergeObjects" << "$payload")))});
+    original->setShardedPlan([spec](ExpressionContext*) -> const auto& { return *spec; });
+
+    // Serialize as if shipping into a subpipeline on a shard; the callback can't cross BSON.
+    query_shape::SerializationOptions opts;
+    opts.isSerializingForRemoteDispatch = true;
+    const auto roundTripped = original->serialize(opts).getDocument().toBson();
+
+    // Shard side: re-parse the serialized BSON. No provider is attached; only the cached spec the
+    // router stamped survives.
+    auto* reparsed = parse(roundTripped);
+
+    auto dpl = reparsed->distributedPlanLogic(nullptr);
+    ASSERT_TRUE(dpl.has_value());
+    ASSERT_TRUE(dpl->mergeSortPattern.has_value());
+    ASSERT_BSONOBJ_EQ(*dpl->mergeSortPattern, BSON("score" << -1));
     ASSERT_EQ(dpl->mergingStages.size(), 1u);
     ASSERT_EQ(std::string_view(dpl->mergingStages.front()->getSourceName()),
               "$setVariableFromSubPipeline"sv);

@@ -208,8 +208,11 @@ std::unique_ptr<MigrationSourceManager> MigrationSourceManager::createMigrationS
     uassertStatusOK(
         FilteringMetadataCache::get(opCtx)->onShardVersionMismatch(opCtx, nss, boost::none));
 
-    // Complete any unfinished migration pending recovery
-    {
+    // Only the legacy path needs to drain migrations.
+    // On the authoritative path, migrations are already blocked and are drained during the setFCV
+    // upgrade.
+    if (managementMode == ManagementModeEnum::kStandalone) {
+        // Complete any unfinished migration pending recovery
         migrationutil::drainMigrationsPendingRecovery(opCtx);
 
         // Since the moveChunk command is holding the ActiveMigrationRegistry and we just drained
@@ -771,11 +774,6 @@ void MigrationSourceManager::commitChunkMetadataOnConfig() {
             withChangelogErrMsg("Failed to acquire exclusive lock", [&] {
                 auto scopedCsr = CollectionShardingRuntime::acquireExclusive(_opCtx, nss());
                 scopedCsr->clearCollectionMetadata(_opCtx);
-                // TODO (SERVER-127444): Remove this `setNonAuthoritative` to assert with the
-                // feature flag. Migrations are a non-authoritative path, so the CSR must be reset
-                // to non-authoritative to avoid a stale authoritative state forcing the recovery
-                // refresh onto the authoritative path.
-                scopedCsr->setNonAuthoritative();
             });
         }
         scopedGuard.dismiss();
@@ -821,11 +819,6 @@ void MigrationSourceManager::commitChunkMetadataOnConfig() {
             withChangelogErrMsg("Failed to acquire exclusive lock", [&] {
                 auto scopedCsr = CollectionShardingRuntime::acquireExclusive(_opCtx, nss());
                 scopedCsr->clearCollectionMetadata(_opCtx);
-                // TODO (SERVER-127444): Remove this `setNonAuthoritative` to assert with the
-                // feature flag. Migrations are a non-authoritative path, so the CSR must be reset
-                // to non-authoritative to avoid a stale authoritative state forcing the recovery
-                // refresh onto the authoritative path.
-                scopedCsr->setNonAuthoritative();
             });
         }
         scopedGuard.dismiss();
@@ -1267,11 +1260,6 @@ Status MigrationSourceManager::_cleanup(bool completeMigration) {
             // let the next op to recover.
             auto scopedCsr = CollectionShardingRuntime::acquireExclusive(_opCtx, nss());
             scopedCsr->clearCollectionMetadata(_opCtx);
-            // TODO (SERVER-127444): Remove this `setNonAuthoritative` to assert with the feature
-            // flag. Migrations are a non-authoritative path, so the CSR must be reset to
-            // non-authoritative to avoid a stale authoritative state forcing the recovery refresh
-            // onto the authoritative path.
-            scopedCsr->setNonAuthoritative();
         }
         cleanupResult = ex.toStatus();
     }

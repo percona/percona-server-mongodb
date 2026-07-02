@@ -24,6 +24,7 @@
 import {ShardingTest} from "jstests/libs/shardingtest.js";
 import {shardCollectionWithChunks} from "jstests/libs/write_concern_util.js";
 import {reconfig} from "jstests/replsets/rslib.js";
+import {skipTestIfAuthoritativeShardsEnabled} from "jstests/sharding/libs/sharding_util.js";
 
 let testName = "linearizable_read_concern";
 
@@ -34,6 +35,9 @@ let st = new ShardingTest({
     config: TestData.configShard ? undefined : 1,
     enableBalancer: false,
 });
+
+// TODO SERVER-130072: re-enable this test.
+skipTestIfAuthoritativeShardsEnabled(st.s, () => st.stop());
 
 jsTestLog("Setting up sharded cluster.");
 
