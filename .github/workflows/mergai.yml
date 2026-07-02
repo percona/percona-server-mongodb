@@ -328,7 +328,7 @@ jobs:
           setup-mergai: "true"
           github-app-token: ${{ steps.app-token.outputs.token }}
           github-app-id: ${{ secrets.PSMDB_BOT_GH_APP_ID }}
-          mergai-ref: master
+          mergai-ref: ${{ vars.MERGAI_REF || 'master' }}
 
       # Run finalize and force-push main branch.
       - name: Finalize semantic fixes into the merge commit
@@ -430,7 +430,7 @@ jobs:
           setup-gemini: "false"
           setup-claude: "false"
           setup-mergai: "true"
-          mergai-ref: master
+          mergai-ref: ${{ vars.MERGAI_REF || 'master' }}
 
       # Gate: reduce the latest run of each watched workflow for the current
       # HEAD to a single token (in-progress|success|failure|none). Exit code is
@@ -581,7 +581,7 @@ jobs:
           claude-api-key: ${{ secrets.CLAUDE_API_KEY }}
           github-app-token: ${{ steps.app-token.outputs.token }}
           github-app-id: ${{ secrets.PSMDB_BOT_GH_APP_ID }}
-          mergai-ref: master
+          mergai-ref: ${{ vars.MERGAI_REF || 'master' }}
           # This job runs the AI agent (`mergai ci fix`). Keep the write token
           # out of the job environment; the agent/read steps use the read-only
           # token and the write token is scoped to the push/comment steps.
@@ -836,7 +836,7 @@ jobs:
           claude-api-key: ${{ secrets.CLAUDE_API_KEY }}
           github-app-token: ${{ steps.app-token.outputs.token }}
           github-app-id: ${{ secrets.PSMDB_BOT_GH_APP_ID }}
-          mergai-ref: master
+          mergai-ref: ${{ vars.MERGAI_REF || 'master' }}
           # This job runs the AI agent (`mergai review fix`). Keep the write
           # token out of the job environment; the agent/read steps use the
           # read-only token and the write token is scoped to the push /
@@ -1000,7 +1000,7 @@ jobs:
           setup-mergai: "true"
           github-app-token: ${{ steps.app-token.outputs.token }}
           github-app-id: ${{ secrets.PSMDB_BOT_GH_APP_ID }}
-          mergai-ref: master
+          mergai-ref: ${{ vars.MERGAI_REF || 'master' }}
 
       # Rebase the branch onto the current base tip and force-push it.
       #   1. fetch the latest base branch tip;
