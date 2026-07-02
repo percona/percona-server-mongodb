@@ -10,11 +10,6 @@ selector:
     - jstests/replsets/*.js
   exclude_with_any_tags:
     - does_not_support_encrypted_storage_engine
-    # resmoke normally auto-excludes mozjs_wasm_unsupported tests after detecting a
-    # mozjs-wasm server via `mongod --version`, but that probe times out in the Bazel
-    # remote-test runner (mongod isn't runnable at configure time), so the exclusion is
-    # skipped even though the server IS mozjs-wasm. Exclude explicitly here.
-    - mozjs_wasm_unsupported
 executor:
   config:
     shell_options:

@@ -1256,8 +1256,11 @@ def _detect_js_engine(mongod_executable: Optional[str]) -> Optional[str]:
     executable = mongod_executable or _config.DEFAULT_MONGOD_EXECUTABLE
     if shutil.which(executable) is None:
         return None
-    # Sanitizer builds can take tens of seconds to start up.
-    version_timeout_secs = 120 if _config.IS_SAN else 10
+    # Sanitizer builds can take tens of seconds to start up. In the Bazel remote-test
+    # runner mongod is also slow to become runnable at configure time (binary staging via
+    # DEPS_PATH), so a short timeout skips detection and mis-classifies a mozjs-wasm build;
+    # use a generous timeout so the probe reliably completes there too.
+    version_timeout_secs = 120 if _config.IS_SAN else 60
     try:
         result = subprocess.run(
             [executable, "--version"],
