@@ -70,6 +70,7 @@
 #include "mongo/otel/telemetry_context_holder.h"
 #include "mongo/otel/traces/span/span.h"
 #include "mongo/otel/traces/telemetry_context_serialization.h"
+#include "mongo/otel/traces/traces_test_util.h"
 #include "mongo/unittest/server_parameter_guard.h"
 #include "mongo/unittest/unittest.h"
 #include "mongo/util/assert_util.h"
@@ -445,54 +446,139 @@ TEST_F(ReshardingUtilTest, ValidatePerformVerification) {
     }
 }
 
-TEST_F(ReshardingUtilTest, CreateCoordinatorDocPerformVerification) {
-    for (auto performVerification : std::vector<boost::optional<bool>>{true, false, boost::none}) {
-        for (bool featureFlagEnabled : {true, false}) {
-            for (bool serverParamEnabled : {true, false}) {
-                LOGV2(9849102,
-                      "Running case",
-                      "test"_attr = unittest::getTestName(),
-                      "performVerification"_attr = performVerification,
-                      "featureFlagEnabled"_attr = featureFlagEnabled,
-                      "serverParamEnabled"_attr = serverParamEnabled);
-                unittest::ServerParameterGuard featureFlagController(
-                    "featureFlagReshardingVerification", featureFlagEnabled);
-                unittest::ServerParameterGuard serverParamController(
-                    "reshardingDocumentVerification", serverParamEnabled);
+class ReshardingUtilPerformVerificationTest : public ReshardingUtilTest {
+protected:
+    CollectionType setupTestCollection() {
+        ChunkVersion version{{OID::gen(), Timestamp(1, 0)}, {1, 0}};
+        ChunkType chunk;
+        chunk.setCollectionUUID(UUID::gen());
+        chunk.setShard(ShardId("a"));
+        chunk.setVersion(version);
+        chunk.setRange({BSON("x" << MINKEY), BSON("x" << MAXKEY)});
+        chunk.setOnCurrentShardSince(Timestamp(1, 0));
+        chunk.setHistory({ChunkHistory(Timestamp(1, 0), ShardId("a"))});
 
-                const CollectionType collEntry(
-                    nss(),
-                    OID::gen(),
-                    Timestamp(static_cast<unsigned int>(std::time(nullptr)), 1),
-                    Date_t::now(),
-                    UUID::gen(),
-                    keyPattern());
+        return setupCollection(nss(), keyPattern(), {chunk});
+    }
 
-                ConfigsvrReshardCollection configsvrReshardCollection(nss(), BSON(shardKey() << 1));
-                configsvrReshardCollection.setDbName(nss().dbName());
-                configsvrReshardCollection.setPerformVerification(performVerification);
+    ConfigsvrReshardCollection makeReshardCollectionRequest(
+        boost::optional<bool> performVerification = boost::none) {
+        ConfigsvrReshardCollection req(nss(), BSON(shardKey() << 1));
+        req.setDbName(nss().dbName());
+        if (performVerification.has_value()) {
+            req.setPerformVerification(*performVerification);
+        }
+        return req;
+    }
 
-                ReshardingCoordinatorDocument coordinatorDoc =
-                    createReshardingCoordinatorDoc(operationContext(),
-                                                   configsvrReshardCollection,
-                                                   collEntry,
-                                                   primaryShardId(),
-                                                   nss(),
-                                                   true);
+    CollSizeEstimator makeEstimator(boost::optional<long long> size) {
+        return [size](OperationContext*, const NamespaceString&) {
+            return size;
+        };
+    }
+};
 
-                auto actualPerformVerification = coordinatorDoc.getPerformVerification();
-                if (performVerification.has_value()) {
-                    ASSERT(actualPerformVerification.has_value());
-                    ASSERT_EQ(actualPerformVerification, *performVerification);
-                } else if (featureFlagEnabled && serverParamEnabled) {
-                    ASSERT(actualPerformVerification.has_value());
-                    ASSERT_EQ(actualPerformVerification, true);
-                } else {
-                    ASSERT_FALSE(actualPerformVerification.has_value());
-                }
-            }
+TEST_F(ReshardingUtilPerformVerificationTest, VerificationFalseWhenExplicitlyDisabled) {
+    auto collEntry = setupTestCollection();
+    for (bool ffOn : {true, false}) {
+        for (bool spOn : {true, false}) {
+            unittest::ServerParameterGuard ff("featureFlagReshardingVerification", ffOn);
+            unittest::ServerParameterGuard sp("reshardingDocumentVerification", spOn);
+            auto req = makeReshardCollectionRequest(false);
+
+            auto doc = createReshardingCoordinatorDoc(
+                operationContext(), req, collEntry, primaryShardId(), nss(), true);
+            ASSERT_TRUE(doc.getPerformVerification().has_value());
+            ASSERT_FALSE(doc.getPerformVerification());
         }
     }
+}
+
+TEST_F(ReshardingUtilPerformVerificationTest, VerificationUnsetWhenFeatureFlagDisabled) {
+    unittest::ServerParameterGuard ff("featureFlagReshardingVerification", false);
+    auto collEntry = setupTestCollection();
+    auto req = makeReshardCollectionRequest();
+
+    auto doc = createReshardingCoordinatorDoc(
+        operationContext(), req, collEntry, primaryShardId(), nss(), true);
+    ASSERT_FALSE(doc.getPerformVerification().has_value());
+}
+
+TEST_F(ReshardingUtilPerformVerificationTest, VerificationUnsetWhenServerParamDisabled) {
+    unittest::ServerParameterGuard sp("reshardingDocumentVerification", false);
+    auto collEntry = setupTestCollection();
+    auto req = makeReshardCollectionRequest();
+
+    auto doc = createReshardingCoordinatorDoc(
+        operationContext(), req, collEntry, primaryShardId(), nss(), true);
+    ASSERT_FALSE(doc.getPerformVerification().has_value());
+}
+
+TEST_F(ReshardingUtilPerformVerificationTest, VerificationDefaultsToTrueWhenGatesEnabled) {
+    unittest::ServerParameterGuard ff("featureFlagReshardingVerification", true);
+    auto collEntry = setupTestCollection();
+    auto req = makeReshardCollectionRequest();
+
+    auto doc = createReshardingCoordinatorDoc(
+        operationContext(), req, collEntry, primaryShardId(), nss(), true, makeEstimator(1000LL));
+    ASSERT_TRUE(doc.getPerformVerification());
+}
+
+TEST_F(ReshardingUtilPerformVerificationTest, VerificationStaysEnabledWhenSizeBelowThreshold) {
+    unittest::ServerParameterGuard thresholdController(
+        "reshardingDocumentValidationMaxCollectionSizeBytes", 2000LL);
+
+    auto collEntry = setupTestCollection();
+    auto req = makeReshardCollectionRequest(true);
+
+    auto doc = createReshardingCoordinatorDoc(
+        operationContext(), req, collEntry, primaryShardId(), nss(), true, makeEstimator(1000LL));
+    ASSERT_TRUE(doc.getPerformVerification());
+}
+
+TEST_F(ReshardingUtilPerformVerificationTest, VerificationDisabledWhenSizeExceedsThreshold) {
+    unittest::ServerParameterGuard thresholdController(
+        "reshardingDocumentValidationMaxCollectionSizeBytes", 500LL);
+
+    auto collEntry = setupTestCollection();
+    auto req = makeReshardCollectionRequest(true);
+
+    auto doc = createReshardingCoordinatorDoc(
+        operationContext(), req, collEntry, primaryShardId(), nss(), true, makeEstimator(1000LL));
+    ASSERT_TRUE(doc.getPerformVerification().has_value());
+    ASSERT_FALSE(doc.getPerformVerification());
+}
+
+TEST_F(ReshardingUtilPerformVerificationTest, ThresholdNotCheckedWhenVerificationDisabled) {
+    unittest::ServerParameterGuard thresholdController(
+        "reshardingDocumentValidationMaxCollectionSizeBytes", 0LL);
+
+    auto collEntry = setupTestCollection();
+    auto req = makeReshardCollectionRequest(false);
+
+    auto doc = createReshardingCoordinatorDoc(
+        operationContext(), req, collEntry, primaryShardId(), nss(), true);
+    ASSERT_TRUE(doc.getPerformVerification().has_value());
+    ASSERT_FALSE(doc.getPerformVerification());
+}
+
+TEST_F(ReshardingUtilPerformVerificationTest, VerificationDisabledWhenCollStatsFails) {
+    unittest::ServerParameterGuard thresholdController(
+        "reshardingDocumentValidationMaxCollectionSizeBytes", 0LL);
+
+    auto collEntry = setupTestCollection();
+    auto req = makeReshardCollectionRequest(true);
+
+    // boost::none simulates a failed/unavailable collStats — verification should be skipped.
+    auto doc = createReshardingCoordinatorDoc(operationContext(),
+                                              req,
+                                              collEntry,
+                                              primaryShardId(),
+                                              nss(),
+                                              true,
+                                              makeEstimator(boost::none));
+    ASSERT_TRUE(doc.getPerformVerification().has_value());
+    ASSERT_FALSE(doc.getPerformVerification());
 }
 
 TEST_F(ReshardingUtilTest, CreateCoordinatorDocStoresForwardableOpMetadata) {
@@ -548,6 +634,12 @@ TEST_F(ReshardingUtilTest, GetMajorityReplicationLag_LastAppliedEqualToLastCommi
 }
 
 TEST_F(ReshardingUtilTest, ReshardingCoordinatorDocContainsTelemetryContextFromOpCtx) {
+    otel::traces::OtelTracesCapturer capturer;
+    if (!capturer.canReadSpans())
+        GTEST_SKIP() << "OTel not configured";
+
+    auto span = otel::traces::Span::start(operationContext(), otel::traces::span_names::kTest1);
+
     const CollectionType collEntry(nss(),
                                    OID::gen(),
                                    Timestamp(static_cast<unsigned int>(std::time(nullptr)), 1),
@@ -558,10 +650,8 @@ TEST_F(ReshardingUtilTest, ReshardingCoordinatorDocContainsTelemetryContextFromO
     ConfigsvrReshardCollection configsvrReshardCollection(nss(), BSON(shardKey() << 1));
     configsvrReshardCollection.setDbName(nss().dbName());
 
-    auto telemetryCtx = otel::traces::Span::createTelemetryContext();
-    auto& telemetryCtxHolder = otel::TelemetryContextHolder::getDecoration(operationContext());
-
-    telemetryCtxHolder.setTelemetryContext(telemetryCtx);
+    auto& telemetryCtx =
+        otel::TelemetryContextHolder::getDecoration(operationContext()).getTelemetryContext();
 
     ReshardingCoordinatorDocument coordinatorDoc = createReshardingCoordinatorDoc(
         operationContext(), configsvrReshardCollection, collEntry, primaryShardId(), nss(), true);
@@ -570,7 +660,11 @@ TEST_F(ReshardingUtilTest, ReshardingCoordinatorDocContainsTelemetryContextFromO
                       otel::traces::TelemetryContextSerializer::toBSON(telemetryCtx));
 }
 
-TEST_F(ReshardingUtilTest, ReshardingCoordinatorDocDoesNotContainTelemetryContextWhenNotSet) {
+TEST_F(ReshardingUtilTest,
+       ReshardingCoordinatorDocDoesNotContainTelemetryContextWhenNoTraceActive) {
+    if (!otel::traces::OtelTracesCapturer::canReadSpans())
+        GTEST_SKIP() << "OTel not configured";
+
     const CollectionType collEntry(nss(),
                                    OID::gen(),
                                    Timestamp(static_cast<unsigned int>(std::time(nullptr)), 1),

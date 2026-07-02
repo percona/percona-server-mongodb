@@ -909,12 +909,12 @@ Future<DbResponse> SessionWorkflow::Impl::_dispatchWork() {
 
     _work->decompressRequest();
 
+    globalNetworkCounter().hitLogicalIn(NetworkCounter::ConnectionType::kIngress,
+                                        _work->in().size());
+
     if (const auto admitted = _rateLimit(); !admitted) {
         return makeDbResponseErrorForRateLimiting(_work->in());
     }
-
-    globalNetworkCounter().hitLogicalIn(NetworkCounter::ConnectionType::kIngress,
-                                        _work->in().size());
 
     // Pass sourced Message to handler to generate response.
     _work->initOperation();
@@ -1042,11 +1042,12 @@ void SessionWorkflow::Impl::_scheduleIteration() try {
         }
 
         try {
-            // If this is the first iteration of the session workflow, we must call into
-            // "throttleIfNeeded" to respect connection establishment rate limits.
             if (MONGO_unlikely(_inFirstIteration)) {
+                session()->prelude();
                 if (gFeatureFlagRateLimitIngressConnectionEstablishment.isEnabled() &&
                     gIngressConnectionEstablishmentRateLimiterEnabled.load()) {
+                    // This enforces the connection establishment rate limit by possibly sleeping
+                    // the current thread ("queued") or throwing an exception ("rejected").
                     uassertStatusOK(session()
                                         ->getTransportLayer()
                                         ->getSessionManager()

@@ -258,8 +258,7 @@ void setAllowChunkOperations(OperationContext* opCtx,
                              const NamespaceString& nss,
                              const boost::optional<UUID>& expectedCollectionUUID,
                              std::function<OperationSessionInfo()> osiGenerator,
-                             bool allowChunkOperations,
-                             boost::optional<ShardId> primaryShardId) {
+                             bool allowChunkOperations) {
     {
         ConfigsvrSetAllowChunkOperations configsvrSetAllowChunkOperationsCmd(nss);
         configsvrSetAllowChunkOperationsCmd.setDbName(nss.dbName());
@@ -301,8 +300,6 @@ void setAllowChunkOperations(OperationContext* opCtx,
     shardsvrSetAllowChunkOperationsCmd.setDbName(nss.dbName());
     shardsvrSetAllowChunkOperationsCmd.setAllowChunkOperations(allowChunkOperations);
     shardsvrSetAllowChunkOperationsCmd.setCollectionUUID(expectedCollectionUUID);
-    shardsvrSetAllowChunkOperationsCmd.setPrimaryShardId(
-        primaryShardId.get_value_or(ShardingState::get(opCtx)->shardId()));
     generic_argument_util::setMajorityWriteConcern(shardsvrSetAllowChunkOperationsCmd);
     generic_argument_util::setOperationSessionInfo(shardsvrSetAllowChunkOperationsCmd,
                                                    osiGenerator());
@@ -567,11 +564,9 @@ void stopMigrations(OperationContext* opCtx,
                     const NamespaceString& nss,
                     const boost::optional<UUID>& expectedCollectionUUID,
                     std::function<OperationSessionInfo()> osiGenerator,
-                    AuthoritativeMetadataAccessLevelEnum authoritativeState,
-                    boost::optional<ShardId> primaryShardId) {
+                    AuthoritativeMetadataAccessLevelEnum authoritativeState) {
     if (authoritativeState != AuthoritativeMetadataAccessLevelEnum::kNone) {
-        setAllowChunkOperations(
-            opCtx, nss, expectedCollectionUUID, osiGenerator, false, primaryShardId);
+        setAllowChunkOperations(opCtx, nss, expectedCollectionUUID, osiGenerator, false);
     } else {
         setAllowMigrationsOnConfigServer(opCtx, nss, expectedCollectionUUID, osiGenerator(), false);
     }
@@ -581,11 +576,9 @@ void resumeMigrations(OperationContext* opCtx,
                       const NamespaceString& nss,
                       const boost::optional<UUID>& expectedCollectionUUID,
                       std::function<OperationSessionInfo()> osiGenerator,
-                      AuthoritativeMetadataAccessLevelEnum authoritativeState,
-                      boost::optional<ShardId> primaryShardId) {
+                      AuthoritativeMetadataAccessLevelEnum authoritativeState) {
     if (authoritativeState != AuthoritativeMetadataAccessLevelEnum::kNone) {
-        setAllowChunkOperations(
-            opCtx, nss, expectedCollectionUUID, osiGenerator, true, primaryShardId);
+        setAllowChunkOperations(opCtx, nss, expectedCollectionUUID, osiGenerator, true);
     } else {
         setAllowMigrationsOnConfigServer(opCtx, nss, expectedCollectionUUID, osiGenerator(), true);
     }
@@ -1256,12 +1249,12 @@ void upsertPlacementHistoryDocInTransaction(const txn_api::TransactionClient& tx
                                             const NamespaceString& nss,
                                             const boost::optional<UUID>& uuid,
                                             const Timestamp& timestamp,
-                                            std::vector<ShardRef>&& shards,
+                                            const std::vector<ShardRef>& shards,
                                             int stmtId) {
     write_ops::UpdateCommandRequest upsertPlacementChangeRequest(
         NamespaceString::kConfigsvrPlacementHistoryNamespace);
     upsertPlacementChangeRequest.setUpdates({[&] {
-        NamespacePlacementType placementInfo(nss, timestamp, std::move(shards));
+        NamespacePlacementType placementInfo(nss, timestamp, shards);
         placementInfo.setUuid(uuid);
 
         write_ops::UpdateOpEntry entry;
