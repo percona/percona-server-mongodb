@@ -80,6 +80,14 @@ class MongoTCommunityFixture(interface.Fixture, interface._DockerComposeInterfac
         self.mongot = None
 
     def _write_config_files(self):
+        # Erase any leftover data dir from a previous run (e.g. one that exited abruptly) to avoid
+        # zombie index entries in the config journal being picked up on startup.
+        if os.path.isdir(self.data_dir):
+            self.logger.info(
+                "Removing pre-existing mongot-community data dir before startup: %s", self.data_dir
+            )
+            shutil.rmtree(self.data_dir, ignore_errors=True)
+
         os.makedirs(self.data_dir, exist_ok=True)
         os.makedirs(os.path.dirname(self.config_path), exist_ok=True)
 

@@ -282,7 +282,12 @@ def mongot_community_program(
         utils.default_if_none(executable, config.MONGOT_COMMUNITY_EXECUTABLE),
         config.DEFAULT_MONGOT_COMMUNITY_EXECUTABLE,
     )
-    args = [executable, "--config", config_path]
+    # --internalListAllIndexesForTesting puts mongot-community in e2e test mode: it includes numDocs
+    # in $listSearchIndexes responses, returns all indexes, and (critically for suite runtime) runs
+    # the CommunityMetadataUpdater every 2s instead of every 30s so newly created search indexes
+    # become queryable promptly. Without it, every createSearchIndex/dropSearchIndex waits on the
+    # 30s metadata refresh cadence, making the suite dramatically slower.
+    args = [executable, "--config", config_path, "--internalListAllIndexesForTesting"]
     process_kwargs = make_historic(utils.default_if_none(process_kwargs, {}))
     return make_process(logger, args, **process_kwargs), {}
 
