@@ -351,6 +351,7 @@ pr:
     labels:
       - "ci-skip-format"
       - "ci-skip-clang-tidy"
+      - "ci-run-jstests"
 
   # Configuration for solution PRs (from solution branch to conflict branch).
   solution:
@@ -364,7 +365,8 @@ pr:
     # Can be overridden at runtime with --labels or disabled with --no-labels.
     #
     # Default: [] (no labels)
-    labels: []
+    labels:
+      - "ci-run-jstests"
 
     # Labels applied only when the solution still contains unresolved conflicts
     # (the AI agent left files with conflict markers for a human to finish).
@@ -375,6 +377,7 @@ pr:
     labels_on_unresolved:
       - "ci-skip-format"
       - "ci-skip-clang-tidy"
+      - "ci-skip-jstests"
 
   # Configuration for semantic PRs (from semantic branch to main branch).
   # Semantic PRs carry fixes for semantic conflicts: a clean (textual) merge
@@ -390,7 +393,8 @@ pr:
     # Can be overridden at runtime with --labels or disabled with --no-labels.
     #
     # Default: [] (no labels)
-    labels: []
+    labels:
+      - "ci-run-jstests"
 
 # -----------------------------------------------------------------------------
 # PROMPT CONFIGURATION
