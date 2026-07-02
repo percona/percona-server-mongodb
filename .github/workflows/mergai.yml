@@ -445,6 +445,15 @@ jobs:
     # entirely: with it set, even a failure is a no-op and this privileged-ops
     # job never starts.
     if: needs.ci-gate.outputs.state == 'failure' && needs.ci-gate.outputs.skip_ci_fix != 'true'
+    # Serialize approved handle jobs for the same branch. Each watched-workflow
+    # completion enqueues its own ci-handle, and each waits on the privileged-ops
+    # approval independently, so two can be approved close together and race on
+    # `git push` / `mergai notes push`. `cancel-in-progress: false` queues the
+    # later one instead of cancelling a fix mid-push; its handle-time re-check
+    # then sees the first one's pushed result and no-ops.
+    concurrency:
+      group: ci-handle-exec-${{ github.event.workflow_run.head_branch }}
+      cancel-in-progress: false
     environment: privileged-ops
     runs-on: ubuntu-latest
     env:
@@ -536,8 +545,19 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
           GH_REPO: ${{ github.repository }}
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
         run: |
           STATE=$(mergai ci status --state)
+          # Honor a mergai-skip-ci-fix label the same way: ci-gate froze
+          # skip_ci_fix before the approval, but the label can be added during
+          # the approval wait. Re-read it live and, if present, override STATE to
+          # a non-failure sentinel so the fix/comment/push steps below no-op.
+          LABELS=$(gh pr list --head "$HEAD_BRANCH" --state open \
+            --json labels --jq '.[0].labels[].name' 2>/dev/null || echo "")
+          if echo "$LABELS" | grep -qx "mergai-skip-ci-fix"; then
+            echo "mergai-skip-ci-fix present at handle time; CI auto-fix suppressed"
+            STATE=skip
+          fi
           echo "Live gate state at handle time: $STATE"
           echo "state=$STATE" >> "$GITHUB_OUTPUT"
 
