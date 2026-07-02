@@ -523,6 +523,25 @@ jobs:
           mergai notes update
           mergai context init
 
+      # Re-evaluate the gate at handle time. ci-gate froze its verdict into
+      # needs.ci-gate.outputs.state *before* the privileged-ops approval; the
+      # branch can recover in between (e.g. a cancelled watched run is re-run
+      # and passes), so that verdict may be stale by the time this job actually
+      # runs. Recompute the live state with the same check ci-gate uses and
+      # route the steps below off it, so an approval granted late (or a
+      # superseded failure) becomes a clean no-op instead of a fix against a
+      # now-green branch. The job-level `if:` still gates the privileged-ops
+      # request on the original failure; this only suppresses acting on it.
+      - name: Re-check gate
+        id: recheck
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          STATE=$(mergai ci status --state)
+          echo "Live gate state at handle time: $STATE"
+          echo "state=$STATE" >> "$GITHUB_OUTPUT"
+
       # Any watched run for HEAD failed/cancelled. Run the fixer once here; the
       # steps below route the result based on whether a fix commit landed and
       # which branch CI ran on. `mergai ci fix all` resolves the failing runs
@@ -531,7 +550,7 @@ jobs:
       # outputs for the routing steps.
       - name: Apply CI fixes (state=failure)
         id: fix
-        if: needs.ci-gate.outputs.state == 'failure'
+        if: steps.recheck.outputs.state == 'failure'
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
           GH_REPO: ${{ github.repository }}
@@ -551,7 +570,7 @@ jobs:
       # No fix commit (e.g. an unfixable failure): `ci comment post` still
       # publishes the recorded explanation on the run's own PR.
       - name: Post explanation comment (no fix produced)
-        if: needs.ci-gate.outputs.state == 'failure' && steps.fix.outputs.fix_produced == 'false'
+        if: steps.recheck.outputs.state == 'failure' && steps.fix.outputs.fix_produced == 'false'
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
           GH_REPO: ${{ github.repository }}
@@ -563,7 +582,7 @@ jobs:
       # so the fix commit is relocated onto a dedicated `semantic` branch and
       # reviewed via a `semantic` PR (base = main). origin/main is never pushed here.
       - name: Relocate fix to semantic branch (semantic conflict on */main)
-        if: needs.ci-gate.outputs.state == 'failure' && steps.fix.outputs.fix_produced == 'true' && endsWith(github.event.workflow_run.head_branch, '/main')
+        if: steps.recheck.outputs.state == 'failure' && steps.fix.outputs.fix_produced == 'true' && endsWith(github.event.workflow_run.head_branch, '/main')
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
           GH_REPO: ${{ github.repository }}
@@ -594,7 +613,7 @@ jobs:
       # here -- folding into the merge commit happens only at finalize, after
       # the PR is merged, so the resolve commit survives.
       - name: Push inline fix (review branch)
-        if: needs.ci-gate.outputs.state == 'failure' && steps.fix.outputs.fix_produced == 'true' && !endsWith(github.event.workflow_run.head_branch, '/main')
+        if: steps.recheck.outputs.state == 'failure' && steps.fix.outputs.fix_produced == 'true' && !endsWith(github.event.workflow_run.head_branch, '/main')
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
           GH_REPO: ${{ github.repository }}
@@ -611,7 +630,7 @@ jobs:
       # Always push notes when a fix was attempted: ci_comments / posted markers
       # may have changed even when no commit was produced.
       - name: Push mergai notes
-        if: needs.ci-gate.outputs.state == 'failure'
+        if: steps.recheck.outputs.state == 'failure'
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
           GH_REPO: ${{ github.repository }}
