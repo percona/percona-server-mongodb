@@ -55,6 +55,12 @@ jobs:
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: 0
+          # The AI agent runs in this checkout. Do NOT persist the checkout
+          # credential into .git/config, so a misbehaving or prompt-injected
+          # agent cannot read or reuse it to push. Deterministic pushes
+          # authenticate via the credential helper configured in setup
+          # (GH_TOKEN in the parent process environment).
+          persist-credentials: false
 
       - name: Create GitHub App token
         id: app-token
@@ -513,6 +519,10 @@ jobs:
           ref: ${{ github.event.workflow_run.head_branch }}
           fetch-depth: 0
           token: ${{ steps.app-token.outputs.token }}
+          # The AI agent runs in this checkout; do not leave the write token in
+          # .git/config for it to reuse. Deterministic pushes authenticate via
+          # the setup credential helper (GH_TOKEN in the parent process env).
+          persist-credentials: false
 
       - name: Setup workflow environment
         uses: ./.github/actions/setup-mergai-workflow
@@ -741,6 +751,10 @@ jobs:
           ref: ${{ steps.pr.outputs.head_ref }}
           fetch-depth: 0
           token: ${{ steps.app-token.outputs.token }}
+          # The AI agent runs in this checkout; do not leave the write token in
+          # .git/config for it to reuse. Deterministic pushes authenticate via
+          # the setup credential helper (GH_TOKEN in the parent process env).
+          persist-credentials: false
 
       - name: Setup workflow environment
         if: steps.pr.outputs.is_mergai == 'true'
