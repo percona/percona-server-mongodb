@@ -1,0 +1,476 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "693c88430f9725a965f8c794a862c59daab7193e",
+    "merge_commit": "dbeb63549f486de03bcc4a060bf24dd49bb06f01"
+  },
+  "mergai_version": "0.1.dev1+g155191581",
+  "solutions": [
+    {
+      "type": "ci_fix",
+      "request": {
+        "workflow": "build-and-test",
+        "run_id": "28589687717",
+        "pr_number": 1994,
+        "attempt_number": 1,
+        "context_summary": "build-and-test failed: 0 aborted, 0 action errors, 1 test failure (from jstest-failure-logs)",
+        "timestamp": "2026-07-02T16:53:13.262787+00:00"
+      },
+      "status": "success",
+      "is_error": false,
+      "duration_ms": 296142,
+      "num_turns": 43,
+      "stop_reason": "end_turn",
+      "total_cost_usd": 1.9886937499999997,
+      "modelUsage": {
+        "claude-haiku-4-5-20251001": {
+          "inputTokens": 603,
+          "outputTokens": 14,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 0,
+          "webSearchRequests": 0,
+          "costUSD": 0.000673,
+          "contextWindow": 200000,
+          "maxOutputTokens": 32000
+        },
+        "claude-opus-4-8": {
+          "inputTokens": 13476,
+          "outputTokens": 22074,
+          "cacheReadInputTokens": 1743269,
+          "cacheCreationInputTokens": 79545,
+          "webSearchRequests": 0,
+          "costUSD": 1.9880207499999998,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 64000
+        }
+      },
+      "stats": {
+        "models": {
+          "claude-haiku-4-5-20251001": {
+            "tokens": {
+              "input": 603,
+              "output": 14,
+              "cache_read": 0,
+              "cache_creation": 0
+            },
+            "cost_usd": 0.000673
+          },
+          "claude-opus-4-8": {
+            "tokens": {
+              "input": 13476,
+              "output": 22074,
+              "cache_read": 1743269,
+              "cache_creation": 79545
+            },
+            "cost_usd": 1.9880207499999998
+          }
+        }
+      },
+      "text_result": "I've diagnosed and fixed the CI failure.\n\n## Root cause (bucket a \u2014 upstream change broke a Percona assumption)\n\nThe failing target `//jstests/percona/tde:core_tde_cbc` ran the upstream test `jstests/core/query/map_reduce/mr_bigobject_replace.js`. That test's server-side reduce function calls `assert.gte`, which **does not exist in the mozjs-wasm server JS scope**, so instead of the expected `BSONObjectTooLarge` failure it produced `JSInterpreterFailure` (code 139, `'assert.gte is not a function'`, `wasm:function` frames) \u2014 failing the assertion.\n\nUpstream tags exactly these tests `mozjs_wasm_unsupported`. resmoke auto-excludes them only after detecting a mozjs-wasm server via `mongod --version` (`configure_resmoke.py`), but in the Bazel remote-test runner that probe **times out** (log: `TimeoutExpired(['mongod','--version'], 10)`), so the exclusion is silently skipped even though the server *is* mozjs-wasm.\n\n`.bazelrc.psmdb` already documents this gap and adds a bazel-level `-mozjs_wasm_unsupported` tag filter \u2014 but that only drops whole tagged *bazel targets*; it cannot exclude an individual jstest selected *inside* a resmoke passthrough suite. So the TDE suites still ran the test.\n\n## Fix\n\nAdded `mozjs_wasm_unsupported` to `exclude_with_any_tags` in the eight Percona-owned TDE passthrough suite YAMLs that run upstream dirs (core / aggregation / sharding / replica_sets, cbc + gcm), with an explanatory comment. This reproduces what resmoke's engine detection would have injected.\n\nI generalized beyond the single failing suite by grepping all of `jstests/` for the tag and cross-referencing each suite's `roots` (core=4, aggregation=2, sharding=1 matching tests; replsets/backup/percona-tde=0). I intentionally left `requires_mozjs_wasm` tests running (they need the wasm engine) and did not touch suites with no matching tests beyond replsets (added there for consistency/future-proofing).\n\nResponse written to the specified JSON path with `status: \"fixed\"`.",
+      "response": {
+        "status": "fixed",
+        "summary": "Root-cause bucket (a): an upstream change (the new `mozjs_wasm_unsupported` tag on server-side-JS core tests, e.g. jstests/core/query/map_reduce/mr_bigobject_replace.js) broke a Percona assumption. resmoke auto-excludes those tests only after detecting a mozjs-wasm server via `mongod --version`, but that probe times out in the Bazel remote-test runner (log: \"failed to detect the JS engine ... TimeoutExpired(['mongod','--version'], 10)\"), so the exclusion is skipped and mr_bigobject_replace.js runs against the wasm server, where its server-side `assert.gte` is undefined -> JSInterpreterFailure instead of the expected BSONObjectTooLarge, failing //jstests/percona/tde:core_tde_cbc. Fixed by explicitly excluding `mozjs_wasm_unsupported` in the Percona-owned TDE passthrough suite YAMLs (which run upstream test dirs).",
+        "resolved": {
+          "buildscripts/resmokeconfig/suites/core_tde_cbc.yml": "Added `mozjs_wasm_unsupported` to `exclude_with_any_tags` so mr_bigobject_replace.js / mr_bigobject.js / constructors.js / return_bson_scalar_from_js_function.js (all tagged mozjs_wasm_unsupported) are skipped, matching what resmoke's engine detection would do. This is the suite that actually failed.",
+          "buildscripts/resmokeconfig/suites/core_tde_gcm.yml": "Same exclusion added; identical core roots, same class of failure.",
+          "buildscripts/resmokeconfig/suites/aggregation_tde_cbc.yml": "Same exclusion added; jstests/aggregation has internal_js_reduce.js and accumulator_js_size_limits.js tagged mozjs_wasm_unsupported.",
+          "buildscripts/resmokeconfig/suites/aggregation_tde_gcm.yml": "Same exclusion added; same aggregation roots.",
+          "buildscripts/resmokeconfig/suites/sharding_tde_cbc.yml": "Same exclusion added; jstests/sharding/query/javascript_heap_limit.js is tagged mozjs_wasm_unsupported (its _wasm sibling is requires_mozjs_wasm and is intentionally NOT excluded, so it still runs on the wasm server).",
+          "buildscripts/resmokeconfig/suites/sharding_tde_gcm.yml": "Same exclusion added; same sharding roots.",
+          "buildscripts/resmokeconfig/suites/replica_sets_tde_cbc.yml": "Same exclusion added for consistency/robustness; structurally identical passthrough over jstests/replsets (0 tagged tests today, so a no-op now, but future-proofs the same failure class).",
+          "buildscripts/resmokeconfig/suites/replica_sets_tde_gcm.yml": "Same exclusion added for consistency/robustness."
+        },
+        "unresolved": {},
+        "modified": {},
+        "review_notes": "Diagnosis trail: the failing test asserts a >16MB mapReduce output fails with BSONObjectTooLarge/Interrupted/31392, but the server-side reduce fn used `assert.gte`, which is undefined in the mozjs-wasm server scope, yielding JSInterpreterFailure (code 139) instead \u2014 the exact reason upstream tagged the test `mozjs_wasm_unsupported`. The engine auto-exclusion path is in buildscripts/resmokelib/configure_resmoke.py (_detect_js_engine -> EXCLUDE_WITH_ANY_TAGS.append('mozjs_wasm_unsupported')); it no-ops here because `mongod --version` times out in the Bazel runner. .bazelrc.psmdb already documents this exact gap and adds a bazel-level `-mozjs_wasm_unsupported` --test_tag_filters, but that only drops whole tagged bazel targets \u2014 it cannot exclude an individual jstest selected inside a resmoke passthrough suite, so the TDE suites still ran it. I searched `grep -rln 'mozjs_wasm_unsupported|requires_mozjs_wasm'` across jstests and cross-referenced each TDE suite's `roots`: matches exist under core (4), aggregation (2), sharding (1 unsupported + 1 requires-wasm), and none under replsets/backup/percona-tde. I deliberately did NOT exclude `requires_mozjs_wasm` (those tests must run on the wasm server) and left backup_tde/tde_cbc/tde_gcm untouched (their roots contain no such tags). The long-term fix noted in .bazelrc.psmdb is a shim to make resmoke's engine detection work in the Bazel runner; if that lands, these explicit exclusions become harmless redundant no-ops. Please confirm the CI server is indeed always mozjs-wasm in this environment (the wasm:function stack frames and the .bazelrc comment both indicate it is)."
+      },
+      "session": {
+        "messages": [
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [
+              "I've identified the root cause. Let me verify the exact YAML blocks before editing."
+            ],
+            "tools_used": []
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [
+              "I'll add the `mozjs_wasm_unsupported` exclusion with an explanatory comment. Let me read the files first."
+            ],
+            "tools_used": []
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Read"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Read"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Read"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Read"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Read"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Read"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Read"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Read"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [
+              "Now I'll apply the fix to all eight TDE passthrough suites over upstream test dirs."
+            ],
+            "tools_used": []
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Edit"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Edit"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Edit"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Edit"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Edit"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Edit"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Edit"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Edit"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [
+              "Now let me write the JSON response."
+            ],
+            "tools_used": []
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Write"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [
+              "I've diagnosed and fixed the CI failure.\n\n## Root cause (bucket a \u2014 upstream change broke a Percona assumption)\n\nThe failing target `//jstests/percona/tde:core_tde_cbc` ran the upstream test `jstests/core/query/map_reduce/mr_bigobject_replace.js`. That test's server-side reduce function calls `assert.gte`, which **does not exist in the mozjs-wasm server JS scope**, so instead of the expected `BSONObjectTooLarge` failure it produced `JSInterpreterFailure` (code 139, `'assert.gte is not a function'`, `wasm:function` frames) \u2014 failing the assertion.\n\nUpstream tags exactly these tests `mozjs_wasm_unsupported`. resmoke auto-excludes them only after detecting a mozjs-wasm server via `mongod --version` (`configure_resmoke.py`), but in the Bazel remote-test runner that probe **times out** (log: `TimeoutExpired(['mongod','--version'], 10)`), so the exclusion is silently skipped even though the server *is* mozjs-wasm.\n\n`.bazelrc.psmdb` already documents this gap and adds a bazel-level `-mozjs_wasm_unsupported` tag filter \u2014 but that only drops whole tagged *bazel targets*; it cannot exclude an individual jstest selected *inside* a resmoke passthrough suite. So the TDE suites still ran the test.\n\n## Fix\n\nAdded `mozjs_wasm_unsupported` to `exclude_with_any_tags` in the eight Percona-owned TDE passthrough suite YAMLs that run upstream dirs (core / aggregation / sharding / replica_sets, cbc + gcm), with an explanatory comment. This reproduces what resmoke's engine detection would have injected.\n\nI generalized beyond the single failing suite by grepping all of `jstests/` for the tag and cross-referencing each suite's `roots` (core=4, aggregation=2, sharding=1 matching tests; replsets/backup/percona-tde=0). I intentionally left `requires_mozjs_wasm` tests running (they need the wasm engine) and did not touch suites with no matching tests beyond replsets (added there for consistency/future-proofing).\n\nResponse written to the specified JSON path with `status: \"fixed\"`."
+            ],
+            "tools_used": []
+          }
+        ],
+        "metadata": {
+          "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20260702_164815_399722.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+        }
+      },
+      "agent_info": {
+        "agent_type": "claude_cli",
+        "version": "2.1.198 (Claude Code)"
+      }
+    }
+  ]
+}
