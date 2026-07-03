@@ -5,15 +5,15 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 126,
+    "commits_behind": 147,
     "days_behind": 2,
-    "unmerged_oldest_age_days": 2.2902798883449074,
-    "files_affected": 671,
-    "total_additions": 29607,
-    "total_deletions": 7035,
+    "unmerged_oldest_age_days": 2.6438641547800925,
+    "files_affected": 785,
+    "total_additions": 34036,
+    "total_deletions": 9585,
     "date_range": {
       "first": "2026-07-01T00:07:31+00:00",
-      "last": "2026-07-03T00:17:30+00:00"
+      "last": "2026-07-03T13:56:25+00:00"
     }
   },
   "last_merged_commit": {
@@ -41,6 +41,216 @@
     "reason": "force:conflict"
   },
   "unmerged_commits": [
+    {
+      "sha": "dd0061342802ee6eaa41d834e2c769f5b5df6d00",
+      "short_sha": "dd006134280",
+      "date": "2026-07-03T09:56:25-04:00",
+      "author": {
+        "name": "Kruti Shah",
+        "email": "70412403+krutishah139@users.noreply.github.com"
+      },
+      "summary": "SERVER-128917 Skip placement version bumps during coordinator state transitions (#57247)"
+    },
+    {
+      "sha": "c7204d8824a37faf7cae5a1874a3e6920088f82d",
+      "short_sha": "c7204d8824a",
+      "date": "2026-07-03T14:06:18+01:00",
+      "author": {
+        "name": "Alice Doherty",
+        "email": "66687032+alicedoherty@users.noreply.github.com"
+      },
+      "summary": "SERVER-105418 Update on-CPU profiling to record instructions (#57325)"
+    },
+    {
+      "sha": "0dc609f1bd6b1877361161d1dfe45309f721b3fb",
+      "short_sha": "0dc609f1bd6",
+      "date": "2026-07-03T15:03:54+02:00",
+      "author": {
+        "name": "Igor Praznik",
+        "email": "95708172+igpraznik@users.noreply.github.com"
+      },
+      "summary": "Revert \"SERVER-128153 Handle config server UUID in shard registry intialization (#56594)\" (#57395)"
+    },
+    {
+      "sha": "5371c695f6e5d1f33abd16af065ab18bf7c3991e",
+      "short_sha": "5371c695f6e",
+      "date": "2026-07-03T13:51:15+01:00",
+      "author": {
+        "name": "Vesko Karaganev",
+        "email": "vesko.karaganev@mongodb.com"
+      },
+      "summary": "SERVER-112772 Allowlist chains of logical operators (#57282)"
+    },
+    {
+      "sha": "7a69128ffefcb38c4fe6d9d38492f45e12cc73ec",
+      "short_sha": "7a69128ffef",
+      "date": "2026-07-03T14:23:41+02:00",
+      "author": {
+        "name": "Silvia Surroca",
+        "email": "silvia.surroca@mongodb.com"
+      },
+      "summary": "SERVER-129536 MoveRangeCoordinator retries global catalog commit (#57225)"
+    },
+    {
+      "sha": "b4a08ce0af96d70540ada0a8d410dd86929479b1",
+      "short_sha": "b4a08ce0af9",
+      "date": "2026-07-03T12:59:20+01:00",
+      "author": {
+        "name": "Vesko Karaganev",
+        "email": "vesko.karaganev@mongodb.com"
+      },
+      "summary": "SERVER-112772 Allowlist certain $expr shapes for pushdown on _id past $group (#57281)"
+    },
+    {
+      "sha": "aa05b3f9d6f8b25d90386dbaa830a7707cef0bc4",
+      "short_sha": "aa05b3f9d6f",
+      "date": "2026-07-03T12:38:58+01:00",
+      "author": {
+        "name": "Alice Doherty",
+        "email": "66687032+alicedoherty@users.noreply.github.com"
+      },
+      "summary": "SERVER-129502 Expand group who can override failing instruction count checks (#57032)"
+    },
+    {
+      "sha": "1ed3d4430120ea4a91fd7e2cfc005e120b54b045",
+      "short_sha": "1ed3d443012",
+      "date": "2026-07-03T13:04:06+02:00",
+      "author": {
+        "name": "Pol Piñol Castuera",
+        "email": "pol.pinol@mongodb.com"
+      },
+      "summary": "SERVER-127215 SERVER-127216 Correctly set the isUpgrading flag during rename for auth shards (#56072)"
+    },
+    {
+      "sha": "208a2876fadb1964831fde7bd8c74d92999722d1",
+      "short_sha": "208a2876fad",
+      "date": "2026-07-03T11:46:06+01:00",
+      "author": {
+        "name": "fotiniAlvanaki",
+        "email": "78495594+fotiniAlvanaki@users.noreply.github.com"
+      },
+      "summary": "SERVER-129015 Limit memory usage of $zip in Classic engine (#57257)"
+    },
+    {
+      "sha": "1005e095e98741e2b14b01a40acd6dd0f162f7eb",
+      "short_sha": "1005e095e98",
+      "date": "2026-07-03T12:43:22+02:00",
+      "author": {
+        "name": "Silvia Surroca",
+        "email": "silvia.surroca@mongodb.com"
+      },
+      "summary": "SERVER-130276 SERVER-130384 Resolving pending TODOs (#57379)"
+    },
+    {
+      "sha": "4835c157a9f4c3e20e0d67d72819f3d02fb83503",
+      "short_sha": "4835c157a9f",
+      "date": "2026-07-03T12:37:17+02:00",
+      "author": {
+        "name": "Alya Carina Berciu",
+        "email": "alya.berciu@mongodb.com"
+      },
+      "summary": "SERVER-130393 Don't enumerate projs on INLJRHS (#57386)"
+    },
+    {
+      "sha": "9ca304d1e34561d8471b6cbc71991c5c4676cec0",
+      "short_sha": "9ca304d1e34",
+      "date": "2026-07-03T11:28:23+01:00",
+      "author": {
+        "name": "Catalin Sumanaru",
+        "email": "catalin.sumanaru@mongodb.com"
+      },
+      "summary": "SERVER-130427 Fix QueryLifespan bind tripwire on getMore under localhostAuthBypass  (#57409)"
+    },
+    {
+      "sha": "6cec6682a5183a33ecb0f5f617a2f80b67a844fc",
+      "short_sha": "6cec6682a51",
+      "date": "2026-07-03T10:20:47+00:00",
+      "author": {
+        "name": "Joan Bruguera Micó (at MongoDB)",
+        "email": "joan.bruguera-mico@mongodb.com"
+      },
+      "summary": "SERVER-127970 Authoritative metadata cloning DDL keeps track of last collection cloned (#57428)"
+    },
+    {
+      "sha": "0e31148b649cbde401c6f5d4fcfe6919e1939fa3",
+      "short_sha": "0e31148b649",
+      "date": "2026-07-03T11:18:53+01:00",
+      "author": {
+        "name": "Rustam Gusein-zade",
+        "email": "rustam.guseinzade@mongodb.com"
+      },
+      "summary": "SERVER-129935 Support gaps in OrphanChunkSkipper (#57139)"
+    },
+    {
+      "sha": "652c294935de5ba3d8fb422f0f0f2cf1bfb73d81",
+      "short_sha": "652c294935d",
+      "date": "2026-07-03T11:06:08+01:00",
+      "author": {
+        "name": "Rui Liu",
+        "email": "33423526+lriuui0x0@users.noreply.github.com"
+      },
+      "summary": "SERVER-130401 Bump timeout for query_plan_cache_fuzzer on debug TSAN build (#57387)"
+    },
+    {
+      "sha": "2720b69d9f8dd2c426148599cffff22820ad5807",
+      "short_sha": "2720b69d9f8",
+      "date": "2026-07-03T11:54:03+02:00",
+      "author": {
+        "name": "Jan",
+        "email": "jsteemann@users.noreply.github.com"
+      },
+      "summary": "SERVER-130419 Split long-running change stream rewrite test (#57388)"
+    },
+    {
+      "sha": "90efaf40e74f20acc996a1f488c902d175130c4f",
+      "short_sha": "90efaf40e74",
+      "date": "2026-07-03T11:52:05+02:00",
+      "author": {
+        "name": "Tommaso Tocci",
+        "email": "58224719+toto-dev@users.noreply.github.com"
+      },
+      "summary": "SERVER-127051 Forbid reIndex command on viewless timeseries collections (#57154)"
+    },
+    {
+      "sha": "309c6ee37f073b80fb46854bd08b245c8039ff4f",
+      "short_sha": "309c6ee37f0",
+      "date": "2026-07-03T10:47:23+01:00",
+      "author": {
+        "name": "Projjal Chanda",
+        "email": "projjal.chanda@mongodb.com"
+      },
+      "summary": "SERVER-129008 Limit memory usage of $replaceAll in Classic engine (#57260)"
+    },
+    {
+      "sha": "aeae961d5b061c6185d27531097b5b96efe1a55a",
+      "short_sha": "aeae961d5b0",
+      "date": "2026-07-03T11:43:52+02:00",
+      "author": {
+        "name": "Igor Praznik",
+        "email": "95708172+igpraznik@users.noreply.github.com"
+      },
+      "summary": "Revert \"SERVER-127876 SERVER-128711 SERVER-128554 SERVER-129329 Project SPM-4636\"  (#57278)"
+    },
+    {
+      "sha": "c4dae2350c579f64c36c3c9b953e29620145cc75",
+      "short_sha": "c4dae2350c5",
+      "date": "2026-07-03T11:43:34+02:00",
+      "author": {
+        "name": "Daniel Gómez Ferro",
+        "email": "daniel.gomezferro@mongodb.com"
+      },
+      "summary": "SERVER-101428 Take MODE_X lock for the duration of rename across DBs (#56894)"
+    },
+    {
+      "sha": "0c6f4fe86ba9dfae931c1701a7f75511ec6cf562",
+      "short_sha": "0c6f4fe86ba",
+      "date": "2026-07-03T11:19:08+02:00",
+      "author": {
+        "name": "Tommaso Tocci",
+        "email": "58224719+toto-dev@users.noreply.github.com"
+      },
+      "summary": "SERVER-130511 Temporary remove disagg_resmoke suite from commit queue and PR checks (#57533)"
+    },
     {
       "sha": "ac1ec4236bf87f60afbc08d5b0481e15f1f852aa",
       "short_sha": "ac1ec4236bf",
@@ -1477,10 +1687,56 @@
           "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine_test.cpp"
         ]
       }
+    },
+    {
+      "commit": {
+        "sha": "aeae961d5b061c6185d27531097b5b96efe1a55a",
+        "short_sha": "aeae961d5b0",
+        "date": "2026-07-03T11:43:52+02:00",
+        "author": {
+          "name": "Igor Praznik",
+          "email": "95708172+igpraznik@users.noreply.github.com"
+        },
+        "summary": "Revert \"SERVER-127876 SERVER-128711 SERVER-128554 SERVER-129329 Project SPM-4636\"  (#57278)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 60,
+          "num_of_lines": 1431,
+          "lines_added": 370,
+          "lines_deleted": 1061,
+          "num_of_dirs": 17
+        }
+      }
+    },
+    {
+      "commit": {
+        "sha": "0dc609f1bd6b1877361161d1dfe45309f721b3fb",
+        "short_sha": "0dc609f1bd6",
+        "date": "2026-07-03T15:03:54+02:00",
+        "author": {
+          "name": "Igor Praznik",
+          "email": "95708172+igpraznik@users.noreply.github.com"
+        },
+        "summary": "Revert \"SERVER-128153 Handle config server UUID in shard registry intialization (#56594)\" (#57395)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 17,
+          "num_of_lines": 145,
+          "lines_added": 28,
+          "lines_deleted": 117,
+          "num_of_dirs": 11
+        }
+      }
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-07-03 07:05:24",
+  "generated_at": "2026-07-03 15:34:33",
   "branch_name": "master",
   "display_name": "master"
 }
