@@ -54,6 +54,7 @@ class ShardedClusterFixture(interface.Fixture, interface._DockerComposeInterface
         replica_set_endpoint=False,
         random_migrations=False,
         launch_mongot=False,
+        launch_mongot_community=False,
         load_extensions=None,
         skip_extensions_signature_verification=False,
         set_cluster_parameter=None,
@@ -77,6 +78,7 @@ class ShardedClusterFixture(interface.Fixture, interface._DockerComposeInterface
         # The mongotHost and searchIndexManagementHostAndPort options cannot be set on mongos_options yet because
         # the port value is only assigned in MongoDFixture initialization, which happens later.
         self.launch_mongot = launch_mongot
+        self.launch_mongot_community = launch_mongot_community
 
         # mongod options
         self.mongod_options = self.fixturelib.make_historic(
@@ -257,14 +259,13 @@ class ShardedClusterFixture(interface.Fixture, interface._DockerComposeInterface
         for mongos in self.mongos:
             mongos.mongos_options["configdb"] = self.configsvr.get_internal_connection_string()
 
-        if self.launch_mongot:
-            # These mongot parameters are popped from shard.mongod_options when mongod is launched in above
-            # setup() call. As such, the final values can't be cleanly copied over from mongod_options, but
-            # need to be recreated here.
-            if self.mongos[0].mongos_options["set_parameters"].get("useGrpcForSearch"):
+        if self.launch_mongot_community or self.launch_mongot:
+            if self.launch_mongot_community or self.mongos[0].mongos_options["set_parameters"].get(
+                "useGrpcForSearch"
+            ):
                 # If mongos & mongod are configured to use egress gRPC for search, then set the
                 # `mongotHost` parameter to the mongot listening address expecting communication via
-                # the MongoDB gRPC protocol (which we configured in setup_mongot_params).
+                # the MongoDB gRPC protocol.
                 self.mongotHost = "localhost:" + str(self.shards[-1].mongot_grpc_port)
             else:
                 self.mongotHost = "localhost:" + str(self.shards[-1].mongot_port)
