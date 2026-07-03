@@ -424,10 +424,22 @@ idl_generator(
 )
 
 mongo_cc_library(
+    name = "server_options_storage",
+    srcs = [
+        "mongod_options_storage.cpp",
+        ":mongod_options_storage_gen",
+    ],
+    deps = [
+        ":server_base",
+        "//src/mongo/db/storage:storage_options",
+        "//src/mongo/util/options_parser",
+    ],
+)
+
+mongo_cc_library(
     name = "mongod_options",
     srcs = [
         "mongod_options.cpp",
-        "mongod_options_storage.cpp",
         "ratelimit_parameter.cpp",
         ":mongod_options_encryption_gen",
         ":mongod_options_general_gen",
@@ -436,7 +448,6 @@ mongo_cc_library(
         ":mongod_options_removed_gen",
         ":mongod_options_replication_gen",
         ":mongod_options_sharding_gen",
-        ":mongod_options_storage_gen",
         ":ratelimit_parameter_gen",
     ],
     deps = [
@@ -446,6 +457,7 @@ mongo_cc_library(
         ":server_feature_flags",
         ":server_options_base",
         ":server_options_servers",
+        ":server_options_storage",
         "//src/mongo/db/auth:cluster_auth_mode",
         "//src/mongo/db/repl:repl_server_parameters",
         "//src/mongo/db/repl:repl_settings",
@@ -1042,6 +1054,7 @@ mongo_cc_library(
         "//src/mongo/db/pipeline:change_stream_pipeline",
         "//src/mongo/db/pipeline:document_source_internal_apply_oplog_update",
         "//src/mongo/db/pipeline:pipeline_visitor",
+        "//src/mongo/db/pipeline:search_id_lookup_stage",
         "//src/mongo/db/pipeline/optimization:pipeline_optimization",
         "//src/mongo/db/query:collection_query_info",
         "//src/mongo/db/query:engine_selection",
@@ -3266,6 +3279,7 @@ mongo_cc_unit_test(
         "startup_warnings_mongod",
         "//src/mongo/db/pipeline:aggregation_request_helper",
         "//src/mongo/db/pipeline:change_stream_pipeline",
+        "//src/mongo/db/pipeline:search_id_lookup_stage",
         "//src/mongo/db/sharding_environment:shard_handle",
         "//src/mongo/db/sharding_environment:sharding_feature_flags",
         "//src/mongo/db/storage/wiredtiger:storage_wiredtiger",

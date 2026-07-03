@@ -2130,16 +2130,18 @@ void ReshardingCoordinator::_generateCommitNotificationForChangeStreams(
     ShardsvrNotifyShardingEventRequest request(notify_sharding_event::kCollectionResharded,
                                                eventNotification.toBSON());
 
-    const auto& notifierShard = _getChangeStreamNotifierShardRef();
+    const auto& notifierShard = _getChangeStreamNotifierShardId();
 
     // In case the recipient is running a legacy binary, swallow the error.
     try {
-        resharding::sendReshardingCommand(opCtx,
-                                          _getNewSession(opCtx),
-                                          std::move(request),
-                                          _ctHolder->getStepdownToken(),
-                                          executor,
-                                          {notifierShard});
+        resharding::sendReshardingCommand(
+            opCtx,
+            _getNewSession(opCtx),
+            std::move(request),
+            _ctHolder->getStepdownToken(),
+            executor,
+            {notifierShard},
+            _coordinatorDoc.getCommonReshardingMetadata().getForwardableOpMetadata());
     } catch (const ExceptionFor<ErrorCodes::UnsupportedShardingEventNotification>& e) {
         LOGV2_WARNING(7403100,
                       "Unable to generate op entry on reshardCollection commit",
@@ -2161,16 +2163,18 @@ void ReshardingCoordinator::_generatePlacementChangeNotificationForChangeStreams
     ShardsvrNotifyShardingEventRequest request(notify_sharding_event::kNamespacePlacementChanged,
                                                eventNotification.toBSON());
 
-    const auto& notifierShard = _getChangeStreamNotifierShardRef();
+    const auto& notifierShard = _getChangeStreamNotifierShardId();
 
     // In case the recipient is running a legacy binary, swallow the error.
     try {
-        resharding::sendReshardingCommand(opCtx,
-                                          _getNewSession(opCtx),
-                                          std::move(request),
-                                          _ctHolder->getStepdownToken(),
-                                          executor,
-                                          {notifierShard});
+        resharding::sendReshardingCommand(
+            opCtx,
+            _getNewSession(opCtx),
+            std::move(request),
+            _ctHolder->getStepdownToken(),
+            executor,
+            {notifierShard},
+            _coordinatorDoc.getCommonReshardingMetadata().getForwardableOpMetadata());
     } catch (const ExceptionFor<ErrorCodes::UnsupportedShardingEventNotification>& e) {
         tasserted(
             10674000,
@@ -2231,25 +2235,29 @@ ExecutorFuture<void> ReshardingCoordinator::_awaitAllParticipantShardsDone(
                 auto cmd = ShardsvrDropCollectionIfUUIDNotMatchingWithWriteConcernRequest(
                     nss, notMatchingThisUUID);
 
-                resharding::sendReshardingCommand(opCtx.get(),
-                                                  _getNewSession(opCtx.get()),
-                                                  cmd,
-                                                  _ctHolder->getStepdownToken(),
-                                                  executor,
-                                                  allShardIds);
+                resharding::sendReshardingCommand(
+                    opCtx.get(),
+                    _getNewSession(opCtx.get()),
+                    cmd,
+                    _ctHolder->getStepdownToken(),
+                    executor,
+                    allShardIds,
+                    coordinatorDoc.getCommonReshardingMetadata().getForwardableOpMetadata());
 
                 // Additionally, ensure that no more stale chunks are present on the authoritative
                 // shard catalog. At this point there are no users of the old chunks anymore, so
                 // this can be done outside of a critical section.
                 if (coordinatorDoc.getAuthoritativeMetadataAccessLevel() >=
                     ReshardingAuthoritativeMetadataAccessLevelEnum::kWritesAllowed) {
-                    resharding::tellAllShardsToCleanupStaleChunks(opCtx.get(),
-                                                                  _getNewSession(opCtx.get()),
-                                                                  allShardIds,
-                                                                  coordinatorDoc.getSourceNss(),
-                                                                  coordinatorDoc.getSourceUUID(),
-                                                                  _ctHolder->getStepdownToken(),
-                                                                  executor);
+                    resharding::tellAllShardsToCleanupStaleChunks(
+                        opCtx.get(),
+                        _getNewSession(opCtx.get()),
+                        allShardIds,
+                        coordinatorDoc.getSourceNss(),
+                        coordinatorDoc.getSourceUUID(),
+                        _ctHolder->getStepdownToken(),
+                        executor,
+                        coordinatorDoc.getCommonReshardingMetadata().getForwardableOpMetadata());
                 }
             }
 
@@ -2381,7 +2389,8 @@ void ReshardingCoordinator::_notifyDonorsCloningComplete(
         cmd,
         _ctHolder->getAbortToken(),
         executor,
-        resharding::extractShardIdsFromParticipantEntries(_coordinatorDoc.getDonorShards()));
+        resharding::extractShardIdsFromParticipantEntries(_coordinatorDoc.getDonorShards()),
+        _coordinatorDoc.getCommonReshardingMetadata().getForwardableOpMetadata());
 }
 
 void ReshardingCoordinator::_tellAllRecipientsToRefresh(
@@ -2426,7 +2435,8 @@ void ReshardingCoordinator::_notifyDonorsCriticalSectionStarted(
         cmd,
         _ctHolder->getAbortToken(),
         executor,
-        resharding::extractShardIdsFromParticipantEntries(_coordinatorDoc.getDonorShards()));
+        resharding::extractShardIdsFromParticipantEntries(_coordinatorDoc.getDonorShards()),
+        _coordinatorDoc.getCommonReshardingMetadata().getForwardableOpMetadata());
 }
 
 void ReshardingCoordinator::_tellAllDonorsToStartChangeStreamsMonitor(
@@ -2628,8 +2638,7 @@ void ReshardingCoordinator::_logStatsOnCompletion(bool success) {
     for (auto donor : _coordinatorDoc.getDonorShards()) {
         BSONObjBuilder shardBuilder;
         auto& state = donor.getMutableState();
-        // TODO SERVER-129198: getString() will break once we start using UUIDs
-        shardBuilder.append("shardName", donor.getId().getString());
+        shardBuilder.append("shardName", donor.getId());
         auto bytes = state.getBytesToClone().value_or(0);
         auto docs = state.getDocumentsToClone().value_or(0);
         shardBuilder.append("bytesToClone", bytes);
@@ -2665,8 +2674,7 @@ void ReshardingCoordinator::_logStatsOnCompletion(bool success) {
     for (auto recipient : _coordinatorDoc.getRecipientShards()) {
         BSONObjBuilder shardBuilder;
         auto& state = recipient.getMutableState();
-        // TODO SERVER-129198: getString() will break once we start using UUIDs
-        shardBuilder.append("shardName", recipient.getId().getString());
+        shardBuilder.append("shardName", recipient.getId());
         auto bytes = state.getBytesCopied().value_or(0);
         // Prefer documentsFinal (cloned + delta, written after verification) and fall back to
         // totalNumDocuments fast count.
@@ -2786,7 +2794,7 @@ BSONObj ReshardingCoordinator::_buildValidationStats() const {
     return b.obj();
 }
 
-const ShardRef& ReshardingCoordinator::_getChangeStreamNotifierShardRef() const {
+const ShardId& ReshardingCoordinator::_getChangeStreamNotifierShardId() const {
     // Change stream readers expect to receive pre & post commit event notifications
     // from one of the shards holding data before the beginning of the resharding.
     return _coordinatorDoc.getDonorShards().front().getId();

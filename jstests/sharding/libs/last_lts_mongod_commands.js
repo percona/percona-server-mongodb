@@ -87,6 +87,7 @@ export const commandsAddedToMongodSinceLastLTS = [
     "persistenceProviderProperties",
     "_shardsvrCommitRefineCollectionShardKey",
     "_shardsvrCommitCollModCollectionMetadata",
+    "_shardsvrCommitChunkOperationsMetadata",
     "_shardsvrCommitCreateCollectionMetadata",
     "_shardsvrCommitCreateCollectionChunklessMetadata",
     "_shardsvrCommitDropCollectionMetadata",
@@ -95,7 +96,9 @@ export const commandsAddedToMongodSinceLastLTS = [
     "_shardsvrSetAllowChunkOperations",
     "_configsvrSetAllowChunkOperations",
     "_configsvrCommitMergeAllPrecomputedChunksOnShard",
+    "_configsvrCommitMergeChunks",
     "_configsvrCommitMoveRange",
+    "_configsvrCommitSplitChunk",
     "_configsvrConvertShardRefsInNamespaceMetadata",
     "_shardsvrCheckMetadataConsistencySecondaryParticipant",
 ];
