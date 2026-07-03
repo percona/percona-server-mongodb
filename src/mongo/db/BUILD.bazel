@@ -440,27 +440,15 @@ mongo_cc_library(
     name = "mongod_options",
     srcs = [
         "mongod_options.cpp",
-<<<<<<< HEAD
-        "mongod_options_storage.cpp",
         "ratelimit_parameter.cpp",
         ":mongod_options_encryption_gen",
-||||||| 66da8344e9f
-        "mongod_options_storage.cpp",
-=======
->>>>>>> 30c2bc5f5d80067a555fcb3927de950aee6a1317
         ":mongod_options_general_gen",
         ":mongod_options_ldapauthz_gen",
         ":mongod_options_legacy_gen",
         ":mongod_options_removed_gen",
         ":mongod_options_replication_gen",
         ":mongod_options_sharding_gen",
-<<<<<<< HEAD
-        ":mongod_options_storage_gen",
         ":ratelimit_parameter_gen",
-||||||| 66da8344e9f
-        ":mongod_options_storage_gen",
-=======
->>>>>>> 30c2bc5f5d80067a555fcb3927de950aee6a1317
     ],
     deps = [
         ":global_settings",
