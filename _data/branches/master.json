@@ -5,15 +5,15 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 113,
-    "days_behind": 1,
-    "unmerged_oldest_age_days": 1.8503719041435185,
-    "files_affected": 602,
-    "total_additions": 25976,
-    "total_deletions": 6122,
+    "commits_behind": 126,
+    "days_behind": 2,
+    "unmerged_oldest_age_days": 2.2902798883449074,
+    "files_affected": 671,
+    "total_additions": 29607,
+    "total_deletions": 7035,
     "date_range": {
       "first": "2026-07-01T00:07:31+00:00",
-      "last": "2026-07-02T19:51:15+00:00"
+      "last": "2026-07-03T00:17:30+00:00"
     }
   },
   "last_merged_commit": {
@@ -41,6 +41,136 @@
     "reason": "force:conflict"
   },
   "unmerged_commits": [
+    {
+      "sha": "ac1ec4236bf87f60afbc08d5b0481e15f1f852aa",
+      "short_sha": "ac1ec4236bf",
+      "date": "2026-07-03T02:17:30+02:00",
+      "author": {
+        "name": "Denis Grebennicov",
+        "email": "denis.grebennicov@mongodb.com"
+      },
+      "summary": "SERVER-130061 Validate user-facing query settings and enable featureFlagAllowUserFacingQuerySettings (#57006)"
+    },
+    {
+      "sha": "cb758df9fe90f2e6a5bb9b39f7396db44590bbff",
+      "short_sha": "cb758df9fe9",
+      "date": "2026-07-03T02:15:35+02:00",
+      "author": {
+        "name": "Denis Grebennicov",
+        "email": "denis.grebennicov@mongodb.com"
+      },
+      "summary": "SERVER-129512 Add SingleDocumentLookupStats metrics infrastructure and recorder for change stream lookups (#57035)"
+    },
+    {
+      "sha": "96c2ba2f65bfb891ac9ed71d1ac7b7401326b589",
+      "short_sha": "96c2ba2f65b",
+      "date": "2026-07-02T16:21:16-07:00",
+      "author": {
+        "name": "Abdul Qadeer",
+        "email": "abdul.qadeer@mongodb.com"
+      },
+      "summary": "SERVER-127996 Add more targeted tests for max key orphan and zone scans (#57361)"
+    },
+    {
+      "sha": "ccd2a622b033edcb382476ecaf364cca78c769ee",
+      "short_sha": "ccd2a622b03",
+      "date": "2026-07-02T16:07:53-07:00",
+      "author": {
+        "name": "Thomas Goyne",
+        "email": "thomas.goyne@mongodb.com"
+      },
+      "summary": "SERVER-128654 Don't wait for the table or schema locks when performing a replicated drop (#57374)"
+    },
+    {
+      "sha": "fc1a00d375e5660f13d4f97fe47fee7bb3734231",
+      "short_sha": "fc1a00d375e",
+      "date": "2026-07-03T08:19:07+10:00",
+      "author": {
+        "name": "Gregory Wlodarek",
+        "email": "gregory.wlodarek@mongodb.com"
+      },
+      "summary": "SERVER-130253 Pin oldest timestamp to stable when a standby installs a checkpoint (#57242)"
+    },
+    {
+      "sha": "0a405b556371a69a52e35b25320e04ac0a9dd9e1",
+      "short_sha": "0a405b55637",
+      "date": "2026-07-02T15:03:39-07:00",
+      "author": {
+        "name": "Adithi Raghavan",
+        "email": "adithi.raghavan@mongodb.com"
+      },
+      "summary": "SERVER-122003 Test new limit optimization path for vectorSearch (#54872)"
+    },
+    {
+      "sha": "c0f0de7823d6fb131f653bd54c0ae3e350ce6e58",
+      "short_sha": "c0f0de7823d",
+      "date": "2026-07-02T17:41:30-04:00",
+      "author": {
+        "name": "Cheahuychou Mao",
+        "email": "cheahuychou.mao@mongodb.com"
+      },
+      "summary": "SERVER-129864 Make HanoffSession mirror the behavior for setIsLoadBalancerPeer in AsioSession (#57408)"
+    },
+    {
+      "sha": "828ea9baf835257384da1cd6ec99a3f4c7ef5da3",
+      "short_sha": "828ea9baf83",
+      "date": "2026-07-02T17:19:08-04:00",
+      "author": {
+        "name": "seanzimm",
+        "email": "102551488+seanzimm@users.noreply.github.com"
+      },
+      "summary": "SERVER-129812: Call waitUntilOpTimeForRead before setting read source for validate (#57432)"
+    },
+    {
+      "sha": "668d75fc38f05142b0dbe2e3f25418aa52ffcc26",
+      "short_sha": "668d75fc38f",
+      "date": "2026-07-02T17:19:07-04:00",
+      "author": {
+        "name": "Evan Bergeron",
+        "email": "evanbergeron@users.noreply.github.com"
+      },
+      "summary": "SERVER-130341 Use SBE RAII factory methods in block_expr tests (#57284)"
+    },
+    {
+      "sha": "5b730fb154573c131346a50c18e7c19f5459462c",
+      "short_sha": "5b730fb1545",
+      "date": "2026-07-02T23:11:43+02:00",
+      "author": {
+        "name": "romanskas",
+        "email": "30618745+romanskas@users.noreply.github.com"
+      },
+      "summary": "SERVER-130077 Remove usage of setRequestQueryStatsFromRemotes() (#56997)"
+    },
+    {
+      "sha": "c1e4fa8a3319180ba6225d6d1a65ae13eb85918d",
+      "short_sha": "c1e4fa8a331",
+      "date": "2026-07-02T17:07:40-04:00",
+      "author": {
+        "name": "Santiago Roche",
+        "email": "69868136+sroches@users.noreply.github.com"
+      },
+      "summary": "SERVER-129855 Ensure extension loading and signature validation use same pinned inode path (#57159)"
+    },
+    {
+      "sha": "0f3922a36968ac8ad00f5898f83f02c0a3c6466d",
+      "short_sha": "0f3922a3696",
+      "date": "2026-07-02T16:51:44-04:00",
+      "author": {
+        "name": "Lee Maguire",
+        "email": "lee.maguire@mongodb.com"
+      },
+      "summary": "SERVER-129747 Freeze MongoDB custom-type prototypes at install time (#57370)"
+    },
+    {
+      "sha": "a0bfb99b68dc8575e54ce618bf237afb0ac94b51",
+      "short_sha": "a0bfb99b68d",
+      "date": "2026-07-02T20:51:10+00:00",
+      "author": {
+        "name": "Joan Bruguera Micó (at MongoDB)",
+        "email": "joan.bruguera-mico@mongodb.com"
+      },
+      "summary": "SERVER-127968 Fix edge cases for draining of chunk operations on setFCV for Authoritative Shards (#57283)"
+    },
     {
       "sha": "7bc650ec9d11896a85a83b8eba66deb1f74636e7",
       "short_sha": "7bc650ec9d1",
@@ -1328,10 +1458,29 @@
           "num_of_dirs": 22
         }
       }
+    },
+    {
+      "commit": {
+        "sha": "ccd2a622b033edcb382476ecaf364cca78c769ee",
+        "short_sha": "ccd2a622b03",
+        "date": "2026-07-02T16:07:53-07:00",
+        "author": {
+          "name": "Thomas Goyne",
+          "email": "thomas.goyne@mongodb.com"
+        },
+        "summary": "SERVER-128654 Don't wait for the table or schema locks when performing a replicated drop (#57374)"
+      },
+      "strategy_name": "important_files",
+      "result": {
+        "matched_files": [
+          "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp",
+          "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine_test.cpp"
+        ]
+      }
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-07-02 20:31:56",
+  "generated_at": "2026-07-03 07:05:24",
   "branch_name": "master",
   "display_name": "master"
 }
