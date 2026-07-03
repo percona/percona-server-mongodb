@@ -1,5 +1,5 @@
 /**
- *    Copyright (C) 2025-present MongoDB, Inc.
+ *    Copyright (C) 2026-present MongoDB, Inc.
  *
  *    This program is free software: you can redistribute it and/or modify
  *    it under the terms of the Server Side Public License, version 1,
@@ -27,17 +27,25 @@
  *    it in the license file.
  */
 
-#pragma once
+#include "mongo/transport/handoff/handoff_session_manager.h"
 
-#include "mongo/db/global_catalog/type_database_gen.h"
-#include "mongo/db/operation_context.h"
-#include "mongo/util/modules.h"
+#include "mongo/db/service_context_test_fixture.h"
+#include "mongo/unittest/unittest.h"
 
-namespace mongo {
+#define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kTest
 
-// TODO (SERVER-98118): add this function to the unnamed namespace once 9.0 becomes last LTS.
-void commitCreateDatabaseMetadataLocally(OperationContext* opCtx,
-                                         const DatabaseType& dbMetadata,
-                                         bool fromClone = false);
+namespace mongo::transport {
+namespace {
 
-}  // namespace mongo
+class HandoffSessionManagerTest : public ServiceContextTest {};
+
+/**
+ * Verifies that HandoffSessionManager opts in to the "connections" serverStatus section.
+ */
+TEST_F(HandoffSessionManagerTest, ShouldIncludeInConnectionsServerStatus) {
+    HandoffSessionManager sm(getServiceContext());
+    ASSERT_TRUE(sm.shouldIncludeInConnectionsServerStatus());
+}
+
+}  // namespace
+}  // namespace mongo::transport

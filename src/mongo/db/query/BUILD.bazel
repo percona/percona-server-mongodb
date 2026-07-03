@@ -10,6 +10,20 @@ exports_files(
 )
 
 mongo_cc_library(
+    name = "query_lifespan",
+    srcs = [
+        "query_lifespan.cpp",
+    ],
+    hdrs = [
+        "query_lifespan.h",
+    ],
+    deps = [
+        "//src/mongo/db:server_base",
+        "//src/mongo/db:service_context",
+    ],
+)
+
+mongo_cc_library(
     name = "write_conflict_storm",
     srcs = [
         "write_conflict_storm.cpp",
@@ -328,6 +342,7 @@ mongo_cc_library(
     deps = [
         ":on_parameter_change_updaters",
         "//src/mongo/db:server_base",
+        "//src/mongo/db:server_options_storage",
         "//src/mongo/db/commands:test_commands_enabled",
         "//src/mongo/db/query/query_knobs:query_knob",
         "//src/mongo/db/topology/cluster_parameters:cluster_server_parameter",
@@ -680,6 +695,7 @@ mongo_cc_unit_test(
         ":parsed_distinct_command",
         ":query_planner_test_fixture",
         "//src/mongo/db:service_context_d",
+        "//src/mongo/db/pipeline",
         "//src/mongo/db/query/compiler/optimizer/index_bounds_builder:index_bounds_builder_test_fixture",
         "//src/mongo/db/query/plan_ranking:plan_ranking_test_fixture",
         "//src/mongo/db/shard_role/shard_catalog:collection_mock",
@@ -726,6 +742,7 @@ mongo_cc_unit_test(
         "plan_ranker_index_prefix_test.cpp",
         "plan_ranker_test.cpp",
         "query_feature_flag_test.cpp",
+        "query_lifespan_test.cpp",
         "query_request_test.cpp",
         "query_settings_test.cpp",
         "query_utils_test.cpp",
@@ -737,6 +754,7 @@ mongo_cc_unit_test(
     ],
     deps = [
         ":map_reduce_output_format",
+        ":query_lifespan",
         ":query_planner",
         ":query_test_service_context",
         "//src/mongo/db/exec/document_value:document_value_test_util",

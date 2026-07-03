@@ -37,6 +37,10 @@ class HandoffSessionManager : public SessionManagerCommon {
 public:
     using SessionManagerCommon::SessionManagerCommon;
 
+    bool shouldIncludeInConnectionsServerStatus() const override {
+        return true;
+    }
+
 protected:
     std::string getClientThreadName(const Session&) const override;
     void configureServiceExecutorContext(Client&, bool isPrivilegedSession) const override;

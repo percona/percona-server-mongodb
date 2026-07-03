@@ -39,7 +39,6 @@
 #include "mongo/db/query/query_settings/query_settings_gen.h"
 #include "mongo/db/query/query_settings_decoration.h"
 #include "mongo/db/query/wildcard_multikey_paths.h"
-#include "mongo/db/storage/storage_options.h"
 #include "mongo/db/timeseries/timeseries_index_schema_conversion_functions.h"
 #include "mongo/s/query/shard_key_pattern_query_util.h"
 #include "mongo/s/query/shard_targeting_collation_helpers.h"
@@ -53,16 +52,6 @@ namespace mongo {
 
 MONGO_FAIL_POINT_DEFINE(pauseAfterFillingOutIndexEntries);
 
-namespace {
-/**
- * Converts the catalog metadata for an index into an IndexEntry, which is a format that is meant to
- * be consumed by the query planner. This function can perform index reads and should not be called
- * unless access to the storage engine is permitted.
- *
- * When 'canonicalQuery' is not null, only multikey metadata paths that intersect with the query
- * field set will be retrieved for a multikey wildcard index. Otherwise all multikey metadata paths
- * will be retrieved.
- */
 IndexEntry indexEntryFromIndexCatalogEntry(OperationContext* opCtx,
                                            const CollectionPtr& collection,
                                            std::shared_ptr<const IndexCatalogEntry> ice,
@@ -143,6 +132,7 @@ IndexEntry indexEntryFromIndexCatalogEntry(OperationContext* opCtx,
             std::move(ice)};
 }
 
+namespace {
 void fillOutIndexEntries(OperationContext* opCtx,
                          const CanonicalQuery& canonicalQuery,
                          const CollectionPtr& collection,
@@ -445,7 +435,7 @@ void QueryPlannerParams::fillOutSecondaryCollectionsInfo(
             fillOutIndexEntries(opCtx, canonicalQuery, secondaryColl, secondaryInfo.indexes);
             fillOutPlannerCollectionInfo(
                 opCtx, secondaryColl, &secondaryInfo.stats, includeSizeStats);
-            if (storageGlobalParams.noTableScan.load()) {
+            if (canonicalQuery.getExpCtx()->getQueryKnobConfiguration().getNoTableScan()) {
                 // There are certain cases where we ignore this restriction.
                 bool ignore = nss.isSystem() || nss.isOnInternalDb();
                 if (!ignore) {
@@ -508,7 +498,7 @@ void QueryPlannerParams::fillOutMainCollectionPlannerParams(
     // We will not output collection scans unless there are no indexed solutions. NO_TABLE_SCAN
     // overrides this behavior by not outputting a collscan even if there are no indexed
     // solutions.
-    if (storageGlobalParams.noTableScan.load()) {
+    if (canonicalQuery.getExpCtx()->getQueryKnobConfiguration().getNoTableScan()) {
         const auto& nss = canonicalQuery.nss();
         // There are certain cases where we ignore this restriction:
         bool ignore =
