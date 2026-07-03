@@ -1,0 +1,240 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "b9035ee8493280bd4e5697f43c92a3800d8119c4",
+    "merge_commit": "fbd91ebc93a3d203eddf39cc33d0c9299f65c4d7"
+  },
+  "mergai_version": "0.1.dev1+g5dc8279ba",
+  "merge_context": {
+    "merge_commit": "fbd91ebc93a3d203eddf39cc33d0c9299f65c4d7",
+    "merged_commits": [
+      "fbd91ebc93a3d203eddf39cc33d0c9299f65c4d7",
+      "d8f1cee41898004efb3d41898824047f29c7b1a5",
+      "b4f4a80a0198ddbdaaf70576769806a22e6d8c2a",
+      "60605261ef08044dd18fc4d9df8d5a0ee2e272a2",
+      "8a0f4f44bfb1c2a70dff5e5f2e115c7d8c8371fe",
+      "690a0c792639753094708b32a4d68827527baaef",
+      "5cd47701b4d44cd2348b30144a05a84d0235476f",
+      "6b0a7c8de3379e91b2aaca32ee4ed8d375298a65",
+      "75c66a58b0fcc92be8c80b4f5461c0c7ab25633f",
+      "b655d2fbd09caf0842d20c979003f6241c892776",
+      "b76aec07ba468d219d4a6b250048eddde70185e3",
+      "81d91f614cd4199d4bd4b3b5364d041653aa299a",
+      "414f08ee3e8156ffbc57218f601bdc9bb72809b4",
+      "dbeb63549f486de03bcc4a060bf24dd49bb06f01",
+      "42233fe22e05e9b39e7de1e5560f969b814812c0",
+      "3a405bc37bfc8d5627ac746fd13a7436614b5aec",
+      "b3b5153bfeca41aab1ccbb31bb3162dcecc65a46",
+      "cff6943fbb42c80db4e6714d64bac985ce4c3731",
+      "62c734cb1207e1d9f6ad2c5cc95b213ddd198cc4",
+      "f8fbe73173d30166243a279b9e0d8c89b2592b09",
+      "7b0b534125b51672ebada066c63606b131c56b99",
+      "2afb8c84b7c81e6b11113dcddfd0ac749416d17e",
+      "8867cb255512b4a3a8c7ef8ad5566ad9069279d0",
+      "1eea6124fd953e1d7ed1a1bfc6da0e61f88cfdcd",
+      "515c9124800ef671d6c097450706de60f4ef232d",
+      "e03d955d68f93c0bd68d592d80582e9a9b40f2fa",
+      "5ebdfe2f2c85f1a1c116ae439a3b1ccde04aae18",
+      "b03b97b3e55bf057025958288247df86ec421ab0",
+      "becaf898548f75b733c35e484152f2416e44ecc1",
+      "837aae4eab466d7045d80db48eda35ba235d7433",
+      "97a424629930a1a4f2d65b74c81009d07ac2eacf",
+      "e0f54ee489d763d50749f0418bda44f8ebfd9131",
+      "d90fee909da54bf42e140a51850df9b3e2b364bb",
+      "93c44c73ad417cfca9458439f3160f63ba2c9f4d",
+      "226a48c0d7ba399904ef3209afa3611a3107a907",
+      "7452a5fbf550ef28fffe830889f524914d83590c",
+      "ca43886181f10c96845f44a5c7e9e974820c2f12",
+      "cce19843a990952e8c72d020c5f94031a8d9e52e",
+      "ce0582bb7e31d7caa592d1f7a78e66c56e4e2d42",
+      "18329dd813b56fb03a742524baf0b445bc119194",
+      "85d21d34dc04bc6ba71f862e9d056c0f9f64c18c",
+      "4dd0da780581da6aeecbb48beb191c5e877ae0d4",
+      "edd6625d1b892c651e60916947756600101f56ff",
+      "85b22221a9d6a1f4d5d5d361c10badf12a35c6b1",
+      "94d0ebe914bfe5a8545a125610a757d431dc826d",
+      "151a1a1c67df357c065c6b2c1b9456ef0c29ade1",
+      "fedebc03fd5742a1ef11efae895348488fb9bad9",
+      "b93fd2cc14a35d9b23ce564ad43f1eaea7764c25",
+      "7eec5f4c991f64ec4c1268da221b9516db847944",
+      "9a4b39c1bb4ce9b9a3dc877666a9b5d94bb41ee7",
+      "75c1877bb8197797beddaba9a07e813dacb4433a",
+      "7655d46a5c5e3dd6ca2991f302820bff73a4e666",
+      "338480049eeca91322004d9cf7f605b50eedde1f",
+      "b32fdab547e02064e3803f04cf59e0b45ace25a5",
+      "b8d064d759ed5837db7fea92054e0eabd182e223",
+      "a3eceab6a0ba907825e72c4af749c456df3bdbd6",
+      "09cde6a614422b8bf19ce2459a16ea305d225510",
+      "b0d33a6afd7eeb00383b775fe81710a81a8dd6e8",
+      "5b477f0cf18a09d4e02bf2abc01ddcf9bdb40c20"
+    ],
+    "important_files_modified": [],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        "bazel/config/BUILD.bazel",
+        "jstests/core/catalog/views/views_all_commands.js",
+        "jstests/libs/write_concern_all_commands.js",
+        "jstests/replsets/all_commands_downgrading_to_upgraded.js",
+        "jstests/replsets/db_reads_while_recovering_all_commands.js",
+        "jstests/sharding/all_commands_direct_shard_connection_auth.js",
+        "jstests/sharding/database_versioning_all_commands.js",
+        "jstests/sharding/read_write_concern_defaults_application.js",
+        "jstests/sharding/safe_secondary_reads_drop_recreate.js",
+        "jstests/sharding/safe_secondary_reads_single_migration_suspend_range_deletion.js",
+        "jstests/sharding/safe_secondary_reads_single_migration_waitForDelete.js",
+        "src/mongo/base/error_codes.yml",
+        "src/mongo/config.h.in",
+        "src/mongo/db/BUILD.bazel",
+        "src/mongo/db/pipeline/BUILD.bazel",
+        "src/mongo/db/storage/BUILD.bazel",
+        "src/mongo/mongo_config_header.py",
+        "src/mongo/transport/BUILD.bazel"
+      ]
+    }
+  },
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 68385,
+    "num_turns": 7,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.4105317499999999,
+    "modelUsage": {
+      "claude-haiku-4-5-20251001": {
+        "inputTokens": 603,
+        "outputTokens": 15,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0,
+        "webSearchRequests": 0,
+        "costUSD": 0.000678,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000
+      },
+      "claude-opus-4-8": {
+        "inputTokens": 8711,
+        "outputTokens": 4892,
+        "cacheReadInputTokens": 188185,
+        "cacheCreationInputTokens": 23985,
+        "webSearchRequests": 0,
+        "costUSD": 0.40985374999999996,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-haiku-4-5-20251001": {
+          "tokens": {
+            "input": 603,
+            "output": 15,
+            "cache_read": 0,
+            "cache_creation": 0
+          },
+          "cost_usd": 0.000678
+        },
+        "claude-opus-4-8": {
+          "tokens": {
+            "input": 8711,
+            "output": 4892,
+            "cache_read": 188185,
+            "cache_creation": 23985
+          },
+          "cost_usd": 0.40985374999999996
+        }
+      }
+    },
+    "text_result": "I've analyzed the merge and written the JSON response. \n\nSummary of what this merge pulls in from upstream MongoDB:\n\n- **TLS connection handoff feature** \u2014 new bazel config settings (`build_connection_handoff_distros` / `build_connection_handoff_enabled`) gating the feature on AL2023 + Ubuntu 22/24 on x86_64/aarch64, a new `MONGO_CONFIG_CONNECTION_HANDOFF` config define (config.h.in + mongo_config_header.py), and transport-layer BUILD wiring for the handoff libraries/feature flag.\n- **New error code 513** `StreamProcessorAtlasRetryableUserError`.\n- **Test-map cleanup** \u2014 uniform removal of the `_internalClearCollectionShardingMetadata` internal command from 11 all-commands jstests.\n- **Minor BUILD refactors** \u2014 extracted `read_concern_mongod_idl` library, added `checkpointer_test.cpp` + deps, and pipeline/otel test dependencies.\n\nAll changes are upstream additions merged cleanly by the `ort` strategy; no Percona customizations appear in the `diff base \u2192 merge commit` diff for these files.",
+    "response": {
+      "summary": "This merge pulls in upstream MongoDB changes covering several independent areas: (1) introduction of a TLS connection handoff feature \u2014 new bazel config settings gating the handoff on specific Linux distros/architectures, a new MONGO_CONFIG_CONNECTION_HANDOFF config define, and transport-layer build wiring for the handoff libraries and feature flag; (2) a new server error code StreamProcessorAtlasRetryableUserError (513); (3) removal of the internal command _internalClearCollectionShardingMetadata from all-commands test coverage maps across replset/sharding jstests; and (4) minor bazel BUILD refactors and added unit-test dependencies.",
+      "auto_merged": {
+        "bazel/config/BUILD.bazel": "Adds two new config_setting_group definitions for the TLS connection handoff feature: 'build_connection_handoff_distros' (matches Amazon Linux 2023/2023_3 and Ubuntu 22/24 platforms) and 'build_connection_handoff_enabled' (matches the distro group AND linux_aarch64_or_x86_64). Comments note that s2n-tls (a dependency) is being restricted to Linux/AL2023 targets due to OpenSSL linkage issues (BF-44238), with Ubuntu included for developer workstations.",
+        "jstests/core/catalog/views/views_all_commands.js": "Removes the '_internalClearCollectionShardingMetadata: {skip: isAnInternalCommand}' entry from the viewsCommandTests map (the internal command was removed upstream).",
+        "jstests/libs/write_concern_all_commands.js": "Removes the '_internalClearCollectionShardingMetadata: {skip: \"internal command\"}' entry from both the wcCommandsTests and wcTimeseriesCommandsTests maps.",
+        "jstests/replsets/all_commands_downgrading_to_upgraded.js": "Removes the '_internalClearCollectionShardingMetadata: {skip: isAnInternalCommand}' entry from the allCommands map.",
+        "jstests/replsets/db_reads_while_recovering_all_commands.js": "Removes the '_internalClearCollectionShardingMetadata: {skip: isAnInternalCommand}' entry from the allCommands map.",
+        "jstests/sharding/all_commands_direct_shard_connection_auth.js": "Removes the '_internalClearCollectionShardingMetadata: {skip: isAnInternalCommand}' entry from the allCommands map.",
+        "jstests/sharding/database_versioning_all_commands.js": "Removes the '_internalClearCollectionShardingMetadata: {skip: \"internal command\"}' entry from the mongod section of allTestCases.",
+        "jstests/sharding/read_write_concern_defaults_application.js": "Removes the '_internalClearCollectionShardingMetadata: {skip: \"internal command\"}' entry from the testCases map.",
+        "jstests/sharding/safe_secondary_reads_drop_recreate.js": "Removes the '_internalClearCollectionShardingMetadata: {skip: \"internal command\"}' entry from the testCases map.",
+        "jstests/sharding/safe_secondary_reads_single_migration_suspend_range_deletion.js": "Removes the '_internalClearCollectionShardingMetadata: {skip: \"internal command\"}' entry from the testCases map.",
+        "jstests/sharding/safe_secondary_reads_single_migration_waitForDelete.js": "Removes the '_internalClearCollectionShardingMetadata: {skip: \"internal command\"}' entry from the testCases map.",
+        "src/mongo/base/error_codes.yml": "Adds a new error code 513, StreamProcessorAtlasRetryableUserError, in categories [StreamProcessorUserError, StreamProcessorRetryableError], described as a retryable user error from the stream processor's target Atlas cluster.",
+        "src/mongo/config.h.in": "Adds a new template define '@mongo_config_connection_handoff@' with a comment noting it is defined if TLS connection handoff support is enabled.",
+        "src/mongo/db/BUILD.bazel": "Adds a new mongo_cc_library 'read_concern_mongod_idl' (built from ':read_concern_mongod_gen', depending on ':server_base'). The 'read_concern_d_impl' target is refactored to depend on the new ':read_concern_mongod_idl' library instead of listing ':read_concern_mongod_gen' directly in its srcs.",
+        "src/mongo/db/pipeline/BUILD.bazel": "Adds two dependencies to a mongo_cc_unit_test target: '//src/mongo/db/memory_tracking' and '//src/mongo/unittest:server_parameter_guard'.",
+        "src/mongo/db/storage/BUILD.bazel": "Adds 'checkpointer_test.cpp' to the srcs and the ':checkpointer' target to the deps of the 'db_storage_test' unit test.",
+        "src/mongo/mongo_config_header.py": "Adds the substitution mapping ('@mongo_config_connection_handoff@', 'MONGO_CONFIG_CONNECTION_HANDOFF') to get_config_header_substs, paired with the new config.h.in define.",
+        "src/mongo/transport/BUILD.bazel": "Wires up the TLS connection handoff feature in the transport layer: adds the generated '//src/mongo/transport/handoff:handoff_feature_flag_gen' target unconditionally to srcs (so Windows builds accept but ignore the feature flag), and conditionally adds ':handoff_session_manager' and ':handoff_transport_layer' deps via select on '//bazel/config:build_connection_handoff_enabled' in two library targets. Also adds otel test/sampler deps ('traces:traces_test_util' and 'traces/sampler') to a test library."
+      },
+      "review_notes": "All changes are upstream MongoDB additions pulled in cleanly by the ort auto-merge; no Percona-specific customizations appear in the diff base \u2192 merge commit diff for these files. The largest coherent feature is TLS connection handoff (bazel config settings, config.h define + python substitution, transport BUILD wiring); reviewers should confirm the new '//src/mongo/transport/handoff:*' targets exist in the merged tree. The repeated jstests edits are uniform removals of the now-removed internal command _internalClearCollectionShardingMetadata. The db/BUILD.bazel change is a build-only refactor (extracting an IDL library) with no behavior change."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I've analyzed the merge and written the JSON response. \n\nSummary of what this merge pulls in from upstream MongoDB:\n\n- **TLS connection handoff feature** \u2014 new bazel config settings (`build_connection_handoff_distros` / `build_connection_handoff_enabled`) gating the feature on AL2023 + Ubuntu 22/24 on x86_64/aarch64, a new `MONGO_CONFIG_CONNECTION_HANDOFF` config define (config.h.in + mongo_config_header.py), and transport-layer BUILD wiring for the handoff libraries/feature flag.\n- **New error code 513** `StreamProcessorAtlasRetryableUserError`.\n- **Test-map cleanup** \u2014 uniform removal of the `_internalClearCollectionShardingMetadata` internal command from 11 all-commands jstests.\n- **Minor BUILD refactors** \u2014 extracted `read_concern_mongod_idl` library, added `checkpointer_test.cpp` + deps, and pipeline/otel test dependencies.\n\nAll changes are upstream additions merged cleanly by the `ort` strategy; no Percona customizations appear in the `diff base \u2192 merge commit` diff for these files."
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20260702_113946_939935.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.198 (Claude Code)"
+    }
+  }
+}

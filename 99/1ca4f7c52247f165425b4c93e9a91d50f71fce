@@ -1,0 +1,38 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "733e2cde866a8811a0d884b7b18e1a178b43b0ad",
+    "merge_commit": "6a32634488c9e0fabc21acf10b2532585db6b810"
+  },
+  "mergai_version": "0.1.dev1+g15f1cbf89",
+  "solutions": [
+    {
+      "type": "ci_fix",
+      "request": {
+        "workflow": "format",
+        "run_id": "28336829991",
+        "pr_number": 311,
+        "attempt_number": 1,
+        "context_summary": "format failed: 5 files need changes",
+        "timestamp": "2026-06-28T22:17:25.641292+00:00"
+      },
+      "author": {
+        "name": "format auto-fix",
+        "type": "command"
+      },
+      "response": {
+        "summary": "format auto-fix: 5 files changed",
+        "resolved": {
+          "src/mongo/db/auth/external/awsiam_server_mechanism.cpp": "changed by 'format' auto-fix",
+          "src/mongo/db/auth/external/external_sasl_authentication_session.cpp": "changed by 'format' auto-fix",
+          "src/mongo/db/backup/backup_commands.cpp": "changed by 'format' auto-fix",
+          "src/mongo/db/pipeline/document_source_backup_cursor.h": "changed by 'format' auto-fix",
+          "src/mongo/db/pipeline/document_source_backup_cursor_extend.h": "changed by 'format' auto-fix"
+        },
+        "unresolved": {},
+        "modified": {},
+        "review_notes": ""
+      }
+    }
+  ]
+}

@@ -1,0 +1,244 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "3f4eed74f5f4d1f87d8cee110442859ef9f34df1",
+    "merge_commit": "5cd47701b4d44cd2348b30144a05a84d0235476f"
+  },
+  "mergai_version": "0.1.dev1+ge16a20966",
+  "merge_context": {
+    "merge_commit": "5cd47701b4d44cd2348b30144a05a84d0235476f",
+    "merged_commits": [
+      "5cd47701b4d44cd2348b30144a05a84d0235476f",
+      "6b0a7c8de3379e91b2aaca32ee4ed8d375298a65",
+      "75c66a58b0fcc92be8c80b4f5461c0c7ab25633f",
+      "b655d2fbd09caf0842d20c979003f6241c892776",
+      "b76aec07ba468d219d4a6b250048eddde70185e3",
+      "81d91f614cd4199d4bd4b3b5364d041653aa299a",
+      "414f08ee3e8156ffbc57218f601bdc9bb72809b4",
+      "dbeb63549f486de03bcc4a060bf24dd49bb06f01",
+      "42233fe22e05e9b39e7de1e5560f969b814812c0",
+      "3a405bc37bfc8d5627ac746fd13a7436614b5aec",
+      "b3b5153bfeca41aab1ccbb31bb3162dcecc65a46",
+      "cff6943fbb42c80db4e6714d64bac985ce4c3731",
+      "62c734cb1207e1d9f6ad2c5cc95b213ddd198cc4",
+      "f8fbe73173d30166243a279b9e0d8c89b2592b09",
+      "7b0b534125b51672ebada066c63606b131c56b99",
+      "2afb8c84b7c81e6b11113dcddfd0ac749416d17e",
+      "8867cb255512b4a3a8c7ef8ad5566ad9069279d0",
+      "1eea6124fd953e1d7ed1a1bfc6da0e61f88cfdcd",
+      "515c9124800ef671d6c097450706de60f4ef232d",
+      "e03d955d68f93c0bd68d592d80582e9a9b40f2fa",
+      "5ebdfe2f2c85f1a1c116ae439a3b1ccde04aae18",
+      "b03b97b3e55bf057025958288247df86ec421ab0",
+      "becaf898548f75b733c35e484152f2416e44ecc1",
+      "837aae4eab466d7045d80db48eda35ba235d7433",
+      "97a424629930a1a4f2d65b74c81009d07ac2eacf",
+      "e0f54ee489d763d50749f0418bda44f8ebfd9131",
+      "d90fee909da54bf42e140a51850df9b3e2b364bb",
+      "93c44c73ad417cfca9458439f3160f63ba2c9f4d",
+      "226a48c0d7ba399904ef3209afa3611a3107a907",
+      "7452a5fbf550ef28fffe830889f524914d83590c",
+      "ca43886181f10c96845f44a5c7e9e974820c2f12",
+      "cce19843a990952e8c72d020c5f94031a8d9e52e",
+      "ce0582bb7e31d7caa592d1f7a78e66c56e4e2d42",
+      "18329dd813b56fb03a742524baf0b445bc119194",
+      "85d21d34dc04bc6ba71f862e9d056c0f9f64c18c",
+      "4dd0da780581da6aeecbb48beb191c5e877ae0d4",
+      "edd6625d1b892c651e60916947756600101f56ff",
+      "85b22221a9d6a1f4d5d5d361c10badf12a35c6b1",
+      "94d0ebe914bfe5a8545a125610a757d431dc826d",
+      "151a1a1c67df357c065c6b2c1b9456ef0c29ade1",
+      "fedebc03fd5742a1ef11efae895348488fb9bad9",
+      "b93fd2cc14a35d9b23ce564ad43f1eaea7764c25",
+      "7eec5f4c991f64ec4c1268da221b9516db847944",
+      "9a4b39c1bb4ce9b9a3dc877666a9b5d94bb41ee7",
+      "75c1877bb8197797beddaba9a07e813dacb4433a",
+      "7655d46a5c5e3dd6ca2991f302820bff73a4e666",
+      "338480049eeca91322004d9cf7f605b50eedde1f",
+      "b32fdab547e02064e3803f04cf59e0b45ace25a5",
+      "b8d064d759ed5837db7fea92054e0eabd182e223",
+      "a3eceab6a0ba907825e72c4af749c456df3bdbd6",
+      "09cde6a614422b8bf19ce2459a16ea305d225510",
+      "b0d33a6afd7eeb00383b775fe81710a81a8dd6e8",
+      "5b477f0cf18a09d4e02bf2abc01ddcf9bdb40c20"
+    ],
+    "important_files_modified": [],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        "bazel/config/BUILD.bazel",
+        "src/mongo/base/error_codes.yml",
+        "src/mongo/config.h.in",
+        "src/mongo/db/BUILD.bazel",
+        "src/mongo/db/storage/BUILD.bazel",
+        "src/mongo/mongo_config_header.py",
+        "src/mongo/transport/BUILD.bazel"
+      ]
+    }
+  },
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 39308,
+    "num_turns": 10,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.269183,
+    "modelUsage": {
+      "claude-haiku-4-5-20251001": {
+        "inputTokens": 587,
+        "outputTokens": 15,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0,
+        "webSearchRequests": 0,
+        "costUSD": 0.0006619999999999999,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000
+      },
+      "claude-opus-4-8": {
+        "inputTokens": 7827,
+        "outputTokens": 3137,
+        "cacheReadInputTokens": 89147,
+        "cacheCreationInputTokens": 17022,
+        "webSearchRequests": 0,
+        "costUSD": 0.268521,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-haiku-4-5-20251001": {
+          "tokens": {
+            "input": 587,
+            "output": 15,
+            "cache_read": 0,
+            "cache_creation": 0
+          },
+          "cost_usd": 0.0006619999999999999
+        },
+        "claude-opus-4-8": {
+          "tokens": {
+            "input": 7827,
+            "output": 3137,
+            "cache_read": 89147,
+            "cache_creation": 17022
+          },
+          "cost_usd": 0.268521
+        }
+      }
+    },
+    "text_result": "I've read all seven auto-merged file diffs (using the authoritative `d6ae129 \u2192 5cd4770` base) and written the JSON response.\n\nThe merge pulls in upstream changes centered on **TLS connection handoff** support, plus a few smaller items:\n\n- **Connection handoff** spans four files together: new `build_connection_handoff_distros`/`build_connection_handoff_enabled` config_setting_groups (`bazel/config/BUILD.bazel`), a new `@mongo_config_connection_handoff@` header placeholder (`config.h.in`) and its substitution mapping (`mongo_config_header.py`), and `select()`-based wiring of the `handoff_*` targets into the transport layer (`transport/BUILD.bazel`).\n- **New error code 513** `StreamProcessorAtlasRetryableUserError` (`error_codes.yml`).\n- **read_concern_mongod IDL refactor** into its own `read_concern_mongod_idl` library target (`db/BUILD.bazel`).\n- **checkpointer_test** added to the storage unit test suite (`db/storage/BUILD.bazel`).\n\nAll diffs were clean pure additions/refactors with no Percona-specific conflicts.",
+    "response": {
+      "summary": "Upstream merge that introduces TLS connection handoff support and its plumbing across the build config and transport layer, adds a new StreamProcessorAtlasRetryableUserError error code, refactors the read_concern_mongod IDL into its own library target, and adds the checkpointer unit test to the storage test suite.",
+      "auto_merged": {
+        "bazel/config/BUILD.bazel": "Adds two new config_setting_group definitions for connection handoff: 'build_connection_handoff_distros' (match_any over amazon_linux_2023, amazon_linux_2023_3, ubuntu22, ubuntu24) and 'build_connection_handoff_enabled' (match_all of build_connection_handoff_distros and linux_aarch64_or_x86_64). Comments note s2n-tls targets Linux only and OpenSSL linkage constraints (BF-44238).",
+        "src/mongo/base/error_codes.yml": "Adds a new error code 513, StreamProcessorAtlasRetryableUserError, with categories [StreamProcessorUserError, StreamProcessorRetryableError], described as a retryable user error from the stream processor's target Atlas cluster.",
+        "src/mongo/config.h.in": "Adds a new config header placeholder '@mongo_config_connection_handoff@' with a comment indicating it is defined when TLS connection handoff support is enabled.",
+        "src/mongo/db/BUILD.bazel": "Adds a new mongo_cc_library target 'read_concern_mongod_idl' (srcs :read_concern_mongod_gen, deps :server_base). The existing 'read_concern_d_impl' target is refactored to drop ':read_concern_mongod_gen' from its srcs and instead depend on the new ':read_concern_mongod_idl' target.",
+        "src/mongo/db/storage/BUILD.bazel": "Adds 'checkpointer_test.cpp' to the srcs of the 'db_storage_test' unit test and adds ':checkpointer' to its deps.",
+        "src/mongo/mongo_config_header.py": "Registers the substitution mapping ('@mongo_config_connection_handoff@', 'MONGO_CONFIG_CONNECTION_HANDOFF') in get_config_header_substs, matching the new placeholder added to config.h.in.",
+        "src/mongo/transport/BUILD.bazel": "Wires up connection handoff. The 'transport_layer_manager' library unconditionally includes the generated '//src/mongo/transport/handoff:handoff_feature_flag_gen' in srcs (so Windows can accept but ignore featureFlagTLSConnectionHandoff), and adds a select() on ':build_connection_handoff_enabled' pulling in handoff_session_manager and handoff_transport_layer. A similar handoff-enabled select() is added to a second library target. A transport test target also gains deps on otel traces_test_util and otel traces/sampler."
+      },
+      "review_notes": "All listed files diff cleanly as pure additions/refactors from upstream with no Percona-specific conflicts. Note the connection handoff feature spans four of these files together (bazel/config config_setting_groups, config.h.in placeholder, mongo_config_header.py substitution, and transport/BUILD.bazel selects) \u2014 verify the handoff:* targets referenced in transport/BUILD.bazel exist in the merged tree. The read_concern_mongod IDL was split into its own library target; confirm no other consumers relied on read_concern_d_impl re-exporting the generated sources."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "All diffs are clear. Writing the response."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I've read all seven auto-merged file diffs (using the authoritative `d6ae129 \u2192 5cd4770` base) and written the JSON response.\n\nThe merge pulls in upstream changes centered on **TLS connection handoff** support, plus a few smaller items:\n\n- **Connection handoff** spans four files together: new `build_connection_handoff_distros`/`build_connection_handoff_enabled` config_setting_groups (`bazel/config/BUILD.bazel`), a new `@mongo_config_connection_handoff@` header placeholder (`config.h.in`) and its substitution mapping (`mongo_config_header.py`), and `select()`-based wiring of the `handoff_*` targets into the transport layer (`transport/BUILD.bazel`).\n- **New error code 513** `StreamProcessorAtlasRetryableUserError` (`error_codes.yml`).\n- **read_concern_mongod IDL refactor** into its own `read_concern_mongod_idl` library target (`db/BUILD.bazel`).\n- **checkpointer_test** added to the storage unit test suite (`db/storage/BUILD.bazel`).\n\nAll diffs were clean pure additions/refactors with no Percona-specific conflicts."
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20260701_152049_226751.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.197 (Claude Code)"
+    }
+  }
+}

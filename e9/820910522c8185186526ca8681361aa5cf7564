@@ -1,0 +1,488 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "733e2cde866a8811a0d884b7b18e1a178b43b0ad",
+    "merge_commit": "6a32634488c9e0fabc21acf10b2532585db6b810"
+  },
+  "mergai_version": "0.1.dev1+g15f1cbf89",
+  "solutions": [
+    {
+      "type": "ci_fix",
+      "request": {
+        "workflow": "clang-tidy",
+        "run_id": "28335209664",
+        "pr_number": 311,
+        "attempt_number": 1,
+        "context_summary": "clang-tidy reported 6 findings in 5 files",
+        "timestamp": "2026-06-28T21:35:44.178056+00:00"
+      },
+      "status": "success",
+      "is_error": false,
+      "duration_ms": 566491,
+      "num_turns": 39,
+      "stop_reason": "end_turn",
+      "total_cost_usd": 5.558955749999997,
+      "modelUsage": {
+        "claude-haiku-4-5-20251001": {
+          "inputTokens": 587,
+          "outputTokens": 14,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 0,
+          "webSearchRequests": 0,
+          "costUSD": 0.0006569999999999999,
+          "contextWindow": 200000,
+          "maxOutputTokens": 32000
+        },
+        "claude-opus-4-8": {
+          "inputTokens": 34529,
+          "outputTokens": 62897,
+          "cacheReadInputTokens": 3877170,
+          "cacheCreationInputTokens": 299943,
+          "webSearchRequests": 0,
+          "costUSD": 5.558298749999998,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 64000
+        }
+      },
+      "stats": {
+        "models": {
+          "claude-haiku-4-5-20251001": {
+            "tokens": {
+              "input": 587,
+              "output": 14,
+              "cache_read": 0,
+              "cache_creation": 0
+            },
+            "cost_usd": 0.0006569999999999999
+          },
+          "claude-opus-4-8": {
+            "tokens": {
+              "input": 34529,
+              "output": 62897,
+              "cache_read": 3877170,
+              "cache_creation": 299943
+            },
+            "cost_usd": 5.558298749999998
+          }
+        }
+      },
+      "text_result": "I've fixed the clang-tidy failure and written the JSON response.\n\n## Summary\n\n**Root cause (bucket a \u2014 upstream removal still referenced by Percona code):** Upstream SERVER-32422 (commit `88a95b0edca`) deleted `operator\"\"_sd` along with `src/mongo/base/string_data.h`. Any surviving `\"...\"_sd` literal now fails to compile. The *previous* CI fix migrated only files that **directly** `#include`d `string_data.h` and missed Percona files that pulled the suffix in transitively.\n\n**The 6 reported findings, fixed at their true source:**\n\n| Finding | Fix |\n|---|---|\n| `sasl_mechanism_policies.h:139-140` \u2014 no matching `_sd` operator | `OidcPolicy::getName()` now returns the existing `auth::kMechanismMongoOIDC` constant, matching every sibling policy |\n| `namespace_string.h:1007` \u2014 differing `_sd`/`sv` suffixes | Fixed at the real source: the `X(kAdminPBMAgents, \u2026, \"PBMAgents\"_sd)` table entry in `namespace_string_reserved.h` \u2192 dropped the suffix like every upstream sibling entry |\n| `awsiam\u2026:175` \u2014 banned `std::regex_search` | `//  NOLINT` (pre-existing Percona code, repo-standard suppression) |\n| `encryption_keydb.h:168` \u2014 banned `std::recursive_mutex` | `//  NOLINT` (matches how the repo already suppresses recursive_mutex) |\n| `external_sasl\u2026:103` \u2014 suspicious `data()` | `// NOLINT(bugprone-suspicious-stringview-data-usage)` (mirrors namespace_string.h precedent) |\n\n**Whole-class generalization:** A repo-wide `grep` found **22 more** Percona files still using `\"...\"_sd` that clang-tidy didn't scan (not in its diff) but that would break `build-and-test` next. I migrated all of them with upstream's exact pattern (drop `_sd`\u2192`sv`, ensure `#include <string_view>`, add `using namespace std::literals::string_view_literals;` in the enclosing namespace). Final check: `grep -rln '\"_sd' src/mongo` now returns **0**.\n\nBoth errors are fixed without resurrecting the deleted symbol (avoiding permanent fork divergence), and the three warnings are legitimate pre-existing Percona code suppressed the sanctioned way.",
+      "response": {
+        "status": "fixed",
+        "summary": "Root-cause bucket (a): upstream SERVER-32422 (commit 88a95b0edca) deleted operator\"\"_sd (removed src/mongo/base/string_data.h), so any surviving \"...\"_sd literal now fails with 'no matching literal operator' / 'differing user-defined suffixes'. The previous CI fix migrated only files that directly #include'd string_data.h and missed Percona files that pulled the suffix in transitively. I fixed the two reported clang-diagnostic-errors at their true source by migrating the remaining _sd literals to the standard sv (std::string_view) literal, then generalized the fix to every other _sd site repo-wide, and suppressed the three legitimate-but-newly-scanned banned-name / stringview-data-usage warnings with the repo-standard //  NOLINT (matching existing precedents).",
+        "resolved": {
+          "src/mongo/db/auth/sasl_mechanism_policies.h": "clang-diagnostic-error at :139-140 (no return / no matching literal operator '_sd'). OidcPolicy::getName() returned \"MONGODB-OIDC\"_sd; replaced with the existing auth::kMechanismMongoOIDC constant (already defined as \"MONGODB-OIDC\"sv in auth_mechanism.h, which is included here), matching every sibling policy (AWSIAMPolicy, PLAINPolicy, etc.). This removes the dependency on the deleted _sd operator without resurrecting it.",
+          "src/mongo/db/namespace_string_reserved.h": "Source of the clang-diagnostic-error reported at namespace_string.h:1007 ('differing user-defined suffixes _sd and sv'). The EXPAND_NSS_CONSTANT_TABLE entry X(kAdminPBMAgents, DatabaseName::kAdmin, \"PBMAgents\"_sd) is concatenated by the macro as `coll \"\"sv`, producing \"PBMAgents\"_sd \"\"sv. Dropped the _sd suffix so the Percona PBMAgents entry is a plain string literal like every upstream sibling entry (e.g. \"system.users\"); the macro then yields a clean \"\"sv-suffixed literal. Backslash continuation column preserved.",
+          "src/mongo/db/auth/external/awsiam_server_mechanism.cpp": "mongo-banned-names-check warning at :175 for std::regex_search. This is pre-existing Percona code (PSMDB-1033 assumed-role parsing) that became visible to clang-tidy because the file entered the PR diff (prior _sd fix). Added trailing //  NOLINT, the sanctioned escape hatch named in the check message and used elsewhere in the tree.",
+          "src/mongo/db/auth/external/external_sasl_authentication_session.cpp": "bugprone-suspicious-stringview-data-usage warning at :103 for mechanismName().data() passed to the SASL C API (sasl_server_start). The value is always a null-terminated string literal (policy getName() constants), so this is safe; suppressed with // NOLINT(bugprone-suspicious-stringview-data-usage), mirroring the existing precedent in namespace_string.h.",
+          "src/mongo/db/storage/wiredtiger/encryption_keydb.h": "mongo-banned-names-check warning at :168 for std::recursive_mutex _lock. Pre-existing, intentional Percona design (documented as guarding _prng/_gcm_iv). Added trailing //  NOLINT, exactly how the repo already suppresses std::recursive_mutex (e.g. process_health/state_machine.h, shell/program_runner.h)."
+        },
+        "unresolved": {},
+        "modified": {
+          "src/mongo/db/exec/agg/backup_file_stage.cpp": "Whole-class _sd->sv migration: 3 literals, added <string_view>, added using namespace std::literals::string_view_literals; in namespace mongo.",
+          "src/mongo/db/exec/agg/backup_cursor_extend_stage.cpp": "Whole-class _sd->sv migration: 1 literal, added <string_view> and using-directive in namespace mongo.",
+          "src/mongo/db/exec/agg/backup_cursor_stage.cpp": "Whole-class _sd->sv migration: 6 literals, added <string_view> and using-directive in namespace mongo.",
+          "src/mongo/db/backup/backup_commands.cpp": "Whole-class _sd->sv migration: 13 literals, added <string_view>; using-directive placed in namespace percona (the namespace that actually encloses the literals).",
+          "src/mongo/db/pipeline/document_source_backup_cursor.cpp": "Whole-class _sd->sv migration: 5 literals, added <string_view> and using-directive in namespace mongo.",
+          "src/mongo/db/pipeline/document_source_backup_cursor.h": "Whole-class _sd->sv migration: 1 literal, added <string_view> and using-directive in namespace mongo.",
+          "src/mongo/db/pipeline/document_source_backup_cursor_extend.cpp": "Whole-class _sd->sv migration: 2 literals, added <string_view> and using-directive in namespace mongo.",
+          "src/mongo/db/pipeline/document_source_backup_cursor_extend.h": "Whole-class _sd->sv migration: 1 literal, added <string_view> and using-directive in namespace mongo.",
+          "src/mongo/db/storage/storage_engine_impl.cpp": "Whole-class _sd->sv migration: 4 literals; <string_view> already present; added using-directive in namespace mongo.",
+          "src/mongo/db/storage/wiredtiger/wiredtiger_backup_cursor_hooks.cpp": "Whole-class _sd->sv migration: 1 literal, added <string_view> and using-directive in namespace mongo.",
+          "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp": "Whole-class _sd->sv migration: 1 literal; <string_view> already present; added using-directive in namespace mongo.",
+          "src/mongo/db/startup_recovery.cpp": "Whole-class _sd->sv migration: 1 literal; <string_view> already present; added using-directive in namespace mongo.",
+          "src/mongo/tools/perconadecrypt_options.h": "Whole-class _sd->sv migration: 2 literals, added <string_view> and using-directive in namespace mongo.",
+          "src/mongo/db/encryption/vault_client_test.cpp": "Whole-class _sd->sv migration: 2 literals, added <string_view> and using-directive in namespace mongo::encryption.",
+          "src/mongo/db/encryption/vault_client.cpp": "Whole-class _sd->sv migration: 1 literal; <string_view> already present; added using-directive in namespace mongo::encryption.",
+          "src/mongo/db/encryption/encryption_status.cpp": "Whole-class _sd->sv migration: 5 literals, added <string_view> and using-directive in namespace mongo::encryption.",
+          "src/mongo/db/mongod_options_encryption.h": "Whole-class _sd->sv migration: 2 literals, added <string_view> and using-directive in namespace mongo.",
+          "src/mongo/db/redaction_parameter.cpp": "Whole-class _sd->sv migration: 4 literals, added <string_view> and using-directive in namespace mongo.",
+          "src/mongo/db/ldap_options.cpp": "Whole-class _sd->sv migration: 4 literals, added <string_view> and using-directive in namespace mongo.",
+          "src/mongo/db/ldap/ldap_manager_impl.cpp": "Whole-class _sd->sv migration: 1 literal, added <string_view>; using-directive placed in the second (reopened) namespace mongo block that actually encloses the literal.",
+          "src/mongo/db/auth/authorization_backend_local.cpp": "Whole-class _sd->sv migration: 1 literal, added <string_view>; added using-directive after namespace mongo::auth { because the pre-existing inner-anonymous-namespace directive did not cover the \"$external\"_sd usage site.",
+          "src/mongo/db/auth/oidc/oidc_commands.cpp": "Whole-class _sd->sv migration: 3 literals, added <string_view> and using-directive in namespace mongo."
+        },
+        "review_notes": "Root cause confirmed via `git log --oneline -- src/mongo/base/string_data.h` (commit 88a95b0edca removed the file and the operator\"\"_sd suffix) and `grep -rn 'operator\"\"_sd' src/mongo/base` (zero hits -> suffix is gone repo-wide). The clang-tidy job only scans files in the PR diff, so it reported just the two _sd errors that fell in scanned files; but a full `grep -rln '\"_sd' src/mongo` turned up 22 additional Percona files still using the suffix that the prior fix (which searched only for `#include \"mongo/base/string_data.h\"`) missed -- these would fail build-and-test on the next run, so I migrated them all in this pass (per the 'fix the whole class' guidance). Migration mirrors upstream commit 88a95b0edca exactly: drop the suffix to `sv`, ensure `#include <string_view>`, and add `using namespace std::literals::string_view_literals;` inside the enclosing namespace (upstream adds this even in headers). Final verification: `grep -rln '\"_sd' src/mongo --include=*.h --include=*.cpp` now returns 0. Two namespace subtleties to double-check: (1) backup_commands.cpp literals live in `namespace percona`, and (2) ldap_manager_impl.cpp / authorization_backend_local.cpp have multiple/anonymous namespace blocks -- in all three the using-directive was placed in the block enclosing the actual usage, and I confirmed every `\"...\"sv` site is covered. The three NOLINT suppressions are for pre-existing Percona code that predates this merge (verified identical lines exist on the target branch 733e2cde866 without NOLINT); they surfaced only because the files entered the clang-tidy diff. If the project would rather refactor std::regex_search to mongo::pcre::Regex or replace the recursive_mutex, that is a larger, separate change -- the NOLINTs keep CI green for the merge without altering established behavior."
+      },
+      "session": {
+        "messages": [
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Read"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Read"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Read"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Read"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Read"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Read"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [
+              "Now I understand the full picture. Let me make the fixes. First, the two real errors:"
+            ],
+            "tools_used": []
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Edit"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Edit"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Read"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Edit"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [
+              "Now the three warnings \u2014 adding repo-standard `//  NOLINT` suppressions on legitimate pre-existing Percona code (matching how the repo already suppresses `recursive_mutex` and the `stringview-data-usage` precedent in `namespace_string.h`):"
+            ],
+            "tools_used": []
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Edit"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Edit"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Edit"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [
+              "Let me verify the `_sd` operator situation to ensure I caught the whole class:"
+            ],
+            "tools_used": []
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [
+              "The `_sd` operator was globally removed by upstream, but 22 *other* Percona files still use `\"...\"_sd` literals (they relied on the now-deleted `string_data.h` transitively). These are the same root cause and will break `build-and-test` next. Let me characterize them precisely before migrating:"
+            ],
+            "tools_used": []
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [
+              "This is unambiguously the same root cause as the prior fix (upstream deleted `operator\"\"_sd`), and these 22 files will break `build-and-test` next. Upstream's own migration pattern (confirmed above) is: ensure `#include <string_view>`, add `using namespace std::literals::string_view_literals;` inside the file's namespace, and rewrite `\"...\"_sd` \u2192 `\"...\"sv`. Let me apply that across all 22 in parallel."
+            ],
+            "tools_used": []
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Agent"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Agent"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Agent"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Agent"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [
+              "Let me verify the whole class is now clean and spot-check the trickier namespace placements:"
+            ],
+            "tools_used": []
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [
+              "All verified: zero `_sd` literal suffixes remain repo-wide, both errors fixed at the correct source locations, the three warnings suppressed with the repo-standard `//  NOLINT`, and all 22 whole-class files migrated with correctly-scoped using-directives. Writing the response:"
+            ],
+            "tools_used": []
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Write"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [
+              "I've fixed the clang-tidy failure and written the JSON response.\n\n## Summary\n\n**Root cause (bucket a \u2014 upstream removal still referenced by Percona code):** Upstream SERVER-32422 (commit `88a95b0edca`) deleted `operator\"\"_sd` along with `src/mongo/base/string_data.h`. Any surviving `\"...\"_sd` literal now fails to compile. The *previous* CI fix migrated only files that **directly** `#include`d `string_data.h` and missed Percona files that pulled the suffix in transitively.\n\n**The 6 reported findings, fixed at their true source:**\n\n| Finding | Fix |\n|---|---|\n| `sasl_mechanism_policies.h:139-140` \u2014 no matching `_sd` operator | `OidcPolicy::getName()` now returns the existing `auth::kMechanismMongoOIDC` constant, matching every sibling policy |\n| `namespace_string.h:1007` \u2014 differing `_sd`/`sv` suffixes | Fixed at the real source: the `X(kAdminPBMAgents, \u2026, \"PBMAgents\"_sd)` table entry in `namespace_string_reserved.h` \u2192 dropped the suffix like every upstream sibling entry |\n| `awsiam\u2026:175` \u2014 banned `std::regex_search` | `//  NOLINT` (pre-existing Percona code, repo-standard suppression) |\n| `encryption_keydb.h:168` \u2014 banned `std::recursive_mutex` | `//  NOLINT` (matches how the repo already suppresses recursive_mutex) |\n| `external_sasl\u2026:103` \u2014 suspicious `data()` | `// NOLINT(bugprone-suspicious-stringview-data-usage)` (mirrors namespace_string.h precedent) |\n\n**Whole-class generalization:** A repo-wide `grep` found **22 more** Percona files still using `\"...\"_sd` that clang-tidy didn't scan (not in its diff) but that would break `build-and-test` next. I migrated all of them with upstream's exact pattern (drop `_sd`\u2192`sv`, ensure `#include <string_view>`, add `using namespace std::literals::string_view_literals;` in the enclosing namespace). Final check: `grep -rln '\"_sd' src/mongo` now returns **0**.\n\nBoth errors are fixed without resurrecting the deleted symbol (avoiding permanent fork divergence), and the three warnings are legitimate pre-existing Percona code suppressed the sanctioned way."
+            ],
+            "tools_used": []
+          }
+        ],
+        "metadata": {
+          "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20260628_212616_275320.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+        }
+      },
+      "agent_info": {
+        "agent_type": "claude_cli",
+        "version": "2.1.195 (Claude Code)"
+      }
+    }
+  ]
+}

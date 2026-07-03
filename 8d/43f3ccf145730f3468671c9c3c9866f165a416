@@ -1,0 +1,44 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "d0c2f12c088be741feb7b1769f21742276cd11a2",
+    "merge_commit": "d112ecef6d5edace6f2a37a9afccf7f19a960a88"
+  },
+  "mergai_version": "0.1.dev1+g15f1cbf89",
+  "solutions": [
+    {
+      "type": "ci_fix",
+      "request": {
+        "workflow": "format",
+        "run_id": "28300264306",
+        "pr_number": 309,
+        "attempt_number": 1,
+        "context_summary": "format failed: 11 files need changes",
+        "timestamp": "2026-06-27T20:15:34.096281+00:00"
+      },
+      "author": {
+        "name": "format auto-fix",
+        "type": "command"
+      },
+      "response": {
+        "summary": "format auto-fix: 11 files changed",
+        "resolved": {
+          "src/mongo/db/audit/audit.cpp": "changed by 'format' auto-fix",
+          "src/mongo/db/auth/external/awsiam_server_mechanism.cpp": "changed by 'format' auto-fix",
+          "src/mongo/db/auth/external/external_sasl_authentication_session.cpp": "changed by 'format' auto-fix",
+          "src/mongo/db/auth/external/gssapi_server_mechanism.cpp": "changed by 'format' auto-fix",
+          "src/mongo/db/auth/external/sasl_oidc_server_mechanism.cpp": "changed by 'format' auto-fix",
+          "src/mongo/db/auth/oidc/oidc_identity_providers_registry.cpp": "changed by 'format' auto-fix",
+          "src/mongo/db/auth/oidc/oidc_test_fixture.h": "changed by 'format' auto-fix",
+          "src/mongo/db/encryption/encryption_status_test.cpp": "changed by 'format' auto-fix",
+          "src/mongo/db/encryption/key_id.cpp": "changed by 'format' auto-fix",
+          "src/mongo/db/encryption/vault_client.cpp": "changed by 'format' auto-fix",
+          "src/mongo/db/storage/storage_engine_impl.cpp": "changed by 'format' auto-fix"
+        },
+        "unresolved": {},
+        "modified": {},
+        "review_notes": ""
+      }
+    }
+  ]
+}

@@ -1,0 +1,263 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "bb5d713c2645c4076866a3a55e34ed1c83167a51",
+    "merge_commit": "d112ecef6d5edace6f2a37a9afccf7f19a960a88"
+  },
+  "mergai_version": "0.1.dev1+g15f1cbf89",
+  "merge_context": {
+    "merge_commit": "d112ecef6d5edace6f2a37a9afccf7f19a960a88",
+    "merged_commits": [
+      "d112ecef6d5edace6f2a37a9afccf7f19a960a88",
+      "27def687fd63e37ecb1ef5d317f80c8816a02abd",
+      "bea516691379872e87b413a17376fb314bb1594b",
+      "916cbc139d1559d380b9d73fe65446ccc014afea",
+      "6729d7dcc5103bfb626a62a78df11729232a986e",
+      "8f2854f7ca0ee8da7eb9ac322e00b243fc3f1590",
+      "dba3c8d92c4767b3f630600ee7644013deb17390",
+      "13330a740b3a529eebedb6368e0e42646ae5ffcf",
+      "ff427ad14f8b40a71e7869f60df96252124c1e05",
+      "54597b0e6486e336071515c656bf8222697d9e03",
+      "ff65cb12ae534c5cd4dd158ece600e6a4c48116e",
+      "3bb819d348f22591cec6bfb38a6e61467150c598",
+      "aa74f951890ec0214bd13a968f1251b747847869",
+      "11c4e4460ac4c6c3b5ef41a68f5c4d45eff656bc",
+      "087114400cc050c1c29877f0df2693c594ba2695",
+      "0e6d3ceaa2ed3df4a0efc75212b48942f0c0cb81",
+      "1343bf6b0c7ba1baff36818c4f8cf1d7be6bb362",
+      "72ae0f6690f12e4a37f60b09c43e2f656d7c6a8d",
+      "a6a7448f26619ffc9e7141b779609a4640b71a06",
+      "a696747d5a4a0baaebe12b31337e0bd60bac06e3",
+      "b372737adc78bae7238d61a57d9b0f686a643050",
+      "cbef8f5a5f15e15d71b4381a12de05db448d447b",
+      "f366dda64e158c09134019cb41a6ee2557eb1ef4",
+      "057674782a896e3ecb0dfe8b2c37b165a0b67161",
+      "5d491b8d1b016c7874ee4ef65edff56db15dfe4a",
+      "35b3a9b71063e8d04f793562de9432438ce59cb2",
+      "c05cda775e4df938d79fab83e9ad3ef23e20a0c0",
+      "5b5c5ad7cd8320907be1acf412bf983bb75e5b43",
+      "1a1f3448133c0fb1998295c808aa98099b72ca79",
+      "9e77624a147ff4a6107eb2779a732e16dc646ed7",
+      "24a617aa8ea334aed9c1cf3d0c491cddd9ec8a59",
+      "993b2e4a9ec7e8ffa2b6c5f7b768839d967f7346",
+      "e2c55d009ed23118f0e3e1e0d0ed8cf3097a97de",
+      "44c3e47f848373c7c1de1f9518a82fd7f0ded659",
+      "9ab8d42864217b0dd8a7ddb5e18226d6b5ed9e7e",
+      "d3d3d2b3deeb7d0676158b29b801533aedf58b47",
+      "3cee9dfcb53e8348be48d31f8502d210386c86c1",
+      "a88d9fa42d2cd2e33bf2a7b6525a4acd0d28304d",
+      "3140353f2b9618fedbc4d1fbbada8de061919ecc",
+      "0a89d0d206937cdb4fe075df1f3e35b06cbcf719",
+      "6f6bd95cbb97e7aabc2adec6431f76a945baf36f",
+      "d69342178d08a4446e5268c30f69b7430f5d6559",
+      "115be6e1151e26827b3253adeacc5a1e87573331",
+      "61933b81045de0f0dffdc86eaafd83df4ad0dc4c",
+      "d6f9fe0d790e2cf021cb8a4f22bd6bb35657ea03",
+      "d9cc429194c8dda846fd6724d5649ede46d5d65c",
+      "f0dc4dd5d57319660cb91b492628702c426aa730",
+      "10ed36bf83a387c71396f3e706a0ff63e68af30f",
+      "ecd8d539c0ae89232ef2590e538faf246c48f6c0",
+      "2d7bcc4a091463eccd96bfeb97b8610636230feb",
+      "1e389c5933a48d6b3a383aee2e14672ade171a76",
+      "6d92622f3c7ff98c254133a6b3723c578217e78d",
+      "4c812821adb004d0df6934bdf25c7d2cbc043027",
+      "581f048d502d43639ccb8c274131cf61a90b2f28",
+      "c9beee38b7d6f4c9712fdf9feea865b10f14e119",
+      "888aca8c1e58999cf7d94ba0c680977600d77515",
+      "ba9522bbafc7c1c7250ca6f4c6a8f1b611b3ccb7",
+      "c1c9fee53db9b5208f4c58464aa543eebdd679ca"
+    ],
+    "important_files_modified": [],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        "bazel/config/BUILD.bazel",
+        "buildscripts/idl/idl/errors.py",
+        "buildscripts/resmokelib/configure_resmoke.py",
+        "jstests/auth/lib/commands_lib.js",
+        "src/mongo/config.h.in",
+        "src/mongo/db/curop_test.cpp",
+        "src/mongo/db/mongod_main.cpp",
+        "src/mongo/db/op_debug.cpp",
+        "src/mongo/db/pipeline/BUILD.bazel",
+        "src/mongo/db/startup_recovery.cpp",
+        "src/mongo/mongo_config_header.py",
+        "src/mongo/s/mongos_main.cpp",
+        "src/mongo/transport/BUILD.bazel",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in"
+      ]
+    }
+  },
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 73462,
+    "num_turns": 7,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.4352275,
+    "modelUsage": {
+      "claude-haiku-4-5-20251001": {
+        "inputTokens": 587,
+        "outputTokens": 14,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0,
+        "webSearchRequests": 0,
+        "costUSD": 0.0006569999999999999,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000
+      },
+      "claude-opus-4-8": {
+        "inputTokens": 8183,
+        "outputTokens": 4571,
+        "cacheReadInputTokens": 204711,
+        "cacheCreationInputTokens": 28324,
+        "webSearchRequests": 0,
+        "costUSD": 0.43457049999999997,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-haiku-4-5-20251001": {
+          "tokens": {
+            "input": 587,
+            "output": 14,
+            "cache_read": 0,
+            "cache_creation": 0
+          },
+          "cost_usd": 0.0006569999999999999
+        },
+        "claude-opus-4-8": {
+          "tokens": {
+            "input": 8183,
+            "output": 4571,
+            "cache_read": 204711,
+            "cache_creation": 28324
+          },
+          "cost_usd": 0.43457049999999997
+        }
+      }
+    },
+    "text_result": "I've read the actual `diff base \u2192 merge commit` diff for every file in the changeset and written the JSON response.\n\nSummary of what this merge introduces:\n\n- **TLS connection handoff feature** \u2014 new build config (`bazel/config/BUILD.bazel`, `config.h.in`, `mongo_config_header.py`) and transport build wiring (`transport/BUILD.bazel`), with the feature flag unconditional but the implementation Linux-only.\n- **keysInserted/keysDeleted metrics** \u2014 added to cursor/additive query metrics (`op_debug.cpp`, `curop_test.cpp`).\n- **Offline validation refactor** (`startup_recovery.cpp`) \u2014 opens all DBs before validating.\n- **otel::traces API change** \u2014 dropped the `ServiceContext` argument (`mongod_main.cpp`, `mongos_main.cpp`).\n- **$_internalHybridSearch stage** wired into the pipeline build and auth-test skip list.\n- **WiredTiger header** regenerated \u2014 mechanical renumbering of stat constants from two new disaggregated-storage stats.\n- Plus a one-line docstring tweak (`errors.py`) and a resmoke TSS/JS-engine-detection change (`configure_resmoke.py`).\n\nAll files merged cleanly via the ort strategy \u2014 no conflict markers were present, so the conflict hints didn't apply.",
+    "response": {
+      "summary": "Upstream merge pulling in several independent changes since the fork diverged. Main themes: (1) a new TLS connection-handoff feature gated behind a build config and feature flag; (2) tracking of keysInserted/keysDeleted in cursor/additive query metrics; (3) refactoring of offline collection validation to open all databases before validating; (4) the otel::traces initialize/shutdown API losing its ServiceContext parameter; (5) a new $_internalHybridSearch aggregation stage wired into the build; and (6) a regenerated WiredTiger header with renumbered statistics constants. All files merged cleanly (ort strategy); no conflict resolution was required.",
+      "auto_merged": {
+        "bazel/config/BUILD.bazel": "Adds a new config_setting_group named 'build_connection_handoff_enabled' that matches linux_aarch64 or linux_x86_64, used to conditionally build the new TLS connection-handoff implementation on Linux only.",
+        "buildscripts/idl/idl/errors.py": "Trivial docstring update in add_no_string_data_error: wording changed from 'using StringData for cpp_type' to 'using std::string_view for cpp_type'. No behavioral change.",
+        "buildscripts/resmokelib/configure_resmoke.py": "Adds a new _apply_evergreen_tss_project_config() step (called from validate_and_update_config) that, on Evergreen patch builds, fetches the project config via evergreen_conn.get_evergreen_api() and sets ENABLE_EVERGREEN_API_TEST_SELECTION from the project's test_selection.allowed value unless it was set explicitly; failures are logged as warnings. Also imports logging and evergreen_conn. In _detect_js_engine, the --version subprocess timeout is raised to 120s for sanitizer builds (IS_SAN) vs 10s otherwise, and a warning is now printed to stderr (with a reason) when JS-engine detection fails instead of silently passing.",
+        "jstests/auth/lib/commands_lib.js": "Adds '$_internalHybridSearch' to the skippedAuthTestingAggStages list, noting it is already covered by jstests/aggregation/sources/internal_hybrid_search_rejected_in_user_request.js.",
+        "src/mongo/config.h.in": "Adds a new config substitution placeholder @mongo_config_connection_handoff@ ('Defined if TLS connection handoff support is enabled').",
+        "src/mongo/db/curop_test.cpp": "Extends the AdditiveMetricsShouldAggregateCursorMetrics test to set and assert the new keysInserted/keysDeleted fields on both AdditiveMetrics and CursorMetrics (keysInserted 3+4=7, keysDeleted 1+2=3).",
+        "src/mongo/db/mongod_main.cpp": "Updates calls to the otel::traces API to drop the ServiceContext argument: otel::traces::shutdown() and otel::traces::initialize(\"mongod\") (previously passed serviceContext / service).",
+        "src/mongo/db/op_debug.cpp": "Changes getPlanRankerMethodName return type from StringData to std::string_view. Adds keysInserted/keysDeleted to OpDebug::getCursorMetrics output and to AdditiveMetrics::aggregateDataBearingNodeMetrics summation. Rewrites aggregateCursorMetrics to construct DataBearingNodeMetrics using designated initializers (field-by-field) instead of positional arguments, including the newly added keysInserted/keysDeleted fields.",
+        "src/mongo/db/pipeline/BUILD.bazel": "Wires the new $_internalHybridSearch aggregation stage into the build: adds document_source_internal_hybrid_search.cpp, lite_parsed_internal_hybrid_search.cpp, the agg exec internal_hybrid_search_stage.cpp source, and the document_source_internal_hybrid_search_test.cpp unit test plus a dependency on //src/mongo/db/memory_tracking.",
+        "src/mongo/db/startup_recovery.cpp": "Refactors offline collection validation. offlineValidateDb no longer opens the database itself (the openDb call is removed). offlineValidate now computes the list of database names up front (all DB names, or the single gValidateDbName) via std::invoke, opens every database with databaseHolder->openDb() first, then validates each, aggregating allValidationComplete/allResultsValid. Adds #include <functional>.",
+        "src/mongo/mongo_config_header.py": "Registers the new (@mongo_config_connection_handoff@ -> MONGO_CONFIG_CONNECTION_HANDOFF) substitution in get_config_header_substs().",
+        "src/mongo/s/mongos_main.cpp": "Same otel::traces API update as mongod_main.cpp: otel::traces::shutdown() and otel::traces::initialize(\"mongos\") now called without the ServiceContext argument.",
+        "src/mongo/transport/BUILD.bazel": "Adds the new TLS connection-handoff dependencies to the transport_layer_manager and (a second) library: the handoff_feature_flag_gen generated target is added unconditionally to srcs (so all platforms accept the featureFlagTLSConnectionHandoff setParameter), while the handoff_session_manager and handoff_transport_layer implementation deps are added only via select() on //bazel/config:build_connection_handoff_enabled (Linux).",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in": "Regenerated WiredTiger header. Introduces new statistics WT_STAT_CONN_DISAGG_BLOCK_PLH_PUT_FAILED (1060) and WT_STAT_DSRC_DISAGG_BLOCK_PLH_PUT_FAILED (2009); inserting these shifts the numeric values of all subsequent WT_STAT_CONN_* / WT_STAT_DSRC_* constants up by one. The change is essentially a mechanical renumbering of the stat ID constants."
+      },
+      "review_notes": "All listed files merged automatically with the ort strategy; there were no conflict markers to resolve, so the Conflict Hints (MODULE.bazel.lock, sbom.json) did not apply to this changeset. The largest diff (wiredtiger.h.in) is a mechanical renumbering of generated WT_STAT_* constants caused by two new disaggregated-storage stats; verify it stays consistent with the corresponding stat tables if any other WiredTiger files are part of the larger merge. The otel::traces signature change (dropping the ServiceContext argument) appears in mongod_main.cpp and mongos_main.cpp here and assumes the otel traces header/implementation were updated elsewhere in the merge. The op_debug.cpp / curop_test.cpp keysInserted/keysDeleted additions depend on the CursorMetrics IDL and DataBearingNodeMetrics struct gaining those fields (presumably elsewhere in the merge). None of these changes touch Percona-specific customizations."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I'll inspect the actual diffs for the files in this merge changeset."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I'll read each file's diff. Let me batch them."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "Now let me check the wiredtiger header change briefly."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "All diffs are read. Now I'll write the JSON response."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I've read the actual `diff base \u2192 merge commit` diff for every file in the changeset and written the JSON response.\n\nSummary of what this merge introduces:\n\n- **TLS connection handoff feature** \u2014 new build config (`bazel/config/BUILD.bazel`, `config.h.in`, `mongo_config_header.py`) and transport build wiring (`transport/BUILD.bazel`), with the feature flag unconditional but the implementation Linux-only.\n- **keysInserted/keysDeleted metrics** \u2014 added to cursor/additive query metrics (`op_debug.cpp`, `curop_test.cpp`).\n- **Offline validation refactor** (`startup_recovery.cpp`) \u2014 opens all DBs before validating.\n- **otel::traces API change** \u2014 dropped the `ServiceContext` argument (`mongod_main.cpp`, `mongos_main.cpp`).\n- **$_internalHybridSearch stage** wired into the pipeline build and auth-test skip list.\n- **WiredTiger header** regenerated \u2014 mechanical renumbering of stat constants from two new disaggregated-storage stats.\n- Plus a one-line docstring tweak (`errors.py`) and a resmoke TSS/JS-engine-detection change (`configure_resmoke.py`).\n\nAll files merged cleanly via the ort strategy \u2014 no conflict markers were present, so the conflict hints didn't apply."
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20260627_183911_951319.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.195 (Claude Code)"
+    }
+  }
+}
