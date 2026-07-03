@@ -402,6 +402,7 @@ jobs:
       actions: read # mergai ci status -> get_workflow_runs
       contents: read # checkout
       pull-requests: read # read PR labels (mergai-skip-ci-fix)
+      security-events: read # mergai ci status -> classify clang-tidy via code-scanning analyses
     # Serialize completions for the same branch so two near-simultaneous
     # workflow_run events can't each observe the other as in-progress and both
     # no-op (a deadlock). The last-queued gate sees the full set done. This
