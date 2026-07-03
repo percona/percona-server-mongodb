@@ -1,0 +1,226 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "1c834dfacc11a1cc6159b77895907426f93000ff",
+    "merge_commit": "66da8344e9facf4ae5b9e617b008ab43b8fac9d2"
+  },
+  "mergai_version": "0.1.dev1+g6435390b9",
+  "merge_context": {
+    "merge_commit": "66da8344e9facf4ae5b9e617b008ab43b8fac9d2",
+    "merged_commits": [
+      "66da8344e9facf4ae5b9e617b008ab43b8fac9d2",
+      "62bc7ac2916cf32b8d94d3433316a22af9d1fa7c",
+      "43c06114f681cf01a2bee27902076b990b8d7509",
+      "e3582d072fdc6d4980eead30e4b86b5164d0a05d",
+      "02fecf0688bdc7a26340d53def774fb5c198be9e",
+      "88cf578c340d8c5a37ab3e739ba82f8a37608fbd",
+      "de850c23e66329ea62ef314ddeb2b56b4ae8e97b",
+      "5981a12e9cab74bba72fa0983411c1d236c07133",
+      "dc528659be3d7d6c004af78dadfdda07b1e956f5",
+      "c7bbff159f82b6190a2c196c83b7027289bde799",
+      "14cec85c0d440094999831764a715538c2560fe9",
+      "1eb0fbf57ed65cdba19f308605138fe88344dc15",
+      "edfa346257bd48ab1da2cfca803bd953b6be55e5",
+      "239ff9a2e56d5551b1e463c470192701f8dd45d8",
+      "ee37c3ea99bff952f2cc93b7512d7c99edf0a87f",
+      "51357376dac8b45f5950d9e14a71feb84793d593",
+      "48753c03ada5a3fbb32b442b13b404d0af781f88",
+      "9a683f32de0ce84fe46eac199b38ea735bdf55ac",
+      "d7a93ce7c70f4d2baf9134ca925e6a5eb46f309d",
+      "e7a246e4326beb4d79066f6ccaeddb0e31fe68bb",
+      "f5ad55806dbabaadc1a9970f17e02b7f54c5a760",
+      "80a9b69092564b0eb0c2befc60a449265065e790",
+      "eb31e4fb15ca2cc8e84efab99c1b4bf2d488b321",
+      "1a599bd3dc6b1a4b422676be63cc3509d3442780",
+      "12d6146a2bf4893baa9c3814300dfa9f747f9fbc",
+      "2898316bb2cd27c91dbd19cead902c49a7817284",
+      "e7cd3d4346c1604ac7ee4ee6a5f6c127448dc560",
+      "d410daf8dca57e28fe473ef87d8d990227adc9b4",
+      "cad190314aca67502c8ab44b367ac0fa16f5e8a6",
+      "218a15ae71ef0fd1d8734d825be43fb08cd1a097",
+      "fbd91ebc93a3d203eddf39cc33d0c9299f65c4d7",
+      "d8f1cee41898004efb3d41898824047f29c7b1a5",
+      "b4f4a80a0198ddbdaaf70576769806a22e6d8c2a",
+      "60605261ef08044dd18fc4d9df8d5a0ee2e272a2",
+      "8a0f4f44bfb1c2a70dff5e5f2e115c7d8c8371fe",
+      "690a0c792639753094708b32a4d68827527baaef",
+      "5cd47701b4d44cd2348b30144a05a84d0235476f",
+      "6b0a7c8de3379e91b2aaca32ee4ed8d375298a65",
+      "75c66a58b0fcc92be8c80b4f5461c0c7ab25633f",
+      "b655d2fbd09caf0842d20c979003f6241c892776",
+      "b76aec07ba468d219d4a6b250048eddde70185e3",
+      "81d91f614cd4199d4bd4b3b5364d041653aa299a",
+      "414f08ee3e8156ffbc57218f601bdc9bb72809b4"
+    ],
+    "important_files_modified": [],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        "jstests/core/catalog/views/views_all_commands.js",
+        "jstests/libs/write_concern_all_commands.js",
+        "jstests/replsets/all_commands_downgrading_to_upgraded.js",
+        "jstests/replsets/db_reads_while_recovering_all_commands.js",
+        "jstests/sharding/all_commands_direct_shard_connection_auth.js",
+        "jstests/sharding/database_versioning_all_commands.js",
+        "jstests/sharding/read_write_concern_defaults_application.js",
+        "jstests/sharding/safe_secondary_reads_drop_recreate.js",
+        "jstests/sharding/safe_secondary_reads_single_migration_suspend_range_deletion.js",
+        "jstests/sharding/safe_secondary_reads_single_migration_waitForDelete.js",
+        "src/mongo/db/BUILD.bazel",
+        "src/mongo/db/pipeline/BUILD.bazel",
+        "src/mongo/db/storage/BUILD.bazel",
+        "src/mongo/dbtests/BUILD.bazel",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in"
+      ]
+    }
+  },
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 59554,
+    "num_turns": 6,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.39271675000000006,
+    "modelUsage": {
+      "claude-haiku-4-5-20251001": {
+        "inputTokens": 603,
+        "outputTokens": 18,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0,
+        "webSearchRequests": 0,
+        "costUSD": 0.000693,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000
+      },
+      "claude-opus-4-8": {
+        "inputTokens": 5355,
+        "outputTokens": 3951,
+        "cacheReadInputTokens": 128335,
+        "cacheCreationInputTokens": 32369,
+        "webSearchRequests": 0,
+        "costUSD": 0.39202375,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-haiku-4-5-20251001": {
+          "tokens": {
+            "input": 603,
+            "output": 18,
+            "cache_read": 0,
+            "cache_creation": 0
+          },
+          "cost_usd": 0.000693
+        },
+        "claude-opus-4-8": {
+          "tokens": {
+            "input": 5355,
+            "output": 3951,
+            "cache_read": 128335,
+            "cache_creation": 32369
+          },
+          "cost_usd": 0.39202375
+        }
+      }
+    },
+    "text_result": "I've written the JSON response describing this merge. Summary of what I found:\n\n**The merge** pulls in upstream commit `66da8344e9f` (SERVER-129824) plus the batch of commits since the fork diverged at `dbeb63549f4`. The 15 auto-merged files fall into two groups:\n\n1. **All-commands test catalogs (10 jstests files)** \u2014 a consistent upstream sharding command rename: the `_internalClearCollectionShardingMetadata` internal-command entry is removed and a new `_configsvrCommitMoveRange` entry is added to each test's command map (with the appropriate skip reason per suite: internal command / primary only / isPrimaryOnly).\n\n2. **Build wiring + generated header (5 files)** \u2014 Bazel `srcs`/`deps` additions for new sources and tests (`multi_range_clustered_scan.cpp`, `checkpointer_test.cpp`, `query_stage_multi_range_clustered_scan.cpp`, plus memory-tracking/server-parameter-guard deps), and a mechanical renumbering in `wiredtiger.h.in` that inserts one new stat (`WT_STAT_CONN_CACHE_SHARED_DSK_BYTES_DUPLICATE` = 1345) and bumps all following stat constants by one.\n\nNo conflicts were reported, and none of the auto-merged files carry Percona-specific customizations, so the ort auto-merge is clean.",
+    "response": {
+      "summary": "Merges upstream MongoDB commit 66da8344e9f (SERVER-129824, 'Clean up orphaned index entries when resuming PDIB') and the batch of commits since the fork diverged at dbeb63549f4. The auto-merged files reflect two upstream themes: (1) a sharding command rename in the '_internalClearCollectionShardingMetadata' vs new '_configsvrCommitMoveRange' internal command, updating the all-commands test catalogs; and (2) Bazel build wiring for newly added sources/tests (multi_range_clustered_scan, checkpointer_test, and a memory-tracking pipeline test), plus a mechanical stat-constant renumbering in the WiredTiger public header. No conflicts were reported; all listed files merged cleanly with the ort strategy.",
+      "auto_merged": {
+        "jstests/core/catalog/views/views_all_commands.js": "Removes the '_internalClearCollectionShardingMetadata' entry (skip: isAnInternalCommand) and adds a '_configsvrCommitMoveRange' entry (skip: isAnInternalCommand) to the viewsCommandTests map.",
+        "jstests/libs/write_concern_all_commands.js": "In both the wcCommandsTests and wcTimeseriesCommandsTests maps, removes the '_internalClearCollectionShardingMetadata' entry and adds a '_configsvrCommitMoveRange' entry, both marked skip: 'internal command'.",
+        "jstests/replsets/all_commands_downgrading_to_upgraded.js": "In the allCommands map, removes the '_internalClearCollectionShardingMetadata' entry and adds '_configsvrCommitMoveRange' (skip: isAnInternalCommand).",
+        "jstests/replsets/db_reads_while_recovering_all_commands.js": "In the allCommands map, removes '_internalClearCollectionShardingMetadata' (skip: isAnInternalCommand) and adds '_configsvrCommitMoveRange' marked skip: isPrimaryOnly.",
+        "jstests/sharding/all_commands_direct_shard_connection_auth.js": "In the allCommands map, removes '_internalClearCollectionShardingMetadata' and adds '_configsvrCommitMoveRange', both skip: isAnInternalCommand.",
+        "jstests/sharding/database_versioning_all_commands.js": "Under the mongod test cases, removes '_internalClearCollectionShardingMetadata' (skip: 'internal command') and adds '_configsvrCommitMoveRange' (skip: 'internal command').",
+        "jstests/sharding/read_write_concern_defaults_application.js": "In the testCases map, removes '_internalClearCollectionShardingMetadata' and adds '_configsvrCommitMoveRange', both skip: 'internal command'.",
+        "jstests/sharding/safe_secondary_reads_drop_recreate.js": "In the testCases map, removes '_internalClearCollectionShardingMetadata' (skip: 'internal command') and adds '_configsvrCommitMoveRange' marked skip: 'primary only'.",
+        "jstests/sharding/safe_secondary_reads_single_migration_suspend_range_deletion.js": "In the testCases map, removes '_internalClearCollectionShardingMetadata' (skip: 'internal command') and adds '_configsvrCommitMoveRange' marked skip: 'primary only'.",
+        "jstests/sharding/safe_secondary_reads_single_migration_waitForDelete.js": "In the testCases map, removes '_internalClearCollectionShardingMetadata' (skip: 'internal command') and adds '_configsvrCommitMoveRange' marked skip: 'primary only'.",
+        "src/mongo/db/BUILD.bazel": "Adds the source '//src/mongo/db/exec/classic:multi_range_clustered_scan.cpp' to the library srcs list (inserted between multi_plan_rate_limiter.cpp and near.cpp).",
+        "src/mongo/db/pipeline/BUILD.bazel": "Adds two dependencies to a mongo_cc_unit_test target: '//src/mongo/db/memory_tracking' and '//src/mongo/unittest:server_parameter_guard'.",
+        "src/mongo/db/storage/BUILD.bazel": "In the db_storage_test unit test target, adds the source 'checkpointer_test.cpp' and adds the ':checkpointer' dependency.",
+        "src/mongo/dbtests/BUILD.bazel": "Adds the source 'query_stage_multi_range_clustered_scan.cpp' to the mongo_cc_binary srcs list.",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in": "Adds a new connection statistic macro WT_STAT_CONN_CACHE_SHARED_DSK_BYTES_DUPLICATE (value 1345, 'shared disk bytes saved by sharing duplicate disk images') and mechanically increments the numeric values of all subsequent WT_STAT_CONN_* / WT_STAT_* constant #defines by one to keep the sequence contiguous. This is a large but purely mechanical renumbering with a single new stat inserted."
+      },
+      "review_notes": "All auto-merged files are test-catalog, Bazel build wiring, or generated WiredTiger header changes and carry no Percona-specific customizations, so the ort auto-merge is straightforward. Verify that the '_configsvrCommitMoveRange' internal command and the new source/test files it references (multi_range_clustered_scan.cpp, checkpointer_test.cpp, query_stage_multi_range_clustered_scan.cpp) are present in the merge commit, since the BUILD.bazel additions reference them. The wiredtiger.h.in change is an auto-generated stat renumbering; confirm the corresponding stat.py/stat.c generated tables in the merge are consistent (they appear in the broader changeset), but no manual edit is needed here."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "Now the BUILD.bazel and wiredtiger header files:"
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "The wiredtiger.h.in diff is a mechanical renumbering of stat constants due to a new stat being added. I have enough to write the response."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I've written the JSON response describing this merge. Summary of what I found:\n\n**The merge** pulls in upstream commit `66da8344e9f` (SERVER-129824) plus the batch of commits since the fork diverged at `dbeb63549f4`. The 15 auto-merged files fall into two groups:\n\n1. **All-commands test catalogs (10 jstests files)** \u2014 a consistent upstream sharding command rename: the `_internalClearCollectionShardingMetadata` internal-command entry is removed and a new `_configsvrCommitMoveRange` entry is added to each test's command map (with the appropriate skip reason per suite: internal command / primary only / isPrimaryOnly).\n\n2. **Build wiring + generated header (5 files)** \u2014 Bazel `srcs`/`deps` additions for new sources and tests (`multi_range_clustered_scan.cpp`, `checkpointer_test.cpp`, `query_stage_multi_range_clustered_scan.cpp`, plus memory-tracking/server-parameter-guard deps), and a mechanical renumbering in `wiredtiger.h.in` that inserts one new stat (`WT_STAT_CONN_CACHE_SHARED_DSK_BYTES_DUPLICATE` = 1345) and bumps all following stat constants by one.\n\nNo conflicts were reported, and none of the auto-merged files carry Percona-specific customizations, so the ort auto-merge is clean."
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20260703_155451_645912.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.199 (Claude Code)"
+    }
+  }
+}
