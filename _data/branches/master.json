@@ -5,15 +5,15 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 147,
+    "commits_behind": 148,
     "days_behind": 2,
-    "unmerged_oldest_age_days": 2.6438641547800925,
-    "files_affected": 785,
-    "total_additions": 34036,
-    "total_deletions": 9585,
+    "unmerged_oldest_age_days": 2.6554955292476854,
+    "files_affected": 786,
+    "total_additions": 34055,
+    "total_deletions": 9587,
     "date_range": {
       "first": "2026-07-01T00:07:31+00:00",
-      "last": "2026-07-03T13:56:25+00:00"
+      "last": "2026-07-03T15:04:27+00:00"
     }
   },
   "last_merged_commit": {
@@ -41,6 +41,16 @@
     "reason": "force:conflict"
   },
   "unmerged_commits": [
+    {
+      "sha": "de2e04612fd341f56656878cf93209725540809a",
+      "short_sha": "de2e04612fd",
+      "date": "2026-07-03T15:04:27+00:00",
+      "author": {
+        "name": "Joan Bruguera Micó (at MongoDB)",
+        "email": "joan.bruguera-mico@mongodb.com"
+      },
+      "summary": "SERVER-130515 $listCatalog incorrectly filters out user collections prefixed by \"system_\" (#57537)"
+    },
     {
       "sha": "dd0061342802ee6eaa41d834e2c769f5b5df6d00",
       "short_sha": "dd006134280",
@@ -1736,7 +1746,7 @@
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-07-03 15:34:33",
+  "generated_at": "2026-07-03 15:51:18",
   "branch_name": "master",
   "display_name": "master"
 }
