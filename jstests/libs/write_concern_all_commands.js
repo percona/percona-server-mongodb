@@ -84,7 +84,6 @@ let getShardKey = (coll, fullNs) => {
 // All commands in the server.
 const wcCommandsTests = {
     _addShard: {skip: "internal command"},
-    _internalClearCollectionShardingMetadata: {skip: "internal command"},
     _cloneCollectionOptionsFromPrimaryShard: {skip: "internal command"},
     _clusterQueryWithoutShardKey: {skip: "internal command"},
     _clusterWriteWithoutShardKey: {skip: "internal command"},
@@ -105,6 +104,7 @@ const wcCommandsTests = {
     _configsvrCommitMergeAllChunksOnShard: {skip: "internal command"},
     _configsvrCommitMergeAllPrecomputedChunksOnShard: {skip: "internal command"},
     _configsvrCommitMovePrimary: {skip: "internal command"},
+    _configsvrCommitMoveRange: {skip: "internal command"},
     _configsvrCommitRefineCollectionShardKey: {skip: "internal command"},
     _configsvrCommitReshardCollection: {skip: "internal command"},
     _configsvrCommitShardRemoval: {skip: "internal command"},
@@ -3570,7 +3570,6 @@ const wcCommandsTests = {
 
 const wcTimeseriesCommandsTests = {
     _addShard: {skip: "internal command"},
-    _internalClearCollectionShardingMetadata: {skip: "internal command"},
     _cloneCollectionOptionsFromPrimaryShard: {skip: "internal command"},
     _clusterQueryWithoutShardKey: {skip: "internal command"},
     _clusterWriteWithoutShardKey: {skip: "internal command"},
@@ -3591,6 +3590,7 @@ const wcTimeseriesCommandsTests = {
     _configsvrCommitMergeAllChunksOnShard: {skip: "internal command"},
     _configsvrCommitMergeAllPrecomputedChunksOnShard: {skip: "internal command"},
     _configsvrCommitMovePrimary: {skip: "internal command"},
+    _configsvrCommitMoveRange: {skip: "internal command"},
     _configsvrCommitRefineCollectionShardKey: {skip: "internal command"},
     _configsvrCommitReshardCollection: {skip: "internal command"},
     _configsvrCommitShardRemoval: {skip: "internal command"},

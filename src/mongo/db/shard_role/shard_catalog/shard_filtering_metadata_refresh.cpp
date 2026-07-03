@@ -123,6 +123,7 @@ MONGO_FAIL_POINT_DEFINE(forceWaitForVersionOnly);
 MONGO_FAIL_POINT_DEFINE(avoidTassertForInconsistentMetadata);
 MONGO_FAIL_POINT_DEFINE(hangBeforeAuthoritativeDbVersionMismatchWait);
 MONGO_FAIL_POINT_DEFINE(hangInRecoverRefreshDbVersionThread);
+MONGO_FAIL_POINT_DEFINE(hangAfterCancelingIncompatibleRefreshes);
 
 const auto getDecoration = ServiceContext::declareDecoration<FilteringMetadataCache>();
 
@@ -310,6 +311,14 @@ FilteringMetadataCache* FilteringMetadataCache::get(OperationContext* opCtx) {
 void FilteringMetadataCache::shutDown() {
     if (_cache)
         _cache->shutDownAndJoin();
+}
+
+void FilteringMetadataCache::waitForAllFlushes(OperationContext* opCtx) {
+    tassert(10727900,
+            "FilteringMetadataCache has not yet been initialized with a CatalogCacheLoader",
+            _loader);
+
+    _loader->waitForAllFlushes(opCtx);
 }
 
 void FilteringMetadataCache::onStepDown() {
@@ -1840,11 +1849,9 @@ void FilteringMetadataRefreshTracker::interruptIncompatibleRefreshes(OperationCo
     for (auto& source : list) {
         source.cancel();
     }
-    // Wait for all refreshes that were ongoing to be canceled. New refreshes are appended to the
-    // end of the list, so we can wait until the refresh at the front of the list isn't canceled.
-    // TODO(SERVER-127444): Wait until the list is empty, since new refreshes are of the other kind.
-    opCtx->waitForConditionOrInterrupt(
-        _canceled, lk, [&] { return list.empty() || !list.front().token().isCanceled(); });
+    hangAfterCancelingIncompatibleRefreshes.pauseWhileSet();
+    // Wait for all incompatible refreshes to be canceled and drained.
+    opCtx->waitForConditionOrInterrupt(_canceled, lk, [&] { return list.empty(); });
 }
 
 }  // namespace mongo

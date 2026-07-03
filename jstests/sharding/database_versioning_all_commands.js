@@ -1072,7 +1072,6 @@ const allTestCases = {
     },
     mongod: {
         _addShard: {skip: "not on a user database"},
-        _internalClearCollectionShardingMetadata: {skip: "internal command"},
         _configsvrAbortReshardCollection: {skip: "TODO"},
         _configsvrAddShard: {skip: "not on a user database"},
         _configsvrAddShardToZone: {skip: "TODO"},
@@ -1090,6 +1089,7 @@ const allTestCases = {
         _configsvrCommitMergeAllChunksOnShard: {skip: "TODO"},
         _configsvrCommitMergeAllPrecomputedChunksOnShard: {skip: "internal command"},
         _configsvrCommitMovePrimary: {skip: "TODO"},
+        _configsvrCommitMoveRange: {skip: "internal command"},
         _configsvrCommitRefineCollectionShardKey: {skip: "TODO"},
         _configsvrCommitReshardCollection: {skip: "TODO"},
         _configsvrCommitShardRemoval: {skip: "runs on the configserver"},

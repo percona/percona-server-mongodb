@@ -23,7 +23,6 @@ const isDeprecated = "deprecated command";
 
 const allCommands = {
     _addShard: {skip: isPrimaryOnly},
-    _internalClearCollectionShardingMetadata: {skip: isAnInternalCommand},
     _cloneCollectionOptionsFromPrimaryShard: {skip: isPrimaryOnly},
     _clusterQueryWithoutShardKey: {skip: isAnInternalCommand},
     _clusterWriteWithoutShardKey: {skip: isAnInternalCommand},
@@ -44,6 +43,7 @@ const allCommands = {
     _configsvrCommitMergeAllChunksOnShard: {skip: isPrimaryOnly},
     _configsvrCommitMergeAllPrecomputedChunksOnShard: {skip: isPrimaryOnly},
     _configsvrCommitMovePrimary: {skip: isPrimaryOnly},
+    _configsvrCommitMoveRange: {skip: isPrimaryOnly},
     _configsvrCommitRefineCollectionShardKey: {skip: isPrimaryOnly},
     _configsvrCommitReshardCollection: {skip: isPrimaryOnly},
     _configsvrCommitShardRemoval: {skip: isPrimaryOnly},

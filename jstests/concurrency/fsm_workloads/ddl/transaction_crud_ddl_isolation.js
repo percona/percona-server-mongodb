@@ -29,8 +29,6 @@
  * `{x: "hashed"}` shard key patterns are supported.
  *
  * @tags: [
- *   # TODO SERVER-130089: re-enable this test when featureFlagAuthoritativeShardsCRUD is enabled.
- *   featureFlagAuthoritativeShardsCRUD_incompatible,
  *   uses_transactions,
  *   requires_getmore,
  * ]

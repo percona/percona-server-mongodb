@@ -47,7 +47,6 @@ let validateTestCase = function (test) {
 
 let testCases = {
     _addShard: {skip: "primary only"},
-    _internalClearCollectionShardingMetadata: {skip: "internal command"},
     _shardsvrCloneCatalogData: {skip: "primary only"},
     _clusterQueryWithoutShardKey: {skip: "internal command"},
     _clusterWriteWithoutShardKey: {skip: "internal command"},
@@ -65,6 +64,7 @@ let testCases = {
     _configsvrCommitChunkSplit: {skip: "primary only"},
     _configsvrCommitMergeAllChunksOnShard: {skip: "primary only"},
     _configsvrCommitMergeAllPrecomputedChunksOnShard: {skip: "primary only"},
+    _configsvrCommitMoveRange: {skip: "primary only"},
     _configsvrConfigureCollectionBalancing: {skip: "primary only"},
     _configsvrConvertShardRefsInNamespaceMetadata: {skip: "primary only"},
     _configsvrMoveRange: {skip: "primary only"},

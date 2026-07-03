@@ -82,7 +82,6 @@ let validateTestCase = function (test) {
 
 let testCases = {
     _addShard: {skip: "internal command"},
-    _internalClearCollectionShardingMetadata: {skip: "internal command"},
     _cloneCollectionOptionsFromPrimaryShard: {skip: "internal command"},
     _clusterQueryWithoutShardKey: {skip: "internal command"},
     _clusterWriteWithoutShardKey: {skip: "internal command"},
@@ -103,6 +102,7 @@ let testCases = {
     _configsvrCommitMergeAllChunksOnShard: {skip: "internal command"},
     _configsvrCommitMergeAllPrecomputedChunksOnShard: {skip: "internal command"},
     _configsvrCommitMovePrimary: {skip: "internal command"}, // Can be removed once 6.0 is last LTS
+    _configsvrCommitMoveRange: {skip: "internal command"},
     _configsvrCommitRefineCollectionShardKey: {skip: "internal command"},
     _configsvrCommitReshardCollection: {skip: "internal command"},
     _configsvrCommitShardRemoval: {skip: "internal command"},

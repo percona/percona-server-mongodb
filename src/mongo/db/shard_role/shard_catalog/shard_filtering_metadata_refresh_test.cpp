@@ -200,9 +200,6 @@ protected:
         return fullMetrics.getObjectField("collectionShardingMetadataRecoveryStatistics")
             .getOwned();
     };
-
-    unittest::ServerParameterGuard crudFeatureFlag{"featureFlagAuthoritativeShardsCRUD", true};
-    unittest::ServerParameterGuard ddlFeatureFlag{"featureFlagAuthoritativeShardsDDL", true};
 };
 
 TEST_F(AuthoritativeRefreshFixture, UntrackedIsCorrectlyRecoveredFromDisk) {
@@ -1295,14 +1292,20 @@ protected:
 
     // Cancel incompatible refreshes off-thread (interrupt blocks on drain), then unhang `fp`.
     void interruptRefreshesThenUnhangFailpoint(FailPoint* fp) {
+        auto* hangAfterCancelingFp =
+            globalFailPointRegistry().find("hangAfterCancelingIncompatibleRefreshes");
+        const auto initialTimesEntered = hangAfterCancelingFp->setMode(FailPoint::alwaysOn);
+
         stdx::thread interruptThread([&] {
             auto client = getGlobalServiceContext()->getService()->makeClient("bgInterrupt");
             auto interruptOpCtx = client->makeOperationContext();
             FilteringMetadataRefreshTracker::get(interruptOpCtx.get())
                 ->interruptIncompatibleRefreshes(interruptOpCtx.get());
         });
-        sleepmillis(15);  // Best effort wait for the interrupt to happen before unhanging.
+
+        hangAfterCancelingFp->waitForTimesEntered(initialTimesEntered + 1);
         fp->setMode(FailPoint::off);
+        hangAfterCancelingFp->setMode(FailPoint::off);
         interruptThread.join();
     }
 };

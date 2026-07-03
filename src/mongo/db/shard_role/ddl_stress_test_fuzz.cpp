@@ -28,21 +28,79 @@
  */
 
 #include "mongo/base/initializer.h"
+#include "mongo/db/dbdirectclient.h"
+#include "mongo/db/global_catalog/ddl/shardsvr_commit_create_database_metadata_command.h"
+#include "mongo/db/global_catalog/ddl/shardsvr_commit_drop_database_metadata_command.h"
 #include "mongo/db/global_catalog/sharding_catalog_client_mock.h"
 #include "mongo/db/namespace_string.h"
+#include "mongo/db/router_role/router_role.h"
 #include "mongo/db/shard_role/shard_catalog/collection_sharding_runtime.h"
 #include "mongo/db/shard_role/shard_catalog/commit_collection_metadata_locally.h"
+#include "mongo/db/shard_role/shard_catalog/database_sharding_runtime.h"
+#include "mongo/db/shard_role/shard_catalog/operation_sharding_state.h"
+#include "mongo/db/shard_role/shard_role_loop.h"
 #include "mongo/db/sharding_environment/shard_server_test_fixture.h"
 #include "mongo/stdx/thread.h"
 #include "mongo/stdx/unordered_map.h"
 #include "mongo/util/scopeguard.h"
 
 #include <atomic>
+#include <cstdlib>
+#include <string>
 #include <vector>
 
 #include "fuzztest/fuzztest.h"
+#include "gtest/gtest.h"
+
+namespace {
+
+// TODO SERVER-130010: the following is arguably a hack since the binaries produced by the existing
+// mongo fuzztest integration don't support setting flags meant for centipede (the fuzzing engine).
+//
+// The intent of the following snippet is to disable the "Per-batch timeout" error in order to
+// reduce false positives.
+
+// In centipede runner mode CENTIPEDE_RUNNER_FLAGS is set in the environment by
+// the engine before the subprocess binary starts. We append
+// :ignore_timeout_reports: here (init_priority 101) before GlobalRunnerState
+// reads those flags (init_priority 200). In engine mode the variable is absent,
+// so we leave it alone — setting it would make IsCentipedeRunner() return true
+// and turn the engine binary into a runner.
+struct IgnoreTimeoutReportsSetter {
+    IgnoreTimeoutReportsSetter() {
+        const char* existing = getenv("CENTIPEDE_RUNNER_FLAGS");
+        if (!existing)
+            return;
+        std::string flags = existing;
+        if (flags.empty() || flags.back() != ':')
+            flags += ':';
+        flags += "ignore_timeout_reports:";
+        setenv("CENTIPEDE_RUNNER_FLAGS", flags.c_str(), /*overwrite=*/1);
+    }
+};
+
+IgnoreTimeoutReportsSetter kIgnoreTimeoutReportsSetter __attribute__((init_priority(101)));
+}  // namespace
 
 namespace mongo {
+
+// These functions are here so that ADL works properly in order to print the DDL fields whenever the
+// fuzzer finds a failure.
+template <typename Sink>
+void AbslStringify(Sink& sink, const NamespaceString& value) {
+    absl::Format(&sink, "\"%s\"_nss", value.toStringForErrorMsg());
+}
+
+template <typename Sink>
+void AbslStringify(Sink& sink, const BSONObj& value) {
+    absl::Format(&sink, "\"%s\"_bson", value.toString());
+}
+
+template <typename Sink>
+void AbslStringify(Sink& sink, const ShardRef& value) {
+    absl::Format(&sink, "ShardRef{\"%s\"}", value.toString());
+}
+
 namespace {
 
 using namespace fuzztest;
@@ -53,8 +111,10 @@ const NamespaceString kOtherColl1Nss =
 const NamespaceString kOtherColl2Nss =
     NamespaceString::createNamespaceString_forTest("test.other2");
 
+const auto kNamespacesToTest = std::to_array({kTargetNss, kOtherColl1Nss, kOtherColl2Nss});
+
 auto ArbitraryNamespace() {
-    return ElementOf<NamespaceString>({kTargetNss, kOtherColl1Nss, kOtherColl2Nss});
+    return ElementOf<NamespaceString>(kNamespacesToTest);
 }
 
 const ShardRef kThisShard{"myShardName"};
@@ -65,17 +125,37 @@ auto ArbitraryShardRef() {
     return ElementOf<ShardRef>({kThisShard, kOtherShard1, kOtherShard2});
 }
 
-struct ClearMetadataDDL {};
+struct ClearMetadataDDL {
+    NamespaceString nss;
+
+    static auto arbitrary() {
+        return StructOf<ClearMetadataDDL>(ArbitraryNamespace());
+    }
+};
 
 enum class ShardingCollType { kUntracked, kUnsplittable, kSharded };
 
-struct CreateDDL {
-    struct Chunk {
-        BSONObj min;
-        BSONObj max;
-        ShardRef owner;
-    };
+struct Chunk {
+    BSONObj min;
+    BSONObj max;
+    ShardRef owner;
+};
 
+template <typename Sink>
+void AbslStringify(Sink& sink, const Chunk& value) {
+    absl::Format(&sink, "Chunk{%v, %v, %v}", value.min, value.max, value.owner);
+}
+
+template <typename Sink>
+void AbslStringify(Sink& sink, const std::vector<Chunk>& value) {
+    absl::Format(&sink, "{");
+    for (const auto& chunk : value) {
+        absl::Format(&sink, "%v, ", chunk);
+    }
+    absl::Format(&sink, "}");
+}
+
+struct CreateDDL {
     NamespaceString nss;
     ShardingCollType shardingType;
     std::vector<Chunk> chunks;
@@ -118,7 +198,8 @@ struct CreateDDL {
             arbMinKeyOwner);
         auto arbUnsplittableChunk = Map(
             [](const auto& shardRef) {
-                return Chunk{BSON("_id" << MINKEY), BSON("_id" << MAXKEY), shardRef};
+                return std::vector<Chunk>{
+                    Chunk{BSON("_id" << MINKEY), BSON("_id" << MAXKEY), shardRef}};
             },
             ArbitraryShardRef());
         return FlatMap(
@@ -132,7 +213,7 @@ struct CreateDDL {
                             Just(nss), Just(collType), Just(std::vector<Chunk>{}));
                     case ShardingCollType::kUnsplittable:
                         return StructOf<CreateDDL>(
-                            Just(nss), Just(collType), Just(std::vector<Chunk>{unsplittableChunk}));
+                            Just(nss), Just(collType), Just(std::move(unsplittableChunk)));
                     case ShardingCollType::kSharded:
                         return StructOf<CreateDDL>(
                             Just(nss), Just(collType), Just(std::move(chunks)));
@@ -140,7 +221,7 @@ struct CreateDDL {
             },
             arbCollectionType,
             arbTargetCollection,
-            arbChunks,
+            OneOf(arbChunks, arbUnsplittableChunk),  // Either 1 chunk or multiple chunks
             arbUnsplittableChunk);
     }
 };
@@ -167,7 +248,15 @@ struct RenameDDL {
     }
 };
 
-using DDL = std::variant<ClearMetadataDDL, CreateDDL, DropDDL, RenameDDL>;
+struct MovePrimaryDDL {
+    ShardRef to;
+
+    static auto arbitrary() {
+        return StructOf<MovePrimaryDDL>(ArbitraryShardRef());
+    }
+};
+
+using DDL = std::variant<ClearMetadataDDL, CreateDDL, DropDDL, RenameDDL, MovePrimaryDDL>;
 
 /**
  * A mocking client that supports transactional updates to the returned contents. This class is
@@ -276,6 +365,25 @@ public:
         return *it;
     }
 
+    DatabaseType getDatabase(OperationContext* opCtx,
+                             const DatabaseName& db,
+                             repl::ReadConcernLevel readConcernLevel) override {
+        std::lock_guard lk{_mutex};
+        invariant(db == _dbEntry.getDbName());
+        return _dbEntry;
+    }
+
+    repl::OpTimeWith<std::vector<ShardType>> getAllShards(OperationContext* opCtx,
+                                                          repl::ReadConcernLevel readConcern,
+                                                          BSONObj filter) override {
+        std::vector<ShardType> result = {
+            ShardType{kThisShard.getShardId().toString(), boost::none, "localhost-1"},
+            ShardType{kOtherShard1.getShardId().toString(), boost::none, "localhost-2"},
+            ShardType{kOtherShard2.getShardId().toString(), boost::none, "localhost-3"},
+        };
+        return repl::OpTimeWith{std::move(result)};
+    }
+
     struct UpdatePass {
     private:
         UpdatePass() = default;
@@ -304,14 +412,23 @@ public:
         });
     }
 
+    DatabaseType getDatabase(const UpdatePass&) {
+        return _dbEntry;
+    }
+
+    void setDatabaseEntry(const UpdatePass&, DatabaseType dbEntry) {
+        _dbEntry = std::move(dbEntry);
+    }
+
     template <typename F>
-    void updateAtomically(F&& f) {
+    auto updateAtomically(F&& f) {
         std::unique_lock lk{_mutex};
-        f(*this, UpdatePass{});
+        return f(*this, UpdatePass{});
     }
 
 private:
     std::vector<std::pair<CollectionType, std::vector<ChunkType>>> _collsAndChunks;
+    DatabaseType _dbEntry;
     std::mutex _mutex;
 };
 
@@ -319,6 +436,10 @@ class ShardServerFixture : public ShardServerTestFixture {
 public:
     MockCatalogClient* mockCatalogClient() {
         return _mockCatalogClient;
+    }
+
+    OperationContext* getFixtureOpCtx() const {
+        return operationContext();
     }
 
 protected:
@@ -514,24 +635,169 @@ private:
             isCurrentPrimary);
     }
 
+    void executeDDL(OperationContext* opCtx, const MovePrimaryDDL& op) {
+        if (!((isCurrentPrimary && op.to != kThisShard) ||
+              (!isCurrentPrimary && op.to == kThisShard))) {
+            // Only valid states are moving primary outside of this shard or into this shard.
+            return;
+        }
+
+        static const auto csReason = BSON("reason" << "movePrimary");
+        {
+            auto scopedCsr = DatabaseShardingRuntime::acquireExclusive(opCtx, kTargetNss.dbName());
+            scopedCsr->enterCriticalSectionCatchUpPhase(opCtx, csReason);
+            scopedCsr->enterCriticalSectionCommitPhase(opCtx, csReason);
+        }
+        ON_BLOCK_EXIT([&] {
+            auto scopedCsr = DatabaseShardingRuntime::acquireExclusive(opCtx, kTargetNss.dbName());
+            scopedCsr->exitCriticalSection(opCtx, csReason);
+        });
+        auto currDbEntry =
+            actualFixture->mockCatalogClient()->updateAtomically([&](auto& client, auto pass) {
+                auto currDbEntry = client.getDatabase(pass);
+                currDbEntry.setPrimary(op.to);
+                currDbEntry.setVersion(currDbEntry.getVersion().makeUpdated());
+                client.setDatabaseEntry(pass, currDbEntry);
+                return currDbEntry;
+            });
+        if (op.to == kThisShard) {
+            for (const auto& [nss, collInfo] : currentCatalog) {
+                if (collInfo.collType == ShardingCollType::kUntracked) {
+                    // Untracked collections don't have any metadata to handle
+                    continue;
+                }
+                shard_catalog_commit::commitChunklessCollectionMetadataLocally(opCtx, nss);
+            }
+            commitCreateDatabaseMetadataLocally(opCtx, currDbEntry);
+        } else {
+            commitDropDatabaseMetadataLocally(opCtx, kTargetNss.dbName());
+        }
+
+        isCurrentPrimary = (op.to == kThisShard);
+    }
+
     void executeDDL(OperationContext* opCtx, const ClearMetadataDDL& clear) {
-        auto csr = CollectionShardingRuntime::acquireExclusive(opCtx, kTargetNss);
+        auto csr = CollectionShardingRuntime::acquireExclusive(opCtx, clear.nss);
         csr->clearCollectionMetadata(opCtx);
     }
 
-    void checkInvariants() {
-        // TODO SERVER-129227: Implement this
+    void checkInvariants(OperationContext* opCtx, const NamespaceString& nss) {
+        // Invariants to check:
+        // * Router-role acquired shard version and Shard-role acquired shard version are in
+        //   agreement
+        // * The router-role routing table for the collection can be checked for ownership in the
+        //   shard and matches the router's view
+        sharding::router::CollectionRouter routingCtx{opCtx, nss};
+        routingCtx.route("router", [&](OperationContext* opCtx, const CollectionRoutingInfo& cri) {
+            boost::optional<ScopedSetShardRole> setShardRole;
+            bool isTracked = cri.hasRoutingTable();
+            if (isTracked) {
+                auto shardVersion = cri.getShardVersion(opCtx, kThisShard);
+                setShardRole.emplace(opCtx, nss, shardVersion, boost::none);
+            } else {
+                setShardRole.emplace(opCtx, nss, ShardVersion::UNTRACKED(), cri.getDbVersion());
+            }
+
+            shard_role_loop::withStaleShardRetry(opCtx, [&] {
+                auto acq = acquireCollectionMaybeLockFree(
+                    opCtx,
+                    CollectionAcquisitionRequest::fromOpCtx(
+                        opCtx, nss, AcquisitionPrerequisites::kRead));
+                const auto& shardingDesc = acq.getShardingDescription();
+                if (!isTracked) {
+                    invariant(!shardingDesc.hasRoutingTable());
+                    invariant(cri.getDbPrimaryShardRef() == kThisShard);
+                    return;
+                }
+                invariant(shardingDesc.hasRoutingTable());
+
+                cri.getChunkManager().forEachChunk([&](const auto& chunk) {
+                    bool isOwnedByShard = chunk.getShardRef() == kThisShard;
+                    bool isInHistory = std::any_of(chunk.getHistory().begin(),
+                                                   chunk.getHistory().end(),
+                                                   [&](const auto& historyElem) {
+                                                       return historyElem.getShard() == kThisShard;
+                                                   });
+                    if (isOwnedByShard || isInHistory) {
+                        if (!shardingDesc.isSharded()) {
+                            // This is an unsplittable collection so there should be only a single
+                            // chunk.
+                            const auto expectedFullRange =
+                                ChunkRange{BSON("_id" << MINKEY), BSON("_id" << MAXKEY)};
+                            invariant(chunk.getRange() == expectedFullRange);
+                            return false;
+                        }
+
+                        // If the router believes this shard should handle the chunk then the shard
+                        // should be able to handle all queries against keys in that chunk.
+                        std::vector<ChunkRange> shardRanges;
+                        shardingDesc.forEachOverlappingChunk(
+                            chunk.getMin(), chunk.getMax(), false, [&](const auto& shardChunk) {
+                                if (isOwnedByShard) {
+                                    invariant(shardChunk.getShardRef() == kThisShard);
+                                } else {
+                                    invariant(shardChunk.getShardRef() != kThisShard);
+                                }
+                                shardRanges.emplace_back(shardChunk.getRange());
+                                return true;
+                            });
+                        std::sort(shardRanges.begin(), shardRanges.end());
+
+                        invariant(!shardRanges.empty());
+                        ChunkRange coveredRange = shardRanges.front();
+                        ChunkRange rangeMissing = chunk.getRange();
+                        for (const auto& shardRange : shardRanges) {
+                            // The new shard chunk range must be an extension of the current running
+                            // total chunk range to avoid having gaps in ranges.
+                            invariant(coveredRange.overlaps(shardRange) ||
+                                      coveredRange.getMax().woCompare(shardRange.getMin()) == 0);
+                            coveredRange = coveredRange.unionWith(shardRange);
+                        }
+                        // The covered shard range must contain the target chunk range.
+                        invariant(rangeMissing.overlapWith(coveredRange) == rangeMissing);
+                    }
+                    return true;
+                });
+            });
+        });
     }
 
     void reset() {
         isCurrentPrimary = true;
         currentCatalog.clear();
+
+        // Delete shard.catalog.* contents
+        {
+            DBDirectClient client{actualFixture->getFixtureOpCtx()};
+            client.dropCollection(NamespaceString::kConfigShardCatalogCollectionsNamespace);
+            client.dropCollection(NamespaceString::kConfigShardCatalogChunksNamespace);
+        }
+
+        // And reset the "CSRS" contents
+        auto dbEntry =
+            actualFixture->mockCatalogClient()->updateAtomically([&](auto& client, auto pass) {
+                for (const auto& nss : kNamespacesToTest) {
+                    client.eraseCollectionMetadata(pass, nss);
+                    auto scopedCsr = CollectionShardingRuntime::acquireExclusive(
+                        actualFixture->getFixtureOpCtx(), nss);
+                    scopedCsr->clearCollectionMetadata(actualFixture->getFixtureOpCtx(), true);
+                    scopedCsr->setAuthoritative();
+                }
+
+                auto currDbEntry = client.getDatabase(pass);
+                currDbEntry.setPrimary(kThisShard);
+                currDbEntry.setVersion(currDbEntry.getVersion().makeUpdated());
+                client.setDatabaseEntry(pass, currDbEntry);
+                return currDbEntry;
+            });
+
+        // The shard is now back to being the primary.
+        commitCreateDatabaseMetadataLocally(actualFixture->getFixtureOpCtx(), dbEntry);
     };
 
     void executeDDLOperations(const std::vector<DDL>& ddls, std::atomic_flag& doneSignal) {
         ON_BLOCK_EXIT([&] { doneSignal.test_and_set(); });
-        ThreadClient client{"BackgroundDDLExecutor",
-                            actualFixture->getServiceContext()->getService()};
+        ThreadClient client{"BackgroundDDLExecutor", actualFixture->getService()};
         for (const auto& ddl : ddls) {
             auto opCtx = client->makeOperationContext();
             executeOperation(opCtx.get(), ddl);
@@ -545,14 +811,25 @@ private:
     };
     stdx::unordered_map<NamespaceString, CollInfo> currentCatalog;
     boost::optional<ShardServerFixture> actualFixture;
+    std::vector<unittest::ServerParameterGuard> featureFlagGuards;
 
 public:
     DDLStateMachine() {
         // TODO SERVER-129585: Get rid of the initializer function call once fuzztest binaries
         // initialize things properly.
         runGlobalInitializersOrDie({});
+
+        featureFlagGuards.emplace_back("featureFlagAuthoritativeShardsDDL", true);
+        featureFlagGuards.emplace_back("featureFlagAuthoritativeShardsCRUD", true);
+
         actualFixture.emplace();
         actualFixture->SetUp();
+
+        actualFixture->mockCatalogClient()->updateAtomically([&](auto& client, auto pass) {
+            DatabaseType dbEntry{
+                kTargetNss.dbName(), kThisShard, DatabaseVersion{UUID::gen(), Timestamp{1, 0}}};
+            client.setDatabaseEntry(pass, std::move(dbEntry));
+        });
     }
 
     ~DDLStateMachine() {
@@ -565,8 +842,17 @@ public:
         auto backgroundWriter = stdx::thread(
             &DDLStateMachine::executeDDLOperations, this, std::ref(ddls), std::ref(doneSignal));
 
+        auto service = actualFixture->getService();
+        ASSERT_NE(service, nullptr);
+        auto client = service->makeClient("ReaderThread");
+        ASSERT_NE(client.get(), nullptr);
+        AlternativeClientRegion acr{client};
+
         while (!doneSignal.test()) {
-            checkInvariants();
+            for (const auto& nss : kNamespacesToTest) {
+                auto opCtx = acr->makeOperationContext();
+                checkInvariants(opCtx.get(), nss);
+            }
             std::this_thread::yield();
         }
 
@@ -575,10 +861,11 @@ public:
 };
 
 auto ArbitraryDDL() {
-    return VariantOf(Just(ClearMetadataDDL()),
+    return VariantOf(ClearMetadataDDL::arbitrary(),
                      CreateDDL::arbitrary(),
                      DropDDL::arbitrary(),
-                     RenameDDL::arbitrary());
+                     RenameDDL::arbitrary(),
+                     MovePrimaryDDL::arbitrary());
 }
 
 FUZZ_TEST_F(DDLStateMachine, FuzzDDLInvariants)
