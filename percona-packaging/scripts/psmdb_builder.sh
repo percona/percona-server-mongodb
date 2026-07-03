@@ -397,7 +397,7 @@ install_deps() {
 
     else
       apt-get -y update
-      DEBIAN_FRONTEND=noninteractive apt-get -y install curl lsb-release wget apt-transport-https software-properties-common
+      DEBIAN_FRONTEND=noninteractive apt-get -y install curl lsb-release wget apt-transport-https
       export DEBIAN=$(lsb_release -sc)
       export ARCH=$(echo $(uname -m) | sed -e 's:i686:i386:g')
       wget https://repo.percona.com/prel/apt/pool/main/p/percona-release/percona-release_1.0-33.generic_all.deb && DEBIAN_FRONTEND=noninteractive apt-get -y install ./percona-release_1.0-33.generic_all.deb
@@ -668,7 +668,7 @@ build_source_deb(){
     sed -i 's:@@LOGDIR@@:mongodb:g' ${BUILDDIR}/debian/mongod.default
     sed -i 's:@@LOGDIR@@:mongodb:g' ${BUILDDIR}/debian/percona-server-mongodb-helper.sh
     #
-    if [ x"${DEBIAN}" = "xbullseye" -o x"${DEBIAN}" = "xbookworm" -o x"${DEBIAN}" = "xjammy" -o x"${DEBIAN}" = "xnoble" ]; then
+    if [ x"${DEBIAN}" = "xbullseye" -o x"${DEBIAN}" = "xbookworm" -o x"${DEBIAN}" = "xtrixie" -o x"${DEBIAN}" = "xjammy" -o x"${DEBIAN}" = "xnoble" ]; then
         sed -i 's:dh-systemd,::' ${BUILDDIR}/debian/control
     fi
     #
@@ -730,7 +730,7 @@ build_deb(){
     source ~/.bashrc
     cp -av percona-packaging/debian/rules debian/
 
-    if [ x"${DEBIAN}" = "xbullseye" -o x"${DEBIAN}" = "xbookworm" -o x"${DEBIAN}" = "xjammy" -o x"${DEBIAN}" = "xnoble" ]; then
+    if [ x"${DEBIAN}" = "xbullseye" -o x"${DEBIAN}" = "xbookworm" -o x"${DEBIAN}" = "xtrixie" -o x"${DEBIAN}" = "xjammy" -o x"${DEBIAN}" = "xnoble" ]; then
         sed -i 's:dh-systemd,::' debian/control
     fi
     sed -i 's|VersionStr="$(go run release/release.go get-version)"|VersionStr="$PSMDB_TOOLS_REVISION"|' mongo-tools/set_goenv.sh

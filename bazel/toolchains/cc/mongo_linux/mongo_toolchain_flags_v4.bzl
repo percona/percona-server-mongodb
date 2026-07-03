@@ -8,6 +8,10 @@ COMMON_BUILTIN_INCLUDE_DIRECTORIES = [
     "/usr/include/openssl",
     "/usr/include/{arch}-mongodb-linux",
     "/usr/include",
+    # Debian13(trixie) relocated kernel UAPI headers to /usr/lib/linux/uapi/<arch>
+    # (old /usr/include asm paths are now symlinks);
+    # bazel's absolute-path-inclusion check needs the real dir.
+    "/usr/lib/linux",
 ]
 
 COMMON_INCLUDE_DIRECTORIES = [
