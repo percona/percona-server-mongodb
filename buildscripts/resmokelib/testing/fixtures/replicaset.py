@@ -81,6 +81,7 @@ class ReplicaSetFixture(interface.ReplFixture, interface._DockerComposeInterface
         initial_sync_uninitialized_fcv=False,
         hide_initial_sync_node_from_conn_string=False,
         launch_mongot=False,
+        launch_mongot_community=False,
         load_extensions=None,
         skip_extensions_signature_verification=False,
         router_endpoint_for_mongot: Optional[int] = None,
@@ -149,6 +150,7 @@ class ReplicaSetFixture(interface.ReplFixture, interface._DockerComposeInterface
         self.fcv = None
         # Used by suites that run search integration tests.
         self.launch_mongot = launch_mongot
+        self.launch_mongot_community = launch_mongot_community
         # Used to set --mongoHostAndPort startup option on mongot.
         self.router_endpoint_for_mongot = router_endpoint_for_mongot
         # Use the values given from the command line if they exist for linear_chain and num_nodes.
@@ -316,6 +318,8 @@ class ReplicaSetFixture(interface.ReplFixture, interface._DockerComposeInterface
             # want to skip reconfiguring the replset (which adds the other nodes
             # to the auto-bootstrapped replset).
             self.logger.info("Configuration exists. Skipping initializing the replset.")
+            self._await_mongot_community()
+            self.removeshard_teardown_marker = False
             return
 
         if self.write_concern_majority_journal_default is not None:
@@ -390,7 +394,15 @@ class ReplicaSetFixture(interface.ReplFixture, interface._DockerComposeInterface
             for ind in range(2, len(members) + 1):
                 self._add_node_to_repl_set(client, repl_config, ind, members)
 
+        self._await_mongot_community()
+
         self.removeshard_teardown_marker = False
+
+    def _await_mongot_community(self):
+        """Wait for mongot-community after the replica set is initialized."""
+        for node in self.nodes:
+            if node.launch_mongot_community_bool and node.mongot is not None:
+                node.await_mongot_community_ready()
 
     def _all_mongo_d_s_t(self):
         """Return a list of all `mongo{d,s,t}` `Process` instances in this fixture."""

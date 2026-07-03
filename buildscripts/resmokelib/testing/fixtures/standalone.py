@@ -42,6 +42,7 @@ class MongoDFixture(interface.Fixture, interface._DockerComposeInterface):
         preserve_dbpath: bool = False,
         port: Optional[int] = None,
         launch_mongot: bool = False,
+        launch_mongot_community: bool = False,
         load_extensions=None,
         skip_extensions_signature_verification=False,
         use_priority_port: bool = False,
@@ -61,7 +62,9 @@ class MongoDFixture(interface.Fixture, interface._DockerComposeInterface):
             dbpath_prefix (Optional[str], optional): Sets the dbpath_prefix. Defaults to None.
             preserve_dbpath (bool, optional): preserve_dbpath. Defaults to False.
             port (Optional[int], optional): Port to use for mongod. Defaults to None.
-            launch_mongot (bool, optional): Should mongot be launched as well. Defaults to False.
+            launch_mongot (bool, optional): Should mongot-localdev be launched as well. Defaults to False.
+            launch_mongot_community (bool, optional): Should mongot-community be launched as well.
+                Defaults to False.
             load_extensions (list, optional): List of extension names to load at startup.
                 Use ["*"] to discover and load all *_mongo_extension.so files.
                 Use specific names (e.g. ["add_fields_match"]) to load individual extensions.
@@ -156,8 +159,21 @@ class MongoDFixture(interface.Fixture, interface._DockerComposeInterface):
             self.priority_port = fixturelib.get_next_port(job_num)
             self.mongod_options["priorityPort"] = self.priority_port
 
-        if launch_mongot:
+        if launch_mongot and launch_mongot_community:
+            raise ValueError("Cannot launch both mongot-localdev and mongot-community")
+
+        if launch_mongot_community:
+            self.launch_mongot_community_bool = True
+            self.launch_mongot_bool = False
+            self.mongot_grpc_port = fixturelib.get_next_port(job_num)
+            self.mongot_health_port = fixturelib.get_next_port(job_num)
+            self.mongod_options["mongotHost"] = "localhost:" + str(self.mongot_grpc_port)
+            self.mongod_options["searchIndexManagementHostAndPort"] = self.mongod_options[
+                "mongotHost"
+            ]
+        elif launch_mongot:
             self.launch_mongot_bool = True
+            self.launch_mongot_community_bool = False
 
             # mongot exposes two ports that it will listen for ingress communication on: "port",
             # which expects the MongoRPC protocol, and "grpcPort", which expects the MongoDB
@@ -180,10 +196,13 @@ class MongoDFixture(interface.Fixture, interface._DockerComposeInterface):
             ]
         else:
             self.launch_mongot_bool = False
-        # If a suite enables launching mongot, the necessary startup options for the MongoTFixture will be created in
-        # setup_mongot_params() which is called by the builders after all other fixture types have been setup (and
-        # therefore all other nodes have been assigned ports, which allows mongot to connect to a given mongod or
-        # mongos. The MongoTFixture is then launched by the MongoDFixture in setup().
+            self.launch_mongot_community_bool = False
+        # If a suite enables launching mongot, the necessary startup options for the MongoTFixture
+        # or MongoTCommunityFixture will be created in setup_mongot_params() or
+        # setup_mongot_community_params() which is called by the builders after all other fixture
+        # types have been setup (and therefore all other nodes have been assigned ports, which
+        # allows mongot to connect to a given mongod or mongos). The fixture is then launched by
+        # the MongoDFixture in setup().
         self.mongot = None
 
         if "featureFlagGRPC" in self.config.ENABLED_FEATURE_FLAGS or self.mongod_options[
@@ -205,6 +224,26 @@ class MongoDFixture(interface.Fixture, interface._DockerComposeInterface):
 
         mongot.setup()
         self.mongot = mongot
+        self.mongot.await_ready()
+
+    def launch_mongot_community(self):
+        mongot = self.fixturelib.make_fixture(
+            "MongoTCommunityFixture",
+            self.logger,
+            self.job_num,
+            dbpath_prefix=self.get_dbpath_prefix(),
+            mongot_community_options=self.mongot_community_options,
+        )
+
+        mongot.setup()
+        self.mongot = mongot
+
+    def await_mongot_community_ready(self):
+        """Block until mongot-community is ready to serve traffic."""
+        if self.mongot is None:
+            raise self.fixturelib.ServerFailure(
+                "Cannot await mongot-community readiness before it has been launched."
+            )
         self.mongot.await_ready()
 
     def setup(self, temporary_flags={}):
@@ -249,7 +288,9 @@ class MongoDFixture(interface.Fixture, interface._DockerComposeInterface):
             raise self.fixturelib.ServerFailure(msg)
 
         self.mongod = mongod
-        if self.launch_mongot_bool:
+        if self.launch_mongot_community_bool:
+            self.launch_mongot_community()
+        elif self.launch_mongot_bool:
             self.launch_mongot()
 
     def _all_mongo_d_s_t(self):
@@ -306,6 +347,39 @@ class MongoDFixture(interface.Fixture, interface._DockerComposeInterface):
 
         mongot_options["keyFile"] = self.mongod_options["keyFile"]
         self.mongot_options = mongot_options
+
+    def setup_mongot_community_params(self, router_endpoint_for_mongot: Optional[int] = None):
+        if "keyFile" not in self.mongod_options:
+            raise self.fixturelib.ServerFailure("Cannot launch mongot without providing a keyfile")
+
+        dbpath_prefix = self.get_dbpath_prefix()
+        # Each mongot requires its own unique config journal to persist index definitions,
+        # replication status, etc. to disk. Use the same cwd-relative path as MongoTFixture.
+        data_dir = "data/config_journal_" + str(self.mongot_grpc_port)
+        config_path = os.path.join(
+            dbpath_prefix, "mongot_community_config_{}.yml".format(self.mongot_grpc_port)
+        )
+        password_file = os.path.join(
+            dbpath_prefix, "mongot_community_password_{}".format(self.mongot_grpc_port)
+        )
+
+        mongot_community_options = {
+            "grpcPort": self.mongot_grpc_port,
+            "healthCheckPort": self.mongot_health_port,
+            "mongodHostAndPort": "localhost:" + str(self.port),
+            "keyFile": self.mongod_options["keyFile"],
+            "passwordFile": password_file,
+            "dataPath": data_dir,
+            "configPath": config_path,
+            "syncUsername": "__system",
+        }
+        if router_endpoint_for_mongot is not None:
+            mongot_community_options["routerHostAndPort"] = "localhost:" + str(
+                router_endpoint_for_mongot
+            )
+            mongot_community_options["routerAuthSource"] = "admin"
+
+        self.mongot_community_options = mongot_community_options
 
     def await_ready(self):
         """Block until the fixture can be used for testing."""

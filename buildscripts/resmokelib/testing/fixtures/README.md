@@ -17,6 +17,8 @@ Specify any of the following as the `fixture` in your
   run against.
 - [`MongoTFixture`](./mongot.py) - Fixture which provides JSTests with a mongot to run alongside a
   mongod.
+- [`MongoTCommunityFixture`](./mongot_community.py) - Fixture which provides JSTests with a
+  mongot-community process configured via YAML and exposing only gRPC.
 - [`MultiReplicaSetFixture`](./multi_replica_set.py) - Fixture which provides JSTests with a set of
   replica sets to run against.
 - [`MultiShardedClusterFixture`](./multi_sharded_cluster.py) - Fixture which provides JSTests with a
