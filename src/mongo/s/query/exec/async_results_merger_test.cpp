@@ -51,6 +51,7 @@
 #include "mongo/executor/remote_command_request.h"
 #include "mongo/executor/task_executor.h"
 #include "mongo/platform/atomic.h"
+#include "mongo/s/query/exec/cluster_client_cursor_params.h"
 #include "mongo/s/query/exec/next_high_watermark_determining_strategy.h"
 #include "mongo/s/query/exec/results_merger_test_fixture.h"
 #include "mongo/s/query/exec/shard_tag.h"
@@ -3636,7 +3637,9 @@ TEST_F(AsyncResultsMergerTest, IncludeMetricsQueryStatsIncludedInGetMoreWithFeat
             kTestShardIds[0], kTestShardHosts[0], CursorResponse(kTestNss, 5, {})));
 
         auto params = makeARMParamsFromExistingCursors(std::move(cursors), findCmd);
-        params.setRequestQueryStatsFromRemotes(requestParams);
+        IncludeMetrics im;
+        im.setQueryStats(requestParams);
+        setRequestRemoteMetrics(im, params, operationContext());
 
         auto arm = buildARM(std::move(params), false /* recognizeControlEvents */);
 
@@ -5220,9 +5223,10 @@ TEST_F(AsyncResultsMergerTest, RetryableErrorWhileDetachedDoesNotDeadlockAndRetr
     // No results and no error: the ARM is not ready, but the remote is still open.
     ASSERT_FALSE(arm->ready());
 
-    // Reattach to get a fresh SubBaton. _scheduleGetMores (called via nextEvent) will re-send the
-    // getMore for the remote that has no outstanding request and no buffered results.
+    // Reattach to get a fresh SubBaton, then call nextEvent() to trigger _scheduleGetMores, which
+    // re-sends the getMore for the remote that has no outstanding request and no buffered results.
     arm->reattachToOperationContext(operationContext());
+    readyEvent = unittest::assertGet(arm->nextEvent());
 
     // The retry getMore is now scheduled on the executor. Respond with success.
     std::vector<CursorResponse> responses;
@@ -5238,6 +5242,51 @@ TEST_F(AsyncResultsMergerTest, RetryableErrorWhileDetachedDoesNotDeadlockAndRetr
     ASSERT_BSONOBJ_EQ(fromjson("{_id: 1}"), *unittest::assertGet(arm->nextReady()).getResult());
     ASSERT_TRUE(arm->ready());
     ASSERT_BSONOBJ_EQ(fromjson("{_id: 2}"), *unittest::assertGet(arm->nextReady()).getResult());
+}
+
+// Regression test for AF-18251: if the ARM is detached while a rate-limited retry is pending on
+// its SubBaton, the retry callback must not re-dispatch the captured (now-stale) request.
+TEST_F(AsyncResultsMergerTest, DetachWhileRetryPendingDoesNotReissueStaleRequest) {
+    const auto backOffDelayMs = 1000;
+    FailPointEnableBlock fp{"setBackoffDelayForTesting", BSON("backoffDelayMs" << backOffDelayMs)};
+
+    // SystemOverloadedError triggers a delayed backoff retry scheduled on the SubBaton.
+    const BSONObj retryableErrorResponse = makeResponseObjWithErrorLabels(
+        ErrorCodes::HostUnreachable,
+        "dummy msg",
+        {ErrorLabel::kRetryableError, ErrorLabel::kSystemOverloadedError});
+
+    std::vector<RemoteCursor> cursors;
+    cursors.push_back(
+        makeRemoteCursor(kTestShardIds[0], kTestShardHosts[0], CursorResponse(kTestNss, 1, {})));
+    auto arm = makeARMFromExistingCursors(std::move(cursors));
+
+    ASSERT_FALSE(arm->ready());
+    unittest::assertGet(arm->nextEvent());
+    // Deliver the error while attached; the retry is now pending on the SubBaton.
+    scheduleNetworkResponseObjs({retryableErrorResponse});
+    runScheduledTasks(operationContext());
+    ASSERT_FALSE(networkHasReadyRequests());
+
+    // Detach while the retry delay is still outstanding.
+    arm->detachFromOperationContext();
+
+    // Advance past the backoff and pump callbacks; the retry fires while the ARM is detached.
+    advanceTime(Milliseconds(backOffDelayMs + 1));
+    runScheduledTasks(operationContext());
+    runReadyCallbacks();
+
+    // The stale request must not have been re-issued.
+    const bool reissued = networkHasReadyRequests();
+
+    arm->reattachToOperationContext(operationContext());
+    auto killFuture = arm->kill(operationContext());
+    while (!killFuture.isReady()) {
+        runReadyCallbacks();
+    }
+    killFuture.wait();
+
+    ASSERT_FALSE(reissued);
 }
 
 TEST_F(AsyncResultsMergerTest, RetryAttemptCountIsResetPerGetMore) {

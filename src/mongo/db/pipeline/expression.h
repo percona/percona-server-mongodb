@@ -5012,6 +5012,7 @@ public:
                                                   BSONElement expr,
                                                   const VariablesParseState& vpsIn);
     Value serialize(const query_shape::SerializationOptions& options = {}) const final;
+    const char* getOpName() const;
 
     void acceptVisitor(ExpressionMutableVisitor* visitor) final {
         return visitor->visit(this);
@@ -5670,9 +5671,9 @@ struct SubstituteFieldPathWalker {
  * });
  */
 template <typename F>
-struct FieldPathVisitor : public SelectiveConstExpressionVisitorBase {
+struct FieldPathVisitor : public SelectiveConstExpressionVisitorBase<FieldPathVisitor<F>> {
     // To avoid overloaded-virtual warnings.
-    using SelectiveConstExpressionVisitorBase::visit;
+    using SelectiveConstExpressionVisitorBase<FieldPathVisitor<F>>::visit;
 
     explicit FieldPathVisitor(const F& fn) : _fn(fn) {}
 

@@ -139,6 +139,48 @@ describe("logical operators on comparisons", function () {
     });
 });
 
+describe("logic operators above $expr", function () {
+    runTest({
+        name: "$and",
+        matchStage: {$match: {$and: [{$expr: {$gt: ["$_id", 0]}}, {$expr: {$lt: ["$_id", 5]}}]}},
+        expected: [{_id: 1, n: 2}],
+    });
+
+    runTest({
+        name: "$and with null comparison",
+        matchStage: {
+            $match: {$and: [{$expr: {$gte: ["$_id", null]}}, {$expr: {$lte: ["$_id", null]}}]},
+        },
+        expected: [{_id: null, n: 2}],
+    });
+
+    runTest({
+        name: "$or",
+        matchStage: {$match: {$or: [{$expr: {$eq: ["$_id", 1]}}, {$expr: {$gt: ["$_id", 5]}}]}},
+        expected: [{_id: 1, n: 2}],
+    });
+
+    runTest({
+        name: "$or with null comparison",
+        matchStage: {$match: {$or: [{$expr: {$eq: ["$_id", null]}}, {$expr: {$gt: ["$_id", 5]}}]}},
+        expected: [{_id: null, n: 2}],
+    });
+
+    runTest({
+        name: "$nor",
+        matchStage: {
+            $match: {$nor: [{$expr: {$eq: ["$_id", 1]}}, {$expr: {$gt: ["$_id", 5]}}]},
+        },
+        expected: [{_id: null, n: 2}],
+    });
+
+    runTest({
+        name: "$nor with null comparison",
+        matchStage: {$match: {$nor: [{$expr: {$eq: ["$_id", null]}}]}},
+        expected: [{_id: 1, n: 2}],
+    });
+});
+
 describe("$in", function () {
     runTest({
         name: "non-null constant array",
@@ -172,5 +214,48 @@ describe("complex expressions", function () {
         name: "$type check on computed value",
         matchStage: {$match: {$expr: {$eq: ["int", {$type: {$add: ["$_id", NumberInt(1)]}}]}}},
         expected: [{_id: 1, n: 2}],
+    });
+});
+
+it("$expr against a $lookup let variable is evaluated per document", () => {
+    // Regression test for bug which resulted in the let variable in the shared pipeline used
+    // by $lookup being optimized away and affecting the caching logic.
+    const local = db[jsTestName() + "_local"];
+    const foreign = db[jsTestName() + "_foreign"];
+    local.drop();
+    foreign.drop();
+
+    assert.commandWorked(foreign.insertMany([{_id: 0}, {_id: 1}]));
+    assert.commandWorked(local.insertMany([{_id: 0}, {_id: 1}]));
+
+    const groupOnForeign = {$group: {_id: "$_id"}};
+    const matchOnLetVar = {$match: {$expr: {$eq: ["$_id", {$add: ["$$sel", 0]}]}}};
+
+    function lookup(subPipeline) {
+        return {
+            $lookup: {
+                from: foreign.getName(),
+                let: {sel: "$_id"},
+                pipeline: subPipeline,
+                as: "matched",
+            },
+        };
+    }
+
+    const optimized = local.aggregate([lookup([groupOnForeign, matchOnLetVar])]).toArray();
+    const unoptimized = local
+        .aggregate([lookup([groupOnForeign, {$_internalInhibitOptimization: {}}, matchOnLetVar])])
+        .toArray();
+    assertArrayEq({
+        actual: optimized,
+        expected: unoptimized,
+        extraErrorMsg: `\noptimized=${tojson(optimized)}, unoptimized=${tojson(unoptimized)}`,
+    });
+    assertArrayEq({
+        actual: unoptimized,
+        expected: [
+            {_id: 0, matched: [{_id: 0}]},
+            {_id: 1, matched: [{_id: 1}]},
+        ],
     });
 });

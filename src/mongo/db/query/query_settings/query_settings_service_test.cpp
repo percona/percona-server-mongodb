@@ -43,7 +43,9 @@
 #include "mongo/db/query/query_integration_knobs_gen.h"
 #include "mongo/db/query/query_optimization_knobs_gen.h"
 #include "mongo/db/query/query_request_helper.h"
+#include "mongo/db/query/query_settings/query_settings.h"
 #include "mongo/db/query/query_settings/query_settings_cluster_parameter_gen.h"
+#include "mongo/db/query/query_settings/query_settings_context.h"
 #include "mongo/db/query/query_settings/query_settings_gen.h"
 #include "mongo/db/query/query_shape/agg_cmd_shape.h"
 #include "mongo/db/query/query_shape/distinct_cmd_shape.h"
@@ -51,6 +53,7 @@
 #include "mongo/db/server_parameter.h"
 #include "mongo/db/service_context_test_fixture.h"
 #include "mongo/db/tenant_id.h"
+#include "mongo/unittest/death_test.h"
 #include "mongo/unittest/server_parameter_guard.h"
 #include "mongo/unittest/unittest.h"
 #include "mongo/util/serialization_context.h"
@@ -74,6 +77,7 @@ static bool operator==(const QueryShapeConfigurationsWithTimestamp& lhs,
 
 namespace {
 using namespace std::literals::string_view_literals;
+using namespace query_settings_details;
 static auto const kSerializationContext =
     SerializationContext{SerializationContext::Source::Command,
                          SerializationContext::CallerType::Request,
@@ -315,7 +319,7 @@ public:
 
         // Ensure empty settings are returned if no settings are present in the system.
         ASSERT_EQ(service().lookupQuerySettingsWithRejectionCheck(
-                      expCtx(), hashForShape(deferredShape), nss, QuerySettings()),
+                      expCtx(), hashForShape(deferredShape), nss, boost::none),
                   QuerySettings());
 
         // Set { queryFramework: 'classic' } settings to 'cmdForSettingsBSON'.
@@ -513,6 +517,68 @@ TEST_F(QuerySettingsServiceTest, QuerySettingsLookupForDistinct) {
     }
 }
 
+TEST_F(QuerySettingsServiceTest, InitializeSettingsForQueryIsNoOpWhenNotStarted) {
+    QuerySettingsService::initializeForTest(getServiceContext());
+
+    // No eligible command has begun on the operation; its settings read as default.
+    ASSERT(std::holds_alternative<NotStarted>(getQuerySettingsStateForOp(opCtx())));
+    ASSERT_EQ(forOp(opCtx()), QuerySettings());
+
+    QuerySettings settings;
+    settings.setQueryFramework(QueryFrameworkControlEnum::kForceClassicEngine);
+
+    // Resolution is skipped while no eligible command has begun, so the state and default settings
+    // are unchanged even though non-default settings were supplied.
+    service().initializeSettingsForQuery(expCtx(), boost::none, nss(), settings);
+
+    ASSERT(std::holds_alternative<NotStarted>(getQuerySettingsStateForOp(opCtx())));
+    ASSERT_EQ(forOp(opCtx()), QuerySettings());
+}
+
+TEST_F(QuerySettingsServiceTest, InitializeSettingsForQueryWithoutHashUsesOriginalCommandSettings) {
+    QuerySettingsService::initializeForTest(getServiceContext());
+    getQuerySettingsStateForOp(opCtx()) = Pending{};
+
+    QuerySettings settings;
+    settings.setQueryFramework(QueryFrameworkControlEnum::kForceClassicEngine);
+
+    // No query shape hash (query ineligible for lookup): settings are taken from those forwarded on
+    // the original command.
+    service().initializeSettingsForQuery(expCtx(), boost::none, nss(), settings);
+
+    ASSERT(std::holds_alternative<QuerySettings>(getQuerySettingsStateForOp(opCtx())));
+    ASSERT_EQ(forOp(opCtx()), settings);
+}
+
+TEST_F(QuerySettingsServiceTest, InitializeSettingsForQueryWithoutHashOrCommandResolvesToDefault) {
+    QuerySettingsService::initializeForTest(getServiceContext());
+    getQuerySettingsStateForOp(opCtx()) = Pending{};
+
+    service().initializeSettingsForQuery(expCtx(), boost::none, nss(), boost::none);
+
+    // A default resolution collapses to 'Empty'.
+    ASSERT(std::holds_alternative<Empty>(getQuerySettingsStateForOp(opCtx())));
+    ASSERT_EQ(forOp(opCtx()), QuerySettings());
+}
+
+TEST_F(QuerySettingsServiceTest, InitializeSettingsForQueryIsNoOpOnceResolved) {
+    QuerySettingsService::initializeForTest(getServiceContext());
+    getQuerySettingsStateForOp(opCtx()) = Pending{};
+
+    QuerySettings first;
+    first.setQueryFramework(QueryFrameworkControlEnum::kForceClassicEngine);
+    QuerySettings second;
+    second.setQueryFramework(QueryFrameworkControlEnum::kTrySbeEngine);
+
+    service().initializeSettingsForQuery(expCtx(), boost::none, nss(), first);
+    // A re-entrant resolution (view re-dispatch, nested direct-client query) must not overwrite the
+    // settings already resolved for the outer query.
+    service().initializeSettingsForQuery(expCtx(), boost::none, nss(), second);
+
+    ASSERT(std::holds_alternative<QuerySettings>(getQuerySettingsStateForOp(opCtx())));
+    ASSERT_EQ(forOp(opCtx()), first);
+}
+
 /**
  * Tests that valid index hint specs are the same before and after index hint sanitization.
  */
@@ -634,6 +700,35 @@ TEST_F(QuerySettingsServiceTest, MergeClusterAndUserQuerySettingsOnShard) {
     ASSERT_EQ(service().lookupQuerySettingsWithRejectionCheck(
                   expCtx(), hashForShape(deferredShape), nss(), boost::none),
               forceClassicEngineSettings);
+}
+
+// User-supplied querySettings are validated during lookup before being merged and applied.
+TEST_F(QuerySettingsServiceTest, LookupValidatesUserSuppliedQuerySettings) {
+    QuerySettingsService::initializeForRouter(getServiceContext());
+
+    auto findCmdBSON = fromjson("{find: 'exampleColl', '$db': 'foo'}");
+    auto findCmd = query_request_helper::makeFromFindCommandForTests(findCmdBSON, nss());
+    auto parsedRequest =
+        uassertStatusOK(parsed_find_command::parse(expCtx(), {.findCommand = std::move(findCmd)}));
+    query_shape::DeferredQueryShape deferredShape{[&]() {
+        return shape_helpers::tryMakeShape<query_shape::FindCmdShape>(*parsedRequest, expCtx());
+    }};
+    const auto hash = hashForShape(deferredShape);
+
+    // Unlike setQuerySettings, empty/default user settings are a no-op rather than an error.
+    ASSERT_EQ(
+        service().lookupQuerySettingsWithRejectionCheck(expCtx(), hash, nss(), QuerySettings()),
+        QuerySettings());
+
+    // Two index hints for the same collection are rejected.
+    QuerySettings duplicateHints =
+        makeQuerySettings({IndexHintSpec(makeNsSpec("testCollA"sv), {IndexHint(BSON("a" << 1))}),
+                           IndexHintSpec(makeNsSpec("testCollA"sv), {IndexHint(BSON("b" << 1))})},
+                          false /* setFramework */);
+    ASSERT_THROWS_CODE(
+        service().lookupQuerySettingsWithRejectionCheck(expCtx(), hash, nss(), duplicateHints),
+        DBException,
+        7746608);
 }
 }  // namespace
 }  // namespace mongo::query_settings

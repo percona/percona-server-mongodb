@@ -58,8 +58,6 @@ class MONGO_MOD_NEEDS_REPLACEMENT AsioSessionManager : public SessionManagerComm
 public:
     using SessionManagerCommon::SessionManagerCommon;
 
-    void appendStats(BSONObjBuilder* bob) const;
-
     ConnectionsStatsSnapshot getConnectionsStatsSnapshot() const;
 
     bool shouldIncludeInConnectionsServerStatus() const override {

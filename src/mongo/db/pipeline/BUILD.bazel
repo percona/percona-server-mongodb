@@ -1039,6 +1039,7 @@ mongo_cc_library(
 mongo_cc_library(
     name = "search_id_lookup_stage",
     srcs = [
+        "//src/mongo/db/exec/agg/search:internal_search_id_lookup_local_read_executor.cpp",
         "//src/mongo/db/exec/agg/search:internal_search_id_lookup_stage.cpp",
     ],
     deps = [
@@ -1101,6 +1102,7 @@ mongo_cc_library(
         "//src/mongo/db/exec/single_doc_lookup:express_single_document_lookup_executor",
         "//src/mongo/db/exec/single_doc_lookup:local_lookup_eligibility_factory",
         "//src/mongo/db/exec/single_doc_lookup:single_document_lookup_executor",
+        "//src/mongo/db/exec/single_doc_lookup:single_document_lookup_stats",
         "//src/mongo/db/pipeline",
         "//src/mongo/db/pipeline:sharded_agg_helpers",
         "//src/mongo/db/query:query_knobs",

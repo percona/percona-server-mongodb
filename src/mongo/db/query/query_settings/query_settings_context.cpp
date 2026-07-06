@@ -27,16 +27,20 @@
  *    it in the license file.
  */
 
-#include "mongo/db/sharding_environment/shard_handle.h"
+#include "mongo/db/query/query_settings/query_settings_context.h"
 
-#include "mongo/util/uuid.h"
+#include "mongo/db/query/query_lifespan.h"
+#include "mongo/util/assert_util.h"
 
-namespace mongo {
+#include <variant>
 
-// The ShardId is equivalent to ShardId::kConfigServerId which is not used here to avoid
-// initialization order problems. The UUID is the word "config" in hex (636f6e66-6967) plus the v4
-// required bits.
-const ShardHandle ShardHandle::kConfigServerHandle{
-    ShardId("config"), UUID::parse("636f6e66-6967-4000-8000-000000000000").getValue()};
+namespace mongo::query_settings::query_settings_details {
 
-}  // namespace mongo
+namespace {
+auto decoration = QueryLifespan::declareOpCtxDecoration<QuerySettingsOperationState>();
+}  // namespace
+
+QuerySettingsOperationState& getQuerySettingsStateForOp(OperationContext* opCtx) {
+    return decoration(opCtx);
+}
+}  // namespace mongo::query_settings::query_settings_details
