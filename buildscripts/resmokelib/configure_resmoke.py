@@ -774,7 +774,14 @@ flags in common: {common_set}
         # Windows PATH variable requires absolute paths.
         _config.INSTALL_DIR = os.path.abspath(_expand_user(os.path.normpath(_config.INSTALL_DIR)))
 
-        for binary in ["mongo", "mongod", "mongos", "mongot-localdev/mongot", "dbtest"]:
+        for binary in [
+            "mongo",
+            "mongod",
+            "mongos",
+            "mongot-localdev/mongot",
+            "mongot-community/mongot",
+            "dbtest",
+        ]:
             keyname = binary + "_executable"
             if config.get(keyname, None) is None:
                 config[keyname] = os.path.join(_config.INSTALL_DIR, binary)
@@ -842,6 +849,9 @@ flags in common: {common_set}
     _config.MONGO_SET_PARAMETERS = _merge_set_params(config.pop("mongo_set_parameters"))
 
     _config.MONGOT_EXECUTABLE = _expand_user(config.pop("mongot-localdev/mongot_executable"))
+    _config.MONGOT_COMMUNITY_EXECUTABLE = _expand_user(
+        config.pop("mongot-community/mongot_executable")
+    )
     mongot_set_parameters = config.pop("mongot_set_parameters")
     _config.MONGOT_SET_PARAMETERS = _merge_set_params(mongot_set_parameters)
 
