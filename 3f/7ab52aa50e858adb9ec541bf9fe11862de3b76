@@ -1,0 +1,210 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "46e40bccd819ba0408fbc67b3d9719e44668fc6d",
+    "merge_commit": "2268b63515e59a64a632198740c637b7143e7d92"
+  },
+  "mergai_version": "0.1.dev1+g6435390b9",
+  "merge_context": {
+    "merge_commit": "2268b63515e59a64a632198740c637b7143e7d92",
+    "merged_commits": [
+      "2268b63515e59a64a632198740c637b7143e7d92",
+      "70a91f92b3748815d44a462033e013a6a8881d74",
+      "1c57c1f7e5f629b362b15f120747cc072f0f037b",
+      "e00674467f943dee3593ffb7658099c967f8695c",
+      "eefe5fdb7bc80bfd58954eaa593b2ed1a630e601",
+      "2092a417d1dda6a4008f9906a9930738aa503598",
+      "86b5acb1afa547091e0d603e0184d7821d166907",
+      "9bfea873c6836f544f17f8b1caf1f8e4a331f1e0",
+      "7b98b3156660b5a0149a4d6a72dd41fe83b12fe7",
+      "4bc801e4cae290408fd1cb6259f4936d680ad48c",
+      "de2e04612fd341f56656878cf93209725540809a",
+      "dd0061342802ee6eaa41d834e2c769f5b5df6d00",
+      "c7204d8824a37faf7cae5a1874a3e6920088f82d",
+      "0dc609f1bd6b1877361161d1dfe45309f721b3fb",
+      "5371c695f6e5d1f33abd16af065ab18bf7c3991e",
+      "7a69128ffefcb38c4fe6d9d38492f45e12cc73ec",
+      "b4a08ce0af96d70540ada0a8d410dd86929479b1",
+      "aa05b3f9d6f8b25d90386dbaa830a7707cef0bc4",
+      "1ed3d4430120ea4a91fd7e2cfc005e120b54b045",
+      "208a2876fadb1964831fde7bd8c74d92999722d1",
+      "1005e095e98741e2b14b01a40acd6dd0f162f7eb",
+      "4835c157a9f4c3e20e0d67d72819f3d02fb83503",
+      "9ca304d1e34561d8471b6cbc71991c5c4676cec0",
+      "6cec6682a5183a33ecb0f5f617a2f80b67a844fc",
+      "0e31148b649cbde401c6f5d4fcfe6919e1939fa3",
+      "652c294935de5ba3d8fb422f0f0f2cf1bfb73d81",
+      "2720b69d9f8dd2c426148599cffff22820ad5807",
+      "90efaf40e74f20acc996a1f488c902d175130c4f",
+      "309c6ee37f073b80fb46854bd08b245c8039ff4f",
+      "aeae961d5b061c6185d27531097b5b96efe1a55a",
+      "c4dae2350c579f64c36c3c9b953e29620145cc75",
+      "0c6f4fe86ba9dfae931c1701a7f75511ec6cf562",
+      "ac1ec4236bf87f60afbc08d5b0481e15f1f852aa",
+      "cb758df9fe90f2e6a5bb9b39f7396db44590bbff",
+      "96c2ba2f65bfb891ac9ed71d1ac7b7401326b589",
+      "ccd2a622b033edcb382476ecaf364cca78c769ee",
+      "fc1a00d375e5660f13d4f97fe47fee7bb3734231",
+      "0a405b556371a69a52e35b25320e04ac0a9dd9e1",
+      "c0f0de7823d6fb131f653bd54c0ae3e350ce6e58",
+      "828ea9baf835257384da1cd6ec99a3f4c7ef5da3",
+      "668d75fc38f05142b0dbe2e3f25418aa52ffcc26",
+      "5b730fb154573c131346a50c18e7c19f5459462c",
+      "c1e4fa8a3319180ba6225d6d1a65ae13eb85918d",
+      "0f3922a36968ac8ad00f5898f83f02c0a3c6466d",
+      "a0bfb99b68dc8575e54ce618bf237afb0ac94b51",
+      "7bc650ec9d11896a85a83b8eba66deb1f74636e7",
+      "d5572bd6400cfa2e616f8f635a7af76c9fb00abc",
+      "d61b70cc243a1b36272e952862103b541bdbcf19",
+      "010750095b2b9f1cd03af73c9dc8f4c92a1d6a13",
+      "55b34ae9259c51ded15aaca10aed85ea9ac189af",
+      "39dd1dc26eddc28d87e6b4cb8e097d6301790d28",
+      "255a35c3894dae6d783fd27b95aca9478079f63c",
+      "ae10f5cedc7856ed87f0da87d5ace7de99098544",
+      "00bcc5c38a83ceeacda1c0f92241c66beb89d2cc",
+      "4cbbaa6dd63f8360a63dfcc0f6551958a658bd38",
+      "260bd99968ac8ea41c06884428a69017e81f0702",
+      "8db0ec34d5bd6a8fa654466e5818982f4640b8dc"
+    ],
+    "important_files_modified": [
+      "src/mongo/db/repl/initial_sync/initial_syncer.cpp",
+      "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp",
+      "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine_test.cpp"
+    ],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        "src/mongo/db/BUILD.bazel",
+        "src/mongo/db/pipeline/BUILD.bazel",
+        "src/mongo/db/server_options.h",
+        "src/mongo/db/server_options_general.idl",
+        "src/mongo/db/server_options_helpers.cpp",
+        "src/mongo/db/storage/kv/kv_engine.h",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h",
+        "src/mongo/s/BUILD.bazel",
+        "src/mongo/transport/BUILD.bazel"
+      ]
+    }
+  },
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 50856,
+    "num_turns": 5,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.265142,
+    "modelUsage": {
+      "claude-haiku-4-5-20251001": {
+        "inputTokens": 603,
+        "outputTokens": 15,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0,
+        "webSearchRequests": 0,
+        "costUSD": 0.000678,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000
+      },
+      "claude-opus-4-8": {
+        "inputTokens": 5736,
+        "outputTokens": 3339,
+        "cacheReadInputTokens": 70793,
+        "cacheCreationInputTokens": 18706,
+        "webSearchRequests": 0,
+        "costUSD": 0.26446400000000003,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-haiku-4-5-20251001": {
+          "tokens": {
+            "input": 603,
+            "output": 15,
+            "cache_read": 0,
+            "cache_creation": 0
+          },
+          "cost_usd": 0.000678
+        },
+        "claude-opus-4-8": {
+          "tokens": {
+            "input": 5736,
+            "output": 3339,
+            "cache_read": 70793,
+            "cache_creation": 18706
+          },
+          "cost_usd": 0.26446400000000003
+        }
+      }
+    },
+    "text_result": "I've read the merge prompt, inspected the actual `diff base \u2192 merge commit` diff for each of the 10 auto-merged files, and written the JSON response.\n\nSummary of what this upstream merge introduces:\n\n- **New `extensionsConfigPath` server option** \u2014 `server_options.h`, `server_options_general.idl`, and `server_options_helpers.cpp` add a `processManagement.extensionsConfigPath` option pointing to a directory of extension config files, with existence/directory validation.\n- **`waitForLocks` on `dropIdent()`** \u2014 `kv_engine.h`, `wiredtiger_kv_engine.h`, and `wiredtiger_kv_engine.cpp` add a new parameter that lets WiredTiger drops run with `lock_wait=false` and return a new `LockBusy` error instead of asserting on `WT_CONFLICT_TABLE_LOCK`/`WT_CONFLICT_SCHEMA_LOCK`. This is the most behaviorally significant change.\n- **Bazel dependency adjustments** \u2014 `db/BUILD.bazel`, `pipeline/BUILD.bazel`, `s/BUILD.bazel`, and `transport/BUILD.bazel`, including a new `connections_server_status_section` library.\n\nAll files merged cleanly with no conflict markers and no Percona-specific code touched in the changed regions.",
+    "response": {
+      "summary": "Upstream merge bringing in several independent changes: a new 'processManagement.extensionsConfigPath' server option pointing to a directory of extension configuration files (with validation in server_options_helpers.cpp and storage in ServerGlobalParams); a new 'waitForLocks' parameter on the KVEngine/WiredTigerKVEngine dropIdent() API that lets WiredTiger's drop run with lock_wait=false and return a new LockBusy error instead of asserting on WT_CONFLICT_TABLE_LOCK/WT_CONFLICT_SCHEMA_LOCK; and various Bazel build-graph dependency adjustments including a new transport 'connections_server_status_section' library. All listed files auto-merged cleanly with the ort strategy (no conflicts).",
+      "auto_merged": {
+        "src/mongo/db/BUILD.bazel": "Adds the '//src/mongo/db/query/query_stats:plan_shape_counters' dependency to a mongo_cc_library, and removes two deps ('//src/mongo/db/sharding_environment:shard_handle' and '//src/mongo/db/sharding_environment:sharding_feature_flags') from a mongo_cc_unit_test target. Build-graph dependency bookkeeping only.",
+        "src/mongo/db/pipeline/BUILD.bazel": "Adds source file 'internal_search_id_lookup_local_read_executor.cpp' to the 'search_id_lookup_stage' library srcs, and adds the '//src/mongo/db/exec/single_doc_lookup:single_document_lookup_stats' dependency to another library. Build-graph bookkeeping only.",
+        "src/mongo/db/server_options.h": "Adds a new 'std::string extensionsConfigPath' field to the ServerGlobalParams struct, documented as the path to a directory containing extension configuration files (empty means not provided, since the parser rejects empty strings).",
+        "src/mongo/db/server_options_general.idl": "Declares a new config option 'processManagement.extensionsConfigPath' (short name 'extensionsConfigPath', String type) described as the path to a directory containing extension configuration files.",
+        "src/mongo/db/server_options_helpers.cpp": "Adds a new static setExtensionsConfigPath() helper (and includes <system_error>) that reads the 'processManagement.extensionsConfigPath' param; returns OK if unset, and otherwise validates that the path is non-empty, exists, and is a directory (returning BadValue otherwise) before storing it in serverGlobalParams.extensionsConfigPath. It is invoked from storeBaseOptions().",
+        "src/mongo/db/storage/kv/kv_engine.h": "Adds a 'bool waitForLocks = true' parameter to the pure-virtual KVEngine::dropIdent() declaration, with updated doc comment stating that when waitForLocks is false, dropIdent() returns LockBusy if acquiring any locks would require waiting.",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp": "Implements the new waitForLocks behavior in WiredTigerKVEngine::dropIdent(): builds the drop config string and appends ',lock_wait=false' when waitForLocks is false, and now also treats ErrorCodes::LockBusy (in addition to ObjectIsBusy) as a returnable busy status, with an invariant that LockBusy is only possible when waitForLocks is false. In _drop(), the previous invariants on WT_CONFLICT_TABLE_LOCK / WT_CONFLICT_SCHEMA_LOCK sub-level errors are replaced by returning Status(ErrorCodes::LockBusy, err_msg); the WT_UNCOMMITTED_DATA invariant comment is reformatted. _rebuildIdent() and dropIdentForImport() add invariants asserting their drop status is never LockBusy (dropIdentForImport's config is also changed from std::string to a const char*).",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h": "Updates the WiredTigerKVEngine::dropIdent() override signature to match the base class: the onDrop and schemaEpoch parameters lose their default arguments and a new 'bool waitForLocks' parameter is added.",
+        "src/mongo/s/BUILD.bazel": "Removes the '//src/mongo/db/sharding_environment:shard_handle' dependency from a mongo_cc_library target. Build-graph bookkeeping only.",
+        "src/mongo/transport/BUILD.bazel": "Adds a new mongo_cc_library 'connections_server_status_section' (srcs/hdrs connections_server_status_section.cpp/.h with its deps) and adds it as a dependency of the 'transport_layer_manager' library."
+      },
+      "review_notes": "All ten files were auto-merged cleanly (ort strategy) and contain no Percona-specific customizations in the changed regions. The most behaviorally significant change is the new dropIdent() 'waitForLocks' parameter and LockBusy error path in the storage layer (kv_engine.h + wiredtiger_kv_engine.{h,cpp}); verify the abstract and WiredTiger signatures stay consistent and that all callers/subclasses of KVEngine::dropIdent compile against the new pure-virtual signature. The server_options changes add a straightforward new extension config directory option. Bazel changes are pure dependency-graph adjustments."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I've read the merge prompt, inspected the actual `diff base \u2192 merge commit` diff for each of the 10 auto-merged files, and written the JSON response.\n\nSummary of what this upstream merge introduces:\n\n- **New `extensionsConfigPath` server option** \u2014 `server_options.h`, `server_options_general.idl`, and `server_options_helpers.cpp` add a `processManagement.extensionsConfigPath` option pointing to a directory of extension config files, with existence/directory validation.\n- **`waitForLocks` on `dropIdent()`** \u2014 `kv_engine.h`, `wiredtiger_kv_engine.h`, and `wiredtiger_kv_engine.cpp` add a new parameter that lets WiredTiger drops run with `lock_wait=false` and return a new `LockBusy` error instead of asserting on `WT_CONFLICT_TABLE_LOCK`/`WT_CONFLICT_SCHEMA_LOCK`. This is the most behaviorally significant change.\n- **Bazel dependency adjustments** \u2014 `db/BUILD.bazel`, `pipeline/BUILD.bazel`, `s/BUILD.bazel`, and `transport/BUILD.bazel`, including a new `connections_server_status_section` library.\n\nAll files merged cleanly with no conflict markers and no Percona-specific code touched in the changed regions."
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20260706_172923_931054.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.201 (Claude Code)"
+    }
+  }
+}
