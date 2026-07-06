@@ -5,15 +5,15 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 111,
-    "days_behind": 2,
-    "unmerged_oldest_age_days": 2.2261261427430554,
-    "files_affected": 589,
-    "total_additions": 24965,
-    "total_deletions": 7632,
+    "commits_behind": 119,
+    "days_behind": 4,
+    "unmerged_oldest_age_days": 4.627825350138889,
+    "files_affected": 617,
+    "total_additions": 26241,
+    "total_deletions": 7715,
     "date_range": {
       "first": "2026-07-01T16:09:09+00:00",
-      "last": "2026-07-03T20:22:35+00:00"
+      "last": "2026-07-06T03:47:08+00:00"
     }
   },
   "last_merged_commit": {
@@ -41,6 +41,86 @@
     "reason": "force:conflict"
   },
   "unmerged_commits": [
+    {
+      "sha": "3b50194903e2b4327bcf3d32e8bcaac116e24647",
+      "short_sha": "3b50194903e",
+      "date": "2026-07-06T03:47:08+00:00",
+      "author": {
+        "name": "auto-revert-app[bot]",
+        "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
+      },
+      "summary": "Revert \"SERVER-119888 Enable feature flag for featureFlagSbeTransformStages (#56783)\" (#57596)"
+    },
+    {
+      "sha": "87128969df87ef4a16ab9ee2fc8feec5e4b1adcc",
+      "short_sha": "87128969df8",
+      "date": "2026-07-05T21:28:31+02:00",
+      "author": {
+        "name": "Denis Grebennicov",
+        "email": "denis.grebennicov@mongodb.com"
+      },
+      "summary": "SERVER-130156: Revert SERVER-128247 to retain IET-based index bound generation (#57050)"
+    },
+    {
+      "sha": "e1c37480c503826fc663b2ba6552bc6d2f20f7a9",
+      "short_sha": "e1c37480c50",
+      "date": "2026-07-05T18:51:05+01:00",
+      "author": {
+        "name": "Catalin Sumanaru",
+        "email": "catalin.sumanaru@mongodb.com"
+      },
+      "summary": "SERVER-129571 Scope down query knob downgrades only to knobs below the minimum FCV. (#57581)"
+    },
+    {
+      "sha": "625553cad71b810b8c4e174c92b940c1022cd2cb",
+      "short_sha": "625553cad71",
+      "date": "2026-07-05T17:12:21+01:00",
+      "author": {
+        "name": "Rui Liu",
+        "email": "33423526+lriuui0x0@users.noreply.github.com"
+      },
+      "summary": "SERVER-119888 Enable feature flag for featureFlagSbeTransformStages (#56783)"
+    },
+    {
+      "sha": "2268b63515e59a64a632198740c637b7143e7d92",
+      "short_sha": "2268b63515e",
+      "date": "2026-07-04T20:55:41+01:00",
+      "author": {
+        "name": "Catalin Sumanaru",
+        "email": "catalin.sumanaru@mongodb.com"
+      },
+      "summary": "SERVER-130208 Add opCtx-scoped accessor and PQS gate to QueryKnobConfiguration (#57157)"
+    },
+    {
+      "sha": "70a91f92b3748815d44a462033e013a6a8881d74",
+      "short_sha": "70a91f92b37",
+      "date": "2026-07-04T20:00:53+01:00",
+      "author": {
+        "name": "Catalin Sumanaru",
+        "email": "catalin.sumanaru@mongodb.com"
+      },
+      "summary": "SERVER-130207 Introduce  per-operation query settings state (#57156)"
+    },
+    {
+      "sha": "1c57c1f7e5f629b362b15f120747cc072f0f037b",
+      "short_sha": "1c57c1f7e5f",
+      "date": "2026-07-04T16:47:24+01:00",
+      "author": {
+        "name": "Catalin Sumanaru",
+        "email": "catalin.sumanaru@mongodb.com"
+      },
+      "summary": "SERVER-130164 Fix static initialisation for --setParameter provided knobs (#57140)"
+    },
+    {
+      "sha": "e00674467f943dee3593ffb7658099c967f8695c",
+      "short_sha": "e00674467f9",
+      "date": "2026-07-03T15:03:05-07:00",
+      "author": {
+        "name": "Denis Trailin",
+        "email": "denis.trailin@gmail.com"
+      },
+      "summary": "SERVER-127389: Read _clonerAttemptExec under the lock to silence Coverity MISSING_LOCK (#55907)"
+    },
     {
       "sha": "eefe5fdb7bc80bfd58954eaa593b2ed1a630e601",
       "short_sha": "eefe5fdb7bc",
@@ -1327,10 +1407,74 @@
           "num_of_dirs": 11
         }
       }
+    },
+    {
+      "commit": {
+        "sha": "e00674467f943dee3593ffb7658099c967f8695c",
+        "short_sha": "e00674467f9",
+        "date": "2026-07-03T15:03:05-07:00",
+        "author": {
+          "name": "Denis Trailin",
+          "email": "denis.trailin@gmail.com"
+        },
+        "summary": "SERVER-127389: Read _clonerAttemptExec under the lock to silence Coverity MISSING_LOCK (#55907)"
+      },
+      "strategy_name": "important_files",
+      "result": {
+        "matched_files": [
+          "src/mongo/db/repl/initial_sync/initial_syncer.cpp"
+        ]
+      }
+    },
+    {
+      "commit": {
+        "sha": "625553cad71b810b8c4e174c92b940c1022cd2cb",
+        "short_sha": "625553cad71",
+        "date": "2026-07-05T17:12:21+01:00",
+        "author": {
+          "name": "Rui Liu",
+          "email": "33423526+lriuui0x0@users.noreply.github.com"
+        },
+        "summary": "SERVER-119888 Enable feature flag for featureFlagSbeTransformStages (#56783)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 11,
+          "num_of_lines": 5560,
+          "lines_added": 212,
+          "lines_deleted": 5348,
+          "num_of_dirs": 10
+        }
+      }
+    },
+    {
+      "commit": {
+        "sha": "3b50194903e2b4327bcf3d32e8bcaac116e24647",
+        "short_sha": "3b50194903e",
+        "date": "2026-07-06T03:47:08+00:00",
+        "author": {
+          "name": "auto-revert-app[bot]",
+          "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
+        },
+        "summary": "Revert \"SERVER-119888 Enable feature flag for featureFlagSbeTransformStages (#56783)\" (#57596)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 11,
+          "num_of_lines": 5560,
+          "lines_added": 5348,
+          "lines_deleted": 212,
+          "num_of_dirs": 10
+        }
+      }
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-07-03 21:34:43",
+  "generated_at": "2026-07-06 07:13:09",
   "branch_name": "master",
   "display_name": "master"
 }
