@@ -97,7 +97,7 @@ std::pair<ShardRegistryData::ShardHandleToConnectionStringMap, Timestamp> fetchF
 
     const auto shardsAndOpTime = [&] {
         try {
-            return catalogClient->getAllShards(opCtx, repl::ReadConcernLevel::kSnapshotReadConcern);
+            return catalogClient->getAllShards(opCtx, repl::ReadConcernArgs::kSnapshot);
         } catch (DBException& ex) {
             ex.addContext("could not get updated shard list from config server");
             throw;
@@ -179,8 +179,8 @@ ShardRegistry::ShardRegistry(ServiceContext* service,
 
     _threadPool.startup();
 
-    ObservableMutexRegistry::get().add("Router Cache Mutexes", _cacheMutex);
-    ObservableMutexRegistry::get().add("Router Cache Mutexes", _mutex);
+    ObservableMutexRegistry::get().add("routerCacheMutexes", _cacheMutex);
+    ObservableMutexRegistry::get().add("routerCacheMutexes", _mutex);
 }
 
 ShardRegistry::~ShardRegistry() {

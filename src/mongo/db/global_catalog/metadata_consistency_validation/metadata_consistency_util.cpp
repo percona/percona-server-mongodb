@@ -103,6 +103,18 @@ MONGO_FAIL_POINT_DEFINE(simulateCatalogTopLevelMetadataInconsistency);
 static constexpr std::string_view kInMemoryShardCatalogSourceScope = "inMemoryShardCatalog"sv;
 static constexpr std::string_view kDurableShardCatalogSourceScope = "durableShardCatalog"sv;
 
+/*
+ * Reads against the durable shard catalog performed while checking metadata consistency can be
+ * interrupted by transient events such as a replica set stepdown. Such interruptions are not
+ * genuine metadata inconsistencies, so rethrow them and let the command fail with a retriable
+ * error (which callers already retry) rather than masquerading them as a spurious inconsistency.
+ */
+void rethrowIfTransientCatalogReadError(const DBException& ex) {
+    if (ex.isA<ErrorCategory::Interruption>() || ex.isA<ErrorCategory::CancellationError>()) {
+        throw;
+    }
+}
+
 
 /*
  * This helper throws an error for the namespace which has disappeared. The error will be a tassert
@@ -200,7 +212,7 @@ std::vector<ChunkType> getChunksFromGlobalCatalog(OperationContext* opCtx,
         nullptr,
         coll.getEpoch(),
         coll.getTimestamp(),
-        repl::ReadConcernLevel::kSnapshotReadConcern);
+        repl::ReadConcernArgs::kSnapshot);
 
     uassertStatusOK(chunksStatus.getStatus());
 
@@ -265,6 +277,7 @@ boost::optional<CollectionType> getCollectionFromDurableShardCatalog(
     try {
         collectionInShardCatalog.emplace(CollectionType{cursor->nextSafe().getOwned()});
     } catch (const DBException& ex) {
+        rethrowIfTransientCatalogReadError(ex);
         inconsistencies.emplace_back(makeInconsistency(
             MetadataInconsistencyTypeEnum::kInconsistentShardCatalogCollectionMetadata,
             InconsistentShardCatalogCollectionMetadataDetails{
@@ -294,6 +307,7 @@ bool hasChunksFromDurableShardCatalog(OperationContext* opCtx,
         auto chunkCursor = client.find(std::move(chunkFindOp));
         return chunkCursor->more();
     } catch (const DBException& ex) {
+        rethrowIfTransientCatalogReadError(ex);
         inconsistencies.emplace_back(makeInconsistency(
             MetadataInconsistencyTypeEnum::kInconsistentShardCatalogCollectionMetadata,
             InconsistentShardCatalogCollectionMetadataDetails{
@@ -319,6 +333,7 @@ bool hasAnyChunksFromDurableShardCatalog(OperationContext* opCtx,
         auto chunkCursor = client.find(std::move(chunkFindOp));
         return chunkCursor->more();
     } catch (const DBException& ex) {
+        rethrowIfTransientCatalogReadError(ex);
         inconsistencies.emplace_back(makeInconsistency(
             MetadataInconsistencyTypeEnum::kInconsistentShardCatalogCollectionMetadata,
             InconsistentShardCatalogCollectionMetadataDetails{
@@ -353,6 +368,7 @@ void validateNoDurableShardCatalogEntries(OperationContext* opCtx,
                                      "catalog (config.shard.catalog.collections)")}));
         }
     } catch (const DBException& ex) {
+        rethrowIfTransientCatalogReadError(ex);
         inconsistencies.emplace_back(makeInconsistency(
             MetadataInconsistencyTypeEnum::kInconsistentShardCatalogCollectionMetadata,
             InconsistentShardCatalogCollectionMetadataDetails{
@@ -393,6 +409,7 @@ boost::optional<std::vector<ChunkType>> getChunksFromDurableShardCatalog(
             chunks.push_back(std::move(chunk));
         }
     } catch (const DBException& ex) {
+        rethrowIfTransientCatalogReadError(ex);
         inconsistencies.emplace_back(makeInconsistency(
             MetadataInconsistencyTypeEnum::kInconsistentShardCatalogCollectionMetadata,
             InconsistentShardCatalogCollectionMetadataDetails{
@@ -1576,6 +1593,7 @@ std::vector<MetadataInconsistencyItem> checkDatabaseMetadataConsistencyInShardCa
         dbInShardCatalog =
             DatabaseType::parse(cursor->nextSafe().getOwned(), IDLParserContext("DatabaseType"));
     } catch (const DBException& ex) {
+        rethrowIfTransientCatalogReadError(ex);
         MissingDatabaseMetadataInShardCatalogDetails details{
             dbName, primaryShard, dbVersionInGlobalCatalog};
         details.setReason(ex.reason());
@@ -1624,7 +1642,7 @@ std::vector<CollectionType> getCollectionsListFromConfigServer(
             return Grid::get(opCtx)->catalogClient()->getCollections(
                 opCtx,
                 nss.dbName(),
-                repl::ReadConcernLevel::kMajorityReadConcern,
+                repl::ReadConcernArgs::kMajority,
                 BSON(CollectionType::kNssFieldName << 1) /*sort*/);
         }
         case MetadataConsistencyCommandLevelEnum::kCollectionLevel: {
@@ -2614,7 +2632,7 @@ std::vector<MetadataInconsistencyItem> runCheckMetadataConsistencyOnParticipant(
                 serverGlobalParams.featureCompatibility.acquireFCVSnapshot()) &&
             !nss.isConfigDB()) {
             const auto dbInGlobalCatalog = Grid::get(opCtx)->catalogClient()->getDatabase(
-                opCtx, nss.dbName(), repl::ReadConcernLevel::kMajorityReadConcern);
+                opCtx, nss.dbName(), repl::ReadConcernArgs::kMajority);
 
             auto dbMetadataInconsistencies =
                 checkDatabaseMetadataConsistency(opCtx, dbInGlobalCatalog);

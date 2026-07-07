@@ -589,7 +589,7 @@ bool checkAllowMigrationsOnConfigServer(OperationContext* opCtx, const Namespace
         uassertStatusOK(Grid::get(opCtx)->shardRegistry()->getConfigShard()->exhaustiveFindOnConfig(
                             opCtx,
                             ReadPreferenceSetting(ReadPreference::PrimaryOnly, TagSet{}),
-                            repl::ReadConcernLevel::kMajorityReadConcern,
+                            repl::ReadConcernArgs::kMajority,
                             NamespaceString::kConfigsvrCollectionsNamespace,
                             BSON(CollectionType::kNssFieldName << NamespaceStringUtil::serialize(
                                      nss, SerializationContext::stateDefault())),
@@ -1161,19 +1161,13 @@ void commitCreateCollectionChunklessMetadataToShardCatalog(
 void commitChunkOperationsMetadataToShardCatalog(
     OperationContext* opCtx,
     const NamespaceString& nss,
-    const std::vector<ChunkType>& newChunks,
+    std::vector<BSONObj> newChunkDocs,
     const std::vector<ShardRef>& shardRefs,
     const OperationSessionInfo& osi,
     const std::shared_ptr<executor::ScopedTaskExecutor>& executor,
     const CancellationToken& token) {
     ShardsvrCommitChunkOperationsMetadata request(nss);
     request.setDbName(DatabaseName::kAdmin);
-
-    std::vector<BSONObj> newChunkDocs;
-    newChunkDocs.reserve(newChunks.size());
-    for (const auto& chunk : newChunks) {
-        newChunkDocs.push_back(chunk.toConfigBSON());
-    }
     request.setNewChunks(std::move(newChunkDocs));
 
     generic_argument_util::setMajorityWriteConcern(request);
@@ -1249,7 +1243,7 @@ boost::optional<ShardId> pickShardOwningCollectionChunks(OperationContext* opCtx
         nullptr /*opTime*/,
         dummyEpoch,
         dummyTimestamp,
-        repl::ReadConcernLevelEnum::kMajorityReadConcern));
+        repl::ReadConcernArgs::kMajority));
     return chunks.empty() ? boost::none : boost::optional<ShardId>(chunks[0].getShard());
 }
 
@@ -1520,7 +1514,7 @@ ComputeAllMergeableChunksOnShardResult computeAllMergeableChunksOnShard(
     const auto zones = uassertStatusOK(configShard->exhaustiveFindOnConfig(
         opCtx,
         ReadPreferenceSetting{ReadPreference::PrimaryOnly},
-        repl::ReadConcernLevel::kMajorityReadConcern,
+        repl::ReadConcernArgs::kMajority,
         TagsType::ConfigNS,
         /* query */
         BSON(TagsType::ns(

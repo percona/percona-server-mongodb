@@ -39,6 +39,7 @@
 #include "mongo/unittest/death_test.h"
 #include "mongo/unittest/framework.h"
 
+#include <cmath>
 #include <memory>
 #include <string_view>
 #include <tuple>
@@ -108,6 +109,17 @@ TEST(QueryKnobRegistryTest, NonPqsKnobInvisibleToLookupButCarriesWireName) {
     ASSERT_FALSE(entry.pqsSettable);
 }
 
+// Long long knob values must be accepted from any BSON numeric type, matching setParameter's
+// coercion semantics: doubles are truncated toward zero.
+TEST(QueryKnobRegistryTest, LongLongKnobFromBSONCoercesNumericTypes) {
+    const auto& entry = registry().entry(test_knobs::testLLKnob.id);
+    ASSERT_EQ(std::get<long long>(entry.fromBSON(BSON("v" << 0.0).firstElement())), 0LL);
+    ASSERT_EQ(std::get<long long>(entry.fromBSON(BSON("v" << 5).firstElement())), 5LL);
+    ASSERT_EQ(std::get<long long>(entry.fromBSON(BSON("v" << 5.5).firstElement())), 5LL);
+    ASSERT_EQ(std::get<long long>(entry.fromBSON(BSON("v" << -5.5).firstElement())), -5LL);
+    ASSERT_THROWS(entry.fromBSON(BSON("v" << std::nan("")).firstElement()), DBException);
+}
+
 TEST(QueryKnobRegistryTest, PlainServerParameterNotRegistered) {
     ASSERT_FALSE(registry().getKnobIdForName("testPlainParam"sv).has_value());
     auto* plain = ServerParameterSet::getNodeParameterSet()->getIfExists("testPlainParam");
@@ -143,8 +155,8 @@ TEST(QueryKnobRegistryTest, CountsReflectPqsSplitOverTestSubset) {
             ++testPqs;
         }
     }
-    ASSERT_EQ(testTotal, 5u);
-    ASSERT_EQ(testPqs, 3u);
+    ASSERT_EQ(testTotal, 6u);
+    ASSERT_EQ(testPqs, 4u);
 }
 
 // -----------------------------------------------------------------------------

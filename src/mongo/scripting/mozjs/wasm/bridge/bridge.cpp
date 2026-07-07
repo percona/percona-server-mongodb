@@ -29,8 +29,6 @@
 
 #include "mongo/scripting/mozjs/wasm/bridge/bridge.h"
 
-#include "mongo/db/client.h"
-#include "mongo/db/operation_context.h"
 #include "mongo/logv2/log.h"
 #include "mongo/scripting/config_engine_gen.h"
 
@@ -164,8 +162,23 @@ MozJSWasmBridge::MozJSWasmBridge(std::shared_ptr<WasmEngineContext> ctx, Options
 
         auto storeCtx = _store->context();
 
-        // This is used to signal process killing.
+        // Arm the epoch interrupt at current+1 so the first increment_epoch() fires.
         storeCtx.set_epoch_deadline(1);
+
+        // Per-bridge epoch callback: only trap when THIS bridge's kill flag is set.
+        // Without this, any kill (which calls increment_epoch() on the shared engine) would
+        // interrupt every concurrently-running store, causing epoch bleed across unrelated
+        // WASM scopes. With the callback, non-killed stores re-arm with delta=1 and continue.
+        //
+        // `this` is safe to capture: MozJSWasmBridge is non-movable and outlives `_store`.
+        _store->epoch_deadline_callback(
+            [this](wt::Store::Context, uint64_t& delta) -> wt::Result<wt::DeadlineKind> {
+                if (isKillPending()) {
+                    return wt::Error("wasm epoch interrupt: kill pending");
+                }
+                delta = 1;
+                return wt::DeadlineKind::Continue;
+            });
 
         // The default 128 MiB hostcall fuel cap is exhausted by long-running $accumulator /
         // mapReduce pipelines that pass multi-megabyte BSON state across WIT calls.
@@ -256,29 +269,12 @@ bool MozJSWasmBridge::_callFuncNoArgs(wc::Func& func, wc::Val* results, size_t n
 void MozJSWasmBridge::_throwAfterTrap(const std::string& trapMessage) {
     _state.store(State::Trapped);
 
-    // If kill() was called on this bridge, map back to the real mongo ErrorCode by
-    // checking the current OperationContext rather than always throwing Interrupted (11601).
-    if (isKillPending()) {
-        auto* client = Client::getCurrent();
-        OperationContext* opCtx = client ? client->getOperationContext() : nullptr;
-        if (opCtx) {
-            // Throws with the correct error code if the opCtx was already marked killed
-            // (e.g. via ServiceContext::killOperation which calls markKilled before interrupt())
-            // or if the opCtx deadline has clearly expired.
-            opCtx->checkForInterrupt();
-            // checkForInterrupt() didn't throw: the DeadlineMonitor fired just before the
-            // opCtx deadline expired (clock precision race). Use the opCtx's timeout error
-            // so callers see MaxTimeMSExpired (50) rather than the generic Interrupted (11601).
-            if (opCtx->hasDeadline()) {
-                uasserted(opCtx->getTimeoutError(), trapMessage);
-            }
-        }
-        LOGV2_DEBUG(11542381,
-                    2,
-                    "WASM bridge trap with kill pending but no opCtx kill status; falling "
-                    "back to Interrupted",
-                    "trap"_attr = trapMessage);
-        uasserted(ErrorCodes::Interrupted, trapMessage);
+    // If kill() was called on this bridge, throw the reason recorded at that call -- the real
+    // mongo error (MaxTimeMSExpired, CursorKilled, etc.) if the caller knew it (see kill()'s doc
+    // comment), or plain Interrupted for the JS-fn-only-timeout case. No translation happens
+    // above the bridge: by the time a trap reaches here, the correct code is already known.
+    if (auto reason = _killReason.load(); reason != ErrorCodes::OK) {
+        uasserted(reason, trapMessage);
     }
 
     // Full state dump on any trap for diagnostics.
@@ -551,16 +547,29 @@ bool MozJSWasmBridge::invokePredicate(uint64_t handle, wc::Val bsonVal) {
     return payload->get_bool();
 }
 
-void MozJSWasmBridge::kill() {
-    _signalInterrupt();
+void MozJSWasmBridge::kill(ErrorCodes::Error reason) {
+    invariant(reason != ErrorCodes::OK, "kill() reason must not be OK -- that means 'not killed'");
+    _signalInterrupt(reason);
 }
 
-void MozJSWasmBridge::_signalInterrupt() {
-    _killPending.store(true);
+void MozJSWasmBridge::_signalInterrupt(ErrorCodes::Error reason) {
+    // First write wins: kill() can legitimately be called more than once on the same bridge --
+    // notably DeadlineMonitor's own background thread periodically re-signals any task with
+    // isKillPending() still set (see deadlineMonitorThread()'s re-arm loop), as a safety net for
+    // kills the target hasn't yet noticed. That re-signal always goes through the plain,
+    // reason-less kill() (defaulting to Interrupted), so if we stored unconditionally here, a
+    // correctly-attributed first kill (e.g. registerOperation() forwarding a real
+    // MaxTimeMSExpired) could be silently overwritten with a generic Interrupted moments later.
+    // Only the reason recorded on the *first* call is authoritative; every call still bumps the
+    // epoch so the re-arm's actual job (making sure the trap fires) is unaffected.
+    auto expected = ErrorCodes::OK;
+    _killReason.compareAndSwap(&expected, reason);
     _stats.killCount.fetchAndAdd(1);
     _ctx->_engine->increment_epoch();
     LOGV2(11542376,
           "WASM bridge kill signalled",
+          "reason"_attr = reason,
+          "recordedReason"_attr = _killReason.load(),
           "killCount"_attr = _stats.killCount.load(),
           "totalInvokes"_attr = _stats.invokeFunctionCallCount.load() +
               _stats.invokeMapCallCount.load() + _stats.invokePredicateCallCount.load(),
@@ -568,7 +577,7 @@ void MozJSWasmBridge::_signalInterrupt() {
 }
 
 bool MozJSWasmBridge::isKillPending() const {
-    return _killPending.load();
+    return _killReason.load() != ErrorCodes::OK;
 }
 
 BSONObj MozJSWasmBridge::drainEmitBuffer() {
@@ -657,26 +666,24 @@ BSONObj MozJSWasmBridge::_extractBSON(const wc::Val& result) {
     const auto* rawPayload = wc::Val::to_capi(payload);
     if (rawPayload->kind == WASMTIME_COMPONENT_RAW_U8_LIST) {
         const auto& bv = rawPayload->of.raw_u8_list;
-        invariant(bv.size >= static_cast<size_t>(BSONObj::kMinBSONLength));
-        auto buf = SharedBuffer::allocate(bv.size);
-        std::memcpy(buf.get(), bv.data, bv.size);
-        auto returnVal = BSONObj(std::move(buf));
-        invariant(returnVal.isValid());
-        return returnVal;
+        // The guest is untrusted: fully validate the bytes against the actual buffer size before
+        // any downstream reader walks the document.
+        return wasm_helpers::validatedBsonFromGuestBytes(reinterpret_cast<const uint8_t*>(bv.data),
+                                                         bv.size);
     }
 
     const wc::List& list = payload->get_list();
     size_t n = list.size();
-    invariant(n >= static_cast<size_t>(BSONObj::kMinBSONLength));
-    // Write directly into the SharedBuffer — no intermediate std::vector allocation.
+    // Write directly into the SharedBuffer — no intermediate std::vector allocation — then hand it
+    // off for validation + ownership. The guest is untrusted, so validatedBsonFromGuestBuffer
+    // checks the embedded lengths against the actual buffer size rather than trusting the forgeable
+    // BSON header.
     auto buf = SharedBuffer::allocate(n);
     auto* dst = reinterpret_cast<uint8_t*>(buf.get());
     for (const wc::Val& elem : list) {
         *dst++ = elem.get_u8();
     }
-    auto returnVal = BSONObj(std::move(buf));
-    invariant(returnVal.isValid());
-    return returnVal;
+    return wasm_helpers::validatedBsonFromGuestBuffer(std::move(buf), n);
 }
 
 BSONObj MozJSWasmBridge::_getReturnValueBson() {

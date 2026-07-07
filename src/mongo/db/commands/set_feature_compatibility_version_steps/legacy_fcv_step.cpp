@@ -162,8 +162,8 @@ void handleDropPendingDBsGarbage(OperationContext* parentOpCtx) {
 
     // The list of shards is stable during the execution of this function, since it is called during
     // FCV upgrade.
-    const auto opTimeWithShards = Grid::get(opCtx)->catalogClient()->getAllShards(
-        opCtx, repl::ReadConcernLevel::kSnapshotReadConcern);
+    const auto opTimeWithShards =
+        Grid::get(opCtx)->catalogClient()->getAllShards(opCtx, repl::ReadConcernArgs::kSnapshot);
     for (const auto& shardType : opTimeWithShards.value) {
         const auto shardStatus =
             Grid::get(opCtx)->shardRegistry()->getShard(opCtx, ShardRef(shardType.getName()));
@@ -221,8 +221,8 @@ void dropAuthoritativeShardCatalogCollectionsOnShards(OperationContext* opCtx) {
                                                     "DropAuthoritativeShardCatalogMetadata",
                                                     LockMode::MODE_S);
 
-    const auto opTimeWithShards = Grid::get(opCtx)->catalogClient()->getAllShards(
-        opCtx, repl::ReadConcernLevel::kSnapshotReadConcern);
+    const auto opTimeWithShards =
+        Grid::get(opCtx)->catalogClient()->getAllShards(opCtx, repl::ReadConcernArgs::kSnapshot);
 
     const auto collNames =
         BSON_ARRAY(NamespaceString::kConfigShardCatalogDatabasesNamespace.coll()
@@ -290,6 +290,22 @@ void dropAuthoritativeShardCatalogCollectionsOnShards(OperationContext* opCtx) {
             uassertStatusOK(status);
         }
     }
+
+    // The config server is also the primary shard for the config database, and thus maintains its
+    // own local shard catalog collections for it, even when it is not itself registered as a shard
+    // in config.shards. Drop them locally, since the loop above only reaches registered shards.
+    DBDirectClient client(opCtx);
+    for (const auto& nss : {NamespaceString::kConfigShardCatalogDatabasesNamespace,
+                            NamespaceString::kConfigShardCatalogCollectionsNamespace,
+                            NamespaceString::kConfigShardCatalogChunksNamespace}) {
+        BSONObj result;
+        if (!client.dropCollection(nss, defaultMajorityWriteConcern(), &result)) {
+            const auto status = getStatusFromCommandResult(result);
+            if (status != ErrorCodes::NamespaceNotFound) {
+                uassertStatusOK(status);
+            }
+        }
+    }
 }
 
 // TODO (SERVER-98118): remove once 9.0 becomes last LTS.
@@ -297,7 +313,7 @@ void dropAuthoritativeShardCatalogCollectionsOnShards(OperationContext* opCtx) {
 // config.cache.collections and config.cache.chunks.*).
 void dropLegacyShardCacheCollections(OperationContext* opCtx) {
     // Wait for the SSCCL to finish any already-queued flush tasks before dropping the collections.
-    FilteringMetadataCache::get(opCtx)->waitForAllFlushes(opCtx);
+    FilteringMetadataCache::get(opCtx)->waitForAllLoaderFlushes(opCtx);
 
     DBDirectClient client(opCtx);
 

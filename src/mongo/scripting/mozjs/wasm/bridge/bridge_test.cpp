@@ -47,19 +47,19 @@
 #include "mongo/bson/bsontypes.h"
 #include "mongo/bson/oid.h"
 #include "mongo/bson/timestamp.h"
-#include "mongo/db/client.h"
-#include "mongo/db/service_context.h"
-#include "mongo/db/service_context_test_fixture.h"
 #include "mongo/platform/decimal128.h"
 #include "mongo/scripting/config_engine_gen.h"
 #include "mongo/scripting/config_engine_wasm_gen.h"
+#include "mongo/scripting/mozjs/wasm/bridge/wasm_helpers.h"
 #include "mongo/scripting/mozjs/wasm/embedded_wasm_resource.h"
 #include "mongo/unittest/unittest.h"
 
 #include <atomic>
 #include <chrono>
+#include <condition_variable>
 #include <cstdint>
 #include <cstring>
+#include <mutex>
 #include <set>
 #include <string>
 #include <string_view>
@@ -3063,100 +3063,70 @@ TEST_F(WasmMozJSBridgeTest, Security_RealmReset_SymbolToPrimitiveTrapGone) {
 // _throwAfterTrap error-code mapping tests
 // ---------------------------------------------------------------------------
 
-// Fixture that adds a ServiceContext so tests can bind a Client + OperationContext
-// to the current thread, enabling _throwAfterTrap's Client::getCurrent() path.
-class WasmMozJSBridgeKillTest : public WasmMozJSBridgeTest,
-                                public ScopedGlobalServiceContextForTest {};
-
-// When kill() fires and the current thread's OperationContext is marked killed
-// with a specific code, _throwAfterTrap must throw that code (not a generic
-// Interrupted or kWasmtimeTrapErrorCode).
-TEST_F(WasmMozJSBridgeKillTest, ThrowAfterTrap_MarkedOpCtx_PropagatesRealErrorCode) {
-    auto fn = createFunction("while (true) {}");
-
-    // Run the blocking invoke in a background thread so we can bound the kill loop and
-    // surface a clear failure if the epoch interrupt mechanism is broken.
-    // The client + opCtx are created on the invoker thread so _throwAfterTrap finds the
-    // correct (killed) opCtx via the thread-local current-client mechanism.
-    std::atomic<bool> invokeDone{false};
-    std::exception_ptr invokeEx;
-    std::thread invoker([&] {
-        auto client = getService()->makeClient("WasmBridgeKillTest");
-        AlternativeClientRegion acr(client);
-        auto opCtx = cc().makeOperationContext();
-        opCtx->markKilled(ErrorCodes::MaxTimeMSExpired);
-        try {
-            (void)_bridge->invokeFunction(fn, wasm_helpers::convertBsonToWcVal(BSONObj()));
-        } catch (...) {
-            invokeEx = std::current_exception();
-        }
-        invokeDone.store(true, std::memory_order_release);
-    });
-
-    // Kill every 5 ms; cap at 400 iterations (~2 s). In a healthy system the first kill
-    // fires the epoch interrupt and invoker exits within ~5 ms.
-    for (int i = 0; i < 400 && !invokeDone.load(std::memory_order_acquire); ++i) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(5));
-        _bridge->kill();
-    }
-
-    if (invoker.joinable()) {
-        if (!invokeDone.load(std::memory_order_acquire))
-            invoker.detach();  // epoch interrupt broken; detach to avoid blocking teardown
-        else
-            invoker.join();
-    }
-
-    ASSERT(invokeDone.load(std::memory_order_relaxed))
-        << "invokeFunction did not throw within 2s; epoch interrupt may be broken";
-    ASSERT(invokeEx) << "invokeFunction returned without throwing";
-    try {
-        std::rethrow_exception(invokeEx);
-    } catch (const DBException& e) {
-        ASSERT_EQ(e.code(), ErrorCodes::MaxTimeMSExpired);
-    } catch (...) {
-        FAIL("invokeFunction threw an unexpected exception type");
-    }
-}
-
-// When kill() fires but no OperationContext is bound to the current thread,
-// _throwAfterTrap falls back to Interrupted.
+// When kill() fires with no explicit reason, _throwAfterTrap() throws the default,
+// plain Interrupted -- there's no opCtx-based translation layer above the bridge anymore;
+// callers that know a real reason (e.g. WasmtimeScriptEngine::interrupt()/registerOperation())
+// pass it explicitly via kill(reason).
 TEST_F(WasmMozJSBridgeTest, ThrowAfterTrap_NoOpCtx_FallsBackToInterrupted) {
     auto fn = createFunction("while (true) {}");
 
-    // Run the blocking invoke in a background thread so we can bound the kill loop and
-    // surface a clear failure if the epoch interrupt mechanism is broken.
-    std::atomic<bool> invokeDone{false};
     std::exception_ptr invokeEx;
+
     std::thread invoker([&] {
         try {
             (void)_bridge->invokeFunction(fn, wasm_helpers::convertBsonToWcVal(BSONObj()));
         } catch (...) {
             invokeEx = std::current_exception();
         }
-        invokeDone.store(true, std::memory_order_release);
     });
 
-    // Kill every 5 ms; cap at 400 iterations (~2 s).
-    for (int i = 0; i < 400 && !invokeDone.load(std::memory_order_acquire); ++i) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(5));
-        _bridge->kill();
-    }
+    // _killPending is sticky: even if kill() fires before WASM starts, the bridge traps on
+    // the first epoch check point inside invokeFunction(). One kill() is sufficient.
+    _bridge->kill();
+    invoker.join();
 
-    if (invoker.joinable()) {
-        if (!invokeDone.load(std::memory_order_acquire))
-            invoker.detach();  // epoch interrupt broken; detach to avoid blocking teardown
-        else
-            invoker.join();
-    }
-
-    ASSERT(invokeDone.load(std::memory_order_relaxed))
-        << "invokeFunction did not throw within 2s; epoch interrupt may be broken";
     ASSERT(invokeEx) << "invokeFunction returned without throwing";
     try {
         std::rethrow_exception(invokeEx);
     } catch (const DBException& e) {
         ASSERT_EQ(e.code(), ErrorCodes::Interrupted);
+    } catch (...) {
+        FAIL("invokeFunction threw an unexpected exception type");
+    }
+}
+
+// Regression test for a real CI failure (server_status_with_time_out_cursors.js, TSAN):
+// DeadlineMonitor's background thread periodically re-signals kill() on any task with
+// isKillPending() still set (see deadlineMonitorThread()'s re-arm loop in deadline_monitor.h),
+// using the plain, reason-less kill() -- regardless of what reason a prior, correctly-attributed
+// kill() call already recorded. Before this was fixed, a second kill() call unconditionally
+// overwrote _killReason, silently downgrading a real MaxTimeMSExpired (correctly forwarded by
+// e.g. registerOperation()) back to a generic Interrupted by the time the trap was thrown.
+TEST_F(WasmMozJSBridgeTest, Kill_FirstReasonWins_SubsequentKillDoesNotOverwrite) {
+    auto fn = createFunction("while (true) {}");
+
+    std::exception_ptr invokeEx;
+    std::thread invoker([&] {
+        try {
+            (void)_bridge->invokeFunction(fn, wasm_helpers::convertBsonToWcVal(BSONObj()));
+        } catch (...) {
+            invokeEx = std::current_exception();
+        }
+    });
+
+    // First kill: a real, correctly-attributed reason (e.g. from registerOperation()).
+    _bridge->kill(ErrorCodes::MaxTimeMSExpired);
+    // Second kill: simulates DeadlineMonitor's periodic re-arm, which always uses the
+    // reason-less default. Must not clobber the reason recorded above.
+    _bridge->kill();
+    invoker.join();
+
+    ASSERT(invokeEx) << "invokeFunction returned without throwing";
+    try {
+        std::rethrow_exception(invokeEx);
+    } catch (const DBException& e) {
+        ASSERT_EQ(e.code(), ErrorCodes::MaxTimeMSExpired)
+            << "second kill() call overwrote the first call's real reason";
     } catch (...) {
         FAIL("invokeFunction threw an unexpected exception type");
     }
@@ -3219,6 +3189,136 @@ TEST_F(WasmMozJSBridgeTest, InvokeFunction_GenerationsStackAcrossMultipleInvocat
     auto read = createFunction("function() { return globalThis.__saved__.v; }");
     ASSERT_THROWS_CODE(invokeFunction(read, BSONObj()), DBException, ErrorCodes::BadValue);
 }
+
+// ---------------------------------------------------------------------------
+// Per-bridge epoch isolation tests
+// ---------------------------------------------------------------------------
+
+// Sequential isolation: after bridge A is killed (causing an engine epoch increment), a fresh
+// call on bridge B (sharing the same engine context) should succeed without interruption.
+// Bridge B's epoch callback re-arms on the first epoch tick of its next invocation.
+TEST_F(WasmMozJSBridgeTest, EpochIsolation_KillingBridgeADoesNotPreventBridgeBFromExecuting) {
+    MozJSWasmBridge::Options opts{};
+    opts.linearMemoryLimitMB = gWasmtimeStoreMemoryLimitMB.load();
+    auto bridgeB = std::make_unique<MozJSWasmBridge>(_s_engineCtx, opts);
+    ASSERT_TRUE(bridgeB->initialize());
+
+    // Bridge A: infinite loop in a background thread
+    auto infLoopA = createFunction("while (true) {}");
+
+    std::exception_ptr bridgeAEx;
+
+    std::thread threadA([&] {
+        try {
+            (void)_bridge->invokeFunction(infLoopA, wasm_helpers::convertBsonToWcVal(BSONObj()));
+        } catch (...) {
+            bridgeAEx = std::current_exception();
+        }
+    });
+
+    // _killPending is sticky: one kill() is sufficient to interrupt bridge A.
+    _bridge->kill();
+    threadA.join();
+
+    // Bridge A must have thrown Interrupted.
+    ASSERT(bridgeAEx) << "Bridge A should have thrown";
+    try {
+        std::rethrow_exception(bridgeAEx);
+    } catch (const DBException& e) {
+        ASSERT_EQ(e.code(), ErrorCodes::Interrupted) << "Bridge A: " << e.toString();
+    } catch (...) {
+        FAIL("Bridge A threw an unexpected non-DBException type");
+    }
+
+    // Bridge B was not killed. Its per-bridge epoch callback re-arms on the first epoch
+    // tick inside invokeFunction(), so it should complete the computation normally.
+    auto handleB = bridgeB->createFunction("function(n) { return n + 1; }");
+    ASSERT_NE(handleB, 0u);
+    auto resultB =
+        bridgeB->invokeFunction(handleB, wasm_helpers::convertBsonToWcVal(BSON("0" << 41)));
+    ASSERT_TRUE(resultB.isOK()) << "Bridge B should succeed after bridge A was killed; got: "
+                                << resultB.getStatus().toString();
+
+    bridgeB->shutdown();
+}
+
+// Concurrent isolation: bridge B executes a finite loop WHILE bridge A is being killed.
+// Bridge B's per-bridge callback re-arms mid-execution when the kill epoch fires, and
+// bridge B completes its loop normally.
+//
+// Disabled under TSan: the same Wasmtime signal-handler-malloc issue that affects
+// StoreLimiterTrapSetsFlag may surface here if the epoch callback is called inside a
+// signal (unlikely but possible in pathological Wasmtime builds).
+#if !__has_feature(thread_sanitizer)
+TEST_F(WasmMozJSBridgeTest, EpochIsolation_BridgeBCompletesWhileBridgeAIsKilled) {
+    MozJSWasmBridge::Options opts{};
+    opts.linearMemoryLimitMB = gWasmtimeStoreMemoryLimitMB.load();
+    auto bridgeB = std::make_unique<MozJSWasmBridge>(_s_engineCtx, opts);
+    ASSERT_TRUE(bridgeB->initialize());
+
+    // Bridge A: infinite loop — will be killed
+    auto infLoopA = createFunction("while (true) {}");
+
+    // Bridge B: a finite computation long enough to overlap with bridge A's kill
+    auto handleB = bridgeB->createFunction(
+        "function() {"
+        "  var s = 0;"
+        "  for (var i = 0; i < 10000000; i++) { s += i; }"
+        "  return s;"
+        "}");
+    ASSERT_NE(handleB, 0u);
+
+    std::exception_ptr bridgeAEx;
+    bool bridgeBSucceeded = false;
+
+    // Signal from bridge B's thread once it is about to invoke (so we wait for it to be
+    // inside WASM before killing bridge A, ensuring the epoch fires mid-execution in B).
+    std::mutex bReadyMutex;
+    std::condition_variable bReadyCv;
+    bool bridgeBReady = false;
+
+    std::thread threadA([&] {
+        try {
+            (void)_bridge->invokeFunction(infLoopA, wasm_helpers::convertBsonToWcVal(BSONObj()));
+        } catch (...) {
+            bridgeAEx = std::current_exception();
+        }
+    });
+
+    std::thread threadB([&] {
+        {
+            std::lock_guard<std::mutex> lk(bReadyMutex);
+            bridgeBReady = true;
+        }
+        bReadyCv.notify_one();
+        auto r = bridgeB->invokeFunction(handleB, wasm_helpers::convertBsonToWcVal(BSONObj()));
+        bridgeBSucceeded = r.isOK();
+    });
+
+    // Wait until bridge B is about to invoke, then kill bridge A.
+    {
+        std::unique_lock<std::mutex> lk(bReadyMutex);
+        bReadyCv.wait(lk, [&] { return bridgeBReady; });
+    }
+
+    // _killPending is sticky: one kill() is sufficient to interrupt bridge A.
+    _bridge->kill();
+    threadA.join();
+    threadB.join();
+
+    ASSERT(bridgeAEx) << "Bridge A should have thrown";
+    try {
+        std::rethrow_exception(bridgeAEx);
+    } catch (const DBException& e) {
+        ASSERT_EQ(e.code(), ErrorCodes::Interrupted);
+    }
+
+    ASSERT_TRUE(bridgeBSucceeded) << "Bridge B should have completed normally";
+
+    if (bridgeB->isInitialized())
+        bridgeB->shutdown();
+}
+#endif  // !__has_feature(thread_sanitizer)
 
 /**
  * Tests exposed javascript functions.
@@ -3301,6 +3401,62 @@ TEST(WasmBridgeStatsTest, ToBSONContainsAllCounters) {
     ASSERT_EQ(bson["maxSingleCallBytesOut"].Long(), 60);
     ASSERT_EQ(bson["maxEmitByteLimit"].Long(), 1000);
     ASSERT_EQ(bson["killCount"].Long(), 11);
+}
+
+// The WASM guest is untrusted. validatedBsonFromGuestBytes must fully validate the
+// guest-produced bytes against the actual buffer size so a compromised sandbox cannot forge a BSON
+// length header that walks downstream readers past the allocation (heap over-read) or aborts the
+// process. All rejections must throw (uassert), never fire a fatal invariant.
+
+TEST(WasmValidatedBsonFromGuestBytes, RoundTripsValidBson) {
+    BSONObj obj = BSON("__returnValue" << "hello" << "n" << 42);
+    auto out = wasm_helpers::validatedBsonFromGuestBytes(
+        reinterpret_cast<const uint8_t*>(obj.objdata()), static_cast<size_t>(obj.objsize()));
+    ASSERT_BSONOBJ_EQ(out, obj);
+    // The returned object owns its own copy of the bytes.
+    ASSERT_NE(out.objdata(), obj.objdata());
+}
+
+TEST(WasmValidatedBsonFromGuestBytes, RejectsForgedOversizedHeader) {
+    // Exploit shape from the ticket: a tiny buffer whose embedded objsize header claims a huge
+    // document (here 4 MiB). isValid() alone would accept this because 4 MiB <= 125 MiB; only
+    // comparing against the actual buffer size catches it.
+    std::vector<uint8_t> bytes = {
+        0x00,
+        0x00,
+        0x40,
+        0x00,  // objsize = 4 MiB (far larger than the 5-byte buffer)
+        0x00   // EOO
+    };
+    ASSERT_THROWS_CODE(wasm_helpers::validatedBsonFromGuestBytes(bytes.data(), bytes.size()),
+                       DBException,
+                       ErrorCodes::InvalidBSON);
+}
+
+TEST(WasmValidatedBsonFromGuestBytes, RejectsForgedInnerStringLength) {
+    // A structurally plausible top-level header, but an inner string whose length runs past the
+    // end of the buffer. Downstream readers would over-read; validateBSON must reject it.
+    std::vector<uint8_t> bytes = {
+        0x1a, 0x00, 0x00, 0x00,  // objsize = 26 (matches)
+        0x02,                    // type: string
+        0x5f, 0x5f, 0x72, 0x65, 0x74, 0x75, 0x72,
+        0x6e, 0x56, 0x61, 0x6c, 0x75, 0x65, 0x00,  // "__returnValue\0"
+        0x00, 0x00, 0x20, 0x00,                    // strlen = 2 MiB (forged)
+        0x41, 0x00, 0x00                           // "A" + trailing
+    };
+    ASSERT_EQ(bytes.size(), 26u);
+    ASSERT_THROWS_CODE(wasm_helpers::validatedBsonFromGuestBytes(bytes.data(), bytes.size()),
+                       DBException,
+                       ErrorCodes::InvalidBSON);
+}
+
+TEST(WasmValidatedBsonFromGuestBytes, RejectsTruncatedBufferWithoutAborting) {
+    // Fewer than kMinBSONLength bytes: previously a fatal invariant (guest-triggerable DoS); must
+    // now throw with the dedicated undersized-buffer code instead of aborting.
+    std::vector<uint8_t> bytes = {0x00, 0x00};
+    ASSERT_THROWS_CODE(wasm_helpers::validatedBsonFromGuestBytes(bytes.data(), bytes.size()),
+                       DBException,
+                       11543000);
 }
 
 }  // namespace mongo::mozjs::wasm
