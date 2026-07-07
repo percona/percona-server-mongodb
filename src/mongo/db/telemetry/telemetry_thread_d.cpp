@@ -274,8 +274,8 @@ private:
         if (auto* grid = Grid::get(serviceContext)) {
             if (grid->isShardingInitialized()) {
                 auto* catalogClient = grid->catalogClient();
-                auto cfgVersion = catalogClient->getConfigVersion(
-                    opCtx, repl::ReadConcernLevel::kMajorityReadConcern);
+                auto cfgVersion =
+                    catalogClient->getConfigVersion(opCtx, repl::ReadConcernArgs::kMajority);
                 if (cfgVersion.isOK()) {
                     clusterId = cfgVersion.getValue().getClusterId();
                     builder->append(kClusterId, clusterId.toString());
