@@ -5,15 +5,15 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 40,
+    "commits_behind": 48,
     "days_behind": 0,
-    "unmerged_oldest_age_days": 0.6660856016666666,
-    "files_affected": 293,
-    "total_additions": 19539,
-    "total_deletions": 4380,
+    "unmerged_oldest_age_days": 0.7542128564930556,
+    "files_affected": 309,
+    "total_additions": 19657,
+    "total_deletions": 4502,
     "date_range": {
       "first": "2026-07-06T17:50:17+00:00",
-      "last": "2026-07-07T09:02:21+00:00"
+      "last": "2026-07-07T10:40:28+00:00"
     }
   },
   "last_merged_commit": {
@@ -38,9 +38,89 @@
   },
   "gate": {
     "open": false,
-    "reason": "wait (40 < 50 commits; oldest 0.7d < 2d)"
+    "reason": "wait (48 < 50 commits; oldest 0.8d < 2d)"
   },
   "unmerged_commits": [
+    {
+      "sha": "cfafbd9fc3411723648c4bc3fc29b16fe8975208",
+      "short_sha": "cfafbd9fc34",
+      "date": "2026-07-07T20:40:28+10:00",
+      "author": {
+        "name": "Lungang Fang",
+        "email": "6370184+lgfang@users.noreply.github.com"
+      },
+      "summary": "SERVER-130585 Include compiles_pgo.yml in the sys-perf config (#57594)"
+    },
+    {
+      "sha": "aef8f9744c8b919656c5ed45bf12360b63360eb2",
+      "short_sha": "aef8f9744c8",
+      "date": "2026-07-07T12:31:01+02:00",
+      "author": {
+        "name": "Aitor Esteve Alvarado",
+        "email": "aitor.esteve@mongodb.com"
+      },
+      "summary": "SERVER-130505 Use allowChunkOperations in resharding unit tests (#57534)"
+    },
+    {
+      "sha": "e4784afa51959135ce232cf06c41f85e5393a1ed",
+      "short_sha": "e4784afa519",
+      "date": "2026-07-07T11:18:56+01:00",
+      "author": {
+        "name": "Alice Doherty",
+        "email": "66687032+alicedoherty@users.noreply.github.com"
+      },
+      "summary": "SERVER-130536 Reverts should bypass benchmarks_sep threshold check (#57615)"
+    },
+    {
+      "sha": "2e0c032d179caeae05ea60b214f68b55228eb704",
+      "short_sha": "2e0c032d179",
+      "date": "2026-07-07T10:05:10+00:00",
+      "author": {
+        "name": "auto-revert-app[bot]",
+        "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
+      },
+      "summary": "Revert \"SERVER-130533 Add multiversion upgrade and downgrade tests (#57557)\" (#57760)"
+    },
+    {
+      "sha": "3ef2e7e45f6899fbcb65378cf312542183edeb58",
+      "short_sha": "3ef2e7e45f6",
+      "date": "2026-07-07T09:36:49+00:00",
+      "author": {
+        "name": "Joan Bruguera Micó (at MongoDB)",
+        "email": "joan.bruguera-mico@mongodb.com"
+      },
+      "summary": "SERVER-125480 Optimize config.shard.collections delete in commitDropOfStaleChunksForRename to use index (#57567)"
+    },
+    {
+      "sha": "ca300263043161d1f2f2e353d80e72a67aaf4e6b",
+      "short_sha": "ca300263043",
+      "date": "2026-07-07T10:26:00+01:00",
+      "author": {
+        "name": "mongo-pr-bot[bot]",
+        "email": "230616009+mongo-pr-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "SERVER-110427 Update profiling data (#57744)"
+    },
+    {
+      "sha": "aa04671cfc71165f5e5aa1b4fe0aec61c95e931d",
+      "short_sha": "aa04671cfc7",
+      "date": "2026-07-07T11:22:57+02:00",
+      "author": {
+        "name": "Silvia Surroca",
+        "email": "silvia.surroca@mongodb.com"
+      },
+      "summary": "SERVER-129885 Re-enable tests that call prepareShardedCollectionWithOrphans() (#57608)"
+    },
+    {
+      "sha": "996a547d80290f72c75e1f2e8400ac40e732d090",
+      "short_sha": "996a547d802",
+      "date": "2026-07-07T11:19:34+02:00",
+      "author": {
+        "name": "Pol Piñol Castuera",
+        "email": "pol.pinol@mongodb.com"
+      },
+      "summary": "SERVER-115985 SERVER-127531 Revisit error handling in setAllowMigrations function (#57623)"
+    },
     {
       "sha": "2adcecaf9b9058405f00b36a5061b1dea47fb188",
       "short_sha": "2adcecaf9b9",
@@ -537,7 +617,7 @@
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-07-07 09:49:23",
+  "generated_at": "2026-07-07 11:56:17",
   "branch_name": "master",
   "display_name": "master"
 }
