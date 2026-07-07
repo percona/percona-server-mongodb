@@ -5,15 +5,15 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 63,
+    "commits_behind": 81,
     "days_behind": 2,
-    "unmerged_oldest_age_days": 1.1965960497569443,
-    "files_affected": 461,
-    "total_additions": 21755,
-    "total_deletions": 4059,
+    "unmerged_oldest_age_days": 1.6241400435185185,
+    "files_affected": 598,
+    "total_additions": 26587,
+    "total_deletions": 4831,
     "date_range": {
       "first": "2026-07-05T16:12:21+00:00",
-      "last": "2026-07-06T20:19:35+00:00"
+      "last": "2026-07-07T04:02:12+00:00"
     }
   },
   "last_merged_commit": {
@@ -41,6 +41,186 @@
     "reason": "force:conflict"
   },
   "unmerged_commits": [
+    {
+      "sha": "a12c0e6dc919bec4ad094af921d31f2c3d15e5c5",
+      "short_sha": "a12c0e6dc91",
+      "date": "2026-07-07T06:02:12+02:00",
+      "author": {
+        "name": "Denis Grebennicov",
+        "email": "denis.grebennicov@mongodb.com"
+      },
+      "summary": "SERVER-128415 Add getMore kill-and-resume seam for optimized updateLookup flag-off (#55284)"
+    },
+    {
+      "sha": "311de46f0f0cf73ec25f5c1fb9a1f6a128c4559f",
+      "short_sha": "311de46f0f0",
+      "date": "2026-07-06T23:43:29-04:00",
+      "author": {
+        "name": "Kruti Shah",
+        "email": "70412403+krutishah139@users.noreply.github.com"
+      },
+      "summary": "SERVER-129870 Update sharding write router benchmark to handle LocalReshardingOperationsRegistry (#57646)"
+    },
+    {
+      "sha": "866ee17781cae492ae47a0a2cc0b6cf73f7745ce",
+      "short_sha": "866ee17781c",
+      "date": "2026-07-06T23:26:20-04:00",
+      "author": {
+        "name": "Will Buerger",
+        "email": "59492746+wbuerger46@users.noreply.github.com"
+      },
+      "summary": "SERVER-108117 Validate $_internalIsHybridSearch cannot be provided by a user in $lookup and $unionWith (#57473)"
+    },
+    {
+      "sha": "bb4d1d4ec2ff31906d0bacc498290d74561bc400",
+      "short_sha": "bb4d1d4ec2f",
+      "date": "2026-07-06T18:40:16-07:00",
+      "author": {
+        "name": "Aditya Deshpande",
+        "email": "aditya.deshpande@mongodb.com"
+      },
+      "summary": "SERVER-130533 Add multiversion upgrade and downgrade tests (#57557)"
+    },
+    {
+      "sha": "5e29d550c37bbc3a68b3318812ff9ab0196aa2af",
+      "short_sha": "5e29d550c37",
+      "date": "2026-07-07T00:45:11+00:00",
+      "author": {
+        "name": "auto-revert-app[bot]",
+        "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
+      },
+      "summary": "Revert \"SERVER-130118 Check directory permissions for extension config path (#57491)\" (#57740)"
+    },
+    {
+      "sha": "ecade3a65a7cb4da6a29fbb5c1948ec51bb59c91",
+      "short_sha": "ecade3a65a7",
+      "date": "2026-07-07T10:08:33+10:00",
+      "author": {
+        "name": "Daniel Khuu",
+        "email": "daniel.khuu@mongodb.com"
+      },
+      "summary": "SERVER-130495 Always set record store value format = u (#57523)"
+    },
+    {
+      "sha": "abac027cce1dcc4c1af556692d96d789cfc0c029",
+      "short_sha": "abac027cce1",
+      "date": "2026-07-06T19:13:09-04:00",
+      "author": {
+        "name": "Naafiyan Ahmed",
+        "email": "naafiyan.ahmed@mongodb.com"
+      },
+      "summary": "SERVER-127609: Properly handle propagation of ExpCtx's PathArrayness metadata in join optimizer (#56007)"
+    },
+    {
+      "sha": "7078a66bcc383d7b39eb7e94ad2b295e7098e2ab",
+      "short_sha": "7078a66bcc3",
+      "date": "2026-07-06T19:11:14-04:00",
+      "author": {
+        "name": "Mariano Shaar",
+        "email": "47160550+shaargtz@users.noreply.github.com"
+      },
+      "summary": "SERVER-117803: Enable featureFlagExtensionsInsideHybridSearch by default (#57083)"
+    },
+    {
+      "sha": "de3a3d48fa89fd9ea41d45e4013c6d08a9924b2a",
+      "short_sha": "de3a3d48fa8",
+      "date": "2026-07-06T17:40:05-05:00",
+      "author": {
+        "name": "nandinibhartiyaMDB",
+        "email": "104035932+nandinibhartiyaMDB@users.noreply.github.com"
+      },
+      "summary": "SERVER-130343: Ensure setAllowChunkOperations uses the Sharding-Fixed executor. (#57337)"
+    },
+    {
+      "sha": "ef89dfc8ffa7f8fc60e1444199e43ae5d9e03303",
+      "short_sha": "ef89dfc8ffa",
+      "date": "2026-07-06T17:49:23-04:00",
+      "author": {
+        "name": "Anja Kalaba",
+        "email": "anja.kalaba@mongodb.com"
+      },
+      "summary": "SERVER-127631: Add test for IRRL maxTimeMS backoff during retries (#57098)"
+    },
+    {
+      "sha": "2f4222ffea2488e3a0f039a152485c1759f8aafc",
+      "short_sha": "2f4222ffea2",
+      "date": "2026-07-06T16:44:28-05:00",
+      "author": {
+        "name": "Steve Tarzia",
+        "email": "steve.tarzia@mongodb.com"
+      },
+      "summary": "SERVER-130638 fix stale thread-local query knob snapshot cache (#57698)"
+    },
+    {
+      "sha": "048473577d0674b09bfbd5463f376df3c75b12b2",
+      "short_sha": "048473577d0",
+      "date": "2026-07-06T16:56:11-04:00",
+      "author": {
+        "name": "Matt Olma",
+        "email": "67564577+mattsimply@users.noreply.github.com"
+      },
+      "summary": "SERVER-130658: EXPRESS update crashes config server on corrupt fetched BSON under disaggregated storage; validate at the storage - query boundary (#57702)"
+    },
+    {
+      "sha": "8135e3ac3c404798790ae72f52aabda34dd07db1",
+      "short_sha": "8135e3ac3c4",
+      "date": "2026-07-06T16:51:55-04:00",
+      "author": {
+        "name": "Jack Mulrow",
+        "email": "jack.mulrow@mongodb.com"
+      },
+      "summary": "SERVER-127633 Test rate limiter error propagation for bulk writes (#57182)"
+    },
+    {
+      "sha": "a5b596d8de4517b43e3a8cb06e7a4b2f8b043ea8",
+      "short_sha": "a5b596d8de4",
+      "date": "2026-07-06T16:50:38-04:00",
+      "author": {
+        "name": "Jack Mulrow",
+        "email": "jack.mulrow@mongodb.com"
+      },
+      "summary": "SERVER-129844 Enable getMore tests in rate limited suites (#57495)"
+    },
+    {
+      "sha": "f6794e9d04b24e792732e54b4ec7c6d863e6b1d3",
+      "short_sha": "f6794e9d04b",
+      "date": "2026-07-06T16:48:18-04:00",
+      "author": {
+        "name": "Will Buerger",
+        "email": "59492746+wbuerger46@users.noreply.github.com"
+      },
+      "summary": "SERVER-130637 Update mongot-extension and rerank-extension to v2.0.0 (#57679)"
+    },
+    {
+      "sha": "bbce99774acb500e2b2e9c9ed60a160b1de10388",
+      "short_sha": "bbce99774ac",
+      "date": "2026-07-06T15:48:17-05:00",
+      "author": {
+        "name": "Steve Tarzia",
+        "email": "steve.tarzia@mongodb.com"
+      },
+      "summary": "SERVER-130362 agg_non_ticketed_metrics.js test fixes (#57350)"
+    },
+    {
+      "sha": "a53d1cf6fb5a887d7e7b9a87049643456493414f",
+      "short_sha": "a53d1cf6fb5",
+      "date": "2026-07-06T20:45:50+00:00",
+      "author": {
+        "name": "wt-vendoring-bot[bot]",
+        "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "Import wiredtiger: aaf2e907c41e4fa6e0c65f16ad6d198bc5a7c410 from branch mongodb-master (#57634)"
+    },
+    {
+      "sha": "8e38d7ef2e8044f98fd37129b48301bed49d62ec",
+      "short_sha": "8e38d7ef2e8",
+      "date": "2026-07-06T16:28:36-04:00",
+      "author": {
+        "name": "Gregory Noma",
+        "email": "gregory.noma@gmail.com"
+      },
+      "summary": "SERVER-130601 Avoid resuming pre-resumability PDIB (#57664)"
+    },
     {
       "sha": "eed223a09bd539b19f451ecc841809c3fe7fa9ca",
       "short_sha": "eed223a09bd",
@@ -805,10 +985,56 @@
           "num_of_dirs": 6
         }
       }
+    },
+    {
+      "commit": {
+        "sha": "a53d1cf6fb5a887d7e7b9a87049643456493414f",
+        "short_sha": "a53d1cf6fb5",
+        "date": "2026-07-06T20:45:50+00:00",
+        "author": {
+          "name": "wt-vendoring-bot[bot]",
+          "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
+        },
+        "summary": "Import wiredtiger: aaf2e907c41e4fa6e0c65f16ad6d198bc5a7c410 from branch mongodb-master (#57634)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 40,
+          "num_of_lines": 2104,
+          "lines_added": 1672,
+          "lines_deleted": 432,
+          "num_of_dirs": 18
+        }
+      }
+    },
+    {
+      "commit": {
+        "sha": "7078a66bcc383d7b39eb7e94ad2b295e7098e2ab",
+        "short_sha": "7078a66bcc3",
+        "date": "2026-07-06T19:11:14-04:00",
+        "author": {
+          "name": "Mariano Shaar",
+          "email": "47160550+shaargtz@users.noreply.github.com"
+        },
+        "summary": "SERVER-117803: Enable featureFlagExtensionsInsideHybridSearch by default (#57083)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 53,
+          "num_of_lines": 414,
+          "lines_added": 266,
+          "lines_deleted": 148,
+          "num_of_dirs": 15
+        }
+      }
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-07-06 20:55:24",
+  "generated_at": "2026-07-07 07:11:04",
   "branch_name": "master",
   "display_name": "master"
 }
