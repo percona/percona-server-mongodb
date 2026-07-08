@@ -66,18 +66,18 @@ auto& gCursorStats = *new CursorStats{};
 namespace change_stream_metrics {
 
 // The total number of change stream cursors opened since the start of the mongoD process. This
-// counter corresponds to the OTEL metric "change_streams.cursor.total_opened".
+// counter corresponds to the OTEL metric "serverStatus.metrics.changeStreams.cursor.totalOpened".
 auto& gCursorsTotalOpened = change_stream::createCurorsTotalOpened();
 
-// The OTEL metric "change_streams.cursor.lifespan" in the mongoD process.
+// The OTEL metric "serverStatus.metrics.changeStreams.cursor.lifespan" in the mongoD process.
 auto& gLifespan = change_stream::createCursorsLifespan();
 
-// The OTEL metric "change_streams.cursor.open.total" for the currently open cursors in the mongoD
-// process.
+// The OTEL metric "serverStatus.metrics.changeStreams.cursor.open.total" for the currently open
+// cursors in the mongoD process.
 auto& gCursorsOpenTotal = change_stream::createCursorsOpenTotal();
 
-// The OTEL metric "change_streams.cursor.open.pinned" for the currently active cursors in the
-// mongoD process.
+// The OTEL metric "serverStatus.metrics.changeStreams.cursor.open.pinned" for the currently active
+// cursors in the mongoD process.
 auto& gCursorsOpenPinned = change_stream::createCursorsOpenPinned();
 
 // Error counters — registered at startup so they appear in serverStatus before any errors occur.
@@ -163,6 +163,8 @@ ClientCursor::ClientCursor(ClientCursorParams params,
       _queryStatsKeyHash(CurOp::get(operationUsingCursor)->debug().getQueryStatsInfo().keyHash),
       _queryStatsKey(std::move(CurOp::get(operationUsingCursor)->debug().getQueryStatsInfo().key)),
       _isChangeStreamQuery(CurOp::get(operationUsingCursor)->debug().isChangeStreamQuery),
+      _usesOptimizedUpdateLookup(
+          CurOp::get(operationUsingCursor)->debug().usesOptimizedUpdateLookup),
       _shouldOmitDiagnosticInformation(
           CurOp::get(operationUsingCursor)->getShouldOmitDiagnosticInformation()),
       _opKey(operationUsingCursor->getOperationKey()) {

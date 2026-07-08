@@ -578,7 +578,8 @@ if (FeatureFlagUtil.isPresentAndEnabled(st.s, "CheckRangeDeletionsWithMissingSha
 
     // Insert a RoutingTableRangeOverlap inconsistency
     const collUuid = configDB.collections.findOne({_id: ns}).uuid;
-    assert.commandWorked(configDB.chunks.updateOne({uuid: collUuid}, {$set: {max: {skey: 10}}}));
+    const chunk = configDB.chunks.findOne({uuid: collUuid});
+    assert.commandWorked(configDB.chunks.updateOne({_id: chunk._id}, {$set: {max: {skey: 10}}}));
 
     // Insert a ZonesRangeOverlap inconsistency
     let entry = {
@@ -618,6 +619,7 @@ if (FeatureFlagUtil.isPresentAndEnabled(st.s, "CheckRangeDeletionsWithMissingSha
     );
 
     // Clean up the database to pass the hooks that detect inconsistencies
+    assert.commandWorked(configDB.chunks.updateOne({_id: chunk._id}, {$set: {max: chunk.max}}));
     db.dropDatabase();
     inconsistencies = mongos.getDB("admin").checkMetadataConsistency().toArray();
     assert.eq(0, inconsistencies.length, tojson(inconsistencies));
@@ -639,6 +641,8 @@ if (FeatureFlagUtil.isPresentAndEnabled(st.s, "CheckRangeDeletionsWithMissingSha
 
     // Insert a MissingRoutingTable inconsistency
     const collUuid = configDB.collections.findOne({_id: ns}).uuid;
+    const chunks = configDB.chunks.find({uuid: collUuid}).toArray();
+    assert.gt(chunks.length, 0, chunks);
     assert.commandWorked(configDB.chunks.deleteMany({uuid: collUuid}));
 
     // Restart nodes to clear filtering metadata to trigger a refresh with following operations.
@@ -661,6 +665,7 @@ if (FeatureFlagUtil.isPresentAndEnabled(st.s, "CheckRangeDeletionsWithMissingSha
     );
 
     // Clean up the database to pass the hooks that detect inconsistencies
+    assert.commandWorked(configDB.chunks.insertMany(chunks));
     db.dropDatabase();
     inconsistencies = mongos.getDB("admin").checkMetadataConsistency().toArray();
     assert.eq(0, inconsistencies.length, tojson(inconsistencies));
@@ -1939,6 +1944,87 @@ if (FeatureFlagUtil.isPresentAndEnabled(st.s, "CheckRangeDeletionsWithMissingSha
         "Expected no inconsistencies on unsplittable collections: " + tojson(inconsistencies),
     );
 
+    db.dropDatabase();
+})();
+
+(function testLegacyShardCacheCollectionsPresentInconsistency() {
+    if (!isAuthoritativeShardsCRUDEnabled) {
+        return;
+    }
+
+    jsTest.log.info("Executing testLegacyShardCacheCollectionsPresentInconsistency");
+
+    // This check only runs on shards that own at least one database as primary.
+    const db = getNewDb();
+    assert.commandWorked(
+        mongos.adminCommand({enableSharding: db.getName(), primaryShard: st.shard0.shardName}),
+    );
+
+    assertNoInconsistencies();
+
+    // Simulate leftover legacy shard catalog cache collections on a fully upgraded shard.
+    const configDB = st.rs0.getPrimary().getDB("config");
+    const collNames = ["cache.databases", "cache.collections", "cache.chunks.testNs"];
+    for (const collName of collNames) {
+        assert.commandWorked(configDB.createCollection(collName));
+    }
+
+    const inconsistencies = mongos.getDB("admin").checkMetadataConsistency().toArray();
+    assert.eq(collNames.length, inconsistencies.length, {inconsistencies});
+    for (const inconsistency of inconsistencies) {
+        assert.eq("LegacyShardCacheCollectionsPresent", inconsistency.type, {inconsistencies});
+        assert.eq(st.shard0.shardName, inconsistency.details.shard, {inconsistencies});
+    }
+
+    for (const collName of collNames) {
+        assert.commandWorked(configDB.runCommand({drop: collName}));
+    }
+    assertNoInconsistencies();
+    db.dropDatabase();
+})();
+
+(function testAuthoritativeShardCatalogCollectionsPresentInconsistency() {
+    jsTest.log.info("Executing testAuthoritativeShardCatalogCollectionsPresentInconsistency");
+
+    // This check only runs on shards that own at least one database as primary.
+    const db = getNewDb();
+    assert.commandWorked(
+        mongos.adminCommand({enableSharding: db.getName(), primaryShard: st.shard0.shardName}),
+    );
+
+    assertNoInconsistencies();
+
+    assert.commandWorked(
+        mongos.adminCommand({setFeatureCompatibilityVersion: lastLTSFCV, confirm: true}),
+    );
+
+    // Simulate leftover authoritative shard catalog collections on a fully downgraded shard.
+    const configDB = st.rs0.getPrimary().getDB("config");
+    const collNames = [
+        "shard.catalog.databases",
+        "shard.catalog.collections",
+        "shard.catalog.chunks",
+    ];
+    for (const collName of collNames) {
+        assert.commandWorked(configDB.createCollection(collName));
+    }
+
+    const inconsistencies = mongos.getDB("admin").checkMetadataConsistency().toArray();
+    assert.eq(collNames.length, inconsistencies.length, {inconsistencies});
+    for (const inconsistency of inconsistencies) {
+        assert.eq("AuthoritativeShardCatalogCollectionsPresent", inconsistency.type, {
+            inconsistencies,
+        });
+        assert.eq(st.shard0.shardName, inconsistency.details.shard, {inconsistencies});
+    }
+
+    for (const collName of collNames) {
+        assert.commandWorked(configDB.runCommand({drop: collName}));
+    }
+    assert.commandWorked(
+        mongos.adminCommand({setFeatureCompatibilityVersion: latestFCV, confirm: true}),
+    );
+    assertNoInconsistencies();
     db.dropDatabase();
 })();
 
