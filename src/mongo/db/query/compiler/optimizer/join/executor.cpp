@@ -35,6 +35,7 @@
 #include "mongo/db/pipeline/document_source.h"
 #include "mongo/db/pipeline/document_source_internal_join_hint.h"
 #include "mongo/db/pipeline/document_source_lookup.h"
+#include "mongo/db/pipeline/sbe_pushdown.h"
 #include "mongo/db/query/compiler/optimizer/join/agg_join_model.h"
 #include "mongo/db/query/compiler/optimizer/join/cardinality_estimator.h"
 #include "mongo/db/query/compiler/optimizer/join/catalog_stats.h"
@@ -62,6 +63,7 @@
 namespace mongo::join_ordering {
 
 MONGO_FAIL_POINT_DEFINE(sleepWhileJoinOptimizing);
+MONGO_FAIL_POINT_DEFINE(hangAfterJoinModelConstruction);
 
 namespace {
 PlanTreeShape getPlanTreeShape(JoinPlanTreeShapeEnum shape) {
@@ -327,7 +329,7 @@ StatusWith<JoinReorderedExecutorResult> getJoinReorderedExecutor(
     // Select access plans for each table in the join.
     auto yieldPolicy = PlanYieldPolicy::YieldPolicy::YIELD_AUTO;
     SamplingEstimatorMap samplingEstimators =
-        makeSamplingEstimators(mca, model.getGraph(), yieldPolicy);
+        makeSamplingEstimators(mca, model.getGraph(), yieldPolicy, model.getJoinExpCtx());
     auto swAccessPlans = singleTableAccessPlans(opCtx, mca, model.getGraph(), samplingEstimators);
     if (!swAccessPlans.isOK()) {
         return swAccessPlans.getStatus();
@@ -401,9 +403,63 @@ StatusWith<JoinReorderedExecutorResult> getJoinReorderedExecutor(
     uassertStatusOK(swReordered.getStatus());
     auto reordered = std::move(swReordered.getValue());
 
+    // Identify suffix stages that are eligible for SBE pushdown & consequently lower them to the
+    // SBE executor with the join-reordered prefix.
+    if (auto* suffix = model.getSuffix(); suffix && suffix->peekFront()) {
+
+        auto& prefix = *model.getGraph().getNode(reordered.baseNode).accessPath;
+        // This helper identifies the stages in the 'suffix' pipeline that are eligible for running
+        // in SBE and prepend them to prefix.cqPipeline.
+
+        // When we call extendWithAggPipeline() below, it will mutate the existing join reordered
+        // query solution such that the stages in prefix.cqPipeline are grafted above the join
+        // optimized stages. Any stages not eligible for join reordering or SBE pushdown remain
+        // in the `suffix` pipeline.
+        attachPipelineStages(
+            mca,
+            suffix,
+            false /* needsMerge */,
+            &prefix,
+            std::make_unique<QueryPlannerParams>(QueryPlannerParams::ArgsForPushDownStagesDecision{
+                .opCtx = opCtx,
+                .canonicalQuery = prefix,
+                .collections = mca,
+                .plannerOptions = QueryPlannerParams::DEFAULT,
+            }));
+
+        if (!prefix.cqPipeline().empty()) {
+            QueryPlannerParams plannerParams(QueryPlannerParams::ArgsForSingleCollectionQuery{
+                .opCtx = opCtx,
+                .canonicalQuery = prefix,
+                .collections = mca,
+                .plannerOptions = QueryPlannerParams::DEFAULT,
+            });
+
+            plannerParams.fillOutSecondaryCollectionsPlannerParams(opCtx, prefix, mca);
+            plannerParams.setTargetSbeStageBuilder(prefix, mca);
+            // Create the query solution
+            reordered.soln =
+                QueryPlanner::extendWithAggPipeline(prefix,
+                                                    std::move(reordered.soln),
+                                                    plannerParams.secondaryCollectionsInfo,
+                                                    false /* skipOptimization */);
+        }
+        // Remove any of the stages pushed down via attachPipelineStages, from the pipeline 'suffix'
+        // so they are not executed twice (once in SBE and again in classic). Only the remaining
+        // stages in suffix will be executed in classic.
+        finalizePipelineStages(suffix, &prefix);
+    }
+
+    // Test hook: all sampling and join reordering is complete at this point.
+    hangAfterJoinModelConstruction.pauseWhileSet(opCtx);
+
+    auto& baseNodeCQ = *model.getGraph().accessPathAt(reordered.baseNode);
+
+    // Merge join-field non-array path learnings into the chosen base node's expCtx so the
+    // PathArraynessChecker monitors them during execution yields.
+    baseNodeCQ.getExpCtx()->mergeNonArrayPathsForNss(
+        model.getJoinExpCtx()->getNonArrayPathsForNss());
     // Lower to SBE.
-    // TODO SERVER-112232: Identify SBE suffixes that are eligible for pushdown & push them to the
-    // SBE executor.
     auto lower =
         [&model, &opCtx, yieldPolicy, &mca](NodeId baseNode,
                                             const QuerySolution& soln,

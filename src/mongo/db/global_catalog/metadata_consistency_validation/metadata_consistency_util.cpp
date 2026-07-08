@@ -41,9 +41,13 @@
 #include "mongo/db/exec/classic/working_set.h"
 #include "mongo/db/global_catalog/chunk_manager.h"
 #include "mongo/db/global_catalog/ddl/shard_key_index_util.h"
+#include "mongo/db/global_catalog/ddl/sharding_coordinator_gen.h"
+#include "mongo/db/global_catalog/ddl/sharding_ddl_util.h"
+#include "mongo/db/global_catalog/metadata_consistency_validation/check_metadata_consistency_gen.h"
 #include "mongo/db/global_catalog/metadata_consistency_validation/metadata_consistency_types_gen.h"
 #include "mongo/db/global_catalog/shard_key_pattern.h"
 #include "mongo/db/keypattern.h"
+#include "mongo/db/namespace_string_util.h"
 #include "mongo/db/pipeline/expression_context.h"
 #include "mongo/db/pipeline/expression_context_builder.h"
 #include "mongo/db/pipeline/process_interface/mongo_process_interface.h"
@@ -61,6 +65,7 @@
 #include "mongo/db/shard_role/shard_catalog/collection_metadata.h"
 #include "mongo/db/shard_role/shard_catalog/collection_sharding_runtime.h"
 #include "mongo/db/shard_role/shard_catalog/database_sharding_runtime.h"
+#include "mongo/db/shard_role/shard_catalog/shard_filtering_metadata_refresh.h"
 #include "mongo/db/sharding_environment/grid.h"
 #include "mongo/db/sharding_environment/sharding_feature_flags_gen.h"
 #include "mongo/db/storage/snapshot.h"
@@ -75,6 +80,7 @@
 #include "mongo/util/assert_util.h"
 #include "mongo/util/fail_point.h"
 #include "mongo/util/str.h"
+#include "mongo/util/testing_proctor.h"
 #include "mongo/util/uuid.h"
 
 #include <algorithm>
@@ -889,17 +895,39 @@ void checkCollectionMetadataInShardCatalog(
     // about the global catalog: snapshot the shard catalog metadata and its placement version under
     // the CSR lock, release it, perform the remote reads, then re-acquire the lock and verify the
     // placement version hasn't changed.
-    {
+    auto optimisticCheck = [&] {
         const auto scopedCsr = CollectionShardingRuntime::acquireShared(opCtx, nss);
+        if (scopedCsr->getCriticalSectionSignal(ShardingMigrationCriticalSection::kWrite)) {
+            return false;
+        }
         inMemoryShardCatalogMetadata = scopedCsr->getCurrentMetadataIfKnown();
         csrIsUnowned = scopedCsr->isUnowned();
 
         if (inMemoryShardCatalogMetadata) {
-            if (scopedCsr->getCriticalSectionSignal(ShardingMigrationCriticalSection::kWrite)) {
-                return;
-            }
-
             collectionPlacementVersion = inMemoryShardCatalogMetadata->getCollPlacementVersion();
+        }
+        return true;
+    };
+
+    if (!optimisticCheck()) {
+        return;
+    }
+
+    if (!inMemoryShardCatalogMetadata && TestingProctor::instance().isEnabled() &&
+        authoritativeShardsCRUDEnabled &&
+        opCtx->getClient()->getPrng().trueWithProbability(
+            gProbabilityOfFilteringMetadataRecovery.loadRelaxed())) {
+        // Trigger a filtering metadata recovery if no data is present in memory since otherwise
+        // we'd be skipping some checks.
+        auto result =
+            FilteringMetadataCache::get(opCtx)->onShardVersionMismatch(opCtx, nss, boost::none);
+        if (!result.isOK()) {
+            LOGV2_WARNING(12922400,
+                          "Failed to recover collection filtering metadata from disk",
+                          "error"_attr = result);
+        }
+        if (!optimisticCheck()) {
+            return;
         }
     }
 
@@ -2496,6 +2524,65 @@ std::vector<MetadataInconsistencyItem> checkDatabaseMetadataConsistency(
 
     return checkDatabaseMetadataConsistencyInShardCatalog(
         opCtx, dbName, dbVersionInGlobalCatalog, primaryShard);
+}
+
+namespace {
+
+// Returns a MetadataInconsistencyItem for each config collection on this shard matching 'filter'.
+std::vector<MetadataInconsistencyItem> checkConfigCollectionsDoNotExistLocally(
+    OperationContext* opCtx, MetadataInconsistencyTypeEnum inconsistencyType, BSONObj filter) {
+    std::vector<MetadataInconsistencyItem> inconsistencies;
+
+    DBDirectClient client(opCtx);
+    for (const auto& collInfo : client.getCollectionInfos(DatabaseName::kConfig, filter)) {
+        inconsistencies.emplace_back(makeInconsistency(
+            inconsistencyType,
+            UnexpectedShardCatalogCollectionDetails{
+                NamespaceStringUtil::deserialize(DatabaseName::kConfig, collInfo["name"].str()),
+                ShardingState::get(opCtx)->shardId()}));
+    }
+
+    return inconsistencies;
+}
+
+}  // namespace
+
+std::vector<MetadataInconsistencyItem> checkShardCatalogCollectionsConsistentWithAuthoritativeness(
+    OperationContext* opCtx) {
+    auto result = tryCheckUnderStableFCV(opCtx, [&](ServerGlobalParams::FCVSnapshot fcvSnapshot) {
+        const auto accessLevel = sharding_ddl_util::getGrantedAuthoritativeMetadataAccessLevel(
+            VersionContext::getDecoration(opCtx), fcvSnapshot);
+
+        if (accessLevel == AuthoritativeMetadataAccessLevelEnum::kNone) {
+            // Fully downgraded: authoritative shard catalog collections must not exist.
+            return checkConfigCollectionsDoNotExistLocally(
+                opCtx,
+                MetadataInconsistencyTypeEnum::kAuthoritativeShardCatalogCollectionsPresent,
+                BSON("name" << BSON(
+                         "$in" << BSON_ARRAY(
+                             NamespaceString::kConfigShardCatalogDatabasesNamespace.coll()
+                             << NamespaceString::kConfigShardCatalogCollectionsNamespace.coll()
+                             << NamespaceString::kConfigShardCatalogChunksNamespace.coll()))));
+        }
+
+        if (accessLevel == AuthoritativeMetadataAccessLevelEnum::kWritesAndReadsAllowed) {
+            // Fully upgraded: legacy shard catalog cache collections must not exist.
+            return checkConfigCollectionsDoNotExistLocally(
+                opCtx,
+                MetadataInconsistencyTypeEnum::kLegacyShardCacheCollectionsPresent,
+                BSON("$or" << BSON_ARRAY(
+                         BSON("name" << BSON(
+                                  "$in" << BSON_ARRAY(
+                                      NamespaceString::kConfigCacheDatabasesNamespace.coll()
+                                      << NamespaceString::kShardConfigCollectionsNamespace.coll())))
+                         << BSON("name" << BSONRegEx(R"(^cache\.chunks\.)")))));
+        }
+
+        // kWritesAllowed only happens on a non-steady FCV, so this should not happen.
+        tasserted(12797700, "Authoritativeness was kWritesAllowed but expected stable FCV");
+    });
+
+    return result.value_or(std::vector<MetadataInconsistencyItem>{});
 }
 
 std::vector<MetadataInconsistencyItem> runCheckMetadataConsistencyOnParticipant(

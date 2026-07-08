@@ -64,10 +64,10 @@ namespace mongo {
 namespace shard_catalog_commit {
 namespace {
 
-// Max chunks sent to secondaries in one delta oplog entry. Bigger changes invalidate all metadata
-// instead.
+// Max chunks sent to secondaries in one UpdateCollectionMetadata oplog entry. Bigger changes
+// invalidate all metadata instead.
 constexpr size_t kMaxChangedChunksInDeltaOplogEntry = 100;
-constexpr int kMaxCollectionShardingStateDeltaOplogEntryObjectSizeBytes = BSONObjMaxUserSize;
+constexpr int kMaxUpdateCollectionMetadataOplogEntryObjectSizeBytes = BSONObjMaxUserSize;
 
 std::string serializeNss(const NamespaceString& nss) {
     return NamespaceStringUtil::serialize(nss, SerializationContext::stateDefault());
@@ -352,11 +352,11 @@ void updateCollectionMetadata(OperationContext* opCtx,
         changedChunkDocs.push_back(chunk.toConfigBSON());
     }
 
-    auto entry = CollectionShardingStateDeltaOplogEntry{std::string(nss.coll()),
-                                                        std::move(changedChunkDocs)};
+    auto entry =
+        UpdateCollectionMetadataOplogEntry{std::string(nss.coll()), std::move(changedChunkDocs)};
 
     auto oplogEntry = makeShardCatalogCommandOplogEntry(opCtx, nss, uuid, entry.toBSON());
-    if (oplogEntry.toBSON().objsize() > kMaxCollectionShardingStateDeltaOplogEntryObjectSizeBytes) {
+    if (oplogEntry.toBSON().objsize() > kMaxUpdateCollectionMetadataOplogEntryObjectSizeBytes) {
         invalidateCollectionMetadata(opCtx, nss, uuid, false /* forDroppedCollection */);
         return;
     }
@@ -364,7 +364,7 @@ void updateCollectionMetadata(OperationContext* opCtx,
     logShardCatalogCommandOplogEntry(opCtx, oplogEntry, "updateCollectionMetadata");
 
     // Apply the update on the current (primary) node after the timestamp has been assigned.
-    opCtx->getServiceContext()->getOpObserver()->onApplyCollectionShardingStateDelta(
+    opCtx->getServiceContext()->getOpObserver()->onUpdateCollectionMetadata(
         opCtx, repl::OplogEntry(oplogEntry.toBSON()));
 }
 
@@ -944,17 +944,11 @@ void commitRenameOfTemporaryCollection(OperationContext* opCtx,
 void commitDropOfStaleChunksForRename(OperationContext* opCtx,
                                       const NamespaceString& nss,
                                       const UUID& oldUuid) {
-    const auto ensureCollectionDoesNotExist = [&]() {
-        try {
-            auto catalogClient = Grid::get(opCtx)->catalogClient();
-            const auto _ = catalogClient->getCollection(opCtx, oldUuid);
-            tasserted(ErrorCodes::IllegalOperation,
-                      "Collection entry must not exist in the global catalog to drop stale chunks");
-        } catch (const ExceptionFor<ErrorCodes::NamespaceNotFound>&) {
-            // This is actually the expected path.
-        }
-    };
-    ensureCollectionDoesNotExist();
+    // Sanity check: Ensure the old collection does not exist anymore in the global catalog
+    const auto coll = Grid::get(opCtx)->catalogClient()->getCollection(opCtx, nss);
+    tassert(ErrorCodes::IllegalOperation,
+            "Found collection with stale UUID in the global catalog while dropping stale chunks",
+            coll.getUuid() != oldUuid);
 
     // This function gets called without holding a critical section but the DDL lock as well as
     // migrations are disabled. The order of operations here is quite deliberate in order to make
@@ -981,8 +975,9 @@ void commitDropOfStaleChunksForRename(OperationContext* opCtx,
         shard_catalog_commit::executeLocalDelete(
             dbClient,
             NamespaceString::kConfigShardCatalogCollectionsNamespace,
-            BSON(CollectionType::kUuidFieldName << oldUuid),
-            true /* multi */);
+            BSON(CollectionType::kNssFieldName << shard_catalog_commit::serializeNss(nss)
+                                               << CollectionType::kUuidFieldName << oldUuid),
+            false /* multi */);
     }
     shard_catalog_commit::commitDropOfStaleChunksForRename(opCtx, oldUuid);
 

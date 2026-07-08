@@ -35,19 +35,25 @@ export const kZeroBurstCapacitySecs = 5e-6;
 export const kRateLimiterExemptAppName = "testRateLimiter";
 
 /**
- * AppName prefixes for all MongoDB-internal connections that must be exempt from the ingress
- * request rate limiter in a sharded cluster test. Covers general cluster infrastructure
- * (replication, DDL coordination, sharding executors, initial sync, rollback, cloning, oplog
- * fetching) as well as resharding-specific connections.
+ * AppName prefixes for MongoDB-internal connections that must be exempt from the ingress request rate limiter (IRRL) in sharded
+ * cluster tests. This is the subset of exemptions that applies to direct shard/config node
+ * connections opened during noPassthrough tests. It deliberately excludes ops-tooling names
+ * (Resmoke-Hook, MongoDB Automation Agent, mongotune, mongot, etc.) that are irrelevant here.
  *
  * The server uses prefix (starts_with) matching, so "NetworkInterfaceTL-Repl" covers
  * ReplNetwork, ReplCoordExternNetwork, and ReplNodeDbWorkerNetwork;
  * "NetworkInterfaceTL-ReplicaSetMonitor" covers ReplicaSetMonitor-TaskExecutor;
- * "OplogFetcher" covers "OplogFetcher-{UUID}-{shard}"; and "NetworkInterfaceTL-Resharding"
+ * "OplogFetcher" covers "OplogFetcher-{UUID}-{shard}"; and "NetworkInterfaceTL-Reshard"
  * covers all resharding NetworkInterfaceTL names.
  *
- * Sourced from:
- *   https://github.com/10gen/mongotune/blob/main/crates/mongotune-dynamic-rate-limiting-ingress/src/config.rs
+ * Authoritative upstream source (production config):
+ *   https://github.com/10gen/mongotune/blob/39ab8374c3a2a4018253cd0c8aba51818ccb0b03/configurations/dsi/mongotune_policies.yml#L371
+ *
+ * The suite-level counterpart (which adds Resmoke-Hook, MongoDB Automation Agent, mongotune,
+ * mongot, and other ops-tooling names not relevant here) is the appNameExemptions anchor in:
+ *   buildscripts/resmokeconfig/matrix_suites/overrides/rate_limiter_with_auth.yml
+ *
+ * When adding a new internal executor, update both this list and the YAML anchor referenced above.
  */
 export const kInternalConnectionAppNameExemptions = [
     "MongoDB Internal Client",
@@ -55,9 +61,10 @@ export const kInternalConnectionAppNameExemptions = [
     "NetworkInterfaceTL-ConfigsvrCoordinatorServiceNetwork",
     "NetworkInterfaceTL-HelloMe-TaskExecutor",
     "NetworkInterfaceTL-Repl",
-    "NetworkInterfaceTL-StandaloneNetwork",
+    "NetworkInterfaceTL-Reshard",
     "NetworkInterfaceTL-Sharding-Fixed",
     "NetworkInterfaceTL-ShardingCoordinatorNetwork",
+    "NetworkInterfaceTL-StandaloneNetwork",
     "ReplCoordExtern",
     "InitialSyncer",
     "Rollback",
@@ -146,9 +153,28 @@ export function makeKeyfileExemptConn(host) {
  * Enables a near-zero-burst IRRL on conn. Sets burst capacity to kZeroBurstCapacitySecs so the
  * token bucket starts essentially empty and every non-exempt connection is immediately rejected.
  * Uses keyfile auth via authutil.asCluster since conn is a raw (unauthenticated) node connection.
+ *
+ * Tests that configure the ingressRequestRateLimiterFractionalRateOverride failpoint at startup
+ * (via kConfigLogsAndFailPointsForRateLimiterTests) do not need to set it again. Tests that start
+ * without that failpoint (e.g. those that toggle IRRL on and off mid-run) can pass
+ * {setRefreshRateFailpoint: true} so the near-zero refresh rate is applied here, keeping the token
+ * bucket effectively empty for the whole time IRRL is enabled.
  */
-export function enableZeroBurstRateLimiter(conn, exemptions) {
+export function enableZeroBurstRateLimiter(
+    conn,
+    exemptions,
+    {setRefreshRateFailpoint = false} = {},
+) {
     authutil.asCluster(conn, kKeyFile, () => {
+        if (setRefreshRateFailpoint) {
+            assert.commandWorked(
+                conn.adminCommand({
+                    configureFailPoint: "ingressRequestRateLimiterFractionalRateOverride",
+                    mode: "alwaysOn",
+                    data: {rate: kSlowestRefreshRateSecs},
+                }),
+            );
+        }
         assert.commandWorked(
             conn.adminCommand({
                 setParameter: 1,

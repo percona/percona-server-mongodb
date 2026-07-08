@@ -37,6 +37,7 @@ MONGO_MOD_PUBLIC;
 namespace mongo {
 // Forward declarations needed for DynamicMetricNameMaker to declare Passkey friends
 class DiskMetrics;
+class ObservableMutexMetrics;
 class SystemMountMetrics;
 
 // Forward declarations needed for MetricName to declare Passkey friends.
@@ -98,6 +99,7 @@ public:
      */
     class Passkey {
         friend ::mongo::DiskMetrics;
+        friend ::mongo::ObservableMutexMetrics;
         friend ::mongo::SystemMountMetrics;
         // This allows us to create dynamic metric names in tests
         friend ::mongo::otel::metrics::DynamicMetricNameTestPasskeyMaker;
@@ -193,13 +195,13 @@ public:
 
     // Query Execution Team Metrics
     static constexpr MetricName kChangeStreamCursorsTotalOpened =
-        MetricNameMaker::make("change_streams.cursor.total_opened");
+        MetricNameMaker::make("serverStatus.metrics.changeStreams.cursor.totalOpened");
     static constexpr MetricName kChangeStreamCursorsLifespan =
-        MetricNameMaker::make("change_streams.cursor.lifespan");
+        MetricNameMaker::make("serverStatus.metrics.changeStreams.cursor.lifespan");
     static constexpr MetricName kChangeStreamCursorsOpenTotal =
-        MetricNameMaker::make("change_streams.cursor.open.total");
+        MetricNameMaker::make("serverStatus.metrics.changeStreams.cursor.open.total");
     static constexpr MetricName kChangeStreamCursorsOpenPinned =
-        MetricNameMaker::make("change_streams.cursor.open.pinned");
+        MetricNameMaker::make("serverStatus.metrics.changeStreams.cursor.open.pinned");
     static constexpr MetricName kChangeStreamCursorsOpenOptimeMin =
         MetricNameMaker::make("serverStatus.metrics.changeStreams.cursor.open.optime.min");
     static constexpr MetricName kChangeStreamCursorsOpenOptimeMax =
