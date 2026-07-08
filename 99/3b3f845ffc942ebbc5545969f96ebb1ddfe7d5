@@ -1,0 +1,28 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "1e641c8db98373ab614d0e52708d341352cfe1b3",
+    "merge_commit": "e703910580ab42cbcce466ccabf1c5da81c7a20b"
+  },
+  "mergai_version": "0.1.dev1+gaa14b121b",
+  "solutions": [
+    {
+      "type": "conflict_resolution",
+      "response": {
+        "summary": "Resolve conflicts for merge commit 'e703910580a' into master",
+        "resolved": {
+          "src/mongo/db/ftdc/ftdc_server.idl": "Resolved by human"
+        },
+        "unresolved": {},
+        "modified": {},
+        "review_notes": "Resolved a both-modified conflict in ftdc_server.idl where each side\nadded distinct server parameters. Kept both sets of parameters.\n\nResolved:\n\tsrc/mongo/db/ftdc/ftdc_server.idl\n\nNote: commit created by mergai"
+      },
+      "author": {
+        "name": "psmdb-bot[bot]",
+        "email": "2942401+psmdb-bot[bot]@users.noreply.github.com",
+        "type": "human"
+      },
+      "commit_sha": "993b3f845ffc942ebbc5545969f96ebb1ddfe7d5"
+    }
+  ]
+}
