@@ -2325,6 +2325,7 @@ selects.config_setting_group(
         "//bazel/platforms:debian13",
         "//bazel/platforms:rhel8",
         "//bazel/platforms:rhel9",
+        "//bazel/platforms:rhel10",
         "//bazel/platforms:suse12",
         "//bazel/platforms:suse15",
     ],

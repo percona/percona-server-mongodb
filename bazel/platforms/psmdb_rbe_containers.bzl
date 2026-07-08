@@ -99,6 +99,9 @@ PSMDB_REMOTE_EXECUTION_CONTAINERS = {
     "rhel9": {
         "container-url": "docker://docker.io/perconalab/psmdb-rbe:oraclelinux-9-8.0-07c5bd008df3acb6e853ebd7c4fefa609c0d03ef",
     },
+    "rhel10": {
+        "container-url": "docker://docker.io/perconalab/psmdb-rbe:oraclelinux-10-8.0-07c5bd008df3acb6e853ebd7c4fefa609c0d03ef",
+    },
     "ubuntu22": {
         "container-url": "docker://docker.io/perconalab/psmdb-rbe:ubuntu-jammy-8.0-07c5bd008df3acb6e853ebd7c4fefa609c0d03ef",
     },
