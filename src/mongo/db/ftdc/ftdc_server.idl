@@ -146,7 +146,6 @@ server_parameters:
         cpp_varname: gDiagnosticDataCollectionEnableLatencyHistograms
         redact: false
 
-<<<<<<< HEAD
     diagnosticDataCollectionEnableSystemMetricsDisks:
         description: "Enable the capture of 'disks' subsection of system metrics in FTDC."
         default: true
@@ -163,8 +162,6 @@ server_parameters:
         cpp_varname: gDiagnosticDataCollectionEnableSystemMetricsMounts
         redact: false
 
-||||||| 1b51af3418d
-=======
     diagnosticDataCollectionEnableLockContentionMetrics:
         description: "Enable the capture of lock contention metrics from ObservableMutex in FTDC."
         default: true
@@ -173,7 +170,6 @@ server_parameters:
         cpp_varname: gDiagnosticDataCollectionEnableLockContentionMetrics
         redact: false
 
->>>>>>> e703910580ab42cbcce466ccabf1c5da81c7a20b
     diagnosticDataCollectionVerboseTCMalloc:
         description: "Enable the capture of verbose tcmalloc in FTDC."
         set_at: [startup, runtime]
