@@ -1,5 +1,11 @@
 #!/usr/bin/env bash
 
+# Print an error message and exit with a failure code
+abort() {
+    printf "Error: %s\n" "${1:-unknown error}" >&2
+    exit "${2:-1}"
+}
+
 shell_quote_string() {
   echo "$1" | sed -e 's,\([^a-zA-Z0-9/_.=-]\),\\\1,g'
 }
@@ -22,7 +28,6 @@ Usage: $0 [OPTIONS]
         --psm_release       PSM_RELEASE(mandatory)
         --mongo_tools_tag   MONGO_TOOLS_TAG(mandatory)
         --special_targets   Special targets for tests
-        --jenkins_mode      If it is set it means that this script is used on jenkins infrastructure
         --debug             build debug tarball
         --help) usage ;;
 Example $0 --builddir=/tmp/PSMDB --get_sources=1 --build_src_rpm=1 --build_rpm=1
@@ -52,13 +57,12 @@ parse_arguments() {
             --build_deb=*) DEB="$val" ;;
             --get_sources=*) SOURCE="$val" ;;
             --build_tarball=*) TARBALL="$val" ;;
-            --branch=*) BRANCH="$val" ;;
+            --branch=*) BRANCH="${val:-$BRANCH}" ;;
             --repo=*) REPO="$val" ;;
             --install_deps=*) INSTALL="$val" ;;
             --psm_ver=*) PSM_VER="$val" ;;
             --psm_release=*) PSM_RELEASE="$val" ;;
             --mongo_tools_tag=*) MONGO_TOOLS_TAG="$val" ;;
-            --jenkins_mode=*) JENKINS_MODE="$val" ;;
             --debug=*) DEBUG="$val" ;;
             --special_targets=*) SPECIAL_TAR="$val" ;;
             --help) usage ;;
@@ -72,19 +76,63 @@ parse_arguments() {
     done
 }
 
+# Add a directory to PATH if it isn't added yet.
+#
+# The directory doesn't need to exist at the moment of the function call.
+#
+# Examples:
+# 1. add  the "/foo/bar" directory at the beginning of the PATH
+# ```
+# path_affix "/foo/bar"
+# ```
+#
+# 2. add the "/foo/bar" directory at the end of the PATH
+# ```
+# path_affix "/foo/bar" "at_the_end"
+# ```
+path_affix() {
+    local dir="$1"
+    local at_the_end="$2"
+
+    [ -n "$dir" ] || abort '`path_affix`: empty directory or too few arguments'
+    # Normalize non-root directory paths by removing trailing slashes, if any
+    [ "$dir" = "/" ] || dir="${dir%/}"
+
+    case "$at_the_end" in
+        "at_the_end") at_the_end="true" ;;
+        "") at_the_end="false" ;;
+        *) abort "\`path_affix\`: invalid second argument value \`$at_the_end\`" ;;
+    esac
+
+    # Introduce a local variable with the default empty value rather than using
+    # "$PATH" directly in order to reliably handle the unset `PATH` even if we
+    # add `set -u` to the script in the future.
+    local path="${PATH:-}"
+    # Place colons on either side of $PATH to simplify matching
+    case ":${path}:" in
+        *:"$dir":*)
+            ;;
+        *)
+            if $at_the_end; then
+                export PATH="${path:+$path:}$dir"
+            else
+                export PATH="$dir${path:+:$path}"
+            fi
+            ;;
+    esac
+}
+
+set_gopath() {
+    local dir="$1"
+    [ -n "$dir" ] || abort '`set_gopath`: empty directory or too few arguments'
+    export GOPATH="$dir"
+    path_affix "$GOPATH/bin" "at_the_end"
+}
+
 check_workdir(){
-    if [ "x$WORKDIR" = "x$CURDIR" ]
-    then
-        echo >&2 "Current directory cannot be used for building!"
-        exit 1
-    else
-        if ! test -d "$WORKDIR"
-        then
-            echo >&2 "$WORKDIR is not a directory."
-            exit 1
-        fi
-    fi
-    return
+    [ -n "$WORKDIR" ] || abort "WORKDIR is empty"
+    [ "x$WORKDIR" = "x$CURDIR" ] && abort "Current directory cannot be used for building!"
+    [ -d "$WORKDIR" ] || abort "\`$WORKDIR\` is not a directory."
 }
 
 get_sources(){
@@ -102,32 +150,13 @@ get_sources(){
     echo "JEMALLOC_TAG=${JEMALLOC_TAG}" >> percona-server-mongodb-90.properties
     echo "BUILD_NUMBER=${BUILD_NUMBER}" >> percona-server-mongodb-90.properties
     echo "BUILD_ID=${BUILD_ID}" >> percona-server-mongodb-90.properties
-    git clone "$REPO"
-    retval=$?
-    if [ $retval != 0 ]
-    then
-        echo "There were some issues during repo cloning from github. Please retry one more time"
-        exit 1
-    fi
+    git clone --depth 1 --branch "$BRANCH" --recurse-submodules --shallow-submodules "$REPO" \
+        || abort "failed to clone the \`$REPO\` repository, try again"
     cd percona-server-mongodb
-    if [ ! -z "$BRANCH" ]
-    then
-        git reset --hard
-        git clean -xdf
-        git checkout "$BRANCH"
-    fi
 
     REVISION=$(git rev-parse --short HEAD)
     # create a proper version.json
     REVISION_LONG=$(git rev-parse HEAD)
-
-    if [ -n "${JENKINS_MODE}" ]; then
-        git remote add upstream https://github.com/mongodb/mongo.git
-        git fetch upstream --tags
-
-        PSM_VER=$(git describe --tags --abbrev=0 | sed 's/^psmdb-//' | sed 's/^r//' | awk -F '-' '{if ($2 ~ /^rc/) {print $0} else {print $1}}')
-        MONGO_TOOLS_TAG="r${PSM_VER}"
-    fi
 
     echo "{" > version.json
     echo "    \"version\": \"${PSM_VER}-${PSM_RELEASE}\"," >> version.json
@@ -146,27 +175,21 @@ get_sources(){
     rm -fr debian rpm
     cp -a percona-packaging/manpages .
     cp -a percona-packaging/docs/* .
-    #
-    # submodules
-    git submodule init
-    git submodule update
-    #
-    git clone https://github.com/mongodb/mongo-tools.git
+
+    local MONGO_TOOLS_REPO="https://github.com/mongodb/mongo-tools.git";
+    git clone --depth 1 --branch "$MONGO_TOOLS_TAG" --recurse-submodules --shallow-submodules "$MONGO_TOOLS_REPO" \
+        || abort "failed to clone the \`$MONGO_TOOLS_REPO\` repository, try again"
     cd mongo-tools
-    git checkout $MONGO_TOOLS_TAG
     sed -i 's|VersionStr="$(go run release/release.go get-version)"|VersionStr="$PSMDB_TOOLS_REVISION"|' set_goenv.sh
     sed -i 's|GitCommit="$(git rev-parse HEAD)"|GitCommit="$PSMDB_TOOLS_COMMIT_HASH"|' set_goenv.sh
     echo "export PSMDB_TOOLS_COMMIT_HASH=\"$(git rev-parse HEAD)\"" > set_tools_revision.sh
     echo "export PSMDB_TOOLS_REVISION=\"${PSM_VER}-${PSM_RELEASE}\"" >> set_tools_revision.sh
     chmod +x set_tools_revision.sh
-    export GOROOT="/usr/local/go/"
-    export GOPATH=$PWD/../
-    export PATH="/usr/local/go/bin:$PATH:$GOPATH"
-    export GOBINPATH="/usr/local/go/bin"
+    set_gopath "$PWD/../"
 
     # Dirty hack for mongo-tools 100.7.3 and aarch64 builds. Should fail once Mongo fixes OS detection https://jira.mongodb.org/browse/TOOLS-3318
     #if [ x"$ARCH" = "xaarch64" ]; then
-        sed -i '/GetLinuxDistroAndVersion()/ s/os, version, err = GetLinuxDistroAndVersion()/os, version, err = "rhel", "9.3", nil/' release/platform/platform.go || exit 1
+        sed -i '/GetLinuxDistroAndVersion()/ s/os, version, err = GetLinuxDistroAndVersion()/os, version, err = "rhel", "9.3", nil/' release/platform/platform.go || abort '`sed` failed'
     #fi
 
     cd ${WORKDIR}
@@ -177,10 +200,29 @@ get_sources(){
 
     cd ${PRODUCT}-${PSM_VER}-${PSM_RELEASE}
     python3 buildscripts/install_bazel.py
-    export PATH=\/root/.local/bin:$PATH >> ~/.bashrc
-    source ~/.bashrc
 
-    KEEP_DOTFILES='\.bazelrc|\.bazelrc\.psmdb|\.bazelrc\.fuzztest|\.bazelrc\.sync|\.bazelversion|\.bazeliskrc|\.bazelignore|\.npmrc|\.prettierrc|\.prettierignore|\.clang-format|\.clang-tidy\.in'
+    # Force generating the `.bazelrc.bazelisk` file.
+    #
+    # The `bazel` command is actually a symlink to `bazelisk`. When run, the
+    # latter executes the `tools/bazel` shell script from the source code
+    # repository, which in turn runs the real `bazel`. At the first invocation,
+    # the script produces the `.bazelrc.bazelisk` file.
+    #
+    # We run the `bazel info` command at this point for the sole purpose of
+    # generating that file early. Otherwise, if this script is run with only
+    # the `--get_sources` and `--build_src_deb` options, the file would be
+    # created by the `bazel clean` command (part of `override_dh_auto_clean`,
+    # see the `rules` file), which causes `dpkg-buildpackage -S` (see the
+    # `build_source_deb` function) to fail with the following error:
+    # ```
+    # dpkg-source: info: local changes detected, the modified files are:
+    #  percona-server-mongodb-<PSM_VER>-<PSM_RELEASE>/.bazelrc.bazelisk
+    # dpkg-source: error: aborting due to unexpected upstream changes, <...>
+    # dpkg-buildpackage: error: dpkg-source -b . subprocess returned exit status 2
+    # ```
+    bazel info || abort '`bazel info` failed'
+
+    KEEP_DOTFILES='\.bazelrc|\.bazelrc\.bazelisk|\.bazelrc\.psmdb|\.bazelrc\.fuzztest|\.bazelrc\.sync|\.bazelversion|\.bazeliskrc|\.bazelignore|\.npmrc|\.prettierrc|\.prettierignore|\.clang-format|\.clang-tidy\.in'
     DROP_DOTFILES=$(ls -A | grep -E '^\.' | grep -vE "^(${KEEP_DOTFILES})$" || true)
     if [ -n "$DROP_DOTFILES" ]; then
         echo "Source-tarball dotfile cleanup — stripping:" >&2
@@ -240,8 +282,7 @@ install_golang() {
     elif [ "$ARCH" = "aarch64" ]; then
       GO_ARCH="arm64"
     else
-        echo "Unsupported architecture: $ARCH"
-        return 1
+        abort "Unsupported architecture: $ARCH"
     fi
 
     GO_VERSION="1.25.7"
@@ -281,36 +322,13 @@ install_golang() {
     ln -s /usr/local/go${GO_VERSION} /usr/local/go
 }
 
-install_gcc_centos(){
-    if [ "${RHEL}" -lt 8 ]; then
-        yum -y install  gcc-c++ devtoolset-8-gcc-c++ devtoolset-8-binutils cmake3 python38
-        source /opt/rh/devtoolset-8/enable
-    else
-        yum -y install binutils gcc gcc-c++
-    fi
-
-}
-
-install_gcc_deb(){
-    if [ x"${DEBIAN}" = xfocal -o x"${DEBIAN}" = xbionic -o x"${DEBIAN}" = xbuster ]; then
-        apt-get -y install gcc-8 g++-8
-    fi
-    if [ x"${DEBIAN}" = xbullseye -o x"${DEBIAN}" = xjammy ]; then
-        apt-get -y install gcc-10 g++-10
-    fi
-}
-
 install_deps() {
     if [ $INSTALL = 0 ]
     then
         echo "Dependencies will not be installed"
         return;
     fi
-    if [ $( id -u ) -ne 0 ]
-    then
-        echo "It is not possible to instal dependencies. Please run as root"
-        exit 1
-    fi
+    [ $(id -u) -eq 0 ] || abort "user \`$(id -un)\` can't install dependencies; rerun \`$PROG\` as \`root\`"
     CURPLACE=$(pwd)
     if [ "x$OS" = "xrpm" ]; then
       if [ x"$RHEL" = x9 ]; then
@@ -450,43 +468,28 @@ install_deps() {
     return;
 }
 
-get_tar(){
-    TARBALL=$1
-    TARFILE=$(basename $(find $WORKDIR/$TARBALL -name 'percona-server-mongodb*.tar.gz' | sort | tail -n1))
-    if [ -z $TARFILE ]
-    then
-        TARFILE=$(basename $(find $CURDIR/$TARBALL -name 'percona-server-mongodb*.tar.gz' | sort | tail -n1))
-        if [ -z $TARFILE ]
-        then
-            echo "There is no $TARBALL for build"
-            exit 1
-        else
-            cp $CURDIR/$TARBALL/$TARFILE $WORKDIR/$TARFILE
-        fi
-    else
-        cp $WORKDIR/$TARBALL/$TARFILE $WORKDIR/$TARFILE
-    fi
-    return
+get_source_tarball() {
+    local filepath=$(find "$WORKDIR/source_tarball" -name 'percona-server-mongodb*.tar.gz' 2>/dev/null | sort | tail -n1)
+    [ -n "$filepath" ] || filepath=$(find "$CURDIR/source_tarball" -name 'percona-server-mongodb*.tar.gz' 2>/dev/null | sort | tail -n1)
+    [ -n "$filepath" ] || abort 'source tarball archive does not exist; add the `--get_sources` option to create it'
+    cp "$filepath" "$WORKDIR/" || abort "\`get_source_tarball\`: failed to copy \`$filepath\` to \`$WORKDIR/\`"
 }
 
-get_deb_sources(){
-    param=$1
-    echo $param
-    FILE=$(basename $(find $WORKDIR/source_deb -name "percona-server-mongodb*.$param" | sort | tail -n1))
-    if [ -z $FILE ]
-    then
-        FILE=$(basename $(find $CURDIR/source_deb -name "percona-server-mongodb*.$param" | sort | tail -n1))
-        if [ -z $FILE ]
-        then
-            echo "There is no sources for build"
-            exit 1
-        else
-            cp $CURDIR/source_deb/$FILE $WORKDIR/
-        fi
-    else
-        cp $WORKDIR/source_deb/$FILE $WORKDIR/
-    fi
-    return
+get_deb_sources() {
+    local ext=$1
+    [ -n "$ext" ] || abort '`get_deb_sources`: empty or missing extension argument'
+    local filepath=$(find "$WORKDIR/source_deb" -name "percona-server-mongodb*.$ext" 2>/dev/null | sort | tail -n1)
+    [ -n "$filepath" ] || filepath=$(find "$CURDIR/source_deb" -name "percona-server-mongodb*.$ext" 2>/dev/null | sort | tail -n1)
+    [ -n "$filepath" ] || abort 'source deb package does not exist; add the `--build_src_deb` option to create it'
+    cp "$filepath" "$WORKDIR/" || abort "\`get_deb_sources\`: failed to copy \`$filepath\` to \`$WORKDIR/\`"
+}
+
+get_source_rpm_package() {
+    local filepath=$(find "$WORKDIR/srpm" -name 'percona-server-mongodb*.src.rpm' 2>/dev/null | sort | tail -n1)
+    [ -n "$filepath" ] || filepath=$(find "$CURDIR/srpm" -name 'percona-server-mongodb*.src.rpm' 2>/dev/null | sort | tail -n1)
+    [ -n "$filepath" ] || abort 'source rpm package does not exist; add the `--build_src_rpm` option to create it'
+    cp "$filepath" "$WORKDIR/" || abort "\`get_source_rpm_package\`: failed to copy \`$filepath\` to \`$WORKDIR/\`"
+    echo "$(basename "$filepath")"
 }
 
 build_srpm(){
@@ -495,13 +498,9 @@ build_srpm(){
         echo "SRC RPM will not be created"
         return;
     fi
-    if [ "x$OS" = "xdeb" ]
-    then
-        echo "It is not possible to build src rpm here"
-        exit 1
-    fi
+    [ "x$OS" = "xrpm" ] || abort "Can't build source rpm on a non-rpm-based OS"
     cd $WORKDIR
-    get_tar "source_tarball"
+    get_source_tarball
     rm -fr rpmbuild
     ls | grep -v tar.gz | grep -v percona-server-mongodb-90.properties | xargs rm -rf
     TARFILE=$(find . -name 'percona-server-mongodb*.tar.gz' | sort | tail -n1)
@@ -520,7 +519,7 @@ build_srpm(){
     CALLHOME_SHA="0e3a2ed40336c70727f9aad8402a8a820ebc8db0"
     CALLHOME_SHA256="3497f6631e71799bed9dedb1d72350bf1f0565d93578955234ac30cf2fb6eba4"
     wget -q "https://raw.githubusercontent.com/percona/telemetry-agent/${CALLHOME_SHA}/call-home.sh"
-    echo "${CALLHOME_SHA256}  call-home.sh" | sha256sum -c - || { echo "ERROR: call-home.sh checksum mismatch"; exit 1; }
+    echo "${CALLHOME_SHA256}  call-home.sh" | sha256sum -c - || abort "call-home.sh checksum mismatch"
     mv call-home.sh rpmbuild/SOURCES
     cp -av percona-packaging/conf/* rpmbuild/SOURCES
     cp -av percona-packaging/redhat/mongod.* rpmbuild/SOURCES
@@ -579,26 +578,8 @@ build_rpm(){
         echo "RPM will not be created"
         return;
     fi
-    if [ "x$OS" = "xdeb" ]
-    then
-        echo "It is not possible to build rpm here"
-        exit 1
-    fi
-    SRC_RPM=$(basename $(find $WORKDIR/srpm -name 'percona-server-mongodb*.src.rpm' | sort | tail -n1))
-    if [ -z $SRC_RPM ]
-    then
-        SRC_RPM=$(basename $(find $CURDIR/srpm -name 'percona-server-mongodb*.src.rpm' | sort | tail -n1))
-        if [ -z $SRC_RPM ]
-        then
-            echo "There is no src rpm for build"
-            echo "You can create it using key --build_src_rpm=1"
-            exit 1
-        else
-            cp $CURDIR/srpm/$SRC_RPM $WORKDIR
-        fi
-    else
-        cp $WORKDIR/srpm/$SRC_RPM $WORKDIR
-    fi
+    [ "x$OS" = "xrpm" ] || abort "Can't build rpm on a non-rpm-based OS"
+    SRC_RPM="$(get_source_rpm_package)"
     cd $WORKDIR
     rm -fr rpmbuild
     mkdir -vp rpmbuild/{SOURCES,SPECS,BUILD,SRPMS,RPMS}
@@ -622,8 +603,6 @@ build_rpm(){
     fi
 
     python3 buildscripts/install_bazel.py
-    export PATH=\/root/.local/bin:$PATH >> ~/.bashrc
-    source ~/.bashrc
     rm -rf install_bazel.py
 
     cd $WORKDIR
@@ -632,11 +611,7 @@ build_rpm(){
     echo "ARCH=${ARCH}" >> percona-server-mongodb-90.properties
     #
     #
-    [[ ${PATH} == *"/usr/local/go/bin"* && -x /usr/local/go/bin/go ]] || export PATH=/usr/local/go/bin:${PATH}
-    export GOROOT="/usr/local/go/"
-    export GOPATH=$(pwd)/
-    export PATH="/usr/bin:/usr/local/go/bin:$PATH:$GOPATH"
-    export GOBINPATH="/usr/local/go/bin"
+    set_gopath "$(pwd)/"
 
     export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
     export OPT_LINKFLAGS="${LINKFLAGS} -Wl,--build-id=sha1"
@@ -644,7 +619,7 @@ build_rpm(){
 
     return_code=$?
     if [ $return_code != 0 ]; then
-        exit $return_code
+        abort "\`rpmbuild\` failed with code $return_code" $return_code
     fi
     mkdir -p ${WORKDIR}/rpm
     mkdir -p ${CURDIR}/rpm
@@ -658,13 +633,9 @@ build_source_deb(){
         echo "Source deb package will not be created"
         return;
     fi
-    if [ "x$OS" = "xrpm" ]
-    then
-        echo "It is not possible to build source deb here"
-        exit 1
-    fi
+    [ "x$OS" = "xdeb" ] || abort "Can't build source deb on a non-deb-based OS"
     rm -rf percona-server-mongodb*
-    get_tar "source_tarball"
+    get_source_tarball
     rm -f *.dsc *.orig.tar.gz *.debian.tar.gz *.changes
     #
     TARFILE=$(basename $(find . -name 'percona-server-mongodb*.tar.gz' | sort | tail -n1))
@@ -713,11 +684,7 @@ build_deb(){
         echo "Deb package will not be created"
         return;
     fi
-    if [ "x$OS" = "xrpm" ]
-    then
-        echo "It is not possible to build deb here"
-        exit 1
-    fi
+    [ "x$OS" = "xdeb" ] || abort "Can't build deb on a non-deb-based OS"
     for file in 'dsc' 'orig.tar.gz' 'changes' 'debian.tar*'
     do
         get_deb_sources $file
@@ -740,8 +707,6 @@ build_deb(){
     cd ${PRODUCT}-${VERSION}
 
     python3 buildscripts/install_bazel.py
-    export PATH=\/root/.local/bin:$PATH >> ~/.bashrc
-    source ~/.bashrc
     cp -av percona-packaging/debian/rules debian/
 
     if [ x"${DEBIAN}" = "xbullseye" -o x"${DEBIAN}" = "xbookworm" -o x"${DEBIAN}" = "xjammy" -o x"${DEBIAN}" = "xnoble" ]; then
@@ -767,7 +732,7 @@ build_deb(){
         CALLHOME_SHA="0e3a2ed40336c70727f9aad8402a8a820ebc8db0"
         CALLHOME_SHA256="3497f6631e71799bed9dedb1d72350bf1f0565d93578955234ac30cf2fb6eba4"
         wget -q "https://raw.githubusercontent.com/percona/telemetry-agent/${CALLHOME_SHA}/call-home.sh"
-        echo "${CALLHOME_SHA256}  call-home.sh" | sha256sum -c - || { echo "ERROR: call-home.sh checksum mismatch"; exit 1; }
+        echo "${CALLHOME_SHA256}  call-home.sh" | sha256sum -c - || abort "call-home.sh checksum mismatch"
         sed -i 's:exit 0::' percona-server-mongodb-server.postinst
         # Inject call-home.sh into postinst via stdin heredoc (no /tmp file, no LPE race).
         echo 'bash -s -- -f "PRODUCT_FAMILY_PSMDB" -v "'"${PSM_VER}-${PSM_RELEASE}"'" -d "PACKAGE" <<'"'"'CALLHOME'"'"' &>/dev/null || :' >> percona-server-mongodb-server.postinst
@@ -779,11 +744,10 @@ build_deb(){
         rm -f call-home.sh
     cd ../
 
-    export GOROOT="/usr/local/go/"
-    export GOPATH=$PWD/../
-    export PATH="/usr/local/go/bin:$PATH:$GOPATH"
-    export GOBINPATH="/usr/local/go/bin"
+    set_gopath "$PWD/../"
+
     dpkg-buildpackage -rfakeroot -us -uc -b
+
     mkdir -p $CURDIR/deb
     mkdir -p $WORKDIR/deb
     cp $WORKDIR/*.deb $WORKDIR/deb
@@ -796,7 +760,7 @@ build_tarball(){
         echo "Binary tarball will not be created"
         return;
     fi
-    get_tar "source_tarball"
+    get_source_tarball
     cd $WORKDIR
     source ${WORKDIR}/percona-server-mongodb-90.properties
     TARFILE=$(basename $(find . -name 'percona-server-mongodb*.tar.gz' | sort | tail -n1))
@@ -804,7 +768,6 @@ build_tarball(){
     #
     export DEBIAN_VERSION="$(lsb_release -sc)"
     export DEBIAN="$(lsb_release -sc)"
-    export PATH=/usr/local/go/bin:$PATH
     #
     #
     PSM_TARGETS="mongod mongos perconadecrypt mongobridge $SPECIAL_TAR"
@@ -869,8 +832,6 @@ build_tarball(){
     export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
     export OPT_LINKFLAGS="${LINKFLAGS} -Wl,--build-id=sha1"
     python3 buildscripts/install_bazel.py
-    export PATH=\/root/.local/bin:$PATH >> ~/.bashrc
-    source ~/.bashrc
 
     bazel clean --expunge || true
     bazel build --config=psmdb_opt_release ${PSMDB_RBE_BAZEL_FLAGS:-} --define=MONGO_VERSION=${VERSION}-${RELEASE} --define=GIT_COMMIT_HASH=${REVISION_LONG} install-dist-test
@@ -887,10 +848,7 @@ build_tarball(){
     #
     # Build mongo tools
     mkdir -p build_tools/src/github.com/mongodb/mongo-tools
-    export GOROOT="/usr/local/go/"
-    export GOPATH=$PWD/
-    export PATH="/usr/local/go/bin:$PATH:$GOPATH"
-    export GOBINPATH="/usr/local/go/bin"
+    set_gopath "$PWD/"
     mkdir -p $GOPATH/src/github.com/mongodb
     cd $GOPATH/src/github.com/mongodb
     cp -r ${WORKDIR}/${TOOLSDIR} ./
@@ -1018,9 +976,7 @@ build_tarball(){
     function check_libs {
         local elf_path=$1
         for elf in $(find ${elf_path} -maxdepth 1 -exec file {} \; | grep 'ELF ' | cut -d':' -f1); do
-            if ! ldd ${elf}; then
-                exit 1
-            fi
+            if ! ldd "$elf"; then abort "\`ldd\` failed for \`$elf\`"; fi
         done
     }
 
@@ -1092,6 +1048,7 @@ build_tarball(){
 
 #main
 
+PROG="$(basename "$0")"
 CURDIR=$(pwd)
 VERSION_FILE=$CURDIR/percona-server-mongodb.properties
 args=
@@ -1131,6 +1088,18 @@ then
 else
     NCPU=4
 fi
+
+# Previous script versions added `/usr/bin` to PATH in one of the functions.
+# Since `path_affix` prevents duplicates in PATH, the call won't do any harm,
+# but can fix the things should any (weird) platform miss that directory.
+path_affix "/usr/bin"
+
+# The `python3 buildscripts/install_bazel.py` command installs `bazel` and
+# `bazelisk` into "$HOME/.local/bin"
+path_affix "$HOME/.local/bin"
+
+export GOROOT="/usr/local/go"
+path_affix "$GOROOT/bin"
 
 check_workdir
 get_system
