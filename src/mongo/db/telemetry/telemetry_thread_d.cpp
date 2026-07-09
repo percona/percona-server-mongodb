@@ -62,6 +62,7 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/telemetry/telemetry_thread_base.h"
 #include "mongo/db/topology/cluster_role.h"
 #include "mongo/logv2/log.h"
+#include "mongo/rpc/object_check.h"  // IWYU pragma: keep
 #include "mongo/util/assert_util.h"
 #include "mongo/util/time_support.h"
 
