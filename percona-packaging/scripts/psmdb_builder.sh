@@ -183,7 +183,7 @@ generate_release_sbom() {
                     {"type": "vcs", "url": $vcs_url}
                 ]
             },
-            "supplier": {"name": "Percona LLC", "url": ["https://www.percona.com"]}
+            "supplier": {"name": "Percona LLC", "url": ["https://percona.com"]}
         } | if (.dependencies | any(.ref == $purl_branch)) then
                 (.dependencies[] | select(.ref == $purl_branch)).ref |= $purl_release
             else
