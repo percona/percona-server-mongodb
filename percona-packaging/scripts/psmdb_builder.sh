@@ -147,9 +147,10 @@ generate_release_sbom() {
     local branch_version="${PSM_VER%.*}"
     local release_version="${PSM_VER}-${PSM_RELEASE}"
 
-    local uuid="$(uuidgen --random)" || abort '`generate_release_sbom`: `uuidgen` failed'
-    local timestamp="$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
-        || abort '`generate_release_sbom`: failed to obtain current timestamp'
+    local uuid
+    uuid="$(uuidgen --random)" || abort '`generate_release_sbom`: `uuidgen` failed'
+    local timestamp
+    timestamp="$(date -u +'%Y-%m-%dT%H:%M:%SZ')" || abort '`generate_release_sbom`: failed to obtain current timestamp'
 
     jq --indent 2 \
         --arg uuid "$uuid" \
