@@ -1,5 +1,5 @@
 /**
- *    Copyright (C) 2018-present MongoDB, Inc.
+ *    Copyright (C) 2026-present MongoDB, Inc.
  *
  *    This program is free software: you can redistribute it and/or modify
  *    it under the terms of the Server Side Public License, version 1,
@@ -26,13 +26,38 @@
  *    exception statement from all source files in the program, then also delete
  *    it in the license file.
  */
-#include "mongo/rpc/object_check.h"  // IWYU pragma: keep
 
-#include "mongo/base/status.h"
-#include "mongo/bson/bsonobj.h"
+#include "mongo/db/query/query_settings/query_settings_command_hooks.h"
 
-namespace mongo {
-Status Validator<BSONObj>::validateStore(const BSONObj& toStore) {
-    return Status::OK();
+#include "mongo/db/client.h"
+#include "mongo/db/query/query_settings/query_settings_context.h"
+
+#include <variant>
+
+namespace mongo::query_settings {
+
+void QuerySettingsCommandHooks::onBeforeRun(OperationContext* opCtx,
+                                            CommandInvocation* invocation) {
+    namespace qsd = query_settings_details;
+    // Skip nested DBDirectClient commands: they must observe the user command's resolved settings
+    // rather than resolving their own.
+    if (opCtx->getClient()->isInDirectClient()) {
+        return;
+    }
+
+    // Unwrap wrapping invocations (e.g. explain) to reach the command being run.
+    const CommandInvocation* unwrapped = invocation;
+    while (auto* inner = unwrapped->inner()) {
+        unwrapped = inner;
+    }
+    if (!unwrapped->definition()->supportsQuerySettings()) {
+        return;
+    }
+
+    auto& state = qsd::getQuerySettingsStateForOp(opCtx);
+    if (std::holds_alternative<qsd::NotStarted>(state)) {
+        state = qsd::Pending{};
+    }
 }
-}  // namespace mongo
+
+}  // namespace mongo::query_settings

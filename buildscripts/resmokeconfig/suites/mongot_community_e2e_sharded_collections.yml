@@ -49,8 +49,6 @@ executor:
     launch_mongot: true
     num_shards: 2
     num_mongos: 3
-    load_extensions:
-      - "add_fields_match"
     mongod_options:
       keyFile: *keyFile
       set_parameters:
@@ -58,7 +56,6 @@ executor:
         featureFlagEgressGrpcForSearch: true
         useGrpcForSearch: 1
         skipAuthenticationToMongot: true
-        featureFlagExtensionsAPI: true
     mongos_options:
       keyFile: *keyFile
       set_parameters:
@@ -66,4 +63,3 @@ executor:
         featureFlagEgressGrpcForSearch: true
         useGrpcForSearch: 1
         skipAuthenticationToMongot: true
-        featureFlagExtensionsAPI: true

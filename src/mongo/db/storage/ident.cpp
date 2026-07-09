@@ -213,11 +213,9 @@ boost::optional<ParsedIdent> parseIdent(std::string_view str) {
     // index with directoryPerDB=true, or an index with directoryForIndexes=true and
     // directoryPerDB=false. We assume here that the unique tag won't start with a known ident type,
     // and thus it's a collection in the db named "index".
-    if (auto identType = getIdentType(tok2->head)) {
+    if (auto parsed = validateIdent(tok1->head, tok2->head, tok2->tail)) {
         // Format 3: "$dbName/$identType-$uniqueTag"
-        if (!ident::validateTag(tok2->tail))
-            return boost::none;
-        return ParsedIdent{*identType, tok2->tail, tok1->head};
+        return parsed;
     }
     if (auto identType = getIdentType(tok1->head)) {
         // Format 2: "$identType/$uniqueTag"
@@ -315,6 +313,11 @@ bool isCollectionIdent(std::string_view ident) {
     // they are not eligible for orphan recovery through repair.
     auto parsed = parseIdent(ident);
     return parsed && parsed->identType == IdentType::collection;
+}
+
+bool isIndexIdent(std::string_view ident) {
+    auto parsed = parseIdent(ident);
+    return parsed && parsed->identType == IdentType::index;
 }
 
 bool validateTag(std::string_view uniqueTag) {

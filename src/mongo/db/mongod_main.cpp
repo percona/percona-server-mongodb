@@ -118,6 +118,7 @@
 #include "mongo/db/query/query_execution_knobs_gen.h"
 #include "mongo/db/query/query_integration_knobs_gen.h"
 #include "mongo/db/query/query_optimization_knobs_gen.h"
+#include "mongo/db/query/query_settings/query_settings_command_hooks.h"
 #include "mongo/db/query/search/mongot_options.h"
 #include "mongo/db/query/search/search_task_executors.h"
 #include "mongo/db/read_write_concern_defaults.h"
@@ -430,6 +431,7 @@ void initializeCommandHooks(ServiceContext* serviceContext) {
         void onBeforeRun(OperationContext* opCtx, CommandInvocation* invocation) override {
             _transportHook.onBeforeRun(opCtx, invocation);
             _systemBucketsHook.onBeforeRun(opCtx, invocation);
+            _querySettingsHook.onBeforeRun(opCtx, invocation);
         }
 
         void onAfterRun(OperationContext* opCtx,
@@ -448,6 +450,7 @@ void initializeCommandHooks(ServiceContext* serviceContext) {
 
         transport::IngressHandshakeMetricsCommandHooks _transportHook{};
         SystemBucketsMetricsCommandHooks _systemBucketsHook{};
+        query_settings::QuerySettingsCommandHooks _querySettingsHook{};
     };
 
     CommandInvocationHooks::set(serviceContext, std::make_unique<MongodCommandInvocationHooks>());
