@@ -168,7 +168,7 @@ generate_release_sbom() {
             "component": {
                 "type": "application",
                 "bom-ref": $purl_release,
-                "supplier": {"name": "Percona LLC", "url": ["https://www.percona.com"]},
+                "supplier": {"name": "Percona LLC", "url": ["https://percona.com"]},
                 "author": "Percona LLC",
                 "publisher": "Percona LLC",
                 "group": "percona",
