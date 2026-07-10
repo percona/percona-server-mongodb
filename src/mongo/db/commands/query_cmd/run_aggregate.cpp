@@ -472,9 +472,6 @@ bool getFirstBatch(const AggExState& aggExState,
             // from the initial post-batch resume token (resume token clusterTime,
             // startAtOperationTime, or the current oplog tip when neither is specified).
             auto ts = exec.getLatestOplogTimestamp();
-            tassert(12613200,
-                    "Change stream pipeline executor must have a non-null latest oplog timestamp",
-                    !ts.isNull());
             curOp->debug().changeStreamMetrics.setOptime(ts);
         }
 
@@ -522,6 +519,17 @@ boost::optional<ClientCursorPin> executeSingleExecUntilFirstBatch(
     }
 
     collectQueryStats(aggExState, expCtx, execs[0].get(), maybePinnedCursor.get_ptr());
+
+    if (aggExState.hasChangeStream()) {
+        auto curOp = CurOp::get(opCtx);
+        const auto& additiveMetrics = curOp->debug().getAdditiveMetrics();
+        change_stream::cursorDocsReturned().add(additiveMetrics.nreturned.value_or(0));
+        change_stream::cursorDocsExamined().add(additiveMetrics.docsExamined.value_or(0));
+        const auto* storageStats = curOp->getOperationStorageStats();
+        change_stream::cursorBytesRead().add(storageStats ? storageStats->bytesRead() : 0);
+        change_stream::cursorBytesReturned().add(responseBuilder.bytesUsed());
+        change_stream::cursorBatchesReturned().add(1);
+    }
 
     const auto& aggReq = aggExState.getRequest();
     const auto& includeMetricsOption = aggReq.getIncludeMetrics();
