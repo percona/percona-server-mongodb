@@ -3,9 +3,6 @@ filters:
   - "*":
     approvers:
       - 10gen/query
-  - "ifr_*":
-    approvers:
-      - 10gen/query-integration-extensions-api
   - "cluster_analyze_command.js":
     approvers:
       - 10gen/query-optimization
@@ -43,6 +40,9 @@ filters:
     approvers:
       - 10gen/query-optimization
   - "search_hybrid_scoring_feature_flag_test.js":
+    approvers:
+      - 10gen/query-integration-search
+  - "internal_search_id_lookup*.js":
     approvers:
       - 10gen/query-integration-search
   - "set_window_fields_read_concern_snapshot.js":

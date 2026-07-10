@@ -71,12 +71,13 @@ const auto kTimedPhaseNamesMap = [] {
         {TimedPhase::kApplying, "totalApplyTimeElapsedSecs"},
         {TimedPhase::kCriticalSection, "totalCriticalSectionTimeElapsedSecs"},
         {TimedPhase::kBuildingIndex, "totalIndexBuildTimeElapsedSecs"},
+        {TimedPhase::kDonorCloneCountFetchDuration, "donorCloneCountFetchTimeElapsedSecs"},
         {TimedPhase::kVerificationPreApplying, "verificationPreApplyingTimeElapsedSecs"},
         {TimedPhase::kVerificationPreCommit, "verificationPreCommitTimeElapsedSecs"},
         {TimedPhase::kChangeStreamMonitor, "changeStreamMonitorTotalTimeElapsedSecs"}};
 }();
 
-boost::optional<Milliseconds> readCoordinatorEstimate(const AtomicWord<Milliseconds>& field) {
+boost::optional<Milliseconds> readCoordinatorEstimate(const Atomic<Milliseconds>& field) {
     auto estimate = field.load();
     if (estimate == kNoEstimate) {
         return boost::none;
@@ -772,6 +773,8 @@ BSONObj ReshardingMetrics::getDiagnosticMetrics() const {
                        elapsedMillisOr(TimedPhase::kChangeStreamMonitor));
             break;
         case Role::kCoordinator:
+            bob.append(kCoordinatorDonorCloneCountFetchTimeElapsedMillis,
+                       elapsedMillisOr(TimedPhase::kDonorCloneCountFetchDuration));
             bob.append(kCoordinatorVerificationPreApplyingTimeElapsedMillis,
                        elapsedMillisOr(TimedPhase::kVerificationPreApplying));
             bob.append(kCoordinatorVerificationPreCommitTimeElapsedMillis,
@@ -801,6 +804,7 @@ BSONObj ReshardingMetrics::getDiagnosticMetricDefaults(ReshardingMetricsCommon::
             bob.append(kRecipientChangeStreamMonitorTotalTimeElapsedMillis, kNotAvailable);
             break;
         case Role::kCoordinator:
+            bob.append(kCoordinatorDonorCloneCountFetchTimeElapsedMillis, kNotAvailable);
             bob.append(kCoordinatorVerificationPreApplyingTimeElapsedMillis, kNotAvailable);
             bob.append(kCoordinatorVerificationPreCommitTimeElapsedMillis, kNotAvailable);
             break;

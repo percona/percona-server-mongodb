@@ -41,7 +41,7 @@
 #include "mongo/db/service_context.h"
 #include "mongo/executor/scoped_task_executor.h"
 #include "mongo/executor/task_executor.h"
-#include "mongo/platform/atomic_word.h"
+#include "mongo/platform/atomic.h"
 #include "mongo/stdx/condition_variable.h"
 #include "mongo/stdx/unordered_map.h"
 #include "mongo/stdx/unordered_set.h"
@@ -68,7 +68,7 @@
 #include <boost/optional/optional.hpp>
 #include <boost/smart_ptr.hpp>
 
-namespace MONGO_MOD_PUB mongo {
+namespace [[MONGO_MOD_PUBLIC]] mongo {
 
 class OperationContext;
 class ServiceContext;
@@ -87,7 +87,7 @@ extern FailPoint PrimaryOnlyServiceHangBeforeRunningInstance;
  * will have a dedicated collection where state documents are stored containing the state of any
  * running instances, which are used to recreate the running instances after failover.
  */
-class MONGO_MOD_OPEN PrimaryOnlyService {
+class [[MONGO_MOD_OPEN]] PrimaryOnlyService {
 public:
     /**
      * Client decoration used by Clients that are a part of a PrimaryOnlyService.
@@ -121,7 +121,7 @@ public:
      * implementations shouldn't have their Instance subclass extended this Instance class directly,
      * instead they should extend TypedInstance, defined below.
      */
-    class MONGO_MOD_PUB Instance {
+    class [[MONGO_MOD_PUBLIC]] Instance {
     public:
         virtual ~Instance() = default;
 
@@ -182,8 +182,8 @@ public:
      * proper derived Instance type.
      */
     template <class InstanceType>
-    class MONGO_MOD_OPEN TypedInstance : public Instance,
-                                         public std::enable_shared_from_this<InstanceType> {
+    class [[MONGO_MOD_OPEN]] TypedInstance : public Instance,
+                                             public std::enable_shared_from_this<InstanceType> {
     public:
         TypedInstance() = default;
         ~TypedInstance() override = default;
@@ -333,13 +333,13 @@ public:
      * with a subsequent onStepUp_forTest() call, which clears the flag once the rebuild triggered
      * by that stepup completes.
      */
-    MONGO_MOD_PUBLIC void onStepDown_forTest();
+    [[MONGO_MOD_PUBLIC]] void onStepDown_forTest();
 
     /**
      * Test-only step-up that bypasses the term-monotonicity invariant. Use when simulating a
      * step-down/step-up cycle without a real replica-set election (so the term doesn't advance).
      */
-    MONGO_MOD_PUBLIC void onStepUp_forTest();
+    [[MONGO_MOD_PUBLIC]] void onStepUp_forTest();
 
 protected:
     /**
@@ -585,7 +585,7 @@ private:
     // Note: This method has to be accessed only via _setHasExecutor() and _getHasExecutor()
     // methods. This is present to make PrimaryOnlyService::_executor to have (W) synchronization
     // rule instead of (M).
-    AtomicWord<bool> _hasExecutor{false};  //(S)
+    Atomic<bool> _hasExecutor{false};  //(S)
 
     // TODO SERVER-52901: Make the synchronization rule as (R).
     // The concrete TaskExecutor backing _scopedExecutor. While _scopedExecutor is created and
@@ -697,4 +697,4 @@ private:
 };
 
 }  // namespace repl
-}  // namespace MONGO_MOD_PUB mongo
+}  // namespace mongo

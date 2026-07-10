@@ -55,7 +55,7 @@
 #include <boost/optional.hpp>
 
 namespace mongo::transport {
-namespace MONGO_MOD_PARENT_PRIVATE grpc {
+namespace [[MONGO_MOD_PARENT_PRIVATE]] grpc {
 
 /**
  * Captures the common semantics for ingress and egress gRPC sessions.
@@ -414,7 +414,7 @@ public:
      * No alignment is needed as the shared state is not expected to be modified frequently.
      */
     struct SharedState {
-        AtomicWord<int> clusterMaxWireVersion;
+        Atomic<int> clusterMaxWireVersion;
     };
 
     EgressSession(TransportLayer* tl,
@@ -507,7 +507,7 @@ private:
 
     const std::shared_ptr<GRPCReactor> _reactor;
 
-    AtomicWord<bool> _checkedWireVersion;
+    Atomic<bool> _checkedWireVersion;
     const std::shared_ptr<ClientContext> _ctx;
     const std::shared_ptr<ClientStream> _stream;
     UUID _channelId;
@@ -518,5 +518,5 @@ private:
     boost::optional<SSLConfiguration> _sslConfig;
 };
 
-}  // namespace MONGO_MOD_PARENT_PRIVATE grpc
+}  // namespace grpc
 }  // namespace mongo::transport

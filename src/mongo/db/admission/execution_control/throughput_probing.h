@@ -35,7 +35,7 @@
 #include "mongo/db/client.h"
 #include "mongo/db/service_context.h"
 #include "mongo/db/tenant_id.h"
-#include "mongo/platform/atomic_word.h"
+#include "mongo/platform/atomic.h"
 #include "mongo/util/duration.h"
 #include "mongo/util/modules.h"
 #include "mongo/util/periodic_runner.h"
@@ -49,17 +49,17 @@
 namespace mongo {
 namespace admission {
 namespace execution_control {
-namespace MONGO_MOD_PUBLIC throughput_probing {
+namespace [[MONGO_MOD_PUBLIC]] throughput_probing {
 
-class MONGO_MOD_PRIVATE ThroughputProbingTest;
-class MONGO_MOD_PRIVATE InitStateWarningTest;
+class [[MONGO_MOD_PRIVATE]] ThroughputProbingTest;
+class [[MONGO_MOD_PRIVATE]] InitStateWarningTest;
 
-MONGO_MOD_PRIVATE Status validateInitialConcurrency(int32_t concurrency,
+[[MONGO_MOD_PRIVATE]] Status validateInitialConcurrency(int32_t concurrency,
+                                                        const boost::optional<TenantId>&);
+[[MONGO_MOD_PRIVATE]] Status validateMinConcurrency(int32_t concurrency,
                                                     const boost::optional<TenantId>&);
-MONGO_MOD_PRIVATE Status validateMinConcurrency(int32_t concurrency,
-                                                const boost::optional<TenantId>&);
-MONGO_MOD_PRIVATE Status validateMaxConcurrency(int32_t concurrency,
-                                                const boost::optional<TenantId>&);
+[[MONGO_MOD_PRIVATE]] Status validateMaxConcurrency(int32_t concurrency,
+                                                    const boost::optional<TenantId>&);
 
 /**
  * on_update callback for the throughputProbingConcurrencyAdjustmentIntervalMillis parameter.
@@ -67,14 +67,14 @@ MONGO_MOD_PRIVATE Status validateMaxConcurrency(int32_t concurrency,
  */
 Status onUpdateConcurrencyAdjustmentIntervalMillis(const int32_t& newValue);
 
-}  // namespace MONGO_MOD_PUBLIC throughput_probing
+}  // namespace throughput_probing
 
 /**
  * Adjusts the level of concurrency on the read and write ticket holders by probing up/down and
  * attempting to maximize throughput. Assumes both ticket holders have the same starting
  * concurrency level and always keeps the same concurrency level for both.
  */
-class MONGO_MOD_PUBLIC ThroughputProbing {
+class [[MONGO_MOD_PUBLIC]] ThroughputProbing {
 public:
     ThroughputProbing(ServiceContext* svcCtx,
                       TicketHolder* readTicketHolder,
@@ -136,14 +136,14 @@ private:
     struct Stats {
         void serialize(BSONObjBuilder& builder) const;
 
-        AtomicWord<int64_t> timesDecreased;
-        AtomicWord<int64_t> timesIncreased;
-        AtomicWord<int64_t> totalAmountDecreased;
-        AtomicWord<int64_t> totalAmountIncreased;
-        AtomicWord<int64_t> resizeDurationMicros;
-        AtomicWord<int64_t> timesProbedStable;
-        AtomicWord<int64_t> timesProbedUp;
-        AtomicWord<int64_t> timesProbedDown;
+        Atomic<int64_t> timesDecreased;
+        Atomic<int64_t> timesIncreased;
+        Atomic<int64_t> totalAmountDecreased;
+        Atomic<int64_t> totalAmountIncreased;
+        Atomic<int64_t> resizeDurationMicros;
+        Atomic<int64_t> timesProbedStable;
+        Atomic<int64_t> timesProbedUp;
+        Atomic<int64_t> timesProbedDown;
     } _stats;
 
     mutable std::mutex _mutex;

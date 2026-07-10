@@ -30,7 +30,7 @@
 #pragma once
 
 #include "mongo/base/secure_allocator.h"
-#include "mongo/platform/atomic_word.h"
+#include "mongo/platform/atomic.h"
 #include "mongo/util/modules.h"
 
 #include <cstddef>
@@ -43,7 +43,7 @@
 #include <boost/optional.hpp>
 #include <boost/optional/optional.hpp>
 
-namespace MONGO_MOD_PUBLIC mongo {
+namespace [[MONGO_MOD_PUBLIC]] mongo {
 class Status;
 
 class SymmetricKeyId {
@@ -152,8 +152,8 @@ private:
     SymmetricKeyId _keyId;
 
     uint32_t _initializationCount;
-    mutable AtomicWord<unsigned long long> _invocationCount;
+    mutable Atomic<unsigned long long> _invocationCount;
 };
 
 using UniqueSymmetricKey = std::unique_ptr<SymmetricKey>;
-}  // namespace MONGO_MOD_PUBLIC mongo
+}  // namespace mongo

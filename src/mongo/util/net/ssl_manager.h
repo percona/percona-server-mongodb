@@ -43,7 +43,7 @@
 #include "mongo/bson/bsonobj.h"
 #include "mongo/db/service_context.h"
 #include "mongo/logv2/attribute_storage.h"
-#include "mongo/platform/atomic_word.h"
+#include "mongo/platform/atomic.h"
 #include "mongo/util/decorable.h"
 #include "mongo/util/modules.h"
 #include "mongo/util/net/sock.h"
@@ -63,7 +63,7 @@
 #endif
 #endif  // #ifdef MONGO_CONFIG_SSL
 
-namespace MONGO_MOD_PUBLIC mongo {
+namespace [[MONGO_MOD_PUBLIC]] mongo {
 
 /*
  * @return the SSL version std::string prefixed with prefix and suffixed with suffix
@@ -79,10 +79,10 @@ Status validateOpensslCipherConfig(const std::string&, const boost::optional<Ten
  * Validation callback for setParameter 'disableNonTLSConnectionLogging'.
  */
 Status validateDisableNonTLSConnectionLogging(const bool&, const boost::optional<TenantId>&);
-}  // namespace MONGO_MOD_PUBLIC mongo
+}  // namespace mongo
 
 #ifdef MONGO_CONFIG_SSL
-namespace MONGO_MOD_PUBLIC mongo {
+namespace [[MONGO_MOD_PUBLIC]] mongo {
 struct SSLParams;
 class TransientSSLParams;
 
@@ -167,11 +167,11 @@ const ASN1OID mongodbClusterMembershipOID(
  * Counts of negogtiated version used by TLS connections.
  */
 struct TLSVersionCounts {
-    AtomicWord<long long> tlsUnknown;
-    AtomicWord<long long> tls10;
-    AtomicWord<long long> tls11;
-    AtomicWord<long long> tls12;
-    AtomicWord<long long> tls13;
+    Atomic<long long> tlsUnknown;
+    Atomic<long long> tls10;
+    Atomic<long long> tls11;
+    Atomic<long long> tls12;
+    Atomic<long long> tls13;
 
     static TLSVersionCounts& get(ServiceContext* serviceContext);
 };
@@ -556,5 +556,5 @@ void logSSLInfo(const SSLInformationToLog& info,
 void logCert(const CertInformationToLog& cert, std::string_view certType, int logNum);
 void logCRL(const CRLInformationToLog& crl, int logNum);
 
-}  // namespace MONGO_MOD_PUBLIC mongo
+}  // namespace mongo
 #endif  // #ifdef MONGO_CONFIG_SSL

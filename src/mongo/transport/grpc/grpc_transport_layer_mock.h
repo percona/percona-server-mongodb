@@ -31,7 +31,7 @@
 
 #include "mongo/db/service_context.h"
 #include "mongo/db/service_context_test_fixture.h"
-#include "mongo/platform/atomic_word.h"
+#include "mongo/platform/atomic.h"
 #include "mongo/transport/grpc/grpc_transport_layer.h"
 #include "mongo/transport/grpc/mock_client.h"
 #include "mongo/transport/grpc/reactor.h"
@@ -45,7 +45,7 @@
 #include <memory>
 
 namespace mongo::transport {
-namespace MONGO_MOD_PARENT_PRIVATE grpc {
+namespace [[MONGO_MOD_PARENT_PRIVATE]] grpc {
 
 class Service;
 
@@ -146,7 +146,7 @@ public:
 private:
     enum class StartupState { kNotStarted, kSetup, kStarted, kShutDown };
 
-    AtomicWord<StartupState> _startupState;
+    Atomic<StartupState> _startupState;
 
     std::vector<HostAndPort> _listenAddresses;
     std::shared_ptr<Client> _client;
@@ -217,5 +217,5 @@ private:
                                                               logv2::LogSeverity::Debug(4)};
 };
 
-}  // namespace MONGO_MOD_PARENT_PRIVATE grpc
+}  // namespace grpc
 }  // namespace mongo::transport

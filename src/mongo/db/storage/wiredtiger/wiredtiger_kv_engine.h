@@ -59,7 +59,6 @@
 #include "mongo/db/tenant_id.h"
 #include "mongo/logv2/log_component.h"
 #include "mongo/platform/atomic.h"
-#include "mongo/platform/atomic_word.h"
 #include "mongo/stdx/condition_variable.h"
 #include "mongo/util/clock_source.h"
 #include "mongo/util/concurrency/with_lock.h"
@@ -1029,21 +1028,21 @@ private:
     Timestamp _recoveryTimestamp;
 
     // Tracks the stable and oldest timestamps we've set on the storage engine.
-    AtomicWord<std::uint64_t> _oldestTimestamp;
-    AtomicWord<std::uint64_t> _stableTimestamp;
+    Atomic<std::uint64_t> _oldestTimestamp;
+    Atomic<std::uint64_t> _stableTimestamp;
 
     // Timestamp of data at startup. Used internally to advise checkpointing and recovery to a
     // timestamp. Provided by replication layer because WT does not persist timestamps.
-    AtomicWord<std::uint64_t> _initialDataTimestamp;
+    Atomic<std::uint64_t> _initialDataTimestamp;
 
-    AtomicWord<std::uint64_t> _oplogNeededForCrashRecovery;
+    Atomic<std::uint64_t> _oplogNeededForCrashRecovery;
 
     mutable std::mutex _oldestTimestampPinRequestsMutex;
     std::map<std::string, Timestamp> _oldestTimestampPinRequests;
 
     // Pins the oplog so that OplogTruncateMarkers will not truncate oplog history equal or newer to
     // this timestamp.
-    AtomicWord<std::uint64_t> _pinnedOplogTimestamp;
+    Atomic<std::uint64_t> _pinnedOplogTimestamp;
 
     std::mutex _checkpointMutex;
 
@@ -1055,8 +1054,8 @@ private:
     // successfully been checkpointed or not.
     //
     // This is valid because durability is a state all operations will converge to eventually.
-    AtomicWord<std::uint64_t> _currentCheckpointIteration{0};
-    AtomicWord<std::uint64_t> _finishedCheckpointIteration{0};
+    Atomic<std::uint64_t> _currentCheckpointIteration{0};
+    Atomic<std::uint64_t> _finishedCheckpointIteration{0};
 
     // Protects getting and setting the _journalListener below.
     std::mutex _journalListenerMutex;
@@ -1073,7 +1072,7 @@ private:
     synchronized_value<FlushAllFilesObserver*> _flushAllFilesObserver{nullptr};
 
     // Counter and critical section mutex for waitUntilDurable
-    AtomicWord<unsigned> _lastSyncTime;
+    Atomic<unsigned> _lastSyncTime;
     std::mutex _lastSyncMutex;
 
     // A long-lived session for ensuring data is periodically flushed to disk.
@@ -1108,7 +1107,7 @@ private:
     std::multiset<uint64_t> _pinnedAllDurableTimestamps;
     // Lock-free snapshot of the minimum pinned timestamp. Set to max uint64 when no pins
     // exist. Writers update this under _allDurablePinMutex; readers load it without locking.
-    AtomicWord<uint64_t> _minPinnedTimestamp{std::numeric_limits<uint64_t>::max()};
+    Atomic<uint64_t> _minPinnedTimestamp{std::numeric_limits<uint64_t>::max()};
 
     // Reference to the persistence provider for accessing storage configuration.
     rss::PersistenceProvider& _provider;
@@ -1117,7 +1116,7 @@ private:
 /**
  * Generates config string for wiredtiger_open() from the given config options.
  */
-MONGO_MOD_USE_REPLACEMENT(jstest)
+[[MONGO_MOD_USE_REPLACEMENT(jstest)]]
 std::string generateWTOpenConfigString(const WiredTigerKVEngineBase::WiredTigerConfig& wtConfig,
                                        std::string_view extensionsConfig,
                                        std::string_view providerConfig);
@@ -1126,7 +1125,7 @@ std::string generateWTOpenConfigString(const WiredTigerKVEngineBase::WiredTigerC
  * Returns a WiredTigerKVEngineBase::WiredTigerConfig populated with config values provided at
  * startup.
  */
-MONGO_MOD_USE_REPLACEMENT(jstest)
+[[MONGO_MOD_USE_REPLACEMENT(jstest)]]
 WiredTigerKVEngineBase::WiredTigerConfig getWiredTigerConfigFromStartupOptions(
     const rss::PersistenceProvider&);
 

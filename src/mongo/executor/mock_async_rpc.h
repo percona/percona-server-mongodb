@@ -50,7 +50,7 @@
 #include "mongo/executor/async_rpc_targeter.h"
 #include "mongo/executor/remote_command_response.h"
 #include "mongo/executor/task_executor.h"
-#include "mongo/platform/atomic_word.h"
+#include "mongo/platform/atomic.h"
 #include "mongo/stdx/condition_variable.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/cancellation.h"
@@ -78,7 +78,7 @@
 #include <vector>
 
 namespace mongo {
-namespace MONGO_MOD_PUBLIC async_rpc {
+namespace [[MONGO_MOD_PUBLIC]] async_rpc {
 
 /**
  * This header provides two mock implementations of the async_rpc::sendCommand API. In
@@ -121,7 +121,7 @@ public:
     HostAndPort _target;
 
 private:
-    AtomicWord<bool> _finished{false};
+    Atomic<bool> _finished{false};
     Promise<BSONObj> _responsePromise;
 };
 
@@ -427,5 +427,5 @@ public:
     }
 };
 
-}  // namespace MONGO_MOD_PUBLIC async_rpc
+}  // namespace async_rpc
 }  // namespace mongo

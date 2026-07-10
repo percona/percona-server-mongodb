@@ -38,7 +38,7 @@
 #include "mongo/db/service_context.h"
 #include "mongo/db/sharding_environment/shard_shared_state_cache.h"
 #include "mongo/logv2/log.h"
-#include "mongo/platform/atomic_word.h"
+#include "mongo/platform/atomic.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/str.h"
 
@@ -199,9 +199,10 @@ Shard::RetryStrategy::RetryStrategy(AdaptiveRetryStrategy::RetryCriteria retryCr
 bool Shard::RetryStrategy::recordFailureAndEvaluateShouldRetry(
     Status s,
     const boost::optional<HostAndPort>& target,
-    std::span<const std::string> errorLabels) {
-    const bool willRetry =
-        _underlyingStrategy.recordFailureAndEvaluateShouldRetry(s, target, errorLabels);
+    std::span<const std::string> errorLabels,
+    boost::optional<Milliseconds> baseBackoffMS) {
+    const bool willRetry = _underlyingStrategy.recordFailureAndEvaluateShouldRetry(
+        s, target, errorLabels, baseBackoffMS);
 
     _recordOperationAttempted();
 

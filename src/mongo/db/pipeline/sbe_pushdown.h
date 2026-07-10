@@ -54,13 +54,4 @@ void attachPipelineStages(const MultipleCollectionAccessor& collections,
                           bool needsMerge,
                           CanonicalQuery* canonicalQuery,
                           std::unique_ptr<QueryPlannerParams> plannerParams);
-
-/**
- * Set the minimum required compatibility based on the 'featureFlagSbeFull' and the
- * query framework control knob. If 'featureFlagSbeFull' is true, set the compatibility to
- * 'requiresSbeFull'; otherwise,  if query framework control knob is 'trySbeEngine', set
- * compatibility to 'requiresTrySbe'; otherwise set it to 'noRequirements'.
- */
-SbeCompatibility getMinRequiredSbeCompatibility(QueryFrameworkControlEnum currentQueryKnobFramework,
-                                                bool sbeFullEnabled);
 }  // namespace mongo

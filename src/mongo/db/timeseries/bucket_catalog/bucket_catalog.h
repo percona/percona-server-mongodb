@@ -63,7 +63,7 @@
 
 #include <boost/optional/optional.hpp>
 
-MONGO_MOD_PUBLIC;
+[[MONGO_MOD_PUBLIC]];
 namespace mongo::timeseries::bucket_catalog {
 
 using StripeNumber = std::uint8_t;
@@ -186,7 +186,7 @@ public:
     tracking::unordered_map<UUID, tracking::shared_ptr<ExecutionStats>> executionStats;
 
     // Atomic mirror of executionStats.size() — updated under 'mutex', read lock-free by FTDC.
-    AtomicWord<int32_t> numExecutionStatsEntries{0};
+    Atomic<int32_t> numExecutionStatsEntries{0};
 
     // Global execution stats used to report aggregated metrics in server status.
     ExecutionStats globalExecutionStats;

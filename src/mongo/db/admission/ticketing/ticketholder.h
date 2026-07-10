@@ -33,7 +33,7 @@
 #include "mongo/db/admission/ticketing/admission_context.h"
 #include "mongo/db/admission/ticketing/ticket_semaphore.h"
 #include "mongo/db/service_context.h"
-#include "mongo/platform/atomic_word.h"
+#include "mongo/platform/atomic.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/concurrency/with_lock.h"
 #include "mongo/util/modules.h"
@@ -58,7 +58,7 @@ class Ticket;
  * Additionally, it tracks queue and processing statistics (wait times, queue depth, cancellations,
  * peak usage) and fires observer callbacks on acquisition, release, and delinquent operations.
  */
-class MONGO_MOD_PUBLIC TicketHolder {
+class [[MONGO_MOD_PUBLIC]] TicketHolder {
     friend class Ticket;
 
 public:
@@ -196,9 +196,9 @@ public:
      */
     int64_t numFinishedProcessing() const;
 
-    MONGO_MOD_PRIVATE void setNumFinishedProcessing_forTest(int64_t numFinishedProcessing);
+    [[MONGO_MOD_PRIVATE]] void setNumFinishedProcessing_forTest(int64_t numFinishedProcessing);
 
-    MONGO_MOD_PRIVATE void setPeakUsed_forTest(int used);
+    [[MONGO_MOD_PRIVATE]] void setPeakUsed_forTest(int used);
 
     /**
      * Appends all queue and delinquency stats.
@@ -237,17 +237,17 @@ private:
      * tickets.
      */
     struct QueueStats {
-        AtomicWord<std::int64_t> totalAddedQueue{0};
-        AtomicWord<std::int64_t> totalRemovedQueue{0};
-        AtomicWord<std::int64_t> totalFinishedProcessing{0};
-        AtomicWord<std::int64_t> totalNewAdmissions{0};
-        AtomicWord<std::int64_t> totalTimeProcessingMicros{0};
-        AtomicWord<std::int64_t> totalStartedProcessing{0};
-        AtomicWord<std::int64_t> totalCanceled{0};
-        AtomicWord<std::int64_t> totalTimeQueuedMicros{0};
+        Atomic<std::int64_t> totalAddedQueue{0};
+        Atomic<std::int64_t> totalRemovedQueue{0};
+        Atomic<std::int64_t> totalFinishedProcessing{0};
+        Atomic<std::int64_t> totalNewAdmissions{0};
+        Atomic<std::int64_t> totalTimeProcessingMicros{0};
+        Atomic<std::int64_t> totalStartedProcessing{0};
+        Atomic<std::int64_t> totalCanceled{0};
+        Atomic<std::int64_t> totalTimeQueuedMicros{0};
         // Instantaneous sum of the admission counts (i.e. number of yields) of all operations
         // currently waiting in the queue.
-        AtomicWord<std::int64_t> queuedOperationsTotalAdmissions{0};
+        Atomic<std::int64_t> queuedOperationsTotalAdmissions{0};
     };
 
     /**
@@ -313,7 +313,7 @@ private:
  * RAII-style movable token that gets generated when a ticket is acquired and is automatically
  * released when going out of scope.
  */
-class MONGO_MOD_PUBLIC Ticket {
+class [[MONGO_MOD_PUBLIC]] Ticket {
     Ticket(const Ticket&) = delete;
     Ticket& operator=(const Ticket&) = delete;
 

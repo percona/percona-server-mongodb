@@ -40,7 +40,7 @@
 #include "mongo/executor/remote_command_request.h"
 #include "mongo/executor/remote_command_response.h"
 #include "mongo/executor/task_executor.h"
-#include "mongo/platform/atomic_word.h"
+#include "mongo/platform/atomic.h"
 #include "mongo/rpc/metadata/metadata_hook.h"
 #include "mongo/stdx/condition_variable.h"
 #include "mongo/stdx/thread.h"
@@ -74,7 +74,7 @@ namespace mongo {
 namespace executor {
 using namespace std::literals::string_view_literals;
 
-class MONGO_MOD_NEEDS_REPLACEMENT NetworkInterfaceTL : public NetworkInterface {
+class [[MONGO_MOD_NEEDS_REPLACEMENT]] NetworkInterfaceTL : public NetworkInterface {
 public:
     NetworkInterfaceTL(std::string instanceName,
                        std::shared_ptr<AsyncClientFactory> factory,
@@ -125,7 +125,7 @@ public:
                     Milliseconds timeout,
                     Status status) override;
 
-    MONGO_MOD_NEEDS_REPLACEMENT const AsyncClientFactory& getClientFactory_forTest() const {
+    [[MONGO_MOD_NEEDS_REPLACEMENT]] const AsyncClientFactory& getClientFactory_forTest() const {
         return *_clientFactory;
     }
 
@@ -353,7 +353,7 @@ private:
     // shutdown() will block until this list is empty.
     stdx::unordered_map<TaskExecutor::CallbackHandle, std::weak_ptr<CommandStateBase>> _inProgress;
 
-    AtomicWord<std::uint64_t> nextAlarmId{0};
+    Atomic<std::uint64_t> nextAlarmId{0};
     stdx::unordered_map<std::uint64_t, std::weak_ptr<AlarmState>> _inProgressAlarms;
 
     stdx::condition_variable _workReadyCond;

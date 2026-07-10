@@ -30,7 +30,7 @@
 #pragma once
 
 #include "mongo/db/service_context.h"
-#include "mongo/platform/atomic_word.h"
+#include "mongo/platform/atomic.h"
 #include "mongo/stdx/condition_variable.h"
 #include "mongo/stdx/thread.h"
 #include "mongo/util/duration.h"
@@ -46,7 +46,7 @@
 
 #include <boost/filesystem/path.hpp>
 
-namespace MONGO_MOD_PUBLIC mongo {
+namespace [[MONGO_MOD_PUBLIC]] mongo {
 using namespace std::literals::string_view_literals;
 
 class OperationContext;
@@ -119,7 +119,7 @@ private:
  * - sleep(period)
  * - callback
  */
-class MONGO_MOD_OPEN WatchdogPeriodicThread {
+class [[MONGO_MOD_OPEN]] WatchdogPeriodicThread {
 public:
     WatchdogPeriodicThread(Milliseconds period, std::string_view threadName);
     virtual ~WatchdogPeriodicThread() = default;
@@ -245,10 +245,10 @@ private:
 
     // A counter that is incremented for each watchdog check completed, and monitored to ensure it
     // does not remain at the same value for too long.
-    AtomicWord<long long> _checkGeneration{0};
+    Atomic<long long> _checkGeneration{0};
 
     // If _shouldRunChecks is false, make each check a no-op.
-    AtomicWord<bool> _shouldRunChecks{true};
+    Atomic<bool> _shouldRunChecks{true};
 };
 
 /**
@@ -279,7 +279,7 @@ private:
     WatchdogCheckThread* _checkThread;
 
     // A counter that is incremented for each watchdog monitor run is completed.
-    AtomicWord<long long> _monitorGeneration{0};
+    Atomic<long long> _monitorGeneration{0};
 
     // The last seen _checkGeneration value
     std::int64_t _lastSeenGeneration{-1};
@@ -348,7 +348,7 @@ public:
     /**
      * Gets whether checks are paused or not. For testing purposes only.
      */
-    MONGO_MOD_PUBLIC virtual bool getShouldRunChecks_forTest() = 0;
+    [[MONGO_MOD_PUBLIC]] virtual bool getShouldRunChecks_forTest() = 0;
 };
 
 
@@ -447,4 +447,4 @@ private:
     WatchdogMonitorThread _watchdogMonitorThread;
 };
 
-}  // namespace MONGO_MOD_PUBLIC mongo
+}  // namespace mongo

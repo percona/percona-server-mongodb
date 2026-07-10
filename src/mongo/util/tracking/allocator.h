@@ -29,7 +29,7 @@
 
 #pragma once
 
-#include "mongo/platform/atomic_word.h"
+#include "mongo/platform/atomic.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/modules.h"
 
@@ -39,7 +39,7 @@
 #include <thread>
 #include <type_traits>
 
-namespace MONGO_MOD_PUB mongo {
+namespace [[MONGO_MOD_PUBLIC]] mongo {
 namespace tracking {
 
 /**
@@ -92,7 +92,7 @@ private:
     // The counter is signed to handle the case where a thread closes a time-series bucket that
     // deallocates more memory than is going to be allocated.
     struct AlignedAtomic {
-        alignas(std::hardware_destructive_interference_size) AtomicWord<int64_t> value;
+        alignas(std::hardware_destructive_interference_size) Atomic<int64_t> value;
     };
     static_assert(alignof(AlignedAtomic) == std::hardware_destructive_interference_size);
 
@@ -143,4 +143,4 @@ bool operator==(const Allocator<T>& lhs, const Allocator<U>& rhs) {
 }
 
 }  // namespace tracking
-}  // namespace MONGO_MOD_PUB mongo
+}  // namespace mongo

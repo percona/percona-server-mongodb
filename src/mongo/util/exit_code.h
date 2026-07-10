@@ -35,7 +35,7 @@
  * Mongo exit codes.
  */
 
-namespace MONGO_MOD_PUB mongo {
+namespace [[MONGO_MOD_PUBLIC]] mongo {
 
 enum class ExitCode {
     clean = 0,
@@ -76,4 +76,4 @@ enum class ExitCode {
     perconaDataAtRestEncryptionError = 1001
 };
 
-}  // namespace MONGO_MOD_PUB mongo
+}  // namespace mongo

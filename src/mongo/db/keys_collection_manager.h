@@ -37,7 +37,7 @@
 #include "mongo/db/logical_time.h"
 #include "mongo/db/operation_context.h"
 #include "mongo/db/service_context.h"
-#include "mongo/platform/atomic_word.h"
+#include "mongo/platform/atomic.h"
 #include "mongo/stdx/condition_variable.h"
 #include "mongo/stdx/thread.h"
 #include "mongo/util/concurrency/notification.h"
@@ -76,7 +76,7 @@ Milliseconds howMuchSleepNeedFor(const LogicalTime& currentTime,
  * refresh the local key cache against the keys collection stored on the config servers.
  */
 // TODO This class should be parent_private ideally
-class MONGO_MOD_NEEDS_REPLACEMENT KeysCollectionManager {
+class [[MONGO_MOD_NEEDS_REPLACEMENT]] KeysCollectionManager {
 public:
     static const unsigned kReadConcernMajorityNotAvailableYetMaxTries;
     static const Milliseconds kRefreshIntervalIfErrored;
@@ -221,7 +221,7 @@ private:
                                 std::string threadName,
                                 Milliseconds refreshInterval);
 
-        AtomicWord<bool> _hasSeenKeys{false};
+        Atomic<bool> _hasSeenKeys{false};
 
         // protects all the member variables below.
         mutable std::mutex _mutex;

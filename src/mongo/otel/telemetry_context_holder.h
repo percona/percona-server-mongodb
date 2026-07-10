@@ -45,7 +45,7 @@ namespace otel {
  * propagate parent / child relationships between Spans as well as hold metadata to correlate
  * various telemetry data.
  */
-class MONGO_MOD_PUBLIC TelemetryContextHolder {
+class [[MONGO_MOD_PUBLIC]] TelemetryContextHolder {
 public:
     static TelemetryContextHolder& getDecoration(OperationContext* opCtx);
 
@@ -57,6 +57,17 @@ public:
     }
     void clearTelemetryContext() {
         _current.reset();
+    }
+    /**
+     * Clones the current TelemetryContext, and returns nullptr if no context is set. See
+     * TelemetryContext::clone() for more details. Note that it is safe to call Span::start with the
+     * returned value even if it is nullptr.
+     */
+    std::shared_ptr<TelemetryContext> cloneTelemetryContext() {
+        if (!_current) {
+            return nullptr;
+        }
+        return _current->clone();
     }
 
 private:

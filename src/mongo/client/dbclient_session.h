@@ -44,7 +44,7 @@
 #include "mongo/db/write_concern_options.h"
 #include "mongo/executor/remote_command_response.h"
 #include "mongo/logv2/log_severity.h"
-#include "mongo/platform/atomic_word.h"
+#include "mongo/platform/atomic.h"
 #include "mongo/rpc/message.h"
 #include "mongo/rpc/metadata.h"
 #include "mongo/rpc/op_msg.h"
@@ -90,7 +90,7 @@ class DBClientCursor;
  * exception, it is legal to call shutdown() or shutdownAndDisallowReconnect() from any thread as a
  * way to interrupt the owning thread.
  */
-class MONGO_MOD_PUBLIC DBClientSession : public DBClientBase {
+class [[MONGO_MOD_PUBLIC]] DBClientSession : public DBClientBase {
 public:
     /**
      * A hook used to validate the reply of a "hello" command during connection. If the hook
@@ -280,8 +280,8 @@ protected:
     uint64_t _sessionCreationTimeMicros = INVALID_SOCK_CREATION_TIME;
     Date_t _lastConnectivityCheck;
 
-    AtomicWord<bool> _stayFailed{false};
-    AtomicWord<bool> _failed{false};
+    Atomic<bool> _stayFailed{false};
+    Atomic<bool> _failed{false};
     const bool _autoReconnect;
 
     HostAndPort _serverAddress;

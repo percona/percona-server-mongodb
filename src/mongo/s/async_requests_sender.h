@@ -41,6 +41,7 @@
 #include "mongo/executor/remote_command_response.h"
 #include "mongo/executor/scoped_task_executor.h"
 #include "mongo/executor/task_executor.h"
+#include "mongo/otel/telemetry_context.h"
 #include "mongo/stdx/unordered_map.h"
 #include "mongo/util/future.h"
 #include "mongo/util/modules.h"
@@ -94,7 +95,7 @@ namespace mongo {
  *
  * Does not throw exceptions.
  */
-class MONGO_MOD_PUBLIC AsyncRequestsSender {
+class [[MONGO_MOD_PUBLIC]] AsyncRequestsSender {
     AsyncRequestsSender(const AsyncRequestsSender&) = delete;
     AsyncRequestsSender& operator=(const AsyncRequestsSender&) = delete;
 
@@ -302,6 +303,10 @@ private:
         // response if a further retry attempt results in an error signaling a write was not
         // performed.
         boost::optional<RemoteCommandCallbackArgs> _writeConcernErrorRCR;
+
+        // Parent context shared by every attempt's span, so each retry's span is started as a
+        // sibling under the same parent rather than nested under the previous attempt's span.
+        std::shared_ptr<otel::TelemetryContext> _telemetryCtx;
     };
 
     OperationContext* _opCtx;

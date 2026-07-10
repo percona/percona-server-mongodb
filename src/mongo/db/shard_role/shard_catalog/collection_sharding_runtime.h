@@ -72,7 +72,7 @@ namespace mongo {
  * ScopedSharedCollectionShardingRuntime and ScopedExclusiveCollectionShardingRuntime helper
  * classes.
  */
-class MONGO_MOD_USE_REPLACEMENT(CollectionShardingState) CollectionShardingRuntime final
+class [[MONGO_MOD_USE_REPLACEMENT(CollectionShardingState)]] CollectionShardingRuntime final
     : public CollectionShardingState,
       public Decorable<CollectionShardingRuntime> {
     CollectionShardingRuntime(const CollectionShardingRuntime&) = delete;
@@ -266,12 +266,20 @@ public:
      * 'orphanRange' to be processed, even if the collection does not exist in the storage catalog.
      * It will block until the minimum of the operation context's timeout deadline or 'deadline' is
      * reached.
+     *
+     * 'isAuthoritative' selects how a not-known (kUnknown) filtering metadata is treated: when
+     * true, the metadata is recovered from the durable shard catalog and the wait is retried (a
+     * concurrent metadata commit may have transiently cleared it); when false, the historical
+     * behavior of failing with ConflictingOperationInProgress is preserved. This is not derived
+     * from a local feature-flag check: the migration recipient passes whether the migration is
+     * authoritative as communicated by the donor.
      */
     static Status waitForClean(OperationContext* opCtx,
                                const NamespaceString& nss,
                                const UUID& collectionUuid,
                                ChunkRange orphanRange,
-                               Date_t deadline);
+                               Date_t deadline,
+                               bool refreshMetadataIfUnknown = false);
 
     /**
      * Returns a future marked as ready when all the ongoing queries retaining the range complete
@@ -436,7 +444,7 @@ private:
  * Entering the critical section doesn't serialise with concurrent recovery/refresh, because
  * causally such refreshes would have happened *before* the critical section was entered.
  */
-class MONGO_MOD_USE_REPLACEMENT(ShardingMigrationCriticalSection) CollectionCriticalSection {
+class [[MONGO_MOD_USE_REPLACEMENT(ShardingMigrationCriticalSection)]] CollectionCriticalSection {
     CollectionCriticalSection(const CollectionCriticalSection&) = delete;
     CollectionCriticalSection& operator=(const CollectionCriticalSection&) = delete;
 

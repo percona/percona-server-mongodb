@@ -35,7 +35,7 @@
 #include "mongo/db/operation_context.h"
 #include "mongo/executor/remote_command_request.h"
 #include "mongo/executor/task_executor.h"
-#include "mongo/platform/atomic_word.h"
+#include "mongo/platform/atomic.h"
 #include "mongo/stdx/condition_variable.h"
 #include "mongo/util/future.h"
 #include "mongo/util/interruptible.h"
@@ -43,7 +43,7 @@
 #include "mongo/util/net/hostandport.h"
 #include "mongo/util/time_support.h"
 
-MONGO_MOD_PUBLIC;
+[[MONGO_MOD_PUBLIC]];
 
 namespace mongo {
 namespace unittest {
@@ -58,7 +58,7 @@ namespace unittest {
  * - appendConnectionStats()
  * - dropConnections()
  */
-class MONGO_MOD_OPEN TaskExecutorProxy : public executor::TaskExecutor {
+class [[MONGO_MOD_OPEN]] TaskExecutorProxy : public executor::TaskExecutor {
 public:
     /**
      * Does not own target executor.
@@ -105,7 +105,7 @@ public:
 
 private:
     // Not owned by us.
-    AtomicWord<executor::TaskExecutor*> _executor;
+    Atomic<executor::TaskExecutor*> _executor;
 };
 
 }  // namespace unittest

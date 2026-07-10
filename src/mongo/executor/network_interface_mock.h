@@ -38,7 +38,7 @@
 #include "mongo/executor/remote_command_request.h"
 #include "mongo/executor/remote_command_response.h"
 #include "mongo/executor/task_executor.h"
-#include "mongo/platform/atomic_word.h"
+#include "mongo/platform/atomic.h"
 #include "mongo/rpc/metadata/metadata_hook.h"
 #include "mongo/stdx/condition_variable.h"
 #include "mongo/stdx/unordered_map.h"
@@ -109,7 +109,7 @@ class NetworkConnectionHook;
  * be waiting for a response to become available, or for the network thread to move forward and
  * process that response.
  */
-class MONGO_MOD_PUBLIC NetworkInterfaceMock : public NetworkInterface {
+class [[MONGO_MOD_PUBLIC]] NetworkInterfaceMock : public NetworkInterface {
 public:
     class NetworkOperation;
     using NetworkOperationList = std::list<NetworkOperation>;
@@ -538,7 +538,7 @@ private:
     bool _hasStarted;  // (M)
 
     // Set to true by "shutDown()".
-    AtomicWord<bool> _inShutdown;  // (M)
+    Atomic<bool> _inShutdown;  // (M)
 
     // Next date that the executor expects to wake up at (due to a scheduleWorkAt() call).
     Date_t _executorNextWakeupDate;  // (M)

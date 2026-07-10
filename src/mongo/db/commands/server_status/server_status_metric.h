@@ -33,7 +33,7 @@
 #include "mongo/bson/bsonobj.h"
 #include "mongo/bson/bsonobjbuilder.h"
 #include "mongo/db/topology/cluster_role.h"
-#include "mongo/platform/atomic_word.h"
+#include "mongo/platform/atomic.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/modules.h"
 #include "mongo/util/synchronized_value.h"
@@ -222,7 +222,7 @@ private:
     bool _frozen = false;
 };
 
-class MONGO_MOD_PUBLIC MetricTreeSet {
+class [[MONGO_MOD_PUBLIC]] MetricTreeSet {
 public:
     /**
      * Returns the metric tree for the specified ClusterRole.
@@ -242,7 +242,7 @@ private:
     MetricTree _router;
 };
 
-MONGO_MOD_PUBLIC MetricTreeSet& globalMetricTreeSet();
+[[MONGO_MOD_PUBLIC]] MetricTreeSet& globalMetricTreeSet();
 
 
 /**
@@ -255,7 +255,7 @@ void appendMergedTrees(std::vector<const MetricTree*> trees,
                        const BSONObj& excludePaths = {});
 
 template <typename Policy>
-class MONGO_MOD_PUBLIC CustomMetricBuilder {
+class [[MONGO_MOD_PUBLIC]] CustomMetricBuilder {
 public:
     using Metric = BasicServerStatusMetric<Policy>;
 
@@ -352,7 +352,8 @@ using ServerStatusMetricPolicySelectionT = typename ServerStatusMetricPolicySele
  * thread-safety.
  */
 template <typename T>
-using MetricBuilder MONGO_MOD_PUBLIC = CustomMetricBuilder<ServerStatusMetricPolicySelectionT<T>>;
+using MetricBuilder [[MONGO_MOD_PUBLIC]] =
+    CustomMetricBuilder<ServerStatusMetricPolicySelectionT<T>>;
 
 /**
  * Leverage `synchronized_value<T>` to make a thread-safe `T` metric, for `T`

@@ -37,7 +37,7 @@
 #include "mongo/db/operation_context.h"
 #include "mongo/otel/traces/telemetry_context_serialization.h"
 #include "mongo/otel/traces/tracing_enablement.h"
-#include "mongo/platform/atomic_word.h"
+#include "mongo/platform/atomic.h"
 #include "mongo/platform/compiler.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/decorable.h"
@@ -58,7 +58,7 @@ namespace {
 
 // Used to generate unique identifiers for requests so they can be traced throughout the
 // asynchronous networking logs
-AtomicWord<unsigned long long> requestIdCounter(0);
+Atomic<unsigned long long> requestIdCounter(0);
 
 }  // namespace
 
@@ -81,7 +81,8 @@ RemoteCommandRequest::RemoteCommandRequest(const HostAndPort& target_,
       opCtx(opCtx_),
       timeout(options_.timeout),
       fireAndForget(options_.fireAndForget),
-      operationKey(options_.operationKey) {
+      operationKey(options_.operationKey),
+      telemetryContext(options_.telemetryContext) {
 
     // If there is a comment associated with the current operation, append it to the command that we
     // are about to dispatch to the shards.

@@ -34,7 +34,7 @@
 #include "mongo/config.h"  // IWYU pragma: keep
 #include "mongo/db/server_options.h"
 #include "mongo/db/service_context.h"
-#include "mongo/platform/atomic_word.h"
+#include "mongo/platform/atomic.h"
 #include "mongo/transport/transport_layer.h"
 #include "mongo/transport/transport_layer_manager.h"
 #include "mongo/util/modules.h"
@@ -51,7 +51,8 @@
 namespace mongo::transport {
 class ClientTransportObserver;
 
-class MONGO_MOD_NEEDS_REPLACEMENT TransportLayerManagerImpl final : public TransportLayerManager {
+class [[MONGO_MOD_NEEDS_REPLACEMENT]] TransportLayerManagerImpl final
+    : public TransportLayerManager {
     TransportLayerManagerImpl(const TransportLayerManagerImpl&) = delete;
     TransportLayerManagerImpl& operator=(const TransportLayerManagerImpl&) = delete;
 

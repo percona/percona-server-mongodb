@@ -146,7 +146,7 @@ public:
               _options(options),
               _expanded([&] {
                   auto expandedList = expand();
-                  tassert(10905600,
+                  tassert(ErrorCodes::ExtensionError,
                           "LiteParsedExpandable must not have an empty expanded pipeline",
                           !expandedList.empty());
 
@@ -345,7 +345,7 @@ public:
             if (const auto& requiredPrivileges = _properties.getRequiredPrivileges()) {
                 for (const auto& rp : *requiredPrivileges) {
                     tassert(
-                        11350602,
+                        ErrorCodes::ExtensionError,
                         "Only 'namespace' resourcePattern is supported for extension privileges",
                         rp.getResourcePattern() ==
                             MongoExtensionPrivilegeResourcePatternEnum::kNamespace);
@@ -355,7 +355,7 @@ public:
                         actions.addAction(static_properties_util::toActionType(entry.getAction()));
                     }
 
-                    tassert(11350600,
+                    tassert(ErrorCodes::ExtensionError,
                             "requiredPrivileges.actions must not be empty.",
                             !actions.empty());
                     Privilege::addPrivilegeToPrivilegeVector(
@@ -446,9 +446,15 @@ public:
 
         if (expCtx->getInLookup() && !hybridSearchFlagEnabled) {
             const auto stageName = std::string(astNode->getName());
+            // Throw the IFR retry error for extension $vectorSearch in $lookup when
+            // featureFlagExtensionsInsideHybridSearch is disabled.
+            search_helpers::throwIfrKickbackIfNecessary(
+                search_helpers::isExtensionVectorSearchStage(stageName),
+                feature_flags::gFeatureFlagVectorSearchExtension,
+                vector_search_metrics::inLookupKickbackRetryCount,
+                "The $vectorSearch extension stage is not supported in a $lookup");
             // Throw the IFR retry error for extension $search/$searchMeta in $lookup when
-            // featureFlagExtensionsInsideHybridSearch is disabled. $vectorSearch is handled
-            // separately via LookupRequirement::kNotAllowed and is not covered here.
+            // featureFlagExtensionsInsideHybridSearch is disabled.
             search_helpers::throwIfrKickbackIfNecessary(
                 search_helpers::isExtensionSearchStage(stageName),
                 feature_flags::gFeatureFlagSearchExtension,

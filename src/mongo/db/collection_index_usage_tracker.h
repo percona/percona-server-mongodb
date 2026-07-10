@@ -31,7 +31,7 @@
 
 #include "mongo/bson/bsonobj.h"
 #include "mongo/db/aggregated_index_usage_tracker.h"
-#include "mongo/platform/atomic_word.h"
+#include "mongo/platform/atomic.h"
 #include "mongo/util/intrusive_counter.h"
 #include "mongo/util/modules.h"
 #include "mongo/util/string_map.h"
@@ -64,8 +64,8 @@ class CollectionIndexUsageTracker
 
     // Statistics that are shared among versions of the same logical collection.
     struct CollectionScanStatsStorage : public RefCountable {
-        AtomicWord<unsigned long long> _collectionScans{0};
-        AtomicWord<unsigned long long> _collectionScansNonTailable{0};
+        Atomic<unsigned long long> _collectionScans{0};
+        Atomic<unsigned long long> _collectionScansNonTailable{0};
     };
 
 public:
@@ -94,7 +94,7 @@ public:
         }
 
         // Number of operations that have used this index.
-        AtomicWord<long long> accesses;
+        Atomic<long long> accesses;
 
         // Date/Time that we started tracking index usage.
         Date_t trackerStartTime;
@@ -135,9 +135,9 @@ public:
      * Must be called under an exclusive collection lock in order to serialize calls to
      * registerIndex() and unregisterIndex().
      */
-    MONGO_MOD_PUBLIC void registerIndex(std::string_view indexName,
-                                        const BSONObj& indexKey,
-                                        const IndexFeatures& features);
+    [[MONGO_MOD_PUBLIC]] void registerIndex(std::string_view indexName,
+                                            const BSONObj& indexKey,
+                                            const IndexFeatures& features);
 
     /**
      * Erase statistics for index 'indexName'. Can be safely called even if indexName is not
@@ -146,7 +146,7 @@ public:
      * Must be called under an exclusive collection lock in order to serialize calls to
      * registerIndex() and unregisterIndex().
      */
-    MONGO_MOD_PUBLIC void unregisterIndex(std::string_view indexName);
+    [[MONGO_MOD_PUBLIC]] void unregisterIndex(std::string_view indexName);
 
     /**
      * Get the current state of the usage statistics map. This map will only include indexes that

@@ -33,7 +33,7 @@
 #include "mongo/client/dbclient_base.h"
 #include "mongo/client/mongo_uri.h"
 #include "mongo/executor/connection_pool_stats.h"
-#include "mongo/platform/atomic_word.h"
+#include "mongo/platform/atomic.h"
 #include "mongo/stdx/condition_variable.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/background.h"
@@ -52,7 +52,7 @@
 
 #include <boost/move/utility_core.hpp>
 
-namespace MONGO_MOD_PUBLIC mongo {
+namespace [[MONGO_MOD_PUBLIC]] mongo {
 
 class BSONObjBuilder;
 
@@ -281,10 +281,10 @@ private:
 
     stdx::condition_variable _cv;
 
-    AtomicWord<bool> _inShutdown;
+    Atomic<bool> _inShutdown;
 };
 
-class MONGO_MOD_OPEN DBConnectionHook {
+class [[MONGO_MOD_OPEN]] DBConnectionHook {
 public:
     virtual ~DBConnectionHook() = default;
     virtual void onCreate(DBClientBase* conn) {}
@@ -376,8 +376,8 @@ public:
      * Gets the time it took for the last connection to be established from the PoolMap given a host
      * and timeout.
      */
-    MONGO_MOD_PUBLIC Milliseconds getPoolHostConnTime_forTest(const std::string& host,
-                                                              double timeout) const;
+    [[MONGO_MOD_PUBLIC]] Milliseconds getPoolHostConnTime_forTest(const std::string& host,
+                                                                  double timeout) const;
 
     /**
      * Gets the number of connections available in the pool.
@@ -462,7 +462,7 @@ private:
 
     PoolMap _pools;
 
-    AtomicWord<bool> _inShutdown;
+    Atomic<bool> _inShutdown;
 
     // pointers owned by me, right now they leak on shutdown
     // _hooks itself also leaks because it creates a shutdown race condition
@@ -498,7 +498,7 @@ public:
     }
 
 private:
-    static AtomicWord<int> _numConnections;
+    static Atomic<int> _numConnections;
 };
 
 /** Use to get a connection from the pool.  On exceptions things
@@ -573,4 +573,4 @@ private:
     const double _socketTimeoutSecs;
 };
 
-}  // namespace MONGO_MOD_PUBLIC mongo
+}  // namespace mongo

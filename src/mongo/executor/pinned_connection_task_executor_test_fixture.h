@@ -51,7 +51,7 @@
 namespace mongo::executor {
 
 
-class MONGO_MOD_OPEN PinnedConnectionTaskExecutorTest : public ThreadPoolExecutorTest {
+class [[MONGO_MOD_OPEN]] PinnedConnectionTaskExecutorTest : public ThreadPoolExecutorTest {
     using SinkMessageCbT = std::function<Status(Message)>;
     using SourceMessageCbT = std::function<StatusWith<Message>()>;
 
@@ -251,10 +251,10 @@ private:
 protected:
     // Track the success/used/failure/destruction calls across LeasedStreams created via this
     // fixture. Accessible to children so tests can read them directly.
-    AtomicWord<size_t> _indicateSuccessCalls{0};
-    AtomicWord<size_t> _indicateUsedCalls{0};
-    AtomicWord<size_t> _indicateFailureCalls{0};
-    AtomicWord<size_t> _streamDestroyedCalls{0};
+    Atomic<size_t> _indicateSuccessCalls{0};
+    Atomic<size_t> _indicateUsedCalls{0};
+    Atomic<size_t> _indicateFailureCalls{0};
+    Atomic<size_t> _streamDestroyedCalls{0};
 };
 
 

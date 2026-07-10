@@ -31,7 +31,7 @@
 
 #include "mongo/base/status.h"
 #include "mongo/db/client.h"
-#include "mongo/platform/atomic_word.h"
+#include "mongo/platform/atomic.h"
 #include "mongo/transport/hello_metrics.h"
 #include "mongo/transport/service_executor.h"
 #include "mongo/transport/session.h"
@@ -53,7 +53,7 @@ namespace transport {
  * also provides facilities for terminating sessions and attaching handlers that are invoked during
  * different stages of the Sessions' lifecycles.
  */
-class MONGO_MOD_PUBLIC SessionManager {
+class [[MONGO_MOD_PUBLIC]] SessionManager {
 private:
     SessionManager(const SessionManager&) = delete;
     SessionManager& operator=(const SessionManager&) = delete;

@@ -30,11 +30,11 @@
 #pragma once
 
 #include "mongo/bson/bsonobj.h"
-#include "mongo/platform/atomic_word.h"
+#include "mongo/platform/atomic.h"
 #include "mongo/util/modules.h"
 #include "mongo/util/timer.h"
 
-namespace MONGO_MOD_PUBLIC mongo {
+namespace [[MONGO_MOD_PUBLIC]] mongo {
 
 /**
  * Holds timing information in milliseconds. Keeps track of number of times and total milliseconds
@@ -55,8 +55,8 @@ public:
     }
 
 private:
-    AtomicWord<long long> _num;
-    AtomicWord<long long> _totalMillis;
+    Atomic<long long> _num;
+    Atomic<long long> _totalMillis;
 };
 
 /**
@@ -88,4 +88,4 @@ private:
     bool _recorded;
     Timer _t;
 };
-}  // namespace MONGO_MOD_PUBLIC mongo
+}  // namespace mongo

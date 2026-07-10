@@ -68,7 +68,7 @@ public:
     std::string journalCompressor;
     int zstdCompressorLevel;
     // NEEDS REPLACEMENT: this should really be a storage option not a WT option.
-    MONGO_MOD_NEEDS_REPLACEMENT bool directoryForIndexes;
+    [[MONGO_MOD_NEEDS_REPLACEMENT]] bool directoryForIndexes;
     double maxCacheOverflowFileSizeGBDeprecated;
     std::string engineConfig;
     std::string liveRestoreSource;
@@ -97,6 +97,6 @@ public:
 };
 
 // NEEDS REPLACEMENT: this should really be a storage option not a WT option.
-MONGO_MOD_NEEDS_REPLACEMENT extern WiredTigerGlobalOptions wiredTigerGlobalOptions;
+[[MONGO_MOD_NEEDS_REPLACEMENT]] extern WiredTigerGlobalOptions wiredTigerGlobalOptions;
 
 }  // namespace mongo

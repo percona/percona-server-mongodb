@@ -47,7 +47,7 @@
 #include "mongo/db/operation_context.h"
 #include "mongo/db/service_context.h"
 #include "mongo/db/tenant_id.h"
-#include "mongo/platform/atomic_word.h"
+#include "mongo/platform/atomic.h"
 #include "mongo/stdx/condition_variable.h"
 #include "mongo/stdx/unordered_map.h"
 #include "mongo/util/assert_util.h"
@@ -153,6 +153,7 @@ private:
     bool _authEnabled{false};
 
     // A cache of whether there are any users set up for the cluster.
+<<<<<<< HEAD
     AtomicWord<bool> _privilegeDocsExist{false};
 
     /**
@@ -160,6 +161,11 @@ private:
      * Not null only if LDAP authorization configured
      */
     std::unique_ptr<LDAPUserCacheInvalidator> _ldapUserCacheInvalidator;
+||||||| 20943c6c272
+    AtomicWord<bool> _privilegeDocsExist{false};
+=======
+    Atomic<bool> _privilegeDocsExist{false};
+>>>>>>> 0b22cf9c3b6f019e0618ee721ae26f27e2c7f104
 };
 
 }  // namespace mongo

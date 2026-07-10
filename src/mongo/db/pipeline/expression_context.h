@@ -120,9 +120,9 @@ enum class MergeType {
 
 std::ostream& operator<<(std::ostream& os, SbeCompatibility sbeCompat);
 
-enum class MONGO_MOD_PUBLIC ExpressionContextCollationMatchesDefault { kYes, kNo };
+enum class [[MONGO_MOD_PUBLIC]] ExpressionContextCollationMatchesDefault { kYes, kNo };
 
-class MONGO_MOD_PUBLIC ExpressionContext : public RefCountable {
+class [[MONGO_MOD_PUBLIC]] ExpressionContext : public RefCountable {
 public:
     /**
      * An RAII type that will temporarily change the ExpressionContext's collator. Resets the
@@ -717,6 +717,14 @@ public:
         _params.allowDiskUse = allowDiskUse;
     }
 
+    bool getAllowPartialResults() const {
+        return _params.allowPartialResults;
+    }
+
+    void setAllowPartialResults(bool allowPartialResults) {
+        _params.allowPartialResults = allowPartialResults;
+    }
+
     bool getInLookup() const {
         return _params.inLookup;
     }
@@ -803,7 +811,7 @@ public:
 
     // Should only be used to test parsing with the flag. Otherwise, this flag should only be set
     // when creating a new ExpressionContext.
-    MONGO_MOD_NEEDS_REPLACEMENT bool setAllowGenericForeignDbLookup_forTest(
+    [[MONGO_MOD_NEEDS_REPLACEMENT]] bool setAllowGenericForeignDbLookup_forTest(
         bool allowGenericForeignDbLookup) {
         return _params.allowGenericForeignDbLookup = allowGenericForeignDbLookup;
     }
@@ -1223,6 +1231,7 @@ protected:
         MergeType mergeType = MergeType::noMerge;
         bool forPerShardCursor = false;
         bool allowDiskUse = false;
+        bool allowPartialResults = false;
         bool bypassDocumentValidation = false;
         bool isMapReduceCommand = false;
         bool hasWhereClause = false;
