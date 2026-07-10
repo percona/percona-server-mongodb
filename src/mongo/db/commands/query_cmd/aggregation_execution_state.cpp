@@ -621,7 +621,7 @@ bool AggExState::canReadUnderlyingCollectionLocally(const CollectionRoutingInfo&
         if (cm.isSharded()) {
             return false;
         } else if (cm.isUnsplittable()) {
-            return cm.getMinKeyShardIdWithSimpleCollation(_opCtx) == myShardId;
+            return cm.getMinKeyShardIdWithSimpleCollation() == myShardId;
         } else {
             return cri.getDbPrimaryShardId() == myShardId;
         }
@@ -746,8 +746,10 @@ ResolvedViewAggExState::ResolvedViewAggExState(AggExState&& baseState,
           view.timeseries() ? _originalAggReqDerivatives->request.getCollation() : boost::none))),
       _resolvedViewRequest_DO_NOT_USE_DIRECTLY(PipelineResolver::buildRequestWithResolvedPipeline(
           _ifrContext, _resolvedNamespace, _originalAggReqDerivatives->request)),
-      _resolvedViewLiteParsedPipeline_DO_NOT_USE_DIRECTLY(_resolvedViewRequest_DO_NOT_USE_DIRECTLY,
-                                                          true) {
+      _resolvedViewLiteParsedPipeline_DO_NOT_USE_DIRECTLY(
+          _resolvedViewRequest_DO_NOT_USE_DIRECTLY,
+          true,
+          LiteParserOptions{.ifrContext = _ifrContext}) {
     bool isExplain = _originalAggReqDerivatives->request.getExplain().get_value_or(false);
     uassert(std::move(_resolvedNamespace),
             "Explain of a resolved view must be executed by mongos",
@@ -810,7 +812,7 @@ ScopedSetShardRole ResolvedViewAggExState::setShardRole(const CollectionRoutingI
     if (cri.hasRoutingTable()) {
         const auto myShardId = ShardingState::get(_opCtx)->shardId();
 
-        auto sv = cri.getShardVersion(_opCtx, myShardId);
+        auto sv = cri.getShardVersion(myShardId);
         if (optPlacementConflictTimestamp) {
             sv.setPlacementConflictTime_DEPRECATED(*optPlacementConflictTimestamp);
         }

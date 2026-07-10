@@ -26,40 +26,17 @@
  *    exception statement from all source files in the program, then also delete
  *    it in the license file.
  */
-
 #pragma once
 
-#include "mongo/db/service_context.h"
-#include "mongo/otel/metrics/metric_names.h"
-#include "mongo/util/modules.h"
-#include "mongo/util/observable_mutex.h"
-#include "mongo/util/string_map.h"
+#include "mongo/db/commands/server_status/server_status_metric.h"
 
-#include <memory>
+namespace mongo::maxEstimatedScanBytesMetrics {
 
-namespace mongo {
+// Incremented when a query is rejected due to maxEstimatedScanBytes.
+extern Counter64& maxEstimatedScanRejected;
 
-/**
- * Owns the OpenTelemetry counters for observable mutex contention metrics, grouped by mutex tag.
- * Per-tag counters are created lazily on the first collection cycle in which a tag appears.
- */
-class ObservableMutexMetrics {
-public:
-    ObservableMutexMetrics();
-    ~ObservableMutexMetrics();
+// Incremented when maxEstimatedScanBytes would have rejected a query but a $natural hint
+// (command-level or PQS) overrode the restriction.
+extern Counter64& maxEstimatedScanRejectedAndOverridden;
 
-    // This is not thread-safe. It relies on the periodic runner only ever invoking it from a single
-    // thread; concurrent calls are not supported.
-    void update(const StringMap<MutexStats>& statsPerTag);
-
-private:
-    class Impl;
-    static otel::metrics::DynamicMetricNameMaker::Passkey dyn_metric_passkey() {
-        return {};
-    }
-    std::unique_ptr<Impl> _impl;
-};
-
-MONGO_MOD_PUBLIC void installObservableMutexMetrics(ServiceContext* svcCtx);
-
-}  // namespace mongo
+}  // namespace mongo::maxEstimatedScanBytesMetrics

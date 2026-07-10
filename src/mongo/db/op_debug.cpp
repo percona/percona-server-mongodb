@@ -1511,6 +1511,10 @@ CursorMetrics OpDebug::getCursorMetrics(size_t opIndex) const {
     metrics.setCardinalityEstimationMethods(ceMethods);
 
     metrics.setNDocsSampled(additiveMetrics.nDocsSampled.value_or(0));
+
+    if (!additiveMetrics.planShapeCounts.empty()) {
+        metrics.setPlanShapeCounts(additiveMetrics.planShapeCounts);
+    }
     // Only report clusterPeakTrackedMemBytes on the final response so the router won't double count
     // remote shard peaks.
     bool isFinalResponse = cursorExhausted || cursorid == -1;
@@ -1708,6 +1712,7 @@ void OpDebug::AdditiveMetrics::add(const AdditiveMetrics& otherMetrics) {
     peakTrackedMemBytes = maxOptionals(peakTrackedMemBytes, otherMetrics.peakTrackedMemBytes);
     clusterPeakTrackedMemBytes =
         maxOptionals(clusterPeakTrackedMemBytes, otherMetrics.clusterPeakTrackedMemBytes);
+    planShapeCounts.add(otherMetrics.planShapeCounts);
 }
 
 void OpDebug::AdditiveMetrics::aggregateDataBearingNodeMetrics(
@@ -1780,6 +1785,7 @@ void OpDebug::AdditiveMetrics::aggregateDataBearingNodeMetrics(
         cardinalityEstimationMethods.getCode().value_or(0) +
         metrics.cardinalityEstimationMethods.getCode().value_or(0));
     nDocsSampled = nDocsSampled.value_or(0) + metrics.nDocsSampled;
+    planShapeCounts.add(metrics.planShapeCounts);
     clusterPeakTrackedMemBytes =
         clusterPeakTrackedMemBytes.value_or(0) + metrics.clusterPeakTrackedMemBytes;
 }
@@ -1827,6 +1833,8 @@ void OpDebug::AdditiveMetrics::aggregateCursorMetrics(const CursorMetrics& metri
         .planningTime = Microseconds(metrics.getPlanningTimeMicros()),
         .cardinalityEstimationMethods = metrics.getCardinalityEstimationMethods(),
         .nDocsSampled = static_cast<uint64_t>(metrics.getNDocsSampled()),
+        .planShapeCounts =
+            metrics.getPlanShapeCounts().value_or(plan_shape_counters::PlanShapeCounts{}),
         .clusterPeakTrackedMemBytes =
             static_cast<uint64_t>(metrics.getClusterPeakTrackedMemBytes())});
 }
@@ -1836,6 +1844,7 @@ void OpDebug::AdditiveMetrics::aggregateStorageStats(const StorageStats& stats) 
     readingTime = readingTime.value_or(Microseconds(0)) + stats.readingTime();
 }
 
+// TODO SERVER-130797 investigate if all metrics need to be reset in AdditiveMetrics::reset
 void OpDebug::AdditiveMetrics::reset() {
     keysExamined = boost::none;
     docsExamined = boost::none;
@@ -1853,8 +1862,10 @@ void OpDebug::AdditiveMetrics::reset() {
     nDeleteOps = boost::none;
     peakTrackedMemBytes = boost::none;
     clusterPeakTrackedMemBytes = boost::none;
+    planShapeCounts = {};
 }
 
+// TODO SERVER-130797 investigate if all metrics need to be compared in AdditiveMetrics::equals
 bool OpDebug::AdditiveMetrics::equals(const AdditiveMetrics& otherMetrics) const {
     return keysExamined == otherMetrics.keysExamined && docsExamined == otherMetrics.docsExamined &&
         nMatched == otherMetrics.nMatched && nreturned == otherMetrics.nreturned &&

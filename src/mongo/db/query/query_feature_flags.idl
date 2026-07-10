@@ -402,9 +402,9 @@ feature_flags:
     featureFlagVectorSearchExtension:
         description: "Feature flag to enable vector search extension functionality."
         cpp_varname: gFeatureFlagVectorSearchExtension
-        default: false
+        default: true
         fcv_gated: false
-        incremental_rollout_phase: in_development
+        incremental_rollout_phase: release
         serialize_on_outgoing_requests: true
         version: 8.3
 
@@ -450,13 +450,6 @@ feature_flags:
         version: 8.3
         fcv_gated: false
         incremental_rollout_phase: release
-
-    featureFlagSbeEqLookupUnwind:
-        description: "Feature flag to enable $lookup-$unwind in SBE."
-        cpp_varname: gFeatureFlagSbeEqLookupUnwind
-        default: true
-        fcv_gated: false
-        incremental_rollout_phase: rollout
 
     featureFlagSbeEqLookupUnwindHashJoin:
         description: "Enables executing $lookup-$unwind in SBE using the hash join strategy."
@@ -553,13 +546,15 @@ feature_flags:
     featureFlagPqsQueryKnobs:
         description: "Feature flag to enable per-query-shape overrides of internal query parameters (query knobs) via Persistent Query Settings."
         cpp_varname: gFeatureFlagPqsQueryKnobs
-        default: false
+        default: true
+        version: 9.0
         fcv_gated: true
 
     featureFlagPqsMaxTimeMS:
         description: "Feature flag to enable per-query-shape maxTimeMS timeout limits via Persistent Query Settings."
         cpp_varname: gFeatureFlagPqsMaxTimeMS
-        default: false
+        default: true
+        version: 9.0
         fcv_gated: true
 
     featureFlagPersistentStats:

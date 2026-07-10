@@ -27,17 +27,14 @@
  *    it in the license file.
  */
 
-#include "mongo/db/global_catalog/chunk_manager.h"
-#include "mongo/db/sharding_environment/grid.h"
-#include "mongo/db/topology/shard_registry.h"
+#include "mongo/db/query/max_estimated_scan_bytes_metrics.h"
 
-// TODO (SERVER-126212): Remove this file once the chunk manager cannot contain a mix of shardId
-// and shard UUIDs.
+namespace mongo::maxEstimatedScanBytesMetrics {
 
-namespace mongo {
+Counter64& maxEstimatedScanRejected =
+    *MetricBuilder<Counter64>{"query.maxEstimatedScanBytes.rejected"};
 
-ShardHandleMap resolveShardHandlesForChunkManager(OperationContext*) {
-    return {};
-}
+Counter64& maxEstimatedScanRejectedAndOverridden =
+    *MetricBuilder<Counter64>{"query.maxEstimatedScanBytes.rejectedAndOverridden"};
 
-}  // namespace mongo
+}  // namespace mongo::maxEstimatedScanBytesMetrics

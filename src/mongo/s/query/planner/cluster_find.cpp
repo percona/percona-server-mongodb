@@ -45,6 +45,7 @@
 #include "mongo/db/auth/resource_pattern.h"
 #include "mongo/db/auth/user_name.h"
 #include "mongo/db/basic_types.h"
+#include "mongo/db/change_stream_metrics_util.h"
 #include "mongo/db/client.h"
 #include "mongo/db/commands.h"
 #include "mongo/db/curop.h"
@@ -253,7 +254,7 @@ void updateNumHostsTargetedMetrics(OperationContext* opCtx,
     // Note: It is fine to use 'getAproxNShardsOwningChunks' here because the result is only used to
     // update stats.
     int nShardsOwningChunks =
-        cri.hasRoutingTable() ? cri.getChunkManager().getAproxNShardsOwningChunks(opCtx) : 0;
+        cri.hasRoutingTable() ? cri.getChunkManager().getAproxNShardsOwningChunks() : 0;
     auto targetType = NumHostsTargetedMetrics::get(opCtx).parseTargetType(
         opCtx, nTargetedShards, nShardsOwningChunks, cri.isSharded());
     NumHostsTargetedMetrics::get(opCtx).addNumHostsTargeted(
@@ -1099,6 +1100,9 @@ StatusWith<CursorResponse> ClusterFind::runGetMore(OperationContext* opCtx,
         CurOp::get(opCtx)->debug().cursorid = cursorId;
         CurOp::get(opCtx)->debug().isChangeStreamQuery =
             pinnedCursor.getValue()->isChangeStreamCursor();
+        if (pinnedCursor.getValue()->isChangeStreamCursor()) {
+            change_stream::recordCursorOptionMetrics(cmd.getBatchSize(), cmd.getMaxTimeMS());
+        }
         std::lock_guard<Client> lk(*opCtx->getClient());
         CurOp::get(opCtx)->setShouldOmitDiagnosticInformation(
             lk, pinnedCursor.getValue()->shouldOmitDiagnosticInformation());
