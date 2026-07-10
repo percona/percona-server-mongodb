@@ -62,8 +62,13 @@ public:
                        _countInvalidateCollectionMetadataOplogEntriesForDroppedCollections.get());
         builder.append("countUpdateCollectionMetadataOplogEntriesApplied",
                        _countUpdateCollectionMetadataOplogEntriesApplied.get());
+        builder.append("countUpdateCollectionMetadataChangedChunksApplied",
+                       _countUpdateCollectionMetadataChangedChunksApplied.get());
         builder.append("countSetAllowChunkOperationsOplogEntriesApplied",
                        _countSetAllowChunkOperationsOplogEntriesApplied.get());
+        builder.append("countCollectionMetadataCacheClears",
+                       _countCollectionMetadataCacheClears.get());
+        builder.append("countCollectionMetadataCacheSets", _countCollectionMetadataCacheSets.get());
         builder.append("countLocalCollectionMetadataCommits",
                        _countLocalCollectionMetadataCommits.get());
         builder.append("countLocalCollectionMetadataClones",
@@ -121,12 +126,21 @@ public:
         }
     }
 
-    void registerUpdateCollectionMetadataOplogEntryApplied() {
+    void registerUpdateCollectionMetadataOplogEntryApplied(long long numChangedChunks) {
         _countUpdateCollectionMetadataOplogEntriesApplied.incrementRelaxed();
+        _countUpdateCollectionMetadataChangedChunksApplied.incrementRelaxed(numChangedChunks);
     }
 
     void registerSetAllowChunkOperationsOplogEntryApplied() {
         _countSetAllowChunkOperationsOplogEntriesApplied.incrementRelaxed();
+    }
+
+    void registerCollectionMetadataCacheClear() {
+        _countCollectionMetadataCacheClears.incrementRelaxed();
+    }
+
+    void registerCollectionMetadataCacheSet() {
+        _countCollectionMetadataCacheSets.incrementRelaxed();
     }
 
     void registerLocalCollectionMetadataCommit() {
@@ -172,8 +186,14 @@ private:
     Counter64 _countInvalidateCollectionMetadataOplogEntriesForDroppedCollections;
     // updateCollectionMetadata ('c') oplog entries applied on replication secondaries.
     Counter64 _countUpdateCollectionMetadataOplogEntriesApplied;
+    // Total changed chunks merged by those updateCollectionMetadata delta applications.
+    Counter64 _countUpdateCollectionMetadataChangedChunksApplied;
     // setAllowChunkOperations ('c') oplog entries applied on replication secondaries.
     Counter64 _countSetAllowChunkOperationsOplogEntriesApplied;
+    // In-memory clears of the per-collection metadata cache (CSS).
+    Counter64 _countCollectionMetadataCacheClears;
+    // In-memory sets of the per-collection metadata cache (CSS).
+    Counter64 _countCollectionMetadataCacheSets;
     // Local shard-catalog collection commits (shardCollection / reshard / refresh).
     Counter64 _countLocalCollectionMetadataCommits;
     // Local shard-catalog collection clones during FCV upgrade (cloneAuthoritativeMetadata).

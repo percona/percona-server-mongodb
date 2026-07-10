@@ -30,7 +30,6 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 ======= */
 
 #include "mongo/base/data_range.h"
-#include "mongo/base/data_type_validated.h"
 #include "mongo/base/error_codes.h"
 #include "mongo/base/status.h"
 #include "mongo/base/status_with.h"
@@ -62,7 +61,7 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/telemetry/telemetry_thread_base.h"
 #include "mongo/db/topology/cluster_role.h"
 #include "mongo/logv2/log.h"
-#include "mongo/rpc/object_check.h"  // IWYU pragma: keep
+#include "mongo/rpc/object_check.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/time_support.h"
 
@@ -174,7 +173,7 @@ private:
             dataFile.read(buffer.data(), buffer.size());
 
             ConstDataRange cdr(buffer.data(), buffer.size());
-            auto swObj = cdr.readNoThrow<Validated<BSONObj>>();
+            auto swObj = cdr.readNoThrow<rpc::ValidatedBSONObj>();
             if (!swObj.isOK()) {
                 LOGV2_DEBUG(29134,
                             1,

@@ -32,7 +32,6 @@
 
 rollout:
   featureFlagGetExecutorDeferredEngineChoice: {}
-  featureFlagSbeEqLookupUnwind: {}
   featureFlagSbeEqLookupUnwindDynamicIndexedLoopJoin: {}
   featureFlagSbeEqLookupUnwindHashJoin: {}
   featureFlagSbeEqLookupUnwindIndexedLoopJoin: {}
@@ -53,3 +52,4 @@ release:
   featureFlagSbeAccumulators: {}
   featureFlagSbeUpgradeBinaryTrees: {}
   featureFlagSearchExtension: {}
+  featureFlagVectorSearchExtension: {}

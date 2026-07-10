@@ -5098,6 +5098,7 @@ ChangeSyncSourceAction ReplicationCoordinatorImpl::shouldChangeSyncSourceOnError
 
 void ReplicationCoordinatorImpl::_updateLastCommittedOpTimeAndWallTime(WithLock lk) {
     if (_topCoord->updateLastCommittedOpTimeAndWallTime()) {
+        _lastCommittedOpTimeShadow = _topCoord->getLastCommittedOpTime();
         _setStableTimestampForStorage(lk);
     }
 }
@@ -5328,6 +5329,7 @@ void ReplicationCoordinatorImpl::_advanceCommitPoint(
     bool forInitiate) {
     if (_topCoord->advanceLastCommittedOpTimeAndWallTime(
             committedOpTimeAndWallTime, fromSyncSource, forInitiate)) {
+        _lastCommittedOpTimeShadow = _topCoord->getLastCommittedOpTime();
         if (_getMemberState().arbiter()) {
             // Arbiters do not store replicated data, so we consider their data trivially
             // consistent.
@@ -5342,8 +5344,7 @@ void ReplicationCoordinatorImpl::_advanceCommitPoint(
 }
 
 OpTime ReplicationCoordinatorImpl::getLastCommittedOpTime() const {
-    std::unique_lock lk(_mutex);
-    return _topCoord->getLastCommittedOpTime();
+    return _lastCommittedOpTimeShadow.get();
 }
 
 OpTimeAndWallTime ReplicationCoordinatorImpl::getLastCommittedOpTimeAndWallTime() const {
