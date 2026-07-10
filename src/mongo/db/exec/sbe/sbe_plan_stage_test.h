@@ -193,14 +193,6 @@ public:
     }
 
     /**
-     * Asserts the two values are equal. Will write a log message and abort() if they are not.
-     */
-    static void assertValuesEqual(value::TypeTags lhsTag,
-                                  value::Value lhsVal,
-                                  value::TypeTags rhsTag,
-                                  value::Value rhsVal);
-
-    /**
      * This method takes an SBE array and returns an output slot and a unwind/project/limit/coscan
      * subtree that streams out the elements of the array one at a time via the output slot over a
      * series of calls to getNext(), mimicking the output of a collection scan or an index scan.
@@ -208,10 +200,7 @@ public:
      * Note that this method assumes ownership of the SBE Array being passed in.
      */
     std::pair<value::SlotId, std::unique_ptr<PlanStage>> generateVirtualScan(
-        value::TypeTags arrTag,
-        value::Value arrVal,
-        PlanNodeId planNodeId = kEmptyPlanNodeId,
-        bool owned = true);
+        value::TagValueMaybeOwned arr, PlanNodeId planNodeId = kEmptyPlanNodeId);
 
     /**
      * This method is similar to generateVirtualScan(), except that the subtree returned outputs to
@@ -226,6 +215,9 @@ public:
      */
     std::pair<value::SlotVector, std::unique_ptr<PlanStage>> generateVirtualScanMulti(
         int32_t numSlots, value::TypeTags arrTag, value::Value arrVal);
+
+    std::pair<value::SlotVector, std::unique_ptr<PlanStage>> generateVirtualScanMulti(
+        int32_t numSlots, value::TagValueOwned arr);
 
     /**
      * Make a mock scan from an BSON array. This method does NOT assume ownership of the BSONArray
@@ -309,6 +301,10 @@ public:
                  value::Value expectedVal,
                  const MakeStageFn<value::SlotId>& makeStage);
 
+    void runTest(value::TagValueOwned input,
+                 value::TagValueOwned expected,
+                 const MakeStageFn<value::SlotId>& makeStage);
+
     // Same method as above, but requires providing your own expression context.
     std::pair<value::TypeTags, value::Value> runTest(CompileCtx* ctx,
                                                      value::TypeTags inputTag,
@@ -318,8 +314,8 @@ public:
     void runFast(value::TypeTags inputTag, value::Value inputVal, auto makeStage) {
         auto cctx = makeCompileCtx();
         auto ctx = cctx.get();
-        auto [scanSlot, scanStage] =
-            generateVirtualScan(inputTag, inputVal, kEmptyPlanNodeId, false /*owned*/);
+        auto [scanSlot, scanStage] = generateVirtualScan(
+            value::TagValueMaybeOwned::fromRaw(false, inputTag, inputVal), kEmptyPlanNodeId);
         auto [outputSlot, stage] = makeStage(
             scanSlot, std::move(scanStage), [&]() { return _slotIdGenerator->generate(); });
         auto resultAccessor = prepareTree(ctx, stage.get(), outputSlot);
