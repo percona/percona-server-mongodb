@@ -153,19 +153,13 @@ private:
     bool _authEnabled{false};
 
     // A cache of whether there are any users set up for the cluster.
-<<<<<<< HEAD
-    AtomicWord<bool> _privilegeDocsExist{false};
+    Atomic<bool> _privilegeDocsExist{false};
 
     /**
      * LDAP user cache invalidator instance
      * Not null only if LDAP authorization configured
      */
     std::unique_ptr<LDAPUserCacheInvalidator> _ldapUserCacheInvalidator;
-||||||| 20943c6c272
-    AtomicWord<bool> _privilegeDocsExist{false};
-=======
-    Atomic<bool> _privilegeDocsExist{false};
->>>>>>> 0b22cf9c3b6f019e0618ee721ae26f27e2c7f104
 };
 
 }  // namespace mongo
