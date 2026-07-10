@@ -43,6 +43,7 @@ mongo_cc_library(
         "//src/mongo/db/repl:repl_server_parameters",
         "//src/mongo/db/repl:storage_interface",
         "//src/mongo/db/shard_role/shard_catalog:collection_options",
+        "//src/mongo/rpc:object_check",
         "//src/mongo/s:grid",
     ],
 )
