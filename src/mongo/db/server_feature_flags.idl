@@ -80,6 +80,13 @@ feature_flags:
         cpp_varname: gFeatureFlagSizeBasedOplogTruncationForDisagg
         default: false
         fcv_gated: false
+    featureFlagElegantStepDownForDisagg:
+        description: >-
+            Feature flag to enable elegant (in-process, graceful) step down for disaggregated
+            storage, instead of triggering a non-graceful shutdown on step down.
+        cpp_varname: gFeatureFlagElegantStepDownForDisagg
+        default: false
+        fcv_gated: false
     featureFlagEndOfTransactionChangeEvent:
         description: "Feature flag to enable endOfTransaction oplog entry and change stream event"
         cpp_varname: feature_flags::gFeatureFlagEndOfTransactionChangeEvent
@@ -375,12 +382,17 @@ feature_flags:
         default: true
         version: 9.0
         fcv_gated: true
-    # TODO (SERVER-76345): Remove this feature flag once parallel validation is the permanent default.
+    # TODO (SERVER-76346): Remove this feature flag once parallel validation is the permanent default.
     featureFlagParallelCollectionValidation:
         description: "When enabled, collection validation will use a parallel execution model to validate records."
         cpp_varname: gFeatureFlagParallelCollectionValidation
         default: false
         fcv_gated: false
+    featureFlagBatchedContainerWrites:
+        description: "When enabled, allows a batched container write format to support compact oplog entries."
+        cpp_varname: gFeatureFlagBatchedContainerWrites
+        default: false
+        fcv_gated: true
 
 server_parameters:
     allowDirectSystemBucketsAccess:
