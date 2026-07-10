@@ -87,8 +87,21 @@ class MongoDFixture(interface.Fixture, interface._DockerComposeInterface):
         if "set_parameters" not in self.mongod_options:
             self.mongod_options["set_parameters"] = {}
 
-        if launch_mongot:
+        if launch_mongot and launch_mongot_community:
+            raise ValueError("Cannot launch both mongot-localdev and mongot-community")
+
+        if launch_mongot_community:
+            self.launch_mongot_community_bool = True
+            self.launch_mongot_bool = False
+            self.mongot_grpc_port = fixturelib.get_next_port(job_num)
+            self.mongot_health_port = fixturelib.get_next_port(job_num)
+            self.mongod_options["mongotHost"] = "localhost:" + str(self.mongot_grpc_port)
+            self.mongod_options["searchIndexManagementHostAndPort"] = self.mongod_options[
+                "mongotHost"
+            ]
+        elif launch_mongot:
             self.launch_mongot_bool = True
+            self.launch_mongot_community_bool = False
 
             # mongot exposes two ports that it will listen for ingress communication on: "port",
             # which expects the MongoRPC protocol, and "grpcPort", which expects the MongoDB
@@ -113,10 +126,13 @@ class MongoDFixture(interface.Fixture, interface._DockerComposeInterface):
             ]
         else:
             self.launch_mongot_bool = False
-        # If a suite enables launching mongot, the necessary startup options for the MongoTFixture will be created in
-        # setup_mongot_params() which is called by the builders after all other fixture types have been setup (and
-        # therefore all other nodes have been assigned ports, which allows mongot to connect to a given mongod or
-        # mongos. The MongoTFixture is then launched by the MongoDFixture in setup().
+            self.launch_mongot_community_bool = False
+        # If a suite enables launching mongot, the necessary startup options for the MongoTFixture
+        # or MongoTCommunityFixture will be created in setup_mongot_params() or
+        # setup_mongot_community_params() which is called by the builders after all other fixture
+        # types have been setup (and therefore all other nodes have been assigned ports, which
+        # allows mongot to connect to a given mongod or mongos). The fixture is then launched by
+        # the MongoDFixture in setup().
         self.mongot = None
 
         # Process load_extensions: ["*"] means all, otherwise load named extensions.
@@ -202,86 +218,6 @@ class MongoDFixture(interface.Fixture, interface._DockerComposeInterface):
             self.priority_port = fixturelib.get_next_port(job_num)
             self.mongod_options["priorityPort"] = self.priority_port
 
-<<<<<<< HEAD
-        if launch_mongot and launch_mongot_community:
-            raise ValueError("Cannot launch both mongot-localdev and mongot-community")
-
-        if launch_mongot_community:
-            self.launch_mongot_community_bool = True
-            self.launch_mongot_bool = False
-            self.mongot_grpc_port = fixturelib.get_next_port(job_num)
-            self.mongot_health_port = fixturelib.get_next_port(job_num)
-            self.mongod_options["mongotHost"] = "localhost:" + str(self.mongot_grpc_port)
-            self.mongod_options["searchIndexManagementHostAndPort"] = self.mongod_options[
-                "mongotHost"
-            ]
-        elif launch_mongot:
-            self.launch_mongot_bool = True
-            self.launch_mongot_community_bool = False
-
-            # mongot exposes two ports that it will listen for ingress communication on: "port",
-            # which expects the MongoRPC protocol, and "grpcPort", which expects the MongoDB
-            # gRPC protocol. When useGrpcForSearch is true, mongos and mongod will communicate
-            # with mongot using gRPC, and so we must set the "mongotHost" option to the listening
-            # address that expects the gRPC protocol. However, the testing infrastructure also
-            # communicates with mongot directly using the pymongo driver, which must communicate
-            # using MongoRPC, and so we also setup the "port" on mongot to listen for MongoRPC
-            # connections no matter what.
-            self.mongot_port = fixturelib.get_next_port(job_num)
-            if self.mongod_options["set_parameters"].get("useGrpcForSearch"):
-                self.mongot_grpc_port = fixturelib.get_next_port(job_num)
-                self.mongod_options["mongotHost"] = "localhost:" + str(self.mongot_grpc_port)
-            else:
-                self.mongod_options["mongotHost"] = "localhost:" + str(self.mongot_port)
-
-            # In future architectures, this could change
-            self.mongod_options["searchIndexManagementHostAndPort"] = self.mongod_options[
-                "mongotHost"
-            ]
-        else:
-            self.launch_mongot_bool = False
-            self.launch_mongot_community_bool = False
-        # If a suite enables launching mongot, the necessary startup options for the MongoTFixture
-        # or MongoTCommunityFixture will be created in setup_mongot_params() or
-        # setup_mongot_community_params() which is called by the builders after all other fixture
-        # types have been setup (and therefore all other nodes have been assigned ports, which
-        # allows mongot to connect to a given mongod or mongos). The fixture is then launched by
-        # the MongoDFixture in setup().
-        self.mongot = None
-
-||||||| 20943c6c272
-        if launch_mongot:
-            self.launch_mongot_bool = True
-
-            # mongot exposes two ports that it will listen for ingress communication on: "port",
-            # which expects the MongoRPC protocol, and "grpcPort", which expects the MongoDB
-            # gRPC protocol. When useGrpcForSearch is true, mongos and mongod will communicate
-            # with mongot using gRPC, and so we must set the "mongotHost" option to the listening
-            # address that expects the gRPC protocol. However, the testing infrastructure also
-            # communicates with mongot directly using the pymongo driver, which must communicate
-            # using MongoRPC, and so we also setup the "port" on mongot to listen for MongoRPC
-            # connections no matter what.
-            self.mongot_port = fixturelib.get_next_port(job_num)
-            if self.mongod_options["set_parameters"].get("useGrpcForSearch"):
-                self.mongot_grpc_port = fixturelib.get_next_port(job_num)
-                self.mongod_options["mongotHost"] = "localhost:" + str(self.mongot_grpc_port)
-            else:
-                self.mongod_options["mongotHost"] = "localhost:" + str(self.mongot_port)
-
-            # In future architectures, this could change
-            self.mongod_options["searchIndexManagementHostAndPort"] = self.mongod_options[
-                "mongotHost"
-            ]
-        else:
-            self.launch_mongot_bool = False
-        # If a suite enables launching mongot, the necessary startup options for the MongoTFixture will be created in
-        # setup_mongot_params() which is called by the builders after all other fixture types have been setup (and
-        # therefore all other nodes have been assigned ports, which allows mongot to connect to a given mongod or
-        # mongos. The MongoTFixture is then launched by the MongoDFixture in setup().
-        self.mongot = None
-
-=======
->>>>>>> 0b22cf9c3b6f019e0618ee721ae26f27e2c7f104
         if "featureFlagGRPC" in self.config.ENABLED_FEATURE_FLAGS or self.mongod_options[
             "set_parameters"
         ].get("featureFlagGRPC"):

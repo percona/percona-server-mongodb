@@ -66,13 +66,7 @@ enum class BlindWritePolicy {
     blind,
 };
 
-<<<<<<< HEAD
-class MONGO_MOD_OPEN KVEngine : public percona::EngineExtension {
-||||||| 20943c6c272
-class MONGO_MOD_OPEN KVEngine {
-=======
-class [[MONGO_MOD_OPEN]] KVEngine {
->>>>>>> 0b22cf9c3b6f019e0618ee721ae26f27e2c7f104
+class [[MONGO_MOD_OPEN]] KVEngine : public percona::EngineExtension {
 public:
     using IdentKey = std::variant<std::span<const char>, int64_t>;
 

@@ -433,13 +433,7 @@ class ReplSetBuilder(FixtureBuilder):
             preserve_dbpath=replset.preserve_dbpath,
             port=new_fixture_port,
             launch_mongot=launch_mongot,
-<<<<<<< HEAD
             launch_mongot_community=launch_mongot_community,
-            load_extensions=[],
-||||||| 20943c6c272
-            load_extensions=[],
-=======
->>>>>>> 0b22cf9c3b6f019e0618ee721ae26f27e2c7f104
             use_priority_port=use_priority_port,
             uds_path_prefix=replset.uds_path_prefix,
             **_deferred_mongot_extension_kwargs(replset),
