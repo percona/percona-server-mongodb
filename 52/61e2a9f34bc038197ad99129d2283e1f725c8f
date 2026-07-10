@@ -1,0 +1,235 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "91f343bc7ea6fa1041a620e26298e4badbb44dd3",
+    "merge_commit": "725c7e271be13c342a98718e053d4555204525e2"
+  },
+  "mergai_version": "0.1.dev1+gaa14b121b",
+  "merge_context": {
+    "merge_commit": "725c7e271be13c342a98718e053d4555204525e2",
+    "merged_commits": [
+      "725c7e271be13c342a98718e053d4555204525e2",
+      "006fd77d58dd55db96767933ae732d36d6d2e264",
+      "a7d0031369e2a63fe7837c2361cb8749455b95a1",
+      "0b4a5604a9601be67fe58885cd223d6de1fba65f",
+      "a307d08fe7671dacc50498cc5a7c0bfbcdfae216",
+      "cf9f1277bec874f6fa8aead7b1342b6ed508e700",
+      "cc04741d0c93b71bda4e02003646bc706fa3a202",
+      "c71fd270416dc58ec8d8961dafbc79bcae874310",
+      "b4d923e0927e3091185027816dc6f1ec88212d2b",
+      "a2832d19a11c1ffb764a19c6239b928b2fb6caa9",
+      "aa1f0cc08b640bf7d9e19ba5aa3003ec2e166c9d",
+      "7e07d4a7b50cd844a2c963ea4c109e12bb0e5c5f",
+      "fb19f93167bec12a6695e63a6b123850574069e3",
+      "00b2d99ae87af080ba74633c12790df437e70caa",
+      "78aca84b241b5d26c3098fe50a597d6e8cd6c58b",
+      "bc892f9bd6305033ecc005c2abaffcff6669bc49",
+      "4631e6e31bb4c9669a3f82324e8f3abb840075a4",
+      "cdc366c32cb1b29ac36eb55972a0fab45079c2a4",
+      "cc38a2dc296483b20736efa26ffd798dd3521bea",
+      "3ef75d0674207fe46f6e39fdb0583a871507b7cf",
+      "9163010897bb93aa12135aeaa26482b4de608ef4",
+      "37ca4c9569ff62d34c3a084c2db8e67bc7a59421",
+      "20637eb5df7d2ed98d9964402694be0cd03750d5",
+      "eafe5869822cf7eba380c4420a6f3fb9c1695dd8",
+      "82be73203ef3877f2454f65ff74db09bd40c6968",
+      "d4a27bf7cdf1b6ebcc58a50a499cc36ff35b8b9c",
+      "5e34995ea8eeab026f26f5286a2c0f726819d80e",
+      "c8059ad7bdc169f3e446a3fdd878782a32bb1eb5",
+      "952fa676df93e2b22977890a0b92691e55dee222",
+      "ad6ce8140cac97de41e53d1cb8c4808815b3ef77",
+      "49309ad821286f611b95512a413e484ac6af20a9",
+      "448acec7443c66b72f42315fecaa37968d331f76",
+      "5111f713479aa2e27cf215b6a7688775ed429fd5",
+      "1d38d078b6673a81d610254beca25bdaced43279",
+      "6db4d214d35b476da1c0b2ee33deb207264ff598",
+      "a01f84cac5edc007d642bd3891c6172764124b88",
+      "f748494074d72fc40325336b95cbf710da78a9c5",
+      "a674b657f8abef8199c93811bd57939cdf5f5ae1",
+      "8a209e56d323b112863d2667d6a2c969023056dd",
+      "901e7c702d267beaba548c2cdb8e84d3a0c7040f",
+      "d1fe428fd7a575c0690c348f92291853ada6d1fc",
+      "1494f159fd397113540a3b5bfc772d5604e27a81",
+      "11e7d8b5c3930e2fdff46eccef565467cba02f0e",
+      "3b759992a4c27f494c71790973d7d13f809103b2",
+      "62ac0c55439ea7db580ce9a1f863352975db1393",
+      "1b809ce4a5e4ca70e23497ec497904e1996f579f",
+      "00677a4c83bdb81626dd2d3fd54ff9502b5f03bf",
+      "78a1172b58b38b1f3adc807327e1dace9a84d938",
+      "7ccf9a0d829f363a340fd60bd49d982ee1c73506"
+    ],
+    "important_files_modified": [
+      "src/mongo/db/storage/storage_engine.h",
+      "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp"
+    ],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        "BUILD.bazel",
+        "src/mongo/base/error_codes.yml",
+        "src/mongo/db/BUILD.bazel",
+        "src/mongo/db/mongod_main.cpp",
+        "src/mongo/db/op_debug.cpp",
+        "src/mongo/db/storage/kv/kv_engine.h",
+        "src/mongo/db/storage/storage_engine.h",
+        "src/mongo/db/storage/storage_engine_impl.cpp",
+        "src/mongo/db/storage/storage_engine_impl.h",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_util.cpp",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_util.h",
+        "src/mongo/dbtests/BUILD.bazel",
+        "src/mongo/rpc/BUILD.bazel",
+        "src/mongo/s/BUILD.bazel",
+        "src/mongo/s/mongos_main.cpp",
+        "src/third_party/wiredtiger/src/conn/conn_api.c",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in"
+      ]
+    }
+  },
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 61155,
+    "num_turns": 7,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.33119299999999996,
+    "modelUsage": {
+      "claude-haiku-4-5-20251001": {
+        "inputTokens": 603,
+        "outputTokens": 13,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0,
+        "webSearchRequests": 0,
+        "costUSD": 0.000668,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000
+      },
+      "claude-opus-4-8": {
+        "inputTokens": 5630,
+        "outputTokens": 4105,
+        "cacheReadInputTokens": 122725,
+        "cacheCreationInputTokens": 22142,
+        "webSearchRequests": 0,
+        "costUSD": 0.33052499999999996,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-haiku-4-5-20251001": {
+          "tokens": {
+            "input": 603,
+            "output": 13,
+            "cache_read": 0,
+            "cache_creation": 0
+          },
+          "cost_usd": 0.000668
+        },
+        "claude-opus-4-8": {
+          "tokens": {
+            "input": 5630,
+            "output": 4105,
+            "cache_read": 122725,
+            "cache_creation": 22142
+          },
+          "cost_usd": 0.33052499999999996
+        }
+      }
+    },
+    "text_result": "I reviewed the `diff base \u2192 merge commit` diff for each auto-merged file and wrote the JSON response.\n\nSummary of what this merge pulls in from upstream:\n\n- **New storage-engine API**: a virtual `getIndexStorageSize()` on `StorageEngine`, `KVEngine`, `StorageEngineImpl`, and the WiredTiger engine, which sums the on-disk `WT_STAT_DSRC_BLOCK_SIZE` of stable index files (`.wt_stable`), tolerating absent files and guarding against int64 overflow.\n- **Query-settings command hooks** wired into both `mongod_main.cpp` and `mongos_main.cpp`, plus query settings / knob configuration added to the slow-query log in `op_debug.cpp`.\n- New `LightweightStepdownConflict` (514) error code.\n- Several Bazel dependency tweaks and two vendored WiredTiger changes (bad base-config file rename handling in `conn_api.c`, and a `step_down_ts` \u2192 `step_down_timestamp` config doc rename).\n\nAll files merged cleanly (strategy `ort`), with no Percona-specific code affected.",
+    "response": {
+      "summary": "Merge of upstream MongoDB commits. Two main themes: (1) a new storage-engine capability to report the logical on-disk size of index tables, added via a virtual getIndexStorageSize() on StorageEngine/KVEngine and implemented for WiredTiger; and (2) wiring query-settings command hooks into both mongod and mongos, plus adding query settings / query knob configuration to the slow-query log. Also includes a new LightweightStepdownConflict error code, several Bazel dependency adjustments, and a couple of vendored WiredTiger changes (bad base-config file handling and a config option rename).",
+      "auto_merged": {
+        "BUILD.bazel": "Adds \".bazelversion\" to the exports_files() list.",
+        "src/mongo/base/error_codes.yml": "Adds a new error code entry: {code: 514, name: LightweightStepdownConflict}.",
+        "src/mongo/db/BUILD.bazel": "Adds new library dependencies: query_knob_configuration and query_settings to one target, join_plan_cache to another, and query_settings_command_hooks to a third.",
+        "src/mongo/db/mongod_main.cpp": "Includes query_settings_command_hooks.h and adds a query_settings::QuerySettingsCommandHooks member (_querySettingsHook) to MongodCommandInvocationHooks, invoking its onBeforeRun() alongside the existing transport and system-buckets hooks.",
+        "src/mongo/db/op_debug.cpp": "Includes query_knob_configuration.h and query_settings.h, and in OpDebug::report() calls query_settings::addQuerySettingsToSlowLog() and QueryKnobConfiguration::get(opCtx).addToSlowLog() to add query settings and knob configuration to the slow-query log output.",
+        "src/mongo/db/storage/kv/kv_engine.h": "Adds a virtual getIndexStorageSize(OperationContext*, const std::vector<std::string>& indexIdents) method with a default implementation returning 0.",
+        "src/mongo/db/storage/storage_engine.h": "Adds a pure-virtual-style virtual getIndexStorageSize(OperationContext*, const std::vector<std::string>& indexIdents) with a default returning 0, documented to return the total logical size in bytes of the given index tables from the most recent checkpoint (0 for engines that do not support it).",
+        "src/mongo/db/storage/storage_engine_impl.cpp": "Implements StorageEngineImpl::getIndexStorageSize() by delegating to the underlying engine's getIndexStorageSize().",
+        "src/mongo/db/storage/storage_engine_impl.h": "Declares the getIndexStorageSize() override.",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp": "Includes overflow_arithmetic.h and implements WiredTigerKVEngineBase::getIndexStorageSize(): for each index ident it builds a file URI (kFileUriPrefix + ident + kStableFileSuffix), reads the WT_STAT_DSRC_BLOCK_SIZE statistic via WiredTigerUtil::getStatisticsValue, treats a genuinely-absent stable file (CursorNotFound plus NoSuchKey metadata) as contributing zero, and sums the sizes using overflow::add, returning ErrorCodes::Overflow if the total overflows int64.",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h": "Declares the getIndexStorageSize() override on the WiredTiger engine.",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_util.cpp": "Adds an #include of \"mongo/db/storage/ident.h\".",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_util.h": "Adds two static constexpr constants: kFileUriPrefix (\"file:\") and kStableFileSuffix (\".wt_stable\", the file backing the stable/checkpointed table of a disaggregated ident).",
+        "src/mongo/dbtests/BUILD.bazel": "Adds the query_knob_configuration_test_util dependency to the dbtests binary.",
+        "src/mongo/rpc/BUILD.bazel": "Removes \"object_check.cpp\" from a library's srcs list.",
+        "src/mongo/s/BUILD.bazel": "Adds the query_settings_command_hooks dependency to a mongos target.",
+        "src/mongo/s/mongos_main.cpp": "Includes query_settings_command_hooks.h and adds a query_settings::QuerySettingsCommandHooks member (_querySettingsHook) to MongosCommandInvocationHooks, invoking its onBeforeRun() alongside the existing hooks.",
+        "src/third_party/wiredtiger/src/conn/conn_api.c": "Adds __conn_rename_bad_base_config() which, on a non-readonly connection, renames an invalid base configuration file from WT_BASECONFIG to WT_BASECONFIG_BAD. __conn_config_file() no longer sets WT_CONN_DATA_CORRUPTION on an EINVAL from the base config; instead it renames the bad file (when possible) and returns WT_ERROR with a message telling the user to correct the file or reopen with config_base=false.",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in": "Renames the disaggregated-storage step-down config option documentation from step_down_ts to step_down_timestamp (cutover timestamp for a planned step-down)."
+      },
+      "review_notes": "All listed files were reviewed against the diff base -> merge commit diff. Changes auto-merged cleanly with no Percona-specific customizations touched. The main functional additions are the new getIndexStorageSize storage-engine API (interface + WiredTiger implementation) and the query-settings command hooks wired into mongod and mongos. The two vendored WiredTiger changes (conn_api.c bad base-config rename and the wiredtiger.h.in step_down_ts -> step_down_timestamp rename) are upstream third-party updates. No conflicts were present in these files (auto-merge, strategy ort)."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I reviewed the `diff base \u2192 merge commit` diff for each auto-merged file and wrote the JSON response.\n\nSummary of what this merge pulls in from upstream:\n\n- **New storage-engine API**: a virtual `getIndexStorageSize()` on `StorageEngine`, `KVEngine`, `StorageEngineImpl`, and the WiredTiger engine, which sums the on-disk `WT_STAT_DSRC_BLOCK_SIZE` of stable index files (`.wt_stable`), tolerating absent files and guarding against int64 overflow.\n- **Query-settings command hooks** wired into both `mongod_main.cpp` and `mongos_main.cpp`, plus query settings / knob configuration added to the slow-query log in `op_debug.cpp`.\n- New `LightweightStepdownConflict` (514) error code.\n- Several Bazel dependency tweaks and two vendored WiredTiger changes (bad base-config file rename handling in `conn_api.c`, and a `step_down_ts` \u2192 `step_down_timestamp` config doc rename).\n\nAll files merged cleanly (strategy `ort`), with no Percona-specific code affected."
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20260709_095520_000087.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.205 (Claude Code)"
+    }
+  }
+}
