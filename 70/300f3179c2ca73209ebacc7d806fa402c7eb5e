@@ -1,0 +1,31 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "1737c4188ac7b994fe8159c6dc8cd7eb5db25f21",
+    "merge_commit": "753a93b63a9ab65bd4e37ed629dbf803c487e204"
+  },
+  "mergai_version": "0.1.dev1+gaa14b121b",
+  "solutions": [
+    {
+      "type": "conflict_resolution",
+      "response": {
+        "summary": "Resolve conflicts for merge commit '753a93b63a9' into master",
+        "resolved": {
+          "src/mongo/db/commands/profile_common.cpp": "Resolved by human",
+          "src/mongo/db/storage/storage_engine_impl.cpp": "Resolved by human",
+          "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp": "Resolved by human",
+          "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h": "Resolved by human"
+        },
+        "unresolved": {},
+        "modified": {},
+        "review_notes": "Resolved four both-modified conflicts arising from an upstream MongoDB\nmerge. In each case both sides added independent code, so the resolution\ncombines upstream's additions with Percona's additions rather than\nchoosing one side. The profile field-count assert was rebased onto\nupstream's new base count while preserving Percona's extra ratelimit\nfield.\n\nResolved:\n\tsrc/mongo/db/commands/profile_common.cpp\n\tsrc/mongo/db/storage/storage_engine_impl.cpp\n\tsrc/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp\n\tsrc/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h\n\nNote: commit created by mergai"
+      },
+      "author": {
+        "name": "psmdb-bot[bot]",
+        "email": "2942401+psmdb-bot[bot]@users.noreply.github.com",
+        "type": "human"
+      },
+      "commit_sha": "70300f3179c2ca73209ebacc7d806fa402c7eb5e"
+    }
+  ]
+}
