@@ -895,7 +895,6 @@ private:
         StorageEngine::DropIdentCallback callback;
     };
 
-<<<<<<< HEAD
     // srcPath, destPath, session, cursor
     typedef std::tuple<boost::filesystem::path,
                        boost::filesystem::path,
@@ -907,11 +906,9 @@ private:
         tuple<boost::filesystem::path, boost::filesystem::path, boost::uintmax_t, std::time_t>
             FileTuple;
 
-||||||| 4b197e0026a
-=======
     Status _reconfigureAutoCompact(RecoveryUnit& ru, const AutoCompactOptions& options);
 
->>>>>>> 753a93b63a9ab65bd4e37ed629dbf803c487e204
+
     Status _createRecordStore(const rss::PersistenceProvider& provider,
                               RecoveryUnit& ru,
                               const NamespaceString& ns,

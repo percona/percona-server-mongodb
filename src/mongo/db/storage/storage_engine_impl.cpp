@@ -41,13 +41,8 @@
 #include "mongo/db/operation_context.h"
 #include "mongo/db/rss/persistence_provider.h"
 #include "mongo/db/rss/replicated_storage_service.h"
-<<<<<<< HEAD
-#include "mongo/db/shard_role/lock_manager/d_concurrency.h"
-||||||| 4b197e0026a
-=======
 #include "mongo/db/shard_role/lock_manager/d_concurrency.h"
 #include "mongo/db/shard_role/lock_manager/lock_manager_defs.h"
->>>>>>> 753a93b63a9ab65bd4e37ed629dbf803c487e204
 #include "mongo/db/shard_role/shard_catalog/catalog_raii.h"
 #include "mongo/db/shard_role/shard_catalog/collection_catalog.h"
 #include "mongo/db/shard_role/transaction_resources.h"
@@ -75,12 +70,8 @@
 #include "mongo/util/log_and_backoff.h"
 #include "mongo/util/scopeguard.h"
 #include "mongo/util/str.h"
-<<<<<<< HEAD
-#include "mongo/util/timer.h"
-||||||| 4b197e0026a
-=======
 #include "mongo/util/time_support.h"
->>>>>>> 753a93b63a9ab65bd4e37ed629dbf803c487e204
+#include "mongo/util/timer.h"
 
 #include <algorithm>
 #include <functional>

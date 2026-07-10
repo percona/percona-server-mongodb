@@ -4969,13 +4969,10 @@ Status WiredTigerKVEngine::_reconfigureAutoCompact(RecoveryUnit& ru,
     return status;
 }
 
-<<<<<<< HEAD
 EncryptionKeyDB* WiredTigerKVEngine::getEncryptionKeyDB() noexcept {
     return _restEncr ? _restEncr->keyDb() : nullptr;
 }
 
-||||||| 4b197e0026a
-=======
 Status WiredTigerKVEngine::autoCompact(RecoveryUnit& ru, const AutoCompactOptions& options) {
     auto status = _reconfigureAutoCompact(ru, options);
     if (!status.isOK()) {
@@ -5055,7 +5052,6 @@ Status WiredTigerKVEngine::pauseOrResumeAutoCompactForWriteBlock(
     return Status::OK();
 }
 
->>>>>>> 753a93b63a9ab65bd4e37ed629dbf803c487e204
 bool WiredTigerKVEngine::hasOngoingLiveRestore() {
     auto session = getConnection().getUninterruptibleSession();
     auto result = WiredTigerUtil::getStatisticsValue(
