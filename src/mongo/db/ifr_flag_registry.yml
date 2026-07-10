@@ -44,6 +44,7 @@ rollout:
   featureFlagUnifiedWriteExecutor: {}
 
 release:
+  featureFlagChangeStreamReaderV2: {}
   featureFlagCostBasedRanker: {}
   featureFlagExtensionsInsideHybridSearch: {}
   featureFlagExtractFieldPathsSbeStage: {}
@@ -51,3 +52,4 @@ release:
   featureFlagMultiPlanLimiter: {}
   featureFlagSbeAccumulators: {}
   featureFlagSbeUpgradeBinaryTrees: {}
+  featureFlagSearchExtension: {}

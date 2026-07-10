@@ -733,7 +733,8 @@ StatusWith<std::unique_ptr<QuerySolution>> QueryPlanner::planFromCache(
     // knob blocks new cache entries from being inserted and blocks existing entries from
     // being retrieved, meaning that in the exception case we would end up in a state where a query
     // should not be cached, but is in the cache. This is why we check the knob.
-    dassert(internalQueryDisablePlanCache.load() || shouldCacheQuery(query));
+    dassert(query.getExpCtx()->getQueryKnobConfiguration().getDisablePlanCache() ||
+            shouldCacheQuery(query));
 
     if (SolutionCacheData::WHOLE_IXSCAN_SOLN == solnCacheData.solnType) {
         // The solution can be constructed by a scan over the entire index.
@@ -1940,6 +1941,7 @@ std::unique_ptr<QuerySolution> QueryPlanner::extendWithAggPipeline(
         if (lookupStage) {
             auto [strategy, idxEntry, scanDirection, collationCompatibleForDilj] =
                 QueryPlannerAnalysis::determineLookupStrategy(
+                    query.getExpCtx()->getQueryKnobConfiguration(),
                     lookupStage->getFromNs(),
                     lookupStage->getForeignField()->fullPath(),
                     secondaryCollInfos,
@@ -2054,10 +2056,14 @@ std::unique_ptr<QuerySolution> QueryPlanner::extendWithAggPipeline(
                     .serialize(SortPattern::SortKeySerialization::kForPipelineSerialization)
                     .toBson();
             auto limit = sortStage->getLimit().get_value_or(0);
-            solnForAgg = std::make_unique<SortNodeDefault>(std::move(solnForAgg),
-                                                           std::move(pattern),
-                                                           limit,
-                                                           LimitSkipParameterization::Disabled);
+            solnForAgg =
+                std::make_unique<SortNodeDefault>(std::move(solnForAgg),
+                                                  std::move(pattern),
+                                                  limit,
+                                                  LimitSkipParameterization::Disabled,
+                                                  query.getExpCtx()
+                                                      ->getQueryKnobConfiguration()
+                                                      .getQueryMaxBlockingSortMemoryUsageBytes());
             continue;
         }
 

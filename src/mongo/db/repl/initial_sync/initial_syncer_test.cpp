@@ -36,6 +36,7 @@
 #include "mongo/bson/bsontypes.h"
 #include "mongo/bson/timestamp.h"
 #include "mongo/db/client.h"
+#include "mongo/db/commands/test_commands_enabled.h"
 #include "mongo/db/database_name.h"
 #include "mongo/db/exec/document_value/value.h"
 #include "mongo/db/feature_compatibility_version_document_gen.h"
@@ -67,6 +68,7 @@
 #include "mongo/db/repl/sync_source_selector.h"
 #include "mongo/db/repl/sync_source_selector_mock.h"
 #include "mongo/db/repl/task_executor_mock.h"
+#include "mongo/db/replicated_fast_count/size_count_store.h"
 #include "mongo/db/server_options.h"
 #include "mongo/db/server_parameter.h"
 #include "mongo/db/service_context.h"
@@ -74,6 +76,7 @@
 #include "mongo/db/session/logical_session_id.h"
 #include "mongo/db/shard_role/shard_catalog/collection_options.h"
 #include "mongo/db/sharding_environment/shard_id.h"
+#include "mongo/db/storage/ident.h"
 #include "mongo/db/storage/storage_engine.h"
 #include "mongo/db/storage/storage_engine_mock.h"
 #include "mongo/db/tenant_id.h"
@@ -2106,6 +2109,139 @@ TEST_F(InitialSyncerTest, InitialSyncerSucceedsWhenFCVFetcherReturnsOldVersion) 
 
     initialSyncer->join();
     ASSERT_EQUALS(ErrorCodes::CallbackCanceled, _lastApplied);
+}
+
+// Builds the 'o' field of a container insert/update oplog entry to the fast count timestamp store,
+// carrying the given 'validAsOf' (the on-disk value is a BinData whose bytes are the BSON object
+// '{valid-as-of: <Timestamp>}').
+BSONObj makeFastCountTimestampStoreOplogEntry(int oplogT, Timestamp validAsOf) {
+    BSONObj value = BSON(std::string{replicated_fast_count::kValidAsOfKey} << validAsOf);
+    BSONObjBuilder o;
+    o.append("k", int64_t{0});
+    o.appendBinData("v", value.objsize(), BinDataType::BinDataGeneral, value.objdata());
+    o.append("$v", int64_t{1});
+    return BSON("ts" << Timestamp(oplogT, 1) << "t" << 1LL << "op"
+                     << "cu"
+                     << "ns"
+                     << "config.$container"
+                     << "container" << std::string{ident::kFastCountMetadataStoreTimestamps} << "o"
+                     << o.obj() << "wall" << Date_t());
+}
+
+// Predicate matching the oplog scan that finds the last write to the fast count timestamp store
+// (its filter is an '$or' over the container ident).
+bool isFastCountTimestampStoreScan(const BSONObj& request) {
+    return request["find"].str() == "oplog.rs" && request["filter"].type() == BSONType::object &&
+        request["filter"].Obj().hasField("$or");
+}
+
+// Predicate matching the plain top-of-oplog scans (defaultBeginFetching and beginApplying), which
+// carry no filter.
+bool isTopOfOplogScan(const BSONObj& request) {
+    return request["find"].str() == "oplog.rs" && !request.hasField("filter") &&
+        request["sort"].Obj()["$natural"].safeNumberLong() == -1;
+}
+
+bool isOldestOplogScan(const BSONObj& request) {
+    return request["find"].str() == "oplog.rs" && !request.hasField("filter") &&
+        request["sort"].Obj()["$natural"].safeNumberLong() == 1;
+}
+
+TEST_F(InitialSyncerTest, BeginFetchingTimestampClampedToFastCountValidAsOf) {
+    setTestCommandsEnabled(true);
+    ON_BLOCK_EXIT([] { setTestCommandsEnabled(false); });
+    unittest::ServerParameterGuard ffFastCount("featureFlagReplicatedFastCount", true);
+    unittest::ServerParameterGuard ffContainerWrites("featureFlagContainerWrites", true);
+
+    auto initialSyncer = &getInitialSyncer();
+    auto opCtx = makeOpCtx();
+    _syncSourceSelector->setChooseNewSyncSourceResult_forTest(HostAndPort("localhost", 12345));
+
+    // The sync source's top of oplog (and thus the default beginFetchingTimestamp) is at ts 10. Its
+    // last fast count timestamp store write (an oplog entry at ts 8, term 1) recorded a validAsOf
+    // of ts 4; beginFetchingTimestamp is clamped to OpTime(ts 4, term 1) — the validAsOf timestamp
+    // with the term taken from the store-write entry.
+    const OpTime validAsOfOpTime(Timestamp(4, 1), 1);
+    _mock
+        ->expect(
+            &isTopOfOplogScan,
+            makeCursorResponse(0LL, NamespaceString::kRsOplogNamespace, {makeOplogEntryObj(10)}))
+        .times(2);
+    _mock
+        ->expect(&isFastCountTimestampStoreScan,
+                 makeCursorResponse(
+                     0LL,
+                     NamespaceString::kRsOplogNamespace,
+                     {makeFastCountTimestampStoreOplogEntry(8, validAsOfOpTime.getTimestamp())}))
+        .times(1);
+    _mock
+        ->expect([](auto& request) { return request["find"].str() == "system.version"; },
+                 makeCursorResponse(
+                     0LL, NamespaceString::kServerConfigurationNamespace, {getLastLTSBson()}))
+        .times(1);
+
+    FailPointEnableBlock skipReconstructPreparedTransactions("skipReconstructPreparedTransactions");
+    FailPointEnableBlock skipRecoverUserWriteCriticalSections(
+        "skipRecoverUserWriteCriticalSections");
+
+    ASSERT_OK(initialSyncer->startup(opCtx.get(), maxAttempts));
+    _mock->runUntilExpectationsSatisfied();
+
+    // The oplog fetcher must begin fetching from the clamped (earlier) validAsOf oplog entry.
+    ASSERT_EQUALS(validAsOfOpTime,
+                  getInitialSyncer().getOplogFetcher_forTest()->getLastOpTimeFetched());
+
+    ASSERT_OK(initialSyncer->shutdown());
+    _mock->runUntilIdle();
+    initialSyncer->join();
+}
+
+TEST_F(InitialSyncerTest, BeginFetchingTimestampUsesOldestOplogWhenNoFastCountTimestampStoreWrite) {
+    setTestCommandsEnabled(true);
+    ON_BLOCK_EXIT([] { setTestCommandsEnabled(false); });
+    unittest::ServerParameterGuard ffFastCount("featureFlagReplicatedFastCount", true);
+    unittest::ServerParameterGuard ffContainerWrites("featureFlagContainerWrites", false);
+
+    auto initialSyncer = &getInitialSyncer();
+    auto opCtx = makeOpCtx();
+    _syncSourceSelector->setChooseNewSyncSourceResult_forTest(HostAndPort("localhost", 12345));
+
+    const OpTime oldestOplogEntryOpTime(Timestamp(1, 1), 1);
+    _mock
+        ->expect(
+            &isTopOfOplogScan,
+            makeCursorResponse(0LL, NamespaceString::kRsOplogNamespace, {makeOplogEntryObj(10)}))
+        .times(2);
+    _mock
+        ->expect(&isFastCountTimestampStoreScan,
+                 makeCursorResponse(0LL, NamespaceString::kRsOplogNamespace, {}))
+        .times(1);
+    _mock
+        ->expect(
+            &isOldestOplogScan,
+            makeCursorResponse(0LL, NamespaceString::kRsOplogNamespace, {makeOplogEntryObj(1)}))
+        .times(1);
+    _mock
+        ->expect([](auto& request) { return request["find"].str() == "system.version"; },
+                 makeCursorResponse(
+                     0LL, NamespaceString::kServerConfigurationNamespace, {getLastLTSBson()}))
+        .times(1);
+
+    FailPointEnableBlock skipReconstructPreparedTransactions("skipReconstructPreparedTransactions");
+    FailPointEnableBlock skipRecoverUserWriteCriticalSections(
+        "skipRecoverUserWriteCriticalSections");
+
+    ASSERT_OK(initialSyncer->startup(opCtx.get(), maxAttempts));
+    _mock->runUntilExpectationsSatisfied();
+
+    ASSERT_EQUALS(oldestOplogEntryOpTime,
+                  getInitialSyncer().getOplogFetcher_forTest()->getLastOpTimeFetched());
+    auto progress = initialSyncer->getInitialSyncProgress();
+    ASSERT_EQUALS(progress["initialSyncOplogStart"].timestamp(), Timestamp(10, 1)) << progress;
+
+    ASSERT_OK(initialSyncer->shutdown());
+    _mock->runUntilIdle();
+    initialSyncer->join();
 }
 
 // This is to demonstrate the unit testing mock framework. The logic is the same as the following
@@ -5500,9 +5636,12 @@ TEST_F(InitialSyncerTest, InitialSyncerDoesNotSkipWaitWhenNotInitiatingSet) {
 TEST_F(InitialSyncerTest, InitialSyncerDoesNotSkipWaitWhenInitiatingSetOutsideThreshold) {
     initialSyncWaitForSyncSourceLastStableRecoveryTs.store(true);
     // Lower the threshold so we can test with easily-constructed timestamps.
+    const auto originalThreshold =
+        initialSyncWaitForSyncSourceLastStableRecoveryTsInitiatingSetThresholdSecs.load();
     initialSyncWaitForSyncSourceLastStableRecoveryTsInitiatingSetThresholdSecs.store(10);
-    const ScopeGuard resetThreshold([] {
-        initialSyncWaitForSyncSourceLastStableRecoveryTsInitiatingSetThresholdSecs.store(3600);
+    const ScopeGuard resetThreshold([originalThreshold] {
+        initialSyncWaitForSyncSourceLastStableRecoveryTsInitiatingSetThresholdSecs.store(
+            originalThreshold);
     });
 
     // Use t=5 for beginApplyingTimestamp so it is distinguishable from the initiating-set entry
@@ -5523,6 +5662,44 @@ TEST_F(InitialSyncerTest, InitialSyncerDoesNotSkipWaitWhenInitiatingSetOutsideTh
 
         // _checkIfInitiatingSet did not take the skip path because lastStableRecoveryTimestamp
         // (t=101) is outside the threshold (10 s) of the initiating-set entry (t=1).
+        // beginApplyingTimestamp must remain at its original value (t=5), not be reset to t=1.
+        auto progress = initialSyncer->getInitialSyncProgress();
+        ASSERT_EQUALS(progress["initialSyncOplogStart"].timestamp(), Timestamp(5, 1)) << progress;
+
+        ASSERT_OK(initialSyncer->shutdown());
+        net->runReadyNetworkOperations();
+    }
+    initialSyncer->join();
+    ASSERT_EQUALS(ErrorCodes::CallbackCanceled, _lastApplied);
+}
+
+TEST_F(
+    InitialSyncerTest,
+    InitialSyncerDoesNotSkipWaitWhenInitiatingSetSameSecondButLaterIncrementWithDefaultThreshold) {
+    initialSyncWaitForSyncSourceLastStableRecoveryTs.store(true);
+    // Leave the threshold at its default (0). With the default the skip must require an exact
+    // Timestamp match with the initiating-set entry, not merely the same second.
+    ASSERT_EQUALS(
+        0, initialSyncWaitForSyncSourceLastStableRecoveryTsInitiatingSetThresholdSecs.load());
+
+    // Use t=5 for beginApplyingTimestamp so it is distinguishable from the initiating-set entry
+    // timestamp (t=1). This lets us verify the timestamp was NOT overridden to t=1.
+    runWaitStableTsPreamble(5);
+    auto initialSyncer = &getInitialSyncer();
+    auto net = getNet();
+    {
+        executor::NetworkInterfaceMock::InNetworkGuard guard(net);
+        // Earliest oplog entry is the initiating-set noop at ts(1,1).
+        processSuccessfulEarliestOplogEntryFetcherResponse({makeInitiatingSetOplogEntryObj(1)});
+
+        // lastStableRecoveryTimestamp is in the same second (1) but a later increment (5), so it
+        // has advanced past the initiating-set entry. The seconds-granular diff is 0, but the full
+        // Timestamp comparison is not equal, so with the default threshold the skip must NOT fire.
+        auto replSetGetStatusRequest = net->scheduleSuccessfulResponse(
+            BSON("ok" << 1 << "lastStableRecoveryTimestamp" << Timestamp(1, 5)));
+        assertRemoteCommandNameEquals("replSetGetStatus", replSetGetStatusRequest);
+        net->runReadyNetworkOperations();
+
         // beginApplyingTimestamp must remain at its original value (t=5), not be reset to t=1.
         auto progress = initialSyncer->getInitialSyncProgress();
         ASSERT_EQUALS(progress["initialSyncOplogStart"].timestamp(), Timestamp(5, 1)) << progress;

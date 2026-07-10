@@ -31,6 +31,7 @@
 #include "mongo/bson/bsonelement_comparator_interface.h"
 #include "mongo/bson/bsontypes.h"
 #include "mongo/db/exec/expression/evaluate.h"
+#include "mongo/db/memory_tracking/memory_usage_tracker.h"
 #include "mongo/db/query/bson/multikey_dotted_path_support.h"
 
 namespace mongo {
@@ -43,8 +44,18 @@ Value evaluate(const ExpressionObject& expr,
                const EvaluationContext& ctx) {
     auto& expressions = expr.getChildExpressions();
     MutableDocument outputDoc(expressions.size());
+
+    auto& tracker = getMemoryTracker(expr, ctx);
+    SimpleMemoryUsageToken memToken(0, &tracker);
+
     for (auto&& pair : expressions) {
-        outputDoc.addField(pair.first, pair.second->evaluate(root, variables, ctx));
+        Value fieldVal = pair.second->evaluate(root, variables, ctx);
+
+        // Account for the evaluated value plus the field name
+        memToken.add(static_cast<int64_t>(pair.first.size() + 1 + fieldVal.getApproximateSize()));
+        tracker.assertWithinMemoryLimit(expr.getOpName(), ctx.stageName);
+
+        outputDoc.addField(pair.first, std::move(fieldVal));
     }
     return outputDoc.freezeToValue();
 }

@@ -61,6 +61,9 @@
 #include "mongo/db/wire_version.h"
 #include "mongo/executor/remote_command_request.h"
 #include "mongo/logv2/log.h"
+#include "mongo/otel/telemetry_context_holder.h"
+#include "mongo/otel/traces/telemetry_context_serialization.h"
+#include "mongo/otel/traces/tracing_enablement.h"
 #include "mongo/rpc/factory.h"
 #include "mongo/rpc/get_status_from_command_result.h"
 #include "mongo/rpc/metadata.h"
@@ -147,11 +150,10 @@ rpc::UniqueReply DBClientBase::parseCommandReplyMessage(const std::string& host,
 }
 
 namespace {
-void appendMetadata(OperationContext* opCtx,
-                    const rpc::RequestMetadataWriter& metadataWriter,
-                    const ClientAPIVersionParameters& apiParameters,
-                    OpMsgRequest& request) {
-
+void appendMetadataWriterAndApiParameters(OperationContext* opCtx,
+                                          const rpc::RequestMetadataWriter& metadataWriter,
+                                          const ClientAPIVersionParameters& apiParameters,
+                                          OpMsgRequest& request) {
     if (!metadataWriter && !apiParameters.getVersion()) {
         return;
     }
@@ -193,6 +195,27 @@ void appendMetadata(OperationContext* opCtx,
 
     request.body = bob.obj();
 }
+
+void appendMetadata(OperationContext* opCtx,
+                    const rpc::RequestMetadataWriter& metadataWriter,
+                    const ClientAPIVersionParameters& apiParameters,
+                    int maxWireVersion,
+                    ConnectionString::ConnectionType connectionType,
+                    OpMsgRequest& request) {
+    appendMetadataWriterAndApiParameters(opCtx, metadataWriter, apiParameters, request);
+
+    // INT_MAX is the StreamableReplicaSetMonitor sentinel for an unknown topology.
+    const bool targetAcceptsTelemetrySection = (maxWireVersion >= WireVersion::WIRE_VERSION_90 &&
+                                                maxWireVersion != std::numeric_limits<int>::max());
+    // A kLocal connection talks to the local server in-process, so there is no need to propagate a
+    // telemetry context as it will be available on OperationContext.
+    const bool isLocalConnection = connectionType == ConnectionString::ConnectionType::kLocal;
+    if (targetAcceptsTelemetrySection && !isLocalConnection &&
+        otel::traces::isTracingEnabled(opCtx)) {
+        auto& holder = otel::TelemetryContextHolder::getDecoration(opCtx);
+        request.telemetryContext = otel::traces::toWireType(holder.getTelemetryContext().get());
+    }
+}
 }  // namespace
 
 auth::ValidatedTenancyScope DBClientBase::_createInnerRequestVTS(
@@ -208,8 +231,10 @@ DBClientBase* DBClientBase::runFireAndForgetCommand(OpMsgRequest request) {
     // Make sure to reconnect if needed before building our request.
     ensureConnection();
 
+    // TODO(SERVER-130312): Start a span here if the type is not kLocal.
+
     auto opCtx = haveClient() ? cc().getOperationContext() : nullptr;
-    appendMetadata(opCtx, _metadataWriter, _apiParameters, request);
+    appendMetadata(opCtx, _metadataWriter, _apiParameters, getMaxWireVersion(), type(), request);
     auto requestMsg = request.serialize();
     OpMsg::setFlag(&requestMsg, OpMsg::kMoreToCome);
     say(requestMsg);
@@ -221,11 +246,13 @@ std::pair<rpc::UniqueReply, DBClientBase*> DBClientBase::runCommandWithTarget(
     // Make sure to reconnect if needed before building our request.
     ensureConnection();
 
+    // TODO(SERVER-130312): Start a span here if the type is not kLocal.
+
     // call() oddly takes this by pointer, so we need to put it on the stack.
     auto host = getServerAddress();
 
     auto opCtx = haveClient() ? cc().getOperationContext() : nullptr;
-    appendMetadata(opCtx, _metadataWriter, _apiParameters, request);
+    appendMetadata(opCtx, _metadataWriter, _apiParameters, getMaxWireVersion(), type(), request);
 
     auto requestMsg = request.serialize();
     Message replyMsg;

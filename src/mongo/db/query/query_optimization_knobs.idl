@@ -368,6 +368,9 @@ server_parameters:
         annotations:
             query_knob:
                 wire_name: disablePlanCache
+                pqs_settable: true
+                fcv:
+                    min: "9.0"
 
     internalQueryCacheMaxEntriesPerCollection:
         description: >-
@@ -612,6 +615,9 @@ server_parameters:
         annotations:
             query_knob:
                 wire_name: maxScansToExplode
+                pqs_settable: true
+                fcv:
+                    min: "9.0"
 
     internalQueryPlannerGenerateCoveredWholeIndexScans:
         description: >-
@@ -641,6 +647,9 @@ server_parameters:
         annotations:
             query_knob:
                 wire_name: plannerUseMultiplannerForSingleSolutions
+                pqs_settable: true
+                fcv:
+                    min: "9.0"
 
     internalQueryIgnoreUnknownJSONSchemaKeywords:
         description: "Ignore unknown JSON Schema keywords."
@@ -1019,6 +1028,26 @@ server_parameters:
                 fcv:
                     min: "9.0"
 
+    internalSamplingSizeOverride:
+        description: >-
+            Directly specify the number of documents to sample for cardinality estimation in
+            CBR. When set to a positive value, bypasses the
+            samplingConfidenceInterval and samplingMarginOfError parameters entirely.
+            A value of 0 (the default) means the sample size is derived from those two parameters.
+        set_at: [startup, runtime]
+        cpp_varname: internalSamplingSizeOverride
+        cpp_vartype: AtomicWord<int>
+        default: 0
+        validator:
+            gte: 0
+        redact: false
+        annotations:
+            query_knob:
+                wire_name: samplingSizeOverride
+                pqs_settable: true
+                fcv:
+                    min: "9.0"
+
     internalQuerySamplingCEMethod:
         description: >-
             Control sampling CE method. There two supported sampling CE method, random and
@@ -1281,6 +1310,9 @@ server_parameters:
         annotations:
             query_knob:
                 wire_name: plannerPushdownFilterToIxscanForSort
+                pqs_settable: true
+                fcv:
+                    min: "9.0"
 
     internalQueryTransformHoistPolicy:
         description: >-

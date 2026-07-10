@@ -30,6 +30,7 @@
 #include "mongo/db/pipeline/document_source_change_stream.h"
 
 #include "mongo/db/commands/server_status/server_status_metric.h"
+#include "mongo/db/curop.h"
 #include "mongo/db/database_name.h"
 #include "mongo/db/pipeline/change_stream.h"
 #include "mongo/db/pipeline/change_stream_helpers.h"
@@ -77,10 +78,6 @@ otel::metrics::Counter<int64_t>& makeCsCounter(otel::metrics::MetricName name,
     return otel::metrics::MetricsService::instance().createInt64Counter(
         name, std::move(desc), otel::metrics::MetricUnit::kEvents, opts);
 }
-
-// Preserved on mongos at the old path until per-process option metrics are implemented.
-// When the follow-on mongos ticket lands, retire this alongside the new mongos counter.
-auto& csShowExpandedEventsRouter = *MetricBuilder<Counter64>{"changeStreams.showExpandedEvents"};
 
 // Renamed from "changeStreams.showExpandedEvents"; see downstream DWH/TOOLS ticket.
 auto& csOptShowExpandedEvents =
@@ -431,6 +428,12 @@ std::list<intrusive_ptr<DocumentSource>> DocumentSourceChangeStream::createFromB
 
     if (changeStreamVersion == ChangeStreamReaderVersionEnum::kV2) {
         OperationContext* opCtx = expCtx->getOperationContext();
+
+        // Record on CurOp so it rides onto the ClusterClientCursor at registration (mirroring
+        // isChangeStreamQuery). The router getMore precondition uses this to kill-and-resume the
+        // cursor on the v1 path if the IFR flag is later turned off.
+        CurOp::get(opCtx)->debug().usesChangeStreamV2ShardTargeting = true;
+
         ChangeStreamReaderBuilder* readerBuilder =
             ChangeStreamReaderBuilder::get(opCtx->getServiceContext());
         tassert(10743908, "expecting ChangeStreamReaderBuilder to be available", readerBuilder);
@@ -449,9 +452,9 @@ std::list<intrusive_ptr<DocumentSource>> DocumentSourceChangeStream::createFromB
     // Save a copy of the spec on the expression context. Used when building the oplog filter.
     expCtx->setChangeStreamSpec(spec);
 
-    // Only increment on mongod (not router) during actual execution, not query shape parsing.
-    if (!expCtx->getInRouter() &&
-        expCtx->getMongoProcessInterface()->isExpectedToExecuteQueries()) {
+    // Only increment during actual execution, not query shape parsing.
+    if (expCtx->getMongoProcessInterface()->isExpectedToExecuteQueries() &&
+        expCtx->updateChangeStreamFeatureCounters()) {
         if (spec.getShowExpandedEvents().value_or(false))
             csOptShowExpandedEvents.add(1);
         if (spec.getShowMigrationEvents().value_or(false))
@@ -475,11 +478,9 @@ std::list<intrusive_ptr<DocumentSource>> DocumentSourceChangeStream::createFromB
         incrementFullDocumentMetric(spec.getFullDocument());
         incrementFullDocumentBeforeChangeMetric(spec.getFullDocumentBeforeChange());
         incrementScopeMetric(changeStream.getChangeStreamType());
-    }
 
-    // Preserve the legacy mongos metric at its old path until per-process option metrics land.
-    if (expCtx->getInRouter() && expCtx->getMongoProcessInterface()->isExpectedToExecuteQueries()) {
-        csShowExpandedEventsRouter.increment(spec.getShowExpandedEvents().value_or(false));
+        // Prevent updating the feature counters again for the same query.
+        expCtx->setUpdateChangeStreamFeatureCounters(false);
     }
 
     return change_stream::pipeline_helpers::buildPipeline(expCtx, spec, resumeToken);
@@ -498,6 +499,15 @@ ChangeStreamReaderVersionEnum DocumentSourceChangeStream::_determineChangeStream
     }
 
     OperationContext* opCtx = expCtx->getOperationContext();
+
+    // Check the IFR kill switch for v2 shard targeting. This is a runtime-toggleable flag that
+    // allows emergency rollback of v2.
+    const auto& ifrContext = expCtx->getIfrContext();
+    const bool v2Enabled = ifrContext &&
+        ifrContext->getSavedFlagValue(feature_flags::gFeatureFlagChangeStreamReaderV2);
+    if (!v2Enabled) {
+        return ChangeStreamReaderVersionEnum::kV1;
+    }
 
     // Check feature flag 'featureFlagChangeStreamPreciseShardTargeting' that is required to enable
     // v2 change stream readers.
