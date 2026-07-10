@@ -30,6 +30,7 @@
 #include "mongo/db/exec/sbe/expressions/compile_ctx.h"
 #include "mongo/db/exec/sbe/sbe_block_test_helpers.h"
 #include "mongo/db/exec/sbe/sbe_plan_stage_test.h"
+#include "mongo/db/exec/sbe/sbe_unittest_assert.h"
 #include "mongo/db/exec/sbe/stages/block_hashagg.h"
 #include "mongo/db/exec/sbe/values/slot.h"
 #include "mongo/db/exec/sbe/values/value.h"
@@ -105,13 +106,11 @@ public:
     }
 
     static TypedValue makeArray(std::vector<TypedValue> vals) {
-        auto [arrTag, arrVal] = value::makeNewArray();
-        value::ValueGuard guard(arrTag, arrVal);
+        value::TagValueOwned arrOwner = value::TagValueOwned::fromRaw(value::makeNewArray());
         for (auto [t, v] : vals) {
-            value::getArrayView(arrVal)->push_back_raw(t, v);
+            value::getArrayView(arrOwner.value())->push_back_raw(t, v);
         }
-        guard.reset();
-        return {arrTag, arrVal};
+        return arrOwner.releaseToRaw();
     }
 
     // This helper takes an array of groupby results and compares to the expectedMap of group ID to
@@ -163,10 +162,10 @@ public:
 
                 // Check the expected results for each accumulator.
                 for (size_t accIdx = 0; accIdx < expectedVals.size(); accIdx++) {
-                    assertValuesEqual(results[accIdx + keySize][rowIdx].first,
-                                      results[accIdx + keySize][rowIdx].second,
-                                      value::TypeTags::NumberInt32,
-                                      value::bitcastTo<int32_t>(expectedVals[accIdx]));
+                    ASSERT_SBE_VALUE_EQ(results[accIdx + keySize][rowIdx].first,
+                                        results[accIdx + keySize][rowIdx].second,
+                                        value::TypeTags::NumberInt32,
+                                        value::bitcastTo<int32_t>(expectedVals[accIdx]));
                 }
 
                 // Delete from the expected map so we know we get the results exactly once.
@@ -314,7 +313,7 @@ public:
                                    makeFn,
                                    forceSpill,
                                    assertStageStats);
-        value::ValueGuard resultGuard{result};
+        value::TagValueOwned resultOwner = value::TagValueOwned::fromRaw(result);
         assertResultMatchesMap(result, expectedResultsMap, expectedOutputBlockSizes);
     }
 

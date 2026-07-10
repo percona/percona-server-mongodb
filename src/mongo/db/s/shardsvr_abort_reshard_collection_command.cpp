@@ -87,16 +87,23 @@ public:
             CommandHelpers::uassertCommandRunWithMajority(Request::kCommandName,
                                                           opCtx->getWriteConcern());
 
+            LOGV2(12992410,
+                  "Received _shardsvrAbortReshardCollection command",
+                  "reshardingUUID"_attr = uuid(),
+                  "lsid"_attr = opCtx->getLogicalSessionId(),
+                  "txnNum"_attr = opCtx->getTxnNumber());
+
             // Persist the config time to ensure that in case of stepdown next filtering metadata
             // refresh on the new primary will always fetch the latest information.
             VectorClockMutable::get(opCtx)->waitForDurableConfigTime().get(opCtx);
 
             std::vector<SharedSemiFuture<void>> futuresToWait;
 
-            if (auto machine = resharding::tryGetReshardingStateMachineAndThrowIfShuttingDown<
+            if (auto machine = resharding::getOrRecoverReshardingStateMachine<
                     ReshardingRecipientService,
                     ReshardingRecipientService::RecipientStateMachine,
-                    ReshardingRecipientDocument>(opCtx, uuid())) {
+                    ReshardingRecipientDocument>(
+                    opCtx, NamespaceString::kRecipientReshardingOperationsNamespace, uuid())) {
                 futuresToWait.push_back((*machine)->getCompletionFuture());
 
                 LOGV2(5663800,
@@ -105,10 +112,11 @@ public:
                 (*machine)->abort(isUserCanceled());
             }
 
-            if (auto machine = resharding::tryGetReshardingStateMachineAndThrowIfShuttingDown<
+            if (auto machine = resharding::getOrRecoverReshardingStateMachine<
                     ReshardingDonorService,
                     ReshardingDonorService::DonorStateMachine,
-                    ReshardingDonorDocument>(opCtx, uuid())) {
+                    ReshardingDonorDocument>(
+                    opCtx, NamespaceString::kDonorReshardingOperationsNamespace, uuid())) {
                 futuresToWait.push_back((*machine)->getCompletionFuture());
 
                 LOGV2(5663801,
@@ -141,6 +149,12 @@ public:
                 recipientReshardingOpStore.count(
                     opCtx, BSON(ReshardingRecipientDocument::kReshardingUUIDFieldName << uuid())) ==
                     0);
+
+            LOGV2(12992411,
+                  "Finished executing _shardsvrAbortReshardCollection command",
+                  "reshardingUUID"_attr = uuid(),
+                  "lsid"_attr = opCtx->getLogicalSessionId(),
+                  "txnNum"_attr = opCtx->getTxnNumber());
         }
 
     private:
