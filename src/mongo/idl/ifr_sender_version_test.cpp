@@ -77,6 +77,9 @@ public:
     std::vector<std::string_view> modules() const final {
         return {};
     }
+    std::vector<std::string_view> perconaFeatures() const final {
+        return {};
+    }
     std::string_view allocator() const final {
         return "test";
     }
