@@ -43,7 +43,7 @@
 #include "mongo/db/auth/user_name.h"
 #include "mongo/db/operation_context.h"
 #include "mongo/db/server_feature_flags_gen.h"
-#include "mongo/platform/atomic_word.h"
+#include "mongo/platform/atomic.h"
 #include "mongo/stdx/unordered_map.h"
 #include "mongo/stdx/unordered_set.h"
 #include "mongo/util/assert_util.h"
@@ -65,7 +65,7 @@
 #include <boost/optional/optional.hpp>
 
 
-namespace MONGO_MOD_PUBLIC mongo {
+namespace [[MONGO_MOD_PUBLIC]] mongo {
 using namespace std::literals::string_view_literals;
 
 /**
@@ -534,4 +534,4 @@ using UserCache = ReadThroughCache<UserRequest::UserRequestCacheKey,
                                    SharedUserAcquisitionStats>;
 using UserHandle = UserCache::ValueHandle;
 
-}  // namespace MONGO_MOD_PUBLIC mongo
+}  // namespace mongo

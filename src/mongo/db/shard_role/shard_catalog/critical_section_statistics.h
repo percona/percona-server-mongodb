@@ -62,7 +62,7 @@ private:
  * amount of time spent waiting/with the critical section.
  */
 template <typename Key>
-class MONGO_MOD_PARENT_PRIVATE CriticalSectionStatistics {
+class [[MONGO_MOD_PARENT_PRIVATE]] CriticalSectionStatistics {
 public:
     void report(BSONObjBuilder& builder) const {
         Microseconds totalTimeActiveCatchup{0};
@@ -140,7 +140,7 @@ private:
     stdx::unordered_map<Key, Timer> _catchupModeCriticalSections;
     std::list<Timer> _waitersList;
 
-    AtomicWord<int64_t> _activeWaiters{0};
-    AtomicWord<int64_t> _totalTimeWaiting{0};
+    Atomic<int64_t> _activeWaiters{0};
+    Atomic<int64_t> _totalTimeWaiting{0};
 };
 }  // namespace mongo

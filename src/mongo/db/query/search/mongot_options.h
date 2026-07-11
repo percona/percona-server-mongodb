@@ -44,7 +44,7 @@ namespace mongo {
 /**
  * Mongot (search) configuration options
  */
-struct MONGO_MOD_PUB MongotParams {
+struct [[MONGO_MOD_PUBLIC]] MongotParams {
     static Status onSetHost(const std::string&);
     static Status onValidateHost(std::string_view str, const boost::optional<TenantId>&);
 
@@ -55,11 +55,11 @@ struct MONGO_MOD_PUB MongotParams {
     bool skipAuthToMongot = false;
     bool useGRPC = false;
 
-    AtomicWord<int> minConnections;
-    AtomicWord<int> maxConnections;
+    Atomic<int> minConnections;
+    Atomic<int> maxConnections;
     transport::ConnectSSLMode sslMode;
 };
 
-MONGO_MOD_PUB extern MongotParams globalMongotParams;
+[[MONGO_MOD_PUBLIC]] extern MongotParams globalMongotParams;
 
 }  // namespace mongo

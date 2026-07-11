@@ -33,7 +33,7 @@
 #include "mongo/db/pipeline/lite_parsed_document_source.h"
 #include "mongo/util/modules.h"
 
-namespace MONGO_MOD_PUBLIC mongo {
+namespace [[MONGO_MOD_PUBLIC]] mongo {
 class AggregateCommandRequest;
 class DistinctCommandRequest;
 class FindCommandRequest;
@@ -70,6 +70,7 @@ public:
     ExpressionContextBuilder& inRouter(bool);
     ExpressionContextBuilder& forPerShardCursor(bool);
     ExpressionContextBuilder& allowDiskUse(bool);
+    ExpressionContextBuilder& allowPartialResults(bool);
     ExpressionContextBuilder& bypassDocumentValidation(bool);
     ExpressionContextBuilder& isMapReduceCommand(bool);
     ExpressionContextBuilder& hasWhereClause(bool);
@@ -181,4 +182,4 @@ boost::intrusive_ptr<ExpressionContext> makeCopyForSubPipelineFromExpressionCont
     NamespaceString nss,
     boost::optional<UUID> uuid = boost::none,
     boost::optional<NamespaceString> userNs = boost::none);
-}  // namespace MONGO_MOD_PUBLIC mongo
+}  // namespace mongo

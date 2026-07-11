@@ -45,7 +45,7 @@
 
 #include <boost/optional.hpp>
 
-namespace MONGO_MOD_PUBLIC mongo {
+namespace [[MONGO_MOD_PUBLIC]] mongo {
 using namespace std::literals::string_view_literals;
 
 #if (MONGO_CONFIG_SSL_PROVIDER == MONGO_CONFIG_SSL_PROVIDER_WINDOWS) || \
@@ -64,7 +64,7 @@ struct SSLParams {
     using TLSCATrusts = std::map<SHA256Block, std::set<RoleName>>;
 
     enum class Protocols { TLS1_0, TLS1_1, TLS1_2, TLS1_3 };
-    AtomicWord<int> sslMode;        // --tlsMode - the TLS operation mode, see enum SSLModes
+    Atomic<int> sslMode;            // --tlsMode - the TLS operation mode, see enum SSLModes
     std::string sslPEMTempDHParam;  // --setParameter OpenSSLDiffieHellmanParameters=file : PEM file
                                     // with DH parameters.
     std::string sslPEMKeyFile;      // --tlsCertificateKeyFile
@@ -236,4 +236,4 @@ Status parseCertificateSelector(SSLParams::CertificateSelector* selector,
                                 std::string_view name,
                                 std::string_view value);
 
-}  // namespace MONGO_MOD_PUBLIC mongo
+}  // namespace mongo

@@ -43,7 +43,7 @@
 #include "mongo/executor/remote_command_request.h"
 #include "mongo/executor/task_executor.h"
 #include "mongo/executor/task_executor_cursor_options.h"
-#include "mongo/platform/atomic_word.h"
+#include "mongo/platform/atomic.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/duration.h"
 #include "mongo/util/future.h"
@@ -62,7 +62,7 @@
 #include <boost/optional.hpp>
 #include <boost/optional/optional.hpp>
 
-namespace MONGO_MOD_PUB mongo {
+namespace [[MONGO_MOD_PUBLIC]] mongo {
 
 namespace executor {
 class PinnedExecutorRegistryToken;
@@ -314,4 +314,4 @@ inline std::unique_ptr<TaskExecutorCursor> makeTaskExecutorCursor(
 }
 
 }  // namespace executor
-}  // namespace MONGO_MOD_PUB mongo
+}  // namespace mongo

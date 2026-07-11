@@ -33,7 +33,7 @@
 #include "mongo/db/operation_context.h"
 #include "mongo/db/storage/kv/kv_engine.h"
 #include "mongo/db/storage/record_store.h"
-#include "mongo/platform/atomic_word.h"
+#include "mongo/platform/atomic.h"
 #include "mongo/stdx/condition_variable.h"
 #include "mongo/stdx/thread.h"
 #include "mongo/util/concurrency/with_lock.h"
@@ -68,7 +68,7 @@ namespace mongo {
  * TODO(SERVER-85788): If it's enabled without removing this class, update the comment to reflect
  * the new relationship.
  */
-class MONGO_MOD_PUBLIC StorageOplogManager {
+class [[MONGO_MOD_PUBLIC]] StorageOplogManager {
     StorageOplogManager(const StorageOplogManager&) = delete;
     StorageOplogManager& operator=(const StorageOplogManager&) = delete;
 
@@ -152,7 +152,7 @@ private:
 
     std::string _oplogIdent;
 
-    AtomicWord<unsigned long long> _oplogReadTimestamp{0};
+    Atomic<unsigned long long> _oplogReadTimestamp{0};
 
     stdx::thread _oplogVisibilityThread;
 

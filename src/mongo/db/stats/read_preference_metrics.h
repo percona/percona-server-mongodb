@@ -35,7 +35,7 @@
 #include "mongo/db/stats/read_preference_metrics_gen.h"
 #include "mongo/util/modules.h"
 
-namespace MONGO_MOD_PUB mongo {
+namespace [[MONGO_MOD_PUBLIC]] mongo {
 
 /**
  * Contains server-wide metrics on read preference usage. Metrics are first split into two
@@ -65,8 +65,8 @@ public:
 
 private:
     struct Counter {
-        AtomicWord<unsigned long long> internal{0};
-        AtomicWord<unsigned long long> external{0};
+        Atomic<unsigned long long> internal{0};
+        Atomic<unsigned long long> external{0};
 
         // Loads an individual counter's internal and external operation counters into a
         // 'ReadPrefOps' object.
@@ -94,4 +94,4 @@ private:
     Counters secondaryCounters;
 };
 
-}  // namespace MONGO_MOD_PUB mongo
+}  // namespace mongo

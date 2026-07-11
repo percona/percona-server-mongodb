@@ -55,7 +55,7 @@ namespace mongo {
  * The VectorClock service provides a collection of cluster-wide logical clocks (including the
  * clusterTime), that are used to provide causal-consistency to various other services.
  */
-class MONGO_MOD_NEEDS_REPLACEMENT VectorClock {
+class [[MONGO_MOD_NEEDS_REPLACEMENT]] VectorClock {
 protected:
     enum class Component : uint8_t {
         ClusterTime = 0,
@@ -373,7 +373,7 @@ protected:
     // VectorClock mutex is held.
     mutable ObservableMutex<std::mutex> _mutex;
 
-    AtomicWord<bool> _isEnabled{true};
+    Atomic<bool> _isEnabled{true};
 
     LogicalTimeArray _vectorTime = {
         kInitialComponentTime, kInitialComponentTime, kInitialComponentTime};
@@ -382,7 +382,7 @@ protected:
     // Written under _mutex whenever _vectorTime is updated.
     // Initialized to kInitialComponentTime in the constructor.
     alignas(std::hardware_destructive_interference_size)
-        ComponentArray<AtomicWord<unsigned long long>> _vectorTimeShadow;
+        ComponentArray<Atomic<unsigned long long>> _vectorTimeShadow;
 
 private:
     class PlainComponentFormat;

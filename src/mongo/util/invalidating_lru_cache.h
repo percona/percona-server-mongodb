@@ -30,7 +30,7 @@
 #pragma once
 
 #include "mongo/base/static_assert.h"
-#include "mongo/platform/atomic_word.h"
+#include "mongo/platform/atomic.h"
 #include "mongo/stdx/trusted_hasher.h"
 #include "mongo/stdx/unordered_map.h"
 #include "mongo/util/assert_util.h"
@@ -53,7 +53,7 @@
 #include <boost/none.hpp>
 #include <boost/optional/optional.hpp>
 
-MONGO_MOD_PUBLIC;
+[[MONGO_MOD_PUBLIC]];
 
 namespace mongo {
 
@@ -137,7 +137,7 @@ struct IsTrustedHasher<LruKeyHasher<Key>, Key> : std::true_type {};
  * the lowest possible value for the time.
  */
 template <typename Key, typename Value, typename Time = CacheNotCausallyConsistent>
-class MONGO_MOD_OPEN InvalidatingLRUCache {
+class [[MONGO_MOD_OPEN]] InvalidatingLRUCache {
     /**
      * Data structure representing the values stored in the cache.
      */
@@ -221,7 +221,7 @@ class MONGO_MOD_OPEN InvalidatingLRUCache {
         // Can be read without synchronisation. Transitions to false only once, under `_mutex` in
         // order to mark the entry as invalid either as a result of 'invalidate' or
         // 'advanceTimeInStore'.
-        AtomicWord<bool> isValid;
+        Atomic<bool> isValid;
     };
 
     using Cache =

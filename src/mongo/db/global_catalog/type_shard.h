@@ -58,12 +58,15 @@ class StatusWith;
  * config.shards collection. All manipulation of documents coming from that
  * collection should be done with this class.
  */
-class MONGO_MOD_NEEDS_REPLACEMENT ShardType {
+class [[MONGO_MOD_NEEDS_REPLACEMENT]] ShardType {
 public:
     enum class ShardState : int {
         kNotShardAware = 0,
         kShardAware,
     };
+
+    // Hardcoded UUID for the config server.
+    static const UUID kConfigServerUuid;
 
     // Field names and types in the shards collection type.
     static const BSONField<std::string> name;
@@ -107,6 +110,8 @@ public:
     const std::string& getName() const;
 
     const boost::optional<UUID>& getUuid() const;
+
+    void setUuid(boost::optional<UUID> uuid);
 
     const ShardHandle& getHandle() const;
     void setHandle(ShardHandle handle);

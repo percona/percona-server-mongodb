@@ -54,7 +54,7 @@
 #include "mongo/db/shard_role/shard_catalog/collection_sharding_runtime.h"
 #include "mongo/db/sharding_environment/shard_id.h"
 #include "mongo/db/write_concern_options.h"
-#include "mongo/platform/atomic_word.h"
+#include "mongo/platform/atomic.h"
 #include "mongo/stdx/condition_variable.h"
 #include "mongo/stdx/thread.h"
 #include "mongo/util/cancellation.h"
@@ -97,7 +97,7 @@ struct CollectionOptionsAndIndexes {
 /**
  * Drives the receiving side of the MongoD migration process. One instance exists per shard.
  */
-class MONGO_MOD_NEEDS_REPLACEMENT MigrationDestinationManager
+class [[MONGO_MOD_NEEDS_REPLACEMENT]] MigrationDestinationManager
     : public ReplicaSetAwareServiceShardSvr<MigrationDestinationManager> {
     MigrationDestinationManager(const MigrationDestinationManager&) = delete;
     MigrationDestinationManager& operator=(const MigrationDestinationManager&) = delete;
@@ -216,7 +216,7 @@ public:
         std::vector<BSONObj> indexSpecs;
         BSONObj idIndexSpec;
     };
-    MONGO_MOD_NEEDS_REPLACEMENT static IndexesAndIdIndex getCollectionIndexes(
+    [[MONGO_MOD_NEEDS_REPLACEMENT]] static IndexesAndIdIndex getCollectionIndexes(
         OperationContext* opCtx,
         const NamespaceString& nss,
         const ShardId& fromShardId,
@@ -245,7 +245,7 @@ public:
      * If the collection already exists, it will be updated to match the target options and indexes,
      * including dropping any indexes not specified in the target index specs.
      */
-    MONGO_MOD_NEEDS_REPLACEMENT static void cloneCollectionIndexesAndOptions(
+    [[MONGO_MOD_NEEDS_REPLACEMENT]] static void cloneCollectionIndexesAndOptions(
         OperationContext* opCtx,
         const NamespaceString& nss,
         const CollectionOptionsAndIndexes& collectionOptionsAndIndexes);
@@ -291,6 +291,20 @@ public:
                                              const UUID& collUuid,
                                              const ShardId& recipientShardId,
                                              const ChunkRange& enclosingChunk);
+
+    /**
+     * Enforces that accepting a migration over 'enclosingChunk' does not drop point-in-time
+     * (PIT) reachable ownership history from this shard's local catalog (see
+     * migrationWouldDropPITHistory() above). By default aborts with
+     * ConflictingOperationInProgress. If 'allowMigrationsToDropRecipientPITHistory' is enabled,
+     * logs a warning and lets the migration proceed instead.
+     */
+    static void ensurePITHistoryPreserved(OperationContext* opCtx,
+                                          const UUID& collUuid,
+                                          const ShardId& recipientShardId,
+                                          const ChunkRange& enclosingChunk,
+                                          const NamespaceString& nss,
+                                          const UUID& migrationId);
 
 private:
     /**
@@ -372,7 +386,7 @@ private:
 
     // The number of session oplog entries recieved from the source shard. Not all oplog
     // entries recieved from the source shard may be committed
-    AtomicWord<long long> _sessionOplogEntriesMigrated{0};
+    Atomic<long long> _sessionOplogEntriesMigrated{0};
 
     // Mutex to guard all fields below
     mutable std::mutex _mutex;
@@ -419,6 +433,10 @@ private:
     //
     // TODO (SERVER-127253) Make this parameter non-optional once v9.0 branches out.
     boost::optional<ChunkRange> _enclosingChunk;
+
+    // Whether the migration commits authoritatively (driven by a MoveRangeCoordinator), as reported
+    // by the donor in the _recvChunkStart request.
+    bool _isAuthoritative{false};
 
     BSONObj _shardKeyPattern;
 

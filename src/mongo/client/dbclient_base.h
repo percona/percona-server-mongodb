@@ -50,7 +50,7 @@
 #include "mongo/db/repl/read_concern_gen.h"
 #include "mongo/db/write_concern_options.h"
 #include "mongo/logv2/log_severity.h"
-#include "mongo/platform/atomic_word.h"
+#include "mongo/platform/atomic.h"
 #include "mongo/rpc/message.h"
 #include "mongo/rpc/metadata.h"
 #include "mongo/rpc/op_msg.h"
@@ -76,7 +76,7 @@
 #include <boost/none.hpp>
 #include <boost/optional/optional.hpp>
 
-namespace MONGO_MOD_PUBLIC mongo {
+namespace [[MONGO_MOD_PUBLIC]] mongo {
 
 namespace executor {
 struct RemoteCommandResponse;
@@ -104,7 +104,7 @@ enum class ExhaustMode { kOn, kOff };
 /**
  * Abstract class that implements the core db operations.
  */
-class MONGO_MOD_OPEN DBClientBase {
+class [[MONGO_MOD_OPEN]] DBClientBase {
     DBClientBase(const DBClientBase&) = delete;
     DBClientBase& operator=(const DBClientBase&) = delete;
 
@@ -744,7 +744,7 @@ protected:
      */
     const logv2::LogSeverity _logLevel;
 
-    static AtomicWord<long long> ConnectionIdSequence;
+    static Atomic<long long> ConnectionIdSequence;
     long long _connectionId;  // unique connection id for this connection
 
     std::vector<std::string> _saslMechsForAuth;
@@ -767,7 +767,7 @@ private:
 
     ClientAPIVersionParameters _apiParameters;
 
-    AtomicWord<bool> _isClientAuthenticated = {false};
+    Atomic<bool> _isClientAuthenticated = {false};
 };  // DBClientBase
 
 BSONElement getErrField(const BSONObj& result);
@@ -803,4 +803,4 @@ private:
     rpc::ReplyMetadataReader _oldReader;
 };
 
-}  // namespace MONGO_MOD_PUBLIC mongo
+}  // namespace mongo

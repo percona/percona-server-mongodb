@@ -34,7 +34,7 @@
 #include "mongo/config.h"  // IWYU pragma: keep
 #include "mongo/db/auth/restriction_environment.h"
 #include "mongo/db/baton.h"
-#include "mongo/platform/atomic_word.h"
+#include "mongo/platform/atomic.h"
 #include "mongo/rpc/message.h"
 #include "mongo/transport/session_id.h"
 #include "mongo/util/decorable.h"
@@ -78,8 +78,8 @@ struct SessionManagerOpCounters {
  * This type contains data needed to associate Messages with connections
  * (on the transport side) and Messages with Client objects (on the database side).
  */
-class MONGO_MOD_PUBLIC Session : public std::enable_shared_from_this<Session>,
-                                 public Decorable<Session> {
+class [[MONGO_MOD_PUBLIC]] Session : public std::enable_shared_from_this<Session>,
+                                     public Decorable<Session> {
     Session(const Session&) = delete;
     Session& operator=(const Session&) = delete;
 

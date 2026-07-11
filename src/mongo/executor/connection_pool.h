@@ -38,7 +38,7 @@
 #include "mongo/executor/connection_pool_stats.h"
 #include "mongo/executor/egress_connection_closer.h"
 #include "mongo/executor/egress_connection_closer_manager.h"
-#include "mongo/platform/atomic_word.h"
+#include "mongo/platform/atomic.h"
 #include "mongo/platform/compiler.h"
 #include "mongo/stdx/unordered_map.h"
 #include "mongo/transport/session.h"
@@ -74,7 +74,7 @@ namespace mongo {
 
 class BSONObjBuilder;
 
-namespace MONGO_MOD_PUBLIC executor {
+namespace [[MONGO_MOD_PUBLIC]] executor {
 
 /**
  * The actual user visible connection pool.
@@ -353,7 +353,7 @@ private:
  *
  * Minimal interface sets a timer with a callback and cancels the timer.
  */
-class MONGO_MOD_UNFORTUNATELY_OPEN ConnectionPool::TimerInterface {
+class [[MONGO_MOD_UNFORTUNATELY_OPEN]] ConnectionPool::TimerInterface {
     TimerInterface(const TimerInterface&) = delete;
     TimerInterface& operator=(const TimerInterface&) = delete;
 
@@ -388,7 +388,7 @@ public:
  * specifically callbacks to set them up (connect + auth + whatever else),
  * refresh them (issue some kind of ping) and manage a timer.
  */
-class MONGO_MOD_UNFORTUNATELY_OPEN ConnectionPool::ConnectionInterface : public TimerInterface {
+class [[MONGO_MOD_UNFORTUNATELY_OPEN]] ConnectionPool::ConnectionInterface : public TimerInterface {
     ConnectionInterface(const ConnectionInterface&) = delete;
     ConnectionInterface& operator=(const ConnectionInterface&) = delete;
 
@@ -507,7 +507,7 @@ protected:
 private:
     size_t _generation;
     Date_t _lastUsed;
-    AtomicWord<size_t> _timesUsed{0};
+    Atomic<size_t> _timesUsed{0};
     Status _status = ConnectionPool::kConnectionStateUnknown;
 };
 
@@ -595,7 +595,7 @@ protected:
  * This factory provides generators for connections, timers and a clock for the
  * connection pool.
  */
-class MONGO_MOD_UNFORTUNATELY_OPEN ConnectionPool::DependentTypeFactoryInterface {
+class [[MONGO_MOD_UNFORTUNATELY_OPEN]] ConnectionPool::DependentTypeFactoryInterface {
     DependentTypeFactoryInterface(const DependentTypeFactoryInterface&) = delete;
     DependentTypeFactoryInterface& operator=(const DependentTypeFactoryInterface&) = delete;
 
@@ -649,5 +649,5 @@ inline ClockSource* ConnectionPool::_getFastClockSource() const {
     return _fastClockSource;
 }
 
-}  // namespace MONGO_MOD_PUBLIC executor
+}  // namespace executor
 }  // namespace mongo

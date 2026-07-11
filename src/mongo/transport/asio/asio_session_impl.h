@@ -51,7 +51,7 @@ namespace mongo::transport {
  * NOTE: This functionality is currently provided by inheritance, but composition might be a
  * preferred approach after more refactoring.
  */
-class MONGO_MOD_NEEDS_REPLACEMENT CommonAsioSession : public AsioSession {
+class [[MONGO_MOD_NEEDS_REPLACEMENT]] CommonAsioSession : public AsioSession {
 public:
     /**
      * If the socket is disconnected while any of these options are being set, this constructor
@@ -204,7 +204,7 @@ protected:
          *  +--------------------------+--------------+
          */
         enum class State { kNotStarted, kRunning, kCanceled };
-        AtomicWord<State> _state{State::kNotStarted};
+        Atomic<State> _state{State::kNotStarted};
     };
 
     Future<Message> sourceMessageImpl(const BatonHandle& baton = nullptr);

@@ -38,7 +38,7 @@
 #include "mongo/db/repl/replication_coordinator.h"
 #include "mongo/db/repl/replication_coordinator_fwd.h"
 #include "mongo/db/service_context.h"
-#include "mongo/platform/atomic_word.h"
+#include "mongo/platform/atomic.h"
 #include "mongo/util/modules.h"
 #include "mongo/util/periodic_runner.h"
 #include "mongo/util/time_support.h"
@@ -62,9 +62,9 @@ namespace mongo {
  * Otherwise this class' only output is to refresh the tickets available in the
  * `FlowControlTicketholder`.
  */
-class MONGO_MOD_PUBLIC FlowControl {
+class [[MONGO_MOD_PUBLIC]] FlowControl {
 public:
-    class MONGO_MOD_OPEN TimestampProvider {
+    class [[MONGO_MOD_OPEN]] TimestampProvider {
     public:
         virtual ~TimestampProvider() = default;
         /**
@@ -190,24 +190,24 @@ public:
     /**
      * Underscore methods are public for testing.
      */
-    MONGO_MOD_PRIVATE std::int64_t _getLocksUsedLastPeriod();
-    MONGO_MOD_PRIVATE double _getLocksPerOp();
+    [[MONGO_MOD_PRIVATE]] std::int64_t _getLocksUsedLastPeriod();
+    [[MONGO_MOD_PRIVATE]] double _getLocksPerOp();
 
-    MONGO_MOD_PRIVATE std::int64_t _approximateOpsBetween(Timestamp prevTs, Timestamp currTs);
+    [[MONGO_MOD_PRIVATE]] std::int64_t _approximateOpsBetween(Timestamp prevTs, Timestamp currTs);
 
-    MONGO_MOD_PRIVATE int _calculateNewTicketsForLag(const Timestamp& prevSustainerTimestamp,
-                                                     const Timestamp& currSustainerTimestamp,
-                                                     std::int64_t locksUsedLastPeriod,
-                                                     double locksPerOp,
-                                                     std::uint64_t lagMillis,
-                                                     std::uint64_t thresholdLagMillis);
+    [[MONGO_MOD_PRIVATE]] int _calculateNewTicketsForLag(const Timestamp& prevSustainerTimestamp,
+                                                         const Timestamp& currSustainerTimestamp,
+                                                         std::int64_t locksUsedLastPeriod,
+                                                         double locksPerOp,
+                                                         std::uint64_t lagMillis,
+                                                         std::uint64_t thresholdLagMillis);
 
-    MONGO_MOD_PRIVATE void _trimSamples(Timestamp trimSamplesTo);
+    [[MONGO_MOD_PRIVATE]] void _trimSamples(Timestamp trimSamplesTo);
 
     // Sample of (timestamp, ops, lock acquisitions) where ops and lock acquisitions are
     // observations of the corresponding counter at (roughly) <timestamp>.
     typedef std::tuple<std::uint64_t, std::uint64_t, std::int64_t> Sample;
-    MONGO_MOD_PRIVATE const std::deque<Sample>& _getSampledOpsApplied_forTest() {
+    [[MONGO_MOD_PRIVATE]] const std::deque<Sample>& _getSampledOpsApplied_forTest() {
         return _sampledOpsApplied;
     }
 
@@ -216,14 +216,14 @@ private:
 
     // These values are updated with each flow control computation and are also surfaced in server
     // status.
-    AtomicWord<int> _lastTargetTicketsPermitted{kMaxTickets};
-    AtomicWord<double> _lastLocksPerOp{0.0};
-    AtomicWord<int> _lastSustainerAppliedCount{0};
-    AtomicWord<bool> _isLagged{false};
-    AtomicWord<int> _isLaggedCount{0};
+    Atomic<int> _lastTargetTicketsPermitted{kMaxTickets};
+    Atomic<double> _lastLocksPerOp{0.0};
+    Atomic<int> _lastSustainerAppliedCount{0};
+    Atomic<bool> _isLagged{false};
+    Atomic<int> _isLaggedCount{0};
     // Use an int64_t as this is serialized to bson which does not support unsigned 64-bit numbers.
-    AtomicWord<std::int64_t> _isLaggedTimeMicros{0};
-    AtomicWord<Date_t> _disableUntil;
+    Atomic<std::int64_t> _isLaggedTimeMicros{0};
+    Atomic<Date_t> _disableUntil;
 
     mutable std::mutex _sampledOpsMutex;
     std::deque<Sample> _sampledOpsApplied;
@@ -243,7 +243,8 @@ private:
 };
 
 namespace flow_control_details {
-class MONGO_MOD_PUBLIC ReplicationTimestampProvider final : public FlowControl::TimestampProvider {
+class [[MONGO_MOD_PUBLIC]] ReplicationTimestampProvider final
+    : public FlowControl::TimestampProvider {
 public:
     explicit ReplicationTimestampProvider(repl::ReplicationCoordinator* replCoord);
     Timestamp getCurrSustainerTimestamp() const final;

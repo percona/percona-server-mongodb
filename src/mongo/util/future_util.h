@@ -33,7 +33,7 @@
 #include "mongo/base/status_with.h"
 #include "mongo/client/retry_strategy.h"
 #include "mongo/executor/task_executor.h"
-#include "mongo/platform/atomic_word.h"
+#include "mongo/platform/atomic.h"
 #include "mongo/platform/compiler.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/cancellation.h"
@@ -56,7 +56,7 @@
 #include <boost/move/utility_core.hpp>
 #include <boost/smart_ptr.hpp>
 
-namespace MONGO_MOD_PUB mongo {
+namespace [[MONGO_MOD_PUBLIC]] mongo {
 
 /**
  * Returns a future which will be fulfilled at the given date.
@@ -69,7 +69,7 @@ ExecutorFuture<void> sleepUntil(std::shared_ptr<executor::TaskExecutor> executor
 ExecutorFuture<void> sleepFor(std::shared_ptr<executor::TaskExecutor> executor,
                               Milliseconds duration);
 
-namespace MONGO_MOD_FILE_PRIVATE future_util_details {
+namespace [[MONGO_MOD_FILE_PRIVATE]] future_util_details {
 
 /**
  * Error status to use if any AsyncTry loop has been canceled.
@@ -169,7 +169,7 @@ public:
      * that readies the returned future when the given duration has elapsed or token cancelled.
      */
     template <typename SleepableExecutor>
-    MONGO_MOD_PUBLIC auto on(SleepableExecutor executor, CancellationToken cancelToken) && {
+    [[MONGO_MOD_PUBLIC]] auto on(SleepableExecutor executor, CancellationToken cancelToken) && {
         auto loop =
             std::make_shared<TryUntilLoopWithDelay<SleepableExecutor>>(std::move(executor),
                                                                        std::move(_body),
@@ -316,7 +316,7 @@ public:
      * loop body.
      */
     template <typename DurationType>
-    MONGO_MOD_PUBLIC auto withDelayBetweenIterations(DurationType delay) && {
+    [[MONGO_MOD_PUBLIC]] auto withDelayBetweenIterations(DurationType delay) && {
         return AsyncTryUntilWithDelay(
             std::move(_body), std::move(_condition), ConstDelay<DurationType>(std::move(delay)));
     }
@@ -331,7 +331,7 @@ public:
      * backoff has been performed such as accumulating metrics.
      */
     template <typename BackoffType>
-    MONGO_MOD_PUBLIC auto withBackoffBetweenIterations(BackoffType backoff) && {
+    [[MONGO_MOD_PUBLIC]] auto withBackoffBetweenIterations(BackoffType backoff) && {
         return AsyncTryUntilWithDelay(
             std::move(_body), std::move(_condition), BackoffDelay<BackoffType>(std::move(backoff)));
     }
@@ -346,7 +346,7 @@ public:
      * iteration of the loop body threw an exception or otherwise returned an error status, the
      * returned ExecutorFuture will contain that error.
      */
-    MONGO_MOD_PUBLIC auto on(ExecutorPtr executor, CancellationToken cancelToken) && {
+    [[MONGO_MOD_PUBLIC]] auto on(ExecutorPtr executor, CancellationToken cancelToken) && {
         auto loop = std::make_shared<TryUntilLoop>(
             std::move(executor), std::move(_body), std::move(_condition), std::move(cancelToken));
         // Launch the recursive chain using the helper class.
@@ -559,7 +559,7 @@ std::vector<T> variadicArgsToVector(U&&... elems) {
     (vector.push_back(std::forward<U>(elems)), ...);
     return vector;
 }
-}  // namespace MONGO_MOD_FILE_PRIVATE future_util_details
+}  // namespace future_util_details
 
 /**
  * A fluent-style API for executing asynchronous, future-returning try-until loops.
@@ -683,9 +683,9 @@ SemiFuture<ResultVector> whenAllSucceed(std::vector<FutureLike>&& futures) {
         // Total number of input futures.
         const size_t numFuturesToWaitFor;
         // Tracks the number of input futures which have resolved with success so far.
-        AtomicWord<size_t> numResultsReturnedWithSuccess{0};
+        Atomic<size_t> numResultsReturnedWithSuccess{0};
         // Tracks whether or not the resultPromise has been set. Only used for the error case.
-        AtomicWord<bool> completedWithError{false};
+        Atomic<bool> completedWithError{false};
         // The promise corresponding to the resulting SemiFuture returned by this function.
         Promise<ResultVector> resultPromise;
         // A vector containing the results of each input future.
@@ -743,9 +743,9 @@ SemiFuture<void> whenAllSucceed(std::vector<FutureLike>&& futures) {
         // Total number of input futures.
         const size_t numFuturesToWaitFor;
         // Tracks the number of input futures which have resolved with success so far.
-        AtomicWord<size_t> numResultsReturnedWithSuccess{0};
+        Atomic<size_t> numResultsReturnedWithSuccess{0};
         // Tracks whether or not the resultPromise has been set. Only used for the error case.
-        AtomicWord<bool> completedWithError{false};
+        Atomic<bool> completedWithError{false};
         // The promise corresponding to the resulting SemiFuture returned by this function.
         Promise<void> resultPromise;
     };
@@ -804,7 +804,7 @@ SemiFuture<ResultVector> whenAll(std::vector<FutureT>&& futures) {
         // Total number of input futures.
         const size_t numFuturesToWaitFor;
         // Tracks the number of input futures which have resolved so far.
-        AtomicWord<size_t> numReady{0};
+        Atomic<size_t> numReady{0};
         // A vector containing the results of each input future.
         ResultVector intermediateResult;
         // The promise corresponding to the resulting SemiFuture returned by this function.
@@ -859,7 +859,7 @@ SemiFuture<Result> whenAny(std::vector<FutureT>&& futures) {
     struct SharedBlock {
         SharedBlock(Promise<Result> result) : resultPromise(std::move(result)) {}
         // Tracks whether or not the resultPromise has been set.
-        AtomicWord<bool> done{false};
+        Atomic<bool> done{false};
         // The promise corresponding to the resulting SemiFuture returned by this function.
         Promise<Result> resultPromise;
     };
@@ -929,7 +929,7 @@ SemiFuture<Value> withCancellation(FutureT&& inputFuture, const CancellationToke
     struct SharedBlock {
         SharedBlock(Promise<Value> result) : resultPromise(std::move(result)) {}
         // Tracks whether or not the resultPromise has been set.
-        AtomicWord<bool> done{false};
+        Atomic<bool> done{false};
         // The promise corresponding to the resulting SemiFuture returned by this function.
         Promise<Value> resultPromise;
     };
@@ -964,4 +964,4 @@ SemiFuture<Value> withCancellation(FutureT&& inputFuture, const CancellationToke
 }
 
 }  // namespace future_util
-}  // namespace MONGO_MOD_PUB mongo
+}  // namespace mongo

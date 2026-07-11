@@ -80,7 +80,7 @@ inline std::string_view toStringView(const SpanName& s) {
  * Lightweight view of a captured OTel span. Methods are no-ops when OTel is not compiled.  Valid
  * until OtelTracesCapturer::clearSpans() or the capturer is destroyed.
  */
-class MONGO_MOD_PUBLIC CapturedSpan {
+class [[MONGO_MOD_PUBLIC]] CapturedSpan {
 public:
 #ifdef MONGO_CONFIG_OTEL
     /** `data` must not be null and must outlive the lifetime of this class. */
@@ -139,7 +139,7 @@ private:
  *   auto spans = capturer.getSpans(SpanNames::kMySpan);
  *   ASSERT_THAT(spans, ElementsAre(HasSpanName("mySpan")));
  */
-class MONGO_MOD_PUBLIC OtelTracesCapturer {
+class [[MONGO_MOD_PUBLIC]] OtelTracesCapturer {
 public:
     OtelTracesCapturer();
     ~OtelTracesCapturer();
@@ -194,6 +194,11 @@ private:
 /** Matches a CapturedSpan whose name() equals the given string or SpanName. */
 MATCHER_P(HasSpanName, name, "") {
     return arg.name() == traces_test_util_detail::toStringView(name);
+}
+
+/** Matches a CapturedSpan where isError() is true. */
+MATCHER(HasError, "") {
+    return arg.isError();
 }
 
 /** Matches a CapturedSpan that has an attribute with the given key and value. */

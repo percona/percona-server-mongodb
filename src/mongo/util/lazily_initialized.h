@@ -29,7 +29,7 @@
 
 #pragma once
 
-#include "mongo/platform/atomic_word.h"
+#include "mongo/platform/atomic.h"
 #include "mongo/util/modules.h"
 
 #include <cstddef>
@@ -37,7 +37,7 @@
 #include <memory>
 #include <type_traits>
 
-MONGO_MOD_PUBLIC;
+[[MONGO_MOD_PUBLIC]];
 
 namespace mongo {
 /**
@@ -131,6 +131,6 @@ private:
         }
     }
 
-    mutable AtomicWord<T*> _ptr{nullptr};
+    mutable Atomic<T*> _ptr{nullptr};
 };
 }  // namespace mongo

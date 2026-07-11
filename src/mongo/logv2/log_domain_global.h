@@ -36,7 +36,7 @@
 #include "mongo/logv2/log_domain_internal.h"
 #include "mongo/logv2/log_format.h"
 #include "mongo/logv2/log_source.h"
-#include "mongo/platform/atomic_word.h"
+#include "mongo/platform/atomic.h"
 #include "mongo/util/modules.h"
 
 #include <cstdint>
@@ -46,7 +46,7 @@
 #include <string_view>
 
 namespace mongo::logv2 {
-class MONGO_MOD_PUBLIC LogDomainGlobal : public LogDomain::Internal {
+class [[MONGO_MOD_PUBLIC]] LogDomainGlobal : public LogDomain::Internal {
 public:
     struct ConfigurationOptions {
         enum class RotationMode { kRename, kReopen };
@@ -61,7 +61,7 @@ public:
         bool syslogEnabled{false};
         int syslogFacility{-1};  // invalid facility by default, must be set
         LogFormat format{LogFormat::kDefault};
-        const AtomicWord<int32_t>* maxAttributeSizeKB = nullptr;
+        const Atomic<int32_t>* maxAttributeSizeKB = nullptr;
 
         std::string backtraceFilePath;
 

@@ -34,7 +34,7 @@
 #include "mongo/db/operation_context.h"
 #include "mongo/db/service_context.h"
 #include "mongo/db/topology/user_write_block/replica_set_writes_block_reason_gen.h"
-#include "mongo/platform/atomic_word.h"
+#include "mongo/platform/atomic.h"
 #include "mongo/util/modules.h"
 
 #include <array>
@@ -49,10 +49,10 @@ namespace mongo {
 // can be incremented. Deletes are not included since they are validated separately by
 // checkReplicaSetDeletionsAllowed and tracked through their own counter.
 // TODO (SERVER-125476): Change the enum modularity to PRIVATE
-enum class MONGO_MOD_NEEDS_REPLACEMENT ReplicaSetWriteBlockRejectedWriteOp { kInsert, kUpdate };
+enum class [[MONGO_MOD_NEEDS_REPLACEMENT]] ReplicaSetWriteBlockRejectedWriteOp { kInsert, kUpdate };
 
 // TODO (SERVER-125476): Change the class modularity to PRIVATE
-class MONGO_MOD_NEEDS_REPLACEMENT ReplicaSetWriteBlockState {
+class [[MONGO_MOD_NEEDS_REPLACEMENT]] ReplicaSetWriteBlockState {
 public:
     ReplicaSetWriteBlockState() = default;
 
@@ -127,7 +127,7 @@ public:
      * Returns whether replica set deletions blocking is enabled, disregarding a specific namespace
      * and the state of WriteBlockBypass. Used for serverStatus.
      */
-    MONGO_MOD_FILE_PRIVATE bool isReplicaSetDeletionsBlockingEnabled_forTest() const;
+    [[MONGO_MOD_FILE_PRIVATE]] bool isReplicaSetDeletionsBlockingEnabled_forTest() const;
 
     /**
      * Reports replica set write blocking counters, specifying one counter per blocking reason.
@@ -170,11 +170,11 @@ private:
     // Atomic<T> enforces lock-free access at compile time.
     Atomic<WriteBlockInfo> _writeBlockInfo{WriteBlockInfo{}};
     Atomic<bool> _deletionsBlocked{false};
-    std::array<AtomicWord<std::uint64_t>, idlEnumCount<ReplicaSetWritesBlockReasonEnum>>
+    std::array<Atomic<std::uint64_t>, idlEnumCount<ReplicaSetWritesBlockReasonEnum>>
         _replicaSetWritesBlockCounters{};
-    mutable AtomicWord<std::uint64_t> _replicaSetWriteBlockRejectedInserts{0};
-    mutable AtomicWord<std::uint64_t> _replicaSetWriteBlockRejectedUpdates{0};
-    mutable AtomicWord<std::uint64_t> _replicaSetWriteBlockRejectedDeletes{0};
+    mutable Atomic<std::uint64_t> _replicaSetWriteBlockRejectedInserts{0};
+    mutable Atomic<std::uint64_t> _replicaSetWriteBlockRejectedUpdates{0};
+    mutable Atomic<std::uint64_t> _replicaSetWriteBlockRejectedDeletes{0};
     Atomic<bool> _userIndexBuildsBlocked{false};
 };
 

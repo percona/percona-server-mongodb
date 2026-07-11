@@ -49,7 +49,7 @@
 #include "mongo/db/query/query_optimization_knobs_gen.h"
 #include "mongo/db/query/query_shape/serialization_options.h"
 #include "mongo/db/query/stage_memory_limit_knobs/knobs.h"
-#include "mongo/platform/atomic_word.h"
+#include "mongo/platform/atomic.h"
 #include "mongo/stdx/unordered_set.h"
 #include "mongo/util/modules.h"
 
@@ -116,9 +116,9 @@ DECLARE_STAGE_PARAMS_DERIVED_DEFAULT(Facet);
  * stage which will produce a document like the following:
  * {facetA: [<all input documents except the first one>], facetB: [<the first document>]}.
  */
-class MONGO_MOD_NEEDS_REPLACEMENT DocumentSourceFacet final : public DocumentSource {
+class [[MONGO_MOD_NEEDS_REPLACEMENT]] DocumentSourceFacet final : public DocumentSource {
 public:
-    MONGO_MOD_NEEDS_REPLACEMENT static constexpr std::string_view kStageName = "$facet"sv;
+    [[MONGO_MOD_NEEDS_REPLACEMENT]] static constexpr std::string_view kStageName = "$facet"sv;
     static constexpr std::string_view kTeeConsumerStageName = "$internalFacetTeeConsumer"sv;
     struct FacetPipeline {
         FacetPipeline(std::string name, std::unique_ptr<Pipeline> pipeline)

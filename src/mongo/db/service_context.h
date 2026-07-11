@@ -35,7 +35,7 @@
 #include "mongo/db/operation_id.h"
 #include "mongo/db/session/logical_session_id.h"
 #include "mongo/db/storage/storage_engine.h"
-#include "mongo/platform/atomic_word.h"
+#include "mongo/platform/atomic.h"
 #include "mongo/platform/rwmutex.h"
 #include "mongo/stdx/condition_variable.h"
 #include "mongo/stdx/unordered_map.h"
@@ -66,7 +66,7 @@
 #include <boost/optional.hpp>
 #include <boost/optional/optional.hpp>
 
-MONGO_MOD_PUBLIC;
+[[MONGO_MOD_PUBLIC]];
 
 namespace mongo {
 
@@ -140,7 +140,7 @@ public:
     }
 
 private:
-    AtomicWord<T*> _ptr{nullptr};
+    Atomic<T*> _ptr{nullptr};
 };
 
 template <typename T>
@@ -153,7 +153,7 @@ auto makeLockHandleForObjectLock(T* object) {
  * destroyed.
  */
 template <typename T, typename MutexType = T>
-class MONGO_MOD_PUBLIC ObjectLock {
+class [[MONGO_MOD_PUBLIC]] ObjectLock {
 public:
     ObjectLock() = default;
     explicit ObjectLock(T* obj) : _lk(makeLockHandleForObjectLock(obj)), _object(obj) {}
@@ -200,7 +200,7 @@ using ServiceContextLock =
  * See registerKillOpListener() for more information,
  * including limitations on the lifetime of registered listeners.
  */
-class MONGO_MOD_OPEN KillOpListenerInterface {
+class [[MONGO_MOD_OPEN]] KillOpListenerInterface {
 public:
     KillOpListenerInterface(const KillOpListenerInterface&) = delete;
     KillOpListenerInterface& operator=(const KillOpListenerInterface&) = delete;
@@ -376,7 +376,7 @@ public:
      * Observer interface implemented to hook client and operation context creation and
      * destruction.
      */
-    class MONGO_MOD_OPEN ClientObserver {
+    class [[MONGO_MOD_OPEN]] ClientObserver {
     public:
         virtual ~ClientObserver() = default;
 
@@ -853,13 +853,13 @@ private:
     SyncUnique<ClockSource> _preciseClockSource;
 
     // Flag set to indicate that all operations are to be interrupted ASAP.
-    AtomicWord<bool> _globalKill{false};
+    Atomic<bool> _globalKill{false};
 
     // protected by _mutex
     std::vector<KillOpListenerInterface*> _killOpListeners;
 
     // Server-wide flag indicating whether users' writes are allowed.
-    AtomicWord<bool> _userWritesAllowed{true};
+    Atomic<bool> _userWritesAllowed{true};
 
     bool _startupComplete = false;
     stdx::condition_variable _startupCompleteCondVar;

@@ -47,7 +47,7 @@
 #include "mongo/db/operation_context.h"
 #include "mongo/db/service_context.h"
 #include "mongo/db/tenant_id.h"
-#include "mongo/platform/atomic_word.h"
+#include "mongo/platform/atomic.h"
 #include "mongo/stdx/condition_variable.h"
 #include "mongo/stdx/unordered_map.h"
 #include "mongo/util/assert_util.h"
@@ -153,7 +153,7 @@ private:
     bool _authEnabled{false};
 
     // A cache of whether there are any users set up for the cluster.
-    AtomicWord<bool> _privilegeDocsExist{false};
+    Atomic<bool> _privilegeDocsExist{false};
 
     /**
      * LDAP user cache invalidator instance

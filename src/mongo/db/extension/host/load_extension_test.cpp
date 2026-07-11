@@ -241,9 +241,10 @@ TEST_F(LoadExtensionsTest, LoadExtensionErrorCases) {
                        10930201);
 }
 
-// null_initialize_function_bad_extension has a null initialization function.
 using LoadExtensionsTestDeathTest = LoadExtensionsTest;
-DEATH_TEST_F(LoadExtensionsTestDeathTest, LoadExtensionNullInitialize, "10930101") {
+
+// null_initialize_function_bad_extension has a null initialization function.
+DEATH_TEST_F(LoadExtensionsTestDeathTest, LoadExtensionNullInitialize, "517") {
     ExtensionLoader::load(
         "null_initialize_function_bad_extension",
         test_util::makeEmptyExtensionConfig("libnull_initialize_function_bad_extension.so"));
@@ -423,7 +424,7 @@ TEST_F(LoadExtensionsTest, LoadExtensionInitializeVersionFails) {
                        10726600);
 }
 
-DEATH_TEST_F(LoadExtensionsTestDeathTest, LoadExtensionNullStageDescriptor, "10596400") {
+DEATH_TEST_F(LoadExtensionsTestDeathTest, LoadExtensionNullStageDescriptor, "519") {
     ExtensionLoader::load(
         "null_stage_descriptor_bad_extension",
         test_util::makeEmptyExtensionConfig("libnull_stage_descriptor_bad_extension.so"));

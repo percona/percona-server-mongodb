@@ -33,7 +33,7 @@
 #include "mongo/db/repl/read_concern_args.h"
 #include "mongo/db/service_context.h"
 #include "mongo/db/stats/read_concern_stats_gen.h"
-#include "mongo/platform/atomic_word.h"
+#include "mongo/platform/atomic.h"
 #include "mongo/util/modules.h"
 
 namespace mongo {
@@ -41,7 +41,7 @@ namespace mongo {
 /**
  * Container for server-wide statistics on readConcern levels used by operations.
  */
-class MONGO_MOD_PUB ServerReadConcernMetrics {
+class [[MONGO_MOD_PUBLIC]] ServerReadConcernMetrics {
     ServerReadConcernMetrics(const ServerReadConcernMetrics&) = delete;
     ServerReadConcernMetrics& operator=(const ServerReadConcernMetrics&) = delete;
 
@@ -63,12 +63,12 @@ public:
 
 private:
     struct ReadConcernLevelCounters {
-        AtomicWord<unsigned long long> levelAvailableCount{0};
-        AtomicWord<unsigned long long> levelLinearizableCount{0};
-        AtomicWord<unsigned long long> levelLocalCount{0};
-        AtomicWord<unsigned long long> levelMajorityCount{0};
-        AtomicWord<unsigned long long> levelSnapshotCount{0};
-        AtomicWord<unsigned long long> atClusterTimeCount{0};
+        Atomic<unsigned long long> levelAvailableCount{0};
+        Atomic<unsigned long long> levelLinearizableCount{0};
+        Atomic<unsigned long long> levelLocalCount{0};
+        Atomic<unsigned long long> levelMajorityCount{0};
+        Atomic<unsigned long long> levelSnapshotCount{0};
+        Atomic<unsigned long long> atClusterTimeCount{0};
         /**
          * Updates RC level counters for the level of 'readConcernArgs'.
          */
@@ -83,7 +83,7 @@ private:
     };
 
     struct ReadConcernCounters {
-        AtomicWord<unsigned long long> noLevelCount{0};
+        Atomic<unsigned long long> noLevelCount{0};
         ReadConcernLevelCounters explicitLevelCount;
         ReadConcernLevelCounters cWRCLevelCount;
         ReadConcernLevelCounters implicitDefaultLevelCount;

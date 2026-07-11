@@ -29,10 +29,10 @@
 
 #pragma once
 
-#include "mongo/platform/atomic_word.h"
+#include "mongo/platform/atomic.h"
 #include "mongo/util/modules.h"
 
-MONGO_MOD_PUBLIC;
+[[MONGO_MOD_PUBLIC]];
 
 namespace mongo {
 
@@ -86,10 +86,10 @@ private:
     ThreadSafetyContext() = default;
 
     // An indicator on whether the program is single-threaded.
-    AtomicWord<bool> _isSingleThreaded{true};
+    Atomic<bool> _isSingleThreaded{true};
 
     // If set to "false", it will prevent creation of new threads.
-    AtomicWord<bool> _safeToCreateThreads{true};
+    Atomic<bool> _safeToCreateThreads{true};
 };
 
 }  // namespace mongo

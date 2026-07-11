@@ -36,7 +36,7 @@
 #include "mongo/bson/oid.h"
 #include "mongo/bson/timestamp.h"
 #include "mongo/db/service_context.h"
-#include "mongo/platform/atomic_word.h"
+#include "mongo/platform/atomic.h"
 #include "mongo/platform/decimal128.h"
 #include "mongo/scripting/config_engine_gen.h"
 #include "mongo/scripting/js_regex.h"
@@ -58,14 +58,14 @@
 #include <boost/optional/optional.hpp>
 
 namespace mongo {
-using ScriptingFunction MONGO_MOD_PUBLIC = unsigned long long;
-using NativeFunction MONGO_MOD_PUBLIC = BSONObj (*)(const BSONObj& args, void* data);
+using ScriptingFunction [[MONGO_MOD_PUBLIC]] = unsigned long long;
+using NativeFunction [[MONGO_MOD_PUBLIC]] = BSONObj (*)(const BSONObj& args, void* data);
 typedef std::map<std::string, ScriptingFunction> FunctionCacheMap;
 
 class DBClientBase;
 class OperationContext;
 
-class MONGO_MOD_OPEN Scope {
+class [[MONGO_MOD_OPEN]] Scope {
     Scope(const Scope&) = delete;
     Scope& operator=(const Scope&) = delete;
 
@@ -221,15 +221,15 @@ protected:
     DatabaseName _localDBName;
     int64_t _loadedVersion;
     std::set<std::string> _storedNames;
-    static AtomicWord<long long> _lastVersion;
+    static Atomic<long long> _lastVersion;
     FunctionCacheMap _cachedFunctions;
     Date_t _createTime;
     bool _lastRetIsNativeCode;  // v8 only: set to true if eval'd script returns a native func
 };
 
-enum class MONGO_MOD_PUB ExecutionEnvironment { Server, TestRunner };
+enum class [[MONGO_MOD_PUBLIC]] ExecutionEnvironment { Server, TestRunner };
 
-class MONGO_MOD_OPEN ScriptEngine : public KillOpListenerInterface {
+class [[MONGO_MOD_OPEN]] ScriptEngine : public KillOpListenerInterface {
     ScriptEngine(const ScriptEngine&) = delete;
     ScriptEngine& operator=(const ScriptEngine&) = delete;
 
@@ -319,8 +319,8 @@ void installGlobalUtils(Scope& scope);
 bool hasJSReturn(const std::string& s);
 const char* jsSkipWhiteSpace(const char* raw);
 
-MONGO_MOD_PUB ScriptEngine* getGlobalScriptEngine();
-MONGO_MOD_PUB void setGlobalScriptEngine(ScriptEngine* impl);
+[[MONGO_MOD_PUBLIC]] ScriptEngine* getGlobalScriptEngine();
+[[MONGO_MOD_PUBLIC]] void setGlobalScriptEngine(ScriptEngine* impl);
 
 /**
  * Registers a stable kill-op proxy with the given ServiceContext. The proxy delegates interrupt

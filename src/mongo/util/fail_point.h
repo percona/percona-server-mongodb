@@ -33,7 +33,7 @@
 #include "mongo/base/status.h"
 #include "mongo/base/status_with.h"
 #include "mongo/bson/bsonobj.h"
-#include "mongo/platform/atomic_word.h"
+#include "mongo/platform/atomic.h"
 #include "mongo/platform/compiler.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/cancellation.h"
@@ -50,7 +50,7 @@
 #include <type_traits>
 #include <utility>
 
-namespace MONGO_MOD_PUB mongo {
+namespace [[MONGO_MOD_PUBLIC]] mongo {
 
 /**
  *
@@ -232,7 +232,7 @@ public:
      *       {"skip" : val}    // skip calls, activate on and after call number (val+1).
      *       {"activationProbability" : val}  // val is in interval [0.0, 1.0]
      */
-    MONGO_MOD_FILE_PRIVATE static StatusWith<ModeOptions> parseBSON(const BSONObj& obj);
+    [[MONGO_MOD_FILE_PRIVATE]] static StatusWith<ModeOptions> parseBSON(const BSONObj& obj);
 
     /**
      * FailPoint state can be kept alive during shutdown by setting `immortal` true.
@@ -325,7 +325,7 @@ public:
     /**
      * @returns a BSON object showing the current mode and data stored.
      */
-    MONGO_MOD_FILE_PRIVATE BSONObj toBSON() const {
+    [[MONGO_MOD_FILE_PRIVATE]] BSONObj toBSON() const {
         return _impl()->toBSON();
     }
 
@@ -543,14 +543,14 @@ private:
         // Bit layout:
         // 31: tells whether this fail point is active.
         // 0~30: ref counter: # of outstanding LockHandles.
-        AtomicWord<std::uint32_t> _fpInfo{0};
+        Atomic<std::uint32_t> _fpInfo{0};
 
         /* Number of times this has been locked with a `hit` result. */
-        AtomicWord<EntryCountT> _hitCount{0};
+        Atomic<EntryCountT> _hitCount{0};
 
         // Invariant: These should be read only if _kActiveBit of _fpInfo is set.
         Mode _mode{off};
-        AtomicWord<int> _modeValue{0};
+        Atomic<int> _modeValue{0};
         BSONObj _data;
 
         const std::string _name;
@@ -582,12 +582,12 @@ private:
      * True only when `_impl()` should succeed.
      * We exploit zero-initialization of statics to detect use-before-init.
      */
-    AtomicWord<bool> _ready;
+    Atomic<bool> _ready;
 
     std::aligned_storage_t<sizeof(Impl), alignof(Impl)> _implStorage;
 };
 
-class MONGO_MOD_FILE_PRIVATE FailPointRegistry {
+class [[MONGO_MOD_FILE_PRIVATE]] FailPointRegistry {
 public:
     FailPointRegistry();
 
@@ -604,7 +604,7 @@ public:
     /**
      * @return a registered FailPoint, or nullptr if it was not registered.
      */
-    MONGO_MOD_PUBLIC FailPoint* find(std::string_view name) const;
+    [[MONGO_MOD_PUBLIC]] FailPoint* find(std::string_view name) const;
 
     /**
      * Freezes this registry from being modified.
@@ -616,14 +616,14 @@ public:
      * failpoint to be set on the command line via --setParameter, but is only allowed when
      * running with '--setParameter enableTestCommands=1'.
      */
-    MONGO_MOD_NEEDS_REPLACEMENT void registerAllFailPointsAsServerParameters();
+    [[MONGO_MOD_NEEDS_REPLACEMENT]] void registerAllFailPointsAsServerParameters();
 
     /**
      * Sets all registered FailPoints to Mode::off. Used primarily during unit test cleanup to
      * reset the state of all FailPoints set by the unit test. Does not prevent FailPoints from
      * being enabled again after.
      */
-    MONGO_MOD_PUBLIC void disableAllFailpoints();
+    [[MONGO_MOD_PUBLIC]] void disableAllFailpoints();
 
 private:
     bool _frozen;
@@ -667,7 +667,7 @@ private:
  * @throw DBException corresponding to ErrorCodes::FailPointSetFailed if no failpoint
  * called failPointName exists.
  */
-MONGO_MOD_USE_REPLACEMENT(FailPointEnableBlock or globalFailPointRegistry().find())
+[[MONGO_MOD_USE_REPLACEMENT(FailPointEnableBlock or globalFailPointRegistry().find())]]
 FailPoint::EntryCountT setGlobalFailPoint(const std::string& failPointName, const BSONObj& cmdObj);
 
 /**
@@ -691,4 +691,4 @@ FailPointRegistry& globalFailPointRegistry();
     ::mongo::FailPointRegisterer fp##failPointRegisterer(&fp);
 
 
-}  // namespace MONGO_MOD_PUB mongo
+}  // namespace mongo

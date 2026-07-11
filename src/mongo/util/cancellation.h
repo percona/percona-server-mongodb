@@ -30,7 +30,7 @@
 
 #include "mongo/base/error_codes.h"
 #include "mongo/base/status.h"
-#include "mongo/platform/atomic_word.h"
+#include "mongo/platform/atomic.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/future.h"
 #include "mongo/util/future_impl.h"
@@ -45,7 +45,7 @@
 #include <boost/smart_ptr.hpp>
 #include <boost/smart_ptr/intrusive_ptr.hpp>
 
-namespace MONGO_MOD_NEEDS_REPLACEMENT mongo {
+namespace [[MONGO_MOD_NEEDS_REPLACEMENT]] mongo {
 
 namespace detail {
 
@@ -120,7 +120,7 @@ private:
     /**
      * Tracks whether dismiss/cancel has been called.
      */
-    AtomicWord<State> _state{State::kInit};
+    Atomic<State> _state{State::kInit};
 
     /**
      * A promise that will be signaled with success when cancel() is called and with an error when
@@ -287,4 +287,4 @@ private:
         make_intrusive<detail::CancellationStateHolder>()};
 };
 
-}  // namespace MONGO_MOD_NEEDS_REPLACEMENT mongo
+}  // namespace mongo

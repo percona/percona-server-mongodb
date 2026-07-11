@@ -34,6 +34,7 @@
 #include "mongo/bson/bsonelement.h"
 #include "mongo/bson/bsonobj.h"
 #include "mongo/db/field_ref.h"
+#include "mongo/db/query/query_execution_knobs_gen.h"
 #include "mongo/util/modules.h"
 
 #include <cstddef>
@@ -46,7 +47,7 @@
 /**
  * TODO SERVER-114832 Break audit dependency on this class.
  */
-namespace MONGO_MOD_NEEDS_REPLACEMENT mongo {
+namespace [[MONGO_MOD_NEEDS_REPLACEMENT]] mongo {
 
 class ElementPath {
 public:
@@ -96,6 +97,7 @@ public:
                 NonLeafArrayBehavior nonLeafArrayBehavior = NonLeafArrayBehavior::kTraverse)
         : _leafArrayBehavior(leafArrayBehavior),
           _nonLeafArrayBehavior(nonLeafArrayBehavior),
+          _legacyDottedPathNullSemantics(internalQueryLegacyDottedPathNullSemantics.loadRelaxed()),
           _fieldRef(path) {}
 
     /**
@@ -122,6 +124,10 @@ public:
         return _nonLeafArrayBehavior;
     }
 
+    bool legacyDottedPathNullSemantics() const {
+        return _legacyDottedPathNullSemantics;
+    }
+
     const FieldRef& fieldRef() const {
         return _fieldRef;
     }
@@ -129,6 +135,7 @@ public:
 private:
     LeafArrayBehavior _leafArrayBehavior;
     NonLeafArrayBehavior _nonLeafArrayBehavior;
+    bool _legacyDottedPathNullSemantics;
 
     FieldRef _fieldRef;
 };
@@ -305,4 +312,4 @@ struct BSONElementSubIterator {
     BSONElementIterator cursor;
 };
 
-}  // namespace MONGO_MOD_NEEDS_REPLACEMENT mongo
+}  // namespace mongo

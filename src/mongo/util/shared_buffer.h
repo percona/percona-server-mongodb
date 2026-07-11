@@ -31,7 +31,7 @@
 
 #include "mongo/base/data_view.h"
 #include "mongo/base/static_assert.h"
-#include "mongo/platform/atomic_word.h"
+#include "mongo/platform/atomic.h"
 #include "mongo/util/allocator.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/modules.h"
@@ -48,7 +48,7 @@
 #include <boost/smart_ptr.hpp>
 #include <boost/smart_ptr/intrusive_ptr.hpp>
 
-MONGO_MOD_PUBLIC;
+[[MONGO_MOD_PUBLIC]];
 
 namespace mongo {
 namespace allocator_aware {
@@ -204,7 +204,7 @@ private:
         }
 
         MONGO_COMPILER_NO_UNIQUE_ADDRESS Allocator _allocator;
-        AtomicWord<unsigned> _refCount;
+        Atomic<unsigned> _refCount;
         uint32_t _capacity;
     };
 

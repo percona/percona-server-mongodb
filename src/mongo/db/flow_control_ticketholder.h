@@ -30,7 +30,7 @@
 #pragma once
 
 #include "mongo/bson/bsonobjbuilder.h"
-#include "mongo/platform/atomic_word.h"
+#include "mongo/platform/atomic.h"
 #include "mongo/stdx/condition_variable.h"
 #include "mongo/util/modules.h"
 
@@ -55,7 +55,7 @@ class ServiceContext;
  * the next time period (one second). The consumers will call `getTicket` and the producer will call
  * `refreshTo`.
  */
-class MONGO_MOD_PUBLIC FlowControlTicketholder {
+class [[MONGO_MOD_PUBLIC]] FlowControlTicketholder {
 public:
     /**
      * A structure to accommodate curop reporting.
@@ -95,7 +95,7 @@ public:
 
 private:
     // Use an int64_t as this is serialized to bson which does not support unsigned 64-bit numbers.
-    AtomicWord<std::int64_t> _totalTimeAcquiringMicros;
+    Atomic<std::int64_t> _totalTimeAcquiringMicros;
 
     std::mutex _mutex;
     stdx::condition_variable _cv;

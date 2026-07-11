@@ -32,14 +32,14 @@
 #include "mongo/bson/bsonobjbuilder.h"
 #include "mongo/executor/connection_pool_stats.h"
 #include "mongo/executor/task_executor.h"
-#include "mongo/platform/atomic_word.h"
+#include "mongo/platform/atomic.h"
 #include "mongo/util/modules.h"
 
 #include <cstddef>
 #include <memory>
 #include <vector>
 
-namespace MONGO_MOD_PUB mongo {
+namespace [[MONGO_MOD_PUBLIC]] mongo {
 namespace executor {
 
 /**
@@ -76,8 +76,8 @@ public:
      */
     void shutdownAndJoin();
 
-    MONGO_MOD_PUB void shutdown_forTest();
-    MONGO_MOD_PUB void join_forTest();
+    [[MONGO_MOD_PUBLIC]] void shutdown_forTest();
+    [[MONGO_MOD_PUBLIC]] void join_forTest();
 
     /**
      * Adds 'executors' and 'fixedExecutor' to the pool. May be called at most once to initialize an
@@ -125,7 +125,7 @@ public:
     void appendNetworkInterfaceStats(BSONObjBuilder&, bool forServerStatus = false) const;
 
 private:
-    AtomicWord<unsigned> _counter;
+    Atomic<unsigned> _counter;
 
     std::vector<std::shared_ptr<TaskExecutor>> _executors;
 
@@ -133,4 +133,4 @@ private:
 };
 
 }  // namespace executor
-}  // namespace MONGO_MOD_PUB mongo
+}  // namespace mongo

@@ -32,7 +32,7 @@
 #include "mongo/client/retry_strategy.h"
 #include "mongo/util/modules.h"
 
-namespace MONGO_MOD_PUB mongo {
+namespace [[MONGO_MOD_PUBLIC]] mongo {
 namespace primary_only_service_helpers {
 
 using RetryabilityPredicate = std::function<bool(const Status&)>;
@@ -45,9 +45,11 @@ public:
                                     unique_function<void(const Status&)> onTransientError,
                                     unique_function<void(const Status&)> onUnrecoverableError);
     [[nodiscard]]
-    bool recordFailureAndEvaluateShouldRetry(Status s,
-                                             const boost::optional<HostAndPort>& origin,
-                                             std::span<const std::string> errorLabels) override;
+    bool recordFailureAndEvaluateShouldRetry(
+        Status s,
+        const boost::optional<HostAndPort>& origin,
+        std::span<const std::string> errorLabels,
+        boost::optional<Milliseconds> baseBackoffMS = boost::none) override;
     void recordSuccess(const boost::optional<HostAndPort>& origin) override;
     Milliseconds getNextRetryDelay() const override;
     const TargetingMetadata& getTargetingMetadata() const override;
@@ -61,4 +63,4 @@ private:
 };
 
 }  // namespace primary_only_service_helpers
-}  // namespace MONGO_MOD_PUB mongo
+}  // namespace mongo

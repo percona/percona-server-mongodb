@@ -78,7 +78,7 @@ class RemoteCommandTargeter;
  * Presents an interface for talking to shards, regardless of whether that shard is remote or is
  * the current (local) shard.
  */
-class MONGO_MOD_PUBLIC Shard {
+class [[MONGO_MOD_PUBLIC]] Shard {
 public:
     struct CommandResponse {
         CommandResponse(boost::optional<HostAndPort> hostAndPort,
@@ -201,9 +201,11 @@ public:
                       Shard::RetryStrategy::RequestStartTransactionState isStartTransaction);
 
 
-        bool recordFailureAndEvaluateShouldRetry(Status s,
-                                                 const boost::optional<HostAndPort>& target,
-                                                 std::span<const std::string> errorLabels) override;
+        bool recordFailureAndEvaluateShouldRetry(
+            Status s,
+            const boost::optional<HostAndPort>& target,
+            std::span<const std::string> errorLabels,
+            boost::optional<Milliseconds> baseBackoffMS = boost::none) override;
 
         void recordSuccess(const boost::optional<HostAndPort>& target) override;
         void recordBackoff(Milliseconds backoff) override;
@@ -286,8 +288,10 @@ public:
         bool recordFailureAndEvaluateShouldRetry(
             Status s,
             const boost::optional<HostAndPort>& target,
-            std::span<const std::string> errorLabels) override {
-            return _underlyingStrategy.recordFailureAndEvaluateShouldRetry(s, target, errorLabels);
+            std::span<const std::string> errorLabels,
+            boost::optional<Milliseconds> baseBackoffMS = boost::none) override {
+            return _underlyingStrategy.recordFailureAndEvaluateShouldRetry(
+                s, target, errorLabels, baseBackoffMS);
         }
 
         void recordSuccess(const boost::optional<HostAndPort>& target) override {

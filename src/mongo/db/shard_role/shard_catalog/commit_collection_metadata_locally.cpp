@@ -29,6 +29,7 @@
 
 #include "mongo/db/shard_role/shard_catalog/commit_collection_metadata_locally.h"
 
+#include "mongo/db/admission/execution_control/execution_admission_context.h"
 #include "mongo/db/dbdirectclient.h"
 #include "mongo/db/generic_argument_util.h"
 #include "mongo/db/global_catalog/chunk_manager.h"
@@ -327,11 +328,11 @@ void invalidateCollectionMetadata(
     const UUID& uuid,
     bool forDroppedCollection,
     const boost::optional<ChunkVersion>& diskShardVersion = boost::none,
-    bool onlyClearIfUnowned = false) {
+    bool onlyClearIfShardDoesntOwnChunks = false) {
     auto entry = InvalidateCollectionMetadataOplogEntry{std::string(nss.coll())};
     entry.setForDroppedCollection(forDroppedCollection);
-    if (onlyClearIfUnowned) {
-        entry.setOnlyClearIfUnowned(true);
+    if (onlyClearIfShardDoesntOwnChunks) {
+        entry.setOnlyClearIfShardDoesntOwnChunks(true);
     }
     if (diskShardVersion) {
         entry.setShardVersion(*diskShardVersion);
@@ -642,6 +643,10 @@ void deleteOverlappingChunksLocally(OperationContext* opCtx,
 void commitDropCollectionLocally(OperationContext* opCtx,
                                  const NamespaceString& nss,
                                  const UUID& uuid) {
+    // The shard catalog commit holds the critical section blocking reads and writes, so it must not
+    // be deprioritized by execution control.
+    admission::execution_control::ScopedTaskTypeNonDeprioritizable deprioGuard(opCtx);
+
     ShardingStatistics::get(opCtx)
         .collectionShardingMetadataStatistics.registerLocalCollectionMetadataDrop();
 
@@ -658,6 +663,9 @@ void commitDropCollectionLocally(OperationContext* opCtx,
 }
 
 void commitDropOfStaleChunksForRename(OperationContext* opCtx, const UUID& uuid) {
+    // Note that this runs outside of the critical section, so it does not need to be protected from
+    // execution control deprioritization.
+
     // Delete the old chunks from `config.shard.catalog.chunks`. The deletion/replacement of the
     // collection entry happened before as part of calling commitRenameOfCollectionMetadata.
     deleteEntireCollectionChunksMetadataLocally(opCtx, uuid);
@@ -673,6 +681,10 @@ void commitRenameOfCollectionMetadata(OperationContext* opCtx,
                                       const boost::optional<UUID>& newTargetUUID,
                                       bool isUpgrading,
                                       bool isDbPrimaryShard) {
+    // The shard catalog commit holds the critical section blocking reads and writes, so it must not
+    // be deprioritized by execution control.
+    admission::execution_control::ScopedTaskTypeNonDeprioritizable deprioGuard(opCtx);
+
     LOGV2_DEBUG(12721501,
                 1,
                 "Committing rename of collection shard catalog metadata locally",
@@ -797,6 +809,10 @@ void commitRenameOfCollectionMetadata(OperationContext* opCtx,
 void commitCollectionMetadataLocally(OperationContext* opCtx,
                                      const NamespaceString& nss,
                                      bool isDbPrimaryShard) {
+    // The shard catalog commit holds the critical section blocking reads and writes, so it must not
+    // be deprioritized by execution control.
+    admission::execution_control::ScopedTaskTypeNonDeprioritizable deprioGuard(opCtx);
+
     auto coll = fetchCollection(opCtx, nss);
     const auto ownedChunks = fetchOwnedChunks(opCtx, nss, coll);
     commitCollectionMetadataLocallyImpl(opCtx, nss, coll, ownedChunks, isDbPrimaryShard, {});
@@ -814,6 +830,9 @@ void commitCollectionMetadataLocally(OperationContext* opCtx,
 void cloneCollectionMetadataLocally(OperationContext* opCtx,
                                     const NamespaceString& nss,
                                     bool isDbPrimaryShard) {
+    // Note that this runs outside of the critical section, so it does not need to be protected from
+    // execution control deprioritization.
+
     auto coll = fetchCollection(opCtx, nss);
     const auto ownedChunks = fetchOwnedChunks(opCtx, nss, coll);
     // The clone does not change placement, so a node whose CSR is already up to date (or unknown)
@@ -841,28 +860,30 @@ void cloneCollectionMetadataLocally(OperationContext* opCtx,
 }
 
 void commitChunklessCollectionMetadataLocally(OperationContext* opCtx, const NamespaceString& nss) {
+    // The shard catalog commit holds the critical section blocking reads and writes, so it must not
+    // be deprioritized by execution control.
+    admission::execution_control::ScopedTaskTypeNonDeprioritizable deprioGuard(opCtx);
+
     auto coll = fetchCollection(opCtx, nss);
 
     // Upsert the collection entry into the shard catalog. A concurrent migration may issue the same
     // upsert, but because it writes an identical document the two operations do not conflict.
     upsertCollectionEntryLocally(opCtx, nss, coll);
 
-    // There is no need to invalidate or clear the in-memory filtering metadata here, except for a
-    // specific case:
-    //   - If the CSR is non-authoritative, it will become authoritative later, and will sort ifself
-    //     out.
-    //   - If this shard owns chunks, its CSS is tracked (or unknown if it has not been refreshed
-    //     yet). No need to do anything.
-    //   - If this shard owns no chunks, then the CSS would be either unknown or unowned. In the
-    //     latter case, we need to invalidate it so that the CSS is recreated with state "tracked"
-    //     (a DB primary can't have "kUnowned" entries in the CSS by definition).
-
+    // Emit an invalidation carrying the "clear if this node owns no chunks" precondition. Each node
+    // (primary and secondaries) evaluates it against its own in-memory metadata. A node that owns
+    // no chunks -- unowned, untracked, or tracked with zero owned chunks -- may hold a stale
+    // leftover entry: another shard may have changed the collection (for example
+    // refineCollectionShardKey) while this node was not involved, and this node then became the DB
+    // primary again via movePrimary. Such a node clears and re-recovers the fresh entry from the
+    // on-disk catalog we just wrote. A node that owns chunks keeps its metadata: it is kept up to
+    // date by its own commit path and may be a migration donor.
     invalidateCollectionMetadata(opCtx,
                                  nss,
                                  coll.getUuid(),
                                  false /* forDroppedCollection */,
                                  boost::none /* diskShardVersion */,
-                                 true /* onlyClearIfUnowned */);
+                                 true /* onlyClearIfShardDoesntOwnChunks */);
 
     LOGV2_INFO(12721505,
                "Committed chunkless collection shard catalog metadata locally",
@@ -927,6 +948,10 @@ void commitChunkOperationsMetadataLocally(OperationContext* opCtx,
                                           const NamespaceString& nss,
                                           const std::vector<BSONObj>& newChunks,
                                           bool receivingFirstChunk) {
+    // The shard catalog commit holds the critical section blocking reads and writes, so it must not
+    // be deprioritized by execution control.
+    admission::execution_control::ScopedTaskTypeNonDeprioritizable deprioGuard(opCtx);
+
     if (receivingFirstChunk) {
         // This shard owned no chunks for the collection before this operation, so there is no valid
         // in-memory base to apply an incremental delta on top of.

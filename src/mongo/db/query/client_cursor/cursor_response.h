@@ -55,7 +55,7 @@
 #include <boost/none.hpp>
 #include <boost/optional/optional.hpp>
 
-namespace MONGO_MOD_PUBLIC mongo {
+namespace [[MONGO_MOD_PUBLIC]] mongo {
 
 /**
  * Returns true if any metric collection flag in 'metrics' is enabled.
@@ -328,6 +328,10 @@ public:
         return _partialResultsReturned;
     }
 
+    void setPartialResultsReturned(bool partialResultsReturned) {
+        _partialResultsReturned = partialResultsReturned;
+    }
+
     bool getInvalidated() const {
         return _invalidated;
     }
@@ -365,4 +369,4 @@ private:
     bool _wasStatementExecuted = false;
 };
 
-}  // namespace MONGO_MOD_PUBLIC mongo
+}  // namespace mongo

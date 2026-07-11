@@ -33,7 +33,7 @@
 #include "mongo/db/operation_context.h"
 #include "mongo/db/repl/repl_server_parameters_gen.h"
 #include "mongo/db/service_context.h"
-#include "mongo/platform/atomic_word.h"
+#include "mongo/platform/atomic.h"
 #include "mongo/platform/rwmutex.h"
 #include "mongo/stdx/condition_variable.h"
 #include "mongo/stdx/unordered_map.h"
@@ -47,7 +47,7 @@
 #include <vector>
 
 
-namespace MONGO_MOD_PUB mongo {
+namespace [[MONGO_MOD_PUBLIC]] mongo {
 namespace rss {
 namespace consensus {
 
@@ -121,7 +121,7 @@ public:
     /**
      * Class used to represent a unique Intent for a specific operation.
      */
-    class MONGO_MOD_PRIVATE IntentToken {
+    class [[MONGO_MOD_PRIVATE]] IntentToken {
         friend class IntentRegistry;
         using idType = uint64_t;
 
@@ -132,7 +132,7 @@ public:
 
     private:
         IntentToken(Intent intent, idType id) : _intent(intent), _id(id) {}
-        static inline AtomicWord<idType> _currentTokenId = {};
+        static inline Atomic<idType> _currentTokenId = {};
         Intent _intent;
         idType _id;
     };
@@ -321,11 +321,11 @@ private:
     // Maps opCtx opId -> write intent counter pointer. Removed when the opCtx is destroyed
     // (via WriteIntentCleanup) so deferred callbacks don't corrupt a new opCtx's counter.
     mutable std::mutex _opIdMutex;
-    absl::flat_hash_map<uint64_t, AtomicWord<int32_t>*> _opIdToWriteCountPtr;
+    absl::flat_hash_map<uint64_t, Atomic<int32_t>*> _opIdToWriteCountPtr;
 
     // Tracks number of operations killed on state transition.
     size_t _totalOpsKilled = 0;
 };
 }  // namespace consensus
 }  // namespace rss
-}  // namespace MONGO_MOD_PUB mongo
+}  // namespace mongo

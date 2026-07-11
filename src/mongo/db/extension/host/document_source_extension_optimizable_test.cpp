@@ -38,6 +38,7 @@
 #include "mongo/db/exec/document_value/document_value_test_util.h"
 #include "mongo/db/extension/host/aggregation_stage/parse_node.h"
 #include "mongo/db/extension/host/extension_search_server_status.h"
+#include "mongo/db/extension/host/extension_vector_search_server_status.h"
 #include "mongo/db/extension/host/host_portal.h"
 #include "mongo/db/extension/host_connector/adapter/host_services_adapter.h"
 #include "mongo/db/extension/sdk/aggregation_stage.h"
@@ -54,6 +55,7 @@
 #include "mongo/db/pipeline/lite_parsed_document_source.h"
 #include "mongo/db/pipeline/pipeline_factory.h"
 #include "mongo/db/pipeline/search/document_source_internal_search_id_lookup.h"
+#include "mongo/db/pipeline/search/search_helper.h"
 #include "mongo/db/pipeline/visitors/document_source_visitor_docs_needed_bounds.h"
 #include "mongo/unittest/death_test.h"
 #include "mongo/unittest/server_parameter_guard.h"
@@ -638,9 +640,7 @@ TEST_F(DocumentSourceExtensionOptimizableTest, ExpandToMaxDepthSucceeds) {
 }
 
 using DocumentSourceExtensionOptimizableTestDeathTest = DocumentSourceExtensionOptimizableTest;
-DEATH_TEST_F(DocumentSourceExtensionOptimizableTestDeathTest,
-             ExpandExceedsMaxDepthFails,
-             "10955800") {
+DEATH_TEST_F(DocumentSourceExtensionOptimizableTestDeathTest, ExpandExceedsMaxDepthFails, "519") {
     auto depth =
         host::DocumentSourceExtensionOptimizable::LiteParsedExpandable::kMaxExpansionDepth + 1;
     auto* rootParseNode =
@@ -654,7 +654,7 @@ DEATH_TEST_F(DocumentSourceExtensionOptimizableTestDeathTest,
 
 DEATH_TEST_REGEX_F(DocumentSourceExtensionOptimizableTestDeathTest,
                    ExpandAdjacentCycleFails,
-                   "10955801.*Cycle detected during stage expansion for "
+                   "519.*Cycle detected during stage expansion for "
                    "stage.*\\$adjacentCycle.*\\$adjacentCycle -> \\$adjacentCycle") {
     auto* rootParseNode =
         new sdk::ExtensionAggStageParseNodeAdapter(std::make_unique<AdjacentCycleParseNode>());
@@ -667,7 +667,7 @@ DEATH_TEST_REGEX_F(DocumentSourceExtensionOptimizableTestDeathTest,
 
 DEATH_TEST_REGEX_F(DocumentSourceExtensionOptimizableTestDeathTest,
                    ExpandNonAdjacentCycleFails,
-                   "10955801.*Cycle detected during stage expansion for "
+                   "519.*Cycle detected during stage expansion for "
                    "stage.*\\$nodeB.*\\$nodeB -> \\$nodeA -> \\$nodeB") {
     auto* rootParseNode =
         new sdk::ExtensionAggStageParseNodeAdapter(std::make_unique<NodeAParseNode>());
@@ -1416,7 +1416,7 @@ TEST_F(DocumentSourceExtensionOptimizableTest,
 
 DEATH_TEST_F(DocumentSourceExtensionOptimizableTestDeathTest,
              EmptyActionsArrayRequiredPrivilegesAggStageAstNodeFails,
-             "11350600") {
+             "519") {
     auto astNode = new sdk::ExtensionAggStageAstNodeAdapter(
         EmptyActionsArrayRequiredPrivilegesAggStageAstNode::make());
     auto handle = AggStageAstNodeHandle{astNode};
@@ -2149,7 +2149,7 @@ TEST_F(DocumentSourceExtensionOptimizableTest, StageCanSerializeForQueryExecutio
 
 DEATH_TEST_F(DocumentSourceExtensionOptimizableTestDeathTest,
              CreateFromParseNodeHandleWithMultipleNodesFails,
-             "11623000") {
+             "519") {
     // Create a parse node that expands to multiple nodes.
     auto parseNode = new sdk::ExtensionAggStageParseNodeAdapter(
         std::make_unique<sdk::shared_test_stages::MidAParseNode>());
@@ -2161,7 +2161,7 @@ DEATH_TEST_F(DocumentSourceExtensionOptimizableTestDeathTest,
 
 DEATH_TEST_F(DocumentSourceExtensionOptimizableTestDeathTest,
              CreateFromParseNodeHandleWithHostParseNodeFails,
-             "11623001") {
+             "519") {
     // Create a parse node that expands to a host parse node.
     auto parseNode = new sdk::ExtensionAggStageParseNodeAdapter(
         std::make_unique<sdk::shared_test_stages::ExpandToHostParseParseNode>());
@@ -2173,7 +2173,7 @@ DEATH_TEST_F(DocumentSourceExtensionOptimizableTestDeathTest,
 
 DEATH_TEST_F(DocumentSourceExtensionOptimizableTestDeathTest,
              CreateFromParseNodeHandleWithExtensionParseNodeFails,
-             "11623002") {
+             "519") {
     // Create a parse node that expands to an extension parse node handle.
     auto parseNode = new sdk::ExtensionAggStageParseNodeAdapter(
         std::make_unique<sdk::shared_test_stages::ExpandToExtParseParseNode>());
@@ -2410,8 +2410,9 @@ public:
 };
 }  // namespace
 
-TEST_F(DocumentSourceExtensionOptimizableTest,
-       DistributedPlanLogicReturnsErrorWhenGivenMismatchedLogicalStage) {
+DEATH_TEST_F(DocumentSourceExtensionOptimizableTestDeathTest,
+             DistributedPlanLogicReturnsErrorWhenGivenMismatchedLogicalStage,
+             "519") {
     auto logicalStage = new sdk::ExtensionLogicalAggStageAdapter(
         std::make_unique<InvalidDPLLogicalStageWithMismatch>());
     auto logicalStageHandle = LogicalAggStageHandle(logicalStage);
@@ -2419,11 +2420,18 @@ TEST_F(DocumentSourceExtensionOptimizableTest,
     auto optimizable = host::DocumentSourceExtensionOptimizable::create(
         getExpCtx(), std::move(logicalStageHandle), MongoExtensionStaticProperties{});
 
-    ASSERT_THROWS_CODE(optimizable->distributedPlanLogic(nullptr), AssertionException, 11513800);
+    optimizable->distributedPlanLogic(nullptr);
 }
 
-TEST_F(DocumentSourceExtensionOptimizableTest,
-       DistributedPlanLogicReturnsErrorWhenGivenDPLWithHostAllocatedExtension) {
+DEATH_TEST_F(DocumentSourceExtensionOptimizableTestDeathTest,
+             DistributedPlanLogicReturnsErrorWhenGivenDPLWithHostAllocatedExtension,
+             "519") {
+    // Register "$transformStage" as an extension stage.
+    std::unique_ptr<host::HostPortal> hostPortal = std::make_unique<host::HostPortal>();
+    host_connector::HostPortalAdapter portal{
+        MONGODB_EXTENSION_API_VERSION, 1, "", std::move(hostPortal)};
+    portal.getImpl().registerStageDescriptor(&_transformStaticDescriptor);
+
     auto logicalStage = new sdk::ExtensionLogicalAggStageAdapter(
         std::make_unique<InvalidDPLLogicalStageWithHostAllocatedExtension>());
     auto logicalStageHandle = LogicalAggStageHandle(logicalStage);
@@ -2431,7 +2439,7 @@ TEST_F(DocumentSourceExtensionOptimizableTest,
     auto optimizable = host::DocumentSourceExtensionOptimizable::create(
         getExpCtx(), std::move(logicalStageHandle), MongoExtensionStaticProperties{});
 
-    ASSERT_THROWS_CODE(optimizable->distributedPlanLogic(nullptr), AssertionException, 11882000);
+    optimizable->distributedPlanLogic(nullptr);
 }
 
 TEST_F(DocumentSourceExtensionOptimizableTest, DistributedPlanLogicWithMergeOnlyStage) {
@@ -3103,7 +3111,9 @@ TEST_F(DocumentSourceExtensionOptimizableTest, ExtensionStageDocsNeededBoundsCon
 }
 
 // The IDL validator rejects a limit/skip effect that is missing the 'value' field.
-TEST_F(DocumentSourceExtensionOptimizableTest, ExtensionStageDocsNeededBoundsLimitMissingValue) {
+DEATH_TEST_F(DocumentSourceExtensionOptimizableTestDeathTest,
+             ExtensionStageDocsNeededBoundsLimitMissingValue,
+             "519") {
     auto astNode = new sdk::ExtensionAggStageAstNodeAdapter(
         std::make_unique<sdk::shared_test_stages::CustomBoundsAstNode>(BSONObj(),
                                                                        BSON("effect" << "limit")));
@@ -3112,10 +3122,12 @@ TEST_F(DocumentSourceExtensionOptimizableTest, ExtensionStageDocsNeededBoundsLim
         host::DocumentSourceExtensionOptimizable::create(getExpCtx(), std::move(handle));
 
     auto pipeline = Pipeline::create({extensionStage}, getExpCtx());
-    ASSERT_THROWS_CODE(extractDocsNeededBounds(*pipeline), DBException, 11842302);
+    extractDocsNeededBounds(*pipeline);
 }
 
-TEST_F(DocumentSourceExtensionOptimizableTest, ExtensionStageDocsNeededBoundsSkipMissingValue) {
+DEATH_TEST_F(DocumentSourceExtensionOptimizableTestDeathTest,
+             ExtensionStageDocsNeededBoundsSkipMissingValue,
+             "519") {
     auto astNode = new sdk::ExtensionAggStageAstNodeAdapter(
         std::make_unique<sdk::shared_test_stages::CustomBoundsAstNode>(BSONObj(),
                                                                        BSON("effect" << "skip")));
@@ -3124,11 +3136,13 @@ TEST_F(DocumentSourceExtensionOptimizableTest, ExtensionStageDocsNeededBoundsSki
         host::DocumentSourceExtensionOptimizable::create(getExpCtx(), std::move(handle));
 
     auto pipeline = Pipeline::create({extensionStage}, getExpCtx());
-    ASSERT_THROWS_CODE(extractDocsNeededBounds(*pipeline), DBException, 11842302);
+    extractDocsNeededBounds(*pipeline);
 }
 
 // The IDL validator rejects an effect that erroneously specifies a 'value' field.
-TEST_F(DocumentSourceExtensionOptimizableTest, ExtensionStageDocsNeededBoundsUnknownWithValue) {
+DEATH_TEST_F(DocumentSourceExtensionOptimizableTestDeathTest,
+             ExtensionStageDocsNeededBoundsUnknownWithValue,
+             "519") {
     auto astNode = new sdk::ExtensionAggStageAstNodeAdapter(
         std::make_unique<sdk::shared_test_stages::CustomBoundsAstNode>(
             BSONObj(), BSON("effect" << "unknown" << "value" << 5)));
@@ -3137,7 +3151,7 @@ TEST_F(DocumentSourceExtensionOptimizableTest, ExtensionStageDocsNeededBoundsUnk
         host::DocumentSourceExtensionOptimizable::create(getExpCtx(), std::move(handle));
 
     auto pipeline = Pipeline::create({extensionStage}, getExpCtx());
-    ASSERT_THROWS_CODE(extractDocsNeededBounds(*pipeline), DBException, 11842303);
+    extractDocsNeededBounds(*pipeline);
 }
 
 // Tests for registerStageRules / _extensionRuleRegistry.
@@ -3504,6 +3518,23 @@ protected:
         }
     }
 };
+
+TEST_F(DocumentSourceExtensionOptimizableInLookupKickbackTest, FiresForExtensionVectorSearch) {
+    unittest::ServerParameterGuard hybridFlag{"featureFlagExtensionsInsideHybridSearch", false};
+    auto expCtx = getExpCtx();
+    expCtx->setInLookup(true);
+
+    auto initialCount = vector_search_metrics::inLookupKickbackRetryCount.get();
+    auto astNode = new sdk::ExtensionAggStageAstNodeAdapter(
+        std::make_unique<sdk::shared_test_stages::TransformAggStageAstNode>(
+            search_helpers::kExtensionVectorSearchStageName, BSONObj()));
+
+    ASSERT_THROWS_CODE(
+        host::DocumentSourceExtensionOptimizable::create(expCtx, AggStageAstNodeHandle{astNode}),
+        DBException,
+        ErrorCodes::IFRFlagRetry);
+    ASSERT_EQ(vector_search_metrics::inLookupKickbackRetryCount.get(), initialCount + 1);
+}
 
 TEST_F(DocumentSourceExtensionOptimizableInLookupKickbackTest, FiresForExtensionSearch) {
     runKickbackCase(/*hybridFlagEnabled=*/false,

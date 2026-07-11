@@ -241,7 +241,7 @@
 #include "mongo/otel/metrics/instrumentation/metrics_installer.h"
 #include "mongo/otel/metrics/metrics_initialization.h"
 #include "mongo/otel/traces/trace_initialization.h"
-#include "mongo/platform/atomic_word.h"
+#include "mongo/platform/atomic.h"
 #include "mongo/platform/compiler.h"
 #include "mongo/platform/process_id.h"
 #include "mongo/platform/random.h"
@@ -2001,13 +2001,13 @@ void shutdownTask(const ShutdownTaskArgs& shutdownArgs) {
         configServerRoutingInfoCache->shutDownAndJoin();
     }
 
-    {
+    if (auto&& rwc = ReadWriteConcernDefaults::getDecoration(serviceContext->getService())) {
         SectionScopedTimer scopedTimer(serviceContext->getFastClockSource(),
                                        TimedSectionId::shutDownAndJoinReadWriteConcernDefaults,
                                        &shutdownTimeElapsedBuilder);
         LOGV2_OPTIONS(
             11437200, {LogComponent::kDefault}, "Shutting down the ReadWriteConcernDefaults");
-        ReadWriteConcernDefaults::get(serviceContext->getService()).shutDownAndJoin();
+        rwc->shutDownAndJoin();
     }
 
     // Finish shutting down the TransportLayers

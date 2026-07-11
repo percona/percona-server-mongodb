@@ -35,7 +35,9 @@
 
 #include <cstdint>
 
-namespace MONGO_MOD_PUBLIC mongo {
+#include <boost/optional.hpp>
+
+namespace [[MONGO_MOD_PUBLIC]] mongo {
 
 /**
  * Generic implementation of a retry with full jitter and exponential backoff.
@@ -53,6 +55,13 @@ struct BackoffWithJitter {
     }
 
     Milliseconds getBackoffDelay() const;
+
+    /**
+     * Same as getBackoffDelay(), but when 'baseBackoffOverride' is present, it is used in place
+     * of '_baseBackoff'. When 'baseBackoffOverride' is boost::none, behavior is identical to
+     * getBackoffDelay().
+     */
+    Milliseconds getBackoffDelay(boost::optional<Milliseconds> baseBackoffOverride) const;
 
     Milliseconds getBackoffDelayAndIncrementAttemptCount() {
         const auto delay = getBackoffDelay();
@@ -88,4 +97,4 @@ private:
     static XorShift128& _randomEngine();
 };
 
-}  // namespace MONGO_MOD_PUBLIC mongo
+}  // namespace mongo

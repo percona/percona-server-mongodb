@@ -28,7 +28,7 @@
 
 global:
     cpp_namespace: "mongo"
-    mod_visibility: pub
+    mod_visibility: public
     cpp_includes:
         - "mongo/db/session/kill_sessions_util.h"
 
@@ -59,7 +59,7 @@ server_parameters:
         description: >-
             The maximum number of milliseconds for a session to checkout when aborting expired transactions.
         set_at: [startup, runtime]
-        cpp_vartype: AtomicWord<int>
+        cpp_vartype: Atomic<int>
         cpp_varname: gAbortExpiredTransactionsSessionCheckoutTimeout
         default: 100
         redact: false

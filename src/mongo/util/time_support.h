@@ -30,7 +30,7 @@
 #pragma once
 
 #include "mongo/base/status_with.h"
-#include "mongo/platform/atomic_word.h"
+#include "mongo/platform/atomic.h"
 #include "mongo/util/duration.h"
 #include "mongo/util/modules.h"
 
@@ -43,7 +43,7 @@
 #include <string>
 #include <string_view>
 
-MONGO_MOD_PUBLIC;
+[[MONGO_MOD_PUBLIC]];
 
 namespace mongo {
 
@@ -263,7 +263,7 @@ private:
     }
 
     // Holds the last value returned from now()
-    static AtomicWord<long long> lastNowVal;
+    static Atomic<long long> lastNowVal;
 };
 
 class DateStringBuffer {

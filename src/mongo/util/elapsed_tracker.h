@@ -29,14 +29,14 @@
 
 #pragma once
 
-#include "mongo/platform/atomic_word.h"
+#include "mongo/platform/atomic.h"
 #include "mongo/util/duration.h"
 #include "mongo/util/modules.h"
 #include "mongo/util/time_support.h"
 
 #include <cstdint>
 
-namespace MONGO_MOD_PUB mongo {
+namespace [[MONGO_MOD_PUBLIC]] mongo {
 
 class ClockSource;
 
@@ -72,4 +72,4 @@ private:
     Date_t _last;
 };
 
-}  // namespace MONGO_MOD_PUB mongo
+}  // namespace mongo

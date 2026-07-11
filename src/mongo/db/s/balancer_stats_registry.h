@@ -33,7 +33,7 @@
 #include "mongo/db/repl/replica_set_aware_service.h"
 #include "mongo/db/s/range_deleter_service.h"
 #include "mongo/db/service_context.h"
-#include "mongo/platform/atomic_word.h"
+#include "mongo/platform/atomic.h"
 #include "mongo/stdx/unordered_map.h"
 #include "mongo/util/concurrency/thread_pool.h"
 #include "mongo/util/modules.h"
@@ -54,7 +54,7 @@ namespace mongo {
  * and terminated on stepDown.
  */
 
-class MONGO_MOD_NEEDS_REPLACEMENT BalancerStatsRegistry
+class [[MONGO_MOD_NEEDS_REPLACEMENT]] BalancerStatsRegistry
     : public ReplicaSetAwareServiceShardSvr<BalancerStatsRegistry> {
 
     BalancerStatsRegistry(const BalancerStatsRegistry&) = delete;
@@ -75,11 +75,11 @@ public:
      *
      * If the registy is not initialized this function will be a noop.
      */
-    MONGO_MOD_PRIVATE void updateOrphansCount(const UUID& collectionUUID, long long delta);
+    [[MONGO_MOD_PRIVATE]] void updateOrphansCount(const UUID& collectionUUID, long long delta);
     void onRangeDeletionTaskInsertion(const UUID& collectionUUID, long long numOrphanDocs);
     void onRangeDeletionTaskDeletion(const UUID& collectionUUID, long long numOrphanDocs);
 
-    MONGO_MOD_PRIVATE long long getCollNumOrphanDocs(const UUID& collectionUUID) const;
+    [[MONGO_MOD_PRIVATE]] long long getCollNumOrphanDocs(const UUID& collectionUUID) const;
 
     /**
      * Retrieves the numOrphanDocs from the balancer stats registry if initialized or runs an
@@ -137,7 +137,7 @@ private:
     };
 
     mutable std::mutex _stateMutex;
-    AtomicWord<State> _state{State::kSecondary};
+    Atomic<State> _state{State::kSecondary};
     ServiceContext::UniqueOperationContext _initOpCtxHolder;
 
     mutable std::mutex _mutex;
