@@ -1,0 +1,450 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "6b38aaf7a25c60de1c56da5f95278dfb87b078a3",
+    "merge_commit": "0b22cf9c3b6f019e0618ee721ae26f27e2c7f104"
+  },
+  "mergai_version": "0.1.dev1+gaa14b121b",
+  "conflict_context": {
+    "ours_commit": "6b38aaf7a25c60de1c56da5f95278dfb87b078a3",
+    "theirs_commit": "0b22cf9c3b6f019e0618ee721ae26f27e2c7f104",
+    "base_commit": "20943c6c27235fde94e26171405753204c19f3e2",
+    "files": [
+      "buildscripts/resmokelib/testing/fixtures/_builder.py",
+      "buildscripts/resmokelib/testing/fixtures/standalone.py",
+      "src/mongo/db/auth/authorization_manager_impl.h",
+      "src/mongo/db/server_options.h",
+      "src/mongo/db/storage/kv/kv_engine.h"
+    ],
+    "conflict_types": {
+      "buildscripts/resmokelib/testing/fixtures/_builder.py": "both modified",
+      "buildscripts/resmokelib/testing/fixtures/standalone.py": "both modified",
+      "src/mongo/db/auth/authorization_manager_impl.h": "both modified",
+      "src/mongo/db/server_options.h": "both modified",
+      "src/mongo/db/storage/kv/kv_engine.h": "both modified"
+    },
+    "diffs": {
+      "buildscripts/resmokelib/testing/fixtures/_builder.py": "diff --cc buildscripts/resmokelib/testing/fixtures/_builder.py\nindex 7505222f9f2,93dc730b4be..00000000000\n--- a/buildscripts/resmokelib/testing/fixtures/_builder.py\n+++ b/buildscripts/resmokelib/testing/fixtures/_builder.py\n@@@ -423,2 -429,0 +436,7 @@@ class ReplSetBuilder(FixtureBuilder)\n++<<<<<<< HEAD\n +            launch_mongot_community=launch_mongot_community,\n +            load_extensions=[],\n++||||||| 20943c6c272\n++            load_extensions=[],\n++=======\n++>>>>>>> 0b22cf9c3b6f019e0618ee721ae26f27e2c7f104",
+      "buildscripts/resmokelib/testing/fixtures/standalone.py": "diff --cc buildscripts/resmokelib/testing/fixtures/standalone.py\nindex 7727b9ac867,38813d3c6d9..00000000000\n--- a/buildscripts/resmokelib/testing/fixtures/standalone.py\n+++ b/buildscripts/resmokelib/testing/fixtures/standalone.py\n@@@ -162,46 -202,0 +205,80 @@@ class MongoDFixture(interface.Fixture, \n++<<<<<<< HEAD\n +        if launch_mongot and launch_mongot_community:\n +            raise ValueError(\"Cannot launch both mongot-localdev and mongot-community\")\n +\n +        if launch_mongot_community:\n +            self.launch_mongot_community_bool = True\n +            self.launch_mongot_bool = False\n +            self.mongot_grpc_port = fixturelib.get_next_port(job_num)\n +            self.mongot_health_port = fixturelib.get_next_port(job_num)\n +            self.mongod_options[\"mongotHost\"] = \"localhost:\" + str(self.mongot_grpc_port)\n +            self.mongod_options[\"searchIndexManagementHostAndPort\"] = self.mongod_options[\n +                \"mongotHost\"\n +            ]\n +        elif launch_mongot:\n +            self.launch_mongot_bool = True\n +            self.launch_mongot_community_bool = False\n +\n +            # mongot exposes two ports that it will listen for ingress communication on: \"port\",\n +            # which expects the MongoRPC protocol, and \"grpcPort\", which expects the MongoDB\n +            # gRPC protocol. When useGrpcForSearch is true, mongos and mongod will communicate\n +            # with mongot using gRPC, and so we must set the \"mongotHost\" option to the listening\n +            # address that expects the gRPC protocol. However, the testing infrastructure also\n +            # communicates with mongot directly using the pymongo driver, which must communicate\n +            # using MongoRPC, and so we also setup the \"port\" on mongot to listen for MongoRPC\n +            # connections no matter what.\n +            self.mongot_port = fixturelib.get_next_port(job_num)\n +            if self.mongod_options[\"set_parameters\"].get(\"useGrpcForSearch\"):\n +                self.mongot_grpc_port = fixturelib.get_next_port(job_num)\n +                self.mongod_options[\"mongotHost\"] = \"localhost:\" + str(self.mongot_grpc_port)\n +            else:\n +                self.mongod_options[\"mongotHost\"] = \"localhost:\" + str(self.mongot_port)\n +\n +            # In future architectures, this could change\n +            self.mongod_options[\"searchIndexManagementHostAndPort\"] = self.mongod_options[\n +                \"mongotHost\"\n +            ]\n +        else:\n +            self.launch_mongot_bool = False\n +            self.launch_mongot_community_bool = False\n +        # If a suite enables launching mongot, the necessary startup options for the MongoTFixture\n +        # or MongoTCommunityFixture will be created in setup_mongot_params() or\n +        # setup_mongot_community_params() which is called by the builders after all other fixture\n +        # types have been setup (and therefore all other nodes have been assigned ports, which\n +        # allows mongot to connect to a given mongod or mongos). The fixture is then launched by\n +        # the MongoDFixture in setup().\n +        self.mongot = None\n +\n++||||||| 20943c6c272\n++        if launch_mongot:\n++            self.launch_mongot_bool = True\n++\n++            # mongot exposes two ports that it will listen for ingress communication on: \"port\",\n+ (... 23 more added lines...)\n++        # mongos. The MongoTFixture is then launched by the MongoDFixture in setup().\n++        self.mongot = None\n++\n++=======\n++>>>>>>> 0b22cf9c3b6f019e0618ee721ae26f27e2c7f104",
+      "src/mongo/db/auth/authorization_manager_impl.h": "diff --cc src/mongo/db/auth/authorization_manager_impl.h\nindex 858eea5b0f6,80b8720650a..00000000000\n--- a/src/mongo/db/auth/authorization_manager_impl.h\n+++ b/src/mongo/db/auth/authorization_manager_impl.h\n@@@ -156,7 -151,1 +156,13 @@@ private\n++<<<<<<< HEAD\n +    AtomicWord<bool> _privilegeDocsExist{false};\n +\n +    /**\n +     * LDAP user cache invalidator instance\n +     * Not null only if LDAP authorization configured\n +     */\n +    std::unique_ptr<LDAPUserCacheInvalidator> _ldapUserCacheInvalidator;\n++||||||| 20943c6c272\n++    AtomicWord<bool> _privilegeDocsExist{false};\n++=======\n+     Atomic<bool> _privilegeDocsExist{false};\n++>>>>>>> 0b22cf9c3b6f019e0618ee721ae26f27e2c7f104",
+      "src/mongo/db/server_options.h": "diff --cc src/mongo/db/server_options.h\nindex 34ea6d94466,594fdb2408d..00000000000\n--- a/src/mongo/db/server_options.h\n+++ b/src/mongo/db/server_options.h\n@@@ -68,3 -68,2 +68,11 @@@ namespace mongo \n++<<<<<<< HEAD\n +MONGO_MOD_PUB constexpr inline int DEFAULT_UNIX_PERMS = 0700;\n +MONGO_MOD_PUB constexpr inline int RATE_LIMIT_MAX = 1000;\n +MONGO_MOD_PUB constexpr inline size_t DEFAULT_MAX_CONN = 1000000;\n++||||||| 20943c6c272\n++MONGO_MOD_PUB constexpr inline int DEFAULT_UNIX_PERMS = 0700;\n++MONGO_MOD_PUB constexpr inline size_t DEFAULT_MAX_CONN = 1000000;\n++=======\n+ [[MONGO_MOD_PUBLIC]] constexpr inline int DEFAULT_UNIX_PERMS = 0700;\n+ [[MONGO_MOD_PUBLIC]] constexpr inline size_t DEFAULT_MAX_CONN = 1000000;\n++>>>>>>> 0b22cf9c3b6f019e0618ee721ae26f27e2c7f104",
+      "src/mongo/db/storage/kv/kv_engine.h": "diff --cc src/mongo/db/storage/kv/kv_engine.h\nindex f2ebd6cced2,18c7ed6840d..00000000000\n--- a/src/mongo/db/storage/kv/kv_engine.h\n+++ b/src/mongo/db/storage/kv/kv_engine.h\n@@@ -69,1 -68,1 +69,7 @@@ enum class BlindWritePolicy \n++<<<<<<< HEAD\n +class MONGO_MOD_OPEN KVEngine : public percona::EngineExtension {\n++||||||| 20943c6c272\n++class MONGO_MOD_OPEN KVEngine {\n++=======\n+ class [[MONGO_MOD_OPEN]] KVEngine {\n++>>>>>>> 0b22cf9c3b6f019e0618ee721ae26f27e2c7f104"
+    },
+    "their_commits": {
+      "buildscripts/resmokelib/testing/fixtures/_builder.py": [
+        "9447ae0abc46ddbe01fcc7fb2b250a6db9e583fa"
+      ],
+      "buildscripts/resmokelib/testing/fixtures/standalone.py": [
+        "9447ae0abc46ddbe01fcc7fb2b250a6db9e583fa"
+      ],
+      "src/mongo/db/auth/authorization_manager_impl.h": [
+        "0b22cf9c3b6f019e0618ee721ae26f27e2c7f104"
+      ],
+      "src/mongo/db/server_options.h": [
+        "eccc5068257dd77bc954f57b8f66be6424b1713e"
+      ],
+      "src/mongo/db/storage/kv/kv_engine.h": [
+        "eccc5068257dd77bc954f57b8f66be6424b1713e"
+      ]
+    }
+  },
+  "merge_context": {
+    "merge_commit": "0b22cf9c3b6f019e0618ee721ae26f27e2c7f104",
+    "merged_commits": [
+      "0b22cf9c3b6f019e0618ee721ae26f27e2c7f104",
+      "59c854601f6e90c2b3c29c0f324563cfb381541a",
+      "d3c8ba7b4b10984de4ed48be2cf28be1fdc35a63",
+      "23a5eee7bde6b81ff60194178c16f6257b35e8de",
+      "45219ead1888513859906fdb0db91635ecaf1142",
+      "f37b41e815fa8a4e14ee64379b06ad968e136841",
+      "c0c6df08c98be152107a8608cca5a29561f4043e",
+      "cd78f85530167466c3d281f4d04493f59aeaae86",
+      "efeb3cbf0d2230dca21c2427f074da873f165567",
+      "63503f1cf76c3156a300ed5ec0d05f11a348ce2f",
+      "f9b7a034b2ace590d2b0ea0f983173ec6c7d4422",
+      "9447ae0abc46ddbe01fcc7fb2b250a6db9e583fa",
+      "e81f1ff45a9d846dff8704eb2a7c16b7694a5d4d",
+      "31cf5608e3fac4047dfbd5522400b9b7eb8b2f39",
+      "eddc885dc8363e8ed8b25c22aa7155a589b1ea43",
+      "17636570ebd15a1a175e974fcdbed13cf8b595e6",
+      "2c52681b169c543889eb5358bfe6a40f21981103",
+      "d19ac2f9c378be88ce1f221dedd24ea54f07afc5",
+      "f813ff0a3f4fb416c2fbebd3ffaf4e95e13b319e",
+      "a0dbbc839f2fdc7fd6be6baef67864ed3950ae20",
+      "aa11f382178d5ae580fae7d9acadc58e257d12c9",
+      "bbde3eb10259c1b9e9af5471d9a6c3fa8d7ec389",
+      "5d881bc22dfd27373d5605ebee2301a597e03ad6",
+      "12d1c708a7a34152cb0392c52d9d08f21d847cdc",
+      "4e9e494b6d9596a18bd1337237f3c8334421a963",
+      "f703621fd7bb2cf17a53c5e9498cc30cd53d6027",
+      "87438269ddb5e4040ac4e0a07e8061a1d4006a2f",
+      "40b6dc3201e867ac79df705c6075b824f0a0a833",
+      "5e7f41fc323d7a173beb1649abf41139e5d664e8",
+      "d476ac6f5193ecb03936485b8cde75da1e640479",
+      "ca15b1ce263973b379e912b50e03ca6e66e89576",
+      "a09c2618da63803e4615565d7d8a1c3189fe1fc3",
+      "056154d0875a01c51b77ac655e201fe380d56bc1",
+      "66c86f5910ed914999e8b798a37f1fa36a54542e",
+      "340d047a7fc21ca0093220b7a8997f211b9cbcf4",
+      "78f39dca7650b065949f67f994ac5bbd28ee72ce",
+      "7d81bd8d833f234557d61fe16abb2e321fd699fd",
+      "b5d29960845e52dba9bcce5e90034f525015d1a1",
+      "9b5f53d888fff01c5b51f9d78daea435b4180237",
+      "9c278685fe64565fa5d515df13c55958b97a588f",
+      "2fac3ecf82e8f19a4864467e11adc84c32671316",
+      "eccc5068257dd77bc954f57b8f66be6424b1713e",
+      "2d749509959fd01951d63fe9b1f7c2584c189bbc",
+      "761a41d6764c6c20971187ff7af2d755447298ec",
+      "38c895bc072578b9c92a39dab5daf0dae8377473",
+      "e8677d1e9ff34adef4bb07ccdd0ea7e1ac7e91d9"
+    ],
+    "important_files_modified": [
+      "src/mongo/db/audit.h",
+      "src/mongo/db/repl/initial_sync/initial_syncer.h",
+      "src/mongo/db/storage/storage_engine.h",
+      "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp",
+      "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine_test.cpp"
+    ],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        "BUILD.bazel",
+        "bazel/resmoke/resmoke.bzl",
+        "buildscripts/idl/idl/generator.py",
+        "buildscripts/idl/idl_schema.yml",
+        "buildscripts/resmokelib/testing/fixtures/_builder.py",
+        "buildscripts/resmokelib/testing/fixtures/replicaset.py",
+        "buildscripts/resmokelib/testing/fixtures/shardedcluster.py",
+        "buildscripts/resmokelib/testing/fixtures/standalone.py",
+        "src/mongo/crypto/jwks_fetcher_factory.h",
+        "src/mongo/crypto/jwks_fetcher_impl.h",
+        "src/mongo/db/auth/authorization_manager_impl.h",
+        "src/mongo/db/auth/authorization_manager_test.cpp",
+        "src/mongo/db/auth/sasl_options.h",
+        "src/mongo/db/commands/BUILD.bazel",
+        "src/mongo/db/commands/profile.idl",
+        "src/mongo/db/commands/profile_common.cpp",
+        "src/mongo/db/curop.h",
+        "src/mongo/db/exec/mutable_bson/algorithm.h",
+        "src/mongo/db/ftdc/ftdc_server.idl",
+        "src/mongo/db/mongod_main.cpp",
+        "src/mongo/db/mongod_options.cpp",
+        "src/mongo/db/pipeline/BUILD.bazel",
+        "src/mongo/db/pipeline/process_interface/common_mongod_process_interface.cpp",
+        "src/mongo/db/server_options.h",
+        "src/mongo/db/server_options_helpers.cpp",
+        "src/mongo/db/server_options_nongeneral.idl",
+        "src/mongo/db/startup_warnings_common.cpp",
+        "src/mongo/db/storage/encryption_hooks.h",
+        "src/mongo/db/storage/kv/kv_engine.h",
+        "src/mongo/db/storage/storage_engine.h",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_global_options.h",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_global_options.idl",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_util.cpp",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_util.h",
+        "src/mongo/logv2/log.h",
+        "src/mongo/s/BUILD.bazel",
+        "src/mongo/s/mongos_main.cpp",
+        "src/mongo/s/write_ops/write_op.h",
+        "src/mongo/shell/mongo_main.cpp",
+        "src/mongo/shell/shell_options.cpp",
+        "src/mongo/shell/shell_options.h",
+        "src/mongo/util/exit_code.h",
+        "src/mongo/util/file.h",
+        "src/mongo/util/net/http_client.h",
+        "src/mongo/util/net/ssl_options.cpp",
+        "src/mongo/util/net/ssl_types.h",
+        "src/mongo/util/options_parser/option_description.h",
+        "src/mongo/util/version.h"
+      ]
+    }
+  },
+  "solutions": [
+    {
+      "type": "conflict_resolution",
+      "response": {
+        "summary": "Resolve conflicts for merge commit '0b22cf9c3b6' into master",
+        "resolved": {
+          "buildscripts/resmokelib/testing/fixtures/_builder.py": "Resolved by human",
+          "buildscripts/resmokelib/testing/fixtures/standalone.py": "Resolved by human",
+          "src/mongo/db/auth/authorization_manager_impl.h": "Resolved by human",
+          "src/mongo/db/server_options.h": "Resolved by human",
+          "src/mongo/db/storage/kv/kv_engine.h": "Resolved by human"
+        },
+        "unresolved": {},
+        "modified": {},
+        "review_notes": "Resolved 5 merge conflicts. The C++ conflicts were all upstream API\nmigrations (deprecated MONGO_MOD_PUB/MONGO_MOD_OPEN macros converted to\nthe bracketed [[MONGO_MOD_PUBLIC]]/[[MONGO_MOD_OPEN]] attribute syntax\nper SERVER-113811/SERVER-98435, and AtomicWord<bool> -> Atomic<bool> per\nSERVER-86602); I migrated to upstream's API while preserving Percona\nadditions (RATE_LIMIT_MAX, the LDAP user cache invalidator, and the\npercona::EngineExtension base class). The Python conflicts stem from\nupstream (SERVER-130648) relocating the mongot setup block earlier in\nMongoDFixture.__init__ and providing load_extensions via\n_deferred_mongot_extension_kwargs; I integrated Percona's\nlaunch_mongot_community feature (PSMDB-2032) into the relocated block\nand dropped the now-redundant explicit load_extensions=[] argument.\n\nResolved:\n\tbuildscripts/resmokelib/testing/fixtures/_builder.py\n\tbuildscripts/resmokelib/testing/fixtures/standalone.py\n\tsrc/mongo/db/auth/authorization_manager_impl.h\n\tsrc/mongo/db/server_options.h\n\tsrc/mongo/db/storage/kv/kv_engine.h\n\nNote: commit created by mergai"
+      },
+      "author": {
+        "name": "psmdb-bot[bot]",
+        "email": "2942401+psmdb-bot[bot]@users.noreply.github.com",
+        "type": "human"
+      },
+      "commit_sha": "756cb46ca154397ce8615de724ee1624ae8dd0c0"
+    }
+  ],
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 175642,
+    "num_turns": 11,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.8143495,
+    "modelUsage": {
+      "claude-haiku-4-5-20251001": {
+        "inputTokens": 603,
+        "outputTokens": 17,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0,
+        "webSearchRequests": 0,
+        "costUSD": 0.000688,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000
+      },
+      "claude-opus-4-8": {
+        "inputTokens": 10370,
+        "outputTokens": 13088,
+        "cacheReadInputTokens": 312548,
+        "cacheCreationInputTokens": 44534,
+        "webSearchRequests": 0,
+        "costUSD": 0.8136615,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-haiku-4-5-20251001": {
+          "tokens": {
+            "input": 603,
+            "output": 17,
+            "cache_read": 0,
+            "cache_creation": 0
+          },
+          "cost_usd": 0.000688
+        },
+        "claude-opus-4-8": {
+          "tokens": {
+            "input": 10370,
+            "output": 13088,
+            "cache_read": 312548,
+            "cache_creation": 44534
+          },
+          "cost_usd": 0.8136615
+        }
+      }
+    },
+    "text_result": "I've written the merge description to the response file. Here's a summary of what I found and documented:\n\n## Merge overview\n\nThe merge (base `20943c6c272` \u2192 merge commit `0b22cf9c3b6`) pulls in upstream MongoDB changes dominated by **two mechanical, tree-wide refactors** (~2500+ files):\n\n1. **`AtomicWord<T>` \u2192 `Atomic<T>`** \u2014 including the include switch `mongo/platform/atomic_word.h` \u2192 `mongo/platform/atomic.h`, and IDL `cpp_vartype` fields.\n2. **Module-visibility macros \u2192 C++ attribute syntax** \u2014 `MONGO_MOD_PUB`/`MONGO_MOD_OPEN`/`MONGO_MOD_PRIVATE`/`MONGO_MOD_NEEDS_REPLACEMENT`/`MONGO_MOD_USE_REPLACEMENT(...)` became `[[MONGO_MOD_PUBLIC]]`/`[[MONGO_MOD_OPEN]]`/etc.\n\nPlus a smaller set of **resmoke test-infra changes**: deferring the mongot search extension's per-node `.conf` generation to child mongod nodes, and a new `test_root_granularity` bazel attribute.\n\n## Verification\n\n- I read the real `diff base \u2192 merge commit` diffs (never the fork-tip inversion the prompt warns against).\n- The five conflict files were all resolved by keeping Percona customizations while adopting upstream's rename: LDAP cache invalidator, `RATE_LIMIT_MAX`, `percona::EngineExtension` base, and `launch_mongot_community`.\n- I explicitly re-checked every file I initially only inferred; all confirmed to contain solely the two refactor patterns \u2014 no guessed symbols remain in the output.\n\nThe response JSON has `summary`, per-file `auto_merged` explanations, and `review_notes` steering reviewers to the five conflict files.",
+    "response": {
+      "summary": "Merge of upstream MongoDB (base 20943c6c272 \u2192 merge commit 0b22cf9c3b6) into the Percona master fork. The incoming changes are dominated by two large, mechanical tree-wide refactors plus a set of resmoke test-infrastructure changes. (1) The concurrency helper AtomicWord<T> is replaced by Atomic<T> throughout the codebase, with includes switched from mongo/platform/atomic_word.h to mongo/platform/atomic.h (this also flows into IDL server_parameters cpp_vartype fields). (2) Module-visibility annotations are converted from the macro form (MONGO_MOD_PUB, MONGO_MOD_OPEN, MONGO_MOD_PRIVATE, MONGO_MOD_NEEDS_REPLACEMENT, MONGO_MOD_USE_REPLACEMENT(...), MONGO_MOD_PUBLIC) to C++ attribute form ([[MONGO_MOD_PUBLIC]], [[MONGO_MOD_OPEN]], [[MONGO_MOD_PRIVATE]], [[MONGO_MOD_NEEDS_REPLACEMENT]], [[MONGO_MOD_USE_REPLACEMENT(...)]]). In addition, upstream reworks resmoke fixtures to defer the mongot search extension's per-node .conf generation down to child mongod nodes (which know their own mongotHost), and adds a test_root_granularity option to the bazel resmoke rules.",
+      "auto_merged": {
+        "BUILD.bazel": "Removes ~24 lines from BUILD.bazel (build target/dependency entries). Change is confined to bazel target definitions.",
+        "bazel/resmoke/resmoke.bzl": "Adds a new test_root_granularity attribute (values 'file' default, or 'directory') to the resmoke_config rule and threads it through resmoke_suite_test. When set to 'directory', the test list is written as deduped parent directories (one root per src's parent dir, for test kinds like query_tester that treat a directory as one test case) instead of one root per file.",
+        "buildscripts/idl/idl/generator.py": "One-line change in the IDL generator; part of the surrounding upstream IDL/atomic refactor.",
+        "buildscripts/idl/idl_schema.yml": "One-line schema change accompanying the IDL updates.",
+        "buildscripts/resmokelib/testing/fixtures/_builder.py": "Adds helper _deferred_mongot_extension_kwargs(parent_fixture): when a parent fixture sets _defer_mongot_extension, child fixtures receive load_extensions=[MONGOT_EXTENSION_NAME] plus the parent's skip_extensions_signature_verification; otherwise load_extensions=[]. ReplSetBuilder and ShardedClusterBuilder now use this helper when building child mongod nodes (config server, built with launch_mongot=False, keeps load_extensions=[]). Imports MONGOT_EXTENSION_NAME. CONFLICT (both modified): the fork keeps its launch_mongot_community argument on the replica-set child fixture alongside the upstream deferral call.",
+        "buildscripts/resmokelib/testing/fixtures/replicaset.py": "ReplicaSetFixture now imports MONGOT_EXTENSION_NAME and mongot_extension_requested, computes self._defer_mongot_extension and stores self._skip_extensions_signature_verification. When named extensions are requested and the mongot extension is deferred, only the non-mongot extensions are generated now (the mongot .conf is deferred to child nodes because mongotHost is only known per node).",
+        "buildscripts/resmokelib/testing/fixtures/shardedcluster.py": "ShardedClusterFixture gains the same mongot-deferral logic: imports MONGOT_EXTENSION_NAME, build_mongot_dynamic_options and mongot_extension_requested; tracks _mongot_extension_conf_name (a re-setup guard for the mongos mongot .conf generated in setup()), _defer_mongot_extension and _skip_extensions_signature_verification; excludes the mongot extension from the immediately-generated set when deferral applies.",
+        "buildscripts/resmokelib/testing/fixtures/standalone.py": "MongoDFixture moves the set_parameters initialization earlier and, when launch_mongot is set, computes mongot_port (and mongot_grpc_port when useGrpcForSearch is set) and populates mongod_options['mongotHost'] / 'searchIndexManagementHostAndPort' before extension processing. When the mongot extension is requested, it builds dynamic_options via build_mongot_dynamic_options(mongotHost) and passes them to find_and_generate_named_extension_configs. Imports MONGOT_EXTENSION_NAME, build_mongot_dynamic_options, mongot_extension_requested. CONFLICT (both modified): the fork additionally supports launch_mongot_community (mutually exclusive with launch_mongot) which upstream does not have.",
+        "src/mongo/crypto/jwks_fetcher_factory.h": "MONGO_MOD_* macro annotations converted to [[MONGO_MOD_*]] attribute syntax.",
+        "src/mongo/crypto/jwks_fetcher_impl.h": "MONGO_MOD_* macro annotations converted to [[MONGO_MOD_*]] attribute syntax.",
+        "src/mongo/db/auth/authorization_manager_impl.h": "Include switched from mongo/platform/atomic_word.h to mongo/platform/atomic.h and the _privilegeDocsExist member changed from AtomicWord<bool> to Atomic<bool>. CONFLICT (both modified): resolved to keep Percona's LDAPUserCacheInvalidator member (and _privilegeDocsExist) while adopting upstream's Atomic<bool> type.",
+        "src/mongo/db/auth/authorization_manager_test.cpp": "AtomicWord usages updated to Atomic in test code, matching the atomic refactor.",
+        "src/mongo/db/auth/sasl_options.h": "AtomicWord/MONGO_MOD refactor applied (Atomic<> and/or [[MONGO_MOD_*]] attributes).",
+        "src/mongo/db/commands/BUILD.bazel": "Build target/dependency adjustments accompanying the surrounding changes.",
+        "src/mongo/db/commands/profile.idl": "One-line change in the profile IDL definition.",
+        "src/mongo/db/commands/profile_common.cpp": "One-line change accompanying the profile IDL update.",
+        "src/mongo/db/curop.h": "Include switched from atomic_word.h to atomic.h; CurOp members _numYields, _inUseTrackedMemoryBytes and _peakTrackedMemoryBytes changed from AtomicWord<int>/<int64_t> to Atomic<int>/<int64_t>; and the class/method module annotations (MONGO_MOD_PUB, MONGO_MOD_PRIVATE, MONGO_MOD_NEEDS_REPLACEMENT) converted to [[...]] attribute form.",
+        "src/mongo/db/exec/mutable_bson/algorithm.h": "MONGO_MOD annotation and/or AtomicWord refactor applied.",
+        "src/mongo/db/ftdc/ftdc_server.idl": "server_parameter cpp_vartype fields gDiagnosticDataCollectionEnableLatencyHistograms and gDiagnosticDataCollectionVerboseTCMalloc changed from AtomicWord<bool> to Atomic<bool>.",
+        "src/mongo/db/mongod_main.cpp": "Small update as part of the atomic / module-annotation refactor.",
+        "src/mongo/db/mongod_options.cpp": "One-line change part of the surrounding refactor.",
+        "src/mongo/db/pipeline/BUILD.bazel": "Build target/dependency adjustments.",
+        "src/mongo/db/pipeline/process_interface/common_mongod_process_interface.cpp": "One-line change part of the surrounding refactor.",
+        "src/mongo/db/server_options.h": "DEFAULT_UNIX_PERMS, DEFAULT_MAX_CONN, the ServerGlobalParams struct and the serverGlobalParams extern declaration change their annotation from MONGO_MOD_PUB to [[MONGO_MOD_PUBLIC]]. CONFLICT (both modified): resolved to keep Percona's RATE_LIMIT_MAX constant while adopting upstream's attribute-syntax annotations.",
+        "src/mongo/db/server_options_helpers.cpp": "One-line change part of the surrounding refactor.",
+        "src/mongo/db/server_options_nongeneral.idl": "One-line IDL change (atomic/type refactor).",
+        "src/mongo/db/startup_warnings_common.cpp": "One-line change part of the surrounding refactor.",
+        "src/mongo/db/storage/encryption_hooks.h": "MONGO_MOD/atomic refactor applied.",
+        "src/mongo/db/storage/kv/kv_engine.h": "The KVEngine class annotation changes from MONGO_MOD_OPEN to [[MONGO_MOD_OPEN]]. CONFLICT (both modified): resolved to keep the fork's 'class KVEngine : public percona::EngineExtension' base while adopting upstream's [[MONGO_MOD_OPEN]] attribute syntax.",
+        "src/mongo/db/storage/storage_engine.h": "MONGO_MOD annotation and/or AtomicWord refactor applied.",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_global_options.h": "MONGO_MOD/atomic refactor applied.",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_global_options.idl": "Multiple server_parameter cpp_vartype fields (gWiredTigerSessionCloseIdleTimeSecs, gWiredTigerCursorCacheSize, gWiredTigerEvictionThreadsMin, gWiredTigerEvictionThreadsMax, gTransactionTooLargeForCacheThreshold, gWiredTigerBlindWriteRatio) changed from AtomicWord<...> to Atomic<...>.",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp": "AtomicWord usages replaced with Atomic in the WiredTiger KV engine implementation.",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h": "Removes the atomic_word.h include (atomic.h remains); converts numerous WiredTigerKVEngine timestamp/checkpoint members (_oldestTimestamp, _stableTimestamp, _initialDataTimestamp, _oplogNeededForCrashRecovery, _pinnedOplogTimestamp, _currentCheckpointIteration, _finishedCheckpointIteration, _lastSyncTime, _minPinnedTimestamp) from AtomicWord<...> to Atomic<...>; and converts the MONGO_MOD_USE_REPLACEMENT(jstest) annotations on generateWTOpenConfigString / getWiredTigerConfigFromStartupOptions to [[MONGO_MOD_USE_REPLACEMENT(jstest)]].",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_util.cpp": "One-line change part of the atomic/module refactor.",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_util.h": "One-line change part of the atomic/module refactor.",
+        "src/mongo/logv2/log.h": "MONGO_MOD annotation refactor applied.",
+        "src/mongo/s/BUILD.bazel": "Build target/dependency adjustments.",
+        "src/mongo/s/mongos_main.cpp": "One-line change part of the surrounding refactor.",
+        "src/mongo/s/write_ops/write_op.h": "MONGO_MOD/atomic refactor applied.",
+        "src/mongo/shell/mongo_main.cpp": "Small change part of the surrounding refactor.",
+        "src/mongo/shell/shell_options.cpp": "One-line change part of the surrounding refactor.",
+        "src/mongo/shell/shell_options.h": "MONGO_MOD/atomic refactor applied.",
+        "src/mongo/util/exit_code.h": "MONGO_MOD annotation refactor applied.",
+        "src/mongo/util/file.h": "MONGO_MOD/atomic refactor applied.",
+        "src/mongo/util/net/http_client.h": "MONGO_MOD/atomic refactor applied.",
+        "src/mongo/util/net/ssl_options.cpp": "Comment-only updates in sslModeFormat/tlsModeFormat replacing the words 'AtomicWord<int>' with 'Atomic<int>' to match the type rename.",
+        "src/mongo/util/net/ssl_types.h": "MONGO_MOD/atomic refactor applied.",
+        "src/mongo/util/options_parser/option_description.h": "MONGO_MOD/atomic refactor applied.",
+        "src/mongo/util/version.h": "The top-of-file module marker MONGO_MOD_PUBLIC; is converted to the attribute form [[MONGO_MOD_PUBLIC]];."
+      },
+      "review_notes": "The vast majority of this merge (over 2500 files) is two mechanical, tree-wide upstream refactors: AtomicWord<T> -> Atomic<T> (with include atomic_word.h -> atomic.h, including IDL cpp_vartype fields) and MONGO_MOD_* macro annotations -> [[MONGO_MOD_*]] C++ attribute syntax. These are low-risk find/replace style changes. Focus review on the five conflict files, all resolved by keeping Percona customizations while adopting upstream's rename: authorization_manager_impl.h (keep LDAPUserCacheInvalidator + Atomic<bool> _privilegeDocsExist), server_options.h (keep RATE_LIMIT_MAX + [[MONGO_MOD_PUBLIC]]), kv_engine.h (keep 'KVEngine : public percona::EngineExtension' + [[MONGO_MOD_OPEN]]), and the resmoke fixtures _builder.py / standalone.py (keep the fork's launch_mongot_community path alongside upstream's new mongot-extension deferral). Verify the fixtures still compose the fork's launch_mongot_community option with the new _deferred_mongot_extension_kwargs / build_mongot_dynamic_options logic. All per-file descriptions above were checked against the base->merge-commit diff (each 'refactor applied' file was confirmed to contain only AtomicWord->Atomic and/or MONGO_MOD_* -> [[MONGO_MOD_*]] changes)."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I'll inspect the actual incoming changes for this merge before describing them."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I have enough understanding of the merge. Let me verify the sharded cluster fixture change theme and then write the response."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "Let me verify the files I described only by inference rather than leaving guesses."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "All inferences are confirmed by the actual diffs. Let me tighten the review note since these are now verified."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Edit"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I've written the merge description to the response file. Here's a summary of what I found and documented:\n\n## Merge overview\n\nThe merge (base `20943c6c272` \u2192 merge commit `0b22cf9c3b6`) pulls in upstream MongoDB changes dominated by **two mechanical, tree-wide refactors** (~2500+ files):\n\n1. **`AtomicWord<T>` \u2192 `Atomic<T>`** \u2014 including the include switch `mongo/platform/atomic_word.h` \u2192 `mongo/platform/atomic.h`, and IDL `cpp_vartype` fields.\n2. **Module-visibility macros \u2192 C++ attribute syntax** \u2014 `MONGO_MOD_PUB`/`MONGO_MOD_OPEN`/`MONGO_MOD_PRIVATE`/`MONGO_MOD_NEEDS_REPLACEMENT`/`MONGO_MOD_USE_REPLACEMENT(...)` became `[[MONGO_MOD_PUBLIC]]`/`[[MONGO_MOD_OPEN]]`/etc.\n\nPlus a smaller set of **resmoke test-infra changes**: deferring the mongot search extension's per-node `.conf` generation to child mongod nodes, and a new `test_root_granularity` bazel attribute.\n\n## Verification\n\n- I read the real `diff base \u2192 merge commit` diffs (never the fork-tip inversion the prompt warns against).\n- The five conflict files were all resolved by keeping Percona customizations while adopting upstream's rename: LDAP cache invalidator, `RATE_LIMIT_MAX`, `percona::EngineExtension` base, and `launch_mongot_community`.\n- I explicitly re-checked every file I initially only inferred; all confirmed to contain solely the two refactor patterns \u2014 no guessed symbols remain in the output.\n\nThe response JSON has `summary`, per-file `auto_merged` explanations, and `review_notes` steering reviewers to the five conflict files."
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20260710_232107_398272.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.206 (Claude Code)"
+    }
+  },
+  "note_index": [
+    {
+      "sha": "a8e91ea4075a084a99b4c0ae49fd964355fd4ad3",
+      "fields": [
+        "conflict_context",
+        "merge_context",
+        "solutions[0]",
+        "merge_description",
+        "squashed_commits"
+      ]
+    }
+  ],
+  "squashed_commits": [
+    {
+      "sha": "a9b410ee5f3da8e43980e5c8b9b55703e1de0639",
+      "message": "Merge commit '0b22cf9c3b6' into master"
+    },
+    {
+      "sha": "756cb46ca154397ce8615de724ee1624ae8dd0c0",
+      "message": "Resolve conflicts for merge commit '0b22cf9c3b6' into master"
+    }
+  ]
+}
