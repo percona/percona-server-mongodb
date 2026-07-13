@@ -1,31 +1,5 @@
-/**
- *    Copyright (C) 2026-present MongoDB, Inc.
- *
- *    This program is free software: you can redistribute it and/or modify
- *    it under the terms of the Server Side Public License, version 1,
- *    as published by MongoDB, Inc.
- *
- *    This program is distributed in the hope that it will be useful,
- *    but WITHOUT ANY WARRANTY; without even the implied warranty of
- *    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *    Server Side Public License for more details.
- *
- *    You should have received a copy of the Server Side Public License
- *    along with this program. If not, see
- *    <http://www.mongodb.com/licensing/server-side-public-license>.
- *
- *    As a special exception, the copyright holders give permission to link the
- *    code of portions of this program with the OpenSSL library under certain
- *    conditions as described in each individual source file and distribute
- *    linked combinations including the program with the OpenSSL library. You
- *    must comply with the Server Side Public License in all respects for
- *    all of the code used other than as permitted herein. If you modify file(s)
- *    with this exception, you may extend this exception to your version of the
- *    file(s), but you are not obligated to do so. If you do not wish to do so,
- *    delete this exception statement from your version. If you delete this
- *    exception statement from all source files in the program, then also delete
- *    it in the license file.
- */
+// Copyright (c) MongoDB, Inc.
+// SPDX-License-Identifier: SSPL-1.0
 
 #include "mongo/transport/handoff/handoff_session.h"
 
@@ -46,6 +20,7 @@
 #include "mongo/util/errno_util.h"
 #include "mongo/util/net/hostandport.h"
 #include "mongo/util/net/ssl_peer_info.h"
+#include "mongo/util/scopeguard.h"
 #include "mongo/util/shared_buffer.h"
 
 #include <algorithm>
@@ -1476,6 +1451,149 @@ INSTANTIATE_TEST_SUITE_P(JustPartialMessages,
                                                           PartialMessageExtent::Header,
                                                           PartialMessageExtent::HeaderPlusOneByte,
                                                           PartialMessageExtent::SizeMinusOneByte)));
+
+/**
+ * waitForData() returns OK immediately if there is unconsumed data available from a previous
+ * OP_HANDOFF's extraCleartext field.
+ */
+TEST_F(HandoffSessionHandoffTransitionTest, WaitForDataConsidersExtraCleartext) {
+    std::vector<Message> messages;
+    std::vector<iovec> chunks;
+
+    messages.push_back(makeMessage(dbMsg, BSON("ping" << 1)));
+    chunks.push_back(fromMessage(messages.back()));
+
+    messages.push_back(makeMessage(dbMsg, BSON("ping" << 2)));
+    chunks.push_back(fromMessage(messages.back()));
+
+    messages.push_back(makeMessage(dbMsg, BSON("ping" << 3)));
+    chunks.push_back(fromMessage(messages.back()));
+
+    clientSend(chunks);
+
+    // Tell the proxy (the "server" end of the TLS connection) to receive one message's worth of
+    // data. The remaining two messages, which were sent by the client along with the first message,
+    // will fit in the same TLS record and so will be received and decoded by s2n-tls together with
+    // the first. Those messages will be sent to the mongod session as "extraCleartext", below.
+    const Message firstReceived = serverReceive(messages[0].size());
+    ASSERT_EQ(firstReceived.size(), messages[0].size());
+    ASSERT_EQ(memcmp(firstReceived.buf(), messages[0].buf(), messages[0].size()), 0);
+
+    serializeConnection();
+    ASSERT_EQ(extraCleartext.size(), messages[1].size() + messages[2].size());
+
+    Message handoffMsg = buildSessionHandoffMessage(serializedState, extraCleartext);
+    sendMessageWithFds(proxyUdsFd, handoffMsg, {proxyTlsFd});
+    // The session receives a dup of proxyTlsFd via SCM_RIGHTS and uses it for TLS I/O.
+    // Our copy is no longer needed.
+    ::close(proxyTlsFd);
+    proxyTlsFd = -1;
+
+    // Source one message at mongod. This will trigger handoff, the second message will be retrieved
+    // from extraCleartext, and the third message will remain in the session's unconsumed buffer.
+    boost::optional<StatusWith<Message>> result;
+    std::thread t([&] { result = session->sourceMessage(); });
+
+    waitForSessionHandoff();
+    t.join();
+    ASSERT_EQ(session->getState_forTest(), HandoffSession::State::TLS);
+
+    ASSERT_TRUE(result.has_value());
+    ASSERT_OK(result->getStatus());
+    ASSERT_EQ(result->getValue().size(), messages[1].size());
+    ASSERT_EQ(memcmp(result->getValue().buf(), messages[1].buf(), messages[1].size()), 0);
+
+    // `session->waitForData()` should return OK immediately, because there's data in the
+    // unconsumed buffer.
+    // To detect whether `session->waitForData()` is hanging, have a thread call
+    // `session->waitForData()` and submit the result to a promise/future. Then the test driver
+    // thread can await the value with a timeout. Ending the session will unblock waitForData if
+    // it's hanging, so in any case end the session and join the thread at the end of the current
+    // scope.
+    std::promise<Status> promise;
+    std::future<Status> future = promise.get_future();
+    std::thread waiter{[&]() {
+        promise.set_value(session->waitForData());
+    }};
+    ScopeGuard guard{[&]() {
+        session->end();  // wake up the waiter if it hasn't finished
+        waiter.join();
+    }};
+    ASSERT_NE(future.wait_for(std::chrono::seconds(1)), std::future_status::timeout);
+    ASSERT_OK(future.get());
+
+    const StatusWith<Message> lastMessage = session->sourceMessage();
+    ASSERT_OK(lastMessage.getStatus());
+    ASSERT_EQ(lastMessage.getValue().size(), messages[2].size());
+    ASSERT_EQ(memcmp(lastMessage.getValue().buf(), messages[2].buf(), messages[2].size()), 0);
+}
+
+/**
+ * waitForData() returns OK immediately if there is decrypted but unconsumed data available in the
+ * s2n-tls connection's s2n_peek().
+ */
+TEST_F(HandoffSessionHandoffTransitionTest, WaitForDataConsidersS2nPeek) {
+    serializeConnection();
+    ASSERT_EQ(extraCleartext.size(), 0);
+    Message handoffMsg = buildSessionHandoffMessage(serializedState, extraCleartext);
+    sendMessageWithFds(proxyUdsFd, handoffMsg, {proxyTlsFd});
+    // The session receives a dup of proxyTlsFd via SCM_RIGHTS and uses it for TLS I/O.
+    // Our copy is no longer needed. Now the client and the session are talking directly.
+    ::close(proxyTlsFd);
+    proxyTlsFd = -1;
+
+    // Source one message at mongod. This will trigger handoff, and the session will block waiting
+    // for the next message in TLS mode.
+    // We'll then have the client send two messages at once such that they both fit in one TLS
+    // record. The session will return the first message, and the second message will be in the
+    // session's s2n_peek().
+    boost::optional<StatusWith<Message>> result;
+    std::thread t([&] { result = session->sourceMessage(); });
+
+    waitForSessionHandoff();
+
+    std::vector<Message> messages;
+    std::vector<iovec> chunks;
+
+    messages.push_back(makeMessage(dbMsg, BSON("ping" << 1)));
+    chunks.push_back(fromMessage(messages.back()));
+
+    messages.push_back(makeMessage(dbMsg, BSON("ping" << 2)));
+    chunks.push_back(fromMessage(messages.back()));
+
+    clientSend(chunks);
+    t.join();
+    ASSERT_EQ(session->getState_forTest(), HandoffSession::State::TLS);
+
+    ASSERT_TRUE(result.has_value());
+    ASSERT_OK(result->getStatus());
+    ASSERT_EQ(result->getValue().size(), messages[0].size());
+    ASSERT_EQ(memcmp(result->getValue().buf(), messages[0].buf(), messages[0].size()), 0);
+
+    // `session->waitForData()` should return OK immediately, because there's data in the
+    // s2n_peek().
+    // To detect whether `session->waitForData()` is hanging, have a thread call
+    // `session->waitForData()` and submit the result to a promise/future. Then the test driver
+    // thread can await the value with a timeout. Ending the session will unblock waitForData if
+    // it's hanging, so in any case end the session and join the thread at the end of the current
+    // scope.
+    std::promise<Status> promise;
+    std::future<Status> future = promise.get_future();
+    std::thread waiter{[&]() {
+        promise.set_value(session->waitForData());
+    }};
+    ScopeGuard guard{[&]() {
+        session->end();  // wake up the waiter if it hasn't finished
+        waiter.join();
+    }};
+    ASSERT_NE(future.wait_for(std::chrono::seconds(1)), std::future_status::timeout);
+    ASSERT_OK(future.get());
+
+    const StatusWith<Message> lastMessage = session->sourceMessage();
+    ASSERT_OK(lastMessage.getStatus());
+    ASSERT_EQ(lastMessage.getValue().size(), messages[1].size());
+    ASSERT_EQ(memcmp(lastMessage.getValue().buf(), messages[1].buf(), messages[1].size()), 0);
+}
 
 /**
  * If there is no decrypted data remaining in the proxy's s2n connection, then the OP_HANDOFF

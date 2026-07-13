@@ -1,31 +1,5 @@
-/**
- *    Copyright (C) 2026-present MongoDB, Inc.
- *
- *    This program is free software: you can redistribute it and/or modify
- *    it under the terms of the Server Side Public License, version 1,
- *    as published by MongoDB, Inc.
- *
- *    This program is distributed in the hope that it will be useful,
- *    but WITHOUT ANY WARRANTY; without even the implied warranty of
- *    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *    Server Side Public License for more details.
- *
- *    You should have received a copy of the Server Side Public License
- *    along with this program. If not, see
- *    <http://www.mongodb.com/licensing/server-side-public-license>.
- *
- *    As a special exception, the copyright holders give permission to link the
- *    code of portions of this program with the OpenSSL library under certain
- *    conditions as described in each individual source file and distribute
- *    linked combinations including the program with the OpenSSL library. You
- *    must comply with the Server Side Public License in all respects for
- *    all of the code used other than as permitted herein. If you modify file(s)
- *    with this exception, you may extend this exception to your version of the
- *    file(s), but you are not obligated to do so. If you do not wish to do so,
- *    delete this exception statement from your version. If you delete this
- *    exception statement from all source files in the program, then also delete
- *    it in the license file.
- */
+// Copyright (c) MongoDB, Inc.
+// SPDX-License-Identifier: SSPL-1.0
 
 #include "mongo/db/pipeline/document_source_internal_document_results_and_metadata.h"
 
@@ -34,6 +8,8 @@
 #include "mongo/bson/bsonobj.h"
 #include "mongo/bson/bsonobjbuilder.h"
 #include "mongo/db/exec/agg/exchange_stage.h"
+#include "mongo/db/exec/agg/internal_stream_terminator_stage.h"
+#include "mongo/db/exec/agg/mock_stage.h"
 #include "mongo/db/exec/agg/pipeline_builder.h"
 #include "mongo/db/exec/agg/stage.h"
 #include "mongo/db/exec/document_value/document_metadata_fields.h"
@@ -41,6 +17,7 @@
 #include "mongo/db/pipeline/document_source.h"
 #include "mongo/db/pipeline/document_source_exchange.h"
 #include "mongo/db/pipeline/document_source_internal_document_results_and_metadata_gen.h"
+#include "mongo/db/pipeline/document_source_internal_stream_terminator.h"
 #include "mongo/db/pipeline/document_source_mock.h"
 #include "mongo/db/pipeline/document_source_mock_stages.h"
 #include "mongo/db/pipeline/document_source_queue.h"
@@ -540,16 +517,16 @@ TEST_F(DocumentSourceInternalDocumentResultsAndMetadataTest,
     ASSERT_NE(additionalCursorPipeline, nullptr);
     ASSERT_EQ(additionalCursorPipeline->pipelineType, CursorTypeEnum::SearchMetaResult);
 
-    // Verify the stashed meta pipeline has exactly 3 stages: Exchange consumer + replaceRoot +
-    // the $limit:1 that bounds the metadata stream.
+    // Exchange consumer + $_internalStreamTerminator + $replaceRoot.
     const auto& metaStages = additionalCursorPipeline->getSources();
     ASSERT_EQ(metaStages.size(), 3u);
     auto stageIt = metaStages.begin();
     ASSERT_EQ((*stageIt)->getSourceName(), DocumentSourceExchange::kStageName);
     ++stageIt;
-    ASSERT_EQ(std::string_view((*stageIt)->getSourceName()), "$replaceRoot"sv);
+    ASSERT_EQ(std::string_view((*stageIt)->getSourceName()),
+              DocumentSourceInternalStreamTerminator::kStageName);
     ++stageIt;
-    ASSERT_EQ(std::string_view((*stageIt)->getSourceName()), "$limit"sv);
+    ASSERT_EQ(std::string_view((*stageIt)->getSourceName()), "$replaceRoot"sv);
 }
 
 TEST_F(DocumentSourceInternalDocumentResultsAndMetadataTest,
@@ -716,6 +693,118 @@ TEST_F(DocumentSourceInternalDocumentResultsAndMetadataTest,
     ASSERT_EQ(dpl->mergingStages.size(), 1u);
     ASSERT_EQ(std::string_view(dpl->mergingStages.front()->getSourceName()),
               "$setVariableFromSubPipeline"sv);
+}
+
+// InternalStreamTerminatorStage exec-level tests.
+TEST_F(DocumentSourceInternalDocumentResultsAndMetadataTest,
+       StreamTerminatorReturnsEOFOnEosSentinel) {
+    const auto& expCtx = getExpCtx();
+    std::deque<DocumentSource::GetNextResult> results;
+    results.emplace_back(Document{{"x", 1}});
+    results.emplace_back(Document{{"_eos", true}});
+    results.emplace_back(Document{{"x", 2}});
+
+    auto mock = exec::agg::MockStage::createForTest(std::move(results), expCtx);
+    auto terminator = make_intrusive<exec::agg::InternalStreamTerminatorStage>(
+        DocumentSourceInternalStreamTerminator::kStageName, expCtx);
+    exec::agg::MockStage::setSource_forTest(terminator, mock.get());
+
+    auto r1 = terminator->getNext();
+    ASSERT_TRUE(r1.isAdvanced());
+    ASSERT_BSONOBJ_EQ(r1.getDocument().toBson(), BSON("x" << 1));
+
+    auto r2 = terminator->getNext();
+    ASSERT_TRUE(r2.isEOF());
+    ASSERT_TRUE(mock->isDisposed);
+
+    auto r3 = terminator->getNext();
+    ASSERT_TRUE(r3.isEOF());
+}
+
+TEST_F(DocumentSourceInternalDocumentResultsAndMetadataTest,
+       StreamTerminatorPassesThroughWithoutEos) {
+    const auto& expCtx = getExpCtx();
+    std::deque<DocumentSource::GetNextResult> results;
+    results.emplace_back(Document{{"x", 1}});
+    results.emplace_back(Document{{"x", 2}});
+    results.emplace_back(Document{{"_eos", true}});
+
+    auto mock = exec::agg::MockStage::createForTest(std::move(results), expCtx);
+    auto terminator = make_intrusive<exec::agg::InternalStreamTerminatorStage>(
+        DocumentSourceInternalStreamTerminator::kStageName, expCtx);
+    exec::agg::MockStage::setSource_forTest(terminator, mock.get());
+
+    auto r1 = terminator->getNext();
+    ASSERT_TRUE(r1.isAdvanced());
+    ASSERT_BSONOBJ_EQ(r1.getDocument().toBson(), BSON("x" << 1));
+
+    auto r2 = terminator->getNext();
+    ASSERT_TRUE(r2.isAdvanced());
+    ASSERT_BSONOBJ_EQ(r2.getDocument().toBson(), BSON("x" << 2));
+
+    auto r3 = terminator->getNext();
+    ASSERT_TRUE(r3.isEOF());
+}
+
+TEST_F(DocumentSourceInternalDocumentResultsAndMetadataTest,
+       StreamTerminatorImmediateEosReturnsEOF) {
+    const auto& expCtx = getExpCtx();
+    std::deque<DocumentSource::GetNextResult> results;
+    results.emplace_back(Document{{"_eos", true}});
+    results.emplace_back(Document{{"x", 1}});
+
+    auto mock = exec::agg::MockStage::createForTest(std::move(results), expCtx);
+    auto terminator = make_intrusive<exec::agg::InternalStreamTerminatorStage>(
+        DocumentSourceInternalStreamTerminator::kStageName, expCtx);
+    exec::agg::MockStage::setSource_forTest(terminator, mock.get());
+
+    auto r1 = terminator->getNext();
+    ASSERT_TRUE(r1.isEOF());
+}
+
+TEST_F(DocumentSourceInternalDocumentResultsAndMetadataTest, StreamTerminatorIgnoresFalsyEos) {
+    const auto& expCtx = getExpCtx();
+    std::deque<DocumentSource::GetNextResult> results;
+    results.emplace_back(Document{{"_eos", false}});
+    results.emplace_back(Document{{"_eos", 0}});
+    results.emplace_back(Document{{"x", 1}});
+    results.emplace_back(Document{{"_eos", true}});
+
+    auto mock = exec::agg::MockStage::createForTest(std::move(results), expCtx);
+    auto terminator = make_intrusive<exec::agg::InternalStreamTerminatorStage>(
+        DocumentSourceInternalStreamTerminator::kStageName, expCtx);
+    exec::agg::MockStage::setSource_forTest(terminator, mock.get());
+
+    auto r1 = terminator->getNext();
+    ASSERT_TRUE(r1.isAdvanced());
+    ASSERT_BSONOBJ_EQ(r1.getDocument().toBson(), BSON("_eos" << false));
+
+    auto r2 = terminator->getNext();
+    ASSERT_TRUE(r2.isAdvanced());
+    ASSERT_BSONOBJ_EQ(r2.getDocument().toBson(), BSON("_eos" << 0));
+
+    auto r3 = terminator->getNext();
+    ASSERT_TRUE(r3.isAdvanced());
+    ASSERT_BSONOBJ_EQ(r3.getDocument().toBson(), BSON("x" << 1));
+
+    auto r4 = terminator->getNext();
+    ASSERT_TRUE(r4.isEOF());
+}
+
+DEATH_TEST_F(DocumentSourceInternalDocumentResultsAndMetadataDeathTest,
+             StreamTerminatorTassertsOnNaturalEofWithoutSentinel,
+             "13096201") {
+    const auto& expCtx = getExpCtx();
+    std::deque<DocumentSource::GetNextResult> results;
+    results.emplace_back(Document{{"x", 1}});
+
+    auto mock = exec::agg::MockStage::createForTest(std::move(results), expCtx);
+    auto terminator = make_intrusive<exec::agg::InternalStreamTerminatorStage>(
+        DocumentSourceInternalStreamTerminator::kStageName, expCtx);
+    exec::agg::MockStage::setSource_forTest(terminator, mock.get());
+
+    terminator->getNext();
+    terminator->getNext();
 }
 
 }  // namespace

@@ -1,36 +1,11 @@
-/**
- *    Copyright (C) 2026-present MongoDB, Inc.
- *
- *    This program is free software: you can redistribute it and/or modify
- *    it under the terms of the Server Side Public License, version 1,
- *    as published by MongoDB, Inc.
- *
- *    This program is distributed in the hope that it will be useful,
- *    but WITHOUT ANY WARRANTY; without even the implied warranty of
- *    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *    Server Side Public License for more details.
- *
- *    You should have received a copy of the Server Side Public License
- *    along with this program. If not, see
- *    <http://www.mongodb.com/licensing/server-side-public-license>.
- *
- *    As a special exception, the copyright holders give permission to link the
- *    code of portions of this program with the OpenSSL library under certain
- *    conditions as described in each individual source file and distribute
- *    linked combinations including the program with the OpenSSL library. You
- *    must comply with the Server Side Public License in all respects for
- *    all of the code used other than as permitted herein. If you modify file(s)
- *    with this exception, you may extend this exception to your version of the
- *    file(s), but you are not obligated to do so. If you do not wish to do so,
- *    delete this exception statement from your version. If you delete this
- *    exception statement from all source files in the program, then also delete
- *    it in the license file.
- */
+// Copyright (c) MongoDB, Inc.
+// SPDX-License-Identifier: SSPL-1.0
 
 #pragma once
 
 #include "mongo/bson/bsonobj.h"
 #include "mongo/bson/bsonobjbuilder.h"
+#include "mongo/config.h"
 #include "mongo/platform/atomic.h"
 #include "mongo/scripting/mozjs/wasm/bridge/wasm_helpers.h"
 
@@ -159,6 +134,15 @@ public:
     void kill(ErrorCodes::Error reason = ErrorCodes::Interrupted);
 
     bool isKillPending() const;
+
+#if defined(MONGO_CONFIG_DEBUG_BUILD)
+    // Test-only: bumps the shared engine epoch so this bridge's epoch-deadline callback fires.
+    // Paired with the 'wasmBridgeInjectEpochTrap' failpoint, this provokes a genuine non-kill
+    // wasmtime trap originating inside the guest, so the non-memory trap classification in
+    // _throwAfterTrap() can be tested (a real SpiderMonkey MOZ_CRASH is not deterministically
+    // reachable from guest JS). Compiled out of production (non-debug) builds.
+    void _testTriggerEpochInterrupt();
+#endif
 
     uint64_t createFunction(std::string_view source);
 
@@ -302,9 +286,14 @@ private:
     // until kill() is first called; never reset afterward -- a killed bridge is excluded from
     // the idle-bridge reuse pool via isHealthy(), so it is never reused and never needs clearing.
     Atomic<ErrorCodes::Error> _killReason{ErrorCodes::OK};
-    // Watermark updated by getMemoryStats(); read by _throwAfterTrap() to identify store-limiter
-    // OOM traps even when Wasmtime's trap message doesn't explicitly mention the store limit.
-    Atomic<uint64_t> _lastKnownLinearMemoryBytes{0};
+    // Set to true by the ResourceLimiter callback when memory.grow is denied.
+    // Read in _throwAfterTrap() to classify the resulting unreachable trap as
+    // ExceededMemoryLimit without needing string heuristics. Latched by the
+    // callback and cleared on reuse in resetEngine()/resetRealm().
+    Atomic<bool> _growDeniedByLimiter{false};
+    // Last size (bytes) requested of the limiter callback; logged on a trap so an
+    // OOM can be read against _storeLimitMB even without a live memory watermark.
+    Atomic<uint64_t> _growDeniedDesiredBytes{0};
     uint32_t _jsHeapLimitMB{0};
     uint32_t _storeLimitMB{0};
     bool _javascriptProtection{false};
@@ -316,6 +305,13 @@ private:
     // Each bridge owns its own _store and _instance for execution isolation.
     std::shared_ptr<WasmEngineContext> _ctx;
 
+    // WARNING: _store MUST be declared after every field its ResourceLimiter callback
+    // reads (_storeLimitMB, _growDeniedByLimiter, _growDeniedDesiredBytes). The callback
+    // captures `this`; members are destroyed in reverse declaration order, so _store (and
+    // the callback it owns) must tear down before those fields. Moving _store above them
+    // would create a use-after-free during destruction with no compiler diagnostic. An
+    // offsetof-based static_assert cannot guard this -- MozJSWasmBridge is not
+    // standard-layout, so offsetof would trip -Winvalid-offsetof under -Werror.
     boost::optional<wt::Store> _store;
     boost::optional<wc::Instance> _instance;
 

@@ -1,34 +1,9 @@
-/**
- *    Copyright (C) 2024-present MongoDB, Inc.
- *
- *    This program is free software: you can redistribute it and/or modify
- *    it under the terms of the Server Side Public License, version 1,
- *    as published by MongoDB, Inc.
- *
- *    This program is distributed in the hope that it will be useful,
- *    but WITHOUT ANY WARRANTY; without even the implied warranty of
- *    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *    Server Side Public License for more details.
- *
- *    You should have received a copy of the Server Side Public License
- *    along with this program. If not, see
- *    <http://www.mongodb.com/licensing/server-side-public-license>.
- *
- *    As a special exception, the copyright holders give permission to link the
- *    code of portions of this program with the OpenSSL library under certain
- *    conditions as described in each individual source file and distribute
- *    linked combinations including the program with the OpenSSL library. You
- *    must comply with the Server Side Public License in all respects for
- *    all of the code used other than as permitted herein. If you modify file(s)
- *    with this exception, you may extend this exception to your version of the
- *    file(s), but you are not obligated to do so. If you do not wish to do so,
- *    delete this exception statement from your version. If you delete this
- *    exception statement from all source files in the program, then also delete
- *    it in the license file.
- */
+// Copyright (c) MongoDB, Inc.
+// SPDX-License-Identifier: SSPL-1.0
 
 #include "mongo/db/pipeline/sbe_pushdown.h"
 
+#include "mongo/db/curop.h"
 #include "mongo/db/pipeline/document_source_group.h"
 #include "mongo/db/pipeline/document_source_internal_projection.h"
 #include "mongo/db/pipeline/document_source_internal_replace_root.h"
@@ -766,4 +741,40 @@ void attachPipelineStages(const MultipleCollectionAccessor& collections,
                                                                   stagesForPushdown);
     canonicalQuery->setCqPipeline(std::move(stagesForPushdown), allStagesPushedDown);
 };
+
+void incrementNonLeadingPushdownCounters(const CanonicalQuery& cq) {
+    const auto& queryKnob = cq.getExpCtx()->getQueryKnobConfiguration();
+
+    // Increment only for trySbeRestricted. The idea is to be able to track how many non-leading
+    // operators are being used because of enabling featureFlagSbeNonLeadingMatch /
+    // featureFlagSbeTransformStages, and not because trySbeEngine is set.
+    if (queryKnob.getInternalQueryFrameworkControlForOp() !=
+        QueryFrameworkControlEnum::kTrySbeRestricted) {
+        return;
+    }
+
+    auto* opCtx = cq.getExpCtx()->getOperationContext();
+    if (!opCtx)
+        return;
+    auto& debug = CurOp::get(opCtx)->debug();
+
+    for (const auto& stage : cq.cqPipeline()) {
+        const auto id = stage->getId();
+
+        // Match the operators that were pushed down to SBE.
+        if (id == DocumentSourceMatch::id) {
+            debug.nlpMatch = true;
+        } else if (id == DocumentSourceInternalProjection::id) {
+            const auto* proj = static_cast<const DocumentSourceInternalProjection*>(stage.get());
+            if (proj->projection().type() == projection_ast::ProjectType::kAddition) {
+                debug.nlpAddFields = true;
+            } else {
+                debug.nlpProject = true;
+            }
+        } else if (id == DocumentSourceInternalReplaceRoot::id) {
+            debug.nlpReplaceRoot = true;
+        }
+    }
+}
+
 }  // namespace mongo

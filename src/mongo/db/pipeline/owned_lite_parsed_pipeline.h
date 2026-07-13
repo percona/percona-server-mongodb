@@ -1,31 +1,5 @@
-/**
- *    Copyright (C) 2026-present MongoDB, Inc.
- *
- *    This program is free software: you can redistribute it and/or modify
- *    it under the terms of the Server Side Public License, version 1,
- *    as published by MongoDB, Inc.
- *
- *    This program is distributed in the hope that it will be useful,
- *    but WITHOUT ANY WARRANTY; without even the implied warranty of
- *    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *    Server Side Public License for more details.
- *
- *    You should have received a copy of the Server Side Public License
- *    along with this program. If not, see
- *    <http://www.mongodb.com/licensing/server-side-public-license>.
- *
- *    As a special exception, the copyright holders give permission to link the
- *    code of portions of this program with the OpenSSL library under certain
- *    conditions as described in each individual source file and distribute
- *    linked combinations including the program with the OpenSSL library. You
- *    must comply with the Server Side Public License in all respects for
- *    all of the code used other than as permitted herein. If you modify file(s)
- *    with this exception, you may extend this exception to your version of the
- *    file(s), but you are not obligated to do so. If you do not wish to do so,
- *    delete this exception statement from your version. If you delete this
- *    exception statement from all source files in the program, then also delete
- *    it in the license file.
- */
+// Copyright (c) MongoDB, Inc.
+// SPDX-License-Identifier: SSPL-1.0
 
 #pragma once
 
@@ -35,6 +9,8 @@
 #include "mongo/db/pipeline/lite_parsed_pipeline.h"
 
 #include <vector>
+
+#include <boost/optional/optional.hpp>
 
 namespace mongo {
 
@@ -51,6 +27,12 @@ public:
     OwnedLiteParsedPipeline(const NamespaceString& nss,
                             const std::vector<BSONObj>& pipelineStages,
                             const LiteParserOptions& options = {});
+
+    // Moves already-parsed stages directly, without reparsing. Use this instead of the BSON-vector
+    // constructor when the caller already holds StageSpecs (e.g. a desugarer re-assembling a
+    // subpipeline) — reparsing loses information for stages whose original BSON is only a
+    // placeholder (e.g. AST-only extension sub-stages), which can't round-trip through BSON.
+    OwnedLiteParsedPipeline(NamespaceString nss, StageSpecs stages);
 
     OwnedLiteParsedPipeline(OwnedLiteParsedPipeline&&) noexcept = default;
     OwnedLiteParsedPipeline& operator=(OwnedLiteParsedPipeline&&) noexcept = default;
@@ -89,6 +71,19 @@ public:
         return _pipeline;
     }
 
+    // The view NSS this pipeline was materialized from, if any. Set only for sub-pipelines created
+    // by materializeViewSubpipeline() (e.g. the view pipeline materialized into a $graphLookup
+    // stage), where the pipeline is parsed under the backing-collection NSS rather than the view's.
+    // The current consumer is resolveInvolvedNamespacesImpl's cycle detection, which needs the view
+    // NSS because the backing-collection NSS stored in _originalParseNss is not a view.
+    const boost::optional<NamespaceString>& getViewNss() const {
+        return _viewNss;
+    }
+
+    void setViewNss(NamespaceString nss) {
+        _viewNss = std::move(nss);
+    }
+
 private:
     static std::vector<BSONObj> _makeStagesOwned(const std::vector<BSONObj>& pipelineStages);
 
@@ -96,6 +91,7 @@ private:
     // so the owned copies must exist before '_pipeline' parses them.
     std::vector<BSONObj> _ownedStages;
     LiteParsedPipeline _pipeline;
+    boost::optional<NamespaceString> _viewNss;
 };
 
 }  // namespace mongo

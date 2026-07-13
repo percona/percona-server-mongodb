@@ -1,31 +1,5 @@
-/**
- *    Copyright (C) 2026-present MongoDB, Inc.
- *
- *    This program is free software: you can redistribute it and/or modify
- *    it under the terms of the Server Side Public License, version 1,
- *    as published by MongoDB, Inc.
- *
- *    This program is distributed in the hope that it will be useful,
- *    but WITHOUT ANY WARRANTY; without even the implied warranty of
- *    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *    Server Side Public License for more details.
- *
- *    You should have received a copy of the Server Side Public License
- *    along with this program. If not, see
- *    <http://www.mongodb.com/licensing/server-side-public-license>.
- *
- *    As a special exception, the copyright holders give permission to link the
- *    code of portions of this program with the OpenSSL library under certain
- *    conditions as described in each individual source file and distribute
- *    linked combinations including the program with the OpenSSL library. You
- *    must comply with the Server Side Public License in all respects for
- *    all of the code used other than as permitted herein. If you modify file(s)
- *    with this exception, you may extend this exception to your version of the
- *    file(s), but you are not obligated to do so. If you do not wish to do so,
- *    delete this exception statement from your version. If you delete this
- *    exception statement from all source files in the program, then also delete
- *    it in the license file.
- */
+// Copyright (c) MongoDB, Inc.
+// SPDX-License-Identifier: SSPL-1.0
 
 /**
  * Unit tests for the MozJS Wasm component API via wasmtime.
@@ -53,6 +27,7 @@
 #include "mongo/scripting/mozjs/wasm/bridge/wasm_helpers.h"
 #include "mongo/scripting/mozjs/wasm/embedded_wasm_resource.h"
 #include "mongo/unittest/unittest.h"
+#include "mongo/util/fail_point.h"
 
 #include <atomic>
 #include <chrono>
@@ -2641,6 +2616,39 @@ TEST_F(WasmMozJSBridgeTest, StoreLimiterTrapClassifiedAsExceededMemoryLimit) {
 }
 
 #endif  // !__has_feature(thread_sanitizer)
+
+#if defined(MONGO_CONFIG_DEBUG_BUILD)
+// Core regression for this change: a trap that is NOT caused by a denied memory.grow (e.g. a
+// SpiderMonkey MOZ_ASSERT lowering to `unreachable`) must surface as the generic wasmtime trap
+// code, NOT ExceededMemoryLimit. Previously any unreachable trap was blanket-classified as OOM,
+// masking real internal crashes.
+//
+// Such a trap cannot be provoked deterministically from guest JS, so the
+// 'wasmBridgeInjectEpochTrap' failpoint makes this bridge's epoch-deadline callback return an
+// error, producing a genuine non-kill wasmtime trap inside the running guest. The epoch deadline is
+// armed at current+1 (see the constructor) and invokeFunction never re-arms it, so bumping the
+// epoch once *before* the invoke leaves the deadline already reached: the first epoch check inside
+// the guest fires the callback synchronously -- no second thread needed. The trap must surface as
+// kWasmtimeTrapErrorCode with no kill pending and memory.grow never denied. The complementary
+// memory-limit case (a real OOM classified as ExceededMemoryLimit) is covered by
+// StoreLimiterTrapClassifiedAsExceededMemoryLimit. Debug-build only: the hook does not exist in
+// production binaries.
+TEST_F(WasmMozJSBridgeTest, NonMemoryTrapClassifiedAsGenericTrapCode) {
+    auto fn = createFunction("function() { return 1; }");
+
+    FailPointEnableBlock injectTrap("wasmBridgeInjectEpochTrap");
+    // Pass the epoch deadline before invoking so the guest's first epoch check traps immediately.
+    _bridge->_testTriggerEpochInterrupt();
+
+    ASSERT_THROWS_CODE(
+        (void)_bridge->invokeFunction(fn, wasm_helpers::convertBsonToWcVal(BSONObj())),
+        DBException,
+        ErrorCodes::Error{kWasmtimeTrapErrorCode});
+    ASSERT_TRUE(_bridge->hasTrapped());
+    // The store is in a trapped state; discard without calling shutdown.
+    _bridge.reset();
+}
+#endif
 
 TEST_F(WasmMozJSBridgeTest, StoreLimiterAllowsWithinLimit) {
     // Shut down the default bridge and create one with an explicit memory limit.

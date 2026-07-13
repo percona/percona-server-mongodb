@@ -1,31 +1,5 @@
-/**
- *    Copyright (C) 2022-present MongoDB, Inc.
- *
- *    This program is free software: you can redistribute it and/or modify
- *    it under the terms of the Server Side Public License, version 1,
- *    as published by MongoDB, Inc.
- *
- *    This program is distributed in the hope that it will be useful,
- *    but WITHOUT ANY WARRANTY; without even the implied warranty of
- *    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *    Server Side Public License for more details.
- *
- *    You should have received a copy of the Server Side Public License
- *    along with this program. If not, see
- *    <http://www.mongodb.com/licensing/server-side-public-license>.
- *
- *    As a special exception, the copyright holders give permission to link the
- *    code of portions of this program with the OpenSSL library under certain
- *    conditions as described in each individual source file and distribute
- *    linked combinations including the program with the OpenSSL library. You
- *    must comply with the Server Side Public License in all respects for
- *    all of the code used other than as permitted herein. If you modify file(s)
- *    with this exception, you may extend this exception to your version of the
- *    file(s), but you are not obligated to do so. If you do not wish to do so,
- *    delete this exception statement from your version. If you delete this
- *    exception statement from all source files in the program, then also delete
- *    it in the license file.
- */
+// Copyright (c) MongoDB, Inc.
+// SPDX-License-Identifier: SSPL-1.0
 
 #include "mongo/crypto/fle_crypto.h"
 
@@ -3951,14 +3925,27 @@ ParsedFindTextSearchPayload::ParsedFindTextSearchPayload(
         edc = EDCDerivedFromDataToken{prefixTokens->getEdcDerivedToken().asPrfBlock()};
         esc = ESCDerivedFromDataToken{prefixTokens->getEscDerivedToken().asPrfBlock()};
         server = ServerDerivedFromDataToken{prefixTokens->getServerDerivedToken().asPrfBlock()};
+        if (const auto& spec = payload.getPrefixSpec(); spec) {
+            minQueryLength = spec->getMinQueryLength();
+            maxQueryLength = spec->getMaxQueryLength();
+        }
     } else if (suffixTokens) {
         edc = EDCDerivedFromDataToken{suffixTokens->getEdcDerivedToken().asPrfBlock()};
         esc = ESCDerivedFromDataToken{suffixTokens->getEscDerivedToken().asPrfBlock()};
         server = ServerDerivedFromDataToken{suffixTokens->getServerDerivedToken().asPrfBlock()};
+        if (const auto& spec = payload.getSuffixSpec(); spec) {
+            minQueryLength = spec->getMinQueryLength();
+            maxQueryLength = spec->getMaxQueryLength();
+        }
     } else if (substringTokens) {
         edc = EDCDerivedFromDataToken{substringTokens->getEdcDerivedToken().asPrfBlock()};
         esc = ESCDerivedFromDataToken{substringTokens->getEscDerivedToken().asPrfBlock()};
         server = ServerDerivedFromDataToken{substringTokens->getServerDerivedToken().asPrfBlock()};
+        if (const auto& spec = payload.getSubstringSpec(); spec) {
+            minQueryLength = spec->getMinQueryLength();
+            maxQueryLength = spec->getMaxQueryLength();
+            maxLength = spec->getMaxLength();
+        }
     } else {
         edc = EDCDerivedFromDataToken{exactTokens->getEdcDerivedToken().asPrfBlock()};
         esc = ESCDerivedFromDataToken{exactTokens->getEscDerivedToken().asPrfBlock()};
@@ -4042,6 +4029,32 @@ bool hasQueryTypeMatching(const EncryptedFieldConfig& config, const QueryTypeMat
                                  [&matcher](const EncryptedField&, const QueryTypeConfig& qtc) {
                                      return matcher(qtc.getQueryType());
                                  });
+}
+
+boost::optional<QueryTypeConfig> getQueryTypeMatching(const EncryptedField& field,
+                                                      const QueryTypeMatchFn& matcher) {
+    boost::optional<QueryTypeConfig> result;
+    visitQueryTypeConfigs(field, [&](const EncryptedField&, const QueryTypeConfig& qtc) {
+        if (matcher(qtc.getQueryType())) {
+            result = qtc;
+            return true;
+        }
+        return false;
+    });
+    return result;
+}
+
+boost::optional<QueryTypeConfig> getQueryTypeMatching(const EncryptedFieldConfig& config,
+                                                      const QueryTypeMatchFn& matcher) {
+    boost::optional<QueryTypeConfig> result;
+    visitQueryTypeConfigs(config, [&](const EncryptedField&, const QueryTypeConfig& qtc) {
+        if (matcher(qtc.getQueryType())) {
+            result = qtc;
+            return true;
+        }
+        return false;
+    });
+    return result;
 }
 
 bool hasQueryType(const EncryptedField& field, QueryTypeEnum queryType) {

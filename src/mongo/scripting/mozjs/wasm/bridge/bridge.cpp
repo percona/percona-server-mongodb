@@ -1,36 +1,11 @@
-/**
- *    Copyright (C) 2026-present MongoDB, Inc.
- *
- *    This program is free software: you can redistribute it and/or modify
- *    it under the terms of the Server Side Public License, version 1,
- *    as published by MongoDB, Inc.
- *
- *    This program is distributed in the hope that it will be useful,
- *    but WITHOUT ANY WARRANTY; without even the implied warranty of
- *    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *    Server Side Public License for more details.
- *
- *    You should have received a copy of the Server Side Public License
- *    along with this program. If not, see
- *    <http://www.mongodb.com/licensing/server-side-public-license>.
- *
- *    As a special exception, the copyright holders give permission to link the
- *    code of portions of this program with the OpenSSL library under certain
- *    conditions as described in each individual source file and distribute
- *    linked combinations including the program with the OpenSSL library. You
- *    must comply with the Server Side Public License in all respects for
- *    all of the code used other than as permitted herein. If you modify file(s)
- *    with this exception, you may extend this exception to your version of the
- *    file(s), but you are not obligated to do so. If you do not wish to do so,
- *    delete this exception statement from your version. If you delete this
- *    exception statement from all source files in the program, then also delete
- *    it in the license file.
- */
+// Copyright (c) MongoDB, Inc.
+// SPDX-License-Identifier: SSPL-1.0
 
 #include "mongo/scripting/mozjs/wasm/bridge/bridge.h"
 
 #include "mongo/logv2/log.h"
 #include "mongo/scripting/config_engine_gen.h"
+#include "mongo/util/fail_point.h"
 
 #include <algorithm>
 #include <chrono>
@@ -41,6 +16,15 @@
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kQuery
 
 namespace mongo::mozjs::wasm {
+
+#if defined(MONGO_CONFIG_DEBUG_BUILD)
+// Test-only hook: when enabled, this bridge's epoch-deadline callback returns an error instead of
+// continuing, producing a genuine non-kill wasmtime trap that originates inside the guest. Lets
+// tests drive the real _callFunc -> _throwAfterTrap path (and verify its non-memory
+// classification) without a SpiderMonkey MOZ_CRASH, which cannot be provoked deterministically
+// from guest JS. Defined only in debug builds, so it is entirely absent from production.
+MONGO_FAIL_POINT_DEFINE(wasmBridgeInjectEpochTrap);
+#endif
 
 constexpr std::string_view kMozjsWitInterface = "mongo:mozjs/mozjs";
 constexpr std::string_view kInitEngine = "initialize-engine";
@@ -152,13 +136,36 @@ MozJSWasmBridge::MozJSWasmBridge(std::shared_ptr<WasmEngineContext> ctx, Options
                             minStoreMB),
                 opts.linearMemoryLimitMB >= minStoreMB);
 
-        auto bytes = static_cast<int64_t>(opts.linearMemoryLimitMB) * 1024 * 1024;
-
-        _store->limiter(bytes,
-                        /*table_elements=*/-1,
-                        /*instances=*/-1,
-                        /*tables=*/-1,
-                        /*memories=*/1);  // One linear memory is all MozJS in WASM needs.
+        // Register a callback-based ResourceLimiter so memory.grow denials are
+        // recorded in _growDeniedByLimiter before the unreachable trap fires.
+        // This lets _throwAfterTrap() classify OOM deterministically without
+        // string matching or watermark heuristics.
+        //
+        // 'this' is safe to capture: MozJSWasmBridge is non-movable, and the
+        // store is owned by this bridge and destroyed before the bridge is.
+        //
+        // Only the linear-memory byte ceiling is enforced here. The replaced
+        // numeric wasmtime_store_limiter() also pinned memories=1 and left
+        // instances/tables unbounded (-1); for MozJS-in-WASM (exactly one linear
+        // memory, one instance, no growable tables) those extra ceilings never
+        // bound anything, so dropping them is intentional and behavior-preserving.
+        // The 'maximum' argument (the module-declared ceiling) is likewise ignored
+        // on purpose: the configured store byte limit is authoritative.
+        _store->resource_limiter(
+            [](size_t /*current*/, size_t desired, int64_t /*maximum*/, void* data) -> bool {
+                auto* bridge = static_cast<MozJSWasmBridge*>(data);
+                const size_t limitBytes = static_cast<size_t>(bridge->_storeLimitMB) * 1024 * 1024;
+                // Record the requested size so a subsequent trap can be logged against
+                // the store limit even though we no longer track a live watermark.
+                bridge->_growDeniedDesiredBytes.store(desired);
+                if (desired > limitBytes) {
+                    bridge->_growDeniedByLimiter.store(true);
+                    return false;
+                }
+                return true;
+            },
+            this,
+            /*finalizer=*/nullptr);
 
         auto storeCtx = _store->context();
 
@@ -176,6 +183,13 @@ MozJSWasmBridge::MozJSWasmBridge(std::shared_ptr<WasmEngineContext> ctx, Options
                 if (isKillPending()) {
                     return wt::Error("wasm epoch interrupt: kill pending");
                 }
+#if defined(MONGO_CONFIG_DEBUG_BUILD)
+                // Test-only: see wasmBridgeInjectEpochTrap. Fires only when a test both enables
+                // the failpoint and calls _testTriggerEpochInterrupt() to bump the epoch.
+                if (MONGO_unlikely(wasmBridgeInjectEpochTrap.shouldFail())) {
+                    return wt::Error("injected non-kill wasm trap (wasmBridgeInjectEpochTrap)");
+                }
+#endif
                 delta = 1;
                 return wt::DeadlineKind::Continue;
             });
@@ -266,6 +280,12 @@ bool MozJSWasmBridge::_callFuncNoArgs(wc::Func& func, wc::Val* results, size_t n
     return static_cast<bool>(postResult);
 }
 
+#if defined(MONGO_CONFIG_DEBUG_BUILD)
+void MozJSWasmBridge::_testTriggerEpochInterrupt() {
+    _ctx->_engine->increment_epoch();
+}
+#endif
+
 void MozJSWasmBridge::_throwAfterTrap(const std::string& trapMessage) {
     _state.store(State::Trapped);
 
@@ -277,38 +297,13 @@ void MozJSWasmBridge::_throwAfterTrap(const std::string& trapMessage) {
         uasserted(reason, trapMessage);
     }
 
-    // Snapshot once; stale is fine — we only need to know memory was near the limit.
-    const uint64_t lastKnown = _lastKnownLinearMemoryBytes.load();
-
-    // Classify the trap into ExceededMemoryLimit or kWasmtimeTrapErrorCode.
-    // Heuristics, in priority order:
-    //  1. Explicit Wasmtime/Canonical-ABI messages that name a memory limit.
-    //  2. "unreachable" with a non-zero store limit: SpiderMonkey MOZ_CRASHes via `unreachable`
-    //     when memory.grow is denied by the Wasmtime store limiter. In the SpiderMonkey-WASM
-    //     binary as shipped, `unreachable executed` without a pending kill is ONLY produced by
-    //     this store-limiter OOM path — SpiderMonkey emits no other unreachable instructions
-    //     during normal JS execution.
-    //  3. Watermark-only fallback: covers Wasmtime builds where the message doesn't match above.
-    // TODO SERVER-130779: replace these heuristics with a Wasmtime ResourceLimiter callback that
-    // sets a flag when memory.grow is denied, so only actual limiter denials become
-    // ExceededMemoryLimit and MOZ_ASSERT-derived unreachable traps surface as real errors.
-    ErrorCodes::Error trapCode = [&]() -> ErrorCodes::Error {
-        const std::string_view msg = trapMessage;
-        if (msg.find("cannot leave component instance") != std::string::npos ||
-            msg.find("store bytes limit exceeded") != std::string::npos ||
-            msg.find("memory limit exceeded") != std::string::npos) {
-            return ErrorCodes::ExceededMemoryLimit;
-        }
-        if (_storeLimitMB > 0 && msg.find("unreachable") != std::string::npos) {
-            return ErrorCodes::ExceededMemoryLimit;
-        }
-        constexpr uint64_t kWasmPageBytes = 64 * 1024;
-        const uint64_t storeLimitBytes = static_cast<uint64_t>(_storeLimitMB) * 1024 * 1024;
-        const bool nearStoreLimit =
-            lastKnown > 0 && storeLimitBytes > 0 && lastKnown + kWasmPageBytes >= storeLimitBytes;
-        return nearStoreLimit ? ErrorCodes::ExceededMemoryLimit
-                              : ErrorCodes::Error{kWasmtimeTrapErrorCode};
-    }();
+    // The ResourceLimiter callback sets _growDeniedByLimiter before memory.grow
+    // returns -1 to the guest. SpiderMonkey then MOZ_CRASHes via `unreachable`,
+    // which is what lands here. Snapshot the flag once so the classification and
+    // the diagnostic log below agree on a single value.
+    const bool memoryGrowDenied = _growDeniedByLimiter.load();
+    const ErrorCodes::Error trapCode = memoryGrowDenied ? ErrorCodes::ExceededMemoryLimit
+                                                        : ErrorCodes::Error{kWasmtimeTrapErrorCode};
 
     // Full state dump on any trap for diagnostics.
     int64_t ageNanos = std::chrono::duration_cast<std::chrono::nanoseconds>(
@@ -319,7 +314,8 @@ void MozJSWasmBridge::_throwAfterTrap(const std::string& trapMessage) {
                   "WASM bridge trapped (no kill pending)",
                   "trap"_attr = trapMessage,
                   "trapCode"_attr = static_cast<int>(trapCode),
-                  "lastKnownLinearMemoryMB"_attr = lastKnown / (1024 * 1024),
+                  "memoryGrowDenied"_attr = memoryGrowDenied,
+                  "lastGrowDesiredMB"_attr = _growDeniedDesiredBytes.load() / (1024 * 1024),
                   "state"_attr = static_cast<int>(_state.load()),
                   "heapLimitMB"_attr = _jsHeapLimitMB,
                   "storeLimitMB"_attr = _storeLimitMB,
@@ -396,6 +392,12 @@ void MozJSWasmBridge::shutdown() {
 void MozJSWasmBridge::resetEngine() {
     _assertUsable();
     _refreshEpochDeadline();
+    // Clear the memory-grow denial flag: it is latched by the limiter callback and
+    // must not persist across reuse, or a later unrelated trap would be misclassified
+    // as ExceededMemoryLimit. A denial that led to a trap discards the bridge (not
+    // reused, see isHealthy()); this only matters if a denial is ever recovered from.
+    _growDeniedByLimiter.store(false);
+    _growDeniedDesiredBytes.store(0);
     const uint64_t seq = _stats.resetEngineCallCount.fetchAndAdd(1) + 1;
     LOGV2_DEBUG(11542374,
                 2,
@@ -412,6 +414,9 @@ void MozJSWasmBridge::resetEngine() {
 void MozJSWasmBridge::resetRealm() {
     _assertUsable();
     _refreshEpochDeadline();
+    // See resetEngine(): clear the latched memory-grow denial flag on reuse.
+    _growDeniedByLimiter.store(false);
+    _growDeniedDesiredBytes.store(0);
     if (!_resetRealmFunc) {
         // Older WASM module without reset-realm: fall back to reset-engine.
         resetEngine();
@@ -738,10 +743,6 @@ BSONObj MozJSWasmBridge::getMemoryStats() {
             _callFuncNoArgs(*_getMemoryStatsFunc, &result, 1));
     _assertWitResult(result, "Failed to get memory stats", ErrorCodes::Error{11542384});
     auto stats = _extractBSON(result);
-    // Cache the linear memory watermark so _throwAfterTrap() can diagnose store-limiter OOM.
-    if (auto elem = stats["linearMemoryBytes"]; !elem.eoo()) {
-        _lastKnownLinearMemoryBytes.store(static_cast<uint64_t>(elem.numberLong()));
-    }
     return stats;
 }
 
