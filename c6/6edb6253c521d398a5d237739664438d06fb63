@@ -1,0 +1,30 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "a8e91ea4075a084a99b4c0ae49fd964355fd4ad3",
+    "merge_commit": "1c287af4e8f11749cebb169b352b66beb5e3f990"
+  },
+  "mergai_version": "0.1.dev1+gaa14b121b",
+  "solutions": [
+    {
+      "type": "conflict_resolution",
+      "response": {
+        "summary": "Resolve conflicts for merge commit '1c287af4e8f' into master",
+        "resolved": {
+          "MODULE.bazel.lock": "Resolved by human",
+          "buildscripts/resmokelib/configure_resmoke.py": "Resolved by human",
+          "src/mongo/db/ftdc/ftdc_server.idl": "Resolved by human"
+        },
+        "unresolved": {},
+        "modified": {},
+        "review_notes": "Resolved three merge conflicts. In ftdc_server.idl both sides added\ndistinct new server parameters at the same spot, so both were kept. In\nconfigure_resmoke.py upstream removed the entire mozjs_wasm JS-engine\ndetection mechanism (call site + function + config entries), so the\nfunction was removed following upstream; the Percona timeout tweak had\nnothing left to attach to. MODULE.bazel.lock was resolved by keeping\nours and regenerated via bazel query.\n\nResolved:\n\tsrc/mongo/db/ftdc/ftdc_server.idl\n\tbuildscripts/resmokelib/configure_resmoke.py\n\tMODULE.bazel.lock\n\nNote: commit created by mergai"
+      },
+      "author": {
+        "name": "psmdb-bot[bot]",
+        "email": "2942401+psmdb-bot[bot]@users.noreply.github.com",
+        "type": "human"
+      },
+      "commit_sha": "c66edb6253c521d398a5d237739664438d06fb63"
+    }
+  ]
+}
