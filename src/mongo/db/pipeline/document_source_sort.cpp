@@ -17,6 +17,7 @@
 #include "mongo/db/pipeline/skip_and_limit.h"
 #include "mongo/db/query/allowed_contexts.h"
 #include "mongo/db/query/explain_options.h"
+#include "mongo/db/query/explain_policy.h"
 #include "mongo/db/query/query_shape/serialization_options.h"
 #include "mongo/db/query/stage_memory_limit_knobs/knobs.h"
 #include "mongo/db/sorter/file_based_spiller.h"
@@ -115,6 +116,7 @@ DocumentSourceSort::DocumentSourceSort(const boost::intrusive_ptr<ExpressionCont
     // API. Both fields are const, so they remain in sync for the lifetime of the object.
     : DocumentSource(kStageName, pExpCtx, sortOrder),
       _sortExecutor(std::make_shared<SortExecutor<Document>>(
+          pExpCtx->getOperationContext(),
           sortOrder,
           options.limit,
           loadMemoryLimit(StageMemoryLimit::QueryMaxBlockingSortMemoryUsageBytes),
@@ -172,7 +174,7 @@ void DocumentSourceSort::serializeForBoundedSort(
               {"limit"sv, opts.serializeLiteral(static_cast<long long>(_timeSorter->limit()))}}}},
     }}};
 
-    if (opts.verbosity >= ExplainOptions::Verbosity::kExecStats) {
+    if (opts.verbosity && explainPolicyFor(*opts.verbosity).hasExecStats()) {
         auto& stats = _timeSorter->stats();
 
         mutDoc["totalDataSizeSortedBytesEstimate"] =
@@ -222,7 +224,7 @@ void DocumentSourceSort::serializeWithVerbosity(
                                               : Value())
                 << "outputSortKeyMetadata" << (_outputSortKeyMetadata ? Value(true) : Value()))));
 
-    if (opts.verbosity >= ExplainOptions::Verbosity::kExecStats) {
+    if (opts.verbosity && explainPolicyFor(*opts.verbosity).hasExecStats()) {
         auto& stats = _sortExecutor->stats();
 
         mutDoc["totalDataSizeSortedBytesEstimate"] =
@@ -399,7 +401,8 @@ boost::intrusive_ptr<DocumentSourceSort> DocumentSourceSort::createBoundedSort(
 
     SortOptions opts;
     opts.maxMemoryUsageBytes =
-        loadMemoryLimit(StageMemoryLimit::QueryMaxBlockingSortMemoryUsageBytes).get();
+        loadMemoryLimit(StageMemoryLimit::QueryMaxBlockingSortMemoryUsageBytes)
+            .get(expCtx->getOperationContext());
 
     if (limit) {
         opts.Limit(limit.value());
@@ -488,8 +491,8 @@ boost::intrusive_ptr<DocumentSourceSort> DocumentSourceSort::parseBoundedSort(
     auto ds = DocumentSourceSort::create(expCtx, pat);
 
     SortOptions opts;
-    opts.MaxMemoryUsageBytes(
-        loadMemoryLimit(StageMemoryLimit::QueryMaxBlockingSortMemoryUsageBytes).get());
+    opts.MaxMemoryUsageBytes(loadMemoryLimit(StageMemoryLimit::QueryMaxBlockingSortMemoryUsageBytes)
+                                 .get(expCtx->getOperationContext()));
     if (BSONElement limitElem = args["limit"]) {
         uassert(6588100,
                 "$_internalBoundedSort limit must be a non-negative number if specified",

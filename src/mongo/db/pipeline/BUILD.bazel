@@ -600,8 +600,10 @@ mongo_cc_library(
         "//src/mongo/db/fts:base_fts",
         "//src/mongo/db/index:index_access_method",
         "//src/mongo/db/memory_tracking",
+        "//src/mongo/db/pipeline/search:mongot_extension_name",
         "//src/mongo/db/pipeline/spilling",
         "//src/mongo/db/query:bucket_predicate_generator",
+        "//src/mongo/db/query:explain_policy",
         "//src/mongo/db/query:query_knobs",
         "//src/mongo/db/query/client_cursor:cursor_response_idl",
         "//src/mongo/db/query/client_cursor:generic_cursor",
@@ -1568,6 +1570,7 @@ mongo_cc_unit_test(
         "//src/mongo/db/memory_tracking",
         "//src/mongo/db/pipeline/optimization:pipeline_optimization",
         "//src/mongo/db/query/query_knobs:query_knob_configuration",
+        "//src/mongo/db/query/query_knobs:query_knob_configuration_test_util",
         "//src/mongo/db/shard_role/shard_catalog:catalog_test_fixture",
         "//src/mongo/db/sharding_environment:shard_server_test_fixture",
         "//src/mongo/db/sharding_environment:sharding_mongos_test_fixture",
@@ -1659,6 +1662,7 @@ mongo_cc_unit_test(
         "//src/mongo/otel/metrics:metrics_test_util",
         "//src/mongo/unittest",
         "//src/mongo/util:clock_source_mock",
+        "//src/mongo/util:version_impl",
     ],
 )
 

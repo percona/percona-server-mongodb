@@ -23,6 +23,7 @@
 #include "mongo/db/pipeline/pipeline_factory.h"
 #include "mongo/db/pipeline/search/search_helper.h"
 #include "mongo/db/query/allowed_contexts.h"
+#include "mongo/db/query/explain_policy.h"
 #include "mongo/db/query/query_feature_flags_gen.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/serialization_context.h"
@@ -198,10 +199,13 @@ std::unique_ptr<DocumentSourceFacet::LiteParsed> DocumentSourceFacet::LiteParsed
 intrusive_ptr<DocumentSourceFacet> DocumentSourceFacet::create(
     std::vector<FacetPipeline> facetPipelines,
     const intrusive_ptr<ExpressionContext>& expCtx,
-    size_t bufferSizeBytes,
+    boost::optional<size_t> bufferSizeBytes,
     size_t maxOutputDocBytes) {
+    size_t resolvedBufferSizeBytes = bufferSizeBytes.value_or(
+        static_cast<size_t>(loadMemoryLimit(StageMemoryLimit::QueryFacetBufferSizeBytes)
+                                .get(expCtx->getOperationContext())));
     return new DocumentSourceFacet(
-        std::move(facetPipelines), expCtx, bufferSizeBytes, maxOutputDocBytes);
+        std::move(facetPipelines), expCtx, resolvedBufferSizeBytes, maxOutputDocBytes);
 }
 
 Value DocumentSourceFacet::serialize(const query_shape::SerializationOptions& opts) const {
@@ -209,8 +213,8 @@ Value DocumentSourceFacet::serialize(const query_shape::SerializationOptions& op
     for (size_t facetId = 0; facetId < _facets.size(); ++facetId) {
         auto&& facet = _facets[facetId];
         if (opts.isSerializingForExplain()) {
-            bool canAddExecPipelineExplain =
-                opts.verbosity >= ExplainOptions::Verbosity::kExecStats &&
+            bool canAddExecPipelineExplain = opts.verbosity &&
+                explainPolicyFor(*opts.verbosity).hasExecStats() &&
                 _execStatsWrapper->isStatsProviderAttached();
             auto explain = canAddExecPipelineExplain
                 ? mergeExplains(facet.pipeline->writeExplainOps(opts),

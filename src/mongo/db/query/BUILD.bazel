@@ -52,7 +52,6 @@ mongo_cc_library(
         "//src/mongo:base",
         "//src/mongo/db:service_context",
         "//src/mongo/db/query/datetime:init_timezone_data",
-        "//src/mongo/db/query/stage_memory_limit_knobs",
     ],
 )
 
@@ -165,6 +164,31 @@ mongo_cc_library(
         "//src/mongo/db:api_parameters",
         "//src/mongo/db:server_base",
         "//src/mongo/db:service_context",
+    ],
+)
+
+mongo_cc_library(
+    name = "explain_policy",
+    srcs = [
+        "explain_policy.cpp",
+    ],
+    hdrs = [
+        "explain_policy.h",
+    ],
+    deps = [
+        ":common_query_enums_and_helpers",
+        "//src/mongo:base",
+    ],
+)
+
+mongo_cc_unit_test(
+    name = "explain_policy_test",
+    srcs = [
+        "explain_policy_test.cpp",
+    ],
+    tags = ["mongo_unittest_seventh_group"],
+    deps = [
+        ":explain_policy",
     ],
 )
 

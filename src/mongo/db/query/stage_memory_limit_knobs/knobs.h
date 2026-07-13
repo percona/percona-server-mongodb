@@ -3,13 +3,12 @@
 
 #pragma once
 
-#include "mongo/bson/bsonobjbuilder.h"
 #include "mongo/db/memory_tracking/memory_usage_limit.h"
 #include "mongo/util/modules.h"
 
 namespace mongo {
 
-enum class StageMemoryLimit {
+enum class [[MONGO_MOD_PARENT_PRIVATE]] StageMemoryLimit {
     DocumentSourceLookupCacheSizeBytes,
     DocumentSourceGraphLookupMaxMemoryBytes,
     DocumentSourceGroupMaxMemoryBytes,
@@ -38,12 +37,6 @@ enum class StageMemoryLimit {
  * Returns the memory limit for the given stage according to the server parameters. Call 'get()' on
  * the result for a plain byte count.
  */
-MemoryUsageLimit loadMemoryLimit(StageMemoryLimit stage);
-
-/**
- * Adds values of the server parameters, responsible for the memory limits, to the explain command
- * output.
- */
-void appendStageMemoryLimitsToExplain(BSONObjBuilder& bob);
+[[MONGO_MOD_PARENT_PRIVATE]] MemoryUsageLimit loadMemoryLimit(StageMemoryLimit stage);
 
 }  // namespace mongo
