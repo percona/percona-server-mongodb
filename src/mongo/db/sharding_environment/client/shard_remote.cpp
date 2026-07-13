@@ -1,31 +1,5 @@
-/**
- *    Copyright (C) 2018-present MongoDB, Inc.
- *
- *    This program is free software: you can redistribute it and/or modify
- *    it under the terms of the Server Side Public License, version 1,
- *    as published by MongoDB, Inc.
- *
- *    This program is distributed in the hope that it will be useful,
- *    but WITHOUT ANY WARRANTY; without even the implied warranty of
- *    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *    Server Side Public License for more details.
- *
- *    You should have received a copy of the Server Side Public License
- *    along with this program. If not, see
- *    <http://www.mongodb.com/licensing/server-side-public-license>.
- *
- *    As a special exception, the copyright holders give permission to link the
- *    code of portions of this program with the OpenSSL library under certain
- *    conditions as described in each individual source file and distribute
- *    linked combinations including the program with the OpenSSL library. You
- *    must comply with the Server Side Public License in all respects for
- *    all of the code used other than as permitted herein. If you modify file(s)
- *    with this exception, you may extend this exception to your version of the
- *    file(s), but you are not obligated to do so. If you do not wish to do so,
- *    delete this exception statement from your version. If you delete this
- *    exception statement from all source files in the program, then also delete
- *    it in the license file.
- */
+// Copyright (c) MongoDB, Inc.
+// SPDX-License-Identifier: SSPL-1.0
 
 
 #include "mongo/db/sharding_environment/client/shard_remote.h"
@@ -233,8 +207,9 @@ RetryStrategy::Result<Shard::QueryResponse> ShardRemote::_runExhaustiveCursorCom
     // TODO: SERVER-104141 Use host and port and error labels from status
     std::vector<std::string> errorLabels;
     boost::optional<HostAndPort> hostAndPort;
+    boost::optional<Milliseconds> baseBackoffMS;
 
-    auto fetcherCallback = [&status, &errorLabels, &hostAndPort, &response](
+    auto fetcherCallback = [&status, &errorLabels, &hostAndPort, &baseBackoffMS, &response](
                                const Fetcher::QueryResponseStatus& dataStatus,
                                Fetcher::NextAction* nextAction,
                                BSONObjBuilder* getMoreBob) {
@@ -244,6 +219,7 @@ RetryStrategy::Result<Shard::QueryResponse> ShardRemote::_runExhaustiveCursorCom
             status = dataStatus.getStatus();
             auto labelsFromStatus = dataStatus.getErrorLabels();
             errorLabels.assign(labelsFromStatus.begin(), labelsFromStatus.end());
+            baseBackoffMS = dataStatus.getBaseBackoffMS();
             response.docs.clear();
             return;
         }
@@ -316,7 +292,8 @@ RetryStrategy::Result<Shard::QueryResponse> ShardRemote::_runExhaustiveCursorCom
         if (ErrorCodes::isExceededTimeLimitError(status.code())) {
             LOGV2(22740, "Operation timed out", "error"_attr = status);
         }
-        return RetryStrategy::Result<QueryResponse>{status, std::move(errorLabels), hostAndPort};
+        return RetryStrategy::Result<QueryResponse>{
+            status, std::move(errorLabels), hostAndPort, baseBackoffMS};
     }
 
     return RetryStrategy::Result{response, hostAndPort};
@@ -439,8 +416,9 @@ RetryStrategy::Result<std::monostate> ShardRemote::_runAggregation(
     // TODO: SERVER-104141 Use host and port and error labels from status
     boost::optional<HostAndPort> hostAndPort;
     std::vector<std::string> errorLabels;
+    boost::optional<Milliseconds> baseBackoffMS;
 
-    auto fetcherCallback = [&status, &hostAndPort, &errorLabels, callback](
+    auto fetcherCallback = [&status, &hostAndPort, &errorLabels, &baseBackoffMS, callback](
                                const Fetcher::QueryResponseStatus& dataStatus,
                                Fetcher::NextAction* nextAction,
                                BSONObjBuilder* getMoreBob) {
@@ -450,6 +428,7 @@ RetryStrategy::Result<std::monostate> ShardRemote::_runAggregation(
             status = dataStatus.getStatus();
             auto labels = dataStatus.getErrorLabels();
             errorLabels.assign(labels.begin(), labels.end());
+            baseBackoffMS = dataStatus.getBaseBackoffMS();
             return;
         }
 
@@ -524,7 +503,8 @@ RetryStrategy::Result<std::monostate> ShardRemote::_runAggregation(
     updateReplSetMonitor(host, status);
 
     if (!status.isOK()) {
-        return RetryStrategy::Result<std::monostate>{status, std::move(errorLabels), hostAndPort};
+        return RetryStrategy::Result<std::monostate>{
+            status, std::move(errorLabels), hostAndPort, baseBackoffMS};
     }
 
     return RetryStrategy::Result{std::monostate{}, hostAndPort};

@@ -1,31 +1,5 @@
-/**
- *    Copyright (C) 2026-present MongoDB, Inc.
- *
- *    This program is free software: you can redistribute it and/or modify
- *    it under the terms of the Server Side Public License, version 1,
- *    as published by MongoDB, Inc.
- *
- *    This program is distributed in the hope that it will be useful,
- *    but WITHOUT ANY WARRANTY; without even the implied warranty of
- *    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *    Server Side Public License for more details.
- *
- *    You should have received a copy of the Server Side Public License
- *    along with this program. If not, see
- *    <http://www.mongodb.com/licensing/server-side-public-license>.
- *
- *    As a special exception, the copyright holders give permission to link the
- *    code of portions of this program with the OpenSSL library under certain
- *    conditions as described in each individual source file and distribute
- *    linked combinations including the program with the OpenSSL library. You
- *    must comply with the Server Side Public License in all respects for
- *    all of the code used other than as permitted herein. If you modify file(s)
- *    with this exception, you may extend this exception to your version of the
- *    file(s), but you are not obligated to do so. If you do not wish to do so,
- *    delete this exception statement from your version. If you delete this
- *    exception statement from all source files in the program, then also delete
- *    it in the license file.
- */
+// Copyright (c) MongoDB, Inc.
+// SPDX-License-Identifier: SSPL-1.0
 
 #include "mongo/db/s/max_key_orphan_detection.h"
 
@@ -261,15 +235,28 @@ bool rangeDeletionCoversKey(OperationContext* opCtx,
 }
 
 /**
- * Classifies a single sharded collection. Returns true iff a document whose leading shard-key field
- * is MaxKey exists locally that this shard does not legitimately own.
+ * Outcome of classifying a single sharded collection for a MaxKey-prefixed document.
  */
-bool detectMaxKeyOrphanForCollection(OperationContext* opCtx,
-                                     const CollectionType& collType,
-                                     const ShardId& myShardId) {
+enum class MaxKeyFinding {
+    // No MaxKey-prefixed document, or a transient orphan that the cleanup path will remove.
+    kNone,
+    // A MaxKey-prefixed document that this shard legitimately owns. Its version could be stale if
+    // it was re-owned after some series of application operations.
+    kOwned,
+    // A MaxKey-prefixed document that this shard does not legitimately own (a true orphan).
+    kUnowned,
+};
+
+/**
+ * Classifies a single sharded collection for a document whose leading shard-key field is MaxKey.
+ * See MaxKeyFinding for the meaning of each outcome.
+ */
+MaxKeyFinding detectMaxKeyForCollection(OperationContext* opCtx,
+                                        const CollectionType& collType,
+                                        const ShardId& myShardId) {
     // getCollection() also returns tracked-but-unsharded collections, skip them.
     if (collType.getUnsplittable()) {
-        return false;
+        return MaxKeyFinding::kNone;
     }
 
     const auto& nss = collType.getNss();
@@ -277,12 +264,12 @@ bool detectMaxKeyOrphanForCollection(OperationContext* opCtx,
 
     const ShardKeyPattern shardKeyPattern(collType.getKeyPattern());
     if (shardKeyPattern.isHashedPattern()) {
-        return false;
+        return MaxKeyFinding::kNone;
     }
 
     // Cheap pre-check before taking the migration-blocking guard.
     if (!rightmostGlobalMaxShardKey(opCtx, nss.dbName(), collUuid, shardKeyPattern)) {
-        return false;
+        return MaxKeyFinding::kNone;
     }
 
     hangDuringMaxKeyOrphanScan.pauseWhileSet(opCtx);
@@ -294,24 +281,22 @@ bool detectMaxKeyOrphanForCollection(OperationContext* opCtx,
     // deleted between the pre-check and acquiring the guard.
     auto candidateKey = rightmostGlobalMaxShardKey(opCtx, nss.dbName(), collUuid, shardKeyPattern);
     if (!candidateKey) {
-        return false;
+        return MaxKeyFinding::kNone;
     }
 
     // An outstanding range-deletion task that covers the candidate will delete it through the
     // normal cleanup path, so it is a transient orphan, not a finding.
     if (rangeDeletionCoversKey(opCtx, collUuid, *candidateKey)) {
-        return false;
+        return MaxKeyFinding::kNone;
     }
 
     auto cm = uassertStatusOK(
         Grid::get(opCtx)->catalogCache()->getCollectionPlacementInfoWithRefresh(opCtx, nss));
     if (!cm.hasRoutingTable() || !cm.uuidMatches(collUuid)) {
-        return false;
+        return MaxKeyFinding::kNone;
     }
-    if (cm.keyBelongsToShard(*candidateKey, myShardId)) {
-        return false;
-    }
-    return true;
+    return cm.keyBelongsToShard(*candidateKey, myShardId) ? MaxKeyFinding::kOwned
+                                                          : MaxKeyFinding::kUnowned;
 }
 
 /**
@@ -430,15 +415,20 @@ void runMaxKeyOrphanDetection(OperationContext* opCtx, long long term) {
         }
     }
 
-    auto publishOrphanScanStats = [&](bool foundMaxKey, bool alertEmitted) {
+    auto publishOrphanScanStats = [&](bool foundUnownedMaxKey,
+                                      bool unownedAlertEmitted,
+                                      bool foundOwnedMaxKey,
+                                      bool ownedAlertEmitted) {
         auto& stats = ShardingStatistics::get(opCtx);
         stats.maxKeyOrphanScanComplete.store(1);
-        stats.maxKeyOrphanScanFoundMaxKey.store(foundMaxKey ? 1 : 0);
-        stats.maxKeyOrphanScanAlertEmitted.store(alertEmitted ? 1 : 0);
+        stats.maxKeyOrphanScanFoundUnownedMaxKey.store(foundUnownedMaxKey ? 1 : 0);
+        stats.maxKeyOrphanScanUnownedAlertEmitted.store(unownedAlertEmitted ? 1 : 0);
+        stats.maxKeyOrphanScanFoundOwnedMaxKey.store(foundOwnedMaxKey ? 1 : 0);
+        stats.maxKeyOrphanScanOwnedAlertEmitted.store(ownedAlertEmitted ? 1 : 0);
     };
 
     // Read the prior state doc. A completed sweep short-circuits this one-shot sweep; the prior
-    // alertEmitted is preserved so a re-scan never downgrades it.
+    // unownedAlertEmitted is preserved so a re-scan never downgrades it.
     boost::optional<MaxKeyOrphanScanState> priorState;
     try {
         DBDirectClient client(opCtx);
@@ -462,8 +452,10 @@ void runMaxKeyOrphanDetection(OperationContext* opCtx, long long term) {
     }
 
     if (priorState && priorState->getScanCompletedAt().has_value()) {
-        publishOrphanScanStats(priorState->getFoundMaxKey().value_or(false),
-                               priorState->getAlertEmitted().value_or(false));
+        publishOrphanScanStats(priorState->getFoundUnownedMaxKey().value_or(false),
+                               priorState->getUnownedAlertEmitted().value_or(false),
+                               priorState->getFoundOwnedMaxKey().value_or(false),
+                               priorState->getOwnedAlertEmitted().value_or(false));
         LOGV2_DEBUG(12799006,
                     2,
                     "Skipping MaxKey orphan detection: prior sweep already completed",
@@ -471,8 +463,10 @@ void runMaxKeyOrphanDetection(OperationContext* opCtx, long long term) {
         return;
     }
 
-    const bool priorAlertEmitted =
-        priorState ? priorState->getAlertEmitted().value_or(false) : false;
+    const bool priorUnownedAlertEmitted =
+        priorState ? priorState->getUnownedAlertEmitted().value_or(false) : false;
+    const bool priorOwnedAlertEmitted =
+        priorState ? priorState->getOwnedAlertEmitted().value_or(false) : false;
     const auto myShardId = ShardingState::get(opCtx)->shardId();
     const auto scanStartedAt = opCtx->fastClockSource().now();
 
@@ -495,7 +489,8 @@ void runMaxKeyOrphanDetection(OperationContext* opCtx, long long term) {
     }
 
     auto* catalogClient = Grid::get(opCtx)->catalogClient();
-    bool foundMaxKey = false;
+    bool foundUnownedMaxKey = false;
+    bool foundOwnedMaxKey = false;
     for (const auto& nss : localNamespaces) {
         opCtx->checkForInterrupt();
 
@@ -506,8 +501,18 @@ void runMaxKeyOrphanDetection(OperationContext* opCtx, long long term) {
 
         try {
             const auto collType = catalogClient->getCollection(opCtx, nss);
-            if (detectMaxKeyOrphanForCollection(opCtx, collType, myShardId)) {
-                foundMaxKey = true;
+            switch (detectMaxKeyForCollection(opCtx, collType, myShardId)) {
+                case MaxKeyFinding::kUnowned:
+                    foundUnownedMaxKey = true;
+                    break;
+                case MaxKeyFinding::kOwned:
+                    foundOwnedMaxKey = true;
+                    break;
+                case MaxKeyFinding::kNone:
+                    break;
+            }
+            // Both signals are one-shot, so stop early once each has been observed at least once.
+            if (foundUnownedMaxKey && foundOwnedMaxKey) {
                 break;
             }
         } catch (const ExceptionFor<ErrorCodes::NamespaceNotFound>&) {
@@ -527,8 +532,8 @@ void runMaxKeyOrphanDetection(OperationContext* opCtx, long long term) {
 
     const auto scanCompletedAt = opCtx->fastClockSource().now();
 
-    const bool emitAlert = foundMaxKey && !priorAlertEmitted;
-    if (emitAlert) {
+    const bool emitUnownedAlert = foundUnownedMaxKey && !priorUnownedAlertEmitted;
+    if (emitUnownedAlert) {
         LOGV2_WARNING(12799008,
                       "MaxKey orphan detection found at least one unowned MaxKey shard-key "
                       "document on this shard",
@@ -538,11 +543,26 @@ void runMaxKeyOrphanDetection(OperationContext* opCtx, long long term) {
                       "scanCompletedAt"_attr = scanCompletedAt);
     }
 
+    const bool emitOwnedAlert = foundOwnedMaxKey && !priorOwnedAlertEmitted;
+    if (emitOwnedAlert) {
+        LOGV2_WARNING(13048900,
+                      "MaxKey orphan detection found at least one accessible (owned) MaxKey "
+                      "shard-key document on this shard",
+                      "term"_attr = term,
+                      "shardId"_attr = myShardId,
+                      "scanStartedAt"_attr = scanStartedAt,
+                      "scanCompletedAt"_attr = scanCompletedAt);
+    }
+
     BSONObjBuilder setBob;
     setBob.append(MaxKeyOrphanScanState::kScanStartedAtFieldName, scanStartedAt);
     setBob.append(MaxKeyOrphanScanState::kScanCompletedAtFieldName, scanCompletedAt);
-    setBob.append(MaxKeyOrphanScanState::kFoundMaxKeyFieldName, foundMaxKey);
-    setBob.append(MaxKeyOrphanScanState::kAlertEmittedFieldName, priorAlertEmitted || emitAlert);
+    setBob.append(MaxKeyOrphanScanState::kFoundUnownedMaxKeyFieldName, foundUnownedMaxKey);
+    setBob.append(MaxKeyOrphanScanState::kUnownedAlertEmittedFieldName,
+                  priorUnownedAlertEmitted || emitUnownedAlert);
+    setBob.append(MaxKeyOrphanScanState::kFoundOwnedMaxKeyFieldName, foundOwnedMaxKey);
+    setBob.append(MaxKeyOrphanScanState::kOwnedAlertEmittedFieldName,
+                  priorOwnedAlertEmitted || emitOwnedAlert);
 
     hangBeforePersistingMaxKeyOrphanScanState.pauseWhileSet(opCtx);
 
@@ -550,13 +570,17 @@ void runMaxKeyOrphanDetection(OperationContext* opCtx, long long term) {
         NamespaceString::kConfigMaxKeyOrphanScanStateNamespace);
     store.upsert(opCtx, BSON("_id" << kMaxKeyOrphanScanStateId), BSON("$set" << setBob.obj()));
 
-    publishOrphanScanStats(foundMaxKey, priorAlertEmitted || emitAlert);
+    publishOrphanScanStats(foundUnownedMaxKey,
+                           priorUnownedAlertEmitted || emitUnownedAlert,
+                           foundOwnedMaxKey,
+                           priorOwnedAlertEmitted || emitOwnedAlert);
 
     LOGV2_DEBUG(12799009,
                 2,
                 "Completed MaxKey orphan detection",
                 "term"_attr = term,
-                "foundMaxKey"_attr = foundMaxKey);
+                "foundUnownedMaxKey"_attr = foundUnownedMaxKey,
+                "foundOwnedMaxKey"_attr = foundOwnedMaxKey);
 }
 
 void launchMaxKeyOrphanDetectionOnStepUp(OperationContext* opCtx, long long term) {

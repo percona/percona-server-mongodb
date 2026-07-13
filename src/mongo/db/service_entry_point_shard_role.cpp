@@ -1,31 +1,5 @@
-/**
- *    Copyright (C) 2018-present MongoDB, Inc.
- *
- *    This program is free software: you can redistribute it and/or modify
- *    it under the terms of the Server Side Public License, version 1,
- *    as published by MongoDB, Inc.
- *
- *    This program is distributed in the hope that it will be useful,
- *    but WITHOUT ANY WARRANTY; without even the implied warranty of
- *    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *    Server Side Public License for more details.
- *
- *    You should have received a copy of the Server Side Public License
- *    along with this program. If not, see
- *    <http://www.mongodb.com/licensing/server-side-public-license>.
- *
- *    As a special exception, the copyright holders give permission to link the
- *    code of portions of this program with the OpenSSL library under certain
- *    conditions as described in each individual source file and distribute
- *    linked combinations including the program with the OpenSSL library. You
- *    must comply with the Server Side Public License in all respects for
- *    all of the code used other than as permitted herein. If you modify file(s)
- *    with this exception, you may extend this exception to your version of the
- *    file(s), but you are not obligated to do so. If you do not wish to do so,
- *    delete this exception statement from your version. If you delete this
- *    exception statement from all source files in the program, then also delete
- *    it in the license file.
- */
+// Copyright (c) MongoDB, Inc.
+// SPDX-License-Identifier: SSPL-1.0
 
 
 #include "mongo/db/service_entry_point_shard_role.h"
@@ -42,6 +16,8 @@
 #include "mongo/db/admission/ingress_request_rate_limiter_gen.h"
 #include "mongo/db/admission/ticketing/admission_context.h"
 #include "mongo/db/admission/ticketing/ticketholder.h"
+#include "mongo/db/admission/write_throttler.h"
+#include "mongo/db/admission/write_throttler_parameters_gen.h"
 #include "mongo/db/api_parameters.h"
 #include "mongo/db/auth/authorization_contract.h"
 #include "mongo/db/auth/authorization_contract_guard.h"
@@ -130,6 +106,7 @@
 #include "mongo/otel/telemetry_context_holder.h"
 #include "mongo/otel/traces/span/span.h"
 #include "mongo/otel/traces/telemetry_context_serialization.h"
+#include "mongo/otel/traces/tracing_enablement.h"
 #include "mongo/platform/atomic.h"
 #include "mongo/rpc/check_allowed_op_query_cmd.h"
 #include "mongo/rpc/factory.h"
@@ -204,6 +181,18 @@ auto& notPrimaryUnackWrites =
 namespace {
 using namespace std::literals::string_view_literals;
 
+
+void admitWriteThrottlerIfNeeded(OperationContext* opCtx,
+                                 CommandInvocation* invocation,
+                                 bool isExemptFromAdmissionControl) {
+    if (!gWriteThrottlerEnabled.load() || isExemptFromAdmissionControl ||
+        !invocation->supportsWriteConcern() || invocation->isReadOperation()) {
+        return;
+    }
+    if (auto* throttler = WriteThrottler::get(opCtx)) {
+        throttler->admitOperation(opCtx);
+    }
+}
 
 void runCommandInvocation(const RequestExecutionContext& rec, CommandInvocation* invocation) {
     CommandHelpers::runCommandInvocation(rec.getOpCtx(), invocation, rec.getReplyBuilder());
@@ -1685,15 +1674,6 @@ void ExecCommandDatabase::_initiateCommand() {
                 _isInternalClient());
     }
 
-    // TODO(SERVER-107128): Remove this in favor of the context on OP_MSG
-    if (auto& traceCtx = genericArgs.getTraceCtx()) {
-        auto telemetryCtx = otel::traces::TelemetryContextSerializer::fromBSON(*traceCtx);
-        if (telemetryCtx) {
-            auto& telemetryCtxHolder = otel::TelemetryContextHolder::getDecoration(opCtx);
-            telemetryCtxHolder.setTelemetryContext(telemetryCtx);
-        }
-    }
-
     if (MONGO_unlikely(genericArgs.getHelp().value_or(false))) {
         // We disable not-primary-error tracker for help requests due to SERVER-11492, because
         // config servers use help requests to determine which commands are database writes, and so
@@ -1898,6 +1878,8 @@ void ExecCommandDatabase::_initiateCommand() {
         _admissionTicket = admissionController.admitOperation(opCtx);
     }
 
+    admitWriteThrottlerIfNeeded(opCtx, getInvocation(), isExemptFromAdmissionControl);
+
     auto& readConcernArgs = repl::ReadConcernArgs::get(opCtx);
 
     // If the operation is being executed as part of DBDirectClient this means we must use the
@@ -2009,8 +1991,6 @@ void ExecCommandDatabase::_initiateCommand() {
 
 void ExecCommandDatabase::_commandExec() {
     auto opCtx = _execContext.getOpCtx();
-
-    auto otelSpan = otel::traces::Span::start(opCtx, _execContext.getCommand()->getTraceSpanName());
 
     // If this command should start a new transaction, waitForReadConcern will be invoked
     // after invoking the TransactionParticipant, which will determine whether a transaction
@@ -2246,6 +2226,12 @@ void parseCommand(HandleRequest::ExecutionContext& execContext) try {
         checkAllowedOpQueryCommand(*client, opMsgReq.getCommandName());
     }
     execContext.setRequest(opMsgReq);
+
+    if (otel::traces::isTracingEnabled(execContext.getOpCtx())) {
+        otel::TelemetryContextHolder::getDecoration(execContext.getOpCtx())
+            .setTelemetryContext(otel::traces::TelemetryContextSerializer::fromSection(
+                execContext.getRequest().telemetryContext));
+    }
 } catch (const DBException& ex) {
     // Need to set request as `makeCommandResponse` expects an empty request on failure.
     execContext.setRequest({});
@@ -2276,6 +2262,8 @@ void executeCommand(HandleRequest::ExecutionContext& execContext) {
     }
 
     Command* c = execContext.getCommand();
+    execContext.setOtelSpan(otel::traces::Span::startIngressSpan(opCtx, c->getTraceSpanName()));
+
     LOGV2_DEBUG(
         21965,
         2,
@@ -2447,6 +2435,10 @@ DbResponse HandleRequest::runOperation() {
 void HandleRequest::completeOperation(DbResponse& response) {
     auto opCtx = executionContext.getOpCtx();
     auto& currentOp = executionContext.currentOp();
+
+    if (auto* throttler = WriteThrottler::get(opCtx)) {
+        throttler->finalizeAdmission(opCtx);
+    }
 
     // Mark the op as complete, and log it if appropriate. Returns a boolean indicating whether
     // this op should be written to the profiler.

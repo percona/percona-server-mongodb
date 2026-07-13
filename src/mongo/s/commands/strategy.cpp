@@ -1,31 +1,5 @@
-/**
- *    Copyright (C) 2018-present MongoDB, Inc.
- *
- *    This program is free software: you can redistribute it and/or modify
- *    it under the terms of the Server Side Public License, version 1,
- *    as published by MongoDB, Inc.
- *
- *    This program is distributed in the hope that it will be useful,
- *    but WITHOUT ANY WARRANTY; without even the implied warranty of
- *    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *    Server Side Public License for more details.
- *
- *    You should have received a copy of the Server Side Public License
- *    along with this program. If not, see
- *    <http://www.mongodb.com/licensing/server-side-public-license>.
- *
- *    As a special exception, the copyright holders give permission to link the
- *    code of portions of this program with the OpenSSL library under certain
- *    conditions as described in each individual source file and distribute
- *    linked combinations including the program with the OpenSSL library. You
- *    must comply with the Server Side Public License in all respects for
- *    all of the code used other than as permitted herein. If you modify file(s)
- *    with this exception, you may extend this exception to your version of the
- *    file(s), but you are not obligated to do so. If you do not wish to do so,
- *    delete this exception statement from your version. If you delete this
- *    exception statement from all source files in the program, then also delete
- *    it in the license file.
- */
+// Copyright (c) MongoDB, Inc.
+// SPDX-License-Identifier: SSPL-1.0
 
 #include "mongo/s/commands/strategy.h"
 
@@ -88,6 +62,7 @@
 #include "mongo/otel/telemetry_context_holder.h"
 #include "mongo/otel/traces/span/span.h"
 #include "mongo/otel/traces/telemetry_context_serialization.h"
+#include "mongo/otel/traces/tracing_enablement.h"
 #include "mongo/platform/compiler.h"
 #include "mongo/rpc/check_allowed_op_query_cmd.h"
 #include "mongo/rpc/factory.h"
@@ -495,6 +470,7 @@ void ParseAndRunCommand::_parseCommand() {
     }
 
     _rec->setCommand(command);
+    _rec->setOtelSpan(otel::traces::Span::startIngressSpan(opCtx, command->getTraceSpanName()));
 
     _isHello.emplace(command->getName() == "hello"sv || command->getName() == "isMaster"sv);
 
@@ -521,15 +497,6 @@ void ParseAndRunCommand::_parseCommand() {
     if (auto& commentField = _invocation->getGenericArguments().getComment()) {
         std::lock_guard<Client> lk(*client);
         opCtx->setComment(commentField->getElement().wrap());
-    }
-
-    // TODO(SERVER-107128): Remove this in favor of the context on OP_MSG
-    if (auto& traceCtx = _invocation->getGenericArguments().getTraceCtx()) {
-        auto telemetryCtx = otel::traces::TelemetryContextSerializer::fromBSON(*traceCtx);
-        if (telemetryCtx) {
-            auto& telemetryCtxHolder = otel::TelemetryContextHolder::getDecoration(opCtx);
-            telemetryCtxHolder.setTelemetryContext(telemetryCtx);
-        }
     }
 
     auto apiParams = parseAndValidateAPIParameters(*_invocation);
@@ -1121,8 +1088,6 @@ void ParseAndRunCommand::RunAndRetry::_onCannotImplicitlyCreateCollection(Status
 }
 
 void ParseAndRunCommand::RunAndRetry::run() {
-    auto otelSpan = otel::traces::Span::start(_parc->_rec->getOpCtx(),
-                                              _parc->_rec->getCommand()->getTraceSpanName());
     do {
         try {
             // Try gMaxNumStaleVersionRetries times. On the last try, exceptions are
@@ -1230,6 +1195,12 @@ void ClientCommand::_parseMessage() try {
         checkAllowedOpQueryCommand(*(_rec->getOpCtx()->getClient()), opMsgReq.getCommandName());
     }
     _rec->setRequest(opMsgReq);
+
+    if (otel::traces::isTracingEnabled(_rec->getOpCtx())) {
+        otel::TelemetryContextHolder::getDecoration(_rec->getOpCtx())
+            .setTelemetryContext(otel::traces::TelemetryContextSerializer::fromSection(
+                _rec->getRequest().telemetryContext));
+    }
 } catch (const DBException& ex) {
     // If this error needs to fail the connection, propagate it out.
     if (ErrorCodes::isConnectionFatalMessageParseError(ex.code()))

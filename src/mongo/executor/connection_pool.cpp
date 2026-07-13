@@ -1,31 +1,5 @@
-/**
- *    Copyright (C) 2018-present MongoDB, Inc.
- *
- *    This program is free software: you can redistribute it and/or modify
- *    it under the terms of the Server Side Public License, version 1,
- *    as published by MongoDB, Inc.
- *
- *    This program is distributed in the hope that it will be useful,
- *    but WITHOUT ANY WARRANTY; without even the implied warranty of
- *    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *    Server Side Public License for more details.
- *
- *    You should have received a copy of the Server Side Public License
- *    along with this program. If not, see
- *    <http://www.mongodb.com/licensing/server-side-public-license>.
- *
- *    As a special exception, the copyright holders give permission to link the
- *    code of portions of this program with the OpenSSL library under certain
- *    conditions as described in each individual source file and distribute
- *    linked combinations including the program with the OpenSSL library. You
- *    must comply with the Server Side Public License in all respects for
- *    all of the code used other than as permitted herein. If you modify file(s)
- *    with this exception, you may extend this exception to your version of the
- *    file(s), but you are not obligated to do so. If you do not wish to do so,
- *    delete this exception statement from your version. If you delete this
- *    exception statement from all source files in the program, then also delete
- *    it in the license file.
- */
+// Copyright (c) MongoDB, Inc.
+// SPDX-License-Identifier: SSPL-1.0
 
 
 #include "mongo/executor/connection_pool.h"
@@ -63,6 +37,7 @@
 #include <fmt/format.h>
 
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kConnectionPool
+
 
 // One interesting implementation note herein concerns how setup() and
 // refresh() are invoked outside of the global lock, but setTimeout is not.
@@ -1213,26 +1188,7 @@ void ConnectionPool::SpecificPool::finishRefresh(std::unique_lock<ObservableMute
         return;
     }
 
-    // Drop only the failing connection without calling processFailure when the failure is
-    // isolated to the new connection attempt and existing connections are unaffected.
-    //
-    // Case 1 — ConnectionError (SERVER-68329): an ASIO in-progress race or similar transient
-    //   error that occurs before the new connection ever touched the remote host. The pool
-    //   state is intact; always single-drop regardless of how many connections are established.
-    //
-    // Case 2 — ConnectionClosedByPeer / ConnectionEstablishmentTimeout during setup, when the pool
-    //   already has established connections:
-    //     - ConnectionClosedByPeer: the remote accepted the connection then closed it (e.g. its
-    //       connection establishment rate limiter rejected the new attempt).
-    //     - ConnectionEstablishmentTimeout: establishing the new connection timed out (e.g. new
-    //       attempts queued behind the remote's connection establishment rate limiter).
-    //   Both are transient capacity signals, not structural failures, so single-drop the new
-    //   attempt and leave the healthy established connections in place. Without established
-    //   connections there is nothing to protect; fall through to processFailure so pending requests
-    //   fail promptly rather than queuing indefinitely.
-    //
-    // All other failures (DNS, TLS validation, auth, plain HostUnreachable, handshake/auth-phase
-    // timeouts, refresh failures) fall through to processFailure to preserve SDAM-spec behavior.
+    // If the error can be contained to one connection, drop the one connection.
     if (status.code() == ErrorCodes::ConnectionError) {
         LOGV2_DEBUG(6832901,
                     kDiagnosticLogLevel,
@@ -1240,17 +1196,6 @@ void ConnectionPool::SpecificPool::finishRefresh(std::unique_lock<ObservableMute
                     "hostAndPort"_attr = _hostAndPort,
                     "error"_attr = redact(status),
                     "numOpenConns"_attr = openConnections(lk));
-        return;
-    } else if (onSetup && establishedConnections(lk) > 0 &&
-               (status.code() == ErrorCodes::ConnectionClosedByPeer ||
-                status.code() == ErrorCodes::ConnectionEstablishmentTimeout)) {
-        LOGV2_DEBUG(10864501,
-                    kDiagnosticLogLevel,
-                    "Ignoring single establishment failure since the pool contains other "
-                    "already established connections",
-                    "hostAndPort"_attr = _hostAndPort,
-                    "error"_attr = redact(status),
-                    "numEstablishedConns"_attr = establishedConnections(lk));
         return;
     }
 
@@ -1261,6 +1206,27 @@ void ConnectionPool::SpecificPool::finishRefresh(std::unique_lock<ObservableMute
                     "Dropping late refreshed connection",
                     "hostAndPort"_attr = _hostAndPort);
         return;
+    }
+
+    if (onSetup) {
+        // If a new connection fails to establish while there are already established connections in
+        // the pool, we'll react as if the connection was rejected by the target's rate limiter.
+        // Therefore, we won't drop any open connection and just continue. If the node is truly
+        // down, future refreshes of idle connections, attempts to use connections, or higher levels
+        // like the RSM will detect it and process the failure normally.
+        if ((status.code() == ErrorCodes::HostUnreachable ||
+             status.code() == ErrorCodes::SocketException ||
+             status.code() == ErrorCodes::NetworkTimeout) &&
+            establishedConnections(lk) > 0) {
+            LOGV2_DEBUG(10864501,
+                        kDiagnosticLogLevel,
+                        "Ignoring single establishment failure since the pool contains other "
+                        "already established connections",
+                        "hostAndPort"_attr = _hostAndPort,
+                        "error"_attr = redact(status),
+                        "numEstablishedConns"_attr = establishedConnections(lk));
+            return;
+        }
     }
 
     // Pass a failure on through

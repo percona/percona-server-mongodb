@@ -1,31 +1,5 @@
-/**
- *    Copyright (C) 2026-present MongoDB, Inc.
- *
- *    This program is free software: you can redistribute it and/or modify
- *    it under the terms of the Server Side Public License, version 1,
- *    as published by MongoDB, Inc.
- *
- *    This program is distributed in the hope that it will be useful,
- *    but WITHOUT ANY WARRANTY; without even the implied warranty of
- *    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *    Server Side Public License for more details.
- *
- *    You should have received a copy of the Server Side Public License
- *    along with this program. If not, see
- *    <http://www.mongodb.com/licensing/server-side-public-license>.
- *
- *    As a special exception, the copyright holders give permission to link the
- *    code of portions of this program with the OpenSSL library under certain
- *    conditions as described in each individual source file and distribute
- *    linked combinations including the program with the OpenSSL library. You
- *    must comply with the Server Side Public License in all respects for
- *    all of the code used other than as permitted herein. If you modify file(s)
- *    with this exception, you may extend this exception to your version of the
- *    file(s), but you are not obligated to do so. If you do not wish to do so,
- *    delete this exception statement from your version. If you delete this
- *    exception statement from all source files in the program, then also delete
- *    it in the license file.
- */
+// Copyright (c) MongoDB, Inc.
+// SPDX-License-Identifier: SSPL-1.0
 
 #include "mongo/db/pipeline/document_source_internal_document_results_and_metadata.h"
 
@@ -33,7 +7,7 @@
 #include "mongo/db/exec/document_value/document.h"
 #include "mongo/db/pipeline/document_source_exchange.h"
 #include "mongo/db/pipeline/document_source_internal_document_results_and_metadata_gen.h"
-#include "mongo/db/pipeline/document_source_limit.h"
+#include "mongo/db/pipeline/document_source_internal_stream_terminator.h"
 #include "mongo/db/pipeline/document_source_replace_root.h"
 #include "mongo/db/pipeline/document_source_set_variable_from_subpipeline.h"
 #include "mongo/db/pipeline/expression.h"
@@ -136,12 +110,11 @@ exec::agg::StageExpansion documentSourceInternalDocumentResultsAndMetadataToStag
         return stages;
 
     auto metaConsumer = make_intrusive<DocumentSourceExchange>(metaExpCtx, exchange, 1, nullptr);
-    // Bound the metadata sub-pipeline with $limit:1. Each source emits exactly one metadata
-    // document, so nothing is dropped; when sharded, the router still merges one metadata document
-    // per shard via its merge pipeline.
+    // Terminates the meta consumer when the extension emits an EOS sentinel, unblocking the
+    // Exchange before the doc consumer's buffer fills.
+    auto streamTerminator = make_intrusive<DocumentSourceInternalStreamTerminator>(metaExpCtx);
     auto metaPipeline = Pipeline::create(
-        {metaConsumer, makeReplaceRootDs(metaExpCtx), DocumentSourceLimit::create(metaExpCtx, 1)},
-        metaExpCtx);
+        {metaConsumer, streamTerminator, makeReplaceRootDs(metaExpCtx)}, metaExpCtx);
     metaPipeline->pipelineType = CursorTypeEnum::SearchMetaResult;
 
     // Sharded path: stash the meta pipeline on the DS so run_aggregate.cpp can retrieve it and

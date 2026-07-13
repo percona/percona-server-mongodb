@@ -1,31 +1,5 @@
-/**
- *    Copyright (C) 2024-present MongoDB, Inc.
- *
- *    This program is free software: you can redistribute it and/or modify
- *    it under the terms of the Server Side Public License, version 1,
- *    as published by MongoDB, Inc.
- *
- *    This program is distributed in the hope that it will be useful,
- *    but WITHOUT ANY WARRANTY; without even the implied warranty of
- *    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *    Server Side Public License for more details.
- *
- *    You should have received a copy of the Server Side Public License
- *    along with this program. If not, see
- *    <http://www.mongodb.com/licensing/server-side-public-license>.
- *
- *    As a special exception, the copyright holders give permission to link the
- *    code of portions of this program with the OpenSSL library under certain
- *    conditions as described in each individual source file and distribute
- *    linked combinations including the program with the OpenSSL library. You
- *    must comply with the Server Side Public License in all respects for
- *    all of the code used other than as permitted herein. If you modify file(s)
- *    with this exception, you may extend this exception to your version of the
- *    file(s), but you are not obligated to do so. If you do not wish to do so,
- *    delete this exception statement from your version. If you delete this
- *    exception statement from all source files in the program, then also delete
- *    it in the license file.
- */
+// Copyright (c) MongoDB, Inc.
+// SPDX-License-Identifier: SSPL-1.0
 
 #include "mongo/db/service_entry_point_shard_role.h"
 
@@ -35,8 +9,11 @@
 #include "mongo/db/admission/ingress_admission_context.h"
 #include "mongo/db/admission/ingress_request_rate_limiter.h"
 #include "mongo/db/admission/rate_limiter.h"
+#include "mongo/db/admission/write_throttler.h"
+#include "mongo/db/admission/write_throttler_admission_context.h"
 #include "mongo/db/auth/authorization_session.h"
 #include "mongo/db/commands.h"
+#include "mongo/db/curop.h"
 #include "mongo/db/dbdirectclient.h"
 #include "mongo/db/dbmessage.h"
 #include "mongo/db/operation_context.h"
@@ -44,7 +21,9 @@
 #include "mongo/db/rss/attached_storage/attached_persistence_provider.h"
 #include "mongo/db/rss/replicated_storage_service.h"
 #include "mongo/db/service_context.h"
+#include "mongo/db/shard_role/lock_manager/d_concurrency.h"
 #include "mongo/db/topology/cluster_role.h"
+#include "mongo/logv2/log.h"
 #include "mongo/rpc/message.h"
 #include "mongo/stdx/thread.h"
 #include "mongo/transport/service_entry_point.h"
@@ -54,6 +33,10 @@
 #include "mongo/util/clock_source_mock.h"
 #include "mongo/util/duration.h"
 #include "mongo/util/tick_source_mock.h"
+
+#include <memory>
+
+#define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kTest
 
 namespace mongo::admission {
 namespace {
@@ -75,6 +58,10 @@ public:
     }
 };
 MONGO_REGISTER_COMMAND(TestCmdShardIngressSubject).testOnly().forShard();
+
+void installWriteThrottler(ServiceContext* service) {
+    WriteThrottler::set(service, std::make_unique<WriteThrottler>(service->getTickSource()));
+}
 
 class ServiceEntryPointShardRoleTest : public ServiceEntryPointTestFixture {
 public:
@@ -320,6 +307,103 @@ TEST_F(ServiceEntryPointShardServerTest, TestWriteConcernClientUnspecifiedWithDe
     testWriteConcernClientUnspecifiedWithDefault();
 }
 
+// A write command (supportsWriteConcern + kWrite) that succeeds and is subject to ingress
+// admission. Used as the nested DBDirectClient write to verify the write throttler does not admit a
+// re-entrant operation twice.
+class TestCmdWriteThrottlerNestedWrite : public TestCmdBase {
+public:
+    static constexpr auto kCommandName = "testWriteThrottlerNestedWrite";
+    TestCmdWriteThrottlerNestedWrite() : TestCmdBase(kCommandName) {}
+
+    bool isSubjectToIngressAdmissionControl() const override {
+        return true;
+    }
+    bool supportsWriteConcern(const BSONObj&) const override {
+        return true;
+    }
+    ReadWriteType getReadWriteType() const override {
+        return ReadWriteType::kWrite;
+    }
+    bool runWithBuilderOnly(BSONObjBuilder&) override {
+        return true;
+    }
+};
+
+// A top-level write command that issues a nested write via DBDirectClient on the same opCtx.
+class TestCmdWriteThrottlerDirectClientParent : public TestCmdBase {
+public:
+    static constexpr auto kCommandName = "testWriteThrottlerDirectClientParent";
+    TestCmdWriteThrottlerDirectClientParent() : TestCmdBase(kCommandName) {}
+
+    bool isSubjectToIngressAdmissionControl() const override {
+        return true;
+    }
+    bool supportsWriteConcern(const BSONObj&) const override {
+        return true;
+    }
+    ReadWriteType getReadWriteType() const override {
+        return ReadWriteType::kWrite;
+    }
+    bool runWithBuilderOnly(BSONObjBuilder&) override {
+        uassert(ErrorCodes::InternalError, "runWithBuilderOnly not implemented", false);
+    }
+    bool run(OperationContext* opCtx,
+             const DatabaseName&,
+             const BSONObj&,
+             BSONObjBuilder&) override {
+        BSONObj info;
+        DBDirectClient{opCtx}.runCommand(
+            DatabaseName::createDatabaseName_forTest(boost::none, "admin"),
+            BSON(TestCmdWriteThrottlerNestedWrite::kCommandName << 1),
+            info);
+        return true;
+    }
+};
+
+MONGO_REGISTER_COMMAND(TestCmdWriteThrottlerNestedWrite).testOnly().forShard();
+MONGO_REGISTER_COMMAND(TestCmdWriteThrottlerDirectClientParent).testOnly().forShard();
+
+TEST_F(ServiceEntryPointShardServerTest, WriteThrottlerAdmitsWriteCommandOnceAtServiceEntry) {
+    installWriteThrottler(getGlobalServiceContext());
+    unittest::ServerParameterGuard targetRate{"writeThrottlerTargetRatePerSec",
+                                              WriteThrottler::kMaxRate};
+    unittest::ServerParameterGuard enabled{"writeThrottlerEnabled", true};
+
+    auto opCtx = makeOperationContext();
+    runCommandTestWithResponse(BSON(TestCmdWriteThrottlerNestedWrite::kCommandName << 1),
+                               opCtx.get());
+    ASSERT_EQ(WriteThrottlerAdmissionContext::get(opCtx.get()).getAdmissions(), 1);
+
+    Lock::GlobalLock globalLock(opCtx.get(), MODE_IX);
+    ASSERT_EQ(WriteThrottlerAdmissionContext::get(opCtx.get()).getAdmissions(), 1);
+}
+
+TEST_F(ServiceEntryPointShardServerTest, WriteThrottlerSkipsNonWriteCommands) {
+    installWriteThrottler(getGlobalServiceContext());
+    unittest::ServerParameterGuard targetRate{"writeThrottlerTargetRatePerSec",
+                                              WriteThrottler::kMaxRate};
+    unittest::ServerParameterGuard enabled{"writeThrottlerEnabled", true};
+
+    auto opCtx = makeOperationContext();
+    runCommandTestWithResponse(BSON(TestCmdSucceeds::kCommandName << 1), opCtx.get());
+    ASSERT_EQ(WriteThrottlerAdmissionContext::get(opCtx.get()).getAdmissions(), 0);
+}
+
+TEST_F(ServiceEntryPointShardServerTest, WriteThrottlerSkipsDirectClientReentryWrite) {
+    installWriteThrottler(getGlobalServiceContext());
+    unittest::ServerParameterGuard targetRate{"writeThrottlerTargetRatePerSec",
+                                              WriteThrottler::kMaxRate};
+    unittest::ServerParameterGuard enabled{"writeThrottlerEnabled", true};
+
+    auto opCtx = makeOperationContext();
+    // The parent is a top-level write command that issues a nested write via DBDirectClient on the
+    // same opCtx. The top-level write is admitted exactly once; the re-entrant direct-client write
+    // must not take a second write-throttler admission.
+    runCommandTestWithResponse(BSON(TestCmdWriteThrottlerDirectClientParent::kCommandName << 1),
+                               opCtx.get());
+    ASSERT_EQ(WriteThrottlerAdmissionContext::get(opCtx.get()).getAdmissions(), 1);
+}
+
 TEST_F(ServiceEntryPointShardServerTest,
        PendingIngressDeferredTokenIsConsumedWhenRateLimitingDisabled) {
     unittest::ServerParameterGuard rateLimiterEnabled{"ingressRequestRateLimiterEnabled", false};
@@ -454,6 +538,8 @@ TEST_F(ServiceEntryPointShardServerTest, QueuedAdmissionWithLargeMaxTimeMSSuccee
     auto opCtx = makeOperationContext();
     auto* client = opCtx->getClient();
 
+    CurOp::get(opCtx.get())->setTickSource_forTest(tickSource);
+
     // ServiceEntryPointShardRole has a contract guard ensuring presence of an AuthorizationSession.
     AuthorizationSession::get(client);
 
@@ -491,10 +577,13 @@ TEST_F(ServiceEntryPointShardServerTest, QueuedAdmissionWithLargeMaxTimeMSSuccee
     ASSERT_OK(swDbResponse);
     ASSERT_EQ(getStatusFromCommandResult(dbResponseToBSON(swDbResponse.getValue())), Status::OK());
     ASSERT_EQ(limiterForDeferredToken.stats().successfulAdmissions(), 2);
+
+    // Time spent in the queue should not be represented in the "working" time.
+    ASSERT_LESS_THAN(CurOp::get(opCtx.get())->debug().workingTimeMillis, Milliseconds(1000));
 }
 
-TEST_F(ServiceEntryPointShardServerTest, SpanCreatedWhenTelemetryContextDeserializedFromRequest) {
-    testSpanCreatedWhenTelemetryContextDeserializedFromRequest();
+TEST_F(ServiceEntryPointShardServerTest, TelemetryContextDeserializedFromSection) {
+    testTelemetryContextDeserializedFromSection();
 }
 
 TEST_F(ServiceEntryPointShardServerTest, SpanNotCreatedWhenTelemetryContextNotSetInRequest) {
@@ -614,8 +703,8 @@ TEST_F(ServiceEntryPointReplicaSetTest, TestWriteConcernClientUnspecifiedWithDef
     testWriteConcernClientUnspecifiedWithDefault();
 }
 
-TEST_F(ServiceEntryPointReplicaSetTest, SpanCreatedWhenTelemetryContextDeserializedFromRequest) {
-    testSpanCreatedWhenTelemetryContextDeserializedFromRequest();
+TEST_F(ServiceEntryPointReplicaSetTest, TelemetryContextDeserializedFromSection) {
+    testTelemetryContextDeserializedFromSection();
 }
 
 TEST_F(ServiceEntryPointReplicaSetTest, SpanNotCreatedWhenTelemetryContextNotSetInRequest) {

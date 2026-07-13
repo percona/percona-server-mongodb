@@ -1,31 +1,5 @@
-/**
- *    Copyright (C) 2018-present MongoDB, Inc.
- *
- *    This program is free software: you can redistribute it and/or modify
- *    it under the terms of the Server Side Public License, version 1,
- *    as published by MongoDB, Inc.
- *
- *    This program is distributed in the hope that it will be useful,
- *    but WITHOUT ANY WARRANTY; without even the implied warranty of
- *    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *    Server Side Public License for more details.
- *
- *    You should have received a copy of the Server Side Public License
- *    along with this program. If not, see
- *    <http://www.mongodb.com/licensing/server-side-public-license>.
- *
- *    As a special exception, the copyright holders give permission to link the
- *    code of portions of this program with the OpenSSL library under certain
- *    conditions as described in each individual source file and distribute
- *    linked combinations including the program with the OpenSSL library. You
- *    must comply with the Server Side Public License in all respects for
- *    all of the code used other than as permitted herein. If you modify file(s)
- *    with this exception, you may extend this exception to your version of the
- *    file(s), but you are not obligated to do so. If you do not wish to do so,
- *    delete this exception statement from your version. If you delete this
- *    exception statement from all source files in the program, then also delete
- *    it in the license file.
- */
+// Copyright (c) MongoDB, Inc.
+// SPDX-License-Identifier: SSPL-1.0
 
 
 #include "mongo/db/op_observer/op_observer_impl.h"
@@ -1055,6 +1029,10 @@ void OpObserverImpl::onUpdate(OperationContext* opCtx,
     }
 
     auto shardingWriteRouter = std::make_unique<ShardingWriteRouter>(opCtx, nss);
+
+    const bool useValidationHash = isContinuousInternodeValidationPerDocumentEnabled(opCtx) &&
+        !args.updateArgs->replicatedRecordId.isNull();
+
     OpTimeBundle opTime;
     if (inBatchedWrite) {
         repl::ReplOperation operation = MutableOplogEntry::makeUpdateOperation(
@@ -1064,6 +1042,9 @@ void OpObserverImpl::onUpdate(OperationContext* opCtx,
         operation.setDestinedRecipient(
             shardingWriteRouter->getReshardingDestinedRecipient(args.updateArgs->updatedDoc));
         operation.setFromMigrateIfTrue(args.updateArgs->source == OperationSource::kFromMigrate);
+        if (useValidationHash) {
+            operation.setDocHash(computeDocValidationHash(args.updateArgs->updatedDoc));
+        }
         if (args.replicatedSizeDelta) {
             operation.setSizeMetadata(makeOperationSizeMetadata(*args.replicatedSizeDelta));
         }
@@ -1141,6 +1122,9 @@ void OpObserverImpl::onUpdate(OperationContext* opCtx,
             operation.setRecordId(args.updateArgs->replicatedRecordId);
         }
 
+        if (useValidationHash) {
+            operation.setDocHash(computeDocValidationHash(args.updateArgs->updatedDoc));
+        }
         if (args.replicatedSizeDelta) {
             operation.setSizeMetadata(makeOperationSizeMetadata(*args.replicatedSizeDelta));
         }
@@ -1191,6 +1175,9 @@ void OpObserverImpl::onUpdate(OperationContext* opCtx,
             oplogEntry.setRecordId(args.updateArgs->replicatedRecordId);
         }
 
+        if (useValidationHash) {
+            oplogEntry.setDocHash(computeDocValidationHash(args.updateArgs->updatedDoc));
+        }
         if (args.replicatedSizeDelta) {
             oplogEntry.setSizeMetadata(makeOperationSizeMetadata(*args.replicatedSizeDelta));
         }
@@ -1249,6 +1236,9 @@ void OpObserverImpl::onDelete(OperationContext* opCtx,
         return;
     }
 
+    const bool useValidationHash = isContinuousInternodeValidationPerDocumentEnabled(opCtx) &&
+        !args.replicatedRecordId.isNull();
+
     OpTimeBundle opTime;
     if (inBatchedWrite) {
         repl::ReplOperation operation =
@@ -1257,6 +1247,9 @@ void OpObserverImpl::onDelete(OperationContext* opCtx,
         operation.setVersionContext(boost::none);
         operation.setDestinedRecipient(destinedRecipient);
         operation.setFromMigrateIfTrue(args.fromMigrate);
+        if (useValidationHash) {
+            operation.setDocHash(computeDocValidationHash(doc));
+        }
         if (!args.replicatedRecordId.isNull()) {
             operation.setRecordId(args.replicatedRecordId);
         }
@@ -1294,6 +1287,9 @@ void OpObserverImpl::onDelete(OperationContext* opCtx,
             MutableOplogEntry::makeDeleteOperation(nss, uuid, documentKey.getShardKeyAndId());
         operation.setVersionContextIfHasOperationFCV(VersionContext::getDecoration(opCtx));
 
+        if (useValidationHash) {
+            operation.setDocHash(computeDocValidationHash(doc));
+        }
         if (!args.replicatedRecordId.isNull()) {
             operation.setRecordId(args.replicatedRecordId);
         }
@@ -1337,6 +1333,10 @@ void OpObserverImpl::onDelete(OperationContext* opCtx,
             if (!args.retryableFindAndModifyOplogSlots.empty()) {
                 oplogEntry.setOpTime(args.retryableFindAndModifyOplogSlots.back());
             }
+        }
+
+        if (useValidationHash) {
+            oplogEntry.setDocHash(computeDocValidationHash(doc));
         }
 
         if (!args.replicatedRecordId.isNull()) {

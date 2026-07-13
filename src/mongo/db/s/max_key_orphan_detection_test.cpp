@@ -1,31 +1,5 @@
-/**
- *    Copyright (C) 2026-present MongoDB, Inc.
- *
- *    This program is free software: you can redistribute it and/or modify
- *    it under the terms of the Server Side Public License, version 1,
- *    as published by MongoDB, Inc.
- *
- *    This program is distributed in the hope that it will be useful,
- *    but WITHOUT ANY WARRANTY; without even the implied warranty of
- *    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *    Server Side Public License for more details.
- *
- *    You should have received a copy of the Server Side Public License
- *    along with this program. If not, see
- *    <http://www.mongodb.com/licensing/server-side-public-license>.
- *
- *    As a special exception, the copyright holders give permission to link the
- *    code of portions of this program with the OpenSSL library under certain
- *    conditions as described in each individual source file and distribute
- *    linked combinations including the program with the OpenSSL library. You
- *    must comply with the Server Side Public License in all respects for
- *    all of the code used other than as permitted herein. If you modify file(s)
- *    with this exception, you may extend this exception to your version of the
- *    file(s), but you are not obligated to do so. If you do not wish to do so,
- *    delete this exception statement from your version. If you delete this
- *    exception statement from all source files in the program, then also delete
- *    it in the license file.
- */
+// Copyright (c) MongoDB, Inc.
+// SPDX-License-Identifier: SSPL-1.0
 
 #include "mongo/db/s/max_key_orphan_detection.h"
 
@@ -97,8 +71,10 @@ void clearMaxKeyOrphanScanStateDoc(OperationContext* opCtx) {
 // 'scanComplete' is false the field is omitted to mimic an abandoned sweep.
 void seedMaxKeyOrphanScanStateDoc(OperationContext* opCtx,
                                   bool scanComplete,
-                                  bool foundMaxKey,
-                                  bool alertEmitted) {
+                                  bool foundUnownedMaxKey,
+                                  bool unownedAlertEmitted,
+                                  bool foundOwnedMaxKey = false,
+                                  bool ownedAlertEmitted = false) {
     DBDirectClient client(opCtx);
     client.remove(NamespaceString::kConfigMaxKeyOrphanScanStateNamespace,
                   BSON("_id" << kScanStateIdValue));
@@ -108,8 +84,10 @@ void seedMaxKeyOrphanScanStateDoc(OperationContext* opCtx,
     if (scanComplete) {
         docBob.append("scanCompletedAt", Date_t::now());
     }
-    docBob.append("foundMaxKey", foundMaxKey);
-    docBob.append("alertEmitted", alertEmitted);
+    docBob.append("foundUnownedMaxKey", foundUnownedMaxKey);
+    docBob.append("unownedAlertEmitted", unownedAlertEmitted);
+    docBob.append("foundOwnedMaxKey", foundOwnedMaxKey);
+    docBob.append("ownedAlertEmitted", ownedAlertEmitted);
     client.insert(NamespaceString::kConfigMaxKeyOrphanScanStateNamespace, docBob.obj());
 }
 
@@ -137,8 +115,10 @@ TEST_F(MaxKeyOrphanDetectionFixture, CleanClusterPersistsScanComplete) {
     auto doc = readMaxKeyOrphanScanStateDoc(opCtx);
     ASSERT(doc.has_value()) << "Expected the scan state doc after the sweep";
     ASSERT(doc->hasField("scanCompletedAt")) << *doc;
-    ASSERT_FALSE(doc->getField("foundMaxKey").Bool()) << *doc;
-    ASSERT_FALSE(doc->getField("alertEmitted").Bool()) << *doc;
+    ASSERT_FALSE(doc->getField("foundUnownedMaxKey").Bool()) << *doc;
+    ASSERT_FALSE(doc->getField("unownedAlertEmitted").Bool()) << *doc;
+    ASSERT_FALSE(doc->getField("foundOwnedMaxKey").Bool()) << *doc;
+    ASSERT_FALSE(doc->getField("ownedAlertEmitted").Bool()) << *doc;
     ASSERT(doc->hasField("scanStartedAt")) << *doc;
 }
 
@@ -165,12 +145,12 @@ TEST_F(MaxKeyOrphanDetectionFixture, ReRunsAfterStateDocCleared) {
     auto doc = readMaxKeyOrphanScanStateDoc(opCtx);
     ASSERT(doc.has_value());
     ASSERT(doc->hasField("scanCompletedAt")) << *doc;
-    ASSERT_FALSE(doc->getField("foundMaxKey").Bool());
+    ASSERT_FALSE(doc->getField("foundUnownedMaxKey").Bool());
 }
 
 TEST_F(MaxKeyOrphanDetectionFixture, ReRunsWhenPriorScanIncomplete) {
     seedMaxKeyOrphanScanStateDoc(
-        opCtx, /*scanComplete=*/false, /*foundMaxKey=*/false, /*alertEmitted=*/false);
+        opCtx, /*scanComplete=*/false, /*foundUnownedMaxKey=*/false, /*unownedAlertEmitted=*/false);
 
     runMaxKeyOrphanDetection(opCtx, kStartingTerm);
 
@@ -179,34 +159,55 @@ TEST_F(MaxKeyOrphanDetectionFixture, ReRunsWhenPriorScanIncomplete) {
     ASSERT(doc->hasField("scanCompletedAt")) << *doc;
 }
 
-TEST_F(MaxKeyOrphanDetectionFixture, PreservesAlertEmittedAcrossRescan) {
+TEST_F(MaxKeyOrphanDetectionFixture, PreservesUnownedAlertEmittedAcrossRescan) {
     seedMaxKeyOrphanScanStateDoc(
-        opCtx, /*scanComplete=*/false, /*foundMaxKey=*/false, /*alertEmitted=*/true);
+        opCtx, /*scanComplete=*/false, /*foundUnownedMaxKey=*/false, /*unownedAlertEmitted=*/true);
 
     runMaxKeyOrphanDetection(opCtx, kStartingTerm);
 
     auto doc = readMaxKeyOrphanScanStateDoc(opCtx);
     ASSERT(doc.has_value());
     ASSERT(doc->hasField("scanCompletedAt")) << *doc;
-    ASSERT_TRUE(doc->getField("alertEmitted").Bool())
-        << "Expected the re-scan to preserve a prior alertEmitted=true: " << *doc;
+    ASSERT_TRUE(doc->getField("unownedAlertEmitted").Bool())
+        << "Expected the re-scan to preserve a prior unownedAlertEmitted=true: " << *doc;
+}
+
+TEST_F(MaxKeyOrphanDetectionFixture, PreservesOwnedAlertEmittedAcrossRescan) {
+    seedMaxKeyOrphanScanStateDoc(opCtx,
+                                 /*scanComplete=*/false,
+                                 /*foundUnownedMaxKey=*/false,
+                                 /*unownedAlertEmitted=*/false,
+                                 /*foundOwnedMaxKey=*/false,
+                                 /*ownedAlertEmitted=*/true);
+
+    runMaxKeyOrphanDetection(opCtx, kStartingTerm);
+
+    auto doc = readMaxKeyOrphanScanStateDoc(opCtx);
+    ASSERT(doc.has_value());
+    ASSERT(doc->hasField("scanCompletedAt")) << *doc;
+    ASSERT_TRUE(doc->getField("ownedAlertEmitted").Bool())
+        << "Expected the re-scan to preserve a prior ownedAlertEmitted=true: " << *doc;
 }
 
 TEST(MaxKeyOrphanDetectionTest, ShardingStatisticsReportIncludesOrphanScanFields) {
     ShardingStatistics stats;
     stats.maxKeyOrphanScanComplete.store(1);
-    stats.maxKeyOrphanScanFoundMaxKey.store(1);
-    stats.maxKeyOrphanScanAlertEmitted.store(1);
+    stats.maxKeyOrphanScanFoundUnownedMaxKey.store(1);
+    stats.maxKeyOrphanScanUnownedAlertEmitted.store(1);
     stats.maxKeyOrphanScanErrors.store(3);
+    stats.maxKeyOrphanScanFoundOwnedMaxKey.store(1);
+    stats.maxKeyOrphanScanOwnedAlertEmitted.store(1);
 
     BSONObjBuilder bob;
     stats.report(&bob);
     const BSONObj obj = bob.obj();
 
     ASSERT_EQ(1LL, obj["maxKeyOrphanScanComplete"].Long());
-    ASSERT_EQ(1LL, obj["maxKeyOrphanScanFoundMaxKey"].Long());
-    ASSERT_EQ(1LL, obj["maxKeyOrphanScanAlertEmitted"].Long());
+    ASSERT_EQ(1LL, obj["maxKeyOrphanScanFoundUnownedMaxKey"].Long());
+    ASSERT_EQ(1LL, obj["maxKeyOrphanScanUnownedAlertEmitted"].Long());
     ASSERT_EQ(3LL, obj["maxKeyOrphanScanErrors"].Long());
+    ASSERT_EQ(1LL, obj["maxKeyOrphanScanFoundOwnedMaxKey"].Long());
+    ASSERT_EQ(1LL, obj["maxKeyOrphanScanOwnedAlertEmitted"].Long());
 }
 
 TEST(MaxKeyOrphanDetectionTest, ShardingStatisticsOrphanScanFieldsDefaultToZero) {
@@ -217,9 +218,11 @@ TEST(MaxKeyOrphanDetectionTest, ShardingStatisticsOrphanScanFieldsDefaultToZero)
     const BSONObj obj = bob.obj();
 
     ASSERT_EQ(0LL, obj["maxKeyOrphanScanComplete"].Long());
-    ASSERT_EQ(0LL, obj["maxKeyOrphanScanFoundMaxKey"].Long());
-    ASSERT_EQ(0LL, obj["maxKeyOrphanScanAlertEmitted"].Long());
+    ASSERT_EQ(0LL, obj["maxKeyOrphanScanFoundUnownedMaxKey"].Long());
+    ASSERT_EQ(0LL, obj["maxKeyOrphanScanUnownedAlertEmitted"].Long());
     ASSERT_EQ(0LL, obj["maxKeyOrphanScanErrors"].Long());
+    ASSERT_EQ(0LL, obj["maxKeyOrphanScanFoundOwnedMaxKey"].Long());
+    ASSERT_EQ(0LL, obj["maxKeyOrphanScanOwnedAlertEmitted"].Long());
 }
 
 // Creates a collection with the given index and documents and returns its UUID. createIndexes
@@ -415,8 +418,8 @@ TEST_F(MaxKeyOrphanDetectionFixture, ClassifyLeavesCleanTaskDeletable) {
     auto doc = readMaxKeyOrphanScanStateDoc(opCtx);
     ASSERT_FALSE(doc->hasField("scanStartedAt")) << *doc;
     ASSERT_FALSE(doc->hasField("scanCompletedAt")) << *doc;
-    ASSERT_FALSE(doc->hasField("foundMaxKey")) << *doc;
-    ASSERT_FALSE(doc->hasField("alertEmitted")) << *doc;
+    ASSERT_FALSE(doc->hasField("foundUnownedMaxKey")) << *doc;
+    ASSERT_FALSE(doc->hasField("unownedAlertEmitted")) << *doc;
 }
 
 TEST_F(MaxKeyOrphanDetectionFixture, ClassifyRehydratesFromPresentBlockedTasks) {
@@ -433,8 +436,8 @@ TEST_F(MaxKeyOrphanDetectionFixture, ClassifyRehydratesFromPresentBlockedTasks) 
     seededId.appendToArrayBuilder(&arr);
     client.insert(NamespaceString::kConfigMaxKeyOrphanScanStateNamespace,
                   BSON("_id" << kScanStateIdValue << "scanStartedAt" << Date_t::now()
-                             << "foundMaxKey" << true << "alertEmitted" << true << "blockedTasks"
-                             << arr.arr()));
+                             << "foundUnownedMaxKey" << true << "unownedAlertEmitted" << true
+                             << "blockedTasks" << arr.arr()));
     auto before = readMaxKeyOrphanScanStateDoc(opCtx);
 
     auto blocked = loadOrComputeBlockedMaxKeyRangeDeletionTasks(opCtx);

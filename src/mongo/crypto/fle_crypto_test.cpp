@@ -1,31 +1,5 @@
-/**
- *    Copyright (C) 2022-present MongoDB, Inc.
- *
- *    This program is free software: you can redistribute it and/or modify
- *    it under the terms of the Server Side Public License, version 1,
- *    as published by MongoDB, Inc.
- *
- *    This program is distributed in the hope that it will be useful,
- *    but WITHOUT ANY WARRANTY; without even the implied warranty of
- *    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *    Server Side Public License for more details.
- *
- *    You should have received a copy of the Server Side Public License
- *    along with this program. If not, see
- *    <http://www.mongodb.com/licensing/server-side-public-license>.
- *
- *    As a special exception, the copyright holders give permission to link the
- *    code of portions of this program with the OpenSSL library under certain
- *    conditions as described in each individual source file and distribute
- *    linked combinations including the program with the OpenSSL library. You
- *    must comply with the Server Side Public License in all respects for
- *    all of the code used other than as permitted herein. If you modify file(s)
- *    with this exception, you may extend this exception to your version of the
- *    file(s), but you are not obligated to do so. If you do not wish to do so,
- *    delete this exception statement from your version. If you delete this
- *    exception statement from all source files in the program, then also delete
- *    it in the license file.
- */
+// Copyright (c) MongoDB, Inc.
+// SPDX-License-Identifier: SSPL-1.0
 
 #include "mongo/crypto/fle_crypto.h"
 
@@ -5391,6 +5365,52 @@ TEST_F(ServiceContextTest, fleEncryptAndDecrypt) {
     auto decrypt2 = uassertStatusOK(FLEUtil::decryptData(key, encrypt2));
     ASSERT_EQ(decrypt1, decrypt2);
     ASSERT_EQ(decrypt1, plaintext);
+}
+
+namespace {
+QueryTypeConfig textQtcWithType(QueryTypeEnum qt) {
+    QueryTypeConfig q;
+    q.setQueryType(qt);
+    q.setContention(4);
+    return q;
+}
+
+EncryptedField fieldWithQueries(std::vector<QueryTypeConfig> qtcs) {
+    EncryptedField ef(UUID::gen(), "encrypted");
+    ef.setBsonType("string"sv);
+    ef.setQueries(std::variant<std::vector<QueryTypeConfig>, QueryTypeConfig>{std::move(qtcs)});
+    return ef;
+}
+}  // namespace
+
+TEST(FLECrypto, GetQueryTypeMatchingReturnsFirstMatch) {
+    auto field = fieldWithQueries(
+        {textQtcWithType(QueryTypeEnum::Suffix), textQtcWithType(QueryTypeEnum::Prefix)});
+
+    auto suffixResult =
+        getQueryTypeMatching(field, [](QueryTypeEnum qt) { return qt == QueryTypeEnum::Suffix; });
+    ASSERT(suffixResult);
+    ASSERT(suffixResult->getQueryType() == QueryTypeEnum::Suffix);
+
+    auto prefixResult =
+        getQueryTypeMatching(field, [](QueryTypeEnum qt) { return qt == QueryTypeEnum::Prefix; });
+    ASSERT(prefixResult);
+    ASSERT(prefixResult->getQueryType() == QueryTypeEnum::Prefix);
+}
+
+TEST(FLECrypto, GetQueryTypeMatchingNoMatchReturnsNone) {
+    auto field = fieldWithQueries({textQtcWithType(QueryTypeEnum::Prefix)});
+    auto result =
+        getQueryTypeMatching(field, [](QueryTypeEnum qt) { return qt == QueryTypeEnum::Suffix; });
+    ASSERT_FALSE(result);
+}
+
+TEST(FLECrypto, GetQueryTypeMatchingNoQueriesReturnsNone) {
+    EncryptedField field(UUID::gen(), "encrypted");
+    field.setBsonType("int"sv);
+    auto result =
+        getQueryTypeMatching(field, [](QueryTypeEnum qt) { return qt == QueryTypeEnum::Suffix; });
+    ASSERT_FALSE(result);
 }
 
 }  // namespace mongo

@@ -1,37 +1,13 @@
-/**
- *    Copyright (C) 2024-present MongoDB, Inc.
- *
- *    This program is free software: you can redistribute it and/or modify
- *    it under the terms of the Server Side Public License, version 1,
- *    as published by MongoDB, Inc.
- *
- *    This program is distributed in the hope that it will be useful,
- *    but WITHOUT ANY WARRANTY; without even the implied warranty of
- *    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *    Server Side Public License for more details.
- *
- *    You should have received a copy of the Server Side Public License
- *    along with this program. If not, see
- *    <http://www.mongodb.com/licensing/server-side-public-license>.
- *
- *    As a special exception, the copyright holders give permission to link the
- *    code of portions of this program with the OpenSSL library under certain
- *    conditions as described in each individual source file and distribute
- *    linked combinations including the program with the OpenSSL library. You
- *    must comply with the Server Side Public License in all respects for
- *    all of the code used other than as permitted herein. If you modify file(s)
- *    with this exception, you may extend this exception to your version of the
- *    file(s), but you are not obligated to do so. If you do not wish to do so,
- *    delete this exception statement from your version. If you delete this
- *    exception statement from all source files in the program, then also delete
- *    it in the license file.
- */
+// Copyright (c) MongoDB, Inc.
+// SPDX-License-Identifier: SSPL-1.0
 
 #include "mongo/s/service_entry_point_router_role.h"
 
 #include "mongo/bson/bsonobj.h"
 #include "mongo/db/admission/ingress_request_rate_limiter.h"
 #include "mongo/db/admission/rate_limiter.h"
+#include "mongo/db/auth/authorization_session.h"
+#include "mongo/db/curop.h"
 #include "mongo/db/operation_context.h"
 #include "mongo/db/service_context.h"
 #include "mongo/stdx/thread.h"
@@ -228,8 +204,15 @@ TEST_F(ServiceEntryPointRouterRoleTest, QueuedAdmissionWithLargeMaxTimeMSSucceed
     auto* tickSource =
         static_cast<TickSourceMock<Milliseconds>*>(getGlobalServiceContext()->getTickSource());
 
-    // Create the limiter with the mock tick source so clock advancement controls token
-    // availability.
+    auto opCtx = makeOperationContext();
+    auto* client = opCtx->getClient();
+
+    CurOp::get(opCtx.get())->setTickSource_forTest(tickSource);
+
+    // ServiceEntryPointRouterRole has a contract guard ensuring presence of an
+    // AuthorizationSession.
+    AuthorizationSession::get(client);
+
     RateLimiter limiterForDeferredToken(
         /*refreshRatePerSec=*/1.0,
         /*burstCapacitySecs=*/1.0,
@@ -237,12 +220,11 @@ TEST_F(ServiceEntryPointRouterRoleTest, QueuedAdmissionWithLargeMaxTimeMSSucceed
         "QueuedAdmissionWithLargeMaxTimeMSSucceeds",
         tickSource);
 
-    auto opCtx = makeOperationContext();
     ASSERT_OK(limiterForDeferredToken.acquireToken(opCtx.get()));
     auto queuedTokenResult = limiterForDeferredToken.acquireToken();
     ASSERT_TRUE(queuedTokenResult);
     ASSERT_FALSE(queuedTokenResult->isReady());
-    IngressRequestRateLimiter::setDeferredAdmissionToken_forTest(opCtx->getClient(),
+    IngressRequestRateLimiter::setDeferredAdmissionToken_forTest(client,
                                                                  std::move(*queuedTokenResult));
 
     // handleRequest will block in waitForAdmission while the queued token's napTime (~1000ms at
@@ -265,6 +247,9 @@ TEST_F(ServiceEntryPointRouterRoleTest, QueuedAdmissionWithLargeMaxTimeMSSucceed
     ASSERT_OK(swDbResponse);
     ASSERT_EQ(getStatusFromCommandResult(dbResponseToBSON(swDbResponse.getValue())), Status::OK());
     ASSERT_EQ(limiterForDeferredToken.stats().successfulAdmissions(), 2);
+
+    // Time spent in the queue should not be represented in the "working" time.
+    ASSERT_LESS_THAN(CurOp::get(opCtx.get())->debug().workingTimeMillis, Milliseconds(1000));
 }
 
 TEST_F(ServiceEntryPointRouterRoleTest, HandleRequestException) {
@@ -343,8 +328,8 @@ TEST_F(ServiceEntryPointRouterRoleTest, TestWriteConcernClientUnspecifiedWithDef
     testWriteConcernClientUnspecifiedWithDefault();
 }
 
-TEST_F(ServiceEntryPointRouterRoleTest, SpanCreatedWhenTelemetryContextDeserializedFromRequest) {
-    testSpanCreatedWhenTelemetryContextDeserializedFromRequest();
+TEST_F(ServiceEntryPointRouterRoleTest, TelemetryContextDeserializedFromSection) {
+    testTelemetryContextDeserializedFromSection();
 }
 
 TEST_F(ServiceEntryPointRouterRoleTest, SpanNotCreatedWhenTelemetryContextNotSetInRequest) {

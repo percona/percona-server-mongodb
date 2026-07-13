@@ -1,34 +1,9 @@
-/**
- *    Copyright (C) 2021-present MongoDB, Inc.
- *
- *    This program is free software: you can redistribute it and/or modify
- *    it under the terms of the Server Side Public License, version 1,
- *    as published by MongoDB, Inc.
- *
- *    This program is distributed in the hope that it will be useful,
- *    but WITHOUT ANY WARRANTY; without even the implied warranty of
- *    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *    Server Side Public License for more details.
- *
- *    You should have received a copy of the Server Side Public License
- *    along with this program. If not, see
- *    <http://www.mongodb.com/licensing/server-side-public-license>.
- *
- *    As a special exception, the copyright holders give permission to link the
- *    code of portions of this program with the OpenSSL library under certain
- *    conditions as described in each individual source file and distribute
- *    linked combinations including the program with the OpenSSL library. You
- *    must comply with the Server Side Public License in all respects for
- *    all of the code used other than as permitted herein. If you modify file(s)
- *    with this exception, you may extend this exception to your version of the
- *    file(s), but you are not obligated to do so. If you do not wish to do so,
- *    delete this exception statement from your version. If you delete this
- *    exception statement from all source files in the program, then also delete
- *    it in the license file.
- */
+// Copyright (c) MongoDB, Inc.
+// SPDX-License-Identifier: SSPL-1.0
 
 #pragma once
 
+#include "mongo/db/memory_tracking/memory_usage_limit.h"
 #include "mongo/stdx/unordered_map.h"
 #include "mongo/util/modules.h"
 
@@ -55,10 +30,11 @@ public:
     SimpleMemoryUsageTracker& operator=(SimpleMemoryUsageTracker&&) = default;
 
     SimpleMemoryUsageTracker(SimpleMemoryUsageTracker* base,
-                             int64_t maxAllowedMemoryUsageBytes,
+                             MemoryUsageLimit maxAllowedMemoryUsageBytes,
                              int64_t chunkSize = 0);
 
-    explicit SimpleMemoryUsageTracker(int64_t maxAllowedMemoryUsageBytes, int64_t chunkSize = 0);
+    explicit SimpleMemoryUsageTracker(MemoryUsageLimit maxAllowedMemoryUsageBytes,
+                                      int64_t chunkSize = 0);
 
     SimpleMemoryUsageTracker();
 
@@ -78,11 +54,19 @@ public:
      * respective limits.
      */
     bool withinMemoryLimit() const {
-        return _inUseTrackedMemoryBytes <= _maxAllowedMemoryUsageBytes &&
+        return _inUseTrackedMemoryBytes <= _maxAllowedMemoryUsageBytes.get() &&
             (!_base || _base->withinMemoryLimit());
     }
 
     int64_t maxAllowedMemoryUsageBytes() const {
+        return _maxAllowedMemoryUsageBytes.get();
+    }
+
+    /**
+     * Prefer this over 'maxAllowedMemoryUsageBytes()' when handing the limit to another tracker:
+     * copying the wrapper preserves how the limit is resolved, not just its current value.
+     */
+    const MemoryUsageLimit& maxAllowedMemoryUsageLimit() const {
         return _maxAllowedMemoryUsageBytes;
     }
 
@@ -91,6 +75,12 @@ public:
      * name, stageName (optional), current usage, and limit in the error message.
      */
     void assertWithinMemoryLimit(std::string_view name, std::string_view stageName = {}) const;
+
+    /**
+     * Checks that the caller can spill to disk if necessary.
+     * Throws QueryExceededMemoryLimitNoDiskUseAllowed if spilling to disk is not allowed.
+     */
+    void assertCanSpill(bool canSpill, std::string_view name = {}) const;
 
     /**
      * Returns a new SimpleMemoryUsageTracker. The copy constructor for this class is purposefully
@@ -125,7 +115,7 @@ private:
     // Tracks the current memory footprint.
     int64_t _inUseTrackedMemoryBytes = 0;
 
-    int64_t _maxAllowedMemoryUsageBytes;
+    MemoryUsageLimit _maxAllowedMemoryUsageBytes;
 
     // Allow for some extra bookkeeping to be done when add() is called. If set, this function will
     // be invoked with _inUseTrackedMemoryBytes and _peakTrackedMemoryBytes. This mechanism exists
@@ -168,10 +158,11 @@ public:
 
     MemoryUsageTracker(SimpleMemoryUsageTracker* baseParent,
                        bool allowDiskUse = false,
-                       int64_t maxMemoryUsageBytes = 0,
+                       MemoryUsageLimit maxMemoryUsageBytes = MemoryUsageLimit{0},
                        int64_t chunkSize = 0);
 
-    MemoryUsageTracker(bool allowDiskUse = false, int64_t maxMemoryUsageBytes = 0);
+    MemoryUsageTracker(bool allowDiskUse = false,
+                       MemoryUsageLimit maxMemoryUsageBytes = MemoryUsageLimit{0});
 
     /**
      * Sets the new total for 'name', and updates the current total memory usage.
@@ -223,6 +214,8 @@ public:
     bool allowDiskUse() const {
         return _allowDiskUse;
     }
+
+    void assertCanSpill(std::string_view name) const;
 
     int64_t maxAllowedMemoryUsageBytes() const {
         return _baseTracker.maxAllowedMemoryUsageBytes();

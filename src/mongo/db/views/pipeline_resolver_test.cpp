@@ -1,31 +1,5 @@
-/**
- *    Copyright (C) 2026-present MongoDB, Inc.
- *
- *    This program is free software: you can redistribute it and/or modify
- *    it under the terms of the Server Side Public License, version 1,
- *    as published by MongoDB, Inc.
- *
- *    This program is distributed in the hope that it will be useful,
- *    but WITHOUT ANY WARRANTY; without even the implied warranty of
- *    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *    Server Side Public License for more details.
- *
- *    You should have received a copy of the Server Side Public License
- *    along with this program. If not, see
- *    <http://www.mongodb.com/licensing/server-side-public-license>.
- *
- *    As a special exception, the copyright holders give permission to link the
- *    code of portions of this program with the OpenSSL library under certain
- *    conditions as described in each individual source file and distribute
- *    linked combinations including the program with the OpenSSL library. You
- *    must comply with the Server Side Public License in all respects for
- *    all of the code used other than as permitted herein. If you modify file(s)
- *    with this exception, you may extend this exception to your version of the
- *    file(s), but you are not obligated to do so. If you do not wish to do so,
- *    delete this exception statement from your version. If you delete this
- *    exception statement from all source files in the program, then also delete
- *    it in the license file.
- */
+// Copyright (c) MongoDB, Inc.
+// SPDX-License-Identifier: SSPL-1.0
 
 #include "mongo/db/views/pipeline_resolver.h"
 
@@ -335,6 +309,60 @@ TEST(PipelineResolverTest, ResolvesInnerViewNestedUnderRepeatedBaseCollectionRef
     const auto& viewStages = (*innerSubs)[0]->getStages();
     ASSERT_EQ(viewStages.size(), 1U);
     ASSERT_EQ(viewStages[0]->getParseTimeName(), "$match"sv);
+}
+
+TEST(PipelineResolverTest, DoesNotInfiniteLoopOnMutualGraphLookupViewCycle) {
+    // viewB has pipeline [{$graphLookup: {from: "viewE", ...}}]
+    // viewE has pipeline [{$graphLookup: {from: "viewB", ...}}]
+    // Both back the same base collection. Before the fix, resolveInvolvedNamespacesImpl would
+    // recurse infinitely because the materialized sub-pipeline uses the backing-collection NSS
+    // (not the view NSS), bypassing the inProgress cycle-detection guard.
+    const NamespaceString kViewBNss =
+        NamespaceString::createNamespaceString_forTest("testdb", "viewB");
+    const NamespaceString kViewENss =
+        NamespaceString::createNamespaceString_forTest("testdb", "viewE");
+    const NamespaceString kBaseColl =
+        NamespaceString::createNamespaceString_forTest("testdb", "fsmcoll0");
+
+    auto makeGraphLookupStage = [](std::string_view fromColl) {
+        return BSON("$graphLookup" << BSON("from" << fromColl << "startWith"
+                                                  << "$a"
+                                                  << "connectFromField"
+                                                  << "a"
+                                                  << "connectToField"
+                                                  << "b"
+                                                  << "as"
+                                                  << "result"));
+    };
+
+    // viewB: {viewOn: "fsmcoll0", pipeline: [{$graphLookup: {from: "viewE", ...}}]}
+    std::vector<BSONObj> viewBPipeline{makeGraphLookupStage("viewE")};
+    // viewE: {viewOn: "fsmcoll0", pipeline: [{$graphLookup: {from: "viewB", ...}}]}
+    std::vector<BSONObj> viewEPipeline{makeGraphLookupStage("viewB")};
+
+    ResolvedNamespaceViewOptions opts;
+    opts.involvedNamespaceIsAView = true;
+    opts.shouldParseLpp = true;
+
+    ResolvedNamespaceMap nsMap;
+    nsMap.emplace(kViewBNss,
+                  ResolvedNamespace(kViewBNss, kBaseColl, viewBPipeline, BSONObj{}, opts));
+    nsMap.emplace(kViewENss,
+                  ResolvedNamespace(kViewENss, kBaseColl, viewEPipeline, BSONObj{}, opts));
+
+    // User queries viewB (empty pipeline, like a find command).
+    LiteParsedPipeline userLpp(kViewBNss, std::vector<BSONObj>{}, true, LiteParserOptions{});
+
+    // This must complete without hanging or crashing (stack overflow).
+    bool result =
+        PipelineResolver::resolveInvolvedNamespacesOnLiteParsedPipeline(&userLpp, kViewBNss, nsMap);
+
+    // A view was bound (viewB's pipeline was prepended).
+    ASSERT_TRUE(result);
+
+    // viewB's $graphLookup stage was prepended — exactly one stage.
+    ASSERT_EQ(userLpp.getStages().size(), 1U);
+    ASSERT_EQ(userLpp.getStages()[0]->getParseTimeName(), "$graphLookup"sv);
 }
 
 TEST(PipelineResolverTest, InsertTopLevelViewEntryStoresResolvedView) {

@@ -1,36 +1,11 @@
-/**
- *    Copyright (C) 2020-present MongoDB, Inc.
- *
- *    This program is free software: you can redistribute it and/or modify
- *    it under the terms of the Server Side Public License, version 1,
- *    as published by MongoDB, Inc.
- *
- *    This program is distributed in the hope that it will be useful,
- *    but WITHOUT ANY WARRANTY; without even the implied warranty of
- *    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *    Server Side Public License for more details.
- *
- *    You should have received a copy of the Server Side Public License
- *    along with this program. If not, see
- *    <http://www.mongodb.com/licensing/server-side-public-license>.
- *
- *    As a special exception, the copyright holders give permission to link the
- *    code of portions of this program with the OpenSSL library under certain
- *    conditions as described in each individual source file and distribute
- *    linked combinations including the program with the OpenSSL library. You
- *    must comply with the Server Side Public License in all respects for
- *    all of the code used other than as permitted herein. If you modify file(s)
- *    with this exception, you may extend this exception to your version of the
- *    file(s), but you are not obligated to do so. If you do not wish to do so,
- *    delete this exception statement from your version. If you delete this
- *    exception statement from all source files in the program, then also delete
- *    it in the license file.
- */
+// Copyright (c) MongoDB, Inc.
+// SPDX-License-Identifier: SSPL-1.0
 
 #pragma once
 
 #include "mongo/db/dbmessage.h"
 #include "mongo/db/operation_context.h"
+#include "mongo/otel/traces/span/span.h"
 #include "mongo/rpc/message.h"
 #include "mongo/rpc/op_msg.h"
 #include "mongo/rpc/reply_builder_interface.h"
@@ -96,6 +71,23 @@ public:
         return _request.get();
     }
 
+    bool hasOtelSpan() const {
+        dassert(_isOnClientThread());
+        return _otelSpan.has_value();
+    }
+    void setOtelSpan(otel::traces::Span otelSpan) {
+        dassert(_isOnClientThread() && !_otelSpan);
+        _otelSpan = std::move(otelSpan);
+    }
+    const otel::traces::Span& getOtelSpan() const {
+        dassert(_isOnClientThread() && _otelSpan);
+        return *_otelSpan;
+    }
+    otel::traces::Span& getOtelSpan() {
+        dassert(_isOnClientThread() && _otelSpan);
+        return *_otelSpan;
+    }
+
     void setCommand(Command* command) {
         dassert(_isOnClientThread() && !_command);
         _command = command;
@@ -126,6 +118,7 @@ private:
     boost::optional<OpMsgRequest> _request;
     Command* _command = nullptr;
     std::unique_ptr<rpc::ReplyBuilderInterface> _replyBuilder;
+    boost::optional<otel::traces::Span> _otelSpan;
 };
 
 }  // namespace mongo

@@ -1,31 +1,5 @@
-/**
- *    Copyright (C) 2018-present MongoDB, Inc.
- *
- *    This program is free software: you can redistribute it and/or modify
- *    it under the terms of the Server Side Public License, version 1,
- *    as published by MongoDB, Inc.
- *
- *    This program is distributed in the hope that it will be useful,
- *    but WITHOUT ANY WARRANTY; without even the implied warranty of
- *    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *    Server Side Public License for more details.
- *
- *    You should have received a copy of the Server Side Public License
- *    along with this program. If not, see
- *    <http://www.mongodb.com/licensing/server-side-public-license>.
- *
- *    As a special exception, the copyright holders give permission to link the
- *    code of portions of this program with the OpenSSL library under certain
- *    conditions as described in each individual source file and distribute
- *    linked combinations including the program with the OpenSSL library. You
- *    must comply with the Server Side Public License in all respects for
- *    all of the code used other than as permitted herein. If you modify file(s)
- *    with this exception, you may extend this exception to your version of the
- *    file(s), but you are not obligated to do so. If you do not wish to do so,
- *    delete this exception statement from your version. If you delete this
- *    exception statement from all source files in the program, then also delete
- *    it in the license file.
- */
+// Copyright (c) MongoDB, Inc.
+// SPDX-License-Identifier: SSPL-1.0
 
 
 #include "mongo/db/pipeline/accumulator.h"
@@ -1834,7 +1808,7 @@ TEST(Accumulators, AddToSetRespectsCollation) {
 
 TEST(Accumulators, AddToSetRespectsMaxMemoryConstraint) {
     auto expCtx = ExpressionContextForTest{};
-    const int maxMemoryBytes = 20ull;
+    const MemoryUsageLimit maxMemoryBytes{20};
     auto addToSet = AccumulatorAddToSet(&expCtx, maxMemoryBytes);
     ASSERT_THROWS_CODE(
         addToSet.process(
@@ -1845,7 +1819,7 @@ TEST(Accumulators, AddToSetRespectsMaxMemoryConstraint) {
 
 TEST(Accumulators, PushRespectsMaxMemoryConstraint) {
     auto expCtx = ExpressionContextForTest{};
-    const int maxMemoryBytes = 20ull;
+    const MemoryUsageLimit maxMemoryBytes{20};
     auto addToSet = AccumulatorPush(&expCtx, maxMemoryBytes);
     ASSERT_THROWS_CODE(
         addToSet.process(
@@ -2043,10 +2017,11 @@ TEST(Accumulators, AccumulatorExpMovingAvg) {
 /* ------------------------- AccumulatorPercentile ---------------------------------------------- */
 
 // Runs AccumulatorPercentile tests with the various different percentile algorithms.
-void accumulatorPercentileHelper(PercentileMethodEnum method,
-                                 const std::vector<double>& percentiles,
-                                 const std::string& mergeFalseExpected,
-                                 boost::optional<int> maxMemoryUsageBytes = 1024) {
+void accumulatorPercentileHelper(
+    PercentileMethodEnum method,
+    const std::vector<double>& percentiles,
+    const std::string& mergeFalseExpected,
+    boost::optional<MemoryUsageLimit> maxMemoryUsageBytes = MemoryUsageLimit{1024}) {
     boost::intrusive_ptr<ExpressionContextForTest> expCtx =
         make_intrusive<ExpressionContextForTest>();
     AccumulatorPercentile acc{expCtx.get(), percentiles, method, maxMemoryUsageBytes};
@@ -2100,22 +2075,28 @@ TEST(Accumulators, AccumulatorPercentileContinuous) {
 // Tests the AccumulatorPercentile class when it runs out of memory using
 // PercentileMethodEnum::kApproximate
 TEST(Accumulators, AccumulatorPercentileOOMApproximate) {
-    accumulatorPercentileHelper(
-        PercentileMethodEnum::kApproximate, std::vector<double>{0.5, 0.8}, "[0.5, 0.8]", 1);
+    accumulatorPercentileHelper(PercentileMethodEnum::kApproximate,
+                                std::vector<double>{0.5, 0.8},
+                                "[0.5, 0.8]",
+                                MemoryUsageLimit{1});
 }
 
 // Tests the AccumulatorPercentile class when it runs out of memory using
 // PercentileMethodEnum::kDiscrete
 TEST(Accumulators, AccumulatorPercentileOOMDiscrete) {
-    accumulatorPercentileHelper(
-        PercentileMethodEnum::kDiscrete, std::vector<double>{0.5, 0.8}, "[0.5, 0.8]", 1);
+    accumulatorPercentileHelper(PercentileMethodEnum::kDiscrete,
+                                std::vector<double>{0.5, 0.8},
+                                "[0.5, 0.8]",
+                                MemoryUsageLimit{1});
 }
 
 // Tests the AccumulatorPercentile class when it runs out of memory using
 // PercentileMethodEnum::kContinuous
 TEST(Accumulators, AccumulatorPercentileOOMContinuous) {
-    accumulatorPercentileHelper(
-        PercentileMethodEnum::kContinuous, std::vector<double>{0.5, 0.8}, "[0.55, 0.82]", 1);
+    accumulatorPercentileHelper(PercentileMethodEnum::kContinuous,
+                                std::vector<double>{0.5, 0.8},
+                                "[0.55, 0.82]",
+                                MemoryUsageLimit{1});
 }
 
 /* ------------------------- Other accumulators ------------------------------------------------- */
@@ -2516,7 +2497,7 @@ TEST(ExpressionMergeObjects, MergingNonObjectsShouldThrowException) {
 
 TEST(AccumulatorConcatArrays, ConcatArraysRespectsMaxMemoryContraint) {
     auto expCtx = ExpressionContextForTest{};
-    const int maxMemoryBytes = 20ull;
+    const MemoryUsageLimit maxMemoryBytes{20};
     auto concatArrays = AccumulatorConcatArrays(&expCtx, maxMemoryBytes);
     ASSERT_THROWS_CODE(concatArrays.process(
                            Value(std::vector<Value>{Value("A somewhat long string"sv),
@@ -2636,7 +2617,7 @@ static void assertSetUnionResults(
 
 TEST(AccumulatorSetUnion, SetUnionRespectsMaxMemoryContraint) {
     auto expCtx = ExpressionContextForTest{};
-    const int maxMemoryBytes = 20ull;
+    const MemoryUsageLimit maxMemoryBytes{20};
     auto setUnion = AccumulatorSetUnion(&expCtx, maxMemoryBytes);
     ASSERT_THROWS_CODE(
         setUnion.process(Value(std::vector<Value>{Value("A somewhat long string"sv),

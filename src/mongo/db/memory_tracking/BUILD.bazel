@@ -10,16 +10,32 @@ exports_files(
 )
 
 mongo_cc_library(
+    name = "memory_usage_limit",
+    srcs = [
+        "memory_usage_limit.cpp",
+    ],
+    hdrs = [
+        "memory_usage_limit.h",
+    ],
+    deps = [
+        "//src/mongo/db/query/query_knobs:query_knob",
+    ],
+)
+
+mongo_cc_library(
     name = "memory_tracking",
     srcs = [
         "memory_usage_tracker.cpp",
         "operation_memory_usage_tracker.cpp",
     ],
     deps = [
+        ":memory_usage_limit",
+        "//src/mongo/db:cluster_role",
         "//src/mongo/db:commands",
         "//src/mongo/db:server_feature_flags",
         "//src/mongo/db:service_context",
         "//src/mongo/db/query:query_knobs",
+        "//src/mongo/otel/metrics:otel_metrics_service",
     ],
 )
 
@@ -32,7 +48,9 @@ mongo_cc_unit_test(
     tags = ["mongo_unittest_second_group"],
     deps = [
         ":memory_tracking",
+        "//src/mongo/db:cluster_role",
         "//src/mongo/db:service_context_test_fixture",
+        "//src/mongo/db/commands/server_status:server_status_metric",
         "//src/mongo/db/pipeline:aggregation_context_fixture",
         "//src/mongo/db/pipeline:document_source_mock",
     ],

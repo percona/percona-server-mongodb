@@ -1,8 +1,6 @@
 # Overrides for the with_mongot_extension_* suites, which run the with_mongot e2e corpus against
 # the real (externally-published) mongot-extension. Only the real extension is loaded -- not
-# toy test extensions -- so these suites can run on signature secure-mode builds.
-
-# TODO SERVER-130631: run these suites on a secure-mode variant with
+# toy test extensions -- so these suites run on signature secure-mode builds with
 # featureFlagExtensionsApiSignatureValidation enabled.
 
 # Tests the mongot-extension cannot run.
@@ -15,10 +13,6 @@
       # Tests that fail due to unimplemented behavior in mongot-extension.
       - jstests/with_mongot/e2e/views/search_with_view_injected.js
       - jstests/with_mongot/e2e/views/mongot_stage_in_view_definition.js
-      # TODO SERVER-130914: Remove this exclusion caused by the extension's $vectorSearch rejecting the server-injected 'view' field.
-      - jstests/with_mongot/e2e/views/vector_search/unionWith.js
-      - jstests/with_mongot/e2e/views/vector_search/unionWith_nested.js
-      - jstests/with_mongot/e2e/views/vector_search/undefined_or_underlying_index.js
       # TODO SERVER-130916: Remove this exclusion; the $sort-after-$vectorSearch optimization is not applied to the extension stage.
       - jstests/with_mongot/e2e/hybridSearch/sort_after_vector_search_optimization.js
       # TODO SERVER-130913: Remove these exclusions. Extension $vectorSearch inside a $lookup/$graphLookup subpipeline hits
@@ -54,18 +48,6 @@
       - jstests/with_mongot/e2e/hybridSearch/score_fusion_score_details_test.js
       - jstests/with_mongot/e2e/hybridSearch/score_multiple_stages.js
 
-# Failures that only reproduce on sharded topologies: the sharded query path injects the
-# resolved view into the extension's $vectorSearch, hitting the same reserved-'view'-field
-# rejection as the exclusions above. These pass on single-node, so they are excluded only in
-# the sharded suites.
-# TODO SERVER-130914: Remove these exclusions.
-- name: exclude_incompatible_tests_sharded
-  value:
-    exclude_files:
-      - jstests/with_mongot/e2e/views/vector_search/addFields_base_case.js
-      - jstests/with_mongot/e2e/views/vector_search/match_base_case.js
-      - jstests/with_mongot/e2e/views/vector_search/nested_view.js
-
 # REPLACES the base suite's list, dropping its in-tree test extensions (see note at top).
 - name: load_extension
   value:
@@ -79,9 +61,16 @@
   value:
     executor:
       fixture:
+        # The mongot-extension is production-signed, so we run it in secure-mode builds that expect
+        # production signatures. Non-secure builds use server parameter
+        # extensionsSignaturePublicKeyPath for test signatures, but that parameter is compiled out
+        # of secure builds. For that reason, we must set skip_extensions_signature_verification to
+        # skip setting that parameter. It will invoke real signature verification.
+        skip_extensions_signature_verification: &skip_extensions_signature_verification true
         mongod_options:
           set_parameters: &extension_set_parameters
             featureFlagExtensionsAPI: true
+            featureFlagExtensionsApiSignatureValidation: true
             featureFlagVectorSearchExtension: true
             featureFlagSearchExtension: false # TODO SERVER-130636: flip to true once the $search extension is ready.
             # TODO SERVER-130878: flip to true once extension stages are supported inside
@@ -96,6 +85,7 @@
   value:
     executor:
       fixture:
+        skip_extensions_signature_verification: *skip_extensions_signature_verification
         mongod_options:
           set_parameters: *extension_set_parameters
         mongos_options:

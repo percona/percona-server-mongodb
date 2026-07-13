@@ -1,31 +1,5 @@
-/**
- *    Copyright (C) 2018-present MongoDB, Inc.
- *
- *    This program is free software: you can redistribute it and/or modify
- *    it under the terms of the Server Side Public License, version 1,
- *    as published by MongoDB, Inc.
- *
- *    This program is distributed in the hope that it will be useful,
- *    but WITHOUT ANY WARRANTY; without even the implied warranty of
- *    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *    Server Side Public License for more details.
- *
- *    You should have received a copy of the Server Side Public License
- *    along with this program. If not, see
- *    <http://www.mongodb.com/licensing/server-side-public-license>.
- *
- *    As a special exception, the copyright holders give permission to link the
- *    code of portions of this program with the OpenSSL library under certain
- *    conditions as described in each individual source file and distribute
- *    linked combinations including the program with the OpenSSL library. You
- *    must comply with the Server Side Public License in all respects for
- *    all of the code used other than as permitted herein. If you modify file(s)
- *    with this exception, you may extend this exception to your version of the
- *    file(s), but you are not obligated to do so. If you do not wish to do so,
- *    delete this exception statement from your version. If you delete this
- *    exception statement from all source files in the program, then also delete
- *    it in the license file.
- */
+// Copyright (c) MongoDB, Inc.
+// SPDX-License-Identifier: SSPL-1.0
 
 #pragma once
 
@@ -192,13 +166,20 @@ struct [[MONGO_MOD_NEEDS_REPLACEMENT]] ShardingStatistics {
     Atomic<long long> chunkMigrationWaitForReclaimedPreparedTxnsMillis{0};
 
     // FTDC metrics for the MaxKey orphan detection sweep run on shard primaries.
-    // The *Complete/*FoundMaxKey/*AlertEmitted fields are 0/1 flags describing the last published
-    // sweep outcome on this process. *Errors counts non-fatal per-collection errors encountered
-    // while running the sweep.
-    Atomic<long long> maxKeyOrphanScanComplete{0};
-    Atomic<long long> maxKeyOrphanScanFoundMaxKey{0};
-    Atomic<long long> maxKeyOrphanScanAlertEmitted{0};
-    Atomic<long long> maxKeyOrphanScanErrors{0};
+    // The *Complete/*FoundUnownedMaxKey/*UnownedAlertEmitted fields are 0/1 flags describing the
+    // last published sweep outcome on this process. *Errors counts non-fatal per-collection errors
+    // encountered while running the sweep.
+    AtomicWord<long long> maxKeyOrphanScanComplete{0};
+    AtomicWord<long long> maxKeyOrphanScanFoundUnownedMaxKey{0};
+    AtomicWord<long long> maxKeyOrphanScanUnownedAlertEmitted{0};
+    AtomicWord<long long> maxKeyOrphanScanErrors{0};
+
+    // An accessible (owned) MaxKey doc was found on this shard. Its version could be stale if it
+    // was re-owned after some series of application operations. The
+    // *FoundOwnedMaxKey/*OwnedAlertEmitted fields are 0/1 flags describing the last published sweep
+    // outcome.
+    AtomicWord<long long> maxKeyOrphanScanFoundOwnedMaxKey{0};
+    AtomicWord<long long> maxKeyOrphanScanOwnedAlertEmitted{0};
 
     // FTDC metrics for the MaxKey zone inventory scan run by the balancer on config primaries.
     // The *Complete/*FoundBuggyZone/*AlertEmitted fields are 0/1 flags describing the last
