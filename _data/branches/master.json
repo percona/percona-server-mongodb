@@ -5,15 +5,15 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 57,
-    "days_behind": 0,
-    "unmerged_oldest_age_days": 0.9687584936342593,
-    "files_affected": 9394,
-    "total_additions": 35336,
-    "total_deletions": 261846,
+    "commits_behind": 69,
+    "days_behind": 2,
+    "unmerged_oldest_age_days": 2.5707406765625,
+    "files_affected": 9436,
+    "total_additions": 37676,
+    "total_deletions": 262490,
     "date_range": {
       "first": "2026-07-10T17:24:02+00:00",
-      "last": "2026-07-11T05:30:23+00:00"
+      "last": "2026-07-13T02:00:11+00:00"
     }
   },
   "last_merged_commit": {
@@ -41,6 +41,126 @@
     "reason": "force:conflict"
   },
   "unmerged_commits": [
+    {
+      "sha": "fa51be8344c4612a35f89cb92df8de7e49290dc8",
+      "short_sha": "fa51be8344c",
+      "date": "2026-07-13T12:00:11+10:00",
+      "author": {
+        "name": "wt-vendoring-bot[bot]",
+        "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "Import wiredtiger: cc9a4209de6864482c4413ac11a39d99bed6233a from branch mongodb-master (#58320)"
+    },
+    {
+      "sha": "87c0af4a696f207d8793721adf4d726092f15e37",
+      "short_sha": "87c0af4a696",
+      "date": "2026-07-12T19:36:20-04:00",
+      "author": {
+        "name": "Will Buerger",
+        "email": "59492746+wbuerger46@users.noreply.github.com"
+      },
+      "summary": "SERVER-131029: Migrate mocked $search tests with unique sharding configurations to the e2e suites (#58274)"
+    },
+    {
+      "sha": "dd82c0f2ebdff829fd6c81d3cb16f4b6336edddc",
+      "short_sha": "dd82c0f2ebd",
+      "date": "2026-07-12T18:59:07-04:00",
+      "author": {
+        "name": "alina 颖思",
+        "email": "106563068+charcoalyy@users.noreply.github.com"
+      },
+      "summary": "SERVER-127466 Add MVP tracing for sharded operations (#57795)"
+    },
+    {
+      "sha": "472bbd385fda9cbedaade13fdc664e665a60c73c",
+      "short_sha": "472bbd385fd",
+      "date": "2026-07-12T22:16:44+02:00",
+      "author": {
+        "name": "Denis Grebennicov",
+        "email": "denis.grebennicov@mongodb.com"
+      },
+      "summary": "SERVER-129155 Desugar $querySettings and remove hand-rolled data access (#58086)"
+    },
+    {
+      "sha": "e87af31b754a47f67137eb03cf824d5f787e72fc",
+      "short_sha": "e87af31b754",
+      "date": "2026-07-12T22:18:06+03:00",
+      "author": {
+        "name": "Timour Katchaounov",
+        "email": "34627040+timourk@users.noreply.github.com"
+      },
+      "summary": "SERVER-130812 Refactor explain verbosity enums to rely on semantics instead of order (#58222)"
+    },
+    {
+      "sha": "bdf4a43e4ab6ebeb69c049b00a3471009be39e91",
+      "short_sha": "bdf4a43e4ab",
+      "date": "2026-07-12T14:45:09+00:00",
+      "author": {
+        "name": "auto-revert-app[bot]",
+        "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
+      },
+      "summary": "Revert \"SERVER-130899 Make $_internalSearchIdLookup inherit from BatchedEnrichmentStage (#58067)\" (#58323)"
+    },
+    {
+      "sha": "58e36cdc79066838fd18ec9bef6de9ba048e9d2d",
+      "short_sha": "58e36cdc790",
+      "date": "2026-07-12T13:41:38+01:00",
+      "author": {
+        "name": "Catalin Sumanaru",
+        "email": "catalin.sumanaru@mongodb.com"
+      },
+      "summary": "SERVER-129580 Ban direct access to query knob server parameters via a query.knobs module (#57765)"
+    },
+    {
+      "sha": "73337e952c1b5158c1faeb87e4eadf03f38bd542",
+      "short_sha": "73337e952c1",
+      "date": "2026-07-12T07:00:12+00:00",
+      "author": {
+        "name": "auto-revert-app[bot]",
+        "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
+      },
+      "summary": "Revert \"SERVER-123691: flip featureFlagExtensionsApiSignatureValidation to default true (#58240)\" (#58319)"
+    },
+    {
+      "sha": "06494656cbb0c6eee32d54fccae90bfc2fd3e1c8",
+      "short_sha": "06494656cbb",
+      "date": "2026-07-11T15:46:11-07:00",
+      "author": {
+        "name": "Chunbin-lin",
+        "email": "chunbin.lin@mongodb.com"
+      },
+      "summary": "SERVER-130899 Make $_internalSearchIdLookup inherit from BatchedEnrichmentStage (#58067)"
+    },
+    {
+      "sha": "b982485e2f7a37d2875216528ce9cdd9070465c1",
+      "short_sha": "b982485e2f7",
+      "date": "2026-07-11T23:56:40+02:00",
+      "author": {
+        "name": "Kyle Burgess",
+        "email": "90669224+kyleburgess2025@users.noreply.github.com"
+      },
+      "summary": "SERVER-130231 Add dryrun mode to maxEstimatedScanBytes (#57690)"
+    },
+    {
+      "sha": "64f8bb052db18c7bb360760020297f89791714a2",
+      "short_sha": "64f8bb052db",
+      "date": "2026-07-11T23:48:28+02:00",
+      "author": {
+        "name": "Denis Grebennicov",
+        "email": "denis.grebennicov@mongodb.com"
+      },
+      "summary": "SERVER-117888 Enable feature flag (#57923)"
+    },
+    {
+      "sha": "16cb74444f7598076165a21a0580097de995e228",
+      "short_sha": "16cb74444f7",
+      "date": "2026-07-11T22:42:06+01:00",
+      "author": {
+        "name": "Catalin Sumanaru",
+        "email": "catalin.sumanaru@mongodb.com"
+      },
+      "summary": "SERVER-131009 Resolve MemoryUsageLimit via QueryKnobConfiguration (#58135)"
+    },
     {
       "sha": "e304e774442f64025c6917e54a1d98d91f89545d",
       "short_sha": "e304e774442",
@@ -790,7 +910,7 @@
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-07-11 16:38:58",
+  "generated_at": "2026-07-13 07:05:49",
   "branch_name": "master",
   "display_name": "master"
 }
