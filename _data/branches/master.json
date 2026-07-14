@@ -5,42 +5,82 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 92,
-    "days_behind": 3,
-    "unmerged_oldest_age_days": 3.2558801211805553,
-    "files_affected": 1277,
-    "total_additions": 17958,
-    "total_deletions": 40183,
+    "commits_behind": 78,
+    "days_behind": 1,
+    "unmerged_oldest_age_days": 1.0661581689699073,
+    "files_affected": 1106,
+    "total_additions": 13443,
+    "total_deletions": 39027,
     "date_range": {
-      "first": "2026-07-11T00:36:31+00:00",
-      "last": "2026-07-14T02:02:40+00:00"
+      "first": "2026-07-13T08:26:08+00:00",
+      "last": "2026-07-14T09:21:08+00:00"
     }
   },
   "last_merged_commit": {
-    "sha": "1c287af4e8f11749cebb169b352b66beb5e3f990",
-    "short_sha": "1c287af4e8f",
-    "date": "2026-07-10T20:20:22-04:00",
+    "sha": "fa51be8344c4612a35f89cb92df8de7e49290dc8",
+    "short_sha": "fa51be8344c",
+    "date": "2026-07-13T12:00:11+10:00",
     "author": {
-      "name": "Billy Donahue",
-      "email": "BillyDonahue@users.noreply.github.com"
+      "name": "wt-vendoring-bot[bot]",
+      "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
     },
-    "summary": "SERVER-127760 rewrite all license headers to SPDX 2-liner (#58305)"
+    "summary": "Import wiredtiger: cc9a4209de6864482c4413ac11a39d99bed6233a from branch mongodb-master (#58320)"
   },
   "first_unmerged_commit": {
-    "sha": "63f4844de41a97db893a66be41eab404c526b8d7",
-    "short_sha": "63f4844de41",
-    "date": "2026-07-10T19:36:31-05:00",
+    "sha": "dc30236ff581b5f61b8eccc34ec43161bfc72fd0",
+    "short_sha": "dc30236ff58",
+    "date": "2026-07-13T10:26:08+02:00",
     "author": {
-      "name": "Finley Lau",
-      "email": "finley.lau@mongodb.com"
+      "name": "wolfee",
+      "email": "adam.farkas@mongodb.com"
     },
-    "summary": "SERVER-131100 Pin mongot extension name to a git-tracked file so that it doesn't drift between the server and resmoke (#58241)"
+    "summary": "SERVER-128996 ThroughputProber should increase tickets when stuck and there's still waiters (#57320)"
   },
   "gate": {
     "open": true,
     "reason": "force:conflict"
   },
   "unmerged_commits": [
+    {
+      "sha": "9f42d59147399f98e4b9d7ce39866b9e9fb02db4",
+      "short_sha": "9f42d591473",
+      "date": "2026-07-14T10:21:08+01:00",
+      "author": {
+        "name": "Rustam Gusein-zade",
+        "email": "rustam.guseinzade@mongodb.com"
+      },
+      "summary": "SERVER-131158 Remove leftover TODOs from closed tickets (#58466)"
+    },
+    {
+      "sha": "f80c85e951a9d3189850b43547af8b4da242c889",
+      "short_sha": "f80c85e951a",
+      "date": "2026-07-14T10:02:53+01:00",
+      "author": {
+        "name": "mongo-pr-bot[bot]",
+        "email": "230616009+mongo-pr-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "SERVER-110427 Update profiling data (#58452)"
+    },
+    {
+      "sha": "4fecfcb85766e4cb4add6642f3b8592e9a3707f5",
+      "short_sha": "4fecfcb8576",
+      "date": "2026-07-14T17:24:50+10:00",
+      "author": {
+        "name": "wt-vendoring-bot[bot]",
+        "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "Import wiredtiger: c94cb984e5af50f451f8b29dc4aca483ebf782f9 from branch mongodb-master (#58449)"
+    },
+    {
+      "sha": "3f8c8dd3e2a8d7af866ca9bdd8e2766c17f2a6db",
+      "short_sha": "3f8c8dd3e2a",
+      "date": "2026-07-14T17:22:20+10:00",
+      "author": {
+        "name": "Gregory Wlodarek",
+        "email": "gregory.wlodarek@mongodb.com"
+      },
+      "summary": "SERVER-131312 Compute oplogNeededForRollback before acquiring the checkpoint mutex to avoid lock-order inversion (#58454)"
+    },
     {
       "sha": "13df6fadb1b1e506c7499292da63ec1f43e39f77",
       "short_sha": "13df6fadb1b",
@@ -780,256 +820,9 @@
         "email": "adam.farkas@mongodb.com"
       },
       "summary": "SERVER-128996 ThroughputProber should increase tickets when stuck and there's still waiters (#57320)"
-    },
-    {
-      "sha": "fa51be8344c4612a35f89cb92df8de7e49290dc8",
-      "short_sha": "fa51be8344c",
-      "date": "2026-07-13T12:00:11+10:00",
-      "author": {
-        "name": "wt-vendoring-bot[bot]",
-        "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
-      },
-      "summary": "Import wiredtiger: cc9a4209de6864482c4413ac11a39d99bed6233a from branch mongodb-master (#58320)"
-    },
-    {
-      "sha": "87c0af4a696f207d8793721adf4d726092f15e37",
-      "short_sha": "87c0af4a696",
-      "date": "2026-07-12T19:36:20-04:00",
-      "author": {
-        "name": "Will Buerger",
-        "email": "59492746+wbuerger46@users.noreply.github.com"
-      },
-      "summary": "SERVER-131029: Migrate mocked $search tests with unique sharding configurations to the e2e suites (#58274)"
-    },
-    {
-      "sha": "dd82c0f2ebdff829fd6c81d3cb16f4b6336edddc",
-      "short_sha": "dd82c0f2ebd",
-      "date": "2026-07-12T18:59:07-04:00",
-      "author": {
-        "name": "alina 颖思",
-        "email": "106563068+charcoalyy@users.noreply.github.com"
-      },
-      "summary": "SERVER-127466 Add MVP tracing for sharded operations (#57795)"
-    },
-    {
-      "sha": "472bbd385fda9cbedaade13fdc664e665a60c73c",
-      "short_sha": "472bbd385fd",
-      "date": "2026-07-12T22:16:44+02:00",
-      "author": {
-        "name": "Denis Grebennicov",
-        "email": "denis.grebennicov@mongodb.com"
-      },
-      "summary": "SERVER-129155 Desugar $querySettings and remove hand-rolled data access (#58086)"
-    },
-    {
-      "sha": "e87af31b754a47f67137eb03cf824d5f787e72fc",
-      "short_sha": "e87af31b754",
-      "date": "2026-07-12T22:18:06+03:00",
-      "author": {
-        "name": "Timour Katchaounov",
-        "email": "34627040+timourk@users.noreply.github.com"
-      },
-      "summary": "SERVER-130812 Refactor explain verbosity enums to rely on semantics instead of order (#58222)"
-    },
-    {
-      "sha": "bdf4a43e4ab6ebeb69c049b00a3471009be39e91",
-      "short_sha": "bdf4a43e4ab",
-      "date": "2026-07-12T14:45:09+00:00",
-      "author": {
-        "name": "auto-revert-app[bot]",
-        "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
-      },
-      "summary": "Revert \"SERVER-130899 Make $_internalSearchIdLookup inherit from BatchedEnrichmentStage (#58067)\" (#58323)"
-    },
-    {
-      "sha": "58e36cdc79066838fd18ec9bef6de9ba048e9d2d",
-      "short_sha": "58e36cdc790",
-      "date": "2026-07-12T13:41:38+01:00",
-      "author": {
-        "name": "Catalin Sumanaru",
-        "email": "catalin.sumanaru@mongodb.com"
-      },
-      "summary": "SERVER-129580 Ban direct access to query knob server parameters via a query.knobs module (#57765)"
-    },
-    {
-      "sha": "73337e952c1b5158c1faeb87e4eadf03f38bd542",
-      "short_sha": "73337e952c1",
-      "date": "2026-07-12T07:00:12+00:00",
-      "author": {
-        "name": "auto-revert-app[bot]",
-        "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
-      },
-      "summary": "Revert \"SERVER-123691: flip featureFlagExtensionsApiSignatureValidation to default true (#58240)\" (#58319)"
-    },
-    {
-      "sha": "06494656cbb0c6eee32d54fccae90bfc2fd3e1c8",
-      "short_sha": "06494656cbb",
-      "date": "2026-07-11T15:46:11-07:00",
-      "author": {
-        "name": "Chunbin-lin",
-        "email": "chunbin.lin@mongodb.com"
-      },
-      "summary": "SERVER-130899 Make $_internalSearchIdLookup inherit from BatchedEnrichmentStage (#58067)"
-    },
-    {
-      "sha": "b982485e2f7a37d2875216528ce9cdd9070465c1",
-      "short_sha": "b982485e2f7",
-      "date": "2026-07-11T23:56:40+02:00",
-      "author": {
-        "name": "Kyle Burgess",
-        "email": "90669224+kyleburgess2025@users.noreply.github.com"
-      },
-      "summary": "SERVER-130231 Add dryrun mode to maxEstimatedScanBytes (#57690)"
-    },
-    {
-      "sha": "64f8bb052db18c7bb360760020297f89791714a2",
-      "short_sha": "64f8bb052db",
-      "date": "2026-07-11T23:48:28+02:00",
-      "author": {
-        "name": "Denis Grebennicov",
-        "email": "denis.grebennicov@mongodb.com"
-      },
-      "summary": "SERVER-117888 Enable feature flag (#57923)"
-    },
-    {
-      "sha": "16cb74444f7598076165a21a0580097de995e228",
-      "short_sha": "16cb74444f7",
-      "date": "2026-07-11T22:42:06+01:00",
-      "author": {
-        "name": "Catalin Sumanaru",
-        "email": "catalin.sumanaru@mongodb.com"
-      },
-      "summary": "SERVER-131009 Resolve MemoryUsageLimit via QueryKnobConfiguration (#58135)"
-    },
-    {
-      "sha": "e304e774442f64025c6917e54a1d98d91f89545d",
-      "short_sha": "e304e774442",
-      "date": "2026-07-11T01:30:23-04:00",
-      "author": {
-        "name": "Matthew Boros",
-        "email": "mattBoros@users.noreply.github.com"
-      },
-      "summary": "SERVER-130224 Connect all plan shape counters to query stats (#58219)"
-    },
-    {
-      "sha": "c14b3f0db2fc422b601fac61b01412cb90616da6",
-      "short_sha": "c14b3f0db2f",
-      "date": "2026-07-10T22:22:20-05:00",
-      "author": {
-        "name": "Shin Yee Tan",
-        "email": "shinyee.tan@mongodb.com"
-      },
-      "summary": "SERVER-129183 Test retryable write idempotency, oplog shape, and secondary apply during primary-driven index build (#56161)"
-    },
-    {
-      "sha": "350afec8658c3ea0d991ce41a5c9960af401a4f8",
-      "short_sha": "350afec8658",
-      "date": "2026-07-10T20:02:07-07:00",
-      "author": {
-        "name": "CALVIN NGUYEN",
-        "email": "calvin.nguyen@mongodb.com"
-      },
-      "summary": "SERVER-130278 Re-enable WASM getRegEx slash-in-pattern test (#58275)"
-    },
-    {
-      "sha": "d88dc539845acfa443578a326ce6495a23534a47",
-      "short_sha": "d88dc539845",
-      "date": "2026-07-10T22:17:07-04:00",
-      "author": {
-        "name": "Charlie Swanson",
-        "email": "charlie.swanson@mongodb.com"
-      },
-      "summary": "SERVER-130023 SERVER-130136 Generic IFRContext wire API (#58187)"
-    },
-    {
-      "sha": "5ecce4e934817a958d48d64d1030ccb52e1a050f",
-      "short_sha": "5ecce4e9348",
-      "date": "2026-07-11T02:16:07+01:00",
-      "author": {
-        "name": "Catalin Sumanaru",
-        "email": "catalin.sumanaru@mongodb.com"
-      },
-      "summary": "SERVER-131007 Thread OperationContext through memory tracker limit reads (#58124)"
-    },
-    {
-      "sha": "63f4844de41a97db893a66be41eab404c526b8d7",
-      "short_sha": "63f4844de41",
-      "date": "2026-07-10T19:36:31-05:00",
-      "author": {
-        "name": "Finley Lau",
-        "email": "finley.lau@mongodb.com"
-      },
-      "summary": "SERVER-131100 Pin mongot extension name to a git-tracked file so that it doesn't drift between the server and resmoke (#58241)"
     }
   ],
   "merge_picks": [
-    {
-      "commit": {
-        "sha": "5ecce4e934817a958d48d64d1030ccb52e1a050f",
-        "short_sha": "5ecce4e9348",
-        "date": "2026-07-11T02:16:07+01:00",
-        "author": {
-          "name": "Catalin Sumanaru",
-          "email": "catalin.sumanaru@mongodb.com"
-        },
-        "summary": "SERVER-131007 Thread OperationContext through memory tracker limit reads (#58124)"
-      },
-      "strategy_name": "huge_commit",
-      "result": {
-        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
-        "evaluated_vars": {
-          "num_of_files": 66,
-          "num_of_lines": 451,
-          "lines_added": 275,
-          "lines_deleted": 176,
-          "num_of_dirs": 12
-        }
-      }
-    },
-    {
-      "commit": {
-        "sha": "d88dc539845acfa443578a326ce6495a23534a47",
-        "short_sha": "d88dc539845",
-        "date": "2026-07-10T22:17:07-04:00",
-        "author": {
-          "name": "Charlie Swanson",
-          "email": "charlie.swanson@mongodb.com"
-        },
-        "summary": "SERVER-130023 SERVER-130136 Generic IFRContext wire API (#58187)"
-      },
-      "strategy_name": "huge_commit",
-      "result": {
-        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
-        "evaluated_vars": {
-          "num_of_files": 33,
-          "num_of_lines": 1694,
-          "lines_added": 1444,
-          "lines_deleted": 250,
-          "num_of_dirs": 12
-        }
-      }
-    },
-    {
-      "commit": {
-        "sha": "fa51be8344c4612a35f89cb92df8de7e49290dc8",
-        "short_sha": "fa51be8344c",
-        "date": "2026-07-13T12:00:11+10:00",
-        "author": {
-          "name": "wt-vendoring-bot[bot]",
-          "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
-        },
-        "summary": "Import wiredtiger: cc9a4209de6864482c4413ac11a39d99bed6233a from branch mongodb-master (#58320)"
-      },
-      "strategy_name": "branching_point",
-      "result": {
-        "branches": [
-          "master",
-          "mergai/master-fa51be8344c/main",
-          "mongodb",
-          "v9.0"
-        ]
-      }
-    },
     {
       "commit": {
         "sha": "40a2787a5b84f8f1e3eda896f0008f4c70be800f",
@@ -1158,10 +951,51 @@
           "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp"
         ]
       }
+    },
+    {
+      "commit": {
+        "sha": "3f8c8dd3e2a8d7af866ca9bdd8e2766c17f2a6db",
+        "short_sha": "3f8c8dd3e2a",
+        "date": "2026-07-14T17:22:20+10:00",
+        "author": {
+          "name": "Gregory Wlodarek",
+          "email": "gregory.wlodarek@mongodb.com"
+        },
+        "summary": "SERVER-131312 Compute oplogNeededForRollback before acquiring the checkpoint mutex to avoid lock-order inversion (#58454)"
+      },
+      "strategy_name": "important_files",
+      "result": {
+        "matched_files": [
+          "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp"
+        ]
+      }
+    },
+    {
+      "commit": {
+        "sha": "4fecfcb85766e4cb4add6642f3b8592e9a3707f5",
+        "short_sha": "4fecfcb8576",
+        "date": "2026-07-14T17:24:50+10:00",
+        "author": {
+          "name": "wt-vendoring-bot[bot]",
+          "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
+        },
+        "summary": "Import wiredtiger: c94cb984e5af50f451f8b29dc4aca483ebf782f9 from branch mongodb-master (#58449)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 18,
+          "num_of_lines": 1155,
+          "lines_added": 898,
+          "lines_deleted": 257,
+          "num_of_dirs": 11
+        }
+      }
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-07-14 06:44:55",
+  "generated_at": "2026-07-14 10:01:21",
   "branch_name": "master",
   "display_name": "master"
 }
