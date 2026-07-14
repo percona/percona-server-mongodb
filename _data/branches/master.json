@@ -5,15 +5,15 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 78,
+    "commits_behind": 79,
     "days_behind": 1,
-    "unmerged_oldest_age_days": 1.0661581689699073,
-    "files_affected": 1106,
-    "total_additions": 13443,
-    "total_deletions": 39027,
+    "unmerged_oldest_age_days": 1.1090683140509259,
+    "files_affected": 1112,
+    "total_additions": 14029,
+    "total_deletions": 39274,
     "date_range": {
       "first": "2026-07-13T08:26:08+00:00",
-      "last": "2026-07-14T09:21:08+00:00"
+      "last": "2026-07-14T10:08:29+00:00"
     }
   },
   "last_merged_commit": {
@@ -41,6 +41,16 @@
     "reason": "force:conflict"
   },
   "unmerged_commits": [
+    {
+      "sha": "688843f59d89e28e3dace688a0ada02d6f8dfaf9",
+      "short_sha": "688843f59d8",
+      "date": "2026-07-14T12:08:29+02:00",
+      "author": {
+        "name": "Aitor Esteve Alvarado",
+        "email": "aitor.esteve@mongodb.com"
+      },
+      "summary": "SERVER-129223 SERVER-130807 SERVER-131168 Reapply \"Extend checkMetadataConsistency checks for delayed secondaries\" (#58463)"
+    },
     {
       "sha": "9f42d59147399f98e4b9d7ce39866b9e9fb02db4",
       "short_sha": "9f42d591473",
@@ -995,7 +1005,7 @@
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-07-14 10:01:21",
+  "generated_at": "2026-07-14 11:03:09",
   "branch_name": "master",
   "display_name": "master"
 }
