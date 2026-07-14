@@ -22,5 +22,6 @@ executor:
       set_parameters:
         enableTestCommands: 1
         featureFlagCostBasedRanker: true
-        internalQueryCBRCEMode: "automaticCE"
-        automaticCEPlanRankingStrategy: "CBRCostBasedRankerChoice"
+        internalQueryPlanRanker: "mixed"
+        internalQueryCBRCEMode: "samplingCE"
+        internalQueryMixedPlanRankingStrategy: "EstimateRankingEffort"

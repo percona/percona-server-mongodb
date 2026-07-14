@@ -1,10 +1,10 @@
 /**
  * Verifies which plan ranker (the cost-based ranker, CBR, or the multi-planner, MP) produces the
  * winning plan, and the reason, across the AutomaticCE plan-ranking strategies:
- *   - CBRCostBasedRankerChoice:     after a brief MP estimation trial, CBR is chosen when it is
- *                                   estimated cheaper than finishing MP.
- *   - CBRForNoMultiplanningResults: CBR is engaged only when MP produced no results within its
- *                                   trial budget.
+ *   - EstimateRankingEffort:     after a brief MP estimation trial, CBR is chosen when it is
+ *                                estimated cheaper than finishing MP.
+ *   - NoMultiplanningResults:    CBR is engaged only when MP produced no results within its
+ *                                trial budget.
  *
  * Each case documents its expected chosenRanker/reason and asserts it via assertChosenRanker().
  */
@@ -14,9 +14,9 @@ import {
     PlanRankerReason,
 } from "jstests/libs/query/analyze_plan.js";
 import {
-    getCBRConfig,
     getExpectedWorksPerPlan,
     getMultiplanningBatchSize,
+    getPlanRankerConfig,
 } from "jstests/libs/query/cbr_utils.js";
 import {checkSbeFullyEnabled} from "jstests/libs/query/sbe_util.js";
 import {LcgRandom} from "jstests/libs/lcg_random.js";
@@ -120,13 +120,14 @@ function checkRanker({
 populateCollection("100", 100, nFields, compoundIndexes);
 populateCollection("20k", 20000, nFields, compoundIndexes);
 
-const prevCBRConfig = getCBRConfig(db);
+const prevCBRConfig = getPlanRankerConfig(db);
 assert.commandWorked(
     db.adminCommand({
         setParameter: 1,
         featureFlagCostBasedRanker: true,
-        internalQueryCBRCEMode: "automaticCE",
-        automaticCEPlanRankingStrategy: "CBRCostBasedRankerChoice",
+        internalQueryPlanRanker: "mixed",
+        internalQueryCBRCEMode: "samplingCE",
+        internalQueryMixedPlanRankingStrategy: "EstimateRankingEffort",
     }),
 );
 try {
@@ -414,15 +415,16 @@ try {
     });
 
     // ----------------------------------------------------------------------------------------
-    // CBRForNoMultiplanningResults: CBR is engaged only when MP produced no results within its
+    // NoMultiplanningResults: CBR is engaged only when MP produced no results within its
     // trial budget. (Scenarios ported from cbr_for_no_mp_results.js.)
     // ----------------------------------------------------------------------------------------
     assert.commandWorked(
         db.adminCommand({
             setParameter: 1,
             featureFlagCostBasedRanker: true,
-            internalQueryCBRCEMode: "automaticCE",
-            automaticCEPlanRankingStrategy: "CBRForNoMultiplanningResults",
+            internalQueryPlanRanker: "mixed",
+            internalQueryCBRCEMode: "samplingCE",
+            internalQueryMixedPlanRankingStrategy: "NoMultiplanningResults",
         }),
     );
 
@@ -522,6 +524,7 @@ try {
         db.adminCommand({
             setParameter: 1,
             featureFlagCostBasedRanker: true,
+            internalQueryPlanRanker: "costBased",
             internalQueryCBRCEMode: "samplingCE",
         }),
     );
@@ -561,8 +564,10 @@ try {
         db.adminCommand({
             setParameter: 1,
             featureFlagCostBasedRanker: prevCBRConfig.featureFlagCostBasedRanker,
+            internalQueryPlanRanker: prevCBRConfig.internalQueryPlanRanker,
             internalQueryCBRCEMode: prevCBRConfig.internalQueryCBRCEMode,
-            automaticCEPlanRankingStrategy: prevCBRConfig.automaticCEPlanRankingStrategy,
+            internalQueryMixedPlanRankingStrategy:
+                prevCBRConfig.internalQueryMixedPlanRankingStrategy,
         }),
     );
 }

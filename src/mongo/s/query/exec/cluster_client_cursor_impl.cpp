@@ -151,6 +151,12 @@ StatusWith<ClusterQueryResult> ClusterClientCursorImpl::next() try {
         auto front = std::move(_stash.front());
         _stash.pop();
         ++_numReturnedSoFar;
+        if (_isChangeStreamQuery) {
+            if (const auto& resultObj = front.getResult()) {
+                ++_docsReturned;
+                _bytesReturned += resultObj->objsize();
+            }
+        }
         return {std::move(front)};
     }
 
@@ -165,6 +171,12 @@ StatusWith<ClusterQueryResult> ClusterClientCursorImpl::next() try {
     }
     if (next.isOK() && !next.getValue().isEOF()) {
         ++_numReturnedSoFar;
+        if (_isChangeStreamQuery) {
+            if (const auto& resultObj = next.getValue().getResult()) {
+                ++_docsReturned;
+                _bytesReturned += resultObj->objsize();
+            }
+        }
     }
     // Record if we just got a MaxTimeMSExpired error.
     _maxTimeMSExpired |= (next.getStatus().code() == ErrorCodes::MaxTimeMSExpired);
@@ -264,10 +276,56 @@ long long ClusterClientCursorImpl::getNumReturnedSoFar() const {
     return _numReturnedSoFar;
 }
 
+void ClusterClientCursorImpl::recordChangeStreamThroughputMetricsForBatch() {
+    if (!_isChangeStreamQuery) {
+        return;
+    }
+
+    // Record the documents and bytes returned since the previous batch, and count this batch. Guard
+    // against errors so a metrics update never disrupts returning results to the client.
+    try {
+        if (const auto docsDelta = _docsReturned - _lastReportedDocsReturned; docsDelta > 0) {
+            change_stream::cursorDocsReturned().add(docsDelta);
+            _lastReportedDocsReturned = _docsReturned;
+            // Only count a batch that actually delivered documents to the client
+            change_stream::cursorBatchesReturned().add(1);
+        }
+        if (const auto bytesDelta = _bytesReturned - _lastReportedBytesReturned; bytesDelta > 0) {
+            change_stream::cursorBytesReturned().add(bytesDelta);
+            _lastReportedBytesReturned = _bytesReturned;
+        }
+
+        // Record the read work performed on the shards since the previous batch. These totals are
+        // aggregated from shard getMore responses in AsyncResultsMerger (via
+        // DataBearingNodeMetrics) and accumulated into '_metrics' before this batch is returned to
+        // the client.
+        const auto docsExamined = _metrics.docsExamined.value_or(0);
+        if (const auto docsExaminedDelta = docsExamined - _lastReportedDocsExamined;
+            docsExaminedDelta > 0) {
+            change_stream::cursorDocsExamined().add(docsExaminedDelta);
+            _lastReportedDocsExamined = docsExamined;
+        }
+        const auto bytesRead = _metrics.bytesRead.value_or(0);
+        if (const auto bytesReadDelta = bytesRead - _lastReportedBytesRead; bytesReadDelta > 0) {
+            change_stream::cursorBytesRead().add(bytesReadDelta);
+            _lastReportedBytesRead = bytesRead;
+        }
+    } catch (...) {
+    }
+}
+
 void ClusterClientCursorImpl::queueResult(ClusterQueryResult&& result) {
     const auto& resultObj = result.getResult();
     if (resultObj) {
         tassert(11052321, "Expected result object to be owned", resultObj->isOwned());
+        // This document was already counted when it emerged from next(); back it out here so that
+        // it is only counted once, when it is re-served from the stash.
+        // TODO SERVER-131216: clean up decrementing counters by extracting counting to call site
+        // where queueResult() is called
+        if (_isChangeStreamQuery) {
+            --_docsReturned;
+            _bytesReturned -= resultObj->objsize();
+        }
     }
     _stash.push(std::move(result));
 }

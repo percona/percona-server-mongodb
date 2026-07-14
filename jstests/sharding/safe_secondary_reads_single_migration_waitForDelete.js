@@ -539,7 +539,7 @@ for (let command of commands) {
     );
 
     let res = staleMongos.getDB(test.runsAgainstAdminDb ? "admin" : db).runCommand(
-        Object.extend(test.command, {
+        Object.assign({}, test.command, {
             $readPreference: {mode: "secondary"},
             readConcern: {"level": "local"},
         }),
@@ -569,7 +569,7 @@ for (let command of commands) {
                 {
                     "command.shardVersion": {"$exists": false},
                     "command.$readPreference": {$exists: false},
-                    "command.readConcern": {"level": "local"},
+                    "command.readConcern.level": "local",
                     "errCode": {"$exists": false},
                 },
                 commandProfile,
@@ -583,7 +583,7 @@ for (let command of commands) {
                 {
                     "command.shardVersion": {"$exists": true},
                     "command.$readPreference": {"mode": "secondary"},
-                    "command.readConcern": {"level": "local"},
+                    "command.readConcern.level": "local",
                     "errCode": ErrorCodes.StaleConfig,
                 },
                 commandProfile,
@@ -599,7 +599,7 @@ for (let command of commands) {
                 {
                     "command.shardVersion": {"$exists": true},
                     "command.$readPreference": {"mode": "secondary"},
-                    "command.readConcern": {"level": "local"},
+                    "command.readConcern.level": "local",
                     "errCode": ErrorCodes.StaleConfig,
                 },
                 commandProfile,
@@ -663,7 +663,7 @@ for (let command of commands) {
                         },
                     ],
                     "command.$readPreference": {"mode": "secondary"},
-                    "command.readConcern": {"level": "local"},
+                    "command.readConcern.level": "local",
                     "errCode": {"$ne": ErrorCodes.StaleConfig},
                 },
                 commandProfile,

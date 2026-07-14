@@ -1,5 +1,9 @@
 /**
  * Ensure that the correct CBR mode is chosen given certain combinations of query knobs.
+ *
+ * @tags: [
+ *   requires_fcv_90,
+ * ]
  */
 
 import {
@@ -12,6 +16,12 @@ import {
     isCollscan,
 } from "jstests/libs/query/analyze_plan.js";
 import {checkSbeFullyEnabled} from "jstests/libs/query/sbe_util.js";
+
+//TODO SERVER-130034 Re-design test relying on the old CE strategy.
+jsTest.log.info(
+    `Skipping ${jsTestName()}: The test is disabled since it uses outdated automatic strategy that is no longer supported.`,
+);
+quit();
 
 // TODO SERVER-92589: Remove this exemption
 if (checkSbeFullyEnabled(db)) {
@@ -229,8 +239,8 @@ function checkWinningPlan({query = {}, project = {}, order = {}}) {
         db.adminCommand({
             setParameter: 1,
             featureFlagCostBasedRanker: true,
-            internalQueryCBRCEMode: "automaticCE",
-            automaticCEPlanRankingStrategy: "HistogramCEWithHeuristicFallback",
+            internalQueryPlanRanker: "costBased",
+            internalQueryCBRCEMode: "samplingCE",
         }),
     );
     const e1 = coll.find(query, project).sort(order).explain("executionStats");
@@ -267,21 +277,20 @@ function checkWinningPlan({query = {}, project = {}, order = {}}) {
     const cbrWorksEpsilon = 1;
 
     // Uncomment to enable more detailed logging to determine which query caused a failure
-    // jsTestLog(`Query ${tojson(query)}, project ${tojson(project)}, order ${tojson(order)}`);
-    // if (e1.executionStats.totalKeysExamined > e0.executionStats.totalKeysExamined) {
-    //     jsTestLog(`e0 ${tojson(e0)})`);
-    //     jsTestLog(`e1 ${tojson(e1)})`);
-    // }
-    // if (e1.executionStats.totalDocsExamined > e0.executionStats.totalDocsExamined) {
-    //     jsTestLog(`e0 ${tojson(e0)})`);
-    //     jsTestLog(`e1 ${tojson(e1)})`);
-    // }
+    if (
+        e1.executionStats.totalKeysExamined > e0.executionStats.totalKeysExamined ||
+        e1.executionStats.totalDocsExamined > e0.executionStats.totalDocsExamined
+    ) {
+        jsTest.log.info("CBR regression details", {query, project, order, e0, e1});
+    }
+
     // if (e1.executionStats.executionStages.works > e0.executionStats.executionStages.works + cbrWorksEpsilon) {
     //     jsTestLog(`e0 ${tojson(e0)})`);
     //     jsTestLog(`e1 ${tojson(e1)})`);
     // }
 
     // CBR's plan must be no worse than the Classic plan
+
     assert(e1.executionStats.totalKeysExamined <= e0.executionStats.totalKeysExamined);
     assert(e1.executionStats.totalDocsExamined <= e0.executionStats.totalDocsExamined);
     // There are cases when a plan may scan twice fewer keys and documents, and still produce more
@@ -302,7 +311,8 @@ function verifyCollectionCardinalityEstimate() {
         db.adminCommand({
             setParameter: 1,
             featureFlagCostBasedRanker: true,
-            internalQueryCBRCEMode: "automaticCE",
+            internalQueryPlanRanker: "mixed",
+            internalQueryCBRCEMode: "samplingCE",
         }),
     );
     // This query should not have any predicates, as they are taken into account
@@ -324,6 +334,7 @@ function verifyHeuristicEstimateSource() {
         db.adminCommand({
             setParameter: 1,
             featureFlagCostBasedRanker: true,
+            internalQueryPlanRanker: "costBased",
             internalQueryCBRCEMode: "heuristicCE",
         }),
     );
@@ -347,6 +358,7 @@ function verifySamplingCEIndexSeekEstimate() {
         db.adminCommand({
             setParameter: 1,
             featureFlagCostBasedRanker: true,
+            internalQueryPlanRanker: "costBased",
             internalQueryCBRCEMode: "samplingCE",
         }),
     );
@@ -379,6 +391,7 @@ function verifyFetchOverFetchDoesNotAssert() {
         db.adminCommand({
             setParameter: 1,
             featureFlagCostBasedRanker: true,
+            internalQueryPlanRanker: "costBased",
             internalQueryCBRCEMode: "heuristicCE",
         }),
     );
@@ -433,7 +446,7 @@ try {
     // With strict mode Histogram CE without an applicable histogram should produce
     // an error. Automatic mode should result in heuristicCE or mixedCE.
 
-    // TODO SERVER-97867: Since in automaticCE mode we always fallback to heuristic CE,
+    // TODO SERVER-97867: Since in mixed plan ranking mode we always fallback to heuristic CE,
     // it is not possible to ever fallback to multi-planning.
 
     assert.commandWorked(coll1.insertOne({a: 1}));
@@ -442,6 +455,7 @@ try {
         db.adminCommand({
             setParameter: 1,
             featureFlagCostBasedRanker: true,
+            internalQueryPlanRanker: "costBased",
             internalQueryCBRCEMode: "histogramCE",
         }),
     );

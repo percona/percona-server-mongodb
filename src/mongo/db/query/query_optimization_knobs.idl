@@ -1,30 +1,5 @@
-# Copyright (C) 2026-present MongoDB, Inc.
-#
-# This program is free software: you can redistribute it and/or modify
-# it under the terms of the Server Side Public License, version 1,
-# as published by MongoDB, Inc.
-#
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# Server Side Public License for more details.
-#
-# You should have received a copy of the Server Side Public License
-# along with this program. If not, see
-# <http://www.mongodb.com/licensing/server-side-public-license>.
-#
-# As a special exception, the copyright holders give permission to link the
-# code of portions of this program with the OpenSSL library under certain
-# conditions as described in each individual source file and distribute
-# linked combinations including the program with the OpenSSL library. You
-# must comply with the Server Side Public License in all respects for
-# all of the code used other than as permitted herein. If you modify file(s)
-# with this exception, you may extend this exception to your version of the
-# file(s), but you are not obligated to do so. If you do not wish to do so,
-# delete this exception statement from your version. If you delete this
-# exception statement from all source files in the program, then also delete
-# it in the license file.
-#
+# Copyright (c) MongoDB, Inc.
+# SPDX-License-Identifier: SSPL-1.0
 
 imports:
     - "mongo/db/topology/cluster_parameters/cluster_server_parameter.idl"
@@ -42,26 +17,33 @@ global:
     mod_visibility: private
 
 enums:
-    QueryPlanRankerMode:
+    QueryPlanRanker:
+        mod_visibility: public
+        description: "Enum for possible values for internalQueryPlanRanker."
+        type: string
+        values:
+            kMultiPlanner: "multiPlanning"
+            kCostBased: "costBased"
+            kMixed: "mixed"
+
+    QueryCBRCEMode:
         mod_visibility: public
         description: "Enum for possible values for internalQueryCBRCEMode."
         type: string
         values:
-            kAutomaticCE: "automaticCE"
             # This mode is for testing purposes only, it is not meant to be efficient at all.
             kExactCE: "exactCE"
             kHistogramCE: "histogramCE"
             kSamplingCE: "samplingCE"
             kHeuristicCE: "heuristicCE"
 
-    QueryPlanRankingStrategyForAutomaticQueryPlanRankerMode:
+    QueryMixedPlanRankingStrategy:
         mod_visibility: public
-        description: "Enum for possible values for QueryPlanRankingStrategyForAutomaticQueryPlanRankerMode."
+        description: "Enum for possible values for QueryMixedPlanRankingStrategy when the plan ranker is mixed."
         type: string
         values:
-            kCBRForNoMultiplanningResults: "CBRForNoMultiplanningResults"
-            kCBRCostBasedRankerChoice: "CBRCostBasedRankerChoice"
-            kHistogramCEWithHeuristicFallback: "HistogramCEWithHeuristicFallback"
+            kNoMultiplanningResults: "NoMultiplanningResults"
+            kEstimateRankingEffort: "EstimateRankingEffort"
 
     SamplingCEMethod:
         mod_visibility: public
@@ -1032,36 +1014,63 @@ server_parameters:
             query_knob:
                 wire_name: doNotOpenContainedOrsInSimplifier
 
-    internalQueryCBRCEMode:
+    internalQueryPlanRanker:
         mod_visibility: public
-        description: "Cardinality estimation mode for the cost-based ranker."
+        description: >-
+            Top-level parameter to control query plan ranker.
+            The featureFlagCostBasedRanker has a precedence: if it is false the only possible
+            ranker is the multiPlanner.
         set_at: [startup, runtime]
         cpp_class:
-            name: QueryPlanRankerMode
-            data: WithOnUpdateHook<synchronized_value<QueryPlanRankerModeEnum>>
+            name: QueryPlanRanker
+            data: WithOnUpdateHook<synchronized_value<QueryPlanRankerEnum>>
         default:
-            expr: QueryPlanRankerModeEnum::kAutomaticCE
+            expr: QueryPlanRankerEnum::kMixed
         redact: false
         annotations:
             query_knob:
-                wire_name: planRankerMode
+                wire_name: planRanker
                 pqs_settable: true
                 fcv:
                     min: "9.0"
 
-    automaticCEPlanRankingStrategy:
+    internalQueryCBRCEMode:
         mod_visibility: public
-        description: "Controls the plan ranking strategy to use when automaticCE is selected as internalQueryCBRCEMode"
+        description: >-
+            Second-level parameter to control cardinality estimation (CE) mode when
+            the cost-based plan ranker is chosen by the internalQueryPlanRanker.
+            When the internalQueryPlanRanker is set to mixed, this parameter is overriden by the
+            samplingCE. The parameter has no effect for multiPlanner.
         set_at: [startup, runtime]
         cpp_class:
-            name: QueryPlanRankingStrategyForAutomaticQueryPlanRankerMode
-            data: WithOnUpdateHook<synchronized_value<QueryPlanRankingStrategyForAutomaticQueryPlanRankerModeEnum>>
+            name: QueryCBRCEMode
+            data: WithOnUpdateHook<synchronized_value<QueryCBRCEModeEnum>>
         default:
-            expr: QueryPlanRankingStrategyForAutomaticQueryPlanRankerModeEnum::kCBRForNoMultiplanningResults
+            expr: QueryCBRCEModeEnum::kSamplingCE
         redact: false
         annotations:
             query_knob:
-                wire_name: automaticCEPlanRankingStrategy
+                wire_name: cbrCEMode
+                pqs_settable: true
+                fcv:
+                    min: "9.0"
+
+    internalQueryMixedPlanRankingStrategy:
+        mod_visibility: public
+        description: >-
+            Second-level parameter to control the plan ranking strategy when
+            the top-level internalQueryPlanRanker is set to mixed. The parameter has
+            no effect for multiPlanner and costBased values of internalQueryPlanRanker.
+        set_at: [startup, runtime]
+        cpp_class:
+            name: QueryMixedPlanRankingStrategy
+            data: WithOnUpdateHook<synchronized_value<QueryMixedPlanRankingStrategyEnum>>
+        default:
+            expr: QueryMixedPlanRankingStrategyEnum::kNoMultiplanningResults
+        redact: false
+        annotations:
+            query_knob:
+                wire_name: mixedPlanRankingStrategy
                 pqs_settable: true
                 fcv:
                     min: "9.0"

@@ -244,14 +244,18 @@ inline Atomic<bool>& gKnobNoTableScan = storageGlobalParams.noTableScan;
          internalEnablePipelineOptimizationAdditionalTestingRules,                        \
          getEnablePipelineOptimizationAdditionalTestingRules)                             \
     /* cpp_class enum knobs */                                                            \
-    KNOB(kPlanRankerMode,                                                                 \
+    KNOB(kPlanRanker,                                                                     \
+         kInternalQueryPlanRankerName,                                                    \
+         QueryPlanRanker,                                                                 \
+         getPlanRanker)                                                                   \
+    KNOB(kCBRCEMode,                                                                      \
          kInternalQueryCBRCEModeName,                                                     \
-         QueryPlanRankerMode,                                                             \
-         getPlanRankerMode)                                                               \
-    KNOB(kPlanRankingStrategyForAutomaticQueryPlanRankerMode,                             \
-         kAutomaticCEPlanRankingStrategyName,                                             \
-         QueryPlanRankingStrategyForAutomaticQueryPlanRankerMode,                         \
-         getPlanRankingStrategyForAutomaticQueryPlanRankerMode)                           \
+         QueryCBRCEMode,                                                                  \
+         getCBRCEMode)                                                                    \
+    KNOB(kMixedPlanRankingStrategy,                                                       \
+         kInternalQueryMixedPlanRankingStrategyName,                                      \
+         QueryMixedPlanRankingStrategy,                                                   \
+         getMixedPlanRankingStrategy)                                                     \
     KNOB(kSamplingConfidenceInterval,                                                     \
          kSamplingConfidenceIntervalName,                                                 \
          SamplingConfidenceInterval,                                                      \
