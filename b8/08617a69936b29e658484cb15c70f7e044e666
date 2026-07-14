@@ -1,0 +1,440 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "6a1f7d818fe46323680390d4577ae46dc6ca57b0",
+    "merge_commit": "60633dbc4fbefc23b05ef836e6249f476ba2fefc"
+  },
+  "mergai_version": "0.1.dev1+gaa14b121b",
+  "conflict_context": {
+    "ours_commit": "6a1f7d818fe46323680390d4577ae46dc6ca57b0",
+    "theirs_commit": "60633dbc4fbefc23b05ef836e6249f476ba2fefc",
+    "base_commit": "fa51be8344c4612a35f89cb92df8de7e49290dc8",
+    "files": [
+      "src/mongo/db/commands/profile_common.cpp"
+    ],
+    "conflict_types": {
+      "src/mongo/db/commands/profile_common.cpp": "both modified"
+    },
+    "diffs": {
+      "src/mongo/db/commands/profile_common.cpp": "diff --cc src/mongo/db/commands/profile_common.cpp\nindex 06af3b37b5d,4c3a82f597e..00000000000\n--- a/src/mongo/db/commands/profile_common.cpp\n+++ b/src/mongo/db/commands/profile_common.cpp\n@@@ -38,1 -38,1 +38,7 @@@ namespace \n++<<<<<<< HEAD\n +MONGO_STATIC_ASSERT(ProfileCmdRequest::fieldMetadata.size() == 52 + 1);\n++||||||| fa51be8344c\n++MONGO_STATIC_ASSERT(ProfileCmdRequest::fieldMetadata.size() == 52);\n++=======\n+ MONGO_STATIC_ASSERT(ProfileCmdRequest::fieldMetadata.size() == 53);\n++>>>>>>> 60633dbc4fbefc23b05ef836e6249f476ba2fefc"
+    },
+    "their_commits": {
+      "src/mongo/db/commands/profile_common.cpp": [
+        "fdec2d8a467d9853362b79599b780119a6df43d0"
+      ]
+    }
+  },
+  "merge_context": {
+    "merge_commit": "60633dbc4fbefc23b05ef836e6249f476ba2fefc",
+    "merged_commits": [
+      "60633dbc4fbefc23b05ef836e6249f476ba2fefc",
+      "d04d5facccd2a803d2ddc80158b6e0ffef1b0dd1",
+      "5f3d23f1069e6344953a376e3c9c7519e42cd0cf",
+      "9da8a1bde48a97df2a7fc80b42c87ef7e15c6699",
+      "57e32a92ca28e60f5c1c54af0a5a5a728c5dba51",
+      "4a50784cdb3d5dc8e5ed761a82f341d298d1aab7",
+      "8a28907749a0ad46aae2533ffadf38a1084ab28d",
+      "42ae40b5fce889f027a9775899d0e3c788ba9406",
+      "53c3a44c084eb56c9ff86907037f1e0c9fdf7662",
+      "80993c8974f89f69ac1f727a5f6ea99de76a853b",
+      "d6d17f1ed372bba36306ace10dde0fb7695715b4",
+      "d7dac6d8c784f7285551ce5ce4a61ece178e66dc",
+      "04c4e5f57d43dbf74d25f5fb684163dd109334cf",
+      "86f7ded6e1921e4fdb9326906db537daac13e61e",
+      "dc8cfe24a34f9e83ff9d2def6d711e6d36e0259f",
+      "93e8d5183977d64a0acc8ed8ac3414be2f7ccac9",
+      "6a0097134c2c9a4bf2ccfaca34a31ddb74ade52a",
+      "4c4aaf14763c346888063e9653904e21dca80c7e",
+      "032bf22ae9e67e8efea40763cb38bc4bf73559f5",
+      "119ed3aa5bd9015647eb84504b482a0977f4136b",
+      "5518b31f78b7d33a5e28a91229ff17f2f326e924",
+      "3e6cd2475eb3131eca699a26d0abcc811038a3ac",
+      "38153735da35e529807a38eb0b8dd9f8d9c6994b",
+      "feee048a2557978b2d3eae0228f35fd164e5190c",
+      "8c7e76433fdc917aa622586acb614573fde65acf",
+      "d8de7a0bdeb6d225f3345c6417248981ca6862dd",
+      "8ce9b7c1ec463f2d98b963cfac39839a2f45e260",
+      "ad3946b5f3f7d41b227349415b2d084f6aae5a23",
+      "c6488fb0904cd296b9c30e6eac0e724538f072c4",
+      "d0d3819ff5f33f069ab4bbb4cfa27ed17ba40c53",
+      "beae078d23f7b3cbfcc128f3ea36879ca19ee91a",
+      "8b7b35f23cd32485fb7eaad21d8c87dde47825d5",
+      "f23f92d463d3662f52ad798f890984329f4e809c",
+      "0581f758beb6d2e42eb55e58f39fd9da974ed7ec",
+      "3f9319eeaea54c13fe8ce5680dfd299d9f3666e6",
+      "7ecca16d7ed6a1b9dc4eb474c37c13813694ea8a",
+      "f47828bd5a126d19fd692eea8d4d96b4634a839a",
+      "1b84b9ba81a038aaf4934e797aac353592b8f1dd",
+      "fcd78eb10d9d027f8363deab9167d8b1d9349e60",
+      "50b3d441dbbea73fb3690d63a93fabf5b1f6c373",
+      "fdec2d8a467d9853362b79599b780119a6df43d0",
+      "b0dac4510a27d09a5cf2174862443294b9c83dcd",
+      "b85847f4bc12e9a74caec1bd1cd73cc153496a1e",
+      "e8ef0d6a4808805cc2c3b0bf7bbeec764ab66c4c",
+      "8684300ea3ce7deb929325362ceac77b3550c561",
+      "f0e16b2da4b26ab320a5aed64e9dee2fa7229519",
+      "4cc1fcbe73de52cc0f9d50c4f16bc2dc0ba167ac",
+      "a94ecc4080ceb11a35656b2f042b26faabf0d61b",
+      "2b01c08d6b8f37ab37062e3f6b92c78c7daa3e83",
+      "a9d51fcc188a1fed6792832d22734ce1bba6e18b",
+      "a6358693c8cb35f65f6531c143a047206d90cbb9",
+      "4b13f8eb08849b8d613b2b6a4f66708127e6e043",
+      "40a2787a5b84f8f1e3eda896f0008f4c70be800f",
+      "dc30236ff581b5f61b8eccc34ec43161bfc72fd0"
+    ],
+    "important_files_modified": [],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        "buildscripts/idl/idl/binder.py",
+        "buildscripts/idl/idl/errors.py",
+        "buildscripts/idl/idl/generator.py",
+        "buildscripts/idl/idl/parser.py",
+        "buildscripts/resmokelib/testing/fixtures/shardedcluster.py",
+        "jstests/sharding/read_write_concern_defaults_application.js",
+        "jstests/sharding/safe_secondary_reads_drop_recreate.js",
+        "jstests/sharding/safe_secondary_reads_single_migration_suspend_range_deletion.js",
+        "jstests/sharding/safe_secondary_reads_single_migration_waitForDelete.js",
+        "src/mongo/base/error_codes.yml",
+        "src/mongo/config.h.in",
+        "src/mongo/db/BUILD.bazel",
+        "src/mongo/db/auth/action_type.idl",
+        "src/mongo/db/auth/builtin_roles.yml",
+        "src/mongo/db/auth/sasl_options.idl",
+        "src/mongo/db/commands/BUILD.bazel",
+        "src/mongo/db/commands/profile.idl",
+        "src/mongo/db/commands/profile_common.cpp",
+        "src/mongo/db/ftdc/ftdc_server.idl",
+        "src/mongo/db/pipeline/BUILD.bazel",
+        "src/mongo/db/server_options_general.idl",
+        "src/mongo/db/server_options_nongeneral.idl",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_global_options.idl",
+        "src/mongo/rpc/BUILD.bazel",
+        "src/mongo/s/BUILD.bazel",
+        "src/mongo/shell/shell_options.idl",
+        "src/mongo/tools/mongobridge_tool/mongobridge_options.idl",
+        "src/mongo/util/buildinfo.idl",
+        "src/mongo/util/net/ssl_options_client.idl",
+        "src/mongo/util/net/ssl_options_server.idl"
+      ]
+    }
+  },
+  "solutions": [
+    {
+      "type": "conflict_resolution",
+      "response": {
+        "summary": "Resolve conflicts for merge commit '60633dbc4fb' into master",
+        "resolved": {
+          "src/mongo/db/commands/profile_common.cpp": "Resolved by human"
+        },
+        "unresolved": {},
+        "modified": {},
+        "review_notes": "Resolved the static_assert field-count conflict in profile_common.cpp by\ncombining upstream's new profile field with Percona's added field.\n\nResolved:\n\tsrc/mongo/db/commands/profile_common.cpp\n\nNote: commit created by mergai"
+      },
+      "author": {
+        "name": "psmdb-bot[bot]",
+        "email": "2942401+psmdb-bot[bot]@users.noreply.github.com",
+        "type": "human"
+      },
+      "commit_sha": "97c475ebfad005d01d27af6e85d6b529b9a3eebe"
+    }
+  ],
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 159930,
+    "num_turns": 14,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.6118802500000001,
+    "modelUsage": {
+      "claude-haiku-4-5-20251001": {
+        "inputTokens": 603,
+        "outputTokens": 14,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0,
+        "webSearchRequests": 0,
+        "costUSD": 0.000673,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000
+      },
+      "claude-opus-4-8": {
+        "inputTokens": 22,
+        "outputTokens": 11148,
+        "cacheReadInputTokens": 244782,
+        "cacheCreationInputTokens": 33601,
+        "webSearchRequests": 0,
+        "costUSD": 0.6112072500000001,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-haiku-4-5-20251001": {
+          "tokens": {
+            "input": 603,
+            "output": 14,
+            "cache_read": 0,
+            "cache_creation": 0
+          },
+          "cost_usd": 0.000673
+        },
+        "claude-opus-4-8": {
+          "tokens": {
+            "input": 22,
+            "output": 11148,
+            "cache_read": 244782,
+            "cache_creation": 33601
+          },
+          "cost_usd": 0.6112072500000001
+        }
+      }
+    },
+    "text_result": "I've inspected the actual `diff base \u2192 merge commit` diffs for every file in the changeset and written the JSON response.\n\nSummary of what this merge introduces:\n\n**Two dominant upstream changes:**\n1. **SERVER-127760** (SPDX license headers, round 2) \u2014 mechanically replaces the long SSPL header block with the two-line SPDX form in all the `.py` and `.idl` files listed (verified they contain *no* functional changes, only header lines).\n2. **SERVER-125035** (accelerating configTime wait on readable standby clusters) \u2014 adds a new generic command argument (bumping the `ProfileCmdRequest` field count), a `stale_config_retry_attempt` component wired into `rpc/` and `s/` BUILD.bazel, an optional `UnrecognizedIFRFlagInfo` extra on error code 480, new/updated unit-test targets, and reworked jstest assertions (dotted-field readConcern matches; regex\u2192parsed-JSON RWC log verification).\n\n**The one conflict** \u2014 `profile_common.cpp`: the static-assert count. Base was `52`, upstream incoming is `53`, and the fork tip carried `52 + 1`. Both sides land on 53, but I flagged in the review notes that the resolver must confirm the fork's own `+1` field is still genuinely accounted for rather than silently absorbed.\n\nI verified each non-license file's diff directly rather than inferring from names, and confirmed the license-only files contain nothing beyond header lines.",
+    "response": {
+      "summary": "This merge pulls in upstream MongoDB changes since the fork's diff base (fa51be8344c). Two upstream changes dominate the changeset. (1) SERVER-127760 (\"switch to SPDX license headers round 2\", #58311) replaces the long multi-line SSPL license header block at the top of many source files with the two-line SPDX form (`Copyright (c) MongoDB, Inc.` / `SPDX-License-Identifier: SSPL-1.0`); this accounts for the license-only churn in the .py and .idl files. (2) SERVER-125035 (\"Pave the path for accelerating configTime wait on readable standby clusters\", #58061) adds a new generic command argument and a `stale_config_retry_attempt` component, wires the new deps into several BUILD.bazel files, extends the UnrecognizedIFRFlag error code with an optional extra info payload, and bumps the ProfileCmdRequest field-count static assert. The one conflict is in src/mongo/db/commands/profile_common.cpp over that static-assert count.",
+      "auto_merged": {
+        "buildscripts/idl/idl/binder.py": "License-header change only: the multi-line SSPL header is replaced by the two-line SPDX header. No code changes.",
+        "buildscripts/idl/idl/errors.py": "License-header change only (SSPL block replaced by SPDX two-line header). No code changes.",
+        "buildscripts/idl/idl/generator.py": "License-header change only (SSPL block replaced by SPDX two-line header). No code changes.",
+        "buildscripts/idl/idl/parser.py": "License-header change only (SSPL block replaced by SPDX two-line header). No code changes.",
+        "buildscripts/resmokelib/testing/fixtures/shardedcluster.py": "Removes the block in ShardedClusterFixture that (on non-multiversion runs) enabled the `reshardingDocumentVerification` mongod parameter and raised `reshardingDocumentValidationMaxCollectionSizeBytes` to 1073741824 by default. Those defaults are no longer set by the fixture.",
+        "jstests/sharding/read_write_concern_defaults_application.js": "Rewrites the slow-query log verification: the old regex-based `createLogLineRegularExpressionForTestCase` is replaced by `checkLogEntryRWC`, which finds the matching log entry by comment (requiring the writeConcern/readConcern attrs to be present so it skips inner write sub-ops), parses it as JSON, and asserts on the parsed RC/WC fields (level, provenance, optional afterClusterTime, w, wtimeout). Adds two optional per-test-case flags, `skipWCProvenanceCheck` and `skipWCWtimeoutCheck` (validated in `validateTestCase`), and sets both on the `setDefaultRWConcern` actual test case since that command forwards to the config server via appendMajorityWriteConcern and cannot reliably preserve provenance/wtimeout.",
+        "jstests/sharding/safe_secondary_reads_drop_recreate.js": "Updates the profiler match filters from exact-document match `\"command.readConcern\": {\"level\": \"local\"}` to the dotted-field form `\"command.readConcern.level\": \"local\"` in several scenario assertions, so the match no longer requires readConcern to be exactly `{level: local}` (tolerating additional readConcern fields).",
+        "jstests/sharding/safe_secondary_reads_single_migration_suspend_range_deletion.js": "Same change as the other safe_secondary_reads tests: profiler filters switched from exact `\"command.readConcern\": {\"level\": \"local\"}` to dotted `\"command.readConcern.level\": \"local\"`.",
+        "jstests/sharding/safe_secondary_reads_single_migration_waitForDelete.js": "Same change: profiler filters switched from exact `\"command.readConcern\": {\"level\": \"local\"}` to dotted `\"command.readConcern.level\": \"local\"`.",
+        "src/mongo/base/error_codes.yml": "Extends error code 480 `UnrecognizedIFRFlag`: it now carries `extra: UnrecognizedIFRFlagInfo` with `extraIsOptional: true`, with a TODO (SERVER-131201) noting the optional-extra handling during the multiversion window. Previously the code had no extra info.",
+        "src/mongo/config.h.in": "License-header change only (SSPL block replaced by SPDX two-line header, in C-style comment form). No code changes.",
+        "src/mongo/db/BUILD.bazel": "Adds `ifr_unrecognized_flag_info.cpp` to the server_base library sources and adds a new `ifr_unrecognized_flag_info_test` mongo_cc_unit_test target (srcs ifr_unrecognized_flag_info_test.cpp, deps :server_base, tag mongo_unittest_second_group).",
+        "src/mongo/db/auth/action_type.idl": "License-header change only (SSPL block replaced by SPDX two-line header). No definition changes.",
+        "src/mongo/db/auth/builtin_roles.yml": "License-header change only (SSPL block replaced by SPDX two-line header). No role changes.",
+        "src/mongo/db/auth/sasl_options.idl": "License-header change only (SSPL block replaced by SPDX two-line header). No definition changes.",
+        "src/mongo/db/commands/BUILD.bazel": "Adds a new `txn_cmds_test` mongo_cc_unit_test target (srcs txn_cmds_test.cpp, deps :txn_cmd_request and //src/mongo/idl:idl_parser, tag mongo_unittest_first_group).",
+        "src/mongo/db/commands/profile.idl": "License-header change only (SSPL block replaced by SPDX two-line header). No field/definition changes.",
+        "src/mongo/db/commands/profile_common.cpp": "The `MONGO_STATIC_ASSERT(ProfileCmdRequest::fieldMetadata.size() == N)` count is bumped from 52 to 53 (upstream side), reflecting a newly added generic command argument. NOTE: this file is the one merge conflict \u2014 the fork tip carried `== 52 + 1` (its own +1 customization) while upstream base had `== 52` and the incoming commit has `== 53`; the counts coincide (both equal 53) but the expressions differ, so the conflict must be resolved deliberately.",
+        "src/mongo/db/ftdc/ftdc_server.idl": "License-header change only (SSPL block replaced by SPDX two-line header). No definition changes.",
+        "src/mongo/db/pipeline/BUILD.bazel": "Adds the dependency `//src/mongo/db/query/query_knobs:query_knob_configuration_test_util` to a pipeline mongo_cc_unit_test target.",
+        "src/mongo/db/server_options_general.idl": "License-header change only (SSPL block replaced by SPDX two-line header). No definition changes.",
+        "src/mongo/db/server_options_nongeneral.idl": "License-header change only (SSPL block replaced by SPDX two-line header). No definition changes.",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_global_options.idl": "License-header change only (SSPL block replaced by SPDX two-line header). No definition changes.",
+        "src/mongo/rpc/BUILD.bazel": "Adds the dependency `//src/mongo/db/sharding_environment:stale_config_retry_attempt` to an rpc mongo_cc_library target.",
+        "src/mongo/s/BUILD.bazel": "Adds the dependency `//src/mongo/db/sharding_environment:stale_config_retry_attempt` to a mongo_cc_library target and to a mongo_cc_unit_test target.",
+        "src/mongo/shell/shell_options.idl": "License-header change only (SSPL block replaced by SPDX two-line header). No definition changes.",
+        "src/mongo/tools/mongobridge_tool/mongobridge_options.idl": "License-header change only (SSPL block replaced by SPDX two-line header). No definition changes.",
+        "src/mongo/util/buildinfo.idl": "License-header change only (SSPL block replaced by SPDX two-line header). No definition changes.",
+        "src/mongo/util/net/ssl_options_client.idl": "License-header change only (SSPL block replaced by SPDX two-line header). No definition changes.",
+        "src/mongo/util/net/ssl_options_server.idl": "License-header change only (SSPL block replaced by SPDX two-line header). No definition changes."
+      },
+      "review_notes": "Only src/mongo/db/commands/profile_common.cpp conflicts. It is a 'both modified' conflict on the field-count static assert: base=52, incoming (upstream #58061) =53, fork tip = `52 + 1`. Both sides intend the value 53, so resolving to `== 53` is functionally correct, but confirm the fork's own `+ 1` field is still accounted for (i.e. that the fork's added ProfileCmdRequest field is not being dropped and the total genuinely equals 53 after the merge). The rest of the changeset is auto-merged: the bulk is a mechanical upstream SPDX license-header conversion (SERVER-127760) across many .py/.idl files with no functional impact, plus SERVER-125035 additions (new generic argument, stale_config_retry_attempt component wired into rpc/s BUILD.bazel, UnrecognizedIFRFlag gaining an optional extra info, and new/updated unit-test targets and jstest assertions). The jstests switch readConcern profiler matches to dotted-field form and rework RWC log verification, consistent with readConcern now potentially carrying afterClusterTime. None of these auto-merged files touch Percona-specific customizations."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I'll inspect the actual diffs for each file in the changeset. Let me start with the conflict file and the auto-merged files."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "The stat is large but I only need to describe the files listed under `auto_merged.files`. Let me get the diffs for those specific files."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "Many files show a common ~29-line pattern (likely license headers). Let me inspect the actual content of representative files."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "Let me inspect a Python file, the BUILD.bazel additions, error_codes.yml, config.h.in, and the JS test changes."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "Now let me inspect error_codes.yml, config.h.in, builtin_roles.yml, the JS test, and shardedcluster.py."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "Let me check the substantive JS test change and confirm the profile field source."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I have enough understanding. Let me quickly confirm the remaining IDL/py files are license-header-only by checking their diffs don't extend beyond the header region."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "All confirmed license-header-only. Now I'll write the JSON response."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I've inspected the actual `diff base \u2192 merge commit` diffs for every file in the changeset and written the JSON response.\n\nSummary of what this merge introduces:\n\n**Two dominant upstream changes:**\n1. **SERVER-127760** (SPDX license headers, round 2) \u2014 mechanically replaces the long SSPL header block with the two-line SPDX form in all the `.py` and `.idl` files listed (verified they contain *no* functional changes, only header lines).\n2. **SERVER-125035** (accelerating configTime wait on readable standby clusters) \u2014 adds a new generic command argument (bumping the `ProfileCmdRequest` field count), a `stale_config_retry_attempt` component wired into `rpc/` and `s/` BUILD.bazel, an optional `UnrecognizedIFRFlagInfo` extra on error code 480, new/updated unit-test targets, and reworked jstest assertions (dotted-field readConcern matches; regex\u2192parsed-JSON RWC log verification).\n\n**The one conflict** \u2014 `profile_common.cpp`: the static-assert count. Base was `52`, upstream incoming is `53`, and the fork tip carried `52 + 1`. Both sides land on 53, but I flagged in the review notes that the resolver must confirm the fork's own `+1` field is still genuinely accounted for rather than silently absorbed.\n\nI verified each non-license file's diff directly rather than inferring from names, and confirmed the license-only files contain nothing beyond header lines."
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20260714_130215_110574.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.209 (Claude Code)"
+    }
+  },
+  "note_index": [
+    {
+      "sha": "b808617a69936b29e658484cb15c70f7e044e666",
+      "fields": [
+        "conflict_context",
+        "merge_context",
+        "solutions[0]",
+        "merge_description",
+        "squashed_commits"
+      ]
+    }
+  ],
+  "squashed_commits": [
+    {
+      "sha": "98ab9331128c6721ed42cd37cea9d547febd9798",
+      "message": "Merge commit '60633dbc4fb' into master"
+    },
+    {
+      "sha": "97c475ebfad005d01d27af6e85d6b529b9a3eebe",
+      "message": "Resolve conflicts for merge commit '60633dbc4fb' into master"
+    }
+  ]
+}
