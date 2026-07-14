@@ -1,0 +1,29 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "6a1f7d818fe46323680390d4577ae46dc6ca57b0",
+    "merge_commit": "60633dbc4fbefc23b05ef836e6249f476ba2fefc"
+  },
+  "mergai_version": "0.1.dev1+gaa14b121b",
+  "solutions": [
+    {
+      "type": "conflict_resolution",
+      "response": {
+        "summary": "Fix 'build-and-test' failure for merge commit '60633dbc4fb' into 'master'",
+        "resolved": {},
+        "unresolved": {},
+        "modified": {
+          "buildscripts/resmokeconfig/suites/core_tde_cbc.yml": "Modified by human",
+          "buildscripts/resmokeconfig/suites/core_tde_gcm.yml": "Modified by human"
+        },
+        "review_notes": "Bucket (a): an upstream merge added\njstests/core/administrative/block_replica_set_writes.js and excluded it\nfrom the standalone `core` suite (the blockReplicaSetWrites command\ncannot run on standalones). The Percona-owned TDE core suites\n(core_tde_cbc/core_tde_gcm) mirror `core` on a standalone MongoDFixture\nbut lacked that exclusion, so the new test ran on a standalone, its\nparallel-shell command failed with 'blockReplicaSetWrites cannot be run\non standalones', the hangInBlockReplicaSetWritesCommand failpoint was\nnever entered twice, and fp.wait timed out (MaxTimeMSExpired). Added the\nsame file exclusion to both TDE core suites.\n\nResolved:\n\tbuildscripts/resmokeconfig/suites/core_tde_cbc.yml\n\tbuildscripts/resmokeconfig/suites/core_tde_gcm.yml\n\nCI: build-and-test run 29336913915 (attempt 1 of 2)\n\nNote: commit created by mergai"
+      },
+      "author": {
+        "name": "psmdb-bot[bot]",
+        "email": "2942401+psmdb-bot[bot]@users.noreply.github.com",
+        "type": "human"
+      },
+      "commit_sha": "8edab26e8f066881884cf758e574465843c2481d"
+    }
+  ]
+}
