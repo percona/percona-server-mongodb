@@ -50,6 +50,18 @@ const excludeKnobs = [
     // "histogramCE" makes explain fail with HistogramCEFailure since no histogram exists on the
     // filtered path, which is a server-side guardrail rather than a validation divergence.
     "internalQueryCBRCEMode",
+    // Memory limit caps: small values make the representative query fail with ExceededMemoryLimit,
+    // a server-side guardrail rather than a validation divergence.
+    "internalQueryMaxPushBytes",
+    "internalQueryMaxAddToSetBytes",
+    "internalQueryMaxConcatArraysBytes",
+    "internalQueryMaxSetUnionBytes",
+    "internalQueryTopNAccumulatorBytes",
+    "internalQueryMaxPercentileAccumulatorBytes",
+    "internalQueryMaxMemoryUsageBytesPerOperation",
+    // TODO(SERVER-131174): Lowering this process-wide breaks the concurrent CheckMetadataConsistency
+    // hook's $group (no allowDiskUse). Re-include once fixed.
+    "internalDocumentSourceGroupMaxMemoryBytes",
 ];
 
 // Only pqsSettable knobs can be accepted by setQuerySettings; for all others the property holds

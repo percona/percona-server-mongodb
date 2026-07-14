@@ -1873,9 +1873,10 @@ StatusWith<PlanRankingResult> QueryPlanner::planWithCostBasedRanking(
     ce::SamplingEstimator* samplingEstimator,
     const ce::ExactCardinalityEstimator* exactCardinality,
     std::vector<std::unique_ptr<QuerySolution>> allSoln,
-    const CanonicalQuery& query) {
+    const CanonicalQuery& query,
+    QueryCBRCEModeEnum ceMode) {
     using namespace cost_based_ranker;
-    auto cbrMode = params.planRankerMode;
+    auto cbrMode = ceMode;
     EstimateMap estimates;
     const auto& collInfo = params.mainCollectionInfo;
     tassert(9969001, "CBR received incomplete catalog statistics", collInfo.collStats != nullptr);
@@ -1892,17 +1893,15 @@ StatusWith<PlanRankingResult> QueryPlanner::planWithCostBasedRanking(
     CostEstimate bestCost = maxCost;
     std::unique_ptr<QuerySolution> bestSoln;
     for (auto&& soln : allSoln) {
-        const auto& ceRes = cbrMode == QueryPlanRankerModeEnum::kExactCE
+        const auto& ceRes = cbrMode == QueryCBRCEModeEnum::kExactCE
             ? exactCardinality->calculateExactCardinality(*soln, estimates)
             : cardEstimator.estimatePlan(*soln);
         if (!ceRes.isOK()) {
             // This plan's cardinality cannot be estimated.
             numPlansFailedCostEstimation.increment();
-            if (cbrMode == QueryPlanRankerModeEnum::kAutomaticCE ||
-                ceRes.getStatus().code() == ErrorCodes::UnsupportedCbrNode) {
-                // We'll fallback to multi-planning for an inestimable plan if either:
-                // * We are in automatic CE mode
-                // * The reason for the inestimable plan was an unsupported node
+            if (ceRes.getStatus().code() == ErrorCodes::UnsupportedCbrNode) {
+                // Fallback to multi-planning when the reason for the inestimable plan was an
+                // unsupported node.
                 acceptedSoln.push_back(std::move(soln));
             } else {
                 // All other CE modes are considered "strict", that is, when a CE method couldn't
